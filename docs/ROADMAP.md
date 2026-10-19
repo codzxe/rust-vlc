@@ -3,8 +3,8 @@
 Authority chain: `docs/MASTER-PROMPT.md` (the brief) → this roadmap (program-level
 plan & decisions) → domain docs 01–15 (detail). Conflicts resolve upward.
 Statuses per MASTER-PROMPT §17: not_started, in_progress, implemented, verified,
-blocked. **Current status: Phase 0 in progress — wave 0.A (baseline pinning)
-launched 2026-10-19.**
+blocked. **Current status: Phase 0 COMPLETE — gate passed 2026-10-19 (tag
+`phase-0-gate`; report: docs/gates/phase0-exit-report.md). Phase 1 ready.**
 
 ## 1. Phase gates (MASTER-PROMPT §16)
 
@@ -45,6 +45,10 @@ from `docs/13-agent-wave-program.md` (200 cards / 77 waves).
 | D-008 | **ADR timing: ADR-001 (hw decode), ADR-002 (WASM runtime), ADR-003 (video-in-webview) all decided inside Phase 0** per §16; ADR-004 (OS webview) accepted-by-brief; ADR-005 (audio backend) at Phase 1 wave 1.C; ADR-006 (repo license) **decided 2026-10-19: MIT — see D-009** | Follows MASTER-PROMPT §16 Phase 0 gate. | doc 01 §7 ADR register. |
 | D-009 | **Repository license = MIT** (user decision 2026-10-19; `LICENSE`; `docs/decisions/ADR-006-license-mit.md`; closes risk R-05) | Maximal permissiveness, GPL-compatible ecosystem fit, matches the permissive-only dependency rule already enforced. Trade-off noted: no explicit patent grant (Apache-2.0 alternative considered); revisit only if patent exposure grows (ADR-010). | doc 11 §3 (allowlist license column now MIT-compat), §8.2; doc 14 R-05. |
 | D-010 | **R-07 closed: design package cleared per user attestation 2026-10-19** — open-source Figma Community design, no terms restriction | User statement; `design/figma/` remains the pinned visual source of truth for the fidelity program. Residuals: font identities remain [VERIFY] (exports are outlined); trademark wording rules (R-38-class) still govern shipped strings. | doc 14 R-07 closure log; doc 08 §2; `design/README.md`. |
+| D-011 | **ADR-011 (TLS/HTTPS) opened as proposed** — no production pure-Rust HTTPS stack exists (rustls→aws-lc/ring = C; native-tls = OpenSSL); decision due ≤ Phase 5 gate; no HTTPS dependency merges until decided | Phase 0 blind-spot found by 0.C3-I; affects Phase 6+ only. Options + interim posture in the ADR brief. | `docs/adr/ADR-011-tls-https.md`; doc 11 §6 (SEC-07); risk register R-44-class. |
+| D-012 | **doc 13 amendment due before Phase 5: add filter-implementation cards** (EQ/compressor/spatializer/stereowiden audio panels + colors/crop/essential video panels — all self-build S/M) | Gap found by 0.C3-I: doc 13 §7 Phase-5 waves contain no filter cards despite the design package requiring the panels. | doc 13 §7; doc 03 §4 filters; feasibility/sections/subsystems.md §4. |
+| D-013 | **doc 04 §4 "no pure-Rust H.264/HEVC decoder" is superseded by 0.C1-I finding** — a young 2026 wave exists (rusty_h264-decoder 0.16.1, rust_h264 0.4.0, rusty_h265, rusty_vp9; tarball-scanned pure, all self-validated) | Feeds ADR-001's conformance-gated software-adoption track; no status upgrade without passing our corpus+fuzz+differential kit. | `docs/feasibility/sections/video-codecs.md`; `docs/adr/ADR-001-hardware-decode.md` §2. |
+| D-014 | **ADR-001/002/003 accepted at Phase 0 gate** (hw-first H.264/HEVC + gated software track; wasmi WASM runtime; per-OS video-in-webview strategy) + Lead ratifications R-1..R-5 (Debian baseline package; expired-key GPG accepted as pin-sufficient; hardware-run owners assigned) | Per MASTER-PROMPT §16 Phase 0 mandate; evidence packs cited in each ADR. | `docs/adr/ADR-{001,002,003}*.md`; `docs/gates/phase0-exit-report.md`. |
 
 ## 4. Cross-doc reconciliation log (Wave 1)
 
@@ -57,6 +61,10 @@ from `docs/13-agent-wave-program.md` (200 cards / 77 waves).
 | Baseline dir naming | 02 vs 12 | D-007 |
 | `ts_ns` event timestamp proposal (doc 12 needs it for metrics) | 12 vs 05 | Accepted as [PROPOSAL] → Phase 1 command-layer card must include `ts_ns` in the envelope + `system.get-stats` decision (card 1.C scope note). |
 | Doc 09 written before doc 08 landed | 09 §12 flagged | Non-blocking; webview A/B matrix already cross-referenced; Phase 2 cards carry both. |
+| doc 04 "no pure-Rust H.264/HEVC" stale vs 0.C1-I finding | 04 §4 vs feasibility/video-codecs | D-013: superseded by 0.C1-I (young 2026 wave, conformance-gated track per ADR-001). |
+| Phase 5 has no filter-implementation cards | 13 §7 vs design package | D-012: Lead adds cards before Phase 5 launch. |
+| No pure-Rust HTTPS (planning blind-spot) | 11 §6 vs 0.C3-I finding | D-011: ADR-011 proposed; decision ≤ Phase 5 gate; interim no-merge posture. |
+| Symphonia WavPack crate is GPL-3.0 in MIT repo | 0.C2-I vs ADR-006 | License flag on the dependency allowlist; excluded or dual-compat reviewed at Phase 5 pin time. |
 
 ## 5. Open decisions for the user (escalation per MASTER-PROMPT §15)
 
@@ -69,22 +77,24 @@ from `docs/13-agent-wave-program.md` (200 cards / 77 waves).
 **Still open:**
 
 1. **Patent posture (ADR-010, doc 11 §8.4)** — shipping H.264/HEVC/AC-3/DTS
-   decode (even self-written) has patent considerations separate from source
-   licenses; jurisdiction-dependent; needs legal review before distribution.
-   Not blocking Phase 0; hard trigger is any binary-distribution plan.
-2. **Hardware-decode appetite (feeds ADR-001, decided in Phase 0.D)** — default
-   per §2 stands (software-first, OS decoders as audited exception) unless the
-   user tightens it to software-only (lower parity ceiling).
+decode (even self-written or OS-mediated) has patent considerations separate
+   from source licenses; jurisdiction-dependent; needs legal review before
+   distribution. Not blocking Phases 1–5; hard trigger is any
+   binary-distribution plan.
+
+*(Resolved at Phase 0 gate: hardware-decode appetite → ADR-001 accepted per
+§2 default, hw-first with truthful reporting; see D-014.)*
 
 ## 6. ADR index (register: doc 01 §7)
 
-ADR-001 hw decode (Phase 0) · ADR-002 WASM runtime (Phase 0) · ADR-003
-video-in-webview (Phase 0/2 prototype) · ADR-004 OS webview (accepted-by-brief) ·
+ADR-001 hw decode — **accepted 2026-10-19** (`docs/adr/ADR-001-hardware-decode.md`; hw-first H.264/HEVC + conformance-gated software track) · ADR-002 WASM runtime — **accepted: wasmi** (`docs/adr/ADR-002-wasm-runtime-wasmi.md`) ·
+ADR-003 video-in-webview — **accepted: per-OS strategy** (`docs/adr/ADR-003-video-in-webview.md`; prototype gates 2.D3/2.E2-V) · ADR-004 OS webview (accepted-by-brief) ·
 ADR-005 audio output backend (Phase 1) · ADR-006 repo license — **accepted: MIT,
 2026-10-19** (`docs/decisions/ADR-006-license-mit.md`) · ADR-007
 first-vertical formats (decided: D-001) · ADR-008 WebCodecs-as-hw-analog on web
 (Phase 7, feeds ADR-001) · ADR-009 DVD/Blu-ray per-title decisions (post-v1) ·
-ADR-010 patent shipping matrix (user + counsel).
+ADR-010 patent shipping matrix (user + counsel) · ADR-011 TLS/HTTPS —
+**proposed** (`docs/adr/ADR-011-tls-https.md`; decision ≤ Phase 5 gate).
 
 ## 7. Document index
 
@@ -111,8 +121,9 @@ ADR-010 patent shipping matrix (user + counsel).
 
 ## 8. Next action
 
-**Phase 0 is live (wave 0.A launched 2026-10-19)**: baseline pinning agents
-(0.A1 Windows, 0.A2 Linux, 0.A3 macOS) per doc 13 §3, writing to
-`docs/baselines/` (D-007). Wave 0.A4 consolidates the master pin record; then
-wave 0.B (options/modules/UI/formats inventories). Phase 0 ends at its gate
-(doc 02 §1.2) with ADR-001/002/003 decided and the feasibility report written.
+**Phase 0 complete (gate report: `docs/gates/phase0-exit-report.md`).**
+Next: **Phase 1 — Foundation** (doc 13 §4, waves 1.A–1.F, 20 cards) in
+dependency order: workspace + lints + CI skeleton → product.toml + schema +
+validator → settings-schema/localization/commands (ADR-005 decision at 1.C) →
+media-types + plugin-api (Lead-owned) → theme-tokens + keymaps + xtask →
+testkit v0 + boundary check + wasm CI job.

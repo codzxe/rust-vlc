@@ -626,3 +626,22 @@ Work Log:
 
 Stage Summary:
 - 0.D2 COMPLETE. docs/feature-matrix.toml frozen (schema_version 1) and populated: 252 rows, 21 categories, P0 61/252 (24.2%), 33 blocked rows with cited reasons, 0 verified (honest — no CI). THE parity instrument now exists; tools/feature-audit (1.E) enforces R1–R10 from Phase 1. Open for Lead: 7 questions in matrix-seed-notes §6 (top: Q1 P0-vs-ph7 adapter split under R2, Q2 doc 02 category pointer edit, Q3 not-selected ratification, Q5 P0 rubric confirmation).
+
+---
+Task ID: 0.D3 + 0.D4-V
+Agent: Lead
+Task: Feasibility report assembly; ADR-001/002/003 decisions; ADR-011 brief; Phase 0 gate review.
+
+Work Log:
+- Wrote docs/adr/ADR-001-hardware-decode.md (ACCEPTED: hw-first H.264/HEVC via E2 OS decoders with truthful active-decoder reporting; conformance-gated software-adoption track for the 2026 pure-Rust wave; parsers self-built; VA-API classified E2-conditional; WebCodecs = browser-API analog).
+- Wrote docs/adr/ADR-002-wasm-runtime-wasmi.md (ACCEPTED: wasmi; no-WASI; lumen:v1.* capability imports; 32-64 MiB/fuel/IO limits; crash isolation; nested-wasm spike for web).
+- Wrote docs/adr/ADR-003-video-in-webview.md (ACCEPTED: per-OS landing — A on macOS, A-or-B on Windows, B on Linux; engine strategy-agnostic; prototype gates 2.D3/2.E2-V; truthful path reporting).
+- Wrote docs/adr/ADR-011-tls-https.md (PROPOSED: no pure-Rust HTTPS today; 4 options; decision due <= Phase 5 gate).
+- Wrote docs/feasibility-report.md (assembly: baseline measured, codec/subsystem/platform verdicts, honest gap register top-7, parity ceiling statement, Phase 1 readiness).
+- Wrote docs/gates/phase0-exit-report.md (0.D4-V): 13/13 exit criteria PASS with evidence links; Lead ratifications R-1..R-5; new decisions D-011..D-014; top-5 carried risks; Phase 1 launch list.
+- Updated docs/ROADMAP.md: status = Phase 0 COMPLETE; D-011..D-014; ADR index (001/002/003 accepted, 011 proposed); reconciliation log +4 rows; open-decisions trimmed to patents only.
+
+Stage Summary:
+- PHASE 0 GATE: PASS. Tag phase-0-gate. 252-row feature matrix frozen; feasibility report + 4 ADRs decided; all inventories evidence-linked.
+- Phase 0 execution stats: 20 subagent launches, 15 clean completions, 5 context-deadline timeouts all salvaged (3 complete-files, 1 Lead-completed, 1 split-retry). 9 commits.
+- Next: Phase 1 — Foundation (doc 13 §4, waves 1.A-1.F, 20 cards).
