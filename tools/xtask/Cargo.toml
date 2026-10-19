@@ -1,0 +1,19 @@
+# THE LUMEN WORKSPACE TASK RUNNER (card 1.A3 — xtask v0).
+#
+# `cargo xtask <subcommand>` (alias in `.cargo/config.toml`) dispatches to the
+# modules under `src/cmd/`. The dispatch table in `src/main.rs` +
+# `src/cmd/mod.rs` is FROZEN after 1.A3: later cards implement their
+# pre-registered subcommand by editing ONLY their own `src/cmd/<name>.rs`
+# stub (each stub header names its owning card).
+#
+# v0 implements `gate` (doc 10 §2 local gate). Std-only by design: zero
+# external dependencies (C5 — nothing to approve, nothing to audit).
+
+[package]
+name = "xtask"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lints]
+workspace = true

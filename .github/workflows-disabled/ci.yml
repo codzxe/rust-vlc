@@ -1,0 +1,315 @@
+# Lumen CI — fast tier (GitHub Actions).
+#
+# Task 1.A2 (Wave 1.A, doc 13 §4). The cargo steps mirror the doc 10 §2.1
+# local-gate command table VERBATIM (gate/CI parity, doc 10 §10.4): what CI
+# runs and what `cargo xtask gate` runs are the same command strings. Doc 10
+# §2.1 commands 6-10 (UI / desktop shell / wasm) do not apply to the Phase-1
+# skeleton; they land with their owning cards (waves 1.B/1.E, 2.D).
+#
+# Toolchain: rust-toolchain.toml pins 1.99.1 + [rustfmt, clippy] (Lead-owned,
+# doc 10 §2.5). Every Rust job uses the dtolnay/rust-toolchain `1.99.1`
+# branch (SHA-pinned below) — that branch installs exactly 1.99.1 with no
+# inputs — and then runs the "Assert toolchain pin" step, which fails loudly
+# if rust-toolchain.toml, the pinned action, and the effective `rustc` ever
+# disagree (drift or a runner RUSTUP_TOOLCHAIN override; rustup env-var
+# precedence over toolchain files verified on rustup 1.29.1). Components come
+# from rust-toolchain.toml: rustup auto-installs file-declared components on
+# first use (verified on rustup 1.29.1).
+#
+# Runner labels: `-latest` per Lead instruction (1.A2 assignment). Doc 10
+# §4.1 proposes pinned labels (ubuntu-24.04 / windows-2025 / macos-15) as a
+# budget decision with doc 15 — switching is a one-line matrix edit. Note:
+# ubuntu-24.04 images ship NO preinstalled Rust/rustup (runner-images
+# Readmes, verified 2026-10-19), which is why the rust-toolchain action
+# (it bootstraps rustup when missing) is used instead of bare rustup steps.
+#
+# Action pins (versions resolved via `git ls-remote` on 2026-10-19; keep the
+# table in .github/workflows/README.md in sync when bumping):
+#   actions/checkout        v7.0.1  3d3c42e5aac5ba805825da76410c181273ba90b1
+#   dtolnay/rust-toolchain  1.99.1  d124f86f28ff42855784ff3319f48ac182c248f8
+#   Swatinem/rust-cache     v2.9.2  6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+#   actions/upload-artifact v7.0.2  cf430e030ddbb5b0abf93d22962f4752f3646cd9
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  # One run per branch/PR head (doc 10 §10.1); superseded PR runs are
+  # cancelled. `main` pushes and merge-queue runs are never cancelled.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  fmt:
+    name: fmt
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/ci.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - name: cargo fmt --all -- --check (doc 10 §2.1 #1)
+        run: cargo fmt --all -- --check
+
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install actionlint 1.7.12 (pinned version)
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf -o /tmp/download-actionlint.bash \
+            https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash
+          bash /tmp/download-actionlint.bash 1.7.12 /tmp
+      - name: Lint workflow files (doc 10 §10.5 pipeline self-check)
+        run: |
+          /tmp/actionlint -version
+          /tmp/actionlint
+
+  deps:
+    name: deps
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/ci.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: Assert Cargo.lock is fresh (doc 11 §3.7 - CI builds run --locked)
+        run: cargo metadata --format-version 1 --locked > cargo-metadata.json
+      - name: Record dependency tree (doc 10 §2.1 #5 + §2.3 auditors' edges)
+        run: |
+          cargo tree --workspace > deps-tree.txt
+          cargo tree --workspace --edges normal,build,dev > deps-tree-full.txt
+      - name: Upload deps evidence (doc 10 §4.5)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: evidence-deps-ubuntu-latest-${{ github.run_id }}
+          path: |
+            cargo-metadata.json
+            deps-tree.txt
+            deps-tree-full.txt
+          retention-days: 90
+
+  check:
+    name: check (${{ matrix.os }})
+    strategy:
+      # doc 10 §4.2: one OS failing must not hide the other two.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/ci.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: cargo check (doc 10 §2.1 #2)
+        run: cargo check --workspace --all-targets --all-features
+
+  clippy:
+    name: clippy (${{ matrix.os }})
+    strategy:
+      # doc 10 §4.2: one OS failing must not hide the other two.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/ci.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: cargo clippy (doc 10 §2.1 #3)
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  test:
+    name: test (${{ matrix.os }})
+    # doc 10 §4.2 ordering rule: cheap high-signal jobs first - a failed
+    # check skips the 3-OS test matrix instead of burning its minutes.
+    needs: [fmt, check]
+    strategy:
+      # doc 10 §4.2: one OS failing must not hide the other two.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/ci.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: cargo test (doc 10 §2.1 #4)
+        run: cargo test --workspace --all-features
+
+  # --------------------------------------------------------------------------
+  # STUB — activates in 1.E1. NON-BLOCKING until then: the job runs but its
+  # placeholder step always exits 0, so it is always green and gates nothing
+  # (actionlint rejects `if: false` constant conditions, doc 10 §10.5 wins).
+  # `continue-on-error: false` is set NOW so that activation — 1.E1 replaces
+  # the placeholder step with `cargo xtask check-architecture`, adds toolchain
+  # + rust-cache steps, and drops the [STUB] suffix — makes the job blocking.
+  # Do NOT add this check to required checks until activated. Gate id: G5
+  # (doc 10 §4.6); spec: doc 01 §5.
+  # --------------------------------------------------------------------------
+  boundary-check:
+    name: boundary-check [STUB until 1.E1 — always green, gates nothing]
+    continue-on-error: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: "STUB: boundary-check placeholder (activates in 1.E1)"
+        run: |
+          echo "STUB: boundary-check is not enforced yet (doc 10 §4.6 G5; doc 01 §5)."
+          echo "STUB: 1.E1 replaces this step with 'cargo xtask check-architecture'."
+          exit 0
+
+  # --------------------------------------------------------------------------
+  # STUB — activates in 1.E2. NON-BLOCKING until then: the job runs but its
+  # placeholder step always exits 0 (always green, gates nothing; actionlint
+  # rejects `if: false` constant conditions). 1.E2 (which owns
+  # .github/workflows/* per doc 13 §4) replaces the placeholder with the real
+  # schema-validation steps (G1, doc 10 §4.6): `cargo xtask config-validator`
+  # for product.toml / settings schema / keymaps / locales, plus
+  # `tools/feature-audit` for the feature matrix (G6), and the config-
+  # propagation job per doc 07 §9 C1-C5; then drops the [STUB] suffix.
+  # Do NOT add this check to required checks until activated.
+  # --------------------------------------------------------------------------
+  schema-validation:
+    name: schema-validation [STUB until 1.E2 — always green, gates nothing]
+    continue-on-error: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: "STUB: schema-validation placeholder (activates in 1.E2)"
+        run: |
+          echo "STUB: schema-validation is not enforced yet (doc 10 §4.6 G1/G6; doc 07 §9)."
+          echo "STUB: 1.E2 replaces this step with 'cargo xtask config-validator' etc."
+          exit 0
+
+  # --------------------------------------------------------------------------
+  # STUB — activates in 1.E3. NON-BLOCKING until then: the job runs but its
+  # placeholder step always exits 0 (always green, gates nothing; actionlint
+  # rejects `if: false` constant conditions). 1.E3 owns
+  # .github/workflows/wasm.yml (doc 13 §4): it may either activate this job
+  # in place (replace the placeholder with `rustup target add
+  # wasm32-unknown-unknown` + `cargo build -p <canary> --target
+  # wasm32-unknown-unknown` + size-report artifact, G12 doc 10 §4.6, drop the
+  # [STUB] suffix) or land the dedicated wasm.yml and delete this stub —
+  # Lead decides at wiring time.
+  # Do NOT add this check to required checks until activated.
+  # --------------------------------------------------------------------------
+  wasm-build:
+    name: wasm-build [STUB until 1.E3 — always green, gates nothing]
+    continue-on-error: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: "STUB: wasm-build placeholder (activates in 1.E3)"
+        run: |
+          echo "STUB: wasm-build is not enforced yet (doc 10 §4.6 G12; doc 09 §2)."
+          echo "STUB: 1.E3 replaces this step (or lands wasm.yml and deletes this stub)."
+          exit 0
+
+  # --------------------------------------------------------------------------
+  # STUB — activates in 1.E5. NON-BLOCKING until then: the job runs but its
+  # placeholder step always exits 0 (always green, gates nothing; actionlint
+  # rejects `if: false` constant conditions). 1.E5 replaces the placeholder
+  # with the audits chain (G3/G4, doc 10 §4.6; doc 11 §3.6): `cargo deny
+  # check licenses sources bans advisories` against deny.toml + the
+  # allowlist, then drops the [STUB] suffix. Requires deny.toml (1.E5's
+  # file) — does not exist yet.
+  # Do NOT add this check to required checks until activated.
+  # --------------------------------------------------------------------------
+  cargo-deny:
+    name: cargo-deny [STUB until 1.E5 — always green, gates nothing]
+    continue-on-error: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: "STUB: cargo-deny placeholder (activates in 1.E5)"
+        run: |
+          echo "STUB: cargo-deny is not enforced yet (doc 10 §4.6 G3/G4; doc 11 §3.6)."
+          echo "STUB: 1.E5 replaces this step with 'cargo deny check ...'."
+          exit 0

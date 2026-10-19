@@ -1,0 +1,15 @@
+# Lumen cargo configuration (card 1.A3).
+#
+# Single purpose: the `cargo xtask` alias of doc 10 §2.2, so the workspace
+# task runner is invocable from anywhere in the repo:
+#
+#     cargo xtask gate           # full local gate (doc 10 §2)
+#     cargo xtask gate --dry-run # show the table, execute nothing
+#     cargo xtask help           # subcommand table
+#
+# Keep this file minimal: anything that affects builds (flags, env, target
+# configuration, replacement of cargo itself) is a Lead decision, not an
+# xtask concern.
+
+[alias]
+xtask = "run -p xtask --"
