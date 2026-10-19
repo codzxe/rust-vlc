@@ -1,0 +1,22 @@
+# THE LUMEN CRATE TEMPLATE (task 1.A1).
+#
+# To create a new crate:
+#   1. `cp -r crates/_template crates/<crate-name>`
+#   2. Edit `[package] name` below (keep `publish = false` until the Lead
+#      decides otherwise) and KEEP `[lints] workspace = true` — it is
+#      mandatory (doc 10 §3.2: every crate inherits the workspace lint
+#      policy; no overrides, no lowering).
+#   3. Delete the template-only canary proof artifacts: `build.rs`,
+#      `src/lint_canary.rs`, and the `#[cfg(lint_canary)]` module
+#      declaration in `src/lib.rs`.
+#   4. Replace `template_marker()` and `tests/smoke.rs` with the crate's
+#      real responsibility, interface and tests (MP §4: no empty scaffolds).
+
+[package]
+name = "template"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lints]
+workspace = true

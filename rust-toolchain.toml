@@ -1,0 +1,11 @@
+# Lumen toolchain pin (task 1.A1; doc 10 §2.5 — Lead-owned).
+# Verified on the Phase-1 host (2026-10-19):
+#   rustc 1.99.1 (58cf8f9c3 2026-10-13), cargo 1.99.1,
+#   rustfmt 1.10.0-stable (58cf8f9c35 2026-10-13), clippy 0.1.99.
+# `profile`/`components` guarantee the doc 10 §2 gate tools (fmt, clippy)
+# are present on a fresh rustup install of this toolchain.
+
+[toolchain]
+channel = "1.99.1"
+profile = "minimal"
+components = ["rustfmt", "clippy"]

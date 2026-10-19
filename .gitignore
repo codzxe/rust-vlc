@@ -59,3 +59,8 @@ agent-ctx/
 *.snap
 *.flatpak
 tool-results/
+
+# Rust workspace (task 1.A1): Cargo.lock is COMMITTED — application
+# workspace; doc 11 §3.7: "Cargo.lock is committed; builds are --locked in
+# CI". Never add Cargo.lock to this ignore file. Build outputs already
+# covered by `target/` above.
