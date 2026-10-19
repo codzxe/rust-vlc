@@ -1,2 +1,60 @@
-skills/
+# Rust
+target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# Node / UI
 node_modules/
+dist/
+.next/
+*.tsbuildinfo
+ui/dist/
+ui/coverage/
+
+# WASM
+apps/web/pkg/
+**/pkg/
+
+# Env & secrets
+.env
+.env.*
+*.pem
+*.key
+secrets/
+
+# Logs & temp
+*.log
+logs/
+tmp/
+.cache/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Tooling scratch (agent workspaces)
+worktrees/
+*.pid
+
+# Environment dirs that are not project content
+skills/
+upload/
+download/
+agent-ctx/
+
+# Build artifacts
+*.app/
+*.dmg
+*.msi
+*.exe
+*.deb
+*.rpm
+*.snap
+*.flatpak

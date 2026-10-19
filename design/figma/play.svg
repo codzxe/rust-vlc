@@ -1,0 +1,22 @@
+<svg width="94" height="116" viewBox="0 0 94 116" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="play">
+<rect x="0.5" y="0.5" width="93" height="115" rx="4.5" stroke="#8A38F5" stroke-dasharray="10 5"/>
+<g id="type=play">
+<rect x="20" y="20" width="54" height="28" rx="6" fill="#D37918"/>
+<g id="Icon">
+<g id="Frame">
+<path id="Vector 16" d="M44 38.9554V29.0446C44 28.2125 44.9571 27.7444 45.6139 28.2553L51.9851 33.2106C52.4999 33.611 52.4999 34.389 51.9851 34.7894L45.6139 39.7447C44.9571 40.2556 44 39.7875 44 38.9554Z" fill="#161616" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" stroke="#161616"/>
+</g>
+</g>
+</g>
+<g id="type=pause">
+<rect x="20" y="68" width="54" height="28" rx="6" fill="#6B6B6B"/>
+<g id="Icon_2">
+<g id="Frame 16">
+<path id="Vector 17" d="M43 87V77H45V87H43Z" fill="#0E0E0E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" stroke="#0E0E0E"/>
+<path id="Vector 16_2" d="M49 87V77H51V87H49Z" fill="#161616" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" stroke="#161616"/>
+</g>
+</g>
+</g>
+</g>
+</svg>
