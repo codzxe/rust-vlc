@@ -15,7 +15,7 @@ commercial use** (risk R-07, docs/14-risk-register.md).
 | Player — hide UI | `Player - hide UI.svg` | Unobtrusive/hidden controls state |
 | Player — customize | `Player - customize.svg`, `-1..8` | Customize panel states |
 | Miniplayer | `Miniplayer.svg` | Compact player |
-| Settings | global(-1), interface(-1), privacy, playback(-1), video(-1), audio(-1), subtitles(-1), controls, library, network, performance, recording, extensions | 14 settings areas — direct input for settings-schema UI placement |
+| Settings | global(-1), interface(-1), privacy, playback(-1), video(-1), audio(-1), subtitles(-1), controls, library, network, performance, recording, extensions | 13 settings areas (the `-1` variants are states of the same area) — direct input for settings-schema UI placement; count confirmed by decision D-002 |
 | Audio tools | `Audio - Equalizer.svg`, `EQ.svg`, `EQ presets.svg`, `Audio - Compressor Settings.svg`, `Audio - Spatializer Settings.svg`, `Audio - Stereo Widener.svg`, `Audio Visualizer.svg`, `audio value.svg` | |
 | Video tools | `Video - Colors.svg`, `Video - Crop.svg`, `Video - Essential.svg`, `HDR Options.svg` | |
 | Playlists | `playlist.svg`, `new playlist.svg`, `Add Subtitles to Playlist/Folder*.svg` (4), `subtitle one/multiple.svg`, `sub filename.svg`, `thumbnail.svg`, `media.svg`, `Sorting Options.svg`, `View Options.svg` | |

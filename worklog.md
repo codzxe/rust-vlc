@@ -264,3 +264,20 @@ Work Log:
 Stage Summary:
 - docs/13-agent-wave-program.md delivered: 200 launch-ready task cards in 77 waves across Phases 0–8, all S/M (L forbidden pre-launch), fully traced to MASTER-PROMPT §15/§16/§17 and docs 01–12.
 - Lead decisions requested (§13 open questions + §5): ratify Task-ID grammar supersession and not-selected status; AVI-vs-MP4 pick before wave 2.B; rework-factor confirmation; ad-hoc fix cards in Phase 8.
+
+---
+Task ID: 1.LEAD-FINAL
+Agent: Lead
+Task: Consolidate Wave 1 planning into docs/ROADMAP.md; resolve cross-doc conflicts; close planning phase.
+
+Work Log:
+- Reviewed all 15 domain docs (spot-checks + agent reports; no leftover CONT markers).
+- Wrote docs/ROADMAP.md: phase gates 0-8 with exit-gate evidence, wave program summary (200 cards / 77 waves), decision register D-001..D-008, cross-doc reconciliation log, user-escalation list, ADR index, doc index.
+- Lead decisions: D-001 first vertical = AVI+MJPEG+PCM; D-002 settings areas = 13; D-003 keymaps = VLC-3.0.23-observed baseline overridden by design package; D-004 PluginKind = 16; D-005 Task-ID grammar + not-selected status ratified; D-006 "Lumen" placeholder pending trademark check; D-007 docs/baselines/ naming; D-008 ADR timing.
+- Corrected design/README.md settings-area count (14 -> 13).
+- Committed Wave 1 and tagged.
+
+Stage Summary:
+- Planning phase COMPLETE: 16 governance/plan docs + pinned design package + 17 worklog agent records; all committed on main.
+- Wave 1 execution stats: 16 planning agents launched, 15 completed on first attempt, 1 (1.A2) timed out post-write and was salvaged by Lead verification.
+- Next: Phase 0 wave 0.A launch (baseline pinning + inventory), pending user decisions on ADR-006 license, R-07 Figma terms, patent posture, ADR-001 appetite.
