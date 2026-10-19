@@ -1,0 +1,11 @@
+# VLC 3.0.23 pin — raw dump 07: --list-plugins flag attempt (HONEST FAILURE RECORD)
+# Date: 2026-10-19 12:02 UTC
+# Task card 0.A2 asked for a --list-plugins dump. On VLC 3.0.23 this flag does NOT exist
+# (it is a VLC 4.x flag). The 3.0.x equivalents are --list and --list-verbose (dumps 05/06).
+# $ $ ./usr/bin/vlc --list-plugins
+vlc: unknown option or missing mandatory argument `--list-plugins'
+Try `vlc --help' for more information.
+# exit=1 (note: vlc returns nonzero-with-message via usage error path)
+# ---- confirmation from --help ----
+  -l, --list, --no-list          print a list of available modules
+                                 (default disabled)

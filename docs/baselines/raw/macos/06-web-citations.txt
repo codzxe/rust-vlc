@@ -1,0 +1,58 @@
+# Raw evidence 06 — official web citations (fetched 2026-10-19, UTC)
+# Agent: 0.A3. Fetched with curl; quotes below are verbatim text extracted from the fetched HTML
+# (tag-stripped; whitespace normalized). Page copies live only in gitignored tmp/pinning/.
+
+=== SOURCE 1: release announcement ===
+URL: https://www.videolan.org/vlc/releases/3.0.23.html
+fetch: curl -sS -L --max-time 60 -o release-3.0.23.html <URL>  -> exit=0, 44,250 bytes
+<title>: "VLC 3.0.23 Vetinari - VideoLAN"
+Verbatim quotes:
+- "VLC 3.0.23 is the twenty-fourth version of the \"Vetinari\" branch of our popular media player."
+- "VLC 3.0.23 is the twenty-fourth update of \"Vetinari\":"
+(The page itself carries no explicit publish date; the date comes from SOURCE 2.)
+
+=== SOURCE 2: VideoLAN news index (release dates) ===
+URL: https://www.videolan.org/news.html
+fetch: curl -sS -L --max-time 60 -o news.html <URL>  -> exit=0
+Verbatim quotes (adjacent date + headline lines):
+- "VLC 3.0.24 / 2026-09-22"
+  "VLC 3.0.24 is a major security update, with over 130 security fixes across VLC and its bundled
+   libraries. It upgrades FF[mpeg]..." [3.0.24 exists — drift risk already recorded in doc 02 §2.5]
+- "VLC 3.0.23 / 2026-01-08"
+  "VideoLAN and the VLC team are publishing the 3.0.23 release of VLC today, which is the 24th
+   update to VLC's 3.0 branch:"
+  -> RELEASE DATE OF THE PINNED VERSION: 2026-01-08 (matches MASTER-PROMPT §1 "released 2026-01-08").
+- "VLC for iOS, iPadOS and tvOS 3.7.0 / 2026-01-08" (companion mobile release, same day)
+
+=== SOURCE 3: official macOS download page (current state) ===
+URL: https://www.videolan.org/vlc/download-macosx.html
+fetch: curl -sS -L --max-time 60 -o download-macosx.html <URL>  -> exit=0, 42,822 bytes
+<title>: "Official Download of VLC media player for Mac OS X - VideoLAN"
+Verbatim quotes:
+- "VLC media player requires Mac OS X 10.7.5 or later. It runs on any Mac with a 64-bit Intel
+   processor or an Apple Silicon chip. Previous devices are supported by older rel[eases]."
+- Current download links offered by this page (i.e. for 3.0.24, NOT 3.0.23 — drift confirmed):
+  //get.videolan.org/vlc/3.0.24/macosx/vlc-3.0.24-intel64.dmg    "VLC for Macs with Intel processors"
+  //get.videolan.org/vlc/3.0.24/macosx/vlc-3.0.24-arm64.dmg      "VLC for Macs with Apple Silicon chips"
+  //get.videolan.org/vlc/3.0.24/macosx/vlc-3.0.24-universal.dmg  "VLC for Mac (Universal Binary)"
+- The same page also links historical/legacy dmg releases (2.2.8, 2.0.10 intel32/powerpc,
+  0.9.10, 0.8.x ...), demonstrating the archive-tree convention used above.
+
+=== SOURCE 4: archive trees used for this pin (directory listings) ===
+URL A: https://get.videolan.org/vlc/3.0.23/macosx/          (raw evidence 01, full verbatim listing)
+URL B: https://download.videolan.org/pub/videolan/vlc/3.0.23/macosx/  (identical content, full listing
+       also recorded in raw evidence 01)
+Both list exactly: vlc-3.0.23-{arm64,intel64,universal}.dmg (+ .asc/.md5/.sha1/.sha256 sidecars).
+No .sha512 sidecar, no .pkg, no .zip for macOS in this tree.
+
+=== DISCREPANCY LOG (honest record) ===
+D1. Task card 0.A3 and doc 13 §3 use path segment "macos/"; the official trees use "macosx/".
+    "https://download.videolan.org/pub/videolan/vlc/3.0.23/macos/" returns nginx 404 (verbatim
+    body recorded in raw evidence 01). Corrected URL used everywhere.
+D2. videolan.org front-door download page now serves 3.0.24 (published 2026-09-22); the pinned
+    3.0.23 remains available only via the archive URLs above. Baseline stays 3.0.23 per MP §1
+    and doc 02 §2.5 (re-pinning = Lead decision).
+D3. The 3.0.23 release page has no explicit date; date 2026-01-08 comes from the news index
+    (SOURCE 2) and agrees with MASTER-PROMPT §1.
+D4. Signing key "VideoLAN Release Signing Key (2018)" is reported EXPIRED by gpg even though the
+    signatures verify as Good (see raw evidence 05 for full output + caveats).

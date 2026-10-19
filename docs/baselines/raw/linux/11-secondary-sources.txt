@@ -1,0 +1,27 @@
+# VLC 3.0.23 pin — raw dump 11: secondary sources (Flathub, snapshot.debian.org)
+# Date: 2026-10-19 12:04 UTC | Recorded by: agent 0.A2
+
+## Flathub org.videolan.VLC (doc 02 §2.2 secondary pin candidate)
+# $ curl -s https://flathub.org/api/v2/appstream/org.videolan.VLC  [HTTP 200]
+# Extracted fields (verbatim JSON values):
+  "name": "VLC"
+  "summary": "VLC media player, the open-source multimedia player"
+  stable release: version "3.0.23", timestamp 1767225600 (= 2026-01-01T00:00:00Z)
+# => Flathub carries exactly 3.0.23 as stable today. NOT installed/run in sandbox
+#   (no flatpak, no root). [VERIFY: flathub build id/commit hash if it ever becomes the pin].
+
+## snapshot.debian.org (permanent archive fallback for the Debian pin)
+# $ curl -s -o /dev/null -w "%{http_code}" https://snapshot.debian.org/package/vlc/3.0.23-0+deb13u1/
+# -> HTTP 509 "This request has been blocked by administrative policy: abusive network requests."
+# HONEST RESULT: snapshot.debian.org is NOT reachable from this sandbox (rate-limit block,
+# likely shared egress IP). The fallback URL is recorded but unverified from here:
+#   https://snapshot.debian.org/package/vlc/3.0.23-0+deb13u1/   [VERIFY on next run]
+
+## Ubuntu series check (Launchpad API) — why the doc 02 §2.2 default "Ubuntu 24.04 LTS" is unusable
+# $ for s in noble plucky questing; do curl -s "https://api.launchpad.net/1.0/ubuntu/+archive/primary?ws.op=getPublishedBinaries&binary_name=vlc&exact_match=true&status=Published&distro_arch_series=https://api.launchpad.net/1.0/ubuntu/$s/amd64" ; done
+# (python-parsed set of binary_package_version values; queried 2026-10-19)
+noble (24.04 LTS):    3.0.20-3build6
+plucky (25.04):       3.0.21-9build1
+questing (25.10):     3.0.21-11
+# => No current Ubuntu series ships VLC 3.0.23. Debian 13 (trixie) main DOES ship exactly
+#    3.0.23-0+deb13u1 (dump 01/02). Ubuntu 26.04 (resolute, in development): not checked [VERIFY if ever needed].

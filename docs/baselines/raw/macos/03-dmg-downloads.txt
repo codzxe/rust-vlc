@@ -1,0 +1,43 @@
+# Raw evidence 03 — dmg downloads (attempt + result), file identification
+# Date (UTC): 2026-10-19. Agent: 0.A3.
+# Working dir: /home/z/my-project/tmp/pinning/ (gitignored via `tmp/` rule; binaries never committed).
+# Note: task card's probe URL used path segment "macos/" which 404s (see raw evidence 01);
+# corrected path "macosx/" used below. --max-time 240 bound honored; no retry needed (first attempt
+# succeeded for every file — zero failures).
+
+=== COMMAND (arm64; first attempt, succeeded) ===
+time curl -L --max-time 240 -o vlc-3.0.23-arm64.dmg \
+  "https://download.videolan.org/pub/videolan/vlc/3.0.23/macosx/vlc-3.0.23-arm64.dmg"
+=== RESULT ===
+exit=0. Duration: real 0m31.030s (avg ~1.6 MB/s). Final size: 51,273,389 bytes.
+curl progress meter final line: "100 48.8M 100 48.8M 0 0 1614k 0 0:00:31 0:00:30 1735k"
+
+=== COMMAND (intel64; first attempt, succeeded) ===
+time curl -sS -L --max-time 240 -o vlc-3.0.23-intel64.dmg \
+  "https://download.videolan.org/pub/videolan/vlc/3.0.23/macosx/vlc-3.0.23-intel64.dmg"
+=== RESULT ===
+exit=0. Duration: real 0m34.699s. Final size: 57,544,217 bytes.
+
+=== COMMAND (universal; first attempt, succeeded) ===
+time curl -sS -L --max-time 240 -o vlc-3.0.23-universal.dmg \
+  "https://get.videolan.org/vlc/3.0.23/macosx/vlc-3.0.23-universal.dmg"
+=== RESULT ===
+exit=0. Duration: real 0m2.319s. Final size: 89,124,160 bytes.
+
+=== SIZE CROSS-CHECK vs directory listings (raw evidence 01) ===
+arm64     listing 51,273,389  / on disk 51,273,389  -> match
+intel64   listing 57,544,217  / on disk 57,544,217  -> match
+universal listing 89,124,160  / on disk 89,124,160  -> match
+
+=== FILE IDENTIFICATION (Linux `file` + UDIF trailer check) ===
+COMMAND: file vlc-3.0.23-arm64.dmg vlc-3.0.23-intel64.dmg vlc-3.0.23-universal.dmg
+RESULT:
+vlc-3.0.23-arm64.dmg:     bzip2 compressed data, block size = 100k
+vlc-3.0.23-intel64.dmg:   bzip2 compressed data, block size = 100k
+vlc-3.0.23-universal.dmg: bzip2 compressed data, block size = 100k
+COMMAND: tail -c 512 <dmg> | od -A none -c | head -1   (for each dmg)
+RESULT: each dmg's last 512 bytes begin with the magic "koly" — i.e. all three are
+Apple UDIF disk images (bzip2-compressed payload), not HTML error pages.
+  arm64 koly:    k o l y \0 \0 \0 004 \0 \0 002 \0 \0 \0 \0 001
+  intel64 koly:  k o l y \0 \0 \0 004 \0 \0 002 \0 \0 \0 \0 001
+  universal koly:k o l y \0 \0 \0 004 \0 \0 002 \0 \0 \0 \0 001

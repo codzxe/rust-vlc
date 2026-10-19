@@ -1,0 +1,75 @@
+# VLC 3.0.23 pin — raw dump 03: support libraries for the extracted (non-installed) run
+# Date: 2026-10-19 12:03 UTC
+# The sandbox is a minimal headless container; vlc-plugin-base's optional/recommended
+# library deps are absent, so 43/372 plugin .so files had unsatisfied DT_NEEDED entries.
+# Fix: apt-get download each library package (same signed trixie archive), dpkg-deb -x into
+# the same tree, run with LD_LIBRARY_PATH=usr/lib/x86_64-linux-gnu:usr/lib/x86_64-linux-gnu/vlc.
+# Soname->package names resolved via the official Contents index:
+#   https://deb.debian.org/debian/dists/trixie/main/Contents-amd64.gz (fetched to tmp/ only)
+
+## Round 1 (first attempt, names guessed — HONEST FAILURE: apt-get download is all-or-nothing,
+## it aborted with these errors and downloaded nothing):
+E: Can't select candidate version from package libmtp9 as it has no candidate
+E: Can't select candidate version from package libspatialaudio0 as it has no candidate
+E: Can't select candidate version from package libaribb24-0 as it has no candidate
+E: Can't select candidate version from package liblirc-client0 as it has no candidate
+E: Unable to locate package libtag1v5
+E: Can't select candidate version from package libupnp17 as it has no candidate
+E: Can't select candidate version from package libprotobuf-lite32 as it has no candidate
+E: Can't select candidate version from package aalib1 as it has no candidate
+
+## Contents-index resolution (zcat Contents-amd64.gz | rg 'usr/lib/x86_64-linux-gnu/<soname> '):
+libmtp.so.9 -> libs/libmtp9t64            libspatialaudio.so.0 -> libs/libspatialaudio0t64
+libaribb24.so.0 -> libs/libaribb24-0t64   liblirc_client.so.0 -> libs/liblirc-client0t64
+libtag.so.2 -> libs/libtag2               libixml.so.11 -> libs/libixml11t64
+libupnp.so.17 -> libs/libupnp17t64        libprotobuf-lite.so.32 -> libs/libprotobuf-lite32t64
+libresid-builder.so.0 -> libs/libresid-builder0c2a   libsidplay2.so.1 -> libs/libsidplay2
+libopenmpt_modplug.so.1 -> libs/libopenmpt-modplug1  libaa.so.1 -> libs/libaa1
+
+## Round 2 per-package loop — all OK (30 packages):
+libmtp9t64 libcddb2 libdvbpsi10 libnfs14 libshout3 libmad0 libspatialaudio0t64 libspeexdsp1
+libaribb24-0t64 libfaad2 libkate1 liblirc-client0t64 libxcb-keysyms1 libebml5 libmatroska7
+libopenmpt-modplug1 libmpcdec6 libsecret-1-0 liblua5.2-0 libtag2 libupnp17t64 libixml11t64
+libprotobuf-lite32t64 libaa1 libegl1 libgles2 libva-wayland2 libxcb-xv0 libresid-builder0c2a libsidplay2
+## Round 3 (rescan found 2 more): libtheora0 libncurses6 — OK
+
+## Final plugin dependency scan (all 372 plugin .so files ldd-checked):
+PLUGINS=372 MISSING=0   (was: 372/43 missing before support libs)
+Transitive check over ALL extracted libs: TRANSITIVE_MISSING=0
+
+## These 32 support-lib .debs are NOT part of the pinned oracle definition; they only make the
+## un-installed extraction runnable on this minimal container. A root-installed reference machine
+## would get them via apt Depends/Recommends automatically. Their SHA256s (computed) for the record:
+104ae4e0d63a40491d2ce6b04d389e246d841bbb09f0e5228de144c0dcdc5560  libaa1_1.4p5-51.1+b1_amd64.deb
+ae84f3e5f53e304cf0addca456419f996597c9828117f6f99d84d5432c32825f  libaribb24-0t64_1.0.3-2.1+b2_amd64.deb
+7a523cf8f854875b635420eb5df391a195d61d776adc6c5ec1f83fafedfa1234  libcddb2_1.3.2-7.1_amd64.deb
+112f29b9a7c5fcd8b7f316c879e94fecba6ba6576f8ac9bea858b7e704bff456  libdvbpsi10_1.3.3-1+b2_amd64.deb
+4e0727c7b54394388e9f5257a40d268ad6c615e9848a675528fc5795d21f97a8  libebml5_1.4.5-1+b1_amd64.deb
+62e7bc8ccd47a60e55aad17f83d8d474310d782eb8589bbce2ab714c31712406  libegl1_1.7.0-1+b2_amd64.deb
+704c52b3f5c44e40a92eddad6c017ce892909702d0c3ee2c9b2eb2423ec38d3c  libfaad2_2.11.2-1_amd64.deb
+e12c18aa77939d122ee1dea520ba0440b97dc19200b7396e03dff03a3ece74c1  libgles2_1.7.0-1+b2_amd64.deb
+0f2760f8344f0568c1891f87cdd49a4eb5b6ddac0605a259a72d271f37c690ed  libixml11t64_1%3a1.14.20-1+deb13u1_amd64.deb
+fdddf9d3150867de2bfc7195e8cd19a522fc04c755eae8df7134670148c0eb91  libkate1_0.4.3-1_amd64.deb
+f322d23cdaa15b992c33461b099258535e83b31764b2db88fec0400de08a2c25  liblirc-client0t64_0.10.2-0.10_amd64.deb
+94315c693da499bb61ee613741f286547f24c3c96dea39496ba5306cddce2087  liblua5.2-0_5.2.4-3+b3_amd64.deb
+2670b1ddb61e805a165f43bc4c81a2781fe042584139d32c8b27f4df2bd6a399  libmad0_0.15.1b-11+b1_amd64.deb
+c0e57f51e68bd46f9dcfcd54f6533196dd56cf34e53ffa087bf4a5f751cc1b06  libmatroska7_1.7.1-1+b2_amd64.deb
+11ffbd8cb8c069646676e570bc7c3dae946f71a7c902e653b2d48149cae7be21  libmpcdec6_2%3a0.1~r495-3_amd64.deb
+7ef1aa4fb9b6c2006f1949759c3abf39fd4d5e9f629d9d611c6d391eea4ce478  libmtp9t64_1.1.22-1_amd64.deb
+e00cbcc8c0826993f881f492c05f33ba8d79b5375dc5a2ab59c82e0c7b9179a9  libncurses6_6.5+20250216-2_amd64.deb
+a8c430428c3cf8cecc66be6a03ba292c85c1ad20d557dfb798fb5f95758e9e3e  libnfs14_5.0.2-1+deb13u1_amd64.deb
+8dc39d9ce88e0dac694ae0e99261306520b0624ebda14e07b7247fc8eabe2d1f  libopenmpt-modplug1_0.8.9.0-openmpt1-2+b3_amd64.deb
+74ed82b17475a1411ac79b27bd8b0223b3727d55660f77b8a5f6d5598e2dd7c2  libprotobuf-lite32t64_3.21.12-11+deb13u1_amd64.deb
+0760cb400d23c89267c67ecb09a8ad4dfff2826a7d13c35821b6d0bd775b968a  libresid-builder0c2a_2.1.1-16_amd64.deb
+949c5428cd3427486ac6c4dfc6d9400ce786c504c02334acc903c873aa52d14f  libsecret-1-0_0.21.7-1_amd64.deb
+088e579661be39beef9d5f250f487500b5b99e322c8a4c1444d8932b980224b2  libshout3_2.4.6-1+b3_amd64.deb
+4dde353bdaf357074745055a05b1591fdaa99b0349686c06f9373ce36e4b1ac1  libsidplay2_2.1.1-16_amd64.deb
+67b914420a11f1b103b3bbc7dd5192552a176e1cb8aa3c7b19f47c6277fbddde  libspatialaudio0t64_0.3.0+git20180730+dfsg1-2.1+b1_amd64.deb
+4f0f6fc83b2f9fbb85b5a1c1470033979bbcd4c72d2177fea98a55f014c4391e  libspeexdsp1_1.2.1-3_amd64.deb
+68d986485c5f79971b8bf4dfe39a378b3457c6493dd2e6bc1416f9a242dcfb64  libtag2_2.0.2-2_amd64.deb
+a1fe9b1135718f62b5bb22484a8c5af2a0729a548bf29122e37cba236bb43f11  libtheora0_1.2.0~alpha1+dfsg-6_amd64.deb
+714854ed737feae46647fae0cc8dcdce44e40647b2ffdb7f313b642b766c0942  libupnp17t64_1%3a1.14.20-1+deb13u1_amd64.deb
+0ed2b236615b7dabee911e66152b3fb61572e6305811a9646cb4ef9828e3b78e  libva-wayland2_2.22.0-3_amd64.deb
+6989138382e5b9966aa731db68f851858c1d40cf8c98d7e5d7952c9e5a09d710  libxcb-keysyms1_0.4.1-1_amd64.deb
+01a1d8d4615e955b0d43a1c8ae4174a8490955fb1ee8eb5fffa1d3e52ab0f54e  libxcb-xv0_1.17.0-2+b1_amd64.deb
+# Total downloaded: 8 pinned VLC debs + 32 support debs = 40 files, 7.3M.

@@ -1,0 +1,14 @@
+# VLC 3.0.23 pin — raw dump 04: version string (sandbox run)
+# Date: 2026-10-19 12:01 UTC
+# Env: Debian 13 (trixie) container, x86_64, headless (no X/Wayland)
+# Binary: tmp/pinning/extract/usr/bin/vlc from debs listed in dump 02 (not system-installed)
+# Invocation: LD_LIBRARY_PATH=usr/lib/x86_64-linux-gnu:usr/lib/x86_64-linux-gnu/vlc ./usr/bin/vlc --version
+# $ $ ./usr/bin/vlc --version
+VLC version 3.0.23 Vetinari (3.0.23-2-0-g79128878dd)
+Compiled by Debian buildd for trixie-security on Debian amd64 buildd (Jan  7 2026 20:01:08)
+Compiler: gcc version 14.2.0 (Debian 14.2.0-19)
+This program comes with NO WARRANTY, to the extent permitted by law.
+You may redistribute it under the terms of the GNU General Public License;
+see the file named COPYING for details.
+Written by the VideoLAN team; see the AUTHORS file.
+# exit=0

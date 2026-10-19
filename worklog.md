@@ -297,3 +297,56 @@ Work Log:
 
 Stage Summary:
 - ADR-006 accepted (MIT); R-05/R-07 closed. Phase 0 begins: wave 0.A baseline pinning.
+
+---
+Task ID: 0.A3
+Agent: Sub-agent (general-purpose), Wave 0.A
+Task: Pin VLC 3.0.23 on macOS — pin record + raw evidence (feeds gate G1 macOS row).
+
+Work Log:
+- Read worklog.md, AGENTS.md, doc 02 §1.2/§2, MASTER-PROMPT §1–2; confirmed D-007 path docs/baselines/.
+- Created gitignored tmp/pinning/; probed official trees. Card URL ".../3.0.23/macos/" → nginx 404; correct segment is "macosx/" (discrepancy recorded). Full directory listings captured from get.videolan.org and download.videolan.org (identical): arm64/intel64/universal dmgs + .asc/.md5/.sha1/.sha256 sidecars.
+- Downloaded all three dmgs (first attempt each, no retries; 31.0s/34.7s/2.3s; sizes match listing: 51,273,389 / 57,544,217 / 89,124,160). `file` + koly trailer confirm UDIF disk images.
+- Downloaded all 12 sidecars; computed sha256/sha512/sha1/md5 of each dmg ourselves; 9/9 cross-checks vs official sidecars PASS. Universal sha256 matches doc 02 §2.2 pre-verified value.
+- GPG verification (gpg 2.4.7, key from keys.openpgp.org): Good signature ×3 from "VideoLAN Release Signing Key (2018)" 65F7C6B4206BD057A7EB73787180713BE58D1ADC; key EXPIRED + DSA/SHA-1 caveats recorded honestly.
+- Web citations captured: release page (3.0.23 Vetinari), news index (release date 2026-01-08; 3.0.24 drift 2026-09-22), macOS download page (now serves 3.0.24; "requires Mac OS X 10.7.5 or later… 64-bit Intel or Apple Silicon").
+- Wrote docs/baselines/vlc-3.0.23-macos.md (pin record: version/date/URLs; arch coverage; acquisition; hashes computed+cross-checked; GPG result + codesign/spctl runbook [VERIFY-blocked-on-hardware]; doc 02 §2.3 JSON row; NOT INSTALLED + install runbook; smoke-dump runbook [VERIFY-blocked-on-hardware]; clean-room statement; 7 discrepancies/notes) + 6 TEXT raw evidence files in docs/baselines/raw/macos/.
+- Binaries never executed, never committed (tmp/ gitignored, verified via git check-ignore); no VLC source in repo. No git commit (AGENTS §3.8).
+
+Stage Summary:
+- macOS 3.0.23 pin: hashes verified in-sandbox (9/9 sidecar matches + GPG Good ×3 with expired-key caveat); install/codesign/smoke dumps remain hardware-blocked runbooks. Card/doc-13 "macos/" path corrected to "macosx/". Front-door now serves 3.0.24 — baseline stays 3.0.23 per MP §1.
+
+---
+Task ID: 0.A1
+Agent: Sub-agent (general-purpose), Wave 0.A
+Task: Pin VLC 3.0.23 on Windows (doc 02 §2): official-source acquisition, hashes + signature result, install record, dump-channel smoke runbook.
+
+Work Log:
+- Read worklog, AGENTS.md, doc 02 §1.2/§2, doc 13 §3 (card), MP §1–2. Created docs/baselines/raw/windows/ (did not pre-exist despite brief; D-007 paths used) and tmp/pinning/ scratch.
+- Discovered official URLs by direct listing: 3.0.23/ exists on download.videolan.org and get.videolan.org with win32/win64/winarm64 (+ .exe/.7z/.msi/.zip/debugsym, each with .asc/.md5/.sha1/.sha256 sidecars). Source tarball deliberately NOT downloaded (clean-room, doc 02 §2.1).
+- Downloaded vlc-3.0.23-win64.exe (45,948,080 B; redirect served by mirror-hk.koddos.net) and vlc-3.0.23-win64.7z (39,583,707 B) into gitignored tmp/pinning/ (git check-ignore verified; *.exe doubly ignored).
+- Computed + cross-checked: SHA-256 20ad1913…daaf MATCHES official sidecar on BOTH hosts AND doc 02 §2.2 pre-verified value; sha256sum -c/sha1sum -c/md5sum -c all OK. SHA-512 computed (no official .sha512 sidecars exist anywhere in tree). MSI/ZIP sidecar values fetched as text (not downloaded).
+- GPG: .asc sidecar verified — Good signature from "VideoLAN Release Signing Key (2018)" DSA 65F7C6B4…E58D1ADC, sig created 2025-12-31; key expired 2026-08-01 (after signing); key fetched from keyserver.ubuntu.com (no VideoLAN-hosted key found; /keys/ and /pub/videolan/KEYS 404). Authenticode NOT run (no Windows host, no osslsigncode) → [VERIFY-blocked-on-hardware] with PowerShell runbook.
+- Release date 2026-01-08 verified via news.html anchor news-2026-01-08; download-server upload timestamps are 31-Dec-2025 (staging). 3.0.24 exists and the Windows download page now serves it — drift risk recorded, baseline stays 3.0.23.
+- Wrote docs/baselines/vlc-3.0.23-windows.md (pin record: facts, hashes, signature, JSON for 0.A4, install runbook, smoke runbook --version/--list/--list-verbose (+ --list-plugins flagged as probably not a 3.0.x flag [VERIFY]), clean-room statement, 8-item discrepancy ledger) + raw/windows/acquisition-log.txt (489 lines, every command + actual output incl. failures) + raw/windows/official-sources.txt (URLs + verbatim sidecar/signature text + negative results).
+- Sandbox honesty: Linux x86_64, no WebSearch/WebFetch tools (curl used, recorded); Windows binaries never executed; no VLC source/assets acquired; nothing binary committed. Flagged stray untracked macosx-listing-download.html at repo root (concurrent agent's, untouched).
+
+Stage Summary:
+- Windows pin record complete for all sandbox-executable steps: artifact located, downloaded, hash-verified against official sidecars on two official hosts, GPG-verified (with key-expiry + keyserver-anchor caveats), size/type/dates recorded. Blocked-on-hardware items (Authenticode, install, --version/--list dumps, x64 payload check) documented as exact runbooks with expected shapes, all [VERIFY]-marked. Feeds G1 via 0.A4. Discrepancies: raw/windows/ path missing (created), --list-plugins flag doubt, PE32 installer stub vs win64 payload, expired release key, no official SHA-512 sidecars, 3.0.24 drift.
+---
+Task ID: 0.A2
+Agent: Sub-agent (general-purpose), Wave 0.A
+Task: Pin VLC 3.0.23 on Linux (doc 02 §2 pin record; gate G1 input).
+
+Work Log:
+- Read worklog (0.PRE context), AGENTS.md, doc 02 §1–§2, MASTER-PROMPT §1–§2. Used docs/baselines/ (D-007).
+- Sandbox discovery: Debian 13 (trixie) x86_64 headless container, uid 1001 (no root), no vlc/Qt installed; apt carries BOTH 3.0.23-0+deb13u1 (trixie/main) and 3.0.24-0+deb13u1 (trixie-security).
+- Distro decision (evidence): Ubuntu 24.04 noble ships 3.0.20, plucky 3.0.21-9, questing 3.0.21-11 (Launchpad API) — doc 02 §2.2 default unusable; pinned Debian trixie/main 3.0.23-0+deb13u1. Flathub org.videolan.VLC = 3.0.23 stable (API) recorded secondary.
+- Acquired root-free via apt-get download at exact =3.0.23-0+deb13u1: 8 packages (vlc, vlc-bin, vlc-data, libvlc-bin, libvlc5, libvlccore9, vlc-plugin-base, vlc-plugin-video-output); all 8 computed SHA-256 MATCH the signed Packages index; trixie InRelease GPG-verified (2 Good signatures) — apt's Linux signature-check requirement of doc 02 §2.2 step 4 satisfied with recorded commands/output.
+- Extracted with dpkg-deb -x (no install); resolved 43 plugin .so missing-deps via Contents-amd64.gz soname lookup + 32 support-lib debs (round-1 name-guess failure honestly recorded); final: 372/372 plugins ldd-clean.
+- VLC RAN: "VLC version 3.0.23 Vetinari (3.0.23-2-0-g79128878dd)" — dumps: --version, --list (502 modules), --list-verbose, -I dummy smoke (exit 0). --list-plugins does NOT exist on 3.0.x (VLC 4.x flag) — failure recorded; --list/--list-verbose are the 3.0.x equivalents.
+- Upstream cross-evidence: get.videolan.org/vlc/3.0.23/ listing (no Linux binaries — confirms doc 02; no .sha512 sidecar — card assumption wrong, .sha256 recorded: e891cae6…3e7e0 for vlc-3.0.23.tar.xz; tarball NOT downloaded per clean-room doc 02 §2.1).
+- Wrote docs/baselines/vlc-3.0.23-linux.md (pin record + JSON block + runbook + [VERIFY] ledger) and 11 text dumps in docs/baselines/raw/linux/. No binaries/debs committed (tmp/ git-ignored; *.deb ignored). No git commit (AGENTS §3.8).
+
+Stage Summary:
+- Linux pin COMPLETE and executable in-sandbox: Debian trixie 3.0.23-0+deb13u1, 8/8 hashes MATCH signed index, InRelease GPG Good, 502-module baseline dumps captured (base+video-output only; qt/skins2/… excluded — headless). Open: Lead ratify Debian-over-Ubuntu distro choice at G1; [VERIFY] snapshot.debian.org (blocked 509), Flathub commit, full-plugin census on desktop stack, sandbox CPU model.

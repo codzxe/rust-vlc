@@ -1,0 +1,52 @@
+# VLC 3.0.23 pin — raw dump 02: acquisition + hash cross-check (primary pinned artifacts)
+# Date: 2026-10-19 12:02 UTC
+# Method: apt-get download (no root needed) at EXACT version 3.0.23-0+deb13u1 from
+#   http://deb.debian.org/debian trixie/main (the only suite still carrying 3.0.23;
+#   trixie-security carries 3.0.24-0+deb13u1 — see dump 01 apt-cache policy).
+# Publisher hash source: the apt-signed Packages index (SHA256 field of apt-cache show),
+#   authenticity anchored by the GPG-signed trixie InRelease file (verification below).
+
+## $ cd tmp/pinning/debs && apt-get download vlc=3.0.23-0+deb13u1 vlc-bin=3.0.23-0+deb13u1 vlc-data=3.0.23-0+deb13u1 libvlc-bin=3.0.23-0+deb13u1 libvlc5=3.0.23-0+deb13u1 libvlccore9=3.0.23-0+deb13u1 vlc-plugin-base=3.0.23-0+deb13u1 vlc-plugin-video-output=3.0.23-0+deb13u1
+Get:1 http://deb.debian.org/debian trixie/main amd64 libvlc-bin amd64 3.0.23-0+deb13u1 [94.2 kB]
+Get:2 http://deb.debian.org/debian trixie/main amd64 libvlc5 amd64 3.0.23-0+deb13u1 [142 kB]
+Get:3 http://deb.debian.org/debian trixie/main amd64 libvlccore9 amd64 3.0.23-0+deb13u1 [515 kB]
+Get:4 http://deb.debian.org/debian trixie/main amd64 vlc amd64 3.0.23-0+deb13u1 [112 kB]
+Get:5 http://deb.debian.org/debian trixie/main amd64 vlc-bin amd64 3.0.23-0+deb13u1 [130 kB]
+Get:6 http://deb.debian.org/debian trixie/main amd64 vlc-data all 3.0.23-0+deb13u1 [423 kB]
+Get:7 http://deb.debian.org/debian trixie/main amd64 vlc-plugin-base amd64 3.0.23-0+deb13u1 [3097 kB]
+Get:8 http://deb.debian.org/debian trixie/main amd64 vlc-plugin-video-output amd64 3.0.23-0+deb13u1 [235 kB]
+Fetched 4749 kB in 1s (5001 kB/s)   [exit=0]
+
+## $ sha256sum *.deb  (computed by us)
+68087c1c26cb640440e1d5d327acc1f17849689d3fa8b658797225fd225986c6  vlc_3.0.23-0+deb13u1_amd64.deb
+116a6af7bb48414475ae4ec9c852fd440370bfdb4604ad442df5697adf010ffe  vlc-bin_3.0.23-0+deb13u1_amd64.deb
+4a05a94246c57a04bf713dd4bfcad827d83de01cc38383f057d6e06a861f8e3a  vlc-data_3.0.23-0+deb13u1_all.deb
+bc6857db7144bfd7447a77757689e43b8097e4b1b7cd6433b93b9451e83af8d6  libvlc-bin_3.0.23-0+deb13u1_amd64.deb
+73a7789c1aa31fba279544c48088416e0658702cb7aa4ec4385995dc418a9a73  libvlc5_3.0.23-0+deb13u1_amd64.deb
+df7767917a140e331c8d4ed9c71974446c72e6cd9df67c910e391f3ba3d57770  libvlccore9_3.0.23-0+deb13u1_amd64.deb
+2a546b92264e1f8f2fbfb8c22963ce2f14854e33bb8d8ed1e41b80c022a476f9  vlc-plugin-base_3.0.23-0+deb13u1_amd64.deb
+66989412853e506bc683398194a5a1de36d19d09fe10f8cd73c3ef67b212dd91  vlc-plugin-video-output_3.0.23-0+deb13u1_amd64.deb
+
+## Cross-check: computed SHA256 vs apt-cache show SHA256 (signed Packages index)
+vlc_3.0.23-0+deb13u1_amd64.deb                 MATCH
+vlc-bin_3.0.23-0+deb13u1_amd64.deb             MATCH
+vlc-data_3.0.23-0+deb13u1_all.deb              MATCH
+libvlc-bin_3.0.23-0+deb13u1_amd64.deb          MATCH
+libvlc5_3.0.23-0+deb13u1_amd64.deb             MATCH
+libvlccore9_3.0.23-0+deb13u1_amd64.deb         MATCH
+vlc-plugin-base_3.0.23-0+deb13u1_amd64.deb     MATCH
+vlc-plugin-video-output_3.0.23-0+deb13u1_amd64.deb MATCH
+
+## $ curl -sO https://deb.debian.org/debian/dists/trixie/InRelease && gpg --no-default-keyring --keyring /usr/share/keyrings/debian-archive-keyring.gpg --verify InRelease
+gpg: Signature made Sat Sep 12 07:56:18 2026 UTC
+gpg:                using RSA key 4CB50190207B4758A3F73A796ED0E7B82643E131
+gpg: Good signature from "Debian Archive Automatic Signing Key (12/bookworm) <ftpmaster@debian.org>"
+gpg: Signature made Sat Sep 12 07:56:19 2026 UTC
+gpg:                using RSA key B8E5F13176D2A7A75220028078DBA3BC47EF2265
+gpg: Good signature from "Debian Archive Automatic Signing Key (13/trixie) <ftpmaster@debian.org>"
+(two Good signatures; 'not certified' warnings are about the web-of-trust model, not validity)
+
+## Pool URLs (publisher canonical paths):
+# http://deb.debian.org/debian/pool/main/v/vlc/vlc_3.0.23-0+deb13u1_amd64.deb
+# http://deb.debian.org/debian/pool/main/v/vlc/vlc-bin_3.0.23-0+deb13u1_amd64.deb  (etc., same pool dir)
+# Permanent archive fallback: https://snapshot.debian.org/package/vlc/3.0.23-0+deb13u1/ [VERIFY at re-pin time]

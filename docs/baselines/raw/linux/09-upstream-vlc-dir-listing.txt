@@ -1,0 +1,27 @@
+# VLC 3.0.23 pin — raw dump 09: upstream (videolan.org) release tree listing
+# Date: 2026-10-19 12:03 UTC
+# Purpose: (a) confirm 3.0.23 official artifacts + hash sidecar inventory;
+#          (b) confirm get.videolan.org publishes NO Linux binaries (doc 02 §2.2 claim).
+# $ $ curl -s https://get.videolan.org/vlc/3.0.23/   (plain directory index, verbatim)
+<html>
+<head><title>Index of /videolan/vlc/3.0.23/</title></head>
+<body>
+<h1>Index of /videolan/vlc/3.0.23/</h1><hr><pre><a href="../">../</a>
+<a href="macosx/">macosx/</a>                                            31-Dec-2025 14:50                   -
+<a href="os2/">os2/</a>                                               01-Jan-2026 11:58                   -
+<a href="win32/">win32/</a>                                             31-Dec-2025 14:51                   -
+<a href="win64/">win64/</a>                                             31-Dec-2025 14:50                   -
+<a href="winarm64/">winarm64/</a>                                          31-Dec-2025 14:51                   -
+<a href="vlc-3.0.23.tar.xz">vlc-3.0.23.tar.xz</a>                                  23-Dec-2025 11:07            26486988
+<a href="vlc-3.0.23.tar.xz.asc">vlc-3.0.23.tar.xz.asc</a>                              31-Dec-2025 14:49                 195
+<a href="vlc-3.0.23.tar.xz.md5">vlc-3.0.23.tar.xz.md5</a>                              31-Dec-2025 14:49                  52
+<a href="vlc-3.0.23.tar.xz.sha1">vlc-3.0.23.tar.xz.sha1</a>                             31-Dec-2025 14:49                  60
+<a href="vlc-3.0.23.tar.xz.sha256">vlc-3.0.23.tar.xz.sha256</a>                           31-Dec-2025 14:49                  84
+</pre><hr></body>
+</html>
+
+# Same content also reachable at https://download.videolan.org/vlc/3.0.23/ (verified, HTTP 200).
+# FINDINGS: platforms offered = macosx/ os2/ win32/ win64/ winarm64/ only — no Linux dir;
+# source tarball vlc-3.0.23.tar.xz (26,486,988 bytes, dated 23-Dec-2025) with sidecars:
+# .asc (GPG), .md5, .sha1, .sha256 — and NO .sha512 sidecar (contradicts task-card assumption;
+# the .sha256 sidecar was fetched instead, see dump 10).

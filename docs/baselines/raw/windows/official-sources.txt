@@ -1,0 +1,128 @@
+# Official sources — VLC 3.0.23 Windows pin (Task 0.A1)
+# Every item below was fetched over HTTPS on 2026-10-19 from the official
+# VideoLAN infrastructure. Quoted text is verbatim. Full command/output
+# transcripts: acquisition-log.txt (same directory).
+
+## 1. Official artifact directory (origin)
+
+URL: https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/
+Status when fetched: HTTP 200 (directory listing, 2903 bytes)
+
+Files listed (each with .asc/.md5/.sha1/.sha256 sidecars):
+  vlc-3.0.23-win64.exe          45948080 bytes  31-Dec-2025 12:48
+  vlc-3.0.23-win64.7z                     (no-install archive)
+  vlc-3.0.23-win64.msi           60608512 bytes  31-Dec-2025 12:49
+  vlc-3.0.23-win64.zip
+  vlc-3.0.23-win64-debugsym.7z
+
+## 2. Official mirror (same file set, same hashes)
+
+URL: https://get.videolan.org/vlc/3.0.23/win64/
+Status when fetched: HTTP 200 (directory listing)
+Observed: identical file list incl. the 7z and debugsym variants.
+The actual byte download from download.videolan.org was served via HTTP
+redirect by mirror: https://mirror-hk.koddos.net/videolan/vlc/3.0.23/win64/vlc-3.0.23-win64.exe
+
+## 3. Official hash sidecars (verbatim contents, fetched from both hosts)
+
+URL: https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/vlc-3.0.23-win64.exe.sha256
+URL: https://get.videolan.org/vlc/3.0.23/win64/vlc-3.0.23-win64.exe.sha256
+--- verbatim ---
+20ad191348684b470ddc4e05204316f3d8e39655f412b3e392a0eef97639daaf *vlc-3.0.23-win64.exe
+--- end ---
+
+URL: .../vlc-3.0.23-win64.exe.sha1
+--- verbatim ---
+ee04a6c1317bba9c60369a586379ff245abb286c *vlc-3.0.23-win64.exe
+--- end ---
+
+URL: .../vlc-3.0.23-win64.exe.md5
+--- verbatim ---
+f711b3aee7c805d52ab28fe53440e35f *vlc-3.0.23-win64.exe
+--- end ---
+
+Sidecar values for the OTHER Windows artifacts (fetched as text; those
+binaries were not downloaded in this sandbox):
+  vlc-3.0.23-win64.7z  sha256: eb4fd8a28291da73608c733786a09610fea865fbe94113bcb60b91c1ebb8404a
+  vlc-3.0.23-win64.msi sha256: bc4b902a480b98a4a5479327a7f210f06369a59bf727649e320faba5b4ef1f5e
+  vlc-3.0.23-win64.zip sha256: 992d19dbd0b8a7cde9167d2f7780b1ef6f92acc8a71acfa736101a21f35181e1
+
+NOTE: the official tree publishes .md5/.sha1/.sha256 and GPG .asc sidecars
+only — no .sha512 sidecar exists anywhere in the 3.0.23 tree. The SHA-512
+values in the pin record are computed by us, not cross-checkable against
+an official sidecar.
+
+## 4. Official GPG signature sidecar (verbatim, complete — 195 bytes)
+
+URL: https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/vlc-3.0.23-win64.exe.asc
+--- verbatim ---
+-----BEGIN PGP SIGNATURE-----
+
+iF0EABECAB0WIQRl98a0IGvQV6frc3hxgHE75Y0a3AUCaVU39wAKCRBxgHE75Y0a
+3NEYAJsEFvOV1OLTex9Yg0Fyw9I0L+4gTwCfXaafhm4dt7rYulk6PHnm33TyK40=
+=irRb
+-----END PGP SIGNATURE-----
+--- end ---
+
+Signature packet details (gpg --list-packets):
+  algo 17 (DSA), keyid 7180713BE58D1ADC
+  issuer fpr v4 65F7C6B4206BD057A7EB73787180713BE58D1ADC
+  sig created 2025-12-31 (14:49:27 UTC)
+
+Verification result (gpg 2.4.7 in sandbox; key fetched from
+keyserver.ubuntu.com):
+  gpg: Good signature from "VideoLAN Release Signing Key (2018)" [expired]
+  gpg: Note: This key has expired!
+  Key expired 2026-08-01 (after this signature was created).
+  The Windows-native Authenticode check (Get-AuthenticodeSignature)
+  could NOT run in this Linux sandbox — see pin record, [VERIFY-blocked-on-hardware].
+
+## 5. Release identity and date (official pages)
+
+Release announcement:
+  URL: https://www.videolan.org/vlc/releases/3.0.23.html  (HTTP 200)
+  <title>VLC 3.0.23 Vetinari - VideoLAN</title>
+  "VLC 3.0.23 is the twenty-fourth update of "Vetinari":"
+
+News page (release date confirmation — anchor id):
+  URL: https://www.videolan.org/news.html  (HTTP 200)
+  <a id='news-2026-01-08' name='news-2026-01-08'></a>...<a href="/news.html#news-2026-01-08">VLC 3.0.23</a>
+  => public release/announcement date 2026-01-08, matching MASTER-PROMPT §1.
+  (Download-server upload timestamps are 31-Dec-2025 — staging before announcement.)
+
+Windows download page (what VideoLAN currently offers as "latest"):
+  URL: https://www.videolan.org/vlc/download-windows.html  (HTTP 200)
+  Currently links to //get.videolan.org/vlc/3.0.24/... — i.e. the site's
+  front door now serves 3.0.24; the 3.0.23 artifact URLs above remain valid.
+  This is the mirror-drift risk noted in doc 02 §2.5.
+
+## 6. Adjacent official directories (existence proof, 2026-10-19)
+
+https://download.videolan.org/pub/videolan/vlc/3.0.23/
+  macosx/  os2/  win32/  win64/  winarm64/  vlc-3.0.23.tar.xz (+sidecars)
+  - winarm64/ populated (ARM64 build; doc 02 §2.2 note confirmed).
+  - win32/ populated (32-bit x86 build).
+  - vlc-3.0.23.tar.xz is the SOURCE tarball — deliberately NOT downloaded
+    (clean-room rule, doc 02 §2.1: never download VLC source).
+
+https://download.videolan.org/pub/videolan/vlc/
+  contains 3.0.23/ and 3.0.24/ (3.0.24 exists; baseline stays 3.0.23 per MP §1).
+
+## 7. TLS layer (transport authenticity)
+
+download.videolan.org presented certificate:
+  subject=CN=www.videolan.org
+  issuer=C=US, O=Let's Encrypt, CN=YE1
+  notBefore=Sep  4 01:37:00 2026 GMT / notAfter=Dec  3 01:36:59 2026 GMT
+All curl fetches used default certificate verification (no -k/--insecure).
+
+## 8. Not found / negative results (honest record)
+
+- No VideoLAN-hosted copy of the release signing key was found:
+  https://www.videolan.org/keys/ -> 404
+  https://download.videolan.org/pub/videolan/KEYS -> 404
+  (Key therefore obtained from keyserver.ubuntu.com — third-party anchor.)
+- The release page HTML carries no machine-readable release date
+  (no datePublished/datetime; Last-Modified is a later page edit).
+- osslsigncode is not installed in this sandbox; no Windows host available.
+- No WebSearch/WebFetch tool exists in this sandbox; all web access via curl.

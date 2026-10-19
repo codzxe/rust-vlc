@@ -1,0 +1,59 @@
+# Raw evidence 05 — GPG detached-signature verification of the three dmgs
+# Date (UTC): 2026-10-19. Agent: 0.A3. Host: Linux sandbox, gpg (GnuPG) 2.4.7, libgcrypt 1.11.0.
+# This is the authenticity check that the sandbox CAN perform (codesign/spctl cannot run on Linux).
+
+=== COMMAND (inspect signature packet) ===
+gpg --list-packets vlc-3.0.23-universal.dmg.asc
+=== RESULT (verbatim, relevant lines) ===
+:signature packet: algo 17, keyid 7180713BE58D1ADC
+  version 4, created 1767192566, md5len 0, sigclass 0x00
+  digest algo 2, begin of digest 09 60
+  hashed subpkt 33 len 21 (issuer fpr v4 65F7C6B4206BD057A7EB73787180713BE58D1ADC)
+  hashed subpkt 2 len 4 (sig created 2025-12-31)
+  subpkt 16 len 8 (issuer key ID 7180713BE58D1ADC)
+NOTE: algo 17 = DSA; digest algo 2 = SHA-1 (legacy VideoLAN signing practice); signatures
+created 2025-12-31, i.e. they post-date the dmg files (18-Dec-2025) as expected for
+sign-and-upload flows.
+
+=== COMMAND (fetch signing key from keys.openpgp.org) ===
+timeout 60 gpg --keyserver hkps://keys.openpgp.org --recv-keys 65F7C6B4206BD057A7EB73787180713BE58D1ADC
+=== RESULT (verbatim) ===
+gpg: key 7180713BE58D1ADC: "VideoLAN Release Signing Key (2018)" not changed
+gpg: Total number processed: 1
+gpg:              unchanged: 1
+recv-exit=0
+(The key was already present in this sandbox's keyring; uid: "VideoLAN Release Signing Key (2018)",
+aka 2013/2014/2015/2016/2017 signing-key uids; primary fingerprint
+65F7 C6B4 206B D057 A7EB  7378 7180 713B E58D 1ADC.)
+
+=== COMMANDS (verify all three detached signatures) ===
+gpg --verify vlc-3.0.23-arm64.dmg.asc     vlc-3.0.23-arm64.dmg
+gpg --verify vlc-3.0.23-intel64.dmg.asc   vlc-3.0.23-intel64.dmg
+gpg --verify vlc-3.0.23-universal.dmg.asc vlc-3.0.23-universal.dmg
+=== RESULTS (verbatim; identical structure for all three) ===
+arm64:
+gpg: Signature made Wed Dec 31 14:49:03 2025 UTC
+gpg:                using DSA key 65F7C6B4206BD057A7EB73787180713BE58D1ADC
+gpg: Good signature from "VideoLAN Release Signing Key (2018)" [expired]
+gpg:                 aka "VideoLAN Release Signing Key (2013)" [expired]
+gpg:                 aka "VideoLAN Release Signing Key (2015)" [expired]
+gpg:                 aka "VideoLAN Release Signing Key (2014)" [expired]
+gpg:                 aka "VideoLAN Release Signing Key (2016)" [expired]
+gpg:                 aka "VideoLAN Release Signing Key (2017)" [expired]
+gpg: Note: This key has expired!
+Primary key fingerprint: 65F7 C6B4 206B D057 A7EB  7378 7180 713B E58D 1ADC
+verify-exit=0
+intel64:   Signature made Wed Dec 31 14:49:26 2025 UTC — Good signature (same key, same notes), verify-exit=0
+universal: Signature made Wed Dec 31 14:49:26 2025 UTC — Good signature (same key, same notes), verify-exit=0
+
+=== INTERPRETATION (recorded honestly) ===
+- All three detached GPG signatures verify as GOOD against key 65F7C6B4206BD057A7EB73787180713BE58D1ADC.
+- CAVEAT 1: gpg reports the signing key as EXPIRED. The signature itself was created 2025-12-31;
+  an expired key weakens web-of-trust freshness but does not invalidate the cryptographic check of
+  these exact bytes. VideoLAN's practice of continuing to sign 3.0.x releases with this key is
+  corroborated by the matching sidecar hashes on the official server (raw evidence 04).
+- CAVEAT 2: DSA/SHA-1 signature (legacy). Collision resistance of SHA-1 is broken; however the
+  attacker model for a detached DSA signature is different from collision attacks, and the sha256
+  sidecar cross-check independently corroborates integrity.
+- OUTCOME: authenticity of all three dmgs = VERIFIED in-sandbox via GPG + hash sidecars;
+  Apple codesign/spctl checks remain [VERIFY-blocked-on-hardware].

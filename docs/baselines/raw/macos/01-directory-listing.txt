@@ -1,0 +1,62 @@
+# Raw evidence 01 — official macOS directory listings (VLC 3.0.23)
+# Date (UTC): 2026-10-19. Agent: 0.A3. Sandbox: Linux x86_64 (cannot run macOS binaries).
+# All commands run from /home/z/my-project/tmp/pinning/ (gitignored scratch, never committed).
+
+=== COMMAND ===
+curl -sS -L --max-time 60 -o macosx-listing.html "https://get.videolan.org/vlc/3.0.23/macosx/"
+echo "exit=$?"
+=== RESULT ===
+exit=0
+2154 bytes received.
+
+=== VERBATIM FILE CONTENT: get.videolan.org/vlc/3.0.23/macosx/ (macosx-listing.html) ===
+<html>
+<head><title>Index of /videolan/vlc/3.0.23/macosx/</title></head>
+<body>
+<h1>Index of /videolan/vlc/3.0.23/macosx/</h1><hr><pre><a href="../">../</a>
+<a href="vlc-3.0.23-arm64.dmg">vlc-3.0.23-arm64.dmg</a>                               18-Dec-2025 13:43            51273389
+<a href="vlc-3.0.23-arm64.dmg.asc">vlc-3.0.23-arm64.dmg.asc</a>                           31-Dec-2025 14:49                 195
+<a href="vlc-3.0.23-arm64.dmg.md5">vlc-3.0.23-arm64.dmg.md5</a>                           31-Dec-2025 14:49                  55
+<a href="vlc-3.0.23-arm64.dmg.sha1">vlc-3.0.23-arm64.dmg.sha1</a>                          31-Dec-2025 14:49                  63
+<a href="vlc-3.0.23-arm64.dmg.sha256">vlc-3.0.23-arm64.dmg.sha256</a>                        31-Dec-2025 14:49                  87
+<a href="vlc-3.0.23-intel64.dmg">vlc-3.0.23-intel64.dmg</a>                             18-Dec-2025 13:43            57544217
+<a href="vlc-3.0.23-intel64.dmg.asc">vlc-3.0.23-intel64.dmg.asc</a>                         31-Dec-2025 14:49                 195
+<a href="vlc-3.0.23-intel64.dmg.md5">vlc-3.0.23-intel64.dmg.md5</a>                         31-Dec-2025 14:49                  57
+<a href="vlc-3.0.23-intel64.dmg.sha1">vlc-3.0.23-intel64.dmg.sha1</a>                        31-Dec-2025 14:49                  65
+<a href="vlc-3.0.23-intel64.dmg.sha256">vlc-3.0.23-intel64.dmg.sha256</a>                      31-Dec-2025 14:49                  89
+<a href="vlc-3.0.23-universal.dmg">vlc-3.0.23-universal.dmg</a>                           18-Dec-2025 13:44            89124160
+<a href="vlc-3.0.23-universal.dmg.asc">vlc-3.0.23-universal.dmg.asc</a>                       31-Dec-2025 14:49                 195
+<a href="vlc-3.0.23-universal.dmg.md5">vlc-3.0.23-universal.dmg.md5</a>                       31-Dec-2025 14:49                  59
+<a href="vlc-3.0.23-universal.dmg.sha1">vlc-3.0.23-universal.dmg.sha1</a>                      31-Dec-2025 14:49                  67
+<a href="vlc-3.0.23-universal.dmg.sha256">vlc-3.0.23-universal.dmg.sha256</a>                    31-Dec-2025 14:49                  91
+</pre><hr></body>
+</html>
+
+=== COMMAND (task-card URL probe — doc 13 card wrote ".../macos/") ===
+curl -sS -L --max-time 60 -o macos-listing.html "https://download.videolan.org/pub/videolan/vlc/3.0.23/macos/"
+echo "exit=$?"
+=== RESULT ===
+exit=0 (HTTP body is a 404 page — recorded verbatim):
+<html>
+<head><title>404 Not Found</title></head>
+<body>
+<center><h1>404 Not Found</h1></center>
+<hr><center>nginx/1.31.4</center>
+</body>
+</html>
+
+DISCREPANCY: the task-card path segment "macos/" does not exist on download.videolan.org.
+The correct directory on both official trees is "macosx/".
+
+=== COMMAND (corrected download.videolan.org path) ===
+curl -sS -L --max-time 60 -o macosx-listing-download.html "https://download.videolan.org/pub/videolan/vlc/3.0.23/macosx/"
+echo "exit=$?"
+=== RESULT ===
+exit=0
+2162 bytes received; listing identical in content to get.videolan.org (same 15 files, same sizes, same dates).
+
+=== OBSERVATIONS (from listing) ===
+- 3 dmg artifacts exist: vlc-3.0.23-arm64.dmg (51,273,389 bytes), vlc-3.0.23-intel64.dmg (57,544,217 bytes),
+  vlc-3.0.23-universal.dmg (89,124,160 bytes). dmg file date: 18-Dec-2025 13:43/13:44 (server timestamps).
+- Sidecars per dmg: .asc (GPG, 195 B), .md5, .sha1, .sha256.
+- No .sha512 sidecars are published in this directory.

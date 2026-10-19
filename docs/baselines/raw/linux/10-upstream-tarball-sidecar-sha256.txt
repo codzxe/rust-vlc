@@ -1,0 +1,20 @@
+# VLC 3.0.23 pin — raw dump 10: official source-tarball .sha256 sidecar (TEXT artifact)
+# Date: 2026-10-19 12:03 UTC | Recorded by: agent 0.A2
+# Origin URL:   https://download.videolan.org/vlc/3.0.23/vlc-3.0.23.tar.xz.sha256
+# Redirector:   https://get.videolan.org/vlc/3.0.23/vlc-3.0.23.tar.xz.sha256
+#               (serves an HTML "Click here" redirect page to a regional mirror; with -L the
+#                final content is identical — mirror served: mirror-hk.koddos.net)
+#
+# NOTE: the tarball itself was NOT downloaded (doc 02 §2.1 clean-room rule: never download
+# VLC source). This sidecar text file is release-provenance cross-evidence only: it is the
+# publisher's own SHA-256 of the 3.0.23 source tarball, recorded so any future tarball
+# acquisition can be verified against it.
+#
+# NOTE: NO .sha512 sidecar exists for 3.0.23 — contradicts the 0.A2 task-card assumption.
+# Verified: https://get.videolan.org/vlc/3.0.23/vlc-3.0.23.tar.xz.sha512 -> HTTP 500;
+#           https://download.videolan.org/vlc/3.0.23/vlc-3.0.23.tar.xz.sha512 -> HTTP 404.
+# Sidecars published: .asc (GPG, 195 B), .md5, .sha1, .sha256 (see dump 09).
+#
+# --- verbatim sidecar content (identical from origin and mirror) ---
+e891cae6aa3ccda69bf94173d5105cbc55c7a7d9b1d21b9b21666e69eff3e7e0 *vlc-3.0.23.tar.xz
+# --- end of file ---

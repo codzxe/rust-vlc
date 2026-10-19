@@ -1,0 +1,79 @@
+# Raw evidence 02 — official sidecar hashes + GPG signatures for VLC 3.0.23 macOS dmgs
+# Date (UTC): 2026-10-19. Agent: 0.A3.
+# Source tree: https://get.videolan.org/vlc/3.0.23/macosx/ (identical files also served at
+# https://download.videolan.org/pub/videolan/vlc/3.0.23/macosx/).
+
+=== COMMANDS ===
+for f in arm64 intel64 universal; do
+  for ext in sha256 sha1 md5 asc; do
+    curl -sS -L --max-time 60 -o "vlc-3.0.23-$f.dmg.$ext" \
+      "https://get.videolan.org/vlc/3.0.23/macosx/vlc-3.0.23-$f.dmg.$ext"
+  done
+done
+=== RESULT ===
+All 12 downloads succeeded. File sizes on disk (bytes):
+195 vlc-3.0.23-arm64.dmg.asc       55 vlc-3.0.23-arm64.dmg.md5
+ 63 vlc-3.0.23-arm64.dmg.sha1      87 vlc-3.0.23-arm64.dmg.sha256
+195 vlc-3.0.23-intel64.dmg.asc     57 vlc-3.0.23-intel64.dmg.md5
+ 65 vlc-3.0.23-intel64.dmg.sha1    89 vlc-3.0.23-intel64.dmg.sha256
+195 vlc-3.0.23-universal.dmg.asc   59 vlc-3.0.23-universal.dmg.md5
+ 67 vlc-3.0.23-universal.dmg.sha1  91 vlc-3.0.23-universal.dmg.sha256
+
+=== VERBATIM SIDE CAR CONTENTS (cat) ===
+--- vlc-3.0.23-arm64.dmg.sha256 ---
+fc6fac08d87f538517d44aca0c5e7a244b67c8c4cb589bf478363a7315fd5e0d *vlc-3.0.23-arm64.dmg
+
+--- vlc-3.0.23-arm64.dmg.sha1 ---
+1fa89d566b17d934009d9e701a2e9c16b79fa797 *vlc-3.0.23-arm64.dmg
+
+--- vlc-3.0.23-arm64.dmg.md5 ---
+c5870b7e9b98726fe0af4de368541753 *vlc-3.0.23-arm64.dmg
+
+--- vlc-3.0.23-arm64.dmg.asc (GPG signature, verbatim) ---
+-----BEGIN PGP SIGNATURE-----
+
+iF0EABECAB0WIQRl98a0IGvQV6frc3hxgHE75Y0a3AUCaVU33wAKCRBxgHE75Y0a
+3CiAAJwNm8sQLGZa3doh1SmN+cdgotYUmACgvUARNtRlXHbVF0D7HIAqLPeyVDA=
+=FzlZ
+-----END PGP SIGNATURE-----
+
+--- vlc-3.0.23-intel64.dmg.sha256 ---
+ec01530ce69d849dd057fba8876e68ac39bf279dc28de4e9c04e4aec11fc98db *vlc-3.0.23-intel64.dmg
+
+--- vlc-3.0.23-intel64.dmg.sha1 ---
+8d80438cc8a9fdcc31c2e069e6ef6ff6930c3379 *vlc-3.0.23-intel64.dmg
+
+--- vlc-3.0.23-intel64.dmg.md5 ---
+0f7aecc9d0bc0833373086793d81b260 *vlc-3.0.23-intel64.dmg
+
+--- vlc-3.0.23-intel64.dmg.asc (GPG signature, verbatim) ---
+-----BEGIN PGP SIGNATURE-----
+
+iF0EABECAB0WIQRl98a0IGvQV6frc3hxgHE75Y0a3AUCaVU39gAKCRBxgHE75Y0a
+3IQ0AKC76xCNUgYzXKszVZn/2EYqEAW16ACdFTm4a8ZrPB1Fxy4AthxZ693Ejg0=
+=pVjU
+-----END PGP SIGNATURE-----
+
+--- vlc-3.0.23-universal.dmg.sha256 ---
+56ee657c3aaf5c71b4ab7d6e4f4a77f6eca54633e0bf42a93b8116eb1d1f6ec9 *vlc-3.0.23-universal.dmg
+
+--- vlc-3.0.23-universal.dmg.sha1 ---
+027ed7d28e2390a6718a5c68f6e783be76fd5ffd *vlc-3.0.23-universal.dmg
+
+--- vlc-3.0.23-universal.dmg.md5 ---
+7241e50fef32ff648a7a11e60415f73a *vlc-3.0.23-universal.dmg
+
+--- vlc-3.0.23-universal.dmg.asc (GPG signature, verbatim) ---
+-----BEGIN PGP SIGNATURE-----
+
+iF0EABECAB0WIQRl98a0IGvQV6frc3hxgHE75Y0a3AUCaVU39gAKCRBxgHE75Y0a
+3AlgAJ9Cwo2kq+YZUfVSEsdzpDYKzmQERgCdEL+0/o1mBfQ12OxoHOXQMCLlu4o=
+=Jpud
+-----END PGP SIGNATURE-----
+
+
+=== CROSS-CHECK vs doc 02 §2.2 pre-verified data point ===
+doc 02 lists vlc-3.0.23-universal.dmg SHA-256 = 56ee657c3aaf5c71b4ab7d6e4f4a77f6eca54633e0bf42a93b8116eb1d1f6ec9
+Official sidecar (fetched above)             = 56ee657c3aaf5c71b4ab7d6e4f4a77f6eca54633e0bf42a93b8116eb1d1f6ec9
+=> MATCH (sidecar re-fetch agrees with doc 02's 2026-10-19 pre-verification).
+NOTE: no .sha512 sidecars exist in this directory; only .md5/.sha1/.sha256/.asc.

@@ -58,3 +58,4 @@ agent-ctx/
 *.rpm
 *.snap
 *.flatpak
+tool-results/

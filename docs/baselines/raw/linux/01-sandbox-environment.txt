@@ -1,0 +1,50 @@
+# VLC 3.0.23 pin — raw dump 01: sandbox environment discovery
+# Date: 2026-10-19 12:02 UTC | Recorded by: agent 0.A2 (wave 0.A, doc 13 §3; per doc 02 §2)
+# All commands re-run for capture; outputs verbatim.
+
+## $ which vlc || echo NO_VLC_IN_PATH
+NO_VLC_IN_PATH
+
+## $ vlc --version 2>&1 | head -5
+/bin/bash: line 6: vlc: command not found
+
+## $ cat /etc/os-release
+PRETTY_NAME="Debian GNU/Linux 13 (trixie)"
+NAME="Debian GNU/Linux"
+VERSION_ID="13"
+VERSION="13 (trixie)"
+VERSION_CODENAME=trixie
+DEBIAN_VERSION_FULL=13.4
+ID=debian
+HOME_URL="https://www.debian.org/"
+SUPPORT_URL="https://www.debian.org/support"
+BUG_REPORT_URL="https://bugs.debian.org/"
+
+## $ uname -a; uname -m
+Linux c-6ad5e567-145cf406-a2738678b49f 5.10.134-013.15.kangaroo.al8.x86_64 #1 SMP Thu Jul 30 12:54:59 UTC 2026 x86_64 GNU/Linux
+x86_64
+
+## $ id
+uid=1001(z) gid=1001(z) groups=1001(z)
+
+## $ apt-cache policy vlc | head -10
+vlc:
+  Installed: (none)
+  Candidate: 3.0.24-0+deb13u1
+  Version table:
+     3.0.24-0+deb13u1 500
+        500 http://deb.debian.org/debian-security trixie-security/main amd64 Packages
+     3.0.23-0+deb13u1 500
+        500 http://deb.debian.org/debian trixie/main amd64 Packages
+
+## $ apt list --installed 2>/dev/null | grep -i vlc
+(no output = no vlc packages installed)
+
+## $ dpkg -l | grep -ci qt
+0
+(0 = no Qt on host)
+
+## $ ldconfig -p | grep -cE 'libGL|libEGL|libxcb-xv'
+4
+
+## Notes: no root rights (uid 1001); network egress to deb.debian.org + videolan.org verified working.

@@ -1,0 +1,14 @@
+# VLC 3.0.23 pin — raw dump 08: headless smoke run via dummy interface
+# Date: 2026-10-19 12:02 UTC
+# Proves -I dummy interface works headless (M1-style invocation, doc 02 §2.4).
+# $ $ ./usr/bin/vlc -I dummy --play-and-exit vlc://quit
+[000055dff7c8ac10] vlcpulse audio output error: PulseAudio server connection failure: Connection refused
+[000055dff7ca62d0] dbus interface error: Failed to connect to the D-Bus session daemon: Unable to autolaunch a dbus-daemon without a $DISPLAY for X11
+[000055dff7ca62d0] main interface error: no suitable interface module
+[000055dff7a22bf0] main libvlc error: interface "dbus,none" initialization failed
+[000055dff7cb69c0] main interface error: no suitable interface module
+[000055dff7a22bf0] main libvlc error: interface "globalhotkeys,none" initialization failed
+[000055dff7cb69c0] dummy interface: using the dummy interface module...
+[00007fd67c001130] idummy demux: command `quit'
+[000055dff7c63910] main playlist: end of playlist, exiting
+# exit=0

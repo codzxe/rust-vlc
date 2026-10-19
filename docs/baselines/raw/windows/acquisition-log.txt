@@ -1,0 +1,488 @@
+# Acquisition log — VLC 3.0.23 Windows pin (Task 0.A1)
+# Sandbox: Linux x86_64 (kernel 5.10.134), date Mon Oct 19 2026 (UTC). Windows binaries CANNOT be executed here.
+# All commands below were executed verbatim in this sandbox; output is captured as-is.
+# Web access in this sandbox is via curl (no WebSearch/WebFetch tool available to this agent).
+
+## Environment
+$ uname -a
+Linux c-6ad5e567-145cf406-a2738678b49f 5.10.134-013.15.kangaroo.al8.x86_64 #1 SMP Thu Jul 30 12:54:59 UTC 2026 x86_64 GNU/Linux
+
+$ curl --version | head -n1
+curl 8.14.1 (x86_64-pc-linux-gnu) libcurl/8.14.1 OpenSSL/3.5.7 zlib/1.3.1 brotli/1.1.0 zstd/1.5.7 libidn2/2.3.8 libpsl/0.21.2 libssh2/1.11.1 nghttp2/1.64.0 nghttp3/1.8.0 librtmp/2.3 OpenLDAP/2.6.10
+
+$ openssl version
+OpenSSL 3.5.7 9 Jun 2026 (Library: OpenSSL 3.5.7 9 Jun 2026)
+
+$ gpg --version 2>/dev/null | head -n1 || echo "gpg: NOT INSTALLED"
+gpg (GnuPG) 2.4.7
+
+## Step 1 — Discover official download URLs (2026-10-19)
+
+### 1a. Directory listing probe: https://download.videolan.org/pub/videolan/vlc/
+$ curl -sS -L --max-time 60 -o vlc-versions-listing.html -w "%{http_code} %{size_download} %{url_effective}\n" "https://download.videolan.org/pub/videolan/vlc/"
+200 18029 https://download.videolan.org/pub/videolan/vlc/
+
+$ grep -o "href=\"3\.0[^\"]*\"" vlc-versions-listing.html | sort -u   # excerpt: 3.0.x directories present in official listing
+href="3.0.0/"
+href="3.0.1/"
+href="3.0.10/"
+href="3.0.11.1/"
+href="3.0.11/"
+href="3.0.12.1/"
+href="3.0.12/"
+href="3.0.13/"
+href="3.0.14/"
+href="3.0.15/"
+href="3.0.16/"
+href="3.0.17.3/"
+href="3.0.17.4/"
+href="3.0.17/"
+href="3.0.18/"
+href="3.0.19/"
+href="3.0.2/"
+href="3.0.20/"
+href="3.0.21/"
+href="3.0.22/"
+href="3.0.23/"
+href="3.0.24/"
+href="3.0.3/"
+href="3.0.4/"
+href="3.0.5/"
+href="3.0.6/"
+href="3.0.7.1/"
+href="3.0.7/"
+href="3.0.8/"
+href="3.0.9.2/"
+
+$ grep -o "href=\"[^\"]*\"" vlc-versions-listing.html | grep -E "^href=\"(last|3\.0\.23|4)" | sort -u   # other notable entries
+href="3.0.23/"
+href="last/"
+
+### 1b. Directory listing probe: https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/
+$ curl -sS -L --max-time 60 -o win64-listing.html -w "%{http_code} %{size_download} %{url_effective}\n" "https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/"
+200 2903 https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/
+
+$ grep -o "href=\"[^\"]*\"" win64-listing.html | sort -u   # full file list of the official 3.0.23/win64/ directory
+href="../"
+href="vlc-3.0.23-win64-debugsym.7z"
+href="vlc-3.0.23-win64.7z"
+href="vlc-3.0.23-win64.7z.asc"
+href="vlc-3.0.23-win64.7z.md5"
+href="vlc-3.0.23-win64.7z.sha1"
+href="vlc-3.0.23-win64.7z.sha256"
+href="vlc-3.0.23-win64.exe"
+href="vlc-3.0.23-win64.exe.asc"
+href="vlc-3.0.23-win64.exe.md5"
+href="vlc-3.0.23-win64.exe.sha1"
+href="vlc-3.0.23-win64.exe.sha256"
+href="vlc-3.0.23-win64.msi"
+href="vlc-3.0.23-win64.msi.asc"
+href="vlc-3.0.23-win64.msi.md5"
+href="vlc-3.0.23-win64.msi.sha1"
+href="vlc-3.0.23-win64.msi.sha256"
+href="vlc-3.0.23-win64.zip"
+href="vlc-3.0.23-win64.zip.asc"
+href="vlc-3.0.23-win64.zip.md5"
+href="vlc-3.0.23-win64.zip.sha1"
+href="vlc-3.0.23-win64.zip.sha256"
+
+### 1c. Download official hash sidecars for vlc-3.0.23-win64.exe
+$ cd /home/z/my-project/tmp/pinning && curl -sS -L --max-time 60 -O "https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/vlc-3.0.23-win64.exe.sha256" -O "https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/vlc-3.0.23-win64.exe.sha1" -O "https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/vlc-3.0.23-win64.exe.md5" -O "https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/vlc-3.0.23-win64.exe.asc" && ls -la vlc-3.0.23-win64.exe.*
+-rw-rw-r-- 1 z z 195 Oct 19 11:54 vlc-3.0.23-win64.exe.asc
+-rw-rw-r-- 1 z z  55 Oct 19 11:54 vlc-3.0.23-win64.exe.md5
+-rw-rw-r-- 1 z z  63 Oct 19 11:54 vlc-3.0.23-win64.exe.sha1
+-rw-rw-r-- 1 z z  87 Oct 19 11:54 vlc-3.0.23-win64.exe.sha256
+
+$ echo "--- vlc-3.0.23-win64.exe.sha256 (verbatim) ---"; cat vlc-3.0.23-win64.exe.sha256; echo "--- vlc-3.0.23-win64.exe.sha1 (verbatim) ---"; cat vlc-3.0.23-win64.exe.sha1; echo "--- vlc-3.0.23-win64.exe.md5 (verbatim) ---"; cat vlc-3.0.23-win64.exe.md5; echo "--- vlc-3.0.23-win64.exe.asc (verbatim, first 30 lines) ---"; head -n 30 vlc-3.0.23-win64.exe.asc
+--- vlc-3.0.23-win64.exe.sha256 (verbatim) ---
+20ad191348684b470ddc4e05204316f3d8e39655f412b3e392a0eef97639daaf *vlc-3.0.23-win64.exe
+--- vlc-3.0.23-win64.exe.sha1 (verbatim) ---
+ee04a6c1317bba9c60369a586379ff245abb286c *vlc-3.0.23-win64.exe
+--- vlc-3.0.23-win64.exe.md5 (verbatim) ---
+f711b3aee7c805d52ab28fe53440e35f *vlc-3.0.23-win64.exe
+--- vlc-3.0.23-win64.exe.asc (verbatim, first 30 lines) ---
+-----BEGIN PGP SIGNATURE-----
+
+iF0EABECAB0WIQRl98a0IGvQV6frc3hxgHE75Y0a3AUCaVU39wAKCRBxgHE75Y0a
+3NEYAJsEFvOV1OLTex9Yg0Fyw9I0L+4gTwCfXaafhm4dt7rYulk6PHnm33TyK40=
+=irRb
+-----END PGP SIGNATURE-----
+
+### 1d. Download the official installer (primary artifact)
+$ cd /home/z/my-project/tmp/pinning && curl -L --max-time 240 -o vlc-3.0.23-win64.exe -w "http_code=%{http_code} size_download=%{size_download} speed=%{speed_download} url_effective=%{url_effective}\n" "https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/vlc-3.0.23-win64.exe"
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0100   145  100   145    0     0     55      0  0:00:02  0:00:02 --:--:--    55
+  0     0    0     0    0     0      0      0 --:--:--  0:00:02 --:--:--     0100   119    0   119    0     0     32      0 --:--:--  0:00:03 --:--:--   162
+ 10 43.8M   10 4843k    0     0  1293k      0  0:00:34  0:00:03  0:00:31 1293k100 43.8M  100 43.8M    0     0   9.8M      0  0:00:04  0:00:04 --:--:-- 55.9M
+http_code=200 size_download=45948080 speed=10338600 url_effective=https://mirror-hk.koddos.net/videolan/vlc/3.0.23/win64/vlc-3.0.23-win64.exe
+curl exit code: 0
+
+$ ls -la vlc-3.0.23-win64.exe && file vlc-3.0.23-win64.exe
+-rw-rw-r-- 1 z z 45948080 Oct 19 11:54 vlc-3.0.23-win64.exe
+vlc-3.0.23-win64.exe: PE32 executable for MS Windows 4.00 (GUI), Intel i386 (stripped to external PDB), Nullsoft Installer self-extracting archive, 7 sections
+
+### 2. Compute our own hashes of the downloaded file
+$ cd /home/z/my-project/tmp/pinning && sha256sum vlc-3.0.23-win64.exe && sha512sum vlc-3.0.23-win64.exe && sha1sum vlc-3.0.23-win64.exe && md5sum vlc-3.0.23-win64.exe && stat -c "size=%s bytes" vlc-3.0.23-win64.exe
+20ad191348684b470ddc4e05204316f3d8e39655f412b3e392a0eef97639daaf  vlc-3.0.23-win64.exe
+fe7aa76985fe90e13a47ddd255bcaafa2bfbc6ece4b998a8031a8e0b6042e3d904b9db03f669cd9580914f050b558bc6541fcaaf1be176993eb847cf739c6f45  vlc-3.0.23-win64.exe
+ee04a6c1317bba9c60369a586379ff245abb286c  vlc-3.0.23-win64.exe
+f711b3aee7c805d52ab28fe53440e35f  vlc-3.0.23-win64.exe
+size=45948080 bytes
+
+### 2b. Cross-check computed SHA-256 vs official sidecar
+$ sha256sum -c vlc-3.0.23-win64.exe.sha256 && sha1sum -c vlc-3.0.23-win64.exe.sha1 && md5sum -c vlc-3.0.23-win64.exe.md5
+vlc-3.0.23-win64.exe: OK
+vlc-3.0.23-win64.exe: OK
+vlc-3.0.23-win64.exe: OK
+cross-check exit code: 0
+
+### 3. GPG sidecar signature analysis
+$ cd /home/z/my-project/tmp/pinning && gpg --list-packets vlc-3.0.23-win64.exe.asc
+gpg: directory '/home/z/.gnupg' created
+gpg: keybox '/home/z/.gnupg/pubring.kbx' created
+# off=0 ctb=88 tag=2 hlen=2 plen=93
+:signature packet: algo 17, keyid 7180713BE58D1ADC
+	version 4, created 1767192567, md5len 0, sigclass 0x00
+	digest algo 2, begin of digest d1 18
+	hashed subpkt 33 len 21 (issuer fpr v4 65F7C6B4206BD057A7EB73787180713BE58D1ADC)
+	hashed subpkt 2 len 4 (sig created 2025-12-31)
+	subpkt 16 len 8 (issuer key ID 7180713BE58D1ADC)
+	data: [155 bits]
+	data: [159 bits]
+exit: 0
+
+### 3b. Naive gpg --verify (expected: missing public key)
+$ gpg --verify vlc-3.0.23-win64.exe.asc vlc-3.0.23-win64.exe
+gpg: Signature made Wed Dec 31 14:49:27 2025 UTC
+gpg:                using DSA key 65F7C6B4206BD057A7EB73787180713BE58D1ADC
+gpg: Can't check signature: No public key
+exit: 2
+
+### 3c. Attempt to fetch signing key 65F7C6B4206BD057A7EB73787180713BE58D1ADC from public keyservers
+$ gpg --keyserver keyserver.ubuntu.com --recv-keys 65F7C6B4206BD057A7EB73787180713BE58D1ADC 2>&1
+gpg: /home/z/.gnupg/trustdb.gpg: trustdb created
+gpg: key 7180713BE58D1ADC: public key "VideoLAN Release Signing Key (2018)" imported
+gpg: Total number processed: 1
+gpg:               imported: 1
+exit: 0
+
+### 3d. Verify the sidecar signature against the fetched key
+$ cd /home/z/my-project/tmp/pinning && gpg --verify vlc-3.0.23-win64.exe.asc vlc-3.0.23-win64.exe
+gpg: Signature made Wed Dec 31 14:49:27 2025 UTC
+gpg:                using DSA key 65F7C6B4206BD057A7EB73787180713BE58D1ADC
+gpg: Good signature from "VideoLAN Release Signing Key (2018)" [expired]
+gpg:                 aka "VideoLAN Release Signing Key (2013)" [expired]
+gpg:                 aka "VideoLAN Release Signing Key (2015)" [expired]
+gpg:                 aka "VideoLAN Release Signing Key (2014)" [expired]
+gpg:                 aka "VideoLAN Release Signing Key (2016)" [expired]
+gpg:                 aka "VideoLAN Release Signing Key (2017)" [expired]
+gpg: Note: This key has expired!
+Primary key fingerprint: 65F7 C6B4 206B D057 A7EB  7378 7180 713B E58D 1ADC
+exit: 0
+
+$ gpg --check-signatures 2>&1 | head -n 20   # key identity details as imported
+/home/z/.gnupg/pubring.kbx
+--------------------------
+pub   dsa1024 2013-01-21 [SC] [expired: 2026-08-01]
+      65F7C6B4206BD057A7EB73787180713BE58D1ADC
+uid           [ expired] VideoLAN Release Signing Key (2018)
+sig!3        7180713BE58D1ADC 2021-01-08  [self-signature]
+sig!3        7180713BE58D1ADC 2023-10-03  [self-signature]
+sig!3        7180713BE58D1ADC 2025-09-30  [self-signature]
+uid           [ expired] VideoLAN Release Signing Key (2013)
+sig!3        7180713BE58D1ADC 2013-01-21  [self-signature]
+sig!3        7180713BE58D1ADC 2014-02-02  [self-signature]
+sig!3        7180713BE58D1ADC 2015-02-11  [self-signature]
+sig!3        7180713BE58D1ADC 2016-02-18  [self-signature]
+sig!3        7180713BE58D1ADC 2016-04-26  [self-signature]
+sig!3        7180713BE58D1ADC 2017-05-03  [self-signature]
+sig!3        7180713BE58D1ADC 2017-06-07  [self-signature]
+sig!3        7180713BE58D1ADC 2021-01-08  [self-signature]
+sig!3        7180713BE58D1ADC 2023-10-03  [self-signature]
+sig!3        7180713BE58D1ADC 2025-09-30  [self-signature]
+uid           [ expired] VideoLAN Release Signing Key (2015)
+
+### 4. Official mirror + release-page checks
+
+### 4a. get.videolan.org mirror tree (the URL family cited in doc 02 §2.2)
+$ curl -sS -L --max-time 60 -o get-win64-listing.html -w "%{http_code} %{size_download} %{url_effective}\n" "https://get.videolan.org/vlc/3.0.23/win64/"
+200 2895 https://get.videolan.org/vlc/3.0.23/win64/
+
+$ grep -o "href=\"vlc-3.0.23-win64[^\"]*\"" get-win64-listing.html | sort -u
+href="vlc-3.0.23-win64-debugsym.7z"
+href="vlc-3.0.23-win64.7z"
+href="vlc-3.0.23-win64.7z.asc"
+href="vlc-3.0.23-win64.7z.md5"
+href="vlc-3.0.23-win64.7z.sha1"
+href="vlc-3.0.23-win64.7z.sha256"
+href="vlc-3.0.23-win64.exe"
+href="vlc-3.0.23-win64.exe.asc"
+href="vlc-3.0.23-win64.exe.md5"
+href="vlc-3.0.23-win64.exe.sha1"
+href="vlc-3.0.23-win64.exe.sha256"
+href="vlc-3.0.23-win64.msi"
+href="vlc-3.0.23-win64.msi.asc"
+href="vlc-3.0.23-win64.msi.md5"
+href="vlc-3.0.23-win64.msi.sha1"
+href="vlc-3.0.23-win64.msi.sha256"
+href="vlc-3.0.23-win64.zip"
+href="vlc-3.0.23-win64.zip.asc"
+href="vlc-3.0.23-win64.zip.md5"
+href="vlc-3.0.23-win64.zip.sha1"
+href="vlc-3.0.23-win64.zip.sha256"
+
+### 4b. Fetch the same .sha256 sidecar from get.videolan.org (independent of download.videolan.org)
+$ curl -sS -L --max-time 60 "https://get.videolan.org/vlc/3.0.23/win64/vlc-3.0.23-win64.exe.sha256"
+20ad191348684b470ddc4e05204316f3d8e39655f412b3e392a0eef97639daaf *vlc-3.0.23-win64.exe
+exit: 0
+
+$ grep -o "href=\"[^\"]*\"" get-win64-listing.html | sort -u   # full get.videolan.org 3.0.23/win64/ listing
+href="../"
+href="vlc-3.0.23-win64-debugsym.7z"
+href="vlc-3.0.23-win64.7z"
+href="vlc-3.0.23-win64.7z.asc"
+href="vlc-3.0.23-win64.7z.md5"
+href="vlc-3.0.23-win64.7z.sha1"
+href="vlc-3.0.23-win64.7z.sha256"
+href="vlc-3.0.23-win64.exe"
+href="vlc-3.0.23-win64.exe.asc"
+href="vlc-3.0.23-win64.exe.md5"
+href="vlc-3.0.23-win64.exe.sha1"
+href="vlc-3.0.23-win64.exe.sha256"
+href="vlc-3.0.23-win64.msi"
+href="vlc-3.0.23-win64.msi.asc"
+href="vlc-3.0.23-win64.msi.md5"
+href="vlc-3.0.23-win64.msi.sha1"
+href="vlc-3.0.23-win64.msi.sha256"
+href="vlc-3.0.23-win64.zip"
+href="vlc-3.0.23-win64.zip.asc"
+href="vlc-3.0.23-win64.zip.md5"
+href="vlc-3.0.23-win64.zip.sha1"
+href="vlc-3.0.23-win64.zip.sha256"
+
+### 4c. Parent dir 3.0.23/ on download.videolan.org (check for winarm64, win32)
+$ curl -sS -L --max-time 60 -o vlc-3.0.23-dir.html -w "%{http_code} %{size_download}\n" "https://download.videolan.org/pub/videolan/vlc/3.0.23/"
+200 1370
+
+$ grep -o "href=\"[^\"]*\"" vlc-3.0.23-dir.html | sort -u
+href="../"
+href="macosx/"
+href="os2/"
+href="vlc-3.0.23.tar.xz"
+href="vlc-3.0.23.tar.xz.asc"
+href="vlc-3.0.23.tar.xz.md5"
+href="vlc-3.0.23.tar.xz.sha1"
+href="vlc-3.0.23.tar.xz.sha256"
+href="win32/"
+href="win64/"
+href="winarm64/"
+
+### 4d. File sizes as listed in the official win64/ directory HTML (size column)
+$ grep -oE "vlc-3.0.23-win64[^<]*</a>[^0-9]*[0-9]+" win64-listing.html | head; sed -n "/win64.exe</a>/p" win64-listing.html | sed "s/<[^>]*>//g"
+>/p
+
+### 4e. Release announcement page (release date check)
+$ curl -sS -L --max-time 60 -o release-3.0.23.html -w "%{http_code} %{size_download} %{url_effective}\n" "https://www.videolan.org/vlc/releases/3.0.23.html"
+200 44250 https://www.videolan.org/vlc/releases/3.0.23.html
+
+$ grep -oiE "(VLC [0-9.]+|released|January|2026)[^<]{0,80}" release-3.0.23.html | head -n 12
+VLC 3.0.23 Vetinari" />
+VLC 3.0.23 Vetinari - VideoLAN
+VLC 3.0.23 is the twenty-fourth version of the "Vetinari" branch of our popular media play
+VLC 3.0.23 is the twenty-fourth update of "Vetinari":
+VLC 3.0 "Vetinari" is a new major update of VLC
+VLC 3.0 activates 
+VLC 3.0 playing 8K 48fps 360 video on Android Galaxy S8
+VLC 3.0 playing 8k60 on Windows 10 using i7 GPU
+VLC 3.0!
+
+$ sed -n "s/<[^>]*>//g;p" win64-listing.html | grep -A1 -B1 "win64.exe" | head -n 8   # listing rows around the .exe (size column if any)
+vlc-3.0.23-win64.7z.sha256                         31-Dec-2025 14:49                  86
+vlc-3.0.23-win64.exe                               31-Dec-2025 12:48            45948080
+vlc-3.0.23-win64.exe.asc                           31-Dec-2025 14:49                 195
+vlc-3.0.23-win64.exe.md5                           31-Dec-2025 14:49                  55
+vlc-3.0.23-win64.exe.sha1                          31-Dec-2025 14:49                  63
+vlc-3.0.23-win64.exe.sha256                        31-Dec-2025 14:49                  87
+vlc-3.0.23-win64.msi                               31-Dec-2025 12:49            60608512
+vlc-3.0.23-win64.msi.asc                           31-Dec-2025 14:49                 195
+
+$ grep -oE "[0-9]{4}-[0-9]{2}-[0-9]{2}" release-3.0.23.html | head -n 6   # dates in release announcement
+
+$ grep -oiE "(January|February|March|April|May|June|July|August|September|October|November|December)[^<]{0,40}2026" release-3.0.23.html | head -n 4
+
+### 4f. Release date strings in the announcement page
+$ grep -oE "(datePublished|dateModified|datetime)=\"[^\"]*\"" release-3.0.23.html | head -n 5; grep -oE "20(25|26)[^<]{0,30}" release-3.0.23.html | head -n 8
+
+### 4g. Windows download page (official recommendation pointer)
+$ curl -sS -L --max-time 60 -o download-windows.html -w "%{http_code} %{size_download} %{url_effective}\n" "https://www.videolan.org/vlc/download-windows.html"
+200 40381 https://www.videolan.org/vlc/download-windows.html
+
+$ grep -oE "href=\"[^\"]*win64[^\"]*\"" download-windows.html | sort -u | head -n 10
+href="//get.videolan.org/vlc/3.0.24/win64/vlc-3.0.24-win64.7z"
+href="//get.videolan.org/vlc/3.0.24/win64/vlc-3.0.24-win64.exe"
+href="//get.videolan.org/vlc/3.0.24/win64/vlc-3.0.24-win64.msi"
+href="//get.videolan.org/vlc/3.0.24/win64/vlc-3.0.24-win64.zip"
+
+### 4h. Deeper date hunt in release announcement HTML
+$ grep -oiE "(mon|tue|wed|thu|fri|sat|sun)[^<]{0,60}" release-3.0.23.html | head -n 4; grep -oiE "january[^<]{0,30}" release-3.0.23.html | head -n 4; grep -oE "<title>[^<]*</title>" release-3.0.23.html
+money">Donate
+money" class="dropdown-toggle" data-toggle="dropdown" role="but
+SAT&gt;IP devices, for DVB-S via IP networks
+money">Donate money
+<title>VLC 3.0.23 Vetinari - VideoLAN</title>
+
+$ curl -sS -I --max-time 60 "https://www.videolan.org/vlc/releases/3.0.23.html" | grep -iE "^(last-modified|etag|date):"
+date: Mon, 19 Oct 2026 11:57:06 GMT
+last-modified: Tue, 22 Sep 2026 13:10:27 GMT
+etag: "6ab27e43-acda"
+
+### 4i. News page check for the 3.0.23 announcement date
+$ curl -sS -L --max-time 60 -o news.html -w "%{http_code} %{size_download}\n" "https://www.videolan.org/news.html" && grep -oE ".{0,120}3\.0\.23.{0,120}" news.html | head -n 6
+200 450703
+<a id='news-2026-01-08' name='news-2026-01-08'></a><div class='title'><a href="/news.html#news-2026-01-08">VLC 3.0.23</a></div>
+<p class='news-descr'>VideoLAN and the VLC team are publishing the 3.0.23 release of VLC today, which is the 24th update to VLC's 3.0 branch: it updates codecs, adds a dark mode option on Windo
+by rub.de, oss-fuzz and others) and updates to most third party libraries. Additional details on <a href="/vlc/releases/3.0.23.html">the release page</a>. The security impact of this release is detailed <a href="/security/sb-vlc3022.html">here</a
+<p class='news-descr'>Alongside the 3.0.23 release for desktop, VideoLAN and the VLC team are publishing a larger update for Apple's mobile platforms to include t
+
+### 5. Windows variant sidecars (official values, fetched as text; no download of those binaries here)
+$ for f in vlc-3.0.23-win64.7z vlc-3.0.23-win64.msi vlc-3.0.23-win64.zip; do echo "-- $f.sha256 --"; curl -sS -L --max-time 60 "https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/$f.sha256"; done
+-- vlc-3.0.23-win64.7z.sha256 --
+eb4fd8a28291da73608c733786a09610fea865fbe94113bcb60b91c1ebb8404a *vlc-3.0.23-win64.7z
+-- vlc-3.0.23-win64.msi.sha256 --
+bc4b902a480b98a4a5479327a7f210f06369a59bf727649e320faba5b4ef1f5e *vlc-3.0.23-win64.msi
+-- vlc-3.0.23-win64.zip.sha256 --
+992d19dbd0b8a7cde9167d2f7780b1ef6f92acc8a71acfa736101a21f35181e1 *vlc-3.0.23-win64.zip
+
+### 5b. win32/ and winarm64/ listings (existence proof)
+$ curl -sS -L --max-time 60 "https://download.videolan.org/pub/videolan/vlc/3.0.23/win32/" | grep -o "href=\"vlc-3.0.23[^\"]*\"" | sort -u | head -n 30
+href="vlc-3.0.23-win32-debugsym.7z"
+href="vlc-3.0.23-win32.7z"
+href="vlc-3.0.23-win32.7z.asc"
+href="vlc-3.0.23-win32.7z.md5"
+href="vlc-3.0.23-win32.7z.sha1"
+href="vlc-3.0.23-win32.7z.sha256"
+href="vlc-3.0.23-win32.exe"
+href="vlc-3.0.23-win32.exe.asc"
+href="vlc-3.0.23-win32.exe.md5"
+href="vlc-3.0.23-win32.exe.sha1"
+href="vlc-3.0.23-win32.exe.sha256"
+href="vlc-3.0.23-win32.msi"
+href="vlc-3.0.23-win32.msi.asc"
+href="vlc-3.0.23-win32.msi.md5"
+href="vlc-3.0.23-win32.msi.sha1"
+href="vlc-3.0.23-win32.msi.sha256"
+href="vlc-3.0.23-win32.zip"
+href="vlc-3.0.23-win32.zip.asc"
+href="vlc-3.0.23-win32.zip.md5"
+href="vlc-3.0.23-win32.zip.sha1"
+href="vlc-3.0.23-win32.zip.sha256"
+
+$ curl -sS -L --max-time 60 "https://download.videolan.org/pub/videolan/vlc/3.0.23/winarm64/" | grep -o "href=\"vlc[^\"]*\"" | sort -u | head -n 10
+href="vlc-3.0.23-winarm64-debugsym.7z"
+href="vlc-3.0.23-winarm64.7z"
+href="vlc-3.0.23-winarm64.7z.asc"
+href="vlc-3.0.23-winarm64.7z.md5"
+href="vlc-3.0.23-winarm64.7z.sha1"
+href="vlc-3.0.23-winarm64.7z.sha256"
+href="vlc-3.0.23-winarm64.exe"
+href="vlc-3.0.23-winarm64.exe.asc"
+href="vlc-3.0.23-winarm64.exe.md5"
+href="vlc-3.0.23-winarm64.exe.sha1"
+
+### 5c. Authenticode tool availability in sandbox
+$ command -v osslsigncode || echo "osslsigncode: NOT INSTALLED (Authenticode check blocked in sandbox)"
+osslsigncode: NOT INSTALLED (Authenticode check blocked in sandbox)
+
+### 6. Download the no-install archive vlc-3.0.23-win64.7z (secondary artifact; future controlled-oracle extract) and verify
+$ cd /home/z/my-project/tmp/pinning && curl -sS -L --max-time 240 -O "https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/vlc-3.0.23-win64.7z.sha256" && curl -sS -L --max-time 240 -o vlc-3.0.23-win64.7z -w "http_code=%{http_code} size_download=%{size_download} url_effective=%{url_effective}\n" "https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/vlc-3.0.23-win64.7z"
+http_code=200 size_download=39583707 url_effective=https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/vlc-3.0.23-win64.7z
+exit: 0
+
+$ sha256sum -c vlc-3.0.23-win64.7z.sha256 && sha512sum vlc-3.0.23-win64.7z && stat -c "size=%s bytes" vlc-3.0.23-win64.7z && file vlc-3.0.23-win64.7z
+vlc-3.0.23-win64.7z: OK
+97014130095f9af4b3808c4d17fad3c49a21f41c02a2d8d57e656c8635af238973eeec425b3e9a68da8d4ce6dd5bc64294bc0ad3b3bce818dcc301077680af82  vlc-3.0.23-win64.7z
+size=39583707 bytes
+vlc-3.0.23-win64.7z: 7-zip archive data, version 0.4
+
+### 7. Attempt to find the signing key published on a VideoLAN-controlled HTTPS page (trust anchor stronger than keyserver)
+$ for u in "https://www.videolan.org/keys/" "https://www.videolan.org/vlc/download-windows.html" "https://download.videolan.org/pub/videolan/KEYS" "https://www.videolan.org/contact.html"; do printf "%s -> " "$u"; curl -sS -o /dev/null -L --max-time 40 -w "%{http_code}\n" "$u"; done
+https://www.videolan.org/keys/ -> 404
+https://www.videolan.org/vlc/download-windows.html -> 200
+https://download.videolan.org/pub/videolan/KEYS -> 404
+https://www.videolan.org/contact.html -> 200
+
+$ grep -oiE "(signature|gpg|pgp|sha256|checksum)[^<]{0,60}" download-windows.html | head -n 8   # does the Windows download page mention signatures/checksums?
+
+### 8. TLS certificate of download.videolan.org (transport authenticity layer)
+$ echo | openssl s_client -connect download.videolan.org:443 -servername download.videolan.org 2>/dev/null | openssl x509 -noout -subject -issuer -dates
+subject=CN=www.videolan.org
+issuer=C=US, O=Let's Encrypt, CN=YE1
+notBefore=Sep  4 01:37:00 2026 GMT
+notAfter=Dec  3 01:36:59 2026 GMT
+
+### 9. Re-download re-check (drift guard): HEAD the pinned exe to confirm current served size/etag
+$ curl -sS -I -L --max-time 60 "https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/vlc-3.0.23-win64.exe" | grep -iE "^(HTTP|content-length|last-modified|etag):"
+content-length: 145
+Last-Modified: Wed, 31 Dec 2025 12:48:04 GMT
+ETag: "2bd1cb0-6473ee31ae900"
+Content-Length: 45948080
+
+## Closing summary (2026-10-19)
+
+Primary artifact: vlc-3.0.23-win64.exe — downloaded OK (45,948,080 bytes; served via redirect by mirror-hk.koddos.net).
+Computed SHA-256 : 20ad191348684b470ddc4e05204316f3d8e39655f412b3e392a0eef97639daaf
+Official sidecar : 20ad191348684b470ddc4e05204316f3d8e39655f412b3e392a0eef97639daaf  (download.videolan.org AND get.videolan.org) -> MATCH
+Also matches doc 02 §2.2 pre-verified value -> MATCH
+sha256sum -c / sha1sum -c / md5sum -c : all OK (exit 0).
+GPG sidecar .asc : Good signature from "VideoLAN Release Signing Key (2018)" (DSA 65F7C6B4206BD057A7EB73787180713BE58D1ADC), sig created 2025-12-31 14:49:27 UTC; NOTE: key expired 2026-08-01; key obtained from keyserver.ubuntu.com (no VideoLAN-hosted copy found — probes in step 7).
+Secondary artifact: vlc-3.0.23-win64.7z — downloaded OK (39,583,707 bytes), sha256sum -c OK.
+Source tarball vlc-3.0.23.tar.xz exists in the official tree and was DELIBERATELY NOT DOWNLOADED (clean-room rule, doc 02 §2.1).
+
+## Files in tmp/pinning/ produced by this task (gitignored; NEVER to be committed)
+$ ls -la /home/z/my-project/tmp/pinning/ | grep -Ei "vlc|win64" | grep -v macos
+-rw-rw-r-- 1 z z     2895 Oct 19 11:55 get-win64-listing.html
+-rw-rw-r-- 1 z z 51273389 Oct 19 11:55 vlc-3.0.23-arm64.dmg
+-rw-rw-r-- 1 z z      195 Oct 19 11:54 vlc-3.0.23-arm64.dmg.asc
+-rw-rw-r-- 1 z z       55 Oct 19 11:54 vlc-3.0.23-arm64.dmg.md5
+-rw-rw-r-- 1 z z       63 Oct 19 11:54 vlc-3.0.23-arm64.dmg.sha1
+-rw-rw-r-- 1 z z       87 Oct 19 11:53 vlc-3.0.23-arm64.dmg.sha256
+-rw-rw-r-- 1 z z     1370 Oct 19 11:56 vlc-3.0.23-dir.html
+-rw-rw-r-- 1 z z 57544217 Oct 19 11:55 vlc-3.0.23-intel64.dmg
+-rw-rw-r-- 1 z z      195 Oct 19 11:54 vlc-3.0.23-intel64.dmg.asc
+-rw-rw-r-- 1 z z       57 Oct 19 11:54 vlc-3.0.23-intel64.dmg.md5
+-rw-rw-r-- 1 z z       65 Oct 19 11:54 vlc-3.0.23-intel64.dmg.sha1
+-rw-rw-r-- 1 z z       89 Oct 19 11:54 vlc-3.0.23-intel64.dmg.sha256
+-rw-rw-r-- 1 z z 89124160 Oct 19 11:56 vlc-3.0.23-universal.dmg
+-rw-rw-r-- 1 z z      195 Oct 19 11:54 vlc-3.0.23-universal.dmg.asc
+-rw-rw-r-- 1 z z       59 Oct 19 11:54 vlc-3.0.23-universal.dmg.md5
+-rw-rw-r-- 1 z z       67 Oct 19 11:54 vlc-3.0.23-universal.dmg.sha1
+-rw-rw-r-- 1 z z       91 Oct 19 11:54 vlc-3.0.23-universal.dmg.sha256
+-rw-rw-r-- 1 z z 39583707 Oct 19 11:58 vlc-3.0.23-win64.7z
+-rw-rw-r-- 1 z z       86 Oct 19 11:57 vlc-3.0.23-win64.7z.sha256
+-rw-rw-r-- 1 z z 45948080 Oct 19 11:54 vlc-3.0.23-win64.exe
+-rw-rw-r-- 1 z z      195 Oct 19 11:54 vlc-3.0.23-win64.exe.asc
+-rw-rw-r-- 1 z z       55 Oct 19 11:54 vlc-3.0.23-win64.exe.md5
+-rw-rw-r-- 1 z z       63 Oct 19 11:54 vlc-3.0.23-win64.exe.sha1
+-rw-rw-r-- 1 z z       87 Oct 19 11:54 vlc-3.0.23-win64.exe.sha256
+-rw-rw-r-- 1 z z    18029 Oct 19 11:53 vlc-versions-listing.html
+-rw-rw-r-- 1 z z     2903 Oct 19 11:54 win64-listing.html
+
+$ git -C /home/z/my-project check-ignore -v tmp/pinning/vlc-3.0.23-win64.exe tmp/pinning/vlc-3.0.23-win64.7z
+.gitignore:28:tmp/	tmp/pinning/vlc-3.0.23-win64.exe
+.gitignore:28:tmp/	tmp/pinning/vlc-3.0.23-win64.7z
+
+$ git -C /home/z/my-project status --porcelain | head -n 20   # confirm no binaries staged/tracked anywhere
+?? docs/baselines/
+?? macosx-listing-download.html
+?? tool-results/read_1792410745610_43d33837826d.txt
+?? tool-results/read_1792410745866_43d33837826d.txt
+?? tool-results/read_1792410746341_43d33837826d.txt
+?? tool-results/read_1792410749939_3a026e4bd986.txt
+?? tool-results/read_1792410750501_3a026e4bd986.txt
+
+NOTE (scope clarification): the tmp/pinning/ scratch dir is shared with concurrent wave-0.A agents; the
+vlc-3.0.23-*.dmg* files visible in the listing above belong to task 0.A3 (macOS), not to this Windows pin.
+This task (0.A1) downloaded ONLY: vlc-3.0.23-win64.exe, vlc-3.0.23-win64.7z, their .asc/.md5/.sha1/.sha256
+sidecars, the win64 directory listings, and the videolan.org HTML pages quoted in the log.
+END OF LOG — Task 0.A1, 2026-10-19.

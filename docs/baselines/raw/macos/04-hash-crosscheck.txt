@@ -1,0 +1,52 @@
+# Raw evidence 04 — computed hashes + cross-check against official sidecars
+# Date (UTC): 2026-10-19. Agent: 0.A3. Host: Linux sandbox (sha256sum/sha512sum/sha1sum/md5sum, coreutils).
+
+=== COMMANDS ===
+sha256sum vlc-3.0.23-arm64.dmg vlc-3.0.23-intel64.dmg vlc-3.0.23-universal.dmg
+sha512sum vlc-3.0.23-arm64.dmg vlc-3.0.23-intel64.dmg vlc-3.0.23-universal.dmg
+sha1sum   vlc-3.0.23-arm64.dmg vlc-3.0.23-intel64.dmg vlc-3.0.23-universal.dmg
+md5sum    vlc-3.0.23-arm64.dmg vlc-3.0.23-intel64.dmg vlc-3.0.23-universal.dmg
+=== RESULTS (verbatim) ===
+SHA-256:
+fc6fac08d87f538517d44aca0c5e7a244b67c8c4cb589bf478363a7315fd5e0d  vlc-3.0.23-arm64.dmg
+ec01530ce69d849dd057fba8876e68ac39bf279dc28de4e9c04e4aec11fc98db  vlc-3.0.23-intel64.dmg
+56ee657c3aaf5c71b4ab7d6e4f4a77f6eca54633e0bf42a93b8116eb1d1f6ec9  vlc-3.0.23-universal.dmg
+SHA-512 (no official .sha512 sidecar exists; recorded for our own re-verification):
+8ba24bd8bd52a79433a0daea65e64930b07c297004e2e17a2be5b0b2aa345a4adb8f600f5c957e2ee5193d5c0cb7dab8d8c0f8dfa2967e208e7f20b7ab58de58  vlc-3.0.23-arm64.dmg
+8e964c54132dfb4a2dc67396f6ef11a56b6abb2d57c98125158cc4e04c6650d119d78ec8fd71c707a89f64ba7767f7d48e538caec2d8fdca2b1a1f020e46f608  vlc-3.0.23-intel64.dmg
+fcdfa8d82ee75522cb0b95f060baa1dab214b760410a1b27027e686df3bcf540a2496243e7f17e7e97aaf79c58af3d2478984116e671258008e053ea67b66fb4  vlc-3.0.23-universal.dmg
+SHA-1:
+1fa89d566b17d934009d9e701a2e9c16b79fa797  vlc-3.0.23-arm64.dmg
+8d80438cc8a9fdcc31c2e069e6ef6ff6930c3379  vlc-3.0.23-intel64.dmg
+027ed7d28e2390a6718a5c68f6e783be76fd5ffd  vlc-3.0.23-universal.dmg
+MD5:
+c5870b7e9b98726fe0af4de368541753  vlc-3.0.23-arm64.dmg
+0f7aecc9d0bc0833373086793d81b260  vlc-3.0.23-intel64.dmg
+7241e50fef32ff648a7a11e60415f73a  vlc-3.0.23-universal.dmg
+
+=== CROSS-CHECK vs official sidecars (raw evidence 02) ===
+arm64:
+  computed  sha256 fc6fac08d87f538517d44aca0c5e7a244b67c8c4cb589bf478363a7315fd5e0d
+  sidecar   sha256 fc6fac08d87f538517d44aca0c5e7a244b67c8c4cb589bf478363a7315fd5e0d  -> MATCH
+  computed  sha1   1fa89d566b17d934009d9e701a2e9c16b79fa797
+  sidecar   sha1   1fa89d566b17d934009d9e701a2e9c16b79fa797                              -> MATCH
+  computed  md5    c5870b7e9b98726fe0af4de368541753
+  sidecar   md5    c5870b7e9b98726fe0af4de368541753                                   -> MATCH
+intel64:
+  computed  sha256 ec01530ce69d849dd057fba8876e68ac39bf279dc28de4e9c04e4aec11fc98db
+  sidecar   sha256 ec01530ce69d849dd057fba8876e68ac39bf279dc28de4e9c04e4aec11fc98db  -> MATCH
+  computed  sha1   8d80438cc8a9fdcc31c2e069e6ef6ff6930c3379
+  sidecar   sha1   8d80438cc8a9fdcc31c2e069e6ef6ff6930c3379                              -> MATCH
+  computed  md5    0f7aecc9d0bc0833373086793d81b260
+  sidecar   md5    0f7aecc9d0bc0833373086793d81b260                                   -> MATCH
+universal:
+  computed  sha256 56ee657c3aaf5c71b4ab7d6e4f4a77f6eca54633e0bf42a93b8116eb1d1f6ec9
+  sidecar   sha256 56ee657c3aaf5c71b4ab7d6e4f4a77f6eca54633e0bf42a93b8116eb1d1f6ec9  -> MATCH
+  (also matches doc 02 §2.2 pre-verified data point, and the GPG-verified download below)
+  computed  sha1   027ed7d28e2390a6718a5c68f6e783be76fd5ffd
+  sidecar   sha1   027ed7d28e2390a6718a5c68f6e783be76fd5ffd                              -> MATCH
+  computed  md5    7241e50fef32ff648a7a11e60415f73a
+  sidecar   md5    7241e50fef32ff648a7a11e60415f73a                                   -> MATCH
+
+VERDICT: 9/9 hash cross-checks PASS (3 algorithms x 3 artifacts). All three downloaded dmgs
+are byte-identical to what VideoLAN's official sidecars describe.
