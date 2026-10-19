@@ -122,8 +122,12 @@ ADR-010 patent shipping matrix (user + counsel) · ADR-011 TLS/HTTPS —
 ## 8. Next action
 
 **Phase 0 complete (gate report: `docs/gates/phase0-exit-report.md`).**
-Next: **Phase 1 — Foundation** (doc 13 §4, waves 1.A–1.F, 20 cards) in
-dependency order: workspace + lints + CI skeleton → product.toml + schema +
-validator → settings-schema/localization/commands (ADR-005 decision at 1.C) →
-media-types + plugin-api (Lead-owned) → theme-tokens + keymaps + xtask →
-testkit v0 + boundary check + wasm CI job.
+**Phase 1 IN PROGRESS — Wave 1.A complete (1.A1–1.A3, commits b3141a6,
+fc9fd39); Wave 1.B at 3/4 (1.B1 product-config, 1.B3 localization, 1.B4
+theme-tokens landed; gate SUCCESS 0 failed / 5 honest skips, 234 tests
+green).**
+Next: **1.B2 settings-schema + generators** (dep 1.B1 satisfied), then
+Lead-owned **Wave 1.C** (media-types I/II, testkit v0; ADR-005 audio-output
+decision at 1.C), then Wave 1.D contracts (commands I/II, codec-api,
+plugin-api), Wave 1.E enforcement/CI/tooling, Wave 1.F gate
+(`docs/gates/phase1-exit.md`).

@@ -79,10 +79,9 @@ fn unknown_subcommand_is_a_usage_error_listing_known_ones() {
 
 #[test]
 fn pre_registered_stubs_fail_honestly_with_their_card() {
-    // `tokens` graduated when card 1.B4 landed (Lead-completed salvage):
-    // it now runs the real pipeline, so it is no longer asserted here.
+    // `tokens` graduated when card 1.B4 landed; `schema-gen` when 1.B2
+    // landed (both Lead-completed salvages): they run the real pipelines.
     for (sub, card) in [
-        ("schema-gen", "1.B2"),
         ("codegen", "1.D4"),
         ("check-architecture", "1.E1"),
         ("rebrand", "1.E4"),

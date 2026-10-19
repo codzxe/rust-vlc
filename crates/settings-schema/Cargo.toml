@@ -1,0 +1,43 @@
+# THE LUMEN SETTINGS-SCHEMA CRATE (card 1.B2 — doc 07 §5, doc 01 §2.3).
+#
+# The single source of truth for every Lumen setting: parses
+# `schemas/settings.toml` (doc 07 §5.2 entry format), enforces the D1–D6
+# no-duplicate rules (doc 07 §5.2), and deterministically generates the three
+# committed artifacts (doc 07 §5.3):
+#   * `schemas/generated/settings.d.ts`     (G1 — TS type surface for the UI)
+#   * `schemas/generated/settings-help.txt` (G2 — CLI --help golden text)
+#   * `schemas/generated/settings-docs.md`  (G3 — settings reference page)
+# G4 (runtime validation) is this crate's library itself: the schema is
+# embedded via `include_str!` and `config.set-setting`-style writes are
+# validated against it (type/range/enum — never silent coercion).
+#
+# Regeneration is idempotent (`cargo xtask schema-gen`, twice → empty git
+# diff on schemas/); `--check` diffs for CI (exit 1 on drift).
+#
+# The `schema-gen` binary is the entry point the (frozen) xtask `schema-gen`
+# subcommand shells out to — the Lead-ratified subprocess bridge pattern
+# first recorded by card 1.B4 (theme-tokens): xtask cannot take a path
+# dependency on a workspace crate without editing its frozen manifest.
+#
+# External dependency policy (doc 11): all pre-audit **pass** rows in
+# docs/dependencies/preaudit-foundation.md §1 — serde 1.x, toml 1.x,
+# thiserror 2.x (same family product-config uses). No new dependencies.
+
+[package]
+name = "settings-schema"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Single source of truth for every Lumen setting; generators for TS types, CLI --help, docs and runtime validation (doc 07 §5)"
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+toml = "1"
+thiserror = "2"
+
+[[bin]]
+name = "schema-gen"
+path = "src/bin/schema_gen.rs"

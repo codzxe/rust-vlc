@@ -1,0 +1,386 @@
+# ============================================================================
+# schemas/settings.toml — the Lumen settings schema (doc 07 §5).
+#
+# The single source of truth for every setting (type, range, description
+# msgid, restart-required, UI placement, CLI flag, feature gate, since).
+# Everything else is GENERATED from this file and committed for review:
+#   schemas/generated/settings.d.ts        (G1 — TS types)
+#   schemas/generated/settings-help.txt    (G2 — CLI --help)
+#   schemas/generated/settings-docs.md     (G3 — docs page)
+# plus the runtime validator (G4) embedded in crates/settings-schema.
+# Regenerate with `cargo xtask schema-gen`; a second run is byte-identical.
+#
+# Entry format: doc 07 §5.2 — every [[setting]] carries the ten mandated
+# fields: key, type, range/enumeration, default/default_ref, description,
+# restart_required, placement, cli.flag, feature_gate, since. Single-
+# definition rules D1–D6 (doc 07 §5.2) are enforced by the validator:
+#   D1 default xor default_ref; default_ref targets must exist in product.toml
+#   D2 setting keys globally unique
+#   D3 CLI flags globally unique and disjoint from reserved CLI names
+#   D4 description msgids unique 1:1 with entries
+#   D5 placement orders unique per (screen, section); screens must be known
+#   D6 no two entries write the same product-decision slot (default_ref)
+#
+# PHASE-1 SCOPE (card 1.B2): entries mirror the decisions that ACTUALLY
+# exist today — the product.toml options documented in doc 07 §2 (window,
+# defaults, telemetry, playback, limits) plus the engine-internal entries
+# named in doc 07 §5.4. The fuller doc 07 §5.4 seed (~45 entries) arrives
+# with the settings framework (card 4.E1); the VLC-scale census is a later
+# phase. The structure already scales to it (arrays of flat entries).
+#
+# Naming (doc 07 §5.2): setting keys are kebab-case dotted ids; default_ref
+# paths use the product.toml snake_case spelling — the D1 check joins them.
+# ============================================================================
+
+# Known settings screens (doc 07 §5.4: the 13 design-package areas, plus
+# `engine` for ui = false entries). [MIGRATION NOTE] this seeds the screen
+# registry that doc 07 §5.4/§7.2 assigns to layouts/settings-areas.toml;
+# when that file lands, schema-gen reads screen ids from it instead.
+[areas]
+known = [
+    "global", "interface", "privacy", "playback", "video", "audio",
+    "subtitles", "controls", "library", "network", "performance",
+    "recording", "extensions", "engine",
+]
+
+# --- global -----------------------------------------------------------------
+
+[[setting]]
+key = "global.language"
+type = "enum"
+enumeration = ["en-US"]        # [VERIFY] dynamic locales/ listing (doc 07 §5.4)
+default_ref = "defaults.locale"
+description = "settings.global.language"
+restart_required = true
+placement = { screen = "global", section = "language", order = 10, ui = true }
+cli = { flag = "--global-language", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+# --- interface (product.toml §2.2 window defaults + §2.4 defaults) -----------
+
+[[setting]]
+key = "interface.theme"
+type = "enum"
+enumeration = ["dark", "light"]
+default_ref = "defaults.theme"
+description = "settings.interface.theme"
+restart_required = false
+placement = { screen = "interface", section = "appearance", order = 10, ui = true }
+cli = { flag = "--interface-theme", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "interface.start-maximized"
+type = "bool"
+default_ref = "window.start_maximized"
+description = "settings.interface.start-maximized"
+restart_required = true
+placement = { screen = "interface", section = "window", order = 10, ui = true }
+cli = { flag = "--interface-start-maximized", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "interface.remember-window-geometry"
+type = "bool"
+default_ref = "window.remember_geometry"
+description = "settings.interface.remember-window-geometry"
+restart_required = true
+placement = { screen = "interface", section = "window", order = 20, ui = true }
+cli = { flag = "--interface-remember-window-geometry", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "interface.window-width"
+type = "int"
+range = { min = 480, max = 3840 }
+default_ref = "window.width"
+description = "settings.interface.window-width"
+restart_required = true
+placement = { screen = "interface", section = "window", order = 30, ui = true }
+cli = { flag = "--interface-window-width", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "interface.window-height"
+type = "int"
+range = { min = 320, max = 2160 }
+default_ref = "window.height"
+description = "settings.interface.window-height"
+restart_required = true
+placement = { screen = "interface", section = "window", order = 40, ui = true }
+cli = { flag = "--interface-window-height", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "interface.window-min-width"
+type = "int"
+range = { min = 480, max = 3840 }
+default_ref = "window.min_width"
+description = "settings.interface.window-min-width"
+restart_required = true
+placement = { screen = "interface", section = "window", order = 50, ui = true }
+cli = { flag = "--interface-window-min-width", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true
+
+[[setting]]
+key = "interface.window-min-height"
+type = "int"
+range = { min = 320, max = 2160 }
+default_ref = "window.min_height"
+description = "settings.interface.window-min-height"
+restart_required = true
+placement = { screen = "interface", section = "window", order = 60, ui = true }
+cli = { flag = "--interface-window-min-height", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true
+
+# --- privacy (product.toml §2.6 telemetry & privacy) -------------------------
+
+[[setting]]
+key = "privacy.telemetry"
+type = "bool"
+default_ref = "telemetry.enabled"
+description = "settings.privacy.telemetry"
+restart_required = false
+placement = { screen = "privacy", section = "data", order = 10, ui = true }
+cli = { flag = "--privacy-telemetry", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "privacy.crash-reports"
+type = "enum"
+enumeration = ["off", "ask", "send"]
+default_ref = "telemetry.crash_reports"
+description = "settings.privacy.crash-reports"
+restart_required = false
+placement = { screen = "privacy", section = "data", order = 20, ui = true }
+cli = { flag = "--privacy-crash-reports", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "privacy.usage-stats"
+type = "bool"
+default_ref = "telemetry.usage_stats"
+description = "settings.privacy.usage-stats"
+restart_required = false
+placement = { screen = "privacy", section = "data", order = 30, ui = true }
+cli = { flag = "--privacy-usage-stats", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "privacy.update-checks"
+type = "bool"
+default_ref = "telemetry.update_checks"
+description = "settings.privacy.update-checks"
+restart_required = false
+placement = { screen = "privacy", section = "data", order = 40, ui = true }
+cli = { flag = "--privacy-update-checks", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+# --- playback (product.toml §2.8 defaults & track-selection rules) -----------
+
+[[setting]]
+key = "playback.preferred-audio-languages"
+type = "list<string>"
+default_ref = "playback.preferred_audio_languages"
+description = "settings.playback.preferred-audio-languages"
+restart_required = false
+placement = { screen = "playback", section = "tracks", order = 10, ui = true }
+cli = { flag = "--playback-preferred-audio-languages", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "playback.preferred-subtitle-languages"
+type = "list<string>"
+default_ref = "playback.preferred_subtitle_languages"
+description = "settings.playback.preferred-subtitle-languages"
+restart_required = false
+placement = { screen = "playback", section = "tracks", order = 20, ui = true }
+cli = { flag = "--playback-preferred-subtitle-languages", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "playback.subtitle-mode"
+type = "enum"
+enumeration = ["auto", "forced-only", "on", "off"]
+default_ref = "playback.subtitle_mode"
+description = "settings.playback.subtitle-mode"
+restart_required = false
+placement = { screen = "playback", section = "tracks", order = 30, ui = true }
+cli = { flag = "--playback-subtitle-mode", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "playback.hw-decode-policy"
+type = "enum"
+enumeration = ["software-only", "prefer-hardware", "hardware-only"]
+default_ref = "playback.hw_decode_policy"
+description = "settings.playback.hw-decode-policy"
+restart_required = false
+placement = { screen = "playback", section = "tracks", order = 40, ui = true }
+cli = { flag = "--playback-hw-decode-policy", short = "" }
+feature_gate = "hw-decode"
+since = "0.1.0"
+advanced = true
+
+[[setting]]
+key = "playback.start-paused"
+type = "bool"
+default_ref = "playback.start_paused"
+description = "settings.playback.start-paused"
+restart_required = false
+placement = { screen = "playback", section = "playback", order = 10, ui = true }
+cli = { flag = "--playback-start-paused", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "playback.default-rate"
+type = "float"
+range = { min = 0.25, max = 4.0 }
+default_ref = "playback.default_rate"
+description = "settings.playback.default-rate"
+restart_required = false
+placement = { screen = "playback", section = "playback", order = 20, ui = true }
+cli = { flag = "--playback-default-rate", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+# --- performance (product.toml §2.9 cache & resource limits) -----------------
+
+[[setting]]
+key = "performance.cache-demux-mib"
+type = "int"
+range = { min = 4, max = 512 }
+default_ref = "limits.cache_demux_mib"
+description = "settings.performance.cache-demux-mib"
+restart_required = true
+placement = { screen = "performance", section = "resources", order = 10, ui = true }
+cli = { flag = "--performance-cache-demux-mib", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true
+
+[[setting]]
+key = "performance.cache-network-mib"
+type = "int"
+range = { min = 4, max = 1024 }
+default_ref = "limits.cache_network_mib"
+description = "settings.performance.cache-network-mib"
+restart_required = true
+placement = { screen = "performance", section = "resources", order = 20, ui = true }
+cli = { flag = "--performance-cache-network-mib", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true
+
+[[setting]]
+key = "performance.max-open-sessions"
+type = "int"
+range = { min = 1, max = 16 }
+default_ref = "limits.max_open_sessions"
+description = "settings.performance.max-open-sessions"
+restart_required = false
+placement = { screen = "performance", section = "resources", order = 30, ui = true }
+cli = { flag = "--performance-max-open-sessions", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true
+
+# --- engine (doc 07 §5.4 engine-internal entries: ui = false, CLI + docs +
+#     validation only, never rendered — the escape valve that keeps VLC-style
+#     hidden power options honest: same schema, same D-rules, still in --help) --
+
+[[setting]]
+key = "engine.log-level"
+type = "enum"
+enumeration = ["error", "warn", "info", "debug", "trace"]
+default = "info"
+description = "settings.engine.log-level"
+restart_required = false
+placement = { screen = "engine", section = "internal", order = 10, ui = false }
+cli = { flag = "--engine-log-level", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true
+
+[[setting]]
+key = "engine.tick-interval-ms"
+type = "duration-ms"
+range = { min = 50, max = 2000 }
+default = 250             # doc 05 §3.2 default 250 ms, floor 50 ms
+description = "settings.engine.tick-interval-ms"
+restart_required = true
+placement = { screen = "engine", section = "internal", order = 20, ui = false }
+cli = { flag = "--engine-tick-interval-ms", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true
+
+[[setting]]
+key = "engine.max-event-rate"
+type = "int"
+range = { min = 10, max = 1000 }
+default = 100             # [VERIFY] doc 07 §5.4 names the entry without a default
+description = "settings.engine.max-event-rate"
+restart_required = true
+placement = { screen = "engine", section = "internal", order = 30, ui = false }
+cli = { flag = "--engine-max-event-rate", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true
+
+[[setting]]
+key = "engine.probe-max-bytes"
+type = "int"
+range = { min = 1048576, max = 67108864 }
+default_ref = "limits.probe_max_bytes"
+description = "settings.engine.probe-max-bytes"
+restart_required = false
+placement = { screen = "engine", section = "internal", order = 40, ui = false }
+cli = { flag = "--engine-probe-max-bytes", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true
+
+[[setting]]
+key = "engine.queue-packets-audio"
+type = "int"
+range = { min = 64, max = 8192 }
+default_ref = "limits.queue_packets_audio"
+description = "settings.engine.queue-packets-audio"
+restart_required = true
+placement = { screen = "engine", section = "internal", order = 50, ui = false }
+cli = { flag = "--engine-queue-packets-audio", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true
+
+[[setting]]
+key = "engine.queue-packets-video"
+type = "int"
+range = { min = 64, max = 4096 }
+default_ref = "limits.queue_packets_video"
+description = "settings.engine.queue-packets-video"
+restart_required = true
+placement = { screen = "engine", section = "internal", order = 60, ui = false }
+cli = { flag = "--engine-queue-packets-video", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true
