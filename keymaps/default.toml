@@ -1,0 +1,281 @@
+# Lumen Media Player — default keymap seed (v1)
+#
+# Task 0.B3 (doc 13 §3) — G6 deliverable. Generated 2026-10-19.
+# Precedence per decision D-003 (docs/ROADMAP.md §3):
+#   VLC 3.0.23 default hotkeys where clean-room-observable,
+#   OVERRIDDEN by design/figma/Keyboard Shortcuts.svg (and the other design
+#   surfaces that specify keys: Onboarding-2.svg, right-click menu.svg,
+#   menu.svg) where they specify a binding.
+#
+# Sources:
+#   vlc-3.0.23-default  = observed on our pinned Linux oracle (Debian trixie
+#                         3.0.23-0+deb13u1, docs/baselines/vlc-3.0.23-linux.md):
+#                         `vlc -I dummy --reset-config --config <file>` dump of
+#                         defaults (all 111 `key-*` entries + 111 empty
+#                         `global-key-*`), plus `--longhelp --advanced` for the
+#                         option names/descriptions; Qt-menu-level accelerators
+#                         (Ctrl+B/Ctrl+E/… not present in the core dump) from
+#                         https://wiki.videolan.org/QtHotkeys/ (GPL doc, accessed
+#                         2026-10-19).
+#   design-package      = design/figma/ text extraction (path-id mining, doc 08
+#                         §1.1 method): "Keyboard Shortcuts.svg" (9 rows),
+#                         "Onboarding-2.svg" (12 shortcuts), "right-click
+#                         menu.svg", "menu.svg".
+#
+# Full transcription, per-entry provenance discussion, design-vs-VLC conflict
+# resolutions and the [VERIFY] ledger: docs/inventory/ui-inventory.md §5–§8.
+#
+# FORMAT FLAG (for the Lead): doc 05 §8.1 specifies `config/keymaps/default.toml`
+# with `[[binding]]` rows (`schema = "keymap.v1"`); this seed follows card 0.B3
+# and D-003 (`keymaps/*.toml`, section-grouped `binding-id = { … }` entries with
+# `label-msgid`). Reconcile the two before the `schemas/keymap.schema.json`
+# validator lands (open question Q1, ui-inventory.md §9). Field semantics
+# (`mode`, `when`, `args`, `recipe`) are taken from doc 05 §8.1/§8.2; `when`
+# uses only the documented condition tokens (has-media, has-video, fullscreen,
+# has-chapters). Entries may carry `command` OR `ui_action` (doc 05 §8.4), never
+# both. Menu accelerators reference these binding ids (binding-id indirection,
+# doc 05 §8.1) — the menus data file is a later task.
+#
+# Per-platform: this file is the Linux/Windows-desktop seed (Ctrl = Ctrl).
+# macOS rendering rule: menu-style modifiers Ctrl→Cmd (per macOS VLC convention,
+# [VERIFY] against a pinned macOS run); additional macOS key differences are in
+# [platform_overrides.macos] at the bottom. G6 per-platform notes and
+# provenance: ui-inventory.md §5.4.
+
+# ==============================================================================
+[media]
+# Media open / session lifecycle. Design accelerators from menu.svg agree with
+# the QtHotkeys wiki values for every item the two share.
+
+open-file = { key = "Ctrl+O", label-msgid = "hotkeys.open-file", ui_action = "open-file", mode = "player-focused", source = "design-package", note = "menu.svg 'Open File(s) Ctrl + O'; identical to VLC Qt (QtHotkeys wiki Ctrl+O)" }
+open-folder = { key = "Ctrl+F", label-msgid = "hotkeys.open-folder", ui_action = "open-folder", mode = "player-focused", source = "design-package", note = "menu.svg; identical to VLC Qt Ctrl+F 'Open Folder/Directory'" }
+open-network-stream = { key = "Ctrl+N", label-msgid = "hotkeys.open-network-stream", ui_action = "open-network-stream", mode = "player-focused", source = "design-package", note = "menu.svg; identical to VLC Qt Ctrl+N" }
+open-disc = { key = "Ctrl+D", label-msgid = "hotkeys.open-disc", ui_action = "open-disc", mode = "player-focused", source = "design-package", note = "menu.svg; identical to VLC Qt Ctrl+D. v1: SourceSpec::Disc is future/feature-gated (doc 05 §2.2) — binding ships disabled-from-data" }
+open-capture-device = { key = "Ctrl+C", label-msgid = "hotkeys.open-capture-device", ui_action = "open-capture-device", mode = "player-focused", source = "design-package", note = "menu.svg; identical to VLC Qt Ctrl+C. CONFLICT C-07: collides with platform copy convention — accepted per D-003 (design wins); revisit with design owner. v1: feature-gated" }
+open-location-clipboard = { key = "Ctrl+V", label-msgid = "hotkeys.open-location-clipboard", ui_action = "open-location-clipboard", mode = "player-focused", source = "vlc-3.0.23-default", note = "QtHotkeys wiki 'Paste Location/Paste MRL Ctrl+V'; not shown in design menu.svg — VLC fill" }
+convert = { key = "Ctrl+R", label-msgid = "hotkeys.convert", ui_action = "convert", mode = "player-focused", source = "design-package", note = "menu.svg 'Convert'; VLC Qt 'Convert/Save Ctrl+R'. Disposition not-adopted-v1 (no transcode in v1 catalog) — binding kept as data" }
+quit = { key = "Ctrl+Q", label-msgid = "hotkeys.quit", ui_action = "quit", mode = "always", source = "design-package", note = "right-click menu.svg 'Quit VLC Ctrl + Q'; identical to VLC key-quit=Ctrl+q (binary-observed). macOS: Cmd+Q (platform rule)" }
+
+# Hardware / browser media keys (VLC 3.0.23 defaults; multi-binding options
+# written by the oracle as tab-separated alternates — split into one entry each).
+media-key-play-pause = { key = "MediaPlayPause", label-msgid = "hotkeys.play-pause", command = "playback.toggle-play-pause", mode = "player-focused", source = "vlc-3.0.23-default", note = "key-play-pause = Space + 'Media Play Pause'" }
+media-key-next = { key = "MediaNext", label-msgid = "hotkeys.next-track", command = "playlist.next", mode = "player-focused", source = "vlc-3.0.23-default", note = "key-next = n + 'Media Next Track'" }
+media-key-prev = { key = "MediaPrev", label-msgid = "hotkeys.prev-track", command = "playlist.prev", mode = "player-focused", source = "vlc-3.0.23-default", note = "key-prev = p + 'Media Prev Track'" }
+media-key-stop = { key = "MediaStop", label-msgid = "hotkeys.stop", command = "playback.stop", mode = "player-focused", source = "vlc-3.0.23-default", note = "key-stop = s + 'Media Stop'" }
+media-key-volume-up = { key = "VolumeUp", label-msgid = "hotkeys.volume-up", recipe = "volume-up", mode = "player-focused", source = "vlc-3.0.23-default", note = "key-vol-up = Ctrl+Up + 'Volume Up'; recipe: audio.set-volume +5% client-side" }
+media-key-volume-down = { key = "VolumeDown", label-msgid = "hotkeys.volume-down", recipe = "volume-down", mode = "player-focused", source = "vlc-3.0.23-default", note = "key-vol-down = Ctrl+Down + 'Volume Down'" }
+media-key-mute = { key = "VolumeMute", label-msgid = "hotkeys.mute", recipe = "mute-toggle", mode = "player-focused", source = "vlc-3.0.23-default", note = "key-vol-mute = m + 'Volume Mute'" }
+media-key-frame-next = { key = "BrowserNext", label-msgid = "hotkeys.frame-next", command = "playback.step-frame", args = { direction = "next" }, mode = "player-focused", source = "vlc-3.0.23-default", note = "key-frame-next = e + 'Browser Next' (X11 keysym); VLC 3.0.23 has NO frame-previous action" }
+browser-refresh-play = { key = "BrowserRefresh", label-msgid = "hotkeys.play", command = "playback.play", mode = "player-focused", source = "vlc-3.0.23-default", note = "key-play = 'Browser Refresh'" }
+browser-stop-pause = { key = "BrowserStop", label-msgid = "hotkeys.pause", command = "playback.pause", mode = "player-focused", source = "vlc-3.0.23-default", note = "key-pause = 'Browser Stop'" }
+
+# ==============================================================================
+[navigation]
+# Jump sizes: VLC 3.0.23 binary-observed defaults (#extrashort-jump-size=3,
+# #short-jump-size=10, #medium-jump-size=60, #long-jump-size=300 seconds) —
+# identical to the design package Settings - controls.svg skip amounts
+# (Very short 3 s / Short 10 s / Medium 60 s / Long 300 s).
+jump-size-extrashort-ms = 3000
+jump-size-short-ms = 10000
+jump-size-medium-ms = 60000
+jump-size-long-ms = 300000
+
+toggle-play-pause = { key = "Space", label-msgid = "hotkeys.play-pause", command = "playback.toggle-play-pause", mode = "player-focused", when = "has-media", source = "design-package", note = "Keyboard Shortcuts.svg 'Play / pause — Space'; identical to VLC key-play-pause" }
+stop = { key = "S", label-msgid = "hotkeys.stop", command = "playback.stop", mode = "player-focused", when = "has-media", source = "design-package", note = "Keyboard Shortcuts.svg 'Stop playback — S'; identical to VLC key-stop" }
+
+# Design specifies BOTH N/P (Keyboard Shortcuts.svg) and </> (Onboarding-2.svg)
+# for next/previous — design-internal inconsistency D-2; both kept (lossless,
+# and N/P is also the VLC default). See ui-inventory.md §7.
+next-track = { key = "N", label-msgid = "hotkeys.next-track", command = "playlist.next", mode = "player-focused", source = "design-package", note = "Keyboard Shortcuts.svg 'Next track — N'; identical to VLC key-next" }
+prev-track = { key = "P", label-msgid = "hotkeys.prev-track", command = "playlist.prev", mode = "player-focused", source = "design-package", note = "Keyboard Shortcuts.svg 'Previous track — P'; identical to VLC key-prev" }
+next-item = { key = ">", label-msgid = "hotkeys.next-item", command = "playlist.next", mode = "player-focused", source = "design-package", note = "Onboarding-2 'Next Item — >' (glyph key, layout-translated at runtime)" }
+prev-item = { key = "<", label-msgid = "hotkeys.prev-item", command = "playlist.prev", mode = "player-focused", source = "design-package", note = "Onboarding-2 'Previous Item — <'" }
+
+frame-next = { key = ".", label-msgid = "hotkeys.frame-next", command = "playback.step-frame", args = { direction = "next" }, mode = "player-focused", when = "has-media", source = "design-package", note = "Onboarding-2 'Next Frame — .' (design adds a second frame-step key; VLC default is e, superseded)" }
+frame-prev = { key = ",", label-msgid = "hotkeys.frame-prev", command = "playback.step-frame", args = { direction = "previous" }, mode = "player-focused", when = "has-media", source = "design-package", note = "Onboarding-2 'Previous Frame — ,' — NEW capability: VLC 3.0.23 has no frame-previous hotkey (doc 05 §2.4 supplies the command)" }
+
+# Bare-arrow seek is a DESIGN override (Onboarding-2 'Seek Backward / Forward —
+# ← / →'); VLC 3.0.23 default leaves bare arrows to disc-menu navigation
+# (key-nav-*). Duration comes from the VLC short jump (10 s) since the design
+# does not specify an amount — resolution R-C1, ui-inventory.md §7.
+seek-backward = { key = "Left", label-msgid = "hotkeys.seek-backward", command = "playback.seek", args = { target = { kind = "relative", delta_ms = -10000 } }, mode = "player-focused", when = "has-media", source = "design-package", note = "CONFLICT C-01: VLC default arrows = disc-menu nav; design = seek. Disc-menu nav gated by in-disc-menu condition [PROPOSAL new token, Q4]" }
+seek-forward = { key = "Right", label-msgid = "hotkeys.seek-forward", command = "playback.seek", args = { target = { kind = "relative", delta_ms = 10000 } }, mode = "player-focused", when = "has-media", source = "design-package", note = "C-01 as above" }
+seek-backward-extrashort = { key = "Shift+Left", label-msgid = "hotkeys.seek-backward-extrashort", command = "playback.seek", args = { target = { kind = "relative", delta_ms = -3000 } }, mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "key-jump-extrashort=Shift+Left (3 s). QtHotkeys wiki says '5 seconds' — stale; binary wins (D-3)" }
+seek-forward-extrashort = { key = "Shift+Right", label-msgid = "hotkeys.seek-forward-extrashort", command = "playback.seek", args = { target = { kind = "relative", delta_ms = 3000 } }, mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "key-jump+extrashort=Shift+Right" }
+seek-backward-medium = { key = "Ctrl+Left", label-msgid = "hotkeys.seek-backward-medium", command = "playback.seek", args = { target = { kind = "relative", delta_ms = -60000 } }, mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "key-jump-medium=Ctrl+Left (60 s)" }
+seek-forward-medium = { key = "Ctrl+Right", label-msgid = "hotkeys.seek-forward-medium", command = "playback.seek", args = { target = { kind = "relative", delta_ms = 60000 } }, mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "key-jump+medium=Ctrl+Right" }
+seek-backward-long = { key = "Ctrl+Alt+Left", label-msgid = "hotkeys.seek-backward-long", command = "playback.seek", args = { target = { kind = "relative", delta_ms = -300000 } }, mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "key-jump-long=Ctrl+Alt+Left (300 s)" }
+seek-forward-long = { key = "Ctrl+Alt+Right", label-msgid = "hotkeys.seek-forward-long", command = "playback.seek", args = { target = { kind = "relative", delta_ms = 300000 } }, mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "key-jump+long=Ctrl+Alt+Right" }
+
+# Rate. VLC 3.0.23: key-faster=+, key-slower=-, key-rate-normal==,
+# key-rate-faster-fine=], key-rate-slower-fine=[. Step semantics (VLC
+# doubling vs doc 05 §8.2's ±0.25) unresolved — recipes, [VERIFY] Q5.
+rate-faster = { key = "+", label-msgid = "hotkeys.rate-faster", recipe = "rate-faster", mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default" }
+rate-slower = { key = "-", label-msgid = "hotkeys.rate-slower", recipe = "rate-slower", mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default" }
+rate-normal = { key = "=", label-msgid = "hotkeys.rate-normal", command = "playback.set-rate", args = { rate = 1.0 }, mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default" }
+rate-faster-fine = { key = "]", label-msgid = "hotkeys.rate-faster-fine", recipe = "rate-faster-fine", mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default" }
+rate-slower-fine = { key = "[", label-msgid = "hotkeys.rate-slower-fine", recipe = "rate-slower-fine", mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default" }
+
+show-position = { key = "T", label-msgid = "hotkeys.show-position", ui_action = "toggle-position-display", mode = "player-focused", source = "design-package", note = "Keyboard Shortcuts.svg 'Show playback position and time — T'; identical to VLC key-position=t" }
+jump-to-time = { key = "Ctrl+T", label-msgid = "hotkeys.jump-to-time", ui_action = "goto-time", mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "QtHotkeys wiki 'Goto Time Ctrl+T'; dialog → playback.seek" }
+
+chapter-prev = { key = "Shift+P", label-msgid = "hotkeys.chapter-prev", recipe = "chapter-prev", mode = "player-focused", when = "has-chapters", source = "vlc-3.0.23-default", note = "key-chapter-prev=Shift+P; recipe: playback.seek {Chapter: current-1}" }
+chapter-next = { key = "Shift+N", label-msgid = "hotkeys.chapter-next", recipe = "chapter-next", mode = "player-focused", when = "has-chapters", source = "vlc-3.0.23-default", note = "key-chapter-next=Shift+N" }
+title-prev = { key = "Shift+O", label-msgid = "hotkeys.title-prev", recipe = "title-prev", mode = "player-focused", source = "vlc-3.0.23-default", note = "key-title-prev=Shift+O; no title-level command in doc 05 §2 v1 — recipe/flagged Q6" }
+title-next = { key = "Shift+B", label-msgid = "hotkeys.title-next", recipe = "title-next", mode = "player-focused", source = "vlc-3.0.23-default", note = "key-title-next=Shift+B; Q6 as above" }
+program-next = { key = "X", label-msgid = "hotkeys.program-next", recipe = "program-sid-next", mode = "player-focused", source = "design-package", note = "Keyboard Shortcuts.svg 'Next program / Service ID — X'; identical to VLC key-program-sid-next=x; no program command in v1 catalog — Q6" }
+program-prev = { key = "Shift+X", label-msgid = "hotkeys.program-prev", recipe = "program-sid-prev", mode = "player-focused", source = "vlc-3.0.23-default", note = "key-program-sid-prev=Shift+X; Q6 as above" }
+disc-menu = { key = "Shift+M", label-msgid = "hotkeys.disc-menu", recipe = "disc-menu", mode = "player-focused", source = "vlc-3.0.23-default", note = "key-disc-menu=Shift+m; DVD/BD in-menu navigation; v1: feature-gated (disc input)" }
+
+# Disc/BD in-menu navigation (VLC defaults). Bare arrows collide with the
+# design's seek/volume bindings — gated by a proposed `in-disc-menu` condition
+# token (Q4). Enter activates.
+nav-activate = { key = "Enter", label-msgid = "hotkeys.nav-activate", ui_action = "nav-activate", mode = "player-focused", source = "vlc-3.0.23-default", note = "key-nav-activate=Enter" }
+nav-up = { key = "Up", label-msgid = "hotkeys.nav-up", ui_action = "nav-up", mode = "player-focused", source = "vlc-3.0.23-default", note = "key-nav-up=Up; needs in-disc-menu gating (Q4) — conflicts with design volume-up" }
+nav-down = { key = "Down", label-msgid = "hotkeys.nav-down", ui_action = "nav-down", mode = "player-focused", source = "vlc-3.0.23-default", note = "key-nav-down=Down; Q4 as above" }
+nav-left = { key = "Left", label-msgid = "hotkeys.nav-left", ui_action = "nav-left", mode = "player-focused", source = "vlc-3.0.23-default", note = "key-nav-left=Left; Q4 — conflicts with design seek-backward" }
+nav-right = { key = "Right", label-msgid = "hotkeys.nav-right", ui_action = "nav-right", mode = "player-focused", source = "vlc-3.0.23-default", note = "key-nav-right=Right; Q4 — conflicts with design seek-forward" }
+
+# ==============================================================================
+[audio]
+# Onboarding-2 'Increase / Decrease Volume — ↑ / ↓' overrides VLC's Ctrl+Up/
+# Ctrl+Down (C-02). VLC's Ctrl+arrows are freed (kept as medium seek is
+# Ctrl+Left/Right — no collision).
+volume-up = { key = "Up", label-msgid = "hotkeys.volume-up", recipe = "volume-up", mode = "player-focused", source = "design-package", note = "C-02: VLC default key-vol-up=Ctrl+Up; design wins per D-003. Recipe: audio.set-volume +5%" }
+volume-down = { key = "Down", label-msgid = "hotkeys.volume-down", recipe = "volume-down", mode = "player-focused", source = "design-package", note = "C-02; VLC default Ctrl+Down. Recipe: audio.set-volume -5%" }
+mute = { key = "M", label-msgid = "hotkeys.mute", recipe = "mute-toggle", mode = "player-focused", source = "vlc-3.0.23-default", note = "key-vol-mute=m; not specified by design — VLC fill" }
+audio-track-cycle = { key = "B", label-msgid = "hotkeys.audio-track-cycle", recipe = "cycle-audio-track", mode = "player-focused", when = "has-media", source = "design-package", note = "Onboarding-2 'Cycle Audio Track — B'; identical to VLC key-audio-track=b. Recipe over tracks.list → tracks.set-audio-track" }
+audio-device-cycle = { key = "Shift+A", label-msgid = "hotkeys.audio-device-cycle", recipe = "cycle-audio-device", mode = "player-focused", source = "vlc-3.0.23-default", note = "key-audiodevice-cycle=Shift+a. Recipe over audio.list-devices → audio.set-device" }
+audio-delay-up = { key = "K", label-msgid = "hotkeys.audio-delay-up", recipe = "audio-delay-up", mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "key-audiodelay-up=k; relative step (VLC: 50 ms [VERIFY]) → audio.set-delay. macOS differs (F/G, [VERIFY])" }
+audio-delay-down = { key = "J", label-msgid = "hotkeys.audio-delay-down", recipe = "audio-delay-down", mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "key-audiodelay-down=j; macOS differs ([VERIFY])" }
+
+# ==============================================================================
+[video]
+fullscreen = { key = "F", label-msgid = "hotkeys.fullscreen", recipe = "fullscreen-toggle", mode = "player-focused", source = "design-package", note = "Keyboard Shortcuts.svg + Onboarding-2 'Toggle Fullscreen — F'; identical to VLC key-toggle-fullscreen=f. macOS adds Cmd+F [VERIFY]" }
+exit-fullscreen = { key = "Esc", label-msgid = "hotkeys.exit-fullscreen", recipe = "exit-fullscreen-close-dialog", mode = "player-focused", source = "design-package", note = "Keyboard Shortcuts.svg 'Exit fullscreen / close dialog — esc'; VLC key-leave-fullscreen=Esc (dialog-close semantics are the design's extension)" }
+show-controls-fullscreen = { key = "I", label-msgid = "hotkeys.show-controls-fullscreen", ui_action = "show-controls-fullscreen", mode = "player-focused", source = "design-package", note = "Keyboard Shortcuts.svg 'Show interface controls in fullscreen — I'; identical to VLC key-intf-show=i" }
+aspect-ratio-cycle = { key = "A", label-msgid = "hotkeys.aspect-ratio-cycle", recipe = "cycle-aspect-ratio", mode = "player-focused", when = "has-video", source = "vlc-3.0.23-default", note = "key-aspect-ratio=a; recipe over presets → video.set-aspect-ratio" }
+crop-cycle = { key = "C", label-msgid = "hotkeys.crop-cycle", recipe = "cycle-crop", mode = "player-focused", when = "has-video", source = "vlc-3.0.23-default", note = "key-crop=c; recipe over presets → video.set-crop" }
+deinterlace-toggle = { key = "D", label-msgid = "hotkeys.deinterlace-toggle", recipe = "deinterlace-toggle", mode = "player-focused", when = "has-video", source = "vlc-3.0.23-default", note = "key-deinterlace=d; filters are feature-gated in v1" }
+deinterlace-mode-cycle = { key = "Shift+D", label-msgid = "hotkeys.deinterlace-mode-cycle", recipe = "cycle-deinterlace-mode", mode = "player-focused", when = "has-video", source = "vlc-3.0.23-default", note = "key-deinterlace-mode=Shift+d" }
+snapshot = { key = "Shift+S", label-msgid = "hotkeys.snapshot", command = "video.take-screenshot", args = { path = "" }, mode = "player-focused", when = "has-video", source = "design-package", note = "Onboarding-2 'Take a Snapshot — SHIFT+S'; identical to VLC key-snapshot=Shift+s. args.path = engine default dir (doc 05 §2.7)" }
+record = { key = "Shift+R", label-msgid = "hotkeys.record", ui_action = "record-toggle", mode = "player-focused", when = "has-media", source = "design-package", note = "Onboarding-2 'Record — SHIFT+R'; identical to VLC key-record=Shift+r. DESIGN-INTERNAL CONFLICT D-1: right-click menu.svg shows 'Record — R'; Onboarding-2 wins (agrees with VLC) — [VERIFY] with design owner. Feature-gated v1" }
+zoom-cycle = { key = "Z", label-msgid = "hotkeys.zoom-cycle", recipe = "cycle-zoom", mode = "player-focused", when = "has-video", source = "vlc-3.0.23-default", note = "key-zoom=z" }
+unzoom = { key = "Shift+Z", label-msgid = "hotkeys.unzoom", recipe = "unzoom", mode = "player-focused", when = "has-video", source = "vlc-3.0.23-default", note = "key-unzoom=Shift+z" }
+zoom-quarter = { key = "Alt+1", label-msgid = "hotkeys.zoom-quarter", command = "video.set-zoom", args = { factor = 0.25 }, mode = "player-focused", when = "has-video", source = "vlc-3.0.23-default", note = "key-zoom-quarter=Alt+1" }
+zoom-half = { key = "Alt+2", label-msgid = "hotkeys.zoom-half", command = "video.set-zoom", args = { factor = 0.5 }, mode = "player-focused", when = "has-video", source = "vlc-3.0.23-default", note = "key-zoom-half=Alt+2" }
+zoom-original = { key = "Alt+3", label-msgid = "hotkeys.zoom-original", command = "video.set-zoom", args = { factor = 1.0 }, mode = "player-focused", when = "has-video", source = "vlc-3.0.23-default", note = "key-zoom-original=Alt+3" }
+zoom-double = { key = "Alt+4", label-msgid = "hotkeys.zoom-double", command = "video.set-zoom", args = { factor = 2.0 }, mode = "player-focused", when = "has-video", source = "vlc-3.0.23-default", note = "key-zoom-double=Alt+4" }
+autoscale-toggle = { key = "O", label-msgid = "hotkeys.autoscale-toggle", recipe = "autoscale-toggle", mode = "player-focused", when = "has-video", source = "vlc-3.0.23-default", note = "key-toggle-autoscale=o" }
+scale-up = { key = "Alt+O", label-msgid = "hotkeys.scale-up", recipe = "scale-up", mode = "player-focused", when = "has-video", source = "vlc-3.0.23-default", note = "key-incr-scalefactor=Alt+o" }
+scale-down = { key = "Alt+Shift+O", label-msgid = "hotkeys.scale-down", recipe = "scale-down", mode = "player-focused", when = "has-video", source = "vlc-3.0.23-default", note = "key-decr-scalefactor=Alt+Shift+o" }
+wallpaper = { key = "W", label-msgid = "hotkeys.wallpaper", ui_action = "wallpaper-toggle", mode = "player-focused", when = "has-video", source = "vlc-3.0.23-default", note = "key-wallpaper=w; Windows DirectX-only in VLC; disposition not-adopted-v1" }
+# One-pixel crop/uncrop (VLC advanced; panel-based in the design Video - Crop.svg)
+crop-one-px-top = { key = "Alt+R", label-msgid = "hotkeys.crop-one-px-top", recipe = "crop-px-top", mode = "player-focused", when = "has-video", source = "vlc-3.0.23-default", note = "key-crop-top=Alt+r" }
+crop-one-px-left = { key = "Alt+D", label-msgid = "hotkeys.crop-one-px-left", recipe = "crop-px-left", mode = "player-focused", when = "has-video", source = "vlc-3.0.23-default", note = "key-crop-left=Alt+d" }
+crop-one-px-bottom = { key = "Alt+C", label-msgid = "hotkeys.crop-one-px-bottom", recipe = "crop-px-bottom", mode = "player-focused", when = "has-video", source = "vlc-3.0.23-default", note = "key-crop-bottom=Alt+c" }
+crop-one-px-right = { key = "Alt+F", label-msgid = "hotkeys.crop-one-px-right", recipe = "crop-px-right", mode = "player-focused", when = "has-video", source = "vlc-3.0.23-default", note = "key-crop-right=Alt+f" }
+uncrop-one-px-top = { key = "Alt+Shift+R", label-msgid = "hotkeys.uncrop-one-px-top", recipe = "uncrop-px-top", mode = "player-focused", when = "has-video", source = "vlc-3.0.23-default", note = "key-uncrop-top=Alt+Shift+r" }
+uncrop-one-px-left = { key = "Alt+Shift+D", label-msgid = "hotkeys.uncrop-one-px-left", recipe = "uncrop-px-left", mode = "player-focused", when = "has-video", source = "vlc-3.0.23-default", note = "key-uncrop-left=Alt+Shift+d" }
+uncrop-one-px-bottom = { key = "Alt+Shift+C", label-msgid = "hotkeys.uncrop-one-px-bottom", recipe = "uncrop-px-bottom", mode = "player-focused", when = "has-video", source = "vlc-3.0.23-default", note = "key-uncrop-bottom=Alt+Shift+c" }
+uncrop-one-px-right = { key = "Alt+Shift+F", label-msgid = "hotkeys.uncrop-one-px-right", recipe = "uncrop-px-right", mode = "player-focused", when = "has-video", source = "vlc-3.0.23-default", note = "key-uncrop-right=Alt+Shift+f" }
+
+# ==============================================================================
+[subtitles]
+subtitle-track-cycle = { key = "V", label-msgid = "hotkeys.subtitle-track-cycle", recipe = "cycle-subtitle-track", mode = "player-focused", when = "has-media", source = "design-package", note = "Onboarding-2 'Cycle Subtitle Track — V'; identical to VLC key-subtitle-track=v. Recipe: auto → ids → none (doc 05 §8.2)" }
+subtitle-toggle = { key = "Shift+V", label-msgid = "hotkeys.subtitle-toggle", recipe = "subtitle-toggle", mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "key-subtitle-toggle=Shift+v" }
+subtitle-track-cycle-reverse = { key = "Alt+V", label-msgid = "hotkeys.subtitle-track-cycle-reverse", recipe = "cycle-subtitle-track-reverse", mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "key-subtitle-revtrack=Alt+v" }
+subtitle-delay-up = { key = "H", label-msgid = "hotkeys.subtitle-delay-up", recipe = "subtitle-delay-up", mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "key-subdelay-up=h; +100 ms step (doc 05 §8.2) → subtitle.set-sync" }
+subtitle-delay-down = { key = "G", label-msgid = "hotkeys.subtitle-delay-down", recipe = "subtitle-delay-down", mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "key-subdelay-down=g; -100 ms step. macOS differs (H/J, [VERIFY])" }
+subsync-mark-audio = { key = "Shift+H", label-msgid = "hotkeys.subsync-mark-audio", recipe = "subsync-mark-audio", mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "key-subsync-markaudio=Shift+h" }
+subsync-mark-sub = { key = "Shift+J", label-msgid = "hotkeys.subsync-mark-sub", recipe = "subsync-mark-sub", mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "key-subsync-marksub=Shift+j" }
+subsync-apply = { key = "Shift+K", label-msgid = "hotkeys.subsync-apply", recipe = "subsync-apply", mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "key-subsync-apply=Shift+k" }
+subsync-reset = { key = "Ctrl+Shift+K", label-msgid = "hotkeys.subsync-reset", recipe = "subsync-reset", mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "key-subsync-reset=Ctrl+Shift+k" }
+subtitle-scale-normal = { key = "Ctrl+0", label-msgid = "hotkeys.subtitle-scale-normal", command = "subtitle.set-scale", args = { scale = 1.0 }, mode = "player-focused", source = "vlc-3.0.23-default", note = "key-subtitle-text-scale-normal=Ctrl+0" }
+subtitle-scale-up = { key = "Ctrl+WheelUp", label-msgid = "hotkeys.subtitle-scale-up", recipe = "subtitle-scale-up", mode = "player-focused", source = "vlc-3.0.23-default", note = "key-subtitle-text-scale-up=Ctrl+Mouse Wheel Up. NB: the binary's own help strings for scale-up/-down are swapped vs the option names (same swap as the QtHotkeys wiki); the option NAME is authoritative — WheelUp = larger" }
+subtitle-scale-down = { key = "Ctrl+WheelDown", label-msgid = "hotkeys.subtitle-scale-down", recipe = "subtitle-scale-down", mode = "player-focused", source = "vlc-3.0.23-default", note = "key-subtitle-text-scale-down=Ctrl+Mouse Wheel Down (help-string swap as above)" }
+# VLC 3.0.23 leaves key-subpos-up/key-subpos-down UNBOUND by default — recorded
+# in ui-inventory.md §5.3, no seed entries.
+
+# ==============================================================================
+[playlist]
+shuffle = { key = "R", label-msgid = "hotkeys.shuffle", command = "playlist.set-shuffle", args = { toggle = true }, mode = "player-focused", source = "vlc-3.0.23-default", note = "key-random=r. NOTE: doc 05 §2.9 set-shuffle takes enabled: bool — toggle semantics via recipe/arg-shape flagged Q7" }
+# repeat-cycle: VLC key-loop=l, but design binds L to Show/Hide File Browser
+# (CONFLICT C-04, design wins) — repeat cycling left UNBOUND in the seed;
+# design exposes Repeat via customize-panel button only.
+clear = { key = "Ctrl+W", label-msgid = "hotkeys.clear-playlist", command = "playlist.clear", mode = "player-focused", source = "vlc-3.0.23-default", note = "key-clear-playlist=Ctrl+w" }
+panel-toggle = { key = "Ctrl+L", label-msgid = "hotkeys.playlist-panel", ui_action = "playlist-panel", mode = "player-focused", source = "vlc-3.0.23-default", note = "QtHotkeys 'Hide/Show playlist Ctrl+L'; design sidebar/playlist panel" }
+queue-toggle = { key = "Q", label-msgid = "hotkeys.queue-toggle", ui_action = "queue-panel", mode = "player-focused", source = "design-package", note = "Onboarding-2 'Show / Hide Queue — Q' — design-invented key (VLC has none). Coexists with Ctrl+Q quit (no collision)" }
+file-browser-toggle = { key = "L", label-msgid = "hotkeys.file-browser-toggle", ui_action = "file-browser-panel", mode = "player-focused", source = "design-package", note = "Onboarding-2 'Show / Hide File Browser — L'. CONFLICT C-04: VLC key-loop=l (Normal/Loop/Repeat) — design wins per D-003; repeat-cycle unbound" }
+save-playlist = { key = "Ctrl+Y", label-msgid = "hotkeys.save-playlist", ui_action = "save-playlist", mode = "player-focused", source = "vlc-3.0.23-default", note = "QtHotkeys 'Save playlist Ctrl+Y' → playlist.save" }
+load-playlist = { key = "Ctrl+X", label-msgid = "hotkeys.load-playlist", ui_action = "load-playlist", mode = "player-focused", source = "vlc-3.0.23-default", note = "QtHotkeys 'Load playlist Ctrl+X' → playlist.load" }
+advanced-controls = { key = "Ctrl+A", label-msgid = "hotkeys.advanced-controls", ui_action = "advanced-controls", mode = "player-focused", source = "vlc-3.0.23-default", note = "QtHotkeys 'Advanced controls Ctrl+A'. ADAPTED: design replaces the VLC Advanced Controls toolbar with the Customize Player panel (Player - customize*.svg)" }
+
+# ==============================================================================
+[window]
+hide-ui = { key = "Ctrl+\\", label-msgid = "hotkeys.hide-ui", ui_action = "hide-ui", mode = "player-focused", source = "design-package", note = "right-click menu.svg 'Hide UI — Ctrl + \\' (design-invented key; Player - hide UI.svg target state). VLC equivalent concept: minimal view Ctrl+H — see C-05" }
+minimal-view = { key = "Ctrl+H", label-msgid = "hotkeys.minimal-view", ui_action = "minimal-view", mode = "player-focused", source = "vlc-3.0.23-default", note = "QtHotkeys 'Hide/show menus (a.k.a Minimal view) Ctrl+H'. C-05: [PROPOSAL] fold into hide-ui or keep distinct — Lead call" }
+messages = { key = "Ctrl+M", label-msgid = "hotkeys.messages", ui_action = "messages", mode = "player-focused", source = "vlc-3.0.23-default", note = "QtHotkeys 'Messages Ctrl+M'; consumes system.set-log-level" }
+media-info = { key = "Ctrl+I", label-msgid = "hotkeys.media-info", ui_action = "media-info", mode = "player-focused", source = "vlc-3.0.23-default", note = "QtHotkeys 'Media Information Ctrl+I'; consumes media.get-info" }
+codec-info = { key = "Ctrl+J", label-msgid = "hotkeys.codec-info", ui_action = "codec-info", mode = "player-focused", source = "vlc-3.0.23-default", note = "QtHotkeys 'Codecs Information Ctrl+J'; consumes media.get-info (codec fields)" }
+preferences = { key = "Ctrl+P", label-msgid = "hotkeys.preferences", ui_action = "settings", mode = "player-focused", source = "design-package", note = "menu.svg 'Settings Ctrl + P'; identical to VLC Qt Ctrl+P Preferences" }
+effects-and-filters = { key = "Ctrl+E", label-msgid = "hotkeys.effects-and-filters", ui_action = "av-effects", mode = "player-focused", source = "vlc-3.0.23-default", note = "QtHotkeys 'Extended settings Ctrl+E' (Adjustments and Effects dialog); design: EQ/Compressor/Spatializer/Widener + Video Colors/Crop/Essential/HDR panels" }
+vlm-configurator = { key = "Ctrl+Shift+W", label-msgid = "hotkeys.vlm", ui_action = "vlm", mode = "player-focused", source = "vlc-3.0.23-default", note = "QtHotkeys 'VLM configurator Ctrl+Shift+W'. Disposition not-adopted-v1 (no VLM in v1 scope)" }
+bookmarks-dialog = { key = "Ctrl+B", label-msgid = "hotkeys.bookmarks", ui_action = "bookmarks", mode = "player-focused", source = "vlc-3.0.23-default", note = "QtHotkeys 'Bookmarks Ctrl+B' (Playback → Bookmarks → Manage)" }
+dock-playlist = { key = "Ctrl+U", label-msgid = "hotkeys.dock-playlist", ui_action = "dock-playlist", mode = "player-focused", source = "vlc-3.0.23-default", note = "QtHotkeys 'Dock/Undock playlist Ctrl+U'. ADAPTED: layout is config-driven (doc 05 §8.3); disposition not-adopted-v1" }
+history-back = { key = "Shift+G", label-msgid = "hotkeys.history-back", ui_action = "history-back", mode = "player-focused", source = "vlc-3.0.23-default", note = "QtHotkeys 'History back Shift+G' (media library navigation) [VERIFY: wiki row garbled]" }
+# history-forward: QtHotkeys wiki row for Shift+H is garbled ('history forward'
+# merged into the subtitle-sync comment); left unbound pending [VERIFY].
+about = { key = "Shift+F1", label-msgid = "hotkeys.about", ui_action = "about", mode = "player-focused", source = "design-package", note = "menu.svg 'About VLC — Shift + F1'. VLC 3.0.23: no About accelerator in QtHotkeys table or core dump — design-specified [VERIFY against pinned Qt build]" }
+# Keyboard Shortcuts dialog + Customize Player (design menu.svg) ship without
+# accelerators — ui-actions only, no bindings (see crosswalk).
+
+# ==============================================================================
+[advanced]
+# Playlist bookmarks (VLC 3.0.23 defaults; Ctrl+F1..F10 set, F1..F10 play).
+# UI-action recipes over the playlist model (design customize panel exposes a
+# Bookmarks display toggle).
+set-bookmark-1 = { key = "Ctrl+F1", label-msgid = "hotkeys.set-bookmark-1", ui_action = "set-bookmark", args = { index = 1 }, mode = "player-focused", source = "vlc-3.0.23-default", note = "key-set-bookmark1=Ctrl+F1" }
+set-bookmark-2 = { key = "Ctrl+F2", label-msgid = "hotkeys.set-bookmark-2", ui_action = "set-bookmark", args = { index = 2 }, mode = "player-focused", source = "vlc-3.0.23-default", note = "key-set-bookmark2=Ctrl+F2" }
+set-bookmark-3 = { key = "Ctrl+F3", label-msgid = "hotkeys.set-bookmark-3", ui_action = "set-bookmark", args = { index = 3 }, mode = "player-focused", source = "vlc-3.0.23-default", note = "key-set-bookmark3=Ctrl+F3" }
+set-bookmark-4 = { key = "Ctrl+F4", label-msgid = "hotkeys.set-bookmark-4", ui_action = "set-bookmark", args = { index = 4 }, mode = "player-focused", source = "vlc-3.0.23-default", note = "key-set-bookmark4=Ctrl+F4" }
+set-bookmark-5 = { key = "Ctrl+F5", label-msgid = "hotkeys.set-bookmark-5", ui_action = "set-bookmark", args = { index = 5 }, mode = "player-focused", source = "vlc-3.0.23-default", note = "key-set-bookmark5=Ctrl+F5" }
+set-bookmark-6 = { key = "Ctrl+F6", label-msgid = "hotkeys.set-bookmark-6", ui_action = "set-bookmark", args = { index = 6 }, mode = "player-focused", source = "vlc-3.0.23-default", note = "key-set-bookmark6=Ctrl+F6" }
+set-bookmark-7 = { key = "Ctrl+F7", label-msgid = "hotkeys.set-bookmark-7", ui_action = "set-bookmark", args = { index = 7 }, mode = "player-focused", source = "vlc-3.0.23-default", note = "key-set-bookmark7=Ctrl+F7" }
+set-bookmark-8 = { key = "Ctrl+F8", label-msgid = "hotkeys.set-bookmark-8", ui_action = "set-bookmark", args = { index = 8 }, mode = "player-focused", source = "vlc-3.0.23-default", note = "key-set-bookmark8=Ctrl+F8" }
+set-bookmark-9 = { key = "Ctrl+F9", label-msgid = "hotkeys.set-bookmark-9", ui_action = "set-bookmark", args = { index = 9 }, mode = "player-focused", source = "vlc-3.0.23-default", note = "key-set-bookmark9=Ctrl+F9" }
+set-bookmark-10 = { key = "Ctrl+F10", label-msgid = "hotkeys.set-bookmark-10", ui_action = "set-bookmark", args = { index = 10 }, mode = "player-focused", source = "vlc-3.0.23-default", note = "key-set-bookmark10=Ctrl+F10" }
+play-bookmark-1 = { key = "F1", label-msgid = "hotkeys.play-bookmark-1", ui_action = "play-bookmark", args = { index = 1 }, mode = "player-focused", source = "vlc-3.0.23-default", note = "key-play-bookmark1=F1" }
+play-bookmark-2 = { key = "F2", label-msgid = "hotkeys.play-bookmark-2", ui_action = "play-bookmark", args = { index = 2 }, mode = "player-focused", source = "vlc-3.0.23-default", note = "key-play-bookmark2=F2" }
+play-bookmark-3 = { key = "F3", label-msgid = "hotkeys.play-bookmark-3", ui_action = "play-bookmark", args = { index = 3 }, mode = "player-focused", source = "vlc-3.0.23-default", note = "key-play-bookmark3=F3" }
+play-bookmark-4 = { key = "F4", label-msgid = "hotkeys.play-bookmark-4", ui_action = "play-bookmark", args = { index = 4 }, mode = "player-focused", source = "vlc-3.0.23-default", note = "key-play-bookmark4=F4" }
+play-bookmark-5 = { key = "F5", label-msgid = "hotkeys.play-bookmark-5", ui_action = "play-bookmark", args = { index = 5 }, mode = "player-focused", source = "vlc-3.0.23-default", note = "key-play-bookmark5=F5" }
+play-bookmark-6 = { key = "F6", label-msgid = "hotkeys.play-bookmark-6", ui_action = "play-bookmark", args = { index = 6 }, mode = "player-focused", source = "vlc-3.0.23-default", note = "key-play-bookmark6=F6" }
+play-bookmark-7 = { key = "F7", label-msgid = "hotkeys.play-bookmark-7", ui_action = "play-bookmark", args = { index = 7 }, mode = "player-focused", source = "vlc-3.0.23-default", note = "key-play-bookmark7=F7" }
+play-bookmark-8 = { key = "F8", label-msgid = "hotkeys.play-bookmark-8", ui_action = "play-bookmark", args = { index = 8 }, mode = "player-focused", source = "vlc-3.0.23-default", note = "key-play-bookmark8=F8" }
+play-bookmark-9 = { key = "F9", label-msgid = "hotkeys.play-bookmark-9", ui_action = "play-bookmark", args = { index = 9 }, mode = "player-focused", source = "vlc-3.0.23-default", note = "key-play-bookmark9=F9" }
+play-bookmark-10 = { key = "F10", label-msgid = "hotkeys.play-bookmark-10", ui_action = "play-bookmark", args = { index = 10 }, mode = "player-focused", source = "vlc-3.0.23-default", note = "key-play-bookmark10=F10" }
+
+# 360° viewpoint (VLC defaults; feature-gated)
+viewpoint-fov-in = { key = "PageUp", label-msgid = "hotkeys.viewpoint-fov-in", recipe = "viewpoint-fov-in", mode = "player-focused", when = "has-video", source = "vlc-3.0.23-default", note = "key-viewpoint-fov-in=Page Up" }
+viewpoint-fov-out = { key = "PageDown", label-msgid = "hotkeys.viewpoint-fov-out", recipe = "viewpoint-fov-out", mode = "player-focused", when = "has-video", source = "vlc-3.0.23-default", note = "key-viewpoint-fov-out=Page Down" }
+# VLC 3.0.23 leaves key-viewpoint-roll-clock/-anticlock and key-intf-boss
+# (boss key) UNBOUND by default; key-intf-popup-menu=Menu (context menu key)
+# is hardware-rare — all recorded in ui-inventory.md §5.3, no seed entries.
+
+# ==============================================================================
+[platform_overrides.macos]
+# macOS key differences. Sources: https://wiki.videolan.org/Mac_OS_X/ (accessed
+# 2026-10-19) — page documents an OLDER macOS VLC (0.8.6a / 3.0.12-era text);
+# every entry here is [VERIFY] against a pinned macOS 3.0.23 run (hardware,
+# docs/baselines/hardware-template.md §4). Modifier rule: menu-style Ctrl
+# bindings render as Cmd on macOS (Cmd+O, Cmd+P, Cmd+Q, …).
+fullscreen-macos = { key = "Cmd+F", label-msgid = "hotkeys.fullscreen", recipe = "fullscreen-toggle", mode = "player-focused", source = "vlc-3.0.23-default", note = "[VERIFY] macOS wiki: '⌘+F toggle fullscreen (Escape will also exit)'; Linux uses F" }
+seek-backward-medium-macos = { key = "Cmd+Shift+Left", label-msgid = "hotkeys.seek-backward-medium", command = "playback.seek", args = { target = { kind = "relative", delta_ms = -60000 } }, mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "[VERIFY] macOS wiki: '⌘+Shift+left/right — jump about a minute'; differs from Linux Ctrl+Left/Right" }
+seek-forward-medium-macos = { key = "Cmd+Shift+Right", label-msgid = "hotkeys.seek-forward-medium", command = "playback.seek", args = { target = { kind = "relative", delta_ms = 60000 } }, mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "[VERIFY] as above" }
+seek-backward-short-macos = { key = "Cmd+Ctrl+Left", label-msgid = "hotkeys.seek-backward-short", command = "playback.seek", args = { target = { kind = "relative", delta_ms = -10000 } }, mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "[VERIFY] macOS wiki: '⌘+Ctrl+left/right — jump about ten seconds'; Linux short jump is Alt+Left/Right — modifier mapping differs per platform" }
+seek-forward-short-macos = { key = "Cmd+Ctrl+Right", label-msgid = "hotkeys.seek-forward-short", command = "playback.seek", args = { target = { kind = "relative", delta_ms = 10000 } }, mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "[VERIFY] as above" }
+audio-delay-down-macos = { key = "F", label-msgid = "hotkeys.audio-delay-down", recipe = "audio-delay-down", mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "[VERIFY] macOS wiki: 'F – Decrease Audio Delay; G – Increase'; Linux uses J/K — NOTE: F is also design fullscreen; needs platform gating, flagged Q8" }
+audio-delay-up-macos = { key = "G", label-msgid = "hotkeys.audio-delay-up", recipe = "audio-delay-up", mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "[VERIFY] as above" }
+subtitle-delay-down-macos = { key = "H", label-msgid = "hotkeys.subtitle-delay-down", recipe = "subtitle-delay-down", mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "[VERIFY] macOS wiki: 'H – Decrease Subtitle Delay; J – Increase'; same keys as Linux subtitle-delay (h/g) but different assignment shape — verify" }
+subtitle-delay-up-macos = { key = "J", label-msgid = "hotkeys.subtitle-delay-up", recipe = "subtitle-delay-up", mode = "player-focused", when = "has-media", source = "vlc-3.0.23-default", note = "[VERIFY] as above; J is Linux audio-delay-down — cross-platform key reuse, Q8" }

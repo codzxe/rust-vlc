@@ -1,0 +1,77 @@
+{
+  "manifest": "raw evidence manifest for the 0.B1 options & preferences inventory (doc 02 §3.3 reproducibility rule)",
+  "task": "0.B1",
+  "agent": "sub-agent (general-purpose), wave 0.B",
+  "date": "2026-10-19",
+  "platform": "linux (Debian 13 trixie, x86_64, headless container, uid 1001)",
+  "oracle_identity": "VLC 3.0.23 Vetinari (3.0.23-2-0-g79128878dd), Debian 3.0.23-0+deb13u1, plugin set vlc-plugin-base + vlc-plugin-video-output",
+  "source_dumps": [
+    {
+      "file": "../../../baselines/raw/linux/12-options-longhelp.txt",
+      "command": "vlc -I dummy --longhelp",
+      "contains": "basic options tree: 615 option records, 124 module sections; 1539 lines incl. preamble",
+      "captured_by": "0.B1, 2026-10-19 13:20 UTC (binary re-verified --version in its preamble)"
+    },
+    {
+      "file": "../../../baselines/raw/linux/13-options-advanced-longhelp.txt",
+      "command": "vlc -I dummy --advanced --longhelp",
+      "contains": "basic + advanced options: 1476 option records, 187 module sections; 3364 lines incl. preamble",
+      "captured_by": "0.B1, 2026-10-19 13:20 UTC"
+    },
+    {
+      "file": "../../../baselines/raw/linux/14-options-full-help.txt",
+      "command": "vlc -I dummy --full-help",
+      "contains": "same 1476 options as dump 13 plus expanded long descriptions: 5509 lines incl. preamble; canonical source for options-linux.json",
+      "captured_by": "0.B1, 2026-10-19 13:20 UTC"
+    },
+    {
+      "file": "../../../baselines/raw/linux/15-options-help-and-probes.txt",
+      "command": "vlc -I dummy --help ; probes of --help-verbose / --advanced --full-help",
+      "contains": "407-line --help dump + honest probe matrix (which help flags exist on 3.0.23)",
+      "captured_by": "0.B1, 2026-10-19 13:20 UTC"
+    },
+    {
+      "file": "../../../baselines/raw/linux/16-options-vlcrc.txt",
+      "command": "HOME=<fresh> vlc -I dummy --reset-config --play-and-exit vlc://quit ; then copy of ~/.config/vlc/vlcrc",
+      "contains": "preferences-file walk: 191 sections, 1439 name=value lines (all commented = defaults), 4707 verbatim lines",
+      "captured_by": "0.B1, 2026-10-19 13:20 UTC; byte-identical across two runs (cmp)"
+    }
+  ],
+  "derivation": {
+    "script": "parse-options.py",
+    "run": "python3 parse-options.py (paths are repo-relative; run from repo root)",
+    "outputs": "../../../inventory/options-linux.json",
+    "parser_grammar": [
+      "module header: '^ <Name> (<module_id>)$' preceded by a blank line",
+      "category (one-space, whitelist): Audio, Video, Subpictures, Decoders, Input, Stream output, Miscellaneous, Playlist, Hot keys, Hacks",
+      "subsection: 3-space indent, usually trailing ':' (one v4l2 subsection ends in ')')",
+      "option line: 6-space '--flag' or 2-space '-x, --flag'; name charset [a-zA-Z0-9_+-] (covers hotkey '+' pairs and camelCase like audiobargraph_v-barWidth)",
+      "type/choices: '{a, b}' -> enum choices; '<integer [0 .. 200]>' -> type + min/max; '--x, --no-x' -> bool",
+      "help: inline after 2+ spaces, else column-33 lines; '(default X)' column-33 line -> default",
+      "long description: column-11 lines",
+      "empty column-33 lines (33 spaces) = empty help slot (chromecast options)"
+    ],
+    "checks_enforced": [
+      "option sets nested: names(--longhelp) <= names(--advanced --longhelp) <= names(--full-help) (assertion)",
+      "parsed option records == raw option-line counts: 615/615, 1476/1476, 1476/1476",
+      "leftovers (unparseable non-blank lines) are footer notes only: 3/2/1 across dumps 12/13/14",
+      "vlcrc: 1439 name=value lines, 1433 unique names, 6 duplicated names == the 6 name collisions in the help dumps (cross-extraction agreement)",
+      "default agreement: 252/252 options declared in both help '(default X)' and vlcrc 'name=X' agree after enabled/disabled->1/0 normalization; 0 disagreements"
+    ]
+  },
+  "web_evidence": [
+    {
+      "url": "https://wiki.videolan.org/Documentation:Command_line/",
+      "http_status": "200 (accessed 2026-10-19)",
+      "used_for": "public-doc cross-check of help flags; Windows '--option-name=\"value\"' syntax note; dvd:// device-path syntax per OS; doc-vs-binary drift notes",
+      "local_copy": "not retained (facts quoted in options-summary.md and the skeleton JSONs with access date)"
+    },
+    {
+      "url": "https://wiki.videolan.org/Preferences/",
+      "http_status": "200 (accessed 2026-10-19)",
+      "used_for": "per-platform vlcrc paths (Linux ~/.config/vlc/vlcrc, macOS ~/Library/Preferences/org.videolan.vlc/vlcrc, Windows %appdata%\\vlc\\vlcrc) cited in the Windows/macOS skeletons",
+      "local_copy": "not retained (facts quoted with access date)"
+    }
+  ],
+  "clean_room": "Dumps are observed runtime behavior of the pinned binary. No VLC source consulted. No binaries committed. Web citations used only for cross-platform expected-difference fields, never for Linux counts."
+}

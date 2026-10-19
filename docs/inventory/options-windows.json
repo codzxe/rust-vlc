@@ -1,0 +1,72 @@
+{
+  "schema": "lumen-phase0/options-inventory/1.0",
+  "inventory": "VLC 3.0.23 options & preferences dump — Windows (SKELETON, expected-only)",
+  "task": "0.B1 (doc 02 §3.3, doc 13 §3)",
+  "source_baseline": "VLC 3.0.23 Vetinari (3.0.23-2-0-g79128878dd); Windows pin artifacts + hashes: docs/baselines/vlc-3.0.23.md platforms.windows",
+  "platform": "windows",
+  "status": "blocked-on-hardware",
+  "blocked_reason": "No Windows machine in the sandbox. The runbook for capturing this inventory on hardware is docs/baselines/hardware-template.md §3 (help-flag probes, --longhelp / --advanced --longhelp / --full-help dumps, --reset-config vlcrc walk under %APPDATA%\\vlc\\). Dump filenames once captured: 12..16 numbering pattern of docs/baselines/raw/windows/.",
+  "warning": "NO OPTIONS, COUNTS, OR DEFAULTS IN THIS FILE ARE MEASURED. The options array is EMPTY by design — option lists are NOT fabricated from memory or public docs. Every field below is either a verifiable public-doc citation or an explicit [VERIFY-blocked-on-hardware] marker. Nothing here may be cited as observed behavior.",
+  "captured": null,
+  "capture_environment": null,
+  "dump_files": {
+    "longhelp": "[VERIFY-blocked-on-hardware] to be captured per hardware-template.md §3",
+    "advanced_longhelp": "[VERIFY-blocked-on-hardware]",
+    "full_help": "[VERIFY-blocked-on-hardware]",
+    "flag_probes": "[VERIFY-blocked-on-hardware]",
+    "vlcrc_walk": "[VERIFY-blocked-on-hardware] expected path %APPDATA%\\vlc\\vlcrc (see expected_differences #1)"
+  },
+  "flag_probes": {
+    "expected": "--help / --longhelp / --advanced --longhelp / --full-help are core-program flags, observed on the Linux build of the same 3.0.23 release; expected present on Windows [VERIFY-blocked-on-hardware]",
+    "shell_quoting": "Windows users have to use the --option-name=\"value\" syntax instead of the --option-name value syntax (public doc, see expected_differences #2)"
+  },
+  "totals": null,
+  "parse_coverage": null,
+  "reconciliation": null,
+  "leftovers": null,
+  "options": [],
+  "expected_differences": [
+    {
+      "id": 1,
+      "field": "vlcrc preferences-file path",
+      "expected": "%appdata%\\vlc\\vlcrc, expanded per Windows generation (e.g. C:\\Users\\<username>\\AppData\\Roaming\\vlc\\vlcrc on Vista/7/8/10)",
+      "source": "https://wiki.videolan.org/Preferences/ (HTTP 200, accessed 2026-10-19; section 'Location of preferences')",
+      "verify": "blocked-on-hardware"
+    },
+    {
+      "id": 2,
+      "field": "CLI value syntax",
+      "expected": "Quoted form --option-name=\"value\" required instead of --option-name value",
+      "source": "https://wiki.videolan.org/Documentation:Command_line/ (HTTP 200, accessed 2026-10-19; note 'Windows users have to use the --option-name=\"value\" syntax')",
+      "verify": "blocked-on-hardware"
+    },
+    {
+      "id": 3,
+      "field": "device MRL syntax",
+      "expected": "Device-bearing MRLs differ: e.g. dvd:// takes a block-device path on GNU/Linux but a drive letter with / and :/ on Windows (vlc dvd:///D:/)",
+      "source": "https://wiki.videolan.org/Documentation:Command_line/ (HTTP 200, accessed 2026-10-19; dvd:// section)",
+      "verify": "blocked-on-hardware"
+    },
+    {
+      "id": 4,
+      "field": "module-scoped option families (audio/video output + capture)",
+      "expected": "VLC options are module-scoped (observed on Linux: 1476/1476 records live under 187 module sections, only 442 under 'core program'). The Windows build ships Windows-only modules, whose option families are therefore expected Windows-only additions to this inventory: dshow (DirectShow capture), mmdevice (WASAPI audio output), directx_aout (DirectSound), waveout, direct3d / glwin32 / wingdi (video outputs). Option NAMES under those modules are NOT enumerated here — capture on hardware.",
+      "source": "module pages verified live 2026-10-19: https://wiki.videolan.org/Documentation:Modules/dshow/ , /mmdevice/ , /direct3d/ (HTTP 200 each); directx_aout/waveout/glwin32/wingdi per docs/inventory/modules-windows.json (0.B2, same access date)",
+      "verify": "blocked-on-hardware"
+    },
+    {
+      "id": 5,
+      "field": "Qt GUI option family presence",
+      "expected": "The Linux inventory in options-linux.json lacks all --qt-* options because the pinned headless install excluded vlc-plugin-qt (scope_notes there). A default Windows install includes the Qt interface, so a large qt module option family is expected present in the Windows dump [VERIFY count on hardware].",
+      "source": "scope limitation recorded in docs/inventory/options-linux.json scope_notes (our own observed install set, dump 02/05); qt module presence on Windows to be confirmed by the hardware --list dump (hardware-template.md §3)",
+      "verify": "blocked-on-hardware"
+    },
+    {
+      "id": 6,
+      "field": "expected platform-invariant core",
+      "expected": "The 'core program (core)' section (442 options on Linux across Audio/Video/Subpictures/Decoders/Input/Stream output/Miscellaneous/Playlist/Hot keys) is expected substantially invariant across platforms, since it comes from the same core binary — differences expected mainly in platform device/output module sections. Hypothesis from the Linux observation; needs the hardware dump to confirm [VERIFY].",
+      "source": "our Linux observation (docs/inventory/options-linux.json); cross-platform invariance is a hypothesis, not a citation",
+      "verify": "blocked-on-hardware"
+    }
+  ]
+}

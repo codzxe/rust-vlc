@@ -1,0 +1,4357 @@
+{
+ "census": "VLC 3.0.23 module/plugin census — Linux (real, observed)",
+ "task": "0.B2 (doc 02 §3.2, doc 13 §3); clean-room: runtime module listings only",
+ "generated_from": [
+  "docs/baselines/raw/linux/05-vlc-list.txt (vlc --list, 502 lines)",
+  "docs/baselines/raw/linux/06-vlc-list-verbose.txt (vlc --list-verbose)"
+ ],
+ "parser": "docs/inventory/raw/modules/parse-vlc-list.py (this census is regenerable with it)",
+ "acquisition": "docs/baselines/raw/linux/02-acquisition-and-hashcheck.txt (LD_LIBRARY_PATH etc.)",
+ "vlc_version": "3.0.23-2-0-g79128878dd (VLC 3.0.23 Vetinari, Debian 3.0.23-0+deb13u1)",
+ "platform": "linux — Debian 13 (trixie) x86_64 headless container",
+ "plugin_packages": [
+  "vlc-plugin-base",
+  "vlc-plugin-video-output"
+ ],
+ "excluded_debs_headless": [
+  "vlc-plugin-qt",
+  "vlc-plugin-skins2",
+  "vlc-plugin-notify",
+  "vlc-plugin-samba",
+  "vlc-plugin-jack",
+  "vlc-plugin-svg",
+  "vlc-plugin-fluidsynth",
+  "vlc-plugin-visualization",
+  "vlc-plugin-video-splitter",
+  "vlc-plugin-access-extra"
+ ],
+ "total": 502,
+ "counting_rule": "One entry per module-capability registration printed by --list-verbose (the 502 header lines; every header carries at most one capability line). A single plugin binary can register several entries in different capabilities (avcodec: 5, lua: 8, stats: 6). 4 entries print without a capability line (base/parent modules: export, bridge, playlist, core) and are recorded as capability \"(none)\". Sum(by_capability.count) == total == 502, cross-checked 1:1 (name+description, in order) against the 502 module lines of dump 05. Every module object carries dump_line = line number of its header in dump 06.",
+ "seven_category_rollup": {
+  "note": "G3 rollup of card 0.B2 (doc 13 §3). Every registration lands in exactly one bucket. The seven categories are the minimum buckets; capabilities that do not fit are under \"other\" and mapped to Lumen plugin kinds or flagged in modules-summary.md §5.",
+  "buckets": {
+   "demuxers": {
+    "count": 57,
+    "capabilities": [
+     "demux",
+     "demux_filter"
+    ]
+   },
+   "decoders": {
+    "count": 35,
+    "capabilities": [
+     "audio decoder",
+     "hw decoder",
+     "video decoder"
+    ]
+   },
+   "access": {
+    "count": 57,
+    "capabilities": [
+     "access",
+     "access_demux",
+     "stream_directory",
+     "stream_extractor",
+     "stream_filter"
+    ]
+   },
+   "filters": {
+    "count": 110,
+    "capabilities": [
+     "audio converter",
+     "audio filter",
+     "audio renderer",
+     "audio resampler",
+     "audio volume",
+     "glconv",
+     "video blending",
+     "video converter",
+     "video filter"
+    ]
+   },
+   "subtitle": {
+    "count": 32,
+    "capabilities": [
+     "spu decoder",
+     "sub filter",
+     "sub source",
+     "text renderer"
+    ]
+   },
+   "playlist": {
+    "count": 21,
+    "capabilities": [
+     "(none)",
+     "playlist export",
+     "stream_filter"
+    ]
+   },
+   "services-discovery": {
+    "count": 26,
+    "capabilities": [
+     "renderer probe",
+     "renderer_discovery",
+     "services probe",
+     "services_discovery"
+    ]
+   },
+   "other": {
+    "count": 164,
+    "capabilities": [
+     "(none)",
+     "addons finder",
+     "addons storage",
+     "art finder",
+     "audio output",
+     "encoder",
+     "extension",
+     "fingerprinter",
+     "inhibit",
+     "interface",
+     "keystore",
+     "logger",
+     "meta fetcher",
+     "meta reader",
+     "meta writer",
+     "opengl",
+     "opengl es2",
+     "packetizer",
+     "sout access",
+     "sout mux",
+     "sout stream",
+     "tls client",
+     "tls server",
+     "vod server",
+     "vout display",
+     "vout window",
+     "xml",
+     "xml reader"
+    ]
+   }
+  },
+  "sum_check": 502
+ },
+ "stats": {
+  "unique_module_names": 356,
+  "names_with_most_registrations": [
+   {
+    "name": "playlist",
+    "registrations": 15
+   },
+   {
+    "name": "lua",
+    "registrations": 11
+   },
+   {
+    "name": "ddummy",
+    "registrations": 6
+   },
+   {
+    "name": "stats",
+    "registrations": 6
+   },
+   {
+    "name": "vaapi_filters",
+    "registrations": 6
+   },
+   {
+    "name": "avcodec",
+    "registrations": 5
+   },
+   {
+    "name": "export",
+    "registrations": 5
+   },
+   {
+    "name": "avahi",
+    "registrations": 4
+   },
+   {
+    "name": "dummy",
+    "registrations": 4
+   },
+   {
+    "name": "mediadirs",
+    "registrations": 4
+   },
+   {
+    "name": "udev",
+    "registrations": 4
+   },
+   {
+    "name": "bridge",
+    "registrations": 3
+   }
+  ],
+  "modules_with_most_shortcuts": [
+   {
+    "name": "dtv",
+    "capability": "access",
+    "shortcuts": [
+     "tv",
+     "dvb",
+     "cable",
+     "dvb-c",
+     "cqam",
+     "isdb-c",
+     "satellite",
+     "dvb-s",
+     "dvb-s2",
+     "isdb-s",
+     "terrestrial",
+     "dvb-t",
+     "dvb-t2",
+     "isdb-t",
+     "atsc"
+    ]
+   },
+   {
+    "name": "es",
+    "capability": "demux",
+    "shortcuts": [
+     "mpga",
+     "mp3",
+     "m4a",
+     "mp4a",
+     "aac",
+     "ac3",
+     "a52",
+     "eac3",
+     "dts",
+     "mlp",
+     "thd"
+    ]
+   },
+   {
+    "name": "dvb",
+    "capability": "access",
+    "shortcuts": [
+     "dvb-s",
+     "qpsk",
+     "satellite",
+     "dvb-c",
+     "cable",
+     "dvb-t",
+     "terrestrial"
+    ]
+   },
+   {
+    "name": "stream_out_standard",
+    "capability": "sout stream",
+    "shortcuts": [
+     "standard",
+     "std",
+     "file",
+     "http",
+     "udp",
+     "srt"
+    ]
+   },
+   {
+    "name": "avio",
+    "capability": "access",
+    "shortcuts": [
+     "rtmp",
+     "rtmpe",
+     "rtmps",
+     "rtmpt",
+     "rtmpte",
+     "rtmpts"
+    ]
+   },
+   {
+    "name": "pulselist",
+    "capability": "services_discovery",
+    "shortcuts": [
+     "pulse",
+     "pa",
+     "pulseaudio",
+     "audio"
+    ]
+   },
+   {
+    "name": "lua",
+    "capability": "interface",
+    "shortcuts": [
+     "luacli",
+     "luarc",
+     "cli",
+     "rc"
+    ]
+   },
+   {
+    "name": "access_mms",
+    "capability": "access",
+    "shortcuts": [
+     "mms",
+     "mmsu",
+     "mmst",
+     "mmsh"
+    ]
+   },
+   {
+    "name": "xcb_xv",
+    "capability": "vout display",
+    "shortcuts": [
+     "xcb-xv",
+     "xv",
+     "xvideo"
+    ]
+   },
+   {
+    "name": "vdr",
+    "capability": "access",
+    "shortcuts": [
+     "directory",
+     "dir",
+     "file"
+    ]
+   },
+   {
+    "name": "udp",
+    "capability": "access",
+    "shortcuts": [
+     "udpstream",
+     "udp4",
+     "udp6"
+    ]
+   },
+   {
+    "name": "rtp",
+    "capability": "access_demux",
+    "shortcuts": [
+     "dccp",
+     "rtptcp",
+     "udplite"
+    ]
+   }
+  ],
+  "hardware_related_modules": [
+   {
+    "name": "vaapi",
+    "capability": "hw decoder",
+    "description": "VA-API video decoder"
+   },
+   {
+    "name": "vaapi_drm",
+    "capability": "hw decoder",
+    "description": "VA-API video decoder via DRM"
+   },
+   {
+    "name": "vdpau_sharpen",
+    "capability": "video filter",
+    "description": "VDPAU sharpen video filter"
+   },
+   {
+    "name": "vdpau_display",
+    "capability": "vout display",
+    "description": "VDPAU output"
+   },
+   {
+    "name": "vdpau_avcodec",
+    "capability": "hw decoder",
+    "description": "VDPAU video decoder"
+   },
+   {
+    "name": "vdpau_chroma",
+    "capability": "video converter",
+    "description": "VDPAU surface conversions"
+   },
+   {
+    "name": "vdpau_chroma",
+    "capability": "video converter",
+    "description": "VDPAU surface conversions"
+   },
+   {
+    "name": "vdpau_deinterlace",
+    "capability": "video filter",
+    "description": "VDPAU deinterlacing filter"
+   },
+   {
+    "name": "vdpau_adjust",
+    "capability": "video filter",
+    "description": "VDPAU adjust video filter"
+   },
+   {
+    "name": "vaapi_filters",
+    "capability": "video filter",
+    "description": "Video Accelerated API filters"
+   },
+   {
+    "name": "vaapi_filters",
+    "capability": "video converter",
+    "description": "Video Accelerated API filters"
+   },
+   {
+    "name": "vaapi_filters",
+    "capability": "video filter",
+    "description": "Video Accelerated API filters"
+   },
+   {
+    "name": "vaapi_filters",
+    "capability": "video filter",
+    "description": "Video Accelerated API filters"
+   },
+   {
+    "name": "vaapi_filters",
+    "capability": "video filter",
+    "description": "Video Accelerated API filters"
+   },
+   {
+    "name": "vaapi_filters",
+    "capability": "video filter",
+    "description": "Video Accelerated API filters"
+   },
+   {
+    "name": "glconv_vaapi_x11",
+    "capability": "glconv",
+    "description": "VA-API OpenGL surface converter for X11"
+   },
+   {
+    "name": "glconv_vaapi_wl",
+    "capability": "glconv",
+    "description": "VA-API OpenGL surface converter for Wayland"
+   },
+   {
+    "name": "glconv_vdpau",
+    "capability": "glconv",
+    "description": "VDPAU OpenGL surface converter"
+   },
+   {
+    "name": "glconv_vaapi_drm",
+    "capability": "glconv",
+    "description": "VA-API OpenGL surface converter for DRM"
+   }
+  ]
+ },
+ "by_capability": {
+  "demux": {
+   "count": 55,
+   "modules": [
+    {
+     "name": "ttml",
+     "description": "TTML demuxer",
+     "score": 11,
+     "dump_line": 207
+    },
+    {
+     "name": "webvtt",
+     "shortcuts": [
+      "webvttstream"
+     ],
+     "description": "WEBVTT subtitles parser",
+     "score": 0,
+     "dump_line": 265
+    },
+    {
+     "name": "webvtt",
+     "description": "WEBVTT subtitles parser",
+     "score": 11,
+     "dump_line": 268
+    },
+    {
+     "name": "stats",
+     "description": "Stats demux function",
+     "score": 0,
+     "dump_line": 530
+    },
+    {
+     "name": "sap",
+     "shortcuts": [
+      "sdp"
+     ],
+     "description": "SDP Descriptions parser",
+     "score": 51,
+     "dump_line": 629
+    },
+    {
+     "name": "libbluray",
+     "description": "BluRay demuxer",
+     "score": 5,
+     "dump_line": 879
+    },
+    {
+     "name": "dvdnav",
+     "shortcuts": [
+      "dvd",
+      "iso"
+     ],
+     "description": "DVDnav demuxer",
+     "score": 5,
+     "dump_line": 885
+    },
+    {
+     "name": "linsys_sdi",
+     "description": "SDI Demux",
+     "score": 0,
+     "dump_line": 994
+    },
+    {
+     "name": "directory",
+     "description": "Directory import",
+     "score": 10,
+     "dump_line": 1067
+    },
+    {
+     "name": "caf",
+     "description": "CAF demuxer",
+     "score": 140,
+     "dump_line": 1069
+    },
+    {
+     "name": "rawaud",
+     "description": "Raw audio demuxer",
+     "score": 0,
+     "dump_line": 1071
+    },
+    {
+     "name": "au",
+     "description": "AU demuxer",
+     "score": 10,
+     "dump_line": 1073
+    },
+    {
+     "name": "mpgv",
+     "description": "MPEG-I/II video demuxer",
+     "score": 5,
+     "dump_line": 1075
+    },
+    {
+     "name": "rawdv",
+     "description": "DV (Digital Video) demuxer",
+     "score": 3,
+     "dump_line": 1080
+    },
+    {
+     "name": "nuv",
+     "description": "Nuv demuxer",
+     "score": 145,
+     "dump_line": 1082
+    },
+    {
+     "name": "ps",
+     "description": "MPEG-PS demuxer",
+     "score": 1,
+     "dump_line": 1084
+    },
+    {
+     "name": "ps",
+     "description": "MPEG-PS demuxer",
+     "score": 8,
+     "dump_line": 1086
+    },
+    {
+     "name": "vobsub",
+     "shortcuts": [
+      "subtitle"
+     ],
+     "description": "Vobsub subtitles parser",
+     "score": 1,
+     "dump_line": 1090
+    },
+    {
+     "name": "h26x",
+     "shortcuts": [
+      "h264"
+     ],
+     "description": "H264 video demuxer",
+     "score": 6,
+     "dump_line": 1093
+    },
+    {
+     "name": "h26x",
+     "shortcuts": [
+      "hevc",
+      "h265"
+     ],
+     "description": "HEVC/H.265 video demuxer",
+     "score": 6,
+     "dump_line": 1096
+    },
+    {
+     "name": "dmxmus",
+     "description": "DMX music demuxer",
+     "score": 20,
+     "dump_line": 1100
+    },
+    {
+     "name": "diracsys",
+     "shortcuts": [
+      "dirac"
+     ],
+     "description": "Dirac video demuxer",
+     "score": 50,
+     "dump_line": 1102
+    },
+    {
+     "name": "nsv",
+     "description": "NullSoft demuxer",
+     "score": 10,
+     "dump_line": 1105
+    },
+    {
+     "name": "real",
+     "shortcuts": [
+      "rm"
+     ],
+     "description": "Real demuxer",
+     "score": 0,
+     "dump_line": 1107
+    },
+    {
+     "name": "voc",
+     "description": "VOC demuxer",
+     "score": 10,
+     "dump_line": 1110
+    },
+    {
+     "name": "wav",
+     "description": "WAV demuxer",
+     "score": 142,
+     "dump_line": 1112
+    },
+    {
+     "name": "ts",
+     "description": "MPEG Transport Stream demuxer",
+     "score": 10,
+     "dump_line": 1114
+    },
+    {
+     "name": "mjpeg",
+     "description": "M-JPEG camera demuxer",
+     "score": 5,
+     "dump_line": 1116
+    },
+    {
+     "name": "adaptive",
+     "description": "Unified adaptive streaming for DASH/HLS",
+     "score": 12,
+     "dump_line": 1118
+    },
+    {
+     "name": "demux_stl",
+     "shortcuts": [
+      "stl",
+      "subtitle"
+     ],
+     "description": "EBU STL subtitles parser",
+     "score": 1,
+     "dump_line": 1120
+    },
+    {
+     "name": "flacsys",
+     "shortcuts": [
+      "flac"
+     ],
+     "description": "FLAC demuxer",
+     "score": 155,
+     "dump_line": 1124
+    },
+    {
+     "name": "aiff",
+     "description": "AIFF demuxer",
+     "score": 10,
+     "dump_line": 1127
+    },
+    {
+     "name": "avi",
+     "description": "AVI demuxer",
+     "score": 212,
+     "dump_line": 1129
+    },
+    {
+     "name": "mkv",
+     "shortcuts": [
+      "mka"
+     ],
+     "description": "Matroska stream demuxer",
+     "score": 50,
+     "dump_line": 1131
+    },
+    {
+     "name": "demuxdump",
+     "shortcuts": [
+      "dump"
+     ],
+     "description": "File dumper",
+     "score": 0,
+     "dump_line": 1134
+    },
+    {
+     "name": "rawvid",
+     "shortcuts": [
+      "rawvideo"
+     ],
+     "description": "Raw video demuxer",
+     "score": 10,
+     "dump_line": 1137
+    },
+    {
+     "name": "xa",
+     "description": "XA demuxer",
+     "score": 10,
+     "dump_line": 1140
+    },
+    {
+     "name": "vc1",
+     "description": "VC1 video demuxer",
+     "score": 0,
+     "dump_line": 1142
+    },
+    {
+     "name": "subtitle",
+     "description": "Text subtitle parser",
+     "score": 0,
+     "dump_line": 1144
+    },
+    {
+     "name": "smf",
+     "description": "SMF demuxer",
+     "score": 20,
+     "dump_line": 1146
+    },
+    {
+     "name": "image",
+     "description": "Image demuxer",
+     "score": 10,
+     "dump_line": 1148
+    },
+    {
+     "name": "demux_cdg",
+     "shortcuts": [
+      "cdg",
+      "subtitle"
+     ],
+     "description": "CDG demuxer",
+     "score": 3,
+     "dump_line": 1150
+    },
+    {
+     "name": "ogg",
+     "description": "OGG demuxer",
+     "score": 50,
+     "dump_line": 1154
+    },
+    {
+     "name": "mp4",
+     "description": "MP4 stream demuxer",
+     "score": 240,
+     "dump_line": 1156
+    },
+    {
+     "name": "mpc",
+     "description": "MusePack demuxer",
+     "score": 145,
+     "dump_line": 1158
+    },
+    {
+     "name": "avformat",
+     "shortcuts": [
+      "ffmpeg"
+     ],
+     "description": "Avformat demuxer",
+     "score": 2,
+     "dump_line": 1160
+    },
+    {
+     "name": "pva",
+     "description": "PVA demuxer",
+     "score": 10,
+     "dump_line": 1166
+    },
+    {
+     "name": "sid",
+     "description": "C64 sid demuxer",
+     "score": 100,
+     "dump_line": 1168
+    },
+    {
+     "name": "asf",
+     "shortcuts": [
+      "wmv"
+     ],
+     "description": "ASF/WMV demuxer",
+     "score": 200,
+     "dump_line": 1170
+    },
+    {
+     "name": "mod",
+     "description": "MOD demuxer (libmodplug)",
+     "score": 10,
+     "dump_line": 1173
+    },
+    {
+     "name": "nsc",
+     "description": "Windows Media NSC metademux",
+     "score": 3,
+     "dump_line": 1175
+    },
+    {
+     "name": "es",
+     "shortcuts": [
+      "mpga",
+      "mp3",
+      "m4a",
+      "mp4a",
+      "aac",
+      "ac3",
+      "a52",
+      "eac3",
+      "dts",
+      "mlp",
+      "thd"
+     ],
+     "description": "MPEG-I/II/4 / A52 / DTS / MLP audio",
+     "score": 155,
+     "dump_line": 1177
+    },
+    {
+     "name": "es",
+     "shortcuts": [
+      "m4v",
+      "mp4v"
+     ],
+     "description": "MPEG-4 video",
+     "score": 0,
+     "dump_line": 1190
+    },
+    {
+     "name": "tta",
+     "description": "TTA demuxer",
+     "score": 145,
+     "dump_line": 1233
+    },
+    {
+     "name": "ty",
+     "shortcuts": [
+      "tivo"
+     ],
+     "description": "TY Stream audio/video demux",
+     "score": 6,
+     "dump_line": 1235
+    }
+   ]
+  },
+  "video filter": {
+   "count": 50,
+   "modules": [
+    {
+     "name": "audiobargraph_v",
+     "description": "Audio Bar Graph Video sub source",
+     "score": 0,
+     "dump_line": 98
+    },
+    {
+     "name": "logo",
+     "description": "Logo video filter",
+     "score": 0,
+     "dump_line": 112
+    },
+    {
+     "name": "vdpau_sharpen",
+     "shortcuts": [
+      "sharpen"
+     ],
+     "description": "VDPAU sharpen video filter",
+     "score": 0,
+     "dump_line": 305
+    },
+    {
+     "name": "vdpau_deinterlace",
+     "shortcuts": [
+      "deinterlace"
+     ],
+     "description": "VDPAU deinterlacing filter",
+     "score": 0,
+     "dump_line": 318
+    },
+    {
+     "name": "vdpau_adjust",
+     "shortcuts": [
+      "adjust"
+     ],
+     "description": "VDPAU adjust video filter",
+     "score": 0,
+     "dump_line": 321
+    },
+    {
+     "name": "vaapi_filters",
+     "description": "Video Accelerated API filters",
+     "score": 0,
+     "dump_line": 324
+    },
+    {
+     "name": "vaapi_filters",
+     "shortcuts": [
+      "sharpen"
+     ],
+     "description": "Video Accelerated API filters",
+     "score": 0,
+     "dump_line": 328
+    },
+    {
+     "name": "vaapi_filters",
+     "shortcuts": [
+      "denoise"
+     ],
+     "description": "Video Accelerated API filters",
+     "score": 0,
+     "dump_line": 331
+    },
+    {
+     "name": "vaapi_filters",
+     "shortcuts": [
+      "deinterlace"
+     ],
+     "description": "Video Accelerated API filters",
+     "score": 0,
+     "dump_line": 334
+    },
+    {
+     "name": "vaapi_filters",
+     "shortcuts": [
+      "adjust"
+     ],
+     "description": "Video Accelerated API filters",
+     "score": 0,
+     "dump_line": 337
+    },
+    {
+     "name": "rotate",
+     "description": "Rotate video filter",
+     "score": 0,
+     "dump_line": 340
+    },
+    {
+     "name": "freeze",
+     "description": "Freezing interactive video filter",
+     "score": 0,
+     "dump_line": 342
+    },
+    {
+     "name": "gradfun",
+     "description": "Gradfun video filter",
+     "score": 0,
+     "dump_line": 344
+    },
+    {
+     "name": "gaussianblur",
+     "description": "Gaussian blur video filter",
+     "score": 0,
+     "dump_line": 346
+    },
+    {
+     "name": "sharpen",
+     "description": "Sharpen video filter",
+     "score": 0,
+     "dump_line": 348
+    },
+    {
+     "name": "blendbench",
+     "description": "Blending benchmark filter",
+     "score": 0,
+     "dump_line": 350
+    },
+    {
+     "name": "oldmovie",
+     "description": "Old movie effect video filter",
+     "score": 0,
+     "dump_line": 352
+    },
+    {
+     "name": "invert",
+     "description": "Invert video filter",
+     "score": 0,
+     "dump_line": 354
+    },
+    {
+     "name": "edgedetection",
+     "description": "Edge detection video filter",
+     "score": 0,
+     "dump_line": 356
+    },
+    {
+     "name": "ball",
+     "description": "Ball video filter",
+     "score": 0,
+     "dump_line": 360
+    },
+    {
+     "name": "motiondetect",
+     "shortcuts": [
+      "motion"
+     ],
+     "description": "Motion detect video filter",
+     "score": 0,
+     "dump_line": 362
+    },
+    {
+     "name": "wave",
+     "description": "Wave video filter",
+     "score": 0,
+     "dump_line": 365
+    },
+    {
+     "name": "scene",
+     "description": "Scene video filter",
+     "score": 0,
+     "dump_line": 367
+    },
+    {
+     "name": "posterize",
+     "description": "Posterize video filter",
+     "score": 0,
+     "dump_line": 369
+    },
+    {
+     "name": "ripple",
+     "description": "Ripple video filter",
+     "score": 0,
+     "dump_line": 371
+    },
+    {
+     "name": "psychedelic",
+     "description": "Psychedelic video filter",
+     "score": 0,
+     "dump_line": 373
+    },
+    {
+     "name": "fps",
+     "description": "FPS conversion video filter",
+     "score": 0,
+     "dump_line": 375
+    },
+    {
+     "name": "canvas",
+     "description": "Canvas video filter",
+     "score": 0,
+     "dump_line": 377
+    },
+    {
+     "name": "gradient",
+     "description": "Gradient video filter",
+     "score": 0,
+     "dump_line": 379
+    },
+    {
+     "name": "adjust",
+     "description": "Image properties filter",
+     "score": 0,
+     "dump_line": 381
+    },
+    {
+     "name": "magnify",
+     "description": "Magnify/Zoom interactive video filter",
+     "score": 0,
+     "dump_line": 383
+    },
+    {
+     "name": "alphamask",
+     "shortcuts": [
+      "mask"
+     ],
+     "description": "Alpha mask video filter",
+     "score": 0,
+     "dump_line": 385
+    },
+    {
+     "name": "antiflicker",
+     "description": "antiflicker video filter",
+     "score": 0,
+     "dump_line": 388
+    },
+    {
+     "name": "grain",
+     "description": "Grain video filter",
+     "score": 0,
+     "dump_line": 390
+    },
+    {
+     "name": "deinterlace",
+     "description": "Deinterlacing video filter",
+     "score": 0,
+     "dump_line": 392
+    },
+    {
+     "name": "anaglyph",
+     "description": "Convert 3D picture to anaglyph image video filter",
+     "score": 0,
+     "dump_line": 394
+    },
+    {
+     "name": "vhs",
+     "description": "VHS movie effect video filter",
+     "score": 0,
+     "dump_line": 396
+    },
+    {
+     "name": "mirror",
+     "description": "Mirror video filter",
+     "score": 0,
+     "dump_line": 398
+    },
+    {
+     "name": "postproc",
+     "shortcuts": [
+      "postprocess",
+      "pp"
+     ],
+     "description": "Video post processing filter",
+     "score": 0,
+     "dump_line": 400
+    },
+    {
+     "name": "extract",
+     "description": "Extract RGB component video filter",
+     "score": 0,
+     "dump_line": 404
+    },
+    {
+     "name": "sepia",
+     "description": "Sepia video filter",
+     "score": 0,
+     "dump_line": 406
+    },
+    {
+     "name": "bluescreen",
+     "description": "Bluescreen video filter",
+     "score": 0,
+     "dump_line": 408
+    },
+    {
+     "name": "motionblur",
+     "shortcuts": [
+      "blur"
+     ],
+     "description": "Motion blur filter",
+     "score": 0,
+     "dump_line": 410
+    },
+    {
+     "name": "hqdn3d",
+     "description": "High Quality 3D Denoiser filter",
+     "score": 0,
+     "dump_line": 413
+    },
+    {
+     "name": "erase",
+     "description": "Erase video filter",
+     "score": 0,
+     "dump_line": 415
+    },
+    {
+     "name": "colorthres",
+     "description": "Color threshold filter",
+     "score": 0,
+     "dump_line": 417
+    },
+    {
+     "name": "puzzle",
+     "description": "Puzzle interactive game video filter",
+     "score": 0,
+     "dump_line": 419
+    },
+    {
+     "name": "croppadd",
+     "description": "Video cropping filter",
+     "score": 0,
+     "dump_line": 421
+    },
+    {
+     "name": "transform",
+     "description": "Video transformation filter",
+     "score": 0,
+     "dump_line": 423
+    },
+    {
+     "name": "chain",
+     "description": "Video filtering using a chain of video filter modules",
+     "score": 0,
+     "dump_line": 1278
+    }
+   ]
+  },
+  "access": {
+   "count": 28,
+   "modules": [
+    {
+     "name": "upnp",
+     "shortcuts": [
+      "upnps"
+     ],
+     "description": "Universal Plug'n'Play",
+     "score": 0,
+     "dump_line": 653
+    },
+    {
+     "name": "v4l2",
+     "shortcuts": [
+      "v4l",
+      "v4l2c"
+     ],
+     "description": "Video4Linux compressed A/V input",
+     "score": 0,
+     "dump_line": 866
+    },
+    {
+     "name": "cdda",
+     "shortcuts": [
+      "cddasimple"
+     ],
+     "description": "Audio CD input",
+     "score": 10,
+     "dump_line": 870
+    },
+    {
+     "name": "vcd",
+     "shortcuts": [
+      "svcd"
+     ],
+     "description": "VCD input",
+     "score": 60,
+     "dump_line": 889
+    },
+    {
+     "name": "imem",
+     "description": "Memory input",
+     "score": 0,
+     "dump_line": 894
+    },
+    {
+     "name": "vdr",
+     "shortcuts": [
+      "directory",
+      "dir",
+      "file"
+     ],
+     "description": "VDR recordings",
+     "score": 60,
+     "dump_line": 900
+    },
+    {
+     "name": "access_mms",
+     "shortcuts": [
+      "mms",
+      "mmsu",
+      "mmst",
+      "mmsh"
+     ],
+     "description": "Microsoft Media Server (MMS) input",
+     "score": -1,
+     "dump_line": 908
+    },
+    {
+     "name": "udp",
+     "shortcuts": [
+      "udpstream",
+      "udp4",
+      "udp6"
+     ],
+     "description": "UDP input",
+     "score": 0,
+     "dump_line": 914
+    },
+    {
+     "name": "dvb",
+     "shortcuts": [
+      "dvb-s",
+      "qpsk",
+      "satellite",
+      "dvb-c",
+      "cable",
+      "dvb-t",
+      "terrestrial"
+     ],
+     "description": "DVB input with v4l2 support",
+     "score": 0,
+     "dump_line": 919
+    },
+    {
+     "name": "http",
+     "shortcuts": [
+      "unsv",
+      "itpc",
+      "icyx"
+     ],
+     "description": "HTTP input",
+     "score": 0,
+     "dump_line": 932
+    },
+    {
+     "name": "tcp",
+     "description": "TCP input",
+     "score": 0,
+     "dump_line": 937
+    },
+    {
+     "name": "filesystem",
+     "shortcuts": [
+      "file",
+      "fd",
+      "stream"
+     ],
+     "description": "File input",
+     "score": 50,
+     "dump_line": 939
+    },
+    {
+     "name": "filesystem",
+     "shortcuts": [
+      "directory",
+      "dir"
+     ],
+     "description": "File input",
+     "score": 55,
+     "dump_line": 944
+    },
+    {
+     "name": "dtv",
+     "shortcuts": [
+      "tv",
+      "dvb",
+      "cable",
+      "dvb-c",
+      "cqam",
+      "isdb-c",
+      "satellite",
+      "dvb-s",
+      "dvb-s2",
+      "isdb-s",
+      "terrestrial",
+      "dvb-t",
+      "dvb-t2",
+      "isdb-t",
+      "atsc"
+     ],
+     "description": "Digital Television and Radio",
+     "score": 0,
+     "dump_line": 948
+    },
+    {
+     "name": "avio",
+     "shortcuts": [
+      "rtmp",
+      "rtmpe",
+      "rtmps",
+      "rtmpt",
+      "rtmpte",
+      "rtmpts"
+     ],
+     "description": "libavformat AVIO access",
+     "score": -1,
+     "dump_line": 970
+    },
+    {
+     "name": "imem_access",
+     "shortcuts": [
+      "imem"
+     ],
+     "description": "In-memory stream input",
+     "score": 0,
+     "dump_line": 983
+    },
+    {
+     "name": "access_mtp",
+     "shortcuts": [
+      "mtp"
+     ],
+     "description": "MTP input",
+     "score": 0,
+     "dump_line": 986
+    },
+    {
+     "name": "sftp",
+     "description": "SFTP input",
+     "score": 0,
+     "dump_line": 996
+    },
+    {
+     "name": "ftp",
+     "shortcuts": [
+      "ftps",
+      "ftpes"
+     ],
+     "description": "FTP input",
+     "score": 0,
+     "dump_line": 998
+    },
+    {
+     "name": "access",
+     "shortcuts": [
+      "https",
+      "http"
+     ],
+     "description": "HTTPS input",
+     "score": 2,
+     "dump_line": 1006
+    },
+    {
+     "name": "dv1394",
+     "shortcuts": [
+      "dv",
+      "raw1394"
+     ],
+     "description": "Digital Video (Firewire/ieee1394) input",
+     "score": 0,
+     "dump_line": 1010
+    },
+    {
+     "name": "sdp",
+     "description": "Session Description Protocol",
+     "score": 0,
+     "dump_line": 1014
+    },
+    {
+     "name": "satip",
+     "shortcuts": [
+      "rtsp"
+     ],
+     "description": "SAT>IP Receiver Plugin",
+     "score": 201,
+     "dump_line": 1018
+    },
+    {
+     "name": "attachment",
+     "description": "Attachment input",
+     "score": 0,
+     "dump_line": 1021
+    },
+    {
+     "name": "nfs",
+     "description": "NFS input",
+     "score": 2,
+     "dump_line": 1023
+    },
+    {
+     "name": "rist",
+     "shortcuts": [
+      "tr06"
+     ],
+     "description": "RIST input",
+     "score": 0,
+     "dump_line": 1033
+    },
+    {
+     "name": "concat",
+     "shortcuts": [
+      "concast",
+      "list"
+     ],
+     "description": "Concatenated inputs",
+     "score": 0,
+     "dump_line": 1036
+    },
+    {
+     "name": "access_realrtsp",
+     "shortcuts": [
+      "realrtsp",
+      "rtsp",
+      "pnm"
+     ],
+     "description": "Real RTSP",
+     "score": 10,
+     "dump_line": 1040
+    }
+   ]
+  },
+  "stream_filter": {
+   "count": 26,
+   "modules": [
+    {
+     "name": "lua",
+     "shortcuts": [
+      "luaplaylist"
+     ],
+     "description": "Lua Playlist Parser Interface",
+     "score": 2,
+     "dump_line": 472
+    },
+    {
+     "name": "prefetch",
+     "description": "Stream prefetch filter",
+     "score": 0,
+     "dump_line": 1045
+    },
+    {
+     "name": "cache_read",
+     "description": "Byte stream cache",
+     "score": 0,
+     "dump_line": 1047
+    },
+    {
+     "name": "record",
+     "description": "Internal stream record",
+     "score": 0,
+     "dump_line": 1049
+    },
+    {
+     "name": "hds",
+     "description": "HTTP Dynamic Streaming",
+     "score": 30,
+     "dump_line": 1051
+    },
+    {
+     "name": "cache_block",
+     "description": "Block stream cache",
+     "score": 0,
+     "dump_line": 1053
+    },
+    {
+     "name": "adf",
+     "description": "ADF stream filter",
+     "score": 30,
+     "dump_line": 1055
+    },
+    {
+     "name": "skiptags",
+     "description": "APE/ID3 tags-skipping filter",
+     "score": 30,
+     "dump_line": 1057
+    },
+    {
+     "name": "inflate",
+     "description": "Zlib decompression filter",
+     "score": 30,
+     "dump_line": 1059
+    },
+    {
+     "name": "decomp",
+     "description": "LZMA decompression",
+     "score": 20,
+     "dump_line": 1061
+    },
+    {
+     "name": "decomp",
+     "description": "gzip decompression",
+     "score": 20,
+     "dump_line": 1063
+    },
+    {
+     "name": "decomp",
+     "description": "Burrows-Wheeler decompression",
+     "score": 20,
+     "dump_line": 1065
+    },
+    {
+     "name": "playlist",
+     "shortcuts": [
+      "wpl"
+     ],
+     "description": "WPL playlist import",
+     "score": 10,
+     "dump_line": 1195
+    },
+    {
+     "name": "playlist",
+     "shortcuts": [
+      "itml"
+     ],
+     "description": "iTunes Music Library importer",
+     "score": 10,
+     "dump_line": 1198
+    },
+    {
+     "name": "playlist",
+     "description": "Dummy IFO demux",
+     "score": 12,
+     "dump_line": 1201
+    },
+    {
+     "name": "playlist",
+     "shortcuts": [
+      "qtl"
+     ],
+     "description": "QuickTime Media Link importer",
+     "score": 10,
+     "dump_line": 1203
+    },
+    {
+     "name": "playlist",
+     "shortcuts": [
+      "sgimb"
+     ],
+     "description": "Kasenna MediaBase parser",
+     "score": 10,
+     "dump_line": 1206
+    },
+    {
+     "name": "playlist",
+     "description": "ASX playlist import",
+     "score": 10,
+     "dump_line": 1209
+    },
+    {
+     "name": "playlist",
+     "shortcuts": [
+      "shout-winamp"
+     ],
+     "description": "New winamp 5.2 shoutcast import",
+     "score": 0,
+     "dump_line": 1211
+    },
+    {
+     "name": "playlist",
+     "description": "XSPF playlist import",
+     "score": 10,
+     "dump_line": 1214
+    },
+    {
+     "name": "playlist",
+     "shortcuts": [
+      "podcast"
+     ],
+     "description": "Podcast parser",
+     "score": 10,
+     "dump_line": 1216
+    },
+    {
+     "name": "playlist",
+     "shortcuts": [
+      "dvb"
+     ],
+     "description": "DVB playlist import",
+     "score": 10,
+     "dump_line": 1219
+    },
+    {
+     "name": "playlist",
+     "shortcuts": [
+      "shout-b4s"
+     ],
+     "description": "B4S playlist import",
+     "score": 10,
+     "dump_line": 1222
+    },
+    {
+     "name": "playlist",
+     "description": "PLS playlist import",
+     "score": 10,
+     "dump_line": 1225
+    },
+    {
+     "name": "playlist",
+     "description": "RAM playlist import",
+     "score": 10,
+     "dump_line": 1227
+    },
+    {
+     "name": "playlist",
+     "shortcuts": [
+      "m3u",
+      "m3u8"
+     ],
+     "description": "M3U playlist import",
+     "score": 10,
+     "dump_line": 1229
+    }
+   ]
+  },
+  "packetizer": {
+   "count": 25,
+   "modules": [
+    {
+     "name": "theora",
+     "description": "Theora video packetizer",
+     "score": 100,
+     "dump_line": 145
+    },
+    {
+     "name": "oggspots",
+     "description": "OggSpots video packetizer",
+     "score": 10,
+     "dump_line": 149
+    },
+    {
+     "name": "vorbis",
+     "description": "Vorbis audio packetizer",
+     "score": 100,
+     "dump_line": 157
+    },
+    {
+     "name": "speex",
+     "description": "Speex audio packetizer",
+     "score": 100,
+     "dump_line": 167
+    },
+    {
+     "name": "rawvideo",
+     "description": "Pseudo raw video packetizer",
+     "score": 100,
+     "dump_line": 201
+    },
+    {
+     "name": "spudec",
+     "description": "DVD subtitles packetizer",
+     "score": 50,
+     "dump_line": 211
+    },
+    {
+     "name": "lpcm",
+     "description": "Linear PCM audio packetizer",
+     "score": 100,
+     "dump_line": 276
+    },
+    {
+     "name": "aes3",
+     "description": "AES3/SMPTE 302M audio packetizer",
+     "score": 100,
+     "dump_line": 282
+    },
+    {
+     "name": "svcdsub",
+     "description": "Philips OGT (SVCD subtitle) packetizer",
+     "score": 50,
+     "dump_line": 292
+    },
+    {
+     "name": "cvdsub",
+     "description": "Chaoji VCD subtitle packetizer",
+     "score": 50,
+     "dump_line": 298
+    },
+    {
+     "name": "hevc",
+     "description": "HEVC/H.265 video packetizer",
+     "score": 50,
+     "dump_line": 824
+    },
+    {
+     "name": "mpeg4audio",
+     "description": "MPEG4 audio packetizer",
+     "score": 50,
+     "dump_line": 826
+    },
+    {
+     "name": "mpegvideo",
+     "description": "MPEG-I/II video packetizer",
+     "score": 50,
+     "dump_line": 828
+    },
+    {
+     "name": "copy",
+     "description": "Copy packetizer",
+     "score": 1,
+     "dump_line": 830
+    },
+    {
+     "name": "mlp",
+     "description": "MLP/TrueHD parser",
+     "score": 50,
+     "dump_line": 832
+    },
+    {
+     "name": "mpeg4video",
+     "description": "MPEG4 video packetizer",
+     "score": 50,
+     "dump_line": 834
+    },
+    {
+     "name": "vc1",
+     "description": "VC-1 packetizer",
+     "score": 50,
+     "dump_line": 836
+    },
+    {
+     "name": "flac",
+     "description": "Flac audio packetizer",
+     "score": 50,
+     "dump_line": 838
+    },
+    {
+     "name": "dirac",
+     "description": "Dirac packetizer",
+     "score": 50,
+     "dump_line": 840
+    },
+    {
+     "name": "av1",
+     "description": "AV1 video packetizer",
+     "score": 50,
+     "dump_line": 842
+    },
+    {
+     "name": "a52",
+     "description": "A/52 audio packetizer",
+     "score": 10,
+     "dump_line": 844
+    },
+    {
+     "name": "dts",
+     "description": "DTS audio packetizer",
+     "score": 10,
+     "dump_line": 846
+    },
+    {
+     "name": "packetizer_avparser",
+     "description": "avparser packetizer",
+     "score": 20,
+     "dump_line": 848
+    },
+    {
+     "name": "h264",
+     "description": "H.264 video packetizer",
+     "score": 50,
+     "dump_line": 850
+    },
+    {
+     "name": "mpegaudio",
+     "description": "MPEG audio layer I/II/III packetizer",
+     "score": 10,
+     "dump_line": 852
+    }
+   ]
+  },
+  "sout stream": {
+   "count": 23,
+   "modules": [
+    {
+     "name": "stats",
+     "description": "Writes statistic info about stream",
+     "score": 0,
+     "dump_line": 753
+    },
+    {
+     "name": "bridge",
+     "shortcuts": [
+      "bridge-in"
+     ],
+     "description": "Bridge stream output",
+     "score": 50,
+     "dump_line": 756
+    },
+    {
+     "name": "bridge",
+     "shortcuts": [
+      "bridge-out"
+     ],
+     "description": "Bridge stream output",
+     "score": 50,
+     "dump_line": 759
+    },
+    {
+     "name": "cycle",
+     "description": "Cyclic stream output",
+     "score": 0,
+     "dump_line": 762
+    },
+    {
+     "name": "display",
+     "description": "Display stream output",
+     "score": 50,
+     "dump_line": 764
+    },
+    {
+     "name": "stream_out_rtp",
+     "shortcuts": [
+      "rtp",
+      "vod"
+     ],
+     "description": "RTP stream output",
+     "score": 0,
+     "dump_line": 766
+    },
+    {
+     "name": "duplicate",
+     "shortcuts": [
+      "dup"
+     ],
+     "description": "Duplicate stream output",
+     "score": 50,
+     "dump_line": 773
+    },
+    {
+     "name": "delay",
+     "description": "Delay a stream",
+     "score": 50,
+     "dump_line": 776
+    },
+    {
+     "name": "record",
+     "description": "Record stream output",
+     "score": 0,
+     "dump_line": 778
+    },
+    {
+     "name": "stream_out_chromaprint",
+     "shortcuts": [
+      "chromaprint"
+     ],
+     "description": "Chromaprint stream output",
+     "score": 0,
+     "dump_line": 780
+    },
+    {
+     "name": "smem",
+     "description": "Stream output to memory buffer",
+     "score": 0,
+     "dump_line": 783
+    },
+    {
+     "name": "stream_out_standard",
+     "shortcuts": [
+      "standard",
+      "std",
+      "file",
+      "http",
+      "udp",
+      "srt"
+     ],
+     "description": "Standard stream output",
+     "score": 50,
+     "dump_line": 785
+    },
+    {
+     "name": "dummy",
+     "shortcuts": [
+      "drop"
+     ],
+     "description": "Dummy stream output",
+     "score": 50,
+     "dump_line": 793
+    },
+    {
+     "name": "es",
+     "description": "Elementary stream output",
+     "score": 50,
+     "dump_line": 796
+    },
+    {
+     "name": "setid",
+     "description": "Change the id of an elementary stream",
+     "score": 50,
+     "dump_line": 798
+    },
+    {
+     "name": "setid",
+     "shortcuts": [
+      "setlang"
+     ],
+     "description": "Change the language of an elementary stream",
+     "score": 50,
+     "dump_line": 800
+    },
+    {
+     "name": "mosaic_bridge",
+     "shortcuts": [
+      "mosaic-bridge"
+     ],
+     "description": "Mosaic bridge stream output",
+     "score": 0,
+     "dump_line": 803
+    },
+    {
+     "name": "autodel",
+     "description": "Automatically add/delete input streams",
+     "score": 50,
+     "dump_line": 806
+    },
+    {
+     "name": "description",
+     "description": "Description stream output",
+     "score": 50,
+     "dump_line": 808
+    },
+    {
+     "name": "stream_out_transcode",
+     "shortcuts": [
+      "transcode"
+     ],
+     "description": "Transcode stream output",
+     "score": 50,
+     "dump_line": 810
+    },
+    {
+     "name": "gather",
+     "description": "Gathering stream output",
+     "score": 50,
+     "dump_line": 813
+    },
+    {
+     "name": "stream_out_chromecast",
+     "shortcuts": [
+      "chromecast"
+     ],
+     "description": "Chromecast stream output",
+     "score": 0,
+     "dump_line": 815
+    },
+    {
+     "name": "stream_out_chromecast",
+     "shortcuts": [
+      "chromecast-proxy"
+     ],
+     "description": "Chromecast stream output",
+     "score": 0,
+     "dump_line": 821
+    }
+   ]
+  },
+  "video converter": {
+   "count": 23,
+   "modules": [
+    {
+     "name": "vdpau_chroma",
+     "description": "VDPAU surface conversions",
+     "score": 10,
+     "dump_line": 314
+    },
+    {
+     "name": "vdpau_chroma",
+     "description": "VDPAU surface conversions",
+     "score": 10,
+     "dump_line": 316
+    },
+    {
+     "name": "vaapi_filters",
+     "description": "Video Accelerated API filters",
+     "score": 10,
+     "dump_line": 326
+    },
+    {
+     "name": "scale",
+     "description": "Video scaling filter",
+     "score": 10,
+     "dump_line": 358
+    },
+    {
+     "name": "i420_yuy2_mmx",
+     "description": "MMX conversions from I420,IYUV,YV12 to YUY2,YUNV,YVYU,UYVY,UYNV,Y422,IUYV",
+     "score": 160,
+     "dump_line": 1242
+    },
+    {
+     "name": "i420_nv12",
+     "description": "YUV planar to semiplanar conversions",
+     "score": 160,
+     "dump_line": 1244
+    },
+    {
+     "name": "i420_rgb",
+     "description": "I420,IYUV,YV12 to RGB2,RV15,RV16,RV24,RV32 conversions",
+     "score": 80,
+     "dump_line": 1246
+    },
+    {
+     "name": "i420_yuy2",
+     "description": "Conversions from I420,IYUV,YV12 to YUY2,YUNV,YVYU,UYVY,UYNV,Y422,IUYV,Y211",
+     "score": 80,
+     "dump_line": 1248
+    },
+    {
+     "name": "i422_yuy2",
+     "description": "Conversions from I422 to YUY2,YUNV,YVYU,UYVY,UYNV,Y422,IUYV,Y211",
+     "score": 80,
+     "dump_line": 1250
+    },
+    {
+     "name": "yuy2_i422",
+     "description": "Conversions from YUY2,YUNV,YVYU,UYVY,UYNV,Y422 to I422",
+     "score": 80,
+     "dump_line": 1252
+    },
+    {
+     "name": "i420_rgb_sse2",
+     "description": "SSE2 I420,IYUV,YV12 to RV15,RV16,RV24,RV32 conversions",
+     "score": 120,
+     "dump_line": 1254
+    },
+    {
+     "name": "rv32",
+     "description": "RV32 conversion filter",
+     "score": 1,
+     "dump_line": 1256
+    },
+    {
+     "name": "i420_rgb_mmx",
+     "description": "MMX I420,IYUV,YV12 to RV15,RV16,RV24,RV32 conversions",
+     "score": 100,
+     "dump_line": 1258
+    },
+    {
+     "name": "swscale",
+     "description": "Video scaling filter",
+     "score": 150,
+     "dump_line": 1260
+    },
+    {
+     "name": "i422_yuy2_mmx",
+     "description": "MMX conversions from I422 to YUY2,YUNV,YVYU,UYVY,UYNV,Y422,IUYV",
+     "score": 100,
+     "dump_line": 1262
+    },
+    {
+     "name": "i422_yuy2_sse2",
+     "description": "SSE2 conversions from I422 to YUY2,YUNV,YVYU,UYVY,UYNV,Y422,IUYV",
+     "score": 120,
+     "dump_line": 1264
+    },
+    {
+     "name": "grey_yuv",
+     "description": "Conversions from GREY to I420,YUY2",
+     "score": 80,
+     "dump_line": 1266
+    },
+    {
+     "name": "i422_i420",
+     "description": "Conversions from I422,J422 to I420,IYUV,J420,YV12,YUVA",
+     "score": 60,
+     "dump_line": 1268
+    },
+    {
+     "name": "i420_10_p010",
+     "description": "YUV 10-bits planar to semiplanar 10-bits conversions",
+     "score": 1,
+     "dump_line": 1270
+    },
+    {
+     "name": "yuvp",
+     "description": "YUVP converter",
+     "score": 10,
+     "dump_line": 1272
+    },
+    {
+     "name": "yuy2_i420",
+     "description": "Conversions from YUY2,YUNV,YVYU,UYVY,UYNV,Y422 to I420",
+     "score": 80,
+     "dump_line": 1274
+    },
+    {
+     "name": "chain",
+     "description": "Video filtering using a chain of video filter modules",
+     "score": 1,
+     "dump_line": 1276
+    },
+    {
+     "name": "i420_yuy2_sse2",
+     "description": "SSE2 conversions from I420,IYUV,YV12 to YUY2,YUNV,YVYU,UYVY,UYNV,Y422,IUYV",
+     "score": 250,
+     "dump_line": 1280
+    }
+   ]
+  },
+  "spu decoder": {
+   "count": 22,
+   "modules": [
+    {
+     "name": "scte18",
+     "description": "SCTE-18 decoder",
+     "score": 51,
+     "dump_line": 127
+    },
+    {
+     "name": "subsdec",
+     "description": "Text subtitle decoder",
+     "score": 50,
+     "dump_line": 133
+    },
+    {
+     "name": "stl",
+     "description": "EBU STL subtitles decoder",
+     "score": 10,
+     "dump_line": 135
+    },
+    {
+     "name": "aribsub",
+     "description": "ARIB subtitles decoder",
+     "score": 50,
+     "dump_line": 174
+    },
+    {
+     "name": "avcodec",
+     "shortcuts": [
+      "ffmpeg"
+     ],
+     "description": "FFmpeg audio/video decoder",
+     "score": 70,
+     "dump_line": 184
+    },
+    {
+     "name": "libass",
+     "description": "Subtitle renderers using libass",
+     "score": 100,
+     "dump_line": 193
+    },
+    {
+     "name": "ttml",
+     "description": "TTML subtitles decoder",
+     "score": 10,
+     "dump_line": 205
+    },
+    {
+     "name": "spudec",
+     "description": "DVD subtitles decoder",
+     "score": 75,
+     "dump_line": 209
+    },
+    {
+     "name": "kate",
+     "description": "Kate overlay decoder",
+     "score": 50,
+     "dump_line": 213
+    },
+    {
+     "name": "substx3g",
+     "description": "tx3g subtitles decoder",
+     "score": 100,
+     "dump_line": 215
+    },
+    {
+     "name": "cc",
+     "description": "Closed Captions decoder",
+     "score": 50,
+     "dump_line": 229
+    },
+    {
+     "name": "ddummy",
+     "shortcuts": [
+      "dummy"
+     ],
+     "description": "Dummy decoder",
+     "score": 0,
+     "dump_line": 231
+    },
+    {
+     "name": "ddummy",
+     "shortcuts": [
+      "dump"
+     ],
+     "description": "Dump decoder",
+     "score": -1,
+     "dump_line": 240
+    },
+    {
+     "name": "dvbsub",
+     "description": "DVB subtitles decoder",
+     "score": 80,
+     "dump_line": 249
+    },
+    {
+     "name": "zvbi",
+     "description": "VBI and Teletext decoder",
+     "score": 51,
+     "dump_line": 257
+    },
+    {
+     "name": "webvtt",
+     "description": "WEBVTT subtitles decoder",
+     "score": 10,
+     "dump_line": 263
+    },
+    {
+     "name": "subsusf",
+     "description": "USF subtitles decoder",
+     "score": 40,
+     "dump_line": 270
+    },
+    {
+     "name": "scte27",
+     "description": "SCTE-27 decoder",
+     "score": 51,
+     "dump_line": 278
+    },
+    {
+     "name": "textst",
+     "description": "HDMV TextST subtitles decoder",
+     "score": 10,
+     "dump_line": 288
+    },
+    {
+     "name": "svcdsub",
+     "description": "Philips OGT (SVCD subtitle) decoder",
+     "score": 50,
+     "dump_line": 290
+    },
+    {
+     "name": "cvdsub",
+     "description": "CVD subtitle decoder",
+     "score": 50,
+     "dump_line": 296
+    },
+    {
+     "name": "stats",
+     "description": "Stats decoder function",
+     "score": 0,
+     "dump_line": 532
+    }
+   ]
+  },
+  "encoder": {
+   "count": 21,
+   "modules": [
+    {
+     "name": "t140",
+     "description": "T.140 text encoder",
+     "score": 100,
+     "dump_line": 122
+    },
+    {
+     "name": "edummy",
+     "shortcuts": [
+      "dummy"
+     ],
+     "description": "Dummy encoder",
+     "score": 0,
+     "dump_line": 124
+    },
+    {
+     "name": "png",
+     "description": "PNG video encoder",
+     "score": 1000,
+     "dump_line": 131
+    },
+    {
+     "name": "flac",
+     "description": "Flac audio encoder",
+     "score": 100,
+     "dump_line": 139
+    },
+    {
+     "name": "theora",
+     "description": "Theora video encoder",
+     "score": 150,
+     "dump_line": 143
+    },
+    {
+     "name": "x264",
+     "description": "H.264/MPEG-4 Part 10/AVC encoder (x264)",
+     "score": 200,
+     "dump_line": 151
+    },
+    {
+     "name": "vorbis",
+     "description": "Vorbis audio encoder",
+     "score": 130,
+     "dump_line": 155
+    },
+    {
+     "name": "speex",
+     "description": "Speex audio encoder",
+     "score": 100,
+     "dump_line": 165
+    },
+    {
+     "name": "x265",
+     "description": "H.265/HEVC encoder (x265)",
+     "score": 200,
+     "dump_line": 176
+    },
+    {
+     "name": "avcodec",
+     "shortcuts": [
+      "ffmpeg"
+     ],
+     "description": "FFmpeg audio/video encoder",
+     "score": 100,
+     "dump_line": 181
+    },
+    {
+     "name": "rtpvideo",
+     "description": "Raw video encoder for RTP",
+     "score": 50,
+     "dump_line": 197
+    },
+    {
+     "name": "shine",
+     "description": "MP3 fixed point audio encoder",
+     "score": 50,
+     "dump_line": 219
+    },
+    {
+     "name": "araw",
+     "description": "Raw audio encoder",
+     "score": 150,
+     "dump_line": 223
+    },
+    {
+     "name": "opus",
+     "description": "Opus audio encoder",
+     "score": 150,
+     "dump_line": 227
+    },
+    {
+     "name": "dvbsub",
+     "description": "DVB subtitles encoder",
+     "score": 100,
+     "dump_line": 251
+    },
+    {
+     "name": "jpeg",
+     "description": "JPEG image encoder",
+     "score": 1000,
+     "dump_line": 255
+    },
+    {
+     "name": "x26410b",
+     "description": "H.264/MPEG-4 Part 10/AVC encoder (x264 10-bit)",
+     "score": 0,
+     "dump_line": 259
+    },
+    {
+     "name": "twolame",
+     "description": "Libtwolame audio encoder",
+     "score": 120,
+     "dump_line": 261
+    },
+    {
+     "name": "lpcm",
+     "description": "Linear PCM audio encoder",
+     "score": 100,
+     "dump_line": 274
+    },
+    {
+     "name": "g711",
+     "description": "G.711 encoder",
+     "score": 150,
+     "dump_line": 286
+    },
+    {
+     "name": "stats",
+     "description": "Stats encoder function",
+     "score": 0,
+     "dump_line": 528
+    }
+   ]
+  },
+  "audio decoder": {
+   "count": 18,
+   "modules": [
+    {
+     "name": "mad",
+     "description": "MPEG audio layer I/II/III decoder",
+     "score": 99,
+     "dump_line": 47
+    },
+    {
+     "name": "faad",
+     "description": "AAC audio decoder (using libfaad2)",
+     "score": 100,
+     "dump_line": 120
+    },
+    {
+     "name": "flac",
+     "description": "Flac audio decoder",
+     "score": 100,
+     "dump_line": 137
+    },
+    {
+     "name": "vorbis",
+     "description": "Vorbis audio decoder",
+     "score": 100,
+     "dump_line": 153
+    },
+    {
+     "name": "adpcm",
+     "description": "ADPCM audio decoder",
+     "score": 50,
+     "dump_line": 159
+    },
+    {
+     "name": "speex",
+     "description": "Speex audio decoder",
+     "score": 100,
+     "dump_line": 163
+    },
+    {
+     "name": "avcodec",
+     "shortcuts": [
+      "ffmpeg"
+     ],
+     "description": "FFmpeg audio/video decoder",
+     "score": 70,
+     "dump_line": 187
+    },
+    {
+     "name": "uleaddvaudio",
+     "description": "Ulead DV audio decoder",
+     "score": 50,
+     "dump_line": 195
+    },
+    {
+     "name": "mpg123",
+     "description": "MPEG audio decoder using mpg123",
+     "score": 100,
+     "dump_line": 203
+    },
+    {
+     "name": "araw",
+     "description": "Raw/Log Audio decoder",
+     "score": 100,
+     "dump_line": 221
+    },
+    {
+     "name": "opus",
+     "description": "Opus audio decoder",
+     "score": 100,
+     "dump_line": 225
+    },
+    {
+     "name": "ddummy",
+     "shortcuts": [
+      "dump"
+     ],
+     "description": "Dummy decoder",
+     "score": 0,
+     "dump_line": 234
+    },
+    {
+     "name": "ddummy",
+     "shortcuts": [
+      "dummy"
+     ],
+     "description": "Dummy decoder",
+     "score": 0,
+     "dump_line": 243
+    },
+    {
+     "name": "lpcm",
+     "description": "Linear PCM audio decoder",
+     "score": 100,
+     "dump_line": 272
+    },
+    {
+     "name": "aes3",
+     "description": "AES3/SMPTE 302M audio decoder",
+     "score": 100,
+     "dump_line": 280
+    },
+    {
+     "name": "g711",
+     "description": "G.711 decoder",
+     "score": 100,
+     "dump_line": 284
+    },
+    {
+     "name": "spdif",
+     "description": "S/PDIF pass-through decoder",
+     "score": 120,
+     "dump_line": 300
+    },
+    {
+     "name": "stats",
+     "description": "Stats decoder function",
+     "score": 0,
+     "dump_line": 534
+    }
+   ]
+  },
+  "access_demux": {
+   "count": 16,
+   "modules": [
+    {
+     "name": "v4l2",
+     "shortcuts": [
+      "v4l"
+     ],
+     "description": "Video4Linux input",
+     "score": 0,
+     "dump_line": 860
+    },
+    {
+     "name": "v4l2",
+     "shortcuts": [
+      "radio"
+     ],
+     "description": "Video4Linux radio tuner",
+     "score": 0,
+     "dump_line": 863
+    },
+    {
+     "name": "cdda",
+     "description": "Audio CD input",
+     "score": 10,
+     "dump_line": 873
+    },
+    {
+     "name": "libbluray",
+     "shortcuts": [
+      "bluray",
+      "file"
+     ],
+     "description": "Blu-ray Disc support (libbluray)",
+     "score": 200,
+     "dump_line": 875
+    },
+    {
+     "name": "dvdnav",
+     "shortcuts": [
+      "dvd",
+      "file"
+     ],
+     "description": "DVDnav Input",
+     "score": 5,
+     "dump_line": 881
+    },
+    {
+     "name": "imem",
+     "description": "Memory input",
+     "score": 0,
+     "dump_line": 892
+    },
+    {
+     "name": "dvdread",
+     "shortcuts": [
+      "dvd",
+      "dvdsimple"
+     ],
+     "description": "DVDRead Input (no menu support)",
+     "score": 0,
+     "dump_line": 896
+    },
+    {
+     "name": "linsys_hdsdi",
+     "shortcuts": [
+      "linsys-hdsdi"
+     ],
+     "description": "HD-SDI Input",
+     "score": 0,
+     "dump_line": 905
+    },
+    {
+     "name": "idummy",
+     "shortcuts": [
+      "dummy",
+      "vlc"
+     ],
+     "description": "Dummy input",
+     "score": 0,
+     "dump_line": 928
+    },
+    {
+     "name": "rtp",
+     "shortcuts": [
+      "dccp",
+      "rtptcp",
+      "udplite"
+     ],
+     "description": "Real-Time Protocol (RTP) input",
+     "score": 0,
+     "dump_line": 965
+    },
+    {
+     "name": "dc1394",
+     "description": "IIDC Digital Camera (FireWire) input",
+     "score": 10,
+     "dump_line": 981
+    },
+    {
+     "name": "timecode",
+     "description": "Time code subpicture elementary stream generator",
+     "score": 0,
+     "dump_line": 989
+    },
+    {
+     "name": "linsys_sdi",
+     "shortcuts": [
+      "linsys-sdi"
+     ],
+     "description": "SDI Input",
+     "score": 0,
+     "dump_line": 991
+    },
+    {
+     "name": "shm",
+     "description": "Shared memory framebuffer",
+     "score": 0,
+     "dump_line": 1016
+    },
+    {
+     "name": "pulsesrc",
+     "shortcuts": [
+      "pulse",
+      "pulseaudio",
+      "pa"
+     ],
+     "description": "PulseAudio input",
+     "score": 0,
+     "dump_line": 1025
+    },
+    {
+     "name": "access_alsa",
+     "shortcuts": [
+      "alsa"
+     ],
+     "description": "ALSA audio capture",
+     "score": 0,
+     "dump_line": 1030
+    }
+   ]
+  },
+  "audio filter": {
+   "count": 16,
+   "modules": [
+    {
+     "name": "chorus_flanger",
+     "shortcuts": [
+      "delay"
+     ],
+     "description": "Sound Delay",
+     "score": 0,
+     "dump_line": 29
+    },
+    {
+     "name": "scaletempo_pitch",
+     "description": "Pitch Shifter",
+     "score": 0,
+     "dump_line": 34
+    },
+    {
+     "name": "spatialaudio",
+     "shortcuts": [
+      "binauralizer"
+     ],
+     "description": "Ambisonics renderer and binauralizer",
+     "score": 0,
+     "dump_line": 39
+    },
+    {
+     "name": "karaoke",
+     "description": "Simple Karaoke filter",
+     "score": 0,
+     "dump_line": 49
+    },
+    {
+     "name": "equalizer",
+     "description": "Equalizer with 10 bands",
+     "score": 0,
+     "dump_line": 51
+    },
+    {
+     "name": "mono",
+     "description": "Stereo to mono downmixer",
+     "score": 0,
+     "dump_line": 59
+    },
+    {
+     "name": "param_eq",
+     "description": "Parametric Equalizer",
+     "score": 0,
+     "dump_line": 61
+    },
+    {
+     "name": "scaletempo",
+     "description": "Audio tempo scaler synched with rate",
+     "score": 0,
+     "dump_line": 63
+    },
+    {
+     "name": "remap",
+     "description": "Audio channel remapper",
+     "score": 0,
+     "dump_line": 69
+    },
+    {
+     "name": "gain",
+     "description": "Gain control filter",
+     "score": 0,
+     "dump_line": 71
+    },
+    {
+     "name": "stereo_widen",
+     "description": "Simple stereo widening effect",
+     "score": 0,
+     "dump_line": 73
+    },
+    {
+     "name": "compressor",
+     "description": "Dynamic range compressor",
+     "score": 0,
+     "dump_line": 75
+    },
+    {
+     "name": "headphone",
+     "description": "Headphone virtual spatialization effect",
+     "score": 0,
+     "dump_line": 81
+    },
+    {
+     "name": "normvol",
+     "shortcuts": [
+      "volnorm"
+     ],
+     "description": "Volume normalizer",
+     "score": 0,
+     "dump_line": 85
+    },
+    {
+     "name": "audiobargraph_a",
+     "description": "Audio part of the BarGraph function",
+     "score": 0,
+     "dump_line": 88
+    },
+    {
+     "name": "spatializer",
+     "description": "Audio Spatializer",
+     "score": 0,
+     "dump_line": 94
+    }
+   ]
+  },
+  "interface": {
+   "count": 16,
+   "modules": [
+    {
+     "name": "lua",
+     "shortcuts": [
+      "luaintf"
+     ],
+     "description": "Lua interpreter",
+     "score": 0,
+     "dump_line": 459
+    },
+    {
+     "name": "lua",
+     "shortcuts": [
+      "luatelnet",
+      "telnet"
+     ],
+     "description": "Lua Telnet",
+     "score": 0,
+     "dump_line": 479
+    },
+    {
+     "name": "lua",
+     "shortcuts": [
+      "luacli",
+      "luarc",
+      "cli",
+      "rc"
+     ],
+     "description": "Command-line interface",
+     "score": 25,
+     "dump_line": 483
+    },
+    {
+     "name": "lua",
+     "shortcuts": [
+      "luahttp",
+      "http"
+     ],
+     "description": "Lua HTTP",
+     "score": 0,
+     "dump_line": 489
+    },
+    {
+     "name": "logger",
+     "description": "File logging",
+     "score": 0,
+     "dump_line": 508
+    },
+    {
+     "name": "audioscrobbler",
+     "description": "Submission of played songs to last.fm",
+     "score": 0,
+     "dump_line": 548
+    },
+    {
+     "name": "ncurses",
+     "shortcuts": [
+      "curses"
+     ],
+     "description": "Ncurses interface",
+     "score": 10,
+     "dump_line": 563
+    },
+    {
+     "name": "gestures",
+     "description": "Mouse gestures control interface",
+     "score": 0,
+     "dump_line": 566
+    },
+    {
+     "name": "lirc",
+     "description": "Infrared remote control interface",
+     "score": 0,
+     "dump_line": 568
+    },
+    {
+     "name": "dbus",
+     "description": "D-Bus control interface",
+     "score": 0,
+     "dump_line": 570
+    },
+    {
+     "name": "xcb_hotkeys",
+     "shortcuts": [
+      "globalhotkeys"
+     ],
+     "description": "Global Hotkeys interface",
+     "score": 0,
+     "dump_line": 572
+    },
+    {
+     "name": "netsync",
+     "description": "Network synchronization",
+     "score": 0,
+     "dump_line": 575
+    },
+    {
+     "name": "oldrc",
+     "description": "Remote control interface",
+     "score": 20,
+     "dump_line": 577
+    },
+    {
+     "name": "motion",
+     "description": "motion control interface",
+     "score": 0,
+     "dump_line": 579
+    },
+    {
+     "name": "dummy",
+     "description": "Dummy interface",
+     "score": 0,
+     "dump_line": 581
+    },
+    {
+     "name": "hotkeys",
+     "description": "Hotkeys management interface",
+     "score": 0,
+     "dump_line": 583
+    }
+   ]
+  },
+  "services_discovery": {
+   "count": 14,
+   "modules": [
+    {
+     "name": "lua",
+     "shortcuts": [
+      "luasd"
+     ],
+     "description": "Lua SD Module",
+     "score": 0,
+     "dump_line": 464
+    },
+    {
+     "name": "udev",
+     "shortcuts": [
+      "v4l",
+      "video"
+     ],
+     "description": "Video capture (Video4Linux)",
+     "score": 0,
+     "dump_line": 585
+    },
+    {
+     "name": "udev",
+     "shortcuts": [
+      "disc"
+     ],
+     "description": "Discs",
+     "score": 0,
+     "dump_line": 591
+    },
+    {
+     "name": "udev",
+     "shortcuts": [
+      "alsa",
+      "audio"
+     ],
+     "description": "Audio capture (ALSA)",
+     "score": 0,
+     "dump_line": 594
+    },
+    {
+     "name": "podcast",
+     "description": "Podcasts",
+     "score": 0,
+     "dump_line": 598
+    },
+    {
+     "name": "avahi",
+     "shortcuts": [
+      "mdns"
+     ],
+     "description": "Zeroconf services",
+     "score": 0,
+     "dump_line": 602
+    },
+    {
+     "name": "xcb_apps",
+     "shortcuts": [
+      "apps",
+      "screen"
+     ],
+     "description": "Screen capture",
+     "score": 0,
+     "dump_line": 613
+    },
+    {
+     "name": "pulselist",
+     "shortcuts": [
+      "pulse",
+      "pa",
+      "pulseaudio",
+      "audio"
+     ],
+     "description": "Audio capture (PulseAudio)",
+     "score": 0,
+     "dump_line": 619
+    },
+    {
+     "name": "sap",
+     "description": "Network streams (SAP)",
+     "score": 0,
+     "dump_line": 627
+    },
+    {
+     "name": "mediadirs",
+     "shortcuts": [
+      "video_dir"
+     ],
+     "description": "My Videos",
+     "score": 0,
+     "dump_line": 634
+    },
+    {
+     "name": "mediadirs",
+     "shortcuts": [
+      "picture_dir"
+     ],
+     "description": "My Pictures",
+     "score": 0,
+     "dump_line": 639
+    },
+    {
+     "name": "mediadirs",
+     "shortcuts": [
+      "audio_dir"
+     ],
+     "description": "My Music",
+     "score": 0,
+     "dump_line": 642
+    },
+    {
+     "name": "mtp",
+     "description": "MTP devices",
+     "score": 0,
+     "dump_line": 645
+    },
+    {
+     "name": "upnp",
+     "description": "Universal Plug'n'Play",
+     "score": 0,
+     "dump_line": 649
+    }
+   ]
+  },
+  "video decoder": {
+   "count": 14,
+   "modules": [
+    {
+     "name": "png",
+     "description": "PNG video decoder",
+     "score": 1000,
+     "dump_line": 129
+    },
+    {
+     "name": "theora",
+     "description": "Theora video decoder",
+     "score": 100,
+     "dump_line": 141
+    },
+    {
+     "name": "oggspots",
+     "description": "OggSpots video decoder",
+     "score": 10,
+     "dump_line": 147
+    },
+    {
+     "name": "cdg",
+     "description": "CDG video decoder",
+     "score": 1000,
+     "dump_line": 161
+    },
+    {
+     "name": "avcodec",
+     "shortcuts": [
+      "ffmpeg"
+     ],
+     "description": "FFmpeg audio/video decoder",
+     "score": 70,
+     "dump_line": 178
+    },
+    {
+     "name": "avcodec",
+     "shortcuts": [
+      "ffmpeghw"
+     ],
+     "description": "FFmpeg audio/video decoder",
+     "score": 10001,
+     "dump_line": 190
+    },
+    {
+     "name": "rawvideo",
+     "description": "Pseudo raw video decoder",
+     "score": 50,
+     "dump_line": 199
+    },
+    {
+     "name": "dav1d",
+     "description": "Dav1d video decoder",
+     "score": 10000,
+     "dump_line": 217
+    },
+    {
+     "name": "ddummy",
+     "shortcuts": [
+      "dump"
+     ],
+     "description": "Dummy decoder",
+     "score": 0,
+     "dump_line": 237
+    },
+    {
+     "name": "ddummy",
+     "shortcuts": [
+      "dummy"
+     ],
+     "description": "Dummy decoder",
+     "score": 0,
+     "dump_line": 246
+    },
+    {
+     "name": "jpeg",
+     "description": "JPEG image decoder",
+     "score": 1000,
+     "dump_line": 253
+    },
+    {
+     "name": "xwd",
+     "description": "XWD image decoder",
+     "score": 50,
+     "dump_line": 294
+    },
+    {
+     "name": "svgdec",
+     "shortcuts": [
+      "svg"
+     ],
+     "description": "SVG video decoder",
+     "score": 100,
+     "dump_line": 302
+    },
+    {
+     "name": "stats",
+     "description": "Stats decoder function",
+     "score": 0,
+     "dump_line": 536
+    }
+   ]
+  },
+  "vout display": {
+   "count": 14,
+   "modules": [
+    {
+     "name": "vdpau_display",
+     "shortcuts": [
+      "vdpau"
+     ],
+     "description": "VDPAU output",
+     "score": 0,
+     "dump_line": 308
+    },
+    {
+     "name": "xcb_xv",
+     "shortcuts": [
+      "xcb-xv",
+      "xv",
+      "xvideo"
+     ],
+     "description": "XVideo output (XCB)",
+     "score": 200,
+     "dump_line": 678
+    },
+    {
+     "name": "wl_shm",
+     "shortcuts": [
+      "wl"
+     ],
+     "description": "Wayland shared memory video output",
+     "score": 170,
+     "dump_line": 687
+    },
+    {
+     "name": "yuv",
+     "description": "YUV video output",
+     "score": 0,
+     "dump_line": 690
+    },
+    {
+     "name": "xcb_x11",
+     "shortcuts": [
+      "xcb-x11",
+      "x11"
+     ],
+     "description": "X11 video output (XCB)",
+     "score": 100,
+     "dump_line": 692
+    },
+    {
+     "name": "gles2",
+     "shortcuts": [
+      "opengles2"
+     ],
+     "description": "OpenGL for Embedded Systems 2 video output",
+     "score": 265,
+     "dump_line": 696
+    },
+    {
+     "name": "aa",
+     "shortcuts": [
+      "aalib"
+     ],
+     "description": "ASCII-art video output",
+     "score": 0,
+     "dump_line": 701
+    },
+    {
+     "name": "fb",
+     "description": "GNU/Linux framebuffer video output",
+     "score": 30,
+     "dump_line": 704
+    },
+    {
+     "name": "vdummy",
+     "shortcuts": [
+      "dummy"
+     ],
+     "description": "Dummy video output",
+     "score": 0,
+     "dump_line": 706
+    },
+    {
+     "name": "vdummy",
+     "shortcuts": [
+      "stats"
+     ],
+     "description": "Statistics video output",
+     "score": 0,
+     "dump_line": 709
+    },
+    {
+     "name": "vmem",
+     "description": "Video memory output",
+     "score": 0,
+     "dump_line": 724
+    },
+    {
+     "name": "caca",
+     "description": "Color ASCII art video output",
+     "score": 15,
+     "dump_line": 726
+    },
+    {
+     "name": "gl",
+     "shortcuts": [
+      "opengl"
+     ],
+     "description": "OpenGL video output",
+     "score": 270,
+     "dump_line": 730
+    },
+    {
+     "name": "flaschen",
+     "description": "Flaschen-Taschen video output",
+     "score": 0,
+     "dump_line": 733
+    }
+   ]
+  },
+  "sout mux": {
+   "count": 11,
+   "modules": [
+    {
+     "name": "dummy",
+     "shortcuts": [
+      "raw",
+      "es"
+     ],
+     "description": "Dummy/Raw muxer",
+     "score": 5,
+     "dump_line": 427
+    },
+    {
+     "name": "wav",
+     "description": "WAV muxer",
+     "score": 5,
+     "dump_line": 431
+    },
+    {
+     "name": "mux_ogg",
+     "shortcuts": [
+      "ogg",
+      "ogm"
+     ],
+     "description": "Ogg/OGM muxer",
+     "score": 10,
+     "dump_line": 433
+    },
+    {
+     "name": "mux_ts",
+     "shortcuts": [
+      "ts"
+     ],
+     "description": "TS muxer (libdvbpsi)",
+     "score": 120,
+     "dump_line": 437
+    },
+    {
+     "name": "mp4",
+     "shortcuts": [
+      "mov",
+      "3gp"
+     ],
+     "description": "MP4/MOV muxer",
+     "score": 5,
+     "dump_line": 440
+    },
+    {
+     "name": "mp4",
+     "shortcuts": [
+      "mp4frag",
+      "mp4stream"
+     ],
+     "description": "Fragmented and streamable MP4 muxer",
+     "score": 0,
+     "dump_line": 444
+    },
+    {
+     "name": "asf",
+     "shortcuts": [
+      "asfh"
+     ],
+     "description": "ASF muxer",
+     "score": 5,
+     "dump_line": 448
+    },
+    {
+     "name": "ps",
+     "shortcuts": [
+      "mpeg1",
+      "dvd"
+     ],
+     "description": "PS muxer",
+     "score": 50,
+     "dump_line": 451
+    },
+    {
+     "name": "mpjpeg",
+     "description": "Multipart JPEG muxer",
+     "score": 5,
+     "dump_line": 455
+    },
+    {
+     "name": "avi",
+     "description": "AVI muxer",
+     "score": 5,
+     "dump_line": 457
+    },
+    {
+     "name": "avformat",
+     "shortcuts": [
+      "ffmpeg"
+     ],
+     "description": "Avformat muxer",
+     "score": 2,
+     "dump_line": 1163
+    }
+   ]
+  },
+  "services probe": {
+   "count": 10,
+   "modules": [
+    {
+     "name": "lua",
+     "description": "Lua interpreter",
+     "score": 100,
+     "dump_line": 462
+    },
+    {
+     "name": "udev",
+     "description": "Video capture (Video4Linux)",
+     "score": 100,
+     "dump_line": 589
+    },
+    {
+     "name": "podcast",
+     "description": "Podcasts",
+     "score": 100,
+     "dump_line": 600
+    },
+    {
+     "name": "avahi",
+     "description": "Zeroconf services",
+     "score": 100,
+     "dump_line": 611
+    },
+    {
+     "name": "xcb_apps",
+     "description": "Screen capture",
+     "score": 100,
+     "dump_line": 617
+    },
+    {
+     "name": "pulselist",
+     "description": "Audio capture (PulseAudio)",
+     "score": 100,
+     "dump_line": 625
+    },
+    {
+     "name": "sap",
+     "description": "Network streams (SAP)",
+     "score": 100,
+     "dump_line": 632
+    },
+    {
+     "name": "mediadirs",
+     "description": "My Videos",
+     "score": 100,
+     "dump_line": 637
+    },
+    {
+     "name": "mtp",
+     "description": "MTP devices",
+     "score": 100,
+     "dump_line": 647
+    },
+    {
+     "name": "upnp",
+     "description": "Universal Plug'n'Play",
+     "score": 100,
+     "dump_line": 651
+    }
+   ]
+  },
+  "sout access": {
+   "count": 10,
+   "modules": [
+    {
+     "name": "dummy",
+     "description": "Dummy stream output",
+     "score": 0,
+     "dump_line": 7
+    },
+    {
+     "name": "udp",
+     "description": "UDP stream output",
+     "score": 0,
+     "dump_line": 9
+    },
+    {
+     "name": "access_output_livehttp",
+     "shortcuts": [
+      "livehttp"
+     ],
+     "description": "HTTP Live streaming output",
+     "score": 0,
+     "dump_line": 11
+    },
+    {
+     "name": "file",
+     "shortcuts": [
+      "stream",
+      "fd"
+     ],
+     "description": "File stream output",
+     "score": 50,
+     "dump_line": 14
+    },
+    {
+     "name": "http",
+     "shortcuts": [
+      "https",
+      "mmsh"
+     ],
+     "description": "HTTP stream output",
+     "score": 0,
+     "dump_line": 18
+    },
+    {
+     "name": "access_output_rist",
+     "shortcuts": [
+      "rist",
+      "tr06"
+     ],
+     "description": "RIST stream output",
+     "score": 0,
+     "dump_line": 22
+    },
+    {
+     "name": "access_output_shout",
+     "shortcuts": [
+      "shout"
+     ],
+     "description": "IceCAST output",
+     "score": 0,
+     "dump_line": 26
+    },
+    {
+     "name": "stream_out_chromecast",
+     "shortcuts": [
+      "chromecast-http"
+     ],
+     "description": "Chromecast stream output",
+     "score": 0,
+     "dump_line": 818
+    },
+    {
+     "name": "avio",
+     "shortcuts": [
+      "rtmp"
+     ],
+     "description": "libavformat AVIO access output",
+     "score": -1,
+     "dump_line": 978
+    },
+    {
+     "name": "ftp",
+     "shortcuts": [
+      "ftps",
+      "ftpes"
+     ],
+     "description": "FTP upload output",
+     "score": 0,
+     "dump_line": 1002
+    }
+   ]
+  },
+  "audio converter": {
+   "count": 9,
+   "modules": [
+    {
+     "name": "trivial",
+     "description": "Audio filter for trivial channel mixing",
+     "score": 1,
+     "dump_line": 32
+    },
+    {
+     "name": "speex_resampler",
+     "description": "Speex resampler",
+     "score": 0,
+     "dump_line": 42
+    },
+    {
+     "name": "tospdif",
+     "description": "Audio filter for A/52/DTS->S/PDIF encapsulation",
+     "score": 10,
+     "dump_line": 53
+    },
+    {
+     "name": "soxr",
+     "description": "soxr",
+     "score": 0,
+     "dump_line": 55
+    },
+    {
+     "name": "ugly",
+     "description": "Nearest-neighbor audio resampler",
+     "score": 2,
+     "dump_line": 65
+    },
+    {
+     "name": "dolby",
+     "description": "Simple decoder for Dolby Surround encoded streams",
+     "score": 5,
+     "dump_line": 77
+    },
+    {
+     "name": "simple_channel_mixer",
+     "description": "Audio filter for simple channel mixing",
+     "score": 10,
+     "dump_line": 79
+    },
+    {
+     "name": "audio_format",
+     "description": "Audio filter for PCM format conversion",
+     "score": 1,
+     "dump_line": 83
+    },
+    {
+     "name": "samplerate",
+     "description": "Secret Rabbit Code (libsamplerate) resampler",
+     "score": 50,
+     "dump_line": 90
+    }
+   ]
+  },
+  "sub source": {
+   "count": 7,
+   "modules": [
+    {
+     "name": "audiobargraph_v",
+     "description": "Audio Bar Graph Video sub source",
+     "score": 0,
+     "dump_line": 96
+    },
+    {
+     "name": "remoteosd",
+     "shortcuts": [
+      "rmtosd"
+     ],
+     "description": "Remote-OSD over VNC",
+     "score": 100,
+     "dump_line": 100
+    },
+    {
+     "name": "marq",
+     "shortcuts": [
+      "time"
+     ],
+     "description": "Marquee display",
+     "score": 0,
+     "dump_line": 103
+    },
+    {
+     "name": "mosaic",
+     "description": "Mosaic video sub source",
+     "score": 0,
+     "dump_line": 108
+    },
+    {
+     "name": "logo",
+     "description": "Logo sub source",
+     "score": 0,
+     "dump_line": 110
+    },
+    {
+     "name": "dynamicoverlay",
+     "shortcuts": [
+      "overlay"
+     ],
+     "description": "Dynamic video overlay",
+     "score": 0,
+     "dump_line": 114
+    },
+    {
+     "name": "rss",
+     "shortcuts": [
+      "atom"
+     ],
+     "description": "RSS and Atom feed display",
+     "score": 1,
+     "dump_line": 117
+    }
+   ]
+  },
+  "audio output": {
+   "count": 5,
+   "modules": [
+    {
+     "name": "adummy",
+     "shortcuts": [
+      "dummy"
+     ],
+     "description": "Dummy audio output",
+     "score": 0,
+     "dump_line": 493
+    },
+    {
+     "name": "afile",
+     "shortcuts": [
+      "file",
+      "audiofile"
+     ],
+     "description": "File audio output",
+     "score": 0,
+     "dump_line": 496
+    },
+    {
+     "name": "amem",
+     "description": "Audio memory output",
+     "score": 0,
+     "dump_line": 500
+    },
+    {
+     "name": "alsa",
+     "description": "ALSA audio output",
+     "score": 150,
+     "dump_line": 502
+    },
+    {
+     "name": "pulse",
+     "shortcuts": [
+      "pulseaudio",
+      "pa"
+     ],
+     "description": "Pulseaudio audio output",
+     "score": 160,
+     "dump_line": 504
+    }
+   ]
+  },
+  "(none)": {
+   "count": 4,
+   "note": "base/parent plugin entries printed by --list-verbose without a capability line",
+   "modules": [
+    {
+     "name": "export",
+     "description": "export",
+     "score": null,
+     "dump_line": 550
+    },
+    {
+     "name": "bridge",
+     "description": "Bridge stream output",
+     "score": null,
+     "dump_line": 755
+    },
+    {
+     "name": "playlist",
+     "description": "Playlist",
+     "score": null,
+     "dump_line": 1194
+    },
+    {
+     "name": "core",
+     "description": "core program",
+     "score": null,
+     "dump_line": 1287
+    }
+   ]
+  },
+  "audio resampler": {
+   "count": 4,
+   "modules": [
+    {
+     "name": "speex_resampler",
+     "shortcuts": [
+      "speex"
+     ],
+     "description": "Speex resampler",
+     "score": 0,
+     "dump_line": 44
+    },
+    {
+     "name": "soxr",
+     "description": "soxr",
+     "score": 0,
+     "dump_line": 57
+    },
+    {
+     "name": "ugly",
+     "description": "Nearest-neighbor audio resampler",
+     "score": 2,
+     "dump_line": 67
+    },
+    {
+     "name": "samplerate",
+     "description": "Secret Rabbit Code (libsamplerate) resampler",
+     "score": 50,
+     "dump_line": 92
+    }
+   ]
+  },
+  "glconv": {
+   "count": 4,
+   "modules": [
+    {
+     "name": "glconv_vaapi_x11",
+     "shortcuts": [
+      "vaapi",
+      "vaapi_x11"
+     ],
+     "description": "VA-API OpenGL surface converter for X11",
+     "score": 2,
+     "dump_line": 683
+    },
+    {
+     "name": "glconv_vaapi_wl",
+     "shortcuts": [
+      "vaapi",
+      "vaapi_wl"
+     ],
+     "description": "VA-API OpenGL surface converter for Wayland",
+     "score": 2,
+     "dump_line": 717
+    },
+    {
+     "name": "glconv_vdpau",
+     "shortcuts": [
+      "vdpau"
+     ],
+     "description": "VDPAU OpenGL surface converter",
+     "score": 2,
+     "dump_line": 721
+    },
+    {
+     "name": "glconv_vaapi_drm",
+     "shortcuts": [
+      "vaapi",
+      "vaapi_drm"
+     ],
+     "description": "VA-API OpenGL surface converter for DRM",
+     "score": 1,
+     "dump_line": 737
+    }
+   ]
+  },
+  "keystore": {
+   "count": 4,
+   "modules": [
+    {
+     "name": "secret",
+     "description": "Secrets are stored via libsecret",
+     "score": 100,
+     "dump_line": 669
+    },
+    {
+     "name": "memory",
+     "description": "Secrets are stored in memory",
+     "score": 0,
+     "dump_line": 671
+    },
+    {
+     "name": "file",
+     "shortcuts": [
+      "file_plaintext"
+     ],
+     "description": "Secrets are stored on a file without any encryption",
+     "score": 0,
+     "dump_line": 673
+    },
+    {
+     "name": "kwallet",
+     "description": "Secrets are stored via KWallet",
+     "score": 100,
+     "dump_line": 676
+    }
+   ]
+  },
+  "logger": {
+   "count": 4,
+   "modules": [
+    {
+     "name": "sd_journal",
+     "shortcuts": [
+      "journal"
+     ],
+     "description": "SystemD journal logger",
+     "score": 30,
+     "dump_line": 656
+    },
+    {
+     "name": "syslog",
+     "description": "System logger (syslog)",
+     "score": 20,
+     "dump_line": 659
+    },
+    {
+     "name": "console",
+     "description": "Console logger",
+     "score": 10,
+     "dump_line": 661
+    },
+    {
+     "name": "file",
+     "description": "File logger",
+     "score": 15,
+     "dump_line": 663
+    }
+   ]
+  },
+  "playlist export": {
+   "count": 4,
+   "modules": [
+    {
+     "name": "export",
+     "shortcuts": [
+      "export-html"
+     ],
+     "description": "HTML playlist export",
+     "score": 0,
+     "dump_line": 551
+    },
+    {
+     "name": "export",
+     "shortcuts": [
+      "export-xspf"
+     ],
+     "description": "XSPF playlist export",
+     "score": 0,
+     "dump_line": 554
+    },
+    {
+     "name": "export",
+     "shortcuts": [
+      "export-m3u8"
+     ],
+     "description": "M3U8 playlist export",
+     "score": 0,
+     "dump_line": 557
+    },
+    {
+     "name": "export",
+     "shortcuts": [
+      "export-m3u"
+     ],
+     "description": "M3U playlist export",
+     "score": 0,
+     "dump_line": 560
+    }
+   ]
+  },
+  "vout window": {
+   "count": 4,
+   "modules": [
+    {
+     "name": "wl_shell",
+     "description": "Wayland shell surface",
+     "score": 10,
+     "dump_line": 699
+    },
+    {
+     "name": "xcb_window",
+     "description": "X11 video window (XCB)",
+     "score": 10,
+     "dump_line": 712
+    },
+    {
+     "name": "xcb_window",
+     "shortcuts": [
+      "embed-xid"
+     ],
+     "description": "Embedded window video",
+     "score": 70,
+     "dump_line": 714
+    },
+    {
+     "name": "xdg_shell",
+     "description": "XDG shell surface",
+     "score": 20,
+     "dump_line": 735
+    }
+   ]
+  },
+  "addons finder": {
+   "count": 3,
+   "modules": [
+    {
+     "name": "vorepository",
+     "shortcuts": [
+      "addons.vo"
+     ],
+     "description": "addons.videolan.org addons finder",
+     "score": 100,
+     "dump_line": 510
+    },
+    {
+     "name": "vorepository",
+     "shortcuts": [
+      "addons.vo.vlp"
+     ],
+     "description": "single .vlp archive addons finder",
+     "score": 101,
+     "dump_line": 513
+    },
+    {
+     "name": "fsstorage",
+     "shortcuts": [
+      "addons.store.list"
+     ],
+     "description": "Addons local storage lister",
+     "score": 0,
+     "dump_line": 523
+    }
+   ]
+  },
+  "hw decoder": {
+   "count": 3,
+   "modules": [
+    {
+     "name": "vaapi",
+     "description": "VA-API video decoder",
+     "score": 100,
+     "dump_line": 169
+    },
+    {
+     "name": "vaapi_drm",
+     "shortcuts": [
+      "vaapi"
+     ],
+     "description": "VA-API video decoder via DRM",
+     "score": 0,
+     "dump_line": 171
+    },
+    {
+     "name": "vdpau_avcodec",
+     "shortcuts": [
+      "vdpau"
+     ],
+     "description": "VDPAU video decoder",
+     "score": 100,
+     "dump_line": 311
+    }
+   ]
+  },
+  "opengl": {
+   "count": 3,
+   "modules": [
+    {
+     "name": "glx",
+     "description": "GLX extension for OpenGL",
+     "score": 20,
+     "dump_line": 728
+    },
+    {
+     "name": "egl_wl",
+     "shortcuts": [
+      "egl"
+     ],
+     "description": "EGL extension for OpenGL",
+     "score": 50,
+     "dump_line": 741
+    },
+    {
+     "name": "egl_x11",
+     "shortcuts": [
+      "egl"
+     ],
+     "description": "EGL extension for OpenGL",
+     "score": 50,
+     "dump_line": 747
+    }
+   ]
+  },
+  "art finder": {
+   "count": 2,
+   "modules": [
+    {
+     "name": "lua",
+     "description": "Fetch artwork using lua scripts",
+     "score": 10,
+     "dump_line": 470
+    },
+    {
+     "name": "folder",
+     "description": "Folder meta data",
+     "score": 90,
+     "dump_line": 858
+    }
+   ]
+  },
+  "audio volume": {
+   "count": 2,
+   "modules": [
+    {
+     "name": "float_mixer",
+     "description": "Single precision audio volume",
+     "score": 10,
+     "dump_line": 665
+    },
+    {
+     "name": "integer_mixer",
+     "description": "Integer audio volume",
+     "score": 9,
+     "dump_line": 667
+    }
+   ]
+  },
+  "demux_filter": {
+   "count": 2,
+   "modules": [
+    {
+     "name": "demux_chromecast",
+     "shortcuts": [
+      "cc_demux"
+     ],
+     "description": "Chromecast demux wrapper",
+     "score": 0,
+     "dump_line": 1077
+    },
+    {
+     "name": "noseek",
+     "description": "Seek prevention demux filter",
+     "score": 0,
+     "dump_line": 1088
+    }
+   ]
+  },
+  "inhibit": {
+   "count": 2,
+   "modules": [
+    {
+     "name": "xdg",
+     "description": "XDG screen saver inhibition",
+     "score": 10,
+     "dump_line": 516
+    },
+    {
+     "name": "dbus_screensaver",
+     "description": "D-Bus screen saver inhibition",
+     "score": 20,
+     "dump_line": 518
+    }
+   ]
+  },
+  "meta reader": {
+   "count": 2,
+   "modules": [
+    {
+     "name": "lua",
+     "description": "Read meta data using lua scripts",
+     "score": 10,
+     "dump_line": 475
+    },
+    {
+     "name": "taglib",
+     "description": "taglib",
+     "score": 1000,
+     "dump_line": 854
+    }
+   ]
+  },
+  "opengl es2": {
+   "count": 2,
+   "modules": [
+    {
+     "name": "egl_wl",
+     "shortcuts": [
+      "egl"
+     ],
+     "description": "EGL extension for OpenGL",
+     "score": 50,
+     "dump_line": 744
+    },
+    {
+     "name": "egl_x11",
+     "shortcuts": [
+      "egl"
+     ],
+     "description": "EGL extension for OpenGL",
+     "score": 50,
+     "dump_line": 750
+    }
+   ]
+  },
+  "text renderer": {
+   "count": 2,
+   "modules": [
+    {
+     "name": "tdummy",
+     "description": "Dummy font renderer",
+     "score": 1,
+     "dump_line": 1282
+    },
+    {
+     "name": "freetype",
+     "shortcuts": [
+      "text"
+     ],
+     "description": "Freetype2 font renderer",
+     "score": 100,
+     "dump_line": 1284
+    }
+   ]
+  },
+  "vod server": {
+   "count": 2,
+   "modules": [
+    {
+     "name": "rtsp",
+     "description": "Legacy RTSP VoD server",
+     "score": 1,
+     "dump_line": 526
+    },
+    {
+     "name": "stream_out_rtp",
+     "shortcuts": [
+      "rtsp"
+     ],
+     "description": "RTSP VoD server",
+     "score": 10,
+     "dump_line": 770
+    }
+   ]
+  },
+  "addons storage": {
+   "count": 1,
+   "modules": [
+    {
+     "name": "fsstorage",
+     "shortcuts": [
+      "addons.store.install"
+     ],
+     "description": "Addons local storage installer",
+     "score": 10,
+     "dump_line": 520
+    }
+   ]
+  },
+  "audio renderer": {
+   "count": 1,
+   "modules": [
+    {
+     "name": "spatialaudio",
+     "shortcuts": [
+      "ambisonics"
+     ],
+     "description": "Ambisonics renderer and binauralizer",
+     "score": 1,
+     "dump_line": 36
+    }
+   ]
+  },
+  "extension": {
+   "count": 1,
+   "modules": [
+    {
+     "name": "lua",
+     "shortcuts": [
+      "luaextension"
+     ],
+     "description": "Lua Extension",
+     "score": 1,
+     "dump_line": 467
+    }
+   ]
+  },
+  "fingerprinter": {
+   "count": 1,
+   "modules": [
+    {
+     "name": "fingerprinter",
+     "description": "Track fingerprinter (based on Acoustid)",
+     "score": 10,
+     "dump_line": 542
+    }
+   ]
+  },
+  "meta fetcher": {
+   "count": 1,
+   "modules": [
+    {
+     "name": "lua",
+     "description": "Fetch meta data using lua scripts",
+     "score": 10,
+     "dump_line": 477
+    }
+   ]
+  },
+  "meta writer": {
+   "count": 1,
+   "modules": [
+    {
+     "name": "taglib",
+     "description": "taglib",
+     "score": 50,
+     "dump_line": 856
+    }
+   ]
+  },
+  "renderer probe": {
+   "count": 1,
+   "modules": [
+    {
+     "name": "avahi",
+     "description": "Zeroconf services",
+     "score": 100,
+     "dump_line": 605
+    }
+   ]
+  },
+  "renderer_discovery": {
+   "count": 1,
+   "modules": [
+    {
+     "name": "avahi",
+     "shortcuts": [
+      "mdns_renderer",
+      "avahi_renderer"
+     ],
+     "description": "Avahi Renderer Discovery",
+     "score": 0,
+     "dump_line": 607
+    }
+   ]
+  },
+  "stream_directory": {
+   "count": 1,
+   "modules": [
+    {
+     "name": "archive",
+     "description": "libarchive based stream directory",
+     "score": 99,
+     "dump_line": 1238
+    }
+   ]
+  },
+  "stream_extractor": {
+   "count": 1,
+   "modules": [
+    {
+     "name": "archive",
+     "description": "libarchive based stream extractor",
+     "score": 99,
+     "dump_line": 1240
+    }
+   ]
+  },
+  "sub filter": {
+   "count": 1,
+   "modules": [
+    {
+     "name": "subsdelay",
+     "description": "Subtitle delay",
+     "score": 0,
+     "dump_line": 106
+    }
+   ]
+  },
+  "tls client": {
+   "count": 1,
+   "modules": [
+    {
+     "name": "gnutls",
+     "description": "GNU TLS transport layer security",
+     "score": 1,
+     "dump_line": 538
+    }
+   ]
+  },
+  "tls server": {
+   "count": 1,
+   "modules": [
+    {
+     "name": "gnutls",
+     "description": "GNU TLS server",
+     "score": 1,
+     "dump_line": 540
+    }
+   ]
+  },
+  "video blending": {
+   "count": 1,
+   "modules": [
+    {
+     "name": "blend",
+     "description": "Video pictures blending",
+     "score": 100,
+     "dump_line": 425
+    }
+   ]
+  },
+  "xml": {
+   "count": 1,
+   "modules": [
+    {
+     "name": "xml",
+     "description": "XML Parser (using libxml2)",
+     "score": 10,
+     "dump_line": 544
+    }
+   ]
+  },
+  "xml reader": {
+   "count": 1,
+   "modules": [
+    {
+     "name": "xml",
+     "description": "XML Parser (using libxml2)",
+     "score": 10,
+     "dump_line": 546
+    }
+   ]
+  }
+ }
+}

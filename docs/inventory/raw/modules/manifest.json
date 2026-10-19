@@ -1,0 +1,42 @@
+{
+  "manifest": "raw evidence manifest for the 0.B2 module/plugin census (doc 02 §3.1 reproducibility rule)",
+  "task": "0.B2",
+  "agent": "sub-agent (general-purpose), wave 0.B",
+  "date": "2026-10-19",
+  "platform": "linux (Debian 13 trixie, x86_64, headless container, uid 1001)",
+  "oracle_identity": "VLC 3.0.23 Vetinari (3.0.23-2-0-g79128878dd), Debian 3.0.23-0+deb13u1, plugin set vlc-plugin-base + vlc-plugin-video-output",
+  "note": "The primary dumps were captured by 0.A2 and stored under docs/baselines/raw/linux/ (not duplicated here); this directory holds the derivation only.",
+  "source_dumps": [
+    {
+      "file": "../../../baselines/raw/linux/05-vlc-list.txt",
+      "command": "vlc -I dummy --list",
+      "contains": "502 module lines (terse: name + description)",
+      "captured_by": "0.A2, 2026-10-19 12:01 UTC"
+    },
+    {
+      "file": "../../../baselines/raw/linux/06-vlc-list-verbose.txt",
+      "command": "vlc -I dummy --list-verbose",
+      "contains": "the same 502 modules with 's' shortcut lines and 'c <capability> (<score>)' lines",
+      "captured_by": "0.A2, 2026-10-19 12:01 UTC"
+    }
+  ],
+  "derivation": {
+    "script": "parse-vlc-list.py",
+    "run": "python3 parse-vlc-list.py <06-dump> <05-dump> ../../../inventory/modules-linux.json",
+    "checks_enforced": [
+      "502 entries parsed from dump 06",
+      "1:1 ordered cross-check of name+description against the 502 lines of dump 05 (assertion)",
+      "each entry has at most one capability line; exactly 4 entries have none (export, bridge, playlist, core -> capability \"(none)\")",
+      "sum(by_capability.count) == total == 502",
+      "seven-category rollup buckets sum to 502 (sum_check field)"
+    ],
+    "output": "../../../inventory/modules-linux.json (validated with python3 -m json.tool)"
+  },
+  "regeneration_rule": "A re-run of the pinned binary must yield an equivalent dump; textual diffs must be platform/distro-build explainable (doc 02 §3.1). Windows/macOS runs use hardware-template.md §3/§4 then this same script.",
+  "s2_web_sources_accessed_2026-10-19": [
+    "https://wiki.videolan.org/Documentation:Modules/",
+    "https://wiki.videolan.org/Documentation:Modules/{dshow,mmdevice,waveout,directx_aout,direct3d,glwin32,wingdi,auhal,avcapture,qtsound,screen,smb}/",
+    "https://www.videolan.org/vlc/releases/3.0.0.html"
+  ],
+  "clean_room": "No VLC source code, headers, or decompilation was used or consulted; only runtime output of the pinned binary plus public web documentation."
+}

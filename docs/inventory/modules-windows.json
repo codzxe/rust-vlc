@@ -1,0 +1,119 @@
+{
+  "census": "VLC 3.0.23 module/plugin census — Windows (SKELETON, expected-only)",
+  "task": "0.B2 (doc 02 §3.2, doc 13 §3)",
+  "status": "blocked-on-hardware",
+  "blocked_reason": "No Windows machine in the sandbox. The pinned win64 installer and hashes exist (docs/baselines/vlc-3.0.23.md, platforms.windows); the runbook for capturing this census on hardware is docs/baselines/hardware-template.md §3 (dumps 05/06 equivalents: --list / --list-verbose, plus a --list-plugins probe that does NOT exist on 3.0.x).",
+  "warning": "NO COUNTS IN THIS FILE ARE MEASURED. Every number in a future hardware run replaces this skeleton. Nothing here may be cited as observed behavior. Expected module names below come from public S2 sources (VideoLAN wiki + official release notes), which are community-maintained and not version-pinned to 3.0.23 — each is [VERIFY] until the hardware dump exists.",
+  "expected_platform_specific_modules": [
+    {
+      "name": "dshow",
+      "expected_capability": "access_demux",
+      "description": "DirectShow input (video/audio capture devices)",
+      "source": "https://wiki.videolan.org/Documentation:Modules/dshow/ (page infobox: Type 'Access demux', OS 'Windows'; last modified 2019-03-23; accessed 2026-10-19)",
+      "note": "Windows capture counterpart of Linux v4l2 (16 access_demux + access registrations in the Linux census).",
+      "verify": "blocked-on-hardware"
+    },
+    {
+      "name": "mmdevice",
+      "expected_capability": "audio output",
+      "description": "Windows Multimedia Device (WASAPI) audio output",
+      "source": "https://wiki.videolan.org/Documentation:Modules/mmdevice/ (Type 'Audio output', OS 'Windows', first VLC 2.0; accessed 2026-10-19); corroborated by official 3.0.0 release notes 'HDMI/SPDIF pass-through support for WASAPI' https://www.videolan.org/vlc/releases/3.0.0.html (accessed 2026-10-19)",
+      "note": "Counterpart of Linux alsa/pulse audio outputs.",
+      "verify": "blocked-on-hardware"
+    },
+    {
+      "name": "directsound (wiki page 'directx_aout')",
+      "expected_capability": "audio output",
+      "description": "DirectSound audio output",
+      "source": "https://wiki.videolan.org/Documentation:Modules/directx_aout/ (Type 'Audio output', OS 'Windows', first VLC 0.4; accessed 2026-10-19)",
+      "note": "Legacy fallback audio output; presence in 3.0.23 win64 build [VERIFY].",
+      "verify": "blocked-on-hardware"
+    },
+    {
+      "name": "waveout",
+      "expected_capability": "audio output",
+      "description": "Wave audio output",
+      "source": "https://wiki.videolan.org/Documentation:Modules/waveout/ (Type 'Audio output', OS 'Windows', first VLC 0.4; accessed 2026-10-19)",
+      "note": "Legacy; presence in 3.0.23 win64 build [VERIFY].",
+      "verify": "blocked-on-hardware"
+    },
+    {
+      "name": "direct3d9 (wiki page 'direct3d')",
+      "expected_capability": "vout display",
+      "description": "Direct3D 9 video output",
+      "source": "https://wiki.videolan.org/Documentation:Modules/direct3d/ (Type 'Video output', OS 'Windows', first VLC 0.8.6; accessed 2026-10-19)",
+      "note": "Counterpart of Linux xcb_x11/xcb_xv/gl vouts.",
+      "verify": "blocked-on-hardware"
+    },
+    {
+      "name": "direct3d11",
+      "expected_capability": "vout display",
+      "description": "Direct3D 11 video output (desktop + WinRT modes; HDR10 support)",
+      "source": "Official 3.0.0 release notes: 'New Direct3D11 video output supporting both Windows desktop and WinRT modes' and 'HDR10 support in Direct3D11 with Windows 10 Fall Creator Update' — https://www.videolan.org/vlc/releases/3.0.0.html (accessed 2026-10-19)",
+      "note": "No wiki page exists for direct3d11; module name/split in 3.0.23 [VERIFY].",
+      "verify": "blocked-on-hardware"
+    },
+    {
+      "name": "glwin32",
+      "expected_capability": "vout display (OpenGL)",
+      "description": "OpenGL video output for Windows (shortcuts glwin32, opengl)",
+      "source": "https://wiki.videolan.org/Documentation:Modules/glwin32/ (Type 'Video output', OS 'Windows'; accessed 2026-10-19)",
+      "note": "Counterpart of Linux gl/glx/egl vout family.",
+      "verify": "blocked-on-hardware"
+    },
+    {
+      "name": "wingdi",
+      "expected_capability": "vout display",
+      "description": "Windows GDI video output (software fallback)",
+      "source": "https://wiki.videolan.org/Documentation:Modules/wingdi/ (Type 'Video output', OS 'Windows'; accessed 2026-10-19)",
+      "note": "Presence in 3.0.23 win64 build [VERIFY].",
+      "verify": "blocked-on-hardware"
+    },
+    {
+      "name": "smb",
+      "expected_capability": "access",
+      "description": "SMB network filesystem input (libsmbclient)",
+      "source": "Official 3.0.0 release notes: 'Network browsing for distant filesystems (SMB, FTP, SFTP, NFS...)' — https://www.videolan.org/vlc/releases/3.0.0.html (accessed 2026-10-19). The wiki module page Documentation:Modules/smb no longer exists (checked 2026-10-19).",
+      "note": "On the Linux census SMB is MISSING only because Debian ships it in vlc-plugin-samba, one of the 10 headless-excluded packages (scope limitation, see modules-summary.md §6) — expected a packaging diff, not a platform diff.",
+      "verify": "blocked-on-hardware"
+    },
+    {
+      "name": "screen (windows variant)",
+      "expected_capability": "access",
+      "description": "Screen capture (wiki lists OS 'all'; Linux census instead has xcb_apps services_discovery 'Screen capture')",
+      "source": "https://wiki.videolan.org/Documentation:Modules/screen/ (Type 'Access', OS 'all'; accessed 2026-10-19)",
+      "note": "Expected diff vs Linux census: Windows screen capture is an access module, Linux headless exposes it as a services_discovery entry.",
+      "verify": "blocked-on-hardware"
+    },
+    {
+      "name": "dxva2 / d3d11va (DirectX Video Acceleration)",
+      "expected_capability": "hw decoder (or inside avcodec)",
+      "description": "Hardware decoding via DirectX VA",
+      "source": "Official 3.0.0 release notes: 'VLC 3.0 activates hardware decoding by default' — https://www.videolan.org/vlc/releases/3.0.0.html (accessed 2026-10-19); whether 3.0.23 win64 exposes separate hw-decoder modules or avcodec-only [VERIFY]",
+      "note": "Counterpart of Linux vaapi/vaapi_drm/vdpau_avcodec (hw decoder capability) + avcodec ffmpeghw registration (score 10001 in the Linux census).",
+      "verify": "blocked-on-hardware"
+    }
+  ],
+  "expected_absent_vs_linux_census": [
+    "alsa, pulse, pulsesrc, access_alsa (audio output/capture) — replaced by mmdevice/directsound/waveout",
+    "v4l2, dvb, dtv, access_demux capture family — Linux-only capture (dshow covers Windows capture)",
+    "xcb_* vouts and vout windows (xcb_x11, xcb_xv, xcb_window), wl_shm/wl_shell/xdg_shell (Wayland), fb, aa/caca console outputs, flaschen",
+    "vaapi*, vdpau*, glconv_vaapi_*, glconv_vdpau — replaced by DirectX VA equivalents",
+    "udev services_discovery (Linux device monitoring); avahi/dbus/pulselist SD entries"
+  ],
+  "expected_present_because_desktop_build": [
+    "qt interface modules (Linux census lacks them only due to the headless scope limitation — vlc-plugin-qt excluded)",
+    "skins2 interface [VERIFY still shipped in 3.0.23 win64]",
+    "osx-specific modules are NOT expected here (see modules-macos.json)"
+  ],
+  "cross_platform_sources": [
+    "https://wiki.videolan.org/Documentation:Modules/ (module index, 167 pages, accessed 2026-10-19)",
+    "https://www.videolan.org/vlc/releases/3.0.0.html (official 3.0.0 release notes, accessed 2026-10-19)",
+    "https://wiki.videolan.org/VLC_Features_Formats/ (doc 02 §3.1 S2 source)"
+  ],
+  "hardware_run_replaces_this_file_with": {
+    "dumps": "05-vlc-list / 06-vlc-list-verbose equivalents per docs/baselines/hardware-template.md §3",
+    "then": "same parser as Linux: docs/inventory/raw/modules/parse-vlc-list.py",
+    "acceptance": "per-category counts; every Windows-vs-Linux diff either a known platform-specific module (annotated) or an open Phase 0 defect (doc 02 §3.7)"
+  }
+}

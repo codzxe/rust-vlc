@@ -1,0 +1,85 @@
+{
+  "census": "VLC 3.0.23 module/plugin census — macOS (SKELETON, expected-only)",
+  "task": "0.B2 (doc 02 §3.2, doc 13 §3)",
+  "status": "blocked-on-hardware",
+  "blocked_reason": "No Apple hardware in the sandbox. The pinned dmg artifacts and hashes exist (docs/baselines/vlc-3.0.23.md, platforms.macos); the runbook for capturing this census on hardware is docs/baselines/hardware-template.md §4 (--list / --list-verbose on the installed .app, arch-slice aware; --list-plugins probe expected to fail on 3.0.x).",
+  "warning": "NO COUNTS IN THIS FILE ARE MEASURED. Every number in a future hardware run replaces this skeleton. Nothing here may be cited as observed behavior. Expected module names below come from public S2 sources (VideoLAN wiki + official release notes), which are community-maintained and not version-pinned to 3.0.23 — each is [VERIFY] until the hardware dump exists.",
+  "expected_platform_specific_modules": [
+    {
+      "name": "auhal",
+      "expected_capability": "audio output",
+      "description": "HAL AudioUnit output (CoreAudio)",
+      "source": "https://wiki.videolan.org/Documentation:Modules/auhal/ (Type 'Audio output', OS 'macOS', description 'HAL AudioUnit output'; accessed 2026-10-19); corroborated by official 3.0.0 release notes 'Rework of the AudioUnit modules to share more code between iOS and macOS' — https://www.videolan.org/vlc/releases/3.0.0.html (accessed 2026-10-19)",
+      "note": "Counterpart of Linux alsa/pulse audio outputs.",
+      "verify": "blocked-on-hardware"
+    },
+    {
+      "name": "macosx (vout/interface)",
+      "expected_capability": "vout display + interface",
+      "description": "macOS native video output and interface module(s)",
+      "source": "https://wiki.videolan.org/Documentation:Modules/macos/ (redirects to the macOS overview page; accessed 2026-10-19) — exact module names/split in 3.0.23 [VERIFY]",
+      "note": "Counterpart of Linux xcb/GL vouts; also carries the native UI (same GUI-stack scope caveat as the Linux headless census missing qt).",
+      "verify": "blocked-on-hardware"
+    },
+    {
+      "name": "avcapture",
+      "expected_capability": "access",
+      "description": "AVFoundation video capture module",
+      "source": "https://wiki.videolan.org/Documentation:Modules/avcapture/ (Type 'Access', OS 'macOS', first VLC 2.1.0; accessed 2026-10-19)",
+      "note": "Counterpart of Linux v4l2 / Windows dshow capture.",
+      "verify": "blocked-on-hardware"
+    },
+    {
+      "name": "qtsound",
+      "expected_capability": "access",
+      "description": "QuickTime Sound Capture",
+      "source": "https://wiki.videolan.org/Documentation:Modules/qtsound/ (Type 'Access', OS 'macOS', first VLC 2.0.0; accessed 2026-10-19)",
+      "note": "QTKit/QuickTime is deprecated for years (32-bit removal in macOS 10.15+); presence in 3.0.23 [VERIFY].",
+      "verify": "blocked-on-hardware"
+    },
+    {
+      "name": "screen (macOS variant)",
+      "expected_capability": "access",
+      "description": "Screen capture (wiki lists OS 'all'; the Linux headless census exposes screen capture via xcb_apps services_discovery instead)",
+      "source": "https://wiki.videolan.org/Documentation:Modules/screen/ (Type 'Access', OS 'all'; accessed 2026-10-19)",
+      "verify": "blocked-on-hardware"
+    },
+    {
+      "name": "videotoolbox-based hw decoding",
+      "expected_capability": "hw decoder (or inside avcodec)",
+      "description": "HEVC and H.264 hardware decoding based on VideoToolbox",
+      "source": "Official 3.0.0 release notes: 'HEVC and H.264 hardware decoding for macOS and iOS based on VideoToolbox' — https://www.videolan.org/vlc/releases/3.0.0.html (accessed 2026-10-19); module identity in 3.0.23 (dedicated module vs avcodec registration) [VERIFY]",
+      "note": "Counterpart of Linux vaapi/vaapi_drm/vdpau_avcodec (hw decoder capability).",
+      "verify": "blocked-on-hardware"
+    },
+    {
+      "name": "coreaudio family / midisynth",
+      "expected_capability": "audio output / decoder",
+      "description": "CoreAudio outputs and the 'New decoder for MIDI on macOS, iOS and Windows' (fluidsynth- or CoreAudio-based)",
+      "source": "Official 3.0.0 release notes 'New decoder for MIDI on macOS, iOS and Windows' — https://www.videolan.org/vlc/releases/3.0.0.html (accessed 2026-10-19); exact module names [VERIFY]",
+      "note": "Linux census lacks any MIDI decoder (Debian ships one in the excluded vlc-plugin-fluidsynth — packaging, not platform).",
+      "verify": "blocked-on-hardware"
+    }
+  ],
+  "expected_absent_vs_linux_census": [
+    "alsa, pulse, pulsesrc, access_alsa — replaced by auhal/CoreAudio",
+    "v4l2, dvb, dtv capture family — replaced by avcapture (no DVB tuner stack on macOS)",
+    "xcb_* vouts/windows, Wayland (wl_shm/wl_shell/xdg_shell), fb, aa/caca console outputs, flaschen",
+    "vaapi*, vdpau*, glconv_vaapi_*, glconv_vdpau — replaced by VideoToolbox equivalents",
+    "udev, dbus, pulselist, avahi-in-Linux-form services_discovery entries (Bonjour/avahi equivalent [VERIFY])"
+  ],
+  "expected_present_because_desktop_build": [
+    "macosx native interface (same GUI-stack caveat as Linux missing vlc-plugin-qt)",
+    "osx notification module [VERIFY name and presence in 3.0.23]"
+  ],
+  "cross_platform_sources": [
+    "https://wiki.videolan.org/Documentation:Modules/ (module index, 167 pages, accessed 2026-10-19)",
+    "https://www.videolan.org/vlc/releases/3.0.0.html (official 3.0.0 release notes, accessed 2026-10-19)",
+    "https://wiki.videolan.org/VLC_Features_Formats/ (doc 02 §3.1 S2 source)"
+  ],
+  "hardware_run_replaces_this_file_with": {
+    "dumps": "05/06 dump equivalents per docs/baselines/hardware-template.md §4 (note universal-binary arch slices)",
+    "then": "same parser as Linux: docs/inventory/raw/modules/parse-vlc-list.py",
+    "acceptance": "per-category counts; every macOS-vs-Linux diff either a known platform-specific module (annotated) or an open Phase 0 defect (doc 02 §3.7)"
+  }
+}
