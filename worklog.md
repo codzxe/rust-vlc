@@ -350,3 +350,45 @@ Work Log:
 
 Stage Summary:
 - Linux pin COMPLETE and executable in-sandbox: Debian trixie 3.0.23-0+deb13u1, 8/8 hashes MATCH signed index, InRelease GPG Good, 502-module baseline dumps captured (base+video-output only; qt/skins2/… excluded — headless). Open: Lead ratify Debian-over-Ubuntu distro choice at G1; [VERIFY] snapshot.debian.org (blocked 509), Flathub commit, full-plugin census on desktop stack, sandbox CPU model.
+
+---
+Task ID: 0.A4
+Agent: Sub-agent (general-purpose), Wave 0.A
+Task: Consolidate the three platform pins into the master pin record; validate the doc 02 §2.4 oracle invocation contract; write hardware-template.md (completes G1 evidence).
+
+Work Log:
+- Read worklog (0.PRE, 0.A1–0.A3), AGENTS.md, doc 02 §1.2/§2, doc 13 §3 card, doc 10 §6.6 + doc 12 §3.3 (harness consumption of the pin JSON), all three pin records + raw/ listings.
+- Consolidation-time re-verification: sha256sum over retained tmp/pinning/ artifacts (win64.exe, win64.7z, 3 dmgs, libvlccore9 + vlc-plugin-base debs) — 7/7 MATCH the pin records; no re-download needed.
+- Wrote docs/baselines/vlc-3.0.23.md (master pin): exec summary table; canonical oracle identity (3.0.23 Vetinari, git describe 3.0.23-2-0-g79128878dd [Linux-observed; Win/mac pending], release 2026-01-08, URLs); per-platform pointers; §2.4 contract validation table (M1 PROVEN-subset on Linux: -I dummy --play-and-exit exit 0); G1 evidence checklist per-row (Linux complete; Windows/macOS partial-pending-hardware on native-signature/--version/run-env items — Lead ticks doc 02 §1.2 at 0.D4-V); consolidated discrepancy register DR-01…DR-16; clean-room statement; Lead-ratification checklist R-1…R-5.
+- Wrote docs/baselines/vlc-3.0.23.json (validated with python3 -m json.tool): {baseline, codename, git_describe, release_date, signing_key, version_guard, platforms{windows,linux,macos}} with per-artifact hash objects (algorithm+value+computed_by_us+sidecar match), source URLs, run_status (linux sandbox-verified; windows/macos blocked-on-hardware), dump availability (existing + pending-hardware filenames), oracle_invocation_contract, consolidation_recheck, clean_room, DR index.
+- Wrote docs/baselines/hardware-template.md: generic rules (drift guard, context-in-every-dump, text-only), environment-field table (OS/CPU/GPU/locale + doc 12 §3.5 machine_id), sign-off block; §2 contract PROVEN/PENDING table; §3 Windows runbook (env, hash, Authenticode, /S install, --version/--list/--list-verbose/--list-plugins probe, M1 smoke, x64 payload check; 10 named artifacts); §4 macOS runbook (codesign/spctl/notarization, install+arch-slice, dumps; 11 named artifacts); §5 Linux desktop-stack runbook (full 15-package pinned install, full-census dumps incl. Qt, snapshot.debian.org re-fetch, CPU model, Flathub).
+- Discrepancies found while consolidating (recorded, not silently resolved): release-date confidence divergence across records (DR-10, closed by cross-record corroboration of the news-index anchor); macos/ vs macosx/; expired-key DSA with predating signature + two different keyserver anchors (same fingerprint); no .sha512 sidecars anywhere; --list-plugins 4.x-only; PE32-i386 stub; Debian-vs-Ubuntu pending; trixie-security build string from main pool; one .html raw file (macos 00-). Stray root file macosx-listing-download.html (0.A1 D8) no longer present (git status clean of untracked binaries).
+- No downloads, no VLC source, no binaries committed; doc 02 NOT edited (per card); no git commit (AGENTS §3.8).
+
+Stage Summary:
+- Master pin record complete: docs/baselines/vlc-3.0.23.md + .json + hardware-template.md. G1 evidence: all sandbox-executable items COMPLETE (URLs, hashes 8/8+2+9/9 cross-checked, GPG results, Linux verbatim version line, dates, 7/7 re-verification); Windows/macOS remain partial-pending-hardware exactly on Authenticode/codesign, verbatim --version lines and run environments — runbooks + expected artifacts + sign-off fields ready. Escalated to Lead for ratification: R-1 Debian-over-Ubuntu, R-2 expired-key acceptance, R-3 hardware-run owners, R-4 doc 02/13 path spelling (baselines/), R-5 G1 tick posture at 0.D4-V.
+
+---
+Task ID: 0.A4
+Agent: general-purpose (completed; reported normally)
+Task: Consolidate VLC 3.0.23 master pin record + hardware template + machine-readable pin JSON.
+
+Work Log:
+- Wrote docs/baselines/vlc-3.0.23.md (master pin, G1 evidence status, DR-01..DR-16 discrepancy register, Lead-ratification checklist), vlc-3.0.23.json, hardware-template.md.
+- 7/7 consolidation-time SHA-256 re-checks passed. Contract M1 proven on Linux (headless -I dummy, exit 0); M2-M4 pending hardware.
+
+Stage Summary:
+- G1 evidence: sandbox-complete; Windows/macOS partial-pending-hardware. Escalations R-1..R-5 to Lead (Debian-over-Ubuntu ratify, expired-key acceptance, hardware-run owners, path spelling, G1 tick posture).
+
+---
+Task ID: 0.C4-I (partial)
+Agent: general-purpose (timed out; Lead verified partial output, logging on its behalf)
+Task: Dependency pre-audit + WASM runtime candidates (ADR-002 evidence pack).
+
+Work Log:
+- COMPLETED before timeout: docs/dependencies/audit-method.md (398 lines, reproducible crates.io/tarball purity method incl. worked example), allowlist-format.md (164 lines, TOML schema + R1-R10 record template), records/wasmi.md (132 lines, worked audit record).
+- MISSING (retry scoped): docs/adr/ADR-002-evidence.md (candidate table incl. wasmtime) + foundation pre-audit (serde/toml/schemars/cpal/wgpu/winit/wasm-bindgen/windows-rs).
+- No worklog append happened before timeout (this entry covers it).
+
+Stage Summary:
+- 3/5 deliverables exist and are usable; retry 0.C4-R launched with narrowed scope.

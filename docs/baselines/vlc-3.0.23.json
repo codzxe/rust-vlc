@@ -1,0 +1,394 @@
+{
+  "baseline": "3.0.23",
+  "codename": "Vetinari",
+  "git_describe": "3.0.23-2-0-g79128878dd",
+  "git_describe_scope": "observed on the Linux (Debian) build; Windows/macOS revision strings pending hardware capture - assert only '3.0.23 Vetinari' cross-platform until captured",
+  "release_date": "2026-01-08",
+  "release_date_source": "videolan.org news index anchor news-2026-01-08 (independently fetched by 0.A1 and 0.A3); matches MASTER-PROMPT section 1; release page itself carries no explicit date",
+  "recorded": "2026-10-19",
+  "recorded_by": "0.A4",
+  "consolidates": ["0.A1 (windows)", "0.A2 (linux)", "0.A3 (macos)"],
+  "record_paths": {
+    "master": "docs/baselines/vlc-3.0.23.md",
+    "windows": "docs/baselines/vlc-3.0.23-windows.md",
+    "linux": "docs/baselines/vlc-3.0.23-linux.md",
+    "macos": "docs/baselines/vlc-3.0.23-macos.md",
+    "hardware_template": "docs/baselines/hardware-template.md"
+  },
+  "upstream_release": {
+    "release_page": "https://www.videolan.org/vlc/releases/3.0.23.html",
+    "source_tarball_name": "vlc-3.0.23.tar.xz",
+    "source_tarball_size_bytes": 26486988,
+    "source_tarball_sha256_sidecar": "e891cae6aa3ccda69bf94173d5105cbc55c7a7d9b1d21b9b21666e69eff3e7e0",
+    "source_tarball_downloaded": false,
+    "source_tarball_note": "NOT downloaded - clean-room rule doc 02 section 2.1 forbids acquiring VLC source; sidecar text recorded as release-provenance cross-evidence only (raw/linux/10)"
+  },
+  "signing_key": {
+    "uid": "VideoLAN Release Signing Key (2018)",
+    "fingerprint": "65F7C6B4206BD057A7EB73787180713BE58D1ADC",
+    "algorithm": "DSA-1024 (SHA-1 digest)",
+    "expired": "2026-08-01",
+    "signatures_created": "2025-12-31",
+    "note": "All observed signatures predate key expiry and verify Good with an expiry warning. Key anchored via keyserver.ubuntu.com (0.A1) and keys.openpgp.org (0.A3) - same fingerprint; no VideoLAN-hosted key found. [VERIFY: strengthen fingerprint anchor]",
+    "lead_ratification_pending": true
+  },
+  "version_guard": {
+    "purpose": "doc 02 section 2.4 Guard - every oracle invocation asserts the version pin; drift aborts the run",
+    "cross_platform_assert": "3.0.23 Vetinari",
+    "linux_observed_first_line": "VLC version 3.0.23 Vetinari (3.0.23-2-0-g79128878dd)",
+    "windows_expected_shape": "[VERIFY-blocked-on-hardware] 'VLC media player 3.0.23 Vetinari (revision <hash>)' - capture verbatim on install",
+    "macos_expected_shape": "[VERIFY-blocked-on-hardware] - capture verbatim on install"
+  },
+  "platforms": {
+    "windows": {
+      "run_status": "blocked-on-hardware",
+      "package_identity": {
+        "primary": "vlc-3.0.23-win64.exe (NSIS installer)",
+        "secondary": "vlc-3.0.23-win64.7z (no-install archive; controlled-oracle extract per doc 02 section 2.4)",
+        "publisher": "VideoLAN (official download.videolan.org / get.videolan.org tree vlc/3.0.23/win64/)"
+      },
+      "os_at_pin": "NOT INSTALLED - acquired on Linux x86_64 sandbox (kernel 5.10.134); Windows binaries never executed",
+      "install_target": "Windows 11 x64 reference machine [VERIFY-blocked-on-hardware]",
+      "artifacts": [
+        {
+          "file_name": "vlc-3.0.23-win64.exe",
+          "role": "primary installer",
+          "source_url": "https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/vlc-3.0.23-win64.exe",
+          "mirror_url_family": "https://get.videolan.org/vlc/3.0.23/win64/vlc-3.0.23-win64.exe",
+          "mirror_served": "https://mirror-hk.koddos.net/videolan/vlc/3.0.23/win64/vlc-3.0.23-win64.exe",
+          "size_bytes": 45948080,
+          "hashes": {
+            "sha256": {
+              "algorithm": "sha256",
+              "value": "20ad191348684b470ddc4e05204316f3d8e39655f412b3e392a0eef97639daaf",
+              "computed_by_us": true,
+              "official_sidecar_match": true,
+              "sidecar_hosts_verified": ["download.videolan.org", "get.videolan.org"],
+              "doc02_preverified_match": true
+            },
+            "sha512": {
+              "algorithm": "sha512",
+              "value": "fe7aa76985fe90e13a47ddd255bcaafa2bfbc6ece4b998a8031a8e0b6042e3d904b9db03f669cd9580914f050b558bc6541fcaaf1be176993eb847cf739c6f45",
+              "computed_by_us": true,
+              "official_sidecar_match": null,
+              "note": "no official .sha512 sidecar exists; value is ours for future re-download checks"
+            },
+            "sha1": {
+              "algorithm": "sha1",
+              "value": "ee04a6c1317bba9c60369a586379ff245abb286c",
+              "computed_by_us": true,
+              "official_sidecar_match": true
+            },
+            "md5": {
+              "algorithm": "md5",
+              "value": "f711b3aee7c805d52ab28fe53440e35f",
+              "computed_by_us": true,
+              "official_sidecar_match": true
+            }
+          },
+          "file_type": "PE32 executable for MS Windows (GUI), Intel i386 NSIS self-extracting stub; installed payload expected x64 [VERIFY-blocked-on-hardware]",
+          "server_last_modified": "Wed, 31 Dec 2025 12:48:04 GMT"
+        },
+        {
+          "file_name": "vlc-3.0.23-win64.7z",
+          "role": "secondary no-install archive",
+          "source_url": "https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/vlc-3.0.23-win64.7z",
+          "mirror_url_family": "https://get.videolan.org/vlc/3.0.23/win64/vlc-3.0.23-win64.7z",
+          "size_bytes": 39583707,
+          "hashes": {
+            "sha256": {
+              "algorithm": "sha256",
+              "value": "eb4fd8a28291da73608c733786a09610fea865fbe94113bcb60b91c1ebb8404a",
+              "computed_by_us": true,
+              "official_sidecar_match": true
+            },
+            "sha512": {
+              "algorithm": "sha512",
+              "value": "97014130095f9af4b3808c4d17fad3c49a21f41c02a2d8d57e656c8635af238973eeec425b3e9a68da8d4ce6dd5bc64294bc0ad3b3bce818dcc301077680af82",
+              "computed_by_us": true,
+              "official_sidecar_match": null,
+              "note": "no official .sha512 sidecar exists; value is ours"
+            }
+          },
+          "file_type": "7-zip archive data, version 0.4"
+        }
+      ],
+      "other_published_artifacts_sidecar_only": [
+        {"file_name": "vlc-3.0.23-win64.msi", "sha256_sidecar": "bc4b902a480b98a4a5479327a7f210f06369a59bf727649e320faba5b4ef1f5e", "size_bytes": 60608512},
+        {"file_name": "vlc-3.0.23-win64.zip", "sha256_sidecar": "992d19dbd0b8a7cde9167d2f7780b1ef6f92acc8a71acfa736101a21f35181e1", "size_bytes": null}
+      ],
+      "signature": {
+        "gpg_sidecar": {
+          "tool": "gpg 2.4.7 (Linux sandbox)",
+          "result": "Good signature",
+          "key_uid": "VideoLAN Release Signing Key (2018)",
+          "key_fpr": "65F7C6B4206BD057A7EB73787180713BE58D1ADC",
+          "signature_created": "2025-12-31T14:49:27Z",
+          "key_expired": "2026-08-01",
+          "key_source": "keyserver.ubuntu.com [VERIFY: anchor]",
+          "sidecar_url": "https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/vlc-3.0.23-win64.exe.asc"
+        },
+        "authenticode": {
+          "status": "blocked-on-hardware",
+          "planned_tool": "Get-AuthenticodeSignature",
+          "runbook": "docs/baselines/hardware-template.md section 3.1 step 2"
+        }
+      },
+      "expected_version_string": "[VERIFY-blocked-on-hardware] expected shape: 'VLC media player 3.0.23 Vetinari (revision <hash>)' - capture verbatim on install",
+      "dumps": {
+        "available": {
+          "acquisition_log": "docs/baselines/raw/windows/acquisition-log.txt",
+          "official_sources": "docs/baselines/raw/windows/official-sources.txt"
+        },
+        "pending_hardware": [
+          "raw/windows/windows-hardware-00-environment.txt",
+          "raw/windows/windows-hardware-01-download-hashcheck.txt",
+          "raw/windows/windows-hardware-02-authenticode.txt",
+          "raw/windows/windows-hardware-03-install.txt",
+          "raw/windows/vlc-3.0.23-win64--version.txt",
+          "raw/windows/vlc-3.0.23-win64--list.txt",
+          "raw/windows/vlc-3.0.23-win64--list-verbose.txt",
+          "raw/windows/vlc-3.0.23-win64--list-plugins.txt",
+          "raw/windows/vlc-3.0.23-win64--smoke-m1.txt",
+          "raw/windows/windows-hardware-04-x64-payload-check.txt"
+        ]
+      },
+      "pending_items": [
+        "Authenticode verification",
+        "install + verbatim --version line",
+        "--list / --list-verbose dumps",
+        "--list-plugins probe (expected: flag rejected on 3.0.x)",
+        "M1 headless smoke",
+        "x64 payload check of installed binaries (NSIS stub is PE32 i386)"
+      ]
+    },
+    "linux": {
+      "run_status": "sandbox-verified",
+      "package_identity": {
+        "distribution": "Debian GNU/Linux 13 (trixie), main archive",
+        "package_version": "3.0.23-0+deb13u1",
+        "source_package": "vlc (Debian Multimedia Maintainers)",
+        "packages_pinned": ["vlc", "vlc-bin", "vlc-data", "libvlc-bin", "libvlc5", "libvlccore9", "vlc-plugin-base", "vlc-plugin-video-output"],
+        "pool_base_url": "http://deb.debian.org/debian/pool/main/v/vlc/",
+        "distro_decision": "doc 02 section 2.2 default (Ubuntu 24.04) unusable - noble ships 3.0.20, plucky 3.0.21-9build1, questing 3.0.21-11 (Launchpad API). Debian trixie/main carries exactly 3.0.23-0+deb13u1. Lead ratification pending."
+      },
+      "os_at_pin": "Debian GNU/Linux 13 (trixie), kernel 5.10.134, x86_64, headless container (no X/Wayland/PulseAudio/D-Bus), uid 1001 no root",
+      "acquisition_method": "apt-get download (root-free) at exact =3.0.23-0+deb13u1 + dpkg-deb -x extraction (no install); run via LD_LIBRARY_PATH shim",
+      "artifacts": [
+        {"package": "vlc", "file_name": "vlc_3.0.23-0+deb13u1_amd64.deb", "source_url": "http://deb.debian.org/debian/pool/main/v/vlc/vlc_3.0.23-0+deb13u1_amd64.deb", "size_bytes": 112404, "hashes": {"sha256": {"algorithm": "sha256", "value": "68087c1c26cb640440e1d5d327acc1f17849689d3fa8b658797225fd225986c6", "computed_by_us": true, "official_sidecar_match": true, "sidecar_source": "apt signed Packages index (SHA256 field)"}}},
+        {"package": "vlc-bin", "file_name": "vlc-bin_3.0.23-0+deb13u1_amd64.deb", "source_url": "http://deb.debian.org/debian/pool/main/v/vlc/vlc-bin_3.0.23-0+deb13u1_amd64.deb", "size_bytes": 130020, "hashes": {"sha256": {"algorithm": "sha256", "value": "116a6af7bb48414475ae4ec9c852fd440370bfdb4604ad442df5697adf010ffe", "computed_by_us": true, "official_sidecar_match": true, "sidecar_source": "apt signed Packages index (SHA256 field)"}}},
+        {"package": "vlc-data", "file_name": "vlc-data_3.0.23-0+deb13u1_all.deb", "source_url": "http://deb.debian.org/debian/pool/main/v/vlc/vlc-data_3.0.23-0+deb13u1_all.deb", "size_bytes": 423200, "hashes": {"sha256": {"algorithm": "sha256", "value": "4a05a94246c57a04bf713dd4bfcad827d83de01cc38383f057d6e06a861f8e3a", "computed_by_us": true, "official_sidecar_match": true, "sidecar_source": "apt signed Packages index (SHA256 field)"}}},
+        {"package": "libvlc-bin", "file_name": "libvlc-bin_3.0.23-0+deb13u1_amd64.deb", "source_url": "http://deb.debian.org/debian/pool/main/v/vlc/libvlc-bin_3.0.23-0+deb13u1_amd64.deb", "size_bytes": 94240, "hashes": {"sha256": {"algorithm": "sha256", "value": "bc6857db7144bfd7447a77757689e43b8097e4b1b7cd6433b93b9451e83af8d6", "computed_by_us": true, "official_sidecar_match": true, "sidecar_source": "apt signed Packages index (SHA256 field)"}}},
+        {"package": "libvlc5", "file_name": "libvlc5_3.0.23-0+deb13u1_amd64.deb", "source_url": "http://deb.debian.org/debian/pool/main/v/vlc/libvlc5_3.0.23-0+deb13u1_amd64.deb", "size_bytes": 142172, "hashes": {"sha256": {"algorithm": "sha256", "value": "73a7789c1aa31fba279544c48088416e0658702cb7aa4ec4385995dc418a9a73", "computed_by_us": true, "official_sidecar_match": true, "sidecar_source": "apt signed Packages index (SHA256 field)"}}},
+        {"package": "libvlccore9", "file_name": "libvlccore9_3.0.23-0+deb13u1_amd64.deb", "source_url": "http://deb.debian.org/debian/pool/main/v/vlc/libvlccore9_3.0.23-0+deb13u1_amd64.deb", "size_bytes": 515116, "hashes": {"sha256": {"algorithm": "sha256", "value": "df7767917a140e331c8d4ed9c71974446c72e6cd9df67c910e391f3ba3d57770", "computed_by_us": true, "official_sidecar_match": true, "sidecar_source": "apt signed Packages index (SHA256 field)"}}},
+        {"package": "vlc-plugin-base", "file_name": "vlc-plugin-base_3.0.23-0+deb13u1_amd64.deb", "source_url": "http://deb.debian.org/debian/pool/main/v/vlc/vlc-plugin-base_3.0.23-0+deb13u1_amd64.deb", "size_bytes": 3096972, "hashes": {"sha256": {"algorithm": "sha256", "value": "2a546b92264e1f8f2fbfb8c22963ce2f14854e33bb8d8ed1e41b80c022a476f9", "computed_by_us": true, "official_sidecar_match": true, "sidecar_source": "apt signed Packages index (SHA256 field)"}}},
+        {"package": "vlc-plugin-video-output", "file_name": "vlc-plugin-video-output_3.0.23-0+deb13u1_amd64.deb", "source_url": "http://deb.debian.org/debian/pool/main/v/vlc/vlc-plugin-video-output_3.0.23-0+deb13u1_amd64.deb", "size_bytes": 234636, "hashes": {"sha256": {"algorithm": "sha256", "value": "66989412853e506bc683398194a5a1de36d19d09fe10f8cd73c3ef67b212dd91", "computed_by_us": true, "official_sidecar_match": true, "sidecar_source": "apt signed Packages index (SHA256 field)"}}}
+      ],
+      "hash_crosscheck_summary": "8/8 MATCH (computed vs signed Packages index)",
+      "signature": {
+        "gpg_inrelease": {
+          "tool": "gpg --no-default-keyring --keyring /usr/share/keyrings/debian-archive-keyring.gpg --verify InRelease",
+          "result": "Good signature x2 (Debian Archive Automatic Signing Key 12/bookworm + 13/trixie)",
+          "verified_url": "http://deb.debian.org/debian/dists/trixie/InRelease"
+        }
+      },
+      "expected_version_string": "VLC version 3.0.23 Vetinari (3.0.23-2-0-g79128878dd)",
+      "version_string_observed": true,
+      "version_string_evidence": "docs/baselines/raw/linux/04-vlc-version.txt (verbatim, exit 0)",
+      "build_identification": "Compiled by Debian buildd for trixie-security on Debian amd64 buildd (Jan 7 2026 20:01:08); Compiler: gcc version 14.2.0 (Debian 14.2.0-19)",
+      "run_results": {
+        "vlc --version": {"exit_code": 0, "first_line": "VLC version 3.0.23 Vetinari (3.0.23-2-0-g79128878dd)"},
+        "vlc --list": {"exit_code": 0, "modules": 502},
+        "vlc --list-verbose": {"exit_code": 0, "modules": 502},
+        "vlc --list-plugins": {"exit_code": 1, "result": "flag does not exist on VLC 3.0.x (VLC 4.x flag); usage error recorded"},
+        "vlc -I dummy --play-and-exit vlc://quit": {"exit_code": 0, "result": "dummy interface works; expected headless errors (no PulseAudio/D-Bus) then clean exit"},
+        "plugin_loadability": "372/372 plugin .so files ldd-clean"
+      },
+      "module_scope_note": "502 modules = vlc-plugin-base + vlc-plugin-video-output only (headless container). Not included: vlc-plugin-qt, -skins2, -notify, -samba, -jack, -svg, -fluidsynth, -visualization, -video-splitter, -access-extra (all exist at 3.0.23-0+deb13u1 in trixie/main). vlc-plugin-pipewire/-bittorrent exist only in the 3.0.24 security upload. Full-display-stack census pending (hardware-template.md section 5).",
+      "dumps": {
+        "available": {
+          "01-sandbox-environment": "docs/baselines/raw/linux/01-sandbox-environment.txt",
+          "02-acquisition-and-hashcheck": "docs/baselines/raw/linux/02-acquisition-and-hashcheck.txt",
+          "03-support-libs": "docs/baselines/raw/linux/03-support-libs.txt",
+          "04-vlc-version": "docs/baselines/raw/linux/04-vlc-version.txt",
+          "05-vlc-list": "docs/baselines/raw/linux/05-vlc-list.txt",
+          "06-vlc-list-verbose": "docs/baselines/raw/linux/06-vlc-list-verbose.txt",
+          "07-vlc-list-plugins-attempt": "docs/baselines/raw/linux/07-vlc-list-plugins-attempt.txt",
+          "08-vlc-dummy-smoke": "docs/baselines/raw/linux/08-vlc-dummy-smoke.txt",
+          "09-upstream-vlc-dir-listing": "docs/baselines/raw/linux/09-upstream-vlc-dir-listing.txt",
+          "10-upstream-tarball-sidecar-sha256": "docs/baselines/raw/linux/10-upstream-tarball-sidecar-sha256.txt",
+          "11-secondary-sources": "docs/baselines/raw/linux/11-secondary-sources.txt"
+        },
+        "pending_hardware": [
+          "raw/linux/linux-hardware-00-environment.txt",
+          "raw/linux/linux-hardware-01-install-hashcheck.txt",
+          "raw/linux/vlc-3.0.23-linux-desktop--version.txt",
+          "raw/linux/vlc-3.0.23-linux-desktop--list.txt",
+          "raw/linux/vlc-3.0.23-linux-desktop--list-verbose.txt",
+          "raw/linux/linux-hardware-02-snapshot-refetch.txt",
+          "raw/linux/linux-hardware-03-flathub-check.txt"
+        ]
+      },
+      "secondary_pin_candidate": {
+        "flathub_org_videolan_VLC": "stable = 3.0.23 (Flathub API v2, release 2026-01-01); not executed [VERIFY: build commit/runtime equality]"
+      },
+      "permanent_archive_fallback": "https://snapshot.debian.org/package/vlc/3.0.23-0+deb13u1/ - unreachable from pin sandbox (HTTP 509) [VERIFY on next acquisition]",
+      "pending_items": [
+        "Lead ratification of Debian-over-Ubuntu distro choice",
+        "full-display-stack module census incl. Qt (vlc-plugin-qt et al.)",
+        "snapshot.debian.org re-fetch",
+        "sandbox/reference CPU model recording",
+        "Flathub secondary build verification"
+      ]
+    },
+    "macos": {
+      "run_status": "blocked-on-hardware",
+      "package_identity": {
+        "primary": "vlc-3.0.23-universal.dmg (pin-of-record per doc 02 section 2.2)",
+        "arch_variants": ["vlc-3.0.23-arm64.dmg", "vlc-3.0.23-intel64.dmg"],
+        "publisher": "VideoLAN (official get.videolan.org / download.videolan.org tree vlc/3.0.23/macosx/ - note: 'macosx' segment, not 'macos')",
+        "system_requirement": "Mac OS X 10.7.5 or later; 64-bit Intel or Apple Silicon (official download page)"
+      },
+      "os_at_pin": "NOT INSTALLED - acquired on Linux x86_64 sandbox (kernel 5.10.134); macOS binaries never executed; reference Mac TBD",
+      "artifacts": [
+        {
+          "file_name": "vlc-3.0.23-universal.dmg",
+          "role": "pin-of-record",
+          "source_url": "https://get.videolan.org/vlc/3.0.23/macosx/vlc-3.0.23-universal.dmg",
+          "mirror_served": "get.videolan.org (no redirect chain observed)",
+          "size_bytes": 89124160,
+          "hashes": {
+            "sha256": {"algorithm": "sha256", "value": "56ee657c3aaf5c71b4ab7d6e4f4a77f6eca54633e0bf42a93b8116eb1d1f6ec9", "computed_by_us": true, "official_sidecar_match": true, "doc02_preverified_match": true},
+            "sha512": {"algorithm": "sha512", "value": "fcdfa8d82ee75522cb0b95f060baa1dab214b760410a1b27027e686df3bcf540a2496243e7f17e7e97aaf79c58af3d2478984116e671258008e053ea67b66fb4", "computed_by_us": true, "official_sidecar_match": null, "note": "no official .sha512 sidecar exists; value is ours"}
+          },
+          "file_type": "Apple UDIF disk image (bzip2-compressed; koly trailer verified)"
+        },
+        {
+          "file_name": "vlc-3.0.23-arm64.dmg",
+          "role": "arch variant",
+          "source_url": "https://download.videolan.org/pub/videolan/vlc/3.0.23/macosx/vlc-3.0.23-arm64.dmg",
+          "mirror_served": "download.videolan.org",
+          "size_bytes": 51273389,
+          "hashes": {
+            "sha256": {"algorithm": "sha256", "value": "fc6fac08d87f538517d44aca0c5e7a244b67c8c4cb589bf478363a7315fd5e0d", "computed_by_us": true, "official_sidecar_match": true},
+            "sha512": {"algorithm": "sha512", "value": "8ba24bd8bd52a79433a0daea65e64930b07c297004e2e17a2be5b0b2aa345a4adb8f600f5c957e2ee5193d5c0cb7dab8d8c0f8dfa2967e208e7f20b7ab58de58", "computed_by_us": true, "official_sidecar_match": null, "note": "no official .sha512 sidecar exists; value is ours"}
+          },
+          "file_type": "Apple UDIF disk image (bzip2-compressed; koly trailer verified)"
+        },
+        {
+          "file_name": "vlc-3.0.23-intel64.dmg",
+          "role": "arch variant",
+          "source_url": "https://download.videolan.org/pub/videolan/vlc/3.0.23/macosx/vlc-3.0.23-intel64.dmg",
+          "mirror_served": "download.videolan.org",
+          "size_bytes": 57544217,
+          "hashes": {
+            "sha256": {"algorithm": "sha256", "value": "ec01530ce69d849dd057fba8876e68ac39bf279dc28de4e9c04e4aec11fc98db", "computed_by_us": true, "official_sidecar_match": true},
+            "sha512": {"algorithm": "sha512", "value": "8e964c54132dfb4a2dc67396f6ef11a56b6abb2d57c98125158cc4e04c6650d119d78ec8fd71c707a89f64ba7767f7d48e538caec2d8fdca2b1a1f020e46f608", "computed_by_us": true, "official_sidecar_match": null, "note": "no official .sha512 sidecar exists; value is ours"}
+          },
+          "file_type": "Apple UDIF disk image (bzip2-compressed; koly trailer verified)"
+        }
+      ],
+      "hash_crosscheck_summary": "9/9 PASS (sha256+sha1+md5 x 3 artifacts vs official sidecars)",
+      "signature": {
+        "gpg_sidecar": {
+          "tool": "gpg 2.4.7 (Linux sandbox)",
+          "result": "Good signature x3 (all three dmgs)",
+          "key_uid": "VideoLAN Release Signing Key (2018)",
+          "key_fpr": "65F7C6B4206BD057A7EB73787180713BE58D1ADC",
+          "signature_created": "2025-12-31",
+          "key_expired": "2026-08-01",
+          "key_source": "keys.openpgp.org [VERIFY: anchor]",
+          "evidence": "docs/baselines/raw/macos/05-gpg-verification.txt"
+        },
+        "codesign_spctl": {
+          "status": "blocked-on-hardware",
+          "planned_tools": ["codesign --verify --deep --strict --verbose=2", "spctl -a -t exec -vv", "codesign -dv --verbose=4"],
+          "runbook": "docs/baselines/hardware-template.md section 4.1"
+        }
+      },
+      "expected_version_string": "[VERIFY-blocked-on-hardware] - capture verbatim on install; do not assume the Linux rendering",
+      "dumps": {
+        "available": {
+          "00-directory-listing-html": "docs/baselines/raw/macos/00-macosx-directory-listing.html",
+          "01-directory-listing": "docs/baselines/raw/macos/01-directory-listing.txt",
+          "02-official-sidecars": "docs/baselines/raw/macos/02-official-sidecars.txt",
+          "03-dmg-downloads": "docs/baselines/raw/macos/03-dmg-downloads.txt",
+          "04-hash-crosscheck": "docs/baselines/raw/macos/04-hash-crosscheck.txt",
+          "05-gpg-verification": "docs/baselines/raw/macos/05-gpg-verification.txt",
+          "06-web-citations": "docs/baselines/raw/macos/06-web-citations.txt"
+        },
+        "pending_hardware": [
+          "raw/macos/macos-hardware-00-environment.txt",
+          "raw/macos/macos-hardware-01-download-hashcheck.txt",
+          "raw/macos/macos-hardware-02-codesign-spctl.txt",
+          "raw/macos/macos-hardware-02-codesign-details.txt",
+          "raw/macos/macos-hardware-03-install.txt",
+          "raw/macos/vlc-3.0.23-macos--version.txt",
+          "raw/macos/vlc-3.0.23-macos--list.txt",
+          "raw/macos/vlc-3.0.23-macos--list-verbose.txt",
+          "raw/macos/vlc-3.0.23-macos--full-help.txt",
+          "raw/macos/vlc-3.0.23-macos--list-plugins.txt",
+          "raw/macos/vlc-3.0.23-macos--smoke-m1.txt"
+        ]
+      },
+      "pending_items": [
+        "codesign/spctl/notarization verification (incl. TeamIdentifier + notarization details)",
+        "install to /Applications + record which arch slice executes on the test Mac",
+        "verbatim --version line",
+        "--list / --list-verbose / --full-help dumps",
+        "--list-plugins probe (expected: flag rejected on 3.0.x)",
+        "M1 headless smoke"
+      ]
+    }
+  },
+  "oracle_invocation_contract": {
+    "source": "doc 02 section 2.4; consumed by tools/bench-vs-vlc and tools/parity-report (doc 12 section 3.3, doc 10 section 6.6)",
+    "M1_headless_metadata": {
+      "contract": "vlc -I dummy --verbose 2 --play-and-exit --no-video --no-audio <input>; log's input/demux/decoder lines parsed",
+      "linux": "PROVEN (subset): -I dummy --play-and-exit ran with exit 0 (raw/linux/08); full flag set + --verbose 2 log grammar on real input PENDING (corpus = 0.A12, Phase 2)",
+      "windows": "PENDING (hardware)",
+      "macos": "PENDING (hardware)",
+      "rc_interface_alternative": "untested [VERIFY: stable across all 3 platforms - doc 02 section 2.4 open question]"
+    },
+    "M2_deterministic_decoded_output": {
+      "contract": "--sout transcode chain to fixed lossless-tolerant parameters; PSNR/SSIM/RMS comparison; byte-equality never claimed",
+      "status_all_platforms": "PENDING [VERIFY: exact --sout chain + determinism - measure in Phase 2]"
+    },
+    "M3_error_behavior_malformed": {
+      "contract": "--play-and-exit; exit code + error class per malformed corpus case",
+      "status_all_platforms": "PENDING (corpus = 0.A12)"
+    },
+    "M4_timing": {
+      "contract": "repeated runs, median + p95, against hardware template; Phase 8 executes",
+      "status_all_platforms": "PENDING (by design - protocol fixed)"
+    },
+    "version_guard": {
+      "contract": "every invocation asserts the version pin first; drift aborts the run",
+      "linux": "data ready (verbatim --version line)",
+      "windows": "data pending hardware (expected shape recorded)",
+      "macos": "data pending hardware",
+      "cross_platform_assert": "3.0.23 Vetinari"
+    },
+    "sandboxing": {
+      "contract": "disposable VM/container per corpus run, no egress, no credentials",
+      "owner": "0.A11",
+      "status": "PENDING"
+    },
+    "flag_finding": "--list-plugins does not exist on VLC 3.0.x (4.x flag; observed exit 1 on 3.0.23, raw/linux/07). Module-dump channels on 3.0.x: --list and --list-verbose."
+  },
+  "consolidation_recheck": {
+    "date": "2026-10-19",
+    "method": "sha256sum over artifacts retained in gitignored tmp/pinning/ (no re-download)",
+    "result": "7/7 PASS (win64.exe, win64.7z, universal.dmg, arm64.dmg, intel64.dmg, libvlccore9 deb, vlc-plugin-base deb)"
+  },
+  "clean_room": {
+    "vlc_source_ever_in_repo": false,
+    "source_tarball_downloaded": false,
+    "binaries_committed": false,
+    "binary_location": "gitignored tmp/pinning/ only (git check-ignore verified; *.exe additionally ignored)",
+    "binaries_executed": "linux debs yes (extracted, run headless as external oracle); windows/macos binaries never executed",
+    "usage_mode": "external reference oracle only (MP section 2; doc 02 section 2.1) - hash/signature verification + CLI observation; never linked, vendored or shipped",
+    "ui_screenshots_taken": false
+  },
+  "discrepancy_register_ids": ["DR-01 3.0.24 drift", "DR-02 expired signing key (sig predates)", "DR-03 macos/ vs macosx/", "DR-04 no .sha512 sidecars", "DR-05 --list-plugins 4.x-only", "DR-06 PE32-i386 installer stub", "DR-07 Debian-vs-Ubuntu pending ratification", "DR-08 baseline/ vs baselines/ path", "DR-09 trixie-security build string from main pool", "DR-10 release-date confidence divergence", "DR-11 linux module census scope", "DR-12 snapshot.debian.org blocked", "DR-13 get.videolan.org HTML redirect behavior", "DR-14 windows/macos sandbox-execution impossible", "DR-15 sandbox CPU model unrecorded", "DR-16 one .html raw file (macos)"]
+}
