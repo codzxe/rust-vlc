@@ -1,0 +1,240 @@
+/* GENERATED FILE — DO NOT EDIT.
+ *
+ * Produced by `cargo xtask tokens` (crates/theme-tokens `tokens-gen`,
+ * card 1.B4) from themes/tokens.json — doc 08 §3. Regeneration is
+ * idempotent; the committed copy is diff-tested by
+ * crates/theme-tokens/tests/diff.rs.
+ *
+ * Components consume SEMANTIC tokens only, via `var(--<name>)`
+ * (doc 08 §3.2). The primitive and alias layers are never emitted
+ * here; they exist for re-derivation from the Figma variables.
+ *
+ * Block layout (doc 08 §3.3 — attributes on the root element):
+ *   :root                                 mode-independent values,
+ *                                        the default mode (dark) and
+ *                                        the default accent (orange)
+ *   :root[data-theme="<mode>"]            per-mode values
+ *   :root[data-accent="<id>"]             alternate-accent values,
+ *                                        default mode
+ *   :root[data-theme="<mode>"][data-accent="<id>"]
+ *                                        ...and their per-mode values
+ *
+ * Modes (2): dark (default), light.
+ * Accents (9): orange (default), red, yellow, green, cyan, blue, violet, pink, gray.
+ * Tokens: 92 primitive / 70 alias / 70 semantic (source:
+ * themes/tokens.json).
+ */
+
+:root {
+  --blur-backdrop: 25px;
+  --blur-backdrop-small: 13.75px;
+  --color-accent: #d37918;
+  --color-accent-bright: #d37918;
+  --color-accent-icon: #d37918;
+  --color-accent-strong: #ab6314;
+  --color-accent-tinted: #371f06;
+  --color-content-bright: #eaeaea;
+  --color-content-on-accent: #161616;
+  --color-content-primary: #8f8f8f;
+  --color-content-secondary: #969696;
+  --color-content-tertiary: #6b6b6b;
+  --color-record: #ff0000;
+  --color-stroke-border: #1b1b1b;
+  --color-stroke-icon: #8f8f8f;
+  --color-stroke-warm: #1a1611;
+  --color-surface: #191919;
+  --color-surface-chrome: #1b1b1b;
+  --color-surface-deep: #090909;
+  --color-surface-hover: #1f1f1f;
+  --color-surface-muted: #404040;
+  --color-surface-panel: #0e0e0e;
+  --color-surface-raised: #303030;
+  --color-surface-selected: #222222;
+  --font-family-sans: "Inter", system-ui, sans-serif;
+  --font-family-time: "Inter", system-ui, sans-serif;
+  --font-size-body: 14px;
+  --font-size-caption: 11px;
+  --font-size-display: 32px;
+  --font-size-label: 16px;
+  --font-size-micro: 6px;
+  --font-size-time: 15px;
+  --font-size-title: 18px;
+  --font-weight-medium: 500;
+  --font-weight-regular: 400;
+  --gradient-visualizer-1: #ff3737;
+  --gradient-visualizer-2: #d37918;
+  --gradient-visualizer-3: #b2a918;
+  --gradient-visualizer-4: #95d318;
+  --opacity-chrome: 1;
+  --opacity-disabled: 0.5;
+  --opacity-emphasis: 0.7;
+  --opacity-muted: 0.3;
+  --opacity-panel: 0.95;
+  --opacity-scrim: 0.2;
+  --opacity-scrim-strong: 0.24;
+  --opacity-scrim-subtle: 0.14;
+  --opacity-swatch-rest: 0.7;
+  --radius-app: 19px;
+  --radius-card: 12px;
+  --radius-card-lg: 30px;
+  --radius-control: 6px;
+  --radius-hairline: 1px;
+  --radius-inset: 4px;
+  --radius-menu: 10px;
+  --radius-panel: 2px;
+  --radius-ring: 21px;
+  --radius-thumbnail: 6px;
+  --radius-window: 14px;
+  --shadow-card: 0px 4.76px 4.76px 0px rgba(0, 0, 0, 0.38);
+  --shadow-overlay: 0px 4.76px 5.9px 0px rgba(0, 0, 0, 0.7);
+  --space-grid: 4px;
+  --space-inset: 8px;
+  --space-item-pitch: 48px;
+  --space-track-inset: 2px;
+  --stroke-icon: 1.5px;
+  --stroke-icon-max: 3px;
+  --stroke-icon-strong: 2px;
+  --stroke-ring: 4px;
+  --stroke-window: 20px;
+}
+
+:root[data-theme="light"] {
+  --color-accent-bright: #e8851a;
+  --color-accent-icon: #c2711a;
+  --color-accent-tinted: #d8ba9a;
+  --color-content-bright: #161616;
+  --color-content-primary: #2e2e2e;
+  --color-content-secondary: #303030;
+  --color-stroke-border: #d5d5d5;
+  --color-stroke-icon: #2e2e2e;
+  --color-surface: #d5d5d5;
+  --color-surface-chrome: #d5d5d5;
+  --color-surface-deep: #dedede;
+  --color-surface-hover: #cfcfcf;
+  --color-surface-muted: #acacac;
+  --color-surface-panel: #e7e7e7;
+  --color-surface-raised: #bebebe;
+  --color-surface-selected: #c6c6c6;
+  --opacity-chrome: 0.75;
+  --opacity-panel: 0.8;
+}
+
+:root[data-accent="red"] {
+  --color-accent: #e15032;
+  --color-accent-bright: #e15032;
+  --color-accent-icon: #e15032;
+  --color-accent-strong: #c83a1d;
+  --color-accent-tinted: #351008;
+  --color-content-on-accent: #161616;
+}
+
+:root[data-theme="light"][data-accent="red"] {
+  --color-accent-bright: #e66044;
+  --color-accent-icon: #db4728;
+  --color-accent-tinted: #d6a69c;
+}
+
+:root[data-accent="yellow"] {
+  --color-accent: #c49e23;
+  --color-accent-bright: #c49e23;
+  --color-accent-icon: #c49e23;
+  --color-accent-strong: #9d7f1c;
+  --color-accent-tinted: #342a09;
+  --color-content-on-accent: #161616;
+}
+
+:root[data-theme="light"][data-accent="yellow"] {
+  --color-accent-bright: #daaf24;
+  --color-accent-icon: #b49224;
+  --color-accent-tinted: #d4c79e;
+}
+
+:root[data-accent="green"] {
+  --color-accent: #19a234;
+  --color-accent-bright: #19a234;
+  --color-accent-icon: #19a234;
+  --color-accent-strong: #137a27;
+  --color-accent-tinted: #083511;
+  --color-content-on-accent: #161616;
+}
+
+:root[data-theme="light"][data-accent="green"] {
+  --color-accent-bright: #1ab839;
+  --color-accent-icon: #1a9231;
+  --color-accent-tinted: #9cd6a7;
+}
+
+:root[data-accent="cyan"] {
+  --color-accent: #18aad3;
+  --color-accent-bright: #18aad3;
+  --color-accent-icon: #18aad3;
+  --color-accent-strong: #1389aa;
+  --color-accent-tinted: #062c37;
+  --color-content-on-accent: #161616;
+}
+
+:root[data-theme="light"][data-accent="cyan"] {
+  --color-accent-bright: #1abbe8;
+  --color-accent-icon: #1a9dc2;
+  --color-accent-tinted: #9acad8;
+}
+
+:root[data-accent="blue"] {
+  --color-accent: #185dd3;
+  --color-accent-bright: #185dd3;
+  --color-accent-icon: #185dd3;
+  --color-accent-strong: #134baa;
+  --color-accent-tinted: #061837;
+  --color-content-on-accent: #eaeaea;
+}
+
+:root[data-theme="light"][data-accent="blue"] {
+  --color-accent-bright: #1a66e8;
+  --color-accent-icon: #1a58c2;
+  --color-accent-tinted: #9ab1d8;
+}
+
+:root[data-accent="violet"] {
+  --color-accent: #8e42ff;
+  --color-accent-bright: #8e42ff;
+  --color-accent-icon: #8e42ff;
+  --color-accent-strong: #7314ff;
+  --color-accent-tinted: #19003d;
+  --color-content-on-accent: #ffffff;
+}
+
+:root[data-theme="light"][data-accent="violet"] {
+  --color-accent-bright: #9c59ff;
+  --color-accent-icon: #8536fc;
+  --color-accent-tinted: #b192e0;
+}
+
+:root[data-accent="pink"] {
+  --color-accent: #f052b3;
+  --color-accent-bright: #f052b3;
+  --color-accent-icon: #f052b3;
+  --color-accent-strong: #ec28a0;
+  --color-accent-tinted: #380524;
+  --color-content-on-accent: #161616;
+}
+
+:root[data-theme="light"][data-accent="pink"] {
+  --color-accent-bright: #f365bd;
+  --color-accent-icon: #ec47ac;
+  --color-accent-tinted: #da98c0;
+}
+
+:root[data-accent="gray"] {
+  --color-accent: #afafaf;
+  --color-accent-bright: #afafaf;
+  --color-accent-icon: #afafaf;
+  --color-accent-strong: #989898;
+  --color-accent-tinted: #1e1e1e;
+  --color-content-on-accent: #161616;
+}
+
+:root[data-theme="light"][data-accent="gray"] {
+  --color-accent-bright: #bababa;
+  --color-accent-icon: #a7a7a7;
+  --color-accent-tinted: #b9b9b9;
+}

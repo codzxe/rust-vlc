@@ -1,0 +1,32 @@
+/* Fixture (card 1.B4): a component-style source that violates the
+ * semantic-only rule (doc 08 §3.2) in every way `lint_source` detects.
+ * NOT real component code — regression input for
+ * crates/theme-tokens/tests/semantic_lint.rs. */
+
+.consumes-semantic-tokens {
+  color: var(--color-content-primary);
+  background: var(--color-surface);
+  border-radius: var(--radius-control);
+}
+
+.raw-primitive-hex {
+  fill: #8F8F8F;
+}
+
+.primitive-css-name {
+  background: var(--color-gray-900);
+}
+
+.alias-css-name {
+  stroke-width: var(--stroke-width-icon);
+}
+
+.reads-primitive-path {
+  /* reads primitive.color.orange.500 directly */
+  content: "";
+}
+
+.reads-alias-path {
+  /* reads alias.color.surface directly */
+  content: "";
+}

@@ -1,0 +1,7 @@
+# Fixture: a complete, conformant translation (negative control).
+"fixture.simple"   = "Einfacher Text"
+"fixture.greeting" = "Hallo, {name}!"
+"fixture.progress" = "Puffer… {percent, number, percent}"
+"fixture.source"   = "Öffne {source}"
+"fixture.items"    = "{count, plural, one {# Element} other {# Elemente}}"
+"fixture.two"      = "Zweiter Schlüssel"

@@ -1,0 +1,7 @@
+# Fixture: the reference catalog shape (doc 07 §6.2 examples).
+"fixture.simple"   = "Plain text"
+"fixture.greeting" = "Hello, {name}!"
+"fixture.progress" = "Buffering… {percent, number, percent}"
+"fixture.source"   = "Opening {source}"
+"fixture.items"    = "{count, plural, one {# item} other {# items}}"
+"fixture.two"      = "Second key"

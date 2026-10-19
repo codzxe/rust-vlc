@@ -1,0 +1,25 @@
+# crates/localization — Lumen localization mechanism (task 1.B3, doc 07 §6).
+#
+# Registry: doc 01 §2.3 (`localization`, layer L1, no internal deps).
+# Catalogs are DATA in `locales/`; this crate provides the mechanism:
+# key grammar, message-format v1 subset, fallback chain, and the five
+# doc 07 §6.4 catalog-audit rules.
+#
+# Dependencies (both pre-audited in docs/dependencies/preaudit-foundation.md,
+# verdict `pass`; no NEW crates were introduced by this card):
+#   toml      — TOML catalog parsing (duplicate keys are parse errors)
+#   thiserror — typed error definitions
+
+[package]
+name = "localization"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen localization: message keys, catalogs, fallback chain, catalog auditing (doc 07 §6)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+toml = "1.1"
+thiserror = "2.0"

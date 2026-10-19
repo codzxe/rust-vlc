@@ -1,0 +1,97 @@
+# =============================================================================
+# locales/en-US.toml — the Lumen REFERENCE message catalog (task 1.B3).
+#
+# Role (doc 07 §6.3): en-US is the reference catalog — shipped first,
+# complete, and the source of truth for the key set. Every other catalog
+# (de.toml, pt-BR.toml, …; file name = BCP-47 tag) is audited against THIS
+# file by `crates/localization` (doc 01 §2.3):
+#
+#   1. missing-key        — every catalog ⊇ this key set
+#   2. duplicate/orphan   — no duplicate keys in a file (TOML parse error),
+#                           no keys absent from this reference
+#   3. placeholders       — the {name}+type set per key must equal this file's
+#   4. reference-complete — every msgid referenced from product.toml,
+#                           schemas/settings.toml, layouts/, keymaps/,
+#                           profiles/, themes/ resolves here
+#   5. plural conformance — {n, plural, …} arms match the locale's CLDR
+#                           category set
+#
+# -----------------------------------------------------------------------------
+# KEY GRAMMAR (doc 07 §6.1) — enforced by `localization::MessageKey`:
+#
+#   * a key is 2–5 dotted segments; each segment matches [a-z0-9-]+
+#     (kebab-case; NO underscores, NO uppercase);
+#   * keys name the CONCEPT, never the wording — renaming a key is a
+#     breaking change for every catalog;
+#   * reserved top-level namespaces: product, window, player, settings,
+#     menu, dialog, error, common (doc 07 §6.1 table). Namespaces outside
+#     that table are allowed for surfaces that are not product UI — this
+#     Phase-1 seed uses `xtask.*` (build-gate report labels) and `ci.*`
+#     (CI stub naming) with Lead approval (worklog 1.B3).
+#
+# Examples: player.controls.play · settings.area.playback.title ·
+#           xtask.gate.status.pass
+#
+# -----------------------------------------------------------------------------
+# MESSAGE FORMAT v1 subset (doc 07 §6.2) — parsed by
+# `localization::Message`:
+#
+#   {name}                        simple placeholder
+#   {name, number, percent}       percentage (value is a fraction, e.g. 0.45)
+#   {name, select, a {…} b {…} other {…}}
+#   {name, plural, one {…} other {…}}   cardinal counts; `other` is mandatory
+#
+# Placeholder NAMES are part of each key's contract and use snake_case
+# ([a-Za-z_][A-Za-z0-9_]*) — note this is a DIFFERENT grammar from key
+# segments. Literal braces are escaped {{ and }}. Inside plural arms, `#`
+# renders the count.
+#
+# -----------------------------------------------------------------------------
+# PHASE-1 SEED SCOPE (Lead instruction, task 1.B3): ONLY keys for strings
+# that actually exist today — xtask gate-report labels (harvested verbatim
+# from tools/xtask/src/cmd/gate.rs), the CI stub-name pattern
+# (.github/workflows/ci.yml), and the product.toml msgids specified in
+# doc 07 §2–3 (description_key / title_idle_key). NO player.*/settings.*/
+# menu.* UI keys are seeded: those screens do not exist yet (Phase 2+).
+# When a surface lands, its keys land WITH it (rule 4 then enforces the
+# join). Technical identifiers (gate step names "fmt"/"clippy", "H.264",
+# command ids) are NOT product copy and are deliberately NOT cataloged
+# (doc 07 §6.5 exemption categories).
+#
+# [PROPOSAL — for the Lead] xtask does not consume this catalog yet: the
+# gate report block is a machine-readable contract (doc 10 §2.4) asserted
+# by exact-string tests, so wiring these keys into xtask output is a
+# deliberate later decision (uniform-parameter templates below slightly
+# normalize the conditional count suffixes that gate.rs composes today).
+# =============================================================================
+
+# --- product.* — identity-driven strings rendered from config (doc 07 §6.1).
+# Referenced by product.toml identity.description_key (doc 07 §2.1, §3.2).
+"product.description" = "A clean-room, Rust-native media player."
+
+# --- window.* — window titles. Referenced by product.toml
+# window.title_idle_key (doc 07 §2.2, §3.2); {product_name} is the only
+# allowed variable for the idle title.
+"window.title.idle" = "{product_name}"
+
+# --- xtask.* — gate report labels, harvested from gate.rs (card 1.A3).
+"xtask.gate.report.header"          = "=== LUMEN GATE REPORT ==="
+"xtask.gate.report.full-log"        = "full log: {path}"
+"xtask.gate.report.failure-details" = "--- failure details (last lines per failed command) ---"
+"xtask.gate.report.exit-code"       = "exit {code}"
+"xtask.gate.report.spawn-failure"   = "no exit code (spawn failure)"
+
+"xtask.gate.status.pass"    = "PASS"
+"xtask.gate.status.fail"    = "FAIL"
+"xtask.gate.status.skip"    = "SKIP ({reason})"
+"xtask.gate.status.not-run" = "NOT RUN ({reason})"
+"xtask.gate.status.dry"     = "DRY"
+
+# Result line skeletons (doc 10 §2.4 shape; counts as placeholders).
+"xtask.gate.result.success" = "result: SUCCESS ({failed} of {total} failed, {skipped} skipped, {not_run} not run)"
+"xtask.gate.result.failure" = "result: FAILURE ({failed} of {total} failed, {skipped} skipped, {not_run} not run)"
+"xtask.gate.result.dry-run" = "result: DRY RUN ({executed} of {total} executed, {skipped} skipped)"
+
+# --- ci.* — CI stub job-name suffix pattern (harvested from
+# .github/workflows/ci.yml stub jobs; display name only, never parsed).
+"ci.job.stub-suffix" = "{name} [STUB until {card} — always green, gates nothing]"

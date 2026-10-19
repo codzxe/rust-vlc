@@ -1,0 +1,34 @@
+# THE LUMEN THEME-TOKENS CRATE (card 1.B4 — doc 08 §3, doc 01 §2.3).
+#
+# Parses the canonical token source `themes/tokens.json` (W3C Design Tokens
+# draft subset + lumen per-mode extension) and emits, deterministically:
+#   * `themes/generated/tokens.css`                  (CSS custom properties)
+#   * `crates/theme-tokens/src/generated/tokens.rs`  (Rust constants)
+# Both outputs are COMMITTED and diff-tested (`tests/diff.rs`); regeneration
+# is idempotent (`cargo xtask tokens`, twice → empty `git diff`).
+#
+# The `tokens-gen` binary is the entry point the (frozen) xtask `tokens`
+# subcommand shells out to — xtask cannot take a path dependency without an
+# edit to its Lead-owned manifest [PROPOSAL: subprocess bridge, doc 08 §3.1
+# "xtask calls crates/theme-tokens"].
+#
+# External dependency policy (doc 11): serde_json is pre-audited PASS
+# (docs/dependencies/preaudit-foundation.md §1); record:
+# docs/dependencies/records/theme-tokens.md.
+
+[package]
+name = "theme-tokens"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Design-token pipeline: parse themes/tokens.json, emit CSS variables and Rust constants (doc 08 §3)"
+
+[dependencies]
+serde_json = "1.0.154"
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "tokens-gen"
+path = "src/bin/tokens_gen.rs"

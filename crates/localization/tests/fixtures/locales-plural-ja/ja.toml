@@ -1,0 +1,8 @@
+# Fixture: RULE 5 violation (other direction) — ja selects only `other`;
+# the `one` arm is dead copy and flagged as non-conformant.
+"fixture.simple"   = "シンプルなテキスト"
+"fixture.greeting" = "こんにちは、{name}！"
+"fixture.progress" = "バッファリング… {percent, number, percent}"
+"fixture.source"   = "{source} を開いています"
+"fixture.items"    = "{count, plural, one {# 項目} other {# 項目}}"
+"fixture.two"      = "2番目のキー"

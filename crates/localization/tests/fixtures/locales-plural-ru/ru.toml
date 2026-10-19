@@ -1,0 +1,8 @@
+# Fixture: RULE 5 violation — ru requires one/few/many/other;
+# this translation only carries one/other.
+"fixture.simple"   = "Простой текст"
+"fixture.greeting" = "Привет, {name}!"
+"fixture.progress" = "Буферизация… {percent, number, percent}"
+"fixture.source"   = "Открытие {source}"
+"fixture.items"    = "{count, plural, one {# элемент} other {# элемента}}"
+"fixture.two"      = "Второй ключ"

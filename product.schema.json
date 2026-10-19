@@ -1,0 +1,273 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lumen-player.example.org/schemas/product.v1.json",
+  "title": "Lumen product definition",
+  "$comment": "product.schema.json — validation design per docs/07-config-driven-system.md §3.2–§3.3. Data-driven constraints (type, required, additionalProperties, enum, const, minimum, maximum, minLength, maxLength, minItems, maxItems, pattern, not.enum) are enforced by crates/product-config's structural pass; filesystem and cross-file rules (path existence + magic bytes, injected enums from themes/locales/profiles listings, catalog-key existence, feature-registry intersection F1/F2, cross-field rules) live in the crate's semantic pass (doc 07 §3.4 stage 3). Extensions beyond standard keywords (ignored by other JSON Schema validators per spec): 'x-lumen-unit' (human unit expansion for range diagnostics), 'x-lumen-hint' (rule-specific fix hint, doc 07 §3.5). An empty 'enum' [] marks a value whose enum is injected at validation time from a directory listing (doc 07 §3.2 'defaults' comment) — the structural pass defers it to the semantic pass.",
+  "type": "object",
+  "required": ["schema_version", "identity", "window", "brand", "defaults",
+               "features", "playback", "limits", "telemetry", "urls", "migrations"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer", "minimum": 1,
+      "$comment": "deliberately not a const: the exact value is the cross-field rule 'schema_version == max(migrations.entries[].to), or 1 when there are no entries', enforced by the semantic pass on the resolved config (doc 07 §3.3). A const here would structurally reject schema v2 the moment the first migration exists."
+    },
+    "identity": {
+      "type": "object",
+      "required": ["name", "short_name", "publisher", "display_version",
+                   "version_code", "description_key", "ids"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string", "minLength": 1, "maxLength": 40,
+          "not": { "enum": ["VLC", "VideoLAN", "vlc"] },
+          "$comment": "reserved names per doc 07 §3.3(a), clean-room rule MP §1. short_name's reserved-name check is in the semantic pass."
+        },
+        "short_name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9-]{1,12}$",
+          "x-lumen-hint": "compact name for taskbar/tray/'opens with' surfaces: 1-12 chars, ASCII letters, digits and hyphens only, no spaces (doc 07 §2.1)."
+        },
+        "publisher": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "display_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[A-Za-z0-9.]+)?$",
+          "x-lumen-hint": "human-facing semver-shaped version; engine/catalog/protocol versions are reported by system.get-engine-info, not here (doc 07 §2.1)."
+        },
+        "version_code": {
+          "type": "integer", "minimum": 1,
+          "x-lumen-hint": "monotonic build number for installers/updaters that compare integers (doc 07 §2.1)."
+        },
+        "description_key": {
+          "$ref": "#/$defs/msgid",
+          "$comment": "must exist in the reference catalog — semantic pass (doc 07 §3.3 cross-field)."
+        },
+        "ids": {
+          "type": "object",
+          "required": ["reverse_dns", "windows", "macos", "linux", "web"],
+          "additionalProperties": false,
+          "properties": {
+            "reverse_dns": {
+              "type": "string",
+              "pattern": "^[a-z0-9]+(\\.[a-z0-9-]+)+$",
+              "x-lumen-hint": "reverse-DNS root, all lowercase, from which per-OS identifiers derive (doc 07 §2.1)."
+            },
+            "windows": {
+              "type": "object",
+              "required": ["app_user_model_id", "msi_upgrade_code"],
+              "additionalProperties": false,
+              "properties": {
+                "app_user_model_id": {
+                  "type": "string", "minLength": 1,
+                  "$comment": "must equal reverse_dns + \".\" + PascalCase(identity.name) — semantic pass (doc 07 §3.3(b))."
+                },
+                "msi_upgrade_code": {
+                  "type": "string",
+                  "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                  "x-lumen-hint": "stable GUID: MSI UpgradeCode must stay constant across versions so upgrades replace instead of co-install (doc 07 §2.1)."
+                }
+              }
+            },
+            "macos": {
+              "type": "object",
+              "required": ["bundle_id"],
+              "additionalProperties": false,
+              "properties": {
+                "bundle_id": {
+                  "type": "string", "minLength": 1,
+                  "$comment": "must equal reverse_dns + \".\" + PascalCase(identity.name) — semantic pass (doc 07 §3.3(b))."
+                }
+              }
+            },
+            "linux": {
+              "type": "object",
+              "required": ["appstream_id"],
+              "additionalProperties": false,
+              "properties": {
+                "appstream_id": {
+                  "type": "string", "minLength": 1,
+                  "$comment": "must equal reverse_dns + \".\" + PascalCase(identity.name) — semantic pass (doc 07 §3.3(b))."
+                }
+              }
+            },
+            "web": {
+              "type": "object",
+              "required": ["app_id"],
+              "additionalProperties": false,
+              "properties": {
+                "app_id": {
+                  "type": "string", "minLength": 1,
+                  "$comment": "must equal reverse_dns + \".\" + PascalCase(identity.name) — semantic pass (doc 07 §3.3(b))."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "window": {
+      "type": "object",
+      "required": ["width", "height", "min_width", "min_height",
+                   "title_template", "title_idle_key"],
+      "additionalProperties": false,
+      "properties": {
+        "width":  { "type": "integer", "minimum": 480, "maximum": 3840 },
+        "height": { "type": "integer", "minimum": 320, "maximum": 2160 },
+        "min_width":  { "type": "integer", "minimum": 320 },
+        "min_height": { "type": "integer", "minimum": 200 },
+        "start_maximized":   { "type": "boolean", "default": false },
+        "remember_geometry": { "type": "boolean", "default": true },
+        "title_template": {
+          "type": "string",
+          "pattern": "^(\\{product_name\\}|\\{media_title\\}|[^{}]|\\{\\{)*$",
+          "description": "only {product_name} and {media_title} are defined",
+          "x-lumen-hint": "the only defined variables are {product_name} and {media_title}; unknown variables are a validation error (doc 07 §2.2)."
+        },
+        "title_idle_key": {
+          "$ref": "#/$defs/msgid",
+          "$comment": "must exist in the reference catalog — semantic pass (doc 07 §3.3 cross-field)."
+        }
+      }
+    },
+    "brand": {
+      "type": "object",
+      "required": ["accent_color", "icon_ico", "icon_icns", "icon_png_512", "logo_svg"],
+      "additionalProperties": false,
+      "properties": {
+        "accent_color": {
+          "type": "string",
+          "pattern": "^#[0-9a-f]{6}$",
+          "x-lumen-hint": "hex RGB with leading '#', lowercase, e.g. #4f8cff; must equal theme token color.accent.primary once token extraction lands (doc 07 §2.3)."
+        },
+        "icon_ico":     { "$ref": "#/$defs/repo_path" },
+        "icon_icns":    { "$ref": "#/$defs/repo_path" },
+        "icon_png_512": { "$ref": "#/$defs/repo_path" },
+        "logo_svg":     { "$ref": "#/$defs/repo_path" }
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "required": ["theme", "locale", "profile"],
+      "additionalProperties": false,
+      "properties": {
+        "theme":   { "type": "string", "minLength": 1, "enum": [],
+                     "$comment": "enum injected at validation time from the themes/ directory listing (doc 07 §3.2, §3.3)." },
+        "locale":  { "type": "string", "minLength": 1, "enum": [],
+                     "$comment": "enum injected at validation time from the locales/ directory listing (doc 07 §3.2, §3.3)." },
+        "profile": { "type": "string", "minLength": 1, "enum": [],
+                     "$comment": "enum injected at validation time from the profiles/ directory listing (doc 07 §3.2, §3.3)." }
+      }
+    },
+    "features": {
+      "type": "object",
+      "additionalProperties": { "type": "boolean" },
+      "$comment": "unknown feature ids are rejected in the semantic pass against the engine feature registry (rule F1, doc 07 §2.7/§3.3); a static enum here would drift."
+    },
+    "playback": {
+      "type": "object",
+      "required": ["preferred_audio_languages", "preferred_subtitle_languages",
+                   "subtitle_mode", "hw_decode_policy", "start_paused", "default_rate"],
+      "additionalProperties": false,
+      "properties": {
+        "preferred_audio_languages":    { "type": "array", "minItems": 0, "maxItems": 8,
+                                          "items": { "$ref": "#/$defs/bcp47" } },
+        "preferred_subtitle_languages": { "type": "array", "minItems": 0, "maxItems": 8,
+                                          "items": { "$ref": "#/$defs/bcp47" } },
+        "subtitle_mode":     { "enum": ["auto", "forced-only", "on", "off"] },
+        "hw_decode_policy":  { "enum": ["software-only", "prefer-hardware", "hardware-only"],
+                               "$comment": "grown post-ADR-001 (accepted 2026-10-19, docs/adr/ADR-001-hardware-decode.md): hw-first H.264/HEVC via OS decoders is the accepted policy. The shipped product.toml stays software-only until the Phase 7 audited per-OS integration lands (rule F2 keeps features.hw-decode = false until then)." },
+        "start_paused":      { "type": "boolean" },
+        "default_rate":      { "type": "number", "minimum": 0.25, "maximum": 4.0 }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "required": ["cache_demux_mib", "cache_network_mib", "queue_packets_audio",
+                   "queue_packets_video", "probe_max_bytes", "max_playlist_items",
+                   "max_open_sessions", "max_wasm_extension_memory_mib"],
+      "additionalProperties": false,
+      "properties": {
+        "cache_demux_mib":   { "type": "integer", "minimum": 4,    "maximum": 512 },
+        "cache_network_mib": { "type": "integer", "minimum": 4,    "maximum": 1024 },
+        "queue_packets_audio": { "type": "integer", "minimum": 64, "maximum": 8192 },
+        "queue_packets_video": { "type": "integer", "minimum": 64, "maximum": 4096 },
+        "probe_max_bytes": {
+          "type": "integer", "minimum": 16777216, "maximum": 67108864,
+          "x-lumen-unit": "MiB",
+          "$comment": "16 MiB floor per the doc 07 §3.5 error contract and the x-lumen-hint rationale; the §2.9 inline comment ('1 MiB..=64 MiB') is the outlier.",
+          "x-lumen-hint": "probing below 16 MiB rejects valid multi-track files; if you need a lower bound for an embedded target, change the schema range via review (docs/07-config-driven-system.md §3.3), not this value."
+        },
+        "max_playlist_items":   { "type": "integer", "minimum": 100, "maximum": 100000 },
+        "max_open_sessions":    { "type": "integer", "minimum": 1,   "maximum": 16 },
+        "max_wasm_extension_memory_mib": { "type": "integer", "minimum": 8, "maximum": 256 }
+      }
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled":       { "type": "boolean", "default": false,
+                           "$comment": "shipped default false — hard rule (MP §5, MP §12). enabled = true requires urls.privacy (semantic pass)." },
+        "crash_reports": { "enum": ["off", "ask", "send"], "default": "off" },
+        "usage_stats":   { "type": "boolean", "default": false },
+        "update_checks": { "type": "boolean", "default": false }
+      }
+    },
+    "urls": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "help":        { "$ref": "#/$defs/https_url" },
+        "support":     { "$ref": "#/$defs/https_url" },
+        "privacy":     { "$ref": "#/$defs/https_url" },
+        "update_feed": { "$ref": "#/$defs/https_url" }
+      },
+      "$comment": "all optional at the structural level; telemetry.enabled = true requires urls.privacy (semantic pass, doc 07 §3.3 cross-field)."
+    },
+    "migrations": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["from", "to", "summary", "migrator"],
+            "additionalProperties": false,
+            "properties": {
+              "from":     { "type": "integer", "minimum": 1 },
+              "to":       { "type": "integer", "minimum": 2 },
+              "summary":  { "type": "string", "minLength": 1 },
+              "migrator": { "type": "string", "minLength": 1 }
+            }
+          },
+          "$comment": "entries must satisfy from < to, strictly ascending, no gaps, no duplicate targets, and schema_version == max(to) — semantic pass (doc 07 §3.3 cross-field)."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "msgid": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+(\\.[a-z0-9-]+)+$",
+      "x-lumen-hint": "a localization message key: dot-separated lowercase segments, at least two (doc 07 §3.2 $defs.msgid)."
+    },
+    "bcp47": {
+      "type": "string",
+      "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$",
+      "x-lumen-hint": "a BCP-47 language tag: 2-3 lowercase letters, then optional -Subtag groups (doc 07 §3.2 $defs.bcp47)."
+    },
+    "https_url": {
+      "type": "string",
+      "pattern": "^https://.+$",
+      "x-lumen-hint": "product URLs must be https:// (doc 07 §2.10, §3.2)."
+    },
+    "repo_path": {
+      "type": "string",
+      "pattern": "^[^/].*$",
+      "minLength": 1,
+      "x-lumen-hint": "repo-relative POSIX path: not absolute, no '..' components, no backslashes (doc 07 §2.3, §3.2).",
+      "$comment": "existence and magic bytes are checked in the validator's semantic pass (doc 07 §3.3 path existence)."
+    }
+  }
+}

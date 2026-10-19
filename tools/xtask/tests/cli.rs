@@ -79,9 +79,10 @@ fn unknown_subcommand_is_a_usage_error_listing_known_ones() {
 
 #[test]
 fn pre_registered_stubs_fail_honestly_with_their_card() {
+    // `tokens` graduated when card 1.B4 landed (Lead-completed salvage):
+    // it now runs the real pipeline, so it is no longer asserted here.
     for (sub, card) in [
         ("schema-gen", "1.B2"),
-        ("tokens", "1.B4"),
         ("codegen", "1.D4"),
         ("check-architecture", "1.E1"),
         ("rebrand", "1.E4"),
@@ -135,12 +136,12 @@ fn gate_dry_run_executes_nothing_and_reports_the_full_table() {
         "stdout:\n{}",
         out.stdout
     );
-    // Steps whose target does not exist yet are honestly SKIPped. (Phase-1
-    // start state: no ui/, apps/ or wasm binding crate. When those land,
-    // this branch simply stops asserting.)
-    if !repo_root().join("ui").is_dir() {
+    // Steps whose target does not exist yet are honestly SKIPped. The ui
+    // steps activate on `ui/package.json` (the pnpm-project marker), not the
+    // bare `ui/` dir — config stubs from card 1.B3 must not flip the gate.
+    if !repo_root().join("ui/package.json").is_file() {
         assert!(
-            out.stdout.contains("SKIP (ui/ not present)"),
+            out.stdout.contains("SKIP (ui/package.json not present)"),
             "stdout:\n{}",
             out.stdout
         );

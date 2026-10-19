@@ -15,9 +15,9 @@
 //! | 3  | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | always |
 //! | 4  | `cargo test --workspace --all-features`                          | always |
 //! | 5  | `cargo tree --workspace`                                         | always |
-//! | 6  | `pnpm --dir ui lint`                                             | requires `ui/` |
-//! | 7  | `pnpm --dir ui typecheck`                                        | requires `ui/` |
-//! | 8  | `pnpm --dir ui test`                                             | requires `ui/` |
+//! | 6  | `pnpm --dir ui lint`                                             | requires `ui/package.json` |
+//! | 7  | `pnpm --dir ui typecheck`                                        | requires `ui/package.json` |
+//! | 8  | `pnpm --dir ui test`                                             | requires `ui/package.json` |
 //! | 9  | `cargo tauri build --debug --no-bundle` (cwd `apps/desktop`)     | requires `apps/desktop/` |
 //! | 10 | `wasm-pack build crates/<engine-wasm-binding> --target web --dev` | requires the binding crate |
 //!
@@ -46,7 +46,7 @@
 //! 1 fmt .................. PASS  12s
 //! 3 clippy ............... FAIL  5m02s   <first error line, bounded>
 //! 4 test ................. NOT RUN (fail-fast)
-//! 6 ui lint .............. SKIP (ui/ not present)
+//! 6 ui lint .............. SKIP (ui/package.json not present)
 //! result: FAILURE (1 of 10 failed, 5 skipped)
 //! full log: target/gate-report.json
 //! ```
@@ -238,21 +238,21 @@ const DOC10_STEPS: &[Step] = &[
         name: "ui lint",
         argv: &["pnpm", "--dir", "ui", "lint"],
         cwd_rel: "",
-        requires: Some("ui/"),
+        requires: Some("ui/package.json"),
     },
     Step {
         idx: 7,
         name: "ui typecheck",
         argv: &["pnpm", "--dir", "ui", "typecheck"],
         cwd_rel: "",
-        requires: Some("ui/"),
+        requires: Some("ui/package.json"),
     },
     Step {
         idx: 8,
         name: "ui test",
         argv: &["pnpm", "--dir", "ui", "test"],
         cwd_rel: "",
-        requires: Some("ui/"),
+        requires: Some("ui/package.json"),
     },
     Step {
         idx: 9,
@@ -424,7 +424,7 @@ fn run_steps(steps: &[Step], root: &Path, flags: GateFlags) -> Vec<StepResult> {
             continue;
         }
         if let Some(req) = step.requires
-            && !root.join(req).is_dir()
+            && !root.join(req).exists()
         {
             results.push(StepResult::shell(
                 step,
@@ -1007,9 +1007,9 @@ mod tests {
 
     #[test]
     fn doc10_preconditions_and_cwd() {
-        assert_eq!(DOC10_STEPS[5].requires, Some("ui/"));
-        assert_eq!(DOC10_STEPS[6].requires, Some("ui/"));
-        assert_eq!(DOC10_STEPS[7].requires, Some("ui/"));
+        assert_eq!(DOC10_STEPS[5].requires, Some("ui/package.json"));
+        assert_eq!(DOC10_STEPS[6].requires, Some("ui/package.json"));
+        assert_eq!(DOC10_STEPS[7].requires, Some("ui/package.json"));
         assert_eq!(DOC10_STEPS[8].requires, Some("apps/desktop/"));
         assert_eq!(DOC10_STEPS[8].cwd_rel, "apps/desktop");
         // Row 10's command must embed its precondition path (kept in sync

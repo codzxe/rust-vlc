@@ -1,0 +1,224 @@
+# ============================================================================
+# product.toml — the product definition of Lumen (working name).
+#
+# Single source of truth for product decisions (MP §5). Validated by
+# product.schema.json via `cargo xtask config-validator`; a violation is a
+# build-breaking error with an actionable diagnostic (MP §5), never a silent
+# fallback. Do not hand-edit files generated from this one (§8, §9).
+# ============================================================================
+
+schema_version = 1
+
+# --- 2.1 Identity -----------------------------------------------------------
+# Rebrandable without touching code: `cargo xtask rebrand` consumes these
+# values (§8). Every surface that shows a name reads from here at runtime;
+# packaging metadata is regenerated from here at build time.
+
+[identity]
+# Full display name: window idle title, About, installer. 1–40 chars.
+name = "Lumen"
+# Compact name for space-constrained surfaces (taskbar, tray dialogs,
+# file-manager "opens with" lists). 1–12 chars, no spaces.
+short_name = "Lumen"
+# Legal entity shown in About copyright and installer metadata.
+publisher = "Lumen Contributors"          # [PROPOSAL] placeholder entity
+# Human-facing version string. NOT the engine/catalog/protocol versions —
+# those are reported by system.get-engine-info (doc 05 §2.12).
+display_version = "0.1.0-dev"
+# Monotonic build number for installers/updaters that compare integers.
+version_code = 1
+# Product description: a localization key, never literal text (MP §5).
+# The prose lives in locales/en-US.toml under this key.
+description_key = "product.description"
+
+[identity.ids]
+# Reverse-DNS root from which per-OS identifiers derive — one literal,
+# many surfaces (§8.2). Regex: ^[a-z0-9]+(\.[a-z0-9-]+)+$  (all lowercase).
+reverse_dns = "dev.lumen"
+
+[identity.ids.windows]
+# AppUserModelId (taskbar grouping, notifications) and the MSI UpgradeCode
+# (must stay stable across versions so upgrades replace, not co-install).
+app_user_model_id = "dev.lumen.Lumen"
+msi_upgrade_code = "7c1f6a52-9d3e-4b8a-a001-3f9c2d64e701"   # [PROPOSAL] generate once, then frozen
+
+[identity.ids.macos]
+bundle_id = "dev.lumen.Lumen"
+
+[identity.ids.linux]
+# Desktop-entry / AppStream ID; flatpak/snap IDs derive from it.
+appstream_id = "dev.lumen.Lumen"
+
+[identity.ids.web]
+# PWA identity (origin-independent), used in the web manifest.
+app_id = "dev.lumen.Lumen"
+
+# --- 2.2 Window defaults ----------------------------------------------------
+# Reference viewport: the design frames export at 1920x1080 (design/figma/
+# Player.svg). The default window is 1280x720 — same 16:9 shape, one step
+# down, so the layout scales 2:3 without reflow; the design remains the
+# fidelity target at its native size (doc 08). [VERIFY] final size pinned by
+# doc 08 screen analysis.
+
+[window]
+width = 1280                  # schema 480..=3840
+height = 720                  # schema 320..=2160
+min_width = 480               # schema: min_width < width
+min_height = 320              # schema: min_height < height
+start_maximized = false
+# Remember window geometry across runs (position + size, per monitor).
+remember_geometry = true
+# Title template (MP §5). Allowed variables, validated by schema:
+#   {product_name}  -> identity.name
+#   {media_title}   -> current media title, else the idle title below
+# Unknown variables are a validation error. The template composes; wording
+# (the idle string) is localized (window.title.idle, §6). The em-dash is a
+# template separator, not translatable prose. RTL-aware templating is a
+# documented future extension [PROPOSAL].
+title_template = "{media_title} — {product_name}"
+# Idle title (no media open): localization key rendered with {product_name}.
+title_idle_key = "window.title.idle"
+
+# --- 2.3 Brand assets -------------------------------------------------------
+# Paths are repo-relative; existence is checked by config-validator (§3.4).
+# Rebrand swaps these files + the accent (§8); nothing else may hardcode
+# brand colors or logos (§9, duplicated-identity check).
+
+[brand]
+# Accent color. MUST equal the theme token `color.accent.primary` once the
+# token extraction lands (doc 08); until then this literal is provisional.
+# [VERIFY] against design package token extraction.
+accent_color = "#4f8cff"
+# Per-platform icons (validated formats: ico / icns / png-512).
+icon_ico = "assets/brand/icon.ico"
+icon_icns = "assets/brand/icon.icns"
+icon_png_512 = "assets/brand/icon-512.png"
+# Vector logo for About, onboarding and docs.
+logo_svg = "assets/brand/logo.svg"
+
+# --- 2.4 Product defaults ---------------------------------------------------
+
+[defaults]
+# Theme id: must match themes/<id>.toml. The design package is dark-first
+# (design/README.md), so the product default is dark; light ships alongside.
+theme = "dark"
+# Default locale: must match locales/<tag>.toml. en-US is the reference
+# catalog (§6.3) and therefore always available.
+# Default playback profile id: must match profiles/<id>.toml (§7.4).
+profile = "default"
+
+# --- 2.5 Schema version & migrations ----------------------------------------
+# See [migrations] below; schema_version is validated == the max `to` of
+# all migration entries (or 1 when empty).
+
+# --- 2.6 Telemetry & privacy (opt-in only, default OFF) ---------------------
+# MP §5 "telemetry and privacy defaults (opt-in only)" + MP §12 "No default
+# telemetry". Shipped defaults are off; users may opt in. An admin lock
+# (§4.3) can additionally force these off.
+
+[telemetry]
+enabled = false               # schema: bool, shipped default false — hard rule
+# Crash-report behavior: "off" | "ask" | "send". Never silently above "off".
+crash_reports = "off"
+usage_stats = false
+update_checks = false
+
+# --- 2.7 Feature exposure (initially minimal) -------------------------------
+# MP §5: "Feature exposure lists only implementations that exist. Config can
+# never enable a missing codec, protocol or hardware capability."
+#
+# Semantics (doc 05 §6.4): effective availability =
+#     engine build features  ∩  this table  ∩  host capability (e.g. web).
+# A feature id that is not in the engine's static feature registry is a
+# VALIDATION ERROR here (rule F1) — you cannot even name an unimplemented
+# feature, let alone enable it. UIs grey out non-exposed commands from data
+# (system.list-commands + get-engine-info), never from hardcoded lists.
+#
+# Initial set = exactly what the Phase 2 vertical slice implements (MP §16):
+# one real file, open to decode to audio and video on screen, through the
+# command layer, from CLI and UI. Everything else is explicitly false with
+# its target phase — false entries document intent, they enable nothing.
+
+[features]
+core-playback = true            # session open/play/pause/seek/stop of local files
+local-file = true               # file:// source access
+audio-output = true             # default audio device output
+video-render = true             # video presentation (video-in-webview prototype, MP §7)
+track-selection = true          # tracks.set-*-track over available streams
+config-surface = true           # config.get/set/reset-setting + settings UI
+# --- explicitly off until the implementing phase ships (MP §16) ---
+playlists = false               # Phase 4
+library = false                 # Phase 4
+streaming-http = false          # Phase 6
+streaming-hls = false           # Phase 6
+streaming-dash = false          # Phase 6
+streaming-rtsp = false          # Phase 6
+optical-disc = false            # Phase 7, ADR-gated (MP §14)
+device-capture = false          # Phase 7
+audio-device-enumeration = false # Phase 3/4, host-dependent
+recording = false               # Phase 7
+transcode = false               # Phase 7
+wasm-extensions = false         # Phase 7
+control-server = false          # Phase 5+ [PROPOSAL]
+hw-decode = false               # pending ADR-001 — mirrors [playback] policy below
+# Rule F2: enabling a feature requires its implementation to exist AND pass
+# its gate (feature-matrix.toml row + tests); the validator cross-checks
+# exposure against the registry (§3.4), config alone enables nothing.
+
+# --- 2.8 Default playback & track-selection rules ---------------------------
+
+[playback]
+# Ordered BCP-47 preference lists (MP §5 "track selection preferences").
+# Matching: exact tag first, then primary subtag (en matches en-GB), then
+# any track. Empty list = no preference (first track wins).
+preferred_audio_languages = ["en"]
+preferred_subtitle_languages = ["en"]
+# Subtitle mode at open: "auto" (select a preferred-language or forced
+# track), "forced-only", "on" (select best), "off".
+subtitle_mode = "auto"
+# Hardware-decode policy — PENDING ADR-001 (MP §2; doc 04 gap register).
+# "software-only" is the ONLY legal value until the ADR lands; the schema
+# enum grows ("prefer-hardware", "hardware-only") only after an audited
+# implementation exists (rule F2). Reporting of active hardware decode is
+# always truthful via system.get-engine-info (doc 05 §2.12).
+hw_decode_policy = "software-only"
+start_paused = false            # new sessions begin paused (VLC parity item)
+default_rate = 1.0              # schema 0.25..=4.0 in v1
+
+# --- 2.9 Cache & resource limits (safety-bounded) ---------------------------
+# Values are config; RANGES live in product.schema.json and are reviewed
+# safety bounds (L4). Out-of-range values are rejected with a diagnostic —
+# never clamped (MP §5). Enforcement (backpressure, rejection) is code.
+
+[limits]
+cache_demux_mib = 32            # demux read-ahead. schema 4..=512
+cache_network_mib = 64          # network buffer. schema 4..=1024
+queue_packets_audio = 1024      # bounded audio packet queue (doc 03 §4). schema 64..=8192
+queue_packets_video = 512       # bounded video packet queue. schema 64..=4096
+probe_max_bytes = 16777216      # probing bound (MP §12). schema 1 MiB..=64 MiB
+max_playlist_items = 10000      # schema 100..=100000
+max_open_sessions = 4           # schema 1..=16
+max_wasm_extension_memory_mib = 64  # Phase 7 sandbox bound. schema 8..=256
+
+# --- 2.10 Product URLs ------------------------------------------------------
+
+[urls]
+# Rendered in the Help menu and About (doc 05 §8.3); schema enforces https://.
+# [PROPOSAL] placeholder domains until a distribution identity exists.
+help = "https://lumen-player.example.org/docs"
+support = "https://lumen-player.example.org/support"
+privacy = "https://lumen-player.example.org/privacy"
+update_feed = "https://updates.lumen-player.example.org/feed.json"
+
+# --- 2.11 Migrations --------------------------------------------------------
+# Placeholder (MP §5 "schema version and migrations"). Born at schema_version 1,
+# so the list is empty. Contract for future entries:
+#   [[migrations.entries]]
+#   from = 1
+#   to = 2
+#   summary = "renamed limits.cache_mib -> limits.cache_demux_mib"
+#   migrator = "config-migrate-1-to-2"   # xtask subcommand; deterministic,
+#                                        # idempotent, unit-tested (§10.2)
+
+[migrations]
+# entries = []

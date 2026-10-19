@@ -1,0 +1,15 @@
+/* Fixture (card 1.B4): a component-style source that consumes semantic
+ * tokens only (doc 08 §3.2) — `lint_source` must report nothing. */
+
+.player-surface {
+  color: var(--color-content-primary);
+  background: var(--color-surface);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(var(--blur-backdrop));
+}
+
+.accent-fill {
+  background: var(--color-accent);
+  color: var(--color-content-on-accent);
+}

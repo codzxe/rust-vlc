@@ -1,0 +1,8 @@
+# Fixture: RULE 2 violation (cross-file half) — orphan key not in the reference.
+"fixture.simple"   = "Einfacher Text"
+"fixture.greeting" = "Hallo, {name}!"
+"fixture.progress" = "Puffer… {percent, number, percent}"
+"fixture.source"   = "Öffne {source}"
+"fixture.items"    = "{count, plural, one {# Element} other {# Elemente}}"
+"fixture.two"      = "Zweiter Schlüssel"
+"fixture.orphan"   = "Verwaister Schlüssel"

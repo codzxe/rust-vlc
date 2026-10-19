@@ -1,0 +1,5 @@
+# Fixture: RULE 1 violation — missing fixture.greeting and fixture.items.
+"fixture.simple"   = "Einfacher Text"
+"fixture.progress" = "Puffer… {percent, number, percent}"
+"fixture.source"   = "Öffne {source}"
+"fixture.two"      = "Zweiter Schlüssel"

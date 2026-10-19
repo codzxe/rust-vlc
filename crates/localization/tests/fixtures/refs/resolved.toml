@@ -1,0 +1,8 @@
+# Fixture: RULE 4 negative control — every msgid resolves in the
+# reference catalog (locales-good).
+[identity]
+description_key = "fixture.simple"
+
+[[menu.leaf]]
+label_key = "fixture.greeting"
+command = "media.open-file"

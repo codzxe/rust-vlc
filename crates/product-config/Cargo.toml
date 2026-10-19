@@ -1,0 +1,24 @@
+# crates/product-config — the config-driven product model (doc 01 §2.3).
+#
+# L1 contracts & config crate (registry name: `product-config`).
+# Responsibility: typed, validated model of `product.toml` (against
+# `product.schema.json`), actionable diagnostics, and layered resolution
+# (doc 07). No internal deps (doc 01 §2.3 (c)); external deps are all
+# pre-audit **pass** rows in docs/dependencies/preaudit-foundation.md:
+# serde 1.x, serde_json 1.x, toml 1.x, thiserror 2.x.
+
+[package]
+name = "product-config"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Typed, validated model of product.toml with layered precedence (doc 07)"
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "1"
+thiserror = "2"

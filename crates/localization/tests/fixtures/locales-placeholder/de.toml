@@ -1,0 +1,8 @@
+# Fixture: RULE 3 violation — the doc 07 §6.4 example:
+# {percent, number, percent} (reference) vs {percent} (catalog).
+"fixture.simple"   = "Einfacher Text"
+"fixture.greeting" = "Hallo, {name}!"
+"fixture.progress" = "Puffer… {percent}"
+"fixture.source"   = "Öffne {source}"
+"fixture.items"    = "{count, plural, one {# Element} other {# Elemente}}"
+"fixture.two"      = "Zweiter Schlüssel"

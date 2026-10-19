@@ -1,0 +1,11 @@
+# Fixture: RULE 4 violation source — a config file whose label_key
+# references a msgid that does not exist in the reference catalog
+# (locales-good). One reference resolves (fixture.greeting), one does not
+# (fixture.no-such-key): exactly one UnresolvedReference is expected.
+[[menu.leaf]]
+label_key = "fixture.greeting"
+command = "media.open-file"
+
+[[menu.leaf]]
+label_key = "fixture.no-such-key"
+command = "media.open-url"

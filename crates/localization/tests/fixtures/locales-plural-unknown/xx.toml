@@ -1,0 +1,9 @@
+# Fixture: RULE 5 negative control — "xx" is not in the Phase-1 plural
+# table, so only the parse-level `other` arm is enforced; this catalog
+# (one/other arms) is accepted.
+"fixture.simple"   = "Xx text"
+"fixture.greeting" = "Xx, {name}!"
+"fixture.progress" = "Xx… {percent, number, percent}"
+"fixture.source"   = "Xx {source}"
+"fixture.items"    = "{count, plural, one {# xx} other {# xx}}"
+"fixture.two"      = "Xx second"
