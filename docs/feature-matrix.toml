@@ -1,0 +1,3404 @@
+# =============================================================================
+# docs/feature-matrix.toml — THE parity ledger (MASTER-PROMPT §1)
+# =============================================================================
+# "Parity is the share of inventory features in docs/feature-matrix.toml that
+# are verified by automated evidence." This file is the single source of truth
+# for feature status across platforms. CI validates it via tools/feature-audit
+# (built in Phase 1, wave 1.E); until then the VALIDATION RULES block below is
+# a manual checklist (doc 02 §4.6). It couples to config (MP §5): feature
+# exposure lists only implementations that exist — config can never enable a
+# missing codec, protocol or hardware capability.
+#
+# SCHEMA FROZEN 2026-10-19 (doc 02 §4.7).
+#   Any later change to fields, categories, statuses, prefixes or validation
+#   rules requires Lead change-control: (1) Lead-approved proposal,
+#   (2) meta.schema_version bump, (3) migration note appended to
+#   docs/inventory/matrix-seed-notes.md. Rows are append-mostly; status changes
+#   require new evidence (R4) and are audited in git history. Parity
+#   percentages are computed by the tool, never stored.
+#
+# Population: Task 0.D2 (Phase 0) from the completed inventories —
+#   docs/inventory/{formats.json, modules-linux.json, options-linux.json,
+#   options-summary.md, modules-summary.md, ui-inventory.md} and the
+#   feasibility verdict tables (docs/feasibility/sections/). Population log,
+#   grouping decisions, not-adopted list and open questions:
+#   docs/inventory/matrix-seed-notes.md.
+# =============================================================================
+
+[meta]
+schema_version = 1                 # frozen 2026-10-19; bump = Lead change-control
+schema_frozen = "2026-10-19"
+baseline = "VLC 3.0.23 Vetinari (3.0.23-2-0-g79128878dd)"
+last_updated = "2026-10-19"
+populated_by = "0.D2 (Phase 0 synthesis)"
+change_control = "Lead-only per doc 02 §4.7"
+
+# -----------------------------------------------------------------------------
+# STATUS VOCABULARY — per-platform values (doc 02 §4.3; MP §17 + §10)
+# -----------------------------------------------------------------------------
+#   not_started  no work yet (the honest Phase 0-exit default; nothing in this
+#                file is verified — no CI exists yet)
+#   in_progress  active work
+#   implemented  code complete on that platform, evidence not yet complete
+#   verified     specified + complete incl. error paths + tested on every
+#                CLAIMED platform + documented limits + non-regressing.
+#                REQUIRES `evidence` (R4). Transitions are audited:
+#                not_started → verified jumps are REJECTED (anti-fabrication;
+#                the tool decides from evidence — agents never self-verify,
+#                MP §15).
+#   partial      a documented subset works — REQUIRES `notes`; P0 rows may not
+#                stay partial past their target phase without Lead sign-off
+#   unsupported  intentionally out of scope on that platform (by-design
+#                replacement or platform limit) — REQUIRES `blocked_reason`
+#   blocked      external blocker (dependency, hardware, legal) — REQUIRES
+#                `blocked_reason` citing a feasibility §/ADR/risk-register
+#                entry, with alternatives considered and a next step (MP §17)
+#
+#   NOTE: doc 13's `not-selected` is a wave-CARD status for closed
+#   decision-pair alternatives (e.g. the Phase 2 demuxer variant that does not
+#   execute) — it is NOT a matrix status. Matrix wont-do rows use
+#   `unsupported` (by-design) or `blocked` (external), always with a reason.
+#
+# -----------------------------------------------------------------------------
+# PLATFORM COLUMNS — exactly these four keys on every row (R3)
+# -----------------------------------------------------------------------------
+#   windows / linux / macos   the three desktop CI platforms (MP §13)
+#   web                       DEDICATED column (MP §10): the WASM/webview
+#                            target is a first-class platform sharing the same
+#                            command layer; a dedicated column forces
+#                            per-platform honesty instead of footnotes.
+#   Platform-specific rows (e.g. a WASAPI output, a WebCodecs path) carry
+#   `unsupported` on the not-applicable columns with the reason in
+#   blocked_reason (doc 02 §4.5 pattern).
+#
+# -----------------------------------------------------------------------------
+# EVIDENCE-LINK RULES (R4/R5/R6; MP §13/§17)
+# -----------------------------------------------------------------------------
+#   - `evidence` is "" everywhere at Phase 0 exit: no CI exists yet, therefore
+#     NOTHING is verified and nothing is implemented. Any future `verified`
+#     status REQUIRES evidence resolving to an existing artifact recording
+#     commands + actual results (or a our-CI run URL); mock evidence must be
+#     labeled mock (MP §13).
+#   - `blocked`/`unsupported` REQUIRES `blocked_reason` referencing an
+#     existing doc section / ADR / risk entry.
+#   - `partial` REQUIRES `notes` describing the working subset.
+#   - Config cross-check (R7, MP §5): product feature-exposure lists,
+#     profiles, keymaps and layouts may reference only matrix ids with a
+#     non-not_started implementation on that platform — no
+#     enable-without-implementation, ever.
+#
+# -----------------------------------------------------------------------------
+# VALIDATION RULES — what tools/feature-audit will enforce (doc 02 §4.6);
+# manual checklist until Phase 1 wave 1.E lands it
+# -----------------------------------------------------------------------------
+#   R1  id unique; regex ^[a-z0-9]+(-[a-z0-9]+)+$; id prefix matches category
+#       (category→prefix map: docs/inventory/matrix-seed-notes.md §2)
+#   R2  category / priority / phase_target in range; P0 ⇒ phase_target ≤ 6
+#       [PROPOSAL — see seed-notes open question Q3 for the one tension]
+#   R3  status has exactly windows/linux/macos/web; values in the vocabulary
+#   R4  any verified ⇒ evidence resolves (rules above)
+#   R5  any blocked/unsupported ⇒ blocked_reason non-empty + doc/ADR/risk ref
+#   R6  any partial ⇒ notes non-empty (working subset described)
+#   R7  config cross-check with tools/config-validator (MP §5)
+#   R8  inventory completeness: everything discovered in doc 02 §3 has a row
+#       (including explicit wont-do rows); per-category counts reconcile with
+#       the inventories; no silent omissions
+#   R9  file parses as TOML; meta.schema_version present; CI merge-blocking
+#   R10 anti-hallucination: every VLC-derived row carries inventory_ref +
+#       vlc_name tracing to docs/inventory/; no invented VLC features
+#
+# PHASE TARGETS (MP §16 / doc 13): 2 first vertical · 3 reliable engine ·
+#   4 desktop product · 5 breadth · 6 network & streaming · 7 platform &
+#   advanced · 8 hardening/release. Semantics: earliest phase with planned
+#   work; 8 also parks later/post-v1 rows; blocked rows keep their revisit
+#   phase. P0 formats must target ≤ 6 (R2 [PROPOSAL]).
+# -----------------------------------------------------------------------------
+
+# =============================================================================
+# category: container — 21 rows
+# Sources: docs/inventory/formats.json (21 container families; probe evidence in docs/baselines/raw/linux/probe-work/logs/). Family 'adaptive-hls-dash' → network-hls/network-dash; family 'disc-family' → platform-disc-* rows.
+# =============================================================================
+
+[[feature]]
+id = "container-matroska-webm"
+category = "container"
+vlc_name = "Matroska / WebM"
+description = "Demux Matroska and WebM: tracks, chapters, attachments, cues-based seeking, block lacing"
+priority = "P0"
+phase_target = 5
+vlc_modules = ["mkv"]
+inventory_ref = "inventory/formats.json#matroska-webm"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "EBML parse self-build; extras (attachments/editions/tags) 5.D2; WebM payload set minus VP9 recorded (5.D1). Oracle probed mkv h264/flac + av1/opus + webm vp9/opus."
+
+[[feature]]
+id = "container-mp4-mov-3gp"
+category = "container"
+vlc_name = "MP4 / MOV / 3GP (ISO-BMFF)"
+description = "Demux ISO-BMFF family: track boxes, stco/stsc sample tables, edts/elst, 3gp quirks, fragmented MP4"
+priority = "P0"
+phase_target = 2
+vlc_modules = ["mp4"]
+inventory_ref = "inventory/formats.json#mp4-mov-3gp"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "[DECISION-PENDING variant B of the Phase-2 first vertical (doc 03 §7 vs doc 04 §8.1); exactly one of container-avi/container-mp4 executes at 2.B launch, the other closes not-selected]. Full fMP4 (moof/trun) + chapters via 5.C1 with the 11-class corpus plan (feasibility subsystems §1.2)."
+
+[[feature]]
+id = "container-ogg"
+category = "container"
+vlc_name = "Ogg"
+description = "Demux Ogg: physical/logical stream mapping, chained streams, granule discontinuities"
+priority = "P0"
+phase_target = 5
+vlc_modules = ["ogg"]
+inventory_ref = "inventory/formats.json#ogg"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "5.B1 polish; carries Vorbis/Opus/Theora/Kate/Speex/FLAC-in-Ogg mappings."
+
+[[feature]]
+id = "container-mpegts"
+category = "container"
+vlc_name = "MPEG transport stream"
+description = "Demux MPEG-TS: PSI/SI (PAT/PMT/SDT), multi-program, PES timing, discontinuities, seek by timing scan"
+priority = "P0"
+phase_target = 5
+vlc_modules = ["ts"]
+inventory_ref = "inventory/formats.json#mpegts"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "5.I1; mpeg2ts-reader candidate or self-build; corrupted-TS corpus; teletext cues split to subtitle-teletext (blocked)."
+
+[[feature]]
+id = "container-mpegps"
+category = "container"
+vlc_name = "MPEG program stream / VOB"
+description = "Demux MPEG-PS: packs, system headers, PSM, PES; DVD-VOB private streams (AC-3/DTS/LPCM) exposed"
+priority = "P1"
+phase_target = 5
+vlc_modules = ["ps"]
+inventory_ref = "inventory/formats.json#mpegps"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "mpeg-ps 0.6.0 crate (published 2026-10-17) covers pack/system-header/PSM/PES; private-stream substream split = self-build S; nav-pack skip; MPEG-1 open question (feasibility subsystems §1.3). Decode of exposed substreams pending 5.K4-I."
+
+[[feature]]
+id = "container-avi"
+category = "container"
+vlc_name = "AVI (incl. OpenDML)"
+description = "Demux AVI: RIFF chunk walk, hdrl/strl, idx1 index, interleaving, MJPEG+PCM extraction, seek-to-time"
+priority = "P1"
+phase_target = 2
+vlc_modules = ["avi"]
+inventory_ref = "inventory/formats.json#avi"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "[DECISION-PENDING variant A of the Phase-2 first vertical (D-001: AVI+MJPEG+PCM, zero new deps)]; if MP4 wins, AVI lands 5.J1 with OpenDML + interleaving edge cases."
+
+[[feature]]
+id = "container-asf-wmv"
+category = "container"
+vlc_name = "ASF / WMV"
+description = "Demux ASF container (Advanced Systems Format) incl. WMV payloads"
+priority = "P2"
+phase_target = 5
+vlc_modules = ["asf"]
+inventory_ref = "inventory/formats.json#asf-wmv"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Decision card 5.K3-I; WMA audio decode blocked (see codec-audio-wma) — video-only or blocked outcome recorded honestly."
+
+[[feature]]
+id = "container-wav"
+category = "container"
+vlc_name = "WAV (RIFF/WAVE)"
+description = "Demux WAV: full RIFF/WAVE variants incl. extensible format and oddities"
+priority = "P0"
+phase_target = 5
+vlc_modules = ["wav"]
+inventory_ref = "inventory/formats.json#wav"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "5.A2; truncated-header error paths tested; PCM delivery for the audio-first verticals."
+
+[[feature]]
+id = "container-flac-native"
+category = "container"
+vlc_name = "FLAC native stream"
+description = "Demux native FLAC files (fLaC frames + metadata blocks)"
+priority = "P0"
+phase_target = 5
+vlc_modules = ["flacsys"]
+inventory_ref = "inventory/formats.json#flac-native"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "5.A1 companion; native stream distinct from FLAC-in-Ogg/MP4/MKV."
+
+[[feature]]
+id = "container-aiff"
+category = "container"
+vlc_name = "AIFF (COMM/SSND)"
+description = "Demux AIFF/AIFF-C audio files"
+priority = "P1"
+phase_target = 5
+vlc_modules = ["aiff"]
+inventory_ref = "inventory/formats.json#aiff"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "5.A2 sibling."
+
+[[feature]]
+id = "container-au"
+category = "container"
+vlc_name = "AU (Sun/NeXT)"
+description = "Demux AU audio files"
+priority = "P1"
+phase_target = 5
+vlc_modules = ["au"]
+inventory_ref = "inventory/formats.json#au"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "5.A2 sibling; trivial."
+
+[[feature]]
+id = "container-adts-aac"
+category = "container"
+vlc_name = "ADTS / raw AAC stream"
+description = "Demux raw AAC in ADTS framing (audio elementary stream)"
+priority = "P0"
+phase_target = 5
+vlc_modules = ["es", "mpeg4audio"]
+inventory_ref = "inventory/formats.json#adts-aac"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Oracle: 'es' demuxer (audio-es) + mpeg4audio packetizer; ADTS parse ships inside symphonia-codec-aac (5.C2/5.I3)."
+
+[[feature]]
+id = "container-mp3-raw"
+category = "container"
+vlc_name = "Raw MP3 stream"
+description = "Demux raw MPEG audio elementary streams + ID3v2/VBRI/Xing metadata"
+priority = "P0"
+phase_target = 5
+vlc_modules = ["es", "mpegaudio"]
+inventory_ref = "inventory/formats.json#mp3-raw"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "5.A3 metadata + gapless; raw-ES wrappers 5.I3."
+
+[[feature]]
+id = "container-mpeg-es-video"
+category = "container"
+vlc_name = "MPEG ES video (.mpgv/.m1v/.m2v)"
+description = "Demux raw MPEG elementary video streams"
+priority = "P1"
+phase_target = 5
+vlc_modules = ["mpgv", "es", "mpegvideo"]
+inventory_ref = "inventory/formats.json#mpeg-es-video"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "5.I3 elementary-stream wrappers."
+
+[[feature]]
+id = "container-h264-annexb"
+category = "container"
+vlc_name = "Raw H.264 (Annex B)"
+description = "Demux raw H.264 Annex B elementary streams"
+priority = "P0"
+phase_target = 5
+vlc_modules = ["h26x", "h264"]
+inventory_ref = "inventory/formats.json#h264-annexb"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "5.I3; bitstream parser 5.F1 is unconditional self-build regardless of decode path."
+
+[[feature]]
+id = "container-hevc-annexb"
+category = "container"
+vlc_name = "Raw HEVC (Annex B / HVCC)"
+description = "Demux raw HEVC elementary streams"
+priority = "P1"
+phase_target = 5
+vlc_modules = ["h26x", "hevc"]
+inventory_ref = "inventory/formats.json#hevc-annexb"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "5.I3; parser 5.G1; HVCC unsupported in young candidates [VERIFY]."
+
+[[feature]]
+id = "container-ivf"
+category = "container"
+vlc_name = "IVF (AV1 raw container)"
+description = "Demux IVF elementary AV1 streams (test/delivery format for AV1)"
+priority = "P2"
+phase_target = 5
+inventory_ref = "inventory/formats.json#av1"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Named by doc 13 card 5.I3 (IVF delivery plumbing for the rav1d path); not a probed oracle family — census-level row [VERIFY]."
+
+[[feature]]
+id = "container-realmedia"
+category = "container"
+vlc_name = "RealMedia (RM/RMVB)"
+description = "Demux RealMedia containers"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["real"]
+inventory_ref = "inventory/formats.json#realmedia"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Legacy; no v1/v-next card; RealVideo decode blocked (see codec-video-legacy-blocked)."
+
+[[feature]]
+id = "container-midi-smf"
+category = "container"
+vlc_name = "Standard MIDI File"
+description = "Demux SMF MIDI files (events to synthesizer)"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["smf"]
+inventory_ref = "inventory/formats.json#midi-smf"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Oracle: demux yes, decode no (fluidsynth deb excluded). Synthesis blocked-v1 — see codec-audio-midi-synth."
+
+[[feature]]
+id = "container-archive-zip"
+category = "container"
+vlc_name = "ZIP archive browsing"
+description = "Open media inside ZIP archives (stream_directory/stream_extractor)"
+priority = "P2"
+phase_target = 8
+vlc_modules = ["archive"]
+inventory_ref = "inventory/formats.json#archive-zip"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "VLC uses libarchive (C); pure-Rust zip path undecided [VERIFY]; no v1 card."
+
+[[feature]]
+id = "container-census-long-tail"
+category = "container"
+vlc_name = "Census long-tail demuxers"
+description = "caf, voc, xa, tta, mpc, mod, sid, nsv, pva, ty, nuv, rawdv, rawvid, rawau and remaining census demuxers"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["caf", "voc", "xa", "tta", "mpc", "mod", "sid", "nsv"]
+inventory_ref = "inventory/formats.json#census-long-tail-demux"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "51 unique demuxers in the census (57 registrations); wont-do-v1 list with reasons in matrix-seed-notes §5; re-opened per-format on demand with a record."
+
+# =============================================================================
+# category: video-codec — 16 rows
+# Sources: formats.json (12 video families) + feasibility/sections/video-codecs.md verdict table + platform-synthesis.md hw columns.
+# =============================================================================
+
+[[feature]]
+id = "codec-video-h264"
+category = "video-codec"
+vlc_name = "H.264/AVC decode"
+description = "Decode H.264 via hardware-first path (Media Foundation / VideoToolbox / VA-API / WebCodecs avc1)"
+priority = "P0"
+phase_target = 5
+vlc_modules = ["avcodec"]
+inventory_ref = "inventory/formats.json#h264"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "ADR-001 (pending) primary: strongest in-box story on Windows (MFT Win7+, profiles ≤ High); decode-path integration 5.F2; adapters plug at 7.B1–7.B3; parser self-build 5.F1 feeds probe/track-info/hw. Software track = separate row."
+
+[[feature]]
+id = "codec-video-h264-software"
+category = "video-codec"
+vlc_name = "H.264 software decode (pure Rust)"
+description = "Pure-Rust software H.264 decode as fallback/headless path"
+priority = "P0"
+phase_target = 5
+vlc_modules = ["avcodec"]
+inventory_ref = "inventory/formats.json#h264"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
+evidence = ""
+blocked_reason = "No proven compliant pure-Rust decoder: 2026 candidates (rusty_h264-decoder 0.16.1, rust_h264 0.4.0) are young/self-validated — conformance-gated candidate track pending ADR-001 (feasibility video-codecs §2.4/§2.5); openh264 crate = C source build, forbidden. Next step: ADR-001 + our-corpus gate before any adoption claim."
+notes = "Phase 5 = track decision (5.F2 conditional); hw row carries the v1 path."
+
+[[feature]]
+id = "codec-video-hevc"
+category = "video-codec"
+vlc_name = "HEVC/H.265 decode"
+description = "Decode HEVC incl. 8/10-bit via hardware-first path; patents = ADR-010 gate"
+priority = "P1"
+phase_target = 5
+vlc_modules = ["avcodec"]
+inventory_ref = "inventory/formats.json#hevc"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Windows Store 'HEVC Video Extensions' USD 0.99 wrinkle (old deep-link id dead, HTTP 410); VA-API covers 8/10/12-bit + 4:2:2/4:4:4 on Intel; parser 5.G1; adapters 7.B (conditional on the H.264 hw path landing)."
+
+[[feature]]
+id = "codec-video-hevc-software"
+category = "video-codec"
+vlc_name = "HEVC software decode (pure Rust)"
+description = "Pure-Rust software HEVC decode as fallback/headless path"
+priority = "P1"
+phase_target = 5
+vlc_modules = ["avcodec"]
+inventory_ref = "inventory/formats.json#hevc"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
+evidence = ""
+blocked_reason = "Same gate as codec-video-h264-software: rusty_h265 0.6.2 / rust_h265 0.1.0 are young/unproven (feasibility video-codecs §2); distribution legality additionally unresolved until ADR-010."
+notes = "Phase 5 = track decision (5.G2 conditional)."
+
+[[feature]]
+id = "codec-video-av1"
+category = "video-codec"
+vlc_name = "AV1 decode"
+description = "Decode AV1: software via rav1d with asm OFF (purity proven) + hardware where present; UI states active backend"
+priority = "P0"
+phase_target = 5
+vlc_modules = ["dav1d"]
+inventory_ref = "inventory/formats.json#av1"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Oracle chose dav1d (score 10000) — direct analog for rav1d integration; asm-off config = default-features=false + bitdepth_8+bitdepth_16 (feasibility video-codecs §3); no-asm speed cost measured per doc 12; rav1d-safe (AGPL) rejected; Phase-5 proof plan P5.1–P5.7."
+
+[[feature]]
+id = "codec-video-vp9"
+category = "video-codec"
+vlc_name = "VP9 decode"
+description = "Decode VP9: hardware-first; software = conformance-gated candidate track"
+priority = "P0"
+phase_target = 5
+vlc_modules = ["avcodec"]
+inventory_ref = "inventory/formats.json#vp9"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Decision card 5.P1-I; rusty_vp9 0.1.3 claims bit-exact on all 315 libvpx vectors (unproven at scale); hw: MF VP9 extension preinstalled Win10 1709+, VA-API all 3 vendor classes, WebCodecs vp09 broad."
+
+[[feature]]
+id = "codec-video-vp8"
+category = "video-codec"
+vlc_name = "VP8 decode"
+description = "Decode VP8 (hardware-only path in v1)"
+priority = "P1"
+phase_target = 8
+vlc_modules = ["avcodec"]
+inventory_ref = "inventory/formats.json#vp8"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "No pure decoder (candidates are scaffolds: oxideav-vp8 0.2.7, zvidlib-vp8 0.5.0 too young); hw: Linux Intel-class + NVIDIA shim, WebCodecs vp8; macOS VT exposure unclear [VERIFY]. Effectively blocked-later; kept not_started pending 5.P1-I verdict."
+
+[[feature]]
+id = "codec-video-theora"
+category = "video-codec"
+vlc_name = "Theora decode"
+description = "Decode Theora video (Ogg legacy)"
+priority = "P1"
+phase_target = 8
+vlc_modules = ["theora"]
+inventory_ref = "inventory/formats.json#theora"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
+evidence = ""
+blocked_reason = "No decoder: 'theora' crate = 0.0.0 reserved placeholder (2017); oxideav-theora self-describes as orphan-rebuild scaffold (feasibility video-codecs §1 row 4). L self-build later. Consequence: Ogg/Theora files degrade to audio-only playback, honestly reported."
+notes = "Revisit trigger: usage demand vs L effort."
+
+[[feature]]
+id = "codec-video-mpeg1-2"
+category = "video-codec"
+vlc_name = "MPEG-1/2 video decode"
+description = "Decode MPEG-1/2 video (DVD/DVB workhorse)"
+priority = "P1"
+phase_target = 5
+vlc_modules = ["avcodec"]
+inventory_ref = "inventory/formats.json#mpeg1-2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "5.H1: oxideav-mpeg12video 0.0.13 candidate (124 .rs, 0 C/asm, no build.rs — verify-then-adopt); hw: MF MPEG-2 extension, VA-API Intel/AMD/NVIDIA."
+
+[[feature]]
+id = "codec-video-mpeg4-asp"
+category = "video-codec"
+vlc_name = "MPEG-4 Part 2 / ASP (DivX/Xvid)"
+description = "Decode MPEG-4 ASP video"
+priority = "P1"
+phase_target = 5
+vlc_modules = ["avcodec"]
+inventory_ref = "inventory/formats.json#mpeg4-asp"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Decision card 5.H2-I; in-box MF on Windows only; NO VA-API driver class exposes ASP; oxideav-mpeg4video 0.1.8 candidate. Patent note in decision."
+
+[[feature]]
+id = "codec-video-mjpeg"
+category = "video-codec"
+vlc_name = "Motion-JPEG decode"
+description = "Decode MJPEG (first-vertical codec)"
+priority = "P1"
+phase_target = 2
+vlc_modules = ["avcodec"]
+inventory_ref = "inventory/formats.json#mjpeg"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "D-001 first vertical (2.B4): jpeg-decoder 0.3.2 or zune-jpeg [VERIFY-P0 purity/output]; AVI1.1 field handling + 4:2:2/4:2:0 edge cases 5.H3; MJPEG not in WebCodecs registry."
+
+[[feature]]
+id = "codec-video-raw-fourcc"
+category = "video-codec"
+vlc_name = "Uncompressed RGB/YUV fourccs"
+description = "Decode raw RGB/YUV video fourcc zoo (trivial self-build; own format defs)"
+priority = "P1"
+phase_target = 5
+vlc_modules = ["rawvideo"]
+inventory_ref = "inventory/formats.json#video-census-tail"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Fourcc coverage enumerated per record; pass-through on hw surfaces; effort S (doc 04)."
+
+[[feature]]
+id = "codec-video-wmv-vc1"
+category = "video-codec"
+vlc_name = "WMV1/2/3 + VC-1 decode"
+description = "Decode Windows Media Video family and VC-1"
+priority = "P2"
+phase_target = 8
+vlc_modules = ["avcodec"]
+inventory_ref = "inventory/formats.json#wmv2"
+status = { windows = "not_started", linux = "not_started", macos = "blocked", web = "unsupported" }
+evidence = ""
+blocked_reason = "macos: no VideoToolbox exposure and no pure software decoder (feasibility video-codecs §1 row 11); web: not in the WebCodecs registry. Windows (in-box WMV family MFT) and Linux (Intel-class + NVIDIA shim VC-1) keep the hw-first path."
+notes = "wmv2 (P2) + vc1-wmv9 (P2) families merged; VC-1 demux+packetizer in census."
+
+[[feature]]
+id = "codec-video-prores-dnxhd"
+category = "video-codec"
+vlc_name = "ProRes / DNxHD/HR decode"
+description = "Decode Apple ProRes and Avid DNxHD/HR (professional camera formats)"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["avcodec"]
+inventory_ref = "inventory/formats.json#video-census-tail"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Candidates named for the future record: oxideav-prores 0.1.1, veloster-prores, soundkit-dnx 0.13.3 (feasibility video-codecs §5); ProRes VT decode built into macOS."
+
+[[feature]]
+id = "codec-video-ffv1"
+category = "video-codec"
+vlc_name = "FFV1 (lossless) decode"
+description = "Decode FFV1 version 0-3 (RFC 9043) for archival video"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["avcodec"]
+inventory_ref = "inventory/formats.json#video-census-tail"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "doc 04's [VERIFY-P0] closed: oxideav-ffv1 0.0.9 + codec_ffv1 0.1.0 exist (young); ADR-010 patent check item; 'later' per feasibility subsystems §7.3 μADR."
+
+[[feature]]
+id = "codec-video-legacy-blocked"
+category = "video-codec"
+vlc_name = "Legacy blocked codecs"
+description = "Indeo 3/4/5, RealVideo RV10–RV40, Cinepak, Hap, Dirac, MS Video 1 and similar legacy codecs"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["avcodec"]
+inventory_ref = "inventory/formats.json#video-census-tail"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
+evidence = ""
+blocked_reason = "Permanent blocked rows per doc 14 A5: no pure-Rust path, legacy + patent haze, no credible entrant in the 2026-10-19 re-verification (feasibility video-codecs §1 rows 12/16-18)."
+notes = "One representative row for the blocked tail; per-record split if ever demanded."
+
+# =============================================================================
+# category: audio-codec — 19 rows
+# Sources: formats.json (18 audio families) + feasibility/sections/audio-codecs.md verdict table (§1 + census reconciliation §1.1).
+# =============================================================================
+
+[[feature]]
+id = "codec-audio-pcm"
+category = "audio-codec"
+vlc_name = "PCM family"
+description = "Decode PCM s16/s24/s32/f32/u8, planar, BE/LE (first-vertical codec)"
+priority = "P0"
+phase_target = 2
+vlc_modules = ["araw", "lpcm"]
+inventory_ref = "inventory/formats.json#pcm-family"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "D-001 first vertical (2.B5): symphonia-codec-pcm 0.6.1 (upstream 'Excellent'); WASM endianness + rare channel orders are per-record tests; lpcm/aes3 framing separate."
+
+[[feature]]
+id = "codec-audio-mp3"
+category = "audio-codec"
+vlc_name = "MP3 decode"
+description = "Decode MPEG-1/2/2.5 Layer III (Layers I/II via MP2 row)"
+priority = "P0"
+phase_target = 5
+vlc_modules = ["mpg123", "mad"]
+inventory_ref = "inventory/formats.json#mp3"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "symphonia-bundle-mp3 0.6.1 (gapless); minimp3 = C bindings, forbidden; ID3v2/VBRI/Xing + gapless 5.A3; free-format edge cases only measurable on our differential corpus."
+
+[[feature]]
+id = "codec-audio-mp2"
+category = "audio-codec"
+vlc_name = "MP2 decode"
+description = "Decode MPEG-1/2 Layer II (broadcast standard)"
+priority = "P1"
+phase_target = 5
+vlc_modules = ["mpg123", "mad"]
+inventory_ref = "inventory/formats.json#mp2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Same symphonia bundle (upstream 'Great'); broadcast corruption tolerance = Phase 5 differential work (5.J3)."
+
+[[feature]]
+id = "codec-audio-aac-lc"
+category = "audio-codec"
+vlc_name = "AAC-LC decode"
+description = "Decode AAC Low-Complexity in MP4/M4A and raw ADTS"
+priority = "P0"
+phase_target = 5
+vlc_modules = ["faad"]
+inventory_ref = "inventory/formats.json#aac-lc"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "symphonia-codec-aac 0.6.1 + AdtsReader ships in-crate; ASC-in-esds demux glue = S (5.C2); HE-AAC is a separate blocked row."
+
+[[feature]]
+id = "codec-audio-he-aac"
+category = "audio-codec"
+vlc_name = "HE-AAC (SBR/PS) decode"
+description = "Decode HE-AAC v1/v2 (SBR/parametric-stereo extensions)"
+priority = "P1"
+phase_target = 5
+vlc_modules = ["faad"]
+inventory_ref = "inventory/formats.json#aac-lc"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
+evidence = ""
+blocked_reason = "Zero upstream code: no sbr.rs/ps.rs in symphonia-codec-aac@main, no he-aac features in its Cargo.toml — README rows are aspirational (feasibility audio-codecs §2.2). Consequence: HE-AAC files decode as half-rate LC — must be DETECTED AND REPORTED, never silently played."
+notes = "Phase 5 = detection/reporting duty; decode itself post-v1."
+
+[[feature]]
+id = "codec-audio-flac"
+category = "audio-codec"
+vlc_name = "FLAC decode"
+description = "Decode FLAC lossless audio"
+priority = "P0"
+phase_target = 5
+vlc_modules = ["flac"]
+inventory_ref = "inventory/formats.json#flac"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "5.A1: symphonia-bundle-flac (claxon 0.4.3 as oracle); SEEKTABLE seeking + binary-search fallback; bit-exact + differential vs VLC; encode later via flacenc 0.5.1."
+
+[[feature]]
+id = "codec-audio-alac"
+category = "audio-codec"
+vlc_name = "ALAC decode"
+description = "Decode Apple Lossless (ALAC)"
+priority = "P1"
+phase_target = 5
+vlc_modules = ["avcodec"]
+inventory_ref = "inventory/formats.json#alac"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "symphonia-codec-alac 0.6.1; legacy alac 0.5.0 kept as oracle; lossless differential (5.J3)."
+
+[[feature]]
+id = "codec-audio-vorbis"
+category = "audio-codec"
+vlc_name = "Vorbis decode"
+description = "Decode Vorbis (+ Vorbis comments metadata)"
+priority = "P0"
+phase_target = 5
+vlc_modules = ["vorbis"]
+inventory_ref = "inventory/formats.json#vorbis"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "5.B2: symphonia-codec-vorbis 0.6.1; lewton 0.10.2 demoted to oracle per doc 04."
+
+[[feature]]
+id = "codec-audio-opus"
+category = "audio-codec"
+vlc_name = "Opus decode"
+description = "Decode Opus (WebM/OGG/MKV mappings)"
+priority = "P0"
+phase_target = 5
+vlc_modules = ["opus"]
+inventory_ref = "inventory/formats.json#opus"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
+evidence = ""
+blocked_reason = "No published pure-Rust decoder: symphonia-codec-opus does not exist on crates.io and upstream main holds a 1-byte placeholder lib.rs (feasibility audio-codecs §2.3); opus/audiopus crates = libopus C bindings, forbidden. Decision 5.K2-I: contribute-upstream vs self-build L–XL vs blocked+typed-error; web-only WebCodecs-analog option rides ADR-008."
+notes = "WebM/YouTube-class audio gap — the R-06 headline; Phase 5/6 self-build gate."
+
+[[feature]]
+id = "codec-audio-ac3-eac3"
+category = "audio-codec"
+vlc_name = "AC-3 / E-AC-3 decode"
+description = "Decode Dolby Digital (AC-3, E-AC-3)"
+priority = "P1"
+phase_target = 6
+vlc_modules = ["a52", "spdif", "avcodec"]
+inventory_ref = "inventory/formats.json#ac3-eac3"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
+evidence = ""
+blocked_reason = "No pure crate (ac3 NOT_FOUND 2026-10-19; liba52 is C). Bounded self-build L planned Phase 6 (feasibility audio-codecs §5.2); typed unsupported-decoder error until then. Oracle spdif evidence was passthrough-only — decode never exercised [V3 re-probe]."
+notes = "Phase 6 = self-build window; partial outcome expected."
+
+[[feature]]
+id = "codec-audio-dts"
+category = "audio-codec"
+vlc_name = "DTS decode"
+description = "Decode DTS Coherent Acoustics"
+priority = "P2"
+phase_target = 8
+vlc_modules = ["dts", "spdif", "avcodec"]
+inventory_ref = "inventory/formats.json#dts"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
+evidence = ""
+blocked_reason = "Blocked on spec availability before engineering: crates.io dts = unrelated tooling; spec access itself is [VERIFY] (feasibility audio-codecs §5.3). Phase 7/8 decision point."
+notes = "Passthrough (spdif) is an output mode, not decode — separate concern in doc 03 AudioSink scope."
+
+[[feature]]
+id = "codec-audio-truehd-mlp"
+category = "audio-codec"
+vlc_name = "TrueHD / MLP decode"
+description = "Decode Dolby TrueHD and MLP (Meridian Lossless Packing)"
+priority = "P2"
+phase_target = 6
+vlc_modules = ["mlp", "avcodec"]
+inventory_ref = "inventory/formats.json#truehd-mlp"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "truehdd 0.6.2 (2026-09-15) exists but is research-grade: Phase 6 hardening MANDATORY (5.K1) — conformance vs reference streams, concealment counters, honest downmix policy."
+
+[[feature]]
+id = "codec-audio-adpcm"
+category = "audio-codec"
+vlc_name = "ADPCM decode"
+description = "Decode ADPCM variants: MS-ADPCM, IMA, Yamaha, OKI/Dialogic (set per doc 04 [VERIFY])"
+priority = "P1"
+phase_target = 5
+vlc_modules = ["adpcm", "avcodec"]
+inventory_ref = "inventory/formats.json#adpcm"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "symphonia-codec-adpcm 0.6.1 (upstream 'Good'); breadth card 5.J2; exotic variants audited per record."
+
+[[feature]]
+id = "codec-audio-wma"
+category = "audio-codec"
+vlc_name = "WMA 1/2 / Pro decode"
+description = "Decode Windows Media Audio"
+priority = "P2"
+phase_target = 7
+vlc_modules = ["avcodec"]
+inventory_ref = "inventory/formats.json#wma-1-2-pro"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
+evidence = ""
+blocked_reason = "Not even upstream-planned: WMA absent from Symphonia's codec table entirely; crates.io wma NOT_FOUND (feasibility audio-codecs §5.4). ASF/WMV audio dead in v1; Phase 7 decision point (doc 14 R-10)."
+notes = "Container decision 5.K3-I records the pairing honestly."
+
+[[feature]]
+id = "codec-audio-wavpack"
+category = "audio-codec"
+vlc_name = "WavPack decode"
+description = "Decode WavPack hybrid-lossless audio"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["avcodec"]
+inventory_ref = "inventory/formats.json#wavpack"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
+evidence = ""
+blocked_reason = "Upstream symphonia placeholder empty (as Opus); third-party symphonia-codec-wavpack 0.1.1 is GPL-3.0-or-later — copyleft conflict candidate for our MIT repo; license question parked with doc 11 (feasibility audio-codecs §5.5)."
+notes = "Revisit if license question resolves toward adoption."
+
+[[feature]]
+id = "codec-audio-speex"
+category = "audio-codec"
+vlc_name = "Speex decode"
+description = "Decode Speex (legacy VoIP codec, Ogg-mapped)"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["speex"]
+inventory_ref = "inventory/formats.json#speex"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
+evidence = ""
+blocked_reason = "No pure crate (speex NOT_FOUND 2026-10-19); legacy VoIP; P3 (feasibility audio-codecs §1 row 17)."
+
+[[feature]]
+id = "codec-audio-musepack"
+category = "audio-codec"
+vlc_name = "Musepack decode"
+description = "Decode Musepack SV7/SV8"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["mpc", "avcodec"]
+inventory_ref = "inventory/formats.json#musepack"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
+evidence = ""
+blocked_reason = "No pure crate (musepack NOT_FOUND 2026-10-19); M self-build only if ever demanded (feasibility audio-codecs §1 row 18)."
+
+[[feature]]
+id = "codec-audio-midi-synth"
+category = "audio-codec"
+vlc_name = "MIDI synthesis"
+description = "Synthesize MIDI to audio (SoundFont-based)"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["fluidsynth"]
+inventory_ref = "inventory/formats.json#midi-synth"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
+evidence = ""
+blocked_reason = "Blocked-v1 by feasibility: rustysynth 1.3.7 (MIT, pure, std-only, includes SMF parsing) enables a LATER path with user-supplied .sf2; oxisynth 0.1.0 is LGPL-2.1 and stays out-of-tree (feasibility subtitles §5 classification). No v1 card."
+notes = "Oracle note: vlc-plugin-fluidsynth was an excluded Debian package — midi probed demux-yes/decode-no."
+
+[[feature]]
+id = "codec-audio-census-tail"
+category = "audio-codec"
+vlc_name = "Audio census tail"
+description = "g711 (A-law/µ-law), aes3 (SMPTE ST 302M), uleaddvaudio, ATRAC1/3/X"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["g711", "aes3", "uleaddvaudio"]
+inventory_ref = "inventory/formats.json#pcm-siblings-census"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Census-only formats flagged for doc 04 table additions (feasibility audio-codecs §1.1): g711 = table codec S self-build; aes3 = framing glue over PCM S–M [VERIFY spec]; ulead/atrac spec availability [VERIFY]. Priority reasoned [VERIFY] — narrow legacy/broadcast niches."
+
+# =============================================================================
+# category: subtitle-format — 17 rows
+# Sources: formats.json (12 subtitle families) + feasibility/sections/subtitles.md (verdict table §1 + 32-module census reconciliation §1.1).
+# =============================================================================
+
+[[feature]]
+id = "subtitle-srt"
+category = "subtitle-format"
+vlc_name = "SubRip (.srt)"
+description = "Parse and render SubRip subtitles incl. bold/italic/underline styling runs and encoding detection"
+priority = "P0"
+phase_target = 5
+vlc_modules = ["subtitle", "subsdec"]
+inventory_ref = "inventory/formats.json#srt"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "5.M1 self-build S (stale crates kept as reference only); UTF-16/charset detection; fuzz_sub_srt; two-pass sidecar load per oracle evidence (sub_* probes)."
+
+[[feature]]
+id = "subtitle-ass-ssa"
+category = "subtitle-format"
+vlc_name = "ASS/SSA"
+description = "Parse ASS/SSA; typeset with a pure-Rust styling SUBSET (libass is C — forbidden)"
+priority = "P0"
+phase_target = 5
+vlc_modules = ["subtitle", "libass"]
+inventory_ref = "inventory/formats.json#ass"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "The R-09 gap: tag-coverage matrix (render/degrade/drop) + unsupported-tag counters per doc 06 §7.8; libass-output-as-oracle [PROPOSAL]; plain-text subset may land Phase 2 with styling subset in Phase 5 (feasibility subtitles §1 row 2); karaoke/positioning degrade honestly."
+
+[[feature]]
+id = "subtitle-vtt"
+category = "subtitle-format"
+vlc_name = "WebVTT"
+description = "Parse WebVTT: cues, settings subset, NOTE/STYLE blocks"
+priority = "P1"
+phase_target = 5
+vlc_modules = ["webvtt"]
+inventory_ref = "inventory/formats.json#vtt"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "5.M3; webvtt-parser 1.2.0 candidate; cue settings map to our position model; <v>/<c> tags degrade to plain runs."
+
+[[feature]]
+id = "subtitle-microdvd"
+category = "subtitle-format"
+vlc_name = "MicroDVD (.sub)"
+description = "Parse MicroDVD subtitles (frame-number timing)"
+priority = "P2"
+phase_target = 5
+vlc_modules = ["subtitle", "subsdec"]
+inventory_ref = "inventory/formats.json#microdvd"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "fps handshake (container or user override) must be explicit — [VERIFY default-fps policy]; oracle observed fps inference."
+
+[[feature]]
+id = "subtitle-subviewer"
+category = "subtitle-format"
+vlc_name = "SubViewer (.sub/.sbv)"
+description = "Parse SubViewer subtitles"
+priority = "P2"
+phase_target = 5
+vlc_modules = ["subtitle", "subsdec"]
+inventory_ref = "inventory/formats.json#subviewer"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Trivial self-build S; encoding oddities only."
+
+[[feature]]
+id = "subtitle-sami"
+category = "subtitle-format"
+vlc_name = "SAMI (.smi)"
+description = "Parse SAMI subtitles (HTML-ish SYNC blocks, class styling subset)"
+priority = "P2"
+phase_target = 5
+vlc_modules = ["subtitle", "subsdec"]
+inventory_ref = "inventory/formats.json#sami"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Self-build S–M; full CSS degrades."
+
+[[feature]]
+id = "subtitle-ttml"
+category = "subtitle-format"
+vlc_name = "TTML/DFXP (incl. IMSC)"
+description = "Parse TTML incl. IMSC-HRIT subset"
+priority = "P2"
+phase_target = 6
+vlc_modules = ["ttml"]
+inventory_ref = "inventory/formats.json#ttml"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Self-build M; subtitle-semantics subset; broadcast TTML loses advanced styling (same gap class as ASS, smaller audience)."
+
+[[feature]]
+id = "subtitle-pgs"
+category = "subtitle-format"
+vlc_name = "PGS (Blu-ray HDMV)"
+description = "Parse PGS bitmap subtitles (RLE segments) + palette render via overlay layers"
+priority = "P2"
+phase_target = 6
+vlc_modules = ["avcodec"]
+inventory_ref = "inventory/formats.json#pgs"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Conditional 5.N1 on the compositing contract; OverlayLayer refinement of doc 03 §4.11; YCbCr palette [VERIFY]; full bitmap parity possible (no styling gap)."
+
+[[feature]]
+id = "subtitle-dvb-subs"
+category = "subtitle-format"
+vlc_name = "DVB subtitles"
+description = "Parse DVB bitmap subtitles inside MPEG-TS PES + PMT-descriptor plumbing"
+priority = "P2"
+phase_target = 6
+vlc_modules = ["dvbsub"]
+inventory_ref = "inventory/formats.json#dvb-subs-teletext"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Conditional 5.N2; pairs with TS work 5.I1."
+
+[[feature]]
+id = "subtitle-teletext"
+category = "subtitle-format"
+vlc_name = "Teletext (zvbi)"
+description = "Decode Teletext pages/subtitles from VBI"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["zvbi"]
+inventory_ref = "inventory/formats.json#dvb-subs-teletext"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
+evidence = ""
+blocked_reason = "zvbi is a C library — forbidden; Teletext is effectively its own project (M–L) (feasibility subtitles §1.1 census disposition). [VERIFY] whether any v2 appetite exists."
+
+[[feature]]
+id = "subtitle-cc-608-708"
+category = "subtitle-format"
+vlc_name = "CEA-608/708 captions"
+description = "Extract and render ATSC closed captions (608 roll-up windows, 708 window model)"
+priority = "P1"
+phase_target = 6
+vlc_modules = ["cc", "zvbi"]
+inventory_ref = "inventory/formats.json#cc-608-708"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Conditional 5.N3: extraction from VBI/user-data/SEI (feeds off the 5.F1 H.264 parser); cea608 crate = builder not decoder; 608 Phase 6, 708 M–L behind it — staged partial."
+
+[[feature]]
+id = "subtitle-vobsub"
+category = "subtitle-format"
+vlc_name = "VobSub + SVCD/CVD subtitles"
+description = "Parse VobSub (IDX/SUB) and SVCD/CVD bitmap subtitles"
+priority = "P2"
+phase_target = 8
+vlc_modules = ["spudec", "svcdsub", "cvdsub"]
+inventory_ref = "inventory/formats.json#subtitle-census-tail"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "vobsub 0.2.3 crate (CC0) path verified; palette/idx-sync hardening; DVD-Video navigation itself blocked separately (platform-disc-dvd). Priority per feasibility subtitles §1 row 11."
+
+[[feature]]
+id = "subtitle-kate"
+category = "subtitle-format"
+vlc_name = "Ogg Kate"
+description = "Parse Ogg Kate karaoke-overlay subtitles"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["kate"]
+inventory_ref = "inventory/formats.json#subtitle-census-tail"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
+evidence = ""
+blocked_reason = "No crate found (doc 04 [VERIFY-P0] stands); motion/scroll effects would degrade like ASS; μADR brief = drop-v1 (feasibility subsystems §7.3)."
+
+[[feature]]
+id = "subtitle-forced"
+category = "subtitle-format"
+vlc_name = "Forced-subtitle handling"
+description = "Forced-subtitle track detection/preference (probe evidence: 'forced: 1')"
+priority = "P2"
+phase_target = 5
+inventory_ref = "inventory/formats.json#srt"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Oracle subsl_* probes show forced-track flag consumption; maps to playback.preferred-subtitle-language + forced-track selection policy [VERIFY exact VLC semantics]. Priority reasoned."
+
+[[feature]]
+id = "subtitle-autoload"
+category = "subtitle-format"
+vlc_name = "Sidecar subtitle autodetection"
+description = "Auto-discover sidecar subtitle files (--sub-autodetect path/name fuzziness)"
+priority = "P1"
+phase_target = 5
+inventory_ref = "inventory/options-linux.json#sub-autodetect-fuzzy"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Real VLC feature (options inventory, Subtitles subsection); two-pass sidecar load evidenced; priority reasoned [VERIFY]."
+
+[[feature]]
+id = "subtitle-encoding-detection"
+category = "subtitle-format"
+vlc_name = "Subtitle charset detection"
+description = "Charset/encoding detection for text subtitles incl. UTF-16 BOMs"
+priority = "P1"
+phase_target = 5
+inventory_ref = "inventory/options-linux.json#subsdec-encoding"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "From 5.M1 AC (encoding detection incl. UTF-16); subsdec-encoding option in inventory; priority reasoned."
+
+[[feature]]
+id = "subtitle-census-tail"
+category = "subtitle-format"
+vlc_name = "Subtitle census tail"
+description = "MPL2, tx3g (3GPP timed text), EBU STL, ARIB STD-B24/B37, SCTE-27/18, HDMV TextST, USF"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["substx3g", "stl", "aribsub", "scte27", "scte18", "textst", "subsusf"]
+inventory_ref = "inventory/formats.json#subtitle-census-tail"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "S–M self-builds each, later; ARIB DRCS machinery + spec access [VERIFY]; scte18 tiny (emergency-alert text, S); dispositions in feasibility subtitles §1.1 — flagged as doc 04 table additions, not silently dropped."
+
+# =============================================================================
+# category: text-render — 3 rows
+# Source: modules-summary.md §4/§5 (text renderer + sub-source capabilities) + feasibility/sections/subtitles.md §2.4.
+# =============================================================================
+
+[[feature]]
+id = "textrender-subtitle-rasterizer"
+category = "text-render"
+vlc_name = "freetype/tdummy text rendering (replaced)"
+description = "Subtitle/OSD text rasterization: renderer-wgpu text stack (CPU-rasterized RGBA atlas) replaces freetype"
+priority = "P0"
+phase_target = 5
+vlc_modules = ["freetype", "tdummy"]
+inventory_ref = "inventory/modules-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "freetype is C — forbidden (the single biggest parity-visible substitution with libass); crate choice [VERIFY-P0]; libass-output-as-oracle [PROPOSAL] (feasibility subtitles §2.4 font-stack flag)."
+
+[[feature]]
+id = "textrender-osd"
+category = "text-render"
+vlc_name = "OSD (on-screen display)"
+description = "OSD text: position/time display, volume/spinner feedback"
+priority = "P2"
+phase_target = 5
+inventory_ref = "inventory/options-linux.json#osd"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Core --osd* options in inventory; feeds from the same rasterizer; marq/rss/logo generators are separate (textrender-subsource-overlays)."
+
+[[feature]]
+id = "textrender-subsource-overlays"
+category = "text-render"
+vlc_name = "Sub-source overlay generators"
+description = "marq (marquee), rss, logo, remoteosd, mosaic, dynamicoverlay, audiobargraph_v overlay content producers"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["marq", "rss", "logo", "remoteosd", "mosaic", "dynamicoverlay", "audiobargraph_v"]
+inventory_ref = "inventory/modules-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Overlay content producers, not subtitle formats; no v1 claim (feasibility subtitles §1.1); marq/logo possibly later as engine overlays; doc 08 owns which surfaces v1."
+
+# =============================================================================
+# category: playlist-format — 7 rows
+# Source: formats.json (7 playlist families; VLC implements playlist import as stream_filter) + feasibility/sections/subsystems.md §5.1.
+# =============================================================================
+
+[[feature]]
+id = "plfmt-m3u-m3u8"
+category = "playlist-format"
+vlc_name = "M3U / M3U8"
+description = "Parse (and write) M3U/M3U8 playlists incl. attributes"
+priority = "P0"
+phase_target = 4
+vlc_modules = ["playlist"]
+inventory_ref = "inventory/formats.json#m3u-m3u8"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "v0 ships 4.D1 (Phase 4); attribute/M3U8 polish 5.O1; self-build S (2017-frozen m3u crate unsuitable); HLS media-playlist parse shares the grammar (network-hls)."
+
+[[feature]]
+id = "plfmt-pls"
+category = "playlist-format"
+vlc_name = "PLS"
+description = "Parse PLS playlists"
+priority = "P0"
+phase_target = 5
+vlc_modules = ["playlist"]
+inventory_ref = "inventory/formats.json#pls"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "5.O1; self-build S for uniform errors + fuzz; pls 0.2.3 crate as cross-check oracle."
+
+[[feature]]
+id = "plfmt-xspf"
+category = "playlist-format"
+vlc_name = "XSPF"
+description = "Parse (and write) XSPF playlists"
+priority = "P0"
+phase_target = 5
+vlc_modules = ["playlist", "export"]
+inventory_ref = "inventory/formats.json#xspf"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "5.O1; xspf 0.4.2 crate as cross-check oracle; also an export target (plfeat-save-load)."
+
+[[feature]]
+id = "plfmt-asx"
+category = "playlist-format"
+vlc_name = "ASX"
+description = "Parse Advanced Stream Redirector playlists"
+priority = "P1"
+phase_target = 8
+vlc_modules = ["playlist"]
+inventory_ref = "inventory/formats.json#asx"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Later; self-build S; XML-based."
+
+[[feature]]
+id = "plfmt-b4s"
+category = "playlist-format"
+vlc_name = "B4S (Winamp)"
+description = "Parse Winamp B4S XML playlists"
+priority = "P2"
+phase_target = 8
+vlc_modules = ["playlist", "xml"]
+inventory_ref = "inventory/formats.json#b4s"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Later; XML reader host-service note."
+
+[[feature]]
+id = "plfmt-cue"
+category = "playlist-format"
+vlc_name = "CUE sheets"
+description = "Parse CUE sheets (REM/INDEX/gaps) with album-oriented gapless handoff"
+priority = "P2"
+phase_target = 5
+inventory_ref = "inventory/formats.json#cue"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "5.O2 self-build S — cue crate = libcue C bindings (fails E-test); oracle = negative probe (no module claimed cue); scope decision V10 to 0.D3."
+
+[[feature]]
+id = "plfmt-census-tail"
+category = "playlist-format"
+vlc_name = "Playlist census tail"
+description = "iTunes XML (itml), WPL, QTL, SGIMB, podcast, DVB, shoutcast-winamp, dummy-IFO importers"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["playlist"]
+inventory_ref = "inventory/formats.json#playlist-census-tail"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "14+1 stream_filter importers in census; wont-do-v1; re-open per-format on demand."
+
+# =============================================================================
+# category: protocol-access — 11 rows
+# Source: formats.json (12 protocol families) + feasibility/sections/subsystems.md §2.3 (blocked-protocol registry) + modules-summary.md §5.2.
+# =============================================================================
+
+[[feature]]
+id = "protocol-file"
+category = "protocol-access"
+vlc_name = "file:// access"
+description = "Local file access: open, fd/stream, bounded buffered reads"
+priority = "P0"
+phase_target = 2
+vlc_modules = ["filesystem"]
+inventory_ref = "inventory/formats.json#file"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "2.A1 input crate; first vertical."
+
+[[feature]]
+id = "protocol-directory"
+category = "protocol-access"
+vlc_name = "directory:// access"
+description = "Directory enumeration and recursive loading behind the access trait"
+priority = "P0"
+phase_target = 4
+vlc_modules = ["filesystem", "directory"]
+inventory_ref = "inventory/formats.json#directory"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "5.O3 probing + directory loading; feeds design library sidebar + Open Folder."
+
+[[feature]]
+id = "protocol-http-https"
+category = "protocol-access"
+vlc_name = "HTTP/HTTPS access"
+description = "Open http(s) URLs: range requests, redirects, cookies, TLS verification"
+priority = "P0"
+phase_target = 6
+vlc_modules = ["access"]
+inventory_ref = "inventory/formats.json#http-https"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "6.A1–6.A3; ureq-first recommendation; see network-http-client + network-tls-policy rows for the honest TLS story (ADR-011 input)."
+
+[[feature]]
+id = "protocol-udp"
+category = "protocol-access"
+vlc_name = "UDP unicast/multicast"
+description = "Raw UDP media reception"
+priority = "P1"
+phase_target = 6
+vlc_modules = ["udp"]
+inventory_ref = "inventory/formats.json#udp"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "unsupported" }
+evidence = ""
+blocked_reason = "6.G1-I blocked-protocol registry: raw-socket playback whose payload is hw-only codecs (H.264/HEVC); web: no raw UDP sockets in browsers (MP §10)."
+notes = "Revisit with the RTSP-family trigger: ADR-001 on all three OS + demand."
+
+[[feature]]
+id = "protocol-rtp"
+category = "protocol-access"
+vlc_name = "RTP reception"
+description = "RTP session reception (oracle: rtp access_demux auto-detects MP2T)"
+priority = "P1"
+phase_target = 6
+vlc_modules = ["rtp"]
+inventory_ref = "inventory/formats.json#rtp"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "unsupported" }
+evidence = ""
+blocked_reason = "6.G1-I registry: same raw-socket + hw-only-codec chain as UDP; web: no raw sockets (MP §10)."
+notes = "Feeds RTSP (blocked) and SAP (blocked SD) families."
+
+[[feature]]
+id = "protocol-rtsp"
+category = "protocol-access"
+vlc_name = "RTSP/RTP streaming (realrtsp/satip)"
+description = "RTSP session control with RTP/RTCP transport, incl. non-conformant camera quirks"
+priority = "P2"
+phase_target = 6
+vlc_modules = ["access_realrtsp", "satip"]
+inventory_ref = "inventory/formats.json#rtsp"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "unsupported" }
+evidence = ""
+blocked_reason = "Blocked v1 with three named blockers (feasibility subsystems §2.3): (1) payload = H.264/HEVC = the ADR-001 risk chain; (2) async boundary (retina is tokio-based; async confined to streaming edge per doc 01 §4.2); (3) unbounded camera-quirk hardening tail (why VLC ships access_realrtsp). Crates exist and are pure (retina 0.4.21). Revisit: ADR-001 landed on 3 OS + user demand. Web: no raw RTSP/RTP sockets (MP §10)."
+notes = "6.G1-I registry row."
+
+[[feature]]
+id = "protocol-smb"
+category = "protocol-access"
+vlc_name = "SMB shares"
+description = "Open SMB/CIFS network shares"
+priority = "P2"
+phase_target = 8
+inventory_ref = "inventory/formats.json#smb"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
+evidence = ""
+blocked_reason = "samba = C libraries, no pure path; absent even from the pinned census (vlc-plugin-samba was an excluded headless package). No v1/v-next card."
+notes = "Revisit only if a pure SMB client ecosystem emerges."
+
+[[feature]]
+id = "protocol-nfs"
+category = "protocol-access"
+vlc_name = "NFS"
+description = "Open NFS network shares"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["nfs"]
+inventory_ref = "inventory/formats.json#nfs"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
+evidence = ""
+blocked_reason = "No pure-Rust NFS client assessed as viable; P3 niche (formats.json rationale); no card."
+
+[[feature]]
+id = "protocol-ftp-sftp"
+category = "protocol-access"
+vlc_name = "FTP / SFTP"
+description = "Open FTP and SFTP URLs"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["ftp", "sftp"]
+inventory_ref = "inventory/formats.json#ftp-sftp"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
+evidence = ""
+blocked_reason = "[PROPOSAL blocked v1] per doc 13 card 6.A3 (ftp decision); no pure-path assessment on record; P3."
+
+[[feature]]
+id = "protocol-mmsh-mms"
+category = "protocol-access"
+vlc_name = "MMS / MMSH"
+description = "Open legacy Microsoft Media Server streams"
+priority = "P2"
+phase_target = 8
+vlc_modules = ["access_mms"]
+inventory_ref = "inventory/formats.json#mmsh-mms"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
+evidence = ""
+blocked_reason = "Legacy Microsoft streaming; no v1 card; no pure crate assessed; P2/P3 boundary recorded in formats.json."
+
+[[feature]]
+id = "protocol-census-tail"
+category = "protocol-access"
+vlc_name = "Protocol census tail"
+description = "tcp, sdp, rist, satip, concat, attachment, avio and remaining access registrations"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["tcp", "sdp", "rist", "satip", "concat"]
+inventory_ref = "inventory/formats.json#protocol-census-tail"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
+evidence = ""
+blocked_reason = "6.G1-I blocked-protocol registry: each gets its one-line blocked/partial row with reason at the 6.G1-I pass; none has a v1 card."
+notes = "Representative rollup row; per-scheme rows to be appended by 6.G1-I (append-mostly per doc 02 §4.7)."
+
+# =============================================================================
+# category: network-feature — 7 rows
+# Source: feasibility/sections/subsystems.md §2 (HTTP/TLS/HLS/DASH/RTSP/reconnect/auth) + doc 13 waves 6.A–6.G.
+# =============================================================================
+
+[[feature]]
+id = "network-http-client"
+category = "network-feature"
+vlc_name = "HTTP(S) streaming client"
+description = "Streaming HTTP client: deadlines, bounded redirects, range requests, untrusted-input rules"
+priority = "P0"
+phase_target = 6
+vlc_modules = ["access"]
+inventory_ref = "inventory/formats.json#http-https"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "6.A1: ureq or reqwest per ADR-011; all network responses are untrusted input (MP §12); mock-server tests (redirect loops, timeouts, 416 range)."
+
+[[feature]]
+id = "network-tls-policy"
+category = "network-feature"
+vlc_name = "TLS provider policy"
+description = "Pure-Rust TLS: verification always on; provider choice under ADR-011"
+priority = "P0"
+phase_target = 6
+vlc_modules = ["gnutls"]
+inventory_ref = "inventory/modules-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Honest hole found 2026-10-19 (feasibility subsystems §2.1): rustls default aws-lc-rs = C+prebuilt nasm; ring has unconditional cc build-dep; native-tls = OpenSSL; rustls-rustcrypto = alpha. ADR-011 [PROPOSAL] owns the ladder; no purity fabricated here."
+
+[[feature]]
+id = "network-hls"
+category = "network-feature"
+vlc_name = "HLS playback"
+description = "HTTP Live Streaming: media playlists, segment scheduling, live window, master playlists/variants"
+priority = "P1"
+phase_target = 6
+vlc_modules = ["adaptive"]
+inventory_ref = "inventory/formats.json#adaptive-hls-dash"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "6.B1–6.B3 (M+M+S); m3u8-rs 6.0.1 as cross-check; hls-runtime is low-latency niche [VERIFY-P0]; Apple/IETF vectors per 6.B3."
+
+[[feature]]
+id = "network-dash"
+category = "network-feature"
+vlc_name = "DASH playback"
+description = "MPEG-DASH: MPD handling, representation/segment scheduling, buffer-based ABR"
+priority = "P1"
+phase_target = 6
+vlc_modules = ["adaptive"]
+inventory_ref = "inventory/formats.json#adaptive-hls-dash"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "6.C1–6.C2; dash-mpd-core 0.1.0 as parse candidate-oracle; fMP4 corpus classes 8–10 prerequisite (feasibility §1.2); DASH-IF vectors (R-37)."
+
+[[feature]]
+id = "network-reconnect-buffering"
+category = "network-feature"
+vlc_name = "Reconnect + adaptive buffering"
+description = "Bounded retry with backoff, resume-from-offset, generation-safe cancellation, stall prediction"
+priority = "P1"
+phase_target = 6
+inventory_ref = "docs/13-agent-wave-program.md#6.D"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "6.D1/6.D2 [PROPOSAL parameters]; buffering budget per product.toml limits."
+
+[[feature]]
+id = "network-auth"
+category = "network-feature"
+vlc_name = "HTTP auth + credential store"
+description = "HTTP basic/digest auth; OS keychain credential storage; redaction tests"
+priority = "P1"
+phase_target = 6
+inventory_ref = "docs/13-agent-wave-program.md#6.E"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "6.E1; keychain policy + crate per OS [VERIFY]; no secrets in logs/errors (media-types policy doc 01 §2.5)."
+
+[[feature]]
+id = "network-remote-playlists"
+category = "network-feature"
+vlc_name = "Remote playlists + directory listings"
+description = "Remote playlist loading, relative-URI resolution, HTML directory-listing parse"
+priority = "P2"
+phase_target = 6
+inventory_ref = "docs/13-agent-wave-program.md#6.E"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "6.E2; HTML listing parse = [PROPOSAL decision]; icecast/shoutcast metadata out of v1."
+
+# =============================================================================
+# category: playback-op — 13 rows
+# Sources: options-linux.json (Playback control subsection, Hot keys) + ui-inventory.md §1.2/§5.2 + doc 05 §2 command catalog + doc 13 waves 2.C/3.A/3.B.
+# =============================================================================
+
+[[feature]]
+id = "playback-play-pause-stop"
+category = "playback-op"
+vlc_name = "Play/Pause/Stop transport"
+description = "Transport state machine: play/pause toggle, stop, session epochs"
+priority = "P0"
+phase_target = 2
+inventory_ref = "inventory/options-linux.json#play-and-pause"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "2.C2 state machine (Idle→Opening→Buffering→Playing→Paused→Ended→Stopped + errors); CLI session 2.D2; core hotkeys Space/S + media keys."
+
+[[feature]]
+id = "playback-seek"
+category = "playback-op"
+vlc_name = "Seek + jump sizes"
+description = "Arbitrary seek, Go-to-Time, 4 jump magnitudes (extrashort/short/medium/long)"
+priority = "P0"
+phase_target = 3
+inventory_ref = "inventory/options-linux.json#key-jump-extrashort"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "3.A seek-and-cancellation; jump-size scalars seeded 3/10/60/300 s (keymaps/default.toml); Ctrl+T dialog; seek-step options family."
+
+[[feature]]
+id = "playback-rate"
+category = "playback-op"
+vlc_name = "Playback rate control"
+description = "Faster/slower/normal/fine rate steps"
+priority = "P0"
+phase_target = 3
+inventory_ref = "inventory/options-linux.json#rate"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "+/−/=/]/[ hotkeys; rate-step semantics [VERIFY V-08] before recipe implementation; clock-rate interplay 3.B."
+
+[[feature]]
+id = "playback-frame-step"
+category = "playback-op"
+vlc_name = "Frame step"
+description = "Next-frame (VLC e) plus design-new previous-frame (, / .)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s5.2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "C-08: design adds frame-prev = parity GAIN vs VLC; doc 05 §2.4 models Previous."
+
+[[feature]]
+id = "playback-track-switch"
+category = "playback-op"
+vlc_name = "Track switching"
+description = "Audio/video/subtitle track select, cycle, reverse-cycle, disable"
+priority = "P0"
+phase_target = 3
+inventory_ref = "inventory/options-linux.json#audio-track"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "tracks.set-*/list commands; b/v/Alt+v/Shift+v hotkeys; dynamic menus from real track lists."
+
+[[feature]]
+id = "playback-av-sync"
+category = "playback-op"
+vlc_name = "A/V sync + delay + subsync"
+description = "Audio/subtitle delay offsets, subtitle sync mark/apply/reset"
+priority = "P0"
+phase_target = 3
+inventory_ref = "inventory/options-linux.json#audio-desync"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "3.B sync and queues; j/k/g/h + Shift+H/J/K + Ctrl+Shift+K hotkeys; --audio-desync option; subtitle-speed factor."
+
+[[feature]]
+id = "playback-chapter-title"
+category = "playback-op"
+vlc_name = "Chapter/title navigation"
+description = "Chapter next/prev (containers); title/program-SID navigation (disc/DVB)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/options-linux.json#key-chapter-next"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Chapters in v1 (MKV/MP4 chapter refs 5.C1/5.D2); titles/program SIDs feature-gated (ui-inventory Q6: no v1 commands)."
+
+[[feature]]
+id = "playback-bookmarks"
+category = "playback-op"
+vlc_name = "Bookmarks"
+description = "Named time positions: create/delete/clear, set+play slots 1–10"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/options-linux.json#bookmarks"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Ctrl+B dialog + 20 hotkeys (Ctrl+F1–F10 / F1–F10)."
+
+[[feature]]
+id = "playback-snapshot"
+category = "playback-op"
+vlc_name = "Video snapshot"
+description = "Capture current frame to PNG (path/prefix/format configurable)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/options-linux.json#snapshot-path"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Shift+S; Snapshot subsection (7 options) maps to recording.dir/format analog; no dialog (immediate)."
+
+[[feature]]
+id = "playback-fullscreen"
+category = "playback-op"
+vlc_name = "Fullscreen"
+description = "Enter/leave fullscreen; controller auto-hide"
+priority = "P0"
+phase_target = 4
+inventory_ref = "inventory/options-linux.json#key-toggle-fullscreen"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "f/Esc; design ⌘F mac variant [VERIFY V-05]; 'i' shows controller (key-intf-show); DirectX-wallpaper mode (w) not-adopted (Windows-only novelty)."
+
+[[feature]]
+id = "playback-start-options"
+category = "playback-op"
+vlc_name = "Start/stop/run-time options"
+description = "start-time, stop-time, run-time, start-paused input options"
+priority = "P2"
+phase_target = 4
+inventory_ref = "inventory/options-linux.json#start-time"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Playback-control subsection of the options inventory (doc 02 §3.3); maps to session.open params; priority reasoned."
+
+[[feature]]
+id = "playback-record"
+category = "playback-op"
+vlc_name = "Record during playback"
+description = "Stream recording: record-to-WAV from any decodable input + MP4 remux (H.264/AAC stream copy)"
+priority = "P1"
+phase_target = 7
+inventory_ref = "inventory/options-linux.json#input-record-path"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "7.E2 (design Record button; Shift+R hotkey); the honest sout story: 3 of VLC's 46 sout-family capabilities in v1 (PCM encode, lossless remux, file/pipe sink) per feasibility subsystems §6; input-record-path/-native options in inventory."
+
+[[feature]]
+id = "playback-format-detection"
+category = "playback-op"
+vlc_name = "Format detection (probe)"
+description = "Signature scoring over a bounded probe window: format id, confidence, track hints"
+priority = "P0"
+phase_target = 2
+inventory_ref = "docs/13-agent-wave-program.md#2.A2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "2.A2 media-probe crate; probe fixtures (both container variants + garbage + truncated); every demux/codec row depends on this; VLC analog = the score-ranked module probe system (census scores, e.g. ffmpeghw 10001)."
+
+# =============================================================================
+# category: audio-feature — 11 rows
+# Sources: ui-inventory.md §2.11 (A/V effects dialog values) + options-summary.md §5 + feasibility/sections/subsystems.md §4.1 (the four v1 filters) + modules census.
+# =============================================================================
+
+[[feature]]
+id = "afeat-volume"
+category = "audio-feature"
+vlc_name = "Volume/mute/gain"
+description = "Master volume, mute, gain, step sizes"
+priority = "P0"
+phase_target = 2
+inventory_ref = "inventory/options-linux.json#volume-step"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "2.C3 audio path v0 (volume, channel map, straight mix); Ctrl+↑/↓/m design overrides (C-02); --volume-step/--gain options."
+
+[[feature]]
+id = "afeat-equalizer"
+category = "audio-feature"
+vlc_name = "Equalizer"
+description = "10-band EQ (60/170/310/600/1k/3k/6k/12k/14k/16k Hz) + preamp, 18 presets, 2-pass"
+priority = "P1"
+phase_target = 4
+vlc_modules = ["equalizer"]
+inventory_ref = "inventory/options-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Design panels exist (Audio - Equalizer.svg, EQ presets.svg); self-build biquad S, zero new deps; VLC defaults binary-corroborated; [doc 13 FILTER CARD GAP — no engine filter-implementation card, escalated feasibility subsystems §4.1]."
+
+[[feature]]
+id = "afeat-compressor"
+category = "audio-feature"
+vlc_name = "Compressor"
+description = "Dynamic-range compressor (RMS/peak, attack, release, threshold, ratio, knee, makeup)"
+priority = "P1"
+phase_target = 4
+vlc_modules = ["compressor"]
+inventory_ref = "inventory/options-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "VLC defaults (25 ms/100 ms/−11 dB/4:1/5 dB/7 dB) binary-corroborated; envelope-follower self-build S; same card-gap note as equalizer."
+
+[[feature]]
+id = "afeat-spatializer"
+category = "audio-feature"
+vlc_name = "Spatializer"
+description = "Room spatializer (size/width/wet/dry/damp)"
+priority = "P2"
+phase_target = 4
+vlc_modules = ["spatializer"]
+inventory_ref = "inventory/options-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Freeverb-style network self-build S; design panel exists (Audio - Spatializer Settings.svg)."
+
+[[feature]]
+id = "afeat-stereowiden"
+category = "audio-feature"
+vlc_name = "Stereo widener"
+description = "Stereo widening (delay/feedback/crossfeed/dry-mix)"
+priority = "P2"
+phase_target = 4
+vlc_modules = ["stereo_widen"]
+inventory_ref = "inventory/options-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Design mock feedback 0.2 vs VLC default 0.3 (D-3: engine default 0.3, mock = placeholder); delay+crossfeed self-build S."
+
+[[feature]]
+id = "afeat-resampler"
+category = "audio-feature"
+vlc_name = "Resampling + channel conversion"
+description = "Bounded audio resampling and channel-map conversion between decode and output"
+priority = "P1"
+phase_target = 3
+inventory_ref = "inventory/modules-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "3.B1; VLC speex_resampler/soxr pure-Rust analog decisions pending Phase 3; stereo-mode remap (Stereo/Left/Right/Reverse) later (see afeat-stereo-mode)."
+
+[[feature]]
+id = "afeat-stereo-mode"
+category = "audio-feature"
+vlc_name = "Stereo mode"
+description = "Channel-mode remap: Stereo/Left/Right/Reverse stereo"
+priority = "P2"
+phase_target = 8
+inventory_ref = "inventory/ui-inventory.md#s1.3"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Audio menu Stereo Mode ▸; 'audio filter/channel remap later phase' per crosswalk; not-adopted-v1 recorded."
+
+[[feature]]
+id = "afeat-visualizations"
+category = "audio-feature"
+vlc_name = "Audio visualizations"
+description = "Spectrum/scope/VU meter/goom-class visualizers"
+priority = "P2"
+phase_target = 8
+vlc_modules = ["goom", "projectm", "vsxu"]
+inventory_ref = "inventory/ui-inventory.md#s1.3"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Visualization plugins were excluded Debian debs in the oracle; design Audio Visualizer panel exists — engine feature later; no v1 card."
+
+[[feature]]
+id = "afeat-replaygain"
+category = "audio-feature"
+vlc_name = "Replay gain"
+description = "Replay-gain album/track volume normalization family"
+priority = "P2"
+phase_target = 8
+inventory_ref = "inventory/options-linux.json#audio-replay-gain-mode"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "--replay-gain-* option cluster in inventory; maps to audio area settings; later."
+
+[[feature]]
+id = "afeat-passthrough"
+category = "audio-feature"
+vlc_name = "S/PDIF bitstream passthrough"
+description = "AC-3/DTS passthrough to capable outputs (spdif output mode, not decode)"
+priority = "P2"
+phase_target = 7
+vlc_modules = ["spdif"]
+inventory_ref = "inventory/formats.json#ac3-eac3"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Oracle spdif evidence = passthrough-only (decode NOT exercised [V3]); output-mode concern in doc 03 AudioSink scope; WASAPI pass-through noted in 3.0.0 release notes."
+
+[[feature]]
+id = "afeat-audio-device-switch"
+category = "audio-feature"
+vlc_name = "Audio device selection"
+description = "Enumerate and switch output devices at runtime"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s1.3"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "audio.list-devices/set-device commands; Shift+A cycle hotkey; Audio Device menu; adopted per crosswalk."
+
+# =============================================================================
+# category: video-feature — 10 rows
+# Sources: ui-inventory.md §1.4/§2.11 + options-summary.md §5 + feasibility/sections/subsystems.md §4.1–4.2 (insertion points, census honesty).
+# =============================================================================
+
+[[feature]]
+id = "vfeat-aspect-ratio"
+category = "video-feature"
+vlc_name = "Aspect ratio"
+description = "Aspect-ratio override: Default, 1:1, 4:3, 16:9, 16:10, 2.21:1, 2.35:1, 2.39:1, 5:4"
+priority = "P0"
+phase_target = 4
+inventory_ref = "inventory/options-linux.json#aspect-ratio"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "a cycle hotkey; presentation-time geometry (no re-decode) per feasibility subsystems §4.1 [PROPOSAL]."
+
+[[feature]]
+id = "vfeat-crop"
+category = "video-feature"
+vlc_name = "Crop"
+description = "Crop presets (11 ratios) + per-edge pixel crop"
+priority = "P1"
+phase_target = 4
+vlc_modules = ["croppadd"]
+inventory_ref = "inventory/options-linux.json#crop"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "c cycle + Alt+c/d/f/r pixel hotkeys; design Video - Crop.svg panel; geometry-only."
+
+[[feature]]
+id = "vfeat-zoom-scale"
+category = "video-feature"
+vlc_name = "Zoom + autoscale"
+description = "Zoom quarter/half/original/double, scale-factor steps, autoscale toggle"
+priority = "P1"
+phase_target = 4
+vlc_modules = ["scale"]
+inventory_ref = "inventory/options-linux.json#zoom"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "z + Alt+1–4 + o/Alt+o/Alt+Shift+o hotkeys; croppadd/scale module family."
+
+[[feature]]
+id = "vfeat-colors-adjust"
+category = "video-feature"
+vlc_name = "Adjust (colors)"
+description = "Hue ±180, brightness/contrast 0–2, saturation 0–3, gamma"
+priority = "P1"
+phase_target = 4
+vlc_modules = ["adjust"]
+inventory_ref = "inventory/options-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Video - Essential.svg panel; shader-uniform implementation [PROPOSAL] (one pipeline, zero extra copies, doc 03 §2.3 rule 3)."
+
+[[feature]]
+id = "vfeat-sharpen-gradfun"
+category = "video-feature"
+vlc_name = "Sharpen + debanding"
+description = "Sharpen (sigma) and banding removal (gradfun radius)"
+priority = "P2"
+phase_target = 4
+vlc_modules = ["sharpen", "gradfun"]
+inventory_ref = "inventory/options-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Essential panel companions (sigma 0.05, radius 16 defaults)."
+
+[[feature]]
+id = "vfeat-color-fx"
+category = "video-feature"
+vlc_name = "Color effects"
+description = "Color extraction/threshold/similarity, negate, posterize, gradient, cartoon, sepia"
+priority = "P2"
+phase_target = 4
+vlc_modules = ["extract", "colorthres", "invert", "posterize", "gradient", "sepia"]
+inventory_ref = "inventory/options-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Video - Colors.svg panel; same shader path."
+
+[[feature]]
+id = "vfeat-hdr"
+category = "video-feature"
+vlc_name = "HDR options"
+description = "HDR tone-mapping controls per design HDR Options panel"
+priority = "P2"
+phase_target = 7
+inventory_ref = "docs/inventory/ui-inventory.md#s6"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Fields present only when the engine supports them (4.F3); tone-mapping scope [VERIFY]; no VLC-3.0.23-direct analog (design-led)."
+
+[[feature]]
+id = "vfeat-deinterlace"
+category = "video-feature"
+vlc_name = "Deinterlacing"
+description = "Deinterlace modes: Discard, Blend, Mean, Bob, Linear, X, Yadif, Yadif(2x)"
+priority = "P1"
+phase_target = 6
+vlc_modules = ["deinterlace", "vdpau_deinterlace", "vaapi_filters"]
+inventory_ref = "inventory/options-linux.json#deinterlace"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
+evidence = ""
+blocked_reason = "Heavy DSP + hw-coupled (postproc/hqdn3d class); 'Later' per feasibility subsystems §4.1 — Phase 6+ decision card [PROPOSAL], no v1 implementation. Settings UI must render the control disabled-with-reason meanwhile (config-never-invents, F1/F2)."
+notes = "d/Shift+d hotkeys seeded but engine-blocked; deinterlace/-mode options in inventory."
+
+[[feature]]
+id = "vfeat-rotate-transform"
+category = "video-feature"
+vlc_name = "Rotate/transform/mirror"
+description = "Rotation (90/180/270), flip, mirror geometry transforms"
+priority = "P2"
+phase_target = 8
+vlc_modules = ["rotate", "transform"]
+inventory_ref = "inventory/modules-summary.md#s4"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Geometry-only transforms; later; design has no dedicated panel [VERIFY-DESIGN]."
+
+[[feature]]
+id = "vfeat-novelty-filters"
+category = "video-feature"
+vlc_name = "Novelty/analysis filters"
+description = "puzzle, ball, mosaic, psychedelic, oldmovie, vhs, motiondetect, gaussianblur, ~90 non-core filter registrations"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["puzzle", "ball", "mosaic", "psychedelic", "oldmovie", "vhs", "motiondetect", "gaussianblur"]
+inventory_ref = "inventory/modules-summary.md#s4"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "No design panel and no v1 claim (feasibility subsystems §4.2 census honesty); v1 covers ~6-8/50 video-filter registrations + renderer-internal converters; full wont-do list in matrix-seed-notes §5."
+
+# =============================================================================
+# category: playlist-feature — 9 rows
+# Sources: options-linux.json (Playlist category, 35 options) + ui-inventory.md §2 (playlist panel) + options-summary.md §5 mapping.
+# =============================================================================
+
+[[feature]]
+id = "plfeat-queue-model"
+category = "playlist-feature"
+vlc_name = "Queue semantics"
+description = "Queue with reorder, drag-and-drop, play-next/play-later, remove, clear"
+priority = "P0"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "4.D1; design playlist Details/Select Files flows; playlist.* command catalog (doc 05 §2.9)."
+
+[[feature]]
+id = "plfeat-repeat-loop-shuffle"
+category = "playlist-feature"
+vlc_name = "Repeat/loop/shuffle"
+description = "Repeat-one, repeat-all (loop), shuffle toggles"
+priority = "P0"
+phase_target = 4
+inventory_ref = "inventory/options-linux.json#random"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "--loop/--repeat/--random options; r/l hotkeys; C-04: repeat-cycle key unbound by design (button instead); Q2 toggle-arg shape open."
+
+[[feature]]
+id = "plfeat-save-load"
+category = "playlist-feature"
+vlc_name = "Playlist save/load"
+description = "Save/export (M3U, XSPF, M3U8; VLC also HTML) and load"
+priority = "P1"
+phase_target = 5
+vlc_modules = ["export"]
+inventory_ref = "inventory/formats.json#xspf"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "4 playlist-export registrations in census; design new playlist/save flows; M3U v0 write in 4.D1."
+
+[[feature]]
+id = "plfeat-sort-search"
+category = "playlist-feature"
+vlc_name = "Sort + search"
+description = "Column-header sort, search filter, view options"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Sorting Options/View Options design surfaces; Sort by Title in context menu."
+
+[[feature]]
+id = "plfeat-media-library"
+category = "playlist-feature"
+vlc_name = "Media library / watch folders"
+description = "Media library, recursive directory scan, ignore-filetypes, hidden files"
+priority = "P2"
+phase_target = 4
+inventory_ref = "inventory/options-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "--media-library/--recursive/--ignore-filetypes map to library seed area; bounded enumeration behind access trait (5.O3)."
+
+[[feature]]
+id = "plfeat-recent-items"
+category = "playlist-feature"
+vlc_name = "Recent media"
+description = "Recent-items submenu (design: Profile (Movies))"
+priority = "P2"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s1.1"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Open Recent ▸ [VERIFY VLC item]; design-authored equivalent."
+
+[[feature]]
+id = "plfeat-autostart-behaviors"
+category = "playlist-feature"
+vlc_name = "Queue behaviors"
+description = "Autoplay/autostart, play-and-exit/-stop/-pause, cork, one-instance"
+priority = "P2"
+phase_target = 4
+inventory_ref = "inventory/options-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Playlist-category options cluster; one-instance = desktop-shell concern (Tauri single-instance)."
+
+[[feature]]
+id = "plfeat-service-discovery-panel"
+category = "playlist-feature"
+vlc_name = "Network SD sources panel"
+description = "Podcasts/SAP/Icecast/Freebox playlist sources (VLC side)"
+priority = "P3"
+phase_target = 8
+inventory_ref = "inventory/ui-inventory.md#s2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Not-adopted-v1 (SD framework later; gap recorded per MP §14); see sd-* rows."
+
+[[feature]]
+id = "plfeat-metadata"
+category = "playlist-feature"
+vlc_name = "Metadata + cover art"
+description = "Read tags (title/artist/album/year) and locate cover art; optional network metadata fetch behind a privacy gate"
+priority = "P1"
+phase_target = 4
+vlc_modules = ["taglib", "folder"]
+inventory_ref = "inventory/modules-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "VLC splits meta reader/fetcher/writer/art finder/fingerprinter — we collapse to one metadata-provider kind with a provides-manifest (doc 06 §3.2, census-confirmed); network fetch gated by privacy area (--metadata-network-access); Acoustid fingerprinting not-adopted-v1."
+
+# =============================================================================
+# category: config-feature — 20 rows
+# Sources: options-summary.md §5 (1476 options → 13 seed areas mapping) + doc 07 §5/§8 + ui-inventory.md §2 row 18 + doc 13 waves 4.E/4.H.
+# =============================================================================
+
+[[feature]]
+id = "config-area-global"
+category = "config-feature"
+vlc_name = "Preferences → global area"
+description = "Global/session settings area (language, verbosity-adjacent, app identity)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/options-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+
+[[feature]]
+id = "config-area-interface"
+category = "config-feature"
+vlc_name = "Preferences → interface area"
+description = "Interface settings area (shell behavior, window config)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/options-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+
+[[feature]]
+id = "config-area-privacy"
+category = "config-feature"
+vlc_name = "Preferences → privacy area"
+description = "Privacy settings area (usage stats opt-in-off, metadata-network-access, keystore)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/options-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+
+[[feature]]
+id = "config-area-playback"
+category = "config-feature"
+vlc_name = "Preferences → playback area"
+description = "Playback settings area (preferred languages, track settings, start/stop-time)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/options-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+
+[[feature]]
+id = "config-area-video"
+category = "config-feature"
+vlc_name = "Preferences → video area"
+description = "Video settings area (display, deinterlace default, snapshot)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/options-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+
+[[feature]]
+id = "config-area-audio"
+category = "config-feature"
+vlc_name = "Preferences → audio area"
+description = "Audio settings area (device, exclusivity, volume steps)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/options-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+
+[[feature]]
+id = "config-area-subtitles"
+category = "config-feature"
+vlc_name = "Preferences → subtitles area"
+description = "Subtitles/OSD settings area (font, scale, sync, color)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/options-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+
+[[feature]]
+id = "config-area-controls"
+category = "config-feature"
+vlc_name = "Preferences → controls area"
+description = "Controls settings area (skip amounts 3/10/60/300s, wheel modes, shortcuts entry)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/options-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+
+[[feature]]
+id = "config-area-library"
+category = "config-feature"
+vlc_name = "Preferences → library area"
+description = "Library settings area (watch folders, scan, ignore types)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/options-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+
+[[feature]]
+id = "config-area-network"
+category = "config-feature"
+vlc_name = "Preferences → network area"
+description = "Network settings area (proxy, caching, timeouts)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/options-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+
+[[feature]]
+id = "config-area-performance"
+category = "config-feature"
+vlc_name = "Preferences → performance area"
+description = "Performance settings area (caching cluster, hw-decode toggle per ADR-001)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/options-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+
+[[feature]]
+id = "config-area-recording"
+category = "config-feature"
+vlc_name = "Preferences → recording area"
+description = "Recording settings area (dir, format, include-subtitles)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/options-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+
+[[feature]]
+id = "config-area-extensions"
+category = "config-feature"
+vlc_name = "Preferences → extensions area"
+description = "Extensions settings area (plugin enable/disable, WASM)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/options-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+
+[[feature]]
+id = "config-rebrand"
+category = "config-feature"
+vlc_name = "Rebrand acceptance"
+description = "Nova-fixture rebrand: window title, installer identity, About, CLI, logs, docs (MP §5 acceptance proof)"
+priority = "P0"
+phase_target = 4
+inventory_ref = "docs/07-config-driven-system.md#s8"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "4.H2 automated assertions — the MP §5 proof that nothing is hardcoded; product.toml driven."
+
+[[feature]]
+id = "config-profiles"
+category = "config-feature"
+vlc_name = "Settings profiles"
+description = "Named settings profiles with export/import"
+priority = "P2"
+phase_target = 4
+inventory_ref = "docs/07-config-driven-system.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "doc 07 profiles; design Settings flows."
+
+[[feature]]
+id = "config-hotkey-editor"
+category = "config-feature"
+vlc_name = "Keyboard-shortcuts editor"
+description = "Dedicated shortcuts dialog: rebinding, conflict detection, Global column, search"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s6"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Design-new surface (VLC 3.0.23 has none — hotkeys live in Preferences→Hotkeys); edits the keymap user layer; 4.E2."
+
+[[feature]]
+id = "config-keymap-layers"
+category = "config-feature"
+vlc_name = "Keymap seed + user layer"
+description = "Default keymap (141 bindings) + user layer + platform overrides (9 macOS [VERIFY] entries)"
+priority = "P0"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "keymaps/default.toml from 0.B3; D-003 precedence (design wins over VLC); every entry carries source provenance; Q1 seed-format reconciliation open."
+
+[[feature]]
+id = "config-localization"
+category = "config-feature"
+vlc_name = "Localization"
+description = "en-US 100% key coverage, pseudo-locale proof, generated docs/CLI help"
+priority = "P1"
+phase_target = 4
+inventory_ref = "docs/13-agent-wave-program.md#4.H3"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "4.H3; no hardcoded strings (lint); placeholder validation."
+
+[[feature]]
+id = "config-advanced-folding"
+category = "config-feature"
+vlc_name = "Advanced option folding"
+description = "advanced flag folds rare options behind an expert mode"
+priority = "P2"
+phase_target = 4
+inventory_ref = "inventory/options-summary.md#s1"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "58.3% of VLC's option surface is advanced-folded (861/1476) — schema `advanced` field (doc 07 §5.2) reproduces a dominant VLC UX pattern."
+
+[[feature]]
+id = "config-defaults-source"
+category = "config-feature"
+vlc_name = "Defaults sourcing"
+description = "Schema default seeds sourced from config-walk dumps (vlcrc-style), not help text"
+priority = "P2"
+phase_target = 4
+inventory_ref = "inventory/options-summary.md#s4"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "D5: 1187 defaults live only in vlcrc; V7 guidance for doc 07 §5.3 G2; 252/252 default agreement cross-check."
+
+# =============================================================================
+# category: plugin-feature — 4 rows
+# Sources: modules-summary.md §5 (16 plugin kinds mapping) + doc 06 §1/§3.2 + doc 09 + doc 13 waves 1.D/4.E4/7.
+# =============================================================================
+
+[[feature]]
+id = "plugin-builtin-registry"
+category = "plugin-feature"
+vlc_name = "Builtin plugin registry"
+description = "Enumerate/enable/disable builtin plugins (system.list-plugins, plugin-enable/disable)"
+priority = "P1"
+phase_target = 4
+vlc_modules = ["lua"]
+inventory_ref = "inventory/modules-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Manifests per doc 06 §3.2 (one-package-many-claims mirrors VLC: playlist 15 registrations, lua 11 across 8 capabilities); Plugins and Extensions dialog adapted."
+
+[[feature]]
+id = "plugin-codec-api"
+category = "plugin-feature"
+vlc_name = "Codec plugin API"
+description = "decoder/demuxer/access plugin contracts behind codec-api (packetizer gap recorded)"
+priority = "P1"
+phase_target = 2
+inventory_ref = "docs/06-plugin-architecture.md#s1"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Contracts land Phase 1 (1.D); first vertical exercises them Phase 2. VLC's packetizer capability (25 registrations) has NO v1 kind — doc 03/06 open item (raw-ES leans on packetizers); stream_filter cache/prefetch/inflate become access-kind internals."
+
+[[feature]]
+id = "plugin-wasm-extensions"
+category = "plugin-feature"
+vlc_name = "WASM sandboxed extensions"
+description = "Sandboxed WASM extension plugins (replaces Lua per MP §14)"
+priority = "P2"
+phase_target = 7
+vlc_modules = ["lua"]
+inventory_ref = "docs/09-web-wasm-target.md"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Runtime ADR at Phase 0 exit; wasm-size risk R-31; extension capability in census = lua only (our ui-panel kind is extension-only per doc 06 §1.4)."
+
+[[feature]]
+id = "plugin-addon-store"
+category = "plugin-feature"
+vlc_name = "Addons finder/storage"
+description = "Addon discovery and storage (extension store)"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["addons finder", "addons storage"]
+inventory_ref = "inventory/modules-summary.md#s5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "VLC's 3 addons-finder + 1 addons-storage registrations; future extension store; not-adopted-v1."
+
+# =============================================================================
+# category: platform-feature — 18 rows
+# Sources: platform-{windows,macos,linux}.md + platform-synthesis.md + feasibility/sections/subsystems.md §3/§7 + modules-summary.md §6 (platform diffs) + formats.json disc-family.
+# =============================================================================
+
+[[feature]]
+id = "platform-aout-cpal"
+category = "platform-feature"
+vlc_name = "Cross-platform audio output"
+description = "Default audio output path (cpal-first with escape hatches) on all desktops"
+priority = "P0"
+phase_target = 2
+vlc_modules = ["alsa", "pulse", "adummy", "afile", "amem"]
+inventory_ref = "inventory/platform-synthesis.md"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "ADR-005 recommendation [PROPOSAL]: cpal conditional-E2 + pre-authorized direct adapters; first vertical runs dummy/null aout in CI, real sinks labeled; Linux purity hole: only pulseaudio-protocol is pure (R-29)."
+
+[[feature]]
+id = "platform-aout-wasapi"
+category = "platform-feature"
+vlc_name = "Windows WASAPI/MMDevice"
+description = "Windows audio output incl. shared/exclusive modes"
+priority = "P1"
+phase_target = 7
+vlc_modules = ["mmdevice", "directsound", "waveout"]
+inventory_ref = "inventory/platform-windows.md"
+status = { windows = "not_started", linux = "unsupported", macos = "unsupported", web = "unsupported" }
+evidence = ""
+blocked_reason = "Windows-only audio path; each platform has its own aout row (doc 02 §4.5 pattern). Exclusive-mode scope = Lead call (SV-22); pass-through noted in 3.0.0 release notes; DirectSound/waveout legacy rows not targeted."
+notes = "VLC module identity [VERIFY V1/V6 hardware census]."
+
+[[feature]]
+id = "platform-aout-coreaudio"
+category = "platform-feature"
+vlc_name = "macOS CoreAudio (auhal)"
+description = "macOS audio output via AudioUnit"
+priority = "P1"
+phase_target = 7
+vlc_modules = ["auhal"]
+inventory_ref = "inventory/platform-macos.md"
+status = { windows = "unsupported", linux = "unsupported", macos = "not_started", web = "unsupported" }
+evidence = ""
+blocked_reason = "macOS-only audio path (doc 02 §4.5 pattern); direct adapter pre-authorized [PROPOSAL] per ADR-005 inputs."
+notes = "Module identity [VERIFY V2/V5]."
+
+[[feature]]
+id = "platform-aout-pipewire"
+category = "platform-feature"
+vlc_name = "Linux PipeWire/ALSA native"
+description = "Linux-native audio path for the PipeWire era"
+priority = "P1"
+phase_target = 7
+inventory_ref = "inventory/platform-linux.md"
+status = { windows = "unsupported", linux = "not_started", macos = "unsupported", web = "unsupported" }
+evidence = ""
+blocked_reason = "Linux-only path; ADR-005's hardest cell (R-29): every option except pulseaudio-protocol links C (ALSA-lib et al.); target is honest config-level backend switching."
+notes = "VLC 3.0.23 Debian ships alsa+pulse only; PipeWire-era expectation recorded in modules-summary §5.8."
+
+[[feature]]
+id = "platform-vout-wgpu"
+category = "platform-feature"
+vlc_name = "wgpu video presenter"
+description = "Unified video output across desktops (wgpu + winit surfaces)"
+priority = "P0"
+phase_target = 2
+vlc_modules = ["x11", "xcb", "wayland", "direct3d9", "direct3d11", "glwin32", "macosx"]
+inventory_ref = "inventory/platform-synthesis.md"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "ADR-003; VLC's 23 vout/window/GL-provider registrations collapse to one engine-internal kind (modules-summary §5.9); video-in-webview prototype 2.D3-V feeds ADR-003; D3D11↔12 interop spike = top Windows unknown (SV-7 class)."
+
+[[feature]]
+id = "platform-hwdecode-h264"
+category = "platform-feature"
+vlc_name = "H.264 hardware decode adapters"
+description = "Per-OS hardware decode: Media Foundation (Win), VideoToolbox (mac), VA-API (Linux)"
+priority = "P1"
+phase_target = 7
+vlc_modules = ["avcodec", "dxva2", "vaapi", "vdpau_avcodec"]
+inventory_ref = "inventory/platform-synthesis.md"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Census: avcodec ffmpeghw score 10001 (highest in dump) — hardware preferred by default, corroborating MP §2/ADR-001 hw-first. Win module identity [VERIFY V4]; VT identity [VERIFY V5]; VA-API E2 classification = open Lead question (SV-28). Adapters 7.B1–7.B3."
+
+[[feature]]
+id = "platform-hwdecode-hevc"
+category = "platform-feature"
+vlc_name = "HEVC hardware decode adapters"
+description = "Per-OS HEVC hardware decode incl. 8/10/12-bit + 4:2:2/4:4:4 (Intel)"
+priority = "P1"
+phase_target = 7
+vlc_modules = ["avcodec", "dxva2", "vaapi"]
+inventory_ref = "inventory/platform-synthesis.md"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Windows Store paywall wrinkle (see codec-video-hevc); conditional on the H.264 hw path landing (5.G2)."
+
+[[feature]]
+id = "platform-hwdecode-vp9"
+category = "platform-feature"
+vlc_name = "VP9 hardware decode adapters"
+description = "Per-OS VP9 hardware decode"
+priority = "P1"
+phase_target = 7
+vlc_modules = ["avcodec", "dxva2", "vaapi"]
+inventory_ref = "inventory/platform-synthesis.md"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "MF VP9 extension preinstalled Win10 1709+ (probe anyway); all 3 VA-API vendor classes."
+
+[[feature]]
+id = "platform-hwdecode-av1"
+category = "platform-feature"
+vlc_name = "AV1 hardware decode adapters"
+description = "Per-OS AV1 hardware decode where present (software rav1d is the fallback)"
+priority = "P1"
+phase_target = 7
+vlc_modules = ["avcodec", "vaapi"]
+inventory_ref = "inventory/platform-synthesis.md"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Intel TGL-class+/AMD RDNA2+/NVIDIA shim; free Store extension; Safari hw-only gen-dependent; UI states active backend (feasibility video-codecs §1 row 1)."
+
+[[feature]]
+id = "platform-hwdecode-mpeg-family"
+category = "platform-feature"
+vlc_name = "MPEG-2/ASP/VC-1/MJPEG hw adapters"
+description = "Per-OS hardware decode for legacy codecs"
+priority = "P2"
+phase_target = 7
+vlc_modules = ["avcodec", "vaapi"]
+inventory_ref = "inventory/platform-synthesis.md"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "MPEG-2: MF extension + VA-API classes; ASP: Windows-only (no VA-API class); VC-1: Intel + NVIDIA shim; MJPEG: Intel JPEG class."
+
+[[feature]]
+id = "platform-web-webcodecs"
+category = "platform-feature"
+vlc_name = "WebCodecs decode path"
+description = "Browser-provided decode for the web target (av01/avc1/avc3/hev1/hvc1/vp8/vp09)"
+priority = "P1"
+phase_target = 7
+inventory_ref = "docs/feasibility/sections/video-codecs.md#s4"
+status = { windows = "unsupported", linux = "unsupported", macos = "unsupported", web = "not_started" }
+evidence = ""
+blocked_reason = "web-only capability (MP §10): desktop platforms use native OS decoders; ADR-008 owns the scope (6 decision points). Browser gaps are real and must be reported honestly (Firefox 130 desktop-only, Edge needs platform HEVC, WebKitGTK flags)."
+notes = "W3C registry 'not required to support any particular codec' — probe-first, typed fallbacks."
+
+[[feature]]
+id = "platform-web-target"
+category = "platform-feature"
+vlc_name = "Web (WASM) build"
+description = "Web build reaching playback parity through the same command layer"
+priority = "P1"
+phase_target = 7
+inventory_ref = "docs/09-web-wasm-target.md"
+status = { windows = "unsupported", linux = "unsupported", macos = "unsupported", web = "not_started" }
+evidence = ""
+blocked_reason = "web-only deliverable (MP §10); desktop columns not applicable."
+notes = "Prototype 2.D3-V is Phase 2; parity target Phase 7; wasm-size risk R-31; fetch+Range I/O model per doc 09 §6."
+
+[[feature]]
+id = "platform-device-capture"
+category = "platform-feature"
+vlc_name = "Capture devices"
+description = "dshow (Win), v4l2/DV/DVB (Linux), avcapture (macOS), decklink capture"
+priority = "P2"
+phase_target = 8
+vlc_modules = ["dshow", "v4l2", "dv", "dtv", "avcapture", "decklink"]
+inventory_ref = "inventory/modules-summary.md#s6"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "unsupported" }
+evidence = ""
+blocked_reason = "Hardware-gated: cannot be honestly verified without devices (MP §13/§14); no pure-Rust path that matters (decklink crate = NDI C bindings; v4l2 = C-ABI crates); untestable in CI. Web: capture N/A (doc 09 §8.2)."
+notes = "Registry rows at 7.D1; revisit only with hardware + policy."
+
+[[feature]]
+id = "platform-disc-dvd"
+category = "platform-feature"
+vlc_name = "DVD-Video navigation"
+description = "DVD menus/titles/angles navigation (dvdnav + CSS)"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["dvdnav", "dvdread"]
+inventory_ref = "inventory/formats.json#disc-family"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "unsupported" }
+evidence = ""
+blocked_reason = "libdvdnav/libdvdcss are C + CSS legal exposure (MP §14; doc 14); μADR brief 'blocked, no E2 path' (feasibility subsystems §7.3); ADR-008 owns scope. Web: no disc access."
+notes = "VTS file fallback would still need CSS for encrypted discs — no partial path claimed."
+
+[[feature]]
+id = "platform-disc-bluray"
+category = "platform-feature"
+vlc_name = "Blu-ray"
+description = "Blu-ray menu navigation (libbluray) + BDMV m2ts fallback"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["libbluray"]
+inventory_ref = "inventory/formats.json#disc-family"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "unsupported" }
+evidence = ""
+blocked_reason = "libbluray is C, crates.io bluray NOT_FOUND; menus blocked (feasibility subsystems §7.2). Partial fallback [PROPOSAL]: BDMV/STREAM/*.m2ts opens as MPEG-TS (5.I1) with an honest no-menus state. Web: no disc access."
+notes = "IFO-metadata-only option recorded as ADR-008 input."
+
+[[feature]]
+id = "platform-disc-cdda"
+category = "platform-feature"
+vlc_name = "Audio CD (CD-DA) + VCD/SVCD"
+description = "Audio CD playback (cdda) and VCD/SVCD video discs"
+priority = "P2"
+phase_target = 7
+vlc_modules = ["cdda", "vcd"]
+inventory_ref = "inventory/formats.json#disc-family"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "No-CSS disc case — simplest disc family; vcd/svcd siblings; scope decision rides 7.D1/ADR-008; oracle census-only (not probed)."
+
+[[feature]]
+id = "platform-zero-copy-interop"
+category = "platform-feature"
+vlc_name = "Zero-copy hw interop"
+description = "Zero-copy frame path between hw decoders and the wgpu renderer (D3D11↔12 interop et al.)"
+priority = "P2"
+phase_target = 7
+inventory_ref = "inventory/platform-synthesis.md"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Spike-gated (SV-7/8/9 class); honest fallback = one copy; measured not assumed (doc 12)."
+
+[[feature]]
+id = "platform-desktop-integration"
+category = "platform-feature"
+vlc_name = "Desktop integration"
+description = "System tray, notifications, screensaver inhibit, file associations"
+priority = "P2"
+phase_target = 7
+vlc_modules = ["notify", "inhibit"]
+inventory_ref = "inventory/ui-inventory.md#s3.3"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Tauri shell surface; inhibit = host app service (xdg/dbus in VLC census); notify was an excluded deb [VERIFY]; tray items [VERIFY V-03]."
+
+# =============================================================================
+# category: services-discovery — 6 rows
+# Source: feasibility/sections/subsystems.md §5.2 (26 SD registrations; minimal-v1 recommendation) + modules-summary.md §5.16.
+# =============================================================================
+
+[[feature]]
+id = "sd-directory-watch"
+category = "services-discovery"
+vlc_name = "Local volumes/removable media"
+description = "Device/media events for the library (udev-class + dir-watch)"
+priority = "P2"
+phase_target = 7
+vlc_modules = ["udev", "mediadirs"]
+inventory_ref = "docs/feasibility/sections/subsystems.md#s5.2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "7.D1 core; udev crate = libudev C bindings [VERIFY classification: arguably OS service]; inotify/dir-watch alternative [PROPOSAL]; VLC has 3 udev + 3 mediadirs registrations."
+
+[[feature]]
+id = "sd-podcast"
+category = "services-discovery"
+vlc_name = "Podcast directory"
+description = "Podcast feed subscription/discovery"
+priority = "P2"
+phase_target = 7
+vlc_modules = ["podcast"]
+inventory_ref = "docs/feasibility/sections/subsystems.md#s5.2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Plain HTTP+XML (roxmltree), S; library-pane-dependent; VLC podcast is also a playlist importer."
+
+[[feature]]
+id = "sd-upnp"
+category = "services-discovery"
+vlc_name = "UPnP media servers"
+description = "Discover and browse UPnP/DLNA media servers"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["upnp"]
+inventory_ref = "docs/feasibility/sections/subsystems.md#s5.2"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
+evidence = ""
+blocked_reason = "Minimal-SD recommendation (feasibility subsystems §5.2 [PROPOSAL]): rupnp 3.0.0 is feasible but async-edge + niche; no design panel for a network-discovery tree. Revisit = Phase 7 optional tier."
+
+[[feature]]
+id = "sd-mdns-renderers"
+category = "services-discovery"
+vlc_name = "mDNS renderer discovery"
+description = "Discover network renderers (Chromecast-style) via mDNS/DNS-SD"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["avahi"]
+inventory_ref = "docs/feasibility/sections/subsystems.md#s5.2"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
+evidence = ""
+blocked_reason = "Same minimal-SD recommendation; mdns-sd 0.21.6 is pure (updated 2026-10-19) so the revisit is cheap; no v1 sink to cast to."
+
+[[feature]]
+id = "sd-sap"
+category = "services-discovery"
+vlc_name = "SAP announcements"
+description = "Session Announcement Protocol (LAN multicast streams)"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["sap"]
+inventory_ref = "docs/feasibility/sections/subsystems.md#s5.2"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
+evidence = ""
+blocked_reason = "Multicast+SDP niche; minimal-SD recommendation; paired with blocked udp/rtp anyway."
+
+[[feature]]
+id = "sd-census-tail"
+category = "services-discovery"
+vlc_name = "SD census tail"
+description = "pulselist, mtp, xcb_apps, lua SD interfaces"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["pulselist", "mtp", "xcb_apps", "lua"]
+inventory_ref = "inventory/modules-summary.md#s2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Not-adopted-v1: pulselist superseded by our aout device enumeration; mtp/xcb_apps niche; lua SD replaced by WASM model. 26 SD-bucket registrations total in census."
+
+# =============================================================================
+# category: ui-screen — 11 rows
+# Sources: ui-inventory.md (menus/dialogs/modes) + design/figma screens + doc 13 waves 4.A–4.H + doc 08.
+# =============================================================================
+
+[[feature]]
+id = "ui-screen-player"
+category = "ui-screen"
+vlc_name = "Player surface"
+description = "Main player screen: video canvas, chrome show/auto-hide, empty state, loading/buffering/unsupported/error states"
+priority = "P0"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s3.4"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "4.C1–4.C3; state matrix per doc 08 §5 (no fabricated success); fullscreen controller 'i'."
+
+[[feature]]
+id = "ui-screen-playlist-library"
+category = "ui-screen"
+vlc_name = "Playlist / library sidebar"
+description = "Playlist panel (VLC Ctrl+L docked) → library sidebar + file browser"
+priority = "P0"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "4.D1; sorting/view options; drag reorder; design L-key Show/Hide File Browser."
+
+[[feature]]
+id = "ui-screen-settings"
+category = "ui-screen"
+vlc_name = "Settings screens"
+description = "Settings framework: 13 generated area screens, search, dirty-state, restart badges, reset-to-default"
+priority = "P0"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "4.E1–4.E4; VLC Simple/All modes → search + advanced folding; generated-screen snapshot test detects schema drift."
+
+[[feature]]
+id = "ui-screen-media-info"
+category = "ui-screen"
+vlc_name = "Media info"
+description = "Media Information (Ctrl+I) + Codec Information (Ctrl+J) merged surface"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "4.D2; merged surface [VERIFY-DESIGN]; unknowns render 'Unknown', never invented."
+
+[[feature]]
+id = "ui-screen-onboarding"
+category = "ui-screen"
+vlc_name = "Onboarding"
+description = "First-run flow: privacy defaults opt-in-off, skippable, persisted"
+priority = "P1"
+phase_target = 4
+inventory_ref = "docs/13-agent-wave-program.md#4.F1"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Design-new (Onboarding-1..10.svg); no VLC equivalent."
+
+[[feature]]
+id = "ui-screen-miniplayer-music"
+category = "ui-screen"
+vlc_name = "Miniplayer + Music mode"
+description = "Player variants: Miniplayer, Music mode, Light theme"
+priority = "P2"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s3.4"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "4.F2; design-new; VLC macOS Controller window is the loose analog [stale doc]."
+
+[[feature]]
+id = "ui-screen-keyboard-shortcuts"
+category = "ui-screen"
+vlc_name = "Keyboard Shortcuts screen"
+description = "Dedicated shortcut browser/editor with search + Global column"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s6"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Design-new surface (VLC 3.0.23 has no dedicated dialog — hotkeys in Preferences); see config-hotkey-editor."
+
+[[feature]]
+id = "ui-screen-customize"
+category = "ui-screen"
+vlc_name = "Customize panels"
+description = "Per-button/panel customization (buttons, display toggles)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "4.F*; design's richer model (customize -1..8) replaces VLC's toolbar editor; doc 08 §1.6 data model."
+
+[[feature]]
+id = "ui-screen-av-tools"
+category = "ui-screen"
+vlc_name = "A/V effects panels"
+description = "EQ/Compressor/Spatializer/StereoWiden + Essential/Crop/Colors/HDR panels (VLC Ctrl+E dialog reshaped)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "4.F3: fields present only when the engine supports them — no dead controls; engine halves are the afeat-*/vfeat-* rows [FILTER CARD GAP escalation]."
+
+[[feature]]
+id = "ui-screen-theme"
+category = "ui-screen"
+vlc_name = "Theming"
+description = "Light/dark + 9 accents, token-driven"
+priority = "P1"
+phase_target = 4
+inventory_ref = "docs/13-agent-wave-program.md#4.A2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Design-new; 4.A2 token pipeline; semantic tokens lint-enforced."
+
+[[feature]]
+id = "ui-screen-skins2"
+category = "ui-screen"
+vlc_name = "Skins2 interface"
+description = "VLC's skinnable alternative interface"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["skins2"]
+inventory_ref = "inventory/ui-inventory.md#s3.4"
+status = { windows = "unsupported", linux = "unsupported", macos = "unsupported", web = "unsupported" }
+evidence = ""
+blocked_reason = "By design: not reimplemented (doc 02 §3.4); our theming (ui-screen-theme) is the replacement surface. skins2 was also an excluded Debian package in the pinned oracle."
+notes = "Wont-do row recorded, not hidden (MP §14)."
+
+# =============================================================================
+# category: ui-dialog — 15 rows
+# Source: ui-inventory.md §2 dialog catalog (23 dialogs) + §6 crosswalk dispositions.
+# =============================================================================
+
+[[feature]]
+id = "ui-dialog-open-file"
+category = "ui-dialog"
+vlc_name = "Open File / Folder / Clipboard"
+description = "Media open flows: file picker, folder picker, clipboard MRL, drag-and-drop"
+priority = "P0"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s1.1"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Ctrl+O/Ctrl+F/Ctrl+V; native dialogs via shell (4.H1); design Onboarding folder step."
+
+[[feature]]
+id = "ui-dialog-open-network"
+category = "ui-dialog"
+vlc_name = "Open Network Stream"
+description = "Network URL dialog; design adds playlist-title + multi-URL"
+priority = "P0"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Ctrl+N; adapted per crosswalk (playlist.enqueue-many + playlist.save)."
+
+[[feature]]
+id = "ui-dialog-open-multiple"
+category = "ui-dialog"
+vlc_name = "Open Multiple Files"
+description = "Advanced multi-file open with playlist-style list"
+priority = "P2"
+phase_target = 8
+inventory_ref = "inventory/ui-inventory.md#s2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "[VERIFY 3.0.x shape]; low value vs design multi-select flows; later."
+
+[[feature]]
+id = "ui-dialog-open-disc"
+category = "ui-dialog"
+vlc_name = "Open Disc"
+description = "Disc open dialog (DVD/SVCD/VCD/Audio CD, title/chapter preselection)"
+priority = "P3"
+phase_target = 7
+inventory_ref = "inventory/ui-inventory.md#s2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Ctrl+D; feature-gated behind platform-disc-* rows; 'No DVD menus' checkbox analog moot while navigation blocked."
+
+[[feature]]
+id = "ui-dialog-open-capture"
+category = "ui-dialog"
+vlc_name = "Open Capture Device"
+description = "Capture device open dialog (dshow/v4l2/pvr properties)"
+priority = "P3"
+phase_target = 8
+inventory_ref = "inventory/ui-inventory.md#s2"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "unsupported" }
+evidence = ""
+blocked_reason = "Blocked with capture itself (hardware-gated, no pure path — see platform-device-capture); web: no capture (doc 09 §8.2). Ctrl+C binding renders disabled-from-data meanwhile."
+
+[[feature]]
+id = "ui-dialog-goto-time"
+category = "ui-dialog"
+vlc_name = "Go to Time"
+description = "Jump to specific time (hh:mm:ss)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Ctrl+T; design Current Time.svg click-state adaptation."
+
+[[feature]]
+id = "ui-dialog-bookmarks"
+category = "ui-dialog"
+vlc_name = "Edit Bookmarks"
+description = "Bookmark create/list/delete/clear dialog"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Ctrl+B; [Extract VERIFY]; 10 slots; design Bookmarks display toggle."
+
+[[feature]]
+id = "ui-dialog-subtitle-add"
+category = "ui-dialog"
+vlc_name = "Add Subtitle File"
+description = "External subtitle picker; design adds batch to-file/to-folder flows"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "subtitle.add-file; design Add Subtitles to Playlist/Folder flows; sync options [VERIFY]."
+
+[[feature]]
+id = "ui-dialog-convert"
+category = "ui-dialog"
+vlc_name = "Convert / Save"
+description = "Conversion UI: WAV (PCM encode) + MP4 remux (stream copy) targets ONLY"
+priority = "P3"
+phase_target = 7
+inventory_ref = "inventory/ui-inventory.md#s6"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "7.E3; 'no capability shown that is not implemented' is the AC; VLC's full transcode surface is not-adopted (see sout rows in matrix-seed-notes §5)."
+
+[[feature]]
+id = "ui-dialog-stream-output"
+category = "ui-dialog"
+vlc_name = "Stream Output wizard"
+description = "Stream-output destination/options wizard"
+priority = "P3"
+phase_target = 8
+inventory_ref = "inventory/ui-inventory.md#s2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "v1 sout subset = local file/pipe ES sink [PROPOSAL] (7.E3); network sout (rtp/chromecast/shout) not-adopted; 3/46-module honesty per feasibility subsystems §6."
+
+[[feature]]
+id = "ui-dialog-messages"
+category = "ui-dialog"
+vlc_name = "Messages / log window"
+description = "Log viewer with verbosity selector"
+priority = "P2"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Ctrl+M; system.set-log-level + log events; no design screen [VERIFY-DESIGN gap]; adapted as dev/diag surface."
+
+[[feature]]
+id = "ui-dialog-plugins"
+category = "ui-dialog"
+vlc_name = "Plugins and Extensions"
+description = "Plugin manager (enable/disable, browse builtin)"
+priority = "P2"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "[VERIFY 3.0.x shape]; builtin side v1 (plugin-builtin-registry); addon store later (plugin-addon-store)."
+
+[[feature]]
+id = "ui-dialog-about-update"
+category = "ui-dialog"
+vlc_name = "About / Update"
+description = "About dialog (product.toml data) + update check (privacy-gated)"
+priority = "P2"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s1.8"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Shift+F1 per design [VERIFY vs pinned Qt]; update-check options live in the absent qt family [VERIFY desktop-stack]; privacy area owns the toggle."
+
+[[feature]]
+id = "ui-dialog-vlm"
+category = "ui-dialog"
+vlc_name = "VLM configuration"
+description = "VideoLAN Manager (broadcasts/VOD) configurator"
+priority = "P3"
+phase_target = 8
+inventory_ref = "inventory/ui-inventory.md#s2"
+status = { windows = "unsupported", linux = "unsupported", macos = "unsupported", web = "unsupported" }
+evidence = ""
+blocked_reason = "By design: we are a player, not a streaming server (MP scope; doc 02 §4.5 pattern); vod server capability (2 registrations) out of scope."
+notes = "Ctrl+Shift+W binding not carried into the seed."
+
+[[feature]]
+id = "ui-dialog-program-guide"
+category = "ui-dialog"
+vlc_name = "Program Guide (EPG)"
+description = "DVB electronic program guide"
+priority = "P3"
+phase_target = 8
+inventory_ref = "inventory/ui-inventory.md#s2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "[VERIFY]-heavy in ui-inventory; DVB-gated (capture blocked); later."
+
+# =============================================================================
+# category: menu-item — 16 rows
+# Source: ui-inventory.md §1 (8 menus, 58 leaf items — grouped sensibly per card) + §3 context menus/tray.
+# =============================================================================
+
+[[feature]]
+id = "menu-media-open"
+category = "menu-item"
+vlc_name = "Media menu: open family"
+description = "Open File/Folder/Disc/Network/Capture/Clipboard + Recent (11 leaf items)"
+priority = "P0"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s1.1"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Ctrl+O/F/D/N/C/V accelerators; disc/capture items render disabled-from-data while blocked (F1/F2 rules); menus-as-data per doc 05 §8.3."
+
+[[feature]]
+id = "menu-media-convert-quit"
+category = "menu-item"
+vlc_name = "Media menu: convert/stream/quit"
+description = "Convert/Save…, Stream…, Quit"
+priority = "P2"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s1.1"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Quit Ctrl+Q adopted; Convert gated to 7.E3 targets; Stream wizard not-adopted-v1."
+
+[[feature]]
+id = "menu-playback-transport"
+category = "menu-item"
+vlc_name = "Playback menu: transport"
+description = "Play/Pause, Stop, Previous, Next, Speed ▸ (faster/slower/normal/fine)"
+priority = "P0"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s1.2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Space/S/P/N + +/−/=/]/[; design Speed panel adaptation (Values.svg steppers)."
+
+[[feature]]
+id = "menu-playback-navigation"
+category = "menu-item"
+vlc_name = "Playback menu: navigation"
+description = "Title ▸, Chapter ▸, Program ▸, Navigation ▸ (disc menus)"
+priority = "P2"
+phase_target = 7
+inventory_ref = "inventory/ui-inventory.md#s1.2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Chapters in v1; titles/program SIDs feature-gated (Q6); disc-menu entries blocked with discs; nav-arrow gating via in-disc-menu token [PROPOSAL Q4]."
+
+[[feature]]
+id = "menu-playback-bookmarks"
+category = "menu-item"
+vlc_name = "Playback menu: time + bookmarks"
+description = "Jump to Specific Time, Bookmarks ▸/Manage"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s1.2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Ctrl+T / Ctrl+B."
+
+[[feature]]
+id = "menu-audio"
+category = "menu-item"
+vlc_name = "Audio menu"
+description = "Audio Track ▸, Audio Device ▸, Stereo Mode ▸, Visualizations ▸"
+priority = "P0"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s1.3"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "b/Shift+A cycle hotkeys; stereo-mode + visualizations later (own rows); menu enabled-while-audio-plays per [UG]."
+
+[[feature]]
+id = "menu-video-display"
+category = "menu-item"
+vlc_name = "Video menu: display"
+description = "Video Track ▸, Full Screen, Always on Top, Zoom ▸"
+priority = "P0"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s1.4"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "f hotkey; Alt+1–4 zoom; Always-on-Top = shell window flag; DirectX Wallpaper not-adopted."
+
+[[feature]]
+id = "menu-video-adjust"
+category = "menu-item"
+vlc_name = "Video menu: aspect/crop/deinterlace"
+description = "Aspect Ratio ▸ (9 presets), Crop ▸ (11 presets), Deinterlace ▸ + mode ▸ (8 modes)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s1.4"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "a/c/d/Shift+d hotkeys; deinterlace item disabled-with-reason while vfeat-deinterlace is blocked."
+
+[[feature]]
+id = "menu-video-snapshot"
+category = "menu-item"
+vlc_name = "Video menu: snapshot"
+description = "Take Snapshot (Shift+S)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s1.4"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Immediate PNG; design customize button + onboarding reference."
+
+[[feature]]
+id = "menu-subtitle"
+category = "menu-item"
+vlc_name = "Subtitle menu"
+description = "Sub Track ▸, Add Subtitle File…, sync entries"
+priority = "P0"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s1.5"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "v cycle + Shift+H/J/K + Ctrl+Shift+K subsync; menu presentation [VERIFY]."
+
+[[feature]]
+id = "menu-tools"
+category = "menu-item"
+vlc_name = "Tools menu"
+description = "Effects and Filters, Track Synchronization, Media/Codec Information, Messages, Preferences, Plugins, Customize (VLM/Program Guide gated)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s1.6"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Ctrl+E/I/J/M/P; VLM unsupported-by-design; Program Guide DVB-gated."
+
+[[feature]]
+id = "menu-view"
+category = "menu-item"
+vlc_name = "View menu"
+description = "Playlist, Docked Playlist, Advanced Controls, Status Bar, Minimal View"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s1.7"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Ctrl+L/U/A/H; minimal-view vs design hide-UI (Ctrl+\\) fold decision open (C-05); Advanced Controls concept replaced by per-button customization."
+
+[[feature]]
+id = "menu-help"
+category = "menu-item"
+vlc_name = "Help menu"
+description = "Help, About, ReadMe/Update"
+priority = "P2"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s1.8"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "About = product.toml data; accelerator set [VERIFY]."
+
+[[feature]]
+id = "menu-context-surface"
+category = "menu-item"
+vlc_name = "Video-surface context menu"
+description = "Right-click menu on the video surface (design-authored replacement)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s3.2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "VLC 3.0.x enumeration [VERIFY V-02]; our right-click menu.svg: Play/Stop/Prev/Next/Record/Hide UI/Playback▸/Video▸/Audio▸/Subtitle▸/More Settings/Playlist▸/Open Media/Quit."
+
+[[feature]]
+id = "menu-context-playlist"
+category = "menu-item"
+vlc_name = "Playlist context menu"
+description = "Play, Add file/directory, Remove, Sort, Information, Stream/Save (gated)"
+priority = "P2"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s3.1"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Fully doc-sourced in ui-inventory; Add Node dropped (design model differs)."
+
+[[feature]]
+id = "menu-tray"
+category = "menu-item"
+vlc_name = "System tray menu"
+description = "Tray icon + menu (Quit et al.)"
+priority = "P3"
+phase_target = 7
+inventory_ref = "inventory/ui-inventory.md#s3.3"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Desktop-shell integration (Tauri); tray items [VERIFY V-03]; rides platform-desktop-integration."
+
+# =============================================================================
+# category: hotkey — 17 rows
+# Source: ui-inventory.md §5.2 (all 111 binary-observed default actions, grouped into 17 groups) + keymaps/default.toml (141 bindings).
+# =============================================================================
+
+[[feature]]
+id = "hotkey-transport"
+category = "hotkey"
+vlc_name = "Transport hotkeys (6 actions)"
+description = "play-pause (Space), stop (S), prev (P), next (N), pause-only, play-only + media keys"
+priority = "P0"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s5.2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Group row for 6 of the 111 binary-observed actions; media-key bindings (Media Play/Pause etc.) included."
+
+[[feature]]
+id = "hotkey-seek"
+category = "hotkey"
+vlc_name = "Seek/jump hotkeys (9 actions)"
+description = "jump extrashort/short/medium/long ± (Shift/Ctrl/Ctrl+Alt+arrows) + position (t)"
+priority = "P0"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s5.2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "3/10/60/300 s jump-size scalars in keymap seed; design arrows = seek (C-01)."
+
+[[feature]]
+id = "hotkey-rate"
+category = "hotkey"
+vlc_name = "Rate hotkeys (5 actions)"
+description = "faster (+), slower (−), normal (=), faster-fine (]), slower-fine ([)"
+priority = "P0"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s5.2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Rate-step semantics [VERIFY V-08]."
+
+[[feature]]
+id = "hotkey-volume"
+category = "hotkey"
+vlc_name = "Volume hotkeys (3 actions)"
+description = "vol-up/down/mute (Ctrl+↑/↓ in VLC; design uses bare ↑/↓ per C-02)"
+priority = "P0"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s5.2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "m mute; volume-down/up media keys."
+
+[[feature]]
+id = "hotkey-frame-step"
+category = "hotkey"
+vlc_name = "Frame step (1 VLC action + design-new prev)"
+description = "frame-next (e in VLC; design , / . adds frame-prev — C-08 parity gain)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s5.2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+
+[[feature]]
+id = "hotkey-track"
+category = "hotkey"
+vlc_name = "Track-switch hotkeys (4 actions)"
+description = "audio-track (b), subtitle-track (v), subtitle-revtrack (Alt+v), subtitle-toggle (Shift+v)"
+priority = "P0"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s5.2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Program-SID cycling (x/Shift+x) sits in hotkey-navigation; audio-device cycle (Shift+A) in afeat-audio-device-switch — the 111 actions partition exactly across groups (see matrix-seed-notes §3.4)."
+
+[[feature]]
+id = "hotkey-sync"
+category = "hotkey"
+vlc_name = "A/V + subtitle sync hotkeys (8 actions)"
+description = "audiodelay up/down (j/k), subdelay up/down (g/h), subsync markaudio/marksub/apply/reset (Shift+H/J/K, Ctrl+Shift+K)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s5.2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "macOS F/G/H/J variant set [VERIFY V-05/V-08 step sizes]; Q8 platform-mode gating."
+
+[[feature]]
+id = "hotkey-video-display"
+category = "hotkey"
+vlc_name = "Video display hotkeys (23 actions)"
+description = "fullscreen (f), leave-fullscreen (Esc), aspect (a), crop (c) + 4 pixel-crops + 4 uncrops, zoom (z) + unzoom + 4 zoom presets, autoscale (o), scalefactor ±, deinterlace (d) + mode (Shift+d)"
+priority = "P0"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s5.2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Deinterlace d/Shift+d bound but engine-blocked (vfeat-deinterlace) — renders disabled-from-data."
+
+[[feature]]
+id = "hotkey-subtitle-scale"
+category = "hotkey"
+vlc_name = "Subtitle scale/position (5 actions)"
+description = "text-scale up/down/normal (Ctrl+wheel/Ctrl+0) + subpos up/down (unbound in VLC)"
+priority = "P2"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s5.2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Help-string swap for scale-up/-down recorded (name is authoritative)."
+
+[[feature]]
+id = "hotkey-playlist"
+category = "hotkey"
+vlc_name = "Playlist hotkeys (3 actions)"
+description = "random (r), loop (l), clear-playlist (Ctrl+w)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s5.2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "C-04: l repurposed to File Browser by design; repeat-cycle left unbound (button instead)."
+
+[[feature]]
+id = "hotkey-bookmarks"
+category = "hotkey"
+vlc_name = "Bookmark hotkeys (20 actions)"
+description = "set-bookmark1..10 (Ctrl+F1–F10) + play-bookmark1..10 (F1–F10)"
+priority = "P2"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s5.2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+
+[[feature]]
+id = "hotkey-navigation"
+category = "hotkey"
+vlc_name = "Chapter/title hotkeys (7 actions)"
+description = "chapter-next/prev (Shift+n/Shift+p), title-next/prev (Shift+b/Shift+o), disc-menu (Shift+m), program-sid-next/prev"
+priority = "P2"
+phase_target = 7
+inventory_ref = "inventory/ui-inventory.md#s5.2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Chapters work in-container; title/disc-menu entries disc-gated; merged with track row's program actions where duplicated there."
+
+[[feature]]
+id = "hotkey-nav-disc"
+category = "hotkey"
+vlc_name = "Disc-menu navigation keys (5 actions)"
+description = "nav-activate/up/down/left/right (Enter/arrows in VLC)"
+priority = "P3"
+phase_target = 8
+inventory_ref = "inventory/ui-inventory.md#s5.2"
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "unsupported" }
+evidence = ""
+blocked_reason = "Disc-menu navigation is blocked (platform-disc-dvd); design repurposes bare arrows to seek (C-01) with an in-disc-menu gate [PROPOSAL Q4] for whenever disc support lands. Web: no discs."
+
+[[feature]]
+id = "hotkey-snapshot-record"
+category = "hotkey"
+vlc_name = "Snapshot + record hotkeys (2 actions)"
+description = "snapshot (Shift+s), record (Shift+r)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s5.2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "D-1 resolved: Shift+R (Onboarding-2 and VLC agree; context-menu R is simplified display); record gated to 7.E2 capability."
+
+[[feature]]
+id = "hotkey-interface"
+category = "hotkey"
+vlc_name = "Interface hotkeys (4 actions)"
+description = "quit (Ctrl+q), intf-show (i), intf-popup-menu (Menu), intf-boss (unbound)"
+priority = "P1"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s5.2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Boss key unbound in VLC; wallpaper (w) moved to hotkey-wallpaper-360."
+
+[[feature]]
+id = "hotkey-global"
+category = "hotkey"
+vlc_name = "Global hotkeys (111 actions)"
+description = "System-wide global-key-* bindings (all unbound by default in VLC)"
+priority = "P2"
+phase_target = 4
+inventory_ref = "inventory/ui-inventory.md#s5.3"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "Media-key subset v1; global registration scope per OS [VERIFY]; Global column in the shortcuts editor."
+
+[[feature]]
+id = "hotkey-wallpaper-360"
+category = "hotkey"
+vlc_name = "Wallpaper + 360° viewpoint (5 actions)"
+description = "wallpaper (w) + viewpoint fov in/out (PgUp/PgDn) + roll clock/anticlock (unbound)"
+priority = "P3"
+phase_target = 8
+inventory_ref = "inventory/ui-inventory.md#s5.2"
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = ""
+notes = "360° video has no v1 claim; wallpaper not-adopted. Grouped tail row."
+
+# =============================================================================
+# category: extension — 1 rows
+# Source: modules-summary.md §5.15/§7 (lua keystone) + MP §14 (WASM replacement).
+# =============================================================================
+
+[[feature]]
+id = "ext-lua-extensions"
+category = "extension"
+vlc_name = "Lua extensions / scripts"
+description = "VLC Lua scripting: extensions, playlist parsers, SD, metadata, interfaces (11 registrations, 8 capabilities)"
+priority = "P3"
+phase_target = 8
+vlc_modules = ["lua"]
+inventory_ref = "inventory/modules-summary.md#s5"
+status = { windows = "unsupported", linux = "unsupported", macos = "unsupported", web = "unsupported" }
+evidence = ""
+blocked_reason = "By design (MP §14): the sandboxed WASM plugin model replaces Lua — existing scripts will not run; the census documents what a scripting layer reaches in VLC and sizes our WASM surface (see plugin-wasm-extensions)."
+notes = "Wont-do row recorded, not hidden."
+
