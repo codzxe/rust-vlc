@@ -1,0 +1,2101 @@
+{
+  "schema": "lumen-phase0/formats-inventory/1.0",
+  "task": "0.B4-R — formats inventory from probe evidence (parsing-only retry; no new oracle sessions run)",
+  "generated": "2026-10-19",
+  "oracle": {
+    "product": "VLC 3.0.23 Vetinari (3.0.23-2-0-g79128878dd), Debian 13 debs, extracted at tmp/pinning/extract/",
+    "invocation": "timeout 25 vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv <fixture> (run_probes.sh)",
+    "evidence": {
+      "logs": "docs/baselines/raw/linux/probe-work/logs/ — 61 .log files + status.txt (57 entries; 4 logs lack status rows: smoke_wav, http_server, rtp_ffmpeg, udp_ffmpeg)",
+      "consolidation": "docs/baselines/raw/linux/17-format-probes.txt (one section per probe, verbatim decisive lines)",
+      "fixtures": "pure-Python fixtures + generators preserved (probe-work/gen_py.py, run_probes.sh); ffmpeg-generated media NOT committed; ffmpeg command lines not preserved [VERIFY]; per-file content re-derived 2026-10-19 via ffprobe on tmp/probe/media"
+    }
+  },
+  "usage_share_sources": [
+    {
+      "source": "Wikimedia Commons Special:MediaStatistics",
+      "url": "https://commons.wikimedia.org/wiki/Special:MediaStatistics",
+      "fetched": "2026-10-19",
+      "note": "live counts: video/webm 255,883 files; application/ogg (video) 157,811; video/mpeg 1,149; video/mp4 2; audio/wav 1,720,891; application/ogg (audio, incl opus/spx) 2,620,724; audio/mpeg 51,807; flac 34,553; midi 7,118 — free-format-policy skew, representative for ogg/webm only"
+    },
+    {
+      "source": "doc 04 §1.3 priority scheme (in-repo prior art)",
+      "url": "docs/04-codec-format-roadmap.md",
+      "note": "P0-P3 assignments for containers/audio/video/subtitles reused as the anchor; playlists+protocols are reasoned here (doc04 does not cover them)"
+    },
+    {
+      "source": "Bitmovin Video Developer Report",
+      "url": "https://bitmovin.com/reports/video-developer-report/",
+      "note": "NOT citable from this sandbox: HTTP 403 bot-block on 2026-10-19 — [VERIFY] on a network with browser access; archive.org also unreachable"
+    },
+    {
+      "source": "Canonical/Ubuntu player-format survey",
+      "url": "",
+      "note": "no verified public URL found from this sandbox — [VERIFY] or drop"
+    }
+  ],
+  "counts": {
+    "families_total": 82,
+    "by_kind": {
+      "audio-codec": 18,
+      "container": 21,
+      "playlist": 7,
+      "protocol": 12,
+      "subtitle": 12,
+      "video-codec": 12
+    },
+    "probed_by_kind": {
+      "audio-codec": 13,
+      "container": 18,
+      "playlist": 6,
+      "protocol": 5,
+      "subtitle": 8,
+      "video-codec": 9
+    },
+    "not_probe_verified_by_kind": {
+      "audio-codec": 5,
+      "container": 3,
+      "playlist": 1,
+      "protocol": 7,
+      "subtitle": 4,
+      "video-codec": 3
+    },
+    "oracle_sessions": "61 log files = 60 VLC sessions (58 with content) + 1 python http.server log"
+  },
+  "g5_statement": "Every family in this inventory carries an explicit probe_status: probed (a preserved -vv log shows the module selection) or not-probe-verified (census-only; evidence = modules-linux.json registration). Probed families: per-probe verbatim lines in 17-format-probes.txt. 58 of 61 logs contain module-selection evidence (rtp_ffmpeg/udp_ffmpeg empty, http_server is the python daemon log).",
+  "families": [
+    {
+      "family": "matroska-webm",
+      "kind": "container",
+      "vlc_modules": [
+        "mkv (demux)"
+      ],
+      "vlc_shortcuts": [
+        "mka",
+        ".mkv/.webm by content"
+      ],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "ffmpeg MKV h264+flac 64x48/8 kHz mono 1 s; ffmpeg MKV av1+opus 64x48/48 kHz 1.008 s; ffmpeg WebM vp9+opus 64x48/48 kHz 1.008 s",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/mkv_h264_flac.log",
+          "docs/baselines/raw/linux/probe-work/logs/mkv_av1_opus.log",
+          "docs/baselines/raw/linux/probe-work/logs/webm_vp9_opus.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/mkv_h264_flac.log",
+        "chosen_demux": "mkv",
+        "chosen_decoders": [
+          "avcodec (h264)",
+          "flac (flac)",
+          "dav1d (av1)",
+          "opus",
+          "avcodec (vp9)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "doc04 §2 P0 (core web/delivery container); Commons corpus is WebM-heavy (255,883 video/webm files, 39.07 TB — skewed to free formats)",
+      "notes": "Single 'mkv' demux module serves both Matroska and WebM. Decoders selected: dav1d for av01 (not avcodec — direct evidence for our rav1d-integration analog), native flac for FLAC-in-MKV, avcodec for h264. (The 128x128 string in the log is the dummy vout internal buffer size GBR8; actual frame size 64x48 per the resize event.)"
+    },
+    {
+      "family": "mp4-mov-3gp",
+      "kind": "container",
+      "vlc_modules": [
+        "mp4 (demux)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "ffmpeg MP4 h264+aac 64x48/8 kHz 1 s; ffmpeg(x265 Main) MP4 hevc 64x48 1 s; ffmpeg M4A ALAC 44.1 kHz mono 1 s",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/mp4_h264_aac.log",
+          "docs/baselines/raw/linux/probe-work/logs/mp4_hevc.log",
+          "docs/baselines/raw/linux/probe-work/logs/m4a_alac.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/mp4_h264_aac.log",
+        "chosen_demux": "mp4",
+        "chosen_decoders": [
+          "avcodec (h264)",
+          "faad (mp4a/aac)",
+          "avcodec (hevc)",
+          "avcodec (alac)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "doc04 §2 P0; the dominant delivery container on the open web [VERIFY: Bitmovin dev report bot-blocked HTTP 403 from sandbox, 2026-10-19]",
+      "notes": "M4A = same mp4 demux. ALAC decoded by avcodec (ffmpeg), NOT a native ALAC decoder. mp4 muxer side exists (sout mux mp4/mov/3gp + mp4frag/mp4stream)."
+    },
+    {
+      "family": "ogg",
+      "kind": "container",
+      "vlc_modules": [
+        "ogg (demux)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "ffmpeg Ogg: vorbis 8 kHz mono; opus 48 kHz mono; speex 16 kHz mono; theora+vorbis 64x48, all ~1 s",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/ogg_vorbis.log",
+          "docs/baselines/raw/linux/probe-work/logs/ogg_opus.log",
+          "docs/baselines/raw/linux/probe-work/logs/ogg_speex.log",
+          "docs/baselines/raw/linux/probe-work/logs/ogg_theora.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/ogg_vorbis.log",
+        "chosen_demux": "ogg",
+        "chosen_decoders": [
+          "vorbis",
+          "opus",
+          "speex",
+          "theora (video)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "doc04 §2 P0; Commons: application/ogg = 2.62 M audio + 157,811 video files (free-format ecosystem)",
+      "notes": "Four payload families exercised through one demux; native (non-ffmpeg) decoders chosen for all four codecs."
+    },
+    {
+      "family": "mpegts",
+      "kind": "container",
+      "vlc_modules": [
+        "ts (demux)",
+        "rtp (access_demux, for rtp://)",
+        "udp (access, for udp://)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "file: ffmpeg MPEG-TS h264 64x48 1 s; net: MPEG-TS (single program, MP3 audio 44.1 kHz 64 kb/s mono, PAT/PMT/SDT/EIT/TDT, PCR=PID 256) via UDP :5004 and RTP :5006 (payload type 33)",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/mpegts_h264.log",
+          "docs/baselines/raw/linux/probe-work/logs/udp_ts.log",
+          "docs/baselines/raw/linux/probe-work/logs/rtp_ts.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/mpegts_h264.log",
+        "chosen_demux": "ts",
+        "chosen_access": [
+          "filesystem (file probe)",
+          "udp (udp_ts)",
+          "rtp access_demux (rtp_ts)"
+        ],
+        "chosen_decoders": [
+          "avcodec (h264)",
+          "mpg123 (mpga)"
+        ],
+        "exit_code": "0,0,124 (rtp_ts timeout on live stream — decoding observed; expected under --play-and-exit)"
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "doc04 §2 P0 (broadcast + capture workhorse)",
+      "notes": "rtp:// is an access_demux that itself detects 'MPEG2 TS' and demuxes via 'ts'. Logs show full PAT/PMT/SDT/EIT/TDT table walk. Sender commands for the network variants were not preserved [VERIFY]."
+    },
+    {
+      "family": "mpegps",
+      "kind": "container",
+      "vlc_modules": [
+        "ps (demux, registered 2x)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "ffmpeg MPEG-PS mpeg2video 64x48, 0.8 s",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/mpegps_mpeg2.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/mpegps_mpeg2.log",
+        "chosen_demux": "ps",
+        "chosen_packetizer": "mpegvideo",
+        "chosen_decoders": [
+          "avcodec (mpgv)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P1",
+      "usage_share_rationale": "doc04 §2 P1 (VOB-adjacent; DVD/DVB legacy)",
+      "notes": "Note: the 'ps' demux also wins the probe race for standalone text-subtitle files (see srt/ssa/ass/microdvd) — quirk documented under those families."
+    },
+    {
+      "family": "avi",
+      "kind": "container",
+      "vlc_modules": [
+        "avi (demux)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "ffmpeg AVI mjpeg 64x48 1 s; ffmpeg AVI mpeg4(ASP) 64x48 1 s",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/avi_mjpeg.log",
+          "docs/baselines/raw/linux/probe-work/logs/avi_mpeg4.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/avi_mjpeg.log",
+        "chosen_demux": "avi",
+        "chosen_decoders": [
+          "avcodec (MJPG)",
+          "avcodec (mp4v)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P1",
+      "usage_share_rationale": "doc04 §2 P1; legacy desktop corpus staple (no live survey reachable — reasoned) [VERIFY]",
+      "notes": ""
+    },
+    {
+      "family": "asf-wmv",
+      "kind": "container",
+      "vlc_modules": [
+        "asf (demux)"
+      ],
+      "vlc_shortcuts": [
+        "wmv"
+      ],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "ffmpeg ASF/WMV: WMV2 video 64x48 + WMAv2 audio 8 kHz mono, 1.128 s",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/asf_wmv2_wmav2.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/asf_wmv2_wmav2.log",
+        "chosen_demux": "asf",
+        "chosen_decoders": [
+          "avcodec (WMV2)",
+          "avcodec (WMA2)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P2",
+      "usage_share_rationale": "doc04 §2 P2; declining legacy Windows-media share (reasoned) [VERIFY]",
+      "notes": "Container and both codecs go through ffmpeg/avcodec in the oracle."
+    },
+    {
+      "family": "wav",
+      "kind": "container",
+      "vlc_modules": [
+        "wav (demux)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "python-written RIFF WAVE PCM s16le 8 kHz 440 Hz 0.5 s (gen_py.py #1); ffmpeg WAV IMA-ADPCM 8 kHz mono 1 s; same file re-probed over HTTP and inside ZIP/dir/playlist contexts",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/wav_pcm_py.log",
+          "docs/baselines/raw/linux/probe-work/logs/wav_adpcm_ima.log",
+          "docs/baselines/raw/linux/probe-work/logs/http_wav.log",
+          "docs/baselines/raw/linux/probe-work/logs/smoke_wav.log",
+          "docs/baselines/raw/linux/probe-work/logs/tone_zipped.log",
+          "docs/baselines/raw/linux/probe-work/logs/dir_access.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/wav_pcm_py.log",
+        "chosen_demux": "wav",
+        "chosen_decoders": [
+          "araw (PCM s16l)",
+          "avcodec (IMA ADPCM)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "doc04 §2 P0; Commons: audio/wav = 1,720,891 files — largest counted audio container there",
+      "notes": "araw = the raw-PCM decoder module. The wav demux appears in 12 of the 58 evidenced logs (direct, HTTP, inside ZIP, inside dir, and as the target of all 5 working playlist readers) — the most re-verified container in the matrix."
+    },
+    {
+      "family": "flac-native",
+      "kind": "container",
+      "vlc_modules": [
+        "flacsys (demux)"
+      ],
+      "vlc_shortcuts": [
+        "flac"
+      ],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "ffmpeg native FLAC 8 kHz mono 1 s",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/flac_native.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/flac_native.log",
+        "chosen_demux": "flacsys",
+        "chosen_packetizer": "flac",
+        "chosen_decoders": [
+          "flac"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "doc04 §2 P0; Commons: audio/flac+x-flac = 34,553 files",
+      "notes": "FLAC-in-MKV also probed (mkv_h264_flac) — same native 'flac' decoder chosen there."
+    },
+    {
+      "family": "aiff",
+      "kind": "container",
+      "vlc_modules": [
+        "aiff (demux)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "ffmpeg AIFF PCM s16be 8 kHz mono 1 s",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/aiff_pcm.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/aiff_pcm.log",
+        "chosen_demux": "aiff",
+        "chosen_decoders": [
+          "araw (s16b)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P1",
+      "usage_share_rationale": "doc04 §2 P1 (Apple-audio legacy; niche but trivial via RIFF-style parsing)",
+      "notes": ""
+    },
+    {
+      "family": "au",
+      "kind": "container",
+      "vlc_modules": [
+        "au (demux)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "ffmpeg Sun AU PCM s16be 8 kHz mono 1 s",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/au_pcm.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/au_pcm.log",
+        "chosen_demux": "au",
+        "chosen_decoders": [
+          "araw (s16b)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P1",
+      "usage_share_rationale": "doc04 §2 P1-adjacent (raw-container family alongside aiff; reasoned) [VERIFY]",
+      "notes": ""
+    },
+    {
+      "family": "adts-aac",
+      "kind": "container",
+      "vlc_modules": [
+        "es (demux, audio-es registration)",
+        "mpeg4audio (packetizer)"
+      ],
+      "vlc_shortcuts": [
+        "aac",
+        "mp4a",
+        "m4a"
+      ],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "ffmpeg bare ADTS stream: AAC-LC 44.1 kHz mono, 1.045 s",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/adts_aac.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/adts_aac.log",
+        "chosen_demux": "es",
+        "chosen_packetizer": "mpeg4audio",
+        "chosen_decoders": [
+          "faad"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "doc04 §2/§3 P0 (bare AAC streams; SHOUTcast-adjacent radio still emits ADTS)",
+      "notes": "The 'es' demux (audio registration, shortcuts mpga/mp3/m4a/mp4a/aac/ac3/a52/eac3/dts/mlp/thd) wraps bare elementary streams; packetizer does the framing."
+    },
+    {
+      "family": "mp3-raw",
+      "kind": "container",
+      "vlc_modules": [
+        "es (demux, audio-es registration)",
+        "mpegaudio (packetizer)"
+      ],
+      "vlc_shortcuts": [
+        "mp3",
+        "mpga"
+      ],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "ffmpeg bare MP3 Layer III 8 kHz mono, 1.152 s",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/mp3_raw.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/mp3_raw.log",
+        "chosen_demux": "es",
+        "chosen_packetizer": "mpegaudio",
+        "chosen_decoders": [
+          "mpg123"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "doc04 §2/§3 P0; Commons: audio/mpeg (incl. mp2/mp3) = 51,807 files",
+      "notes": "mpg123 decoder chosen over mad for plain MP3 in this build."
+    },
+    {
+      "family": "mpeg-es-video",
+      "kind": "container",
+      "vlc_modules": [
+        "mpgv (demux)",
+        "es (demux, video-es registration)",
+        "mpegvideo (packetizer)"
+      ],
+      "vlc_shortcuts": [
+        "m4v",
+        "mp4v"
+      ],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "ffmpeg bare MPEG-2 video ES (.m2v) 64x48 1 s",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/mpeg2_es.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/mpeg2_es.log",
+        "chosen_demux": "mpgv",
+        "chosen_packetizer": "mpegvideo",
+        "chosen_decoders": [
+          "avcodec (mpgv)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P1",
+      "usage_share_rationale": "doc04 §2 raw-ES pattern (P1 with the MPEG-2 codec); VOB/DVB extraction workflows",
+      "notes": "VLC's own module chain here is demux 'mpgv' (not 'es'); the es video registration (m4v/mp4v shortcuts) handles bare MPEG-4 ES [not separately probed]."
+    },
+    {
+      "family": "h264-annexb",
+      "kind": "container",
+      "vlc_modules": [
+        "h26x (demux, h264 registration)",
+        "h264 (packetizer)"
+      ],
+      "vlc_shortcuts": [
+        "h264"
+      ],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "ffmpeg bare H.264 Annex-B ES 64x48 1 s",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/h264_annexb.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/h264_annexb.log",
+        "chosen_demux": "h26x",
+        "chosen_packetizer": "h264",
+        "chosen_decoders": [
+          "avcodec"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "Same codec priority as h264 (P0); Annex-B is the TS/streaming framing",
+      "notes": "h26x demux registers twice (h264 / hevc+h265 shortcuts) — one code path, two registrations."
+    },
+    {
+      "family": "hevc-annexb",
+      "kind": "container",
+      "vlc_modules": [
+        "h26x (demux, hevc registration)",
+        "hevc (packetizer)"
+      ],
+      "vlc_shortcuts": [
+        "hevc",
+        "h265"
+      ],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "ffmpeg(x265 Main) bare HEVC Annex-B ES 64x48 1 s",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/hevc_annexb.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/hevc_annexb.log",
+        "chosen_demux": "h26x",
+        "chosen_packetizer": "hevc",
+        "chosen_decoders": [
+          "avcodec"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P1",
+      "usage_share_rationale": "Same codec priority as hevc (P1 per doc04 §4)",
+      "notes": ""
+    },
+    {
+      "family": "realmedia",
+      "kind": "container",
+      "vlc_modules": [
+        "real (demux)"
+      ],
+      "vlc_shortcuts": [
+        "rm"
+      ],
+      "probe_status": "not-probe-verified",
+      "probe_evidence": null,
+      "usage_share": "P3",
+      "usage_share_rationale": "doc04 §2 P3; legacy container, decode side is the real blocker (RV/Cook/ATRAC)",
+      "notes": "Census-only: real demux present in pinned build; no probe fixture was generated."
+    },
+    {
+      "family": "midi-smf",
+      "kind": "container",
+      "vlc_modules": [
+        "smf (demux)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "minimal SMF type 0, 1 track, 480 ppqn, 120 BPM (format facts from the VLC smf demux log itself)",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/midi_minimal.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/midi_minimal.log",
+        "chosen_demux": "smf",
+        "chosen_decoders": [],
+        "exit_code": 0,
+        "verdict": "demux positive, decode negative: 'no audio decoder modules matched' -> 'Codec `MIDI' (MIDI Audio) is not supported'"
+      },
+      "usage_share": "P3",
+      "usage_share_rationale": "doc04 §3 P3 (synth-required family)",
+      "notes": "MIDI decode is absent from the pinned extract because vlc-plugin-fluidsynth was one of the 10 excluded headless debs (modules-linux.json excluded_debs_headless) — demux evidence stands, decode evidence does not exist for this oracle."
+    },
+    {
+      "family": "archive-zip",
+      "kind": "container",
+      "vlc_modules": [
+        "archive (stream_directory + stream_extractor)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "ZIP containing tone.wav (byte-copy of wav_pcm_py.wav)",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/tone_zipped.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/tone_zipped.log",
+        "chosen_demux": "directory (archive-browsed) -> wav (inner entry)",
+        "chosen_decoders": [
+          "araw"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P2",
+      "usage_share_rationale": "Reasoned: VLC parity feature (archive browsing), modest user value; no survey data [VERIFY]",
+      "notes": "Log shows stream_directory module 'archive' browsing the zip, adding inner 'tone.wav' as a playlist item, then wav+araw. Kind is container/protocol hybrid; filed as container."
+    },
+    {
+      "family": "adaptive-hls-dash",
+      "kind": "container",
+      "vlc_modules": [
+        "adaptive (demux)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "not-probe-verified",
+      "probe_evidence": null,
+      "usage_share": "P1",
+      "usage_share_rationale": "Reasoned: HLS/DASH is the dominant streaming delivery on the open web [VERIFY: Bitmovin bot-blocked]; VLC's adaptive module is the census evidence",
+      "notes": "Census-only. Not probed: would need an HTTP server serving HLS/DASH manifests — candidate for a Phase 0 addendum or the doc-04 §2 frag-MP4 corpus plan (5.C1/6.C)."
+    },
+    {
+      "family": "census-long-tail-demux",
+      "kind": "container",
+      "vlc_modules": [
+        "caf",
+        "voc",
+        "xa",
+        "tta",
+        "mpc",
+        "mod",
+        "sid",
+        "nsv",
+        "pva",
+        "ty",
+        "nuv",
+        "rawdv",
+        "rawvid",
+        "rawaud",
+        "image",
+        "diracsys (dirac)",
+        "vc1",
+        "nsc",
+        "demux_cdg",
+        "demux_stl",
+        "vobsub",
+        "sap (sdp)",
+        "stats",
+        "demuxdump (dump)",
+        "linsys_sdi",
+        "libbluray",
+        "dvdnav"
+      ],
+      "vlc_shortcuts": [
+        "dirac",
+        "tivo",
+        "rawvideo",
+        "sdp",
+        "dump",
+        "subtitle (vobsub/demux_stl/demux_cdg)",
+        "dvd",
+        "iso",
+        "bluray",
+        "file"
+      ],
+      "probe_status": "not-probe-verified",
+      "probe_evidence": null,
+      "usage_share": "P3",
+      "usage_share_rationale": "doc04 assigns P3 to this tail (RealMedia/CAF/tx3g 'later'); collectively < a few % of desktop-player opens (reasoned) [VERIFY]",
+      "notes": "Census-only rollup: 55 demux registrations; the probed families above cover the registration set a typical desktop user hits. Full per-module list: modules-linux.json by_capability.demux."
+    },
+    {
+      "family": "pcm-family",
+      "kind": "audio-codec",
+      "vlc_modules": [
+        "araw (audio decoder)",
+        "lpcm (decoder+packetizer)",
+        "aes3 (decoder+packetizer)",
+        "g711 (decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "PCM s16le in WAV (python fixture); PCM s16be in AIFF and AU (ffmpeg fixtures)",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/wav_pcm_py.log",
+          "docs/baselines/raw/linux/probe-work/logs/aiff_pcm.log",
+          "docs/baselines/raw/linux/probe-work/logs/au_pcm.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/wav_pcm_py.log",
+        "chosen_demux": "wav / aiff / au",
+        "chosen_decoders": [
+          "araw"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "doc04 §3 P0; universal base layer of every raw-audio container",
+      "notes": "One 'araw' decoder serves s16l and s16b across three containers. lpcm/aes3/g711 are sibling census decoders not separately probed."
+    },
+    {
+      "family": "adpcm",
+      "kind": "audio-codec",
+      "vlc_modules": [
+        "adpcm (audio decoder)",
+        "avcodec (audio decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "ffmpeg WAV with IMA ADPCM 8 kHz mono 1 s",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/wav_adpcm_ima.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/wav_adpcm_ima.log",
+        "chosen_demux": "wav",
+        "chosen_decoders": [
+          "avcodec (fourcc '  ms' = MS/IMA family)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P1",
+      "usage_share_rationale": "doc04 §3 P1 (ADPCM zoo; game/voice-file corpora)",
+      "notes": "Oracle chose avcodec over the native 'adpcm' decoder for this fixture (decoder score/codec-match detail not visible in log) [VERIFY why]"
+    },
+    {
+      "family": "mp3",
+      "kind": "audio-codec",
+      "vlc_modules": [
+        "mpg123 (audio decoder)",
+        "mad (audio decoder)",
+        "mpegaudio (packetizer)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "bare MP3 8 kHz mono (mp3_raw) + MP3 program inside TS over UDP/RTP (44.1 kHz 64 kb/s)",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/mp3_raw.log",
+          "docs/baselines/raw/linux/probe-work/logs/udp_ts.log",
+          "docs/baselines/raw/linux/probe-work/logs/rtp_ts.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/mp3_raw.log",
+        "chosen_demux": "es / ts",
+        "chosen_packetizer": "mpegaudio",
+        "chosen_decoders": [
+          "mpg123"
+        ],
+        "exit_code": "0,0,124"
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "doc04 §3 P0; still the most-counted lossy audio on Commons (51,807 audio/mpeg) and ubiquitous in legacy corpora",
+      "notes": "mad exists in census but never won selection in our runs."
+    },
+    {
+      "family": "mp2",
+      "kind": "audio-codec",
+      "vlc_modules": [
+        "mpg123 (audio decoder)",
+        "mad (audio decoder)",
+        "mpegaudio (packetizer)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "not-probe-verified",
+      "probe_evidence": null,
+      "usage_share": "P1",
+      "usage_share_rationale": "doc04 §3 P1 (broadcast/DVB workhorse — pairs with TS)",
+      "notes": "Not probed: no MP2 fixture was generated. The TS network probes carried Layer III (mpga->mpg123) instead [VERIFY: add an MP2-in-TS probe when the TS corpus lands]"
+    },
+    {
+      "family": "aac-lc",
+      "kind": "audio-codec",
+      "vlc_modules": [
+        "faad (audio decoder)",
+        "mpeg4audio (packetizer)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "ADTS AAC-LC 44.1 kHz mono; AAC-LC 8 kHz mono inside MP4 (mp4_h264_aac + all subsl_* runs)",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/adts_aac.log",
+          "docs/baselines/raw/linux/probe-work/logs/mp4_h264_aac.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/adts_aac.log",
+        "chosen_demux": "es / mp4",
+        "chosen_packetizer": "mpeg4audio (ADTS path)",
+        "chosen_decoders": [
+          "faad"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "doc04 §3 P0; default audio of MP4 delivery everywhere",
+      "notes": "faad (not avcodec) handles all AAC in this oracle, both framings. HE-AAC not probed (no fixture)."
+    },
+    {
+      "family": "alac",
+      "kind": "audio-codec",
+      "vlc_modules": [
+        "avcodec (audio decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "ffmpeg M4A ALAC 44.1 kHz mono 1 s",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/m4a_alac.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/m4a_alac.log",
+        "chosen_demux": "mp4",
+        "chosen_decoders": [
+          "avcodec (alac)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P1",
+      "usage_share_rationale": "doc04 §3 P1 (Apple lossless niche)",
+      "notes": "No native ALAC decoder in the pinned build; ffmpeg path only."
+    },
+    {
+      "family": "flac",
+      "kind": "audio-codec",
+      "vlc_modules": [
+        "flac (audio decoder)",
+        "flac (packetizer)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "native FLAC 8 kHz mono; FLAC inside MKV (mkv_h264_flac)",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/flac_native.log",
+          "docs/baselines/raw/linux/probe-work/logs/mkv_h264_flac.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/flac_native.log",
+        "chosen_demux": "flacsys / mkv",
+        "chosen_decoders": [
+          "flac"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "doc04 §3 P0; the standard free lossless codec (Commons 34,553 files)",
+      "notes": ""
+    },
+    {
+      "family": "vorbis",
+      "kind": "audio-codec",
+      "vlc_modules": [
+        "vorbis (audio decoder)",
+        "vorbis (packetizer)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "Ogg Vorbis 8 kHz mono; Vorbis audio track of Ogg Theora file",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/ogg_vorbis.log",
+          "docs/baselines/raw/linux/probe-work/logs/ogg_theora.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/ogg_vorbis.log",
+        "chosen_demux": "ogg",
+        "chosen_decoders": [
+          "vorbis"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "doc04 §3 P0; the audio codec of the free-web stack (Commmmons application/ogg 2.62 M)",
+      "notes": ""
+    },
+    {
+      "family": "opus",
+      "kind": "audio-codec",
+      "vlc_modules": [
+        "opus (audio decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "Ogg Opus 48 kHz mono; Opus in WebM and in MKV",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/ogg_opus.log",
+          "docs/baselines/raw/linux/probe-work/logs/webm_vp9_opus.log",
+          "docs/baselines/raw/linux/probe-work/logs/mkv_av1_opus.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/ogg_opus.log",
+        "chosen_demux": "ogg / webm(mkv)",
+        "chosen_decoders": [
+          "opus"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "doc04 §3 P0 (biggest pure-Rust gap on our side; ubiquitous in WebRTC/WebM/low-latency delivery)",
+      "notes": "Native 'opus' decoder module (libopus) selected in all three framings."
+    },
+    {
+      "family": "speex",
+      "kind": "audio-codec",
+      "vlc_modules": [
+        "speex (audio decoder)",
+        "speex (packetizer)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "Ogg Speex 16 kHz mono 1 s",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/ogg_speex.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/ogg_speex.log",
+        "chosen_demux": "ogg",
+        "chosen_decoders": [
+          "speex"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P3",
+      "usage_share_rationale": "doc04 §3 P3 (legacy VoIP; superseded by Opus)",
+      "notes": ""
+    },
+    {
+      "family": "ac3-eac3",
+      "kind": "audio-codec",
+      "vlc_modules": [
+        "a52 (packetizer)",
+        "spdif (audio decoder)",
+        "avcodec (audio decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "bare AC-3 44.1 kHz mono 1.01 s; bare E-AC-3 44.1 kHz mono 1.012 s",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/ac3_raw.log",
+          "docs/baselines/raw/linux/probe-work/logs/eac3_raw.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/ac3_raw.log",
+        "chosen_demux": "es",
+        "chosen_packetizer": "a52",
+        "chosen_decoders": [
+          "spdif (passthrough packing)"
+        ],
+        "exit_code": 0,
+        "verdict": "demux+packetize proven; decode NOT exercised — 'spdif' packs for S/PDIF output (dummy aout), no PCM decode ran [VERIFY]"
+      },
+      "usage_share": "P1",
+      "usage_share_rationale": "doc04 §3 P1 (AC-3: DVD/ATSC legacy staple)",
+      "notes": "For a decode-side oracle we must re-probe with a real aout or force avcodec/a52 decode — the pinned run only proves framing/passthrough selection."
+    },
+    {
+      "family": "dts",
+      "kind": "audio-codec",
+      "vlc_modules": [
+        "dts (packetizer)",
+        "spdif (audio decoder)",
+        "avcodec (audio decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "bare DTS 44.1 kHz mono 1.015 s",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/dts_raw.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/dts_raw.log",
+        "chosen_demux": "es",
+        "chosen_packetizer": "dts",
+        "chosen_decoders": [
+          "spdif (passthrough packing)"
+        ],
+        "exit_code": 0,
+        "verdict": "same passthrough caveat as ac3-eac3 [VERIFY]"
+      },
+      "usage_share": "P2",
+      "usage_share_rationale": "doc04 §3 P2 (DVD/DTS-CD niche; --disable-dca in this build's configure)",
+      "notes": ""
+    },
+    {
+      "family": "truehd-mlp",
+      "kind": "audio-codec",
+      "vlc_modules": [
+        "mlp (packetizer)",
+        "avcodec (audio decoder)"
+      ],
+      "vlc_shortcuts": [
+        "thd",
+        "mlp"
+      ],
+      "probe_status": "not-probe-verified",
+      "probe_evidence": null,
+      "usage_share": "P2",
+      "usage_share_rationale": "doc04 §3 P2 (Blu-ray lossless; niche but high-value HT users)",
+      "notes": "Census-only; no fixture. mlp packetizer + es demux shortcuts (mlp/thd) exist in the pinned build."
+    },
+    {
+      "family": "wma-1-2-pro",
+      "kind": "audio-codec",
+      "vlc_modules": [
+        "avcodec (audio decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "WMAv2 8 kHz mono inside ASF/WMV",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/asf_wmv2_wmav2.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/asf_wmv2_wmav2.log",
+        "chosen_demux": "asf",
+        "chosen_decoders": [
+          "avcodec (WMA2)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P2",
+      "usage_share_rationale": "doc04 §3 P2 (legacy Windows media; WMA1/WMA-Pro variants not probed [VERIFY])",
+      "notes": ""
+    },
+    {
+      "family": "wavpack",
+      "kind": "audio-codec",
+      "vlc_modules": [
+        "avcodec (audio decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "not-probe-verified",
+      "probe_evidence": null,
+      "usage_share": "P3",
+      "usage_share_rationale": "doc04 §3 P3 (audiophile niche)",
+      "notes": "Census-only; decode via ffmpeg libwavpack in the oracle."
+    },
+    {
+      "family": "musepack",
+      "kind": "audio-codec",
+      "vlc_modules": [
+        "mpc (demux, see containers)",
+        "avcodec (audio decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "not-probe-verified",
+      "probe_evidence": null,
+      "usage_share": "P3",
+      "usage_share_rationale": "doc04 §3 P3",
+      "notes": "Census-only. No native MPC decoder registration in the pinned census; decode is ffmpeg-side [VERIFY: no direct log evidence]."
+    },
+    {
+      "family": "midi-synth",
+      "kind": "audio-codec",
+      "vlc_modules": [
+        "fluidsynth — ABSENT from pinned census (vlc-plugin-fluidsynth excluded deb)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "SMF fixture (see midi-smf container family)",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/midi_minimal.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/midi_minimal.log",
+        "chosen_demux": "smf",
+        "chosen_decoders": [],
+        "exit_code": 0,
+        "verdict": "negative for decode: 'Codec `MIDI' (MIDI Audio) is not supported'"
+      },
+      "usage_share": "P3",
+      "usage_share_rationale": "doc04 §3 P3 (rustysynth/oxisynth are our candidate paths; oracle simply cannot show decode here)",
+      "notes": "See midi-smf container entry. For our differential testing, MIDI decode must be compared against a fluidsynth-equipped build, not this pinned extract [VERIFY]."
+    },
+    {
+      "family": "pcm-siblings-census",
+      "kind": "audio-codec",
+      "vlc_modules": [
+        "lpcm",
+        "aes3",
+        "g711",
+        "uleaddvaudio",
+        "spdif",
+        "araw",
+        "adpcm"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "not-probe-verified",
+      "probe_evidence": null,
+      "usage_share": "P1",
+      "usage_share_rationale": "Rollup: lpcm/aes3 (DVD/DVB-HD), g711 (telephony WAV), uleaddvaudio (DV camcorders) — all small but spec-cheap",
+      "notes": "Census-only siblings of probed families; see modules-linux.json audio decoder list (18 registrations)."
+    },
+    {
+      "family": "h264",
+      "kind": "video-codec",
+      "vlc_modules": [
+        "h264 (packetizer)",
+        "avcodec (video decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "H.264 in MP4, in MKV, in MPEG-TS, and bare Annex-B — 4 sessions (+ mp4 in all 8 subsl_* runs)",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/mp4_h264_aac.log",
+          "docs/baselines/raw/linux/probe-work/logs/mkv_h264_flac.log",
+          "docs/baselines/raw/linux/probe-work/logs/mpegts_h264.log",
+          "docs/baselines/raw/linux/probe-work/logs/h264_annexb.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/mp4_h264_aac.log",
+        "chosen_demux": "mp4 / mkv / ts / h26x",
+        "chosen_packetizer": "h264 (ts+annexb paths)",
+        "chosen_decoders": [
+          "avcodec"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "doc04 §4 P0; the universal delivery codec — every web survey puts H.264 first [Bitmovin bot-blocked 403, 2026-10-19 — VERIFY with cited numbers on a network with access]",
+      "notes": "avcodec (ffmpeg Lavc61.19.101) selected in all framings; log also shows its hw-format negotiation (vdpau/vulkan/cuda/vaapi offered, 'no hw decoder modules matched' in this headless extract)."
+    },
+    {
+      "family": "hevc",
+      "kind": "video-codec",
+      "vlc_modules": [
+        "hevc (packetizer)",
+        "avcodec (video decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "HEVC (x265 Main) in MP4 and bare Annex-B — 2 sessions",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/mp4_hevc.log",
+          "docs/baselines/raw/linux/probe-work/logs/hevc_annexb.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/mp4_hevc.log",
+        "chosen_demux": "mp4 / h26x",
+        "chosen_packetizer": "hevc (annexb)",
+        "chosen_decoders": [
+          "avcodec"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P1",
+      "usage_share_rationale": "doc04 §4 P1 (growing 4K/HDR share; patent/clouded status keeps it P1 for us)",
+      "notes": ""
+    },
+    {
+      "family": "vp8",
+      "kind": "video-codec",
+      "vlc_modules": [
+        "avcodec (video decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "not-probe-verified",
+      "probe_evidence": null,
+      "usage_share": "P1",
+      "usage_share_rationale": "doc04 §4 P1 (legacy WebM;reasoned share via WebM corpus [VERIFY])",
+      "notes": "Not probed. Pinned build has no libvpx (--disable-vpx in configure line) — VP8 decode is ffmpeg-side in this oracle."
+    },
+    {
+      "family": "vp9",
+      "kind": "video-codec",
+      "vlc_modules": [
+        "avcodec (video decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "VP9 64x48 + Opus in WebM",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/webm_vp9_opus.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/webm_vp9_opus.log",
+        "chosen_demux": "mkv (webm)",
+        "chosen_decoders": [
+          "avcodec (VP90)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "doc04 §4 P0 (YouTube-class delivery; Commons video/webm corpus is largely VP9/AV1)",
+      "notes": "Decoder is avcodec in this oracle (no libvpx plugin in pinned build)."
+    },
+    {
+      "family": "av1",
+      "kind": "video-codec",
+      "vlc_modules": [
+        "av1 (packetizer)",
+        "dav1d (video decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "AV1 64x48 + Opus in MKV",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/mkv_av1_opus.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/mkv_av1_opus.log",
+        "chosen_demux": "mkv",
+        "chosen_decoders": [
+          "dav1d"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "doc04 §4 P0; the one modern codec with a credible pure-Rust decoder (rav1d) — strategic priority",
+      "notes": "dav1d (not avcodec/ffmpeg) was selected: direct evidence for the dav1d-integration analog in our engine."
+    },
+    {
+      "family": "theora",
+      "kind": "video-codec",
+      "vlc_modules": [
+        "theora (video decoder)",
+        "theora (packetizer)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "Theora 64x48 + Vorbis in Ogg",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/ogg_theora.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/ogg_theora.log",
+        "chosen_demux": "ogg",
+        "chosen_decoders": [
+          "theora",
+          "vorbis (audio track)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P1",
+      "usage_share_rationale": "doc04 §4 P1 (Wikipedia-era free video; Commons application/ogg video 157,811 files)",
+      "notes": ""
+    },
+    {
+      "family": "mpeg1-2",
+      "kind": "video-codec",
+      "vlc_modules": [
+        "mpegvideo (packetizer)",
+        "avcodec (video decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "MPEG-2 in MPEG-PS (mpegps_mpeg2) and bare ES (mpeg2_es)",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/mpegps_mpeg2.log",
+          "docs/baselines/raw/linux/probe-work/logs/mpeg2_es.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/mpegps_mpeg2.log",
+        "chosen_demux": "ps / mpgv",
+        "chosen_packetizer": "mpegvideo",
+        "chosen_decoders": [
+          "avcodec (mpgv)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P1",
+      "usage_share_rationale": "doc04 §4 P1 (DVD/DVB workhorse)",
+      "notes": ""
+    },
+    {
+      "family": "mpeg4-asp",
+      "kind": "video-codec",
+      "vlc_modules": [
+        "mpeg4video (packetizer)",
+        "avcodec (video decoder)"
+      ],
+      "vlc_shortcuts": [
+        "m4v",
+        "mp4v"
+      ],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "MPEG-4 Part 2 (ASP) 64x48 in AVI",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/avi_mpeg4.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/avi_mpeg4.log",
+        "chosen_demux": "avi",
+        "chosen_decoders": [
+          "avcodec (mp4v)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P1",
+      "usage_share_rationale": "doc04 §4 P1 (DivX/Xvid era corpus)",
+      "notes": ""
+    },
+    {
+      "family": "mjpeg",
+      "kind": "video-codec",
+      "vlc_modules": [
+        "avcodec (video decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "Motion-JPEG 64x48 in AVI",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/avi_mjpeg.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/avi_mjpeg.log",
+        "chosen_demux": "avi",
+        "chosen_decoders": [
+          "avcodec (MJPG)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P1",
+      "usage_share_rationale": "doc04 §4 P1 (camera/DV captures; cheapest real video codec for our Phase 2)",
+      "notes": ""
+    },
+    {
+      "family": "wmv2",
+      "kind": "video-codec",
+      "vlc_modules": [
+        "avcodec (video decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "WMV2 64x48 in ASF",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/asf_wmv2_wmav2.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/asf_wmv2_wmav2.log",
+        "chosen_demux": "asf",
+        "chosen_decoders": [
+          "avcodec (WMV2)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P2",
+      "usage_share_rationale": "doc04 §4 P2 (VC-1/WMV9 family; WMV1/WMV3 not probed [VERIFY])",
+      "notes": "Kept as separate family from VC-1 per the minimum-coverage list; both are avcodec-decoded in the oracle."
+    },
+    {
+      "family": "vc1-wmv9",
+      "kind": "video-codec",
+      "vlc_modules": [
+        "vc1 (demux + packetizer)",
+        "avcodec (video decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "not-probe-verified",
+      "probe_evidence": null,
+      "usage_share": "P2",
+      "usage_share_rationale": "doc04 §4 P2",
+      "notes": "Census-only; no fixture."
+    },
+    {
+      "family": "video-census-tail",
+      "kind": "video-codec",
+      "vlc_modules": [
+        "rawvideo (decoder+packetizer)",
+        "png",
+        "jpeg",
+        "svgdec (svg)",
+        "xwd",
+        "cdg",
+        "oggspots (decoder+packetizer)",
+        "dirac (packetizer)",
+        "diracsys (demux)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "not-probe-verified",
+      "probe_evidence": null,
+      "usage_share": "P3",
+      "usage_share_rationale": "doc04 §4 tail (P3 'later'); rawvideo is P1-cheap for us and pairs with rawvid demux",
+      "notes": "Census-only rollup. See modules-linux.json video decoder list (14 registrations)."
+    },
+    {
+      "family": "srt",
+      "kind": "subtitle",
+      "vlc_modules": [
+        "subtitle (demux)",
+        "subsdec (spu decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "gen_py.py text fixture (2 cues with accents); probed twice: standalone open (negative: demux claimed, 0 ES/decoder events, 'nothing to play') and as forced sidecar --sub-file with mp4_h264_aac.mp4 (positive)",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/sub_srt_sample.log",
+          "docs/baselines/raw/linux/probe-work/logs/subsl_srt_sample.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/subsl_srt_sample.log",
+        "chosen_demux": "standalone: ps (probe-race quirk: 'this does not look like an MPEG PS stream, continuing anyway'); sidecar: subtitle (autodetect)",
+        "chosen_decoders": [
+          "subsdec (sidecar: 'detected SubRIP format', 'loaded 2 subtitles', UTF-8 autodetect logged)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "doc04 §5 P0; the default subtitle format everywhere",
+      "notes": "Sidecar path also logs 'avcodec ... refusing to decode non validated subtitle codec' before subsdec wins — decoder-probe order quirk."
+    },
+    {
+      "family": "ssa",
+      "kind": "subtitle",
+      "vlc_modules": [
+        "subtitle (demux)",
+        "libass (spu decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "gen_py.py text fixture (SSA v4 with 1 style); probed twice: standalone open (negative: demux claimed, 0 ES/decoder events, 'nothing to play') and as forced sidecar --sub-file with mp4_h264_aac.mp4 (positive)",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/sub_ssa_sample.log",
+          "docs/baselines/raw/linux/probe-work/logs/subsl_ssa_sample.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/subsl_ssa_sample.log",
+        "chosen_demux": "standalone: ps (quirk, see srt); sidecar: subtitle (autodetect)",
+        "chosen_decoders": [
+          "libass"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "doc04 §5 P0 (ASS/SSA family)",
+      "notes": "Styling decode is entirely libass in the oracle — the C-dependency honesty point of doc04 §5."
+    },
+    {
+      "family": "ass",
+      "kind": "subtitle",
+      "vlc_modules": [
+        "subtitle (demux)",
+        "libass (spu decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "gen_py.py text fixture (ASS v4+ with \\b override tags); probed twice: standalone open (negative: demux claimed, 0 ES/decoder events, 'nothing to play') and as forced sidecar --sub-file with mp4_h264_aac.mp4 (positive)",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/sub_ass_sample.log",
+          "docs/baselines/raw/linux/probe-work/logs/subsl_ass_sample.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/subsl_ass_sample.log",
+        "chosen_demux": "standalone: ps (quirk, see srt); sidecar: subtitle (autodetect)",
+        "chosen_decoders": [
+          "libass"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "doc04 §5 P0",
+      "notes": ""
+    },
+    {
+      "family": "vtt",
+      "kind": "subtitle",
+      "vlc_modules": [
+        "webvtt (demux, 2 registrations)",
+        "webvtt (spu decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "gen_py.py text fixture (2 plain cues); probed twice: standalone open (negative: demux claimed, 0 ES/decoder events, 'nothing to play') and as forced sidecar --sub-file with mp4_h264_aac.mp4 (positive)",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/sub_vtt_sample.log",
+          "docs/baselines/raw/linux/probe-work/logs/subsl_vtt_sample.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/subsl_vtt_sample.log",
+        "chosen_demux": "standalone: webvtt (the demux module itself, but 0 ES created); sidecar: subtitle (autodetect)",
+        "chosen_decoders": [
+          "webvtt (spu)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P1",
+      "usage_share_rationale": "doc04 §5 P1 (HTML5-native subtitle)",
+      "notes": ""
+    },
+    {
+      "family": "microdvd",
+      "kind": "subtitle",
+      "vlc_modules": [
+        "subtitle (demux)",
+        "subsdec (spu decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "gen_py.py text fixture (frame-based {0}{25} cues); probed twice: standalone open (negative: demux claimed, 0 ES/decoder events, 'nothing to play') and as forced sidecar --sub-file with mp4_h264_aac.mp4 (positive)",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/sub_microdvd_sample.log",
+          "docs/baselines/raw/linux/probe-work/logs/subsl_microdvd_sample.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/subsl_microdvd_sample.log",
+        "chosen_demux": "standalone: ps (quirk, see srt); sidecar: subtitle (autodetect)",
+        "chosen_decoders": [
+          "subsdec ('detected MicroDVD format', fps 10 inferred from 'Movie fps: 10.000000')"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P2",
+      "usage_share_rationale": "doc04 §5 P2",
+      "notes": ""
+    },
+    {
+      "family": "subviewer",
+      "kind": "subtitle",
+      "vlc_modules": [
+        "avformat (demux, standalone path)",
+        "subtitle (demux, sidecar)",
+        "subsdec (spu decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "gen_py.py text fixture ([INFORMATION] header + 2 cues); probed twice: standalone open (negative: demux claimed, 0 ES/decoder events, 'nothing to play') and as forced sidecar --sub-file with mp4_h264_aac.mp4 (positive)",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/sub_subviewer_sample.log",
+          "docs/baselines/raw/linux/probe-work/logs/subsl_subviewer_sample.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/subsl_subviewer_sample.log",
+        "chosen_demux": "standalone: avformat (ffmpeg's subviewer demuxer claims standalone opens); sidecar: subtitle (autodetect)",
+        "chosen_decoders": [
+          "subsdec ('detected SubViewer format')"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P2",
+      "usage_share_rationale": "doc04 §5 P2",
+      "notes": ""
+    },
+    {
+      "family": "sami",
+      "kind": "subtitle",
+      "vlc_modules": [
+        "avformat (demux, standalone path)",
+        "subtitle (demux, sidecar)",
+        "subsdec (spu decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "gen_py.py text fixture (<SYNC Start=...> HTML-ish cues); probed twice: standalone open (negative: demux claimed, 0 ES/decoder events, 'nothing to play') and as forced sidecar --sub-file with mp4_h264_aac.mp4 (positive)",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/sub_sami_sample.log",
+          "docs/baselines/raw/linux/probe-work/logs/subsl_sami_sample.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/subsl_sami_sample.log",
+        "chosen_demux": "standalone: avformat; sidecar: subtitle (autodetect)",
+        "chosen_decoders": [
+          "subsdec ('detected SAMI format')"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P2",
+      "usage_share_rationale": "doc04 §5 P2 (Korean-market legacy)",
+      "notes": ""
+    },
+    {
+      "family": "ttml",
+      "kind": "subtitle",
+      "vlc_modules": [
+        "ttml (demux)",
+        "ttml (spu decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "gen_py.py text fixture (TTML1 namespace, 2 <p> cues); probed twice: standalone open (negative: demux claimed, 0 ES/decoder events, 'nothing to play') and as forced sidecar --sub-file with mp4_h264_aac.mp4 (positive)",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/sub_ttml_sample.log",
+          "docs/baselines/raw/linux/probe-work/logs/subsl_ttml_sample.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/subsl_ttml_sample.log",
+        "chosen_demux": "standalone: ttml (demux claims, 0 ES); sidecar: subtitle (autodetect)",
+        "chosen_decoders": [
+          "ttml (spu)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P2",
+      "usage_share_rationale": "doc04 §5 P2 (broadcast/IMSC adjacency)",
+      "notes": ""
+    },
+    {
+      "family": "pgs",
+      "kind": "subtitle",
+      "vlc_modules": [
+        "avcodec (spu decoder — ffmpeg pgssub)",
+        "libbluray (access_demux path)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "not-probe-verified",
+      "probe_evidence": null,
+      "usage_share": "P2",
+      "usage_share_rationale": "doc04 §5 P2 (Blu-ray)",
+      "notes": "Census-only: no dedicated pgs module name; PGS arrives as HDMV-PGS through avcodec's spu registration or libbluray. [VERIFY: confirm module chain on a BD fixture]"
+    },
+    {
+      "family": "dvb-subs-teletext",
+      "kind": "subtitle",
+      "vlc_modules": [
+        "dvbsub (spu decoder)",
+        "zvbi (spu decoder, teletext)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "not-probe-verified",
+      "probe_evidence": null,
+      "usage_share": "P2",
+      "usage_share_rationale": "doc04 §5 P2 (pairs with TS work)",
+      "notes": "Census-only; would need a DVB-captioned TS fixture [VERIFY]."
+    },
+    {
+      "family": "cc-608-708",
+      "kind": "subtitle",
+      "vlc_modules": [
+        "cc (spu decoder)",
+        "zvbi (spu decoder)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "not-probe-verified",
+      "probe_evidence": null,
+      "usage_share": "P1",
+      "usage_share_rationale": "doc04 §5 P1 (CEA captions; NTSC legacy + ATSC)",
+      "notes": "Census-only; needs a captioned TS/PS fixture [VERIFY]."
+    },
+    {
+      "family": "subtitle-census-tail",
+      "kind": "subtitle",
+      "vlc_modules": [
+        "spudec (DVD)",
+        "svcdsub",
+        "cvdsub",
+        "kate",
+        "subsusf",
+        "substx3g",
+        "stl",
+        "aribsub",
+        "scte18",
+        "scte27",
+        "textst",
+        "vobsub (demux)"
+      ],
+      "vlc_shortcuts": [
+        "subtitle (vobsub/demux_stl/demux_cdg shortcuts)"
+      ],
+      "probe_status": "not-probe-verified",
+      "probe_evidence": null,
+      "usage_share": "P3",
+      "usage_share_rationale": "doc04 §5 tail; bitmap/disc-caption families scheduled Phase 6+",
+      "notes": "Census-only rollup (22 spu-decoder registrations in pinned build; see modules-linux.json)."
+    },
+    {
+      "family": "m3u-m3u8",
+      "kind": "playlist",
+      "vlc_modules": [
+        "playlist (stream_filter, m3u/m3u8 reader)"
+      ],
+      "vlc_shortcuts": [
+        "m3u",
+        "m3u8"
+      ],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "gen_py.py #2: #EXTM3U/#EXTINF + relative wav entry (file); m3u_http.m3u same shape served over HTTP",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/pl_m3u_sample.log",
+          "docs/baselines/raw/linux/probe-work/logs/http_m3u.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/pl_m3u_sample.log",
+        "chosen_demux": "n/a (stream_filter 'playlist'; 'found valid M3U playlist')",
+        "chosen_decoders": [
+          "araw (inner wav)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "Reasoned: the de-facto index format for local collections and simple streaming; zero-cost to implement [no survey split available — VERIFY]",
+      "notes": "Playlists are stream_filters, not demuxers, in this oracle — key architectural fact for our engine."
+    },
+    {
+      "family": "pls",
+      "kind": "playlist",
+      "vlc_modules": [
+        "playlist (stream_filter, pls reader)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "gen_py.py #3: [playlist]/File1/Version=2",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/pl_pls_sample.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/pl_pls_sample.log",
+        "chosen_demux": "n/a ('found valid PLS playlist file', 'pls file version: 2', 'pls should have 1 entries')",
+        "chosen_decoders": [
+          "araw (inner wav)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "Reasoned: Winamp-era but still emitted by SHOUTcast/Icecast directories [VERIFY]",
+      "notes": ""
+    },
+    {
+      "family": "xspf",
+      "kind": "playlist",
+      "vlc_modules": [
+        "playlist (stream_filter, XSPF reader)",
+        "export (playlist export, XSPF writer)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "gen_py.py #4: XSPF 1.0 with file:// location; VLC also writes its media library as ml.xspf every session (writer evidence in all 58 logs)",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/pl_xspf_sample.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/pl_xspf_sample.log",
+        "chosen_demux": "n/a ('using XSPF playlist reader')",
+        "chosen_decoders": [
+          "araw (inner wav)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "Reasoned: VLC's own interchange format; needed for media-library interop [VERIFY]",
+      "notes": ""
+    },
+    {
+      "family": "asx",
+      "kind": "playlist",
+      "vlc_modules": [
+        "playlist (stream_filter, asx reader)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "gen_py.py #5: ASX 3.0 <ref href>",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/pl_asx_sample.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/pl_asx_sample.log",
+        "chosen_demux": "n/a ('found valid ASX playlist')",
+        "chosen_decoders": [
+          "araw (inner wav)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P1",
+      "usage_share_rationale": "Reasoned: Windows-media-era streaming indexes [VERIFY]",
+      "notes": ""
+    },
+    {
+      "family": "b4s",
+      "kind": "playlist",
+      "vlc_modules": [
+        "playlist (stream_filter, shout-b4s reader)",
+        "xml (xml reader)"
+      ],
+      "vlc_shortcuts": [
+        "shout-b4s"
+      ],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "gen_py.py #6: Winamp B4S XML with Playstring",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/pl_b4s_sample.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/pl_b4s_sample.log",
+        "chosen_demux": "n/a (no 'found valid' line; xml reader engaged, playlist item replaced by entry 'probe tone', inner wav played)",
+        "chosen_decoders": [
+          "araw (inner wav)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P2",
+      "usage_share_rationale": "Reasoned: Winamp-legacy; near-zero modern share — parity-only [VERIFY]",
+      "notes": ""
+    },
+    {
+      "family": "cue",
+      "kind": "playlist",
+      "vlc_modules": [],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "gen_py.py #7: CUE sheet (FILE/TRACK/INDEX) — deliberate negative probe",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/pl_cue_sample.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/pl_cue_sample.log",
+        "chosen_demux": "none (no cue reader in pinned census; item died with 0 ES, 'nothing to play')",
+        "chosen_decoders": [],
+        "exit_code": 0,
+        "verdict": "NEGATIVE: pinned VLC 3.0.23 has no CUE-sheet support (matches census: no cue module)"
+      },
+      "usage_share": "P2",
+      "usage_share_rationale": "Reasoned: audiophile/album-cue workflows expect it even though the oracle lacks it — our scope decision, not parity [PROPOSAL-flagged for 0.D3]",
+      "notes": "This is the only probed family where the oracle's answer is 'unsupported'."
+    },
+    {
+      "family": "playlist-census-tail",
+      "kind": "playlist",
+      "vlc_modules": [
+        "playlist (stream_filter) readers: itml (iTunes), wpl, qtl, sgimb, podcast, shout-winamp, dvb",
+        "lua (stream_filter, luaplaylist)"
+      ],
+      "vlc_shortcuts": [
+        "itml",
+        "wpl",
+        "qtl",
+        "sgimb",
+        "podcast",
+        "shout-winamp",
+        "dvb",
+        "luaplaylist"
+      ],
+      "probe_status": "not-probe-verified",
+      "probe_evidence": null,
+      "usage_share": "P3",
+      "usage_share_rationale": "Rollup: niche/proprietary web indexes; podcast/itml may rise if we chase directory features [VERIFY]",
+      "notes": "Census-only; 26 stream_filter registrations, 15 of them 'playlist' readers."
+    },
+    {
+      "family": "file",
+      "kind": "protocol",
+      "vlc_modules": [
+        "filesystem (access, file/fd/stream registration)"
+      ],
+      "vlc_shortcuts": [
+        "file",
+        "fd",
+        "stream"
+      ],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "every local-file probe in the matrix (30 media + 8 subs + 6 pls + dir + zip + subsl)",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/wav_pcm_py.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/wav_pcm_py.log",
+        "chosen_demux": "(all container demuxes)",
+        "chosen_access": "filesystem",
+        "chosen_decoders": [
+          "(all)"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "Trivially P0: local playback is the base case",
+      "notes": "filesystem access registers twice (file/fd/stream + directory/dir)."
+    },
+    {
+      "family": "http-https",
+      "kind": "protocol",
+      "vlc_modules": [
+        "access (access module — the VLC 3.0 http(s) access plugin; shortcuts http/https)",
+        "http (access, icyx/unsv/itpc shoutcast-variant)",
+        "prefetch (stream_filter)"
+      ],
+      "vlc_shortcuts": [
+        "http",
+        "https",
+        "icyx",
+        "unsv",
+        "itpc"
+      ],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "python http.server on 127.0.0.1:8123 serving wav_pcm_py.wav and m3u_http.m3u (server-side log: http_server.log, 3 GETs)",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/http_wav.log",
+          "docs/baselines/raw/linux/probe-work/logs/http_m3u.log",
+          "docs/baselines/raw/linux/probe-work/logs/http_server.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/http_wav.log",
+        "chosen_demux": "wav / playlist(m3u)",
+        "chosen_access": "access ('http stream debug: resolving 127.0.0.1', outgoing GET, incoming 200 response all logged)",
+        "chosen_decoders": [
+          "araw"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "Reasoned: streaming/network playback is a headline player feature; our TLS story is ADR-011 (subsystems.md §2)",
+      "notes": "Only plain http probed; https NOT probed (would exercise gnutls tls client — census module present) [VERIFY]."
+    },
+    {
+      "family": "directory",
+      "kind": "protocol",
+      "vlc_modules": [
+        "filesystem (access, directory/dir registration)",
+        "directory (demux)"
+      ],
+      "vlc_shortcuts": [
+        "directory",
+        "dir"
+      ],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "tmp/probe dir containing tone.wav",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/dir_access.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/dir_access.log",
+        "chosen_demux": "directory -> wav (inner file)",
+        "chosen_decoders": [
+          "araw"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P0",
+      "usage_share_rationale": "Reasoned: folder-open is primary desktop UX",
+      "notes": ""
+    },
+    {
+      "family": "udp",
+      "kind": "protocol",
+      "vlc_modules": [
+        "udp (access)"
+      ],
+      "vlc_shortcuts": [
+        "udpstream",
+        "udp4",
+        "udp6"
+      ],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "MPEG-TS (MP3 program) sent to udp://@:5004 (sender not preserved [VERIFY])",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/udp_ts.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/udp_ts.log",
+        "chosen_demux": "ts",
+        "chosen_access": "udp ('udp stream debug: opening server=:0 local=:5004')",
+        "chosen_decoders": [
+          "mpg123"
+        ],
+        "exit_code": 0
+      },
+      "usage_share": "P1",
+      "usage_share_rationale": "Reasoned: legacy multicast IPTV; doc04/0.C3-I network section covers our plan",
+      "notes": ""
+    },
+    {
+      "family": "rtp",
+      "kind": "protocol",
+      "vlc_modules": [
+        "rtp (access_demux)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "probed",
+      "probe_evidence": {
+        "fixture_desc": "MPEG-TS over RTP to rtp://@:5006 (payload 33; sender not preserved [VERIFY])",
+        "log_files": [
+          "docs/baselines/raw/linux/probe-work/logs/rtp_ts.log"
+        ],
+        "log_file": "docs/baselines/raw/linux/probe-work/logs/rtp_ts.log",
+        "chosen_demux": "rtp (access_demux) -> ts",
+        "chosen_decoders": [
+          "mpg123"
+        ],
+        "exit_code": 124,
+        "verdict": "live stream never EOFs under --play-and-exit; timeout(1) kill at 25 s — PAT/PMT/SDT walk + decode all observed first"
+      },
+      "usage_share": "P1",
+      "usage_share_rationale": "Reasoned: RTP/RTSP streaming adjacency; rtp access_demux auto-detects MP2T",
+      "notes": "The two 0-byte logs rtp_ffmpeg.log/udp_ffmpeg.log are failed sender-side capture attempts, NOT oracle runs (no status.txt entries)."
+    },
+    {
+      "family": "rtsp",
+      "kind": "protocol",
+      "vlc_modules": [
+        "access_realrtsp (access, realrtsp/rtsp/pnm)",
+        "satip (access, rtsp shortcut)",
+        "rtsp (vod server — sout side)"
+      ],
+      "vlc_shortcuts": [
+        "realrtsp",
+        "rtsp",
+        "pnm"
+      ],
+      "probe_status": "not-probe-verified",
+      "probe_evidence": null,
+      "usage_share": "P2",
+      "usage_share_rationale": "Reasoned: IP-camera/legacy streaming; 0.C3-I verdict was RTSP blocked-v1 (retina/rtsp crates + 3 blockers)",
+      "notes": "Census-only. Note satip also claims the rtsp shortcut (shortcut collision resolved by module score)."
+    },
+    {
+      "family": "smb",
+      "kind": "protocol",
+      "vlc_modules": [
+        "(none in pinned extract — vlc-plugin-samba was an excluded headless deb)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "not-probe-verified",
+      "probe_evidence": null,
+      "usage_share": "P2",
+      "usage_share_rationale": "Reasoned: LAN media shares are common desktop usage [VERIFY]",
+      "notes": "The census lists 10 excluded debs; smb access exists in a full Debian VLC install but not in our pinned headless extract — we cannot probe-verify it against this oracle at all."
+    },
+    {
+      "family": "nfs",
+      "kind": "protocol",
+      "vlc_modules": [
+        "nfs (access)"
+      ],
+      "vlc_shortcuts": [],
+      "probe_status": "not-probe-verified",
+      "probe_evidence": null,
+      "usage_share": "P3",
+      "usage_share_rationale": "Reasoned: NAS user niche [VERIFY]",
+      "notes": "Census-only (--enable-nfs in configure line)."
+    },
+    {
+      "family": "ftp-sftp",
+      "kind": "protocol",
+      "vlc_modules": [
+        "ftp (access)",
+        "sftp (access)"
+      ],
+      "vlc_shortcuts": [
+        "ftps",
+        "ftpes"
+      ],
+      "probe_status": "not-probe-verified",
+      "probe_evidence": null,
+      "usage_share": "P3",
+      "usage_share_rationale": "Reasoned: legacy file-transfer playback [VERIFY]",
+      "notes": "Census-only; sftp is a libssh-based plugin in VLC (configure --enable-sftp)."
+    },
+    {
+      "family": "mmsh-mms",
+      "kind": "protocol",
+      "vlc_modules": [
+        "access_mms (access)"
+      ],
+      "vlc_shortcuts": [
+        "mms",
+        "mmsu",
+        "mmst",
+        "mmsh"
+      ],
+      "probe_status": "not-probe-verified",
+      "probe_evidence": null,
+      "usage_share": "P2",
+      "usage_share_rationale": "Reasoned: legacy Windows streaming [VERIFY]",
+      "notes": "Census-only."
+    },
+    {
+      "family": "disc-family",
+      "kind": "protocol",
+      "vlc_modules": [
+        "cdda (access+access_demux)",
+        "vcd (access)",
+        "dvdnav (access_demux+demux)",
+        "libbluray (access_demux+demux)",
+        "dtv/dvb (access)"
+      ],
+      "vlc_shortcuts": [
+        "cddasimple",
+        "svcd",
+        "dvd",
+        "iso",
+        "bluray",
+        "file",
+        "tv",
+        "dvb",
+        "satellite",
+        "terrestrial",
+        "atsc"
+      ],
+      "probe_status": "not-probe-verified",
+      "probe_evidence": null,
+      "usage_share": "P2",
+      "usage_share_rationale": "Reasoned: disc playback is headline VLC functionality; 0.C3-I μADRs: DVD nav blocked (no E2 path), Kate drop-v1, FFV1 later",
+      "notes": "Census-only. Full disc/dvb surface is in modules-linux.json access + access_demux lists."
+    },
+    {
+      "family": "protocol-census-tail",
+      "kind": "protocol",
+      "vlc_modules": [
+        "tcp",
+        "sdp",
+        "rist (tr06)",
+        "satip",
+        "concat (concast/list)",
+        "attachment",
+        "avio (rtmp family)",
+        "upnp (upnps)",
+        "vdr",
+        "imem",
+        "access_mtp",
+        "dv1394",
+        "dc1394",
+        "v4l2",
+        "linsys_sdi",
+        "pulsesrc (unloadable in extract)",
+        "access_alsa",
+        "shm",
+        "timecode",
+        "dvb",
+        "dtv"
+      ],
+      "vlc_shortcuts": [
+        "rtmp",
+        "rtmpe",
+        "rtmps",
+        "rtmpt",
+        "rtmpte",
+        "rtmpts",
+        "tr06",
+        "concast",
+        "list",
+        "v4l",
+        "radio",
+        "upnps",
+        "linsys-sdi"
+      ],
+      "probe_status": "not-probe-verified",
+      "probe_evidence": null,
+      "usage_share": "P3",
+      "usage_share_rationale": "Rollup: capture/professional/legacy transports; v1 targets none of these (doc04/0.C3-I)",
+      "notes": "Census-only. rtmp hides inside the 'avio' access (ffmpeg avio); pulsesrc .so fails to load in the headless extract."
+    }
+  ]
+}

@@ -1,0 +1,1664 @@
+# 17 — Format-selection probe sessions, consolidated (Task 0.B4-R)
+
+Oracle: pinned VLC 3.0.23 Vetinari (3.0.23-2-0-g79128878dd), Linux x86_64,
+extracted Debian debs at tmp/pinning/extract/ (see dumps 01-11). Clean-room:
+fixtures are OUR OWN synthetic files (pure-Python struct writers, gen_py.py,
+preserved at probe-work/gen_py.py; ffmpeg lavfi/encoder synthesis for the media
+fixtures — the exact ffmpeg command lines were NOT preserved by the prior 0.B4
+session [VERIFY]; per-file content below was re-derived 2026-10-19 with ffprobe
+on the still-present tmp/probe/media files, plus x265 remnants in gen_hevc.err /
+gen_mp4hevc.err). Oracle behavior observed via -vv debug logs only. No VLC
+source consulted. Media fixtures are NOT committed (gitignored tmp/).
+
+Harness (probe-work/run_probes.sh, verbatim semantics):
+  EXTRACT=/home/z/my-project/tmp/pinning/extract
+  export LD_LIBRARY_PATH=$EXTRACT/usr/lib/x86_64-linux-gnu
+  P=/home/z/my-project/tmp/probe
+  VLC="$EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv"
+  run() { timeout 25 $VLC "$@" > $P/logs/$name.log 2>&1; echo "$name exit=$?" >> status.txt }
+
+The logs directory holds 61 .log files + status.txt (57 status entries).
+Present here: all 61, in probe order. The four without status.txt entries are
+smoke_wav (pre-status smoke run), http_server (python http.server daemon log,
+server side), rtp_ffmpeg + udp_ffmpeg (0-byte sender-side capture attempts).
+
+Decisive-line extraction pattern (verbatim rg output below, one block per
+probe; constant noise annotated once here): every local-file session logs
+`using access module "filesystem"` for the media-library ml.xspf load, a
+`using demux module "directory"` line for the playlist/directory preparse, and
+XSPF media-library export lines at shutdown — those belong to the harness, not
+the fixture. The per-fixture decision lines are the demux/packetizer/decoder
+selections that follow, plus the probe-specific debug lines included below.
+
+Exit codes: 0 for all status-tracked runs except rtp_ts (124 = timeout on a
+live stream, decoding still observed). Plugin-load warnings about libpulse/
+vdpau/xcb .so files are extraction artifacts (headless debs excluded), do not
+affect module selection for the probed families.
+
+==============================================================================
+## wav_pcm_py  (log: probe-work/logs/wav_pcm_py.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/wav_pcm_py.*
+fixture: python-written RIFF WAVE: PCM s16le, 8 kHz mono, 440 Hz sine, 0.5 s (gen_py.py #1)
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "wav"
+    using audio decoder module "araw"
+    using access module "filesystem"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## avi_mjpeg  (log: probe-work/logs/avi_mjpeg.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/avi_mjpeg.*
+fixture: ffmpeg AVI: Motion-JPEG video 64x48, 1 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "avi"
+    using video decoder module "avcodec"
+    using access module "filesystem"
+    using text renderer module "freetype"
+    using text renderer module "freetype"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## mp4_h264_aac  (log: probe-work/logs/mp4_h264_aac.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/mp4_h264_aac.*
+fixture: ffmpeg MP4: H.264 video 64x48 + AAC-LC audio 8 kHz mono, 1 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "mp4"
+    using video decoder module "avcodec"
+    using audio decoder module "faad"
+    using access module "filesystem"
+    using text renderer module "freetype"
+    using text renderer module "freetype"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## mkv_h264_flac  (log: probe-work/logs/mkv_h264_flac.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/mkv_h264_flac.*
+fixture: ffmpeg Matroska: H.264 video 64x48 + FLAC audio 8 kHz mono, 1 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "mkv"
+    using video decoder module "avcodec"
+    using audio decoder module "flac"
+    using access module "filesystem"
+    using text renderer module "freetype"
+    using text renderer module "freetype"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## webm_vp9_opus  (log: probe-work/logs/webm_vp9_opus.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/webm_vp9_opus.*
+fixture: ffmpeg WebM: VP9 video 64x48 + Opus audio 48 kHz mono, 1.008 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "mkv"
+    using packetizer module "packetizer_avparser"
+    using video decoder module "avcodec"
+    using audio decoder module "opus"
+    using access module "filesystem"
+    using text renderer module "freetype"
+    using text renderer module "freetype"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## ogg_vorbis  (log: probe-work/logs/ogg_vorbis.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/ogg_vorbis.*
+fixture: ffmpeg Ogg: Vorbis audio 8 kHz mono, 1 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "ogg"
+    using access module "filesystem"
+    using audio decoder module "vorbis"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## ogg_opus  (log: probe-work/logs/ogg_opus.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/ogg_opus.*
+fixture: ffmpeg Ogg: Opus audio 48 kHz mono, ~1 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "ogg"
+    using access module "filesystem"
+    using audio decoder module "opus"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## flac_native  (log: probe-work/logs/flac_native.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/flac_native.*
+fixture: ffmpeg native FLAC: FLAC audio 8 kHz mono, 1 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using packetizer module "flac"
+    using demux module "flacsys"
+    using packetizer module "flac"
+    using audio decoder module "flac"
+    using access module "filesystem"
+    using audio decoder module "flac"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## mp3_raw  (log: probe-work/logs/mp3_raw.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/mp3_raw.*
+fixture: ffmpeg bare MP3 elementary stream: MPEG audio Layer III 8 kHz mono, 1.152 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "skiptags"
+    using stream_filter module "record"
+    using packetizer module "mpegaudio"
+    using demux module "es"
+    using audio decoder module "mpg123"
+    using access module "filesystem"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## adts_aac  (log: probe-work/logs/adts_aac.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/adts_aac.*
+fixture: ffmpeg bare ADTS stream: AAC-LC 44.1 kHz mono, 1.045 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using packetizer module "mpeg4audio"
+    detected ADTS format
+    using demux module "es"
+    using audio decoder module "faad"
+    using access module "filesystem"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## mpegts_h264  (log: probe-work/logs/mpegts_h264.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/mpegts_h264.*
+fixture: ffmpeg MPEG-TS: H.264 video 64x48, 1 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using xml reader module "xml"
+    subtitle demux discarded
+    using demux module "ts"
+    using access module "filesystem"
+    ts demux debug: PATCallBack called
+    ts demux debug: new PAT ts_id=1 version=0 current_next=1
+    ts demux debug: PMTCallBack called for program 1
+    ts demux debug: new PMT program number=1 version=0 pid_pcr=256
+    using packetizer module "h264"
+    using video decoder module "avcodec"
+    ts demux debug: new SDT ts_id=1 version=0 current_next=1 network_id=65281
+    using video decoder module "avcodec"
+    using text renderer module "freetype"
+    using text renderer module "freetype"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## mpegps_mpeg2  (log: probe-work/logs/mpegps_mpeg2.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/mpegps_mpeg2.*
+fixture: ffmpeg MPEG-PS: MPEG-2 video 64x48, 0.8 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using xml reader module "xml"
+    subtitle demux discarded
+    using demux module "ps"
+    using access module "filesystem"
+    using packetizer module "mpegvideo"
+    using video decoder module "avcodec"
+    using video decoder module "avcodec"
+    using text renderer module "freetype"
+    using text renderer module "freetype"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## asf_wmv2_wmav2  (log: probe-work/logs/asf_wmv2_wmav2.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/asf_wmv2_wmav2.*
+fixture: ffmpeg ASF/WMV: WMV2 video 64x48 + WMAv2 audio 8 kHz mono, 1.128 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "asf"
+    using video decoder module "avcodec"
+    using audio decoder module "avcodec"
+    using access module "filesystem"
+    using text renderer module "freetype"
+    using text renderer module "freetype"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## aiff_pcm  (log: probe-work/logs/aiff_pcm.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/aiff_pcm.*
+fixture: ffmpeg AIFF: PCM s16be 8 kHz mono, 1 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "aiff"
+    using audio decoder module "araw"
+    using access module "filesystem"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## h264_annexb  (log: probe-work/logs/h264_annexb.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/h264_annexb.*
+fixture: ffmpeg bare H.264 Annex-B elementary stream: 64x48, 1 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using xml reader module "xml"
+    subtitle demux discarded
+    using packetizer module "h264"
+    using demux module "h26x"
+    using access module "filesystem"
+    using video decoder module "avcodec"
+    using text renderer module "freetype"
+    using text renderer module "freetype"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## hevc_annexb  (log: probe-work/logs/hevc_annexb.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/hevc_annexb.*
+fixture: ffmpeg (x265 Main) bare HEVC Annex-B elementary stream: 64x48, 1 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using xml reader module "xml"
+    subtitle demux discarded
+    using packetizer module "hevc"
+    using demux module "h26x"
+    using access module "filesystem"
+    using video decoder module "avcodec"
+    using text renderer module "freetype"
+    using text renderer module "freetype"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## mp4_hevc  (log: probe-work/logs/mp4_hevc.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/mp4_hevc.*
+fixture: ffmpeg (x265 Main) MP4: HEVC video 64x48, 1 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "mp4"
+    using video decoder module "avcodec"
+    using access module "filesystem"
+    using text renderer module "freetype"
+    using text renderer module "freetype"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## mkv_av1_opus  (log: probe-work/logs/mkv_av1_opus.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/mkv_av1_opus.*
+fixture: ffmpeg Matroska: AV1 video 64x48 + Opus audio 48 kHz mono, 1.008 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "mkv"
+    using video decoder module "dav1d"
+    using audio decoder module "opus"
+    using access module "filesystem"
+    using text renderer module "freetype"
+    using text renderer module "freetype"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## ogg_theora  (log: probe-work/logs/ogg_theora.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/ogg_theora.*
+fixture: ffmpeg Ogg: Theora video 64x48 + Vorbis audio 8 kHz mono, 1 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "ogg"
+    using access module "filesystem"
+    using video decoder module "theora"
+    using audio decoder module "vorbis"
+    using text renderer module "freetype"
+    using text renderer module "freetype"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## avi_mpeg4  (log: probe-work/logs/avi_mpeg4.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/avi_mpeg4.*
+fixture: ffmpeg AVI: MPEG-4 Part 2 (ASP) video 64x48, 1 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "avi"
+    using video decoder module "avcodec"
+    using access module "filesystem"
+    using text renderer module "freetype"
+    using text renderer module "freetype"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## m4a_alac  (log: probe-work/logs/m4a_alac.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/m4a_alac.*
+fixture: ffmpeg M4A (MP4): ALAC audio 44.1 kHz mono, 1 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "mp4"
+    using audio decoder module "avcodec"
+    using access module "filesystem"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## ac3_raw  (log: probe-work/logs/ac3_raw.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/ac3_raw.*
+fixture: ffmpeg bare AC-3 elementary stream: 44.1 kHz mono, 1.01 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using packetizer module "a52"
+    using demux module "es"
+    using audio decoder module "spdif"
+    using access module "filesystem"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## eac3_raw  (log: probe-work/logs/eac3_raw.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/eac3_raw.*
+fixture: ffmpeg bare E-AC-3 elementary stream: 44.1 kHz mono, 1.012 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using packetizer module "a52"
+    using demux module "es"
+    using audio decoder module "spdif"
+    using access module "filesystem"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## dts_raw  (log: probe-work/logs/dts_raw.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/dts_raw.*
+fixture: ffmpeg bare DTS elementary stream: 44.1 kHz mono, 1.015 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using packetizer module "dts"
+    using demux module "es"
+    using audio decoder module "spdif"
+    using access module "filesystem"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## ogg_speex  (log: probe-work/logs/ogg_speex.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/ogg_speex.*
+fixture: ffmpeg Ogg: Speex audio 16 kHz mono, 1 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "ogg"
+    using access module "filesystem"
+    using audio decoder module "speex"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## mpeg2_es  (log: probe-work/logs/mpeg2_es.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/mpeg2_es.*
+fixture: ffmpeg bare MPEG-2 video ES (.m2v): 64x48, 1 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using xml reader module "xml"
+    subtitle demux discarded
+    using packetizer module "mpegvideo"
+    using demux module "mpgv"
+    using packetizer module "mpegvideo"
+    using video decoder module "avcodec"
+    using access module "filesystem"
+    using video decoder module "avcodec"
+    using text renderer module "freetype"
+    using text renderer module "freetype"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## wav_adpcm_ima  (log: probe-work/logs/wav_adpcm_ima.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/wav_adpcm_ima.*
+fixture: ffmpeg WAV: IMA ADPCM audio 8 kHz mono, 1 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "wav"
+    using audio decoder module "avcodec"
+    using access module "filesystem"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## au_pcm  (log: probe-work/logs/au_pcm.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/au_pcm.*
+fixture: ffmpeg Sun AU: PCM s16be 8 kHz mono, 1 s
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "au"
+    using audio decoder module "araw"
+    using access module "filesystem"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## midi_minimal  (log: probe-work/logs/midi_minimal.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/midi_minimal.*
+fixture: minimal Standard MIDI File type 0, 1 track, 480 ppqn, 120 BPM (per VLC smf demux log)
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    smf demux debug: detected Standard MIDI File (type 0) with 1 track(s)
+    smf demux debug: tempo: 500000us/qn
+    using demux module "smf"
+    no audio decoder modules matched
+    Codec `MIDI' (MIDI Audio) is not supported
+    using access module "filesystem"
+    smf demux debug: tempo: 500000us/qn
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## tone_zipped  (log: probe-work/logs/tone_zipped.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/tone_zipped.*
+fixture: ZIP archive containing tone.wav (byte-copy of wav_pcm_py.wav)
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_directory module "archive"
+    using stream_filter module "record"
+    cannot peek
+    cannot peek
+    cannot peek
+    cannot peek
+    cannot peek
+    using demux module "directory"
+    using access module "filesystem"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "wav"
+    using audio decoder module "araw"
+    using access module "filesystem"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## sub_srt_sample  (log: probe-work/logs/sub_srt_sample.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/subs/srt_sample.srt
+fixture: gen_py.py #8: SubRip, 2 cues (00:00:00,000-->00:02,000), accents included
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using xml reader module "xml"
+    subtitle demux discarded
+    this does not look like an MPEG PS stream, continuing anyway
+    using demux module "ps"
+    using access module "filesystem"
+    garbage at input from 113
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## sub_ssa_sample  (log: probe-work/logs/sub_ssa_sample.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/subs/ssa_sample.ssa
+fixture: gen_py.py #9: SSA v4, 1 style, 1 Dialogue event
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using xml reader module "xml"
+    subtitle demux discarded
+    this does not look like an MPEG PS stream, continuing anyway
+    using demux module "ps"
+    using access module "filesystem"
+    garbage at input from 446
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## sub_ass_sample  (log: probe-work/logs/sub_ass_sample.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/subs/ass_sample.ass
+fixture: gen_py.py #10: ASS v4+, override tag {\b1}...{\b0}
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using xml reader module "xml"
+    subtitle demux discarded
+    this does not look like an MPEG PS stream, continuing anyway
+    using demux module "ps"
+    using access module "filesystem"
+    garbage at input from 509
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## sub_vtt_sample  (log: probe-work/logs/sub_vtt_sample.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/subs/vtt_sample.vtt
+fixture: gen_py.py #11: WebVTT, 2 cues
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using xml reader module "xml"
+    using demux module "webvtt"
+    using access module "filesystem"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## sub_microdvd_sample  (log: probe-work/logs/sub_microdvd_sample.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/subs/microdvd_sample.sub
+fixture: gen_py.py #12: MicroDVD frame-based {0}{25}...
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    cannot peek
+    cannot peek
+    using xml reader module "xml"
+    subtitle demux discarded
+    this does not look like an MPEG PS stream, continuing anyway
+    using demux module "ps"
+    using access module "filesystem"
+    garbage at input from 45
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## sub_subviewer_sample  (log: probe-work/logs/sub_subviewer_sample.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/subs/subviewer_sample.sub
+fixture: gen_py.py #13: SubViewer 2.0, [INFORMATION] header + 2 cues
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using xml reader module "xml"
+    subtitle demux discarded
+    using demux module "avformat"
+    using access module "filesystem"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## sub_sami_sample  (log: probe-work/logs/sub_sami_sample.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/subs/sami_sample.smi
+fixture: gen_py.py #14: SAMI <SYNC Start=...>
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using xml reader module "xml"
+    subtitle demux discarded
+    using demux module "avformat"
+    using access module "filesystem"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## sub_ttml_sample  (log: probe-work/logs/sub_ttml_sample.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/subs/ttml_sample.ttml
+fixture: gen_py.py #15: TTML (ttml1 ns), 2 <p begin/end> cues
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using xml reader module "xml"
+    subtitle demux discarded
+    using xml reader module "xml"
+    using demux module "ttml"
+    using access module "filesystem"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## pl_m3u_sample  (log: probe-work/logs/pl_m3u_sample.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/pls/m3u_sample.m3u
+fixture: gen_py.py #2: #EXTM3U + #EXTINF + relative ../media/wav_pcm_py.wav
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    found valid M3U playlist
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    cannot peek
+    cannot peek
+    cannot peek
+    cannot peek
+    cannot peek
+    using demux module "directory"
+    using access module "filesystem"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "wav"
+    using audio decoder module "araw"
+    using access module "filesystem"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## pl_pls_sample  (log: probe-work/logs/pl_pls_sample.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/pls/pls_sample.pls
+fixture: gen_py.py #3: [playlist] File1=../media/wav_pcm_py.wav, Version=2
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    found valid PLS playlist
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    cannot peek
+    cannot peek
+    cannot peek
+    cannot peek
+    cannot peek
+    using demux module "directory"
+    using access module "filesystem"
+    pls should have 1 entries
+    pls file version: 2
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "wav"
+    using audio decoder module "araw"
+    using access module "filesystem"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## pl_xspf_sample  (log: probe-work/logs/pl_xspf_sample.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/pls/xspf_sample.xspf
+fixture: gen_py.py #4: XSPF 1.0, file:// absolute location
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    cannot peek
+    cannot peek
+    cannot peek
+    cannot peek
+    cannot peek
+    using demux module "directory"
+    using access module "filesystem"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "wav"
+    using audio decoder module "araw"
+    using access module "filesystem"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## pl_asx_sample  (log: probe-work/logs/pl_asx_sample.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/pls/asx_sample.asx
+fixture: gen_py.py #5: ASX 3.0, <ref href> absolute path
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    found valid ASX playlist
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    cannot peek
+    cannot peek
+    cannot peek
+    cannot peek
+    cannot peek
+    using demux module "directory"
+    using access module "filesystem"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "wav"
+    using audio decoder module "araw"
+    using access module "filesystem"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## pl_b4s_sample  (log: probe-work/logs/pl_b4s_sample.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/pls/b4s_sample.b4s
+fixture: gen_py.py #6: Winamp B4S XML, Playstring absolute path
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    cannot peek
+    cannot peek
+    cannot peek
+    cannot peek
+    cannot peek
+    using demux module "directory"
+    using access module "filesystem"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "wav"
+    using audio decoder module "araw"
+    using access module "filesystem"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## pl_cue_sample  (log: probe-work/logs/pl_cue_sample.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/pls/cue_sample.cue
+fixture: gen_py.py #7: CUE sheet (negative probe: no cue module in pinned census)
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "lua"
+    using stream_filter module "record"
+    cannot peek
+    cannot peek
+    cannot peek
+    cannot peek
+    cannot peek
+    using demux module "directory"
+    using access module "filesystem"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## dir_access  (log: probe-work/logs/dir_access.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/dir
+fixture: directory containing tone.wav (gen_py.py #16)
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "record"
+    cannot peek
+    cannot peek
+    cannot peek
+    cannot peek
+    cannot peek
+    using demux module "directory"
+    using access module "filesystem"
+    using stream_filter module "prefetch"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "wav"
+    using audio decoder module "araw"
+    using access module "filesystem"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## subsl_srt_sample  (log: probe-work/logs/subsl_srt_sample.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/mp4_h264_aac.mp4 --sub-file /home/z/my-project/tmp/probe/subs/srt_sample.srt   [command reconstructed from log evidence: 'forced subtitle: ... (forced: 1)']
+fixture: second pass: mp4_h264_aac.mp4 played with forced sidecar srt_sample.srt (subtitle-slave load)
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "mp4"
+    forced subtitle: /home/z/my-project/tmp/probe/subs/srt_sample.srt
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    Movie fps: 10.000000
+    detected SubRIP format
+    loaded 2 subtitles
+    using demux module "subtitle"
+    using video decoder module "avcodec"
+    using audio decoder module "faad"
+    refusing to decode non validated subtitle codec
+    using spu decoder module "subsdec"
+    using access module "filesystem"
+    using access module "filesystem"
+    using text renderer module "freetype"
+    using text renderer module "freetype"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## subsl_ssa_sample  (log: probe-work/logs/subsl_ssa_sample.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/mp4_h264_aac.mp4 --sub-file /home/z/my-project/tmp/probe/subs/ssa_sample.ssa   [command reconstructed from log evidence: 'forced subtitle: ... (forced: 1)']
+fixture: second pass: mp4_h264_aac.mp4 played with forced sidecar ssa_sample.ssa (subtitle-slave load)
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "mp4"
+    forced subtitle: /home/z/my-project/tmp/probe/subs/ssa_sample.ssa
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    Movie fps: 10.000000
+    loaded 1 subtitles
+    using demux module "subtitle"
+    using video decoder module "avcodec"
+    using audio decoder module "faad"
+    using spu decoder module "libass"
+    using access module "filesystem"
+    using access module "filesystem"
+    using text renderer module "freetype"
+    using text renderer module "freetype"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## subsl_ass_sample  (log: probe-work/logs/subsl_ass_sample.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/mp4_h264_aac.mp4 --sub-file /home/z/my-project/tmp/probe/subs/ass_sample.ass   [command reconstructed from log evidence: 'forced subtitle: ... (forced: 1)']
+fixture: second pass: mp4_h264_aac.mp4 played with forced sidecar ass_sample.ass (subtitle-slave load)
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "mp4"
+    forced subtitle: /home/z/my-project/tmp/probe/subs/ass_sample.ass
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    Movie fps: 10.000000
+    loaded 1 subtitles
+    using demux module "subtitle"
+    using video decoder module "avcodec"
+    using audio decoder module "faad"
+    using spu decoder module "libass"
+    using access module "filesystem"
+    using access module "filesystem"
+    using text renderer module "freetype"
+    using text renderer module "freetype"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## subsl_vtt_sample  (log: probe-work/logs/subsl_vtt_sample.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/mp4_h264_aac.mp4 --sub-file /home/z/my-project/tmp/probe/subs/vtt_sample.vtt   [command reconstructed from log evidence: 'forced subtitle: ... (forced: 1)']
+fixture: second pass: mp4_h264_aac.mp4 played with forced sidecar vtt_sample.vtt (subtitle-slave load)
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "mp4"
+    forced subtitle: /home/z/my-project/tmp/probe/subs/vtt_sample.vtt
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    Movie fps: 10.000000
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using xml reader module "xml"
+    using demux module "webvtt"
+    using video decoder module "avcodec"
+    using audio decoder module "faad"
+    using spu decoder module "webvtt"
+    using access module "filesystem"
+    using access module "filesystem"
+    using text renderer module "freetype"
+    using text renderer module "freetype"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## subsl_microdvd_sample  (log: probe-work/logs/subsl_microdvd_sample.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/mp4_h264_aac.mp4 --sub-file /home/z/my-project/tmp/probe/subs/microdvd_sample.sub   [command reconstructed from log evidence: 'forced subtitle: ... (forced: 1)']
+fixture: second pass: mp4_h264_aac.mp4 played with forced sidecar microdvd_sample.sub (subtitle-slave load)
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "mp4"
+    forced subtitle: /home/z/my-project/tmp/probe/subs/microdvd_sample.sub
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    Movie fps: 10.000000
+    detected MicroDVD format
+    loaded 2 subtitles
+    using demux module "subtitle"
+    using video decoder module "avcodec"
+    using audio decoder module "faad"
+    refusing to decode non validated subtitle codec
+    using spu decoder module "subsdec"
+    using access module "filesystem"
+    using access module "filesystem"
+    using text renderer module "freetype"
+    using text renderer module "freetype"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## subsl_subviewer_sample  (log: probe-work/logs/subsl_subviewer_sample.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/mp4_h264_aac.mp4 --sub-file /home/z/my-project/tmp/probe/subs/subviewer_sample.sub   [command reconstructed from log evidence: 'forced subtitle: ... (forced: 1)']
+fixture: second pass: mp4_h264_aac.mp4 played with forced sidecar subviewer_sample.sub (subtitle-slave load)
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "mp4"
+    forced subtitle: /home/z/my-project/tmp/probe/subs/subviewer_sample.sub
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    Movie fps: 10.000000
+    detected SubViewer format
+    loaded 2 subtitles
+    using demux module "subtitle"
+    using video decoder module "avcodec"
+    using audio decoder module "faad"
+    refusing to decode non validated subtitle codec
+    using spu decoder module "subsdec"
+    using access module "filesystem"
+    using access module "filesystem"
+    using text renderer module "freetype"
+    using text renderer module "freetype"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## subsl_sami_sample  (log: probe-work/logs/subsl_sami_sample.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/mp4_h264_aac.mp4 --sub-file /home/z/my-project/tmp/probe/subs/sami_sample.smi   [command reconstructed from log evidence: 'forced subtitle: ... (forced: 1)']
+fixture: second pass: mp4_h264_aac.mp4 played with forced sidecar sami_sample.smi (subtitle-slave load)
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "mp4"
+    forced subtitle: /home/z/my-project/tmp/probe/subs/sami_sample.smi
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    Movie fps: 10.000000
+    detected SAMI format
+    loaded 2 subtitles
+    using demux module "subtitle"
+    using video decoder module "avcodec"
+    using audio decoder module "faad"
+    refusing to decode non validated subtitle codec
+    using spu decoder module "subsdec"
+    using access module "filesystem"
+    using access module "filesystem"
+    using text renderer module "freetype"
+    using text renderer module "freetype"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## subsl_ttml_sample  (log: probe-work/logs/subsl_ttml_sample.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/mp4_h264_aac.mp4 --sub-file /home/z/my-project/tmp/probe/subs/ttml_sample.ttml   [command reconstructed from log evidence: 'forced subtitle: ... (forced: 1)']
+fixture: second pass: mp4_h264_aac.mp4 played with forced sidecar ttml_sample.ttml (subtitle-slave load)
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "mp4"
+    forced subtitle: /home/z/my-project/tmp/probe/subs/ttml_sample.ttml
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    Movie fps: 10.000000
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using xml reader module "xml"
+    subtitle demux discarded
+    using xml reader module "xml"
+    using demux module "ttml"
+    using video decoder module "avcodec"
+    using audio decoder module "faad"
+    using spu decoder module "ttml"
+    using access module "filesystem"
+    using access module "filesystem"
+    using xml reader module "xml"
+    using text renderer module "freetype"
+    using text renderer module "freetype"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## http_wav  (log: probe-work/logs/http_wav.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv http://127.0.0.1:8123/wav_pcm_py.wav   [reconstructed from log evidence]
+fixture: wav_pcm_py.wav served by python3 http.server on 127.0.0.1:8123
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "access"
+    using stream_filter module "prefetch"
+    using stream_filter module "record"
+    using demux module "wav"
+    using audio decoder module "araw"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## http_m3u  (log: probe-work/logs/http_m3u.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv http://127.0.0.1:8123/m3u_http.m3u   [reconstructed from log evidence]
+fixture: m3u_http.m3u (#EXTM3U, relative entry wav_pcm_py.wav) served over HTTP from same server
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "access"
+    using stream_filter module "prefetch"
+    found valid M3U playlist
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    cannot peek
+    cannot peek
+    cannot peek
+    cannot peek
+    cannot peek
+    using demux module "directory"
+    using access module "access"
+    using stream_filter module "prefetch"
+    using stream_filter module "record"
+    using demux module "wav"
+    using audio decoder module "araw"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## udp_ts  (log: probe-work/logs/udp_ts.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv udp://@:5004   [reconstructed from log evidence]
+fixture: MPEG-TS delivered over UDP (single program: MP3 audio 44.1 kHz 64 kb/s mono, PID 256, PCR=256; sender was an ffmpeg instance, sender command not preserved [VERIFY])
+exit code: 0
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "udp"
+    using stream_filter module "prefetch"
+    using stream_filter module "record"
+    using xml reader module "xml"
+    subtitle demux discarded
+    using demux module "ts"
+    ts demux debug: PATCallBack called
+    ts demux debug: new PAT ts_id=1 version=0 current_next=1
+    ts demux debug: PMTCallBack called for program 1
+    ts demux debug: new PMT program number=1 version=0 pid_pcr=256
+    using packetizer module "mpegaudio"
+    using audio decoder module "mpg123"
+    ts demux debug: new SDT ts_id=1 version=0 current_next=1 network_id=65281
+    using audio decoder module "mpg123"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## rtp_ts  (log: probe-work/logs/rtp_ts.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv rtp://@:5006   [reconstructed from log evidence]
+fixture: MPEG-TS over RTP (payload type 33, f=90000 Hz; same single-MP3-program content; sender command not preserved [VERIFY])
+exit code: 124
+note: exit 124 = timeout(1) kill: live stream never EOFs under --play-and-exit; expected, decoding still observed
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access_demux module "rtp"
+    rtp demux debug: detected MPEG2 TS
+    using demux module "ts"
+    ts demux debug: PATCallBack called
+    ts demux debug: new PAT ts_id=1 version=0 current_next=1
+    ts demux debug: PMTCallBack called for program 1
+    ts demux debug: new PMT program number=1 version=0 pid_pcr=256
+    using packetizer module "mpegaudio"
+    using audio decoder module "mpg123"
+    ts demux debug: new SDT ts_id=1 version=0 current_next=1 network_id=65281
+    using audio decoder module "mpg123"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## smoke_wav  (log: probe-work/logs/smoke_wav.log)
+command: timeout 25 $EXTRACT/usr/bin/vlc -I dummy --play-and-exit --aout dummy --vout dummy -vv /home/z/my-project/tmp/probe/media/wav_pcm_py.wav   [reconstructed]
+fixture: initial harness smoke run on wav_pcm_py.wav; predates run_probes.sh
+exit code: not recorded (no status.txt entry)
+note: no status.txt entry (pre-status run)
+decisive lines (verbatim rg output):
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    playlist stream debug: using XSPF playlist reader
+    using stream_filter module "playlist"
+    using stream_filter module "record"
+    using demux module "directory"
+    using xml reader module "xml"
+    using access module "filesystem"
+    using stream_filter module "cache_read"
+    using stream_filter module "record"
+    using demux module "wav"
+    using audio decoder module "araw"
+    using access module "filesystem"
+    nothing to play
+    using playlist export module "export"
+
+==============================================================================
+## http_server  (log: probe-work/logs/http_server.log)
+command: python3 -m http.server 8123 (serving tmp/probe/media)   [reconstructed from log content]
+fixture: server-side log of the local HTTP daemon used by http_wav/http_m3u; NOT a VLC session
+exit code: not recorded (no status.txt entry)
+note: proves 3 GETs were served: /wav_pcm_py.wav, /m3u_http.m3u, /wav_pcm_py.wav
+decisive lines (verbatim rg output):
+    (no matches — see file header for this log's disposition)
+
+==============================================================================
+## rtp_ffmpeg  (log: probe-work/logs/rtp_ffmpeg.log)
+command: (ffmpeg sender-side capture attempt; command not preserved)
+fixture: 0-byte log; no VLC-side or ffmpeg-side evidence
+exit code: not recorded (no status.txt entry)
+note: no status.txt entry; treat as failed/aborted capture
+decisive lines (verbatim rg output):
+    (no matches — see file header for this log's disposition)
+
+==============================================================================
+## udp_ffmpeg  (log: probe-work/logs/udp_ffmpeg.log)
+command: (ffmpeg sender-side capture attempt; command not preserved)
+fixture: 0-byte log; no VLC-side or ffmpeg-side evidence
+exit code: not recorded (no status.txt entry)
+note: no status.txt entry; treat as failed/aborted capture
+decisive lines (verbatim rg output):
+    (no matches — see file header for this log's disposition)
+
+==============================================================================
+## Cross-checks / reconciliation
+- log files counted: 61 .log files + status.txt (57 entries)
+- probes with module-selection evidence: 58 of 61 logs (all except rtp_ffmpeg, udp_ffmpeg (0 bytes) and http_server (python daemon log))
+- negative/quirk results preserved above: pl_cue_sample (no cue reader -> 'nothing to play'), midi_minimal ('Codec `MIDI' is not supported' - vlc-plugin-fluidsynth was an excluded headless deb), standalone sub_* opens (demux claimed by ps/avformat/webvtt/ttml but zero decodable tracks -> 'nothing to play'; text subs are sidecar-only, proven working via subsl_*), ac3/eac3/dts raw (decoder 'spdif' = S/PDIF passthrough packing with --aout dummy; actual sample decode not exercised by these runs [VERIFY])
