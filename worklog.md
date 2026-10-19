@@ -281,3 +281,19 @@ Stage Summary:
 - Planning phase COMPLETE: 16 governance/plan docs + pinned design package + 17 worklog agent records; all committed on main.
 - Wave 1 execution stats: 16 planning agents launched, 15 completed on first attempt, 1 (1.A2) timed out post-write and was salvaged by Lead verification.
 - Next: Phase 0 wave 0.A launch (baseline pinning + inventory), pending user decisions on ADR-006 license, R-07 Figma terms, patent posture, ADR-001 appetite.
+
+---
+Task ID: 0.PRE
+Agent: Lead
+Task: Record user decisions (MIT license; R-07 design clearance); launch Phase 0.
+
+Work Log:
+- User decisions received 2026-10-19: (1) repository license = MIT; (2) Figma Community design package attested open-source, no terms restriction.
+- Wrote LICENSE (MIT, "Lumen Media Player Contributors").
+- Wrote docs/decisions/ADR-006-license-mit.md (status: accepted).
+- Updated: docs/14-risk-register.md (R-05, R-07 -> closed + closure log), docs/11 §8.2 (DECIDED banner), docs/ROADMAP.md (D-009, D-010; §5 resolved/open split; ADR index; status line; §8 next action), design/README.md (clearance note).
+- Created docs/baselines/ (D-007 plural naming) + raw/ subdir; tmp/ for non-committed downloads.
+- Committing, then launching wave 0.A agents (0.A1 Windows, 0.A2 Linux, 0.A3 macOS platform pinning) per doc 13 §3.
+
+Stage Summary:
+- ADR-006 accepted (MIT); R-05/R-07 closed. Phase 0 begins: wave 0.A baseline pinning.

@@ -2,8 +2,10 @@
 
 Pinned visual source of truth for the UI (MASTER-PROMPT §7). Exported SVG frames
 from the Figma Community file "VLC Redesign (Community)". Committed as received;
-no modifications. **License terms of the community file must be verified before
-commercial use** (risk R-07, docs/14-risk-register.md).
+no modifications. **Cleared for use — 2026-10-19 user attestation: open-source
+Figma Community design, no terms restriction** (R-07 closed, D-010; see
+docs/ROADMAP.md §3 and docs/14-risk-register.md closure log). Residual: font
+identities remain [VERIFY] (exports are text-outlined).
 
 ## Inventory (102 files, ~77 MB)
 

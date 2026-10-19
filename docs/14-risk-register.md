@@ -49,9 +49,9 @@ Each risk is one row with twelve fields. Because twelve columns are unreadable i
 | R-02 | technical | No pure-Rust HEVC decoder and a heavier patent picture (doc 04 §4.3) → UHD/broadcast share stays `blocked`/`hw-only`, compounding R-01 and R-03. | H | H | **9** | Lead | mitigating | P0 gate (ADR-001 + ADR-010 input), P7 gate |
 | R-03 | legal | Distributing binaries containing H.264/HEVC/AC-3/DTS decoders triggers codec-patent regimes that source licenses do not cover (MP §14, ADR-010 [PROPOSAL]) → public releases may be legally blocked outright. | H | H | **9** | User-decision | open | P0 gate (open ADR-010); **trigger: any binary-distribution plan or public artifact**; P8 gate (release sign-off) |
 | R-04 | platform | Video presentation inside the OS webview is unproven on WebKitGTK, MP §7's "highest risk" → the Linux desktop product may lose its chosen shell strategy (ADR-003) or ship a degraded path. | H | H | **9** | Phase-2-agent | mitigating | P2 gate (ADR-003 prototype evidence); **trigger: WebKitGTK prototype failure** |
-| R-05 | legal | This repository's own license is undecided (ADR-006, doc 01 §7; doc 02 §9 Q1) → dependency approval, asset redistribution and ecosystem participation all block on one missing decision. | H | H | **9** | User-decision | open | P0 gate (**blocking**: before 0.A9 license-policy work, doc 02 §7) |
+| R-05 | legal | This repository's own license is undecided (ADR-006, doc 01 §7; doc 02 §9 Q1) → dependency approval, asset redistribution and ecosystem participation all block on one missing decision. | H | H | **9** | User-decision | **closed** (2026-10-19: **MIT** via ADR-006, user decision; docs/decisions/ADR-006-license-mit.md) | closed — no further review |
 | R-06 | technical | No usable pure-Rust Opus decoder is published (`symphonia-codec-opus` unpublished, doc 04 §3 [VERIFY]) → WebM/YouTube-class audio is unplayable; a P0/P1 audio pillar is missing. | H | M | **6** | Phase-5-agent | open | P0 audit list item 1 (doc 04 §8.6); P5 gate |
-| R-07 | legal | The Figma Community "VLC Redesign" package's license terms are unverified (doc 08 §2; `design/README.md`) and the design's title/name borrows VLC's mark → the entire UI-fidelity program and shipped assets may be non-distributable or trademark-tainted. | M | H | **6** | User-decision | open | **Immediate (planning wave)**; hard trigger before P4 UI work and before any public artifact |
+| R-07 | legal | The Figma Community "VLC Redesign" package's license terms are unverified (doc 08 §2; `design/README.md`) and the design's title/name borrows VLC's mark → the entire UI-fidelity program and shipped assets may be non-distributable or trademark-tainted. | M | H | **6** | User-decision | **closed** (2026-10-19: user attestation — open-source design, no terms restriction; D-010. Residual: font identities [VERIFY]; shipped-string wording rules per R-38 still apply) | closed — residual font check at P4 |
 | R-08 | technical | rav1d only complies with MP §9 with its `asm` feature off, which is unproven for build purity and speed (doc 04 §4.4 [VERIFY-P0]) → the flagship pure-Rust video codec may fail the dependency audit or be too slow to claim. | M | H | **6** | Phase-0-agent | open | P0 audit list item 2; P5 gate (AV1 integration) |
 | R-09 | technical | libass is C and forbidden (doc 04 §7 gap 5) → ASS/SSA subtitles render without full styling (positioning, karaoke, fonts), a visible parity gap on anime/fansub content. | H | M | **6** | Phase-5-agent | open | P5 gate (subtitle wave); **trigger: unsupported-tag count in conformance** |
 | R-10 | technical | No pure-Rust DTS/WMA decoders; TrueHD only via a young `truehdd` crate; AC-3 is a self-build (doc 04 §3, §7 gap 7) → movie-file surround audio stays `missing`/`partial` through mid-program. | H | M | **6** | Phase-6-agent | open | P6 gate (AC-3 self-build, TrueHD hardening); P7 gate (DTS/WMA decision point) |
@@ -271,3 +271,16 @@ Everything else stays inside the program: agents propose, the Lead decides withi
 *Marker discipline: [VERIFY] appears on R-06 (Opus crate status), R-08 (asm-off purity), R-29 (cpal-class purity), R-30 (runtime candidates), R-38 (name collision) and §7 Q5 (registry set); [PROPOSAL] marks the invented procedures, thresholds, cadences and tier semantics (≈30 instances), each awaiting Lead confirmation. R-07 keeps its ID for cross-doc stability with doc 08 §2 and `design/README.md`. No other files were touched; no git commit.*
 
 
+
+## Closure log
+
+- **2026-10-19 — R-05 closed.** ADR-006 decided: **MIT** (user decision;
+  `LICENSE`; `docs/decisions/ADR-006-license-mit.md`; D-009 in
+  docs/ROADMAP.md §3). The interim permissive-only dependency rule becomes the
+  permanent baseline policy; the allowlist license-compatibility column
+  (doc 11 §3) is unblocked from day one.
+- **2026-10-19 — R-07 closed.** User attestation: the Figma Community "VLC
+  Redesign" design is open source with no terms restriction (D-010). The
+  `design/figma/` package stays the pinned visual source of truth. Residuals
+  tracked: font identities [VERIFY] at Phase 4; shipped-string trademark
+  wording rules (R-38) unaffected.

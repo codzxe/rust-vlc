@@ -3,7 +3,8 @@
 Authority chain: `docs/MASTER-PROMPT.md` (the brief) → this roadmap (program-level
 plan & decisions) → domain docs 01–15 (detail). Conflicts resolve upward.
 Statuses per MASTER-PROMPT §17: not_started, in_progress, implemented, verified,
-blocked. **Current status: planning complete — Phase 0 ready to launch.**
+blocked. **Current status: Phase 0 in progress — wave 0.A (baseline pinning)
+launched 2026-10-19.**
 
 ## 1. Phase gates (MASTER-PROMPT §16)
 
@@ -41,7 +42,9 @@ from `docs/13-agent-wave-program.md` (200 cards / 77 waves).
 | D-005 | **Task-ID grammar ratified: `<phase>.<wave><seq>` + `-I` (investigation) / `-V` (verification) suffixes; `not-selected` is a valid card status** | Operationalizes AGENTS.md §5 at scale; needed for decision-pair cards (e.g. webview A/B). | doc 13 §13 Q1/Q2 answered. |
 | D-006 | **Working name "Lumen"** stays a placeholder; trademark collision search pending [VERIFY, risk R-36-class]; fully rebrandable via `product.toml` | No identity claims before the check; rebrand acceptance test (doc 07 §8) proves configurability. | README.md, product.toml draft. |
 | D-007 | **Baseline artifacts live in `docs/baselines/`** (plural) | Standardizes doc 02 (`docs/baseline/`) vs doc 12 naming. | docs 02, 12 path references. |
-| D-008 | **ADR timing: ADR-001 (hw decode), ADR-002 (WASM runtime), ADR-003 (video-in-webview) all decided inside Phase 0** per §16; ADR-004 (OS webview) accepted-by-brief; ADR-005 (audio backend) at Phase 1 wave 1.C; ADR-006 (repo license) is a **user decision** — see §5 | Follows MASTER-PROMPT §16 Phase 0 gate. | doc 01 §7 ADR register. |
+| D-008 | **ADR timing: ADR-001 (hw decode), ADR-002 (WASM runtime), ADR-003 (video-in-webview) all decided inside Phase 0** per §16; ADR-004 (OS webview) accepted-by-brief; ADR-005 (audio backend) at Phase 1 wave 1.C; ADR-006 (repo license) **decided 2026-10-19: MIT — see D-009** | Follows MASTER-PROMPT §16 Phase 0 gate. | doc 01 §7 ADR register. |
+| D-009 | **Repository license = MIT** (user decision 2026-10-19; `LICENSE`; `docs/decisions/ADR-006-license-mit.md`; closes risk R-05) | Maximal permissiveness, GPL-compatible ecosystem fit, matches the permissive-only dependency rule already enforced. Trade-off noted: no explicit patent grant (Apache-2.0 alternative considered); revisit only if patent exposure grows (ADR-010). | doc 11 §3 (allowlist license column now MIT-compat), §8.2; doc 14 R-05. |
+| D-010 | **R-07 closed: design package cleared per user attestation 2026-10-19** — open-source Figma Community design, no terms restriction | User statement; `design/figma/` remains the pinned visual source of truth for the fidelity program. Residuals: font identities remain [VERIFY] (exports are outlined); trademark wording rules (R-38-class) still govern shipped strings. | doc 14 R-07 closure log; doc 08 §2; `design/README.md`. |
 
 ## 4. Cross-doc reconciliation log (Wave 1)
 
@@ -57,25 +60,28 @@ from `docs/13-agent-wave-program.md` (200 cards / 77 waves).
 
 ## 5. Open decisions for the user (escalation per MASTER-PROMPT §15)
 
-1. **ADR-006 — this repo's own license** (GPL-3.0 vs MIT/Apache-2.0; brief in
-   doc 11 §8.3). Blocks: ecosystem/dependency direction, long-term contribution
-   model. Recommendation framing prepared; not decided.
-2. **Figma Community design package terms (R-07)** — the "VLC Redesign
-   (Community)" exports are committed as the visual source of truth; commercial
-   use may require the author's permission. Alternatives: obtain permission,
-   treat as reference-only and re-derive, or commission an original system.
-3. **Patent posture (ADR-010, doc 11 §8.4)** — shipping H.264/HEVC/AC-3/DTS
+**Resolved 2026-10-19:**
+- **ADR-006 → MIT** (D-009; `docs/decisions/ADR-006-license-mit.md`; R-05 closed).
+- **R-07 design-package terms → cleared** (D-010; open-source Figma Community
+  design, no terms restriction; R-07 closed — residuals: font identity check at
+  Phase 4, trademark wording rules on shipped strings).
+
+**Still open:**
+
+1. **Patent posture (ADR-010, doc 11 §8.4)** — shipping H.264/HEVC/AC-3/DTS
    decode (even self-written) has patent considerations separate from source
    licenses; jurisdiction-dependent; needs legal review before distribution.
-4. **Hardware-decode appetite (feeds ADR-001)** — default per §2 is
-   software-first with OS decoders as audited exception; user may tighten
-   (software-only, lower parity ceiling) or confirm the exception path.
+   Not blocking Phase 0; hard trigger is any binary-distribution plan.
+2. **Hardware-decode appetite (feeds ADR-001, decided in Phase 0.D)** — default
+   per §2 stands (software-first, OS decoders as audited exception) unless the
+   user tightens it to software-only (lower parity ceiling).
 
 ## 6. ADR index (register: doc 01 §7)
 
 ADR-001 hw decode (Phase 0) · ADR-002 WASM runtime (Phase 0) · ADR-003
 video-in-webview (Phase 0/2 prototype) · ADR-004 OS webview (accepted-by-brief) ·
-ADR-005 audio output backend (Phase 1) · ADR-006 repo license (user) · ADR-007
+ADR-005 audio output backend (Phase 1) · ADR-006 repo license — **accepted: MIT,
+2026-10-19** (`docs/decisions/ADR-006-license-mit.md`) · ADR-007
 first-vertical formats (decided: D-001) · ADR-008 WebCodecs-as-hw-analog on web
 (Phase 7, feeds ADR-001) · ADR-009 DVD/Blu-ray per-title decisions (post-v1) ·
 ADR-010 patent shipping matrix (user + counsel).
@@ -105,6 +111,8 @@ ADR-010 patent shipping matrix (user + counsel).
 
 ## 8. Next action
 
-Launch **Phase 0, wave 0.A** (doc 13 §3): baseline pinning + inventory
-extraction — the first 4–6 investigation agents. Phase 0 ends at its gate
-(doc 02 §1) with ADR-001/002/003 decided and the feasibility report written.
+**Phase 0 is live (wave 0.A launched 2026-10-19)**: baseline pinning agents
+(0.A1 Windows, 0.A2 Linux, 0.A3 macOS) per doc 13 §3, writing to
+`docs/baselines/` (D-007). Wave 0.A4 consolidates the master pin record; then
+wave 0.B (options/modules/UI/formats inventories). Phase 0 ends at its gate
+(doc 02 §1.2) with ADR-001/002/003 decided and the feasibility report written.
