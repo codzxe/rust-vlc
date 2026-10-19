@@ -184,3 +184,83 @@ Work Log:
 Stage Summary:
 - docs/10-testing-ci-quality.md delivered: full testing/CI/quality spec traced to MP §13/§8/§12/§15/§17 and docs 01–05; all inventions marked [PROPOSAL].
 - Lead decisions requested (§11): CI platform + self-hosted runner, macOS arch breadth, oracle cadence, tool picks (pnpm/vitest/nextest/proptest/Playwright), mock-evidence verified-category split, corpus LFS, --retry policy, triage rota.
+
+---
+Task ID: 1.C11
+Agent: Sub-agent (general-purpose), Wave C
+Task: Write docs/11-dependency-security-compliance.md — dependency, security and legal/compliance program.
+
+Work Log:
+- Read worklog.md, AGENTS.md, docs/MASTER-PROMPT.md in full (§9, §12, §14, §2 primary); skimmed doc 04 §1–2 (verified crates + tarball-purity method), doc 06 §5–6 + §9.4 (WASM host, forbidden enforcement, sandbox tests), doc 10 §4.6 (G3/G4/G10 gates) + §5.1 (corpus ledger), doc 05 §5.4 (control server), doc 01 §5/§7 (ADR register incl. ADR-006/007/010).
+- Wrote docs/11-dependency-security-compliance.md (709 lines, ~6,470 words incl. tables; 31 [PROPOSAL], 24 [VERIFY]/[VERIFY-P0]) in 3 parts (Write + two <!-- CONT --> Edits) + one cleanup fix (deny.toml bans list).
+- Sections: §1 MP §9 forbidden list as checklist F1–F7 + exception classes E1 (webview, ADR-004) / E2 (OS-service bindings, ADR-001/005; WebCodecs ADR flagged; libc/rustix registry-entry proposal) + intake procedure; §2 audit-record fields R1–R10 with filled ACCEPTED example (mp4parse 0.17.0 from doc 04's verified findings, open items honestly [VERIFY-P0]), REJECTED example (ffmpeg-sys family: F1–F6 all fail), and CONDITIONAL example (rav1d 1.1.0 no-asm feature pin); §3 allowlist.toml format (crate→record→range→approver), cargo-deny sketch (licenses allowlist GPL-absent pending ADR-006, sources deny git, bans), cargo-vet bootstrap strategy, SBOM per release (cargo-cyclonedx + cargo auditable + npm), audits-job CI order, cargo tree baseline diff gate vs deps/ changes, version-pinning/re-audit triggers; §4 purity method codified P1–P8 (static tarball inspection, never execute) + CI approximation via tools/dependency-audit [PROPOSAL] + blind-spot table (proc-macros, target-conditional build.rs, feature-gated asm, git/patch sources, include_bytes blobs) with compensating controls; §5 threat model — assets, 8 trust boundaries, 7 adversary personas, per-boundary mitigation table, STRIDE summary; §6 SEC-01..SEC-16 testable requirements (bounds, try_from discipline [PROPOSAL], deadlines/generation IDs, path sandbox, TLS no-disable + debug-only env override [PROPOSAL], cross-origin credential drop, SecretString redaction trait, no default telemetry, fuzz registry, no-HTML-injection, forbid unsafe); §7 control-server hardening with named tests (non-loopback bind rejection, token/lockout, read-only subset, origin, audit log); §8 clean-room/GPL boundary (oracle hygiene, tools/license-audit CI scan [PROPOSAL]), ADR-006 license brief (GPL/MPL/permissive/dual axes — brief only, NOT decided), codec patent register (H.264/HEVC/AAC/AC-3 pools vs Opus/AV1/VP8-9 royalty-free, all [VERIFY], jurisdiction variance, ADR-010 shipping matrix), R-07 Figma Community asset risk + final fixture-license allowlist [PROPOSAL]; §9 abuse-case suites, dependency-confusion controls, release checklist (SBOM/advisories/signing minimal-viable [PROPOSAL]); §10 ten open questions; traceability footer.
+- No WebSearch tool was available in this environment; patent/license facts are stated as widely-known positions with explicit [VERIFY: counsel] flags rather than citations.
+- Touched only docs/11-dependency-security-compliance.md and this worklog append; no git commit.
+
+Stage Summary:
+- docs/11-dependency-security-compliance.md delivered: complete dependency/security/compliance program traced to MP §9/§12/§14 and docs 01/02/04/05/06/08/10; record format demonstrated with accepted/rejected/conditional examples.
+- Lead decisions requested (§10): ADR-006 license pick; ADR-010 patent shipping matrix; fixture-license allowlist; libc/rustix E2a pre-approval; SEC-04/SEC-07 mechanism approval; signing budget; read-only control mode; approver delegation; multiple-versions deny date; rav1d conditional acceptance.
+
+---
+Task ID: 1.C12
+Agent: Sub-agent (general-purpose), Wave C
+Task: Write docs/12-performance-benchmarking.md — the performance engineering & benchmarking program (principles, metrics catalogue, bench-vs-vlc harness, baseline protocol, provisional targets, architecture-for-performance, profiling, soak perf, reporting).
+
+Work Log:
+- Read worklog.md, AGENTS.md, docs/MASTER-PROMPT.md in full (§11 primary; §1/§2/§8/§13/§16/§17); read doc 03 §2/§4.4/§4.9/§4.10/§4.11/§9, doc 05 §1/§2/§3 (event table), doc 04 §7 (gap register), doc 02 §2 (pin record, M1–M4 oracle contract, hardware template), doc 09 §2.4/§3/§4/§5/§8, doc 10 §4.5/§6.5/§6.6/§9.
+- Re-verified tooling facts over network (2026-10-19): crates.io API — flamegraph/cargo-flamegraph (upd. 2026-08-12), criterion (2026-02-04), wide (2026-09-14), pulp (2026-06-20), dhat (2024-02-04, slow cadence noted), cargo-instruments (2026-06-04), iai-callgrind (2025-07-30), iai stale (2021, rejected); doc.rust-lang.org unstable book confirms portable_simd/std::simd still nightly-only.
+- Wrote docs/12-performance-benchmarking.md (720 lines; ~4,900 prose words excl. tables/code; 29 [PROPOSAL], 20 [VERIFY]) in 2 parts (Write + one <!-- CONT --> Edit); verified no leftover marker.
+- Sections: §1 principles (baseline-first, same-files/hardware/pins, honest-reporting, no-correctness-trade, engine-reported-not-UI-estimated); §2 metrics catalogue M-01..M-12 (endpoints, units, owning stage, doc 05 event pairs per metric, VLC M-mode points, cold/warm + steady-window defs, measurement asymmetry notes, doc 05 instrumentation deltas: envelope ts_ns, session.probe-completed, video.first-frame-presented, system.get-stats [PROPOSAL]); §3 bench-vs-vlc harness (clean-room-safe VLC surfaces rc + --play-and-exit/verbose-log [VERIFY], Lumen driven through command layer only, bench corpus tiers under tests/fixtures/bench with doc 10 §5 ledger, env control incl. governor/warmup/N/median+p95/noise budget, results/ JSON + committed docs/baselines/perf/, noise-aware regression thresholds [PROPOSAL], web suite, no-CI-by-default + perf-check label + nightly/release gates, 6 anti-gaming rules); §4 baseline protocol (Phase 0/2/3+/8 capture, storage + doc 02 singular/plural reconciliation flag, re-baselining rules); §5 provisional target table + escalation ladder + platform caveats (macOS ARM E/P cores, Linux compositors, browser families); §6 architecture-for-performance (zero-copy sketch + copy ledger, GPU color conversion per doc 03 §4.11, SIMD policy with verified crate facts + nightly-only std::simd, hw-decode truthful attribution via system.get-engine-info + sw-vs-sw/hw-vs-hw suites, bounded memory as asserted invariant, allocation discipline incl. steady-state alloc-rate≈0); §7 profiling (per-platform table, xtask profile subcommand, review-enforced profile-before-optimize, optimization PR template); §8 soak extensions (memory slope, queue stability, 1000 reopen cycles, CPU drift, layered leak detection, soak ledger); §9 reporting (cycle-report Performance block with run-ids, Phase 8 report, 5 public honesty rules); §10 ten open questions.
+- Touched only docs/12-performance-benchmarking.md and this worklog append; no git commit (AGENTS §3.8).
+
+Stage Summary:
+- Doc 12 delivered: full perf program traced to MP §11/§8/§16/§17 and docs 01–05/09/10; every metric tied to doc 05 events (engine-reported); VLC comparisons tied to doc 02 M4 pin contract; all inventions marked [PROPOSAL].
+- Lead decisions requested (doc §10): doc 05 ts_ns envelope field + new events/stats command; baseline dir naming (baseline vs baselines); reference hardware + self-hosted runners; VLC automation surface confirmation; SIMD crate pick; regression thresholds/enforcement; energy proxy scope; bench-corpus generator approval; browser perf tier.
+
+---
+Task ID: 1.C15
+Agent: Sub-agent (general-purpose), Wave C
+Task: Write docs/15-git-workflow.md — version control & branch governance specification.
+
+Work Log:
+- Read worklog.md, AGENTS.md, docs/MASTER-PROMPT.md (§13/§15/§16/§17 focus); verified repo state: branch `main`, 4 commits (f6d2ae5 initial, 33f86fa bootstrap, 3139b58 wave-a, 9850301 wave-b — all Lead-authored), no `.github/` yet; `.gitignore` (61 lines) already ignores `worktrees/`; design/figma = 102 SVGs / 75 MB.
+- Cross-read docs/10-testing-ci-quality.md §4 (required checks, merge queue, evidence store) and the 1.A2 worklog precedent (Lead commits on agent's behalf). Docs 11–14 are parallel Wave C work — noted in doc header.
+- Wrote docs/15-git-workflow.md (~4,150 words excl. code/tables; §0–§11): trunk-based model + anti-gitflow rationale; branch taxonomy (agent/, phase/<n>-integration, release/vX.Y, hotfix/, archive/); Lead-only merges; one-merge-per-card; squash with Task-ID trailer preservation [PROPOSAL]; Conventional Commits + worklog parity; signing deferral [PROPOSAL]; planning-phase exception (documented current state) + 7-step Phase 1 cutover; worktree layout, dependency-order merges, cleanup protocol; 10-item Lead review checklist; rebase-pre-merge, never-merge-red; phase gate tags + 0.x→1.0 versioning; design SVGs keep-in-repo vs LFS [PROPOSAL: keep, 5 MB/250 MB thresholds]; generated artifacts committed + CI freshness check [PROPOSAL]; traceability chain card→branch→commit→worklog→evidence→matrix; git-cliff changelog [PROPOSAL]; concrete branch-protection rules + force-push policy; four recovery procedures (revert, 1.A2-style salvage, corrupted main, secret purge); 10 open questions for the Lead.
+- No other file touched; no git commit (Lead commits).
+
+Stage Summary:
+- Doc 15 delivered. Core policies: main always green under merge-blocking CI; agents never merge to main; squash-per-card with surviving Task-ID trailers; worktree parallelism keyed to doc 13 Depends-on order; immutable evidence-anchored phase-gate tags. Open questions Q1–Q10 await Lead (squash confirmation, archive retention, forge, `tool-results/` gitignore entry, etc.).
+
+---
+Task ID: 1.C14
+Agent: Sub-agent (general-purpose), Wave C
+Task: Write docs/14-risk-register.md — the program-wide risk register.
+
+Work Log:
+- Read worklog.md, AGENTS.md, docs/MASTER-PROMPT.md in full (§14 seed, §1/§2/§9/§11/§12/§15/§16/§17); skimmed doc 04 §7 (gap register) + §4.2–§4.5/§8, doc 02 §4.3/§4.6/§8/§9, doc 09 §8/§10/§12; pulled ADR register (doc 01 §7), CI budget (doc 10 §10.4), first-vertical divergence (doc 03 §7 vs doc 04 §8.1), R-07 references (doc 08 §2, design/README.md), 1.A2 timeout precedent.
+- Wrote docs/14-risk-register.md (273 lines; 44 risks) in 3 parts (Write + two CONT-marker Edits) + one repair Edit (restored the missing R-07 detail row); verified: 0 standalone CONT markers, all 44 IDs present in both master and detail views, no stray text.
+- Sections: §0 purpose/scope; §1 register format (12 columns over two synchronized views, L/I→exposure 1–9 scale, sort rule, re-scoring rule [PROPOSAL]); §2 register — exposure-sorted master table (5×critical 9, 21×severe 6, 17×moderate 4, 1×minor 3) + per-tier detail tables (indicators/mitigations/contingency, doc-cited) + cross-cutting observations; §3 top-10 exposure narratives; §4 ten risk-acceptance statements (A1–A10: Lua, DVD/BD ADR-008, DVB, web limits, legacy codecs, perf gap, <video> rejection, native plugins, ASS subset, FF-Android tier) tied to MP §14 "record, do not hide"; §5 monitoring hooks (matrix R5/R6, ADR statuses, worklog flags, CI G-gates, perf baselines, corpus ledger) + 6-step phase-gate re-score procedure [PROPOSAL]; §6 escalation matrix (10 user-decision triggers per MP §15: ADR-001/006/010, Figma R-07, platform drop, WebCodecs, COOP/COEP, CI spend, naming, VLC-4 scope); §7 ten open questions; §8 MP §1–§17 traceability table.
+- Top exposures: R-01 H.264 sw-decode gap, R-02 HEVC, R-03 codec patents, R-04 WebKitGTK video-in-webview, R-05 repo license (ADR-006). R-07 ID preserved for the Figma design-package license risk per doc 08 cross-refs.
+- [VERIFY] on R-06 Opus, R-08 rav1d asm-off, R-29 cpal, R-30 runtime candidates, R-38 Lumen collision; ~30 [PROPOSAL] procedures/thresholds awaiting Lead confirmation. Docs 11/12/13 cited as parallel/pending with reconciliation note (§7 Q10).
+- Touched only docs/14-risk-register.md and this worklog append; no git commit (AGENTS §3.8).
+
+Stage Summary:
+- docs/14-risk-register.md delivered: 44-risk register sorted by exposure, fully traced to MASTER-PROMPT §§ and docs 01–10, with acceptance statements, monitoring hooks, phase-gate review procedure, escalation matrix and open questions.
+- Lead decisions requested (§7): register governance rules, ADR-006 timing, ask-user-now on R-07 Figma license, AVI-vs-MP4 first-vertical pick (R-28), Lumen collision-search owner, CI/Apple account custody, escalation thresholds, A10 tier semantics, R-37 co-ownership, wave-close reconciliation vs docs 11/12/13.
+
+---
+Task ID: 1.C13
+Agent: Sub-agent (general-purpose), Wave C
+Task: Write docs/13-agent-wave-program.md — the complete multi-agent execution program (Phases 0–8 as waves of small agent task cards, 150+ total).
+
+Work Log:
+- Read worklog.md, AGENTS.md, docs/MASTER-PROMPT.md in full (§15/§16/§17 primary; §2 fixed decisions); skimmed doc 01 §2.1 crate/phase table, doc 02 §7 Phase 0 agent breakdown, doc 04 §8 sequencing/fuzz registry.
+- Wrote docs/13-agent-wave-program.md (960 lines) in 4 parts (Write + three <!-- CONT --> marker Edits, marker removed at end; verified none remain).
+- Content: §1 program principles (why small tasks; concurrency/conflict rules R1–R7 incl. Lead-owned surfaces and per-format registry merge points; 14-field task-card format; standard clauses C1–C8 incl. +FB format bundle and +SB screen bundle; 8-step inter-wave review gate; timeout/failure protocol with R1/R2 relaunches and post-mortem lines; agent hygiene); §2 Task ID grammar <phase>.<wave><seq> extending AGENTS.md §5 with -I/-V suffixes, Rn relaunches, not-selected status [PROPOSAL supersession]; §3–§11 all nine phases as wave tables — every card carries ID/type/scope+AC/owns/consumes/deps/size; §12 wave execution ledger (200 cards, 77 waves, cumulative counts, parallelism 2–6, wall-clock in wave-units 77 nominal / ~96–115 with 1.25–1.5× rework, delta log); §13 rules of engagement (launch/verify/commit/ledger, MP §17 DoD wiring, escalation policy, re-planning) + traceability + 5 open questions.
+- Verified per-phase card counts by script: 0=17, 1=20, 2=17, 3=19, 4=25, 5=45, 6=17, 7=24, 8=16; total 200 (matches ledger). Phase 2 includes both [DECISION-PENDING] demuxer variants (AVI per doc 03 vs MP4 per doc 04) — exactly one executes, other closes not-selected.
+- Key structures: H.264/HEVC split as parser (5.F1/5.G1) + hw-path integration [CONDITIONAL on ADR-001] (5.F2/5.G2) + per-OS adapters in 7.B1–B3; Phase 5 decision/-I cards for Opus, ASF/WMA, AC-3+DTS, VP8/9, Theora, MPEG-4 ASP, blocked-registry (honest records, not hidden); settings split framework + 3 area groups (4 groups of cards covering the 13–14 areas); wasm extension host as 4 cards per doc 06 §5.
+- Touched only docs/13-agent-wave-program.md and this worklog append; no git commit (AGENTS §3.8).
+
+Stage Summary:
+- docs/13-agent-wave-program.md delivered: 200 launch-ready task cards in 77 waves across Phases 0–8, all S/M (L forbidden pre-launch), fully traced to MASTER-PROMPT §15/§16/§17 and docs 01–12.
+- Lead decisions requested (§13 open questions + §5): ratify Task-ID grammar supersession and not-selected status; AVI-vs-MP4 pick before wave 2.B; rework-factor confirmation; ad-hoc fix cards in Phase 8.
