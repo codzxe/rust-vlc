@@ -1,0 +1,7 @@
+<asx version="3.0">
+  <title>Lumen probe</title>
+  <entry>
+    <ref href="/home/z/my-project/tmp/probe/media/wav_pcm_py.wav" />
+    <title>probe tone</title>
+  </entry>
+</asx>

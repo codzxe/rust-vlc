@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<WinampXML>
+  <playlist>
+    <entry Playstring="file:///home/z/my-project/tmp/probe/media/wav_pcm_py.wav">
+      <Name>probe tone</Name>
+    </entry>
+  </playlist>
+</WinampXML>
