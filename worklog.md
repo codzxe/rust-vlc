@@ -89,6 +89,23 @@ Stage Summary:
 
 
 ---
+Task ID: 1.B8
+Agent: Sub-agent (general-purpose), Wave B
+Task: Write docs/08-ui-figma-fidelity.md — UI implementation & Figma fidelity plan.
+
+Work Log:
+- Read worklog.md, AGENTS.md, docs/MASTER-PROMPT.md (§2/§3.5/§5/§7/§10/§13/§16), design/README.md; skimmed docs/05-command-layer.md §8 (keymaps/menus as data) and docs/01-architecture.md `theme-tokens` crate. docs/07-config-driven-system.md absent (parallel agent) — noted in doc header, written to reconcile later.
+- Mined all 102 SVGs with rg/python (no whole-file reads): fill/stroke/stop-color frequency, rx radii, stroke-widths, fill-opacity, backdrop-blur (25px/13.75px), feGaussianBlur shadows; layer-name state extraction (Property 1=hover/selected, state=open/click, Value=on/off, type=play/pause); text recovery via outlined-path ids; cap-height measurement via bbox script.
+- Key findings: text fully outlined (no font attributes anywhere — family [VERIFY] needed); dark palette = ~10-step warm-gray ramp (#090909→#EAEAEA) + orange accent family (#D37918/#AB6314/#371F06/#E8851A/#C2711A/#D8BA9A) + 9 user-selectable accents; light theme re-maps 9 values, accent constant; radius ramp 2/4/6/10/12/14/19; 1.5 stroke icon system; component annotation chrome (#8A38F5 dashed) must be excluded; some artboards at 1.1× scale (normalization required); seek = 8×24 bar-knob; menu accelerators conflict with doc 05 seed keymap (Ctrl+O/F/N/D/C/R, Shift+F1); 13 settings areas on disk vs README's 14.
+- Wrote docs/08-ui-figma-fidelity.md (~6,100 prose words, 490 lines) in 3 parts (Write + 2 CONT-marker Edits): §1 intake analysis (palette/typography/spacing/radii/components/screen→route inventory), §2 Figma source-of-truth strategy + license risk R-07, §3 token pipeline (W3C design tokens [PROPOSAL], primitive→alias→semantic grammar, 9-accent theming), §4 component architecture + §7 UX checklist + a11y, §5 truthful-UI patterns (PlayButton × engine-state table, pending-seek rules), §6 screenshot-diff harness (tolerances, per-OS baselines, xtask, flakiness controls), §7 video-in-webview candidates A/B + matrix + per-webview protocol + B-first recommendation [PROPOSAL], §8 ui/ workspace (Vite+vitest+RTL+Playwright [PROPOSAL]), §9 test plan mapped to CI gates, §10 open questions. 15 [VERIFY-DESIGN], 34 [PROPOSAL] markers; traceability summary to MP §§.
+- Fixed a leftover self-correction note in the accent table; verified no CONT markers remain, headings 1–10 consistent.
+- Touched only docs/08-ui-figma-fidelity.md and this worklog append; no git commit.
+
+Stage Summary:
+- docs/08-ui-figma-fidelity.md delivered: complete UI/fidelity plan traced to MASTER-PROMPT §7 with all values export-derived and marked. Screenshot-diff and token-pipeline designs feed doc 10 (testing/CI) and Phase 1-2 gates.
+- Lead decisions requested (doc §10): Figma file/variables + R-07 license, interim font, tokens format, keymap reconciliation (design vs doc 05 seed), 13-vs-14 settings areas, missing-state designs, B-first video-in-webview order, per-OS baselines, JS toolchain approval.
+
+---
 Task ID: 1.A2
 Agent: general-purpose (timed out before reporting; Lead verified output and appended this entry on its behalf)
 Task: Write docs/02-phase0-audit-plan.md — Phase 0 audit plan (baseline pinning, inventory methodology, feature-matrix schema, feasibility report structure, ADR-001/002/003 briefs, Phase 0 agent breakdown).
@@ -99,3 +116,71 @@ Work Log:
 
 Stage Summary:
 - Doc 02 delivered. [VERIFY] ledger (V1–V13) feeds Phase 0. Open questions for Lead in doc §9.
+
+---
+Task ID: 1.B7
+Agent: Sub-agent (general-purpose), Wave B
+Task: Write docs/07-config-driven-system.md — complete config-driven product specification.
+
+Work Log:
+- Read worklog.md, AGENTS.md, docs/MASTER-PROMPT.md (§5 primary; §2, §4, §7, §13, §16), docs/05-command-layer.md (§2.11, §5.3, §6.4, §8), docs/01-architecture.md (§2.3 L1 config crates, §5 boundary enforcement), docs/02-phase0-audit-plan.md (§4 feature-matrix coupling), design/README.md; verified Player.svg exports at 1920×1080 for window-default reasoning. docs/06-plugin-architecture.md absent (parallel agent 1.B1) — noted in header and §11 Q9; proceeded.
+- Wrote docs/07-config-driven-system.md (~7,270 words excl. code blocks; 891 lines) in 3 parts (Write + two `<!-- CONT -->` marker Edits), then consistency pass (§4.3/§7.4 cross-refs, naming-convention note).
+- §1 philosophy: four litmus tests (rebrand/translation/policy-mechanism/safety-bound) + 13-row borderline-case verdict table + four anti-patterns. §2 complete product.toml draft (identity+per-OS ids, window+title template, brand, defaults, minimal Phase-2 feature exposure with F1/F2 rules, playback/track-selection rules incl. hw-decode pending ADR-001, safety-bounded limits, opt-in-off telemetry, URLs, migrations placeholder) — every key documented inline.
+- §3 product.schema.json design (2020-12 sketch, rule inventory incl. unique-identity/reserved-names, path-existence + cross-field semantic passes, validator pipeline, actionable-diagnostic message contract). §4 six-layer precedence: per-OS file locations, admin override mechanisms [PROPOSAL] with lock lists, 7-rule merge algorithm, 16-row test matrix. §5 settings-schema: full entry format (10 mandated fields + D1–D6 no-duplicate rules), four generators (TS screens/CLI help/docs/runtime validation), seed of ~45 entries mapped to the 13 named design screens, honest v1 option-count budget (~250–350 [PROPOSAL] vs VLC ~2,000 [VERIFY]).
+- §6 localization: key grammar + namespaces, ICU-subset format with en-US.toml example entries, fallback chain, 5 CI audit rules, Rust/TSX no-literal lint strategy with allowlists + positive/negative fixtures. §7 layouts/keymaps (binding-id indirection, doc-05 path mismatch flagged)/profiles/themes (token refs only). §8 rebrand: build-time vs runtime planes, 10-field×7-surface propagation matrix, Nova-fixture acceptance test with fast/nightly tiers. §9 CI: five MP §5 failing conditions (C1–C5, C5 → doc 01 §5) + 11-step job sequence. §10 per-component test plan (validator, merge, codegen idempotence, rebrand, lint effectiveness, l10n, settings runtime). §11 nine open questions; Unfinished: none.
+- 35 [PROPOSAL] and 12 [VERIFY] markers counted. Touched only docs/07-config-driven-system.md and this worklog append; no git commit (AGENTS §3.8).
+
+Stage Summary:
+- docs/07-config-driven-system.md delivered: the config-driven product spec traced to MASTER-PROMPT §5, with the Phase-1-ready product.toml draft as its centerpiece.
+- Key [PROPOSAL]s needing Lead decision: admin override per-OS mechanisms + lock semantics; session-scope key set; D1 default_ref heuristic; diagnostic message format; v1 option budget ~250–350; rebrand fast/nightly tiers; config/ directory role; en-US reference-catalog completeness rule.
+- Open questions Q1–Q9 logged (incl. design-package 13-vs-14 settings-area count [VERIFY] for doc 08, keymap path mismatch vs doc 05 §8.1, doc 06 plugin-manifest reconciliation).
+
+
+---
+Task ID: 1.B9
+Agent: Sub-agent (general-purpose), Wave B
+Task: Write docs/09-web-wasm-target.md — complete web/WASM target specification.
+
+Work Log:
+- Read worklog.md, AGENTS.md, docs/MASTER-PROMPT.md (§2, §3.5, §10, §11, §12, §14, §16); consumed docs/01 (apps/web, ADR-009), docs/02 §4 (matrix schema/status vocabulary), docs/03 §4.9/§4.11/§9 (AudioSink, RenderSurface, threading), docs/04 (WebCodecs/web columns), docs/05 §5.2/§7 (wasm binding, conformance). docs/08-ui-figma-fidelity.md was ABSENT (parallel agent) — noted in doc header; UI-sharing statements derived from MP §2/§7 + doc 01, flagged for reconciliation.
+- Verified live (2026-10-19): fetched @mdn/browser-compat-data (unpkg latest) and queried programmatically — WebGPU (Chrome 113/144-Linux-Intel, FF 141 Windows-only, Safari 26 incl. iOS; FF-Android none), SAB/wasm-threads+COOP-COEP gating, Atomics.waitAsync, AudioWorklet, WebCodecs VideoDecoder/VideoFrame (Chrome 94, FF 130 desktop, Safari 16.4), GPUExternalTexture, OffscreenCanvas, rVFC, FSA API (Chrome/Edge only), JSPI (Chrome 137, FF 153, Safari 27), WasmGC/EH-final; rustc book platform pages for wasm32-unknown-unknown (thread::spawn panics), wasip1 (spawn errors), wasip1-threads (nightly, untested by Rust), wasip2 (no threads documented).
+- Wrote docs/09-web-wasm-target.md in 3 parts (Write + two <!-- CONT --> Edits), then consistency pass: fixed cross-refs (§3.4→§3.3, §9.4→§9.5), promoted §9 items to subsections, trimmed to ~5.2k prose words, verified 0 leftover CONT markers and no stray text.
+- Sections: §1 target definition (4 pillars, <video> rejection [PROPOSAL]); §2 toolchain (wasm32-unknown-unknown recommendation w/ wasip1/wasip1-threads/wasip2 comparison table [VERIFY], wasm-bindgen vs raw imports [PROPOSAL], JSPI future, static bundling, size budget 3/6 MB [PROPOSAL] + per-codec tree-shake proof, 6-item web CI job); §3 threading (v1 cooperative engine-in-Worker with pump/slice budgets, v2 wasm-bindgen-rayon pool, COOP/COEP headers, capability negotiation + graceful degradation, honest `threading: single|pooled(n)`); §4 rendering (RenderSurface→WebGPU/WebGL2, 3 frame-upload paths incl. GPUExternalTexture [VERIFY], DPR, truthful backend negotiation); §5 audio (AudioWorklet mapping of AudioSink/RenderCallback, SAB ring vs message transport, sample-counter clock, drift/resample, autoplay gesture-required substate [PROPOSAL]); §6 I/O (fetch+Range seekability detection, File/Blob no-upload, HLS/DASH shared, blocked capabilities typed); §7 @lumen/wasm-client over Worker/MessagePort, lifecycle, WasmBrowserHost conformance; §8 browser matrix (BCD-cited table, iOS constraints, CI vs manual tiers, baseline promise); §9 security (CORS+Range preflight, no FS, CSP wasm-unsafe-eval, plugin-host-wasm re-audit on web, COOP/COEP embedding trade-off off-by-default, no telemetry); §10 known-limit table with matrix vocabulary (WebCodecs as web analog of ADR-001 [PROPOSAL pending ADR]); §11 test plan; §12 nine open questions; Unfinished: none (doc 08 reconciliation pending).
+- 36 [PROPOSAL] + 14 [VERIFY] markers; all browser facts cite BCD/MDN/rustc-book fetched 2026-10-19.
+- Touched only docs/09-web-wasm-target.md and this worklog append; no git commit (AGENTS §3.8).
+
+Stage Summary:
+- docs/09-web-wasm-target.md delivered (~5,215 prose words / 6,333 total, 335 lines, §1–§12), fully traced to MASTER-PROMPT §10/§2/§3.5/§12/§16 with live-verified browser/target facts.
+- Lead decisions requested (doc §12): wasm-bindgen adoption; capability-report home in doc 05 catalog (EngineInfo extension vs system.get-host-capabilities); playback.gesture-required event; worker-crash event; size-budget numbers; WebCodecs ADR (web analog of ADR-001); OffscreenCanvas render worker; COOP/COEP off-by-default embedding policy; WebGL2-only tier semantics in the matrix.
+
+
+---
+Task ID: 1.B6
+Agent: Sub-agent (general-purpose), Wave B
+Task: Write docs/06-plugin-architecture.md — complete plugin system specification (taxonomy, manifests, registry/selection, builtin pattern, WASM extension host, forbidden enforcement, conformance kit, v1 fence, test plan).
+
+Work Log:
+- Read worklog.md, AGENTS.md, docs/MASTER-PROMPT.md in full (§6 primary; §5/§9/§12/§13/§14); skimmed docs/01-architecture.md (plugin-api/plugin-host-wasm sections, crate table, layering, ADR register) and docs/04-codec-format-roadmap.md §1–2 + §8.5 (fuzz registry), doc 05 plugin commands/events.
+- Wrote docs/06-plugin-architecture.md (~5,430 prose words / 7,420 raw incl. TOML + tables; 1,045 lines) in 3 parts (Write + two `<!-- CONT -->` Edits); fixed a nested-backtick marker; verified no leftover markers, no duplication.
+- Sections: §1 taxonomy (16 kinds — splits doc 01's SubtitleFormat/PlaylistFormat into parser+renderer/parser+exporter [PROPOSAL Q1], trait+owner crate+lifecycle+pipeline position per kind, WASM-allowed-kind allowlist); §2 manifest spec (field-by-field: id namespacing, kind, semver, api_version, capabilities per kind, priority, permissions [fs-sandboxed-read/http-fetch+host-allowlist/ui-surface/device-query], config_schema, dependencies, provenance; 4 complete examples: matroska demuxer, FLAC decoder, WASM metadata-provider, WASM ui-panel); §3 registry build (5 steps, slotmap+capability indexes), probe→candidates→selection flow, scoring+tie-breaks (probe score > priority > user order > builtin-first > id), never-invent mechanics, hot-reload=none [PROPOSAL]; §4 Cargo-feature registration pattern (typed factory enum, manifest/feature bijection CI check), no-cycles rules; §5 extension host (runtime candidates wasmtime/wasmi, wasm3/Fizzy rejected — all [VERIFY-P0] for ADR-002; linear-memory/no-host-pointers model, import-dispatch permission enforcement, concrete limit defaults table [PROPOSAL], lumen:v1.* versioning w/ deprecation window, trap isolation + backoff→Disabled, .lumenext package + user-initiated install flow + no-auto-exec, off-realtime threading + command-layer-only UI panels); §6 forbidden enforcement with CI audit commands; §7 conformance kit (6 suites incl. capability honesty + crash injection, fuzz/<kind-short>_<id> naming reconciled with doc 04, TOML report format); §8 v1 fence (native plugins permanent-forbidden, no marketplace/auto-updates, Lua extensions will not run — MP §14); §9 test plan (unit/property/integration/security incl. trap loops, memory exhaustion, permission escalation, malicious manifests, no-auto-exec); §10 open questions Q1–Q9 + marker ledger.
+- Touched only docs/06-plugin-architecture.md and this worklog append; no git commit (AGENTS §3.8).
+
+Stage Summary:
+- Doc 06 delivered: full plugin spec traced to MP §6/§5/§9/§12/§13/§14, aligned with doc 01 traits/layers, doc 04 format tables, doc 05 command/event surface.
+- Lead decisions requested (doc §10): 16-kind PluginKind split; SubtitleRenderer + PlaylistExporter trait placement; ADR-002 runtime pick; signature scheme; default limits + scoring constants approval; web extension loading; ui-panel protocol; fuzz id canonicalization.
+
+---
+Task ID: 1.B10
+Agent: Sub-agent (general-purpose), Wave B
+Task: Write docs/10-testing-ci-quality.md — complete testing, CI and quality-gate specification.
+
+Work Log:
+- Read worklog.md, AGENTS.md, docs/MASTER-PROMPT.md in full (§13 primary; §5, §8, §12, §15, §17); skimmed doc 01 §5 (boundary CI), doc 03 §8 (testkit/scenarios), doc 04 §6/§8.5 (records, fuzz registry), doc 05 §7 (contract suite), doc 02 §2.4/§4.3/§4.6 (oracle contract, status model, R1–R10).
+- Docs 06–09 were absent at start; noted in §0 with reconciliation pointers. They began landing (partial, in-flux) during writing — references kept as "pending" deliberately.
+- Wrote docs/10-testing-ci-quality.md (1,007 lines; ~5,500 prose words excl. code/tables; 76 [PROPOSAL], 2 [VERIFY]) in 3 parts (Write + two <!-- CONT --> Edits) + consistency fixes (mermaid labels, G10/G11 ref, R-H2 wording).
+- Sections: §0 scope/traceability + standing honesty rules R-H1..H3; §1 principles; §2 local gate — verbatim MP §13 command table (10 commands incl. UI/Tauri/wasm), `cargo xtask gate` [PROPOSAL], deps-snapshot assertions over `cargo tree`, machine-printed gate report block (honesty rule, ties to AGENTS §3.9); §3 lint policy — exact [workspace.lints] block (rust: unsafe_code/unused_must_use/unused_imports/unused_variables; clippy: unwrap_used/expect_used/panic/todo/unimplemented/dbg_macro/await_holding_lock), [lints] workspace=true inheritance check, suppression registry (Lead-approved, expiring), UI equivalents (eslint i18n-no-literals, boundary imports, strict tsc); §4 CI pipeline — GHA [PROPOSAL], job graph, fast/full/nightly tiers, 21-check required list + merge queue, artifact/evidence store, gates G1–G13 each with runner/failure/evidence (schema, rebrand propagation, cargo-deny/vet/SBOM, advisories, architecture, feature-matrix R1–R10, visual, plugin conformance, packaging+launch, fuzz-smoke, contracts, wasm, regression-guard), YAML sketch; §5 corpus — CORPUS.md licensing ledger, acquired inventory plan, deterministic generators (malformed/truncated/discontinuous), expectation/1 TOML format, 150 MB budget, bidirectional mapping to doc 04 records; §6 taxonomy — 8 levels w/ owners, 6 property suites, complete 16-row MP §13 scenario table (pass criteria + evidence artifacts), soak/stress (4 h, <5 MB/h slope, LSAN nightly), differential vs VLC 3.0.23 (harness, MD5-PCM/lossless + PSNR/SSIM/lossy, non-comparable list, weekly + opt-in label [PROPOSAL]), visual pointer, fuzz registry (~45 initial targets incl. network framing + probe + commands_json) with seeding + tiered budgets; §7 evidence — mock/real labels, evidence/1 ledger schema, parity-report outbox → Lead-applied transitions (no self-verification); §8 regression protocol + G13 test-inventory heuristic + flaky quarantine (14-day deadline); §9 §17 cycle-report template wired to CI + metrics dashboard; §10 CI-for-CI (caching, nextest, tiering, ~670 h/month budget [PROPOSAL], actionlint, gate/CI parity check); §11 open questions + proposal index.
+- No commands were executed against a real workspace (none exists yet — planning wave); all runtimes marked as estimates. Touched only docs/10-testing-ci-quality.md and this worklog append; no git commit.
+
+Stage Summary:
+- docs/10-testing-ci-quality.md delivered: full testing/CI/quality spec traced to MP §13/§8/§12/§15/§17 and docs 01–05; all inventions marked [PROPOSAL].
+- Lead decisions requested (§11): CI platform + self-hosted runner, macOS arch breadth, oracle cadence, tool picks (pnpm/vitest/nextest/proptest/Playwright), mock-evidence verified-category split, corpus LFS, --retry policy, triage rota.
