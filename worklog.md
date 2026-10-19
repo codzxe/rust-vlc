@@ -392,3 +392,69 @@ Work Log:
 
 Stage Summary:
 - 3/5 deliverables exist and are usable; retry 0.C4-R launched with narrowed scope.
+
+---
+Task ID: 0.C5-a
+Agent: Sub-agent (general-purpose), split retry of 0.C5-I (Linux record only)
+Task: Linux platform capabilities inventory (WebKitGTK/wry, video-in-webview candidates A/B, VA-API hw decode, audio crates, wgpu/GPU) → docs/inventory/platform-linux.md.
+
+Work Log:
+- Read worklog (0.A1–0.A4, 0.C4-I), AGENTS.md §3–§4; created docs/inventory/platform-linux.md (298 lines) + gitignored tmp/linuxaudit/ evidence (50+ files). No WebSearch/WebFetch tools in sandbox; curl used for all web evidence (recorded). GitHub API core quota (60/h, shared IP) exhausted mid-run — issue details via HTML pages; GNOME/freedesktop GitLab blocked by anti-bot (Anubis) → upstream WebKit issue search left as [VERIFY] follow-up.
+- WebKitGTK: current stable 2.54.1 (2.54.0 2026-09-16); 4.0/libsoup2 API dead since 2.52; Debian trixie ships 2.52.6 (main)/2.54.0 (security) for both 4.1 and 6.0 series; Ubuntu 24.04–26.04 = 2.50.4–2.52.6 (Launchpad API). DMABUF-only renderer since 2.44; Skia compositor since 2.54; rendering timeline cited from webkitgtk.org release posts.
+- wry 0.57.0: webkit2gtk =2.0.2 → GTK3/4.1 only; with_transparent = gdk RGBA(0,0,0,0); child webviews X11-ONLY (source-verified) — Candidate A has no Wayland embedding path; gtk4/webkit6 migration still open PR (wry#1767). No WEBKIT_DISABLE_* env handling in wry/tauri-runtime-wry 2.12.4.
+- Artifacts evidence table: tauri#14924 (NVIDIA transparent crash/GBM Error 71/black corners), wry#1731 (wl_shm buffer accumulation on transparent Wayland surfaces, unbounded), #9304/#10702/#15936/#16226/wry#1366/#1727, 44 issues mention WEBKIT_DISABLE_DMABUF_RENDERER.
+- WebCodecs: PROVEN compiled into Debian libwebkit2gtk-4.1 2.52.6 via apt-get download + dpkg-deb -x + strings (VideoDecoder/AudioDecoder/Encoders/Chunks/VideoFrame; feature flags WebCodecsVideo/Audio/AV1/HEVCEnabled; 79 "WebCodecs" strings; also MediaSource/ManagedMediaSource, WEBKIT_GST_ENABLE_LEGACY_VAAPI). 2.48 notes: prefer-hardware → GStreamer hw components. Default-enabled state left [VERIFY]. MSE+ImageBitmap fallbacks documented; wry transport surface (custom protocol/ipc/init script/evaluate) verified in source.
+- VA-API: libva 2.22.0 installed in sandbox; codec matrices from intel/media-driver README (H.264/HEVC/VP9/AV1/VVC decode + encodes), Mesa radeonsi [VERIFY per-ASIC], nvidia-vaapi-driver (NVDEC shim, decode-only, Firefox-targeted). Rust bindings census: cros-libva 0.0.13 (ChromeOS, BSD-3, 1.28M dl, bindgen+pkg-config, links C libva), forks (libva 0.1.5 mlm-games, cros-libva-extended, vacc-libva), libva-sys (stale 2021), fev, higher-level (moq-vaapi flagged "(AI GENERATED)", cros-codecs-*, nuxodecs, oxideav-vaapi, vacc, rawshift-hwdec). dlopen-vs-link policy question recorded both framings, no verdict. VDPAU: vdpau-va-driver GONE from trixie; legacy note. VLC 3.0.23 module dumps cross-checked: vaapi/vaapi_drm/glconv_vaapi_{x11,wl,drm} + vdpau family present (oracle corroboration).
+- Audio: alsa 0.12.1 (alsa-sys→libasound C), pipewire 0.10.1 (upstream pipewire-rs, C-ABI, trixie pipewire 1.4.2), libpulse-binding 2.30.1 (C), pulseaudio 0.3.2 (PURE RUST protocol, colinmarc), cpal 0.18.2 (Linux: ALSA default + optional JACK/PipeWire/PulseAudio backends, ALSA always required). Decision-input matrix written, no choice made.
+- wgpu 30.0.1: pure-Rust over Vulkan (first-class)/GL; CompositeAlphaMode modes; lavapipe = mesa-vulkan-drivers 25.0.7 trixie [VERIFY doc URL]; X11 vs Wayland candidate-A substrate comparison table; winit with_transparent cited.
+- Verdict block: ADR-003 B-first on Linux (A blocked-ish on Wayland, NVIDIA-risky; contingencies), ADR-001 VA-API readiness + policy question, ADR-005 inputs, 12 [VERIFY] follow-ups with concrete probes, 8 risk observations (L1–L8) for doc 14. No ADR decided; no git commit (AGENTS §3.8).
+
+Stage Summary:
+- docs/inventory/platform-linux.md complete (298 lines, every external fact URL+date cited, 23 [VERIFY] marks). Linux headline: B-first for video-in-webview; WebCodecs compiled-in proven in-binary; VA-API technically ready with an unavoidable C-ABI and an open policy classification; audio = PipeWire reality with one pure-Rust option. Ready for Lead synthesis (0.C5 cross-platform) and ADR-001/003/005 inputs.
+
+---
+Task ID: 0.C5-b
+Agent: Sub-agent (general-purpose), Phase 0 (split retry of 0.C5-I; Windows+macOS half)
+Task: Platform audit records for Windows (WebView2/MF/WASAPI/wgpu-DX12) and macOS (WKWebView/VideoToolbox/CoreAudio/wgpu-Metal) feeding ADR-001/003/005.
+
+Work Log:
+- Read worklog.md (last 100 lines) + AGENTS.md §3/§4 per first steps. No WebSearch/WebFetch tools in sandbox; used curl (+ agent-browser headless Chromium only for the JS-rendered Microsoft Store) — recorded in both files' method notes. All citations carry access date 2026-10-19.
+- crates.io API versions pinned: wry 0.57.0, tauri 2.12.4 (3.0.0-alpha.5 newest), tao 0.37.1, winit 0.30.13, raw-window-handle 0.6.2, webview2-com 0.39.1, windows 0.62.2 / windows-sys 0.61.2 / windows-core 0.100.0, wgpu 30.0.1, cpal 0.18.2, objc2 0.6.5 + framework crates 0.3.2, core-foundation 0.10.1, core-video 0.6.1, coreaudio-rs 0.14.2 (vs different "coreaudio" 0.5.0 crate — flagged), coreaudio-rs used by cpal verified.
+- Source-verified from published crate tarballs: wry 0.57 (with_transparent → ICoreWebView2Controller2::SetDefaultBackgroundColor(0,0,0,0); macOS drawsBackground KVC with in-source "Private API" note; WebViewExtWindows::hwnd()/controller()/environment()/webview(); WebViewExtMacOS::webview()/ns_window(); build/build_as_child on HasWindowHandle; addSubview/setContentView hierarchy), tauri 2.12.4 (WebviewWindow: HasWindowHandle+HasDisplayHandle, hwnd()/ns_window()/ns_view(); macos-private-api no-op since 2.12.1), tauri-runtime-wry 2.12.2 (pins wry 0.57.0 + tao 0.37.0), tao 0.37.1 (no WS_CLIPCHILDREN control; NO_BACK_BUFFER platform attr), cpal 0.18.2 (WASAPI: AUDCLNT_STREAMFLAGS_EVENTCALLBACK+SetEventHandle, shared-mode only, windows 0.62), wgpu 30.0.1 (dx12+metal in default features), windows 0.62.2 (Win32_Media_MediaFoundation/Direct3D11/Dxgi features present).
+- Microsoft Learn fetched: ICoreWebView2Controller2 DefaultBackgroundColor (alpha 0/255 only, E_INVALIDARG otherwise, Win7 excluded, documented white-flicker + WEBVIEW2_DEFAULT_BACKGROUND_COLOR workaround); Windowed vs Visual hosting (3 modes incl. new "Window to Visual" env-var mode); Differences Edge-vs-WebView2 (WebCodecs not restricted); MF Supported Media Formats (in-box table: H.264/AAC etc.; no HEVC/VP9/AV1); distribution/evergreen page.
+- Store situation (apps.microsoft.com search API + displaycatalog, 2026-10-19): HEVC Video Extensions $0.99 at NEW id 9nmzlz57r3t7; legacy id 9N4WGH0Z6VHM now 410/ProductNotFound (deep-link breakage recorded); AV1 Video Extension free (9mvzqvxjbq9v); VP9 (9n4d0msmp0pt), Web Media Extensions (9n5tdp8vcmhs), MPEG-2 (9n95q1zzpmh4), AVC Encoder (9pb0trcnrhfx) free; "Device Manufacturer" HEVC variant unlisted.
+- MF API names verified live (HTTP 200): MFStartup, MFTEnumEx, IMFTransform, MFCreateDXGIDeviceManager, h-264-video-decoder; MFCreateVideoDecoder does NOT exist (404) — brief's assumed name corrected.
+- Field evidence: wry #1540 (Windows transparent webview showed desktop not host content; fixed via bevy#16544 with_clip_children(false) on winit) + wry #1658/#408 artifacts; wry #1867 (macOS 15.7 black-base transparency regression, fixed in 15.8.1) + #1780 (transparency flags removed/always-on).
+- WebKit/WebCodecs: WebKit blog 16.4 ("adds support for the video portion of Web Codecs API") and 26.0 ("adds AudioEncoder and AudioDecoder"); caniuse data (Safari 16.4–18.2 partial video-only, 26.0 full; Chrome/Edge 94); MDN BCD VideoDecoder Safari 16.4+; Safari 17 blog AV1-on-hardware-decode quote. Apple docs JSON fetched for VTDecompressionSession, VideoToolbox root ("direct access to hardware encoders and decoders", VTIsHardwareDecodeSupported), notarization requirements. docs.rs confirms objc2-video-toolbox 0.3.2 exports VTDecompressionSessionCreate + VTIsHardwareDecodeSupported.
+- Notable discoveries recorded: windows-rs generation shift (0.62.x vs new 0.100.0 line incl. NEW windows-webview/window/composition/canvas crates, tag 74, 2026-09-03); WebView2 "Window to Visual" hosting mode; HEVC store id rotation.
+- Wrote docs/inventory/platform-windows.md (322 lines) and docs/inventory/platform-macos.md (305 lines): sections (a)-(g) per brief, verdict blocks + [VERIFY] ledgers; no ADR decisions made; E2-class classifications recorded not verdicted.
+- No git commit (AGENTS §3.8). tmp/ scratch only (/tmp/c5b, outside repo).
+
+Stage Summary:
+- Both platform records complete: ADR-003 evidence — Candidate A feasible on both, structurally cleaner on macOS (sibling NSView + private drawsBackground KVC, always enabled in Tauri ≥2.12.1) vs Windows conditions (alpha 0/255-only DefaultBackgroundColor + no-WS_CLIPCHILDREN parent; wry lacks composition hosting); Candidate B available now in evergreen WebView2 (WebCodecs since Chromium 94, not on WebView2's disabled list), on macOS gated by support floor (video-only 16.4+/macOS 13.3+, full 26/macOS 26). ADR-001 — MF path pure-Rust-ready (windows-rs, MFTEnumEx pattern; no MFCreateVideoDecoder), HEVC/AV1/VP9 store-extension-dependent with runtime detection required; VideoToolbox path pure-Rust-ready (objc2 0.6.5 family), no install friction, D3D11-vs-DX12 interop and CVPixelBuffer→wgpu zero-copy are the top [VERIFY] spikes. 15 open [VERIFY] items across the two files.
+
+---
+Task ID: 0.C4-R (completed by Lead after agent timeout #2)
+Agent: general-purpose (wrote ADR-002-evidence.md) + Lead (salvage: preaudit-foundation.md)
+Task: Complete 0.C4: ADR-002 evidence pack + foundation dependency pre-audit.
+
+Work Log:
+- Agent delivered docs/adr/ADR-002-evidence.md (196 lines: hard requirements, 4-candidate table — wasmi 2.0.0 / wasmtime 49.0.3 / wasmer 7.5.0 / fizzy 0.8.0, wasmtime C-inventory, wasmer+fizzy rejection evidence, decision framing, sources) before timing out (2nd timeout on this task line).
+- Lead completed preaudit-foundation.md via direct crates.io API fetches (18 crates; cpal 0.18.2 dep tree verified: all-native deps are E2 OS-audio bindings, no third-party media C libs).
+- Verdicts: serde family/schemars/thiserror/tracing/raw-window-handle/wasm-bindgen = pass; cpal/wgpu/winit/windows(-sys)/objc2/core-foundation = conditional (E2 envelope); tauri/wry = exception-ADR-004. toml license [VERIFY-P1].
+
+Stage Summary:
+- 0.C4 COMPLETE (5/5 deliverables across 0.C4-I + 0.C4-R + Lead salvage). ADR-002 decision input ready for 0.D3.
+
+---
+Task ID: 0.C5 (wave, complete)
+Agent: 0.C5-a + 0.C5-b (split retry; original 0.C5-I timed out with no output)
+Task: Platform & hardware capability records for ADR-001/003/005.
+
+Work Log:
+- 0.C5-a: docs/inventory/platform-linux.md (298 lines, 23 [VERIFY]): Candidate B safer on Linux (wry 0.57 = WebKitGTK 4.1/GTK3; child webviews X11-only -> no Wayland candidate-A path; NVIDIA transparent-window crashes; WebCodecs proven compiled-in to Debian 2.52.6). VA-API technically ready; OS-service-vs-C-library classification = Lead call.
+- 0.C5-b: docs/inventory/platform-windows.md + platform-macos.md: Windows candidate-A feasible-with-conditions (alpha-only bg, WS_CLIPCHILDREN), B ready (WebCodecs since C94); macOS candidate-A structurally cleaner (sibling NSView; drawsBackground fixed in Tauri >=2.12.1), B gated by macOS 13.3+/26 floors. HW decode: windows-rs MFTEnumEx + objc2-video-toolbox 0.3.2 pure-Rust-ready.
+- platform-synthesis.md NOT yet written (deferred to next batch with 0.C1-C3 inputs).
+
+Stage Summary:
+- Platform evidence complete for ADR-001/003/005. Synthesis pending.
