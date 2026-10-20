@@ -167,6 +167,22 @@ pub struct SchedulerCfg {
 /// measurements]`.
 pub const DEFAULT_MAX_PENDING: usize = 16;
 
+/// [`DEFAULT_MAX_PENDING`] in the [`SchedulerCfg::new`] shape: the
+/// checked conversion with its impossible arm a compile-time dead end
+/// — a `loop` in const position never yields a value, so zeroing the
+/// literal above fails the build instead of panicking at runtime (no
+/// `unreachable!`/`unwrap` by the card convention; no fabricated
+/// fallback either).
+///
+/// Scoped `allow`: clippy's suggested fix for the empty loop is
+/// `panic!()` — denied by the workspace lint block — so this is a
+/// false positive here; the arm is provably dead const code.
+#[allow(clippy::empty_loop)]
+const DEFAULT_MAX_PENDING_NZ: NonZeroUsize = match NonZeroUsize::new(DEFAULT_MAX_PENDING) {
+    Some(value) => value,
+    None => loop {},
+};
+
 /// Default repeat budget `[PROPOSAL: doc 03 §4.10 e specifies the
 /// repeat-then-background *shape* but no count; 3 holds one frame
 /// through a brief decoder stall (~2 extra vsyncs at 30 fps) before
@@ -219,7 +235,7 @@ impl SchedulerCfg {
             DEFAULT_MAX_REPEAT,
             Nanoseconds(duration.0 / 2),
             Some(duration),
-            NonZeroUsize::new(DEFAULT_MAX_PENDING).unwrap_or_else(|| unreachable!()),
+            DEFAULT_MAX_PENDING_NZ,
         )
     }
 

@@ -13,11 +13,10 @@
 mod common;
 
 use std::num::NonZeroUsize;
-use std::sync::Arc;
 
 use common::{AudioMasterClock, RecordingPresenter, VirtualClock, frame};
-use media_types::time::Nanoseconds;
 use media_types::GenerationId;
+use media_types::time::Nanoseconds;
 use testkit::Must;
 use video_engine::{
     DropPolicy, EnqueueOutcome, PresentAction, PresentationQueue, PresentationScheduler,
@@ -128,7 +127,10 @@ fn ac_late_frames_dropped_never_presented_late_or_reordered() {
     assert_eq!(outcome.drops.late.len(), 10, "{:?}", outcome.drops.late);
     assert_eq!(scheduler.stats().dropped_late, 10);
     assert!(
-        !sink.slots_seen().iter().any(|p| (10..20).contains(&(*p / FRAME as i64))),
+        !sink
+            .slots_seen()
+            .iter()
+            .any(|p| (10..20).contains(&(*p / FRAME as i64))),
         "late frames never presented: {:?}",
         sink.slots_seen()
     );
@@ -142,13 +144,23 @@ fn ac_late_frames_dropped_never_presented_late_or_reordered() {
     }
     sink.assert_in_order("after the stall");
     let got: Vec<i64> = sink.slots_seen();
-    assert_eq!(&got[..10], &(0..10).map(|k| k * FRAME as i64).collect::<Vec<_>>());
+    assert_eq!(
+        &got[..10],
+        &(0..10).map(|k| k * FRAME as i64).collect::<Vec<_>>()
+    );
+    // The stall tick finds nothing due (the window was late-purged), so
+    // it repeats the last on-time slot — bounded by `max_repeat`, and a
+    // repeat is a present: delivered in order. Then playback resumes on
+    // fresh slots; the gap is exactly the dropped 10..20.
+    let mut want_tail: Vec<i64> = vec![9 * FRAME as i64];
+    want_tail.extend((40..50).map(|k| k * FRAME as i64));
     assert_eq!(
         &got[10..],
-        &(40..50).map(|k| k * FRAME as i64).collect::<Vec<_>>(),
-        "the stall gap is exactly the dropped 10..20"
+        &want_tail,
+        "one bounded repeat, then the stall gap is exactly the dropped 10..20"
     );
     assert_eq!(scheduler.stats().presented, 20);
+    assert_eq!(scheduler.stats().repeats, 1);
 }
 
 #[test]
@@ -199,7 +211,14 @@ fn ac_early_frames_are_held_until_their_slot() {
         PresentAction::RepeatLast(_) => {}
         other => unreachable!("frame 1 still early at now=15ms, got {other:?}"),
     }
-    assert_eq!(sink.slots_seen(), vec![0], "frame 1 not yet presented");
+    // A repeat *is* a present (scheduler.rs step 5): the wiring
+    // delivers it, so the record shows frame 0's slot twice — and
+    // still nothing at frame 1's slot.
+    assert_eq!(
+        sink.slots_seen(),
+        vec![0, 0],
+        "repeat re-presents slot 0; frame 1 still held"
+    );
     assert_eq!(
         outcome.next_due.map(|t| t.ticks),
         Some(FRAME as i64 - 16_666_667),
@@ -214,7 +233,7 @@ fn ac_early_frames_are_held_until_their_slot() {
         PresentAction::Present(r) => assert_eq!(r.when.ticks, FRAME as i64),
         other => unreachable!("{other:?}"),
     }
-    assert_eq!(sink.slots_seen(), vec![0, FRAME as i64]);
+    assert_eq!(sink.slots_seen(), vec![0, 0, FRAME as i64]);
 }
 
 // ---------------------------------------------------------------------------
@@ -327,7 +346,10 @@ fn ac_generation_stale_frames_are_dropped_end_to_end() {
     assert_eq!(queue.publish(next), 0, "nothing resident yet");
 
     let outcome = step(&mut scheduler, &mut queue, &mut sink);
-    assert_eq!(outcome.drops.stale, 3, "pending frames of the dead generation");
+    assert_eq!(
+        outcome.drops.stale, 3,
+        "pending frames of the dead generation"
+    );
     assert_eq!(scheduler.stats().dropped_stale, 3);
     assert!(matches!(outcome.action, PresentAction::Background));
     assert_eq!(
@@ -406,8 +428,18 @@ fn presented_error_stays_within_the_policy_bounds_at_every_present() {
     let threshold = FRAME as i64;
     let lead = 16_666_667i64;
 
-    let mut check = |now_ns: i64| {
-        let outcome = scheduler.tick();
+    // The bounds-checked sibling of `step` — a nested fn, not a
+    // closure, so each borrow ends at the call and the run can keep
+    // pushing frames between checks.
+    fn check(
+        scheduler: &mut PresentationScheduler,
+        queue: &mut PresentationQueue,
+        sink: &mut RecordingPresenter,
+        now_ns: i64,
+        threshold: i64,
+        lead: i64,
+    ) {
+        let outcome = step(scheduler, queue, sink);
         if let PresentAction::Present(r) = &outcome.action {
             assert!(
                 r.when.ticks >= now_ns - threshold,
@@ -420,33 +452,32 @@ fn presented_error_stays_within_the_policy_bounds_at_every_present() {
                 r.when.ticks
             );
         }
-        let request = match &outcome.action {
-            PresentAction::Present(r) | PresentAction::RepeatLast(r) => Some(r.clone()),
-            PresentAction::Background => None,
-        };
-        if let Some(request) = request {
-            let _ = queue.try_push(request);
-        }
-        let _ = queue.drain_to(&mut sink);
-    };
+    }
 
     // Normal advance, then a 15-frame stall, then recovery.
     for frame_index in 0..30i64 {
         let pts = frame_index * FRAME as i64;
         let _ = scheduler.push(frame(pts, GenerationId::FIRST));
         clock.set_ns(pts.unsigned_abs());
-        check(pts);
+        check(&mut scheduler, &mut queue, &mut sink, pts, threshold, lead);
     }
     for frame_index in 30..40i64 {
         let _ = scheduler.push(frame(frame_index * FRAME as i64, GenerationId::FIRST));
     }
     clock.set_ns(55 * FRAME);
-    check(55 * FRAME as i64);
+    check(
+        &mut scheduler,
+        &mut queue,
+        &mut sink,
+        55 * FRAME as i64,
+        threshold,
+        lead,
+    );
     for frame_index in 55..65i64 {
         let pts = frame_index * FRAME as i64;
         let _ = scheduler.push(frame(pts, GenerationId::FIRST));
         clock.set_ns(pts.unsigned_abs());
-        check(pts);
+        check(&mut scheduler, &mut queue, &mut sink, pts, threshold, lead);
     }
     sink.assert_in_order("sync-bounds run");
     assert!(sink.slots_seen().len() >= 35, "{}", sink.slots_seen().len());
@@ -540,7 +571,10 @@ fn never_policy_presents_late_frames_in_order_via_supersede() {
         clock.set_ns((frame_index * FRAME as i64).unsigned_abs());
         step(&mut scheduler, &mut queue, &mut sink);
     }
-    assert_eq!(sink.slots_seen(), vec![3, 4, 5].map(|k| k * FRAME as i64));
+    assert_eq!(
+        sink.slots_seen(),
+        (3..6).map(|k| k * FRAME as i64).collect::<Vec<_>>()
+    );
     sink.assert_in_order("never policy");
 }
 
@@ -593,7 +627,15 @@ fn paused_clock_freezes_the_schedule_mechanically() {
     for _ in 0..6 {
         step(&mut scheduler, &mut queue, &mut sink);
     }
-    assert_eq!(sink.slots_seen(), vec![0], "frame 1 held while frozen");
+    // Frozen `now()` never reaches frame 1's due position, so its
+    // slot never appears; the repeat budget (3) drains first — a
+    // repeat is a present, so slot 0 is re-delivered exactly three
+    // times before background.
+    assert_eq!(
+        sink.slots_seen(),
+        vec![0, 0, 0, 0],
+        "frame 1 held while frozen (repeat budget re-presents slot 0)"
+    );
     assert_eq!(scheduler.pending_len(), 1);
 
     // Resume from the same position: the frame presents on its slot.
@@ -653,7 +695,10 @@ fn window_bound_surfaces_as_typed_window_full_at_the_wiring_level() {
     // Default window is 16: fill it with far-future frames.
     for frame_index in 0..16i64 {
         assert!(matches!(
-            scheduler.push(frame((1000 + frame_index) * FRAME as i64, GenerationId::FIRST)),
+            scheduler.push(frame(
+                (1000 + frame_index) * FRAME as i64,
+                GenerationId::FIRST
+            )),
             PushOutcome::Scheduled
         ));
     }

@@ -7,8 +7,8 @@
 
 #![allow(dead_code)]
 
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use media_clock::{MediaClock, MonotonicSource, NANO_BASE, PlaybackClock, SampleCounterSource};
 use media_types::error::{DeviceCause, DeviceSlot, ErrorContext, ErrorKind};
@@ -45,12 +45,9 @@ impl VirtualClock {
     /// A clock at position zero, running, generation `FIRST`.
     pub fn new() -> VirtualClock {
         let source = Arc::new(FakeMonotonic(AtomicU64::new(0)));
-        let clock = MediaClock::system_monotonic(
-            source.clone(),
-            Timestamp::new(0, NANO_BASE),
-            Rate::ONE,
-        )
-        .must();
+        let clock =
+            MediaClock::system_monotonic(source.clone(), Timestamp::new(0, NANO_BASE), Rate::ONE)
+                .must();
         VirtualClock {
             source,
             clock: Arc::new(clock),
@@ -128,12 +125,9 @@ impl AudioMasterClock {
             sample: AtomicU64::new(0),
             rate_hz: 48_000,
         });
-        let clock = MediaClock::audio_master(
-            counter.clone(),
-            Timestamp::new(0, NANO_BASE),
-            Rate::ONE,
-        )
-        .must();
+        let clock =
+            MediaClock::audio_master(counter.clone(), Timestamp::new(0, NANO_BASE), Rate::ONE)
+                .must();
         AudioMasterClock {
             counter,
             clock: Arc::new(clock),
