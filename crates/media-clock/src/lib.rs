@@ -84,6 +84,11 @@
 //! I/O, device APIs, UI, threads of its own (doc 01 §2.2 d). The clock
 //! observes; it never drives the audio device.
 
+pub mod mapping;
 pub mod source;
 
+pub use mapping::{
+    NANO_BASE, map_samples_to_timestamp, map_timestamp_to_samples, nanos_to_timestamp,
+    sample_delta_to_media_nanos, samples_until_end, timestamp_to_nanos,
+};
 pub use source::{InstantSource, MonotonicSource, SampleCounterSource};
