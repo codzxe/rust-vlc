@@ -1,0 +1,31 @@
+# crates/audio-engine — the audio path after decode (card 2.C3,
+# doc 03 §4.8).
+#
+# Registry: doc 01 §2.2 (`audio-engine`, layer L3, deps: media-types,
+# media-clock, plugin-api). This card's v0 surface — volume, channel
+# map, straight mix over the media-types audio formats — needs
+# media-types only: the mixer-format f32 domain carries no clock
+# vocabulary of its own (sample-count conservation is asserted against
+# the frame math), and the AudioFilter plugin seam joins with the
+# filter-chain card (video-engine precedent: the manifest is an
+# allowlist, the registry row's fuller dep list lands with the cards
+# that need it). media-clock joins with the drift micro-resampler
+# (doc 03 §4.8 e). Std-only by C5: zero external dependencies.
+
+[package]
+name = "audio-engine"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen audio path v0: volume, channel map, straight mix — decoded AudioFrames to the mixer format and out to the sink (doc 03 §4.8)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+media-types = { path = "../media-types" }
+
+[dev-dependencies]
+# testkit is dev-only by contract (MP §3.7): Must-asserts for the
+# golden-buffer acceptance tests.
+testkit = { path = "../testkit" }
