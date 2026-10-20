@@ -182,6 +182,22 @@ dev_deps = ["testkit"]
 external_allowlist = []
 external_dev_allowlist = []
 
+# L3 — builtin software codecs (doc 01 §2.5 registry row, card 2.B4).
+# Baseline-JPEG/MJPEG decode behind the codec-api Decoder contract. The
+# registry row also lists plugin-api for the register()/manifest surface
+# (doc 01 §2.5(b)); that edge joins when the plugin registry card lands —
+# this card's decoder needs codec-api + media-types only (the manifest is
+# an allowlist, video-engine precedent). Std-only by C5: the 2.B4
+# dependency decision is an in-house decoder (zero externals; the
+# jpeg-decoder/zune-jpeg options were not audited — a future adoption
+# owes the full Lead-ratified dependency review; worklog 2.B4).
+[crates.codecs]
+layer = 3
+internal_deps = ["codec-api", "media-types"]
+dev_deps = []
+external_allowlist = []
+external_dev_allowlist = []
+
 # L3 — video presentation scheduling (doc 01 §2.2 registry row, card
 # 2.C4; doc 03 §4.10). The frame scheduler: decoded-frame PTS vs the
 # media-clock snapshot (present-now / wait / drop-late), the

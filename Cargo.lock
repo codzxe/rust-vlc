@@ -10,6 +10,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "codecs"
+version = "0.1.0"
+dependencies = [
+ "codec-api",
+ "media-types",
+]
+
+[[package]]
 name = "commands"
 version = "0.1.0"
 dependencies = [

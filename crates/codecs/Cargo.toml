@@ -1,0 +1,36 @@
+# crates/codecs — builtin software codec implementations (card 2.B4,
+# doc 01 §2.5 registry row: L3, deps codec-api + plugin-api + media-types).
+#
+# This card's surface — the MJPEG (baseline JPEG) video decoder — needs
+# codec-api + media-types only. plugin-api joins when the registry/plugin
+# surface lands (doc 01 §2.5(b) `register()`); the boundary manifest is an
+# allowlist, so the narrower dep list is legal (boundaries.toml mirrors it
+# exactly, video-engine precedent).
+#
+# Std-only by C5: zero external dependencies. The 2.B4 dependency decision
+# (recorded in the worklog) is an IN-HOUSE baseline JPEG decoder seeded by
+# the 2.A3 in-repo encoder's primitives, following the D-018
+# zero-new-dependency logic for the first vertical.
+#
+# `decoders` feature: v0 ships the mjpeg module unconditionally; the
+# per-codec Cargo features of doc 01 §2.5(a) arrive with the second codec
+# (feature-flagging a single module adds no compile-time choice yet).
+
+[package]
+name = "codecs"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen builtin software codecs: baseline-JPEG/MJPEG video decoder behind the codec-api contract (doc 01 §2.5, card 2.B4)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+codec-api = { path = "../codec-api" }
+media-types = { path = "../media-types" }
+
+[dev-dependencies]
+# No dev-dependencies: the contract suite is codec_api::contract (already
+# a normal dep) and the fixture corpus is read straight from the committed
+# tests/fixtures tree via CARGO_MANIFEST_DIR-relative paths.
