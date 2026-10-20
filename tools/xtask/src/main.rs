@@ -9,7 +9,9 @@
 //! to its own module `src/cmd/<name>.rs`. A later card owns ONLY that one
 //! module file; it must not edit this file, `cmd/mod.rs`, or another card's
 //! module. Adding a NEW subcommand after the freeze requires Lead-granted
-//! temporary ownership of both files (AGENTS.md §3.7).
+//! temporary ownership of both files (AGENTS.md §3.7) — exercised at Phase 2
+//! launch for `fixtures` 2.A3 (Lead-owned registration + stub; the card owns
+//! only `src/cmd/fixtures.rs`).
 //!
 //! # Exit codes (stable contract — CI and scripts depend on these)
 //!

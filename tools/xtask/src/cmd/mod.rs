@@ -18,6 +18,7 @@
 //! | `cmd::codegen`           | `codegen`            | 1.D4 (implemented) |
 //! | `cmd::check_architecture`| `check-architecture` | 1.E1 (implemented) |
 //! | `cmd::rebrand`           | `rebrand`            | 1.E4 (implemented) |
+//! | `cmd::fixtures`          | `fixtures`           | 2.A3 |
 
 use std::process::ExitCode;
 
@@ -25,6 +26,7 @@ use crate::XtaskError;
 
 pub mod check_architecture;
 pub mod codegen;
+pub mod fixtures;
 pub mod gate;
 pub mod rebrand;
 pub mod schema_gen;
@@ -89,6 +91,13 @@ pub const SUBCOMMANDS: &[Subcommand] = &[
         implemented: true,
         run: rebrand::run,
     },
+    Subcommand {
+        name: "fixtures",
+        card: "2.A3",
+        summary: "Demo fixture generation (doc 03 §7/§8)",
+        implemented: false,
+        run: fixtures::run,
+    },
 ];
 
 /// Find a registered subcommand by exact name.
@@ -123,6 +132,7 @@ mod tests {
             "codegen",
             "check-architecture",
             "rebrand",
+            "fixtures",
         ] {
             assert!(
                 lookup(expected).is_some(),
@@ -135,14 +145,29 @@ mod tests {
     fn all_wave1_subcommands_are_implemented() {
         // Lead batch-flip at the 1.D4 merge: every wave-1 card has landed
         // (gate 1.A3, schema-gen 1.B2, tokens 1.B4, codegen 1.D4,
-        // check-architecture 1.E1, rebrand 1.E4). The v0 invariant
-        // (only gate) is graduated with them.
+        // check-architecture 1.E1, rebrand 1.E4). The wave-2 `fixtures`
+        // stub (2.A3) is the sole not-yet entry, pinned by the dedicated
+        // test below.
         for sub in SUBCOMMANDS {
+            if sub.name == "fixtures" {
+                continue;
+            }
             assert!(
                 sub.implemented,
                 "subcommand `{}` card {} should be implemented",
                 sub.name, sub.card
             );
+        }
+    }
+
+    #[test]
+    fn fixtures_stub_is_the_only_unimplemented() {
+        for sub in SUBCOMMANDS {
+            if sub.name == "fixtures" {
+                assert!(!sub.implemented, "fixtures (2.A3) still a stub here");
+            } else {
+                assert!(sub.implemented, "`{}` should be implemented", sub.name);
+            }
         }
     }
 }
