@@ -1,0 +1,128 @@
+# =============================================================================
+# tests/rebrand/nova.toml — the Nova Player rebrand fixture (card 1.E4).
+#
+# A COMPLETE product definition (product.schema.json shape) carrying the
+# "Nova Player" identity, consumed by
+#
+#     cargo xtask rebrand --config tests/rebrand/nova.toml
+#
+# and asserted by the skeleton test (tests/rebrand/skeleton.rs, compiled into
+# the xtask integration-test binary via a #[path] include from
+# tools/xtask/tests/cli.rs — the workspace root manifest is virtual, so
+# tests/rebrand/ is not itself a cargo target).
+#
+# Validation evidence (card 1.E4-R VERIFY record): passes the committed
+# product.schema.json structural pass and the crates/product-config semantic
+# pass (incl. brand-asset existence + magic bytes against the repo root).
+# Brand assets are the tiny committed fixtures under tests/rebrand/assets/
+# (accent #ff5500 everywhere).
+#
+# Identity derivation (doc 07 §3.3(b)): reverse_dns "org.novaplayer" +
+# PascalCase("Nova Player") = "Nova Player" -> "NovaPlayer", so all four
+# per-OS ids read org.novaplayer.NovaPlayer.
+# =============================================================================
+
+schema_version = 1
+
+[identity]
+name = "Nova Player"
+short_name = "Nova"
+publisher = "Nova Player Contributors"   # [PROPOSAL] placeholder entity
+display_version = "0.2.0-nova"
+version_code = 1
+description_key = "product.description"
+
+[identity.ids]
+reverse_dns = "org.novaplayer"
+
+[identity.ids.windows]
+app_user_model_id = "org.novaplayer.NovaPlayer"
+msi_upgrade_code = "9a6f2c48-1e5b-4c3a-8d7f-2b4e6a8c0d1f"
+
+[identity.ids.macos]
+bundle_id = "org.novaplayer.NovaPlayer"
+
+[identity.ids.linux]
+appstream_id = "org.novaplayer.NovaPlayer"
+
+[identity.ids.web]
+app_id = "org.novaplayer.NovaPlayer"
+
+[window]
+width = 1280
+height = 720
+min_width = 480
+min_height = 320
+start_maximized = false
+remember_geometry = true
+title_template = "{media_title} — {product_name}"
+title_idle_key = "window.title.idle"
+
+[brand]
+accent_color = "#ff5500"
+icon_ico = "tests/rebrand/assets/icon.ico"
+icon_icns = "tests/rebrand/assets/icon.icns"
+icon_png_512 = "tests/rebrand/assets/icon-512.png"
+logo_svg = "tests/rebrand/assets/logo.svg"
+
+[defaults]
+theme = "dark"
+locale = "en-US"
+profile = "default"
+
+[telemetry]
+enabled = false
+crash_reports = "off"
+usage_stats = false
+update_checks = false
+
+# Feature set mirrors the committed product.toml (the Phase-2 vertical
+# slice); none of it is identity-bearing, so rebrand leaves it alone.
+[features]
+core-playback = true
+local-file = true
+audio-output = true
+video-render = true
+track-selection = true
+config-surface = true
+playlists = false
+library = false
+streaming-http = false
+streaming-hls = false
+streaming-dash = false
+streaming-rtsp = false
+optical-disc = false
+device-capture = false
+audio-device-enumeration = false
+recording = false
+transcode = false
+wasm-extensions = false
+control-server = false
+hw-decode = false
+
+[playback]
+preferred_audio_languages = ["en"]
+preferred_subtitle_languages = ["en"]
+subtitle_mode = "auto"
+hw_decode_policy = "software-only"
+start_paused = false
+default_rate = 1.0
+
+[limits]
+cache_demux_mib = 32
+cache_network_mib = 64
+queue_packets_audio = 1024
+queue_packets_video = 512
+probe_max_bytes = 16777216
+max_playlist_items = 10000
+max_open_sessions = 4
+max_wasm_extension_memory_mib = 64
+
+[urls]
+help = "https://nova-player.example.org/docs"
+support = "https://nova-player.example.org/support"
+privacy = "https://nova-player.example.org/privacy"
+update_feed = "https://updates.nova-player.example.org/feed.json"
+
+[migrations]
+# entries = []

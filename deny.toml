@@ -1,0 +1,322 @@
+# deny.toml — cargo-deny configuration (task 1.E5-R, doc 11 §3.2).
+#
+# Enforced by the `cargo-deny` CI job (.github/workflows/ci.yml, gates
+# G3/G4 per doc 10 §4.6) with cargo-deny 0.20.2 (SHA-256-pinned there):
+#
+#     cargo deny --workspace check licenses sources bans advisories
+#
+# Deviations from the doc 11 §3.2 sketch, all recorded for Lead review:
+#   * The `version = 2` keys of the sketch were cargo-deny's v1→v2 config
+#     migration markers; cargo-deny 0.20.2 no longer accepts them (the
+#     `cargo deny init` template for 0.20.2 has no version fields), so they
+#     are omitted here.
+#   * `licenses.allow` is the MINIMAL SET the current Cargo.lock needs
+#     (verified against every locked crate's SPDX via the crates.io API,
+#     2026-10-20, evidence in tmp/preaudit-e5r/). cargo-deny warns on
+#     allowed-but-never-encountered licenses, so admitting a new license
+#     class (e.g. MPL-2.0 for a future crate) requires a same-PR edit of
+#     this file — that review friction is deliberate [PROPOSAL: minimal-set
+#     posture per 1.E5-R assignment; the doc 11 sketch's wider list
+#     (BSD/ISC/Zlib/CC0/MPL-2.0/…) is re-added crate-by-crate when a
+#     locked crate actually needs it].
+#   * `bans.deny` entries are bare crate names (the 0.20.2 PackageSpec
+#     accepts `"<name>"` or `{ crate = "<name>", reason = "..." }`; the
+#     doc 11 sketch's `{ name = ... }` spelling is the older alias).
+#     Every name below was verified to EXIST on crates.io (API 200,
+#     2026-10-20) before banning; the single candidate that 404'd
+#     (gstreamer-utils-sys) is skipped and noted in place.
+#   * `licenses.private.ignore = true` skips the license check for our
+#     publish=false workspace members (they carry no license field yet;
+#     their license posture is decided with ADR-006, doc 11 §8.2).
+#
+# Honest limits (doc 11 §3.2 note): cargo-deny cannot see inside build.rs
+# — it checks manifests, licenses, advisories and sources. The native-code
+# ban is therefore enforced in depth: this named-crates list (what
+# cargo-deny CAN see) + the F1–F7 tarball scanner (doc 11 §4.2, lands with
+# the G3 checker tooling) + the tree-diff gate (doc 11 §3.6). Banning a
+# wrapper's -sys crate transitively denies the facade crates that pull it.
+
+[graph]
+# The workspace root is a virtual manifest, so all members are graph roots
+# already; the CI command passes --workspace explicitly anyway (it also
+# guards a future move of the call into a member crate). No target filter:
+# doc 11 §1.1 requires F1–F7 on every target we build, including wasm32.
+
+[advisories]
+# RustSec advisory DB (default db-urls: github.com/rustsec/advisory-db).
+# yanked = "deny": a locked crate version that crates.io has yanked fails
+# the check (doc 11 §3.2 sketch; G4 auto-issue flow per doc 10 §4.6).
+yanked = "deny"
+
+[licenses]
+# Minimal allow set for the current lockfile (22 registry crates):
+#   MIT, Apache-2.0  — serde/serde_json/serde_derive/serde_core/toml
+#                      family (toml, toml_datetime, toml_parser,
+#                      toml_writer, serde_spanned, winnow), thiserror
+#                      family, proc-macro2/quote/syn, itoa, zmij,
+#                      equivalent, hashbrown, indexmap
+#   Unicode-3.0      — unicode-ident 1.0.27 "(MIT OR Apache-2.0) AND
+#                      Unicode-3.0"
+#   Unlicense        — memchr 2.8.3 "Unlicense OR MIT"
+# GPL/LGPL deliberately absent until ADR-006 decides (doc 11 §3.2, §8.2).
+confidence-threshold = 0.93
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Unicode-3.0",
+    "Unlicense",
+]
+
+[licenses.private]
+# Workspace members are publish = false; they are not on crates.io and
+# carry no license field — skipped until ADR-006 sets the repo license
+# posture (doc 11 §8.2). Registry crates are still fully checked.
+ignore = true
+
+[bans]
+# multiple-versions "warn" per the doc 11 §3.2 sketch; flips to "deny"
+# after the first dedup pass [PROPOSAL: Lead sets the date, doc 11 §3.2].
+multiple-versions = "warn"
+# DEVIATION from the doc 11 §3.2 sketch (`wildcards = "deny"`): under
+# cargo-deny 0.20.2 the wildcards lint also fires on intra-workspace PATH
+# dependencies, which are version-less BY DESIGN here (members reference
+# each other as `path = "../x"` with no version; cargo resolves them to
+# the workspace member unambiguously, and the workspace is never
+# published). 0.20.2 has no `allow-wildcard-paths` escape (added in a
+# later cargo-deny). So: "warn" — the only two expected warnings are the
+# two workspace path edges (codec-api→media-types, media-types→testkit);
+# any THIRD wildcard warning is a real `*` version requirement in a
+# manifest and is a review stopper. Registry pinning is enforced by the
+# committed Cargo.lock + --locked CI builds + the tree-diff gate
+# (doc 11 §3.6/§3.7). [Lead may re-tighten to "deny" when cargo-deny is
+# bumped past the version that exempts path deps.]
+wildcards = "warn"
+highlight = "all"
+
+deny = [
+    # ---- doc 11 §1.1 core forbidden list (belt & braces behind F3) -------
+    # FFmpeg C-library bindings: links= av* + bindgen/cc/pkg-config build
+    # graph (doc 11 §2.3 rejection record: F1–F6 all fail).
+    "ffmpeg-sys-next",   # zmwangx/rust-ffmpeg-sys, 9.0.1
+    "ffmpeg-sys",        # meh/rust-ffmpeg-sys, 4.3.3 (unmaintained)
+    # No native dynamic loading of media engines (doc 06 §6 WASM/plugin
+    # host: no dlopen path into C code); libloading is the dlopen crate.
+    "libloading",        # nagisa/rust_libloading, 0.9.0
+    # Bindings-generation implies C headers (F3 signal, doc 11 §1.1).
+    "bindgen",           # rust-lang/rust-bindgen, 0.73.2
+
+    # ---- FFmpeg/libav wrapper family (task 1.E5, doc 04 §1.2) -----------
+    "ffmpeg-next",       # zmwangx/rust-ffmpeg, 9.0.0
+    "ffmpeg-the-third",  # shssoichiro/ffmpeg-the-third, 6.0.0+ffmpeg-9.0
+    "libav-sys",         # LucaCiucci/libav-sys, 0.2.0
+
+    # ---- codec C wrappers per doc 04 (forbidden families) ---------------
+    # Opus (pure-Rust candidate: an Opus decoder audit is a later wave).
+    "opus",              # SpaceManiac/opus-rs → libopus
+    "audiopus",          # lakelezz/audiopus → libopus
+    "libopus-sys",       # cijiugechu/libopus_sys
+    # minimp3 C decoder (pure-Rust path: symphonia's mp3 decoder, doc 04).
+    "minimp3",           # germangb/minimp3-rs
+    "minimp3-sys",       # germangb/minimp3-rs
+    # Vorbis (pure-Rust candidate: lewton — NOT banned).
+    "vorbis",            # tomaka/vorbis-rs → libvorbis/libogg
+    # H.264.
+    "openh264",          # ralfbiedert/openh264-rs → openh264 C
+    "openh264-sys",      # saturday06/rust-openh264-sys
+    "openh264-sys2",     # ralfbiedert/openh264-rs
+    # AV1 (pure-Rust candidate: rav1d asm-off conditional per doc 11 §2.4
+    # — rav1d itself is NOT banned here; its feature pin is an allowlist
+    # concern, not a cargo-deny ban).
+    "dav1d",             # rust-av/dav1d-rs → dav1d C+asm
+    "dav1d-sys",         # rust-av/dav1d-rs
+    # x264 (patent-encumbered encoder, doc 11 §8.3).
+    "x264",              # quadrupleslap/x264
+    "x264-sys",          # rust-av/x264-rs
+    # VP8/VP9.
+    "libvpx",            # rust-av/vpx-rs → libvpx C
+    "libvpx-sys",        # DiamondLovesYou/rust-vpx
+    "shiguredo_libvpx",  # shiguredo/libvpx-rs (vendored build)
+    # HEVC.
+    "libde265",          # andreytkachenko/libde265-rust
+    "libde265-sys",      # andreytkachenko/libde265-rust
+    # Subtitle rendering C stack (doc 04 §5: Rust path is our own shaping
+    # via pure-Rust crates, not libass).
+    "libass",            # tadeokondrak/libass-rs
+    "libass-sys",        # tadeokondrak/libass-rs
+    # FreeType C (font rasterization: pure-Rust path preferred).
+    "freetype",          # servo/rust-freetype
+    "freetype-sys",      # PistonDevelopers/freetype-sys
+
+    # ---- GStreamer family (GLib/C plugin framework — the whole stack) ---
+    "gstreamer",
+    "gstreamer-app",
+    "gstreamer-audio",
+    "gstreamer-base",
+    "gstreamer-check",
+    "gstreamer-controller",
+    "gstreamer-editing-services",
+    "gstreamer-gl",
+    "gstreamer-mpegts",
+    "gstreamer-net",
+    "gstreamer-pbutils",
+    "gstreamer-play",
+    "gstreamer-rtp",
+    "gstreamer-rtsp",
+    "gstreamer-rtsp-server",
+    "gstreamer-sdp",
+    "gstreamer-tag",
+    "gstreamer-utils",
+    "gstreamer-validate",
+    "gstreamer-video",
+    "gstreamer-webrtc",
+    # gstreamer-*-sys FFI layer (gstreamer-utils-sys 404s on crates.io
+    # as of 2026-10-20 — gstreamer-utils has no -sys sibling; skipped
+    # per the verify-before-ban rule, every other name below verified).
+    "gstreamer-sys",
+    "gstreamer-app-sys",
+    "gstreamer-audio-sys",
+    "gstreamer-base-sys",
+    "gstreamer-check-sys",
+    "gstreamer-controller-sys",
+    "gstreamer-editing-services-sys",
+    "gstreamer-gl-sys",
+    "gstreamer-mpegts-sys",
+    "gstreamer-net-sys",
+    "gstreamer-pbutils-sys",
+    "gstreamer-play-sys",
+    "gstreamer-rtp-sys",
+    "gstreamer-rtsp-sys",
+    "gstreamer-rtsp-server-sys",
+    "gstreamer-sdp-sys",
+    "gstreamer-tag-sys",
+    "gstreamer-validate-sys",
+    "gstreamer-video-sys",
+    "gstreamer-webrtc-sys",
+    # gst-plugin-* — the gst-plugins-rs family. The task text says
+    # "gst-plugins-*"; the actual crates.io family is the SINGULAR
+    # prefix `gst-plugin-*` (the plural matches nothing on crates.io,
+    # 2026-10-20). cargo-deny 0.20.2 has NO glob support in bans entries
+    # (the `wildcard` key is rejected — verified 2026-10-20), so the
+    # family is enumerated: all 101 crates below came from the crates.io
+    # search API (evidence tmp/preaudit-e5r/gst-plugin-search.json) and
+    # thus all exist. FUTURE plugin crates not yet listed are still
+    # caught transitively: every GStreamer plugin depends on the banned
+    # `gstreamer`/`gstreamer-base` core (the one exception-by-design,
+    # gst-plugin-version-helper, a build-time version-string helper, is
+    # listed below like the rest).
+    "gst-plugin",
+    "gst-plugin-analytics",
+    "gst-plugin-audiofx",
+    "gst-plugin-audioparsers",
+    "gst-plugin-avi",
+    "gst-plugin-aws",
+    "gst-plugin-burn",
+    "gst-plugin-cdg",
+    "gst-plugin-claxon",
+    "gst-plugin-closedcaption",
+    "gst-plugin-compress",
+    "gst-plugin-csound",
+    "gst-plugin-dashsink2",
+    "gst-plugin-dav1d",
+    "gst-plugin-debugseimetainserter",
+    "gst-plugin-deepgram",
+    "gst-plugin-demucs",
+    "gst-plugin-dsc",
+    "gst-plugin-elevenlabs",
+    "gst-plugin-fallbackswitch",
+    "gst-plugin-ffv1",
+    "gst-plugin-file",
+    "gst-plugin-flavors",
+    "gst-plugin-fmp4",
+    "gst-plugin-gif",
+    "gst-plugin-gopbuffer",
+    "gst-plugin-gphoto2",
+    "gst-plugin-gtk4",
+    "gst-plugin-hlsmultivariantsink",
+    "gst-plugin-hlssink3",
+    "gst-plugin-hrtf",
+    "gst-plugin-hsv",
+    "gst-plugin-icecast",
+    "gst-plugin-iceoryx2",
+    "gst-plugin-iceoryx2-video",
+    "gst-plugin-image",
+    "gst-plugin-imagers",
+    "gst-plugin-inter",
+    "gst-plugin-isobmff",
+    "gst-plugin-ivf",
+    "gst-plugin-json",
+    "gst-plugin-lewton",
+    "gst-plugin-livesync",
+    "gst-plugin-llamacpp",
+    "gst-plugin-matroska",
+    "gst-plugin-mp4",
+    "gst-plugin-mpegps",
+    "gst-plugin-mpegts",
+    "gst-plugin-mpegtslive",
+    "gst-plugin-ndi",
+    "gst-plugin-ogg",
+    "gst-plugin-onvif",
+    "gst-plugin-originalbuffer",
+    "gst-plugin-pcap",
+    "gst-plugin-png",
+    "gst-plugin-quinn",
+    "gst-plugin-raptorq",
+    "gst-plugin-rav1e",
+    "gst-plugin-regex",
+    "gst-plugin-relationmeta",
+    "gst-plugin-reqwest",
+    "gst-plugin-rspng",
+    "gst-plugin-rtp",
+    "gst-plugin-rtsp",
+    "gst-plugin-rusoto",
+    "gst-plugin-rust-av",
+    "gst-plugin-sap",
+    "gst-plugin-skia",
+    "gst-plugin-sodium",
+    "gst-plugin-speechmatics",
+    "gst-plugin-spotify",
+    "gst-plugin-srt",
+    "gst-plugin-streamgrouper",
+    "gst-plugin-textaccumulate",
+    "gst-plugin-textahead",
+    "gst-plugin-textwrap",
+    "gst-plugin-threadshare",
+    "gst-plugin-timeshift",
+    "gst-plugin-togglerecord",
+    "gst-plugin-tracers",
+    "gst-plugin-udp",
+    "gst-plugin-uriplaylistbin",
+    "gst-plugin-validate",
+    "gst-plugin-version-helper",
+    "gst-plugin-videofx",
+    "gst-plugin-videoparsers",
+    "gst-plugin-viuer",
+    "gst-plugin-vobsub",
+    "gst-plugin-vosk",
+    "gst-plugin-vvdec",
+    "gst-plugin-webp",
+    "gst-plugin-webrtc",
+    "gst-plugin-webrtc-signalling",
+    "gst-plugin-webrtc-signalling-protocol",
+    "gst-plugin-webrtchttp",
+    "gst-plugin-webrtcredux",
+    "gst-plugin-webrtcsink",
+    "gst-plugin-whisper",
+    "gst-plugin-ximageredux",
+    "gst-plugin-y4m",
+    "gst-plugin-zenoh",
+
+    # ---- VLC/libVLC (clean-room rule, MP §2: VLC is external oracle ONLY) --
+    "libvlc-sys",        # garkimasera/vlc-rs
+    "vlc-rs",            # garkimasera/vlc-rs
+    "vlc",               # no repository listed on crates.io, 0.1.0
+]
+
+[sources]
+# crates.io only: no git dependencies, no private/alternate registries
+# (doc 11 §3.2 sketch; provenance is pinned via Cargo.lock + tarball
+# sha256 checks in the audit records instead).
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

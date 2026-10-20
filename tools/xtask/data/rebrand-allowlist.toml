@@ -1,0 +1,101 @@
+# =============================================================================
+# tools/xtask/data/rebrand-allowlist.toml — identity-literal exemptions for
+# the rebrand system (doc 07 §8.3 step 2 + §10.4, card 1.E4).
+#
+# Purpose: the honest register of every source-tree location that carries a
+# Lumen identity literal ("Lumen" / "lumen") which `cargo xtask rebrand`
+# deliberately does NOT rewrite. Anything that carries an identity literal
+# and is neither a rewritten surface nor listed here is a rebrand bug
+# (doc 07 §9 rule C2; the future `check-identity` subcommand consumes this
+# same file).
+#
+# Integrity (doc 07 §10.4): every [[exempt]] entry must carry `path`,
+# `reason` and `owner` — `cargo xtask rebrand` refuses to run when an entry
+# is incomplete. Paths are repo-relative; a trailing `/` marks a recursive
+# directory prefix. The tool scans each entry for old identity tokens and
+# reports the counts as `exempt:` lines.
+#
+# Deliberately NOT listed (verified by card 1.E4-R):
+#   * the wider docs/ tree beyond docs/adr/ — its working-name prose is
+#     planning-record material; whether planning docs may count as rebrand
+#     surface is a Lead decision flagged for the check-identity card;
+#   * design/ — carries no identity literal today;
+#   * Cargo.lock — crate package names carry no lumen-* literal;
+#   * scratch/gitignored dirs (tmp/, tool-results/, skills/, upload/,
+#     download/) — not repo content.
+# =============================================================================
+
+[[exempt]]
+path = "worklog.md"
+reason = "append-only program history; rewriting past entries would falsify the record"
+owner = "Lead"
+
+[[exempt]]
+path = "docs/adr/"
+reason = "accepted ADRs are immutable decision history; lumen:v1.* capability namespaces and audit user-agents inside them are frozen identifiers"
+owner = "Lead"
+
+[[exempt]]
+path = "LICENSE"
+reason = "copyright line names the contributing entity; attribution is a legal decision, not a mechanical rebrand"
+owner = "Lead"
+
+[[exempt]]
+path = "rust-toolchain.toml"
+reason = "comment-only working-name mention on the Lead-owned toolchain pin (doc 10 §2.5)"
+owner = "Lead"
+
+[[exempt]]
+path = "Cargo.toml"
+reason = "root-manifest comment; membership and lint-policy prose, not product surface"
+owner = "Lead"
+
+[[exempt]]
+path = "keymaps/default.toml"
+reason = "comment-only working-name mention in the keymap seed header"
+owner = "Lead"
+
+[[exempt]]
+path = "themes/tokens.json"
+reason = "lumen.tokens is the DTCG extension namespace of the token format (a format identifier, not the product name); $description prose documents provenance"
+owner = "Lead"
+
+[[exempt]]
+path = "product.schema.json"
+reason = "validator schema: x-lumen-* keywords and the schema title are tooling identifiers; schema-level rebranding belongs to the full-fidelity rebrand card"
+owner = "Lead"
+
+[[exempt]]
+path = "schemas/settings.toml"
+reason = "comment-only working-name mention in the settings-schema seed header"
+owner = "Lead"
+
+[[exempt]]
+path = "locales/"
+reason = "catalog data plane is identity-free by design (window.title.idle renders {product_name}); the remaining literals are the header comment and the === LUMEN GATE REPORT === machine contract asserted by exact-string tests (card 1.B3)"
+owner = "Lead"
+
+[[exempt]]
+path = "crates/"
+reason = "crate code and manifests: doc comments, package descriptions and test fixtures mention the working name; no crate carries a lumen-* package name today (verified 1.E4-R), so the doc 07 §8.1 crate-name rewrite plane is empty in v0"
+owner = "Lead"
+
+[[exempt]]
+path = "tools/"
+reason = "xtask sources: the Lumen workspace task runner banner and gate-report labels are tooling identity, not product identity"
+owner = "Lead"
+
+[[exempt]]
+path = "ui/"
+reason = "lumen/i18n-no-literals is the ESLint rule namespace sketched by the Phase-4 placeholder (card 1.B3)"
+owner = "Lead"
+
+[[exempt]]
+path = ".github/"
+reason = "workflow header comments and the wasm size-report title name the tooling, not a product surface"
+owner = "Lead"
+
+[[exempt]]
+path = "tests/rebrand/"
+reason = "the rebrand acceptance fixture and skeleton test reference the Lumen identity by necessity — they assert its absence in rebranded output"
+owner = "Lead"

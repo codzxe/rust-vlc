@@ -1,0 +1,198 @@
+# Lumen CI — wasm tier (GitHub Actions), dedicated workflow.
+#
+# Task 1.E3-R (Wave 1.E re-implementation: the original 1.E3 wasm.yml was
+# destroyed by the 2026-10-20 sandbox rollback — see the 1.WAVE-RESTORE
+# worklog entry — and is re-created here to the same AC). Card: doc 13 §4
+# row 1.E3. Spec: doc 09 §2 (target §2.1, size philosophy §2.4, CI
+# additions §2.5 — "wasm target must keep compiling in CI from Phase 1");
+# gate id G12 (doc 10 §4.6), canary subset.
+#
+# WHAT THIS JOB IS TODAY: a canary build of `theme-tokens` for
+# `wasm32-unknown-unknown` plus a measured-only size report. theme-tokens is
+# the Phase-1 canary because it is the one workspace crate with a [[bin]]
+# (`tokens-gen`), so the build produces a REAL loadable .wasm module, not
+# just an rlib; its dependency (serde_json) is pure Rust. The job proves
+# the wasm toolchain stays green from Phase 1 and records size evidence
+# per merge (doc 09 §2.4 "CI records size per merge").
+#
+# WHAT IT IS NOT YET: doc 09 §2.5 items 1-3 (workspace-wide wasm check and
+# clippy, wasm-bindgen-test under Node/headless Chromium) and item 4's
+# release+wasm-opt numbers wait for the engine wasm binding crate (doc 05
+# §5.2; doc 10 §2.1 #10). Until then the DEV profile is the baseline —
+# the release-profile + wasm-opt measurement lands with that crate.
+#
+# SIZE BUDGETS: NONE enforced. Doc 09 §2.4's 3 MB / 6 MB baselines are
+# [PROPOSAL] pending doc 09 §12 Q5 ("pin after the first real build"); the
+# >5% regression gate activates only once a budget is pinned. This job
+# RECORDS raw + gzip sizes (with sha256 and a wasm-magic check) and fails
+# only on build failure or a non-wasm / missing artifact.
+#
+# ci.yml STUB NOTE: the `wasm-build` [STUB until 1.E3] job in ci.yml is
+# left untouched — deleting it (or adding this workflow's check to
+# required checks, which needs a real remote first) is the Lead's wiring
+# decision. This card owns ONLY this file (doc 13 §4 row 1.E3).
+#
+# HONEST STATUS (2026-10-20): this sandbox repository has no git remote and
+# no GitHub Actions runner. This workflow is written and validated with
+# actionlint 1.7.12 locally, and every command it invokes was run green
+# locally (exit codes and measured sizes recorded in the 1.E3-R worklog
+# entry). The green-run link is PENDING first push to a remote.
+#
+# Conventions mirror .github/workflows/ci.yml exactly (SHA-pinned actions,
+# toolchain assert, rust-cache, --locked, concurrency group, permissions).
+# Toolchain: rust-toolchain.toml pins 1.99.1 (Lead-owned, doc 10 §2.5).
+# This job uses the dtolnay/rust-toolchain `1.99.1` branch (SHA-pinned
+# below) — that branch installs exactly 1.99.1 with no inputs — then the
+# "Assert toolchain pin" step, copied from ci.yml, fails loudly if
+# rust-toolchain.toml, the pinned action, and the effective `rustc` ever
+# disagree. Components come from rust-toolchain.toml (rustup auto-installs
+# file-declared components on first use); the wasm32-unknown-unknown std
+# is added explicitly below (it is a target, not a component).
+#
+# Action pins (same table as ci.yml; versions resolved via `git ls-remote`
+# on 2026-10-19; keep the table in .github/workflows/README.md in sync
+# when bumping):
+#   actions/checkout        v7.0.1  3d3c42e5aac5ba805825da76410c181273ba90b1
+#   dtolnay/rust-toolchain  1.99.1  d124f86f28ff42855784ff3319f48ac182c248f8
+#   Swatinem/rust-cache     v2.9.2  6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+#   actions/upload-artifact v7.0.2  cf430e030ddbb5b0abf93d22962f4752f3646cd9
+
+name: WASM
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  # One run per branch/PR head (doc 10 §10.1); superseded PR runs are
+  # cancelled. `main` pushes and merge-queue runs are never cancelled.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # G12 (doc 10 §4.6), canary subset: build + size report only. The full
+  # G12 (wasm-pack build, wasm-bindgen tests under Node + headless Chromium,
+  # COOP/COEP assertions) lands with the engine wasm binding crate.
+  wasm-build:
+    name: wasm-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/wasm.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - name: Install wasm32-unknown-unknown std (doc 09 §2.1 recommended target)
+        run: |
+          rustup target add wasm32-unknown-unknown
+          if ! rustup target list --installed | grep -Fqx 'wasm32-unknown-unknown'; then
+            echo "::error::wasm32-unknown-unknown absent from 'rustup target list --installed' after 'rustup target add'"
+            exit 1
+          fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: Build canary (doc 09 §2.5; doc 11 §3.7 - CI builds run --locked)
+        run: cargo build -p theme-tokens --target wasm32-unknown-unknown --locked
+      - name: Size report (doc 09 §2.4 - measured only; budgets [PROPOSAL] per §12 Q5)
+        run: |
+          # DEV-profile baseline: the release-profile + wasm-opt measurement
+          # (doc 09 §2.3) lands with the engine wasm binding crate. gzip -n
+          # strips name/timestamp so the gzip size is deterministic.
+          wasm_dir="target/wasm32-unknown-unknown/debug"
+          report="wasm-size-report.txt"
+          summary="${GITHUB_STEP_SUMMARY:-/dev/null}"
+
+          {
+            echo "Lumen wasm canary size report (task 1.E3, doc 09 §2.4)."
+            echo "Canary: theme-tokens [[bin]] tokens-gen (dev profile)."
+            echo "Size budgets: NONE enforced - values are [PROPOSAL] pending"
+            echo "doc 09 §12 Q5; the >5% regression gate activates when a budget"
+            echo "is pinned. Release + wasm-opt numbers land with the engine wasm"
+            echo "binding crate (doc 09 §2.3, §2.5 item 4)."
+            echo
+            echo "Toolchain: $(rustc --version)"
+            echo
+            echo "Produced artifacts (${wasm_dir}):"
+          } > "${report}"
+
+          shopt -s nullglob
+          wasms=( "${wasm_dir}"/*.wasm )
+          shopt -u nullglob
+          if [ "${#wasms[@]}" -eq 0 ]; then
+            echo "::error::no .wasm artifacts under ${wasm_dir} - the build step succeeded without producing a loadable module"
+            exit 1
+          fi
+
+          # ls -l is the human-readable evidence listing this card mandates;
+          # paths come from our own build output, not from user input.
+          # shellcheck disable=SC2012
+          ls -l -- "${wasms[@]}" | tee -a "${report}"
+
+          rows=()
+          for wasm in "${wasms[@]}"; do
+            name="$(basename -- "${wasm}")"
+            raw="$(wc -c < "${wasm}" | tr -d '[:space:]')"
+            gz="$(gzip -n -c -- "${wasm}" | wc -c | tr -d '[:space:]')"
+            sha="$(sha256sum -- "${wasm}" | cut -d' ' -f1)"
+            # A real wasm module starts with the 4-byte magic \0asm (00 61 73 6d).
+            magic="$(od -An -tx1 -N4 -- "${wasm}" | tr -d '[:space:]')"
+            if [ "${magic}" != "0061736d" ]; then
+              echo "::error::${wasm} does not start with the wasm magic bytes (got ${magic})"
+              exit 1
+            fi
+            {
+              echo
+              echo "${name}"
+              echo "  raw bytes : ${raw}"
+              echo "  gzip -n   : ${gz}"
+              echo "  sha256    : ${sha}"
+              printf '  magic     : %s (\\0asm)\n' "${magic}"
+            } | tee -a "${report}"
+            rows+=("| \`${name}\` (dev profile) | ${raw} | ${gz} |")
+          done
+
+          # Step summary (doc 09 §2.4: size printed next to merge claims).
+          {
+            echo "### wasm canary size report (wasm-build)"
+            echo
+            echo "- Canary: \`theme-tokens\` (\`tokens-gen\` bin), dev profile; release +"
+            echo "  wasm-opt numbers land with the engine wasm binding crate (doc 09 §2.3)."
+            echo "- Size budgets: none enforced - numbers are \`[PROPOSAL]\` pending doc 09"
+            echo "  §12 Q5; this job records measured sizes only (doc 09 §2.4)."
+            echo
+            echo "| artifact | raw bytes | gzip -n bytes |"
+            echo "|---|---|---|"
+            printf '%s\n' "${rows[@]}"
+          } >> "${summary}"
+          echo "Size report written to ${report}; summary appended to the step summary."
+      - name: Upload wasm size-report evidence (doc 10 §4.5 - evidence-<job>-<os>-<run_id>)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: evidence-wasm-build-ubuntu-latest-${{ github.run_id }}
+          # The .wasm modules ride along so the "real loadable module" claim
+          # is checkable from the artifact itself, not just from the report.
+          path: |
+            wasm-size-report.txt
+            target/wasm32-unknown-unknown/debug/*.wasm
+          retention-days: 90
+          if-no-files-found: error

@@ -1,0 +1,27 @@
+# crates/codec-api — the decoder/encoder contract (card 1.D1 / 1.D1-R, doc 01 §2.4).
+#
+# Registry: doc 01 §2.4 (`codec-api`, layer L1, deps: media-types only).
+# Pure contract + configuration types: NO codec implementations, NO
+# platform types (hardware stays abstract per ADR-001), NO selection
+# policy (that is the registry's job, MP §6).
+#
+# C5 (card 1.D1-R): `media-types` is the ONLY dependency. Std-only
+# otherwise — no serde/thiserror; the crate must keep compiling with a
+# bare rustup toolchain.
+
+[package]
+name = "codec-api"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen codec contract: Decoder/Encoder traits, capability descriptors, negotiated configs, and the reusable codec contract test-suite (doc 01 §2.4, ADR-001)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+media-types = { path = "../media-types" }
+
+# No dev-dependencies: the contract suite lives in the library itself
+# (`src/contract.rs`) so Phase-2 codec crates can call it without a new
+# edge in the dependency graph.

@@ -875,3 +875,59 @@ Work Log:
 Stage Summary:
 - Wave 1.C restored and verified (57 tests green). Waves 1.E (3 cards) + 1.D1 flagged for re-implementation via sub-agents; 1.D2 design notes preserved (blocked agent's entry below); Lead proceeds with 1.D3 in parallel.
 - Lesson recorded: commit-and-push cadence must survive sandbox reboots — the program's recovery now includes "Lead context is the last-resort artifact store"; nothing outside the sandbox exists.
+
+---
+Task ID: 1.E3-R
+Agent: Sub-agent (general-purpose), Wave 1.E
+Task: Re-implement the rollback-destroyed wasm CI workflow (.github/workflows/wasm.yml): wasm32-unknown-unknown canary build of theme-tokens + measured-only size-report artifact (card 1.E3, doc 09 §2).
+
+Work Log:
+- Read AGENTS.md; worklog tail (1.WAVE-RESTORE: the 2026-10-20 rollback destroyed commit bb84ef8 incl. the original 187-line wasm.yml); doc 09 §2.1/§2.4/§2.5 + §12 Q5; doc 13 §4 row 1.E3; doc 10 §2.1 #10, §4.5 (evidence naming/retention), §4.6 G12; ci.yml IN FULL (conventions to mirror) + .github/workflows/README.md (pin table, honest status); crates/theme-tokens/Cargo.toml ([[bin]] tokens-gen confirmed — the only workspace crate with a bin).
+- Wrote .github/workflows/wasm.yml (198 lines, the ONLY file owned): workflow `WASM`, single job `wasm-build` (G12 canary subset), ubuntu-latest, timeout 15; triggers/concurrency group/permissions/defaults/toolchain-assert copied from ci.yml conventions (assert error string repointed at wasm.yml); same SHA-pinned action table (checkout v7.0.1, dtolnay/rust-toolchain 1.99.1 branch, rust-cache v2.9.2, upload-artifact v7.0.2); explicit `rustup target add wasm32-unknown-unknown` + installed-list assertion; `cargo build -p theme-tokens --target wasm32-unknown-unknown --locked`.
+- Size-report step: ls -l, wc -c, gzip -n bytes, sha256 per .wasm; wasm magic-byte check (\0asm = 00 61 73 6d) and a zero-artifact guard both exit 1 loudly; writes wasm-size-report.txt + a $GITHUB_STEP_SUMMARY markdown table; budgets NONE enforced — values [PROPOSAL] pending doc 09 §12 Q5; dev-profile baseline documented, release+wasm-opt deferred to the engine wasm binding crate (doc 09 §2.3/§2.5 item 4, doc 10 §2.1 #10). Artifact `evidence-wasm-build-ubuntu-latest-<run_id>` (doc 10 §4.5 full form, same shape as ci.yml's deps job), retention-days 90, if-no-files-found: error, report + the .wasm binaries.
+- ci.yml NOT touched: its wasm-build [STUB until 1.E3] deletion is the Lead's wiring call (stated in wasm.yml header).
+- C3 local proofs (ACTUAL): `rustup target add wasm32-unknown-unknown` ok (rust-std downloaded; 1.99.1 active per rust-toolchain.toml); `cargo build -p theme-tokens --target wasm32-unknown-unknown --locked` exit 0 (3.74s); measured tokens-gen.wasm: raw 6,768,995 B, gzip -n 1,597,919 B, sha256 1254dc917ba823f5d02ad60b92ec53270e34d190a753120abed44a297be2e96d, magic 00 61 73 6d.
+- Size-report run-block executed verbatim locally (extracted to /tmp, `bash -eo pipefail`): exit 0, report + summary rendered exactly as designed. Negative tests: empty artifact dir → `::error::no .wasm artifacts` exit 1; file with wrong magic → `::error::does not start with the wasm magic bytes` exit 1.
+- actionlint 1.7.12 (release binary, /tmp): exit 0 over .github/workflows. With shellcheck 0.10.0 (static binary, /tmp) on PATH: 2 info findings fixed — SC2012 on `ls -l` (card-mandated listing; documented `# shellcheck disable=SC2012` with justification) and SC2028 (echo with `\0asm` → printf) — now exit 0 with AND without shellcheck.
+- `cargo test --workspace --all-features`: 343 passed / 0 failed. `git status`: only .github/workflows/wasm.yml new; no other files touched.
+
+Stage Summary:
+- 1.E3-R COMPLETE to the original AC: wasm.yml re-landed (canary build + measured-only size report + step summary + 90-day evidence artifact), actionlint 1.7.12 clean, shellcheck 0.10.0 clean, workspace 343/0 green.
+- Honest gate (binding): no git remote exists — the CI green-run link is PENDING first push; all evidence above is local. First real runner execution is [VERIFY on push].
+- Decisions flagged for Lead: (a) artifact name uses the doc 10 §4.5 full form `evidence-wasm-build-ubuntu-latest-<run_id>` (assignment said "evidence-wasm-build-<run_id> style"); (b) ci.yml stub deletion + required-check wiring untouched; (c) size budgets stay [PROPOSAL] pending doc 09 §12 Q5 — job records sizes only; (d) dev-profile baseline accepted until the engine wasm binding crate lands (then release+wasm-opt + the >5% regression gate).
+
+---
+Task ID: 1.D1-R (Lead-verified salvage)
+Agent: Sub-agent (general-purpose), Wave 1.D; died at tool context deadline AFTER completing the crate (third such occurrence) — Lead ran the full gate and appends this entry per protocol §1.6.
+Task: codec-api re-implementation per doc 01 §2.4 (original destroyed by the sandbox rollback).
+
+Work Log:
+- Crate crates/codec-api (7 modules, 2170 ln): decode.rs (Decoder/FrameSink/DecodeOutcome/RecoverReason — sketch-verbatim; threading/no-blocking/generation-cancellation contract in trait docs), encode.rs (Encoder/PacketSink/EncodeOutcome), config.rs (DecoderConfig/EncoderConfig negotiated params), capability.rs (capability descriptors, ADR-001 hw-preference), hw.rs (HwAccelerator opaque contract), contract.rs (reusable contract-suite for Phase-2 codecs), lib.rs (prelude).
+- Lead verification: cargo test -p codec-api = 16 lib + 8 contract-suite + 2 doctests + 1 compile-fail = 27 passed / 0 failed; clippy -D warnings = 0 errors; fmt --check clean; workspace 370 passed / 0 failed (343 restored + 27 new); marker scan clean.
+- Deps: media-types only (C5 honored). No root manifest edits.
+
+Stage Summary:
+- 1.D1-R COMPLETE (salvage accepted) — parity with the destroyed original's verification surface (27 tests green, clippy/fmt clean).
+- Next in flight: 1.E3-R landed (wasm.yml re-landed, evidence artifact + step summary, actionlint+shellcheck clean, 343/0 at its run); Lead proceeds with 1.D3 commands I; then 1.E5-R + 1.E4-R, then 1.D2 (design notes preserved in its blocked entry).
+
+---
+Task ID: 1.E5-R
+Agent: Sub-agent (general-purpose), Wave 1.E
+Task: Re-implement the rollback-destroyed dependency gate (original 1.E5 lost with commit bb84ef8): deny.toml + docs/dependencies/allowlist.md + activation of the ci.yml cargo-deny job (G3/G4).
+
+Work Log:
+- Read AGENTS.md; worklog tail (1.WAVE-RESTORE + 1.D2 incident: the 2026-10-20 rollback destroyed deny.toml/allowlist/ci.yml job); doc 11 §1, §3.1, §3.2, §3.5, §3.7; docs/dependencies/{allowlist-format,preaudit-foundation}.md; Cargo.lock + `cargo tree --workspace` (22 registry crates / 9 local packages; serde/serde_json/toml/thiserror families).
+- Verified all 22 locked crates' exact-version licenses via crates.io API (UA lumen-deny-audit/1.0, raw JSON in tmp/preaudit-e5r/, gitignored): MIT OR Apache-2.0 everywhere except unicode-ident 1.0.27 ((MIT OR Apache-2.0) AND Unicode-3.0) and memchr 2.8.3 (Unlicense OR MIT) — grounds the minimal license allow set; closes preaudit-foundation's toml license [VERIFY-P1].
+- Verified every ban-candidate name on crates.io before banning (API 200/404): all exist EXCEPT gstreamer-utils-sys (404, skipped + noted in deny.toml); gst-plugin family enumerated via search API = 101 existing crates (the task-text plural gst-plugins-* matches nothing on crates.io).
+- Installed cargo-deny 0.20.2 from the x86_64-unknown-linux-musl release tarball (sha256 9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f; `git ls-remote refs/tags/0.20.2^{}` = bca0dde53651ee946720e4540b5ce2610bec8f06, matches the assignment's pin).
+- Wrote deny.toml: licenses (allow exactly MIT/Apache-2.0/Unicode-3.0/Unlicense, confidence 0.93, [licenses.private] ignore=true for the publish=false members), advisories (yanked="deny"), sources (crates.io-only), bans (174 entries: 4 core tooling + 3 FFmpeg/libav + 22 codec C wrappers + 21 gstreamer core + 20 gstreamer-*-sys + 101 gst-plugin-* + 3 libVLC).
+- Empirical schema deltas vs the doc 11 §3.2 sketch, all recorded in deny.toml's header: 0.20.2 rejects version=2 keys; bans entries have NO glob/wildcard support (unknown-key error) hence the gst-plugin enumeration; the wildcards lint fires on intra-workspace version-less path deps with no allow-wildcard-paths escape in 0.20.2, so wildcards="warn" with the 2 expected warnings documented in-file (deviation flagged for Lead).
+- LOCAL PROOFS (C3, actual): `cargo deny --workspace check licenses sources bans advisories` = advisories ok / bans ok / licenses ok / sources ok, EXIT 0 (2 expected path-dep wildcard warnings; 9 skipped-private-workspace-crate notes at --log-level info confirm private scoping). FIXTURE (throwaway cargo project in /tmp, NOT the workspace): ffmpeg-sys-next added + deny.toml copied → `cargo deny check bans` FAILS exit 2 with error[banned] ffmpeg-sys-next 9.0.1 + bindgen 0.73.2 + libloading 0.8.9. Extra fixture: gst-plugin-cdg → exit 2, 8 error[banned] (plugin + version-helper + gstreamer + gstreamer-base/video + their -sys). CI install script verbatim (RUNNER_TEMP sim): sha256 OK, cargo-deny 0.20.2, exit 0; sha-TAMPERED pin → sha256sum FAILED, exit 1 (tarball never extracted). actionlint 1.7.12 on ci.yml exit 0. `cargo test --workspace --all-features` = 370 passed / 0 failed.
+- Verified the minimal-set tripwire claim empirically: dummy "Zlib" in the allow list → warning[license-not-encountered] (reverted).
+- ci.yml: replaced ONLY the cargo-deny stub block (job now blocking, [STUB] dropped): checkout + dtolnay toolchain + the mirrored assert-toolchain-pin step + SHA-256-pinned cargo-deny 0.20.2 install to ~/.cargo/bin (on PATH as a cargo subcommand) + final `cargo deny --workspace check licenses sources bans advisories`. git diff confined to that block; no other job touched.
+- Wrote docs/dependencies/allowlist.md: all 22 registry crates with verdicts per allowlist-format.md (4 preaudit-inherited pass; 18 quick-pass [VERIFY] with the audit queue owed), version-ranges, license/purity/scope fields, re-audit triggers, rejected/approved-not-imported cross-references, honest local-vs-CI posture (no git remote: CI green-run link PENDING first push, same as 1.E3-R).
+
+Stage Summary:
+- 1.E5-R COMPLETE to the card's AC: job green on current deps (local proof), adding a native-linked crate fails it (fixture proof, exit 2), the sha pin fails loudly when tampered (exit 1). Files: deny.toml (new), docs/dependencies/allowlist.md (new), ci.yml cargo-deny block (stub→live). Workspace 370/0 tests, actionlint clean.
+- Lead decisions flagged: (a) wildcards warn-not-deny deviation (path-dep false positives under 0.20.2); (b) minimal license allow set [PROPOSAL] — new license classes force a same-PR deny.toml edit; (c) allowlist doc form at docs/dependencies/, machine TOML deferred to the G3-checker card [PROPOSAL]; (d) cargo-deny is now LIVE → add it to required checks (repo settings, Lead wiring call); (e) .github/workflows/README.md pin table may want the cargo-deny 0.20.2 binary row (not my file).
+- Honest gate: all evidence local (sandbox has no git remote); first real runner execution is [VERIFY on push]. Doc 11 §3.5's fuller audits-job chain (tree-diff, cargo vet, native scanner, SBOM) remains future cards.
