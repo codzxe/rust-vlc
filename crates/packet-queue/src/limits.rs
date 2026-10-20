@@ -275,7 +275,7 @@ impl Watermark {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use testkit::{assert_err, Must};
+    use testkit::{Must, assert_err};
 
     fn cap_of(v: usize) -> NonZeroUsize {
         NonZeroUsize::new(v).must()
@@ -283,8 +283,12 @@ mod tests {
 
     #[test]
     fn limits_accept_known_positive_duration() {
-        let l = QueueLimits::new(cap_of(10), cap_of(4096), Duration::Known(Nanoseconds(1_000)))
-            .must();
+        let l = QueueLimits::new(
+            cap_of(10),
+            cap_of(4096),
+            Duration::Known(Nanoseconds(1_000)),
+        )
+        .must();
         assert_eq!(l.max_packets, cap_of(10));
         assert_eq!(l.max_bytes, cap_of(4096));
         assert_eq!(l.max_duration, Nanoseconds(1_000));
@@ -327,8 +331,8 @@ mod tests {
 
     #[test]
     fn binding_axis_reports_the_first_violated_cap() {
-        let l = QueueLimits::new(cap_of(2), cap_of(100), Duration::Known(Nanoseconds(1_000)))
-            .must();
+        let l =
+            QueueLimits::new(cap_of(2), cap_of(100), Duration::Known(Nanoseconds(1_000))).must();
         // Two resident, one more → packets.
         let resident = QueueUsage {
             packets: 2,
