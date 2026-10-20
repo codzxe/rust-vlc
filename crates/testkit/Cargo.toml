@@ -1,0 +1,26 @@
+# crates/testkit — the Lumen test kit, v0 (card 1.C3, doc 03 §8).
+#
+# Direction contract (MP §3.7, doc 01 §5): testkit DEPENDS ON production
+# crates; NO production crate ever depends on testkit — it may appear only
+# as a [dev-dependencies] entry. The boundary check that enforces this is
+# card 1.E1 (cargo xtask check-architecture); until then the proof is
+# the manifest grep recorded in the 1.C3 worklog entry + the dev-dep
+# wiring in crates/media-types (the first consumer).
+#
+# v0 scope (card 1.C3): assert + fixture-path helpers, the virtual-time
+# trait stub, the evidence-recording helper. The heavy drivers
+# (VirtualClock impl, ScriptSource, sinks, SessionHarness, instruments)
+# land with the Phase-2 engine crates they drive (doc 03 §8).
+#
+# Std-only: zero dependencies of any kind — it is a dev tool, nothing to
+# audit (C5).
+
+[package]
+name = "testkit"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen test kit v0: assert/fixture helpers, virtual-time stub, evidence recording (doc 03 §8; drivers land with Phase-2 engine crates)."
+publish = false
+
+[lints]
+workspace = true

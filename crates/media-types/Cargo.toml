@@ -1,0 +1,29 @@
+# crates/media-types — the Lumen shared vocabulary (cards 1.C1 + 1.C2, doc 01 §3).
+#
+# Registry: doc 01 §2.2 (`media-types`, layer L0, no internal deps).
+# Std-only by design [PROPOSAL per doc 01 §2.2(c)]: any future external
+# dependency must survive the doc-11 audit AND the empty-category check;
+# the audit trail starts in docs/dependencies/allowlist.md.
+#
+# The most-reviewed crate in the repo (doc 01 §2.2(a)): data types and pure
+# functions only. No I/O, no threading primitives in the public API, no
+# UI/GPU/platform types (ARCH-1), no sentinel numbers (MP §8), no
+# format-specific parsing (that belongs to demux/codecs/subtitles).
+
+[package]
+name = "media-types"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen core type system: sources, streams, tracks, packets, frames, time, and the stage-tagged error taxonomy (doc 01 §3, MP §8)."
+publish = false
+
+[lints]
+workspace = true
+
+# No dependencies. Deliberately boring, extremely stable (doc 01 §2.2).
+
+[dev-dependencies]
+# testkit is dev-only by contract (MP §3.7; card 1.C3): the direction
+# boundary (no production crate depends on it) is enforced by 1.E1's
+# check-architecture and proven by tests/testkit_wiring.rs.
+testkit = { path = "../testkit" }

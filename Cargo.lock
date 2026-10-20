@@ -39,6 +39,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "media-types"
+version = "0.1.0"
+dependencies = [
+ "testkit",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -146,6 +153,10 @@ dependencies = [
 
 [[package]]
 name = "template"
+version = "0.1.0"
+
+[[package]]
+name = "testkit"
 version = "0.1.0"
 
 [[package]]
