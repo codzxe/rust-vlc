@@ -1,0 +1,4611 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CatalogDocument",
+  "description": "The schema-emission root: one object that references the three wire\nshapes, so a single `schema_for!` call produces one self-contained\ndocument with every `$defs` entry the TS emitter needs (§5.1(a) —\n\"the single machine description of the catalog\").",
+  "type": "object",
+  "properties": {
+    "event": {
+      "description": "Engine → host event envelope.",
+      "$ref": "#/$defs/Event"
+    },
+    "request": {
+      "description": "Host → engine request envelope.",
+      "$ref": "#/$defs/CommandRequest"
+    },
+    "response": {
+      "description": "Engine → host response envelope.",
+      "$ref": "#/$defs/CommandResponse"
+    }
+  },
+  "required": [
+    "request",
+    "response",
+    "event"
+  ],
+  "$defs": {
+    "AspectRatioSpec": {
+      "description": "Aspect-ratio setting for `video.set-aspect-ratio` (§2.7).",
+      "oneOf": [
+        {
+          "description": "The track's display aspect ratio.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "default"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "An explicit ratio.",
+          "type": "object",
+          "properties": {
+            "h": {
+              "description": "Ratio height.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "kind": {
+              "type": "string",
+              "const": "ratio"
+            },
+            "w": {
+              "description": "Ratio width.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "kind",
+            "w",
+            "h"
+          ]
+        }
+      ]
+    },
+    "AudioDevice": {
+      "description": "One audio output device (§2.6 `audio.list-devices`). On web there is\nexactly one pseudo-device (`webaudio`).",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Host device id (opaque string).",
+          "type": "string"
+        },
+        "isDefault": {
+          "description": "Whether this is the current default output.",
+          "type": "boolean"
+        },
+        "name": {
+          "description": "Display name (untrusted text, V7).",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "isDefault"
+      ]
+    },
+    "AudioTrackInfo": {
+      "description": "Audio-specific track facts (§2.2 `TrackInfo.audio`).",
+      "type": "object",
+      "properties": {
+        "bitDepth": {
+          "description": "Bits per sample, when known.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "channels": {
+          "description": "Channel count.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "codecParams": {
+          "description": "Opaque codec parameters, when the container carries them.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sampleRate": {
+          "description": "Sample rate (Hz), when known.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "channels"
+      ]
+    },
+    "Chapter": {
+      "description": "One chapter marker (§2.10 `media.get-chapters`).",
+      "type": "object",
+      "properties": {
+        "duration": {
+          "description": "Chapter length.",
+          "$ref": "#/$defs/Duration"
+        },
+        "index": {
+          "description": "Chapter index, 0-based.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "timeStart": {
+          "description": "Chapter start (µs from media start).",
+          "$ref": "#/$defs/Timestamp"
+        },
+        "title": {
+          "description": "Chapter title (untrusted text, V7).",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "timeStart",
+        "duration"
+      ]
+    },
+    "CodecDescriptor": {
+      "description": "Clean-room codec descriptor (§2.2: `{ fourcc, description, profile,\nlevel }`). All fields optional — containers differ wildly in what\nthey report. `[VERIFY]` — field granularity to be audited against\nPhase-0 format inventory.",
+      "type": "object",
+      "properties": {
+        "description": {
+          "description": "Human-readable codec name, when known.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fourcc": {
+          "description": "FourCC when the container carries one.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "level": {
+          "description": "Codec level, when known.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "profile": {
+          "description": "Codec profile, when known.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "CommandError": {
+      "description": "The command error (doc 05 §1.6): stage + code + redaction-safe\nmessage + machine-readable details.\n\n# Redaction (V8, MP §12)\n\n`message` is **display-safe by construction**: [`CommandError::new`]\nroutes every message through [`redact`], which masks userinfo in\nURLs (`user:pass@` → `***@`) and collapses absolute paths to their\nfinal component (`/home/alice/x.mkv` → `…/x.mkv`). Raw diagnostic\nchains belong to the log sink only — they never enter this type.\n`details` values pass through the same redactor.",
+      "type": "object",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ErrorCode"
+        },
+        "details": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "message": {
+          "type": "string"
+        },
+        "stage": {
+          "$ref": "#/$defs/Stage"
+        }
+      },
+      "required": [
+        "stage",
+        "code",
+        "message",
+        "details"
+      ]
+    },
+    "CommandListing": {
+      "description": "One row of `system.list-commands` (§2.12, `[PROPOSAL]` per doc 05):\nlets UIs and the control server build menus and validate keymaps\nwithout hardcoding the catalog.",
+      "type": "object",
+      "properties": {
+        "class": {
+          "description": "Completion class, `\"s\"` or `\"a\"` (§1.5).",
+          "$ref": "#/$defs/CompletionClass"
+        },
+        "deprecated": {
+          "description": "Deprecation note, when deprecated (§6.3).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "The stable command id.",
+          "type": "string"
+        },
+        "requires": {
+          "description": "Other command ids this one requires to be usable (empty in v1).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "since": {
+          "description": "Catalog version the command appeared in (`\"1\"` for the v1\nnamespace, §6.1).",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "class",
+        "since",
+        "requires"
+      ]
+    },
+    "CommandOutcome": {
+      "description": "The truthful-UI outcome split (doc 05 §1.4 — hard contract):\n`Accepted` is \"validated and queued/started\", `Completed` is \"the\nengine confirms it happened (in this response)\".",
+      "oneOf": [
+        {
+          "description": "Class A: queued/started. `generation` is the generation under which the\ncompletion event will arrive — the NEW generation for generation-bumping\ncommands, the current generation otherwise (§4.2).",
+          "type": "object",
+          "properties": {
+            "accepted": {
+              "type": "object",
+              "properties": {
+                "gen": {
+                  "$ref": "#/$defs/Generation"
+                },
+                "session": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/SessionId"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "gen"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "accepted"
+          ]
+        },
+        {
+          "description": "Class S: the engine confirms completion in this response; no\nevent is required (rule C2).",
+          "type": "object",
+          "properties": {
+            "completed": {
+              "$ref": "#/$defs/CommandResult"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "completed"
+          ]
+        }
+      ]
+    },
+    "CommandRequest": {
+      "description": "One host → engine request (doc 05 §1.6). Generic over the command\npayload `C` — card 1.D4 instantiates `CommandRequest<Command>` with\nthe catalog enum; the envelope semantics here are payload-blind.",
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "oneOf": [
+        {
+          "description": "`session.open` — open a source as a new session (class A).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "options": {
+                  "description": "Open-time options (§2.3, schema-validated).",
+                  "$ref": "#/$defs/OpenOptions",
+                  "default": {
+                    "audioTrack": null,
+                    "forcedSubtitleOnly": false,
+                    "noAudio": false,
+                    "noVideo": false,
+                    "rate": null,
+                    "startPaused": false,
+                    "startTime": null,
+                    "subtitleTrack": null,
+                    "videoTrack": null
+                  }
+                },
+                "source": {
+                  "description": "What to open.",
+                  "$ref": "#/$defs/SourceSpec"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "session.open"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`session.close` — close the session (class S, gen-bumping,\nidempotent).",
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "const": "session.close"
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        },
+        {
+          "description": "`playback.play` — play / resume / restart-from-ended (class A).",
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "const": "playback.play"
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        },
+        {
+          "description": "`playback.pause` — pause (class A, idempotent).",
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "const": "playback.pause"
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        },
+        {
+          "description": "`playback.toggle-play-pause` — the primary keymap target (A).",
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "const": "playback.toggle-play-pause"
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        },
+        {
+          "description": "`playback.stop` — tear down the pipeline; the session survives\n(class A, gen-bumping).",
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "const": "playback.stop"
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        },
+        {
+          "description": "`playback.seek` — seek (class A, gen-bumping).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "target": {
+                  "description": "Where to jump.",
+                  "$ref": "#/$defs/SeekTarget"
+                }
+              },
+              "required": [
+                "target"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "playback.seek"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`playback.set-rate` — atomic rate change (class S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "rate": {
+                  "description": "The requested rate.",
+                  "type": "number",
+                  "format": "float"
+                }
+              },
+              "required": [
+                "rate"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "playback.set-rate"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`playback.step-frame` — auto-pause then step one frame (A, gen).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "direction": {
+                  "description": "Step forwards or backwards.",
+                  "$ref": "#/$defs/StepDirection"
+                }
+              },
+              "required": [
+                "direction"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "playback.step-frame"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`playback.set-position` — seek by fraction (class A, gen-bumping;\nslider/scrubber ergonomics, §2.4).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "fraction": {
+                  "description": "`0.0..=1.0` of the duration.",
+                  "type": "number",
+                  "format": "float"
+                }
+              },
+              "required": [
+                "fraction"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "playback.set-position"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`tracks.list` — the live track list (class S).",
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "const": "tracks.list"
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        },
+        {
+          "description": "`tracks.get-info` — one track's info (class S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "description": "Which track.",
+                  "$ref": "#/$defs/TrackId"
+                }
+              },
+              "required": [
+                "id"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "tracks.get-info"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`tracks.set-video-track` — decoder re-init (class A, gen).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "selector": {
+                  "description": "`Id`/`None` per §2.5.",
+                  "$ref": "#/$defs/TrackSelector"
+                }
+              },
+              "required": [
+                "selector"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "tracks.set-video-track"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`tracks.set-audio-track` — decoder re-init (class A, gen).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "selector": {
+                  "description": "`Id`/`None` per §2.5.",
+                  "$ref": "#/$defs/TrackSelector"
+                }
+              },
+              "required": [
+                "selector"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "tracks.set-audio-track"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`tracks.set-subtitle-track` — selection over parsed streams\n(class S — no pipeline invalidation).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "selector": {
+                  "description": "`Id`/`None`/`Auto` per §2.5.",
+                  "$ref": "#/$defs/TrackSelector"
+                }
+              },
+              "required": [
+                "selector"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "tracks.set-subtitle-track"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`tracks.set-secondary-audio` — mix a second audio track (A).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "selector": {
+                  "description": "`Id`/`None` per §2.5.",
+                  "$ref": "#/$defs/TrackSelector"
+                }
+              },
+              "required": [
+                "selector"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "tracks.set-secondary-audio"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`audio.set-volume` — the response says what IS (class S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "volume": {
+                  "description": "Requested volume.",
+                  "type": "number",
+                  "format": "float"
+                }
+              },
+              "required": [
+                "volume"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "audio.set-volume"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`audio.get-volume` — prefer the snapshot on hydration (S).",
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "const": "audio.get-volume"
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        },
+        {
+          "description": "`audio.set-mute` — independent of volume (class S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "muted": {
+                  "description": "Mute or unmute.",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "muted"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "audio.set-mute"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`audio.list-devices` — exactly one pseudo-device on web (S).",
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "const": "audio.list-devices"
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        },
+        {
+          "description": "`audio.set-device` — output-stream migration (class A, no gen).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "description": "Device id from `audio.list-devices`.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "audio.set-device"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`audio.set-delay` — atomic sync parameter (class S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "delayMs": {
+                  "description": "Signed delay (ms), ±60 000.",
+                  "type": "integer",
+                  "format": "int64"
+                }
+              },
+              "required": [
+                "delayMs"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "audio.set-delay"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`video.set-fullscreen` — **target: shell** (class S; the only\nshell-routed command in v1, §1.1.3).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "description": "Enter or leave fullscreen.",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "video.set-fullscreen"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`video.set-aspect-ratio` — renderer parameter (class S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "ratio": {
+                  "description": "`Default` or an explicit ratio.",
+                  "$ref": "#/$defs/AspectRatioSpec"
+                }
+              },
+              "required": [
+                "ratio"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "video.set-aspect-ratio"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`video.set-crop` — renderer parameter (class S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "crop": {
+                  "description": "`None`/`Ratio`/`Rect`.",
+                  "$ref": "#/$defs/CropSpec"
+                }
+              },
+              "required": [
+                "crop"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "video.set-crop"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`video.set-zoom` — display scaling, `0.25..=4.0` (class S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "factor": {
+                  "description": "Zoom factor.",
+                  "type": "number",
+                  "format": "float"
+                }
+              },
+              "required": [
+                "factor"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "video.set-zoom"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`video.set-delay` — atomic sync parameter (class S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "delayMs": {
+                  "description": "Signed delay (ms), ±60 000.",
+                  "type": "integer",
+                  "format": "int64"
+                }
+              },
+              "required": [
+                "delayMs"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "video.set-delay"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`video.take-screenshot` — captures the next presented frame (A).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "description": "Explicit output path; `None` uses `video.screenshot-dir` +\nthe filename template (config). `[PROPOSAL]` web path policy\n(§2.7 — the binding converts to a browser download).",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "cmd": {
+              "type": "string",
+              "const": "video.take-screenshot"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`subtitle.add-file` — external subtitle file (class A).\n`[VERIFY]` — `PathSpec` (§2.8) is a plain path string here; the\nweb host's transferred-`Blob` variant needs the binding-layer\nparam extension before apps/web consumes it.",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "encoding": {
+                  "description": "Explicit encoding override.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "path": {
+                  "description": "Path to the subtitle file.",
+                  "type": "string"
+                },
+                "select": {
+                  "description": "Whether to select the track once parsed (default true).",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "required": [
+                "path"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "subtitle.add-file"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`subtitle.set-sync` — relative shift; the result carries the new\nabsolute delay (class S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "deltaMs": {
+                  "description": "Signed relative adjustment (ms).",
+                  "type": "integer",
+                  "format": "int64"
+                }
+              },
+              "required": [
+                "deltaMs"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "subtitle.set-sync"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`subtitle.set-encoding` — re-decode external text subtitles (S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "encoding": {
+                  "description": "IANA encoding name.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "encoding"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "subtitle.set-encoding"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`subtitle.set-scale` — render size multiplier, `0.2..=5.0` (S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "scale": {
+                  "description": "Scale factor.",
+                  "type": "number",
+                  "format": "float"
+                }
+              },
+              "required": [
+                "scale"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "subtitle.set-scale"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`playlist.enqueue` — model edit, does not open (class S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "source": {
+                  "description": "What to enqueue.",
+                  "$ref": "#/$defs/SourceSpec"
+                },
+                "title": {
+                  "description": "Display title override.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "playlist.enqueue"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`playlist.enqueue-many` — atomic all-or-nothing enqueue (S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "items": {
+                  "description": "The items (non-empty; empty is `invalid-argument`).",
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/PlaylistEnqueueItem"
+                  }
+                }
+              },
+              "required": [
+                "items"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "playlist.enqueue-many"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`playlist.play-item` — full open lifecycle on that item (A).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "description": "Which item.",
+                  "$ref": "#/$defs/PlaylistItemId"
+                }
+              },
+              "required": [
+                "id"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "playlist.play-item"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`playlist.next` — open lifecycle of the next item (class A).",
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "const": "playlist.next"
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        },
+        {
+          "description": "`playlist.prev` — symmetric, VLC-like restart rule (class A).",
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "const": "playlist.prev"
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        },
+        {
+          "description": "`playlist.skip` — open lifecycle of item at `current + n` (A).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "n": {
+                  "description": "Signed offset; negative goes back.",
+                  "type": "integer",
+                  "format": "int32"
+                }
+              },
+              "required": [
+                "n"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "playlist.skip"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`playlist.remove` — removing the playing item starts the advance\nlifecycle (class S for the model edit).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "description": "Which item.",
+                  "$ref": "#/$defs/PlaylistItemId"
+                }
+              },
+              "required": [
+                "id"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "playlist.remove"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`playlist.move` — reorder (class S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "description": "Which item.",
+                  "$ref": "#/$defs/PlaylistItemId"
+                },
+                "toIndex": {
+                  "description": "Target index.",
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "id",
+                "toIndex"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "playlist.move"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`playlist.clear` — stops playback if an item was playing (S).",
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "const": "playlist.clear"
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        },
+        {
+          "description": "`playlist.set-shuffle` — affects advancement order only (S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "description": "New shuffle flag.",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "playlist.set-shuffle"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`playlist.set-repeat` — repeat mode (class S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "mode": {
+                  "description": "New mode.",
+                  "$ref": "#/$defs/RepeatMode"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "playlist.set-repeat"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`playlist.save` — serialize the list (class S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "format": {
+                  "description": "Explicit format override.",
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/PlaylistSaveFormat"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "path": {
+                  "description": "Output file (format defaults from the extension).",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "playlist.save"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`playlist.load` — parse + insert, nothing opens (class S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "append": {
+                  "description": "Append instead of replace.",
+                  "type": "boolean"
+                },
+                "path": {
+                  "description": "Playlist file to read.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "append"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "playlist.load"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`media.get-info` — the metadata snapshot (class S).",
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "const": "media.get-info"
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        },
+        {
+          "description": "`media.get-current-time` — snapshot query (class S).",
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "const": "media.get-current-time"
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        },
+        {
+          "description": "`media.get-duration` — `Unknown` may become known later (S).",
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "const": "media.get-duration"
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        },
+        {
+          "description": "`media.get-chapters` — chapter markers (class S).",
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "const": "media.get-chapters"
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        },
+        {
+          "description": "`media.set-chapter` — canonical chapter jump (class A, gen).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "description": "Chapter index.",
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "index"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "media.set-chapter"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`config.get-setting` — one setting's value + schema meta (S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "area": {
+                  "description": "Settings area.",
+                  "type": "string"
+                },
+                "key": {
+                  "description": "Setting key.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "area",
+                "key"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "config.get-setting"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`config.set-setting` — never silent coercion (class S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "area": {
+                  "description": "Settings area.",
+                  "type": "string"
+                },
+                "key": {
+                  "description": "Setting key.",
+                  "type": "string"
+                },
+                "value": {
+                  "description": "The value to write.",
+                  "$ref": "#/$defs/SettingValue"
+                }
+              },
+              "required": [
+                "area",
+                "key",
+                "value"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "config.set-setting"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`config.reset-setting` — to the layer default (class S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "area": {
+                  "description": "Settings area.",
+                  "type": "string"
+                },
+                "key": {
+                  "description": "Setting key.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "area",
+                "key"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "config.reset-setting"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`config.list-areas` — drives the settings screen (class S).",
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "const": "config.list-areas"
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        },
+        {
+          "description": "`system.get-engine-info` — hardware decode is reported here (S).",
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "const": "system.get-engine-info"
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        },
+        {
+          "description": "`system.list-plugins` — registry from manifests (class S).",
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "const": "system.list-plugins"
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        },
+        {
+          "description": "`system.plugin-enable` — enable a *registered* plugin (S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "description": "Plugin id.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "system.plugin-enable"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`system.plugin-disable` — takes effect next session if in use (S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "description": "Plugin id.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "system.plugin-disable"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`system.set-log-level` — omit target for global (class S).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "level": {
+                  "description": "New level.",
+                  "$ref": "#/$defs/LogLevel"
+                },
+                "target": {
+                  "description": "Module-path target, `None` for global.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "level"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "system.set-log-level"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`system.get-state-snapshot` — full hydration (class S).",
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "const": "system.get-state-snapshot"
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        },
+        {
+          "description": "`system.list-commands` — machine-readable introspection (S).",
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "const": "system.list-commands"
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        }
+      ],
+      "required": [
+        "requestId"
+      ]
+    },
+    "CommandResponse": {
+      "description": "One engine → host response (doc 05 §1.6). `request_id` is echoed,\nalways; `session`/`generation` are the context at handling time.",
+      "type": "object",
+      "properties": {
+        "gen": {
+          "$ref": "#/$defs/Generation"
+        },
+        "requestId": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "result": {
+          "$ref": "#/$defs/ResultWire"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SessionId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "requestId",
+        "gen",
+        "result"
+      ]
+    },
+    "CommandResult": {
+      "description": "The completed payload of a class-S command (doc 05 §2 tables'\n*Result* column; class-A commands never produce one — §1.4 C2/C3).\n\nInternally tagged (`\"kind\"`) so the wire form is\n`{ \"completed\": { \"kind\": \"audio-volume\", \"volume\": 0.8 } }` inside\n[`CommandOutcome::Completed`](crate::envelope::CommandOutcome).\nVariants are shared by shape across commands (see the module docs).",
+      "oneOf": [
+        {
+          "description": "Nothing to report (`session.close`, playlist model edits).",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "unit"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "`playback.set-rate` — the applied rate.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "applied-rate"
+            },
+            "rate": {
+              "description": "The rate now in effect.",
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "kind",
+            "rate"
+          ]
+        },
+        {
+          "description": "`tracks.list` — the live list.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "track-list"
+            },
+            "tracks": {
+              "description": "Every track of the current media.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/TrackInfo"
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "tracks"
+          ]
+        },
+        {
+          "description": "`tracks.get-info` — one track.",
+          "type": "object",
+          "properties": {
+            "info": {
+              "description": "The track's info.",
+              "$ref": "#/$defs/TrackInfo"
+            },
+            "kind": {
+              "type": "string",
+              "const": "track-info"
+            }
+          },
+          "required": [
+            "kind",
+            "info"
+          ]
+        },
+        {
+          "description": "`tracks.set-subtitle-track` — the applied selector.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "applied-selector"
+            },
+            "selector": {
+              "description": "What is now selected.",
+              "$ref": "#/$defs/TrackSelector"
+            }
+          },
+          "required": [
+            "kind",
+            "selector"
+          ]
+        },
+        {
+          "description": "`audio.set-volume`/`get-volume` — the applied volume (the truth,\nafter device clipping).",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "audio-volume"
+            },
+            "volume": {
+              "description": "The volume now in effect.",
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "kind",
+            "volume"
+          ]
+        },
+        {
+          "description": "`audio.set-mute`, `video.set-fullscreen`, `playlist.set-shuffle`\n— an applied boolean.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "applied-bool"
+            },
+            "value": {
+              "description": "The value now in effect.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ]
+        },
+        {
+          "description": "`audio.list-devices` — the device list.",
+          "type": "object",
+          "properties": {
+            "devices": {
+              "description": "Every available output device.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AudioDevice"
+              }
+            },
+            "kind": {
+              "type": "string",
+              "const": "audio-devices"
+            }
+          },
+          "required": [
+            "kind",
+            "devices"
+          ]
+        },
+        {
+          "description": "`audio.set-delay`, `video.set-delay`, `subtitle.set-sync` — an\napplied delay in ms (for `set-sync`, the new absolute total).",
+          "type": "object",
+          "properties": {
+            "delayMs": {
+              "description": "The delay now in effect.",
+              "type": "integer",
+              "format": "int64"
+            },
+            "kind": {
+              "type": "string",
+              "const": "applied-delay-ms"
+            }
+          },
+          "required": [
+            "kind",
+            "delayMs"
+          ]
+        },
+        {
+          "description": "`video.set-aspect-ratio` — the applied ratio.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "applied-aspect-ratio"
+            },
+            "ratio": {
+              "description": "What is now in effect.",
+              "$ref": "#/$defs/AspectRatioSpec"
+            }
+          },
+          "required": [
+            "kind",
+            "ratio"
+          ]
+        },
+        {
+          "description": "`video.set-crop` — the applied crop.",
+          "type": "object",
+          "properties": {
+            "crop": {
+              "description": "What is now in effect.",
+              "$ref": "#/$defs/CropSpec"
+            },
+            "kind": {
+              "type": "string",
+              "const": "applied-crop"
+            }
+          },
+          "required": [
+            "kind",
+            "crop"
+          ]
+        },
+        {
+          "description": "`video.set-zoom` — the applied factor.",
+          "type": "object",
+          "properties": {
+            "factor": {
+              "description": "The factor now in effect.",
+              "type": "number",
+              "format": "float"
+            },
+            "kind": {
+              "type": "string",
+              "const": "applied-zoom"
+            }
+          },
+          "required": [
+            "kind",
+            "factor"
+          ]
+        },
+        {
+          "description": "`subtitle.set-encoding` — the applied encoding.",
+          "type": "object",
+          "properties": {
+            "encoding": {
+              "description": "The encoding now in effect.",
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "applied-encoding"
+            }
+          },
+          "required": [
+            "kind",
+            "encoding"
+          ]
+        },
+        {
+          "description": "`subtitle.set-scale` — the applied scale.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "applied-scale"
+            },
+            "scale": {
+              "description": "The scale now in effect.",
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "kind",
+            "scale"
+          ]
+        },
+        {
+          "description": "`playlist.set-repeat` — the applied mode.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "applied-repeat"
+            },
+            "mode": {
+              "description": "The mode now in effect.",
+              "$ref": "#/$defs/RepeatMode"
+            }
+          },
+          "required": [
+            "kind",
+            "mode"
+          ]
+        },
+        {
+          "description": "`playlist.enqueue` — the new item's id.",
+          "type": "object",
+          "properties": {
+            "id": {
+              "description": "The enqueued item's handle.",
+              "$ref": "#/$defs/PlaylistItemId"
+            },
+            "kind": {
+              "type": "string",
+              "const": "playlist-item"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ]
+        },
+        {
+          "description": "`playlist.enqueue-many`, `playlist.load` — the item ids.",
+          "type": "object",
+          "properties": {
+            "ids": {
+              "description": "The handles, in order.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/PlaylistItemId"
+              }
+            },
+            "kind": {
+              "type": "string",
+              "const": "playlist-items"
+            }
+          },
+          "required": [
+            "kind",
+            "ids"
+          ]
+        },
+        {
+          "description": "`media.get-info` — the metadata snapshot.",
+          "type": "object",
+          "properties": {
+            "info": {
+              "description": "The snapshot.",
+              "$ref": "#/$defs/MediaInfo"
+            },
+            "kind": {
+              "type": "string",
+              "const": "media-info"
+            }
+          },
+          "required": [
+            "kind",
+            "info"
+          ]
+        },
+        {
+          "description": "`media.get-current-time` — position + buffered ranges.",
+          "type": "object",
+          "properties": {
+            "buffered": {
+              "description": "Buffered ranges.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/TimeRange"
+              }
+            },
+            "kind": {
+              "type": "string",
+              "const": "current-time"
+            },
+            "position": {
+              "description": "`0.0..=1.0` of duration.",
+              "type": "number",
+              "format": "float"
+            },
+            "time": {
+              "description": "Current position (µs).",
+              "$ref": "#/$defs/Timestamp"
+            }
+          },
+          "required": [
+            "kind",
+            "time",
+            "position",
+            "buffered"
+          ]
+        },
+        {
+          "description": "`media.get-duration` — known, unknown or infinite.",
+          "type": "object",
+          "properties": {
+            "duration": {
+              "description": "The duration.",
+              "$ref": "#/$defs/Duration"
+            },
+            "kind": {
+              "type": "string",
+              "const": "duration"
+            }
+          },
+          "required": [
+            "kind",
+            "duration"
+          ]
+        },
+        {
+          "description": "`media.get-chapters` — chapter markers.",
+          "type": "object",
+          "properties": {
+            "chapters": {
+              "description": "Every chapter.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Chapter"
+              }
+            },
+            "kind": {
+              "type": "string",
+              "const": "chapters"
+            }
+          },
+          "required": [
+            "kind",
+            "chapters"
+          ]
+        },
+        {
+          "description": "`config.get-setting` — value + schema metadata.\n`[VERIFY]` — `schema_meta` is a free-form string map until the\nsettings-schema crate defines its wire projection.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "setting-result"
+            },
+            "schemaMeta": {
+              "description": "Schema metadata (type, constraints, restart flag…).",
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "value": {
+              "description": "The current value.",
+              "$ref": "#/$defs/SettingValue"
+            }
+          },
+          "required": [
+            "kind",
+            "value",
+            "schemaMeta"
+          ]
+        },
+        {
+          "description": "`config.set-setting`/`reset-setting` — the applied value.",
+          "type": "object",
+          "properties": {
+            "applied": {
+              "description": "The value now in effect.",
+              "$ref": "#/$defs/SettingValue"
+            },
+            "kind": {
+              "type": "string",
+              "const": "setting-applied"
+            },
+            "restartRequired": {
+              "description": "Whether a restart is required for full effect.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "applied",
+            "restartRequired"
+          ]
+        },
+        {
+          "description": "`config.list-areas` — the settings-screen navigation.",
+          "type": "object",
+          "properties": {
+            "areas": {
+              "description": "Every area.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ConfigAreaInfo"
+              }
+            },
+            "kind": {
+              "type": "string",
+              "const": "config-areas"
+            }
+          },
+          "required": [
+            "kind",
+            "areas"
+          ]
+        },
+        {
+          "description": "`system.get-engine-info` — the engine's self-description.",
+          "type": "object",
+          "properties": {
+            "info": {
+              "description": "The snapshot.",
+              "$ref": "#/$defs/EngineInfo"
+            },
+            "kind": {
+              "type": "string",
+              "const": "engine-info"
+            }
+          },
+          "required": [
+            "kind",
+            "info"
+          ]
+        },
+        {
+          "description": "`system.list-plugins` — the plugin registry.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "plugin-list"
+            },
+            "plugins": {
+              "description": "Every registered plugin.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/PluginInfo"
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "plugins"
+          ]
+        },
+        {
+          "description": "`system.plugin-enable`/`plugin-disable` — the toggle outcome.",
+          "type": "object",
+          "properties": {
+            "applied": {
+              "description": "Whether the plugin is now enabled.",
+              "type": "boolean"
+            },
+            "kind": {
+              "type": "string",
+              "const": "plugin-toggle"
+            },
+            "restartRequired": {
+              "description": "Whether a restart is required.",
+              "type": "boolean"
+            },
+            "takesEffect": {
+              "description": "When the toggle takes effect (per manifest).",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "applied",
+            "restartRequired"
+          ]
+        },
+        {
+          "description": "`system.set-log-level` — the applied level.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "applied-log-level"
+            },
+            "level": {
+              "description": "The level now in effect.",
+              "$ref": "#/$defs/LogLevel"
+            }
+          },
+          "required": [
+            "kind",
+            "level"
+          ]
+        },
+        {
+          "description": "`system.get-state-snapshot` — full hydration.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "state-snapshot"
+            },
+            "snapshot": {
+              "description": "The snapshot.",
+              "$ref": "#/$defs/StateSnapshot"
+            }
+          },
+          "required": [
+            "kind",
+            "snapshot"
+          ]
+        },
+        {
+          "description": "`system.list-commands` — catalog introspection.",
+          "type": "object",
+          "properties": {
+            "commands": {
+              "description": "Every catalog command.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/CommandListing"
+              }
+            },
+            "kind": {
+              "type": "string",
+              "const": "command-listings"
+            }
+          },
+          "required": [
+            "kind",
+            "commands"
+          ]
+        }
+      ]
+    },
+    "CompletionClass": {
+      "description": "Completion class (doc 05 §1.5).",
+      "oneOf": [
+        {
+          "description": "Synchronous-complete: pure queries; atomic mutations with bounded\nwork, no pipeline invalidation, no unbounded I/O. The response\nIS the completion evidence (C2).",
+          "type": "string",
+          "const": "s"
+        },
+        {
+          "description": "Async-observed: reconfigures the pipeline, performs unbounded\nI/O, or its effect is only observable through engine state.\nAnswers `Accepted`; completes via a named event (C3).",
+          "type": "string",
+          "const": "a"
+        }
+      ]
+    },
+    "ConfigAreaInfo": {
+      "description": "One settings area summary (§2.11 `config.list-areas`).",
+      "type": "object",
+      "properties": {
+        "anyRestartRequired": {
+          "description": "Whether any setting in the area requires a restart.",
+          "type": "boolean"
+        },
+        "area": {
+          "description": "Area id (a settings-schema namespace).",
+          "type": "string"
+        },
+        "nameKey": {
+          "description": "Localization key for the area's display name.",
+          "type": "string"
+        },
+        "settingCount": {
+          "description": "Number of settings in the area.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "area",
+        "settingCount",
+        "nameKey",
+        "anyRestartRequired"
+      ]
+    },
+    "CropSpec": {
+      "description": "Crop setting for `video.set-crop` (§2.7).",
+      "oneOf": [
+        {
+          "description": "No crop.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "none"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "Crop to a ratio.",
+          "type": "object",
+          "properties": {
+            "h": {
+              "description": "Ratio height.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "kind": {
+              "type": "string",
+              "const": "ratio"
+            },
+            "w": {
+              "description": "Ratio width.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "kind",
+            "w",
+            "h"
+          ]
+        },
+        {
+          "description": "Crop to a rectangle (pixel offsets from the top-left).",
+          "type": "object",
+          "properties": {
+            "h": {
+              "description": "Height.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "kind": {
+              "type": "string",
+              "const": "rect"
+            },
+            "w": {
+              "description": "Width.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "x": {
+              "description": "Left offset.",
+              "type": "integer",
+              "format": "int64"
+            },
+            "y": {
+              "description": "Top offset.",
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "required": [
+            "kind",
+            "x",
+            "y",
+            "w",
+            "h"
+          ]
+        }
+      ]
+    },
+    "DecoderInfo": {
+      "description": "One decoder of the engine's registry (§2.12 `system.get-engine-info`\n— hardware decode is reported here, truthfully).",
+      "type": "object",
+      "properties": {
+        "active": {
+          "description": "Whether the decoder is currently in use by a session.",
+          "type": "boolean"
+        },
+        "backend": {
+          "description": "OS backend name for hardware decoders.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hardware": {
+          "description": "Whether this is a hardware decoder.",
+          "type": "boolean"
+        },
+        "kind": {
+          "description": "What the decoder decodes.",
+          "$ref": "#/$defs/TrackKind"
+        },
+        "name": {
+          "description": "Decoder name.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "kind",
+        "hardware",
+        "active"
+      ]
+    },
+    "Duration": {
+      "description": "A duration that may not be known (or may be unbounded, for streams) —\nnever a sentinel number (§2.2, V3).",
+      "oneOf": [
+        {
+          "description": "A known duration, in microseconds.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "known"
+            },
+            "time": {
+              "description": "Media duration (µs).",
+              "$ref": "#/$defs/Timestamp"
+            }
+          },
+          "required": [
+            "kind",
+            "time"
+          ]
+        },
+        {
+          "description": "Not (yet) known — may later become known (`timing.duration-known`).",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "unknown"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "Unbounded stream.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "infinite"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        }
+      ]
+    },
+    "EngineInfo": {
+      "description": "The engine's self-description (§2.12 `system.get-engine-info`).\n`[VERIFY]` — `plugins` is rendered as the id list of registered\nplugins; `system.list-plugins` carries the full records.",
+      "type": "object",
+      "properties": {
+        "catalogVersion": {
+          "description": "Command-catalog version (this file's contract, §6.1).",
+          "type": "string"
+        },
+        "decoders": {
+          "description": "The decoder registry.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DecoderInfo"
+          }
+        },
+        "engineVersion": {
+          "description": "Engine version.",
+          "type": "string"
+        },
+        "features": {
+          "description": "Feature-exposure flags enabled for this product (§6.4).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "host": {
+          "description": "Host the engine is embedded in (tauri/web/cli/control-server/test).",
+          "type": "string"
+        },
+        "plugins": {
+          "description": "Ids of registered plugins.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "protocolVersion": {
+          "description": "Control-protocol version.",
+          "type": "string"
+        },
+        "sessions": {
+          "description": "Live sessions.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SessionSummary"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "engineVersion",
+        "catalogVersion",
+        "protocolVersion",
+        "host",
+        "features",
+        "plugins",
+        "decoders",
+        "sessions"
+      ]
+    },
+    "ErrorCode": {
+      "description": "The typed failure class (doc 05 §2.13). Every command can fail with\nany of these; the catalog (card 1.D4) lists only additions. Wire\nform: the kebab-case names of [`ErrorCode::as_str`].",
+      "oneOf": [
+        {
+          "description": "No demuxer/decoder/filter for this data.",
+          "type": "string",
+          "const": "unsupported"
+        },
+        {
+          "description": "Malformed bitstream/container.",
+          "type": "string",
+          "const": "corrupt"
+        },
+        {
+          "description": "Unreadable file, permission, auth failure.",
+          "type": "string",
+          "const": "inaccessible"
+        },
+        {
+          "description": "Connection, DNS, TLS, timeout.",
+          "type": "string",
+          "const": "network"
+        },
+        {
+          "description": "Decode failure after selection.",
+          "type": "string",
+          "const": "decoder"
+        },
+        {
+          "description": "Audio/video device failure.",
+          "type": "string",
+          "const": "device"
+        },
+        {
+          "description": "Bounded memory/queue/probe limits hit.",
+          "type": "string",
+          "const": "resource-limit"
+        },
+        {
+          "description": "Unknown field, unknown enum variant, unknown command id (V1).",
+          "type": "string",
+          "const": "invalid-argument"
+        },
+        {
+          "description": "Scalar range violated (V2) — `details` carries the allowed range.",
+          "type": "string",
+          "const": "out-of-range"
+        },
+        {
+          "description": "Reference invalid at execution time (V5).",
+          "type": "string",
+          "const": "not-found"
+        },
+        {
+          "description": "Operation requires a state the engine is not in.",
+          "type": "string",
+          "const": "not-ready"
+        },
+        {
+          "description": "Target is not seekable.",
+          "type": "string",
+          "const": "not-seekable"
+        },
+        {
+          "description": "Superseded by a newer generation (§4.2) — rare on the wire.",
+          "type": "string",
+          "const": "canceled"
+        },
+        {
+          "description": "Exists in engine, off in product.toml feature exposure.",
+          "type": "string",
+          "const": "feature-not-exposed"
+        },
+        {
+          "description": "Host cannot do it (web: no discs, no RTSP, no local FS).",
+          "type": "string",
+          "const": "unsupported-for-host"
+        },
+        {
+          "description": "Control server: sensitive op without authorization.",
+          "type": "string",
+          "const": "permission-denied"
+        },
+        {
+          "description": "I/O failure.",
+          "type": "string",
+          "const": "io"
+        },
+        {
+          "description": "Engine-internal invariant breach — always a bug report, never\nuser-actionable.",
+          "type": "string",
+          "const": "internal"
+        }
+      ]
+    },
+    "ErrorEnvelope": {
+      "description": "The failure wrapper.",
+      "type": "object",
+      "properties": {
+        "error": {
+          "$ref": "#/$defs/CommandError"
+        }
+      },
+      "required": [
+        "error"
+      ]
+    },
+    "Event": {
+      "description": "One engine → host event (doc 05 §1.6/§3.1). Generic over the event\npayload `E` until the catalog lands. `seq` is engine-global and\nstrictly increasing; `generation` is present only for pipeline-scoped\nevents (the staleness rule applies exactly to those); `origin` names\nthe request that caused the event when attributable.",
+      "type": "object",
+      "properties": {
+        "gen": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Generation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "origin": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RequestId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "seq": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "session": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SessionId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "oneOf": [
+        {
+          "description": "`session.state-changed` — every playback-state transition,\nincluding self-transitions as idempotent confirmations (C8).\nNever coalesced.",
+          "type": "object",
+          "properties": {
+            "from": {
+              "description": "The state we left.",
+              "$ref": "#/$defs/PlaybackState"
+            },
+            "kind": {
+              "type": "string",
+              "const": "session.state-changed"
+            },
+            "to": {
+              "description": "The state we entered.",
+              "$ref": "#/$defs/PlaybackState"
+            }
+          },
+          "required": [
+            "kind",
+            "from",
+            "to"
+          ]
+        },
+        {
+          "description": "`session.opening-progress` — network opens, best-effort, ≤ 1 Hz;\nabsent for local files.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "session.opening-progress"
+            },
+            "progress": {
+              "description": "`0.0..=1.0`.",
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "kind",
+            "progress"
+          ]
+        },
+        {
+          "description": "`session.buffering` — enter/while/exit buffering, ≤ 5 Hz; opens\nwith 0.0 and closes with 1.0.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "session.buffering"
+            },
+            "progress": {
+              "description": "`0.0..=1.0`.",
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "kind",
+            "progress"
+          ]
+        },
+        {
+          "description": "`timing.time-tick` — continuous position while playing; the only\ncontinuous stream, never queued (§3.4).",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "timing.time-tick"
+            },
+            "position": {
+              "description": "`0.0..=1.0` of duration.",
+              "type": "number",
+              "format": "float"
+            },
+            "time": {
+              "description": "Position (µs).",
+              "$ref": "#/$defs/Timestamp"
+            }
+          },
+          "required": [
+            "kind",
+            "time",
+            "position"
+          ]
+        },
+        {
+          "description": "`timing.duration-known` — the duration transitioned from\nunknown/early-estimate to final; once per change.",
+          "type": "object",
+          "properties": {
+            "duration": {
+              "description": "The final duration (µs).",
+              "$ref": "#/$defs/Timestamp"
+            },
+            "kind": {
+              "type": "string",
+              "const": "timing.duration-known"
+            }
+          },
+          "required": [
+            "kind",
+            "duration"
+          ]
+        },
+        {
+          "description": "`timing.seek-completed` — terminal for the NEWEST seek generation\nonly (§4.2: superseded seeks are silent). The envelope's `gen`\nis the generation that completed; it must match the `Accepted`\nresponse's gen (§1.4 C3).",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "timing.seek-completed"
+            },
+            "position": {
+              "description": "Where the pipeline is now (µs).",
+              "$ref": "#/$defs/Timestamp"
+            },
+            "seekKind": {
+              "description": "What asked for the seek.",
+              "$ref": "#/$defs/SeekKind"
+            }
+          },
+          "required": [
+            "kind",
+            "position",
+            "seekKind"
+          ]
+        },
+        {
+          "description": "`timing.seek-failed` — terminal failure for the newest seek\ngeneration; exactly one terminal seek event per completed gen\n(§4.3 invariant 4). The envelope's `gen` is the failed\ngeneration.",
+          "type": "object",
+          "properties": {
+            "error": {
+              "description": "Why it failed (typed, redacted).",
+              "$ref": "#/$defs/CommandError"
+            },
+            "kind": {
+              "type": "string",
+              "const": "timing.seek-failed"
+            }
+          },
+          "required": [
+            "kind",
+            "error"
+          ]
+        },
+        {
+          "description": "`tracks.list-ready` — the list became available/relevant: before\nfirst `playing`, after `subtitle.add-file`, after rare changes.\nCoalesced ≤ 1 Hz. Delivered before the first `state-changed →\nplaying` of a session (§4.3 terminal invariant 4).",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "tracks.list-ready"
+            },
+            "tracks": {
+              "description": "The full live list.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/TrackInfo"
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "tracks"
+          ]
+        },
+        {
+          "description": "`tracks.changed` — a selection applied (command) or lost (the\ntrack disappeared, engine-initiated).",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "tracks.changed"
+            },
+            "selected": {
+              "description": "The now-selected track, if any.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TrackId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "trackKind": {
+              "description": "Which selection changed.",
+              "$ref": "#/$defs/TrackChangeKind"
+            }
+          },
+          "required": [
+            "kind",
+            "trackKind"
+          ]
+        },
+        {
+          "description": "`playback.end-of-track` — one elementary stream ended while the\nmedia continues (e.g. audio before video).",
+          "type": "object",
+          "properties": {
+            "id": {
+              "description": "Its handle.",
+              "$ref": "#/$defs/TrackId"
+            },
+            "kind": {
+              "type": "string",
+              "const": "playback.end-of-track"
+            },
+            "trackKind": {
+              "description": "Which track ended.",
+              "$ref": "#/$defs/TrackKind"
+            }
+          },
+          "required": [
+            "kind",
+            "trackKind",
+            "id"
+          ]
+        },
+        {
+          "description": "`playback.end-of-media` — the media finished; followed by\n`state-changed → ended`, then the advance lifecycle (or nothing).",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "playback.end-of-media"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "`playback.error` — any stage failure. Fatal errors transition\nstate to `error` and are always ordered BEFORE their\n`state-changed → error` (§3.3). Non-fatal same-code errors are\ncoalesced per 1 s window with a count `[PROPOSAL]`.",
+          "type": "object",
+          "properties": {
+            "code": {
+              "description": "Typed failure class.",
+              "$ref": "#/$defs/ErrorCode"
+            },
+            "details": {
+              "description": "Machine-readable hints.",
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "fatal": {
+              "description": "Fatal errors transition the state to `error`.",
+              "type": "boolean"
+            },
+            "kind": {
+              "type": "string",
+              "const": "playback.error"
+            },
+            "message": {
+              "description": "Redacted, display-safe message (V8).",
+              "type": "string"
+            },
+            "stage": {
+              "description": "Where it failed.",
+              "$ref": "#/$defs/Stage"
+            }
+          },
+          "required": [
+            "kind",
+            "stage",
+            "code",
+            "message",
+            "details",
+            "fatal"
+          ]
+        },
+        {
+          "description": "`playback.rate-changed` — `set-rate` echo and future engine-side\nrate changes. Not pipeline-scoped.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "playback.rate-changed"
+            },
+            "rate": {
+              "description": "The new rate.",
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "required": [
+            "kind",
+            "rate"
+          ]
+        },
+        {
+          "description": "`audio.device-lost` — the OS removed the active device; migration\nor a non-fatal error follows. Not pipeline-scoped.",
+          "type": "object",
+          "properties": {
+            "deviceId": {
+              "description": "The lost device's id.",
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "audio.device-lost"
+            }
+          },
+          "required": [
+            "kind",
+            "deviceId"
+          ]
+        },
+        {
+          "description": "`audio.device-changed` — the active output device changed\n(command or auto-migration). Not pipeline-scoped.",
+          "type": "object",
+          "properties": {
+            "deviceId": {
+              "description": "The new device's id.",
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "audio.device-changed"
+            }
+          },
+          "required": [
+            "kind",
+            "deviceId"
+          ]
+        },
+        {
+          "description": "`video.screenshot-saved` — the screenshot was written; completion\nevidence for `video.take-screenshot`. Not pipeline-scoped.",
+          "type": "object",
+          "properties": {
+            "height": {
+              "description": "Captured frame height.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "kind": {
+              "type": "string",
+              "const": "video.screenshot-saved"
+            },
+            "path": {
+              "description": "Where it was written.",
+              "type": "string"
+            },
+            "width": {
+              "description": "Captured frame width.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "kind",
+            "path",
+            "width",
+            "height"
+          ]
+        },
+        {
+          "description": "`playlist.changed` — any playlist model mutation, command- or\nengine-initiated; model edits coalesced per 100 ms\n`[PROPOSAL]`. Not pipeline-scoped.",
+          "type": "object",
+          "properties": {
+            "change": {
+              "description": "Which mutation happened.",
+              "$ref": "#/$defs/PlaylistChange"
+            },
+            "kind": {
+              "type": "string",
+              "const": "playlist.changed"
+            }
+          },
+          "required": [
+            "kind",
+            "change"
+          ]
+        },
+        {
+          "description": "`config.setting-changed` — a setting changed through any layer\n(user, CLI flag, admin, plugin). Not pipeline-scoped.",
+          "type": "object",
+          "properties": {
+            "area": {
+              "description": "Settings area.",
+              "type": "string"
+            },
+            "key": {
+              "description": "Setting key.",
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "config.setting-changed"
+            },
+            "layer": {
+              "description": "Which layer wrote it.",
+              "type": "string"
+            },
+            "value": {
+              "description": "The new value.",
+              "$ref": "#/$defs/SettingValue"
+            }
+          },
+          "required": [
+            "kind",
+            "area",
+            "key",
+            "value",
+            "layer"
+          ]
+        },
+        {
+          "description": "`plugins.loaded` — a plugin registered (startup or install flow).\nNot pipeline-scoped.\n\n`[VERIFY]` — §3.2 sketches the payload as `{ id, kind, version }`,\nbut `kind` is the event envelope's discriminator (§5.1): a payload\nfield of that name is impossible on the wire. The payload field\nserializes as `pluginKind`.",
+          "type": "object",
+          "properties": {
+            "id": {
+              "description": "Plugin id.",
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "plugins.loaded"
+            },
+            "pluginKind": {
+              "description": "Plugin kind (manifest-declared, `[VERIFY]` — string until\nthe doc 06 taxonomy freezes).",
+              "type": "string"
+            },
+            "version": {
+              "description": "Plugin version.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "pluginKind",
+            "version"
+          ]
+        },
+        {
+          "description": "`plugins.failed` — a plugin failed to load; the engine continues\nwithout it. Not pipeline-scoped.",
+          "type": "object",
+          "properties": {
+            "error": {
+              "description": "Display-safe failure message (V8).",
+              "type": "string"
+            },
+            "id": {
+              "description": "Plugin id.",
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "plugins.failed"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "error"
+          ]
+        },
+        {
+          "description": "`plugins.crashed` — a sandboxed WASM extension crashed; playback\nsurvives (MP §6 error isolation). Not pipeline-scoped.",
+          "type": "object",
+          "properties": {
+            "actionTaken": {
+              "description": "What the engine did about it.",
+              "$ref": "#/$defs/PluginAction"
+            },
+            "error": {
+              "description": "Display-safe crash message (V8).",
+              "type": "string"
+            },
+            "id": {
+              "description": "Plugin id.",
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "plugins.crashed"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "error",
+            "actionTaken"
+          ]
+        },
+        {
+          "description": "`system.log` — a log line for the in-app panel; level-filtered\nby `system.set-log-level`. Rate-limited per target (default\n100/s then an aggregate \"N suppressed\") `[PROPOSAL]`.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "system.log"
+            },
+            "level": {
+              "description": "Line level.",
+              "$ref": "#/$defs/LogLevel"
+            },
+            "message": {
+              "description": "The line (redaction-safe, V8).",
+              "type": "string"
+            },
+            "target": {
+              "description": "Module-path target.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "level",
+            "target",
+            "message"
+          ]
+        },
+        {
+          "description": "`media.info-ready` — the metadata snapshot just before first\n`playing` (hydration convenience); once per open.",
+          "type": "object",
+          "properties": {
+            "info": {
+              "description": "The snapshot (same data as `media.get-info`).",
+              "$ref": "#/$defs/MediaInfo"
+            },
+            "kind": {
+              "type": "string",
+              "const": "media.info-ready"
+            }
+          },
+          "required": [
+            "kind",
+            "info"
+          ]
+        }
+      ],
+      "required": [
+        "seq"
+      ]
+    },
+    "Generation": {
+      "description": "Per-session pipeline generation (doc 05 §4.2): bumped atomically at\naccept time of generation-bumping commands and engine-initiated\ninvalidations. `Generation` ↔ the engine's pipeline generation.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "LogLevel": {
+      "description": "Log level for `system.set-log-level` and `system.log` (§2.12, §3.2).",
+      "oneOf": [
+        {
+          "description": "Most verbose.",
+          "type": "string",
+          "const": "trace"
+        },
+        {
+          "description": "Debugging detail.",
+          "type": "string",
+          "const": "debug"
+        },
+        {
+          "description": "Normal operation.",
+          "type": "string",
+          "const": "info"
+        },
+        {
+          "description": "Recoverable problems.",
+          "type": "string",
+          "const": "warn"
+        },
+        {
+          "description": "Failures.",
+          "type": "string",
+          "const": "error"
+        }
+      ]
+    },
+    "MediaInfo": {
+      "description": "A media's metadata snapshot (§2.10 `media.get-info`). All strings\nare untrusted (V7). Not `Eq`/`Hash` (contains [`TrackInfo`]).",
+      "type": "object",
+      "properties": {
+        "chapters": {
+          "description": "Chapter markers.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Chapter"
+          }
+        },
+        "container": {
+          "description": "Container format name, when probed.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "duration": {
+          "description": "Media duration.",
+          "$ref": "#/$defs/Duration"
+        },
+        "isLive": {
+          "description": "Whether this is a live source.",
+          "type": "boolean"
+        },
+        "metadata": {
+          "description": "Free-form container metadata (V7 — render as text, never markup).",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "seekable": {
+          "description": "Whether the media supports seeking.",
+          "type": "boolean"
+        },
+        "source": {
+          "description": "The source the session was opened from.",
+          "$ref": "#/$defs/SourceSpec"
+        },
+        "title": {
+          "description": "Title from container metadata.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tracks": {
+          "description": "The track list (same data as the latest `tracks.list-ready`).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TrackInfo"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "duration",
+        "seekable",
+        "isLive",
+        "metadata",
+        "tracks",
+        "chapters"
+      ]
+    },
+    "OpenOptions": {
+      "description": "Options for `session.open` (§2.3): schema-validated; an unknown\noption is `invalid-argument`. `[VERIFY]` — the \"track selectors\"\nbullet of §2.3 is rendered as one optional selector per track kind.\nNot `Eq`/`Hash`: `rate` is an `f32` wire scalar (§2.2 — same class as\n[`SeekTarget`] and [`VideoTrackInfo`]).",
+      "type": "object",
+      "properties": {
+        "audioTrack": {
+          "description": "Pre-select an audio track.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TrackSelector"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "forcedSubtitleOnly": {
+          "description": "Only select forced subtitles.",
+          "type": "boolean",
+          "default": false
+        },
+        "noAudio": {
+          "description": "Disable the audio track.",
+          "type": "boolean",
+          "default": false
+        },
+        "noVideo": {
+          "description": "Disable the video track.",
+          "type": "boolean",
+          "default": false
+        },
+        "rate": {
+          "description": "Initial playback rate.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float",
+          "default": null
+        },
+        "startPaused": {
+          "description": "Open paused instead of playing.",
+          "type": "boolean",
+          "default": false
+        },
+        "startTime": {
+          "description": "Start at this position (µs) instead of 0.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "subtitleTrack": {
+          "description": "Pre-select a subtitle track.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TrackSelector"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "videoTrack": {
+          "description": "Pre-select a video track.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TrackSelector"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false
+    },
+    "PlaybackState": {
+      "description": "The playback state machine (§3.3). Wire: the lowercase names.",
+      "oneOf": [
+        {
+          "description": "No session.",
+          "type": "string",
+          "const": "idle"
+        },
+        {
+          "description": "A source is being opened/probed.",
+          "type": "string",
+          "const": "opening"
+        },
+        {
+          "description": "Decoders are filling their buffers.",
+          "type": "string",
+          "const": "buffering"
+        },
+        {
+          "description": "The pipeline is running.",
+          "type": "string",
+          "const": "playing"
+        },
+        {
+          "description": "Paused by the user/engine.",
+          "type": "string",
+          "const": "paused"
+        },
+        {
+          "description": "Pipeline torn down; session survives (§2.4 `playback.stop`).",
+          "type": "string",
+          "const": "stopped"
+        },
+        {
+          "description": "Current media finished.",
+          "type": "string",
+          "const": "ended"
+        },
+        {
+          "description": "Terminal failure (always accompanied by a fatal `playback.error`).",
+          "type": "string",
+          "const": "error"
+        }
+      ]
+    },
+    "PlaylistChange": {
+      "description": "The payload of `playlist.changed` (§3.2): which model mutation\nhappened, command- or engine-initiated.",
+      "oneOf": [
+        {
+          "description": "Items were appended/inserted.",
+          "type": "object",
+          "properties": {
+            "ids": {
+              "description": "The new item ids.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/PlaylistItemId"
+              }
+            },
+            "kind": {
+              "type": "string",
+              "const": "items-added"
+            }
+          },
+          "required": [
+            "kind",
+            "ids"
+          ]
+        },
+        {
+          "description": "Items were removed.",
+          "type": "object",
+          "properties": {
+            "ids": {
+              "description": "The removed item ids.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/PlaylistItemId"
+              }
+            },
+            "kind": {
+              "type": "string",
+              "const": "items-removed"
+            }
+          },
+          "required": [
+            "kind",
+            "ids"
+          ]
+        },
+        {
+          "description": "One item moved.",
+          "type": "object",
+          "properties": {
+            "from": {
+              "description": "Index before the move.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "id": {
+              "description": "The moved item.",
+              "$ref": "#/$defs/PlaylistItemId"
+            },
+            "kind": {
+              "type": "string",
+              "const": "moved"
+            },
+            "to": {
+              "description": "Index after the move.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "from",
+            "to"
+          ]
+        },
+        {
+          "description": "The list was cleared.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "cleared"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "Shuffle was toggled.",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "description": "New shuffle flag.",
+              "type": "boolean"
+            },
+            "kind": {
+              "type": "string",
+              "const": "shuffle-set"
+            }
+          },
+          "required": [
+            "kind",
+            "enabled"
+          ]
+        },
+        {
+          "description": "Repeat mode changed.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "repeat-set"
+            },
+            "mode": {
+              "description": "New repeat mode.",
+              "$ref": "#/$defs/RepeatMode"
+            }
+          },
+          "required": [
+            "kind",
+            "mode"
+          ]
+        },
+        {
+          "description": "The current item changed.",
+          "type": "object",
+          "properties": {
+            "id": {
+              "description": "The new current item.",
+              "$ref": "#/$defs/PlaylistItemId"
+            },
+            "kind": {
+              "type": "string",
+              "const": "current-changed"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ]
+        }
+      ]
+    },
+    "PlaylistEnqueueItem": {
+      "description": "One item of `playlist.enqueue-many` (§2.9).",
+      "type": "object",
+      "properties": {
+        "source": {
+          "description": "What to enqueue (not opened at enqueue time).",
+          "$ref": "#/$defs/SourceSpec"
+        },
+        "title": {
+          "description": "Display title override.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "source"
+      ]
+    },
+    "PlaylistItemId": {
+      "description": "Playlist item handle, stable within the playlist lifetime (§2.2).",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "PlaylistSaveFormat": {
+      "description": "Playlist serialization format (§2.9 `playlist.save`). Defaults from\nthe file extension when omitted.",
+      "oneOf": [
+        {
+          "description": "M3U8.",
+          "type": "string",
+          "const": "m3u8"
+        },
+        {
+          "description": "XSPF.",
+          "type": "string",
+          "const": "xspf"
+        },
+        {
+          "description": "Lumen's JSON playlist.",
+          "type": "string",
+          "const": "json"
+        }
+      ]
+    },
+    "PlaylistSummary": {
+      "description": "Playlist summary for the snapshot (§2.12). `[VERIFY]` — \"playlist\nsummary + current\" rendered as count + current + mode flags.",
+      "type": "object",
+      "properties": {
+        "current": {
+          "description": "Current item, if one is active.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlaylistItemId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "itemCount": {
+          "description": "Number of items in the list.",
+          "type": "integer",
+          "format": "uint32",
+          "default": 0,
+          "minimum": 0
+        },
+        "repeat": {
+          "description": "Repeat mode.",
+          "$ref": "#/$defs/RepeatMode",
+          "default": "off"
+        },
+        "shuffle": {
+          "description": "Shuffle flag.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "PluginAction": {
+      "description": "What the engine did after a sandboxed plugin crashed (§3.2\n`plugins.crashed`, MP §6 error isolation).",
+      "oneOf": [
+        {
+          "description": "The plugin was disabled.",
+          "type": "string",
+          "const": "disabled"
+        },
+        {
+          "description": "The plugin was isolated (kept registered, not run again).",
+          "type": "string",
+          "const": "isolated"
+        }
+      ]
+    },
+    "PluginInfo": {
+      "description": "One registered plugin (§2.12 `system.list-plugins`, MP §6).\n`[VERIFY]` — `kind` stays a string until the plugin taxonomy in\ndoc 06 is frozen into an enum.",
+      "type": "object",
+      "properties": {
+        "capabilities": {
+          "description": "Declared capabilities.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "enabled": {
+          "description": "Whether the plugin is enabled.",
+          "type": "boolean"
+        },
+        "id": {
+          "description": "Plugin id (from its manifest).",
+          "type": "string"
+        },
+        "kind": {
+          "description": "Plugin kind (manifest-declared).",
+          "type": "string"
+        },
+        "permissions": {
+          "description": "Granted permissions.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "source": {
+          "description": "Builtin or WASM.",
+          "$ref": "#/$defs/PluginSource"
+        },
+        "version": {
+          "description": "Plugin version.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "version",
+        "capabilities",
+        "enabled",
+        "source",
+        "permissions"
+      ]
+    },
+    "PluginSource": {
+      "description": "Where a plugin was loaded from (§2.12 `system.list-plugins`).",
+      "oneOf": [
+        {
+          "description": "Compiled into the engine binary.",
+          "type": "string",
+          "const": "builtin"
+        },
+        {
+          "description": "A sandboxed WASM extension.",
+          "type": "string",
+          "const": "wasm"
+        }
+      ]
+    },
+    "RepeatMode": {
+      "description": "Playlist repeat mode (§2.9 `playlist.set-repeat`).",
+      "oneOf": [
+        {
+          "description": "Advance once, then stop at the list end.",
+          "type": "string",
+          "const": "off"
+        },
+        {
+          "description": "Repeat the current item.",
+          "type": "string",
+          "const": "one"
+        },
+        {
+          "description": "Wrap around the list.",
+          "type": "string",
+          "const": "all"
+        }
+      ]
+    },
+    "RequestId": {
+      "description": "Monotonic per host connection (doc 05 §4.1): assigned by the sender,\nstarting at 1, strictly increasing; reuse is forbidden. The engine\nechoes it and never interprets it (the control server's anti-replay\ncheck is that host's business).",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "ResultWire": {
+      "description": "The on-the-wire union of the two response shapes.",
+      "anyOf": [
+        {
+          "description": "Success: the bare outcome object (`accepted`/`completed`).",
+          "$ref": "#/$defs/CommandOutcome"
+        },
+        {
+          "description": "Failure: `{ \"error\": … }`.",
+          "$ref": "#/$defs/ErrorEnvelope"
+        }
+      ]
+    },
+    "SeekKind": {
+      "description": "What kind of seek produced a `timing.seek-completed` (§3.2).",
+      "oneOf": [
+        {
+          "description": "A `playback.seek`/`set-position`/`set-chapter`.",
+          "type": "string",
+          "const": "command"
+        },
+        {
+          "description": "A `playback.step-frame`.",
+          "type": "string",
+          "const": "frame-step"
+        }
+      ]
+    },
+    "SeekTarget": {
+      "description": "Where to jump to (§2.2). Wire example (§5.1):\n`{ \"kind\": \"relative\", \"deltaMs\": -10000 }`. Not `Eq`/`Hash`:\n`Percent`'s fraction is an `f32` wire scalar.",
+      "oneOf": [
+        {
+          "description": "µs from media start; clamped to `[0, duration]` when the duration\nis known (clamping is truth, not failure — §2.4).",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "absolute"
+            },
+            "time": {
+              "description": "Target position (µs).",
+              "$ref": "#/$defs/Timestamp"
+            }
+          },
+          "required": [
+            "kind",
+            "time"
+          ]
+        },
+        {
+          "description": "Negative rewinds (§2.4 `playback.seek`).",
+          "type": "object",
+          "properties": {
+            "deltaMs": {
+              "description": "Signed delta in milliseconds.",
+              "type": "integer",
+              "format": "int64"
+            },
+            "kind": {
+              "type": "string",
+              "const": "relative"
+            }
+          },
+          "required": [
+            "kind",
+            "deltaMs"
+          ]
+        },
+        {
+          "description": "`0.0..=1.0` of duration (requires a known duration).",
+          "type": "object",
+          "properties": {
+            "fraction": {
+              "description": "Fraction of the duration.",
+              "type": "number",
+              "format": "float"
+            },
+            "kind": {
+              "type": "string",
+              "const": "percent"
+            }
+          },
+          "required": [
+            "kind",
+            "fraction"
+          ]
+        },
+        {
+          "description": "Jump to a chapter start.",
+          "type": "object",
+          "properties": {
+            "index": {
+              "description": "Chapter index.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "kind": {
+              "type": "string",
+              "const": "chapter"
+            }
+          },
+          "required": [
+            "kind",
+            "index"
+          ]
+        }
+      ]
+    },
+    "SessionId": {
+      "description": "Engine-assigned session handle (doc 05 §4.2): `SessionId` ↔ the\nengine's session epoch (doc 03 §5).",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "SessionSummary": {
+      "description": "One live session of the engine (§2.12 `system.get-engine-info`).",
+      "type": "object",
+      "properties": {
+        "gen": {
+          "description": "Current pipeline generation.",
+          "$ref": "#/$defs/Generation"
+        },
+        "id": {
+          "description": "Session handle.",
+          "$ref": "#/$defs/SessionId"
+        },
+        "state": {
+          "description": "Current playback state.",
+          "$ref": "#/$defs/PlaybackState"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "state",
+        "gen"
+      ]
+    },
+    "SettingValue": {
+      "description": "A setting value (§2.11 `config.get-setting`/`set-setting`).\n`[VERIFY]` — the settings-schema crate owns the authoritative value\nmodel; this wire shape must be reconciled when the two meet in a\nhost (the shapes coincide for v1 scalar/list values).",
+      "anyOf": [
+        {
+          "description": "A boolean setting.",
+          "type": "boolean"
+        },
+        {
+          "description": "A numeric setting.",
+          "type": "number",
+          "format": "double"
+        },
+        {
+          "description": "A string setting.",
+          "type": "string"
+        },
+        {
+          "description": "A list-of-strings setting.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "SourceSpec": {
+      "description": "Clean-room source description (§2.2 — no libvlc types). Scheme\nsupport is feature-gated (§6.4); `Disc`/`Capture` are future,\nfeature-gated variants, not in v1 availability.",
+      "oneOf": [
+        {
+          "description": "A local file.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "file"
+            },
+            "path": {
+              "description": "Absolute or relative filesystem path.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "path"
+          ]
+        },
+        {
+          "description": "A network URL; scheme support is feature-gated (§6.4).",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "url"
+            },
+            "url": {
+              "description": "The URL, userinfo-free on the wire (V8).",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "url"
+          ]
+        }
+      ]
+    },
+    "Stage": {
+      "description": "Where a command failed (doc 05 §2.13 — the command-layer view of the\npipeline; distinct from media-types' `PipelineStage`, which tags\nengine-internal errors). Wire form: the kebab-case names of\n[`Stage::as_str`] (card 1.D4 serde derives; the 1.D3 test below pins\nboth spellings to the same strings).",
+      "type": "string",
+      "enum": [
+        "session",
+        "input",
+        "probe",
+        "demux",
+        "decode",
+        "audio-output",
+        "video-output",
+        "subtitle",
+        "renderer",
+        "playlist",
+        "config",
+        "plugin",
+        "control"
+      ]
+    },
+    "StateSnapshot": {
+      "description": "Full UI hydration (§2.12 `system.get-state-snapshot`, `[PROPOSAL]`\nper doc 05): everything a reconnecting host needs before it\nsubscribes (§4.4). Called at startup and on reconnect. Not\n`Eq`/`Hash` (contains `f32` wire scalars).",
+      "type": "object",
+      "properties": {
+        "audioDelayMs": {
+          "description": "Audio delay (ms).",
+          "type": "integer",
+          "format": "int64"
+        },
+        "devices": {
+          "description": "Audio output devices.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AudioDevice"
+          }
+        },
+        "duration": {
+          "description": "Media duration.",
+          "$ref": "#/$defs/Duration"
+        },
+        "muted": {
+          "description": "Mute flag.",
+          "type": "boolean"
+        },
+        "playlist": {
+          "description": "Playlist summary.",
+          "$ref": "#/$defs/PlaylistSummary"
+        },
+        "rate": {
+          "description": "Current rate.",
+          "type": "number",
+          "format": "float"
+        },
+        "selections": {
+          "description": "Current selections.",
+          "$ref": "#/$defs/TrackSelections"
+        },
+        "state": {
+          "description": "Current playback state.",
+          "$ref": "#/$defs/PlaybackState"
+        },
+        "subtitle": {
+          "description": "Subtitle settings.",
+          "$ref": "#/$defs/SubtitleSettings"
+        },
+        "subtitleDelayMs": {
+          "description": "Subtitle delay (ms).",
+          "type": "integer",
+          "format": "int64"
+        },
+        "time": {
+          "description": "Current position, when a pipeline exists.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tracks": {
+          "description": "The track list.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TrackInfo"
+          }
+        },
+        "videoDelayMs": {
+          "description": "Video delay (ms).",
+          "type": "integer",
+          "format": "int64"
+        },
+        "volume": {
+          "description": "Current volume.",
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "duration",
+        "rate",
+        "volume",
+        "muted",
+        "audioDelayMs",
+        "videoDelayMs",
+        "subtitleDelayMs",
+        "tracks",
+        "selections",
+        "playlist",
+        "devices",
+        "subtitle"
+      ]
+    },
+    "StepDirection": {
+      "description": "Frame-step direction (§2.4 `playback.step-frame`).",
+      "oneOf": [
+        {
+          "description": "Step to the next frame.",
+          "type": "string",
+          "const": "next"
+        },
+        {
+          "description": "Step to the previous frame (may be a micro-seek, `[03]`).",
+          "type": "string",
+          "const": "previous"
+        }
+      ]
+    },
+    "SubtitleSettings": {
+      "description": "Subtitle settings block of the snapshot (§2.12). `[VERIFY]` — the\n\"subtitle settings\" bullet rendered as the §2.8 state. Not\n`Eq`/`Hash` (`scale` is an `f32`).",
+      "type": "object",
+      "properties": {
+        "delayMs": {
+          "description": "Absolute subtitle delay (ms).",
+          "type": "integer",
+          "format": "int64",
+          "default": 0
+        },
+        "encoding": {
+          "description": "External-subtitle encoding override.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "scale": {
+          "description": "Render size multiplier.",
+          "type": "number",
+          "format": "float",
+          "default": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "TimeRange": {
+      "description": "A half-open time interval (µs), e.g. one buffered range (§2.10\n`media.get-current-time`).",
+      "type": "object",
+      "properties": {
+        "end": {
+          "description": "Interval end (µs).",
+          "$ref": "#/$defs/Timestamp"
+        },
+        "start": {
+          "description": "Interval start (µs).",
+          "$ref": "#/$defs/Timestamp"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end"
+      ]
+    },
+    "Timestamp": {
+      "description": "Microseconds since media start; can be negative only in\n[`SeekTarget::Relative`] (§2.2). A bare integer on the wire.",
+      "type": "integer",
+      "format": "int64"
+    },
+    "TrackChangeKind": {
+      "description": "The `tracks.changed` track kind (§3.2): [`TrackKind`] plus the\nsynthetic `secondary-audio` selection.",
+      "oneOf": [
+        {
+          "description": "Video selection.",
+          "type": "string",
+          "const": "video"
+        },
+        {
+          "description": "Audio selection.",
+          "type": "string",
+          "const": "audio"
+        },
+        {
+          "description": "Subtitle selection.",
+          "type": "string",
+          "const": "subtitle"
+        },
+        {
+          "description": "Data selection.",
+          "type": "string",
+          "const": "data"
+        },
+        {
+          "description": "Secondary-audio mix (§2.5 `tracks.set-secondary-audio`).",
+          "type": "string",
+          "const": "secondary-audio"
+        }
+      ]
+    },
+    "TrackId": {
+      "description": "Engine track handle, stable within one session and never reused\ninside it (§2.2).",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "TrackInfo": {
+      "description": "One track of the current media (§2.2). All strings are untrusted\ncontainer metadata (V7). Not `Eq`/`Hash` (contains [`VideoTrackInfo`]).",
+      "type": "object",
+      "properties": {
+        "audio": {
+          "description": "Present for audio tracks.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AudioTrackInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "codec": {
+          "description": "Codec facts.",
+          "$ref": "#/$defs/CodecDescriptor"
+        },
+        "id": {
+          "description": "Track handle.",
+          "$ref": "#/$defs/TrackId"
+        },
+        "isDefault": {
+          "description": "Whether the track is the container's default.",
+          "type": "boolean"
+        },
+        "isSelected": {
+          "description": "Whether the track is currently selected.",
+          "type": "boolean"
+        },
+        "kind": {
+          "description": "What the track carries.",
+          "$ref": "#/$defs/TrackKind"
+        },
+        "language": {
+          "description": "BCP-47 language tag when present.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "description": "Name from container metadata (untrusted text, V7).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "origin": {
+          "description": "Where the track came from.",
+          "$ref": "#/$defs/TrackOrigin"
+        },
+        "video": {
+          "description": "Present for video tracks.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VideoTrackInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "codec",
+        "isDefault",
+        "isSelected",
+        "origin"
+      ]
+    },
+    "TrackKind": {
+      "description": "What a track carries (§2.2).",
+      "oneOf": [
+        {
+          "description": "Video pictures.",
+          "type": "string",
+          "const": "video"
+        },
+        {
+          "description": "Audio samples.",
+          "type": "string",
+          "const": "audio"
+        },
+        {
+          "description": "Subtitle cues.",
+          "type": "string",
+          "const": "subtitle"
+        },
+        {
+          "description": "Chapters, timed metadata and other non-AV streams.",
+          "type": "string",
+          "const": "data"
+        }
+      ]
+    },
+    "TrackOrigin": {
+      "description": "Where a track came from (§2.2 `TrackInfo`).",
+      "oneOf": [
+        {
+          "description": "A stream inside the container.",
+          "type": "string",
+          "const": "stream"
+        },
+        {
+          "description": "An external subtitle file added after open.",
+          "type": "string",
+          "const": "external-subtitle"
+        }
+      ]
+    },
+    "TrackSelections": {
+      "description": "Track-selection state for the snapshot (§2.12\n`system.get-state-snapshot`). `[VERIFY]` — field set per §2.12's\n\"tracks + selections\" bullet.",
+      "type": "object",
+      "properties": {
+        "audio": {
+          "description": "Selected audio track.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TrackId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "secondaryAudio": {
+          "description": "Mixed-in secondary audio track.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TrackId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "subtitle": {
+          "description": "Selected subtitle track.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TrackId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "video": {
+          "description": "Selected video track.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TrackId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false
+    },
+    "TrackSelector": {
+      "description": "Track selection (§2.2): a specific track, no track, or (meaningful\nfor subtitles only) the track-selection rules from `product.toml`.",
+      "oneOf": [
+        {
+          "description": "Select the track with this id.",
+          "type": "object",
+          "properties": {
+            "id": {
+              "description": "Track handle.",
+              "$ref": "#/$defs/TrackId"
+            },
+            "kind": {
+              "type": "string",
+              "const": "id"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ]
+        },
+        {
+          "description": "Select no track.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "none"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "Apply the product's track-selection rules (subtitles only).",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "auto"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        }
+      ]
+    },
+    "VideoTrackInfo": {
+      "description": "Video-specific track facts (§2.2 `TrackInfo.video`). Not `Eq`/`Hash`:\n`frame_rate` is an `f32` (§2.2's wire scalars are floats by\ncontract; [`SeekTarget`] likewise).",
+      "type": "object",
+      "properties": {
+        "bitDepth": {
+          "description": "Bits per component, when known.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "frameRate": {
+          "description": "Nominal frame rate (frames/s), when known.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "hdr": {
+          "description": "Whether the stream carries HDR metadata.",
+          "type": "boolean"
+        },
+        "height": {
+          "description": "Coded height in pixels.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "width": {
+          "description": "Coded width in pixels.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "width",
+        "height",
+        "hdr"
+      ]
+    }
+  }
+}

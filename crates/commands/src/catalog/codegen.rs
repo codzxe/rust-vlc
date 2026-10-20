@@ -244,6 +244,19 @@ fn ts_type(
         }
         return format!("({})", parts.join(" | "));
     }
+    // An object that ALSO carries a variant union is a flattened envelope
+    // (`#[serde(flatten)]` of a tagged enum beside plain fields): the TS
+    // form is `object & (variants)` — deciding this BEFORE the bare-union
+    // branches is what keeps the envelope's own fields (`requestId`,
+    // `seq`/`session`/`gen`/`origin`) in the emitted type.
+    if schema.get("type").and_then(serde_json::Value::as_str) == Some("object")
+        && schema
+            .get("properties")
+            .and_then(serde_json::Value::as_object)
+            .is_some_and(|properties| !properties.is_empty())
+    {
+        return ts_object(schema, defs);
+    }
     if let Some(variants) = schema.get("oneOf").and_then(serde_json::Value::as_array) {
         let parts: Vec<String> = variants
             .iter()
