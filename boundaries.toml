@@ -153,6 +153,21 @@ dev_deps = ["testkit"]
 external_allowlist = []
 external_dev_allowlist = []
 
+# L4 — the session orchestrator (doc 01 §2.6, card 2.C2; doc 03 §4.6 +
+# §5). Owns the playback state machine, mints the two-level session
+# epochs, and wires the pipeline demux→queues→decoders→sinks at the
+# trait level (plugin-api Demuxer, packet-queue BoundedQueue, codec-api
+# Decoder/FrameSink). NOTE (Lead flag, worklog 2.C2): doc 13's Consumes
+# column lists five crates; plugin-api is required as the demux stage
+# boundary (doc 01 Q3 trait placement) — L1, legal for L4 per the doc 01
+# registry row "L0–L3 engine crates + commands". Std-only by C5.
+[crates.playback-engine]
+layer = 4
+internal_deps = ["codec-api", "commands", "media-clock", "media-types", "packet-queue", "plugin-api"]
+dev_deps = ["testkit"]
+external_allowlist = []
+external_dev_allowlist = []
+
 # dev crate (doc 01 §1.4 "dev" row, §2.8; card 1.C3). Outside the layer
 # stack: it may depend on production crates (none yet — add entries in
 # the same change when it gains any), and NOTHING may depend on it

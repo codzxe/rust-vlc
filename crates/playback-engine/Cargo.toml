@@ -1,0 +1,45 @@
+# crates/playback-engine — the session orchestrator (card 2.C2,
+# doc 03 §4.6 + §5; doc 05 §3; registry row doc 01 §2.6: layer L4,
+# "L0–L3 engine crates + commands").
+#
+# The minimal state machine (2.C2 scope): the 8 wire-visible playback
+# states, two-level session epochs, and the trait-level pipeline wiring
+# demux → packet queues → decoders → sinks. Seek/sync are deliberately
+# EXCLUDED (Phase 3: cards 3.A1-3.A3, 3.B1). Stage boundaries are the
+# existing contracts: plugin-api `Demuxer` (demux stage), packet-queue
+# `BoundedQueue<Packet>` (queue stage), codec-api `Decoder`/`FrameSink`
+# (decode stage). No concrete codec/demux crate is depended on.
+#
+# Dependency note (Lead flag, recorded in the worklog): doc 13's card
+# 2.C2 "Consumes" column lists five crates; `plugin-api` is the sixth
+# because the demux stage boundary IS `plugin_api::Demuxer` (doc 01 Q3
+# decided trait placement there) — the card's own "pipeline wiring
+# demux→…" requirement cannot be honored without it. plugin-api is L1,
+# legal for this L4 crate per the doc 01 registry row.
+#
+# C5 (std-only): zero external dependencies, no unsafe. Concurrency is
+# std::sync primitives only; the engine core is synchronous by doc 03
+# §9 (threads spawn at the edges — none needed by this card).
+
+[package]
+name = "playback-engine"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen playback session orchestrator: the minimal doc 03 §4.6 state machine with two-level session epochs and trait-level demux→queue→decoder→sink pipeline wiring (doc 05 §3 reconciliation)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+codec-api = { path = "../codec-api" }
+commands = { path = "../commands" }
+media-clock = { path = "../media-clock" }
+media-types = { path = "../media-types" }
+packet-queue = { path = "../packet-queue" }
+plugin-api = { path = "../plugin-api" }
+
+[dev-dependencies]
+# testkit is dev-only by contract (MP §3.7 / ARCH-7): the lint-legal
+# `Must` helper for fixture contracts in tests and doctests.
+testkit = { path = "../testkit" }
