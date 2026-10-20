@@ -104,10 +104,16 @@ mod tests {
 
     #[test]
     fn instant_source_default_matches_new() {
-        // Both must produce usable, monotonic sources (construction does
-        // not panic and reads are in range).
+        // Default and new must both produce usable, individually
+        // monotonic sources. (Deterministic rewrite, Lead fix: the
+        // original compared four clock reads across two
+        // differently-anchored sources — scheduling-dependent,
+        // flaked ~1-in-6 under load and aborted the workspace gate.)
         let a = InstantSource::default();
         let b = InstantSource::new();
-        assert!(b.now_ns() >= a.now_ns() || a.now_ns() >= b.now_ns());
+        let (a1, a2) = (a.now_ns(), a.now_ns());
+        let (b1, b2) = (b.now_ns(), b.now_ns());
+        assert!(a2 >= a1, "default source regressed: {a1} -> {a2}");
+        assert!(b2 >= b1, "new source regressed: {b1} -> {b2}");
     }
 }
