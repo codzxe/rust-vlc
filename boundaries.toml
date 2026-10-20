@@ -168,6 +168,22 @@ dev_deps = ["testkit"]
 external_allowlist = []
 external_dev_allowlist = []
 
+# L3 — video presentation scheduling (doc 01 §2.2 registry row, card
+# 2.C4; doc 03 §4.10). The frame scheduler: decoded-frame PTS vs the
+# media-clock snapshot (present-now / wait / drop-late), the
+# late-frame drop policy, the bounded in-order presentation queue and
+# the Presenter trait the 2.D1 renderer implements. The registry row
+# also lists plugin-api for the later video-filter chain; this card's
+# surface needs media-types + media-clock only — the manifest is an
+# allowlist, add the edge when the filter chain lands. Edges point
+# downward: L3 → L2 (media-clock) → L0 (media-types). Std-only by C5.
+[crates.video-engine]
+layer = 3
+internal_deps = ["media-types", "media-clock"]
+dev_deps = ["testkit"]
+external_allowlist = []
+external_dev_allowlist = []
+
 # dev crate (doc 01 §1.4 "dev" row, §2.8; card 1.C3). Outside the layer
 # stack: it may depend on production crates (none yet — add entries in
 # the same change when it gains any), and NOTHING may depend on it

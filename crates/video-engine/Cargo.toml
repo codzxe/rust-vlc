@@ -1,0 +1,32 @@
+# crates/video-engine — video presentation scheduling (card 2.C4,
+# doc 03 §4.10).
+#
+# Registry: doc 01 §2.2 (`video-engine`, layer L3, deps: media-types,
+# media-clock, plugin-api). This card's surface — the PTS-vs-clock frame
+# scheduler, the late-frame drop policy, the bounded presentation queue
+# and the `Presenter` trait the 2.D1 renderer implements — needs
+# media-types + media-clock only; plugin-api joins with the video-filter
+# chain (a later card). The boundary manifest is an allowlist, so the
+# narrower dep list is legal (boundaries.toml mirrors it exactly).
+# Std-only by C5: zero external dependencies, no unsafe, no GPU/render
+# APIs (doc 01 §2.2 d — those belong to renderer-wgpu, L4).
+
+[package]
+name = "video-engine"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen video presentation scheduler: PTS-vs-clock frame scheduling, late-frame drop policy, bounded in-order presentation queue (doc 03 §4.10)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+media-types = { path = "../media-types" }
+media-clock = { path = "../media-clock" }
+
+[dev-dependencies]
+# testkit is dev-only by contract (MP §3.7): Must-asserts for the
+# virtual-clock scheduling acceptance tests (doc 03 §4.10 f —
+# deterministic harness over injected time, no sleeps).
+testkit = { path = "../testkit" }
