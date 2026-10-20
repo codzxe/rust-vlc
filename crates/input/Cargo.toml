@@ -1,0 +1,30 @@
+# crates/input — local byte-source access (card 2.A1; doc 03 §4.1, doc 01 §2.4).
+#
+# Registry: doc 01 §2.4 (`input`, layer L2, deps: `media-types` +
+# `plugin-api` — the ARCH-2 set). Implements `plugin_api::Access` for
+# local sources: single files first; disc images and capture are later,
+# ADR-gated (MP §14/§16, ADR-008 pending). Network protocols belong to
+# `streaming` (Phase 6) — never here.
+#
+# C5 discipline: std-only, zero external dependencies. No unsafe, no
+# unwrap/expect/panic (workspace lints), no unbounded buffering (MP §12:
+# memory is bounded — the reader's fixed-capacity buffer plus the
+# caller-visible result of one bounded read request).
+
+[package]
+name = "input"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen local source access: SourceUri resolution, file access via std::fs, bounded buffered reads, typed seek/position/length (card 2.A1, doc 03 §4.1)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+media-types = { path = "../media-types" }
+plugin-api = { path = "../plugin-api" }
+
+[dev-dependencies]
+# testkit is dev-only by contract (MP §3.7): Must/assert helpers.
+testkit = { path = "../testkit" }
