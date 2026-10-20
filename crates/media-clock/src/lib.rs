@@ -97,10 +97,12 @@
 //! observes; it never drives the audio device.
 
 pub mod clock;
+pub mod drift;
 pub mod mapping;
 pub mod source;
 
 pub use clock::{ClockAnchor, ClockMaster, ClockSnapshot, ClockState, MediaClock, PlaybackClock};
+pub use drift::{DriftCorrection, MAX_CORRECTION_PPM};
 pub use mapping::{
     NANO_BASE, map_samples_to_timestamp, map_timestamp_to_samples, nanos_to_timestamp,
     sample_delta_to_media_nanos, samples_until_end, timestamp_to_nanos,
