@@ -437,7 +437,7 @@ const SIN_QUARTER: [u16; 65] = [
 /// (wrapping point duplicated so interpolation never indexes out).
 fn sine_full_table() -> [i32; 257] {
     let mut table = [0i32; 257];
-    for j in 0..=256 {
+    for (j, slot) in table.iter_mut().enumerate() {
         let t = j & 0xff;
         let magnitude = if t <= 64 {
             SIN_QUARTER[t] as i32
@@ -448,7 +448,7 @@ fn sine_full_table() -> [i32; 257] {
         } else {
             -(SIN_QUARTER[256 - t] as i32)
         };
-        table[j] = magnitude;
+        *slot = magnitude;
     }
     table
 }
@@ -901,8 +901,8 @@ fn build_huffman_table(freqs: &[u32; 256]) -> Result<HuffmanTable, String> {
     };
     let mut code: u32 = 0;
     let mut next = 0usize;
-    for length in 1..=16usize {
-        for _ in 0..bits[length] {
+    for (length, &count) in bits.iter().enumerate().skip(1) {
+        for _ in 0..count {
             let sym = ordered[next];
             next += 1;
             if code >= (1u32 << length) {
@@ -961,10 +961,13 @@ impl BitWriter {
     }
 }
 
+/// The three 4:2:0 planes of one frame (Y full-res, Cb/Cr half-res).
+type YccPlanes = (Vec<u8>, Vec<u8>, Vec<u8>);
+
 /// RGB → YCbCr planes with 2×2 chroma subsampling (JFIF integer math).
 /// Returns `(y, cb, cr)` with cb/cr at half resolution.
-fn rgb_to_ycc420(img: &RgbImage) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), String> {
-    if img.width % 16 != 0 || img.height % 16 != 0 {
+fn rgb_to_ycc420(img: &RgbImage) -> Result<YccPlanes, String> {
+    if !img.width.is_multiple_of(16) || !img.height.is_multiple_of(16) {
         return Err(format!(
             "frame {}x{} is not MCU-aligned (multiples of 16 required)",
             img.width, img.height
@@ -1293,7 +1296,7 @@ fn avi_begin_sized(out: &mut Vec<u8>, fourcc: &[u8; 4]) -> usize {
 
 /// Patch the size field opened by [`avi_begin_sized`] to cover everything
 /// written since (a RIFF/LIST size includes its form FourCC).
-fn avi_end_sized(out: &mut Vec<u8>, size_pos: usize) {
+fn avi_end_sized(out: &mut [u8], size_pos: usize) {
     let size = out.len() - size_pos - 4;
     out[size_pos..size_pos + 4].copy_from_slice(&(size as u32).to_le_bytes());
 }
@@ -1328,8 +1331,7 @@ fn build_avi(frames: &[Vec<u8>], pcm: &[u8]) -> Result<AviBuilt, String> {
         movi_payload += 8 + frame.len() + (frame.len() & 1);
     }
     movi_payload += FRAME_COUNT * (8 + tick_bytes);
-    let max_bytes_per_sec =
-        (movi_payload as u64 * u64::from(FPS) + FRAME_COUNT as u64 - 1) / FRAME_COUNT as u64;
+    let max_bytes_per_sec = (movi_payload as u64 * u64::from(FPS)).div_ceil(FRAME_COUNT as u64);
 
     // avih — main AVI header (56-byte payload, 14 u32 fields).
     let micros_per_frame = ((1_000_000u64 + u64::from(FPS) / 2) / u64::from(FPS)) as u32; // 33333
@@ -1587,6 +1589,541 @@ fn avi_structure_json(avi: &AviBuilt) -> Vec<u8> {
 }
 
 // ---------------------------------------------------------------------------
+// MP4 writer (ISO/IEC 14496-12/-14 progressive — the second decision-
+// independent candidate; ftyp + moov(two traks) + mdat)
+// ---------------------------------------------------------------------------
+
+/// Big-endian scalar emitters (ISO boxes are big-endian throughout).
+fn put_u16be(out: &mut Vec<u8>, value: u16) {
+    out.extend_from_slice(&value.to_be_bytes());
+}
+fn put_u32be(out: &mut Vec<u8>, value: u32) {
+    out.extend_from_slice(&value.to_be_bytes());
+}
+
+/// Recorded MP4 structure (corpus-plan §2 structure map, typed form).
+struct Mp4Layout {
+    /// File offsets of the two `trak` boxes (video, audio).
+    trak_offsets: [usize; 2],
+    /// File offset of the `mvhd` box.
+    mvhd_offset: usize,
+    /// File offset of the `mdat` box header.
+    mdat_offset: usize,
+    /// File offset of the first `mdat` payload byte (sample 0 of video).
+    mdat_data_offset: usize,
+    /// File offset of the video `stsz` `sample_count` field (the B3
+    /// count-lie derivative patches exactly this u32).
+    stsz_video_count_offset: usize,
+    /// File offset of the first video `stco` entry.
+    stco_video_entries_offset: usize,
+    /// File offset of the first audio `stco` entry.
+    stco_audio_entries_offset: usize,
+    /// Absolute file offset of every video sample (== `stco` values).
+    video_offsets: Vec<u32>,
+    /// Absolute file offset of every audio sample (== `stco` values).
+    audio_offsets: Vec<u32>,
+    /// Size of every video sample (== `stsz` values; audio is uniform).
+    video_sizes: Vec<u32>,
+}
+
+struct Mp4Built {
+    bytes: Vec<u8>,
+    layout: Mp4Layout,
+}
+
+/// Append one complete box (`size` + `kind` + payload). Returns the box
+/// offset.
+fn mp4_box(out: &mut Vec<u8>, kind: &[u8; 4], payload: &[u8]) -> usize {
+    let offset = out.len();
+    let size = 8u32.wrapping_add(payload.len() as u32);
+    put_u32be(out, size);
+    out.extend_from_slice(kind);
+    out.extend_from_slice(payload);
+    offset
+}
+
+/// Open a box with a zero size placeholder; returns the offset of the
+/// size field (== the box start) for [`mp4_end_box`].
+fn mp4_begin_box(out: &mut Vec<u8>, kind: &[u8; 4]) -> usize {
+    out.extend_from_slice(&0u32.to_be_bytes());
+    out.extend_from_slice(kind);
+    out.len() - 8
+}
+
+/// Patch the size field opened by [`mp4_begin_box`] (full box size,
+/// header included).
+fn mp4_end_box(out: &mut [u8], size_pos: usize) {
+    let size = out.len() - size_pos;
+    out[size_pos..size_pos + 4].copy_from_slice(&(size as u32).to_be_bytes());
+}
+
+/// FullBox payload: version(1) + flags(3) + body.
+fn mp4_fullbox_body(version: u8, flags: u32, body: &[u8]) -> Vec<u8> {
+    let mut payload = Vec::with_capacity(4 + body.len());
+    payload.push(version);
+    payload.extend_from_slice(&flags.to_be_bytes()[1..4]);
+    payload.extend_from_slice(body);
+    payload
+}
+
+/// `dinf > dref > url ` with the self-contained flag (both tracks).
+/// `dref` is a FullBox: version/flags, entry_count, then the entries.
+fn mp4_dinf(out: &mut Vec<u8>) {
+    let dinf_pos = mp4_begin_box(out, b"dinf");
+    let mut dref_body = Vec::with_capacity(24);
+    put_u32be(&mut dref_body, 1); // entry_count
+    put_u32be(&mut dref_body, 12); // 'url ' box size
+    dref_body.extend_from_slice(b"url ");
+    dref_body.extend_from_slice(&mp4_fullbox_body(0, 1, &[]));
+    mp4_box(out, b"dref", &mp4_fullbox_body(0, 0, &dref_body));
+    mp4_end_box(out, dinf_pos);
+}
+
+/// The `'jpeg'` video sample entry (VisualSampleEntry, 78-byte body).
+fn mp4_jpeg_sample_entry() -> Vec<u8> {
+    let mut body = Vec::with_capacity(78);
+    body.extend_from_slice(&[0u8; 6]); // reserved
+    put_u16be(&mut body, 1); // data_reference_index
+    put_u16be(&mut body, 0); // pre_defined
+    put_u16be(&mut body, 0); // reserved
+    body.extend_from_slice(&[0u8; 12]); // pre_defined[3]
+    put_u16be(&mut body, FRAME_WIDTH as u16);
+    put_u16be(&mut body, FRAME_HEIGHT as u16);
+    put_u32be(&mut body, 0x0048_0000); // horizresolution 72 dpi
+    put_u32be(&mut body, 0x0048_0000); // vertresolution
+    put_u32be(&mut body, 0); // reserved
+    put_u16be(&mut body, 1); // frame_count
+    body.push(5); // compressorname: Pascal string "MJPEG"
+    body.extend_from_slice(b"MJPEG");
+    body.extend_from_slice(&[0u8; 26]);
+    put_u16be(&mut body, 24); // depth
+    put_u16be(&mut body, 0xffff); // pre_defined = -1
+    let mut entry = Vec::with_capacity(8 + 78);
+    put_u32be(&mut entry, 8 + 78);
+    entry.extend_from_slice(b"jpeg");
+    entry.extend_from_slice(&body);
+    entry
+}
+
+/// The `'sowt'` audio sample entry (AudioSampleEntry v0, 28-byte body:
+/// little-endian s16 PCM in an MP4 file).
+fn mp4_sowt_sample_entry() -> Vec<u8> {
+    let mut body = Vec::with_capacity(28);
+    body.extend_from_slice(&[0u8; 6]); // reserved
+    put_u16be(&mut body, 1); // data_reference_index
+    put_u16be(&mut body, 0); // version
+    put_u16be(&mut body, 0); // revision
+    put_u32be(&mut body, 0); // vendor
+    put_u16be(&mut body, AUDIO_CHANNELS as u16);
+    put_u16be(&mut body, 16); // samplesize
+    put_u16be(&mut body, 0); // compression_id
+    put_u16be(&mut body, 0); // packet_size
+    put_u32be(&mut body, AUDIO_RATE << 16); // samplerate 16.16
+    let mut entry = Vec::with_capacity(8 + 28);
+    put_u32be(&mut entry, 8 + 28);
+    entry.extend_from_slice(b"sowt");
+    entry.extend_from_slice(&body);
+    entry
+}
+
+/// The sample-table box for one track. `sync_all` adds an `stss` listing
+/// every sample (MJPEG has only keyframes). Returns the absolute offsets
+/// of the `stsz` count field and of the first `stco` entry (the entries
+/// are zero placeholders here — `build_mp4` patches them once `mdat` is
+/// laid out; the u32 width makes the patch size-neutral).
+fn mp4_stbl(
+    out: &mut Vec<u8>,
+    sample_entry: &[u8],
+    sample_count: usize,
+    sample_sizes: &[u32],
+    stts_delta: u32,
+    sync_all: bool,
+) -> Result<(usize, usize), String> {
+    if sample_sizes.len() != sample_count {
+        return Err(format!(
+            "stbl needs {sample_count} sizes, got {}",
+            sample_sizes.len()
+        ));
+    }
+    let stbl_pos = mp4_begin_box(out, b"stbl");
+    // stsd
+    let mut stsd_body = Vec::with_capacity(8 + sample_entry.len());
+    put_u32be(&mut stsd_body, 1); // entry_count
+    stsd_body.extend_from_slice(sample_entry);
+    mp4_box(out, b"stsd", &mp4_fullbox_body(0, 0, &stsd_body));
+    // stts: one run, uniform delta.
+    let mut stts_body = Vec::with_capacity(8);
+    put_u32be(&mut stts_body, 1); // entry_count
+    put_u32be(&mut stts_body, sample_count as u32);
+    put_u32be(&mut stts_body, stts_delta);
+    mp4_box(out, b"stts", &mp4_fullbox_body(0, 0, &stts_body));
+    // stss: every sample is a sync sample (video only).
+    if sync_all {
+        let mut body = Vec::with_capacity(4 + 4 * sample_count);
+        put_u32be(&mut body, sample_count as u32); // entry_count
+        for i in 0..sample_count {
+            put_u32be(&mut body, i as u32 + 1);
+        }
+        mp4_box(out, b"stss", &mp4_fullbox_body(0, 0, &body));
+    }
+    // stsc: one chunk per sample.
+    let mut stsc_body = Vec::with_capacity(16);
+    put_u32be(&mut stsc_body, 1); // entry_count
+    put_u32be(&mut stsc_body, 1); // first_chunk
+    put_u32be(&mut stsc_body, 1); // samples_per_chunk
+    put_u32be(&mut stsc_body, 1); // sample_description_index
+    mp4_box(out, b"stsc", &mp4_fullbox_body(0, 0, &stsc_body));
+    // stsz: per-sample sizes (sample_size 0).
+    let mut stsz_body = Vec::with_capacity(12 + 4 * sample_sizes.len());
+    put_u32be(&mut stsz_body, 0);
+    put_u32be(&mut stsz_body, sample_count as u32);
+    for size in sample_sizes {
+        put_u32be(&mut stsz_body, *size);
+    }
+    let stsz_offset = out.len();
+    mp4_box(out, b"stsz", &mp4_fullbox_body(0, 0, &stsz_body));
+    let stsz_count_offset = stsz_offset + 8 + 4 + 4;
+    // stco: placeholder zeros (patched after mdat is laid out).
+    let mut stco_body = Vec::with_capacity(8 + 4 * sample_count);
+    put_u32be(&mut stco_body, sample_count as u32);
+    stco_body.extend_from_slice(&vec![0u8; 4 * sample_count]);
+    let stco_offset = out.len();
+    mp4_box(out, b"stco", &mp4_fullbox_body(0, 0, &stco_body));
+    let stco_entries_offset = stco_offset + 8 + 4 + 4;
+    mp4_end_box(out, stbl_pos);
+    Ok((stsz_count_offset, stco_entries_offset))
+}
+
+/// One `trak` box: `tkhd` + `mdia(mdhd, hdlr, minf(mhdr, dinf, stbl))`.
+/// Built in its own Vec so the caller can splice it into `moov` while
+/// keeping the returned patch offsets relative to the trak start.
+struct TrakBuilt {
+    bytes: Vec<u8>,
+    stsz_count_offset: usize,
+    stco_entries_offset: usize,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn mp4_trak(
+    track_id: u32,
+    movie_duration: u32,
+    media_timescale: u32,
+    media_duration: u32,
+    handler: &[u8; 4],
+    handler_name: &str,
+    is_video: bool,
+    tkhd_width_height: Option<(u32, u32)>,
+    sample_entry: &[u8],
+    sample_sizes: &[u32],
+    stts_delta: u32,
+    sync_all: bool,
+) -> Result<TrakBuilt, String> {
+    let mut out: Vec<u8> = Vec::with_capacity(1024);
+    let trak_pos = mp4_begin_box(&mut out, b"trak");
+    // tkhd (flags 3 = track_enabled | track_in_movie).
+    let mut tkhd = Vec::with_capacity(80);
+    put_u32be(&mut tkhd, 0); // creation_time
+    put_u32be(&mut tkhd, 0); // modification_time
+    put_u32be(&mut tkhd, track_id);
+    put_u32be(&mut tkhd, 0); // reserved
+    put_u32be(&mut tkhd, movie_duration); // in mvhd timescale
+    tkhd.extend_from_slice(&[0u8; 8]); // reserved
+    put_u16be(&mut tkhd, 0); // layer
+    put_u16be(&mut tkhd, 0); // alternate_group
+    put_u16be(&mut tkhd, if is_video { 0 } else { 0x0100 }); // volume
+    put_u16be(&mut tkhd, 0); // reserved
+    // Unity matrix.
+    put_u32be(&mut tkhd, 0x0001_0000);
+    put_u32be(&mut tkhd, 0);
+    put_u32be(&mut tkhd, 0);
+    put_u32be(&mut tkhd, 0);
+    put_u32be(&mut tkhd, 0x0001_0000);
+    put_u32be(&mut tkhd, 0);
+    put_u32be(&mut tkhd, 0);
+    put_u32be(&mut tkhd, 0);
+    put_u32be(&mut tkhd, 0x4000_0000);
+    let (width, height) = tkhd_width_height.unwrap_or((0, 0));
+    put_u32be(&mut tkhd, width); // 16.16 fixed
+    put_u32be(&mut tkhd, height);
+    mp4_box(&mut out, b"tkhd", &mp4_fullbox_body(0, 3, &tkhd));
+    // mdia
+    let mdia_pos = mp4_begin_box(&mut out, b"mdia");
+    let mut mdhd = Vec::with_capacity(16);
+    put_u32be(&mut mdhd, 0); // creation_time (no wall clock — ever)
+    put_u32be(&mut mdhd, 0); // modification_time
+    put_u32be(&mut mdhd, media_timescale);
+    put_u32be(&mut mdhd, media_duration);
+    put_u16be(&mut mdhd, 0x55c4); // language 'und'
+    put_u16be(&mut mdhd, 0); // pre_defined
+    mp4_box(&mut out, b"mdhd", &mp4_fullbox_body(0, 0, &mdhd));
+    let mut hdlr = Vec::with_capacity(25);
+    put_u32be(&mut hdlr, 0); // pre_defined
+    hdlr.extend_from_slice(handler);
+    hdlr.extend_from_slice(&[0u8; 12]); // reserved
+    hdlr.extend_from_slice(handler_name.as_bytes());
+    hdlr.push(0); // null-terminated
+    mp4_box(&mut out, b"hdlr", &mp4_fullbox_body(0, 0, &hdlr));
+    // minf
+    let minf_pos = mp4_begin_box(&mut out, b"minf");
+    if is_video {
+        let mut vmhd = Vec::with_capacity(6);
+        put_u16be(&mut vmhd, 0); // graphicsmode: copy
+        put_u16be(&mut vmhd, 0); // opcolor r
+        put_u16be(&mut vmhd, 0); // opcolor g
+        put_u16be(&mut vmhd, 0); // opcolor b
+        mp4_box(&mut out, b"vmhd", &mp4_fullbox_body(0, 1, &vmhd));
+    } else {
+        let mut smhd = Vec::with_capacity(4);
+        put_u16be(&mut smhd, 0); // balance
+        put_u16be(&mut smhd, 0); // reserved
+        mp4_box(&mut out, b"smhd", &mp4_fullbox_body(0, 0, &smhd));
+    }
+    mp4_dinf(&mut out);
+    let sample_count = sample_sizes.len();
+    let (stsz_count_offset, stco_entries_offset) = mp4_stbl(
+        &mut out,
+        sample_entry,
+        sample_count,
+        sample_sizes,
+        stts_delta,
+        sync_all,
+    )?;
+    mp4_end_box(&mut out, minf_pos);
+    mp4_end_box(&mut out, mdia_pos);
+    mp4_end_box(&mut out, trak_pos);
+    Ok(TrakBuilt {
+        bytes: out,
+        stsz_count_offset,
+        stco_entries_offset,
+    })
+}
+
+/// Build the MP4+MJPEG+PCM parent (doc 03 §7, decision-independent
+/// variant B): `ftyp(isom)` + `moov` (movie timescale 1000; video trak
+/// `jpeg` 30 Hz, audio trak `sowt` 44100 Hz) + `mdat` (one video sample
+/// and one audio sample per frame tick, interleaved). `stco` offsets are
+/// zero-patched in a size-neutral second pass — no float, no wall clock.
+fn build_mp4(frames: &[Vec<u8>], pcm: &[u8]) -> Result<Mp4Built, String> {
+    if frames.len() != FRAME_COUNT {
+        return Err(format!(
+            "mp4 writer needs exactly {FRAME_COUNT} frames, got {}",
+            frames.len()
+        ));
+    }
+    let pcm_need = TOTAL_SAMPLES * AUDIO_CHANNELS * 2;
+    if pcm.len() != pcm_need {
+        return Err(format!(
+            "mp4 writer needs {pcm_need} PCM bytes, got {}",
+            pcm.len()
+        ));
+    }
+    let tick_bytes = SAMPLES_PER_TICK * AUDIO_CHANNELS * 2;
+    let movie_timescale: u32 = 1000;
+    let movie_duration: u32 =
+        ((FRAME_COUNT as u64 * movie_timescale as u64) / u64::from(FPS)) as u32; // 2000 ms
+
+    // ftyp: isom / 0 / isom+iso2+mp41.
+    let mut ftyp = Vec::with_capacity(20);
+    ftyp.extend_from_slice(b"isom");
+    put_u32be(&mut ftyp, 0); // minor_version
+    ftyp.extend_from_slice(b"isom");
+    ftyp.extend_from_slice(b"iso2");
+    ftyp.extend_from_slice(b"mp41");
+
+    // Video track: one sample per frame, timescale = fps.
+    let video_sizes: Vec<u32> = frames.iter().map(|f| f.len() as u32).collect();
+    let video_trak = mp4_trak(
+        1,
+        movie_duration,
+        FPS,
+        FRAME_COUNT as u32,
+        b"vide",
+        "VideoHandler",
+        true,
+        Some(((FRAME_WIDTH as u32) << 16, (FRAME_HEIGHT as u32) << 16)),
+        &mp4_jpeg_sample_entry(),
+        &video_sizes,
+        1,
+        true,
+    )?;
+    // Audio track: one sample per tick (SAMPLES_PER_TICK sample-frames of
+    // s16le stereo), timescale = sample rate — the standard PCM-in-MP4
+    // convention (stts delta counts sample-frames).
+    let audio_sizes: Vec<u32> = vec![tick_bytes as u32; FRAME_COUNT];
+    let audio_trak = mp4_trak(
+        2,
+        movie_duration,
+        AUDIO_RATE,
+        TOTAL_SAMPLES as u32,
+        b"soun",
+        "SoundHandler",
+        false,
+        None,
+        &mp4_sowt_sample_entry(),
+        &audio_sizes,
+        SAMPLES_PER_TICK as u32,
+        false,
+    )?;
+
+    // Assembly: ftyp + moov + mdat.
+    let mut out: Vec<u8> = Vec::with_capacity(
+        8 + ftyp.len()
+            + 8
+            + video_trak.bytes.len()
+            + audio_trak.bytes.len()
+            + 8
+            + frames.iter().map(Vec::len).sum::<usize>()
+            + TOTAL_SAMPLES * 4,
+    );
+    mp4_box(&mut out, b"ftyp", &ftyp);
+    let moov_pos = mp4_begin_box(&mut out, b"moov");
+    // mvhd
+    let mut mvhd = Vec::with_capacity(96);
+    put_u32be(&mut mvhd, 0); // creation_time
+    put_u32be(&mut mvhd, 0); // modification_time
+    put_u32be(&mut mvhd, movie_timescale);
+    put_u32be(&mut mvhd, movie_duration);
+    put_u32be(&mut mvhd, 0x0001_0000); // rate 1.0
+    put_u16be(&mut mvhd, 0x0100); // volume 1.0
+    mvhd.extend_from_slice(&[0u8; 10]); // reserved
+    put_u32be(&mut mvhd, 0x0001_0000); // matrix[0][0]
+    put_u32be(&mut mvhd, 0);
+    put_u32be(&mut mvhd, 0);
+    put_u32be(&mut mvhd, 0);
+    put_u32be(&mut mvhd, 0x0001_0000); // matrix[1][1]
+    put_u32be(&mut mvhd, 0);
+    put_u32be(&mut mvhd, 0);
+    put_u32be(&mut mvhd, 0);
+    put_u32be(&mut mvhd, 0x4000_0000); // matrix[2][2]
+    mvhd.extend_from_slice(&[0u8; 24]); // pre_defined[6]
+    put_u32be(&mut mvhd, 3); // next_track_ID
+    let mvhd_offset = out.len();
+    mp4_box(&mut out, b"mvhd", &mp4_fullbox_body(0, 0, &mvhd));
+    let trak_offsets = [out.len(), out.len() + video_trak.bytes.len()];
+    let video_sites = (
+        trak_offsets[0] + video_trak.stsz_count_offset,
+        trak_offsets[0] + video_trak.stco_entries_offset,
+    );
+    let audio_sites = (
+        trak_offsets[1] + audio_trak.stsz_count_offset,
+        trak_offsets[1] + audio_trak.stco_entries_offset,
+    );
+    out.extend_from_slice(&video_trak.bytes);
+    out.extend_from_slice(&audio_trak.bytes);
+    mp4_end_box(&mut out, moov_pos);
+
+    // mdat: one video sample + one audio sample per tick, interleaved.
+    let mdat_offset = out.len();
+    let mdat_pos = mp4_begin_box(&mut out, b"mdat");
+    let mdat_data_offset = out.len();
+    let mut video_offsets: Vec<u32> = Vec::with_capacity(FRAME_COUNT);
+    let mut audio_offsets: Vec<u32> = Vec::with_capacity(FRAME_COUNT);
+    for (index, frame) in frames.iter().enumerate() {
+        let offset =
+            u32::try_from(out.len()).map_err(|_| "mp4 sample offset overflows u32".to_string())?;
+        video_offsets.push(offset);
+        out.extend_from_slice(frame);
+        let offset =
+            u32::try_from(out.len()).map_err(|_| "mp4 sample offset overflows u32".to_string())?;
+        audio_offsets.push(offset);
+        let from = index * tick_bytes;
+        out.extend_from_slice(&pcm[from..from + tick_bytes]);
+    }
+    mp4_end_box(&mut out, mdat_pos);
+
+    // Size-neutral stco patch pass.
+    for (index, &offset) in video_offsets.iter().enumerate() {
+        let at = video_sites.1 + 4 * index;
+        out[at..at + 4].copy_from_slice(&offset.to_be_bytes());
+    }
+    for (index, &offset) in audio_offsets.iter().enumerate() {
+        let at = audio_sites.1 + 4 * index;
+        out[at..at + 4].copy_from_slice(&offset.to_be_bytes());
+    }
+
+    Ok(Mp4Built {
+        bytes: out,
+        layout: Mp4Layout {
+            trak_offsets,
+            mvhd_offset,
+            mdat_offset,
+            mdat_data_offset,
+            stsz_video_count_offset: video_sites.0,
+            stco_video_entries_offset: video_sites.1,
+            stco_audio_entries_offset: audio_sites.1,
+            video_offsets,
+            audio_offsets,
+            video_sizes,
+        },
+    })
+}
+
+/// Serialize the MP4 structure map (compact single-line JSON).
+fn mp4_structure_json(mp4: &Mp4Built) -> Vec<u8> {
+    let layout = &mp4.layout;
+    let len = mp4.bytes.len();
+    let mut s = String::with_capacity(4096 + 40 * 2 * FRAME_COUNT);
+    s.push_str("{\"schema\":\"structure-map/1\",\"fixture\":");
+    json_put_string(&mut s, "generated/valid/mp4_mjpeg_pcm.mp4");
+    s.push_str(",\"size\":");
+    json_put_uint(&mut s, len as u64);
+    s.push_str(",\"note\":\"offsets of top-level boxes, headers and samples; class-B derivatives derive their cut/patch positions from here (corpus-plan s1 B1/B3)\"");
+    s.push_str(",\"top_level\":[");
+    s.push_str("{\"box\":\"ftyp\",\"offset\":0,\"size\":");
+    json_put_uint(&mut s, (layout.mvhd_offset - 8) as u64);
+    s.push_str("},{\"box\":\"moov\",\"offset\":");
+    json_put_uint(&mut s, (layout.mvhd_offset - 8) as u64);
+    s.push_str(",\"size\":");
+    json_put_uint(&mut s, (layout.mdat_offset - layout.mvhd_offset + 8) as u64);
+    s.push_str("},{\"box\":\"mdat\",\"offset\":");
+    json_put_uint(&mut s, layout.mdat_offset as u64);
+    s.push_str(",\"size\":");
+    json_put_uint(&mut s, (len - layout.mdat_offset) as u64);
+    s.push_str("}]");
+    s.push_str(",\"mp4\":{\"mvhd_offset\":");
+    json_put_uint(&mut s, layout.mvhd_offset as u64);
+    s.push_str(",\"trak_offsets\":[");
+    json_put_uint(&mut s, layout.trak_offsets[0] as u64);
+    s.push(',');
+    json_put_uint(&mut s, layout.trak_offsets[1] as u64);
+    s.push_str("],\"mdat_offset\":");
+    json_put_uint(&mut s, layout.mdat_offset as u64);
+    s.push_str(",\"mdat_data_offset\":");
+    json_put_uint(&mut s, layout.mdat_data_offset as u64);
+    s.push_str(",\"stsz_video_count_offset\":");
+    json_put_uint(&mut s, layout.stsz_video_count_offset as u64);
+    s.push_str(",\"video_samples\":[");
+    for (index, (&offset, &size)) in layout
+        .video_offsets
+        .iter()
+        .zip(layout.video_sizes.iter())
+        .enumerate()
+    {
+        if index > 0 {
+            s.push(',');
+        }
+        s.push_str("{\"offset\":");
+        json_put_uint(&mut s, u64::from(offset));
+        s.push_str(",\"size\":");
+        json_put_uint(&mut s, u64::from(size));
+        s.push('}');
+    }
+    s.push_str("],\"audio_samples\":[");
+    for (index, &offset) in layout.audio_offsets.iter().enumerate() {
+        if index > 0 {
+            s.push(',');
+        }
+        s.push_str("{\"offset\":");
+        json_put_uint(&mut s, u64::from(offset));
+        s.push_str(",\"size\":");
+        json_put_uint(&mut s, (SAMPLES_PER_TICK * AUDIO_CHANNELS * 2) as u64);
+        s.push('}');
+    }
+    s.push_str("]}}");
+    s.into_bytes()
+}
+
+// ---------------------------------------------------------------------------
 // Generation pipeline
 // ---------------------------------------------------------------------------
 
@@ -1626,6 +2163,22 @@ fn generate_all() -> Result<Vec<GeneratedFile>, String> {
         class: "A",
         op: "structure-map",
         parent: Some("generated/valid/avi_mjpeg_pcm.avi".to_string()),
+    });
+
+    let mp4 = build_mp4(&frames, &pcm)?;
+    files.push(GeneratedFile {
+        path: "generated/valid/mp4_mjpeg_pcm.mp4".to_string(),
+        bytes: mp4.bytes.clone(),
+        class: "A",
+        op: "parent",
+        parent: None,
+    });
+    files.push(GeneratedFile {
+        path: "generated/valid/mp4_mjpeg_pcm.mp4.structure.json".to_string(),
+        bytes: mp4_structure_json(&mp4),
+        class: "A",
+        op: "structure-map",
+        parent: Some("generated/valid/mp4_mjpeg_pcm.mp4".to_string()),
     });
     Ok(files)
 }
@@ -1896,7 +2449,7 @@ mod tests {
         // vs 9000 amplitude — a swapped-channel bug fails this).
         let mut max_l = 0i32;
         let mut max_r = 0i32;
-        for pair in pcm.chunks_exact(4).take(11_025) {
+        for pair in pcm.as_chunks::<4>().0 {
             let l = i16::from_le_bytes([pair[0], pair[1]]) as i32;
             let r = i16::from_le_bytes([pair[2], pair[3]]) as i32;
             max_l = max_l.max(l.abs());
@@ -2473,5 +3026,310 @@ mod tests {
         };
         assert_eq!(&b[recorded..recorded + 4], b"idx1");
         assert_eq!(recorded + 8 + 2 * 16 * FRAME_COUNT, b.len());
+    }
+
+    // -- MP4 writer -----------------------------------------------------------
+
+    /// Walk one level of boxes in `bytes[at..end]`; returns
+    /// (kind, offset, size) triples.
+    fn walk_boxes(b: &[u8], mut at: usize, end: usize) -> Vec<([u8; 4], usize, usize)> {
+        let mut boxes = Vec::new();
+        while at + 8 <= end {
+            let size = be32(b, at) as usize;
+            let kind = [b[at + 4], b[at + 5], b[at + 6], b[at + 7]];
+            boxes.push((kind, at, size));
+            if size < 8 {
+                break; // hostile-size guard for the walker itself
+            }
+            at += size;
+        }
+        boxes
+    }
+
+    fn find_box<'a>(
+        boxes: &'a [([u8; 4], usize, usize)],
+        kind: &[u8; 4],
+    ) -> &'a ([u8; 4], usize, usize) {
+        match boxes.iter().find(|(k, _, _)| k == kind) {
+            Some(triple) => triple,
+            None => unreachable!("box {} missing", fourcc_str(kind)),
+        }
+    }
+
+    #[test]
+    fn mp4_parent_boxes_walk_cleanly() {
+        let b = &find("generated/valid/mp4_mjpeg_pcm.mp4").bytes;
+        let top = walk_boxes(b, 0, b.len());
+        assert_eq!(top.len(), 3, "top-level boxes: {top:?}");
+        assert_eq!(&find_box(&top, b"ftyp").0, b"ftyp");
+        let (kind, moov_at, moov_size) = *find_box(&top, b"moov");
+        assert_eq!(&kind, b"moov");
+        let (kind, mdat_at, mdat_size) = *find_box(&top, b"mdat");
+        assert_eq!(&kind, b"mdat");
+        assert_eq!(moov_at + moov_size, mdat_at, "moov/mdat adjacency");
+        assert_eq!(mdat_at + mdat_size, b.len(), "mdat size covers the rest");
+        // moov before mdat (headers first — demuxer-friendly layout).
+        assert!(moov_at < mdat_at);
+
+        // ftyp payload: major brand, minor version 0.
+        assert_eq!(&b[8..12], b"isom");
+        assert_eq!(be32(b, 12), 0, "minor version");
+
+        // moov children: mvhd, trak, trak.
+        let moov = walk_boxes(b, moov_at + 8, moov_at + moov_size);
+        assert_eq!(moov.len(), 3);
+        assert_eq!(&moov[0].0, b"mvhd");
+        assert_eq!(&moov[1].0, b"trak");
+        assert_eq!(&moov[2].0, b"trak");
+        // mvhd: version 0, timescale 1000, duration 2000, next_track 3.
+        let (_, mvhd_at, mvhd_size) = moov[0];
+        assert_eq!(mvhd_size, 108);
+        assert_eq!(b[mvhd_at + 8], 0); // version
+        assert_eq!(be32(b, mvhd_at + 20), 1000, "timescale");
+        assert_eq!(be32(b, mvhd_at + 24), 2000, "duration (ms)");
+        assert_eq!(be32(b, mvhd_at + 104), 3, "next_track_ID");
+
+        // trak children: tkhd, mdia.
+        for (trak_index, &(_, trak_at, trak_size)) in moov.iter().skip(1).enumerate() {
+            let trak = walk_boxes(b, trak_at + 8, trak_at + trak_size);
+            assert_eq!(trak.len(), 2, "trak {trak_index} children");
+            assert_eq!(&trak[0].0, b"tkhd");
+            assert_eq!(&trak[1].0, b"mdia");
+            // tkhd: version 0, flags 3, track id, duration in movie units.
+            let (_, tkhd_at, tkhd_size) = trak[0];
+            assert_eq!(tkhd_size, 92);
+            assert_eq!(be32(b, tkhd_at + 8) & 0xff_ffff, 3, "tkhd flags");
+            assert_eq!(be32(b, tkhd_at + 20), trak_index as u32 + 1, "track_ID");
+            assert_eq!(be32(b, tkhd_at + 28), 2000, "tkhd duration");
+            // mdia children: mdhd, hdlr, minf.
+            let (_, mdia_at, mdia_size) = trak[1];
+            let mdia = walk_boxes(b, mdia_at + 8, mdia_at + mdia_size);
+            assert_eq!(mdia.len(), 3);
+            assert_eq!(&mdia[0].0, b"mdhd");
+            assert_eq!(&mdia[1].0, b"hdlr");
+            assert_eq!(&mdia[2].0, b"minf");
+            // (exact media timescales are asserted in the sample-table test)
+        }
+
+        // Video tkhd width/height 16.16.
+        let (_, trak_at, trak_size) = moov[1];
+        let trak = walk_boxes(b, trak_at + 8, trak_at + trak_size);
+        let (_, tkhd_at, _) = trak[0];
+        assert_eq!(
+            be32(b, tkhd_at + 84),
+            (FRAME_WIDTH as u32) << 16,
+            "tkhd width"
+        );
+        assert_eq!(
+            be32(b, tkhd_at + 88),
+            (FRAME_HEIGHT as u32) << 16,
+            "tkhd height"
+        );
+        // Audio tkhd volume 0x0100, zero extent.
+        let (_, trak_at, trak_size) = moov[2];
+        let trak = walk_boxes(b, trak_at + 8, trak_at + trak_size);
+        let (_, tkhd_at, _) = trak[0];
+        assert_eq!(be16(b, tkhd_at + 44), 0x0100, "audio volume");
+        assert_eq!(be32(b, tkhd_at + 84), 0, "audio width");
+    }
+
+    #[test]
+    fn mp4_sample_tables_point_at_the_essence() {
+        let b = &find("generated/valid/mp4_mjpeg_pcm.mp4").bytes;
+        let pcm = generate_pcm();
+        let tick_bytes = SAMPLES_PER_TICK * AUDIO_CHANNELS * 2;
+        let top = walk_boxes(b, 0, b.len());
+        let (_, mdat_at, _) = *find_box(&top, b"mdat");
+        let mdat_data = mdat_at + 8;
+
+        // Locate both stbls: moov > trak > mdia > minf > stbl.
+        let (_, moov_at, moov_size) = *find_box(&top, b"moov");
+        let moov = walk_boxes(b, moov_at + 8, moov_at + moov_size);
+        let mut tracks = Vec::new(); // (minf boxes, stbl boxes, mdia boxes)
+        for &(_, trak_at, trak_size) in moov.iter().skip(1) {
+            let trak = walk_boxes(b, trak_at + 8, trak_at + trak_size);
+            let (_, mdia_at, mdia_size) = trak[1];
+            let mdia = walk_boxes(b, mdia_at + 8, mdia_at + mdia_size);
+            let (_, minf_at, minf_size) = mdia[2];
+            let minf = walk_boxes(b, minf_at + 8, minf_at + minf_size);
+            let (_, stbl_at, stbl_size) = *find_box(&minf, b"stbl");
+            let stbl = walk_boxes(b, stbl_at + 8, stbl_at + stbl_size);
+            tracks.push((minf, stbl, mdia));
+        }
+        // Video minf: vmhd + dinf + stbl; audio: smhd + dinf + stbl.
+        assert_eq!(&find_box(&tracks[0].0, b"vmhd").0, b"vmhd");
+        assert_eq!(&find_box(&tracks[1].0, b"smhd").0, b"smhd");
+        for (index, (_minf, stbl, _mdia)) in tracks.iter().enumerate() {
+            let expected: Vec<&[u8; 4]> = if index == 0 {
+                vec![b"stsd", b"stts", b"stss", b"stsc", b"stsz", b"stco"]
+            } else {
+                vec![b"stsd", b"stts", b"stsc", b"stsz", b"stco"]
+            };
+            let names: Vec<[u8; 4]> = stbl.iter().map(|(k, _, _)| *k).collect();
+            let expected_names: Vec<[u8; 4]> = expected.iter().map(|k| **k).collect();
+            assert_eq!(names, expected_names, "trak {index} stbl children");
+        }
+
+        // Video mdhd/stsd details.
+        let (_video_minf, video_stbl, video_mdia) = &tracks[0];
+        let (_, mdhd_at, _) = *find_box(video_mdia, b"mdhd");
+        assert_eq!(be32(b, mdhd_at + 20), FPS, "video timescale");
+        assert_eq!(be32(b, mdhd_at + 24), FRAME_COUNT as u32, "video duration");
+        let (_, hdlr_at, _) = *find_box(video_mdia, b"hdlr");
+        assert_eq!(&b[hdlr_at + 16..hdlr_at + 20], b"vide");
+        let (_, stsd_at, _) = *find_box(video_stbl, b"stsd");
+        assert_eq!(&b[stsd_at + 20..stsd_at + 24], b"jpeg");
+        assert_eq!(be16(b, stsd_at + 48), FRAME_WIDTH as u16, "stsd width");
+        assert_eq!(be16(b, stsd_at + 50), FRAME_HEIGHT as u16, "stsd height");
+        // Audio mdhd/stsd details.
+        let (_audio_minf, audio_stbl, audio_mdia) = &tracks[1];
+        let (_, mdhd_at, _) = *find_box(audio_mdia, b"mdhd");
+        assert_eq!(be32(b, mdhd_at + 20), AUDIO_RATE, "audio timescale");
+        assert_eq!(
+            be32(b, mdhd_at + 24),
+            TOTAL_SAMPLES as u32,
+            "audio duration"
+        );
+        let (_, hdlr_at, _) = *find_box(audio_mdia, b"hdlr");
+        assert_eq!(&b[hdlr_at + 16..hdlr_at + 20], b"soun");
+        let (_, stsd_at, _) = *find_box(audio_stbl, b"stsd");
+        assert_eq!(&b[stsd_at + 20..stsd_at + 24], b"sowt");
+        assert_eq!(be16(b, stsd_at + 40), AUDIO_CHANNELS as u16, "channels");
+        assert_eq!(
+            be32(b, stsd_at + 48),
+            u32::from(AUDIO_RATE) << 16,
+            "samplerate 16.16"
+        );
+
+        // Video tables: stts (60,1), stss 1..=60, stsc (1,1,1), stsz
+        // per-sample, stco -> mdat bytes.
+        let (_, stts_at, _) = *find_box(video_stbl, b"stts");
+        assert_eq!(be32(b, stts_at + 12), 1, "stts runs");
+        assert_eq!(be32(b, stts_at + 16), FRAME_COUNT as u32, "stts count");
+        assert_eq!(be32(b, stts_at + 20), 1, "stts delta");
+        let (_, stss_at, _) = *find_box(video_stbl, b"stss");
+        assert_eq!(be32(b, stss_at + 12), FRAME_COUNT as u32, "stss count");
+        for i in 0..FRAME_COUNT {
+            assert_eq!(be32(b, stss_at + 16 + 4 * i), i as u32 + 1, "stss {i}");
+        }
+        let (_, stsc_at, _) = *find_box(video_stbl, b"stsc");
+        assert_eq!(be32(b, stsc_at + 16), 1, "stsc first_chunk");
+        assert_eq!(be32(b, stsc_at + 20), 1, "stsc samples_per_chunk");
+        let (_, stsz_at, _) = *find_box(video_stbl, b"stsz");
+        assert_eq!(
+            be32(b, stsz_at + 16),
+            FRAME_COUNT as u32,
+            "video stsz count"
+        );
+        let (_, stco_at, _) = *find_box(video_stbl, b"stco");
+        assert_eq!(
+            be32(b, stco_at + 12),
+            FRAME_COUNT as u32,
+            "video stco count"
+        );
+        // Every sample: stco offset + stsz size must land the exact JPEG
+        // bytes in mdat (first/last re-derived; middles are SOI/EOI).
+        let frame0 = match draw_frame(0).and_then(|img| encode_baseline_jpeg(&img)) {
+            Ok(jpeg) => jpeg,
+            Err(message) => unreachable!("re-encode failed: {message}"),
+        };
+        let frame_last =
+            match draw_frame(FRAME_COUNT - 1).and_then(|img| encode_baseline_jpeg(&img)) {
+                Ok(jpeg) => jpeg,
+                Err(message) => unreachable!("re-encode failed: {message}"),
+            };
+        for i in 0..FRAME_COUNT {
+            let offset = be32(b, stco_at + 16 + 4 * i) as usize;
+            let size = be32(b, stsz_at + 20 + 4 * i) as usize;
+            assert!(
+                offset >= mdat_data && offset + size <= b.len(),
+                "sample {i} range"
+            );
+            assert_eq!(&b[offset..offset + 2], &[0xff, 0xd8], "sample {i} SOI");
+            assert_eq!(
+                &b[offset + size - 2..offset + size],
+                &[0xff, 0xd9],
+                "sample {i} EOI"
+            );
+            if i == 0 {
+                assert_eq!(&b[offset..offset + size], &frame0[..], "video sample 0");
+            }
+            if i == FRAME_COUNT - 1 {
+                assert_eq!(
+                    &b[offset..offset + size],
+                    &frame_last[..],
+                    "video sample last"
+                );
+            }
+        }
+        // Audio tables: stts (60, 1470), stsz 5880 uniform, stco -> PCM.
+        let (_, stts_at, _) = *find_box(audio_stbl, b"stts");
+        assert_eq!(
+            be32(b, stts_at + 16),
+            FRAME_COUNT as u32,
+            "audio stts count"
+        );
+        assert_eq!(
+            be32(b, stts_at + 20),
+            SAMPLES_PER_TICK as u32,
+            "audio delta"
+        );
+        let (_, stsz_at, _) = *find_box(audio_stbl, b"stsz");
+        let (_, stco_at, _) = *find_box(audio_stbl, b"stco");
+        for i in 0..FRAME_COUNT {
+            assert_eq!(
+                be32(b, stsz_at + 20 + 4 * i),
+                tick_bytes as u32,
+                "audio size {i}"
+            );
+            let offset = be32(b, stco_at + 16 + 4 * i) as usize;
+            let from = i * tick_bytes;
+            assert_eq!(
+                &b[offset..offset + tick_bytes],
+                &pcm[from..from + tick_bytes]
+            );
+        }
+        // mdat size == 8 + the sum of every sample size (video + audio).
+        let (_, video_stsz_at, _) = *find_box(video_stbl, b"stsz");
+        let video_bytes: usize = (0..FRAME_COUNT)
+            .map(|i| be32(b, video_stsz_at + 20 + 4 * i) as usize)
+            .sum();
+        let (_, mdat_box_at, mdat_size) = *find_box(&top, b"mdat");
+        assert_eq!(
+            mdat_size,
+            8 + video_bytes + FRAME_COUNT * tick_bytes,
+            "mdat covers exactly the samples"
+        );
+        assert_eq!(mdat_box_at + mdat_size, b.len());
+    }
+
+    #[test]
+    fn mp4_structure_map_records_the_walked_layout() {
+        let map = find("generated/valid/mp4_mjpeg_pcm.mp4.structure.json");
+        let text = match String::from_utf8(map.bytes.clone()) {
+            Ok(text) => text,
+            Err(_) => unreachable!("structure map is not valid UTF-8"),
+        };
+        let b = &find("generated/valid/mp4_mjpeg_pcm.mp4").bytes;
+        assert!(text.contains("\"schema\":\"structure-map/1\""));
+        assert_eq!(text.matches("\"box\":\"ftyp\"").count(), 1);
+        assert_eq!(text.matches("\"box\":\"moov\"").count(), 1);
+        assert_eq!(text.matches("\"box\":\"mdat\"").count(), 1);
+        // Recorded stsz count offset points at 60 in the real file.
+        let needle = "\"stsz_video_count_offset\":";
+        let at = match text.find(needle) {
+            Some(at) => at + needle.len(),
+            None => unreachable!("stsz offset missing"),
+        };
+        let end = text[at..].find(',').unwrap_or(text.len() - at) + at;
+        let recorded: usize = match text[at..end].parse() {
+            Ok(value) => value,
+            Err(_) => unreachable!("stsz offset not an integer"),
+        };
+        assert_eq!(be32(b, recorded), FRAME_COUNT as u32);
+        // Recorded sample arrays: 2*FRAME_COUNT entries plus the three
+        // top-level box offsets.
+        assert_eq!(text.matches("\"offset\":").count(), 2 * FRAME_COUNT + 3);
+        assert!(text.contains("\"mdat_data_offset\":"));
     }
 }
