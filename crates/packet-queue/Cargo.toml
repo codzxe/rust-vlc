@@ -1,0 +1,31 @@
+# crates/packet-queue — bounded, generation-aware queues (card 2.B1,
+# doc 03 §4.4; registry row doc 01 §2.2: layer L2, deps media-types).
+#
+# The queue primitive of MP §8: bounded packet/frame queues between
+# demux, decode and the engines, with backpressure and generation
+# stamping/stale-drop at every stage boundary (doc 01 §3.3 Packet is
+# the primary payload; the primitive stays generic).
+#
+# C5 (std-only): `media-types` is the ONLY dependency. Concurrency is
+# std::sync Mutex + Condvar per doc 03 §4.4(b) — no channels crate, no
+# lock-free crate (the doc's own [PROPOSAL]: start simple, swap the
+# internals later without changing the API).
+#
+# dev-dependency: testkit (dev-only crate, MP §3.7 / ARCH-7) for the
+# lint-legal `Must` helper in tests and doctests.
+
+[package]
+name = "packet-queue"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen bounded, generation-stamped queues: backpressure, wholesale stale-generation drops and watermark signals for every pipeline stage boundary (doc 03 §4.4, MP §8)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+media-types = { path = "../media-types" }
+
+[dev-dependencies]
+testkit = { path = "../testkit" }
