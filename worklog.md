@@ -1262,3 +1262,19 @@ Work Log:
 Stage Summary:
 - Wave 2 state: 2.A1, 2.A3, 2.B1, 2.C1 COMPLETE on main (701/0/3). D-018 recorded: AVI first vertical, 2.B3 not-selected.
 - NEXT (parallelism 2 per corrective action): launch pair 1 = 2.C2 playback-engine (critical path) + 2.C4 video-engine (critical path). Queued after: 2.B2 AVI demuxer + 2.B4 MJPEG decoder; then 2.B5 PCM + 2.A2 media-probe; then 2.C3 audio path; then wave 2.D (2.D1 renderer, 2.D2 CLI, 2.D3 webview prototype); then 2.E1 integration + 2.E2-V gate.
+
+---
+Task ID: 2.C2 (Lead close-out after two transport-deadline cuts)
+Agent: Sub-agent (general-purpose, x2 salvaged) + Lead verification/close-out
+Task: playback-engine minimal state machine per doc 03 §4.6 + §5 + doc 05 §3 — 8-state machine, session epochs, trait-level pipeline wiring.
+
+Work Log:
+- Agent 1 (launch pair with 2.C4): transport deadline mid-skeleton; salvage committed b7b8d4a (crate skeleton + boundaries.toml entry). Agent 2 (continuation): recovered salvage to compiling (0c12973 — lib.rs restructure, derive/borrow/type fixes), delivered the exhaustive transition-table suite (87b0d4f, 21 proofs) and the engine-level session suite (6ec226c, 21 proofs — fakes + lifetimes + epochs + ordering); second transport deadline cut mid-edit on session/pipeline/event refinements; in-flight work salvaged at 13d9e40 (259+/158-; compiles, all green).
+- Lead close-out (remainder <30 min per corrective action 3): full gate on wip/2c2-playback-engine @ 13d9e40 — fmt CLEAN; clippy -D warnings CLEAN; workspace **753/0/3**; check-architecture PASS 5/5. No further code changes needed.
+- Crate as landed (5,381 ln src+tests): state.rs — the pure machine; `apply_input` is the ONLY way session state moves (illegal transitions unreachable by construction, not merely rejected); TRANSITIONS = 23-row static data table, every row a legal doc 05 §3.3 wire transition. epoch.rs — doc 03 §5 two-level generations (session epochs + pipeline generations, CancelToken, single-writer TokenMinter). event.rs — engine-side event stream + wire reconciliation with the commands catalog. pipeline.rs — trait-level demux→packet-queues→decoders→sinks wiring (plugin-api Demuxer, packet-queue BoundedQueue<Packet>, codec-api Decoder/FrameSink), bounded one-tick-at-a-time driving. session.rs — Engine/Session single-writer executor (host's Engine::poll IS the session thread — invariant S1 by construction). error.rs — transport/construction failures; semantic rejections are typed results in state, not errors.
+- AC check (doc 13 card 2.C2): transition-table tests — 21-proof exhaustive suite (every (state,input) pair classified; legal paths walked); no invalid transition reachable — by construction (apply_input sole-mover) + tested. Session epochs — two-level generation minting/staleness in the 21-proof session suite (stale inputs rejected). Pipeline wiring trait-level, no concrete codecs. Seek/sync excluded per card. AC MET.
+
+Stage Summary:
+- 2.C2 COMPLETE. Wave 2 state: 2.A1, 2.A3, 2.B1, 2.C1, 2.C2, 2.C4 complete; 2.B2/2.B4/2.B5/2.A2/2.C3 queued; 2.B3 closed not-selected (D-018).
+- Lead flags: (a) `[PROPOSAL]` constants tagged in-tree (burst bound, queue thresholds, byte caps, single-session v0); (b) Phase-3 exclusions deliberately absent (seek, A/V sync, rate, thread-per-session, event bus — 3.A1-3.A3/3.B1/3.B3/2.E1); (c) the two-cut salvage chain is the recorded provenance — agents' own reports were lost to transport, this entry is the Lead's verification of their committed work.
+- Honest limitations: single-session v0; synchronous single-writer model (no session thread yet); event coalescing policy [PROPOSAL] awaiting 3.B-waves; no benchmark numbers yet (tick budgets are doc-03 values).
