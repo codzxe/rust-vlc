@@ -1,11 +1,17 @@
 //! The §2.13 common error set with the V8 redaction rule (doc 05).
 
 use std::collections::BTreeMap;
+use schemars::JsonSchema;
+use serde::Deserialize;
+use serde::Serialize;
 
 /// Where a command failed (doc 05 §2.13 — the command-layer view of the
 /// pipeline; distinct from media-types' `PipelineStage`, which tags
-/// engine-internal errors).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// engine-internal errors). Wire form: the kebab-case names of
+/// [`Stage::as_str`] (card 1.D4 serde derives; the 1.D3 test below pins
+/// both spellings to the same strings).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
 pub enum Stage {
     Session,
     Input,
@@ -50,8 +56,10 @@ impl std::fmt::Display for Stage {
 }
 
 /// The typed failure class (doc 05 §2.13). Every command can fail with
-/// any of these; the catalog (card 1.D4) lists only additions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// any of these; the catalog (card 1.D4) lists only additions. Wire
+/// form: the kebab-case names of [`ErrorCode::as_str`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
 pub enum ErrorCode {
     // media/engine failures (MP §8 — the seven canonical classes)
     /// No demuxer/decoder/filter for this data.
@@ -141,7 +149,8 @@ const MESSAGE_CAP: usize = 1024;
 /// final component (`/home/alice/x.mkv` → `…/x.mkv`). Raw diagnostic
 /// chains belong to the log sink only — they never enter this type.
 /// `details` values pass through the same redactor.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct CommandError {
     pub stage: Stage,
     pub code: ErrorCode,
@@ -286,13 +295,78 @@ mod tests {
         assert_eq!(Stage::Control.to_string(), "control");
         assert_eq!(ErrorCode::ResourceLimit.as_str(), "resource-limit");
         assert_eq!(
-            ErrorCode::UnsupportedForHost.to_string(),
-            "unsupported-for-host"
+            ErrorCode::UnsupportedForHost.to_string(),n            "unsupported-for-host"
         );
         // The two taxonomies must not be confused: command-layer Stage
         // and media-types PipelineStage are distinct vocabularies.
         assert_eq!(Stage::VARIANT_COUNT, 13);
         assert_eq!(ErrorCode::VARIANT_COUNT, 18);
+    }
+
+    /// Card 1.D4: the serde wire names must be the same stable kebab
+    /// strings as `as_str` (§2.13 + §5.1 wire forms), for every variant.
+    #[test]
+    fn serde_wire_names_match_as_str() {
+        for stage in [
+            Stage::Session,
+            Stage::Input,
+            Stage::Probe,
+            Stage::Demux,
+            Stage::Decode,
+            Stage::AudioOutput,
+            Stage::VideoOutput,
+            Stage::Subtitle,
+            Stage::Renderer,
+            Stage::Playlist,
+            Stage::Config,
+            Stage::Plugin,
+            Stage::Control,
+        ] {
+            let wire = serde_json::to_string(&stage).unwrap_or_default();
+            assert_eq!(wire, format!("\"{}\"", stage.as_str()));
+        }
+        for code in [
+            ErrorCode::Unsupported,
+            ErrorCode::Corrupt,
+            ErrorCode::Inaccessible,
+            ErrorCode::Network,
+            ErrorCode::Decoder,
+            ErrorCode::Device,
+            ErrorCode::ResourceLimit,
+            ErrorCode::InvalidArgument,
+            ErrorCode::OutOfRange,
+            ErrorCode::NotFound,
+            ErrorCode::NotReady,
+            ErrorCode::NotSeekable,
+            ErrorCode::Canceled,
+            ErrorCode::FeatureNotExposed,
+            ErrorCode::UnsupportedForHost,
+            ErrorCode::PermissionDenied,
+            ErrorCode::Io,
+            ErrorCode::Internal,
+        ] {
+            let wire = serde_json::to_string(&code).unwrap_or_default();
+            assert_eq!(wire, format!("\"{}\"", code.as_str()));
+        }
+    }
+
+    #[test]
+    fn command_error_roundtrips_on_the_wire() {
+        let error = CommandError::new(
+            Stage::Input,
+            ErrorCode::Inaccessible,
+            "cannot open …/movie.mkv",
+        )
+        .with_detail("format", "matroska");
+        let json = serde_json::to_string(&error).unwrap_or_default();
+        assert_eq!(
+            json,
+            "{\"stage\":\"input\",\"code\":\"inaccessible\",\"message\":\"cannot open …/movie.mkv\",\"details\":{\"format\":\"matroska\"}}"
+        );
+        match serde_json::from_str::<CommandError>(&json) {
+            Ok(back) => assert_eq!(back, error),
+            Err(err) => unreachable!("round-trip failed: {err}"),
+        }
     }
 
     #[test]

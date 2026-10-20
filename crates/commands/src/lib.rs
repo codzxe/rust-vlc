@@ -24,6 +24,17 @@
 //!   AC demands), `seq` ordering, and the delivery-log validator that
 //!   checks the §4.3 invariants on an observed stream.
 //!
+//! 1.D4 adds the catalog itself — doc 05 §2–§3 as types AND as data,
+//! plus the §5.1 schema-first codegen:
+//!
+//! - [`catalog`]   — the ~61-command / 23-event catalog: stable ids
+//!   (§2.1/§3.2), payload wire types (§2.2), [`catalog::Command`]/
+//!   [`catalog::CommandResult`]/[`catalog::EventKind`], the
+//!   `catalog_data()` metadata table (class, target, gen-bumping),
+//!   and the `catalog-gen` generator behind `cargo xtask codegen`
+//!   (committed artifacts: `schemas/commands.schema.json`,
+//!   `ui/src/generated/commands.ts`, the checksum file).
+//!
 //! # The truthful-UI rule (doc 05 §1.4 — hard contract)
 //!
 //! `Accepted ≠ Completed`. Class-A commands answer
@@ -33,18 +44,26 @@
 //! ordering checks); the engine-side half is the playback engine's
 //! conformance suite (Phase 2+).
 
+pub mod catalog;
 pub mod correlation;
 pub mod envelope;
 pub mod error;
 
+pub use catalog::{
+    Command, CommandId, CommandResult, EventId, EventKind, PlaybackState, WireEvent, WireRequest,
+    WireResponse,
+};
 pub use correlation::{DeliveryLog, RequestIdAllocator, StalenessFilter};
 pub use envelope::{
     CommandOutcome, CommandRequest, CommandResponse, Event, Generation, RequestId, SessionId,
 };
 pub use error::{CommandError, ErrorCode, Stage};
 
-/// Prelude: the full 1.D3 surface in one `use`.
+/// Prelude: the full 1.D3 + 1.D4 surface in one `use`.
 pub mod prelude {
+    pub use crate::catalog::{
+        Command, CommandId, CommandResult, EventId, EventKind, PlaybackState,
+    };
     pub use crate::correlation::{DeliveryLog, RequestIdAllocator, StalenessFilter};
     pub use crate::envelope::{
         CommandOutcome, CommandRequest, CommandResponse, Event, Generation, RequestId, SessionId,

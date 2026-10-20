@@ -22,3 +22,24 @@ publish = false
 workspace = true
 
 # No dependencies in 1.D3 (std-only; the catalog card adds serde + media-types).
+
+# --- card 1.D4: the catalog + wire forms + codegen ---
+#
+# serde/serde_json/schemars are the preaudit-pass family (doc 11
+# foundation records; the same versions settings-schema/theme-tokens use
+# — C5 pre-approved by the Lead in the 1.D4 card). schemars powers the
+# doc 05 §5.1(a) schema-first codegen: `cargo xtask codegen` shells out
+# to the catalog-gen bin below, which derives the machine description of
+# the whole catalog from these types and emits the committed artifacts
+# (schemas/commands.schema.json, ui/src/generated/commands.ts, the
+# catalog checksum). The bin is part of THIS crate so the generated code
+# can never drift from the types that produce it.
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+schemars = "1.2.3"
+
+[[bin]]
+name = "catalog-gen"
+path = "src/bin/catalog_gen.rs"

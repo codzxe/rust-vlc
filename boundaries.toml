@@ -108,6 +108,19 @@ dev_deps = []
 external_allowlist = ["serde_json"]
 external_dev_allowlist = []
 
+# L1 — the one command layer (doc 01 §2.3, cards 1.D3 + 1.D4). Std-only
+# in 1.D3; card 1.D4 adds the serde/schemars wire-form family (doc 05
+# §5.1 schema-first codegen; preaudit-pass). No internal deps in 1.D4:
+# doc 05 §2.2's wire types (µs Timestamp, f32 Rate, Duration::Infinite,
+# pub-field ids) are deliberately distinct from media-types' engine
+# vocabulary — engine-side bridging is a Phase-2 concern (worklog 1.D4).
+[crates.commands]
+layer = 1
+internal_deps = []
+dev_deps = []
+external_allowlist = ["serde", "serde_json", "schemars"]
+external_dev_allowlist = []
+
 # dev crate (doc 01 §1.4 "dev" row, §2.8; card 1.C3). Outside the layer
 # stack: it may depend on production crates (none yet — add entries in
 # the same change when it gains any), and NOTHING may depend on it

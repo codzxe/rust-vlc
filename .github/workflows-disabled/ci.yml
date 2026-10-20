@@ -256,28 +256,279 @@ jobs:
         run: cargo xtask check-architecture
 
   # --------------------------------------------------------------------------
-  # STUB — activates in 1.E2. NON-BLOCKING until then: the job runs but its
-  # placeholder step always exits 0 (always green, gates nothing; actionlint
-  # rejects `if: false` constant conditions). 1.E2 (which owns
-  # .github/workflows/* per doc 13 §4) replaces the placeholder with the real
-  # schema-validation steps (G1, doc 10 §4.6): `cargo xtask config-validator`
-  # for product.toml / settings schema / keymaps / locales, plus
-  # `tools/feature-audit` for the feature matrix (G6), and the config-
-  # propagation job per doc 07 §9 C1-C5; then drops the [STUB] suffix.
-  # Do NOT add this check to required checks until activated.
+  # G1/G6 schema validation (doc 10 §4.6; spec: doc 07 §3.4 + §9 C4).
+  # Activated by card 1.E2; was a [STUB] before. BLOCKING: every step below
+  # is a real check with seeded-violation evidence in the 1.E2 worklog
+  # entry. Now that it is live, add it to the repository's required checks
+  # (Lead wiring call; the stub's "do not add until activated" note is
+  # retired).
+  #
+  # Wire-what-exists posture — the stub sketched `cargo xtask
+  # config-validator` + `tools/feature-audit`; neither exists (the frozen
+  # xtask registry has no config-validator subcommand, and no feature-audit
+  # tool is assigned). The enforceable surfaces today:
+  #
+  #   1. product.toml vs product.schema.json — crates/product-config is
+  #      lib-only, so the enforcement surface is its committed integration
+  #      suite: tests/semantic.rs `root_product_toml_passes_semantic_none`
+  #      loads the REAL root product.toml against the REAL root
+  #      product.schema.json (parse + structural + typed + semantic), and
+  #      the fixture-matrix / golden suites prove the rules fire. Seeded
+  #      evidence: `accent_color = "#ZZZZZZ"` -> exit 101.
+  #   2. schemas/settings.toml — `cargo xtask schema-gen --check`
+  #      (subprocess bridge to crates/settings-schema's schema-gen bin;
+  #      exit 0 ok / 1 drift / 2 error): validates the D1-D6 rules (D1
+  #      joined against product.toml) AND that the three committed
+  #      generated outputs match regeneration (doc 07 §9 step 5). Seeded
+  #      evidence: duplicate setting key -> exit 2; mutated generated
+  #      output -> exit 1.
+  #   3. docs/feature-matrix.toml — honest v0 inline python3 check (stdlib
+  #      tomllib; Python >= 3.11 as shipped on ubuntu-latest): TOML parses
+  #      (R9), top-level shape, per-row required keys, R1 id regex +
+  #      uniqueness, R2 ranges, R3 platform columns + vocabulary, R4/R5/R6
+  #      conditionals. R1 category-prefix map, R2 P0 rule, R4 evidence
+  #      resolution, R7 config cross-check, R8 inventory completeness and
+  #      R10 anti-hallucination refs remain for tools/feature-audit (see
+  #      the skip ledger step). Seeded evidence: four mutation classes ->
+  #      exit 1 each.
   # --------------------------------------------------------------------------
   schema-validation:
-    name: schema-validation [STUB until 1.E2 — always green, gates nothing]
+    name: schema-validation (G1/G6 — product.toml + settings schema + feature-matrix)
     continue-on-error: false
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: "STUB: schema-validation placeholder (activates in 1.E2)"
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
         run: |
-          echo "STUB: schema-validation is not enforced yet (doc 10 §4.6 G1/G6; doc 07 §9)."
-          echo "STUB: 1.E2 replaces this step with 'cargo xtask config-validator' etc."
-          exit 0
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/ci.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: product.toml vs product.schema.json (doc 07 §3.4 — product-config committed suite)
+        run: cargo test -p product-config
+      - name: schemas/settings.toml D1-D6 + generated-output drift (doc 07 §5.2, §9 step 5)
+        run: cargo xtask schema-gen --check
+      - name: docs/feature-matrix.toml v0 structural check (doc 02 §4.6 R-subset)
+        run: |
+          python3 - <<'PY'
+          # v0 structural check for docs/feature-matrix.toml (card 1.E2).
+          # Covers R9 (parse + meta), top-level shape, per-row required
+          # keys, R1 id-regex/uniqueness, R2 ranges, R3 platform columns +
+          # vocabulary, R4/R5/R6 conditionals. NOT covered (needs
+          # tools/feature-audit): R1 category-prefix map, R2 P0 rule, R4
+          # evidence resolution, R7 config cross-check, R8 inventory
+          # completeness, R10 anti-hallucination refs.
+          # Exit codes: 0 pass, 1 violation(s) or unreadable file.
+          import re
+          import sys
+
+          try:
+              import tomllib
+          except ImportError:
+              print("feature-matrix: python3 >= 3.11 (stdlib tomllib) is required", file=sys.stderr)
+              sys.exit(1)
+
+          STATUSES = {
+              "not_started", "in_progress", "implemented", "verified",
+              "partial", "unsupported", "blocked",
+          }
+          PLATFORMS = {"windows", "linux", "macos", "web"}
+          PRIORITIES = {"P0", "P1", "P2", "P3"}
+          META_KEYS = {
+              "schema_version", "schema_frozen", "baseline",
+              "last_updated", "populated_by", "change_control",
+          }
+          ROW_REQUIRED = {"id", "category", "priority", "phase_target", "status", "evidence"}
+          ID_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)+$")
+
+          path = sys.argv[1] if len(sys.argv) > 1 else "docs/feature-matrix.toml"
+          errors = []
+
+          try:
+              with open(path, "rb") as fh:
+                  doc = tomllib.load(fh)
+          except (OSError, tomllib.TOMLDecodeError) as exc:
+              print(f"feature-matrix: cannot parse {path}: {exc}", file=sys.stderr)
+              sys.exit(1)
+
+          stray = set(doc) - {"meta", "feature"}
+          if stray:
+              errors.append(f"unexpected top-level key(s): {sorted(stray)}")
+          meta = doc.get("meta")
+          if not isinstance(meta, dict):
+              errors.append("missing [meta] table")
+              meta = {}
+          missing_meta = META_KEYS - set(meta)
+          if missing_meta:
+              errors.append(f"[meta] missing key(s): {sorted(missing_meta)}")
+          version = meta.get("schema_version")
+          if not isinstance(version, int) or isinstance(version, bool):
+              errors.append("[meta] schema_version must be an integer")
+
+          rows = doc.get("feature")
+          if not isinstance(rows, list) or not rows:
+              errors.append("no [[feature]] rows")
+              rows = []
+
+          ids = set()
+          for index, row in enumerate(rows):
+              where = f"row {index + 1}"
+              if isinstance(row.get("id"), str):
+                  where = f"{row['id']!r} (row {index + 1})"
+              if not isinstance(row, dict):
+                  errors.append(f"{where}: not a table")
+                  continue
+              missing = ROW_REQUIRED - set(row)
+              if missing:
+                  errors.append(f"{where}: missing key(s) {sorted(missing)}")
+              rid = row.get("id")
+              if not isinstance(rid, str) or not ID_RE.match(rid):
+                  errors.append(f"{where}: id {rid!r} violates ^[a-z0-9]+(-[a-z0-9]+)+$")
+              elif rid in ids:
+                  errors.append(f"{where}: duplicate id {rid!r}")
+              else:
+                  ids.add(rid)
+              if row.get("priority") not in PRIORITIES:
+                  errors.append(f"{where}: priority {row.get('priority')!r} not in {sorted(PRIORITIES)}")
+              phase = row.get("phase_target")
+              if not isinstance(phase, int) or isinstance(phase, bool) or not 2 <= phase <= 8:
+                  errors.append(f"{where}: phase_target {phase!r} outside 2..=8")
+              status = row.get("status")
+              if not isinstance(status, dict):
+                  errors.append(f"{where}: status must be a table")
+              else:
+                  if set(status) != PLATFORMS:
+                      errors.append(f"{where}: status keys {sorted(status)} != exactly {sorted(PLATFORMS)}")
+                  for platform, value in sorted(status.items()):
+                      if value not in STATUSES:
+                          errors.append(f"{where}: status.{platform} = {value!r} not in the vocabulary")
+                  values = set(status.values())
+                  if "verified" in values and not row.get("evidence"):
+                      errors.append(f"{where}: verified requires evidence (R4)")
+                  if values & {"blocked", "unsupported"} and not row.get("blocked_reason"):
+                      errors.append(f"{where}: blocked/unsupported requires blocked_reason (R5)")
+                  if "partial" in values and not row.get("notes"):
+                      errors.append(f"{where}: partial requires notes (R6)")
+
+          if errors:
+              for error in errors:
+                  print(f"feature-matrix: {error}", file=sys.stderr)
+              print(f"feature-matrix: {len(errors)} violation(s) in {path}", file=sys.stderr)
+              sys.exit(1)
+
+          categories = {row.get("category") for row in rows if isinstance(row, dict)}
+          print(
+              f"feature-matrix: {len(rows)} rows, {len(categories)} categories, "
+              f"schema_version {version} — v0 structural check passed "
+              "(R1 id-regex/uniqueness, R2 ranges, R3 platform columns + "
+              "vocabulary, R4/R5/R6 conditionals, R9 parse + meta)"
+          )
+          PY
+      - name: Honest skip ledger — config surfaces with no validator yet (doc 07 §9 C4)
+        run: |
+          echo "COVERED product.toml + product.schema.json: step above (product-config committed suite)."
+          echo "COVERED schemas/settings.toml + generated outputs: step above (schema-gen --check)."
+          echo "COVERED docs/feature-matrix.toml: step above (v0 inline check; R7/R8/R10 + full R4 need tools/feature-audit)."
+          echo "COVERED locales/: config-propagation job below (C3) — not duplicated here."
+          echo "SKIP keymaps/default.toml: no keymap validator exists yet (doc 07 §7.3 vs doc 05 §8.1 path reconciliation is open question doc 07 §11 Q4)."
+          echo "SKIP themes/: the theme-token pipeline exists (tokens-gen --check) but is outside card 1.E2's product+settings+feature-matrix scope — wire with the next G1 expansion."
+          echo "SKIP profiles/, layouts/, plugin manifests: none of these files exist in the tree yet (doc 07 §9 C4 enumerates them for when they do)."
+
+  # --------------------------------------------------------------------------
+  # Config propagation (doc 07 §9 C1-C5; MP §5 "config propagation test"
+  # per MP §13). New in card 1.E2 — BLOCKING from the start (no stub phase:
+  # every step is a real check with seeded-violation evidence in the 1.E2
+  # worklog entry); add it to the repository's required checks together
+  # with schema-validation (Lead wiring call). Wire-what-exists posture:
+  # each C-condition maps to a step when an enforceable artifact exists
+  # today, and to an explicit SKIP line in the ledger step when it does
+  # not (never silent):
+  #
+  #   C1 hardcoded user-facing strings — NO artifact (ledger step).
+  #   C2 duplicated identity values — PARTIAL: the rebrand reverse-control
+  #      no-op below (doc 07 §8.3 step 6's fast tier: identity-equal
+  #      rebrand must exit 0, report `result: no-op` and leave every v0
+  #      surface byte-identical); generated-artifact drift (C2's other
+  #      half) is enforced by schema-gen --check in schema-validation —
+  #      not duplicated here. Seeded evidence: Nova fixture -> 26 non-zero
+  #      rewrites (the grep below fails on such output); malformed or
+  #      identity-incomplete product.toml -> rebrand exit 2.
+  #   C3 missing translation keys — PARTIAL: `cargo test -p localization`
+  #      (tests/seed_integrity.rs is the shipped-tree negative control for
+  #      every doc 07 §6.4 audit rule incl. product.toml msgid resolution;
+  #      its header names card 1.E2 as the CI wiring owner). Seeded
+  #      evidence: deleting the `product.description` catalog key ->
+  #      exit 101.
+  #   C4 schema violations — owned by schema-validation (this file); not
+  #      duplicated.
+  #   C5 broken crate boundaries — owned by boundary-check (card 1.E1,
+  #      doc 01 §5); not duplicated.
+  # --------------------------------------------------------------------------
+  config-propagation:
+    name: config-propagation (doc 07 §9 C1-C5 — identity + l10n propagation)
+    continue-on-error: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/ci.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: C3 — localization audit over the shipped tree (doc 07 §6.4, seed_integrity suite)
+        run: cargo test -p localization
+      - name: C2 — rebrand reverse-control no-op (doc 07 §8.3 step 6, fast tier)
+        run: |
+          dest="${RUNNER_TEMP:-/tmp}/lumen-rebrand-noop"
+          log="${RUNNER_TEMP:-/tmp}/lumen-rebrand-noop.log"
+          rm -rf "${dest}"
+          cargo xtask rebrand --config product.toml --dest "${dest}" >"${log}" 2>&1
+          cat "${log}"
+          # rebrand's own exit code propagates (-e): a malformed or
+          # identity-incomplete product.toml is exit 2.
+          grep -q '^result: no-op$' "${log}" \
+            || { echo "::error::identity-equal rebrand was NOT a no-op - propagation mismatch (doc 07 §8.3 step 6)"; exit 1; }
+          # Reverse control, strong form: every v0 surface in the dest copy
+          # must be byte-identical to the repository file.
+          for surface in \
+            product.toml \
+            README.md \
+            schemas/generated/settings-docs.md \
+            schemas/generated/settings-help.txt
+          do
+            cmp "${surface}" "${dest}/${surface}" \
+              || { echo "::error::no-op rebrand modified ${surface} - rewriter regression"; exit 1; }
+          done
+      - name: Honest skip ledger — C-conditions with no enforceable artifact yet (doc 07 §9)
+        run: |
+          echo "COVERED C2 (partial): rebrand reverse-control no-op above; generated-artifact drift via schema-gen --check in schema-validation."
+          echo "COVERED C3 (partial): cargo test -p localization above (shipped-tree audit; the l10n-audit xtask subcommand itself does not exist)."
+          echo "COVERED C4: schema-validation job (this workflow) owns product.toml / settings / feature-matrix validation."
+          echo "COVERED C5: boundary-check job (card 1.E1, doc 01 §5) owns crate boundaries."
+          echo "SKIP C1 lint-literals: no cargo xtask lint-literals subcommand (frozen registry) and no ui/package.json for the ESLint half - lands with the literal-linter card; doc 07 §9 C1."
+          echo "SKIP C2 check-identity: no check-identity subcommand yet - the no-op above is the doc 07 §8.3 step-6 stand-in, not a full no-hardcoded-identity scan."
+          echo "SKIP C2 packaging regen check: no packaging plane yet (no apps/, Tauri config or MSI/plist metadata); doc 07 §9 C2."
 
   # -{78}
   # wasm-build — WASM toolchain canary (G12, doc 10 §4.6; doc 09 §2).
