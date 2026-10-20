@@ -59,3 +59,9 @@ pub mod error;
 pub mod file;
 pub mod seekable;
 pub mod uri;
+
+pub use buffered::{BufferedReader, DEFAULT_BUFFER_BYTES, MAX_BUFFER_BYTES, MAX_READ_BYTES};
+pub use contract::{ScriptSource, SyntheticStream};
+pub use file::{FileAccess, FileSource, FileStream};
+pub use seekable::{RawRead, Seekable};
+pub use uri::resolve_file;
