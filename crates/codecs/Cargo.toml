@@ -20,7 +20,7 @@
 name = "codecs"
 version = "0.1.0"
 edition = "2024"
-description = "Lumen builtin software codecs: baseline-JPEG/MJPEG video decoder behind the codec-api contract (doc 01 §2.5, card 2.B4)."
+description = "Lumen builtin software codecs: baseline-JPEG/MJPEG video decoder and unpacked-PCM audio decoder behind the codec-api contract (doc 01 §2.5, cards 2.B4/2.B5)."
 publish = false
 
 [lints]
