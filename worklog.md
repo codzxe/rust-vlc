@@ -1116,3 +1116,20 @@ Stage Summary:
 - Lead flags: (a) mod.rs `implemented` flag for codegen + the help status label still say not-yet (frozen file — batch-flip when merging, alongside schema-gen/tokens/rebrand/check-architecture); (b) CI codegen-drift job (`cargo xtask codegen --check`) is Lead wiring per the card, NOT done here (.github/workflows ownership); (c) merge note: worklog on main gained 8fb5da5 (session-3-start) AFTER the branch's e077bf5 merge — trivial append-conflict only.
 - Deviations/notes: schemars is MIT-only (verified), recorded honestly vs the brief's "MIT OR Apache-2.0"; schemars' version range recorded >=1.2.3,<2.0.0 per the brief; `serde_derive_internals` pinned <1.0.0 (0.x minor-pin convention, hashbrown precedent).
 - Honest limitations: TS output is not yet typechecked by CI (arrives with card 4.A1 per the brief); the TS emitter is a deterministic schema→TS mapping, not a TS-aware pretty-printer (single-line unions — functional, machine-checked, ugly); `system.list-commands`' `CommandListing` rows are carried but the runtime introspection endpoint is engine work (Phase 2); catalog `PayloadDesc` shape descriptors are advisory strings, enforced only through the checksum.
+
+---
+Task ID: 1.F1-V (Lead)
+Agent: Lead
+Task: Phase 1 exit gate — full local gate, ledger, Phase 2 launch list.
+
+Work Log:
+- Lead verification of 1.D4-R (agent-5e77ffd5): fmt/clippy clean; 529 passed / 0 failed / 3 ignored; check-architecture PASS 5/5; codegen --check exit 0; drift failure mode independently re-proven (mutated checksum -> exit 1, restored -> 0); catalog counts validated against doc 05 tables (61 commands across §2.3-§2.12 = 2+8+6+6+6+4+13+5+4+7; 23 events §3.2). ACCEPTED.
+- Merged wip/1d4-partial -> main fast-forward (4510d28; +10,061 ln — largest single landing).
+- Lead batch at 2d06607: mod.rs implemented-flags flipped for all six wave-1 subcommands (v0 test graduated to all-implemented invariant); ci.yml schema-validation job gained the `cargo xtask codegen --check` step (doc 05 §5.1 drift gate, card 1.D4 CI wiring); .github/workflows/README.md job table synced (boundary-check/schema-validation/wasm-build/cargo-deny now active). xtask tests 56+12+12 green; actionlint 1.7.12 clean.
+- Final gate on main @ 2d06607: cargo xtask gate = SUCCESS (0/10 failed, 5 honest skips — all Phase 2+ artifacts); 529/0/3; 10 crates + xtask; 39,094 ln Rust.
+- Wrote docs/gates/phase1-exit.md (card 1.F1-V): gate evidence table, MP §16 criteria mapping, 20/20 card ledger, decisions D-015..D-017, R-6, carried risks, Phase 2 launch list.
+
+Stage Summary:
+- PHASE 1 COMPLETE — gate verdict PASS. All 20 cards landed and verified; CI green-run links honestly PENDING first push (no remote).
+- Decisions at gate: D-015 (agent branch-commit rights, standing), D-016 (xtask graduation), D-017 (catalog = 61/23 authoritative).
+- NEXT: Phase 2 Wave 2.A launch — four parallel delegated cards (2.A1 input, 2.A3 fixtures, 2.B1 packet-queue, 2.C1 media-clock; parallelism 4 of the 2-4 band, separate crates + branches). Lead pre-wiring before launch: xtask fixtures stub (frozen-registry ownership) + boundaries.toml seed entries if the checker tolerates not-yet-existing crates [VERIFY].
