@@ -1081,3 +1081,18 @@ Stage Summary:
 - NEXT SESSION: (1) relaunch 1.D4 from wip/1d4-partial (brief in doc 13 §4 + the worklog 1.D3 entry's design guidance: instantiate the generic envelope, ~65 commands + ~24 events, schemars schema emission, xtask codegen subprocess bridge, golden-file + drift tests, ui/src/generated/); (2) then 1.F1-V Phase 1 gate (full local gate + ledger + Phase 2 launch list; CI green-run links honestly PENDING first push — no remote in the sandbox); (3) then Phase 2 Wave 2.A per doc 13 §5.
 - Environment incidents this session: TWO sandbox reboots (08:01:58Z rollback to 410d6cf destroying waves 1.C/1.D1/1.E artifacts — restored/re-implemented; 09:53:09Z reboot with re-commit recovery as c0f38c7). Toolchain re-provisioned 3x (rustup 1.99.1 pin). Lead context retained all restorable content.
 - Sub-agent pattern this session: 5 of 7 launched agents died at context/transport deadlines AFTER completing work (Lead-verified salvages: 1.E4 original, 1.D1-R, 1.D1-R2-era) or mid-card (1.E4-R, 1.E4-R2, 1.D4). The Lead-direct implementation path (1.E4-R3) and the resume path (1.D2) both worked well. Recommend: keep briefs tight, prefer resume for blocked agents, preserve partials on WIP branches.
+
+---
+Task ID: 1.SESSION-3-START (Lead)
+Agent: Lead
+Task: Continuation session 3 open — user directives recorded, 1.D4 relaunch prepared.
+
+Work Log:
+- USER DIRECTIVES (binding, override default protocol): (1) ALWAYS check the sandbox is active before/while working; if tools fail or state resets, re-provision (toolchain: rustup 1.99.1 pin — reinstalled 2x already this session) and continue; (2) ALWAYS save all work to git immediately — commit early, commit often, never leave uncommitted work; (3) EVERY sub-agent brief must carry directives (1)+(2) verbatim.
+- POLICY CHANGE (Lead decision under user directive; deviates AGENTS.md §3.8): implementation agents on WIP branches are granted commit rights — commit after EVERY milestone (fix, artifact, test file) so sandbox reboots (working tree resets to main) can never destroy work. Merge to main stays Lead-only. Agents must verify branch state (`git branch --show-current`) at the START of EVERY command batch and re-checkout if a reboot reverted it.
+- Environment incidents this session: TWO sandbox reboots within minutes at session start (working tree reverted to main; commits + branches survived). Toolchain wiped once — re-provisioned via rustup (rustc/cargo 1.99.1, rustfmt 1.10.0, clippy 0.1.99 — pin verified).
+- 1.D4 relaunch intel (Lead-verified on wip/1d4-partial, commit ced483a + merge e077bf5): catalog partial = 7 modules (~3,900 ln) + bin/catalog_gen.rs (267 ln) + envelope/error wire-form edits + boundaries.toml schemars allowlist + Cargo.toml serde/serde_json/schemars deps. Compile state: 4 errors (2x E0432 EventKind not re-exported from catalog/mod.rs; 2x E0277 Eq/Hash derived on f32-containing type at types.rs:234). MISSING vs card AC: ui/src/generated/ artifacts, xtask codegen bridge (stub still returns NotYetImplemented), all golden-file/drift tests (tests/ dir empty), allowlist.md schemars entry. Main-branch lib.rs re-exports and Cargo.toml comments confirm design intent matches doc 05 §5.1.
+- Merged main into wip/1d4-partial (e077bf5) so the branch carries the current worklog for the relaunch agent.
+
+Stage Summary:
+- Launching sub-agent for 1.D4-R (fix 4 errors -> commit; generate 3 artifacts -> commit; xtask bridge -> commit; golden/drift tests -> commit; allowlist entry -> commit). Then Lead verification, merge to main, CI codegen-drift wiring, mod.rs batch-flip, then 1.F1-V Phase 1 gate, then Phase 2 Wave 2.A per doc 13 §5.
