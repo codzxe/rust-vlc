@@ -19,16 +19,18 @@
 //! unknown brands) 50 — deliberately below the doc's default
 //! `min_score = 60`: an unknown brand is not a selectable claim, but
 //! the no-hit error still names the family. `+moov` 80, `+mvhd` 90,
-//! `+stsd` track hints 95. `size == 0` (box extends to end of file)
-//! and `size < 8` end a walk; 64-bit `largesize` boxes are not
-//! followed in v0 (no fixture or production file in scope uses them —
-//! recorded limitation).
+//! `+stsd` track hints 95. A box whose fourcc header is visible
+//! confirms its rung even when its size field is unusable, but
+//! `size == 0` (ISO: "box extends to end of file") and `size < 8`
+//! end a walk in v0 — the to-EOF extent is not followed (no fixture
+//! or production file in scope needs it — recorded limitation); 64-bit
+//! `largesize` boxes are likewise not followed in v0.
 
 use media_types::ids::MediaKind;
 
 use super::{
-    ProbePlugin, SCORE_COMPAT_BRAND, SCORE_CONTAINER_STRUCTURE, SCORE_FAMILY_ONLY,
-    SCORE_MAGIC_ANCHOR, SCORE_PRIMARY_HEADER, SCORE_TRACK_HINTS, MAX_WALK_STEPS,
+    MAX_WALK_STEPS, ProbePlugin, SCORE_COMPAT_BRAND, SCORE_CONTAINER_STRUCTURE, SCORE_FAMILY_ONLY,
+    SCORE_MAGIC_ANCHOR, SCORE_PRIMARY_HEADER, SCORE_TRACK_HINTS,
 };
 use crate::report::{FormatId, ProbeHit, SourceMeta, TrackHint};
 
@@ -60,26 +62,38 @@ impl ProbePlugin for Mp4Signature {
         let mut consumed = ftyp_end;
 
         // Shallow top-level walk: confirm `moov` (and only `moov`).
+        // A visible box **header** (pos+8 inside the window) confirms
+        // its rung even when its size is unusable — the fourcc is
+        // literally in the window, and "there is a moov here" is
+        // honest; but a sub-header or zero size (ISO: "extends to end
+        // of file") ends the walk in v0 — the extent beyond the
+        // window is unknown, so children are not followed (recorded
+        // limitation, `[PROPOSAL]` refinement: treat size == 0 as
+        // window-end and descend).
         let mut pos = ftyp_size;
         let mut steps = 0;
         while pos + 8 <= prefix.len() && steps < MAX_WALK_STEPS {
             steps += 1;
             let size = u32_be(prefix, pos) as usize;
+            let kind = &prefix[pos + 4..pos + 8];
+            if kind == b"moov" {
+                score = score.max(SCORE_CONTAINER_STRUCTURE);
+                if size >= 8 {
+                    let box_end = pos.saturating_add(size).min(prefix.len());
+                    let (saw_mvhd, mut moov_hints, moov_consumed) =
+                        walk_moov(prefix, pos + 8, box_end);
+                    if saw_mvhd {
+                        score = score.max(SCORE_PRIMARY_HEADER);
+                    }
+                    if !moov_hints.is_empty() {
+                        score = score.max(SCORE_TRACK_HINTS);
+                        hints.append(&mut moov_hints);
+                    }
+                    consumed = consumed.max(moov_consumed);
+                }
+            }
             if size < 8 {
                 break;
-            }
-            let box_end = pos.saturating_add(size).min(prefix.len());
-            if &prefix[pos + 4..pos + 8] == b"moov" {
-                score = score.max(SCORE_CONTAINER_STRUCTURE);
-                let (saw_mvhd, mut moov_hints, moov_consumed) = walk_moov(prefix, pos + 8, box_end);
-                if saw_mvhd {
-                    score = score.max(SCORE_PRIMARY_HEADER);
-                }
-                if !moov_hints.is_empty() {
-                    score = score.max(SCORE_TRACK_HINTS);
-                    hints.append(&mut moov_hints);
-                }
-                consumed = consumed.max(moov_consumed);
             }
             pos = pos.saturating_add(size);
         }
@@ -110,7 +124,7 @@ fn is_known_brand(fourcc: &[u8]) -> bool {
 /// Iterate the compatible-brand fourccs inside an `ftyp` payload
 /// (after the major brand at 8..12 and the minor version at 12..16,
 /// 4-byte aligned).
-fn compat_brands<'a>(prefix: &'a [u8], start: usize, end: usize) -> impl Iterator<Item = &'a [u8]> {
+fn compat_brands(prefix: &[u8], start: usize, end: usize) -> impl Iterator<Item = &[u8]> {
     (start..end.saturating_sub(3))
         .step_by(4)
         .map(move |at| &prefix[at..at + 4])
@@ -118,7 +132,10 @@ fn compat_brands<'a>(prefix: &'a [u8], start: usize, end: usize) -> impl Iterato
 
 /// Walk `moov`'s children (start..end, already clamped): confirm
 /// `mvhd`, sniff each `trak`. Best-effort — a lying size ends the walk
-/// with what was collected.
+/// with what was collected. As above, a visible `mvhd` fourcc
+/// confirms the primary-header rung even when its own size is broken
+/// (the flag is set before the sub-header break); descent past a
+/// broken box never happens.
 fn walk_moov(prefix: &[u8], start: usize, end: usize) -> (bool, Vec<TrackHint>, usize) {
     let mut saw_mvhd = false;
     let mut hints = Vec::new();
@@ -127,14 +144,14 @@ fn walk_moov(prefix: &[u8], start: usize, end: usize) -> (bool, Vec<TrackHint>, 
     while pos + 8 <= end && steps < MAX_WALK_STEPS {
         steps += 1;
         let size = u32_be(prefix, pos) as usize;
-        if size < 8 {
-            break;
-        }
-        let box_end = pos.saturating_add(size).min(end);
         let kind = &prefix[pos + 4..pos + 8];
         if kind == b"mvhd" {
             saw_mvhd = true;
         }
+        if size < 8 {
+            break;
+        }
+        let box_end = pos.saturating_add(size).min(end);
         if kind == b"trak" {
             hints.extend(walk_trak(prefix, pos + 8, box_end));
         }
@@ -255,9 +272,7 @@ fn classify_track(handler: Option<&[u8]>, entry: Option<&[u8]>) -> Vec<TrackHint
     } else {
         None
     };
-    match descriptor
-        .and_then(|(kind, name)| TrackHint::new(kind, name).ok())
-    {
+    match descriptor.and_then(|(kind, name)| TrackHint::new(kind, name).ok()) {
         Some(hint) => vec![hint],
         None => Vec::new(),
     }
@@ -370,8 +385,10 @@ mod tests {
 
     #[test]
     fn recognized_major_brand_anchors_at_seventy() {
-        // The class-B `trunc0` shape: a complete 28-byte isom ftyp.
-        let window = ftyp(b"isom", &[b"iso2", b"mp41"]);
+        // The class-B `trunc0` shape byte-for-byte: the writer's ftyp
+        // is 28 bytes — major `isom`, version 0, three compatible
+        // brands `isom`/`iso2`/`mp41` (fixtures.rs line 1951).
+        let window = ftyp(b"isom", &[b"isom", b"iso2", b"mp41"]);
         assert_eq!(window.len(), 28);
         let hit = match probe(&window) {
             Some(h) => h,
@@ -558,15 +575,14 @@ mod tests {
         // The class-B `stszlie0` cousin at stsd: an absurd entry_count
         // makes the entry unusable — hint dropped, format intact.
         let mut file = full_file();
-        // Find the video stsd (first stsd in the file) and corrupt its
-        // entry_count (stsd + 8 header + 4 version/flags).
+        // Find the first stsd (the video trak's) and corrupt its
+        // entry_count. The search lands on the TYPE fourcc; the box
+        // layout from there is type+4 version/flags, then the count.
         let at = match find(&file, b"stsd") {
             Some(at) => at,
             None => unreachable!("stsd present"),
         };
-        eprintln!("DEBUG stsd at {at}, bytes {:02x?}", &file[at..at+24]);
-        file[at + 8 + 4..at + 8 + 8].copy_from_slice(&0x7FFF_FFFFu32.to_be_bytes());
-        eprintln!("DEBUG after corrupt count {:02x?}", &file[at+12..at+20]);
+        file[at + 8..at + 12].copy_from_slice(&0x7FFF_FFFFu32.to_be_bytes());
         let hit = match probe(&file) {
             Some(h) => h,
             None => unreachable!("anchors"),
@@ -592,9 +608,9 @@ mod tests {
         }
     }
 
+    /// Find the first occurrence of a fourcc, byte-wise (no alignment
+    /// assumption — payload bytes can mirror box types).
     fn find(haystack: &[u8], needle: &[u8; 4]) -> Option<usize> {
-        (0..haystack.len().saturating_sub(3))
-            .step_by(4)
-            .find(|&at| &haystack[at..at + 4] == needle)
+        (0..haystack.len().saturating_sub(3)).find(|&at| &haystack[at..at + 4] == needle)
     }
 }

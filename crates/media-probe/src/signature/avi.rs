@@ -21,8 +21,8 @@
 use media_types::ids::MediaKind;
 
 use super::{
-    ProbePlugin, SCORE_CONTAINER_STRUCTURE, SCORE_MAGIC_ANCHOR, SCORE_PRIMARY_HEADER,
-    SCORE_TRACK_HINTS, MAX_WALK_STEPS,
+    MAX_WALK_STEPS, ProbePlugin, SCORE_CONTAINER_STRUCTURE, SCORE_MAGIC_ANCHOR,
+    SCORE_PRIMARY_HEADER, SCORE_TRACK_HINTS,
 };
 use crate::report::{FormatId, ProbeHit, SourceMeta, TrackHint};
 
@@ -141,7 +141,10 @@ fn walk_strl(prefix: &[u8], start: usize, end: usize) -> Vec<TrackHint> {
 /// demuxer names them (`mjpeg`, `pcm_s16le`, …). Anything else stays
 /// unhinted: the probe never invents codec names (the decoder cards
 /// pin new rows when they land; additive).
-fn classify_stream(stream_type: Option<(&[u8], &[u8])>, wave: Option<(u16, u16)>) -> Vec<TrackHint> {
+fn classify_stream(
+    stream_type: Option<(&[u8], &[u8])>,
+    wave: Option<(u16, u16)>,
+) -> Vec<TrackHint> {
     let Some((fcc_type, handler)) = stream_type else {
         return Vec::new();
     };
@@ -216,7 +219,12 @@ mod tests {
         out.extend_from_slice(&0u32.to_le_bytes());
         out.extend_from_slice(form);
         out.extend_from_slice(children);
-        let size = (out.len() - size_pos) as u32;
+        // A RIFF/LIST size counts everything AFTER the size field: the
+        // form fourcc plus the children — the 2.A3 writer's own rule
+        // ("a RIFF/LIST size includes its form FourCC"), pinned against
+        // the committed parent's bytes (hdrl LIST at 12 declares 292 =
+        // 4 + 64 avih + 124 strl + 100 strl, extent ending at 312).
+        let size = (out.len() - (size_pos + 4)) as u32;
         out[size_pos..size_pos + 4].copy_from_slice(&size.to_le_bytes());
         size_pos - 4
     }
@@ -236,7 +244,7 @@ mod tests {
         p.extend_from_slice(&channels.to_le_bytes());
         p.extend_from_slice(&rate.to_le_bytes());
         p.extend_from_slice(&(rate * channels as u32 * (bits / 8) as u32).to_le_bytes());
-        p.extend_from_slice(&((channels * (bits / 8)) as u16).to_le_bytes());
+        p.extend_from_slice(&(channels * (bits / 8)).to_le_bytes());
         p.extend_from_slice(&bits.to_le_bytes());
         let mut out = Vec::new();
         chunk(&mut out, b"strf", &p);

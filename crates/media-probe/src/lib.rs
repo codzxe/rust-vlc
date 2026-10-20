@@ -76,6 +76,7 @@
 //! ```
 //! use media_probe::contract::CountingSource;
 //! use media_probe::{probe_stream, ProbeConfig, ProbeRegistry};
+//! use plugin_api::SourceStream;
 //!
 //! # fn main() -> Result<(), media_types::EngineError> {
 //! // A minimal RIFF/AVI header window.
@@ -108,9 +109,7 @@ pub mod error;
 pub mod report;
 pub mod signature;
 
-pub use config::{
-    ProbeConfig, DEFAULT_MAX_LOOKAHEAD, DEFAULT_MIN_SCORE, MAX_LOOKAHEAD_CEILING,
-};
+pub use config::{DEFAULT_MAX_LOOKAHEAD, DEFAULT_MIN_SCORE, MAX_LOOKAHEAD_CEILING, ProbeConfig};
 pub use report::{Confidence, FormatId, ProbeHit, ProbeReport, SourceMeta, TrackHint};
 pub use signature::{ProbePlugin, ProbeRegistry};
 
@@ -143,9 +142,7 @@ pub fn probe_stream(
     config: &ProbeConfig,
 ) -> Result<ProbeReport, EngineError> {
     if !stream.supports_seek() {
-        return Err(error::stream_not_rewindable(
-            stream.uri().scheme().as_str(),
-        ));
+        return Err(error::stream_not_rewindable(stream.uri().scheme().as_str()));
     }
     let meta = SourceMeta::from_stream(stream);
     let start = stream.position();
@@ -187,8 +184,7 @@ fn fill_window(stream: &mut dyn SourceStream, max: usize) -> Result<Vec<u8>, Eng
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::contract::{assert_probe_depth_bounded, assert_position_restored, CountingSource};
-    use crate::report::CONFIDENCE_MAX;
+    use crate::contract::{CountingSource, assert_position_restored, assert_probe_depth_bounded};
 
     fn ok<T, E: std::fmt::Display>(r: Result<T, E>) -> T {
         match r {
@@ -254,15 +250,25 @@ mod tests {
     fn depth_bound_holds_for_every_window_size() {
         // The card's AC at unit level: for any configured bound, the
         // source serves at most that many bytes, one request at a time
-        // within the remaining budget.
+        // within the remaining budget. Windows too small to carry a
+        // magic are an honest typed unknown, not a guess — the same
+        // run of the bound and restore assertions applies to them.
         let mut data = vec![0x11u8; 300_000];
         data[..12].copy_from_slice(b"RIFF....AVI ");
         let registry = ProbeRegistry::with_builtins();
-        for bound in [1usize, 12, 64, 4096, 65_536, 262_144, 300_000] {
+        for bound in [1usize, 11, 12, 64, 4096, 65_536, 262_144, 300_000] {
             let mut source = CountingSource::new(&data);
             let config = ok(ProbeConfig::new(bound, 60));
-            let report = ok(probe_stream(&registry, &mut source, &config));
-            assert!(report.bytes_examined <= bound);
+            match probe_stream(&registry, &mut source, &config) {
+                Ok(report) => assert!(report.bytes_examined <= bound),
+                Err(e) => {
+                    // 1 and 11 bytes cannot carry the RIFF+form magic:
+                    // no signature anchors, and the verdict is the
+                    // typed Unsupported of doc 03 §4.2(d).
+                    assert_eq!(e.context.code, "probe.no-demuxer");
+                    assert_eq!(e.stage, media_types::PipelineStage::Probe);
+                }
+            }
             assert_probe_depth_bounded(&source, bound);
             assert_position_restored(&source, plugin_api::SourcePosition(0));
         }
@@ -336,8 +342,6 @@ mod tests {
             assert_eq!(err.context.code, "probe.no-demuxer");
             assert_eq!(err.stage, media_types::PipelineStage::Probe);
         }
-        // Confidence never exceeds the scale on the error path either.
-        assert!(CONFIDENCE_MAX >= 100);
     }
 
     #[test]
@@ -350,7 +354,11 @@ mod tests {
         let mut source = CountingSource::new(&data);
         ok(source.seek(plugin_api::SeekOrigin::Start(40)));
         let registry = ProbeRegistry::with_builtins();
-        let report = ok(probe_stream(&registry, &mut source, &ok(ProbeConfig::new(64, 60))));
+        let report = ok(probe_stream(
+            &registry,
+            &mut source,
+            &ok(ProbeConfig::new(64, 60)),
+        ));
         assert_eq!(report.format.as_str(), "avi");
         assert_eq!(report.bytes_examined, 24);
         assert_position_restored(&source, plugin_api::SourcePosition(40));

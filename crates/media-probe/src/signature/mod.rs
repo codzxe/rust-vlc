@@ -165,14 +165,12 @@ impl ProbeRegistry {
             }
         }
         match best {
-            Some((hit, _, confidence)) if confidence.meets(config.min_score) => {
-                Ok(ProbeReport {
-                    format: hit.format,
-                    confidence,
-                    track_hints: hit.track_hints,
-                    bytes_examined: prefix.len(),
-                })
-            }
+            Some((hit, _, confidence)) if confidence.meets(config.min_score) => Ok(ProbeReport {
+                format: hit.format,
+                confidence,
+                track_hints: hit.track_hints,
+                bytes_examined: prefix.len(),
+            }),
             other => Err(error::no_demuxer(
                 other.as_ref().map(|(hit, _, _)| hit),
                 prefix,
@@ -242,8 +240,24 @@ mod tests {
     #[test]
     fn higher_score_wins_over_priority() {
         let r = registry(vec![
-            (Fixed { format: "aaa", score: 70, prefix_consumed: 100, anchors: true }, 999),
-            (Fixed { format: "bbb", score: 90, prefix_consumed: 100, anchors: true }, 1),
+            (
+                Fixed {
+                    format: "aaa",
+                    score: 70,
+                    prefix_consumed: 100,
+                    anchors: true,
+                },
+                999,
+            ),
+            (
+                Fixed {
+                    format: "bbb",
+                    score: 90,
+                    prefix_consumed: 100,
+                    anchors: true,
+                },
+                1,
+            ),
         ]);
         let report = ok(r.probe(b"x", &SourceMeta::new(None, None), &config(60)));
         assert_eq!(report.format.as_str(), "bbb");
@@ -252,27 +266,79 @@ mod tests {
     #[test]
     fn priority_breaks_score_ties() {
         let r = registry(vec![
-            (Fixed { format: "aaa", score: 90, prefix_consumed: 1, anchors: true }, 10),
-            (Fixed { format: "bbb", score: 90, prefix_consumed: 1, anchors: true }, 20),
+            (
+                Fixed {
+                    format: "aaa",
+                    score: 90,
+                    prefix_consumed: 1,
+                    anchors: true,
+                },
+                10,
+            ),
+            (
+                Fixed {
+                    format: "bbb",
+                    score: 90,
+                    prefix_consumed: 1,
+                    anchors: true,
+                },
+                20,
+            ),
         ]);
         let report = ok(r.probe(b"x", &SourceMeta::new(None, None), &config(60)));
-        assert_eq!(report.format.as_str(), "bbb", "higher priority wins the tie");
+        assert_eq!(
+            report.format.as_str(),
+            "bbb",
+            "higher priority wins the tie"
+        );
     }
 
     #[test]
     fn shorter_prefix_breaks_priority_ties() {
         let r = registry(vec![
-            (Fixed { format: "aaa", score: 90, prefix_consumed: 50, anchors: true }, 30),
-            (Fixed { format: "bbb", score: 90, prefix_consumed: 10, anchors: true }, 30),
+            (
+                Fixed {
+                    format: "aaa",
+                    score: 90,
+                    prefix_consumed: 50,
+                    anchors: true,
+                },
+                30,
+            ),
+            (
+                Fixed {
+                    format: "bbb",
+                    score: 90,
+                    prefix_consumed: 10,
+                    anchors: true,
+                },
+                30,
+            ),
         ]);
         let report = ok(r.probe(b"x", &SourceMeta::new(None, None), &config(60)));
-        assert_eq!(report.format.as_str(), "bbb", "smaller prefix_consumed wins");
+        assert_eq!(
+            report.format.as_str(),
+            "bbb",
+            "smaller prefix_consumed wins"
+        );
     }
 
     #[test]
     fn subthreshold_best_hit_names_the_family_in_the_error() {
-        let r = registry(vec![(Fixed { format: "mp4", score: 50, prefix_consumed: 8, anchors: true }, 100)]);
-        let e = match r.probe(b"somebytes", &SourceMeta::new(Some(9), Some("bin")), &config(60)) {
+        let r = registry(vec![(
+            Fixed {
+                format: "mp4",
+                score: 50,
+                prefix_consumed: 8,
+                anchors: true,
+            },
+            100,
+        )]);
+        let e = match r.probe(
+            b"somebytes",
+            &SourceMeta::new(Some(9), Some("bin")),
+            &config(60),
+        ) {
             Ok(_) => unreachable!("50 < 60 must reject"),
             Err(e) => e,
         };
@@ -289,7 +355,10 @@ mod tests {
             }
             other => unreachable!("wrong kind: {other:?}"),
         }
-        assert!(std::error::Error::source(&e).is_some(), "hints ride the chain");
+        assert!(
+            std::error::Error::source(&e).is_some(),
+            "hints ride the chain"
+        );
     }
 
     #[test]
@@ -297,13 +366,37 @@ mod tests {
         // 101 violates the 0..=100 contract; the hit must neither win
         // nor reach the error payload (a clamped 100 would be a lie).
         let r = registry(vec![
-            (Fixed { format: "liar", score: 101, prefix_consumed: 1, anchors: true }, 100),
-            (Fixed { format: "honest", score: 70, prefix_consumed: 1, anchors: true }, 1),
+            (
+                Fixed {
+                    format: "liar",
+                    score: 101,
+                    prefix_consumed: 1,
+                    anchors: true,
+                },
+                100,
+            ),
+            (
+                Fixed {
+                    format: "honest",
+                    score: 70,
+                    prefix_consumed: 1,
+                    anchors: true,
+                },
+                1,
+            ),
         ]);
         let report = ok(r.probe(b"x", &SourceMeta::new(None, None), &config(60)));
         assert_eq!(report.format.as_str(), "honest");
         // And with no honest competitor: a plain unknown-format error.
-        let r = registry(vec![(Fixed { format: "liar", score: 101, prefix_consumed: 1, anchors: true }, 100)]);
+        let r = registry(vec![(
+            Fixed {
+                format: "liar",
+                score: 101,
+                prefix_consumed: 1,
+                anchors: true,
+            },
+            100,
+        )]);
         let e = match r.probe(b"x", &SourceMeta::new(None, None), &config(60)) {
             Ok(_) => unreachable!("must reject"),
             Err(e) => e,

@@ -11,8 +11,8 @@
 //! bounded hint vector a signature produced while scanning a
 //! window-bounded prefix).
 
-use media_types::ids::{CodecDescriptor, MediaKind, SourceUri};
 use media_types::EngineError;
+use media_types::ids::{CodecDescriptor, MediaKind, SourceUri};
 use plugin_api::SourceStream;
 
 use crate::error;
@@ -293,7 +293,13 @@ mod tests {
 
     #[test]
     fn format_id_rejects_bad_shapes() {
-        for s in ["", "AVI", "mp4 container", "way-too-long-format-id-string", "a\tb"] {
+        for s in [
+            "",
+            "AVI",
+            "mp4 container",
+            "way-too-long-format-id-string",
+            "a\tb",
+        ] {
             let e = err(FormatId::parse(s));
             assert_eq!(e.stage, PipelineStage::Probe);
             assert_eq!(e.context.code, "probe.format-id.invalid");
