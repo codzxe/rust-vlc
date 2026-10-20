@@ -196,31 +196,41 @@ fn value_of<'a>(args: &'a [String], index: usize, flag: &str) -> Result<&'a str,
 }
 
 /// Resolve the three output paths from the options and workspace root.
+///
+/// Leaks the resolved `PathBuf`s into `'static` — the same
+/// short-lived-process pattern as
+/// [`default_paths`](commands::catalog::codegen::default_paths) (the bin
+/// resolves paths exactly once, then exits).
 fn output_paths(options: &Options, root: &Path) -> Result<OutputPaths<'static>, Failure> {
-    if let Some(dir) = &options.out_dir {
-        return Ok(OutputPaths {
-            schema: &dir.join("commands.schema.json"),
-            typescript: &dir.join("commands.ts"),
-            checksum: &dir.join("commands.checksum.txt"),
-        });
-    }
-    Ok(OutputPaths {
-        schema: &options
-            .schema_out
-            .clone()
-            .unwrap_or_else(|| root.join("schemas").join("commands.schema.json")),
-        typescript: &options
-            .ts_out
-            .clone()
-            .unwrap_or_else(|| root.join("ui").join("src").join("generated").join("commands.ts")),
-        checksum: &options
-            .checksum_out
-            .clone()
-            .unwrap_or_else(|| {
+    let (schema, typescript, checksum) = if let Some(dir) = &options.out_dir {
+        (
+            dir.join("commands.schema.json"),
+            dir.join("commands.ts"),
+            dir.join("commands.checksum.txt"),
+        )
+    } else {
+        (
+            options
+                .schema_out
+                .clone()
+                .unwrap_or_else(|| root.join("schemas").join("commands.schema.json")),
+            options.ts_out.clone().unwrap_or_else(|| {
+                root.join("ui")
+                    .join("src")
+                    .join("generated")
+                    .join("commands.ts")
+            }),
+            options.checksum_out.clone().unwrap_or_else(|| {
                 root.join("schemas")
                     .join("generated")
                     .join("commands.checksum.txt")
             }),
+        )
+    };
+    Ok(OutputPaths {
+        schema: Box::leak(schema.into_boxed_path()),
+        typescript: Box::leak(typescript.into_boxed_path()),
+        checksum: Box::leak(checksum.into_boxed_path()),
     })
 }
 

@@ -25,7 +25,17 @@ use crate::catalog::ids::CommandId;
 use crate::catalog::ids::EventId;
 
 /// Completion class (doc 05 §1.5).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Deserialize, serde::Serialize, schemars::JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    serde::Deserialize,
+    serde::Serialize,
+    schemars::JsonSchema,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum CompletionClass {
     /// Synchronous-complete: pure queries; atomic mutations with bounded
@@ -58,7 +68,17 @@ impl std::fmt::Display for CompletionClass {
 /// Who executes a catalog command (doc 05 §1.1.3): shell-routed
 /// commands are still catalog commands, so keymaps, menus, CLI and the
 /// control server address them uniformly.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Deserialize, serde::Serialize, schemars::JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    serde::Deserialize,
+    serde::Serialize,
+    schemars::JsonSchema,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum CommandTarget {
     /// The engine core (default).
@@ -778,10 +798,7 @@ pub fn fnv1a64(bytes: &[u8]) -> u64 {
 /// field order fixed, doc-05 table order. Any catalog change — id,
 /// class, target, gen flag, arg/result shape, event scoping or rate —
 /// changes this text and therefore the checksum.
-pub fn canonical_catalog_text(
-    commands: &[CommandSpec],
-    events: &[EventSpec],
-) -> String {
+pub fn canonical_catalog_text(commands: &[CommandSpec], events: &[EventSpec]) -> String {
     let mut out = String::new();
     for spec in commands {
         out.push_str(&format!(
@@ -798,7 +815,11 @@ pub fn canonical_catalog_text(
         out.push_str(&format!(
             "event\t{}\t{}\t{}\n",
             spec.id.as_str(),
-            if spec.pipeline_scoped { "scoped" } else { "global" },
+            if spec.pipeline_scoped {
+                "scoped"
+            } else {
+                "global"
+            },
             spec.rate,
         ));
     }
@@ -915,12 +936,17 @@ mod tests {
             CommandId::TracksSetAudioTrack,
             CommandId::SessionClose,
         ];
-        let actual: Vec<CommandId> = catalog_data()
+        // §4.2 lists the set in prose order; the table stores rows in
+        // §2.1 order — compare as sets (both sides sorted).
+        let mut actual: Vec<CommandId> = catalog_data()
             .iter()
             .filter(|spec| spec.gen_bumping)
             .map(|spec| spec.id)
             .collect();
-        assert_eq!(actual, expected, "§4.2 gen-bumping list must match");
+        let mut expected = expected.to_vec();
+        actual.sort_unstable();
+        expected.sort_unstable();
+        assert_eq!(actual, expected, "§4.2 gen-bumping SET must match");
     }
 
     /// §1.1.3 + §2.7: `video.set-fullscreen` is the only shell-routed
@@ -998,11 +1024,8 @@ mod tests {
             checksum_of(catalog_data(), &rows)
         };
         assert_ne!(mutated_event, baseline, "event mutation invisible");
-        // …and an unmoved copy is stable.
-        assert_eq!(
-            checksum_of(&catalog_data().to_vec(), &event_catalog_data().to_vec()),
-            baseline
-        );
+        // …and re-checking the tables unchanged is stable.
+        assert_eq!(checksum_of(catalog_data(), event_catalog_data()), baseline);
     }
 
     #[test]

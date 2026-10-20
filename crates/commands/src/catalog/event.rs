@@ -334,7 +334,10 @@ mod tests {
             kind: EventKind::PlaybackRateChanged { rate: 2.0 },
         };
         let json = serde_json::to_string(&event).unwrap_or_default();
-        assert_eq!(json, r#"{"seq":2,"kind":"playback.rate-changed","rate":2.0}"#);
+        assert_eq!(
+            json,
+            r#"{"seq":2,"kind":"playback.rate-changed","rate":2.0}"#
+        );
         match serde_json::from_str::<Event<EventKind>>(&json) {
             Ok(back) => assert_eq!(back, event),
             Err(err) => unreachable!("round-trip failed: {err}"),
@@ -382,32 +385,112 @@ mod tests {
         }
     }
 
-    /// §3.2's completion-evidence set (§1.4 C3).
+    /// §3.2's completion-evidence set (§1.4 C3). Internally-tagged
+    /// events cannot parse without their payload fields, so each sample
+    /// is BUILT, serialized through the envelope (the wire form) and
+    /// parsed back — one real round-trip per id, then classified.
     #[test]
     fn completion_evidence_set_matches_section_1_4() {
-        let evidence = [
-            ("session.state-changed", true),
-            ("timing.seek-completed", true),
-            ("timing.seek-failed", true),
-            ("playback.error", true),
-            ("tracks.changed", true),
-            ("tracks.list-ready", true),
-            ("media.info-ready", true),
-            ("timing.time-tick", false),
-            ("playback.rate-changed", false),
-            ("playlist.changed", false),
-            ("system.log", false),
-            ("plugins.crashed", false),
+        let media_info = MediaInfo {
+            source: crate::catalog::types::SourceSpec::File {
+                path: PathBuf::from("fixture://sine.mkv"),
+            },
+            container: None,
+            title: None,
+            duration: crate::catalog::types::Duration::Unknown,
+            seekable: true,
+            is_live: false,
+            metadata: BTreeMap::new(),
+            tracks: Vec::new(),
+            chapters: Vec::new(),
+        };
+        let evidence: [(EventKind, bool); 12] = [
+            (
+                EventKind::SessionStateChanged {
+                    from: PlaybackState::Idle,
+                    to: PlaybackState::Playing,
+                },
+                true,
+            ),
+            (
+                EventKind::TimingSeekCompleted {
+                    position: Timestamp(1),
+                    seek_kind: SeekKind::Command,
+                },
+                true,
+            ),
+            (
+                EventKind::TimingSeekFailed {
+                    error: CommandError::new(Stage::Demux, ErrorCode::NotSeekable, "nope"),
+                },
+                true,
+            ),
+            (
+                EventKind::PlaybackError {
+                    stage: Stage::Decode,
+                    code: ErrorCode::Decoder,
+                    message: "dropped".to_owned(),
+                    details: BTreeMap::new(),
+                    fatal: false,
+                },
+                true,
+            ),
+            (
+                EventKind::TracksChanged {
+                    track_kind: TrackChangeKind::Audio,
+                    selected: Some(TrackId(1)),
+                },
+                true,
+            ),
+            (EventKind::TracksListReady { tracks: Vec::new() }, true),
+            (EventKind::MediaInfoReady { info: media_info }, true),
+            (
+                EventKind::TimingTimeTick {
+                    time: Timestamp(0),
+                    position: 0.0,
+                },
+                false,
+            ),
+            (EventKind::PlaybackRateChanged { rate: 1.0 }, false),
+            (
+                EventKind::PlaylistChanged {
+                    change: PlaylistChange::Cleared,
+                },
+                false,
+            ),
+            (
+                EventKind::SystemLog {
+                    level: LogLevel::Info,
+                    target: "lumen::engine".to_owned(),
+                    message: "line".to_owned(),
+                },
+                false,
+            ),
+            (
+                EventKind::PluginsCrashed {
+                    id: "org.example.bad".to_owned(),
+                    error: "trap".to_owned(),
+                    action_taken: PluginAction::Disabled,
+                },
+                false,
+            ),
         ];
-        for (id, expected) in evidence {
-            let json = format!(r#"{{"seq":1,"kind":"{id}"}}"#);
+        for (kind, expected) in evidence {
+            let event = Event {
+                seq: 1,
+                session: None,
+                generation: None,
+                origin: None,
+                kind,
+            };
+            let json = serde_json::to_string(&event).unwrap_or_default();
             match serde_json::from_str::<Event<EventKind>>(&json) {
-                Ok(event) => assert_eq!(
-                    event.kind.is_completion_evidence(),
+                Ok(back) => assert_eq!(
+                    back.kind.is_completion_evidence(),
                     expected,
-                    "{id} misclassified"
+                    "{json} misclassified"
                 ),
-                Err(err) => unreachable!("{id} rejected: {err}"),
+                Err(err) => unreachable!("{json} rejected: {err}"),
             }
         }
     }

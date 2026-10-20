@@ -64,7 +64,12 @@ use crate::catalog::types::Volume;
 /// unknown ids are rejected with `invalid-argument` (V1) — serde does
 /// that for the `"cmd"` tag automatically.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "cmd", content = "args", rename_all = "kebab-case")]
+#[serde(
+    tag = "cmd",
+    content = "args",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
 pub enum Command {
     // ---- session (§2.3) ----
     /// `session.open` — open a source as a new session (class A).
@@ -144,7 +149,7 @@ pub enum Command {
         selector: TrackSelector,
     },
     /// `tracks.set-subtitle-track` — selection over parsed streams
-        /// (class S — no pipeline invalidation).
+    /// (class S — no pipeline invalidation).
     #[serde(rename = "tracks.set-subtitle-track")]
     TracksSetSubtitleTrack {
         /// `Id`/`None`/`Auto` per §2.5.
@@ -445,7 +450,11 @@ fn default_true() -> bool {
 /// [`CommandOutcome::Completed`](crate::envelope::CommandOutcome).
 /// Variants are shared by shape across commands (see the module docs).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
 pub enum CommandResult {
     /// Nothing to report (`session.close`, playlist model edits).
     Unit,
@@ -636,8 +645,6 @@ pub struct CommandListing {
 mod tests {
     use super::*;
     use crate::catalog::types::AudioTrackInfo;
-    use crate::catalog::types::TrackKind;
-    use crate::catalog::types::TrackOrigin;
     use crate::catalog::types::VideoTrackInfo;
     use crate::envelope::CommandRequest;
     use crate::envelope::RequestId;

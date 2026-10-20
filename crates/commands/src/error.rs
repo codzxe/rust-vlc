@@ -1,9 +1,9 @@
 //! The §2.13 common error set with the V8 redaction rule (doc 05).
 
-use std::collections::BTreeMap;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde::Serialize;
+use std::collections::BTreeMap;
 
 /// Where a command failed (doc 05 §2.13 — the command-layer view of the
 /// pipeline; distinct from media-types' `PipelineStage`, which tags
@@ -295,7 +295,8 @@ mod tests {
         assert_eq!(Stage::Control.to_string(), "control");
         assert_eq!(ErrorCode::ResourceLimit.as_str(), "resource-limit");
         assert_eq!(
-            ErrorCode::UnsupportedForHost.to_string(),n            "unsupported-for-host"
+            ErrorCode::UnsupportedForHost.to_string(),
+            "unsupported-for-host"
         );
         // The two taxonomies must not be confused: command-layer Stage
         // and media-types PipelineStage are distinct vocabularies.

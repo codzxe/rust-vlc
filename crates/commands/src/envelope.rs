@@ -21,18 +21,24 @@ use serde::Serialize;
 /// starting at 1, strictly increasing; reuse is forbidden. The engine
 /// echoes it and never interprets it (the control server's anti-replay
 /// check is that host's business).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
 pub struct RequestId(pub u64);
 
 /// Engine-assigned session handle (doc 05 §4.2): `SessionId` ↔ the
 /// engine's session epoch (doc 03 §5).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
 pub struct SessionId(pub u64);
 
 /// Per-session pipeline generation (doc 05 §4.2): bumped atomically at
 /// accept time of generation-bumping commands and engine-initiated
 /// invalidations. `Generation` ↔ the engine's pipeline generation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
 pub struct Generation(pub u64);
 
 /// One host → engine request (doc 05 §1.6). Generic over the command
@@ -176,9 +182,7 @@ pub mod result_wire {
     {
         match result {
             Ok(outcome) => ResultWire::<&O, &E>::Ok(outcome).serialize(serializer),
-            Err(error) => {
-                ResultWire::<&O, &E>::Err(ErrorEnvelope { error }).serialize(serializer)
-            }
+            Err(error) => ResultWire::<&O, &E>::Err(ErrorEnvelope { error }).serialize(serializer),
         }
     }
 

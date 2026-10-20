@@ -185,7 +185,11 @@ pub struct TrackInfo {
 /// `{ "kind": "relative", "deltaMs": -10000 }`. Not `Eq`/`Hash`:
 /// `Percent`'s fraction is an `f32` wire scalar.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
 pub enum SeekTarget {
     /// µs from media start; clamped to `[0, duration]` when the duration
     /// is known (clamping is truth, not failure — §2.4).
@@ -231,7 +235,9 @@ pub enum SourceSpec {
 /// Options for `session.open` (§2.3): schema-validated; an unknown
 /// option is `invalid-argument`. `[VERIFY]` — the "track selectors"
 /// bullet of §2.3 is rendered as one optional selector per track kind.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize, JsonSchema)]
+/// Not `Eq`/`Hash`: `rate` is an `f32` wire scalar (§2.2 — same class as
+/// [`SeekTarget`] and [`VideoTrackInfo`]).
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields, rename_all = "camelCase", default)]
 pub struct OpenOptions {
     /// Start at this position (µs) instead of 0.
@@ -301,15 +307,18 @@ impl PlaybackState {
         if self == other {
             return true; // C8 idempotent confirmations
         }
-        match (self, other) {
-            (S::Idle, S::Opening) => true,
-            (S::Opening, S::Buffering | S::Error | S::Idle) => true,
-            (S::Buffering, S::Playing | S::Error) => true,
-            (S::Playing, S::Paused | S::Buffering | S::Stopped | S::Ended | S::Error) => true,
-            (S::Paused, S::Playing | S::Stopped | S::Ended | S::Error) => true,
-            (S::Stopped | S::Ended | S::Error, S::Idle) => true,
-            _ => false,
-        }
+        matches!(
+            (self, other),
+            (S::Idle, S::Opening)
+                | (S::Opening, S::Buffering | S::Error | S::Idle)
+                | (S::Buffering, S::Playing | S::Error)
+                | (
+                    S::Playing,
+                    S::Paused | S::Buffering | S::Stopped | S::Ended | S::Error
+                )
+                | (S::Paused, S::Playing | S::Stopped | S::Ended | S::Error)
+                | (S::Stopped | S::Ended | S::Error, S::Idle)
+        )
     }
 }
 
@@ -425,21 +434,16 @@ pub enum SeekKind {
 }
 
 /// Playlist repeat mode (§2.9 `playlist.set-repeat`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum RepeatMode {
     /// Advance once, then stop at the list end.
+    #[default]
     Off,
     /// Repeat the current item.
     One,
     /// Wrap around the list.
     All,
-}
-
-impl Default for RepeatMode {
-    fn default() -> Self {
-        RepeatMode::Off
-    }
 }
 
 /// Playlist serialization format (§2.9 `playlist.save`). Defaults from
@@ -799,7 +803,10 @@ mod tests {
     #[test]
     fn selector_variants_round_trip() {
         for (selector, json) in [
-            (TrackSelector::Id { id: TrackId(3) }, r#"{"kind":"id","id":3}"#),
+            (
+                TrackSelector::Id { id: TrackId(3) },
+                r#"{"kind":"id","id":3}"#,
+            ),
             (TrackSelector::None, r#"{"kind":"none"}"#),
             (TrackSelector::Auto, r#"{"kind":"auto"}"#),
         ] {

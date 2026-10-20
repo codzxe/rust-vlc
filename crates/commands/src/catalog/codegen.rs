@@ -195,7 +195,9 @@ pub fn check_against(paths: &OutputPaths) -> Result<Vec<String>, std::io::Error>
 /// Render `ui/src/generated/commands.ts` from the generated schema.
 fn emit_typescript(schema: &serde_json::Value) -> String {
     let mut out = String::new();
-    out.push_str("// @generated — Lumen command-catalog TypeScript types (card 1.D4, doc 05 §2-§3, §5.1).\n");
+    out.push_str(
+        "// @generated — Lumen command-catalog TypeScript types (card 1.D4, doc 05 §2-§3, §5.1).\n",
+    );
     out.push_str("// Regenerate with `cargo xtask codegen` — NEVER hand-edit; the catalog\n");
     out.push_str("// checksum gate fails on drift. Source of truth: crates/commands/src/catalog\n");
     out.push_str("// (Rust wire types) -> schemas/commands.schema.json -> this file.\n\n");
@@ -221,7 +223,10 @@ fn emit_typescript(schema: &serde_json::Value) -> String {
 }
 
 /// Map one JSON-Schema (sub)schema to a TS type expression.
-fn ts_type(schema: &serde_json::Value, defs: &serde_json::Map<String, serde_json::Value>) -> String {
+fn ts_type(
+    schema: &serde_json::Value,
+    defs: &serde_json::Map<String, serde_json::Value>,
+) -> String {
     if let Some(reference) = schema.get("$ref").and_then(serde_json::Value::as_str) {
         let name = reference.rsplit('/').next().unwrap_or(reference);
         return name.to_owned();
@@ -232,7 +237,10 @@ fn ts_type(schema: &serde_json::Value, defs: &serde_json::Map<String, serde_json
     if let Some(values) = schema.get("enum").and_then(serde_json::Value::as_array) {
         let parts: Vec<String> = values.iter().map(ts_literal).collect();
         if parts.len() == 1 {
-            return parts.into_iter().next().unwrap_or_else(|| "never".to_owned());
+            return parts
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| "never".to_owned());
         }
         return format!("({})", parts.join(" | "));
     }
@@ -310,11 +318,7 @@ fn ts_object(
     let required: Vec<&str> = schema
         .get("required")
         .and_then(serde_json::Value::as_array)
-        .map(|list| {
-            list.iter()
-                .filter_map(serde_json::Value::as_str)
-                .collect()
-        })
+        .map(|list| list.iter().filter_map(serde_json::Value::as_str).collect())
         .unwrap_or_default();
     let mut fields: Vec<String> = Vec::new();
     for (name, value) in &properties {
@@ -398,10 +402,7 @@ mod tests {
             "\"timing.seek-completed\"",
             "\"media.info-ready\"",
         ] {
-            assert!(
-                outputs.schema.contains(needle),
-                "schema missing {needle}"
-            );
+            assert!(outputs.schema.contains(needle), "schema missing {needle}");
         }
     }
 
@@ -427,9 +428,25 @@ mod tests {
             );
         }
         assert!(
-            !outputs.typescript.contains("unknown"),
+            !ts_leaks_unknown_type(&outputs.typescript),
             "unmapped schema shape leaked into the TS output"
         );
+    }
+
+    /// Whether the TS output uses the `unknown` TYPE (as opposed to the
+    /// quoted `Duration::Unknown` variant literal `"unknown"`): strip
+    /// double-quoted string literals, then no bare `unknown` may remain.
+    fn ts_leaks_unknown_type(typescript: &str) -> bool {
+        let mut outside_quotes = String::new();
+        let mut in_quotes = false;
+        for ch in typescript.chars() {
+            match ch {
+                '"' => in_quotes = !in_quotes,
+                _ if !in_quotes => outside_quotes.push(ch),
+                _ => {}
+            }
+        }
+        outside_quotes.contains("unknown")
     }
 
     #[test]
@@ -454,10 +471,7 @@ mod tests {
             Ok(outputs) => outputs,
             Err(err) => unreachable!("generation failed: {err}"),
         };
-        let dir = std::env::temp_dir().join(format!(
-            "lumen-1d4-check-{}",
-            std::process::id()
-        ));
+        let dir = std::env::temp_dir().join(format!("lumen-1d4-check-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         if let Err(err) = std::fs::create_dir_all(&dir) {
             unreachable!("tempdir failed: {err}");
@@ -489,7 +503,11 @@ mod tests {
         match check_against(&paths) {
             Ok(drift) => {
                 assert!(!drift.is_empty(), "doctored schema not reported");
-                assert!(drift[0].contains("schema"), "wrong drift message: {}", drift[0]);
+                assert!(
+                    drift[0].contains("schema"),
+                    "wrong drift message: {}",
+                    drift[0]
+                );
             }
             Err(err) => unreachable!("doctored check failed: {err}"),
         }
@@ -499,7 +517,11 @@ mod tests {
         }
         match check_against(&paths) {
             Ok(drift) => {
-                assert_eq!(drift.len(), 2, "expected schema+typescript drift: {drift:?}");
+                assert_eq!(
+                    drift.len(),
+                    2,
+                    "expected schema+typescript drift: {drift:?}"
+                );
                 assert!(drift[1].contains("missing"), "wrong message: {}", drift[1]);
             }
             Err(err) => unreachable!("missing-file check failed: {err}"),
