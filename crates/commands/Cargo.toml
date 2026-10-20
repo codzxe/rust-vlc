@@ -1,0 +1,24 @@
+# crates/commands — the one typed command layer (cards 1.D3 + 1.D4, doc 05).
+#
+# Registry: doc 01 §2.3 (`commands`, layer L1). One command layer: the
+# desktop UI, web UI, CLI, contract tests and control server all consume
+# the same catalog, envelope, and request/response/event semantics (doc 05
+# §1.1) — defined here, re-exported (never re-implemented) by every host.
+#
+# Card 1.D3 (this commit) delivers the envelope, the typed error taxonomy
+# with redaction (§1.2 V1–V8, §2.13), and the correlation/ordering
+# machinery (§4) — generic over the catalog payloads, which land with
+# card 1.D4 (the ~65-command catalog + codegen). Std-only until then:
+# serde (wire forms) and media-types (payload types) arrive with 1.D4.
+
+[package]
+name = "commands"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen command layer: envelope, typed errors with redaction, correlation and ordering invariants (doc 05 §1/§4; catalog in card 1.D4)."
+publish = false
+
+[lints]
+workspace = true
+
+# No dependencies in 1.D3 (std-only; the catalog card adds serde + media-types).

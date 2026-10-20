@@ -1022,3 +1022,18 @@ Stage Summary:
 - 1.E1 COMPLETE. Wave 1.E now 4/5 (only 1.E2 remains — CI enforcement wiring, deps satisfied).
 - Lead wiring call recorded: add boundary-check + cargo-deny to required checks on first push.
 - Agent flags: mod.rs implemented-flags table stale for graduated subcommands (frozen file — Lead cleanup at convenience); architecture-report/1 vs evidence/1 schema unification [PROPOSAL].
+
+---
+Task ID: 1.D3 (Lead-owned)
+Agent: Lead
+Task: commands I per doc 05 §1/§4 — envelope, typed errors + redaction, correlation and ordering.
+
+Work Log:
+- crates/commands (3 modules, std-only until 1.D4): error.rs — Stage (13 §2.13 variants, kebab wire names) + ErrorCode (18 variants: 7 MP §8 canonical + 11 command-layer), CommandError {stage, code, message, details} with V8 redaction AT CONSTRUCTION (mask_userinfo `://user:pass@` -> `://***@`; collapse_paths — token-boundary-aware so URL slashes are never mistaken for filesystem paths; 1 KiB char-boundary cap). envelope.rs — RequestId/SessionId/Generation newtypes; CommandRequest<C>/CommandResponse<R>/Event<E> GENERIC over catalog payloads (Lead deviation recorded: 1.D4 instantiates with the concrete catalog enums + serde wire forms; every §1.6 field name/semantic preserved); CommandOutcome {Accepted{session,generation}, Completed(R)} with accepted_generation() + requires_completion_event() (the C2/A-class split); Event::is_pipeline_scoped (session AND gen). correlation.rs — RequestIdAllocator (monotonic from 1, no reuse), StalenessFilter (§4.2 host rule C6: per-session watermark raised by Accepted outcomes + pipeline events; stale = gen < watermark dropped; sessionless/genless never dropped; errors track envelope gen), DeliveryLog (§4.3: strictly-increasing seq; response-echo validity against allocated ids).
+- Deviation recorded: the spec sketch's `gen` field is a RESERVED KEYWORD in edition 2024 — Rust field named `generation`, wire name stays "gen" via 1.D4's serde rename.
+- AC met: stale-generation rules unit-tested per doc 05 §4 (7 tests incl. the full host-side command-storm race: seek A gen 3 accepted, seek B gen 4, late A-gen event dropped, B completes, zero violations).
+- Lead self-review catches: collapse_paths ate URL path separators (token-boundary fix); precedence bug in a no-reuse assertion; let-and-return clippy; items-after-test-module ordering.
+- VERIFY: cargo test -p commands = 21 passed / 0 failed; workspace 481 / 0; clippy -D warnings clean; fmt clean.
+
+Stage Summary:
+- Wave 1.D at 3/4 — only 1.D4 (catalog + codegen) remains. Wave 1.E at 4/5 — only 1.E2 (CI wiring) remains. Both launching as delegated cards now; then 1.F1-V gate.
