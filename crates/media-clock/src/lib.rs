@@ -54,12 +54,13 @@
 //! # Example
 //!
 //! ```
-//! use media_clock::{InstantSource, MonotonicSource, SampleCounterSource};
+//! use media_clock::{MediaClock, PlaybackClock, SampleCounterSource};
+//! use media_types::time::{Rate, Timestamp};
 //! use std::sync::atomic::{AtomicU64, Ordering};
+//! use std::sync::Arc;
 //!
 //! // A minimal sample-counter source: the audio-output adapter in
-//! // production, a virtual device in tests (doc 03 §4.9 — "the clock's
-//! // truth source").
+//! // production, a virtual device in tests (doc 03 §4.9).
 //! struct Counter(AtomicU64);
 //! impl SampleCounterSource for Counter {
 //!     fn sample_count(&self) -> u64 {
@@ -70,13 +71,24 @@
 //!     }
 //! }
 //!
-//! let counter = Counter(AtomicU64::new(0));
-//! let _ = counter.0.fetch_add(48_000, Ordering::Relaxed); // one second played
-//! assert_eq!(counter.sample_count(), 48_000);
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let zero = Timestamp::from_parts(0, 1, 1_000_000_000)?;
+//! let counter = Arc::new(Counter(AtomicU64::new(0)));
+//! let clock = MediaClock::audio_master(counter.clone(), zero, Rate::ONE)?;
 //!
-//! // The audio-less fallback reads wall time in production...
-//! let wall = InstantSource::new();
-//! assert!(wall.now_ns() >= 0);
+//! // The pump consumes one second of audio; the clock follows.
+//! let _ = counter.0.fetch_add(48_000, Ordering::Relaxed);
+//! assert_eq!(clock.now().ticks, 1_000_000_000);
+//!
+//! // Pause freezes the position even if the source keeps running...
+//! clock.pause();
+//! let _ = counter.0.fetch_add(48_000, Ordering::Relaxed);
+//! assert_eq!(clock.now().ticks, 1_000_000_000);
+//! // ...and resume continues with no discontinuity.
+//! clock.resume();
+//! assert_eq!(clock.now().ticks, 1_000_000_000);
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! # Never
@@ -84,11 +96,27 @@
 //! I/O, device APIs, UI, threads of its own (doc 01 §2.2 d). The clock
 //! observes; it never drives the audio device.
 
+pub mod clock;
 pub mod mapping;
 pub mod source;
 
+pub use clock::{ClockAnchor, ClockMaster, ClockSnapshot, ClockState, MediaClock, PlaybackClock};
 pub use mapping::{
     NANO_BASE, map_samples_to_timestamp, map_timestamp_to_samples, nanos_to_timestamp,
     sample_delta_to_media_nanos, samples_until_end, timestamp_to_nanos,
 };
 pub use source::{InstantSource, MonotonicSource, SampleCounterSource};
+
+use media_types::time::Rate;
+
+/// Defensive re-validation of a [`Rate`] at the clock's mutation
+/// boundaries: [`Rate`]'s pub fields allow constructing zero-component
+/// values that bypass [`Rate::new`]. Mirrors `Rate::new` exactly
+/// (rejects zero components; reduces) so stored rates are always sound.
+///
+/// # Errors
+/// [`media_types::EngineError`] with kind `Unsupported` and stage
+/// `Control` — `Rate::new`'s error.
+pub(crate) fn validate_rate(rate: Rate) -> Result<Rate, media_types::EngineError> {
+    Rate::new(rate.num, rate.den)
+}
