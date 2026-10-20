@@ -416,3 +416,56 @@ fn stats_count_backpressure_events() {
     assert_eq!(stats.full_rejections, 3);
     assert_eq!(stats.popped, 0);
 }
+
+/// The lock is never held while parked (doc 03 §4.4(c)): a producer
+/// parked on a full queue leaves the queue fully serviceable — the
+/// session thread's non-blocking operations answer immediately (Q3's
+/// "never blocks the session thread" clause), and the pop that frees
+/// the slot does not deadlock behind the parked producer.
+#[test]
+fn parked_producer_does_not_hold_the_lock() {
+    let queue = Arc::new(BoundedQueue::<Blob>::with_default_watermarks(limits(
+        1, 1_000, 1_000,
+    )));
+    assert_eq!(queue.try_push(stamped(0)), PushOutcome::Pushed);
+
+    let parked_queue = Arc::clone(&queue);
+    let producer = thread::Builder::new()
+        .name("lock-proof-producer".into())
+        .spawn(move || {
+            // Parks (nobody drains until the proof's own pop below).
+            let _ = parked_queue.push_wait(stamped(1), None);
+        })
+        .must();
+
+    // Let the producer reach the condvar, then verify every other
+    // operation still completes immediately — a parked producer must
+    // hold no lock while waiting.
+    thread::sleep(Duration::from_millis(100));
+    let started = Instant::now();
+    assert!(
+        matches!(queue.try_push(stamped(2)), PushOutcome::Full { .. }),
+        "try_push must answer a full queue without parking"
+    );
+    match queue.try_pop() {
+        PopOutcome::Item(item) => assert_eq!(item.value.id, 0),
+        other => unreachable!("expected Item, got {other:?}"),
+    }
+    assert!(
+        started.elapsed() < Duration::from_millis(500),
+        "non-blocking operations stalled behind a parked producer: {:?}",
+        started.elapsed()
+    );
+
+    // The pop freed the slot: the parked producer wakes and completes,
+    // and its item is the next to pop (FIFO).
+    join_or_propagate(producer);
+    match queue.try_pop() {
+        PopOutcome::Item(item) => assert_eq!(item.value.id, 1),
+        other => unreachable!("expected the parked producer's item, got {other:?}"),
+    }
+    assert!(matches!(queue.try_pop(), PopOutcome::Empty));
+    let stats = queue.stats();
+    assert_eq!(stats.pushed, 2);
+    assert_eq!(stats.popped, 2);
+}
