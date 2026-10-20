@@ -1,0 +1,39 @@
+# crates/demux — container demultiplexers (card 2.B2; doc 03 §4.3,
+# doc 01 §2.2 registry row: layer L2, deps `media-types` + `plugin-api` —
+# the ARCH-2 set; doc 13's "Consumes: input" column is satisfied at the
+# trait seam: demuxers pull bytes through `plugin_api::SourceStream`,
+# which `input` implements — no compile-time edge needed, mirroring the
+# 2.C4 note on doc 13's Consumes lists).
+#
+# v0 (D-018 variant A, the first vertical): `src/avi/` — the RIFF/AVI 1.0
+# demuxer for the MJPEG+PCM slice (doc 03 §7 candidate 2). Module layout
+# leaves room for later formats (wav/ogg/mkv/ts per doc 04 §8.5; the
+# registry-merge rule R3).
+#
+# C5 discipline: std-only, zero external dependencies. No unsafe, no
+# unwrap/expect/panic/todo (workspace lints). Bounded memory (MP §12):
+# every read is chunk-bounded and payload sizes are refused above a
+# typed ResourceLimit ceiling rather than trusted.
+
+[package]
+name = "demux"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen container demultiplexers: AVI 1.0 RIFF walk, hdrl/strl track discovery, idx1 seek table, MJPEG+PCM packet extraction (card 2.B2, doc 03 §4.3/§7)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+media-types = { path = "../media-types" }
+plugin-api = { path = "../plugin-api" }
+
+[dev-dependencies]
+# testkit (dev-only, MP §3.7/ARCH-7): Must/assert helpers, fixture paths,
+# and (this card) the std-only SHA-256 used to verify fixture digests.
+testkit = { path = "../testkit" }
+# The real byte source of the first vertical (card 2.A1): the AC tests
+# demux the generated fixtures through input's FileAccess/FileStream to
+# prove the 2.A1+2.B2 composition, not just an in-memory stand-in.
+input = { path = "../input" }

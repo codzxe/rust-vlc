@@ -153,6 +153,20 @@ dev_deps = ["testkit"]
 external_allowlist = []
 external_dev_allowlist = []
 
+# L2 — container demultiplexers (doc 01 §2.2 registry row, card 2.B2;
+# doc 03 §4.3). v0 carries the AVI 1.0 demuxer of the first vertical
+# (D-018 variant A: MJPEG+PCM). Implements `plugin_api::Demuxer` over
+# `plugin_api::SourceStream` (the trait seam `input` serves — no
+# compile-time edge on `input` needed, the 2.C4 Consumes-column note
+# applies). Std-only by C5; testkit dev-only; `input` is a DEV edge
+# (the fixture AC demuxes through the real file access stack).
+[crates.demux]
+layer = 2
+internal_deps = ["media-types", "plugin-api"]
+dev_deps = ["testkit", "input"]
+external_allowlist = []
+external_dev_allowlist = []
+
 # L4 — the session orchestrator (doc 01 §2.6, card 2.C2; doc 03 §4.6 +
 # §5). Owns the playback state machine, mints the two-level session
 # epochs, and wires the pipeline demux→queues→decoders→sinks at the
