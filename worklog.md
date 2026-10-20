@@ -1314,3 +1314,19 @@ Work Log:
 Stage Summary:
 - Wave 2 state: 2.A1, 2.A3, 2.B1, 2.C1, 2.C2, 2.C4 COMPLETE on main @ 803/0/3. Media-clock flake eliminated (deterministic test).
 - NEXT (pair 2, parallelism 2): 2.B2 AVI demuxer (D-018 variant A) + 2.B4 MJPEG decoder. Queued: 2.B5 PCM + 2.A2 media-probe; then 2.C3 audio path; then wave 2.D.
+
+---
+Task ID: 2.B2 (Lead close-out after three transport-deadline cuts)
+Agent: Sub-agent (general-purpose, x3 salvaged) + Lead verification/close-out
+Task: AVI demuxer (D-018 first-vertical variant A) — RIFF walk, hdrl/strl, idx1, MJPEG+PCM extraction, seek-to-time.
+
+Work Log:
+- Agent chain: cut 1 left the skeleton + boundaries entry (99a8dba); cut 2 recovered it to green — lib wiring, missing error ctors, StreamDesc.strh_offset, borrow-safe movi walk (cursor take/restore), LIST->RecList classify fix, damage-before-packet emit order, physical-truncation flavor precedence, doctest repairs, BytesStream test support, fuzz harness, 43-test unit suite (8a87b8d + Cargo.lock 9cd884f); cut 3 delivered the AC integration suites (fixtures_parent + fixtures_class_b + common TOML parser) — salvaged mid-edit, compiled clean, 60/0.
+- Lead close-out: 8 clippy lints in the salvaged in-flight code fixed Lead-direct (is_multiple_of, div_ceil, let-chain collapse at the seek-stream guard — semantics preserved: best-Landing stays seek-stream-scoped, match-instead-of-unwrap_err per test convention, useless u32 conversion, single-element for-loop, unused parse_u32 removed, let-and-return collapsed, DrainOutcome type alias). fmt applied.
+- Full gate on wip/2b2-avi-demuxer: fmt CLEAN; clippy -D warnings CLEAN; workspace **863/0/3** (803 + 60 demux: 43 unit + 5 fixtures_parent + 11 fixtures_class_b + 1 doctest... exact split recorded in test binaries); check-architecture PASS 5/5; fixtures --check clean.
+- AC check (doc 13 card 2.B2): generated AVI fixtures demux fully — parent: per-frame sha256 match + PCM digest match + track/duration metadata match + seek lands within tolerance (fixtures_parent 5/5). All 10 class-B derivatives per their expectation contracts: trunc0-4 typed truncation at the right boundaries (after-magic, mid-avih, at-first-movi-chunk, mid-payload with survivor emission, last-byte with index salvage), garbage0 invisible past extent, flip1 advisory-field flip demuxes identically, flip4 lying sizes recover with counted damage, flip16 broken magic typed parse error, noidx0 demuxes fully via the movi walk (idx1-less fallback). +FB: fuzz/fuzz_targets/fuzz_demux_avi.rs present with every-fixture-survival tests. AC MET.
+
+Stage Summary:
+- 2.B2 COMPLETE (D-018 variant A executed). Wave 2 state: 2.A1, 2.A3, 2.B1, 2.B2, 2.C1, 2.C2, 2.C4 done; 2.B4 continuation in flight (decoder core a8da0d7 on its branch); 2.B3 closed not-selected.
+- Lead flags: (a) three-cut salvage chain recorded — agents' reports lost to transport, this entry verifies their committed work; (b) fuzz harness is in-tree + fixture-survival tested, CI fuzz wiring remains a later card per doc 04; (c) seek tolerance bound is [PROPOSAL]-tagged in-tree.
+- Honest limitations: AVI-1.0 subset per the fixture writer's emission (no AVI-2.0/OpenDML, no interleaved-first ordering variants beyond what fixtures exercise); idx1 entry cap MAX_IDX1_ENTRIES [PROPOSAL]; movi-walk fallback seeks linearly (fine at fixture scale; index-less production files are rare).
