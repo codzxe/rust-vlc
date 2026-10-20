@@ -13,11 +13,11 @@
 //! | Module                   | Subcommand           | Owning card |
 //! |--------------------------|----------------------|-------------|
 //! | `cmd::gate`              | `gate`               | 1.A3 (implemented) |
-//! | `cmd::schema_gen`        | `schema-gen`         | 1.B2 |
-//! | `cmd::tokens`            | `tokens`             | 1.B4 |
-//! | `cmd::codegen`           | `codegen`            | 1.D4 |
-//! | `cmd::check_architecture`| `check-architecture` | 1.E1 |
-//! | `cmd::rebrand`           | `rebrand`            | 1.E4 |
+//! | `cmd::schema_gen`        | `schema-gen`         | 1.B2 (implemented) |
+//! | `cmd::tokens`            | `tokens`             | 1.B4 (implemented) |
+//! | `cmd::codegen`           | `codegen`            | 1.D4 (implemented) |
+//! | `cmd::check_architecture`| `check-architecture` | 1.E1 (implemented) |
+//! | `cmd::rebrand`           | `rebrand`            | 1.E4 (implemented) |
 
 use std::process::ExitCode;
 
@@ -58,35 +58,35 @@ pub const SUBCOMMANDS: &[Subcommand] = &[
         name: "schema-gen",
         card: "1.B2",
         summary: "Settings-schema generators (doc 07 §5)",
-        implemented: false,
+        implemented: true,
         run: schema_gen::run,
     },
     Subcommand {
         name: "tokens",
         card: "1.B4",
         summary: "Theme-token pipeline (doc 08 §3)",
-        implemented: false,
+        implemented: true,
         run: tokens::run,
     },
     Subcommand {
         name: "codegen",
         card: "1.D4",
         summary: "Command-catalog codegen (doc 05 §2-3)",
-        implemented: false,
+        implemented: true,
         run: codegen::run,
     },
     Subcommand {
         name: "check-architecture",
         card: "1.E1",
         summary: "Architecture boundary checks (doc 01 §5)",
-        implemented: false,
+        implemented: true,
         run: check_architecture::run,
     },
     Subcommand {
         name: "rebrand",
         card: "1.E4",
         summary: "Rebrand tooling (doc 07 §8)",
-        implemented: false,
+        implemented: true,
         run: rebrand::run,
     },
 ];
@@ -132,13 +132,16 @@ mod tests {
     }
 
     #[test]
-    fn only_gate_is_implemented_in_v0() {
+    fn all_wave1_subcommands_are_implemented() {
+        // Lead batch-flip at the 1.D4 merge: every wave-1 card has landed
+        // (gate 1.A3, schema-gen 1.B2, tokens 1.B4, codegen 1.D4,
+        // check-architecture 1.E1, rebrand 1.E4). The v0 invariant
+        // (only gate) is graduated with them.
         for sub in SUBCOMMANDS {
-            assert_eq!(
+            assert!(
                 sub.implemented,
-                sub.name == "gate",
-                "unexpected implemented flag for `{}`",
-                sub.name
+                "subcommand `{}` card {} should be implemented",
+                sub.name, sub.card
             );
         }
     }

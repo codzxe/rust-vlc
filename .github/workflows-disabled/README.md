@@ -23,10 +23,10 @@ in sandbox)** `[PROPOSAL: gate evidence on first push]`.
 | `check` | 3-OS matrix | `cargo check --workspace --all-targets --all-features` (#2) | active |
 | `clippy` | 3-OS matrix | `cargo clippy --workspace --all-targets --all-features -- -D warnings` (#3) | active |
 | `test` | 3-OS matrix | `cargo test --workspace --all-features` (#4); `needs: [fmt, check]` (doc 10 §4.2 cheap-first ordering) | active |
-| `boundary-check` | ubuntu | `cargo xtask check-architecture` (G5) | **STUB — activates in 1.E1** |
-| `schema-validation` | ubuntu | `cargo xtask config-validator` + feature-audit (G1/G6) | **STUB — activates in 1.E2** |
-| `wasm-build` | ubuntu | wasm32 build + size report (G12) | **STUB — activates in 1.E3** |
-| `cargo-deny` | ubuntu | `cargo deny check …` (G3/G4) | **STUB — activates in 1.E5** |
+| `boundary-check` | ubuntu | `cargo xtask check-architecture` (G5) | active — 1.E1 landed (Lead sync) |
+| `schema-validation` | ubuntu | product.toml + settings schema + command-catalog drift (`cargo xtask codegen --check`) + feature-matrix v0 (G1/G6) | active — 1.E2 landed, catalog-drift step added at 1.D4 merge (Lead sync) |
+| `wasm-build` | ubuntu | wasm32 build + size report (G12) | active — 1.E3 landed, lives in `wasm.yml` |
+| `cargo-deny` | ubuntu | `cargo deny check …` (G3/G4) | active — 1.E5 landed |
 
 Matrices use `fail-fast: false` (doc 10 §4.2). Concurrency: per-branch group
 with `cancel-in-progress` on pull-request events only (doc 10 §10.1);

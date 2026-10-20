@@ -293,7 +293,7 @@ jobs:
   #      exit 1 each.
   # --------------------------------------------------------------------------
   schema-validation:
-    name: schema-validation (G1/G6 — product.toml + settings schema + feature-matrix)
+    name: schema-validation (G1/G6 — product.toml + settings schema + feature-matrix + command-catalog drift)
     continue-on-error: false
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -318,6 +318,8 @@ jobs:
         run: cargo test -p product-config
       - name: schemas/settings.toml D1-D6 + generated-output drift (doc 07 §5.2, §9 step 5)
         run: cargo xtask schema-gen --check
+      - name: command-catalog artifacts drift (doc 05 §5.1 — card 1.D4)
+        run: cargo xtask codegen --check
       - name: docs/feature-matrix.toml v0 structural check (doc 02 §4.6 R-subset)
         run: |
           python3 - <<'PY'
