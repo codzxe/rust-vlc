@@ -336,15 +336,22 @@ fn parse_dqt(data: &[u8], pos: usize, info: &mut JpegInfo) -> Result<usize, Mjpe
             return Err(bad_marker("mjpeg.dqt.too_short", p));
         }
         let mut table = [0u16; 64];
-        for (i, slot) in table.iter_mut().enumerate() {
-            // Zigzag input order → natural order (same walk as the
-            // encoder's DQT emission). Zero is out of spec (§B.2.4.1:
-            // 8-bit values are 1..255).
-            let raw = data[p + 1 + ZIGZAG[i]];
+        // Zigzag input order → natural order (§B.2.4.1): payload byte
+        // k is the quantizer of the k-th coefficient *in scan order*,
+        // which is natural position ZIGZAG[k] — the destination, not
+        // the source, of the walk. (The entropy path is the mirror:
+        // there, scan position k carries the coefficient FROM natural
+        // ZIGZAG[k]. Regression-tested with distinct per-position
+        // values — flat tables make a permutation invisible, which is
+        // exactly how this bug hid through the salvage's uniform-table
+        // unit tests and the fixture luma plane.)
+        for k in 0..64 {
+            // Zero is out of spec (§B.2.4.1: 8-bit values are 1..255).
+            let raw = data[p + 1 + k];
             if raw == 0 {
-                return Err(bad_marker("mjpeg.dqt.zero_value", p + 1 + ZIGZAG[i]));
+                return Err(bad_marker("mjpeg.dqt.zero_value", p + 1 + k));
             }
-            *slot = u16::from(raw);
+            table[ZIGZAG[k]] = u16::from(raw);
         }
         info.quant_tables[tq as usize] = table;
         info.quant_present[tq as usize] = true;
@@ -746,5 +753,36 @@ mod tests {
         jpeg.extend(seg(0xdb, &payload));
         let e = parse(&jpeg).err().unwrap_or_else(|| unreachable!());
         assert!(matches!(e, MjpegError::BadMarker { code, .. } if code == "mjpeg.dqt.table_id"));
+    }
+
+    #[test]
+    fn dqt_dezigzag_maps_scan_order_to_natural_positions() {
+        // Regression (found via the 2.B4 ffmpeg-oracle cross-check):
+        // the salvage's parse read payload[ZIGZAG[i]] into natural
+        // slot i — the permutation's wrong direction. With distinct
+        // per-position values the bug is visible: emit natural table
+        // value (position + 1) in zigzag payload order, then require
+        // the parsed natural table to match exactly. (The salvage's
+        // uniform-value tables made any permutation invisible — the
+        // fixture luma plane decoded byte-exact by luck of the
+        // content's zero high-frequency coefficients; chroma did
+        // not, which is what exposed this.)
+        let natural: [u16; 64] = std::array::from_fn(|i| (i + 1) as u16);
+        let mut payload = vec![0u8]; // Pq=0, Tq=0
+        for &natural_index in ZIGZAG.iter() {
+            payload.push(natural[natural_index] as u8);
+        }
+        let mut jpeg = soi();
+        jpeg.extend(seg(0xdb, &payload));
+        // Complete the minimal marker set so the walk reaches SOS.
+        jpeg.extend(dht());
+        jpeg.extend(sof0(8, 8));
+        jpeg.extend(sos());
+        jpeg.extend_from_slice(&[0x00, 0xff, 0xd9]);
+        let parsed = match parse(&jpeg) {
+            Ok(p) => p,
+            Err(e) => unreachable!("parse failed: {e:?}"),
+        };
+        assert_eq!(parsed.info.quant_tables[0], natural);
     }
 }
