@@ -391,8 +391,10 @@ mod tests {
         // Target 5 → the 0 keyframe (5 is not a keyframe).
         let landing = search_index(&table, 0, 5).unwrap_or_else(|| unreachable!("must land"));
         assert_eq!(landing.pts_ticks, 0);
-        // Other streams answer from their own entries only.
-        assert_eq!(search_index(&table, 1, 0).map(|l| l.pts_ticks), Some(3));
+        // Other streams answer from their own entries only (target 3
+        // lands on stream 1's only entry; target 0 is before it).
+        assert_eq!(search_index(&table, 1, 3).map(|l| l.pts_ticks), Some(3));
+        assert_eq!(search_index(&table, 1, 0).map(|l| l.pts_ticks), None);
         // Before the first keyframe → None.
         assert!(search_index(&table, 0, -1).is_none());
     }

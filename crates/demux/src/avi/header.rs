@@ -32,7 +32,7 @@ use media_types::ids::{CodecDescriptor, MediaKind, StreamId, TrackFlags, TrackId
 use media_types::time::{Stamp, TimeBase, TimeSpan, TrackTiming};
 use media_types::{EngineError, Track};
 
-use super::riff::{self, FourCC, JUNK, LIST, SourceReader};
+use super::riff::{self, FourCC, JUNK, SourceReader};
 use crate::error;
 
 /// `avih` — the parsed fields the demuxer actually uses. Everything
@@ -133,6 +133,10 @@ pub struct StreamDesc {
     pub format: StreamFormat,
     /// The `strn` stream name, when present and valid UTF-8.
     pub title: Option<String>,
+    /// The `strh` chunk's absolute position — error context for the
+    /// typed [`error::bad_stream_params`] family (the demuxer's own
+    /// field, not an L0 [`Track`] concern).
+    pub strh_offset: u64,
 }
 
 impl StreamDesc {
@@ -249,8 +253,9 @@ pub struct HeaderList {
     pub resume_at: u64,
 }
 
-/// A zeroed advisory header.
-fn zero_avih() -> AviMainHeader {
+/// A zeroed advisory header (the value the demuxer starts from when
+/// no `avih` exists — the `strl` lists remain the stream truth).
+pub fn zeroed_main_header() -> AviMainHeader {
     AviMainHeader {
         micros_per_frame: 0,
         flags: 0,
@@ -325,11 +330,23 @@ pub fn parse_hdrl(
         }
     }
 
+    // The walk stopped at the clamped end while the declared extent
+    // still had structure, and the clamp is the *physical* stream end
+    // (not a lying RIFF size): the file was cut between chunk
+    // boundaries — typed truncation at the exact header the walk
+    // needed next, never a silent empty header.
+    if pos + 8 > end
+        && pos + 8 <= declared_end
+        && bound == reader.length()
+        && bound < declared_end
+    {
+        return Err(error::truncated(pos + 8, reader.length()));
+    }
     if pos < declared_end {
         damage.note(declared_end - pos, "hdrl-declared-size-not-honored");
     }
     Ok(HeaderList {
-        main: main.unwrap_or_else(zero_avih),
+        main: main.unwrap_or_else(zeroed_main_header),
         streams,
         resume_at: pos,
     })
@@ -489,6 +506,7 @@ fn parse_strl(
         sample_size,
         format: StreamFormat::MotionJpeg { width: 0, height: 0 },
         title: parts.title,
+        strh_offset,
     };
 
     match fcc_type.as_bytes() {

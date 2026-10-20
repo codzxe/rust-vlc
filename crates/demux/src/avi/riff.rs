@@ -99,6 +99,11 @@ pub enum MoviChunkKind {
 /// and anything else are skipped as damage `[PROPOSAL: palette-change
 /// application is a later polish]`.
 pub fn classify_movi_chunk(fourcc: &FourCC) -> MoviChunkKind {
+    if *fourcc == LIST {
+        // A nested list inside `movi` is a `rec ` record grouping —
+        // transparent descent (the v0 scope note in the demuxer docs).
+        return MoviChunkKind::RecList;
+    }
     let b = fourcc.as_bytes();
     let digits = [b[0], b[1]];
     let suffix = [b[2], b[3]];
@@ -195,7 +200,7 @@ impl SourceReader {
     /// pad skipping) — typed `Unsupported` at stage `Open`, the stage
     /// that owns source-capability truth. An empty stream is likewise
     /// not a container.
-    pub fn new(mut stream: Box<dyn plugin_api::SourceStream>) -> Result<SourceReader, EngineError> {
+    pub fn new(stream: Box<dyn plugin_api::SourceStream>) -> Result<SourceReader, EngineError> {
         let unsupported = |code: &'static str| {
             EngineError::new(
                 PipelineStage::Open,
@@ -420,6 +425,10 @@ mod tests {
         assert_eq!(
             classify_movi_chunk(&FourCC::tag(b"##dc")),
             MoviChunkKind::Other
+        );
+        assert_eq!(
+            classify_movi_chunk(&FourCC::tag(b"LIST")),
+            MoviChunkKind::RecList
         );
     }
 

@@ -112,8 +112,12 @@ pub fn no_supported_streams() -> EngineError {
     )
 }
 
-/// A `movi` chunk payload exceeds the payload ceiling — refused with a
-/// typed budget error instead of a trust-the-header allocation (MP §12).
+/// A `movi` chunk payload exceeds the payload ceiling (MP §12). The
+/// v0 demuxer recovers positionally instead — the oversized chunk is
+/// skipped and counted as damage (`chunk-payload-over-ceiling`), never
+/// read — so this constructor is currently part of the error
+/// vocabulary without a minting site; it documents the ceiling's typed
+/// flavor for callers that choose to fail fast.
 pub fn payload_too_large(budget: u64, attempted: u64) -> EngineError {
     mint(
         ErrorKind::ResourceLimit {
@@ -135,6 +139,30 @@ pub fn index_too_large(budget: u64, attempted: u64) -> EngineError {
             attempted,
         },
         "demux.avi.index-too-large",
+    )
+}
+
+/// Parsed the header and found no `LIST movi` anywhere a well-formed
+/// top-level walk could reach — an AVI with tracks but no packet data
+/// region is not demuxable (a lying header size can swallow the movi;
+/// recognition-based resumption recovers every case the walk can).
+pub fn no_movi() -> EngineError {
+    mint(
+        ErrorKind::Corrupt {
+            detail: CorruptDetail::InvalidStructure { offset: None },
+        },
+        "demux.avi.no-movi",
+    )
+}
+
+/// A trait method was called before `start` opened the container (or
+/// after a constructor rejection): the demuxer is not in a state that
+/// supports the operation. Operational shape, not container data — the
+/// caller sees a stable code instead of a panic.
+pub fn not_started() -> EngineError {
+    mint(
+        ErrorKind::Unsupported { format: None },
+        "demux.not-started",
     )
 }
 
@@ -173,6 +201,8 @@ mod tests {
             (no_supported_streams(), "demux.avi.no-supported-streams"),
             (payload_too_large(100, 200), "demux.avi.payload-too-large"),
             (index_too_large(100, 200), "demux.avi.index-too-large"),
+            (no_movi(), "demux.avi.no-movi"),
+            (not_started(), "demux.not-started"),
             (seek_out_of_range(), "demux.avi.seek.out-of-range"),
             (seek_unindexed(), "demux.avi.seek.unindexed"),
         ];

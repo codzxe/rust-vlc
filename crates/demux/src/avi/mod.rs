@@ -59,19 +59,34 @@ use std::collections::VecDeque;
 
 use media_types::ids::{GenerationId, TrackId};
 use media_types::packet::SharedBytes;
+use media_types::error::ErrorContext;
 use media_types::time::{Duration, Nanoseconds, Stamp, TimeSpan, Timestamp};
-use media_types::{EngineError, ErrorContext, ErrorKind, Packet, PipelineStage, Track};
+use media_types::{EngineError, ErrorKind, Packet, PipelineStage, Track};
 use plugin_api::{DemuxEvent, Demuxer};
 
 use super::error;
+
+/// `hdrl`/`strl` parsing → the track table (public: `StreamFormat` is
+/// the decoder-config seam for cards 2.B4/2.B5).
+pub mod header;
+/// `idx1` parsing + the seek search.
+pub mod index;
+/// RIFF byte primitives (chunk walk vocabulary, bounded reader).
+pub mod riff;
+
 use crate::avi::header::{
     parse_hdrl, AviMainHeader, DamageLog, StreamDesc, StreamFormat,
 };
-use crate::avi::index::{self, IndexTable, Ladders};
+use crate::avi::index::{IndexTable, Ladders};
 use crate::avi::riff::{
-    self, classify_movi_chunk, peek_chunk_header, ChunkHeader, FourCC, MoviChunkKind,
-    SourceReader, FORM_AVI, FORM_HDRL, FORM_MOVI, LIST,
+    classify_movi_chunk, peek_chunk_header, FourCC, MoviChunkKind, SourceReader, FORM_AVI,
+    FORM_HDRL, FORM_MOVI, LIST, RIFF,
 };
+
+/// The `+FB` fuzz harness (doc 04 §8.5 registry name `fuzz_demux_avi`).
+pub mod fuzz;
+/// In-memory `SourceStream` test seam (doctests, fuzz, downstream).
+pub mod test_support;
 
 /// Maximum `movi` chunk payload trusted into memory
 /// `[PROPOSAL: 32 MiB — MJPEG frames are ~KBs; anything larger is
@@ -147,12 +162,11 @@ struct WalkCursor {
 /// ```
 /// use demux::avi::AviDemuxer;
 /// use plugin_api::{Demuxer, DemuxEvent};
-/// use media_types::time::{Stamp, TimeSpan, Timestamp};
 ///
 /// # fn main() -> Result<(), media_types::EngineError> {
 /// // Any seekable SourceStream; the fixture writer's output parsed
 /// # let bytes = avi_demo_bytes();
-/// let mut stream = demux::avi::test_support::mem_stream(bytes);
+/// let mut stream = demux::avi::test_support::mem_stream(bytes)?;
 /// let mut avi = AviDemuxer::new(stream)?;
 /// let tracks = avi.start()?;
 /// assert_eq!(tracks.len(), 2);
@@ -198,7 +212,7 @@ struct WalkCursor {
 /// #        v.extend_from_slice(&1u16.to_le_bytes());
 /// #        v.extend_from_slice(&24u16.to_le_bytes());
 /// #        v.extend_from_slice(b"MJPG");
-/// #        v.extend(&vec![0u8; 16]);
+/// #        v.extend(&vec![0u8; 20]);
 /// #        v
 /// #     }),
 /// #     ([b'a',b'u',b'd',b's'], [0u8; 4], 1u32, 44_100u32, 44_100u32, 4u32, {
@@ -237,7 +251,7 @@ struct WalkCursor {
 /// #     let size = b.len() - strl_size_pos - 4;
 /// #     b[strl_size_pos..strl_size_pos + 4].copy_from_slice(&(size as u32).to_le_bytes());
 /// #   }
-/// #   let hdrl_size = b.len() - hdrl_start - 4;
+/// #   let hdrl_size = b.len() - hdrl_start - 8;
 /// #   b[hdrl_start + 4..hdrl_start + 8].copy_from_slice(&(hdrl_size as u32).to_le_bytes());
 /// #   // movi: one video chunk + one audio chunk
 /// #   let movi_start = b.len();
@@ -337,22 +351,50 @@ impl AviDemuxer {
         }
     }
 
+    /// Hand a walk event to the caller, keeping the
+    /// damage-record-first order: when damage was queued while
+    /// producing `event` (a misaligned PCM chunk, an over-ceiling
+    /// neighbor), the `Recovered` record surfaces first and the event
+    /// waits one call — the container's own account of what it did
+    /// precedes the data it nevertheless delivered.
+    fn emit(&mut self, event: DemuxEvent) -> Option<DemuxEvent> {
+        if self.pending.is_empty() {
+            return Some(event);
+        }
+        self.pending.push_back(event);
+        self.pending.pop_front()
+    }
+
     /// One `movi` walk step (the packet-extraction core).
     ///
     /// Returns the next event, or `None` when the walk reached its
     /// end and the caller should report `EndOfStream`.
+    ///
+    /// The cursor is taken out of `self` for the step (the walk body
+    /// borrows the reader, the stream table and the damage log at
+    /// once) and put back afterwards — on error too, frozen at the
+    /// damage site, which is the state a sticky replay describes.
     fn step_movi(&mut self) -> Result<Option<DemuxEvent>, EngineError> {
         let Some(region) = self.movi else {
             // `start` guarantees a movi; defensive shape for the
             // impossible case.
             return Err(self.fail(error::no_movi()));
         };
-        let cursor = self
-            .cursor
-            .as_mut()
-            .ok_or_else(|| error::no_movi())
-            .map_err(|e| self.fail(e))?;
+        let mut cursor = match self.cursor.take() {
+            Some(cursor) => cursor,
+            None => return Err(self.fail(error::no_movi())),
+        };
+        let outcome = self.step_movi_inner(region, &mut cursor);
+        self.cursor = Some(cursor);
+        outcome
+    }
 
+    /// The walk body (see [`step_movi`]).
+    fn step_movi_inner(
+        &mut self,
+        region: MoviRegion,
+        cursor: &mut WalkCursor,
+    ) -> Result<Option<DemuxEvent>, EngineError> {
         loop {
             let bound = cursor.ends.last().copied().unwrap_or(region.effective_end);
             if cursor.pos + 8 > bound {
@@ -392,6 +434,17 @@ impl AviDemuxer {
                         cursor.pos = next;
                         continue;
                     };
+                    // Everything borrowed from the stream table is
+                    // copied up front: the rest of the step calls
+                    // `&mut self` methods (fail/surface_damage), which
+                    // cannot coexist with a live `&self.streams`
+                    // borrow.
+                    let base = match desc.time_base(0) {
+                        Ok(base) => base,
+                        Err(err) => return Err(self.fail(err)),
+                    };
+                    let (delta, _) = desc.ticks_per_chunk(u64::from(header.size));
+                    let sample_frame = u64::from(desc.sample_size.max(1));
                     let size = u64::from(header.size);
                     if size > MAX_CHUNK_PAYLOAD {
                         self.damage
@@ -416,17 +469,12 @@ impl AviDemuxer {
                         continue;
                     };
                     if step.unaligned {
-                        let stray = size % u64::from(desc.sample_size.max(1));
+                        let stray = size % sample_frame;
                         self.damage.note(stray, "pcm-chunk-not-sample-aligned");
                         self.surface_damage();
                     }
-                    let base = match desc.time_base(0) {
-                        Ok(base) => base,
-                        Err(err) => return Err(self.fail(err)),
-                    };
-                    let keyframe = self.keyframe_for(pos, stream);
+                    let keyframe = self.keyframe_for(cursor, pos, stream);
                     let pts = Timestamp::new(step.pts_ticks, base);
-                    let (delta, _) = desc.ticks_per_chunk(size);
                     let duration = match Timestamp::new(delta, base).as_nanos() {
                         Ok(Nanoseconds(nanos)) => Some(Duration::Known(Nanoseconds(nanos))),
                         Err(_) => {
@@ -452,7 +500,7 @@ impl AviDemuxer {
                         generation: GenerationId::FIRST,
                     };
                     cursor.pos = next;
-                    return Ok(Some(DemuxEvent::Packet(packet)));
+                    return Ok(self.emit(DemuxEvent::Packet(packet)));
                 }
                 MoviChunkKind::RecList => {
                     let end = pos + 8 + u64::from(header.size);
@@ -474,13 +522,9 @@ impl AviDemuxer {
     /// The keyframe truth for a chunk: `idx1`'s flag when an entry
     /// exists for the position, codec grammar otherwise (MJPEG and
     /// PCM are all-keyframe — invariant D2's grammar clause).
-    fn keyframe_for(&mut self, chunk_pos: u64, stream: u32) -> bool {
+    fn keyframe_for(&self, cursor: &mut WalkCursor, chunk_pos: u64, stream: u32) -> bool {
         let Some(table) = &self.index else {
             return true;
-        };
-        let cursor = match self.cursor.as_mut() {
-            Some(cursor) => cursor,
-            None => return true,
         };
         while cursor.index_cursor < table.entries.len()
             && table.entries[cursor.index_cursor].chunk_pos < chunk_pos
@@ -689,7 +733,7 @@ impl AviDemuxer {
                 if self.index.is_some() {
                     self.damage.note(u64::from(header.size), "duplicate-idx1");
                 } else if let Some(region) = self.movi {
-                    let parsed = index::parse_idx1(
+                    if let Some(mut table) = index::parse_idx1(
                         &mut self.reader,
                         pos,
                         header.size,
@@ -699,9 +743,7 @@ impl AviDemuxer {
                         bound,
                         &self.streams,
                         &mut self.damage,
-                    )?;
-                    if parsed.is_some() {
-                        let mut table = parsed.unwrap_or_else(|| unreachable!("checked"));
+                    )? {
                         table.entries.sort_by_key(|entry| entry.chunk_pos);
                         self.index = Some(table);
                     }
@@ -726,10 +768,20 @@ impl AviDemuxer {
             }
             return Err(error::no_header());
         }
+        let physically_short = riff_declared_end > self.reader.length();
         let Some(region) = self.movi else {
+            if physically_short {
+                // The file promised an AVI and delivered a prefix cut
+                // past the header — truncation is the honest flavor,
+                // not "no movi".
+                return Err(error::truncated(riff_declared_end, self.reader.length()));
+            }
             return Err(error::no_movi());
         };
         if self.streams.is_empty() {
+            if physically_short {
+                return Err(error::truncated(riff_declared_end, self.reader.length()));
+            }
             return Err(error::no_supported_streams());
         }
 
@@ -752,19 +804,6 @@ impl AviDemuxer {
         Ok(tracks)
     }
 }
-
-/// The `idx1` top-level chunk id as bytes (pattern-match shape).
-mod chunk_ids {
-    /// `idx1`.
-    pub const IDX1: &[u8; 4] = b"idx1";
-}
-
-// Re-exported for the module's own match arms and for tests.
-use chunk_ids::IDX1;
-
-/// Unused-import guards for items referenced only in docs/tests.
-#[allow(unused_imports)]
-use header as header_mod;
 
 #[cfg(test)]
 mod tests;
