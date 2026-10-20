@@ -1,0 +1,40 @@
+# crates/media-probe — bounded format detection (card 2.A2; doc 03 §4.2,
+# doc 01 §2.2 registry row: L2, deps `media-types` + `plugin-api` — the
+# ARCH-2 set, mirroring the `input`/`demux` rows).
+#
+# Doc 13's "Consumes: input" column is satisfied at the trait seam, the
+# recorded demux precedent (worklog 2.B2): probing pulls its bounded
+# window through `plugin_api::SourceStream`, which `input` implements —
+# no compile-time edge needed. `input` is a DEV edge: the fixture AC
+# probes the generated corpus through the real FileAccess/FileStream
+# stack, proving the 2.A1+2.A2 composition (the same test-shape demux
+# and codecs use).
+#
+# Std-only by C5: zero external dependencies. No unsafe, no
+# unwrap/expect/panic/todo (workspace lints). Bounded memory (MP §12):
+# the probe window is hard-ceiling-capped (doc 03 §4.2) and the fill
+# loop reads at most `max_lookahead` bytes — there is no code path that
+# probes more.
+
+[package]
+name = "media-probe"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen bounded format detection: signature scoring over a bounded probe window; ProbeReport with format id, confidence and track hints (doc 03 §4.2, card 2.A2)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+media-types = { path = "../media-types" }
+plugin-api = { path = "../plugin-api" }
+
+[dev-dependencies]
+# testkit (dev-only, MP §3.7/ARCH-7): Must/assert helpers and fixture
+# path resolution against tests/fixtures/.
+testkit = { path = "../testkit" }
+# The real byte source of the first vertical (card 2.A1): the AC suite
+# probes the generated fixtures through input's FileAccess/FileStream —
+# the composition proof, not an in-memory stand-in.
+input = { path = "../input" }

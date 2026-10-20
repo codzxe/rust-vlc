@@ -167,6 +167,21 @@ dev_deps = ["testkit", "input"]
 external_allowlist = []
 external_dev_allowlist = []
 
+# L2 — bounded format detection (doc 01 §2.2 registry row, card 2.A2;
+# doc 03 §4.2). Signature scoring over a bounded header window →
+# ProbeReport (format id, confidence, track hints); no hit at or above
+# the configured score ⇒ typed Unsupported carrying the sniffed bytes
+# (MP §8). The ProbePlugin/ProbeRegistry seam consumes
+# `plugin_api::SourceStream` (the trait seam `input` serves — the same
+# note as demux above); `input` is a DEV edge (the fixture AC probes
+# through the real file access stack). Std-only by C5.
+[crates.media-probe]
+layer = 2
+internal_deps = ["media-types", "plugin-api"]
+dev_deps = ["testkit", "input"]
+external_allowlist = []
+external_dev_allowlist = []
+
 # L4 — the session orchestrator (doc 01 §2.6, card 2.C2; doc 03 §4.6 +
 # §5). Owns the playback state machine, mints the two-level session
 # epochs, and wires the pipeline demux→queues→decoders→sinks at the
