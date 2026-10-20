@@ -53,12 +53,18 @@
 //! ```text
 //! tests/fixtures/
 //!   CORPUS.md                        # licensing ledger (generated, CC0)
-//!   generated/MANIFEST.toml          # generator + sha256 per file
+//!   generated/MANIFEST.toml          # generator + sha256 per fixture
 //!   generated/valid/*.avi|*.mp4      # class A parents
 //!   generated/valid/*.structure.json # structure maps (corpus-plan §2)
-//!   generated/malformed/*__*.avi|mp4 # class B derivatives
-//!   expectations/*.toml              # one expectation file per fixture
+//!   generated/malformed/*__*.avi|mp4 # class B derivatives (10 per parent:
+//!                                     #   trunc0..4, garbage0, flip1/4/16,
+//!                                     #   noidx0 (AVI) / stszlie0 (MP4))
+//!   expectations/valid|malformed/    # expectation/1 TOML per media fixture
 //! ```
+//!
+//! Class column in `--list`: `A`/`B` are corpus classes (corpus-plan §1);
+//! `L` marks generated ledger files (manifest, CORPUS, expectations) that
+//! are drift-gated by `--check` but are not media fixtures.
 //!
 //! # Exit codes (frozen xtask contract, main.rs)
 //!
@@ -386,7 +392,10 @@ impl Xorshift64Star {
     /// but the generator must not have a latent hang.
     fn from_digest(seed: &[u8]) -> Xorshift64Star {
         let mut value: u64 = 0;
-        for &byte in &seed[..8] {
+        // `.take(8)` rather than `&seed[..8]`: a short seed must pad with
+        // zeros, not panic (the no-panic convention applies here too,
+        // even though every caller passes a 32-byte digest).
+        for &byte in seed.iter().take(8) {
             value = (value << 8) | byte as u64;
         }
         Xorshift64Star {
@@ -1614,10 +1623,6 @@ struct Mp4Layout {
     /// File offset of the video `stsz` `sample_count` field (the B3
     /// count-lie derivative patches exactly this u32).
     stsz_video_count_offset: usize,
-    /// File offset of the first video `stco` entry.
-    stco_video_entries_offset: usize,
-    /// File offset of the first audio `stco` entry.
-    stco_audio_entries_offset: usize,
     /// Absolute file offset of every video sample (== `stco` values).
     video_offsets: Vec<u32>,
     /// Absolute file offset of every audio sample (== `stco` values).
@@ -2049,8 +2054,6 @@ fn build_mp4(frames: &[Vec<u8>], pcm: &[u8]) -> Result<Mp4Built, String> {
             mdat_offset,
             mdat_data_offset,
             stsz_video_count_offset: video_sites.0,
-            stco_video_entries_offset: video_sites.1,
-            stco_audio_entries_offset: audio_sites.1,
             video_offsets,
             audio_offsets,
             video_sizes,
@@ -2124,6 +2127,662 @@ fn mp4_structure_json(mp4: &Mp4Built) -> Vec<u8> {
 }
 
 // ---------------------------------------------------------------------------
+// Class-B derivatives (corpus-plan §1 B1/B2/B3 + doc 03 §7's malformed
+// variants). Every derivative is a pure function of its parent's bytes and
+// the recorded structure map: the same parent always yields the same
+// derivative, byte for byte.
+// ---------------------------------------------------------------------------
+
+/// Seeded bit-flip header extent for the RIFF family (corpus-plan §1 B2
+/// names 64 for RIFF: size+form magic plus the `LIST hdrl` start).
+const AVI_FLIP_EXTENT: usize = 64;
+
+/// Seeded bit-flip header extent for MP4 [PROPOSAL: 512 — `ftyp` plus the
+/// `moov` header region, mirroring corpus-plan's MKV "EBML head + segment
+/// info" precedent of 512].
+const MP4_FLIP_EXTENT: usize = 512;
+
+/// Appended garbage length [PROPOSAL: one 4 KiB page — long enough to run
+/// past every declared structure end without being interesting in itself].
+const GARBAGE_LEN: usize = 4096;
+
+/// The oversize sample-count lie (corpus-plan §1 B3 prescribes 2³¹−1 for
+/// absurd count/size claims).
+const OVERSIZE_COUNT: u32 = 0x7fff_ffff;
+
+/// Per-derivative PRNG, seeded from the parent's sha256 (corpus-plan §1
+/// B2: `sha256(parent)[:8]`). Every derivative builds a fresh instance, so
+/// each file is independently reproducible from its parent alone.
+fn parent_prng(parent: &[u8]) -> Xorshift64Star {
+    let mut hasher = Sha256::new();
+    hasher.update(parent);
+    let digest = hasher.finish();
+    Xorshift64Star::from_digest(&digest)
+}
+
+/// Seeded garbage block (corpus-plan §1 B2 — deterministic bytes).
+fn garbage_block(rng: &mut Xorshift64Star, len: usize) -> Vec<u8> {
+    let mut out = Vec::with_capacity(len);
+    for _ in 0..len {
+        out.push((rng.next_u64() & 0xff) as u8);
+    }
+    out
+}
+
+/// Flip exactly `k` distinct bits within the first `extent` bytes. Bit
+/// positions are a Fisher–Yates prefix of `[0, extent·8)` drawn from a
+/// fresh parent-seeded PRNG, so the flip-k positions are a k-prefix:
+/// flip1's bit set is a subset of flip4's, which is a subset of flip16's
+/// (a documented property — probe/demuxer tests can rely on it).
+fn flip_header_bits(
+    bytes: &mut [u8],
+    rng: &mut Xorshift64Star,
+    extent: usize,
+    k: usize,
+) -> Result<(), String> {
+    if extent > bytes.len() {
+        return Err(format!(
+            "flip extent {extent} exceeds the file size {}",
+            bytes.len()
+        ));
+    }
+    let total = extent * 8;
+    if k == 0 || k > total {
+        return Err(format!("bit-flip count {k} outside 1..={total}"));
+    }
+    let mut indices: Vec<u32> = (0..total as u32).collect();
+    for i in (1..total).rev() {
+        let j = rng.below((i + 1) as u64) as usize;
+        indices.swap(i, j);
+    }
+    for &bit in indices.iter().take(k) {
+        let index = bit as usize;
+        bytes[index / 8] ^= 1u8 << (index % 8);
+    }
+    Ok(())
+}
+
+/// One class-B derivative plus the `[derivation]` TOML lines its
+/// expectation file records — the parameters that make the mutation
+/// inspectable without reading this source.
+struct Derivative {
+    file: GeneratedFile,
+    derivation: Vec<String>,
+}
+
+/// Class-B derivative path: `generated/valid/<stem>.<ext>` becomes
+/// `generated/malformed/<stem>__<op>.<ext>` (corpus-plan §1 naming).
+fn derivative_path(parent_path: &str, op: &str) -> String {
+    let name = parent_path.trim_start_matches("generated/valid/");
+    let (stem, ext) = match name.rsplit_once('.') {
+        Some((stem, ext)) => (stem, ext),
+        None => (name, "bin"),
+    };
+    format!("generated/malformed/{stem}__{op}.{ext}")
+}
+
+/// B1 truncation: the parent's first `cut` bytes.
+fn truncate_derivative(
+    parent: &GeneratedFile,
+    op: &'static str,
+    cut: usize,
+    note: &str,
+) -> Result<Derivative, String> {
+    if cut == 0 || cut >= parent.bytes.len() {
+        return Err(format!(
+            "{op}: cut offset {cut} outside 1..{}",
+            parent.bytes.len()
+        ));
+    }
+    Ok(Derivative {
+        file: GeneratedFile {
+            path: derivative_path(&parent.path, op),
+            bytes: parent.bytes[..cut].to_vec(),
+            class: "B",
+            op,
+            parent: Some(parent.path.clone()),
+        },
+        derivation: vec![
+            "op = \"truncate\"".to_string(),
+            format!("cut_offset = {}", toml_uint(cut as u64)),
+            format!("note = {}", toml_string(note)),
+        ],
+    })
+}
+
+/// B2 seeded header bit-flips (k bits within the family's header extent).
+fn flip_derivative(
+    parent: &GeneratedFile,
+    op: &'static str,
+    k: usize,
+    extent: usize,
+) -> Result<Derivative, String> {
+    let mut bytes = parent.bytes.clone();
+    let mut rng = parent_prng(&parent.bytes);
+    flip_header_bits(&mut bytes, &mut rng, extent, k)?;
+    Ok(Derivative {
+        file: GeneratedFile {
+            path: derivative_path(&parent.path, op),
+            bytes,
+            class: "B",
+            op,
+            parent: Some(parent.path.clone()),
+        },
+        derivation: vec![
+            "op = \"bit-flip\"".to_string(),
+            format!("flip_bits = {k}"),
+            format!("flip_extent = {extent}"),
+            "note = \"seeded distinct bit positions within the header extent; flip-k positions are a k-prefix of one shuffle (corpus-plan s1 B2)\""
+                .to_string(),
+        ],
+    })
+}
+
+/// Garbage append: the parent plus a seeded garbage block.
+fn garbage_derivative(parent: &GeneratedFile) -> Result<Derivative, String> {
+    let mut rng = parent_prng(&parent.bytes);
+    let mut bytes = parent.bytes.clone();
+    bytes.extend(garbage_block(&mut rng, GARBAGE_LEN));
+    Ok(Derivative {
+        file: GeneratedFile {
+            path: derivative_path(&parent.path, "garbage0"),
+            bytes,
+            class: "B",
+            op: "garbage0",
+            parent: Some(parent.path.clone()),
+        },
+        derivation: vec![
+            "op = \"garbage-append\"".to_string(),
+            format!("appended_bytes = {}", toml_uint(GARBAGE_LEN as u64)),
+            "note = \"seeded garbage block appended past every declared structure end\""
+                .to_string(),
+        ],
+    })
+}
+
+/// Spec violation (doc 03 §7 malformed variant): the AVI with its `idx1`
+/// dropped and the RIFF size patched to cover the surviving bytes — while
+/// `avih` still declares `AVIF_HASINDEX`.
+fn avi_no_idx1_derivative(
+    parent: &GeneratedFile,
+    layout: &AviLayout,
+) -> Result<Derivative, String> {
+    if layout.idx1_offset >= parent.bytes.len() || layout.idx1_offset < 8 {
+        return Err(format!(
+            "idx1 offset {} outside 8..{}",
+            layout.idx1_offset,
+            parent.bytes.len()
+        ));
+    }
+    let mut bytes = parent.bytes[..layout.idx1_offset].to_vec();
+    let size = layout.idx1_offset - 8;
+    bytes[layout.riff_size_pos..layout.riff_size_pos + 4]
+        .copy_from_slice(&(size as u32).to_le_bytes());
+    Ok(Derivative {
+        file: GeneratedFile {
+            path: derivative_path(&parent.path, "noidx0"),
+            bytes,
+            class: "B",
+            op: "noidx0",
+            parent: Some(parent.path.clone()),
+        },
+        derivation: vec![
+            "op = \"drop-idx1\"".to_string(),
+            format!("cut_offset = {}", toml_uint(layout.idx1_offset as u64)),
+            format!(
+                "riff_size_field_offset = {}",
+                toml_uint(layout.riff_size_pos as u64)
+            ),
+            "note = \"idx1 dropped, RIFF size patched; avih still claims AVIF_HASINDEX (doc 03 s7)\""
+                .to_string(),
+        ],
+    })
+}
+
+/// Spec violation (corpus-plan §1 B3 oversize-field): the MP4 with the
+/// video `stsz` `sample_count` patched to 2³¹−1.
+fn mp4_stsz_lie_derivative(
+    parent: &GeneratedFile,
+    layout: &Mp4Layout,
+) -> Result<Derivative, String> {
+    let at = layout.stsz_video_count_offset;
+    if at + 4 > parent.bytes.len() {
+        return Err(format!(
+            "stsz count offset {at} + 4 exceeds the file size {}",
+            parent.bytes.len()
+        ));
+    }
+    let mut bytes = parent.bytes.clone();
+    bytes[at..at + 4].copy_from_slice(&OVERSIZE_COUNT.to_be_bytes());
+    Ok(Derivative {
+        file: GeneratedFile {
+            path: derivative_path(&parent.path, "stszlie0"),
+            bytes,
+            class: "B",
+            op: "stszlie0",
+            parent: Some(parent.path.clone()),
+        },
+        derivation: vec![
+            "op = \"stsz-count-lie\"".to_string(),
+            format!("patched_offset = {}", toml_uint(at as u64)),
+            format!("patched_value = {}", toml_uint(u64::from(OVERSIZE_COUNT))),
+            "note = \"video stsz sample_count patched to 2^31-1 (corpus-plan s1 B3 oversize lie)\""
+                .to_string(),
+        ],
+    })
+}
+
+/// The AVI class-B set: five structure-boundary truncations (B1), three
+/// seeded header bit-flips (B2), one garbage append, and the missing-`idx1`
+/// spec violation — ten files, every offset taken from `layout`.
+fn avi_derivatives(parent: &GeneratedFile, layout: &AviLayout) -> Result<Vec<Derivative>, String> {
+    let mid_avih = layout.avih_offset + 8 + 20;
+    let &(fourcc, chunk_offset, chunk_size) = layout
+        .chunks
+        .get(FRAME_COUNT)
+        .ok_or_else(|| "avi chunk table too short for the mid-chunk cut".to_string())?;
+    if &fourcc != b"00dc" {
+        return Err(format!(
+            "movi chunk {FRAME_COUNT} is {}, expected 00dc",
+            fourcc_str(&fourcc)
+        ));
+    }
+    let mid_chunk = chunk_offset + 8 + chunk_size / 2;
+    Ok(vec![
+        truncate_derivative(parent, "trunc0", 12, "cut after the RIFF size+form magic")?,
+        truncate_derivative(parent, "trunc1", mid_avih, "cut mid-avih (main AVI header)")?,
+        truncate_derivative(
+            parent,
+            "trunc2",
+            layout.movi_data_offset,
+            "cut at the first movi chunk header (structure-map movi_data_offset)",
+        )?,
+        truncate_derivative(
+            parent,
+            "trunc3",
+            mid_chunk,
+            "cut mid-payload of the frame-30 00dc chunk",
+        )?,
+        truncate_derivative(
+            parent,
+            "trunc4",
+            parent.bytes.len() - 1,
+            "cut the final byte",
+        )?,
+        garbage_derivative(parent)?,
+        flip_derivative(parent, "flip1", 1, AVI_FLIP_EXTENT)?,
+        flip_derivative(parent, "flip4", 4, AVI_FLIP_EXTENT)?,
+        flip_derivative(parent, "flip16", 16, AVI_FLIP_EXTENT)?,
+        avi_no_idx1_derivative(parent, layout)?,
+    ])
+}
+
+/// The MP4 class-B set: the same ten-derivative shape, with boundaries
+/// taken from the MP4 structure map and the `stsz` count lie as the spec
+/// violation.
+fn mp4_derivatives(parent: &GeneratedFile, layout: &Mp4Layout) -> Result<Vec<Derivative>, String> {
+    let moov_offset = layout.mvhd_offset - 8; // ftyp ends where moov begins
+    if moov_offset < 8 || moov_offset >= parent.bytes.len() {
+        return Err(format!(
+            "moov offset {moov_offset} outside 8..{}",
+            parent.bytes.len()
+        ));
+    }
+    let mid_mvhd = layout.mvhd_offset + 8 + 20;
+    let sample_offset = layout
+        .video_offsets
+        .get(FRAME_COUNT / 2)
+        .copied()
+        .ok_or_else(|| "mp4 sample table too short for the mid-sample cut".to_string())?;
+    let sample_size = layout
+        .video_sizes
+        .get(FRAME_COUNT / 2)
+        .copied()
+        .ok_or_else(|| "mp4 size table too short for the mid-sample cut".to_string())?;
+    let mid_sample = sample_offset as usize + sample_size as usize / 2;
+    Ok(vec![
+        truncate_derivative(
+            parent,
+            "trunc0",
+            moov_offset,
+            "cut after ftyp (the ISO brand box)",
+        )?,
+        truncate_derivative(parent, "trunc1", mid_mvhd, "cut mid-mvhd (movie header)")?,
+        truncate_derivative(
+            parent,
+            "trunc2",
+            layout.mdat_data_offset,
+            "cut at the first mdat sample (mdat header present, no samples)",
+        )?,
+        truncate_derivative(
+            parent,
+            "trunc3",
+            mid_sample,
+            "cut mid-payload of video sample 30",
+        )?,
+        truncate_derivative(
+            parent,
+            "trunc4",
+            parent.bytes.len() - 1,
+            "cut the final byte",
+        )?,
+        garbage_derivative(parent)?,
+        flip_derivative(parent, "flip1", 1, MP4_FLIP_EXTENT)?,
+        flip_derivative(parent, "flip4", 4, MP4_FLIP_EXTENT)?,
+        flip_derivative(parent, "flip16", 16, MP4_FLIP_EXTENT)?,
+        mp4_stsz_lie_derivative(parent, layout)?,
+    ])
+}
+
+// ---------------------------------------------------------------------------
+// Ledger files: expectation/1 TOMLs (doc 10 §5.4), MANIFEST.toml and
+// CORPUS.md (corpus-plan §4–§5). All of them are `GeneratedFile`s in the
+// tree, so `--check` byte-compares them like everything else — the hashes
+// they record are re-derived from the regenerated bytes on every run.
+// ---------------------------------------------------------------------------
+
+/// TOML basic-string emitter (the corpus strings are authored ASCII; the
+/// escapes are defensive).
+fn toml_string(text: &str) -> String {
+    let mut out = String::with_capacity(text.len() + 2);
+    out.push('"');
+    for ch in text.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            ch if (ch as u32) < 0x20 => {
+                out.push_str(&format!("\\u{:04X}", ch as u32));
+            }
+            ch => out.push(ch),
+        }
+    }
+    out.push('"');
+    out
+}
+
+/// Integer with 3-digit underscore grouping (doc 10 §5.4's style:
+/// `size_bytes = 58_112_004`).
+fn toml_uint(value: u64) -> String {
+    let raw = value.to_string();
+    let mut out = String::with_capacity(raw.len() + raw.len() / 3);
+    let len = raw.len();
+    for (i, ch) in raw.chars().enumerate() {
+        if i > 0 && (len - i).is_multiple_of(3) {
+            out.push('_');
+        }
+        out.push(ch);
+    }
+    out
+}
+
+/// Expectation-file path: `generated/<class>/<name>` →
+/// `expectations/<class>/<name>.toml`. Structure maps carry no
+/// expectation (companion metadata, manifest rows only).
+fn expectation_path(fixture_path: &str) -> String {
+    let rest = fixture_path.trim_start_matches("generated/");
+    format!("expectations/{rest}.toml")
+}
+
+/// The common header of every expectation file.
+fn expectation_header(file: &GeneratedFile, class: &str, parent: Option<&str>) -> String {
+    let mut s = String::with_capacity(256);
+    s.push_str("# Generated by `cargo xtask fixtures` (card 2.A3) — DO NOT EDIT.\n");
+    s.push_str("# expectation/1 (doc 10 §5.4). v0: writer-declared truth only — the\n");
+    s.push_str("# [first_frame]/[audio_probe] digests are recorded from Lumen's first\n");
+    s.push_str("# compliant decode (cards 2.B4/2.B5) and are intentionally absent.\n");
+    s.push_str("schema = \"expectation/1\"\n");
+    s.push_str(&format!("fixture = {}\n", toml_string(&file.path)));
+    s.push_str(&format!("class = \"{class}\"\n"));
+    if let Some(parent) = parent {
+        s.push_str(&format!("parent = {}\n", toml_string(parent)));
+    }
+    s.push_str("generator = \"cargo xtask fixtures\"\n");
+    s.push_str(&format!("seed_root = {}\n", toml_string(SEED_ROOT)));
+    s.push_str(&format!(
+        "sha256 = {}\n",
+        toml_string(&sha256_hex(&file.bytes))
+    ));
+    s.push_str(&format!(
+        "size_bytes = {}\n",
+        toml_uint(file.bytes.len() as u64)
+    ));
+    s.push_str("license = \"CC0\"\n");
+    s
+}
+
+/// Duration of the corpus media, in microseconds (60 frames at 30 fps).
+fn duration_us() -> u64 {
+    (FRAME_COUNT as u64 * 1_000_000) / u64::from(FPS)
+}
+
+/// One frame tick in microseconds — the seek tolerance (±1 frame).
+fn frame_period_us() -> u64 {
+    (1_000_000 + u64::from(FPS) / 2) / u64::from(FPS)
+}
+
+/// The class-A parent expectation: full track plan, duration, seek plan
+/// and generator-truth essence digests (per-sample video hashes + the
+/// audio stream hash — the frame-index-in-content rule's ground truth).
+fn parent_expectation(
+    file: &GeneratedFile,
+    video_id: u32,
+    audio_id: u32,
+    frames: &[Vec<u8>],
+    pcm: &[u8],
+) -> Vec<u8> {
+    let mut s = String::with_capacity(2048 + 72 * frames.len());
+    s.push_str(&expectation_header(file, "A", None));
+    s.push_str("\n[tracks]\ncount = 2\n");
+    s.push_str(&format!(
+        "video = [{{ id = {video_id}, codec = \"mjpeg\", width = {FRAME_WIDTH}, \
+         height = {FRAME_HEIGHT}, fps = {{ num = {FPS}, den = 1 }} }}]\n"
+    ));
+    s.push_str(&format!(
+        "audio = [{{ id = {audio_id}, codec = \"pcm_s16le\", rate = {AUDIO_RATE}, \
+         channels = {AUDIO_CHANNELS} }}]\n\n"
+    ));
+    s.push_str(&format!("duration_us = {}\n\n", toml_uint(duration_us())));
+    s.push_str("[seek]\n");
+    s.push_str(&format!(
+        "targets_us = [0, 500_000, 1_000_000, {}]\n",
+        toml_uint(duration_us() - 1_000)
+    ));
+    s.push_str(&format!(
+        "tolerance_us = {}\n\n",
+        toml_uint(frame_period_us())
+    ));
+    s.push_str("[essence_v0]\n");
+    s.push_str("# Supplemental generator-truth digests (beyond doc 10 §5.4's base).\n");
+    s.push_str(&format!("video_sample_count = {}\n", frames.len()));
+    s.push_str("video_sample_sha256 = [\n");
+    for frame in frames {
+        s.push_str(&format!("  {},\n", toml_string(&sha256_hex(frame))));
+    }
+    s.push_str("]\n");
+    s.push_str(&format!(
+        "audio_stream_sha256 = {}\n",
+        toml_string(&sha256_hex(pcm))
+    ));
+    s.push_str(&format!(
+        "audio_stream_bytes = {}\n",
+        toml_uint(pcm.len() as u64)
+    ));
+    s.into_bytes()
+}
+
+/// The class-B derivative expectation: derivation parameters plus the
+/// error contract (corpus-plan §4's `[error]` extension).
+fn derivative_expectation(derivative: &Derivative) -> Vec<u8> {
+    let mut s = String::with_capacity(512);
+    s.push_str(&expectation_header(
+        &derivative.file,
+        "B",
+        derivative.file.parent.as_deref(),
+    ));
+    s.push_str("\n[derivation]\n");
+    for line in &derivative.derivation {
+        s.push_str(line);
+        s.push('\n');
+    }
+    s.push_str("\n[error]\n");
+    s.push_str("# v0: the union contract — the specific flavor (typed-error |\n");
+    s.push_str("# bounded-recovery | rejected) is pinned by demuxer conformance\n");
+    s.push_str("# (cards 2.B2/2.B3).\n");
+    s.push_str("expected = \"typed-error-or-bounded-recovery\"\n");
+    s.push_str("never = \"panic, hang, unbounded allocation\"\n");
+    s.push_str("rss_cap_mb = 64\n");
+    s.push_str("wall_cap_ms = 5_000\n");
+    s.into_bytes()
+}
+
+/// `generated/MANIFEST.toml` (corpus-plan §1: generator + seed + hash per
+/// fixture). Rows cover the class-A/B fixture files; the ledger files are
+/// drift-gated by `--check` instead of self-referential rows.
+fn manifest_toml(files: &[GeneratedFile]) -> Vec<u8> {
+    let fixtures: Vec<&GeneratedFile> = files
+        .iter()
+        .filter(|f| f.class == "A" || f.class == "B")
+        .collect();
+    let mut s = String::with_capacity(256 + 192 * fixtures.len());
+    s.push_str("# Generated by `cargo xtask fixtures` (card 2.A3) — DO NOT EDIT.\n");
+    s.push_str("# Regenerate: cargo xtask fixtures. Drift gate: cargo xtask fixtures --check.\n");
+    s.push_str("schema = \"manifest/1\"\n");
+    s.push_str("generator = \"cargo xtask fixtures (tools/xtask/src/cmd/fixtures.rs)\"\n");
+    s.push_str(&format!("seed_root = {}\n", toml_string(SEED_ROOT)));
+    s.push_str(&format!("file_count = {}\n", fixtures.len()));
+    for f in &fixtures {
+        s.push_str("\n[[files]]\n");
+        s.push_str(&format!("path = {}\n", toml_string(&f.path)));
+        s.push_str(&format!("class = \"{}\"\n", f.class));
+        s.push_str(&format!("op = \"{}\"\n", f.op));
+        if let Some(parent) = &f.parent {
+            s.push_str(&format!("parent = {}\n", toml_string(parent)));
+        }
+        s.push_str(&format!(
+            "sha256 = {}\n",
+            toml_string(&sha256_hex(&f.bytes))
+        ));
+        s.push_str(&format!(
+            "size_bytes = {}\n",
+            toml_uint(f.bytes.len() as u64)
+        ));
+    }
+    s.into_bytes()
+}
+
+/// The one-line purpose recorded for a fixture in CORPUS.md.
+fn corpus_purpose(file: &GeneratedFile) -> String {
+    let is_avi = file.path.contains("avi_mjpeg_pcm");
+    match file.op {
+        "parent" if is_avi => "decision-independent first-vertical parent: AVI 1.0, MJPEG video \
+             + PCM s16le audio (doc 03 §7 candidate 2)"
+            .to_string(),
+        "parent" => "decision-independent first-vertical parent: ISO-BMFF \
+             progressive, MJPEG video + PCM s16le audio (doc 04 §8.1 \
+             candidate B)"
+            .to_string(),
+        "structure-map" => "structure map: the recorded chunk/sample offsets the class-B \
+             cuts and patches derive from (corpus-plan §2)"
+            .to_string(),
+        "trunc0" | "trunc1" | "trunc2" | "trunc3" | "trunc4" => {
+            "class-B truncation at a structure boundary (corpus-plan §1 B1); \
+             cut offset recorded in the expectation file"
+                .to_string()
+        }
+        op if op.starts_with("flip") => {
+            let k = op.trim_start_matches("flip");
+            format!(
+                "class-B seeded header bit-flips, k = {k} within the family \
+                 header extent (corpus-plan §1 B2)"
+            )
+        }
+        "garbage0" => "class-B garbage append past the declared structure \
+             (EOF-boundary / probe-race case)"
+            .to_string(),
+        "noidx0" => "spec violation: idx1 dropped, RIFF size patched, avih still \
+             claims AVIF_HASINDEX (doc 03 §7 malformed variant)"
+            .to_string(),
+        "stszlie0" => "spec violation: video stsz sample_count patched to 2^31-1 \
+             (corpus-plan §1 B3 oversize lie)"
+            .to_string(),
+        other => format!("generated ledger companion ({other})"),
+    }
+}
+
+/// `tests/fixtures/CORPUS.md` — the licensing ledger (corpus-plan §5; the
+/// card requires CORPUS.md entries for the generated corpus). Rows cover
+/// the class-A/B fixtures; ledger files are byte-compared by `--check`
+/// rather than carrying self-referential hashes.
+fn corpus_markdown(files: &[GeneratedFile]) -> Vec<u8> {
+    let fixtures: Vec<&GeneratedFile> = files
+        .iter()
+        .filter(|f| f.class == "A" || f.class == "B")
+        .collect();
+    let total: usize = fixtures.iter().map(|f| f.bytes.len()).sum();
+    let mut s = String::with_capacity(4096 + 200 * fixtures.len());
+    s.push_str("# Test-corpus licensing ledger (tests/fixtures)\n\n");
+    s.push_str("Generated by `cargo xtask fixtures` (card 2.A3; doc 03 §7/§8,\n");
+    s.push_str("docs/inventory/corpus-plan.md §4–§5). Do not edit by hand —\n");
+    s.push_str("regenerate with `cargo xtask fixtures` and commit; drift (including\n");
+    s.push_str("this file) is detected by `cargo xtask fixtures --check`.\n\n");
+    s.push_str("## License — CC0\n\n");
+    s.push_str("Every file under `generated/` and `expectations/` is authored in-tree\n");
+    s.push_str("by the deterministic generator in `tools/xtask/src/cmd/fixtures.rs`,\n");
+    s.push_str("from public specifications only (ISO/IEC 10918-1 baseline JPEG, the\n");
+    s.push_str("RIFF/AVI 1.0 file-format reference, ISO/IEC 14496-12/-14). No\n");
+    s.push_str("third-party media, no VLC-derived bytes (clean-room, AGENTS.md §3.1),\n");
+    s.push_str("no external encoder output — ffmpeg was used only as a local\n");
+    s.push_str("cross-check oracle during development, never in the build.\n\n");
+    s.push_str("To the extent possible under law, the Lumen project contributors have\n");
+    s.push_str("dedicated all copyright and related and neighboring rights in the\n");
+    s.push_str("files listed below to the public domain worldwide, under the\n");
+    s.push_str("CC0 1.0 Universal Public Domain Dedication\n");
+    s.push_str("(https://creativecommons.org/publicdomain/zero/1.0/).\n\n");
+    s.push_str("## Layout\n\n");
+    s.push_str("- `generated/valid/` — class A: the two decision-independent parents\n");
+    s.push_str("  and their structure maps (`*.structure.json`, corpus-plan §2 — the\n");
+    s.push_str("  recorded offsets the class-B cuts and patches derive from).\n");
+    s.push_str("- `generated/malformed/` — class B: ten derivatives per parent\n");
+    s.push_str("  (`<parent>__<op><n>.<ext>`), every mutation derived from the\n");
+    s.push_str("  parent's structure map and a PRNG seeded by the parent's sha256\n");
+    s.push_str("  (corpus-plan §1 B1/B2/B3; doc 03 §7's malformed variants).\n");
+    s.push_str("- `generated/MANIFEST.toml` — machine-readable form of the table\n");
+    s.push_str("  below (generator, seed root, per-file sha256).\n");
+    s.push_str("- `expectations/valid/`, `expectations/malformed/` — one\n");
+    s.push_str("  `expectation/1` TOML (doc 10 §5.4) per media fixture: parents\n");
+    s.push_str("  carry the track plan, duration, seek plan and essence digests;\n");
+    s.push_str("  derivatives carry their derivation and the class-B error\n");
+    s.push_str("  contract. Structure maps carry no expectation (manifest rows\n");
+    s.push_str("  only).\n");
+    s.push_str("- Curated third-party files (class D): none in v0 — any future row\n");
+    s.push_str("  needs source URL + license + hash per corpus-plan §5.\n\n");
+    s.push_str("## Fixture rows\n\n");
+    s.push_str("| path | class | op | bytes | sha256 | purpose |\n");
+    s.push_str("|---|---|---|---|---|---|\n");
+    for f in &fixtures {
+        s.push_str(&format!(
+            "| {} | {} | {} | {} | {} | {} |\n",
+            f.path,
+            f.class,
+            f.op,
+            f.bytes.len(),
+            sha256_hex(&f.bytes),
+            corpus_purpose(f)
+        ));
+    }
+    s.push_str(&format!(
+        "\nTotal: {} fixture file(s), {} bytes. Ledger files (this file,\n",
+        fixtures.len(),
+        total
+    ));
+    s.push_str("MANIFEST.toml, expectations/) are verified by `--check` byte-comparison.\n");
+    s.into_bytes()
+}
+
+// ---------------------------------------------------------------------------
 // Generation pipeline
 // ---------------------------------------------------------------------------
 
@@ -2150,13 +2809,64 @@ fn generate_all() -> Result<Vec<GeneratedFile>, String> {
     let pcm = generate_pcm();
 
     let avi = build_avi(&frames, &pcm)?;
-    let mut files: Vec<GeneratedFile> = vec![GeneratedFile {
+    let avi_parent = GeneratedFile {
         path: "generated/valid/avi_mjpeg_pcm.avi".to_string(),
         bytes: avi.bytes.clone(),
         class: "A",
         op: "parent",
         parent: None,
-    }];
+    };
+    let mp4 = build_mp4(&frames, &pcm)?;
+    let mp4_parent = GeneratedFile {
+        path: "generated/valid/mp4_mjpeg_pcm.mp4".to_string(),
+        bytes: mp4.bytes.clone(),
+        class: "A",
+        op: "parent",
+        parent: None,
+    };
+
+    // Class-B derivative sets (corpus-plan §1 B1/B2/B3): ten per parent,
+    // every cut/patch/bit position derived from the recorded structure
+    // map and the parent-seeded PRNG.
+    let mut derivatives: Vec<Derivative> = Vec::new();
+    derivatives.extend(avi_derivatives(&avi_parent, &avi.layout)?);
+    derivatives.extend(mp4_derivatives(&mp4_parent, &mp4.layout)?);
+
+    // Expectation/1 files (doc 10 §5.4) — one per media fixture. Parents
+    // carry the full track plan + essence digests (AVI stream ids are
+    // 0/1; MP4 track ids are 1/2 — each container's own numbering);
+    // derivatives carry their derivation and the class-B error contract.
+    let mut expectations: Vec<GeneratedFile> = Vec::with_capacity(2 + derivatives.len());
+    expectations.push(GeneratedFile {
+        path: expectation_path(&avi_parent.path),
+        bytes: parent_expectation(&avi_parent, 0, 1, &frames, &pcm),
+        class: "L",
+        op: "expectation",
+        parent: Some(avi_parent.path.clone()),
+    });
+    expectations.push(GeneratedFile {
+        path: expectation_path(&mp4_parent.path),
+        bytes: parent_expectation(&mp4_parent, 1, 2, &frames, &pcm),
+        class: "L",
+        op: "expectation",
+        parent: Some(mp4_parent.path.clone()),
+    });
+    for derivative in &derivatives {
+        expectations.push(GeneratedFile {
+            path: expectation_path(&derivative.file.path),
+            bytes: derivative_expectation(derivative),
+            class: "L",
+            op: "expectation",
+            parent: derivative.file.parent.clone(),
+        });
+    }
+
+    // Assembly. The manifest and the ledger cover the class-A/B fixtures
+    // (they are computed before the ledger files themselves exist, so no
+    // self-referential hash is possible); the expectations follow.
+    let mut files: Vec<GeneratedFile> =
+        Vec::with_capacity(4 + derivatives.len() + 2 + expectations.len());
+    files.push(avi_parent);
     files.push(GeneratedFile {
         path: "generated/valid/avi_mjpeg_pcm.avi.structure.json".to_string(),
         bytes: avi_structure_json(&avi),
@@ -2164,15 +2874,7 @@ fn generate_all() -> Result<Vec<GeneratedFile>, String> {
         op: "structure-map",
         parent: Some("generated/valid/avi_mjpeg_pcm.avi".to_string()),
     });
-
-    let mp4 = build_mp4(&frames, &pcm)?;
-    files.push(GeneratedFile {
-        path: "generated/valid/mp4_mjpeg_pcm.mp4".to_string(),
-        bytes: mp4.bytes.clone(),
-        class: "A",
-        op: "parent",
-        parent: None,
-    });
+    files.push(mp4_parent);
     files.push(GeneratedFile {
         path: "generated/valid/mp4_mjpeg_pcm.mp4.structure.json".to_string(),
         bytes: mp4_structure_json(&mp4),
@@ -2180,6 +2882,24 @@ fn generate_all() -> Result<Vec<GeneratedFile>, String> {
         op: "structure-map",
         parent: Some("generated/valid/mp4_mjpeg_pcm.mp4".to_string()),
     });
+    for derivative in derivatives {
+        files.push(derivative.file);
+    }
+    files.push(GeneratedFile {
+        path: "generated/MANIFEST.toml".to_string(),
+        bytes: manifest_toml(&files),
+        class: "L",
+        op: "manifest",
+        parent: None,
+    });
+    files.push(GeneratedFile {
+        path: "CORPUS.md".to_string(),
+        bytes: corpus_markdown(&files),
+        class: "L",
+        op: "corpus-ledger",
+        parent: None,
+    });
+    files.extend(expectations);
     Ok(files)
 }
 
@@ -3195,11 +3915,7 @@ mod tests {
         let (_, stsd_at, _) = *find_box(audio_stbl, b"stsd");
         assert_eq!(&b[stsd_at + 20..stsd_at + 24], b"sowt");
         assert_eq!(be16(b, stsd_at + 40), AUDIO_CHANNELS as u16, "channels");
-        assert_eq!(
-            be32(b, stsd_at + 48),
-            u32::from(AUDIO_RATE) << 16,
-            "samplerate 16.16"
-        );
+        assert_eq!(be32(b, stsd_at + 48), AUDIO_RATE << 16, "samplerate 16.16");
 
         // Video tables: stts (60,1), stss 1..=60, stsc (1,1,1), stsz
         // per-sample, stco -> mdat bytes.
@@ -3331,5 +4047,489 @@ mod tests {
         // top-level box offsets.
         assert_eq!(text.matches("\"offset\":").count(), 2 * FRAME_COUNT + 3);
         assert!(text.contains("\"mdat_data_offset\":"));
+    }
+
+    // -- Class-B derivatives -----------------------------------------------
+
+    fn utf8(file: &'static GeneratedFile) -> String {
+        match String::from_utf8(file.bytes.clone()) {
+            Ok(text) => text,
+            Err(_) => unreachable!("{} is not valid UTF-8", file.path),
+        }
+    }
+
+    /// Parse the integer that follows `"key":` in a structure map or
+    /// expectation file (machine-generated JSON/TOML: the next run of
+    /// ASCII digits after the key).
+    fn number_after(text: &str, key: &str) -> usize {
+        let marker = format!("\"{key}\":");
+        let at = match text.find(&marker) {
+            Some(at) => at + marker.len(),
+            None => unreachable!("key {key} missing"),
+        };
+        let digits: String = text[at..]
+            .chars()
+            .take_while(|c| c.is_ascii_digit())
+            .collect();
+        match digits.parse() {
+            Ok(value) => value,
+            Err(_) => unreachable!("key {key} not followed by an integer"),
+        }
+    }
+
+    /// The n-th object (0-based) of a structure map's JSON array — entries
+    /// are `{"fourcc":"00dc","offset":N,"size":M}` or `{"offset":N,…}`.
+    fn nth_object(text: &str, array_key: &str, n: usize) -> String {
+        let marker = format!("\"{array_key}\":[");
+        let at = match text.find(&marker) {
+            Some(at) => at + marker.len(),
+            None => unreachable!("array {array_key} missing"),
+        };
+        let rest = &text[at..];
+        let end = rest.find(']').unwrap_or(rest.len());
+        match rest[..end].split("},{").nth(n) {
+            Some(piece) => piece.to_string(),
+            None => unreachable!("array {array_key} has no entry {n}"),
+        }
+    }
+
+    fn structure_map(fixture: &str) -> String {
+        utf8(find(&format!("{fixture}.structure.json")))
+    }
+
+    /// The cut offset a truncation derivative recorded in its expectation.
+    fn recorded_cut(parent_stem: &str, op: &str, ext: &str) -> usize {
+        let text = utf8(find(&format!(
+            "expectations/malformed/{parent_stem}__{op}.{ext}.toml"
+        )));
+        number_after_toml(&text, "cut_offset")
+    }
+
+    /// TOML flavor of [`number_after`] (`key = 123`).
+    fn number_after_toml(text: &str, key: &str) -> usize {
+        let marker = format!("{key} = ");
+        let at = match text.find(&marker) {
+            Some(at) => at + marker.len(),
+            None => unreachable!("TOML key {key} missing"),
+        };
+        let digits: String = text[at..]
+            .chars()
+            .take_while(|c| c.is_ascii_digit() || *c == '_')
+            .collect();
+        match digits.replace('_', "").parse() {
+            Ok(value) => value,
+            Err(_) => unreachable!("TOML key {key} not followed by an integer"),
+        }
+    }
+
+    #[test]
+    fn full_tree_is_byte_stable_across_two_runs() {
+        // The card's AC, proven at the unit level: two independent
+        // generate_all() calls produce identical (path, bytes) vectors.
+        // (The CLI-level proof is the double `--check` gate.)
+        let first = match generate_all() {
+            Ok(files) => files,
+            Err(message) => unreachable!("first run failed: {message}"),
+        };
+        let second = match generate_all() {
+            Ok(files) => files,
+            Err(message) => unreachable!("second run failed: {message}"),
+        };
+        assert_eq!(first.len(), second.len());
+        for (a, b) in first.iter().zip(second.iter()) {
+            assert_eq!(a.path, b.path, "file order drifted");
+            assert_eq!(a.bytes, b.bytes, "file {} drifted between runs", a.path);
+        }
+    }
+
+    #[test]
+    fn tree_shape_is_the_planned_48_files() {
+        let files = files();
+        assert_eq!(files.len(), 48, "total tree size");
+        assert_eq!(
+            files
+                .iter()
+                .filter(|f| f.path.starts_with("generated/valid/"))
+                .count(),
+            4,
+            "class-A files"
+        );
+        assert_eq!(
+            files
+                .iter()
+                .filter(|f| f.path.starts_with("generated/malformed/"))
+                .count(),
+            20,
+            "class-B derivatives"
+        );
+        assert_eq!(
+            files
+                .iter()
+                .filter(|f| f.path.starts_with("expectations/"))
+                .count(),
+            22,
+            "expectation files"
+        );
+        assert!(files.iter().any(|f| f.path == "generated/MANIFEST.toml"));
+        assert!(files.iter().any(|f| f.path == "CORPUS.md"));
+        // Every media fixture has exactly one expectation file; structure
+        // maps have none (companion metadata, manifest rows only).
+        for file in files.iter().filter(|f| f.class == "A" || f.class == "B") {
+            let is_media = file.path.ends_with(".avi") || file.path.ends_with(".mp4");
+            let has_expectation = files.iter().any(|f| f.path == expectation_path(&file.path));
+            assert_eq!(
+                has_expectation, is_media,
+                "expectation presence wrong for {}",
+                file.path
+            );
+        }
+        // Ledger files are marked class L and never counted as fixtures.
+        assert!(
+            files
+                .iter()
+                .filter(|f| f.class == "L")
+                .all(|f| f.op == "expectation" || f.op == "manifest" || f.op == "corpus-ledger")
+        );
+    }
+
+    #[test]
+    fn avi_derivatives_cut_at_recorded_structure_boundaries() {
+        let parent = find("generated/valid/avi_mjpeg_pcm.avi");
+        let map = structure_map("generated/valid/avi_mjpeg_pcm.avi");
+        let chunk60 = nth_object(&map, "chunks", FRAME_COUNT);
+        let expected_cuts = [
+            (12usize, "trunc0"),
+            (number_after(&map, "avih_offset") + 8 + 20, "trunc1"),
+            (number_after(&map, "movi_data_offset"), "trunc2"),
+            (
+                number_after(&chunk60, "offset") + 8 + number_after(&chunk60, "size") / 2,
+                "trunc3",
+            ),
+            (parent.bytes.len() - 1, "trunc4"),
+        ];
+        for (expected_cut, op) in expected_cuts {
+            let cut = recorded_cut("avi_mjpeg_pcm", op, "avi");
+            assert_eq!(cut, expected_cut, "{op} cut offset");
+            let derivative = find(&format!("generated/malformed/avi_mjpeg_pcm__{op}.avi"));
+            assert_eq!(
+                derivative.bytes,
+                parent.bytes[..cut],
+                "{op} bytes must be the parent prefix"
+            );
+            assert!(derivative.bytes.len() < parent.bytes.len());
+            assert_eq!(derivative.class, "B");
+            assert_eq!(
+                derivative.parent.as_deref(),
+                Some("generated/valid/avi_mjpeg_pcm.avi")
+            );
+        }
+    }
+
+    #[test]
+    fn mp4_derivatives_cut_at_recorded_structure_boundaries() {
+        let parent = find("generated/valid/mp4_mjpeg_pcm.mp4");
+        let map = structure_map("generated/valid/mp4_mjpeg_pcm.mp4");
+        let sample30 = nth_object(&map, "video_samples", FRAME_COUNT / 2);
+        let moov_offset = number_after(&map, "mvhd_offset") - 8;
+        let expected_cuts = [
+            (moov_offset, "trunc0"),
+            (number_after(&map, "mvhd_offset") + 8 + 20, "trunc1"),
+            (number_after(&map, "mdat_data_offset"), "trunc2"),
+            (
+                number_after(&sample30, "offset") + number_after(&sample30, "size") / 2,
+                "trunc3",
+            ),
+            (parent.bytes.len() - 1, "trunc4"),
+        ];
+        for (expected_cut, op) in expected_cuts {
+            let cut = recorded_cut("mp4_mjpeg_pcm", op, "mp4");
+            assert_eq!(cut, expected_cut, "{op} cut offset");
+            let derivative = find(&format!("generated/malformed/mp4_mjpeg_pcm__{op}.mp4"));
+            assert_eq!(
+                derivative.bytes,
+                parent.bytes[..cut],
+                "{op} bytes must be the parent prefix"
+            );
+            assert!(derivative.bytes.len() < parent.bytes.len());
+        }
+    }
+
+    #[test]
+    fn bitflip_derivatives_flip_exactly_k_header_bits() {
+        for (parent_path, extent) in [
+            ("generated/valid/avi_mjpeg_pcm.avi", AVI_FLIP_EXTENT),
+            ("generated/valid/mp4_mjpeg_pcm.mp4", MP4_FLIP_EXTENT),
+        ] {
+            let parent = find(parent_path);
+            let name = &parent_path["generated/valid/".len()..];
+            let (stem, ext) = match name.rsplit_once('.') {
+                Some((stem, ext)) => (stem, ext),
+                None => unreachable!("parent path without extension"),
+            };
+            // diff masks per k, for the nesting check below.
+            let mut masks: Vec<(usize, Vec<u8>)> = Vec::new();
+            for k in [1usize, 4, 16] {
+                let derivative = find(&format!("generated/malformed/{stem}__flip{k}.{ext}"));
+                assert_eq!(
+                    derivative.bytes.len(),
+                    parent.bytes.len(),
+                    "{stem} flip{k} size"
+                );
+                let mask: Vec<u8> = derivative
+                    .bytes
+                    .iter()
+                    .zip(parent.bytes.iter())
+                    .take(extent)
+                    .map(|(&d, &p)| d ^ p)
+                    .collect();
+                assert_eq!(mask.len(), extent, "{stem} flip{k} mask size");
+                let bits: usize = mask.iter().map(|b| b.count_ones() as usize).sum();
+                assert_eq!(bits, k, "{stem} flip{k} flipped bit count");
+                assert_eq!(
+                    &derivative.bytes[extent..],
+                    &parent.bytes[extent..],
+                    "{stem} flip{k} touched bytes past the header extent"
+                );
+                masks.push((k, mask));
+            }
+            // k-prefix property: flip1's bits ⊆ flip4's ⊆ flip16's.
+            for ((small_k, small), (big_k, big)) in masks.iter().zip(masks.iter().skip(1)) {
+                assert!(
+                    small.iter().zip(big.iter()).all(|(&a, &b)| (a & b) == a),
+                    "flip{small_k} bits are not a subset of flip{big_k} ({stem})"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn garbage_derivatives_append_a_seeded_block() {
+        let mut suffixes: Vec<Vec<u8>> = Vec::new();
+        for parent_path in [
+            "generated/valid/avi_mjpeg_pcm.avi",
+            "generated/valid/mp4_mjpeg_pcm.mp4",
+        ] {
+            let parent = find(parent_path);
+            let derivative = find(&derivative_path(parent_path, "garbage0"));
+            assert_eq!(
+                derivative.bytes.len(),
+                parent.bytes.len() + GARBAGE_LEN,
+                "{} garbage size",
+                parent_path
+            );
+            assert_eq!(
+                &derivative.bytes[..parent.bytes.len()],
+                &parent.bytes[..],
+                "garbage derivative must keep the parent as prefix"
+            );
+            let suffix = derivative.bytes[parent.bytes.len()..].to_vec();
+            // The block is seeded garbage, not zeros or any simple pattern.
+            let first = suffix[0];
+            assert!(
+                suffix.iter().any(|&b| b != first),
+                "garbage block is a constant fill"
+            );
+            suffixes.push(suffix);
+        }
+        // Different parents hash to different seeds → different blocks.
+        assert_ne!(suffixes[0], suffixes[1], "garbage blocks are identical");
+    }
+
+    #[test]
+    fn avi_no_idx1_derivative_drops_the_index_and_patches_riff_size() {
+        let parent = find("generated/valid/avi_mjpeg_pcm.avi");
+        let map = structure_map("generated/valid/avi_mjpeg_pcm.avi");
+        let idx1_offset = number_after(&map, "idx1_offset");
+        let derivative = find("generated/malformed/avi_mjpeg_pcm__noidx0.avi");
+        assert_eq!(derivative.bytes.len(), idx1_offset, "idx1 dropped");
+        // The RIFF size covers exactly the surviving bytes.
+        assert_eq!(le32(&derivative.bytes, 4) as usize, idx1_offset - 8);
+        // Everything except the patched size field is parent-identical.
+        assert_eq!(&derivative.bytes[..4], &parent.bytes[..4]);
+        assert_eq!(&derivative.bytes[8..], &parent.bytes[8..idx1_offset]);
+        // The expectation recorded the patch site.
+        let text = utf8(find(
+            "expectations/malformed/avi_mjpeg_pcm__noidx0.avi.toml",
+        ));
+        assert!(text.contains("op = \"drop-idx1\""));
+        assert_eq!(number_after_toml(&text, "riff_size_field_offset"), 4);
+    }
+
+    #[test]
+    fn mp4_stsz_lie_derivative_patches_only_the_count() {
+        let parent = find("generated/valid/mp4_mjpeg_pcm.mp4");
+        let map = structure_map("generated/valid/mp4_mjpeg_pcm.mp4");
+        let at = number_after(&map, "stsz_video_count_offset");
+        let derivative = find("generated/malformed/mp4_mjpeg_pcm__stszlie0.mp4");
+        assert_eq!(derivative.bytes.len(), parent.bytes.len());
+        let mut differing = 0usize;
+        for i in 0..parent.bytes.len() {
+            if derivative.bytes[i] != parent.bytes[i] {
+                differing += 1;
+            }
+        }
+        assert_eq!(differing, 4, "exactly the 4 count bytes differ");
+        assert_eq!(be32(&derivative.bytes, at), 0x7fff_ffff);
+        assert_eq!(be32(&parent.bytes, at), FRAME_COUNT as u32);
+    }
+
+    #[test]
+    fn derivatives_never_equal_their_parent() {
+        // A no-op derivative would be a hole in the malformed corpus:
+        // every class-B file must differ from its parent's bytes.
+        for file in files().iter().filter(|f| f.class == "B") {
+            let parent_path = match &file.parent {
+                Some(path) => path,
+                None => unreachable!("class-B file without a parent"),
+            };
+            let parent = find(parent_path);
+            assert_ne!(
+                file.bytes, parent.bytes,
+                "{} is byte-identical to its parent",
+                file.path
+            );
+        }
+    }
+
+    // -- Ledger files: MANIFEST, CORPUS, expectations -----------------------
+
+    #[test]
+    fn manifest_records_every_fixture_with_recomputed_hashes() {
+        let text = utf8(find("generated/MANIFEST.toml"));
+        assert!(text.contains("schema = \"manifest/1\""));
+        assert!(text.contains(&format!("seed_root = \"{}\"", SEED_ROOT)));
+        let fixtures: Vec<&GeneratedFile> = files()
+            .iter()
+            .filter(|f| f.class == "A" || f.class == "B")
+            .collect();
+        assert_eq!(fixtures.len(), 24);
+        assert_eq!(text.matches("[[files]]").count(), 24);
+        for file in &fixtures {
+            let row = format!("path = \"{}\"", file.path);
+            assert!(text.contains(&row), "manifest row for {}", file.path);
+            assert!(
+                text.contains(&format!("sha256 = \"{}\"", sha256_hex(&file.bytes))),
+                "manifest hash for {}",
+                file.path
+            );
+            assert!(
+                text.contains(&format!(
+                    "size_bytes = {}",
+                    toml_uint(file.bytes.len() as u64)
+                )),
+                "manifest size for {}",
+                file.path
+            );
+        }
+        // Ledger files are not manifest rows (no self-reference).
+        assert!(!text.contains("path = \"generated/MANIFEST.toml\""));
+        assert!(!text.contains("path = \"CORPUS.md\""));
+        assert!(!text.contains("expectations/"));
+    }
+
+    #[test]
+    fn corpus_ledger_declares_cc0_and_lists_every_fixture() {
+        let text = utf8(find("CORPUS.md"));
+        assert!(text.contains("CC0 1.0 Universal Public Domain Dedication"));
+        assert!(text.contains("https://creativecommons.org/publicdomain/zero/1.0/"));
+        assert!(text.contains("clean-room"));
+        assert!(text.contains("ffmpeg was used only as a local"));
+        let fixtures: Vec<&GeneratedFile> = files()
+            .iter()
+            .filter(|f| f.class == "A" || f.class == "B")
+            .collect();
+        for file in &fixtures {
+            assert!(
+                text.contains(&format!("| {} |", file.path)),
+                "CORPUS row for {}",
+                file.path
+            );
+            assert!(
+                text.contains(&sha256_hex(&file.bytes)),
+                "CORPUS hash for {}",
+                file.path
+            );
+        }
+        let total: usize = fixtures.iter().map(|f| f.bytes.len()).sum();
+        assert!(text.contains(&format!(
+            "Total: {} fixture file(s), {} bytes.",
+            fixtures.len(),
+            total
+        )));
+    }
+
+    #[test]
+    fn parent_expectations_match_the_doc10_v0_shape() {
+        let pcm = generate_pcm();
+        for (path, video_id, audio_id) in [
+            ("generated/valid/avi_mjpeg_pcm.avi", 0u32, 1u32),
+            ("generated/valid/mp4_mjpeg_pcm.mp4", 1u32, 2u32),
+        ] {
+            let file = find(path);
+            let text = utf8(find(&expectation_path(path)));
+            assert!(text.contains("schema = \"expectation/1\""), "{path}");
+            assert!(text.contains(&format!("fixture = \"{path}\"")));
+            assert!(text.contains("class = \"A\""));
+            assert!(text.contains(&format!("sha256 = \"{}\"", sha256_hex(&file.bytes))));
+            assert!(text.contains(&format!(
+                "size_bytes = {}",
+                toml_uint(file.bytes.len() as u64)
+            )));
+            assert!(text.contains("[tracks]"));
+            assert!(text.contains(&format!(
+                "video = [{{ id = {video_id}, codec = \"mjpeg\", width = {FRAME_WIDTH}, height = {FRAME_HEIGHT}, fps = {{ num = {FPS}, den = 1 }} }}]"
+            )));
+            assert!(text.contains(&format!(
+                "audio = [{{ id = {audio_id}, codec = \"pcm_s16le\", rate = {AUDIO_RATE}, channels = {AUDIO_CHANNELS} }}]"
+            )));
+            assert!(text.contains("duration_us = 2_000_000"));
+            assert!(text.contains("[seek]"));
+            assert!(text.contains("tolerance_us = 33_333"));
+            assert!(text.contains("[essence_v0]"));
+            // Sixty per-sample video digests; the first is frame 0's JPEG.
+            let digests: Vec<&str> = text.lines().filter(|l| l.starts_with("  \"")).collect();
+            assert_eq!(digests.len(), FRAME_COUNT, "{path} digest count");
+            let frame0 = match draw_frame(0).and_then(|img| encode_baseline_jpeg(&img)) {
+                Ok(jpeg) => jpeg,
+                Err(message) => unreachable!("re-encode failed: {message}"),
+            };
+            assert!(
+                digests[0].contains(&sha256_hex(&frame0)),
+                "{path} first frame digest"
+            );
+            // The audio digest is the generator's own PCM stream.
+            assert!(text.contains(&format!("audio_stream_sha256 = \"{}\"", sha256_hex(&pcm))));
+            assert!(text.contains("audio_stream_bytes = 352_800"));
+        }
+    }
+
+    #[test]
+    fn derivative_expectations_carry_the_error_contract() {
+        for file in files().iter().filter(|f| f.class == "B") {
+            let text = utf8(find(&expectation_path(&file.path)));
+            assert!(text.contains("class = \"B\""), "{}", file.path);
+            let parent = match &file.parent {
+                Some(parent) => parent,
+                None => unreachable!("class-B file without a parent"),
+            };
+            assert!(text.contains(&format!("parent = \"{parent}\"")));
+            assert!(text.contains(&format!("sha256 = \"{}\"", sha256_hex(&file.bytes))));
+            assert!(text.contains("[derivation]"));
+            assert!(text.contains("[error]"));
+            assert!(text.contains("expected = \"typed-error-or-bounded-recovery\""));
+            assert!(text.contains("never = \"panic, hang, unbounded allocation\""));
+            assert!(text.contains("rss_cap_mb = 64"));
+            assert!(text.contains("wall_cap_ms = 5_000"));
+            // The recorded derivation matches the file's own op family.
+            let expected_op = match file.op {
+                "trunc0" | "trunc1" | "trunc2" | "trunc3" | "trunc4" => "op = \"truncate\"",
+                "flip1" | "flip4" | "flip16" => "op = \"bit-flip\"",
+                "garbage0" => "op = \"garbage-append\"",
+                "noidx0" => "op = \"drop-idx1\"",
+                "stszlie0" => "op = \"stsz-count-lie\"",
+                other => unreachable!("unknown derivative op {other}"),
+            };
+            assert!(text.contains(expected_op), "{}: {expected_op}", file.path);
+        }
     }
 }
