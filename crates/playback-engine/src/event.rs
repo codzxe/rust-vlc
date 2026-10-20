@@ -59,7 +59,13 @@ use crate::state::SessionState;
 /// (seek terminals, device loss, clock-master changes); hosts must
 /// degrade unknown kinds to a logged no-op, exactly as the wire
 /// catalog's own `#[non_exhaustive]` rule prescribes.
-#[derive(Debug, Clone, PartialEq)]
+///
+/// `Clone`/`PartialEq` are **manual**: the [`Fatal`] variant carries an
+/// [`EngineError`], whose optional boxed `source` chain is neither.
+/// Cloning rebuilds the typed error without the source chain (events
+/// are data, not error-chain carriers); equality compares
+/// stage + kind + context code — the fields the wire event exposes.
+#[derive(Debug)]
 #[non_exhaustive]
 pub enum EngineEventKind {
     /// Every playback-state transition, including self-transitions as
@@ -110,6 +116,71 @@ pub enum EngineEventKind {
         /// formats without stamps — the event still fires).
         position: Stamp,
     },
+}
+
+impl Clone for EngineEventKind {
+    fn clone(&self) -> EngineEventKind {
+        match self {
+            EngineEventKind::StateChanged { from, to } => EngineEventKind::StateChanged {
+                from: *from,
+                to: *to,
+            },
+            EngineEventKind::TracksChanged { tracks, selected } => EngineEventKind::TracksChanged {
+                tracks: Arc::clone(tracks),
+                selected: selected.clone(),
+            },
+            EngineEventKind::Buffering { progress } => EngineEventKind::Buffering {
+                progress: *progress,
+            },
+            EngineEventKind::EndOfMedia => EngineEventKind::EndOfMedia,
+            EngineEventKind::Fatal { error } => EngineEventKind::Fatal {
+                // Rebuilt without the boxed `source` chain (see the
+                // type docs): the stage, kind and context code carry
+                // the wire-visible truth.
+                error: EngineError::new(
+                    error.stage,
+                    error.kind.clone(),
+                    media_types::error::ErrorContext {
+                        code: error.context.code.clone(),
+                    },
+                ),
+            },
+            EngineEventKind::DamagedData { count } => EngineEventKind::DamagedData { count: *count },
+            EngineEventKind::FirstFrame { position } => EngineEventKind::FirstFrame {
+                position: *position,
+            },
+        }
+    }
+}
+
+impl PartialEq for EngineEventKind {
+    fn eq(&self, other: &EngineEventKind) -> bool {
+        match (self, other) {
+            (
+                EngineEventKind::StateChanged { from: a, to: b },
+                EngineEventKind::StateChanged { from: c, to: d },
+            ) => a == c && b == d,
+            (
+                EngineEventKind::TracksChanged { tracks: a, selected: b },
+                EngineEventKind::TracksChanged { tracks: c, selected: d },
+            ) => **a == **c && b == d,
+            (EngineEventKind::Buffering { progress: a }, EngineEventKind::Buffering { progress: b }) => {
+                a == b
+            }
+            (EngineEventKind::EndOfMedia, EngineEventKind::EndOfMedia) => true,
+            (EngineEventKind::Fatal { error: a }, EngineEventKind::Fatal { error: b }) => {
+                a.stage == b.stage && a.kind == b.kind && a.context.code == b.context.code
+            }
+            (EngineEventKind::DamagedData { count: a }, EngineEventKind::DamagedData { count: b }) => {
+                a == b
+            }
+            (
+                EngineEventKind::FirstFrame { position: a },
+                EngineEventKind::FirstFrame { position: b },
+            ) => a == b,
+            _ => false,
+        }
+    }
 }
 
 impl EngineEventKind {
@@ -312,7 +383,7 @@ mod tests {
             ErrorContext::new("demux.header.missing"),
         );
         let kind = EngineEventKind::Fatal { error };
-        let wire = match kind.as_wire() {
+        match kind.as_wire() {
             Some(EventKind::PlaybackError {
                 stage,
                 code,
@@ -327,8 +398,7 @@ mod tests {
                 assert!(message.contains("inaccessible"), "{message}");
             }
             other => unreachable!("Fatal must map to PlaybackError, got {other:?}"),
-        };
-        let _ = wire;
+        }
     }
 
     #[test]

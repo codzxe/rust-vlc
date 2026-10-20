@@ -338,11 +338,16 @@ pub const TRANSITIONS: &[Transition] = &[
         to: SessionState::Buffering,
         effects: &[Effect::EmitTracks, Effect::EmitBufferingEnter],
     },
+    // doc 03 §4.6 `Opening | input error / deadline | Error` — "typed
+    // Error(...); teardown": the open failed before any limb was wired,
+    // so the teardown drops the (limb-less) pipeline. Entering Error
+    // tears down as stopped would (doc 03 §4.6 "any active | fatal
+    // error | Error ... teardown as Stopped").
     Transition {
         from: SessionState::Opening,
         input: SessionInput::Failed,
         to: SessionState::Error,
-        effects: &[Effect::ReportFatal],
+        effects: &[Effect::ReportFatal, Effect::TeardownPipeline],
     },
     // doc 05 §3.3's `opening → idle` edge: close while opening.
     Transition {
@@ -612,16 +617,16 @@ pub fn rejection_reason(state: SessionState, input: SessionInput) -> RejectionRe
         // buffered-pause semantic is owed to 3.C1 with the rest).
         (S::Buffering, I::Pause) => R::NotReady,
         (S::Buffering, I::Stop | I::Close) => R::StopFirst,
-        (S::Buffering, I::Underrun | I::Drained) => R::SignalNotRaisedHere,
+        (S::Buffering, I::OpenReady | I::Underrun | I::Drained) => R::SignalNotRaisedHere,
         // Playing: close requires settling first (no playing → idle
         // edge in v1); steady-state signals are absorbed by the
         // pipeline, not applied to the machine.
         (S::Playing, I::Close) => R::StopFirst,
-        (S::Playing, I::Primed | I::EofReached) => R::SignalNotRaisedHere,
+        (S::Playing, I::OpenReady | I::Primed | I::EofReached) => R::SignalNotRaisedHere,
         // Paused: close requires stop first; underrun cannot be
         // observed with consumption frozen.
         (S::Paused, I::Close) => R::StopFirst,
-        (S::Paused, I::Underrun | I::Primed | I::EofReached) => R::SignalNotRaisedHere,
+        (S::Paused, I::OpenReady | I::Underrun | I::Primed | I::EofReached) => R::SignalNotRaisedHere,
         // Ended: retained for Phase-3 seek-back; otherwise inert.
         (S::Ended, I::Play) => R::RestartNeedsSeek,
         (S::Ended, I::Pause | I::Stop) => R::AlreadySettled,

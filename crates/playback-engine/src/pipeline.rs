@@ -53,7 +53,7 @@ use std::sync::Arc;
 
 use codec_api::{DecodeOutcome, Decoder, DecoderConfig, FrameSink, ThreadBudget};
 use media_types::{
-    EngineError, Frame, GenerationId, MediaKind, Packet, PipelineStage, Stamp, Track, TrackId,
+    EngineError, Frame, GenerationId, MediaKind, Packet, Stamp, Track, TrackId,
 };
 use packet_queue::{
     BoundedQueue, PopOutcome, PushOutcome, QueueLimits, QueueUsage, Stamped, WatermarkThresholds,
@@ -75,7 +75,7 @@ pub trait DecoderProvider: Send + Sync {
     ///
     /// # Errors
     /// The provider's typed [`EngineError`] (stage
-    /// [`PipelineStage::Decode`] by convention).
+    /// [`media_types::PipelineStage::Decode`] by convention).
     fn decoder_for(&self, track: &Track, config: &DecoderConfig) -> Result<Box<dyn Decoder>, EngineError>;
 }
 
@@ -198,7 +198,10 @@ impl Default for TickBudget {
 
 /// What one pipeline tick observed (raw facts — the session decides
 /// what they mean; see [`crate::state::translate_pipeline_signal`]).
-#[derive(Debug, Clone, PartialEq)]
+/// Not `Clone`/`PartialEq`: the fatal fact carries the typed
+/// [`EngineError`] (neither trait — the payload moves, it never
+/// duplicates).
+#[derive(Debug)]
 pub(crate) struct TickReport {
     /// A fatal demux/decode failure, if one happened.
     pub fatal: Option<EngineError>,
@@ -217,6 +220,17 @@ pub(crate) struct TickReport {
     /// Units skipped by bounded recovery this tick (doc 03 §4.6
     /// `DamagedData`).
     pub damaged: u64,
+    /// Frames delivered to the sink seam this tick.
+    pub frames: u64,
+    /// Frames dropped at the sink for stale generations (doc 03 §5
+    /// checking point 5). Always zero in v0's single-writer ticks —
+    /// the checkpoint exists for the threaded future, and the tests
+    /// pin that it never fires on live-generation frames.
+    pub stale_frames: u64,
+    /// Demuxer-marked discontinuities observed this tick (the
+    /// re-anchor policy is Phase 3; the count is the observable
+    /// fact).
+    pub discontinuities: u64,
 }
 
 /// One wired track: its queue and its decoder.
@@ -255,13 +269,6 @@ pub(crate) struct Pipeline {
     /// The first delivered frame's timestamp, once (doc 03 §4.6
     /// `FirstFrame`).
     first_frame: Option<Stamp>,
-    /// Marked discontinuities seen (observability; the re-anchor
-    /// policy is Phase 3).
-    discontinuities: u64,
-    /// Frames dropped at the sink for stale generations (doc 03 §5
-    /// checking point 5; zero in v0's single-threaded ticks — the
-    /// checkpoint exists for the threaded future).
-    stale_frames_dropped: u64,
 }
 
 impl Pipeline {
@@ -278,8 +285,6 @@ impl Pipeline {
             generation: GenerationId::FIRST,
             consumer,
             first_frame: None,
-            discontinuities: 0,
-            stale_frames_dropped: 0,
         }
     }
 
@@ -379,6 +384,9 @@ impl Pipeline {
             drained: false,
             first_frame: None,
             damaged: 0,
+            frames: 0,
+            stale_frames: 0,
+            discontinuities: 0,
         };
         // The demux step runs in every state that owns a live
         // pipeline (Buffering fills, Playing streams, Paused fills to
@@ -457,7 +465,7 @@ impl Pipeline {
                     // A marked discontinuity: v0 counts and carries
                     // on (the clock re-anchor policy is Phase 3 sync,
                     // card 3.B1). Counted so the fact is observable.
-                    self.discontinuities = self.discontinuities.saturating_add(1);
+                    report.discontinuities = report.discontinuities.saturating_add(1);
                 }
                 Ok(DemuxEvent::EndOfStream) => {
                     if !self.eof {
@@ -508,8 +516,8 @@ impl Pipeline {
     fn decode_step(&mut self, budget: &TickBudget, report: &mut TickReport) {
         let consumer = Arc::clone(&self.consumer);
         let generation = self.generation;
-        for limb_index in 0..self.limbs.len() {
-            let track_id = self.limbs[limb_index].track.id;
+        for limb in &mut self.limbs {
+            let track_id = limb.track.id;
             let mut sink = LimbSink {
                 consumer: Arc::clone(&consumer),
                 track: track_id,
@@ -523,7 +531,7 @@ impl Pipeline {
                 // Three pop outcomes matter: an item (decode it), a
                 // discontinuity marker (observed, keep going), and
                 // nothing resident (stop this limb's slice).
-                let popped = match self.limbs[limb_index].queue.try_pop() {
+                let popped = match limb.queue.try_pop() {
                     PopOutcome::Item(stamped) => Some(Some(stamped.value)),
                     PopOutcome::Discontinuity(_) => Some(None),
                     PopOutcome::Empty | PopOutcome::Closed => None,
@@ -531,29 +539,24 @@ impl Pipeline {
                 match popped {
                     None => break,
                     Some(None) => continue,
-                    Some(Some(packet)) => {
-                        let limb = &mut self.limbs[limb_index];
-                        match limb.decoder.decode(packet, &mut sink) {
-                            Ok(DecodeOutcome::Recovered { skipped, .. }) => {
-                                report.damaged =
-                                    report.damaged.saturating_add(u64::from(skipped));
-                            }
-                            Ok(_) => {}
-                            Err(error) => {
-                                fatal = Some(error);
-                                break;
-                            }
+                    Some(Some(packet)) => match limb.decoder.decode(packet, &mut sink) {
+                        Ok(DecodeOutcome::Recovered { skipped, .. }) => {
+                            report.damaged = report.damaged.saturating_add(u64::from(skipped));
                         }
-                    }
+                        Ok(_) => {}
+                        Err(error) => {
+                            fatal = Some(error);
+                            break;
+                        }
+                    },
                 }
             }
             // End-of-stream draining: flush the decoder until it
             // reports `Drained`, bounded per tick.
-            if fatal.is_none() && self.eof && !self.limbs[limb_index].drained {
-                let queue_empty = self.limbs[limb_index].queue.usage().packets == 0;
+            if fatal.is_none() && self.eof && !limb.drained {
+                let queue_empty = limb.queue.usage().packets == 0;
                 if queue_empty && self.pending.is_none() {
                     for _ in 0..budget.flush_calls_per_limb {
-                        let limb = &mut self.limbs[limb_index];
                         match limb.decoder.flush(&mut sink) {
                             Ok(DecodeOutcome::Drained) => {
                                 limb.drained = true;
@@ -576,7 +579,8 @@ impl Pipeline {
             // delivered becomes the session's FirstFrame fact; stale
             // frame drops are counted (v0 cannot produce them — the
             // generation check is the doc 03 §5 point-5 checkpoint).
-            self.stale_frames_dropped = self.stale_frames_dropped.saturating_add(sink.stale_dropped);
+            report.frames = report.frames.saturating_add(u64::from(sink.frames));
+            report.stale_frames = report.stale_frames.saturating_add(u64::from(sink.stale_dropped));
             if self.first_frame.is_none() {
                 if let Some(position) = sink.first {
                     self.first_frame = Some(position);
@@ -602,6 +606,7 @@ struct LimbSink {
 
 impl FrameSink for LimbSink {
     fn accept(&mut self, frame: Frame) -> Result<(), EngineError> {
+        let pts = frame.pts();
         if frame.is_stale(self.generation) {
             // A stale frame is dropped on sight — no error, no
             // consumer call, counted (doc 03 §5 point 5).
@@ -611,7 +616,7 @@ impl FrameSink for LimbSink {
         self.consumer.accept(frame, self.track)?;
         self.frames = self.frames.saturating_add(1);
         if self.first.is_none() {
-            self.first = Some(frame.pts());
+            self.first = Some(pts);
         }
         Ok(())
     }

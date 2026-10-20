@@ -40,6 +40,7 @@
 //! §4.2's staleness rule — while receipts always survive.
 
 use std::collections::VecDeque;
+use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::sync::Arc;
@@ -52,7 +53,7 @@ use media_types::{EngineError, SourceUri};
 use crate::epoch::{CancelToken, GenerationPair, PipelineGeneration, SessionEpoch, TokenMinter};
 use crate::error::{SessionConfigError, SessionError};
 use crate::event::{EngineEvent, EngineEventKind};
-use crate::pipeline::{DecoderProvider, FrameConsumer, Pipeline, QueuePlan, TickBudget};
+use crate::pipeline::{DecoderProvider, FrameConsumer, Pipeline, QueuePlan, TickBudget, TickReport};
 use crate::state::{
     apply_input, translate_pipeline_signal, Effect, PipelineSignal, RejectionReason, SessionInput,
     SessionState, Transition, TransitionRejected, TRANSITIONS,
@@ -249,8 +250,9 @@ impl SessionHandle {
 
 /// What a session is opened with (card 2.C2: everything injectable —
 /// the engine owns no concrete demuxer, decoder, sink or clock
-/// construction).
-#[derive(Clone)]
+/// construction). Not `Clone`: the demuxer and the clock ownership
+/// move into the session on open (a second open needs a second
+/// config).
 pub struct SessionConfig {
     /// The source being opened (carried for events and error
     /// context; access resolution is the demuxer impl's business).
@@ -363,6 +365,49 @@ pub struct EngineStats {
     /// Pipeline-scoped events suppressed at drain as superseded
     /// (doc 05 §4.2).
     pub suppressed_stale_events: u64,
+    /// Frames delivered to the sink seam (lifetime of the engine,
+    /// across sessions).
+    pub frames_delivered: u64,
+    /// Frames dropped at the sink for stale generations (doc 03 §5
+    /// checking point 5). Zero by construction in v0's single-writer
+    /// ticks — the counter is the checkpoint the threaded future
+    /// (2.E1/3.B3) will exercise.
+    pub stale_frames_dropped: u64,
+    /// Demuxer-marked discontinuities observed (the re-anchor policy
+    /// is Phase 3, card 3.B1; the count is the observable fact).
+    pub demux_discontinuities: u64,
+}
+
+/// Per-session pipeline observability (merged into [`EngineStats`]).
+/// Engine-level totals survive session destruction; session-level
+/// totals die with the session (the single writer accumulates them
+/// in [`Session::tick_step`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) struct PipelineTotals {
+    frames_delivered: u64,
+    stale_frames_dropped: u64,
+    demux_discontinuities: u64,
+}
+
+impl PipelineTotals {
+    /// Fold one tick's report into the totals.
+    fn merge_tick(&mut self, report: &TickReport) {
+        self.frames_delivered = self.frames_delivered.saturating_add(report.frames);
+        self.stale_frames_dropped = self.stale_frames_dropped.saturating_add(report.stale_frames);
+        self.demux_discontinuities =
+            self.demux_discontinuities.saturating_add(report.discontinuities);
+    }
+
+    /// Fold another totals snapshot into this one (session close).
+    fn merge(&mut self, other: &PipelineTotals) {
+        self.frames_delivered = self.frames_delivered.saturating_add(other.frames_delivered);
+        self.stale_frames_dropped = self
+            .stale_frames_dropped
+            .saturating_add(other.stale_frames_dropped);
+        self.demux_discontinuities = self
+            .demux_discontinuities
+            .saturating_add(other.demux_discontinuities);
+    }
 }
 
 /// The engine (card 2.C2): mints session epochs, hosts **one**
@@ -372,13 +417,27 @@ pub struct EngineStats {
 /// the hosts that need it; play-new-while-playing replacement is
 /// card 3.A2 — v0 refuses a second open on a live session honestly
 /// instead of silently replacing]`.
-#[derive(Debug)]
 pub struct Engine {
     next_epoch: u64,
     seq: Arc<AtomicU64>,
     session: Option<Session>,
     outbox: OutputHub,
     last_pair: Option<GenerationPair>,
+    pipeline_totals: PipelineTotals,
+}
+
+impl fmt::Debug for Engine {
+    // Manual on purpose: `Session` carries trait objects (`Demuxer`,
+    // `Decoder`, seams) with no `Debug` supertrait — the debug form
+    // reports the observable surface, not the pipeline internals.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Engine")
+            .field("state", &self.state())
+            .field("session", &self.session_id())
+            .field("generation", &self.generation())
+            .field("stats", &self.stats())
+            .finish_non_exhaustive()
+    }
 }
 
 impl Engine {
@@ -397,6 +456,7 @@ impl Engine {
             session: None,
             outbox: OutputHub::new(capacity),
             last_pair: None,
+            pipeline_totals: PipelineTotals::default(),
         }
     }
 
@@ -424,13 +484,16 @@ impl Engine {
         let mut session = Session::new(epoch, rx, config, Arc::clone(&self.seq));
         // The pinned `Idle -- Open --> Opening` row: it cannot be
         // rejected (freshly constructed state), but the Result is
-        // honored honestly rather than unwrapped.
+        // honored honestly rather than unwrapped. Its `state-changed →
+        // opening` announcement goes to the host like every other
+        // transition (doc 05 §3.2 — never coalesced).
         let context = InputContext::default();
-        match session.apply(SessionInput::Open, &context) {
-            Ok(_) => {}
-            Err(rejection) => {
-                return Err(SessionError::Invariant(format!("{rejection}")));
-            }
+        let announcements = match session.apply(SessionInput::Open, context) {
+            Ok(outputs) => outputs,
+            Err(rejection) => return Err(SessionError::Invariant(format!("{rejection}"))),
+        };
+        for output in announcements {
+            self.outbox.push(output);
         }
         self.last_pair = Some(session.pair());
         self.session = Some(session);
@@ -468,9 +531,16 @@ impl Engine {
     /// The output-path counters.
     #[must_use]
     pub fn stats(&self) -> EngineStats {
+        let mut totals = self.pipeline_totals;
+        if let Some(session) = &self.session {
+            totals.merge(&session.totals);
+        }
         EngineStats {
             outbox_dropped_events: self.outbox.dropped_events,
             suppressed_stale_events: self.outbox.suppressed_stale,
+            frames_delivered: totals.frames_delivered,
+            stale_frames_dropped: totals.stale_frames_dropped,
+            demux_discontinuities: totals.demux_discontinuities,
         }
     }
 
@@ -508,12 +578,15 @@ impl Engine {
             self.outbox.push(output);
         }
         // 3. A closed session is destroyed here — after its outputs
-        // (including `state-changed → idle`) are safely in the hub.
-        if session.closed {
-            self.last_pair = Some(session.pair());
+        // (including `state-changed → idle`) are safely in the hub. Its
+        // pipeline observability survives at the engine level.
+        let totals = session.totals;
+        let pair = session.pair();
+        let closed = session.closed;
+        self.last_pair = Some(pair);
+        if closed {
+            self.pipeline_totals.merge(&totals);
             self.session = None;
-        } else {
-            self.last_pair = Some(session.pair());
         }
     }
 
@@ -556,6 +629,7 @@ impl SessionError {
 
 /// The context that travels beside an applied input (the pure table
 /// carries no payloads).
+#[derive(Default)]
 struct InputContext {
     /// The request that caused this application, when attributable
     /// (doc 05 §3.1 `origin`).
@@ -564,28 +638,32 @@ struct InputContext {
     fatal: Option<EngineError>,
 }
 
-impl Default for InputContext {
-    fn default() -> InputContext {
-        InputContext {
-            origin: None,
-            fatal: None,
-        }
-    }
-}
-
 /// The session (single-writer; driven only through `Engine::poll`).
 pub(crate) struct Session {
     epoch: SessionEpoch,
     state: SessionState,
     minter: TokenMinter,
     inbox: Receiver<SessionCommand>,
-    config: SessionConfig,
     pipeline: Option<Pipeline>,
     closed: bool,
     opening_attempted: bool,
     tracks: Arc<Vec<media_types::Track>>,
     selected: Vec<bool>,
     seq: Arc<AtomicU64>,
+    totals: PipelineTotals,
+    runtime: SessionRuntime,
+}
+
+/// The parts of a [`SessionConfig`] the live session retains: the
+/// demuxer moved into the pipeline at construction (the pipeline owns
+/// it until teardown), the source was consumed at open (access
+/// resolution is the demuxer impl's business) — everything else the
+/// executor keeps for the session's lifetime.
+struct SessionRuntime {
+    decoders: Arc<dyn DecoderProvider>,
+    clock: Arc<MediaClock>,
+    queues: QueuePlan,
+    budget: TickBudget,
 }
 
 impl Session {
@@ -595,18 +673,26 @@ impl Session {
         config: SessionConfig,
         seq: Arc<AtomicU64>,
     ) -> Session {
+        let pipeline = Pipeline::new(config.demuxer, Arc::clone(&config.consumer));
+        let runtime = SessionRuntime {
+            decoders: config.decoders,
+            clock: config.clock,
+            queues: config.queues,
+            budget: config.budget,
+        };
         Session {
             epoch,
             state: SessionState::Idle,
             minter: TokenMinter::new(epoch),
             inbox,
-            pipeline: Some(Pipeline::new(config.demuxer, Arc::clone(&config.consumer))),
+            pipeline: Some(pipeline),
             closed: false,
             opening_attempted: false,
             tracks: Arc::new(Vec::new()),
             selected: Vec::new(),
             seq,
-            config,
+            totals: PipelineTotals::default(),
+            runtime,
         }
     }
 
@@ -628,28 +714,32 @@ impl Session {
 
     /// Apply one input through the table and interpret its effects.
     /// Answers the outputs **in causal order** (the caller places the
-    /// receipt before them for commands).
+    /// receipt before them for commands). The context travels **by
+    /// value** — the `Failed` payload (a typed [`EngineError`], not
+    /// `Clone`) is consumed by its effect, never duplicated.
     fn apply(
         &mut self,
         input: SessionInput,
-        context: &InputContext,
+        mut context: InputContext,
     ) -> Result<Vec<EngineOutput>, TransitionRejected> {
+        let origin = context.origin;
         let row: &'static Transition = apply_input(self.state, input)?;
         let mut outputs = Vec::new();
         let from = self.state;
         for effect in row.effects {
             match effect {
                 Effect::ReportFatal => {
-                    let error = context.fatal.clone().unwrap_or_else(internal_missing_fatal);
-                    outputs.push(self.emit(EngineEventKind::Fatal { error }, context.origin));
+                    let error = context.fatal.take().unwrap_or_else(internal_missing_fatal);
+                    outputs.push(self.emit(EngineEventKind::Fatal { error }, origin));
                 }
                 Effect::DestroySession => {
                     // Doc 03 §5 teardown order, synchronous form:
                     // mint (the row's BumpPipeline ran first), then
                     // interrupt, then flush+close+drop.
                     self.minter.interrupt();
+                    let generation = self.pair().pipeline.as_queue_generation();
                     if let Some(pipeline) = self.pipeline.as_mut() {
-                        pipeline.teardown(self.pair().pipeline.as_queue_generation());
+                        pipeline.teardown(generation);
                     }
                     self.pipeline = None;
                     self.closed = true;
@@ -660,12 +750,7 @@ impl Session {
                     // Error state, confirmation event) — the L0
                     // vocabulary's own terminal condition.
                     if let Err(error) = self.minter.mint_pipeline() {
-                        outputs.push(self.emit(
-                            EngineEventKind::Fatal {
-                                error: SessionError::GenerationExhausted(error).into(),
-                            },
-                            context.origin,
-                        ));
+                        outputs.push(self.emit(EngineEventKind::Fatal { error }, origin));
                         let from = self.state;
                         self.state = SessionState::Error;
                         outputs.push(self.emit(
@@ -673,14 +758,15 @@ impl Session {
                                 from,
                                 to: SessionState::Error,
                             },
-                            context.origin,
+                            origin,
                         ));
                         return Ok(outputs);
                     }
                 }
                 Effect::TeardownPipeline => {
+                    let generation = self.pair().pipeline.as_queue_generation();
                     if let Some(pipeline) = self.pipeline.as_mut() {
-                        pipeline.teardown(self.pair().pipeline.as_queue_generation());
+                        pipeline.teardown(generation);
                     }
                     self.pipeline = None;
                 }
@@ -688,10 +774,10 @@ impl Session {
                     // Underrun/pause entry freezes; Ended freezes at
                     // the end position (v0: pause — see the effect's
                     // docs).
-                    self.config.clock.pause();
+                    self.runtime.clock.pause();
                 }
                 Effect::ResumeClock => {
-                    self.config.clock.resume();
+                    self.runtime.clock.resume();
                 }
                 Effect::EmitTracks => {
                     outputs.push(self.emit(
@@ -699,23 +785,23 @@ impl Session {
                             tracks: Arc::clone(&self.tracks),
                             selected: self.selected.clone(),
                         },
-                        context.origin,
+                        origin,
                     ));
                 }
                 Effect::EmitBufferingEnter => {
                     outputs.push(self.emit(
                         EngineEventKind::Buffering { progress: 0.0 },
-                        context.origin,
+                        origin,
                     ));
                 }
                 Effect::EmitBufferingExit => {
                     outputs.push(self.emit(
                         EngineEventKind::Buffering { progress: 1.0 },
-                        context.origin,
+                        origin,
                     ));
                 }
                 Effect::EmitEndOfMedia => {
-                    outputs.push(self.emit(EngineEventKind::EndOfMedia, context.origin));
+                    outputs.push(self.emit(EngineEventKind::EndOfMedia, origin));
                 }
             }
         }
@@ -724,7 +810,7 @@ impl Session {
         // self-transitions included (doc 05 §3.2 C8).
         outputs.push(self.emit(
             EngineEventKind::StateChanged { from, to: row.to },
-            context.origin,
+            origin,
         ));
         Ok(outputs)
     }
@@ -737,7 +823,7 @@ impl Session {
             origin: Some(command.request),
             fatal: None,
         };
-        match self.apply(command.kind.as_input(), &context) {
+        match self.apply(command.kind.as_input(), context) {
             Ok(outputs) => {
                 let pair = self.pair();
                 let result = if command.kind == SessionCommandKind::Close {
@@ -791,14 +877,13 @@ impl Session {
             .unwrap_or_else(|| Err(internal_missing_pipeline()));
         match started {
             Ok(tracks) => {
-                let wired = self.pipeline.as_mut().map(|pipeline| {
-                    pipeline.wire(
-                        tracks,
-                        self.config.decoders.as_ref(),
-                        &self.config.queues,
-                        self.pair().pipeline.as_queue_generation(),
-                    )
-                });
+                let generation = self.pair().pipeline.as_queue_generation();
+                let decoders = self.runtime.decoders.as_ref();
+                let queues = &self.runtime.queues;
+                let wired = self
+                    .pipeline
+                    .as_mut()
+                    .map(|pipeline| pipeline.wire(tracks, decoders, queues, generation));
                 match wired {
                     Some(Ok(count)) if count > 0 => {
                         if let Some(pipeline) = self.pipeline.as_ref() {
@@ -807,7 +892,7 @@ impl Session {
                             self.selected = selected.to_vec();
                         }
                         let context = InputContext::default();
-                        match self.apply(SessionInput::OpenReady, &context) {
+                        match self.apply(SessionInput::OpenReady, context) {
                             Ok(outputs) => outputs,
                             Err(_) => Vec::new(),
                         }
@@ -832,10 +917,11 @@ impl Session {
     /// see [`translate_pipeline_signal`]).
     fn tick_step(&mut self) -> Vec<EngineOutput> {
         let state = self.state;
-        let report = match self.pipeline.as_mut() {
-            Some(pipeline) => pipeline.tick(state, &self.config.budget),
+        let mut report = match self.pipeline.as_mut() {
+            Some(pipeline) => pipeline.tick(state, &self.runtime.budget),
             None => return Vec::new(),
         };
+        self.totals.merge_tick(&report);
         let mut outputs = Vec::new();
         // Side events first (they are facts about the tick itself).
         if let Some(position) = report.first_frame {
@@ -870,9 +956,9 @@ impl Session {
             if let Some(input) = translate_pipeline_signal(state, signal) {
                 let context = InputContext {
                     origin: None,
-                    fatal: report.fatal.clone(),
+                    fatal: report.fatal.take(),
                 };
-                match self.apply(input, &context) {
+                match self.apply(input, context) {
                     Ok(mut transition_outputs) => outputs.append(&mut transition_outputs),
                     Err(_) => {
                         // Unreachable: the exhaustive tests prove the
@@ -893,7 +979,7 @@ impl Session {
             origin: None,
             fatal: Some(error),
         };
-        match self.apply(SessionInput::Failed, &context) {
+        match self.apply(SessionInput::Failed, context) {
             Ok(outputs) => outputs,
             Err(_) => Vec::new(),
         }

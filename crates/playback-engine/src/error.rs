@@ -47,6 +47,12 @@ pub enum SessionError {
     /// destroyed (its inbox is gone). A stale handle's late command
     /// lands here — the typed command-side staleness rejection.
     SessionClosed,
+    /// An engine-internal invariant breach: an input the table pins as
+    /// always-legal was refused (only reachable through a caller bug
+    /// or table corruption — e.g. applying `Open` to a freshly
+    /// constructed `Idle` session). Carries the rejection's rendered
+    /// form; surfaced as a typed error, never panicked on.
+    Invariant(String),
 }
 
 impl fmt::Display for SessionError {
@@ -59,6 +65,9 @@ impl fmt::Display for SessionError {
             SessionError::GenerationExhausted(source) => write!(f, "{source}"),
             SessionError::SessionClosed => {
                 f.write_str("the target session is closed (stale handle)")
+            }
+            SessionError::Invariant(detail) => {
+                write!(f, "engine invariant breached: {detail}")
             }
         }
     }
