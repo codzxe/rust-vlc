@@ -1,5 +1,6 @@
-//! Lumen builtin software codecs (doc 01 §2.5; card 2.B4): pure-Rust
-//! decoder implementations behind the [`codec_api`] contract.
+//! Lumen builtin software codecs (doc 01 §2.5; cards 2.B4 + 2.B5):
+//! pure-Rust decoder implementations behind the [`codec_api`]
+//! contract.
 //!
 //! Layer L3 (doc 01 §2 registry row: `codec-api`, `plugin-api`,
 //! `media-types` — this card's decoder surface needs the first and last;
@@ -23,19 +24,32 @@
 //! transitive graph) before any adoption `[VERIFY: not audited in
 //! this card — the in-house path made it moot]`.
 //!
+//! # The 2.B5 dependency decision (recorded in
+//! [`audio::pcm`]'s docs, evidence in worklog 2.B5)
+//!
+//! The PCM card offered `symphonia-codec-pcm` or a self-build; the
+//! decision is likewise **in-house** on the same D-018 logic — see
+//! [`audio::pcm`] for the full rationale (ground truth in-repo,
+//! permutation-only byte engine, zero-copy native path).
+//!
 //! # Module map
 //!
 //! - [`video`] — video decoders; [`video::mjpeg`] is the Motion-JPEG /
 //!   baseline-JPEG decoder (card 2.B4, doc 04 §4 row "Motion-JPEG").
+//! - [`audio`] — audio decoders; [`audio::pcm`] is the unpacked-PCM
+//!   decoder (card 2.B5, doc 04 §3.1 row "PCM") — its module docs
+//!   record the 2.B5 dependency decision (in-house, D-018 logic).
 //!
 //! # Conventions (crate-wide)
 //!
 //! - No `unsafe`, no panics on any input: every decode path is
-//!   bounds-checked and overflow-checked (the fuzz target
-//!   `fuzz_codec_mjpeg`, doc 04 §8.5, hammers exactly this guarantee).
+//!   bounds-checked and overflow-checked (the fuzz targets
+//!   `fuzz_codec_mjpeg` / `fuzz_codec_pcm`, doc 04 §8.5, hammer
+//!   exactly this guarantee).
 //! - Corruption is either concealed-and-reported
 //!   ([`DecodeOutcome::Recovered`](codec_api::DecodeOutcome::Recovered))
 //!   or a typed [`EngineError`] — never a silent partial frame, never a
 //!   crash (doc 03 §4.5(d)).
 
+pub mod audio;
 pub mod video;
