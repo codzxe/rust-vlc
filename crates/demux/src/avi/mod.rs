@@ -57,9 +57,9 @@
 
 use std::collections::VecDeque;
 
+use media_types::error::ErrorContext;
 use media_types::ids::{GenerationId, TrackId};
 use media_types::packet::SharedBytes;
-use media_types::error::ErrorContext;
 use media_types::time::{Duration, Nanoseconds, Stamp, TimeSpan, Timestamp};
 use media_types::{EngineError, ErrorKind, Packet, PipelineStage, Track};
 use plugin_api::{DemuxEvent, Demuxer};
@@ -74,13 +74,11 @@ pub mod index;
 /// RIFF byte primitives (chunk walk vocabulary, bounded reader).
 pub mod riff;
 
-use crate::avi::header::{
-    parse_hdrl, AviMainHeader, DamageLog, StreamDesc, StreamFormat,
-};
+use crate::avi::header::{AviMainHeader, DamageLog, StreamDesc, StreamFormat, parse_hdrl};
 use crate::avi::index::{IndexTable, Ladders};
 use crate::avi::riff::{
-    classify_movi_chunk, peek_chunk_header, FourCC, MoviChunkKind, SourceReader, FORM_AVI,
-    FORM_HDRL, FORM_MOVI, LIST, RIFF,
+    FORM_AVI, FORM_HDRL, FORM_MOVI, FourCC, LIST, MoviChunkKind, RIFF, SourceReader,
+    classify_movi_chunk, peek_chunk_header,
 };
 
 /// The `+FB` fuzz harness (doc 04 §8.5 registry name `fuzz_demux_avi`).
@@ -347,7 +345,8 @@ impl AviDemuxer {
     /// Queue the damage log's events for `next_event` to surface.
     fn surface_damage(&mut self) {
         for (skipped, reason) in std::mem::take(&mut self.damage.events) {
-            self.pending.push_back(DemuxEvent::Recovered { skipped, reason });
+            self.pending
+                .push_back(DemuxEvent::Recovered { skipped, reason });
         }
     }
 
@@ -406,10 +405,9 @@ impl AviDemuxer {
                     // The movi was clamped (RIFF extent ∩ stream) but
                     // declared more: the container is truncated, and
                     // the walk says so instead of a silent empty EOF.
-                    return Err(self.fail(error::truncated(
-                        region.declared_end,
-                        region.effective_end,
-                    )));
+                    return Err(
+                        self.fail(error::truncated(region.declared_end, region.effective_end))
+                    );
                 }
                 self.eos = true;
                 return Ok(None);
@@ -447,23 +445,20 @@ impl AviDemuxer {
                     let sample_frame = u64::from(desc.sample_size.max(1));
                     let size = u64::from(header.size);
                     if size > MAX_CHUNK_PAYLOAD {
-                        self.damage
-                            .note(size, "chunk-payload-over-ceiling");
+                        self.damage.note(size, "chunk-payload-over-ceiling");
                         self.surface_damage();
                         cursor.pos = next;
                         continue;
                     }
-                    let payload =
-                        match self.reader.read_exact_or_end_at(size as usize, pos + 8) {
-                            Ok(Some(bytes)) => bytes,
-                            Ok(None) => {
-                                return Err(self.fail(error::truncated(
-                                    pos + 8 + size,
-                                    self.reader.length(),
-                                )))
-                            }
-                            Err(err) => return Err(self.fail(err)),
-                        };
+                    let payload = match self.reader.read_exact_or_end_at(size as usize, pos + 8) {
+                        Ok(Some(bytes)) => bytes,
+                        Ok(None) => {
+                            return Err(
+                                self.fail(error::truncated(pos + 8 + size, self.reader.length()))
+                            );
+                        }
+                        Err(err) => return Err(self.fail(err)),
+                    };
                     let Some(step) = cursor.ladders.advance(stream, size) else {
                         cursor.pos = next;
                         continue;
@@ -511,7 +506,8 @@ impl AviDemuxer {
                     cursor.pos = pos + 8 + 4;
                 }
                 MoviChunkKind::Other => {
-                    self.damage.note(u64::from(header.size), "unknown-chunk-in-movi");
+                    self.damage
+                        .note(u64::from(header.size), "unknown-chunk-in-movi");
                     self.surface_damage();
                     cursor.pos = next;
                 }
@@ -791,8 +787,11 @@ impl AviDemuxer {
             .find(|s| s.kind == media_types::ids::MediaKind::Video)
             .or_else(|| self.streams.first())
             .map(|s| s.ordinal);
-        let tracks: Result<Vec<Track>, EngineError> =
-            self.streams.iter().map(|s| s.track(s.strh_offset)).collect();
+        let tracks: Result<Vec<Track>, EngineError> = self
+            .streams
+            .iter()
+            .map(|s| s.track(s.strh_offset))
+            .collect();
         let tracks = tracks?;
         self.cursor = Some(WalkCursor {
             pos: region.data_start,

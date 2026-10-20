@@ -24,7 +24,7 @@
 use media_types::EngineError;
 
 use super::header::{DamageLog, StreamDesc};
-use super::riff::{self, classify_movi_chunk, MoviChunkKind, SourceReader};
+use super::riff::{self, MoviChunkKind, SourceReader, classify_movi_chunk};
 use crate::error;
 
 /// `AVIIF_KEYFRAME` (the only flag bit v0 consumes).
@@ -153,10 +153,7 @@ pub fn parse_idx1(
     }
     let entry_count = (u64::from(declared_size) + 15) / 16;
     if entry_count > MAX_IDX1_ENTRIES as u64 {
-        return Err(error::index_too_large(
-            MAX_IDX1_ENTRIES as u64,
-            entry_count,
-        ));
+        return Err(error::index_too_large(MAX_IDX1_ENTRIES as u64, entry_count));
     }
 
     let available = bound.saturating_sub(idx1_pos + 8);

@@ -35,11 +35,7 @@ impl BytesStream {
     /// keeps the constructor honest about the URI parse it performs.
     pub fn new(data: Arc<[u8]>) -> Result<BytesStream, EngineError> {
         let uri = SourceUri::parse("memory://lumen-demux-test-support")?;
-        Ok(BytesStream {
-            uri,
-            data,
-            pos: 0,
-        })
+        Ok(BytesStream { uri, data, pos: 0 })
     }
 
     /// The bytes behind the stream (assertions in tests).

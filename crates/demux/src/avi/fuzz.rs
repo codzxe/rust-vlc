@@ -29,7 +29,7 @@
 //!   `MAX_IDX1_ENTRIES`) apply — this harness adds none.
 
 use media_types::time::{Stamp, TimeBase, TimeSpan, Timestamp};
-use plugin_api::{Demuxer, DemuxEvent};
+use plugin_api::{DemuxEvent, Demuxer};
 
 use super::test_support;
 use crate::avi::AviDemuxer;
@@ -50,12 +50,10 @@ pub const FUZZ_SEEK_PROBES: usize = 4;
 /// never hangs, never allocates without a ceiling — by construction of
 /// the demuxer and the budgets above.
 pub fn fuzz_demux_avi(data: &[u8]) {
-    let Ok(mut demuxer) = AviDemuxer::new(
-        match test_support::mem_stream(data.to_vec()) {
-            Ok(stream) => stream,
-            Err(_) => return,
-        },
-    ) else {
+    let Ok(mut demuxer) = AviDemuxer::new(match test_support::mem_stream(data.to_vec()) {
+        Ok(stream) => stream,
+        Err(_) => return,
+    }) else {
         return;
     };
     if demuxer.start().is_err() {
@@ -226,8 +224,7 @@ mod tests {
             (28, 1),
         ] {
             let mut data = core.clone();
-            data[patch.0 as usize..patch.0 as usize + 4]
-                .copy_from_slice(&patch.1.to_le_bytes());
+            data[patch.0 as usize..patch.0 as usize + 4].copy_from_slice(&patch.1.to_le_bytes());
             fuzz_demux_avi(&data);
         }
         // And the unpatched core itself.

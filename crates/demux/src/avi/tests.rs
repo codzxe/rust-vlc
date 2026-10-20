@@ -8,7 +8,7 @@ use super::*;
 use crate::error;
 use media_types::ids::MediaKind;
 use media_types::time::{TimeBase, Timestamp};
-use plugin_api::{Demuxer, DemuxEvent, SourceStream};
+use plugin_api::{DemuxEvent, Demuxer, SourceStream};
 
 // ---------------------------------------------------------------------------
 // A tiny AVI builder (mirrors tools/xtask fixtures.rs byte-for-byte
@@ -36,13 +36,11 @@ fn avih(flags: u32, streams: u32) -> Vec<u8> {
     let mut v = Vec::with_capacity(56);
     for value in [
         33_333u32, // dwMicroSecPerFrame
-        0,          // dwMaxBytesPerSec
-        0,          // dwPaddingGranularity
-        flags,
-        60, // dwTotalFrames
+        0,         // dwMaxBytesPerSec
+        0,         // dwPaddingGranularity
+        flags, 60, // dwTotalFrames
         0,  // dwInitialFrames
-        streams,
-        0, // dwSuggestedBufferSize
+        streams, 0, // dwSuggestedBufferSize
         320, 240,
     ] {
         v.extend_from_slice(&value.to_le_bytes());
@@ -52,7 +50,14 @@ fn avih(flags: u32, streams: u32) -> Vec<u8> {
 }
 
 /// `strh` with the v0-relevant fields; everything else zeroed.
-fn strh(fcc: &[u8; 4], handler: &[u8; 4], scale: u32, rate: u32, length: u32, ssize: u32) -> Vec<u8> {
+fn strh(
+    fcc: &[u8; 4],
+    handler: &[u8; 4],
+    scale: u32,
+    rate: u32,
+    length: u32,
+    ssize: u32,
+) -> Vec<u8> {
     let mut v = Vec::with_capacity(56);
     v.extend_from_slice(fcc);
     v.extend_from_slice(handler);
@@ -85,7 +90,9 @@ fn strf_pcm(channels: u16, rate: u32, block_align: u16, bits: u16) -> Vec<u8> {
     v.extend_from_slice(&1u16.to_le_bytes()); // WAVE_FORMAT_PCM
     v.extend_from_slice(&channels.to_le_bytes());
     v.extend_from_slice(&rate.to_le_bytes());
-    v.extend_from_slice(&(u32::from(rate) * u32::from(channels) * u32::from(bits / 8)).to_le_bytes());
+    v.extend_from_slice(
+        &(u32::from(rate) * u32::from(channels) * u32::from(bits / 8)).to_le_bytes(),
+    );
     v.extend_from_slice(&block_align.to_le_bytes());
     v.extend_from_slice(&bits.to_le_bytes());
     v
@@ -171,7 +178,11 @@ fn build(streams: &[Stream], movi_chunks: &[MoviChunk<'_>], with_idx1: bool) -> 
                 width,
                 height,
             } => {
-                chunk(&mut out, b"strh", &strh(b"vids", b"MJPG", scale, rate, length, 0));
+                chunk(
+                    &mut out,
+                    b"strh",
+                    &strh(b"vids", b"MJPG", scale, rate, length, 0),
+                );
                 chunk(&mut out, b"strf", &strf_video(width, height));
             }
             Stream::Audio {
@@ -181,7 +192,11 @@ fn build(streams: &[Stream], movi_chunks: &[MoviChunk<'_>], with_idx1: bool) -> 
                 ssize,
                 ref strf,
             } => {
-                chunk(&mut out, b"strh", &strh(b"auds", &[0; 4], scale, rate, length, ssize));
+                chunk(
+                    &mut out,
+                    b"strh",
+                    &strh(b"auds", &[0; 4], scale, rate, length, ssize),
+                );
                 chunk(&mut out, b"strf", strf);
             }
             Stream::Other { fcc, handler } => {
@@ -279,7 +294,10 @@ fn two_stream_start_reports_the_track_table() {
     let (num, den) = video.timing.base.as_parts();
     assert_eq!((num, den), (1, 30));
     // Span: 3 declared frames from 0 → end tick 3 on the 1/30 base.
-    match (video.timing.span.start.timestamp(), video.timing.span.end.timestamp()) {
+    match (
+        video.timing.span.start.timestamp(),
+        video.timing.span.end.timestamp(),
+    ) {
         (Ok(a), Ok(b)) => {
             assert_eq!(a.ticks, 0);
             assert_eq!(b.ticks, 3);
@@ -382,7 +400,10 @@ fn unsupported_stream_types_are_filtered_with_damage() {
     };
     assert_eq!(tracks.len(), 1, "only the MJPEG stream survives the filter");
     // The skip is observable: damage was counted.
-    assert!(avi.damage_total() == 0, "a decision, not bytes: 0 skipped bytes");
+    assert!(
+        avi.damage_total() == 0,
+        "a decision, not bytes: 0 skipped bytes"
+    );
     // The first event is the Recovered record of the filter decision.
     match avi.next_event() {
         Ok(DemuxEvent::Recovered { skipped, reason }) => {
@@ -409,7 +430,10 @@ fn all_streams_unsupported_is_typed() {
         Err(err) => err,
     };
     assert_eq!(err.context.code, "demux.avi.no-supported-streams");
-    assert!(matches!(err.kind, media_types::ErrorKind::Unsupported { .. }));
+    assert!(matches!(
+        err.kind,
+        media_types::ErrorKind::Unsupported { .. }
+    ));
 }
 
 #[test]
@@ -568,11 +592,7 @@ fn rec_lists_are_transparent() {
 
 #[test]
 fn unknown_movi_chunks_skip_with_damage() {
-    let built = build(
-        &[video_stream()],
-        &[(b"00dc", &b"v0"[..])],
-        false,
-    );
+    let built = build(&[video_stream()], &[(b"00dc", &b"v0"[..])], false);
     let mut bytes = built.bytes;
     // Splice a JUNK chunk between the movi form and the first packet
     // chunk: rebuild by locating movi form then inserting.
@@ -621,11 +641,7 @@ fn patch_size(bytes: &mut [u8], size_pos: usize, grow: u32) {
 fn pcm_misalignment_is_damage_not_silence() {
     // Audio chunk of 6 bytes with block align 4: 1 sample frame + a
     // 2-byte stray — counted, packet still emitted with floored ticks.
-    let built = build(
-        &[audio_stream()],
-        &[(b"00wb", &[0xAA; 6])],
-        false,
-    );
+    let built = build(&[audio_stream()], &[(b"00wb", &[0xAA; 6])], false);
     let mut avi = demuxer_over(built.bytes);
     match avi.start() {
         Ok(_) => {}
@@ -655,7 +671,11 @@ fn pcm_misalignment_is_damage_not_silence() {
 fn idx1_keyframe_flag_is_the_truth_when_present() {
     let built = build(
         &[video_stream()],
-        &[(b"00dc", &b"a"[..]), (b"00dc", &b"b"[..]), (b"00dc", &b"c"[..])],
+        &[
+            (b"00dc", &b"a"[..]),
+            (b"00dc", &b"b"[..]),
+            (b"00dc", &b"c"[..]),
+        ],
         false,
     );
     // Hand-build an idx1 whose middle entry is NOT a keyframe.
@@ -915,7 +935,12 @@ fn seek_lands_on_last_keyframe_at_or_below_target() {
     // 4 video frames at 30 fps: ticks 0..3; frame 1 marked non-key.
     let built = build(
         &[video_stream()],
-        &[(b"00dc", &b"a"[..]), (b"00dc", &b"b"[..]), (b"00dc", &b"c"[..]), (b"00dc", &b"d"[..])],
+        &[
+            (b"00dc", &b"a"[..]),
+            (b"00dc", &b"b"[..]),
+            (b"00dc", &b"c"[..]),
+            (b"00dc", &b"d"[..]),
+        ],
         false,
     );
     let mut bytes = built.bytes;
@@ -980,7 +1005,10 @@ fn seek_lands_on_last_keyframe_at_or_below_target() {
     }
     // Landing ticks are on the stream's own base.
     match landing.start.timestamp() {
-        Ok(ts) => assert_eq!(ts.base, TimeBase::new(1, 30).unwrap_or_else(|e| unreachable!("{e}"))),
+        Ok(ts) => assert_eq!(
+            ts.base,
+            TimeBase::new(1, 30).unwrap_or_else(|e| unreachable!("{e}"))
+        ),
         Err(_) => unreachable!(),
     }
 }
@@ -989,7 +1017,11 @@ fn seek_lands_on_last_keyframe_at_or_below_target() {
 fn seek_without_idx1_walks_the_movi() {
     let built = build(
         &[video_stream()],
-        &[(b"00dc", &b"a"[..]), (b"00dc", &b"b"[..]), (b"00dc", &b"c"[..])],
+        &[
+            (b"00dc", &b"a"[..]),
+            (b"00dc", &b"b"[..]),
+            (b"00dc", &b"c"[..]),
+        ],
         false,
     );
     let mut avi = demuxer_over(built.bytes);
@@ -1102,7 +1134,11 @@ fn seek_does_not_move_the_read_position() {
 
     let built = build(
         &[video_stream()],
-        &[(b"00dc", &b"a"[..]), (b"00dc", &b"b"[..]), (b"00dc", &b"c"[..])],
+        &[
+            (b"00dc", &b"a"[..]),
+            (b"00dc", &b"b"[..]),
+            (b"00dc", &b"c"[..]),
+        ],
         false,
     );
     let positions = Arc::new(Mutex::new(Vec::new()));

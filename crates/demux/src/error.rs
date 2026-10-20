@@ -160,10 +160,7 @@ pub fn no_movi() -> EngineError {
 /// supports the operation. Operational shape, not container data — the
 /// caller sees a stable code instead of a panic.
 pub fn not_started() -> EngineError {
-    mint(
-        ErrorKind::Unsupported { format: None },
-        "demux.not-started",
-    )
+    mint(ErrorKind::Unsupported { format: None }, "demux.not-started")
 }
 
 /// A seek target that cannot be mapped: before the stream start, past

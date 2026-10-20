@@ -147,8 +147,7 @@ impl StreamDesc {
     /// # Errors
     /// [`error::bad_stream_params`] when either component is zero.
     pub fn time_base(&self, strh_offset: u64) -> Result<TimeBase, EngineError> {
-        TimeBase::new(self.scale, self.rate)
-            .map_err(|_| error::bad_stream_params(strh_offset))
+        TimeBase::new(self.scale, self.rate).map_err(|_| error::bad_stream_params(strh_offset))
     }
 
     /// The L0 [`Track`] for this stream.
@@ -169,9 +168,8 @@ impl StreamDesc {
                 base,
             ))
         };
-        let codec =
-            CodecDescriptor::new(self.format.codec_descriptor())
-                .map_err(|_| error::bad_stream_params(strh_offset))?;
+        let codec = CodecDescriptor::new(self.format.codec_descriptor())
+            .map_err(|_| error::bad_stream_params(strh_offset))?;
         Ok(Track {
             id: TrackId::new(self.ordinal),
             stream: StreamId::new(self.ordinal),
@@ -335,10 +333,7 @@ pub fn parse_hdrl(
     // (not a lying RIFF size): the file was cut between chunk
     // boundaries — typed truncation at the exact header the walk
     // needed next, never a silent empty header.
-    if pos + 8 > end
-        && pos + 8 <= declared_end
-        && bound == reader.length()
-        && bound < declared_end
+    if pos + 8 > end && pos + 8 <= declared_end && bound == reader.length() && bound < declared_end
     {
         return Err(error::truncated(pos + 8, reader.length()));
     }
@@ -460,10 +455,7 @@ fn parse_strl(
                                 std::str::from_utf8(&bytes[..stop]).ok().map(str::to_string);
                         }
                         None => {
-                            return Err(error::truncated(
-                                pos + 8 + want as u64,
-                                reader.length(),
-                            ))
+                            return Err(error::truncated(pos + 8 + want as u64, reader.length()));
                         }
                     }
                 }
@@ -504,7 +496,10 @@ fn parse_strl(
         start,
         length,
         sample_size,
-        format: StreamFormat::MotionJpeg { width: 0, height: 0 },
+        format: StreamFormat::MotionJpeg {
+            width: 0,
+            height: 0,
+        },
         title: parts.title,
         strh_offset,
     };

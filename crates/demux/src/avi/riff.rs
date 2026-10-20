@@ -232,7 +232,9 @@ impl SourceReader {
 
     /// Reposition absolutely. Errors are the source's own (stage `Open`).
     pub fn seek_to(&mut self, to: u64) -> Result<(), EngineError> {
-        self.stream.seek(plugin_api::SeekOrigin::Start(to)).map(|_| ())
+        self.stream
+            .seek(plugin_api::SeekOrigin::Start(to))
+            .map(|_| ())
     }
 
     /// Read exactly `len` bytes at the current position.
@@ -435,16 +437,15 @@ mod tests {
     #[test]
     fn read_exact_and_end_detection() {
         let mut r = reader(&[1, 2, 3, 4, 5]);
-        let got = r.read_exact_or_end(4).unwrap_or_else(|e| unreachable!("{e}"));
+        let got = r
+            .read_exact_or_end(4)
+            .unwrap_or_else(|e| unreachable!("{e}"));
         assert_eq!(got, ReadExact::Complete(vec![1, 2, 3, 4]));
         // The remaining single byte then end-of-stream.
-        let got = r.read_exact_or_end(4).unwrap_or_else(|e| unreachable!("{e}"));
-        assert_eq!(
-            got,
-            ReadExact::Ended {
-                partial: vec![5]
-            }
-        );
+        let got = r
+            .read_exact_or_end(4)
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        assert_eq!(got, ReadExact::Ended { partial: vec![5] });
     }
 
     #[test]
@@ -464,7 +465,10 @@ mod tests {
         assert!(matches!(
             err.kind,
             ErrorKind::Corrupt {
-                detail: media_types::error::CorruptDetail::Truncated { expected: 10, found: 4 }
+                detail: media_types::error::CorruptDetail::Truncated {
+                    expected: 10,
+                    found: 4
+                }
             }
         ));
     }
