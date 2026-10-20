@@ -1,0 +1,88 @@
+# 2.B4 MJPEG decode-reference digests (card 2.B4 AC evidence).
+#
+# One sha256 per frame, over the decoder's I420 output for the
+# 60-frame corpus carried (byte-identically) by both class-A parents:
+#   tests/fixtures/generated/valid/avi_mjpeg_pcm.avi
+#   tests/fixtures/generated/valid/mp4_mjpeg_pcm.mp4
+# Frame order = stream order. Plane layout: Y 320x240 || Cb 160x120 || Cr 160x120
+# (115200 bytes per frame). The codec-api path (MjpegDecoder, descriptor "mjpeg")
+# and the free codecs::video::mjpeg::decode_image entry produce these same bytes.
+#
+# PROVENANCE (honesty rules, doc 03 sec.7 / AGENTS.md sec.3.4): the digests are
+# Lumen's own decoder output, cross-checked against the ffmpeg 7.1.5 oracle
+# (external, never a dependency) over all 60 frames:
+#   - luma plane: BYTE-EXACT vs ffmpeg under both its default IDCT (-idct auto,
+#     simple) and the reference integer IDCT (-idct int): 0 of 4,608,000 samples
+#     differ.
+#   - chroma planes: max |diff| = 1 vs both ffmpeg IDCT variants (an IDCT
+#     rounding-boundary divergence, not a decode error). Affected samples:
+#     24,600 of 2,304,000 (1.068%) vs -idct auto; 8,400 of 2,304,000 (0.365%)
+#     vs -idct int. Divergence is confined to 12 of 300 chroma blocks per frame.
+#   The choice recorded in worklog 2.B4: the reference is OUR output because the
+#   in-house IDCT is the exact algebraic inverse of the 2.A3 in-repo encoder's
+#   fixed-point FDCT (same Q16 basis, same round-half-away-from-zero), which is
+#   the stronger truth than matching ffmpeg's own approximation.
+#
+# Regeneration (manual, oracle available): extract the 60 frames (e.g. via the
+# test-side walkers in tests/common/mod.rs), decode each, sha256 the I420
+# planes, and re-run the ffmpeg comparison to re-verify the tolerance above.
+5206f0b9007553fdf83ff40481b4098b7890de9dec5cf4e25f7475dbf045c542
+cc506d161cd107de54d0121e8b5a32eeb2dca9562fa0a03c1d04c0a8966e1258
+3e4c4a54e13713f0bf64f0efe9347cd5f6bd91865b2a3028edf569375dbab5b3
+41c6f11b054ad5f5bccb79d5abbba6553d8617c869fd2a494214edcf33fb33a0
+39a1b70b9ff8990883d0ffcfb6d18d86adeb569620b6c377539e4e45e3e2546e
+9dce813780bee4a53b16b800e66084a7870368beebe28a218ff045864501fc38
+78dc12950a8babdbaefc24408f2ab110183e16f00894c572b1dbb805d3d19d9e
+6a7c722a669aaf02db929bc5832a4807c0f5698a067908ccc4ae606cf13c5671
+faf56319c9e3ea882c85038f0dbb273990eea8ad94e8bb13ea701be6c2e834c0
+f7bf7d3ea31dd6f3cdf44e7394a74edda6a6ab967622274e8e268271289cfb0c
+49b2ee1d354bb52299aff92a99c72b2f15c7c4d8d258f459680ca1f739afec57
+107a4659c4e4f4a0e3095d28c993277cfe68cc1ee3b76eefc4fc852f62455fb1
+66364eab3c3162b2fb2413cca2eaef8e230037e0b07edc026899bd0998e0771f
+53b0549d76952fff6455b4a65afeb92d3375e3c58376e2fdf24cc648980e91c1
+9e0e333ed2cd32d33ca79054b051de23edb7b51faa083f7554738b657fb8fb8d
+b1c7c2219cc774cdaa3c98e10d3770cb2803821fe7d80c5eb558a2b4d836b528
+6028528288ba8de7ddc016eaabd4174ba475b440717b7b67821db80df938d356
+71e7b9ba5c274442fa57a04366a6657d52a2597647516c624cf3b27818707e5d
+626d1d98e4fb0122f7e5b7a8b060f7c287cada7274ae45bc97f5f5dba9ddd4e7
+9e8ff1a4b59b136c10dea07dd85edd26bc67fb42331d62e3b1e46c90b243d5d7
+7f59260447a6107167eb42f78fb64a44efe19b21e76134caed3fdfa78e3dbbfe
+6fcf05dd680d47a8c80173569339ec097c7f17874353fc339b58b514870f4b51
+227f230301ca328d805728cbab976557a80b886154b61c319d1941d9c350cc69
+8554c23fab912de646cc0630bc66847f2dbbced43ea5b72f1f419f746b28dfba
+336045888e020d5eeaab584af98a249f25a2497096adef8d45df12053e291111
+a85a8c04c8addba571c1fdb484312dd610bcfba4e2c243e03fc194490fa4fd46
+ae46843da8418a24bcd841d598062d121de8f038bc23debad46017c3f1083e4f
+114332ae5fbf120cee8b05fe6afc0835a4d6df2a80fb7b045b2751b1aefa2d58
+0210f9ea399a86283fdf46e67efe1ce5b168b822d79eec8cba50800ccb262b0a
+154a2891bb7b711e0c26a7b64da21e443f1b794496386faf0ddc43edb1352a49
+7ece94c0a4469b9ba0aa3e600977581d86f161dfbc62dd2d59b84ffd0a2dd7e8
+a180857adb1c68c3bbac1fb95d3882e7e4f65655479f10f737a2079e685f4250
+971b5da50dd872df875797015b5e2cda315c2436bba304a6b87c49f509de16f2
+99edc356a40a0689493623e71564fa8dfee778b07c60b87426db24b607772125
+79a6c4d655d915e314dadf6756c7cf7a580f5e39c113d92aa8aa5430d3ebd944
+9fd4579a1a7e8e86d1f9b07480b4784c86172a35b4b0d1bef7bd8eeedc37ac40
+b091ebea3bdeeb664d0c90cc8b56459b02b04ba2251dbd4f0ce66c6faf607c2c
+b92e3c0d0d1fbde772fd69f098f396dbe2f67465c81fcc505b0a15358bda1e7b
+6b8f4b8177182956ba56c9da66daeb066db65abb5054c52b6795fbfe3997d5fb
+7fd16f7ea7bf1426ec541d4e54536f08c4b7e15024146ef5249ceda35f2b96b0
+71763694e734984dbe7ca9b109a13228c826ccef39f59137b8c43b3abb3e61c3
+3d9606251be16e8b3e98e022248cf079a9dc550572955a7e128910118c89b197
+9d111a5c688b1b90d70cfc96716dbf664aeeed705af6bce85210fb86d9c255c6
+048ab109542d015b8402a0f1f4df94d26348ba4fb8cc65011e784b51b284f42e
+4e5e30c012654b150a036725cfb23509e094264f4fb018482ec53ae84ea0d204
+a148983b69ba256111e9756446e859fe24fec604a88c8f0739628b273c2dac5d
+390b8bfc9fc4a0f894d165e3eabd49e527d4da4a5f4ca646cf44ecddf95b8802
+ded5b87e3ad3a6e0fe3ecff20d8de5b5922e1bb061ed70b829d3a6e51464c1f7
+7e830264d7353766438d7e926149acc21cdf52bc08a10c96186171d8deb14423
+7b0ae4bfee5395efaf7e078b46ea387bc7af08c4a04b5bb8b0f8608a504da846
+1c39305ca411b22e077f39f04f98e2f64ae8917a03cedc81469f1417b95c213e
+a770e39f5385c63d69fc6b1497de248e3c532c8d24557f457c52f308dd3df24f
+c10a73d5aa6b8e355f55aaa9569f45e596dca1e7c96b47463fb46e4f2c0629fa
+74a9dfab8a6e0cc27ac8f1065d1587d37116916d703bc4d41ff23f533085cace
+c819752564ae89fa0f10ca9eda28e821eb8fb88b60d189a013a78399ed9d0659
+a3dadc146c87575867444f3cb09c98639e1f5b96f3cfdff20018ef0a41312c03
+472dc516e692545a14be8161261607b693f3fc03981f6347d04f0312e9eecdd3
+f65a2d7a69025a11f01bd05333c6a3a61e825100e2cf6f8128dab6fc7d597031
+6a8da97f4fa27ebeeacdc73aa470e05d6b32eaa29957cdb55cc25abe12d7e03d
+8804d77aa42b3ccb7477ff1ed47d2406a641b71e8db590081f062c90f1f69148
