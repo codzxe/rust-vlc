@@ -348,8 +348,8 @@ fn assert_bit_exact(
     // swap on big-endian ones — media-types' native-endian S16).
     let mut native = concat_chunk_bodies(chunks);
     if cfg!(target_endian = "big") {
-        for pair in native.chunks_exact_mut(2) {
-            pair.swap(0, 1);
+        for pair in native.as_chunks_mut::<2>().0 {
+            pair.reverse();
         }
     }
     assert_eq!(
@@ -414,8 +414,8 @@ fn audio_probe_matches_the_expectation() {
         // 4800 instants spans four chunks (3 × 1470 = 4410 < 4800);
         // decode five and take the prefix.
         let mut sink = CaptureSink { frames: Vec::new() };
-        for index in 0..5 {
-            match decoder.decode(audio_packet(&chunks[index], index, generation), &mut sink) {
+        for (index, chunk) in chunks.iter().enumerate().take(5) {
+            match decoder.decode(audio_packet(chunk, index, generation), &mut sink) {
                 Ok(DecodeOutcome::Emitted { frames: 1 }) => {}
                 other => unreachable!("{fixture} chunk {index}: {other:?}"),
             }

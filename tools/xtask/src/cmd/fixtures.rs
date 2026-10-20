@@ -657,8 +657,8 @@ fn audio_probe_md5(pcm: &[u8]) -> String {
     let need = AUDIO_PROBE_INSTANTS * AUDIO_CHANNELS * 2;
     let available = pcm.len().min(need);
     let mut probe = Vec::with_capacity(available * 2);
-    for pair in pcm[..available].chunks_exact(2) {
-        let sample = i16::from_le_bytes([pair[0], pair[1]]);
+    for pair in pcm[..available].as_chunks::<2>().0 {
+        let sample = i16::from_le_bytes(*pair);
         probe.extend_from_slice(&(f32::from(sample) / 32_768.0).to_le_bytes());
     }
     md5_hex(&probe)
@@ -3314,8 +3314,9 @@ mod tests {
     fn audio_probe_spans_multiple_chunks_and_is_stable() {
         let pcm = generate_pcm();
         // The corpus carries 88 200 instants; the probe takes 4800 —
-        // deterministic and independent of everything past the cut.
-        assert!(TOTAL_SAMPLES > AUDIO_PROBE_INSTANTS);
+        // deterministic and independent of everything past the cut
+        // (a const assert: the corpus constants are compile-time).
+        const _: () = assert!(TOTAL_SAMPLES > AUDIO_PROBE_INSTANTS);
         let digest = audio_probe_md5(&pcm);
         assert_eq!(digest, audio_probe_md5(&pcm));
         // Truncating AFTER the probe window changes nothing; cutting

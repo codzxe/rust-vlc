@@ -882,8 +882,8 @@ pub fn audio_probe_md5(interleaved_s16_native: &[u8], channels: u32) -> Result<S
         ));
     }
     let mut probe = Vec::with_capacity(AUDIO_PROBE_INSTANTS * frame_bytes * 2);
-    for pair in interleaved_s16_native[..need].chunks_exact(2) {
-        let sample = i16::from_ne_bytes([pair[0], pair[1]]);
+    for pair in interleaved_s16_native[..need].as_chunks::<2>().0 {
+        let sample = i16::from_ne_bytes(*pair);
         probe.extend_from_slice(&(f32::from(sample) / 32_768.0).to_le_bytes());
     }
     Ok(md5_hex(&probe))
