@@ -81,18 +81,17 @@ fn unknown_subcommand_is_a_usage_error_listing_known_ones() {
 fn pre_registered_stubs_fail_honestly_with_their_card() {
     // `tokens` graduated when card 1.B4 landed; `schema-gen` when 1.B2
     // landed (both Lead-completed salvages); `rebrand` when 1.E4 landed
-    // (Lead-implemented after two agent context-deadlines): they run the
-    // real pipelines.
-    for (sub, card) in [("codegen", "1.D4"), ("check-architecture", "1.E1")] {
-        let out = run_xtask(&[sub]);
-        assert_eq!(out.code, Some(2), "`{sub}` stderr: {}", out.stderr);
-        assert!(
-            out.stderr
-                .contains(&format!("`{sub}` is not yet implemented (card {card})")),
-            "`{sub}` stderr: {}",
-            out.stderr
-        );
-    }
+    // (Lead-implemented after two agent context-deadlines);
+    // `check-architecture` when 1.E1 landed: they run the real pipelines.
+    // Only `codegen` (1.D4) remains a stub.
+    let out = run_xtask(&["codegen"]);
+    assert_eq!(out.code, Some(2), "stderr: {}", out.stderr);
+    assert!(
+        out.stderr
+            .contains("`codegen` is not yet implemented (card 1.D4)"),
+        "stderr: {}",
+        out.stderr
+    );
 }
 
 // Card 1.E4: the rebrand acceptance skeleton lives at the repo root

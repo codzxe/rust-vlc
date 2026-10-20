@@ -1,0 +1,138 @@
+# Lumen architecture boundaries manifest — card 1.E1 (doc 01 §5.1).
+#
+# THE single source of truth for allowed workspace structure, consumed by
+# `cargo xtask check-architecture` (doc 01 §5.2, CI gate G5 per doc 10 §4.6).
+# The doc's proposed path `tools/xtask/src/architecture/boundaries.toml` is
+# overridden by the 1.E1 card: the manifest sits at the REPO ROOT next to the
+# workspace manifest it describes, so a reviewer sees both in one diff
+# (Lead-ratified deviation; doc 01 §6.3 keeps the manifest Lead-reviewed).
+#
+# Semantics: ALLOWLIST. An edge/dep is legal only if listed here; anything
+# else is a violation. Missing allowed-edges are fine (the manifest may be
+# ahead of the tree). Layer numbers are doc 01 §1.4/§2: every internal
+# [dependencies] edge must point downward, or be a whitelisted same-layer
+# pair (see [rules].same_layer_pairs). Dev edges ([dev-dependencies]) are
+# allowlisted separately and are exempt from layer ordering — doc 01's own
+# design has L0 `media-types` dev-depend on the dev crate `testkit`.
+#
+# Updating this file: same change as the crate graph it permits, Lead review
+# (doc 01 §6.1 gate 3 + §6.3 ownership map). Adding a crate without a
+# `[crates.<name>]` entry FAILS the check; a stale entry for a removed crate
+# fails it too.
+#
+# Parsed by the std-only TOML subset reader in
+# tools/xtask/src/cmd/check_architecture.rs (xtask is dependency-free by
+# C5): bare keys, `[a.b.c]` table headers (quoted segments allowed),
+# string / integer / boolean values, single-line string arrays, `#`
+# comments. Multi-line arrays and other TOML shapes are rejected loudly.
+
+[manifest]
+# Bump on incompatible manifest-shape changes; the checker accepts only 1.
+version = 1
+
+[rules]
+# Doc 01 §1.4 invariant (1): whitelisted same-layer dependency pairs,
+# written "from->to". Current pair: plugin-api consumes the codec
+# contract (doc 01 §2.2 places both in L1; card 1.D2 added the edge).
+same_layer_pairs = ["plugin-api->codec-api"]
+# MP §3.7 / ARCH-7 (doc 01 §1.3, §2.8): these crates may appear ONLY in
+# [dev-dependencies] tables — never in [dependencies] or
+# [build-dependencies] of any workspace member.
+dev_only = ["testkit"]
+# Doc 01 §5.2 step 6 allowlist for `static mut` (crate names). Empty in
+# v1: no member needs global mutable state. Doc 01 pre-lists apps/*,
+# plugin-host-wasm and testkit as future candidates — add entries when
+# those surfaces actually require one, with a worklog-recorded reason.
+static_mut_allow = []
+
+# ---------------------------------------------------------------------------
+# Workspace members. Layers per doc 01 §2.1/§1.4; dependency lists mirror
+# the crates' Cargo.tomls (source of truth read by the checker).
+# ---------------------------------------------------------------------------
+
+# L0 — core types (doc 01 §2.2). No internal deps; std-only in v1 (ARCH-1).
+# testkit is correctly dev-only (MP §3.7).
+[crates.media-types]
+layer = 0
+internal_deps = []
+dev_deps = ["testkit"]
+external_allowlist = []
+external_dev_allowlist = []
+
+# L1 — codec contract (doc 01 §2.4). Std-only by C5; media-types only.
+[crates.codec-api]
+layer = 1
+internal_deps = ["media-types"]
+dev_deps = []
+external_allowlist = []
+external_dev_allowlist = []
+
+# L1 — plugin contract (doc 01 §2.2, card 1.D2). media-types + codec-api
+# (same-layer pair whitelisted above); config-family externals only.
+[crates.plugin-api]
+layer = 1
+internal_deps = ["media-types", "codec-api"]
+dev_deps = ["testkit"]
+external_allowlist = ["serde", "toml", "thiserror"]
+external_dev_allowlist = []
+
+# L1 — localization (doc 01 §2.3, card 1.B3). No internal deps.
+[crates.localization]
+layer = 1
+internal_deps = []
+dev_deps = []
+external_allowlist = ["toml", "thiserror"]
+external_dev_allowlist = []
+
+# L1 — product config model (doc 01 §2.3, card 1.B1). No internal deps.
+[crates.product-config]
+layer = 1
+internal_deps = []
+dev_deps = []
+external_allowlist = ["serde", "serde_json", "toml", "thiserror"]
+external_dev_allowlist = []
+
+# L1 — settings schema (doc 01 §2.3, card 1.B2). No internal deps.
+[crates.settings-schema]
+layer = 1
+internal_deps = []
+dev_deps = []
+external_allowlist = ["serde", "toml", "thiserror"]
+external_dev_allowlist = []
+
+# L1 — design tokens (doc 01 §2.3, card 1.B4). No internal deps.
+[crates.theme-tokens]
+layer = 1
+internal_deps = []
+dev_deps = []
+external_allowlist = ["serde_json"]
+external_dev_allowlist = []
+
+# dev crate (doc 01 §1.4 "dev" row, §2.8; card 1.C3). Outside the layer
+# stack: it may depend on production crates (none yet — add entries in
+# the same change when it gains any), and NOTHING may depend on it
+# outside [dev-dependencies] ([rules].dev_only, ARCH-7). Std-only (C5).
+[crates.testkit]
+internal_deps = []
+dev_deps = []
+external_allowlist = []
+external_dev_allowlist = []
+
+# crates/_template (package name `template`, task 1.A1): workspace member
+# and lint canary, publish = false, "no crate may ever depend on it" —
+# encoded by appearing in no internal_deps list above. Outside the layer
+# stack (scaffolding, not in the doc 01 registry).
+[crates.template]
+internal_deps = []
+dev_deps = []
+external_allowlist = []
+external_dev_allowlist = []
+
+# tools/xtask (card 1.A3): build tooling, not in the doc 01 crate
+# registry; outside the layer stack; std-only by C5 (no deps at all);
+# nothing may depend on it (in no internal_deps list above).
+[crates.xtask]
+internal_deps = []
+dev_deps = []
+external_allowlist = []
+external_dev_allowlist = []
