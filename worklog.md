@@ -1133,3 +1133,32 @@ Stage Summary:
 - PHASE 1 COMPLETE — gate verdict PASS. All 20 cards landed and verified; CI green-run links honestly PENDING first push (no remote).
 - Decisions at gate: D-015 (agent branch-commit rights, standing), D-016 (xtask graduation), D-017 (catalog = 61/23 authoritative).
 - NEXT: Phase 2 Wave 2.A launch — four parallel delegated cards (2.A1 input, 2.A3 fixtures, 2.B1 packet-queue, 2.C1 media-clock; parallelism 4 of the 2-4 band, separate crates + branches). Lead pre-wiring before launch: xtask fixtures stub (frozen-registry ownership) + boundaries.toml seed entries if the checker tolerates not-yet-existing crates [VERIFY].
+
+---
+Task ID: 2.WAVE2-INCIDENT (Lead)
+Agent: Lead
+Task: Wave-2 parallel launch incident record + work adoption.
+
+Work Log:
+- Launched 4 parallel sub-agents (2.A1 input, 2.A3 fixtures, 2.B1 packet-queue, 2.C1 media-clock); ALL FOUR hit the Task-tool transport/context deadline and returned errors — but ALL FOUR actually ran and committed work first (established salvage pattern; git is the recovery mechanism, per the user's git-always directive).
+- The agents independently used git worktrees for parallel isolation: /home/z/my-project/worktrees/2a1 (wip/2a1-input @ 3e4dfff), /home/z/my-project/worktrees/2b1 (wip/2b1-packet-queue @ 18858de), /home/z/wt-2a3 (wip/2a3-fixtures @ e3c86b8). Lead adopts the worktree pattern for parallel cards (note: wt-2a3 lives outside my-project — future agents must create worktrees under /home/z/my-project/worktrees/).
+- Incident: 2.C1's agent committed its ENTIRE card to main directly (f0726e2 → 18f9e25: skeleton, mapping, anchor/monotonicity/pause/rate, drift primitives) after its branch-guard state inverted post-reboot; its wip/2c1-media-clock branch is stale at b0e524f. 2.A1's skeleton commit (dfb723b) also landed on main. Lead ADOPTS main's current state as the 2.C1+2.A1-skeleton truth (work verified green below); wip/2c1-media-clock branch deleted as redundant.
+- Lead verification of adopted main state: cargo test --workspace --all-features = 573 passed / 0 failed (529 Phase-1 baseline + 43 media-clock + 1 input skeleton); fmt clean; clippy clean; check-architecture PASS 5/5 (media-clock boundaries entry present and correct).
+
+Stage Summary:
+- Card states after the incident: 2.C1 COMPLETE on main (Lead closes it out next entry); 2.A1 core implementation on its branch worktree, tests owed; 2.B1 AC-a+AC-b proofs on its branch worktree (40 tests green), worklog/gates owed; 2.A3 JPEG encoder + CLI skeleton on its branch worktree (100 tests green), AVI/MP4 writers + fixtures + CORPUS owed.
+- Corrective actions: (1) continuation agents get worktree-aware briefs (work INSIDE the existing worktree, never re-checkout the main tree); (2) parallel launches capped at 2 (the 4-way batch hit a single batch-level transport deadline); (3) Lead-direct close-out preferred for cards with <30 min of remainder.
+
+---
+Task ID: 2.C1 (Lead close-out)
+Agent: Sub-agent (general-purpose) + Lead verification
+Task: media-clock v0 per doc 03 §4.7 — audio-master clock, MediaTime mapping, pause/drift.
+
+Work Log:
+- Agent milestones (on main, adopted): f0726e2 skeleton (sources, crate wiring, boundaries entry) → 8215bbe MediaTime mapping (sample position <-> media Timestamp via TimeBase/Rate) → c7ed234 audio-master MediaClock (anchor arithmetic, monotonicity, pause/resume, rate scaling) → 18f9e25 bounded drift-correction primitives.
+- Lead verification: cargo test -p media-clock = 42 lib + 1 doctest = 43 passed / 0 failed; fmt clean; clippy -D warnings clean; check-architecture PASS 5/5; workspace 573/0 (see incident entry).
+- AC check (doc 13 card 2.C1): monotonicity tests (never backward, equal at worst — clock.rs monotonic_master_tracks_injected_wall_time + invariants), pause tests (position frozen while paused, no discontinuity on resume), rate tests (anchor_arithmetic_scales_by_rate) — ALL on virtual time (FakeCounter injected; no sleeps). AC MET.
+
+Stage Summary:
+- 2.C1 COMPLETE. Wave 2 progress: 2.C1 done (main); 2.A1/2.A3/2.B1 continuation in flight.
+- Design notes: audio-master via sample counter (doc 01 §8 invariant); media-types time vocabulary reused (no redefinition); drift correction bounded per doc 03 §4.7; std-only, zero new deps.
