@@ -560,6 +560,7 @@ impl RgbImage {
     }
 
     /// One pixel (test access).
+    #[cfg(test)]
     fn pixel(&self, x: usize, y: usize) -> [u8; 3] {
         let base = (y * self.width + x) * 3;
         [
@@ -597,11 +598,11 @@ const DIGIT_SEGS: [[bool; 7]; 10] = [
     [true, true, true, true, false, true, true],     // 9
 ];
 
-/// Digit cell geometry (64×112 px): horizontal segments 32×16, vertical
-/// segments 16×32, all offsets multiples of 8 so the drawing is stable
-/// under the 8×8 DCT grid.
+/// Digit cell geometry: cells are 64 px wide (horizontal segments 32×16,
+/// vertical segments 16×32); the counter band spans y 56..168 (112 px).
+/// All offsets are multiples of 8 so the drawing is stable under the
+/// 8×8 DCT grid.
 const DIGIT_W: usize = 64;
-const DIGIT_H: usize = 112;
 
 /// Draw one 7-segment digit with its top-left corner at (x0, y0).
 fn draw_digit(img: &mut RgbImage, x0: usize, y0: usize, digit: usize) {
@@ -1228,9 +1229,365 @@ fn encode_baseline_jpeg(img: &RgbImage) -> Result<Vec<u8>, String> {
 }
 
 // ---------------------------------------------------------------------------
-// Placeholder for the generation pipeline (filled in by the next
-// milestones of card 2.A3 — kept honest: nothing is written until the
-// real writers land).
+// AVI writer (RIFF/AVI 1.0 — doc 03 §7 candidate 2; generated regardless of
+// the Lead's container pick so the decision blocks nothing)
+// ---------------------------------------------------------------------------
+
+/// Little-endian scalar emitters (RIFF is little-endian throughout).
+fn put_u16le(out: &mut Vec<u8>, value: u16) {
+    out.extend_from_slice(&value.to_le_bytes());
+}
+fn put_u32le(out: &mut Vec<u8>, value: u32) {
+    out.extend_from_slice(&value.to_le_bytes());
+}
+
+/// Recorded AVI structure: every offset the class-B derivatives, the
+/// structure map and the demuxer tests need (corpus-plan §2 — the class-A
+/// writer emits the map that makes B1 truncation principled).
+struct AviLayout {
+    /// File offset of the `RIFF` size field (the no-idx1 derivative
+    /// patches it after dropping the index).
+    riff_size_pos: usize,
+    /// File offset of the `avih` chunk header.
+    avih_offset: usize,
+    /// File offsets of the two `LIST strl` headers (video, audio).
+    strl_offsets: [usize; 2],
+    /// File offset of the `LIST movi` header.
+    movi_offset: usize,
+    /// File offset of the first `movi` chunk header. `idx1` `dwOffset`
+    /// values are relative to the `movi` FourCC, so chunk 0 sits at +4.
+    movi_data_offset: usize,
+    /// File offset of the `idx1` chunk header (== file length).
+    idx1_offset: usize,
+    /// Every `movi` chunk in order: (fourcc, header offset, data size).
+    chunks: Vec<([u8; 4], usize, usize)>,
+}
+
+struct AviBuilt {
+    bytes: Vec<u8>,
+    layout: AviLayout,
+}
+
+/// Append one RIFF chunk (`fourcc <u32le size> payload [pad]`; chunks are
+/// WORD-aligned and the pad byte is not counted in the size). Returns the
+/// chunk-header offset.
+fn avi_chunk(out: &mut Vec<u8>, fourcc: &[u8; 4], payload: &[u8]) -> usize {
+    let offset = out.len();
+    out.extend_from_slice(fourcc);
+    put_u32le(out, payload.len() as u32);
+    out.extend_from_slice(payload);
+    if payload.len() & 1 == 1 {
+        out.push(0);
+    }
+    offset
+}
+
+/// Open a sized chunk (RIFF/LIST) with a zero size placeholder; returns
+/// the offset of the size field for [`avi_end_sized`].
+fn avi_begin_sized(out: &mut Vec<u8>, fourcc: &[u8; 4]) -> usize {
+    out.extend_from_slice(fourcc);
+    let size_pos = out.len();
+    put_u32le(out, 0);
+    size_pos
+}
+
+/// Patch the size field opened by [`avi_begin_sized`] to cover everything
+/// written since (a RIFF/LIST size includes its form FourCC).
+fn avi_end_sized(out: &mut Vec<u8>, size_pos: usize) {
+    let size = out.len() - size_pos - 4;
+    out[size_pos..size_pos + 4].copy_from_slice(&(size as u32).to_le_bytes());
+}
+
+/// Build the AVI+MJPEG+PCM parent (doc 03 §7): `vids`/`MJPG` video (one
+/// `00dc` chunk per frame) and `auds` PCM s16le stereo audio (one `01wb`
+/// chunk per frame tick), interleaved inside `LIST movi` and fully
+/// indexed by `idx1` (every chunk flagged `AVIIF_KEYFRAME` — MJPEG and
+/// PCM have only keyframes).
+fn build_avi(frames: &[Vec<u8>], pcm: &[u8]) -> Result<AviBuilt, String> {
+    if frames.len() != FRAME_COUNT {
+        return Err(format!(
+            "avi writer needs exactly {FRAME_COUNT} frames, got {}",
+            frames.len()
+        ));
+    }
+    let pcm_need = TOTAL_SAMPLES * AUDIO_CHANNELS * 2;
+    if pcm.len() != pcm_need {
+        return Err(format!(
+            "avi writer needs {pcm_need} PCM bytes, got {}",
+            pcm.len()
+        ));
+    }
+    let tick_bytes = SAMPLES_PER_TICK * AUDIO_CHANNELS * 2;
+    let max_video = frames.iter().map(Vec::len).max().unwrap_or(0);
+    let suggested = (max_video.max(tick_bytes)) as u32;
+
+    // `movi` payload size, for dwMaxBytesPerSec (integer ceil-division —
+    // no float anywhere in the writer, corpus-plan §2).
+    let mut movi_payload = 4usize; // the 'movi' FourCC
+    for frame in frames {
+        movi_payload += 8 + frame.len() + (frame.len() & 1);
+    }
+    movi_payload += FRAME_COUNT * (8 + tick_bytes);
+    let max_bytes_per_sec =
+        (movi_payload as u64 * u64::from(FPS) + FRAME_COUNT as u64 - 1) / FRAME_COUNT as u64;
+
+    // avih — main AVI header (56-byte payload, 14 u32 fields).
+    let micros_per_frame = ((1_000_000u64 + u64::from(FPS) / 2) / u64::from(FPS)) as u32; // 33333
+    let mut avih = Vec::with_capacity(56);
+    put_u32le(&mut avih, micros_per_frame); // dwMicroSecPerFrame
+    put_u32le(
+        &mut avih,
+        u32::try_from(max_bytes_per_sec).unwrap_or(u32::MAX), // dwMaxBytesPerSec
+    );
+    put_u32le(&mut avih, 0); // dwPaddingGranularity
+    put_u32le(&mut avih, 0x0000_0010 | 0x0000_0100); // AVIF_HASINDEX | AVIF_ISINTERLEAVED
+    put_u32le(&mut avih, FRAME_COUNT as u32); // dwTotalFrames
+    put_u32le(&mut avih, 0); // dwInitialFrames
+    put_u32le(&mut avih, 2); // dwStreams
+    put_u32le(&mut avih, suggested); // dwSuggestedBufferSize
+    put_u32le(&mut avih, FRAME_WIDTH as u32); // dwWidth
+    put_u32le(&mut avih, FRAME_HEIGHT as u32); // dwHeight
+    for _ in 0..4 {
+        put_u32le(&mut avih, 0); // dwReserved[4]
+    }
+
+    // strh — video stream header (56-byte payload).
+    let mut strh_video = Vec::with_capacity(56);
+    strh_video.extend_from_slice(b"vids");
+    strh_video.extend_from_slice(b"MJPG");
+    put_u32le(&mut strh_video, 0); // dwFlags
+    put_u16le(&mut strh_video, 0); // wPriority
+    put_u16le(&mut strh_video, 0); // wLanguage
+    put_u32le(&mut strh_video, 0); // dwInitialFrames
+    put_u32le(&mut strh_video, 1); // dwScale
+    put_u32le(&mut strh_video, FPS); // dwRate -> rate/scale = 30 fps
+    put_u32le(&mut strh_video, 0); // dwStart
+    put_u32le(&mut strh_video, FRAME_COUNT as u32); // dwLength (frames)
+    put_u32le(&mut strh_video, max_video as u32); // dwSuggestedBufferSize
+    put_u32le(&mut strh_video, u32::MAX); // dwQuality = -1 (default)
+    put_u32le(&mut strh_video, 0); // dwSampleSize (variable-size chunks)
+    put_u16le(&mut strh_video, 0); // rcFrame left
+    put_u16le(&mut strh_video, 0); // rcFrame top
+    put_u16le(&mut strh_video, FRAME_WIDTH as u16); // rcFrame right
+    put_u16le(&mut strh_video, FRAME_HEIGHT as u16); // rcFrame bottom
+
+    // strf — video format: BITMAPINFOHEADER (40 bytes).
+    let mut strf_video = Vec::with_capacity(40);
+    put_u32le(&mut strf_video, 40); // biSize
+    put_u32le(&mut strf_video, FRAME_WIDTH as u32); // biWidth
+    put_u32le(&mut strf_video, FRAME_HEIGHT as u32); // biHeight
+    put_u16le(&mut strf_video, 1); // biPlanes
+    put_u16le(&mut strf_video, 24); // biBitCount
+    strf_video.extend_from_slice(b"MJPG"); // biCompression
+    put_u32le(&mut strf_video, (FRAME_WIDTH * FRAME_HEIGHT * 3) as u32); // biSizeImage
+    put_u32le(&mut strf_video, 0); // biXPelsPerMeter
+    put_u32le(&mut strf_video, 0); // biYPelsPerMeter
+    put_u32le(&mut strf_video, 0); // biClrUsed
+    put_u32le(&mut strf_video, 0); // biClrImportant
+
+    // strh — audio stream header (PCM convention: dwScale 1, dwRate =
+    // sample rate, dwLength = sample frames, dwSampleSize = block align).
+    let mut strh_audio = Vec::with_capacity(56);
+    strh_audio.extend_from_slice(b"auds");
+    strh_audio.extend_from_slice(&[0u8; 4]); // fccHandler: none
+    put_u32le(&mut strh_audio, 0); // dwFlags
+    put_u16le(&mut strh_audio, 0); // wPriority
+    put_u16le(&mut strh_audio, 0); // wLanguage
+    put_u32le(&mut strh_audio, 0); // dwInitialFrames
+    put_u32le(&mut strh_audio, 1); // dwScale
+    put_u32le(&mut strh_audio, AUDIO_RATE); // dwRate
+    put_u32le(&mut strh_audio, 0); // dwStart
+    put_u32le(&mut strh_audio, TOTAL_SAMPLES as u32); // dwLength
+    put_u32le(&mut strh_audio, tick_bytes as u32); // dwSuggestedBufferSize
+    put_u32le(&mut strh_audio, u32::MAX); // dwQuality
+    put_u32le(&mut strh_audio, (AUDIO_CHANNELS * 2) as u32); // dwSampleSize
+    put_u16le(&mut strh_audio, 0); // rcFrame left
+    put_u16le(&mut strh_audio, 0); // rcFrame top
+    put_u16le(&mut strh_audio, 0); // rcFrame right
+    put_u16le(&mut strh_audio, 0); // rcFrame bottom
+
+    // strf — audio format: PCMWAVEFORMAT (16 bytes; no cbSize needed).
+    let mut strf_audio = Vec::with_capacity(16);
+    put_u16le(&mut strf_audio, 1); // wFormatTag = PCM
+    put_u16le(&mut strf_audio, AUDIO_CHANNELS as u16); // nChannels
+    put_u32le(&mut strf_audio, AUDIO_RATE); // nSamplesPerSec
+    put_u32le(
+        &mut strf_audio,
+        AUDIO_RATE * (AUDIO_CHANNELS as u32) * 2, // nAvgBytesPerSec
+    );
+    put_u16le(&mut strf_audio, (AUDIO_CHANNELS * 2) as u16); // nBlockAlign
+    put_u16le(&mut strf_audio, 16); // wBitsPerSample
+
+    // Assembly. All sizes are patched in place, so no float or size
+    // pre-computation beyond dwMaxBytesPerSec is needed.
+    let mut out: Vec<u8> = Vec::with_capacity(movi_payload + 1024);
+    out.extend_from_slice(b"RIFF");
+    let riff_size_pos = out.len();
+    put_u32le(&mut out, 0);
+    out.extend_from_slice(b"AVI ");
+
+    let hdrl_pos = avi_begin_sized(&mut out, b"LIST");
+    out.extend_from_slice(b"hdrl");
+    let avih_offset = avi_chunk(&mut out, b"avih", &avih);
+    let mut strl_offsets = [0usize; 2];
+    for (slot, (strh, strf)) in [
+        (0, (&strh_video, &strf_video)),
+        (1, (&strh_audio, &strf_audio)),
+    ] {
+        let pos = avi_begin_sized(&mut out, b"LIST");
+        out.extend_from_slice(b"strl");
+        avi_chunk(&mut out, b"strh", strh);
+        avi_chunk(&mut out, b"strf", strf);
+        avi_end_sized(&mut out, pos);
+        strl_offsets[slot] = pos;
+    }
+    avi_end_sized(&mut out, hdrl_pos);
+
+    let movi_offset = out.len();
+    let movi_pos = avi_begin_sized(&mut out, b"LIST");
+    out.extend_from_slice(b"movi");
+    let movi_fourcc_pos = movi_offset + 8;
+    let mut chunks: Vec<([u8; 4], usize, usize)> = Vec::with_capacity(2 * FRAME_COUNT);
+    for (index, frame) in frames.iter().enumerate() {
+        let offset = avi_chunk(&mut out, b"00dc", frame);
+        chunks.push((*b"00dc", offset, frame.len()));
+        let from = index * tick_bytes;
+        let tick = &pcm[from..from + tick_bytes];
+        let offset = avi_chunk(&mut out, b"01wb", tick);
+        chunks.push((*b"01wb", offset, tick.len()));
+    }
+    avi_end_sized(&mut out, movi_pos);
+    let movi_data_offset = chunks
+        .first()
+        .map(|&(_, offset, _)| offset)
+        .ok_or_else(|| "movi list has no chunks".to_string())?;
+
+    let idx1_offset = out.len();
+    let mut idx1: Vec<u8> = Vec::with_capacity(16 * chunks.len());
+    for &(fourcc, offset, size) in &chunks {
+        idx1.extend_from_slice(&fourcc);
+        put_u32le(&mut idx1, 0x10); // AVIIF_KEYFRAME
+        put_u32le(&mut idx1, (offset - movi_fourcc_pos) as u32); // dwOffset
+        put_u32le(&mut idx1, size as u32); // dwSize
+    }
+    avi_chunk(&mut out, b"idx1", &idx1);
+    avi_end_sized(&mut out, riff_size_pos);
+
+    Ok(AviBuilt {
+        bytes: out,
+        layout: AviLayout {
+            riff_size_pos,
+            avih_offset,
+            strl_offsets,
+            movi_offset,
+            movi_data_offset,
+            idx1_offset,
+            chunks,
+        },
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Structure maps (corpus-plan §2: "<fixture>.structure.json" — the offsets
+// class-B truncation and field patches derive from)
+// ---------------------------------------------------------------------------
+
+/// Append a JSON string literal. The corpus strings are fixed ASCII, but
+/// the escaping covers the general cases (never `format!` with floats —
+/// there are none in the corpus by construction).
+fn json_put_string(out: &mut String, text: &str) {
+    out.push('"');
+    for ch in text.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            ch if (ch as u32) < 0x20 => {
+                out.push_str("\\u");
+                const HEX: &[u8; 16] = b"0123456789abcdef";
+                let value = ch as u32;
+                for shift in [12u32, 8, 4, 0] {
+                    out.push(HEX[((value >> shift) & 0xf) as usize] as char);
+                }
+            }
+            ch => out.push(ch),
+        }
+    }
+    out.push('"');
+}
+
+/// Append a JSON integer (u64 Display — deterministic).
+fn json_put_uint(out: &mut String, value: u64) {
+    out.push_str(&value.to_string());
+}
+
+/// FourCC as a JSON string (`"00dc"` — printable ASCII by construction).
+fn fourcc_str(tag: &[u8; 4]) -> String {
+    tag.iter().map(|&b| b as char).collect()
+}
+
+/// Serialize the AVI structure map (compact single-line JSON — a machine
+/// input, not prose).
+fn avi_structure_json(avi: &AviBuilt) -> Vec<u8> {
+    let layout = &avi.layout;
+    let len = avi.bytes.len();
+    let mut s = String::with_capacity(2048 + 48 * layout.chunks.len());
+    s.push_str("{\"schema\":\"structure-map/1\",\"fixture\":");
+    json_put_string(&mut s, "generated/valid/avi_mjpeg_pcm.avi");
+    s.push_str(",\"size\":");
+    json_put_uint(&mut s, len as u64);
+    s.push_str(",\"note\":\"offsets of top-level chunks and movi entries; class-B derivatives derive their cut/patch positions from here (corpus-plan s1 B1/B3)\"");
+    s.push_str(",\"top_level\":[");
+    s.push_str("{\"fourcc\":\"RIFF\",\"form\":\"AVI \",\"offset\":0,\"size\":");
+    json_put_uint(&mut s, (len - 8) as u64);
+    s.push_str("},{\"fourcc\":\"LIST\",\"form\":\"hdrl\",\"offset\":12,\"size\":");
+    json_put_uint(&mut s, (layout.movi_offset - 12) as u64);
+    s.push_str("},{\"fourcc\":\"LIST\",\"form\":\"movi\",\"offset\":");
+    json_put_uint(&mut s, layout.movi_offset as u64);
+    s.push_str(",\"size\":");
+    json_put_uint(&mut s, (layout.idx1_offset - layout.movi_offset) as u64);
+    s.push_str("},{\"fourcc\":\"idx1\",\"form\":\"\",\"offset\":");
+    json_put_uint(&mut s, layout.idx1_offset as u64);
+    s.push_str(",\"size\":");
+    json_put_uint(&mut s, (len - layout.idx1_offset) as u64);
+    s.push_str("}]");
+    s.push_str(",\"avi\":{\"riff_size_field_offset\":");
+    json_put_uint(&mut s, layout.riff_size_pos as u64);
+    s.push_str(",\"avih_offset\":");
+    json_put_uint(&mut s, layout.avih_offset as u64);
+    s.push_str(",\"strl_offsets\":[");
+    json_put_uint(&mut s, layout.strl_offsets[0] as u64);
+    s.push(',');
+    json_put_uint(&mut s, layout.strl_offsets[1] as u64);
+    s.push_str("],\"movi_offset\":");
+    json_put_uint(&mut s, layout.movi_offset as u64);
+    s.push_str(",\"movi_data_offset\":");
+    json_put_uint(&mut s, layout.movi_data_offset as u64);
+    s.push_str(",\"idx1_offset\":");
+    json_put_uint(&mut s, layout.idx1_offset as u64);
+    s.push_str(",\"chunk_count\":");
+    json_put_uint(&mut s, layout.chunks.len() as u64);
+    s.push_str(",\"chunks\":[");
+    for (index, &(fourcc, offset, size)) in layout.chunks.iter().enumerate() {
+        if index > 0 {
+            s.push(',');
+        }
+        s.push_str("{\"fourcc\":");
+        json_put_string(&mut s, &fourcc_str(&fourcc));
+        s.push_str(",\"offset\":");
+        json_put_uint(&mut s, offset as u64);
+        s.push_str(",\"size\":");
+        json_put_uint(&mut s, size as u64);
+        s.push('}');
+    }
+    s.push_str("]}}");
+    s.into_bytes()
+}
+
+// ---------------------------------------------------------------------------
+// Generation pipeline
 // ---------------------------------------------------------------------------
 
 /// One generated file: path relative to the fixture tree root, bytes,
@@ -1246,13 +1603,61 @@ struct GeneratedFile {
 /// Build the full fixture set in memory, in a fixed order. Pure
 /// function of the code (see the module header's determinism contract).
 fn generate_all() -> Result<Vec<GeneratedFile>, String> {
-    Err("fixture generation is still under construction (card 2.A3 \
-         milestone 2: JPEG/AVI/MP4 writers land next)"
-        .to_string())
+    // Shared video essence: every frame is encoded once and reused by
+    // every container (identical JPEG bytes in the AVI and MP4 parents).
+    let mut frames: Vec<Vec<u8>> = Vec::with_capacity(FRAME_COUNT);
+    for index in 0..FRAME_COUNT {
+        let img = draw_frame(index)?;
+        frames.push(encode_baseline_jpeg(&img)?);
+    }
+    let pcm = generate_pcm();
+
+    let avi = build_avi(&frames, &pcm)?;
+    let mut files: Vec<GeneratedFile> = vec![GeneratedFile {
+        path: "generated/valid/avi_mjpeg_pcm.avi".to_string(),
+        bytes: avi.bytes.clone(),
+        class: "A",
+        op: "parent",
+        parent: None,
+    }];
+    files.push(GeneratedFile {
+        path: "generated/valid/avi_mjpeg_pcm.avi.structure.json".to_string(),
+        bytes: avi_structure_json(&avi),
+        class: "A",
+        op: "structure-map",
+        parent: Some("generated/valid/avi_mjpeg_pcm.avi".to_string()),
+    });
+    Ok(files)
 }
 
 /// Print the `--list` table (no writes).
-fn print_file_table(_files: &[GeneratedFile]) {}
+fn print_file_table(files: &[GeneratedFile]) {
+    println!(
+        "{:<5} {:<13} {:>9}  {:<64}  path",
+        "class", "op", "bytes", "sha256"
+    );
+    for file in files {
+        println!(
+            "{:<5} {:<13} {:>9}  {:<64}  {}",
+            file.class,
+            file.op,
+            file.bytes.len(),
+            sha256_hex(&file.bytes),
+            file.path
+        );
+    }
+    let total: usize = files.iter().map(|f| f.bytes.len()).sum();
+    let media = files
+        .iter()
+        .filter(|f| f.path.ends_with(".avi") || f.path.ends_with(".mp4"))
+        .count();
+    println!(
+        "result: {} file(s) ({} media fixture(s), {} bytes total)",
+        files.len(),
+        media,
+        total
+    );
+}
 
 /// Write every file under `base`, creating directories as needed.
 fn write_tree(base: &Path, files: &[GeneratedFile]) -> Result<(), XtaskError> {
@@ -1791,5 +2196,282 @@ mod tests {
             let (_start, end) = jpeg_scan_span(&jpeg);
             assert!(end >= 2, "frame {index} has an empty scan");
         }
+    }
+
+    // -- Corpus pipeline + AVI writer ---------------------------------------
+
+    use std::sync::OnceLock;
+
+    /// The corpus, generated once per test binary (determinism makes the
+    /// cache sound; the AC's "byte-stable across runs" has its own
+    /// dedicated two-run test).
+    fn corpus() -> &'static Result<Vec<GeneratedFile>, String> {
+        static CORPUS: OnceLock<Result<Vec<GeneratedFile>, String>> = OnceLock::new();
+        CORPUS.get_or_init(generate_all)
+    }
+
+    fn files() -> &'static [GeneratedFile] {
+        match corpus() {
+            Ok(files) => files.as_slice(),
+            Err(message) => unreachable!("fixture generation failed: {message}"),
+        }
+    }
+
+    fn find(path: &str) -> &'static GeneratedFile {
+        match files().iter().find(|f| f.path == path) {
+            Some(file) => file,
+            None => unreachable!("fixture {path} missing from the corpus"),
+        }
+    }
+
+    fn le32(b: &[u8], at: usize) -> u32 {
+        u32::from_le_bytes([b[at], b[at + 1], b[at + 2], b[at + 3]])
+    }
+    fn be32(b: &[u8], at: usize) -> u32 {
+        u32::from_be_bytes([b[at], b[at + 1], b[at + 2], b[at + 3]])
+    }
+    fn le16(b: &[u8], at: usize) -> u16 {
+        u16::from_le_bytes([b[at], b[at + 1]])
+    }
+    fn be16(b: &[u8], at: usize) -> u16 {
+        u16::from_be_bytes([b[at], b[at + 1]])
+    }
+
+    #[test]
+    fn corpus_layout_starts_with_the_avi_parent() {
+        let files = files();
+        assert_eq!(files[0].path, "generated/valid/avi_mjpeg_pcm.avi");
+        assert_eq!(files[0].class, "A");
+        assert_eq!(files[0].op, "parent");
+        assert!(files[0].parent.is_none());
+        assert!(files[0].bytes.len() > 300_000, "avi parent too small");
+        // Unique paths only (the manifest/CORPUS rows key on them).
+        let mut paths: Vec<&str> = files.iter().map(|f| f.path.as_str()).collect();
+        paths.sort_unstable();
+        let total = paths.len();
+        paths.dedup();
+        assert_eq!(paths.len(), total, "duplicate fixture path");
+    }
+
+    #[test]
+    fn avi_parent_is_a_self_consistent_riff_avi() {
+        let b = &find("generated/valid/avi_mjpeg_pcm.avi").bytes;
+        assert_eq!(&b[0..4], b"RIFF");
+        assert_eq!(le32(b, 4) as usize, b.len() - 8, "RIFF size");
+        assert_eq!(&b[8..12], b"AVI ");
+
+        // LIST hdrl at 12; its children are avih + two LIST strl.
+        assert_eq!(&b[12..16], b"LIST");
+        assert_eq!(&b[20..24], b"hdrl");
+        let hdrl_end = 12 + 8 + le32(b, 16) as usize;
+        let mut walk = 24usize;
+        let mut children: Vec<[u8; 4]> = Vec::new();
+        while walk < hdrl_end {
+            children.push([b[walk], b[walk + 1], b[walk + 2], b[walk + 3]]);
+            let size = le32(b, walk + 4) as usize;
+            walk += 8 + size + (size & 1);
+        }
+        assert_eq!(walk, hdrl_end, "hdrl children overrun the list");
+        assert_eq!(children.len(), 3, "hdrl children: {children:?}");
+        assert_eq!(&children[0], b"avih");
+        assert_eq!(&children[1], b"LIST");
+        assert_eq!(&children[2], b"LIST");
+
+        // avih payload at 24 + 8 = 32: 14 u32 fields.
+        let avih = 32usize;
+        assert_eq!(le32(b, avih), 33_333, "dwMicroSecPerFrame");
+        assert!(le32(b, avih + 4) > 0, "dwMaxBytesPerSec");
+        assert_eq!(le32(b, avih + 8), 0, "dwPaddingGranularity");
+        assert_eq!(
+            le32(b, avih + 12),
+            0x110,
+            "AVIF_HASINDEX|AVIF_ISINTERLEAVED"
+        );
+        assert_eq!(le32(b, avih + 16), FRAME_COUNT as u32, "dwTotalFrames");
+        assert_eq!(le32(b, avih + 20), 0, "dwInitialFrames");
+        assert_eq!(le32(b, avih + 24), 2, "dwStreams");
+        assert_eq!(le32(b, avih + 32), FRAME_WIDTH as u32, "dwWidth");
+        assert_eq!(le32(b, avih + 36), FRAME_HEIGHT as u32, "dwHeight");
+        for i in 0..4 {
+            assert_eq!(le32(b, avih + 40 + i * 4), 0, "dwReserved[{i}]");
+        }
+
+        // Video strl at 24 + 8 + 56 = 88.
+        let strl_v = 88usize;
+        assert_eq!(&b[strl_v..strl_v + 4], b"LIST");
+        assert_eq!(&b[strl_v + 8..strl_v + 12], b"strl");
+        assert_eq!(&b[strl_v + 12..strl_v + 16], b"strh");
+        assert_eq!(le32(b, strl_v + 16) as usize, 56, "video strh size");
+        let vh = strl_v + 20; // strh payload
+        assert_eq!(&b[vh..vh + 4], b"vids");
+        assert_eq!(&b[vh + 4..vh + 8], b"MJPG");
+        assert_eq!(le32(b, vh + 20), 1, "dwScale");
+        assert_eq!(le32(b, vh + 24), FPS, "dwRate");
+        assert_eq!(le32(b, vh + 32), FRAME_COUNT as u32, "dwLength");
+        assert_eq!(le32(b, vh + 44), 0, "dwSampleSize");
+        assert_eq!(le16(b, vh + 52), FRAME_WIDTH as u16, "rcFrame right");
+        assert_eq!(le16(b, vh + 54), FRAME_HEIGHT as u16, "rcFrame bottom");
+        // Video strf at strl_v + 12 + 8 + 56 = 164: BITMAPINFOHEADER
+        // (payload at 172; biCompression sits 16 bytes into it).
+        assert_eq!(&b[strl_v + 76..strl_v + 80], b"strf");
+        assert_eq!(le32(b, strl_v + 80) as usize, 40, "biSize");
+        assert_eq!(&b[strl_v + 100..strl_v + 104], b"MJPG");
+        assert_eq!(le32(b, strl_v + 88), FRAME_WIDTH as u32, "biWidth");
+        assert_eq!(le32(b, strl_v + 92), FRAME_HEIGHT as u32, "biHeight");
+        assert_eq!(le16(b, strl_v + 96), 1, "biPlanes");
+        assert_eq!(le16(b, strl_v + 98), 24, "biBitCount");
+
+        // Audio strl right after (8 hdr + 4 'strl' + 64 + 48 = 124 bytes).
+        let strl_a = strl_v + 124;
+        assert_eq!(&b[strl_a..strl_a + 4], b"LIST");
+        assert_eq!(&b[strl_a + 12..strl_a + 16], b"strh");
+        let ah = strl_a + 20;
+        assert_eq!(&b[ah..ah + 4], b"auds");
+        assert_eq!(le32(b, ah + 4), 0, "audio fccHandler");
+        assert_eq!(le32(b, ah + 20), 1, "dwScale");
+        assert_eq!(le32(b, ah + 24), AUDIO_RATE, "dwRate");
+        assert_eq!(le32(b, ah + 32), TOTAL_SAMPLES as u32, "dwLength");
+        assert_eq!(le32(b, ah + 44), 4, "dwSampleSize");
+        // Audio strf: PCMWAVEFORMAT, 16 bytes.
+        assert_eq!(&b[strl_a + 76..strl_a + 80], b"strf");
+        assert_eq!(le32(b, strl_a + 80) as usize, 16, "audio strf size");
+        let af = strl_a + 84;
+        assert_eq!(le16(b, af), 1, "wFormatTag PCM");
+        assert_eq!(le16(b, af + 2), AUDIO_CHANNELS as u16, "nChannels");
+        assert_eq!(le32(b, af + 4), AUDIO_RATE, "nSamplesPerSec");
+        assert_eq!(le32(b, af + 8), 176_400, "nAvgBytesPerSec");
+        assert_eq!(le16(b, af + 12), 4, "nBlockAlign");
+        assert_eq!(le16(b, af + 14), 16, "wBitsPerSample");
+
+        // LIST movi directly follows hdrl.
+        let movi = hdrl_end;
+        assert_eq!(&b[movi..movi + 4], b"LIST");
+        assert_eq!(&b[movi + 8..movi + 12], b"movi");
+        let movi_end = movi + 8 + le32(b, movi + 4) as usize;
+        let movi_fourcc = movi + 8;
+        let tick_bytes = SAMPLES_PER_TICK * AUDIO_CHANNELS * 2;
+        let mut pos = movi + 12;
+        let mut video_sizes = Vec::with_capacity(FRAME_COUNT);
+        let mut audio_offsets = Vec::with_capacity(FRAME_COUNT);
+        while pos < movi_end {
+            let fourcc = [b[pos], b[pos + 1], b[pos + 2], b[pos + 3]];
+            let size = le32(b, pos + 4) as usize;
+            let data = pos + 8;
+            if &fourcc == b"00dc" {
+                assert_eq!(&b[data..data + 2], &[0xff, 0xd8], "chunk SOI at {pos}");
+                assert_eq!(
+                    &b[data + size - 2..data + size],
+                    &[0xff, 0xd9],
+                    "chunk EOI at {pos}"
+                );
+                video_sizes.push(size);
+            } else {
+                assert_eq!(&fourcc, b"01wb", "unexpected fourcc at {pos}");
+                assert_eq!(size, tick_bytes, "audio chunk size at {pos}");
+                audio_offsets.push(pos);
+            }
+            // WORD alignment: the next chunk starts at an even offset
+            // (the pad byte is appended when the payload is odd-sized
+            // and is not counted in `size`).
+            let next = data + size + if (data + size) & 1 == 1 { 1 } else { 0 };
+            assert_eq!(next & 1, 0, "chunk at {pos} not padded to even");
+            pos = next;
+        }
+        assert_eq!(pos, movi_end, "movi chunk walk");
+        assert_eq!(video_sizes.len(), FRAME_COUNT, "video chunk count");
+        assert_eq!(audio_offsets.len(), FRAME_COUNT, "audio chunk count");
+
+        // idx1: the last top-level chunk, one entry per movi chunk.
+        let idx1 = movi_end;
+        assert_eq!(&b[idx1..idx1 + 4], b"idx1");
+        let entry_count = (b.len() - idx1 - 8) / 16;
+        assert_eq!(entry_count, 2 * FRAME_COUNT, "idx1 entries");
+        for i in 0..entry_count {
+            let at = idx1 + 8 + 16 * i;
+            assert_eq!(le32(b, at + 4), 0x10, "idx1 flags (keyframe) {i}");
+            let offset = le32(b, at + 8) as usize;
+            assert_eq!(
+                &b[movi_fourcc + offset..movi_fourcc + offset + 4],
+                &b[at..at + 4],
+                "idx1 offset {i} does not point at its chunk"
+            );
+            assert_eq!(
+                le32(b, at + 12) as usize,
+                le32(b, movi_fourcc + offset + 4) as usize,
+                "idx1 size {i}"
+            );
+        }
+    }
+
+    #[test]
+    fn avi_movi_carries_the_planned_essence() {
+        let b = &find("generated/valid/avi_mjpeg_pcm.avi").bytes;
+        let pcm = generate_pcm();
+        let tick_bytes = SAMPLES_PER_TICK * AUDIO_CHANNELS * 2;
+        // Find movi via the fixed layout: hdrl ends where LIST movi starts
+        // (avih chunk 64 + video strl 124 + audio strl 100 bytes).
+        let movi = 12 + 8 + 4 + 64 + 124 + 100;
+        assert_eq!(&b[movi..movi + 4], b"LIST");
+        let mut pos = movi + 12;
+        let mut saw_first = false;
+        let mut saw_last = false;
+        let mut tick_index = 0usize;
+        while &b[pos..pos + 4] != b"idx1" {
+            let fourcc = [b[pos], b[pos + 1], b[pos + 2], b[pos + 3]];
+            let size = le32(b, pos + 4) as usize;
+            let data = pos + 8;
+            if &fourcc == b"00dc" {
+                if tick_index == 0 || tick_index == FRAME_COUNT - 1 {
+                    // First and last video chunk must be the exact
+                    // re-encoded procedural frames (the full 60-frame
+                    // equality is the determinism test's job).
+                    let jpeg =
+                        match draw_frame(tick_index).and_then(|img| encode_baseline_jpeg(&img)) {
+                            Ok(jpeg) => jpeg,
+                            Err(message) => unreachable!("re-encode failed: {message}"),
+                        };
+                    assert_eq!(&b[data..data + size], &jpeg[..], "frame {tick_index}");
+                    if tick_index == 0 {
+                        saw_first = true;
+                    } else {
+                        saw_last = true;
+                    }
+                }
+            } else {
+                let from = tick_index * tick_bytes;
+                assert_eq!(&b[data..data + size], &pcm[from..from + tick_bytes]);
+            }
+            pos = data + size + if (data + size) & 1 == 1 { 1 } else { 0 };
+            if &fourcc == b"01wb" {
+                tick_index += 1;
+            }
+        }
+        assert!(saw_first && saw_last, "first/last frames not verified");
+        assert_eq!(tick_index, FRAME_COUNT, "audio tick count");
+    }
+
+    #[test]
+    fn avi_structure_map_records_the_walked_layout() {
+        let map = find("generated/valid/avi_mjpeg_pcm.avi.structure.json");
+        let text = match String::from_utf8(map.bytes.clone()) {
+            Ok(text) => text,
+            Err(_) => unreachable!("structure map is not valid UTF-8"),
+        };
+        let b = &find("generated/valid/avi_mjpeg_pcm.avi").bytes;
+        assert!(text.contains("\"schema\":\"structure-map/1\""));
+        assert!(text.contains("\"size\":"));
+        assert_eq!(text.matches("\"fourcc\":\"00dc\"").count(), FRAME_COUNT);
+        assert_eq!(text.matches("\"fourcc\":\"01wb\"").count(), FRAME_COUNT);
+        // The recorded movi/idx1 offsets must match a fresh walk.
+        let movi = 12 + 8 + 4 + 64 + 124 + 100;
+        assert!(text.contains(&format!("\"movi_offset\":{movi}")));
+        let idx1_at = text.find("\"idx1_offset\":").unwrap_or(0) + "\"idx1_offset\":".len();
+        let end = text[idx1_at..].find(',').unwrap_or(text.len() - idx1_at) + idx1_at;
+        let recorded: usize = match text[idx1_at..end].parse() {
+            Ok(value) => value,
+            Err(_) => unreachable!("idx1_offset not an integer"),
+        };
+        assert_eq!(&b[recorded..recorded + 4], b"idx1");
+        assert_eq!(recorded + 8 + 2 * 16 * FRAME_COUNT, b.len());
     }
 }
