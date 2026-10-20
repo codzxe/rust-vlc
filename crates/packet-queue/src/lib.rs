@@ -141,7 +141,7 @@ pub mod stamped;
 pub use limits::{
     LimitAxis, QueueConfigError, QueueLimits, QueueUsage, Watermark, WatermarkThresholds,
 };
-pub use queue::{BoundedQueue, PopOutcome, PushAborted, PushOutcome, QueueStats};
+pub use queue::{BoundedQueue, Discontinuity, PopOutcome, PushAborted, PushOutcome, QueueStats};
 pub use stamped::{Generational, Stamped, Weigh};
 
 /// The demux→decode packet queue flavor of [`BoundedQueue`] —

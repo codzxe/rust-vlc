@@ -58,6 +58,17 @@ pub enum PushOutcome<T> {
         /// The untouched item, handed back.
         item: Stamped<T>,
     },
+    /// The item's generation is behind the queue's published
+    /// generation — dropped at the boundary (doc 03 §5 checking point
+    /// 3, invariant Q2), counted in [`QueueStats::stale_rejected`].
+    /// The item is returned untouched; the producer must stop, not
+    /// retry (doc 03 §4.4(d)).
+    Stale {
+        /// The untouched item, handed back.
+        item: Stamped<T>,
+        /// The queue's published generation the item fell behind.
+        current: GenerationId,
+    },
 }
 
 /// Why a parking push gave up (doc 03 §4.4(d)): the producer must stop,
@@ -77,6 +88,17 @@ pub enum PushAborted<T> {
         /// The untouched item, handed back.
         item: Stamped<T>,
     },
+    /// The queue's published generation moved past the item's while
+    /// the producer was parking (a flush happened) — the exact race
+    /// doc 03 §4.4(f) requires to wake within a bounded number of
+    /// wakeups. The item is returned untouched; the producer must stop,
+    /// not retry.
+    Stale {
+        /// The untouched item, handed back.
+        item: Stamped<T>,
+        /// The queue's published generation the item fell behind.
+        current: GenerationId,
+    },
 }
 
 /// The outcome of a pop (doc 03 §4.4(b): `Err(Empty)` means "would
@@ -84,6 +106,12 @@ pub enum PushAborted<T> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[must_use = "the outcome discriminates real data from empty/closed; ignoring it can drop data"]
 pub enum PopOutcome<T> {
+    /// A generation boundary was crossed since the consumer's last
+    /// observation: a flush dropped older-generation items wholesale.
+    /// The typed discontinuity signal — the drop is *never* silent
+    /// (card 2.B1): the consumer sees exactly how much went away and
+    /// which generation now rules.
+    Discontinuity(Discontinuity),
     /// An item left the queue, FIFO within its generation.
     Item(Stamped<T>),
     /// Nothing resident — a polling consumer would block; a parking
@@ -91,6 +119,28 @@ pub enum PopOutcome<T> {
     Empty,
     /// The queue is closed and fully drained.
     Closed,
+}
+
+/// The typed wholesale-drop signal (doc 03 §4.4 `flush` + Q2).
+///
+/// Produced by [`BoundedQueue::flush`] — synchronously for the flushing
+/// caller, and once for the consuming side via
+/// [`PopOutcome::Discontinuity`] so a consumer that was not polling at
+/// flush time still observes the boundary before any new-generation
+/// item. Consecutive flushes the consumer has not yet observed merge —
+/// counts accumulate, never vanish.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[must_use = "carries the accounting of what was dropped; ignoring it makes the drop silent"]
+pub struct Discontinuity {
+    /// The generation now published; items stamped older than this can
+    /// neither be popped nor pushed (Q2).
+    pub new_generation: GenerationId,
+    /// How many resident items the flush dropped.
+    pub dropped: u64,
+    /// Their combined byte weight.
+    pub dropped_bytes: usize,
+    /// Their combined media duration.
+    pub dropped_duration: Nanoseconds,
 }
 
 /// Lifetime counters for observability (doc 03 §5's `stale_dropped`
@@ -128,6 +178,9 @@ struct State<T> {
     resident_duration: Nanoseconds,
     closed: bool,
     generation: GenerationId,
+    /// The not-yet-observed wholesale drop of the last flush(es):
+    /// surfaced (once) by the next pop, before any item.
+    pending_gap: Option<Discontinuity>,
     limits: QueueLimits,
     marks: WatermarkThresholds,
     stats: QueueStats,
@@ -192,6 +245,7 @@ impl<T> BoundedQueue<T> {
                 resident_duration: Nanoseconds(0),
                 closed: false,
                 generation: GenerationId::FIRST,
+                pending_gap: None,
                 limits,
                 marks,
                 stats: QueueStats::default(),
@@ -259,6 +313,65 @@ impl<T> BoundedQueue<T> {
         self.space.notify_all();
         self.items.notify_all();
     }
+
+    /// Drop every resident item wholesale and publish `new_generation`
+    /// (doc 03 §4.4(b) `flush`, invariant Q2).
+    ///
+    /// Called by the session before any new producer starts (doc 03
+    /// §5 checking point 4). After it returns, no item stamped older
+    /// than `new_generation` can be popped, and a later push of such
+    /// an item is dropped at the boundary with a typed
+    /// [`PushOutcome::Stale`] — parked producers wake with
+    /// [`PushAborted::Stale`] within one condvar notification (doc 03
+    /// §4.4(f)). Consumers observe the drop via
+    /// [`PopOutcome::Discontinuity`] before any new item: never silent.
+    ///
+    /// The published generation never regresses: a `new_generation`
+    /// at or below the current one still drops the residents (the
+    /// caller asked for a flush) but leaves the published generation
+    /// at its high-water mark.
+    ///
+    /// Returns the synchronous report of what this flush dropped; the
+    /// consumer-side marker merges with any not-yet-observed one.
+    pub fn flush(&self, new_generation: GenerationId) -> Discontinuity {
+        let mut state = unpoison(self.state.lock());
+        let dropped = state.items.len() as u64;
+        let dropped_bytes = state.resident_bytes;
+        let dropped_duration = state.resident_duration;
+        let published = if new_generation > state.generation {
+            new_generation
+        } else {
+            state.generation
+        };
+        let gap = Discontinuity {
+            new_generation: published,
+            dropped,
+            dropped_bytes,
+            dropped_duration,
+        };
+        state.items.clear();
+        state.resident_bytes = 0;
+        state.resident_duration = Nanoseconds(0);
+        state.stats.flushed = state.stats.flushed.saturating_add(dropped);
+        state.generation = published;
+        state.pending_gap = match state.pending_gap.take() {
+            Some(previous) => Some(Discontinuity {
+                new_generation: published,
+                dropped: previous.dropped.saturating_add(dropped),
+                dropped_bytes: previous.dropped_bytes.saturating_add(dropped_bytes),
+                dropped_duration: Nanoseconds(
+                    previous
+                        .dropped_duration
+                        .0
+                        .saturating_add(dropped_duration.0),
+                ),
+            }),
+            None => Some(gap),
+        };
+        self.space.notify_all();
+        self.items.notify_all();
+        gap
+    }
 }
 
 impl<T: Weigh> BoundedQueue<T> {
@@ -276,6 +389,15 @@ impl<T: Weigh> BoundedQueue<T> {
         if state.closed {
             return PushOutcome::Closed { item };
         }
+        // Generation boundary check (doc 03 §5 checking point 3, Q2):
+        // stale items are dropped here, counted, and handed back.
+        if item.generation < state.generation {
+            state.stats.stale_rejected = state.stats.stale_rejected.saturating_add(1);
+            return PushOutcome::Stale {
+                item,
+                current: state.generation,
+            };
+        }
         match state.limits.binding_axis(state.usage(), 1, size, duration) {
             None => {
                 state.accept(item, size, duration);
@@ -291,17 +413,18 @@ impl<T: Weigh> BoundedQueue<T> {
 
     /// Parking push (doc 03 §4.4(b)): parks the producer while full.
     ///
-    /// Wakes on: space, generation movement, queue close, or `deadline`
-    /// — never spins (Q3), never blocks unboundedly without the
-    /// caller's consent (`deadline: None` *is* that consent: the demux
-    /// thread parks until the pipeline moves it). On every wake the
-    /// producer's own position is re-checked before parking again.
+    /// Wakes on: space, generation movement ([`BoundedQueue::flush`]),
+    /// queue close, or `deadline` — never spins (Q3), never blocks
+    /// unboundedly without the caller's consent (`deadline: None` *is*
+    /// that consent: the demux thread parks until the pipeline moves
+    /// it). On every wake the producer's own position is re-checked
+    /// before parking again — a stale stamp aborts, exactly the
+    /// `gen_check` recheck of the doc's sketch.
     ///
     /// # Errors
     /// [`PushAborted`] — always with the item handed back — when the
-    /// queue closes or the deadline expires while full. Generation
-    /// staleness aborts are documented with the generation milestone's
-    /// `flush` operation (doc 03 §4.4(b) `flush(new_gen)`).
+    /// queue closes, the generation moves past the item's stamp, or
+    /// the deadline expires while full.
     pub fn push_wait(
         &self,
         item: Stamped<T>,
@@ -309,10 +432,13 @@ impl<T: Weigh> BoundedQueue<T> {
     ) -> Result<(), PushAborted<T>> {
         let size = item.value.size_bytes();
         let duration = item.value.media_duration();
-        // Park while the queue is full AND still open — a close or a
-        // generation movement must wake the producer immediately.
+        let stamped_generation = item.generation;
+        // Park while the queue is full AND open AND the item is not
+        // stale — a close or a generation movement must wake the
+        // producer immediately (doc 03 §4.4(f)).
         let parkable = |s: &mut State<T>| -> bool {
             !s.closed
+                && stamped_generation >= s.generation
                 && s.limits
                     .binding_axis(s.usage(), 1, size, duration)
                     .is_some()
@@ -321,6 +447,15 @@ impl<T: Weigh> BoundedQueue<T> {
         loop {
             if state.closed {
                 return Err(PushAborted::Closed { item });
+            }
+            // Recheck the item's own generation after every wake
+            // (doc 03 §4.4(b)).
+            if item.generation < state.generation {
+                state.stats.stale_rejected = state.stats.stale_rejected.saturating_add(1);
+                return Err(PushAborted::Stale {
+                    item,
+                    current: state.generation,
+                });
             }
             if state
                 .limits
@@ -356,9 +491,13 @@ impl<T: Weigh> BoundedQueue<T> {
     /// block" — callers poll or await).
     ///
     /// Infallible by design: the [`PopOutcome`] carries every case as
-    /// data, so there is nothing to propagate.
+    /// data, so there is nothing to propagate. A pending wholesale
+    /// drop ([`BoundedQueue::flush`]) is surfaced *before* any item.
     pub fn try_pop(&self) -> PopOutcome<T> {
         let mut state = unpoison(self.state.lock());
+        if let Some(gap) = state.pending_gap.take() {
+            return PopOutcome::Discontinuity(gap);
+        }
         match state.take_front() {
             Some(item) => {
                 self.space.notify_one();
@@ -369,12 +508,18 @@ impl<T: Weigh> BoundedQueue<T> {
         }
     }
 
-    /// Parking pop: sleeps until an item is resident, the queue closes,
-    /// or `deadline` expires (then [`PopOutcome::Empty`]).
+    /// Parking pop: sleeps until an item is resident, a discontinuity
+    /// is pending, the queue closes, or `deadline` expires (then
+    /// [`PopOutcome::Empty`]).
     pub fn pop_wait(&self, deadline: Option<Instant>) -> PopOutcome<T> {
-        let parkable = |s: &mut State<T>| -> bool { s.items.is_empty() && !s.closed };
+        let parkable = |s: &mut State<T>| -> bool {
+            s.items.is_empty() && s.pending_gap.is_none() && !s.closed
+        };
         let mut state = unpoison(self.state.lock());
         loop {
+            if let Some(gap) = state.pending_gap.take() {
+                return PopOutcome::Discontinuity(gap);
+            }
             if let Some(item) = state.take_front() {
                 self.space.notify_one();
                 return PopOutcome::Item(item);
