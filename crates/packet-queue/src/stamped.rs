@@ -12,7 +12,7 @@ use media_types::time::Nanoseconds;
 /// token generation onto the item at push time; the queue then treats
 /// the stamp as the single authority when comparing against its
 /// published generation. For payloads that already carry their
-/// generation — [`Packet`] does (doc 01 §3.3) — [`Stamped::stamped`]
+/// generation — [`Packet`] does (doc 01 §3.3) — [`Stamped::from_payload`]
 /// copies it over, so the two can never drift.
 ///
 /// The doc's field name `gen` is spelled `generation` here: `gen` is a
@@ -34,8 +34,11 @@ impl<T> Stamped<T> {
     }
 
     /// Stamp a value with its own generation ([`Generational`]).
+    ///
+    /// Named `from_payload` (not `stamped`, matching the type) per the
+    /// workspace lint `clippy::self_named_constructors`.
     #[must_use]
-    pub fn stamped(value: T) -> Stamped<T>
+    pub fn from_payload(value: T) -> Stamped<T>
     where
         T: Generational,
     {
@@ -128,9 +131,9 @@ mod tests {
     }
 
     #[test]
-    fn stamped_stamps_from_the_payload_generation() {
+    fn from_payload_stamps_from_the_payload_generation() {
         let g0 = GenerationId::new(7);
-        let s = Stamped::stamped(packet(g0, 10, Duration::Unknown));
+        let s = Stamped::from_payload(packet(g0, 10, Duration::Unknown));
         assert_eq!(s.generation, g0);
         assert_eq!(s.value.generation(), g0);
     }

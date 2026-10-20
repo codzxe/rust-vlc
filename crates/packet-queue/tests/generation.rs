@@ -364,7 +364,7 @@ fn stale_check_precedes_the_capacity_check() {
 }
 
 /// The demux-side composite: stamp from the payload's own generation
-/// (`Stamped::stamped` over a real media-types `Packet`) flows through
+/// (`Stamped::from_payload` over a real media-types `Packet`) flows through
 /// flush-and-refill identically.
 #[test]
 fn packet_stamps_flow_through_generation_bumps() {
@@ -393,7 +393,7 @@ fn packet_stamps_flow_through_generation_bumps() {
     };
 
     assert_eq!(
-        queue.try_push(Stamped::stamped(packet(GenerationId::FIRST))),
+        queue.try_push(Stamped::from_payload(packet(GenerationId::FIRST))),
         PushOutcome::Pushed
     );
     let gap = queue.flush(second);
@@ -402,7 +402,7 @@ fn packet_stamps_flow_through_generation_bumps() {
     assert_eq!(gap.dropped_duration, Nanoseconds(100));
 
     assert_eq!(
-        queue.try_push(Stamped::stamped(packet(second))),
+        queue.try_push(Stamped::from_payload(packet(second))),
         PushOutcome::Pushed
     );
     match queue.try_pop() {

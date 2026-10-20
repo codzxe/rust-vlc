@@ -11,7 +11,8 @@ use std::num::NonZeroUsize;
 use media_types::ids::GenerationId;
 use media_types::time::{Duration as MediaDuration, Nanoseconds};
 use packet_queue::{
-    BoundedQueue, LimitAxis, PopOutcome, PushOutcome, QueueLimits, QueueUsage, Stamped, Weigh,
+    BoundedQueue, LimitAxis, PopOutcome, PushOutcome, QueueConfigError, QueueLimits, QueueUsage,
+    Stamped, Weigh,
 };
 use testkit::Must;
 
@@ -210,14 +211,12 @@ fn q1_q2_hold_under_adversarial_interleavings() {
                 // ---- pop ----
                 r if r < 80 => match queue.try_pop() {
                     PopOutcome::Item(stamped) => {
-                        let front = model
-                            .items
-                            .pop_front()
-                            .must_or_else(|| format!("{context}: queue yielded an item the oracle does not have"));
+                        let front = model.items.pop_front().must_or_else(|| {
+                            format!("{context}: queue yielded an item the oracle does not have")
+                        });
                         assert_eq!(stamped.value.id, front.1, "{context}: FIFO/no-loss/no-dup");
                         assert_eq!(
-                            stamped.generation,
-                            front.0,
+                            stamped.generation, front.0,
                             "{context}: item generation mismatch"
                         );
                         // Q2: nothing older than the published
@@ -255,7 +254,11 @@ fn q1_q2_hold_under_adversarial_interleavings() {
                     let dropped = model.packets() as u64;
                     assert_eq!(gap.dropped, dropped, "{context}: flush drop count");
                     assert_eq!(gap.dropped_bytes, model.bytes(), "{context}: flush bytes");
-                    assert_eq!(gap.dropped_duration, model.duration(), "{context}: flush duration");
+                    assert_eq!(
+                        gap.dropped_duration,
+                        model.duration(),
+                        "{context}: flush duration"
+                    );
                     model.items.clear();
                     // Published generation never regresses.
                     let published = if target > model.published {
@@ -270,7 +273,11 @@ fn q1_q2_hold_under_adversarial_interleavings() {
                 // ---- invariant sampling ----
                 _ => {
                     check_q1(&queue, &limits, &context);
-                    assert_eq!(queue.generation(), model.published, "{context}: published gen");
+                    assert_eq!(
+                        queue.generation(),
+                        model.published,
+                        "{context}: published gen"
+                    );
                 }
             }
             // Q1 after EVERY operation, not just sampled ones.
@@ -288,7 +295,10 @@ fn q1_q2_hold_under_adversarial_interleavings() {
                         .pop_front()
                         .must_or_else(|| format!("seed {seed}: drain yielded an unmodeled item"));
                     assert_eq!(stamped.value.id, front.1, "seed {seed}: drain FIFO");
-                    assert!(stamped.generation >= model.published, "seed {seed}: drain Q2");
+                    assert!(
+                        stamped.generation >= model.published,
+                        "seed {seed}: drain Q2"
+                    );
                     drained.push(stamped.value.id);
                 }
                 PopOutcome::Discontinuity(gap) => {
@@ -318,49 +328,77 @@ fn q1_q2_hold_under_adversarial_interleavings() {
 
 /// Doc 03 §4.4(f): unknown-duration items (0 toward the duration cap)
 /// must not wedge the `max_duration` computation — they still count in
-/// packets and bytes.
+/// packets and bytes. All three clauses of the doc's unit, one per
+/// phase:
+///
+/// 1. a tight byte cap refuses unknown-duration items on the *byte*
+///    axis (they still count in bytes), while the resident duration
+///    stays at zero;
+/// 2. with bytes plentiful, the packet cap alone governs a stream of
+///    unknown-duration items — no wedge behind a duration that never
+///    grows;
+/// 3. the duration cap bites the moment a *known* duration would
+///    exceed it (with packet room available, so the refusal can only
+///    be the duration axis).
 #[test]
 fn unknown_duration_items_do_not_wedge_the_duration_cap() {
-    let limits = QueueLimits::new(
-        NonZeroUsize::new(64).must(),
-        NonZeroUsize::new(1_000).must(),
-        MediaDuration::Known(Nanoseconds(10)),
-    )
-    .must();
-    let queue = BoundedQueue::<Blob>::with_default_watermarks(limits);
-
-    // Every item is duration-less: the duration cap must never refuse
-    // them; the packet cap governs alone.
-    for id in 0..64 {
-        let item = Stamped::new(
+    let untimed = |id: u64| {
+        Stamped::new(
             GenerationId::FIRST,
             Blob {
                 id,
                 size: 1,
                 dur_ns: 0,
             },
-        );
-        assert_eq!(queue.try_push(item), PushOutcome::Pushed, "id {id}");
+        )
+    };
+
+    // Phase 1 — bytes still count (32 × 1-byte items fill a 32-byte cap).
+    let byte_tight = QueueLimits::new(
+        NonZeroUsize::new(64).must(),
+        NonZeroUsize::new(32).must(),
+        MediaDuration::Known(Nanoseconds(10)),
+    )
+    .must();
+    let queue = BoundedQueue::<Blob>::with_default_watermarks(byte_tight);
+    for id in 0..32 {
+        assert_eq!(queue.try_push(untimed(id)), PushOutcome::Pushed, "id {id}");
+    }
+    match queue.try_push(untimed(32)) {
+        PushOutcome::Full { binding, .. } => assert_eq!(binding, LimitAxis::Bytes),
+        other => unreachable!("expected Full, got {other:?}"),
+    }
+    assert_eq!(
+        queue.usage().duration,
+        Nanoseconds(0),
+        "unknown durations weigh 0 toward the duration cap"
+    );
+
+    // Phase 2 — the packet cap governs alone (64 of them, duration 0).
+    let packet_bound = QueueLimits::new(
+        NonZeroUsize::new(64).must(),
+        NonZeroUsize::new(1_000).must(),
+        MediaDuration::Known(Nanoseconds(10)),
+    )
+    .must();
+    let queue = BoundedQueue::<Blob>::with_default_watermarks(packet_bound);
+    for id in 0..64 {
+        assert_eq!(queue.try_push(untimed(id)), PushOutcome::Pushed, "id {id}");
     }
     assert_eq!(queue.usage().duration, Nanoseconds(0));
     assert_eq!(queue.usage().packets, 64);
-
-    // One more is refused by the packet cap, not the duration cap.
-    let extra = Stamped::new(
-        GenerationId::FIRST,
-        Blob {
-            id: 64,
-            size: 1,
-            dur_ns: 0,
-        },
-    );
-    match queue.try_push(extra) {
+    match queue.try_push(untimed(64)) {
         PushOutcome::Full { binding, .. } => assert_eq!(binding, LimitAxis::Packets),
         other => unreachable!("expected Full, got {other:?}"),
     }
 
-    // A single known-duration item beyond the cap is refused by the
-    // duration axis as soon as it would exceed 10 ns.
+    // Phase 3 — free one packet slot, then a known 11 ns item exceeds
+    // the 10 ns cap: only the duration axis can refuse it (63 packets,
+    // 63 bytes resident; 64 ≤ 64 and 64 ≤ 1000 both fit).
+    match queue.try_pop() {
+        PopOutcome::Item(item) => assert_eq!(item.value.id, 0),
+        other => unreachable!("expected Item, got {other:?}"),
+    }
     let timed = Stamped::new(
         GenerationId::FIRST,
         Blob {
@@ -373,6 +411,11 @@ fn unknown_duration_items_do_not_wedge_the_duration_cap() {
         PushOutcome::Full { binding, .. } => assert_eq!(binding, LimitAxis::Duration),
         other => unreachable!("expected Full, got {other:?}"),
     }
+    assert_eq!(
+        queue.usage().duration,
+        Nanoseconds(0),
+        "the refused timed item added nothing"
+    );
 }
 
 /// The unbounded-impossible contract, end to end: every constructor
@@ -399,11 +442,23 @@ fn every_constructed_queue_is_bounded() {
         assert_eq!(queue.usage(), QueueUsage::EMPTY);
     }
     for bad in [
-        MediaDuration::Unknown,
-        MediaDuration::Known(Nanoseconds(0)),
+        (MediaDuration::Unknown, QueueConfigError::UnknownDuration),
+        (
+            MediaDuration::Known(Nanoseconds(0)),
+            QueueConfigError::ZeroDuration,
+        ),
     ] {
-        let err = QueueLimits::new(NonZeroUsize::new(4).must(), NonZeroUsize::new(40).must(), bad);
-        assert!(err.is_err(), "unbounded config must be refused: {bad:?}");
+        // The exact typed error, at the integration level (the unit
+        // proofs in src/limits.rs pin the Display strings).
+        assert_eq!(
+            QueueLimits::new(
+                NonZeroUsize::new(4).must(),
+                NonZeroUsize::new(40).must(),
+                bad.0
+            ),
+            Err(bad.1),
+            "unbounded config must be refused with the typed error"
+        );
     }
 }
 

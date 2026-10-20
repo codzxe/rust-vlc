@@ -100,9 +100,9 @@
 //!
 //! // Producers learn fullness without blocking (typed signal, item
 //! // handed back untouched):
-//! assert_eq!(queue.try_push(Stamped::stamped(packet.clone())), PushOutcome::Pushed);
-//! assert_eq!(queue.try_push(Stamped::stamped(packet.clone())), PushOutcome::Pushed);
-//! match queue.try_push(Stamped::stamped(packet.clone())) {
+//! assert_eq!(queue.try_push(Stamped::from_payload(packet.clone())), PushOutcome::Pushed);
+//! assert_eq!(queue.try_push(Stamped::from_payload(packet.clone())), PushOutcome::Pushed);
+//! match queue.try_push(Stamped::from_payload(packet.clone())) {
 //!     PushOutcome::Full { item, .. } => assert_eq!(item.value, packet),
 //!     other => unreachable!("expected Full, got {other:?}"),
 //! }
@@ -110,7 +110,7 @@
 //! // A consumer drains; the parked producer then completes:
 //! assert!(matches!(queue.try_pop(), PopOutcome::Item(_)));
 //! match queue.push_wait(
-//!     Stamped::stamped(packet),
+//!     Stamped::from_payload(packet),
 //!     Some(Instant::now() + WallClock::from_millis(50)),
 //! ) {
 //!     Ok(()) => {}
