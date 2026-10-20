@@ -78,20 +78,23 @@ fn unknown_subcommand_is_a_usage_error_listing_known_ones() {
 }
 
 #[test]
-fn pre_registered_stubs_fail_honestly_with_their_card() {
-    // `tokens` graduated when card 1.B4 landed; `schema-gen` when 1.B2
-    // landed (both Lead-completed salvages); `rebrand` when 1.E4 landed
-    // (Lead-implemented after two agent context-deadlines);
-    // `check-architecture` when 1.E1 landed: they run the real pipelines.
-    // Only `codegen` (1.D4) remains a stub.
-    let out = run_xtask(&["codegen"]);
-    assert_eq!(out.code, Some(2), "stderr: {}", out.stderr);
+fn codegen_bridge_dispatches_to_catalog_gen() {
+    // Graduation history: `tokens` (1.B4), `schema-gen` (1.B2), `rebrand`
+    // (1.E4) and `check-architecture` (1.E1) each replaced their stub
+    // assertion when the owning card landed; `codegen` graduated with
+    // 1.D4 — the LAST pre-registered stub, so no stub-behavior assertion
+    // remains. This test now proves the other end of the frozen
+    // interface: the subprocess bridge really dispatches to the
+    // `catalog-gen` binary (`--help` is the cheap probe — no artifact
+    // writes, no drift check, no full gate).
+    let out = run_xtask(&["codegen", "--help"]);
+    assert_eq!(out.code, Some(0), "stderr: {}", out.stderr);
     assert!(
-        out.stderr
-            .contains("`codegen` is not yet implemented (card 1.D4)"),
-        "stderr: {}",
-        out.stderr
+        out.stdout.contains("catalog-gen"),
+        "stdout:\n{}",
+        out.stdout
     );
+    assert!(out.stdout.contains("--check"), "stdout:\n{}", out.stdout);
 }
 
 // Card 1.E4: the rebrand acceptance skeleton lives at the repo root
