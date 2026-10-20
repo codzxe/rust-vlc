@@ -24,7 +24,7 @@ in sandbox)** `[PROPOSAL: gate evidence on first push]`.
 | `clippy` | 3-OS matrix | `cargo clippy --workspace --all-targets --all-features -- -D warnings` (#3) | active |
 | `test` | 3-OS matrix | `cargo test --workspace --all-features` (#4); `needs: [fmt, check]` (doc 10 §4.2 cheap-first ordering) | active |
 | `boundary-check` | ubuntu | `cargo xtask check-architecture` (G5) | active — 1.E1 landed (Lead sync) |
-| `schema-validation` | ubuntu | product.toml + settings schema + command-catalog drift (`cargo xtask codegen --check`) + feature-matrix v0 (G1/G6) | active — 1.E2 landed, catalog-drift step added at 1.D4 merge (Lead sync) |
+| `schema-validation` | ubuntu | product.toml + settings schema + command-catalog drift (`cargo xtask codegen --check`) + fixtures drift (`cargo xtask fixtures --check`) + feature-matrix v0 (G1/G6) | active — 1.E2 landed, catalog-drift step added at 1.D4 merge, fixtures-drift step added at 2.A3 merge (Lead sync) |
 | `wasm-build` | ubuntu | wasm32 build + size report (G12) | active — 1.E3 landed, lives in `wasm.yml` |
 | `cargo-deny` | ubuntu | `cargo deny check …` (G3/G4) | active — 1.E5 landed |
 

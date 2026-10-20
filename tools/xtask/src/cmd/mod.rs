@@ -95,7 +95,7 @@ pub const SUBCOMMANDS: &[Subcommand] = &[
         name: "fixtures",
         card: "2.A3",
         summary: "Demo fixture generation (doc 03 §7/§8)",
-        implemented: false,
+        implemented: true,
         run: fixtures::run,
     },
 ];
@@ -143,15 +143,10 @@ mod tests {
 
     #[test]
     fn all_wave1_subcommands_are_implemented() {
-        // Lead batch-flip at the 1.D4 merge: every wave-1 card has landed
-        // (gate 1.A3, schema-gen 1.B2, tokens 1.B4, codegen 1.D4,
-        // check-architecture 1.E1, rebrand 1.E4). The wave-2 `fixtures`
-        // stub (2.A3) is the sole not-yet entry, pinned by the dedicated
-        // test below.
+        // Lead batch-flip at the 1.D4 merge flipped the wave-1 entries;
+        // the fixtures entry (2.A3) was flipped at the 2.A3 merge — every
+        // registered subcommand is now live.
         for sub in SUBCOMMANDS {
-            if sub.name == "fixtures" {
-                continue;
-            }
             assert!(
                 sub.implemented,
                 "subcommand `{}` card {} should be implemented",
@@ -161,13 +156,15 @@ mod tests {
     }
 
     #[test]
-    fn fixtures_stub_is_the_only_unimplemented() {
+    fn all_subcommands_are_implemented_invariant() {
+        // Graduated from `fixtures_stub_is_the_only_unimplemented` at the
+        // 2.A3 merge: the last pre-registered stub went live, so the
+        // invariant is now simply "everything registered is implemented".
+        // New stubs must register with implemented: false AND flip this
+        // comment — a new stub would fail `all_wave1_subcommands_are_implemented`
+        // above, which is the intended alarm.
         for sub in SUBCOMMANDS {
-            if sub.name == "fixtures" {
-                assert!(!sub.implemented, "fixtures (2.A3) still a stub here");
-            } else {
-                assert!(sub.implemented, "`{}` should be implemented", sub.name);
-            }
+            assert!(sub.implemented, "`{}` should be implemented", sub.name);
         }
     }
 }

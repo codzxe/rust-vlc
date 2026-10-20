@@ -320,6 +320,8 @@ jobs:
         run: cargo xtask schema-gen --check
       - name: command-catalog artifacts drift (doc 05 §5.1 — card 1.D4)
         run: cargo xtask codegen --check
+      - name: fixtures drift — byte-stability AC (doc 03 §7/§8 — card 2.A3)
+        run: cargo xtask fixtures --check
       - name: docs/feature-matrix.toml v0 structural check (doc 02 §4.6 R-subset)
         run: |
           python3 - <<'PY'
