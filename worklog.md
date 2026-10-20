@@ -1370,3 +1370,17 @@ Stage Summary:
 - Wave 2 state: 2.A1, 2.A3, 2.B1, 2.B2, 2.B4, 2.C1, 2.C2, 2.C4 COMPLETE on main @ 941/0/3. 2.B3 closed not-selected (D-018).
 - NEXT (pair 3): 2.A2 media-probe + 2.B5 PCM decoder (fills [audio_probe] expectations). Then 2.C3 audio path + 2.D1 renderer-wgpu; then 2.D2 CLI (+2.D3 prototype); then 2.E1 integration + 2.E2-V gate.
 - Process notes: parallel-worktree target dirs are a disk hazard — cap concurrent worktrees at 3-4 or clean target/ after merges; full_gate.sh is the canonical gate runner now.
+
+---
+Task ID: 2.B5 (Lead close-out after transport-deadline cut)
+Agent: Sub-agent (general-purpose, salvaged) + Lead verification/close-out
+Task: PCM decoder behind codec-api — s16/s24/s32/f32 x le/be x interleaved/planar + u8; bit-exact AC; [audio_probe] expectations.
+
+Work Log:
+- Agent chain (commits 541b09a → 33af723 → 01787db, all pushed): in-house decoder per D-018 logic (symphonia-codec-pcm not vendored; rationale recorded in module docs) — full format matrix behind the codec-api Decoder trait, stream-facts negotiation via WAVEFORMATEX extra_data [PROPOSAL] or with_format, whole-sample-frame-prefix damage model (ConcealedFrame partial tail / CorruptInput sub-frame skip, never fabricated silence), zero-copy native-endian clean path, 32 unit tests. AC: [audio_probe] filled via xtask std-only MD5 (RFC 1321, vectors pinned vs md5sum) + first_samples_md5 derived from generator samples; both parents' 60 chunks decode through codec-api (AVI configured from real strf, MP4 from sowt-facts-synthesized WAVEFORMATEX); concatenated output byte-identical + sha256 == audio_stream_sha256 (bit-exact AC); clippy-clean fix-forward noting it applied the DISK-INCIDENT-1 pipe-masking lesson to its own commands.
+- Lead close-out: fuzz/fuzz_targets/fuzz_codec_pcm.rs created (the salvage's fuzz.rs doc claimed it existed but the file was missing — honesty gap fixed by making the claim true; mirrors the fuzz_codec_mjpeg registration pattern with matching wiring-status prose). Full gate via full_gate.sh: fmt CLEAN; clippy CLEAN; workspace **984/0/3** (941 + 43 pcm: 32 unit + pcm_fixtures 7 + pcm_fuzz_survival + doctests); arch PASS 5/5; fixtures no-drift.
+
+Stage Summary:
+- 2.B5 COMPLETE. Wave 2 state: 2.A1, 2.A3, 2.B1, 2.B2, 2.B4, 2.B5, 2.C1, 2.C2, 2.C4 done; 2.A2 continuation in flight (skeleton salvaged @ 4810d98); 2.B3 closed not-selected.
+- Lead flags: (a) WAVEFORMATEX extra_data negotiation is [PROPOSAL]; (b) libFuzzer campaign unwired (Lead-owned cargo-fuzz decision — all three fuzz targets share this status); (c) f32 formats pass through without re-quantization (bit-exact by construction).
+- Honest limitations: no s24 planar evidence in fixtures (matrix covered by unit tests only); u8 format is convenience-complete but fixture-unexercised.
