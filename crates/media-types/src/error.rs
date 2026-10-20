@@ -274,7 +274,9 @@ impl EngineError {
         }
     }
 
-    /// Attach an underlying error (chain root for I/O and codec errors).
+    /// Attach an underlying error (chain root for I/O and codec
+    /// errors). The L0 semantics: `source` holds ONE chain root —
+    /// a second call replaces the first (no secret nesting).
     pub fn with_source(
         mut self,
         source: impl Into<Box<dyn std::error::Error + Send + Sync>>,

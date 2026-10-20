@@ -1,0 +1,33 @@
+# crates/plugin-api — the plugin contract (card 1.D2, doc 06 §1–2).
+#
+# Registry: doc 01 §2.2 (`plugin-api`, layer L1, deps: media-types +
+# codec-api). The ONLY external crates are the pre-audited config family
+# (docs/dependencies/allowlist.md, verdict `pass`): serde (derive),
+# toml, thiserror — the same set product-config/settings-schema use.
+#
+# What this crate is NOT (doc 06 scope fence): no registry, no selection
+# policy (doc 06 §3, Phase 2), no WASM host (§5, crates/plugin-host-wasm),
+# no enforcement tooling (§6), no conformance kit (§7 — it consumes these
+# types). Manifests describe capability, never implementation (§2.1).
+
+[package]
+name = "plugin-api"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen plugin contract: the 16-kind taxonomy, the validated manifest model, and the host traits builtin plugins implement (doc 06 §1–2)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+media-types = { path = "../media-types" }
+codec-api = { path = "../codec-api" }
+
+serde = { version = "1", features = ["derive"] }
+toml = "1.1"
+thiserror = "2.0"
+
+[dev-dependencies]
+# testkit is dev-only by contract (MP §3.7; crates/media-types precedent).
+testkit = { path = "../testkit" }
