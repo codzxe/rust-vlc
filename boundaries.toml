@@ -142,6 +142,17 @@ dev_deps = ["testkit"]
 external_allowlist = []
 external_dev_allowlist = []
 
+# L2 — bounded, generation-aware queues (doc 01 §2.2, card 2.B1; doc 03
+# §4.4). The demux→decode / decode→engine stage-boundary primitive:
+# std::sync Mutex + condvar MPMC (doc 03's own [PROPOSAL]: start
+# simple). media-types only; std-only by C5.
+[crates.packet-queue]
+layer = 2
+internal_deps = ["media-types"]
+dev_deps = ["testkit"]
+external_allowlist = []
+external_dev_allowlist = []
+
 # dev crate (doc 01 §1.4 "dev" row, §2.8; card 1.C3). Outside the layer
 # stack: it may depend on production crates (none yet — add entries in
 # the same change when it gains any), and NOTHING may depend on it
