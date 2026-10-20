@@ -192,10 +192,6 @@ mod tests {
     use super::*;
     use testkit::Must;
 
-    fn fill(data: &[f32]) -> Vec<f32> {
-        data.to_vec()
-    }
-
     #[test]
     fn shape_validation_is_typed() {
         let err = SpscRing::new(0, 8).err().must();
@@ -263,9 +259,13 @@ mod tests {
 
     #[test]
     fn long_stream_wrap_conservation() {
-        // Many wrap cycles: every sample pushed (when accepted) is
-        // read back exactly once, in order — the conservation
-        // property the clock's sample counter depends on.
+        // Many wrap cycles: every frame pushed is read back exactly
+        // once, in order — the conservation property the clock's
+        // sample counter depends on. The run interleaves 6-frame
+        // pushes with 2-frame reads, so the ring saturates after a
+        // few iterations and every push is partial (the backpressure
+        // shape): conservation is `pushed == read + drained +
+        // still-buffered`, closed exactly by the final drain.
         let ring = SpscRing::new(2, 8).must();
         let mut pushed = 0usize;
         let mut read_out = 0usize;
@@ -288,9 +288,25 @@ mod tests {
             let mut out = vec![0.0f32; 4];
             let got = ring.read(&mut out);
             read_out += got.frames;
-            assert_eq!(&out[..got.frames * 2], &expected[read_out * 2 - got.frames * 2..read_out * 2]);
+            assert_eq!(
+                &out[..got.frames * 2],
+                &expected[read_out * 2 - got.frames * 2..read_out * 2]
+            );
         }
-        assert_eq!(pushed, read_out, "conservation over the whole run");
+        // Drain the remainder: everything pushed comes back exactly
+        // once, in order, and the accounts close to the frame.
+        let mut drained = Vec::new();
+        while ring.available_frames() > 0 {
+            let mut out = vec![0.0f32; 8];
+            let got = ring.read(&mut out);
+            drained.extend_from_slice(&out[..got.frames * 2]);
+        }
+        assert_eq!(drained, expected[read_out * 2..], "FIFO order to the end");
+        assert_eq!(
+            pushed,
+            read_out + drained.len() / 2,
+            "conservation: pushed == read + drained"
+        );
         assert_eq!(ring.available_frames(), 0);
     }
 }

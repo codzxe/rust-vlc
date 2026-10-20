@@ -229,6 +229,44 @@ dev_deps = ["testkit"]
 external_allowlist = []
 external_dev_allowlist = []
 
+# L3 — the audio path after decode (doc 01 §2.2 registry row, card
+# 2.C3; doc 03 §4.8). Volume, channel map, straight mix; stage-A/D
+# format conversion; AudioPipeline quantum composition and the
+# AudioBuffer/AudioSink seam audio-output implements. The registry row
+# also lists media-clock + plugin-api; this card's v0 surface needs
+# media-types only (mixer-format f32 carries no clock vocabulary;
+# media-clock joins with the drift micro-resampler, doc 03 §4.8 e;
+# the AudioFilter seam joins with the filter-chain card) — the
+# manifest is an allowlist, video-engine/codecs precedent: add the
+# edges when the cards that need them land. Std-only by C5.
+[crates.audio-engine]
+layer = 3
+internal_deps = ["media-types"]
+dev_deps = ["testkit"]
+external_allowlist = []
+external_dev_allowlist = []
+
+# L4 — audio output backends (doc 01 §2.6 registry row, card 2.C3;
+# doc 03 §4.9). The AudioBackend adapter trait (extends
+# audio-engine's AudioSink with enumerate/open/pause/resume + the
+# sample counter), the wait-free SPSC ring + real-time render
+# callback under the no-blocking contract, underrun accounting, the
+# null backend and typed OS-backend stubs (real backends land in
+# platform-* per doc 01 §2.7 behind ADR-005 — cpal P0 record:
+# docs/dependencies/records/cpal-0.18.2.md). REGISTRY DELTA (Lead
+# flag, worklog 2.C3): the row lists media-types + audio-engine;
+# this card adds the media-clock edge the row under-specifies — the
+# device sample counter IS the clock's truth source (doc 03 §4.7/
+# §4.9, SampleCounterSource implemented by the open session). Edges
+# point downward: L4 → L3 (audio-engine) → L0; L4 → L2 (media-clock)
+# → L0. Std-only by C5: zero external dependencies, no unsafe.
+[crates.audio-output]
+layer = 4
+internal_deps = ["audio-engine", "media-clock", "media-types"]
+dev_deps = ["testkit"]
+external_allowlist = []
+external_dev_allowlist = []
+
 # dev crate (doc 01 §1.4 "dev" row, §2.8; card 1.C3). Outside the layer
 # stack: it may depend on production crates (none yet — add entries in
 # the same change when it gains any), and NOTHING may depend on it

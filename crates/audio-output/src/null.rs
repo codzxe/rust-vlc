@@ -522,17 +522,16 @@ mod tests {
 
     #[test]
     fn pause_freezes_counter_and_renders() {
+        // The trait path: write, pause (renders become no-ops — no
+        // callback, no counter advance, no capture), resume, and the
+        // queued frames play in order.
         let format = f32_format(2, 44_100);
-        let mut stream =
-            NullBackend::open_stream(&format, 8, NullConfig { capture: true }).must();
-        stream
-            .sink
-            .write(&buffer_of(format, &[0.5, -0.5, 0.25, -0.25]))
-            .must();
         let mut backend = NullBackend::new();
         backend.open(NULL_DEVICE_ID, &format, 8).must();
+        backend
+            .write(&buffer_of(format, &[0.5, -0.5, 0.25, -0.25]))
+            .must();
         backend.pause().must();
-        // Trait-mode pause is the same shared flag.
         let mut device = backend.take_device().must();
         assert!(device.paused());
         let mut out = vec![f32::NAN; 4];
@@ -540,15 +539,43 @@ mod tests {
         assert_eq!(stats, RenderStats::default());
         assert!(out.iter().all(|v| v.is_nan()), "paused touches nothing");
         assert_eq!(device.sample_count(), 0);
+        assert_eq!(backend.underruns(), 0);
+        // Resume: the same frames are still queued — pause preserved
+        // them (playback position preserved, doc 03 §4.9 d).
         backend.resume().must();
         let stats = device.render(&mut out).must();
         assert_eq!(stats.frames_read, 2);
+        assert_eq!(out, vec![0.5, -0.5, 0.25, -0.25]);
         assert_eq!(device.sample_count(), 2);
-        // open_stream mode: pause via the sink half is not exposed on
-        // NullSink (the backend owns pause); the stream's device
-        // observes the same shared flag when driven through a
-        // backend. Here the stream-mode counter advanced above.
+        // The clock-source view (what media-clock reads) is the same
+        // shared counter the device half advances.
+        let clock = backend.clock_source().must();
+        let source: &dyn SampleCounterSource = clock.as_ref();
+        assert_eq!(source.sample_count(), 2);
+        assert_eq!(source.sample_rate_hz(), 44_100);
+    }
+
+    #[test]
+    fn stream_mode_shares_the_counter_between_the_halves() {
+        // The split-halves (open_stream) mode: sink-side and
+        // device-side views of the counter, underruns and clock source
+        // are one shared state — the SPSC session, not three copies.
+        let format = f32_format(2, 44_100);
+        let mut stream =
+            NullBackend::open_stream(&format, 8, NullConfig { capture: false }).must();
+        let clock = stream.sink.clock_source();
+        let source: &dyn SampleCounterSource = clock.as_ref();
+        assert_eq!(source.sample_count(), 0);
+        stream
+            .sink
+            .write(&buffer_of(format, &[0.5, -0.5, 0.25, -0.25]))
+            .must();
+        let mut out = vec![f32::NAN; 4];
+        stream.device.render(&mut out).must();
+        assert_eq!(stream.sink.sample_count(), 2);
         assert_eq!(stream.device.sample_count(), 2);
+        assert_eq!(source.sample_count(), 2, "the clock sees the device's truth");
+        assert_eq!(stream.sink.underruns(), stream.device.underruns());
     }
 
     #[test]

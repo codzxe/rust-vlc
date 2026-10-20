@@ -215,27 +215,70 @@ mod tests {
 
     #[test]
     fn ring_segments_stay_within_the_power_of_two_wrap_budget() {
-        // Fill across a wrap, then read the whole capacity: the read
-        // crosses exactly one boundary — 2 segments, never more.
+        // Arrange the read cursor one slot past slot 0, then request a
+        // full-capacity read: it must cross exactly one wrap boundary —
+        // 2 contiguous segments, the power-of-two bound.
         let (ring, counter, underruns) = setup(1, 4);
-        for round in 0..4 {
-            let mut chunk = Vec::new();
-            for i in 0..3 {
-                chunk.push(round as f32 * 10.0 + i as f32);
-            }
-            let mut sink = [0.0f32; 1];
-            let _ = ring.push(&chunk);
-            let read = ring.read(&mut sink);
-            let _ = read;
-        }
-        // Now a maximal read from a wrapped state.
-        ring.push(&[1.0, 2.0, 3.0]);
+        ring.push(&[1.0, 2.0, 3.0]); // write = 3
+        let mut one = [0.0f32; 1];
+        assert_eq!(ring.read(&mut one).frames, 1, "consume 1.0, read = 1");
+        assert_eq!(one, [1.0]);
+        ring.push(&[4.0, 5.0, 6.0]); // free = 2: 4.0 and 5.0 accepted
         let mut out = [0.0f32; 4];
-        ring.push(&[4.0]);
         let stats = render_into(&ring, &counter, &underruns, &mut out);
         assert_eq!(stats.frames_read, 4);
+        assert_eq!(out, [2.0, 3.0, 4.0, 5.0]);
+        assert_eq!(stats.ring_segments, 2, "one wrap boundary splits the run");
         assert!(stats.ring_segments <= 2, "budget violated: {}", stats.ring_segments);
-        assert_eq!(stats.ring_segments, 2);
+
+        // The budget holds for EVERY request size, from every cursor
+        // alignment, including requests larger than the capacity.
+        let (ring, counter, underruns) = setup(2, 8);
+        let mut value = 0u32;
+        for request in [1usize, 2, 3, 5, 7, 8, 9, 12, 16] {
+            // Park a non-round cursor, then read `request` frames.
+            for _ in 0..3 {
+                let mut chunk = Vec::new();
+                for _ in 0..2 {
+                    let l = f32::from_bits(value);
+                    value = value.wrapping_add(1);
+                    let r = f32::from_bits(value);
+                    value = value.wrapping_add(1);
+                    chunk.push(l);
+                    chunk.push(r);
+                }
+                let _ = ring.push(&chunk);
+                let mut sink = vec![0.0f32; 2];
+                let _ = ring.read(&mut sink);
+            }
+            let mut chunk = Vec::new();
+            for _ in 0..7 {
+                let l = f32::from_bits(value);
+                value = value.wrapping_add(1);
+                let r = f32::from_bits(value);
+                value = value.wrapping_add(1);
+                chunk.push(l);
+                chunk.push(r);
+            }
+            let _ = ring.push(&chunk);
+            let mut out = vec![0.0f32; request * 2];
+            let stats = render_into(&ring, &counter, &underruns, &mut out);
+            assert!(
+                stats.ring_segments <= 2,
+                "request {request}: {} segments",
+                stats.ring_segments
+            );
+            // Whatever was read was read whole — silence fills the rest.
+            assert_eq!(
+                stats.frames_read + stats.silence_filled,
+                stats.frames_requested
+            );
+            // Exactly one counter advance: every requested frame was
+            // consumed (data or silence).
+            assert_eq!(stats.frames_requested, request);
+        }
+        assert!(counter.count() > 0);
+        assert_eq!(underruns.load(Ordering::Relaxed) > 0, true, "the oversized/short requests underran at least once");
     }
 
     #[test]
