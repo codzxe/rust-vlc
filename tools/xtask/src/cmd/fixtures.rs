@@ -388,6 +388,84 @@ fn sha256_hex(data: &[u8]) -> String {
     hex_lower(&hasher.finish())
 }
 
+/// MD5 (RFC 1321), std-only by hand: the `[audio_probe]` schema of
+/// doc 10 §5.4 names `first_samples_md5`, and this writer is
+/// dependency-free by C5. MD5 here is an **identity digest for test
+/// comparability, not a security primitive** (RFC 1321 §1: "not
+/// suitable as a message authentication / signature algorithm") —
+/// exactly what an expectation-file probe needs. All arithmetic is
+/// wrapping; the hash path cannot panic on overflow in debug builds.
+fn md5_hex(data: &[u8]) -> String {
+    // Per-round shift amounts (RFC 1321 §3.4).
+    const S: [u32; 64] = [
+        7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5, 9, 14, 20, 5,
+        9, 14, 20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 6, 10,
+        15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21,
+    ];
+    // Sine-derived table (RFC 1321 §3.4, the public spec table).
+    const K: [u32; 64] = [
+        0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee, 0xf57c0faf, 0x4787c62a, 0xa8304613,
+        0xfd469501, 0x698098d8, 0x8b44f7af, 0xffff5bb1, 0x895cd7be, 0x6b901122, 0xfd987193,
+        0xa679438e, 0x49b40821, 0xf61e2562, 0xc040b340, 0x265e5a51, 0xe9b6c7aa, 0xd62f105d,
+        0x02441453, 0xd8a1e681, 0xe7d3fbc8, 0x21e1cde6, 0xc33707d6, 0xf4d50d87, 0x455a14ed,
+        0xa9e3e905, 0xfcefa3f8, 0x676f02d9, 0x8d2a4c8a, 0xfffa3942, 0x8771f681, 0x6d9d6122,
+        0xfde5380c, 0xa4beea44, 0x4bdecfa9, 0xf6bb4b60, 0xbebfbc70, 0x289b7ec6, 0xeaa127fa,
+        0xd4ef3085, 0x04881d05, 0xd9d4d039, 0xe6db99e5, 0x1fa27cf8, 0xc4ac5665, 0xf4292244,
+        0x432aff97, 0xab9423a7, 0xfc93a039, 0x655b59c3, 0x8f0ccc92, 0xffeff47d, 0x85845dd1,
+        0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1, 0xf7537e82, 0xbd3af235, 0x2ad7d2bb,
+        0xeb86d391,
+    ];
+    let mut state: [u32; 4] = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476];
+    // Pad: 0x80, zeros to 56 mod 64, then 8-byte LITTLE-endian bit
+    // length (RFC 1321 §3.1 — the opposite endianness of SHA-256's).
+    let bit_len = (data.len() as u64).wrapping_mul(8);
+    let mut message = data.to_vec();
+    message.push(0x80);
+    while message.len() % 64 != 56 {
+        message.push(0);
+    }
+    message.extend_from_slice(&bit_len.to_le_bytes());
+
+    for block in message.chunks(64) {
+        let mut m = [0u32; 16];
+        for (i, word) in m.iter_mut().enumerate() {
+            *word = u32::from_le_bytes([
+                block[i * 4],
+                block[i * 4 + 1],
+                block[i * 4 + 2],
+                block[i * 4 + 3],
+            ]);
+        }
+        let [mut a, mut b, mut c, mut d] = state;
+        for i in 0..64 {
+            let (f, g) = match i / 16 {
+                0 => ((b & c) | (!b & d), i),
+                1 => ((d & b) | (!d & c), (5 * i + 1) % 16),
+                2 => (b ^ c ^ d, (3 * i + 5) % 16),
+                _ => (c ^ (b | !d), (7 * i) % 16),
+            };
+            let temp = d;
+            d = c;
+            c = b;
+            b = b.wrapping_add(
+                (a.wrapping_add(f).wrapping_add(K[i]).wrapping_add(m[g])).rotate_left(S[i]),
+            );
+            a = temp;
+        }
+        state[0] = state[0].wrapping_add(a);
+        state[1] = state[1].wrapping_add(b);
+        state[2] = state[2].wrapping_add(c);
+        state[3] = state[3].wrapping_add(d);
+    }
+    // The digest is A,B,C,D serialized LITTLE-endian per word (RFC
+    // 1321 §3.5) — the reverse of SHA-256's big-endian words.
+    let mut out = String::with_capacity(32);
+    for word in state {
+        out.push_str(&format!("{:08x}", word.swap_bytes()));
+    }
+    out
+}
+
 /// Lowercase hex (fixed-width, no `fmt` machinery in the hot path).
 fn hex_lower(bytes: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
@@ -533,6 +611,15 @@ const TONE_RIGHT_HZ: u32 = 660;
 const TONE_LEFT_AMP: i32 = 12_000;
 const TONE_RIGHT_AMP: i32 = 9_000;
 
+/// `[audio_probe]` sample count (doc 10 §5.4 “first 4800 samples”):
+/// the first 4800 **sample-instants** — all channels, interleave
+/// order — of the decoded stream. At the corpus rate (44100 Hz stereo)
+/// that is ≈108.8 ms and spans the first four per-tick audio chunks,
+/// so the probe exercises multi-packet accumulation, not just chunk 0
+/// (the sample-vs-scalar reading of “4800 samples” is pinned here:
+/// instants, the demuxer/decoder vocabulary’s unit).
+const AUDIO_PROBE_INSTANTS: usize = 4800;
+
 /// Generate the interleaved PCM payload (s16le, stereo): 4 bytes per
 /// sample pair. Pure integer NCO — see [`SineOsc`].
 fn generate_pcm() -> Vec<u8> {
@@ -547,6 +634,34 @@ fn generate_pcm() -> Vec<u8> {
         pcm.extend_from_slice(&r.to_le_bytes());
     }
     pcm
+}
+
+/// The `[audio_probe]` digest (doc 10 §5.4 `first_samples_md5`, card
+/// 2.B5): the **pinned conversion** of the first
+/// [`AUDIO_PROBE_INSTANTS`] sample-instants of the interleaved s16le
+/// stream — each scalar to IEEE-754 f32 as `v as f32 / 32768.0`
+/// (exact: every i16 is exact in f32 and the divisor is a power of
+/// two, so the conversion is bit-deterministic on every host),
+/// serialized little-endian, hashed with MD5 (see [`md5_hex`]).
+///
+/// Provenance: computed from the generator's own sample stream — for
+/// PCM the writer IS the sample source (s16le decode is the identity
+/// on little-endian hosts and value-exact everywhere), so unlike
+/// `FIRST_FRAME_HASH_Y` this is derived, not recorded-from-decode.
+/// The decoder side mirrors the conversion in
+/// `crates/codecs/tests/common/mod.rs` (`audio_probe_md5`) and the AC
+/// suite recomputes it from the codec-api Decoder path's output —
+/// writer and decoder pin each other; changing the tone plan, the
+/// conversion or the decoder breaks the pair first.
+fn audio_probe_md5(pcm: &[u8]) -> String {
+    let need = AUDIO_PROBE_INSTANTS * AUDIO_CHANNELS * 2;
+    let available = pcm.len().min(need);
+    let mut probe = Vec::with_capacity(available * 2);
+    for pair in pcm[..available].chunks_exact(2) {
+        let sample = i16::from_le_bytes([pair[0], pair[1]]);
+        probe.extend_from_slice(&(f32::from(sample) / 32_768.0).to_le_bytes());
+    }
+    md5_hex(&probe)
 }
 
 // ---------------------------------------------------------------------------
@@ -2552,8 +2667,8 @@ fn expectation_header(file: &GeneratedFile, class: &str, parent: Option<&str>) -
     let mut s = String::with_capacity(256);
     s.push_str("# Generated by `cargo xtask fixtures` (card 2.A3) — DO NOT EDIT.\n");
     s.push_str("# expectation/1 (doc 10 §5.4). Class-A parents carry [first_frame]\n");
-    s.push_str("# (recorded from Lumen's first compliant decode, card 2.B4); the\n");
-    s.push_str("# [audio_probe] digest is owed by card 2.B5 (first PCM decode).\n");
+    s.push_str("# (recorded from Lumen's first compliant decode, card 2.B4) and\n");
+    s.push_str("# [audio_probe] (first PCM decode, card 2.B5).\n");
     s.push_str("schema = \"expectation/1\"\n");
     s.push_str(&format!("fixture = {}\n", toml_string(&file.path)));
     s.push_str(&format!("class = \"{class}\"\n"));
@@ -2624,6 +2739,18 @@ fn parent_expectation(
     s.push_str(&format!(
         "stamp_us = {}\n\n",
         toml_uint(FIRST_FRAME_STAMP_US)
+    ));
+    s.push_str("[audio_probe]\n");
+    s.push_str("# First PCM decode (card 2.B5). first_samples_md5 = MD5 over the\n");
+    s.push_str("# pinned f32 conversion of the first 4800 sample-instants (all\n");
+    s.push_str("# channels, interleave order): each s16 scalar v -> v/32768.0 as\n");
+    s.push_str("# IEEE-754 f32, little-endian bytes; see AUDIO_PROBE_INSTANTS and\n");
+    s.push_str("# audio_probe_md5 in this writer for the provenance — derived from\n");
+    s.push_str("# the generator's own samples and verified decoder-side by the\n");
+    s.push_str("# codecs crate's AC suite (decode -> probe -> compare).\n");
+    s.push_str(&format!(
+        "first_samples_md5 = {}\n\n",
+        toml_string(&audio_probe_md5(pcm))
     ));
     s.push_str("[essence_v0]\n");
     s.push_str("# Supplemental generator-truth digests (beyond doc 10 §5.4's base).\n");
@@ -3122,6 +3249,82 @@ mod tests {
             hex_lower(&h.finish())
         };
         assert_eq!(one_shot, chunked);
+    }
+
+    // -- MD5 (RFC 1321 §A.5 test suite, public) -----------------------------
+
+    #[test]
+    fn md5_matches_rfc1321_vectors() {
+        assert_eq!(md5_hex(b""), "d41d8cd98f00b204e9800998ecf8427e");
+        assert_eq!(md5_hex(b"a"), "0cc175b9c0f1b6a831c399e269772661");
+        assert_eq!(md5_hex(b"abc"), "900150983cd24fb0d6963f7d28e17f72");
+        assert_eq!(
+            md5_hex(b"message digest"),
+            "f96b697d7cb7938d525a2f31aaf161d0"
+        );
+        assert_eq!(
+            md5_hex(b"abcdefghijklmnopqrstuvwxyz"),
+            "c3fcd3d76192e4007dfb496cca67e13b"
+        );
+        assert_eq!(
+            md5_hex(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"),
+            "d174ab98d277d9f5a5611c2c9f419d9f"
+        );
+        assert_eq!(
+            md5_hex(
+                b"12345678901234567890123456789012345678901234567890123456789012345678901234567890"
+            ),
+            "57edf4a22be3c955ac49da2e2107b67a"
+        );
+        // Block-straddling inputs (55/56/64 bytes cross the padding
+        // edge where the length field spills to a second block) —
+        // digests pinned against the system md5sum.
+        let fifty_five = vec![b'x'; 55];
+        let fifty_six = vec![b'x'; 56];
+        let sixty_four = vec![b'x'; 64];
+        assert_eq!(md5_hex(&fifty_five), "04364420e25c512fd958a70738aa8f72");
+        assert_eq!(md5_hex(&fifty_six), "668a72d5ba17f08e62dabcafad6db14b");
+        assert_eq!(md5_hex(&sixty_four), "c1bb4f81d892b2d57947682aeb252456");
+    }
+
+    // -- [audio_probe] (doc 10 §5.4, card 2.B5) ------------------------------
+
+    #[test]
+    fn audio_probe_conversion_pins_the_f32_serialization() {
+        // A two-instant stream: +16384 (→ exactly +0.5) and −16384
+        // (→ exactly −0.5). The probe bytes must be the little-endian
+        // IEEE-754 encodings of those two f32 values — pinned byte
+        // for byte against the pinned conversion's own definition.
+        let mut pcm = Vec::new();
+        pcm.extend_from_slice(&16384i16.to_le_bytes());
+        pcm.extend_from_slice(&(-16384i16).to_le_bytes());
+        let mut expected = Vec::new();
+        expected.extend_from_slice(&0.5f32.to_le_bytes());
+        expected.extend_from_slice(&(-0.5f32).to_le_bytes());
+        assert_eq!(md5_hex(&expected), audio_probe_md5(&pcm));
+        // The values themselves, so the test fails on a conversion
+        // drift even if both sides drift together.
+        assert_eq!(
+            expected,
+            vec![0x00, 0x00, 0x00, 0x3f, 0x00, 0x00, 0x00, 0xbf]
+        );
+    }
+
+    #[test]
+    fn audio_probe_spans_multiple_chunks_and_is_stable() {
+        let pcm = generate_pcm();
+        // The corpus carries 88 200 instants; the probe takes 4800 —
+        // deterministic and independent of everything past the cut.
+        assert!(TOTAL_SAMPLES > AUDIO_PROBE_INSTANTS);
+        let digest = audio_probe_md5(&pcm);
+        assert_eq!(digest, audio_probe_md5(&pcm));
+        // Truncating AFTER the probe window changes nothing; cutting
+        // INTO it changes the digest only if the prefix changed.
+        let mut longer = pcm.clone();
+        longer.extend_from_slice(&[0x11, 0x22, 0x33, 0x44]);
+        assert_eq!(digest, audio_probe_md5(&longer));
+        let cut = AUDIO_PROBE_INSTANTS * AUDIO_CHANNELS * 2 - 2;
+        assert_ne!(digest, audio_probe_md5(&pcm[..cut]));
     }
 
     // -- PRNG ----------------------------------------------------------------
@@ -4519,6 +4722,13 @@ mod tests {
             assert!(text.contains("[first_frame]"));
             assert!(text.contains(&format!("hash_y = \"{}\"", FIRST_FRAME_HASH_Y)));
             assert!(text.contains("stamp_us = 0"));
+            // Card 2.B5: the audio probe, derived from the generator's
+            // own samples (see audio_probe_md5's provenance note).
+            assert!(text.contains("[audio_probe]"));
+            assert!(text.contains(&format!(
+                "first_samples_md5 = \"{}\"",
+                audio_probe_md5(&pcm)
+            )));
             assert!(text.contains("[essence_v0]"));
             // Sixty per-sample video digests; the first is frame 0's JPEG.
             let digests: Vec<&str> = text.lines().filter(|l| l.starts_with("  \"")).collect();
