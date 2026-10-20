@@ -131,6 +131,17 @@ dev_deps = ["testkit"]
 external_allowlist = []
 external_dev_allowlist = []
 
+# L2 — the one playback clock (doc 01 §2.2 registry row, card 2.C1;
+# doc 03 §4.7). Audio-master timing over an injected sample counter;
+# observes the audio device, never drives it (ARCH-2 set: media-types
+# only). Std-only by C5; testkit dev-only for the virtual-time AC.
+[crates.media-clock]
+layer = 2
+internal_deps = ["media-types"]
+dev_deps = ["testkit"]
+external_allowlist = []
+external_dev_allowlist = []
+
 # dev crate (doc 01 §1.4 "dev" row, §2.8; card 1.C3). Outside the layer
 # stack: it may depend on production crates (none yet — add entries in
 # the same change when it gains any), and NOTHING may depend on it

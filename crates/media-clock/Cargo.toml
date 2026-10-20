@@ -1,0 +1,26 @@
+# crates/media-clock — the one playback clock (card 2.C1, doc 03 §4.7).
+#
+# Registry: doc 01 §2.2 (`media-clock`, layer L2, deps: media-types only).
+# The clock *observes* the audio device through the injected
+# `SampleCounterSource` trait (doc 03 §4.9 `sample_counter`) — it never
+# drives it, and never touches I/O, device APIs or UI (doc 01 §2.2 d).
+# Std-only by C5: zero external dependencies, no unsafe.
+
+[package]
+name = "media-clock"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen playback clock: audio-master timing over an injectable sample counter, MediaTime mapping, pause and bounded drift correction (doc 03 §4.7)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+media-types = { path = "../media-types" }
+
+[dev-dependencies]
+# testkit is dev-only by contract (MP §3.7): virtual-time sources for the
+# card's acceptance tests — monotonicity / pause / rate on virtual time,
+# no sleeps (doc 03 §4.7 f).
+testkit = { path = "../testkit" }
