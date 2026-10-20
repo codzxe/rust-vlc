@@ -476,6 +476,758 @@ impl SineOsc {
 }
 
 // ---------------------------------------------------------------------------
+// Fixture media essence — geometry, cadence and tone (fixed constants)
+// ---------------------------------------------------------------------------
+
+/// Video geometry: 320×240 is an exact multiple of the 16×16 4:2:0 MCU
+/// (20×15 MCUs — no edge padding anywhere in the corpus).
+const FRAME_WIDTH: usize = 320;
+const FRAME_HEIGHT: usize = 240;
+
+/// Cadence: 30 fps over 2.0 s — 60 frames; 44100/30 = 1470 samples per
+/// frame tick, so audio and video interleave with no fractional sample
+/// in either container.
+const FPS: u32 = 30;
+const FRAME_COUNT: usize = 60;
+const AUDIO_RATE: u32 = 44100;
+const AUDIO_CHANNELS: usize = 2;
+/// Samples per frame tick, per channel (`AUDIO_RATE / FPS`).
+const SAMPLES_PER_TICK: usize = 1470;
+/// Total samples per channel (`FRAME_COUNT * SAMPLES_PER_TICK`).
+const TOTAL_SAMPLES: usize = 88_200;
+
+/// Tone plan: 440 Hz left / 660 Hz right, distinct amplitudes, so a
+/// future decoder can assert channel mapping, not just sample values.
+const TONE_LEFT_HZ: u32 = 440;
+const TONE_RIGHT_HZ: u32 = 660;
+const TONE_LEFT_AMP: i32 = 12_000;
+const TONE_RIGHT_AMP: i32 = 9_000;
+
+/// Generate the interleaved PCM payload (s16le, stereo): 4 bytes per
+/// sample pair. Pure integer NCO — see [`SineOsc`].
+fn generate_pcm() -> Vec<u8> {
+    let table = sine_full_table();
+    let mut left = SineOsc::new(TONE_LEFT_HZ, AUDIO_RATE);
+    let mut right = SineOsc::new(TONE_RIGHT_HZ, AUDIO_RATE);
+    let mut pcm = Vec::with_capacity(TOTAL_SAMPLES * 4);
+    for _ in 0..TOTAL_SAMPLES {
+        let l = ((left.sample(&table) * TONE_LEFT_AMP) >> 15) as i16;
+        let r = ((right.sample(&table) * TONE_RIGHT_AMP) >> 15) as i16;
+        pcm.extend_from_slice(&l.to_le_bytes());
+        pcm.extend_from_slice(&r.to_le_bytes());
+    }
+    pcm
+}
+
+// ---------------------------------------------------------------------------
+// Procedural frame content (corpus-plan §1: colorbars + a frame counter
+// drawn in the pixels, so seek accuracy is assertable from decoded data)
+// ---------------------------------------------------------------------------
+
+/// Minimal RGB raster, 3 bytes per pixel.
+struct RgbImage {
+    width: usize,
+    height: usize,
+    pixels: Vec<u8>,
+}
+
+/// Background of the counter area (dark, far from every bar color).
+const COLOR_BG: [u8; 3] = [32, 32, 32];
+/// Counter digit color (full white — maximum Y contrast).
+const COLOR_DIGIT: [u8; 3] = [255, 255, 255];
+
+impl RgbImage {
+    fn new(width: usize, height: usize, fill: [u8; 3]) -> RgbImage {
+        let mut pixels = Vec::with_capacity(width * height * 3);
+        for _ in 0..width * height {
+            pixels.extend_from_slice(&fill);
+        }
+        RgbImage {
+            width,
+            height,
+            pixels,
+        }
+    }
+
+    /// Fill an axis-aligned rectangle (x0/y0 inclusive, w/h extent).
+    fn fill_rect(&mut self, x0: usize, y0: usize, w: usize, h: usize, color: [u8; 3]) {
+        for y in y0..(y0 + h).min(self.height) {
+            for x in x0..(x0 + w).min(self.width) {
+                let base = (y * self.width + x) * 3;
+                self.pixels[base..base + 3].copy_from_slice(&color);
+            }
+        }
+    }
+
+    /// One pixel (test access).
+    fn pixel(&self, x: usize, y: usize) -> [u8; 3] {
+        let base = (y * self.width + x) * 3;
+        [
+            self.pixels[base],
+            self.pixels[base + 1],
+            self.pixels[base + 2],
+        ]
+    }
+}
+
+/// The eight 100%-amplitude color bars across the top strip.
+const COLOR_BARS: [[u8; 3]; 8] = [
+    [255, 255, 255],
+    [255, 255, 0],
+    [0, 255, 255],
+    [0, 255, 0],
+    [255, 0, 255],
+    [255, 0, 0],
+    [0, 0, 255],
+    [0, 0, 0],
+];
+
+/// 7-segment digit map: A (top), B (top-right), C (bottom-right),
+/// D (bottom), E (bottom-left), F (top-left), G (middle).
+const DIGIT_SEGS: [[bool; 7]; 10] = [
+    [true, true, true, true, true, true, false],     // 0
+    [false, true, true, false, false, false, false], // 1
+    [true, true, false, true, true, false, true],    // 2
+    [true, true, true, true, false, false, true],    // 3
+    [false, true, true, false, false, true, true],   // 4
+    [true, false, true, true, false, true, true],    // 5
+    [true, false, true, true, true, true, true],     // 6
+    [true, true, true, false, false, false, false],  // 7
+    [true, true, true, true, true, true, true],      // 8
+    [true, true, true, true, false, true, true],     // 9
+];
+
+/// Digit cell geometry (64×112 px): horizontal segments 32×16, vertical
+/// segments 16×32, all offsets multiples of 8 so the drawing is stable
+/// under the 8×8 DCT grid.
+const DIGIT_W: usize = 64;
+const DIGIT_H: usize = 112;
+
+/// Draw one 7-segment digit with its top-left corner at (x0, y0).
+fn draw_digit(img: &mut RgbImage, x0: usize, y0: usize, digit: usize) {
+    let segments: [(usize, usize, usize, usize); 7] = [
+        (16, 0, 32, 16),  // A
+        (48, 16, 16, 32), // B
+        (48, 64, 16, 32), // C
+        (16, 96, 32, 16), // D
+        (0, 64, 16, 32),  // E
+        (0, 16, 16, 32),  // F
+        (16, 48, 32, 16), // G
+    ];
+    for (on, &(sx, sy, sw, sh)) in DIGIT_SEGS[digit].iter().zip(segments.iter()) {
+        let color = if *on { COLOR_DIGIT } else { COLOR_BG };
+        img.fill_rect(x0 + sx, y0 + sy, sw, sh, color);
+    }
+}
+
+/// Draw fixture frame `index` (0..FRAME_COUNT): color bars on top, the
+/// two-digit frame counter center, a 10-step gray ramp at the bottom.
+fn draw_frame(index: usize) -> Result<RgbImage, String> {
+    if index >= FRAME_COUNT {
+        return Err(format!(
+            "frame index {index} out of range (0..{FRAME_COUNT})"
+        ));
+    }
+    let mut img = RgbImage::new(FRAME_WIDTH, FRAME_HEIGHT, COLOR_BG);
+    for (i, color) in COLOR_BARS.iter().enumerate() {
+        img.fill_rect(i * 40, 0, 40, 24, *color);
+    }
+    for i in 0..10usize {
+        let level = (25 * (i + 1)) as u8;
+        img.fill_rect(i * 32, 216, 32, 24, [level, level, level]);
+    }
+    // Two-digit counter, centered horizontally in the middle band.
+    let total_w = 2 * DIGIT_W + 16;
+    let x0 = (FRAME_WIDTH - total_w) / 2;
+    let y0 = 56;
+    draw_digit(&mut img, x0, y0, index / 10);
+    draw_digit(&mut img, x0 + DIGIT_W + 16, y0, index % 10);
+    Ok(img)
+}
+
+// ---------------------------------------------------------------------------
+// Baseline JPEG encoder (ISO/IEC 10918-1, sequential DCT, Huffman)
+//
+// The "tiny in-tree baseline-JPEG writer" of doc 03 §7: keeps the MJPEG
+// payloads license-clean and byte-reproducible. 4:2:0, one interleaved
+// scan, per-image Huffman tables built from actual symbol frequencies.
+// Integer fixed-point DCT only (corpus-plan §2: no float anywhere).
+// ---------------------------------------------------------------------------
+
+/// Forward-DCT basis in Q16: `A[u][x] = c(u)/2 * cos((2x+1) u pi / 16)`,
+/// `c(0) = 1/sqrt(2)` — rounded at authoring time, row-major `[u*8+x]`.
+const DCT_A: [i32; 64] = [
+    23170, 23170, 23170, 23170, 23170, 23170, 23170, 23170, //
+    32138, 27246, 18205, 6393, -6393, -18205, -27246, -32138, //
+    30274, 12540, -12540, -30274, -30274, -12540, 12540, 30274, //
+    27246, -6393, -32138, -18205, 18205, 32138, 6393, -27246, //
+    23170, -23170, -23170, 23170, 23170, -23170, -23170, 23170, //
+    18205, -32138, 6393, 27246, -27246, -6393, 32138, -18205, //
+    12540, -30274, 30274, -12540, -12540, 30274, -30274, 12540, //
+    6393, -18205, 27246, -32138, 32138, -27246, 18205, -6393,
+];
+
+/// Zigzag order: natural (row-major) position of the i-th coefficient
+/// in scan order (ISO/IEC 10918-1 Figure A.6).
+const ZIGZAG: [usize; 64] = [
+    0, 1, 8, 16, 9, 2, 3, 10, //
+    17, 24, 32, 25, 18, 11, 4, 5, //
+    12, 19, 26, 33, 40, 48, 41, 34, //
+    27, 20, 13, 6, 7, 14, 21, 28, //
+    35, 42, 49, 56, 57, 50, 43, 36, //
+    29, 22, 15, 23, 30, 37, 44, 51, //
+    58, 59, 52, 45, 38, 31, 39, 46, //
+    53, 60, 61, 54, 47, 55, 62, 63,
+];
+
+/// Luminance quantization table, natural order (Annex K.3, public
+/// specification table — cited, not copied from any implementation).
+const Q_LUMA: [u16; 64] = [
+    16, 11, 10, 16, 24, 40, 51, 61, //
+    12, 12, 14, 19, 26, 58, 60, 55, //
+    14, 13, 16, 24, 40, 57, 69, 56, //
+    14, 17, 22, 29, 51, 87, 80, 62, //
+    18, 22, 37, 56, 68, 109, 103, 77, //
+    24, 35, 55, 64, 81, 104, 113, 92, //
+    49, 64, 78, 87, 103, 121, 120, 101, //
+    72, 92, 95, 98, 112, 100, 103, 99,
+];
+
+/// Chrominance quantization table, natural order (Annex K.3).
+const Q_CHROMA: [u16; 64] = [
+    17, 18, 24, 47, 99, 99, 99, 99, //
+    18, 21, 26, 66, 99, 99, 99, 99, //
+    24, 26, 56, 99, 99, 99, 99, 99, //
+    47, 66, 99, 99, 99, 99, 99, 99, //
+    99, 99, 99, 99, 99, 99, 99, 99, //
+    99, 99, 99, 99, 99, 99, 99, 99, //
+    99, 99, 99, 99, 99, 99, 99, 99, //
+    99, 99, 99, 99, 99, 99, 99, 99,
+];
+
+/// Forward DCT + quantization of one raw-[0,255] block. Returns
+/// natural-order quantized coefficients (`F[v*8+u]`, u horizontal).
+///
+/// Math: `F_q = Σ A[u][x]·f · A[v][y]` accumulates a 2^32 scale, then
+/// `q = round(F_q / (Q << 32))`, round-half-away-from-zero — pure i64.
+fn fdct_quantize(block: &[u8; 64], qtab: &[u16; 64]) -> [i16; 64] {
+    let mut mid = [0i64; 64]; // mid[u*8 + y]
+    for y in 0..8 {
+        for u in 0..8 {
+            let mut acc: i64 = 0;
+            for x in 0..8 {
+                acc += DCT_A[u * 8 + x] as i64 * (block[y * 8 + x] as i32 - 128) as i64;
+            }
+            mid[u * 8 + y] = acc;
+        }
+    }
+    let mut out = [0i16; 64];
+    for u in 0..8 {
+        for v in 0..8 {
+            let mut acc: i64 = 0;
+            for y in 0..8 {
+                acc += DCT_A[v * 8 + y] as i64 * mid[u * 8 + y];
+            }
+            let denom = (qtab[v * 8 + u] as i64) << 32;
+            let half = denom >> 1;
+            let q = if acc >= 0 {
+                (acc + half) / denom
+            } else {
+                -((-acc + half) / denom)
+            };
+            out[v * 8 + u] = q as i16;
+        }
+    }
+    out
+}
+
+/// Magnitude category of a DC/AC value: bit count of `|v|` (spec C.2).
+fn magnitude_category(v: i32) -> u32 {
+    let magnitude = v.unsigned_abs();
+    if magnitude == 0 {
+        0
+    } else {
+        32 - magnitude.leading_zeros()
+    }
+}
+
+/// The `s` amplitude bits that follow a DC-diff/AC-size symbol: `v` for
+/// non-negative values, `v + 2^s - 1` for negative (spec F.1.2.1).
+fn amplitude_bits(v: i32, s: u32) -> u32 {
+    if v >= 0 {
+        v as u32
+    } else {
+        (v + ((1i32 << s) - 1)) as u32
+    }
+}
+
+/// A canonical Huffman table (spec Annex C): per-length code counts,
+/// the HUFFVAL symbol list, and the derived per-symbol code/length.
+struct HuffmanTable {
+    /// `bits[l]` = number of codes of length `l` (index 0 unused).
+    bits: [u8; 17],
+    /// Symbols in code order (the DHT HUFFVAL payload).
+    symbols: Vec<u8>,
+    /// Canonical code per symbol (valid where `lens[sym] > 0`).
+    codes: [u16; 256],
+    /// Code length per symbol (0 = symbol absent from the table).
+    lens: [u8; 256],
+}
+
+/// Huffman tree node for the (deterministic) optimal-code construction.
+struct HuffNode {
+    weight: u64,
+    /// Total-order tiebreak: leaves use the symbol value, internal
+    /// nodes 256+creation index — identical trees on every run.
+    ord: u32,
+    left: Option<usize>,
+    right: Option<usize>,
+    sym: Option<u8>,
+}
+
+/// Build one Huffman table from symbol frequencies (deterministic:
+/// smallest `(weight, ord)` pairs combine first). Code lengths are
+/// capped at 16 bits with the spec's own count-adjustment procedure
+/// (Annex K.3, the "shift a code from length i to i-2" loop).
+fn build_huffman_table(freqs: &[u32; 256]) -> Result<HuffmanTable, String> {
+    let symbols: Vec<u8> = (0..256)
+        .filter(|&s| freqs[s] > 0)
+        .map(|s| s as u8)
+        .collect();
+    if symbols.is_empty() {
+        return Err("cannot build a Huffman table with no symbols".to_string());
+    }
+
+    // Tree depths per symbol (single-symbol tables use a 1-bit code).
+    let mut depths = [0u8; 256];
+    if symbols.len() == 1 {
+        depths[symbols[0] as usize] = 1;
+    } else {
+        let mut nodes: Vec<HuffNode> = symbols
+            .iter()
+            .map(|&sym| HuffNode {
+                weight: freqs[sym as usize] as u64,
+                ord: sym as u32,
+                left: None,
+                right: None,
+                sym: Some(sym),
+            })
+            .collect();
+        let mut active: Vec<usize> = (0..nodes.len()).collect();
+        while active.len() > 1 {
+            active.sort_by_key(|&i| (nodes[i].weight, nodes[i].ord));
+            let a = active.remove(0);
+            let b = active.remove(0);
+            let ord = 256 + nodes.len() as u32;
+            nodes.push(HuffNode {
+                weight: nodes[a].weight + nodes[b].weight,
+                ord,
+                left: Some(a),
+                right: Some(b),
+                sym: None,
+            });
+            active.push(nodes.len() - 1);
+        }
+        // Iterative depth walk from the root.
+        let mut stack = vec![(active[0], 0u32)];
+        while let Some((index, depth)) = stack.pop() {
+            let node = &nodes[index];
+            match node.sym {
+                Some(sym) => {
+                    let d = u8::try_from(depth).map_err(|_| {
+                        format!("huffman depth {depth} overflows u8 for symbol {sym}")
+                    })?;
+                    depths[sym as usize] = d;
+                }
+                None => {
+                    if let (Some(l), Some(r)) = (node.left, node.right) {
+                        stack.push((l, depth + 1));
+                        stack.push((r, depth + 1));
+                    }
+                }
+            }
+        }
+    }
+
+    // Length histogram (up to 32 before the cap), then the 16-bit cap
+    // (Annex K.3 adjustment).
+    let mut long_bits = [0u8; 33];
+    for &sym in &symbols {
+        let depth = depths[sym as usize];
+        if depth == 0 || depth > 32 {
+            return Err(format!(
+                "huffman code length {depth} for symbol {sym} outside 1..=32 \
+                 (content too skewed for the 16-bit cap procedure)"
+            ));
+        }
+        long_bits[depth as usize] += 1;
+    }
+    for i in (17..=32).rev() {
+        while long_bits[i] > 0 {
+            // Find the next-shorter occupied length below i-1.
+            let mut j = i - 2;
+            while j >= 1 && long_bits[j] == 0 {
+                j -= 1;
+            }
+            if j == 0 {
+                return Err(format!("huffman length adjustment failed at length {i}"));
+            }
+            long_bits[i] -= 2;
+            long_bits[i - 1] += 1;
+            long_bits[j + 1] += 2;
+            long_bits[j] -= 1;
+        }
+    }
+    let mut bits = [0u8; 17];
+    bits.copy_from_slice(&long_bits[..17]);
+
+    // Canonical assignment (spec C.2): symbols ordered by tree depth
+    // (ties by symbol value) receive the codes of each length in turn.
+    let mut ordered: Vec<u8> = symbols.clone();
+    ordered.sort_by_key(|&sym| (depths[sym as usize], sym));
+    let total: usize = bits[1..].iter().map(|&c| c as usize).sum();
+    if total != ordered.len() {
+        return Err(format!(
+            "huffman bits sum {total} != symbol count {}",
+            ordered.len()
+        ));
+    }
+    let mut table = HuffmanTable {
+        bits,
+        symbols: Vec::with_capacity(ordered.len()),
+        codes: [0u16; 256],
+        lens: [0u8; 256],
+    };
+    let mut code: u32 = 0;
+    let mut next = 0usize;
+    for length in 1..=16usize {
+        for _ in 0..bits[length] {
+            let sym = ordered[next];
+            next += 1;
+            if code >= (1u32 << length) {
+                return Err(format!(
+                    "huffman canonical code overflow at length {length}"
+                ));
+            }
+            table.codes[sym as usize] = code as u16;
+            table.lens[sym as usize] = length as u8;
+            table.symbols.push(sym);
+            code += 1;
+        }
+        code <<= 1;
+    }
+    Ok(table)
+}
+
+/// MSB-first bit writer with 0xFF byte stuffing (spec F.1.2.3).
+struct BitWriter {
+    out: Vec<u8>,
+    acc: u32,
+    nbits: u32,
+}
+
+impl BitWriter {
+    fn new() -> BitWriter {
+        BitWriter {
+            out: Vec::new(),
+            acc: 0,
+            nbits: 0,
+        }
+    }
+
+    fn push(&mut self, code: u16, len: u8) {
+        for i in (0..len).rev() {
+            self.acc = (self.acc << 1) | ((code >> i) & 1) as u32;
+            self.nbits += 1;
+            if self.nbits == 8 {
+                let byte = (self.acc & 0xff) as u8;
+                self.out.push(byte);
+                if byte == 0xff {
+                    self.out.push(0x00);
+                }
+                self.acc >>= 8;
+                self.nbits = 0;
+            }
+        }
+    }
+
+    /// Flush with 1-padding to the byte boundary (spec F.1.2.3).
+    fn finish(mut self) -> Vec<u8> {
+        while self.nbits != 0 {
+            self.push(1, 1);
+        }
+        self.out
+    }
+}
+
+/// RGB → YCbCr planes with 2×2 chroma subsampling (JFIF integer math).
+/// Returns `(y, cb, cr)` with cb/cr at half resolution.
+fn rgb_to_ycc420(img: &RgbImage) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), String> {
+    if img.width % 16 != 0 || img.height % 16 != 0 {
+        return Err(format!(
+            "frame {}x{} is not MCU-aligned (multiples of 16 required)",
+            img.width, img.height
+        ));
+    }
+    let mut y = vec![0u8; img.width * img.height];
+    let mut cb_full = vec![0i32; img.width * img.height];
+    let mut cr_full = vec![0i32; img.width * img.height];
+    for idx in 0..img.width * img.height {
+        let base = idx * 3;
+        let r = img.pixels[base] as i32;
+        let g = img.pixels[base + 1] as i32;
+        let b = img.pixels[base + 2] as i32;
+        y[idx] = ((77 * r + 150 * g + 29 * b) >> 8) as u8;
+        cb_full[idx] = ((-43 * r - 85 * g + 128 * b) >> 8) + 128;
+        cr_full[idx] = ((128 * r - 107 * g - 21 * b) >> 8) + 128;
+    }
+    let cw = img.width / 2;
+    let ch = img.height / 2;
+    let mut cb = vec![0u8; cw * ch];
+    let mut cr = vec![0u8; cw * ch];
+    for cy in 0..ch {
+        for cx in 0..cw {
+            let mut sum_cb = 0i32;
+            let mut sum_cr = 0i32;
+            for dy in 0..2 {
+                for dx in 0..2 {
+                    let idx = (cy * 2 + dy) * img.width + cx * 2 + dx;
+                    sum_cb += cb_full[idx];
+                    sum_cr += cr_full[idx];
+                }
+            }
+            cb[cy * cw + cx] = ((sum_cb + 2) >> 2) as u8;
+            cr[cy * cw + cx] = ((sum_cr + 2) >> 2) as u8;
+        }
+    }
+    Ok((y, cb, cr))
+}
+
+/// Count the Huffman symbols one block will emit (pass 1 of 2), walking
+/// the same zigzag path the emitter walks.
+fn count_block_symbols(
+    block: &[i16; 64],
+    prev_dc: &mut i32,
+    dc_freqs: &mut [u32; 256],
+    ac_freqs: &mut [u32; 256],
+) {
+    let diff = block[0] as i32 - *prev_dc;
+    *prev_dc = block[0] as i32;
+    dc_freqs[magnitude_category(diff) as usize] += 1;
+    let mut run: u32 = 0;
+    for &zig in ZIGZAG.iter().skip(1) {
+        let value = block[zig] as i32;
+        if value == 0 {
+            run += 1;
+        } else {
+            while run > 15 {
+                ac_freqs[0xf0] += 1;
+                run -= 16;
+            }
+            let size = magnitude_category(value);
+            ac_freqs[((run << 4) | size) as usize] += 1;
+            run = 0;
+        }
+    }
+    if run > 0 {
+        ac_freqs[0x00] += 1;
+    }
+}
+
+/// Emit one block's bits (pass 2 of 2).
+fn emit_block(
+    writer: &mut BitWriter,
+    block: &[i16; 64],
+    prev_dc: &mut i32,
+    dc_table: &HuffmanTable,
+    ac_table: &HuffmanTable,
+) {
+    let diff = block[0] as i32 - *prev_dc;
+    *prev_dc = block[0] as i32;
+    let size = magnitude_category(diff);
+    writer.push(dc_table.codes[size as usize], dc_table.lens[size as usize]);
+    if size > 0 {
+        writer.push(amplitude_bits(diff, size) as u16, size as u8);
+    }
+    let mut run: u32 = 0;
+    for &zig in ZIGZAG.iter().skip(1) {
+        let value = block[zig] as i32;
+        if value == 0 {
+            run += 1;
+        } else {
+            while run > 15 {
+                writer.push(ac_table.codes[0xf0], ac_table.lens[0xf0]);
+                run -= 16;
+            }
+            let sz = magnitude_category(value);
+            let symbol = ((run << 4) | sz) as usize;
+            writer.push(ac_table.codes[symbol], ac_table.lens[symbol]);
+            writer.push(amplitude_bits(value, sz) as u16, sz as u8);
+            run = 0;
+        }
+    }
+    if run > 0 {
+        writer.push(ac_table.codes[0x00], ac_table.lens[0x00]);
+    }
+}
+
+/// Append one marker segment (`FF marker len payload`).
+fn jpeg_segment(out: &mut Vec<u8>, marker: u8, payload: &[u8]) {
+    out.extend_from_slice(&[0xff, marker]);
+    let len = u16::try_from(payload.len() + 2)
+        .unwrap_or(u16::MAX)
+        .to_be_bytes();
+    out.extend_from_slice(&len);
+    out.extend_from_slice(payload);
+}
+
+/// One quantized MCU: 4 luma blocks + Cb + Cr (blocks in scan order).
+struct Mcu {
+    y: [[i16; 64]; 4],
+    cb: [i16; 64],
+    cr: [i16; 64],
+}
+
+/// Encode one RGB frame as a complete baseline JFIF JPEG (SOI…EOI).
+///
+/// Structure: APP0(JFIF) · DQT(2 tables) · SOF0 · DHT(4 tables) ·
+/// SOS(one interleaved 4:2:0 scan) · entropy · EOI.
+fn encode_baseline_jpeg(img: &RgbImage) -> Result<Vec<u8>, String> {
+    let (y_plane, cb_plane, cr_plane) = rgb_to_ycc420(img)?;
+    let mcu_w = img.width / 16;
+    let mcu_h = img.height / 16;
+    let cw = img.width / 2;
+
+    let extract = |plane: &[u8], px: usize, py: usize, stride: usize| -> [u8; 64] {
+        let mut block = [0u8; 64];
+        for row in 0..8 {
+            for col in 0..8 {
+                block[row * 8 + col] = plane[(py + row) * stride + px + col];
+            }
+        }
+        block
+    };
+
+    // Pass 1: quantize every MCU, count Huffman symbols.
+    let mut mcus: Vec<Mcu> = Vec::with_capacity(mcu_w * mcu_h);
+    let mut dc_freqs_y = [0u32; 256];
+    let mut ac_freqs_y = [0u32; 256];
+    let mut dc_freqs_c = [0u32; 256];
+    let mut ac_freqs_c = [0u32; 256];
+    let mut prev_dc_y = 0i32;
+    let mut prev_dc_cb = 0i32;
+    let mut prev_dc_cr = 0i32;
+    for mcu_y in 0..mcu_h {
+        for mcu_x in 0..mcu_w {
+            let mut mcu = Mcu {
+                y: [[0; 64]; 4],
+                cb: [0; 64],
+                cr: [0; 64],
+            };
+            for by in 0..2 {
+                for bx in 0..2 {
+                    let raw = extract(
+                        &y_plane,
+                        mcu_x * 16 + bx * 8,
+                        mcu_y * 16 + by * 8,
+                        img.width,
+                    );
+                    let block = fdct_quantize(&raw, &Q_LUMA);
+                    count_block_symbols(&block, &mut prev_dc_y, &mut dc_freqs_y, &mut ac_freqs_y);
+                    mcu.y[by * 2 + bx] = block;
+                }
+            }
+            let raw = extract(&cb_plane, mcu_x * 8, mcu_y * 8, cw);
+            let block = fdct_quantize(&raw, &Q_CHROMA);
+            count_block_symbols(&block, &mut prev_dc_cb, &mut dc_freqs_c, &mut ac_freqs_c);
+            mcu.cb = block;
+            let raw = extract(&cr_plane, mcu_x * 8, mcu_y * 8, cw);
+            let block = fdct_quantize(&raw, &Q_CHROMA);
+            count_block_symbols(&block, &mut prev_dc_cr, &mut dc_freqs_c, &mut ac_freqs_c);
+            mcu.cr = block;
+            mcus.push(mcu);
+        }
+    }
+
+    let dc_y = build_huffman_table(&dc_freqs_y)?;
+    let ac_y = build_huffman_table(&ac_freqs_y)?;
+    let dc_c = build_huffman_table(&dc_freqs_c)?;
+    let ac_c = build_huffman_table(&ac_freqs_c)?;
+
+    // Marker stream.
+    let mut out = Vec::with_capacity(4096);
+    out.extend_from_slice(&[0xff, 0xd8]); // SOI
+
+    // APP0: JFIF v1.1, no thumbnail.
+    let mut app0 = Vec::with_capacity(14);
+    app0.extend_from_slice(b"JFIF\0");
+    app0.extend_from_slice(&[1, 1, 0, 0, 0, 0, 0, 0, 0]);
+    jpeg_segment(&mut out, 0xe0, &app0);
+
+    // DQT: both tables, zigzag order (spec B.2.4.1).
+    let mut dqt = Vec::with_capacity(130);
+    for (tq, table) in [(0u8, &Q_LUMA), (1u8, &Q_CHROMA)] {
+        dqt.push(tq); // Pq = 0 (8-bit), Tq
+        for &zig in ZIGZAG.iter() {
+            dqt.push(table[zig] as u8);
+        }
+    }
+    jpeg_segment(&mut out, 0xdb, &dqt);
+
+    // SOF0: baseline, 8-bit, 3 components, 4:2:0.
+    let mut sof0 = Vec::with_capacity(17);
+    sof0.push(8);
+    sof0.extend_from_slice(&(img.height as u16).to_be_bytes());
+    sof0.extend_from_slice(&(img.width as u16).to_be_bytes());
+    sof0.push(3);
+    sof0.extend_from_slice(&[1, 0x22, 0]); // Y: id 1, h2v2, Tq 0
+    sof0.extend_from_slice(&[2, 0x11, 1]); // Cb: id 2, h1v1, Tq 1
+    sof0.extend_from_slice(&[3, 0x11, 1]); // Cr: id 3, h1v1, Tq 1
+    jpeg_segment(&mut out, 0xc0, &sof0);
+
+    // DHT: DC0(luma) AC0(luma) DC1(chroma) AC1(chroma).
+    for (class, id, table) in [
+        (0u8, 0u8, &dc_y),
+        (1u8, 0u8, &ac_y),
+        (0u8, 1u8, &dc_c),
+        (1u8, 1u8, &ac_c),
+    ] {
+        let mut dht = Vec::with_capacity(1 + 16 + table.symbols.len());
+        dht.push((class << 4) | id);
+        for length in 1..=16 {
+            dht.push(table.bits[length]);
+        }
+        dht.extend_from_slice(&table.symbols);
+        jpeg_segment(&mut out, 0xc4, &dht);
+    }
+
+    // SOS: one interleaved scan over all three components.
+    let mut sos = Vec::with_capacity(12);
+    sos.push(3);
+    sos.extend_from_slice(&[1, 0x00]); // Y: Td 0, Ta 0
+    sos.extend_from_slice(&[2, 0x11]); // Cb: Td 1, Ta 1
+    sos.extend_from_slice(&[3, 0x11]); // Cr: Td 1, Ta 1
+    sos.extend_from_slice(&[0, 63, 0]); // Ss, Se, Ah/Al
+    jpeg_segment(&mut out, 0xda, &sos);
+
+    // Entropy-coded scan (pass 2).
+    let mut writer = BitWriter::new();
+    let mut prev_dc_y = 0i32;
+    let mut prev_dc_cb = 0i32;
+    let mut prev_dc_cr = 0i32;
+    for mcu in &mcus {
+        for block in &mcu.y {
+            emit_block(&mut writer, block, &mut prev_dc_y, &dc_y, &ac_y);
+        }
+        emit_block(&mut writer, &mcu.cb, &mut prev_dc_cb, &dc_c, &ac_c);
+        emit_block(&mut writer, &mcu.cr, &mut prev_dc_cr, &dc_c, &ac_c);
+    }
+    out.extend_from_slice(&writer.finish());
+    out.extend_from_slice(&[0xff, 0xd9]); // EOI
+    Ok(out)
+}
+
+// ---------------------------------------------------------------------------
 // Placeholder for the generation pipeline (filled in by the next
 // milestones of card 2.A3 — kept honest: nothing is written until the
 // real writers land).
@@ -724,5 +1476,320 @@ mod tests {
         // scale (the LUT tops out at 32767; phase quantization costs a
         // little) — a broken oscillator (stuck/decaying) fails this.
         assert!(peak > 32_000, "peak too small: {peak} (last {previous})");
+    }
+
+    // -- PCM ----------------------------------------------------------------
+
+    #[test]
+    fn pcm_payload_has_exact_shape_and_starts_silent() {
+        let pcm = generate_pcm();
+        assert_eq!(pcm.len(), TOTAL_SAMPLES * 4);
+        // Sample 0 of both channels is sin(0) = 0.
+        assert_eq!(&pcm[..4], &[0, 0, 0, 0]);
+        // Channel interleaving: left amplitude exceeds right amplitude
+        // somewhere in the first quarter second (440 vs 660 Hz, 12000
+        // vs 9000 amplitude — a swapped-channel bug fails this).
+        let mut max_l = 0i32;
+        let mut max_r = 0i32;
+        for pair in pcm.chunks_exact(4).take(11_025) {
+            let l = i16::from_le_bytes([pair[0], pair[1]]) as i32;
+            let r = i16::from_le_bytes([pair[2], pair[3]]) as i32;
+            max_l = max_l.max(l.abs());
+            max_r = max_r.max(r.abs());
+        }
+        assert!(max_l > 10_000, "left peak too small: {max_l}");
+        assert!(max_r > 7_000, "right peak too small: {max_r}");
+        assert!(max_l > max_r, "channel plan violated: {max_l} vs {max_r}");
+    }
+
+    // -- Frame content ---------------------------------------------------------
+
+    #[test]
+    fn drawn_frame_matches_the_planned_geometry() {
+        let img = match draw_frame(23) {
+            Ok(img) => img,
+            Err(message) => unreachable!("draw_frame(23) failed: {message}"),
+        };
+        assert_eq!(img.width, FRAME_WIDTH);
+        assert_eq!(img.height, FRAME_HEIGHT);
+        assert_eq!(img.pixels.len(), FRAME_WIDTH * FRAME_HEIGHT * 3);
+        // Color bars: one probe pixel per 40px bar.
+        for (i, expected) in COLOR_BARS.iter().enumerate() {
+            assert_eq!(&img.pixel(i * 40 + 20, 10), expected, "bar {i}");
+        }
+        // Gray ramp: 10 steps of 32px across the bottom.
+        for i in 0..10 {
+            let level = (25 * (i + 1)) as u8;
+            assert_eq!(img.pixel(i * 32 + 16, 228), [level, level, level]);
+        }
+        // Counter "23": digit geometry (64+16+64 = 144 wide at x0 = 88,
+        // y 56..168). Segment G of the tens digit (2) is on; segment B
+        // of the units digit (3) is on.
+        assert_eq!(img.pixel(88 + 32, 56 + 56), COLOR_DIGIT, "tens G");
+        assert_eq!(img.pixel(88 + 80 + 48 + 8, 56 + 32), COLOR_DIGIT, "units B");
+        // Off-segment of the tens digit stays background (digit 2 has
+        // no F segment).
+        assert_eq!(img.pixel(88 + 8, 56 + 32), COLOR_BG, "tens F off");
+        // Background between the digits.
+        assert_eq!(img.pixel(88 + DIGIT_W + 8, 56 + 8), COLOR_BG);
+    }
+
+    #[test]
+    fn frames_differ_and_reject_out_of_range() {
+        let a = match draw_frame(0) {
+            Ok(img) => img,
+            Err(message) => unreachable!("draw_frame(0) failed: {message}"),
+        };
+        let b = match draw_frame(1) {
+            Ok(img) => img,
+            Err(message) => unreachable!("draw_frame(1) failed: {message}"),
+        };
+        assert_ne!(a.pixels, b.pixels);
+        assert!(draw_frame(FRAME_COUNT).is_err());
+    }
+
+    // -- DCT / quantization ------------------------------------------------
+
+    #[test]
+    fn fdct_of_constant_block_is_dc_only() {
+        // A constant c block has F(0,0) = 8·(c−128) exactly; with the
+        // Annex-K Q tables the quantized DC is round(8(c−128)/Q00).
+        for &(value, expected) in &[(128u8, 0i16), (100, -14), (156, 14), (0, -64), (255, 63)] {
+            let block = [value; 64];
+            let out = fdct_quantize(&block, &Q_LUMA);
+            assert_eq!(out[0], expected, "DC of constant {value}");
+            for (i, &coefficient) in out.iter().enumerate().skip(1) {
+                assert_eq!(coefficient, 0, "AC {i} of constant block must vanish");
+            }
+        }
+    }
+
+    #[test]
+    fn fdct_matches_float_reference_on_a_gradient_block() {
+        // Reference computed independently (Python, float64 DCT + the
+        // same round-half-away-from-zero quantization): block values
+        // (3·x + 5·y) mod 256.
+        let mut block = [0u8; 64];
+        for y in 0..8 {
+            for x in 0..8 {
+                block[y * 8 + x] = ((3 * x + 5 * y) % 256) as u8;
+            }
+        }
+        let expected: [i16; 64] = [
+            -50, -5, 0, 0, 0, 0, 0, 0, //
+            -8, 0, 0, 0, 0, 0, 0, 0, //
+            0, 0, 0, 0, 0, 0, 0, 0, //
+            -1, 0, 0, 0, 0, 0, 0, 0, //
+            0, 0, 0, 0, 0, 0, 0, 0, //
+            0, 0, 0, 0, 0, 0, 0, 0, //
+            0, 0, 0, 0, 0, 0, 0, 0, //
+            0, 0, 0, 0, 0, 0, 0, 0,
+        ];
+        let out = fdct_quantize(&block, &Q_LUMA);
+        // The float reference and the Q16 fixed-point path can differ
+        // by one on knife-edge roundings; anything more is a bug.
+        for (i, (&got, &want)) in out.iter().zip(expected.iter()).enumerate() {
+            let delta = (got - want).abs();
+            assert!(delta <= 1, "coefficient {i}: got {got}, want {want}");
+        }
+    }
+
+    // -- Huffman ----------------------------------------------------------------
+
+    #[test]
+    fn huffman_table_is_prefix_free_and_complete() {
+        // Fibonacci-ish frequencies force a deep tree (depth > 16
+        // exercises the Annex-K.3 length adjustment).
+        let mut freqs = [0u32; 256];
+        let mut weight = 1u32;
+        let mut next = 1u32;
+        for slot in freqs.iter_mut().take(24) {
+            *slot = weight;
+            let sum = weight.wrapping_add(next);
+            weight = next;
+            next = sum;
+        }
+        let table = match build_huffman_table(&freqs) {
+            Ok(table) => table,
+            Err(message) => unreachable!("fibonacci table failed: {message}"),
+        };
+        // All lengths within the JPEG cap.
+        for &sym in &table.symbols {
+            assert!(table.lens[sym as usize] <= 16);
+        }
+        // Kraft sum must be exactly 1 (complete canonical code).
+        let mut kraft = 0u64;
+        for &sym in &table.symbols {
+            kraft += 1u64 << (16 - table.lens[sym as usize]);
+        }
+        assert_eq!(kraft, 1 << 16);
+        // No code is a prefix of another (prefix-free).
+        let mut codes: Vec<(u16, u8)> = table
+            .symbols
+            .iter()
+            .map(|&sym| (table.codes[sym as usize], table.lens[sym as usize]))
+            .collect();
+        codes.sort();
+        for pair in codes.windows(2) {
+            let (a, la) = pair[0];
+            let (b, lb) = pair[1];
+            let shift = 16 - la.min(lb);
+            assert_ne!(
+                ((a as u32) << 16) >> shift,
+                ((b as u32) << 16) >> shift,
+                "code {a:b}/{la} prefixes {b:b}/{lb}"
+            );
+        }
+    }
+
+    #[test]
+    fn huffman_single_symbol_uses_a_one_bit_code() {
+        let mut freqs = [0u32; 256];
+        freqs[0x2a] = 7;
+        let table = match build_huffman_table(&freqs) {
+            Ok(table) => table,
+            Err(message) => unreachable!("single-symbol table failed: {message}"),
+        };
+        assert_eq!(table.symbols, vec![0x2a]);
+        assert_eq!(table.lens[0x2a], 1);
+        assert_eq!(table.codes[0x2a], 0);
+        assert!(build_huffman_table(&[0u32; 256]).is_err());
+    }
+
+    #[test]
+    fn huffman_round_trips_through_a_mini_decoder() {
+        // Frequencies resembling a real AC table: EOB dominant, a few
+        // run/size symbols, one ZRL.
+        let mut freqs = [0u32; 256];
+        freqs[0x00] = 900;
+        freqs[0x01] = 200;
+        freqs[0x11] = 60;
+        freqs[0x21] = 30;
+        freqs[0x02] = 15;
+        freqs[0xf0] = 3;
+        let table = match build_huffman_table(&freqs) {
+            Ok(table) => table,
+            Err(message) => unreachable!("table failed: {message}"),
+        };
+        let stream = [0x00u8, 0x01, 0x11, 0x21, 0x02, 0xf0, 0x00, 0x11];
+        let mut writer = BitWriter::new();
+        for &sym in &stream {
+            writer.push(table.codes[sym as usize], table.lens[sym as usize]);
+        }
+        let bytes = writer.finish();
+        // Decode MSB-first: on each step the top `len` bits of the
+        // accumulator must equal exactly one symbol's code (the table
+        // is prefix-free and complete).
+        let mut decoded = Vec::new();
+        let mut acc = 0u32;
+        let mut have = 0u32;
+        'outer: for &byte in &bytes {
+            acc = (acc << 8) | byte as u32;
+            have += 8;
+            while have > 0 && decoded.len() < stream.len() {
+                let mut matched = false;
+                for &sym in &table.symbols {
+                    let len = table.lens[sym as usize] as u32;
+                    if len <= have && (acc >> (have - len)) as u16 == table.codes[sym as usize] {
+                        decoded.push(sym);
+                        have -= len;
+                        acc &= (1u32 << have) - 1;
+                        matched = true;
+                        break;
+                    }
+                }
+                if !matched {
+                    break; // need more bytes
+                }
+            }
+            if decoded.len() == stream.len() {
+                break 'outer;
+            }
+        }
+        assert_eq!(decoded, stream);
+    }
+
+    // -- JPEG structure ----------------------------------------------------------
+
+    /// Walk the marker segments of a JPEG up to and including SOS, then
+    /// return the entropy-coded data span (after SOS, before the final
+    /// EOI). The scan length itself is only knowable by decoding, so
+    /// the span ends at `len - 2` (the writer always ends with EOI).
+    fn jpeg_scan_span(jpeg: &[u8]) -> (usize, usize) {
+        assert_eq!(&jpeg[0..2], &[0xff, 0xd8], "missing SOI");
+        assert_eq!(&jpeg[jpeg.len() - 2..], &[0xff, 0xd9], "missing EOI at end");
+        let mut pos = 2usize;
+        let mut scan_start = None;
+        while pos + 2 <= jpeg.len() {
+            assert_eq!(jpeg[pos], 0xff, "expected a marker at {pos}");
+            let marker = jpeg[pos + 1];
+            assert!(
+                pos + 4 <= jpeg.len(),
+                "marker {marker:#x} truncated at {pos}"
+            );
+            let len = u16::from_be_bytes([jpeg[pos + 2], jpeg[pos + 3]]) as usize;
+            assert!(len >= 2, "segment length {len} at {pos}");
+            assert!(
+                pos + 2 + len <= jpeg.len(),
+                "segment at {pos} overruns the file"
+            );
+            if marker == 0xda {
+                scan_start = Some(pos + 2 + len);
+                break; // entropy-coded data follows; the walk ends here
+            }
+            pos += 2 + len;
+        }
+        match scan_start {
+            Some(start) => (start, jpeg.len() - 2),
+            None => unreachable!("SOS never found"),
+        }
+    }
+
+    #[test]
+    fn encoded_jpeg_has_well_formed_structure() {
+        let img = match draw_frame(42) {
+            Ok(img) => img,
+            Err(message) => unreachable!("draw_frame(42) failed: {message}"),
+        };
+        let jpeg = match encode_baseline_jpeg(&img) {
+            Ok(jpeg) => jpeg,
+            Err(message) => unreachable!("encode failed: {message}"),
+        };
+        assert!(jpeg.len() > 500, "suspiciously small: {}", jpeg.len());
+        // All markers walk cleanly and the scan is byte-stuffed.
+        let (start, end) = jpeg_scan_span(&jpeg);
+        let scan = &jpeg[start..end];
+        let mut i = 0usize;
+        while i < scan.len() {
+            if scan[i] == 0xff {
+                assert!(i + 1 < scan.len(), "bare 0xFF at scan end");
+                assert_eq!(scan[i + 1], 0x00, "unstuffed 0xFF in scan at {i}");
+            }
+            i += 1;
+        }
+        // Determinism: same frame encodes to identical bytes.
+        let again = match encode_baseline_jpeg(&img) {
+            Ok(jpeg) => jpeg,
+            Err(message) => unreachable!("re-encode failed: {message}"),
+        };
+        assert_eq!(jpeg, again);
+        // Different frames encode differently.
+        let other = match draw_frame(43).and_then(|img| encode_baseline_jpeg(&img)) {
+            Ok(jpeg) => jpeg,
+            Err(message) => unreachable!("frame 43 failed: {message}"),
+        };
+        assert_ne!(jpeg, other);
+    }
+
+    #[test]
+    fn every_fixture_frame_encodes() {
+        for index in 0..FRAME_COUNT {
+            let jpeg = match draw_frame(index).and_then(|img| encode_baseline_jpeg(&img)) {
+                Ok(jpeg) => jpeg,
+                Err(message) => unreachable!("frame {index} failed: {message}"),
+            };
+            let (_start, end) = jpeg_scan_span(&jpeg);
+            assert!(end >= 2, "frame {index} has an empty scan");
+        }
     }
 }
