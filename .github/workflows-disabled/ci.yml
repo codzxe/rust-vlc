@@ -266,30 +266,11 @@ jobs:
           echo "STUB: 1.E2 replaces this step with 'cargo xtask config-validator' etc."
           exit 0
 
-  # --------------------------------------------------------------------------
-  # STUB — activates in 1.E3. NON-BLOCKING until then: the job runs but its
-  # placeholder step always exits 0 (always green, gates nothing; actionlint
-  # rejects `if: false` constant conditions). 1.E3 owns
-  # .github/workflows/wasm.yml (doc 13 §4): it may either activate this job
-  # in place (replace the placeholder with `rustup target add
-  # wasm32-unknown-unknown` + `cargo build -p <canary> --target
-  # wasm32-unknown-unknown` + size-report artifact, G12 doc 10 §4.6, drop the
-  # [STUB] suffix) or land the dedicated wasm.yml and delete this stub —
-  # Lead decides at wiring time.
-  # Do NOT add this check to required checks until activated.
-  # --------------------------------------------------------------------------
-  wasm-build:
-    name: wasm-build [STUB until 1.E3 — always green, gates nothing]
-    continue-on-error: false
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: "STUB: wasm-build placeholder (activates in 1.E3)"
-        run: |
-          echo "STUB: wasm-build is not enforced yet (doc 10 §4.6 G12; doc 09 §2)."
-          echo "STUB: 1.E3 replaces this step (or lands wasm.yml and deletes this stub)."
-          exit 0
+  # -{78}
+  # wasm-build — WASM toolchain canary (G12, doc 10 §4.6; doc 09 §2).
+  # SUPERSEDED BY .github/workflows/wasm.yml (cards 1.E3/1.E3-R): this
+  # stub was deleted at Lead wave review per the hand-off contract.
+  # -{78}
 
   # --------------------------------------------------------------------------
   # G3/G4 dependency & advisory gate (doc 10 §4.6; doc 11 §3.2, §3.5).

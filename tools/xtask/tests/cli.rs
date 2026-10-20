@@ -80,12 +80,10 @@ fn unknown_subcommand_is_a_usage_error_listing_known_ones() {
 #[test]
 fn pre_registered_stubs_fail_honestly_with_their_card() {
     // `tokens` graduated when card 1.B4 landed; `schema-gen` when 1.B2
-    // landed (both Lead-completed salvages): they run the real pipelines.
-    for (sub, card) in [
-        ("codegen", "1.D4"),
-        ("check-architecture", "1.E1"),
-        ("rebrand", "1.E4"),
-    ] {
+    // landed (both Lead-completed salvages); `rebrand` when 1.E4 landed
+    // (Lead-implemented after two agent context-deadlines): they run the
+    // real pipelines.
+    for (sub, card) in [("codegen", "1.D4"), ("check-architecture", "1.E1")] {
         let out = run_xtask(&[sub]);
         assert_eq!(out.code, Some(2), "`{sub}` stderr: {}", out.stderr);
         assert!(
@@ -96,6 +94,13 @@ fn pre_registered_stubs_fail_honestly_with_their_card() {
         );
     }
 }
+
+// Card 1.E4: the rebrand acceptance skeleton lives at the repo root
+// (tests/rebrand/, next to its fixture) per doc 07 §8.3; the root
+// manifest is virtual, so it is compiled into THIS test binary via a
+// #[path] include (the skeleton's header documents the wiring).
+#[path = "../../../tests/rebrand/rebrand_skeleton.rs"]
+mod rebrand_skeleton;
 
 #[test]
 fn gate_bad_flag_is_a_usage_error() {
