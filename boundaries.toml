@@ -174,8 +174,9 @@ external_dev_allowlist = []
 # (doc 01 §2.5(b)); that edge joins when the plugin registry card lands —
 # this card's decoder needs codec-api + media-types only (the manifest is
 # an allowlist, video-engine precedent). Std-only by C5: the 2.B4
-# dependency decision is an in-house decoder (zero externals; jpeg-decoder
-# 0.3.2 and zune-jpeg 0.5.0 were P0-verified as fallbacks — worklog 2.B4).
+# dependency decision is an in-house decoder (zero externals; the
+# jpeg-decoder/zune-jpeg options were not audited — a future adoption
+# owes the full Lead-ratified dependency review; worklog 2.B4).
 [crates.codecs]
 layer = 3
 internal_deps = ["codec-api", "media-types"]

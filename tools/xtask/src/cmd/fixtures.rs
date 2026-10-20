@@ -104,8 +104,7 @@ const SEED_ROOT: &str = "lumen-2a3-v1";
 /// codecs test fails first, and this constant follows (worklog 2.B4
 /// records the regeneration path). Both class-A parents carry the
 /// same first frame byte-for-byte, so one value serves both.
-const FIRST_FRAME_HASH_Y: &str =
-    "415568c8f5596f7a155c1fc8b99d74245eba7c2ebce4f2084987881018ffabef";
+const FIRST_FRAME_HASH_Y: &str = "415568c8f5596f7a155c1fc8b99d74245eba7c2ebce4f2084987881018ffabef";
 
 /// `[first_frame]` presentation stamp: frame 0 of a 30 fps stream
 /// presents at t = 0 (doc 10 §5.4 records the stamp the first
@@ -2622,7 +2621,10 @@ fn parent_expectation(
     s.push_str("# over the luma 8x8-block mean descriptor (doc 10 sec. 5.4, doc 03\n");
     s.push_str("# sec. 8 FrameRecorder shape), verified by the codecs crate's AC suite.\n");
     s.push_str(&format!("hash_y = {}\n", toml_string(FIRST_FRAME_HASH_Y)));
-    s.push_str(&format!("stamp_us = {}\n\n", toml_uint(FIRST_FRAME_STAMP_US)));
+    s.push_str(&format!(
+        "stamp_us = {}\n\n",
+        toml_uint(FIRST_FRAME_STAMP_US)
+    ));
     s.push_str("[essence_v0]\n");
     s.push_str("# Supplemental generator-truth digests (beyond doc 10 §5.4's base).\n");
     s.push_str(&format!("video_sample_count = {}\n", frames.len()));

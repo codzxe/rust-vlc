@@ -267,7 +267,11 @@ fn assert_reference_match(jpegs: &[Vec<u8>], container: &str) {
         let Frame::Video(video) = frame else {
             unreachable!("{container} frame {index}: not video");
         };
-        assert_eq!(video.format, media_types::PixelFormat::I420, "{container} frame {index}");
+        assert_eq!(
+            video.format,
+            media_types::PixelFormat::I420,
+            "{container} frame {index}"
+        );
         assert_eq!(video.size, (320, 240), "{container} frame {index}");
         assert_eq!(
             video.pts,
@@ -278,8 +282,16 @@ fn assert_reference_match(jpegs: &[Vec<u8>], container: &str) {
         assert_eq!(video.color.range, media_types::frame::ColorRange::Full);
         assert!(!video.interlaced);
         let bytes = frame_bytes(frame, &format!("{container} frame {index}"));
-        assert_eq!(bytes.len(), LUMA_LEN + 2 * CHROMA_LEN, "{container} frame {index}");
-        assert_eq!(sha256_hex(bytes), reference[index], "{container} frame {index}");
+        assert_eq!(
+            bytes.len(),
+            LUMA_LEN + 2 * CHROMA_LEN,
+            "{container} frame {index}"
+        );
+        assert_eq!(
+            sha256_hex(bytes),
+            reference[index],
+            "{container} frame {index}"
+        );
     }
 }
 
@@ -318,14 +330,20 @@ fn first_frame_descriptor_matches_the_expectation() {
         Ok(d) => d,
         Err(e) => unreachable!("{e}"),
     };
-    assert_eq!(digest, hash_y, "first_frame hash_y (doc 10 §5.4 descriptor)");
+    assert_eq!(
+        digest, hash_y,
+        "first_frame hash_y (doc 10 §5.4 descriptor)"
+    );
     // The same descriptor for the MP4 parent (identical essence, and
     // its own expectation file must agree).
     let mp4_expect = match parse_parent_expectation(MP4_EXPECTATION) {
         Ok(e) => e,
         Err(e) => unreachable!("{e}"),
     };
-    assert_eq!(mp4_expect.first_frame_hash_y.as_deref(), Some(hash_y.as_str()));
+    assert_eq!(
+        mp4_expect.first_frame_hash_y.as_deref(),
+        Some(hash_y.as_str())
+    );
 }
 
 #[test]
@@ -357,7 +375,10 @@ fn entropy_truncation_conceals_and_reports_recovery() {
     };
     assert_eq!(
         outcome,
-        DecodeOutcome::Recovered { skipped: 0, reason: codec_api::RecoverReason::ConcealedFrame },
+        DecodeOutcome::Recovered {
+            skipped: 0,
+            reason: codec_api::RecoverReason::ConcealedFrame
+        },
         "entropy truncation reports concealed recovery"
     );
     assert_eq!(sink.frames.len(), 1, "the damaged frame is still emitted");
@@ -412,5 +433,8 @@ fn header_damage_is_a_typed_error_with_nothing_emitted() {
         matches!(err.kind, ErrorKind::Corrupt { .. }),
         "header damage is a typed Corrupt error: {err}"
     );
-    assert!(sink.frames.is_empty(), "nothing is emitted for header damage");
+    assert!(
+        sink.frames.is_empty(),
+        "nothing is emitted for header damage"
+    );
 }

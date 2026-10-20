@@ -54,6 +54,10 @@ pub(crate) mod bitreader;
 pub(crate) mod color;
 pub(crate) mod decoder;
 pub(crate) mod error;
+/// Fuzz harness (doc 04 §8.5 `fuzz_codec_mjpeg`): `pub` because the
+/// registered target file and the in-tree survival tests call it from
+/// outside the crate (the `demux::avi::fuzz` precedent, worklog 2.B2).
+pub mod fuzz;
 pub(crate) mod huffman;
 pub(crate) mod idct;
 pub(crate) mod parser;

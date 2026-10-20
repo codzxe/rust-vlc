@@ -1,8 +1,12 @@
+#![allow(dead_code)]
 //! Shared test support for the 2.B4 acceptance suites (std-only; the
 //! codecs crate deliberately carries no dev-dependencies — the corpus
 //! is read straight from the committed `tests/fixtures` tree via
 //! `CARGO_MANIFEST_DIR`, and every helper here is small enough to
 //! audit in one screen).
+//!
+//! (Each test binary compiles this module; not every helper is used
+//! by every binary, hence the module-level allow above.)
 //!
 //! Contents:
 //! - fixture access (`fixture_path` / `fixture_bytes`);
@@ -221,9 +225,11 @@ pub fn parse_parent_expectation(relative: &str) -> Result<ParentExpectation, Str
             .get("first_frame.hash_y")
             .map(|v| v.trim_matches('"').to_string()),
         first_frame_stamp_us: match fields.get("first_frame.stamp_us") {
-            Some(v) => {
-                Some(v.replace('_', "").parse::<u64>().map_err(|e| format!("stamp_us: {e}"))?)
-            }
+            Some(v) => Some(
+                v.replace('_', "")
+                    .parse::<u64>()
+                    .map_err(|e| format!("stamp_us: {e}"))?,
+            ),
             None => None,
         },
         video_sample_sha256,
@@ -503,8 +509,9 @@ pub fn extract_mp4_mjpeg_frames(data: &[u8]) -> Result<Vec<Vec<u8>>, String> {
 pub fn reference_digests() -> Result<Vec<String>, String> {
     let path =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/mjpeg_decode_reference.txt");
-    let text = String::from_utf8(std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?)
-        .map_err(|e| format!("{}: not UTF-8: {e}", path.display()))?;
+    let text =
+        String::from_utf8(std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?)
+            .map_err(|e| format!("{}: not UTF-8: {e}", path.display()))?;
     Ok(text
         .lines()
         .filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with('#'))
@@ -522,7 +529,7 @@ pub fn reference_digests() -> Result<Vec<String>, String> {
 /// # Errors
 /// Dimensions not a multiple of 8, or a plane-length mismatch.
 pub fn luma_block_mean_digest(y: &[u8], width: usize, height: usize) -> Result<String, String> {
-    if width == 0 || height == 0 || width % 8 != 0 || height % 8 != 0 {
+    if width == 0 || height == 0 || !width.is_multiple_of(8) || !height.is_multiple_of(8) {
         return Err(format!("luma {width}x{height} is not a multiple of 8"));
     }
     if y.len() != width * height {
