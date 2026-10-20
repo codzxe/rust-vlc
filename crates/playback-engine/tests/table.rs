@@ -19,10 +19,10 @@
 
 use commands::{CommandId, PlaybackState};
 use playback_engine::state::{
-    apply_input, rejection_reason, translate_pipeline_signal, PipelineSignal, RejectionReason,
-    SessionInput, SessionState, Transition, TRANSITIONS,
+    PipelineSignal, RejectionReason, SessionInput, SessionState, TRANSITIONS, Transition,
+    apply_input, rejection_reason, translate_pipeline_signal,
 };
-use playback_engine::{transition_table, SessionCommandKind};
+use playback_engine::{SessionCommandKind, transition_table};
 
 // ---------------------------------------------------------------------------
 // Helpers (pure-model)
@@ -37,10 +37,8 @@ fn table_row(state: SessionState, input: SessionInput) -> Option<&'static Transi
 /// BFS over table rows from `start`; answers a parent map and, for
 /// each state, one witness input that reaches it.
 fn reachable_from(start: SessionState) -> Vec<(SessionState, Option<SessionInput>)> {
-    let mut parents: Vec<(SessionState, Option<SessionInput>)> = SessionState::ALL
-        .iter()
-        .map(|s| (*s, None))
-        .collect();
+    let mut parents: Vec<(SessionState, Option<SessionInput>)> =
+        SessionState::ALL.iter().map(|s| (*s, None)).collect();
     let mut queue = std::collections::VecDeque::new();
     let mut seen = vec![start];
     queue.push_back(start);
@@ -282,7 +280,11 @@ fn the_interesting_rejections_carry_their_documented_reasons() {
         (S::Error, I::Stop, R::AlreadySettled),
     ];
     for (state, input, reason) in cases {
-        assert_eq!(rejection_reason(*state, *input), *reason, "{state} + {input}");
+        assert_eq!(
+            rejection_reason(*state, *input),
+            *reason,
+            "{state} + {input}"
+        );
     }
 }
 
@@ -354,7 +356,11 @@ fn translate_mappings_are_pinned() {
         // In Buffering the short-media start preempts the drain.
         (S::Buffering, PipelineSignal::Drained, None),
         // Short media: start with what exists.
-        (S::Buffering, PipelineSignal::EofReached, Some(I::EofReached)),
+        (
+            S::Buffering,
+            PipelineSignal::EofReached,
+            Some(I::EofReached),
+        ),
         // Priming completes the initial fill.
         (S::Buffering, PipelineSignal::Primed, Some(I::Primed)),
         // Rebuffer on a refillable underrun.
@@ -473,12 +479,32 @@ fn the_full_happy_path_and_exits_walk_cleanly() {
 
 #[test]
 fn session_commands_reconcile_with_the_wire_catalog() {
-    use commands::catalog::spec::{catalog_data, CompletionClass};
+    use commands::catalog::spec::{CompletionClass, catalog_data};
     let cases = [
-        (SessionCommandKind::Play, CommandId::PlaybackPlay, CompletionClass::A, false),
-        (SessionCommandKind::Pause, CommandId::PlaybackPause, CompletionClass::A, false),
-        (SessionCommandKind::Stop, CommandId::PlaybackStop, CompletionClass::A, true),
-        (SessionCommandKind::Close, CommandId::SessionClose, CompletionClass::S, true),
+        (
+            SessionCommandKind::Play,
+            CommandId::PlaybackPlay,
+            CompletionClass::A,
+            false,
+        ),
+        (
+            SessionCommandKind::Pause,
+            CommandId::PlaybackPause,
+            CompletionClass::A,
+            false,
+        ),
+        (
+            SessionCommandKind::Stop,
+            CommandId::PlaybackStop,
+            CompletionClass::A,
+            true,
+        ),
+        (
+            SessionCommandKind::Close,
+            CommandId::SessionClose,
+            CompletionClass::S,
+            true,
+        ),
     ];
     for (kind, id, class, gen_bumping) in cases {
         assert_eq!(kind.as_command_id(), id);
@@ -493,8 +519,8 @@ fn session_commands_reconcile_with_the_wire_catalog() {
 
 #[test]
 fn gen_bumping_commands_carry_the_bump_effect_and_vice_versa() {
-    use playback_engine::state::Effect;
     use SessionInput as I;
+    use playback_engine::state::Effect;
     // The catalog says stop/close bump the generation at accept time;
     // the table must encode the mint exactly there — and nowhere else.
     // The one exception is the `Idle + Close` self-confirmation: no
@@ -521,9 +547,9 @@ fn gen_bumping_commands_carry_the_bump_effect_and_vice_versa() {
 
 #[test]
 fn effect_columns_match_the_doc_03_side_effects() {
-    use playback_engine::state::Effect;
     use SessionInput as I;
     use SessionState as S;
+    use playback_engine::state::Effect;
     let has = |row: &Transition, effect: Effect| row.effects.contains(&effect);
     for row in TRANSITIONS {
         // Every entry into Error reports the fatal first.

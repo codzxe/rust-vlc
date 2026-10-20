@@ -99,6 +99,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "playback-engine"
+version = "0.1.0"
+dependencies = [
+ "codec-api",
+ "commands",
+ "media-clock",
+ "media-types",
+ "packet-queue",
+ "plugin-api",
+ "testkit",
+]
+
+[[package]]
 name = "plugin-api"
 version = "0.1.0"
 dependencies = [

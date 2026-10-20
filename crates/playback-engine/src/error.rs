@@ -59,7 +59,11 @@ impl fmt::Display for SessionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SessionError::SessionExists { session } => {
-                write!(f, "a live session exists (id {}); close it first", session.0)
+                write!(
+                    f,
+                    "a live session exists (id {}); close it first",
+                    session.0
+                )
             }
             SessionError::Config(cause) => write!(f, "session configuration: {cause}"),
             SessionError::GenerationExhausted(source) => write!(f, "{source}"),

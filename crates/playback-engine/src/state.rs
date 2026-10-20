@@ -213,7 +213,11 @@ impl SessionInput {
     pub fn is_command(self) -> bool {
         matches!(
             self,
-            SessionInput::Open | SessionInput::Play | SessionInput::Pause | SessionInput::Stop | SessionInput::Close
+            SessionInput::Open
+                | SessionInput::Play
+                | SessionInput::Pause
+                | SessionInput::Stop
+                | SessionInput::Close
         )
     }
 }
@@ -602,9 +606,10 @@ pub fn rejection_reason(state: SessionState, input: SessionInput) -> RejectionRe
         (S::Idle, I::Play | I::Pause | I::Stop) => R::NoSession,
         // Pipeline signals cannot be raised where there is no
         // pipeline.
-        (S::Idle, I::OpenReady | I::Primed | I::Underrun | I::EofReached | I::Drained | I::Failed) => {
-            R::SignalNotRaisedHere
-        }
+        (
+            S::Idle,
+            I::OpenReady | I::Primed | I::Underrun | I::EofReached | I::Drained | I::Failed,
+        ) => R::SignalNotRaisedHere,
         // Opening: commands the pipeline cannot honor yet, plus the
         // two deliberately-absent v1 edges.
         (S::Opening, I::Play | I::Pause) => R::NotReady,
@@ -626,24 +631,29 @@ pub fn rejection_reason(state: SessionState, input: SessionInput) -> RejectionRe
         // Paused: close requires stop first; underrun cannot be
         // observed with consumption frozen.
         (S::Paused, I::Close) => R::StopFirst,
-        (S::Paused, I::OpenReady | I::Underrun | I::Primed | I::EofReached) => R::SignalNotRaisedHere,
+        (S::Paused, I::OpenReady | I::Underrun | I::Primed | I::EofReached) => {
+            R::SignalNotRaisedHere
+        }
         // Ended: retained for Phase-3 seek-back; otherwise inert.
         (S::Ended, I::Play) => R::RestartNeedsSeek,
         (S::Ended, I::Pause | I::Stop) => R::AlreadySettled,
-        (S::Ended, I::OpenReady | I::Primed | I::Underrun | I::EofReached | I::Drained | I::Failed) => {
-            R::SignalNotRaisedHere
-        }
+        (
+            S::Ended,
+            I::OpenReady | I::Primed | I::Underrun | I::EofReached | I::Drained | I::Failed,
+        ) => R::SignalNotRaisedHere,
         // Stopped: the session survives, inert until close.
         (S::Stopped, I::Play | I::Pause | I::Stop) => R::AlreadySettled,
-        (S::Stopped, I::OpenReady | I::Primed | I::Underrun | I::EofReached | I::Drained | I::Failed) => {
-            R::SignalNotRaisedHere
-        }
+        (
+            S::Stopped,
+            I::OpenReady | I::Primed | I::Underrun | I::EofReached | I::Drained | I::Failed,
+        ) => R::SignalNotRaisedHere,
         // Error: inert by invariant S2 (teardown as stopped already
         // happened; the typed error is on the event stream).
         (S::Error, I::Play | I::Pause | I::Stop) => R::AlreadySettled,
-        (S::Error, I::OpenReady | I::Primed | I::Underrun | I::EofReached | I::Drained | I::Failed) => {
-            R::SignalNotRaisedHere
-        }
+        (
+            S::Error,
+            I::OpenReady | I::Primed | I::Underrun | I::EofReached | I::Drained | I::Failed,
+        ) => R::SignalNotRaisedHere,
         // Everything else is a table row (never consulted here, but
         // the match must be total without a wildcard to force a
         // compile error when rows or inputs are added).

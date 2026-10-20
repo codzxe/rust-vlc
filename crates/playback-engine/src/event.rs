@@ -145,7 +145,9 @@ impl Clone for EngineEventKind {
                     },
                 ),
             },
-            EngineEventKind::DamagedData { count } => EngineEventKind::DamagedData { count: *count },
+            EngineEventKind::DamagedData { count } => {
+                EngineEventKind::DamagedData { count: *count }
+            }
             EngineEventKind::FirstFrame { position } => EngineEventKind::FirstFrame {
                 position: *position,
             },
@@ -161,19 +163,27 @@ impl PartialEq for EngineEventKind {
                 EngineEventKind::StateChanged { from: c, to: d },
             ) => a == c && b == d,
             (
-                EngineEventKind::TracksChanged { tracks: a, selected: b },
-                EngineEventKind::TracksChanged { tracks: c, selected: d },
+                EngineEventKind::TracksChanged {
+                    tracks: a,
+                    selected: b,
+                },
+                EngineEventKind::TracksChanged {
+                    tracks: c,
+                    selected: d,
+                },
             ) => **a == **c && b == d,
-            (EngineEventKind::Buffering { progress: a }, EngineEventKind::Buffering { progress: b }) => {
-                a == b
-            }
+            (
+                EngineEventKind::Buffering { progress: a },
+                EngineEventKind::Buffering { progress: b },
+            ) => a == b,
             (EngineEventKind::EndOfMedia, EngineEventKind::EndOfMedia) => true,
             (EngineEventKind::Fatal { error: a }, EngineEventKind::Fatal { error: b }) => {
                 a.stage == b.stage && a.kind == b.kind && a.context.code == b.context.code
             }
-            (EngineEventKind::DamagedData { count: a }, EngineEventKind::DamagedData { count: b }) => {
-                a == b
-            }
+            (
+                EngineEventKind::DamagedData { count: a },
+                EngineEventKind::DamagedData { count: b },
+            ) => a == b,
             (
                 EngineEventKind::FirstFrame { position: a },
                 EngineEventKind::FirstFrame { position: b },
@@ -288,10 +298,14 @@ pub fn wire_stage(stage: PipelineStage) -> commands::Stage {
         PipelineStage::Open => W::Input,
         PipelineStage::Probe => W::Probe,
         PipelineStage::Demux => W::Demux,
-        PipelineStage::Decode | PipelineStage::AudioFilter | PipelineStage::VideoFilter => W::Decode,
+        PipelineStage::Decode | PipelineStage::AudioFilter | PipelineStage::VideoFilter => {
+            W::Decode
+        }
         PipelineStage::Mix | PipelineStage::AudioOutput => W::AudioOutput,
         PipelineStage::Present => W::Renderer,
-        PipelineStage::Clock | PipelineStage::Control | PipelineStage::Discovery
+        PipelineStage::Clock
+        | PipelineStage::Control
+        | PipelineStage::Discovery
         | PipelineStage::Transcode => W::Control,
         PipelineStage::Plugin => W::Plugin,
     }
@@ -394,7 +408,10 @@ mod tests {
                 assert_eq!(stage, commands::Stage::Demux);
                 assert_eq!(code, commands::ErrorCode::Inaccessible);
                 assert!(fatal, "engine Fatal events are fatal on the wire");
-                assert_eq!(details.get("context").map(String::as_str), Some("demux.header.missing"));
+                assert_eq!(
+                    details.get("context").map(String::as_str),
+                    Some("demux.header.missing")
+                );
                 assert!(message.contains("inaccessible"), "{message}");
             }
             other => unreachable!("Fatal must map to PlaybackError, got {other:?}"),
@@ -463,7 +480,10 @@ mod tests {
             let _ = wire_stage(stage); // must answer, never panic
         }
         assert_eq!(wire_stage(PipelineStage::Open), commands::Stage::Input);
-        assert_eq!(wire_stage(PipelineStage::Present), commands::Stage::Renderer);
+        assert_eq!(
+            wire_stage(PipelineStage::Present),
+            commands::Stage::Renderer
+        );
         assert_eq!(wire_stage(PipelineStage::Mix), commands::Stage::AudioOutput);
     }
 }

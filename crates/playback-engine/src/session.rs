@@ -41,22 +41,24 @@
 
 use std::collections::VecDeque;
 use std::fmt;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{Receiver, Sender};
 
-use commands::envelope::{Generation, RequestId, SessionId};
 use commands::CommandId;
+use commands::envelope::{Generation, RequestId, SessionId};
 use media_clock::MediaClock;
 use media_types::{EngineError, SourceUri};
 
 use crate::epoch::{CancelToken, GenerationPair, PipelineGeneration, SessionEpoch, TokenMinter};
 use crate::error::{SessionConfigError, SessionError};
 use crate::event::{EngineEvent, EngineEventKind};
-use crate::pipeline::{DecoderProvider, FrameConsumer, Pipeline, QueuePlan, TickBudget, TickReport};
+use crate::pipeline::{
+    DecoderProvider, FrameConsumer, Pipeline, QueuePlan, TickBudget, TickReport,
+};
 use crate::state::{
-    apply_input, translate_pipeline_signal, Effect, PipelineSignal, RejectionReason, SessionInput,
-    SessionState, Transition, TransitionRejected, TRANSITIONS,
+    Effect, PipelineSignal, RejectionReason, SessionInput, SessionState, TRANSITIONS, Transition,
+    TransitionRejected, apply_input, translate_pipeline_signal,
 };
 
 /// The outbox capacity (events; receipts are never dropped for
@@ -205,11 +207,7 @@ impl SessionHandle {
     /// # Errors
     /// [`SessionError::SessionClosed`] when the target session is
     /// gone (stale handle) — never a silent drop.
-    pub fn submit(
-        &self,
-        request: RequestId,
-        kind: SessionCommandKind,
-    ) -> Result<(), SessionError> {
+    pub fn submit(&self, request: RequestId, kind: SessionCommandKind) -> Result<(), SessionError> {
         self.tx
             .send(SessionCommand { request, kind })
             .map_err(|_| SessionError::SessionClosed)
@@ -321,15 +319,14 @@ impl OutputHub {
     /// suppressed, doc 05 §4.3); if the buffer holds only receipts it
     /// grows past capacity (receipt volume is host-bounded).
     fn push(&mut self, output: EngineOutput) {
-        if self.queue.len() >= self.capacity {
-            if let Some(oldest_event) = self
+        if self.queue.len() >= self.capacity
+            && let Some(oldest_event) = self
                 .queue
                 .iter()
                 .position(|item| matches!(item, EngineOutput::Event(_)))
-            {
-                self.queue.remove(oldest_event);
-                self.dropped_events = self.dropped_events.saturating_add(1);
-            }
+        {
+            self.queue.remove(oldest_event);
+            self.dropped_events = self.dropped_events.saturating_add(1);
         }
         self.queue.push_back(output);
     }
@@ -393,9 +390,12 @@ impl PipelineTotals {
     /// Fold one tick's report into the totals.
     fn merge_tick(&mut self, report: &TickReport) {
         self.frames_delivered = self.frames_delivered.saturating_add(report.frames);
-        self.stale_frames_dropped = self.stale_frames_dropped.saturating_add(report.stale_frames);
-        self.demux_discontinuities =
-            self.demux_discontinuities.saturating_add(report.discontinuities);
+        self.stale_frames_dropped = self
+            .stale_frames_dropped
+            .saturating_add(report.stale_frames);
+        self.demux_discontinuities = self
+            .demux_discontinuities
+            .saturating_add(report.discontinuities);
     }
 
     /// Fold another totals snapshot into this one (session close).
@@ -504,15 +504,15 @@ impl Engine {
     /// §3.3's engine view).
     #[must_use]
     pub fn state(&self) -> SessionState {
-        self.session.as_ref().map_or(SessionState::Idle, |s| s.state)
+        self.session
+            .as_ref()
+            .map_or(SessionState::Idle, |s| s.state)
     }
 
     /// The live session's wire id, if any.
     #[must_use]
     pub fn session_id(&self) -> Option<SessionId> {
-        self.session
-            .as_ref()
-            .map(|s| s.epoch.as_session_id())
+        self.session.as_ref().map(|s| s.epoch.as_session_id())
     }
 
     /// The live (or last) pipeline generation in wire form.
@@ -553,17 +553,13 @@ impl Engine {
             return;
         };
         // 1. Commands (each receipt precedes the events it caused —
-        // doc 05 §4.3 guarantee 2).
-        loop {
-            match session.inbox.try_recv() {
-                Ok(command) => {
-                    let (receipt, outputs) = session.apply_command(command);
-                    self.outbox.push(EngineOutput::Receipt(receipt));
-                    for output in outputs {
-                        self.outbox.push(output);
-                    }
-                }
-                Err(TryRecvError::Empty) | Err(TryRecvError::Disconnected) => break,
+        // doc 05 §4.3 guarantee 2). Draining stops at the first empty
+        // OR disconnected recv: both mean "no more work this poll".
+        while let Ok(command) = session.inbox.try_recv() {
+            let (receipt, outputs) = session.apply_command(command);
+            self.outbox.push(EngineOutput::Receipt(receipt));
+            for output in outputs {
+                self.outbox.push(output);
             }
         }
         // 2. The pipeline.
@@ -789,16 +785,10 @@ impl Session {
                     ));
                 }
                 Effect::EmitBufferingEnter => {
-                    outputs.push(self.emit(
-                        EngineEventKind::Buffering { progress: 0.0 },
-                        origin,
-                    ));
+                    outputs.push(self.emit(EngineEventKind::Buffering { progress: 0.0 }, origin));
                 }
                 Effect::EmitBufferingExit => {
-                    outputs.push(self.emit(
-                        EngineEventKind::Buffering { progress: 1.0 },
-                        origin,
-                    ));
+                    outputs.push(self.emit(EngineEventKind::Buffering { progress: 1.0 }, origin));
                 }
                 Effect::EmitEndOfMedia => {
                     outputs.push(self.emit(EngineEventKind::EndOfMedia, origin));
@@ -808,10 +798,7 @@ impl Session {
         self.state = row.to;
         // Every applied transition confirms with `state-changed` —
         // self-transitions included (doc 05 §3.2 C8).
-        outputs.push(self.emit(
-            EngineEventKind::StateChanged { from, to: row.to },
-            origin,
-        ));
+        outputs.push(self.emit(EngineEventKind::StateChanged { from, to: row.to }, origin));
         Ok(outputs)
     }
 
@@ -892,10 +879,10 @@ impl Session {
                             self.selected = selected.to_vec();
                         }
                         let context = InputContext::default();
-                        match self.apply(SessionInput::OpenReady, context) {
-                            Ok(outputs) => outputs,
-                            Err(_) => Vec::new(),
-                        }
+                        // The rejection is unreachable (the tests pin
+                        // OpenReady legal in Opening); honored honestly.
+                        self.apply(SessionInput::OpenReady, context)
+                            .unwrap_or_default()
                     }
                     Some(Ok(_)) => {
                         // Nothing decodable: the engine refuses to
@@ -925,10 +912,7 @@ impl Session {
         let mut outputs = Vec::new();
         // Side events first (they are facts about the tick itself).
         if let Some(position) = report.first_frame {
-            outputs.push(self.emit(
-                EngineEventKind::FirstFrame { position },
-                None,
-            ));
+            outputs.push(self.emit(EngineEventKind::FirstFrame { position }, None));
         }
         if report.damaged > 0 {
             outputs.push(self.emit(
@@ -952,20 +936,20 @@ impl Session {
         } else {
             None
         };
-        if let Some(signal) = signal {
-            if let Some(input) = translate_pipeline_signal(state, signal) {
-                let context = InputContext {
-                    origin: None,
-                    fatal: report.fatal.take(),
-                };
-                match self.apply(input, context) {
-                    Ok(mut transition_outputs) => outputs.append(&mut transition_outputs),
-                    Err(_) => {
-                        // Unreachable: the exhaustive tests prove the
-                        // translation only yields table-legal inputs.
-                        // Honored honestly (dropped) rather than
-                        // panicked on.
-                    }
+        if let Some(signal) = signal
+            && let Some(input) = translate_pipeline_signal(state, signal)
+        {
+            let context = InputContext {
+                origin: None,
+                fatal: report.fatal.take(),
+            };
+            match self.apply(input, context) {
+                Ok(mut transition_outputs) => outputs.append(&mut transition_outputs),
+                Err(_) => {
+                    // Unreachable: the exhaustive tests prove the
+                    // translation only yields table-legal inputs.
+                    // Honored honestly (dropped) rather than
+                    // panicked on.
                 }
             }
         }
@@ -979,10 +963,10 @@ impl Session {
             origin: None,
             fatal: Some(error),
         };
-        match self.apply(SessionInput::Failed, context) {
-            Ok(outputs) => outputs,
-            Err(_) => Vec::new(),
-        }
+        // The rejection is unreachable by construction (the callers
+        // only fail in table-legal states); honored honestly.
+        self.apply(SessionInput::Failed, context)
+            .unwrap_or_default()
     }
 }
 

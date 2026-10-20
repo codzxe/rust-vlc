@@ -47,10 +47,10 @@ use packet_queue::QueueLimits;
 use playback_engine::state::{RejectionReason, SessionState};
 use playback_engine::{
     CommandReceipt, DecoderProvider, Engine, EngineEvent, EngineEventKind, EngineOutput,
-    FrameConsumer, QueuePlan, ReceiptResult, SessionConfig, SessionError, SessionHandle,
-    SessionCommandKind, TickBudget,
+    FrameConsumer, QueuePlan, ReceiptResult, SessionCommandKind, SessionConfig, SessionError,
+    SessionHandle, TickBudget,
 };
-use plugin_api::{Demuxer, DemuxEvent};
+use plugin_api::{DemuxEvent, Demuxer};
 use testkit::Must;
 
 // ---------------------------------------------------------------------------
@@ -440,7 +440,7 @@ fn receipt_for(outputs: &[EngineOutput], request: RequestId) -> CommandReceipt {
     outputs
         .iter()
         .find_map(|output| match output {
-            EngineOutput::Receipt(receipt) if receipt.request == request => Some(receipt.clone()),
+            EngineOutput::Receipt(receipt) if receipt.request == request => Some(*receipt),
             _ => None,
         })
         .must()
@@ -479,10 +479,22 @@ fn the_happy_path_reaches_ended_with_the_documented_event_chain() {
     assert_eq!(
         state_changes,
         vec![
-            (commands::PlaybackState::Idle, commands::PlaybackState::Opening),
-            (commands::PlaybackState::Opening, commands::PlaybackState::Buffering),
-            (commands::PlaybackState::Buffering, commands::PlaybackState::Playing),
-            (commands::PlaybackState::Playing, commands::PlaybackState::Ended),
+            (
+                commands::PlaybackState::Idle,
+                commands::PlaybackState::Opening
+            ),
+            (
+                commands::PlaybackState::Opening,
+                commands::PlaybackState::Buffering
+            ),
+            (
+                commands::PlaybackState::Buffering,
+                commands::PlaybackState::Playing
+            ),
+            (
+                commands::PlaybackState::Playing,
+                commands::PlaybackState::Ended
+            ),
         ]
     );
     // end-of-media precedes state-changed -> ended (doc 05 §3.2).
@@ -577,7 +589,12 @@ fn an_underrun_rebuffers_and_recovery_primes_again() {
     poll_until(&mut fixture, |s| s == SessionState::Playing, 10, "priming");
     // The stall bites: decode drains the queue below the low
     // watermark while eof is still false -> Underrun -> Buffering.
-    poll_until(&mut fixture, |s| s == SessionState::Buffering, 200, "underrun");
+    poll_until(
+        &mut fixture,
+        |s| s == SessionState::Buffering,
+        200,
+        "underrun",
+    );
     // Release the stall: the script refills, priming resumes.
     let mut script = fixture
         .script
@@ -619,8 +636,18 @@ fn short_media_starts_with_what_exists_and_drains_to_ended() {
     let mut fixture = open_audio(3);
     fixture.engine.poll();
     assert_eq!(fixture.engine.state(), SessionState::Buffering);
-    poll_until(&mut fixture, |s| s == SessionState::Playing, 5, "short start");
-    poll_until(&mut fixture, |s| s == SessionState::Ended, 10, "quick drain");
+    poll_until(
+        &mut fixture,
+        |s| s == SessionState::Playing,
+        5,
+        "short start",
+    );
+    poll_until(
+        &mut fixture,
+        |s| s == SessionState::Ended,
+        10,
+        "quick drain",
+    );
     assert_eq!(frames_of(&fixture.collector), 3);
     // And the buffering episode still closed with 1.0.
     let outputs = take_events(&mut fixture);
@@ -671,7 +698,9 @@ fn stop_while_playing_tears_down_and_bumps_the_generation() {
     let receipt = receipt_for(&outputs, RequestId(8));
     assert_eq!(
         receipt.result,
-        ReceiptResult::Completed { session: SessionId(1) }
+        ReceiptResult::Completed {
+            session: SessionId(1)
+        }
     );
 }
 
@@ -904,7 +933,9 @@ fn a_second_open_on_a_live_session_is_refused() {
     );
     assert!(matches!(
         fixture.engine.open(config),
-        Err(SessionError::SessionExists { session: SessionId(1) })
+        Err(SessionError::SessionExists {
+            session: SessionId(1)
+        })
     ));
     // The refusal changed nothing.
     assert_eq!(fixture.engine.state(), SessionState::Playing);
@@ -923,7 +954,10 @@ fn reopening_mints_a_fresh_epoch_and_continues_the_seq() {
         .collect();
     assert!(!first_seqs.is_empty());
     for pair in first_seqs.windows(2) {
-        assert!(pair[0] < pair[1], "engine-global seq is strictly increasing");
+        assert!(
+            pair[0] < pair[1],
+            "engine-global seq is strictly increasing"
+        );
     }
     fixture.handle.close(RequestId(20)).must();
     fixture.engine.poll();
@@ -1115,7 +1149,10 @@ fn demux_marks_are_counted_and_damage_is_reported() {
     let mut fixture = open_with(vec![track(1, MediaKind::Audio)], script, None, None);
     poll_until(&mut fixture, |s| s == SessionState::Ended, 200, "drain");
     let stats = fixture.engine.stats();
-    assert_eq!(stats.demux_discontinuities, 1, "the marked splice is counted");
+    assert_eq!(
+        stats.demux_discontinuities, 1,
+        "the marked splice is counted"
+    );
     // The damage report is engine-private (no wire row) but observable.
     let outputs = take_events(&mut fixture);
     let damaged: Vec<u64> = outputs
@@ -1158,10 +1195,7 @@ fn first_frame_is_reported_and_stays_engine_private() {
     // — FirstFrame never leaks (doc 05 §4.2 mapping).
     for output in &outputs {
         if let EngineOutput::Event(event) = output {
-            let is_first_frame = matches!(
-                event.kind,
-                EngineEventKind::FirstFrame { .. }
-            );
+            let is_first_frame = matches!(event.kind, EngineEventKind::FirstFrame { .. });
             assert!(
                 !is_first_frame || event.as_wire_event().is_none(),
                 "FirstFrame must not leak onto the wire"
@@ -1222,9 +1256,15 @@ fn the_outbox_drops_oldest_events_at_capacity_and_counts_them() {
     engine.poll();
     assert_eq!(engine.state(), SessionState::Idle);
     let outputs = engine.take_outputs();
-    let has_close_receipt = outputs
-        .iter()
-        .any(|output| matches!(output, EngineOutput::Receipt(CommandReceipt { request: RequestId(60), .. })));
+    let has_close_receipt = outputs.iter().any(|output| {
+        matches!(
+            output,
+            EngineOutput::Receipt(CommandReceipt {
+                request: RequestId(60),
+                ..
+            })
+        )
+    });
     assert!(has_close_receipt, "receipts are never dropped");
     assert!(
         engine.stats().outbox_dropped_events > 0,

@@ -66,16 +66,16 @@ pub mod session;
 pub mod state;
 
 pub use epoch::{CancelToken, GenerationPair, PipelineGeneration, SessionEpoch, TokenMinter};
-pub use error::{config_error, SessionConfigError, SessionError};
+pub use error::{SessionConfigError, SessionError, config_error};
 pub use event::{
-    track_info_wire, wire_error_code, wire_playback_state, wire_stage, EngineEvent, EngineEventKind,
+    EngineEvent, EngineEventKind, track_info_wire, wire_error_code, wire_playback_state, wire_stage,
 };
 pub use pipeline::{DecoderProvider, FrameConsumer, QueuePlan, TickBudget};
 pub use session::{
-    transition_table, CommandReceipt, Engine, EngineOutput, EngineStats, OUTBOX_CAPACITY,
-    ReceiptResult, SessionCommandKind, SessionConfig, SessionHandle,
+    CommandReceipt, Engine, EngineOutput, EngineStats, OUTBOX_CAPACITY, ReceiptResult,
+    SessionCommandKind, SessionConfig, SessionHandle, transition_table,
 };
 pub use state::{
-    apply_input, rejection_reason, translate_pipeline_signal, Effect, PipelineSignal,
-    RejectionReason, SessionInput, SessionState, Transition, TransitionRejected, TRANSITIONS,
+    Effect, PipelineSignal, RejectionReason, SessionInput, SessionState, TRANSITIONS, Transition,
+    TransitionRejected, apply_input, rejection_reason, translate_pipeline_signal,
 };

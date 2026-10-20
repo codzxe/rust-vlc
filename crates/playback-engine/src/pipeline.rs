@@ -52,13 +52,11 @@
 use std::sync::Arc;
 
 use codec_api::{DecodeOutcome, Decoder, DecoderConfig, FrameSink, ThreadBudget};
-use media_types::{
-    EngineError, Frame, GenerationId, MediaKind, Packet, Stamp, Track, TrackId,
-};
+use media_types::{EngineError, Frame, GenerationId, MediaKind, Packet, Stamp, Track, TrackId};
 use packet_queue::{
     BoundedQueue, PopOutcome, PushOutcome, QueueLimits, QueueUsage, Stamped, WatermarkThresholds,
 };
-use plugin_api::{Demuxer, DemuxEvent};
+use plugin_api::{DemuxEvent, Demuxer};
 
 use crate::state::SessionState;
 
@@ -76,7 +74,11 @@ pub trait DecoderProvider: Send + Sync {
     /// # Errors
     /// The provider's typed [`EngineError`] (stage
     /// [`media_types::PipelineStage::Decode`] by convention).
-    fn decoder_for(&self, track: &Track, config: &DecoderConfig) -> Result<Box<dyn Decoder>, EngineError>;
+    fn decoder_for(
+        &self,
+        track: &Track,
+        config: &DecoderConfig,
+    ) -> Result<Box<dyn Decoder>, EngineError>;
 }
 
 /// The sink seam (card 2.C2): where decoded frames leave the engine.
@@ -404,8 +406,8 @@ impl Pipeline {
             report.drained = self.is_drained();
         }
         if state == SessionState::Buffering {
-            report.primed = !self.limbs.is_empty()
-                && self.limbs.iter().all(|limb| limb.queue.watermark().high);
+            report.primed =
+                !self.limbs.is_empty() && self.limbs.iter().all(|limb| limb.queue.watermark().high);
         }
         if state == SessionState::Playing {
             // An underrun is an input that cannot keep up — the
@@ -580,12 +582,14 @@ impl Pipeline {
             // frame drops are counted (v0 cannot produce them — the
             // generation check is the doc 03 §5 point-5 checkpoint).
             report.frames = report.frames.saturating_add(u64::from(sink.frames));
-            report.stale_frames = report.stale_frames.saturating_add(u64::from(sink.stale_dropped));
-            if self.first_frame.is_none() {
-                if let Some(position) = sink.first {
-                    self.first_frame = Some(position);
-                    report.first_frame = Some(position);
-                }
+            report.stale_frames = report
+                .stale_frames
+                .saturating_add(u64::from(sink.stale_dropped));
+            if self.first_frame.is_none()
+                && let Some(position) = sink.first
+            {
+                self.first_frame = Some(position);
+                report.first_frame = Some(position);
             }
         }
     }
