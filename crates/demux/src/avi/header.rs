@@ -204,7 +204,7 @@ impl StreamDesc {
             (1, false)
         } else {
             let whole = payload_bytes / u64::from(self.sample_size);
-            let aligned = payload_bytes % u64::from(self.sample_size) == 0;
+            let aligned = payload_bytes.is_multiple_of(u64::from(self.sample_size));
             (whole.min(i64::MAX as u64) as i64, !aligned)
         }
     }

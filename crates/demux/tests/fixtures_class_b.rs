@@ -50,7 +50,8 @@ fn assert_truncated(err: &EngineError, expected: u64, found: u64, context: &str)
 }
 
 /// Drain until error or EOS; returns (packets, recovered-count, terminal).
-fn drain(avi: &mut AviDemuxer) -> (Vec<(u32, Vec<u8>)>, u32, Result<(), EngineError>) {
+type DrainOutcome = (Vec<(u32, Vec<u8>)>, u32, Result<(), EngineError>);
+fn drain(avi: &mut AviDemuxer) -> DrainOutcome {
     let mut packets = Vec::new();
     let mut recovered = 0u32;
     let terminal = loop {

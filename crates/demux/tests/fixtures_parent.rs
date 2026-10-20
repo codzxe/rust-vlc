@@ -92,7 +92,7 @@ fn parent_track_table_matches_the_expectation() {
     ) {
         (Ok(start), Ok(end)) => {
             let base = TimeBase::new(1, 1_000_000).must();
-            let delta = match end.convert(&base) {
+            match end.convert(&base) {
                 Ok(end_ns) => {
                     end_ns.ticks
                         - match start.convert(&base) {
@@ -101,8 +101,7 @@ fn parent_track_table_matches_the_expectation() {
                         }
                 }
                 Err(err) => unreachable!("{err}"),
-            };
-            delta
+            }
         }
         _ => unreachable!("video span is fully present"),
     };

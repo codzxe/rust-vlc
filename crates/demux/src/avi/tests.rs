@@ -90,9 +90,7 @@ fn strf_pcm(channels: u16, rate: u32, block_align: u16, bits: u16) -> Vec<u8> {
     v.extend_from_slice(&1u16.to_le_bytes()); // WAVE_FORMAT_PCM
     v.extend_from_slice(&channels.to_le_bytes());
     v.extend_from_slice(&rate.to_le_bytes());
-    v.extend_from_slice(
-        &(u32::from(rate) * u32::from(channels) * u32::from(bits / 8)).to_le_bytes(),
-    );
+    v.extend_from_slice(&(rate * u32::from(channels) * u32::from(bits / 8)).to_le_bytes());
     v.extend_from_slice(&block_align.to_le_bytes());
     v.extend_from_slice(&bits.to_le_bytes());
     v
@@ -850,18 +848,17 @@ fn missing_header_and_missing_movi_are_distinct_typed_errors() {
 fn methods_before_start_are_typed_not_panics() {
     let built = build(&[video_stream()], &[(b"00dc", &b"x"[..])], false);
     let mut avi = demuxer_over(built.bytes);
-    for code in ["demux.not-started"] {
-        let err = match avi.next_event() {
-            Ok(_) => unreachable!("next_event before start is typed"),
-            Err(err) => err,
-        };
-        assert_eq!(err.context.code, code);
-        let err = match avi.seek(media_types::time::TimeSpan::UNKNOWN) {
-            Ok(_) => unreachable!("seek before start is typed"),
-            Err(err) => err,
-        };
-        assert_eq!(err.context.code, code);
-    }
+    let code = "demux.not-started";
+    let err = match avi.next_event() {
+        Ok(_) => unreachable!("next_event before start is typed"),
+        Err(err) => err,
+    };
+    assert_eq!(err.context.code, code);
+    let err = match avi.seek(media_types::time::TimeSpan::UNKNOWN) {
+        Ok(_) => unreachable!("seek before start is typed"),
+        Err(err) => err,
+    };
+    assert_eq!(err.context.code, code);
 }
 
 #[test]

@@ -461,7 +461,10 @@ mod tests {
     #[test]
     fn peek_header_past_end_is_typed_truncation() {
         let mut r = reader(b"abcd");
-        let err = peek_chunk_header(&mut r, 2).unwrap_err();
+        let err = match peek_chunk_header(&mut r, 2) {
+            Ok(_) => unreachable!("peek past end is typed"),
+            Err(err) => err,
+        };
         assert!(matches!(
             err.kind,
             ErrorKind::Corrupt {

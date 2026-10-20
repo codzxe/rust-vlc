@@ -340,15 +340,6 @@ fn parse_u64(value: &str) -> u64 {
     cleaned.parse().unwrap_or(0)
 }
 
-fn parse_u32(value: &str) -> Option<u32> {
-    let cleaned: String = value.chars().filter(|c| c.is_ascii_digit()).collect();
-    if cleaned.is_empty() {
-        None
-    } else {
-        u32::try_from(cleaned.parse::<u64>().unwrap_or(u64::MAX)).ok()
-    }
-}
-
 /// `video = [{ ... codec = "mjpeg" ... }]` — extract a quoted string
 /// field by name from the inline table.
 fn extract_string(value: &str, field: &str) -> Option<String> {

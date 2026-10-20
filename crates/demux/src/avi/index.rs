@@ -151,7 +151,7 @@ pub fn parse_idx1(
         // An empty idx1 is an index that says nothing.
         return Ok(None);
     }
-    let entry_count = (u64::from(declared_size) + 15) / 16;
+    let entry_count = u64::from(declared_size).div_ceil(16);
     if entry_count > MAX_IDX1_ENTRIES as u64 {
         return Err(error::index_too_large(MAX_IDX1_ENTRIES as u64, entry_count));
     }
@@ -303,18 +303,18 @@ fn scan_movi_inner(
         let next = pos + 8 + u64::from(header.size) + riff::pad_for(u64::from(header.size));
         match classify_movi_chunk(&header.fourcc) {
             MoviChunkKind::Packet { stream: s } => {
-                if let Some(step) = ladders.advance(s, u64::from(header.size)) {
-                    if s == stream {
-                        if step.pts_ticks > target_ticks {
-                            // Past the target on the seek stream: the
-                            // scan's answer is already final.
-                            break;
-                        }
-                        best = Some(Landing {
-                            chunk_pos: pos,
-                            pts_ticks: step.pts_ticks,
-                        });
+                if let Some(step) = ladders.advance(s, u64::from(header.size))
+                    && s == stream
+                {
+                    if step.pts_ticks > target_ticks {
+                        // Past the target on the seek stream: the
+                        // scan's answer is already final.
+                        break;
                     }
+                    best = Some(Landing {
+                        chunk_pos: pos,
+                        pts_ticks: step.pts_ticks,
+                    });
                 }
                 pos = next;
             }
