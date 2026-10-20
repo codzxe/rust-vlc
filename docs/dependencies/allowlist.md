@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Implements** | doc 11 §3.1 (allowlist, one row per approved crate), §1.3 (intake), §2 (audit-record pointers), §3.7 (pinning/re-audit); doc 13 §4 row 1.E5; `allowlist-format.md` (schema v1 field rules + verdict vocabulary) |
-| **Status** | Populated 2026-10-20 against the committed `Cargo.lock` (31 packages: 22 registry + 9 workspace-local). Compiled by task 1.E5-R; Lead ratification = merge of this file with `deny.toml` + the activated `cargo-deny` CI job (AGENTS §1: dependency approval is Lead-only). |
+| **Status** | Populated 2026-10-20 against the committed `Cargo.lock`; extended by card 1.D4 (same day) for the schemars family — the lock now resolves 39 packages: 28 registry + 11 workspace-local (the 1.E5-R snapshot's 31 = 22 + 9 predates the `commands`/`plugin-api` member entries). Compiled by task 1.E5-R; Lead ratification = merge of this file with `deny.toml` + the activated `cargo-deny` CI job (AGENTS §1: dependency approval is Lead-only). |
 | **Enforcement** | `deny.toml` + the `cargo-deny` CI job (G3/G4, doc 10 §4.6). This document is the human-reviewable approval record; the machine-checked TOML form (`deps/allowlist.toml` per doc 11 §3.1) is deferred to the G3-checker card (see §6). |
 | **Verdict vocabulary** | per `allowlist-format.md`: `pass` (pure Rust, permissive license) · `conditional` (E2-class OS-ABI bindings per target) · `fail` (forbidden) · `exception-ADR-XXXX`. `quick-pass` below = the preaudit-foundation quick method (crates.io API metadata: license/repository/provenance), **not** a full R1–R10 record — marked `[VERIFY]` until the tarball audit closes it. |
 
@@ -38,10 +38,12 @@ this document or replaces it wholesale.]`
 
 ## 3. The allowlist (22 registry crates in Cargo.lock)
 
-Direct workspace consumers named per `cargo tree --workspace` (2026-10-20):
-serde (product-config, settings-schema) · serde_json (product-config,
-theme-tokens) · toml (localization, product-config, settings-schema) ·
-thiserror (localization, product-config, settings-schema). All other rows are
+Direct workspace consumers named per `cargo tree --workspace` (2026-10-20;
+`commands` added by card 1.D4): serde (product-config, settings-schema,
+commands) · serde_json (product-config, theme-tokens, commands) · toml
+(localization, product-config, settings-schema) · thiserror (localization,
+product-config, settings-schema) · schemars (commands — the doc 05 §5.1
+schema-derivation dep behind `cargo xtask codegen`). All other rows are
 transitive-only. `scope = "all"` (normal+build edges; the workspace has no
 registry dev-dependencies — `testkit` is a path dev-dep, §4).
 
@@ -51,6 +53,8 @@ registry dev-dependencies — `testkit` is a path dev-dep, §4).
 | serde_json | 1.0.154 | >=1.0.154, <2.0.0 | MIT OR Apache-2.0 | pure-rust | **pass** — inherited preaudit-foundation |
 | toml | 1.1.8+spec-1.1.0 | >=1.1.8, <2.0.0 | MIT OR Apache-2.0 | pure-rust | **pass** — inherited preaudit-foundation; its `[VERIFY-P1: license null at version endpoint]` is **closed** by this card's API check + green cargo-deny licenses run |
 | thiserror | 2.0.21 | >=2.0.21, <3.0.0 | MIT OR Apache-2.0 | pure-rust | **pass** — inherited preaudit-foundation |
+| schemars | 1.2.3 | >=1.2.3, <2.0.0 | MIT | pure-rust | **pass** — inherited preaudit-foundation (2026-10-12); card 1.D4 re-verified the license from the vendored crate manifest via `cargo metadata` (the crate is MIT-only, not dual-licensed). The doc 05 §5.1 schema-derivation dep for `commands` (catalog codegen). |
+| dyn-clone | 1.0.20 | >=1.0.20, <2.0.0 | MIT OR Apache-2.0 | pure-rust | **quick-pass** `[VERIFY]` — dtolnay; via schemars (card 1.D4) |
 | equivalent | 1.0.3 | >=1.0.3, <2.0.0 | Apache-2.0 OR MIT | pure-rust | **quick-pass** `[VERIFY]` — indexmap support (indexmap-rs org); via indexmap |
 | hashbrown | 0.17.1 | >=0.17.1, <0.18.0 | MIT OR Apache-2.0 | pure-rust | **quick-pass** `[VERIFY]` — rust-lang org; via indexmap; 0.x ⇒ minor pin |
 | indexmap | 2.14.2 | >=2.14.2, <3.0.0 | Apache-2.0 OR MIT | pure-rust | **quick-pass** `[VERIFY]` — via toml |
@@ -58,8 +62,12 @@ registry dev-dependencies — `testkit` is a path dev-dep, §4).
 | memchr | 2.8.3 | >=2.8.3, <3.0.0 | Unlicense OR MIT | pure-rust | **quick-pass** `[VERIFY]` — BurntSushi (std-adjacent); via serde_json; the one Unlicense-or-MIT crate ⇒ Unlicense in deny.toml's allow set |
 | proc-macro2 | 1.0.107 | >=1.0.107, <2.0.0 | MIT OR Apache-2.0 | pure-rust (proc-macro) | **quick-pass** `[VERIFY]` — dtolnay; via serde_derive/thiserror-impl/syn/quote; R3 build.rs disposition owed (expected rustc-probe, unverified) |
 | quote | 1.0.47 | >=1.0.47, <2.0.0 | MIT OR Apache-2.0 | pure-rust (proc-macro) | **quick-pass** `[VERIFY]` — dtolnay |
+| ref-cast | 1.0.27 | >=1.0.27, <2.0.0 | MIT OR Apache-2.0 | pure-rust | **quick-pass** `[VERIFY]` — dtolnay; via schemars (card 1.D4); its `build.rs` was inspected by 1.D4: rustc-version probe + `OUT_DIR` module write only — no network, no native toolchain |
+| ref-cast-impl | 1.0.27 | >=1.0.27, <2.0.0 | MIT OR Apache-2.0 | pure-rust (proc-macro) | **quick-pass** `[VERIFY]` — dtolnay; via ref-cast (card 1.D4) |
+| schemars_derive | 1.2.3 | >=1.2.3, <2.0.0 | MIT | pure-rust (proc-macro) | **quick-pass** `[VERIFY]` — GREsau/schemars org; via schemars (card 1.D4) |
 | serde_core | 1.0.229 | >=1.0.229, <2.0.0 | MIT OR Apache-2.0 | pure-rust | **quick-pass** `[VERIFY]` — serde-rs org; via serde/serde_json/toml family |
 | serde_derive | 1.0.229 | >=1.0.229, <2.0.0 | MIT OR Apache-2.0 | pure-rust (proc-macro) | **quick-pass** `[VERIFY]` — serde-rs org |
+| serde_derive_internals | 0.30.0 | >=0.30.0, <1.0.0 | MIT OR Apache-2.0 | pure-rust | **quick-pass** `[VERIFY]` — serde-rs org; via schemars_derive (card 1.D4) |
 | serde_spanned | 1.1.2 | >=1.1.2, <2.0.0 | MIT OR Apache-2.0 | pure-rust | **quick-pass** `[VERIFY]` — toml-rs org; via toml |
 | syn | 3.0.9 | >=3.0.9, <4.0.0 | MIT OR Apache-2.0 | pure-rust (proc-macro) | **quick-pass** `[VERIFY]` — dtolnay |
 | thiserror-impl | 2.0.21 | >=2.0.21, <3.0.0 | MIT OR Apache-2.0 | pure-rust (proc-macro) | **quick-pass** `[VERIFY]` — dtolnay; via thiserror |
@@ -96,7 +104,7 @@ is scoped to unpublished workspace members).
 ## 5. Approved-but-not-imported and rejected (cross-references)
 
 - **Pre-audited, not in the lockfile** (preaudit-foundation.md verdicts stand;
-  they get rows here only when actually added): schemars (pass), tracing /
+  they get rows here only when actually added): tracing /
   tracing-subscriber (pass), raw-window-handle (pass), wasm-bindgen (pass),
   cpal / wgpu / winit / windows / windows-sys / objc2 / core-foundation
   (conditional, E2), tauri / wry (exception-ADR-004). wasmi has the one full
@@ -128,7 +136,7 @@ is scoped to unpublished workspace members).
 
 ## 7. Audit queue (owed records)
 
-1. Full R1–R10 records for the 18 quick-pass crates (method:
+1. Full R1–R10 records for the 23 quick-pass crates (five added by card 1.D4's schemars family; method:
    `audit-method.md`; priority: proc-macro2 first — it is the only one
    expected to carry a build script).
 2. Re-record R2 graphs when the lockfile moves (tree-diff gate automates the
