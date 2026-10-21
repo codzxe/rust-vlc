@@ -267,6 +267,33 @@ dev_deps = ["testkit"]
 external_allowlist = []
 external_dev_allowlist = []
 
+# L4 — GPU video presentation (doc 01 §2.6 registry row, card 2.D1;
+# doc 03 §4.11). The video-output plugin kind: implements video-engine's
+# Presenter on the RenderSurface abstraction — measured RGBA8 staging,
+# sRGB present, vsync configuration. NOT-YET-IMPORTED DEPENDENCY
+# DECISION (worklog 2.D1 + docs/dependencies/allowlist.md §5): the
+# crate is named renderer-wgpu per doc 01, but v0 does not import wgpu
+# (no GPU stack in the dev sandbox; wgpu-hal's Linux GL graph pulls the
+# denied `libloading`; the card's envelope grants media-types +
+# video-engine only). v0 ships the Compositor backend seam with the
+# software CPU rasterizer linked (the 7.C1 "software present" fallback)
+# and every wgpu integration point typed + shape-pinned; the hardware
+# backend joins behind the Lead-ratified import (2.D3 / ADR-003).
+# ARCH-4: may not depend on codecs/codec-api/demux/input. Std-only by
+# C5. dev_deps carries media-clock TEST-ONLY (worklog 2.D1): the
+# presenter-seam AC drives the real PresentationScheduler end-to-end,
+# whose constructor speaks media-clock's PlaybackClock (L2 — a legal
+# downward dev edge; a dev edge cannot leak into the public API,
+# ARCH-7). The production dep set stays exactly the registry row.
+[crates.renderer-wgpu]
+layer = 4
+internal_deps = ["media-types", "video-engine"]
+dev_deps = ["testkit", "media-clock"]
+external_allowlist = []
+external_dev_allowlist = []
+external_allowlist = []
+external_dev_allowlist = []
+
 # dev crate (doc 01 §1.4 "dev" row, §2.8; card 1.C3). Outside the layer
 # stack: it may depend on production crates (none yet — add entries in
 # the same change when it gains any), and NOTHING may depend on it

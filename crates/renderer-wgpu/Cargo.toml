@@ -1,0 +1,41 @@
+# crates/renderer-wgpu — GPU video presentation (card 2.D1,
+# doc 03 §4.11; doc 01 §2.6 registry row: layer L4, deps media-types +
+# video-engine — the video-output plugin kind and the only GPU citizen).
+#
+# v0 is std-only by C5: the wgpu import is a recorded Lead decision
+# (worklog 2.D1; docs/dependencies/records/wgpu-30.0.1.md — the
+# deferral record with the evidence): the dev sandbox has no GPU
+# stack at all (verified by a live request_adapter probe: every
+# backend un-loadable), and wgpu 30.0.1's default-features Linux
+# graph pulls `libloading` (via ash/Vulkan and dlib/GL), which
+# deny.toml bans. The crate therefore ships the renderer architecture
+# behind an internal backend seam with the software compositor linked
+# (the 7.C1 "software present" fallback, arrived early) and every wgpu
+# integration point typed + shape-tested; the hardware backend joins
+# when the Lead ratifies the import (2.D3 / ADR-003 evidence path).
+
+[package]
+name = "renderer-wgpu"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen video presentation: turns PresentRequests into pixels on a RenderSurface — RGBA8 upload with measured staging, sRGB present, vsync configuration; implements video-engine's Presenter (doc 03 §4.11)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+media-types = { path = "../media-types" }
+video-engine = { path = "../video-engine" }
+
+[dev-dependencies]
+# testkit is dev-only by contract (MP §3.7 / ARCH-7): the lint-legal
+# `Must` helper for fixture contracts in tests and doctests.
+testkit = { path = "../testkit" }
+# media-clock, TEST-ONLY (the presenter-seam AC suite): driving the
+# real PresentationScheduler end-to-end requires constructing its
+# `Arc<dyn PlaybackClock>` parameter, and video-engine re-exports only
+# NANO_BASE — the clock types are media-clock's. A dev edge cannot
+# leak into the public API (ARCH-7); L4 → L2 is a legal downward
+# direction. Recorded in boundaries.toml dev_deps (worklog 2.D1).
+media-clock = { path = "../media-clock" }
