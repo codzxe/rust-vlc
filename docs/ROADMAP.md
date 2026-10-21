@@ -45,7 +45,7 @@ from `docs/13-agent-wave-program.md` (200 cards / 77 waves).
 | D-006 | **Working name "Lumen"** stays a placeholder; trademark collision search pending [VERIFY, risk R-36-class]; fully rebrandable via `product.toml` | No identity claims before the check; rebrand acceptance test (doc 07 §8) proves configurability. | README.md, product.toml draft. |
 | D-007 | **Baseline artifacts live in `docs/baselines/`** (plural) | Standardizes doc 02 (`docs/baseline/`) vs doc 12 naming. | docs 02, 12 path references. |
 | D-008 | **ADR timing: ADR-001 (hw decode), ADR-002 (WASM runtime), ADR-003 (video-in-webview) all decided inside Phase 0** per §16; ADR-004 (OS webview) accepted-by-brief, **file formalized 2026-10-22: accepted with per-OS verdicts PENDING** (`docs/adr/ADR-004-os-webview.md`; seam implemented in 2.D3); ADR-005 (audio backend) promised at Phase 1 wave 1.C, **file formalized 2026-10-22 from the 2.C3 draft: adapter-seam accepted, real-backend admission PENDING** (`docs/adr/ADR-005-audio-output.md`); ADR-006 (repo license) **decided 2026-10-19: MIT — see D-009** | Follows MASTER-PROMPT §16 Phase 0 gate. The ADR-005 delay (1.C → 2.C3 draft → 3.DOC-1 file) is honestly recorded: the seam was decided-by-implementation in 2.C3 and carried the 2.E2-V gate as "ADR-005 draft". | doc 01 §7 ADR register. |
-| D-009 | **Repository license = MIT** (user decision 2026-10-19; `LICENSE`; `docs/decisions/ADR-006-license-mit.md`; closes risk R-05) | Maximal permissiveness, GPL-compatible ecosystem fit, matches the permissive-only dependency rule already enforced. Trade-off noted: no explicit patent grant (Apache-2.0 alternative considered); revisit only if patent exposure grows (ADR-010). | doc 11 §3 (allowlist license column now MIT-compat), §8.2; doc 14 R-05. |
+| D-009 | **Repository license = MIT** (user decision 2026-10-19; `LICENSE`; `docs/adr/ADR-006-license-mit.md`; closes risk R-05) | Maximal permissiveness, GPL-compatible ecosystem fit, matches the permissive-only dependency rule already enforced. Trade-off noted: no explicit patent grant (Apache-2.0 alternative considered); revisit only if patent exposure grows (ADR-010). | doc 11 §3 (allowlist license column now MIT-compat), §8.2; doc 14 R-05. |
 | D-010 | **R-07 closed: design package cleared per user attestation 2026-10-19** — open-source Figma Community design, no terms restriction | User statement; `design/figma/` remains the pinned visual source of truth for the fidelity program. Residuals: font identities remain [VERIFY] (exports are outlined); trademark wording rules (R-38-class) still govern shipped strings. | doc 14 R-07 closure log; doc 08 §2; `design/README.md`. |
 | D-011 | **ADR-011 (TLS/HTTPS) opened as proposed** — no production pure-Rust HTTPS stack exists (rustls→aws-lc/ring = C; native-tls = OpenSSL); decision due ≤ Phase 5 gate; no HTTPS dependency merges until decided | Phase 0 blind-spot found by 0.C3-I; affects Phase 6+ only. Options + interim posture in the ADR brief. | `docs/adr/ADR-011-tls-https.md`; doc 11 §6 (SEC-07); risk register R-44-class. |
 | D-012 | **doc 13 amendment due before Phase 5: add filter-implementation cards** (EQ/compressor/spatializer/stereowiden audio panels + colors/crop/essential video panels — all self-build S/M) | Gap found by 0.C3-I: doc 13 §7 Phase-5 waves contain no filter cards despite the design package requiring the panels. | doc 13 §7; doc 03 §4 filters; feasibility/sections/subsystems.md §4. |
@@ -75,7 +75,7 @@ from `docs/13-agent-wave-program.md` (200 cards / 77 waves).
 ## 5. Open decisions for the user (escalation per MASTER-PROMPT §15)
 
 **Resolved 2026-10-19:**
-- **ADR-006 → MIT** (D-009; `docs/decisions/ADR-006-license-mit.md`; R-05 closed).
+- **ADR-006 → MIT** (D-009; `docs/adr/ADR-006-license-mit.md`; R-05 closed).
 - **R-07 design-package terms → cleared** (D-010; open-source Figma Community
   design, no terms restriction; R-07 closed — residuals: font identity check at
   Phase 4, trademark wording rules on shipped strings).
@@ -94,9 +94,9 @@ decode (even self-written or OS-mediated) has patent considerations separate
 ## 6. ADR index (register: doc 01 §7)
 
 ADR-001 hw decode — **accepted 2026-10-19** (`docs/adr/ADR-001-hardware-decode.md`; hw-first H.264/HEVC + conformance-gated software track) · ADR-002 WASM runtime — **accepted: wasmi** (`docs/adr/ADR-002-wasm-runtime-wasmi.md`) ·
-ADR-003 video-in-webview — **accepted: per-OS strategy** (`docs/adr/ADR-003-video-in-webview.md`; prototype gates 2.D3/2.E2-V) · ADR-004 OS webview (accepted-by-brief) ·
-ADR-005 audio output backend (Phase 1) · ADR-006 repo license — **accepted: MIT,
-2026-10-19** (`docs/decisions/ADR-006-license-mit.md`) · ADR-007
+ADR-003 video-in-webview — **accepted: per-OS strategy** (`docs/adr/ADR-003-video-in-webview.md`; prototype gates 2.D3/2.E2-V — PROVISIONAL-B, per-OS matrix pending desktop runtimes) · ADR-004 OS webview — **accepted 2026-10-22** (`docs/adr/ADR-004-os-webview.md`; seam landed 2.D3; per-OS verdicts + Phase-4 security review PENDING) ·
+ADR-005 audio output backend — **accepted 2026-10-22 for the adapter seam** (`docs/adr/ADR-005-audio-output.md`; real-backend admission PENDING, cpal NOT admitted) · ADR-006 repo license — **accepted: MIT,
+2026-10-19** (`docs/adr/ADR-006-license-mit.md`) · ADR-007
 first-vertical formats (decided: D-001) · ADR-008 WebCodecs-as-hw-analog on web
 (Phase 7, feeds ADR-001) · ADR-009 DVD/Blu-ray per-title decisions (post-v1) ·
 ADR-010 patent shipping matrix (user + counsel) · ADR-011 TLS/HTTPS —

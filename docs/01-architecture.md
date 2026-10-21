@@ -240,13 +240,14 @@ plugin kinds of MP §6 live there. ★ = Lead-owned shared interface.
 | `video-engine` | crate | L3 | media-types, media-clock, plugin-api | 2 | video filters |
 | `transcode` | crate | L3 | media-types, plugin-api, codec-api, media-probe | 7 | muxing **[P]** |
 | `playback-engine` | crate | L4 | L0–L3 engine crates + commands | 2 | — (registry host) |
-| `audio-output` | crate | L4 | media-types, audio-engine | 2 | audio outputs |
+| `audio-output` | crate | L4 | media-types, audio-engine, media-clock | 2 | audio outputs |
 | `renderer-wgpu` | crate | L4 | media-types, video-engine | 2 | video output |
 | `platform-windows` | crate | L5 | media-types, codec-api, audio-output, renderer-wgpu, device-discovery | 2 min → 7 | OS impls behind plugin traits |
 | `platform-linux` | crate | L5 | same as above | 2 min → 7 | same |
 | `platform-macos` | crate | L5 | same as above | 2 min → 7 | same |
 | `plugin-host-wasm` | crate | L6 | plugin-api, media-types, commands | 7 | all kinds (sandboxed) |
 | `testkit` | dev-crate | dev | any production crate | 1 → all | conformance kit |
+| `crates/_template` | template-crate | dev (scaffold) | — (nothing may depend on it; boundaries.toml layer-less) | 1 | — |
 | `apps/desktop` | app | L6 | engine + impls + outputs + platforms + contracts + `ui/` | 2 skeleton → 4 | composition root |
 | `apps/web` | app | L6 | engine + wasm outputs + commands + `ui/` | 7 **[P]** | — |
 | `apps/cli` | app | L6 | engine + commands + contracts | 2 | — |
@@ -340,14 +341,23 @@ that more than one L2 crate must name: `SourceStream`, `Access`, `Demuxer`
 **[PROPOSAL: trait placement — see §8 Q3]**. Pipeline-stage traits stay in
 their domain crates (`codec-api`, `audio-engine`, `video-engine`).
 
-**(b) Interface sketch.**
+**(b) Interface sketch.** `PluginKind` below mirrors the implemented enum
+exactly (`crates/plugin-api/src/kind.rs`, card 1.D2) — the 16 kinds of doc 06
+§1.2 per **D-004** (doc 06 splits doc 01's original `SubtitleFormat` into
+`SubtitleParser`+`SubtitleRenderer` and `PlaylistFormat` into
+`PlaylistParser`+`PlaylistExporter`; the D-004-promised update of this
+section is now done — 3.DOC-1, 2026-10-22):
 
 ```rust
 pub struct PluginManifest { /* id, kind, version, capabilities, priority,
                                permissions, config_schema, api_version, dependencies */ }
-pub enum PluginKind { Access, Demuxer, Decoder, Encoder, AudioFilter, VideoFilter,
-                       AudioOutput, VideoOutput, SubtitleFormat, PlaylistFormat,
-                       NetworkProtocol, MetadataProvider, ServiceDiscovery, UiPanel }
+#[non_exhaustive]
+pub enum PluginKind { // doc 06 §1.2 table order; kebab-case manifest spellings
+    Access, NetworkProtocol, Demuxer, Decoder, Encoder,
+    AudioFilter, VideoFilter, AudioOutput, VideoOutput,
+    SubtitleParser, SubtitleRenderer, PlaylistParser, PlaylistExporter,
+    MetadataProvider, UiPanel, ServiceDiscovery,
+}
 pub trait SourceStream: Send { /* bounded read/seek/size, deadline-aware */ }
 pub trait Access { fn schemes(&self) -> &[&str];
                    fn open(&self, uri: &SourceUri) -> Result<Box<dyn SourceStream>, EngineError>; }
@@ -850,7 +860,11 @@ the registry).
 `AudioBackend` trait (extends `audio-engine::AudioSink` with device
 enumeration/open), backend selection, a null backend for tests/headless,
 and the browser (WebAudio-compatible) backend for the wasm target (MP §10).
-OS-specific backends are implemented in `platform-*`.
+OS-specific backends are implemented in `platform-*`. *Interim (Phase 2,
+per ADR-005): the crate ships the trait seam, the null backend, the SPSC
+output ring + `render_into` real-time callback, the `SampleCounter` clock
+truth, and typed OS-backend stubs (`audio.os_backend_pending`) — no real
+backend is imported yet; see `docs/adr/ADR-005-audio-output.md`.*
 **(b) Interface sketch.**
 
 ```rust
@@ -861,9 +875,13 @@ pub struct NullBackend;      // tests, headless CLI [PROPOSAL]
 pub struct WebAudioBackend;  // cfg(target_arch = "wasm32") — MP §10
 ```
 
-**(c) Deps.** `media-types`, `audio-engine`. **(d) Never.** Decode/mix
-logic, blocking or locking inside the real-time callback, OS types in
-public signatures (ARCH-6).
+**(c) Deps.** `media-types`, `audio-engine`, `media-clock` (the device
+sample counter implements `media_clock::SampleCounterSource` — the clock's
+truth source, doc 03 §4.7/§4.9; an L4→L2 downward edge, recorded in
+`boundaries.toml` since 2.C3 — the original two-dep row under-specified
+it). **(d) Never.** Decode/mix logic, blocking or locking inside the
+real-time callback, OS types in public signatures (ARCH-6), linking an OS
+audio library directly (ADR-005: real backends live in `platform-*`).
 **(e) Tests.** Per-backend device tests with real-hardware evidence labeled
 separately from mock evidence (MP §13); underrun counting; device-loss
 handling (MP §13).
@@ -900,6 +918,22 @@ OS-service exceptions (windowing, audio devices, GPU, hardware decoders)
 have exactly one home. They contain the only permitted `unsafe` (with
 documented invariants and an ADR reference per module — MP §9), implement
 traits defined in core crates, and never leak OS types upward (ARCH-6).
+
+**Interim status (recorded 2026-10-22, card 3.DOC-1): Phase 2 shipped a
+seam-based interim instead of these crates.** The vertical's platform
+surface is carried today by typed seams one layer down: `audio-output`
+(L4) implements the `AudioBackend` adapter trait + the null backend + typed
+OS-backend stubs — **ADR-005**, accepted for exactly that seam, with real
+backends landing here per its admission gate; `renderer-wgpu` (L4)
+implements the `Compositor` seam with the software compositor linked (wgpu
+deferral recorded in `docs/dependencies/records/wgpu-30.0.1.md`, admission-
+time obligations in its §6); the desktop shell is the ADR-004 webview seam
+(`apps/desktop`, std-only, `HostError::WebviewPending` until admission).
+No `platform-*` crate exists yet. **[PROPOSAL]: defer the platform-* crates
+to Phase 7 (hardware decode, real audio backends and per-OS surfaces land
+together) — or absorb them into the seam crates if the seams prove
+sufficient — decision point at the Phase-3/Phase-7 gates, informed by
+ADR-004/ADR-005 admission outcomes.]**
 
 #### `crates/platform-windows`
 
@@ -1458,19 +1492,24 @@ accepted / rejected / superseded`.
 
 | ID | Title | Status | Date | Decision to make | Alternatives | Consequences |
 |----|-------|--------|------|------------------|--------------|--------------|
-| ADR-001 | Hardware decode policy | planned | Phase 0 (MP §2, §16) | default posture for OS decoders (VideoToolbox, Media Foundation, VA-API — named by MP §2); audit gates; truthful activation reporting | software-only; OS decoders after audit; hybrid default | perf vs Rust-only purity; unsafe confined to platform crates; patent posture (MP §14) |
-| ADR-002 | WASM extension runtime | planned | Phase 0 (MP §16) | runtime for `plugin-host-wasm`; must pass the dependency audit with no hidden native code (MP §6) | candidates evaluated in doc 04 | sandbox strength, perf, maintenance exposure |
-| ADR-003 | Video-in-webview strategy | planned | Phase 2 prototype (MP §7) | native wgpu surface behind transparent webview vs frame streaming to canvas; WebView2 / WKWebView / WebKitGTK tested separately; Linux highest risk | per-OS mixed strategy | riskiest UI decision; affects `renderer-wgpu` surface trait |
-| ADR-004 | OS webview exception | accepted | 2026-10-22 (formalized; policy since Phase 0 — D-008) | document the webview as the Rust-only exception (MP §2, §9): exact APIs, versions, security review; product never described as all-Rust — decided in `docs/adr/ADR-004-os-webview.md` (engine-side seam landed 2.D3; per-OS webview verdicts + the Phase-4 security review honestly PENDING there) | custom Rust windowing shell (large new surface) | dependency/security exposure; honest messaging |
-| ADR-005 | Audio output backend | planned | Phase 2 | OS audio APIs as audited OS-service bindings (MP §9); latency/jitter budget; unsafe invariants | single cross-platform backend (doc 04 candidates) | real-time guarantees; platform test matrix |
-| ADR-006 | License of this repository | planned | Phase 0 | source license for the reimplementation; clean-room means VLC's GPL does not automatically apply [VERIFY: legal reading]; design-asset licensing tracked as risk (worklog 1.0) | GPL-family; permissive; dual-licensing | ecosystem compatibility, patent posture, asset redistribution |
+| ADR-001 | Hardware decode policy | **accepted** | 2026-10-19 (Phase 0 gate; D-014) | default posture for OS decoders (VideoToolbox, Media Foundation, VA-API — named by MP §2); audit gates; truthful activation reporting — decided: hw-first H.264/HEVC + conformance-gated software track (`docs/adr/ADR-001-hardware-decode.md`) | software-only; OS decoders after audit; hybrid default | perf vs Rust-only purity; unsafe confined to platform crates; patent posture (MP §14) |
+| ADR-002 | WASM extension runtime | **accepted** | 2026-10-19 (Phase 0 gate; D-014) | runtime for `plugin-host-wasm`; must pass the dependency audit with no hidden native code (MP §6) — decided: **wasmi 2.x** (`docs/adr/ADR-002-wasm-runtime-wasmi.md`; note `ADR-002-evidence.md` is the 0.C4-I **evidence pack**, an input — not the decision record; runtime not yet imported, `plugin-host-wasm` is Phase 7) | candidates evaluated in doc 04 | sandbox strength, perf, maintenance exposure |
+| ADR-003 | Video-in-webview strategy | **accepted** | 2026-10-19 (Phase 0 gate; D-014; per-OS confirmation gated on Phase 2 prototypes — 2.D3 delivered **PROVISIONAL-B**, per-OS browser matrix pending desktop runtimes) | native wgpu surface behind transparent webview vs frame streaming to canvas; WebView2 / WKWebView / WebKitGTK tested separately; Linux highest risk — decided: per-OS landing (A on macOS; A-or-B Windows; B on Linux) | per-OS mixed strategy | riskiest UI decision; affects `renderer-wgpu` surface trait |
+| ADR-004 | OS webview exception | **accepted** | 2026-10-22 (formalized; policy since Phase 0 — D-008) | document the webview as the Rust-only exception (MP §2, §9): exact APIs, versions, security review; product never described as all-Rust — decided in `docs/adr/ADR-004-os-webview.md` (engine-side seam landed 2.D3; per-OS webview verdicts + the Phase-4 security review honestly PENDING there) | custom Rust windowing shell (large new surface) | dependency/security exposure; honest messaging |
+| ADR-005 | Audio output backend | **accepted (adapter seam)** | 2026-10-22 (formalized from the 2.C3 draft) | OS audio APIs as audited OS-service bindings (MP §9); latency/jitter budget; unsafe invariants — decided: `AudioBackend` trait seam in audio-output (L4, std-only) + null backend + typed stubs, real backends in `platform-*` (L5) behind the admission gate (`docs/adr/ADR-005-audio-output.md`; **real-backend admission PENDING** with the trigger recorded; cpal NOT admitted — `records/cpal-0.18.2.md`) | single cross-platform backend (doc 04 candidates) | real-time guarantees; platform test matrix |
+| ADR-006 | License of this repository | **accepted** | 2026-10-19 (user decision) | source license for the reimplementation; clean-room means VLC's GPL does not automatically apply — decided: **MIT** (`LICENSE`; `docs/adr/ADR-006-license-mit.md`, moved from `docs/decisions/` 2026-10-22 for register consistency; D-009; closes R-05) | GPL-family; permissive; dual-licensing | ecosystem compatibility, patent posture, asset redistribution |
 | ADR-007 | VLC 3.0.23 as external test oracle **[PROPOSAL]** | planned | Phase 0 | boundaries for using VLC externally as differential oracle (MP §1 allows running it; vendoring is forbidden) | golden files only | parity evidence quality; CI cost; GPL hygiene |
 | ADR-008 | Optical disc support scope **[PROPOSAL]** | planned | Phase 0→7 | DVD/Blu-ray menus and copy protection, each decided by ADR (MP §14) | full navigation; raw sectors; unsupported | C-dependency pressure; legal risk; feature-matrix entries |
 | ADR-009 | WASM threading & COOP/COEP **[PROPOSAL]** | planned | Phase 7 | threaded wasm (shared memory + COOP/COEP headers) vs single-thread + workers (MP §10) | | web deployment complexity; decode performance on web |
 | ADR-010 | Codec patent & redistribution policy **[PROPOSAL]** | planned | Phase 0 | assess patent risk separately from source licenses (MP §14); define the shipping matrix | ship everything; split builds; regional builds | what binaries we may distribute at all |
+| ADR-011 | TLS / HTTPS strategy | **proposed** | 2026-10-19 (opened; D-011) | no production pure-Rust HTTPS stack exists (rustls→aws-lc/ring = C; native-tls = OpenSSL) — brief + interim no-merge posture in `docs/adr/ADR-011-tls-https.md`; decision due ≤ Phase 5 gate (before the Phase 6 network wave) | rustls-with-C; native-tls; source-only HTTPS-less v1 | web/streaming scope (Phase 6+); §9 language-policy exception if any |
 
-ADR-001 and ADR-002 are Phase 0 exit criteria (MP §16). ADR-003/004/005 must
-be accepted before the Phase 2 vertical can be wired. New ADRs are proposed
+ADR-001 and ADR-002 were Phase 0 exit criteria (MP §16) and are accepted
+(D-014). ADR-003/004/005 were accepted before the Phase 2 vertical was
+wired — ADR-004/005 files were formalized retroactively (2026-10-22,
+card 3.DOC-1) from the implemented seams; their PENDING halves (per-OS
+webview verdicts; real-backend admission) are recorded inside each file.
+ADR-011 is open as proposed with a decision deadline. New ADRs are proposed
 via the governance path in §6.3.
 
 ---

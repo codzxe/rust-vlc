@@ -547,7 +547,7 @@ allowed, *vendoring or copying* it is not. ADR-007 defines the boundary
 ### 8.2 ADR-006 — this repository's license (the brief, not the decision)
 
 > **DECIDED 2026-10-19 — MIT** (user decision; record:
-> `docs/decisions/ADR-006-license-mit.md`; risk R-05 closed in doc 14; decision
+> `docs/adr/ADR-006-license-mit.md`; risk R-05 closed in doc 14; decision
 > D-009 in docs/ROADMAP.md §3). The brief below is retained for context.
 
 Per doc 01 §7, ADR-006 is a Phase 0 decision. **This section prepares the

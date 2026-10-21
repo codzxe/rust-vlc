@@ -56,3 +56,9 @@ rebranding via `product.toml` does not change the license).
 Recorded from the user's decision delivered 2026-10-19 ("mit licence"). This
 ADR closes risk R-05 before Phase 0's license-policy work (doc 02 §7),
 unblocking the dependency-allowlist license-compatibility column from day one.
+
+*Location note (2026-10-22, card 3.DOC-1): this file moved from
+`docs/decisions/` to `docs/adr/` for register consistency (doc 01 §7 — all
+ADRs live in `docs/adr/`); all doc references updated in the same change.
+The worklog's historical entries retain the original path by design
+(append-only log).*
