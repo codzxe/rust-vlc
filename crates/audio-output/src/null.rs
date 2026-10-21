@@ -140,6 +140,11 @@ impl NullSink {
     /// suites use; the same whole-frames/backpressure contract as
     /// [`AudioSink::write`]).
     ///
+    /// Zero heap traffic (D-1/D-8: this runs on the pump's write
+    /// path): the bytes are reinterpreted as f32 LE samples through a
+    /// fixed stack chunk — no per-quantum `Vec<f32>` materialization,
+    /// the ring receives byte-identical samples in the same order.
+    ///
     /// # Errors
     /// As [`AudioSink::write`] (`audio.partial_frame`,
     /// `audio.ring_full`).
@@ -159,14 +164,19 @@ impl NullSink {
                 frames,
             ));
         }
-        let samples: Vec<f32> = interleaved
-            .as_chunks::<4>()
-            .0
-            .iter()
-            .map(|c| f32::from_le_bytes(*c))
-            .collect();
-        let pushed = self.shared.ring.push(&samples);
-        if pushed as u64 != frames {
+        // Fixed stack chunk: 256 f32 LE samples (1 KiB), refilled from
+        // the byte view and pushed segment-wise. Same values, same
+        // order as the old whole-buffer Vec — the ring cannot tell
+        // the difference (byte-identity pinned by the capture ACs).
+        let mut chunk = [0f32; 256];
+        let mut pushed_total = 0usize;
+        for part in interleaved.as_chunks::<4>().0.chunks(chunk.len()) {
+            for (dst, bytes) in chunk.iter_mut().zip(part) {
+                *dst = f32::from_le_bytes(*bytes);
+            }
+            pushed_total += self.shared.ring.push(&chunk[..part.len()]);
+        }
+        if pushed_total as u64 != frames {
             // Cannot happen under the free-check above (single
             // producer); if it ever does, refuse honestly rather
             // than drop data.

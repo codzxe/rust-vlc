@@ -259,9 +259,14 @@ impl AudioPipeline {
         for staged in self.staged.iter_mut() {
             *staged = 0;
         }
-        for chunk in self.stage.iter_mut() {
-            chunk.clear();
-        }
+        // The staged chunks themselves are deliberately NOT cleared:
+        // `Vec::clear` on `Vec<Vec<f32>>` would drop the inner plane
+        // allocations (the same false-reuse bug class as C6a) and the
+        // next quantum would reallocate every plane. `staged == 0` is
+        // the emptiness marker; a mix only ever reads a track's chunk
+        // after that track staged this quantum (the alignment check
+        // refuses anything else), and `process` → `ChannelMap::apply`
+        // clears and refills the inner planes in place.
         Ok(true)
     }
 
