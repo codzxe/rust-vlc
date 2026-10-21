@@ -31,3 +31,10 @@ video-engine = { path = "../video-engine" }
 # testkit is dev-only by contract (MP §3.7 / ARCH-7): the lint-legal
 # `Must` helper for fixture contracts in tests and doctests.
 testkit = { path = "../testkit" }
+# media-clock, TEST-ONLY (the presenter-seam AC suite): driving the
+# real PresentationScheduler end-to-end requires constructing its
+# `Arc<dyn PlaybackClock>` parameter, and video-engine re-exports only
+# NANO_BASE — the clock types are media-clock's. A dev edge cannot
+# leak into the public API (ARCH-7); L4 → L2 is a legal downward
+# direction. Recorded in boundaries.toml dev_deps (worklog 2.D1).
+media-clock = { path = "../media-clock" }

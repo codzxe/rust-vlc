@@ -203,6 +203,7 @@ dependencies = [
 name = "renderer-wgpu"
 version = "0.1.0"
 dependencies = [
+ "media-clock",
  "media-types",
  "testkit",
  "video-engine",

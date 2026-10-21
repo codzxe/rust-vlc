@@ -242,11 +242,15 @@ external_dev_allowlist = []
 # and every wgpu integration point typed + shape-pinned; the hardware
 # backend joins behind the Lead-ratified import (2.D3 / ADR-003).
 # ARCH-4: may not depend on codecs/codec-api/demux/input. Std-only by
-# C5.
+# C5. dev_deps carries media-clock TEST-ONLY (worklog 2.D1): the
+# presenter-seam AC drives the real PresentationScheduler end-to-end,
+# whose constructor speaks media-clock's PlaybackClock (L2 — a legal
+# downward dev edge; a dev edge cannot leak into the public API,
+# ARCH-7). The production dep set stays exactly the registry row.
 [crates.renderer-wgpu]
 layer = 4
 internal_deps = ["media-types", "video-engine"]
-dev_deps = ["testkit"]
+dev_deps = ["testkit", "media-clock"]
 external_allowlist = []
 external_dev_allowlist = []
 
