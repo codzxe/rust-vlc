@@ -67,3 +67,9 @@ pub mod host;
 pub mod parse;
 pub mod pipeline_host;
 pub mod run;
+
+/// The event-throttle seam's source trait, re-exported for the hosts
+/// that inject a deterministic source (card 3.B4 — the first-vertical
+/// evidence harness) without taking a media-clock dependency of
+/// their own.
+pub use media_clock::MonotonicSource;

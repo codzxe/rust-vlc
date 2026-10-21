@@ -80,7 +80,8 @@ pub mod state;
 pub use epoch::{CancelToken, GenerationPair, PipelineGeneration, SessionEpoch, TokenMinter};
 pub use error::{SessionConfigError, SessionError, config_error};
 pub use event::{
-    EngineEvent, EngineEventKind, track_info_wire, wire_error_code, wire_playback_state, wire_stage,
+    EngineEvent, EngineEventKind, media_info_wire, source_spec_wire, track_info_wire,
+    wire_error_code, wire_playback_state, wire_stage,
 };
 pub use events::{
     BUFFERING_WINDOW_MS, DAMAGE_WINDOW_MS, DamageCoalescer, EventPolicy, ProgressWindow,
@@ -89,8 +90,9 @@ pub use events::{
 pub use pipeline::{DecoderProvider, FrameConsumer, QueuePlan, TickBudget};
 pub use seek::{SeekFailure, SeekTarget};
 pub use session::{
-    CommandReceipt, Engine, EngineOutput, EngineStats, OUTBOX_CAPACITY, ReceiptResult,
-    SessionCommandKind, SessionConfig, SessionHandle, transition_table,
+    CommandReceipt, Engine, EngineOutput, EngineStats, INBOX_CAPACITY, OUTBOX_CAPACITY,
+    RECEIPT_CAPACITY, ReceiptResult, SessionCommandKind, SessionConfig, SessionHandle,
+    transition_table,
 };
 pub use state::{
     Effect, PipelineSignal, RejectionReason, SessionInput, SessionState, TRANSITIONS, Transition,

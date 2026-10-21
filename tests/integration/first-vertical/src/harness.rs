@@ -46,6 +46,19 @@ use crate::json::Json;
 /// The transcript schema tag (doc 10 §6.4's `transcripts/<id>.json`).
 pub const TRANSCRIPT_SCHEMA: &str = "transcript/1";
 
+/// A frozen monotonic source (card 3.B4's determinism seam): every
+/// emission window reads time 0 forever, so each buffering episode
+/// permits exactly one in-episode progress emission and the damage
+/// coalescer only ever flushes at its terminal points — pure
+/// functions of the pump count, like every other observable here.
+struct FrozenThrottle(std::sync::atomic::AtomicU64);
+
+impl lumen_cli::MonotonicSource for FrozenThrottle {
+    fn now_ns(&self) -> u64 {
+        self.0.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
 /// The doc 10 §7.1 label axes for one artifact.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Labels {
@@ -214,8 +227,18 @@ impl SessionHarness {
     /// paths are never recorded, V8).
     #[must_use]
     pub fn new(scenario_fixture: &'static str) -> SessionHarness {
+        let mut host = CliHost::new();
+        // Card 3.B4: freeze the event-emission windows (doc 05 §3.4)
+        // on the same virtual-time doctrine as the media clock — a
+        // frozen monotonic source keeps the in-episode
+        // `session.buffering` progress and the non-fatal damage
+        // coalescing byte-deterministic in the transcripts (the
+        // time-tick stream is position-judged and needs no help).
+        host.set_event_throttle(std::sync::Arc::new(FrozenThrottle(
+            std::sync::atomic::AtomicU64::new(0),
+        )));
         SessionHarness {
-            host: CliHost::new(),
+            host,
             next_id: 1,
             steps: Vec::new(),
             labels: Labels::detect(),

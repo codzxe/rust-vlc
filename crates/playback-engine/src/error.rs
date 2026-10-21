@@ -47,6 +47,13 @@ pub enum SessionError {
     /// destroyed (its inbox is gone). A stale handle's late command
     /// lands here — the typed command-side staleness rejection.
     SessionClosed,
+    /// The command could not be queued: the session's bounded inbox
+    /// is full (engineering directive D-1 boundedness — the command
+    /// was NOT enqueued; the caller retries or sheds load; the
+    /// engine never blocks and never silently drops). Surfaces only
+    /// to a host submitting far faster than it polls
+    /// ([`crate::session::INBOX_CAPACITY`] commands per poll).
+    InboxBusy,
     /// An engine-internal invariant breach: an input the table pins as
     /// always-legal was refused (only reachable through a caller bug
     /// or table corruption — e.g. applying `Open` to a freshly
@@ -69,6 +76,9 @@ impl fmt::Display for SessionError {
             SessionError::GenerationExhausted(source) => write!(f, "{source}"),
             SessionError::SessionClosed => {
                 f.write_str("the target session is closed (stale handle)")
+            }
+            SessionError::InboxBusy => {
+                f.write_str("the session inbox is full (poll the engine, then retry)")
             }
             SessionError::Invariant(detail) => {
                 write!(f, "engine invariant breached: {detail}")
