@@ -107,9 +107,9 @@ fn surface_marker(surface: &Renderer, extent: Extent2D) -> [u8; 4] {
 
 /// One production-shaped wiring step (the 2.C4 suite's shape): tick,
 /// enqueue the action's request (if any), drain the queue to the
-/// renderer. The drain must deliver everything it took — a refusal
-/// here is a wiring bug, not a scenario (the detached-surface refusal
-/// is driven by `drain_to` directly in its own test).
+/// renderer — exactly one delivery per tick that enqueued one. A
+/// refusal here is a wiring bug, not a scenario (the detached-surface
+/// refusal is driven by `drain_to` directly in its own test).
 fn step(
     scheduler: &mut PresentationScheduler,
     queue: &mut PresentationQueue,
