@@ -1,0 +1,41 @@
+# crates/audio-output — audio output backends (card 2.C3,
+# doc 03 §4.9).
+#
+# Registry: doc 01 §2.6 (`audio-output`, layer L4, deps: media-types,
+# audio-engine). This card adds the media-clock edge the registry
+# under-specifies: the device sample counter IS the clock's truth
+# source (doc 03 §4.7/§4.9 — `SampleCounterSource` implemented by the
+# open device session). Edges point downward: L4 → L3 (audio-engine)
+# → L0 (media-types); L4 → L2 (media-clock) → L0.
+#
+# Backend decision (card 2.C3, recorded in
+# docs/dependencies/records/cpal-0.18.2.md): cpal is conditional-E2,
+# NOT admitted — admission is ADR-005 (Lead) and this sandbox cannot
+# build it (no ALSA dev package: alsa-sys/pkg-config probe fails,
+# exit 101) nor test it (no audio device). The card's fallback is
+# executed: trait-based adapter layer + null backend (fully
+# implemented, CI-safe) + typed not-supported stubs for real devices.
+# Real backends land in platform-* (L5) per doc 01 §2.7. Std-only by
+# C5: zero external dependencies, no unsafe (the wait-free ring is
+# atomics-only).
+
+[package]
+name = "audio-output"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen audio output: the AudioBackend adapter trait, wait-free SPSC ring + real-time render callback (no-blocking contract, op-count budget), underrun accounting, the null backend and typed OS-backend stubs (doc 03 §4.9)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+audio-engine = { path = "../audio-engine" }
+media-clock = { path = "../media-clock" }
+media-types = { path = "../media-types" }
+
+[dev-dependencies]
+# testkit is dev-only by contract (MP §3.7): Must-asserts + fixture
+# access for the acceptance suites (the corpus parents carry the
+# deterministic NCO tone plan the sink-buffer hash AC consumes).
+testkit = { path = "../testkit" }
