@@ -1020,6 +1020,18 @@ fn rejection_wire(state: SessionState, reason: playback_engine::RejectionReason)
                 "a pipeline signal fired in a state whose driver never raises it ({state_name:?}) — bug report"
             ),
         ),
+        playback_engine::RejectionReason::EndedNeedsWireEdge => CommandError::new(
+            stage,
+            ErrorCode::NotReady,
+            format!(
+                "seek in {state_name:?} needs the doc 05 §3.3 ended→buffering wire edge (Lead-owned change)"
+            ),
+        ),
+        playback_engine::RejectionReason::MissingPayload => CommandError::new(
+            Stage::Control,
+            ErrorCode::Internal,
+            "a seek command arrived without its target payload — caller bug",
+        ),
     }
 }
 

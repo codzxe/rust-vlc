@@ -47,14 +47,19 @@ use std::sync::mpsc::{Receiver, Sender};
 
 use commands::CommandId;
 use commands::envelope::{Generation, RequestId, SessionId};
-use media_clock::MediaClock;
+use media_clock::{MediaClock, PlaybackClock};
 use media_types::{EngineError, SourceUri};
+use plugin_api::SeekSupport;
 
 use crate::epoch::{CancelToken, GenerationPair, PipelineGeneration, SessionEpoch, TokenMinter};
 use crate::error::{SessionConfigError, SessionError};
 use crate::event::{EngineEvent, EngineEventKind};
 use crate::pipeline::{
-    DecoderProvider, FrameConsumer, Pipeline, QueuePlan, TickBudget, TickReport,
+    DecoderProvider, FrameConsumer, Pipeline, QueuePlan, SeekPreroll, TickBudget, TickReport,
+};
+use crate::seek::{
+    InFlightSeek, ResolvedSeek, SeekTarget, complete_seek, nanos_i64, not_seekable,
+    pipeline_seek, resolve_target,
 };
 use crate::state::{
     Effect, PipelineSignal, RejectionReason, SessionInput, SessionState, TRANSITIONS, Transition,
@@ -68,9 +73,9 @@ use crate::state::{
 /// than unbounded memory]`.
 pub const OUTBOX_CAPACITY: usize = 1024;
 
-/// One client command kind, engine-side (the minimal set: the
-/// state-machine commands; `seek`/`set-rate`/track selection are
-/// Phase 3).
+/// One client command kind, engine-side (the state-machine commands:
+/// play/pause/stop/close plus card 3.A1's seek; `set-rate`/track
+/// selection are Phase 3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionCommandKind {
     /// `playback.play`.
@@ -81,6 +86,11 @@ pub enum SessionCommandKind {
     Stop,
     /// `session.close` (class S, gen-bumping, idempotent).
     Close,
+    /// `playback.seek` (class A, gen-bumping; card 3.A1, doc 03 §6) —
+    /// the seven-step seek flow. The target rides the command as its
+    /// payload (a payload-less seek is the typed `MissingPayload`
+    /// rejection at the command boundary).
+    Seek,
 }
 
 impl SessionCommandKind {
@@ -93,6 +103,7 @@ impl SessionCommandKind {
             SessionCommandKind::Pause => CommandId::PlaybackPause,
             SessionCommandKind::Stop => CommandId::PlaybackStop,
             SessionCommandKind::Close => CommandId::SessionClose,
+            SessionCommandKind::Seek => CommandId::PlaybackSeek,
         }
     }
 
@@ -104,15 +115,21 @@ impl SessionCommandKind {
             SessionCommandKind::Pause => SessionInput::Pause,
             SessionCommandKind::Stop => SessionInput::Stop,
             SessionCommandKind::Close => SessionInput::Close,
+            SessionCommandKind::Seek => SessionInput::Seek,
         }
     }
 }
 
-/// One queued command (the inbox item).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// One queued command (the inbox item). Not `Eq`: a seek target may
+/// carry a float fraction (the wire `SeekTarget` likewise).
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct SessionCommand {
     request: RequestId,
     kind: SessionCommandKind,
+    /// The seek target, when the command is a `playback.seek` — the
+    /// payload rides the command into the executor's context (the
+    /// table itself stays pure data).
+    seek: Option<SeekTarget>,
 }
 
 /// The result half of a command receipt: the truthful-UI split
@@ -209,7 +226,11 @@ impl SessionHandle {
     /// gone (stale handle) — never a silent drop.
     pub fn submit(&self, request: RequestId, kind: SessionCommandKind) -> Result<(), SessionError> {
         self.tx
-            .send(SessionCommand { request, kind })
+            .send(SessionCommand {
+                request,
+                kind,
+                seek: None,
+            })
             .map_err(|_| SessionError::SessionClosed)
     }
 
@@ -243,6 +264,23 @@ impl SessionHandle {
     /// As [`SessionHandle::submit`].
     pub fn close(&self, request: RequestId) -> Result<(), SessionError> {
         self.submit(request, SessionCommandKind::Close)
+    }
+
+    /// Submit `playback.seek` with its target (card 3.A1; doc 05
+    /// §2.4 — the payload rides the command, and the class-A accept
+    /// receipt carries the post-bump generation; the completion
+    /// arrives as the `Seeked`/`SeekFailed` terminal events).
+    ///
+    /// # Errors
+    /// As [`SessionHandle::submit`].
+    pub fn seek(&self, request: RequestId, target: SeekTarget) -> Result<(), SessionError> {
+        self.tx
+            .send(SessionCommand {
+                request,
+                kind: SessionCommandKind::Seek,
+                seek: Some(target),
+            })
+            .map_err(|_| SessionError::SessionClosed)
     }
 }
 
@@ -333,7 +371,14 @@ impl OutputHub {
 
     /// Drain everything, suppressing pipeline-scoped events emitted
     /// under generations older than `current` (doc 05 §4.2 — the
-    /// engine-side staleness rule: superseded work is silent).
+    /// engine-side staleness rule: superseded work is silent) — with
+    /// one exemption: the two seek terminals. A `Seeked`/`SeekFailed`
+    /// already emitted for a completed generation survives a later
+    /// mint that lands before the host drains (doc 05 §4.3 invariant
+    /// 4: exactly one terminal per completed generation).
+    /// Superseded seeks stay silent the honest way — their slot was
+    /// replaced before any terminal was emitted, so there is nothing
+    /// in the buffer to swallow.
     fn drain(&mut self, current: &GenerationPair) -> Vec<EngineOutput> {
         let live = current.pipeline.0;
         let mut kept = Vec::with_capacity(self.queue.len());
@@ -341,7 +386,11 @@ impl OutputHub {
             match &item {
                 EngineOutput::Receipt(_) => kept.push(item),
                 EngineOutput::Event(event) => {
-                    if event.generation.0 < live {
+                    let seek_terminal = matches!(
+                        event.kind,
+                        EngineEventKind::Seeked { .. } | EngineEventKind::SeekFailed { .. }
+                    );
+                    if event.generation.0 < live && !seek_terminal {
                         self.suppressed_stale = self.suppressed_stale.saturating_add(1);
                     } else {
                         kept.push(item);
@@ -632,6 +681,10 @@ struct InputContext {
     origin: Option<RequestId>,
     /// The typed failure for a `Failed` input.
     fatal: Option<EngineError>,
+    /// The resolved seek target for a `Seek` application (the
+    /// payload rides the executor's context — the `SeekPipeline`
+    /// effect consumes it).
+    seek: Option<SeekTarget>,
 }
 
 /// The session (single-writer; driven only through `Engine::poll`).
@@ -648,6 +701,11 @@ pub(crate) struct Session {
     seq: Arc<AtomicU64>,
     totals: PipelineTotals,
     runtime: SessionRuntime,
+    /// The seek currently executing (doc 03 §6 steps 5–7): recorded
+    /// by the `SeekPipeline` effect, completed on the tick path. The
+    /// single slot IS the supersession rule — replacing it silently
+    /// retires the older generation (doc 05 §4.2).
+    inflight_seek: Option<InFlightSeek>,
 }
 
 /// The parts of a [`SessionConfig`] the live session retains: the
@@ -689,6 +747,7 @@ impl Session {
             seq,
             totals: PipelineTotals::default(),
             runtime,
+            inflight_seek: None,
         }
     }
 
@@ -765,6 +824,11 @@ impl Session {
                         pipeline.teardown(generation);
                     }
                     self.pipeline = None;
+                    // A torn-down pipeline can never complete a seek:
+                    // the in-flight slot dies here, silently — the
+                    // teardown's mint superseded its generation
+                    // (doc 05 §4.2).
+                    self.inflight_seek = None;
                 }
                 Effect::FreezeClock | Effect::StopClock => {
                     // Underrun/pause entry freezes; Ended freezes at
@@ -793,6 +857,9 @@ impl Session {
                 Effect::EmitEndOfMedia => {
                     outputs.push(self.emit(EngineEventKind::EndOfMedia, origin));
                 }
+                Effect::SeekPipeline => {
+                    self.seek_pipeline_step(context.seek.take(), origin, &mut outputs);
+                }
             }
         }
         self.state = row.to;
@@ -806,9 +873,24 @@ impl Session {
     /// The receipt is returned separately so the caller can order it
     /// **before** the events it causes (doc 05 §4.3 guarantee 2).
     fn apply_command(&mut self, command: SessionCommand) -> (CommandReceipt, Vec<EngineOutput>) {
+        // A seek without its target payload is a caller bug, surfaced
+        // typed at the command boundary (never a panic, never a
+        // guessed zero) — the table never sees it.
+        if command.kind == SessionCommandKind::Seek && command.seek.is_none() {
+            let receipt = CommandReceipt {
+                request: command.request,
+                command: command.kind,
+                result: ReceiptResult::Rejected {
+                    state: self.state,
+                    reason: RejectionReason::MissingPayload,
+                },
+            };
+            return (receipt, Vec::new());
+        }
         let context = InputContext {
             origin: Some(command.request),
             fatal: None,
+            seek: command.seek,
         };
         match self.apply(command.kind.as_input(), context) {
             Ok(outputs) => {
@@ -845,6 +927,111 @@ impl Session {
                     },
                 };
                 (receipt, Vec::new())
+            }
+        }
+    }
+
+    /// Steps 1 (semantic half) through 4 of the seek flow (doc 03
+    /// §6) — the `SeekPipeline` effect's interpreter. The row's
+    /// `BumpPipeline` has already minted and published the generation
+    /// this seek runs under, and `FreezeClock` (the Playing row) has
+    /// already frozen the clock at the old position; the accept
+    /// receipt still answers class A under the bumped generation
+    /// (doc 05 §2.4/§4.2).
+    ///
+    /// On a typed refusal the pipeline is left exactly as it stood
+    /// (contract D4): the queues were not flushed, the demuxer never
+    /// moved, and playback continues from the old position. On a
+    /// flush or reanchor failure the pipeline re-fills from where the
+    /// demuxer still stands (a rebuffer — honest, bounded).
+    fn seek_pipeline_step(
+        &mut self,
+        target: Option<SeekTarget>,
+        origin: Option<RequestId>,
+        outputs: &mut Vec<EngineOutput>,
+    ) {
+        let Some(target) = target else {
+            // Unreachable through `apply_command` (the payload-less
+            // seek is short-circuited to the typed `MissingPayload`
+            // rejection there); honored honestly rather than panicked
+            // on.
+            return;
+        };
+        let position_ns = clock_position_ns(&self.runtime.clock);
+        let duration_ns = self.pipeline.as_ref().and_then(Pipeline::duration_ns);
+        // Step 1's semantic half: resolution (clamping is truth —
+        // doc 05 §2.4)…
+        let resolved_ns = match resolve_target(target, duration_ns, position_ns) {
+            ResolvedSeek::Position { ns } => ns,
+            ResolvedSeek::Failure(reason) => {
+                outputs.push(self.emit(
+                    EngineEventKind::SeekFailed {
+                        reason,
+                        position: position_ns,
+                    },
+                    origin,
+                ));
+                return;
+            }
+        };
+        // …and capability: an unseekable source never touches the
+        // pipeline at all (doc 03 §6 step 1 — never a fake success,
+        // MP §8 bullet 4).
+        let seekable = self
+            .pipeline
+            .as_ref()
+            .is_some_and(|pipeline| pipeline.seekability() != SeekSupport::None);
+        if !seekable {
+            outputs.push(self.emit(
+                EngineEventKind::SeekFailed {
+                    reason: not_seekable(),
+                    position: position_ns,
+                },
+                origin,
+            ));
+            return;
+        }
+        // Steps 3–4 against the live pipeline, under the generation
+        // the row just minted.
+        let generation = self.pair().pipeline.as_queue_generation();
+        let flush_budget = self.runtime.budget.flush_calls_per_limb;
+        let outcome = match self.pipeline.as_mut() {
+            Some(pipeline) => pipeline_seek(pipeline, generation, resolved_ns, flush_budget),
+            // Unreachable: seek-legal states own a live pipeline.
+            None => return,
+        };
+        self.totals.stale_frames_dropped = self
+            .totals
+            .stale_frames_dropped
+            .saturating_add(u64::from(outcome.stale_frames_flushed));
+        match outcome.inflight {
+            Some(mut inflight) => {
+                // The causing request is the terminal's origin (doc 05
+                // §3.1). Replacing a previous slot here IS the
+                // supersession: the older generation never completes,
+                // so it never emits a terminal (doc 05 §4.2).
+                inflight.origin = origin;
+                self.inflight_seek = Some(inflight);
+            }
+            None => {
+                // D4: the flush happened but the demuxer never moved —
+                // the pipeline re-fills from the demuxer's position.
+                // The in-flight slot (a superseded older seek
+                // included) clears: its generation's pipeline content
+                // is gone.
+                if let Some(pipeline) = self.pipeline.as_mut() {
+                    pipeline.end_seek();
+                }
+                self.inflight_seek = None;
+                if let Some(reason) = outcome.failure {
+                    outputs.push(self.emit(
+                        EngineEventKind::SeekFailed {
+                            reason,
+                            position: position_ns,
+                        },
+                        origin,
+                    ));
+                }
             }
         }
     }
@@ -922,6 +1109,39 @@ impl Session {
                 None,
             ));
         }
+        // The in-flight seek's completion (doc 03 §6 steps 5–7): when
+        // the pre-roll is ready — every enabled limb delivered (or
+        // provably never can) — re-anchor the clock on the truth and
+        // emit the terminal. This runs before the tick's signal
+        // translation so the seek's terminal precedes the state work
+        // the same tick causes (causal order: the seek completes,
+        // then the session resumes).
+        if let Some(inflight) = self.inflight_seek
+            && let Some(SeekPreroll::Ready { audio_anchor_ns }) =
+                self.pipeline.as_ref().map(Pipeline::seek_preroll)
+        {
+            let origin = inflight.origin;
+            let requested = inflight.target_ns;
+            match complete_seek(&self.runtime.clock, inflight, audio_anchor_ns) {
+                Ok(actual) => {
+                    outputs.push(self.emit(EngineEventKind::Seeked { requested, actual }, origin))
+                }
+                Err(reason) => outputs.push(self.emit(
+                    EngineEventKind::SeekFailed {
+                        reason,
+                        position: clock_position_ns(&self.runtime.clock),
+                    },
+                    origin,
+                )),
+            }
+            // The observation window closes either way: the
+            // generation has its exactly-one terminal (doc 05 §4.3
+            // invariant 4).
+            self.inflight_seek = None;
+            if let Some(pipeline) = self.pipeline.as_mut() {
+                pipeline.end_seek();
+            }
+        }
         // One translated input, at most.
         let signal = if report.fatal.is_some() {
             Some(PipelineSignal::Fatal)
@@ -942,6 +1162,7 @@ impl Session {
             let context = InputContext {
                 origin: None,
                 fatal: report.fatal.take(),
+                seek: None,
             };
             match self.apply(input, context) {
                 Ok(mut transition_outputs) => outputs.append(&mut transition_outputs),
@@ -962,11 +1183,24 @@ impl Session {
         let context = InputContext {
             origin: None,
             fatal: Some(error),
+            seek: None,
         };
         // The rejection is unreachable by construction (the callers
         // only fail in table-legal states); honored honestly.
         self.apply(SessionInput::Failed, context)
             .unwrap_or_default()
+    }
+}
+
+/// The clock's current position in nanoseconds — the seek target's
+/// resolution base and the failed-seek report's rollback position.
+/// The clock answers in the nanosecond base, so the `Err` arm is the
+/// i64-exhaustion corner only; 0 is the honest floor there, never a
+/// guess presented as truth.
+fn clock_position_ns(clock: &MediaClock) -> i64 {
+    match clock.now().as_nanos() {
+        Ok(ns) => nanos_i64(ns),
+        Err(_) => 0,
     }
 }
 

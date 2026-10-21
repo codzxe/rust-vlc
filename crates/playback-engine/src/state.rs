@@ -53,11 +53,11 @@
 //! # Pipeline inputs and the driver guard
 //!
 //! Inputs are either **commands** ([`SessionInput::Play`],
-//! [`Pause`], [`Stop`], [`Close`], plus [`Open`] applied by the engine
-//! at construction) or **pipeline signals** ([`OpenReady`],
-//! [`Primed`], [`Underrun`], [`EofReached`], [`Drained`],
-//! [`Failed`]) raised by the pipeline tick. The tick never applies a
-//! signal directly: it goes through
+//! [`Pause`], [`Stop`], [`Close`], [`Seek`] — plus [`Open`] applied
+//! by the engine at construction) or **pipeline signals**
+//! ([`OpenReady`], [`Primed`], [`Underrun`], [`EofReached`],
+//! [`Drained`], [`Failed`]) raised by the pipeline tick. The tick
+//! never applies a signal directly: it goes through
 //! [`translate_pipeline_signal`], which maps raw pipeline facts to the
 //! one input that is legal for the current state (or `None`). The
 //! exhaustive tests prove `translate` only ever yields table-legal
@@ -328,7 +328,7 @@ pub enum Effect {
     SeekPipeline,
 }
 
-/// The minimal-machine transition table (23 rows; see the module
+/// The minimal-machine transition table (26 rows; see the module
 /// docs). Data, not code — the exhaustive tests classify every
 /// `(state, input)` pair against it.
 pub const TRANSITIONS: &[Transition] = &[
@@ -643,7 +643,7 @@ impl std::fmt::Display for TransitionRejected {
 /// executor calls it; nothing else mutates state), so an illegal
 /// transition is unreachable by construction: every pair is either a
 /// table row or a typed rejection, and the exhaustive tests pin all
-/// `8 × 11 = 88` classifications.
+/// `8 × 12 = 96` classifications.
 ///
 /// # Errors
 /// [`TransitionRejected`] when no row matches — with the pair's
@@ -810,9 +810,9 @@ mod tests {
 
     #[test]
     fn table_size_is_pinned() {
-        // 23 rows; adding one is a deliberate act (worklog + doc 03
+        // 26 rows; adding one is a deliberate act (worklog + doc 03
         // §4.6 reference in the row's comment).
-        assert_eq!(TRANSITIONS.len(), 23);
+        assert_eq!(TRANSITIONS.len(), 26);
     }
 
     #[test]

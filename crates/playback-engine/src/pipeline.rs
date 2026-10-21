@@ -52,14 +52,17 @@
 use std::sync::Arc;
 
 use codec_api::{DecodeOutcome, Decoder, DecoderConfig, FrameSink, ThreadBudget};
-use media_types::{EngineError, Frame, GenerationId, MediaKind, Packet, Stamp, Track, TrackId};
+use media_types::time::TimeSpan;
+use media_types::{
+    EngineError, Frame, GenerationId, MediaKind, Packet, Stamp, Track, TrackId,
+};
 use packet_queue::{
     BoundedQueue, PopOutcome, PushOutcome, QueueLimits, QueueUsage, Stamped, WatermarkThresholds,
 };
-use plugin_api::{DemuxEvent, Demuxer};
+use plugin_api::{DemuxEvent, Demuxer, SeekSupport};
 
+use crate::seek::nanos_i64;
 use crate::state::SessionState;
-use crate::seek::SeekPreroll;
 
 /// The registry seam (card 2.C2): produces a decoder for a track.
 ///
@@ -290,10 +293,9 @@ pub(crate) struct SeekProgress {
     /// generation.
     saw_frame: Vec<bool>,
     /// The first audio limb's first delivered frame, in ns (None
-    /// until an audio frame arrives; the audio limb's index, if any).
+    /// until an audio frame arrives — then the landing anchors the
+    /// clock instead).
     first_audio_ns: Option<i64>,
-    /// Whether any limb is an audio limb (the anchor-truth policy).
-    has_audio_limb: bool,
 }
 
 impl SeekProgress {
@@ -301,9 +303,6 @@ impl SeekProgress {
         SeekProgress {
             saw_frame: vec![false; limbs.len()],
             first_audio_ns: None,
-            has_audio_limb: limbs
-                .iter()
-                .any(|limb| limb.track.kind == MediaKind::Audio),
         }
     }
 
@@ -320,9 +319,9 @@ impl SeekProgress {
             && self.first_audio_ns.is_none()
             && let Some(stamp) = first
             && let Ok(ts) = stamp.timestamp()
-            && let Ok(media_types::Nanoseconds(ns)) = ts.as_nanos()
+            && let Ok(ns) = ts.as_nanos()
         {
-            self.first_audio_ns = Some(ns);
+            self.first_audio_ns = Some(crate::seek::nanos_i64(ns));
         }
     }
 }
@@ -446,6 +445,166 @@ impl Pipeline {
         self.pending = None;
     }
 
+    /// The demuxer's declared seek capability (doc 03 §6 step 1,
+    /// delegated to the plugin-api hook).
+    pub(crate) fn seekability(&self) -> SeekSupport {
+        self.demuxer.seekability()
+    }
+
+    /// The greatest declared track extent, in nanoseconds — the
+    /// seek target's clamp bound (doc 05 §2.4: absolute/relative
+    /// targets clamp to `[0, duration]` when the duration is known).
+    /// `None` when no track declares a present span end (the
+    /// demuxer's own range check is the backstop then).
+    pub(crate) fn duration_ns(&self) -> Option<i64> {
+        self.tracks
+            .iter()
+            .filter_map(|track| stamp_ns(track.timing.span.end))
+            .max()
+    }
+
+    /// Seek step 3 (doc 03 §6): flush the pipeline for `generation`
+    /// — the mint the row's `BumpPipeline` just published. Unlike
+    /// [`Pipeline::teardown`] the queues stay **open** (the seek
+    /// re-fills them): every queue is flushed at the new boundary
+    /// (stale residents die — packet-queue Q2), the held demux
+    /// packet is dropped (it predates the mint), the end-of-stream
+    /// flag resets (a backward seek revives an exhausted stream),
+    /// every decoder is flushed to `Drained` through a
+    /// generation-checking sink (its old-generation reorder buffers
+    /// are dropped and counted — doc 03 §5 checking point 5 — never
+    /// presented) and then reconfigured for the new generation (the
+    /// codec-api seek contract, `decode.rs`'s "drain path after seek
+    /// generation switches"). A fresh [`SeekProgress`] opens the
+    /// step-5 observation window.
+    ///
+    /// A flush budget that exhausts before a decoder answers
+    /// `Drained` is **not** a failure: the straggler frames it still
+    /// holds are dropped at the sink's generation check in later
+    /// decode slices (the checkpoint is the guarantee, the budget
+    /// only bounds the work).
+    ///
+    /// # Errors
+    /// The decoder's typed error (a flush or reconfigure refusal of
+    /// the new generation) — the seek fails honestly per D4 and the
+    /// pipeline limps on (the next decode error surfaces through
+    /// the normal fatal path).
+    pub(crate) fn seek_flush(&mut self, generation: GenerationId, flush_budget: u32) -> Result<(), EngineError> {
+        // Invalidate any previous observation window first: a
+        // half-completed flush must not leave a superseded seek's
+        // pre-roll progress armed (it would answer Ready from stale
+        // data and keep the Paused decode carve-out alive).
+        self.seek_progress = None;
+        for limb in &self.limbs {
+            let _ = limb.queue.flush(generation);
+        }
+        self.pending = None;
+        self.eof = false;
+        self.generation = generation;
+        let consumer = Arc::clone(&self.consumer);
+        for limb in &mut self.limbs {
+            let track_id = limb.track.id;
+            let mut sink = LimbSink {
+                consumer: Arc::clone(&consumer),
+                track: track_id,
+                generation,
+                frames: 0,
+                first: None,
+                stale_dropped: 0,
+            };
+            for _ in 0..flush_budget {
+                match limb.decoder.flush(&mut sink) {
+                    Ok(DecodeOutcome::Drained) => break,
+                    Ok(_) => continue,
+                    Err(error) => {
+                        // The frames this limb already purged are
+                        // still gone — count them before refusing.
+                        self.seek_flush_stale =
+                            self.seek_flush_stale.saturating_add(sink.stale_dropped);
+                        return Err(error);
+                    }
+                }
+            }
+            self.seek_flush_stale = self.seek_flush_stale.saturating_add(sink.stale_dropped);
+            let config = DecoderConfig::new(
+                limb.track.codec.clone(),
+                generation,
+                ThreadBudget::default(),
+                None,
+                None,
+            );
+            limb.decoder.configure(&config)?;
+            limb.drained = false;
+        }
+        self.seek_progress = Some(SeekProgress::new(&self.limbs));
+        Ok(())
+    }
+
+    /// Frames dropped as stale during the last seek flush (doc 03
+    /// §5 checking point 5 — the decoder-output stale purge), handed
+    /// to the caller once for its observability totals, then reset.
+    pub(crate) fn take_seek_flush_stale(&mut self) -> u32 {
+        std::mem::take(&mut self.seek_flush_stale)
+    }
+
+    /// Seek step 4 (doc 03 §6): position the demuxer at its
+    /// keyframe-safe position ≤ `target` and report where the stream
+    /// will resume. Invariant D4 lives in the demuxer (compute-then-
+    /// commit): on `Err` it stands where it stood.
+    ///
+    /// # Errors
+    /// The demuxer's typed error (out of range, bounded-scan budget,
+    /// damage) — with the demuxer unmoved.
+    pub(crate) fn demuxer_reanchor(&mut self, target: TimeSpan) -> Result<TimeSpan, EngineError> {
+        self.demuxer.reanchor(target)
+    }
+
+    /// Seek step 5's completion observation: the pre-roll status of
+    /// the in-flight seek. `Ready` when every enabled limb has
+    /// delivered ≥ 1 frame of the current generation, or can
+    /// provably never deliver (end-of-stream with nothing resident
+    /// and the decoder drained). A landing where **every** limb
+    /// provably never delivers still completes — the alternative is
+    /// a seek that never reports; the drained signal then ends the
+    /// media honestly at the landing. The payload is the step-6
+    /// anchor truth: the first audio frame's own timestamp, when an
+    /// audio frame was delivered.
+    pub(crate) fn seek_preroll(&self) -> SeekPreroll {
+        let Some(progress) = self.seek_progress.as_ref() else {
+            return SeekPreroll::NotReady;
+        };
+        if self.limbs.is_empty() {
+            return SeekPreroll::NotReady;
+        }
+        for (index, limb) in self.limbs.iter().enumerate() {
+            if progress.saw_frame.get(index).copied().unwrap_or(false) {
+                continue;
+            }
+            if !self.can_never_deliver(limb) {
+                return SeekPreroll::NotReady;
+            }
+        }
+        SeekPreroll::Ready {
+            audio_anchor_ns: progress.first_audio_ns,
+        }
+    }
+
+    /// End the in-flight seek's observation window — completion,
+    /// failure, or supersession: clears the pre-roll progress (and
+    /// with it the Paused decode carve-out of [`Pipeline::tick`]).
+    pub(crate) fn end_seek(&mut self) {
+        self.seek_progress = None;
+    }
+
+    /// Whether a limb can provably never deliver another frame:
+    /// end-of-stream, nothing held, nothing resident, and the decoder
+    /// already flushed to `Drained` (the seek-flush reset both flags,
+    /// so "never" is a fact about the post-seek stream, not the
+    /// pre-seek state).
+    fn can_never_deliver(&self, limb: &Limb) -> bool {
+        self.eof && self.pending.is_none() && limb.drained && limb.queue.usage().packets == 0
+    }
+
     /// Run one bounded tick for `state`. Never blocks; every loop is
     /// budget-bounded (see the module docs).
     pub(crate) fn tick(&mut self, state: SessionState, budget: &TickBudget) -> TickReport {
@@ -466,8 +625,18 @@ impl Pipeline {
         // the watermark then parks — doc 03 §4.6's pause row).
         self.demux_step(budget.demux_events, &mut report);
         // Decode only where decoders are allowed to make progress;
-        // Paused freezes the sinks (frames must not present).
-        if matches!(state, SessionState::Buffering | SessionState::Playing) {
+        // Paused freezes the sinks (frames must not present) — with
+        // one carve-out: while a seek is in flight, decode runs even
+        // in Paused so the landing frame exists to re-anchor on (the
+        // wire-visible state stays paused; the clock stays frozen
+        // until the completion report).
+        // [PROPOSAL: Lead decision 3.HARD-AUDIT D-a — there is no
+        // paused→buffering wire edge (doc 05 §3.3), so the pre-roll
+        // cannot ride the buffering episode while paused; revisit at
+        // 3.C1 state-machine completeness.]
+        if matches!(state, SessionState::Buffering | SessionState::Playing)
+            || self.seek_progress.is_some()
+        {
             self.decode_step(budget, &mut report);
         }
         // The drained check is pure state inspection and also runs
@@ -589,8 +758,9 @@ impl Pipeline {
     fn decode_step(&mut self, budget: &TickBudget, report: &mut TickReport) {
         let consumer = Arc::clone(&self.consumer);
         let generation = self.generation;
-        for limb in &mut self.limbs {
+        for (index, limb) in self.limbs.iter_mut().enumerate() {
             let track_id = limb.track.id;
+            let limb_kind = limb.track.kind;
             let mut sink = LimbSink {
                 consumer: Arc::clone(&consumer),
                 track: track_id,
@@ -662,7 +832,23 @@ impl Pipeline {
                 self.first_frame = Some(position);
                 report.first_frame = Some(position);
             }
+            // The in-flight seek's pre-roll observation (doc 03 §6
+            // step 5): frames delivered this slice, and the first
+            // frame's stamp (the audio anchor truth for step 6).
+            if let Some(progress) = self.seek_progress.as_mut() {
+                progress.observe(index, limb_kind, sink.frames, sink.first);
+            }
         }
+    }
+}
+
+/// A present stamp's nanoseconds (`None` when missing or
+/// unrepresentable — absence is data, never a guess).
+fn stamp_ns(stamp: Stamp) -> Option<i64> {
+    let timestamp = stamp.timestamp().ok()?;
+    match timestamp.as_nanos() {
+        Ok(ns) => Some(nanos_i64(ns)),
+        Err(_) => None,
     }
 }
 

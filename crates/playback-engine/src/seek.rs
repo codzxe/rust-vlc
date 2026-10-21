@@ -38,9 +38,17 @@
 //! 5. **Re-prime** — the pipeline ticks resume demux from A; the
 //!    queues fill and decoders deliver the landing's frames.
 //!    Completion is observed by [`Pipeline::seek_preroll`]: every
-//!    enabled limb has delivered ≥ 1 frame of the new generation
-//!    (or can provably never deliver — its queue is empty at
-//!    end-of-stream), and at least one delivered.
+//!    enabled limb has delivered ≥ 1 frame of the new generation,
+//!    or can provably never deliver (its queue is empty at
+//!    end-of-stream with the decoder already `Drained`). A landing
+//!    where every limb provably never delivers still completes —
+//!    the alternative is a seek that never reports, and the drained
+//!    signal then ends the media honestly at the landing instead.
+//!    `[PROPOSAL: doc 03 §6 step 5 words the audio condition as
+//!    "the first audio packet is queued"; v0 waits for the first
+//!    audio *frame* — the frame's own timestamp is the step-6
+//!    anchor truth, and the decode slice that produces it runs in
+//!    the same tick the packet queues.]`
 //! 6. **Clock re-anchor** — [`complete_seek`]:
 //!    `clock.reanchor(A_adjusted)` where `A_adjusted` is the first
 //!    **audio** frame's own timestamp when an audio limb exists
@@ -76,6 +84,28 @@
 //! exempt from the outbox's generation-age suppression so a completed
 //! generation's terminal is never swallowed by a later mint (doc 05
 //! §4.3 invariant 4: exactly one terminal per completed generation).
+//!
+//! The point of no return is the step-3 flush: a second seek that
+//! fails *resolution* (unresolvable target, unseekable source)
+//! leaves the older in-flight seek untouched — it still completes
+//! and still reports. A second seek that fails *after* the flush
+//! (a reanchor refusal) has already invalidated the older seek's
+//! pipeline content, so the slot clears and only the new
+//! generation's `SeekFailed` is emitted.
+//!
+//! # Paused seeks — the decode carve-out
+//!
+//! [`Pipeline::tick`] only decodes in `Buffering`/`Playing`, and the
+//! wire table has no `paused → buffering` edge (doc 05 §3.3) — so a
+//! seek accepted while `Paused` could never run its step-5 pre-roll.
+//! **[PROPOSAL: Lead decision 3.HARD-AUDIT D-a]** — while an
+//! `InFlightSeek` exists, the pipeline's decode slice runs even in
+//! `Paused`: the wire-visible state stays `paused` (the row is a
+//! self-transition), the landing frame may present, and the clock
+//! stays frozen until the completion report re-anchors it. Flagged
+//! for revisit at 3.C1 (state-machine completeness); the honest
+//! alternatives there are a Lead-owned wire edge or an
+//! engine-internal transient seeking sub-state.
 //!
 //! # What is deliberately v0 here
 //!
@@ -240,7 +270,7 @@ pub(crate) fn resolve_target(
         },
         SeekTarget::Percent { fraction } => match duration_ns {
             Some(duration) => ResolvedSeek::Position {
-                ns: clamp((f64::from(fraction.clamp(0.0, 1.0)) * f64::from(duration)).round()
+                ns: clamp((f64::from(fraction.clamp(0.0, 1.0)) * duration as f64).round()
                     as i64),
             },
             None => ResolvedSeek::Failure(SeekFailure::OutOfRange),
@@ -269,9 +299,17 @@ pub(crate) fn target_span(ns: i64) -> TimeSpan {
 pub(crate) fn span_start_ns(span: &TimeSpan) -> Option<i64> {
     let ts = span.start.timestamp().ok()?;
     match ts.as_nanos() {
-        Ok(Nanoseconds(ns)) => Some(ns),
+        Ok(ns) => Some(nanos_i64(ns)),
         Err(_) => None,
     }
+}
+
+/// Lossless-in-practice [`Nanoseconds`] → `i64`: media positions are
+/// non-negative and far below `i64::MAX` (≈ 292 years); a theoretical
+/// `u64` overflow saturates rather than wraps — never a fabricated
+/// position.
+pub(crate) fn nanos_i64(ns: Nanoseconds) -> i64 {
+    i64::try_from(ns.0).unwrap_or(i64::MAX)
 }
 
 /// The seek a session is currently executing (steps 5–7): what was
@@ -317,8 +355,10 @@ pub(crate) fn pipeline_seek(
     // Step 3 — the flush. A decoder flush/configure failure is a
     // decode-stage refusal of the new generation: the seek fails
     // honestly and the pipeline limps on (the next decode error
-    // surfaces through the normal fatal path).
+    // surfaces through the normal fatal path). The frames the flush
+    // already purged are still gone — count them.
     if let Err(error) = pipeline.seek_flush(generation, flush_budget) {
+        outcome.stale_frames_flushed = pipeline.take_seek_flush_stale();
         outcome.failure = Some(SeekFailure::Demux(error));
         return outcome;
     }
