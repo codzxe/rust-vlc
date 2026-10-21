@@ -107,8 +107,14 @@ is scoped to unpublished workspace members).
   they get rows here only when actually added): tracing /
   tracing-subscriber (pass), raw-window-handle (pass), wasm-bindgen (pass),
   cpal / wgpu / winit / windows / windows-sys / objc2 / core-foundation
-  (conditional, E2), tauri / wry (exception-ADR-004). wasmi has the one full
-  pre-audit record (`records/wasmi.md`, ADR-002 input).
+  (conditional, E2), tauri / wry (exception-ADR-004). Pre-audit/verification
+  records exist for four of these: `records/wasmi.md` (full R1–R10, ADR-002
+  decision input — not yet imported; `plugin-host-wasm` is Phase 7),
+  `records/cpal-0.18.2.md` (P0 verification, conditional-E2, NOT admitted —
+  ADR-005 input), `records/wgpu-30.0.1.md` (deferral record, conditional-E2,
+  NOT imported — admission-time obligations listed in its §6),
+  `records/tauri-wry-2.x.md` (pre-audit, exception-ADR-004, NOT imported —
+  the ADR-004 admission vehicle, criteria in its §"Admission criteria").
 - **Rejected by policy** (deny.toml bans, 2026-10-20, every name verified to
   exist on crates.io before banning): the FFmpeg/libav family, codec C
   wrappers (libopus/minimp3/libvorbis/openh264/dav1d/x264/libvpx/libde265/
