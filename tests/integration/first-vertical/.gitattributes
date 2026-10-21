@@ -1,0 +1,8 @@
+# Evidence artifacts are MACHINE-WRITTEN (the `--ignored` regen tests)
+# and byte-compared by the normal gate. Git must never translate their
+# line endings on any platform (GitHub's Windows runners default to
+# `autocrlf=true`, which would corrupt the byte-identity checks and
+# the recorded SHA-256 digests).
+
+evidence/** text eol=lf
+evidence/**/*.png binary

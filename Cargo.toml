@@ -16,8 +16,17 @@
 #   together: apps/cli (the first L6 app, Lead-assigned scope "apps/cli/**,
 #   workspace member") and apps/desktop (the webview-prototype skeleton).
 #   apps/web (7.H1) joins later by creating `apps/<name>/` WITHOUT editing
-#   this file. Further membership changes require Lead approval
-#   (AGENTS.md §3.7).
+#   this file. Card 2.E1 (the first integration-suite crate — doc 10 §6.1's
+#   `tests/integration/` level) appended the explicit member path
+#   "tests/integration/first-vertical": the same pre-announced single-edit
+#   pattern as tools/xtask, and exactly that card's granted scope (a root
+#   `tests/` directory is NOT a workspace member by default, so the suite
+#   declares its package explicitly to join the gate's
+#   `cargo test --workspace` — doc 10 §6.1: integration scenarios are
+#   merge-blocking). [PROPOSAL: promote to a "tests/integration/*" glob
+#   when the second suite (contract/stress/compatibility) lands, mirroring
+#   crates/* — Lead decision]. Further membership changes require Lead
+#   approval (AGENTS.md §3.7).
 #
 # Lint policy: doc 10 §3.1 verbatim (rust + clippy deny lists). Every member
 # inherits it via `[lints] workspace = true` (doc 10 §3.2). Inheritance is
@@ -25,7 +34,11 @@
 
 [workspace]
 resolver = "2"
-members = ["crates/*", "apps/*", "tools/xtask"]
+# Single-line members array: the xtask TOML reader (check-architecture)
+# does not support multi-line arrays — the salvage's multi-line form
+# broke the arch gate; restored to the reader's shape with the same
+# membership (the 2.E1 pre-announced edit, unchanged in content).
+members = ["crates/*", "apps/*", "tools/xtask", "tests/integration/first-vertical"]
 
 [workspace.lints.rust]
 unsafe_code = "deny"

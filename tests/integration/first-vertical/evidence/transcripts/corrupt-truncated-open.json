@@ -1,0 +1,36 @@
+{
+  "schema": "transcript/1",
+  "scenario": "corrupt-truncated-open",
+  "fixture": "generated/malformed/avi_mjpeg_pcm__trunc1.avi",
+  "labels": {
+    "environment_kind": "local",
+    "os": "linux",
+    "hardware_class": "mock",
+    "devices": [
+      "null-audio",
+      "software-render"
+    ]
+  },
+  "commands": [
+    {
+      "cmd": "session.open",
+      "request_id": 1,
+      "session": null,
+      "gen": 0,
+      "result": {
+        "form": "error",
+        "error": {
+          "stage": "demux",
+          "code": "corrupt",
+          "message": "[demux.corrupt]: truncated data: expected 88 bytes, found 52 (demux.avi.truncated)"
+        }
+      }
+    }
+  ],
+  "events": [],
+  "observables": {
+    "final_state": "Idle",
+    "position_us": 0,
+    "session": null
+  }
+}

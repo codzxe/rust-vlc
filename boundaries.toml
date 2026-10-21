@@ -348,6 +348,24 @@ dev_deps = ["testkit", "media-clock"]
 external_allowlist = []
 external_dev_allowlist = []
 
+# tests/integration/first-vertical (package `first-vertical`, card
+# 2.E1): the end-to-end integration suite — a TEST-ONLY harness over
+# the ASSEMBLED vertical, so it sits outside the L0–L6 layer stack
+# (the testkit/xtask precedent: layer-less, and its edges therefore
+# carry no layer ordering). Everything it does to the engine goes
+# through the ONE command layer: lumen-cli's CliHost +
+# lumen_dispatch (ARCH-5) and the commands catalog vocabulary —
+# never a direct engine call (the card's own rule). testkit is the
+# dev-only assertion vocabulary. Std-only by C5: zero external
+# dependencies — the doc 10 §7 evidence artifacts (JSON transcripts,
+# the evidence/1 ledger, SHA-256 digests) are emitted by the crate's
+# own std-only writers (the 2.A3/2.B5/2.D1 in-repo precedents).
+[crates.first-vertical]
+internal_deps = ["commands", "lumen-cli"]
+dev_deps = ["testkit"]
+external_allowlist = []
+external_dev_allowlist = []
+
 # dev crate (doc 01 §1.4 "dev" row, §2.8; card 1.C3). Outside the layer
 # stack: it may depend on production crates (none yet — add entries in
 # the same change when it gains any), and NOTHING may depend on it

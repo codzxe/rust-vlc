@@ -1,0 +1,294 @@
+{
+  "schema": "evidence/1",
+  "run_id": "2e1-local-5d213e5cd",
+  "commit": {
+    "sha": "5d213e5cdb38e90aa654342c8c4368dd9dcb3437",
+    "note": "the tree the evidence was regenerated FROM; the artifact commit itself lands one commit later (a file cannot carry its own sha)"
+  },
+  "started_at": "2026-10-21T02:46:02Z",
+  "environment": {
+    "kind": "local",
+    "os": "linux",
+    "hardware_class": "mock",
+    "devices": [
+      "null-audio",
+      "software-render"
+    ]
+  },
+  "commands": [
+    {
+      "cmd": "cargo test -p first-vertical --test evidence -- --ignored regen",
+      "exit": 0,
+      "note": "in-process scenario runs through lumen_dispatch (the command layer); the full workspace gate result is recorded in the worklog entry"
+    }
+  ],
+  "labels": [
+    "mock",
+    "virtual-clock",
+    "null-audio",
+    "software-render"
+  ],
+  "scenario_table": [
+    {
+      "id": "open",
+      "verdict": "pass",
+      "checks": 15,
+      "claims": [
+        "session.open is accepted",
+        "the open settles into Playing",
+        "container probes as avi",
+        "duration is the fixture's 2.000 s",
+        "the media reports seekable",
+        "two tracks (video + audio)",
+        "the video track's codec is mjpeg",
+        "the audio track's codec is pcm_s16le",
+        "video track 0: 320x240",
+        "audio track 1: stereo 44100 Hz",
+        "tracks.list answers the two selected tracks",
+        "media.get-duration answers 2.000 s",
+        "the trail crosses Idle→Opening→Buffering→Playing",
+        "audio.list-devices answers the honest typed unsupported-for-host (no output-device enumeration in this host — the mock audio label's wire backing; real devices join with ADR-005)",
+        "the probe's message names the real-backend owner"
+      ]
+    },
+    {
+      "id": "play",
+      "verdict": "pass",
+      "checks": 4,
+      "claims": [
+        "the paused position is frozen at the pause landing",
+        "after playback.play the position advances (the null audio device renders quanta — the audio-master clock moves)",
+        "frames flow on both limbs after resume",
+        "the trail records Playing→Paused→Playing"
+      ]
+    },
+    {
+      "id": "pause",
+      "verdict": "pass",
+      "checks": 5,
+      "claims": [
+        "the state is Paused",
+        "content played before the pause (the position moved into the media)",
+        "256 advance ticks while paused move the position by zero (frozen at the pre-pause landing, not the start)",
+        "the pause lands without moving the clock",
+        "the trail records Playing→Paused (the pause landed)"
+      ]
+    },
+    {
+      "id": "seek",
+      "verdict": "pass",
+      "checks": 6,
+      "claims": [
+        "the 50% seek lands at exactly half the duration",
+        "the seek composition mints a new session id (the 2.D2 reopen shape)",
+        "the remainder plays out to the exact duration",
+        "the trail shows the composition (Paused→Stopped→Idle→Opening)",
+        "the post-seek limb counts half the media (30+30)",
+        "the scheduler sees the 30 remaining frames"
+      ]
+    },
+    {
+      "id": "stop",
+      "verdict": "pass",
+      "checks": 7,
+      "claims": [
+        "stop lands Stopped",
+        "the position freezes at the stop point (nonzero — where the media was, not the start)",
+        "the trail records Playing→Stopped (the teardown transition)",
+        "media.get-info still answers from the stopped session",
+        "session.close completes",
+        "close lands Idle",
+        "a snapshot after close is the honest not-ready"
+      ]
+    },
+    {
+      "id": "run-to-end",
+      "verdict": "pass",
+      "checks": 15,
+      "claims": [
+        "the media runs to Ended",
+        "the position lands on the duration exactly (the audio tail play-out)",
+        "the trail records Playing→Ended",
+        "60 MJPEG frames + 60 PCM packets delivered",
+        "nothing refused at the consumer",
+        "all 60 frames admitted to the scheduling window",
+        "no frame dropped late",
+        "no scheduler refusal",
+        "at least every frame presented once (presents + repeats)",
+        "staged frames == presented frames (1:1 uploads)",
+        "one full-frame RGBA copy per present (bytes)",
+        "one copy per staged frame",
+        "the final PNG carries the signature",
+        "the rendered surface is the media's 320x240 extent",
+        "the PNG is structurally complete (an IEND chunk exists)"
+      ]
+    },
+    {
+      "id": "missing-file",
+      "verdict": "pass",
+      "checks": 5,
+      "claims": [
+        "a missing file refuses as input.inaccessible",
+        "a missing file refuses as input.inaccessible: the message names the failure",
+        "no session exists after the refusal",
+        "the host stays Idle",
+        "later snapshots refuse not-ready"
+      ]
+    },
+    {
+      "id": "corrupt-truncated-open",
+      "verdict": "pass",
+      "checks": 4,
+      "claims": [
+        "the truncated header refuses as demux.corrupt",
+        "the truncated header refuses as demux.corrupt: the message names the failure",
+        "no session survives the refusal",
+        "the host returns to Idle after the fatal"
+      ]
+    },
+    {
+      "id": "corrupt-truncated-midplay",
+      "verdict": "pass",
+      "checks": 7,
+      "claims": [
+        "the truncated body still opens (the headers are intact)",
+        "the settle lands in Error (the truncation surfaces while the buffers fill)",
+        "the session ends in Error (the typed mid-stream failure)",
+        "exactly one playback.error event is delivered",
+        "the error event is the demuxer's truncated-data truth",
+        "the bounded play-out actually happened (content presented before the failure)",
+        "the position stays within the media (no hang, bounded pumps)"
+      ]
+    },
+    {
+      "id": "corrupt-garbage-appended",
+      "verdict": "pass",
+      "checks": 6,
+      "claims": [
+        "the derivative opens (bounded recovery, not a refusal)",
+        "the media plays to Ended",
+        "the position lands on the exact duration",
+        "the full media is delivered (60 + 60)",
+        "all 60 video frames schedule",
+        "no late drops"
+      ]
+    },
+    {
+      "id": "corrupt-noidx",
+      "verdict": "pass",
+      "checks": 6,
+      "claims": [
+        "the derivative opens (bounded recovery, not a refusal)",
+        "the media plays to Ended",
+        "the position lands on the exact duration",
+        "the full media is delivered (60 + 60)",
+        "all 60 video frames schedule",
+        "no late drops"
+      ]
+    },
+    {
+      "id": "wire-session",
+      "verdict": "pass",
+      "checks": 9,
+      "claims": [
+        "the binary exits 0 (EOF after the script)",
+        "stderr is empty",
+        "every request line answers exactly one response envelope",
+        "the open is accepted with session 1",
+        "every response echoes its request id, in order",
+        "event seq numbers are strictly increasing",
+        "the state events cover the open journey",
+        "the track list arrives on the wire",
+        "two identical wire runs are byte-identical"
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "evidence/transcripts/open.json",
+      "bytes": 4153,
+      "sha256": "42c77e184460cfdc020c5df5b52a7a4fbcec5cf4fb067699b0ba851bcbccdd63"
+    },
+    {
+      "path": "evidence/transcripts/play.json",
+      "bytes": 2896,
+      "sha256": "7ec30595f4cf249c79f43f41c30333ddceb8d7d6d3d121feaa77a3b452687ec1"
+    },
+    {
+      "path": "evidence/transcripts/pause.json",
+      "bytes": 2298,
+      "sha256": "ca88037e2f4606003e39925339636e6cf7e00e62510a938ab80c46371b678e13"
+    },
+    {
+      "path": "evidence/transcripts/seek.json",
+      "bytes": 3871,
+      "sha256": "a2d873fcb19b78787f2df30650c741f90e8f9e7e010b1e8c118a37c05afa4cba"
+    },
+    {
+      "path": "evidence/transcripts/stop.json",
+      "bytes": 3239,
+      "sha256": "eb0531141edf77a95a1399332d1a047a3f1a719ef85b4fb5cb20465befab8a0a"
+    },
+    {
+      "path": "evidence/transcripts/run-to-end.json",
+      "bytes": 2209,
+      "sha256": "cd2c4718ce3074227126606c5499b1d9fabfbaadde9caa67863a6c640e53aa92"
+    },
+    {
+      "path": "evidence/transcripts/missing-file.json",
+      "bytes": 1089,
+      "sha256": "a0db6aa3be4ed370c79f4e3d919ede7301ce5fcb5d645136b8c856ca425cb818"
+    },
+    {
+      "path": "evidence/transcripts/corrupt-truncated-open.json",
+      "bytes": 777,
+      "sha256": "ad0ea6c0b15f6deef655031f00924925e35619285a0f105c4c4c1018bfb06528"
+    },
+    {
+      "path": "evidence/transcripts/corrupt-truncated-midplay.json",
+      "bytes": 2100,
+      "sha256": "90e2e8db629f9876025ede9b14c62fd50bb7728a58e331ae96ca9edf28f9acff"
+    },
+    {
+      "path": "evidence/transcripts/corrupt-garbage-appended.json",
+      "bytes": 2237,
+      "sha256": "e5ac5eb5b29cd5d1ce5a4e546fab01878dcb36e2cffb7d8e3febfbfbbb682abf"
+    },
+    {
+      "path": "evidence/transcripts/corrupt-noidx.json",
+      "bytes": 2224,
+      "sha256": "cbd85dea1716484763187a9038337634a3696f1ee86be2c4b35130b633cdcb93"
+    },
+    {
+      "path": "evidence/transcripts/wire-session.json",
+      "bytes": 3836,
+      "sha256": "a75e352b79b087785c69747d32436e105f18e7cb3aa749073b5def57be91deb4"
+    },
+    {
+      "path": "evidence/final-frame.png",
+      "bytes": 307541,
+      "sha256": "af9b6aad3a767e0781912c83ab414508d1e99e3a9b156ab2dbb5f4dcda8700c5"
+    }
+  ],
+  "hardware_labels": {
+    "audio_sink": {
+      "class": "mock",
+      "what": "null adapter — no audio hardware exists in this sandbox; samples are mixed by audio-engine and rendered into the null device's ring, whose sample counter drives the audio-master clock (a moving position after `play` IS the audio limb being exercised end to end)",
+      "real_path": "the typed OS-backend stubs in audio-output (card 2.C3; real backends land in platform-* per doc 01 §2.7 behind ADR-005 — the cpal P0 record docs/dependencies/records/cpal-0.18.2.md)"
+    },
+    "video_render": {
+      "class": "mock",
+      "what": "software compositor, headless — no GPU exists in this sandbox; frames stage through the measured CPU path and the PNG is encoded by the std-only stored-deflate encoder",
+      "real_path": "the wgpu backend is typed + shape-pinned but deferred per the 2.D1 record docs/dependencies/records/wgpu-30.0.1.md (admission gated on the libloading disposition)"
+    },
+    "clock": {
+      "class": "mock",
+      "what": "virtual time — the host's bounded `advance` pumps are the only time mover (the poll-driven single-writer model; no wall-clock sleeps anywhere, hence the byte-determinism proofs)",
+      "real_path": "the wall-clock session thread is card 3.B3"
+    },
+    "ci_3os_green": {
+      "status": "PENDING",
+      "why": "the workflow files exist (.github/workflows-disabled/ci.yml, actionlint-validated, no runner has executed them in this sandbox); this suite is a workspace member so the CI `cargo test --workspace` 3-OS matrix covers it once the workflows activate on the first push with a workflow-scoped token — 2.E2-V's to-run list owns the verdict"
+    }
+  }
+}

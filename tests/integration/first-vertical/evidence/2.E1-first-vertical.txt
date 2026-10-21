@@ -1,0 +1,7 @@
+evidence: 2.E1-first-vertical [hardware_class=mock]
+  first-vertical.journey.open :: scenario `open` (tests/integration/first-vertical, in-process through lumen_dispatch)
+  first-vertical.journey.play-pause-seek-stop-run-to-end :: scenarios `play`/`pause`/`seek`/`stop`/`run-to-end` (same suite)
+  first-vertical.class-b.missing-file-trunc-garbage-noidx :: scenarios `missing-file`/`corrupt-*` (same suite, full stack)
+  first-vertical.wire.session :: scenario `wire-session` (the binary's --control-stdio NDJSON mode)
+  first-vertical.evidence.transcripts-and-ledger :: evidence/ledger.json + evidence/transcripts/*.json + final-frame.png
+  first-vertical.ci.3os-green :: PENDING — no CI runner has executed the workflows (see ledger ci_3os_green)
