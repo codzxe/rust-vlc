@@ -76,6 +76,21 @@ adopts that placement. Domain-owned traits (`AudioFilter`, `VideoFilter`,
 their domain crates — `plugin-api` names them via the manifest's `kind`, not
 by importing them (keeps L1 free of L2/L3/L4 deps, doc 01 ARCH rules).
 
+**Implemented placement as built (recorded 2026-10-22, card 3.DOC-1):** card
+1.D2 staged the host traits for kinds 6, 7, 12, 13 and 16 — `AudioFilter`,
+`VideoFilter` (+ `FilterOutcome`/`FrameSource`), `PlaylistParser`,
+`PlaylistExporter` (+ `Playlist`/`PlaylistEntry`), `ServiceDiscovery` (+
+`Device`/`DiscoveryChange`) — **in `crates/plugin-api`** as recorded
+`[PROPOSAL]` deviations from the table above (worklog 1.D2): the domain
+crates did not exist when the contract landed, and L1 cannot depend on
+L2/L3. As of Phase 2 the domain crates define their own pipeline traits
+(`audio_engine::AudioSink`, `video_engine::Presenter`) and do not yet
+re-export the plugin-api filter/playlist/discovery traits — the filter-chain
+card (doc 03 §4, later wave) owns the reconciliation. The 16-variant
+`PluginKind` (`crates/plugin-api/src/kind.rs`) mirrors this section's table
+exactly; doc 01 §2.3 was synced to it by 3.DOC-1 (D-004's promised edit,
+done).
+
 ### 1.3 Lifecycle
 
 All kinds share one state vocabulary (reported via the doc 05 event trio
@@ -360,6 +375,20 @@ license = "MIT"
 ---
 
 ## 3. Registry and selection
+
+> **[LEAD-ATTENTION] — §3 and §4 are unowned spec (recorded 2026-10-22, card
+> 3.DOC-1; audit source: 3.HARD-AUDIT AUDIT-2).** Nothing in this section or
+> §4 is implemented, and **no card in doc 13's wave program owns either**:
+> plugin-api (1.D2) delivered §1–2 only — kinds, manifests, host traits —
+> and the Phase-2/3 cards consume the engine without a registry. Proposal:
+> add one S/M card to doc 13 (wave 3 tail or the Phase-5 head, Lead's
+> scheduling call): *"plugin registry + builtin registration v0"* —
+> `PluginRegistry` built from manifests, capability+priority selection
+> (§3.2), per-domain `register()` composition (§4.1), config
+> enable/disable/reorder (§3.4) — sized against its first real consumers
+> (playback-engine sink wiring, apps composition roots, 4.A-era UI plugin
+> browsing). Existing doc 13 cards are NOT renumbered; this blockquote is
+> the proposal, awaiting Lead dispatch.
 
 ### 3.1 Registry construction at startup
 

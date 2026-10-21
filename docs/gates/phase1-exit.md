@@ -18,7 +18,7 @@ clean; established precedent from the Phase 0 gate).
 | 5 | `cargo xtask check-architecture` | **PASS 5/5** (edges, cycles, unsafe-lints, static-mut, testkit-direction) | `target/architecture-report.json`; boundaries.toml covers all 10 crates + xtask |
 | 6 | `cargo xtask codegen --check` | exit 0 — no drift, 61 commands / 23 events | session log; drift failure mode independently re-proven by Lead (mutated checksum → exit 1; restored → exit 0) |
 | 7 | `cargo xtask schema-gen --check` | exit 0 (27 entries, no drift) | 1.E2 evidence, re-verified in gate |
-| 8 | actionlint 1.7.12 over `.github/workflows/` | clean (ci.yml + wasm.yml, post catalog-drift-step) | Lead re-run after the 2d06607 edit |
+| 8 | actionlint 1.7.12 over `.github/workflows/` *(now `.github/workflows-disabled/` per INFRA-BACKUP-1)* | clean (ci.yml + wasm.yml, post catalog-drift-step) | Lead re-run after the 2d06607 edit |
 | 9 | CI green-run artifact links | **PENDING first push** (no remote in sandbox) | honest-gate precedent; all job commands locally green, seeded-violation exits recorded in worklog 1.E1/1.E2/1.E5-R |
 
 ## 2. MP §16 Foundation-gate criteria → status

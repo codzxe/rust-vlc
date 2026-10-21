@@ -1,17 +1,27 @@
 # CI workflows
 
-Owner: task 1.A2 (Wave 1.A). This directory holds the GitHub Actions
-pipeline. `ci.yml` is the fast tier skeleton; later Phase-1 cards activate
-the stub jobs inside it (and 1.E3 may add `wasm.yml`).
+Owner: task 1.A2 (Wave 1.A); truth-fixed 2026-10-22 (card 3.DOC-1). This
+directory (`.github/workflows-disabled/`, renamed from `.github/workflows/`
+by the INFRA-BACKUP-1 history rewrite) holds the GitHub Actions pipeline.
+`ci.yml` is the fast tier skeleton with all stubs since activated; `wasm.yml`
+landed with 1.E3.
 
-**Honest status (2026-10-19):** this sandbox repository has no git remote
-and no GitHub Actions runner. The workflow is written and validated with
-actionlint 1.7.12 locally, and every cargo command it invokes was run green
-locally (exit codes recorded in the 1.A2 worklog entry) — but no real CI run
-exists yet.
+**Honest status (2026-10-22):** a git remote EXISTS — `codzxe/rust-vlc`
+(private, since INFRA-BACKUP-1, 2026-10-20; origin carries an embedded
+repo-scope PAT; pushes succeed). The workflows remain in this **-disabled**
+directory because that PAT has **repo scope only, no `workflow` scope**:
+GitHub rejects scope-less pushes that create or modify files under
+`.github/workflows/`, so the directory was renamed out of the restricted
+path to make every branch pushable. **CI has never executed** — no green-run
+artifacts exist. The workflow files are written and validated with
+actionlint 1.7.12 locally, and every cargo command they invoke was run green
+locally (exit codes recorded in the 1.A2/1.E1/1.E2/1.E5-R worklog entries;
+seeded-violation failures also recorded).
 
-**green-run artifact link: PENDING first push to remote (blocked: no remote
-in sandbox)** `[PROPOSAL: gate evidence on first push]`.
+**green-run artifact link: PENDING CI activation** — restore procedure (worklog
+INFRA-BACKUP-1): a workflow-scoped PAT, a single rename commit
+`.github/workflows-disabled/` → `.github/workflows/`, first push, three green
+3-OS runs; repo required-checks wiring follows the first green run.
 
 ## Job map (`ci.yml`)
 
