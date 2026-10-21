@@ -6,7 +6,7 @@
 //!
 //! The **minimal playback state machine**: the 8 wire-visible states
 //! ([`SessionState`]), the inputs that move them ([`SessionInput`]),
-//! and the transition table as **data** ([`TRANSITIONS`] — 23 rows,
+//! and the transition table as **data** ([`TRANSITIONS`] — 26 rows,
 //! every one a legal doc 05 §3.3 wire transition). Around it:
 //!
 //! - [`epoch`] — the two-level cancellation generations of doc 03 §5
@@ -18,6 +18,9 @@
 //!   decoders → sinks** (plugin-api `Demuxer`, packet-queue
 //!   `BoundedQueue<Packet>`, codec-api `Decoder`/`FrameSink`) driven
 //!   one bounded tick at a time;
+//! - [`seek`] — the seven-step seek flow of doc 03 §6 (card 3.A1):
+//!   target resolution, the pipeline flush + demux re-anchor, the
+//!   pre-roll observation, and the failed-seek contract D4;
 //! - [`session`] — the [`Engine`]/[`Session`] single-writer executor
 //!   that applies inputs through the table, interprets the row
 //!   effects, mints generations and serializes outputs;
@@ -29,9 +32,9 @@
 //!
 //! # What is deliberately NOT here (Phase 3+)
 //!
-//! Seek, A/V sync, source replacement, track switching, rate, the
+//! A/V sync, source replacement, track switching, rate, the
 //! thread-per-session model and the event broadcast bus are excluded
-//! by the card (3.A1–3.A3, 3.B1, 3.B3, 2.E1). The minimal machine is
+//! by the card (3.A2–3.A3, 3.B1, 3.B3, 2.E1). The minimal machine is
 //! synchronous and single-writer: the host's [`Engine::poll`] call IS
 //! the session thread, which keeps invariant S1 true by construction.
 //!
@@ -39,7 +42,7 @@
 //!
 //! - *Transition-table tests; no invalid transition reachable*: the
 //!   integration suite `tests/table.rs` classifies **every**
-//!   `(state, input)` pair (8 × 11 = 88: 23 legal rows, 65 typed
+//!   `(state, input)` pair (8 × 12 = 96: 26 legal rows, 70 typed
 //!   rejections), proves every row is wire-conformant against
 //!   [`commands::PlaybackState::can_transition_to`], proves the
 //!   pipeline driver guard ([`translate_pipeline_signal`]) only ever
@@ -50,6 +53,11 @@
 //!   session-level staleness proofs in `tests/session_flow.rs`
 //!   (stale-handle command rejection, superseded-event suppression at
 //!   drain, generation bumping at stop/close accept time).
+//! - *Seek flow (card 3.A1, doc 03 §6)*: [`seek`]'s unit tests (target
+//!   resolution, span helpers, failure clones) plus the session-level
+//!   AC suite in `tests/seek_flow.rs` (the seven steps end-to-end,
+//!   boundary seeks, the D4 rollback, supersession silence, the
+//!   stale-purge proofs, and the seek-terminal drain exemption).
 //!
 //! # Conventions
 //!
@@ -62,6 +70,7 @@ pub mod epoch;
 pub mod error;
 pub mod event;
 pub mod pipeline;
+pub mod seek;
 pub mod session;
 pub mod state;
 
@@ -71,6 +80,7 @@ pub use event::{
     EngineEvent, EngineEventKind, track_info_wire, wire_error_code, wire_playback_state, wire_stage,
 };
 pub use pipeline::{DecoderProvider, FrameConsumer, QueuePlan, TickBudget};
+pub use seek::{SeekFailure, SeekTarget};
 pub use session::{
     CommandReceipt, Engine, EngineOutput, EngineStats, OUTBOX_CAPACITY, ReceiptResult,
     SessionCommandKind, SessionConfig, SessionHandle, transition_table,

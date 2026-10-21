@@ -36,6 +36,11 @@ use media_types::{Duration, EngineError, Packet, Track};
 /// - [`seek`](Demuxer::seek) asks the container for its nearest
 ///   keyframe-safe position ≤ the target; the engine owns the
 ///   generation bump and the decoder flush around it.
+/// - [`reanchor`](Demuxer::reanchor) is the acting half of a seek
+///   (doc 03 §6 step 4, card 3.A1): it positions the stream after the
+///   engine has minted the generation and flushed the pipeline — the
+///   query above stays pure so hosts can validate targets before a
+///   session exists.
 ///
 /// # Errors
 ///
@@ -73,6 +78,70 @@ pub trait Demuxer: Send {
     /// [`EngineError`] when the container carries no seek table or the
     /// target is out of range.
     fn seek(&mut self, target: TimeSpan) -> Result<TimeSpan, EngineError>;
+
+    /// The container's seek capability (doc 03 §4.3(b)
+    /// `SeekSupport`; consumed by the engine's seek flow, doc 03 §6
+    /// step 1). [`SeekSupport::None`] sources refuse seeks as typed
+    /// failures — never fake successes (MP §8 bullet 4).
+    ///
+    /// Default: [`SeekSupport::None`] — a demuxer that does not say
+    /// otherwise cannot re-anchor in session.
+    fn seekability(&self) -> SeekSupport {
+        SeekSupport::None
+    }
+
+    /// Position the stream at the container's keyframe-safe position
+    /// ≤ `target` and report where the stream will resume — doc 03
+    /// §6 step 4's re-anchoring half of the seek flow (the engine
+    /// calls this after minting the pipeline generation and flushing
+    /// the queues; the pure query [`Demuxer::seek`] never moves
+    /// anything).
+    ///
+    /// **Invariant D4** (doc 03 §4.3(e)): on `Err` the demuxer is
+    /// left at its pre-seek position with a valid parsing state —
+    /// compute-then-commit is the implementation discipline; this is
+    /// what makes the engine's failed-seek rollback possible.
+    ///
+    /// # Errors
+    /// [`EngineError`] when the target is out of range, the bounded
+    /// linear scan exceeds its budget, or the container is too
+    /// damaged to position — with the demuxer unmoved.
+    ///
+    /// Default: the typed `Unsupported` refusal — a demuxer that
+    /// claims seekability but does not implement re-anchoring fails
+    /// honestly rather than pretending.
+    fn reanchor(&mut self, target: TimeSpan) -> Result<TimeSpan, EngineError> {
+        let _ = target;
+        Err(EngineError::new(
+            media_types::PipelineStage::Demux,
+            media_types::ErrorKind::Unsupported { format: None },
+            media_types::error::ErrorContext::new("plugin.demux.reanchor.unsupported"),
+        ))
+    }
+}
+
+/// What seeking a container costs (doc 03 §4.3(b), verbatim shape).
+///
+/// The engine reads this before touching the pipeline (doc 03 §6
+/// step 1): `None` answers a typed `SeekFailed{NotSeekable}` without
+/// invalidating anything.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SeekSupport {
+    /// Positioning is cheap: a seek table (or format-inherent
+    /// boundaries) maps time → position directly. `indexed` says a
+    /// real index backs the mapping (vs. container-level truths).
+    Fast {
+        /// A seek table backs the mapping.
+        indexed: bool,
+    },
+    /// Positioning requires a linear scan over the container —
+    /// bounded by the engine's seek budget (doc 03 §6 step 4
+    /// `SlowLinear`).
+    SlowLinear,
+    /// The source cannot seek (streams, pipes, damaged indexes on
+    /// unseekable sources). Seeks are typed failures, never fake
+    /// successes.
+    None,
 }
 
 /// One demux outcome (doc 01 §3.3 packet + container signals).
@@ -270,6 +339,37 @@ mod tests {
             Err(e) => unreachable!("{e}"),
         };
         assert_eq!(e4, DemuxEvent::EndOfStream);
+    }
+
+    #[test]
+    fn default_seek_hooks_refuse_typed() {
+        // A demuxer that implements nothing seek-shaped gets the
+        // honest defaults: unseekable, and a typed reanchor refusal —
+        // never a fake success (MP §8 bullet 4).
+        struct Bare;
+        impl Demuxer for Bare {
+            fn start(&mut self) -> Result<Vec<Track>, EngineError> {
+                Ok(Vec::new())
+            }
+            fn next_event(&mut self) -> Result<DemuxEvent, EngineError> {
+                Ok(DemuxEvent::EndOfStream)
+            }
+            fn seek(&mut self, _target: TimeSpan) -> Result<TimeSpan, EngineError> {
+                Ok(TimeSpan::UNKNOWN)
+            }
+        }
+        let mut bare = Bare;
+        assert_eq!(bare.seekability(), SeekSupport::None);
+        let err = match bare.reanchor(TimeSpan::UNKNOWN) {
+            Ok(_) => unreachable!("default reanchor must refuse"),
+            Err(err) => err,
+        };
+        assert_eq!(err.stage, media_types::PipelineStage::Demux);
+        assert!(matches!(
+            err.kind,
+            media_types::ErrorKind::Unsupported { .. }
+        ));
+        assert_eq!(err.context.code, "plugin.demux.reanchor.unsupported");
     }
 
     #[test]

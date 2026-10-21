@@ -32,12 +32,20 @@
 //!   errors with the declared end when the walk reaches the clamp;
 //!   the *index* is the one place truncation is non-fatal (salvage
 //!   complete entries, count the partial one — the walk is intact).
-//! - **Seek is a pure query** (the landed trait's wording: "does not
-//!   move the read position — the engine decides whether to act").
-//!   `seek(target)` maps target time → keyframe-safe position ≤
-//!   target on the video stream (first stream for audio-only files)
-//!   and reports where the stream would resume. The re-anchor hook
-//!   that moves the cursor is card 3.A1's seek flow.
+//! - **Seek is a pure query; re-anchor acts** (the landed trait's
+//!   wording: `seek` "does not move the read position — the engine
+//!   decides whether to act"). `seek(target)` maps target time →
+//!   keyframe-safe position ≤ target on the video stream (first
+//!   stream for audio-only files) and reports where the stream would
+//!   resume. `reanchor(target)` (card 3.A1) is the acting half: it
+//!   computes the same landing, then commits — cursor, per-stream
+//!   presentation ladders (rebuilt to the pre-landing state so
+//!   post-seek timestamps are exactly a from-start walk's), the
+//!   pending-event queue (pre-seek events never reappear) and the
+//!   end-of-stream flag (a backward seek revives an exhausted
+//!   stream). Failure paths mutate nothing (D4's compute-then-commit);
+//!   the no-index re-anchor scan is budget-bounded (doc 03 §6's
+//!   SlowLinear cap).
 //! - **Timing is the AVI ladder, not per-chunk stamps.** AVI chunks
 //!   carry no timestamps; presentation time is computed from each
 //!   stream's `strh` scale/rate and per-chunk sample arithmetic —
@@ -60,9 +68,9 @@ use std::collections::VecDeque;
 use media_types::error::ErrorContext;
 use media_types::ids::{GenerationId, TrackId};
 use media_types::packet::SharedBytes;
-use media_types::time::{Duration, Nanoseconds, Stamp, TimeSpan, Timestamp};
+use media_types::time::{Duration, Nanoseconds, Stamp, TimeBase, TimeSpan, Timestamp};
 use media_types::{EngineError, ErrorKind, Packet, PipelineStage, Track};
-use plugin_api::{DemuxEvent, Demuxer};
+use plugin_api::{DemuxEvent, Demuxer, SeekSupport};
 
 use super::error;
 
@@ -581,6 +589,89 @@ impl Demuxer for AviDemuxer {
     }
 
     fn seek(&mut self, target: TimeSpan) -> Result<TimeSpan, EngineError> {
+        // Pure query: the index search never touches the source; the
+        // no-index linear scan restores the read position before
+        // returning (the landed trait's "does not move the read
+        // position").
+        let (landing, facts, _) = self.locate(target, None)?;
+        Ok(self.landing_span(landing, facts))
+    }
+
+    fn seekability(&self) -> SeekSupport {
+        // Not started / broken / stream-less: the honest None (the
+        // engine refuses seeks typed before touching the pipeline).
+        if !self.started || self.sticky.is_some() || self.seek_stream.is_none() {
+            return SeekSupport::None;
+        }
+        if self.index.is_some() {
+            SeekSupport::Fast { indexed: true }
+        } else {
+            // The constructor only accepts seekable, length-known
+            // sources, so the scan fallback is always possible.
+            SeekSupport::SlowLinear
+        }
+    }
+
+    fn reanchor(&mut self, target: TimeSpan) -> Result<TimeSpan, EngineError> {
+        // Compute (validation + landing + the scan's ladder capture,
+        // budget-bounded per doc 03 §6's SlowLinear cap)…
+        let (landing, facts, scan_ticks) = self.locate(target, Some(index::SEEK_SCAN_CAP))?;
+        // …then commit. D4 holds by construction: every failure path
+        // above left the demuxer untouched.
+        let ladders = match &self.index {
+            Some(table) => index::replay_ladders(table, &self.streams, landing.chunk_pos),
+            None => index::Ladders::with_ticks(&self.streams, scan_ticks),
+        };
+        let index_cursor = match &self.index {
+            Some(table) => table
+                .entries
+                .partition_point(|entry| entry.chunk_pos < landing.chunk_pos),
+            None => 0,
+        };
+        self.cursor = Some(WalkCursor {
+            pos: landing.chunk_pos,
+            // The landing cannot fall inside a `rec ` list the walk
+            // would not re-descend into naturally: the walk bound is
+            // the movi extent (the fixture corpus emits no rec lists;
+            // a mid-rec landing walks on past the rec boundary —
+            // positional, content-equivalent [documented v0 limit]).
+            ends: Vec::new(),
+            ladders,
+            index_cursor,
+        });
+        // Pre-seek queued events (damage reports) die with the old
+        // position — the demux-side stale purge (doc 03 §5's "events
+        // in flight" rule, applied where the engine cannot see them).
+        self.pending.clear();
+        // A seek revives an exhausted stream.
+        self.eos = false;
+        Ok(self.landing_span(landing, facts))
+    }
+}
+
+/// The seek-stream facts the landing span needs.
+struct SeekFacts {
+    /// The seek stream's time base.
+    base: TimeBase,
+    /// The declared end in ticks (`start + length`), when declared.
+    end_ticks: Option<i64>,
+}
+
+impl AviDemuxer {
+    /// The shared seek computation (doc 03 §6 step 4's query half):
+    /// validation, range check, and the landing — index search or
+    /// budget-bounded linear scan. **Never commits** (the no-index
+    /// scan restores the read position before returning); `reanchor`
+    /// mutates only after this answers `Ok` — D4's compute-then-commit.
+    ///
+    /// The third return value is the linear scan's captured
+    /// pre-landing ladder state (empty on the indexed path — the
+    /// replay computes it there).
+    fn locate(
+        &mut self,
+        target: TimeSpan,
+        scan_cap: Option<index::ScanCap>,
+    ) -> Result<(index::Landing, SeekFacts, Vec<i64>), EngineError> {
         if !self.started {
             return Err(error::not_started());
         }
@@ -610,46 +701,49 @@ impl Demuxer for AviDemuxer {
                 return Err(error::seek_out_of_range());
             }
         }
+        let facts = SeekFacts {
+            base,
+            end_ticks: (desc.length > 0).then(|| i64::from(desc.start) + i64::from(desc.length)),
+        };
 
-        // Pure query: the index search never touches the source; the
-        // no-index linear scan restores the read position before
-        // returning (the landed trait's "does not move the read
-        // position").
-        let landing = match &self.index {
-            Some(table) => index::search_index(table, ordinal, converted.ticks),
+        match &self.index {
+            Some(table) => {
+                let landing = index::search_index(table, ordinal, converted.ticks)
+                    .ok_or_else(error::seek_out_of_range)?;
+                Ok((landing, facts, Vec::new()))
+            }
             None => {
                 let Some(region) = self.movi else {
                     return Err(error::seek_out_of_range());
                 };
-                index::scan_movi(
+                let scanned = index::scan_movi_with(
                     &mut self.reader,
                     &self.streams,
                     ordinal,
                     region.data_start,
                     region.effective_end,
                     converted.ticks,
-                )?
+                    scan_cap,
+                )?;
+                let landing = scanned.landing.ok_or_else(error::seek_out_of_range)?;
+                Ok((landing, facts, scanned.ladder_ticks))
             }
-        };
-        let Some(landing) = landing else {
-            return Err(error::seek_out_of_range());
-        };
-        let end = if desc.length == 0 {
-            Stamp::Missing
-        } else {
-            Stamp::Present(Timestamp::new(
-                i64::from(desc.start) + i64::from(desc.length),
-                base,
-            ))
-        };
-        Ok(TimeSpan {
-            start: Stamp::Present(Timestamp::new(landing.pts_ticks, base)),
-            end,
-        })
+        }
     }
-}
 
-impl AviDemuxer {
+    /// The reported landing span: where the stream resumes (start) and
+    /// the declared stream end (end; `Missing` when undeclared).
+    fn landing_span(&self, landing: index::Landing, facts: SeekFacts) -> TimeSpan {
+        let end = match facts.end_ticks {
+            Some(ticks) => Stamp::Present(Timestamp::new(ticks, facts.base)),
+            None => Stamp::Missing,
+        };
+        TimeSpan {
+            start: Stamp::Present(Timestamp::new(landing.pts_ticks, facts.base)),
+            end,
+        }
+    }
+
     /// The full header parse (the body of the trait's `start`).
     fn parse_container(&mut self) -> Result<Vec<Track>, EngineError> {
         // Top-of-file: `RIFF <size> AVI `.

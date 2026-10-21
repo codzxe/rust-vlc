@@ -18,16 +18,22 @@
 //!   `state-changed → ended` event, doc 05 §3.2)
 //! - `Error(stage, e)` → `playback.error` (fatal; emitted *before*
 //!   the `state-changed → error` event, doc 05 §3.3)
+//! - `Seeked` → `timing.seek-completed` (card 3.A1, doc 03 §6 step 7;
+//!   the terminal for the generation that completed — doc 05 §4.2)
+//! - `SeekFailed` → `timing.seek-failed` (contract D4: typed reason,
+//!   old position; exactly one terminal per seek generation — doc 05
+//!   §4.3 invariant 4)
 //! - `FirstFrame` → **engine-private** (doc 05 §4.2: "internal
 //!   trigger of the `playing` transition, no separate v1 wire event")
 //! - `DamagedData` → **engine-private** (no v1 wire row; it is
 //!   bounded-recovery observability for the log/testkit side)
 //!
-//! Seek events (`SeekAccepted`/`Seeked`/`SeekFailed`), device events
-//! and `ClockMasterChanged` are Phase 3+ (`3.A1`, `2.C3`/`7.C1`,
-//! `3.B2`) and deliberately absent. Event *completeness* — every
-//! catalog row with payloads and throttling — is card `3.B4`; this
-//! card ships the subset the minimal machine can honestly emit.
+//! Doc 03 §6 step 1's engine-side `SeekAccepted` has no wire event
+//! and no variant here: the class-A `Accepted` receipt IS the accept
+//! evidence (doc 05 §1.4 C3 — completion arrives as the terminal
+//! events above). Device events and `ClockMasterChanged` remain
+//! Phase 3+ (`2.C3`/`7.C1`, `3.B2`). Event *completeness* — every
+//! catalog row with payloads and throttling — is card `3.B4`.
 //!
 //! # Engine vocabulary → wire vocabulary
 //!
@@ -42,14 +48,15 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use commands::catalog::types::{
-    CodecDescriptor as WireCodecDescriptor, TrackInfo as WireTrackInfo, TrackKind as WireTrackKind,
-    TrackOrigin as WireTrackOrigin,
+    CodecDescriptor as WireCodecDescriptor, SeekKind as WireSeekKind, TrackInfo as WireTrackInfo,
+    TrackKind as WireTrackKind, TrackOrigin as WireTrackOrigin,
 };
 use commands::envelope::{Generation, RequestId, SessionId};
-use commands::{EventKind, PlaybackState, WireEvent};
+use commands::{CommandError, EventKind, PlaybackState, WireEvent};
 use media_types::error::{ErrorKind, PipelineStage};
 use media_types::{EngineError, Stamp, Track};
 
+use crate::seek::SeekFailure;
 use crate::state::SessionState;
 
 /// One engine → host event payload (doc 03 §4.6(b), minimal-machine
@@ -116,6 +123,30 @@ pub enum EngineEventKind {
         /// formats without stamps — the event still fires).
         position: Stamp,
     },
+    /// The seek completed (card 3.A1; doc 03 §6 step 7): the
+    /// completion truth `{requested, actual}` — where the pipeline
+    /// stands now, not where it was asked to go. The terminal for
+    /// the generation that completed (doc 05 §3.2
+    /// `timing.seek-completed`, `seek_kind: command`).
+    Seeked {
+        /// The requested, clamped target (ns).
+        requested: i64,
+        /// Where the pipeline actually landed (ns) — the first audio
+        /// frame's own timestamp when audio delivered (the anchor
+        /// truth), else the demuxer's landing.
+        actual: i64,
+    },
+    /// The seek failed (card 3.A1; contract D4): the typed reason
+    /// and the position the session is still at — the prior
+    /// position, never a fabricated landing. The terminal for the
+    /// failed generation (doc 05 §3.2 `timing.seek-failed`).
+    SeekFailed {
+        /// Why (typed; the wire form is the redacted
+        /// [`CommandError`]).
+        reason: SeekFailure,
+        /// The position playback continues from (ns).
+        position: i64,
+    },
 }
 
 impl Clone for EngineEventKind {
@@ -149,6 +180,14 @@ impl Clone for EngineEventKind {
                 EngineEventKind::DamagedData { count: *count }
             }
             EngineEventKind::FirstFrame { position } => EngineEventKind::FirstFrame {
+                position: *position,
+            },
+            EngineEventKind::Seeked { requested, actual } => EngineEventKind::Seeked {
+                requested: *requested,
+                actual: *actual,
+            },
+            EngineEventKind::SeekFailed { reason, position } => EngineEventKind::SeekFailed {
+                reason: reason.clone(),
                 position: *position,
             },
         }
@@ -188,6 +227,26 @@ impl PartialEq for EngineEventKind {
                 EngineEventKind::FirstFrame { position: a },
                 EngineEventKind::FirstFrame { position: b },
             ) => a == b,
+            (
+                EngineEventKind::Seeked {
+                    requested: a,
+                    actual: b,
+                },
+                EngineEventKind::Seeked {
+                    requested: c,
+                    actual: d,
+                },
+            ) => a == c && b == d,
+            (
+                EngineEventKind::SeekFailed {
+                    reason: a,
+                    position: b,
+                },
+                EngineEventKind::SeekFailed {
+                    reason: c,
+                    position: d,
+                },
+            ) => a == c && b == d,
             _ => false,
         }
     }
@@ -225,6 +284,13 @@ impl EngineEventKind {
             }),
             EngineEventKind::DamagedData { .. } => None,
             EngineEventKind::FirstFrame { .. } => None,
+            EngineEventKind::Seeked { actual, .. } => Some(EventKind::TimingSeekCompleted {
+                position: commands::catalog::types::Timestamp(ns_to_us(*actual)),
+                seek_kind: WireSeekKind::Command,
+            }),
+            EngineEventKind::SeekFailed { reason, position } => Some(EventKind::TimingSeekFailed {
+                error: seek_error_wire(reason, *position),
+            }),
         }
     }
 
@@ -335,6 +401,56 @@ fn fatal_details(error: &EngineError) -> BTreeMap<String, String> {
     details.insert("context".to_string(), error.context.code.clone());
     details.insert("stage".to_string(), error.stage.as_str().to_string());
     details
+}
+
+/// Bridge a seek failure to the wire `timing.seek-failed` payload
+/// (doc 05 §3.2: typed, redacted). The engine-private vocabulary for
+/// the refusal rides as the `reason` detail; the position the session
+/// continues from (the D4 rollback point) rides as `position_us` —
+/// `[PROPOSAL: the wire event's only typed field is the CommandError;
+/// the old position is completion truth hosts need to show where
+/// playback continues]`.
+fn seek_error_wire(reason: &SeekFailure, position_ns: i64) -> CommandError {
+    let (stage, code, message) = match reason {
+        // The engine's policy facts (an unseekable source, an
+        // unresolvable target) surface as control-stage refusals;
+        // carried failures keep their own stage and kind.
+        SeekFailure::NotSeekable => (
+            commands::Stage::Control,
+            commands::ErrorCode::Unsupported,
+            "the source cannot seek".to_string(),
+        ),
+        SeekFailure::OutOfRange => (
+            commands::Stage::Control,
+            commands::ErrorCode::Unsupported,
+            "the seek target could not be resolved".to_string(),
+        ),
+        SeekFailure::Demux(error) | SeekFailure::Clock(error) => (
+            wire_stage(error.stage),
+            wire_error_code(&error.kind),
+            error.to_string(),
+        ),
+    };
+    CommandError::new(stage, code, message)
+        .with_detail("reason", seek_failure_reason(reason))
+        .with_detail("position_us", ns_to_us(position_ns).to_string())
+}
+
+/// Nanoseconds → microseconds, rounded up (the wire `Timestamp` unit,
+/// doc 05 §2.2). Positions are non-negative by construction (targets
+/// clamp to `[0, duration]` and landings are keyframe positions).
+fn ns_to_us(ns: i64) -> i64 {
+    (ns + 999) / 1_000
+}
+
+/// The stable reason key for the wire `timing.seek-failed` details.
+fn seek_failure_reason(reason: &SeekFailure) -> &'static str {
+    match reason {
+        SeekFailure::NotSeekable => "not-seekable",
+        SeekFailure::OutOfRange => "out-of-range",
+        SeekFailure::Demux(_) => "demux",
+        SeekFailure::Clock(_) => "clock",
+    }
 }
 
 /// Bridge an engine track to the wire track info (doc 05 §2.2

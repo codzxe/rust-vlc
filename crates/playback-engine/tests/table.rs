@@ -6,8 +6,8 @@
 //! "No invalid transition reachable" is the sum of three proofs, all
 //! in this file:
 //!
-//! 1. [`apply_input`] agrees with [`TRANSITIONS`] exactly (88 pairs:
-//!    23 rows, 65 typed rejections) — the table is the only truth.
+//! 1. [`apply_input`] agrees with [`TRANSITIONS`] exactly (96 pairs:
+//!    26 rows, 70 typed rejections) — the table is the only truth.
 //! 2. every row's `(from, to)` is legal for the wire conformance list
 //!    (`PlaybackState::can_transition_to`, doc 05 §3.3) — no
 //!    engine-side transition can surface as a conformance failure —
@@ -124,9 +124,9 @@ fn every_state_input_pair_is_classified_exactly_by_the_table() {
         }
     }
     assert_eq!(legal, TRANSITIONS.len(), "legal == table rows");
-    assert_eq!(illegal, 88 - TRANSITIONS.len(), "8 states x 11 inputs");
-    assert_eq!(legal, 23, "the pinned minimal-machine row count");
-    assert_eq!(illegal, 65, "65 typed rejections");
+    assert_eq!(illegal, 96 - TRANSITIONS.len(), "8 states x 12 inputs");
+    assert_eq!(legal, 26, "the pinned minimal-machine row count");
+    assert_eq!(illegal, 70, "70 typed rejections");
 }
 
 #[test]
@@ -203,7 +203,7 @@ fn the_engine_edge_projection_is_exactly_the_wire_edge_set() {
 }
 
 #[test]
-fn self_transitions_are_exactly_the_idempotent_confirmations() {
+fn self_transitions_are_the_idempotent_confirmations_and_seek_work_rows() {
     let self_rows: Vec<SessionInput> = TRANSITIONS
         .iter()
         .filter(|row| row.from == row.to)
@@ -215,6 +215,8 @@ fn self_transitions_are_exactly_the_idempotent_confirmations() {
             SessionInput::Close, // Idle: idempotent close, no session
             SessionInput::Play,  // Buffering: play while priming (C8)
             SessionInput::Play,  // Playing: play while playing (C8)
+            SessionInput::Seek,  // Paused: seek while paused (work-carrying)
+            SessionInput::Seek,  // Buffering: seek while priming (work-carrying)
             SessionInput::Pause, // Paused: pause while paused (C8)
         ]
     );
@@ -250,6 +252,7 @@ fn the_interesting_rejections_carry_their_documented_reasons() {
         (S::Idle, I::Play, R::NoSession),
         (S::Idle, I::Pause, R::NoSession),
         (S::Idle, I::Stop, R::NoSession),
+        (S::Idle, I::Seek, R::NoSession),
         // Pipeline signals where no pipeline runs.
         (S::Idle, I::Primed, R::SignalNotRaisedHere),
         (S::Idle, I::Failed, R::SignalNotRaisedHere),
@@ -259,6 +262,7 @@ fn the_interesting_rejections_carry_their_documented_reasons() {
         // Opening is not ready for playback commands.
         (S::Opening, I::Play, R::NotReady),
         (S::Opening, I::Pause, R::NotReady),
+        (S::Opening, I::Seek, R::NotReady),
         // The deliberately-absent v1 wire edges.
         (S::Opening, I::Stop, R::StopFirst),
         (S::Buffering, I::Stop, R::StopFirst),
@@ -269,15 +273,19 @@ fn the_interesting_rejections_carry_their_documented_reasons() {
         (S::Buffering, I::Pause, R::NotReady),
         // Restart-from-ended is the Phase-3 seek flow.
         (S::Ended, I::Play, R::RestartNeedsSeek),
+        // Seek-back-from-ended needs the missing wire edge (Lead flag).
+        (S::Ended, I::Seek, R::EndedNeedsWireEdge),
         // Settled sessions are inert until close.
         (S::Ended, I::Pause, R::AlreadySettled),
         (S::Ended, I::Stop, R::AlreadySettled),
         (S::Stopped, I::Play, R::AlreadySettled),
         (S::Stopped, I::Pause, R::AlreadySettled),
         (S::Stopped, I::Stop, R::AlreadySettled),
+        (S::Stopped, I::Seek, R::AlreadySettled),
         (S::Error, I::Play, R::AlreadySettled),
         (S::Error, I::Pause, R::AlreadySettled),
         (S::Error, I::Stop, R::AlreadySettled),
+        (S::Error, I::Seek, R::AlreadySettled),
     ];
     for (state, input, reason) in cases {
         assert_eq!(
@@ -406,7 +414,7 @@ fn every_state_is_reachable_from_idle() {
 
 #[test]
 fn every_row_is_walked_from_idle_through_legal_inputs_only() {
-    // For each of the 23 rows: walk a legal path to `row.from`, then
+    // For each of the 26 rows: walk a legal path to `row.from`, then
     // apply `row.input`, and confirm the machine lands on `row.to`.
     for (index, row) in TRANSITIONS.iter().enumerate() {
         let mut state = SessionState::Idle;
@@ -505,6 +513,12 @@ fn session_commands_reconcile_with_the_wire_catalog() {
             CompletionClass::S,
             true,
         ),
+        (
+            SessionCommandKind::Seek,
+            CommandId::PlaybackSeek,
+            CompletionClass::A,
+            true,
+        ),
     ];
     for (kind, id, class, gen_bumping) in cases {
         assert_eq!(kind.as_command_id(), id);
@@ -521,15 +535,16 @@ fn session_commands_reconcile_with_the_wire_catalog() {
 fn gen_bumping_commands_carry_the_bump_effect_and_vice_versa() {
     use SessionInput as I;
     use playback_engine::state::Effect;
-    // The catalog says stop/close bump the generation at accept time;
-    // the table must encode the mint exactly there — and nowhere else.
-    // The one exception is the `Idle + Close` self-confirmation: no
-    // session exists, so there is nothing to mint (the row documents
-    // the idempotent no-op, doc 05 §2.3).
+    // The catalog says stop/close/seek bump the generation at accept
+    // time; the table must encode the mint exactly there — and
+    // nowhere else. The one exception is the `Idle + Close`
+    // self-confirmation: no session exists, so there is nothing to
+    // mint (the row documents the idempotent no-op, doc 05 §2.3).
     for row in TRANSITIONS {
         let bumps = row.effects.contains(&Effect::BumpPipeline);
         match row.input {
             I::Stop => assert!(bumps, "{} + {} must mint", row.from, row.input),
+            I::Seek => assert!(bumps, "{} + {} must mint", row.from, row.input),
             I::Close if row.from != SessionState::Idle => {
                 assert!(bumps, "{} + {} must mint", row.from, row.input)
             }
@@ -602,7 +617,7 @@ fn effect_columns_match_the_doc_03_side_effects() {
 #[test]
 fn the_state_and_input_vocabularies_are_unique_and_complete() {
     assert_eq!(SessionState::ALL.len(), 8);
-    assert_eq!(SessionInput::ALL.len(), 11);
+    assert_eq!(SessionInput::ALL.len(), 12);
     for (index, state) in SessionState::ALL.iter().enumerate() {
         for other in SessionState::ALL.iter().skip(index + 1) {
             assert_ne!(state, other);
@@ -638,12 +653,12 @@ fn engine_states_map_one_to_one_onto_the_wire_states() {
     for (state, name) in SessionState::ALL.iter().zip(names) {
         assert_eq!(state.to_string(), name);
     }
-    // Command inputs are exactly the five client-facing ones.
+    // Command inputs are exactly the six client-facing ones.
     let command_inputs: Vec<_> = SessionInput::ALL
         .iter()
         .filter(|input| input.is_command())
         .collect();
-    assert_eq!(command_inputs.len(), 5);
+    assert_eq!(command_inputs.len(), 6);
 }
 
 #[test]
@@ -653,6 +668,7 @@ fn command_kinds_map_onto_table_inputs() {
         (SessionCommandKind::Pause, SessionInput::Pause),
         (SessionCommandKind::Stop, SessionInput::Stop),
         (SessionCommandKind::Close, SessionInput::Close),
+        (SessionCommandKind::Seek, SessionInput::Seek),
     ];
     for (kind, input) in cases {
         assert_eq!(kind.as_input(), input);
