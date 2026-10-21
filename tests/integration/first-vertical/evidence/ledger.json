@@ -1,11 +1,11 @@
 {
   "schema": "evidence/1",
-  "run_id": "2e1-local-5d213e5cd",
+  "run_id": "2e1-local-d447b2551",
   "commit": {
-    "sha": "5d213e5cdb38e90aa654342c8c4368dd9dcb3437",
+    "sha": "d447b2551a0c96395f868327174cc64a77356c5a",
     "note": "the tree the evidence was regenerated FROM; the artifact commit itself lands one commit later (a file cannot carry its own sha)"
   },
-  "started_at": "2026-10-21T02:46:02Z",
+  "started_at": "2026-10-21T19:40:11Z",
   "environment": {
     "kind": "local",
     "os": "linux",
@@ -149,13 +149,14 @@
     {
       "id": "corrupt-truncated-midplay",
       "verdict": "pass",
-      "checks": 7,
+      "checks": 8,
       "claims": [
         "the truncated body still opens (the headers are intact)",
         "the settle lands in Error (the truncation surfaces while the buffers fill)",
         "the session ends in Error (the typed mid-stream failure)",
-        "exactly one playback.error event is delivered",
-        "the error event is the demuxer's truncated-data truth",
+        "exactly one FATAL playback.error event is delivered",
+        "the fatal error is the demuxer's truncated-data truth",
+        "a non-fatal playback.error carries its coalesced count",
         "the bounded play-out actually happened (content presented before the failure)",
         "the position stays within the media (no hang, bounded pumps)"
       ]
@@ -206,33 +207,33 @@
   "artifacts": [
     {
       "path": "evidence/transcripts/open.json",
-      "bytes": 4153,
-      "sha256": "42c77e184460cfdc020c5df5b52a7a4fbcec5cf4fb067699b0ba851bcbccdd63"
+      "bytes": 4608,
+      "sha256": "bb1cbab10d23bbbb0f7a28f95e99f61ce86cb43047a77bf40712ba95330d4707"
     },
     {
       "path": "evidence/transcripts/play.json",
-      "bytes": 2896,
-      "sha256": "7ec30595f4cf249c79f43f41c30333ddceb8d7d6d3d121feaa77a3b452687ec1"
+      "bytes": 4563,
+      "sha256": "ea188016824c2e558b0f00be7f2585b25eb1b51343c53caacb94bf3d49184e75"
     },
     {
       "path": "evidence/transcripts/pause.json",
-      "bytes": 2298,
-      "sha256": "ca88037e2f4606003e39925339636e6cf7e00e62510a938ab80c46371b678e13"
+      "bytes": 3362,
+      "sha256": "459e68dd0161ec4f8103d471275616bb8022ea37edd843f3e8d98b98106aba89"
     },
     {
       "path": "evidence/transcripts/seek.json",
-      "bytes": 3871,
-      "sha256": "a2d873fcb19b78787f2df30650c741f90e8f9e7e010b1e8c118a37c05afa4cba"
+      "bytes": 5263,
+      "sha256": "a420102503d6b13311dc8bfd0f777581c14d9fb95356b164b0c50eb54e4a7506"
     },
     {
       "path": "evidence/transcripts/stop.json",
-      "bytes": 3239,
-      "sha256": "eb0531141edf77a95a1399332d1a047a3f1a719ef85b4fb5cb20465befab8a0a"
+      "bytes": 4152,
+      "sha256": "22e7a9076bf68f073b05371df9954fc6069f1a0503817c829c547531bf028e09"
     },
     {
       "path": "evidence/transcripts/run-to-end.json",
-      "bytes": 2209,
-      "sha256": "cd2c4718ce3074227126606c5499b1d9fabfbaadde9caa67863a6c640e53aa92"
+      "bytes": 3730,
+      "sha256": "d748a9dcc5b23c0e436cfd218807fd35112fd8477ef25df3a562a361c579d6e8"
     },
     {
       "path": "evidence/transcripts/missing-file.json",
@@ -246,23 +247,23 @@
     },
     {
       "path": "evidence/transcripts/corrupt-truncated-midplay.json",
-      "bytes": 2100,
-      "sha256": "90e2e8db629f9876025ede9b14c62fd50bb7728a58e331ae96ca9edf28f9acff"
+      "bytes": 2877,
+      "sha256": "ce1c5cec7a3271ab4488c7dbf79f9ac456d4b265cf875412b8d0dd1ed4fc71e3"
     },
     {
       "path": "evidence/transcripts/corrupt-garbage-appended.json",
-      "bytes": 2237,
-      "sha256": "e5ac5eb5b29cd5d1ce5a4e546fab01878dcb36e2cffb7d8e3febfbfbbb682abf"
+      "bytes": 3758,
+      "sha256": "0323e7597a87a5db53f963f0764e67efe2708ebe6f707150a6cbd6743e367d97"
     },
     {
       "path": "evidence/transcripts/corrupt-noidx.json",
-      "bytes": 2224,
-      "sha256": "cbd85dea1716484763187a9038337634a3696f1ee86be2c4b35130b633cdcb93"
+      "bytes": 3745,
+      "sha256": "922398e0ed43566c0c038a9286b9342bd4056cda7c628c61b151cfd7aec5b872"
     },
     {
       "path": "evidence/transcripts/wire-session.json",
-      "bytes": 3836,
-      "sha256": "a75e352b79b087785c69747d32436e105f18e7cb3aa749073b5def57be91deb4"
+      "bytes": 4835,
+      "sha256": "15b066b5737b429c748174c171652d05bcf6c5d239745335129838542c836078"
     },
     {
       "path": "evidence/final-frame.png",

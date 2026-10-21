@@ -78,14 +78,38 @@
       "to": "Buffering"
     },
     {
+      "seq": 5,
+      "session": 1,
+      "gen": 0,
+      "kind": "timing.duration-known",
+      "duration_us": 2000000
+    },
+    {
       "seq": 6,
+      "session": 1,
+      "gen": 0,
+      "kind": "media.info-ready",
+      "seekable": false,
+      "is_live": false,
+      "duration_us": 2000000,
+      "tracks": 2
+    },
+    {
+      "seq": 8,
+      "session": 1,
+      "gen": 0,
+      "kind": "session.buffering",
+      "progress": "0.07"
+    },
+    {
+      "seq": 9,
       "session": 1,
       "gen": 0,
       "kind": "session.buffering",
       "progress": "1.00"
     },
     {
-      "seq": 7,
+      "seq": 10,
       "session": 1,
       "gen": 0,
       "kind": "session.state-changed",
@@ -93,7 +117,15 @@
       "to": "Playing"
     },
     {
-      "seq": 8,
+      "seq": 11,
+      "session": 1,
+      "gen": 0,
+      "kind": "timing.time-tick",
+      "time_us": 0,
+      "position": "0.000"
+    },
+    {
+      "seq": 12,
       "session": 1,
       "gen": 0,
       "kind": "session.state-changed",
@@ -101,7 +133,7 @@
       "to": "Paused"
     },
     {
-      "seq": 9,
+      "seq": 13,
       "session": 1,
       "gen": 1,
       "kind": "session.state-changed",
@@ -109,7 +141,7 @@
       "to": "Stopped"
     },
     {
-      "seq": 10,
+      "seq": 14,
       "session": 1,
       "gen": 2,
       "kind": "session.state-changed",
@@ -117,7 +149,7 @@
       "to": "Idle"
     },
     {
-      "seq": 11,
+      "seq": 15,
       "session": 2,
       "gen": 0,
       "kind": "session.state-changed",
@@ -125,21 +157,21 @@
       "to": "Opening"
     },
     {
-      "seq": 12,
+      "seq": 16,
       "session": 2,
       "gen": 0,
       "kind": "tracks.list-ready",
       "tracks": 2
     },
     {
-      "seq": 13,
+      "seq": 17,
       "session": 2,
       "gen": 0,
       "kind": "session.buffering",
       "progress": "0.00"
     },
     {
-      "seq": 14,
+      "seq": 18,
       "session": 2,
       "gen": 0,
       "kind": "session.state-changed",
@@ -147,14 +179,31 @@
       "to": "Buffering"
     },
     {
-      "seq": 16,
+      "seq": 19,
+      "session": 2,
+      "gen": 0,
+      "kind": "timing.duration-known",
+      "duration_us": 2000000
+    },
+    {
+      "seq": 20,
+      "session": 2,
+      "gen": 0,
+      "kind": "media.info-ready",
+      "seekable": false,
+      "is_live": false,
+      "duration_us": 2000000,
+      "tracks": 2
+    },
+    {
+      "seq": 22,
       "session": 2,
       "gen": 0,
       "kind": "session.buffering",
       "progress": "1.00"
     },
     {
-      "seq": 17,
+      "seq": 23,
       "session": 2,
       "gen": 0,
       "kind": "session.state-changed",
@@ -162,13 +211,37 @@
       "to": "Playing"
     },
     {
-      "seq": 18,
+      "seq": 24,
+      "session": 2,
+      "gen": 0,
+      "kind": "playback.end-of-track",
+      "track_kind": "video",
+      "track_id": 0
+    },
+    {
+      "seq": 25,
+      "session": 2,
+      "gen": 0,
+      "kind": "timing.time-tick",
+      "time_us": 1533334,
+      "position": "0.767"
+    },
+    {
+      "seq": 26,
+      "session": 2,
+      "gen": 0,
+      "kind": "timing.time-tick",
+      "time_us": 1800000,
+      "position": "0.900"
+    },
+    {
+      "seq": 27,
       "session": 2,
       "gen": 0,
       "kind": "playback.end-of-media"
     },
     {
-      "seq": 19,
+      "seq": 28,
       "session": 2,
       "gen": 0,
       "kind": "session.state-changed",

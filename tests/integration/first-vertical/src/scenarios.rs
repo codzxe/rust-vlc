@@ -945,23 +945,37 @@ pub fn scenario_corrupt_truncated_midplay() -> ScenarioRun {
         &format!("{end_state:?}"),
         "Error",
     ));
-    // The error event: wire-visible, stage-tagged demux, exactly one.
+    // The error events: wire-visible, stage-tagged demux. Card 3.B4
+    // splits the class: exactly one FATAL error (the session-killing
+    // truncation truth) plus at most the coalesced NON-fATAL
+    // bounded-recovery report (a counted `fatal: false` row — doc 05
+    // §3.2's non-fatal half), each carrying its count.
     let events = wire_events(&run);
-    let error_events: Vec<&(String, String)> = events
+    let error_events: Vec<&WireEventRow> = events
         .iter()
-        .filter(|(kind, _)| kind == "playback.error")
+        .filter(|row| row.kind == "playback.error")
         .collect();
+    let fatal_events: Vec<&&WireEventRow> = error_events.iter().filter(|row| row.fatal).collect();
     checks.push(Check::int(
-        "exactly one playback.error event is delivered",
-        error_events.len() as i64,
+        "exactly one FATAL playback.error event is delivered",
+        fatal_events.len() as i64,
         1,
     ));
-    if let Some((_, message)) = error_events.first() {
+    if let Some(row) = fatal_events.first() {
         checks.push(Check::is(
-            "the error event is the demuxer's truncated-data truth",
-            message.contains("truncated"),
-            &format!("message {message:?} does not name the truncation"),
+            "the fatal error is the demuxer's truncated-data truth",
+            row.message.contains("truncated"),
+            &format!("message {:?} does not name the truncation", row.message),
         ));
+    }
+    for row in &error_events {
+        if !row.fatal {
+            checks.push(Check::is(
+                "a non-fatal playback.error carries its coalesced count",
+                row.count >= 1,
+                &format!("non-fatal row without a count: {:?}", row.message),
+            ));
+        }
     }
     checks.push(Check::is(
         "the bounded play-out actually happened (content presented \
@@ -1352,8 +1366,18 @@ fn state_trail(run: &ScenarioRun) -> Vec<(PlaybackState, PlaybackState)> {
     trail
 }
 
-/// The wire events of a transcript as (kind, message) pairs.
-fn wire_events(run: &ScenarioRun) -> Vec<(String, String)> {
+/// One wire event row, transcript-side: the kind, the message, the
+/// fatal flag and the coalesced count (both `playback.error`-only
+/// facts — the fields default for every other kind).
+struct WireEventRow {
+    kind: String,
+    message: String,
+    fatal: bool,
+    count: i64,
+}
+
+/// The wire events of a transcript as rows.
+fn wire_events(run: &ScenarioRun) -> Vec<WireEventRow> {
     let mut out = Vec::new();
     if let Json::Obj(fields) = &run.transcript
         && let Some((_, Json::Arr(events))) = fields.iter().find(|(key, _)| key == "events")
@@ -1364,14 +1388,26 @@ fn wire_events(run: &ScenarioRun) -> Vec<(String, String)> {
                     .iter()
                     .find_map(|(key, value)| (key == "kind").then_some(value))
             {
-                let message = fields
-                    .iter()
-                    .find_map(|(key, value)| (key == "message").then_some(value));
-                let message = match message {
+                let field = |name: &str| {
+                    fields
+                        .iter()
+                        .find_map(|(key, value)| (key == name).then_some(value))
+                };
+                let message = match field("message") {
                     Some(Json::Str(text)) => text.clone(),
                     _ => String::new(),
                 };
-                out.push((kind.clone(), message));
+                let fatal = matches!(field("fatal"), Some(Json::Bool(true)));
+                let count = match field("count") {
+                    Some(Json::Str(text)) => text.parse().unwrap_or(0),
+                    _ => 0,
+                };
+                out.push(WireEventRow {
+                    kind: kind.clone(),
+                    message,
+                    fatal,
+                    count,
+                });
             }
         }
     }
