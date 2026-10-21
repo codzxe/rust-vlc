@@ -1661,3 +1661,17 @@ Work Log:
 Stage Summary:
 - The user's judgment confirmed: D-1/D-2/D-6 are violated on the heaviest paths; D-3 partially; D-4 has one CRITICAL host shortcut; D-5 echo chamber confirmed with a phantom artifact. Clean anchors credited and listed in the audit doc.
 - Recovery cadence unchanged: every milestone commit+push; remote is the lifeline (12+ transport cuts survived).
+
+---
+Task ID: ED-DISPATCH-1 (Lead)
+Agent: Lead
+Task: Dispatch + salvage of the directives-fix wave (3.B4-R, ED-FIX-1, ED-FIX-2, ED-FIX-3 — 4 parallel agents, disjoint crates, worktrees off main @ 97b34dd).
+
+Work Log:
+- All 4 agents launched with durable file briefs (.agent-brief-* in each worktree, untracked). Transport cuts killed all 4 (max-turns/deadline) — the git-always protocol recovered 100% again (16-for-16 lifetime).
+- LANDED (pushed): 3.B4 — 9969145 emission set + OutputHub addendum (O(1)-amortized tombstone design, replace-resident-tick, 4096 receipt cap, bounded sync_channel(64) inbox with typed InboxBusy, drain_outputs_into reuse, CLI throttle seam + frozen-throttle injection), da5a3bf hub policy tests (10k-push capacity pressure), d447b25 doc-05 §7 contract suite (12 wire-vocabulary proofs) + 23-row catalog ledger (11 emitted / 12 later) + Box'd MediaInfoReady payload; 9fb5050 = evidence-regen mid-flight salvage (continuation: finish + byte-stability + gate). ED-FIX-1 — 475e0cb C1+C3 (factored BIT-EXACT i64 IDCT + zero-AC fast path + folded dequant; 8-bit LUT Huffman + 32-bit word-refill bitreader — all equivalence-tested), 694833d C2 (division-free row-hoisted RGBA compose, i32, per-row bounds proof + cold fallback), e4f4738 C4 (reusable DecodeContext, crop-in-place, bit-exact vs stateless path); c2c583f = benches.rs salvage (continuation: measure + gate). ED-FIX-2 — 3485243 C6 (audio quantum zero-alloc: true plane reuse, refs-Vec kill, pooled Arc output rotation), 2444aa9 M13+M2 (counting-allocator instrument + zero-alloc proofs quantum/null-sink + stack-chunk write); ea1a218 = renderer staging/backend pool salvage (continuation: finish + present-path proof + scheduler drops + desktop transport + gate). ED-FIX-3 — 98f4ba3 ALL of V1-V12 (per-stream containment, bottom-up DIB, chunk clamps, idx1 hardening + coalesced damage, rec clamp, mjpa agreement, saturating walks, 2 new class-B fixtures negheight0/absidx1) — needs Lead verification + gate before merge (unknown test state).
+- NEXT SESSION continuation (in order): (1) resume/verify each branch: run cargo test -p <crate> per worktree, fix what the cuts left red, finish the noted continuations (3b4 evidence-regen byte-stability; fix1 bench measurement; fix2 renderer finish), full gates; (2) Lead-verify + merge order: ED-FIX-3 → 3.B4 → ED-FIX-2 → ED-FIX-1 (fixtures/evidence regen once on main after FIX-1); (3) dispatch ED-FIX-4 (host seek migration + MJPEG per-frame isolation + pre-roll hold + epoch-aware OutputHub + graceful exit — after 3.B4 merges); (4) dispatch ED-FIX-5 (testing: pcm_fuzz_survival phantom fix, fuzz scaffolding, external corpus, oracle script, adversarial gaps); (5) resume Phase 3 waves.
+
+Stage Summary:
+- The directives wave is real: 8 CRITICAL violations → 6 already have landed fixes on branches (C1-C4 bit-exact in fix1, C5-C7 in fix2 salvage, C8 carded ED-FIX-4), M5-M8+M19 landed in fix3. All work pushed; remote is the source of truth.
+- Salvage ledger this session: 4/4 branches recovered, 0 work lost.
