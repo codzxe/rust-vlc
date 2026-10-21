@@ -1629,3 +1629,19 @@ Stage Summary:
 - Design decisions for Lead review: (1) seek terminals stamp the in-flight generation (doc 05 §4.3 inv 4 argument above) — a deliberate refinement of the committed design, test-pinned by a_resolution_failure_does_not_retire_an_in_flight_seek; (2) seek from Ended refuses typed EndedNeedsWireEdge (no doc 05 §3.3 edge exists — Lead-owned at 3.C1); (3) Chapter targets refuse typed until the doc 03 §4.12 chapter source exists (hosts resolve to Absolute).
 - Deviations from the brief: (a) apps/cli/src/host.rs carries two new RejectionReason arms — mechanical exhaustive-match completion required for the CLI to compile (the 2.D2 stop+reopen seek composition itself untouched); (b) the suite is 15 tests, not 14 as the commit message of 47e73e5 claims; (c) the plain (unflagged) `cargo xtask gate` FAILS step 9 tauri on this sandbox (cargo-tauri not installed; apps/desktop has existed since 2.D3) — the Lead's recorded gate flow (full_gate.sh) does not include the tauri step; the 5-honest-skip shape is reachable via `--no-ui`, which is how it was run and reported.
 - Owed elsewhere (not this card): apps/cli REPL still composes seek as stop+reopen (2.D2 record) — surfacing SessionHandle::seek in the host is a host-side card; first-vertical evidence regen + the doc 10 §6.4 repeated-seek/seek scenarios happen on main after 3.B4 per the launch plan; FirstFrame stays once-per-session (whether it re-fires per seek is 3.B4's event-completeness question, already flagged in seek.rs docs); the worklog tail merge (this worktree's worklog predates 3.LAUNCH-1/3.HARD-AUDIT/3.DOC-1 in the main tree — both sides append at the end; scripts/resolve_worklog_append.py exists for exactly this).
+
+---
+Task ID: 3.MERGE-1 (Lead)
+Agent: Lead
+Task: Merge + Lead-verification of card 3.A1 (in-session seek) into main; D-d raw-log protocol begins.
+
+Work Log:
+- Merged origin/wip/3a1-seek (47a1a9f) into main as c79ec88 (worklog append conflict resolved both-sides-chronological: 3.LAUNCH-1 → 3.HARD-AUDIT → 3.DOC-1 → 3.A1-R). Branch chain: 23b1915 → dd3fd82 → 918128e → 47e73e5 → de87e69 → 255af40 → 47a1a9f (16 files, +3651/−104 vs f7f3780).
+- LEAD VERIFICATION on merged main (this sandbox, toolchain 1.99.1): cargo test --workspace --all-features = 1362 passed / 0 failed / 4 ignored (matches the agent's report exactly; +33 over the Phase-2 baseline 1329); cargo xtask gate --no-ui = SUCCESS (0 of 10 failed, 5 skipped — the honest-skip shape). Raw logs committed: docs/gates/logs/merge-3a1-c79ec88.{test,gate}.log (D-d protocol begins).
+- 3.DOC-1 Lead decisions: (1) ENDORSED the all-three-desktop-columns interpretation for feature-matrix implemented status (platform-independent pure Rust; evidence caveats disclosed in notes; vocabulary-compliant). (2) ADR-007 identity divergence (ROADMAP §6 "first-vertical formats" vs doc 01 §7 "VLC test oracle") — Lead will reconcile at the next docs pass; doc 01 §7 remains the register authority, ROADMAP §6 row is the error. (3) doc 06 §3/§4 registry-ownership card: queued as a Phase-3-tail or Phase-5-head card proposal, Lead to place at the 3.F gate planning.
+- 3.A1-R design decisions RATIFIED: (a) seek terminals stamp the in-flight seek's own generation (doc 05 §4.3 invariant 4 argument; test-pinned); (b) seek-from-Ended typed refusal EndedNeedsWireEdge + Paused decode carve-out [PROPOSAL] both stand for the 3.C1 state-machine card to absorb; (c) Chapter targets refuse typed until doc 03 §4.12.
+- Phase 3 status: 3.A1 DONE (1 of 19). Next: 3.B4-R dispatched (events completeness; then first-vertical evidence regen on main).
+
+Stage Summary:
+- Main @ c79ec88 green: 1362/0/4, gate SUCCESS, raw logs committed per D-d. Remote push follows this entry.
+- The audit → fix → resume → verify → merge loop is proven end-to-end on this sandbox loss (recovery: remote was 2 phases ahead of local; 100% of work preserved).

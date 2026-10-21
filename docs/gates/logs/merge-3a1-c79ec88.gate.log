@@ -1,0 +1,17 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/xtask gate --no-ui`
+=== LUMEN GATE REPORT ===
+commit:   c79ec88 (dirty: no)
+started:  2026-10-21T18:00:45Z   host: linux x86_64, toolchain rustc 1.99.1 (58cf8f9c3 2026-10-13)
+1 fmt .................. PASS  1s
+2 check ................ PASS  4s
+3 clippy ............... PASS  4s
+4 test ................. PASS  1m47s
+5 tree ................. PASS  0s
+6 ui lint .............. SKIP (excluded: --no-ui)
+7 ui typecheck ......... SKIP (excluded: --no-ui)
+8 ui test .............. SKIP (excluded: --no-ui)
+9 tauri ................ SKIP (excluded: --no-ui)
+10 wasm-pack ............ SKIP (crates/engine-wasm-binding not present)
+result: SUCCESS (0 of 10 failed, 5 skipped)
+full log: target/gate-report.json

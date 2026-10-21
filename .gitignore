@@ -22,9 +22,11 @@ apps/web/pkg/
 *.key
 secrets/
 
-# Logs & temp
+# Logs & temp (gate logs are COMMITTED — D-d protocol, 3.MERGE-1)
 *.log
-logs/
+!docs/gates/logs/**
+!docs/gates/logs/*.log
+/logs/
 tmp/
 .cache/
 
