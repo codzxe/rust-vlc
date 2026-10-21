@@ -28,10 +28,18 @@ use media_types::time::Stamp;
 
 use crate::buffer::AudioBuffer;
 use crate::channel_map::ChannelMap;
-use crate::convert::{frame_to_f32_planes, planes_to_f32_interleaved};
+use crate::convert::{frame_to_f32_planes, planes_to_f32_interleaved_into};
 use crate::error;
 use crate::mix::Mixer;
 use crate::volume::Volume;
+
+/// The output-slot rotation depth: how many pooled quantum buffers the
+/// pipeline keeps (D-1 object pool). Four covers the pump's own
+/// pending quantum plus two still referenced downstream with slack —
+/// a sink that hands buffers off asynchronously never starves the
+/// pool into the allocate path. Bounded memory: at most
+/// `OUT_SLOTS · max-quantum-bytes`.
+const OUT_SLOTS: usize = 4;
 
 /// The negotiated shape of one session's audio path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,8 +73,14 @@ pub struct AudioPipeline {
     timing: Option<Stamp>,
     /// Mixer output planes (reused).
     mixed: Vec<Vec<f32>>,
-    /// Stage-D output bytes (reused).
-    out_bytes: Vec<u8>,
+    /// Stage-D output rotation: pooled [`SharedBytes`] slots the
+    /// quantum is interleaved into in place (`get_mut` when the pool
+    /// is the sole owner — no per-quantum Arc allocation after
+    /// warm-up; the old single `out_bytes` Vec was `mem::take`n into a
+    /// fresh `Arc<[u8]>` copy every quantum, the C6b violation).
+    out_slots: Vec<SharedBytes>,
+    /// Round-robin cursor into `out_slots`.
+    out_next: usize,
     /// The mixed quantum awaiting `take_output`.
     pending: Option<AudioBuffer>,
 }
@@ -96,7 +110,8 @@ impl AudioPipeline {
             staged: vec![0; spec.tracks],
             timing: None,
             mixed: Vec::new(),
-            out_bytes: Vec::new(),
+            out_slots: Vec::new(),
+            out_next: 0,
             pending: None,
         })
     }
@@ -202,6 +217,13 @@ impl AudioPipeline {
     /// [`take_output`](Self::take_output). Returns whether a quantum
     /// was produced (`false` when every track staged nothing).
     ///
+    /// Zero allocation after warm-up: the mix reads the staged chunks
+    /// where they live (no `refs` Vec), and stage D writes into a
+    /// pooled output slot through [`SharedBytes::get_mut`] — the Arc
+    /// allocation happens only on geometry changes or when every
+    /// pooled slot is still referenced downstream (both are cold
+    /// paths; the rotation is bounded at [`OUT_SLOTS`]).
+    ///
     /// # Errors
     /// [`Corrupt`](media_types::ErrorKind::Corrupt) with code
     /// `audio.chunk_length_mismatch` when staged tracks disagree on
@@ -218,23 +240,20 @@ impl AudioPipeline {
             self.timing = None;
             return Ok(false);
         }
-        // Field-disjoint borrows: the refs read `stage`, the mixer
-        // reads its volumes, `mixed` is written.
-        let refs: Vec<&[Vec<f32>]> = self.stage.iter().map(Vec::as_slice).collect();
+        // Field-disjoint borrows: the mixer reads `stage` and its
+        // volumes, `mixed` is written — no refs Vec is built.
         {
             let mut mixed = std::mem::take(&mut self.mixed);
-            let mix_result = self.mixer.mix(&refs, &mut mixed);
+            let mix_result = self.mixer.mix(&self.stage, &mut mixed);
             self.mixed = mixed;
             mix_result?;
         }
-        let mut out = std::mem::take(&mut self.out_bytes);
-        let interleave_result = planes_to_f32_interleaved(&self.mixed, &mut out);
-        self.out_bytes = out;
-        interleave_result?;
+        // Stage D: interleave into a pooled output slot.
+        let data = self.pooled_output(frames)?;
         let pts = self.timing.take().unwrap_or(Stamp::Missing);
         self.pending = Some(AudioBuffer {
             format: self.device_format(),
-            data: SharedBytes::from_vec(std::mem::take(&mut self.out_bytes)),
+            data,
             pts,
         });
         for staged in self.staged.iter_mut() {
@@ -244,6 +263,57 @@ impl AudioPipeline {
             chunk.clear();
         }
         Ok(true)
+    }
+
+    /// Fill the next pooled output slot with the mixed quantum's
+    /// interleaved bytes and hand out a clone (refcount 2: pool + the
+    /// pending buffer; the clone the sink saw returns to refcount 1
+    /// when its buffer drops, making the slot refillable in place).
+    /// Cold path (first quanta, geometry change, or an all-slots-busy
+    /// rotation): allocate a fresh slot and enter it into the
+    /// round-robin.
+    fn pooled_output(&mut self, frames: usize) -> Result<SharedBytes, EngineError> {
+        let len = frames * self.spec.channels as usize * 4;
+        let slots = self.out_slots.len();
+        for i in 0..slots {
+            let idx = (self.out_next + i) % slots;
+            if self.out_slots[idx].len() != len {
+                continue;
+            }
+            // Field-disjoint borrows: the slot is written in place,
+            // the mixed planes are read.
+            let Self {
+                out_slots,
+                out_next,
+                mixed,
+                ..
+            } = self;
+            if let Some(bytes) = out_slots[idx].get_mut() {
+                let filled = planes_to_f32_interleaved_into(mixed, bytes);
+                *out_next = (idx + 1) % slots;
+                filled?;
+                return Ok(out_slots[idx].clone());
+            }
+            // The slot still has downstream owners — try the next one.
+        }
+        // Cold path: allocate, then enter the rotation (growing it up
+        // to OUT_SLOTS; beyond that, evicting round-robin — bounded).
+        let mut fresh = SharedBytes::from_vec(vec![0; len]);
+        // Refcount is 1 by construction; fill in place, then share.
+        let filled = match fresh.get_mut() {
+            Some(bytes) => planes_to_f32_interleaved_into(&self.mixed, bytes),
+            None => unreachable!("fresh SharedBytes has refcount 1"),
+        };
+        if slots < OUT_SLOTS {
+            self.out_slots.push(fresh.clone());
+            self.out_next = (slots + 1) % OUT_SLOTS;
+        } else {
+            let evict = self.out_next;
+            self.out_slots[evict] = fresh.clone();
+            self.out_next = (evict + 1) % OUT_SLOTS;
+        }
+        filled?;
+        Ok(fresh)
     }
 
     /// Take the mixed quantum (once per [`mix`](Self::mix) that
@@ -535,5 +605,74 @@ mod tests {
         let buffer = pipeline.take_output().must();
         assert_eq!(buffer.frames().must(), 1470);
         assert_eq!(buffer.data.len(), 1470 * 2 * 4);
+    }
+
+    #[test]
+    fn quantum_output_rotation_is_bounded_and_values_stay_exact() {
+        // The C6b fix's observable contract: the pooled rotation grows
+        // only as far as downstream retention forces it (bounded at
+        // OUT_SLOTS even under full retention), shrinks nowhere, and
+        // every quantum still carries its exact bytes — the reuse
+        // never leaks stale samples between quanta (each slot is
+        // fully rewritten before being handed out).
+        let mut pipeline = AudioPipeline::new(PipelineSpec {
+            rate: RATE,
+            channels: 2,
+            tracks: 1,
+        })
+        .must();
+        // Phase 1 — retain every quantum (the adversarial consumer):
+        // the pool must absorb the pressure and cap at OUT_SLOTS.
+        let mut held: Vec<AudioBuffer> = Vec::new();
+        for quantum in 0..(3 * OUT_SLOTS + 5) {
+            let amp = ((quantum % 7) as i16) * 1000 + 1;
+            let frame = stereo_s16_frame(&[(amp, -amp), (amp / 2, -amp / 2)], quantum as i64);
+            pipeline.process(0, &frame).must();
+            assert!(pipeline.mix().must());
+            held.push(pipeline.take_output().must());
+        }
+        assert_eq!(
+            pipeline.out_slots.len(),
+            OUT_SLOTS,
+            "retention pressure caps at the rotation depth"
+        );
+        // Every held quantum kept its exact bytes (no cross-quantum
+        // leakage through the recycled slots).
+        for (quantum, buffer) in held.iter().enumerate() {
+            let amp = ((quantum % 7) as i16) * 1000 + 1;
+            assert_eq!(
+                read_f32_pairs(buffer),
+                vec![
+                    (f32::from(amp) / 32_768.0, f32::from(-amp) / 32_768.0),
+                    (
+                        f32::from(amp / 2) / 32_768.0,
+                        f32::from(-amp / 2) / 32_768.0
+                    ),
+                ]
+            );
+        }
+        // Phase 2 — release everything: the steady state reuses the
+        // existing slots (pool never grows past the cap again) and
+        // values stay exact. Same quantum geometry as phase 1, so the
+        // slot lengths match and reuse is in-place.
+        held.clear();
+        for quantum in 0..(2 * OUT_SLOTS) {
+            let amp = ((quantum % 5) as i16) * 900 + 7;
+            let frame = stereo_s16_frame(&[(amp, -amp), (amp / 3, -amp / 3)], quantum as i64);
+            pipeline.process(0, &frame).must();
+            assert!(pipeline.mix().must());
+            let buffer = pipeline.take_output().must();
+            assert_eq!(
+                read_f32_pairs(&buffer),
+                vec![
+                    (f32::from(amp) / 32_768.0, f32::from(-amp) / 32_768.0),
+                    (
+                        f32::from(amp / 3) / 32_768.0,
+                        f32::from(-amp / 3) / 32_768.0
+                    ),
+                ]
+            );
+        }
+        assert!(pipeline.out_slots.len() <= OUT_SLOTS);
     }
 }
