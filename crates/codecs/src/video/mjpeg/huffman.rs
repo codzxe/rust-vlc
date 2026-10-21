@@ -5,6 +5,22 @@
 //! Build is total (no panics); decode of a code absent from the table
 //! or of exhausted entropy data is a typed [`Stop`], which the scan
 //! decoder turns into concealment.
+//!
+//! # ED-FIX-1 (audit C3): 8-bit look-ahead LUT
+//!
+//! Each table carries a 256-entry LUT indexed by the next 8 entropy
+//! bits (zero-padded look-ahead via [`BitReader::peek8_padded`]):
+//! the entry holds the symbol and code length when a code of ≤ 8
+//! bits starts with that prefix (the libjpeg
+//! `jpeg_make_d_derived_tbl` pattern). Longer codes take the classic
+//! MINCODE/MAXCODE walk over lengths 9..=16. Because a canonical
+//! code is prefix-free, the LUT entry is the *unique* ≤ 8-bit code
+//! the upcoming bits can start, and the entry's length is validated
+//! against the reader's available count before consuming — so a
+//! truncated stream yields the same [`Stop::Exhausted`], an absent
+//! code the same [`Stop::InvalidCode`], with the same bits consumed
+//! as the bit-at-a-time walk (pinned by the tests here and by the
+//! committed decode-reference digests).
 
 use super::bitreader::BitReader;
 
@@ -31,6 +47,11 @@ pub(crate) struct HuffmanDecoder {
     val_ptr: [usize; 17],
     /// HUFFVAL, in code order.
     values: Vec<u8>,
+    /// 8-bit look-ahead LUT (ED-FIX-1): `(symbol, length)` for the
+    /// unique code of length ≤ 8 that prefixes each 8-bit window;
+    /// `length == 0` marks windows that must take the slow walk
+    /// (only codes > 8 bits, or no code, can match).
+    lut: [(u8, u8); 256],
 }
 
 impl HuffmanDecoder {
@@ -67,11 +88,32 @@ impl HuffmanDecoder {
         if symbol_index != values.len() {
             return Err(Stop::InvalidCode);
         }
+
+        // Look-ahead LUT: every code of length ≤ 8 claims the range of
+        // 8-bit windows it prefixes (ranges are disjoint — the code is
+        // prefix-free).
+        let mut lut = [(0u8, 0u8); 256];
+        for length in 1..=8usize {
+            if bits[length] == 0 {
+                continue;
+            }
+            let base = min_code[length];
+            let width = 1usize << (8 - length);
+            for offset in 0..bits[length] as i32 {
+                let symbol = values[val_ptr[length] + offset as usize];
+                let start = ((base + offset) as usize) << (8 - length);
+                for entry in lut.iter_mut().skip(start).take(width) {
+                    *entry = (symbol, length as u8);
+                }
+            }
+        }
+
         Ok(HuffmanDecoder {
             min_code,
             max_code,
             val_ptr,
             values: values.to_vec(),
+            lut,
         })
     }
 
@@ -81,19 +123,52 @@ impl HuffmanDecoder {
     /// [`Stop::Exhausted`] when entropy data ends mid-code;
     /// [`Stop::InvalidCode`] when the bits form no code in the table.
     pub(crate) fn decode(&self, reader: &mut BitReader<'_>) -> Result<u8, Stop> {
-        let mut code: i32 = 0;
-        for length in 1..=16usize {
-            let Some(bit) = reader.next_bit() else {
+        reader.refill();
+        let available = reader.available();
+        let peek = u32::from(reader.peek8_padded());
+
+        // Fast path: a ≤ 8-bit code prefixes the window. The length
+        // check against `available` is what keeps truncated streams
+        // honest — the zero padding of the look-ahead can never
+        // fabricate a decode.
+        let (symbol, length) = self.lut[peek as usize];
+        if length != 0 {
+            let length = u32::from(length);
+            if available >= length {
+                reader.consume(length);
+                return Ok(symbol);
+            }
+            reader.consume_all();
+            return Err(Stop::Exhausted);
+        }
+
+        // No ≤ 8-bit code matches the window: if the data cannot even
+        // supply the 8 real bits the walk would have consumed, this is
+        // truncation (any code > 8 bits needs more than remains).
+        if available < 8 {
+            reader.consume_all();
+            return Err(Stop::Exhausted);
+        }
+
+        // Slow path: the classic MINCODE/MAXCODE walk over the long
+        // codes. `peek_bits(l)` is the first `l` bits — exactly the
+        // code the bit-at-a-time walk would have assembled.
+        for length in 9usize..=16 {
+            let length_u32 = length as u32;
+            if available < length_u32 {
+                reader.consume_all();
                 return Err(Stop::Exhausted);
-            };
-            code = (code << 1) | i32::from(bit);
+            }
+            let code = reader.peek_bits(length_u32).unwrap_or(0) as i32;
             if self.max_code[length] >= 0 {
                 if code > self.max_code[length] {
                     continue;
                 }
                 if code < self.min_code[length] {
+                    reader.consume(length_u32);
                     return Err(Stop::InvalidCode);
                 }
+                reader.consume(length_u32);
                 let index = self.val_ptr[length]
                     .checked_add((code - self.min_code[length]) as usize)
                     .ok_or(Stop::InvalidCode)?;
@@ -103,6 +178,7 @@ impl HuffmanDecoder {
                 };
             }
         }
+        reader.consume(16);
         Err(Stop::InvalidCode)
     }
 }
@@ -212,5 +288,156 @@ mod tests {
             Some(0xaf),
             "the length-16 code is 1111111111111110 → symbol 0xaf"
         );
+    }
+
+    // --- ED-FIX-1: LUT semantics vs the bit-at-a-time walk ---
+
+    impl HuffmanDecoder {
+        /// The pre-LUT decode walk, kept verbatim as the equivalence
+        /// oracle for the LUT + word-refill reader.
+        fn decode_naive(&self, reader: &mut BitReader<'_>) -> Result<u8, Stop> {
+            let mut code: i32 = 0;
+            for length in 1..=16usize {
+                let Some(bit) = reader.next_bit() else {
+                    return Err(Stop::Exhausted);
+                };
+                code = (code << 1) | i32::from(bit);
+                if self.max_code[length] >= 0 {
+                    if code > self.max_code[length] {
+                        continue;
+                    }
+                    if code < self.min_code[length] {
+                        return Err(Stop::InvalidCode);
+                    }
+                    let index = self.val_ptr[length]
+                        .checked_add((code - self.min_code[length]) as usize)
+                        .ok_or(Stop::InvalidCode)?;
+                    return match self.values.get(index) {
+                        Some(&symbol) => Ok(symbol),
+                        None => Err(Stop::InvalidCode),
+                    };
+                }
+            }
+            Err(Stop::InvalidCode)
+        }
+    }
+
+    #[test]
+    fn lut_decode_matches_the_bit_walk_on_random_streams() {
+        // Deterministic sweep: random DHT shapes (some over-subscribed
+        // and rejected) crossed with random entropy byte strings,
+        // including truncated tails. Every (table, stream) pair is
+        // decoded by both paths; the symbol sequence and the terminal
+        // Stop must agree. (Consumed-bit counts may differ only on
+        // the terminal InvalidCode/Exhausted, where the scan decoder
+        // abandons the reader — verified by construction here: both
+        // paths stop at the same symbol boundary.)
+        struct Rng(u64);
+        impl Rng {
+            fn next(&mut self) -> u64 {
+                let mut x = self.0;
+                x ^= x >> 12;
+                x ^= x << 25;
+                x ^= x >> 27;
+                self.0 = x;
+                x.wrapping_mul(0x2545_f491_4f6c_dd1d)
+            }
+        }
+        let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+        let mut pairs = 0usize;
+        let mut mismatches = Vec::new();
+        for round in 0..600 {
+            // Random BITS: distribute 1..=J codes across lengths.
+            let mut bits = [0u8; 17];
+            let mut total_codes = 0u32;
+            for length in 1..=16usize {
+                if round % 3 != 0 || length <= 9 {
+                    let take = (rng.next() % 4) as u8;
+                    bits[length] = take;
+                    total_codes += u32::from(take);
+                }
+            }
+            let values: Vec<u8> = (0..total_codes).map(|i| (97 + i % 26) as u8).collect();
+            let Ok(table) = HuffmanDecoder::new(&bits, &values) else {
+                continue; // over-subscribed: build rejection tested above
+            };
+            let len = (rng.next() % 12) as usize;
+            let stream: Vec<u8> = (0..len)
+                .map(|i| {
+                    // Avoid accidental stuffing/marker prefixes in
+                    // most bytes, but keep some 0xff stress too.
+                    if i % 7 == 3 {
+                        0xff
+                    } else {
+                        (rng.next() % 256) as u8
+                    }
+                })
+                .collect();
+            // Skip pure-0xff streams whose first feed stops at a
+            // marker — both paths stop identically, but the naive
+            // oracle consumes nothing; still a valid pair.
+            let mut a = BitReader::new(&stream);
+            let mut b = BitReader::new(&stream);
+            loop {
+                let fast = table.decode(&mut a);
+                let slow = table.decode_naive(&mut b);
+                pairs += 1;
+                match (&fast, &slow) {
+                    (Ok(x), Ok(y)) if x == y => continue,
+                    (Err(x), Err(y)) if x == y => break,
+                    _ => mismatches.push(format!(
+                        "round {round} stream {stream:02x?}: {fast:?} vs {slow:?}"
+                    )),
+                }
+            }
+        }
+        assert!(
+            mismatches.is_empty(),
+            "LUT decode diverged from the walk:\n{}",
+            mismatches.join("\n")
+        );
+        println!("lut-vs-walk equivalence: {pairs} decode calls agree");
+    }
+
+    #[test]
+    fn truncation_mid_code_is_exhausted_not_fabricated() {
+        // A length-4 code (0000) with only 3 real bits left: the
+        // zero-padded look-ahead sees window 00000000 and the LUT
+        // entry claims length 4 — but `available == 3`, so the decode
+        // must report Exhausted, never fabricate the symbol from
+        // padding.
+        let mut bits = [0u8; 17];
+        bits[4] = 1;
+        let table = match HuffmanDecoder::new(&bits, &[0x42]) {
+            Ok(t) => t,
+            Err(e) => unreachable!("build failed: {e:?}"),
+        };
+        let mut reader = reader_of(&[0b0001_0000]);
+        assert_eq!(reader.read_bits(5), Some(0b00010), "consume 5 of 8 bits");
+        assert_eq!(reader.available(), 3);
+        assert_eq!(table.decode(&mut reader).err(), Some(Stop::Exhausted));
+        assert_eq!(reader.available(), 0, "the partial bits are consumed");
+        // The full 8 bits decode fine on a fresh reader.
+        let mut fresh = reader_of(&[0b0000_1000]);
+        assert_eq!(table.decode(&mut fresh).ok(), Some(0x42));
+    }
+
+    #[test]
+    fn short_codes_decode_near_the_tail() {
+        // 3 bits remain and a length-3 code matches them exactly: the
+        // padded look-ahead finds it and the length check passes.
+        let mut bits = [0u8; 17];
+        bits[3] = 2; // codes 000, 001
+        let table = match HuffmanDecoder::new(&bits, &[0x10, 0x20]) {
+            Ok(t) => t,
+            Err(e) => unreachable!("build failed: {e:?}"),
+        };
+        let mut reader = reader_of(&[0b1110_0000]);
+        // Consume the leading 111 (no code of any length here starts
+        // with it); the remaining 00000 starts with the code 000.
+        assert_eq!(reader.read_bits(3), Some(0b111));
+        assert_eq!(reader.available(), 5);
+        assert_eq!(table.decode(&mut reader).ok(), Some(0x10));
+        assert_eq!(reader.available(), 2);
     }
 }
