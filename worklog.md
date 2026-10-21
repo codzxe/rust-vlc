@@ -1499,3 +1499,17 @@ Stage Summary:
 - 2.D2 COMPLETE. The first vertical now runs CLI-hosted: probe → AVI demux → queues → MJPEG/PCM decode → audio-engine → null device → video-engine scheduler → software compositor → headless PNG evidence, engine-driven end to end.
 - Lead flags: (a) MAX_VIDEO_HOLD=64 and the pump-bounds are [PROPOSAL]; (b) engine-level decode backpressure owed to 3.B; (c) active-close owed to 3.C1; (d) the REPL is single-session v0 (engine limit).
 - Honest limitations: no wall-clock pacing (advance is the only time mover — deliberate for determinism; the wall-clock session thread is Phase 3); audio is null-device only in this sandbox; the renderer is the software compositor (no GPU here); seek composes as stop+reopen (doc 03's v0 shape).
+
+Task ID: 2.D3 (Lead close-out after transport-deadline cut)
+Agent: Sub-agent (general-purpose, salvaged x2) + Lead close-out
+Task: Video-in-webview prototype (ADR-003 evidence card) — variant B protocol core + honest sandbox evidence.
+
+Work Log:
+- Agent chain: cut 1 delivered apps/desktop skeleton (f2f2885: wire/bridge/mailbox/transport/host, 23+1 tests, ADR-004 seam) + AC suites (4e7f2eb: protocol conformance + virtual-time pipeline — exact 11.67 ms e2e latency, slow-consumer latest-wins, generation flush, stub exit 86); cut 2 salvaged examples/ + the JS prototype (0ab124d).
+- Lead close-out: fmt over the salvage (the only gate failure); the card's named deliverable docs/prototypes/video-in-webview.md written (the honest evidence report: what was measured in-sandbox — 32 tests, exact virtual-time latency, protocol conformance, the JS parser mirror — vs what needs a desktop runtime, with the exact to-run commands); ADR-003 status left PROVISIONAL-B per its own per-OS gates.
+- Full gate via full_gate.sh on wip/2d3-webview-proto: fmt CLEAN; clippy CLEAN; workspace **1229/0/3** (1197 + 32 desktop); arch PASS 5/5; fixtures no-drift.
+
+Stage Summary:
+- 2.D3 COMPLETE to the card's honest-AC shape: protocol + deterministic latency measured; per-OS browser matrix honestly pending (headless sandbox); recommendation recorded (PROVISIONAL-B stands).
+- Lead flags: (a) the tauri/wry shell is a later card — this crate is the engine-side half (std-only, zero deps); (b) ADR-003 finalization moves to 2.E2-V with the desktop to-run list; (c) the LUF1 wire format is v1 (extension space reserved).
+- Honest limitations: no browser/webview runtime in this sandbox — WebView2/WKWebView/WebKitGTK columns are to-run; wall-clock latency numbers pending the emitted_ns-based measurement on real machines.
