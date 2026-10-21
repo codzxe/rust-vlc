@@ -19,8 +19,8 @@ use std::sync::Arc;
 
 use audio_engine::AudioSink;
 use media_clock::SampleCounterSource;
-use media_types::frame::AudioFormat;
 use media_types::EngineError;
+use media_types::frame::AudioFormat;
 
 /// A device's stable identifier (opaque; minted by
 /// [`AudioBackend::enumerate`]).

@@ -14,8 +14,8 @@
 
 use std::sync::Arc;
 
-use audio_engine::buffer::AudioBuffer;
 use audio_engine::AudioSink;
+use audio_engine::buffer::AudioBuffer;
 use media_clock::SampleCounterSource;
 use media_types::frame::AudioFormat;
 use media_types::time::Duration;
@@ -156,6 +156,10 @@ mod tests {
         let mut stub = UnsupportedBackend::named("plan9");
         assert_eq!(stub.platform(), "plan9");
         let err = stub.resume().err().must();
-        assert!(err.to_string().contains("os-audio-backend/plan9"), "{}", err);
+        assert!(
+            err.to_string().contains("os-audio-backend/plan9"),
+            "{}",
+            err
+        );
     }
 }

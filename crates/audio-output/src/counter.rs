@@ -124,6 +124,9 @@ mod tests {
         let new = SampleCounter::with_base(old.count(), 48_000).must();
         assert!(new.count() >= old.count());
         new.advance(1);
-        assert!(new.count() > old.count(), "the switch is a freeze, not a rewind");
+        assert!(
+            new.count() > old.count(),
+            "the switch is a freeze, not a rewind"
+        );
     }
 }

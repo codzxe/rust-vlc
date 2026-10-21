@@ -229,7 +229,11 @@ mod tests {
         assert_eq!(stats.frames_read, 4);
         assert_eq!(out, [2.0, 3.0, 4.0, 5.0]);
         assert_eq!(stats.ring_segments, 2, "one wrap boundary splits the run");
-        assert!(stats.ring_segments <= 2, "budget violated: {}", stats.ring_segments);
+        assert!(
+            stats.ring_segments <= 2,
+            "budget violated: {}",
+            stats.ring_segments
+        );
 
         // The budget holds for EVERY request size, from every cursor
         // alignment, including requests larger than the capacity.
@@ -278,7 +282,10 @@ mod tests {
             assert_eq!(stats.frames_requested, request);
         }
         assert!(counter.count() > 0);
-        assert_eq!(underruns.load(Ordering::Relaxed) > 0, true, "the oversized/short requests underran at least once");
+        assert!(
+            underruns.load(Ordering::Relaxed) > 0,
+            "the oversized/short requests underran at least once"
+        );
     }
 
     #[test]

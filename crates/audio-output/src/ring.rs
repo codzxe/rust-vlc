@@ -21,7 +21,7 @@
 //!   producer. Nothing else synchronizes; there are no locks.
 //!
 //! The ring never allocates after construction (open time), never
-//! blocks, and never distingushes "empty" from "full" by luck:
+//! blocks, and never distinguishes "empty" from "full" by luck:
 //! `available = write - read`, `free = capacity - available`.
 
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
@@ -112,7 +112,7 @@ impl SpscRing {
     /// full — the pump's backpressure signal; never blocks).
     pub fn push(&self, data: &[f32]) -> usize {
         let channels = self.channels;
-        if data.len() % channels != 0 {
+        if !data.len().is_multiple_of(channels) {
             // A whole-frames contract violation: refuse rather than
             // tear a frame. (Callers validate and type this; the ring
             // itself is the last line of defense.)
@@ -153,7 +153,7 @@ impl SpscRing {
     /// renderer answers with silence.
     pub fn read(&self, out: &mut [f32]) -> RingRead {
         let channels = self.channels;
-        if out.len() % channels != 0 {
+        if !out.len().is_multiple_of(channels) {
             // Same whole-frames contract as push: read nothing rather
             // than tear a frame; the driver validates and reports.
             return RingRead::default();
@@ -183,7 +183,10 @@ impl SpscRing {
         if count > 0 {
             self.read.store(read, Ordering::Release);
         }
-        RingRead { frames: count, segments }
+        RingRead {
+            frames: count,
+            segments,
+        }
     }
 }
 
@@ -252,7 +255,11 @@ mod tests {
     #[test]
     fn unaligned_buffers_are_refused_whole() {
         let ring = SpscRing::new(2, 8).must();
-        assert_eq!(ring.push(&[1.0, 2.0, 3.0]), 0, "odd sample count tears a frame");
+        assert_eq!(
+            ring.push(&[1.0, 2.0, 3.0]),
+            0,
+            "odd sample count tears a frame"
+        );
         let mut out = [0.0f32; 3];
         assert_eq!(ring.read(&mut out).frames, 0);
     }

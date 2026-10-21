@@ -81,7 +81,6 @@
 //! use audio_engine::AudioSink;
 //! use media_types::frame::{AudioFormat, AudioLayout, SampleFormat};
 //! use media_types::packet::SharedBytes;
-//! use media_types::time::Stamp;
 //!
 //! # fn main() -> Result<(), media_types::EngineError> {
 //! let format = AudioFormat {

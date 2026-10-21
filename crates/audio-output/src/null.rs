@@ -33,11 +33,11 @@
 //! — so capture is a null-device configuration instead `[PROPOSAL:
 //! Lead ratifies the relocation]`.
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
-use audio_engine::buffer::AudioBuffer;
 use audio_engine::AudioSink;
+use audio_engine::buffer::AudioBuffer;
 use media_clock::SampleCounterSource;
 use media_types::frame::{AudioFormat, AudioLayout, SampleFormat};
 use media_types::time::{Duration, Nanoseconds};
@@ -45,7 +45,7 @@ use media_types::time::{Duration, Nanoseconds};
 use crate::counter::SampleCounter;
 use crate::device::{AudioBackend, DeviceDesc, DeviceId};
 use crate::error;
-use crate::render::{render_into, RenderStats};
+use crate::render::{RenderStats, render_into};
 use crate::ring::SpscRing;
 use media_types::EngineError;
 
@@ -448,8 +448,7 @@ mod tests {
     #[test]
     fn open_stream_roundtrip_and_capture() {
         let format = f32_format(2, 44_100);
-        let mut stream =
-            NullBackend::open_stream(&format, 8, NullConfig { capture: true }).must();
+        let mut stream = NullBackend::open_stream(&format, 8, NullConfig { capture: true }).must();
         stream
             .sink
             .write(&buffer_of(format, &[0.5, -0.5, 0.25, -0.25]))
@@ -471,8 +470,7 @@ mod tests {
     #[test]
     fn underruns_are_counted_and_silence_captured() {
         let format = f32_format(1, 44_100);
-        let mut stream =
-            NullBackend::open_stream(&format, 8, NullConfig { capture: true }).must();
+        let mut stream = NullBackend::open_stream(&format, 8, NullConfig { capture: true }).must();
         stream.sink.write(&buffer_of(format, &[0.5])).must();
         let mut out = vec![f32::NAN; 3];
         let stats = stream.device.render(&mut out).must();
@@ -494,8 +492,7 @@ mod tests {
     #[test]
     fn backpressure_is_typed_and_all_or_nothing() {
         let format = f32_format(1, 44_100);
-        let mut stream =
-            NullBackend::open_stream(&format, 4, NullConfig { capture: false }).must();
+        let mut stream = NullBackend::open_stream(&format, 4, NullConfig { capture: false }).must();
         stream
             .sink
             .write(&buffer_of(format, &[1.0, 2.0, 3.0, 4.0]))
@@ -561,8 +558,7 @@ mod tests {
         // device-side views of the counter, underruns and clock source
         // are one shared state — the SPSC session, not three copies.
         let format = f32_format(2, 44_100);
-        let mut stream =
-            NullBackend::open_stream(&format, 8, NullConfig { capture: false }).must();
+        let mut stream = NullBackend::open_stream(&format, 8, NullConfig { capture: false }).must();
         let clock = stream.sink.clock_source();
         let source: &dyn SampleCounterSource = clock.as_ref();
         assert_eq!(source.sample_count(), 0);
@@ -574,7 +570,11 @@ mod tests {
         stream.device.render(&mut out).must();
         assert_eq!(stream.sink.sample_count(), 2);
         assert_eq!(stream.device.sample_count(), 2);
-        assert_eq!(source.sample_count(), 2, "the clock sees the device's truth");
+        assert_eq!(
+            source.sample_count(),
+            2,
+            "the clock sees the device's truth"
+        );
         assert_eq!(stream.sink.underruns(), stream.device.underruns());
     }
 
@@ -603,9 +603,10 @@ mod tests {
             .must();
         assert_eq!(err.context.code, "audio.format_unsupported");
         // Non-power-of-two ring.
-        let err = NullBackend::open_stream(&f32_format(2, 44_100), 7, NullConfig { capture: false })
-            .err()
-            .must();
+        let err =
+            NullBackend::open_stream(&f32_format(2, 44_100), 7, NullConfig { capture: false })
+                .err()
+                .must();
         assert_eq!(err.context.code, "audio.ring_shape_invalid");
         // Unknown device on the trait path.
         let mut backend = NullBackend::new();
@@ -619,7 +620,9 @@ mod tests {
         assert_eq!(err.context.code, "audio.sink_not_open");
         // A mismatched buffer format is refused.
         let mut backend = NullBackend::new();
-        backend.open(NULL_DEVICE_ID, &f32_format(2, 44_100), 8).must();
+        backend
+            .open(NULL_DEVICE_ID, &f32_format(2, 44_100), 8)
+            .must();
         let err = backend
             .write(&buffer_of(f32_format(2, 48_000), &[0.0, 0.0]))
             .err()
@@ -661,8 +664,7 @@ mod tests {
         // The production RenderCallback shape runs over the same
         // shared state the driver uses (doc 03 §4.9's `render`).
         let format = f32_format(2, 44_100);
-        let mut stream =
-            NullBackend::open_stream(&format, 8, NullConfig { capture: false }).must();
+        let mut stream = NullBackend::open_stream(&format, 8, NullConfig { capture: false }).must();
         let mut bytes = Vec::new();
         for s in [0.5f32, -0.5] {
             bytes.extend_from_slice(&s.to_le_bytes());
