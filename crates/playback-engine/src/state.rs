@@ -163,6 +163,11 @@ pub enum SessionInput {
     /// `session.close` — destroy the session (class S, gen-bumping,
     /// idempotent; see the table's `Idle` self-row).
     Close,
+    /// `playback.seek` (class A, gen-bumping; card 3.A1, doc 03 §6) —
+    /// the seven-step seek flow. Payload (the resolved target)
+    /// travels beside the input in the executor's context; the row
+    /// effects carry the flow's pipeline invalidation and re-anchor.
+    Seek,
     /// The open step succeeded: the demuxer parsed the container and
     /// the pipeline (queues + decoders) is wired. Raised by the open
     /// step after wiring — the row's effects only announce it.
@@ -193,12 +198,13 @@ pub enum SessionInput {
 
 impl SessionInput {
     /// Every input, for exhaustive tests and model walks.
-    pub const ALL: [SessionInput; 11] = [
+    pub const ALL: [SessionInput; 12] = [
         SessionInput::Open,
         SessionInput::Play,
         SessionInput::Pause,
         SessionInput::Stop,
         SessionInput::Close,
+        SessionInput::Seek,
         SessionInput::OpenReady,
         SessionInput::Primed,
         SessionInput::Underrun,
@@ -218,6 +224,7 @@ impl SessionInput {
                 | SessionInput::Pause
                 | SessionInput::Stop
                 | SessionInput::Close
+                | SessionInput::Seek
         )
     }
 }
@@ -230,6 +237,7 @@ impl std::fmt::Display for SessionInput {
             SessionInput::Pause => "pause",
             SessionInput::Stop => "stop",
             SessionInput::Close => "close",
+            SessionInput::Seek => "seek",
             SessionInput::OpenReady => "open-ready",
             SessionInput::Primed => "primed",
             SessionInput::Underrun => "underrun",
@@ -306,6 +314,18 @@ pub enum Effect {
     /// Emit `playback.end-of-media` — before the `state-changed →
     /// ended` event (doc 05 §3.2).
     EmitEndOfMedia,
+    /// The seek flow's pipeline invalidation and demux re-anchor
+    /// (doc 03 §6 steps 3–4, card 3.A1): with the generation the
+    /// row's `BumpPipeline` just minted — flush every packet queue
+    /// (stale residents die at the boundary), drop the held demux
+    /// packet, flush every decoder to `Drained` (its old-generation
+    /// buffered frames are dropped at the sink) and reconfigure it
+    /// for the new generation, then position the demuxer at the
+    /// resolved target. Success records the in-flight seek (steps
+    /// 5–7 continue on the tick path); failure emits `SeekFailed`
+    /// with the old position and — per contract D4 — leaves the
+    /// pipeline runnable from where it is (the demuxer never moved).
+    SeekPipeline,
 }
 
 /// The minimal-machine transition table (23 rows; see the module
@@ -415,6 +435,43 @@ pub const TRANSITIONS: &[Transition] = &[
         to: SessionState::Ended,
         effects: &[Effect::StopClock, Effect::EmitEndOfMedia],
     },
+    // ---- seek (card 3.A1, doc 03 §6) ----
+    // The seven-step flow's wire-visible shape: from Playing the
+    // seeking episode is a rebuffer (doc 03 §6 "Re-anchoring
+    // coherence": steps 2–6 run in Buffering; doc 05 §3.3's
+    // `playing→buffering` edge).
+    Transition {
+        from: SessionState::Playing,
+        input: SessionInput::Seek,
+        to: SessionState::Buffering,
+        effects: &[
+            Effect::FreezeClock,
+            Effect::BumpPipeline,
+            Effect::SeekPipeline,
+            Effect::EmitBufferingEnter,
+        ],
+    },
+    // Seek while paused stays paused (VLC parity; doc 03 §4.6's
+    // fuller machine keeps the session in `Paused` when the pause is
+    // user-held): the self-transition is a work-carrying confirmation,
+    // not a C8 idempotence.
+    Transition {
+        from: SessionState::Paused,
+        input: SessionInput::Seek,
+        to: SessionState::Paused,
+        effects: &[Effect::BumpPipeline, Effect::SeekPipeline],
+    },
+    // A second seek mid-seek re-runs from step 1 against the
+    // in-flight generation (doc 03 §6, repeated-seek storm safety):
+    // the older seek is superseded and emits no terminal (doc 05
+    // §4.2). Also the initial-buffering seek (open-with-position
+    // hosts).
+    Transition {
+        from: SessionState::Buffering,
+        input: SessionInput::Seek,
+        to: SessionState::Buffering,
+        effects: &[Effect::BumpPipeline, Effect::SeekPipeline],
+    },
     // doc 03 §4.6 `any active | Stop`: v0 honors it from the two
     // states the wire table models (see module docs — the transient
     // states are card 3.C1's).
@@ -516,6 +573,17 @@ pub enum RejectionReason {
     /// this reason at runtime means a caller bypassed the driver
     /// guard — a bug report, not a media condition.
     SignalNotRaisedHere,
+    /// Seek from `Ended`: doc 03 §4.6 has the row (`Ended | Seek |
+    /// Buffering`), but the doc 05 §3.3 wire conformance list has no
+    /// `ended→buffering` edge — the reconciliation is a Lead-owned
+    /// wire-table change; until it lands, seek-back-from-ended is
+    /// refused typed (restart-from-ended rides `playback.play`, which
+    /// needs the same edge).
+    EndedNeedsWireEdge,
+    /// A `Seek` command arrived without its target payload — a
+    /// caller bug, surfaced typed at the command boundary rather than
+    /// panicked on (the payload rides the command, not the table).
+    MissingPayload,
 }
 
 impl std::fmt::Display for RejectionReason {
@@ -535,6 +603,12 @@ impl std::fmt::Display for RejectionReason {
             }
             RejectionReason::SignalNotRaisedHere => {
                 "pipeline signal not raised in this state by the driver"
+            }
+            RejectionReason::EndedNeedsWireEdge => {
+                "seek from ended needs the doc 05 §3.3 ended→buffering wire edge (Lead-owned change)"
+            }
+            RejectionReason::MissingPayload => {
+                "the command arrived without its payload (caller bug)"
             }
         };
         f.write_str(text)
@@ -603,7 +677,7 @@ pub fn rejection_reason(state: SessionState, input: SessionInput) -> RejectionRe
         // `open` anywhere but a fresh engine = replacement (3.A2).
         (_, I::Open) => R::SourceReplacementPhase3,
         // No session work exists in Idle.
-        (S::Idle, I::Play | I::Pause | I::Stop) => R::NoSession,
+        (S::Idle, I::Play | I::Pause | I::Stop | I::Seek) => R::NoSession,
         // Pipeline signals cannot be raised where there is no
         // pipeline.
         (
@@ -612,7 +686,7 @@ pub fn rejection_reason(state: SessionState, input: SessionInput) -> RejectionRe
         ) => R::SignalNotRaisedHere,
         // Opening: commands the pipeline cannot honor yet, plus the
         // two deliberately-absent v1 edges.
-        (S::Opening, I::Play | I::Pause) => R::NotReady,
+        (S::Opening, I::Play | I::Pause | I::Seek) => R::NotReady,
         (S::Opening, I::Stop) => R::StopFirst,
         (S::Opening, I::Primed | I::Underrun | I::EofReached | I::Drained) => {
             R::SignalNotRaisedHere
@@ -634,22 +708,24 @@ pub fn rejection_reason(state: SessionState, input: SessionInput) -> RejectionRe
         (S::Paused, I::OpenReady | I::Underrun | I::Primed | I::EofReached) => {
             R::SignalNotRaisedHere
         }
-        // Ended: retained for Phase-3 seek-back; otherwise inert.
+        // Ended: retained for seek-back, but the wire edge is missing
+        // (the doc 03 §4.6 row vs doc 05 §3.3's list — Lead flag).
         (S::Ended, I::Play) => R::RestartNeedsSeek,
+        (S::Ended, I::Seek) => R::EndedNeedsWireEdge,
         (S::Ended, I::Pause | I::Stop) => R::AlreadySettled,
         (
             S::Ended,
             I::OpenReady | I::Primed | I::Underrun | I::EofReached | I::Drained | I::Failed,
         ) => R::SignalNotRaisedHere,
         // Stopped: the session survives, inert until close.
-        (S::Stopped, I::Play | I::Pause | I::Stop) => R::AlreadySettled,
+        (S::Stopped, I::Play | I::Pause | I::Stop | I::Seek) => R::AlreadySettled,
         (
             S::Stopped,
             I::OpenReady | I::Primed | I::Underrun | I::EofReached | I::Drained | I::Failed,
         ) => R::SignalNotRaisedHere,
         // Error: inert by invariant S2 (teardown as stopped already
         // happened; the typed error is on the event stream).
-        (S::Error, I::Play | I::Pause | I::Stop) => R::AlreadySettled,
+        (S::Error, I::Play | I::Pause | I::Stop | I::Seek) => R::AlreadySettled,
         (
             S::Error,
             I::OpenReady | I::Primed | I::Underrun | I::EofReached | I::Drained | I::Failed,
@@ -665,6 +741,9 @@ pub fn rejection_reason(state: SessionState, input: SessionInput) -> RejectionRe
         | (S::Ended, I::Close)
         | (S::Stopped, I::Close)
         | (S::Error, I::Close) => R::SignalNotRaisedHere,
+        // The seek rows (never consulted here — the match must simply
+        // stay total when rows or inputs are added).
+        (S::Playing | S::Paused | S::Buffering, I::Seek) => R::SignalNotRaisedHere,
     }
 }
 

@@ -59,6 +59,7 @@ use packet_queue::{
 use plugin_api::{DemuxEvent, Demuxer};
 
 use crate::state::SessionState;
+use crate::seek::SeekPreroll;
 
 /// The registry seam (card 2.C2): produces a decoder for a track.
 ///
@@ -271,6 +272,74 @@ pub(crate) struct Pipeline {
     /// The first delivered frame's timestamp, once (doc 03 §4.6
     /// `FirstFrame`).
     first_frame: Option<Stamp>,
+    /// The in-flight seek's pre-roll progress (doc 03 §6 step 5),
+    /// set by [`Pipeline::seek_flush`] and read by
+    /// [`Pipeline::seek_preroll`]; `None` between seeks.
+    seek_progress: Option<SeekProgress>,
+    /// Frames dropped as stale during the last seek flush (handed to
+    /// the caller by [`Pipeline::take_seek_flush_stale`] for the
+    /// session's observability totals).
+    seek_flush_stale: u32,
+}
+
+/// Per-limb facts the seek's pre-roll phase (doc 03 §6 step 5)
+/// tracks: has this limb delivered a frame of the new generation,
+/// and the first audio frame's timestamp (the step-6 anchor truth).
+pub(crate) struct SeekProgress {
+    /// Aligned with `limbs`: ≥ 1 frame delivered under the current
+    /// generation.
+    saw_frame: Vec<bool>,
+    /// The first audio limb's first delivered frame, in ns (None
+    /// until an audio frame arrives; the audio limb's index, if any).
+    first_audio_ns: Option<i64>,
+    /// Whether any limb is an audio limb (the anchor-truth policy).
+    has_audio_limb: bool,
+}
+
+impl SeekProgress {
+    fn new(limbs: &[Limb]) -> SeekProgress {
+        SeekProgress {
+            saw_frame: vec![false; limbs.len()],
+            first_audio_ns: None,
+            has_audio_limb: limbs
+                .iter()
+                .any(|limb| limb.track.kind == MediaKind::Audio),
+        }
+    }
+
+    /// Observe one limb's decode slice: frames delivered, and the
+    /// first frame's stamp.
+    fn observe(&mut self, index: usize, kind: MediaKind, frames: u32, first: Option<Stamp>) {
+        if frames == 0 {
+            return;
+        }
+        if let Some(slot) = self.saw_frame.get_mut(index) {
+            *slot = true;
+        }
+        if kind == MediaKind::Audio
+            && self.first_audio_ns.is_none()
+            && let Some(stamp) = first
+            && let Ok(ts) = stamp.timestamp()
+            && let Ok(media_types::Nanoseconds(ns)) = ts.as_nanos()
+        {
+            self.first_audio_ns = Some(ns);
+        }
+    }
+}
+
+/// The pre-roll status of the in-flight seek (doc 03 §6 steps 5–6).
+pub(crate) enum SeekPreroll {
+    /// Still priming: some enabled limb has not delivered a frame of
+    /// the new generation (and could still).
+    NotReady,
+    /// Every enabled limb delivered (or can provably never — its
+    /// queue is empty at end-of-stream), and at least one did. The
+    /// payload is the step-6 anchor truth: the first audio frame's
+    /// own timestamp, when one was delivered.
+    Ready {
+        /// The first audio frame's pts (ns), when audio delivered.
+        audio_anchor_ns: Option<i64>,
+    },
 }
 
 impl Pipeline {
@@ -287,6 +356,8 @@ impl Pipeline {
             generation: GenerationId::FIRST,
             consumer,
             first_frame: None,
+            seek_progress: None,
+            seek_flush_stale: 0,
         }
     }
 
