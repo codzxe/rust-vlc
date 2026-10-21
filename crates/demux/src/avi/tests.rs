@@ -1308,3 +1308,479 @@ fn error_module_constructors_stay_demux_staged() {
     assert_eq!(err.stage, media_types::PipelineStage::Demux);
     assert_eq!(err.context.code, "demux.not-started");
 }
+
+// ---------------------------------------------------------------------------
+// Re-anchor (card 3.A1: doc 03 §6 step 4 — the acting half of a seek)
+// ---------------------------------------------------------------------------
+
+/// A video stream with an explicit frame count (the shared
+/// `video_stream()` pins length 3).
+fn video_stream_of(length: u32) -> Stream {
+    Stream::Video {
+        scale: 1,
+        rate: 30,
+        length,
+        width: 320,
+        height: 240,
+    }
+}
+
+/// The from-start truth for one file: every packet's (stream, ticks).
+fn from_start_truth(
+    streams: &[Stream],
+    movi_chunks: &[MoviChunk<'_>],
+    with_idx1: bool,
+) -> Vec<(u32, i64)> {
+    let built = build(streams, movi_chunks, with_idx1);
+    let mut avi = demuxer_over(built.bytes);
+    match avi.start() {
+        Ok(_) => {}
+        Err(err) => unreachable!("start: {err}"),
+    }
+    drain_packets(&mut avi)
+        .into_iter()
+        .map(|packet| {
+            let ts = match packet.pts {
+                media_types::time::Stamp::Present(ts) => ts,
+                media_types::time::Stamp::Missing => unreachable!("stamps present by D1"),
+            };
+            (packet.track.handle(), ts.ticks)
+        })
+        .collect()
+}
+
+#[test]
+fn reanchor_moves_the_stream_and_packets_continue_from_the_landing() {
+    // 4 video frames at 30 fps (ticks 0..3), indexed, frame 1 non-key
+    // (same layout as the pure-query test above).
+    let built = build(
+        &[video_stream()],
+        &[
+            (b"00dc", &b"a"[..]),
+            (b"00dc", &b"b"[..]),
+            (b"00dc", &b"c"[..]),
+            (b"00dc", &b"d"[..]),
+        ],
+        false,
+    );
+    let mut bytes = built.bytes;
+    let mut idx = Vec::new();
+    for (index, pos) in built.chunk_positions.iter().enumerate() {
+        idx.extend_from_slice(b"00dc");
+        idx.extend_from_slice(&if index == 1 { 0u32 } else { 0x10u32 }.to_le_bytes());
+        idx.extend_from_slice(&((*pos - built.movi_form_pos) as u32).to_le_bytes());
+        idx.extend_from_slice(&1u32.to_le_bytes());
+    }
+    let idx1_offset = bytes.len();
+    chunk(&mut bytes, b"idx1", &idx);
+    let grow = (bytes.len() - idx1_offset) as u32;
+    patch_size(&mut bytes, 4, grow);
+
+    let truth = from_start_truth(
+        &[video_stream()],
+        &[
+            (b"00dc", &b"a"[..]),
+            (b"00dc", &b"b"[..]),
+            (b"00dc", &b"c"[..]),
+            (b"00dc", &b"d"[..]),
+        ],
+        false,
+    );
+    // (The truth was rebuilt over the un-indexed layout; re-derive it
+    // over the indexed bytes for exactness.)
+    let mut truth_indexed = truth;
+    truth_indexed.clear();
+    {
+        let mut probe = demuxer_over(bytes.clone());
+        match probe.start() {
+            Ok(_) => {}
+            Err(err) => unreachable!("start: {err}"),
+        }
+        for packet in drain_packets(&mut probe) {
+            match packet.pts {
+                media_types::time::Stamp::Present(ts) => {
+                    truth_indexed.push((packet.track.handle(), ts.ticks));
+                }
+                media_types::time::Stamp::Missing => unreachable!("D1"),
+            }
+        }
+    }
+    assert_eq!(truth_indexed, vec![(0, 0), (0, 1), (0, 2), (0, 3)]);
+
+    let mut avi = demuxer_over(bytes);
+    match avi.start() {
+        Ok(_) => {}
+        Err(err) => unreachable!("start: {err}"),
+    }
+    // Consume the first two frames, then re-anchor to 65 ms → tick 1.95
+    // → the keyframe at tick 2 (frame 1 is not a keyframe).
+    let _ = drain_through(&mut avi, 2);
+    let landing = match avi.reanchor(span_at_nanos(65_000_000)) {
+        Ok(span) => span,
+        Err(err) => unreachable!("reanchor: {err}"),
+    };
+    match landing.start.timestamp() {
+        Ok(ts) => assert_eq!(ts.ticks, 2, "lands on the keyframe at/below the target"),
+        Err(_) => unreachable!("landing start present"),
+    }
+    // The stream continues from the landing with exactly the
+    // from-start timestamps (the ladder replay is exact).
+    let resumed = drain_packets(&mut avi);
+    assert_eq!(resumed.len(), 2, "frames 2 and 3 remain");
+    let resumed_truth: Vec<(u32, i64)> = resumed
+        .into_iter()
+        .map(|packet| match packet.pts {
+            media_types::time::Stamp::Present(ts) => (packet.track.handle(), ts.ticks),
+            media_types::time::Stamp::Missing => unreachable!("D1"),
+        })
+        .collect();
+    assert_eq!(resumed_truth, vec![(0, 2), (0, 3)]);
+}
+
+/// Consume exactly `count` packets (ignoring container signals).
+fn drain_through(demuxer: &mut AviDemuxer, count: usize) -> Vec<media_types::Packet> {
+    let mut packets = Vec::new();
+    while packets.len() < count {
+        match demuxer.next_event() {
+            Ok(DemuxEvent::Packet(packet)) => packets.push(packet),
+            Ok(DemuxEvent::EndOfStream) => unreachable!("needed {count} packets"),
+            Ok(_) => {}
+            Err(err) => unreachable!("clean drain: {err}"),
+        }
+    }
+    packets
+}
+
+#[test]
+fn reanchor_on_interleaved_streams_keeps_both_ladders_true() {
+    // Video (30 fps) and audio (48 kHz, 4-byte frames) interleaved:
+    // both ladders must continue with the from-start ticks.
+    let chunks: Vec<MoviChunk<'_>> = (0..6)
+        .flat_map(|index| {
+            let video: MoviChunk<'_> = (b"00dc", &b"v"[..]);
+            let audio: MoviChunk<'_> = (b"01wb", &b"aaaa"[..]);
+            [video, audio].map(|chunk| {
+                let _ = index;
+                chunk
+            })
+        })
+        .collect();
+    let streams = [video_stream_of(6), audio_stream()];
+    let truth = from_start_truth(&streams, &chunks, true);
+
+    let built = build(&streams, &chunks, true);
+    let mut avi = demuxer_over(built.bytes);
+    match avi.start() {
+        Ok(_) => {}
+        Err(err) => unreachable!("start: {err}"),
+    }
+    // Consume v0..v1 / a0..a1 (4 packets), then re-anchor to the
+    // video tick 2 (66.67 ms) — the landing is the v2 chunk.
+    let _ = drain_through(&mut avi, 4);
+    let landing = match avi.reanchor(span_at_nanos(66_666_667)) {
+        Ok(span) => span,
+        Err(err) => unreachable!("reanchor: {err}"),
+    };
+    match landing.start.timestamp() {
+        Ok(ts) => assert_eq!(ts.ticks, 2, "video landing at tick 2"),
+        Err(_) => unreachable!("landing start present"),
+    }
+    let resumed = drain_packets(&mut avi);
+    let resumed_truth: Vec<(u32, i64)> = resumed
+        .into_iter()
+        .map(|packet| match packet.pts {
+            media_types::time::Stamp::Present(ts) => (packet.track.handle(), ts.ticks),
+            media_types::time::Stamp::Missing => unreachable!("D1"),
+        })
+        .collect();
+    // The truth tail from the v2 chunk onward: v2, a2, v3, a3, v4, a4, v5, a5.
+    let expected: Vec<(u32, i64)> = truth[4..].to_vec();
+    assert_eq!(resumed_truth, expected);
+    assert_eq!(resumed_truth.first().copied(), Some((0, 2)));
+}
+
+#[test]
+fn reanchor_without_idx1_scans_and_continues() {
+    let chunks: Vec<MoviChunk<'_>> = (0..3).map(|_| (b"00dc", &b"x"[..])).collect();
+    let streams = [video_stream_of(3)];
+    let truth = from_start_truth(&streams, &chunks, false);
+    let built = build(&streams, &chunks, false);
+    let mut avi = demuxer_over(built.bytes);
+    match avi.start() {
+        Ok(_) => {}
+        Err(err) => unreachable!("start: {err}"),
+    }
+    let _ = drain_through(&mut avi, 1);
+    // 50 ms → tick 1.5 → the last chunk with pts ≤ 2 is tick 2.
+    let landing = match avi.reanchor(span_at_nanos(50_000_000)) {
+        Ok(span) => span,
+        Err(err) => unreachable!("reanchor (scan): {err}"),
+    };
+    match landing.start.timestamp() {
+        Ok(ts) => assert_eq!(ts.ticks, 2),
+        Err(_) => unreachable!("landing start present"),
+    }
+    let resumed = drain_packets(&mut avi);
+    let resumed_truth: Vec<(u32, i64)> = resumed
+        .into_iter()
+        .map(|packet| match packet.pts {
+            media_types::time::Stamp::Present(ts) => (packet.track.handle(), ts.ticks),
+            media_types::time::Stamp::Missing => unreachable!("D1"),
+        })
+        .collect();
+    assert_eq!(resumed_truth, vec![truth[2]]);
+}
+
+#[test]
+fn reanchor_failure_leaves_the_demuxer_at_its_position_d4() {
+    let chunks: Vec<MoviChunk<'_>> = (0..3).map(|_| (b"00dc", &b"x"[..])).collect();
+    let streams = [video_stream_of(3)];
+    let truth = from_start_truth(&streams, &chunks, true);
+    let built = build(&streams, &chunks, true);
+    let mut avi = demuxer_over(built.bytes);
+    match avi.start() {
+        Ok(_) => {}
+        Err(err) => unreachable!("start: {err}"),
+    }
+    let _ = drain_through(&mut avi, 1);
+    // Past the declared end: the typed refusal, with nothing moved.
+    let err = match avi.reanchor(span_at_nanos(10_000_000_000)) {
+        Ok(_) => unreachable!("past-end reanchor is typed"),
+        Err(err) => err,
+    };
+    assert_eq!(err.context.code, "demux.avi.seek.out-of-range");
+    // D4: the demuxer continues from its pre-seek position — the
+    // remaining packets arrive with their original timestamps.
+    let resumed = drain_packets(&mut avi);
+    let resumed_truth: Vec<(u32, i64)> = resumed
+        .into_iter()
+        .map(|packet| match packet.pts {
+            media_types::time::Stamp::Present(ts) => (packet.track.handle(), ts.ticks),
+            media_types::time::Stamp::Missing => unreachable!("D1"),
+        })
+        .collect();
+    assert_eq!(resumed_truth, truth[1..].to_vec());
+}
+
+#[test]
+fn reanchor_from_eof_revives_the_stream() {
+    let chunks: Vec<MoviChunk<'_>> = (0..3).map(|_| (b"00dc", &b"x"[..])).collect();
+    let streams = [video_stream_of(3)];
+    let built = build(&streams, &chunks, true);
+    let mut avi = demuxer_over(built.bytes);
+    match avi.start() {
+        Ok(_) => {}
+        Err(err) => unreachable!("start: {err}"),
+    }
+    assert_eq!(drain_packets(&mut avi).len(), 3);
+    match avi.next_event() {
+        Ok(DemuxEvent::EndOfStream) => {}
+        other => unreachable!("EOS after drain, got {other:?}"),
+    }
+    // A backward seek must revive the exhausted stream.
+    let landing = match avi.reanchor(span_at_nanos(0)) {
+        Ok(span) => span,
+        Err(err) => unreachable!("reanchor from EOS: {err}"),
+    };
+    match landing.start.timestamp() {
+        Ok(ts) => assert_eq!(ts.ticks, 0),
+        Err(_) => unreachable!("landing start present"),
+    }
+    assert_eq!(drain_packets(&mut avi).len(), 3, "the stream plays again");
+}
+
+#[test]
+fn reanchor_clears_pending_events_stale_packets_never_reappear() {
+    // An unknown chunk inside the movi queues a `Recovered` damage
+    // record (and reorders the next packet behind it); a re-anchor
+    // past that point must drop both — pre-seek events never
+    // reappear (doc 03 §5's stale rule applied at the demuxer).
+    let built = build(
+        &[video_stream_of(3)],
+        &[
+            (b"00dc", &b"a"[..]),
+            (b"JUNK", &b"j"[..]),
+            (b"00dc", &b"b"[..]),
+            (b"00dc", &b"c"[..]),
+        ],
+        false,
+    );
+    let mut avi = demuxer_over(built.bytes);
+    match avi.start() {
+        Ok(_) => {}
+        Err(err) => unreachable!("start: {err}"),
+    }
+    // Packet a, then the damage record (packet b waits behind it in
+    // the pending queue — the emit-reorder contract).
+    match avi.next_event() {
+        Ok(DemuxEvent::Packet(packet)) => assert_eq!(packet.data.as_slice(), b"a"),
+        other => unreachable!("first packet, got {other:?}"),
+    }
+    match avi.next_event() {
+        Ok(DemuxEvent::Recovered { .. }) => {}
+        other => unreachable!("damage record, got {other:?}"),
+    }
+    // Re-anchor to tick 2 (the `c` frame): the pending packet `b`
+    // (old position) must be dropped, not delivered after the seek.
+    let landing = match avi.reanchor(span_at_nanos(66_666_667)) {
+        Ok(span) => span,
+        Err(err) => unreachable!("reanchor: {err}"),
+    };
+    match landing.start.timestamp() {
+        Ok(ts) => assert_eq!(ts.ticks, 2),
+        Err(_) => unreachable!("landing start present"),
+    }
+    let resumed = drain_packets(&mut avi);
+    assert_eq!(resumed.len(), 1, "only frame c remains");
+    assert_eq!(resumed[0].data.as_slice(), b"c");
+    match resumed[0].pts {
+        media_types::time::Stamp::Present(ts) => assert_eq!(ts.ticks, 2),
+        media_types::time::Stamp::Missing => unreachable!("D1"),
+    }
+}
+
+#[test]
+fn reanchor_at_end_lands_last_and_past_end_is_typed() {
+    let chunks: Vec<MoviChunk<'_>> = (0..4).map(|_| (b"00dc", &b"x"[..])).collect();
+    let streams = [video_stream_of(4)];
+    let built = build(&streams, &chunks, true);
+    let mut avi = demuxer_over(built.bytes);
+    match avi.start() {
+        Ok(_) => {}
+        Err(err) => unreachable!("start: {err}"),
+    }
+    // At the declared end (tick 4 = 133.33 ms): the last keyframe at
+    // or below it is frame 3 (pts 3 ≤ 4).
+    let landing = match avi.reanchor(span_at_nanos(133_333_334)) {
+        Ok(span) => span,
+        Err(err) => unreachable!("at-end reanchor: {err}"),
+    };
+    match landing.start.timestamp() {
+        Ok(ts) => assert_eq!(ts.ticks, 3, "at-end lands the last keyframe"),
+        Err(_) => unreachable!("landing start present"),
+    }
+    // Past the declared end: typed refusal, nothing moved.
+    let err = match avi.reanchor(span_at_nanos(200_000_000)) {
+        Ok(_) => unreachable!("past-end is typed"),
+        Err(err) => err,
+    };
+    assert_eq!(err.context.code, "demux.avi.seek.out-of-range");
+}
+
+#[test]
+fn reanchor_landing_agrees_with_the_pure_query() {
+    let chunks: Vec<MoviChunk<'_>> = (0..4).map(|_| (b"00dc", &b"x"[..])).collect();
+    let streams = [video_stream_of(4)];
+    let built = build(&streams, &chunks, true);
+    let mut avi = demuxer_over(built.bytes);
+    match avi.start() {
+        Ok(_) => {}
+        Err(err) => unreachable!("start: {err}"),
+    }
+    let queried = match avi.seek(span_at_nanos(70_000_000)) {
+        Ok(span) => span,
+        Err(err) => unreachable!("query: {err}"),
+    };
+    let landed = match avi.reanchor(span_at_nanos(70_000_000)) {
+        Ok(span) => span,
+        Err(err) => unreachable!("reanchor: {err}"),
+    };
+    let (qa, la) = match (queried.start.timestamp(), landed.start.timestamp()) {
+        (Ok(a), Ok(b)) => (a, b),
+        _ => unreachable!("both present"),
+    };
+    assert_eq!(qa.ticks, la.ticks);
+    assert_eq!(qa.base, la.base);
+}
+
+#[test]
+fn slow_linear_scan_is_bounded_and_typed() {
+    // 1002 unindexed video packets: a far target needs more than the
+    // doc 03 §6 SlowLinear budget (1000 packets) — typed TooSlow with
+    // the position preserved (D4). The pure query stays unbounded
+    // (the landed 2.B2 behavior).
+    let chunks: Vec<MoviChunk<'_>> = (0..1002).map(|_| (b"00dc", &b"x"[..])).collect();
+    let streams = [video_stream_of(1002)];
+    let built = build(&streams, &chunks, false);
+    let mut avi = demuxer_over(built.bytes);
+    match avi.start() {
+        Ok(_) => {}
+        Err(err) => unreachable!("start: {err}"),
+    }
+    // A near target stays inside the budget and re-anchors fine.
+    match avi.reanchor(span_at_nanos(100_000_000)) {
+        Ok(_) => {}
+        Err(err) => unreachable!("near target within budget: {err}"),
+    }
+    // Back to the start, then a far target: the scan must refuse.
+    match avi.reanchor(span_at_nanos(0)) {
+        Ok(_) => {}
+        Err(err) => unreachable!("restart: {err}"),
+    }
+    // 33.4 s == the declared end tick (1002): in range, but the scan
+    // must walk every packet chunk to answer it — past the budget.
+    let err = match avi.reanchor(span_at_nanos(33_400_000_000)) {
+        Ok(_) => unreachable!("far target exceeds the scan budget"),
+        Err(err) => err,
+    };
+    assert_eq!(err.context.code, "demux.avi.seek.too-slow");
+    assert!(matches!(
+        err.kind,
+        media_types::ErrorKind::ResourceLimit { .. }
+    ));
+    // D4: the demuxer is still at its position (tick 0) and playable.
+    let packet = match avi.next_event() {
+        Ok(DemuxEvent::Packet(packet)) => packet,
+        other => unreachable!("still playable, got {other:?}"),
+    };
+    match packet.pts {
+        media_types::time::Stamp::Present(ts) => assert_eq!(ts.ticks, 0),
+        media_types::time::Stamp::Missing => unreachable!("D1"),
+    }
+    // The pure query is unbounded (landed behavior, unchanged): the
+    // same end-target the capped reanchor refused answers fine —
+    // walking all 1002 packets is the query's prerogative.
+    let end_query = match avi.seek(span_at_nanos(33_400_000_000)) {
+        Ok(span) => span,
+        Err(err) => unreachable!("the pure query is unbounded: {err}"),
+    };
+    match end_query.start.timestamp() {
+        Ok(ts) => assert_eq!(ts.ticks, 1001, "the last packet at/below the end"),
+        Err(_) => unreachable!("landing start present"),
+    }
+    // Past the declared end the range check still refuses.
+    match avi.seek(span_at_nanos(60_000_000_000)) {
+        Ok(_) => unreachable!("past-end is typed"),
+        Err(err) => assert_eq!(err.context.code, "demux.avi.seek.out-of-range"),
+    }
+}
+
+#[test]
+fn seekability_reports_the_container_shape() {
+    let chunks: Vec<MoviChunk<'_>> = (0..2).map(|_| (b"00dc", &b"x"[..])).collect();
+    let streams = [video_stream_of(2)];
+    let indexed = build(&streams, &chunks, true);
+    let mut avi = demuxer_over(indexed.bytes);
+    assert_eq!(avi.seekability(), SeekSupport::None, "not started");
+    match avi.start() {
+        Ok(_) => {}
+        Err(err) => unreachable!("start: {err}"),
+    }
+    assert_eq!(
+        avi.seekability(),
+        SeekSupport::Fast { indexed: true },
+        "idx1 present"
+    );
+
+    let unindexed = build(&streams, &chunks, false);
+    let mut avi = demuxer_over(unindexed.bytes);
+    match avi.start() {
+        Ok(_) => {}
+        Err(err) => unreachable!("start: {err}"),
+    }
+    assert_eq!(
+        avi.seekability(),
+        SeekSupport::SlowLinear,
+        "no idx1, seekable source"
+    );
+}

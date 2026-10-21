@@ -87,7 +87,7 @@ pub mod ui;
 // plugin crate speaks. Keep in sync with `prelude` below.
 pub use access::{Access, SeekOrigin, SourcePosition, SourceStream};
 pub use codec::{Decoder, Encoder};
-pub use demux::{DemuxEvent, Demuxer, PacketSink};
+pub use demux::{DemuxEvent, Demuxer, PacketSink, SeekSupport};
 pub use filter::{AudioFilter, FilterOutcome, FrameSource, VideoFilter};
 pub use kind::{LUMEN_PREFIX, PluginKind};
 pub use manifest::{

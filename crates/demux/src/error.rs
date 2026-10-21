@@ -183,6 +183,23 @@ pub fn seek_unindexed() -> EngineError {
     )
 }
 
+/// The no-index linear seek scan exceeded its parse budget (doc 03
+/// §6 step 4's `SlowLinear` cap: `SeekFailed{TooSlow}` with the
+/// session still at its old position and playable). `LimitKind::CpuTime`
+/// is the closest L0 vocabulary for a parse-work budget
+/// `[PROPOSAL: a dedicated ScanBudget LimitKind is an L0 addition for
+/// the Lead if this fires in practice]`.
+pub fn scan_too_slow(budget_bytes: u64, attempted_bytes: u64) -> EngineError {
+    mint(
+        ErrorKind::ResourceLimit {
+            limit: LimitKind::CpuTime,
+            budget: budget_bytes,
+            attempted: attempted_bytes,
+        },
+        "demux.avi.seek.too-slow",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -202,6 +219,7 @@ mod tests {
             (not_started(), "demux.not-started"),
             (seek_out_of_range(), "demux.avi.seek.out-of-range"),
             (seek_unindexed(), "demux.avi.seek.unindexed"),
+            (scan_too_slow(100, 200), "demux.avi.seek.too-slow"),
         ];
         for (error, code) in cases {
             assert_eq!(error.stage, STAGE, "{code}");

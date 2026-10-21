@@ -122,6 +122,45 @@ impl Ladders {
             unaligned,
         })
     }
+
+    /// A copy of every stream's ladder position (the re-anchor input
+    /// the linear scan captures when it finds a landing).
+    pub(crate) fn ticks_snapshot(&self) -> Vec<i64> {
+        self.ticks.clone()
+    }
+
+    /// Ladders for `streams` restored to a captured position. The
+    /// length guard is unreachable within one demuxer instance (the
+    /// stream table is fixed after `start`); a mismatch keeps the
+    /// fresh ladder rather than guessing.
+    pub(crate) fn with_ticks(streams: &[StreamDesc], ticks: Vec<i64>) -> Ladders {
+        let mut ladders = Ladders::new(streams);
+        if ticks.len() == ladders.ticks.len() {
+            ladders.ticks = ticks;
+        }
+        ladders
+    }
+}
+
+/// Rebuild the pre-landing ladder state from the index: advance over
+/// every entry strictly before `before_pos`, in file order (the same
+/// walk `parse_idx1` performed, so index and re-anchor agree on time
+/// by construction — exact for healthy indexes; a lying `dwOffset`
+/// can shift the reconstruction the same way it already diverges the
+/// pure query from the walk, bounded and observable via pts).
+pub(crate) fn replay_ladders(
+    table: &IndexTable,
+    streams: &[StreamDesc],
+    before_pos: u64,
+) -> Ladders {
+    let mut ladders = Ladders::new(streams);
+    for entry in &table.entries {
+        if entry.chunk_pos >= before_pos {
+            break;
+        }
+        let _ = ladders.advance(entry.stream, u64::from(entry.size));
+    }
+    ladders
 }
 
 /// Parse the `idx1` chunk at `idx1_pos` (its header) into a table.
@@ -259,6 +298,65 @@ pub fn scan_movi(
     movi_data_end: u64,
     target_ticks: i64,
 ) -> Result<Option<Landing>, EngineError> {
+    let state = scan_movi_with(
+        reader,
+        streams,
+        stream,
+        movi_data_start,
+        movi_data_end,
+        target_ticks,
+        None,
+    )?;
+    Ok(state.landing)
+}
+
+/// The bounded-scan budget (doc 03 §6 step 4's `SlowLinear` cap).
+#[derive(Debug, Clone, Copy)]
+pub struct ScanCap {
+    /// Maximum packet chunks parsed before the scan gives up.
+    pub max_packets: u64,
+    /// Maximum container bytes walked before the scan gives up.
+    pub max_bytes: u64,
+}
+
+/// Doc 03 §6's `[PROPOSAL: cap at 1000 packets or 2 MiB of parse
+/// work]` — the engine-side seek flow's budget for the no-index path.
+pub const SEEK_SCAN_CAP: ScanCap = ScanCap {
+    max_packets: 1_000,
+    max_bytes: 2 * 1024 * 1024,
+};
+
+/// The scan's full answer: the landing plus the per-stream ladder
+/// state a from-start walk would hold just before it (the exact
+/// re-anchor input).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScanLanding {
+    /// The last chunk of `stream` with pts ≤ the target, if any.
+    pub landing: Option<Landing>,
+    /// Per-stream ladder ticks at the landing (empty when no landing).
+    pub ladder_ticks: Vec<i64>,
+}
+
+/// The scan with a budget and ladder capture (card 3.A1's re-anchor
+/// path): like [`scan_movi`], but counts parse work and refuses with
+/// a typed too-slow error when `cap` is exceeded (doc 03 §6 step 4 —
+/// `SeekFailed{TooSlow}`, the session still at its old position and
+/// playable), and captures the pre-landing ladder state so the
+/// re-anchored walk continues with exactly the timestamps a
+/// from-start walk would produce.
+///
+/// # Errors
+/// As [`scan_movi`], plus the typed [`error::scan_too_slow`] budget
+/// refusal. The reader's position is restored on every path.
+pub fn scan_movi_with(
+    reader: &mut SourceReader,
+    streams: &[StreamDesc],
+    stream: u32,
+    movi_data_start: u64,
+    movi_data_end: u64,
+    target_ticks: i64,
+    cap: Option<ScanCap>,
+) -> Result<ScanLanding, EngineError> {
     let saved = reader.position();
     let outcome = scan_movi_inner(
         reader,
@@ -267,12 +365,14 @@ pub fn scan_movi(
         movi_data_start,
         movi_data_end,
         target_ticks,
+        cap,
     );
     let _ = reader.seek_to(saved);
     outcome
 }
 
-/// Inner scan (position left wherever; the wrapper restores).
+/// Inner scan (position restored by the wrapper).
+#[allow(clippy::too_many_arguments)]
 fn scan_movi_inner(
     reader: &mut SourceReader,
     streams: &[StreamDesc],
@@ -280,11 +380,15 @@ fn scan_movi_inner(
     mut pos: u64,
     end: u64,
     target_ticks: i64,
-) -> Result<Option<Landing>, EngineError> {
+    cap: Option<ScanCap>,
+) -> Result<ScanLanding, EngineError> {
     let mut ladders = Ladders::new(streams);
     let mut best: Option<Landing> = None;
+    let mut best_ticks: Vec<i64> = Vec::new();
     let mut ends: Vec<u64> = Vec::new();
     let length = reader.length();
+    let mut packets: u64 = 0;
+    let mut bytes: u64 = 0;
 
     loop {
         let bound = ends.last().copied().unwrap_or(end);
@@ -301,20 +405,41 @@ fn scan_movi_inner(
         }
         let header = riff::peek_chunk_header(reader, pos)?;
         let next = pos + 8 + u64::from(header.size) + riff::pad_for(u64::from(header.size));
+        bytes = bytes.saturating_add(8 + u64::from(header.size));
+        let is_packet = matches!(
+            classify_movi_chunk(&header.fourcc),
+            MoviChunkKind::Packet { .. }
+        );
+        if is_packet {
+            packets = packets.saturating_add(1);
+        }
+        // The budget is spent only when the scan must walk *past* it
+        // (finding the landing exactly at the cap is success).
+        if let Some(cap) = cap
+            && (packets > cap.max_packets || bytes > cap.max_bytes)
+        {
+            return Err(error::scan_too_slow(cap.max_bytes, bytes));
+        }
         match classify_movi_chunk(&header.fourcc) {
             MoviChunkKind::Packet { stream: s } => {
-                if let Some(step) = ladders.advance(s, u64::from(header.size))
-                    && s == stream
-                {
-                    if step.pts_ticks > target_ticks {
-                        // Past the target on the seek stream: the
-                        // scan's answer is already final.
-                        break;
+                if s == stream {
+                    // Capture the pre-advance state: the landing chunk
+                    // must re-emit its recorded pts after re-anchoring.
+                    let snapshot = ladders.ticks_snapshot();
+                    if let Some(step) = ladders.advance(s, u64::from(header.size)) {
+                        if step.pts_ticks > target_ticks {
+                            // Past the target on the seek stream: the
+                            // scan's answer is already final.
+                            break;
+                        }
+                        best = Some(Landing {
+                            chunk_pos: pos,
+                            pts_ticks: step.pts_ticks,
+                        });
+                        best_ticks = snapshot;
                     }
-                    best = Some(Landing {
-                        chunk_pos: pos,
-                        pts_ticks: step.pts_ticks,
-                    });
+                } else {
+                    let _ = ladders.advance(s, u64::from(header.size));
                 }
                 pos = next;
             }
@@ -330,7 +455,10 @@ fn scan_movi_inner(
             }
         }
     }
-    Ok(best)
+    Ok(ScanLanding {
+        landing: best,
+        ladder_ticks: best_ticks,
+    })
 }
 
 #[cfg(test)]
