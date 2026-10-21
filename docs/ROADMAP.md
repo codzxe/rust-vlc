@@ -3,8 +3,10 @@
 Authority chain: `docs/MASTER-PROMPT.md` (the brief) → this roadmap (program-level
 plan & decisions) → domain docs 01–15 (detail). Conflicts resolve upward.
 Statuses per MASTER-PROMPT §17: not_started, in_progress, implemented, verified,
-blocked. **Current status: Phase 0 COMPLETE — gate passed 2026-10-19 (tag
-`phase-0-gate`; report: docs/gates/phase0-exit-report.md). Phase 1 ready.**
+blocked. **Current status: Phase 2 COMPLETE — 2.E2-V gate verdict PASS
+(local-evidence), 2026-10-21 (report: docs/gates/phase2-exit.md); Phase 3
+IN PROGRESS — wave 3.A first pair in flight (3.A1 seek, 3.B4 events; see
+§8).**
 
 ## 1. Phase gates (MASTER-PROMPT §16)
 
@@ -15,8 +17,8 @@ from `docs/13-agent-wave-program.md` (200 cards / 77 waves).
 | Phase | Objective | Waves | Cards | Exit-gate evidence (summary) | Owning docs |
 |-------|-----------|-------|-------|------------------------------|-------------|
 | 0 — Audit | Pin VLC 3.0.23, full feature inventory, feasibility report, ADR-001/002/003 decided | 0.A–0.D | 17 | `docs/baseline/` pinning records; `docs/feature-matrix.toml` populated with schema frozen; `docs/feasibility-report.md`; ADR-001/002/003 status=accepted; [VERIFY-P0] ledger cleared or converted to risks | 02, 04, 11, 14 |
-| 1 — Foundation | Workspace, config system, schemas, lints, CI, command layer, plugin API, settings generator, token pipeline | 1.A–1.F | 20 | Local gate green (exact commands, doc 10 §2); CI merge-blocking on 3 OS; rebrand acceptance test passes; boundary check active; `cargo xtask gate` exists | 01, 05, 06, 07, 10, 15 |
-| 2 — First vertical | One real file open→decode→audio+video on screen via command layer, from CLI and UI; video-in-webview prototype; Figma token proof | 2.A–2.E | 17 | Demo fixture plays end-to-end on all 3 desktop OS with recorded evidence; webview prototype A/B measured with decision record; token pipeline renders Player screen from tokens | 03, 04, 05, 08 |
+| 1 — Foundation | Workspace, config system, schemas, lints, CI, command layer, plugin API, settings generator, token pipeline | 1.A–1.F | 20 | **PASS 2026-10-20 — local-evidence; 3-OS CI PENDING (workflows-disabled, PAT repo-scope only; phase1-exit.md:6-8)**: local gate green (exact commands, doc 10 §2; 529/0/3); CI merge-blocking jobs written + locally validated, first push owed; rebrand acceptance test passes; boundary check active; `cargo xtask gate` exists | 01, 05, 06, 07, 10, 15 |
+| 2 — First vertical | One real file open→decode→audio+video on screen via command layer, from CLI and UI; video-in-webview prototype; Figma token proof | 2.A–2.E | 17 | **PASS 2026-10-21 — local-evidence; 3-OS CI PENDING (same PAT cause; phase2-exit.md §4.1)**: demo fixture plays end-to-end through the command layer, CLI-hosted, with byte-stable mock-labeled evidence (real-hardware tier + per-OS runs pending); webview prototype delivered — variant-B protocol core proven at virtual-time level, PROVISIONAL-B, per-OS matrix pending desktop runtimes; token pipeline renders Player screen from tokens (landed 1.B4) | 03, 04, 05, 08 |
 | 3 — Reliable engine | Clocks, queues, generations, seeking, source replacement, A/V sync, recovery | 3.A–3.F | 19 | All 16 integration scenarios (doc 10 §6) green incl. error paths; property suites green; soak 8h no-growth; differential-vs-VLC harness v1 reporting | 03, 10, 12 |
 | 4 — Desktop product | Figma-exact UI, layouts from config, themes, localization, playlists, settings, plugins, rebrand test | 4.A–4.I | 25 | Screenshot diffs within tolerance vs design exports at defined sizes/DPI; all 13 settings areas driven by settings-schema; i18n lint zero violations; conformance suite green on Tauri host | 07, 08, 05 |
 | 5 — Breadth | Containers, audio+video codecs, subtitles, filters — one verified increment at a time | 5.A–5.R | 45 | Per-format records complete for every shipped format; conformance kit + fuzz target per parser plugin; corpus coverage; feature-matrix statuses updated by evidence only | 04, 06, 10 |
@@ -49,6 +51,10 @@ from `docs/13-agent-wave-program.md` (200 cards / 77 waves).
 | D-012 | **doc 13 amendment due before Phase 5: add filter-implementation cards** (EQ/compressor/spatializer/stereowiden audio panels + colors/crop/essential video panels — all self-build S/M) | Gap found by 0.C3-I: doc 13 §7 Phase-5 waves contain no filter cards despite the design package requiring the panels. | doc 13 §7; doc 03 §4 filters; feasibility/sections/subsystems.md §4. |
 | D-013 | **doc 04 §4 "no pure-Rust H.264/HEVC decoder" is superseded by 0.C1-I finding** — a young 2026 wave exists (rusty_h264-decoder 0.16.1, rust_h264 0.4.0, rusty_h265, rusty_vp9; tarball-scanned pure, all self-validated) | Feeds ADR-001's conformance-gated software-adoption track; no status upgrade without passing our corpus+fuzz+differential kit. | `docs/feasibility/sections/video-codecs.md`; `docs/adr/ADR-001-hardware-decode.md` §2. |
 | D-014 | **ADR-001/002/003 accepted at Phase 0 gate** (hw-first H.264/HEVC + gated software track; wasmi WASM runtime; per-OS video-in-webview strategy) + Lead ratifications R-1..R-5 (Debian baseline package; expired-key GPG accepted as pin-sufficient; hardware-run owners assigned) | Per MASTER-PROMPT §16 Phase 0 mandate; evidence packs cited in each ADR. | `docs/adr/ADR-{001,002,003}*.md`; `docs/gates/phase0-exit-report.md`. |
+| D-015 | **Branch-commit rights granted to implementation agents on WIP branches** (user directive + sandbox-instability evidence: reboots reset the working tree to main; commits survive). Merge to main stays Lead-only. | AGENTS.md §3.8 deviation recorded in the worklog (1.SESSION-3-START); proven across Phases 2–3 (salvage protocol 11-for-11). | AGENTS.md §3.8; `docs/gates/phase1-exit.md` §4. |
+| D-016 | **xtask registry graduation** — all six wave-1 subcommands flagged `implemented: true` (Lead batch-flip at the 1.D4 merge, commit `2d06607`); the v0 "only gate" invariant test graduated with them | The frozen-registry discipline (1.E1 flag b) resolved by Lead batch-flip rather than per-command edits. | `tools/xtask` registry; `docs/gates/phase1-exit.md` §4. |
+| D-017 | **The command catalog count is 61 commands / 23 events** — doc 05's §2.3–§2.12 + §3.2 tables are the authority (the "~65/~24" in the card text was an approximation); `catalog_shape.rs` pins the exact counts | Kills a recurring approximation drift between card text and the implemented catalog. | `crates/commands` catalog_shape; `docs/gates/phase1-exit.md` §4; doc 05. |
+| D-018 | **First-vertical container = AVI+MJPEG+PCM, all in-house, zero new dependencies** (decided at the 2.B1+2.A3 close-out, 2026-10-21; executes D-001's Phase-0 pick) | D-018's recorded logic: zero new deps for the first vertical; simplest full-control container exercising our own demux infrastructure; MP4 deferred to Phase 5 via the audited mp4parse path (card 2.B3 closed `not-selected`). Closes risk R-28. | doc 03 §7; doc 04 §8.1; `docs/gates/phase2-exit.md` §2/§3; feature-matrix rows container-avi / container-mp4-mov-3gp. |
 
 ## 4. Cross-doc reconciliation log (Wave 1)
 
@@ -119,14 +125,32 @@ ADR-010 patent shipping matrix (user + counsel) · ADR-011 TLS/HTTPS —
 | — | design/ (102 pinned SVG exports + inventory) | committed |
 | — | worklog.md (17 agent records) | live |
 
-## 8. Next action
+## 8. Current state (2026-10-22)
 
-**Phase 0 complete (gate report: `docs/gates/phase0-exit-report.md`).**
-**Phase 1 IN PROGRESS — Wave 1.A complete (1.A1–1.A3); Wave 1.B COMPLETE
-(1.B1 product-config, 1.B2 settings-schema, 1.B3 localization, 1.B4
-theme-tokens). Workspace: 334 tests green, gate SUCCESS 0 failed / 5 honest
-skips.**
-Next: Lead-owned **Wave 1.C** (media-types I/II, testkit v0; ADR-005
-audio-output decision at 1.C), then Wave 1.D contracts (commands I/II,
-codec-api, plugin-api), Wave 1.E enforcement/CI/tooling, Wave 1.F gate
-(`docs/gates/phase1-exit.md`).
+**Phase 1 COMPLETE** (all six waves 1.A–1.F; gate report
+`docs/gates/phase1-exit.md`, 2026-10-20 — PASS, 529/0/3, CI green-run links
+honestly PENDING first push). **Phase 2 COMPLETE** (all five waves 2.A–2.E;
+gate verdict **PASS (local-evidence)**, `docs/gates/phase2-exit.md`,
+2026-10-21): 17-card ledger green (2.B3 not-selected per D-018), test
+trajectory 529 → 1329 (+800, per-merge reconciliations in the worklog), the
+first vertical (AVI+MJPEG+PCM per D-018) running end-to-end through the
+command layer with byte-stable, mock-labeled evidence (2.E1). The two
+PENDING labels are infrastructure-environment facts, not code: 3-OS CI green
+(workflow-scoped token owed — 3.HARD-AUDIT decision D-b) and the ADR-003
+per-OS webview verdicts (desktop runtimes; PROVISIONAL-B stands).
+
+**Phase 3 IN PROGRESS — wave 3.A first pair in flight** (3.LAUNCH-1,
+2026-10-21): **3.A1 seek** on `wip/3a1-seek` (plugin-api seek hooks + AVI
+demuxer reanchor landed on-branch; the playback-engine half is mid-
+continuation after a transport cut — compile blockers and the ordered
+continuation steps are enumerated in 3.HARD-AUDIT) and **3.B4 event
+completeness** (events.rs draft salvaged; Lead-ratified continuation plan
+sequences it behind the 3.A1 merge). Queued per the 2.E2-V launch list:
+3.A2+3.A3 → the 3.B chain → 3.C state machine/recovery → 3.D testkit
+v1/properties → 3.E scenarios/differential/soak → 3.F gate.
+
+Program hygiene: 3.HARD-AUDIT (2026-10-22) verified the full program state
+honest — no fabrications found; every CRITICAL/MAJOR finding was
+documentation-governance debt, dispatched to card 3.DOC-1 (this refresh is
+part of it). The git-always + salvage protocol has recovered 100% of
+cut work across sandbox incidents (11-for-11).
