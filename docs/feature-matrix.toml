@@ -3,9 +3,15 @@
 # =============================================================================
 # "Parity is the share of inventory features in docs/feature-matrix.toml that
 # are verified by automated evidence." This file is the single source of truth
-# for feature status across platforms. CI validates it via tools/feature-audit
-# (built in Phase 1, wave 1.E); until then the VALIDATION RULES block below is
-# a manual checklist (doc 02 §4.6). It couples to config (MP §5): feature
+# for feature status across platforms. CI validates it TODAY via the inline
+# python3 structural check in the schema-validation job (card 1.E2, stdlib
+# tomllib): R9 parse + meta, top-level shape, per-row required keys, R1
+# id-regex/uniqueness, R2 ranges, R3 platform columns + vocabulary, R4/R5/R6
+# conditionals — proven against seeded violations (worklog 1.E2). The full
+# tools/feature-audit (R1 category-prefix map, R2-P0 rule, R4 evidence
+# resolution, R7 config cross-check, R8 inventory completeness, R10
+# anti-hallucination) is OWED and unassigned debt — doc 13 card 5.Q1 wires
+# its coverage gates (doc 02 §4.6). It couples to config (MP §5): feature
 # exposure lists only implementations that exist — config can never enable a
 # missing codec, protocol or hardware capability.
 #
@@ -29,7 +35,7 @@
 schema_version = 1                 # frozen 2026-10-19; bump = Lead change-control
 schema_frozen = "2026-10-19"
 baseline = "VLC 3.0.23 Vetinari (3.0.23-2-0-g79128878dd)"
-last_updated = "2026-10-19"
+last_updated = "2026-10-22"
 populated_by = "0.D2 (Phase 0 synthesis)"
 change_control = "Lead-only per doc 02 §4.7"
 
@@ -138,12 +144,12 @@ category = "container"
 vlc_name = "MP4 / MOV / 3GP (ISO-BMFF)"
 description = "Demux ISO-BMFF family: track boxes, stco/stsc sample tables, edts/elst, 3gp quirks, fragmented MP4"
 priority = "P0"
-phase_target = 2
+phase_target = 5
 vlc_modules = ["mp4"]
 inventory_ref = "inventory/formats.json#mp4-mov-3gp"
 status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
 evidence = ""
-notes = "[DECISION-PENDING variant B of the Phase-2 first vertical (doc 03 §7 vs doc 04 §8.1); exactly one of container-avi/container-mp4 executes at 2.B launch, the other closes not-selected]. Full fMP4 (moof/trun) + chapters via 5.C1 with the 11-class corpus plan (feasibility subsystems §1.2)."
+notes = "[Phase-2 variant-B decision CLOSED by D-018 (2026-10-21): AVI+MJPEG+PCM selected as the first vertical, zero new deps; 2.B3 closed not-selected — MP4 deferred to Phase 5 via the audited mp4parse path per D-001.] No MP4 demuxer code exists; the MP4 box walker in crates/codecs/tests/common/mod.rs is TEST-SIDE fixture-extraction tooling for the parent-fixture oracle cross-checks, not shipped demux code. Full fMP4 (moof/trun) + chapters via 5.C1 with the 11-class corpus plan (feasibility subsystems §1.2)."
 
 [[feature]]
 id = "container-ogg"
@@ -193,9 +199,9 @@ priority = "P1"
 phase_target = 2
 vlc_modules = ["avi"]
 inventory_ref = "inventory/formats.json#avi"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "[DECISION-PENDING variant A of the Phase-2 first vertical (D-001: AVI+MJPEG+PCM, zero new deps)]; if MP4 wins, AVI lands 5.J1 with OpenDML + interleaving edge cases."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/demux/src/avi/** (mod/header/index/riff/tests/test_support/fuzz, card 2.B2: class-B AC matrix, seek-to-time, 43-test unit suite + fuzz harness); tests/integration/first-vertical/evidence/ledger.json (2.E1, mock-labeled)"
+notes = "First vertical per D-001/D-018 (AVI+MJPEG+PCM, zero new deps, 2.B2 merged). Implemented = pure-Rust platform-independent code complete (no per-OS branches); ALL evidence to date is Linux-only, mock-labeled (null-audio/software-render), CI 3-OS PENDING (workflows-disabled, PAT workflow scope — phase2-exit.md §4.1). In-flight: 3.A1 seek reanchor (compute-then-commit D4, ladder replay, bounded scan) landed on wip/3a1-seek (23b1915 + dd3fd82), merge to main pending. Web column waits for the wasm target (Phase 7)."
 
 [[feature]]
 id = "container-asf-wmv"
@@ -538,9 +544,9 @@ priority = "P1"
 phase_target = 2
 vlc_modules = ["avcodec"]
 inventory_ref = "inventory/formats.json#mjpeg"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "D-001 first vertical (2.B4): jpeg-decoder 0.3.2 or zune-jpeg [VERIFY-P0 purity/output]; AVI1.1 field handling + 4:2:2/4:2:0 edge cases 5.H3; MJPEG not in WebCodecs registry."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/codecs/src/video/mjpeg/** (in-house per D-018 — NOT jpeg-decoder/zune-jpeg; card 2.B4: 120/120 reference hash-match, DQT de-zigzag bug found+fixed, ffmpeg-oracle luma byte-exact); tests/integration/first-vertical/evidence/ledger.json (2.E1, mock-labeled)"
+notes = "First vertical per D-001/D-018 (2.B4, merged). Implemented = pure-Rust platform-independent code complete; ALL evidence to date is Linux-only, mock-labeled, CI 3-OS PENDING (phase2-exit.md §4.1). AVI1.1 field handling + 4:2:2/4:2:0 edge cases 5.H3; MJPEG not in WebCodecs registry (web column: Phase 7 assessment)."
 
 [[feature]]
 id = "codec-video-raw-fourcc"
@@ -623,9 +629,9 @@ priority = "P0"
 phase_target = 2
 vlc_modules = ["araw", "lpcm"]
 inventory_ref = "inventory/formats.json#pcm-family"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "D-001 first vertical (2.B5): symphonia-codec-pcm 0.6.1 (upstream 'Excellent'); WASM endianness + rare channel orders are per-record tests; lpcm/aes3 framing separate."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/codecs/src/audio/pcm/** (in-house per D-018 — NOT symphonia-codec-pcm; card 2.B5: full format matrix, bit-exact AC, [audio_probe] closed loop); tests/integration/first-vertical/evidence/ledger.json (2.E1, mock-labeled)"
+notes = "First vertical per D-001/D-018 (2.B5, merged). Implemented = pure-Rust platform-independent code complete; ALL evidence to date is Linux-only, mock-labeled, CI 3-OS PENDING (phase2-exit.md §4.1). WASM endianness + rare channel orders are per-record tests at the web target (Phase 7); lpcm/aes3 framing separate."
 
 [[feature]]
 id = "codec-audio-mp3"
