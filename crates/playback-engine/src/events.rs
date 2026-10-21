@@ -7,7 +7,7 @@
 //!
 //! 1. **`timing.time-tick` is the only continuous stream** — its
 //!    interval is config-driven (`playback.time-tick-interval-ms`,
-//!    default 250 ms, floor 50 ms — [`TimeTickPolicy``]) and it is
+//!    default 250 ms, floor 50 ms — [`TimeTickPolicy`]) and it is
 //!    **never queued**: at most one tick is in flight per session and
 //!    a newer tick *replaces* an undelivered older one (the outbox
 //!    replacement in [`crate::session::OutputHub`], counted in
@@ -24,9 +24,14 @@
 //! 4. **The burst bound**: no more than 1 000 events/s sustained to
 //!    any host connection `[PROPOSAL: number to be validated against
 //!    the UI budget]`. The v0 mechanism is the outbox capacity
-//!    ([`crate::session::OUTBOX_CAPACITY`] = 1024, one drain
-//!    interval's worth): at capacity the oldest *event* is dropped
-//!    and counted while receipts are pinned. Doc 05 §3.4 names
+//!    ([`crate::session::OUTBOX_CAPACITY`] = 1024 live events, one
+//!    drain interval's worth): at capacity the oldest *event* is
+//!    dropped and counted while receipts are pinned — and the
+//!    receipts themselves are hard-capped at
+//!    [`crate::session::RECEIPT_CAPACITY`] = 4096 (beyond it the
+//!    oldest undelivered receipt is dropped and counted — a host
+//!    that never drains loses responses before it loses memory;
+//!    engineering directive D-1 boundedness). Doc 05 §3.4 names
 //!    `system.log` as the first drop candidate — that refinement
 //!    activates when `system.log` emission exists (audit row: no
 //!    logging bridge yet); today's policy drops oldest-event-first,
@@ -62,8 +67,8 @@
 //! | `session.buffering` | **emitted** (2.C2 bookends; 3.B4 adds the ≤ 5 Hz monotonic in-episode progress) | bookends `0.0`/`1.0`; in-episode `0.0..1.0` queue fill |
 //! | `timing.time-tick` | **emitted** (3.B4) | `{time, position}` — playback-clock position µs, clamped fraction of the known duration |
 //! | `timing.duration-known` | **emitted** (3.B4) | `{duration}` — the greatest declared track extent, once per open when derivable |
-//! | `timing.seek-completed` | wired-by-sibling 3.A1 (in-session seek; today's seek is the host's stop+reopen composition, which emits no seek events) | n/a |
-//! | `timing.seek-failed` | wired-by-sibling 3.A1 | n/a |
+//! | `timing.seek-completed` | **emitted** (3.A1) | `{position, seekKind: "command"}` — the terminal for the generation that completed, stamped with the in-flight seek's own gen |
+//! | `timing.seek-failed` | **emitted** (3.A1) | `{error}` — typed D4 refusal, old position; exactly one terminal per completed gen |
 //! | `tracks.list-ready` | **emitted** (2.C2) | `{tracks}` — the wired list with selection truth, before the first `→ playing` |
 //! | `tracks.changed` | wired-by-sibling 3.A3 (track selection commands; no engine-side track-loss trigger exists in v0 — the demuxer cannot report a disappearing track) | n/a |
 //! | `playback.end-of-track` | **emitted** (3.B4) | `{trackKind, id}` — a limb newly drained while another still has work |
@@ -81,11 +86,17 @@
 //! | `system.log` | wired-by-later (no logging bridge; the burst-bound drop refinement activates here) | n/a |
 //! | `media.info-ready` | **emitted** (3.B4) | `{info}` — the engine's open-time snapshot (source, duration, tracks), once per open, before the first `→ playing` |
 //!
-//! 10 of 23 rows are engine-emitted today (the 9 ids above plus the
-//! non-fatal half of `playback.error`); 13 rows are honestly owned
-//! by later cards. The catalog itself (61/23) is frozen data
-//! (decision D-017) — this card changes emission completeness only.
+//! 11 of 23 rows are engine-emitted today (the 11 ids above,
+//! counting both seek terminals and both halves of
+//! `playback.error`); 12 rows are honestly owned by later cards.
+//! The catalog itself (61/23) is frozen data (decision D-017) — this
+//! card changes emission completeness only. The machine-checked
+//! twin of this table is the catalog-side 23-row ledger
+//! (`crates/commands/tests/catalog_emission_ledger.rs`) plus the
+//! contract suite (`crates/playback-engine/tests/contract_suite.rs`),
+//! which proves every "emitted" row against the real engine.
 
+use std::fmt;
 use std::sync::Arc;
 
 use media_clock::MonotonicSource;
@@ -205,6 +216,16 @@ impl ProgressWindow {
             }
         }
     }
+
+    /// Open the window at `now_ns` if it is not already open — the
+    /// carrier for "the first pending record starts the clock". An
+    /// already-open window is left alone (the elapsed check stays
+    /// anchored to the window's original opening).
+    pub(crate) fn open_if_closed(&mut self, now_ns: u64) {
+        if self.opened_ns.is_none() {
+            self.opened_ns = Some(now_ns);
+        }
+    }
 }
 
 /// The non-fatal `playback.error` coalescer (doc 05 §3.2): one
@@ -232,10 +253,19 @@ impl DamageCoalescer {
         }
     }
 
-    /// Record recovered units per stage.
-    pub fn record(&mut self, demux: u64, decode: u64) {
+    /// Record recovered units per stage. The first record with
+    /// pending units opens the coalescing window at `now_ns` — the
+    /// window measures from the first damage, not from the first
+    /// flush *check* (the original draft's bug: `flush_if_due`
+    /// opening the window on its first call made the very first
+    /// check flush immediately regardless of elapsed time).
+    pub fn record(&mut self, demux: u64, decode: u64, now_ns: u64) {
+        let was_pending = self.is_pending();
         self.demux = self.demux.saturating_add(demux);
         self.decode = self.decode.saturating_add(decode);
+        if !was_pending && self.is_pending() {
+            self.window.open_if_closed(now_ns);
+        }
     }
 
     /// Whether anything is pending.
@@ -283,13 +313,25 @@ impl Default for DamageCoalescer {
 
 /// The full per-session event policy (doc 05 §3.4), carried by
 /// [`SessionConfig`](crate::session::SessionConfig).
-#[derive(Debug)]
+///
+/// `Debug` is **manual**: the injected [`MonotonicSource`] has no
+/// `Debug` supertrait (and must not grow one just for this) — the
+/// debug form reports the tick policy and the source's presence.
 pub struct EventPolicy {
     /// The `timing.time-tick` interval policy.
     pub tick: TimeTickPolicy,
     /// The injected monotonic source every window reads (never
     /// ambient time — the media-clock injection doctrine).
     pub throttle: Arc<dyn MonotonicSource>,
+}
+
+impl fmt::Debug for EventPolicy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EventPolicy")
+            .field("tick", &self.tick)
+            .field("throttle", &"<injected MonotonicSource>")
+            .finish()
+    }
 }
 
 impl EventPolicy {
@@ -306,22 +348,18 @@ impl EventPolicy {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicU64, Ordering};
-
-    /// A hand-advanced virtual monotonic source (deterministic).
-    struct VirtualNow(AtomicU64);
-
-    impl MonotonicSource for VirtualNow {
-        fn now_ns(&self) -> u64 {
-            self.0.load(Ordering::Relaxed)
-        }
-    }
 
     #[test]
     fn the_interval_is_floored_at_50ms() {
         assert_eq!(TimeTickPolicy::from_config_ms(250).interval_ms, 250);
-        assert_eq!(TimeTickPolicy::from_config_ms(10).interval_ms, TIME_TICK_FLOOR_MS);
-        assert_eq!(TimeTickPolicy::from_config_ms(0).interval_ms, TIME_TICK_FLOOR_MS);
+        assert_eq!(
+            TimeTickPolicy::from_config_ms(10).interval_ms,
+            TIME_TICK_FLOOR_MS
+        );
+        assert_eq!(
+            TimeTickPolicy::from_config_ms(0).interval_ms,
+            TIME_TICK_FLOOR_MS
+        );
         assert_eq!(
             TimeTickPolicy::from_config_ms(u32::MAX).interval_ms,
             u32::MAX
@@ -360,17 +398,18 @@ mod tests {
     #[test]
     fn damage_coalesces_then_flushes_on_the_window() {
         let mut coalescer = DamageCoalescer::new();
-        coalescer.record(3, 0);
-        coalescer.record(0, 4);
+        // The first record opens the window at t=0.
+        coalescer.record(3, 0, 0);
+        coalescer.record(0, 4, 400_000_000);
         assert!(coalescer.is_pending());
         // Inside the window: nothing due.
         assert_eq!(coalescer.flush_if_due(500_000_000), None);
         // At the window: both stages flush, demux first.
         assert_eq!(coalescer.flush_if_due(1_000_000_000), Some((3, 4)));
         assert!(!coalescer.is_pending());
-        // A fresh burst starts a fresh window.
-        coalescer.record(1, 0);
-        assert_eq!(coalescer.flush_if_due(1_000_000_000), None);
+        // A fresh burst starts a fresh window (t=1s).
+        coalescer.record(1, 0, 1_000_000_000);
+        assert_eq!(coalescer.flush_if_due(1_500_000_000), None);
         assert_eq!(coalescer.flush_all(), Some((1, 0)));
     }
 
@@ -378,9 +417,9 @@ mod tests {
     fn terminal_flush_answers_pending_counts_and_reopens() {
         let mut coalescer = DamageCoalescer::new();
         assert_eq!(coalescer.flush_all(), None);
-        coalescer.record(7, 2);
+        coalescer.record(7, 2, 0);
         assert_eq!(coalescer.flush_all(), Some((7, 2)));
-        coalescer.record(0, 1);
+        coalescer.record(0, 1, 0);
         // The reopened window makes an immediate second flush due
         // (terminal flushes are unconditional).
         assert_eq!(coalescer.flush_all(), Some((0, 1)));

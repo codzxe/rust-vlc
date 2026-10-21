@@ -14,6 +14,8 @@
 //!   [`CancelToken`], and the single-writer [`TokenMinter`]);
 //! - [`event`] — the engine-side event stream and its wire
 //!   reconciliation with the `commands` catalog (doc 05 §3/§4.2);
+//! - [`events`] — the throttling/coalescing policy types those
+//!   emissions obey (doc 05 §3.4, card 3.B4);
 //! - [`pipeline`] — the trait-level wiring **demux → packet queues →
 //!   decoders → sinks** (plugin-api `Demuxer`, packet-queue
 //!   `BoundedQueue<Packet>`, codec-api `Decoder`/`FrameSink`) driven
@@ -69,6 +71,7 @@
 pub mod epoch;
 pub mod error;
 pub mod event;
+pub mod events;
 pub mod pipeline;
 pub mod seek;
 pub mod session;
@@ -78,6 +81,10 @@ pub use epoch::{CancelToken, GenerationPair, PipelineGeneration, SessionEpoch, T
 pub use error::{SessionConfigError, SessionError, config_error};
 pub use event::{
     EngineEvent, EngineEventKind, track_info_wire, wire_error_code, wire_playback_state, wire_stage,
+};
+pub use events::{
+    BUFFERING_WINDOW_MS, DAMAGE_WINDOW_MS, DamageCoalescer, EventPolicy, ProgressWindow,
+    TIME_TICK_DEFAULT_MS, TIME_TICK_FLOOR_MS, TimeTickPolicy,
 };
 pub use pipeline::{DecoderProvider, FrameConsumer, QueuePlan, TickBudget};
 pub use seek::{SeekFailure, SeekTarget};
