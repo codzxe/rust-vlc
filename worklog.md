@@ -1548,3 +1548,19 @@ Stage Summary:
 - **PHASE 2 COMPLETE — gate verdict PASS (local-evidence).** All 17 cards landed and verified; test trajectory 529 → 1329 (+800); the first vertical runs end-to-end through the command layer with byte-stable, honestly-labeled evidence.
 - The two PENDING labels are infrastructure-environment facts, not code: CI needs a workflow-scoped token; ADR-003 finalization needs desktop webview runtimes. Both have exact to-run lists in the gate doc.
 - NEXT: Phase 3 Wave 3.A launch — 3.A1 (seek) + 3.B4 (event completeness) as the first pair per the launch list.
+
+---
+Task ID: 3.LAUNCH-1 (Lead)
+Agent: Lead
+Task: Phase 3 launch — pair 1 (3.A1 + 3.B4) dispatched; transport-outage salvage record + continuation plans.
+
+Work Log:
+- Launched the Phase 3 first pair per the 2.E2-V launch list: 3.A1 (seek, wip/3a1-seek) + 3.B4 (event completeness, wip/3b4-events), both from main @ f7f3780.
+- 3.A1 (transport cut mid-flight): the agent landed 23b1915 (plugin-api Demuxer seek hooks — seekability + reanchor per doc 03 §4.3/§6 step 4, D4) and dd3fd82 (AviDemuxer reanchor: compute-then-commit D4, ladder replay/capture, bounded SlowLinear scan, seekability; parent-fixture AC) before the cut; in-flight seek.rs + pipeline/state wiring salvaged at 918128e. CONTINUATION: finish seek.rs (the 7-step flow per doc 03 §6), the packet-queue flush API, boundary-seek + stale-purge ACs, gate, worklog.
+- 3.B4 (full transport outage after one file): the agent delivered a complete reconnaissance cut report (its final message, summarized here for the record) + events.rs (the doc 05 §3.4 throttling/coalescing policy module: TimeTickPolicy 250ms/50ms floor, ProgressWindow ≤5Hz, DamageCoalescer 1s window, EventPolicy with injected MonotonicSource, the 23-row emission audit as docs, 6 unit tests — UNREVIEWED DRAFT quality, two doc typos, NOT wired into lib.rs). Salvaged at 96558a1.
+- 3.B4 CONTINUATION PLAN (from the cut report, Lead-ratified shape): (1) the card's literal suite placement (suite in crates/commands driving the engine) closes a dev-cycle commands→playback-engine→commands that check-architecture rejects — the suite lives in crates/playback-engine/tests/contract_suite.rs using the commands wire vocabulary, with the catalog-side 23-row conformance in crates/commands/tests/ (no cycle); Lead accepts this placement deviation. (2) Emission audit results: emitted-now = state-changed/buffering/tracks.list-ready/end-of-media/playback.error(fatal); implementable-now = time-tick, duration-known, media.info-ready (seekable heuristic [PROPOSAL]), playback.end-of-track (needs per-limb newly_drained in TickReport), non-fatal playback.error from Recovered (coalesced); wired-by-sibling (13): seek events→3.A1, tracks.changed→3.A3, rate-changed→3.B1, device events→2.C3/7.C1, the rest later phases. (3) Blast radius: regenerate first-vertical evidence after new default-on events; ~3 engine-test expectation updates (pause-immediate-tick etc.); OutputHub replace-resident-tick semantics for time-tick. (4) Fix the two events.rs doc typos; add pub mod events + re-exports; then event.rs/pipeline.rs/session.rs extensions per the report.
+- Standing note: the sandbox transport is degrading (9 cuts this phase, the last a hard outage); the git-always + salvage protocol has recovered 100% of the work (11-for-11 across phases).
+
+Stage Summary:
+- Phase 3 launched: both branches pushed with salvage; continuation briefs are THIS entry (3.B4) and the card itself + branch state (3.A1).
+- Main remains the Phase-2-gate green state (f7f3780, 1329/0/4). All work pushed; remote backup current.
