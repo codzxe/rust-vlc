@@ -187,15 +187,18 @@ pub enum EngineEventKind {
     /// `media.info-ready`): the engine's open-time [`MediaInfo`],
     /// once per open, before the first `state-changed → playing`.
     /// The payload is the wire type itself (the assembly is the
-    /// bridge's job — see [`crate::event::media_info_wire`]); the
-    /// once-per-open cadence is the documented low-rate exception to
-    /// the zero-allocation rule (the `Clone` deep-copies the track
-    /// list, and `as_wire` hands over one owned copy per host
-    /// conversion).
+    /// bridge's job — see [`crate::event::media_info_wire`]), boxed
+    /// so the one fat variant does not inflate every
+    /// [`EngineEventKind`](crate::event::EngineEventKind) — and with
+    /// it every outbox slot — by 200 bytes (engineering directive
+    /// D-2's mechanical-sympathy rule). The once-per-open cadence is
+    /// the documented low-rate exception to the zero-allocation
+    /// rule (the `Clone` deep-copies the track list, and `as_wire`
+    /// hands over one owned copy per host conversion).
     MediaInfoReady {
         /// The assembled snapshot (source, duration, seekable,
         /// tracks — the same data `media.get-info` answers).
-        info: commands::catalog::types::MediaInfo,
+        info: Box<commands::catalog::types::MediaInfo>,
     },
     /// One elementary stream ended while the media continues (card
     /// 3.B4, doc 05 §3.2 `playback.end-of-track`): a limb newly
@@ -272,9 +275,9 @@ impl Clone for EngineEventKind {
             EngineEventKind::DurationKnown { duration_ns } => EngineEventKind::DurationKnown {
                 duration_ns: *duration_ns,
             },
-            EngineEventKind::MediaInfoReady { info } => {
-                EngineEventKind::MediaInfoReady { info: info.clone() }
-            }
+            EngineEventKind::MediaInfoReady { info } => EngineEventKind::MediaInfoReady {
+                info: Box::new((**info).clone()),
+            },
             EngineEventKind::EndOfTrack { track_kind, id } => EngineEventKind::EndOfTrack {
                 track_kind: *track_kind,
                 id: *id,
@@ -428,9 +431,9 @@ impl EngineEventKind {
                     duration: commands::catalog::types::Timestamp(ns_to_us(*duration_ns)),
                 })
             }
-            EngineEventKind::MediaInfoReady { info } => {
-                Some(EventKind::MediaInfoReady { info: info.clone() })
-            }
+            EngineEventKind::MediaInfoReady { info } => Some(EventKind::MediaInfoReady {
+                info: (**info).clone(),
+            }),
             EngineEventKind::EndOfTrack { track_kind, id } => Some(EventKind::PlaybackEndOfTrack {
                 track_kind: wire_track_kind(*track_kind),
                 id: commands::catalog::types::TrackId(id.handle()),

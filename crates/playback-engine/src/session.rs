@@ -1738,13 +1738,13 @@ impl Session {
                 .pipeline
                 .as_ref()
                 .is_some_and(|pipeline| pipeline.seekability() != SeekSupport::None);
-            let info = media_info_wire(
+            let info = Box::new(media_info_wire(
                 &self.source,
                 duration_ns,
                 seekable,
                 &self.tracks,
                 &self.selected,
-            );
+            ));
             outputs.push(self.emit(EngineEventKind::MediaInfoReady { info }, None));
         }
     }
@@ -1859,7 +1859,9 @@ mod tests {
         EngineOutput::Receipt(CommandReceipt {
             request: RequestId(request),
             command: SessionCommandKind::Play,
-            result: ReceiptResult::Completed { session: SessionId(1) },
+            result: ReceiptResult::Completed {
+                session: SessionId(1),
+            },
         })
     }
 
@@ -1977,7 +1979,10 @@ mod tests {
         assert_eq!(receipts, vec![1, 2, 3, 100], "the oldest receipt dropped");
         // And the receipts precede the events they were interleaved
         // with (delivery order preserved).
-        let kinds: Vec<bool> = drained.iter().map(|o| matches!(o, EngineOutput::Receipt(_))).collect();
+        let kinds: Vec<bool> = drained
+            .iter()
+            .map(|o| matches!(o, EngineOutput::Receipt(_)))
+            .collect();
         assert_eq!(kinds.first(), Some(&true));
     }
 
