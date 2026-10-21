@@ -38,6 +38,11 @@ with actual results, limitations, open issues).
    must be marked `[PROPOSAL]`.
 5. **Never weaken or delete a test to pass it.** Every defect gets a regression
    test.
+5a. **Engineering directives are binding** (docs/engineering-directives.md):
+   zero-allocation hot paths, bounded memory everywhere, no naive-complexity
+   algorithms, dirty-world parsers, no destructive lifecycle shortcuts, no
+   synthetic-echo-chamber testing. Every card's final report includes the
+   pre-submission audit checklist (D-0..D-5).
 6. **Ask, don't invent**: when a requirement is ambiguous, request a
    specification decision from the Lead instead of inventing behavior. Only stop
    and ask for decisions that change an interface, policy, or fixed decision.
