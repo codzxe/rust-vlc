@@ -42,7 +42,7 @@ use commands::{CommandError, ErrorCode, Stage};
 use demux::avi::AviDemuxer;
 use demux::avi::header::StreamFormat;
 use media_types::ids::SourceUri;
-use media_types::time::{Stamp, TimeSpan, TimeBase, Timestamp};
+use media_types::time::{Stamp, TimeBase, TimeSpan, Timestamp};
 use media_types::{EngineError, MediaKind, Track, TrackId};
 use playback_engine::{wire_error_code, wire_stage};
 use plugin_api::{Access, DemuxEvent, Demuxer};
@@ -125,10 +125,7 @@ impl MediaFacts {
     /// (`None` when no track declares one).
     #[must_use]
     pub fn duration_us(&self) -> Option<i64> {
-        self.facts
-            .iter()
-            .filter_map(TrackFact::span_end_us)
-            .max()
+        self.facts.iter().filter_map(TrackFact::span_end_us).max()
     }
 
     /// The fact row for one track id.
@@ -185,6 +182,17 @@ fn file_uri(path: &Path) -> Result<SourceUri, CommandError> {
             format!("cannot resolve {}: {err}", path.display()),
         )
     })?;
+    // A directory (or any non-regular file) is an input-truth
+    // refusal, not an unsupported-format one: there is nothing to
+    // read here (66 EX_NOINPUT, the unsupported-path suite's
+    // contract).
+    if !canonical.is_file() {
+        return Err(CommandError::new(
+            Stage::Input,
+            ErrorCode::Inaccessible,
+            format!("not a regular file: {}", path.display()),
+        ));
+    }
     let text = canonical.to_str().ok_or_else(|| {
         CommandError::new(
             Stage::Input,
@@ -237,7 +245,9 @@ pub fn open_source(
         return Err(CommandError::new(
             Stage::Probe,
             ErrorCode::Unsupported,
-            format!("format `{container}` has no demuxer in this build (first vertical: AVI, D-018)"),
+            format!(
+                "format `{container}` has no demuxer in this build (first vertical: AVI, D-018)"
+            ),
         )
         .with_detail("format", container));
     }
@@ -247,9 +257,7 @@ pub fn open_source(
     let facts = harvest_facts(&demuxer, &tracks);
     let duration_us = facts.duration_us().unwrap_or(i64::MAX / 4);
     // 4. Clamp the start position (doc 05 §2.4: clamping is truth).
-    let start_us = start_time_us
-        .unwrap_or(0)
-        .clamp(0, duration_us);
+    let start_us = start_time_us.unwrap_or(0).clamp(0, duration_us);
     let mut skip_until_ns = None;
     if start_us > 0 {
         // The pure seek query validates the target against the seek
@@ -291,10 +299,14 @@ fn harvest_facts(demuxer: &AviDemuxer, tracks: &[Track]) -> MediaFacts {
         let (codec, pcm, frame_ns, dimensions) = match demuxer.stream_format(track.id) {
             Some(StreamFormat::MotionJpeg { width, height }) => {
                 // One tick of the video base is one frame (AVI scale=1).
-                let frame_ns = (u64::from(track.timing.base.num))
-                    .saturating_mul(1_000_000_000)
+                let frame_ns = (u64::from(track.timing.base.num)).saturating_mul(1_000_000_000)
                     / u64::from(track.timing.base.den);
-                ("mjpeg".to_string(), None, Some(frame_ns), Some((width, height)))
+                (
+                    "mjpeg".to_string(),
+                    None,
+                    Some(frame_ns),
+                    Some((width, height)),
+                )
             }
             Some(StreamFormat::Pcm {
                 channels,
@@ -416,7 +428,9 @@ mod tests {
     use super::*;
 
     fn fixture(relative: &str) -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures").join(relative)
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures")
+            .join(relative)
     }
 
     /// The parent fixture opens end-to-end through the real access →
@@ -432,13 +446,21 @@ mod tests {
             false,
         ) {
             Ok(opened) => opened,
-            Err(err) => panic!("{err}"),
+            Err(err) => unreachable!("{err}"),
         };
         assert_eq!(opened.facts.container, "avi");
         assert_eq!(opened.facts.tracks.len(), 2);
         assert_eq!(opened.facts.duration_us(), Some(2_000_000));
-        let video = opened.facts.facts.iter().find(|f| f.kind == MediaKind::Video);
-        let audio = opened.facts.facts.iter().find(|f| f.kind == MediaKind::Audio);
+        let video = opened
+            .facts
+            .facts
+            .iter()
+            .find(|f| f.kind == MediaKind::Video);
+        let audio = opened
+            .facts
+            .facts
+            .iter()
+            .find(|f| f.kind == MediaKind::Audio);
         match (video, audio) {
             (Some(v), Some(a)) => {
                 assert_eq!(v.codec, "mjpeg");
@@ -451,7 +473,7 @@ mod tests {
                 assert_eq!(a.codec, "pcm_s16le");
                 assert_eq!(a.pcm, Some((2, 44100)));
             }
-            other => panic!("expected video+audio facts: {other:?}"),
+            other => unreachable!("expected video+audio facts: {other:?}"),
         }
         assert_eq!(opened.start_position_ns, 0);
     }
@@ -469,7 +491,7 @@ mod tests {
             false,
         ) {
             Ok(opened) => opened,
-            Err(err) => panic!("{err}"),
+            Err(err) => unreachable!("{err}"),
         };
         assert_eq!(opened.start_position_ns, 2_000_000_000);
         assert_eq!(opened.demuxer.skip_until_ns, Some(2_000_000_000));
@@ -482,7 +504,9 @@ mod tests {
         let garbage = std::env::temp_dir().join("lumen-cli-garbage.bin");
         std::fs::write(&garbage, [0x37u8, 0x13, 0x00, 0x42, 0xff, 0xee].repeat(64)).ok();
         match open_source(
-            &commands::catalog::types::SourceSpec::File { path: garbage.clone() },
+            &commands::catalog::types::SourceSpec::File {
+                path: garbage.clone(),
+            },
             None,
             false,
             false,
@@ -491,7 +515,7 @@ mod tests {
                 assert_eq!(err.stage, Stage::Probe, "{err}");
                 assert_eq!(err.code, ErrorCode::Unsupported, "{err}");
             }
-            Ok(_) => panic!("garbage must not open"),
+            Ok(_) => unreachable!("garbage must not open"),
         }
         std::fs::remove_file(&garbage).ok();
     }
@@ -513,7 +537,7 @@ mod tests {
                 assert_eq!(err.code, ErrorCode::Unsupported, "{err}");
                 assert!(err.message.contains("sniffed"), "{err}");
             }
-            Ok(_) => panic!("a magic-broken file must not open"),
+            Ok(_) => unreachable!("a magic-broken file must not open"),
         }
     }
 
@@ -532,7 +556,7 @@ mod tests {
                 assert_eq!(err.stage, Stage::Input, "{err}");
                 assert_eq!(err.code, ErrorCode::Inaccessible, "{err}");
             }
-            Ok(_) => panic!("a missing file must not open"),
+            Ok(_) => unreachable!("a missing file must not open"),
         }
     }
 
@@ -551,7 +575,7 @@ mod tests {
                 assert_eq!(err.code, ErrorCode::UnsupportedForHost, "{err}");
                 assert!(err.message.contains("Phase 6"), "{err}");
             }
-            Ok(_) => panic!("URLs are out of the first vertical"),
+            Ok(_) => unreachable!("URLs are out of the first vertical"),
         }
     }
 

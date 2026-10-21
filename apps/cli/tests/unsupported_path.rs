@@ -8,7 +8,10 @@ use std::process::{Command, Stdio};
 use testkit::Must;
 
 fn fixture(relative: &str) -> String {
-    format!("{}/../../tests/fixtures/{relative}", env!("CARGO_MANIFEST_DIR"))
+    format!(
+        "{}/../../tests/fixtures/{relative}",
+        env!("CARGO_MANIFEST_DIR")
+    )
 }
 
 fn run(args: &[&str], script: &str) -> (String, String, i32) {
@@ -21,7 +24,15 @@ fn run(args: &[&str], script: &str) -> (String, String, i32) {
         .must();
     {
         let stdin = child.stdin.as_mut().must();
-        stdin.write_all(script.as_bytes()).must();
+        // A failing fast-open exits before consuming stdin — a closed
+        // pipe here is the expected shape, not a harness failure.
+        if let Err(err) = stdin.write_all(script.as_bytes()) {
+            assert_eq!(
+                err.kind(),
+                std::io::ErrorKind::BrokenPipe,
+                "unexpected stdin write failure: {err}"
+            );
+        }
     }
     let output = child.wait_with_output().must();
     (
@@ -37,15 +48,15 @@ fn run(args: &[&str], script: &str) -> (String, String, i32) {
 fn garbage_file_is_a_typed_probe_refusal() {
     let garbage = std::env::temp_dir().join("lumen-cli-garbage.bin");
     std::fs::write(&garbage, [0x37u8, 0x13, 0x00, 0x42, 0xff, 0xee].repeat(64)).must();
-    let (out, err, code) = run(
-        &["open", garbage.to_str().must()],
-        "quit\n",
-    );
+    let (out, err, code) = run(&["open", garbage.to_str().must()], "quit\n");
     std::fs::remove_file(&garbage).ok();
     assert_eq!(code, 65, "stdout:\n{out}\nstderr:\n{err}");
     assert!(err.contains("error: [probe.unsupported]"), "{err}");
     assert!(err.contains("probe.no-demuxer"), "{err}");
-    assert!(!out.contains("ok:"), "no success line on a failed open:\n{out}");
+    assert!(
+        !out.contains("ok:"),
+        "no success line on a failed open:\n{out}"
+    );
 }
 
 /// A magic-broken class-B derivative (flip16 breaks RIFF[2]): the
@@ -67,10 +78,7 @@ fn magic_broken_derivative_is_a_typed_probe_refusal() {
 /// A missing file: the input-stage inaccessible truth (exit 66).
 #[test]
 fn missing_file_is_inaccessible() {
-    let (_out, err, code) = run(
-        &[&fixture("generated/valid/no-such-file.avi")],
-        "quit\n",
-    );
+    let (_out, err, code) = run(&[&fixture("generated/valid/no-such-file.avi")], "quit\n");
     assert_eq!(code, 66, "stderr:\n{err}");
     assert!(err.contains("error: [input.inaccessible]"), "{err}");
 }
@@ -87,10 +95,7 @@ fn directory_source_is_inaccessible() {
 /// names the format, the first vertical refuses it honestly (D-018).
 #[test]
 fn mp4_container_is_refused_with_the_format_named() {
-    let (_out, err, code) = run(
-        &[&fixture("generated/valid/mp4_mjpeg_pcm.mp4")],
-        "quit\n",
-    );
+    let (_out, err, code) = run(&[&fixture("generated/valid/mp4_mjpeg_pcm.mp4")], "quit\n");
     assert_eq!(code, 65, "stderr:\n{err}");
     assert!(err.contains("error: [probe.unsupported]"), "{err}");
     assert!(err.contains("format `mp4` has no demuxer"), "{err}");
@@ -118,10 +123,16 @@ fn play_without_session_is_not_ready() {
 /// the owning card named (69).
 #[test]
 fn unserved_command_is_typed_with_the_owner() {
-    let (_out, err, code) = run(&["--control-stdio"], "{\"requestId\": 1, \"cmd\": \"playback.set-rate\", \"args\": {\"rate\": 2.0}}\n");
+    let (_out, err, code) = run(
+        &["--control-stdio"],
+        "{\"requestId\": 1, \"cmd\": \"playback.set-rate\", \"args\": {\"rate\": 2.0}}\n",
+    );
     assert_eq!(code, 0, "machine mode answers, then EOF:\n{err}");
     // (the response line itself carries the refusal)
-    let (out, _err, _code) = run(&["--control-stdio"], "{\"requestId\": 1, \"cmd\": \"playback.set-rate\", \"args\": {\"rate\": 2.0}}\n");
+    let (out, _err, _code) = run(
+        &["--control-stdio"],
+        "{\"requestId\": 1, \"cmd\": \"playback.set-rate\", \"args\": {\"rate\": 2.0}}\n",
+    );
     assert!(out.contains("unsupported-for-host"), "{out}");
     assert!(out.contains("card 3.A1"), "{out}");
 }

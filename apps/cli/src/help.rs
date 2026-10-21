@@ -37,21 +37,53 @@ use settings_schema::{GenTarget, generate_str};
 /// Source of truth for both `--help` and the REPL `help` verb; the
 /// ids are cross-checked against the dispatch table by test.
 pub const SUBCOMMANDS: &[(&str, &str, &str)] = &[
-    ("open <path> [--start-time T] [--start-paused] [--no-video] [--no-audio]", "session.open", "open a media file (starts the interactive session)"),
+    (
+        "open <path> [--start-time T] [--start-paused] [--no-video] [--no-audio]",
+        "session.open",
+        "open a media file (starts the interactive session)",
+    ),
     ("close", "session.close", "close the session"),
     ("play", "playback.play", "play / resume"),
     ("pause", "playback.pause", "pause"),
     ("toggle", "playback.toggle-play-pause", "toggle play/pause"),
-    ("stop", "playback.stop", "stop playback (the session survives)"),
-    ("seek 90s | +10s | -1m | 50% | chapter 3", "playback.seek", "seek (v0: reopen at the target through the engine's real transitions)"),
-    ("info", "media.get-info", "the media snapshot (container, duration, tracks)"),
+    (
+        "stop",
+        "playback.stop",
+        "stop playback (the session survives)",
+    ),
+    (
+        "seek 90s | +10s | -1m | 50% | chapter 3",
+        "playback.seek",
+        "seek (v0: reopen at the target through the engine's real transitions)",
+    ),
+    (
+        "info",
+        "media.get-info",
+        "the media snapshot (container, duration, tracks)",
+    ),
     ("time", "media.get-current-time", "current position"),
     ("duration", "media.get-duration", "media duration"),
     ("tracks", "tracks.list", "the track list"),
-    ("engine-info", "system.get-engine-info", "engine self-description"),
-    ("commands", "system.list-commands", "the full command catalog (introspection)"),
-    ("setting get <area.key> | setting set <area.key> <value>", "config.get-setting / config.set-setting", "read/write a settings-schema key"),
-    ("advance [ticks]", "(host verb)", "pump the engine N ticks — deterministic, no wall clock"),
+    (
+        "engine-info",
+        "system.get-engine-info",
+        "engine self-description",
+    ),
+    (
+        "commands",
+        "system.list-commands",
+        "the full command catalog (introspection)",
+    ),
+    (
+        "setting get <area.key> | setting set <area.key> <value>",
+        "config.get-setting / config.set-setting",
+        "read/write a settings-schema key",
+    ),
+    (
+        "advance [ticks]",
+        "(host verb)",
+        "pump the engine N ticks — deterministic, no wall clock",
+    ),
     ("help", "(host verb)", "this command list"),
     ("quit | q", "(host verb)", "leave the interactive session"),
 ];
@@ -156,14 +188,15 @@ pub fn area_section(generated: &str, area: &str) -> Option<String> {
     let mut out = String::new();
     let mut collecting = false;
     for line in generated.lines() {
-        let is_header = line == area
-            || (line.starts_with(&header_annotated) && line.ends_with(')'));
+        let is_header =
+            line == area || (line.starts_with(&header_annotated) && line.ends_with(')'));
         if collecting {
             // The next area's header ends this section.
-            if areas
-                .iter()
-                .any(|other| other != area && (line == other.as_str() || (line.starts_with(&format!("{other} (")) && line.ends_with(')'))))
-            {
+            if areas.iter().any(|other| {
+                other != area
+                    && (line == other.as_str()
+                        || (line.starts_with(&format!("{other} (")) && line.ends_with(')')))
+            }) {
                 break;
             }
             out.push_str(line);
@@ -257,7 +290,7 @@ mod tests {
         assert!(!artifact.is_empty(), "the committed G2 artifact is missing");
         let generated = match generated_help() {
             Ok(text) => text,
-            Err(err) => panic!("{err}"),
+            Err(err) => unreachable!("{err}"),
         };
         assert_eq!(generated, artifact);
     }
@@ -266,13 +299,18 @@ mod tests {
     fn areas_block_lists_the_six_areas() {
         let generated = match generated_help() {
             Ok(text) => text,
-            Err(err) => panic!("{err}"),
+            Err(err) => unreachable!("{err}"),
         };
         let areas = known_areas(&generated);
         assert_eq!(
             areas,
             vec![
-                "engine", "global", "interface", "performance", "playback", "privacy"
+                "engine",
+                "global",
+                "interface",
+                "performance",
+                "playback",
+                "privacy"
             ]
         );
         let block = areas_block(&generated);
@@ -284,11 +322,11 @@ mod tests {
     fn area_section_slices_engine_and_rejects_unknown() {
         let generated = match generated_help() {
             Ok(text) => text,
-            Err(err) => panic!("{err}"),
+            Err(err) => unreachable!("{err}"),
         };
         let section = match area_section(&generated, "engine") {
             Some(text) => text,
-            None => panic!("engine section missing"),
+            None => unreachable!("engine section missing"),
         };
         assert!(section.starts_with("engine (engine-internal: ui = false)"));
         assert!(section.contains("--engine-log-level <error|warn|info|debug|trace>"));
@@ -299,7 +337,7 @@ mod tests {
         // An area whose name prefixes another still slices exactly.
         let playback = match area_section(&generated, "playback") {
             Some(text) => text,
-            None => panic!("playback section missing"),
+            None => unreachable!("playback section missing"),
         };
         assert!(playback.starts_with("playback\n"));
     }
@@ -308,11 +346,11 @@ mod tests {
     fn help_for_area_names_known_areas_on_error() {
         match help_for_area("bogus") {
             Err(message) => assert!(message.contains("playback"), "{message}"),
-            Ok(_) => panic!("bogus area must be refused"),
+            Ok(_) => unreachable!("bogus area must be refused"),
         }
         let text = match help_for_area("global") {
             Ok(text) => text,
-            Err(err) => panic!("{err}"),
+            Err(err) => unreachable!("{err}"),
         };
         assert!(text.contains("--global-language <en-US>"));
     }
@@ -320,7 +358,11 @@ mod tests {
     #[test]
     fn synopsis_ids_parse_and_cover_the_served_set() {
         let ids = synopsis_catalog_ids();
-        assert_eq!(ids.len(), 15, "one per catalog-serving synopsis row (the settings row counts twice)");
+        assert_eq!(
+            ids.len(),
+            15,
+            "one per catalog-serving synopsis row (the settings row counts twice)"
+        );
         // Distinct by construction of the table; spot-pin two.
         assert!(ids.contains(&CommandId::SessionOpen));
         assert!(ids.contains(&CommandId::PlaybackSeek));

@@ -129,12 +129,7 @@ pub fn run<R: BufRead, W: Write, E: Write>(
 
 /// One argv command, dispatched once, printed, exited (doc 05 §5.3's
 /// one-shot use: `lumen info`, `lumen --json engine-info`, …).
-fn one_shot<W: Write, E: Write>(
-    command: &CliCommand,
-    json: bool,
-    out: &mut W,
-    err: &mut E,
-) -> u8 {
+fn one_shot<W: Write, E: Write>(command: &CliCommand, json: bool, out: &mut W, err: &mut E) -> u8 {
     let mut host = CliHost::new();
     let catalog = match to_catalog(command) {
         Ok(catalog) => catalog,
@@ -224,16 +219,14 @@ fn repl_mode<R: BufRead, W: Write, E: Write>(
         };
         match command {
             CliCommand::Quit => break,
-            CliCommand::Help => {
-                match help::help_text() {
-                    Ok(text) => {
-                        let _ = writeln!(out, "{text}");
-                    }
-                    Err(message) => {
-                        let _ = writeln!(err, "error: {message}");
-                    }
+            CliCommand::Help => match help::help_text() {
+                Ok(text) => {
+                    let _ = writeln!(out, "{text}");
                 }
-            }
+                Err(message) => {
+                    let _ = writeln!(err, "error: {message}");
+                }
+            },
             CliCommand::Advance { ticks } => {
                 host.advance(ticks);
                 print_new_events(&host, printed, out);
@@ -376,16 +369,21 @@ fn print_response<W: Write, E: Write>(
 /// The human form of one successful outcome.
 fn print_outcome<W: Write>(outcome: &CommandOutcome<CommandResult>, out: &mut W) {
     match outcome {
-        CommandOutcome::Accepted { session, generation } => {
-            match session {
-                Some(session) => {
-                    let _ = writeln!(out, "ok: accepted session={} gen={}", session.0, generation.0);
-                }
-                None => {
-                    let _ = writeln!(out, "ok: accepted gen={}", generation.0);
-                }
+        CommandOutcome::Accepted {
+            session,
+            generation,
+        } => match session {
+            Some(session) => {
+                let _ = writeln!(
+                    out,
+                    "ok: accepted session={} gen={}",
+                    session.0, generation.0
+                );
             }
-        }
+            None => {
+                let _ = writeln!(out, "ok: accepted gen={}", generation.0);
+            }
+        },
         CommandOutcome::Completed(result) => print_result(result, out),
     }
 }
@@ -399,12 +397,13 @@ fn print_result<W: Write>(result: &CommandResult, out: &mut W) {
         CommandResult::MediaInfo { info } => {
             let _ = writeln!(out, "ok: media");
             let source = match &info.source {
-                commands::catalog::types::SourceSpec::File { path } => {
-                    path.file_name()
-                        .map(std::ffi::OsStr::to_string_lossy)
-                        .unwrap_or_else(|| std::borrow::Cow::Borrowed("?"))
+                commands::catalog::types::SourceSpec::File { path } => path
+                    .file_name()
+                    .map(std::ffi::OsStr::to_string_lossy)
+                    .unwrap_or_else(|| std::borrow::Cow::Borrowed("?")),
+                commands::catalog::types::SourceSpec::Url { url } => {
+                    std::borrow::Cow::Borrowed(url.as_str())
                 }
-                commands::catalog::types::SourceSpec::Url { url } => std::borrow::Cow::Borrowed(url.as_str()),
             };
             let _ = writeln!(out, "  source: {source}");
             match &info.container {
@@ -663,10 +662,7 @@ fn to_catalog(command: &CliCommand) -> Result<Command, ParseError> {
         CliCommand::Commands => Ok(Command::SystemListCommands),
         CliCommand::SettingGet { key } => {
             let (area, rest) = split_setting_key(key)?;
-            Ok(Command::ConfigGetSetting {
-                area,
-                key: rest,
-            })
+            Ok(Command::ConfigGetSetting { area, key: rest })
         }
         CliCommand::SettingSet { key, value } => {
             let (area, rest) = split_setting_key(key)?;
@@ -676,12 +672,10 @@ fn to_catalog(command: &CliCommand) -> Result<Command, ParseError> {
                 value: parse_setting_value(value),
             })
         }
-        CliCommand::Advance { .. } | CliCommand::Help | CliCommand::Quit => {
-            Err(ParseError::new(
-                "host verbs (`advance`, `help`, `quit`) are REPL-only",
-                USAGE,
-            ))
-        }
+        CliCommand::Advance { .. } | CliCommand::Help | CliCommand::Quit => Err(ParseError::new(
+            "host verbs (`advance`, `help`, `quit`) are REPL-only",
+            USAGE,
+        )),
     }
 }
 
@@ -708,10 +702,10 @@ fn parse_setting_value(value: &str) -> commands::catalog::types::SettingValue {
         "on" | "true" => SettingValue::Bool(true),
         "off" | "false" => SettingValue::Bool(false),
         _ => {
-            if let Ok(number) = value.parse::<f64>() {
-                if number.is_finite() {
-                    return SettingValue::Number(number);
-                }
+            if let Ok(number) = value.parse::<f64>()
+                && number.is_finite()
+            {
+                return SettingValue::Number(number);
             }
             if value.starts_with('[') && value.ends_with(']') {
                 let items = value[1..value.len() - 1]
@@ -740,13 +734,7 @@ mod tests {
         let mut input = stdin.as_bytes();
         let mut out = Vec::new();
         let mut err = Vec::new();
-        let code = run(
-            &words(argv),
-            &mut input,
-            &mut out,
-            &mut err,
-            false,
-        );
+        let code = run(&words(argv), &mut input, &mut out, &mut err, false);
         (
             String::from_utf8_lossy(&out).into_owned(),
             String::from_utf8_lossy(&err).into_owned(),

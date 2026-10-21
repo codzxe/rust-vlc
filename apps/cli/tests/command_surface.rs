@@ -40,10 +40,20 @@ fn help_lists_commands_and_generated_areas() {
     assert!(out.contains("session.open"), "{out}");
     assert!(out.contains("playback.seek"), "{out}");
     assert!(out.contains("media.get-info"), "{out}");
-    assert!(out.contains("config.get-setting / config.set-setting"), "{out}");
+    assert!(
+        out.contains("config.get-setting / config.set-setting"),
+        "{out}"
+    );
     // The generated settings areas (G2 over the embedded schema).
     assert!(out.contains("Areas:"), "{out}");
-    for area in ["engine", "global", "interface", "performance", "playback", "privacy"] {
+    for area in [
+        "engine",
+        "global",
+        "interface",
+        "performance",
+        "playback",
+        "privacy",
+    ] {
         assert!(out.contains(area), "area {area} missing:\n{out}");
     }
 }
@@ -54,7 +64,10 @@ fn help_lists_commands_and_generated_areas() {
 fn help_area_prints_the_generated_flags() {
     let (out, err, code) = run(&["--help", "engine"], "");
     assert_eq!(code, 0, "stderr:\n{err}");
-    assert!(out.contains("--engine-log-level <error|warn|info|debug|trace>"), "{out}");
+    assert!(
+        out.contains("--engine-log-level <error|warn|info|debug|trace>"),
+        "{out}"
+    );
     assert!(out.contains("settings.engine.log-level"), "{out}");
     // An unknown area is a usage error naming the known set.
     let (_out, err, code) = run(&["--help", "no-such-area"], "");
@@ -67,7 +80,10 @@ fn help_area_prints_the_generated_flags() {
 fn version_prints_the_crate_version() {
     let (out, err, code) = run(&["--version"], "");
     assert_eq!(code, 0, "stderr:\n{err}");
-    assert_eq!(out.trim_end(), format!("lumen {}", env!("CARGO_PKG_VERSION")));
+    assert_eq!(
+        out.trim_end(),
+        format!("lumen {}", env!("CARGO_PKG_VERSION"))
+    );
 }
 
 /// The catalog introspection: all 61 ids with their classes; every

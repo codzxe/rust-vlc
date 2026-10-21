@@ -179,7 +179,7 @@ impl CliHost {
     /// count. Public for the integration suites (the scripted
     /// sessions' open-and-settle step).
     pub fn settle(&mut self) {
-        self.pump_until(
+        self.pump_pipeline_until(
             |host| {
                 !matches!(
                     host.state(),
@@ -287,18 +287,48 @@ impl CliHost {
 
     // -- pumping ----------------------------------------------------------
 
-    /// One pump: engine poll, output drain, time advance, end-tail
-    /// play-out. See the module docs — this is the session thread.
-    pub fn pump(&mut self) {
+    /// One **pipeline-only** pump: engine poll + output drain + video
+    /// error surfacing. NO time advance, NO tail play-out — the
+    /// between-commands pacing primitive. Media time moves ONLY via
+    /// [`CliHost::advance`] (the `advance` verb), which is what makes
+    /// the scripted sessions deterministic and pause/seek landable:
+    /// an awaited receipt or a settled open must not consume the
+    /// media (the 2.D2 session ACs — pause freezes at 0, seek lands
+    /// at its target exactly).
+    pub fn pump_pipeline(&mut self) {
         self.engine.poll();
         self.drain_outputs();
-        self.advance_time();
         self.surface_video_error();
+    }
+
+    /// One FULL pump: pipeline-only steps + time advance + end-tail
+    /// play-out. See the module docs — this is the `advance` verb's
+    /// tick (the session thread under wall-clock pacing would be
+    /// this plus a sleep; headless, `advance N` is N of these).
+    pub fn pump(&mut self) {
+        self.pump_pipeline();
+        self.advance_time();
         self.drain_tail_at_end();
     }
 
+    /// Pipeline-only pump-until (awaits: receipts, settles).
+    pub fn pump_pipeline_until(
+        &mut self,
+        mut pred: impl FnMut(&CliHost) -> bool,
+        bound: usize,
+    ) -> bool {
+        for _ in 0..bound {
+            if pred(self) {
+                return true;
+            }
+            self.pump_pipeline();
+        }
+        pred(self)
+    }
+
     /// Pump until `pred` holds (or the bound). Answers whether the
-    /// predicate was observed.
+    /// predicate was observed. FULL pumps (time advances) — the
+    /// `advance` verb's driver; awaits use [`CliHost::pump_pipeline_until`].
     pub fn pump_until(&mut self, mut pred: impl FnMut(&CliHost) -> bool, bound: usize) -> bool {
         for _ in 0..bound {
             if pred(self) {
@@ -353,10 +383,10 @@ impl CliHost {
                                 .collect();
                         }
                     }
-                    if let Some(wire) = event.as_wire_event() {
-                        if self.staleness.filter_event(&wire) {
-                            self.events.push(wire);
-                        }
+                    if let Some(wire) = event.as_wire_event()
+                        && self.staleness.filter_event(&wire)
+                    {
+                        self.events.push(wire);
                     }
                 }
             }
@@ -466,7 +496,7 @@ impl CliHost {
         if device.buffered_frames() == 0 {
             return;
         }
-        let _ = clock.resume();
+        clock.resume();
         let mut guard = consumer.lock();
         while device.buffered_frames() > 0 {
             let take = device.buffered_frames().min(RENDER_QUANTUM);
@@ -481,7 +511,7 @@ impl CliHost {
                 break;
             }
         }
-        let _ = clock.pause();
+        clock.pause();
     }
 
     /// Surface a present-path failure once (recorded as a wire-visible
@@ -506,20 +536,19 @@ impl CliHost {
 
     /// Submit one minimal-set command and pump until its receipt
     /// arrives (the truthful-UI correlation point).
-    pub(crate) fn submit_and_await(&mut self, kind: SessionCommandKind) -> Result<CommandReceipt, CommandError> {
+    pub(crate) fn submit_and_await(
+        &mut self,
+        kind: SessionCommandKind,
+    ) -> Result<CommandReceipt, CommandError> {
         let request = self.allocator.allocate();
         let handle = self.handle.as_ref().ok_or_else(|| {
-            CommandError::new(
-                Stage::Session,
-                ErrorCode::NotReady,
-                "no session open",
-            )
+            CommandError::new(Stage::Session, ErrorCode::NotReady, "no session open")
         })?;
         handle
             .submit(request, kind)
             .map_err(|_| session_error_wire(&SessionError::SessionClosed))?;
         for _ in 0..AWAIT_PUMPS {
-            self.pump();
+            self.pump_pipeline();
             if let Some(position) = self
                 .pending_receipts
                 .iter()
@@ -537,9 +566,15 @@ impl CliHost {
     }
 
     /// Translate one receipt into the truthful-UI outcome.
-    pub(crate) fn receipt_outcome(&self, receipt: CommandReceipt) -> Result<CommandOutcome<CommandResult>, CommandError> {
+    pub(crate) fn receipt_outcome(
+        &self,
+        receipt: CommandReceipt,
+    ) -> Result<CommandOutcome<CommandResult>, CommandError> {
         match receipt.result {
-            ReceiptResult::Accepted { session, generation } => Ok(CommandOutcome::Accepted {
+            ReceiptResult::Accepted {
+                session,
+                generation,
+            } => Ok(CommandOutcome::Accepted {
                 session: Some(session),
                 generation,
             }),
@@ -566,8 +601,7 @@ impl CliHost {
                 "a session is already open — close it first (source replacement is card 3.A2)",
             ));
         }
-        let opened: OpenedMedia =
-            open_source(&source, start_time_us, no_video, no_audio)?;
+        let opened: OpenedMedia = open_source(&source, start_time_us, no_video, no_audio)?;
         let facts = Arc::new(opened.facts);
         let anchor_ns = opened.start_position_ns;
         // The audio half (and with it the session clock) exists only
@@ -599,7 +633,12 @@ impl CliHost {
             Arc::clone(&facts),
             Arc::clone(&clock),
         ));
-        let provider = Arc::new(HostDecoderProvider::new(Arc::clone(&facts)));
+        let mut provider = HostDecoderProvider::new(Arc::clone(&facts));
+        // The drain-gate probe: the PCM decoder's `Drained` answer
+        // waits on the null device's ring actually emptying (see
+        // DrainGatedDecoder — headless time moves only via `advance`).
+        provider.attach_consumer(Arc::clone(&consumer));
+        let provider = Arc::new(provider);
         let config = SessionConfig::new(
             opened.uri,
             Box::new(opened.demuxer),
@@ -626,7 +665,7 @@ impl CliHost {
         // but an immediate open failure (corrupt header, no decodable
         // track) must surface in THIS response, so we pump until the
         // engine leaves `Opening` and check the fatal trail.
-        self.pump_until(|host| host.state() != PlaybackState::Opening, AWAIT_PUMPS);
+        self.pump_pipeline_until(|host| host.state() != PlaybackState::Opening, AWAIT_PUMPS);
         if let Some(error) = self.last_fatal.take() {
             self.teardown_after_fatal();
             return Err(error);
@@ -646,10 +685,29 @@ impl CliHost {
         if self.state() == PlaybackState::Error {
             let _ = self.submit_and_await(SessionCommandKind::Close);
         }
+        self.teardown_session_scoped();
+    }
+
+    /// Clear every session-scoped host half (after a settled Close or
+    /// a fatal): the snapshot answers (`time`, `info`) then honestly
+    /// refuse with not-ready instead of answering from a dead
+    /// session's leftover clock/facts.
+    fn teardown_session_scoped(&mut self) {
         self.handle = None;
         self.consumer = None;
         self.device = None;
         self.clock = None;
+        self.facts = None;
+        self.source = None;
+        self.anchor_ns = 0;
+        self.tracks.clear();
+        self.pending_receipts.clear();
+    }
+
+    /// A settled Close: the engine went to Idle — drop the host's
+    /// session-scoped halves so later snapshots refuse honestly.
+    pub(crate) fn session_closed(&mut self) {
+        self.teardown_session_scoped();
     }
 
     /// The `playback.seek` composition (see the module docs).
@@ -669,9 +727,9 @@ impl CliHost {
         // 1. Resolve the absolute target (µs).
         let target_us: i64 = match target {
             SeekTarget::Absolute { time } => time.0,
-            SeekTarget::Relative { delta_ms } => {
-                self.position_us().saturating_add(delta_ms.saturating_mul(1000))
-            }
+            SeekTarget::Relative { delta_ms } => self
+                .position_us()
+                .saturating_add(delta_ms.saturating_mul(1000)),
             SeekTarget::Percent { fraction } => {
                 let Some(duration) = duration_us else {
                     return Err(CommandError::new(
@@ -680,14 +738,15 @@ impl CliHost {
                         "percent seek needs a known duration",
                     ));
                 };
-                let scaled = ((duration as f64) * f64::from(fraction)).round() as i64;
-                scaled
+                ((duration as f64) * f64::from(fraction)).round() as i64
             }
             SeekTarget::Chapter { index } => {
                 return Err(CommandError::new(
                     Stage::Session,
                     ErrorCode::NotFound,
-                    format!("no chapter {index}: AVI v0 carries no chapter markers (the chapter card owns this)"),
+                    format!(
+                        "no chapter {index}: AVI v0 carries no chapter markers (the chapter card owns this)"
+                    ),
                 ));
             }
         };
@@ -722,11 +781,15 @@ impl CliHost {
             .source
             .clone()
             .ok_or_else(|| CommandError::new(Stage::Session, ErrorCode::NotReady, "no source"))?;
-        let outcome =
-            self.open_session(source, Some(clamped), self.open_no_video, self.open_no_audio)?;
+        let outcome = self.open_session(
+            source,
+            Some(clamped),
+            self.open_no_video,
+            self.open_no_audio,
+        )?;
         // 5. Let it reach Playing (bounded; short media may go straight
         //    through to Ended — both are success).
-        self.pump_until(
+        self.pump_pipeline_until(
             |host| matches!(host.state(), PlaybackState::Playing | PlaybackState::Ended),
             AWAIT_PUMPS,
         );
@@ -756,7 +819,9 @@ impl CliHost {
                 container: Some(facts.container.clone()),
                 title: None,
                 duration: match duration_us {
-                    Some(us) => Duration::Known { time: Timestamp(us) },
+                    Some(us) => Duration::Known {
+                        time: Timestamp(us),
+                    },
                     None => Duration::Unknown,
                 },
                 seekable: true,
@@ -779,7 +844,9 @@ impl CliHost {
         };
         Ok(CommandResult::Duration {
             duration: match facts.duration_us() {
-                Some(us) => Duration::Known { time: Timestamp(us) },
+                Some(us) => Duration::Known {
+                    time: Timestamp(us),
+                },
                 None => Duration::Unknown,
             },
         })
@@ -796,7 +863,9 @@ impl CliHost {
         let position_us = self.position_us();
         let duration_us = facts.duration_us();
         let fraction = match duration_us {
-            Some(duration) if duration > 0 => position_us.clamp(0, duration) as f32 / duration as f32,
+            Some(duration) if duration > 0 => {
+                position_us.clamp(0, duration) as f32 / duration as f32
+            }
             _ => 0.0,
         };
         let buffered = match duration_us {
@@ -816,10 +885,10 @@ impl CliHost {
     /// The settings-schema seam: one setting's value + meta.
     pub(crate) fn setting_get(&self, area: &str, key: &str) -> Result<CommandResult, CommandError> {
         let full = format!("{area}.{key}");
-        let invalid = |message: String| {
-            CommandError::new(Stage::Config, ErrorCode::InvalidArgument, message)
-        };
-        let def = settings_schema::runtime::schema_meta(&full).map_err(|err| invalid(err.to_string()))?;
+        let invalid =
+            |message: String| CommandError::new(Stage::Config, ErrorCode::InvalidArgument, message);
+        let def =
+            settings_schema::runtime::schema_meta(&full).map_err(|err| invalid(err.to_string()))?;
         let value = match self.settings.get(&full) {
             Some(stored) => stored.clone(),
             None => default_value(def),
@@ -845,10 +914,10 @@ impl CliHost {
         value: SettingValue,
     ) -> Result<CommandResult, CommandError> {
         let full = format!("{area}.{key}");
-        let invalid = |message: String| {
-            CommandError::new(Stage::Config, ErrorCode::InvalidArgument, message)
-        };
-        let def = settings_schema::runtime::schema_meta(&full).map_err(|err| invalid(err.to_string()))?;
+        let invalid =
+            |message: String| CommandError::new(Stage::Config, ErrorCode::InvalidArgument, message);
+        let def =
+            settings_schema::runtime::schema_meta(&full).map_err(|err| invalid(err.to_string()))?;
         let toml_value = setting_value_to_toml(&value);
         settings_schema::runtime::validate_value(&full, &toml_value)
             .map_err(|err| invalid(err.to_string()))?;
@@ -870,10 +939,7 @@ fn session_state_as_wire(state: SessionState) -> PlaybackState {
 
 /// The engine's `track_info_wire` — reused, not re-implemented
 /// (one implementation of the L0→wire track mapping in the tree).
-pub(crate) fn track_info_wire_host(
-    track: &media_types::Track,
-    is_selected: bool,
-) -> TrackInfo {
+pub(crate) fn track_info_wire_host(track: &media_types::Track, is_selected: bool) -> TrackInfo {
     playback_engine::track_info_wire(track, is_selected)
 }
 
@@ -881,7 +947,10 @@ pub(crate) fn track_info_wire_host(
 /// L0 [`Track`] deliberately carries no codec parameters, but the
 /// demuxer's `strf` did — `media.get-info` owes the caller the
 /// container's own declaration (dimensions, channel count, rates).
-fn enrich_track_info(mut info: TrackInfo, fact: Option<&crate::demux_host::TrackFact>) -> TrackInfo {
+fn enrich_track_info(
+    mut info: TrackInfo,
+    fact: Option<&crate::demux_host::TrackFact>,
+) -> TrackInfo {
     let Some(fact) = fact else {
         return info;
     };
@@ -910,11 +979,9 @@ fn rejection_wire(state: SessionState, reason: playback_engine::RejectionReason)
     let stage = Stage::Session;
     let state_name = session_state_as_wire(state);
     match reason {
-        playback_engine::RejectionReason::NoSession => CommandError::new(
-            stage,
-            ErrorCode::NotReady,
-            "no session open",
-        ),
+        playback_engine::RejectionReason::NoSession => {
+            CommandError::new(stage, ErrorCode::NotReady, "no session open")
+        }
         playback_engine::RejectionReason::NotReady => CommandError::new(
             stage,
             ErrorCode::NotReady,
@@ -964,12 +1031,10 @@ fn session_error_wire(error: &SessionError) -> CommandError {
             ErrorCode::NotReady,
             "a session is already open",
         ),
-        SessionError::Config(cause) => CommandError::new(
-            Stage::Session,
-            ErrorCode::Unsupported,
-            cause.to_string(),
-        )
-        .with_detail("code", "session.no-decodable-track"),
+        SessionError::Config(cause) => {
+            CommandError::new(Stage::Session, ErrorCode::Unsupported, cause.to_string())
+                .with_detail("code", "session.no-decodable-track")
+        }
         SessionError::GenerationExhausted(engine) => wire_error(engine),
         SessionError::SessionClosed => CommandError::new(
             Stage::Session,

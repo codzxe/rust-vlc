@@ -49,16 +49,14 @@ use std::sync::{Arc, Mutex};
 use audio_engine::{AudioPipeline, PipelineSpec};
 use audio_output::null::{NullDevice, NullSink};
 use audio_output::{NullBackend, NullConfig, NullStream};
-use codec_api::{Decoder, DecoderConfig};
+use codec_api::{DecodeOutcome, Decoder, DecoderConfig, FrameSink};
 use media_clock::MediaClock;
 use media_types::frame::{
     AudioFormat, AudioFrame, AudioLayout, ColorMatrix, ColorRange, FrameStorage, SampleFormat,
     VideoFrame,
 };
 use media_types::time::Timestamp;
-use media_types::{
-    EngineError, ErrorKind, Frame, PipelineStage, Rate, Track, TrackId,
-};
+use media_types::{EngineError, ErrorKind, Frame, Packet, PipelineStage, Rate, Track, TrackId};
 use playback_engine::{DecoderProvider, FrameConsumer};
 use renderer_wgpu::color::SurfaceFormat;
 use renderer_wgpu::params::Extent2D;
@@ -121,13 +119,29 @@ fn host_error(stage: PipelineStage, code: &'static str, message: impl Into<Strin
 /// (the registry shim until the plugin registry card lands).
 pub struct HostDecoderProvider {
     facts: Arc<MediaFacts>,
+    /// The audio-output backlog probe (set at open time once the
+    /// null session exists): gates the PCM limb's `Drained` answer
+    /// on the device ring actually emptying, so end-of-media fires
+    /// when the media has PLAYED, not when it has been decoded
+    /// (headless determinism — `advance` is the only time mover).
+    consumer: Option<Arc<CliFrameConsumer>>,
 }
 
 impl HostDecoderProvider {
     /// Build over the open path's harvested facts.
     #[must_use]
     pub fn new(facts: Arc<MediaFacts>) -> HostDecoderProvider {
-        HostDecoderProvider { facts }
+        HostDecoderProvider {
+            facts,
+            consumer: None,
+        }
+    }
+
+    /// Attach the frame consumer (the drain-gate probe source). Must
+    /// be called before the engine wires limbs; the open path does it
+    /// right after constructing the consumer.
+    pub fn attach_consumer(&mut self, consumer: Arc<CliFrameConsumer>) {
+        self.consumer = Some(consumer);
     }
 }
 
@@ -157,13 +171,81 @@ impl DecoderProvider for HostDecoderProvider {
                 };
                 let mut decoder = codecs::audio::pcm::PcmDecoder::with_format(channels, rate)?;
                 decoder.configure(config)?;
-                Ok(Box::new(decoder))
+                // Gate the drain answer on the device ring: the
+                // engine's `is_drained` (all limbs drained + queues
+                // empty) then waits for the audio to actually play
+                // out through the null device — `advance`'s renders,
+                // not the decode burst.
+                let probe = self.consumer.clone();
+                Ok(Box::new(DrainGatedDecoder {
+                    inner: Box::new(decoder),
+                    probe,
+                }))
             }
             other => Err(host_error(
                 PipelineStage::Decode,
                 "cli.codec_unavailable",
                 format!("no decoder for `{other}` in this build (first vertical: mjpeg + pcm)"),
             )),
+        }
+    }
+}
+
+/// A decoder whose `Drained` answer is gated on the audio-output
+/// ring actually emptying. The engine's end-of-media condition is
+/// "every limb drained + queues empty"; without this gate a short
+/// media decodes faster than it plays and the session ends while
+/// the device still holds seconds of unrendered audio. With it,
+/// `advance` (the null device's render driver) is the only time
+/// mover — the headless session stays `Playing` until the media has
+/// genuinely played out.
+struct DrainGatedDecoder {
+    inner: Box<dyn Decoder>,
+    probe: Option<Arc<CliFrameConsumer>>,
+}
+
+impl DrainGatedDecoder {
+    /// The device backlog this decoder's drain answer waits on
+    /// (frames the ring still holds). No consumer / no audio limb
+    /// (video-only or `--no-audio`) answers 0 — no gating.
+    fn audio_backlog(&self) -> usize {
+        self.probe
+            .as_ref()
+            .map(|consumer| {
+                consumer
+                    .lock()
+                    .audio
+                    .as_ref()
+                    .map_or(0, AudioLimb::buffered_frames)
+            })
+            .unwrap_or(0)
+    }
+}
+
+impl Decoder for DrainGatedDecoder {
+    fn configure(&mut self, cfg: &DecoderConfig) -> Result<(), EngineError> {
+        self.inner.configure(cfg)
+    }
+
+    fn decode(
+        &mut self,
+        packet: Packet,
+        out: &mut dyn FrameSink,
+    ) -> Result<DecodeOutcome, EngineError> {
+        self.inner.decode(packet, out)
+    }
+
+    fn flush(&mut self, out: &mut dyn FrameSink) -> Result<DecodeOutcome, EngineError> {
+        match self.inner.flush(out)? {
+            DecodeOutcome::Drained if self.audio_backlog() > 0 => {
+                // Everything is decoded and sitting in the device
+                // ring: not drained until the device has played it.
+                // `NeedMoreInput` keeps the limb's flush loop polling
+                // (bounded per tick); the pump's renders drain the
+                // ring and the next flush answers `Drained`.
+                Ok(DecodeOutcome::NeedMoreInput)
+            }
+            outcome => Ok(outcome),
         }
     }
 }
@@ -183,6 +265,13 @@ impl AudioLimb {
     #[must_use]
     pub fn clock_source(&self) -> Arc<dyn media_clock::SampleCounterSource> {
         self.sink.clock_source()
+    }
+
+    /// Frames the device has not played yet (the drain gate's truth:
+    /// end-of-media waits until this reaches zero).
+    #[must_use]
+    pub fn buffered_frames(&self) -> usize {
+        self.sink.buffered_frames()
     }
 }
 
@@ -252,6 +341,17 @@ impl VideoLimb {
         self.presented = self.presented.saturating_add(1);
         Ok(())
     }
+
+    /// Push one held frame into the scheduler (the hold-retry path —
+    /// no conversion: the hold stores already-converted frames).
+    fn scheduler_push_for_hold(&mut self, frame: VideoFrame) -> HoldRetry {
+        match self.scheduler.push(frame) {
+            PushOutcome::Scheduled | PushOutcome::Inferred { .. } => HoldRetry::Pushed,
+            PushOutcome::Held | PushOutcome::MissingDropped { .. } => HoldRetry::Pushed,
+            PushOutcome::WindowFull { .. } => HoldRetry::Refused,
+            PushOutcome::UnschedulablePts { .. } | PushOutcome::Stale { .. } => HoldRetry::Dropped,
+        }
+    }
     /// The scheduler's lifetime counters.
     #[must_use]
     pub fn scheduler_stats(&self) -> video_engine::SchedulerStats {
@@ -282,12 +382,41 @@ impl VideoLimb {
     }
 }
 
+/// The window-full hold bound. [PROPOSAL: v0 CLI value — 64 frames
+/// ≈ 2.1 s at 30 fps ≈ 19 MiB of RGBA at 320×240; large enough for
+/// the fixture burst, small enough to bound memory honestly. The
+/// principled fix — engine-level decode backpressure from the
+/// presentation window — is Phase 3 work (the 3.B queue/sync cards).]
+pub const MAX_VIDEO_HOLD: usize = 64;
+
+/// One hold-retry attempt's outcome.
+enum HoldRetry {
+    /// Admitted to the scheduler window (or held as missing-stamp).
+    Pushed,
+    /// The window is still full: keep holding, retry after the next
+    /// tick.
+    Refused,
+    /// Stale or unschedulable: the frame can never be scheduled —
+    /// dropped and counted.
+    Dropped,
+}
+
 /// The consumer's mutable state (the engine calls `accept` on the poll
 /// thread; the pump ticks the video half between polls — one mutex,
 /// no contention in the single-writer model).
 pub struct ConsumerState {
     audio: Option<AudioLimb>,
     video: Option<VideoLimb>,
+    /// Window-full overflow hold (FIFO of already-converted frames).
+    /// The decode stage runs ahead of the clock by design (the
+    /// headless pump only moves time on `advance`); the scheduler
+    /// window is bounded (16), so a decode burst would otherwise
+    /// drop frames that are merely early, not late. The hold is
+    /// retried after every scheduler tick — the window drains as
+    /// the clock advances, the hold refills it in order. Bounded by
+    /// [`MAX_VIDEO_HOLD`]; beyond it the refusal is the honest
+    /// drop-and-count (the pre-hold behavior).
+    video_hold: std::collections::VecDeque<VideoFrame>,
     /// A present-path failure (renderer/queue). Surfaced by the pump;
     /// audio continues (the 2.D1 degrade pattern).
     video_error: Option<EngineError>,
@@ -310,14 +439,44 @@ impl ConsumerState {
         self.audio.as_ref()
     }
 
-    /// Tick the video scheduler once (the pump's per-quantum step).
+    /// Tick the video scheduler once (the pump's per-quantum step),
+    /// then retry the window-full hold: the tick presented (or
+    /// backgrounded) and the window may have room for the frames the
+    /// decode burst stashed.
     ///
     /// # Errors
     /// The present path's typed errors (recorded, not swallowed).
     pub fn tick_video(&mut self) -> Result<(), EngineError> {
-        match self.video.as_mut() {
-            Some(video) => video.tick_once(),
-            None => Ok(()),
+        if let Some(video) = self.video.as_mut() {
+            video.tick_once()?;
+        }
+        self.retry_video_hold();
+        Ok(())
+    }
+
+    /// Push held frames into the scheduler window, in order, until it
+    /// refuses again (or the hold empties). Stale/unschedulable
+    /// outcomes drop-and-count honestly — those frames can never be
+    /// scheduled.
+    fn retry_video_hold(&mut self) {
+        while let Some(front) = self.video_hold.front().cloned() {
+            let outcome = match self.video.as_mut() {
+                Some(video) => video.scheduler_push_for_hold(front),
+                None => break,
+            };
+            match outcome {
+                HoldRetry::Pushed => {
+                    self.video_hold.pop_front();
+                }
+                HoldRetry::Refused => break,
+                HoldRetry::Dropped => {
+                    self.video_hold.pop_front();
+                    if let Some(video) = self.video.as_mut() {
+                        video.refused = video.refused.saturating_add(1);
+                    }
+                    self.frames_refused = self.frames_refused.saturating_add(1);
+                }
+            }
         }
     }
 
@@ -353,6 +512,7 @@ impl CliFrameConsumer {
             state: Mutex::new(ConsumerState {
                 audio,
                 video: None,
+                video_hold: std::collections::VecDeque::new(),
                 video_error: None,
                 frames_accepted: 0,
                 frames_refused: 0,
@@ -365,7 +525,6 @@ impl CliFrameConsumer {
     /// Lock the consumer state (the pump's access path). A poisoned
     /// lock means a poll-thread panic already happened — the state is
     /// recovered, not trusted-blindly (std's own recovery semantics).
-    #[must_use]
     pub fn lock(&self) -> std::sync::MutexGuard<'_, ConsumerState> {
         match self.state.lock() {
             Ok(guard) => guard,
@@ -386,7 +545,9 @@ impl FrameConsumer for CliFrameConsumer {
         state.frames_accepted = state.frames_accepted.saturating_add(1);
         match frame {
             Frame::Audio(audio) => accept_audio(&mut state, &audio),
-            Frame::Video(video) => accept_video(&mut state, &video, track, &self.facts, &self.clock),
+            Frame::Video(video) => {
+                accept_video(&mut state, &video, track, &self.facts, &self.clock)
+            }
             // Subtitle/data limbs are not wired in the first vertical.
             Frame::Subtitle(_) => Ok(()),
         }
@@ -481,6 +642,13 @@ fn accept_video(
     match video.scheduler.push(uploadable) {
         PushOutcome::Scheduled | PushOutcome::Inferred { .. } => Ok(()),
         PushOutcome::Held | PushOutcome::MissingDropped { .. } => Ok(()),
+        PushOutcome::WindowFull { .. } if state.video_hold.len() < MAX_VIDEO_HOLD => {
+            // Early, not late: hold the converted frame and retry
+            // after the next scheduler tick (the pump moves time on
+            // `advance`; the window drains as the clock advances).
+            state.video_hold.push_back(frame.clone());
+            Ok(())
+        }
         PushOutcome::WindowFull { .. } | PushOutcome::UnschedulablePts { .. } => {
             video.refused = video.refused.saturating_add(1);
             state.frames_refused = state.frames_refused.saturating_add(1);
@@ -489,7 +657,6 @@ fn accept_video(
         PushOutcome::Stale { .. } => Ok(()),
     }
 }
-
 
 // ---------------------------------------------------------------------------
 // I420 → RGBA (BT.601 full range, the JFIF equations)
@@ -694,7 +861,12 @@ mod tests {
             FrameStorage::OpaqueHandle(_) => [].as_slice(),
         };
         let base = (y * frame.size.0 as usize + x) * 4;
-        [bytes[base], bytes[base + 1], bytes[base + 2], bytes[base + 3]]
+        [
+            bytes[base],
+            bytes[base + 1],
+            bytes[base + 2],
+            bytes[base + 3],
+        ]
     }
 
     /// JFIF vectors: neutral chroma passes luma through; the extreme
@@ -704,19 +876,19 @@ mod tests {
         // Gray: Y=128, neutral chroma → (128,128,255).
         let gray = match convert_i420_to_rgba(&i420_frame(8, 8, 128, 128, 128)) {
             Ok(frame) => frame,
-            Err(err) => panic!("{err}"),
+            Err(err) => unreachable!("{err}"),
         };
         assert_eq!(gray.format, PixelFormat::Rgba8);
         assert_eq!(pixel(&gray, 3, 5), [128, 128, 128, 255]);
         // Black / white.
         let black = match convert_i420_to_rgba(&i420_frame(8, 8, 0, 128, 128)) {
             Ok(frame) => frame,
-            Err(err) => panic!("{err}"),
+            Err(err) => unreachable!("{err}"),
         };
         assert_eq!(pixel(&black, 0, 0), [0, 0, 0, 255]);
         let white = match convert_i420_to_rgba(&i420_frame(8, 8, 255, 128, 128)) {
             Ok(frame) => frame,
-            Err(err) => panic!("{err}"),
+            Err(err) => unreachable!("{err}"),
         };
         assert_eq!(pixel(&white, 7, 7), [255, 255, 255, 255]);
         // Red: Cr=255 (Cr−128 = 127), Cb neutral, Y=50 → the JFIF
@@ -724,7 +896,7 @@ mod tests {
         // G = 50 − 0.714·127 − 0 ≈ −41 → clamps to 0, B = 50.
         let red = match convert_i420_to_rgba(&i420_frame(8, 8, 50, 128, 255)) {
             Ok(frame) => frame,
-            Err(err) => panic!("{err}"),
+            Err(err) => unreachable!("{err}"),
         };
         let [r, g, b, a] = pixel(&red, 2, 2);
         assert_eq!(a, 255);
@@ -736,7 +908,7 @@ mod tests {
         // NO Cb term, so R stays at luma.
         let blue = match convert_i420_to_rgba(&i420_frame(8, 8, 128, 255, 128)) {
             Ok(frame) => frame,
-            Err(err) => panic!("{err}"),
+            Err(err) => unreachable!("{err}"),
         };
         let [r, _g, b, _a] = pixel(&blue, 5, 1);
         assert_eq!(b, 255, "Y=128 + 225 clamps to 255");
@@ -750,7 +922,7 @@ mod tests {
         let frame = i420_frame(7, 5, 200, 128, 128);
         let converted = match convert_i420_to_rgba(&frame) {
             Ok(frame) => frame,
-            Err(err) => panic!("{err}"),
+            Err(err) => unreachable!("{err}"),
         };
         assert_eq!(converted.size, (7, 5));
         assert_eq!(pixel(&converted, 6, 4), [200, 200, 200, 255]);
@@ -765,10 +937,13 @@ mod tests {
             Err(err) => assert_eq!(
                 err.kind,
                 ErrorKind::Corrupt {
-                    detail: media_types::error::CorruptDetail::Truncated { expected: 96, found: 10 }
+                    detail: media_types::error::CorruptDetail::Truncated {
+                        expected: 96,
+                        found: 10
+                    }
                 }
             ),
-            Ok(_) => panic!("truncated planes must be refused"),
+            Ok(_) => unreachable!("truncated planes must be refused"),
         }
     }
 
@@ -780,7 +955,7 @@ mod tests {
         frame.color.range = ColorRange::Limited;
         match convert_i420_to_rgba(&frame) {
             Err(err) => assert_eq!(err.context.code, "cli.i420_color_unsupported"),
-            Ok(_) => panic!("limited range must be refused"),
+            Ok(_) => unreachable!("limited range must be refused"),
         }
     }
 

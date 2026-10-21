@@ -207,10 +207,17 @@ pub fn parse_command(words: &[String]) -> Result<CliCommand, ParseError> {
         "setting" => parse_setting(args),
         "help" => no_args(CliCommand::Help),
         "quit" | "q" => no_args(CliCommand::Quit),
-        other => Err(ParseError::new(
-            format!("unknown command `{other}`"),
-            USAGE,
-        )),
+        other => {
+            // VLC-style bare source: `lumen clip.avi` (or any
+            // path-looking word) is `lumen open <source>` — a path is
+            // not an unknown verb, it is the media. No grammar verb
+            // contains a path separator or a dot, so the shape is
+            // unambiguous.
+            if other.contains('/') || other.contains('\\') || other.contains('.') {
+                return parse_open(words);
+            }
+            Err(ParseError::new(format!("unknown command `{other}`"), USAGE))
+        }
     }
 }
 
@@ -228,16 +235,17 @@ fn parse_open(args: &[String]) -> Result<CliCommand, ParseError> {
         match arg {
             "--start-time" => {
                 let value = args.get(index + 1).ok_or_else(|| {
-                    ParseError::new("--start-time needs a time argument", "e.g. --start-time 30s")
+                    ParseError::new(
+                        "--start-time needs a time argument",
+                        "e.g. --start-time 30s",
+                    )
                 })?;
-                start_time = Some(
-                    parse_time_us(value).ok_or_else(|| {
-                        ParseError::new(
-                            format!("bad --start-time `{value}`"),
-                            "e.g. --start-time 30s",
-                        )
-                    })?,
-                );
+                start_time = Some(parse_time_us(value).ok_or_else(|| {
+                    ParseError::new(
+                        format!("bad --start-time `{value}`"),
+                        "e.g. --start-time 30s",
+                    )
+                })?);
                 index += 2;
             }
             "--start-paused" => {
@@ -265,7 +273,10 @@ fn parse_open(args: &[String]) -> Result<CliCommand, ParseError> {
         }
     }
     let source = source.ok_or_else(|| {
-        ParseError::new("open needs a source path", "usage: lumen open <path> [flags]")
+        ParseError::new(
+            "open needs a source path",
+            "usage: lumen open <path> [flags]",
+        )
     })?;
     Ok(CliCommand::Open {
         source,
@@ -298,9 +309,8 @@ fn parse_advance(args: &[String]) -> Result<CliCommand, ParseError> {
     match args.len() {
         0 => Ok(CliCommand::Advance { ticks: 64 }),
         1 => {
-            let ticks: u32 = parse_number(&args[0]).ok_or_else(|| {
-                ParseError::new("advance takes a tick count", "e.g. advance 128")
-            })?;
+            let ticks: u32 = parse_number(&args[0])
+                .ok_or_else(|| ParseError::new("advance takes a tick count", "e.g. advance 128"))?;
             Ok(CliCommand::Advance { ticks })
         }
         _ => Err(ParseError::new("advance takes at most one count", USAGE)),
@@ -323,7 +333,9 @@ fn parse_setting(args: &[String]) -> Result<CliCommand, ParseError> {
                     "e.g. setting get playback.autoplay-next",
                 ));
             }
-            Ok(CliCommand::SettingGet { key: rest[0].clone() })
+            Ok(CliCommand::SettingGet {
+                key: rest[0].clone(),
+            })
         }
         "set" => {
             if rest.len() != 2 {
@@ -370,8 +382,8 @@ fn parse_seek_target(token: &str) -> Result<SeekArg, ParseError> {
             .ok_or_else(|| ParseError::new(format!("bad relative time `{token}`"), hint))?;
         return Ok(SeekArg::Relative { ms: -ms });
     }
-    let us = parse_time_us(token)
-        .ok_or_else(|| ParseError::new(format!("bad time `{token}`"), hint))?;
+    let us =
+        parse_time_us(token).ok_or_else(|| ParseError::new(format!("bad time `{token}`"), hint))?;
     Ok(SeekArg::Absolute { us })
 }
 
@@ -441,7 +453,10 @@ fn parse_f64(token: &str) -> Option<f64> {
     if token.is_empty() || token.contains([':', ' ']) {
         return None;
     }
-    token.parse::<f64>().ok().filter(|v| v.is_finite() && *v >= 0.0)
+    token
+        .parse::<f64>()
+        .ok()
+        .filter(|v| v.is_finite() && *v >= 0.0)
 }
 
 fn parse_number<T: std::str::FromStr>(token: &str) -> Option<T> {
@@ -450,11 +465,34 @@ fn parse_number<T: std::str::FromStr>(token: &str) -> Option<T> {
 
 /// Build `session.open`'s catalog payload from a parsed [`CliCommand::Open`].
 #[must_use]
-pub fn open_command(source: &str, start_time: Option<i64>, start_paused: bool, no_video: bool, no_audio: bool) -> commands::Command {
-    commands::Command::SessionOpen {
-        source: SourceSpec::File {
+pub fn open_command(
+    source: &str,
+    start_time: Option<i64>,
+    start_paused: bool,
+    no_video: bool,
+    no_audio: bool,
+) -> commands::Command {
+    // A URL-shaped source (scheme://…) stays a URL spec: the open
+    // path then refuses with unsupported-for-host (69) naming the
+    // streaming crate (Phase 6) — never a file-resolution error on
+    // the URL string.
+    let is_url = source.split_once("://").is_some_and(|(scheme, _)| {
+        !scheme.is_empty()
+            && scheme
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '-' || c == '.')
+    });
+    let spec = if is_url {
+        SourceSpec::Url {
+            url: source.to_string(),
+        }
+    } else {
+        SourceSpec::File {
             path: std::path::PathBuf::from(source),
-        },
+        }
+    };
+    commands::Command::SessionOpen {
+        source: spec,
         options: OpenOptions {
             start_time: start_time.map(Timestamp),
             start_paused,
@@ -496,7 +534,7 @@ mod tests {
             Ok(CliCommand::Seek(SeekArg::Percent { fraction })) => {
                 assert!((fraction - 0.5).abs() < 1e-6);
             }
-            other => panic!("percent parse: {other:?}"),
+            other => unreachable!("percent parse: {other:?}"),
         }
         assert_eq!(
             parse_command(&words("seek chapter 3")),
@@ -512,7 +550,11 @@ mod tests {
         assert_eq!(parse_time_us("1.5s"), Some(1_500_000));
         assert_eq!(parse_time_us("750us"), Some(750));
         assert_eq!(parse_time_us("90"), Some(90_000_000));
-        assert_eq!(parse_time_us("1m30"), None, "bare number after unit is not seconds-seconds");
+        assert_eq!(
+            parse_time_us("1m30"),
+            None,
+            "bare number after unit is not seconds-seconds"
+        );
         assert_eq!(parse_time_us("-5s"), None, "negatives are relative-only");
         assert_eq!(parse_time_us(""), None);
         assert_eq!(parse_time_us("s"), None);
@@ -529,28 +571,54 @@ mod tests {
     #[test]
     fn open_flags_parse() {
         match parse_command(&words("open clip.avi --start-time 30s --no-audio")) {
-            Ok(CliCommand::Open { source, start_time, start_paused, no_video, no_audio }) => {
+            Ok(CliCommand::Open {
+                source,
+                start_time,
+                start_paused,
+                no_video,
+                no_audio,
+            }) => {
                 assert_eq!(source, "clip.avi");
                 assert_eq!(start_time, Some(30_000_000));
                 assert!(!start_paused);
                 assert!(!no_video);
                 assert!(no_audio);
             }
-            other => panic!("open parse: {other:?}"),
+            other => unreachable!("open parse: {other:?}"),
         }
         match parse_command(&words("open x.avi --start-paused")) {
             Ok(CliCommand::Open { start_paused, .. }) => assert!(start_paused),
-            other => panic!("open parse: {other:?}"),
+            other => unreachable!("open parse: {other:?}"),
         }
         assert!(parse_command(&words("open")).is_err(), "source is required");
-        assert!(parse_command(&words("open a b")).is_err(), "one source only");
+        assert!(
+            parse_command(&words("open a b")).is_err(),
+            "one source only"
+        );
     }
 
     #[test]
     fn no_arg_verbs_and_unknowns() {
-        for verb in ["play", "pause", "toggle", "stop", "close", "info", "time", "duration", "tracks", "engine-info", "commands", "quit", "help"] {
+        for verb in [
+            "play",
+            "pause",
+            "toggle",
+            "stop",
+            "close",
+            "info",
+            "time",
+            "duration",
+            "tracks",
+            "engine-info",
+            "commands",
+            "quit",
+            "help",
+        ] {
             assert!(parse_command(&words(verb)).is_ok(), "{verb}");
-            assert!(parse_command(&words(&format!("{verb} extra"))).is_err(), "{verb} takes no args");
+            assert!(
+                parse_command(&words(&format!("{verb} extra"))).is_err(),
+                "{verb} takes no args"
+            );
         }
         assert!(parse_command(&words("bogus")).is_err());
         assert!(parse_command(&words("")).is_err());
@@ -561,7 +629,9 @@ mod tests {
     fn setting_grammar() {
         assert_eq!(
             parse_command(&words("setting get playback.autoplay-next")),
-            Ok(CliCommand::SettingGet { key: "playback.autoplay-next".to_string() })
+            Ok(CliCommand::SettingGet {
+                key: "playback.autoplay-next".to_string()
+            })
         );
         assert_eq!(
             parse_command(&words("setting set engine.log-level debug")),
@@ -579,7 +649,9 @@ mod tests {
         let invocation = parse_argv(&words("--json open clip.avi")).ok();
         assert!(matches!(invocation, Some(i) if i.json && i.command.is_some()));
         let invocation = parse_argv(&words("--help engine")).ok();
-        assert!(matches!(invocation, Some(i) if i.help == Some(Some("engine".to_string())) && i.command.is_none()));
+        assert!(
+            matches!(invocation, Some(i) if i.help == Some(Some("engine".to_string())) && i.command.is_none())
+        );
         let invocation = parse_argv(&words("--version")).ok();
         assert!(matches!(invocation, Some(i) if i.version));
         let invocation = parse_argv(&words("--help open clip.avi")).ok();

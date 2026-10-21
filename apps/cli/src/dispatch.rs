@@ -101,7 +101,13 @@ fn route(
         }
         Command::SessionClose => host
             .submit_and_await(SessionCommandKind::Close)
-            .and_then(|receipt| host.receipt_outcome(receipt)),
+            .and_then(|receipt| host.receipt_outcome(receipt))
+            .inspect(|_| {
+                // A settled Close drops the host's session-scoped
+                // halves: later snapshots refuse with not-ready (the
+                // close test's honest-not-ready path).
+                host.session_closed();
+            }),
         // ---- playback (§2.4) ----
         Command::PlaybackPlay => host
             .submit_and_await(SessionCommandKind::Play)
@@ -130,25 +136,19 @@ fn route(
         Command::TracksList => Ok(CommandOutcome::Completed(CommandResult::TrackList {
             tracks: host.track_snapshot(),
         })),
-        Command::SystemGetEngineInfo => Ok(CommandOutcome::Completed(
-            CommandResult::EngineInfo {
-                info: crate::host::engine_info(),
-            },
-        )),
-        Command::SystemListCommands => Ok(CommandOutcome::Completed(
-            CommandResult::CommandListings {
+        Command::SystemGetEngineInfo => Ok(CommandOutcome::Completed(CommandResult::EngineInfo {
+            info: crate::host::engine_info(),
+        })),
+        Command::SystemListCommands => {
+            Ok(CommandOutcome::Completed(CommandResult::CommandListings {
                 commands: crate::host::command_listings(),
-            },
-        )),
+            }))
+        }
         // ---- the settings seam (§2.11) ----
         Command::ConfigGetSetting { area, key } => {
             Ok(CommandOutcome::Completed(host.setting_get(area, key)?))
         }
-        Command::ConfigSetSetting {
-            area,
-            key,
-            value,
-        } => Ok(CommandOutcome::Completed(
+        Command::ConfigSetSetting { area, key, value } => Ok(CommandOutcome::Completed(
             host.setting_set(area, key, value.clone())?,
         )),
         // ---- everything else: the honest typed refusal ----
@@ -227,15 +227,14 @@ mod tests {
     #[test]
     fn unserved_commands_refuse_typed() {
         let mut host = CliHost::new();
-        let response = lumen_dispatch(
-            &mut host,
-            &request(Command::PlaybackSetRate {
-                rate: 1.0,
-            }),
-        );
+        let response = lumen_dispatch(&mut host, &request(Command::PlaybackSetRate { rate: 1.0 }));
         match response.result {
             Err(error) => {
-                assert_eq!(error.code, commands::ErrorCode::UnsupportedForHost, "{error}");
+                assert_eq!(
+                    error.code,
+                    commands::ErrorCode::UnsupportedForHost,
+                    "{error}"
+                );
                 assert_eq!(error.stage, commands::Stage::Control, "{error}");
                 assert_eq!(
                     error.details.get("command").map(String::as_str),
@@ -243,7 +242,7 @@ mod tests {
                 );
                 assert!(error.details.contains_key("owner"), "{error}");
             }
-            Ok(_) => panic!("set-rate must not be served"),
+            Ok(_) => unreachable!("set-rate must not be served"),
         }
     }
 
@@ -254,7 +253,7 @@ mod tests {
         let response = lumen_dispatch(&mut host, &request(Command::MediaGetInfo));
         match response.result {
             Err(error) => assert_eq!(error.code, commands::ErrorCode::NotReady, "{error}"),
-            Ok(_) => panic!("info without a session must refuse"),
+            Ok(_) => unreachable!("info without a session must refuse"),
         }
     }
 
@@ -279,7 +278,7 @@ mod tests {
                 assert_eq!(applied, SettingValue::String("debug".to_string()));
                 assert!(!restart_required);
             }
-            other => panic!("valid setting write: {other:?}"),
+            other => unreachable!("valid setting write: {other:?}"),
         }
         let response = lumen_dispatch(
             &mut host,
@@ -293,7 +292,7 @@ mod tests {
             Err(error) => {
                 assert_eq!(error.code, commands::ErrorCode::InvalidArgument, "{error}");
             }
-            Ok(_) => panic!("bogus enum value must refuse"),
+            Ok(_) => unreachable!("bogus enum value must refuse"),
         }
     }
 
@@ -304,14 +303,12 @@ mod tests {
         let response = lumen_dispatch(
             &mut host,
             &request(Command::PlaybackSeek {
-                target: SeekTarget::Absolute {
-                    time: Timestamp(0),
-                },
+                target: SeekTarget::Absolute { time: Timestamp(0) },
             }),
         );
         match response.result {
             Err(error) => assert_eq!(error.code, commands::ErrorCode::NotReady, "{error}"),
-            Ok(_) => panic!("seek without a session must refuse"),
+            Ok(_) => unreachable!("seek without a session must refuse"),
         }
     }
 
@@ -330,9 +327,13 @@ mod tests {
         );
         match response.result {
             Err(error) => {
-                assert_eq!(error.code, commands::ErrorCode::UnsupportedForHost, "{error}");
+                assert_eq!(
+                    error.code,
+                    commands::ErrorCode::UnsupportedForHost,
+                    "{error}"
+                );
             }
-            Ok(_) => panic!("URL open must refuse"),
+            Ok(_) => unreachable!("URL open must refuse"),
         }
     }
 

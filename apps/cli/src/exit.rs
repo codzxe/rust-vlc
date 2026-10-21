@@ -162,12 +162,8 @@ mod tests {
     /// indented beneath.
     #[test]
     fn printed_form_is_stage_tagged_with_details() {
-        let error = CommandError::new(
-            Stage::Probe,
-            ErrorCode::Unsupported,
-            "no signature matched",
-        )
-        .with_detail("format", "unknown");
+        let error = CommandError::new(Stage::Probe, ErrorCode::Unsupported, "no signature matched")
+            .with_detail("format", "unknown");
         let mut seen = Vec::new();
         // Capture stderr is not possible std-only; assert the shape of
         // the pieces the printer uses instead (Display + summary are

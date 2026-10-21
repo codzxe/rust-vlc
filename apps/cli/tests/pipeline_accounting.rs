@@ -35,7 +35,7 @@ fn dispatch_open(host: &mut CliHost, source: SourceSpec) {
     );
     match response.result {
         Ok(_) => {}
-        Err(error) => panic!("open failed: {error}"),
+        Err(error) => unreachable!("open failed: {error}"),
     }
     host.settle();
 }
@@ -43,17 +43,22 @@ fn dispatch_open(host: &mut CliHost, source: SourceSpec) {
 /// One whole-media run, answered as the observable aggregate: the
 /// state trail, the position, the accounting, and the final frame's
 /// PNG (the headless evidence).
-fn run_to_end() -> (Vec<(PlaybackState, PlaybackState)>, i64, lumen_cli::host::HeadlessAccounting, Vec<u8>) {
+fn run_to_end() -> (
+    Vec<(PlaybackState, PlaybackState)>,
+    i64,
+    lumen_cli::host::HeadlessAccounting,
+    Vec<u8>,
+) {
     let mut host = CliHost::new();
     dispatch_open(&mut host, parent());
     host.advance(lumen_cli::host::RUN_PUMPS as u32);
     let state = host.state();
     if state != PlaybackState::Ended {
-        panic!("the run should have ended, state: {state:?}");
+        unreachable!("the run should have ended, state: {state:?}");
     }
     let png = match host.screenshot_png().must() {
         Ok(png) => png,
-        Err(error) => panic!("screenshot failed: {error}"),
+        Err(error) => unreachable!("screenshot failed: {error}"),
     };
     (
         host.state_history().to_vec(),
@@ -97,20 +102,30 @@ fn whole_media_accounting_closes() {
         accounting.scheduler_presented + accounting.scheduler_repeats >= 60,
         "at least every frame once: {accounting:?}"
     );
-    assert_eq!(accounting.staging_frames, accounting.video_presented, "{accounting:?}");
+    assert_eq!(
+        accounting.staging_frames, accounting.video_presented,
+        "{accounting:?}"
+    );
     assert_eq!(
         accounting.staging_bytes,
         accounting.staging_frames * 320 * 240 * 4,
         "one full-frame RGBA copy per present: {accounting:?}"
     );
-    assert_eq!(accounting.staging_copies, accounting.staging_frames, "{accounting:?}");
+    assert_eq!(
+        accounting.staging_copies, accounting.staging_frames,
+        "{accounting:?}"
+    );
 
     // The position lands on the 2.000 s duration exactly.
     assert_eq!(position, 2_000_000, "position: {position}");
 
     // The final frame is a real PNG (magic + IHDR + IEND) of the
     // media's own extent.
-    assert!(png.starts_with(&[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a]), "png head: {:?}", &png[..16]);
+    assert!(
+        png.starts_with(&[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a]),
+        "png head: {:?}",
+        &png[..16]
+    );
     assert!(png.len() > 8 + 25 + 12, "{png:?}");
 }
 
@@ -144,11 +159,16 @@ fn seek_reopen_accounting_closes() {
     );
     match response.result {
         Ok(_) => {}
-        Err(error) => panic!("seek failed: {error}"),
+        Err(error) => unreachable!("seek failed: {error}"),
     }
     host.advance(lumen_cli::host::RUN_PUMPS as u32);
     assert_eq!(host.state(), PlaybackState::Ended);
-    assert_eq!(host.position_us(), 2_000_000, "position: {}", host.position_us());
+    assert_eq!(
+        host.position_us(),
+        2_000_000,
+        "position: {}",
+        host.position_us()
+    );
     let accounting = host.headless_accounting().must();
     // Half the media: 30 video frames + 30 audio packets.
     assert_eq!(accounting.frames_accepted, 60, "{accounting:?}");

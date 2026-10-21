@@ -83,7 +83,10 @@ fn scripted_session_open_play_pause_seek_stop() {
     // recorded 2.D2 shape): Paused → Stopped → Idle → Opening →
     // Buffering → Playing, under a NEW session id.
     let seek_stop = out.find("state-changed Paused → Stopped").must();
-    assert!(seek_stop > info_at, "seek follows the info snapshot:\n{out}");
+    assert!(
+        seek_stop > info_at,
+        "seek follows the info snapshot:\n{out}"
+    );
     assert!(out.contains("state-changed Stopped → Idle"), "{out}");
     assert!(out.contains("state-changed Idle → Opening"), "{out}");
     assert!(out.contains("ok: accepted session=2"), "{out}");
@@ -92,8 +95,9 @@ fn scripted_session_open_play_pause_seek_stop() {
     assert!(out.contains("state-changed Playing → Stopped"), "{out}");
 
     // time after the 50% seek + stop: the clock froze at the seek
-    // landing — half of 2.000 s.
-    assert!(out.contains("ok: time 1.500000s (75.0%)"), "{out}");
+    // landing — exactly half of 2.000 s (pipeline-only settles never
+    // advance media time; only `advance` does).
+    assert!(out.contains("ok: time 1.000000s (50.0%)"), "{out}");
 }
 
 /// Determinism: the same script run twice is byte-identical (the
@@ -165,14 +169,17 @@ fn toggle_flips_play_pause() {
     assert!(out.contains("state-changed Paused → Playing"), "{out}");
 }
 
-/// `close` destroys the session (Idle); a later `time` is the honest
-/// not-ready — state truth survives the session.
+/// `close` from Playing is the honest Phase-3 refusal (card 3.C1
+/// owns active-close completeness); `stop` first, then `close` lands
+/// Stopped → Idle, and a later `time` is the honest not-ready —
+/// state truth survives the session.
 #[test]
 fn close_then_snapshot_is_not_ready() {
-    let script = "close\ntime\nquit\n";
+    let script = "stop\nclose\ntime\nquit\n";
     let (out, err, code) = run(&["open", &parent()], script);
     assert_eq!(code, 0, "stdout:\n{out}\nstderr:\n{err}");
-    assert!(out.contains("state-changed Playing → Idle"), "{out}");
+    assert!(out.contains("state-changed Playing → Stopped"), "{out}");
+    assert!(out.contains("state-changed Stopped → Idle"), "{out}");
     assert!(err.contains("[session.not-ready]"), "{err}");
 }
 
