@@ -1811,3 +1811,198 @@ fn internal_missing_pipeline() -> EngineError {
 pub fn transition_table() -> &'static [Transition] {
     TRANSITIONS
 }
+
+#[cfg(test)]
+mod tests {
+    //! The output-hub policy unit tests (card 3.B4 + the addendum's
+    //! boundedness/O(1) findings): these live here, not in the
+    //! integration suite, because they pin the hub's *internal*
+    //! complexity contract — the observable smoke (drop-oldest at
+    //! capacity, receipts pinned) is already pinned session-level in
+    //! `tests/session_flow.rs`.
+
+    use super::*;
+    use commands::envelope::RequestId;
+    use testkit::Must;
+
+    fn pair_at(pipeline: u64) -> GenerationPair {
+        GenerationPair {
+            epoch: SessionEpoch(1),
+            pipeline: PipelineGeneration(pipeline),
+        }
+    }
+
+    fn marker_event(seq: u64) -> EngineOutput {
+        EngineOutput::Event(EngineEvent {
+            seq,
+            session: SessionId(1),
+            generation: Generation(0),
+            origin: None,
+            kind: EngineEventKind::EndOfMedia,
+        })
+    }
+
+    fn tick_event(seq: u64, position_ns: i64) -> EngineOutput {
+        EngineOutput::Event(EngineEvent {
+            seq,
+            session: SessionId(1),
+            generation: Generation(0),
+            origin: None,
+            kind: EngineEventKind::TimeTick {
+                position_ns,
+                fraction: 0.0,
+            },
+        })
+    }
+
+    fn receipt(request: u64) -> EngineOutput {
+        EngineOutput::Receipt(CommandReceipt {
+            request: RequestId(request),
+            command: SessionCommandKind::Play,
+            result: ReceiptResult::Completed { session: SessionId(1) },
+        })
+    }
+
+    /// Push 10k events into a capped hub without draining: the live
+    /// population stays at the bound, every overflow is counted, and
+    /// — the O(1)-shape pin — the SLOT count stays bounded (the
+    /// compaction reclaims tombstones; the pre-3.B4 scan-and-memmove
+    /// implementation would also have left the len bounded, but at a
+    /// per-push O(n) cost this test's 10k pushes make unmissable in
+    /// a profiler, and the drop-count arithmetic below is the
+    /// behavioral half of the same pin).
+    #[test]
+    fn the_hub_stays_bounded_and_counts_every_drop_at_capacity() {
+        let mut hub = OutputHub::new(8, 16);
+        for seq in 0..10_000u64 {
+            hub.push(marker_event(seq));
+        }
+        assert_eq!(hub.live_events, 8, "the live bound holds");
+        assert_eq!(hub.dropped_events, 10_000 - 8, "every overflow counted");
+        // The compaction bound: slots <= 2x the live population (+1
+        // in-flight) — however long the host stalls.
+        let live = hub.live_events + hub.live_receipts;
+        assert!(
+            hub.queue.len() <= 2 * live + 1,
+            "slot count {} not bounded by 2x live {}",
+            hub.queue.len(),
+            live
+        );
+        // The survivors are the NEWEST events, in order.
+        let mut drained = Vec::new();
+        hub.drain_into(&pair_at(0), &mut drained);
+        let seqs: Vec<u64> = drained
+            .iter()
+            .filter_map(|output| match output {
+                EngineOutput::Event(event) => Some(event.seq),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(seqs, (10_000 - 8..10_000).collect::<Vec<_>>());
+    }
+
+    /// Doc 05 §3.4 rule 1: never queued — a newer tick replaces the
+    /// undelivered older one (counted), the delivery order keeps the
+    /// interleaved non-tick events, and a drained tick frees the
+    /// resident slot (the next tick is resident, not a replacement).
+    #[test]
+    fn a_newer_tick_replaces_the_undelivered_older_one() {
+        let mut hub = OutputHub::new(8, 16);
+        hub.push(tick_event(1, 250_000_000));
+        hub.push(marker_event(2));
+        hub.push(tick_event(3, 500_000_000));
+        assert_eq!(hub.time_ticks_replaced, 1, "the stale tick replaced");
+        assert_eq!(hub.live_events, 2, "marker + one live tick");
+        let mut drained = Vec::new();
+        hub.drain_into(&pair_at(0), &mut drained);
+        let seqs: Vec<u64> = drained
+            .iter()
+            .filter_map(|output| match output {
+                EngineOutput::Event(event) => Some(event.seq),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(seqs, vec![2, 3], "the newer tick rides in stream order");
+        // After a drain there is no resident tick: the next tick is
+        // fresh, not a replacement.
+        hub.push(tick_event(4, 750_000_000));
+        assert_eq!(hub.time_ticks_replaced, 1);
+    }
+
+    /// The resident tick can also be the oldest event — capacity
+    /// pressure may drop it like any other (never queued means never
+    /// pinned), and the replacement counter stays honest.
+    #[test]
+    fn capacity_pressure_may_drop_the_resident_tick_and_counts_it() {
+        let mut hub = OutputHub::new(2, 16);
+        hub.push(tick_event(1, 0));
+        hub.push(marker_event(2));
+        hub.push(marker_event(3));
+        assert_eq!(hub.dropped_events, 1, "the oldest event (the tick) dropped");
+        assert!(hub.resident_tick.is_none(), "the cursor died with it");
+        hub.push(tick_event(4, 0));
+        assert_eq!(hub.time_ticks_replaced, 0, "nothing to replace");
+        assert_eq!(hub.live_events, 2);
+    }
+
+    /// Receipts are pinned from event overflow but hard-capped
+    /// themselves (D-1): beyond the cap the OLDEST undelivered
+    /// receipt is dropped and counted — the host loses responses
+    /// before the engine loses boundedness.
+    #[test]
+    fn receipts_are_pinned_from_events_but_hard_capped() {
+        let mut hub = OutputHub::new(4, 4);
+        for request in 0..4u64 {
+            hub.push(receipt(request));
+        }
+        // Event overflow pressure: receipts survive.
+        for seq in 0..20u64 {
+            hub.push(marker_event(seq));
+        }
+        assert_eq!(hub.dropped_events, 16);
+        assert_eq!(hub.live_receipts, 4, "pinned from event overflow");
+        // Receipt overflow: oldest receipt goes, counted.
+        hub.push(receipt(100));
+        assert_eq!(hub.dropped_receipts, 1);
+        assert_eq!(hub.live_receipts, 4);
+        let mut drained = Vec::new();
+        hub.drain_into(&pair_at(0), &mut drained);
+        let receipts: Vec<u64> = drained
+            .iter()
+            .filter_map(|output| match output {
+                EngineOutput::Receipt(receipt) => Some(receipt.request.0),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(receipts, vec![1, 2, 3, 100], "the oldest receipt dropped");
+        // And the receipts precede the events they were interleaved
+        // with (delivery order preserved).
+        let kinds: Vec<bool> = drained.iter().map(|o| matches!(o, EngineOutput::Receipt(_))).collect();
+        assert_eq!(kinds.first(), Some(&true));
+    }
+
+    /// The engine-level view of the bounded inbox (D-1): submissions
+    /// beyond the bound answer the typed busy refusal — never a
+    /// block, never a drop — and the poll drains the whole inbox.
+    #[test]
+    fn the_inbox_is_bounded_and_answers_typed_busy() {
+        let (tx, rx) = std::sync::mpsc::sync_channel(2);
+        let handle = SessionHandle {
+            epoch: SessionEpoch(1),
+            tx,
+        };
+        handle.play(RequestId(1)).must();
+        handle.pause(RequestId(2)).must();
+        assert!(matches!(
+            handle.stop(RequestId(3)),
+            Err(SessionError::InboxBusy)
+        ));
+        // The queued commands are intact, in order.
+        let first = rx.try_recv().must();
+        let second = rx.try_recv().must();
+        assert_eq!(first.request, RequestId(1));
+        assert_eq!(second.request, RequestId(2));
+        // After a drain there is room again.
+        handle.stop(RequestId(3)).must();
+    }
+}
