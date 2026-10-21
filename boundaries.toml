@@ -291,8 +291,6 @@ internal_deps = ["media-types", "video-engine"]
 dev_deps = ["testkit", "media-clock"]
 external_allowlist = []
 external_dev_allowlist = []
-external_allowlist = []
-external_dev_allowlist = []
 
 # dev crate (doc 01 §1.4 "dev" row, §2.8; card 1.C3). Outside the layer
 # stack: it may depend on production crates (none yet — add entries in
