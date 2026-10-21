@@ -26,12 +26,20 @@
 //!   not belong there, handing the position back to the parent walk
 //!   (counted as damage — doc 03 §4.3(d) bounded recovery). This is
 //!   what survives a corrupted `hdrl` size without losing the `movi`.
-//! - **Truncation is a typed error at the boundary where data runs
-//!   out, never a silent EOF.** A cut inside a payload errors with the
-//!   chunk's needed end; a `movi` clamped before its declared end
-//!   errors with the declared end when the walk reaches the clamp;
-//!   the *index* is the one place truncation is non-fatal (salvage
-//!   complete entries, count the partial one — the walk is intact).
+//! - **A lying chunk size is contained, never fatal on its own**
+//!   (D-3/D-9). A payload that runs past the physical stream delivers
+//!   its real available prefix (clamped), counts the missing bytes as
+//!   damage, and ends the walk with `EndOfStream` — the typed
+//!   truncation error of the old behavior was a whole-file abort for
+//!   a recoverable cut. A payload that runs past its list bound but
+//!   stays inside the file is clamped to the bound (damage-counted,
+//!   never a silent early end) and the walk resumes at the bound.
+//!   `movi`-level structure cuts remain typed errors at the exact
+//!   boundary: a walk that cannot even read a chunk header inside the
+//!   clamped `movi` reports the declared end, never a silent EOF.
+//! - **Degenerate streams are contained per-stream** (see
+//!   [`header`]): one bad `strl` skips that stream with damage; the
+//!   file and its other tracks survive.
 //! - **Seek is a pure query; re-anchor acts** (the landed trait's
 //!   wording: `seek` "does not move the read position — the engine
 //!   decides whether to act"). `seek(target)` maps target time →
@@ -449,8 +457,8 @@ impl AviDemuxer {
                         Ok(base) => base,
                         Err(err) => return Err(self.fail(err)),
                     };
-                    let (delta, _) = desc.ticks_per_chunk(u64::from(header.size));
-                    let sample_frame = u64::from(desc.sample_size.max(1));
+                    let sample_size = desc.sample_size;
+                    let sample_frame = u64::from(sample_size.max(1));
                     let size = u64::from(header.size);
                     if size > MAX_CHUNK_PAYLOAD {
                         self.damage.note(size, "chunk-payload-over-ceiling");
@@ -458,21 +466,96 @@ impl AviDemuxer {
                         cursor.pos = next;
                         continue;
                     }
-                    let payload = match self.reader.read_exact_or_end_at(size as usize, pos + 8) {
-                        Ok(Some(bytes)) => bytes,
-                        Ok(None) => {
-                            return Err(
-                                self.fail(error::truncated(pos + 8 + size, self.reader.length()))
-                            );
+
+                    // The deliverable payload (D-3/D-9: a lying chunk
+                    // size is contained, never fatal on its own).
+                    // Full read when the declared extent fits the
+                    // walk bound; otherwise the real prefix, clamped
+                    // to whichever boundary it crosses first.
+                    let payload_start = pos + 8;
+                    let payload_end = payload_start.saturating_add(size);
+                    let file_len = self.reader.length();
+                    // Set when the stream itself ends inside this
+                    // payload: the walk cannot continue past the end
+                    // of the file.
+                    let mut hit_eof = false;
+                    // Where the walk resumes (the declared next chunk,
+                    // or the clamped bound when the size lied past it).
+                    let mut resume = next;
+                    let payload: Vec<u8> = if payload_end <= bound {
+                        match self
+                            .reader
+                            .read_exact_or_end_at(size as usize, payload_start)
+                        {
+                            Ok(Some(bytes)) => bytes,
+                            Ok(None) => {
+                                // Structurally unreachable (every walk
+                                // bound is clamped to the stream length
+                                // at parse time); the honest clamp
+                                // rather than a panic if that invariant
+                                // ever regresses.
+                                let prefix =
+                                    self.reader.read_prefix_at(size as usize, payload_start)?;
+                                self.damage.note(
+                                    size.saturating_sub(prefix.len() as u64),
+                                    "chunk-payload-past-eof",
+                                );
+                                self.surface_damage();
+                                hit_eof = true;
+                                prefix
+                            }
+                            Err(err) => return Err(self.fail(err)),
                         }
-                        Err(err) => return Err(self.fail(err)),
+                    } else if payload_end > file_len {
+                        // Past the physical stream: deliver the real
+                        // prefix, count the missing bytes, end the walk
+                        // after this packet — nothing follows the end
+                        // of the file.
+                        let prefix =
+                            self.reader.read_prefix_at(size as usize, payload_start)?;
+                        self.damage.note(
+                            size.saturating_sub(prefix.len() as u64),
+                            "chunk-payload-past-eof",
+                        );
+                        self.surface_damage();
+                        hit_eof = true;
+                        prefix
+                    } else {
+                        // Past the list bound but inside the file:
+                        // clamp the payload to the bound, count the
+                        // clamp, resume the walk AT the bound — the
+                        // remainder the lie swallowed is unreachable
+                        // without a resync scan, and the damage note is
+                        // what makes that loss non-silent.
+                        let clamped = (bound - payload_start) as usize;
+                        let prefix = self.reader.read_prefix_at(clamped, payload_start)?;
+                        self.damage.note(
+                            size.saturating_sub(prefix.len() as u64),
+                            "chunk-payload-past-list-bound",
+                        );
+                        self.surface_damage();
+                        resume = bound;
+                        prefix
                     };
-                    let Some(step) = cursor.ladders.advance(stream, size) else {
-                        cursor.pos = next;
+                    if payload.is_empty() {
+                        // Nothing deliverable: a cut that left zero
+                        // payload bytes. The clamp damage above already
+                        // made the loss observable.
+                        if hit_eof {
+                            self.eos = true;
+                            return Ok(None);
+                        }
+                        cursor.pos = resume;
+                        continue;
+                    }
+                    let delivered = payload.len() as u64;
+                    let (delta, _) = header::ticks_for_sample_size(sample_size, delivered);
+                    let Some(step) = cursor.ladders.advance(stream, delivered) else {
+                        cursor.pos = resume;
                         continue;
                     };
                     if step.unaligned {
-                        let stray = size % sample_frame;
+                        let stray = delivered % sample_frame;
                         self.damage.note(stray, "pcm-chunk-not-sample-aligned");
                         self.surface_damage();
                     }
@@ -502,13 +585,29 @@ impl AviDemuxer {
                         // authoritative for nothing.
                         generation: GenerationId::FIRST,
                     };
-                    cursor.pos = next;
+                    cursor.pos = resume;
+                    if hit_eof {
+                        // Terminal containment: the prefix packet is
+                        // the last event before EndOfStream.
+                        self.eos = true;
+                    }
                     return Ok(self.emit(DemuxEvent::Packet(packet)));
                 }
                 MoviChunkKind::RecList => {
-                    let end = pos + 8 + u64::from(header.size);
-                    if end > bound || cursor.ends.len() >= MAX_LIST_DEPTH {
+                    if cursor.ends.len() >= MAX_LIST_DEPTH {
                         return Err(self.fail(error::bad_structure(pos)));
+                    }
+                    // A `rec ` list whose declared end crosses its
+                    // parent bound is clamped to the bound (mirroring
+                    // the `movi` clamp at parse time) — damage-counted,
+                    // never fatal: the chunks that fit inside still
+                    // deliver.
+                    let rec_declared_end = pos + 8 + u64::from(header.size);
+                    let end = rec_declared_end.min(bound);
+                    if rec_declared_end > end {
+                        self.damage
+                            .note(rec_declared_end - end, "rec-extends-past-list-bound");
+                        self.surface_damage();
                     }
                     cursor.ends.push(end);
                     cursor.pos = pos + 8 + 4;
@@ -583,7 +682,17 @@ impl Demuxer for AviDemuxer {
         }
         match self.step_movi() {
             Ok(Some(event)) => Ok(event),
-            Ok(None) => Ok(DemuxEvent::EndOfStream),
+            Ok(None) => {
+                // The walk ended. Damage queued by the final step
+                // surfaces BEFORE the terminal EndOfStream (the
+                // damage-record-first contract): a `Recovered` record
+                // trailing EOS would never be read by the engine's
+                // demux driver, which stops at the first EOS.
+                if let Some(event) = self.pending.pop_front() {
+                    return Ok(event);
+                }
+                Ok(DemuxEvent::EndOfStream)
+            }
             Err(err) => Err(err),
         }
     }
@@ -746,11 +855,18 @@ impl AviDemuxer {
 
     /// The full header parse (the body of the trait's `start`).
     fn parse_container(&mut self) -> Result<Vec<Track>, EngineError> {
-        // Top-of-file: `RIFF <size> AVI `.
-        let head = self
-            .reader
-            .read_exact_or_end_at(12, 0)?
-            .ok_or_else(|| error::not_avi(&[]))?;
+        // Top-of-file: `RIFF <size> AVI `. A file too short to carry
+        // the head is classified by what it *does* carry: a RIFF magic
+        // prefix means the file was cut inside the head (the honest
+        // flavor is truncation, not "not an AVI" — D-9); anything
+        // else never promised AVI at all.
+        let head = self.reader.read_prefix_at(12, 0)?;
+        if head.len() < 12 {
+            if head.starts_with(RIFF.as_bytes()) {
+                return Err(error::truncated(12, head.len() as u64));
+            }
+            return Err(error::not_avi(&head));
+        }
         if &head[0..4] != RIFF.as_bytes() || &head[8..12] != FORM_AVI.as_bytes() {
             return Err(error::not_avi(&head));
         }

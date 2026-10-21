@@ -2508,9 +2508,141 @@ fn mp4_stsz_lie_derivative(
     })
 }
 
+/// Spec violation (ED-FIX-3, audit V1): the video `strf` `biHeight`
+/// patched to `−FRAME_HEIGHT` — the bottom-up DIB convention
+/// ubiquitous in real-world files. The demuxer accepts the stream
+/// with the absolute height plus a damage note; this fixture pins
+/// that acceptance end-to-end.
+fn avi_neg_height_derivative(
+    parent: &GeneratedFile,
+    layout: &AviLayout,
+) -> Result<Derivative, String> {
+    let strf_payload = avi_strl_chunk_payload_offset(parent, layout.strl_offsets[0], b"strf")?;
+    let at = strf_payload + 8; // BITMAPINFOHEADER biHeight
+    if at + 4 > parent.bytes.len() {
+        return Err(format!(
+            "video strf biHeight at {at} exceeds the file size {}",
+            parent.bytes.len()
+        ));
+    }
+    let mut bytes = parent.bytes.clone();
+    let patched = -(FRAME_HEIGHT as i32);
+    bytes[at..at + 4].copy_from_slice(&patched.to_le_bytes());
+    Ok(Derivative {
+        file: GeneratedFile {
+            path: derivative_path(&parent.path, "negheight0"),
+            bytes,
+            class: "B",
+            op: "negheight0",
+            parent: Some(parent.path.clone()),
+        },
+        derivation: vec![
+            "op = \"negate-biheight\"".to_string(),
+            format!("patched_offset = {}", toml_uint(at as u64)),
+            format!("patched_value = {}", toml_uint(patched as u32 as u64)),
+            "note = \"video strf biHeight patched to -240 (bottom-up DIB; ED-FIX-3 V1 — accepted with damage, not rejected)\""
+                .to_string(),
+        ],
+    })
+}
+
+/// Spec violation (ED-FIX-3, audit V4): every `idx1` `dwOffset`
+/// rewritten from movi-relative to an absolute file position — the
+/// legacy writer variant. The demuxer auto-detects the base (Lead
+/// decision ED-d, FFmpeg behavior); this fixture pins that the
+/// absolute index still seeks correctly.
+fn avi_abs_idx1_derivative(
+    parent: &GeneratedFile,
+    layout: &AviLayout,
+) -> Result<Derivative, String> {
+    let movi_fourcc_pos = layout.movi_offset + 8;
+    let entries = layout.chunks.len();
+    let first = layout.idx1_offset + 8;
+    let last = first + entries * 16;
+    if last > parent.bytes.len() {
+        return Err(format!(
+            "idx1 entries end at {last} beyond the file size {}",
+            parent.bytes.len()
+        ));
+    }
+    let mut bytes = parent.bytes.clone();
+    for entry in 0..entries {
+        let at = first + entry * 16 + 8; // dwOffset field
+        let rel = u32::from_le_bytes([
+            bytes[at],
+            bytes[at + 1],
+            bytes[at + 2],
+            bytes[at + 3],
+        ]);
+        let absolute = u64::from(rel) + movi_fourcc_pos as u64;
+        let Ok(absolute) = u32::try_from(absolute) else {
+            return Err(format!(
+                "absolute idx1 offset {absolute} does not fit u32"
+            ));
+        };
+        bytes[at..at + 4].copy_from_slice(&absolute.to_le_bytes());
+    }
+    Ok(Derivative {
+        file: GeneratedFile {
+            path: derivative_path(&parent.path, "absidx1"),
+            bytes,
+            class: "B",
+            op: "absidx1",
+            parent: Some(parent.path.clone()),
+        },
+        derivation: vec![
+            "op = \"absolute-idx1-offsets\"".to_string(),
+            format!("entry_count = {}", toml_uint(entries as u64)),
+            format!(
+                "movi_fourcc_offset = {}",
+                toml_uint(movi_fourcc_pos as u64)
+            ),
+            "note = \"every idx1 dwOffset rewritten from movi-relative to absolute (legacy writer variant; ED-FIX-3 V4 — base auto-detected, index still seeks)\""
+                .to_string(),
+        ],
+    })
+}
+
+/// Walk one `LIST strl`'s children and return the payload offset of
+/// the first chunk with the given id (the class-B patch sites are
+/// located by structure, never by hardcoded offsets).
+fn avi_strl_chunk_payload_offset(
+    parent: &GeneratedFile,
+    strl_size_field_offset: usize,
+    want: &[u8; 4],
+) -> Result<usize, String> {
+    // `AviLayout::strl_offsets` records the LIST *size-field* offset:
+    // the form FourCC ends at +8, children start there.
+    let mut pos = strl_size_field_offset + 8;
+    loop {
+        if pos + 8 > parent.bytes.len() {
+            return Err(format!(
+                "strl walk ran past the file ({} bytes) looking for {}",
+                parent.bytes.len(),
+                fourcc_str(want)
+            ));
+        }
+        let fourcc: [u8; 4] = parent.bytes[pos..pos + 4]
+            .try_into()
+            .unwrap_or([0; 4]);
+        let size = u32::from_le_bytes([
+            parent.bytes[pos + 4],
+            parent.bytes[pos + 5],
+            parent.bytes[pos + 6],
+            parent.bytes[pos + 7],
+        ]) as usize;
+        if &fourcc == want {
+            return Ok(pos + 8);
+        }
+        pos += 8 + size + (size & 1);
+    }
+}
+
 /// The AVI class-B set: five structure-boundary truncations (B1), three
-/// seeded header bit-flips (B2), one garbage append, and the missing-`idx1`
-/// spec violation — ten files, every offset taken from `layout`.
+/// seeded header bit-flips (B2), one garbage append, the missing-`idx1`
+/// spec violation, and the two ED-FIX-3 dirty-world variants (negative
+/// `biHeight`, absolute `idx1` offsets) — twelve files, every offset
+/// taken from `layout`.
 fn avi_derivatives(parent: &GeneratedFile, layout: &AviLayout) -> Result<Vec<Derivative>, String> {
     let mid_avih = layout.avih_offset + 8 + 20;
     let &(fourcc, chunk_offset, chunk_size) = layout
@@ -2550,6 +2682,8 @@ fn avi_derivatives(parent: &GeneratedFile, layout: &AviLayout) -> Result<Vec<Der
         flip_derivative(parent, "flip4", 4, AVI_FLIP_EXTENT)?,
         flip_derivative(parent, "flip16", 16, AVI_FLIP_EXTENT)?,
         avi_no_idx1_derivative(parent, layout)?,
+        avi_neg_height_derivative(parent, layout)?,
+        avi_abs_idx1_derivative(parent, layout)?,
     ])
 }
 
@@ -2863,6 +2997,13 @@ fn corpus_purpose(file: &GeneratedFile) -> String {
         "noidx0" => "spec violation: idx1 dropped, RIFF size patched, avih still \
              claims AVIF_HASINDEX (doc 03 §7 malformed variant)"
             .to_string(),
+        "negheight0" => "spec violation: video strf biHeight negated (bottom-up DIB \
+             convention; ED-FIX-3 V1 — accepted with damage, height absolute)"
+            .to_string(),
+        "absidx1" => "spec violation: every idx1 dwOffset rewritten as an absolute \
+             file position (legacy writer variant; ED-FIX-3 V4 — base \
+             auto-detected, index still seeks)"
+            .to_string(),
         "stszlie0" => "spec violation: video stsz sample_count patched to 2^31-1 \
              (corpus-plan §1 B3 oversize lie)"
             .to_string(),
@@ -2903,8 +3044,10 @@ fn corpus_markdown(files: &[GeneratedFile]) -> Vec<u8> {
     s.push_str("- `generated/valid/` — class A: the two decision-independent parents\n");
     s.push_str("  and their structure maps (`*.structure.json`, corpus-plan §2 — the\n");
     s.push_str("  recorded offsets the class-B cuts and patches derive from).\n");
-    s.push_str("- `generated/malformed/` — class B: ten derivatives per parent\n");
-    s.push_str("  (`<parent>__<op><n>.<ext>`), every mutation derived from the\n");
+    s.push_str("- `generated/malformed/` — class B: derivatives per parent\n");
+    s.push_str("  (`<parent>__<op><n>.<ext>`; twelve for the AVI parent — the ten\n");
+    s.push_str("  corpus-plan shapes plus the two ED-FIX-3 dirty-world variants —\n");
+    s.push_str("  ten for the MP4 parent), every mutation derived from the\n");
     s.push_str("  parent's structure map and a PRNG seeded by the parent's sha256\n");
     s.push_str("  (corpus-plan §1 B1/B2/B3; doc 03 §7's malformed variants).\n");
     s.push_str("- `generated/MANIFEST.toml` — machine-readable form of the table\n");
@@ -4378,9 +4521,9 @@ mod tests {
     }
 
     #[test]
-    fn tree_shape_is_the_planned_48_files() {
+    fn tree_shape_is_the_planned_52_files() {
         let files = files();
-        assert_eq!(files.len(), 48, "total tree size");
+        assert_eq!(files.len(), 52, "total tree size");
         assert_eq!(
             files
                 .iter()
@@ -4394,15 +4537,15 @@ mod tests {
                 .iter()
                 .filter(|f| f.path.starts_with("generated/malformed/"))
                 .count(),
-            20,
-            "class-B derivatives"
+            22,
+            "class-B derivatives (12 AVI + 10 MP4)"
         );
         assert_eq!(
             files
                 .iter()
                 .filter(|f| f.path.starts_with("expectations/"))
                 .count(),
-            22,
+            24,
             "expectation files"
         );
         assert!(files.iter().any(|f| f.path == "generated/MANIFEST.toml"));
@@ -4591,6 +4734,83 @@ mod tests {
     }
 
     #[test]
+    fn avi_neg_height_derivative_negates_only_the_video_biheight() {
+        let parent = find("generated/valid/avi_mjpeg_pcm.avi");
+        let derivative = find("generated/malformed/avi_mjpeg_pcm__negheight0.avi");
+        assert_eq!(derivative.bytes.len(), parent.bytes.len());
+        let mut differing = 0usize;
+        let mut at = 0usize;
+        for i in 0..parent.bytes.len() {
+            if derivative.bytes[i] != parent.bytes[i] {
+                if differing == 0 {
+                    at = i;
+                }
+                differing += 1;
+            }
+        }
+        assert_eq!(differing, 4, "exactly the 4 biHeight bytes differ");
+        // The patch site is the video strf's biHeight, and the value is
+        // -240 as i32le (0xFFFFFF10).
+        assert_eq!(at, number_after_toml(
+            &utf8(find("expectations/malformed/avi_mjpeg_pcm__negheight0.avi.toml")),
+            "patched_offset"
+        ));
+        assert_eq!(le32(&derivative.bytes, at), 0xFFFF_FF10);
+        assert_eq!(le32(&parent.bytes, at), FRAME_HEIGHT as u32);
+        // The patch really is inside the header region (before the
+        // movi list), in the video strl's strf chunk.
+        let map = structure_map("generated/valid/avi_mjpeg_pcm.avi");
+        let movi_offset = number_after(&map, "movi_offset");
+        assert!(
+            at + 4 <= movi_offset,
+            "the patch site lies inside the hdrl, not the data region"
+        );
+    }
+
+    #[test]
+    fn avi_abs_idx1_derivative_rewrites_only_the_dw_offsets() {
+        let parent = find("generated/valid/avi_mjpeg_pcm.avi");
+        let map = structure_map("generated/valid/avi_mjpeg_pcm.avi");
+        let derivative = find("generated/malformed/avi_mjpeg_pcm__absidx1.avi");
+        assert_eq!(derivative.bytes.len(), parent.bytes.len());
+        let idx1_offset = number_after(&map, "idx1_offset");
+        let movi_fourcc = number_after(&map, "movi_offset") + 8;
+        for i in 0..parent.bytes.len() {
+            if derivative.bytes[i] != parent.bytes[i] {
+                // Every differing byte lies inside an idx1 dwOffset
+                // field (entry-local offset 8..12).
+                assert!(
+                    i >= idx1_offset + 8,
+                    "byte {i} differs before the idx1 payload"
+                );
+                let field = (i - (idx1_offset + 8)) % 16;
+                assert!(
+                    (8..12).contains(&field),
+                    "byte {i} differs outside a dwOffset field"
+                );
+            }
+        }
+        // Every entry's dwOffset is exactly the parent's value plus the
+        // movi FourCC position (relative -> absolute).
+        let entries = 2 * FRAME_COUNT;
+        for entry in 0..entries {
+            let at = idx1_offset + 8 + entry * 16 + 8;
+            assert_eq!(
+                le32(&derivative.bytes, at),
+                le32(&parent.bytes, at) + movi_fourcc as u32,
+                "entry {entry} dwOffset rewritten"
+            );
+        }
+        // Entry 0's offset: relative 4 becomes the absolute first
+        // chunk position (movi_fourcc + 4).
+        assert_eq!(
+            le32(&derivative.bytes, idx1_offset + 8 + 8),
+            movi_fourcc as u32 + 4
+        );
+        assert_eq!(le32(&parent.bytes, idx1_offset + 8 + 8), 4);
+    }
+
+    #[test]
     fn mp4_stsz_lie_derivative_patches_only_the_count() {
         let parent = find("generated/valid/mp4_mjpeg_pcm.mp4");
         let map = structure_map("generated/valid/mp4_mjpeg_pcm.mp4");
@@ -4637,8 +4857,8 @@ mod tests {
             .iter()
             .filter(|f| f.class == "A" || f.class == "B")
             .collect();
-        assert_eq!(fixtures.len(), 24);
-        assert_eq!(text.matches("[[files]]").count(), 24);
+        assert_eq!(fixtures.len(), 26);
+        assert_eq!(text.matches("[[files]]").count(), 26);
         for file in &fixtures {
             let row = format!("path = \"{}\"", file.path);
             assert!(text.contains(&row), "manifest row for {}", file.path);
@@ -4771,6 +4991,8 @@ mod tests {
                 "flip1" | "flip4" | "flip16" => "op = \"bit-flip\"",
                 "garbage0" => "op = \"garbage-append\"",
                 "noidx0" => "op = \"drop-idx1\"",
+                "negheight0" => "op = \"negate-biheight\"",
+                "absidx1" => "op = \"absolute-idx1-offsets\"",
                 "stszlie0" => "op = \"stsz-count-lie\"",
                 other => unreachable!("unknown derivative op {other}"),
             };

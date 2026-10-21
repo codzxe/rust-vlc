@@ -21,6 +21,20 @@
 //! - Unknown chunks *inside* a `strl` are skipped (damage), because a
 //!   stream list can legally carry private chunks; the surrounding
 //!   structure stays trustworthy.
+//! - **A degenerate `strl` skips its stream, never the file** (D-3/D-9
+//!   per-stream containment): every unusable `strh`/`strf` parameter
+//!   set (zero rate/scale, short chunks, zero dimensions, degenerate
+//!   PCM, over-ceiling channel counts) is damage-counted and the
+//!   *other* streams survive. Only when no stream survives does the
+//!   parse surface the existing typed "no supported streams" refusal —
+//!   the honest all-bad verdict. Physical truncation stays a typed
+//!   error at the exact boundary (a cut inside the header is not a
+//!   per-stream decision).
+//! - `biHeight` is read **signed** (D-9): a negative value is the
+//!   bottom-up DIB convention, not corruption — the stream is accepted
+//!   with the absolute height and a damage note recording the flip
+//!   (the render-side row flip itself is a renderer concern
+//!   `[PROPOSAL: compositor bottom-up present pass]`).
 //! - Advisory `avih` fields (`dwStreams`, `dwTotalFrames`,
 //!   `AVIF_HASINDEX`, …) are never trusted for control flow — the
 //!   `strl` lists are the stream truth, the parsed `idx1` (or its
@@ -67,8 +81,11 @@ pub enum StreamFormat {
     MotionJpeg {
         /// Frame width in pixels (`biWidth`).
         width: u32,
-        /// Frame height in pixels (`biHeight`; a positive value — a
-        /// top-down DIB is not a meaningful MJPEG declaration).
+        /// Frame height in pixels (`|biHeight|`): the DIB field is
+        /// signed — a negative declaration is the bottom-up row order,
+        /// accepted with the absolute value plus a damage note (the
+        /// demuxer hands the decoder the same JPEG bytes either way;
+        /// presenting a bottom-up frame is a renderer concern).
         height: u32,
     },
     /// `auds` + PCM: the WAVEFORMATEX facts.
@@ -200,13 +217,21 @@ impl StreamDesc {
     /// counts damage (a PCM chunk not sample-aligned is corrupt data,
     /// not a rounding choice).
     pub fn ticks_per_chunk(&self, payload_bytes: u64) -> (i64, bool) {
-        if self.sample_size == 0 {
-            (1, false)
-        } else {
-            let whole = payload_bytes / u64::from(self.sample_size);
-            let aligned = payload_bytes.is_multiple_of(u64::from(self.sample_size));
-            (whole.min(i64::MAX as u64) as i64, !aligned)
-        }
+        ticks_for_sample_size(self.sample_size, payload_bytes)
+    }
+}
+
+/// The [`StreamDesc::ticks_per_chunk`] computation, free-standing so
+/// the `movi` walk can apply it to a **clamped** payload without
+/// holding a borrow of the stream table (the walk's damage calls need
+/// `&mut self`).
+pub(crate) fn ticks_for_sample_size(sample_size: u32, payload_bytes: u64) -> (i64, bool) {
+    if sample_size == 0 {
+        (1, false)
+    } else {
+        let whole = payload_bytes / u64::from(sample_size);
+        let aligned = payload_bytes.is_multiple_of(u64::from(sample_size));
+        (whole.min(i64::MAX as u64) as i64, !aligned)
     }
 }
 
@@ -214,6 +239,13 @@ impl StreamDesc {
 /// `[PROPOSAL: 4 KiB — stream names beyond that are corruption, and
 /// the payload is positionally skipped past the cap anyway]`.
 pub const MAX_STRN_BYTES: usize = 4096;
+
+/// Maximum accepted PCM channel count `[PROPOSAL: 64 — every real
+/// WAVEFORMATEX layout fits (consumers cap at dozens); a `nChannels`
+/// like 0xFFFF is corruption, and fabricating a layout for it would
+/// violate conceal-don't-fabricate — the stream is skipped with
+/// damage instead]`.
+pub const MAX_PCM_CHANNELS: u16 = 64;
 
 /// Damage observed while parsing (bounded-recovery bookkeeping — doc 03
 /// §4.3(d): repairs are counted and surfaced, never silent).
@@ -270,9 +302,10 @@ pub fn zeroed_main_header() -> AviMainHeader {
 ///
 /// # Errors
 /// [`error::truncated`] when the stream ends inside a structure the
-/// parser must read; [`error::bad_stream_params`] for unusable `strh`
-/// parameters (zero rate/scale, degenerate PCM); source errors
-/// propagate.
+/// parser must read (a physical cut, never a per-stream decision);
+/// source errors propagate. Degenerate `strh`/`strf` parameters skip
+/// the stream with damage (see the module docs) — they never abort
+/// the file.
 pub fn parse_hdrl(
     reader: &mut SourceReader,
     hdrl_pos: u64,
@@ -401,8 +434,11 @@ struct StrlParts {
 
 /// Parse one `LIST strl` at `strl_pos` into a [`StreamDesc`] — or
 /// `None` when the stream is real but outside v0's codec filter
-/// (MJPEG video, PCM audio — card scope), or carries no `strh`. Every
-/// skip is damage-counted with a reason.
+/// (MJPEG video, PCM audio — card scope), carries no `strh`, or
+/// declares parameters the timing model cannot honor. Every skip is
+/// damage-counted with a reason; **no degenerate stream ever aborts
+/// the file** (D-3/D-9 per-stream containment — the caller decides
+/// what an empty stream table means).
 fn parse_strl(
     reader: &mut SourceReader,
     strl_pos: u64,
@@ -427,7 +463,10 @@ fn parse_strl(
         match header.fourcc {
             STRH => {
                 if header.size < 56 {
-                    return Err(error::bad_stream_params(pos));
+                    // A strh too short to carry the timing fields: the
+                    // stream is undeclared, not the file (containment).
+                    damage.note(0, "strh-too-short");
+                    return Ok(None);
                 }
                 match reader.read_exact_or_end_at(56, pos + 8)? {
                     Some(bytes) => {
@@ -485,7 +524,11 @@ fn parse_strl(
     let sample_size = riff::u32le(&raw, 44);
 
     if scale == 0 || rate == 0 {
-        return Err(error::bad_stream_params(strh_offset));
+        // No time base, no stream — but only THIS stream (the sibling
+        // tracks keep playing; all-bad files surface the caller's
+        // typed no-supported-streams refusal).
+        damage.note(0, "zero-rate-or-scale");
+        return Ok(None);
     }
     let common = StreamDesc {
         ordinal,
@@ -511,18 +554,31 @@ fn parse_strl(
                 return Ok(None);
             }
             let Some((strf_offset, strf_size)) = parts.strf else {
-                return Err(error::bad_stream_params(strh_offset));
+                damage.note(0, "strf-missing");
+                return Ok(None);
             };
             if strf_size < 40 {
-                return Err(error::bad_stream_params(strf_offset));
+                damage.note(0, "strf-too-short");
+                return Ok(None);
             }
             let Some(bytes) = reader.read_exact_or_end_at(40, strf_offset + 8)? else {
                 return Err(error::truncated(strf_offset + 8 + 40, reader.length()));
             };
             let width = riff::u32le(&bytes, 4);
-            let height = riff::u32le(&bytes, 8);
+            // biHeight is SIGNED (D-9): negative = bottom-up DIB —
+            // accept with the absolute height and a damage note; the
+            // render-side row flip is a compositor concern.
+            let height_raw = riff::i32le(&bytes, 8);
+            let bottom_up = height_raw < 0;
+            let height = height_raw.unsigned_abs();
+            if bottom_up {
+                damage.note(0, "negative-biheight-bottom-up");
+            }
             if width == 0 || height == 0 || height > i32::MAX as u32 {
-                return Err(error::bad_stream_params(strf_offset));
+                // Zero or absurd (|i32::MIN| and beyond) dimensions:
+                // skip the stream, never the file.
+                damage.note(0, "video-dimensions-out-of-range");
+                return Ok(None);
             }
             Ok(Some(StreamDesc {
                 kind: MediaKind::Video,
@@ -532,10 +588,12 @@ fn parse_strl(
         }
         b"auds" => {
             let Some((strf_offset, strf_size)) = parts.strf else {
-                return Err(error::bad_stream_params(strh_offset));
+                damage.note(0, "strf-missing");
+                return Ok(None);
             };
             if strf_size < 16 {
-                return Err(error::bad_stream_params(strf_offset));
+                damage.note(0, "strf-too-short");
+                return Ok(None);
             }
             let Some(bytes) = reader.read_exact_or_end_at(16, strf_offset + 8)? else {
                 return Err(error::truncated(strf_offset + 8 + 16, reader.length()));
@@ -545,9 +603,17 @@ fn parse_strl(
             let samples_per_sec = riff::u32le(&bytes, 4);
             let block_align = riff::u16le(&bytes, 12);
             let bits_per_sample = riff::u16le(&bytes, 14);
+            // The channels ceiling (V11): a huge nChannels is
+            // corruption; fabricating a layout would lie — skip the
+            // stream with damage instead.
+            if channels > MAX_PCM_CHANNELS {
+                damage.note(0, "audio-channels-over-ceiling");
+                return Ok(None);
+            }
             if format_tag == 3 && !matches!(bits_per_sample, 32 | 64) {
                 // IEEE float PCM comes in f32/f64 only.
-                return Err(error::bad_stream_params(strf_offset));
+                damage.note(0, "float-pcm-bit-width-unsupported");
+                return Ok(None);
             }
             if format_tag == 1 {
                 if channels == 0
@@ -555,12 +621,14 @@ fn parse_strl(
                     || block_align == 0
                     || !matches!(bits_per_sample, 8 | 16 | 24 | 32)
                 {
-                    return Err(error::bad_stream_params(strf_offset));
+                    damage.note(0, "bad-pcm-format");
+                    return Ok(None);
                 }
                 if sample_size == 0 {
                     // PCM without a fixed sample-frame size has no
                     // honest chunk→sample ladder.
-                    return Err(error::bad_stream_params(strh_offset));
+                    damage.note(0, "pcm-sample-size-zero");
+                    return Ok(None);
                 }
                 if sample_size != u32::from(block_align) {
                     damage.note(0, "sample-size-disagrees-with-block-align");
@@ -570,7 +638,8 @@ fn parse_strl(
                 return Ok(None);
             }
             if channels == 0 || samples_per_sec == 0 || block_align == 0 {
-                return Err(error::bad_stream_params(strf_offset));
+                damage.note(0, "bad-pcm-format");
+                return Ok(None);
             }
             Ok(Some(StreamDesc {
                 kind: MediaKind::Audio,

@@ -270,6 +270,27 @@ impl SourceReader {
             ReadExact::Ended { .. } => Ok(None),
         }
     }
+
+    /// Read **at most** `len` bytes at absolute position `to`, returning
+    /// whatever the stream actually carries there (possibly fewer, never
+    /// more, possibly empty when `to` is at or past the end).
+    ///
+    /// This is the dirty-world clamp primitive (D-3/D-9): a chunk whose
+    /// declared size runs past the stream still delivers its real
+    /// available prefix instead of discarding it — the caller counts the
+    /// difference as damage. Reads are bounded per source call by
+    /// [`READ_STEP_MAX`] as everywhere else.
+    pub fn read_prefix_at(&mut self, len: usize, to: u64) -> Result<Vec<u8>, EngineError> {
+        // A position past the stream end clamps to the end (the empty
+        // prefix) — sources may refuse seeks past EOF, and "nothing
+        // there" is the honest answer, never an access error.
+        let to = to.min(self.length);
+        self.seek_to(to)?;
+        Ok(match self.read_exact_or_end(len)? {
+            ReadExact::Complete(bytes) => bytes,
+            ReadExact::Ended { partial } => partial,
+        })
+    }
 }
 
 /// Read one chunk header (`fourcc` + `u32le` size) at `pos` without
@@ -446,6 +467,31 @@ mod tests {
             .read_exact_or_end(4)
             .unwrap_or_else(|e| unreachable!("{e}"));
         assert_eq!(got, ReadExact::Ended { partial: vec![5] });
+    }
+
+    #[test]
+    fn read_prefix_at_clamps_to_the_stream() {
+        let mut r = reader(&[1, 2, 3, 4, 5]);
+        // Full ask at an interior position.
+        let got = r
+            .read_prefix_at(2, 1)
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        assert_eq!(got, vec![2, 3]);
+        // Ask running past the end: the real prefix, never padded.
+        let got = r
+            .read_prefix_at(10, 3)
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        assert_eq!(got, vec![4, 5]);
+        // At the end, and past it: empty, not an error (the caller
+        // classifies — the dirty-world clamp primitive).
+        let got = r
+            .read_prefix_at(4, 5)
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        assert!(got.is_empty());
+        let got = r
+            .read_prefix_at(4, 9)
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        assert!(got.is_empty());
     }
 
     #[test]
