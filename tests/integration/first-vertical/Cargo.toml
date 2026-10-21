@@ -1,0 +1,43 @@
+# tests/integration/first-vertical — the 2.E1 end-to-end integration
+# suite (doc 13 wave 2.E row 1; doc 10 §6.1 "Integration (scenarios)"
+# level: `tests/integration/` via the session harness, merge-blocking).
+#
+# Package `first-vertical` (path-named, the card's own scope): a
+# TEST-ONLY harness over the assembled first vertical — it exists to
+# drive `apps/cli`'s CliHost through the ONE command layer
+# (`lumen_cli::dispatch::lumen_dispatch`, ARCH-5) and to record the
+# doc 10 §7 evidence artifacts under `evidence/`.
+#
+# Registration: added to the workspace `members` list in the same
+# change (the pre-announced 2.E1 membership edit — see the root
+# Cargo.toml header; the `apps/*` precedent). boundaries.toml carries
+# a layer-less `[crates.first-vertical]` entry (the testkit/xtask
+# precedent: a harness over the assembled tree, outside the L0–L6
+# layer stack, so its edges carry no layer ordering).
+#
+# Std-only by C5: NO external dependencies at all — the evidence
+# artifacts (JSON transcripts, the evidence/1 ledger, SHA-256
+# digests) are emitted by the crate's own std-only writers under
+# `src/`, mirroring the 2.A3/2.B5/2.D1 in-repo precedents.
+
+[package]
+name = "first-vertical"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "2.E1 end-to-end integration suite: the first vertical driven through the command layer, with doc 10 §7 evidence"
+
+[dependencies]
+# The command layer's own vocabulary (WireRequest/Command/PlaybackState)
+# and the CLI host that dispatches them. Both are read-only surfaces
+# for this crate: it NEVER touches an engine API directly — the whole
+# point of the card ("through the command layer, not direct engine
+# calls").
+commands = { path = "../../../crates/commands" }
+lumen-cli = { path = "../../../apps/cli" }
+
+[dev-dependencies]
+testkit = { path = "../../../crates/testkit" }
+
+[lints]
+workspace = true
