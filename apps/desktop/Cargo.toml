@@ -9,11 +9,11 @@
 # reference implementation lives in prototype/ (browser + Node).
 #
 # NO tauri/wry import (the honest deferral, records/tauri-wry-2.x.md):
-# the webview host is a typed seam pending ADR-004 ratification and a
+# the webview host is a typed seam pending the admission criteria in
+# ADR-004 (accepted 2026-10-22; docs/adr/ADR-004-os-webview.md) and a
 # desktop build environment — this sandbox has no webkit2gtk-4.1 dev
 # packages, no display server, and tauri/wry are allowlist §5
-# "exception-ADR-004" (pre-audited, NOT imported; ADR-004 status:
-# planned). Std-only by C5.
+# "exception-ADR-004" (pre-audited, NOT imported). Std-only by C5.
 
 [package]
 name = "desktop"
