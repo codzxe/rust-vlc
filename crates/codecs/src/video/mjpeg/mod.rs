@@ -155,8 +155,12 @@ const JFIF_COLOR: ColorDescription = ColorDescription {
 /// (card 2.B4; doc 01 §2.5, doc 03 §4.5).
 ///
 /// Stateless between packets (one JPEG per packet, every frame a
-/// keyframe); `configure` only installs the stream generation, so
-/// re-configuration after a seek is free.
+/// keyframe): each frame decodes independently, and `configure` only
+/// installs the stream generation, so re-configuration after a seek
+/// is free. The working memory (padded planes, Huffman LUTs, output
+/// assembly buffer) is held in a reusable [`DecodeContext`] and
+/// rebuilt only when geometry or tables change (ED-FIX-1 C4) — pure
+/// allocation-discipline state, never inter-frame pixel state.
 ///
 /// # Example
 ///
@@ -207,6 +211,9 @@ pub struct MjpegDecoder {
     generation: Option<GenerationId>,
     /// Codec descriptor accepted at configure time (diagnostics).
     codec: Option<String>,
+    /// Reusable decode state across frames (ED-FIX-1 C4: planes,
+    /// Huffman LUTs, cursors, output buffer — see `decoder.rs`).
+    context: decoder::DecodeContext,
 }
 
 impl MjpegDecoder {
@@ -259,23 +266,27 @@ impl Decoder for MjpegDecoder {
         if let Some(outcome) = drop_stale_packet(&packet, generation) {
             return Ok(outcome);
         }
-        let image = decoder::decode(packet.data.as_slice()).map_err(|e| e.into_engine_error())?;
+        let meta = self
+            .context
+            .decode(packet.data.as_slice())
+            .map_err(|e| e.into_engine_error())?;
+        let data = self.context.take_output();
 
-        let format = match image.format {
+        let format = match meta.format {
             OutputFormat::I420 => media_types::PixelFormat::I420,
             OutputFormat::Rgba8 => media_types::PixelFormat::Rgba8,
         };
         let frame = Frame::Video(VideoFrame {
             format,
-            size: (image.width, image.height),
-            data: media_types::frame::FrameStorage::Cpu(SharedBytes::from_vec(image.data)),
+            size: (meta.width, meta.height),
+            data: media_types::frame::FrameStorage::Cpu(SharedBytes::from_vec(data)),
             pts: packet.pts,
             color: JFIF_COLOR,
             interlaced: false,
             generation: packet.generation,
         });
         out.accept(frame)?;
-        if image.concealed {
+        if meta.concealed {
             Ok(DecodeOutcome::Recovered {
                 skipped: 0,
                 reason: RecoverReason::ConcealedFrame,

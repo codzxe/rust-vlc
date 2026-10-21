@@ -350,11 +350,10 @@ mod tests {
             // Random BITS: distribute 1..=J codes across lengths.
             let mut bits = [0u8; 17];
             let mut total_codes = 0u32;
-            for length in 1..=16usize {
+            for (length, slot) in bits.iter_mut().enumerate().skip(1) {
                 if round % 3 != 0 || length <= 9 {
-                    let take = (rng.next() % 4) as u8;
-                    bits[length] = take;
-                    total_codes += u32::from(take);
+                    *slot = (rng.next() % 4) as u8;
+                    total_codes += u32::from(*slot);
                 }
             }
             let values: Vec<u8> = (0..total_codes).map(|i| (97 + i % 26) as u8).collect();

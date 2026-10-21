@@ -66,6 +66,10 @@ pub(crate) const MAX_COEFF: i64 = 1 << 20;
 
 /// Forward-DCT basis in Q16 (identical to the 2.A3 encoder's `DCT_A`;
 /// `A[u][x] = c(u)/2 · cos((2x+1) u π / 16)`, row-major `[u*8+x]`).
+/// Test-only since ED-FIX-1: the factored transform uses the split
+/// constants below; this table remains the equivalence oracle's
+/// ground truth (`idct_block_naive`, the round-trip property test).
+#[cfg(test)]
 const DCT_A: [i64; 64] = [
     23170, 23170, 23170, 23170, 23170, 23170, 23170, 23170, //
     32138, 27246, 18205, 6393, -6393, -18205, -27246, -32138, //
@@ -512,7 +516,7 @@ mod tests {
         // Every-coefficient-nonzero gradient (full-rank stress).
         let mut block = [0i16; 64];
         for (i, slot) in block.iter_mut().enumerate() {
-            *slot = (((i as i32 * 73) % 4096 - 2048)) as i16;
+            *slot = ((i as i32 * 73) % 4096 - 2048) as i16;
         }
         check(&block, &[7u16; 64], "gradient");
 

@@ -137,11 +137,10 @@ impl<'a> BitReader<'a> {
         if self.nbits < n {
             return None;
         }
-        Some((self.acc >> (self.nbits - n)) & ((1u32 << n) - 1).max(if n == 32 {
-            u32::MAX
-        } else {
-            0
-        }))
+        Some(
+            (self.acc >> (self.nbits - n))
+                & ((1u32 << n) - 1).max(if n == 32 { u32::MAX } else { 0 }),
+        )
     }
 
     /// The next 8 bits, zero-padded on the right when the data is
@@ -173,6 +172,10 @@ impl<'a> BitReader<'a> {
     }
 
     /// Read one bit; `None` when no bits remain (marker or end).
+    /// Test-only since ED-FIX-1: the production paths are
+    /// refill/peek/consume and [`BitReader::read_bits`]; this remains
+    /// the equivalence oracle's bit-at-a-time reference walk.
+    #[cfg(test)]
     pub(crate) fn next_bit(&mut self) -> Option<bool> {
         if self.nbits == 0 && !self.feed() {
             return None;
@@ -413,7 +416,10 @@ mod tests {
         assert_eq!(r.read_bits(8), Some(0xff), "stuffed literal FF");
         assert_eq!(r.read_bits(8), Some(0xf0));
         assert_eq!(r.read_bits(1), None);
-        assert_eq!(r.stop(), Some(ReaderStop::Marker(0xd9)), "fill byte skipped");
+        assert_eq!(
+            r.stop(),
+            Some(ReaderStop::Marker(0xd9)),
+            "fill byte skipped"
+        );
     }
 }
-
