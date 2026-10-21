@@ -1,0 +1,65 @@
+{
+  "schema": "transcript/1",
+  "scenario": "wire-session",
+  "fixture": "generated/valid/avi_mjpeg_pcm.avi",
+  "labels": {
+    "environment_kind": "local",
+    "os": "linux",
+    "hardware_class": "mock",
+    "devices": [
+      "null-audio",
+      "software-render"
+    ]
+  },
+  "commands": [
+    {
+      "cmd": "session.open",
+      "request_id": 1
+    },
+    {
+      "cmd": "playback.pause",
+      "request_id": 2
+    },
+    {
+      "cmd": "media.get-current-time",
+      "request_id": 3
+    },
+    {
+      "cmd": "tracks.list",
+      "request_id": 4
+    },
+    {
+      "cmd": "media.get-duration",
+      "request_id": 5
+    },
+    {
+      "cmd": "playback.stop",
+      "request_id": 6
+    },
+    {
+      "cmd": "session.close",
+      "request_id": 7
+    }
+  ],
+  "events": [
+    "{\"seq\":1,\"session\":1,\"gen\":0,\"kind\":\"session.state-changed\",\"from\":\"idle\",\"to\":\"opening\"}",
+    "{\"seq\":2,\"session\":1,\"gen\":0,\"kind\":\"tracks.list-ready\",\"tracks\":[{\"id\":0,\"kind\":\"video\",\"name\":null,\"language\":null,\"codec\":{\"fourcc\":null,\"description\":\"mjpeg\",\"profile\":null,\"level\":null},\"isDefault\":false,\"isSelected\":true,\"origin\":\"stream\",\"video\":null,\"audio\":null},{\"id\":1,\"kind\":\"audio\",\"name\":null,\"language\":null,\"codec\":{\"fourcc\":null,\"description\":\"pcm_s16le\",\"profile\":null,\"level\":null},\"isDefault\":false,\"isSelected\":true,\"origin\":\"stream\",\"video\":null,\"audio\":null}]}",
+    "{\"seq\":3,\"session\":1,\"gen\":0,\"kind\":\"session.buffering\",\"progress\":0.0}",
+    "{\"seq\":4,\"session\":1,\"gen\":0,\"kind\":\"session.state-changed\",\"from\":\"opening\",\"to\":\"buffering\"}",
+    "{\"seq\":6,\"session\":1,\"gen\":0,\"kind\":\"session.buffering\",\"progress\":1.0}",
+    "{\"seq\":7,\"session\":1,\"gen\":0,\"kind\":\"session.state-changed\",\"from\":\"buffering\",\"to\":\"playing\"}"
+  ],
+  "observables": {
+    "exit_code": 0,
+    "stderr_empty": true,
+    "response_lines": [
+      "{\"requestId\":1,\"session\":1,\"gen\":0,\"result\":{\"accepted\":{\"session\":1,\"gen\":0}}}",
+      "{\"requestId\":2,\"session\":1,\"gen\":0,\"result\":{\"error\":{\"stage\":\"session\",\"code\":\"not-ready\",\"message\":\"the session is still opening (state: Buffering)\",\"details\":{}}}}",
+      "{\"requestId\":3,\"session\":1,\"gen\":0,\"result\":{\"completed\":{\"kind\":\"current-time\",\"time\":0,\"position\":0.0,\"buffered\":[{\"start\":0,\"end\":2000000}]}}}",
+      "{\"requestId\":4,\"session\":1,\"gen\":0,\"result\":{\"completed\":{\"kind\":\"track-list\",\"tracks\":[{\"id\":0,\"kind\":\"video\",\"name\":null,\"language\":null,\"codec\":{\"fourcc\":null,\"description\":\"mjpeg\",\"profile\":null,\"level\":null},\"isDefault\":false,\"isSelected\":true,\"origin\":\"stream\",\"video\":{\"width\":320,\"height\":240,\"frameRate\":30.0,\"bitDepth\":null,\"hdr\":false},\"audio\":null},{\"id\":1,\"kind\":\"audio\",\"name\":null,\"language\":null,\"codec\":{\"fourcc\":null,\"description\":\"pcm_s16le\",\"profile\":null,\"level\":null},\"isDefault\":false,\"isSelected\":true,\"origin\":\"stream\",\"video\":null,\"audio\":{\"channels\":2,\"sampleRate\":44100,\"bitDepth\":null,\"codecParams\":null}}]}}}",
+      "{\"requestId\":5,\"session\":1,\"gen\":0,\"result\":{\"completed\":{\"kind\":\"duration\",\"duration\":{\"kind\":\"known\",\"time\":2000000}}}}",
+      "{\"requestId\":6,\"session\":1,\"gen\":0,\"result\":{\"error\":{\"stage\":\"session\",\"code\":\"not-ready\",\"message\":\"stop-or-close from Buffering lands with card 3.C1 (active-close completeness)\",\"details\":{}}}}",
+      "{\"requestId\":7,\"session\":1,\"gen\":0,\"result\":{\"error\":{\"stage\":\"session\",\"code\":\"not-ready\",\"message\":\"stop-or-close from Buffering lands with card 3.C1 (active-close completeness)\",\"details\":{}}}}"
+    ]
+  }
+}

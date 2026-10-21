@@ -1,0 +1,100 @@
+{
+  "schema": "transcript/1",
+  "scenario": "corrupt-truncated-midplay",
+  "fixture": "generated/malformed/avi_mjpeg_pcm__trunc3.avi",
+  "labels": {
+    "environment_kind": "local",
+    "os": "linux",
+    "hardware_class": "mock",
+    "devices": [
+      "null-audio",
+      "software-render"
+    ]
+  },
+  "commands": [
+    {
+      "cmd": "session.open",
+      "request_id": 1,
+      "session": 1,
+      "gen": 0,
+      "result": {
+        "form": "accepted",
+        "session": 1,
+        "gen": 0
+      }
+    }
+  ],
+  "events": [
+    {
+      "seq": 1,
+      "session": 1,
+      "gen": 0,
+      "kind": "session.state-changed",
+      "from": "Idle",
+      "to": "Opening"
+    },
+    {
+      "seq": 2,
+      "session": 1,
+      "gen": 0,
+      "kind": "tracks.list-ready",
+      "tracks": 2
+    },
+    {
+      "seq": 3,
+      "session": 1,
+      "gen": 0,
+      "kind": "session.buffering",
+      "progress": "0.00"
+    },
+    {
+      "seq": 4,
+      "session": 1,
+      "gen": 0,
+      "kind": "session.state-changed",
+      "from": "Opening",
+      "to": "Buffering"
+    },
+    {
+      "seq": 7,
+      "session": 1,
+      "gen": 0,
+      "kind": "playback.error",
+      "stage": "demux",
+      "code": "corrupt",
+      "message": "[demux] truncated data: expected 213101 bytes, found 212512 (demux.avi.truncated)"
+    },
+    {
+      "seq": 8,
+      "session": 1,
+      "gen": 0,
+      "kind": "session.state-changed",
+      "from": "Buffering",
+      "to": "Error"
+    }
+  ],
+  "observables": {
+    "final_state": "Error",
+    "position_us": 500000,
+    "session": 1,
+    "accounting": {
+      "frames_accepted": 30,
+      "frames_refused": 0,
+      "video_presented": 15,
+      "video_refused": 0,
+      "scheduler_pushed": 15,
+      "scheduler_presented": 15,
+      "scheduler_repeats": 0,
+      "scheduler_dropped_late": 0,
+      "staging_frames": 15,
+      "staging_bytes": 4608000,
+      "staging_copies": 15
+    },
+    "final_png": {
+      "bytes": 307541,
+      "sha256": "3dde92339ebd20cfbb7976235fae8615f16d3f6d8846e7b8da6ff620fa9838a8",
+      "width": 320,
+      "height": 240
+    }
+  }
+}

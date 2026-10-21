@@ -1,0 +1,150 @@
+{
+  "schema": "transcript/1",
+  "scenario": "play",
+  "fixture": "generated/valid/avi_mjpeg_pcm.avi",
+  "labels": {
+    "environment_kind": "local",
+    "os": "linux",
+    "hardware_class": "mock",
+    "devices": [
+      "null-audio",
+      "software-render"
+    ]
+  },
+  "commands": [
+    {
+      "cmd": "session.open",
+      "request_id": 1,
+      "session": 1,
+      "gen": 0,
+      "result": {
+        "form": "accepted",
+        "session": 1,
+        "gen": 0
+      }
+    },
+    {
+      "cmd": "playback.pause",
+      "request_id": 2,
+      "session": 1,
+      "gen": 0,
+      "result": {
+        "form": "accepted",
+        "session": 1,
+        "gen": 0
+      }
+    },
+    {
+      "cmd": "playback.play",
+      "request_id": 3,
+      "session": 1,
+      "gen": 0,
+      "result": {
+        "form": "accepted",
+        "session": 1,
+        "gen": 0
+      }
+    }
+  ],
+  "events": [
+    {
+      "seq": 1,
+      "session": 1,
+      "gen": 0,
+      "kind": "session.state-changed",
+      "from": "Idle",
+      "to": "Opening"
+    },
+    {
+      "seq": 2,
+      "session": 1,
+      "gen": 0,
+      "kind": "tracks.list-ready",
+      "tracks": 2
+    },
+    {
+      "seq": 3,
+      "session": 1,
+      "gen": 0,
+      "kind": "session.buffering",
+      "progress": "0.00"
+    },
+    {
+      "seq": 4,
+      "session": 1,
+      "gen": 0,
+      "kind": "session.state-changed",
+      "from": "Opening",
+      "to": "Buffering"
+    },
+    {
+      "seq": 6,
+      "session": 1,
+      "gen": 0,
+      "kind": "session.buffering",
+      "progress": "1.00"
+    },
+    {
+      "seq": 7,
+      "session": 1,
+      "gen": 0,
+      "kind": "session.state-changed",
+      "from": "Buffering",
+      "to": "Playing"
+    },
+    {
+      "seq": 8,
+      "session": 1,
+      "gen": 0,
+      "kind": "session.state-changed",
+      "from": "Playing",
+      "to": "Paused"
+    },
+    {
+      "seq": 9,
+      "session": 1,
+      "gen": 0,
+      "kind": "session.state-changed",
+      "from": "Paused",
+      "to": "Playing"
+    },
+    {
+      "seq": 10,
+      "session": 1,
+      "gen": 0,
+      "kind": "playback.end-of-media"
+    },
+    {
+      "seq": 11,
+      "session": 1,
+      "gen": 0,
+      "kind": "session.state-changed",
+      "from": "Playing",
+      "to": "Ended"
+    }
+  ],
+  "observables": {
+    "final_state": "Ended",
+    "position_us": 2000000,
+    "session": 1,
+    "accounting": {
+      "frames_accepted": 120,
+      "frames_refused": 0,
+      "video_presented": 16,
+      "video_refused": 0,
+      "scheduler_pushed": 60,
+      "scheduler_presented": 60,
+      "scheduler_repeats": 132,
+      "scheduler_dropped_late": 0,
+      "staging_frames": 16,
+      "staging_bytes": 4915200,
+      "staging_copies": 16
+    },
+    "final_png": {
+      "bytes": 307541,
+      "sha256": "af9b6aad3a767e0781912c83ab414508d1e99e3a9b156ab2dbb5f4dcda8700c5",
+      "width": 320,
+      "height": 240
+    }
+  }
+}

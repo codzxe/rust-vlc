@@ -1,0 +1,50 @@
+{
+  "schema": "transcript/1",
+  "scenario": "missing-file",
+  "fixture": "generated/valid/no-such-file.avi",
+  "labels": {
+    "environment_kind": "local",
+    "os": "linux",
+    "hardware_class": "mock",
+    "devices": [
+      "null-audio",
+      "software-render"
+    ]
+  },
+  "commands": [
+    {
+      "cmd": "session.open",
+      "request_id": 1,
+      "session": null,
+      "gen": 0,
+      "result": {
+        "form": "error",
+        "error": {
+          "stage": "input",
+          "code": "inaccessible",
+          "message": "[input.inaccessible]: cannot resolve …/no-such-file.avi: No such file or directory (os error 2)"
+        }
+      }
+    },
+    {
+      "cmd": "media.get-current-time",
+      "request_id": 2,
+      "session": null,
+      "gen": 0,
+      "result": {
+        "form": "error",
+        "error": {
+          "stage": "session",
+          "code": "not-ready",
+          "message": "[session.not-ready]: no session open"
+        }
+      }
+    }
+  ],
+  "events": [],
+  "observables": {
+    "final_state": "Idle",
+    "position_us": 0,
+    "session": null
+  }
+}
