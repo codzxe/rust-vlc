@@ -306,13 +306,13 @@ fn base() -> TimeBase {
     TimeBase::new(1, 1_000_000).must()
 }
 
-fn at_micros(us: i64) -> Stamp {
-    Stamp::Present(Timestamp::new(us, base()))
+fn at_millis(ms: i64) -> Stamp {
+    Stamp::Present(Timestamp::new(ms * 1_000, base()))
 }
 
-/// A track whose declared extent ends at `end_us` (`None` leaves the
-/// span unknown — the duration-less shape).
-fn track(id: u32, kind: MediaKind, end_us: Option<i64>) -> Track {
+/// A track whose declared extent ends at `end_ms` milliseconds
+/// (`None` leaves the span unknown — the duration-less shape).
+fn track(id: u32, kind: MediaKind, end_ms: Option<i64>) -> Track {
     Track {
         id: TrackId::new(id),
         stream: media_types::StreamId::new(id),
@@ -322,10 +322,10 @@ fn track(id: u32, kind: MediaKind, end_us: Option<i64>) -> Track {
         title: None,
         flags: TrackFlags::NONE,
         timing: TrackTiming {
-            span: match end_us {
+            span: match end_ms {
                 Some(end) => TimeSpan {
-                    start: at_micros(0),
-                    end: at_micros(end),
+                    start: at_millis(0),
+                    end: at_millis(end),
                 },
                 None => TimeSpan::UNKNOWN,
             },
@@ -335,10 +335,10 @@ fn track(id: u32, kind: MediaKind, end_us: Option<i64>) -> Track {
     }
 }
 
-fn packet(track: TrackId, pts_us: i64) -> Packet {
+fn packet(track: TrackId, pts_ms: i64) -> Packet {
     Packet {
         track,
-        pts: at_micros(pts_us),
+        pts: at_millis(pts_ms),
         dts: Stamp::Missing,
         duration: Some(Duration::Known(Nanoseconds(1_000_000))),
         data: SharedBytes::from_static(&[7u8; 64]),
@@ -377,7 +377,14 @@ fn tiny_queues() -> QueuePlan {
 
 fn tiny_budget() -> TickBudget {
     TickBudget {
-        demux_events: 64,
+        // A demux slice sized between the two watermark facts the
+        // suite needs: above 2× the decode slice (an interleaved
+        // two-limb media makes net progress — 6 pushed vs 4 popped
+        // per limb per tick), and below the 16-packet cap minus the
+        // decode slice (a single-limb queue cannot reach the
+        // 12-resident high mark in the very tick a seek applied —
+        // the seeking episode stays wire-observable for a poll).
+        demux_events: 12,
         packets_per_limb: 4,
         flush_calls_per_limb: 8,
     }
@@ -473,14 +480,18 @@ fn open(
 
 /// Drive polls until `predicate` holds on the engine state, or fail
 /// loudly after `limit` polls (a hang is a failed test — doc 03
-/// §4.6(f)).
+/// §4.6(f)). **Always polls at least once**: a command submitted
+/// right before the call needs its poll to apply, and the predicate
+/// may already hold on the pre-command state (a short-circuit would
+/// silently skip the command's entire lifecycle).
 fn poll_until(
     fixture: &mut Fixture,
     predicate: impl Fn(SessionState) -> bool,
     limit: usize,
     context: &str,
 ) {
-    for _ in 0..limit {
+    fixture.engine.poll();
+    for _ in 1..limit {
         if predicate(fixture.engine.state()) {
             return;
         }
@@ -835,11 +846,16 @@ fn a_past_end_seek_clamps_to_the_duration_then_ends_cleanly() {
         )
         .must();
     fixture.engine.poll();
-    assert_eq!(fixture.engine.state(), SessionState::Buffering);
+    // The past-end landing is the last keyframe (packet 39): the
+    // first demux slice after the re-anchor hits end-of-stream in the
+    // same tick, so the short-media row (`Buffering + EofReached →
+    // Playing`) consumes the seeking episode in-poll — the wire saw
+    // the full buffering enter/exit chain, and the state is already
+    // Playing again.
+    assert_eq!(fixture.engine.state(), SessionState::Playing);
     // The clamped target is 40 ms; the landing is the last keyframe
     // at or before it: packet 39. The short tail starts, the drain
     // ends the media.
-    poll_until(&mut fixture, |s| s == SessionState::Playing, 20, "short start");
     poll_until(&mut fixture, |s| s == SessionState::Ended, 40, "clean end");
     let outputs = take_events(&mut fixture);
     assert_eq!(

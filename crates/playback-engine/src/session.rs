@@ -48,7 +48,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use commands::CommandId;
 use commands::envelope::{Generation, RequestId, SessionId};
 use media_clock::{MediaClock, PlaybackClock};
-use media_types::{EngineError, SourceUri};
+use media_types::{EngineError, GenerationId, SourceUri};
 use plugin_api::SeekSupport;
 
 use crate::epoch::{CancelToken, GenerationPair, PipelineGeneration, SessionEpoch, TokenMinter};
@@ -767,6 +767,42 @@ impl Session {
         })
     }
 
+    /// Emit a **seek terminal** under the in-flight seek's own
+    /// generation, not the session's current wire generation (doc 05
+    /// §4.3 invariant 4: exactly one terminal seek event per completed
+    /// seek gen).
+    ///
+    /// The two can diverge legitimately: a follow-up seek that fails
+    /// *resolution* (unresolvable target, unseekable source) still
+    /// mints its generation at accept (doc 05 §4.2) but never touches
+    /// the pipeline — the older in-flight seek still owns the
+    /// pipeline's content and still completes (see `seek.rs`: the
+    /// point of no return is the flush). Stamping that terminal with
+    /// the newer mint would annex it for a generation that already
+    /// has its own `SeekFailed` — two terminals for one gen. The
+    /// outbox's drain exemption (doc 05 §4.3) keeps the older-gen
+    /// terminal visible across the newer live generation.
+    ///
+    /// Superseded seeks never reach this path at all: their slot was
+    /// replaced before any terminal was emitted, so there is nothing
+    /// to stamp (doc 05 §4.2 — superseded seeks are silent).
+    fn emit_seek_terminal(
+        &self,
+        kind: EngineEventKind,
+        origin: Option<RequestId>,
+        generation: GenerationId,
+    ) -> EngineOutput {
+        let seq = self.seq.fetch_add(1, Ordering::Relaxed) + 1;
+        let pair = self.pair();
+        EngineOutput::Event(EngineEvent {
+            seq,
+            session: pair.session_id(),
+            generation: Generation(generation.counter()),
+            origin,
+            kind,
+        })
+    }
+
     /// Apply one input through the table and interpret its effects.
     /// Answers the outputs **in causal order** (the caller places the
     /// receipt before them for commands). The context travels **by
@@ -1122,16 +1158,22 @@ impl Session {
         {
             let origin = inflight.origin;
             let requested = inflight.target_ns;
+            let generation = inflight.generation;
             match complete_seek(&self.runtime.clock, inflight, audio_anchor_ns) {
                 Ok(actual) => {
-                    outputs.push(self.emit(EngineEventKind::Seeked { requested, actual }, origin))
+                    outputs.push(self.emit_seek_terminal(
+                        EngineEventKind::Seeked { requested, actual },
+                        origin,
+                        generation,
+                    ));
                 }
-                Err(reason) => outputs.push(self.emit(
+                Err(reason) => outputs.push(self.emit_seek_terminal(
                     EngineEventKind::SeekFailed {
                         reason,
                         position: clock_position_ns(&self.runtime.clock),
                     },
                     origin,
+                    generation,
                 )),
             }
             // The observation window closes either way: the
