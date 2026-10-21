@@ -106,6 +106,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "lumen-cli"
+version = "0.1.0"
+dependencies = [
+ "audio-engine",
+ "audio-output",
+ "codec-api",
+ "codecs",
+ "commands",
+ "demux",
+ "input",
+ "media-clock",
+ "media-probe",
+ "media-types",
+ "playback-engine",
+ "plugin-api",
+ "renderer-wgpu",
+ "serde_json",
+ "settings-schema",
+ "testkit",
+ "toml",
+ "video-engine",
+]
+
+[[package]]
 name = "media-clock"
 version = "0.1.0"
 dependencies = [

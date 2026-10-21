@@ -1,0 +1,70 @@
+# apps/cli — the command-line player (card 2.D2; doc 01 §2.8 registry
+# row: layer L6, "engine + commands + contracts"; doc 05 §5.3).
+#
+# The bin target is `lumen` (the doc 05 §5.3 usage lines). The package
+# name is `lumen-cli` so workspace tooling (`cargo run -p lumen-cli`)
+# cannot collide with the binary's own name.
+#
+# Internal deps = the first vertical's real pipeline, driven through
+# the ONE command layer (ARCH-5): commands (the catalog), playback-
+# engine (Engine/Session, the poll-driven single-writer executor),
+# media-probe + input + demux (the open path), codecs + codec-api
+# (MJPEG/PCM decoders behind the Decoder contract), media-clock +
+# audio-engine + audio-output (the audio path over the null device —
+# no audio hardware in this sandbox, ADR-005 era), video-engine +
+# renderer-wgpu (the video path over the software compositor — no GPU
+# in this sandbox, 2.D1's recorded decision), settings-schema (the
+# `--help` generation per the card), and the L0/L1 vocabulary crates
+# those surfaces expose (media-types, plugin-api).
+#
+# External deps (2, both already Lead-admitted workspace externals via
+# the crates that own them — see boundaries.toml):
+# - serde_json: the command layer's OWN wire format (doc 05 §5.1 — one
+#   serde path for every host). The `--control-stdio` machine mode and
+#   `--json` event output serialize `CommandRequest`/`CommandResponse`/
+#   `Event` exactly as the catalog defines them; hand-rolled JSON would
+#   bypass the layer (ARCH-5), not honor it.
+# - toml: `settings_schema::runtime::validate_value` takes a
+#   `toml::Value` — the crate's own `config.set-setting` seam. Without
+#   it the CLI would re-implement the schema's type/range checks (a
+#   second settings definition — doc 01 §2.8 (d) "Never").
+
+[package]
+name = "lumen-cli"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Lumen command-line player — the first vertical's headless host (doc 05 §5.3)"
+
+[lib]
+name = "lumen_cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "lumen"
+path = "src/main.rs"
+
+[dependencies]
+audio-engine = { path = "../../crates/audio-engine" }
+audio-output = { path = "../../crates/audio-output" }
+codec-api = { path = "../../crates/codec-api" }
+codecs = { path = "../../crates/codecs" }
+commands = { path = "../../crates/commands" }
+demux = { path = "../../crates/demux" }
+input = { path = "../../crates/input" }
+media-clock = { path = "../../crates/media-clock" }
+media-probe = { path = "../../crates/media-probe" }
+media-types = { path = "../../crates/media-types" }
+playback-engine = { path = "../../crates/playback-engine" }
+plugin-api = { path = "../../crates/plugin-api" }
+renderer-wgpu = { path = "../../crates/renderer-wgpu" }
+settings-schema = { path = "../../crates/settings-schema" }
+video-engine = { path = "../../crates/video-engine" }
+serde_json = "1.0"
+toml = "1"
+
+[dev-dependencies]
+testkit = { path = "../../crates/testkit" }
+
+[lints]
+workspace = true

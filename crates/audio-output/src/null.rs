@@ -128,6 +128,14 @@ impl NullSink {
         self.shared.counter.count()
     }
 
+    /// Frames currently sitting in the ring (the write-side view of
+    /// [`NullDevice::buffered_frames`] — same shared ring). The
+    /// engine-side drain gate reads this: end-of-media waits until
+    /// the device has actually played everything written.
+    pub fn buffered_frames(&self) -> usize {
+        self.shared.ring.available_frames()
+    }
+
     /// Write raw interleaved f32 **bytes** (the convenience the AC
     /// suites use; the same whole-frames/backpressure contract as
     /// [`AudioSink::write`]).
