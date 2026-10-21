@@ -58,8 +58,8 @@ use crate::pipeline::{
     DecoderProvider, FrameConsumer, Pipeline, QueuePlan, SeekPreroll, TickBudget, TickReport,
 };
 use crate::seek::{
-    InFlightSeek, ResolvedSeek, SeekTarget, complete_seek, nanos_i64, not_seekable,
-    pipeline_seek, resolve_target,
+    InFlightSeek, ResolvedSeek, SeekTarget, complete_seek, nanos_i64, not_seekable, pipeline_seek,
+    resolve_target,
 };
 use crate::state::{
     Effect, PipelineSignal, RejectionReason, SessionInput, SessionState, TRANSITIONS, Transition,

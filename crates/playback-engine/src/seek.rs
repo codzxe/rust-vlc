@@ -270,8 +270,7 @@ pub(crate) fn resolve_target(
         },
         SeekTarget::Percent { fraction } => match duration_ns {
             Some(duration) => ResolvedSeek::Position {
-                ns: clamp((f64::from(fraction.clamp(0.0, 1.0)) * duration as f64).round()
-                    as i64),
+                ns: clamp((f64::from(fraction.clamp(0.0, 1.0)) * duration as f64).round() as i64),
             },
             None => ResolvedSeek::Failure(SeekFailure::OutOfRange),
         },
@@ -440,12 +439,7 @@ mod tests {
             Some(2_000_000_000),
             1_000_000_000,
         );
-        assert_eq!(
-            resolved,
-            ResolvedSeek::Position {
-                ns: 2_000_000_000
-            }
-        );
+        assert_eq!(resolved, ResolvedSeek::Position { ns: 2_000_000_000 });
         // Negative clamps to zero.
         let resolved = resolve_target(
             SeekTarget::Absolute { position_ns: -5 },
@@ -479,11 +473,7 @@ mod tests {
             ResolvedSeek::Position { ns: 0 },
             "rewinding past the start clamps to zero"
         );
-        let resolved = resolve_target(
-            SeekTarget::Relative { delta_ns: 500 },
-            Some(2_000),
-            1_000,
-        );
+        let resolved = resolve_target(SeekTarget::Relative { delta_ns: 500 }, Some(2_000), 1_000);
         assert_eq!(resolved, ResolvedSeek::Position { ns: 1_500 });
     }
 
@@ -500,22 +490,11 @@ mod tests {
             Some(2_000_000_000),
             0,
         );
-        assert_eq!(
-            resolved,
-            ResolvedSeek::Position { ns: 1_000_000_000 }
-        );
+        assert_eq!(resolved, ResolvedSeek::Position { ns: 1_000_000_000 });
         // Out-of-range fractions clamp (truth), including negatives.
-        let resolved = resolve_target(
-            SeekTarget::Percent { fraction: 1.5 },
-            Some(2_000),
-            0,
-        );
+        let resolved = resolve_target(SeekTarget::Percent { fraction: 1.5 }, Some(2_000), 0);
         assert_eq!(resolved, ResolvedSeek::Position { ns: 2_000 });
-        let resolved = resolve_target(
-            SeekTarget::Percent { fraction: -0.5 },
-            Some(2_000),
-            0,
-        );
+        let resolved = resolve_target(SeekTarget::Percent { fraction: -0.5 }, Some(2_000), 0);
         assert_eq!(resolved, ResolvedSeek::Position { ns: 0 });
     }
 

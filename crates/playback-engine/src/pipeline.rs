@@ -53,9 +53,7 @@ use std::sync::Arc;
 
 use codec_api::{DecodeOutcome, Decoder, DecoderConfig, FrameSink, ThreadBudget};
 use media_types::time::TimeSpan;
-use media_types::{
-    EngineError, Frame, GenerationId, MediaKind, Packet, Stamp, Track, TrackId,
-};
+use media_types::{EngineError, Frame, GenerationId, MediaKind, Packet, Stamp, Track, TrackId};
 use packet_queue::{
     BoundedQueue, PopOutcome, PushOutcome, QueueLimits, QueueUsage, Stamped, WatermarkThresholds,
 };
@@ -489,7 +487,11 @@ impl Pipeline {
     /// the new generation) — the seek fails honestly per D4 and the
     /// pipeline limps on (the next decode error surfaces through
     /// the normal fatal path).
-    pub(crate) fn seek_flush(&mut self, generation: GenerationId, flush_budget: u32) -> Result<(), EngineError> {
+    pub(crate) fn seek_flush(
+        &mut self,
+        generation: GenerationId,
+        flush_budget: u32,
+    ) -> Result<(), EngineError> {
         // Invalidate any previous observation window first: a
         // half-completed flush must not leave a superseded seek's
         // pre-roll progress armed (it would answer Ready from stale

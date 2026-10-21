@@ -566,7 +566,10 @@ fn seek_failed_terms(outputs: &[EngineOutput]) -> Vec<(Generation, SeekFailure, 
 }
 
 /// The index of the first event matching the kind predicate.
-fn event_index(outputs: &[EngineOutput], matches: impl Fn(&EngineEventKind) -> bool) -> Option<usize> {
+fn event_index(
+    outputs: &[EngineOutput],
+    matches: impl Fn(&EngineEventKind) -> bool,
+) -> Option<usize> {
     outputs.iter().position(|output| match output {
         EngineOutput::Event(event) => matches(&event.kind),
         EngineOutput::Receipt(_) => false,
@@ -590,7 +593,12 @@ fn a_happy_seek_from_playing_runs_the_seven_steps() {
     // (doc 05 §4.2: the wire gen moves at accept time).
     fixture
         .handle
-        .seek(RequestId(50), SeekTarget::Absolute { position_ns: 200 * MS })
+        .seek(
+            RequestId(50),
+            SeekTarget::Absolute {
+                position_ns: 200 * MS,
+            },
+        )
         .must();
     fixture.engine.poll();
     // Steps 2–3: the row's mint + flush opened the seeking episode.
@@ -682,7 +690,12 @@ fn the_audio_frame_timestamp_is_the_landing_truth_not_the_request() {
     poll_until(&mut fixture, |s| s == SessionState::Playing, 10, "priming");
     fixture
         .handle
-        .seek(RequestId(51), SeekTarget::Absolute { position_ns: 100 * MS })
+        .seek(
+            RequestId(51),
+            SeekTarget::Absolute {
+                position_ns: 100 * MS,
+            },
+        )
         .must();
     poll_until(&mut fixture, |s| s == SessionState::Playing, 20, "re-prime");
 
@@ -734,7 +747,12 @@ fn a_seek_from_paused_completes_without_leaving_paused() {
     // The seek runs while Paused: the wire state never moves.
     fixture
         .handle
-        .seek(RequestId(61), SeekTarget::Absolute { position_ns: 150 * MS })
+        .seek(
+            RequestId(61),
+            SeekTarget::Absolute {
+                position_ns: 150 * MS,
+            },
+        )
         .must();
     let mut saw_terminal = None;
     for _ in 0..10 {
@@ -812,11 +830,19 @@ fn a_seek_to_zero_lands_at_the_start() {
     // The first post-seek frame is the media's first frame again.
     let frames = frames_snapshot(&fixture.collector);
     let first_post = stamp_ns(&frames[frames_before].1.pts()).must();
-    assert_eq!(first_post, 0, "packet 0 re-delivered after the boundary seek");
+    assert_eq!(
+        first_post, 0,
+        "packet 0 re-delivered after the boundary seek"
+    );
     // A negative absolute target clamps to zero (truth, not failure).
     fixture
         .handle
-        .seek(RequestId(64), SeekTarget::Absolute { position_ns: -5 * MS })
+        .seek(
+            RequestId(64),
+            SeekTarget::Absolute {
+                position_ns: -5 * MS,
+            },
+        )
         .must();
     poll_until(&mut fixture, |s| s == SessionState::Playing, 20, "re-prime");
     let outputs = take_events(&mut fixture);
@@ -864,10 +890,8 @@ fn a_past_end_seek_clamps_to_the_duration_then_ends_cleanly() {
         "requested is the clamped target; actual is the last keyframe"
     );
     // The end arrived with the documented event chain.
-    let has_end = event_index(&outputs, |kind| {
-        matches!(kind, EngineEventKind::EndOfMedia)
-    })
-    .is_some();
+    let has_end =
+        event_index(&outputs, |kind| matches!(kind, EngineEventKind::EndOfMedia)).is_some();
     assert!(has_end);
     // Exactly the landing frame was new (packet 39); the pre-seek
     // delivery is untouched history.
@@ -886,7 +910,12 @@ fn an_unseekable_source_refuses_typed_and_playback_continues() {
 
     fixture
         .handle
-        .seek(RequestId(70), SeekTarget::Absolute { position_ns: 200 * MS })
+        .seek(
+            RequestId(70),
+            SeekTarget::Absolute {
+                position_ns: 200 * MS,
+            },
+        )
         .must();
     fixture.engine.poll();
     // The accept is still class A with the bumped generation (doc 05
@@ -949,7 +978,12 @@ fn a_failed_reanchor_rolls_back_d4_and_stays_playable() {
 
     fixture
         .handle
-        .seek(RequestId(71), SeekTarget::Absolute { position_ns: 200 * MS })
+        .seek(
+            RequestId(71),
+            SeekTarget::Absolute {
+                position_ns: 200 * MS,
+            },
+        )
         .must();
     fixture.engine.poll();
     // The failure surfaces in the same poll (steps 3–4 are
@@ -970,7 +1004,12 @@ fn a_failed_reanchor_rolls_back_d4_and_stays_playable() {
     );
     // D4: playable — the rebuffer refills from where the demuxer
     // stands and the media runs to its end.
-    poll_until(&mut fixture, |s| s == SessionState::Playing, 40, "D4 rebuffer");
+    poll_until(
+        &mut fixture,
+        |s| s == SessionState::Playing,
+        40,
+        "D4 rebuffer",
+    );
     poll_until(&mut fixture, |s| s == SessionState::Ended, 400, "D4 drain");
     let outputs = take_events(&mut fixture);
     assert!(
@@ -1032,11 +1071,21 @@ fn a_superseded_seek_is_silent_only_the_newest_terminal_fires() {
     poll_until(&mut fixture, |s| s == SessionState::Playing, 10, "priming");
     fixture
         .handle
-        .seek(RequestId(80), SeekTarget::Absolute { position_ns: 100 * MS })
+        .seek(
+            RequestId(80),
+            SeekTarget::Absolute {
+                position_ns: 100 * MS,
+            },
+        )
         .must();
     fixture
         .handle
-        .seek(RequestId(81), SeekTarget::Absolute { position_ns: 250 * MS })
+        .seek(
+            RequestId(81),
+            SeekTarget::Absolute {
+                position_ns: 250 * MS,
+            },
+        )
         .must();
     poll_until(&mut fixture, |s| s == SessionState::Playing, 20, "re-prime");
     poll_until(&mut fixture, |s| s == SessionState::Ended, 400, "drain");
@@ -1065,7 +1114,12 @@ fn a_resolution_failure_does_not_retire_an_in_flight_seek() {
     poll_until(&mut fixture, |s| s == SessionState::Playing, 10, "priming");
     fixture
         .handle
-        .seek(RequestId(82), SeekTarget::Absolute { position_ns: 100 * MS })
+        .seek(
+            RequestId(82),
+            SeekTarget::Absolute {
+                position_ns: 100 * MS,
+            },
+        )
         .must();
     // Percent without a declared duration: unresolvable.
     fixture
@@ -1111,7 +1165,12 @@ fn stale_content_never_reappears_after_a_seek() {
 
     fixture
         .handle
-        .seek(RequestId(90), SeekTarget::Absolute { position_ns: 200 * MS })
+        .seek(
+            RequestId(90),
+            SeekTarget::Absolute {
+                position_ns: 200 * MS,
+            },
+        )
         .must();
     poll_until(&mut fixture, |s| s == SessionState::Playing, 20, "re-prime");
     // The decoder-held old frame was purged and counted.
@@ -1155,7 +1214,12 @@ fn a_seek_terminal_survives_a_later_generation_mint() {
     poll_until(&mut fixture, |s| s == SessionState::Playing, 10, "priming");
     fixture
         .handle
-        .seek(RequestId(95), SeekTarget::Absolute { position_ns: 200 * MS })
+        .seek(
+            RequestId(95),
+            SeekTarget::Absolute {
+                position_ns: 200 * MS,
+            },
+        )
         .must();
     // The seek completes and the session re-primes — all without
     // draining (the terminal stays in the outbox).
