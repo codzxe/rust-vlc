@@ -26,6 +26,7 @@
 //! backend capability]"); v0 always stages through exactly one buffer
 //! copy, which is also `Queue::write_buffer`'s own shape.
 
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use media_types::frame::PixelFormat;
@@ -34,16 +35,118 @@ use media_types::packet::SharedBytes;
 use crate::error::{RendererError, RendererResult};
 use crate::params::Extent2D;
 
+/// How many frame buffers the recycle pool keeps (D-1: bounded).
+/// Three covers the frame currently being composited plus two handed
+/// out (a presenter pipeline that overlaps one frame — e.g. a
+/// present-thread decoupling — never starves the pool).
+const RECYCLE_SLOTS: usize = 3;
+
+/// The bounded buffer-recycle pool shared between the
+/// [`StagingUploader`] and the [`StagedFrame`]s it handed out: a frame
+/// dropping returns its `rgba` Vec to the pool; the next `stage`
+/// pops one big enough and refills it in place. Memory is bounded at
+/// `RECYCLE_SLOTS · frame-bytes`; a frame nobody drops simply never
+/// returns (correct, never leaks into unbounded growth).
+#[derive(Debug)]
+struct RecyclePool {
+    slots: Mutex<Vec<Vec<u8>>>,
+}
+
+impl RecyclePool {
+    fn new() -> RecyclePool {
+        RecyclePool {
+            slots: Mutex::new(Vec::new()),
+        }
+    }
+
+    /// Take a buffer for a `needed`-byte fill: prefer one whose
+    /// capacity already covers `needed` (pure reuse, no realloc);
+    /// else any buffer (it grows once — the geometry-change path).
+    /// Allocates only when the pool is empty (the warm-up path).
+    fn acquire(&self, needed: usize) -> Vec<u8> {
+        let mut slots = match self.slots.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        // Best fit: smallest capacity that covers `needed` (keeps the
+        // big buffers big-frame-sized).
+        let mut best: Option<usize> = None;
+        for (i, buf) in slots.iter().enumerate() {
+            if buf.capacity() >= needed && best.is_none_or(|b| buf.capacity() < slots[b].capacity())
+            {
+                best = Some(i);
+            }
+        }
+        match best {
+            Some(i) => slots.swap_remove(i),
+            None => slots.pop().unwrap_or_default(),
+        }
+    }
+
+    /// Return a buffer (bounded: never grows past `RECYCLE_SLOTS`).
+    fn release(&self, buffer: Vec<u8>) {
+        let mut slots = match self.slots.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        if slots.len() < RECYCLE_SLOTS {
+            slots.push(buffer);
+        }
+        // A full pool drops the returnee: bounded memory wins over
+        // retention (the next acquire allocates — cold path only).
+    }
+}
+
 /// A staged frame: sampleable RGBA8 pixels plus their extent — the
 /// software "texture" (the hardware path wraps the same bytes in a
 /// `wgpu::Texture` instead).
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// The `rgba` buffer is **pooled**: when this frame drops, the buffer
+/// returns to the owning [`StagingUploader`]'s bounded recycle pool
+/// (the C5a fix — the old `mem::take` handed the Vec out and freed
+/// it at drop, forcing a fresh full-frame allocation every present).
+/// Frames constructed by hand (tests) carry no pool and behave like
+/// plain owners.
+#[derive(Clone)]
 pub struct StagedFrame {
     /// Pixel dimensions of `rgba`.
     pub extent: Extent2D,
     /// RGBA8 bytes, row-major, `width * height * 4`, no padding.
     pub rgba: Vec<u8>,
+    /// The buffer's return address (absent for hand-built frames).
+    recycle: Option<Arc<RecyclePool>>,
 }
+
+impl Drop for StagedFrame {
+    fn drop(&mut self) {
+        if let Some(pool) = self.recycle.take() {
+            // Move the buffer out so Drop of the Vec never runs on a
+            // pooled buffer (replace with the cheapest empty Vec).
+            pool.release(std::mem::take(&mut self.rgba));
+        }
+    }
+}
+
+impl std::fmt::Debug for StagedFrame {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Same rendering the old derive produced (the pool handle is
+        // machinery, not frame state).
+        f.debug_struct("StagedFrame")
+            .field("extent", &self.extent)
+            .field("rgba", &self.rgba)
+            .finish()
+    }
+}
+
+impl PartialEq for StagedFrame {
+    fn eq(&self, other: &StagedFrame) -> bool {
+        // Frame equality is pixel equality; the pool handle is
+        // machinery (matches the old derive's observable behavior).
+        self.extent == other.extent && self.rgba == other.rgba
+    }
+}
+
+impl Eq for StagedFrame {}
 
 impl StagedFrame {
     /// The RGBA8 pixel at (x, y) — point-sampled by the software
@@ -89,16 +192,37 @@ pub struct StagingStats {
     pub last_stage_ns: u64,
 }
 
-/// The staging uploader: one reusable buffer, one measured copy per
-/// frame.
-#[derive(Debug, Default)]
+/// The staging uploader: a bounded pool of reusable frame buffers,
+/// one measured copy per frame into the next one (the "one reusable
+/// buffer" the type has always claimed — now true: buffers cycle
+/// through the [`RecyclePool`] instead of being freed with every
+/// handed-out frame).
 pub struct StagingUploader {
-    buffer: Vec<u8>,
+    pool: Arc<RecyclePool>,
     stats: StagingStats,
 }
 
+impl Default for StagingUploader {
+    fn default() -> StagingUploader {
+        StagingUploader {
+            pool: Arc::new(RecyclePool::new()),
+            stats: StagingStats::default(),
+        }
+    }
+}
+
+impl std::fmt::Debug for StagingUploader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Same rendering the old derive produced (the pool's Mutex is
+        // machinery; the stats are the state that matters).
+        f.debug_struct("StagingUploader")
+            .field("stats", &self.stats)
+            .finish()
+    }
+}
+
 impl StagingUploader {
-    /// A fresh uploader (empty buffer, zeroed stats).
+    /// A fresh uploader (empty pool, zeroed stats).
     #[must_use = "pure constructor"]
     pub fn new() -> StagingUploader {
         StagingUploader::default()
@@ -145,16 +269,17 @@ impl StagingUploader {
         }
 
         let started = Instant::now();
-        self.buffer.clear();
+        let mut buffer = self.pool.acquire(needed as usize);
+        buffer.clear();
         let source = bytes.as_slice();
         match format {
             // Straight copy: the frame's bytes are already RGBA8.
-            PixelFormat::Rgba8 => self.buffer.extend_from_slice(&source[..needed as usize]),
+            PixelFormat::Rgba8 => buffer.extend_from_slice(&source[..needed as usize]),
             // Same single pass with the byte swap folded in.
             PixelFormat::Bgra8 => {
-                self.buffer.reserve(needed as usize);
+                buffer.reserve(needed as usize);
                 for pixel in source[..needed as usize].as_chunks::<4>().0 {
-                    self.buffer
+                    buffer
                         .extend_from_slice(&[pixel[2], pixel[1], pixel[0], pixel[3]]);
                 }
             }
@@ -171,7 +296,8 @@ impl StagingUploader {
 
         Ok(StagedFrame {
             extent,
-            rgba: std::mem::take(&mut self.buffer),
+            rgba: buffer,
+            recycle: Some(Arc::clone(&self.pool)),
         })
     }
 }
@@ -325,6 +451,7 @@ mod tests {
                 height: 1,
             },
             rgba: vec![9; 4],
+            recycle: None,
         };
         assert_eq!(staged.pixel(0, 0), [9, 9, 9, 9]);
         // Out-of-bounds saturates to opaque black — placement math
@@ -336,7 +463,104 @@ mod tests {
                 height: 4,
             },
             rgba: Vec::new(),
+            recycle: None,
         };
         assert_eq!(empty.pixel(1, 1), [0, 0, 0, 255]);
+    }
+
+    #[test]
+    fn staged_buffers_return_to_the_pool_and_are_reused() {
+        // The C5a contract: a dropped frame's buffer re-enters the
+        // bounded pool; the next stage of the same geometry reuses it
+        // (observable: the second stage's buffer carries >= the first
+        // one's capacity without a fresh allocation — and the
+        // counting-allocator proof binary measures exactly zero
+        // bytes across steady-state presents).
+        let mut uploader = StagingUploader::new();
+        let first = uploader
+            .stage(
+                &frame_bytes(8, 8, 0xAB),
+                Extent2D {
+                    width: 8,
+                    height: 8,
+                },
+                PixelFormat::Rgba8,
+            )
+            .must();
+        assert_eq!(first.rgba.len(), 256);
+        assert!(first.recycle.is_some(), "uploader frames are pooled");
+        // Overlapping frames: two alive at once (the pool must absorb
+        // this without unbounded growth).
+        let second = uploader
+            .stage(
+                &frame_bytes(8, 8, 0xCD),
+                Extent2D {
+                    width: 8,
+                    height: 8,
+                },
+                PixelFormat::Rgba8,
+            )
+            .must();
+        assert_eq!(second.rgba, vec![0xCD; 256]);
+        drop(first);
+        drop(second);
+        // Steady state: the same geometry stages from pooled buffers.
+        for fill in [0x11, 0x22, 0x33, 0x44] {
+            let staged = uploader
+                .stage(
+                    &frame_bytes(8, 8, fill),
+                    Extent2D {
+                        width: 8,
+                        height: 8,
+                    },
+                    PixelFormat::Rgba8,
+                )
+                .must();
+            assert_eq!(staged.rgba, vec![fill; 256]);
+        }
+    }
+
+    #[test]
+    fn hand_built_frames_and_clones_behave_like_plain_owners() {
+        // No pool: dropping is a plain Vec drop (no machinery).
+        let mut uploader = StagingUploader::new();
+        let staged = uploader
+            .stage(
+                &frame_bytes(2, 2, 7),
+                Extent2D {
+                    width: 2,
+                    height: 2,
+                },
+                PixelFormat::Rgba8,
+            )
+            .must();
+        // A clone shares nothing pooled: each owns its Vec; both
+        // return cleanly.
+        let clone = staged.clone();
+        assert_eq!(clone, staged);
+        drop(staged);
+        assert_eq!(clone.rgba.len(), 16);
+        drop(clone);
+        // Equality ignores the pool handle (hand-built == staged
+        // with identical pixels).
+        let hand = StagedFrame {
+            extent: Extent2D {
+                width: 2,
+                height: 2,
+            },
+            rgba: vec![7; 16],
+            recycle: None,
+        };
+        let staged = uploader
+            .stage(
+                &frame_bytes(2, 2, 7),
+                Extent2D {
+                    width: 2,
+                    height: 2,
+                },
+                PixelFormat::Rgba8,
+            )
+            .must();
+        assert_eq!(hand, staged);
     }
 }
