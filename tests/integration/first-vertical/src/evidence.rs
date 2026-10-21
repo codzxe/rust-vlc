@@ -33,7 +33,9 @@ pub fn evidence_dir() -> PathBuf {
 /// One scenario's transcript path.
 #[must_use]
 pub fn transcript_path(id: &str) -> PathBuf {
-    evidence_dir().join("transcripts").join(format!("{id}.json"))
+    evidence_dir()
+        .join("transcripts")
+        .join(format!("{id}.json"))
 }
 
 /// The final-frame PNG path.
@@ -84,7 +86,10 @@ pub fn iso_utc(secs: u64) -> String {
 /// regenerated from), or an honest placeholder when git is absent.
 #[must_use]
 pub fn git_head() -> String {
-    match ProcessCommand::new("git").args(["rev-parse", "HEAD"]).output() {
+    match ProcessCommand::new("git")
+        .args(["rev-parse", "HEAD"])
+        .output()
+    {
         Ok(output) if output.status.success() => {
             String::from_utf8_lossy(&output.stdout).trim().to_string()
         }
@@ -154,7 +159,10 @@ pub fn hardware_labels() -> Json {
                          anywhere, hence the byte-determinism proofs)",
                     ),
                 ),
-                ("real_path", Json::str("the wall-clock session thread is card 3.B3")),
+                (
+                    "real_path",
+                    Json::str("the wall-clock session thread is card 3.B3"),
+                ),
             ]),
         ),
         (
@@ -251,9 +259,7 @@ pub fn build_ledger(runs: &[ScenarioRun], artifacts: &[(String, Vec<u8>)]) -> Js
             Json::Arr(vec![Json::obj(vec![
                 (
                     "cmd",
-                    Json::str(
-                        "cargo test -p first-vertical --test evidence -- --ignored regen",
-                    ),
+                    Json::str("cargo test -p first-vertical --test evidence -- --ignored regen"),
                 ),
                 ("exit", Json::UInt(0)),
                 (
@@ -290,7 +296,7 @@ pub fn build_ledger(runs: &[ScenarioRun], artifacts: &[(String, Vec<u8>)]) -> Js
 pub fn regen_all() -> Result<String, String> {
     let mut runs = Vec::new();
     for id in scenarios::SCENARIO_IDS {
-        let run = scenarios::by_id(id).map_err(|reason| reason)?;
+        let run = scenarios::by_id(id)?;
         if !run.all_passed() {
             let failed: Vec<&str> = run
                 .checks
@@ -306,9 +312,8 @@ pub fn regen_all() -> Result<String, String> {
         runs.push(run);
     }
     let transcripts_dir = evidence_dir().join("transcripts");
-    std::fs::create_dir_all(&transcripts_dir).map_err(|error| {
-        format!("mkdir {}: {error}", transcripts_dir.display())
-    })?;
+    std::fs::create_dir_all(&transcripts_dir)
+        .map_err(|error| format!("mkdir {}: {error}", transcripts_dir.display()))?;
     let mut artifacts: Vec<(String, Vec<u8>)> = Vec::new();
     for run in &runs {
         let path = transcript_path(run.id);

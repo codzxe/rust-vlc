@@ -76,7 +76,9 @@ fn compress(state: &mut [u32; 8], block: &[u8; 64]) {
 #[must_use]
 pub fn sha256(data: &[u8]) -> [u8; 32] {
     let mut state = H0;
-    let bit_len = u64::try_from(data.len()).unwrap_or(u64::MAX).wrapping_mul(8);
+    let bit_len = u64::try_from(data.len())
+        .unwrap_or(u64::MAX)
+        .wrapping_mul(8);
     // Pad: 0x80, zeros to a 56-byte boundary, then the big-endian bit
     // length — always one final partial block.
     let mut padded = data.to_vec();

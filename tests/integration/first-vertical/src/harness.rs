@@ -34,7 +34,9 @@ use std::path::{Path, PathBuf};
 use commands::catalog::command::CommandResult;
 use commands::catalog::types::{Duration, MediaInfo, TrackInfo};
 use commands::envelope::{CommandOutcome, RequestId};
-use commands::{Command, CommandError, EventKind, PlaybackState, WireEvent, WireRequest, WireResponse};
+use commands::{
+    Command, CommandError, EventKind, PlaybackState, WireEvent, WireRequest, WireResponse,
+};
 use lumen_cli::dispatch::lumen_dispatch;
 use lumen_cli::host::{CliHost, HeadlessAccounting, RUN_PUMPS};
 
@@ -112,18 +114,30 @@ impl Check {
         Check {
             claim: claim.to_string(),
             passed,
-            detail: if passed { String::new() } else { detail.to_string() },
+            detail: if passed {
+                String::new()
+            } else {
+                detail.to_string()
+            },
         }
     }
 
     /// An integer claim (observed vs expected).
     pub fn int(claim: &str, got: i64, want: i64) -> Check {
-        Check::is(claim, got == want, &format!("observed {got}, expected {want}"))
+        Check::is(
+            claim,
+            got == want,
+            &format!("observed {got}, expected {want}"),
+        )
     }
 
     /// A string claim (observed vs expected).
     pub fn same(claim: &str, got: &str, want: &str) -> Check {
-        Check::is(claim, got == want, &format!("observed {got:?}, expected {want:?}"))
+        Check::is(
+            claim,
+            got == want,
+            &format!("observed {got:?}, expected {want:?}"),
+        )
     }
 }
 
@@ -278,7 +292,11 @@ impl SessionHarness {
         let state = self.host.state();
         let position = self.host.position_us();
         let session = self.host.session_id().map(|sid| sid.0);
-        let accounting = self.host.headless_accounting().as_ref().map(accounting_json);
+        let accounting = self
+            .host
+            .headless_accounting()
+            .as_ref()
+            .map(accounting_json);
         let png = self.screenshot_png();
         let events = self.host.events().iter().map(event_json).collect();
         let mut observables = vec![
@@ -298,10 +316,7 @@ impl SessionHarness {
                 Some(bytes)
             }
             Some(Err(message)) => {
-                observables.push((
-                    "final_png_error".to_string(),
-                    Json::Str(message),
-                ));
+                observables.push(("final_png_error".to_string(), Json::Str(message)));
                 None
             }
             None => None,
@@ -336,7 +351,10 @@ impl SessionHarness {
 /// forms, which could embed machine paths.
 fn step_json(name: &str, response: &WireResponse) -> Json {
     let result = match &response.result {
-        Ok(CommandOutcome::Accepted { session, generation }) => Json::obj(vec![
+        Ok(CommandOutcome::Accepted {
+            session,
+            generation,
+        }) => Json::obj(vec![
             ("form", Json::str("accepted")),
             (
                 "session",
@@ -363,10 +381,7 @@ fn step_json(name: &str, response: &WireResponse) -> Json {
                 .map(|s| Json::UInt(s.0))
                 .unwrap_or(Json::Null),
         ),
-        (
-            "gen",
-            Json::UInt(response.generation.0),
-        ),
+        ("gen", Json::UInt(response.generation.0)),
         ("result", result),
     ])
 }
@@ -408,10 +423,7 @@ fn result_json(result: &CommandResult) -> Json {
         },
         CommandResult::TrackList { tracks } => Json::obj(vec![
             ("count", Json::UInt(tracks.len() as u64)),
-            (
-                "tracks",
-                Json::Arr(tracks.iter().map(track_json).collect()),
-            ),
+            ("tracks", Json::Arr(tracks.iter().map(track_json).collect())),
         ]),
         _ => Json::str("(result variant not recorded by this suite)"),
     }
@@ -427,7 +439,10 @@ fn media_info_json(info: &MediaInfo) -> Json {
         Duration::Infinite => Json::str("infinite"),
     };
     Json::obj(vec![
-        ("container", info.container.clone().map(Json::Str).unwrap_or(Json::Null)),
+        (
+            "container",
+            info.container.clone().map(Json::Str).unwrap_or(Json::Null),
+        ),
         ("duration_us", duration),
         ("seekable", Json::Bool(info.seekable)),
         ("is_live", Json::Bool(info.is_live)),
@@ -453,10 +468,7 @@ fn track_json(track: &TrackInfo) -> Json {
                 .map(Json::Str)
                 .unwrap_or(Json::Null),
         ),
-        (
-            "selected".to_string(),
-            Json::Bool(track.is_selected),
-        ),
+        ("selected".to_string(), Json::Bool(track.is_selected)),
     ];
     if let Some(video) = &track.video {
         fields.push(("width".to_string(), Json::UInt(u64::from(video.width))));
@@ -492,10 +504,7 @@ fn event_json(event: &WireEvent) -> Json {
         ("seq".to_string(), Json::UInt(event.seq)),
         (
             "session".to_string(),
-            event
-                .session
-                .map(|s| Json::UInt(s.0))
-                .unwrap_or(Json::Null),
+            event.session.map(|s| Json::UInt(s.0)).unwrap_or(Json::Null),
         ),
         (
             "gen".to_string(),
@@ -559,8 +568,14 @@ fn accounting_json(accounting: &HeadlessAccounting) -> Json {
         ("video_presented", Json::UInt(accounting.video_presented)),
         ("video_refused", Json::UInt(accounting.video_refused)),
         ("scheduler_pushed", Json::UInt(accounting.scheduler_pushed)),
-        ("scheduler_presented", Json::UInt(accounting.scheduler_presented)),
-        ("scheduler_repeats", Json::UInt(accounting.scheduler_repeats)),
+        (
+            "scheduler_presented",
+            Json::UInt(accounting.scheduler_presented),
+        ),
+        (
+            "scheduler_repeats",
+            Json::UInt(accounting.scheduler_repeats),
+        ),
         (
             "scheduler_dropped_late",
             Json::UInt(accounting.scheduler_dropped_late),
@@ -582,10 +597,7 @@ fn png_json(png: &[u8]) -> Json {
     let extent = if png.len() >= 24 {
         let width = u32::from_be_bytes([png[16], png[17], png[18], png[19]]);
         let height = u32::from_be_bytes([png[20], png[21], png[22], png[23]]);
-        (
-            Json::UInt(u64::from(width)),
-            Json::UInt(u64::from(height)),
-        )
+        (Json::UInt(u64::from(width)), Json::UInt(u64::from(height)))
     } else {
         (Json::Null, Json::Null)
     };
@@ -622,9 +634,7 @@ pub fn normalize_run_specific(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for line in text.split_inclusive('\n') {
         let trimmed = line.trim_start();
-        if trimmed.starts_with("\"environment_kind\":")
-            || trimmed.starts_with("\"os\":")
-        {
+        if trimmed.starts_with("\"environment_kind\":") || trimmed.starts_with("\"os\":") {
             let indent = &line[..line.len() - trimmed.len()];
             out.push_str(indent);
             out.push_str("\"normalized\": \"per-run\",\n");

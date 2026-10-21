@@ -166,10 +166,7 @@ mod tests {
     #[test]
     fn escapes_strings() {
         let value = Json::Str("a\"b\\c\nd\te\u{01}".to_string());
-        assert_eq!(
-            value.render(),
-            "\"a\\\"b\\\\c\\nd\\te\\u0001\"\n"
-        );
+        assert_eq!(value.render(), "\"a\\\"b\\\\c\\nd\\te\\u0001\"\n");
     }
 
     /// Determinism: the same tree renders byte-identically twice, and
@@ -177,10 +174,7 @@ mod tests {
     #[test]
     fn deterministic_and_order_preserving() {
         use testkit::Must;
-        let value = Json::obj(vec![
-            ("zebra", Json::UInt(1)),
-            ("alpha", Json::UInt(2)),
-        ]);
+        let value = Json::obj(vec![("zebra", Json::UInt(1)), ("alpha", Json::UInt(2))]);
         assert_eq!(value.render(), value.render());
         let text = value.render();
         assert!(text.find("\"zebra\"").must() < text.find("\"alpha\"").must());

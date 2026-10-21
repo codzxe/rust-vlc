@@ -34,12 +34,11 @@
 
 [workspace]
 resolver = "2"
-members = [
-    "crates/*",
-    "apps/*",
-    "tools/xtask",
-    "tests/integration/first-vertical",
-]
+# Single-line members array: the xtask TOML reader (check-architecture)
+# does not support multi-line arrays — the salvage's multi-line form
+# broke the arch gate; restored to the reader's shape with the same
+# membership (the 2.E1 pre-announced edit, unchanged in content).
+members = ["crates/*", "apps/*", "tools/xtask", "tests/integration/first-vertical"]
 
 [workspace.lints.rust]
 unsafe_code = "deny"

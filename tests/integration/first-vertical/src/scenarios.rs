@@ -83,7 +83,10 @@ fn broken_run(id: &'static str, fixture: &'static str, reason: &str) -> Scenario
         ("labels", labels_json(&labels)),
         ("commands", Json::Arr(Vec::new())),
         ("events", Json::Arr(Vec::new())),
-        ("observables", Json::obj(vec![("reason", Json::str(reason))])),
+        (
+            "observables",
+            Json::obj(vec![("reason", Json::str(reason))]),
+        ),
     ]);
     ScenarioRun {
         id,
@@ -112,7 +115,13 @@ fn labels_json(labels: &Labels) -> Json {
 
 /// **`open`** — the generated fixture opens through the real stack
 /// (access → probe → demux → track selection) and the class-S
-/// snapshots report the container's own facts.
+/// snapshots report the container's own facts. The closing step is
+/// the hardware probe: `audio.list-devices` dispatched through the
+/// same command layer, whose typed refusal is the ON-THE-WIRE backing
+/// for this suite's `mock` audio label — the host honestly reports
+/// that it cannot enumerate output devices (the real path joins with
+/// ADR-005's backends), which is exactly what doc 10 §7.1 requires
+/// the label to stand on.
 pub fn scenario_open() -> ScenarioRun {
     let source = match parent_source() {
         Ok(source) => source,
@@ -130,6 +139,7 @@ pub fn scenario_open() -> ScenarioRun {
     let info = harness.dispatch("media.get-info", Command::MediaGetInfo);
     let tracks = harness.dispatch("tracks.list", Command::TracksList);
     let duration = harness.dispatch("media.get-duration", Command::MediaGetDuration);
+    let devices = harness.dispatch("audio.list-devices", Command::AudioListDevices);
     let mut run = harness.finish("open");
     let mut checks = Vec::new();
 
@@ -174,29 +184,50 @@ pub fn scenario_open() -> ScenarioRun {
             i64::try_from(info.tracks.len()).unwrap_or(i64::MAX),
             2,
         ));
-        let video = info.tracks.first().map(|t| (&t.kind, t.video.as_ref()));
-        let audio = info.tracks.get(1).map(|t| (&t.kind, t.audio.as_ref()));
+        let video = info.tracks.first();
+        let audio = info.tracks.get(1);
         match (video, audio) {
-            (
-                Some((commands::catalog::types::TrackKind::Video, Some(video))),
-                Some((commands::catalog::types::TrackKind::Audio, Some(audio))),
-            ) => {
-                checks.push(Check::int(
-                    "video track 0: mjpeg 320x240",
-                    i64::from(video.width) * 100 + i64::from(video.height),
-                    32_240,
+            (Some(video), Some(audio))
+                if matches!(video.kind, commands::catalog::types::TrackKind::Video)
+                    && matches!(audio.kind, commands::catalog::types::TrackKind::Audio) =>
+            {
+                // Codec identity, as the layer reports it (the fixture's
+                // own tracks: MJPEG video + little-endian s16 PCM audio).
+                checks.push(Check::same(
+                    "the video track's codec is mjpeg",
+                    video.codec.description.as_deref().unwrap_or("(none)"),
+                    "mjpeg",
                 ));
-                checks.push(Check::int(
-                    "audio track 1: stereo 44100 Hz",
-                    i64::from(u32::from(audio.channels)) * 100
-                        + i64::from(audio.sample_rate.unwrap_or(0)),
-                    44_300,
+                checks.push(Check::same(
+                    "the audio track's codec is pcm_s16le",
+                    audio.codec.description.as_deref().unwrap_or("(none)"),
+                    "pcm_s16le",
                 ));
+                match (&video.video, &audio.audio) {
+                    (Some(video), Some(audio)) => {
+                        checks.push(Check::int(
+                            "video track 0: 320x240",
+                            i64::from(video.width) * 100 + i64::from(video.height),
+                            32_240,
+                        ));
+                        checks.push(Check::int(
+                            "audio track 1: stereo 44100 Hz",
+                            i64::from(u32::from(audio.channels)) * 100
+                                + i64::from(audio.sample_rate.unwrap_or(0)),
+                            44_300,
+                        ));
+                    }
+                    _ => checks.push(Check::is(
+                        "the tracks carry their kind facts",
+                        false,
+                        "the video/audio fact blocks are missing",
+                    )),
+                }
             }
-            shape => checks.push(Check::is(
+            _ => checks.push(Check::is(
                 "track kinds land video-then-audio with facts",
                 false,
-                &format!("track shape: {shape:?}"),
+                "the track shape is not video-then-audio",
             )),
         }
     } else {
@@ -209,13 +240,8 @@ pub fn scenario_open() -> ScenarioRun {
     if let Ok(CommandOutcome::Completed(CommandResult::TrackList { tracks })) = &tracks.result {
         checks.push(Check::int(
             "tracks.list answers the two selected tracks",
-            i64::try_from(
-                tracks
-                    .iter()
-                    .filter(|track| track.is_selected)
-                    .count(),
-            )
-            .unwrap_or(i64::MAX),
+            i64::try_from(tracks.iter().filter(|track| track.is_selected).count())
+                .unwrap_or(i64::MAX),
             2,
         ));
     } else {
@@ -227,8 +253,7 @@ pub fn scenario_open() -> ScenarioRun {
     }
     match &duration.result {
         Ok(CommandOutcome::Completed(CommandResult::Duration {
-            duration:
-                commands::catalog::types::Duration::Known { time },
+            duration: commands::catalog::types::Duration::Known { time },
         })) => {
             checks.push(Check::int(
                 "media.get-duration answers 2.000 s",
@@ -256,6 +281,36 @@ pub fn scenario_open() -> ScenarioRun {
         }) && trail.len() >= 3,
         &format!("trail: {trail:?}"),
     ));
+    // The hardware probe: the mock audio label's on-the-wire backing.
+    // A host that COULD enumerate devices would answer a device list
+    // — and this check would fail, forcing the suite's labels (and
+    // this claim) to be updated in the same change that introduces
+    // real backends. Honest in both directions.
+    match &devices.result {
+        Err(error) => {
+            checks.push(Check::same(
+                "audio.list-devices answers the honest typed \
+                 unsupported-for-host (no output-device enumeration in \
+                 this host — the mock audio label's wire backing; real \
+                 devices join with ADR-005)",
+                &format!("{}.{}", error.stage.as_str(), error.code.as_str()),
+                "control.unsupported-for-host",
+            ));
+            checks.push(Check::is(
+                "the probe's message names the real-backend owner",
+                error.to_string().contains("audio.list-devices"),
+                &format!("message {:?} does not name the command", error.to_string()),
+            ));
+        }
+        Ok(_) => checks.push(Check::is(
+            "audio.list-devices answers the honest typed \
+             unsupported-for-host (the mock audio label's wire backing)",
+            false,
+            "the host answered a device list — the mock label would be \
+             a fabrication; update the suite labels with the real \
+             backends",
+        )),
+    }
     run.checks = checks;
     run
 }
@@ -320,18 +375,20 @@ pub fn scenario_play() -> ScenarioRun {
         "the trail records Playing→Paused→Playing",
         trail.iter().any(|(from, to)| {
             matches!((from, to), (PlaybackState::Playing, PlaybackState::Paused))
-        }) && trail
-            .iter()
-            .any(|(from, to)| matches!((from, to), (PlaybackState::Paused, PlaybackState::Playing))),
+        }) && trail.iter().any(|(from, to)| {
+            matches!((from, to), (PlaybackState::Paused, PlaybackState::Playing))
+        }),
         &format!("trail: {trail:?}"),
     ));
     run.checks = checks;
     run
 }
 
-/// **`pause`** — the clock freezes exactly: a long bounded advance
-/// while paused moves the position by nothing, and the state trail
-/// shows the two real transitions.
+/// **`pause`** — the clock freezes exactly WHERE IT IS: content
+/// plays first (a bounded advance moves the position into the media),
+/// then `playback.pause` lands, then a long bounded advance while
+/// paused moves the position by nothing — the frozen value is the
+/// pre-pause landing, not the start.
 pub fn scenario_pause() -> ScenarioRun {
     let source = match parent_source() {
         Ok(source) => source,
@@ -346,7 +403,11 @@ pub fn scenario_pause() -> ScenarioRun {
         },
     );
     harness.settle();
+    // Let real content play: both limbs deliver, the clock moves.
+    harness.advance(64);
+    let played = harness.position_us();
     harness.dispatch("playback.pause", Command::PlaybackPause);
+    let landing = harness.position_us();
     harness.advance(256);
     let frozen = harness.position_us();
     let state = harness.state();
@@ -358,17 +419,28 @@ pub fn scenario_pause() -> ScenarioRun {
         &format!("{state:?}"),
         "Paused",
     ));
+    checks.push(Check::is(
+        "content played before the pause (the position moved into the media)",
+        played > 0,
+        &format!("position {played} after 64 advance ticks — nothing played"),
+    ));
     checks.push(Check::int(
-        "256 advance ticks while paused move the position by zero",
-        frozen,
+        "256 advance ticks while paused move the position by zero \
+         (frozen at the pre-pause landing, not the start)",
+        frozen - landing,
         0,
+    ));
+    checks.push(Check::is(
+        "the pause lands without moving the clock",
+        landing == played,
+        &format!("landing {landing} vs played {played}"),
     ));
     let trail = state_trail(&run);
     checks.push(Check::is(
         "the trail records Playing→Paused (the pause landed)",
-        trail
-            .iter()
-            .any(|(from, to)| matches!((from, to), (PlaybackState::Playing, PlaybackState::Paused))),
+        trail.iter().any(|(from, to)| {
+            matches!((from, to), (PlaybackState::Playing, PlaybackState::Paused))
+        }),
         &format!("trail: {trail:?}"),
     ));
     run.checks = checks;
@@ -416,9 +488,7 @@ pub fn scenario_seek() -> ScenarioRun {
     ));
     checks.push(Check::is(
         "the seek composition mints a new session id (the 2.D2 reopen shape)",
-        first_session.is_some()
-            && second_session.is_some()
-            && first_session != second_session,
+        first_session.is_some() && second_session.is_some() && first_session != second_session,
         &format!("sessions {first_session:?} → {second_session:?}"),
     ));
     checks.push(Check::int(
@@ -462,10 +532,11 @@ pub fn scenario_seek() -> ScenarioRun {
     run
 }
 
-/// **`stop`** — teardown truth: `playback.stop` parks the session in
-/// Stopped with the position frozen and snapshots still answering;
-/// `session.close` lands Idle; after the close the snapshot commands
-/// refuse with the honest not-ready.
+/// **`stop`** — teardown truth: content plays, then `playback.stop`
+/// parks the session in Stopped with the position frozen at the stop
+/// point (nonzero — it froze WHERE the media was, not at the start)
+/// and snapshots still answering; `session.close` lands Idle; after
+/// the close the snapshot commands refuse with the honest not-ready.
 pub fn scenario_stop() -> ScenarioRun {
     let source = match parent_source() {
         Ok(source) => source,
@@ -480,16 +551,16 @@ pub fn scenario_stop() -> ScenarioRun {
         },
     );
     harness.settle();
+    // Real content first, so the freeze has somewhere to be.
+    harness.advance(64);
+    let played = harness.position_us();
     harness.dispatch("playback.stop", Command::PlaybackStop);
     let stopped_state = harness.state();
     let stopped_position = harness.position_us();
     let info_while_stopped = harness.dispatch("media.get-info", Command::MediaGetInfo);
     let close = harness.dispatch("session.close", Command::SessionClose);
     let closed_state = harness.state();
-    let time_after_close = harness.dispatch(
-        "media.get-current-time",
-        Command::MediaGetCurrentTime,
-    );
+    let time_after_close = harness.dispatch("media.get-current-time", Command::MediaGetCurrentTime);
     let mut run = harness.finish("stop");
     let mut checks = Vec::new();
 
@@ -498,10 +569,19 @@ pub fn scenario_stop() -> ScenarioRun {
         &format!("{stopped_state:?}"),
         "Stopped",
     ));
-    checks.push(Check::int(
-        "the position freezes at the stop point",
-        stopped_position,
-        0,
+    checks.push(Check::is(
+        "the position freezes at the stop point (nonzero — where the \
+         media was, not the start)",
+        stopped_position == played && stopped_position > 0,
+        &format!("played {played}, stopped at {stopped_position}"),
+    ));
+    let trail = state_trail(&run);
+    checks.push(Check::is(
+        "the trail records Playing→Stopped (the teardown transition)",
+        trail.iter().any(|(from, to)| {
+            matches!((from, to), (PlaybackState::Playing, PlaybackState::Stopped))
+        }),
+        &format!("trail: {trail:?}"),
     ));
     checks.push(Check::is(
         "media.get-info still answers from the stopped session",
@@ -614,8 +694,7 @@ pub fn scenario_run_to_end() -> ScenarioRun {
         ));
         checks.push(Check::is(
             "at least every frame presented once (presents + repeats)",
-            accounting.scheduler_presented + accounting.scheduler_repeats
-                >= VIDEO_FRAMES,
+            accounting.scheduler_presented + accounting.scheduler_repeats >= VIDEO_FRAMES,
             &format!(
                 "presented {} + repeats {} < 60",
                 accounting.scheduler_presented, accounting.scheduler_repeats
@@ -671,11 +750,9 @@ pub fn scenario_run_to_end() -> ScenarioRun {
                 "no IEND chunk found",
             ));
         }
-        Some(Err(reason)) => checks.push(Check::is(
-            "the final screenshot succeeds",
-            false,
-            &reason,
-        )),
+        Some(Err(reason)) => {
+            checks.push(Check::is("the final screenshot succeeds", false, &reason))
+        }
         None => checks.push(Check::is(
             "the video limb exists at the end",
             false,
@@ -743,10 +820,7 @@ pub fn scenario_missing_file() -> ScenarioRun {
     );
     let state = harness.state();
     let session = harness.session_id();
-    let time = harness.dispatch(
-        "media.get-current-time",
-        Command::MediaGetCurrentTime,
-    );
+    let time = harness.dispatch("media.get-current-time", Command::MediaGetCurrentTime);
     let mut run = harness.finish("missing-file");
     let mut checks = Vec::new();
 
@@ -1036,11 +1110,7 @@ pub fn scenario_wire_session() -> ScenarioRun {
                 i64::from(code),
                 0,
             ));
-            checks.push(Check::is(
-                "stderr is empty",
-                stderr.is_empty(),
-                &stderr,
-            ));
+            checks.push(Check::is("stderr is empty", stderr.is_empty(), &stderr));
             checks.push(Check::int(
                 "every request line answers exactly one response envelope",
                 responses.len() as i64,
@@ -1048,7 +1118,10 @@ pub fn scenario_wire_session() -> ScenarioRun {
             ));
             checks.push(Check::same(
                 "the open is accepted with session 1",
-                if responses.first().is_some_and(|l| l.contains("\"result\":{\"accepted\":{\"session\":1")) {
+                if responses
+                    .first()
+                    .is_some_and(|l| l.contains("\"result\":{\"accepted\":{\"session\":1"))
+                {
                     "accepted session=1"
                 } else {
                     "not accepted"
@@ -1057,9 +1130,10 @@ pub fn scenario_wire_session() -> ScenarioRun {
             ));
             // requestId echo: every response carries a distinct,
             // monotonically increasing id matching its position.
-            let echoed = responses.iter().enumerate().all(|(index, line)| {
-                line.contains(&format!("\"requestId\":{}", index + 1))
-            });
+            let echoed = responses
+                .iter()
+                .enumerate()
+                .all(|(index, line)| line.contains(&format!("\"requestId\":{}", index + 1)));
             checks.push(Check::is(
                 "every response echoes its request id, in order",
                 echoed,
@@ -1070,8 +1144,7 @@ pub fn scenario_wire_session() -> ScenarioRun {
                 .iter()
                 .filter_map(|line| {
                     let head = line.split("\"seq\":").nth(1)?;
-                    let digits: String =
-                        head.chars().take_while(char::is_ascii_digit).collect();
+                    let digits: String = head.chars().take_while(char::is_ascii_digit).collect();
                     digits.parse().ok()
                 })
                 .collect();
@@ -1101,11 +1174,9 @@ pub fn scenario_wire_session() -> ScenarioRun {
                         "the second run differed",
                     ));
                 }
-                Err(reason) => checks.push(Check::is(
-                    "the second wire run executes",
-                    false,
-                    &reason,
-                )),
+                Err(reason) => {
+                    checks.push(Check::is("the second wire run executes", false, &reason))
+                }
             }
             // The transcript: the verbatim wire (the layer's own
             // serialization — stronger than any re-encoding).
@@ -1349,11 +1420,7 @@ fn run_accounting(run: &ScenarioRun) -> Option<lumen_cli::host::HeadlessAccounti
             }
         }
     }
-    if any {
-        Some(accounting)
-    } else {
-        None
-    }
+    if any { Some(accounting) } else { None }
 }
 
 /// Read one nested string from a transcript value.

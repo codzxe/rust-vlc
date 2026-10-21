@@ -63,6 +63,13 @@
 //!   card 3.B3.
 //! - Seek composes as stop → close → reopen-at-target (the 2.D2
 //!   shape); in-session seeks are 3.A1.
+//! - The card's "real where hardware exists" half is probed ON the
+//!   wire: the `open` scenario's closing step dispatches
+//!   `audio.list-devices` and records the host's typed
+//!   `control.unsupported-for-host` refusal — the machine-checked
+//!   backing for the `mock` audio label (no output-device
+//!   enumeration exists in this host; the real path joins with
+//!   ADR-005's backends).
 
 pub mod digest;
 pub mod evidence;
