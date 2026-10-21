@@ -1,0 +1,47 @@
+# apps/desktop — the Lumen desktop composition-root SKELETON (card
+# 2.D3, doc 13 wave 2.D; doc 01 §2.7 apps/desktop registry row: L6,
+# "Phase 2 skeleton → Phase 4 product").
+#
+# v0 is the ADR-003 variant-B evidence core: the frame-streaming wire
+# protocol (src/wire.rs), the Presenter-side canvas bridge
+# (src/bridge.rs), the bounded latest-wins mailbox (src/mailbox.rs)
+# and the command-layer host seam (src/host.rs). The canvas-side
+# reference implementation lives in prototype/ (browser + Node).
+#
+# NO tauri/wry import (the honest deferral, records/tauri-wry-2.x.md):
+# the webview host is a typed seam pending ADR-004 ratification and a
+# desktop build environment — this sandbox has no webkit2gtk-4.1 dev
+# packages, no display server, and tauri/wry are allowlist §5
+# "exception-ADR-004" (pre-audited, NOT imported; ADR-004 status:
+# planned). Std-only by C5.
+
+[package]
+name = "desktop"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen desktop composition-root skeleton: the ADR-003 variant-B frame-streaming prototype core (wire protocol, canvas bridge, latest-wins mailbox, command-layer host seam)."
+publish = false
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "lumen-desktop"
+path = "src/main.rs"
+
+[dependencies]
+commands = { path = "../../crates/commands" }
+media-types = { path = "../../crates/media-types" }
+renderer-wgpu = { path = "../../crates/renderer-wgpu" }
+video-engine = { path = "../../crates/video-engine" }
+
+[dev-dependencies]
+# testkit is dev-only by contract (MP §3.7 / ARCH-7): the `Must`
+# vocabulary for tests and doctests.
+testkit = { path = "../../crates/testkit" }
+# media-clock, TEST-ONLY (the 2.D1 precedent): the pipeline harness
+# drives video-engine's real PresentationScheduler, whose constructor
+# speaks media-clock's `Arc<dyn PlaybackClock>`. A dev edge cannot
+# leak into the public API (ARCH-7); L6 → L2 is a legal downward
+# direction. Recorded in boundaries.toml dev_deps (worklog 2.D3).
+media-clock = { path = "../../crates/media-clock" }

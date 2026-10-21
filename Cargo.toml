@@ -10,9 +10,13 @@
 #     ("error inheriting `lints` ... failed to find a workspace root").
 #   Membership keeps the template check/test/lint-clean as the workspace grows.
 #   It is `publish = false`; no crate may ever depend on it.
-# * Card 1.A3 (xtask v0) appended "tools/xtask" to `members` — the single
-#   pre-announced post-1.A1 edit of this file (worklog 1.A1). Further
-#   membership changes require Lead approval (AGENTS.md §3.7).
+# * Card 1.A3 (xtask v0) appended "tools/xtask" to `members` — a
+#   pre-announced single-purpose edit (worklog 1.A1). Card 2.D3 (the
+#   apps/desktop skeleton, doc 13 wave 2.D) appends the "apps/*" glob
+#   for the same wave-conflict-avoidance reason: apps/cli (2.D2) and
+#   apps/web (7.H1) join by creating `apps/<name>/` WITHOUT editing
+#   this file. Both edits are Lead-review flags in their worklog
+#   entries (AGENTS.md §3.7).
 #
 # Lint policy: doc 10 §3.1 verbatim (rust + clippy deny lists). Every member
 # inherits it via `[lints] workspace = true` (doc 10 §3.2). Inheritance is
@@ -20,7 +24,7 @@
 
 [workspace]
 resolver = "2"
-members = ["crates/*", "tools/xtask"]
+members = ["crates/*", "apps/*", "tools/xtask"]
 
 [workspace.lints.rust]
 unsafe_code = "deny"

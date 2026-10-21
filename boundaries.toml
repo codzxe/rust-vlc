@@ -292,6 +292,32 @@ dev_deps = ["testkit", "media-clock"]
 external_allowlist = []
 external_dev_allowlist = []
 
+# L6 — the desktop composition-root SKELETON (doc 01 §2.7 apps/desktop
+# registry row, "Phase 2 skeleton → Phase 4 product"; card 2.D3, the
+# ADR-003 evidence vehicle). v0 is the variant-B frame-streaming
+# prototype core: the wire protocol, the Presenter-side canvas bridge,
+# the bounded latest-wins mailbox and the command-layer host seam —
+# std-only, NO tauri/wry import (the webview host is a typed seam
+# pending ADR-004 ratification + a desktop build environment: this
+# sandbox has no webkit2gtk-4.1 dev packages and no display —
+# docs/dependencies/records/tauri-wry-2.x.md). Edges point downward:
+# L6 → L4 (renderer-wgpu, video-engine via its re-exports) → L0;
+# L6 → L1 (commands — the host correlation seam); L6 → L0
+# (media-types — the frame/error vocabulary the bridge speaks; a
+# registry delta the doc 13 Consumes column under-specified, the
+# 2.C3 media-clock precedent: recorded here, Lead-flagged in the
+# worklog). dev_deps carries
+# media-clock TEST-ONLY (the 2.D1 precedent: the pipeline harness
+# drives the real PresentationScheduler over a virtual
+# Arc<dyn PlaybackClock>; a dev edge cannot leak into the public API,
+# ARCH-7).
+[crates.desktop]
+layer = 6
+internal_deps = ["commands", "media-types", "renderer-wgpu", "video-engine"]
+dev_deps = ["testkit", "media-clock"]
+external_allowlist = []
+external_dev_allowlist = []
+
 # dev crate (doc 01 §1.4 "dev" row, §2.8; card 1.C3). Outside the layer
 # stack: it may depend on production crates (none yet — add entries in
 # the same change when it gains any), and NOTHING may depend on it

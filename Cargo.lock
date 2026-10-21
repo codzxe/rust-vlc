@@ -55,6 +55,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "desktop"
+version = "0.1.0"
+dependencies = [
+ "commands",
+ "media-clock",
+ "media-types",
+ "renderer-wgpu",
+ "testkit",
+ "video-engine",
+]
+
+[[package]]
 name = "dyn-clone"
 version = "1.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
