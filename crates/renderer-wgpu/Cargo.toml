@@ -3,15 +3,16 @@
 # video-engine — the video-output plugin kind and the only GPU citizen).
 #
 # v0 is std-only by C5: the wgpu import is a recorded Lead decision
-# (worklog 2.D1; docs/dependencies/allowlist.md §5): the dev sandbox has
-# no GPU stack at all (no /dev/dri, no Vulkan ICDs, no libEGL, no
-# display), and wgpu-hal 30.0.1's default Linux graph pulls `libloading`,
-# which deny.toml bans. The crate therefore ships the renderer
-# architecture behind an internal backend seam with the software
-# compositor linked (the 7.C1 "software present" fallback, arrived early)
-# and every wgpu integration point typed + shape-tested; the hardware
-# backend joins when the Lead ratifies the import (2.D3 / ADR-003
-# evidence path).
+# (worklog 2.D1; docs/dependencies/records/wgpu-30.0.1.md — the
+# deferral record with the evidence): the dev sandbox has no GPU
+# stack at all (verified by a live request_adapter probe: every
+# backend un-loadable), and wgpu 30.0.1's default-features Linux
+# graph pulls `libloading` (via ash/Vulkan and dlib/GL), which
+# deny.toml bans. The crate therefore ships the renderer architecture
+# behind an internal backend seam with the software compositor linked
+# (the 7.C1 "software present" fallback, arrived early) and every wgpu
+# integration point typed + shape-tested; the hardware backend joins
+# when the Lead ratifies the import (2.D3 / ADR-003 evidence path).
 
 [package]
 name = "renderer-wgpu"

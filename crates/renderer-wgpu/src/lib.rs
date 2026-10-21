@@ -12,28 +12,34 @@
 //! behind the [`Presenter`] trait video-engine's queue delivers
 //! through (the 2.C4 seam).
 //!
-//! # The wgpu decision (recorded honestly — worklog 2.D1)
+//! # The wgpu decision (recorded honestly — the deferral record
+//! `docs/dependencies/records/wgpu-30.0.1.md`; worklog 2.D1)
 //!
 //! The crate is *named* renderer-wgpu because doc 01 names it so; **v0
 //! does not import wgpu**, for four verified reasons:
 //!
 //! 1. **This sandbox has no GPU stack at all** (environment evidence,
-//!    worklog 2.D1): no `/dev/dri`; the Vulkan loader exists but every
-//!    ICD directory is empty (no lavapipe/llvmpipe); `libEGL` is absent
-//!    from the linker map entirely; no X11/Wayland. A wgpu
-//!    `request_adapter` here returns `None` — the import would ship
-//!    code with zero executable evidence, against this program's
-//!    honest-gate culture.
-//! 2. **`deny.toml` bans `libloading`**, and wgpu-hal 30.0.1's Linux
-//!    GL backend pulls `libloading ^0.8` (crates.io dependency API,
-//!    2026-10 evidence in the worklog). Importing wgpu with default
-//!    features would fail the Lead's own cargo-deny gate; the
-//!    feature-set/ban decision is Lead-owned (AGENTS §1).
+//!    `records/wgpu-30.0.1.md` §1 — verified by a live probe): no
+//!    `/dev/dri`; the Vulkan loader exists but every ICD directory is
+//!    empty (no lavapipe/llvmpipe); `libEGL` is absent from the linker
+//!    map entirely; no X11/Wayland. An empirical wgpu 30.0.1
+//!    `request_adapter` probe returned `Err` naming every backend
+//!    un-loadable — the import would ship code with zero executable
+//!    evidence, against this program's honest-gate culture.
+//! 2. **`deny.toml` bans `libloading`**, and wgpu 30.0.1's
+//!    default-features Linux graph pulls `libloading ^0.8` — via `ash`
+//!    (the **Vulkan** backend's loader dlopen) and `dlib` (GL), not
+//!    just the GL backend (verified by a throwaway-project `cargo
+//!    tree` + the crates.io API, 2026-10: `records/wgpu-30.0.1.md` §2).
+//!    Importing wgpu with default features would fail the Lead's own
+//!    cargo-deny gate; the feature-set/ban decision is Lead-owned
+//!    (AGENTS §1).
 //! 3. **The dependency envelope is not granted**: the doc 13 card and
 //!    the doc 01 registry row list `media-types, video-engine` — no
-//!    external crates. Pinning wgpu (~90-crate tree, E2 graphics
-//!    stack) is the preaudit's "conditional, full R1–R10 record at pin
-//!    time" path (doc 11 §2; allowlist §5).
+//!    external crates. Pinning wgpu (80-package default graph, E2
+//!    graphics stack — `records/wgpu-30.0.1.md` §2) is the preaudit's
+//!    "conditional, full R1–R10 record at pin time" path (doc 11 §2;
+//!    allowlist §5).
 //! 4. **Gate economics**: `full_gate.sh` runs `--all-features`, so a
 //!    feature-gated wgpu would compile the whole graphics stack on
 //!    every future gate for code that cannot run in this sandbox
@@ -46,9 +52,10 @@
 //! every wgpu integration point is typed and shape-pinned
 //! ([`surface::PresentMode::wgpu_present_mode`],
 //! [`color::SurfaceFormat::wgpu_texture_format`], the
-//! [`Renderer::with_backend`] injection point). The hardware backend
-//! joins when the Lead ratifies the import (2.D3 prototype / ADR-003
-//! evidence path, Phase 7 platform adapters).
+//! [`Renderer::with_backend`] injection point — the full decision
+//! record with evidence is `docs/dependencies/records/wgpu-30.0.1.md`).
+//! The hardware backend joins when the Lead ratifies the import (2.D3
+//! prototype / ADR-003 evidence path, Phase 7 platform adapters).
 //!
 //! # What this crate is not (yet)
 //!

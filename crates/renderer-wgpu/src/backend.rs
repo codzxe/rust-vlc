@@ -9,14 +9,15 @@
 //!   the compositor the 7.C1 fallback chain formalizes
 //!   ("auto-negotiated wgpu backend → software present"). This
 //!   sandbox has no GPU stack at all (no `/dev/dri`, no Vulkan ICDs,
-//!   no libEGL, no display — worklog 2.D1), so v0 links exactly this
-//!   one and the acceptance proof runs through it.
-//! - The wgpu compositor (owed to the Lead-gated import — see the
-//!   crate docs and allowlist §5): same trait, real pipelines — GPU
-//!   color conversion (doc 03 §4.11 e), bilinear filtering in linear
-//!   light, subtitle-layer blending in the shader. It implements the
-//!   same [`Compositor`] contract against `wgpu::Device`/`Queue` and
-//!   bypasses the CPU write protocol with its own draw path.
+//!   no libEGL, no display — `records/wgpu-30.0.1.md` §1, including
+//!   the live adapter probe), so v0 links exactly this one and the
+//!   acceptance proof runs through it.
+//! - The wgpu compositor (owed to the Lead-gated import — the crate
+//!   docs and `records/wgpu-30.0.1.md`): same trait, real pipelines —
+//!   GPU color conversion (doc 03 §4.11 e), bilinear filtering in
+//!   linear light, subtitle-layer blending in the shader. It implements
+//!   the same [`Compositor`] contract against `wgpu::Device`/`Queue`
+//!   and bypasses the CPU write protocol with its own draw path.
 //!
 //! # Sampling honesty
 //!
