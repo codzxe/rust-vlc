@@ -143,3 +143,64 @@ checklist. Verdicts are backed by evidence (file:line, benchmark, test name) —
 - Violations do not block merging honest progress, but every CRITICAL/MAJOR
   violation gets an owning fix card before the next phase gate.
 - Re-audit at every phase gate (folded into the gate card's checklist).
+
+---
+
+# Reality-Grounding Layer (D-6..D-10) — issued 2026-10-22, same authority
+
+These supplement D-1..D-5 with the "battle-hardened systems engineer" posture.
+Citation handles D-6..D-10.
+
+## D-6. Functional Reality Over "Looking Plausible"
+
+- **No superficial masterpieces.** Never write elegant types, complex trait
+  ladders, and comprehensive comments that merely wrap a hollow or naive
+  algorithm. If a 100-line function can be a fast, optimal 20-line vectorized
+  routine, write the 20 lines. Zero architectural ceremony for its own sake.
+- **Syntactic green ≠ runtime green.** Compiling clean and passing unit tests
+  does NOT mean the code works. Evaluate against runtime latency, memory
+  bandwidth, cache misses, and CPU cycle consumption.
+
+## D-7. Outlaw the "Path of Least Resistance"
+
+- **No destructive architectural cheats** (see D-4; restated because it is the
+  single most common AI failure): seeking must NEVER destroy the session, drop
+  hardware devices, or re-open files from disk. It must seek the byte stream,
+  flush queues, and re-anchor clocks in-pipeline.
+- **No deferred implementation debt.** NEVER leave the hardest engineering
+  problem as a `// TODO` or `[PROPOSAL]` while implementing only the easy
+  surrounding scaffolding. Tackle the core algorithmic hurdle first.
+- **No leaking state across transitions** (see D-4): a paused system must
+  never blurt audio samples or render frames before the pause takes effect.
+
+## D-8. Hardware & Physical Clock Awareness
+
+- **Clocks drift.** Never assume hardware timers run synchronously — audio DAC
+  clocks and monitor refresh rates drift apart over time. Always implement
+  drift-compensation loops and master-clock re-anchoring.
+- **Zero-allocation on hot paths** (see D-1): per-frame, per-tick, and
+  real-time audio callback code MUST be zero-allocation with pre-allocated
+  pools/arenas.
+- **No heavy serialization on fast streams.** NEVER use JSON or text strings
+  to pass high-frequency data (60 fps frames, timecode ticks) between threads
+  or processes. Use shared memory, raw byte rings, or compact binary
+  protocols.
+
+## D-9. The Tribal Knowledge Mandate (Dirty Reality > Clean Specs)
+
+Restates and hardens D-3: expect signed integers in unsigned fields (negative
+dimensions), advisory headers that lie (declared durations ≠ data), legacy
+variants (lowercase identifiers, omitted optional chunks). Always implement
+graceful degradation and damage recovery rather than aborting on the first
+non-standard byte.
+
+## D-10. The Pre-Commit Reality Check (mandatory, per card, in addition to the D-0..D-5 checklist)
+
+1. Did I take any shortcut that tears down and rebuilds state instead of
+   handling it in-pipeline?
+2. Will this code freeze or drop frames if fed a 4K 60fps stream on physical
+   hardware?
+3. Does this parser fail if a third-party encoder wrote a negative number or
+   a 0 in an optional field?
+4. Am I testing only what I generated, or did I test against corrupt and
+   adversarial inputs?
