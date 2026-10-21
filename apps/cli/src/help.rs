@@ -207,33 +207,36 @@ pub fn known_areas(generated: &str) -> Vec<String> {
 }
 
 /// The catalog ids the synopsis claims — the dispatch table's served
-/// set is tested against this (see `tests/command_surface.rs`).
+/// set is tested against this (see `dispatch::SERVED`). The settings
+/// row names two ids (get and set share one synopsis line).
 #[must_use]
 pub fn synopsis_catalog_ids() -> Vec<CommandId> {
     SUBCOMMANDS
         .iter()
-        .filter_map(|(_, id, _)| catalog_id(id))
+        .flat_map(|(_, id, _)| catalog_ids(id))
         .collect()
 }
 
-/// Parse a synopsis id string into the catalog enum.
-fn catalog_id(id: &str) -> Option<CommandId> {
+/// Parse a synopsis id string into the catalog enum(s) it names.
+fn catalog_ids(id: &str) -> Vec<CommandId> {
     match id {
-        "session.open" => Some(CommandId::SessionOpen),
-        "session.close" => Some(CommandId::SessionClose),
-        "playback.play" => Some(CommandId::PlaybackPlay),
-        "playback.pause" => Some(CommandId::PlaybackPause),
-        "playback.toggle-play-pause" => Some(CommandId::PlaybackTogglePlayPause),
-        "playback.stop" => Some(CommandId::PlaybackStop),
-        "playback.seek" => Some(CommandId::PlaybackSeek),
-        "media.get-info" => Some(CommandId::MediaGetInfo),
-        "media.get-current-time" => Some(CommandId::MediaGetCurrentTime),
-        "media.get-duration" => Some(CommandId::MediaGetDuration),
-        "tracks.list" => Some(CommandId::TracksList),
-        "system.get-engine-info" => Some(CommandId::SystemGetEngineInfo),
-        "system.list-commands" => Some(CommandId::SystemListCommands),
-        "config.get-setting / config.set-setting" => Some(CommandId::ConfigGetSetting),
-        _ => None,
+        "session.open" => vec![CommandId::SessionOpen],
+        "session.close" => vec![CommandId::SessionClose],
+        "playback.play" => vec![CommandId::PlaybackPlay],
+        "playback.pause" => vec![CommandId::PlaybackPause],
+        "playback.toggle-play-pause" => vec![CommandId::PlaybackTogglePlayPause],
+        "playback.stop" => vec![CommandId::PlaybackStop],
+        "playback.seek" => vec![CommandId::PlaybackSeek],
+        "media.get-info" => vec![CommandId::MediaGetInfo],
+        "media.get-current-time" => vec![CommandId::MediaGetCurrentTime],
+        "media.get-duration" => vec![CommandId::MediaGetDuration],
+        "tracks.list" => vec![CommandId::TracksList],
+        "system.get-engine-info" => vec![CommandId::SystemGetEngineInfo],
+        "system.list-commands" => vec![CommandId::SystemListCommands],
+        "config.get-setting / config.set-setting" => {
+            vec![CommandId::ConfigGetSetting, CommandId::ConfigSetSetting]
+        }
+        _ => Vec::new(),
     }
 }
 
@@ -317,9 +320,10 @@ mod tests {
     #[test]
     fn synopsis_ids_parse_and_cover_the_served_set() {
         let ids = synopsis_catalog_ids();
-        assert_eq!(ids.len(), 14, "one per catalog-serving synopsis row");
+        assert_eq!(ids.len(), 15, "one per catalog-serving synopsis row (the settings row counts twice)");
         // Distinct by construction of the table; spot-pin two.
         assert!(ids.contains(&CommandId::SessionOpen));
         assert!(ids.contains(&CommandId::PlaybackSeek));
+        assert!(ids.contains(&CommandId::ConfigSetSetting));
     }
 }

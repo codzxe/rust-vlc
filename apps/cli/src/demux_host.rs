@@ -60,7 +60,9 @@ pub fn wire_error(error: &EngineError) -> CommandError {
     let full = error.to_string();
     let stage_prefix = format!("[{}] ", error.stage);
     let base = full.strip_prefix(&stage_prefix).unwrap_or(full.as_str());
-    let message = match error.source() {
+    // The chain root (host-minted errors carry their one-sentence
+    // explanation there; I/O errors carry the OS sentence).
+    let message = match error.source.as_ref() {
         Some(root) => format!("{base}: {root}"),
         None => base.to_string(),
     };
@@ -91,6 +93,8 @@ pub struct TrackFact {
     pub pcm: Option<(u32, u32)>,
     /// Video frame duration in ns (from the track base), when known.
     pub frame_ns: Option<u64>,
+    /// Coded dimensions (video), when the container declares them.
+    pub dimensions: Option<(u32, u32)>,
 }
 
 impl TrackFact {
@@ -284,13 +288,13 @@ pub fn open_source(
 fn harvest_facts(demuxer: &AviDemuxer, tracks: &[Track]) -> MediaFacts {
     let mut facts = Vec::with_capacity(tracks.len());
     for track in tracks {
-        let (codec, pcm, frame_ns) = match demuxer.stream_format(track.id) {
-            Some(StreamFormat::MotionJpeg { .. }) => {
+        let (codec, pcm, frame_ns, dimensions) = match demuxer.stream_format(track.id) {
+            Some(StreamFormat::MotionJpeg { width, height }) => {
                 // One tick of the video base is one frame (AVI scale=1).
                 let frame_ns = (u64::from(track.timing.base.num))
                     .saturating_mul(1_000_000_000)
                     / u64::from(track.timing.base.den);
-                ("mjpeg".to_string(), None, Some(frame_ns))
+                ("mjpeg".to_string(), None, Some(frame_ns), Some((width, height)))
             }
             Some(StreamFormat::Pcm {
                 channels,
@@ -311,9 +315,10 @@ fn harvest_facts(demuxer: &AviDemuxer, tracks: &[Track]) -> MediaFacts {
                     codec.to_string(),
                     Some((u32::from(channels), samples_per_sec)),
                     None,
+                    None,
                 )
             }
-            None => ("unknown".to_string(), None, None),
+            None => ("unknown".to_string(), None, None, None),
         };
         let span_end_ticks = track.timing.span.end.timestamp().ok().map(|ts| ts.ticks);
         facts.push(TrackFact {
@@ -324,6 +329,7 @@ fn harvest_facts(demuxer: &AviDemuxer, tracks: &[Track]) -> MediaFacts {
             span_end_ticks,
             pcm,
             frame_ns,
+            dimensions,
         });
     }
     MediaFacts {
@@ -363,9 +369,9 @@ impl AviHostDemuxer {
         let Stamp::Present(pts) = packet.pts else {
             return false;
         };
-        let Some(base) = self.bases.iter().find(|(id, _)| *id == packet.track) else {
+        if !self.bases.iter().any(|(id, _)| *id == packet.track) {
             return false;
-        };
+        }
         match pts.convert(&media_clock::NANO_BASE) {
             Ok(ns) => ns.ticks < skip_ns,
             Err(_) => false,
@@ -474,7 +480,7 @@ mod tests {
     #[test]
     fn garbage_file_is_a_probe_stage_refusal() {
         let garbage = std::env::temp_dir().join("lumen-cli-garbage.bin");
-        std::fs::write(&garbage, [0x37u8, 0x13, 0x00, 0x42, 0xff, 0xee; 64]).ok();
+        std::fs::write(&garbage, [0x37u8, 0x13, 0x00, 0x42, 0xff, 0xee].repeat(64)).ok();
         match open_source(
             &commands::catalog::types::SourceSpec::File { path: garbage.clone() },
             None,

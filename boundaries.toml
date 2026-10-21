@@ -318,7 +318,7 @@ external_dev_allowlist = []
 [crates.lumen-cli]
 layer = 6
 internal_deps = ["audio-engine", "audio-output", "codec-api", "codecs", "commands", "demux", "input", "media-clock", "media-probe", "media-types", "playback-engine", "plugin-api", "renderer-wgpu", "settings-schema", "video-engine"]
-dev_deps = []
+dev_deps = ["testkit"]
 external_allowlist = ["serde_json", "toml"]
 external_dev_allowlist = []
 

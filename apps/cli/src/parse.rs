@@ -127,7 +127,9 @@ pub struct ParseError {
 }
 
 impl ParseError {
-    fn new(message: impl Into<String>, hint: impl Into<String>) -> ParseError {
+    /// (crate-visible: the grammar's own constructors + the runner's
+    /// host-verb refusal.)
+    pub(crate) fn new(message: impl Into<String>, hint: impl Into<String>) -> ParseError {
         ParseError {
             message: message.into(),
             hint: hint.into(),
@@ -228,7 +230,14 @@ fn parse_open(args: &[String]) -> Result<CliCommand, ParseError> {
                 let value = args.get(index + 1).ok_or_else(|| {
                     ParseError::new("--start-time needs a time argument", "e.g. --start-time 30s")
                 })?;
-                start_time = Some(parse_time_us(value)?);
+                start_time = Some(
+                    parse_time_us(value).ok_or_else(|| {
+                        ParseError::new(
+                            format!("bad --start-time `{value}`"),
+                            "e.g. --start-time 30s",
+                        )
+                    })?,
+                );
                 index += 2;
             }
             "--start-paused" => {
@@ -366,29 +375,34 @@ fn parse_seek_target(token: &str) -> Result<SeekArg, ParseError> {
     Ok(SeekArg::Absolute { us })
 }
 
-/// An absolute time: `90` (seconds), `1m30s`, `500ms`, `2h`, `1.5s`.
-/// Non-negative; the host clamps against the duration (doc 05 §2.4 —
-/// clamping is truth, not failure). Saturating at `i64::MAX/2` µs
-/// (~146k years) so later ms↔µs arithmetic cannot overflow.
+/// An absolute time in **microseconds**: `90` (seconds), `1m30s`,
+/// `500ms`, `2h`, `1.5s`, `750us`. Non-negative; the host clamps
+/// against the duration (doc 05 §2.4 — clamping is truth, not
+/// failure). Saturating at `i64::MAX/2` µs (~146k years) so later
+/// ms↔µs arithmetic cannot overflow.
 fn parse_time_us(token: &str) -> Option<i64> {
-    let ms = parse_duration_ms(token)?;
-    ms.checked_mul(1000).map(|us| us.min(i64::MAX / 2))
+    parse_duration_us(token)
 }
 
-/// A duration in milliseconds from `<num><unit>*` runs
-/// (`h`, `m`, `s`, `ms`, `us`; also bare `<num>` = seconds).
+/// A duration in **milliseconds** from the same grammar (the relative
+/// seek wire unit — doc 05 §2.4 `deltaMs`).
 fn parse_duration_ms(token: &str) -> Option<i64> {
+    parse_duration_us(token).map(|us| us / 1000)
+}
+
+/// The grammar's shared core, in microseconds: a bare `<num>` is
+/// seconds; a `<num><unit>*` run sums (`h`, `m`, `s`, `ms`, `us`).
+fn parse_duration_us(token: &str) -> Option<i64> {
     if token.is_empty() {
         return None;
     }
     // Fast path: a bare number is seconds.
-    if parse_f64(token).is_some() {
-        let secs = parse_f64(token)?;
-        let ms = secs.checked_mul(1000.0)?;
-        if !(0.0..=9.0e12).contains(&ms) {
+    if let Some(secs) = parse_f64(token) {
+        let us = secs * 1.0e6;
+        if !us.is_finite() || !(0.0..=9.0e15).contains(&us) {
             return None;
         }
-        return Some(ms as i64);
+        return Some(us.min(i64::MAX as f64 / 2.0) as i64);
     }
     let mut total_us: i128 = 0;
     let mut rest = token;
@@ -417,11 +431,10 @@ fn parse_duration_ms(token: &str) -> Option<i64> {
         total_us += (value * mult_us) as i128;
         rest = &tail[unit_len..];
     }
-    let ms = total_us / 1000;
-    if ms > i64::MAX as i128 / 2 {
+    if total_us > i128::from(i64::MAX / 2) {
         return Some(i64::MAX / 2);
     }
-    i64::try_from(ms).ok()
+    i64::try_from(total_us).ok()
 }
 
 fn parse_f64(token: &str) -> Option<f64> {

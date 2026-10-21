@@ -87,6 +87,15 @@ pub fn print_error(error: &CommandError) {
     }
 }
 
+/// The writer-taking twin of [`print_error`] (the runner's in-memory
+/// test I/O; same shape, parameterized sink).
+pub fn print_error_to<W: std::io::Write>(error: &CommandError, err: &mut W) {
+    let _ = writeln!(err, "error: {error}");
+    for (key, value) in &error.details {
+        let _ = writeln!(err, "  {key}: {value}");
+    }
+}
+
 /// Print one error and answer its exit code (the one-call form `main`
 /// uses for startup failures).
 #[must_use]

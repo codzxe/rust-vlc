@@ -61,7 +61,10 @@ renderer-wgpu = { path = "../../crates/renderer-wgpu" }
 settings-schema = { path = "../../crates/settings-schema" }
 video-engine = { path = "../../crates/video-engine" }
 serde_json = "1.0"
-toml = "0.8"
+toml = "1"
+
+[dev-dependencies]
+testkit = { path = "../../crates/testkit" }
 
 [lints]
 workspace = true

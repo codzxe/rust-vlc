@@ -47,21 +47,26 @@ use std::num::NonZeroUsize;
 use std::sync::{Arc, Mutex};
 
 use audio_engine::{AudioPipeline, PipelineSpec};
-use audio_output::{NullBackend, NullConfig, NullDevice, NullSink, NullStream};
+use audio_output::null::{NullDevice, NullSink};
+use audio_output::{NullBackend, NullConfig, NullStream};
 use codec_api::{Decoder, DecoderConfig};
 use media_clock::MediaClock;
-use media_types::frame::{ColorMatrix, ColorRange, FrameStorage};
-use media_types::time::{Stamp, Timestamp};
+use media_types::frame::{
+    AudioFormat, AudioFrame, AudioLayout, ColorMatrix, ColorRange, FrameStorage, SampleFormat,
+    VideoFrame,
+};
+use media_types::time::Timestamp;
 use media_types::{
-    AudioFrame, EngineError, ErrorKind, Frame, PipelineStage, Rate, Track, TrackId, VideoFrame,
+    EngineError, ErrorKind, Frame, PipelineStage, Rate, Track, TrackId,
 };
 use playback_engine::{DecoderProvider, FrameConsumer};
-use renderer_wgpu::params::{Extent2D, SurfaceConfig};
+use renderer_wgpu::color::SurfaceFormat;
+use renderer_wgpu::params::Extent2D;
 use renderer_wgpu::renderer::Renderer;
-use renderer_wgpu::surface::{PresentMode, SurfaceFormat};
 use renderer_wgpu::screenshot;
+use renderer_wgpu::surface::{PresentMode, SurfaceConfig};
 use video_engine::scheduler::{PresentAction, PresentationScheduler, PushOutcome, TickOutcome};
-use video_engine::sink::PresentRequest;
+use video_engine::sink::{PresentRequest, Presenter};
 use video_engine::{EnqueueOutcome, PresentationQueue, SchedulerCfg};
 
 use crate::demux_host::MediaFacts;
@@ -71,10 +76,21 @@ use crate::demux_host::MediaFacts;
 pub const RENDER_QUANTUM: usize = 1470;
 
 /// The null output ring's capacity (frames; power of two — the ring's
-/// own shape rule). Comfortably above one engine tick's audio decode
-/// burst (16 packets × 1470 = 23 520), so a full poll's decode never
-/// overflows the ring mid-tick.
-pub const RING_FRAMES: usize = 32_768;
+/// own shape rule). Sizing math (the invariant): one engine poll
+/// decodes at most `TickBudget::default().packets_per_limb` (16)
+/// audio packets → 16 × 1470 = 23 520 frames pushed between the
+/// pump's render passes, which drain to a < 1470 residue — so the
+/// Playing steady state needs only ~25k. The hazard is the
+/// **rebuffer** cycle: an underrun freezes the session clock (so the
+/// pump's renders stop) while `Buffering` keeps decoding into the
+/// ring until the queues re-prime (~2–3 pumps at 23 520 each). 131
+/// 072 frames (≈3 s at 44.1 kHz, 1 MiB stereo f32) absorbs a full
+/// rebuffer cycle with >2× margin; beyond that the typed
+/// `audio.ring_full` refusal is the honest bound (a fatal, never a
+/// drop). `[PROPOSAL: sizing tied to the default tick budget and the
+/// fixture's quantum; a device-period setting joins with real
+/// backends per ADR-005]`
+pub const RING_FRAMES: usize = 131_072;
 
 /// A presentation-queue slot count (one per scheduler tick, drained
 /// in the same pump step).
@@ -88,7 +104,7 @@ const QUEUE_CAPACITY: NonZeroUsize = match NonZeroUsize::new(4) {
 /// sentence. The sentence rides the `source` chain-root slot (L0's
 /// own semantics for I/O roots) so [`crate::demux_host::wire_error`]
 /// surfaces it as the command layer's message.
-fn host_error(stage: PipelineStage, code: &str, message: impl Into<String>) -> EngineError {
+fn host_error(stage: PipelineStage, code: &'static str, message: impl Into<String>) -> EngineError {
     EngineError::new(
         stage,
         ErrorKind::Unsupported { format: None },
@@ -219,7 +235,13 @@ impl VideoLimb {
         }
         let delivered = match self.queue.drain_to(&mut self.renderer) {
             Ok(count) => count,
-            Err(error) => return Err(error.into_engine_error()),
+            Err(error) => {
+                // The delivered-before-failure count is the queue's own
+                // truth (its stats also carry it); the presenter's error
+                // propagates typed.
+                self.presented = self.presented.saturating_add(error.delivered as u64);
+                return Err(error.source);
+            }
         };
         self.presented = self.presented.saturating_add(delivered as u64);
         Ok(())
@@ -230,7 +252,6 @@ impl VideoLimb {
         self.presented = self.presented.saturating_add(1);
         Ok(())
     }
-
     /// The scheduler's lifetime counters.
     #[must_use]
     pub fn scheduler_stats(&self) -> video_engine::SchedulerStats {
@@ -249,10 +270,15 @@ impl VideoLimb {
     /// # Errors
     /// The renderer's typed errors (no surface, readback shape).
     pub fn screenshot_png(&self) -> Result<Vec<u8>, EngineError> {
-        let rgba = self.renderer.readback_rgba()?;
-        let extent = self.renderer.extent()?;
-        screenshot::encode_rgba(extent.width, extent.height, &rgba)
-            .map_err(|err| err.to_engine_error())
+        let rgba = self
+            .renderer
+            .readback_rgba()
+            .map_err(|err| err.to_engine_error())?;
+        let extent = self
+            .renderer
+            .extent()
+            .map_err(|err| err.to_engine_error())?;
+        screenshot::encode_rgba(extent, &rgba).map_err(|err| err.to_engine_error())
     }
 }
 
@@ -422,9 +448,12 @@ fn accept_video(
             },
         )
         .map_err(|err| err.to_engine_error())?;
-        let queue = PresentationQueue::with_generation(QUEUE_CAPACITY, current_generation(clock));
+        let queue = PresentationQueue::with_generation(QUEUE_CAPACITY, frame.generation);
         state.video = Some(VideoLimb {
-            scheduler: PresentationScheduler::new(cfg, Arc::clone(clock)),
+            scheduler: PresentationScheduler::new(
+                cfg,
+                Arc::clone(clock) as Arc<dyn media_clock::PlaybackClock>,
+            ),
             queue,
             renderer,
             presented: 0,
@@ -461,10 +490,6 @@ fn accept_video(
     }
 }
 
-/// The clock's current pipeline generation (queue construction).
-fn current_generation(clock: &MediaClock) -> media_types::GenerationId {
-    clock.anchor().generation
-}
 
 // ---------------------------------------------------------------------------
 // I420 → RGBA (BT.601 full range, the JFIF equations)
@@ -592,10 +617,10 @@ pub fn open_audio_session(
     rate: u32,
     anchor_ns: i64,
 ) -> Result<AudioSession, EngineError> {
-    let format = media_types::AudioFormat {
-        sample: media_types::SampleFormat::F32,
+    let format = AudioFormat {
+        sample: SampleFormat::F32,
         channels,
-        layout: media_types::AudioLayout::Interleaved,
+        layout: AudioLayout::Interleaved,
         rate,
     };
     let NullStream { sink, device } =
@@ -637,7 +662,9 @@ pub fn wall_clock(anchor_ns: i64) -> Result<Arc<MediaClock>, EngineError> {
 mod tests {
     use super::*;
     use media_types::frame::ColorDescription;
-    use media_types::{GenerationId, Packet, PixelFormat, SharedBytes};
+    use media_types::packet::SharedBytes;
+    use media_types::time::Stamp;
+    use media_types::{GenerationId, Packet, PixelFormat};
 
     fn i420_frame(width: usize, height: usize, y: u8, cb: u8, cr: u8) -> VideoFrame {
         let chroma_w = width.div_ceil(2);
@@ -663,16 +690,11 @@ mod tests {
 
     fn pixel(frame: &VideoFrame, x: usize, y: usize) -> [u8; 4] {
         let bytes = match &frame.data {
-            FrameStorage::Cpu(bytes) => bytes,
-            FrameStorage::OpaqueHandle(_) => SharedBytes::from_vec(Vec::new()),
+            FrameStorage::Cpu(bytes) => bytes.as_slice(),
+            FrameStorage::OpaqueHandle(_) => [].as_slice(),
         };
         let base = (y * frame.size.0 as usize + x) * 4;
-        [
-            bytes.as_slice()[base],
-            bytes.as_slice()[base + 1],
-            bytes.as_slice()[base + 2],
-            bytes.as_slice()[base + 3],
-        ]
+        [bytes[base], bytes[base + 1], bytes[base + 2], bytes[base + 3]]
     }
 
     /// JFIF vectors: neutral chroma passes luma through; the extreme
@@ -697,24 +719,28 @@ mod tests {
             Err(err) => panic!("{err}"),
         };
         assert_eq!(pixel(&white, 7, 7), [255, 255, 255, 255]);
-        // Red-ish: Cr=255, Cb=128 → R = Y + 1.402*127 ≈ Y+178.
-        let red = match convert_i420_to_rgba(&i420_frame(8, 8, 128, 128, 255)) {
+        // Red: Cr=255 (Cr−128 = 127), Cb neutral, Y=50 → the JFIF
+        // equations in-range: R = 50 + 1.402·127 ≈ 228,
+        // G = 50 − 0.714·127 − 0 ≈ −41 → clamps to 0, B = 50.
+        let red = match convert_i420_to_rgba(&i420_frame(8, 8, 50, 128, 255)) {
             Ok(frame) => frame,
             Err(err) => panic!("{err}"),
         };
         let [r, g, b, a] = pixel(&red, 2, 2);
         assert_eq!(a, 255);
-        assert!((i32::from(r) - (128 + 178)).abs() <= 1, "{r}");
-        assert!(g < 128, "green must fall with positive Cr");
-        assert_eq!(b, 128, "neutral Cb keeps blue at luma");
-        // Blue: Cb=255, Cr=128 → B = Y + 1.772*127 ≈ Y+225 (clamped).
+        assert!((i32::from(r) - 228).abs() <= 1, "{r}");
+        assert_eq!(g, 0, "green clamps below zero");
+        assert_eq!(b, 50, "neutral Cb keeps blue at luma");
+        // Blue: Cb=255 (Cb−128 = 127), Cr neutral, Y=128 →
+        // B = 128 + 1.772·127 ≈ 353 → clamps to 255; the JFIF R has
+        // NO Cb term, so R stays at luma.
         let blue = match convert_i420_to_rgba(&i420_frame(8, 8, 128, 255, 128)) {
             Ok(frame) => frame,
             Err(err) => panic!("{err}"),
         };
         let [r, _g, b, _a] = pixel(&blue, 5, 1);
         assert_eq!(b, 255, "Y=128 + 225 clamps to 255");
-        assert!(r < 128, "red must fall with positive Cb");
+        assert_eq!(r, 128, "neutral Cr keeps red at luma (R has no Cb term)");
     }
 
     /// Odd dimensions use ceil chroma geometry; the buffer length is

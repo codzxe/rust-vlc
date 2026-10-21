@@ -46,15 +46,15 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use audio_output::NullDevice;
+use audio_output::null::NullDevice;
 use commands::catalog::command::{CommandListing, CommandResult};
 use commands::catalog::types::{
     Chapter, DecoderInfo, Duration, EngineInfo, MediaInfo, SettingValue, TimeRange, Timestamp,
     TrackInfo, TrackKind,
 };
 use commands::envelope::{CommandOutcome, Generation, RequestId, SessionId};
-use commands::{Command, CommandError, ErrorCode, PlaybackState, Stage, WireEvent};
-use media_clock::MediaClock;
+use commands::{CommandError, ErrorCode, PlaybackState, Stage, WireEvent};
+use media_clock::{MediaClock, PlaybackClock};
 use media_types::MediaKind;
 use playback_engine::event::EngineEventKind;
 use playback_engine::{
@@ -63,11 +63,39 @@ use playback_engine::{
 };
 
 use crate::demux_host::{MediaFacts, OpenedMedia, open_source, wire_error};
-use crate::pipeline_host::{CliFrameConsumer, HostDecoderProvider, RENDER_QUANTUM};
+use crate::pipeline_host::{AudioSession, CliFrameConsumer, HostDecoderProvider, RENDER_QUANTUM};
 
 /// The pump bound for "await one observable" (receipts, states) —
 /// generous against the fixture's shape (≈10 pumps to full drain).
 const AWAIT_PUMPS: usize = 64;
+
+/// The headless frame accounting snapshot (see
+/// [`CliHost::headless_accounting`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HeadlessAccounting {
+    /// Frames that reached the consumer (both limbs).
+    pub frames_accepted: u64,
+    /// Frames the scheduler refused (window full / unschedulable).
+    pub frames_refused: u64,
+    /// Frames handed to the renderer (presents + repeats).
+    pub video_presented: u64,
+    /// Scheduler admission refusals.
+    pub video_refused: u64,
+    /// Frames admitted to the scheduling window.
+    pub scheduler_pushed: u64,
+    /// Due frames selected for presentation.
+    pub scheduler_presented: u64,
+    /// Repeat presents within the budget.
+    pub scheduler_repeats: u64,
+    /// Frames dropped by the late policy.
+    pub scheduler_dropped_late: u64,
+    /// Frames staged through the renderer's upload path.
+    pub staging_frames: u64,
+    /// Bytes copied into the staging buffer.
+    pub staging_bytes: u64,
+    /// Staging buffer copies performed.
+    pub staging_copies: u64,
+}
 
 /// The pump bound for run-to-end (the scripted session's `advance`).
 pub const RUN_PUMPS: usize = 512;
@@ -100,6 +128,12 @@ pub struct CliHost {
     tracks: Vec<TrackInfo>,
     /// The session's clock anchor (ns).
     anchor_ns: i64,
+    /// The open options a seek must preserve on reopen (`--no-video`
+    /// / `--no-audio` — the seek composition reopens the SAME source
+    /// shape, not the default one).
+    open_no_video: bool,
+    /// See [`Self::open_no_video`].
+    open_no_audio: bool,
     /// Session-local settings overrides (the settings-schema seam).
     settings: BTreeMap<String, SettingValue>,
 }
@@ -130,11 +164,31 @@ impl CliHost {
             last_fatal: None,
             tracks: Vec::new(),
             anchor_ns: 0,
+            open_no_video: false,
+            open_no_audio: false,
             settings: BTreeMap::new(),
         }
     }
 
     // -- observation ------------------------------------------------------
+
+    /// Pump until the engine sits in a settled state (not the
+    /// transient `Opening`/`Buffering`) or the bound — the REPL's
+    /// post-command pacing policy (see [`crate::run`]). Bounded and
+    /// deterministic: every observable is a pure function of the pump
+    /// count. Public for the integration suites (the scripted
+    /// sessions' open-and-settle step).
+    pub fn settle(&mut self) {
+        self.pump_until(
+            |host| {
+                !matches!(
+                    host.state(),
+                    PlaybackState::Opening | PlaybackState::Buffering
+                )
+            },
+            crate::host::AWAIT_PUMPS,
+        );
+    }
 
     /// The engine's current state (wire form).
     #[must_use]
@@ -182,21 +236,65 @@ impl CliHost {
         self.facts.as_ref()
     }
 
+    /// The last `tracks.list-ready` snapshot (wire form) — the class-S
+    /// `tracks.list` answer.
+    #[must_use]
+    pub fn track_snapshot(&self) -> Vec<TrackInfo> {
+        self.tracks.clone()
+    }
+
     /// The engine's pipeline observability counters.
     #[must_use]
     pub fn engine_stats(&self) -> playback_engine::EngineStats {
         self.engine.stats()
     }
 
+    /// The headless pipeline accounting (the AC's frame evidence):
+    /// the consumer's delivery counts plus the video limb's scheduler
+    /// and staging measurements. `None` before a session wired a
+    /// consumer.
+    #[must_use]
+    pub fn headless_accounting(&self) -> Option<HeadlessAccounting> {
+        let consumer = self.consumer.as_ref()?;
+        let guard = consumer.lock();
+        let video = guard.video()?;
+        let scheduler = video.scheduler_stats();
+        let staging = video.staging_stats();
+        Some(HeadlessAccounting {
+            frames_accepted: guard.frames_accepted,
+            frames_refused: guard.frames_refused,
+            video_presented: video.presented,
+            video_refused: video.refused,
+            scheduler_pushed: scheduler.pushed,
+            scheduler_presented: scheduler.presented,
+            scheduler_repeats: scheduler.repeats,
+            scheduler_dropped_late: scheduler.dropped_late,
+            staging_frames: staging.frames_staged,
+            staging_bytes: staging.bytes_staged,
+            staging_copies: staging.staging_copies,
+        })
+    }
+
+    /// The current surface as a PNG screenshot (2.D1's byte-stable
+    /// encoder) — `None` before a video limb exists.
+    #[must_use]
+    pub fn screenshot_png(&self) -> Option<Result<Vec<u8>, media_types::EngineError>> {
+        let consumer = self.consumer.as_ref()?;
+        let guard = consumer.lock();
+        let video = guard.video()?;
+        Some(video.screenshot_png())
+    }
+
     // -- pumping ----------------------------------------------------------
 
-    /// One pump: engine poll, output drain, time advance. See the
-    /// module docs — this is the session thread.
+    /// One pump: engine poll, output drain, time advance, end-tail
+    /// play-out. See the module docs — this is the session thread.
     pub fn pump(&mut self) {
         self.engine.poll();
         self.drain_outputs();
         self.advance_time();
         self.surface_video_error();
+        self.drain_tail_at_end();
     }
 
     /// Pump until `pred` holds (or the bound). Answers whether the
@@ -242,11 +340,15 @@ impl CliHost {
                             self.last_fatal = Some(wire_error(error));
                         }
                         if let EngineEventKind::TracksChanged { tracks, selected } = &event.kind {
+                            let facts = self.facts.as_ref();
                             self.tracks = tracks
                                 .iter()
                                 .zip(selected.iter())
                                 .map(|(track, &is_selected)| {
-                                    crate::track_info_wire_host(track, is_selected)
+                                    enrich_track_info(
+                                        track_info_wire_host(track, is_selected),
+                                        facts.and_then(|facts| facts.fact_for(track.id)),
+                                    )
                                 })
                                 .collect();
                         }
@@ -266,29 +368,42 @@ impl CliHost {
     /// per quantum. With no audio limb (video-only or `--no-audio`)
     /// the clock is the system monotonic and only the scheduler is
     /// ticked (wall-clock-paced presents).
+    ///
+    /// **Paused clock = the device pulls nothing.** The engine freezes
+    /// the session clock on `pause`/underrun (`Effect::FreezeClock`);
+    /// rendering a quantum anyway would (a) spin forever — a render
+    /// under a frozen `MediaClock` still consumes the ring but the
+    /// loop's `buffered_frames` predicate would never fall below the
+    /// quantum — and (b) desynchronize: `MediaClock::resume` re-anchors
+    /// at the frozen position, so audio consumed while paused is
+    /// positionally skipped. Skipping renders while the clock is
+    /// frozen keeps the ring's content and the clock's position in
+    /// lockstep; `resume` continues exactly where the pause landed
+    /// (the 2.C3 pause test's own pattern).
     fn advance_time(&mut self) {
+        if self.clock.as_ref().is_some_and(|clock| clock.is_paused()) {
+            return;
+        }
         let consumer = match self.consumer.as_ref() {
             Some(consumer) => Arc::clone(consumer),
             None => return,
         };
+        let channels = self.audio_channels();
         match self.device.as_mut() {
             Some(device) => {
-                let channels = match self.facts
-                    .as_ref()
-                    .and_then(|facts| facts.facts.iter().find(|fact| fact.pcm.is_some()))
-                    .and_then(|fact| fact.pcm)
-                {
-                    Some((channels, _rate)) => channels as usize,
-                    None => 2,
-                };
                 let mut guard = consumer.lock();
                 while device.buffered_frames() >= RENDER_QUANTUM {
-                    let mut buffer = vec![0.0_f32; RENDER_QUANTUM * channels];
-                    if let Err(error) = device.render(&mut buffer) {
+                    // Tick BEFORE the render: the scheduler's slot
+                    // decision must see the clock as it stands at the
+                    // slot boundary (the vsync-then-advance order — a
+                    // frame presents exactly when its slot arrives,
+                    // never one quantum late).
+                    if let Err(error) = guard.tick_video() {
                         guard.note_video_error(error);
                         break;
                     }
-                    if let Err(error) = guard.tick_video() {
+                    let mut buffer = vec![0.0_f32; RENDER_QUANTUM * channels];
+                    if let Err(error) = device.render(&mut buffer) {
                         guard.note_video_error(error);
                         break;
                     }
@@ -306,6 +421,67 @@ impl CliHost {
                 }
             }
         }
+    }
+
+    /// The audio limb's channel count (render-buffer sizing; the
+    /// harvested PCM facts, stereo default).
+    fn audio_channels(&self) -> usize {
+        match self
+            .facts
+            .as_ref()
+            .and_then(|facts| facts.facts.iter().find(|fact| fact.pcm.is_some()))
+            .and_then(|fact| fact.pcm)
+        {
+            Some((channels, _rate)) => channels as usize,
+            None => 2,
+        }
+    }
+
+    /// **The end-of-media tail play-out.** The engine stops the
+    /// session clock when the *pipeline* drains (`Drained → Ended`),
+    /// but the null ring may still hold the audio tail — the decode
+    /// side runs ahead of the device by up to the ring's content. A
+    /// real device keeps pulling its callback until the buffer empties
+    /// (then silence); the null equivalent is: resume the clock, render
+    /// the residue (each render moving the counter — the clock's
+    /// truth), then freeze again. The observable position reaches the
+    /// media end exactly; the final render is sized to the residue so
+    /// no sub-quantum remainder is stranded.
+    fn drain_tail_at_end(&mut self) {
+        if self.engine.state() != SessionState::Ended {
+            return;
+        }
+        let channels = self.audio_channels();
+        let consumer = match self.consumer.as_ref() {
+            Some(consumer) => Arc::clone(consumer),
+            None => return,
+        };
+        let clock = match self.clock.as_ref() {
+            Some(clock) => Arc::clone(clock),
+            None => return,
+        };
+        let Some(device) = self.device.as_mut() else {
+            return;
+        };
+        if device.buffered_frames() == 0 {
+            return;
+        }
+        let _ = clock.resume();
+        let mut guard = consumer.lock();
+        while device.buffered_frames() > 0 {
+            let take = device.buffered_frames().min(RENDER_QUANTUM);
+            // Same vsync-then-advance order as `advance_time`.
+            if let Err(error) = guard.tick_video() {
+                guard.note_video_error(error);
+                break;
+            }
+            let mut buffer = vec![0.0_f32; take * channels];
+            if let Err(error) = device.render(&mut buffer) {
+                guard.note_video_error(error);
+                break;
+            }
+        }
+        let _ = clock.pause();
     }
 
     /// Surface a present-path failure once (recorded as a wire-visible
@@ -330,7 +506,7 @@ impl CliHost {
 
     /// Submit one minimal-set command and pump until its receipt
     /// arrives (the truthful-UI correlation point).
-    fn submit_and_await(&mut self, kind: SessionCommandKind) -> Result<CommandReceipt, CommandError> {
+    pub(crate) fn submit_and_await(&mut self, kind: SessionCommandKind) -> Result<CommandReceipt, CommandError> {
         let request = self.allocator.allocate();
         let handle = self.handle.as_ref().ok_or_else(|| {
             CommandError::new(
@@ -361,7 +537,7 @@ impl CliHost {
     }
 
     /// Translate one receipt into the truthful-UI outcome.
-    fn receipt_outcome(&self, receipt: CommandReceipt) -> Result<CommandOutcome<CommandResult>, CommandError> {
+    pub(crate) fn receipt_outcome(&self, receipt: CommandReceipt) -> Result<CommandOutcome<CommandResult>, CommandError> {
         match receipt.result {
             ReceiptResult::Accepted { session, generation } => Ok(CommandOutcome::Accepted {
                 session: Some(session),
@@ -376,7 +552,7 @@ impl CliHost {
     }
 
     /// The `session.open` path (also the seek reopen).
-    fn open_session(
+    pub(crate) fn open_session(
         &mut self,
         source: commands::catalog::types::SourceSpec,
         start_time_us: Option<i64>,
@@ -442,6 +618,8 @@ impl CliHost {
         self.facts = Some(facts);
         self.source = Some(source);
         self.anchor_ns = anchor_ns;
+        self.open_no_video = no_video;
+        self.open_no_audio = no_audio;
         self.tracks.clear();
         // Pump the open to a settled state (Opening → Buffering → …).
         // The truthful answer for the class-A open is `Accepted` —
@@ -475,7 +653,7 @@ impl CliHost {
     }
 
     /// The `playback.seek` composition (see the module docs).
-    fn dispatch_seek(
+    pub(crate) fn dispatch_seek(
         &mut self,
         target: commands::catalog::types::SeekTarget,
     ) -> Result<CommandOutcome<CommandResult>, CommandError> {
@@ -502,7 +680,7 @@ impl CliHost {
                         "percent seek needs a known duration",
                     ));
                 };
-                let scaled = (f64::from(duration) * f64::from(fraction)).round() as i64;
+                let scaled = ((duration as f64) * f64::from(fraction)).round() as i64;
                 scaled
             }
             SeekTarget::Chapter { index } => {
@@ -544,7 +722,8 @@ impl CliHost {
             .source
             .clone()
             .ok_or_else(|| CommandError::new(Stage::Session, ErrorCode::NotReady, "no source"))?;
-        let outcome = self.open_session(source, Some(clamped), false, false)?;
+        let outcome =
+            self.open_session(source, Some(clamped), self.open_no_video, self.open_no_audio)?;
         // 5. Let it reach Playing (bounded; short media may go straight
         //    through to Ended — both are success).
         self.pump_until(
@@ -558,7 +737,7 @@ impl CliHost {
     }
 
     /// The class-S snapshot answers.
-    fn media_info(&self) -> Result<CommandResult, CommandError> {
+    pub(crate) fn media_info(&self) -> Result<CommandResult, CommandError> {
         let Some(facts) = self.facts.as_ref() else {
             return Err(CommandError::new(
                 Stage::Session,
@@ -589,7 +768,24 @@ impl CliHost {
         })
     }
 
-    fn current_time(&self) -> Result<CommandResult, CommandError> {
+    /// The `media.get-duration` snapshot (class S).
+    pub(crate) fn duration(&self) -> Result<CommandResult, CommandError> {
+        let Some(facts) = self.facts.as_ref() else {
+            return Err(CommandError::new(
+                Stage::Session,
+                ErrorCode::NotReady,
+                "no session open",
+            ));
+        };
+        Ok(CommandResult::Duration {
+            duration: match facts.duration_us() {
+                Some(us) => Duration::Known { time: Timestamp(us) },
+                None => Duration::Unknown,
+            },
+        })
+    }
+
+    pub(crate) fn current_time(&self) -> Result<CommandResult, CommandError> {
         let Some(facts) = self.facts.as_ref() else {
             return Err(CommandError::new(
                 Stage::Session,
@@ -618,7 +814,7 @@ impl CliHost {
     }
 
     /// The settings-schema seam: one setting's value + meta.
-    fn setting_get(&self, area: &str, key: &str) -> Result<CommandResult, CommandError> {
+    pub(crate) fn setting_get(&self, area: &str, key: &str) -> Result<CommandResult, CommandError> {
         let full = format!("{area}.{key}");
         let invalid = |message: String| {
             CommandError::new(Stage::Config, ErrorCode::InvalidArgument, message)
@@ -642,7 +838,7 @@ impl CliHost {
     }
 
     /// The settings-schema seam: validate + store one setting.
-    fn setting_set(
+    pub(crate) fn setting_set(
         &mut self,
         area: &str,
         key: &str,
@@ -679,6 +875,34 @@ pub(crate) fn track_info_wire_host(
     is_selected: bool,
 ) -> TrackInfo {
     playback_engine::track_info_wire(track, is_selected)
+}
+
+/// Fold the open path's harvested facts into one wire track row: the
+/// L0 [`Track`] deliberately carries no codec parameters, but the
+/// demuxer's `strf` did — `media.get-info` owes the caller the
+/// container's own declaration (dimensions, channel count, rates).
+fn enrich_track_info(mut info: TrackInfo, fact: Option<&crate::demux_host::TrackFact>) -> TrackInfo {
+    let Some(fact) = fact else {
+        return info;
+    };
+    if let Some((width, height)) = fact.dimensions {
+        info.video = Some(commands::catalog::types::VideoTrackInfo {
+            width,
+            height,
+            frame_rate: fact.frame_ns.map(|ns| (1.0e9 / ns as f64) as f32),
+            bit_depth: None,
+            hdr: false,
+        });
+    }
+    if let Some((channels, rate)) = fact.pcm {
+        info.audio = Some(commands::catalog::types::AudioTrackInfo {
+            channels: channels.min(u16::MAX as u32) as u16,
+            sample_rate: Some(rate),
+            bit_depth: None,
+            codec_params: None,
+        });
+    }
+    info
 }
 
 /// A rejection's wire form (doc 05 §2.4's error columns).
@@ -774,7 +998,7 @@ fn default_value(def: &settings_schema::SettingDef) -> SettingValue {
 fn toml_to_setting_value(value: &toml::Value) -> SettingValue {
     match value {
         toml::Value::Boolean(value) => SettingValue::Bool(*value),
-        toml::Value::Integer(value) => SettingValue::Number(f64::from(*value)),
+        toml::Value::Integer(value) => SettingValue::Number(*value as f64),
         toml::Value::Float(value) => SettingValue::Number(*value),
         toml::Value::String(value) => SettingValue::String(value.clone()),
         toml::Value::Array(items) => SettingValue::List(
@@ -846,11 +1070,15 @@ pub fn engine_info() -> EngineInfo {
                 name: "mjpeg".to_string(),
                 kind: TrackKind::Video,
                 hardware: false,
+                backend: None,
+                active: false,
             },
             DecoderInfo {
                 name: "pcm_s16le".to_string(),
                 kind: TrackKind::Audio,
                 hardware: false,
+                backend: None,
+                active: false,
             },
         ],
         sessions: Vec::new(),
@@ -860,7 +1088,7 @@ pub fn engine_info() -> EngineInfo {
 /// The command catalog listing (class S — the catalog as data).
 #[must_use]
 pub fn command_listings() -> Vec<CommandListing> {
-    commands::catalog_data()
+    commands::catalog::catalog_data()
         .iter()
         .map(|spec| CommandListing {
             id: spec.id.to_string(),
