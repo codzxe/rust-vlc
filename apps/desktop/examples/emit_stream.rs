@@ -104,9 +104,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         payload[at..at + 4].copy_from_slice(&[marker as u8, 0xEE, 0x77, 255]);
         let (pts_ns, emitted_ns) = if repeat {
             let prev = &entries[i - 1];
-            (prev.header.pts_ns, (i as u64 - 1) * 33_333_334 + ENCODE_COST + 33_333_334)
+            (
+                prev.header.pts_ns,
+                (i as u64 - 1) * 33_333_334 + ENCODE_COST + 33_333_334,
+            )
         } else {
-            ((i as i64) * 33_333_334, (i as u64) * 33_333_334 + ENCODE_COST)
+            (
+                (i as i64) * 33_333_334,
+                (i as u64) * 33_333_334 + ENCODE_COST,
+            )
         };
         let header = FrameHeader {
             format: FormatCode::Rgba8,
@@ -126,7 +132,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(&out_dir)?;
     std::fs::write(out_dir.join("stream.bin"), &stream)?;
     let mut json = String::new();
-    json.push_str("{\n  \"protocol\": { \"magic\": \"LUF1\", \"version\": 1, \"headerLen\": 48 },\n");
+    json.push_str(
+        "{\n  \"protocol\": { \"magic\": \"LUF1\", \"version\": 1, \"headerLen\": 48 },\n",
+    );
     json.push_str(&format!(
         "  \"streamBytes\": {},\n  \"frameCount\": {},\n  \"frames\": [\n",
         stream.len(),
@@ -165,7 +173,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     json.push_str("  ]\n}\n");
     std::fs::write(out_dir.join("expected.json"), json)?;
 
-    let total_payload: u64 = entries.iter().map(|e| u64::from(e.header.payload_len)).sum();
+    let total_payload: u64 = entries
+        .iter()
+        .map(|e| u64::from(e.header.payload_len))
+        .sum();
     println!(
         "emit_stream: {} frames, {} stream bytes ({} payload + {} header), sizes {:?}{}",
         entries.len(),
@@ -211,7 +222,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut offset = 0usize;
         let mut lcg: u64 = 0x853c_49e6_748f_ea9b;
         while offset < stream.len() {
-            lcg = lcg.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            lcg = lcg
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let chunk = ((lcg >> 33) as usize % 4096 + 1).min(stream.len() - offset);
             decoder.feed(&stream[offset..offset + chunk]);
             offset += chunk;
