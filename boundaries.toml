@@ -292,6 +292,36 @@ dev_deps = ["testkit", "media-clock"]
 external_allowlist = []
 external_dev_allowlist = []
 
+# L6 — apps/cli (doc 01 §2.8 registry row "apps/cli — command-line
+# player and test driver", card 2.D2): the first vertical's headless
+# host. Drives the real pipeline through the ONE command layer
+# (ARCH-5): commands (catalog + envelopes), playback-engine (the
+# poll-driven Engine/Session), media-probe + input + demux (the open
+# path), codecs + codec-api (MJPEG/PCM decoders), media-clock +
+# audio-engine + audio-output (null device — no audio hardware in this
+# sandbox, ADR-005 era), video-engine + renderer-wgpu (software
+# compositor — no GPU in this sandbox, worklog 2.D1), settings-schema
+# (--help generation per the card), media-types + plugin-api (the L0/L1
+# vocabulary those surfaces expose). APP-REGISTRATION NOTE (card 2.D2):
+# doc 01 §5.1's manifest covers "workspace structure"; apps are
+# workspace members like any crate, so the first app gets the same
+# [crates.<package>] entry pattern (layer 6, per the doc 01 registry
+# row) — recorded here because no app existed when 1.E1 wrote the
+# manifest. Every edge points downward (L6 → L4/L3/L2/L1/L0). The two
+# externals are the command layer's own wire family: serde_json (the
+# catalog's serde path, doc 05 §5.1 — a hand-rolled JSON format would
+# BYPASS the layer, not honor std-only-ness) and toml (the
+# settings-schema validator's `config.set-setting` seam — the
+# alternative is a second settings definition, doc 01 §2.8 (d)
+# "Never"). Both are Lead-admitted via commands/settings-schema's own
+# rows; the app adds no new external of its own.
+[crates.lumen-cli]
+layer = 6
+internal_deps = ["audio-engine", "audio-output", "codec-api", "codecs", "commands", "demux", "input", "media-clock", "media-probe", "media-types", "playback-engine", "plugin-api", "renderer-wgpu", "settings-schema", "video-engine"]
+dev_deps = []
+external_allowlist = ["serde_json", "toml"]
+external_dev_allowlist = []
+
 # dev crate (doc 01 §1.4 "dev" row, §2.8; card 1.C3). Outside the layer
 # stack: it may depend on production crates (none yet — add entries in
 # the same change when it gains any), and NOTHING may depend on it
