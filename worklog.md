@@ -7702,3 +7702,27 @@ Stage Summary:
 - Phase 3 card status: 3.A1-A3, 3.B1 (2 pending-ACs registered), 3.B3, 3.B4, 3.C1, 3.C2 COMPLETE. Remaining: 3.B2 (small), 3.C3 (salvage in worktrees/w3-13), 3.D1-D3 (designs banked; 3.D1 salvage exists), 3.E1-E4, 3.F1/F2-V.
 - Audit register: C1-C8 ALL CLOSED; M1-M19 ALL CLOSED (M4's read-chain landed with 3.B3; M12's loop landed with 3.B1).
 - 60/200 agents dispatched across 3 waves; transport deadlines killed ~40% but salvage recovery landed 100% of the work. Wave 4 = 3.C3/3.D1-3/3.B2 + 3.E scenario suites + verifier wave + corpus measurement of the new engine.
+
+---
+Task ID: 4.CORPUS-V3 (Lead)
+Agent: Lead
+Task: gen_corpus.py industrial-grade upgrade — user directive 2026-10-23 (7 upgrades: parallel gen, VFR chaos, multi-track/subs/chapters, dyn-res + anamorphic, crash minimizer, HLS/fMP4, PSNR/SSIM; plus "more random, adversarial, break-the-engine, ffmpeg speed parity, no lazy hardcoding, battle-tested").
+
+Work Log:
+- Read v2 gen_corpus.py (708 lines) + run_harness.py interface; kept manifest schema fully back-compatible (rel/class/family/params/corruption + seed).
+- NEW tools/corpus/corpus_vocab.py: 29-res ladder incl portraits, 0.5-240fps pool, 15 video codecs (prores added), 17 audio codecs (alac/adpcm/pcm_s32le added), raw annex-b targets, SAR/rotation pools, VFR expression factory (6 modes), GOP anarchy factory, adversarial subtitle/chapter writers, 12 corruption ops, 23 garbage archetypes, 4 presets.
+- NEW tools/corpus/corpus_builders.py: 12 builders (video/av/audio/multi-av/dynres/raw/fmp4/hls/cover/multivideo/drift/bomb), uniform signatures, capability-gated pix fmts, per-entry aux seeding (replay-safe), input-section ordering discipline.
+- REWROTE tools/corpus/gen_corpus.py v3: ThreadPoolExecutor parallel encode (jobs=cores), 17 capability probes at startup (results recorded in manifest — the anti-hardcode layer), plan-time byte-budget estimation, per-class stats, ffprobe validation of every clean file, resume/replay-by-seed.
+- NEW tools/corpus/minimize.py: ddmin crash minimizer (truncate stage + chunk-removal + byte tail-trim, flake verification). Measured: 40KB synthetic crash → 217 B (99.46% reduction), 59 predicate calls, 3/3 stable.
+- NEW tools/corpus/fidelity.py: PSNR/SSIM via ffmpeg's own filters + pure-Python audio RMS/peak scorer. Measured: identical → inf dB/SSIM 1.0; LSB-noise → 68.95 dB (imperceptible); audio clean → exact-equal 100%, noisy → -19.3 dBFS.
+- NEW tools/corpus/speed_bench.py: ffmpeg decode-to-null baseline + pluggable runner hooks, best-of-N, per-class aggregates, ratio-vs-ffmpeg columns, JSON sidecar.
+- 11 ffmpeg reality bugs found and fixed through adversarial smoke cycles (each verified by isolation): allyuv has no size= option (removed); x265 bf>4 breaks lookahead (capped); setpts sub-frame jitter is TRUNCATED by the 1/fps source timebase — settb=1/90000 required (was silently CFR!); -t between inputs lands in the next input's option group → infinite mandelbrot encodes when -shortest absent (moved -t to output side); -ac between inputs leaks across option groups (with_ac=False for multi-track); mp3@8k/11k/12k in mp4 refused by muxer (MPEG-1/2 rate pools); ac3 only 32/44.1/48 kHz; libtwolame MPEG-1/2 rates; wavpack encoder is "wavpack" not "libwavpack"; -hls_fmp4_init_filename must be segment-dir-relative while -hls_segment_filename absolute; theora <32x32 writes broken streams with rc=0 (floor + validation net).
+- Capability probe truths recorded (ffmpeg 7.1.5): rotate metadata DROPPED by movenc (rotate_meta=N, honest ledger — rotation surface needs a future display-matrix writer); concat -c copy mid-stream resolution change WORKS for mkv/ts/mp4.
+- Smoke result (seed 20261023): 79/79 clean files, ZERO execution rejects, ZERO clean ffprobe failures, all 21 classes present, 115 files total incl 13 dirty + 22 garbage, 76 s wall on 2 cores.
+- Verified adversarial reality with ffprobe: dynres switches 160x120→480x360 mid-stream (281 frames); vfr pts genuinely jittered; multi-av carries 5 streams (h264+aac+flac+ass+subrip); HLS master+segments probe clean; 65 KiB metadata bombs in mp4+mkv.
+- Launched corpus-big (standard preset: 420 files, 1500 MiB budget, jobs=2) in background.
+
+Stage Summary:
+- Corpus suite is now 6 tools (vocab/builders/gen/minimize/fidelity/speed_bench), ~2600 lines, all measured. Manifest v3 schema back-compatible. ffmpeg speed parity + fidelity verdicts are first-class numbers.
+- Registered gaps (honest): PSNR per-frame series empty in fidelity.py summary-mode (follow-up); Lumen decode-CLI runner hook for speed_bench pending (apps/cli decode-null card needed); rotation corpus coverage blocked on ffmpeg CLI (needs mp4 box editor).
+- corpus-big generation in flight; harness W3-16 prescription + new-class report rows = Wave 4 agent cards.
