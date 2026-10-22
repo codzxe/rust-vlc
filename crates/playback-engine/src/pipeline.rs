@@ -927,10 +927,13 @@ impl Pipeline {
         // the decode's frames enter the M10 presentation hold, not
         // the consumer — the carve-out produces evidence and held
         // frames, never a pre-terminal presentation.
-        // [PROPOSAL: Lead decision 3.HARD-AUDIT D-a — there is no
-        // paused→buffering wire edge (doc 05 §3.3), so the pre-roll
-        // cannot ride the buffering episode while paused; revisit at
-        // 3.C1 state-machine completeness.]
+        // [3.C1 resolution of Lead decision 3.HARD-AUDIT D-a: the
+        // buffered pause (Buffering+Pause → Paused) now rides its own
+        // episode bookend rows — `Paused + Primed` closes the episode
+        // the pause held open — so the pre-roll of a pause-departed
+        // SEEK keeps this carve-out (there is still no
+        // paused→buffering wire edge, doc 05 §3.3; the seeking
+        // pre-roll presents through the M10 hold, not an episode).]
         if matches!(state, SessionState::Buffering | SessionState::Playing)
             || self.seek_progress.is_some()
         {
@@ -942,13 +945,22 @@ impl Pipeline {
         if matches!(state, SessionState::Playing | SessionState::Paused) {
             report.drained = self.is_drained();
         }
-        if state == SessionState::Buffering {
+        // Priming is computed in Buffering AND Paused (card 3.C1):
+        // the paused-during-buffering hold keeps filling — when the
+        // watermark lands, the session's `Paused + Primed` bookend
+        // row closes the episode. The session gates the Paused signal
+        // on the episode being open (a normal pause with full queues
+        // absorbs the fact), so computing it here is side-effect
+        // free for that case.
+        if matches!(state, SessionState::Buffering | SessionState::Paused) {
             report.primed =
                 !self.limbs.is_empty() && self.limbs.iter().all(|limb| limb.queue.watermark().high);
-            // The in-episode progress: the bottleneck limb's fill
-            // toward its high watermark (card 3.B4 — doc 05 §3.2's
-            // `0.0..1.0` while buffering). The exit bookend `1.0` is
-            // the table effect; this is the honest mid-episode view.
+        }
+        // The in-episode progress: the bottleneck limb's fill
+        // toward its high watermark (card 3.B4 — doc 05 §3.2's
+        // `0.0..1.0` while buffering). The exit bookend `1.0` is
+        // the table effect; this is the honest mid-episode view.
+        if state == SessionState::Buffering {
             report.buffer_fill = self
                 .limbs
                 .iter()

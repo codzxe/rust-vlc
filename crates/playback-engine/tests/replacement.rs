@@ -706,12 +706,20 @@ fn fifty_rapid_switches_playing_to_playing() {
 }
 
 // ---------------------------------------------------------------------------
-// Test 3 — the Buffering typed refusal and the Opening replacement
+// Test 3 — the Buffering composition and the Opening replacement
 // ---------------------------------------------------------------------------
 
+/// Card 3.C1 flipped Part A's contract: the live `Buffering` session
+/// no longer refuses typed — the replacement composes through the
+/// shared `close_plan` macro (`Buffering + Stop` settles the episode
+/// with its 1.0 bookend, `Close` destroys), then the fresh epoch
+/// opens. The re-pin is explicit and worklog-recorded (never a
+/// silent weakening): the refusal assertions became composition
+/// assertions.
 #[test]
-fn replacement_refuses_typed_from_buffering_and_replaces_from_opening() {
-    // ---- Part A: a live `Buffering` session refuses typed ----
+fn replacement_from_buffering_composes_and_replaces_from_opening() {
+    // ---- Part A: a live `Buffering` session replaces through the
+    // stop→close composition (3.C1). ----
     let mut harness = Harness::new();
     let handle = open_source(&mut harness, 0);
     harness.engine.poll(); // Opening → Buffering (wire + OpenReady)
@@ -722,37 +730,50 @@ fn replacement_refuses_typed_from_buffering_and_replaces_from_opening() {
     harness.engine.poll();
     harness.engine.poll();
     assert_eq!(harness.engine.state(), SessionState::Buffering);
-
+    // Drain the first open's facts while its epoch is live, so the
+    // switch window's arithmetic stays exact.
+    let _ = harness.engine.take_outputs();
     let stats_before = harness.engine.stats();
+
+    // The replacement now lands (the old R1 refusal is deleted with
+    // its variant): a fresh epoch, and the old session's trail —
+    // episode bookend 1.0, `→ stopped`, `→ idle` — rode the outbox
+    // under the dying epoch (suppressed at drain, cross-epoch stale
+    // by construction). The stall was the OLD demuxer's condition;
+    // release it so the fresh source flows (before its first poll).
+    let second = open_source(&mut harness, 1);
+    assert_eq!(second.session_id(), SessionId(2));
+    assert_eq!(harness.engine.state(), SessionState::Opening);
     assert!(matches!(
-        harness.engine.open(harness.source_config(1)),
-        Err(SessionError::SessionExists {
-            session: SessionId(1)
-        })
+        handle.play(RequestId(1)),
+        Err(SessionError::SessionClosed)
     ));
-    // The refusal changed nothing: same state, same session, no
-    // partial teardown (nothing pushed, nothing suppressed).
-    assert_eq!(harness.engine.state(), SessionState::Buffering);
-    assert_eq!(
-        harness.engine.stats().suppressed_stale_events,
-        stats_before.suppressed_stale_events
-    );
-    assert!(
-        handle.play(RequestId(1)).is_ok(),
-        "the handle still answers"
-    );
-    // The proof the pipeline survived the refusal untouched: release
-    // the stall and the SAME session primes and plays.
     harness.stall.store(false, Ordering::Relaxed);
-    pump_to_playing(&mut harness, "recovered after refusal");
+    pump_to_playing(&mut harness, "buffering replacement");
     two_extra_pumps(&mut harness);
+    let outputs = harness.engine.take_outputs();
+    let stats_after = harness.engine.stats();
+
+    // Everything delivered belongs to the new epoch.
+    for (_, session, _) in event_facts(&outputs) {
+        assert_eq!(session, SessionId(2), "buffering replacement: stale event");
+    }
+    // The dying session's undelivered events — the mid-episode
+    // bookend (`buffering 1.0`), `state-changed → stopped`, and
+    // `state-changed → idle` — were suppressed at drain (R9).
+    assert_eq!(
+        stats_after.suppressed_stale_events - stats_before.suppressed_stale_events,
+        3,
+        "the Buffering departure pushes exactly the dying session's \
+         episode bookend + stopped + idle"
+    );
     let frames = harness.consumer.take();
     assert!(!frames.is_empty());
     for (_, frame) in &frames {
         assert_eq!(
             frame_marker(frame),
-            Some(0),
-            "the refused-open session's frames"
+            Some(1),
+            "the replaced session's frames come from the new source"
         );
     }
 
@@ -802,8 +823,8 @@ fn in_flight_seek_dies_silently_at_replacement() {
     // Arm A — the design's failure corner (c): an in-flight seek
     // (slot occupied, pre-roll starved) dies silently at the
     // replacement. W1-02's merged pre-roll row made a
-    // Playing-departed seek land in the *Buffering* episode (which
-    // R1 refuses — Arm B below), so the Paused-departed seek is the
+    // Playing-departed seek land in the *Buffering* episode — Arm B
+    // below now composes it — so the Paused-departed seek is the
     // arm that reaches R2: the carve-out keeps the session in
     // `Paused`, which the Stop row closes.
     let mut harness = Harness::new();
@@ -906,11 +927,14 @@ fn in_flight_seek_dies_silently_at_replacement() {
         assert_eq!(frame_marker(frame), Some(1));
     }
 
-    // Arm B — the W1-02 interaction the design could not know: a
+    // Arm B — the W1-02 interaction, re-pinned by 3.C1: a
     // Playing-departed seek opens the *seeking episode* (`Buffering`,
     // doc 03 §6 rebuffer shape), and a replacement attempt
-    // mid-episode is the R1 typed refusal — the 3.C1 boundary
-    // catches it, honestly and without touching the in-flight seek.
+    // mid-episode now COMPOSES (the old R1 refusal is gone): the
+    // `Buffering + Stop` row settles the episode with its 1.0
+    // bookend and its teardown kills the in-flight seek slot
+    // silently (doc 05 §4.2: a generation that never completed owes
+    // no terminal).
     let mut harness = Harness::new();
     let handle = open_source(&mut harness, 0);
     pump_to_playing(&mut harness, "arm B first source");
@@ -931,33 +955,41 @@ fn in_flight_seek_dies_silently_at_replacement() {
         SessionState::Buffering,
         "the seek is still in flight inside the episode"
     );
-    assert!(matches!(
-        harness.engine.open(harness.source_config(1)),
-        Err(SessionError::SessionExists {
-            session: SessionId(1)
-        })
-    ));
-    // The refusal is honest, not destructive: release the stall and
-    // the SAME seek completes normally (terminal + resume).
+    // The first source's frames are epoch 1's story; clear them so
+    // the post-replacement window counts only the new source's.
+    let _ = harness.consumer.take();
+    // The composition replaces mid-episode: fresh epoch, fresh
+    // source, the stall belongs to the old demuxer alone.
+    let second = open_source(&mut harness, 1);
+    assert_eq!(second.session_id(), SessionId(2));
     harness.stall.store(false, Ordering::Relaxed);
-    for _ in 0..80 {
-        harness.engine.poll();
-        if harness.engine.state() == SessionState::Playing {
-            break;
-        }
-    }
-    assert_eq!(harness.engine.state(), SessionState::Playing);
+    pump_to_playing(&mut harness, "arm B second source");
+    two_extra_pumps(&mut harness);
     let outputs = harness.engine.take_outputs();
-    let seeked = event_facts(&outputs)
-        .into_iter()
-        .filter(|(_, session, kind)| {
-            *session == SessionId(1) && matches!(kind, EngineEventKind::Seeked { .. })
-        })
-        .count();
-    assert_eq!(
-        seeked, 1,
-        "the refused replacement must not disturb the in-flight seek's completion"
-    );
+
+    // The in-flight seek never completed — no terminal for session 1
+    // (the teardown superseded its generation silently), and the new
+    // epoch never seeks.
+    for (_, session, kind) in event_facts(&outputs) {
+        assert!(
+            !matches!(
+                kind,
+                EngineEventKind::Seeked { .. } | EngineEventKind::SeekFailed { .. }
+            ),
+            "an in-flight seek must not complete across a replacement \
+             (session {session:?})"
+        );
+    }
+    // Everything delivered belongs to the new epoch, and its frames
+    // are marker-1 only.
+    for (_, session, _) in event_facts(&outputs) {
+        assert_eq!(session, SessionId(2), "arm B: stale event");
+    }
+    let frames = harness.consumer.take();
+    assert!(!frames.is_empty());
+    for (_, frame) in &frames {
+        assert_eq!(frame_marker(frame), Some(1));
+    }
 }
 
 // ---------------------------------------------------------------------------

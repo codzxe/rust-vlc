@@ -26,15 +26,22 @@
 //!   doc 03 §5 point-5 checkpoint never dropping a live-generation
 //!   frame.
 
-use codec_api::{Decoder, DecoderConfig};
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex};
+
+use codec_api::{DecodeOutcome, Decoder, DecoderConfig, FrameSink};
 use commands::envelope::{Generation, RequestId};
 use commands::{EventKind, SessionId};
 use media_types::error::ErrorKind;
-use media_types::{EngineError, MediaKind, PipelineStage, SourceUri, Track, TrackId};
+use media_types::packet::SharedBytes;
+use media_types::{
+    Duration, EngineError, Frame, GenerationId, MediaKind, Nanoseconds, Packet, PipelineStage,
+    SourceUri, Stamp, Track, TrackId,
+};
 use playback_engine::state::{RejectionReason, SessionState};
 use playback_engine::{
     CommandReceipt, DecoderProvider, Engine, EngineEvent, EngineEventKind, EngineOutput,
-    ReceiptResult, SessionCommandKind, SessionConfig, SessionError,
+    FrameConsumer, ReceiptResult, SessionCommandKind, SessionConfig, SessionError, SessionHandle,
 };
 use plugin_api::DemuxEvent;
 use testkit::Must;
@@ -45,9 +52,10 @@ use testkit::Must;
 mod common;
 
 use common::{
-    Collector, FakeDecoder, FakeDemuxer, Fixture, at_micros, base, config_with, decoder_error,
-    frames_of, inaccessible, open_audio, open_stalled_audio, open_with, packet, poll_until,
-    take_events, track, virtual_clock,
+    Collector, FakeDecoder, FakeDemuxer, FakeProvider, Fixture, at_micros, config_with,
+    decoder_error, frozen_throttle, frames_of, inaccessible, open_audio, open_stalled_audio,
+    open_with, packet, poll_until, receipt_for, shallow_clone, take_events, tiny_budget,
+    tiny_queues, track, virtual_clock,
 };
 
 // ---------------------------------------------------------------------------
@@ -726,20 +734,26 @@ fn receipts_precede_the_events_they_cause() {
 fn rejected_commands_answer_typed_receipts_and_change_nothing() {
     let mut fixture = open_audio(200);
     poll_until(&mut fixture, |s| s == SessionState::Playing, 10, "priming");
-    // `close` from Playing is the v1 StopFirst rejection.
-    fixture.handle.close(RequestId(50)).must();
+    // `stop` in `Ended` is the settled inert rejection (the close
+    // macro's own pair — close from active states — composes in the
+    // executor; its scenario pin is
+    // `close_from_playing_is_the_two_step_composition`).
+    poll_until(&mut fixture, |s| s == SessionState::Ended, 400, "drain");
+    fixture.handle.stop(RequestId(50)).must();
     fixture.engine.poll();
-    assert_eq!(fixture.engine.state(), SessionState::Playing, "unchanged");
+    assert_eq!(fixture.engine.state(), SessionState::Ended, "unchanged");
     let outputs = take_events(&mut fixture);
     let receipt = receipt_for(&outputs, RequestId(50));
     match receipt.result {
         ReceiptResult::Rejected { state, reason } => {
-            assert_eq!(state, SessionState::Playing);
-            assert_eq!(reason, RejectionReason::StopFirst);
+            assert_eq!(state, SessionState::Ended);
+            assert_eq!(reason, RejectionReason::AlreadySettled);
         }
-        other => unreachable!("close in playing is rejected, got {other:?}"),
+        other => unreachable!("stop in ended is rejected, got {other:?}"),
     }
     // `play` while playing is the C8 idempotent confirmation.
+    let mut fixture = open_audio(200);
+    poll_until(&mut fixture, |s| s == SessionState::Playing, 10, "priming");
     fixture.handle.play(RequestId(51)).must();
     fixture.engine.poll();
     assert_eq!(fixture.engine.state(), SessionState::Playing);

@@ -298,9 +298,11 @@ pub enum PlaybackState {
 impl PlaybackState {
     /// The §3.3 valid-transition table, answered for `self → other`.
     ///
-    /// Covers `idle→opening`, `opening→{buffering, error, idle}`,
-    /// `buffering→{playing, error}`, `playing↔paused`,
-    /// `playing→buffering`, `playing/paused→{stopped, ended, error}`,
+    /// Covers `idle→opening`, `opening→{buffering, error, idle,
+    /// stopped}`, `buffering→{playing, paused, stopped, error}`
+    /// (card 3.C1's stop-during-opening, stop-during-buffering and
+    /// buffered-pause edges), `playing↔paused`, `playing→buffering`,
+    /// `playing/paused→{stopped, ended, error}`,
     /// `stopped/ended/error→idle` and self-transitions (C8).
     pub fn can_transition_to(self, other: PlaybackState) -> bool {
         use PlaybackState as S;
@@ -310,8 +312,11 @@ impl PlaybackState {
         matches!(
             (self, other),
             (S::Idle, S::Opening)
-                | (S::Opening, S::Buffering | S::Error | S::Idle)
-                | (S::Buffering, S::Playing | S::Error)
+                | (S::Opening, S::Buffering | S::Error | S::Idle | S::Stopped)
+                | (
+                    S::Buffering,
+                    S::Playing | S::Error | S::Stopped | S::Paused
+                )
                 | (
                     S::Playing,
                     S::Paused | S::Buffering | S::Stopped | S::Ended | S::Error
@@ -838,6 +843,10 @@ mod tests {
             (S::Stopped, S::Idle),
             (S::Ended, S::Idle),
             (S::Error, S::Idle),
+            // Card 3.C1's completion edges.
+            (S::Opening, S::Stopped),
+            (S::Buffering, S::Stopped),
+            (S::Buffering, S::Paused),
         ];
         for (from, to) in legal {
             assert!(from.can_transition_to(to), "{from:?}->{to:?} rejected");
@@ -847,6 +856,11 @@ mod tests {
             (S::Stopped, S::Playing),
             (S::Ended, S::Buffering),
             (S::Error, S::Playing),
+            // Close composes through stop — there is still no direct
+            // active→idle edge (the executor macro, not the wire).
+            (S::Playing, S::Idle),
+            (S::Buffering, S::Idle),
+            (S::Paused, S::Idle),
         ];
         for (from, to) in illegal {
             assert!(!from.can_transition_to(to), "{from:?}->{to:?} accepted");
