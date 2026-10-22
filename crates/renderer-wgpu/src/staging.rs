@@ -487,8 +487,12 @@ mod tests {
         // bounded pool; the next stage of the same geometry reuses it
         // (observable: the second stage's buffer carries >= the first
         // one's capacity without a fresh allocation — and the
-        // counting-allocator proof binary measures exactly zero
-        // bytes across steady-state presents).
+        // counting-allocator proof binary `tests/zero_alloc_present.rs`
+        // measures exactly zero bytes across 128 steady-state
+        // presents through the full stage → composite → present
+        // path. W2-06: this comment used to cite a proof binary that
+        // did not exist — the W1-20 audit's phantom-evidence finding;
+        // the proof is real now, and the citation with it).
         let mut uploader = StagingUploader::new();
         let first = uploader
             .stage(
@@ -547,8 +551,13 @@ mod tests {
                 PixelFormat::Rgba8,
             )
             .must();
-        // A clone shares nothing pooled: each owns its Vec; both
-        // return cleanly.
+        // A clone owns its own byte copy (the Vec deep-copies) but
+        // SHARES the bounded pool handle (the `Arc<RecyclePool>`):
+        // each drop returns its own buffer to the same pool, which
+        // stays capped at `RECYCLE_SLOTS` — a full pool silently
+        // drops the returnee, so clones can never grow memory
+        // (bounded, safe; W2-06 corrected the earlier "shares
+        // nothing pooled" claim — the handle is very much shared).
         let clone = staged.clone();
         assert_eq!(clone, staged);
         drop(staged);

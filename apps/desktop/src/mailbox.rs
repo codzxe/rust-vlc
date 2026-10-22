@@ -260,8 +260,10 @@ mod tests {
     use testkit::Must;
 
     fn frame(id: u64, pts_ns: i64) -> ShippedFrame {
-        ShippedFrame {
-            header: FrameHeader {
+        // Hand-built frames are plain owners (no pool attachment —
+        // the `detached` convention from the wire module).
+        ShippedFrame::detached(
+            FrameHeader {
                 format: crate::wire::FormatCode::Rgba8,
                 flags: crate::wire::FrameFlags::default(),
                 width: 1,
@@ -271,8 +273,8 @@ mod tests {
                 pts_ns,
                 emitted_ns: 0,
             },
-            payload: vec![id as u8, 0, 0, 255],
-        }
+            vec![id as u8, 0, 0, 255],
+        )
     }
 
     #[test]
