@@ -636,13 +636,13 @@ fn generate_pcm() -> Vec<u8> {
     pcm
 }
 
-/// The `[audio_probe]` digest (doc 10 §5.4 `first_samples_md5`, card
-/// 2.B5): the **pinned conversion** of the first
-/// [`AUDIO_PROBE_INSTANTS`] sample-instants of the interleaved s16le
-/// stream — each scalar to IEEE-754 f32 as `v as f32 / 32768.0`
-/// (exact: every i16 is exact in f32 and the divisor is a power of
-/// two, so the conversion is bit-deterministic on every host),
-/// serialized little-endian, hashed with MD5 (see [`md5_hex`]).
+/// `[audio_probe]` digest over the first [`AUDIO_PROBE_INSTANTS`]
+/// sample-instants of an interleaved s16le stream with `channels`
+/// channels (doc 10 §5.4 `first_samples_md5`, card 2.B5): each scalar
+/// to IEEE-754 f32 as `v as f32 / 32768.0` (exact: every i16 is exact
+/// in f32 and the divisor is a power of two, so the conversion is
+/// bit-deterministic on every host), serialized little-endian, hashed
+/// with MD5 (see [`md5_hex`]).
 ///
 /// Provenance: computed from the generator's own sample stream — for
 /// PCM the writer IS the sample source (s16le decode is the identity
@@ -653,8 +653,8 @@ fn generate_pcm() -> Vec<u8> {
 /// suite recomputes it from the codec-api Decoder path's output —
 /// writer and decoder pin each other; changing the tone plan, the
 /// conversion or the decoder breaks the pair first.
-fn audio_probe_md5(pcm: &[u8]) -> String {
-    let need = AUDIO_PROBE_INSTANTS * AUDIO_CHANNELS * 2;
+fn audio_probe_md5_s16(pcm: &[u8], channels: usize) -> String {
+    let need = AUDIO_PROBE_INSTANTS * channels * 2;
     let available = pcm.len().min(need);
     let mut probe = Vec::with_capacity(available * 2);
     for pair in pcm[..available].as_chunks::<2>().0 {
@@ -662,6 +662,75 @@ fn audio_probe_md5(pcm: &[u8]) -> String {
         probe.extend_from_slice(&(f32::from(sample) / 32_768.0).to_le_bytes());
     }
     md5_hex(&probe)
+}
+
+/// The single-stream form of [`audio_probe_md5_s16`] (the v0 parent's
+/// stereo stream — kept as the named anchor of the original digest).
+fn audio_probe_md5(pcm: &[u8]) -> String {
+    audio_probe_md5_s16(pcm, AUDIO_CHANNELS)
+}
+
+// ---------------------------------------------------------------------------
+// Multi-track parent (W2-FIX-MT, card 3.A3): 1 MJPEG video + TWO PCM
+// audio streams with deliberately distinct shapes — 48 kHz stereo
+// `pcm_s16le` (stream 1) and 44.1 kHz mono `pcm_u8` (stream 2) — so a
+// wrong-track decode is observable at the sink by format, rate,
+// channel count and sample width, not just by bytes. 10 fps / 20
+// frames / 2.0 s keeps the committed tree small while both audio
+// rates divide the frame cadence exactly (4800 and 4410 sample frames
+// per tick — no fractional chunks).
+// ---------------------------------------------------------------------------
+
+/// Multi-track video cadence: 10 fps, 20 frames, 2.0 s.
+const MT_FPS: u32 = 10;
+const MT_FRAME_COUNT: usize = 20;
+/// Multi-track audio stream 1: 48 kHz stereo s16le.
+const MT_A1_RATE: u32 = 48_000;
+const MT_A1_CHANNELS: usize = 2;
+/// Multi-track audio stream 2: 44.1 kHz mono u8.
+const MT_A2_RATE: u32 = 44_100;
+const MT_A2_CHANNELS: usize = 1;
+/// Stream 2's tone: 880 Hz — distinct from both stream-1 tones so the
+/// wrong-track decode is also audible-content-distinct.
+const MT_A2_TONE_HZ: u32 = 880;
+/// Stream 2's u8 amplitude (of the 127-step half-range; keeps the
+/// unsigned bytes in `[1, 255]` by construction).
+const MT_A2_TONE_AMP: i32 = 100;
+
+/// Total samples per channel for stream 1 (`MT_FRAME_COUNT * rate/fps`).
+const MT_A1_TOTAL: usize = MT_FRAME_COUNT * (MT_A1_RATE as usize / MT_FPS as usize);
+/// Total samples for stream 2 (mono).
+const MT_A2_TOTAL: usize = MT_FRAME_COUNT * (MT_A2_RATE as usize / MT_FPS as usize);
+
+/// Generate stream 1's interleaved s16le payload: the same tone plan
+/// as the v0 parent (440 Hz left / 660 Hz right, distinct amplitudes)
+/// at 48 kHz.
+fn generate_mt_pcm_s16() -> Vec<u8> {
+    let table = sine_full_table();
+    let mut left = SineOsc::new(TONE_LEFT_HZ, MT_A1_RATE);
+    let mut right = SineOsc::new(TONE_RIGHT_HZ, MT_A1_RATE);
+    let mut pcm = Vec::with_capacity(MT_A1_TOTAL * 4);
+    for _ in 0..MT_A1_TOTAL {
+        let l = ((left.sample(&table) * TONE_LEFT_AMP) >> 15) as i16;
+        let r = ((right.sample(&table) * TONE_RIGHT_AMP) >> 15) as i16;
+        pcm.extend_from_slice(&l.to_le_bytes());
+        pcm.extend_from_slice(&r.to_le_bytes());
+    }
+    pcm
+}
+
+/// Generate stream 2's unsigned 8-bit mono payload: 880 Hz at a
+/// 100/128 amplitude around the 128 mid-point (integer NCO — the u8
+/// PCM convention, byte-order-free by definition).
+fn generate_mt_pcm_u8() -> Vec<u8> {
+    let table = sine_full_table();
+    let mut tone = SineOsc::new(MT_A2_TONE_HZ, MT_A2_RATE);
+    let mut pcm = Vec::with_capacity(MT_A2_TOTAL);
+    for _ in 0..MT_A2_TOTAL {
+        let sample = ((tone.sample(&table) * MT_A2_TONE_AMP) >> 15) as i32;
+        pcm.push((128 + sample).clamp(0, u8::MAX as i32) as u8);
+    }
+    pcm
 }
 
 // ---------------------------------------------------------------------------
@@ -1398,8 +1467,10 @@ struct AviLayout {
     riff_size_pos: usize,
     /// File offset of the `avih` chunk header.
     avih_offset: usize,
-    /// File offsets of the two `LIST strl` headers (video, audio).
-    strl_offsets: [usize; 2],
+    /// File offsets of the `LIST strl` headers, in stream order
+    /// (video first, then one per audio stream — W2-FIX-MT made the
+    /// slot count per-file instead of the v0 hard-coded two).
+    strl_offsets: Vec<usize>,
     /// File offset of the `LIST movi` header.
     movi_offset: usize,
     /// File offset of the first `movi` chunk header. `idx1` `dwOffset`
@@ -1446,28 +1517,83 @@ fn avi_end_sized(out: &mut [u8], size_pos: usize) {
     out[size_pos..size_pos + 4].copy_from_slice(&(size as u32).to_le_bytes());
 }
 
+/// One audio stream's essence + declared shape for [`build_avi`]
+/// (W2-FIX-MT): the v0 writer hard-coded a single 44.1 kHz stereo s16le
+/// stream; the multi-track parent needs per-stream strh scale/rate, strf
+/// formats and movi tick sizes. `bits_per_sample` is 16 (s16le) or 8
+/// (u8) — the two families the demuxer's PCM vocabulary covers with
+/// distinct wire shapes.
+struct AviAudioEssence {
+    /// The full interleaved PCM payload (little-endian for s16).
+    data: Vec<u8>,
+    /// `nSamplesPerSec` / strh `dwRate`.
+    rate: u32,
+    /// `nChannels`.
+    channels: usize,
+    /// `wBitsPerSample` (16 or 8).
+    bits_per_sample: u16,
+    /// Sample-frames per video tick (`rate / fps` — must divide evenly,
+    /// checked by the builder, so the movi ladder has no fractional
+    /// chunk).
+    tick_frames: usize,
+}
+
+impl AviAudioEssence {
+    /// Bytes per sample frame (channels × bytes per sample).
+    fn frame_bytes(&self) -> usize {
+        self.channels * (self.bits_per_sample as usize / 8)
+    }
+
+    /// Bytes per movi tick chunk.
+    fn tick_bytes(&self) -> usize {
+        self.tick_frames * self.frame_bytes()
+    }
+
+    /// Total sample frames the essence carries.
+    fn total_frames(&self) -> usize {
+        self.data.len() / self.frame_bytes()
+    }
+}
+
 /// Build the AVI+MJPEG+PCM parent (doc 03 §7): `vids`/`MJPG` video (one
-/// `00dc` chunk per frame) and `auds` PCM s16le stereo audio (one `01wb`
-/// chunk per frame tick), interleaved inside `LIST movi` and fully
-/// indexed by `idx1` (every chunk flagged `AVIIF_KEYFRAME` — MJPEG and
-/// PCM have only keyframes).
-fn build_avi(frames: &[Vec<u8>], pcm: &[u8]) -> Result<AviBuilt, String> {
-    if frames.len() != FRAME_COUNT {
-        return Err(format!(
-            "avi writer needs exactly {FRAME_COUNT} frames, got {}",
-            frames.len()
-        ));
+/// `00dc` chunk per frame) and one `LIST strl` + one `NNwb` movi chunk
+/// per frame tick per audio stream (stream 1 = `01wb`, stream 2 = `02wb`,
+/// …), interleaved inside `LIST movi` and fully indexed by `idx1` (every
+/// chunk flagged `AVIIF_KEYFRAME` — MJPEG and PCM have only keyframes).
+fn build_avi(frames: &[Vec<u8>], fps: u32, audio: &[AviAudioEssence]) -> Result<AviBuilt, String> {
+    if audio.is_empty() {
+        return Err("avi writer needs at least one audio stream".to_string());
     }
-    let pcm_need = TOTAL_SAMPLES * AUDIO_CHANNELS * 2;
-    if pcm.len() != pcm_need {
-        return Err(format!(
-            "avi writer needs {pcm_need} PCM bytes, got {}",
-            pcm.len()
-        ));
+    for (index, stream) in audio.iter().enumerate() {
+        if u64::from(stream.rate) % u64::from(fps) != 0 {
+            return Err(format!(
+                "audio stream {index}: rate {} does not divide the video fps {fps} \
+                 (fractional per-tick chunks are not writable)",
+                stream.rate
+            ));
+        }
+        if stream.tick_frames != (stream.rate / fps) as usize {
+            return Err(format!(
+                "audio stream {index}: tick_frames {} != rate/fps {}",
+                stream.tick_frames,
+                stream.rate / fps
+            ));
+        }
+        let need = frames.len() * stream.tick_bytes();
+        if stream.data.len() != need {
+            return Err(format!(
+                "avi writer audio stream {index} needs {need} PCM bytes, got {}",
+                stream.data.len()
+            ));
+        }
     }
-    let tick_bytes = SAMPLES_PER_TICK * AUDIO_CHANNELS * 2;
+    let max_tick_bytes = audio
+        .iter()
+        .map(AviAudioEssence::tick_bytes)
+        .max()
+        .unwrap_or(0);
     let max_video = frames.iter().map(Vec::len).max().unwrap_or(0);
-    let suggested = (max_video.max(tick_bytes)) as u32;
+    let suggested = (max_video.max(max_tick_bytes)) as u32;
 
     // `movi` payload size, for dwMaxBytesPerSec (integer ceil-division —
     // no float anywhere in the writer, corpus-plan §2).
@@ -1475,11 +1601,13 @@ fn build_avi(frames: &[Vec<u8>], pcm: &[u8]) -> Result<AviBuilt, String> {
     for frame in frames {
         movi_payload += 8 + frame.len() + (frame.len() & 1);
     }
-    movi_payload += FRAME_COUNT * (8 + tick_bytes);
-    let max_bytes_per_sec = (movi_payload as u64 * u64::from(FPS)).div_ceil(FRAME_COUNT as u64);
+    for stream in audio {
+        movi_payload += frames.len() * (8 + stream.tick_bytes());
+    }
+    let max_bytes_per_sec = (movi_payload as u64 * u64::from(fps)).div_ceil(frames.len() as u64);
 
     // avih — main AVI header (56-byte payload, 14 u32 fields).
-    let micros_per_frame = ((1_000_000u64 + u64::from(FPS) / 2) / u64::from(FPS)) as u32; // 33333
+    let micros_per_frame = ((1_000_000u64 + u64::from(fps) / 2) / u64::from(fps)) as u32;
     let mut avih = Vec::with_capacity(56);
     put_u32le(&mut avih, micros_per_frame); // dwMicroSecPerFrame
     put_u32le(
@@ -1488,9 +1616,9 @@ fn build_avi(frames: &[Vec<u8>], pcm: &[u8]) -> Result<AviBuilt, String> {
     );
     put_u32le(&mut avih, 0); // dwPaddingGranularity
     put_u32le(&mut avih, 0x0000_0010 | 0x0000_0100); // AVIF_HASINDEX | AVIF_ISINTERLEAVED
-    put_u32le(&mut avih, FRAME_COUNT as u32); // dwTotalFrames
+    put_u32le(&mut avih, frames.len() as u32); // dwTotalFrames
     put_u32le(&mut avih, 0); // dwInitialFrames
-    put_u32le(&mut avih, 2); // dwStreams
+    put_u32le(&mut avih, (1 + audio.len()) as u32); // dwStreams
     put_u32le(&mut avih, suggested); // dwSuggestedBufferSize
     put_u32le(&mut avih, FRAME_WIDTH as u32); // dwWidth
     put_u32le(&mut avih, FRAME_HEIGHT as u32); // dwHeight
@@ -1507,9 +1635,9 @@ fn build_avi(frames: &[Vec<u8>], pcm: &[u8]) -> Result<AviBuilt, String> {
     put_u16le(&mut strh_video, 0); // wLanguage
     put_u32le(&mut strh_video, 0); // dwInitialFrames
     put_u32le(&mut strh_video, 1); // dwScale
-    put_u32le(&mut strh_video, FPS); // dwRate -> rate/scale = 30 fps
+    put_u32le(&mut strh_video, fps); // dwRate -> rate/scale = the video fps
     put_u32le(&mut strh_video, 0); // dwStart
-    put_u32le(&mut strh_video, FRAME_COUNT as u32); // dwLength (frames)
+    put_u32le(&mut strh_video, frames.len() as u32); // dwLength (frames)
     put_u32le(&mut strh_video, max_video as u32); // dwSuggestedBufferSize
     put_u32le(&mut strh_video, u32::MAX); // dwQuality = -1 (default)
     put_u32le(&mut strh_video, 0); // dwSampleSize (variable-size chunks)
@@ -1532,38 +1660,45 @@ fn build_avi(frames: &[Vec<u8>], pcm: &[u8]) -> Result<AviBuilt, String> {
     put_u32le(&mut strf_video, 0); // biClrUsed
     put_u32le(&mut strf_video, 0); // biClrImportant
 
-    // strh — audio stream header (PCM convention: dwScale 1, dwRate =
-    // sample rate, dwLength = sample frames, dwSampleSize = block align).
-    let mut strh_audio = Vec::with_capacity(56);
-    strh_audio.extend_from_slice(b"auds");
-    strh_audio.extend_from_slice(&[0u8; 4]); // fccHandler: none
-    put_u32le(&mut strh_audio, 0); // dwFlags
-    put_u16le(&mut strh_audio, 0); // wPriority
-    put_u16le(&mut strh_audio, 0); // wLanguage
-    put_u32le(&mut strh_audio, 0); // dwInitialFrames
-    put_u32le(&mut strh_audio, 1); // dwScale
-    put_u32le(&mut strh_audio, AUDIO_RATE); // dwRate
-    put_u32le(&mut strh_audio, 0); // dwStart
-    put_u32le(&mut strh_audio, TOTAL_SAMPLES as u32); // dwLength
-    put_u32le(&mut strh_audio, tick_bytes as u32); // dwSuggestedBufferSize
-    put_u32le(&mut strh_audio, u32::MAX); // dwQuality
-    put_u32le(&mut strh_audio, (AUDIO_CHANNELS * 2) as u32); // dwSampleSize
-    put_u16le(&mut strh_audio, 0); // rcFrame left
-    put_u16le(&mut strh_audio, 0); // rcFrame top
-    put_u16le(&mut strh_audio, 0); // rcFrame right
-    put_u16le(&mut strh_audio, 0); // rcFrame bottom
+    // strh/strf — one pair per audio stream (PCM convention: dwScale 1,
+    // dwRate = sample rate, dwLength = sample frames, dwSampleSize =
+    // block align). Built up-front so the hdrl assembly stays a flat
+    // per-stream loop.
+    let mut audio_headers: Vec<(Vec<u8>, Vec<u8>)> = Vec::with_capacity(audio.len());
+    for stream in audio {
+        let mut strh = Vec::with_capacity(56);
+        strh.extend_from_slice(b"auds");
+        strh.extend_from_slice(&[0u8; 4]); // fccHandler: none
+        put_u32le(&mut strh, 0); // dwFlags
+        put_u16le(&mut strh, 0); // wPriority
+        put_u16le(&mut strh, 0); // wLanguage
+        put_u32le(&mut strh, 0); // dwInitialFrames
+        put_u32le(&mut strh, 1); // dwScale
+        put_u32le(&mut strh, stream.rate); // dwRate
+        put_u32le(&mut strh, 0); // dwStart
+        put_u32le(&mut strh, stream.total_frames() as u32); // dwLength
+        put_u32le(&mut strh, stream.tick_bytes() as u32); // dwSuggestedBufferSize
+        put_u32le(&mut strh, u32::MAX); // dwQuality
+        put_u32le(&mut strh, stream.frame_bytes() as u32); // dwSampleSize
+        put_u16le(&mut strh, 0); // rcFrame left
+        put_u16le(&mut strh, 0); // rcFrame top
+        put_u16le(&mut strh, 0); // rcFrame right
+        put_u16le(&mut strh, 0); // rcFrame bottom
 
-    // strf — audio format: PCMWAVEFORMAT (16 bytes; no cbSize needed).
-    let mut strf_audio = Vec::with_capacity(16);
-    put_u16le(&mut strf_audio, 1); // wFormatTag = PCM
-    put_u16le(&mut strf_audio, AUDIO_CHANNELS as u16); // nChannels
-    put_u32le(&mut strf_audio, AUDIO_RATE); // nSamplesPerSec
-    put_u32le(
-        &mut strf_audio,
-        AUDIO_RATE * (AUDIO_CHANNELS as u32) * 2, // nAvgBytesPerSec
-    );
-    put_u16le(&mut strf_audio, (AUDIO_CHANNELS * 2) as u16); // nBlockAlign
-    put_u16le(&mut strf_audio, 16); // wBitsPerSample
+        // strf — audio format: PCMWAVEFORMAT (16 bytes; no cbSize
+        // needed — plain-PCM tags only in this corpus).
+        let mut strf = Vec::with_capacity(16);
+        put_u16le(&mut strf, 1); // wFormatTag = PCM
+        put_u16le(&mut strf, stream.channels as u16); // nChannels
+        put_u32le(&mut strf, stream.rate); // nSamplesPerSec
+        put_u32le(
+            &mut strf,
+            stream.rate * stream.frame_bytes() as u32, // nAvgBytesPerSec
+        );
+        put_u16le(&mut strf, stream.frame_bytes() as u16); // nBlockAlign
+        put_u16le(&mut strf, stream.bits_per_sample); // wBitsPerSample
+        audio_headers.push((strh, strf));
+    }
 
     // Assembly. All sizes are patched in place, so no float or size
     // pre-computation beyond dwMaxBytesPerSec is needed.
@@ -1576,17 +1711,22 @@ fn build_avi(frames: &[Vec<u8>], pcm: &[u8]) -> Result<AviBuilt, String> {
     let hdrl_pos = avi_begin_sized(&mut out, b"LIST");
     out.extend_from_slice(b"hdrl");
     let avih_offset = avi_chunk(&mut out, b"avih", &avih);
-    let mut strl_offsets = [0usize; 2];
-    for (slot, (strh, strf)) in [
-        (0, (&strh_video, &strf_video)),
-        (1, (&strh_audio, &strf_audio)),
-    ] {
+    let mut strl_offsets: Vec<usize> = Vec::with_capacity(1 + audio.len());
+    {
+        let pos = avi_begin_sized(&mut out, b"LIST");
+        out.extend_from_slice(b"strl");
+        avi_chunk(&mut out, b"strh", &strh_video);
+        avi_chunk(&mut out, b"strf", &strf_video);
+        avi_end_sized(&mut out, pos);
+        strl_offsets.push(pos);
+    }
+    for (strh, strf) in &audio_headers {
         let pos = avi_begin_sized(&mut out, b"LIST");
         out.extend_from_slice(b"strl");
         avi_chunk(&mut out, b"strh", strh);
         avi_chunk(&mut out, b"strf", strf);
         avi_end_sized(&mut out, pos);
-        strl_offsets[slot] = pos;
+        strl_offsets.push(pos);
     }
     avi_end_sized(&mut out, hdrl_pos);
 
@@ -1594,14 +1734,25 @@ fn build_avi(frames: &[Vec<u8>], pcm: &[u8]) -> Result<AviBuilt, String> {
     let movi_pos = avi_begin_sized(&mut out, b"LIST");
     out.extend_from_slice(b"movi");
     let movi_fourcc_pos = movi_offset + 8;
-    let mut chunks: Vec<([u8; 4], usize, usize)> = Vec::with_capacity(2 * FRAME_COUNT);
+    let mut chunks: Vec<([u8; 4], usize, usize)> =
+        Vec::with_capacity((1 + audio.len()) * frames.len());
     for (index, frame) in frames.iter().enumerate() {
         let offset = avi_chunk(&mut out, b"00dc", frame);
         chunks.push((*b"00dc", offset, frame.len()));
-        let from = index * tick_bytes;
-        let tick = &pcm[from..from + tick_bytes];
-        let offset = avi_chunk(&mut out, b"01wb", tick);
-        chunks.push((*b"01wb", offset, tick.len()));
+        for (stream_index, stream) in audio.iter().enumerate() {
+            // Audio stream N's chunks are `NNwb` (AVI 1.0 stream
+            // numbering: video is 0, audio streams follow).
+            let tag = [
+                b'0' + ((stream_index + 1) / 10) as u8,
+                b'0' + ((stream_index + 1) % 10) as u8,
+                b'w',
+                b'b',
+            ];
+            let from = index * stream.tick_bytes();
+            let tick = &stream.data[from..from + stream.tick_bytes()];
+            let offset = avi_chunk(&mut out, &tag, tick);
+            chunks.push((tag, offset, tick.len()));
+        }
     }
     avi_end_sized(&mut out, movi_pos);
     let movi_data_offset = chunks
@@ -1677,12 +1828,12 @@ fn fourcc_str(tag: &[u8; 4]) -> String {
 
 /// Serialize the AVI structure map (compact single-line JSON — a machine
 /// input, not prose).
-fn avi_structure_json(avi: &AviBuilt) -> Vec<u8> {
+fn avi_structure_json(avi: &AviBuilt, fixture: &str) -> Vec<u8> {
     let layout = &avi.layout;
     let len = avi.bytes.len();
     let mut s = String::with_capacity(2048 + 48 * layout.chunks.len());
     s.push_str("{\"schema\":\"structure-map/1\",\"fixture\":");
-    json_put_string(&mut s, "generated/valid/avi_mjpeg_pcm.avi");
+    json_put_string(&mut s, fixture);
     s.push_str(",\"size\":");
     json_put_uint(&mut s, len as u64);
     s.push_str(",\"note\":\"offsets of top-level chunks and movi entries; class-B derivatives derive their cut/patch positions from here (corpus-plan s1 B1/B3)\"");
@@ -1705,9 +1856,12 @@ fn avi_structure_json(avi: &AviBuilt) -> Vec<u8> {
     s.push_str(",\"avih_offset\":");
     json_put_uint(&mut s, layout.avih_offset as u64);
     s.push_str(",\"strl_offsets\":[");
-    json_put_uint(&mut s, layout.strl_offsets[0] as u64);
-    s.push(',');
-    json_put_uint(&mut s, layout.strl_offsets[1] as u64);
+    for (index, offset) in layout.strl_offsets.iter().enumerate() {
+        if index > 0 {
+            s.push(',');
+        }
+        json_put_uint(&mut s, (*offset) as u64);
+    }
     s.push_str("],\"movi_offset\":");
     json_put_uint(&mut s, layout.movi_offset as u64);
     s.push_str(",\"movi_data_offset\":");
@@ -2896,6 +3050,95 @@ fn parent_expectation(
     s.into_bytes()
 }
 
+/// The multi-track parent expectation (W2-FIX-MT, card 3.A3): the
+/// per-track plan (one video + TWO distinct-shape audio streams), the
+/// generator-truth essence digests per stream, and the `[switch_plan]`
+/// section the 3.A3 AC suite asserts against — the switch point and
+/// the post-switch audio format a correct track switch must deliver.
+fn multitrack_expectation(
+    file: &GeneratedFile,
+    frames: &[Vec<u8>],
+    a1: &AviAudioEssence,
+    a2: &AviAudioEssence,
+) -> Vec<u8> {
+    let mut s = String::with_capacity(2048 + 72 * frames.len());
+    s.push_str(&expectation_header(file, "A", None));
+    s.push_str("\n[tracks]\ncount = 3\n");
+    s.push_str(&format!(
+        "video = [{{ id = 0, codec = \"mjpeg\", width = {FRAME_WIDTH}, \
+         height = {FRAME_HEIGHT}, fps = {{ num = {MT_FPS}, den = 1 }} }}]\n"
+    ));
+    s.push_str(&format!(
+        "audio = [{{ id = 1, codec = \"pcm_s16le\", rate = {MT_A1_RATE}, \
+         channels = {MT_A1_CHANNELS} }}, \
+         {{ id = 2, codec = \"pcm_u8\", rate = {MT_A2_RATE}, \
+         channels = {MT_A2_CHANNELS} }}]\n\n"
+    ));
+    s.push_str(&format!(
+        "duration_us = {}\n\n",
+        toml_uint((MT_FRAME_COUNT as u64 * 1_000_000) / u64::from(MT_FPS))
+    ));
+    s.push_str("[seek]\n");
+    s.push_str(&format!(
+        "targets_us = [0, 500_000, 1_000_000, {}]\n",
+        toml_uint((MT_FRAME_COUNT as u64 * 1_000_000) / u64::from(MT_FPS) - 1_000)
+    ));
+    s.push_str(&format!(
+        "tolerance_us = {}\n\n",
+        toml_uint((1_000_000 + u64::from(MT_FPS) / 2) / u64::from(MT_FPS))
+    ));
+    s.push_str("[first_frame]\n");
+    s.push_str("# The video essence is the first MT_FRAME_COUNT frames of the\n");
+    s.push_str("# shared 60-frame corpus render (identical JPEG bytes across all\n");
+    s.push_str("# three parents), so the luma descriptor matches the v0 parents'.\n");
+    s.push_str("hash_y = ");
+    s.push_str(&toml_string(FIRST_FRAME_HASH_Y));
+    s.push('\n');
+    s.push_str(&format!(
+        "stamp_us = {}\n\n",
+        toml_uint(FIRST_FRAME_STAMP_US)
+    ));
+    s.push_str("[audio_probe]\n");
+    s.push_str("# First PCM decode of stream 1 (48 kHz stereo s16le): the pinned\n");
+    s.push_str("# f32 conversion of the first 4800 sample-instants, the same rule\n");
+    s.push_str("# as the v0 parents' probe. Stream 2 carries no probe section —\n");
+    s.push_str("# the u8 pinned conversion is owed to the first codec that needs\n");
+    s.push_str("# it (honest omission, not an oversight).\n");
+    s.push_str("first_samples_md5 = ");
+    s.push_str(&toml_string(&audio_probe_md5_s16(&a1.data, MT_A1_CHANNELS)));
+    s.push_str("\n\n[essence_v0]\n");
+    s.push_str("# Supplemental generator-truth digests (beyond doc 10 §5.4's base),\n");
+    s.push_str("# per audio stream (stream order, not container stream id).\n");
+    s.push_str(&format!("video_sample_count = {}\n", frames.len()));
+    s.push_str("video_sample_sha256 = [\n");
+    for frame in frames {
+        s.push_str(&format!("  {},\n", toml_string(&sha256_hex(frame))));
+    }
+    s.push_str("]\n");
+    s.push_str("audio_streams_sha256 = [\n");
+    s.push_str(&format!("  {},\n", toml_string(&sha256_hex(&a1.data))));
+    s.push_str(&format!("  {},\n", toml_string(&sha256_hex(&a2.data))));
+    s.push_str("]\n");
+    s.push_str("audio_streams_bytes = [");
+    s.push_str(&toml_uint(a1.data.len() as u64));
+    s.push_str(", ");
+    s.push_str(&toml_uint(a2.data.len() as u64));
+    s.push_str("]\n\n");
+    s.push_str("[switch_plan]\n");
+    s.push_str("# W2-FIX-MT (card 3.A3 AC): the audio track-switch plan. The\n");
+    s.push_str("# engine's default selection is stream 1 (first audio track);\n");
+    s.push_str("# switching to stream 2 mid-play must deliver post-switch audio\n");
+    s.push_str("# frames in stream 2's format — the distinct shapes make a\n");
+    s.push_str("# wrong-track decode observable at the sink.\n");
+    s.push_str("switch_at_us = 1_000_000\n");
+    s.push_str("from_track_id = 1\n");
+    s.push_str("to_track_id = 2\n");
+    s.push_str(&format!(
+        "post_switch = {{ codec = \"pcm_u8\", rate = {MT_A2_RATE}, channels = {MT_A2_CHANNELS} }}\n"
+    ));
+    s.into_bytes()
+}
+
 /// The class-B derivative expectation: derivation parameters plus the
 /// error contract (corpus-plan §4's `[error]` extension).
 fn derivative_expectation(derivative: &Derivative) -> Vec<u8> {
@@ -2959,7 +3202,13 @@ fn manifest_toml(files: &[GeneratedFile]) -> Vec<u8> {
 /// The one-line purpose recorded for a fixture in CORPUS.md.
 fn corpus_purpose(file: &GeneratedFile) -> String {
     let is_avi = file.path.contains("avi_mjpeg_pcm");
+    let is_avi_mt = file.path.contains("avi_mjpeg_2pcm");
     match file.op {
+        "parent" if is_avi_mt => "multi-track parent (W2-FIX-MT, card 3.A3): AVI 1.0, \
+             MJPEG video + 48 kHz stereo pcm_s16le + 44.1 kHz mono pcm_u8 — \
+             the distinct audio shapes make a wrong-track decode observable; \
+             no class-B derivatives (recorded follow-up)"
+            .to_string(),
         "parent" if is_avi => "decision-independent first-vertical parent: AVI 1.0, MJPEG video \
              + PCM s16le audio (doc 03 §7 candidate 2)"
             .to_string(),
@@ -3034,7 +3283,10 @@ fn corpus_markdown(files: &[GeneratedFile]) -> Vec<u8> {
     s.push_str("## Layout\n\n");
     s.push_str("- `generated/valid/` — class A: the two decision-independent parents\n");
     s.push_str("  and their structure maps (`*.structure.json`, corpus-plan §2 — the\n");
-    s.push_str("  recorded offsets the class-B cuts and patches derive from).\n");
+    s.push_str("  recorded offsets the class-B cuts and patches derive from), plus\n");
+    s.push_str("  the multi-track AVI parent `avi_mjpeg_2pcm.avi` (W2-FIX-MT, card\n");
+    s.push_str("  3.A3 — one video + two distinct-shape PCM audio streams; structure\n");
+    s.push_str("  map included, class-B derivatives are a recorded follow-up).\n");
     s.push_str("- `generated/malformed/` — class B: derivatives per parent\n");
     s.push_str("  (`<parent>__<op><n>.<ext>`; twelve for the AVI parent — the ten\n");
     s.push_str("  corpus-plan shapes plus the two ED-FIX-3 dirty-world variants —\n");
@@ -3051,7 +3303,24 @@ fn corpus_markdown(files: &[GeneratedFile]) -> Vec<u8> {
     s.push_str("  only).\n");
     s.push_str("- Curated third-party files (class D): none in v0 — any future row\n");
     s.push_str("  needs source URL + license + hash per corpus-plan §5.\n\n");
-    s.push_str("## Fixture rows\n\n");
+    s.push_str("## External-oracle cross-check commands (W2-FIX-MT)\n\n");
+    s.push_str("Reference commands for the multi-track parent, recorded for\n");
+    s.push_str("provenance only (CORPUS.md license rule: ffmpeg is a local\n");
+    s.push_str("cross-check oracle, never in the build — the committed bytes are\n");
+    s.push_str("authored in-tree by this generator). The oracle checks STRUCTURE\n");
+    s.push_str("(three streams, per-stream formats), not byte equality — the\n");
+    s.push_str("in-tree tones and pixel content differ from lavfi's by design:\n");
+    s.push_str("\n    ffmpeg -f lavfi -i testsrc2=size=320x240:rate=10 \\\n");
+    s.push_str("      -f lavfi -i \"sine=frequency=440:sample_rate=48000\" \\\n");
+    s.push_str("      -f lavfi -i \"sine=frequency=880:sample_rate=44100\" \\\n");
+    s.push_str("      -map 0:v -map 1:a -map 2:a -c:v mjpeg -q:v 5 \\\n");
+    s.push_str("      -c:a:0 pcm_s16le -ac:a:0 2 -c:a:1 pcm_u8 -ac:a:1 1 \\\n");
+    s.push_str("      -t 2 -y oracle_avi_mjpeg_2pcm.avi\n");
+    s.push_str("\n    ffprobe -hide_banner oracle_avi_mjpeg_2pcm.avi   # expect:\n");
+    s.push_str("    #   Stream #0:0: Video: mjpeg, 320x240, 10 fps\n");
+    s.push_str("    #   Stream #0:1: Audio: pcm_s16le, 48000 Hz, stereo, s16\n");
+    s.push_str("    #   Stream #0:2: Audio: pcm_u8, 44100 Hz, mono, u8\n");
+    s.push_str("\n## Fixture rows\n\n");
     s.push_str("| path | class | op | bytes | sha256 | purpose |\n");
     s.push_str("|---|---|---|---|---|---|\n");
     for f in &fixtures {
@@ -3100,7 +3369,17 @@ fn generate_all() -> Result<Vec<GeneratedFile>, String> {
     }
     let pcm = generate_pcm();
 
-    let avi = build_avi(&frames, &pcm)?;
+    let avi = build_avi(
+        &frames,
+        FPS,
+        &[AviAudioEssence {
+            data: pcm.clone(),
+            rate: AUDIO_RATE,
+            channels: AUDIO_CHANNELS,
+            bits_per_sample: 16,
+            tick_frames: SAMPLES_PER_TICK,
+        }],
+    )?;
     let avi_parent = GeneratedFile {
         path: "generated/valid/avi_mjpeg_pcm.avi".to_string(),
         bytes: avi.bytes.clone(),
@@ -3108,6 +3387,39 @@ fn generate_all() -> Result<Vec<GeneratedFile>, String> {
         op: "parent",
         parent: None,
     };
+
+    // W2-FIX-MT (card 3.A3): the multi-track AVI parent — 1 MJPEG
+    // video + two distinct-shape PCM audio streams (48 kHz stereo
+    // s16le + 44.1 kHz mono u8). The video essence is the first
+    // MT_FRAME_COUNT frames of the shared render (identical JPEG
+    // bytes). No class-B derivatives: the multi-track parent exists
+    // for the 3.A3 switch AC, and its adversarial siblings are a
+    // recorded follow-up (see CORPUS.md's layout note).
+    let mt_a1 = AviAudioEssence {
+        data: generate_mt_pcm_s16(),
+        rate: MT_A1_RATE,
+        channels: MT_A1_CHANNELS,
+        bits_per_sample: 16,
+        tick_frames: (MT_A1_RATE / MT_FPS) as usize,
+    };
+    let mt_a2 = AviAudioEssence {
+        data: generate_mt_pcm_u8(),
+        rate: MT_A2_RATE,
+        channels: MT_A2_CHANNELS,
+        bits_per_sample: 8,
+        tick_frames: (MT_A2_RATE / MT_FPS) as usize,
+    };
+    let mt_audio = [mt_a1, mt_a2];
+    let mt_frames: &[Vec<u8>] = &frames[..MT_FRAME_COUNT];
+    let avi_mt = build_avi(mt_frames, MT_FPS, &mt_audio)?;
+    let avi_mt_parent = GeneratedFile {
+        path: "generated/valid/avi_mjpeg_2pcm.avi".to_string(),
+        bytes: avi_mt.bytes.clone(),
+        class: "A",
+        op: "parent",
+        parent: None,
+    };
+
     let mp4 = build_mp4(&frames, &pcm)?;
     let mp4_parent = GeneratedFile {
         path: "generated/valid/mp4_mjpeg_pcm.mp4".to_string(),
@@ -3128,13 +3440,20 @@ fn generate_all() -> Result<Vec<GeneratedFile>, String> {
     // carry the full track plan + essence digests (AVI stream ids are
     // 0/1; MP4 track ids are 1/2 — each container's own numbering);
     // derivatives carry their derivation and the class-B error contract.
-    let mut expectations: Vec<GeneratedFile> = Vec::with_capacity(2 + derivatives.len());
+    let mut expectations: Vec<GeneratedFile> = Vec::with_capacity(3 + derivatives.len());
     expectations.push(GeneratedFile {
         path: expectation_path(&avi_parent.path),
         bytes: parent_expectation(&avi_parent, 0, 1, &frames, &pcm),
         class: "L",
         op: "expectation",
         parent: Some(avi_parent.path.clone()),
+    });
+    expectations.push(GeneratedFile {
+        path: expectation_path(&avi_mt_parent.path),
+        bytes: multitrack_expectation(&avi_mt_parent, mt_frames, &mt_audio[0], &mt_audio[1]),
+        class: "L",
+        op: "expectation",
+        parent: Some(avi_mt_parent.path.clone()),
     });
     expectations.push(GeneratedFile {
         path: expectation_path(&mp4_parent.path),
@@ -3161,10 +3480,18 @@ fn generate_all() -> Result<Vec<GeneratedFile>, String> {
     files.push(avi_parent);
     files.push(GeneratedFile {
         path: "generated/valid/avi_mjpeg_pcm.avi.structure.json".to_string(),
-        bytes: avi_structure_json(&avi),
+        bytes: avi_structure_json(&avi, "generated/valid/avi_mjpeg_pcm.avi"),
         class: "A",
         op: "structure-map",
         parent: Some("generated/valid/avi_mjpeg_pcm.avi".to_string()),
+    });
+    files.push(avi_mt_parent);
+    files.push(GeneratedFile {
+        path: "generated/valid/avi_mjpeg_2pcm.avi.structure.json".to_string(),
+        bytes: avi_structure_json(&avi_mt, "generated/valid/avi_mjpeg_2pcm.avi"),
+        class: "A",
+        op: "structure-map",
+        parent: Some("generated/valid/avi_mjpeg_2pcm.avi".to_string()),
     });
     files.push(mp4_parent);
     files.push(GeneratedFile {

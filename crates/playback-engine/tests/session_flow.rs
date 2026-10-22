@@ -839,10 +839,14 @@ fn an_armed_decode_failure_transitions_to_error_from_playing() {
 
 #[test]
 fn nothing_decodable_is_a_typed_config_failure() {
-    // A subtitle-only source: no audio/video limb is wireable, and the
-    // engine refuses to fabricate playback (typed, not a crash).
+    // A data-only source: no audio/video/subtitle limb is wireable
+    // (data tracks are never wired — dropped at push), and the engine
+    // refuses to fabricate playback (typed, not a crash). Card 3.A3
+    // moved the subtitle-only flavor to the honest seam below: a
+    // subtitle track with a capable provider wires a subtitle limb
+    // and plays.
     let mut fixture = open_with(
-        vec![track(9, MediaKind::Subtitle)],
+        vec![track(9, MediaKind::Data)],
         vec![DemuxEvent::EndOfStream],
         None,
         None,
@@ -873,6 +877,37 @@ fn nothing_decodable_is_a_typed_config_failure() {
             _ => None,
         });
     assert_eq!(wire_error, Some(commands::ErrorCode::Unsupported));
+}
+
+/// Card 3.A3 (class-S seam, worklog W1-17 S5): a subtitle-only
+/// source with a subtitle-capable provider is **playable** — the
+/// optional kind wires a limb exactly like an A/V limb (the v0
+/// refusal was the pre-3.A3 "no subtitle limbs" limitation, not a
+/// product rule; VLC plays text-only streams). With nothing left to
+/// decode the media drains to `Ended` honestly.
+#[test]
+fn a_subtitle_only_source_plays_and_drains_honestly() {
+    let mut fixture = open_with(
+        vec![track(9, MediaKind::Subtitle)],
+        vec![DemuxEvent::EndOfStream],
+        None,
+        None,
+    );
+    fixture.engine.poll();
+    // Opened, wired (the subtitle limb), and draining at EOF — never
+    // a fabricated failure.
+    poll_until(&mut fixture, |s| s == SessionState::Ended, 100, "drain");
+    let outputs = take_events(&mut fixture);
+    assert!(
+        !outputs.iter().any(|output| matches!(
+            output,
+            EngineOutput::Event(EngineEvent {
+                kind: EngineEventKind::Fatal { .. },
+                ..
+            })
+        )),
+        "a subtitle-only source is not an error"
+    );
 }
 
 // ---------------------------------------------------------------------------

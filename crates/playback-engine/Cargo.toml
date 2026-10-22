@@ -43,3 +43,14 @@ plugin-api = { path = "../plugin-api" }
 # testkit is dev-only by contract (MP §3.7 / ARCH-7): the lint-legal
 # `Must` helper for fixture contracts in tests and doctests.
 testkit = { path = "../testkit" }
+# The card 3.A3 real-fixture suite (tests/track_switch_fixture.rs)
+# composes the engine with the concrete demux/codec/input stacks
+# TEST-ONLY — the same dev-edge pattern demux uses for input (card
+# 2.B2's composition proof) and codecs for its corpus edge. The
+# library stays trait-level: no concrete demux/codec crate appears in
+# [dependencies] (the C5 note above is untouched). Boundaries: dev
+# edges are exempt from layer ordering (boundaries.toml's own rule);
+# the manifest entry carries the Lead flag.
+demux = { path = "../demux" }
+codecs = { path = "../codecs" }
+input = { path = "../input" }

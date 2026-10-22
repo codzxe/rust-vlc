@@ -414,8 +414,10 @@ fn first_fatal(events: &[EngineEvent]) -> Option<&EngineError> {
 fn no_decodable_track_names_container_and_codecs() {
     let mut fixture = open_with(
         Some("avi"),
+        // Data-only: under 3.A3 a subtitle limb wires (the optional
+        // kind), so the nothing-decodable fixture is data tracks.
         vec![
-            track(4, MediaKind::Subtitle, "subp"),
+            track(4, MediaKind::Data, "subp"),
             track(5, MediaKind::Data, "txts"),
         ],
         vec![DemuxEvent::EndOfStream],
@@ -448,7 +450,7 @@ fn no_decodable_track_names_container_and_codecs() {
         "source leaf names the container: {text}"
     );
     assert!(
-        text.contains("subtitle `subp`") && text.contains("data `txts`"),
+        text.contains("data `subp`") && text.contains("data `txts`"),
         "source leaf lists every reported codec: {text}"
     );
     // Display renders the enrichment (the kind summary carries the
@@ -501,7 +503,9 @@ fn no_decodable_track_with_empty_track_list_names_container_only() {
 fn no_decodable_track_without_container_stays_unenriched() {
     let mut fixture = open_with(
         None,
-        vec![track(9, MediaKind::Subtitle, "subp")],
+        vec![track(9, MediaKind::Data, "subp")],
+        // Data-only (a subtitle limb wires under 3.A3 — see the
+        // container test above).
         vec![DemuxEvent::EndOfStream],
         FaultProvider {
             fail_indices: Vec::new(),
@@ -517,7 +521,7 @@ fn no_decodable_track_without_container_stays_unenriched() {
     // is absent — the tracks half is always known).
     let source = std::error::Error::source(error).must();
     assert!(
-        source.to_string().contains("subtitle `subp`"),
+        source.to_string().contains("data `subp`"),
         "codec list present without a container: {}",
         source
     );

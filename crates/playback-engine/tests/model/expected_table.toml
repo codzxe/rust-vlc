@@ -1,6 +1,6 @@
 # The expected state-machine table (card 3.C1's committed artifact):
-# one entry per (state, input) pair — 8 states x 12 inputs = 96
-# entries, exactly. This file is the HUMAN review surface for every
+# one entry per (state, input) pair — 8 states x 13 inputs = 104
+# entries, exactly (3.C1's four rows + 3.A3's three work-carriers). This file is the HUMAN review surface for every
 # transition decision: adding, removing, or editing a row is a diff
 # here, visible and arguable in TOML before it is code (the design's
 # "adding a row is a deliberate act").
@@ -72,6 +72,11 @@ reject = "no-session"
 
 [[pair]]
 state = "idle"
+input = "switch-track"
+reject = "no-session"
+
+[[pair]]
+state = "idle"
 input = "open-ready"
 reject = "signal-not-raised-here"
 
@@ -132,6 +137,11 @@ effects = ["bump-pipeline", "destroy-session"]
 [[pair]]
 state = "opening"
 input = "seek"
+reject = "not-ready"
+
+[[pair]]
+state = "opening"
+input = "switch-track"
 reject = "not-ready"
 
 [[pair]]
@@ -204,6 +214,12 @@ effects = ["bump-pipeline", "seek-pipeline"]
 
 [[pair]]
 state = "buffering"
+input = "switch-track"
+to = "buffering"
+effects = ["bump-pipeline", "switch-pipeline"]
+
+[[pair]]
+state = "buffering"
 input = "open-ready"
 reject = "signal-not-raised-here"
 
@@ -270,6 +286,12 @@ state = "playing"
 input = "seek"
 to = "buffering"
 effects = ["freeze-clock", "bump-pipeline", "seek-pipeline", "emit-buffering-enter"]
+
+[[pair]]
+state = "playing"
+input = "switch-track"
+to = "playing"
+effects = ["bump-pipeline", "switch-pipeline"]
 
 [[pair]]
 state = "playing"
@@ -342,6 +364,12 @@ effects = ["bump-pipeline", "seek-pipeline"]
 
 [[pair]]
 state = "paused"
+input = "switch-track"
+to = "paused"
+effects = ["bump-pipeline", "switch-pipeline"]
+
+[[pair]]
+state = "paused"
 input = "open-ready"
 reject = "signal-not-raised-here"
 
@@ -393,6 +421,11 @@ reject = "already-settled"
 [[pair]]
 state = "stopped"
 input = "stop"
+reject = "already-settled"
+
+[[pair]]
+state = "stopped"
+input = "switch-track"
 reject = "already-settled"
 
 [[pair]]
@@ -460,6 +493,11 @@ reject = "already-settled"
 
 [[pair]]
 state = "ended"
+input = "switch-track"
+reject = "already-settled"
+
+[[pair]]
+state = "ended"
 input = "close"
 to = "idle"
 effects = ["bump-pipeline", "destroy-session"]
@@ -519,6 +557,11 @@ reject = "already-settled"
 [[pair]]
 state = "error"
 input = "stop"
+reject = "already-settled"
+
+[[pair]]
+state = "error"
+input = "switch-track"
 reject = "already-settled"
 
 [[pair]]

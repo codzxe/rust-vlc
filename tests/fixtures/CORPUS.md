@@ -25,7 +25,10 @@ CC0 1.0 Universal Public Domain Dedication
 
 - `generated/valid/` — class A: the two decision-independent parents
   and their structure maps (`*.structure.json`, corpus-plan §2 — the
-  recorded offsets the class-B cuts and patches derive from).
+  recorded offsets the class-B cuts and patches derive from), plus
+  the multi-track AVI parent `avi_mjpeg_2pcm.avi` (W2-FIX-MT, card
+  3.A3 — one video + two distinct-shape PCM audio streams; structure
+  map included, class-B derivatives are a recorded follow-up).
 - `generated/malformed/` — class B: derivatives per parent
   (`<parent>__<op><n>.<ext>`; twelve for the AVI parent — the ten
   corpus-plan shapes plus the two ED-FIX-3 dirty-world variants —
@@ -43,12 +46,35 @@ CC0 1.0 Universal Public Domain Dedication
 - Curated third-party files (class D): none in v0 — any future row
   needs source URL + license + hash per corpus-plan §5.
 
+## External-oracle cross-check commands (W2-FIX-MT)
+
+Reference commands for the multi-track parent, recorded for
+provenance only (CORPUS.md license rule: ffmpeg is a local
+cross-check oracle, never in the build — the committed bytes are
+authored in-tree by this generator). The oracle checks STRUCTURE
+(three streams, per-stream formats), not byte equality — the
+in-tree tones and pixel content differ from lavfi's by design:
+
+    ffmpeg -f lavfi -i testsrc2=size=320x240:rate=10 \
+      -f lavfi -i "sine=frequency=440:sample_rate=48000" \
+      -f lavfi -i "sine=frequency=880:sample_rate=44100" \
+      -map 0:v -map 1:a -map 2:a -c:v mjpeg -q:v 5 \
+      -c:a:0 pcm_s16le -ac:a:0 2 -c:a:1 pcm_u8 -ac:a:1 1 \
+      -t 2 -y oracle_avi_mjpeg_2pcm.avi
+
+    ffprobe -hide_banner oracle_avi_mjpeg_2pcm.avi   # expect:
+    #   Stream #0:0: Video: mjpeg, 320x240, 10 fps
+    #   Stream #0:1: Audio: pcm_s16le, 48000 Hz, stereo, s16
+    #   Stream #0:2: Audio: pcm_u8, 44100 Hz, mono, u8
+
 ## Fixture rows
 
 | path | class | op | bytes | sha256 | purpose |
 |---|---|---|---|---|---|
 | generated/valid/avi_mjpeg_pcm.avi | A | parent | 425516 | 1f56202d7b113d38f9e1564fd09091803a264ea2ac88ec9780232ca10a3d271a | decision-independent first-vertical parent: AVI 1.0, MJPEG video + PCM s16le audio (doc 03 §7 candidate 2) |
 | generated/valid/avi_mjpeg_pcm.avi.structure.json | A | structure-map | 6123 | dc24d8b6bec5d3ff030ed234e0f3e491c2016c9d33354b331586d02d51cf0a32 | structure map: the recorded chunk/sample offsets the class-B cuts and patches derive from (corpus-plan §2) |
+| generated/valid/avi_mjpeg_2pcm.avi | A | parent | 497160 | 14d3a0e9a842e66710524dcbd6ccd17caf462541a2d8335327854698479868f3 | multi-track parent (W2-FIX-MT, card 3.A3): AVI 1.0, MJPEG video + 48 kHz stereo pcm_s16le + 44.1 kHz mono pcm_u8 — the distinct audio shapes make a wrong-track decode observable; no class-B derivatives (recorded follow-up) |
+| generated/valid/avi_mjpeg_2pcm.avi.structure.json | A | structure-map | 3404 | 2f0d059fb27379ff168872987bb3ec44f38dbf4985207c4cd8b2a3345e39e640 | structure map: the recorded chunk/sample offsets the class-B cuts and patches derive from (corpus-plan §2) |
 | generated/valid/mp4_mjpeg_pcm.mp4 | A | parent | 424452 | d0459524e3be5e90174c2a861724c3bb06fc12fbcbb52c7feea5f117aaa26da6 | decision-independent first-vertical parent: ISO-BMFF progressive, MJPEG video + PCM s16le audio (doc 04 §8.1 candidate B) |
 | generated/valid/mp4_mjpeg_pcm.mp4.structure.json | A | structure-map | 4093 | 3054dd9fa5c97ac36817c16e529f444a496b0313d881d65dd7b6e49d7d1b1b88 | structure map: the recorded chunk/sample offsets the class-B cuts and patches derive from (corpus-plan §2) |
 | generated/malformed/avi_mjpeg_pcm__trunc0.avi | B | trunc0 | 12 | ecd3e745fbf4c017dabed8fdc166dc8722f2b6ead6b151a34ba1e7eb54a8c628 | class-B truncation at a structure boundary (corpus-plan §1 B1); cut offset recorded in the expectation file |
@@ -74,5 +100,5 @@ CC0 1.0 Universal Public Domain Dedication
 | generated/malformed/mp4_mjpeg_pcm__flip16.mp4 | B | flip16 | 424452 | 63a746dead5ccbe006d0073f5374750c443a97d7f7e9b7eba9030f51abe2340c | class-B seeded header bit-flips, k = 16 within the family header extent (corpus-plan §1 B2) |
 | generated/malformed/mp4_mjpeg_pcm__stszlie0.mp4 | B | stszlie0 | 424452 | c7d9ece0d4e564cda2025b616ccf305abd0d540e9cdbe214450e3ce424097185 | spec violation: video stsz sample_count patched to 2^31-1 (corpus-plan §1 B3 oversize lie) |
 
-Total: 26 fixture file(s), 7246364 bytes. Ledger files (this file,
+Total: 28 fixture file(s), 7746928 bytes. Ledger files (this file,
 MANIFEST.toml, expectations/) are verified by `--check` byte-comparison.

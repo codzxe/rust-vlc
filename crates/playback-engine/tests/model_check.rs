@@ -1,5 +1,5 @@
 //! The three-way exhaustive proof (card 3.C1's model-based AC): for
-//! every one of the `8 × 12 = 96` `(state, input)` pairs, three
+//! every one of the `8 × 13 = 104` `(state, input)` pairs, three
 //! **independently authored** opinions of the documented machine must
 //! agree exactly — target state, side effects, and typed rejection
 //! reason:
@@ -22,8 +22,8 @@
 //! values, exactly as the artifact's header documents).
 //!
 //! Beside the per-pair agreement, this file pins the shape invariants
-//! the design's row-count arithmetic demands: exactly 96 artifact
-//! entries with no duplicate pair, 30 legal rows / 66 typed
+//! the design's row-count arithmetic demands: exactly 104 artifact
+//! entries with no duplicate pair, 33 legal rows / 71 typed
 //! rejections, no duplicate rows, every legal row wire-conformant
 //! (`PlaybackState::can_transition_to`, doc 05 §3.3), and the
 //! artifact's own edge projection equal to the wire edge set.
@@ -157,7 +157,7 @@ fn finish(
 /// The artifact's `effects` are `&'static` in [`ModelAnswer`] (the
 /// oracle spells them as statics); the parsed Vec needs a matching
 /// 'static lifetime for comparison. Leaking a handful of 0-4 element
-/// test-side slices is bounded by the 96-entry artifact (a test-only
+/// test-side slices is bounded by the 104-entry artifact (a test-only
 /// convenience — at most a few KiB over the process life).
 fn leak_effects(effects: &[Effect]) -> &'static [Effect] {
     Box::leak(effects.to_vec().into_boxed_slice())
@@ -192,6 +192,7 @@ fn parse_input(name: &str, line: usize) -> SessionInput {
         "stop" => SessionInput::Stop,
         "close" => SessionInput::Close,
         "seek" => SessionInput::Seek,
+        "switch-track" => SessionInput::SwitchTrack,
         "open-ready" => SessionInput::OpenReady,
         "primed" => SessionInput::Primed,
         "underrun" => SessionInput::Underrun,
@@ -204,6 +205,7 @@ fn parse_input(name: &str, line: usize) -> SessionInput {
 
 fn parse_effect(name: &str, line: usize) -> Effect {
     match name {
+        "switch-pipeline" => Effect::SwitchPipeline,
         "emit-tracks" => Effect::EmitTracks,
         "emit-buffering-enter" => Effect::EmitBufferingEnter,
         "emit-buffering-exit" => Effect::EmitBufferingExit,
@@ -242,14 +244,14 @@ fn artifact() -> Vec<PairExpectation> {
 // The three-way proof
 // ---------------------------------------------------------------------------
 
-/// The artifact is complete over the vocabulary: exactly 96 entries,
+/// The artifact is complete over the vocabulary: exactly 104 entries,
 /// every `(state, input)` pair exactly once — the completeness half
 /// of the model-based AC (the generalization of `table.rs`'s count
 /// pins to the review surface).
 #[test]
 fn the_artifact_covers_every_pair_exactly_once() {
     let table = artifact();
-    assert_eq!(table.len(), 96, "8 states x 12 inputs");
+    assert_eq!(table.len(), 104, "8 states x 13 inputs");
     let mut seen = std::collections::HashSet::new();
     for entry in &table {
         assert!(
@@ -305,9 +307,9 @@ fn table_oracle_and_artifact_agree_on_every_pair() {
             entry.state, entry.input
         );
     }
-    assert_eq!(rows, 30, "the pinned completed-machine row count");
-    assert_eq!(rejections, 66, "66 typed rejections");
-    assert_eq!(TRANSITIONS.len(), 30, "the data table carries the rows");
+    assert_eq!(rows, 33, "the pinned completed-machine row count");
+    assert_eq!(rejections, 71, "71 typed rejections");
+    assert_eq!(TRANSITIONS.len(), 33, "the data table carries the rows");
 }
 
 /// The artifact's row set has no duplicates and is exactly the

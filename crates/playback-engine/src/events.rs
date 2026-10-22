@@ -87,7 +87,7 @@
 //! | `timing.seek-completed` | **emitted** (3.A1) | `{position, seekKind: "command"}` — the terminal for the generation that completed, stamped with the in-flight seek's own gen |
 //! | `timing.seek-failed` | **emitted** (3.A1) | `{error}` — typed D4 refusal, old position; exactly one terminal per completed gen |
 //! | `tracks.list-ready` | **emitted** (2.C2) | `{tracks}` — the wired list with selection truth, before the first `→ playing` |
-//! | `tracks.changed` | wired-by-sibling 3.A3 (track selection commands; no engine-side track-loss trigger exists in v0 — the demuxer cannot report a disappearing track) | n/a |
+//! | `tracks.changed` | **emitted** (3.A3) | `{trackKind, selected}` — the class-A set-*-track terminal under the switch's own gen; the class-S subtitle selection at the unbumped gen (no engine-side track-loss trigger exists in v0 — the demuxer cannot report a disappearing track) |
 //! | `playback.end-of-track` | **emitted** (3.B4) | `{trackKind, id}` — a limb newly drained while another still has work |
 //! | `playback.end-of-media` | **emitted** (2.C2) | `{}` — before `state-changed → ended` |
 //! | `playback.error` | **emitted** (2.C2 fatal; 3.B4 adds the non-fatal bounded-recovery class) | fatal: `{stage,code,message,details,fatal:true}`; non-fatal: same shape, `fatal:false`, coalesced count |
@@ -428,9 +428,10 @@ pub trait DrainStaleness {
     /// Whether the hub suppresses this carrier at drain, judged
     /// against the live `current` pair: the doc 05 §4.2 rule made
     /// epoch-aware, with its one exemption kept **intra-epoch** — a
-    /// `Seeked`/`SeekFailed` terminal of a completed generation
-    /// survives later mints of the *same* epoch (doc 05 §4.3
-    /// invariant 4: exactly one terminal per completed generation).
+    /// terminal (`Seeked`/`SeekFailed`, and since card 3.A3
+    /// `TrackSelectionChanged`) of a completed generation survives
+    /// later mints of the *same* epoch (doc 05 §4.3 invariant 4:
+    /// exactly one terminal per completed generation).
     ///
     /// Cross-epoch there is no exemption: an event of a superseded
     /// epoch is stale by construction (directive D-4 — no state,
@@ -460,14 +461,19 @@ impl DrainStaleness for EngineEvent {
         if stamp.epoch != current.epoch {
             return true; // superseded epoch: stale BY CONSTRUCTION
         }
-        // Superseded within the epoch: only the seek terminals
-        // survive (doc 05 §4.3 invariant 4). Terminals are always
-        // stamped with the live epoch (`emit_seek_terminal`), so
+        // Superseded within the epoch: only the terminals survive
+        // (doc 05 §4.3 invariant 4) — the seek pair and, since card
+        // 3.A3, the track-selection terminal (a switch completed
+        // under its own generation must not be swallowed by a
+        // follow-up mint that raced the completion). Terminals are
+        // always stamped with the live epoch (`emit_terminal`), so
         // this arm is the exemption's whole reachable domain —
         // cross-epoch terminals exited above.
         !matches!(
             self.kind,
-            EngineEventKind::Seeked { .. } | EngineEventKind::SeekFailed { .. }
+            EngineEventKind::Seeked { .. }
+                | EngineEventKind::SeekFailed { .. }
+                | EngineEventKind::TrackSelectionChanged { .. }
         )
     }
 }
@@ -822,6 +828,23 @@ mod tests {
             )
             .is_stale_at_drain(&pair(3, 1))
         );
+    }
+
+    /// Card 3.A3: the track-selection terminal joins the intra-epoch
+    /// exemption (a switch completed under its own generation must
+    /// not be swallowed by a follow-up mint that raced the
+    /// completion — doc 05 §4.3 invariant 4), and cross-epoch it is
+    /// stale like every other event of a dead session.
+    #[test]
+    fn track_selection_terminal_joins_the_intra_epoch_exemption() {
+        let kind = EngineEventKind::TrackSelectionChanged {
+            track_kind: media_types::MediaKind::Audio,
+            selected: Some(media_types::TrackId::new(2)),
+        };
+        // Same epoch, superseded counter: the terminal survives.
+        assert!(!stamped_event(1, 1, kind.clone()).is_stale_at_drain(&pair(1, 2)));
+        // Cross-epoch, fresh-looking counter: stale by construction.
+        assert!(stamped_event(2, 2, kind).is_stale_at_drain(&pair(1, 2)));
     }
 
     /// D-5 (escape the echo chamber): the stamp's pair rule is

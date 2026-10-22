@@ -66,7 +66,9 @@ pub fn model_answer(state: SessionState, input: SessionInput) -> ModelAnswer {
         },
         // ---- doc 03 §4.6 "Idle | play/pause/stop/seek | —": no
         // session exists to do the work.
-        (S::Idle, I::Play | I::Pause | I::Stop | I::Seek) => Reject(RejectionReason::NoSession),
+        (S::Idle, I::Play | I::Pause | I::Stop | I::Seek | I::SwitchTrack) => {
+            Reject(RejectionReason::NoSession)
+        }
         // ---- No pipeline exists in Idle: none of the signals can be
         // raised here (doc 03 §4.6(e) S1 — the executor is the only
         // mover, and it never polls in Idle).
@@ -107,7 +109,9 @@ pub fn model_answer(state: SessionState, input: SessionInput) -> ModelAnswer {
         },
         // ---- doc 03 §4.6 "Opening | play/pause/seek | —": the
         // pipeline is not wired yet; the commands cannot be honored.
-        (S::Opening, I::Play | I::Pause | I::Seek) => Reject(RejectionReason::NotReady),
+        (S::Opening, I::Play | I::Pause | I::Seek | I::SwitchTrack) => {
+            Reject(RejectionReason::NotReady)
+        }
         // ---- No pipeline is wired in Opening: the signals cannot be
         // raised (the open step wires at OpenReady).
         (S::Opening, I::Primed | I::Underrun | I::EofReached | I::Drained) => {
@@ -226,6 +230,22 @@ pub fn model_answer(state: SessionState, input: SessionInput) -> ModelAnswer {
             to: S::Stopped,
             effects: &[Effect::BumpPipeline, Effect::TeardownPipeline],
         },
+
+        // ---- 3.A3 work-carriers: the switch mints a pipeline
+        // generation and swaps the kind's limb; the session state is
+        // untouched (doc 03 §5's SwitchTrack mint; doc 05 §4.2).
+        (S::Playing, I::SwitchTrack) => Row {
+            to: S::Playing,
+            effects: &[Effect::BumpPipeline, Effect::SwitchPipeline],
+        },
+        (S::Paused, I::SwitchTrack) => Row {
+            to: S::Paused,
+            effects: &[Effect::BumpPipeline, Effect::SwitchPipeline],
+        },
+        (S::Buffering, I::SwitchTrack) => Row {
+            to: S::Buffering,
+            effects: &[Effect::BumpPipeline, Effect::SwitchPipeline],
+        },
         // ---- doc 03 §4.6 "any active | fatal error | Error".
         (S::Playing, I::Failed) => Row {
             to: S::Error,
@@ -304,7 +324,7 @@ pub fn model_answer(state: SessionState, input: SessionInput) -> ModelAnswer {
         (S::Stopped, I::Open) => Reject(RejectionReason::SourceReplacementPhase3),
         // ---- The work is done (doc 05 §2.4: `playback.stop` parks
         // the session; only `close` remains).
-        (S::Stopped, I::Play | I::Pause | I::Stop | I::Seek) => {
+        (S::Stopped, I::Play | I::Pause | I::Stop | I::Seek | I::SwitchTrack) => {
             Reject(RejectionReason::AlreadySettled)
         }
         // ---- No pipeline exists in Stopped.
@@ -328,7 +348,7 @@ pub fn model_answer(state: SessionState, input: SessionInput) -> ModelAnswer {
         // is Lead-owned (the typed stand-in).
         (S::Ended, I::Seek) => Reject(RejectionReason::EndedNeedsWireEdge),
         // ---- Settled: stop/pause are already done.
-        (S::Ended, I::Pause | I::Stop) => Reject(RejectionReason::AlreadySettled),
+        (S::Ended, I::Pause | I::Stop | I::SwitchTrack) => Reject(RejectionReason::AlreadySettled),
         // ---- No pipeline exists in Ended.
         (
             S::Ended,
@@ -344,7 +364,7 @@ pub fn model_answer(state: SessionState, input: SessionInput) -> ModelAnswer {
         (S::Error, I::Open) => Reject(RejectionReason::SourceReplacementPhase3),
         // ---- The terminal is closeable and nothing else (doc 03
         // §4.6: "the only exit from Error is Close").
-        (S::Error, I::Play | I::Pause | I::Stop | I::Seek) => {
+        (S::Error, I::Play | I::Pause | I::Stop | I::Seek | I::SwitchTrack) => {
             Reject(RejectionReason::AlreadySettled)
         }
         // ---- No pipeline exists in Error.

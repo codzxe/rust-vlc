@@ -240,9 +240,11 @@ pub struct QueuePlan {
     pub audio: QueueLimits,
     /// Caps for video limbs.
     pub video: QueueLimits,
-    /// Caps for the subtitle lane (doc 03 §4.4(b): "small and
-    /// duration-only") — the caps vocabulary only; wiring a subtitle
-    /// limb is card 3.A3's.
+    /// Caps for subtitle limbs (doc 03 §4.4(b): "small and
+    /// duration-only"; card 3.A3): subtitle packets are tiny, sparse
+    /// and latency-tolerant, so the caps sit far below the A/V
+    /// defaults — `[PROPOSAL: doc-default constants; the product.toml
+    /// wiring is owed to card 3.B3, which owns per-kind limits]`.
     pub subtitle: QueueLimits,
     /// How many consecutive low ticks a re-entry dip must persist
     /// before it fires `starved` (design B2/F1.5).
@@ -252,7 +254,8 @@ pub struct QueuePlan {
 impl QueuePlan {
     /// A plan from explicit caps (both must be valid — they are the
     /// packet-queue constructor's own outputs); the subtitle lane and
-    /// the debounce take their documented defaults.
+    /// the debounce take their documented defaults (see
+    /// [`QueuePlan::default`]).
     #[must_use]
     pub fn new(audio: QueueLimits, video: QueueLimits) -> QueuePlan {
         QueuePlan {
@@ -537,6 +540,36 @@ pub(crate) struct Limb {
     /// dip while the episode is open must persist
     /// [`QueuePlan::starve_debounce_ticks`] consecutive low ticks.
     pub episode_open: bool,
+    /// The queue's low watermark in packets — the **recovery target**
+    /// that ends a switch-installed limb's re-prime exemption (see
+    /// [`Limb::first_frame_pending`]).
+    pub low_packets: usize,
+    /// **The limb's generation floor** (card 3.A3): the generation
+    /// this limb was last flushed/configured at. The sink checks
+    /// frames against this, not the pipeline-global scalar — after a
+    /// switch mint the unchanged kind's G-stamped residents stay
+    /// presentable while the switched kind's stale stragglers (stamps
+    /// < the new limb's floor) still die. Soundness: every packet a
+    /// limb decodes passed its queue's boundary (`stamp <
+    /// queue.published` refused), and flushes only ratchet
+    /// (`published ≥ floor`), so emitted stamps are never spuriously
+    /// stale; genuinely stale work carries stamps below the floor of
+    /// whichever limb would present it. Doc 03 §5 point 5's
+    /// checkpoint semantics are thereby read **per the generation
+    /// the consumer path was last invalidated at** (noted for
+    /// 3.B4's contract suite).
+    pub generation: GenerationId,
+    /// A limb installed by a switch whose queue has not yet
+    /// recovered from the swap (card 3.A3 step 5, the S2.5
+    /// carve-out): while armed, the limb is exempt from the underrun
+    /// check and from priming — the new queue starts empty through
+    /// no fault of the input, and a selection change is not a
+    /// starvation. Cleared when the queue first reaches its **low
+    /// watermark** (not at the first frame: the queue is still
+    /// climbing then, and the completing tick would otherwise flash
+    /// playing→buffering). A sparse or span-exhausted track simply
+    /// never re-paces (VLC parity — honest silence, no rebuffer).
+    pub first_frame_pending: bool,
     /// The last presented **video** frame of the current generation —
     /// the per-frame-damage concealment cache (doc 03 §4.5(d), audit
     /// M9): when a packet fails with a per-frame damage kind, the
@@ -656,7 +689,9 @@ pub(crate) struct StarvationCounters {
 pub(crate) struct Pipeline {
     /// The demux stage (plugin-api contract).
     demuxer: Box<dyn Demuxer>,
-    /// The wired audio/video limbs.
+    /// The wired audio/video/subtitle limbs — at most one per kind
+    /// (card 3.A3's wire change: the container-default track of each
+    /// kind, never every track).
     limbs: Vec<Limb>,
     /// The demuxed track list (set at wiring time).
     tracks: Vec<Track>,
@@ -675,19 +710,32 @@ pub(crate) struct Pipeline {
     /// The first delivered frame's timestamp, once (doc 03 §4.6
     /// `FirstFrame`).
     first_frame: Option<Stamp>,
-    /// The in-flight seek's pre-roll progress (doc 03 §6 step 5),
-    /// set by [`Pipeline::seek_flush`] and read by
-    /// [`Pipeline::seek_preroll`]; `None` between seeks.
-    seek_progress: Option<SeekProgress>,
+    /// The in-flight re-prime observation window (doc 03 §6 step 5 /
+    /// card 3.A3 step 5): per-track delivery facts keyed by `TrackId`
+    /// (index-keying died with limb swaps), shared by the in-flight
+    /// seek and the in-flight per-kind switches — the `owners` bits
+    /// are the flows still watching. `None` when nothing is in
+    /// flight. Windows are rare (per-command, not per-tick), so the
+    /// small allocation on open is the documented events.rs rule-3
+    /// exception family.
+    window: Option<ObserveWindow>,
+    /// Retired-but-cached decoder instances (card 3.A3, D-1): keyed
+    /// by `TrackId`, bounded by the source's track count (a finite,
+    /// container-declared list) — bounded by construction, no LRU
+    /// needed. Dies with the pipeline (epoch invariant S4 — no
+    /// cross-source reuse). Keeping MJPEG's multi-MB `DecodeContext`
+    /// alive across an A→B→A switch is the point: `configure` is the
+    /// codec-api reset point, so re-activation is cheap and honest.
+    decoder_cache: Vec<CachedDecoder>,
     /// Frames discarded from a seek's pre-roll presentation hold
     /// (M10, D-4): a superseded or failed seek's held frames are
     /// stale by generation and never present — this is the rollback's
     /// observable cost, handed to the caller by
     /// [`Pipeline::take_preroll_discarded`].
     preroll_discarded: u32,
-    /// Frames dropped as stale during the last seek flush (handed to
-    /// the caller by [`Pipeline::take_seek_flush_stale`] for the
-    /// session's observability totals).
+    /// Frames dropped as stale during the last seek/switch flush
+    /// (handed to the caller by [`Pipeline::take_seek_flush_stale`]
+    /// for the session's observability totals).
     seek_flush_stale: u32,
     /// The limbs whose decoder newly flushed to `Drained` this tick
     /// (the `playback.end-of-track` candidates, card 3.B4) — a
@@ -701,79 +749,170 @@ pub(crate) struct Pipeline {
     starvation: StarvationCounters,
 }
 
-/// Per-limb facts the seek's pre-roll phase (doc 03 §6 step 5)
-/// tracks: has this limb delivered a frame of the new generation,
-/// the first audio frame's timestamp (the step-6 anchor truth), and
-/// the M10 **presentation hold** — the bounded per-limb frame buffers
-/// that keep pre-roll frames away from the consumer until the seek
-/// terminal lands (doc 03 §6 "no `Playing`-looking output" during
-/// steps 2–6; D-4: nothing leaks across the state boundary).
-pub(crate) struct SeekProgress {
-    /// Aligned with `limbs`: ≥ 1 frame delivered under the current
-    /// generation.
-    saw_frame: Vec<bool>,
-    /// The first audio limb's first delivered frame, in ns (None
-    /// until an audio frame arrives — then the landing anchors the
-    /// clock instead).
+/// One parked decoder instance (the per-session decoder cache, card
+/// 3.A3 — see [`Pipeline::decoder_cache`]).
+struct CachedDecoder {
+    track: TrackId,
+    decoder: Box<dyn Decoder>,
+}
+
+/// The open-time wiring report (card 3.A3): how many limbs were
+/// wired, and how many decoders the provider **built** vs. the cache
+/// **reused** while wiring them — the open-time half of the
+/// decoder-recycling observability (`EngineStats::decoders_built` /
+/// `decoders_reused`; the switch-time half rides `SwitchOutcome`).
+#[derive(Default)]
+pub(crate) struct WireOutcome {
+    pub wired: usize,
+    pub decoders_built: u32,
+    pub decoders_reused: u32,
+}
+
+/// Which in-flight flows still watch the observation window. Bitmask
+/// (a window can serve a seek and both kind-switches at once).
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct WindowOwner(u8);
+
+impl WindowOwner {
+    const SEEK: WindowOwner = WindowOwner(1);
+    const SWITCH_AUDIO: WindowOwner = WindowOwner(2);
+    const SWITCH_VIDEO: WindowOwner = WindowOwner(4);
+
+    fn union(self, other: WindowOwner) -> WindowOwner {
+        WindowOwner(self.0 | other.0)
+    }
+
+    fn without(self, other: WindowOwner) -> WindowOwner {
+        WindowOwner(self.0 & !other.0)
+    }
+
+    fn contains(self, other: WindowOwner) -> bool {
+        self.0 & other.0 != 0
+    }
+
+    fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+
+    /// The switch bit for a limb kind (audio/video).
+    fn switch_for(kind: MediaKind) -> WindowOwner {
+        match kind {
+            MediaKind::Audio => WindowOwner::SWITCH_AUDIO,
+            _ => WindowOwner::SWITCH_VIDEO,
+        }
+    }
+}
+
+/// Per-track facts the re-prime phases track (doc 03 §6 step 5 for
+/// seeks, card 3.A3 step 5 for switches): has this track delivered a
+/// frame of the watched generation, and what was its first frame's
+/// pts (the anchor truth). Keyed by `TrackId` so limb swaps re-arm
+/// instead of invalidating.
+pub(crate) struct ObserveWindow {
+    /// Per-track delivery facts (find-on-observe: windows are rare,
+    /// never per-tick, and the limb count is ≤ 3).
+    saw: Vec<WatchEntry>,
+    /// The first **audio** limb's first delivered frame, in ns — the
+    /// seek step-6 anchor truth (`None` until an audio frame
+    /// arrives).
     first_audio_ns: Option<i64>,
-    /// The presentation hold, aligned with `limbs`: frames decoded
-    /// during the pre-roll, in arrival order. Bounded by `hold_cap`
-    /// (a hard per-limb capacity — D-1); the decode slice
+    /// The flows still watching (seek + per-kind switches).
+    owners: WindowOwner,
+    /// The M10 presentation hold, keyed by track (limb swaps re-key
+    /// it like the watches): frames decoded during a **seek's**
+    /// pre-roll, in arrival order, per tracked limb. Bounded by
+    /// `hold_cap` (a hard per-track capacity — D-1); the decode slice
     /// backpressures at the cap (packets stay in the bounded queues),
     /// so the only path past it is a single decode call's burst,
-    /// which is dropped and counted, never buffered unboundedly.
-    hold: Vec<Vec<Frame>>,
-    /// The per-limb hard capacity of the hold (the pre-roll budget:
-    /// the decode slice bound the seek flow already carries).
+    /// which is dropped and counted, never buffered unboundedly. A
+    /// switch's re-prime never holds — its frames deliver straight
+    /// through (card 3.A3 step 7: the frame's delivery IS the
+    /// completion fact).
+    hold: Vec<HoldSlot>,
+    /// The per-track hard capacity of the hold (the pre-roll budget:
+    /// the decode-slice bound the seek flow carries).
     hold_cap: usize,
 }
 
-impl SeekProgress {
-    fn new(limbs: &[Limb], hold_cap: usize) -> SeekProgress {
-        SeekProgress {
-            saw_frame: vec![false; limbs.len()],
-            first_audio_ns: None,
-            // Pre-allocated once per seek (not per tick — D-1): pushes
-            // within the capacity never allocate.
-            hold: limbs.iter().map(|_| Vec::with_capacity(hold_cap)).collect(),
-            hold_cap,
-        }
-    }
+/// One watched track's delivery facts.
+struct WatchEntry {
+    track: TrackId,
+    saw_frame: bool,
+    /// The first delivered frame's pts (ns) — the switch step-6
+    /// anchor truth for the new track.
+    first_pts_ns: Option<i64>,
+}
 
-    /// Total frames currently held across all limbs.
-    fn held_count(&self) -> u32 {
-        self.hold
-            .iter()
-            .fold(0u32, |sum, slot| sum.saturating_add(slot.len() as u32))
-    }
+/// One tracked track's M10 presentation-hold slot.
+struct HoldSlot {
+    track: TrackId,
+    /// Pre-allocated once per seek (not per tick — D-1): pushes
+    /// within the capacity never allocate.
+    frames: Vec<Frame>,
+}
 
-    /// The M10 hold slot one decode slice routes its frames through;
-    /// `None` when the limb index is out of range (defensive — the
-    /// hold is aligned with the limbs the window was opened for).
-    fn hold_slot(&mut self, index: usize) -> Option<PrerollHoldSlot<'_>> {
-        let cap = self.hold_cap;
-        self.hold
-            .get_mut(index)
-            .map(|frames| PrerollHoldSlot { frames, cap })
-    }
-
+impl ObserveWindow {
     /// Observe one limb's decode slice: frames delivered, and the
     /// first frame's stamp.
-    fn observe(&mut self, index: usize, kind: MediaKind, frames: u32, first: Option<Stamp>) {
+    fn observe(&mut self, track: TrackId, kind: MediaKind, frames: u32, first: Option<Stamp>) {
         if frames == 0 {
             return;
         }
-        if let Some(slot) = self.saw_frame.get_mut(index) {
-            *slot = true;
+        if let Some(entry) = self.saw.iter_mut().find(|entry| entry.track == track) {
+            entry.saw_frame = true;
+            if entry.first_pts_ns.is_none()
+                && let Some(stamp) = first
+                && let Some(ns) = stamp_ns(stamp)
+            {
+                entry.first_pts_ns = Some(ns);
+            }
         }
         if kind == MediaKind::Audio
             && self.first_audio_ns.is_none()
             && let Some(stamp) = first
-            && let Ok(ts) = stamp.timestamp()
-            && let Ok(ns) = ts.as_nanos()
+            && let Some(ns) = stamp_ns(stamp)
         {
-            self.first_audio_ns = Some(crate::seek::nanos_i64(ns));
+            self.first_audio_ns = Some(ns);
         }
+    }
+
+    /// The first-frame pts recorded for `track` (the anchor truth).
+    fn first_pts_ns(&self, track: TrackId) -> Option<i64> {
+        self.saw
+            .iter()
+            .find(|entry| entry.track == track)
+            .and_then(|entry| entry.first_pts_ns)
+    }
+
+    /// Whether `track` delivered ≥ 1 frame under the watched
+    /// generation.
+    fn saw(&self, track: TrackId) -> bool {
+        self.saw
+            .iter()
+            .any(|entry| entry.track == track && entry.saw_frame)
+    }
+
+    /// Total frames currently held across all slots.
+    fn held_count(&self) -> u32 {
+        self.hold.iter().fold(0u32, |sum, slot| {
+            sum.saturating_add(slot.frames.len() as u32)
+        })
+    }
+
+    /// The M10 hold slot one decode slice routes its frames through,
+    /// by track id (limb swaps re-key the hold like the watches).
+    /// `None` when no slot exists for the track — a switch's re-prime
+    /// never creates one (its frames deliver straight through), and
+    /// the seek flush's residue sink is built without a hold at all.
+    fn hold_slot(&mut self, track: TrackId) -> Option<PrerollHoldSlot<'_>> {
+        let cap = self.hold_cap;
+        self.hold
+            .iter_mut()
+            .find(|slot| slot.track == track)
+            .map(|slot| PrerollHoldSlot {
+                frames: &mut slot.frames,
+                cap,
+            })
     }
 }
 
@@ -792,6 +931,22 @@ pub(crate) enum SeekPreroll {
     },
 }
 
+/// The completion status of an in-flight track switch (card 3.A3
+/// steps 5–6). The payload is the step-6 anchor truth: the new
+/// track's first delivered frame's own pts (audio switches
+/// re-anchor the clock on it; video switches ignore it).
+pub(crate) enum SwitchPreroll {
+    /// The new limb has not delivered a frame under the switch's
+    /// generation yet (and could still).
+    NotReady,
+    /// The switch's selection landed: the new track delivered (or
+    /// provably never could / was deselected).
+    Ready {
+        /// The new track's first frame's pts (ns), when it delivered.
+        anchor_ns: Option<i64>,
+    },
+}
+
 impl Pipeline {
     /// The `Opening`-phase pipeline: demuxer + sink seam, no limbs
     /// yet (they are wired after `Demuxer::start` reports tracks).
@@ -806,7 +961,8 @@ impl Pipeline {
             generation: GenerationId::FIRST,
             consumer,
             first_frame: None,
-            seek_progress: None,
+            window: None,
+            decoder_cache: Vec::new(),
             preroll_discarded: 0,
             seek_flush_stale: 0,
             ended_limbs: Vec::new(),
@@ -821,13 +977,27 @@ impl Pipeline {
         (&self.tracks, &self.selected)
     }
 
-    /// Wire the limbs for a started demuxer: one queue + one decoder
-    /// per audio/video track the provider can build (doc 03 §4.6
-    /// `Probing | format ≥ min_score | Demuxing` — the v0 open step).
+    /// Wire the limbs for a started demuxer (card 3.A3's selection
+    /// change): **one limb per kind** — the container-default track
+    /// (`TrackFlags::default_on`, else first-of-kind in stream order)
+    /// of each audio/video/subtitle kind. Every other track stays
+    /// `selected: false` (its packets are dropped at push — the track
+    /// list event already tells the truth about selection). This
+    /// fixes the v0 decode-all-tracks waste and the first-audio
+    /// anchor ambiguity, and is the precondition for the switch
+    /// flow's per-kind limb swap.
     ///
-    /// Returns the wired limb count; zero means nothing is decodable
-    /// (the session turns that into the typed
-    /// `NoDecodableTrack` failure).
+    /// The subtitle kind is **optional**: a provider that cannot
+    /// build a subtitle decoder deselects that track instead of
+    /// failing the open (the class-S seam — subtitles are never the
+    /// reason playback refuses to start; an A/V decoder failure
+    /// remains fatal per the recorded contract).
+    ///
+    /// Returns the wire outcome — the wired limb count (zero means
+    /// nothing is decodable; the session turns that into the typed
+    /// `NoDecodableTrack` failure) plus the decoder-lifecycle counts
+    /// for the session's `EngineStats` (the open-time builds the
+    /// recycling proof counts alongside the switch-time ones).
     ///
     /// # Errors
     /// The provider's typed error, propagated verbatim (a selection
@@ -838,55 +1008,77 @@ impl Pipeline {
         provider: &dyn DecoderProvider,
         plan: &QueuePlan,
         generation: GenerationId,
-    ) -> Result<usize, EngineError> {
+    ) -> Result<WireOutcome, EngineError> {
         self.generation = generation;
         self.tracks = tracks;
-        self.selected = Vec::with_capacity(self.tracks.len());
+        self.selected = vec![false; self.tracks.len()];
         self.starve_debounce = plan.starve_debounce_ticks.max(1);
-        let mut wired = 0;
-        for track in &self.tracks {
-            let wireable = matches!(track.kind, MediaKind::Audio | MediaKind::Video);
-            if !wireable {
-                self.selected.push(false);
-                continue;
-            }
-            let Some(limits) = plan.for_kind(track.kind) else {
-                // Unreachable for wireable kinds (audio/video always
-                // have lanes); the exhaustive `Option` keeps the type
-                // honest for 3.A3's track switching.
-                self.selected.push(false);
+        let mut outcome = WireOutcome::default();
+        for kind in [MediaKind::Video, MediaKind::Audio, MediaKind::Subtitle] {
+            let Some(track) = crate::tracks::default_track(&self.tracks, kind) else {
                 continue;
             };
-            let queue = Arc::new(BoundedQueue::new(limits, plan.thresholds(&limits)));
-            let high_packets = plan.thresholds(&limits).high.packets.max(1);
-            // Publish the live generation before any producer starts
-            // (doc 03 §5 checking point 4): a fresh queue publishes
-            // FIRST, so this flush is a no-op at session start and
-            // the standing boundary check for every later mint.
-            let _ = queue.flush(generation);
-            let config = DecoderConfig::new(
-                track.codec.clone(),
-                generation,
-                ThreadBudget::default(),
-                None,
-                None,
-            );
-            let decoder = provider.decoder_for(track, &config)?;
-            self.limbs.push(Limb {
-                track: track.clone(),
-                queue,
-                decoder,
-                drained: false,
-                high_packets,
-                low_streak: 0,
-                episode_open: false,
-                last_frame: None,
-                conceal_failures: 0,
-            });
-            self.selected.push(true);
-            wired += 1;
+            let track = track.clone();
+            match self.obtain_decoder(&track, generation, provider) {
+                Ok((decoder, reused)) => {
+                    if reused {
+                        outcome.decoders_reused += 1;
+                    } else {
+                        outcome.decoders_built += 1;
+                    }
+                    if let Some(index) = self.tracks.iter().position(|t| t.id == track.id) {
+                        self.selected[index] = true;
+                    }
+                    self.limbs
+                        .push(self.build_limb(track, decoder, plan, generation));
+                    outcome.wired += 1;
+                }
+                Err(_error) if kind == MediaKind::Subtitle => {
+                    // The optional kind: deselect, never fail the
+                    // open (the class-S seam's open-time half).
+                    continue;
+                }
+                Err(error) => return Err(error),
+            }
         }
-        Ok(wired)
+        Ok(outcome)
+    }
+
+    /// Build one wired limb: a fresh queue from the plan, published
+    /// at `generation` (doc 03 §5 checking point 4 — a fresh queue
+    /// publishes FIRST, so this flush is a no-op at session start and
+    /// the standing boundary for every later mint).
+    fn build_limb(
+        &self,
+        track: Track,
+        decoder: Box<dyn Decoder>,
+        plan: &QueuePlan,
+        generation: GenerationId,
+    ) -> Limb {
+        // Wired kinds always have lanes (audio/video/subtitle); the
+        // exhaustive `Option` keeps the type honest (3.B3).
+        let limits = plan
+            .for_kind(track.kind)
+            .expect("wired kinds always have a queue lane");
+        let thresholds = plan.thresholds(&limits);
+        let queue = Arc::new(BoundedQueue::new(limits, thresholds));
+        let high_packets = thresholds.high.packets.max(1);
+        let low_packets = thresholds.low.packets;
+        let _ = queue.flush(generation);
+        Limb {
+            track,
+            queue,
+            decoder,
+            drained: false,
+            high_packets,
+            low_packets,
+            low_streak: 0,
+            episode_open: false,
+            generation,
+            first_frame_pending: false,
+            last_frame: None,
+            conceal_failures: 0,
+        }
     }
 
     /// The demux stage boundary during `Opening` (v0's probe):
@@ -903,18 +1095,20 @@ impl Pipeline {
     /// queue with `new_generation` (producers of older stamps are
     /// refused from the boundary on — packet-queue Q2), close them
     /// (parked producers would wake with `Closed`), then drop the
-    /// limbs. The caller mints and interrupts *before* calling this.
-    /// An in-flight seek's held pre-roll frames die with the pipeline
-    /// — counted, never silent (M10).
+    /// limbs and the parked decoder cache. The caller mints and
+    /// interrupts *before* calling this. An in-flight window's held
+    /// pre-roll frames die with the pipeline — counted, never
+    /// silent (M10).
     pub(crate) fn teardown(&mut self, new_generation: GenerationId) {
-        if let Some(progress) = self.seek_progress.take() {
-            self.preroll_discarded = self.preroll_discarded.saturating_add(progress.held_count());
+        if let Some(window) = self.window.take() {
+            self.preroll_discarded = self.preroll_discarded.saturating_add(window.held_count());
         }
         for limb in &self.limbs {
             let _ = limb.queue.flush(new_generation);
             limb.queue.close();
         }
         self.limbs.clear();
+        self.decoder_cache.clear();
         self.pending = None;
     }
 
@@ -943,14 +1137,17 @@ impl Pipeline {
     /// (stale residents die — packet-queue Q2), the held demux
     /// packet is dropped (it predates the mint), the end-of-stream
     /// flag resets (a backward seek revives an exhausted stream),
-    /// every decoder is flushed to `Drained` through a
-    /// generation-checking sink (its old-generation reorder buffers
-    /// are dropped and counted — doc 03 §5 checking point 5 — never
-    /// presented) and then reconfigured for the new generation (the
-    /// codec-api seek contract, `decode.rs`'s "drain path after seek
-    /// generation switches"). A fresh [`SeekProgress`] opens the
-    /// step-5 observation window **with its M10 presentation hold**
-    /// (per-limb, hard-capped at `hold_cap` — the pre-roll budget).
+    /// every decoder — **including the parked cache entries** (card
+    /// 3.A3: a cached decoder holding pre-seek reorder frames must
+    /// not replay them into a post-seek recycle) — is flushed to
+    /// `Drained` through a generation-checking sink (its
+    /// old-generation reorder buffers are dropped and counted — doc
+    /// 03 §5 checking point 5 — never presented) and then
+    /// reconfigured for the new generation (the codec-api seek
+    /// contract, `decode.rs`'s "drain path after seek generation
+    /// switches"). A fresh observation window opens over the current
+    /// limbs **with its M10 presentation hold** (per-track,
+    /// hard-capped at `hold_cap` — the pre-roll budget).
     ///
     /// A superseded seek's still-held frames are discarded here,
     /// counted (D-4: they are stale by generation — the flush that
@@ -973,15 +1170,15 @@ impl Pipeline {
         flush_budget: u32,
         hold_cap: usize,
     ) -> Result<(), EngineError> {
-        // Invalidate any previous observation window first: a
-        // half-completed flush must not leave a superseded seek's
-        // pre-roll progress armed (it would answer Ready from stale
-        // data and keep the Paused decode carve-out alive). The
-        // superseded seek's held frames die with it — discarded,
-        // counted, never presented (M10/D-4).
-        if let Some(progress) = self.seek_progress.take() {
-            self.preroll_discarded = self.preroll_discarded.saturating_add(progress.held_count());
-        }
+        // Invalidate the seek's claim on any previous observation
+        // window first: a half-completed flush must not leave a
+        // superseded seek's pre-roll progress armed (it would answer
+        // Ready from stale data and keep the Paused decode carve-out
+        // alive). The superseded seek's held frames die with it —
+        // discarded, counted, never presented (M10/D-4). A switch
+        // still in flight keeps its claim — its watched limb is a
+        // current limb and survives the rebuild.
+        self.end_seek();
         for limb in &self.limbs {
             let _ = limb.queue.flush(generation);
         }
@@ -1037,9 +1234,168 @@ impl Pipeline {
             );
             limb.decoder.configure(&config)?;
             limb.drained = false;
+            limb.generation = generation;
         }
-        self.seek_progress = Some(SeekProgress::new(&self.limbs, hold_cap));
+        // The parked decoders: flush-to-Drained (bounded, counted)
+        // and reconfigure for the new generation — they were not
+        // asked to decode anything, but a future inter-frame codec
+        // parked mid-reorder must not replay old frames on recycle.
+        for cached in &mut self.decoder_cache {
+            let mut sink = LimbSink {
+                consumer: Arc::clone(&consumer),
+                track: cached.track,
+                generation,
+                frames: 0,
+                first: None,
+                stale_dropped: 0,
+                // No hold, no latch: the parked decoder's residue is
+                // old-generation work — dropped at the generation
+                // check, never captured, never repeated (M10/M9).
+                hold: None,
+                last: None,
+                concealed: 0,
+            };
+            for _ in 0..flush_budget {
+                match cached.decoder.flush(&mut sink) {
+                    Ok(DecodeOutcome::Drained) => break,
+                    Ok(_) => continue,
+                    Err(error) => {
+                        self.seek_flush_stale =
+                            self.seek_flush_stale.saturating_add(sink.stale_dropped);
+                        return Err(error);
+                    }
+                }
+            }
+            self.seek_flush_stale = self.seek_flush_stale.saturating_add(sink.stale_dropped);
+            let config = DecoderConfig::new(
+                cached_track_codec(&self.tracks, cached.track),
+                generation,
+                ThreadBudget::default(),
+                None,
+                None,
+            );
+            cached.decoder.configure(&config)?;
+        }
+        self.window_open_seek(hold_cap);
         Ok(())
+    }
+
+    /// Open (or re-arm) the observation window for the in-flight
+    /// seek: fresh per-track entries over the current limbs, the
+    /// seek's owner bit set (a switch still in flight keeps its bit
+    /// and its watched limb — the new limb of a swapped kind is a
+    /// current limb, so the rebuild covers it), and the M10
+    /// presentation hold rebuilt over the current limbs at
+    /// `hold_cap` (the superseded seek's held frames were already
+    /// discarded by [`Pipeline::end_seek`]).
+    fn window_open_seek(&mut self, hold_cap: usize) {
+        let entries = self
+            .limbs
+            .iter()
+            .map(|limb| WatchEntry {
+                track: limb.track.id,
+                saw_frame: false,
+                first_pts_ns: None,
+            })
+            .collect::<Vec<_>>();
+        // Pre-allocated once per seek (not per tick — D-1): pushes
+        // within the capacity never allocate.
+        let hold = self
+            .limbs
+            .iter()
+            .map(|limb| HoldSlot {
+                track: limb.track.id,
+                frames: Vec::with_capacity(hold_cap),
+            })
+            .collect::<Vec<_>>();
+        match &mut self.window {
+            Some(window) => {
+                window.saw = entries;
+                window.first_audio_ns = None;
+                window.hold = hold;
+                window.hold_cap = hold_cap;
+                window.owners = window.owners.union(WindowOwner::SEEK);
+            }
+            None => {
+                self.window = Some(ObserveWindow {
+                    saw: entries,
+                    first_audio_ns: None,
+                    hold,
+                    hold_cap,
+                    owners: WindowOwner::SEEK,
+                });
+            }
+        }
+    }
+
+    /// Arm the window for an in-flight switch of `kind`: the owner
+    /// bit is claimed and the new track (when one was selected) is
+    /// watched — added to the existing entries so an in-flight seek
+    /// keeps its own watches (the seek completes on the new track's
+    /// first frame), and its hold covers the swapped limb (the new
+    /// track's pre-roll frames are seek pre-roll frames too — held,
+    /// not presented). A switch flying alone holds nothing: its
+    /// frames deliver straight through (card 3.A3 step 7).
+    fn window_arm_switch(&mut self, kind: MediaKind, track: Option<TrackId>) {
+        let owner = WindowOwner::switch_for(kind);
+        match &mut self.window {
+            Some(window) => {
+                window.owners = window.owners.union(owner);
+                if let Some(track) = track {
+                    if !window.saw.iter().any(|entry| entry.track == track) {
+                        window.saw.push(WatchEntry {
+                            track,
+                            saw_frame: false,
+                            first_pts_ns: None,
+                        });
+                    }
+                    if window.owners.contains(WindowOwner::SEEK)
+                        && !window.hold.iter().any(|slot| slot.track == track)
+                    {
+                        let cap = window.hold_cap;
+                        window.hold.push(HoldSlot {
+                            track,
+                            frames: Vec::with_capacity(cap),
+                        });
+                    }
+                }
+            }
+            None => {
+                let mut saw = Vec::new();
+                if let Some(track) = track {
+                    saw.push(WatchEntry {
+                        track,
+                        saw_frame: false,
+                        first_pts_ns: None,
+                    });
+                }
+                self.window = Some(ObserveWindow {
+                    saw,
+                    first_audio_ns: None,
+                    hold: Vec::new(),
+                    hold_cap: 0,
+                    owners: owner,
+                });
+            }
+        }
+    }
+
+    /// Release `owner`'s claim on the observation window; the window
+    /// itself dies with the last owner.
+    fn window_end(&mut self, owner: WindowOwner) {
+        if let Some(window) = &mut self.window {
+            window.owners = window.owners.without(owner);
+            if window.owners.is_empty() {
+                self.window = None;
+            }
+        }
+    }
+
+    /// Whether any in-flight flow still watches the window — the
+    /// Paused decode carve-out's gate (a seek **or** a switch
+    /// accepted while `Paused` must decode to complete).
+    fn window_live(&self) -> bool {
+        self.window.is_some()
     }
 
     /// Frames dropped as stale during the last seek flush (doc 03
@@ -1080,14 +1436,17 @@ impl Pipeline {
     /// anchor truth: the first audio frame's own timestamp, when an
     /// audio frame was delivered.
     pub(crate) fn seek_preroll(&self) -> SeekPreroll {
-        let Some(progress) = self.seek_progress.as_ref() else {
+        let Some(window) = self.window.as_ref() else {
             return SeekPreroll::NotReady;
         };
+        if !window.owners.contains(WindowOwner::SEEK) {
+            return SeekPreroll::NotReady;
+        }
         if self.limbs.is_empty() {
             return SeekPreroll::NotReady;
         }
-        for (index, limb) in self.limbs.iter().enumerate() {
-            if progress.saw_frame.get(index).copied().unwrap_or(false) {
+        for limb in &self.limbs {
+            if window.saw(limb.track.id) {
                 continue;
             }
             if !self.can_never_deliver(limb) {
@@ -1095,7 +1454,7 @@ impl Pipeline {
             }
         }
         SeekPreroll::Ready {
-            audio_anchor_ns: progress.first_audio_ns,
+            audio_anchor_ns: window.first_audio_ns,
         }
     }
 
@@ -1105,8 +1464,10 @@ impl Pipeline {
     /// held frames may finally present: they leave through the same
     /// [`FrameConsumer`] seam they would have used without the hold,
     /// in **pts order** (stable among equals — arrival order), every
-    /// limb merged. The observation window closes with the release
-    /// (the terminal is the window's end).
+    /// tracked limb merged. The seek's claim on the observation
+    /// window ends with the release (a switch still in flight keeps
+    /// the window for its own completion — its re-prime never held,
+    /// so nothing of its own can leak here).
     ///
     /// A consumer refusal here is a bounded, counted loss (the
     /// discard counter), never a swallowed error and never an
@@ -1115,25 +1476,30 @@ impl Pipeline {
     /// host observes through the count (doc 03 §4.10 d — presentation
     /// faults degrade, they do not unwind playback state).
     pub(crate) fn release_preroll_hold(&mut self) {
-        let Some(progress) = self.seek_progress.take() else {
-            return;
-        };
-        // Merge the per-limb holds, then order by pts across limbs
+        // Merge the per-track holds, then order by pts across limbs
         // (once per seek — the merge/sort is not a hot path). The
-        // limb index rides along so a released video frame can latch
-        // the concealment cache (M9) on the limb that owns it.
-        let mut held: Vec<(usize, TrackId, Frame)> = Vec::new();
-        for (index, (limb, slot)) in self.limbs.iter().zip(progress.hold).enumerate() {
-            for frame in slot {
-                held.push((index, limb.track.id, frame));
+        // track id rides along so a released video frame can latch
+        // the concealment cache (M9) on the limb that owns it — by
+        // id, because a switch may have swapped limbs since the
+        // capture (card 3.A3).
+        let mut held: Vec<(TrackId, Frame)> = Vec::new();
+        if let Some(window) = self.window.as_mut() {
+            for slot in window.hold.drain(..) {
+                for frame in slot.frames {
+                    held.push((slot.track, frame));
+                }
+            }
+            window.owners = window.owners.without(WindowOwner::SEEK);
+            if window.owners.is_empty() {
+                self.window = None;
             }
         }
         // Missing stamps sort last (arrival order among equals — the
         // stable sort keeps it); a present stamp orders by its
         // nanoseconds on the media base.
-        held.sort_by_key(|(_, _, frame)| stamp_ns(frame.pts()).unwrap_or(i64::MAX));
+        held.sort_by_key(|(_, frame)| stamp_ns(frame.pts()).unwrap_or(i64::MAX));
         let generation = self.generation;
-        for (index, track, frame) in held {
+        for (track, frame) in held {
             // Defense in depth: a frame that went stale between its
             // capture and the terminal (a threaded future's race)
             // never presents — dropped and counted, not guessed
@@ -1156,7 +1522,7 @@ impl Pipeline {
             if self.consumer.accept(frame, track).is_err() {
                 self.preroll_discarded = self.preroll_discarded.saturating_add(1);
             } else if let Some(frame) = latched
-                && let Some(limb) = self.limbs.get_mut(index)
+                && let Some(limb) = self.limbs.iter_mut().find(|limb| limb.track.id == track)
             {
                 limb.last_frame = Some(frame);
             }
@@ -1164,15 +1530,247 @@ impl Pipeline {
     }
 
     /// End the in-flight seek's observation window — completion,
-    /// failure, or supersession: clears the pre-roll progress (and
-    /// with it the Paused decode carve-out of [`Pipeline::tick`]).
-    /// Any frames still in the hold are **discarded and counted**
-    /// (M10, D-4): a seek that will never complete owns nothing
-    /// presentable — its frames are stale by generation.
+    /// failure, or supersession: releases the seek's claim (and with
+    /// the last owner, the Paused decode carve-out of
+    /// [`Pipeline::tick`]). A switch still in flight keeps the window
+    /// alive for its own completion. Any frames still in the hold are
+    /// **discarded and counted** (M10, D-4): a seek that will never
+    /// complete owns nothing presentable — its frames are stale by
+    /// generation. (After [`Pipeline::release_preroll_hold`] the hold
+    /// is already drained, so this adds zero.)
     pub(crate) fn end_seek(&mut self) {
-        if let Some(progress) = self.seek_progress.take() {
-            self.preroll_discarded = self.preroll_discarded.saturating_add(progress.held_count());
+        if let Some(window) = &mut self.window {
+            let held = window.held_count();
+            self.preroll_discarded = self.preroll_discarded.saturating_add(held);
+            window.hold.clear();
+            window.owners = window.owners.without(WindowOwner::SEEK);
+            if window.owners.is_empty() {
+                self.window = None;
+            }
         }
+    }
+
+    /// Card 3.A3 step 5's completion observation for the in-flight
+    /// switch of `kind`: `Ready` once the newly-selected track has
+    /// delivered ≥ 1 frame under the switch's generation, or can
+    /// provably never (EOF, nothing resident, decoder `Drained`), or
+    /// was deselected (nothing to wait for — the terminal fires on
+    /// the next completion check). The payload is the step-6 anchor
+    /// truth: the new track's first delivered frame's own pts.
+    pub(crate) fn switch_preroll(
+        &self,
+        kind: MediaKind,
+        selected: Option<TrackId>,
+    ) -> SwitchPreroll {
+        let Some(selected) = selected else {
+            return SwitchPreroll::Ready { anchor_ns: None };
+        };
+        let Some(window) = self.window.as_ref() else {
+            return SwitchPreroll::NotReady;
+        };
+        if !window.owners.contains(WindowOwner::switch_for(kind)) {
+            return SwitchPreroll::NotReady;
+        }
+        if window.saw(selected) {
+            return SwitchPreroll::Ready {
+                anchor_ns: window.first_pts_ns(selected),
+            };
+        }
+        match self.limbs.iter().find(|limb| limb.track.id == selected) {
+            // No limb (nothing wireable): nothing can ever deliver —
+            // the switch completes honestly rather than hanging.
+            None => SwitchPreroll::Ready { anchor_ns: None },
+            Some(limb) if self.can_never_deliver(limb) => SwitchPreroll::Ready { anchor_ns: None },
+            Some(_) => SwitchPreroll::NotReady,
+        }
+    }
+
+    /// End the in-flight switch's observation claim (completion or
+    /// supersession).
+    pub(crate) fn end_switch(&mut self, kind: MediaKind) {
+        self.window_end(WindowOwner::switch_for(kind));
+    }
+
+    /// Obtain a decoder for `track` at `generation` — the decoder
+    /// cache first (card 3.A3, D-1), the provider second. A cache hit
+    /// is re-`configure`d (the codec-api reset point — for both
+    /// landed codecs configure is trivial; for a future inter-frame
+    /// codec it is the documented full-state-reset seam).
+    ///
+    /// # Errors
+    /// The provider's typed error on a miss; a cached decoder's
+    /// configure refusal on a hit. Either way the caller decides
+    /// fatality (A/V switches: fatal; the subtitle kind's open-time
+    /// path: deselect).
+    fn obtain_decoder(
+        &mut self,
+        track: &Track,
+        generation: GenerationId,
+        provider: &dyn DecoderProvider,
+    ) -> Result<(Box<dyn Decoder>, bool), EngineError> {
+        if let Some(position) = self
+            .decoder_cache
+            .iter()
+            .position(|cached| cached.track == track.id)
+        {
+            let mut cached = self.decoder_cache.swap_remove(position);
+            let config = DecoderConfig::new(
+                track.codec.clone(),
+                generation,
+                ThreadBudget::default(),
+                None,
+                None,
+            );
+            cached.decoder.configure(&config)?;
+            return Ok((cached.decoder, true));
+        }
+        let config = DecoderConfig::new(
+            track.codec.clone(),
+            generation,
+            ThreadBudget::default(),
+            None,
+            None,
+        );
+        let decoder = provider.decoder_for(track, &config)?;
+        Ok((decoder, false))
+    }
+
+    /// Card 3.A3 step 3 — the limb swap for `kind` under
+    /// `generation`, **prepare-before-commit** (the D4 discipline
+    /// applied to limbs):
+    ///
+    /// 1. *Obtain the new decoder first* (cache hit ⇒ configure as
+    ///    reset; miss ⇒ the provider — a provider failure leaves the
+    ///    old limb untouched, so no intermediate state exists; the
+    ///    caller treats the failure as fatal per the wire()
+    ///    contract).
+    /// 2. *Retire the old limb of the kind*: flush its queue at
+    ///    `generation` (residents die wholesale — packet-queue Q2),
+    ///    close it, drain its decoder to `Drained` through a
+    ///    generation-checking sink (bounded by `flush_budget`, stale
+    ///    drops counted), then park the decoder **instance** in the
+    ///    cache. A retired limb is not "newly drained" — no
+    ///    `end-of-track` fires for it.
+    /// 3. *Install the new limb*: fresh queue published at
+    ///    `generation`, floor set, `first_frame_pending` armed (the
+    ///    starvation carve-out of [`Pipeline::tick`]).
+    /// 4. A held demux packet of the retired track is dropped (it
+    ///    predates the mint; the new queue would refuse it as stale
+    ///    anyway).
+    /// 5. The demux stamp advances to `generation` — every packet
+    ///    from the next tick on is stamped with it, including the
+    ///    unchanged kind's. The unchanged kind's queue is **not**
+    ///    flushed and its limb floor does not move: that is the
+    ///    entire UX point (video keeps playing through an audio
+    ///    switch).
+    /// 6. The observation window is armed for the switch (and the new
+    ///    track watched — an in-flight seek's window re-arms for the
+    ///    swapped limb, so the seek completes on the new track's
+    ///    first frame).
+    ///
+    /// `new_track == None` is a deselect: retire only.
+    ///
+    /// # Errors
+    /// See [`Pipeline::obtain_decoder`] (fatal for A/V kinds; the
+    /// class-S subtitle path is the caller's policy decision).
+    pub(crate) fn switch_limbs(
+        &mut self,
+        generation: GenerationId,
+        kind: MediaKind,
+        new_track: Option<TrackId>,
+        provider: &dyn DecoderProvider,
+        plan: &QueuePlan,
+        flush_budget: u32,
+    ) -> Result<crate::tracks::SwitchOutcome, EngineError> {
+        let mut outcome = crate::tracks::SwitchOutcome::default();
+        // 1. Prepare: the new decoder exists before anything retires.
+        let prepared = match new_track {
+            Some(id) => match self.tracks.iter().find(|track| track.id == id) {
+                Some(track) => {
+                    let track = track.clone();
+                    let (decoder, reused) = self.obtain_decoder(&track, generation, provider)?;
+                    outcome.decoder_reused = reused;
+                    outcome.decoder_built = !reused;
+                    Some((track, decoder))
+                }
+                // Unreachable through the command path (resolution
+                // checked the live list); honored honestly.
+                None => None,
+            },
+            None => None,
+        };
+        // 2. Retire the old limb of the kind.
+        if let Some(position) = self.limbs.iter().position(|limb| limb.track.kind == kind) {
+            let mut limb = self.limbs.swap_remove(position);
+            let retired = limb.track.id;
+            let _ = limb.queue.flush(generation);
+            limb.queue.close();
+            let consumer = Arc::clone(&self.consumer);
+            let mut sink = LimbSink {
+                consumer,
+                track: retired,
+                generation,
+                frames: 0,
+                first: None,
+                stale_dropped: 0,
+                // No hold, no latch: the retired limb's residue is
+                // old-generation work — dropped at the generation
+                // check, never captured, never repeated (M10/M9).
+                hold: None,
+                last: None,
+                concealed: 0,
+            };
+            for _ in 0..flush_budget {
+                match limb.decoder.flush(&mut sink) {
+                    Ok(DecodeOutcome::Drained) => break,
+                    Ok(_) => continue,
+                    // A drain refusal still parks the instance — the
+                    // sink checkpoint is the guarantee (stale frames
+                    // cannot present), the budget only bounds the
+                    // work. Count what was purged and carry on.
+                    Err(_) => break,
+                }
+            }
+            self.seek_flush_stale = self.seek_flush_stale.saturating_add(sink.stale_dropped);
+            self.decoder_cache.push(CachedDecoder {
+                track: retired,
+                decoder: limb.decoder,
+            });
+            // Selection truth + the held packet of the retired track.
+            if let Some(index) = self.tracks.iter().position(|track| track.id == retired) {
+                self.selected[index] = false;
+            }
+            if self
+                .pending
+                .as_ref()
+                .is_some_and(|packet| packet.track == retired)
+            {
+                self.pending = None;
+            }
+        }
+        // 3. Install the new limb.
+        if let Some((track, decoder)) = prepared {
+            if let Some(index) = self
+                .tracks
+                .iter()
+                .position(|candidate| candidate.id == track.id)
+            {
+                self.selected[index] = true;
+            }
+            let mut limb = self.build_limb(track.clone(), decoder, plan, generation);
+            limb.first_frame_pending = true;
+            let watched = track.id;
+            self.limbs.push(limb);
+            // 5. The demux stamp advances with the mint.
+            self.generation = generation;
+            // 6. Arm the window.
+            self.window_arm_switch(kind, Some(watched));
+        } else {
+            self.generation = generation;
+            self.window_arm_switch(kind, None);
+        }
+        outcome.stale_frames_flushed = self.take_seek_flush_stale();
+        Ok(outcome)
     }
 
     /// The limbs whose decoders newly flushed to `Drained` during
@@ -1191,6 +1789,30 @@ impl Pipeline {
     /// pre-seek state).
     fn can_never_deliver(&self, limb: &Limb) -> bool {
         self.eof && self.pending.is_none() && limb.drained && limb.queue.usage().packets == 0
+    }
+
+    /// Whether `limb` paces the session's progress signals (card
+    /// 3.A3):
+    ///
+    /// - **Subtitle limbs never pace** — subtitle packets are sparse
+    ///   and latency-tolerant (the [`QueuePlan`] note); an empty
+    ///   subtitle queue is not an underrun and must not gate priming
+    ///   (VLC parity: a sparse text stream never triggers
+    ///   rebuffering).
+    /// - A limb installed by a switch whose queue has not yet
+    ///   recovered to its low watermark does not pace — the S2.5
+    ///   carve-out: without it every switch from `Playing` would
+    ///   flash playing→buffering→playing (the new queue starts
+    ///   empty). The exemption is a property of the limb, not of the
+    ///   switch window: the window completes at the first delivered
+    ///   frame while the queue is still climbing, so gating on the
+    ///   window would re-admit the flash on the very tick that
+    ///   completes the switch.
+    fn paces(&self, limb: &Limb) -> bool {
+        if limb.track.kind == MediaKind::Subtitle {
+            return false;
+        }
+        !limb.first_frame_pending
     }
 
     /// Run one bounded tick for `state`. Never blocks; every loop is
@@ -1219,23 +1841,25 @@ impl Pipeline {
         self.demux_step(budget.demux_events, &mut report);
         // Decode only where decoders are allowed to make progress;
         // Paused freezes the sinks (frames must not present) — with
-        // one carve-out: while a seek is in flight, decode runs even
-        // in Paused so the landing frame exists to re-anchor on (the
-        // wire-visible state stays paused; the clock stays frozen
-        // until the completion report). While the seek is in flight
-        // the decode's frames enter the M10 presentation hold, not
-        // the consumer — the carve-out produces evidence and held
-        // frames, never a pre-terminal presentation.
+        // one carve-out: while a seek **or a track switch** is in
+        // flight, decode runs even in Paused so the landing frame
+        // exists to re-anchor/complete on (the wire-visible state
+        // stays paused; the clock stays frozen until the completion
+        // report). While the seek is in flight the decode's frames
+        // enter the M10 presentation hold, not the consumer — the
+        // carve-out produces evidence and held frames, never a
+        // pre-terminal presentation. A switch's re-prime holds
+        // nothing (card 3.A3 step 7: the frame's delivery IS the
+        // completion fact).
         // [3.C1 resolution of Lead decision 3.HARD-AUDIT D-a: the
         // buffered pause (Buffering+Pause → Paused) now rides its own
         // episode bookend rows — `Paused + Primed` closes the episode
         // the pause held open — so the pre-roll of a pause-departed
         // SEEK keeps this carve-out (there is still no
         // paused→buffering wire edge, doc 05 §3.3; the seeking
-        // pre-roll presents through the M10 hold, not an episode).]
-        if matches!(state, SessionState::Buffering | SessionState::Playing)
-            || self.seek_progress.is_some()
-        {
+        // pre-roll presents through the M10 hold, not an episode).
+        // 3.A3 extends the same carve-out to its switch windows.]
+        if matches!(state, SessionState::Buffering | SessionState::Playing) || self.window_live() {
             self.decode_step(budget, &mut report);
         }
         // The drained check is pure state inspection and also runs
@@ -1252,8 +1876,16 @@ impl Pipeline {
         // absorbs the fact), so computing it here is side-effect
         // free for that case.
         if matches!(state, SessionState::Buffering | SessionState::Paused) {
+            // Priming waits for every PACING limb's high watermark
+            // (subtitles and switch-installed limbs still recovering
+            // are exempt — see [`Pipeline::paces`]).
             let mut primed = !self.limbs.is_empty();
             for limb in self.limbs.iter_mut() {
+                // paces(), inlined: subtitles and switch-installed
+                // limbs still recovering are exempt.
+                if limb.track.kind == MediaKind::Subtitle || limb.first_frame_pending {
+                    continue;
+                }
                 if limb.queue.watermark().high {
                     // Priming is a full recovery: any starvation
                     // episode closes here, so the next dip is a fresh
@@ -1270,9 +1902,15 @@ impl Pipeline {
         // `0.0..1.0` while buffering). The exit bookend `1.0` is
         // the table effect; this is the honest mid-episode view.
         if state == SessionState::Buffering {
+            // The in-episode progress: the bottleneck pacing limb's
+            // fill toward its high watermark (card 3.B4 — doc 05
+            // §3.2's `0.0..1.0` while buffering). The exit bookend
+            // `1.0` is the table effect; this is the honest
+            // mid-episode view.
             report.buffer_fill = self
                 .limbs
                 .iter()
+                .filter(|limb| self.paces(limb))
                 .map(|limb| {
                     (limb.queue.usage().packets as f32 / limb.high_packets as f32).clamp(0.0, 1.0)
                 })
@@ -1281,12 +1919,19 @@ impl Pipeline {
         if state == SessionState::Playing {
             // An underrun is an input that cannot keep up — the
             // end-of-stream drain is the media ending, not starving
-            // (rebuffering at the end would be a lie). The re-entry
+            // (rebuffering at the end would be a lie), and a
+            // mid-switch re-prime is a selection change, not a
+            // starvation (the paces() carve-out). The re-entry
             // debounce (module docs) filters low-line flapping
             // without delaying a fresh episode's first stall.
             let mut starved = false;
             let mut any_low = false;
             for limb in self.limbs.iter_mut() {
+                // paces(), inlined (the iter_mut borrow forbids the
+                // method call; the predicate reads limb fields only).
+                if limb.track.kind == MediaKind::Subtitle || limb.first_frame_pending {
+                    continue;
+                }
                 let mark = limb.queue.watermark();
                 if mark.high {
                     // A full recovery closes the episode even without
@@ -1325,11 +1970,14 @@ impl Pipeline {
     }
 
     /// End-of-stream with nothing left anywhere: no held packet, no
-    /// resident queue items, every decoder flushed to `Drained`.
+    /// resident queue items, every decoder flushed to `Drained`. The
+    /// empty-limb set counts as drained (card 3.A3: deselecting both
+    /// A/V kinds must let the media end honestly at EOF — the
+    /// refusing-an-unwirrable-open boundary lives at wire time,
+    /// `NoDecodableTrack`, not here).
     fn is_drained(&self) -> bool {
         self.eof
             && self.pending.is_none()
-            && !self.limbs.is_empty()
             && self
                 .limbs
                 .iter()
@@ -1478,15 +2126,21 @@ impl Pipeline {
     /// nothing but corrupt packets must not fake playing either).
     fn decode_step(&mut self, budget: &TickBudget, report: &mut TickReport) {
         let consumer = Arc::clone(&self.consumer);
-        let generation = self.generation;
-        for (index, limb) in self.limbs.iter_mut().enumerate() {
+        for limb in self.limbs.iter_mut() {
             let track_id = limb.track.id;
             let limb_kind = limb.track.kind;
+            // The **limb's** generation floor, not the pipeline-wide
+            // scalar (card 3.A3): a switch mint advances the demux
+            // stamp without invalidating the unchanged kind's
+            // consumer path — its G-stamped residents stay
+            // presentable, while the switched kind's stale
+            // stragglers still die at the new limb's floor.
+            let generation = limb.generation;
             let mut fatal: Option<EngineError> = None;
             // The slice's observed facts, hoisted out of the sink's
             // scope so the pre-roll hold borrow ends before the
             // observation merge below (the hold slot borrows the same
-            // `seek_progress` the merge reads). Assigned exactly once
+            // `window` the merge reads). Assigned exactly once
             // at the end of the scope below.
             let sink_frames: u32;
             let sink_first: Option<Stamp>;
@@ -1495,10 +2149,13 @@ impl Pipeline {
             let sink_last: Option<Frame>;
             {
                 // M10: while a seek is in flight, the sink routes the
-                // slice's frames into the per-limb hold — they reach
+                // slice's frames into the per-track hold — they reach
                 // the consumer only at the seek terminal
                 // (`release_preroll_hold`), never against the frozen
-                // clock.
+                // clock. A switch flying alone arms no hold (its
+                // re-prime delivers straight through), so
+                // `hold_slot` answers `None` and the frames present
+                // live.
                 let mut sink = LimbSink {
                     consumer: Arc::clone(&consumer),
                     track: track_id,
@@ -1511,7 +2168,7 @@ impl Pipeline {
                     // slice.
                     last: limb.last_frame.clone(),
                     concealed: 0,
-                    hold: self.seek_progress.as_mut().and_then(|p| p.hold_slot(index)),
+                    hold: self.window.as_mut().and_then(|w| w.hold_slot(track_id)),
                 };
                 for _ in 0..budget.packets_per_limb {
                     // Hold backpressure (M10, D-1): a full hold ends
@@ -1662,20 +2319,53 @@ impl Pipeline {
             // The concealment cache follows the slice back into the
             // limb (the sink's latch or the frame it still holds).
             limb.last_frame = sink_last;
+            // The re-prime exemption (card 3.A3 step 5) ends when the
+            // limb's queue has **recovered to its low watermark** —
+            // not at the first delivered frame: the queue is still
+            // climbing from empty on the completing tick, and
+            // re-admitting the limb to the underrun check at that
+            // moment would flash playing→buffering on every switch
+            // (the exact S2.5 bug the carve-out exists to prevent).
+            // A sparse or span-exhausted track whose queue never
+            // recovers simply stays exempt — honest silence, VLC
+            // parity (a selection change is not an underrun).
+            if limb.first_frame_pending && limb.queue.usage().packets >= limb.low_packets {
+                limb.first_frame_pending = false;
+            }
             if self.first_frame.is_none()
                 && let Some(position) = sink_first
             {
                 self.first_frame = Some(position);
                 report.first_frame = Some(position);
             }
-            // The in-flight seek's pre-roll observation (doc 03 §6
-            // step 5): frames delivered this slice, and the first
-            // frame's stamp (the audio anchor truth for step 6).
-            if let Some(progress) = self.seek_progress.as_mut() {
-                progress.observe(index, limb_kind, sink_frames, sink_first);
+            // The in-flight re-prime observation (doc 03 §6 step 5 /
+            // card 3.A3 step 5): frames delivered this slice, and the
+            // first frame's stamp (the anchor truth for the seek's
+            // audio re-anchor and the switch's new-track re-anchor).
+            if let Some(window) = self.window.as_mut() {
+                window.observe(track_id, limb_kind, sink_frames, sink_first);
             }
         }
     }
+}
+
+/// The codec descriptor of a cached track — the configure call the
+/// recycle path needs. A cache entry always has a live `tracks` row
+/// (the cache is bounded by the source's track list), so the
+/// fallback descriptor is the unreachable-by-construction guard.
+fn cached_track_codec(tracks: &[Track], track: TrackId) -> media_types::ids::CodecDescriptor {
+    tracks
+        .iter()
+        .find(|candidate| candidate.id == track)
+        .map_or_else(empty_codec_descriptor, |candidate| candidate.codec.clone())
+}
+
+/// The unreachable-by-construction fallback descriptor for a cached
+/// track with no live row (kept total, never panics).
+fn empty_codec_descriptor() -> media_types::ids::CodecDescriptor {
+    media_types::ids::CodecDescriptor::new("unknown").unwrap_or_else(|error| {
+        unreachable!("the literal `unknown` is a valid descriptor: {error}")
+    })
 }
 
 /// A present stamp's nanoseconds (`None` when missing or
@@ -1954,7 +2644,7 @@ mod tests {
         let wired = pipeline
             .wire(tracks, &NullProvider, &plan, GenerationId::FIRST)
             .must();
-        assert_eq!(wired, 1);
+        assert_eq!(wired.wired, 1);
         // The wire-time mint publishes the generation and leaves a
         // dropped=0 discontinuity marker pending in each fresh queue;
         // drain it here so the scripted packet levels below are exact
