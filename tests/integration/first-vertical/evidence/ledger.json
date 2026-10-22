@@ -1,11 +1,11 @@
 {
   "schema": "evidence/1",
-  "run_id": "2e1-local-5b396e5fa",
+  "run_id": "2e1-local-95f5fe1fe",
   "commit": {
-    "sha": "5b396e5fad61d6229e4456da5e283bb21fb3103f",
+    "sha": "95f5fe1fe75740bede013883a72accf554829a06",
     "note": "the tree the evidence was regenerated FROM; the artifact commit itself lands one commit later (a file cannot carry its own sha)"
   },
-  "started_at": "2026-10-22T14:13:59Z",
+  "started_at": "2026-10-22T15:26:41Z",
   "environment": {
     "kind": "local",
     "os": "linux",
@@ -77,14 +77,16 @@
     {
       "id": "seek",
       "verdict": "pass",
-      "checks": 6,
+      "checks": 8,
       "claims": [
         "the 50% seek lands at exactly half the duration",
-        "the seek composition mints a new session id (the 2.D2 reopen shape)",
+        "the session id survives the native seek (the C8 in-pipeline flow)",
         "the remainder plays out to the exact duration",
-        "the trail shows the composition (Paused→Stopped→Idle→Opening)",
-        "the post-seek limb counts half the media (30+30)",
-        "the scheduler sees the 30 remaining frames"
+        "the trail is in-pipeline (no teardown edges; exactly one open)",
+        "the decode accounting keeps the pre-seek deliveries",
+        "the scheduler saw the pre-seek window plus the landing",
+        "the pre-seek scheduler window purged as stale",
+        "the presentation queue carries the seek's mint"
       ]
     },
     {
@@ -207,33 +209,33 @@
   "artifacts": [
     {
       "path": "evidence/transcripts/open.json",
-      "bytes": 4608,
-      "sha256": "bb1cbab10d23bbbb0f7a28f95e99f61ce86cb43047a77bf40712ba95330d4707"
+      "bytes": 4697,
+      "sha256": "fd2df5774d1f906bb1567e403d2330196b4c131d0a80369201ec0409ef98850b"
     },
     {
       "path": "evidence/transcripts/play.json",
-      "bytes": 4563,
-      "sha256": "ea188016824c2e558b0f00be7f2585b25eb1b51343c53caacb94bf3d49184e75"
+      "bytes": 4652,
+      "sha256": "9507e8870892c3c334100de224bac501f53f5dc2c6def0b2be730c44b03966a8"
     },
     {
       "path": "evidence/transcripts/pause.json",
-      "bytes": 3362,
-      "sha256": "459e68dd0161ec4f8103d471275616bb8022ea37edd843f3e8d98b98106aba89"
+      "bytes": 3451,
+      "sha256": "ab4ab43e5f897dadb5324e1ff978f6e65462dce1f125861523fc4153dbc40574"
     },
     {
       "path": "evidence/transcripts/seek.json",
-      "bytes": 5263,
-      "sha256": "a420102503d6b13311dc8bfd0f777581c14d9fb95356b164b0c50eb54e4a7506"
+      "bytes": 4883,
+      "sha256": "6babab25be9f85c0e8bf8f1d6edd52012c0ee1f1406e9924d7c40d9d3221f7f9"
     },
     {
       "path": "evidence/transcripts/stop.json",
-      "bytes": 4152,
-      "sha256": "22e7a9076bf68f073b05371df9954fc6069f1a0503817c829c547531bf028e09"
+      "bytes": 4151,
+      "sha256": "719482d07a9db5610c87d79c998cfa40049ba6684c93afc2dce7931d966f700f"
     },
     {
       "path": "evidence/transcripts/run-to-end.json",
-      "bytes": 3730,
-      "sha256": "d748a9dcc5b23c0e436cfd218807fd35112fd8477ef25df3a562a361c579d6e8"
+      "bytes": 3819,
+      "sha256": "dd17034186e31d8256b01d5f292c0ccdee17f909d7df7323fa2267fe6cebed5a"
     },
     {
       "path": "evidence/transcripts/missing-file.json",
@@ -247,23 +249,23 @@
     },
     {
       "path": "evidence/transcripts/corrupt-truncated-midplay.json",
-      "bytes": 3427,
-      "sha256": "ac730c4cbbc057516dbf70521cc8981d592a6165adbed5836ca40b7cbe80adaa"
+      "bytes": 3516,
+      "sha256": "1f667681f116694be7a8b8c76a3aa4b5b5db04737e4e47f03c4aa46871420a4d"
     },
     {
       "path": "evidence/transcripts/corrupt-garbage-appended.json",
-      "bytes": 3758,
-      "sha256": "0323e7597a87a5db53f963f0764e67efe2708ebe6f707150a6cbd6743e367d97"
+      "bytes": 3847,
+      "sha256": "0697cc82fa8a960c2a5043f0379a2510824c70dcd40c85da8f75ca2b87b5d002"
     },
     {
       "path": "evidence/transcripts/corrupt-noidx.json",
-      "bytes": 3745,
-      "sha256": "922398e0ed43566c0c038a9286b9342bd4056cda7c628c61b151cfd7aec5b872"
+      "bytes": 3834,
+      "sha256": "87632f49a5445c4f316f799f3a22c527d047bee9185850e8e7a0fd029d466407"
     },
     {
       "path": "evidence/transcripts/wire-session.json",
-      "bytes": 5096,
-      "sha256": "9f489d11d52b279d51838d9c1f2dfcf9a70211e935666e2f5cbe695186305ad1"
+      "bytes": 5095,
+      "sha256": "e4dd46b54ad54fa7a353da3bab78de089fecf6209b05911f85d1a13d6712cd46"
     },
     {
       "path": "evidence/final-frame.png",

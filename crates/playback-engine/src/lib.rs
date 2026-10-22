@@ -34,11 +34,13 @@
 //!
 //! # What is deliberately NOT here (Phase 3+)
 //!
-//! A/V sync, source replacement, track switching, rate, the
-//! thread-per-session model and the event broadcast bus are excluded
-//! by the card (3.A2–3.A3, 3.B1, 3.B3, 2.E1). The minimal machine is
-//! synchronous and single-writer: the host's [`Engine::poll`] call IS
-//! the session thread, which keeps invariant S1 true by construction.
+//! A/V sync, track switching, rate, the thread-per-session model and
+//! the event broadcast bus are excluded by the card (3.A3, 3.B1,
+//! 3.B3, 2.E1). The minimal machine is synchronous and single-writer:
+//! the host's [`Engine::poll`] call IS the session thread, which keeps
+//! invariant S1 true by construction. Source replacement (3.A2) IS
+//! here: [`Engine::open`] on a live session runs the implicit close
+//! in-pipeline (see the `replacement` suite).
 //!
 //! # The acceptance criteria, and where they are proven
 //!

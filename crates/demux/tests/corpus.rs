@@ -486,3 +486,59 @@ fn walk_audio_track(path: &Path) -> bool {
         Err(_) => false,
     }
 }
+
+/// The W2-07 dirty-walk oracles: the two `zero-mid` siblings whose
+/// garbage-size cursor jumps past the `movi` bound forfeited a valid
+/// tail (W1-03's class-d filings). Real files, real oracle numbers —
+/// the packet counts ffprobe reads off the same bytes through
+/// avi_sync/idx1:
+///
+/// - `zero-mid-061-0136`: the zeroed region destroys 3 chunk
+///   headers; the oracle recovers everything else (v=583, a=304).
+/// - `zero-mid-076-0268`: the video stream is mpeg4 (outside the v0
+///   codec filter — tracks=1 by design, so Lumen's v stays 0); the
+///   audio oracle is a=51 with none lost.
+///
+/// Both files carry a valid `idx1`: the walk must clamp the garbage
+/// jump and re-synchronize instead of ending EOS with a playable tail
+/// (D-3: recover, never forfeit playable data silently).
+///
+/// The pinned names belong to the 2026-10-22 corpus instance; the
+/// corpus regenerates with fresh seeds, so a regenerated corpus
+/// skips (loudly) rather than failing on files that no longer exist
+/// — the durable judgment stays with the harness's aggregate
+/// oracle comparison.
+#[test]
+#[ignore = "randomized-corpus harness: run via tools/corpus/run_harness.py (W2-07 oracles)"]
+fn corpus_dirty_zero_mid_walks_recover_the_tail_to_oracle_counts() {
+    let Some(corpus) = std::env::var("LUMEN_CORPUS").ok() else {
+        eprintln!("corpus: LUMEN_CORPUS env not set — no-op");
+        return;
+    };
+    let corpus = PathBuf::from(corpus);
+    // (rel, expected v_pkts, expected a_pkts) — 0268's video is out
+    // of the v0 codec filter, so its Lumen-side video count is 0.
+    let pinned: [(&str, u64, u64); 2] = [
+        ("dirty/zero-mid-061-0136-avi-av.avi", 583, 304),
+        ("dirty/zero-mid-076-0268-avi-av.avi", 0, 51),
+    ];
+    for (rel, want_v, want_a) in pinned {
+        let path = corpus.join(rel);
+        if !path.is_file() {
+            eprintln!("corpus(W2-07): {rel} not in this corpus instance — skip");
+            continue;
+        }
+        let (terminal, _tracks, v_pkts, a_pkts, _vb, _ab, recovered, _dmg, _fp, _lp, err, _us) =
+            walk_one(&path);
+        assert_eq!(
+            (terminal.as_str(), v_pkts, a_pkts),
+            ("eos", want_v, want_a),
+            "{rel}: the damaged walk must clamp+resync and deliver the oracle tail"
+        );
+        assert!(
+            recovered > 0,
+            "{rel}: the clamp+resync is damage-recorded, never silent"
+        );
+        assert!(err.is_empty(), "{rel}: clean EOS terminal, no error code");
+    }
+}

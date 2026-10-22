@@ -46,7 +46,11 @@ fn run(args: &[&str], script: &str) -> (String, String, i32) {
 }
 
 /// THE scripted session: open → play → pause → seek → stop, with the
-/// `info` snapshot asserted between the steps (the card's AC).
+/// `info` snapshot asserted between the steps (the card's AC). The
+/// seek is the engine's NATIVE flow (C8/ED-FIX-4): it lands
+/// in-pipeline — the session epoch, the device, the ring and the
+/// renderer surface all survive — and the stop→close→reopen
+/// composition is nowhere in the trail (D-4/D-7: forbidden).
 #[test]
 fn scripted_session_open_play_pause_seek_stop() {
     let script = "play\npause\ninfo\nseek 50%\nstop\ntime\nquit\n";
@@ -79,24 +83,50 @@ fn scripted_session_open_play_pause_seek_stop() {
     assert!(info.contains("#1 audio pcm_s16le 2ch 44100Hz"), "{info}");
     assert!(info.contains("(selected)"), "{info}");
 
-    // The seek composes through the engine's real transitions (the
-    // recorded 2.D2 shape): Paused → Stopped → Idle → Opening →
-    // Buffering → Playing, under a NEW session id.
-    let seek_stop = out.find("state-changed Paused → Stopped").must();
+    // THE SEEK (the engine's native flow): from Paused the wire state
+    // self-transitions (the decode carve-out keeps the wire paused),
+    // the SAME session answers under a minted generation, and the
+    // terminal reports the ACTUAL landing — 1.000000s, exactly half
+    // of the 2.000s media (a frame-aligned target lands on itself).
+    let seek_at = out.find("state-changed Paused → Paused").must();
+    assert!(seek_at > info_at, "seek follows the info snapshot:\n{out}");
     assert!(
-        seek_stop > info_at,
-        "seek follows the info snapshot:\n{out}"
+        out.contains(
+            "event: TimingSeekCompleted { position: Timestamp(1000000), \
+             seek_kind: Command }"
+        ),
+        "{out}"
     );
-    assert!(out.contains("state-changed Stopped → Idle"), "{out}");
-    assert!(out.contains("state-changed Idle → Opening"), "{out}");
-    assert!(out.contains("ok: accepted session=2"), "{out}");
+    assert!(out.contains("ok: accepted session=1 gen=1"), "{out}");
+    // Epoch continuity — the no-reopen proof: exactly one open in the
+    // whole transcript (the initial one; a reopen answers per seek),
+    // and no second session id is ever minted.
+    assert_eq!(
+        out.matches("state-changed Idle → Opening").count(),
+        1,
+        "one open only — no reopen:\n{out}"
+    );
+    assert!(
+        !out.contains("accepted session=2"),
+        "the seek must not mint a session:\n{out}"
+    );
 
-    // stop tears the pipeline down (the session survives).
-    assert!(out.contains("state-changed Playing → Stopped"), "{out}");
+    // stop tears the pipeline down (the session survives) — from the
+    // seek's Paused, AFTER the seek's receipt.
+    let stop_at = out.find("state-changed Paused → Stopped").must();
+    assert!(
+        stop_at > seek_at,
+        "the stop follows the seek (it is not the seek):\n{out}"
+    );
+    assert_eq!(
+        out.matches("state-changed Paused → Stopped").count(),
+        1,
+        "the seek itself never stops:\n{out}"
+    );
 
-    // time after the 50% seek + stop: the clock froze at the seek
-    // landing — exactly half of 2.000 s (pipeline-only settles never
-    // advance media time; only `advance` does).
+    // time after the 50% seek + stop: the clock froze at the seek's
+    // ACTUAL landing — exactly half of 2.000 s (pipeline-only settles
+    // never advance media time; only `advance` does).
     assert!(out.contains("ok: time 1.000000s (50.0%)"), "{out}");
 }
 
@@ -191,6 +221,116 @@ fn chapter_seek_refuses_typed() {
     assert_eq!(code, 0, "stdout:\n{out}\nstderr:\n{err}");
     assert!(err.contains("[session.not-found]"), "{err}");
     assert!(err.contains("no chapter 3"), "{err}");
+}
+
+// ---------------------------------------------------------------------------
+// The native seek (C8/ED-FIX-4): the engine's in-pipeline flow through
+// the real binary — epoch continuity, the ACTUAL landing, typed
+// refusals, the backward-below-start-time composition
+// ---------------------------------------------------------------------------
+
+/// A seek from `Playing` re-buffers IN-PIPELINE: `Playing → Buffering
+/// → Playing` around the terminal, one open in the transcript, and
+/// the position reports the demuxer's actual landing.
+#[test]
+fn seek_from_playing_rebuffers_in_pipeline() {
+    let script = "seek 1500ms\ntime\nquit\n";
+    let (out, err, code) = run(&["open", &parent()], script);
+    assert_eq!(code, 0, "stdout:\n{out}\nstderr:\n{err}");
+    assert!(err.is_empty(), "stderr:\n{err}");
+    // The rebuffer episode around the landing (doc 03 §6 step 5 — no
+    // fast-start heuristic in v0; the watermark machinery re-enters
+    // Playing through the existing transitions).
+    let seek_at = out.find("state-changed Playing → Buffering").must();
+    assert!(
+        out.contains(
+            "event: TimingSeekCompleted { position: Timestamp(1500000), \
+             seek_kind: Command }"
+        ),
+        "{out}"
+    );
+    // The rebuffer's close comes AFTER the seek's own `→ Buffering`
+    // (the open's earlier `Buffering → Playing` is not it).
+    let resumed = seek_at
+        + out[seek_at..]
+            .find("state-changed Buffering → Playing")
+            .must();
+    assert!(resumed > seek_at, "the rebuffer closes:\n{out}");
+    // The same session, minted generation, no reopen.
+    assert!(out.contains("ok: accepted session=1 gen=1"), "{out}");
+    assert_eq!(
+        out.matches("state-changed Idle → Opening").count(),
+        1,
+        "one open only:\n{out}"
+    );
+    assert!(out.contains("ok: time 1.500000s (75.0%)"), "{out}");
+}
+
+/// Position truth is the ACTUAL landing, not the requested target:
+/// `seek 250ms` on the 30 fps grid lands at the demuxer's
+/// keyframe-safe chunk — 266.667 ms — and the `time` snapshot reports
+/// that, never the request.
+#[test]
+fn seek_reports_the_actual_not_the_requested() {
+    let script = "seek 250ms\ntime\nquit\n";
+    let (out, err, code) = run(&["open", &parent()], script);
+    assert_eq!(code, 0, "stdout:\n{out}\nstderr:\n{err}");
+    assert!(err.is_empty(), "stderr:\n{err}");
+    assert!(
+        out.contains(
+            "event: TimingSeekCompleted { position: Timestamp(266667), \
+             seek_kind: Command }"
+        ),
+        "the terminal carries the demuxer's landing:\n{out}"
+    );
+    assert!(
+        out.contains("ok: time 0.266666s (13.3%)"),
+        "the snapshot reports the actual (ns → µs truncation):\n{out}"
+    );
+}
+
+/// A typed failure surfaces honestly (contract D4): seek from `Ended`
+/// is the state table's refusal — `[session.not-ready]` on stderr
+/// naming the owning wire edge, the position unchanged at the old
+/// one, and nothing torn down to refuse.
+#[test]
+fn seek_from_ended_refuses_typed() {
+    let script = "advance 512\nseek 50%\ntime\nquit\n";
+    let (out, err, code) = run(&["open", &parent()], script);
+    assert_eq!(code, 0, "stdout:\n{out}\nstderr:\n{err}");
+    assert!(out.contains("state-changed Playing → Ended"), "{out}");
+    assert!(err.contains("[session.not-ready]"), "{err}");
+    assert!(err.contains("seek in Ended"), "{err}");
+    // The old position stands (nothing moved, nothing died).
+    assert!(out.contains("ok: time 2.000000s (100.0%)"), "{out}");
+    assert!(
+        !out.contains("TimingSeekCompleted"),
+        "no terminal was fabricated:\n{out}"
+    );
+}
+
+/// A backward seek below `--start-time` lands and plays out (the
+/// demuxer wrapper clears the open-time skip watermark at the
+/// re-anchor — the landing is the new position truth; a standing
+/// `1s` filter would starve the pre-roll of a 250 ms landing).
+#[test]
+fn backward_seek_below_start_time_lands() {
+    let script = "seek 250ms\ntime\nadvance 512\ntime\nquit\n";
+    let (out, err, code) = run(&["open", &parent(), "--start-time", "1s"], script);
+    assert_eq!(code, 0, "stdout:\n{out}\nstderr:\n{err}");
+    assert!(err.is_empty(), "stderr:\n{err}");
+    assert!(
+        out.contains(
+            "event: TimingSeekCompleted { position: Timestamp(266667), \
+             seek_kind: Command }"
+        ),
+        "{out}"
+    );
+    assert!(out.contains("ok: time 0.266666s (13.3%)"), "{out}");
+    // The pre-roll was fed below the start time: the media still
+    // plays to its exact end.
+    assert!(out.contains("event: end-of-media"), "{out}");
+    assert!(out.contains("ok: time 2.000000s (100.0%)"), "{out}");
 }
 
 // ---------------------------------------------------------------------------

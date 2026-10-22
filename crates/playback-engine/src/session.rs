@@ -725,9 +725,12 @@ impl PipelineTotals {
 /// session, and serializes its outputs.
 ///
 /// Single-session v0 `[PROPOSAL: multi-session hosting arrives with
-/// the hosts that need it; play-new-while-playing replacement is
-/// card 3.A2 — v0 refuses a second open on a live session honestly
-/// instead of silently replacing]`.
+/// the hosts that need it]`. Card 3.A2 wires **source replacement**:
+/// a second `open` on a live session implicitly closes it (doc 05
+/// §2.1 — "Replaces any current session. New `SessionId`, `gen =
+/// 0`") through existing table rows and mints the next epoch — see
+/// [`Engine::open`]. The one typed refusal left is `Buffering` (no
+/// `buffering→{stopped,idle}` wire edge in v1 — card 3.C1's).
 pub struct Engine {
     next_epoch: u64,
     seq: Arc<AtomicU64>,
@@ -776,15 +779,72 @@ impl Engine {
     /// apply the `Idle → Opening` transition (doc 03 §4.6 — the
     /// engine-side `Open(source)`; the source travels in `config`).
     ///
+    /// # Source replacement (card 3.A2, doc 03 §4.6 `SetSource`)
+    ///
+    /// On a live session this is **play-new-while-playing**: the
+    /// implicit close runs **in-pipeline** through table rows that
+    /// already exist (decision P1 — zero wire changes; every edge
+    /// stays inside the doc 05 §3.3 conformance list, so the
+    /// `table.rs` proof holds untouched):
+    ///
+    /// - **R1** — a live `Buffering` session refuses typed
+    ///   ([`SessionError::SessionExists`]): no `buffering →
+    ///   {stopped,idle}` wire edge exists in v1 (card 3.C1 owns the
+    ///   transient-state edges); every other state continues.
+    /// - **R2** — from `Playing`/`Paused`, apply `Stop` (the row's
+    ///   effects, origin-free): `BumpPipeline` mints the old epoch's
+    ///   final generation (every stage-held `CancelToken` answers
+    ///   stale from here), `TeardownPipeline` flushes + closes every
+    ///   queue, drops the limbs (decoders die with their reorder
+    ///   buffers), the held demux packet, and the in-flight seek
+    ///   slot (doc 05 §4.2: a generation that never completed owes
+    ///   no terminal). Emits `state-changed → stopped`.
+    /// - **R3** — apply `Close` (from `Stopped`, or directly from
+    ///   `Opening`/`Ended`/`Stopped`/`Error`): the row's
+    ///   `DestroySession` interrupts the token and drops the
+    ///   pipeline — the demuxer and its input stream die here.
+    ///   Emits `state-changed → idle`.
+    /// - **R4** — destroy the `Session` exactly as poll step 3 does:
+    ///   totals merged **before** the drop, so engine-level
+    ///   observability (`frames_delivered`, …) accumulates across
+    ///   epochs. Everything the epoch owned is gone (S4 — no
+    ///   demuxer/queue/decoder reuse); everything it merely borrowed
+    ///   (device, ring, clock, renderer, consumer, provider — host
+    ///   `Arc`s) survives: dropping an `Arc` clone cannot destroy a
+    ///   host-held twin.
+    /// - **R5–R8** — the fresh open below, verbatim: next epoch, new
+    ///   inbox/session publishing `(E+1, 0)`, fresh queues and
+    ///   decoders wired at generation 0 of the new epoch, pre-roll
+    ///   to `Playing` on the unchanged tick path.
+    /// - **R9** — the old epoch's undelivered hub events are
+    ///   suppressed at drain by the epoch-aware rule (W1-10):
+    ///   cross-epoch is stale by construction. Receipts survive
+    ///   (request-correlated, never pipeline-scoped).
+    ///
+    /// Single-writer discipline holds by construction: `open` runs
+    /// between polls (the same discipline as the `Idle → Opening`
+    /// apply), so R2–R4 are atomic w.r.t. drains and ticks. No
+    /// rollback exists — the old epoch is legally dead the moment
+    /// the replacement starts (doc 03's `SetSource` row has none);
+    /// if the **new** open fails, the engine lands in `Error` under
+    /// the new epoch, closeable like any error.
+    ///
     /// # Errors
-    /// [`SessionError::SessionExists`] if a live session exists;
-    /// [`SessionError::GenerationExhausted`] if the epoch counter is
-    /// spent.
+    /// [`SessionError::SessionExists`] if the live session is in
+    /// `Buffering` (the 3.C1 refusal); [`SessionError::GenerationExhausted`]
+    /// if the epoch counter is spent (the old session is already
+    /// destroyed — the honest answer, not a resurrection).
     pub fn open(&mut self, config: SessionConfig) -> Result<SessionHandle, SessionError> {
         if let Some(session) = &self.session {
-            return Err(SessionError::SessionExists {
-                session: session.epoch.as_session_id(),
-            });
+            // R1 — the one typed refusal: `Buffering` has no v1 wire
+            // edge to `stopped`/`idle` (card 3.C1 owns it); the
+            // variant's text stays honest for this legal exit.
+            if session.state == SessionState::Buffering {
+                return Err(SessionError::SessionExists {
+                    session: session.epoch.as_session_id(),
+                });
+            }
+            self.replace_live_session()?;
         }
         let epoch = SessionEpoch(self.next_epoch);
         let next = self
@@ -929,6 +989,61 @@ impl Engine {
 
     fn current_pair(&self) -> Option<GenerationPair> {
         self.session.as_ref().map(|s| s.pair()).or(self.last_pair)
+    }
+
+    /// R2–R4 of the replacement flow (see [`Engine::open`]'s docs
+    /// for the full nine-step map): implicitly close the live session
+    /// through existing table rows, then destroy it with poll step
+    /// 3's exact accounting. The teardown order is doc 03 §5's
+    /// synchronous form — mint (R2's `BumpPipeline`), flush + close
+    /// the queues, drop the limbs/decoders/pending/demuxer (the
+    /// `Pipeline` dies with `DestroySession`), interrupt the token
+    /// (belt-and-braces after the epoch is already superseded),
+    /// drop the `Session` (totals merged first).
+    ///
+    /// The two applies are pinned table rows — `Stop` from
+    /// `Playing`/`Paused`, `Close` from the landing `Stopped` (or
+    /// directly from `Opening`/`Ended`/`Stopped`/`Error`) — so a
+    /// rejection is unreachable; it is honored as
+    /// [`SessionError::Invariant`] rather than unwrapped, the same
+    /// honesty the fresh-open path applies to `Idle → Opening`.
+    /// These events carry `origin: None` (receipts exist only for
+    /// submitted commands; the implicit close is engine-internal).
+    fn replace_live_session(&mut self) -> Result<(), SessionError> {
+        // R2 — the old session's stop (only from Playing/Paused; the
+        // settled/opening states close directly). A mint exhaustion
+        // inside the row lands the session in `Error`, from which
+        // R3's close row still exits — the flow degrades honestly.
+        if let Some(session) = self.session.as_mut()
+            && matches!(session.state, SessionState::Playing | SessionState::Paused)
+        {
+            let outputs = session
+                .apply(SessionInput::Stop, InputContext::default())
+                .map_err(|rejection| SessionError::Invariant(format!("{rejection}")))?;
+            for output in outputs {
+                self.outbox.push(output);
+            }
+        }
+        // R3 — the old session's close: `BumpPipeline` (the epoch's
+        // last, harmless mint) then `DestroySession` (interrupt +
+        // pipeline drop + `closed`).
+        if let Some(session) = self.session.as_mut() {
+            let outputs = session
+                .apply(SessionInput::Close, InputContext::default())
+                .map_err(|rejection| SessionError::Invariant(format!("{rejection}")))?;
+            for output in outputs {
+                self.outbox.push(output);
+            }
+        }
+        // R4 — destruction, mirroring poll step 3 exactly: the
+        // totals merge BEFORE the drop; the `Session` (emission
+        // state, inbox, seek slot, minter) dies here. `last_pair`
+        // needs no update — R5–R6 overwrite it before any drain can
+        // observe the gap (open runs between polls).
+        if let Some(session) = self.session.take() {
+            self.pipeline_totals.merge(&session.totals);
+        }
+        Ok(())
     }
 }
 
