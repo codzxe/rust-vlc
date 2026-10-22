@@ -23,6 +23,7 @@
 
 use crate::error::WireError;
 use crate::mailbox::{FrameMailbox, MailboxConfig, MailboxError, ShippedFrame};
+use crate::wire::WireDecoder;
 
 /// Somewhere encoded frame records go (the ADR-004 seam).
 ///
@@ -169,13 +170,22 @@ impl FrameTransport for CaptureTransport {
 /// consumer drains — the engine→webview boundary of variant B.
 ///
 /// Records are *decoded* into the mailbox (the consumer side wants
-/// frames, not bytes; the mailbox is in-process). The double decode
+/// frames, not bytes; the mailbox is in-process). The decode is the
+/// C7 fix's zero-allocation shape: **one** [`WireDecoder`] lives for
+/// the transport's whole life (the old code built a fresh one per
+/// `send`), and each record is decoded **in place** — slice-window
+/// header parse, one copy into a pooled payload buffer, no
+/// pending-buffer round trip, no per-frame allocation after warm-up
+/// (measured by `tests/zero_alloc_transport.rs`). The double decode
 /// cost of a byte transport → byte consumer is measured and recorded
 /// in the prototype doc; the real Tauri IPC host will hand the raw
 /// record bytes to the webview instead — the seam keeps both shapes
 /// honest.
 pub struct MailboxTransport {
     mailbox: FrameMailbox,
+    /// THE decoder, reused across frames (D-1/D-8: one stream, one
+    /// decoder — never a fresh one per record).
+    decoder: WireDecoder,
 }
 
 impl MailboxTransport {
@@ -187,6 +197,7 @@ impl MailboxTransport {
     pub fn new(config: MailboxConfig) -> Result<MailboxTransport, TransportError> {
         Ok(MailboxTransport {
             mailbox: FrameMailbox::new(config)?,
+            decoder: WireDecoder::new(),
         })
     }
 
@@ -205,22 +216,18 @@ impl MailboxTransport {
 
 impl FrameTransport for MailboxTransport {
     fn send(&mut self, record: &[u8]) -> Result<(), TransportError> {
-        // Decode inline: a record the protocol cannot parse is a
-        // host-side bug (the encoder produced it); surface it as a
-        // hosted transport failure rather than shipping garbage.
-        let mut decoder = crate::wire::WireDecoder::new();
-        decoder.feed(record);
-        let frame = decoder
-            .next_frame()
+        // Direct hand-off (the C7 fix): the reused decoder parses the
+        // record in place — slice-window header, one copy into a
+        // pooled payload buffer, zero allocation after warm-up. A
+        // record the protocol cannot parse is a host-side bug (the
+        // encoder produced it); surface it as a hosted transport
+        // failure rather than shipping garbage.
+        let frame = self
+            .decoder
+            .decode_record(record)
             .map_err(|err: WireError| TransportError::Hosted {
                 message: err.to_string(),
-            })?
-            .ok_or(TransportError::Hosted {
-                message: "transport: partial record handed to the mailbox".to_string(),
             })?;
-        decoder.finish().map_err(|err| TransportError::Hosted {
-            message: err.to_string(),
-        })?;
         self.mailbox.offer(frame).map_err(TransportError::from)
     }
 

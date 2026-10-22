@@ -64,6 +64,14 @@ pub enum WireError {
         /// Bytes still required to complete the current record.
         missing: u64,
     },
+    /// Bytes left over after one complete record handed to a
+    /// one-record decode (a second record, or a partial one — the
+    /// caller's chunking is wrong: one record per hand-off is the
+    /// producer's contract).
+    TrailingBytes {
+        /// Bytes left over after the complete record.
+        count: u64,
+    },
 }
 
 impl std::fmt::Display for WireError {
@@ -98,6 +106,11 @@ impl std::fmt::Display for WireError {
             WireError::Truncated { missing } => write!(
                 f,
                 "frame stream: truncated record ({missing} bytes missing; feed more input)"
+            ),
+            WireError::TrailingBytes { count } => write!(
+                f,
+                "frame stream: {count} trailing bytes after a complete record \
+                 (one record per hand-off)"
             ),
         }
     }
