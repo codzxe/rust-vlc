@@ -5,26 +5,28 @@
 // `fuzz_codec_mjpeg`) — "Directory fuzz/, cargo-fuzz, one target per
 // parser named exactly as in the tables above".
 //
-// WIRING STATUS (honest, 2026-10-20): the harness LOGIC lives in
-// `codecs::video::mjpeg::fuzz::fuzz_codec_mjpeg` (std-only,
-// panic-free by construction, memory bounded by the decoder's own
-// MAX_PIXELS/per-plane ceilings — see that module's docs) and is
-// proven today by the in-crate deterministic smoke tests plus the
-// committed-corpus survival run in
+// WIRING STATUS (updated 2026-10-22, card W1-12): the cargo-fuzz
+// scaffolding now EXISTS — `fuzz/Cargo.toml` (package `lumen-fuzz`,
+// `libfuzzer-sys` 0.4.13, this target declared) + `fuzz/README.md`.
+// What is still owed is the *nightly wiring* (a Lead dependency
+// decision per AGENTS.md §3.2 / C5 — the repository toolchain is
+// stable-pinned, cargo-fuzz needs a nightly for `-Zsanitizer`); the
+// exact commands live in the README. Until that lands, this target
+// is compile-ready but not built by any gate. The harness logic
+// (std-only, panic-free by construction, memory bounded by the
+// decoder's own MAX_PIXELS/per-plane ceilings — see that module's
+// docs) is meanwhile proven on stable by the in-crate deterministic
+// smoke tests, the committed-corpus survival run in
 // `crates/codecs/tests/fuzz_survival.rs` (all 22 fixture files, all
 // 120 extracted frames, systematic truncations and single-byte flips
-// of a real frame, adversarial near-cap geometries). Building THIS
-// file needs the cargo-fuzz scaffolding (`fuzz/Cargo.toml` + the
-// `libfuzzer-sys` dev-dependency), which is a Lead-owned dependency
-// decision under AGENTS.md §3.2 / C5 — until it is approved and
-// wired, this target is registered by name and shape but not yet
-// compiled in CI (same status as `fuzz_demux_avi`, worklog 2.B2).
-// Seed corpus when that happens: the 60 committed JPEG frames from
-// both class-A parents (CC0, tests/fixtures/CORPUS.md) plus
-// truncations of frame 0 at every 128-byte boundary and the class-B
-// derivative files.
+// of a real frame, adversarial near-cap geometries), and the seeded
+// survival loop in `crates/codecs/tests/fuzz_loop_stable.rs` (card
+// W1-12). Seed corpus when the campaign lights up: the 60 committed
+// JPEG frames from both class-A parents (CC0,
+// tests/fixtures/CORPUS.md) plus truncations of frame 0 at every
+// 128-byte boundary and the class-B derivative files.
 //
-// Build (once wired):  cargo +nightly fuzz run fuzz_codec_mjpeg
+// Build (once nightly is wired):  cargo +nightly fuzz run fuzz_codec_mjpeg
 
 #![no_main]
 

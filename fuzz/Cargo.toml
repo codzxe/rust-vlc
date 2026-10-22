@@ -1,0 +1,82 @@
+# fuzz/ — the cargo-fuzz campaign for Lumen's three registered fuzz
+# targets (doc 04 §8.5; audit row M14, fix card ED-FIX-5, delivered by
+# card W1-12).
+#
+# This manifest is a *scaffold*: it makes the three previously-dead
+# target files under fuzz_targets/ buildable by cargo-fuzz. It is NOT
+# wired into any gate: building it requires a nightly toolchain
+# (cargo-fuzz passes `-Zsanitizer` flags), and this repository's
+# toolchain is stable-pinned 1.99.1. See fuzz/README.md for the exact
+# commands and the LEAD-DECISION marker for the nightly dependency.
+#
+# Workspace placement: this package is deliberately its OWN workspace
+# root (the empty `[workspace]` table below), per cargo's prescribed
+# fix for "current package believes it's in a workspace when it's not"
+# — the root manifest's member globs (`crates/*`, `apps/*`) do not
+# match `fuzz/`, and the root Cargo.toml is Lead-owned
+# (AGENTS.md §3.7), so it is not edited from a wave agent. The Lead
+# may alternatively add `exclude = ["fuzz"]` to the root workspace and
+# drop this table — the two are equivalent for cargo; this file chose
+# the self-contained form so the scaffold merges conflict-free.
+# Consequence: workspace lints are NOT inherited here (no `[lints]
+# workspace = true` — there is no lints table to inherit from); the
+# three targets are macro-shim binaries whose logic lives in the
+# lint-clean in-crate harnesses they call.
+
+[package]
+name = "lumen-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+# Required marker: cargo-fuzz refuses to operate on a package whose
+# manifest lacks this.
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+# libfuzzer-sys 0.4.13 — latest 0.4.x on crates.io at scaffold time
+# (sparse-index verified 2026-10-22; published 2026-06-04). Caret pin:
+# >=0.4.13, <0.5. It links the stock libFuzzer runtime (C++, built by
+# its `cc` build script) — the reason a nightly toolchain is required
+# for the *driver*, not for this manifest's syntax.
+libfuzzer-sys = "0.4.13"
+
+# The crates whose in-crate fuzz harnesses (pub `fuzz` modules, each
+# panic-free by construction with documented bounds) are the target
+# bodies. Path edges mirror the workspace-internal dependency style.
+codecs = { path = "../crates/codecs" }
+demux = { path = "../crates/demux" }
+
+# Release-mode fuzzing keeps overflow checks: integer overflow in a
+# decoder walking attacker bytes is a finding, not noise. (cargo-fuzz
+# additionally injects sanitizer + debug-assertion flags itself.)
+[profile.release]
+overflow-checks = true
+
+[[bin]]
+name = "fuzz_codec_pcm"
+path = "fuzz_targets/fuzz_codec_pcm.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_demux_avi"
+path = "fuzz_targets/fuzz_demux_avi.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_codec_mjpeg"
+path = "fuzz_targets/fuzz_codec_mjpeg.rs"
+test = false
+doc = false
+bench = false
+
+# Self-contained workspace root — see the header comment. Without this
+# table cargo refuses the package ("believes it's in a workspace when
+# it's not") because the parent Lumen workspace's member globs do not
+# include it and its root manifest is Lead-owned.
+[workspace]
