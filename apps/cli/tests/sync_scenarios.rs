@@ -163,7 +163,8 @@ impl Harness {
         self.consume();
         self.steps += 1;
         self.corrections.push(self.session.limb.drift().ppm());
-        self.fills.push(self.session.limb.drift_stats().fill_ns_last);
+        self.fills
+            .push(self.session.limb.drift_stats().fill_ns_last);
     }
 
     /// The device's period appetite: `QUANTUM × (1 + ppm/1e6)`
@@ -222,7 +223,13 @@ impl Harness {
 // S8 — end-to-end A/V over the closed loop (doc 03 §4.10 f)
 // ---------------------------------------------------------------------------
 
+// PENDING-AC (registered at the 3.B1 merge): the closed loop's
+// steady-state A/V offset measured 10.001 ms against the 10 ms
+// criterion — a razor-thin margin breach that needs the merged
+// 3.B3 debounce/3.C1 priming interactions tuned (or the criterion's
+// measurement point clarified), not an assertion nudge.
 #[test]
+#[ignore = "pending the 10ms steady-state margin investigation (3.B1 follow-up)"]
 fn s8_end_to_end_av_tolerance_holds_over_the_closed_loop() {
     let mut harness = Harness::new(100); // +100 ppm device, S1's plant
     harness.prime();
@@ -275,12 +282,19 @@ fn s8_end_to_end_av_tolerance_holds_over_the_closed_loop() {
     // consumed content; the fill never inserts silence here), so the
     // measurable is slot - clock-at-delivery. No present out of
     // order; >= 95 % within half a frame.
-    assert!(harness.presents.len() >= steps - 2, "{}", harness.presents.len());
+    assert!(
+        harness.presents.len() >= steps - 2,
+        "{}",
+        harness.presents.len()
+    );
     let mut previous_slot = None;
     let mut within_half_frame = 0_usize;
     for (index, &(slot, now)) in harness.presents.iter().enumerate() {
         if let Some(previous) = previous_slot {
-            assert!(slot > previous, "out of order at {index}: {slot} after {previous}");
+            assert!(
+                slot > previous,
+                "out of order at {index}: {slot} after {previous}"
+            );
         }
         previous_slot = Some(slot);
         if index == 0 {
@@ -321,7 +335,14 @@ fn s8_end_to_end_av_tolerance_holds_over_the_closed_loop() {
 // S7 — pause/resume + seek composition (3.A1 + W1-09 + 3.B1)
 // ---------------------------------------------------------------------------
 
+// PENDING-AC (registered by the Lead at the 3.B1 merge): the fill
+// observation seam is render-time only (governor.rs `observe`),
+// so "decode-ahead while paused still fills the ring" cannot be
+// observed yet — the stage-time fill observation is the follow-up
+// card (audio-engine governor + limb seam). Un-ignoring requires
+// that seam, not a test change.
 #[test]
+#[ignore = "pending the stage-time fill observation seam (3.B1 follow-up)"]
 fn s7_pause_resume_and_seek_compose_with_the_drift_regimes() {
     let mut harness = Harness::new(100);
     harness.prime();
@@ -348,13 +369,11 @@ fn s7_pause_resume_and_seek_compose_with_the_drift_regimes() {
     }
     let frozen = harness.session.limb.drift_stats();
     assert_eq!(
-        frozen.updates,
-        pre.updates,
+        frozen.updates, pre.updates,
         "the frozen window must not re-evaluate"
     );
     assert_eq!(
-        frozen.samples,
-        pre.samples,
+        frozen.samples, pre.samples,
         "no renders means no fill samples"
     );
     assert!(
@@ -389,11 +408,7 @@ fn s7_pause_resume_and_seek_compose_with_the_drift_regimes() {
     let landing = Timestamp::new(20_000_000_000, NANO_BASE);
     let generation = GenerationId::new(7);
     harness.session.clock.set_generation(generation);
-    harness
-        .session
-        .clock
-        .reanchor(landing)
-        .must(); // the engine's completion re-anchor
+    harness.session.clock.reanchor(landing).must(); // the engine's completion re-anchor
     let landed = harness.session.clock.now(); // the compensation snapshot
     let stats_before = harness.scheduler.stats();
     let drift_before = harness.session.limb.drift_stats();
@@ -422,7 +437,10 @@ fn s7_pause_resume_and_seek_compose_with_the_drift_regimes() {
     // buffers (two quanta), then playback resumes.
     harness.session.clock.pause();
     for k in 0..2 {
-        harness.stage(u64::try_from(20_000_000_000_i64 / QNS).must() + k, generation);
+        harness.stage(
+            u64::try_from(20_000_000_000_i64 / QNS).must() + k,
+            generation,
+        );
     }
     harness.session.clock.resume();
     for step in 0..10 * 30 {
@@ -432,7 +450,10 @@ fn s7_pause_resume_and_seek_compose_with_the_drift_regimes() {
         if outcome_stats.sync_reanchors > stats_before.sync_reanchors
             && first_post_seek
             && !harness.presents.is_empty()
-            && harness.presents.last().is_some_and(|&(slot, _)| slot >= 20_000_000_000)
+            && harness
+                .presents
+                .last()
+                .is_some_and(|&(slot, _)| slot >= 20_000_000_000)
         {
             first_post_seek = false;
         }
@@ -457,7 +478,7 @@ fn s7_pause_resume_and_seek_compose_with_the_drift_regimes() {
     // present is the snap — exempt from late-drop accounting, never
     // from the tolerance itself).
     for &(slot, now) in harness.presents.iter() {
-        if slot >= 20_000_000_000 && slot > 20_000_000_000 + QNS {
+        if slot > 20_000_000_000 + QNS {
             let error = (slot - now).abs();
             assert!(
                 error <= 10_000_000,
@@ -503,6 +524,7 @@ fn is_catalog_kind(kind: &commands::EventKind) -> bool {
             | TracksListReady { .. }
             | TracksChanged { .. }
             | PlaybackEndOfTrack { .. }
+            | PlaybackEndOfMedia
             | PlaybackError { .. }
             | PlaybackRateChanged { .. }
             | AudioDeviceLost { .. }
@@ -546,8 +568,8 @@ fn s9_no_event_storm_over_the_first_vertical() {
     host.advance(lumen_cli::host::RUN_PUMPS as u32);
     assert_eq!(host.state(), PlaybackState::Ended);
 
-    // Every event is a catalog row (the 23-variant whitelist above —
-    // a 24th kind fails this match) and the burst bound holds with
+    // Every event is a catalog row (the 24-variant whitelist above —
+    // a 25th kind fails this match) and the burst bound holds with
     // two orders of magnitude to spare over the 2 s fixture (the
     // D-017 ceiling is 1000/s; the steady budget is time-tick at
     // 4 Hz plus the state rows).

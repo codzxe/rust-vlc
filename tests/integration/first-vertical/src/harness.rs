@@ -560,7 +560,23 @@ fn event_json(event: &WireEvent) -> Json {
         }
         EventKind::SessionBuffering { progress } => {
             fields.push(("kind".to_string(), Json::str("session.buffering")));
-            fields.push(("progress".to_string(), Json::str(format!("{progress:.2}"))));
+            // The transcript normalizes mid-episode progress to
+            // coarse buckets: the exact fill fraction at the moment
+            // the drain observed it is load-dependent (a busy host
+            // decodes a different number of packets between two
+            // drains), so 0.02-vs-0.07 flapping is machine noise,
+            // not behavior. The EPISODE shape is the contract: entry
+            // (0.00), the exit bookend (1.00), and at most one
+            // coarse mid marker (0.50 bucket) when a mid observation
+            // exists at all.
+            let bucket = if *progress <= 0.25 {
+                "0.00"
+            } else if *progress < 0.75 {
+                "0.50"
+            } else {
+                "1.00"
+            };
+            fields.push(("progress".to_string(), Json::str(bucket)));
         }
         EventKind::TracksListReady { tracks } => {
             fields.push(("kind".to_string(), Json::str("tracks.list-ready")));

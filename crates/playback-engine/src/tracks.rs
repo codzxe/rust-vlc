@@ -222,7 +222,7 @@ pub(crate) enum ResolvedSelection {
 /// open-time `Auto` answer (wire's initial selection) and the
 /// switch-time re-resolution.
 #[must_use]
-pub(crate) fn default_track<'a>(tracks: &'a [Track], kind: MediaKind) -> Option<&'a Track> {
+pub(crate) fn default_track(tracks: &[Track], kind: MediaKind) -> Option<&Track> {
     tracks
         .iter()
         .find(|track| track.kind == kind && track.flags.default_on)

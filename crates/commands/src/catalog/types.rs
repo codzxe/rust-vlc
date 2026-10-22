@@ -313,10 +313,7 @@ impl PlaybackState {
             (self, other),
             (S::Idle, S::Opening)
                 | (S::Opening, S::Buffering | S::Error | S::Idle | S::Stopped)
-                | (
-                    S::Buffering,
-                    S::Playing | S::Error | S::Stopped | S::Paused
-                )
+                | (S::Buffering, S::Playing | S::Error | S::Stopped | S::Paused)
                 | (
                     S::Playing,
                     S::Paused | S::Buffering | S::Stopped | S::Ended | S::Error

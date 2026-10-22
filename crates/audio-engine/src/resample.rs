@@ -141,9 +141,7 @@ impl MicroResampler {
         self.cursor_abs = 0;
         self.frac_num = 0;
         self.tail_base = -1;
-        for slot in &mut self.tail {
-            *slot = 0.0;
-        }
+        self.tail.fill(0.0);
     }
 
     /// The output planes of the last [`MicroResampler::process`] call
@@ -223,7 +221,7 @@ impl MicroResampler {
         // the quantum's last index (weight 0 — no right neighbor
         // needed, so a ppm == 0 quantum conserves its count exactly;
         // the deferred sample otherwise waits for the next quantum).
-        while cursor <= last_abs && (frac == 0 || cursor + 1 <= last_abs) {
+        while cursor <= last_abs && (frac == 0 || cursor < last_abs) {
             // Both operands ≤ 1_001_000 < 2^24: exact in f32, and the
             // division is the only float on this path — it scales
             // sample *data*, never a position.
@@ -324,11 +322,11 @@ mod tests {
             }
         }
         // 4096 inputs × 1.0005 → ~4098 outputs; all within the ramp.
-        assert!(all.len() >= 4096 && all.len() <= 4099, "{}", all.len());
+        assert!((4096..=4099).contains(&all.len()), "{}", all.len());
         let mut prev = f32::MIN;
         for (i, v) in all.iter().enumerate() {
             assert!(v >= &prev, "not monotone at {i}: {v} < {prev}");
-            assert!(*v >= 0.0 && *v <= 4096.0, "escaped ramp at {i}: {v}");
+            assert!((0.0..=4096.0).contains(v), "escaped ramp at {i}: {v}");
             prev = *v;
         }
     }
@@ -387,11 +385,11 @@ mod tests {
         // part) — no panic, no position loss, processing continues.
         r.set_correction(DriftCorrection::new(-1000));
         let out = r.process(&input, 4);
-        assert!(out >= 2 && out <= 5, "{out}");
+        assert!((2..=5).contains(&out), "{out}");
         // And back.
         r.set_correction(DriftCorrection::new(500));
         let out = r.process(&input, 4);
-        assert!(out >= 3 && out <= 6, "{out}");
+        assert!((3..=6).contains(&out), "{out}");
     }
 
     #[test]
@@ -448,7 +446,7 @@ mod tests {
         for _ in 0..100 {
             let out = r.process(&input, 6);
             for v in &r.planes()[0][..out] {
-                assert!(*v >= -100.0 && *v <= 100.0, "escaped hull: {v}");
+                assert!((-100.0..=100.0).contains(v), "escaped hull: {v}");
             }
         }
     }

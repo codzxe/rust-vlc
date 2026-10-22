@@ -1,11 +1,11 @@
 {
   "schema": "evidence/1",
-  "run_id": "2e1-local-95f5fe1fe",
+  "run_id": "2e1-local-945e392e4",
   "commit": {
-    "sha": "95f5fe1fe75740bede013883a72accf554829a06",
+    "sha": "945e392e44d3f531b16fcaaad7f07d099bcc3ad7",
     "note": "the tree the evidence was regenerated FROM; the artifact commit itself lands one commit later (a file cannot carry its own sha)"
   },
-  "started_at": "2026-10-22T15:26:41Z",
+  "started_at": "2026-10-22T17:54:34Z",
   "environment": {
     "kind": "local",
     "os": "linux",
@@ -210,32 +210,32 @@
     {
       "path": "evidence/transcripts/open.json",
       "bytes": 4697,
-      "sha256": "fd2df5774d1f906bb1567e403d2330196b4c131d0a80369201ec0409ef98850b"
+      "sha256": "a30621a3ee0893d98d11390fbf01928ce1e70d295b4cea1bbedf754da6a13e83"
     },
     {
       "path": "evidence/transcripts/play.json",
       "bytes": 4652,
-      "sha256": "9507e8870892c3c334100de224bac501f53f5dc2c6def0b2be730c44b03966a8"
+      "sha256": "1a3dd1b3535c72495d5222d2d289a7f47fea81a6c1f8e1372b090b74934315a4"
     },
     {
       "path": "evidence/transcripts/pause.json",
       "bytes": 3451,
-      "sha256": "ab4ab43e5f897dadb5324e1ff978f6e65462dce1f125861523fc4153dbc40574"
+      "sha256": "d3d4893d6b515c0cf91fab510bf8334b063cbac8e886ef273d54e64438991c9d"
     },
     {
       "path": "evidence/transcripts/seek.json",
       "bytes": 4883,
-      "sha256": "6babab25be9f85c0e8bf8f1d6edd52012c0ee1f1406e9924d7c40d9d3221f7f9"
+      "sha256": "2f3d69b87ca04ec729c6ece1456375fae062404d0fd8cea9d1c90978433dacdf"
     },
     {
       "path": "evidence/transcripts/stop.json",
       "bytes": 4151,
-      "sha256": "719482d07a9db5610c87d79c998cfa40049ba6684c93afc2dce7931d966f700f"
+      "sha256": "2f2f5a97ed4cfd71283ecc0d5aca76bf89fc7c5da41e20d717edce092dbbd724"
     },
     {
       "path": "evidence/transcripts/run-to-end.json",
       "bytes": 3819,
-      "sha256": "dd17034186e31d8256b01d5f292c0ccdee17f909d7df7323fa2267fe6cebed5a"
+      "sha256": "5d173a59d57486eb6eaccbc495cfd50c99009e135006dc96078c33a35489c6bb"
     },
     {
       "path": "evidence/transcripts/missing-file.json",
@@ -250,22 +250,22 @@
     {
       "path": "evidence/transcripts/corrupt-truncated-midplay.json",
       "bytes": 3516,
-      "sha256": "1f667681f116694be7a8b8c76a3aa4b5b5db04737e4e47f03c4aa46871420a4d"
+      "sha256": "761795b9cc2b2eedae9ce03820acd2348d9f8629caf06e205cbb9901bafbcee5"
     },
     {
       "path": "evidence/transcripts/corrupt-garbage-appended.json",
       "bytes": 3847,
-      "sha256": "0697cc82fa8a960c2a5043f0379a2510824c70dcd40c85da8f75ca2b87b5d002"
+      "sha256": "4ca2a096450d33bde409da4c70c467be953f23bd70939be1674c0e90dfa0d91b"
     },
     {
       "path": "evidence/transcripts/corrupt-noidx.json",
       "bytes": 3834,
-      "sha256": "87632f49a5445c4f316f799f3a22c527d047bee9185850e8e7a0fd029d466407"
+      "sha256": "0978ffb1f1cb87963eef816624c84865786df196313fb826b17750464faf8d81"
     },
     {
       "path": "evidence/transcripts/wire-session.json",
-      "bytes": 5095,
-      "sha256": "e4dd46b54ad54fa7a353da3bab78de089fecf6209b05911f85d1a13d6712cd46"
+      "bytes": 4649,
+      "sha256": "ff5e4031abc9f4ad8357e79c0a7cbdb3393767b531abfe45d91f6209cdc6f08a"
     },
     {
       "path": "evidence/final-frame.png",

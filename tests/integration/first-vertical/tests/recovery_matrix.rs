@@ -184,7 +184,9 @@ fn event_records(text: &str) -> Vec<EventRecord> {
             continue;
         }
         // A `"key": value,` line inside the current object.
-        if depth > 0 && let Some((key, value)) = parse_field(trimmed) {
+        if depth > 0
+            && let Some((key, value)) = parse_field(trimmed)
+        {
             current.push((key, value));
         }
     }
@@ -262,10 +264,10 @@ fn drive(row: Row) -> Vec<Check> {
         } => {
             checks.push(Check::is(
                 &format!("{what}: the open refuses typed"),
-                matches!(&open.result, Err(_)),
+                open.result.is_err(),
                 "the open answered success",
             ));
-            if let Err(error) = &open.result {
+            if let Some(error) = open.result.as_ref().err() {
                 checks.push(Check::same(
                     &format!("{what}: the refusal is {stage}.{code}"),
                     &format!("{}.{}", error.stage.as_str(), error.code.as_str()),
@@ -361,7 +363,7 @@ fn drive(row: Row) -> Vec<Check> {
                 )),
                 Damage::AtLeastOne => checks.push(Check::is(
                     &format!("{what}: at least one non-fatal RecoveredDamage"),
-                    non_fatal.len() >= 1,
+                    !non_fatal.is_empty(),
                     &format!("non-fatal count {}", non_fatal.len()),
                 )),
             }
@@ -695,10 +697,10 @@ fn matrix_all_disabled_refuses_naming_the_container() {
     let mut checks = Vec::new();
     checks.push(Check::is(
         "all-disabled: the open refuses typed",
-        matches!(&open.result, Err(_)),
+        open.result.is_err(),
         "the open answered success",
     ));
-    if let Err(error) = &open.result {
+    if let Some(error) = open.result.as_ref().err() {
         checks.push(Check::same(
             "all-disabled: the refusal is control.unsupported",
             &format!("{}.{}", error.stage.as_str(), error.code.as_str()),
@@ -911,7 +913,7 @@ fn drive_corpus_entry(root: &std::path::Path, entry: &CorpusEntry) -> CorpusObse
             options: OpenOptions::default(),
         },
     );
-    if let Err(error) = &open.result {
+    if let Some(error) = open.result.as_ref().err() {
         let refusal = format!("{}.{}", error.stage.as_str(), error.code.as_str());
         drop(harness);
         return CorpusObservation {
@@ -962,9 +964,7 @@ fn drive_corpus_entry(root: &std::path::Path, entry: &CorpusEntry) -> CorpusObse
     let fatal_code = events
         .iter()
         .find(|r| r.kind == "playback.error" && r.fatal.as_deref() == Some("true"))
-        .map_or_else(String::new, |r| {
-            format!("{}.{}", r.stage, r.code)
-        });
+        .map_or_else(String::new, |r| format!("{}.{}", r.stage, r.code));
     let damage_count = events
         .iter()
         .find(|r| r.kind == "playback.error" && r.fatal.as_deref() == Some("false"))
@@ -1057,7 +1057,10 @@ fn verdict(entry: &CorpusEntry, seen: &CorpusObservation) -> Result<(), String> 
             }
             (other, _) => return Err(format!("{}: unknown corruption op `{other}`", entry.rel)),
         };
-        if !allowed_stages.iter().any(|prefix| seen.refusal.starts_with(prefix)) {
+        if !allowed_stages
+            .iter()
+            .any(|prefix| seen.refusal.starts_with(prefix))
+        {
             return Err(format!(
                 "{} ({}): refusal `{}` outside the allowed stages {:?}",
                 entry.rel, op, seen.refusal, allowed_stages
@@ -1162,8 +1165,7 @@ fn corpus_dirty_outcome_classes_hold() {
         return;
     };
     let root = std::path::PathBuf::from(corpus);
-    let manifest = std::fs::read_to_string(root.join("manifest.json"))
-        .expect("corpus manifest readable (LUMEN_CORPUS points at a corpus root)");
+    let manifest = std::fs::read_to_string(root.join("manifest.json")).must();
     let entries: Vec<CorpusEntry> = parse_corpus_manifest(&manifest)
         .into_iter()
         .filter(|entry| {
@@ -1182,13 +1184,13 @@ fn corpus_dirty_outcome_classes_hold() {
             .create(true)
             .append(true)
             .open(path)
-            .expect("LUMEN_CORPUS_RESULTS writable");
+            .must();
         eprintln!("corpus(tier-2): {} cases", entries.len());
         file
     });
     if let Some(file) = out.as_mut() {
         use std::io::Write as _;
-        writeln!(file, "rel\tclass\top\twireable\toutcome\trefusal_or_fatal\tfatal\tnon_fatal\tdamage_count\tend_of_media\tduration_known\tposition_us\tframes\telapsed_ms").expect("tsv header writable");
+        writeln!(file, "rel\tclass\top\twireable\toutcome\trefusal_or_fatal\tfatal\tnon_fatal\tdamage_count\tend_of_media\tduration_known\tposition_us\tframes\telapsed_ms").must();
     }
     // The per-class count matrix (op → outcome → count) — printed at
     // the end so a failing run still shows its numbers.
@@ -1203,7 +1205,7 @@ fn corpus_dirty_outcome_classes_hold() {
             Some((_, count)) => *count += 1,
             None => counts.push((key, 1)),
         }
-        if let Err(violation) = verdict(entry, &seen) {
+        if let Some(violation) = verdict(entry, &seen).err() {
             failures.push(violation);
         }
         eprintln!(
@@ -1241,7 +1243,7 @@ fn corpus_dirty_outcome_classes_hold() {
                 seen.frames,
                 seen.elapsed_ms
             )
-            .expect("tsv row writable");
+            .must();
         }
     }
     eprintln!("corpus(tier-2): the outcome-class matrix (op -> outcome -> count):");

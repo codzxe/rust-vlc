@@ -337,7 +337,7 @@ mod tests {
                 }
             }
         }
-        let returned = returned_at.expect("never returned after the disturbance");
+        let returned = returned_at.must();
         let disturbance_t = 60_000_000_000_u64;
         assert!(
             returned - disturbance_t <= 45_000_000_000,
@@ -389,7 +389,7 @@ mod tests {
                 converged_at.get_or_insert(plant.now_ns);
             }
         }
-        let converged = converged_at.expect("never converged");
+        let converged = converged_at.must();
         assert!(converged <= 45_000_000_000, "converged at {converged}");
         assert!(
             (g.correction().ppm() + 100).abs() <= 25,
@@ -444,7 +444,7 @@ mod tests {
         );
         assert_eq!(g.stats().clamped, 0, "δ at the bound never trips the clamp");
         let fill = g.stats().fill_ns_last.must();
-        assert!(fill >= 10_000_000 && fill <= 150_000_000, "fill {fill}");
+        assert!((10_000_000..=150_000_000).contains(&fill), "fill {fill}");
         let _ = converged_at;
 
         // Second half: δ = +5000 ppm (adversarial, beyond). The net
@@ -485,7 +485,7 @@ mod tests {
         // The fill DROP per second is exactly (d − 1000) ppm = 4 ms/s
         // (the closed-form first-order check; the slope itself — d
         // fill/dt — is −4 ms/s).
-        let per_second = i64::from(slope_per_quantum.must()) * 30;
+        let per_second = slope_per_quantum.must() * 30;
         assert!(
             (per_second - 4_000_000_i64).abs() <= 200_000,
             "residual drop {per_second} ns/s ≠ 4 ms/s"
@@ -498,7 +498,7 @@ mod tests {
         // correction stays within ±150 ppm (no jitter amplification —
         // the EMA in front of the control law attenuates the noise).
         let mut g = governor();
-        let mut seed = 0x853_c49e_674_fead5_u64;
+        let mut seed = 0x0085_3c49_e674_fead_u64;
         let mut next = move || {
             seed ^= seed << 13;
             seed ^= seed >> 7;
@@ -555,7 +555,7 @@ mod tests {
                 converged_at.get_or_insert(plant.now_ns);
             }
         }
-        let converged = converged_at.expect("never converged at 48 kHz");
+        let converged = converged_at.must();
         assert!(
             converged >= 1_000_000_000,
             "converged at {converged}: the displacement must be walked back, not assumed"

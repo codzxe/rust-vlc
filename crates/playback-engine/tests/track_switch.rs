@@ -1551,8 +1551,8 @@ fn switch_during_seek_completes_both_flows_under_their_own_generations() {
     let frames = frames_snapshot(&fixture.collector);
     let post_seek_audio = frames
         .iter()
-        .filter(|(id, _)| id == &TrackId::new(3))
-        .last()
+        .rev()
+        .find(|(id, _)| id == &TrackId::new(3))
         .must();
     match &post_seek_audio.1 {
         Frame::Audio(audio) => assert_eq!(audio.format.rate, 44_100),
@@ -1639,8 +1639,8 @@ fn seek_during_switch_completes_both_flows() {
     let frames = frames_snapshot(&fixture.collector);
     let last_audio = frames
         .iter()
-        .filter(|(_, frame)| matches!(frame, Frame::Audio(_)))
-        .last()
+        .rev()
+        .find(|(_, frame)| matches!(frame, Frame::Audio(_)))
         .must();
     assert_eq!(
         last_audio.0,

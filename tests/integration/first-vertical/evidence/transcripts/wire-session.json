@@ -48,23 +48,22 @@
     "{\"seq\":4,\"session\":1,\"gen\":0,\"kind\":\"session.state-changed\",\"from\":\"opening\",\"to\":\"buffering\"}",
     "{\"seq\":5,\"session\":1,\"gen\":0,\"kind\":\"timing.duration-known\",\"duration\":2000000}",
     "{\"seq\":6,\"session\":1,\"gen\":0,\"kind\":\"media.info-ready\",\"info\":{\"source\":{\"kind\":\"file\",\"path\":\"/…/avi_mjpeg_pcm.avi\"},\"container\":null,\"title\":null,\"duration\":{\"kind\":\"known\",\"time\":2000000},\"seekable\":true,\"isLive\":false,\"metadata\":{},\"tracks\":[{\"id\":0,\"kind\":\"video\",\"name\":null,\"language\":null,\"codec\":{\"fourcc\":null,\"description\":\"mjpeg\",\"profile\":null,\"level\":null},\"isDefault\":false,\"isSelected\":true,\"origin\":\"stream\",\"video\":null,\"audio\":null},{\"id\":1,\"kind\":\"audio\",\"name\":null,\"language\":null,\"codec\":{\"fourcc\":null,\"description\":\"pcm_s16le\",\"profile\":null,\"level\":null},\"isDefault\":false,\"isSelected\":true,\"origin\":\"stream\",\"video\":null,\"audio\":null}],\"chapters\":[]}}",
-    "{\"seq\":8,\"session\":1,\"gen\":0,\"kind\":\"session.buffering\",\"progress\":0.07111111}",
-    "{\"seq\":9,\"session\":1,\"gen\":0,\"kind\":\"session.buffering\",\"progress\":1.0}",
-    "{\"seq\":10,\"session\":1,\"gen\":0,\"kind\":\"session.state-changed\",\"from\":\"buffering\",\"to\":\"playing\"}",
-    "{\"seq\":11,\"session\":1,\"gen\":1,\"origin\":5,\"kind\":\"session.state-changed\",\"from\":\"playing\",\"to\":\"stopped\"}",
-    "{\"seq\":12,\"session\":1,\"gen\":2,\"origin\":7,\"kind\":\"session.state-changed\",\"from\":\"stopped\",\"to\":\"idle\"}"
+    "{\"seq\":7,\"session\":1,\"gen\":0,\"origin\":1,\"kind\":\"session.state-changed\",\"from\":\"buffering\",\"to\":\"paused\"}",
+    "{\"seq\":8,\"session\":1,\"gen\":1,\"origin\":2,\"kind\":\"session.buffering\",\"progress\":1.0}",
+    "{\"seq\":9,\"session\":1,\"gen\":1,\"origin\":2,\"kind\":\"session.state-changed\",\"from\":\"paused\",\"to\":\"stopped\"}",
+    "{\"seq\":10,\"session\":1,\"gen\":2,\"origin\":3,\"kind\":\"session.state-changed\",\"from\":\"stopped\",\"to\":\"idle\"}"
   ],
   "observables": {
     "exit_code": 0,
     "stderr_empty": true,
     "response_lines": [
       "{\"requestId\":1,\"session\":1,\"gen\":0,\"result\":{\"accepted\":{\"session\":1,\"gen\":0}}}",
-      "{\"requestId\":2,\"session\":1,\"gen\":0,\"result\":{\"error\":{\"stage\":\"session\",\"code\":\"not-ready\",\"message\":\"the session is still opening (state: Buffering)\",\"details\":{}}}}",
+      "{\"requestId\":2,\"session\":1,\"gen\":0,\"result\":{\"accepted\":{\"session\":1,\"gen\":0}}}",
       "{\"requestId\":3,\"session\":1,\"gen\":0,\"result\":{\"completed\":{\"kind\":\"current-time\",\"time\":0,\"position\":0.0,\"buffered\":[{\"start\":0,\"end\":2000000}]}}}",
       "{\"requestId\":4,\"session\":1,\"gen\":0,\"result\":{\"completed\":{\"kind\":\"track-list\",\"tracks\":[{\"id\":0,\"kind\":\"video\",\"name\":null,\"language\":null,\"codec\":{\"fourcc\":null,\"description\":\"mjpeg\",\"profile\":null,\"level\":null},\"isDefault\":false,\"isSelected\":true,\"origin\":\"stream\",\"video\":{\"width\":320,\"height\":240,\"frameRate\":30.0,\"bitDepth\":null,\"hdr\":false},\"audio\":null},{\"id\":1,\"kind\":\"audio\",\"name\":null,\"language\":null,\"codec\":{\"fourcc\":null,\"description\":\"pcm_s16le\",\"profile\":null,\"level\":null},\"isDefault\":false,\"isSelected\":true,\"origin\":\"stream\",\"video\":null,\"audio\":{\"channels\":2,\"sampleRate\":44100,\"bitDepth\":null,\"codecParams\":null}}]}}}",
       "{\"requestId\":5,\"session\":1,\"gen\":0,\"result\":{\"completed\":{\"kind\":\"duration\",\"duration\":{\"kind\":\"known\",\"time\":2000000}}}}",
-      "{\"requestId\":6,\"session\":1,\"gen\":0,\"result\":{\"error\":{\"stage\":\"session\",\"code\":\"not-ready\",\"message\":\"stop-or-close from Buffering lands with card 3.C1 (active-close completeness)\",\"details\":{}}}}",
-      "{\"requestId\":7,\"session\":1,\"gen\":0,\"result\":{\"error\":{\"stage\":\"session\",\"code\":\"not-ready\",\"message\":\"stop-or-close from Buffering lands with card 3.C1 (active-close completeness)\",\"details\":{}}}}"
+      "{\"requestId\":6,\"session\":1,\"gen\":1,\"result\":{\"accepted\":{\"session\":1,\"gen\":1}}}",
+      "{\"requestId\":7,\"gen\":2,\"result\":{\"completed\":{\"kind\":\"unit\"}}}"
     ]
   }
 }

@@ -2152,10 +2152,10 @@ impl Session {
     ) -> (CommandReceipt, Vec<EngineOutput>) {
         // State legality — the seek rejection families, mirrored by
         // hand because the class-S path has no table row.
-        let legal = match self.state {
-            SessionState::Buffering | SessionState::Playing | SessionState::Paused => true,
-            _ => false,
-        };
+        let legal = matches!(
+            self.state,
+            SessionState::Buffering | SessionState::Playing | SessionState::Paused
+        );
         let selector = command.selector.unwrap_or(TrackSelector::Auto);
         if !legal {
             let reason = match self.state {
@@ -2619,23 +2619,23 @@ impl Session {
         // surfaced through the existing fatal path (playback.error
         // before state-changed → error), and no selection terminal
         // fires for the failed generation.
-        if kind == MediaKind::Audio {
-            if let Err(error) = complete_switch(&self.runtime.clock, &inflight, anchor_ns) {
-                outputs.push(self.emit(EngineEventKind::Fatal { error }, inflight.origin));
-                let context = InputContext {
-                    origin: inflight.origin,
-                    fatal: None,
-                    seek: None,
-                    switch: None,
-                };
-                if let Ok(mut transition_outputs) = self.apply(SessionInput::Failed, context) {
-                    outputs.append(&mut transition_outputs);
-                }
-                if let Some(pipeline) = self.pipeline.as_mut() {
-                    pipeline.end_switch(kind);
-                }
-                return;
+        if kind == MediaKind::Audio
+            && let Err(error) = complete_switch(&self.runtime.clock, &inflight, anchor_ns)
+        {
+            outputs.push(self.emit(EngineEventKind::Fatal { error }, inflight.origin));
+            let context = InputContext {
+                origin: inflight.origin,
+                fatal: None,
+                seek: None,
+                switch: None,
+            };
+            if let Ok(mut transition_outputs) = self.apply(SessionInput::Failed, context) {
+                outputs.append(&mut transition_outputs);
             }
+            if let Some(pipeline) = self.pipeline.as_mut() {
+                pipeline.end_switch(kind);
+            }
+            return;
         }
         // Step 7 — the terminal under the switch's own generation,
         // with the causing request as its origin.

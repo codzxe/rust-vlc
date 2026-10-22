@@ -727,7 +727,7 @@ fn generate_mt_pcm_u8() -> Vec<u8> {
     let mut tone = SineOsc::new(MT_A2_TONE_HZ, MT_A2_RATE);
     let mut pcm = Vec::with_capacity(MT_A2_TOTAL);
     for _ in 0..MT_A2_TOTAL {
-        let sample = ((tone.sample(&table) * MT_A2_TONE_AMP) >> 15) as i32;
+        let sample = (tone.sample(&table) * MT_A2_TONE_AMP) >> 15;
         pcm.push((128 + sample).clamp(0, u8::MAX as i32) as u8);
     }
     pcm
@@ -4839,16 +4839,16 @@ mod tests {
     }
 
     #[test]
-    fn tree_shape_is_the_planned_52_files() {
+    fn tree_shape_is_the_planned_55_files() {
         let files = files();
-        assert_eq!(files.len(), 52, "total tree size");
+        assert_eq!(files.len(), 55, "total tree size (52 + 3 multi-track)");
         assert_eq!(
             files
                 .iter()
                 .filter(|f| f.path.starts_with("generated/valid/"))
                 .count(),
-            4,
-            "class-A files"
+            6,
+            "class-A files (4 + the multi-track family)"
         );
         assert_eq!(
             files
@@ -4863,8 +4863,8 @@ mod tests {
                 .iter()
                 .filter(|f| f.path.starts_with("expectations/"))
                 .count(),
-            24,
-            "expectation files"
+            25,
+            "expectation files (24 + the multi-track valid row)"
         );
         assert!(files.iter().any(|f| f.path == "generated/MANIFEST.toml"));
         assert!(files.iter().any(|f| f.path == "CORPUS.md"));
@@ -5180,8 +5180,8 @@ mod tests {
             .iter()
             .filter(|f| f.class == "A" || f.class == "B")
             .collect();
-        assert_eq!(fixtures.len(), 26);
-        assert_eq!(text.matches("[[files]]").count(), 26);
+        assert_eq!(fixtures.len(), 28);
+        assert_eq!(text.matches("[[files]]").count(), 28);
         for file in &fixtures {
             let row = format!("path = \"{}\"", file.path);
             assert!(text.contains(&row), "manifest row for {}", file.path);

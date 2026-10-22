@@ -455,6 +455,11 @@ fn machine_mode_eof_during_play_tears_down() {
 /// the pre-re-drive pin.
 #[test]
 fn machine_mode_eof_refusal_is_bounded_and_honest() {
+    // Post-3.C1 the Buffering+Close composition is a table row (the
+    // executor macro): EOF during Buffering tears down DIRECTLY — no
+    // round-0 refusal, no settle window needed. The pin: bounded,
+    // clean exit, the honest teardown trail, and no stale refusal
+    // text (the pre-3.C1 shape this test used to pin).
     let open = format!(
         "{{\"requestId\": 1, \"cmd\": \"session.open\", \"args\": {{\"source\": \
          {{\"kind\": \"file\", \"path\": \"{parent}\"}}}}}}\n",
@@ -462,9 +467,13 @@ fn machine_mode_eof_refusal_is_bounded_and_honest() {
     );
     let (out, err, code) = run(&["--control-stdio"], &open);
     assert_eq!(code, 0, "the quit still exits clean:\n{out}\n{err}");
-    assert!(err.contains("[session.not-ready]"), "{err}");
-    assert!(err.contains("stop-or-close from Buffering"), "{err}");
-    assert!(err.contains("card 3.C1"), "{err}");
+    assert!(
+        !err.contains("[session.not-ready]"),
+        "3.C1 landed the close composition — no refusal expected: {err}"
+    );
+    // Non-JSON mode prints receipts only (state events are the
+    // --json half) — the trail itself is pinned by the --json twin
+    // below; here the pin is bounded + clean + refusal-free.
 }
 
 /// W2-17's re-drive pin: the mid-quit `Buffering` refusal no longer
@@ -477,6 +486,11 @@ fn machine_mode_eof_refusal_is_bounded_and_honest() {
 /// no session at the exit.
 #[test]
 fn machine_mode_eof_transient_refusal_settles_then_tears_down() {
+    // Post-3.C1: the close composition is a table row, so the EOF
+    // teardown from Buffering lands DIRECTLY (the settle/re-drive
+    // machinery in the runner remains for refusal families that
+    // still exist — e.g. transient stop refusals — but close no
+    // longer refuses). The pin: the full honest trail on one drive.
     let open = format!(
         "{{\"requestId\": 1, \"cmd\": \"session.open\", \"args\": {{\"source\": \
          {{\"kind\": \"file\", \"path\": \"{parent}\"}}}}}}\n",
@@ -484,19 +498,16 @@ fn machine_mode_eof_transient_refusal_settles_then_tears_down() {
     );
     let (out, err, code) = run(&["--control-stdio", "--json"], &open);
     assert_eq!(code, 0, "the quit still exits clean:\n{out}\n{err}");
-    // Round 0's refusal is still the honest first answer — the
-    // re-drive composes on top of it, it does not hide it.
-    assert!(err.contains("[session.not-ready]"), "{err}");
-    assert!(err.contains("stop-or-close from Buffering"), "{err}");
-    assert!(err.contains("card 3.C1"), "{err}");
-    // The settle window primes the fixture …
-    assert!(out.contains("\"to\":\"playing\""), "{out}");
-    // … and the second drive lands the teardown — no leaked session.
+    assert!(
+        !err.contains("stop-or-close from Buffering"),
+        "3.C1 landed the composition — no refusal: {err}"
+    );
+    // The teardown trail — no leaked session.
     assert!(out.contains("\"to\":\"stopped\""), "{out}");
     let last = out.lines().last().must();
     assert!(
         last.contains("\"to\":\"idle\""),
-        "the re-driven close's event closes the stream:\n{out}"
+        "the close's event closes the stream:\n{out}"
     );
 }
 

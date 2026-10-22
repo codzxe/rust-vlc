@@ -406,7 +406,7 @@ fn frames_snapshot(collector: &Collector) -> Vec<(TrackId, Frame)> {
         .clone()
 }
 
-fn frames_of<'a>(frames: &'a [(TrackId, Frame)], track: TrackId) -> Vec<&'a Frame> {
+fn frames_of(frames: &[(TrackId, Frame)], track: TrackId) -> Vec<&Frame> {
     frames
         .iter()
         .filter(|(id, _)| *id == track)

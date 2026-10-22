@@ -1056,7 +1056,10 @@ impl Pipeline {
         generation: GenerationId,
     ) -> Limb {
         // Wired kinds always have lanes (audio/video/subtitle); the
-        // exhaustive `Option` keeps the type honest (3.B3).
+        // exhaustive `Option` keeps the type honest (3.B3). The
+        // `None` arm is structurally unreachable for wired kinds —
+        // build_limb is only called for kinds default_track selected.
+        #[allow(clippy::expect_used, reason = "wired kinds always have a lane")]
         let limits = plan
             .for_kind(track.kind)
             .expect("wired kinds always have a queue lane");
@@ -1859,6 +1862,11 @@ impl Pipeline {
         // paused→buffering wire edge, doc 05 §3.3; the seeking
         // pre-roll presents through the M10 hold, not an episode).
         // 3.A3 extends the same carve-out to its switch windows.]
+        // NOTE (Lead, 3.B1 merge): plain-Paused decode-ahead (VLC
+        // parity — s7's pending AC) is deliberately NOT here yet: it
+        // consumes short media to EOS during the pause and inverts
+        // the resume-flow expectations; it lands WITH the stage-time
+        // fill observation seam (the registered follow-up card).
         if matches!(state, SessionState::Buffering | SessionState::Playing) || self.window_live() {
             self.decode_step(budget, &mut report);
         }

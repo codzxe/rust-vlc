@@ -121,10 +121,10 @@ fn s4_pts_step_discontinuity_snaps_exactly_once() {
         let outcome = step(&mut scheduler, &mut queue, &mut sink);
         if outcome.sync.snapped {
             snapped_at.get_or_insert(tick);
-        } else if snapped_at.is_some() {
-            if let Some(error) = outcome.sync.error_ns {
-                post_snap_errors.push(error);
-            }
+        } else if snapped_at.is_some()
+            && let Some(error) = outcome.sync.error_ns
+        {
+            post_snap_errors.push(error);
         }
         bands.push(outcome.sync.band);
         clock.advance_ns(FRAME);
@@ -206,10 +206,10 @@ fn s5_pts_jitter_never_flaps_the_threshold() {
         if outcome.sync.band != SyncBand::Hold {
             correction_ticks += 1;
         }
-        if let (Some(previous), Some(current)) = (last_threshold, outcome.sync.late_threshold_ns) {
-            if previous != current {
-                threshold_changes += 1;
-            }
+        if let (Some(previous), Some(current)) = (last_threshold, outcome.sync.late_threshold_ns)
+            && previous != current
+        {
+            threshold_changes += 1;
         }
         last_threshold = outcome.sync.late_threshold_ns;
         clock.advance_ns(FRAME);

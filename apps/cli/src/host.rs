@@ -1253,6 +1253,11 @@ fn rejection_wire(state: SessionState, reason: playback_engine::RejectionReason)
             ErrorCode::Internal,
             "a seek command arrived without its target payload — caller bug",
         ),
+        playback_engine::RejectionReason::TrackNotFound => CommandError::new(
+            Stage::Control,
+            ErrorCode::NotFound,
+            "track selection named a track this session does not have",
+        ),
     }
 }
 
