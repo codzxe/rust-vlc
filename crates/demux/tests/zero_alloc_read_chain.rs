@@ -114,7 +114,7 @@ fn movi_layout(chunks: usize, payload: usize) -> std::sync::Arc<[u8]> {
         out.extend_from_slice(b"00dc");
         out.extend_from_slice(&(payload as u32).to_le_bytes());
         let base = (index * 31 + 7) as u8;
-        out.extend(std::iter::repeat(base).take(payload));
+        out.extend(std::iter::repeat_n(base, payload));
         if payload % 2 == 1 {
             out.push(0);
         }
@@ -408,7 +408,7 @@ fn avi_bytes(chunks: usize, payload: usize, with_idx1: bool) -> std::sync::Arc<[
         b.extend_from_slice(b"00dc");
         b.extend_from_slice(&(payload as u32).to_le_bytes());
         let base = (index % 251) as u8;
-        b.extend(std::iter::repeat(base).take(payload));
+        b.extend(std::iter::repeat_n(base, payload));
         if payload % 2 == 1 {
             b.push(0);
         }

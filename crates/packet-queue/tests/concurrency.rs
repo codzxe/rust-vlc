@@ -839,15 +839,13 @@ fn deadlock_triad_terminates_under_seeded_interleavings() {
                 .name("triad-flusher".into())
                 .spawn(move || {
                     let mut rng = XorShift(flush_seed);
-                    let mut counter = 1u64;
-                    for _ in 0..40u64 {
+                    for counter in 1u64..=40u64 {
                         if rng.below(2) == 0 {
                             thread::sleep(Duration::from_millis(rng.below(2)));
                         } else {
                             thread::yield_now();
                         }
                         let _ = flush_queue.flush(GenerationId::new(counter));
-                        counter += 1;
                     }
                 })
                 .must(),
