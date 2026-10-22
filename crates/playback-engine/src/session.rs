@@ -649,6 +649,12 @@ pub struct EngineStats {
     /// Frames delivered to the sink seam (lifetime of the engine,
     /// across sessions).
     pub frames_delivered: u64,
+    /// Concealment presentations (audit M9 / W1-08): video slots the
+    /// engine covered by repeating the limb's last presented frame
+    /// after per-frame damage (doc 03 §4.5(d)) — repeated content,
+    /// counted separately from `frames_delivered` so a concealed slot
+    /// is never reported as decoded output.
+    pub frames_concealed: u64,
     /// Frames dropped at the sink for stale generations (doc 03 §5
     /// checking point 5). Zero by construction in v0's single-writer
     /// ticks — the counter is the checkpoint the threaded future
@@ -666,6 +672,7 @@ pub struct EngineStats {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(crate) struct PipelineTotals {
     frames_delivered: u64,
+    frames_concealed: u64,
     stale_frames_dropped: u64,
     demux_discontinuities: u64,
 }
@@ -674,6 +681,9 @@ impl PipelineTotals {
     /// Fold one tick's report into the totals.
     fn merge_tick(&mut self, report: &TickReport) {
         self.frames_delivered = self.frames_delivered.saturating_add(report.frames);
+        self.frames_concealed = self
+            .frames_concealed
+            .saturating_add(report.concealed_frames);
         self.stale_frames_dropped = self
             .stale_frames_dropped
             .saturating_add(report.stale_frames);
@@ -685,6 +695,7 @@ impl PipelineTotals {
     /// Fold another totals snapshot into this one (session close).
     fn merge(&mut self, other: &PipelineTotals) {
         self.frames_delivered = self.frames_delivered.saturating_add(other.frames_delivered);
+        self.frames_concealed = self.frames_concealed.saturating_add(other.frames_concealed);
         self.stale_frames_dropped = self
             .stale_frames_dropped
             .saturating_add(other.stale_frames_dropped);
@@ -826,6 +837,7 @@ impl Engine {
             time_ticks_replaced: self.outbox.time_ticks_replaced,
             suppressed_stale_events: self.outbox.suppressed_stale,
             frames_delivered: totals.frames_delivered,
+            frames_concealed: totals.frames_concealed,
             stale_frames_dropped: totals.stale_frames_dropped,
             demux_discontinuities: totals.demux_discontinuities,
         }
