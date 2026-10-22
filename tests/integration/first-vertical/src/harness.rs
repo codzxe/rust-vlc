@@ -653,6 +653,16 @@ fn accounting_json(accounting: &HeadlessAccounting) -> Json {
             "scheduler_dropped_late",
             Json::UInt(accounting.scheduler_dropped_late),
         ),
+        // The seek-boundary observability (W1-06): the pre-seek
+        // scheduler window purged as stale at the generation change,
+        // the presentation queue's publish drops, and the queue's
+        // live published generation (the mint a seek moves).
+        (
+            "scheduler_dropped_stale",
+            Json::UInt(accounting.scheduler_dropped_stale),
+        ),
+        ("queue_flushed", Json::UInt(accounting.queue_flushed)),
+        ("queue_published", Json::UInt(accounting.queue_published)),
         ("staging_frames", Json::UInt(accounting.staging_frames)),
         ("staging_bytes", Json::UInt(accounting.staging_bytes)),
         ("staging_copies", Json::UInt(accounting.staging_copies)),

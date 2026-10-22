@@ -308,6 +308,24 @@ Self-hosted reference hardware for *real-hardware evidence* (§7) is a later
 Phase 3+ addition `[PROPOSAL]`; until it exists, everything CI produces is
 labeled mock/virtual and the matrix reflects that honestly.
 
+**Status update — CI unblocked (2026-10-22, card W3-10).** CI was previously
+*blocked at the platform level*, not at the design level: the repository PAT
+lacked the `workflow` scope, so no workflow under `.github/workflows/` could
+ever be pushed (documented at docs/gates/phase1-exit.md:21 and
+docs/gates/phase2-exit.md:5,74-77 — the Phase-1 skeleton has been parked
+under `.github/workflows-disabled/` since INFRA-BACKUP-1). A user-issued PAT
+with `workflow` scope removed that blocker (worklog entry `3.WAVE2-CLOSE`,
+"INFRA UNLOCK", 2026-10-22). The first live workflow is
+`.github/workflows/ci.yml` (W3-10): a deliberately lean single-job Linux
+pipeline replicating the *implemented* local gate, `scripts/full_gate.sh`
+(this document's §2.1 engine subset — the `gate --no-ui` shape of §2.2;
+commands 1–5 verbatim, keep-going aggregation preserved), on the standard
+2-core GitHub runner with cargo caching and no `--release`. The full 3-OS
+matrix of this section remains `[PROPOSAL]` pending Lead reconciliation with
+the parked Phase-1 skeleton. First observed green run: owed by the Lead's
+push (the authoring sandbox cannot execute GitHub Actions); status will be
+recorded here when it exists.
+
 ### 4.2 Job graph
 
 ```mermaid

@@ -1803,6 +1803,350 @@ fn chunk_size_past_movi_bound_clamps_and_continues() {
     assert_eq!(clamp_damage, 40);
 }
 
+// ---------------------------------------------------------------------------
+// W2-07: clamp + resync of damage-induced cursor jumps past the walk
+// bound (the zero-mid corpus class — a garbage size read off
+// misaligned bytes must not forfeit the playable tail).
+// ---------------------------------------------------------------------------
+
+/// Smash the chunk header at `pos` into the `zero-mid` damage shape:
+/// zeroed fourcc + a garbage size (the exact byte shapes W1-03 traced
+/// in the two filed corpus siblings).
+fn smash_chunk_header(bytes: &mut [u8], pos: u64, garbage_size: u32) {
+    let pos = pos as usize;
+    bytes[pos..pos + 4].copy_from_slice(&[0, 0, 0, 0]);
+    bytes[pos + 4..pos + 8].copy_from_slice(&garbage_size.to_le_bytes());
+}
+
+/// The damage ledger a walk can report: `(skipped, reason)` pairs in
+/// order, the packet payloads, and the typed terminal.
+type DamageLedger = (
+    Vec<(u64, &'static str)>,
+    Vec<Vec<u8>>,
+    Result<(), media_types::EngineError>,
+);
+
+/// Drain, capturing the `(skipped, reason)` damage pairs in order and
+/// the packet payloads (the resync flavors are pinned by name, not
+/// just by count).
+fn drain_with_damage(avi: &mut AviDemuxer) -> DamageLedger {
+    let mut damage = Vec::new();
+    let mut payloads = Vec::new();
+    let terminal = loop {
+        match avi.next_event() {
+            Ok(DemuxEvent::Packet(packet)) => payloads.push(packet.data.as_slice().to_vec()),
+            Ok(DemuxEvent::Recovered { skipped, reason }) => damage.push((skipped, reason)),
+            Ok(DemuxEvent::Discontinuity) => {}
+            Ok(DemuxEvent::EndOfStream) => break Ok(()),
+            Err(err) => break Err(err),
+        }
+    };
+    (damage, payloads, terminal)
+}
+
+/// The two-stream six-chunk body the resync tests damage: v0, a0,
+/// (damaged v1), a1, v2, a2 — the damaged chunk is the exact
+/// unclamped-jump-then-valid-tail shape. Returns the chunk positions
+/// and the damaged bytes.
+fn resync_body(garbage_size: u32) -> (Vec<u64>, Vec<u8>) {
+    let built = build(
+        &[video_stream(), audio_stream()],
+        &[
+            (b"00dc", &b"v0"[..]),
+            (b"01wb", &[0xAA; 4]),
+            (b"00dc", &[0x42; 6]),
+            (b"01wb", &[0xBB; 4]),
+            (b"00dc", &[0x43; 6]),
+            (b"01wb", &[0xCC; 4]),
+        ],
+        true,
+    );
+    let mut bytes = built.bytes;
+    smash_chunk_header(&mut bytes, built.chunk_positions[2], garbage_size);
+    (built.chunk_positions, bytes)
+}
+
+#[test]
+fn garbage_chunk_jump_past_bound_resyncs_via_idx1() {
+    // The 0136 filing's byte shape: after the damaged chunk, the
+    // idx1's next entry is the ladder back onto real structure — the
+    // tail (a1, v2, a2) is recovered, the loss is damage-recorded,
+    // and the walk still ends EOS.
+    let garbage_size = 125_437_440u32; // 0x077A_0600, the traced value
+    let (chunk_positions, bytes) = resync_body(garbage_size);
+    let damaged = chunk_positions[2];
+    let landing = chunk_positions[3];
+    // The movi list ends right after the last chunk (4-byte payload).
+    let movi_end = chunk_positions[5] + 8 + 4;
+    let next = damaged + 8 + u64::from(garbage_size); // even size, no pad
+    let mut avi = demuxer_over(bytes);
+    match avi.start() {
+        Ok(tracks) => assert_eq!(tracks.len(), 2),
+        Err(err) => unreachable!("start: {err}"),
+    }
+    let (damage, payloads, terminal) = drain_with_damage(&mut avi);
+    assert_eq!(
+        damage,
+        vec![
+            (u64::from(garbage_size), "unknown-chunk-in-movi"),
+            (next - movi_end, "chunk-jump-past-list-bound"),
+            (landing - damaged, "movi-resync-idx1"),
+        ],
+        "the refused jump, then the idx1 landing, in the walk's order"
+    );
+    assert_eq!(
+        payloads,
+        vec![
+            b"v0".to_vec(),
+            vec![0xAA; 4],
+            vec![0xBB; 4],
+            vec![0x43; 6],
+            vec![0xCC; 4],
+        ],
+        "the damaged chunk alone is lost; the tail recovers"
+    );
+    assert!(terminal.is_ok(), "the resync is not fatal: {terminal:?}");
+}
+
+#[test]
+fn garbage_chunk_jump_past_bound_resyncs_by_scan_without_idx1() {
+    // The same shape with no idx1: the bounded signature scan (the
+    // ffmpeg avi_sync equivalent) finds the first chunk header the
+    // walk itself would accept — the 0268 filing's garbage value.
+    let garbage_size = 4_286_905_213u32; // 0xFFBEFFFF-ish, odd
+    let (chunk_positions, mut bytes) = resync_body(garbage_size);
+    // Drop the idx1: truncate the file right after the movi list and
+    // shrink the RIFF size to match (an honest no-index file).
+    let movi_end = (chunk_positions[5] + 8 + 4) as usize;
+    bytes.truncate(movi_end);
+    // The dropped idx1 chunk: 8 header bytes + 6 16-byte entries.
+    patch_size(&mut bytes, 4, (8u32 + 6 * 16).wrapping_neg());
+    let damaged = chunk_positions[2];
+    let landing = chunk_positions[3];
+    let next = damaged + 8 + u64::from(garbage_size) + 1; // odd size, one pad
+    let mut avi = demuxer_over(bytes);
+    match avi.start() {
+        Ok(tracks) => assert_eq!(tracks.len(), 2),
+        Err(err) => unreachable!("start: {err}"),
+    }
+    let (damage, payloads, terminal) = drain_with_damage(&mut avi);
+    assert_eq!(
+        damage,
+        vec![
+            (u64::from(garbage_size), "unknown-chunk-in-movi"),
+            (next - movi_end as u64, "chunk-jump-past-list-bound"),
+            (landing - damaged, "movi-resync-scan"),
+        ],
+        "the scan landing carries the resync's own reason"
+    );
+    assert_eq!(
+        payloads,
+        vec![
+            b"v0".to_vec(),
+            vec![0xAA; 4],
+            vec![0xBB; 4],
+            vec![0x43; 6],
+            vec![0xCC; 4],
+        ]
+    );
+    assert!(terminal.is_ok(), "recovered walk ends EOS: {terminal:?}");
+}
+
+#[test]
+fn garbage_chunk_jump_without_landing_is_typed_never_silent_eos() {
+    // The damaged chunk is the LAST one and its payload carries no
+    // acceptable signature: no idx1 entry follows, the scan window is
+    // exhausted — the walk refuses with the typed W2-07 terminal
+    // instead of the old silent EOS (which could be forfeiting
+    // playable bytes). The intact prefix still delivered.
+    let garbage_size = 125_437_440u32;
+    let built = build(
+        &[video_stream(), audio_stream()],
+        &[
+            (b"00dc", &b"v0"[..]),
+            (b"01wb", &[0xAA; 4]),
+            (b"00dc", &[0x42; 6]),
+        ],
+        true,
+    );
+    let mut bytes = built.bytes;
+    let damaged = built.chunk_positions[2];
+    smash_chunk_header(&mut bytes, damaged, garbage_size);
+    let movi_end = built.chunk_positions[2] + 8 + 6;
+    let next = damaged + 8 + u64::from(garbage_size);
+    let mut avi = demuxer_over(bytes);
+    match avi.start() {
+        Ok(_) => {}
+        Err(err) => unreachable!("start: {err}"),
+    }
+    let (damage, payloads, terminal) = drain_with_damage(&mut avi);
+    assert_eq!(
+        payloads,
+        vec![b"v0".to_vec(), vec![0xAA; 4]],
+        "the undamaged prefix still delivers"
+    );
+    let err = match terminal {
+        Ok(()) => unreachable!("no landing exists — the walk must refuse loudly"),
+        Err(err) => err,
+    };
+    assert_eq!(err.context.code, "demux.avi.walk-resync-failed");
+    assert!(
+        matches!(err.kind, media_types::ErrorKind::Corrupt { .. }),
+        "structure corruption flavor: {:?}",
+        err.kind
+    );
+    // The terminal's own damage (the refused jump) is observable via
+    // the damage log; like every fatal walk error, the queued notes
+    // die with the error instead of surfacing as events — the typed
+    // terminal IS the loud record (the pre-existing sticky pattern).
+    assert_eq!(
+        damage,
+        Vec::<(u64, &'static str)>::new(),
+        "no events surface past the terminal error"
+    );
+    assert_eq!(
+        avi.damage_total(),
+        u64::from(garbage_size) + (next - movi_end),
+        "the refused jump distance is counted"
+    );
+}
+
+#[test]
+fn garbage_chunk_jump_inside_rec_hands_back_to_parent() {
+    // The damage sits inside a `rec ` list whose remainder carries no
+    // landing: the position hands back to the parent walk at the
+    // list's end (the damaged list's tail surrendered, counted), and
+    // the parent's chunks after the rec still deliver.
+    let garbage_size = 125_437_440u32;
+    let mut out: Vec<u8> = Vec::new();
+    out.extend_from_slice(b"RIFF");
+    let riff_size_pos = out.len();
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(b"AVI ");
+    out.extend_from_slice(b"LIST");
+    let hdrl_size_pos = out.len();
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(b"hdrl");
+    chunk(&mut out, b"avih", &avih(0, 1));
+    out.extend_from_slice(b"LIST");
+    let strl_size_pos = out.len();
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(b"strl");
+    chunk(&mut out, b"strh", &strh(b"vids", b"MJPG", 1, 30, 2, 0));
+    chunk(&mut out, b"strf", &strf_video(64, 48));
+    end_sized(&mut out, strl_size_pos);
+    end_sized(&mut out, hdrl_size_pos);
+    out.extend_from_slice(b"LIST");
+    let movi_size_pos = out.len();
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(b"movi");
+    out.extend_from_slice(b"LIST");
+    let rec_size_pos = out.len();
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(b"rec ");
+    chunk(&mut out, b"00dc", b"r0");
+    // The damaged chunk: physically 8 header + 6 filler bytes.
+    let damaged = out.len() as u64;
+    chunk(&mut out, &[0, 0, 0, 0], &[0x42; 6]);
+    let rec_end = out.len() as u64;
+    let garbage = garbage_size.to_le_bytes();
+    out[damaged as usize + 4..damaged as usize + 8].copy_from_slice(&garbage);
+    end_sized(&mut out, rec_size_pos);
+    chunk(&mut out, b"00dc", b"t0");
+    end_sized(&mut out, movi_size_pos);
+    end_sized(&mut out, riff_size_pos);
+
+    let mut avi = demuxer_over(out);
+    match avi.start() {
+        Ok(tracks) => assert_eq!(tracks.len(), 1),
+        Err(err) => unreachable!("start: {err}"),
+    }
+    let (damage, payloads, terminal) = drain_with_damage(&mut avi);
+    let next = damaged + 8 + u64::from(garbage_size); // even, no pad
+    assert_eq!(
+        damage,
+        vec![
+            (u64::from(garbage_size), "unknown-chunk-in-movi"),
+            (next - rec_end, "chunk-jump-past-list-bound"),
+            (rec_end - damaged, "movi-resync-parent"),
+        ],
+        "the rec's damaged tail is surrendered to the parent walk"
+    );
+    assert_eq!(payloads, vec![b"r0".to_vec(), b"t0".to_vec()]);
+    assert!(terminal.is_ok(), "recovered walk ends EOS: {terminal:?}");
+}
+
+#[test]
+fn resync_budget_exhaustion_is_the_typed_terminal_not_an_endless_walk() {
+    // A corruption-dense `movi`: MORE damaged cursor jumps past the
+    // bound than the MAX_WALK_RESYNCS budget (33 vs 32). The first 32
+    // land via the idx1 ladder (the walk keeps recovering, exactly
+    // the zero-mid shape repeated); the 33rd refuses with the typed
+    // W2-07 terminal — the budget is what bounds the walk's
+    // worst-case work on adversarial files (D-3: bounded damage,
+    // never an endless skip).
+    let garbage_size = 125_437_440u32;
+    // c0 valid; c1..=c33 damaged (33 chunks); c34..=c36 a valid tail
+    // the refused walk must never reach. Every payload is 4 bytes, so
+    // every chunk occupies exactly 12 bytes (8 header + 4 payload,
+    // even — no pad).
+    let mut specs: Vec<MoviChunk<'_>> = Vec::with_capacity(37);
+    specs.push((b"00dc", &b"head"[..]));
+    for _ in 0..33 {
+        specs.push((b"00dc", &b"gggg"[..]));
+    }
+    for _ in 0..3 {
+        specs.push((b"00dc", &b"tail"[..]));
+    }
+    let built = build(&[video_stream()], &specs, true);
+    let mut bytes = built.bytes;
+    for &pos in &built.chunk_positions[1..=33] {
+        smash_chunk_header(&mut bytes, pos, garbage_size);
+    }
+    let mut avi = demuxer_over(bytes);
+    match avi.start() {
+        Ok(tracks) => assert_eq!(tracks.len(), 1),
+        Err(err) => unreachable!("start: {err}"),
+    }
+    let (damage, payloads, terminal) = drain_with_damage(&mut avi);
+    assert_eq!(
+        payloads,
+        vec![b"head".to_vec()],
+        "the damaged run delivers nothing; the tail stays unreached"
+    );
+    let err = match terminal {
+        Ok(()) => unreachable!("the budget is spent — the walk must refuse loudly"),
+        Err(err) => err,
+    };
+    assert_eq!(err.context.code, "demux.avi.walk-resync-failed");
+    assert!(
+        matches!(err.kind, media_types::ErrorKind::Corrupt { .. }),
+        "structure corruption flavor: {:?}",
+        err.kind
+    );
+    // The per-resync `Recovered` records die pending with the terminal
+    // error (the pre-existing sticky pattern — the typed terminal IS
+    // the loud record; same shape the no-landing test pins).
+    assert!(
+        damage.is_empty(),
+        "no events surface past the terminal error: {damage:?}"
+    );
+    // The budget proof is the exact damage ledger. Per damaged chunk
+    // k = 1..=33 (positions 12 bytes apart, the bound at chunk 36's
+    // end): the garbage size, the refused jump distance (12k + G -
+    // 436), and — for the MAX_WALK_RESYNCS landings that happened
+    // before the 33rd refusal — the 12-byte span to the next chunk:
+    //   33*G + (33*G - 7656) + 32*12  ==  66*G - 7272
+    // One landing more (budget bypassed) or fewer (early refusal)
+    // shifts the total by the 12-byte span — the arithmetic pins the
+    // budget as spent to exactly MAX_WALK_RESYNCS.
+    assert_eq!(
+        avi.damage_total(),
+        66 * u64::from(garbage_size) - 7272,
+        "every refusal and every landing is counted"
+    );
+}
+
 #[test]
 fn missing_header_and_missing_movi_are_distinct_typed_errors() {
     // RIFF/AVI with only a movi: no hdrl.

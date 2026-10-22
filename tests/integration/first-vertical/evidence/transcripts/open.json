@@ -160,7 +160,7 @@
       "session": 1,
       "gen": 0,
       "kind": "media.info-ready",
-      "seekable": false,
+      "seekable": true,
       "is_live": false,
       "duration_us": 2000000,
       "tracks": 2
@@ -201,6 +201,9 @@
       "scheduler_presented": 0,
       "scheduler_repeats": 0,
       "scheduler_dropped_late": 0,
+      "scheduler_dropped_stale": 0,
+      "queue_flushed": 0,
+      "queue_published": 0,
       "staging_frames": 0,
       "staging_bytes": 0,
       "staging_copies": 0
