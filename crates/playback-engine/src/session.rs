@@ -48,7 +48,7 @@ use std::sync::mpsc::{Receiver, SyncSender, TrySendError};
 use commands::CommandId;
 use commands::envelope::{Generation, RequestId, SessionId};
 use media_clock::{MediaClock, PlaybackClock};
-use media_types::{EngineError, GenerationId, SourceUri};
+use media_types::{EngineError, GenerationId, MediaKind, SourceUri};
 use plugin_api::SeekSupport;
 
 use crate::epoch::{CancelToken, GenerationPair, PipelineGeneration, SessionEpoch, TokenMinter};
@@ -56,7 +56,8 @@ use crate::error::{SessionConfigError, SessionError};
 use crate::event::{EngineEvent, EngineEventKind, media_info_wire};
 use crate::events::{DamageCoalescer, DrainStaleness, EventPolicy, ProgressWindow, TimeTickPolicy};
 use crate::pipeline::{
-    DecoderProvider, FrameConsumer, Pipeline, QueuePlan, SeekPreroll, TickBudget, TickReport,
+    DecoderProvider, FrameConsumer, Pipeline, QueuePlan, SeekPreroll, SwitchPreroll, TickBudget,
+    TickReport,
 };
 use crate::seek::{
     InFlightSeek, ResolvedSeek, SeekTarget, complete_seek, nanos_i64, not_seekable, pipeline_seek,
@@ -65,6 +66,10 @@ use crate::seek::{
 use crate::state::{
     Effect, PipelineSignal, RejectionReason, SessionInput, SessionState, TRANSITIONS, Transition,
     TransitionRejected, apply_input, translate_pipeline_signal,
+};
+use crate::tracks::{
+    InFlightTrackSwitch, ResolvedSelection, TrackSelector, complete_switch, pipeline_switch,
+    resolve_selector,
 };
 
 /// The outbox capacity (live events; receipts are bounded separately
@@ -99,8 +104,8 @@ pub const RECEIPT_CAPACITY: usize = 4096;
 pub const INBOX_CAPACITY: usize = 64;
 
 /// One client command kind, engine-side (the state-machine commands:
-/// play/pause/stop/close plus card 3.A1's seek; `set-rate`/track
-/// selection are Phase 3).
+/// play/pause/stop/close, card 3.A1's seek and card 3.A3's track
+/// selection; `set-rate` is Phase 3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionCommandKind {
     /// `playback.play`.
@@ -116,6 +121,18 @@ pub enum SessionCommandKind {
     /// payload (a payload-less seek is the typed `MissingPayload`
     /// rejection at the command boundary).
     Seek,
+    /// `tracks.set-video-track` (class A, gen-bumping; card 3.A3) —
+    /// the seven-step switch flow for the video kind. The selector
+    /// rides the command as its payload.
+    SelectVideo,
+    /// `tracks.set-audio-track` (class A, gen-bumping; card 3.A3) —
+    /// the seven-step switch flow for the audio kind.
+    SelectAudio,
+    /// `tracks.set-subtitle-track` (class S, **no** pipeline
+    /// invalidation; card 3.A3): session-attribute work answered in
+    /// the receipt (`Completed`) — the executor's pre-table branch
+    /// owns it; it never reaches the table.
+    SelectSubtitle,
 }
 
 impl SessionCommandKind {
@@ -129,6 +146,9 @@ impl SessionCommandKind {
             SessionCommandKind::Stop => CommandId::PlaybackStop,
             SessionCommandKind::Close => CommandId::SessionClose,
             SessionCommandKind::Seek => CommandId::PlaybackSeek,
+            SessionCommandKind::SelectVideo => CommandId::TracksSetVideoTrack,
+            SessionCommandKind::SelectAudio => CommandId::TracksSetAudioTrack,
+            SessionCommandKind::SelectSubtitle => CommandId::TracksSetSubtitleTrack,
         }
     }
 
@@ -141,6 +161,22 @@ impl SessionCommandKind {
             SessionCommandKind::Stop => SessionInput::Stop,
             SessionCommandKind::Close => SessionInput::Close,
             SessionCommandKind::Seek => SessionInput::Seek,
+            // The subtitle flavor is class S: it never reaches the
+            // table (the pre-table branch owns it); the mapping is
+            // the A/V switch input for the two class-A flavors.
+            SessionCommandKind::SelectVideo
+            | SessionCommandKind::SelectAudio
+            | SessionCommandKind::SelectSubtitle => SessionInput::SwitchTrack,
+        }
+    }
+
+    /// The kind of the selection this command moves (3.A3).
+    #[must_use]
+    fn selection_kind(self) -> MediaKind {
+        match self {
+            SessionCommandKind::SelectVideo => MediaKind::Video,
+            SessionCommandKind::SelectSubtitle => MediaKind::Subtitle,
+            _ => MediaKind::Audio,
         }
     }
 }
@@ -155,6 +191,9 @@ struct SessionCommand {
     /// payload rides the command into the executor's context (the
     /// table itself stays pure data).
     seek: Option<SeekTarget>,
+    /// The track selector, when the command is a `tracks.set-*-track`
+    /// (card 3.A3) — the same payload-beside-the-table doctrine.
+    selector: Option<TrackSelector>,
 }
 
 /// The result half of a command receipt: the truthful-UI split
@@ -260,6 +299,7 @@ impl SessionHandle {
             request,
             kind,
             seek: None,
+            selector: None,
         })
     }
 
@@ -307,6 +347,65 @@ impl SessionHandle {
             request,
             kind: SessionCommandKind::Seek,
             seek: Some(target),
+            selector: None,
+        })
+    }
+
+    /// Submit `tracks.set-video-track` (card 3.A3, class A): the
+    /// accept receipt carries the post-bump generation; the
+    /// completion arrives as the `tracks.changed` terminal event.
+    ///
+    /// # Errors
+    /// As [`SessionHandle::submit`].
+    pub fn set_video_track(
+        &self,
+        request: RequestId,
+        selector: TrackSelector,
+    ) -> Result<(), SessionError> {
+        self.queue(SessionCommand {
+            request,
+            kind: SessionCommandKind::SelectVideo,
+            seek: None,
+            selector: Some(selector),
+        })
+    }
+
+    /// Submit `tracks.set-audio-track` (card 3.A3, class A) — the
+    /// audio-switch shape: the clock freezes at the old position at
+    /// accept and re-anchors on the new track's first delivered
+    /// frame at completion.
+    ///
+    /// # Errors
+    /// As [`SessionHandle::submit`].
+    pub fn set_audio_track(
+        &self,
+        request: RequestId,
+        selector: TrackSelector,
+    ) -> Result<(), SessionError> {
+        self.queue(SessionCommand {
+            request,
+            kind: SessionCommandKind::SelectAudio,
+            seek: None,
+            selector: Some(selector),
+        })
+    }
+
+    /// Submit `tracks.set-subtitle-track` (card 3.A3, class S): no
+    /// pipeline invalidation, no mint — the `Completed` receipt IS
+    /// the proof, with the `tracks.changed` confirmation beside it.
+    ///
+    /// # Errors
+    /// As [`SessionHandle::submit`].
+    pub fn set_subtitle_track(
+        &self,
+        request: RequestId,
+        selector: TrackSelector,
+    ) -> Result<(), SessionError> {
+        self.queue(SessionCommand {
+            request,
+            kind: SessionCommandKind::SelectSubtitle,
+            seek: None,
+            selector: Some(selector),
         })
     }
 
@@ -658,6 +757,14 @@ pub struct EngineStats {
     /// Demuxer-marked discontinuities observed (the re-anchor policy
     /// is Phase 3, card 3.B1; the count is the observable fact).
     pub demux_discontinuities: u64,
+    /// Decoder instances served from the per-session decoder cache
+    /// (card 3.A3, D-1): a switch that re-activated a parked decoder
+    /// instead of building a fresh one — the multi-MB MJPEG
+    /// `DecodeContext` reuse count.
+    pub decoders_reused: u64,
+    /// Decoder instances built by the provider (card 3.A3): every
+    /// `decoder_for` call, open-time wiring included.
+    pub decoders_built: u64,
 }
 
 /// Per-session pipeline observability (merged into [`EngineStats`]).
@@ -670,6 +777,8 @@ pub(crate) struct PipelineTotals {
     frames_concealed: u64,
     stale_frames_dropped: u64,
     demux_discontinuities: u64,
+    decoders_reused: u64,
+    decoders_built: u64,
 }
 
 impl PipelineTotals {
@@ -697,6 +806,8 @@ impl PipelineTotals {
         self.demux_discontinuities = self
             .demux_discontinuities
             .saturating_add(other.demux_discontinuities);
+        self.decoders_reused = self.decoders_reused.saturating_add(other.decoders_reused);
+        self.decoders_built = self.decoders_built.saturating_add(other.decoders_built);
     }
 }
 
@@ -835,6 +946,8 @@ impl Engine {
             frames_concealed: totals.frames_concealed,
             stale_frames_dropped: totals.stale_frames_dropped,
             demux_discontinuities: totals.demux_discontinuities,
+            decoders_reused: totals.decoders_reused,
+            decoders_built: totals.decoders_built,
         }
     }
 
@@ -943,6 +1056,11 @@ struct InputContext {
     /// payload rides the executor's context — the `SeekPipeline`
     /// effect consumes it).
     seek: Option<SeekTarget>,
+    /// The resolved track selection for a `SwitchTrack` application
+    /// (card 3.A3): the switched kind + the resolution the
+    /// pre-table validation produced — the `SwitchPipeline` effect
+    /// consumes it.
+    switch: Option<(MediaKind, ResolvedSelection)>,
 }
 
 /// The session (single-writer; driven only through `Engine::poll`).
@@ -971,6 +1089,22 @@ pub(crate) struct Session {
     /// single slot IS the supersession rule — replacing it silently
     /// retires the older generation (doc 05 §4.2).
     inflight_seek: Option<InFlightSeek>,
+    /// The audio track switch currently executing (card 3.A3 steps
+    /// 5–7), if any — the per-kind in-flight slot. Replacing it IS
+    /// the supersession rule (the older switch is silent).
+    inflight_switch_audio: Option<InFlightTrackSwitch>,
+    /// The video track switch currently executing, if any — an
+    /// independent slot: an audio and a video switch may be in
+    /// flight together (their limbs, queues and terminals are
+    /// disjoint).
+    inflight_switch_video: Option<InFlightTrackSwitch>,
+    /// A fatal failure the `SwitchPipeline` interpreter hit mid-row
+    /// (a decoder-build refusal): the row's standard postlude
+    /// (state-changed confirmation) completes first, then the caller
+    /// (`apply_command`) drains this into the `Failed` flow —
+    /// `playback.error` before `state-changed → error`, the C2
+    /// ordering, without a nested `apply`.
+    deferred_fatal: Option<EngineError>,
 }
 
 /// The per-session emission-policy state (card 3.B4): the baselines
@@ -1056,6 +1190,9 @@ impl Session {
                 info_emitted: false,
             },
             inflight_seek: None,
+            inflight_switch_audio: None,
+            inflight_switch_video: None,
+            deferred_fatal: None,
         }
     }
 
@@ -1086,26 +1223,26 @@ impl Session {
         })
     }
 
-    /// Emit a **seek terminal** under the in-flight seek's own
-    /// generation, not the session's current wire generation (doc 05
-    /// §4.3 invariant 4: exactly one terminal seek event per completed
-    /// seek gen).
+    /// Emit a **terminal** under its own generation, not the
+    /// session's current wire generation (doc 05 §4.3 invariant 4:
+    /// exactly one terminal event per completed generation — the
+    /// seek pair and, since card 3.A3, the track-selection
+    /// terminal).
     ///
-    /// The two can diverge legitimately: a follow-up seek that fails
-    /// *resolution* (unresolvable target, unseekable source) still
-    /// mints its generation at accept (doc 05 §4.2) but never touches
-    /// the pipeline — the older in-flight seek still owns the
-    /// pipeline's content and still completes (see `seek.rs`: the
-    /// point of no return is the flush). Stamping that terminal with
-    /// the newer mint would annex it for a generation that already
-    /// has its own `SeekFailed` — two terminals for one gen. The
-    /// outbox's drain exemption (doc 05 §4.3) keeps the older-gen
-    /// terminal visible across the newer live generation.
+    /// The two can diverge legitimately: a follow-up command that
+    /// fails *resolution* (an unresolvable seek target, a track id
+    /// that is not live) still mints nothing — but a follow-up mint
+    /// that raced a completion leaves the completed generation's
+    /// terminal stamped behind the live one. Stamping it with the
+    /// newer mint would annex it for a generation that has its own
+    /// terminal — two terminals for one gen. The outbox's drain
+    /// exemption (doc 05 §4.3) keeps the older-gen terminal visible
+    /// across the newer live generation.
     ///
-    /// Superseded seeks never reach this path at all: their slot was
-    /// replaced before any terminal was emitted, so there is nothing
-    /// to stamp (doc 05 §4.2 — superseded seeks are silent).
-    fn emit_seek_terminal(
+    /// Superseded flows never reach this path at all: their slot
+    /// was replaced before any terminal was emitted, so there is
+    /// nothing to stamp (doc 05 §4.2 — superseded work is silent).
+    fn emit_terminal(
         &self,
         kind: EngineEventKind,
         origin: Option<RequestId>,
@@ -1198,11 +1335,13 @@ impl Session {
                         pipeline.teardown(generation);
                     }
                     self.pipeline = None;
-                    // A torn-down pipeline can never complete a seek:
-                    // the in-flight slot dies here, silently — the
-                    // teardown's mint superseded its generation
-                    // (doc 05 §4.2).
+                    // A torn-down pipeline can never complete a seek
+                    // or a switch: the in-flight slots die here,
+                    // silently — the teardown's mint superseded their
+                    // generations (doc 05 §4.2).
                     self.inflight_seek = None;
+                    self.inflight_switch_audio = None;
+                    self.inflight_switch_video = None;
                 }
                 Effect::FreezeClock | Effect::StopClock => {
                     // Underrun/pause entry freezes; Ended freezes at
@@ -1238,6 +1377,9 @@ impl Session {
                 }
                 Effect::SeekPipeline => {
                     self.seek_pipeline_step(context.seek.take(), origin, &mut outputs);
+                }
+                Effect::SwitchPipeline => {
+                    self.switch_pipeline_step(context.switch.take(), origin, &mut outputs);
                 }
             }
         }
@@ -1303,11 +1445,25 @@ impl Session {
     /// Apply a submitted command: the pure lookup plus the receipt.
     /// The receipt is returned separately so the caller can order it
     /// **before** the events it causes (doc 05 §4.3 guarantee 2).
+    ///
+    /// Card 3.A3's track-selection commands carry a pre-table half:
+    /// the payload guard and selector resolution (and, for the
+    /// class-S subtitle flavor, the whole execution — it never
+    /// reaches the table). An unresolvable selector rejects
+    /// `TrackNotFound` with no mint and no state-changed (the
+    /// documented asymmetry with seek's resolution failures).
     fn apply_command(&mut self, command: SessionCommand) -> (CommandReceipt, Vec<EngineOutput>) {
-        // A seek without its target payload is a caller bug, surfaced
-        // typed at the command boundary (never a panic, never a
-        // guessed zero) — the table never sees it.
-        if command.kind == SessionCommandKind::Seek && command.seek.is_none() {
+        // A payload-less command is a caller bug, surfaced typed at
+        // the command boundary (never a panic, never a guessed
+        // default) — the table never sees it.
+        let needs_payload = match command.kind {
+            SessionCommandKind::Seek => command.seek.is_none(),
+            SessionCommandKind::SelectVideo
+            | SessionCommandKind::SelectAudio
+            | SessionCommandKind::SelectSubtitle => command.selector.is_none(),
+            _ => false,
+        };
+        if needs_payload {
             let receipt = CommandReceipt {
                 request: command.request,
                 command: command.kind,
@@ -1318,27 +1474,63 @@ impl Session {
             };
             return (receipt, Vec::new());
         }
+        // The class-S subtitle flavor: state legality, selector
+        // resolution, the (optional) subtitle limb swap at the
+        // CURRENT generation (no mint, no pipeline invalidation),
+        // the `tracks.changed` confirmation and the `Completed`
+        // receipt — all pre-table; no `state-changed` ever fires
+        // (subtitle selection changes no session state).
+        if command.kind == SessionCommandKind::SelectSubtitle {
+            return self.subtitle_select_step(command);
+        }
+        // The class-A A/V flavors: selector resolution pre-table (a
+        // request-validity question — reject before the mint, the
+        // documented asymmetry with seek), state legality through
+        // the table's SwitchTrack rows.
+        let mut resolved_switch: Option<(MediaKind, ResolvedSelection)> = None;
+        if let SessionCommandKind::SelectVideo | SessionCommandKind::SelectAudio = command.kind {
+            let kind = command.kind.selection_kind();
+            let selector = command.selector.unwrap_or(TrackSelector::Auto);
+            match resolve_selector(selector, &self.tracks, kind) {
+                Ok(resolved) => resolved_switch = Some((kind, resolved)),
+                Err(_not_found) => {
+                    let receipt = CommandReceipt {
+                        request: command.request,
+                        command: command.kind,
+                        result: ReceiptResult::Rejected {
+                            state: self.state,
+                            reason: RejectionReason::TrackNotFound,
+                        },
+                    };
+                    return (receipt, Vec::new());
+                }
+            }
+        }
         let context = InputContext {
             origin: Some(command.request),
             fatal: None,
             seek: command.seek,
+            switch: resolved_switch,
         };
         match self.apply(command.kind.as_input(), context) {
             Ok(outputs) => {
                 let pair = self.pair();
-                let result = if command.kind == SessionCommandKind::Close {
-                    // Class S: the close is complete in this receipt
-                    // (doc 05 §2.3).
-                    ReceiptResult::Completed {
-                        session: pair.session_id(),
+                let result = match command.kind {
+                    SessionCommandKind::Close | SessionCommandKind::SelectSubtitle => {
+                        // Class S: the close is complete in this
+                        // receipt (doc 05 §2.3).
+                        ReceiptResult::Completed {
+                            session: pair.session_id(),
+                        }
                     }
-                } else {
-                    // Class A: accepted under the post-accept
-                    // generation (the NEW one for gen-bumping
-                    // commands — doc 05 §4.2).
-                    ReceiptResult::Accepted {
-                        session: pair.session_id(),
-                        generation: pair.wire_generation(),
+                    _ => {
+                        // Class A: accepted under the post-accept
+                        // generation (the NEW one for gen-bumping
+                        // commands — doc 05 §4.2).
+                        ReceiptResult::Accepted {
+                            session: pair.session_id(),
+                            generation: pair.wire_generation(),
+                        }
                     }
                 };
                 let receipt = CommandReceipt {
@@ -1346,6 +1538,14 @@ impl Session {
                     command: command.kind,
                     result,
                 };
+                let mut outputs = outputs;
+                // A fatal the SwitchPipeline interpreter hit mid-row:
+                // the row's confirmation is already in `outputs`; the
+                // Failed flow follows it (playback.error before
+                // state-changed → error — the C2 ordering).
+                if let Some(error) = self.deferred_fatal.take() {
+                    outputs.append(&mut self.fail_with(error));
+                }
                 (receipt, outputs)
             }
             Err(rejection) => {
@@ -1464,6 +1664,214 @@ impl Session {
                     ));
                 }
             }
+        }
+    }
+
+    /// Card 3.A3 step 3 — the `SwitchPipeline` effect's interpreter:
+    /// the per-kind limb swap under the generation the row's
+    /// `BumpPipeline` just minted (the audio kind also freezes the
+    /// clock at the old position — the audio master's samples stop).
+    ///
+    /// On a decoder-build failure the old limb is untouched
+    /// (prepare-before-commit), the in-flight slot stays empty, and
+    /// the typed error rides `deferred_fatal` — `apply_command`
+    /// drains it into the `Failed` flow after the row's
+    /// confirmation, so the wire order is receipt → state-changed
+    /// (C8) → `playback.error` → `state-changed → error`.
+    fn switch_pipeline_step(
+        &mut self,
+        switch: Option<(MediaKind, ResolvedSelection)>,
+        origin: Option<RequestId>,
+        _outputs: &mut Vec<EngineOutput>,
+    ) {
+        let Some((kind, resolved)) = switch else {
+            // Unreachable through `apply_command` (the payload-less
+            // command is short-circuited to the typed rejection
+            // there); honored honestly rather than panicked on.
+            return;
+        };
+        // S2.3f — the audio switch freezes the clock at the old
+        // position now (the video switch does not touch it).
+        if kind == MediaKind::Audio {
+            self.runtime.clock.pause();
+        }
+        let generation = self.pair().pipeline.as_queue_generation();
+        let flush_budget = self.runtime.budget.flush_calls_per_limb;
+        let outcome = match self.pipeline.as_mut() {
+            Some(pipeline) => pipeline_switch(
+                pipeline,
+                generation,
+                kind,
+                resolved,
+                self.runtime.decoders.as_ref(),
+                &self.runtime.queues,
+                flush_budget,
+            ),
+            // Unreachable: switch-legal states own a live pipeline.
+            None => return,
+        };
+        match outcome {
+            Ok(outcome) => {
+                self.totals.stale_frames_dropped = self
+                    .totals
+                    .stale_frames_dropped
+                    .saturating_add(u64::from(outcome.stale_frames_flushed));
+                self.totals.decoders_reused = self
+                    .totals
+                    .decoders_reused
+                    .saturating_add(u64::from(outcome.decoder_reused));
+                self.totals.decoders_built = self
+                    .totals
+                    .decoders_built
+                    .saturating_add(u64::from(outcome.decoder_built));
+                self.sync_selected_mirror();
+                // The in-flight slot: replacing a previous switch of
+                // the same kind IS the supersession (the older switch
+                // is silent — no terminal; doc 05 §4.2). The causing
+                // request is the terminal's origin (doc 05 §3.1).
+                let inflight = InFlightTrackSwitch {
+                    kind,
+                    selected: match resolved {
+                        ResolvedSelection::Track(id) => Some(id),
+                        ResolvedSelection::Deselect => None,
+                    },
+                    generation,
+                    origin,
+                };
+                match kind {
+                    MediaKind::Audio => self.inflight_switch_audio = Some(inflight),
+                    _ => self.inflight_switch_video = Some(inflight),
+                }
+            }
+            // The provider failed after promising: fatal, per the
+            // wire() contract. The old limb is untouched and the
+            // session enters Error through the deferred path.
+            Err(error) => self.deferred_fatal = Some(error),
+        }
+    }
+
+    /// The class-S subtitle selection (card 3.A3, doc 05 §2.5): state
+    /// legality, selector resolution, the optional subtitle limb swap
+    /// at the **current** generation (no mint — no A/V pipeline
+    /// invalidation), the `tracks.changed` confirmation at the
+    /// unbumped generation, and the `Completed` receipt. No
+    /// `state-changed` ever fires (subtitle selection changes no
+    /// session state).
+    fn subtitle_select_step(
+        &mut self,
+        command: SessionCommand,
+    ) -> (CommandReceipt, Vec<EngineOutput>) {
+        // State legality — the seek rejection families, mirrored by
+        // hand because the class-S path has no table row.
+        let legal = match self.state {
+            SessionState::Buffering | SessionState::Playing | SessionState::Paused => true,
+            _ => false,
+        };
+        let selector = command.selector.unwrap_or(TrackSelector::Auto);
+        if !legal {
+            let reason = match self.state {
+                SessionState::Opening => RejectionReason::NotReady,
+                SessionState::Idle => RejectionReason::NoSession,
+                _ => RejectionReason::AlreadySettled,
+            };
+            return (
+                CommandReceipt {
+                    request: command.request,
+                    command: command.kind,
+                    result: ReceiptResult::Rejected {
+                        state: self.state,
+                        reason,
+                    },
+                },
+                Vec::new(),
+            );
+        }
+        let selected = match resolve_selector(selector, &self.tracks, MediaKind::Subtitle) {
+            Ok(ResolvedSelection::Track(id)) => Some(id),
+            Ok(ResolvedSelection::Deselect) => None,
+            Err(_not_found) => {
+                return (
+                    CommandReceipt {
+                        request: command.request,
+                        command: command.kind,
+                        result: ReceiptResult::Rejected {
+                            state: self.state,
+                            reason: RejectionReason::TrackNotFound,
+                        },
+                    },
+                    Vec::new(),
+                );
+            }
+        };
+        // The optional limb swap at the CURRENT generation (class S:
+        // the demux stamp does not move, the A/V limbs do not notice).
+        // A provider that cannot build the subtitle decoder deselects
+        // honestly (the optional kind — never a failure).
+        let generation = self.pair().pipeline.as_queue_generation();
+        let flush_budget = self.runtime.budget.flush_calls_per_limb;
+        if let Some(pipeline) = self.pipeline.as_mut() {
+            let target = match selected {
+                Some(id) => crate::tracks::ResolvedSelection::Track(id),
+                None => crate::tracks::ResolvedSelection::Deselect,
+            };
+            if let Ok(outcome) = pipeline.switch_limbs(
+                generation,
+                MediaKind::Subtitle,
+                match target {
+                    crate::tracks::ResolvedSelection::Track(id) => Some(id),
+                    crate::tracks::ResolvedSelection::Deselect => None,
+                },
+                self.runtime.decoders.as_ref(),
+                &self.runtime.queues,
+                flush_budget,
+            ) {
+                self.totals.stale_frames_dropped = self
+                    .totals
+                    .stale_frames_dropped
+                    .saturating_add(u64::from(outcome.stale_frames_flushed));
+                self.totals.decoders_reused = self
+                    .totals
+                    .decoders_reused
+                    .saturating_add(u64::from(outcome.decoder_reused));
+                self.totals.decoders_built = self
+                    .totals
+                    .decoders_built
+                    .saturating_add(u64::from(outcome.decoder_built));
+                // The class-S window claim dies here: the swap armed
+                // the switch window for its own bookkeeping, but a
+                // subtitle selection completes in this receipt —
+                // nothing is in flight.
+                pipeline.end_switch(MediaKind::Subtitle);
+            }
+            self.sync_selected_mirror();
+        }
+        let outputs = vec![self.emit(
+            EngineEventKind::TrackSelectionChanged {
+                track_kind: MediaKind::Subtitle,
+                selected,
+            },
+            Some(command.request),
+        )];
+        (
+            CommandReceipt {
+                request: command.request,
+                command: command.kind,
+                result: ReceiptResult::Completed {
+                    session: self.pair().session_id(),
+                },
+            },
+            outputs,
+        )
+    }
+
+    /// Re-read the pipeline's selection truth into the session's
+    /// mirror (the `tracks.list-ready` / snapshot payload's
+    /// `is_selected` stays truthful after a switch).
+    fn sync_selected_mirror(&mut self) {
+        if let Some(pipeline) = self.pipeline.as_ref() {
+            let (tracks, selected) = pipeline.tracks();
+            self.tracks = Arc::new(tracks.to_vec());
+            self.selected = selected.to_vec();
         }
     }
 
@@ -1633,7 +2041,7 @@ impl Session {
             let generation = inflight.generation;
             match complete_seek(&self.runtime.clock, inflight, audio_anchor_ns) {
                 Ok(actual) => {
-                    outputs.push(self.emit_seek_terminal(
+                    outputs.push(self.emit_terminal(
                         EngineEventKind::Seeked { requested, actual },
                         origin,
                         generation,
@@ -1652,7 +2060,7 @@ impl Session {
                         origin,
                     ));
                 }
-                Err(reason) => outputs.push(self.emit_seek_terminal(
+                Err(reason) => outputs.push(self.emit_terminal(
                     EngineEventKind::SeekFailed {
                         reason,
                         position: clock_position_ns(&self.runtime.clock),
@@ -1669,6 +2077,16 @@ impl Session {
                 pipeline.end_seek();
             }
         }
+        // The in-flight track switches' completion (card 3.A3 steps
+        // 5–7), per kind and in a fixed order (audio first: the
+        // audio master re-anchors the clock, so its terminal lands
+        // before any video-switch report that same tick). The new
+        // track's first frame was delivered to the sink earlier this
+        // same tick (decode_step ran before this check) — the frame's
+        // delivery IS the completion fact, so the terminal follows it
+        // in the stream.
+        self.complete_switch_kind(MediaKind::Audio, &mut outputs);
+        self.complete_switch_kind(MediaKind::Video, &mut outputs);
         // One translated input, at most.
         let signal = if report.fatal.is_some() {
             Some(PipelineSignal::Fatal)
@@ -1690,6 +2108,7 @@ impl Session {
                 origin: None,
                 fatal: report.fatal.take(),
                 seek: None,
+                switch: None,
             };
             match self.apply(input, context) {
                 Ok(mut transition_outputs) => outputs.append(&mut transition_outputs),
@@ -1725,6 +2144,82 @@ impl Session {
             }
         }
         outputs
+    }
+
+    /// Card 3.A3 steps 5–7 for one kind: when the in-flight switch's
+    /// selection has landed (the new limb delivered a frame under the
+    /// switch's generation, or provably never could, or was a
+    /// deselect), complete — re-anchor the clock (audio only, on the
+    /// new track's first frame's own pts), emit the
+    /// `TrackSelectionChanged` terminal under the **switch's own**
+    /// generation, and close the observation claim.
+    fn complete_switch_kind(&mut self, kind: MediaKind, outputs: &mut Vec<EngineOutput>) {
+        let ready = match (&self.inflight_switch_of(kind), self.pipeline.as_ref()) {
+            (Some(inflight), Some(pipeline)) => pipeline.switch_preroll(kind, inflight.selected),
+            _ => SwitchPreroll::NotReady,
+        };
+        if !matches!(ready, SwitchPreroll::Ready { .. }) {
+            return;
+        }
+        let Some(inflight) = self.take_inflight_switch_of(kind) else {
+            return;
+        };
+        let SwitchPreroll::Ready { anchor_ns } = ready else {
+            return;
+        };
+        // Step 6 — the clock re-anchor (audio kind only). A
+        // re-anchor failure (an unrepresentable position — the
+        // i64-exhaustion corner) is the flow's terminal failure:
+        // surfaced through the existing fatal path (playback.error
+        // before state-changed → error), and no selection terminal
+        // fires for the failed generation.
+        if kind == MediaKind::Audio {
+            if let Err(error) = complete_switch(&self.runtime.clock, &inflight, anchor_ns) {
+                outputs.push(self.emit(EngineEventKind::Fatal { error }, inflight.origin));
+                let context = InputContext {
+                    origin: inflight.origin,
+                    fatal: None,
+                    seek: None,
+                    switch: None,
+                };
+                if let Ok(mut transition_outputs) = self.apply(SessionInput::Failed, context) {
+                    outputs.append(&mut transition_outputs);
+                }
+                if let Some(pipeline) = self.pipeline.as_mut() {
+                    pipeline.end_switch(kind);
+                }
+                return;
+            }
+        }
+        // Step 7 — the terminal under the switch's own generation,
+        // with the causing request as its origin.
+        outputs.push(self.emit_terminal(
+            EngineEventKind::TrackSelectionChanged {
+                track_kind: kind,
+                selected: inflight.selected,
+            },
+            inflight.origin,
+            inflight.generation,
+        ));
+        if let Some(pipeline) = self.pipeline.as_mut() {
+            pipeline.end_switch(kind);
+        }
+    }
+
+    /// The in-flight switch slot of `kind`, by shared reference.
+    fn inflight_switch_of(&self, kind: MediaKind) -> &Option<InFlightTrackSwitch> {
+        match kind {
+            MediaKind::Audio => &self.inflight_switch_audio,
+            _ => &self.inflight_switch_video,
+        }
+    }
+
+    /// Take the in-flight switch slot of `kind`.
+    fn take_inflight_switch_of(&mut self, kind: MediaKind) -> Option<InFlightTrackSwitch> {
+        match kind {
+            MediaKind::Audio => self.inflight_switch_audio.take(),
+            _ => self.inflight_switch_video.take(),
+        }
     }
 
     /// The once-per-open facts (card 3.B4): `timing.duration-known`
@@ -1763,6 +2258,7 @@ impl Session {
             origin: None,
             fatal: Some(error),
             seek: None,
+            switch: None,
         };
         // The rejection is unreachable by construction (the callers
         // only fail in table-legal states); honored honestly.

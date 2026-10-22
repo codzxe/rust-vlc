@@ -29,22 +29,26 @@
 //! - [`state`] — the pure machine: [`apply_input`] is the only way
 //!   session state moves, so an illegal transition is not merely
 //!   rejected — it is unreachable by construction;
+//! - [`tracks`] — the track-switching flow of card 3.A3 (doc 03
+//!   §5's `SwitchTrack` mint, the seven-step switch, decoder
+//!   instance recycling, the class-S subtitle seam);
 //! - [`error`] — the transport/construction failure surface (semantic
 //!   rejections are typed results in [`state`], not errors).
 //!
 //! # What is deliberately NOT here (Phase 3+)
 //!
-//! A/V sync, source replacement, track switching, rate, the
-//! thread-per-session model and the event broadcast bus are excluded
-//! by the card (3.A2–3.A3, 3.B1, 3.B3, 2.E1). The minimal machine is
-//! synchronous and single-writer: the host's [`Engine::poll`] call IS
-//! the session thread, which keeps invariant S1 true by construction.
+//! A/V sync, source replacement, rate, the thread-per-session model
+//! and the event broadcast bus are excluded by the card (3.A2, 3.B1,
+//! 3.B3, 2.E1); track switching landed with card 3.A3. The minimal
+//! machine is synchronous and single-writer: the host's
+//! [`Engine::poll`] call IS the session thread, which keeps invariant
+//! S1 true by construction.
 //!
 //! # The acceptance criteria, and where they are proven
 //!
 //! - *Transition-table tests; no invalid transition reachable*: the
 //!   integration suite `tests/table.rs` classifies **every**
-//!   `(state, input)` pair (8 × 12 = 96: 26 legal rows, 70 typed
+//!   `(state, input)` pair (8 × 13 = 104: 29 legal rows, 75 typed
 //!   rejections), proves every row is wire-conformant against
 //!   [`commands::PlaybackState::can_transition_to`], proves the
 //!   pipeline driver guard ([`translate_pipeline_signal`]) only ever
@@ -60,6 +64,12 @@
 //!   AC suite in `tests/seek_flow.rs` (the seven steps end-to-end,
 //!   boundary seeks, the D4 rollback, supersession silence, the
 //!   stale-purge proofs, and the seek-terminal drain exemption).
+//! - *Track switching (card 3.A3, doc 03 §8's multi-track scenario)*:
+//!   [`tracks`]'s unit tests (selector resolution) plus the
+//!   session-level AC suite in `tests/track_switch.rs` (the seven
+//!   steps end-to-end with event-sequence assertions, supersession,
+//!   deselect, the class-S subtitle seam, decoder-cache recycling,
+//!   and the real multi-track fixture `avi_mjpeg_2pcm.avi`).
 //!
 //! # Conventions
 //!
@@ -76,6 +86,7 @@ pub mod pipeline;
 pub mod seek;
 pub mod session;
 pub mod state;
+pub mod tracks;
 
 pub use epoch::{CancelToken, GenerationPair, PipelineGeneration, SessionEpoch, TokenMinter};
 pub use error::{SessionConfigError, SessionError, config_error};
@@ -100,3 +111,4 @@ pub use state::{
     Effect, PipelineSignal, RejectionReason, SessionInput, SessionState, TRANSITIONS, Transition,
     TransitionRejected, apply_input, rejection_reason, translate_pipeline_signal,
 };
+pub use tracks::{TrackSelectionError, TrackSelector};

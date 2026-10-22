@@ -168,6 +168,14 @@ pub enum SessionInput {
     /// travels beside the input in the executor's context; the row
     /// effects carry the flow's pipeline invalidation and re-anchor.
     Seek,
+    /// `tracks.set-video-track` / `tracks.set-audio-track` (class A,
+    /// gen-bumping; card 3.A3, doc 03 §5's `SwitchTrack` mint): the
+    /// seven-step track-switch flow. The switched **kind** rides the
+    /// payload beside the input (the payload-beside-the-table
+    /// doctrine); the row effects carry the mint and the per-kind
+    /// limb swap. The subtitle flavor is class S and never reaches
+    /// the table (the executor's pre-table branch owns it).
+    SwitchTrack,
     /// The open step succeeded: the demuxer parsed the container and
     /// the pipeline (queues + decoders) is wired. Raised by the open
     /// step after wiring — the row's effects only announce it.
@@ -198,13 +206,14 @@ pub enum SessionInput {
 
 impl SessionInput {
     /// Every input, for exhaustive tests and model walks.
-    pub const ALL: [SessionInput; 12] = [
+    pub const ALL: [SessionInput; 13] = [
         SessionInput::Open,
         SessionInput::Play,
         SessionInput::Pause,
         SessionInput::Stop,
         SessionInput::Close,
         SessionInput::Seek,
+        SessionInput::SwitchTrack,
         SessionInput::OpenReady,
         SessionInput::Primed,
         SessionInput::Underrun,
@@ -225,6 +234,7 @@ impl SessionInput {
                 | SessionInput::Stop
                 | SessionInput::Close
                 | SessionInput::Seek
+                | SessionInput::SwitchTrack
         )
     }
 }
@@ -238,6 +248,7 @@ impl std::fmt::Display for SessionInput {
             SessionInput::Stop => "stop",
             SessionInput::Close => "close",
             SessionInput::Seek => "seek",
+            SessionInput::SwitchTrack => "switch-track",
             SessionInput::OpenReady => "open-ready",
             SessionInput::Primed => "primed",
             SessionInput::Underrun => "underrun",
@@ -326,6 +337,19 @@ pub enum Effect {
     /// with the old position and — per contract D4 — leaves the
     /// pipeline runnable from where it is (the demuxer never moved).
     SeekPipeline,
+    /// The track-switch flow's per-kind limb swap (card 3.A3 step
+    /// 3): with the generation the row's `BumpPipeline` just minted —
+    /// for the switched kind only, prepare-before-commit: obtain the
+    /// new decoder (cache first), retire the old limb (flush + close
+    /// its queue, drain its decoder, park the instance in the
+    /// session's decoder cache), install the new limb at the new
+    /// generation, and arm the re-prime window. The **kind** and the
+    /// resolved selection ride the executor's context. The audio
+    /// kind additionally freezes the clock at the old position (the
+    /// audio master's samples stop). A decoder-build failure is
+    /// fatal (the wire() contract); the unchanged kind keeps playing
+    /// through the mint.
+    SwitchPipeline,
 }
 
 /// The minimal-machine transition table (26 rows; see the module
@@ -472,6 +496,36 @@ pub const TRANSITIONS: &[Transition] = &[
         to: SessionState::Buffering,
         effects: &[Effect::BumpPipeline, Effect::SeekPipeline],
     },
+    // ---- track switch (card 3.A3; the A/V class-A flavors; the
+    // subtitle flavor is class S and never reaches the table) ----
+    // Self-transition work-carriers, the seek row shapes minus the
+    // state change: the mint + the per-kind limb swap, the wire
+    // state never leaving `playing` (video keeps playing through an
+    // audio switch; the C8 confirmation is the command's receipt's
+    // sibling, not an episode change).
+    Transition {
+        from: SessionState::Playing,
+        input: SessionInput::SwitchTrack,
+        to: SessionState::Playing,
+        effects: &[Effect::BumpPipeline, Effect::SwitchPipeline],
+    },
+    // Switch while paused stays paused (VLC parity; the same
+    // user-held-pause reading as the Paused seek row).
+    Transition {
+        from: SessionState::Paused,
+        input: SessionInput::SwitchTrack,
+        to: SessionState::Paused,
+        effects: &[Effect::BumpPipeline, Effect::SwitchPipeline],
+    },
+    // The initial-buffering switch (open-then-immediately-select
+    // hosts; a second switch of the same kind supersedes the first
+    // — the per-kind in-flight slot IS the supersession rule).
+    Transition {
+        from: SessionState::Buffering,
+        input: SessionInput::SwitchTrack,
+        to: SessionState::Buffering,
+        effects: &[Effect::BumpPipeline, Effect::SwitchPipeline],
+    },
     // doc 03 §4.6 `any active | Stop`: v0 honors it from the two
     // states the wire table models (see module docs — the transient
     // states are card 3.C1's).
@@ -584,6 +638,12 @@ pub enum RejectionReason {
     /// caller bug, surfaced typed at the command boundary rather than
     /// panicked on (the payload rides the command, not the table).
     MissingPayload,
+    /// A track-selection command named a track that is not a live
+    /// track of the requested kind (card 3.A3, doc 05 §2.5's
+    /// `not-found`): an unknown id, or a track of another kind. A
+    /// request-validity question — rejected before the table, so no
+    /// generation is bumped and no state-changed fires.
+    TrackNotFound,
 }
 
 impl std::fmt::Display for RejectionReason {
@@ -610,6 +670,7 @@ impl std::fmt::Display for RejectionReason {
             RejectionReason::MissingPayload => {
                 "the command arrived without its payload (caller bug)"
             }
+            RejectionReason::TrackNotFound => "no live track of the requested kind carries this id",
         };
         f.write_str(text)
     }
@@ -677,7 +738,7 @@ pub fn rejection_reason(state: SessionState, input: SessionInput) -> RejectionRe
         // `open` anywhere but a fresh engine = replacement (3.A2).
         (_, I::Open) => R::SourceReplacementPhase3,
         // No session work exists in Idle.
-        (S::Idle, I::Play | I::Pause | I::Stop | I::Seek) => R::NoSession,
+        (S::Idle, I::Play | I::Pause | I::Stop | I::Seek | I::SwitchTrack) => R::NoSession,
         // Pipeline signals cannot be raised where there is no
         // pipeline.
         (
@@ -686,7 +747,7 @@ pub fn rejection_reason(state: SessionState, input: SessionInput) -> RejectionRe
         ) => R::SignalNotRaisedHere,
         // Opening: commands the pipeline cannot honor yet, plus the
         // two deliberately-absent v1 edges.
-        (S::Opening, I::Play | I::Pause | I::Seek) => R::NotReady,
+        (S::Opening, I::Play | I::Pause | I::Seek | I::SwitchTrack) => R::NotReady,
         (S::Opening, I::Stop) => R::StopFirst,
         (S::Opening, I::Primed | I::Underrun | I::EofReached | I::Drained) => {
             R::SignalNotRaisedHere
@@ -712,20 +773,20 @@ pub fn rejection_reason(state: SessionState, input: SessionInput) -> RejectionRe
         // (the doc 03 §4.6 row vs doc 05 §3.3's list — Lead flag).
         (S::Ended, I::Play) => R::RestartNeedsSeek,
         (S::Ended, I::Seek) => R::EndedNeedsWireEdge,
-        (S::Ended, I::Pause | I::Stop) => R::AlreadySettled,
+        (S::Ended, I::Pause | I::Stop | I::SwitchTrack) => R::AlreadySettled,
         (
             S::Ended,
             I::OpenReady | I::Primed | I::Underrun | I::EofReached | I::Drained | I::Failed,
         ) => R::SignalNotRaisedHere,
         // Stopped: the session survives, inert until close.
-        (S::Stopped, I::Play | I::Pause | I::Stop | I::Seek) => R::AlreadySettled,
+        (S::Stopped, I::Play | I::Pause | I::Stop | I::Seek | I::SwitchTrack) => R::AlreadySettled,
         (
             S::Stopped,
             I::OpenReady | I::Primed | I::Underrun | I::EofReached | I::Drained | I::Failed,
         ) => R::SignalNotRaisedHere,
         // Error: inert by invariant S2 (teardown as stopped already
         // happened; the typed error is on the event stream).
-        (S::Error, I::Play | I::Pause | I::Stop | I::Seek) => R::AlreadySettled,
+        (S::Error, I::Play | I::Pause | I::Stop | I::Seek | I::SwitchTrack) => R::AlreadySettled,
         (
             S::Error,
             I::OpenReady | I::Primed | I::Underrun | I::EofReached | I::Drained | I::Failed,
@@ -743,7 +804,7 @@ pub fn rejection_reason(state: SessionState, input: SessionInput) -> RejectionRe
         | (S::Error, I::Close) => R::SignalNotRaisedHere,
         // The seek rows (never consulted here — the match must simply
         // stay total when rows or inputs are added).
-        (S::Playing | S::Paused | S::Buffering, I::Seek) => R::SignalNotRaisedHere,
+        (S::Playing | S::Paused | S::Buffering, I::Seek | I::SwitchTrack) => R::SignalNotRaisedHere,
     }
 }
 
@@ -810,9 +871,9 @@ mod tests {
 
     #[test]
     fn table_size_is_pinned() {
-        // 26 rows; adding one is a deliberate act (worklog + doc 03
+        // 29 rows; adding one is a deliberate act (worklog + doc 03
         // §4.6 reference in the row's comment).
-        assert_eq!(TRANSITIONS.len(), 26);
+        assert_eq!(TRANSITIONS.len(), 29);
     }
 
     #[test]

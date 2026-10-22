@@ -222,6 +222,19 @@ pub enum EngineEventKind {
         /// Units recovered in the window.
         count: u64,
     },
+    /// A track selection changed (card 3.A3, doc 05 §3.2
+    /// `tracks.changed`): which selection moved and what is now
+    /// selected. The **terminal** for the class-A `set-*-track`
+    /// commands (emitted under the switch's own generation, doc 05
+    /// §4.3 invariant 4 — exactly one terminal per completed
+    /// generation) and the immediate confirmation for the class-S
+    /// subtitle selection (emitted at the unbumped generation).
+    TrackSelectionChanged {
+        /// Which selection changed (audio/video/subtitle).
+        track_kind: MediaKind,
+        /// The now-selected track, if any (`None` = deselected).
+        selected: Option<TrackId>,
+    },
 }
 
 impl Clone for EngineEventKind {
@@ -285,6 +298,13 @@ impl Clone for EngineEventKind {
             EngineEventKind::RecoveredDamage { stage, count } => EngineEventKind::RecoveredDamage {
                 stage: *stage,
                 count: *count,
+            },
+            EngineEventKind::TrackSelectionChanged {
+                track_kind,
+                selected,
+            } => EngineEventKind::TrackSelectionChanged {
+                track_kind: *track_kind,
+                selected: *selected,
             },
         }
     }
@@ -375,6 +395,16 @@ impl PartialEq for EngineEventKind {
                 EngineEventKind::RecoveredDamage { stage: a, count: b },
                 EngineEventKind::RecoveredDamage { stage: c, count: d },
             ) => a == c && b == d,
+            (
+                EngineEventKind::TrackSelectionChanged {
+                    track_kind: a,
+                    selected: b,
+                },
+                EngineEventKind::TrackSelectionChanged {
+                    track_kind: c,
+                    selected: d,
+                },
+            ) => a == c && b == d,
             _ => false,
         }
     }
@@ -446,6 +476,13 @@ impl EngineEventKind {
                 ),
                 details: recovered_damage_details(*count),
                 fatal: false,
+            }),
+            EngineEventKind::TrackSelectionChanged {
+                track_kind,
+                selected,
+            } => Some(EventKind::TracksChanged {
+                track_kind: wire_track_change_kind(*track_kind),
+                selected: selected.map(|id| commands::catalog::types::TrackId(id.handle())),
             }),
         }
     }
@@ -664,6 +701,21 @@ fn wire_track_kind(kind: MediaKind) -> WireTrackKind {
         MediaKind::Video => WireTrackKind::Video,
         MediaKind::Subtitle => WireTrackKind::Subtitle,
         MediaKind::Data => WireTrackKind::Data,
+    }
+}
+
+/// Bridge an engine track kind to the `tracks.changed` selection
+/// kind (doc 05 §3.2: [`WireTrackKind`] plus the synthetic
+/// `secondary-audio` arm, which card 3.A3 does not mint — the
+/// follow-up card owns it).
+#[must_use]
+fn wire_track_change_kind(kind: MediaKind) -> commands::catalog::types::TrackChangeKind {
+    use commands::catalog::types::TrackChangeKind;
+    match kind {
+        MediaKind::Audio => TrackChangeKind::Audio,
+        MediaKind::Video => TrackChangeKind::Video,
+        MediaKind::Subtitle => TrackChangeKind::Subtitle,
+        MediaKind::Data => TrackChangeKind::Data,
     }
 }
 

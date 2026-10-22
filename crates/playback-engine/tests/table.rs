@@ -6,8 +6,8 @@
 //! "No invalid transition reachable" is the sum of three proofs, all
 //! in this file:
 //!
-//! 1. [`apply_input`] agrees with [`TRANSITIONS`] exactly (96 pairs:
-//!    26 rows, 70 typed rejections) — the table is the only truth.
+//! 1. [`apply_input`] agrees with [`TRANSITIONS`] exactly (104 pairs:
+//!    29 rows, 75 typed rejections) — the table is the only truth.
 //! 2. every row's `(from, to)` is legal for the wire conformance list
 //!    (`PlaybackState::can_transition_to`, doc 05 §3.3) — no
 //!    engine-side transition can surface as a conformance failure —
@@ -124,9 +124,9 @@ fn every_state_input_pair_is_classified_exactly_by_the_table() {
         }
     }
     assert_eq!(legal, TRANSITIONS.len(), "legal == table rows");
-    assert_eq!(illegal, 96 - TRANSITIONS.len(), "8 states x 12 inputs");
-    assert_eq!(legal, 26, "the pinned minimal-machine row count");
-    assert_eq!(illegal, 70, "70 typed rejections");
+    assert_eq!(illegal, 104 - TRANSITIONS.len(), "8 states x 13 inputs");
+    assert_eq!(legal, 29, "the pinned minimal-machine row count");
+    assert_eq!(illegal, 75, "75 typed rejections");
 }
 
 #[test]
