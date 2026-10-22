@@ -7726,3 +7726,114 @@ Stage Summary:
 - Corpus suite is now 6 tools (vocab/builders/gen/minimize/fidelity/speed_bench), ~2600 lines, all measured. Manifest v3 schema back-compatible. ffmpeg speed parity + fidelity verdicts are first-class numbers.
 - Registered gaps (honest): PSNR per-frame series empty in fidelity.py summary-mode (follow-up); Lumen decode-CLI runner hook for speed_bench pending (apps/cli decode-null card needed); rotation corpus coverage blocked on ffmpeg CLI (needs mp4 box editor).
 - corpus-big generation in flight; harness W3-16 prescription + new-class report rows = Wave 4 agent cards.
+
+---
+Task ID: W4-02
+Agent: W4-02 (engineering directives merge)
+Task: Merge the six 2026-10-23 user engineering directives into docs/engineering-directives.md (D-6..D-10 + D-5 extension) and update the AGENTS.md §3.5a directive reference.
+
+Work Log:
+- Read AGENTS.md, worklog tail, and docs/engineering-directives.md in full (D-1..D-11; found the 2026-10-22 Reality-Grounding Layer D-6..D-10 already present, thematically overlapping the new issuance).
+- Verified every artifact cited before writing: tools/corpus/speed_bench.py, tools/corpus/corpus_vocab.py (drift-av class, DRIFT_DUR_RANGE 45-110 s, vfr-av, dynres-video, meta-bomb-av, splice-other, GARBAGE_ARCHETYPES), tools/corpus/corpus_builders.py (build_drift), crates/media-clock/src/drift.rs (DriftCorrection), docs/audits/2026-10-22-directives-audit.md, crates/codecs/tests/benches.rs.
+- D-5 extension added: adversarial escalation is corpus-backed (v3 break-the-engine classes) + ffmpeg speed parity is a tracked measured metric (speed_bench.py), not an aspiration.
+- Merged the five new directives into the thematically-matching sections, each marked (2026-10-23): D-6 "Shipping ceremony is not capability" bullet; D-7 deferral-by-default is a process violation + escalate-with-concrete-blocker protocol; D-8 retitled "Hardware-Clock Realism & Binary Hot Paths" (DAC/crystal-ppm modeling with drift-av anchor; JSON/text FORBIDDEN on 60 fps hot paths — binary structs with measured ns budgets; text only in cold paths, telemetry >= 1 s); D-9 "Capture hard-won knowledge or lose it" (>30 min insight MUST land in docs/ same card: root cause, repro, prevention); D-10 retitled "The Pre-Submission Reality Check" with the four report questions (MEASURE / NOT tested / what breaks / who hits first; report without all four not accepted) above the preserved code-facing q1..q4.
+- Numbering decision, recorded in the layer header: the session's working labels "D-8 tribal knowledge" / "D-9 clock realism" land under the established D-9 / D-8 handles — those numbers are already cited ~30x in-tree (D-1/D-8, D-3/D-9 pairs, D-10 q2 in benches.rs); renumbering would orphan citations I do not own.
+- AGENTS.md §3.5a: directive reference now names D-1..D-5, D-6..D-10 (reality-over-ritual, no-deferral, tribal-knowledge capture, clock realism/binary hot paths, 4-question check) and D-11, plus the four-question report gate. Nothing else in AGENTS.md touched.
+- Validated: section grep shows D-1..D-11 in order, all (2026-10-23) markers present; all cited paths exist. Committed 6911e71 on wip/w4-02-directives (worktree worktrees/w4-02).
+
+Stage Summary:
+- Six new directives now binding in docs/engineering-directives.md; D-5 carries the corpus-escalation extension; AGENTS.md §3.5a references the full D-1..D-11 set by name. Branch wip/w4-02-directives ready for Lead merge. This worklog entry appended in the main tree for the Lead to commit (main is Lead-only per §3.8).
+
+---
+Task ID: W4-03
+Agent: W4-03 (corpus docs)
+Task: Document the v3 corpus suite — README operational manual, plan status, fixtures cross-ref.
+
+Work Log:
+- Read AGENTS.md, worklog 4.CORPUS-V3, and all six source files in tools/corpus/ (gen/vocab/builders/minimize/fidelity/speed_bench, ~3.9 kloc) as source of truth; every documented flag checked against argparse.
+- Validation runs (real): gen_corpus.py --help, minimize.py --help, fidelity.py --help, speed_bench.py --help; minimize.py live run (40 960 B synthetic grep-trigger -> 12 B, 99.97%, 38 predicate calls, 3/3 STABLE, 0.8 s); fidelity.py live run (video LSB-noise 56.59 dB imperceptible; audio -58.2 dBFS / 90% exact-equal — also CONFIRMED the registered gap: PSNR per-frame series parses empty, frames=0); speed_bench.py live run on /tmp/smoke-corpus (--count 2 --repeat 1, table + rc=0).
+- Counted vocab programmatically: 29 res / 21 fps (0.5-240) / 15+17 codecs / 12 corruption ops / **22 garbage archetypes — the worklog 4.CORPUS-V3 line "23 garbage archetypes" is off by one vs GARBAGE_ARCHETYPES (22 entries; smoke run emitted exactly 22 garbage files). Documented as 22.**
+- Verified smoke manifest (seed 20261023): 115 files = 79 clean (0 ffprobe failures) + 13 dirty + 1 lie-ext + 22 garbage, 21/21 classes, 75.7 s @ jobs=2, 1 plan-time unsupported-draw, 0 encode rejects; capability_probes rotate_meta=false, all concat_copy:true (ffmpeg 7.1.5).
+- WROTE tools/corpus/README.md (NEW, ~20 KB): philosophy, quickstart/presets, disk layout, 24-row class catalog, manifest v3 schema, determinism/resume/replay, 17 capability probes, companion tools with verified copy-paste usage (incl. a minimize triage workflow and a speed_bench parity run), the 11 ffmpeg reality constraints as a table, registered gaps, vocabulary bounds.
+- UPDATED docs/inventory/corpus-plan.md: new "v3 status" section — plan goal -> v3 delivery table; remains = fidelity per-frame series, Lumen decode-CLI runner, rotation blocked on movenc, DASH.
+- UPDATED tests/fixtures/CORPUS.md: appended hand-maintained section declaring corpus-big/ the primary adversarial asset and fixtures/ the pinned regression set, cross-referencing the README.
+- Committed wip/w4-03-corpusdocs f825856 "docs(corpus): v3 operational manual (README), plan status, fixtures cross-ref" (3 files, +437 lines). corpus-big generation left untouched (333/420 files at last check).
+
+Stage Summary:
+- FLAGGED ANOMALY for the Lead: tests/fixtures/CORPUS.md is byte-compared by `cargo xtask fixtures --check` (CI gate step 5) — my appended section is hand-written, so corpus_markdown() in tools/xtask/src/cmd/fixtures.rs must fold it in (or the edit be reverted) BEFORE the next gate run, or CORPUS.md will show drift. One-file, ~20-line follow-up card.
+- Also flagged in README §10: fidelity.py's docstring advertises --media-a/--media-b auto-decode that argparse does not implement; garbage-archetype count is 22, not 23 (worklog correction).
+- corpus-big (standard preset) in flight, not disturbed; docs-only task, no cargo runs.
+
+---
+Task ID: W4-01
+Agent: W4-01 (general-purpose; worktree /home/z/my-project/worktrees/w4-01, branch wip/w4-01-harness)
+Task: Implement the W3-16 prescription in tools/corpus/run_harness.py (judge-side only): oracle audio-payload-bytes truth, granularity-aware packet counts, and the v3 per-class coverage table; back-compatible with pre-v3 manifests.
+
+Work Log:
+- Read AGENTS.md, worklog tail (W3-16 audit + 4.CORPUS-V3), run_harness.py (1161 lines), gen_corpus.py v3, corpus_vocab.py, and the Rust consumers of avi-cases.tsv (crates/demux/tests/corpus.rs parse_cases reads fields 0-5 positionally, ignores extras → appending a 7th column is safe; the suite's result TSV header is fixed, so the judge joins truth_a_bytes from truth.json by rel — works for both fresh and persisted runs).
+- Implemented (one file, tools/corpus/run_harness.py, +260/−8): (1) `ffprobe_audio_payload_bytes()` — one `ffprobe -v error -select_streams a:0 -show_entries packet=size -of csv=p=0` pass, Σ sizes; recorded as `a_bytes` in probe_truth (only when the count pass saw audio packets — bounded work) and as `truth_a_bytes` in avi-cases.tsv (appended LAST for the positional parser). (2) New conformance row `| audio payload bytes match oracle | N/N |` + per-file dirty-row byte-delta attribution lines (the real-drop catcher). (3) `avi_audio_strf_block_align()` — bounded RIFF walk sibling of avi_video_strh_rate reading the auds strf nBlockAlign (offset 12, ≥14 B, declared-end clamp, word alignment); chunk-granular count = ceil(a_bytes / piece), piece = align×1024 if align ≤ 31 else align (the pinned ffprobe 7.1.5 rule, verbatim); Lumen's a_pkts compared against THAT; raw count kept as informational row + delta percentiles; added rows for no-parsable-strf exclusions and align ≥ 32 granularity-divergence counts. (4) The W3-16 note verbatim after the duration note. (5) Per-class coverage section: class | files | ffprobe_ok rate | mean bytes over the v3 vocabulary (zero rows for undrawn classes) ∪ manifest classes; ffprobe_ok null/absent → '-', bytes absent → '-'. (6) truth.json checkpoint schema extended (AVI records need a_bytes; old checkpoints upgrade file-by-file, non-AVI stay hits).
+- Validation (real, /tmp/w4corpus): gen_corpus.py --preset smoke --count 40 --jobs 2 --seed 424242 --no-dirty --no-garbage → 70 files (61 stratification pins + fill), 74 MiB, 1 rejected draw, 21/21 clean classes, ffprobe_ok 100% in every class. run_harness.py --skip-suites → report at docs/corpus/report-20261022-1958-skip-suites.md (worktree, untracked — I own exactly one file) with the new row, note, and table.
+- Oracle-side rule verification on the corpus's 5 audio-bearing AVIs (physical movi walk vs ffprobe): aligns 6/32/8/16/8; Σ ffprobe packet sizes == Σ physical ##wb chunk sizes 5/5; pinned-rule reconstruction (ceil(bytes/piece)) == ffprobe's raw count 5/5; chunk count == oracle count for all align ≤ 31 files; 0044-avi-av (pcm_f32le × 8ch, align 32) reproduces the W3-16 anomaly: 120 physical chunks (32,768-B cap) vs 122,256 oracle pieces (= 3,912,192/32) — 1,024× divergence, payload bytes exact.
+- Judge code-path exercise (SYNTHETIC persisted demux-results.tsv with walk-derived Lumen cells — a logic exercise, never a measurement; artifacts deleted): chunk-granular 2/3 with the align-32 row counted separately, no-align exclusion 1 (early-end fixture: declared RIFF end before the audio strl — ffprobe recovers 293 packets, bounded walker correctly refuses), payload bytes 3/4, dirty attribution line "lumen 614,400 B vs oracle 1,069,335 B (Δ −454,935 B)". All branch arithmetic hand-checked.
+- Back-compat: v2-style manifest (4 files, classes av/video/audio, no ffprobe_ok/tool_version) runs clean — old classes get their own rows, ffprobe_ok '-' everywhere, mean bytes from entry bytes; stripped-a_bytes checkpoint re-probed exactly the 22 AVI-family records (48 non-AVI checkpoint hits).
+- Committed: ae250e8 "fix(harness): W3-16 prescription — payload-bytes oracle truth, granularity-aware packet counts, v3 class coverage" (worktree wip/w4-01-harness, single-file diff). No cargo/rust touched; background corpus-big job untouched (still running at commit time).
+
+Stage Summary:
+- W3-16 prescription items 1-6 landed judge-side only; the harness now judges AVI audio conformance on payload bytes (granularity-independent), compares packet counts at the pinned piece granularity with raw counts kept as informational data, and reports v3 class coverage with honest '-' for absent manifest fields.
+- Measured on the validation corpus: payload-truth join exact on every audio-bearing AVI; the pinned piece rule reproduces ffprobe's raw count 5/5 from (bytes, align) alone.
+- [VERIFY→measured] Open Lead decision recorded: the pinned formula's else-branch (piece = align for align ≥ 32) makes align-32 rows count as granularity divergence in the primary packet row by design (parity undefinable there — note + divergence row say so); the alternative piece = align×1024 (the muxer's chunk cap, measured 32,768 B max chunk on 0044) would make those rows match (120 == ceil(3,912,192/32,768)). Verbatim pinned rule implemented; flagging the alternative for the Lead.
+- Validation report artifact: worktrees/w4-01/docs/corpus/report-20261022-1958-skip-suites.md (untracked by design — single-file ownership); suite-side cells are 0/0 in it because --skip-suites had no persisted TSVs; real Lumen-side numbers arrive when the Lead drives the suites on corpus-big.
+
+---
+Task ID: W4-R1
+Agent: W4-R1 (vprp demux fix; worktree worktrees/w4-r1, branch wip/w4-r1-vprp, commit 5d43cdd)
+Task: Fix the W3-16 corpus audit's one real defect — vprp misattributed as unknown-chunk-in-strl damage on every clean ffmpeg-authored AVI.
+
+Work Log:
+- Read AGENTS.md + worklog tail; sandbox verified (rustc 1.99.1); background measurement job already MEASURE_DONE (not disturbed).
+- Measured the real shape before coding: corpus-big clean avi files carry video strl children strh(56)+strf(40)+JUNK(4120)+vprp(68) (6/6 sampled); dumped the actual 68-byte vprp payload from 0021-avi-av.avi for the test.
+- header.rs: added const VPRP + joined the silent-skip arm (STRD | JUNK | VPRP) with a D-9 rationale comment; the `_ =>` catch-all is unchanged (D-3 dirty-world discipline intact).
+- NEW crates/demux/tests/strl_advisory.rs (4 tests): exact ffmpeg strl shape → zero Recovered / damage_total()==0; full advisory set (strd/strn/JUNK/vprp) → zero; unknown 'XXXX' (37 B, odd → WORD-pad path) → exactly one Recovered{37,"unknown-chunk-in-strl"} surfaced damage-record-first, walk survives to EOS with all frames; vprp+XXXX → only the XXXX noted (the non-weakening pin). Builder mirrors the adversarial_gaps byte rules; walk asserts ticks/keyframe/payload byte-truth.
+- Gate: cargo test -p demux 133 passed / 0 failed / 4 ignored (baseline pre-change 129/0/4 — +4 new, all other suites unchanged); cargo clippy -p demux --all-targets zero warnings; cargo fmt clean. INFRA note: the first test run linked a stale shared-target rlib (served pre-fix behavior) — touch + recompile cured; "Compiling demux (worktrees/w4-r1)" verified before trusting greens (the known shared-target quirk, worklog 3.WAVE3-CLOSE).
+- Real-media re-measure (W3-16 prescription, env-gated corpus suite): 10 random clean corpus-big AVIs — every in-filter (MJPG) file walks terminal=eos with recovered=0 damage=0 (pre-fix: recovered=1/damage=68); out-of-filter files unchanged (start-error refusal is the v0 codec-filter scope by design; 0203-avi-av FMP4's damage=1616 = 101×16 idx1-entry-unknown-stream fallout of the filtered video stream — pre-existing, unrelated to vprp).
+
+Stage Summary:
+- Clean supported AVIs now walk with zero damage events; the harness's "dirty AVIs that recovered damage mid-walk" metric is meaningful again. Branch wip/w4-r1-vprp (5d43cdd) ready for Lead merge. Ownership respected: only header.rs + a new tests/ file touched.
+
+---
+Task ID: W4-R2
+Agent: W4-R2 (general-purpose; worktree worktrees/w4-r2, branch wip/w4-r2-benchcli)
+Task: apps/cli `decode-bench` subcommand — the Lumen runner of the ffmpeg speed-parity benchmark (the 4.CORPUS-V3 registered gap; speed_bench.py's `--runner lumen=` hook).
+
+Work Log:
+- Read AGENTS.md, worklog tail, apps/cli structure (run/parse/dispatch/help/exit), crates/demux (AviDemuxer public API, per-stream skip semantics, GenerationId::FIRST packet stamps), codecs (MjpegDecoder/PcmDecoder + the with_format seam), codec-api (Decoder/DecodeOutcome/FrameSink), and demux_host::open_source — reused as the bench's open path (no duplication).
+- NEW apps/cli/src/bench.rs: decode-to-null bench over the real open path + decoders; ONE machine-parseable stdout line `BENCH file= bytes= v_frames= v_decoded= a_frames= a_decoded= wall_s= decode_s=`; wall origin seeded by main() (true process wall; OnceLock fallback = bench start for the in-memory test path); decode_s starts after open; first video + first audio stream benched, per-stream coverage note on stderr (v_decoded<v_frames is the honest coverage signal; second-of-kind tracks named "not benched"); per-frame damage concealed exactly per playback-engine's per_frame_damage rule (Corrupt | Decoder{Bitstream}) with the mirrored 1000-consecutive budget; mid-walk demux fatals → typed error + partial-coverage details (exit 65, no BENCH line); zero new per-frame allocations (packets move by value into decode; the counting NullSink drops frames untouched).
+- Wiring: parse.rs DecodeBench variant + one-source grammar; run.rs argv-only dispatch arm + to_catalog REPL refusal; help.rs SUBCOMMANDS row; lib.rs module row; main.rs mark_process_start.
+- Tests: 4 unit (exact BENCH-line contract string; in-memory happy path 60/60+60/60 with bytes=425516 pinned; in-memory garbage refusal rc 65) + parse grammar test; NEW tests/bench_decode.rs (6 integration through the real binary: happy path, 2pcm first-of-kind, garbage 65, flip16 65, missing 66, grammar 64). `cargo test -p lumen-cli` ALL GREEN (50 lib + 6 bench_decode + 6+7+7+3+21+1+10 across suites); clippy + fmt clean.
+- End-to-end evidence (release build): fixture line `BENCH file=.../avi_mjpeg_pcm.avi bytes=425516 v_frames=60 v_decoded=60 a_frames=60 a_decoded=60 wall_s=0.008 decode_s=0.008` rc=0. speed_bench.py verbatim run (--count 3 --repeat 1): avi-video ratio 0.75x (1645.7 ms vs ffmpeg 1240.4 ms on the uhd4k mjpeg), flv/mkv rows honest DNF. MJPEG-class sample (--classes avi-video,avi-av --count 8 --repeat 1): avi-av 1.18x (66.4 vs 78.5 ms med), avi-video 0.16x (1365.8 vs 218.7 ms med; 2/6 DNF = non-mjpeg codecs, typed refusals).
+- Adversarial sweep: 88 invocations over corpus-big garbage/ (22) + dirty/ (62) + 4 media files: ZERO panics, exit codes only {0, 65, 66}, every failure a typed stage-tagged error (trunc0/1/2 → demux.truncated fatal with partial counts as details; trunc3 decodes 30/31 video with a concealment note; media/0044-avi-av.avi absent from corpus-big → honest 66).
+- Committed 4f929b5 on wip/w4-r2-benchcli (7 files, +821 lines, all inside apps/cli).
+
+Stage Summary:
+- speed_bench.py `--runner lumen='lumen decode-bench {file}'` works end-to-end — the speed-parity gap is closed with a measured number. Honest gaps for the Lead: non-AVI containers and non-MJPEG/PCM codecs DNF by typed refusal (D-018 first-vertical scope — the ratio table says so, no silent skips); heavy-MJPEG classes measured at 0.16x ffmpeg (the in-house fixed-point decoder is now the named optimization target); timings are wall-clock on 2 cores with the background measurement job concurrent (best-of-N with warmup discarded mitigates, does not eliminate).
+
+---
+Task ID: 4.WAVE4-CLOSE (Lead)
+Agent: Lead
+Task: Wave 4 close — corpus industrialization (user directive 2026-10-23) + 5-agent wave (3 docs/harness + 2 rust) + real measurements.
+
+Work Log:
+- corpus-big (standard preset) COMPLETE: 485 files / 1292 MiB / 1010 s wall / seed 58007138736976908607880252061; 401 clean (95.5% of 420 planned; 19 honest "Nothing was written" rejects, dominated by av1/prores tiny-frame draws → floors added post-hoc), 55 dirty + 7 lie-ext + 22 garbage; 24 classes; ZERO clean ffprobe failures. Manifest committed as evidence: docs/corpus/corpus-big-manifest-20261022.json.
+- W4-01 merged (ae250e8→): run_harness W3-16 prescription — payload-bytes oracle truth, chunk-granular packet counts (pinned rule reproduces ffprobe 5/5), v3 per-class coverage table; validation corpus 70 files/21 classes, back-compat with v2 manifests verified.
+- W4-02 merged (6911e71→): D-6..D-10 directives (reality-over-ritual, no-deferral, tribal knowledge, clock realism/binary hot paths, 4-question check) + D-5 corpus escalation; AGENTS.md §3.5a updated. Note: repo already carried a 2026-10-22 D-6..D-11 layer; merged by theme.
+- W4-03 merged (f825856→): tools/corpus/README.md (20.2 KB operational manual), corpus-plan v3 status, CORPUS.md cross-ref — section folded into xtask corpus_markdown() generator (hand-edit would trip the fixtures byte-gate); cargo xtask fixtures regenerated + --check: no drift, 55 files verified.
+- W4-R1 merged (5d43cdd→): VPRP strl silent-skip fix (the one real W3-16 defect) + 4 regression tests; demux tests 133/0/4 (was 129/0/4); clean corpus AVIs now walk recovered=0/damage=0 — the dirty-recovery metric is finally meaningful.
+- W4-R2 merged (4f929b5→): apps/cli decode-bench subcommand (the Lumen speed-parity runner): BENCH machine line, bounded/panic-free, 91 tests green incl. 6 new. FIRST PARITY NUMBERS (release, 2 cores, background load — treat as v0 baseline): avi-av 1.18x ffmpeg, uhd4k mjpeg 0.75x, heavy-mjpeg median 0.16x (NAMED OPTIMIZATION TARGET), 0 panics / honest typed DNF on 88 adversarial corpus files.
+- Measurements banked: docs/corpus/report-20261022-2002-skip-suites.md (oracle-side, corpus-big, 485 files probed); docs/corpus/speed-baseline-20261022.md (ffmpeg reference per class: avi-video med 97.6 ms/1311 fps, drift-av 190x realtime, vfr-av 37x etc. — the denominator table every future parity run compares against).
+- Post-merge fixes by Lead: av1/prores 128-px resolution floors (encoder-measured), fidelity.py docstring truthed (--media-a removed), CORPUS.md generator fold.
+- Full gate (fmt/clippy/tests/arch/fixtures) launched in background on the cold cache — logs/gate-w4.log; status recorded at commit time.
+- INFRA: rustup 1.99.1 re-provisioned (5th toolchain wipe); worktrees w4-01/02/03/r1/r2 + w3-13 present.
+
+Stage Summary:
+- The corpus program now has: generation (random+stratified+parallel+capability-probed), corruption (12 ops), garbage (22 archetypes), measurement (oracle harness + W3-16 metrics), fidelity (PSNR/SSIM/RMS), triage (ddmin minimizer), and speed parity (ffmpeg baseline + Lumen runner) — all with real measured numbers, zero mocked results.
+- Registered next targets: (1) heavy-mjpeg decode 0.16x → SIMD/color-conversion optimization card; (2) full Lumen-vs-ffmpeg parity sweep across all corpus-big classes once decode-bench covers more codec families; (3) PSNR per-frame series in fidelity summary mode; (4) DASH packaging + rotation coverage (blocked on ffmpeg CLI); (5) Phase 3 remaining cards 3.B2/3.C3/3.D1-3/3.E/3.F; (6) engine-side consumption of new corpus classes (vfr/dynres/multi-track engine tests).
