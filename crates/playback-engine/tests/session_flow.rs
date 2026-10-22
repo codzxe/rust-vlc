@@ -934,25 +934,51 @@ fn a_stale_handle_is_rejected_typed_after_close() {
 }
 
 #[test]
-fn a_second_open_on_a_live_session_is_refused() {
+fn a_second_open_from_playing_replaces_the_session() {
+    // Card 3.A2 flipped this contract: `open` on a live
+    // (non-Buffering) session is play-new-while-playing — the
+    // implicit close runs through the Stop/Close table rows and a
+    // fresh epoch is minted (doc 05 §2.1 "Replaces any current
+    // session"). The Buffering refusal and the full nine-step
+    // acceptance suite live in `replacement.rs`.
     let mut fixture = open_audio(40);
     poll_until(&mut fixture, |s| s == SessionState::Playing, 10, "priming");
+    let frames_at_switch = frames_of(&fixture.collector);
+    let mut script: Vec<DemuxEvent> = (0..10)
+        .map(|index| DemuxEvent::Packet(packet(TrackId::new(1), index)))
+        .collect();
+    script.push(DemuxEvent::EndOfStream);
     let config = config_with(
         vec![track(1, MediaKind::Audio)],
-        vec![],
+        script,
         None,
         None,
         virtual_clock(),
         Arc::new(Collector::default()),
     );
+    let second = fixture.engine.open(config).must();
+    // A fresh epoch, not a reuse: new session id, `Opening` at once.
+    assert_eq!(second.session_id(), SessionId(2));
+    assert_eq!(fixture.engine.state(), SessionState::Opening);
+    // The old handle is dead — the typed command-side staleness
+    // rejection, never a silent drop.
     assert!(matches!(
-        fixture.engine.open(config),
-        Err(SessionError::SessionExists {
-            session: SessionId(1)
-        })
+        fixture.handle.play(RequestId(30)),
+        Err(SessionError::SessionClosed)
     ));
-    // The refusal changed nothing.
-    assert_eq!(fixture.engine.state(), SessionState::Playing);
+    // The second session plays and drains to `Ended` on the same
+    // engine (the replacement left it fully functional).
+    for _ in 0..100 {
+        if fixture.engine.state() == SessionState::Ended {
+            break;
+        }
+        fixture.engine.poll();
+    }
+    assert_eq!(fixture.engine.state(), SessionState::Ended);
+    // No stale delivery from the destroyed epoch: its collector's
+    // count froze at the switch (frames only ever flow through the
+    // live pipeline, and the old one died inside `open`).
+    assert_eq!(frames_of(&fixture.collector), frames_at_switch);
 }
 
 #[test]
