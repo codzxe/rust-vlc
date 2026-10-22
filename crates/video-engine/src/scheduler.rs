@@ -49,7 +49,9 @@ use std::collections::VecDeque;
 use std::fmt;
 use std::sync::Arc;
 
-use media_clock::{NANO_BASE, PlaybackClock};
+use media_clock::NANO_BASE;
+use media_clock::sync::{DriftEstimator, SyncBand, SyncBands};
+use media_clock::{ClockState, PlaybackClock};
 use media_types::GenerationId;
 use media_types::frame::VideoFrame;
 use media_types::time::{Nanoseconds, Stamp, TimeError, Timestamp};
@@ -155,7 +157,8 @@ pub struct TickDrops {
 }
 
 /// One scheduler tick's full report: the action, the wait hint for
-/// timer-driven drivers, and every drop it performed.
+/// timer-driven drivers, every drop it performed, and the A/V sync
+/// drift sample (card 3.B1).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TickOutcome {
     /// What to put on screen this tick.
@@ -166,6 +169,48 @@ pub struct TickOutcome {
     pub next_due: Option<Timestamp>,
     /// Every drop this tick performed (observable, doc 01 §1.3 rule 9).
     pub drops: TickDrops,
+    /// The A/V sync drift observation for this tick (card 3.B1;
+    /// additive field — pure observability, never an event).
+    pub sync: SyncSample,
+}
+
+/// One tick's A/V sync drift observation (card 3.B1; W1-18 §2.1):
+/// the audio-master presentation error measured at each present,
+/// its filtered EMA, the correction band in force, and the effective
+/// late threshold after the ladder's bounded widening. All
+/// counters-not-events (the "no event storms" policy, §5 of the
+/// design: observability is polled, never pushed).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SyncSample {
+    /// This tick's raw presentation error `e_v = pts − now` (ns),
+    /// when a frame presented on a running clock. `None` otherwise
+    /// (no present, or a paused clock — samples are discarded, not
+    /// smeared).
+    pub error_ns: Option<i64>,
+    /// The filtered error EMA after this tick's sample, when primed.
+    pub error_ema_ns: Option<i64>,
+    /// The correction band in force (the Schmitt-trigger ladder).
+    pub band: SyncBand,
+    /// Whether this tick's present was a snap (a PTS-gap or
+    /// re-anchor exemption — counted in
+    /// [`SchedulerStats::snap_presents`], never in
+    /// [`SchedulerStats::dropped_late`]).
+    pub snapped: bool,
+    /// The effective late threshold after the ladder's widening (ns),
+    /// when the configuration drops for lateness at all.
+    pub late_threshold_ns: Option<u64>,
+}
+
+impl Default for SyncSample {
+    fn default() -> SyncSample {
+        SyncSample {
+            error_ns: None,
+            error_ema_ns: None,
+            band: SyncBand::Hold,
+            snapped: false,
+            late_threshold_ns: None,
+        }
+    }
 }
 
 /// Lifetime counters for observability (doc 01 §2.2 e, MP §11
@@ -198,6 +243,23 @@ pub struct SchedulerStats {
     pub missing_held: u64,
     /// Held or admission-refused missing-stamp frames dropped.
     pub missing_pts_dropped: u64,
+    /// First presents after a PTS gap or a clock re-anchor, exempt
+    /// from late-drop accounting (card 3.B1; doc 03 §6 step 6's "no
+    /// drop-count penalty for the first frame after a seek",
+    /// generalized to non-seek jumps).
+    pub snap_presents: u64,
+    /// A/V error samples taken (one per present on a running clock).
+    pub sync_samples: u64,
+    /// Lifetime maximum `|e_v|` (ns, saturating) — the doc 03 §4.10 f
+    /// A/V-sync tolerance's measurable.
+    pub sync_error_abs_max_ns: u64,
+    /// Lifetime `Σ e_v` (ns; i128 so long runs cannot overflow).
+    pub sync_error_sum: i128,
+    /// PTS-gap snaps armed at the push boundary (doc 03 §4.7 e's
+    /// discontinuity tier, scheduler-side detection).
+    pub sync_pts_gaps: u64,
+    /// Estimator resets from clock re-anchors (anchor-epoch bumps).
+    pub sync_reanchors: u64,
 }
 
 /// One window entry: the frame plus its normalized slot.
@@ -225,7 +287,107 @@ pub struct PresentationScheduler {
     last: Option<PresentRequest>,
     /// Consecutive repeats since the last present.
     repeats: usize,
+    /// The A/V sync drift seams' runtime state (card 3.B1): the
+    /// estimator, the band machine, the epoch tracker, snap mode and
+    /// the ladder's bounded actuators. Fixed-size, zero-allocation.
+    sync: SchedulerSync,
     stats: SchedulerStats,
+}
+
+/// The runtime half of the 3.B1 drift seams (the parameters live in
+/// [`SchedulerCfg::sync`]; this is the mutable state the tick feeds).
+/// Every field is a plain integer or a fixed-size pure type from
+/// media-clock — no allocation, no growth (D-1).
+struct SchedulerSync {
+    /// The presentation-error EMA (W1-18 §2.1).
+    estimator: DriftEstimator,
+    /// The Schmitt-trigger band machine (W1-18 §3.1).
+    bands: SyncBands,
+    /// The last-seen clock anchor epoch — the mid-stream re-anchor
+    /// detector (a bump is a new timing regime: reset + snap).
+    last_anchor_epoch: Option<u64>,
+    /// A present is exempt from late-drop accounting (armed by a PTS
+    /// gap or an anchor-epoch bump; cleared by the first present).
+    snap_pending: bool,
+    /// Skip the late purge for exactly this tick (armed together with
+    /// `snap_pending`: a backward re-anchor would otherwise
+    /// late-purge the entire fresh window before the clock catches
+    /// up — W1-18 §4 tier 3).
+    purge_skip: bool,
+    /// The tick counter (decision-cadence and window-keying basis).
+    tick_index: u64,
+    /// The widened effective late threshold (the WidenLate actuator),
+    /// `None` while the configured threshold is in force.
+    widened: Option<Nanoseconds>,
+    /// The repeat-budget extension (the ExtendEarly actuator).
+    repeat_extension: u32,
+    /// Late drops in the current drop-budget window.
+    drops_in_window: u32,
+    /// The drop-budget window's opening tick.
+    drop_window_start: u64,
+    /// Threshold changes in the current rate window.
+    changes_in_window: u32,
+    /// The rate window's opening tick.
+    change_window_start: u64,
+}
+
+impl SchedulerSync {
+    fn new(cfg: &SchedulerCfg) -> SchedulerSync {
+        SchedulerSync {
+            estimator: DriftEstimator::new(),
+            bands: cfg.sync.bands(),
+            last_anchor_epoch: None,
+            snap_pending: false,
+            purge_skip: false,
+            tick_index: 0,
+            widened: None,
+            repeat_extension: 0,
+            drops_in_window: 0,
+            drop_window_start: 0,
+            changes_in_window: 0,
+            change_window_start: 0,
+        }
+    }
+
+    /// A new timing regime: clear the estimator and the band machine
+    /// (the snap flags are the caller's to arm — they carry meaning
+    /// the reset must not drop).
+    fn reset_estimators(&mut self, cfg: &SchedulerCfg) {
+        self.estimator.reset();
+        self.bands = cfg.sync.bands();
+        self.widened = None;
+        self.repeat_extension = 0;
+        self.drops_in_window = 0;
+        self.changes_in_window = 0;
+    }
+
+    /// Account one late drop against the budget window (tumbling,
+    /// tick-calibrated — the scheduler has no time source).
+    fn note_late_drop(&mut self, policy: &crate::policy::SyncPolicy) {
+        self.rotate_windows(policy);
+        self.drops_in_window = self.drops_in_window.saturating_add(1);
+    }
+
+    /// Rotate the tumbling budget/rate windows (called per tick and
+    /// per drop; both are `O(1)` compares).
+    fn rotate_windows(&mut self, policy: &crate::policy::SyncPolicy) {
+        if self
+            .tick_index
+            .saturating_sub(self.drop_window_start)
+            >= u64::from(policy.drop_window_ticks)
+        {
+            self.drops_in_window = 0;
+            self.drop_window_start = self.tick_index;
+        }
+        if self
+            .tick_index
+            .saturating_sub(self.change_window_start)
+            >= u64::from(policy.threshold_window_ticks)
+        {
+            self.changes_in_window = 0;
+            self.change_window_start = self.tick_index;
+        }
+    }
 }
 
 impl fmt::Debug for PresentationScheduler {
@@ -260,6 +422,7 @@ impl PresentationScheduler {
             held_missing: None,
             last: None,
             repeats: 0,
+            sync: SchedulerSync::new(&cfg),
             stats: SchedulerStats::default(),
         }
     }
@@ -288,6 +451,25 @@ impl PresentationScheduler {
                             frame,
                             capacity: self.cfg.max_pending.get(),
                         };
+                    }
+                    // 3.B1 discontinuity seam (doc 03 §4.7 e's PTS-jump
+                    // tier, scheduler-side): an incoming PTS that
+                    // jumps from the window's tail by at least the
+                    // snap threshold arms snap mode — the next present
+                    // is exempt from late-drop accounting — and
+                    // restarts the error estimator (a new regime).
+                    // The window is PTS-sorted; ordering needs no
+                    // help. The threshold is wiring-configurable
+                    // (`SchedulerCfg::with_sync`), default ½ the doc
+                    // 03 §4.4 audio queue duration cap.
+                    if let Some(tail) = self.window.back() {
+                        let gap = i128::from(pts.ticks) - i128::from(tail.pts.ticks);
+                        if gap.unsigned_abs() >= i128::from(self.cfg.sync.pts_gap_threshold.0) {
+                            self.sync.reset_estimators(&self.cfg);
+                            self.sync.snap_pending = true;
+                            self.sync.purge_skip = true;
+                            self.stats.sync_pts_gaps += 1;
+                        }
                     }
                     insert_sorted(&mut self.window, Pending { pts, frame });
                     self.stats.pushed += 1;
@@ -332,11 +514,36 @@ impl PresentationScheduler {
     /// for the binding order). Drives nothing itself: the wiring
     /// enqueues the action's request (if any) on the presentation
     /// queue and drains that to the presenter.
+    ///
+    /// The 3.B1 drift seams run inside the same order: the
+    /// anchor-epoch check (a re-anchor is a new timing regime), the
+    /// presentation-error sample on each present, and the
+    /// hysteresis-ladder application at the [`SyncPolicy::
+    /// decide_every`] cadence — all counters, never events.
     #[must_use = "a tick outcome ignored is a frame presented late, dropped silently, or never shown"]
     pub fn tick(&mut self) -> TickOutcome {
         let snapshot = self.clock.snapshot();
         let now = snapshot.position;
         let mut drops = TickDrops::default();
+        let mut sync_sample = SyncSample::default();
+
+        // 3.B1 seam 1 — anchor-epoch tracking: a bump (reanchor,
+        // set_rate, resume) is a new timing regime. Reset the
+        // estimator, arm the snap exemption, and skip the late purge
+        // for this one tick: a backward re-anchor would otherwise
+        // late-purge the entire fresh window before the clock catches
+        // up (W1-18 §4 tier 3).
+        match self.sync.last_anchor_epoch {
+            None => self.sync.last_anchor_epoch = Some(snapshot.anchor_epoch),
+            Some(last) if last != snapshot.anchor_epoch => {
+                self.sync.last_anchor_epoch = Some(snapshot.anchor_epoch);
+                self.sync.reset_estimators(&self.cfg);
+                self.sync.snap_pending = true;
+                self.sync.purge_skip = true;
+                self.stats.sync_reanchors += 1;
+            }
+            Some(_) => {}
+        }
 
         // Step 1: generation change → wholesale purge (doc 03 §5(7)).
         if snapshot.generation != self.generation {
@@ -368,17 +575,30 @@ impl PresentationScheduler {
         // possible (it is then judged by the same rules as any frame).
         self.admit_held();
 
-        // Step 3: late purge — a prefix of the sorted window.
-        while let Some(front) = self.window.front() {
-            if self.cfg.decide(front.pts, now) == FrameDecision::SkipLate {
-                if let Some(dropped) = self.window.pop_front() {
-                    drops.late.push(dropped.pts);
-                    self.stats.dropped_late += 1;
+        // 3.B1 seam 2 — the window rotation for the ladder's tumbling
+        // budget/rate windows (per tick; O(1) compares).
+        self.sync.tick_index = self.sync.tick_index.wrapping_add(1);
+        self.sync.rotate_windows(&self.cfg.sync);
+
+        // Step 3: late purge — a prefix of the sorted window, against
+        // the *effective* threshold (the configured one, widened while
+        // the ladder's WidenLate band is in force). Skipped for the
+        // one tick after a snap trigger (the exemption's purpose).
+        let effective_threshold = self.effective_late_threshold();
+        if !self.sync.purge_skip {
+            while let Some(front) = self.window.front() {
+                if is_late(front.pts, now, effective_threshold) {
+                    if let Some(dropped) = self.window.pop_front() {
+                        drops.late.push(dropped.pts);
+                        self.stats.dropped_late += 1;
+                        self.sync.note_late_drop(&self.cfg.sync);
+                    }
+                } else {
+                    break;
                 }
-            } else {
-                break;
             }
         }
+        self.sync.purge_skip = false;
 
         // Step 4: selection — the largest pts ≤ now + target_lead.
         let due_bound = i128::from(now.ticks) + i128::from(self.cfg.target_lead.0);
@@ -396,17 +616,41 @@ impl PresentationScheduler {
             selected = self.window.pop_front();
         }
         let action = if let Some(pending) = selected {
+            let pts = pending.pts;
             let request = PresentRequest {
                 generation: pending.frame.generation,
                 frame: pending.frame,
-                when: pending.pts,
+                when: pts,
             };
             self.last = Some(request.clone());
             self.repeats = 0;
             self.stats.presented += 1;
+            // 3.B1 seam 3 — the A/V presentation-error sample
+            // (audio-master): e_v = pts − now, computed in i128 and
+            // saturated to i64 (the `decide()` discipline). Paused
+            // clocks discard samples, never smear them (W1-18 §2.1);
+            // a snap present feeds the fresh regime like any first
+            // sample.
+            if snapshot.state == ClockState::Running {
+                let e_v = (i128::from(pts.ticks) - i128::from(now.ticks))
+                    .clamp(i128::from(i64::MIN), i128::from(i64::MAX))
+                    as i64;
+                self.sync.estimator.observe_sample(e_v);
+                self.stats.sync_samples += 1;
+                self.stats.sync_error_sum = self.stats.sync_error_sum.saturating_add(i128::from(e_v));
+                self.stats.sync_error_abs_max_ns =
+                    self.stats.sync_error_abs_max_ns.max(e_v.unsigned_abs());
+                sync_sample.error_ns = Some(e_v);
+            }
+            if self.sync.snap_pending {
+                self.stats.snap_presents += 1;
+                self.sync.snap_pending = false;
+                sync_sample.snapped = true;
+            }
             PresentAction::Present(request)
-        } else if self.repeats < self.cfg.max_repeat {
-            // Step 5: bounded repeat of the last frame (doc 03 §4.10 e).
+        } else if self.repeats < self.effective_max_repeat() {
+            // Step 5: bounded repeat of the last frame (doc 03 §4.10 e),
+            // with the ladder's ExtendEarly extension in force.
             if let Some(last) = self.last.clone() {
                 self.repeats += 1;
                 self.stats.repeats += 1;
@@ -420,11 +664,105 @@ impl PresentationScheduler {
             PresentAction::Background
         };
 
+        // 3.B1 seam 4 — the band decision runs every tick (the dwell
+        // is tick-scaled); the actuators apply at the decide_every
+        // cadence (bounded churn, deterministic without a time source).
+        let band = self.sync.bands.classify(
+            if snapshot.state == ClockState::Running {
+                self.sync.estimator.error_ema()
+            } else {
+                None
+            },
+        );
+        if self.sync.tick_index.is_multiple_of(u64::from(self.cfg.sync.decide_every)) {
+            self.apply_sync_ladder(band);
+        }
+
+        sync_sample.error_ema_ns = self.sync.estimator.error_ema();
+        sync_sample.band = band;
+        sync_sample.late_threshold_ns = effective_threshold.map(|t| t.0);
+
         let next_due = self.window.front().map(|p| self.cfg.due_at(p.pts));
         TickOutcome {
             action,
             next_due,
             drops,
+            sync: sync_sample,
+        }
+    }
+
+    /// The effective late threshold: the configured one, widened (never
+    /// narrowed) while the ladder's WidenLate band is in force.
+    fn effective_late_threshold(&self) -> Option<Nanoseconds> {
+        match (self.cfg.late_threshold(), self.sync.widened) {
+            (None, _) => None,
+            (Some(configured), None) => Some(configured),
+            (Some(configured), Some(widened)) => Some(widened.max(configured)),
+        }
+    }
+
+    /// The effective repeat budget: the configured one plus the
+    /// ladder's ExtendEarly extension.
+    fn effective_max_repeat(&self) -> usize {
+        self.cfg
+            .max_repeat
+            .saturating_add(self.sync.repeat_extension as usize)
+    }
+
+    /// Apply the ladder's actuators for the band in force (the
+    /// decide_every-cadence half of seam 4). Bounds: the widened
+    /// threshold never exceeds the cap, never applies under
+    /// [`DropPolicy::Never`], changes at most
+    /// [`SyncPolicy::threshold_change_limit`] per rate window, and
+    /// stops widening once the drop budget for the window is spent
+    /// (dropping is bounded, never a firehose).
+    fn apply_sync_ladder(&mut self, band: SyncBand) {
+        match band {
+            SyncBand::Hold => {
+                if self.sync.widened.take().is_some() {
+                    self.sync.changes_in_window = self.sync.changes_in_window.saturating_add(1);
+                }
+                self.sync.repeat_extension = 0;
+            }
+            SyncBand::WidenLate => {
+                self.sync.repeat_extension = 0;
+                // Never under a Never policy; never without a frame
+                // duration to scale by.
+                if self.cfg.late_threshold().is_none() || self.cfg.frame_duration.is_none() {
+                    return;
+                }
+                let Some(ema) = self.sync.estimator.error_ema() else {
+                    return;
+                };
+                // Beyond the drop budget: hold the current widening,
+                // widen no further.
+                if self.sync.drops_in_window >= self.cfg.sync.drop_budget {
+                    return;
+                }
+                let Some(want) =
+                    self.cfg
+                        .sync
+                        .widened_threshold(ema, self.cfg.frame_duration)
+                else {
+                    return;
+                };
+                if Some(want) == self.sync.widened {
+                    return; // no change to make
+                }
+                // The anti-flapping rate limit: at most the configured
+                // changes per rate window.
+                if self.sync.changes_in_window >= self.cfg.sync.threshold_change_limit {
+                    return;
+                }
+                self.sync.widened = Some(want);
+                self.sync.changes_in_window = self.sync.changes_in_window.saturating_add(1);
+            }
+            SyncBand::ExtendEarly => {
+                if self.sync.widened.take().is_some() {
+                    self.sync.changes_in_window = self.sync.changes_in_window.saturating_add(1);
+                }
+                self.sync.repeat_extension = self.cfg.sync.repeat_extension;
+            }
         }
     }
 

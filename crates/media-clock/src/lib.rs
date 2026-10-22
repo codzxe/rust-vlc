@@ -100,6 +100,7 @@ pub mod clock;
 pub mod drift;
 pub mod mapping;
 pub mod source;
+pub mod sync;
 
 pub use clock::{ClockAnchor, ClockMaster, ClockSnapshot, ClockState, MediaClock, PlaybackClock};
 pub use drift::{DriftCorrection, MAX_CORRECTION_PPM};
@@ -108,6 +109,9 @@ pub use mapping::{
     sample_delta_to_media_nanos, samples_until_end, timestamp_to_nanos,
 };
 pub use source::{InstantSource, MonotonicSource, SampleCounterSource};
+pub use sync::{
+    DEFAULT_EMA_SHIFT, DEFAULT_SLOPE_WINDOW_NS, DriftEstimator, RateWindow, SyncBand, SyncBands,
+};
 
 use media_types::time::Rate;
 

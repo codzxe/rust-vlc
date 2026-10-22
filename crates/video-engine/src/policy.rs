@@ -30,6 +30,7 @@
 use std::num::NonZeroUsize;
 
 use media_clock::NANO_BASE;
+use media_clock::sync::{SyncBand, SyncBands};
 use media_types::time::{Nanoseconds, Timestamp};
 
 /// The late-frame drop policy (doc 03 §4.10 b).
@@ -159,6 +160,11 @@ pub struct SchedulerCfg {
     /// an unbounded window is unconstructible (MP §8, doc 03 §4.10 c
     /// "a small reorder window").
     pub max_pending: NonZeroUsize,
+    /// The A/V sync correction ladder's parameters (card 3.B1;
+    /// additive field — the ladder is dormant while the scheduler
+    /// presents within its own lead, so v0 configurations behave
+    /// exactly as before unless sustained drift engages it).
+    pub sync: SyncPolicy,
 }
 
 /// Default reorder-window capacity `[PROPOSAL: doc 03 §4.10 c says "a
@@ -210,12 +216,17 @@ impl SchedulerCfg {
         if frame_duration == Some(Nanoseconds(0)) {
             return Err(SchedulerCfgError::ZeroFrameDuration);
         }
+        let sync = match frame_duration {
+            Some(duration) => SyncPolicy::for_frame_duration(duration),
+            None => SyncPolicy::default(),
+        };
         Ok(SchedulerCfg {
             policy,
             max_repeat,
             target_lead,
             frame_duration,
             max_pending,
+            sync,
         })
     }
 
@@ -286,6 +297,171 @@ impl SchedulerCfg {
         let due = i128::from(pts.ticks) - i128::from(self.target_lead.0);
         let clamped = due.clamp(i128::from(i64::MIN), i128::from(i64::MAX));
         Timestamp::new(clamped as i64, NANO_BASE)
+    }
+
+    /// The sync policy in force (card 3.B1: the drift-consumption
+    /// ladder's parameters — see [`SyncPolicy`]).
+    #[must_use]
+    pub fn sync(&self) -> &SyncPolicy {
+        &self.sync
+    }
+
+    /// Replace the sync policy (the wiring's knob — e.g. a session
+    /// that knows the queue caps sets the PTS-gap snap threshold from
+    /// them, doc 03 §4.7 e's "half the queue duration").
+    #[must_use]
+    pub fn with_sync(mut self, sync: SyncPolicy) -> SchedulerCfg {
+        self.sync = sync;
+        self
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Sync policy — the bounded drop/repeat ladder (card 3.B1, W1-18 §3.1)
+// ---------------------------------------------------------------------------
+
+/// The A/V sync correction ladder's parameters (card 3.B1; doc 03
+/// §4.10 e actuators + the W1-18 §3.1 control law): a hysteresis band
+/// machine over the scheduler's measured presentation-error EMA that
+/// **bounded-widens the late threshold** when presents run persistently
+/// behind the clock, and **bounded-extends the repeat budget** when
+/// they run persistently ahead. Audio is never touched (doc 03
+/// §4.10 e).
+///
+/// # Tick calibration `[PROPOSAL per W1-18 §2.1]`
+///
+/// The scheduler has **no time source** — every window below is
+/// expressed in scheduler *ticks*, calibrated to one vsync/frame slot
+/// (≈33.33 ms at 30 fps). The tick↔time equivalence is the caller's
+/// pacing contract: the host ticks once per presented slot.
+///
+/// # Sign convention (W1-18 §2.1, authoritative)
+///
+/// `e_v = pts_selected − now`: **negative = presents behind the
+/// clock** (the late side — widening applies), **positive = presents
+/// ahead** (the early side — repeat extension applies). The W1-18
+/// band table's parenthetical labels used the opposite naming; the
+/// §2.1 formula plus the remedy semantics (widen = tolerate lateness,
+/// extend = bridge starvation) fix the mapping implemented here.
+///
+/// # Dormancy when healthy
+///
+/// The default hold band `H` equals the default `target_lead`
+/// (½ frame): a scheduler presenting within its own lead — the
+/// healthy case — never leaves [`SyncBand::Hold`] and the ladder is
+/// inert. The ladder fires only on *sustained* error beyond the lead
+/// (the Schmitt dwell of [`SyncBands`] guards against spikes).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SyncPolicy {
+    /// The hold half-band `H` (ns): `|ê| ≤ H` is absorbed by the
+    /// default policy. Default ½ frame duration — equal to the
+    /// default `target_lead` ("within the lead the scheduler already
+    /// absorbs", W1-18 §3.1).
+    pub hold_band: Nanoseconds,
+    /// The Schmitt dwell `D` (ticks): band entry and exit each need
+    /// `D` sustained ticks. Default 8 (≈267 ms at 30 fps).
+    pub dwell_ticks: u32,
+    /// The ladder application cadence (ticks): band *decisions* run
+    /// every tick (the dwell is tick-scaled), but threshold/repeat
+    /// *changes* apply at most this often. Default 16 (≈0.5 s at
+    /// 30 fps).
+    pub decide_every: u32,
+    /// The widening cap, in frame durations: the effective late
+    /// threshold never exceeds `cap × frame_duration`. Default 3
+    /// (W1-18 §3.1's bounded threshold-widening).
+    pub widen_cap_frames: u32,
+    /// The drop budget: at most this many late drops per
+    /// [`SyncPolicy::drop_window_ticks`]; beyond it the threshold
+    /// stops widening (dropping is bounded, never a firehose).
+    /// Default 3 per ≈500 ms.
+    pub drop_budget: u32,
+    /// The drop-budget window (ticks, ≈500 ms at 30 fps). Default 15.
+    pub drop_window_ticks: u32,
+    /// The threshold-change rate limit: at most this many *changes*
+    /// of the effective late threshold per
+    /// [`SyncPolicy::threshold_window_ticks`] (anti-flapping, S5).
+    /// Default 2 per ≈5 s.
+    pub threshold_change_limit: u32,
+    /// The threshold-change rate window (ticks, ≈5 s at 30 fps).
+    /// Default 150.
+    pub threshold_window_ticks: u32,
+    /// The repeat-budget extension applied while
+    /// [`SyncBand::ExtendEarly`] is in force. Default +2.
+    pub repeat_extension: u32,
+    /// The PTS-gap snap threshold (ns): an incoming frame whose PTS
+    /// differs from the scheduling window's tail by at least this
+    /// enters snap mode (the next present is exempt from late-drop
+    /// accounting — doc 03 §6 step 6's "no drop-count penalty",
+    /// generalized to non-seek jumps) and resets the error estimator.
+    /// Default 500 ms `[PROPOSAL: ½ the doc 03 §4.4 audio queue
+    /// duration cap (1 s); the session wiring may override from its
+    /// QueuePlan]`.
+    pub pts_gap_threshold: Nanoseconds,
+}
+
+/// The 30 fps fallback frame duration (ns) for
+/// [`SyncPolicy::default`] when no track duration is known.
+const DEFAULT_SYNC_FRAME_NS: u64 = 33_333_334;
+
+impl SyncPolicy {
+    /// The doc-default policy for a track with a known nominal frame
+    /// duration: `H = ½ frame`, dwell 8, cadence 16, widening ≤ 3
+    /// frames, drop budget 3 per 500 ms, threshold changes ≤ 2 per
+    /// 5 s, repeat +2, snap at 500 ms (all W1-18 `[PROPOSAL]`
+    /// numbers; the *invariants* — bounded drops, hysteresis
+    /// existence, the widening cap — are the contract, the constants
+    /// are one-line changes with tests pinned to the invariants).
+    #[must_use]
+    pub fn for_frame_duration(duration: Nanoseconds) -> SyncPolicy {
+        SyncPolicy {
+            hold_band: Nanoseconds(duration.0 / 2),
+            dwell_ticks: 8,
+            decide_every: 16,
+            widen_cap_frames: 3,
+            drop_budget: 3,
+            drop_window_ticks: 15,
+            threshold_change_limit: 2,
+            threshold_window_ticks: 150,
+            repeat_extension: 2,
+            pts_gap_threshold: Nanoseconds(500_000_000),
+        }
+    }
+
+    /// The Schmitt-trigger band machine for this policy (the runtime
+    /// half the scheduler owns; the policy itself stays `Copy` value
+    /// semantics).
+    #[must_use]
+    pub fn bands(&self) -> SyncBands {
+        SyncBands::new(self.hold_band.0, self.dwell_ticks)
+    }
+
+    /// The widened effective late threshold for a sustained error
+    /// `error_ema_ns` (the W1-18 §3.1 formula): `clamp(2·|ê|, 1, cap)
+    /// × frame_duration`. `None` when no frame duration is known
+    /// (never a guess) or the policy drops nothing for lateness.
+    #[must_use]
+    pub fn widened_threshold(
+        &self,
+        error_ema_ns: i64,
+        frame_duration: Option<Nanoseconds>,
+    ) -> Option<Nanoseconds> {
+        let duration = frame_duration?;
+        // |ê| scaled by 2, capped at widen_cap × duration — i128
+        // throughout, saturating into u64 (a negative-width threshold
+        // is unrepresentable; extreme inputs clamp to the cap).
+        let doubled = i128::from(error_ema_ns)
+            .saturating_mul(2)
+            .saturating_abs();
+        let cap = i128::from(duration.0).saturating_mul(i128::from(self.widen_cap_frames));
+        let width = doubled.clamp(i128::from(duration.0), cap);
+        let ns = u64::try_from(width).unwrap_or(cap.max(0) as u64);
+        Some(Nanoseconds(ns))
+    }
+}
+
+impl Default for SyncPolicy {
+    fn default() -> SyncPolicy {
+        SyncPolicy::for_frame_duration(Nanoseconds(DEFAULT_SYNC_FRAME_NS))
     }
 }
 
@@ -517,5 +693,57 @@ mod tests {
         assert_eq!(c.max_repeat, DEFAULT_MAX_REPEAT);
         assert_eq!(c.max_pending.get(), DEFAULT_MAX_PENDING);
         assert_eq!(c.frame_duration, Some(Nanoseconds(33_333_334)));
+    }
+
+    // ---- SyncPolicy (card 3.B1: the ladder's pure half) ---------------
+
+    #[test]
+    fn sync_policy_defaults_follow_the_frame_duration() {
+        let c = SchedulerCfg::for_frame_duration(Nanoseconds(33_333_334)).must();
+        // H = ½ frame = the default lead: the hold band is exactly the
+        // lead the scheduler already absorbs (W1-18 §3.1).
+        assert_eq!(c.sync.hold_band, Nanoseconds(16_666_667));
+        assert_eq!(c.sync.hold_band, c.target_lead);
+        assert_eq!(c.sync.dwell_ticks, 8);
+        assert_eq!(c.sync.decide_every, 16);
+        assert_eq!(c.sync.widen_cap_frames, 3);
+        assert_eq!(c.sync.drop_budget, 3);
+        assert_eq!(c.sync.drop_window_ticks, 15);
+        assert_eq!(c.sync.threshold_change_limit, 2);
+        assert_eq!(c.sync.threshold_window_ticks, 150);
+        assert_eq!(c.sync.repeat_extension, 2);
+        assert_eq!(c.sync.pts_gap_threshold, Nanoseconds(500_000_000));
+        // The builder replaces the policy wholesale (the wiring's knob).
+        let replaced = SyncPolicy {
+            pts_gap_threshold: Nanoseconds(250_000_000),
+            ..SyncPolicy::default()
+        };
+        assert_eq!(
+            c.with_sync(replaced).sync.pts_gap_threshold,
+            Nanoseconds(250_000_000)
+        );
+    }
+
+    #[test]
+    fn widened_threshold_clamps_between_one_and_three_frames() {
+        let p = SyncPolicy::for_frame_duration(Nanoseconds(33_333_334));
+        let frame = Some(Nanoseconds(33_333_334));
+        // Sustained ê = −0.7 frame → 2·0.7 = 1.4 frames.
+        assert_eq!(
+            p.widened_threshold(-23_333_334, frame),
+            Some(Nanoseconds(46_666_668))
+        );
+        // Sustained ê = −3 frames → clamped at the 3-frame cap.
+        assert_eq!(
+            p.widened_threshold(-100_000_000, frame),
+            Some(Nanoseconds(100_000_002))
+        );
+        // Extreme input: still the cap, saturating (never a panic).
+        assert_eq!(
+            p.widened_threshold(i64::MIN, frame),
+            Some(Nanoseconds(100_000_002))
+        );
+        // No frame duration: no guess.
+        assert_eq!(p.widened_threshold(-50_000_000, None), None);
     }
 }
