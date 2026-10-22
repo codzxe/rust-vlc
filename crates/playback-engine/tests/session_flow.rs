@@ -1294,3 +1294,488 @@ fn the_engine_debug_renders_the_observable_surface() {
     assert!(text.contains("Engine"), "{text}");
     assert!(text.contains("Opening"), "{text}");
 }
+
+// ---------------------------------------------------------------------------
+// Per-frame damage isolation (W1-08, audit M9 / doc 03 §4.5(d))
+// ---------------------------------------------------------------------------
+
+/// The scripted video decode stage: one video frame per packet, with
+/// a corruption schedule. Corrupt slots fail with the SAME typed
+/// error the real MJPEG decoder produces for a header-smashed frame
+/// (`Corrupt`/`InvalidStructure`, codecs' `mjpeg.marker.no_soi`) —
+/// the engine's isolation policy runs against the real damage
+/// vocabulary, not a stand-in kind.
+struct VideoDecoder {
+    generation: GenerationId,
+    /// Packet indices whose decode fails as per-frame damage.
+    corrupt: Vec<u64>,
+    /// If set, every decode fails with this error verbatim (the
+    /// non-damage boundary pins).
+    fail_all: Option<EngineError>,
+}
+
+impl Decoder for VideoDecoder {
+    fn configure(&mut self, config: &DecoderConfig) -> Result<(), EngineError> {
+        self.generation = config.generation;
+        Ok(())
+    }
+
+    fn decode(
+        &mut self,
+        packet: Packet,
+        out: &mut dyn FrameSink,
+    ) -> Result<DecodeOutcome, EngineError> {
+        if let Some(error) = self.fail_all.as_ref() {
+            return Err(shallow_clone(error));
+        }
+        if packet.is_stale(self.generation) {
+            return Ok(DecodeOutcome::NeedMoreInput);
+        }
+        let index = packet_index(&packet);
+        if self.corrupt.contains(&index) {
+            return Err(corrupt_frame_error(index));
+        }
+        out.accept(video_frame(index, packet.pts, self.generation))?;
+        Ok(DecodeOutcome::Emitted { frames: 1 })
+    }
+
+    fn flush(&mut self, _out: &mut dyn FrameSink) -> Result<DecodeOutcome, EngineError> {
+        Ok(DecodeOutcome::Drained)
+    }
+}
+
+/// The decoder seam for the video-isolation scenarios: every limb
+/// gets the scheduled video decoder.
+struct VideoProvider {
+    corrupt: Vec<u64>,
+    fail_all: Option<EngineError>,
+}
+
+impl DecoderProvider for VideoProvider {
+    fn decoder_for(
+        &self,
+        _track: &Track,
+        config: &DecoderConfig,
+    ) -> Result<Box<dyn Decoder>, EngineError> {
+        Ok(Box::new(VideoDecoder {
+            generation: config.generation,
+            corrupt: self.corrupt.clone(),
+            fail_all: self.fail_all.as_ref().map(shallow_clone),
+        }))
+    }
+}
+
+/// A video packet whose payload carries its own index (the decode
+/// schedule keys on it).
+fn video_packet(track: TrackId, index: u64) -> Packet {
+    Packet {
+        track,
+        pts: at_micros((index * 1_000) as i64),
+        dts: Stamp::Missing,
+        duration: Some(Duration::Known(Nanoseconds(1_000_000))),
+        data: SharedBytes::from_vec(index.to_le_bytes().to_vec()),
+        keyframe: true,
+        discontinuity: false,
+        generation: GenerationId::FIRST,
+    }
+}
+
+/// The index a [`video_packet`] carries.
+fn packet_index(packet: &Packet) -> u64 {
+    packet
+        .data
+        .as_slice()
+        .first_chunk::<8>()
+        .map_or(u64::MAX, |chunk| u64::from_le_bytes(*chunk))
+}
+
+/// One distinguishable video frame: pixel value = index mod 256.
+fn video_frame(index: u64, pts: Stamp, generation: GenerationId) -> Frame {
+    Frame::Video(media_types::frame::VideoFrame {
+        format: media_types::PixelFormat::I420,
+        size: (8, 8),
+        data: media_types::frame::FrameStorage::Cpu(SharedBytes::from_vec(vec![
+            (index % 256) as u8;
+            8 * 8 * 3 / 2
+        ])),
+        pts,
+        color: media_types::frame::ColorDescription::BT709_LIMITED,
+        interlaced: false,
+        generation,
+    })
+}
+
+/// The typed per-frame damage a header-smashed MJPEG frame produces
+/// (the real decoder's `BadMarker` → `EngineError` mapping).
+fn corrupt_frame_error(offset: u64) -> EngineError {
+    EngineError::new(
+        PipelineStage::Decode,
+        ErrorKind::Corrupt {
+            detail: media_types::error::CorruptDetail::InvalidStructure {
+                offset: Some(offset),
+            },
+        },
+        media_types::error::ErrorContext::new("mjpeg.marker.no_soi"),
+    )
+}
+
+/// A video-only session over `count` indexed packets.
+fn open_video(count: u64, provider: VideoProvider) -> Fixture {
+    let mut script: Vec<DemuxEvent> = (0..count)
+        .map(|index| DemuxEvent::Packet(video_packet(TrackId::new(1), index)))
+        .collect();
+    script.push(DemuxEvent::EndOfStream);
+    let script = Arc::new(Mutex::new(VecDeque::from(script)));
+    let stall = Arc::new(Mutex::new(false));
+    let collector = Arc::new(Collector::default());
+    let mut config = SessionConfig::new(
+        SourceUri::parse("file:///tmp/lumen-fake-video.media").must(),
+        Box::new(FakeDemuxer {
+            tracks: vec![track(1, MediaKind::Video)],
+            script: Arc::clone(&script),
+            stall: Arc::clone(&stall),
+            fail_start: None,
+        }),
+        Arc::new(provider),
+        Arc::clone(&collector) as Arc<dyn FrameConsumer>,
+        virtual_clock(),
+    );
+    config.queues = tiny_queues();
+    config.budget = tiny_budget();
+    config.throttle = frozen_throttle();
+    let mut engine = Engine::new();
+    let handle = engine.open(config).must();
+    Fixture {
+        engine,
+        handle,
+        collector,
+        clock: virtual_clock(),
+        script,
+        stall,
+    }
+}
+
+/// The collector's frames, copied out.
+fn collected(collector: &Collector) -> Vec<(TrackId, Frame)> {
+    collector
+        .frames
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone()
+}
+
+#[test]
+fn one_corrupt_video_frame_is_concealed_and_playback_runs_to_end() {
+    // Audit M9's exact scenario: a valid stream with ONE corrupted
+    // frame (packet 10 of 24). Pre-W1-08 the session died with a
+    // fatal decode error and teardown; the per-frame isolation (doc
+    // 03 §4.5(d) — the PCM sibling's `Recovered` policy shape) must
+    // instead play to EOS with exactly one damage event, 23 decoded
+    // frames presented and one concealment (the repeated frame).
+    let mut fixture = open_video(
+        24,
+        VideoProvider {
+            corrupt: vec![10],
+            fail_all: None,
+        },
+    );
+    poll_until(
+        &mut fixture,
+        |s| s == SessionState::Ended,
+        200,
+        "drain to EOS",
+    );
+    let stats = fixture.engine.stats();
+    assert_eq!(
+        stats.frames_delivered, 23,
+        "23 of 24 packets decode a frame"
+    );
+    assert_eq!(
+        stats.frames_concealed, 1,
+        "the corrupt slot is concealed once"
+    );
+
+    // The collector saw 24 presentations: 23 decoded + 1 repeated.
+    let frames = collected(&fixture.collector);
+    assert_eq!(frames.len(), 24);
+    // The concealment: slot 10 carries slot 9's pixels (a repeat,
+    // never new content) re-stamped at slot 10's pts.
+    match (&frames[9].1, &frames[10].1) {
+        (Frame::Video(good), Frame::Video(concealed)) => {
+            assert_eq!(
+                concealed.data, good.data,
+                "the concealment repeats the last good frame's pixels"
+            );
+            assert_eq!(concealed.size, good.size);
+            match concealed.pts {
+                Stamp::Present(timestamp) => {
+                    assert_eq!(
+                        timestamp.ticks, 10_000,
+                        "re-presented at the damaged slot's pts"
+                    );
+                }
+                other => unreachable!("concealed at a present stamp, got {other:?}"),
+            }
+        }
+        other => unreachable!("video frames at slots 9/10: {other:?}"),
+    }
+    // Slot 11 decodes its own content again (the run healed).
+    match &frames[11].1 {
+        Frame::Video(next) => match next.pts {
+            Stamp::Present(timestamp) => assert_eq!(timestamp.ticks, 11_000),
+            other => unreachable!("{other:?}"),
+        },
+        other => unreachable!("{other:?}"),
+    }
+    // Exactly one damage fact, counting the one corrupt frame —
+    // engine-private but observable (doc 03 §4.6 `DamagedData`).
+    let outputs = take_events(&mut fixture);
+    let damaged: Vec<u64> = outputs
+        .iter()
+        .filter_map(|output| match output {
+            EngineOutput::Event(EngineEvent {
+                kind: EngineEventKind::DamagedData { count },
+                ..
+            }) => Some(*count),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        damaged,
+        vec![1],
+        "exactly one damage event for one corrupt frame"
+    );
+    // Its wire half: ONE coalesced non-fatal playback.error from the
+    // decode stage carrying the count (card 3.B4 — the PCM recovery
+    // shape, mirrored for video).
+    let mut recovered: Vec<EventKind> = Vec::new();
+    for output in &outputs {
+        if let EngineOutput::Event(event) = output
+            && let Some(wire) = event.as_wire_event()
+            && matches!(wire.kind, EventKind::PlaybackError { fatal: false, .. })
+        {
+            recovered.push(wire.kind);
+        }
+    }
+    assert_eq!(recovered.len(), 1, "one coalesced non-fatal playback.error");
+    match &recovered[0] {
+        EventKind::PlaybackError {
+            stage,
+            code,
+            details,
+            fatal,
+            ..
+        } => {
+            assert!(!fatal);
+            assert_eq!(*stage, commands::Stage::Decode);
+            assert_eq!(*code, commands::ErrorCode::Corrupt);
+            assert_eq!(
+                details.get("count").map(String::as_str),
+                Some("1"),
+                "the concealed frame is one counted unit"
+            );
+        }
+        _ => unreachable!("filtered to playback.error"),
+    }
+    // The FirstFrame fact is the first DECODED frame (slot 0) — a
+    // concealment never mints it (nothing was decoded yet at slot 10;
+    // the fact already existed anyway).
+    assert!(
+        outputs.iter().any(|output| {
+            matches!(
+                output,
+                EngineOutput::Event(EngineEvent {
+                    kind: EngineEventKind::FirstFrame { .. },
+                    ..
+                })
+            )
+        }),
+        "the first frame is still reported"
+    );
+}
+
+#[test]
+fn a_corrupt_first_video_frame_holds_and_playback_continues() {
+    // The "no prior frame exists" rule: the first packet is corrupt,
+    // so there is nothing to repeat — the slot holds (nothing is
+    // presented, nothing fabricated), the damage is observable, and
+    // the stream continues to EOS with the remaining frames.
+    let mut fixture = open_video(
+        12,
+        VideoProvider {
+            corrupt: vec![0],
+            fail_all: None,
+        },
+    );
+    poll_until(
+        &mut fixture,
+        |s| s == SessionState::Ended,
+        200,
+        "drain to EOS",
+    );
+    let stats = fixture.engine.stats();
+    assert_eq!(
+        stats.frames_delivered, 11,
+        "the corrupt first frame decodes nothing"
+    );
+    assert_eq!(
+        stats.frames_concealed, 0,
+        "no repeat was possible — the slot held"
+    );
+    assert_eq!(
+        collected(&fixture.collector).len(),
+        11,
+        "slot 0 presented nothing"
+    );
+    let outputs = take_events(&mut fixture);
+    let damaged: Vec<u64> = outputs
+        .iter()
+        .filter_map(|output| match output {
+            EngineOutput::Event(EngineEvent {
+                kind: EngineEventKind::DamagedData { count },
+                ..
+            }) => Some(*count),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        damaged,
+        vec![1],
+        "the held slot is still one observable damage"
+    );
+    // The first frame fact is the first REAL decode (slot 1).
+    let first = outputs.iter().find_map(|output| match output {
+        EngineOutput::Event(EngineEvent {
+            kind: EngineEventKind::FirstFrame { position },
+            ..
+        }) => Some(*position),
+        _ => None,
+    });
+    match first {
+        Some(Stamp::Present(timestamp)) => {
+            assert_eq!(
+                timestamp.ticks, 1_000,
+                "the first decoded frame speaks, not a fabrication"
+            );
+        }
+        other => unreachable!("a first frame exists: {other:?}"),
+    }
+}
+
+#[test]
+fn all_corrupt_video_reaches_the_typed_terminal_within_the_budget() {
+    // Boundary honesty (D-3): a stream whose EVERY frame fails is not
+    // playing — the concealment budget (doc 03 §4.3(d)'s bounded
+    // window precedent) spends and the damage reaches a typed
+    // terminal: ResourceLimit/RecoveryAttempts with the budget and
+    // the attempt count, landing the session in Error.
+    let budget = u64::from(playback_engine::VIDEO_CONCEALMENT_BUDGET);
+    let mut fixture = open_video(
+        budget + 1,
+        VideoProvider {
+            corrupt: Vec::new(),
+            fail_all: Some(corrupt_frame_error(0)),
+        },
+    );
+    poll_until(
+        &mut fixture,
+        |s| s == SessionState::Error,
+        1_600,
+        "budget terminal",
+    );
+    let stats = fixture.engine.stats();
+    assert_eq!(stats.frames_delivered, 0, "nothing ever decoded");
+    assert_eq!(
+        stats.frames_concealed, 0,
+        "no prior frame to repeat — every slot held"
+    );
+    assert_eq!(collected(&fixture.collector).len(), 0);
+    // The typed terminal: fatal ResourceLimit naming the spent budget.
+    let outputs = take_events(&mut fixture);
+    let fatal = outputs
+        .iter()
+        .find_map(|output| match output {
+            EngineOutput::Event(EngineEvent {
+                kind: EngineEventKind::Fatal { error },
+                ..
+            }) => Some(error),
+            _ => None,
+        })
+        .must();
+    assert_eq!(fatal.stage, PipelineStage::Decode);
+    assert_eq!(fatal.context.code, "decode.concealment.budget");
+    match &fatal.kind {
+        ErrorKind::ResourceLimit {
+            limit,
+            budget: declared,
+            attempted,
+        } => {
+            assert_eq!(*limit, media_types::error::LimitKind::RecoveryAttempts);
+            assert_eq!(*declared, budget);
+            assert_eq!(
+                *attempted,
+                budget + 1,
+                "the terminal fires one past the window"
+            );
+        }
+        other => unreachable!("the budget terminal is a ResourceLimit: {other:?}"),
+    }
+    // The concealed attempts were all observable before the terminal:
+    // the damage facts sum to exactly the budget.
+    let damaged: u64 = outputs
+        .iter()
+        .filter_map(|output| match output {
+            EngineOutput::Event(EngineEvent {
+                kind: EngineEventKind::DamagedData { count },
+                ..
+            }) => Some(*count),
+            _ => None,
+        })
+        .sum();
+    assert_eq!(damaged, budget, "every concealed attempt was counted");
+}
+
+#[test]
+fn non_damage_video_decode_errors_stay_fatal() {
+    // The classifier boundary: `Unsupported` (and by symmetry every
+    // non-damage kind) is deterministic per stream — retrying the
+    // next frame cannot help — so it must keep the fatal path even on
+    // a video limb (doc 03 §4.5(d)). The audio-limb half of the pin
+    // is `an_armed_decode_failure_transitions_to_error_from_playing`
+    // (a Bitstream error on an audio limb stays session-fatal too).
+    let unsupported = EngineError::new(
+        PipelineStage::Decode,
+        ErrorKind::Unsupported {
+            format: Some(media_types::error::FormatInfo {
+                name: Some("mjpeg".to_string()),
+                sniffed: Vec::new(),
+            }),
+        },
+        media_types::error::ErrorContext::new("mjpeg.unsupported"),
+    );
+    let mut fixture = open_video(
+        8,
+        VideoProvider {
+            corrupt: Vec::new(),
+            fail_all: Some(unsupported),
+        },
+    );
+    poll_until(&mut fixture, |s| s == SessionState::Error, 40, "fatal");
+    let outputs = take_events(&mut fixture);
+    let fatal = outputs
+        .iter()
+        .find_map(|output| match output {
+            EngineOutput::Event(EngineEvent {
+                kind: EngineEventKind::Fatal { error },
+                ..
+            }) => Some(error),
+            _ => None,
+        })
+        .must();
+    assert!(
+        matches!(fatal.kind, ErrorKind::Unsupported { .. }),
+        "unsupported stays fatal, verbatim: {fatal}"
+    );
+    assert_eq!(fatal.context.code, "mjpeg.unsupported");
+    assert_eq!(fixture.engine.stats().frames_concealed, 0);
+}
