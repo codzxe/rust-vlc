@@ -94,6 +94,20 @@ fn seek_completed_position(host: &CliHost) -> Option<Timestamp> {
     })
 }
 
+/// The position payloads of EVERY seek terminal in `host`'s event
+/// stream, in order (the landing truths — `timing.seek-completed`,
+/// doc 05 §3.2; exactly one per completed seek, doc 05 §4.3
+/// invariant 4).
+fn seek_completed_positions(host: &CliHost) -> Vec<Timestamp> {
+    host.events()
+        .iter()
+        .filter_map(|event| match event.kind {
+            EventKind::TimingSeekCompleted { position, .. } => Some(position),
+            _ => None,
+        })
+        .collect()
+}
+
 /// The teardown edges a reopen composition would have produced
 /// (the stop→close half of the forbidden D-4/D-7 shape; its
 /// `Idle → Opening` twin is pinned separately as the single open).
@@ -354,4 +368,97 @@ fn seek_without_a_session_refuses_not_ready() {
         }
         Ok(_) => unreachable!("seek without a session must refuse"),
     }
+}
+
+/// THE rapid repeated-seek storm (the C8 shape under load): five
+/// seeks with distinct targets fired back-to-back through the wire.
+/// The forbidden composition answered this with five
+/// stop→close→reopens — five teardown edges, a new session id per
+/// seek, the device/ring/decoders/renderer destroyed five times. The
+/// native flow composes each mint in-pipeline:
+///
+/// - the session epoch survives the whole storm (one open, zero
+///   teardowns — the counter-proof of the reopen shape);
+/// - every seek mints its own generation at accept (the receipt's
+///   class-A answer) and gets EXACTLY ONE terminal at its own
+///   actual landing (doc 05 §4.3 invariant 4 — the supersession
+///   contract's sequential face: this host's wire dispatch awaits
+///   each terminal before the next command is read, so no seek is
+///   ever superseded through this surface; the in-flight storm
+///   where the older seek stays silent is the engine's contract,
+///   proven in playback-engine's seek_flow supersession suite, and
+///   the host's terminal-snapshot discipline in `dispatch_seek`
+///   already keys on "the first terminal after submission" for
+///   exactly that shape);
+/// - the position after the storm is the LAST seek's actual
+///   landing, and the media still plays out to its exact end
+///   (nothing wedged, nothing leaked across the boundary).
+#[test]
+fn rapid_repeated_seeks_compose_in_pipeline() {
+    let mut host = opened();
+    let session_before = host.session_id();
+    let generation_before = host.generation();
+    // The storm: 25%, 75%, 50%, 12.5%, 87.5% of the 2.000 s media.
+    let targets = [0.25_f32, 0.75, 0.5, 0.125, 0.875];
+    for (index, fraction) in targets.iter().enumerate() {
+        seek(
+            &mut host,
+            index as u64 + 2,
+            SeekTarget::Percent { fraction: *fraction },
+        );
+    }
+
+    // The epoch survived the whole storm (the C8 counter-proof).
+    assert_eq!(host.session_id(), session_before, "one session for five seeks");
+    assert_eq!(teardown_edges(&host), 0, "{:?}", host.state_history());
+    assert_eq!(open_edges(&host), 1, "{:?}", host.state_history());
+    assert_eq!(host.state(), PlaybackState::Playing);
+
+    // Every seek minted at accept: generation = before + five.
+    assert_eq!(
+        host.generation(),
+        generation_before.map(|generation| commands::envelope::Generation(
+            generation.0 + targets.len() as u64
+        )),
+        "each seek mints its own generation"
+    );
+
+    // Exactly one terminal per seek, each at its own actual landing
+    // (the frame grid's keyframe-safe positions of the 30 fps
+    // fixture: 25%→500 ms frame-aligned, 75%→1.5 s frame-aligned,
+    // 50%→1 s, 12.5%→266.667 ms, 87.5%→1.766667 ms).
+    let landings = seek_completed_positions(&host);
+    assert_eq!(
+        landings,
+        vec![
+            Timestamp(500_000),
+            Timestamp(1_500_000),
+            Timestamp(1_000_000),
+            Timestamp(266_667),
+            Timestamp(1_766_667),
+        ],
+        "one terminal per seek, at the actual landings"
+    );
+    // The clock stands at the LAST seek's actual landing.
+    assert_eq!(host.position_us(), 1_766_666, "the last landing stands");
+
+    // The boundary moved once per seek: the presentation queue was
+    // published at each of the five mints.
+    let accounting = host.headless_accounting().must();
+    assert_eq!(accounting.queue_published, 5, "{accounting:?}");
+    assert_eq!(accounting.frames_refused, 0, "{accounting:?}");
+    assert_eq!(accounting.video_refused, 0, "{accounting:?}");
+
+    // Nothing wedged: the remainder plays out to the exact duration.
+    host.advance(lumen_cli::host::RUN_PUMPS as u32);
+    assert_eq!(host.state(), PlaybackState::Ended);
+    assert_eq!(host.position_us(), 2_000_000, "the tail play-out closes");
+
+    // The post-storm tick purged the final pre-seek scheduler window
+    // as stale (the seek-boundary proof on the scheduler side — the
+    // decode-ahead window the settle pumps filled, dropped wholesale
+    // at the generation change, never presented).
+    let accounting = host.headless_accounting().must();
+    assert_eq!(accounting.scheduler_dropped_stale, 16, "{accounting:?}");
+    assert_eq!(accounting.scheduler_dropped_late, 0, "{accounting:?}");
 }
