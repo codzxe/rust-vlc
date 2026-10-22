@@ -59,6 +59,8 @@
 //!   measures each half separately and the harness (single virtual
 //!   clock) measures the whole.
 
+use std::sync::{Arc, Mutex};
+
 use media_types::PixelFormat;
 
 use crate::error::WireError;
@@ -247,15 +249,135 @@ impl FrameHeader {
     }
 }
 
+/// How many payload buffers the decode recycle pool keeps (D-1:
+/// bounded). Three covers the frames currently queued in a
+/// default-capacity mailbox plus one handed to the consumer — the
+/// renderer-wgpu staging C5a precedent; a wider queue simply keeps
+/// its extra frames as plain owners (bounded by the queue's own
+/// capacity, never by the pool).
+const RECYCLE_SLOTS: usize = 3;
+
+/// The bounded payload-buffer recycle pool shared between a
+/// [`WireDecoder`] and the [`DecodedFrame`]s it handed out: a frame
+/// dropping returns its `payload` Vec to the pool; the next decode
+/// pops one big enough and refills it in place (the ED-FIX-2
+/// renderer-wgpu `RecyclePool` pattern applied to the wire decode
+/// path — the C7 fix's answer to the per-frame `to_vec`). Memory is
+/// bounded at `RECYCLE_SLOTS · max-frame-bytes`; a frame nobody
+/// drops simply never returns (correct, never leaks into unbounded
+/// growth).
+#[derive(Debug)]
+struct RecyclePool {
+    slots: Mutex<Vec<Vec<u8>>>,
+}
+
+impl RecyclePool {
+    fn new() -> RecyclePool {
+        RecyclePool {
+            slots: Mutex::new(Vec::new()),
+        }
+    }
+
+    /// Take a buffer for a `needed`-byte fill: prefer one whose
+    /// capacity already covers `needed` (pure reuse, no realloc);
+    /// else any buffer (it grows once — the geometry-change path).
+    /// Allocates only when the pool is empty (the warm-up path).
+    fn acquire(&self, needed: usize) -> Vec<u8> {
+        let mut slots = match self.slots.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        // Best fit: smallest capacity that covers `needed` (keeps the
+        // big buffers big-frame-sized).
+        let mut best: Option<usize> = None;
+        for (i, buf) in slots.iter().enumerate() {
+            if buf.capacity() >= needed && best.is_none_or(|b| buf.capacity() < slots[b].capacity())
+            {
+                best = Some(i);
+            }
+        }
+        match best {
+            Some(i) => slots.swap_remove(i),
+            None => slots.pop().unwrap_or_default(),
+        }
+    }
+
+    /// Return a buffer (bounded: never grows past `RECYCLE_SLOTS`).
+    fn release(&self, buffer: Vec<u8>) {
+        let mut slots = match self.slots.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        if slots.len() < RECYCLE_SLOTS {
+            slots.push(buffer);
+        }
+        // A full pool drops the returnee: bounded memory wins over
+        // retention (the next acquire allocates — cold path only).
+    }
+}
+
 /// One fully decoded record: header + owned payload (the decoder's
 /// output; the encoder works from the engine's frame types).
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// The `payload` buffer is **pooled**: frames the decoder produced
+/// return their buffer to the owning [`WireDecoder`]'s bounded
+/// recycle pool on drop, so the steady-state decode path allocates
+/// nothing (D-1). Frames constructed by hand (tests) carry no pool
+/// and behave like plain owners.
+#[derive(Clone)]
 pub struct DecodedFrame {
     /// The record header.
     pub header: FrameHeader,
     /// The payload bytes (`header.payload_len` of them, row-major).
     pub payload: Vec<u8>,
+    /// The buffer's return address (absent for hand-built frames).
+    recycle: Option<Arc<RecyclePool>>,
 }
+
+impl Drop for DecodedFrame {
+    fn drop(&mut self) {
+        if let Some(pool) = self.recycle.take() {
+            // Move the buffer out so Drop of the Vec never runs on a
+            // pooled buffer (replace with the cheapest empty Vec).
+            pool.release(std::mem::take(&mut self.payload));
+        }
+    }
+}
+
+impl DecodedFrame {
+    /// A hand-built frame with no pool attachment (in-crate test
+    /// builders): behaves like a plain owner — dropping it frees the
+    /// buffer instead of recycling it.
+    #[cfg(test)]
+    pub(crate) fn detached(header: FrameHeader, payload: Vec<u8>) -> DecodedFrame {
+        DecodedFrame {
+            header,
+            payload,
+            recycle: None,
+        }
+    }
+}
+
+impl std::fmt::Debug for DecodedFrame {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Same rendering the old derive produced (the pool handle is
+        // machinery, not frame state).
+        f.debug_struct("DecodedFrame")
+            .field("header", &self.header)
+            .field("payload", &self.payload)
+            .finish()
+    }
+}
+
+impl PartialEq for DecodedFrame {
+    fn eq(&self, other: &DecodedFrame) -> bool {
+        // Frame equality is header + payload equality; the pool handle
+        // is machinery (matches the old derive's observable behavior).
+        self.header == other.header && self.payload == other.payload
+    }
+}
+
+impl Eq for DecodedFrame {}
 
 /// Encode one record (header + payload) into a fresh `Vec`.
 ///
@@ -300,10 +422,31 @@ pub fn encode_into(
 /// holds its position and the host drops the stream (no resync —
 /// re-establish instead, the generation purge is the engine-side
 /// twin).
+///
+/// # Zero-allocation discipline (the C7 fix)
+///
+/// The decoder is built **once per stream and reused** (the mailbox
+/// transport owns a single instance for its whole life). The pending
+/// buffer is a cursor-positioned ring: consumed records advance the
+/// cursor (`next_frame` never shifts bytes — the O(n) `drain` is
+/// gone), a fully drained buffer resets in place with its capacity
+/// retained, and `feed` compacts the live tail to the front only when
+/// a partial record spans feeds. Payload buffers come from the
+/// bounded [`RecyclePool`] and cycle through the handed-out frames —
+/// after one warm-up record, the steady-state path allocates nothing
+/// (proven by `tests/zero_alloc_transport.rs` under the counting
+/// allocator).
 #[derive(Debug, Clone)]
 pub struct WireDecoder {
-    /// Bytes not yet consumed (partial header or partial record).
+    /// Bytes not yet consumed (partial header or partial record);
+    /// `pos` is the read cursor (bytes before it are consumed).
     pending: Vec<u8>,
+    /// Read cursor into `pending` (see the field docs).
+    pos: usize,
+    /// The payload-buffer recycle pool shared with the frames this
+    /// decoder hands out (bounded at `RECYCLE_SLOTS`; clones of the
+    /// decoder share it — one pool per stream, not per frame).
+    pool: Arc<RecyclePool>,
     /// Total bytes ever fed (diagnostics + stream offsets).
     fed: u64,
     /// Total bytes consumed into complete records (diagnostics).
@@ -322,6 +465,8 @@ impl WireDecoder {
     pub fn new() -> WireDecoder {
         WireDecoder {
             pending: Vec::new(),
+            pos: 0,
+            pool: Arc::new(RecyclePool::new()),
             fed: 0,
             consumed: 0,
         }
@@ -329,6 +474,17 @@ impl WireDecoder {
 
     /// Feed one chunk of the stream (any length, any alignment).
     pub fn feed(&mut self, chunk: &[u8]) {
+        if self.pos > 0 {
+            // Compact the consumed prefix away before extending
+            // (bounded memory: the ring never carries dead bytes
+            // across feeds). O(live tail) — and zero on the common
+            // fully-drained path, where `next_frame` already reset
+            // the buffer in place.
+            let pos = self.pos;
+            self.pending.copy_within(pos.., 0);
+            self.pending.truncate(self.pending.len() - pos);
+            self.pos = 0;
+        }
         self.pending.extend_from_slice(chunk);
         self.fed += chunk.len() as u64;
     }
@@ -348,30 +504,99 @@ impl WireDecoder {
 
     /// Try to decode the next complete record.
     ///
+    /// The payload moves out of the ring in **one copy** into a
+    /// pooled buffer (ownership transfer — the frame's consumer owns
+    /// its bytes; the buffer returns to this decoder's pool on drop).
+    /// The old fresh `to_vec` + O(n) `drain(..total)` per frame is the
+    /// C7 violation this replaces.
+    ///
     /// # Errors
     /// [`WireError`] for malformed records (sticky — see the type
     /// docs).
     /// Returns `Ok(None)` when more input is needed.
     pub fn next_frame(&mut self) -> Result<Option<DecodedFrame>, WireError> {
-        if self.pending.len() < MIN_HEADER_LEN {
+        let remaining = self.pending.len() - self.pos;
+        if remaining < MIN_HEADER_LEN {
             return Ok(None);
         }
-        let (header, header_len) = Self::parse_header(&self.pending).map_err(|mut err| {
-            // Stream-offset honesty: the record under the cursor
-            // starts at `consumed` in fed-stream coordinates.
-            if let WireError::BadMagic { offset, .. } = &mut err {
-                *offset = self.consumed;
-            }
-            err
-        })?;
+        let (header, header_len) =
+            Self::parse_header(&self.pending[self.pos..]).map_err(|mut err| {
+                // Stream-offset honesty: the record under the cursor
+                // starts at `consumed` in fed-stream coordinates.
+                if let WireError::BadMagic { offset, .. } = &mut err {
+                    *offset = self.consumed;
+                }
+                err
+            })?;
         let total = header_len + header.payload_len as usize;
-        if self.pending.len() < total {
+        if remaining < total {
             return Ok(None);
         }
-        let payload = self.pending[header_len..total].to_vec();
-        self.pending.drain(..total);
+        let start = self.pos;
+        let mut payload = self.pool.acquire(header.payload_len as usize);
+        payload.clear();
+        payload.extend_from_slice(&self.pending[start + header_len..start + total]);
+        // Cursor advancement, never a byte shift.
+        self.pos = start + total;
         self.consumed += total as u64;
-        Ok(Some(DecodedFrame { header, payload }))
+        if self.pos == self.pending.len() {
+            // Fully drained: reset in place (capacity retained — the
+            // next feed of the same size class does not allocate).
+            self.pending.clear();
+            self.pos = 0;
+        }
+        Ok(Some(DecodedFrame {
+            header,
+            payload,
+            recycle: Some(Arc::clone(&self.pool)),
+        }))
+    }
+
+    /// Decode exactly ONE complete record, direct from the slice (the
+    /// in-process hand-off path — the C7 fix): the header is parsed
+    /// through a slice window and the payload moves into a pooled
+    /// buffer in one copy, with **no** pending-buffer traffic and no
+    /// per-call decoder state. This is what a byte producer with one
+    /// record per message calls (the mailbox transport's `send`);
+    /// chunked stream consumers use [`Self::feed`] +
+    /// [`Self::next_frame`].
+    ///
+    /// `record` must hold exactly one record: fewer bytes is
+    /// [`WireError::Truncated`]; leftover bytes after the complete
+    /// record are [`WireError::TrailingBytes`] (a host bug — one
+    /// record per hand-off is the producer's contract).
+    ///
+    /// # Errors
+    /// [`WireError`] for anything that is not exactly one
+    /// well-formed record.
+    pub fn decode_record(&mut self, record: &[u8]) -> Result<DecodedFrame, WireError> {
+        if record.len() < MIN_HEADER_LEN {
+            return Err(WireError::Truncated {
+                missing: (MIN_HEADER_LEN - record.len()) as u64,
+            });
+        }
+        let (header, header_len) = Self::parse_header(record)?;
+        let total = header_len + header.payload_len as usize;
+        if record.len() < total {
+            return Err(WireError::Truncated {
+                missing: (total - record.len()) as u64,
+            });
+        }
+        if record.len() > total {
+            return Err(WireError::TrailingBytes {
+                count: (record.len() - total) as u64,
+            });
+        }
+        let mut payload = self.pool.acquire(header.payload_len as usize);
+        payload.clear();
+        payload.extend_from_slice(&record[header_len..]);
+        self.fed += record.len() as u64;
+        self.consumed += record.len() as u64;
+        Ok(DecodedFrame {
+            header,
+            payload,
+            recycle: Some(Arc::clone(&self.pool)),
+        })
     }
 
     /// Assert the stream ended at a record boundary.
@@ -381,14 +606,15 @@ impl WireDecoder {
     /// buffered (its declared length is known — the payload says how
     /// much is missing).
     pub fn finish(&self) -> Result<(), WireError> {
-        if self.pending.is_empty() {
+        let unconsumed = &self.pending[self.pos..];
+        if unconsumed.is_empty() {
             return Ok(());
         }
-        let missing = if self.pending.len() < MIN_HEADER_LEN {
-            (MIN_HEADER_LEN - self.pending.len()) as u64
+        let missing = if unconsumed.len() < MIN_HEADER_LEN {
+            (MIN_HEADER_LEN - unconsumed.len()) as u64
         } else {
-            let (header, header_len) = Self::parse_header(&self.pending)?;
-            (header_len + header.payload_len as usize - self.pending.len()) as u64
+            let (header, header_len) = Self::parse_header(unconsumed)?;
+            (header_len + header.payload_len as usize - unconsumed.len()) as u64
         };
         Err(WireError::Truncated { missing })
     }
@@ -787,5 +1013,147 @@ mod tests {
                 f64::from(MIN_HEADER_LEN as u32) / ((payload + MIN_HEADER_LEN as u64) as f64);
             assert!(overhead < 0.000_01, "{overhead}");
         }
+    }
+
+    #[test]
+    fn decode_record_is_the_streaming_result_direct_from_the_slice() {
+        // The direct-hand-off API (the mailbox transport's send path)
+        // and the chunked streaming API agree on every field and every
+        // payload byte — one codec, two entry points, no drift.
+        let mut h = header(3, 2);
+        h.frame_id = 11;
+        let record = encode(&h, &payload(24)).must();
+
+        let mut direct = WireDecoder::new();
+        let frame = direct.decode_record(&record).must();
+        assert_eq!(frame.header, h);
+        assert_eq!(frame.payload, payload(24));
+        // Diagnostics accumulate exactly like the streaming path.
+        assert_eq!(direct.bytes_fed(), record.len() as u64);
+        assert_eq!(direct.bytes_consumed(), record.len() as u64);
+
+        let mut streaming = WireDecoder::new();
+        streaming.feed(&record);
+        let twin = streaming.next_frame().must().must();
+        assert_eq!(frame, twin, "direct and streaming decodes are equal");
+        streaming.finish().must();
+    }
+
+    #[test]
+    fn decode_record_refuses_truncated_and_trailing_input() {
+        let h = header(2, 2);
+        let record = encode(&h, &payload(16)).must();
+        let mut d = WireDecoder::new();
+
+        // Cut inside the header: 48 - 20 = 28 missing.
+        assert_eq!(
+            d.decode_record(&record[..20]).err(),
+            Some(WireError::Truncated { missing: 28 })
+        );
+        // Cut inside the payload: 64 - 50 = 14 missing.
+        assert_eq!(
+            d.decode_record(&record[..50]).err(),
+            Some(WireError::Truncated { missing: 14 })
+        );
+        // Two records in one hand-off: the second record's 64 bytes
+        // are trailing.
+        let mut two = record.clone();
+        two.extend(record.clone());
+        assert_eq!(
+            d.decode_record(&two).err(),
+            Some(WireError::TrailingBytes { count: 64 })
+        );
+        // Garbage after one complete record is trailing too.
+        let mut trailing = record.clone();
+        trailing.extend(b"XX");
+        assert_eq!(
+            d.decode_record(&trailing).err(),
+            Some(WireError::TrailingBytes { count: 2 })
+        );
+        // A refusal leaves no state behind: the same decoder takes
+        // the good record next.
+        assert_eq!(d.decode_record(&record).must().header.frame_id, h.frame_id);
+    }
+
+    #[test]
+    fn one_decoder_recycles_payload_buffers_across_records() {
+        // The C7 shape: ONE decoder, N records, each frame dropped by
+        // its consumer — the payload buffers cycle through the pool
+        // (the measured zero-allocation proof is the dedicated
+        // counting-allocator binary; this pins the *correctness* of
+        // the reuse: no state bleed between recycled buffers).
+        let mut d = WireDecoder::new();
+        for id in 0..8u64 {
+            let mut h = header(2, 2);
+            h.frame_id = id;
+            h.pts_ns = id as i64 * 1_000;
+            let record = encode(&h, &payload(16)).must();
+            let frame = d.decode_record(&record).must();
+            assert_eq!(frame.header.frame_id, id);
+            assert_eq!(frame.header.pts_ns, id as i64 * 1_000);
+            assert_eq!(frame.payload, payload(16));
+            // The consumer drops the frame: the buffer returns to the
+            // pool (the next iteration must reuse it cleanly).
+            drop(frame);
+        }
+        // Geometry changes ride the same pool (grow-once path).
+        let big = header(4, 4);
+        let record = encode(&big, &payload(64)).must();
+        let frame = d.decode_record(&record).must();
+        assert_eq!(frame.payload, payload(64));
+    }
+
+    #[test]
+    fn partial_records_compact_without_losing_bytes() {
+        // Cursor + compaction: a record split across feeds with
+        // consumed bytes in front of it — the live tail moves to the
+        // front, nothing is lost or duplicated.
+        let mut first = header(2, 2);
+        first.frame_id = 1;
+        let mut second = header(2, 2);
+        second.frame_id = 2;
+        let mut third = header(2, 2);
+        third.frame_id = 3;
+        let r1 = encode(&first, &payload(16)).must();
+        let r2 = encode(&second, &payload(16)).must();
+        let r3 = encode(&third, &payload(16)).must();
+
+        let mut d = WireDecoder::new();
+        // Feed record 1 whole plus the first half of record 2.
+        d.feed(&r1);
+        d.feed(&r2[..r2.len() / 2]);
+        assert_eq!(d.next_frame().must().must().header.frame_id, 1);
+        // The consumed prefix is still in the buffer (cursor at r1's
+        // end); feeding the rest of record 2 plus all of record 3
+        // must compact, not corrupt.
+        d.feed(&r2[r2.len() / 2..]);
+        d.feed(&r3);
+        assert_eq!(d.next_frame().must().must().header.frame_id, 2);
+        assert_eq!(d.next_frame().must().must().header.frame_id, 3);
+        assert!(d.next_frame().must().is_none());
+        assert_eq!(d.bytes_fed(), (r1.len() + r2.len() + r3.len()) as u64);
+        assert_eq!(d.bytes_consumed(), d.bytes_fed());
+        d.finish().must();
+    }
+
+    #[test]
+    fn clones_and_hand_built_frames_behave_like_plain_owners() {
+        // No pool: a hand-built frame drops like a plain Vec owner.
+        let hand = DecodedFrame::detached(header(1, 1), payload(4));
+        assert_eq!(hand.payload.len(), 4);
+        drop(hand);
+        // A clone shares nothing pooled: each owns its Vec; both
+        // return cleanly (bounded by the pool's slot count).
+        let mut d = WireDecoder::new();
+        let record = encode(&header(1, 1), &payload(4)).must();
+        let frame = d.decode_record(&record).must();
+        let clone = frame.clone();
+        assert_eq!(clone, frame, "equality ignores the pool handle");
+        drop(frame);
+        assert_eq!(clone.payload.len(), 4);
+        drop(clone);
+        // Equality is header + payload, pool handle invisible.
+        let twin = DecodedFrame::detached(header(1, 1), payload(4));
+        assert_eq!(d.decode_record(&record).must(), twin);
     }
 }
