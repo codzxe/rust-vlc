@@ -603,16 +603,25 @@ impl PresentationScheduler {
                     }
                     // 3.B1 discontinuity seam (doc 03 §4.7 e's PTS-jump
                     // tier, scheduler-side): an incoming PTS that
-                    // jumps from the window's tail by at least the
-                    // snap threshold arms snap mode — the next present
-                    // is exempt from late-drop accounting — and
-                    // restarts the error estimator (a new regime).
-                    // The window is PTS-sorted; ordering needs no
-                    // help. The threshold is wiring-configurable
-                    // (`SchedulerCfg::with_sync`), default ½ the doc
-                    // 03 §4.4 audio queue duration cap.
-                    if let Some(tail) = self.window.back() {
-                        let gap = i128::from(pts.ticks) - i128::from(tail.pts.ticks);
+                    // jumps from the stream's continuation — the
+                    // window's tail, or the last-presented frame when
+                    // the stream is caught up (the window is empty —
+                    // the common case for a mid-stream gap) — by at
+                    // least the snap threshold arms snap mode: the
+                    // next present is exempt from late-drop
+                    // accounting, and the error estimator restarts (a
+                    // new regime). The window is PTS-sorted; ordering
+                    // needs no help. The threshold is
+                    // wiring-configurable (`SchedulerCfg::with_sync`),
+                    // default ½ the doc 03 §4.4 audio queue duration
+                    // cap.
+                    let continuation = self
+                        .window
+                        .back()
+                        .map(|tail| tail.pts.ticks)
+                        .or_else(|| self.last.as_ref().map(|request| request.when.ticks));
+                    if let Some(reference) = continuation {
+                        let gap = i128::from(pts.ticks) - i128::from(reference);
                         if gap.abs() >= i128::from(self.cfg.sync.pts_gap_threshold.0) {
                             self.sync.reset_estimators(&self.cfg);
                             self.sync.snap_pending = true;
