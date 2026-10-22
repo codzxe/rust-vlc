@@ -280,10 +280,11 @@ fn avi_loop(n: usize) {
     );
     assert_eq!(stats.inputs, n, "avi: loop must run every iteration");
     // W2-17: the deep fraction and length spread are pinned to the
-    // RECORDED default-run values (measured at f63fee4: 827/1000 =
-    // 82.7% deep, 743 distinct lengths — byte-stable, the seeds are
-    // fixture-pinned and the Rng is local) so generator drift fails
-    // loudly instead of sliding under a loose n/3 floor.
+    // RECORDED default-run values (measured at f63fee4 and re-verified
+    // byte-identical after the main @ 9f082f3 merge: 827/1000 =
+    // 82.7% deep, 743 distinct lengths — the seeds are fixture-pinned
+    // and the Rng is local) so generator drift fails loudly instead
+    // of sliding under a loose n/3 floor.
     assert!(
         stats.deep_entries >= n * 4 / 5,
         "avi: only {} of {n} inputs kept container magic — the seed mix went vacuous",

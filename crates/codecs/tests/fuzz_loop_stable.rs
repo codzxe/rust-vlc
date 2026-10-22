@@ -412,10 +412,11 @@ fn mjpeg_loop(n: usize) {
         started.elapsed()
     );
     // W2-17: the deep fraction and length spread are pinned to the
-    // RECORDED default-run values (measured at f63fee4: 599/1000 =
-    // 59.9% deep, 726 distinct lengths — byte-stable, the seeds are
-    // fixture-pinned and the Rng is local) so generator drift fails
-    // loudly instead of sliding under a loose n/4 floor.
+    // RECORDED default-run values (measured at f63fee4 and re-verified
+    // byte-identical after the main @ 9f082f3 merge: 599/1000 =
+    // 59.9% deep, 726 distinct lengths — the seeds are fixture-pinned
+    // and the Rng is local) so generator drift fails loudly instead
+    // of sliding under a loose n/4 floor.
     assert_honest(&stats, n, n / 2, 700, "mjpeg");
 }
 

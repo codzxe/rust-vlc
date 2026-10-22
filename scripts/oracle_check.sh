@@ -43,7 +43,8 @@
 #   was checked; now it FAILs, and so does an undeclared extra row.
 #
 # PERIMETER (the other W2-17 cure — no silent unpin through growth)
-#   The pinned extensions are {.avi,.mp4} (the find below). Media
+#   The pinned extensions are {.avi,.mp4} (the find below, matched
+#   case-insensitively — D-9). Media
 #   files with any other KNOWN media extension are not silently
 #   skipped: each is explicitly warned about and FAILS the run — a
 #   future .mkv/.mov/.webm/… fixture must extend the pin set (find
@@ -139,8 +140,13 @@ decode_hash () {
 }
 
 # --- enumerate fixtures (media files only; .structure.json etc. excluded) ---
+# `-iname`: the perimeter is case-insensitive on BOTH sides (D-9's
+# casing directive) — a stray `clip.AVI` is pinned-or-failed loudly
+# here, it cannot slip past the case-sensitive fast path AND the
+# (lowercasing) unsupported list below the way a fixed `find -name`
+# would let it.
 mapfile -t FIXTURES < <(
-  find "$FIXTURE_DIR" -maxdepth 1 -type f \( -name '*.avi' -o -name '*.mp4' \) 2>/dev/null | sort
+  find "$FIXTURE_DIR" -maxdepth 1 -type f \( -iname '*.avi' -o -iname '*.mp4' \) 2>/dev/null | sort
 )
 if [[ ${#FIXTURES[@]} -eq 0 || -z "${FIXTURES[0]:-}" ]]; then
   echo "oracle_check: FAIL — no media fixtures found under $FIXTURE_DIR (the oracle pin set must not silently vanish)" >&2
