@@ -1703,3 +1703,21 @@ Stage Summary:
 - main @ da4fd90 pushed; gate SUCCESS (0/10 failed, 5 skipped); test baseline ~1362+ grown by the wave (each branch verified 108-110 ok suites before merge).
 - The randomized-corpus system is REAL and already paying: D-11 law, generator + harness + 3 env-gated suites committed, two reports (before/after) with measured numbers, and one genuine regression caught (ED-FIX-1b follow-up).
 - Follow-ups registered: ED-FIX-1b (investigate the 5-file concealment regression; corpus replay by seed), pcm stream-recognition gap (s24le/u8/f32le fourcc table in the AVI demuxer), audio packetization accounting vs oracle, harness refinement (record decoded format/dims rows), ED-FIX-4 dispatch (host seek migration + pre-roll hold + epoch-aware OutputHub + graceful exit), ED-FIX-5 remainder (fuzz scaffolding, pcm_fuzz_survival phantom), Phase 3 waves 3.A2/A3, 3.B1-B3, 3.C/D/E/F.
+# Lead launch entry — append to worklog.md before Wave 1 agents return.
+---
+Task ID: 3.WAVE-PROGRAM (Lead)
+Agent: Lead
+Task: User directive 2026-10-22: "start 200 agents in waves of 10 waves and fix all things and start building further and dont stop and ask for permission again and again." Durable program + Wave 1 launch.
+
+Work Log:
+- State at launch: main @ 5b396e5, gate SUCCESS (0 failed / 5 skipped), ~1370 tests; D-1..D-11 live; 3.A1 + 3.B4 + ED-FIX-1/2/3 merged; randomized-corpus system (gen_corpus.py + run_harness.py + 3 env-gated suites) operational with 486-file corpus on disk + 3 measured reports; ffmpeg 7.1.5 present.
+- Backlog enumerated from the audit register + ED-CORPUS-1 follow-ups: ED-FIX-4 (C8 host seek, M1 bounds, M9 concealment, M10 pre-roll hold, M11 epoch hub, M17 graceful exit), ED-FIX-5 (M14 fuzz+phantom, M15 oracle pinning, M16 adversarial gaps), ED-FIX-1b (5-file concealment regression), pcm fourcc gap, audio packetization accounting, harness dims rows, corpus scale run; Phase 3 cards 3.A2/A3/B1/B2/B3/C1-C3/D1-D3/E1-E4/F1/F2-V (17 remaining).
+- Program: 10 waves x 20 agents = 200. Wave shape: [implementation cards] + [recon for next wave] + [adversarial verification of previous wave] + [corpus/measurement/ops]. Lead merges between waves, runs gates, pushes (INFRA-BACKUP-1).
+- Wave protocol changes for parallel safety: (a) agents write worklog entries to worklog-queue/<TaskID>.md, Lead merges into worklog.md at wave close (20-way direct append corrupts); (b) shared CARGO_TARGET_DIR=/home/z/my-project/target, builds serialize on the cargo lock — single-crate cargo test only, no workspace builds, no gate runs by agents; (c) file ownership per agent to prevent merge conflicts (host.rs vs run.rs; session.rs vs events.rs; pipeline error-path vs pre-roll region).
+- 12 worktrees created off main @ 5b396e5: w1-02 pcm-fourcc, w1-04 harness-rows, w1-06 host-seek, w1-07 session-bounds, w1-08 concealment, w1-09 preroll-hold, w1-10 epoch-hub, w1-11 graceful-exit, w1-12 fuzz-scaffold, w1-13 phantom-test, w1-14 oracle-pin, w1-15 adversarial-demux.
+- Wave 1 roster (20): 12 code agents above + 8 analysis/ops: W1-01 ED-FIX-1b triage (seed replay, no code), W1-03 audio-packet accounting classification, W1-05 corpus scale run (600 files, budget 1600 MB, nice+setsid), W1-16..W1-19 recon for 3.A2/3.A3/3.B1/3.B3, W1-20 post-merge re-audit of ED-FIX-1/2/3 vs register rows C1-C4,C5-C7,M2-M8,M18,M19.
+- Model routing: opus for the 3 hardest lifecycle cards (W1-06 C8, W1-09 M10, W1-10 M11); sonnet for the rest.
+
+Stage Summary:
+- 10-wave program launched; Wave 1 (20 agents) in flight in 12 worktrees + 8 read-only analysts.
+- Lead duties at wave close: verify branches, merge (conflict ownership map above), run full gate, regen evidence, merge worklog-queue entries, push, then compose Wave 2 from: W1 recon outputs -> 3.A2/A3/B1/B3 implementations + adversarial verifiers + corpus-big harness measurement.
