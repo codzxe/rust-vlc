@@ -15,9 +15,12 @@
 //!
 //! 1. **`extra_data` as WAVEFORMATEX** `[PROPOSAL]` — the container's
 //!    own out-of-band init bytes, verbatim (AVI `strf` / WAV `fmt `:
-//!    16-byte PCMWAVEFORMAT or 18-byte WAVEFORMATEX; the engine hands
-//!    them on exactly as it hands AVC config records). Cross-checked
-//!    against the descriptor's width/tag at `configure`.
+//!    16-byte PCMWAVEFORMAT, 18-byte WAVEFORMATEX, or the ≥ 40-byte
+//!    WAVEFORMATEXTENSIBLE whose SubFormat GUID names the real format
+//!    — vendor tail bytes past offset 40 are legal per the MS schema
+//!    and unread; the engine hands the blob on exactly as it hands AVC
+//!    config records). Cross-checked against the descriptor's
+//!    width/tag at `configure`.
 //! 2. **[`PcmDecoder::with_format`]** — the typed-facts seam for
 //!    containers whose init bytes are not WAVEFORMATEX (MP4's
 //!    `AudioSampleEntry`: the adapter synthesizes the 16 bytes from
@@ -74,6 +77,14 @@ use super::{PcmFormat, PcmSource};
 const WAVE_FORMAT_PCM: u16 = 1;
 /// `wFormatTag` for IEEE float PCM.
 const WAVE_FORMAT_IEEE_FLOAT: u16 = 3;
+/// Maximum accepted `nChannels` in a WAVEFORMATEX/WAVEFORMATEXTENSIBLE
+/// blob — stage agreement with the demuxer's own ceiling
+/// (`demux::avi::header::MAX_PCM_CHANNELS`; the two crates keep their
+/// own copy rather than share an interface, and the attack suites pin
+/// the agreement). Beyond it a channel count is corruption, and the
+/// block-align cross-check below could truncate through `u16` for
+/// channels × width ≥ 65536 — refuse typed instead (W2-15 g1).
+const MAX_PCM_CHANNELS: u16 = 64;
 
 /// The validated decode plan, assembled once at `configure`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -110,7 +121,16 @@ impl PcmPlan {
             .sample
             .is_little_endian()
             .is_some_and(|stream_le| stream_le != cfg!(target_endian = "little"));
-        let frame_bytes = source.channels as usize * source.sample.bytes_per_sample() as usize;
+        // Saturating, never wrapping: `with_format` deliberately keeps
+        // accepting extreme channel counts (every sane packet then
+        // decodes to zero whole sample-frames and skips honestly), and
+        // on a 32-bit target (wasm32 — an explicit project target) the
+        // plain `*` would overflow: debug builds panic, release builds
+        // wrap (W2-15 g3 / B5's pinned 64-bit behavior is unchanged —
+        // the product only ever saturates when it already exceeded
+        // every representable packet).
+        let frame_bytes =
+            (source.channels as usize).saturating_mul(source.sample.bytes_per_sample() as usize);
         Ok(PcmPlan {
             source,
             rate,
@@ -212,23 +232,27 @@ const SUBFORMAT_IEEE_FLOAT_GUID: [u8; 16] = [
     0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71,
 ];
 
-/// Parse a 16-byte PCMWAVEFORMAT, 18-byte WAVEFORMATEX or 40-byte
-/// WAVEFORMATEXTENSIBLE and cross-check it against the descriptor's
-/// format. The extensible form resolves its SubFormat GUID to the
-/// plain PCM/float tag first (the demuxer accepts the same blobs —
-/// the engine may hand either crate's view the container's verbatim
-/// `strf`).
+/// Parse a 16-byte PCMWAVEFORMAT, 18-byte WAVEFORMATEX or
+/// WAVEFORMATEXTENSIBLE (any length ≥ 40: the GUID sits at the fixed
+/// offset 24..40, and vendor tail bytes past 40 are legal per the MS
+/// schema — `cbSize` counts the whole extension — and unread; the
+/// bound is physical, mirroring the demuxer's own `strf_size >= 40`
+/// rule at `header.rs:757`, so both stages accept the same blobs)
+/// and cross-check it against the descriptor's format. The
+/// extensible form resolves its SubFormat GUID to the plain PCM/float
+/// tag first (the demuxer accepts the same blobs — the engine may
+/// hand either crate's view the container's verbatim `strf`).
 ///
 /// # Errors
 /// [`PcmError::Unsupported`] for every length/tag/width/consistency
 /// violation (distinct context codes; see the module docs).
 fn parse_waveformatex(bytes: &[u8], format: PcmFormat) -> Result<Facts, PcmError> {
-    if !matches!(bytes.len(), 16 | 18 | 40) {
+    if !matches!(bytes.len(), 16 | 18) && bytes.len() < 40 {
         return Err(unsupported(
             "pcm.waveformat.length",
             format!(
                 "stream-facts blob must be a 16-byte PCMWAVEFORMAT, \
-                 18-byte WAVEFORMATEX or 40-byte WAVEFORMATEXTENSIBLE, \
+                 18-byte WAVEFORMATEX or >= 40-byte WAVEFORMATEXTENSIBLE, \
                  got {} bytes",
                 bytes.len()
             ),
@@ -249,6 +273,22 @@ fn parse_waveformatex(bytes: &[u8], format: PcmFormat) -> Result<Facts, PcmError
             "nChannels is zero — a PCM stream needs at least one channel",
         ));
     }
+    // The channel ceiling (W2-15 g1): the demuxer refuses `nChannels`
+    // beyond 64 before ever resolving the GUID; this seam must not be
+    // bypassable by the same untrusted bytes its align cross-check
+    // exists to validate (channels × width ≥ 65536 used to wrap the
+    // expected align through `as u16`, so a crafted blob passed its
+    // own "consistency" check).
+    if channels > MAX_PCM_CHANNELS {
+        return Err(unsupported(
+            "pcm.waveformat.channels",
+            format!(
+                "nChannels {channels} is beyond the accepted ceiling \
+                 ({MAX_PCM_CHANNELS}) — corruption, not a layout this \
+                 engine can honor"
+            ),
+        ));
+    }
     if rate == 0 {
         return Err(unsupported(
             "pcm.waveformat.rate",
@@ -257,13 +297,14 @@ fn parse_waveformatex(bytes: &[u8], format: PcmFormat) -> Result<Facts, PcmError
     }
     // The extensible form names its real format in the SubFormat GUID
     // (byte 24); resolve it to the plain tag the descriptor check
-    // understands. Anything but the 40-byte form is a length lie.
+    // understands. Anything short of the ≥ 40-byte form is a length
+    // lie (the GUID cannot physically fit).
     let tag = if tag == WAVE_FORMAT_EXTENSIBLE {
-        if bytes.len() != 40 {
+        if bytes.len() < 40 {
             return Err(unsupported(
                 "pcm.waveformat.extensible",
-                "WAVE_FORMAT_EXTENSIBLE requires the 40-byte form carrying \
-                 the SubFormat GUID",
+                "WAVE_FORMAT_EXTENSIBLE requires the >= 40-byte form \
+                 carrying the SubFormat GUID",
             ));
         }
         if bytes[24..40] == SUBFORMAT_PCM_GUID {
@@ -315,7 +356,24 @@ fn parse_waveformatex(bytes: &[u8], format: PcmFormat) -> Result<Facts, PcmError
             ),
         ));
     }
-    let align_expected = (u32::from(channels) * format.bytes_per_sample()) as u16;
+    // Checked, never truncating (W2-15 g1): the expected align is the
+    // true product `channels × sample width`; a product that does not
+    // fit `u16` means no declared `nBlockAlign` can be honest. (With
+    // the channel ceiling above the product is ≤ 512 — the `try_from`
+    // is defense in depth so the two guards stay independent.)
+    let align_true = u32::from(channels) * format.bytes_per_sample();
+    let align_expected = match u16::try_from(align_true) {
+        Ok(align) => align,
+        Err(_) => {
+            return Err(unsupported(
+                "pcm.waveformat.block_align",
+                format!(
+                    "channels × sample width is {align_true} — beyond \
+                     nBlockAlign's u16 range, no declared align can be honest"
+                ),
+            ));
+        }
+    };
     if block_align != align_expected {
         return Err(unsupported(
             "pcm.waveformat.block_align",
@@ -664,6 +722,93 @@ mod tests {
             let facts = parse_waveformatex(&bytes, PcmFormat::S16Le);
             assert_eq!(facts, Ok((2, 48_000)));
         }
+    }
+
+    #[test]
+    fn waveformatextensible_length_ladder_pins_the_physical_bound() {
+        // W2-15 (a4): the extensible bound is physical, not the
+        // exact-40 shape — the GUID sits at the fixed offset 24..40, so
+        // every length >= 40 carries it, and the vendor tail past 40 is
+        // legal WAVEFORMATEXTENSIBLE (cbSize counts the whole
+        // extension; the demuxer's own rule is `strf_size >= 40` and
+        // ffprobe plays the 42-byte form — measured, W2-15 worklog).
+        // 17 and 19..=39 are the refused margins: neither a plain form
+        // nor a GUID-carrying one.
+        let mut blob = waveformat(44_100);
+        blob[0..2].copy_from_slice(&0xFFFEu16.to_le_bytes());
+        blob.extend_from_slice(&22u16.to_le_bytes()); // cbSize
+        blob.extend_from_slice(&16u16.to_le_bytes()); // valid bits
+        blob.extend_from_slice(&0x3u32.to_le_bytes()); // channel mask
+        blob.extend_from_slice(&SUBFORMAT_PCM_GUID);
+        assert_eq!(blob.len(), 40);
+        for tail in [0usize, 1, 2, 8, 24] {
+            let mut extended = blob.clone();
+            extended.extend(std::iter::repeat_n(0xA5, tail));
+            assert_eq!(
+                parse_waveformatex(&extended, PcmFormat::S16Le),
+                Ok((2, 44_100)),
+                "vendor tail {tail}"
+            );
+        }
+        for len in [17usize, 19, 20, 39] {
+            assert_eq!(
+                parse_waveformatex(&blob[..len], PcmFormat::S16Le)
+                    .err()
+                    .map(|e| e.into_engine_error().context.code),
+                Some("pcm.waveformat.length".to_string()),
+                "len {len}"
+            );
+        }
+        // 16 and 18 with the extensible tag stay the extensible
+        // refusal: the GUID cannot physically fit.
+        for len in [16usize, 18] {
+            assert_eq!(
+                parse_waveformatex(&blob[..len], PcmFormat::S16Le)
+                    .err()
+                    .map(|e| e.into_engine_error().context.code),
+                Some("pcm.waveformat.extensible".to_string()),
+                "len {len}"
+            );
+        }
+    }
+
+    #[test]
+    fn channel_counts_beyond_the_ceiling_are_typed_refusals() {
+        // W2-15 (g1): the align cross-check used to truncate through
+        // `as u16` — channels=32768 × s16 with a declared align of 0
+        // passed its own "consistency" check (65536 wraps to 0). The
+        // ceiling (stage agreement with the demuxer's 64) and the
+        // checked product close the bypass; 64 itself is the boundary
+        // and must stay accepted.
+        for (channels, align, bits) in [
+            (32768u16, 0u16, 16u16),
+            (65535, 65534, 16),
+            (16384, 0, 32),
+            (8192, 0, 64),
+            (65, 130, 16),
+        ] {
+            let mut blob = waveformat(8_000);
+            blob[2..4].copy_from_slice(&channels.to_le_bytes());
+            blob[8..12].copy_from_slice(&(u32::from(align) * 8_000).to_le_bytes());
+            blob[12..14].copy_from_slice(&align.to_le_bytes());
+            blob[14..16].copy_from_slice(&bits.to_le_bytes());
+            assert_eq!(
+                parse_waveformatex(&blob, PcmFormat::S16Le)
+                    .err()
+                    .map(|e| e.into_engine_error().context.code),
+                Some("pcm.waveformat.channels".to_string()),
+                "channels {channels} × width must not configure"
+            );
+        }
+        let mut boundary = waveformat(8_000);
+        boundary[2..4].copy_from_slice(&64u16.to_le_bytes());
+        boundary[8..12].copy_from_slice(&(128u32 * 8_000).to_le_bytes());
+        boundary[12..14].copy_from_slice(&128u16.to_le_bytes());
+        assert_eq!(
+            parse_waveformatex(&boundary, PcmFormat::S16Le),
+            Ok((64, 8_000)),
+            "the ceiling itself is accepted"
+        );
     }
 
     #[test]

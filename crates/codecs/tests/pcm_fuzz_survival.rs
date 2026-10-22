@@ -138,8 +138,10 @@ const DESCRIPTOR_LIES: [&str; 10] = [
 
 /// The typed codes a lying WAVEFORMATEX can produce (the parse
 /// taxonomy of `pcm::decoder`; every code is `Unsupported` at stage
-/// `Decode`).
-const WAVEFORMAT_CODES: [&str; 7] = [
+/// `Decode`). W2-17: `pcm.waveformat.subformat` was missing (latent —
+/// unreachable while the mutation classes never built a 40-byte blob);
+/// the extensible-lie stratum below reaches it.
+const WAVEFORMAT_CODES: [&str; 8] = [
     "pcm.waveformat.length",
     "pcm.waveformat.channels",
     "pcm.waveformat.rate",
@@ -147,6 +149,7 @@ const WAVEFORMAT_CODES: [&str; 7] = [
     "pcm.waveformat.bits",
     "pcm.waveformat.block_align",
     "pcm.waveformat.extensible",
+    "pcm.waveformat.subformat",
 ];
 
 // ---- the seeded PRNG -------------------------------------------------------
@@ -794,6 +797,77 @@ fn self_consistent_waveformat(channels: u16, rate: u32) -> Vec<u8> {
     blob
 }
 
+/// `KSDATAFORMAT_SUBTYPE_PCM` — `{00000001-0000-0010-8000-00AA00389B71}`
+/// (the W1-02 merged recognition path's GUID).
+const SUBFORMAT_PCM_GUID: [u8; 16] = [
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71,
+];
+/// `KSDATAFORMAT_SUBTYPE_IEEE_FLOAT` —
+/// `{00000003-0000-0010-8000-00AA00389B71}`.
+const SUBFORMAT_IEEE_FLOAT_GUID: [u8; 16] = [
+    0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71,
+];
+
+/// The W1-02 accepted-extensible path, attacked (W2-17 P4): a
+/// coherent 40-byte WAVEFORMATEXTENSIBLE (KSDATAFORMAT_SUBTYPE_PCM)
+/// lied at seeded offsets — every corruption typed or ACCEPTED-and-
+/// accounted against the RESOLVED geometry (the descriptor pins s16 →
+/// channels × 2 bytes at the blob's rate). Before this stratum the
+/// suite's mutation classes never built a 40-byte blob, so the merged
+/// GUID-resolution path was pinned only for refusal.
+fn extensible_lie(payload: &[u8], rng: &mut SplitMix64, ledger: &mut Ledger) {
+    let mut blob = Vec::with_capacity(40);
+    blob.extend_from_slice(&0xFFFEu16.to_le_bytes()); // extensible tag
+    blob.extend_from_slice(&2u16.to_le_bytes()); // channels
+    blob.extend_from_slice(&44_100u32.to_le_bytes()); // rate
+    blob.extend_from_slice(&176_400u32.to_le_bytes()); // avg bytes/sec
+    blob.extend_from_slice(&4u16.to_le_bytes()); // block align
+    blob.extend_from_slice(&16u16.to_le_bytes()); // bits (s16)
+    blob.extend_from_slice(&22u16.to_le_bytes()); // cbSize
+    blob.extend_from_slice(&16u16.to_le_bytes()); // valid bits
+    blob.extend_from_slice(&0x3u32.to_le_bytes()); // channel mask
+    blob.extend_from_slice(&SUBFORMAT_PCM_GUID);
+    let lies = 1 + rng.below(4);
+    for _ in 0..lies {
+        let at = rng.below(blob.len());
+        blob[at] = rng.byte();
+    }
+    let generation = match GenerationId::FIRST.next() {
+        Ok(g) => g,
+        Err(e) => unreachable!("generation: {e}"),
+    };
+    let descriptor = match CodecDescriptor::new("pcm_s16le") {
+        Ok(d) => d,
+        Err(e) => unreachable!("pcm_s16le: {e}"),
+    };
+    let mut decoder = PcmDecoder::new();
+    if let Err(err) = decoder.configure(&DecoderConfig::new(
+        descriptor,
+        generation,
+        ThreadBudget::default(),
+        None,
+        Some(SharedBytes::from_vec(blob.clone())),
+    )) {
+        ledger.typed_errors += 1;
+        assert_typed_pcm_error(&err, &WAVEFORMAT_CODES, "extensible lie");
+        return;
+    }
+    // Accepted: the GUID resolved to PCM; the geometry is the blob's own
+    // (channels at [2..4], rate at [4..8], width pinned by the s16
+    // descriptor + bits cross-check).
+    ledger.accepted_lies += 1;
+    let channels = u16::from_le_bytes([blob[2], blob[3]]) as u32;
+    let rate = u32::from_le_bytes([blob[4], blob[5], blob[6], blob[7]]);
+    contract_surface(
+        &mut decoder,
+        payload,
+        generation,
+        channels as usize * 2,
+        rate,
+        ledger,
+    );
+}
+
 /// Configure a `with_format(seeded)` decoder with `blob` as
 /// `extra_data` and assert the exact typed outcome: `Some(code)` must
 /// fail with that code, `None` must configure.
@@ -1134,6 +1208,7 @@ fn seeded_format_header_lies_are_typed_or_honestly_decoded() {
         free_surface(base, source, rate, &mut ledger);
         contract_with_format_lie(base, source, rate, &mut ledger);
         waveformat_lie(base, &strf, &mut rng, &mut ledger);
+        extensible_lie(base, &mut rng, &mut ledger);
         descriptor_lie(base, &strf, index, &mut rng, &mut ledger);
     }
     // Coverage plumbing (not a damage claim): the stratifications
@@ -1180,6 +1255,80 @@ fn seeded_format_header_lies_are_typed_or_honestly_decoded() {
     ];
     for (blob, code) in cases {
         expect_configure_code((2, RATE), blob, code, "edge lie");
+    }
+
+    // W2-17 P4 edge pins — the accepted-extensible path's exact
+    // outcomes: a float GUID against the int descriptor is the tag
+    // refusal, a GUID outside the PCM family is the subformat
+    // refusal, and a coherent 40-byte blob configures (seeded facts
+    // agree) and accounts at the blob's own geometry.
+    let mut extensible_base = strf.clone();
+    extensible_base[0..2].copy_from_slice(&0xFFFEu16.to_le_bytes());
+    extensible_base.extend_from_slice(&22u16.to_le_bytes()); // cbSize
+    extensible_base.extend_from_slice(&16u16.to_le_bytes()); // valid bits
+    extensible_base.extend_from_slice(&0x3u32.to_le_bytes()); // channel mask
+    let coherent = {
+        let mut blob = extensible_base.clone();
+        blob.extend_from_slice(&SUBFORMAT_PCM_GUID);
+        blob
+    };
+    let float_guid = {
+        let mut blob = extensible_base.clone();
+        blob.extend_from_slice(&SUBFORMAT_IEEE_FLOAT_GUID);
+        blob
+    };
+    let mulaw_guid = {
+        let mut blob = extensible_base.clone();
+        blob.extend_from_slice(&[
+            0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38,
+            0x9b, 0x71,
+        ]);
+        blob
+    };
+    expect_configure_code(
+        (2, RATE),
+        &float_guid,
+        Some("pcm.waveformat.tag"),
+        "float GUID",
+    );
+    expect_configure_code(
+        (2, RATE),
+        &mulaw_guid,
+        Some("pcm.waveformat.subformat"),
+        "μ-law GUID",
+    );
+    expect_configure_code((2, RATE), &coherent, None, "coherent extensible");
+    // And the accounting holds on the accepted path: frame_bytes 4
+    // (2ch × s16) at the blob's own 44100 rate.
+    {
+        let generation = match GenerationId::FIRST.next() {
+            Ok(g) => g,
+            Err(e) => unreachable!("generation: {e}"),
+        };
+        let descriptor = match CodecDescriptor::new("pcm_s16le") {
+            Ok(d) => d,
+            Err(e) => unreachable!("pcm_s16le: {e}"),
+        };
+        let mut decoder = PcmDecoder::new();
+        match decoder.configure(&DecoderConfig::new(
+            descriptor,
+            generation,
+            ThreadBudget::default(),
+            None,
+            Some(SharedBytes::from_vec(coherent)),
+        )) {
+            Ok(()) => {}
+            Err(e) => unreachable!("coherent extensible configures: {e}"),
+        }
+        let base = &chunks[0];
+        contract_surface(
+            &mut decoder,
+            base,
+            generation,
+            FRAME_BYTES,
+            RATE,
+            &mut ledger,
+        );
     }
 
     // Coherent-but-conflicting facts: a WAVEFORMATEX that passes every
@@ -1245,6 +1394,7 @@ fn deep_seeded_mutation_run() {
         free_surface(base, source, rate, &mut lies);
         contract_with_format_lie(base, source, rate, &mut lies);
         waveformat_lie(base, &strf, &mut rng, &mut lies);
+        extensible_lie(base, &mut rng, &mut lies);
         descriptor_lie(base, &strf, index, &mut rng, &mut lies);
     }
     println!("{}", lies.report("deep format lies"));
