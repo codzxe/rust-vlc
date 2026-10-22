@@ -198,7 +198,10 @@ name = "playback-engine"
 version = "0.1.0"
 dependencies = [
  "codec-api",
+ "codecs",
  "commands",
+ "demux",
+ "input",
  "media-clock",
  "media-types",
  "packet-queue",

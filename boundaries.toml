@@ -193,7 +193,13 @@ external_dev_allowlist = []
 [crates.playback-engine]
 layer = 4
 internal_deps = ["codec-api", "commands", "media-clock", "media-types", "packet-queue", "plugin-api"]
-dev_deps = ["testkit"]
+# Lead flag (card 3.A3): demux + codecs + input are TEST-ONLY edges —
+# the real-fixture track-switch suite (tests/track_switch_fixture.rs)
+# composes the engine with the concrete stacks exactly once, the card
+# 2.B2 precedent (demux's input dev-edge) for the AC's "switch tests
+# on multi-track fixtures". The library stays trait-level; dev edges
+# are exempt from layer ordering by this manifest's own rules.
+dev_deps = ["testkit", "demux", "codecs", "input"]
 external_allowlist = []
 external_dev_allowlist = []
 
