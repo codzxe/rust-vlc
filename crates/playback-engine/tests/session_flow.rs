@@ -27,441 +27,35 @@
 //!   frame.
 
 use std::collections::VecDeque;
-use std::num::NonZeroUsize;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use codec_api::{DecodeOutcome, Decoder, DecoderConfig, FrameSink};
 use commands::envelope::{Generation, RequestId};
 use commands::{EventKind, SessionId};
-use media_clock::MonotonicSource;
-use media_types::error::{AccessDenied, ErrorKind};
-use media_types::frame::{AudioLayout, SampleFormat};
+use media_types::error::ErrorKind;
 use media_types::packet::SharedBytes;
 use media_types::{
-    AudioFormat, Duration, EngineError, Frame, GenerationId, MediaKind, Nanoseconds, Packet,
-    PipelineStage, SourceUri, Stamp, TimeBase, TimeSpan, Timestamp, Track, TrackFlags, TrackId,
-    TrackTiming,
+    Duration, EngineError, Frame, GenerationId, MediaKind, Nanoseconds, Packet, PipelineStage,
+    SourceUri, Stamp, Track, TrackId,
 };
-use packet_queue::QueueLimits;
 use playback_engine::state::{RejectionReason, SessionState};
 use playback_engine::{
     CommandReceipt, DecoderProvider, Engine, EngineEvent, EngineEventKind, EngineOutput,
-    FrameConsumer, QueuePlan, ReceiptResult, SessionCommandKind, SessionConfig, SessionError,
-    SessionHandle, TickBudget,
+    FrameConsumer, ReceiptResult, SessionCommandKind, SessionConfig, SessionError, SessionHandle,
 };
-use plugin_api::{DemuxEvent, Demuxer};
+use plugin_api::DemuxEvent;
 use testkit::Must;
 
-// ---------------------------------------------------------------------------
-// Fakes
-// ---------------------------------------------------------------------------
+// The shared fake harness (card 3.C1's hoist — the fakes, builders,
+// and poll drivers this suite authored in 2.C2, now the common
+// substrate for the model-walk suite too).
+mod common;
 
-/// Shared virtual monotonic time (doc 03 §8: no sleeps).
-struct SharedNow(AtomicU64);
-
-impl MonotonicSource for SharedNow {
-    fn now_ns(&self) -> u64 {
-        self.0.load(Ordering::Relaxed)
-    }
-}
-
-/// The collecting sink: every frame the engine delivered, with its
-/// track, in delivery order.
-#[derive(Default)]
-struct Collector {
-    frames: Mutex<Vec<(TrackId, Frame)>>,
-}
-
-impl FrameConsumer for Collector {
-    fn accept(&self, frame: Frame, track: TrackId) -> Result<(), EngineError> {
-        self.frames
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .push((track, frame));
-        Ok(())
-    }
-}
-
-/// The scripted demux stage: a fixed track list, a mutable event
-/// script (shared so a test can release a stall mid-run), and an
-/// optional start failure. An exhausted script answers end-of-stream;
-/// an armed stall answers discontinuity markers — the honest
-/// non-blocking shape of "nothing new yet, stream not ended" (the
-/// engine counts the marks; the re-anchor policy is Phase 3).
-struct FakeDemuxer {
-    tracks: Vec<Track>,
-    script: Arc<Mutex<VecDeque<DemuxEvent>>>,
-    stall: Arc<Mutex<bool>>,
-    fail_start: Option<EngineError>,
-}
-
-impl Demuxer for FakeDemuxer {
-    fn start(&mut self) -> Result<Vec<Track>, EngineError> {
-        match self.fail_start.take() {
-            Some(error) => Err(error),
-            None => Ok(self.tracks.clone()),
-        }
-    }
-
-    fn next_event(&mut self) -> Result<DemuxEvent, EngineError> {
-        let mut script = self
-            .script
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if let Some(event) = script.pop_front() {
-            return Ok(event);
-        }
-        drop(script);
-        if *self
-            .stall
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-        {
-            return Ok(DemuxEvent::Discontinuity);
-        }
-        Ok(DemuxEvent::EndOfStream)
-    }
-
-    fn seek(&mut self, _target: TimeSpan) -> Result<TimeSpan, EngineError> {
-        // Seek is Phase 3 (card 3.A1): the v0 engine never calls this.
-        Err(EngineError::new(
-            PipelineStage::Demux,
-            ErrorKind::Unsupported { format: None },
-            media_types::error::ErrorContext::new("demux.seek.not-implemented"),
-        ))
-    }
-}
-
-/// The scripted decode stage: one frame out per packet, the codec-api
-/// stale-packet guard, and an optional one-shot decode failure.
-struct FakeDecoder {
-    generation: GenerationId,
-    fail_decode: Option<EngineError>,
-}
-
-impl Decoder for FakeDecoder {
-    fn configure(&mut self, config: &DecoderConfig) -> Result<(), EngineError> {
-        self.generation = config.generation;
-        Ok(())
-    }
-
-    fn decode(
-        &mut self,
-        packet: Packet,
-        out: &mut dyn FrameSink,
-    ) -> Result<DecodeOutcome, EngineError> {
-        if let Some(error) = self.fail_decode.take() {
-            return Err(error);
-        }
-        if packet.is_stale(self.generation) {
-            return Ok(DecodeOutcome::NeedMoreInput);
-        }
-        out.accept(audio_frame(packet.pts, self.generation))?;
-        Ok(DecodeOutcome::Emitted { frames: 1 })
-    }
-
-    fn flush(&mut self, _out: &mut dyn FrameSink) -> Result<DecodeOutcome, EngineError> {
-        Ok(DecodeOutcome::Drained)
-    }
-}
-
-/// The decoder seam: answers a working decoder per track, unless the
-/// test armed a selection failure (the registry-lied case).
-struct FakeProvider {
-    fail_select: Option<EngineError>,
-}
-
-impl DecoderProvider for FakeProvider {
-    fn decoder_for(
-        &self,
-        _track: &Track,
-        config: &DecoderConfig,
-    ) -> Result<Box<dyn Decoder>, EngineError> {
-        match &self.fail_select {
-            Some(error) => Err(shallow_clone(error)),
-            None => Ok(Box::new(FakeDecoder {
-                generation: config.generation,
-                fail_decode: None,
-            })),
-        }
-    }
-}
-
-/// Clone without the boxed `source` chain (the engine never clones
-/// errors; the fake's shared provider needs per-call copies).
-fn shallow_clone(error: &EngineError) -> EngineError {
-    EngineError::new(
-        error.stage,
-        error.kind.clone(),
-        media_types::error::ErrorContext {
-            code: error.context.code.clone(),
-        },
-    )
-}
-
-// ---------------------------------------------------------------------------
-// Builders
-// ---------------------------------------------------------------------------
-
-fn base() -> TimeBase {
-    TimeBase::new(1, 1_000_000).must()
-}
-
-fn at_micros(us: i64) -> Stamp {
-    Stamp::Present(Timestamp::new(us, base()))
-}
-
-fn track(id: u32, kind: MediaKind) -> Track {
-    Track {
-        id: TrackId::new(id),
-        stream: media_types::StreamId::new(id),
-        kind,
-        language: None,
-        codec: media_types::ids::CodecDescriptor::new("fake-pcm").must(),
-        title: None,
-        flags: TrackFlags::NONE,
-        timing: TrackTiming {
-            span: TimeSpan::UNKNOWN,
-            base: base(),
-            gaps: Vec::new(),
-        },
-    }
-}
-
-fn packet(track: TrackId, index: u64) -> Packet {
-    Packet {
-        track,
-        pts: at_micros((index * 1_000) as i64),
-        dts: Stamp::Missing,
-        duration: Some(Duration::Known(Nanoseconds(1_000_000))),
-        data: SharedBytes::from_static(&[7u8; 64]),
-        keyframe: true,
-        discontinuity: false,
-        generation: GenerationId::FIRST,
-    }
-}
-
-fn audio_frame(pts: Stamp, generation: GenerationId) -> Frame {
-    Frame::Audio(media_types::frame::AudioFrame {
-        format: AudioFormat {
-            sample: SampleFormat::S16,
-            channels: 2,
-            layout: AudioLayout::Interleaved,
-            rate: 48_000,
-        },
-        samples: SharedBytes::from_static(&[0u8; 4]),
-        pts,
-        duration: None,
-        generation,
-    })
-}
-
-fn inaccessible(code: &'static str) -> EngineError {
-    EngineError::new(
-        PipelineStage::Open,
-        ErrorKind::Inaccessible {
-            reason: AccessDenied::NotFound,
-        },
-        media_types::error::ErrorContext::new(code),
-    )
-}
-
-fn decoder_error(code: &'static str) -> EngineError {
-    // A NON-per-frame decode failure (the fatal class): card 3.C2's
-    // G3 fix made per-frame kinds (`Corrupt`, `Decoder`/`Bitstream`)
-    // skippable on audio limbs, so the armed-fatal tests arm
-    // `Unsupported` — deterministic per stream, retrying the next
-    // packet cannot help. The per-frame audio skip lane is pinned in
-    // recovery_media.rs (the honest flip, recorded in the worklog).
-    EngineError::new(
-        PipelineStage::Decode,
-        ErrorKind::Unsupported { format: None },
-        media_types::error::ErrorContext::new(code),
-    )
-}
-
-/// Small deterministic queue caps: the packets axis governs — high
-/// watermark at 12 resident (cap 16 minus a quarter), low at 4. The
-/// tick math below relies on these numbers.
-fn tiny_queues() -> QueuePlan {
-    let limits = QueueLimits {
-        max_packets: NonZeroUsize::new(16).must(),
-        max_bytes: NonZeroUsize::new(1 << 20).must(),
-        max_duration: Nanoseconds(1_000_000_000),
-    };
-    QueuePlan::new(limits, limits)
-}
-
-fn tiny_budget() -> TickBudget {
-    TickBudget {
-        demux_events: 64,
-        packets_per_limb: 4,
-        flush_calls_per_limb: 8,
-    }
-}
-
-fn virtual_clock() -> Arc<media_clock::MediaClock> {
-    Arc::new(
-        media_clock::MediaClock::system_monotonic(
-            Arc::new(SharedNow(AtomicU64::new(0))),
-            Timestamp::new(0, base()),
-            media_types::Rate::ONE,
-        )
-        .must(),
-    )
-}
-
-/// A frozen virtual throttle source (card 3.B4): every emission
-/// window is deterministic — a never-advancing source permits
-/// exactly one in-episode buffering emission and never windows a
-/// damage flush mid-test (the terminal `flush_all` still fires).
-fn frozen_throttle() -> playback_engine::EventPolicy {
-    playback_engine::EventPolicy {
-        tick: playback_engine::TimeTickPolicy::default_policy(),
-        throttle: Arc::new(SharedNow(AtomicU64::new(0))),
-    }
-}
-
-fn config_with(
-    tracks: Vec<Track>,
-    script: Vec<DemuxEvent>,
-    fail_start: Option<EngineError>,
-    fail_select: Option<EngineError>,
-    clock: Arc<media_clock::MediaClock>,
-    collector: Arc<Collector>,
-) -> SessionConfig {
-    let mut config = SessionConfig::new(
-        SourceUri::parse("file:///tmp/lumen-fake.media").must(),
-        Box::new(FakeDemuxer {
-            tracks,
-            script: Arc::new(Mutex::new(VecDeque::from(script))),
-            stall: Arc::new(Mutex::new(false)),
-            fail_start,
-        }),
-        Arc::new(FakeProvider { fail_select }),
-        collector,
-        clock,
-    );
-    config.queues = tiny_queues();
-    config.budget = tiny_budget();
-    config.throttle = frozen_throttle();
-    config
-}
-
-/// Everything one test needs to drive a session.
-struct Fixture {
-    engine: Engine,
-    handle: SessionHandle,
-    collector: Arc<Collector>,
-    clock: Arc<media_clock::MediaClock>,
-    script: Arc<Mutex<VecDeque<DemuxEvent>>>,
-    stall: Arc<Mutex<bool>>,
-}
-
-fn open_with(
-    tracks: Vec<Track>,
-    script: Vec<DemuxEvent>,
-    fail_start: Option<EngineError>,
-    fail_select: Option<EngineError>,
-) -> Fixture {
-    let script = Arc::new(Mutex::new(VecDeque::from(script)));
-    let stall = Arc::new(Mutex::new(false));
-    let collector = Arc::new(Collector::default());
-    let clock = virtual_clock();
-    let demuxer = FakeDemuxer {
-        tracks,
-        script: Arc::clone(&script),
-        stall: Arc::clone(&stall),
-        fail_start,
-    };
-    let mut config = SessionConfig::new(
-        SourceUri::parse("file:///tmp/lumen-fake.media").must(),
-        Box::new(demuxer),
-        Arc::new(FakeProvider { fail_select }),
-        Arc::clone(&collector) as Arc<dyn FrameConsumer>,
-        clock.clone(),
-    );
-    config.queues = tiny_queues();
-    config.budget = tiny_budget();
-    config.throttle = frozen_throttle();
-    let mut engine = Engine::new();
-    let handle = engine.open(config).must();
-    Fixture {
-        engine,
-        handle,
-        collector,
-        clock,
-        script,
-        stall,
-    }
-}
-
-fn open_audio(script_len: u64) -> Fixture {
-    let mut script: Vec<DemuxEvent> = (0..script_len)
-        .map(|index| DemuxEvent::Packet(packet(TrackId::new(1), index)))
-        .collect();
-    script.push(DemuxEvent::EndOfStream);
-    open_with(vec![track(1, MediaKind::Audio)], script, None, None)
-}
-
-/// `preload` packets then a producer stall: the underrun shape (the
-/// demuxer can later refill — the stream has NOT ended).
-fn open_stalled_audio(preload: u64) -> Fixture {
-    let script: Vec<DemuxEvent> = (0..preload)
-        .map(|index| DemuxEvent::Packet(packet(TrackId::new(1), index)))
-        .collect();
-    let fixture = open_with(vec![track(1, MediaKind::Audio)], script, None, None);
-    *fixture
-        .stall
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner()) = true;
-    fixture
-}
-
-/// Drive polls until `predicate` holds on the engine state, or fail
-/// loudly after `limit` polls (a hang is a failed test, never a
-/// timeout mystery — doc 03 §4.6(f)).
-fn poll_until(
-    fixture: &mut Fixture,
-    predicate: impl Fn(SessionState) -> bool,
-    limit: usize,
-    context: &str,
-) {
-    for _ in 0..limit {
-        if predicate(fixture.engine.state()) {
-            return;
-        }
-        fixture.engine.poll();
-    }
-    assert!(
-        predicate(fixture.engine.state()),
-        "{context}: state is {} after {limit} polls",
-        fixture.engine.state()
-    );
-}
-
-fn take_events(fixture: &mut Fixture) -> Vec<EngineOutput> {
-    fixture.engine.take_outputs()
-}
-
-fn frames_of(collector: &Collector) -> usize {
-    collector
-        .frames
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .len()
-}
-
-fn receipt_for(outputs: &[EngineOutput], request: RequestId) -> CommandReceipt {
-    outputs
-        .iter()
-        .find_map(|output| match output {
-            EngineOutput::Receipt(receipt) if receipt.request == request => Some(*receipt),
-            _ => None,
-        })
-        .must()
-}
+use common::{
+    Collector, FakeDecoder, FakeDemuxer, FakeProvider, Fixture, at_micros, config_with, frames_of,
+    frozen_throttle, inaccessible, open_audio, open_stalled_audio, open_with, packet, poll_until,
+    receipt_for, shallow_clone, take_events, tiny_budget, tiny_queues, track, virtual_clock,
+};
 
 // ---------------------------------------------------------------------------
 // Lifetimes
@@ -811,6 +405,282 @@ fn close_while_opening_returns_to_idle() {
     assert_eq!(fixture.engine.state(), SessionState::Idle);
 }
 
+/// Card 3.C1's stop-during-opening row (doc 03 §4.6 `Opening | Stop |
+/// Stopped | cancel token; join threads`): the stop lands from the
+/// un-wired side — the row's `TeardownPipeline` is the `Option` no-op
+/// by construction (no pipeline was ever attached), no track list or
+/// buffering episode ever existed, and the stopped session is inert
+/// until close.
+#[test]
+fn stop_while_opening_tears_down_without_wiring() {
+    let mut fixture = open_with(
+        vec![track(1, MediaKind::Audio)],
+        vec![DemuxEvent::EndOfStream],
+        None,
+        None,
+    );
+    assert_eq!(fixture.engine.state(), SessionState::Opening);
+    fixture.handle.stop(RequestId(11)).must();
+    fixture.engine.poll();
+    assert_eq!(fixture.engine.state(), SessionState::Stopped);
+    let outputs = take_events(&mut fixture);
+    // The stop is the class-A gen-bump: generation 1 after the
+    // open's 0.
+    let receipt = receipt_for(&outputs, RequestId(11));
+    assert_eq!(
+        receipt.result,
+        ReceiptResult::Accepted {
+            session: SessionId(1),
+            generation: Generation(1),
+        }
+    );
+    // The trail is exactly the one edge — no tracks, no episode, no
+    // other work existed to report.
+    let mut trail = Vec::new();
+    for output in &outputs {
+        if let EngineOutput::Event(event) = output {
+            trail.push(match event.kind {
+                EngineEventKind::StateChanged { from, to } => {
+                    format!("{from} → {to}")
+                }
+                EngineEventKind::TracksChanged { .. } => "tracks".to_string(),
+                EngineEventKind::Buffering { progress } => {
+                    format!("buffering {progress}")
+                }
+                _ => "other".to_string(),
+            });
+        }
+    }
+    assert_eq!(trail, vec!["opening → stopped".to_string()]);
+    // Inert afterwards, and the settled close exits to Idle.
+    for _ in 0..3 {
+        fixture.engine.poll();
+        assert_eq!(fixture.engine.state(), SessionState::Stopped);
+    }
+    fixture.handle.close(RequestId(12)).must();
+    fixture.engine.poll();
+    assert_eq!(fixture.engine.state(), SessionState::Idle);
+}
+
+/// Card 3.C1's stop-during-buffering row (doc 03 §4.6 `Buffering |
+/// Stop | Stopped | flush, join`): a mid-episode stop closes the
+/// episode with its `1.0` bookend BEFORE the `state-changed →
+/// stopped` (doc 05 §3.2's "an episode must close with 1.0" — the
+/// never-lose-the-last-fact discipline; the alternative, an episode
+/// that simply never closes, breaks the bracket invariant the
+/// contract suite pins).
+#[test]
+fn stop_while_buffering_closes_the_episode() {
+    // Hold the session mid-episode: 4 packets preload (below the
+    // high watermark of 12) with the producer stalled.
+    let mut fixture = open_stalled_audio(4);
+    poll_until(
+        &mut fixture,
+        |s| s == SessionState::Buffering,
+        10,
+        "the episode opens",
+    );
+    fixture.handle.stop(RequestId(21)).must();
+    fixture.engine.poll();
+    assert_eq!(fixture.engine.state(), SessionState::Stopped);
+    let outputs = take_events(&mut fixture);
+    // The receipt: the class-A stop, gen-bumped.
+    let receipt = receipt_for(&outputs, RequestId(21));
+    assert_eq!(
+        receipt.result,
+        ReceiptResult::Accepted {
+            session: SessionId(1),
+            generation: Generation(1),
+        }
+    );
+    // The bookend precedes the settling state-change.
+    let mut exit_at = None;
+    let mut stopped_at = None;
+    for (index, output) in outputs.iter().enumerate() {
+        if let EngineOutput::Event(event) = output {
+            match event.kind {
+                EngineEventKind::Buffering { progress: 1.0 } => exit_at = Some(index),
+                EngineEventKind::StateChanged {
+                    to: SessionState::Stopped,
+                    ..
+                } => stopped_at = Some(index),
+                _ => {}
+            }
+        }
+    }
+    let (exit_at, stopped_at) = (exit_at.must(), stopped_at.must());
+    assert!(
+        exit_at < stopped_at,
+        "the episode's 1.0 (at {exit_at}) must precede → stopped (at {stopped_at})"
+    );
+    // Exactly one episode bracketed: the enter was in the pre-stop
+    // outputs, the exit here — one 0.0 and one 1.0 overall.
+    let exits = outputs
+        .iter()
+        .filter(|output| {
+            matches!(
+                output,
+                EngineOutput::Event(EngineEvent {
+                    kind: EngineEventKind::Buffering { progress: 1.0 },
+                    ..
+                })
+            )
+        })
+        .count();
+    assert_eq!(exits, 1);
+}
+
+/// Card 3.C1's close-from-active macro: a client's `session.close`
+/// in `Playing` is the executor's two-step composition — apply the
+/// Stop row (settle: teardown, gen-bump), then the Close row
+/// (destroy) — answering ONE Completed receipt for the whole
+/// composition and the honest `playing → stopped → idle` trail on
+/// the event stream, every edge wire-conformant (doc 05 §3.3 has no
+/// direct `playing → idle` edge; the pure table keeps the typed
+/// `SettleFirst` pair for its own totality).
+#[test]
+fn close_from_playing_is_the_two_step_composition() {
+    let mut fixture = open_audio(200);
+    poll_until(&mut fixture, |s| s == SessionState::Playing, 10, "priming");
+    fixture.handle.close(RequestId(31)).must();
+    fixture.engine.poll();
+    assert_eq!(fixture.engine.state(), SessionState::Idle);
+    let outputs = take_events(&mut fixture);
+    // ONE receipt, Completed — the whole composition is one command.
+    let receipts: Vec<&CommandReceipt> = outputs
+        .iter()
+        .filter_map(|output| match output {
+            EngineOutput::Receipt(receipt) if receipt.request == RequestId(31) => Some(receipt),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(receipts.len(), 1, "exactly one receipt for the close");
+    assert_eq!(
+        receipts[0].result,
+        ReceiptResult::Completed {
+            session: SessionId(1)
+        }
+    );
+    // The honest trail, in order, and nothing else state-shaped.
+    let trail: Vec<String> = outputs
+        .iter()
+        .filter_map(|output| match output {
+            EngineOutput::Event(EngineEvent {
+                kind: EngineEventKind::StateChanged { from, to },
+                ..
+            }) => Some(format!("{from} → {to}")),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        trail,
+        vec![
+            "playing → stopped".to_string(),
+            "stopped → idle".to_string(),
+        ],
+        "the two-step composition's trail"
+    );
+    // The composition's events carry the close's final generation
+    // (2: the stop's mint, then the close's) — the staleness rule
+    // must not swallow the stop half of the trail (the model-walk
+    // finding, pinned here at unit level).
+    for output in &outputs {
+        if let EngineOutput::Event(event) = output {
+            assert_eq!(
+                event.generation,
+                Generation(2),
+                "the composition's trail is stamped at its completion point"
+            );
+        }
+    }
+    // The engine holds no session afterwards, and a second close on
+    // the stale handle is the typed refusal (never a panic).
+    assert!(fixture.engine.session_id().is_none());
+    assert!(matches!(
+        fixture.handle.close(RequestId(32)),
+        Err(SessionError::SessionClosed)
+    ));
+}
+
+/// Card 3.C1's double-failure reopen cycle (the model-walk mix's
+/// named shape, pinned deterministically): two full open → fail →
+/// close cycles — each fatal strictly before its `→ error`, each
+/// epoch fresh (1 then 2), seq engine-global strictly increasing
+/// across the close/reopen boundary.
+#[test]
+fn error_cycle_twice() {
+    let mut engine = Engine::new();
+    let mut last_seq = 0u64;
+    for cycle in 0..2u64 {
+        let config = config_with(
+            vec![track(1, MediaKind::Audio)],
+            vec![],
+            Some(inaccessible("open.header.missing")),
+            None,
+            virtual_clock(),
+            Arc::new(Collector::default()),
+        );
+        let handle = engine.open(config).must();
+        assert_eq!(handle.session_id(), SessionId(cycle + 1));
+        // The open failure lands: fatal first, then → error.
+        for _ in 0..10 {
+            if engine.state() == SessionState::Error {
+                break;
+            }
+            engine.poll();
+        }
+        assert_eq!(
+            engine.state(),
+            SessionState::Error,
+            "the armed open failure lands"
+        );
+        let outputs = engine.take_outputs();
+        let mut fatal_at = None;
+        let mut error_at = None;
+        for (index, output) in outputs.iter().enumerate() {
+            if let EngineOutput::Event(event) = output {
+                match event.kind {
+                    EngineEventKind::Fatal { .. } => fatal_at = Some(index),
+                    EngineEventKind::StateChanged {
+                        to: SessionState::Error,
+                        ..
+                    } => error_at = Some(index),
+                    _ => {}
+                }
+                assert!(
+                    event.seq > last_seq,
+                    "seq {} not past {} (cycle {cycle})",
+                    event.seq,
+                    last_seq
+                );
+                last_seq = event.seq;
+                assert_eq!(event.session, SessionId(cycle + 1));
+            }
+        }
+        assert!(fatal_at.must() < error_at.must(), "the fatal comes first");
+        // The error session closes like any error (the settled row).
+        handle.close(RequestId(40 + cycle)).must();
+        engine.poll();
+        assert_eq!(engine.state(), SessionState::Idle);
+        let outputs = engine.take_outputs();
+        let receipt = receipt_for(&outputs, RequestId(40 + cycle));
+        assert_eq!(
+            receipt.result,
+            ReceiptResult::Completed {
+                session: SessionId(cycle + 1)
+            }
+        );
+        // The close's → idle continues the same strictly-increasing
+        // seq stream (nothing resets across the cycle).
+        for output in &outputs {
+            if let EngineOutput::Event(event) = output {
+                assert!(event.seq > last_seq);
+                last_seq = event.seq;
+            }
+        }
+    }
+}
+
 #[test]
 fn an_open_failure_lands_in_error_with_the_fatal_first() {
     let mut fixture = open_with(
@@ -902,9 +772,22 @@ fn an_armed_decode_failure_transitions_to_error_from_playing() {
             _track: &Track,
             config: &DecoderConfig,
         ) -> Result<Box<dyn Decoder>, EngineError> {
+            // The FATAL decode class (doc 03 §4.5(d)): per-frame
+            // damage kinds (Corrupt / Decoder{Bitstream}) are isolated
+            // by the concealment policy (W1-08 + 3.C2 G3) — the
+            // session-fatal decode failure is `Unsupported`.
             Ok(Box::new(FakeDecoder {
                 generation: config.generation,
-                fail_decode: Some(decoder_error("decode.frame.bad")),
+                fail_decode: Some(EngineError::new(
+                    PipelineStage::Decode,
+                    ErrorKind::Unsupported {
+                        format: Some(media_types::error::FormatInfo {
+                            name: Some("armed".to_string()),
+                            sniffed: Vec::new(),
+                        }),
+                    },
+                    media_types::error::ErrorContext::new("decode.unsupported.armed"),
+                )),
             }))
         }
     }
@@ -948,7 +831,7 @@ fn an_armed_decode_failure_transitions_to_error_from_playing() {
             EngineOutput::Event(EngineEvent {
                 kind: EngineEventKind::Fatal { error },
                 ..
-            }) if error.context.code == "decode.frame.bad"
+            }) if error.context.code == "decode.unsupported.armed"
         )
     });
     assert!(has_fatal, "the typed decode failure is on the stream");
@@ -1218,20 +1101,26 @@ fn receipts_precede_the_events_they_cause() {
 fn rejected_commands_answer_typed_receipts_and_change_nothing() {
     let mut fixture = open_audio(200);
     poll_until(&mut fixture, |s| s == SessionState::Playing, 10, "priming");
-    // `close` from Playing is the v1 StopFirst rejection.
-    fixture.handle.close(RequestId(50)).must();
+    // `stop` in `Ended` is the settled inert rejection (the close
+    // macro's own pair — close from active states — composes in the
+    // executor; its scenario pin is
+    // `close_from_playing_is_the_two_step_composition`).
+    poll_until(&mut fixture, |s| s == SessionState::Ended, 400, "drain");
+    fixture.handle.stop(RequestId(50)).must();
     fixture.engine.poll();
-    assert_eq!(fixture.engine.state(), SessionState::Playing, "unchanged");
+    assert_eq!(fixture.engine.state(), SessionState::Ended, "unchanged");
     let outputs = take_events(&mut fixture);
     let receipt = receipt_for(&outputs, RequestId(50));
     match receipt.result {
         ReceiptResult::Rejected { state, reason } => {
-            assert_eq!(state, SessionState::Playing);
-            assert_eq!(reason, RejectionReason::StopFirst);
+            assert_eq!(state, SessionState::Ended);
+            assert_eq!(reason, RejectionReason::AlreadySettled);
         }
-        other => unreachable!("close in playing is rejected, got {other:?}"),
+        other => unreachable!("stop in ended is rejected, got {other:?}"),
     }
     // `play` while playing is the C8 idempotent confirmation.
+    let mut fixture = open_audio(200);
+    poll_until(&mut fixture, |s| s == SessionState::Playing, 10, "priming");
     fixture.handle.play(RequestId(51)).must();
     fixture.engine.poll();
     assert_eq!(fixture.engine.state(), SessionState::Playing);
@@ -1851,7 +1740,9 @@ fn non_damage_video_decode_errors_stay_fatal() {
     // next frame cannot help — so it must keep the fatal path even on
     // a video limb (doc 03 §4.5(d)). The audio-limb half of the pin
     // is `an_armed_decode_failure_transitions_to_error_from_playing`
-    // (a Bitstream error on an audio limb stays session-fatal too).
+    // (an Unsupported error on an audio limb stays session-fatal;
+    // audio Bitstream damage is 3.C2 D-2's bounded skip-and-report,
+    // pinned by the recovery suites).
     let unsupported = EngineError::new(
         PipelineStage::Decode,
         ErrorKind::Unsupported {

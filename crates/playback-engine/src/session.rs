@@ -65,7 +65,7 @@ use crate::seek::{
 };
 use crate::state::{
     Effect, PipelineSignal, RejectionReason, SessionInput, SessionState, TRANSITIONS, Transition,
-    TransitionRejected, apply_input, translate_pipeline_signal,
+    TransitionRejected, apply_input, close_plan, translate_pipeline_signal,
 };
 
 /// The outbox capacity (live events; receipts are bounded separately
@@ -863,18 +863,18 @@ impl Engine {
     /// stays inside the doc 05 §3.3 conformance list, so the
     /// `table.rs` proof holds untouched):
     ///
-    /// - **R1** — a live `Buffering` session refuses typed
-    ///   ([`SessionError::SessionExists`]): no `buffering →
-    ///   {stopped,idle}` wire edge exists in v1 (card 3.C1 owns the
-    ///   transient-state edges); every other state continues.
-    /// - **R2** — from `Playing`/`Paused`, apply `Stop` (the row's
-    ///   effects, origin-free): `BumpPipeline` mints the old epoch's
-    ///   final generation (every stage-held `CancelToken` answers
-    ///   stale from here), `TeardownPipeline` flushes + closes every
-    ///   queue, drops the limbs (decoders die with their reorder
-    ///   buffers), the held demux packet, and the in-flight seek
-    ///   slot (doc 05 §4.2: a generation that never completed owes
-    ///   no terminal). Emits `state-changed → stopped`.
+    /// - **R2** — from an active state (`Playing`/`Paused`/`Buffering`)
+    ///   apply `Stop` (the row's effects, origin-free; card 3.C1's
+    ///   `Buffering + Stop` row closed the last gap — the refusal
+    ///   variant `SessionExists` is gone, every live state replaces):
+    ///   `BumpPipeline` mints the old epoch's final generation (every
+    ///   stage-held `CancelToken` answers stale from here),
+    ///   `TeardownPipeline` flushes + closes every queue, drops the
+    ///   limbs (decoders die with their reorder buffers), the held
+    ///   demux packet, and the in-flight seek slot (doc 05 §4.2: a
+    ///   generation that never completed owes no terminal). Emits
+    ///   `state-changed → stopped` (a mid-episode `Buffering` stop
+    ///   closes its episode with the 1.0 bookend first).
     /// - **R3** — apply `Close` (from `Stopped`, or directly from
     ///   `Opening`/`Ended`/`Stopped`/`Error`): the row's
     ///   `DestroySession` interrupts the token and drops the
@@ -906,20 +906,11 @@ impl Engine {
     /// the new epoch, closeable like any error.
     ///
     /// # Errors
-    /// [`SessionError::SessionExists`] if the live session is in
-    /// `Buffering` (the 3.C1 refusal); [`SessionError::GenerationExhausted`]
-    /// if the epoch counter is spent (the old session is already
-    /// destroyed — the honest answer, not a resurrection).
+    /// [`SessionError::GenerationExhausted`] if the epoch counter is
+    /// spent (the old session is already destroyed — the honest
+    /// answer, not a resurrection).
     pub fn open(&mut self, config: SessionConfig) -> Result<SessionHandle, SessionError> {
-        if let Some(session) = &self.session {
-            // R1 — the one typed refusal: `Buffering` has no v1 wire
-            // edge to `stopped`/`idle` (card 3.C1 owns it); the
-            // variant's text stays honest for this legal exit.
-            if session.state == SessionState::Buffering {
-                return Err(SessionError::SessionExists {
-                    session: session.epoch.as_session_id(),
-                });
-            }
+        if self.session.is_some() {
             self.replace_live_session()?;
         }
         let epoch = SessionEpoch(self.next_epoch);
@@ -1074,18 +1065,21 @@ impl Engine {
         self.session.as_ref().map(|s| s.pair()).or(self.last_pair)
     }
 
-    /// R2–R4 of the replacement flow (see [`Engine::open`]'s docs
-    /// for the full nine-step map): implicitly close the live session
+    /// R2–R3 of the replacement flow (see [`Engine::open`]'s docs for
+    /// the full nine-step map): implicitly close the live session
     /// through existing table rows, then destroy it with poll step
-    /// 3's exact accounting. The teardown order is doc 03 §5's
-    /// synchronous form — mint (R2's `BumpPipeline`), flush + close
-    /// the queues, drop the limbs/decoders/pending/demuxer (the
-    /// `Pipeline` dies with `DestroySession`), interrupt the token
-    /// (belt-and-braces after the epoch is already superseded),
-    /// drop the `Session` (totals merged first).
+    /// 3's exact accounting. Card 3.C1 generalized the two
+    /// hard-coded steps into the shared [`close_plan`] macro — the
+    /// same composition a client's `close` rides, so `Buffering`
+    /// replaces like every other state. The teardown order is doc 03
+    /// §5's synchronous form — mint (the Stop row's `BumpPipeline`),
+    /// flush + close the queues, drop the limbs/decoders/pending/
+    /// demuxer (the `Pipeline` dies with `DestroySession`), interrupt
+    /// the token (belt-and-braces after the epoch is already
+    /// superseded), drop the `Session` (totals merged first).
     ///
-    /// The two applies are pinned table rows — `Stop` from
-    /// `Playing`/`Paused`, `Close` from the landing `Stopped` (or
+    /// Every plan step is a pinned table row — `Stop` from the
+    /// active states, `Close` from the landing `Stopped` (or
     /// directly from `Opening`/`Ended`/`Stopped`/`Error`) — so a
     /// rejection is unreachable; it is honored as
     /// [`SessionError::Invariant`] rather than unwrapped, the same
@@ -1093,27 +1087,23 @@ impl Engine {
     /// These events carry `origin: None` (receipts exist only for
     /// submitted commands; the implicit close is engine-internal).
     fn replace_live_session(&mut self) -> Result<(), SessionError> {
-        // R2 — the old session's stop (only from Playing/Paused; the
-        // settled/opening states close directly). A mint exhaustion
-        // inside the row lands the session in `Error`, from which
-        // R3's close row still exits — the flow degrades honestly.
-        if let Some(session) = self.session.as_mut()
-            && matches!(session.state, SessionState::Playing | SessionState::Paused)
-        {
-            let outputs = session
-                .apply(SessionInput::Stop, InputContext::default())
-                .map_err(|rejection| SessionError::Invariant(format!("{rejection}")))?;
-            for output in outputs {
-                self.outbox.push(output);
-            }
-        }
-        // R3 — the old session's close: `BumpPipeline` (the epoch's
-        // last, harmless mint) then `DestroySession` (interrupt +
-        // pipeline drop + `closed`).
-        if let Some(session) = self.session.as_mut() {
-            let outputs = session
-                .apply(SessionInput::Close, InputContext::default())
-                .map_err(|rejection| SessionError::Invariant(format!("{rejection}")))?;
+        // R2 — the old session's stop (only from the active states;
+        // the settled/opening states close directly). A mint
+        // exhaustion inside the row lands the session in `Error`,
+        // from which the close row still exits — the flow degrades
+        // honestly.
+        let plan = match self.session.as_ref() {
+            Some(session) => close_plan(session.state),
+            None => return Ok(()),
+        };
+        for input in plan {
+            let outputs = self
+                .session
+                .as_mut()
+                .map(|session| session.apply(*input, InputContext::default()))
+                .unwrap_or(Ok(Vec::new()));
+            let outputs =
+                outputs.map_err(|rejection| SessionError::Invariant(format!("{rejection}")))?;
             for output in outputs {
                 self.outbox.push(output);
             }
@@ -1210,6 +1200,13 @@ struct EmissionState {
     /// reset at every episode's `0.0` bookend).
     buffering_window: ProgressWindow,
     buffering_last: f32,
+    /// Whether a `session.buffering` episode is currently open (card
+    /// 3.C1): set at the `0.0` enter, cleared at the `1.0` exit —
+    /// whether that exit is a row effect (primed, stop-during-
+    /// buffering, primed-under-pause) or the executor's bookend at a
+    /// settling/resume transition. The paused-during-buffering hold
+    /// keeps it open across the pause.
+    episode_open: bool,
     /// The non-fatal damage coalescer (doc 05 §3.2: 1 s window,
     /// flushed at terminals so the last count is never lost).
     damage: DamageCoalescer,
@@ -1275,6 +1272,7 @@ impl Session {
                 last_tick_ns: None,
                 buffering_window: ProgressWindow::for_buffering(),
                 buffering_last: 0.0,
+                episode_open: false,
                 damage: DamageCoalescer::new(),
                 duration_emitted: false,
                 info_emitted: false,
@@ -1475,12 +1473,16 @@ impl Session {
                     outputs.push(self.emit(EngineEventKind::Buffering { progress: 0.0 }, origin));
                     // A fresh episode resets the in-episode policy
                     // state (doc 05 §3.4 rule 2: monotonic *within one
-                    // episode*, windowed per episode).
+                    // episode*, windowed per episode) and opens the
+                    // episode the 3.C1 discipline tracks (the 1.0
+                    // bookend is owed at whatever transition ends it).
                     self.emissions.buffering_window = ProgressWindow::for_buffering();
                     self.emissions.buffering_last = 0.0;
+                    self.emissions.episode_open = true;
                 }
                 Effect::EmitBufferingExit => {
                     outputs.push(self.emit(EngineEventKind::Buffering { progress: 1.0 }, origin));
+                    self.emissions.episode_open = false;
                 }
                 Effect::EmitEndOfMedia => {
                     outputs.push(self.emit(EngineEventKind::EndOfMedia, origin));
@@ -1489,6 +1491,29 @@ impl Session {
                     self.seek_pipeline_step(context.seek.take(), origin, &mut outputs);
                 }
             }
+        }
+        // The buffering-episode bookend (doc 05 §3.2 "must close with
+        // 1.0", card 3.C1): an episode still open when the machine
+        // leaves the buffering/paused-hold family closes HERE — at the
+        // settling transition (stopped, error, ended, idle) or at the
+        // paused → playing resume. The rows that carry
+        // `EmitBufferingExit` as an effect (the primed exits,
+        // stop-during-buffering, primed-under-pause) already cleared
+        // the flag inside the loop; this is the executor half for the
+        // rows whose effect sets are unconditional data (the
+        // never-lose-the-last-fact discipline — the alternative, an
+        // episode that never closes, strands a `0.0` on the wire).
+        if self.emissions.episode_open
+            && (!matches!(
+                row.to,
+                SessionState::Opening
+                    | SessionState::Buffering
+                    | SessionState::Playing
+                    | SessionState::Paused
+            ) || (input == SessionInput::Play && from == SessionState::Paused))
+        {
+            self.emissions.episode_open = false;
+            outputs.push(self.emit(EngineEventKind::Buffering { progress: 1.0 }, origin));
         }
         // Doc 05 §3.2 (card 3.B4): a non-fatal damage count pending
         // when playback settles is flushed BEFORE the settling
@@ -1566,6 +1591,77 @@ impl Session {
                 },
             };
             return (receipt, Vec::new());
+        }
+        // Card 3.C1 — close from an active state is the executor
+        // macro: apply [`close_plan`]'s steps in order (stop settles,
+        // close destroys; a mid-episode stop closes the episode with
+        // its 1.0 bookend), one Completed receipt for the whole
+        // composition, the honest `… → stopped → idle` trail on the
+        // event stream. Every step is a table row; a rejection is
+        // unreachable by construction and honored as the typed
+        // receipt rather than a panic.
+        //
+        // Staleness discipline (found by the 3.C1 model walks): the
+        // composition's own trail is stamped with the composition's
+        // FINAL generation. Each row mints as it applies (the Stop
+        // row's `BumpPipeline`, then the Close row's), so the stop
+        // half of the trail would otherwise carry a superseded
+        // counter and be swallowed by the intra-epoch staleness rule
+        // at the next drain — the macro would deliver a lone
+        // `→ idle` and lose the promised `… → stopped → idle`
+        // observability (a session-level machine fact, not pipeline
+        // work a mint supersedes). The macro is ONE command; its
+        // events carry the generation at the command's atomic
+        // completion point. Events already sitting in the outbox
+        // from earlier applies keep their own stamps and their own
+        // staleness fate (the standing doc 05 §4.2 discipline for
+        // hosts that do not drain per poll), and the replacement
+        // flow's cross-epoch suppression is untouched — an event of
+        // a superseded epoch is stale by construction regardless of
+        // its counter.
+        if command.kind == SessionCommandKind::Close {
+            let mut outputs = Vec::new();
+            let mut rejection = None;
+            for input in close_plan(self.state) {
+                let context = InputContext {
+                    origin: Some(command.request),
+                    fatal: None,
+                    seek: None,
+                };
+                match self.apply(*input, context) {
+                    Ok(mut applied) => outputs.append(&mut applied),
+                    Err(refused) => {
+                        rejection = Some(refused);
+                        break;
+                    }
+                }
+            }
+            if rejection.is_none() {
+                // The composition completed: stamp its whole trail
+                // with the final generation (the doc 05 §4.2 `gen` of
+                // the close — the session's last).
+                let final_generation = self.pair().wire_generation();
+                for output in &mut outputs {
+                    if let EngineOutput::Event(event) = output {
+                        event.generation = final_generation;
+                    }
+                }
+            }
+            let result = match rejection {
+                None => ReceiptResult::Completed {
+                    session: self.pair().session_id(),
+                },
+                Some(refused) => ReceiptResult::Rejected {
+                    state: refused.from,
+                    reason: refused.reason,
+                },
+            };
+            let receipt = CommandReceipt {
+                request: command.request,
+                command: command.kind,
+                result,
+            };
+            return (receipt, outputs);
         }
         let context = InputContext {
             origin: Some(command.request),
@@ -2001,14 +2097,20 @@ impl Session {
             }
             self.fold_preroll_discards();
         }
-        // One translated input, at most.
+        // One translated input, at most. The Primed signal carries
+        // the 3.C1 gate: in `Paused` it only fires while a buffering
+        // episode is open (the buffered pause's bookend row) — a
+        // normal pause with full queues must NOT re-confirm every
+        // tick (the episode flag is the one-bit gate that keeps the
+        // self row from becoming an event storm).
         let signal = if report.fatal.is_some() {
             Some(PipelineSignal::Fatal)
         } else if report.drained {
             Some(PipelineSignal::Drained)
         } else if report.eof_reached {
             Some(PipelineSignal::EofReached)
-        } else if report.primed {
+        } else if report.primed && (state == SessionState::Buffering || self.emissions.episode_open)
+        {
             Some(PipelineSignal::Primed)
         } else if report.starved {
             Some(PipelineSignal::Starved)

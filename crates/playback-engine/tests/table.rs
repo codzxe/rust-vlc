@@ -1,18 +1,23 @@
-//! The exhaustive transition-table suite (card 2.C2 AC): every
-//! `(state, input)` pair classified legal/illegal, every legal row
-//! proven wire-conformant, the pipeline driver guard proven closed,
-//! and every row walked from `Idle` through legal inputs only.
+//! The exhaustive transition-table suite (card 2.C2 AC, completed by
+//! card 3.C1): every `(state, input)` pair classified legal/illegal,
+//! every legal row proven wire-conformant, the pipeline driver guard
+//! proven closed, and every row walked from `Idle` through legal
+//! inputs only.
 //!
 //! "No invalid transition reachable" is the sum of three proofs, all
 //! in this file:
 //!
 //! 1. [`apply_input`] agrees with [`TRANSITIONS`] exactly (96 pairs:
-//!    26 rows, 70 typed rejections) — the table is the only truth.
+//!    30 rows, 66 typed rejections — 26/70 before 3.C1's four rows)
+//!    — the table is the only truth. (The independent second and
+//!    third opinions — the doc-cited oracle and the committed
+//!    expected-table artifact — live in `tests/model_check.rs`.)
 //! 2. every row's `(from, to)` is legal for the wire conformance list
 //!    (`PlaybackState::can_transition_to`, doc 05 §3.3) — no
 //!    engine-side transition can surface as a conformance failure —
 //!    and, pinched harder, the engine's edge projection is exactly
-//!    the wire's 18-edge set.
+//!    the wire's 21-edge set (18 before 3.C1's opening→stopped,
+//!    buffering→stopped, buffering→paused).
 //! 3. [`translate_pipeline_signal`] only ever yields table-legal
 //!    inputs — the pipeline side cannot reach an illegal transition
 //!    either.
@@ -125,8 +130,8 @@ fn every_state_input_pair_is_classified_exactly_by_the_table() {
     }
     assert_eq!(legal, TRANSITIONS.len(), "legal == table rows");
     assert_eq!(illegal, 96 - TRANSITIONS.len(), "8 states x 12 inputs");
-    assert_eq!(legal, 26, "the pinned minimal-machine row count");
-    assert_eq!(illegal, 70, "70 typed rejections");
+    assert_eq!(legal, 30, "the pinned completed-machine row count");
+    assert_eq!(illegal, 66, "66 typed rejections");
 }
 
 #[test]
@@ -199,7 +204,7 @@ fn the_engine_edge_projection_is_exactly_the_wire_edge_set() {
     }
     wire_edges.sort_by_key(|(from, to)| (state_index(*from), state_index(*to)));
     assert_eq!(engine_edges, wire_edges);
-    assert_eq!(engine_edges.len(), 18, "the doc 05 §3.3 edge count");
+    assert_eq!(engine_edges.len(), 21, "the doc 05 §3.3 edge count");
 }
 
 #[test]
@@ -218,6 +223,8 @@ fn self_transitions_are_the_idempotent_confirmations_and_seek_work_rows() {
             SessionInput::Seek,  // Paused: seek while paused (work-carrying)
             SessionInput::Seek,  // Buffering: seek while priming (work-carrying)
             SessionInput::Pause, // Paused: pause while paused (C8)
+            SessionInput::Primed, // Paused: primed while held (work-carrying,
+                                 // the buffered pause's 3.C1 bookend)
         ]
     );
 }
@@ -263,14 +270,11 @@ fn the_interesting_rejections_carry_their_documented_reasons() {
         (S::Opening, I::Play, R::NotReady),
         (S::Opening, I::Pause, R::NotReady),
         (S::Opening, I::Seek, R::NotReady),
-        // The deliberately-absent v1 wire edges.
-        (S::Opening, I::Stop, R::StopFirst),
-        (S::Buffering, I::Stop, R::StopFirst),
-        (S::Buffering, I::Close, R::StopFirst),
-        (S::Playing, I::Close, R::StopFirst),
-        (S::Paused, I::Close, R::StopFirst),
-        // Pause during buffering has no v1 wire edge.
-        (S::Buffering, I::Pause, R::NotReady),
+        // Close from the active states composes through stop in the
+        // executor (close_plan); the pure table keeps the typed pair.
+        (S::Buffering, I::Close, R::SettleFirst),
+        (S::Playing, I::Close, R::SettleFirst),
+        (S::Paused, I::Close, R::SettleFirst),
         // Restart-from-ended is the Phase-3 seek flow.
         (S::Ended, I::Play, R::RestartNeedsSeek),
         // Seek-back-from-ended needs the missing wire edge (Lead flag).
@@ -309,6 +313,93 @@ fn open_on_a_live_session_is_source_replacement_everywhere() {
             RejectionReason::SourceReplacementPhase3,
             "{state}"
         );
+    }
+}
+
+/// Card 3.C1's four rows, pinned at full detail — the replacement
+/// for the five `StopFirst` rejection pins this suite carried while
+/// the edges were debt (re-pinned, never weakened: every removed
+/// pin line becomes a row assertion here).
+#[test]
+fn the_card_3c1_completion_rows_are_pinned() {
+    use SessionInput as I;
+    use SessionState as S;
+    use playback_engine::state::Effect;
+    let pin = |state: SessionState, input: SessionInput, to: SessionState, effects: &[Effect]| {
+        let row = match apply_input(state, input) {
+            Ok(row) => row,
+            Err(rejection) => unreachable!("3.C1 row rejected: {rejection}"),
+        };
+        assert_eq!(row.from, state);
+        assert_eq!(row.input, input);
+        assert_eq!(row.to, to, "{state} + {input}");
+        assert_eq!(row.effects, effects, "{state} + {input}");
+    };
+    // doc 03 §4.6 `Opening | Stop | Stopped`.
+    pin(
+        S::Opening,
+        I::Stop,
+        S::Stopped,
+        &[Effect::BumpPipeline, Effect::TeardownPipeline],
+    );
+    // doc 03 §4.6 `Buffering | Stop | Stopped` — the episode's 1.0
+    // bookend rides the row.
+    pin(
+        S::Buffering,
+        I::Stop,
+        S::Stopped,
+        &[
+            Effect::BumpPipeline,
+            Effect::TeardownPipeline,
+            Effect::EmitBufferingExit,
+        ],
+    );
+    // The VLC-parity buffered pause: hold with the episode open.
+    pin(S::Buffering, I::Pause, S::Paused, &[Effect::FreezeClock]);
+    // The episode bookend while held: primed under pause.
+    pin(
+        S::Paused,
+        I::Primed,
+        S::Paused,
+        &[Effect::EmitBufferingExit],
+    );
+}
+
+/// The close-from-active macro as data (card 3.C1): every plan step
+/// is a table row and the resulting state trail is wire-conformant
+/// end to end — the property the executor's `apply_command` composes
+/// and `Engine::open`'s replacement rides.
+#[test]
+fn the_close_plan_composes_wire_conformant_trails_only() {
+    use playback_engine::close_plan;
+    for state in SessionState::ALL {
+        let mut cursor = state;
+        let mut steps = 0usize;
+        for input in close_plan(state) {
+            steps += 1;
+            let row = match apply_input(cursor, *input) {
+                Ok(row) => row,
+                Err(rejection) => {
+                    unreachable!("close_plan step illegal at {cursor}: {rejection}")
+                }
+            };
+            assert!(
+                cursor.as_wire().can_transition_to(row.to.as_wire()),
+                "close_plan edge {cursor} → {} is not wire-legal",
+                row.to
+            );
+            cursor = row.to;
+        }
+        assert_eq!(cursor, SessionState::Idle, "{state} closes to Idle");
+        assert!(steps <= 2, "{state} plan is at most stop+close");
+    }
+    // The active trio settles first; everything else closes directly.
+    use SessionState as S;
+    assert_eq!(close_plan(S::Playing).len(), 2);
+    assert_eq!(close_plan(S::Paused).len(), 2);
+    assert_eq!(close_plan(S::Buffering).len(), 2);
+    for state in [S::Idle, S::Opening, S::Ended, S::Stopped, S::Error] {
+        assert_eq!(close_plan(state).len(), 1, "{state} closes directly");
     }
 }
 
@@ -369,8 +460,10 @@ fn translate_mappings_are_pinned() {
             PipelineSignal::EofReached,
             Some(I::EofReached),
         ),
-        // Priming completes the initial fill.
+        // Priming completes the initial fill, and closes the episode
+        // of a buffered pause while held (card 3.C1's bookend row).
         (S::Buffering, PipelineSignal::Primed, Some(I::Primed)),
+        (S::Paused, PipelineSignal::Primed, Some(I::Primed)),
         // Rebuffer on a refillable underrun.
         (S::Playing, PipelineSignal::Starved, Some(I::Underrun)),
         // Absorbed facts (no session-level meaning): eof while
@@ -379,7 +472,6 @@ fn translate_mappings_are_pinned() {
         (S::Playing, PipelineSignal::EofReached, None),
         (S::Paused, PipelineSignal::EofReached, None),
         (S::Playing, PipelineSignal::Primed, None),
-        (S::Paused, PipelineSignal::Primed, None),
         (S::Buffering, PipelineSignal::Starved, None),
         (S::Idle, PipelineSignal::Fatal, None),
         (S::Idle, PipelineSignal::Drained, None),
@@ -464,10 +556,29 @@ fn the_full_happy_path_and_exits_walk_cleanly() {
         (I::Failed, S::Error),
         (I::Close, S::Idle),
     ];
+    // Card 3.C1's completions: the stop that lands during the open,
+    // and the buffered pause that holds, primes under pause, and
+    // resumes straight into playing (no re-priming).
+    let stop_while_opening = [
+        (I::Open, S::Opening),
+        (I::Stop, S::Stopped),
+        (I::Close, S::Idle),
+    ];
+    let buffered_pause = [
+        (I::Open, S::Opening),
+        (I::OpenReady, S::Buffering),
+        (I::Pause, S::Paused),
+        (I::Primed, S::Paused),
+        (I::Play, S::Playing),
+        (I::Drained, S::Ended),
+        (I::Close, S::Idle),
+    ];
     for (label, walk) in [
         ("happy", &happy[..]),
         ("stopped", &stopped[..]),
         ("failed", &failed[..]),
+        ("stop while opening", &stop_while_opening[..]),
+        ("buffered pause", &buffered_pause[..]),
     ] {
         let mut state = S::Idle;
         for (input, want) in walk {
@@ -557,7 +668,10 @@ fn gen_bumping_commands_carry_the_bump_effect_and_vice_versa() {
         .iter()
         .filter(|row| matches!(row.input, I::Play | I::Pause))
         .count();
-    assert_eq!(play_pause_rows, 5, "3 play rows + 2 pause rows");
+    assert_eq!(
+        play_pause_rows, 6,
+        "3 play rows + 3 pause rows (3.C1: buffering)"
+    );
 }
 
 #[test]
@@ -584,13 +698,24 @@ fn effect_columns_match_the_doc_03_side_effects() {
             assert!(has(row, Effect::EmitBufferingExit), "{row:?}");
             assert!(has(row, Effect::ResumeClock), "{row:?}");
         }
+        // 3.C1: an episode open at the settling stop closes on the
+        // row (doc 05 §3.2: the 1.0 bookend — never a dangling 0.0).
+        if row.from == S::Buffering && row.input == I::Stop {
+            assert!(has(row, Effect::EmitBufferingExit), "{row:?}");
+        }
+        // 3.C1: the buffered pause's episode bookend rides the
+        // paused-while-priming self row.
+        if row.from == S::Paused && row.input == I::Primed {
+            assert!(has(row, Effect::EmitBufferingExit), "{row:?}");
+        }
         // The initial track list precedes the first buffering.
         if row.from == S::Opening && row.to == S::Buffering {
             assert_eq!(row.effects.first(), Some(&Effect::EmitTracks), "{row:?}");
         }
-        // Pause/underrun freeze; resume unfreezes.
+        // Pause/underrun/buffered-pause freeze; resume unfreezes.
         if (row.from == S::Playing && row.to == S::Paused)
             || (row.from == S::Playing && row.to == S::Buffering && row.input == I::Underrun)
+            || (row.from == S::Buffering && row.to == S::Paused && row.input == I::Pause)
         {
             assert!(has(row, Effect::FreezeClock), "{row:?}");
         }

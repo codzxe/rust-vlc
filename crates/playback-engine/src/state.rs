@@ -20,15 +20,28 @@
 //! conformance failure. Transitions the wire table does not model in
 //! v1 are **rejected with typed reasons**, never silently performed:
 //!
-//! - `Stop` during `Opening`/`Buffering` and `Close` from
-//!   `Buffering`/`Playing`/`Paused` (doc 03 §4.6 has
-//!   "any active → Stop → Stopped"; the doc 05 §3.3 wire list has no
-//!   such edges — the reconciliation is owed to card 3.C1
-//!   "stop-during-opening" and reopen-cycle completeness).
 //! - `Open` on a live session (source replacement is card 3.A2).
 //! - `Play` in `Ended` (restart-from-ended is the Phase-3 seek flow,
 //!   card 3.A1 — doc 05 §2.4 deliberately wires `playback.play` as
 //!   "restart-from-ended" only once seek exists).
+//! - `Seek` from `Ended` (doc 03 §4.6 has the row; the doc 05 §3.3
+//!   conformance list has no `ended→buffering` edge — the
+//!   reconciliation stays Lead-owned, riding 3.B2's ended-seek-back
+//!   scope).
+//! - `Close` from an **active** state: the pure table answers `close`
+//!   only from the settled states — the executor composes the honest
+//!   trail `…→ stopped → idle` through [`close_plan`] (the macro
+//!   applies `Stop` then `Close`, every edge wire-conformant), so a
+//!   client's close is never refused. The typed pair remains table
+//!   data the macro never asks for directly (see
+//!   [`RejectionReason::SettleFirst`]).
+//!
+//! Card 3.C1 completed the doc 03 §4.6 "any active | Stop" mandate:
+//! `Stop` during `Opening`/`Buffering` and `Pause` during `Buffering`
+//! (the VLC-parity buffered pause) are rows, and a buffering episode
+//! opened when the pause lands is closed by the `Paused + Primed`
+//! bookend row (or at the resume/stop — see the session executor's
+//! episode discipline).
 //!
 //! # Applying inputs
 //!
@@ -328,7 +341,7 @@ pub enum Effect {
     SeekPipeline,
 }
 
-/// The minimal-machine transition table (26 rows; see the module
+/// The minimal-machine transition table (30 rows; see the module
 /// docs). Data, not code — the exhaustive tests classify every
 /// `(state, input)` pair against it.
 pub const TRANSITIONS: &[Transition] = &[
@@ -380,6 +393,18 @@ pub const TRANSITIONS: &[Transition] = &[
         to: SessionState::Idle,
         effects: &[Effect::BumpPipeline, Effect::DestroySession],
     },
+    // doc 03 §4.6 `Opening | Stop | Stopped | cancel token; join
+    // threads` (card 3.C1, stop-during-opening): the open step never
+    // wired a pipeline from this side of the row, so the teardown is
+    // the `Option` no-op by construction — the mint still runs (the
+    // cancel token is published; any racing open work dies at the
+    // generation boundary).
+    Transition {
+        from: SessionState::Opening,
+        input: SessionInput::Stop,
+        to: SessionState::Stopped,
+        effects: &[Effect::BumpPipeline, Effect::TeardownPipeline],
+    },
     // ---- buffering ----
     Transition {
         from: SessionState::Buffering,
@@ -401,6 +426,37 @@ pub const TRANSITIONS: &[Transition] = &[
         input: SessionInput::Play,
         to: SessionState::Buffering,
         effects: &[],
+    },
+    // doc 03 §4.6 `Buffering | Pause | Paused` (card 3.C1, the
+    // VLC-parity buffered pause): the clock freezes (it is not
+    // running during initial fill — idempotent) and the episode
+    // stays OPEN; the queues keep filling while paused and the
+    // `Paused + Primed` row below closes the episode at the 1.0
+    // bookend (or the resume does — the executor's episode
+    // discipline; a play that resumes before priming must not
+    // strand a `0.0` with no closing `1.0`).
+    Transition {
+        from: SessionState::Buffering,
+        input: SessionInput::Pause,
+        to: SessionState::Paused,
+        effects: &[Effect::FreezeClock],
+    },
+    // doc 03 §4.6 `Buffering | Stop | Stopped | flush, join` (card
+    // 3.C1): the settling exit of a mid-episode stop — the episode
+    // closes with its 1.0 bookend BEFORE the `state-changed →
+    // stopped` (doc 05 §3.2: an episode must close with 1.0; the
+    // never-lose-the-last-fact discipline — the alternative, an
+    // episode that simply never closes, breaks the bracket invariant
+    // the contract suite pins).
+    Transition {
+        from: SessionState::Buffering,
+        input: SessionInput::Stop,
+        to: SessionState::Stopped,
+        effects: &[
+            Effect::BumpPipeline,
+            Effect::TeardownPipeline,
+            Effect::EmitBufferingExit,
+        ],
     },
     Transition {
         from: SessionState::Buffering,
@@ -501,6 +557,17 @@ pub const TRANSITIONS: &[Transition] = &[
         to: SessionState::Paused,
         effects: &[],
     },
+    // The episode bookend of the buffered pause (card 3.C1): the
+    // queues reached their high watermark while the session stays
+    // paused — a work-carrying self-transition, not a C8
+    // idempotence. `Play` afterwards resumes straight into `Playing`
+    // with no re-priming (the data is already buffered).
+    Transition {
+        from: SessionState::Paused,
+        input: SessionInput::Primed,
+        to: SessionState::Paused,
+        effects: &[Effect::EmitBufferingExit],
+    },
     // End-of-media observed while paused (doc 05 §3.3 allows
     // `paused → ended`): everything was already drained when the
     // pause landed; the end signal consumes nothing.
@@ -552,12 +619,14 @@ pub enum RejectionReason {
     NoSession,
     /// The session is still opening; the pipeline is not wired yet.
     NotReady,
-    /// The v1 wire conformance table (doc 05 §3.3) has no edge from
-    /// this state to `stopped`/`idle` — stop-or-close from a transient
-    /// or active state lands with card 3.C1 (stop-during-opening and
-    /// active-close completeness). The rejection is deliberate, not an
-    /// omission.
-    StopFirst,
+    /// `close` from an active state (`Playing`/`Paused`/`Buffering`):
+    /// the pure table has no wire edge from there to `idle` — the
+    /// executor composes the honest trail through `stop` first
+    /// ([`close_plan`]: apply `Stop`, then `Close`, every edge
+    /// wire-conformant), so this pair is unreachable through the
+    /// command path; it stays typed for the table's own totality
+    /// (direct `apply_input` callers see it).
+    SettleFirst,
     /// The work is already done (`stop`/`pause` after the session
     /// settled); `close` is the remaining exit.
     AlreadySettled,
@@ -591,8 +660,8 @@ impl std::fmt::Display for RejectionReason {
         let text = match self {
             RejectionReason::NoSession => "no live session for this input",
             RejectionReason::NotReady => "session is still opening",
-            RejectionReason::StopFirst => {
-                "stop-or-close from this state is not wire-conformant in v1 (owed to card 3.C1)"
+            RejectionReason::SettleFirst => {
+                "close composes through stop (the executor applies it; the table stays pure)"
             }
             RejectionReason::AlreadySettled => "the work is already done; close the session",
             RejectionReason::RestartNeedsSeek => {
@@ -684,30 +753,24 @@ pub fn rejection_reason(state: SessionState, input: SessionInput) -> RejectionRe
             S::Idle,
             I::OpenReady | I::Primed | I::Underrun | I::EofReached | I::Drained | I::Failed,
         ) => R::SignalNotRaisedHere,
-        // Opening: commands the pipeline cannot honor yet, plus the
-        // two deliberately-absent v1 edges.
+        // Opening: commands the pipeline cannot honor yet.
         (S::Opening, I::Play | I::Pause | I::Seek) => R::NotReady,
-        (S::Opening, I::Stop) => R::StopFirst,
         (S::Opening, I::Primed | I::Underrun | I::EofReached | I::Drained) => {
             R::SignalNotRaisedHere
         }
-        // Buffering: pause-during-buffering has no v1 wire edge
-        // (buffering → paused is not in the conformance list — a
-        // buffered-pause semantic is owed to 3.C1 with the rest).
-        (S::Buffering, I::Pause) => R::NotReady,
-        (S::Buffering, I::Stop | I::Close) => R::StopFirst,
+        // Buffering: close composes through the new stop row (the
+        // executor macro; the pair stays typed for totality).
+        (S::Buffering, I::Close) => R::SettleFirst,
         (S::Buffering, I::OpenReady | I::Underrun | I::Drained) => R::SignalNotRaisedHere,
-        // Playing: close requires settling first (no playing → idle
-        // edge in v1); steady-state signals are absorbed by the
-        // pipeline, not applied to the machine.
-        (S::Playing, I::Close) => R::StopFirst,
+        // Playing: close composes through stop (no playing → idle
+        // edge); steady-state signals are absorbed by the pipeline,
+        // not applied to the machine.
+        (S::Playing, I::Close) => R::SettleFirst,
         (S::Playing, I::OpenReady | I::Primed | I::EofReached) => R::SignalNotRaisedHere,
-        // Paused: close requires stop first; underrun cannot be
+        // Paused: close composes through stop; underrun cannot be
         // observed with consumption frozen.
-        (S::Paused, I::Close) => R::StopFirst,
-        (S::Paused, I::OpenReady | I::Underrun | I::Primed | I::EofReached) => {
-            R::SignalNotRaisedHere
-        }
+        (S::Paused, I::Close) => R::SettleFirst,
+        (S::Paused, I::OpenReady | I::Underrun | I::EofReached) => R::SignalNotRaisedHere,
         // Ended: retained for seek-back, but the wire edge is missing
         // (the doc 03 §4.6 row vs doc 05 §3.3's list — Lead flag).
         (S::Ended, I::Play) => R::RestartNeedsSeek,
@@ -734,10 +797,10 @@ pub fn rejection_reason(state: SessionState, input: SessionInput) -> RejectionRe
         // the match must be total without a wildcard to force a
         // compile error when rows or inputs are added).
         (S::Idle, I::Close)
-        | (S::Opening, I::Close | I::OpenReady | I::Failed)
-        | (S::Buffering, I::Play | I::Primed | I::EofReached | I::Failed)
+        | (S::Opening, I::Close | I::OpenReady | I::Failed | I::Stop)
+        | (S::Buffering, I::Play | I::Pause | I::Primed | I::EofReached | I::Failed | I::Stop)
         | (S::Playing, I::Play | I::Pause | I::Underrun | I::Drained | I::Stop | I::Failed)
-        | (S::Paused, I::Play | I::Pause | I::Drained | I::Stop | I::Failed)
+        | (S::Paused, I::Play | I::Pause | I::Primed | I::Drained | I::Stop | I::Failed)
         | (S::Ended, I::Close)
         | (S::Stopped, I::Close)
         | (S::Error, I::Close) => R::SignalNotRaisedHere,
@@ -746,6 +809,29 @@ pub fn rejection_reason(state: SessionState, input: SessionInput) -> RejectionRe
         (S::Playing | S::Paused | S::Buffering, I::Seek) => R::SignalNotRaisedHere,
     }
 }
+
+/// The close-from-active macro, as data (card 3.C1): the sequence of
+/// inputs the executor applies when a client submits `close` in
+/// `state` — generalizing 3.A2's replacement steps R2/R3 into the
+/// shared helper. Every step is a table row and every resulting edge
+/// is wire-conformant (doc 05 §3.3): active states settle through
+/// `Stop` first (the honest `… → stopped → idle` trail), the rest
+/// close directly, and `Idle`'s idempotent self-row answers a close
+/// with no session. Zero-allocation by construction — the plans are
+/// `&'static`.
+#[must_use]
+pub fn close_plan(state: SessionState) -> &'static [SessionInput] {
+    use SessionState as S;
+    match state {
+        S::Playing | S::Paused | S::Buffering => STOP_THEN_CLOSE,
+        S::Idle | S::Opening | S::Ended | S::Stopped | S::Error => CLOSE_ONLY,
+    }
+}
+
+/// The active-state close plan: settle, then destroy.
+const STOP_THEN_CLOSE: &[SessionInput] = &[SessionInput::Stop, SessionInput::Close];
+/// The settled/opening close plan: the direct row.
+const CLOSE_ONLY: &[SessionInput] = &[SessionInput::Close];
 
 /// A raw pipeline fact, as reported by one pipeline tick (the names
 /// describe what the *pipeline* observed; the session decides what
@@ -794,12 +880,17 @@ pub fn translate_pipeline_signal(
         (S::Buffering, PipelineSignal::Drained) => None,
         (S::Buffering, PipelineSignal::EofReached) => Some(I::EofReached),
         (S::Buffering, PipelineSignal::Primed) => Some(I::Primed),
+        // Card 3.C1: the buffered pause's bookend — primed while
+        // held. The tick gates this on an OPEN episode (a normal
+        // pause with full queues never raises the signal), so the
+        // self row fires at most once per episode.
+        (S::Paused, PipelineSignal::Primed) => Some(I::Primed),
         (S::Playing, PipelineSignal::Starved) => Some(I::Underrun),
         // Absorbed facts: end-of-stream while already playing/paused
         // becomes the pipeline's eof flag; a low watermark while
         // buffering is the buffering steady state; a high watermark
-        // while playing/paused is the normal filled state. No
-        // pipeline exists in the remaining states.
+        // while playing is the normal filled state. No pipeline
+        // exists in the remaining states.
         _ => None,
     }
 }
@@ -810,9 +901,11 @@ mod tests {
 
     #[test]
     fn table_size_is_pinned() {
-        // 26 rows; adding one is a deliberate act (worklog + doc 03
-        // §4.6 reference in the row's comment).
-        assert_eq!(TRANSITIONS.len(), 26);
+        // 30 rows (26 of 2.C2 + card 3.C1's four: Opening+Stop,
+        // Buffering+Pause, Buffering+Stop, Paused+Primed); adding one
+        // is a deliberate act (worklog + doc 03 §4.6 reference in the
+        // row's comment).
+        assert_eq!(TRANSITIONS.len(), 30);
     }
 
     #[test]

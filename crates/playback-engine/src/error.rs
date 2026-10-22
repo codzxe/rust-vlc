@@ -64,16 +64,6 @@ impl NoDecodableKnown {
 /// state machine is asked anything (see the module docs).
 #[derive(Debug)]
 pub enum SessionError {
-    /// The engine already hosts a live session. Single-session v0
-    /// `[PROPOSAL: multi-session hosting arrives with the hosts that
-    /// need it]`; card 3.A2 wires source replacement on `open`, so
-    /// this refusal now surfaces for exactly one legal exit — a live
-    /// `Buffering` session (no `buffering → {stopped,idle}` wire
-    /// edge in v1; card 3.C1 owns the transient-state edges).
-    SessionExists {
-        /// The live session's wire id.
-        session: commands::SessionId,
-    },
     /// The session configuration is unusable (see
     /// [`SessionConfigError`] for the typed causes).
     Config(SessionConfigError),
@@ -102,13 +92,6 @@ pub enum SessionError {
 impl fmt::Display for SessionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SessionError::SessionExists { session } => {
-                write!(
-                    f,
-                    "a live session exists (id {}); close it first",
-                    session.0
-                )
-            }
             SessionError::Config(cause) => write!(f, "session configuration: {cause}"),
             SessionError::GenerationExhausted(source) => write!(f, "{source}"),
             SessionError::SessionClosed => {

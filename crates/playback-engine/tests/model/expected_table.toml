@@ -1,0 +1,563 @@
+# The expected state-machine table (card 3.C1's committed artifact):
+# one entry per (state, input) pair — 8 states x 12 inputs = 96
+# entries, exactly. This file is the HUMAN review surface for every
+# transition decision: adding, removing, or editing a row is a diff
+# here, visible and arguable in TOML before it is code (the design's
+# "adding a row is a deliberate act").
+#
+# `tests/model_check.rs` loads this file and proves the three-way
+# agreement: the engine's data table (`state.rs::TRANSITIONS` via
+# `apply_input`) == the imperative doc-cited oracle
+# (`tests/model/oracle.rs`) == this artifact, for every pair — target,
+# effects, and typed rejection reason.
+#
+# Grammar (a deliberately restricted TOML subset, parsed by a
+# hand-rolled std-only reader in the test — playback-engine has a
+# zero-external-dependency contract, C5):
+#
+#     [[pair]]
+#     state   = "<kebab-state>"
+#     input   = "<kebab-input>"
+#     to      = "<kebab-state>"        # a legal row…
+#     effects = ["<kebab-effect>", …]  # …with its doc 03 §4.6 side effects
+#
+# or, for a typed rejection:
+#
+#     [[pair]]
+#     state  = "<kebab-state>"
+#     input  = "<kebab-input>"
+#     reject = "<kebab-reason>"
+#
+# Row count after card 3.C1: 30 legal rows, 66 typed rejections.
+# Card 3.C1's four new rows (vs the 2.C2 baseline of 26/70):
+#   opening + stop, buffering + pause, buffering + stop,
+#   paused + primed (the buffered-pause bookend).
+# The close-from-active trio (buffering/playing/paused + close) is
+# typed `settle-first`: the wire (doc 05 §3.3) has no active->idle
+# edge; the executor composes stop-then-close (`close_plan`).
+
+# ---- idle ----
+
+[[pair]]
+state = "idle"
+input = "open"
+to = "opening"
+effects = []
+
+[[pair]]
+state = "idle"
+input = "play"
+reject = "no-session"
+
+[[pair]]
+state = "idle"
+input = "pause"
+reject = "no-session"
+
+[[pair]]
+state = "idle"
+input = "stop"
+reject = "no-session"
+
+[[pair]]
+state = "idle"
+input = "close"
+to = "idle"
+effects = []
+
+[[pair]]
+state = "idle"
+input = "seek"
+reject = "no-session"
+
+[[pair]]
+state = "idle"
+input = "open-ready"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "idle"
+input = "primed"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "idle"
+input = "underrun"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "idle"
+input = "eof-reached"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "idle"
+input = "drained"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "idle"
+input = "failed"
+reject = "signal-not-raised-here"
+
+# ---- opening ----
+
+[[pair]]
+state = "opening"
+input = "open"
+reject = "source-replacement-phase3"
+
+[[pair]]
+state = "opening"
+input = "play"
+reject = "not-ready"
+
+[[pair]]
+state = "opening"
+input = "pause"
+reject = "not-ready"
+
+[[pair]]
+state = "opening"
+input = "stop"
+to = "stopped"
+effects = ["bump-pipeline", "teardown-pipeline"]
+
+[[pair]]
+state = "opening"
+input = "close"
+to = "idle"
+effects = ["bump-pipeline", "destroy-session"]
+
+[[pair]]
+state = "opening"
+input = "seek"
+reject = "not-ready"
+
+[[pair]]
+state = "opening"
+input = "open-ready"
+to = "buffering"
+effects = ["emit-tracks", "emit-buffering-enter"]
+
+[[pair]]
+state = "opening"
+input = "primed"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "opening"
+input = "underrun"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "opening"
+input = "eof-reached"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "opening"
+input = "drained"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "opening"
+input = "failed"
+to = "error"
+effects = ["report-fatal", "teardown-pipeline"]
+
+# ---- buffering ----
+
+[[pair]]
+state = "buffering"
+input = "open"
+reject = "source-replacement-phase3"
+
+[[pair]]
+state = "buffering"
+input = "play"
+to = "buffering"
+effects = []
+
+[[pair]]
+state = "buffering"
+input = "pause"
+to = "paused"
+effects = ["freeze-clock"]
+
+[[pair]]
+state = "buffering"
+input = "stop"
+to = "stopped"
+effects = ["bump-pipeline", "teardown-pipeline", "emit-buffering-exit"]
+
+[[pair]]
+state = "buffering"
+input = "close"
+reject = "settle-first"
+
+[[pair]]
+state = "buffering"
+input = "seek"
+to = "buffering"
+effects = ["bump-pipeline", "seek-pipeline"]
+
+[[pair]]
+state = "buffering"
+input = "open-ready"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "buffering"
+input = "primed"
+to = "playing"
+effects = ["resume-clock", "emit-buffering-exit"]
+
+[[pair]]
+state = "buffering"
+input = "underrun"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "buffering"
+input = "eof-reached"
+to = "playing"
+effects = ["resume-clock", "emit-buffering-exit"]
+
+[[pair]]
+state = "buffering"
+input = "drained"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "buffering"
+input = "failed"
+to = "error"
+effects = ["report-fatal", "teardown-pipeline"]
+
+# ---- playing ----
+
+[[pair]]
+state = "playing"
+input = "open"
+reject = "source-replacement-phase3"
+
+[[pair]]
+state = "playing"
+input = "play"
+to = "playing"
+effects = []
+
+[[pair]]
+state = "playing"
+input = "pause"
+to = "paused"
+effects = ["freeze-clock"]
+
+[[pair]]
+state = "playing"
+input = "stop"
+to = "stopped"
+effects = ["bump-pipeline", "teardown-pipeline"]
+
+[[pair]]
+state = "playing"
+input = "close"
+reject = "settle-first"
+
+[[pair]]
+state = "playing"
+input = "seek"
+to = "buffering"
+effects = ["freeze-clock", "bump-pipeline", "seek-pipeline", "emit-buffering-enter"]
+
+[[pair]]
+state = "playing"
+input = "open-ready"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "playing"
+input = "primed"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "playing"
+input = "underrun"
+to = "buffering"
+effects = ["freeze-clock", "emit-buffering-enter"]
+
+[[pair]]
+state = "playing"
+input = "eof-reached"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "playing"
+input = "drained"
+to = "ended"
+effects = ["stop-clock", "emit-end-of-media"]
+
+[[pair]]
+state = "playing"
+input = "failed"
+to = "error"
+effects = ["report-fatal", "teardown-pipeline"]
+
+# ---- paused ----
+
+[[pair]]
+state = "paused"
+input = "open"
+reject = "source-replacement-phase3"
+
+[[pair]]
+state = "paused"
+input = "play"
+to = "playing"
+effects = ["resume-clock"]
+
+[[pair]]
+state = "paused"
+input = "pause"
+to = "paused"
+effects = []
+
+[[pair]]
+state = "paused"
+input = "stop"
+to = "stopped"
+effects = ["bump-pipeline", "teardown-pipeline"]
+
+[[pair]]
+state = "paused"
+input = "close"
+reject = "settle-first"
+
+[[pair]]
+state = "paused"
+input = "seek"
+to = "paused"
+effects = ["bump-pipeline", "seek-pipeline"]
+
+[[pair]]
+state = "paused"
+input = "open-ready"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "paused"
+input = "primed"
+to = "paused"
+effects = ["emit-buffering-exit"]
+
+[[pair]]
+state = "paused"
+input = "underrun"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "paused"
+input = "eof-reached"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "paused"
+input = "drained"
+to = "ended"
+effects = ["stop-clock", "emit-end-of-media"]
+
+[[pair]]
+state = "paused"
+input = "failed"
+to = "error"
+effects = ["report-fatal", "teardown-pipeline"]
+
+# ---- stopped ----
+
+[[pair]]
+state = "stopped"
+input = "open"
+reject = "source-replacement-phase3"
+
+[[pair]]
+state = "stopped"
+input = "play"
+reject = "already-settled"
+
+[[pair]]
+state = "stopped"
+input = "pause"
+reject = "already-settled"
+
+[[pair]]
+state = "stopped"
+input = "stop"
+reject = "already-settled"
+
+[[pair]]
+state = "stopped"
+input = "close"
+to = "idle"
+effects = ["bump-pipeline", "destroy-session"]
+
+[[pair]]
+state = "stopped"
+input = "seek"
+reject = "already-settled"
+
+[[pair]]
+state = "stopped"
+input = "open-ready"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "stopped"
+input = "primed"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "stopped"
+input = "underrun"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "stopped"
+input = "eof-reached"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "stopped"
+input = "drained"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "stopped"
+input = "failed"
+reject = "signal-not-raised-here"
+
+# ---- ended ----
+
+[[pair]]
+state = "ended"
+input = "open"
+reject = "source-replacement-phase3"
+
+[[pair]]
+state = "ended"
+input = "play"
+reject = "restart-needs-seek"
+
+[[pair]]
+state = "ended"
+input = "pause"
+reject = "already-settled"
+
+[[pair]]
+state = "ended"
+input = "stop"
+reject = "already-settled"
+
+[[pair]]
+state = "ended"
+input = "close"
+to = "idle"
+effects = ["bump-pipeline", "destroy-session"]
+
+[[pair]]
+state = "ended"
+input = "seek"
+reject = "ended-needs-wire-edge"
+
+[[pair]]
+state = "ended"
+input = "open-ready"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "ended"
+input = "primed"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "ended"
+input = "underrun"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "ended"
+input = "eof-reached"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "ended"
+input = "drained"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "ended"
+input = "failed"
+reject = "signal-not-raised-here"
+
+# ---- error ----
+
+[[pair]]
+state = "error"
+input = "open"
+reject = "source-replacement-phase3"
+
+[[pair]]
+state = "error"
+input = "play"
+reject = "already-settled"
+
+[[pair]]
+state = "error"
+input = "pause"
+reject = "already-settled"
+
+[[pair]]
+state = "error"
+input = "stop"
+reject = "already-settled"
+
+[[pair]]
+state = "error"
+input = "close"
+to = "idle"
+effects = ["bump-pipeline", "destroy-session"]
+
+[[pair]]
+state = "error"
+input = "seek"
+reject = "already-settled"
+
+[[pair]]
+state = "error"
+input = "open-ready"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "error"
+input = "primed"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "error"
+input = "underrun"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "error"
+input = "eof-reached"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "error"
+input = "drained"
+reject = "signal-not-raised-here"
+
+[[pair]]
+state = "error"
+input = "failed"
+reject = "signal-not-raised-here"

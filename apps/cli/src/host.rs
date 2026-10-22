@@ -1201,11 +1201,12 @@ fn rejection_wire(state: SessionState, reason: playback_engine::RejectionReason)
             ErrorCode::NotReady,
             format!("the session is still opening (state: {state_name:?})"),
         ),
-        playback_engine::RejectionReason::StopFirst => CommandError::new(
+        playback_engine::RejectionReason::SettleFirst => CommandError::new(
             stage,
             ErrorCode::NotReady,
             format!(
-                "stop-or-close from {state_name:?} lands with card 3.C1 (active-close completeness)"
+                "close from {state_name:?} composes through stop (the executor applies it; \
+                 the table stays pure)"
             ),
         ),
         playback_engine::RejectionReason::AlreadySettled => CommandError::new(
@@ -1252,11 +1253,6 @@ fn rejection_wire(state: SessionState, reason: playback_engine::RejectionReason)
 /// A session-construction error's wire form.
 fn session_error_wire(error: &SessionError) -> CommandError {
     match error {
-        SessionError::SessionExists { .. } => CommandError::new(
-            Stage::Session,
-            ErrorCode::NotReady,
-            "a session is already open",
-        ),
         SessionError::Config(cause) => {
             CommandError::new(Stage::Session, ErrorCode::Unsupported, cause.to_string())
                 .with_detail("code", "session.no-decodable-track")
