@@ -65,6 +65,10 @@ pub enum CliCommand {
     SettingGet { key: String },
     /// `setting set <area.key> <value>` → `config.set-setting`.
     SettingSet { key: String, value: String },
+    /// `decode-bench <path>` — host verb (argv-only): the ffmpeg
+    /// speed-parity runner (W4-R2). One machine-parseable BENCH line
+    /// on stdout, typed errors on stderr.
+    DecodeBench { source: String },
     /// `help` — host verb.
     Help,
     /// `quit` / `q` — host verb (REPL exit).
@@ -205,6 +209,7 @@ pub fn parse_command(words: &[String]) -> Result<CliCommand, ParseError> {
         "commands" | "list-commands" => no_args(CliCommand::Commands),
         "advance" => parse_advance(args),
         "setting" => parse_setting(args),
+        "decode-bench" => parse_decode_bench(args),
         "help" => no_args(CliCommand::Help),
         "quit" | "q" => no_args(CliCommand::Quit),
         other => {
@@ -315,6 +320,19 @@ fn parse_advance(args: &[String]) -> Result<CliCommand, ParseError> {
         }
         _ => Err(ParseError::new("advance takes at most one count", USAGE)),
     }
+}
+
+/// `decode-bench <path>` (W4-R2: exactly one source, no flags).
+fn parse_decode_bench(args: &[String]) -> Result<CliCommand, ParseError> {
+    if args.len() != 1 {
+        return Err(ParseError::new(
+            "decode-bench takes exactly one source path",
+            "usage: lumen decode-bench <file>",
+        ));
+    }
+    Ok(CliCommand::DecodeBench {
+        source: args[0].clone(),
+    })
 }
 
 /// `setting get <key>` / `setting set <key> <value>`.
@@ -642,6 +660,28 @@ mod tests {
         );
         assert!(parse_command(&words("setting")).is_err());
         assert!(parse_command(&words("setting bogus k")).is_err());
+    }
+
+    #[test]
+    fn decode_bench_grammar() {
+        assert_eq!(
+            parse_command(&words("decode-bench clip.avi")),
+            Ok(CliCommand::DecodeBench {
+                source: "clip.avi".to_string()
+            })
+        );
+        assert!(
+            parse_command(&words("decode-bench")).is_err(),
+            "source is required"
+        );
+        assert!(
+            parse_command(&words("decode-bench a.avi b.avi")).is_err(),
+            "one source only"
+        );
+        assert!(
+            parse_command(&words("decode-bench a.avi --json")).is_err(),
+            "no flags (global flags precede the verb)"
+        );
     }
 
     #[test]

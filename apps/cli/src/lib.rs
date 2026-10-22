@@ -30,6 +30,9 @@
 //!   `FrameConsumer` (audio → `AudioPipeline` → null sink; video →
 //!   I420→RGBA host conversion → `PresentationScheduler` → the
 //!   software `Renderer`).
+//! - [`bench`]     — `decode-bench`: the ffmpeg speed-parity runner
+//!   (W4-R2) — open path + demux + decode-to-null over the real
+//!   crates, one machine-parseable BENCH line.
 //! - [`host`]     — the [`host::CliHost`]: owns the `Engine`, pumps it
 //!   (the host's poll IS the session thread, 2.C2's invariant S1),
 //!   correlates receipts to requests, records events and state
@@ -59,6 +62,7 @@
 //!   validator's own wire formats — see `Cargo.toml`'s header for the
 //!   ARCH-5 rationale.
 
+pub mod bench;
 pub mod demux_host;
 pub mod dispatch;
 pub mod exit;
