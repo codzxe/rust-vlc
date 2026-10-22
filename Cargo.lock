@@ -32,7 +32,11 @@ name = "codecs"
 version = "0.1.0"
 dependencies = [
  "codec-api",
+ "demux",
+ "input",
  "media-types",
+ "plugin-api",
+ "testkit",
 ]
 
 [[package]]

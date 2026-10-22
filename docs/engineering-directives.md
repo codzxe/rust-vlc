@@ -204,3 +204,44 @@ non-standard byte.
    a 0 in an optional field?
 4. Am I testing only what I generated, or did I test against corrupt and
    adversarial inputs?
+
+## D-11. The Randomized Real-Media Corpus Mandate (user-issued 2026-10-22)
+
+> "For testing make all resolution and type video and audio and test with
+> them so we just don't depend on code — real audio and video generated from
+> script, many random formats, NOT deterministic, too many random samples,
+> which tell us real numbers."
+
+Testing against a hand-picked fixture list is still an echo chamber with
+extra steps. The binding rules:
+
+- **Real media, script-generated.** The project maintains a corpus
+  generator (`tools/corpus/gen_corpus.py`) that drives **ffmpeg/ffprobe**
+  (real production encoders) — the media under test is authored by an
+  external engine, never by Lumen's own fixture writer.
+- **RANDOM, not deterministic.** Every corpus run draws its parameters
+  (codec, container, resolution, fps, pix_fmt, sample rate, channels,
+  duration, quality) from OS entropy — two runs never match. A fixed,
+  hand-curated "known-good matrix" is forbidden as the primary evidence
+  base. Reproducibility is preserved honestly: the manifest records the
+  seed + the exact encoder command per file, and `--replay` re-executes
+  them for defect triage.
+- **All resolutions and all types.** Coverage-guided randomness: every
+  codec-family × container-family and every resolution class (16×16 →
+  3840×2160, plus odd-dimension draws) is guaranteed at least one slot per
+  corpus, with random draws filling the rest.
+- **Dirty world included.** Every corpus carries corrupted siblings
+  (truncation, byte flips, header smash, tail garbage, lying extensions)
+  and garbage archetypes; nothing may panic or hang on them (D-3).
+- **Real numbers, not green checkmarks.** Conformance is judged against
+  **ffprobe/ffmpeg as the external oracle** and reported as measured
+  numbers: identification accuracy, packet-count and duration deltas vs
+  the oracle, PSNR/max-diff fidelity vs the reference decode, and decode
+  throughput (MB/s, fps) per resolution class. A suite that cannot quote
+  its numbers has not run.
+
+Project anchors: `tools/corpus/gen_corpus.py` (generator),
+`tools/corpus/run_harness.py` (oracle harness + report),
+`crates/{media-probe,demux,codecs}/tests/corpus.rs` (env-gated suites,
+activated only by the harness driver — the local gate never depends on a
+generated corpus existing), reports under `docs/corpus/`.

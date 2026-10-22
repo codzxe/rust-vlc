@@ -31,6 +31,12 @@ codec-api = { path = "../codec-api" }
 media-types = { path = "../media-types" }
 
 [dev-dependencies]
-# No dev-dependencies: the contract suite is codec_api::contract (already
-# a normal dep) and the fixture corpus is read straight from the committed
-# tests/fixtures tree via CARGO_MANIFEST_DIR-relative paths.
+# The randomized-corpus vertical (ED-FIX-5; user directive 2026-10-22):
+# the corpus suite opens real ffmpeg-authored AVIs through `input`'s
+# FileAccess and demuxes them with the real `AviDemuxer` before decoding —
+# the full L1→L3 composition under test, no synthetic fixture anywhere in
+# the path. Downward dev-edges only (the demux dev-dep precedent).
+input = { path = "../input" }
+demux = { path = "../demux" }
+plugin-api = { path = "../plugin-api" }
+testkit = { path = "../testkit" }

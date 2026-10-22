@@ -209,7 +209,7 @@ external_dev_allowlist = []
 [crates.codecs]
 layer = 3
 internal_deps = ["codec-api", "media-types"]
-dev_deps = []
+dev_deps = ["testkit", "input", "demux", "plugin-api"]
 external_allowlist = []
 external_dev_allowlist = []
 

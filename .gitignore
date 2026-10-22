@@ -66,3 +66,8 @@ tool-results/
 # workspace; doc 11 §3.7: "Cargo.lock is committed; builds are --locked in
 # CI". Never add Cargo.lock to this ignore file. Build outputs already
 # covered by `target/` above.
+
+# Randomized real-media corpus (D-11): generated, not committed — the
+# generator + manifest commands in-repo are the reproducibility anchor.
+/corpus/
+/corpus-smoke/
