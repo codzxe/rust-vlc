@@ -192,3 +192,129 @@ fn chapter_seek_refuses_typed() {
     assert!(err.contains("[session.not-found]"), "{err}");
     assert!(err.contains("no chapter 3"), "{err}");
 }
+
+// ---------------------------------------------------------------------------
+// M17: the graceful exit (doc 10 §6 scenario 16 — "exit during
+// playback leaves no temp state": teardown within deadline, device
+// closed, exit code clean)
+// ---------------------------------------------------------------------------
+
+/// THE M17 regression: quitting mid-play runs the mandated teardown —
+/// stop from `Playing`, close from `Stopped` — through the same
+/// dispatch the typed verbs use, with the state trail printed and a
+/// clean exit. The bare `break` this replaces abandoned the audio
+/// device mid-stream with no `Stopped`/`Idle` observability.
+#[test]
+fn quit_during_play_tears_the_session_down() {
+    let (out, err, code) = run(&["open", &parent()], "quit\n");
+    assert_eq!(code, 0, "stdout:\n{out}\nstderr:\n{err}");
+    assert!(err.is_empty(), "a clean teardown is silent: {err}");
+    // The teardown's own trail, in causal order: stop, then close.
+    let stopped = out.find("state-changed Playing → Stopped").must();
+    let idle = out.find("state-changed Stopped → Idle").must();
+    assert!(idle > stopped, "close follows the stop:\n{out}");
+    // The teardown is the transcript's tail: the `→ Idle` event is the
+    // last line (nothing follows the close but the exit).
+    assert!(
+        out.ends_with("event: state-changed Stopped → Idle\n"),
+        "the close's event closes the transcript:\n{out}"
+    );
+}
+
+/// The EOF twin (Ctrl-D): no `quit` line — the stream ends and the
+/// same teardown runs.
+#[test]
+fn eof_during_play_tears_the_session_down() {
+    let (out, err, code) = run(&["open", &parent()], "");
+    assert_eq!(code, 0, "stdout:\n{out}\nstderr:\n{err}");
+    assert!(err.is_empty(), "a clean teardown is silent: {err}");
+    assert!(out.contains("state-changed Playing → Stopped"), "{out}");
+    assert!(
+        out.ends_with("event: state-changed Stopped → Idle\n"),
+        "the close's event closes the transcript:\n{out}"
+    );
+}
+
+/// Quit from `Paused`: the stop lands from the paused state too
+/// (`Paused → Stopped → Idle`) — the teardown does not depend on
+/// `Playing`.
+#[test]
+fn quit_while_paused_still_tears_down() {
+    let (out, err, code) = run(&["open", &parent(), "--start-paused"], "quit\n");
+    assert_eq!(code, 0, "stdout:\n{out}\nstderr:\n{err}");
+    assert!(err.is_empty(), "a clean teardown is silent: {err}");
+    let stopped = out.find("state-changed Paused → Stopped").must();
+    let idle = out.find("state-changed Stopped → Idle").must();
+    assert!(idle > stopped, "close follows the stop:\n{out}");
+}
+
+/// Quit after a typed close: nothing live, so the teardown is a no-op —
+/// no second `Stopped → Idle` echo, no stderr, exit 0. Idempotence is
+/// part of the mandate (the typed close already did the work).
+#[test]
+fn quit_after_close_is_a_no_op() {
+    let (out, err, code) = run(&["open", &parent()], "stop\nclose\nquit\n");
+    assert_eq!(code, 0, "stdout:\n{out}\nstderr:\n{err}");
+    assert!(err.is_empty(), "nothing to report: {err}");
+    assert_eq!(
+        out.matches("state-changed Playing → Stopped").count(),
+        1,
+        "the typed stop only:\n{out}"
+    );
+    assert_eq!(
+        out.matches("state-changed Stopped → Idle").count(),
+        1,
+        "the typed close only — no teardown echo:\n{out}"
+    );
+}
+
+/// The machine mode's EOF twin (M17): `--control-stdio --json` open
+/// (`startPaused` — the open path's settle+pause composition, the
+/// deterministic way a machine script lands a teardown-able state;
+/// a bare `playback.play` would leave the C8 self-confirmation in
+/// `Buffering`) → EOF tears the session down; the teardown's trail
+/// rides the NDJSON event stream (doc 05 §5.3 — "`--json` emits
+/// every event").
+#[test]
+fn machine_mode_eof_during_play_tears_down() {
+    let open = format!(
+        "{{\"requestId\": 1, \"cmd\": \"session.open\", \"args\": {{\"source\": \
+         {{\"kind\": \"file\", \"path\": \"{parent}\"}}, \
+         \"options\": {{\"startPaused\": true}}}}}}\n",
+        parent = parent()
+    );
+    let (out, err, code) = run(&["--control-stdio", "--json"], &open);
+    assert_eq!(code, 0, "stdout:\n{out}\nstderr:\n{err}");
+    assert!(err.is_empty(), "a clean teardown is silent: {err}");
+    assert!(out.contains("\"kind\":\"session.state-changed\""), "{out}");
+    assert!(out.contains("\"to\":\"stopped\""), "{out}");
+    assert!(out.contains("\"to\":\"idle\""), "{out}");
+    // The teardown is the stream's tail: the `→ idle` event is the
+    // last NDJSON line.
+    let last = out.lines().last().must();
+    assert!(
+        last.contains("\"to\":\"idle\""),
+        "the close's event closes the stream:\n{out}"
+    );
+}
+
+/// The teardown-refusal scenario (M17 AC (b)): EOF while the session
+/// still sits in `Buffering` — machine mode answers the open at its
+/// receipt (no settle), and the engine's v1 table refuses the close
+/// from the transient state (card 3.C1 owns active-close). The exit is
+/// still bounded and clean: the typed refusal lands on stderr, the
+/// process answers 0. `wait_with_output` returning (and these
+/// assertions running) is itself the no-hang proof.
+#[test]
+fn machine_mode_eof_refusal_is_bounded_and_honest() {
+    let open = format!(
+        "{{\"requestId\": 1, \"cmd\": \"session.open\", \"args\": {{\"source\": \
+         {{\"kind\": \"file\", \"path\": \"{parent}\"}}}}}}\n",
+        parent = parent()
+    );
+    let (out, err, code) = run(&["--control-stdio"], &open);
+    assert_eq!(code, 0, "the quit still exits clean:\n{out}\n{err}");
+    assert!(err.contains("[session.not-ready]"), "{err}");
+    assert!(err.contains("stop-or-close from Buffering"), "{err}");
+    assert!(err.contains("card 3.C1"), "{err}");
+}

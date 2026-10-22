@@ -39,7 +39,7 @@
 //! spectral-selection scans, field-based (interlaced) MJPEG and the
 //! AVI1 chunk format (doc 04's gap list — the 5.H3 polish card).
 //!
-//! # Damage model (card 2.B4 / doc 03 §4.5(d))
+//! # Damage model (card 2.B4 / doc 03 §4.5(d); audit M9 / ED-FIX-4)
 //!
 //! Header-level garbage is a typed error (nothing is emitted).
 //! Entropy-level damage after a valid header — truncation, invalid
@@ -49,6 +49,36 @@
 //! (bounded, observable, never silent). Every decode path is
 //! bounds-checked and overflow-checked: no panic on any input (the
 //! `fuzz_codec_mjpeg` target's guarantee).
+//!
+//! ## Per-frame isolation (the CorruptPacket contract)
+//!
+//! Doc 03 §4.5(d): "`CorruptPacket` affects only the current packet —
+//! the decoder must return to a state where it can accept the next
+//! packet." MJPEG is stateless between packets (every frame a complete
+//! keyframe), so *every* per-packet damage class satisfies this
+//! trivially: after a typed [`ErrorKind::Corrupt`] /
+//! [`ErrorKind::Decoder { cause: Bitstream }`] error the decoder
+//! accepts and decodes the next packet unchanged (pinned by
+//! `per_frame_damage_leaves_the_decoder_usable` in the contract
+//! suite). The damage vocabulary is therefore exactly the codec-api
+//! contract's corrupt-input kinds:
+//!
+//! - `Corrupt { Truncated | InvalidStructure }` — header/marker
+//!   damage in **this frame's** bytes;
+//! - `Decoder { Bitstream }` — entropy damage the in-decoder
+//!   concealment above could not apply (no usable header).
+//!
+//! `Unsupported` (out-of-subset feature) and `ResourceLimit`
+//! (dimension cap) are *not* damage: they are deterministic per
+//! stream, so retrying later frames cannot help — the engine treats
+//! them as terminal, correctly. The engine side of the contract (the
+//! `playback-engine` decode slice) converts the per-frame kinds into
+//! the `Recovered`-class outcome the PCM sibling already produces:
+//! damage is counted and surfaced as `DamagedData`/non-fatal
+//! `playback.error`, presentation conceals by repeating the last
+//! decoded frame, and a bounded run of consecutive failures ends in a
+//! typed `ResourceLimit { RecoveryAttempts }` terminal (doc 03
+//! §4.3(d)'s bounded-window precedent; the audit's M9 fix).
 
 pub(crate) mod bitreader;
 pub(crate) mod color;
@@ -79,7 +109,10 @@ use media_types::packet::SharedBytes;
 /// `Unsupported` (feature outside the baseline subset), `Corrupt`
 /// (structural marker damage / truncation in the headers),
 /// `Decoder`/`Bitstream` (entropy-level, when concealment is not
-/// applicable), `ResourceLimit` (dimension cap).
+/// applicable), `ResourceLimit` (dimension cap). The `Corrupt` and
+/// `Decoder`/`Bitstream` kinds are **per-frame damage** (doc 03
+/// §4.5(d) `CorruptPacket`): one damaged image never poisons the
+/// next — the caller may feed the following frame immediately.
 pub fn decode_image(jpeg: &[u8]) -> Result<DecodedFrame, EngineError> {
     let image = decoder::decode(jpeg).map_err(|e| e.into_engine_error())?;
     Ok(DecodedFrame {
@@ -249,6 +282,16 @@ impl Decoder for MjpegDecoder {
         Ok(())
     }
 
+    /// Decode one packet (one complete JPEG).
+    ///
+    /// Per-frame isolation (doc 03 §4.5(d) `CorruptPacket`, audit
+    /// M9): an `Err` whose kind is `Corrupt` or
+    /// `Decoder { Bitstream }` damaged **this frame only** — the
+    /// decoder holds no inter-frame state, so the very next packet
+    /// decodes normally (the statelessness is the guarantee, pinned
+    /// by the contract suite). The engine converts those kinds into
+    /// its `Recovered`-class outcome instead of a session teardown.
+    #[allow(clippy::missing_errors_doc)]
     fn decode(
         &mut self,
         packet: Packet,

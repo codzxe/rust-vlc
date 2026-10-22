@@ -84,10 +84,12 @@ pub use event::{
     wire_error_code, wire_playback_state, wire_stage,
 };
 pub use events::{
-    BUFFERING_WINDOW_MS, DAMAGE_WINDOW_MS, DamageCoalescer, EventPolicy, ProgressWindow,
-    TIME_TICK_DEFAULT_MS, TIME_TICK_FLOOR_MS, TimeTickPolicy,
+    BUFFERING_WINDOW_MS, DAMAGE_WINDOW_MS, DamageCoalescer, DrainStaleness, EventPolicy,
+    ProgressWindow, StalenessStamp, TIME_TICK_DEFAULT_MS, TIME_TICK_FLOOR_MS, TimeTickPolicy,
 };
-pub use pipeline::{DecoderProvider, FrameConsumer, QueuePlan, TickBudget};
+pub use pipeline::{
+    DecoderProvider, FrameConsumer, QueuePlan, TickBudget, VIDEO_CONCEALMENT_BUDGET,
+};
 pub use seek::{SeekFailure, SeekTarget};
 pub use session::{
     CommandReceipt, Engine, EngineOutput, EngineStats, INBOX_CAPACITY, OUTBOX_CAPACITY,

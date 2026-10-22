@@ -198,19 +198,38 @@ fn swapped(data: &[u8], bps: usize) -> Vec<u8> {
 /// The stream facts a configuration carries: channel count and rate.
 type Facts = (u32, u32);
 
-/// Parse a 16-byte PCMWAVEFORMAT / 18-byte WAVEFORMATEX and
-/// cross-check it against the descriptor's format.
+/// `wFormatTag` for WAVEFORMATEXTENSIBLE — the 40-byte form whose
+/// SubFormat GUID names the real format (the AVI demuxer resolves the
+/// same GUID; the decoder accepts the verbatim container blob).
+const WAVE_FORMAT_EXTENSIBLE: u16 = 0xFFFE;
+/// `KSDATAFORMAT_SUBTYPE_PCM` — `{00000001-0000-0010-8000-00AA00389B71}`.
+const SUBFORMAT_PCM_GUID: [u8; 16] = [
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71,
+];
+/// `KSDATAFORMAT_SUBTYPE_IEEE_FLOAT` —
+/// `{00000003-0000-0010-8000-00AA00389B71}`.
+const SUBFORMAT_IEEE_FLOAT_GUID: [u8; 16] = [
+    0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71,
+];
+
+/// Parse a 16-byte PCMWAVEFORMAT, 18-byte WAVEFORMATEX or 40-byte
+/// WAVEFORMATEXTENSIBLE and cross-check it against the descriptor's
+/// format. The extensible form resolves its SubFormat GUID to the
+/// plain PCM/float tag first (the demuxer accepts the same blobs —
+/// the engine may hand either crate's view the container's verbatim
+/// `strf`).
 ///
 /// # Errors
 /// [`PcmError::Unsupported`] for every length/tag/width/consistency
 /// violation (distinct context codes; see the module docs).
 fn parse_waveformatex(bytes: &[u8], format: PcmFormat) -> Result<Facts, PcmError> {
-    if bytes.len() != 16 && bytes.len() != 18 {
+    if !matches!(bytes.len(), 16 | 18 | 40) {
         return Err(unsupported(
             "pcm.waveformat.length",
             format!(
-                "stream-facts blob must be a 16-byte PCMWAVEFORMAT or \
-                 18-byte WAVEFORMATEX, got {} bytes",
+                "stream-facts blob must be a 16-byte PCMWAVEFORMAT, \
+                 18-byte WAVEFORMATEX or 40-byte WAVEFORMATEXTENSIBLE, \
+                 got {} bytes",
                 bytes.len()
             ),
         ));
@@ -236,7 +255,35 @@ fn parse_waveformatex(bytes: &[u8], format: PcmFormat) -> Result<Facts, PcmError
             "nSamplesPerSec is zero — a PCM stream needs a nonzero rate",
         ));
     }
-    let float = matches!(format.output_sample_format(), SampleFormat::F32);
+    // The extensible form names its real format in the SubFormat GUID
+    // (byte 24); resolve it to the plain tag the descriptor check
+    // understands. Anything but the 40-byte form is a length lie.
+    let tag = if tag == WAVE_FORMAT_EXTENSIBLE {
+        if bytes.len() != 40 {
+            return Err(unsupported(
+                "pcm.waveformat.extensible",
+                "WAVE_FORMAT_EXTENSIBLE requires the 40-byte form carrying \
+                 the SubFormat GUID",
+            ));
+        }
+        if bytes[24..40] == SUBFORMAT_PCM_GUID {
+            WAVE_FORMAT_PCM
+        } else if bytes[24..40] == SUBFORMAT_IEEE_FLOAT_GUID {
+            WAVE_FORMAT_IEEE_FLOAT
+        } else {
+            return Err(unsupported(
+                "pcm.waveformat.subformat",
+                "the SubFormat GUID names a format outside the PCM \
+                 vocabulary",
+            ));
+        }
+    } else {
+        tag
+    };
+    let float = matches!(
+        format.output_sample_format(),
+        SampleFormat::F32 | SampleFormat::F64
+    );
     let tag_ok = if float {
         tag == WAVE_FORMAT_IEEE_FLOAT
     } else {
@@ -646,14 +693,76 @@ mod tests {
                 .map(|e| e.into_engine_error().context.code),
             Some("pcm.waveformat.tag".to_string())
         );
-        // Extensible tag is an honest v0 gap.
+        // Extensible tag in a blob too short to carry the GUID.
         let mut extensible = waveformat(44_100);
         extensible[0..2].copy_from_slice(&0xFFFEu16.to_le_bytes());
         assert_eq!(
             parse_waveformatex(&extensible, PcmFormat::S16Le)
                 .err()
                 .map(|e| e.into_engine_error().context.code),
+            Some("pcm.waveformat.extensible".to_string())
+        );
+    }
+
+    #[test]
+    fn waveformatextensible_resolves_guids_and_decodes() {
+        // The 40-byte form ffmpeg's AVI muxer writes (the demuxer
+        // accepts the same blobs — an engine may hand the verbatim
+        // `strf` here as `extra_data`).
+        let extensible = |guid: [u8; 16], channels: u16, rate: u32, bits: u16| {
+            let mut v = waveformat(rate);
+            v.truncate(16);
+            v[0..2].copy_from_slice(&0xFFFEu16.to_le_bytes());
+            v[2..4].copy_from_slice(&channels.to_le_bytes());
+            v[8..12].copy_from_slice(&(u32::from(channels) * u32::from(bits / 8)).to_le_bytes());
+            v[12..14].copy_from_slice(&(channels * (bits / 8)).to_le_bytes());
+            v[14..16].copy_from_slice(&bits.to_le_bytes());
+            v.extend_from_slice(&22u16.to_le_bytes()); // cbSize
+            v.extend_from_slice(&bits.to_le_bytes()); // valid bits
+            v.extend_from_slice(&0x3u32.to_le_bytes()); // channel mask
+            v.extend_from_slice(&guid);
+            v
+        };
+        // Int GUID + int descriptor: parses, configures and decodes.
+        let s24 = extensible(SUBFORMAT_PCM_GUID, 2, 48_000, 24);
+        assert_eq!(parse_waveformatex(&s24, PcmFormat::S24Le), Ok((2, 48_000)));
+        let (mut decoder, generation) = configured("pcm_s24le", Some(s24));
+        let (outcome, sink) = decode_one(
+            &mut decoder,
+            vec![0x01, 0x23, 0x45, 0x67, 0x89, 0xab], // one 2ch frame
+        );
+        assert_eq!(outcome, DecodeOutcome::Emitted { frames: 1 });
+        assert_eq!(sink.frames[0].format.sample, SampleFormat::S24);
+        assert_eq!(sink.frames[0].format.channels, 2);
+        let _ = generation;
+        // Float GUID + float descriptor.
+        let f32le = extensible(SUBFORMAT_IEEE_FLOAT_GUID, 1, 44_100, 32);
+        assert_eq!(
+            parse_waveformatex(&f32le, PcmFormat::F32Le),
+            Ok((1, 44_100))
+        );
+        // Float GUID + int descriptor: the resolved tag must match.
+        assert_eq!(
+            parse_waveformatex(&f32le, PcmFormat::S32Le)
+                .err()
+                .map(|e| e.into_engine_error().context.code),
             Some("pcm.waveformat.tag".to_string())
+        );
+        // A GUID outside the PCM vocabulary (μ-law).
+        let mulaw = extensible(
+            [
+                0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38,
+                0x9b, 0x71,
+            ],
+            2,
+            44_100,
+            16,
+        );
+        assert_eq!(
+            parse_waveformatex(&mulaw, PcmFormat::S16Le)
+                .err()
+                .map(|e| e.into_engine_error().context.code),
+            Some("pcm.waveformat.subformat".to_string())
         );
     }
 

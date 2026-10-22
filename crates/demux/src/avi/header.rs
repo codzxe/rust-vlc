@@ -35,6 +35,19 @@
 //!   with the absolute height and a damage note recording the flip
 //!   (the render-side row flip itself is a renderer concern
 //!   `[PROPOSAL: compositor bottom-up present pass]`).
+//! - **The audio `strf` is a WAVEFORMATEX, and ffmpeg's is often the
+//!   40-byte WAVEFORMATEXTENSIBLE** (tag `0xFFFE`, SubFormat GUID;
+//!   the randomized corpus showed every multi-channel int-PCM file
+//!   muxed this way). The PCM family recognized here is tag `1`
+//!   (integer PCM: 8/16/24/32-bit), tag `3` (IEEE float: 32/64-bit)
+//!   and tag `0xFFFE` resolving to either GUID — the width comes from
+//!   `wBitsPerSample` (the container width; `wValidBitsPerSample` and
+//!   the channel mask are advisory for the core mapping — mask→layout
+//!   is a recorded codec-side gap). Every impossible combination
+//!   (tag 1 with 20 bits, tag 3 with 8 bits, an extensible blob whose
+//!   GUID is neither PCM nor float, an extensible blob too short to
+//!   carry the GUID) skips the stream with a damage reason — never a
+//!   panic, never the file.
 //! - Advisory `avih` fields (`dwStreams`, `dwTotalFrames`,
 //!   `AVIF_HASINDEX`, …) are never trusted for control flow — the
 //!   `strl` lists are the stream truth, the parsed `idx1` (or its
@@ -94,29 +107,117 @@ pub enum StreamFormat {
         channels: u16,
         /// Samples per second (`nSamplesPerSec`).
         samples_per_sec: u32,
-        /// Bits per sample (`wBitsPerSample`).
-        bits_per_sample: u16,
+        /// The sample representation the `strf` tag + `wBitsPerSample`
+        /// declare (see [`PcmSample`] — AVI PCM is little-endian by
+        /// container definition, so width + signedness is total).
+        sample: PcmSample,
         /// Bytes per sample frame (`nBlockAlign`).
         block_align: u16,
     },
 }
 
+/// The unpacked-PCM sample representation an AVI audio `strf`
+/// declares — the demuxer-side mirror of the codec registry's PCM
+/// descriptor vocabulary (doc 04 §3.1: `pcm_u8`, `pcm_s16le`, …,
+/// `pcm_f64le`). Kept here rather than imported from a codec crate
+/// because the demux layer must not depend on codecs (`boundaries.toml`);
+/// the **descriptor string is the seam**, and the codec side parses
+/// exactly these names (`codecs::audio::pcm::PcmFormat`).
+///
+/// AVI/WAVE PCM byte order is little-endian by definition, so width +
+/// signedness is the whole vocabulary — no endianness axis.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PcmSample {
+    /// Tag `1`, 8-bit container: unsigned (byte-order-free).
+    U8,
+    /// Tag `1`, 16-bit container: signed little-endian.
+    S16Le,
+    /// Tag `1`, 24-bit container: signed little-endian (3-byte groups).
+    S24Le,
+    /// Tag `1`, 32-bit container: signed little-endian.
+    S32Le,
+    /// Tag `3` (or the float SubFormat GUID), 32-bit: IEEE 754.
+    F32Le,
+    /// Tag `3` (or the float SubFormat GUID), 64-bit: IEEE 754.
+    F64Le,
+}
+
+impl PcmSample {
+    /// The registry descriptor string (doc 04 §3.1 table names — the
+    /// codec-side `PcmFormat` parses exactly this vocabulary).
+    #[must_use]
+    pub fn descriptor(self) -> &'static str {
+        match self {
+            PcmSample::U8 => "pcm_u8",
+            PcmSample::S16Le => "pcm_s16le",
+            PcmSample::S24Le => "pcm_s24le",
+            PcmSample::S32Le => "pcm_s32le",
+            PcmSample::F32Le => "pcm_f32le",
+            PcmSample::F64Le => "pcm_f64le",
+        }
+    }
+
+    /// Container bits per sample (`wBitsPerSample`).
+    #[must_use]
+    pub fn bits_per_sample(self) -> u16 {
+        match self {
+            PcmSample::U8 => 8,
+            PcmSample::S16Le => 16,
+            PcmSample::S24Le => 24,
+            PcmSample::S32Le | PcmSample::F32Le => 32,
+            PcmSample::F64Le => 64,
+        }
+    }
+
+    /// Bytes per sample in the container (bits ÷ 8, exact for every
+    /// member of the vocabulary).
+    #[must_use]
+    pub fn bytes_per_sample(self) -> u16 {
+        match self {
+            PcmSample::U8 => 1,
+            PcmSample::S16Le => 2,
+            PcmSample::S24Le => 3,
+            PcmSample::S32Le | PcmSample::F32Le => 4,
+            PcmSample::F64Le => 8,
+        }
+    }
+
+    /// Map a WAVE format tag + `wBitsPerSample` to the sample
+    /// vocabulary. `None` is the typed refusal for every impossible
+    /// combination (tag 1 with 20 bits, tag 3 with 8 bits, unknown
+    /// tags …) — the caller decides skip-vs-error per the containment
+    /// rules.
+    #[must_use]
+    pub fn from_wave_tag(tag: u16, bits_per_sample: u16) -> Option<PcmSample> {
+        match tag {
+            WAVE_FORMAT_PCM => match bits_per_sample {
+                8 => Some(PcmSample::U8),
+                16 => Some(PcmSample::S16Le),
+                24 => Some(PcmSample::S24Le),
+                32 => Some(PcmSample::S32Le),
+                _ => None,
+            },
+            WAVE_FORMAT_IEEE_FLOAT => match bits_per_sample {
+                32 => Some(PcmSample::F32Le),
+                64 => Some(PcmSample::F64Le),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+}
+
 impl StreamFormat {
     /// The registry vocabulary descriptor for this format (doc 04's
     /// table names: `mjpeg`, `pcm_s16le`, …) — the string the L0
-    /// `Track.codec` carries.
+    /// `Track.codec` carries. Every accepted PCM stream maps to a
+    /// real decoder vocabulary name (the pre-fix code could emit the
+    /// unregistered bare `"pcm"` for 64-bit float — an honest gap
+    /// now closed by the closed vocabulary above).
     pub fn codec_descriptor(&self) -> &'static str {
         match *self {
             StreamFormat::MotionJpeg { .. } => "mjpeg",
-            StreamFormat::Pcm {
-                bits_per_sample, ..
-            } => match bits_per_sample {
-                8 => "pcm_u8",
-                16 => "pcm_s16le",
-                24 => "pcm_s24le",
-                32 => "pcm_s32le",
-                _ => "pcm",
-            },
+            StreamFormat::Pcm { sample, .. } => sample.descriptor(),
         }
     }
 }
@@ -246,6 +347,37 @@ pub const MAX_STRN_BYTES: usize = 4096;
 /// violate conceal-don't-fabricate — the stream is skipped with
 /// damage instead]`.
 pub const MAX_PCM_CHANNELS: u16 = 64;
+
+/// `wFormatTag` for integer PCM (the WAVE family the demuxer
+/// recognizes; μ-law/A-law and friends are later codecs, not PCM
+/// width variants).
+const WAVE_FORMAT_PCM: u16 = 1;
+/// `wFormatTag` for IEEE float PCM.
+const WAVE_FORMAT_IEEE_FLOAT: u16 = 3;
+/// `wFormatTag` for WAVEFORMATEXTENSIBLE — the 40-byte form whose
+/// SubFormat GUID names the real format (ffmpeg's AVI muxer emits it
+/// for most multi-channel PCM; the randomized corpus is dominated by
+/// it).
+const WAVE_FORMAT_EXTENSIBLE: u16 = 0xFFFE;
+
+/// `KSDATAFORMAT_SUBTYPE_PCM` — `{00000001-0000-0010-8000-00AA00389B71}`
+/// (the SubFormat GUID for integer PCM inside WAVEFORMATEXTENSIBLE).
+const SUBFORMAT_PCM_GUID: [u8; 16] = [
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71,
+];
+/// `KSDATAFORMAT_SUBTYPE_IEEE_FLOAT` —
+/// `{00000003-0000-0010-8000-00AA00389B71}`.
+const SUBFORMAT_IEEE_FLOAT_GUID: [u8; 16] = [
+    0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71,
+];
+
+/// The size of the WAVEFORMATEX prefix every recognized audio `strf`
+/// must carry (tag, channels, rate, average, block align, bits).
+const WAVEFORMATEX_MIN: u32 = 16;
+/// The size of a complete WAVEFORMATEXTENSIBLE as ffmpeg writes it
+/// (18-byte WAVEFORMATEX + `cbSize`-worth of extension: valid bits,
+/// channel mask, 16-byte SubFormat GUID).
+const WAVEFORMATEXTENSIBLE_SIZE: u32 = 40;
 
 /// Damage observed while parsing (bounded-recovery bookkeeping — doc 03
 /// §4.3(d): repairs are counted and surfaced, never silent).
@@ -591,12 +723,17 @@ fn parse_strl(
                 damage.note(0, "strf-missing");
                 return Ok(None);
             };
-            if strf_size < 16 {
+            if strf_size < WAVEFORMATEX_MIN {
                 damage.note(0, "strf-too-short");
                 return Ok(None);
             }
-            let Some(bytes) = reader.read_exact_or_end_at(16, strf_offset + 8)? else {
-                return Err(error::truncated(strf_offset + 8 + 16, reader.length()));
+            let Some(bytes) =
+                reader.read_exact_or_end_at(WAVEFORMATEX_MIN as usize, strf_offset + 8)?
+            else {
+                return Err(error::truncated(
+                    strf_offset + 8 + u64::from(WAVEFORMATEX_MIN),
+                    reader.length(),
+                ));
             };
             let format_tag = riff::u16le(&bytes, 0);
             let channels = riff::u16le(&bytes, 2);
@@ -610,43 +747,74 @@ fn parse_strl(
                 damage.note(0, "audio-channels-over-ceiling");
                 return Ok(None);
             }
-            if format_tag == 3 && !matches!(bits_per_sample, 32 | 64) {
-                // IEEE float PCM comes in f32/f64 only.
-                damage.note(0, "float-pcm-bit-width-unsupported");
-                return Ok(None);
-            }
-            if format_tag == 1 {
-                if channels == 0
-                    || samples_per_sec == 0
-                    || block_align == 0
-                    || !matches!(bits_per_sample, 8 | 16 | 24 | 32)
-                {
+            // Resolve the effective WAVE format tag: plain tags pass
+            // through; WAVEFORMATEXTENSIBLE names its real format in
+            // the SubFormat GUID (the 40-byte form — ffmpeg's default
+            // for multi-channel PCM). A blob too short to carry the
+            // GUID it declares is a per-stream skip (containment), a
+            // physical cut inside it is a typed truncation.
+            let effective_tag = if format_tag == WAVE_FORMAT_EXTENSIBLE {
+                if strf_size < WAVEFORMATEXTENSIBLE_SIZE {
+                    damage.note(0, "extensible-strf-truncated");
+                    return Ok(None);
+                }
+                let Some(guid) = reader.read_exact_or_end_at(16, strf_offset + 8 + 24)? else {
+                    return Err(error::truncated(
+                        strf_offset + 8 + u64::from(WAVEFORMATEXTENSIBLE_SIZE),
+                        reader.length(),
+                    ));
+                };
+                if guid == SUBFORMAT_PCM_GUID {
+                    WAVE_FORMAT_PCM
+                } else if guid == SUBFORMAT_IEEE_FLOAT_GUID {
+                    WAVE_FORMAT_IEEE_FLOAT
+                } else {
+                    // A real extensible stream naming a codec this
+                    // demuxer has no PCM mapping for (the GUID
+                    // vocabulary is much larger than PCM/float).
+                    damage.note(0, "unsupported-audio-format");
+                    return Ok(None);
+                }
+            } else {
+                format_tag
+            };
+            // Tag + width → the sample vocabulary. `None` is the typed
+            // refusal for every impossible combination: tag 1 with
+            // 20 bits, tag 3 with 8 bits, an unrecognized tag (μ-law,
+            // ADPCM, …) — all damage-counted, none fatal to the file.
+            let Some(sample) = PcmSample::from_wave_tag(effective_tag, bits_per_sample) else {
+                if effective_tag == WAVE_FORMAT_IEEE_FLOAT {
+                    damage.note(0, "float-pcm-bit-width-unsupported");
+                } else if effective_tag == WAVE_FORMAT_PCM {
                     damage.note(0, "bad-pcm-format");
-                    return Ok(None);
+                } else {
+                    damage.note(0, "unsupported-audio-format");
                 }
-                if sample_size == 0 {
-                    // PCM without a fixed sample-frame size has no
-                    // honest chunk→sample ladder.
-                    damage.note(0, "pcm-sample-size-zero");
-                    return Ok(None);
-                }
-                if sample_size != u32::from(block_align) {
-                    damage.note(0, "sample-size-disagrees-with-block-align");
-                }
-            } else if format_tag != 3 {
-                damage.note(0, "unsupported-audio-format");
                 return Ok(None);
-            }
+            };
             if channels == 0 || samples_per_sec == 0 || block_align == 0 {
                 damage.note(0, "bad-pcm-format");
                 return Ok(None);
+            }
+            if sample_size == 0 {
+                // PCM without a fixed sample-frame size has no honest
+                // chunk→sample ladder (int and float alike — CBR is
+                // the PCM contract).
+                damage.note(0, "pcm-sample-size-zero");
+                return Ok(None);
+            }
+            if sample_size != u32::from(block_align) {
+                damage.note(0, "sample-size-disagrees-with-block-align");
+            }
+            if block_align != channels.saturating_mul(sample.bytes_per_sample()) {
+                damage.note(0, "block-align-disagrees-with-format");
             }
             Ok(Some(StreamDesc {
                 kind: MediaKind::Audio,
                 format: StreamFormat::Pcm {
                     channels,
                     samples_per_sec,
-                    bits_per_sample,
+                    sample,
                     block_align,
                 },
                 ..common

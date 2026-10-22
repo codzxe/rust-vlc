@@ -1703,3 +1703,2558 @@ Stage Summary:
 - main @ da4fd90 pushed; gate SUCCESS (0/10 failed, 5 skipped); test baseline ~1362+ grown by the wave (each branch verified 108-110 ok suites before merge).
 - The randomized-corpus system is REAL and already paying: D-11 law, generator + harness + 3 env-gated suites committed, two reports (before/after) with measured numbers, and one genuine regression caught (ED-FIX-1b follow-up).
 - Follow-ups registered: ED-FIX-1b (investigate the 5-file concealment regression; corpus replay by seed), pcm stream-recognition gap (s24le/u8/f32le fourcc table in the AVI demuxer), audio packetization accounting vs oracle, harness refinement (record decoded format/dims rows), ED-FIX-4 dispatch (host seek migration + pre-roll hold + epoch-aware OutputHub + graceful exit), ED-FIX-5 remainder (fuzz scaffolding, pcm_fuzz_survival phantom), Phase 3 waves 3.A2/A3, 3.B1-B3, 3.C/D/E/F.
+# Lead launch entry — append to worklog.md before Wave 1 agents return.
+---
+Task ID: 3.WAVE-PROGRAM (Lead)
+Agent: Lead
+Task: User directive 2026-10-22: "start 200 agents in waves of 10 waves and fix all things and start building further and dont stop and ask for permission again and again." Durable program + Wave 1 launch.
+
+Work Log:
+- State at launch: main @ 5b396e5, gate SUCCESS (0 failed / 5 skipped), ~1370 tests; D-1..D-11 live; 3.A1 + 3.B4 + ED-FIX-1/2/3 merged; randomized-corpus system (gen_corpus.py + run_harness.py + 3 env-gated suites) operational with 486-file corpus on disk + 3 measured reports; ffmpeg 7.1.5 present.
+- Backlog enumerated from the audit register + ED-CORPUS-1 follow-ups: ED-FIX-4 (C8 host seek, M1 bounds, M9 concealment, M10 pre-roll hold, M11 epoch hub, M17 graceful exit), ED-FIX-5 (M14 fuzz+phantom, M15 oracle pinning, M16 adversarial gaps), ED-FIX-1b (5-file concealment regression), pcm fourcc gap, audio packetization accounting, harness dims rows, corpus scale run; Phase 3 cards 3.A2/A3/B1/B2/B3/C1-C3/D1-D3/E1-E4/F1/F2-V (17 remaining).
+- Program: 10 waves x 20 agents = 200. Wave shape: [implementation cards] + [recon for next wave] + [adversarial verification of previous wave] + [corpus/measurement/ops]. Lead merges between waves, runs gates, pushes (INFRA-BACKUP-1).
+- Wave protocol changes for parallel safety: (a) agents write worklog entries to worklog-queue/<TaskID>.md, Lead merges into worklog.md at wave close (20-way direct append corrupts); (b) shared CARGO_TARGET_DIR=/home/z/my-project/target, builds serialize on the cargo lock — single-crate cargo test only, no workspace builds, no gate runs by agents; (c) file ownership per agent to prevent merge conflicts (host.rs vs run.rs; session.rs vs events.rs; pipeline error-path vs pre-roll region).
+- 12 worktrees created off main @ 5b396e5: w1-02 pcm-fourcc, w1-04 harness-rows, w1-06 host-seek, w1-07 session-bounds, w1-08 concealment, w1-09 preroll-hold, w1-10 epoch-hub, w1-11 graceful-exit, w1-12 fuzz-scaffold, w1-13 phantom-test, w1-14 oracle-pin, w1-15 adversarial-demux.
+- Wave 1 roster (20): 12 code agents above + 8 analysis/ops: W1-01 ED-FIX-1b triage (seed replay, no code), W1-03 audio-packet accounting classification, W1-05 corpus scale run (600 files, budget 1600 MB, nice+setsid), W1-16..W1-19 recon for 3.A2/3.A3/3.B1/3.B3, W1-20 post-merge re-audit of ED-FIX-1/2/3 vs register rows C1-C4,C5-C7,M2-M8,M18,M19.
+- Model routing: opus for the 3 hardest lifecycle cards (W1-06 C8, W1-09 M10, W1-10 M11); sonnet for the rest.
+
+Stage Summary:
+- 10-wave program launched; Wave 1 (20 agents) in flight in 12 worktrees + 8 read-only analysts.
+- Lead duties at wave close: verify branches, merge (conflict ownership map above), run full gate, regen evidence, merge worklog-queue entries, push, then compose Wave 2 from: W1 recon outputs -> 3.A2/A3/B1/B3 implementations + adversarial verifiers + corpus-big harness measurement.
+---
+Task ID: W1-01
+Agent: W1-01
+Task: ED-FIX-1b triage — root-cause the MJPEG concealment regression measured by report-20261022-1334 vs report-20261022-1233 (read-only; no code changes, no cargo).
+
+Work Log:
+- Diffed the MJPEG tables of docs/corpus/report-20261022-1233.md (BEFORE, pre-merge code @ ~52eac1c) and report-20261022-1334.md (AFTER, merged main). Five resolution classes regressed concealed 0→1 AND frames +1: tiny64odd (519→520), tiny64 (536→537), qvga (762→763), vga4x3 (691→692), hd720 (841→842). PSNR min dropped only where the concealed frame was shape-comparable: tiny64odd 68.7→8.7 dB (max_abs 128), qvga 66.3→21.8 dB (max_abs 125).
+- Reconstructed per-file numbers from the surviving AFTER per-file TSV (corpus/_harness/mjpeg-results.tsv, 13:34 run) joined with corpus/manifest.json. Result: **all 85 clean media/* files have concealed=0**; the 5 concealed>0 rows are all dirty-class files. Class arithmetic (BEFORE class total = AFTER class total − 1, with clean per-file sums unchanged) pins each +1 frame on the single dirty member of each class — BEFORE per-file values (77/72/40/190/28) are derived from class totals, since the BEFORE TSV was overwritten [derived, not directly measured].
+- Regressed files (all dirty, all corrupt-tail): dirty/cut-mid-chunk-054-0072-avi-video.avi (tiny64odd 64×47 yuvj420p), dirty/cut-mid-chunk-007-0387-avi-video.avi (tiny64 64×48, 3-comp/4:4:4), dirty/truncate-018-0257-avi-video.avi (qvga 160×120 yuvj420p), dirty/truncate-034-0036-avi-video.avi (vga4x3 640×480, 4:4:4), dirty/truncate-000-0117-avi-video.avi (hd720 1280×720, 4:4:4).
+- Byte-level RIFF/movi parse (Python) of all five: each file's final `00dc` chunk declares an end past physical EOF — truncate-018 by 39 B (prefix 726), cut-mid-chunk-054 by 668 B (prefix 275), cut-mid-chunk-007 by 542 B (prefix 546), truncate-034 by 1955 B (prefix 4216), truncate-000 by 4967 B (prefix 27571). The two shape-comparable prefixes are valid JPEGs with truncated entropy: truncate-018 #41 has 478 of 519 entropy bytes; cut-mid-chunk-054 #78 has 28 of ~698.
+- Oracle runs: ffprobe counts 41/78/73/191/29 v-packets (ffmpeg also delivers the damaged partial frame); ffmpeg rawvideo refs decode all frames ("overread 8" warnings). The AFTER demux results (corpus/_harness/demux-results.tsv) show v_pkts == oracle truth for all five, terminal=eos, recovered=4 — i.e. the NEW demuxer now matches the oracle; the OLD one under-delivered by one packet.
+- Source attribution: `git diff 52eac1c..HEAD` — crates/demux/src/avi/mod.rs changed in the same window (ED-FIX-3, commit 98f4ba3/merge 1762054, 12:51 — between the two runs). Old code: chunk payload past EOF → `Err(error::truncated(...))` (fatal, walk over). New code (mod.rs:509–521): deliver clamped prefix + "chunk-payload-past-eof" damage + hit_eof → EOS. crates/input, tools/corpus, tests/corpus.rs unchanged in the window.
+- Decoder-side exoneration of ED-FIX-1: old decoder @52eac1c already had the identical concealment flow (Err(stop) → concealed=true → gray_blocks tail → Ok; same ConcealCause set); huffman Stop semantics (Exhausted/InvalidCode) unchanged by the LUT (huffman.rs docs + pinned tests/digests); all clean-class PSNR/max_abs/exact-byte% identical BEFORE vs AFTER → ED-FIX-1 is output-consistent with the old decoder on the whole clean corpus. A decoder-side Ok/Err flip cannot produce +1 decoded with errors=0 in both runs.
+- Concealment-quality characterization: PSNR(ffmpeg#78, all-gray)=8.5 dB ≈ report's 8.7 → Lumen's concealed frame ≈ documented mid-gray policy; ffmpeg #78 keeps partially-decoded/stale pixels (only chroma neutral). truncate-018: ffmpeg #41 ≈ #40 (48.1 dB); Lumen grays the undecoded tail → 21.8 dB. Both engines conceal the same damaged frame differently.
+
+Stage Summary:
+- ROOT CAUSE (refutes the ED-FIX-1 suspicion in worklog ED-CORPUS-1 line 1699): the concealment-count regression is **ED-FIX-3's demux V3a clamp** (crates/demux/src/avi/mod.rs:509–521, commit 98f4ba3), not ED-FIX-1's LUT-Huffman/word-refill/IDCT paths. The 5 "regressed" files are dirty truncate/cut-mid-chunk siblings whose last `00dc` chunk crosses physical EOF; the old demuxer aborted the walk with a typed truncation error so the damaged frame never reached the decoder (the corpus test breaks silently on demux Err — crates/codecs/tests/corpus.rs:179–182); the new demuxer delivers the clamped prefix, and the pre-existing, documented MJPEG entropy-truncation concealment (decoder.rs:352–366, 374–380; policy in module docs) fires. New packet counts MATCH the ffprobe oracle — this is a containment improvement, not a decode defect. No clean file conceals; clean fidelity metrics are bit-identical to BEFORE.
+- The visible PSNR damage (8.7/21.8 dB) is a concealment-policy difference on damaged frames (Lumen mid-gray tail vs ffmpeg partial/stale-pixel output), surfacing because the harness aggregates dirty files into clean resolution classes.
+- FIX to hand off (harness/reporting, not engine): (1) run_harness.py MJPEG aggregation — split clean vs dirty rows (class is in manifest) or add a dirty flag column, so dirty concealment cannot pollute clean-class PSNR minima; (2) optionally exclude concealed frames from PSNR aggregates and report them as their own row (count already exists); (3) record demux terminal/recovered per mjpeg case so packet-count deltas are attributable next time. Do NOT revert ED-FIX-3 V3a — reverting reintroduces an oracle packet-count mismatch (v_pkts 77 vs truth 78).
+- REPRO: corpus/dirty/cut-mid-chunk-054-0072-avi-video.avi — expected: 78 packets (== ffprobe), frames 1–77 clean (>68 dB), frame 78 = 275-byte clamped prefix (28 entropy bytes) → Ok, concealed=true, cause=EndOfData, ≈mid-gray output, ≈8.5–8.7 dB vs ffmpeg's #78. Actual (merged main): exactly that. Decisive A/B for the implementer: 52eac1c demux + HEAD codecs → 77/0/0; HEAD demux + 52eac1c codecs → 78/0/1 (pins the flip on the demux).
+- Artifacts: this file only. /tmp/w1t holds throwaway ffmpeg extracts (outside repo). Read-only discipline kept (git show/diff only, no cargo).
+---
+Task ID: W1-02
+Agent: W1-02
+Task: pcm stream-recognition gap — extend the AVI demuxer's audio strf (WAVEFORMATEX) format-tag mapping to the full WAVE PCM family + WAVEFORMATEXTENSIBLE, wire it to the codec-side vocabulary, prove it on the real randomized corpus.
+
+Work Log:
+- Read AGENTS.md, docs/engineering-directives.md (D-1..D-11), crates/demux/src/avi/{header.rs,mod.rs}, crates/codecs/src/audio/pcm/{mod.rs,decoder.rs}, media-types SampleFormat, boundaries.toml (demux must not depend on codecs — the descriptor string is the seam).
+- Measured the existing failure from corpus/_harness/demux-results.tsv (2026-10-22 13:33 run) joined with corpus/manifest.json: 16/57 clean avi-av files matched ffprobe's audio packet count; by codec: s24le 0/13, u8 3/17, s16le 7/17, f32le 6/10 — every mismatch had a_pkts=0 (non-recognition, not miscounting).
+- Byte-level strf classification of all 57 files (Python RIFF walk): the failing population is exactly WAVE_FORMAT_EXTENSIBLE (tag 0xFFFE, 40-byte strf, SubFormat GUID PCM/IEEE-float) — ffmpeg's AVI muxer emits it for most multi-channel PCM (all clean s24le/u8 files, most s16le, the multi-channel f32le). Plain tag 1 never appeared in this corpus draw (the 16 previously-passing files were 16-byte plain-tag s16le/u8 and 18-byte tag-3 f32le). Also found a latent descriptor bug: codec_descriptor() mapped tag-3/32-bit to "pcm_s32le" (a lie about signedness) and tag-3/64-bit to the unregistered bare "pcm".
+- header.rs: added the PcmSample vocabulary (U8/S16Le/S24Le/S32Le/F32Le/F64Le — demux-side mirror of the registry names; kept in demux per boundaries.toml), reshaped StreamFormat::Pcm to carry it (replacing raw bits_per_sample), added PcmSample::from_wave_tag as the total tag×width mapping, and rewrote the auds strf branch: 0xFFFE resolves its SubFormat GUID (KSDATAFORMAT_SUBTYPE_PCM / _IEEE_FLOAT) to the plain tag; width from wBitsPerSample. Typed per-stream refusals (D-3 containment, sibling streams survive): tag1 with 20 bits, tag3 with 8/16 bits, unknown tags, non-PCM GUIDs, extensible strf < 40 bytes ("extensible-strf-truncated"); physical cuts inside the strf stay typed error::truncated at the exact boundary. Float streams now require the dwSampleSize ladder ("pcm-sample-size-zero", previously tag-1 only) and a block_align ≠ channels×width is a surfaced damage note ("block-align-disagrees-with-format"), not a skip.
+- codecs: PcmFormat gained F64Le/F64Be (media-types SampleFormat::F64 already existed; closes the documented f64 gap); parse_waveformatex now accepts the 40-byte WAVEFORMATEXTENSIBLE as extra_data (GUID resolved to the plain tag; typed codes pcm.waveformat.extensible / pcm.waveformat.subformat for the missing-GUID and non-PCM-GUID forms); float-tag check includes F64.
+- apps/cli/demux_host.rs: minimal ripple fix — harvest_facts uses StreamFormat::codec_descriptor() instead of its local (float-wrong) copy of the bits table; required because the Pcm reshape removed the matched field. lumen-cli cargo check green. Flagged as out-of-assigned-crate ripple in the final report.
+- Tests added: demux unit — tag/width matrix (6 combos: descriptors + StreamFormat + PTS ladder [0,4]), extensible GUID resolution (5 corpus-shaped combos incl. s24le-8ch and f32le-4ch), impossible-combo refusals (6 cases with sibling survival + exact damage reasons), float-without-ladder skip, block-align disagreement notes; fuzz — scrambled_extensible_audio_headers_survive (64 severities + 8 strf-region truncation depths); codecs — waveformatextensible_resolves_guids_and_decodes, f64_values_survive_the_byte_order_normalization, updated foreign-descriptor + extensible-refusal expectations. demux/tests/corpus.rs: new env-gated corpus_avi_audio_matrix_recognizes_every_pcm_format (manifest-driven, name-robust across corpus regenerations).
+- REAL-CORPUS EVIDENCE (env-gated suites driven by hand with LUMEN_CORPUS=/home/z/my-project/corpus, release profile): (1) audio matrix: 57/57 clean avi-av files expose an audio track and deliver packets (13/13 s24le, 17/17 s16le, 17/17 u8, 10/10 f32le; 14,616 audio packets total) — was 16/57. (2) 6 representative files (0003 s24le-ext-8ch, 0035 u8-ext-4ch, 0146 f32le-ext-4ch, 0113 f32le-tag3-plain regression guard, 0021 s16le-ext-1ch, 0216 u8-ext-2ch): a_pkts == ffprobe truth on 6/6 (20/132/43/75/269/727). (3) codecs PCM corpus vs freshly-extracted ffmpeg reference decodes (_harness/refs/w102-*): 6/6 byte-exact, 0 mismatches, 0 dropped tails, full-length compares (4.4 MB of audio total).
+- cargo fmt -p demux/codecs/lumen-cli; cargo clippy -p demux -p codecs --all-targets -- -D warnings clean (verified "Compiling <worktree path>" lines — the shared CARGO_TARGET_DIR served a stale main-tree demux test binary twice mid-session; forced rebuilds reproduced and all reported numbers are from worktree-verified builds).
+
+Stage Summary:
+- Branch wip/w1-02-pcm-fourcc, 3 commits: 33e85dc fix(demux) recognition core + unit/fuzz tests; 5d36385 feat(codecs) f64 + extensible stream facts; ddbe194 test(demux)+fix(cli) corpus audio-matrix suite + CLI descriptor ripple.
+- Files: crates/demux/src/avi/{header.rs,mod.rs,tests.rs,fuzz.rs}, crates/demux/tests/corpus.rs, crates/codecs/src/audio/pcm/{mod.rs,decoder.rs}, apps/cli/src/demux_host.rs.
+- Tests (worktree-verified): demux 72 lib + 11 fixtures + 6 fixtures_parent + 1 doctest + 2 env-gated corpus (all green, 0 fail); codecs 106 lib + 31 integration (8+9+5+7+2, all green).
+- Audio-packet-count-matches-oracle on the current corpus goes 16/57 → 57/57 by demuxer recognition alone (the demux walk itself already matched ffprobe exactly for every recognized stream — no packet-accounting expectations needed updating). Lead should re-run tools/corpus/run_harness.py at merge for the official report number (and the PCM comparable-cases metric should rise from 41/65 as the 24 not-demuxable cases become demuxable).
+- Known deviations/judgement calls: (a) apps/cli edit outside the two assigned crates — 10-line ripple of the public seam this card owns, compile-verified, flagged for Lead review; (b) tightened float streams to require dwSampleSize (honest PTS ladder; no corpus file affected — all carry it); (c) EXTENSIBLE channel masks remain a documented gap (channels count is authoritative; mask→layout is future codec-side work); (d) f64le has no corpus sample (ffmpeg AVI only emitted it never in this draw) — proven by unit + value tests, not corpus.
+- Follow-ups: Lead re-measure harness at merge; channel-mask→layout mapping card; engine adapter wiring stream_format/extra_data to PcmDecoder (the with_format/extra_data seams are now complete for every recognized format).
+---
+Task ID: W1-03
+Agent: W1-03 (audio packet accounting)
+Task: Classify and root-cause every audio-packet mismatch in the randomized-corpus report (12/31 vs ffprobe oracle); deliver the honest oracle-comparison prescription for W1-04 and real-bug filings.
+
+Work Log:
+- Read `tools/corpus/run_harness.py` + `crates/demux/tests/corpus.rs`: Lumen side counts `DemuxEvent::Packet` events per track kind; oracle side is `ffprobe -select_streams a:0 -count_packets -show_entries stream=nb_read_packets`. Recomputed the metric from `corpus/_harness/demux-results.tsv` + `manifest.json`: 31 audio-bearing clean supported AVIs, 12 match / 19 mismatch — reproduces the report exactly.
+- Wrote a byte-level RIFF/strl parser (`/home/z/w103/parse_avi.py`) and replayed Lumen's `parse_strl` acceptance logic (`crates/demux/src/avi/header.rs:589-661`) on all 31 files: **every one of the 19 mismatches is a `0xFFFE` (WAVE_FORMAT_EXTENSIBLE) audio format tag**; all 12 matches are tag 1 (int PCM) / tag 3 (IEEE float). All 19 fail the `unsupported-audio-format` branch at `header.rs:636-638` → audio strl skipped → `tracks=1`, `a_pkts=0`.
+- Dumped the 40-byte WAVEFORMATEXTENSIBLE of all 19: 15 × SubFormat GUID `KSDATAFORMAT_SUBTYPE_PCM`, 4 × `KSDATAFORMAT_SUBTYPE_IEEE_FLOAT` (0146/0227/0375/0399, all pcm_f32le). ffprobe normalizes these to `codec_tag=0x0001` + pcm_sNle codec names, which is why the gap is invisible on the oracle side.
+- Verified oracle equivalence myself: re-ran the harness's exact ffprobe command on all 31 files — 31/31 truth values confirmed live. Counted `NNwb` chunks structurally in every file: **wb-count == oracle a_pkts for all 31** (incl. all 19 mismatches) → once recognized, Lumen's one-packet-per-`wb`-chunk emission will match exactly.
+- Class (b) check: corpus-wide census over all 226 AVI-family files: **zero `rec ` lists anywhere**. Hand-built rec-wrapped variants of media/0061 (one big rec; rec per 3-chunk group) and ran ffprobe on both: counts unchanged (a=18/v=27) → ffprobe counts chunk-granular packets inside recs, same as Lumen's transparent rec descent (`mod.rs:595-613`). Packetization semantics are NOT a divergence source.
+- Class (c) check: all 12 accepted files are byte-exact vs ffmpeg decode refs in the PCM suite (payload fully delivered, last chunk included); all `a_bytes` sample-aligned → no trailing-partial/last-rec edge in the clean set.
+- Class (d) check on dirty siblings: `cut-mid-chunk-011-0241` a=34/34 and `cut-mid-chunk-051-0342` a=12/12 (perfect salvage), but **`zero-mid-061-0136` a=279/304 and `zero-mid-076-0268` a=35/51 are real drops** — traced byte-by-byte: the zeroed region destroys 3 (resp. 1) real chunk headers; Lumen's walk then reads a garbage chunk size from misaligned bytes at the region tail (0136: size 125,437,440 at pos 1406320; 0268: size 4,286,905,213 at pos 287270), jumps past the movi bound, and ends EOS — forfeiting the remaining tail (0136: 25 audio + 49 video packets ≈ 129 KB; 0268: 16 audio + 61 video ≈ 119 KB). ffprobe recovers via avi_sync/idx1 (both files have a valid idx1). Root code path: `MoviChunkKind::Other` arm sets `cursor.pos = next` unclamped (`mod.rs:614-619`) and there is no post-damage resync.
+- Duration metric diagnosis: for 85/85 clean supported files, `truth_duration − PTS_span == exactly 1000/fps` (one video frame period). The span measures first→last frame *start*; the oracle duration includes the last frame's display period. Not a demux bug — a metric definition artifact.
+- Empirical ffmpeg matrix (`/home/z/w103/gen/t_*.avi`) for W1-02: ffmpeg's AVI muxer writes 0xFFFE iff `channels > 2 OR sample_rate > 48000 OR integer-PCM bits > 16`; float with ch≤2 and rate≤48 kHz keeps tag 3 with an 18-byte strf (cbSize=0). Verified f32le/u8 at 96 kHz flip to 0xFFFE.
+- Corpus-wide 0xFFFE enumeration for W1-02: **45 streams** = 19 clean mjpeg+pcm (the metric set) + 22 mpeg4+pcm media files (currently whole-file refusals) + 4 dirty siblings (lie-021-0146, lie-022-0373, lie-025-0198, tail-garbage-050-0375).
+
+Stage Summary:
+- **Classification: all 19 clean audio-packet mismatches are class (a) recognition gap** — WAVE_FORMAT_EXTENSIBLE (0xFFFE) audio strf, SubFormat GUID PCM (15) / IEEE_FLOAT (4), rejected by `header.rs` tag filter. Classes (b) packetization and (c) trailing/last-rec: **zero instances** (no rec lists in the entire corpus; chunk-granular counting verified equivalent both sides). Class (d): zero in the clean set; **2 real bugs on dirty siblings** (see filings).
+- **Predicted post-W1-02 numbers**: audio packet match 12/31 → 31/31; stream count 66/85 → 85/85; PCM comparable 41/65 → 65/65; "typed refusal 121/127" shrinks by ~24 (the 22 mpeg4+0xFFFE media files + 2 dirty lie-ext siblings gain a demuxable audio track — expected, not a regression).
+- **Metric prescription for W1-04**:
+  1. Packet counts: keep as-is (verified apples-to-apples at chunk granularity, rec-transparent).
+  2. Duration: compute `span_ms = (last_v_pts_ns − first_v_pts_ns + v_frame_period_ns) / 1e6` with `v_frame_period_ns = 1e9·strh.scale/strh.rate` (equivalently: last packet PTS + its duration). Expected error → 0.0/0.0/0.0 ms for 85/85 (verified analytically to <0.05 ms). Note: ffprobe's AVI format duration is video-driven even when audio outlasts video (5/12 audio files: audio 10–30 ms longer; oracle still reports video duration), so the video-only corrected form is the exact-match one.
+  3. Corpus coverage gaps to feed the generator: no rec lists / multi-frame recs, no non-sample-aligned audio tails, no OpenDML — classes (b)/(c) currently untested. Hand-built rec fixtures + oracle validation exist (`/home/z/w103/gen/rec_one.avi`, `rec_groups.avi`) and can seed generator variants.
+- **Bug filings** (class d, dirty recovery):
+  1. `dirty/zero-mid-061-0136-avi-av.avi` — expected a=304 (oracle; only the 1 physically zeroed `01wb` lost), actual a=279; expected v=583, actual v=534. Mechanism: unclamped garbage-size jump at pos 1406320 (size 0x077A0600) after 262 zero-header steps → walk ends EOS, 129 KB tail forfeited despite valid idx1. Fix direction: clamp `cursor.pos` to the walk bound on `Other`, then resync via idx1 (next indexed chunk ≥ pos) or a bounded forward scan for a valid `NNdc/NNwb` header (ffmpeg avi_sync equivalent).
+  2. `dirty/zero-mid-076-0268-avi-av.avi` — expected a=51/51 (oracle loses none), actual a=35; garbage step at pos 287270 (size 0xFFBEFFFF-ish = 4,286,905,213) → same EOS forfeiture of the 119 KB tail.
+- Artifacts: `/home/z/w103/parse_avi.py` (strl replay + movi census), `parse2.py` (corpus-wide census + duration proof), `parse3.py` (zero-mid traces), `audio-analysis.json` (per-file table), `gen/` (ffmpeg tag matrix + rec fixtures). No repo files modified.
+---
+Task ID: W1-04
+Agent: W1-04 (harness rows extension)
+Task: Registered follow-up "harness refinement: record decoded format/dims rows" — extend tools/corpus/run_harness.py so per-file rows record DECODED output format + dimensions, and the report gains a decoded-fidelity section comparing Lumen vs the ffprobe oracle side by side (python only, no cargo).
+
+Work Log:
+- Read run_harness.py, the 13:34 report, all three Rust corpus suites (media-probe/demux/codecs), gen_corpus.py vocabulary, and the shared _harness artifacts. FINDING: the codecs suite HAS decoded format/dims in hand at decode time (`DecodedFrame{format: DecodedFormat::I420|Rgba8, width, height}` in crates/codecs/src/video/mjpeg/mod.rs) but uses them only as an internal shape gate (`shape_ok`) and does NOT emit them into mjpeg-results.tsv / pcm-results.tsv. Per the no-fabrication rule the Lumen cells are marked "not-emitted (suite gap)" instead of invented.
+- truth.json records extended with oracle decoded stream facts (ffprobe -show_streams: v_codec/v_pix_fmt/v_w/v_h + a_codec/a_sample_fmt/a_ch/a_rate, first video/audio stream). Checkpoint logic hardened: pre-W1-04 checkpoints are upgraded file-by-file, partial checkpoints are gap-filled (previously missing files were silently dropped), damaged JSON is rebuilt. Old keys preserved (backward compatible with the pre-W1-04 driver).
+- New per-file ledger corpus/_harness/decoded-rows.tsv (486 rows, 16 cols): oracle decoded format/dims side by side with Lumen-side cells carrying explicit markers — "not-emitted (suite gap)" for AVI+mjpeg/AVI+pcm, "no-decoder (codec out of scope)", "no-path (container unsupported)", "" for no-such-stream. Manifest intent slots resolved correctly (video codec under `codec` for video/av draws; audio codec under `audio_codec` for av or `codec` for audio-only draws).
+- New report section "## Decoded format fidelity vs oracle (decoded output format + dimensions)" (placed after the PCM section; ALL existing sections/tables byte-identical in full mode — append-only): oracle-side measured distributions, generator-intent consistency, Lumen-vs-oracle match-rate table (video dims / pix_fmt family / audio sample_fmt / channels+rate), a mismatch listing (file, expected, got), and a generator-intent-vs-oracle drift listing. Match-rate logic is forward-compatible: it computes for real the moment the suites emit `out_format`/`out_w`/`out_h` (mjpeg-results.tsv) and `out_desc`/`out_rate`/`out_ch` (pcm-results.tsv) — zero further driver change.
+- Added `--skip-suites` (no cargo, no build lock, no ffmpeg ref extraction; suite sections marked skipped; report written under `*-skip-suites` names so a validation run can never pose as the canonical measurement report — corpus copy goes to REPORT-skip-suites.md, canonical REPORT.md untouched) and `--skip-gen-check` (compatibility no-op, documented: the driver only checks manifest presence today).
+- Validated end-to-end oracle-side on the REAL shared 486-file corpus: `python3 tools/corpus/run_harness.py --skip-gen-check --skip-suites --corpus /home/z/my-project/corpus` — 486/486 ffprobe schema upgrades in 168s, report docs/corpus/report-20261022-1417-skip-suites.md; resume path re-verified (0.27s, 0 probed, identical rows). Smoke-run first on a 10-file subset covering every marker class (gap/no-decoder/no-path/empty). py_compile clean. Committed 4ef99b8 on wip/w1-04-harness-rows (2 files, +649/-107). No push, no gate, no cargo touched (Lead's merge-time job).
+- MEASURED (oracle-side, real corpus, seed 6033317083842721047527680438): 99/99 mjpeg AVIs have oracle dims; oracle dims = generator intent 99/99; oracle pix families yuv420=63, yuv444=36 (ZERO gray); pix-family = intent only 36/63 where intent recorded — every one of the 27 gray-intent draws comes back from AVI as yuvj444p (encoder-side drift, real finding); pcm AVIs 65/67 with oracle sample_fmt (s16=19, u8=19, s24=14, f32=13; channels 1-8; rates incl. dirty 44056/37800); oracle channels+rate = intent 65/65; outside AVI: 4 mjpeg video + 28 pcm audio (no-path scope). Lumen-vs-oracle match rates: N/A — 0/99, 0/99, 0/65, 0/65 comparable (498 suite-gap cells in the ledger).
+- REGISTERED FOLLOW-UP (exact Rust-suite emission spec, for the Lead to card): (a) mjpeg suite (crates/codecs/tests/corpus.rs, corpus_mjpeg_decode_measures_against_oracle): append columns `out_format`/`out_w`/`out_h` to the mjpeg-results.tsv row — the first successfully decoded frame's DecodedFormat variant in snake_case (`i420`/`rgba8`) + width/height, "-" when nothing decoded; (b) pcm suite (corpus_pcm_decode_is_byte_exact_or_recorded): append `out_desc`/`out_rate`/`out_ch` — the PcmFormat descriptor actually constructed and the rate/channels actually used; (c) optional, demux suite: per-file strf dims would let dims mismatches be attributed demuxer-vs-decoder. Harness side already consumes (a)+(b) unchanged.
+
+Stage Summary:
+- Branch wip/w1-04-harness-rows @ 4ef99b8 (no push). Artifacts: upgraded tools/corpus/run_harness.py, new decoded-rows.tsv ledger (486 rows), new oracle-fidelity report section, evidence report docs/corpus/report-20261022-1417-skip-suites.md.
+- Honest gap accounting: the judge now records exactly what the oracle says the decoded output is, and exactly what the suites fail to report — nothing fabricated (D-5/D-11). The one real oracle-side finding: ffmpeg's mjpeg-in-AVI path never yields gray — all gray-intent draws decode as yuvj444p, so the corpus's mjpeg population is yuv420(63)/yuv444(36) only; this will surface as genuine pix-family mismatches (Lumen I420 vs oracle yuv444) the moment the suite-emission follow-up lands.
+- Shared-state note: the run enriched /home/z/my-project/corpus/_harness/truth.json (strict superset, resume-safe), wrote decoded-rows.tsv and REPORT-skip-suites.md there; canonical REPORT.md and all suite case/result TSVs untouched.
+---
+Task ID: W1-05
+Agent: W1-05 (corpus scale run)
+Task: Launch and drive a bigger randomized real-media corpus run (`corpus-big/`, target 600 files / 1600 MB) with detached low-priority execution, progress polling, ffprobe sanity, and disk-headroom reporting.
+
+Work Log:
+- Read `scripts/corpus_supervisor.sh` + `tools/corpus/gen_corpus.py`. CLI confirmed: `--out --count --budget-mb --seed --replay --ffmpeg`. Resume design: full random plan frozen up-front into `plan.json`, manifest rewritten atomically after **every** file (`manifest.json.tmp` → rename), resume re-loads manifest done-set + bytes, completion marker = `[gen] TOTAL` line. Dirty pass (14–22% of files, 7 corruption ops + lie-ext) and garbage pass (11 archetypes) run only after the clean loop ends; dirty bytes do **not** count toward `bytes_total` but do consume disk (~24% of clean bytes, calibrated on `corpus/`: 1514 MiB clean vs 1881 MB on disk).
+- Disk guard at start: 3.4G free (≥ 2.0G threshold) → kept 1600 MB budget. Launched detached supervisor at 13:59:03 (`setsid nohup nice -n 19 bash -c` relaunch-until-TOTAL loop, log `corpus-big.gen.log`, PIDs 29621/29626). It generated 13 files then **the whole tree died** when the launching tool call ended.
+- **Key sandbox finding (empirical, twice-proven):** detached background processes do NOT survive the tool call that spawned them — `setsid`+`nohup` notwithstanding (likely cgroup-per-call cleanup). A heartbeat test (20s-interval writer, first beat 14:07:05) went silent the moment its launching call ended; `ps aux` confirmed all gen processes dead. This also retroactively explains D-11's artifacts: `logs/corpus-supervisor.log` frozen at "attempt 1", `logs/corpus-gen.log` ending at "80/399 files, 41s", while `corpus/manifest.json` kept advancing for 7 more minutes — the original 486-file corpus was actually finished by *foreground* runs. The supervisor script's premise ("setsid survives") is wrong in this harness; foreground chunks + the generator's resume-safety is the working pattern.
+- Drove the run in foreground chunks (nice -n 19, sibling-friendly): **chunk A** 560s → 245 files / 1085 MiB (rate ≈ 25 files/min, 113 MiB/min on the contended 2-core box). Disk then at **637M free** (94%) — siblings' `target/` grew ~1.6G during the same window — so I invoked the disk guard mid-run: capped the clean budget to 1090 MB (the 600-file count target was never reachable within 1600 MB anyway: this seed averages 4.4 MiB/file → 600 files ≈ 2.6 GB; **budget always binds before count**).
+- **Chunk B** → budget stop at 1095 MiB / 249 clean files, then dirty pass (50 files: 42 corrupted + 8 lie-ext) + garbage pass (11) → **`[gen] TOTAL 310 files, 1095 MiB` landed, rc=0**. `corpus-big/` = 1255 MB on disk.
+- ffprobe sweep of 30 random files (24 clean / 4 dirty / 2 garbage, fixed sample seed 20261022): **29/30 probe OK** — dims from 16×16 (tiny16) to 1920×1080 and 2048×1080; codecs mjpeg, mpeg4, mpeg2video, huffyuv, h264, hevc, ffv1, pcm_s16le/u8/f32le, aac; containers avi, mov/mp4, mpegts, mkv/matroska, wav; durations 1.7–10.9 s. The single FAIL is `garbage/riff-magic-02.bin` ("Invalid data found") — by design. Dirty siblings still probe with intact headers (truncate/smash-head/cut-mid-chunk) — exactly the salvage-test material Lumen's demuxer needs. `avi-magic-head-03.bin` even half-probes as `avi, N/A` — nice dirty-world edge.
+- Seeds (resume wrinkle, inherited from D-11 design): the plan was drawn with OS-entropy seed **55000651118250228522053896719** (visible in the first 13-file manifest snapshot); every resume instance draws a *fresh* seed, so the final manifest records **63117490995983871645529930018** — that one governed only the dirty/garbage draws. Reproducibility anchor is `plan.json` + per-file `cmd`+`sha256` in the manifest, not the seed field across resumes. Also note: `rejected_draws` resets per instance (final manifest shows only chunk B's 1 reject; plan-draw rejected 3 encoder-missing, chunk A 1).
+- Hygiene: `corpus/` untouched; `corpus-big.gen.log` is gitignored via `*.log`; `corpus-big/` is **untracked and NOT gitignored** (only `/corpus/` + `/corpus-smoke/` are) — nothing git-added, tracked-file git status clean (`?? corpus-big/` only). Test artifact `corpus-big.hbtest.log` removed. No stray gen processes left running.
+
+Stage Summary:
+- **`corpus-big/` is COMPLETE** (not merely launched): 310 files = 249 clean media + 50 dirty siblings + 11 garbage; 1095 MiB clean bytes / 1255 MB on disk; manifest ledger with per-file ffmpeg cmd + sha256 intact; `[gen] TOTAL` line in `corpus-big.gen.log`. Class mix: avi-video 87, avi-av 39, audio-only 38, mkv-video 21, mp4-video 20, muxed-av 19, ts-video 8, flv-video 6, webm-video 5, mov-video 4, ogv-video 2 (+dirty/garbage). 70 distinct codec×container families.
+- Nothing is running in the background — in this harness that is impossible (proven above); completion was achieved in-window instead, which is strictly better than the tasked "leave it running".
+- Disk at exit: **~1.1G free** (volatile — siblings actively grow `target/`, which is 2.4G and swinging; it dipped to 354M right after the dirty pass, then a sibling freed space).
+- Lead check-completion command:
+  `cd /home/z/my-project && tail -2 corpus-big.gen.log && python3 -c "import json;d=json.load(open('corpus-big/manifest.json'));print(d['count'],'files,',round(d['bytes_total']/2**20),'MiB clean, seed',d['seed'])"`
+- Growth path (when disk ≥ ~2.5G free; resume-safe, repeats until TOTAL re-lands):
+  `cd /home/z/my-project && nice -n 19 timeout 570 python3 -u tools/corpus/gen_corpus.py --out corpus-big --count 600 --budget-mb 1600 >> corpus-big.gen.log 2>&1`
+  Caveats: plan is frozen at 597 clean entries (max clean files ever = 597); a post-completion regrow re-runs the dirty pass over the *whole* file list (dirty-of-dirty risk) and draws a fresh seed.
+- Recommended follow-ups: (1) add `/corpus-big/` to `.gitignore` (I was not allowed repo edits); (2) fix `gen_corpus.py` resume to persist the plan seed in `plan.json` so the manifest seed stays meaningful across restarts; (3) if the 600-file scale is truly wanted, it needs either ~2.6 GB clean budget + ~0.7 GB dirty headroom, or a smaller-MiB file-size draw profile.
+- Artifacts: `corpus-big/` (310 files + plan.json + manifest.json), `corpus-big.gen.log` (full history incl. forensic marker lines `[W1-05 ...]`). No repo files modified.
+---
+Task ID: W1-07 (ED-FIX-4 / directives-audit M1 — session bounds)
+Agent: W1-07 (session-bounds)
+Task: playback-engine session.rs M1 — (i) receipts pinned past the outbox cap (unbounded retention), (ii) unbounded std mpsc inbox, (iii) O(n) `position+remove` push at capacity; fix + AC tests (10k-push boundedness via the testkit counting allocator, overflow-policy test, ordering contract unchanged-green).
+
+Work Log:
+- Read AGENTS.md, engineering-directives.md (D-1/D-2/D-4/D-6), the audit register (M1 row, fix card ED-FIX-4 "with 3.B4"), doc 03 §4.6 (session, S1-S4), §4.4 (Q1-Q4 backpressure doctrine), §8 (test strategy), doc 05 §4.3 via event.rs/events.rs, session.rs in full, events.rs + event.rs (W1-10's file — read-only), tests/{session_flow,contract_suite}.rs, testkit alloc_count.
+- **Stale-premise finding**: the audit's M1 line numbers (session.rs:357-370,532 @ e072caf) describe pre-3.B4 code. The 3.B4 merge (bdd7a5e, in this branch's base 5b396e5) already landed all three fixes: (i) `RECEIPT_CAPACITY = 4096` hard cap with evict-oldest + `EngineStats::outbox_dropped_receipts` (session.rs:87,466-474,523-530); (ii) `sync_channel(INBOX_CAPACITY=64)` + typed `SessionError::InboxBusy` refusal at submit (session.rs:99,768,315-320); (iii) the O(1)-amortized tombstone OutputHub (Slot::Dead in-place kills, forward-only cursors, `compact_if_due` in-place retain; complexity contract documented at session.rs:397-409). Card executed as **adversarial verification + AC-gap closure**, not re-implementation.
+- Verified the honest-accounting question (task item 2): the 3.B4 event vocabulary has NO transport-drop row — events.rs parks drop surfacing on the future `system.log` refinement (its catalog table says "wired-by-later"); `RecoveredDamage` is playback damage, not transport loss. The typed counter is the honest observable today; the `[PROPOSAL]` on RECEIPT_CAPACITY (session.rs:82-86) already records the wire-surfacing decision. No event invented (frozen wire catalog, D-017).
+- Verified the overflow-policy decision (task item 3): doc 03 §4.6(c) specifies only "command inbox (mpsc)" — ambiguous on overflow. §4.4 Q3's park-the-producer backpressure is written for *packet* queues (demux thread); parking a host submit thread is a UI deadlock risk and D-1 sanctions "backpressure, eviction, or explicit rejection". The landed choice — typed rejection, never block, never drop — preserves D-4 lifecycle integrity (no silent command loss; the host retries) and is documented on INBOX_CAPACITY (session.rs:89-99). Doc question registered below.
+- **AC gap closed — new `tests/bounded_alloc.rs`** (counting-allocator binary, `#[global_allocator]` + `serialize_tests`, one-#[test]-per-binary per the testkit discipline and the zero_alloc_quantum.rs precedent; the first cut had 3 tests in the binary and FAILED deterministically with phantom allocations (e.g. 10_002 events / +5 live bytes) from sibling-test completion reporting landing inside measured windows — restructured to one test, two storm phases):
+  - Phase 1, receipt storm (session in `Ended`, every command a typed rejection → receipt-only pushes): after 12k-push warmup, **10k pushes allocate ZERO events/bytes** (`assert_zero`), the typed-refusal path is exercised (`InboxBusy` hit 156×), dropped-receipt arithmetic is exact (10_000 − 4_096 = 5_904 counted), the drain answers exactly `RECEIPT_CAPACITY` receipts — the newest (105_904..109_999), strictly ordered — and every receipt is the honest typed rejection echoing its command.
+  - Phase 2, confirmation storm (session in `Paused`, C8 self-transitions → one receipt + one `state-changed` each): both caps hold with exact arithmetic (5_904 receipts + 8_976 events dropped-and-counted), **live-bytes delta is 0 across the whole 10k-command storm** (measured window: 10_000 allocation events / 6_080_000 bytes — the per-command output vecs, 608 B each, all freed; hub ring already at its bound), and receipt→event causal adjacency survives the drops for all 1_024 commands that kept both halves (doc 05 §4.3 guarantee 2).
+- **AC gap closed — session_flow.rs +2 tests**: `the_inbox_refuses_typed_at_its_bound_and_drains_whole` (engine-level overflow policy: exactly 64 admitted, +8 typed refusals, one poll drains the whole inbox in submit order, room again) and `the_documented_session_bounds_are_pinned` (INBOX=64 / OUTBOX=1024 / RECEIPT=4096 tripwire).
+- Grep proofs (no unbounded structure on the M1 paths): `rg "mpsc::channel\(\)|unbounded" crates/playback-engine/src/` → 0 matches (only `sync_channel(INBOX_CAPACITY)` at session.rs:768 + a test's `sync_channel(2)`); all Vec/VecDeque constructions on the session paths are cap-bounded (the hub — pinned ≤ ~2× live by `compact_if_due` + tests), per-open (tracks/selected), or per-transition transients freed each poll (the apply/tick output vecs — host/event-paced, not per-frame; noted, deliberately not churned: restructuring the emit plumbing would churn the file W1-10's registered session.rs wiring merges against).
+- **INFRA FINDING (shared CARGO_TARGET_DIR, same-crate agents)**: W1-10 (epoch-hub) and W1-07 both build playback-engine into /home/z/my-project/target under identical artifact names (same package name+deps ⇒ same metadata hash). My full-suite runs twice executed W1-10's lib binary (33 unit tests incl. their 6 events.rs epoch-staleness tests; my src has 27) and a stale 21-test session_flow — cargo considered my unchanged-since-checkout src "fresh" per their fingerprint. Mitigation used: `touch` src+tests before every verification run and assert the expected per-suite counts/names (27/1/12/15/23/21). W1-02 hit the same class of staleness. Recommendation: per-worktree `CARGO_TARGET_DIR` subdirs for waves with ≥2 agents on one crate, or a fingerprint-buster (RUSTFLAGS tag) — disk is the constraint (only ~0.5 GB free; a full private target dir costs ~450 MB).
+- Final verification (worktree-verified builds, counts asserted): `cargo test -p playback-engine` → **99 passed / 0 failed** (lib 27, bounded_alloc 1, contract_suite 12, seek_flow 15, session_flow 23, table 21; doc-tests 0) — baseline was 96, +3 mine. `cargo clippy -p playback-engine --all-targets` clean; `cargo fmt -p playback-engine` clean. bounded_alloc additionally verified stable across 8 repeat runs and under `--test-threads=1` and `=8`.
+- Ordering contract unchanged-green: contract_suite.rs untouched, 12/12 (receipt causality, terminal invariants, C8 echoes, §3.4 throttle conformance). No existing test weakened or deleted; no src change at all.
+
+Stage Summary:
+- M1's three fixes were already on-branch via 3.B4 (verified against the audit-era code at e072caf, not assumed); this card's deliverable became the measured AC evidence: the first counting-allocator proofs in playback-engine — a 10k receipt storm that allocates **nothing** post-warmup, a 10k mixed receipt+event storm with **flat memory** and exact two-cap drop arithmetic, causal adjacency intact, and the engine-level typed-refusal inbox policy. Grep-provable: no unbounded mpsc, no uncapped collection on the receipt/outbox/inbox paths.
+- **D-1 checklist (Universal Pre-Submission Audit, evidence-backed):**
+  1. Memory: the M1 paths allocate nothing in steady state (bounded_alloc phase 1: 0 alloc events over 10k pushes post-warmup; phase 2: live-bytes delta 0, transients 608 B/command freed per poll); collections hard-capped (64/1024/4096) with compaction ≤ ~2× live — pinned by tests, not argued.
+  2. Complexity: push is O(1) amortized, no memmoves (tombstone + forward-only cursors + amortized in-place retain; session.rs:397-409 contract; the 10k storms are the runtime pin); no naive scan remains on the push path.
+  3. Resilience: overflow at every bound is typed and counted (InboxBusy refusal; drop-oldest-event/receipt counters; replaced-tick counter) — no silent loss, no panic path (dirty-input posture N/A: no parser surface in this card).
+  4. Lifecycle: no teardown/rebuild shortcuts touched; the bounded inbox never blocks the host (D-4/S3); receipts never suppressed by event overflow (doc 05 §4.3) — only their own hard cap, honestly counted.
+  5. Budgets: the storms run in ~0.1 s wall for 22k+ commands (debug build) — far inside any real-time budget; no CPU spike path added.
+  (D-10: no shortcut taken — the stale premise was reported, not papered over; the harness-noise failure was root-caused to sibling-test reporting, not silenced with a tolerance.)
+- Deviations: (a) task premise stale — fixes pre-existed; commit is tests+docs only, labeled `test(session)` not `fix(session)`; (b) counting-allocator binary restructured to the repo's one-test-per-binary convention (3 tests → 1 test, 2 phases; non-measuring tests moved to session_flow.rs); (c) no private target dir (disk) — used touch+count-assertion verification instead.
+- Open questions / follow-ups for the Lead: (1) doc 03 §4.6(c) inbox overflow policy is unspecified — typed rejection is landed and documented; if the threaded host (2.E1/3.B3) needs blocking-with-deadline submits, `sync_channel` supports `send_timeout`-style forms without changing the bound — doc amendment suggested. (2) The `system.log` drop-surfacing [PROPOSAL] on RECEIPT_CAPACITY remains the wire-visible refinement (3.B4 catalog row). (3) W1-10's registered session.rs drain wiring + session_flow M11 regression will land on top of my +2 session_flow tests (append-only, disjoint regions — no conflict expected; their wiring is intra-epoch-identical so my storms stay green). (4) Infra: same-crate target-dir collisions (see Work Log) — recommend per-worktree target subdirs. (5) The 608 B/command transient apply-vec is bounded and host-paced; if a future card wants zero-alloc command application, the emit plumbing needs a reused-scratch redesign (bigger than M1's mandate).
+- Artifacts: branch wip/w1-07-session-bounds, 1 commit (tests only); files: crates/playback-engine/tests/bounded_alloc.rs (new, 582 lines), crates/playback-engine/tests/session_flow.rs (+70).
+---
+Task ID: W1-08
+Agent: W1-08 (worktree /home/z/my-project/worktrees/w1-08, branch wip/w1-08-concealment)
+Task: MAJOR M9 — one corrupt MJPEG frame mid-stream caused session Error + teardown; make video per-frame isolation match the PCM sibling's Recovered policy (docs/audits/2026-10-22-directives-audit.md row M9: `codecs mjpeg mod.rs:262 + pipeline.rs:787-795`, registered under ED-FIX-4).
+
+Work Log:
+- Read AGENTS.md, engineering-directives.md (D-3 dirty world, D-1, D-6), doc 03 §4.3(d)/§4.5(d)/§4.6, the PCM concealment path (pcm/decoder.rs: sub-frame packet → `Recovered { skipped: 1, CorruptInput }`, damaged tail → emitted + `Recovered { ConcealedFrame }`), the MJPEG error taxonomy (error.rs: Corrupt/Bitstream are per-frame classes; Unsupported/ResourceLimit deterministic), pipeline.rs decode_step's `Err → fatal` propagation, and events.rs policy (DamagedData + RecoveredDamage = the 3.B4 vocabulary; file untouched per W1-10 ownership).
+- codecs: documented the per-frame isolation contract (mod.rs damage model + decoder.rs concealment policy; the CorruptPacket contract of doc 03 §4.5(d)); new contract-suite test `per_frame_damage_leaves_the_decoder_usable` — real fixture frames, header-smashed frame → typed Corrupt Err with nothing emitted → next frame decodes Emitted{1}; mixed with the entropy-concealment class.
+- playback-engine/pipeline.rs (error-propagation region + callees): `per_frame_video_damage` classifier (`Corrupt` | `Decoder{Bitstream}`); per-limb `last_frame` concealment cache (one slot, latched on accept — Arc bump only, D-1) + `conceal_failures` run counter; on per-frame damage: damaged counts += 1 (→ DamagedData + coalesced non-fatal playback.error), `LimbSink::conceal_last(pts)` repeats the last presented frame at the damaged slot's pts (never latches, never sets first; no current-generation frame → hold; stale latch → hold), slice continues; `Ok` outcome resets the run. Budget: `VIDEO_CONCEALMENT_BUDGET = 1000` consecutive failures (doc 03 §4.3(d)'s "[PROPOSAL: 1 MiB or 1000 packets]" bounded-window precedent) → typed terminal `ResourceLimit { RecoveryAttempts, budget, attempted }`, context `decode.concealment.budget`, last damage chained in `source`. Audio limbs and non-damage kinds keep the fatal path (doc 03 §4.5(d): audio fatal is session-fatal; Unsupported/ResourceLimit/BadState deterministic).
+- observability (additive): TickReport.concealed_frames, EngineStats.frames_concealed, lib.rs re-export of VIDEO_CONCEALMENT_BUDGET. seek_flush's LimbSink literal gained the two new fields (mechanical, no semantic change — W1-09's region otherwise untouched).
+- Tests (session_flow.rs, fake video decoder producing the REAL typed damage the MJPEG decoder emits — `Corrupt`/`InvalidStructure`/`mjpeg.marker.no_soi`): (a) 24 packets, slot 10 corrupt → Ended, frames_delivered 23, frames_concealed 1, collector sees 24 presentations with slot 10 = slot 9's pixels at slot 10's pts, exactly one DamagedData{1} + one coalesced non-fatal playback.error (decode/Corrupt/count 1); (b) corrupt FIRST frame → hold (11 presented, 0 concealments), FirstFrame = first real decode; (c) all-corrupt 1001 packets → Error with the typed ResourceLimit/RecoveryAttempts terminal (attempted 1001 = budget+1), damage facts sum 1000; (d) Unsupported on a video limb stays fatal. PCM/demux damage tests untouched and green.
+- AC runs (real numbers): `cargo test -p codecs` = 136 passed / 0 failed (104 lib + 9 contract + 9 fixtures_parent + 5 fuzz_survival + 7 pcm_fixtures + 2 doc; 4 env-gated ignored: benches 2, corpus 2). `cargo test -p playback-engine` = 100 passed / 0 failed (27 lib + 12 contract_suite + 15 seek_flow + 25 session_flow + 21 table). cargo fmt --check clean; clippy --all-targets clean. Dependents (lumen-cli, desktop, first-vertical) cargo check green (additive API).
+- INFRA DEVIATION (evidence-backed): the shared CARGO_TARGET_DIR served a sibling worktree's stale playback-engine rlib (same package identity + relative .d paths → foreign artifact looked fresh; symptom: `frames_concealed` unknown field while cargo check --tests passed). Retry did not clear it. Verified in a worktree-private target dir instead (correctness of AC numbers); also reclaimed 1.3G of target/debug/incremental (disk was 91%, worklog infra finding #4). Private dir deleted after verification.
+
+Stage Summary:
+- M9 fixed on both anchors: the decoder's typed per-frame error vocabulary is now isolated by the engine (repeat-last-frame concealment + damage events + bounded budget), matching the PCM Recovered shape. Budget = 1000 consecutive (doc 03 §4.3(d) precedent), terminal = ResourceLimit/RecoveryAttempts.
+- Pre-submission audit: D-1 one-slot cache per limb, Arc-bump-only frame path, zero heap allocs per tick ✓; D-2 O(1) classifier ✓; D-3 bounded + observable, catastrophic damage still typed-fatal ✓; D-4 fully in-pipeline, seek invalidation via generation staleness (no seek_flush semantics touched) ✓; D-5 real damage vocabulary + adversarial cases (engine test necessarily uses a fake decoder at the crate boundary — codecs test pins the real decoder's half) ✓; D-10 no per-frame allocs, 4K60-safe ✓.
+- Commit: 467804e on wip/w1-08-concealment (7 files, +845/−17). No push, no gate (per wave instructions).
+- Follow-ups registered: (1) TrackFailed — doc 03 §4.5(d) wants a video-decoder Fatal to end only that track; today's typed terminal ends the session (the only existing terminal); needs a catalog-sanctioned event arm (W1-10/Lead). (2) Re-run first-vertical evidence on merged main (analysis: no drift expected — current corrupt scenarios end cleanly via demux containment + decoder-internal concealment; my change only converts would-be-fatal decode errors into concealments). (3) Shared-target-dir cross-worktree rlib collision is a standing infra hazard for parallel worktrees (second occurrence; suggest per-worktree CARGO_TARGET_DIR or artifact-path-namespacing guidance from the Lead).
+---
+Task ID: ED-FIX-4/M11 (Wave-1 agent W1-10)
+Agent: W1-10 (epoch-hub)
+Task: Epoch-aware OutputHub staleness — the hub's drain check compares a bare pipeline counter and ignores the session epoch (directives-audit M11, D-4); make the comparison a composite (epoch, counter) stamp.
+
+Work Log:
+- Read AGENTS.md, engineering-directives.md (D-4), epoch.rs (pair rule + its doc warning), session.rs OutputHub/drain_into, events.rs (3.B4 policy), event.rs envelope (session=epoch, generation=counter on the wire), pipeline.rs counter sites, commands::StalenessFilter (the host-side mask), the M11 audit row, and the Lead's Wave-1 launch entry (ownership: session.rs=W1-07, events.rs=W1-10).
+- Confirmed the bug shape: `OutputHub::drain_into` (session.rs:605..617) judges `event.generation.0 < current.pipeline.0`. The hub is ENGINE-scoped (outlives sessions), so every undrained event of a closed session passes against a fresh epoch: equal counters (0<0 false), and — worse — higher counters (closed session at pipeline 2 vs new session at pipeline 0: 2<0 false). Cross-session event leak; masked only by host-side StalenessFilter (keyed per SessionId).
+- Implemented the policy half in events.rs (mine): `StalenessStamp` (composite epoch+counter, two u64 words, Copy) with `is_stale_against` = doc 03 §5's pair rule verbatim (different epoch OR different pipeline ⇒ stale; cross-epoch stale BY CONSTRUCTION); `DrainStaleness` extension trait on `EngineEvent` (the hub's only counter carrier — envelope `session`+`generation` ARE the pair's wire form) with `is_stale_at_drain` keeping the seek-terminal exemption strictly intra-epoch (doc 05 §4.3 invariant 4). Re-exported both from lib.rs. No session.rs edit (sibling W1-07 owns it).
+- Within-epoch semantics are byte-identical to the bare `<` on every reachable state (minter only moves forward; `!=` is the fail-safe form for impossible states). Verified against existing suites: supersession + seek-terminal-exemption tests stay green untouched.
+- AC tests in events.rs: (a) same-counter-different-epoch ⇒ stale — both directions, the higher-counter leak shape, the fresh-open gen-0 shape, all kinds incl. seek terminals; (b) fresh epoch fresh counter passes, near-misses stale; (c) supersede-then-push storm — 10_000 stale events all dropped+counted, 10 receipts survive, nothing retained; plus a D-5 differential oracle: the stamp rule checked against epoch.rs's CancelToken (independent carrier of the same rule) over a 3×4 epoch × counter matrix; plus u64::MAX boundary stamps.
+- New dedicated binary `tests/epoch_staleness_alloc.rs` (counting-allocator instrument, one-test/serialize discipline): the drain-shaped decision loop over the 10_000-event storm measures ZERO allocation events/bytes, and the all-fresh path likewise — bounded work measured, not argued (D-1/D-6).
+- Sibling-bug hunt (D-4) — see list below.
+- **Wiring verification (throwaway, never committed — two rounds)**: (1) applied the 4-line wiring to session.rs locally + an engine-level probe test (one Engine, two sessions, no drain between): on the UNWIRED hub it FAILED with 10 leaked epoch-1 events delivered into epoch 2's drain — `(seq 1..8, SessionId(1), gen 0)` (the equal-counter masquerade), `(seq 9, gen 1)`, `(seq 10, gen 2)` (the higher-than-live leak). With the wiring applied: probe PASSED, entire crate suite green (104 passed, 0 failed). (2) Re-verified the EXACT registered artifact below: wiring applied + the registered test pasted verbatim into tests/session_flow.rs → compiles as-pasted, 105 passed / 0 failed (session_flow 22 = 21 + the M11 regression). Both rounds prove the wiring behavior-complete: intra-epoch semantics identical (all existing suites untouched and green), cross-epoch leak closed. Then reverted session.rs and session_flow.rs to byte-identical-to-base; branch tree clean at 61b6519.
+- cargo fmt (only my 2 files touched); cargo test -p playback-engine: **103 passed, 0 failed** (lib 33 [was 27, +6 M11], contract_suite 12, epoch_staleness_alloc 1 [new], seek_flow 15, session_flow 21, table 21; doc-tests 0); cargo clippy -p playback-engine --all-targets clean. Branch wip/w1-10-epoch-hub, commit 61b6519.
+
+Stage Summary:
+- The epoch-aware staleness policy exists and is proven; the hub wiring is VERIFIED (fail-before/pass-after, whole-suite green) and registered below with exact lines + the verified regression test. After the Lead applies it, M11 closes and the host-side masks become redundant for engine events.
+
+LEAD-MERGE FOLLOW-UP (the one-line session.rs wiring — W1-07 owns session.rs; apply on top of the merged tree; VERIFIED fail-before/pass-after, see Work Log):
+
+File `crates/playback-engine/src/session.rs` (line numbers on 5b396e5):
+1. Line 57, extend the import:
+   `use crate::events::{DamageCoalescer, EventPolicy, ProgressWindow, TimeTickPolicy};`
+   →
+   `use crate::events::{DamageCoalescer, DrainStaleness, EventPolicy, ProgressWindow, TimeTickPolicy};`
+2. Line 605, delete: `let live = current.pipeline.0;`
+3. Lines 613-616, delete the `let seek_terminal = matches!(...)` binding (the exemption moved into the policy).
+4. Line 617, THE line: `if event.generation.0 < live && !seek_terminal {`
+   → `if event.is_stale_at_drain(current) {`
+
+Net: 2 insertions, 7 deletions (verified working diff); behavior change is cross-epoch only — all intra-epoch outcomes identical, proven by the untouched session_flow/seek_flow/contract suites staying green with the wiring applied.
+
+Engine-level regression test to land WITH the wiring — the VERIFIED form (one Engine across both sessions; a two-fixture form would have two hubs and prove nothing). It needs one small helper beside session_flow.rs's existing fakes (`open_on` — `open_with`'s config assembly against a caller-owned `&mut Engine`); everything else reuses the file's existing helpers verbatim:
+
+```rust
+/// Open a session on an EXISTING engine (the M11 scenario needs one
+/// engine-scoped output hub across two sessions).
+fn open_on(engine: &mut Engine, script_len: u64) -> SessionHandle {
+    let script: Vec<DemuxEvent> = (0..script_len)
+        .map(|index| DemuxEvent::Packet(packet(TrackId::new(1), index)))
+        .collect();
+    let mut config = SessionConfig::new(
+        SourceUri::parse("file:///tmp/lumen-fake.media").must(),
+        Box::new(FakeDemuxer {
+            tracks: vec![track(1, MediaKind::Audio)],
+            script: Arc::new(Mutex::new(VecDeque::from(script))),
+            stall: Arc::new(Mutex::new(false)),
+            fail_start: None,
+        }),
+        Arc::new(FakeProvider { fail_select: None }),
+        Arc::new(Collector::default()),
+        virtual_clock(),
+    );
+    config.queues = tiny_queues();
+    config.budget = tiny_budget();
+    config.throttle = frozen_throttle();
+    engine.open(config).must()
+}
+
+fn prime_playing(engine: &mut Engine, context: &str) {
+    for _ in 0..40 {
+        if engine.state() == SessionState::Playing {
+            return;
+        }
+        engine.poll();
+    }
+    assert_eq!(engine.state(), SessionState::Playing, "{context}");
+}
+
+#[test]
+fn superseded_epoch_events_never_leak_into_the_next_session() {
+    // M11: one engine, one engine-scoped output hub, two sessions.
+    // Session 1 (epoch 1) runs open→play→stop→close with NO drain;
+    // session 2 (epoch 2) opens at pipeline 0 — every epoch-1 event
+    // is now stale BY CONSTRUCTION. The bare `generation < live`
+    // comparison waved all ten of them through (verified: seq 1..8
+    // at gen 0, seq 9 at gen 1, seq 10 at gen 2 — all leaked).
+    let mut engine = Engine::new();
+
+    let handle1 = open_on(&mut engine, 200);
+    prime_playing(&mut engine, "priming 1");
+    handle1.stop(RequestId(80)).must();
+    engine.poll();
+    handle1.close(RequestId(81)).must();
+    engine.poll();
+    assert_eq!(engine.state(), SessionState::Idle);
+
+    let handle2 = open_on(&mut engine, 200);
+    prime_playing(&mut engine, "priming 2");
+    drop(handle2);
+
+    // NOW drain: current pair is (epoch 2, pipeline 0).
+    let outputs = engine.take_outputs();
+    let stale_leaked: Vec<(u64, SessionId, Generation)> = outputs
+        .iter()
+        .filter_map(|output| match output {
+            EngineOutput::Event(event) => Some((event.seq, event.session, event.generation)),
+            _ => None,
+        })
+        .filter(|(_, session, _)| *session != SessionId(2))
+        .collect();
+    assert!(
+        stale_leaked.is_empty(),
+        "superseded-epoch events leaked across the session boundary: {stale_leaked:?}"
+    );
+    assert!(
+        engine.stats().suppressed_stale_events > 0,
+        "the epoch boundary must count its suppressions: {:?}",
+        engine.stats()
+    );
+    // Receipts of the dead session's commands survive (doc 05 §4.3:
+    // responses are never suppressed) — the fix must not overreach.
+    let receipts: Vec<RequestId> = outputs
+        .iter()
+        .filter_map(|output| match output {
+            EngineOutput::Receipt(receipt) => Some(receipt.request),
+            _ => None,
+        })
+        .collect();
+    assert!(receipts.contains(&RequestId(80)));
+    assert!(receipts.contains(&RequestId(81)));
+}
+```
+
+SIBLING-BUG LIST (D-4 hunt, bare-counter comparisons vs the staleness vocabulary):
+
+A. The bug (engine-scoped, crosses epochs — this card):
+1. crates/playback-engine/src/session.rs:617 — `event.generation.0 < live` in `OutputHub::drain_into` (with :605, :613-616). THE M11 finding. Fix = the wiring above.
+
+B. Host-side masks (correct as masks — keyed per session; removal is the sibling work that exposes M11):
+2. crates/commands/src/correlation.rs:75-86 — `StalenessFilter::filter_event`: `generation < watermark`, keyed `BTreeMap<SessionId, Generation>` — epoch-correct HOST-side (per-session watermarks); it is what hides M11 today. After the wiring, engine events arrive pre-filtered; the filter remains the doc 05 §4.3 conformance harness.
+3. apps/cli/src/host.rs:416-419 and apps/desktop/src/host.rs:142 — the two mask consumers (sibling work owns their removal).
+
+C. Bare `GenerationId` comparisons in the queue-generation space — SAFE today by per-epoch construction (epoch.rs:36-45 documents the argument: pipeline instances, queues and sinks die with the epoch; an old-epoch producer only ever holds old-epoch handles). Each is an invariant 3.A2 (source replacement, "stale decoder-output drain") must preserve or upgrade to a composite stamp:
+4. crates/playback-engine/src/pipeline.rs:938 — LimbSink `frame.is_stale(self.generation)` (doc 03 §5 point 5).
+5. crates/codec-api/src/decode.rs:204 — `drop_stale_packet`.
+6. crates/packet-queue/src/queue.rs:394,453 — push-boundary stale drops (per-epoch queues, S4).
+7. crates/media-types/src/packet.rs:101 + stamped.rs:61 — the `is_stale` primitives of that space.
+8. crates/media-clock/src/clock.rs:446-450 — `set_generation` (bare GenerationId; clock is session-owned, doc note records the reasoning).
+9. crates/video-engine/src/queue.rs:161 + scheduler.rs:275 — presentation queue/scheduler staleness; host-constructed per session. FLAG for W1-09 (pre-roll hold works this region).
+
+No other bare-counter staleness comparisons exist in apps/ (run.rs:380/384 are prints).
+
+PRE-SUBMISSION AUDIT (directives):
+- D-1 memory: the stamp is two u64 words, Copy; the decision loop allocates nothing — MEASURED zero (tests/epoch_staleness_alloc.rs, counting allocator, 10_001 decisions). No new collections; no per-push/per-drain growth.
+- D-2 complexity: O(1) per decision (two integer compares, epoch arm first); no scans, no sorting, no division.
+- D-3 resilience: u64::MAX epochs/counters covered by test (no wrap tricks — equality only); a hypothetically-corrupted same-epoch ahead-of-live counter is suppressed (fail-safe), never leaked.
+- D-4 lifecycle: no teardown/rebuild — the fix is a comparison rule inside the existing in-pipeline drain; cross-epoch leakage (the D-4 violation) is closed BY CONSTRUCTION, not by a mask.
+- D-5 echo chamber: the rule is differential-checked against epoch.rs's CancelToken (independent implementation of doc 03 §5); the storm test replays the hub's own drain shape; the wiring's regression test exercises the real Engine across two real sessions.
+- D-6/D-7: no ceremony — a POD type + one trait with two methods; no TODO deferred: the deferred piece (session.rs wiring) is a ownership-boundary split, registered with exact lines, not a technical hedge.
+- Deviations: none within my ownership. The hub wiring itself could not be applied from this branch (session.rs is W1-07's file per the wave ownership map) — delivered as the exact-line follow-up above.
+---
+Task ID: W1-11 (M17, ED-FIX-4 dispatch)
+Agent: W1-11 (graceful-exit, opus-routed card in the M-list but shipped as scoped CLI fix)
+Task: apps/cli/src/run.rs:221 — REPL quit/EOF during Playing exited with NO stop/close/teardown (device abandoned mid-stream, session dropped without the close protocol, no Stopped/Idle observability). Implement the graceful exit per doc 10 §6 scenario 16 ("exit during playback leaves no temp state").
+
+Work Log:
+- Read AGENTS.md, docs/engineering-directives.md (D-4 lifecycle integrity), run.rs (REPL loop + quit/EOF), host.rs (W1-06's file — NOT edited; used only existing seams: session_id/state/next_request/pump_pipeline_until + dispatch's submit_and_await/session_closed), docs/10-testing-ci-quality.md §6 scenario 16, dispatch.rs, playback-engine state.rs (transition table: which states accept Stop/Close).
+- run.rs: new `graceful_exit` + `teardown_step` (M17): on quit/EOF with a live session → dispatch `playback.stop` from Playing/Paused (the seek composition's own gating) → dispatch `session.close` while a session survives → bounded pipeline-only tail flush (TEARDOWN_TAIL_PUMPS=8, no-op in Idle). ALL steps go through `lumen_dispatch` (ARCH-5 — no host-internal bypass). Awaits are bounded by the existing AWAIT_PUMPS seam (no wall clock) → exit cannot hang. Typed refusal/expiry prints on stderr via the one error printer and NEVER blocks the exit; answer stays 0 (the quit succeeded; the engine's refusal names the owning card).
+- Applied to BOTH exit surfaces in run.rs: repl_mode (quit + EOF break) and machine_mode EOF (`--control-stdio` — same defect, same file; events ride the NDJSON stream only under --json per the mode's contract).
+- AC tests in apps/cli/tests/session_script.rs (the REPL-lifecycle owner): (a) quit_during_play_tears_the_session_down + eof_during_play_tears_the_session_down (trail Playing→Stopped→Idle in order, transcript ends on the Idle event, err empty, exit 0); (b) quit_while_paused_still_tears_down; (c) quit_after_close_is_a_no_op (idempotence, no echo); (d) machine_mode_eof_during_play_tears_down (NDJSON trail, startPaused open is the deterministic way a machine script lands a teardown-able state — bare `play` is the C8 self-confirmation in Buffering); (e) machine_mode_eof_refusal_is_bounded_and_honest — the injectable teardown-refusal scenario: EOF while Buffering → engine's v1 table refuses close (3.C1) → one typed stderr line, exit 0, no hang.
+- Regenerated first-vertical evidence (documented procedure, `--ignored regen`): the wire-session transcript gained exactly the two teardown events (playing→stopped origin 5, stopped→idle origin 7) — the M17 signature; ledger run_id/sha updated. Complied with INFRA note: binary COPIED (not symlinked) into worktree target/debug/ for the wire-session suite; CARGO_TARGET_DIR shared, single-crate tests only.
+- cargo fmt clean, cargo clippy -p lumen-cli --all-targets clean.
+
+Stage Summary:
+- Branch wip/w1-11-graceful-exit @ 48c3543 (base 5b396e5), 1 commit, no push, no gate (per wave protocol).
+- Files: apps/cli/src/run.rs (+112), apps/cli/tests/session_script.rs (+126), tests/integration/first-vertical/evidence/{ledger.json, transcripts/wire-session.json} (regen).
+- Real numbers: `cargo test -p lumen-cli` = 80 passed / 0 failed (45 lib unit + 7 command_surface + 3 pipeline_accounting + 15 session_script [9 pre-existing all still green + 6 new] + 10 unsupported_path + 0 doc). Neighbor suite `cargo test -p first-vertical` = 26 passed / 0 failed / 1 ignored (regen) after the evidence regen.
+- D-0..D-5/D-10 audit: no hot-path allocation (teardown is once-per-process); O(1) + bounded pumps; every engine state handled at quit (Playing/Paused/Stopped/Ended/Error/Opening close directly; Buffering → honest typed report); teardown uses the engine's OWN stop/close transitions (no destructive shortcut, D-4); no wall clock, bounded by construction.
+- Deviations: (1) machine-mode EOF teardown included (same defect, same file, zero contract change for scripts that close before EOF — wire-session responses unchanged); (2) teardown steps print no response envelopes (seek-composition precedent — evidence is the event trail); (3) exit code stays 0 on teardown refusal (quit is a user action; refusal reported on stderr instead).
+- Follow-ups registered: (1) HOST/3.C1: transient-state (Buffering) stop/close is refused by the engine's v1 table — the graceful exit reports it honestly but cannot tear down; the active-close card owns the seam. (2) machine-mode malformed-request exit (usage error mid-session) still exits without teardown — control-protocol card owns that reply shape. (3) Ctrl-C (SIGINT) is not handled anywhere in the CLI (kernel default kills the process); a signal-handler needs a Lead-approved dependency (AGENTS.md §3.2) — registered as a host-level card. (4) Lead should re-run the full gate + confirm no conflict on wire-session.json from other CLI-behavior branches (W1-06 host-seek is the likely co-editor).
+---
+Task ID: W1-12 (M14 part / ED-FIX-5)
+Agent: W1-12 (fuzz scaffold)
+Task: M14 fuzz/ un-deading, part (a) cargo-fuzz scaffolding + part (b) stable-toolchain seed-loop survival harnesses for the three registered fuzz targets.
+
+Work Log:
+- Read AGENTS.md, engineering-directives (D-5/D-11), the 3 fuzz target files, root Cargo.toml, the in-crate harnesses (codecs pcm/mjpeg fuzz.rs, demux avi fuzz.rs) and their cited suites. Confirmed fuzz/ is NOT a workspace member (globs don't match it) but cargo still refuses a bare package under the root ("believes it's in a workspace when it's not") — reproduced on stable 1.99.1.
+- (a) fuzz/Cargo.toml: package lumen-fuzz, edition 2024, empty [workspace] table (cargo's own prescribed fix; keeps the Lead-owned root manifest untouched — alternative documented: root exclude = ["fuzz"]), [package.metadata] cargo-fuzz = true, libfuzzer-sys = "0.4.13" (latest 0.4.x, sparse-index verified 2026-10-22), path deps codecs+demux, 3 [[bin]] targets named exactly per doc 04 §8.5, [profile.release] overflow-checks = true. Validated: tomllib parse + cargo metadata --no-deps + FULL dependency resolution on stable (libfuzzer-sys 0.4.13 / arbitrary 1.5.0 / cc 1.9.0 resolve; Cargo.lock committed). NOT built (needs nightly) per task.
+- fuzz/README.md: exact commands (rustup toolchain install nightly; cargo +nightly install cargo-fuzz; cargo +nightly fuzz run <target> -s none, plus -s address/-O variants), seed-corpus guidance, workspace-placement rationale, and the LEAD-DECISION block for the nightly dependency (audit wording: "cargo-fuzz scaffolding + nightly wiring (Lead dep decision)").
+- Refreshed the stale WIRING STATUS headers of fuzz_demux_avi.rs + fuzz_codec_mjpeg.rs. Deliberately did NOT touch fuzz_codec_pcm.rs (W1-13's phantom pcm_fuzz_survival.rs citation sits in the same comment block — merge-conflict avoidance per wave ownership).
+- (b) crates/codecs/tests/fuzz_loop_stable.rs + crates/demux/tests/fuzz_loop_stable.rs: deterministic seed loops through the SAME pub harness fns (reused, not rewritten). Inline splitmix64-decorrelated xorshift64* RNG (no new deps); 6 flavors: random / magic-prefixed (SOI, RIFF+AVI, periodic-audio) / 1..=64 bit-flips / truncation / head+random-tail splice / u32-LE smash; real seeds = class-A parents' extracted frames+chunks (cross-codec contamination) + 4 KiB container prefixes + full/64K/2K AVI depths; hard caps PCM 8 KiB / MJPEG 16 KiB / AVI 512 KiB; fixed N. Vacuity guards: deep-entry floors + distinct-length floors + iteration count. Determinism + splitmix decorrelation tests. #[ignore]d long runs; ran them for real.
+- The mjpeg long run CAUGHT a genuine off-by-one in my own generator (data[2..] at len==1) — fixed + regression pin (sub_magic_lengths_are_survivable_inputs, twin in demux). No production defect found (harnesses survived everything, as their contracts claim).
+- cargo fmt; cargo test -p codecs: 139 passed / 6 ignored; cargo test -p demux: 87 passed / 2 ignored; clippy -p {codecs,demux} --all-targets clean. Zero production-code changes (git diff: only fuzz/ + the two new test files).
+- INFRA FINDING for Lead: shared CARGO_TARGET_DIR + cargo's RELATIVE dep-info paths let sibling worktrees' builds alias the same binary slots (demux-<same-hash>). My first full demux run executed a sibling's 72-test lib binary instead of my 66-test one; forced a rebuild (touch src/lib.rs) and re-verified. Recommend agents sanity-check test counts vs their branch, or Lead consider per-worktree target dirs / CARGO_TARGET_DIR subdirs at wave close.
+
+Real numbers (pinned stable 1.99.1, shared target dir):
+- Default debug loops: pcm 2,000 inputs / 6.67 MB / 1,361 lengths / 1.49-1.79 s; mjpeg 1,000 / 5.00 MB / 599 deep / 726 lengths / 1.49-1.64 s; avi 1,000 / 195.9 MB / 827 deep / 743 lengths / 1.64-1.70 s (up to ~4.9 s under sibling-agent CPU contention).
+- Ignored release long runs: pcm 100,000 / 320.5 MB / 1.49 s; mjpeg 20,000 / 104.5 MB / 11,947 deep / 1.18 s; avi 20,000 / 3.95 GB / 16,604 deep / 5.63 s.
+
+Pre-submission audit (D-0..D-5 + D-10):
+1. Memory: loops allocate per-iteration input buffers in TEST code only (bounded by cap); production paths untouched; harness budgets documented (PCM permutation-bound, MAX_PIXELS, FUZZ_EVENT_BUDGET) — file:line in each fuzz module.
+2. Complexity: O(N x cap) with fixed constants; RNG is O(1)/draw; no naive scans added.
+3. Resilience: the entire point — 123k+ adversarial inputs survived across the three surfaces; the one panic found was in test-side generator code, fixed + pinned.
+4. Lifecycle: no production state touched; demux loop exercises in-pipeline seek/drain via the existing harness.
+5. Budgets: default suite adds ~1.5-1.7 s per loop to cargo test (well under the 10 s wire); long runs opt-in via #[ignore].
+D-10: no shortcuts, no teardown-rebuild, adversarial inputs (not self-generated only — real fixture seeds + cross-contamination), no tolerances widened.
+
+Stage Summary:
+- Branch wip/w1-12-fuzz-scaffold @ 5d34901 (base 5b396e5): fuzz/{Cargo.toml,Cargo.lock,README.md} + refreshed headers in fuzz_demux_avi.rs/fuzz_codec_mjpeg.rs + crates/{codecs,demux}/tests/fuzz_loop_stable.rs. 7 files, +1366/-30.
+- M14's "dead fuzz targets" is now half-closed: scaffold exists and resolves; the libFuzzer campaign itself awaits the LEAD-DECISION on the nightly toolchain (exact commands in fuzz/README.md). W1-13 owns the pcm phantom-citation flip in fuzz_codec_pcm.rs + pcm/fuzz.rs.
+- Open: Lead to decide nightly wiring (+ optionally root exclude=["fuzz"] vs the empty [workspace] table); corpus/ seed directories when the campaign lights up; the shared-target-dir aliasing hazard above.
+---
+Task ID: W1-13
+Agent: W1-13 (phantom-test materialize, codecs crate)
+Task: Materialize the M14 phantom `crates/codecs/tests/pcm_fuzz_survival.rs` (PCM decoder survival suite) and reconcile the two citations that referenced it before it existed.
+
+Work Log:
+- Read AGENTS.md, docs/engineering-directives.md (D-3/D-5/D-9/D-10), the audit row M14, both citing files (`crates/codecs/src/audio/pcm/fuzz.rs`, `fuzz/fuzz_targets/fuzz_codec_pcm.rs`), the PCM module (mod/decoder/error/fuzz), the sibling suites (fuzz_survival.rs, pcm_fixtures.rs, corpus.rs) and tests/common helpers.
+- Wrote `crates/codecs/tests/pcm_fuzz_survival.rs` (~1250 lines): three surfaces per input (registered `fuzz_codec_pcm` harness — reused, not rewritten; free `decode_pcm`; codec-api contract path configure→decode), seeded SplitMix64 mutations of the 120 committed class-A PCM chunks: bit flips (1..=8 XORs, random offsets), truncations (random lengths, seed-index stratified so empty/sub-frame/damaged-tail/whole classes are all guaranteed at any N), garbage splices (random insertions), format-header lies (random PcmSource incl. zero channels/rate, corrupted + length-lied WAVEFORMATEX, wrong-width/garbage descriptors, coherent-but-conflicting facts vs seeded facts).
+- Properties asserted per mutant: (a) no panic anywhere; (b) every failure typed — `ErrorKind::Unsupported` at stage `Decode` with a `pcm.*` code, each code additionally pinned by deterministic one-lie-per-field edge cases; (c) concealment accounting exact vs injected damage: `dropped_tail_bytes == len % frame_bytes`, output == whole-sample-frame prefix, exact outcome classification (NeedMoreInput / Recovered{1,CorruptInput} / Recovered{0,ConcealedFrame} / Emitted{1}), frame duration from decoded instants at the configured rate (2.000 s pinned for each parent's full 352 800-byte track decoded as one packet).
+- Exhaustive sweeps: every prefix length 0..=5880 and every single-byte MSB flip of a real chunk through both accounting surfaces; fuzz harness on recorded stride 32 (+ boundary mutants) to keep the gate budget.
+- Tuned runtime: default N=256/class → my test binary 0.62 s inside the full `cargo test -p codecs` gate (2.64 s wall, all green). `#[ignore]` deep run N=2048/class executed once: 4.25 s → 16 863 mutant-surfaces → 9 612 emitted / 6 546 concealed / 192 skipped / 64 empty / 4 066 typed errors / 928 accepted lies / 0 panics; exact per-class ledgers printed by the test.
+- Reconciled citations (minimal diffs): both files now name the repo-root path `crates/codecs/tests/pcm_fuzz_survival.rs` and describe the suite's real shape ("committed-corpus + seeded-mutation survival run", listing the mutation classes and honest-accounting assertions). No phantom references remain (grep confirms).
+- INFRA FINDING (report to Lead): the shared `CARGO_TARGET_DIR=/home/z/my-project/target` cross-linked a sibling worktree's `codecs` rlib into my test binary — a run failed with `pcm.waveformat.extensible`, a string that exists only in worktree w1-02's decoder, not in mine. Authoritative verification therefore used a worktree-local target dir (`worktrees/w1-13/target`). Shared-target users across sibling worktrees of the same package get stale-code contamination, not just lock contention.
+- cargo fmt clean, clippy -p codecs --tests clean (one type_complexity warning fixed via a `Mutator` type alias).
+- Committed: 79c003c `test(codecs): materialize pcm_fuzz_survival (M14 phantom, ED-FIX-5)` on wip/w1-13-phantom-test (no push, no gate, per task).
+
+Stage Summary:
+- Phantom eliminated: `crates/codecs/tests/pcm_fuzz_survival.rs` exists, runs in the gate (8 tests, 0.62 s), and both citing files' claims are now true as written.
+- Real numbers: default gate run green (full `cargo test -p codecs`: 104 unit + 8 contract + 9 fixtures_parent + 5 fuzz_survival + 7 pcm_fixtures + 8 pcm_fuzz_survival + 2 doc tests); deep run (N=2048/class) 16 863 mutant-surfaces, 4 066 typed errors, 928 accepted lies, 0 panics, concealment ledgers exact.
+- Deviation: verification used worktree-local CARGO_TARGET_DIR due to observed cross-worktree rlib contamination in the shared target (evidence: `pcm.waveformat.extensible` reachable only from w1-02's decoder).
+---
+Task ID: W1-14
+Agent: W1-14 (oracle pinning M15, general-purpose sub-agent, branch wip/w1-14-oracle-pin)
+Task: M15 cure — external-oracle hash pins (ffmpeg decode sidecars + checker script) and the first test that consumes docs/baselines/vlc-3.0.23.json (audit finding: every pinned hash self-referential; the ffmpeg cross-check a one-time dev event; the VLC baseline consumed by no test).
+
+Work Log:
+- Read AGENTS.md, docs/engineering-directives.md (D-5/D-11), the M15 row of docs/audits/2026-10-22-directives-audit.md, docs/baselines/vlc-3.0.23.json + raw/linux dumps 04/05/17, tests/integration/first-vertical (JSON/test conventions, boundaries.toml entry), media-probe fixtures_matrix.rs (std-only reader precedent), testkit (Must, workspace_root), root Cargo.toml membership policy.
+- ffprobe'd both valid fixtures (MJPEG 320x240 yuvj420p 60f 2.0s; PCM s16le 44100 stereo 2.0s); decoded with real ffmpeg 7.1.5-0+deb13u1: verified default/-pix_fmt yuv420p/-pix_fmt yuvj420p rawvideo outputs are byte-identical on this build (yuvj* is metadata-only range in ffmpeg 7.x) — pinned the task-specified `-pix_fmt yuv420p` explicitly for future-proofing.
+- Wrote scripts/oracle_check.sh (bash, set -euo pipefail, opt-in, NOT in the gate): per fixture in tests/fixtures/generated/valid/ — ffmpeg -map 0:v/-pix_fmt yuv420p/-f rawvideo and -map 0:a/-f s16le streamed through sha256sum, PASS/FAIL table per stream, exit 1 on any FAIL. Dirty-world guards: missing/malformed/duplicate-label/vacuous sidecars, non-64-hex rows, trailing junk, empty fixture set, zero-byte decodes; explicit status checks because `||` context disables errexit inside functions (found live: an early `-map 0:video` typo silently hashed the empty stream — fixed + guarded). Version provenance NOTE when the running ffmpeg differs from the sidecar's recorded version.
+- Generated + committed the sidecars (avi_mjpeg_pcm.avi.oracle.sha256, mp4_mjpeg_pcm.mp4.oracle.sha256): hashes of ffmpeg's own decode, provenance headers with the exact ffmpeg version string, exact commands, stream geometry. Both containers pin identical digests (identical elementary streams; cross-noted in both sidecars).
+- Wrote tests/integration/first-vertical/tests/baselines_consistency.rs: ONE test consuming docs/baselines/vlc-3.0.23.json via include_str! (+ a parser self-check test): row groups (1) version identity — JSON's four version-string recordings vs each other vs the verbatim first line of raw/linux/04 + exit markers; (2) module census — JSON 502/502 vs the verbatim line count of raw/linux/05; (3) oracle capability — the pinned census carries avi/mp4 demuxer rows for every committed fixture family + avcodec (MJPEG) / araw (PCM) decoder rows for the D-018 vertical; (4) evidence ledger — record_paths (5) + platforms.{linux,windows,macos}.dumps.available (11+2+7) all exist. Std-only hand-rolled JSON reader (integer-only, escapes incl. surrogate pairs, depth-capped, no unwrap/expect/panic — clippy-clean under the workspace deny list).
+- Negative-verified BOTH deliverables: tampering one sidecar hash char → FAIL exit 1; a valid-but-wrong hash → FAIL exit 1; JSON census 502→503 → test red; one-byte drift in dump 04 → test red naming the exact row; all restored → green.
+- Verification: oracle_check.sh 4/4 PASS exit 0 (twice — deterministic); cargo test -p first-vertical: lib 10, baselines_consistency 2, class_b 5, evidence 3+1 ignored, journey 7, wire_mode 1 = 28 passed / 0 failed / 1 ignored (the pre-existing cold-cache lumen-binary path needed `cargo build -p lumen-cli` + a worktree-target symlink — environmental, documented by the test's own message, no repo change); clippy -p first-vertical --all-targets -D warnings CLEAN; fmt CLEAN; cargo xtask fixtures --check no drift (52 files — the new sidecars are extra files, not drift-gated); cargo xtask check-architecture PASS 5/5. No root-manifest/boundaries edits (test file added to the existing first-vertical suite per its tests/ convention).
+- Committed 3e3e24b on wip/w1-14-oracle-pin (4 files, +1021). No push, no gate (per assignment).
+
+Stage Summary:
+- scripts/oracle_check.sh + 2 committed oracle sidecars: the repo's first hash pins that trace to an EXTERNAL engine (ffmpeg's own decode), reproducible on demand — M15's "one-time dev event, unreproducible" is cured for the fixture set.
+- docs/baselines/vlc-3.0.23.json is now load-bearing: a gate-visible test (baselines_consistency, in the first-vertical suite) asserts its version pin, module census, oracle capability and evidence ledger against verbatim raw dumps + the tree; single-sided drift fails, consistent re-pins stay green (no frozen literals in test code).
+- Design decisions: (a) sidecars are ffmpeg-decode hashes, never Lumen output; (b) the script is comparison-only — re-pinning is a documented deliberate procedure, never a flag; (c) the test lives in the existing first-vertical crate to avoid root-config edits (new crates need boundaries.toml + membership, Lead-only); (d) no serde_json — C5 std-only, per the repo's hand-rolled-reader precedent.
+- Deviation (recorded honestly): the task's example row "AVI/MJPEG/PCM format-support rows" does not exist in vlc-3.0.23.json (it is a pin record, not a capability matrix) — the capability row group asserts the equivalent real content: the pinned oracle's census serves every committed fixture family + the D-018 codec pair, which is what makes VLC usable as differential oracle for our media.
+- Follow-ups (Wave-2 candidates): extend oracle pins to the randomized corpus (per-run sidecars via the harness, not committed); wire oracle_check.sh into an env-gated CI job (OPT_IN like corpus suites); a decoder-side differential test comparing Lumen's decode against these very sidecar hashes (the pins now exist for that); baselines consumer could grow ffprobe-geometry rows once a fixture-geometry manifest lands.
+---
+Task ID: W1-15
+Agent: agent W1-15 (general-purpose)
+Task: M16 — adversarial gaps in demux tests: out-of-order idx1, non-monotone seek ladder, true short-read DIBBLE source driven through a whole walk, B5 wrong-container probe-vs-demux race.
+
+Work Log:
+- Read AGENTS.md + engineering-directives.md (D-3 dirty world, D-5 adversarial tests / never weaken), demux/src/avi/{index.rs,riff.rs,mod.rs,header.rs}, demux/tests/{corpus.rs,fixtures_class_b.rs,fixtures_parent.rs,common/}, src/avi/{tests.rs,test_support.rs}, crates/media-probe signature path, apps/cli demux_host.rs (the probe→demux handoff), boundaries.toml.
+- REAL BUG FOUND + FIXED (demux/src/avi/index.rs only, per file ownership): parse_idx1 assigned pts_ticks in STORED idx1 order and mod.rs sorted entries by chunk_pos afterwards → a shuffled/partially-sorted/reversed idx1 produced a seek table with per-stream pts NON-MONOTONE in file order, silently violating search_index's early-break precondition. Pre-fix measured behavior (verified against unpatched code): a fully-reversed 8-entry idx1 made EVERY in-range seek (0/20/50/100/150/200 ms) and reanchor refuse with a spurious `demux.avi.seek.out-of-range`; landing spans were wrong even when a seek answered. The movi walk (packet extraction) was never affected — it is index-independent by contract. Fix: collect raw entries → sort by chunk_pos (FFmpeg ordered-insert semantics) → only then run the ladder pass that assigns pts; the table is file-ordered with file-order timing for ANY stored order. Reorder is damage-counted, never silent: one coalesced `idx1-out-of-order-entries` event, 16 bytes per misplaced entry (running-max rule; duplicates not counted). Regression tests: in-crate unit test (index.rs) + the integration families below. No assertion weakened anywhere.
+- Wrote crates/demux/tests/adversarial_gaps.rs (13 tests, 1,201 lines), four families:
+  1. out-of-order idx1 (seeded shuffle, full reversal): walk rows (track/pts/keyframe/sha256), absolute seek landing grid [0,1,1,3,5,6], and reanchor-from-EOS tail all IDENTICAL to the canonical file; damage note pinned.
+  2. non-monotone ladders: mid-table reversed offset run; duplicated dwOffsets (typed seeks, keyframe-safe, strictly non-decreasing post-reanchor pts, EOS termination, zero packet duplication); search_index on a hand-built time-backwards table (never above target, never a non-keyframe, degrades to the pts-0 keyframe at target 3).
+  3. DribbleStream (SourceStream wrapper, seeded splitmix64 1..=cap bytes per read, Ok(0) only at true EOS, Arc<Mutex> I/O ledger): FULL EOS walks of the REAL parent fixture (425,516 bytes) with cap=16 and cap=1 are packet-accounting-identical to the plain walk; reanchor-from-EOS resumes the exact canonical tail (rows[60..]); the noidx0 linear-scan seek lands within the recorded tolerance through sustained short reads. Measured: bytes_served/file ratio 1.000 (425,480/425,516) at both caps, 0 mid-stream empty reads, 515 seeks (834 with 4 scan seeks on noidx0, ratio 1.004); suite enforces ceilings (≤4× file bytes, ≤64 EOF probes, payload_reads ≤ bytes_served).
+  4. wrong container B5: committed MP4 parent fixture → typed sticky `demux.avi.not-avi` with the ftyp sniffed prefix in the AVI path; AVI parent bytes behind a lying `.mp4` temp filename → full 120-packet demux through the REAL input::FileAccess (content truth, not name truth); ftyp-magic-with-embedded-valid-AVI refused NOT rescued (no speculative mis-walk); mp4-flavored bytes as JUNK payload demux as AVI byte-identically; RIFF-magic+garbage (probe would score avi@70, demux refuses) → typed `demux.avi.no-header`; RIFX/WAVE forms → not-avi.
+- cargo fmt clean; clippy -p demux --all-targets: 0 warnings.
+
+Stage Summary:
+- Branch wip/w1-15-adversarial-demux, 2 commits (not pushed, no gate run, per instructions): 6cbb75e fix(demux) index.rs sort-then-time + unit regression; 309c75c test(demux) adversarial_gaps.rs.
+- `cargo test -p demux` GREEN, verified in BOTH a private target dir and the shared /home/z/my-project/target: 98 passed / 0 failed / 1 ignored (env-gated corpus suite; ignored by design) — lib 67, adversarial_gaps 13, fixtures_class_b 11, fixtures_parent 6, doc-tests 1.
+- Files touched: crates/demux/src/avi/index.rs (+191/−10), crates/demux/tests/adversarial_gaps.rs (new, 1,201 lines). Nothing outside demux; header.rs/mod.rs (sibling W1-02's) untouched.
+- Deviations / filings:
+  * media-probe is not in demux's boundaries.toml dev-dep allowlist (root config is Lead-only), so the probe half of the B5 handoff is pinned by the existing media-probe + CLI suites; my family pins the demux-side backstop (documented in the test file header).
+  * Monotone-stored duplicate dwOffsets ([0,1,1,2,3,3]) currently surface NO damage note (lying-index divergence observable only via pts) — registered as a hardening candidate; not fixed (observability gap, not a safety bug; walk/seek remain typed and safe, pinned by test).
+  * INFRA FINDING (all Wave-1 agents): the SHARED CARGO_TARGET_DIR cross-contaminated worktrees during the disk-full window — `cargo test -p demux --lib` in MY worktree listed W1-02's `wave_format_extensible` test (absent from my tree) and ran their rlib, making my suite "fail" spuriously. Resolved after reclaiming target/debug/incremental (368 MB freed, disk was 100% full at 9.9G); both dirs now agree. Recommend: verify with a private CARGO_TARGET_DIR when shared-dir results look impossible, and keep the disk headroom.
+- Pre-submission audit (D-0..D-5 + D-10): Memory — the fix adds one pre-sized Vec<RawIdxEntry> during the one-time idx1 parse (bounded by MAX_IDX1_ENTRIES = 8 MiB raw; not a hot path; no per-frame allocation change) [index.rs:266,348]. Complexity — sort is O(N log N) on ≤524,288 entries, once per open; the search/replay are unchanged [index.rs:344]. Resilience — out-of-order, reversed-run and duplicate offsets all handled with typed outcomes + damage notes; the family-2/4 suites are the adversarial evidence. Lifecycle — no teardown/rebuild anywhere; reanchor is in-pipeline (revive-from-EOS pinned). Budgets — dribble runs measured ratio 1.000 bytes-served/file, 0 EOF spins; no CPU pathology. D-10 — no shortcut taken; tests were NEVER weakened (the 4 "failures" during the contamination window were diagnosed as infra, not papered over).
+---
+Task ID: W1-16
+Agent: Sub-agent W1-16 (general-purpose, Wave-1 recon; read-only, main @ 8e3e052)
+Task: IMPLEMENTATION DESIGN for card 3.A2 (docs/13-agent-wave-program.md:369) —
+"Source replacement: play-new-while-playing, session epoch bump, teardown
+ordering, stale decoder-output drain. AC: 50 rapid switches with no leak
+(bounded memory asserted) and no stale frames." A Wave-2 agent implements
+directly from this design. No code changed, no cargo run.
+
+Work Log:
+- Read the card + program context (docs/13-agent-wave-program.md:361-379: Phase-3
+  gate names "source replacement" explicitly; 3.A2 owns `crates/playback-engine/src/session.rs`,
+  consumes 3.A1, is M-sized) and the binding specs: doc 03 §4.6 SetSource row +
+  invariants (docs/03-engine-plan.md:492, 511-521), §5 cancellation/teardown
+  (docs/03-engine-plan.md:842-897), §6 seek flow (docs/03-engine-plan.md:899-960,
+  mirrored in seek.rs:5-123), doc 05 §2.1 `session.open` row
+  (docs/05-command-layer.md:227) and §3.3 conformance list
+  (docs/05-command-layer.md:412).
+- Read the whole current surface: playback-engine {session, pipeline, epoch, seek,
+  events, state, event, lib}, packet-queue {queue, stamped, limits}, input (open
+  path), apps/cli {host, demux_host, pipeline_host, dispatch}, media-clock clock.rs,
+  video-engine scheduler/queue, commands correlation.rs, testkit alloc_count.rs,
+  the audit register (docs/audits/2026-10-22-directives-audit.md), worklog
+  (3.A1-R / 3.MERGE-1 / ED-AUDIT / 3.WAVE-PROGRAM entries), corpus + fixtures
+  layout. Every claim below carries file:line evidence.
+
+# 3.A2 IMPLEMENTATION DESIGN — Source replacement (play-new-while-playing)
+
+## 0. Current state (evidence baseline)
+
+1. The engine refuses a second open on a live session: `Engine::open` returns
+   `SessionError::SessionExists` (session.rs:756-761; pinned by
+   tests/session_flow.rs:948-956), and the module doc names this card as the
+   owner of the replacement semantics (session.rs:700-703). The state table
+   rejects `Open` from every non-Idle state as
+   `RejectionReason::SourceReplacementPhase3` (state.rs:677-678; variant at
+   state.rs:568-570, text at state.rs:601-603).
+2. The CLI host mirrors the refusal ("a session is already open — close it
+   first (source replacement is card 3.A2)", host.rs:628-634) and composes
+   seek as stop→close→file-reopen (host.rs:791-832). That composition is audit
+   finding C8 (docs/audits/2026-10-22-directives-audit.md:40): it "destroys
+   session epoch, audio device + 131k-frame ring (undrained tail), clock
+   (re-anchored at requested not actual), decoders, renderer surface, all
+   observability". RING_FRAMES = 131_072 (pipeline_host.rs:91).
+3. The wire contract already promises replacement: doc 05 §2.1 `session.open`
+   — "Replaces any current session (implicit close). New `SessionId`,
+   `gen = 0`" (docs/05-command-layer.md:227); §3.3 names "close/replace" as
+   the reason for `stopped/ended/error→idle` (docs/05-command-layer.md:412).
+4. The epoch machinery is ready and waiting: epoch.rs:7-12 says the epoch is
+   minted on Open "and on source replacement once card 3.A2 wires it";
+   queues are per-epoch (S4) and the queue `GenerationId` space is the
+   pipeline generation of the current epoch (epoch.rs:36-45); cross-epoch
+   equal pipeline counters are stale by pair-equality (epoch.rs:91-94,
+   pinned at epoch.rs:333-350). `Engine::open` already mints epochs from
+   `next_epoch` (session.rs:762-767).
+5. The destroy path exists: `Effect::DestroySession` = mint → `interrupt` →
+   `pipeline.teardown` → drop (session.rs:1157-1168);
+   `Pipeline::teardown` flushes every queue at the minted generation, closes
+   it, clears the limbs (decoders die) and the held packet (pipeline.rs:468-475);
+   the demuxer — which owns the input stream, `AviDemuxer::new(stream)`
+   (demux_host.rs:255) — drops with the `Pipeline`. `Effect::TeardownPipeline`
+   additionally clears the in-flight seek slot (session.rs:1194-1198). A closed
+   session is destroyed at poll step 3 with totals merged engine-side
+   (session.rs:863-873).
+6. Known hazard (M11, W1-10's target): the OutputHub drain suppresses by
+   BARE pipeline counter — `event.generation.0 < live` (session.rs:604-630) —
+   ignoring the epoch. After a replacement this comparison runs the WRONG way:
+   an old-epoch event at gen 3 vs a new epoch's gen 0 passes the check
+   (`3 < 0` is false) and is DELIVERED as if current. 3.A2 therefore HARD-
+   DEPENDS on W1-10 (epoch-aware hub), merge order W1-10 → 3.A2.
+7. Frame-path staleness is a bare `GenerationId` too: `Frame::is_stale`
+   compares `frame.generation < current` (media-types/src/frame.rs:258-269;
+   fields at frame.rs:206/225/236), checked at the engine's `LimbSink`
+   (pipeline.rs:936-950) and at the video scheduler, whose wholesale purge is
+   driven by the CLOCK's generation snapshot
+   (video-engine/src/scheduler.rs:341-365; `MediaClock::set_generation` at
+   media-clock/src/clock.rs:450-452, called today only by seek completion,
+   seek.rs:424). Because the pipeline generation RESETS each epoch
+   (epoch.rs:13-17), generation equality CANNOT distinguish epoch N's gen 0
+   from epoch N+1's gen 0 — safe in v0 only because every generation-checked
+   object (queues, decoders, sinks) dies with its epoch. Any cross-epoch
+   retention that relies on generation equality is a latent bug (see §4).
+8. Host-side tails that outlive an epoch (the C8 "undrained tail" class):
+   the null ring's audio content (written at pipeline_host.rs:557-575), the
+   video scheduler window + held-missing frame + `last_presented` repeat
+   source (scheduler.rs:341-365 clears them only on generation change), and
+   the CLI consumer's `video_hold` deque (pipeline_host.rs:515). The VideoLimb
+   (scheduler + PresentationQueue + renderer) is built lazily per consumer
+   (pipeline_host.rs:502-504, 279-288).
+
+## 1. Design decision D-1 (Lead question Q1): the wire-visible trail
+
+`session.open` on a live session must produce a doc 05 §3.3-conformant trail.
+Two candidate shapes:
+
+- **P1 (RECOMMENDED — zero wire changes): compose the existing rows.** The
+  implicit close is an engine-INTERNAL sequence through table rows that
+  already exist: from `Playing`/`Paused` apply `Stop` (rows state.rs:478-483 /
+  513-518: BumpPipeline → TeardownPipeline) then `Close` (rows
+  state.rs:526-543: BumpPipeline → DestroySession); from
+  `Opening`/`Ended`/`Stopped`/`Error` apply `Close` alone (row
+  state.rs:377-382 and state.rs:526-543); from `Buffering` REFUSE typed
+  (`SessionError::SessionExists` — no `buffering→{stopped,idle}` edge exists;
+  state.rs:698 classifies both as StopFirst, and state.rs:23-27 records that
+  the transient-state edges are 3.C1's). Then the fresh `Open`
+  (Idle→Opening, session.rs:775-779). Old-session trail from Playing:
+  `playing→stopped→idle`, then the new epoch's `idle→opening` — every edge
+  is in the conformance list (docs/05-command-layer.md:412), so the
+  table.rs wire-conformance proof (lib.rs:46-52) stays intact untouched.
+- P2 (needs Lead-owned wire change): one internal destroy emitting a single
+  `playing→idle` state-changed. Not conformant today (the list has
+  playing→{stopped,ended,error} only) and would require changing doc 05 §3.3
+  + `commands::PlaybackState::can_transition_to`. Rejected for 3.A2.
+
+The "50 rapid switches" AC is fully exercisable inside P1: the test pumps
+each epoch to `Playing` before switching, so every replacement departs from
+`Playing`. Replacement-from-`Buffering` refusing typed is itself a pinned
+test (§5, Test 3). Open question Q1 for the Lead: endorse P1 now vs schedule
+the wire-edge change with 3.C1.
+
+## 2. The play-new-while-playing flow — the R-steps (mirrors 3.A1's seven)
+
+`Engine::open(config)` gains replacement semantics. No new
+`SessionCommandKind` (open is an engine-entry call, not an inbox command —
+doc 05's class-A completion evidence remains the NEW session's
+`state-changed → playing` events; the receipt surface is unchanged). No new
+public API: a private `Engine::replace_live_session(&mut self)` (or inline
+block) inside `open` before the epoch mint. Single-writer discipline holds
+by construction: `open` runs between polls (the same discipline as today's
+open applying Idle→Opening, session.rs:775-779), so R1–R9 are atomic w.r.t.
+drains and ticks.
+
+- **R1 — Arrival & precondition.** Owner: `Engine::open` (session.rs:756).
+  No live session → today's path verbatim. Live session in
+  `Buffering` → `Err(SessionError::SessionExists)` (unchanged refusal; the
+  variant's text stays honest for every legal exit). Live session in any
+  other state → continue. NOTE: reuse `SessionExists` rather than adding a
+  variant — `SessionError` lives in error.rs, OUTSIDE 3.A2's owned file
+  (Q3 for the Lead; a distinct `ReplacementBlocked` variant can join 3.C1).
+- **R2 — Old-session stop (only from Playing/Paused).** Owner:
+  `Session::apply(SessionInput::Stop, origin-free InputContext)` — the
+  existing row's effects, no receipt (receipts exist only for submitted
+  commands, session.rs:1296-1356; these events carry `origin: None`).
+  Effects in order: `BumpPipeline` mints the old epoch's FINAL pipeline
+  generation and publishes it (`TokenMinter::mint_pipeline`,
+  epoch.rs:176-184) — from this point every stage-held `CancelToken`
+  answers stale (epoch.rs:91-94); `TeardownPipeline` runs
+  `pipeline.teardown(G+1)`: every queue flushed at G+1 (residents die,
+  packet-queue Q2, queue.rs:336-374) then closed (queue.rs:310-315), limbs
+  cleared → decoders + their held output die, held demux packet dropped,
+  and the `Pipeline` (demuxer included) drops (pipeline.rs:468-475;
+  session.rs:1188-1199); the in-flight seek slot dies here silently
+  (session.rs:1194-1198 — correct per doc 05 §4.2 supersession: a
+  generation that never completed owes no terminal). Emits
+  `state-changed → stopped`.
+- **R3 — Old-session close.** Owner: `Session::apply(SessionInput::Close)`.
+  From `Stopped` (R2's landing) or directly from
+  `Opening`/`Ended`/`Stopped`/`Error`. Row effects (state.rs:526-543,
+  377-382): `BumpPipeline` (the epoch's last mint; harmless) →
+  `DestroySession`: `minter.interrupt()` (epoch.rs:188-193 — even the
+  current pair is stale; no new work may start under this epoch),
+  pipeline already dropped, `closed = true` (session.rs:1157-1168). Emits
+  `state-changed → idle`.
+- **R4 — Old-session destruction.** Owner: `Engine::open`, mirroring poll
+  step 3 exactly (session.rs:863-873): `pipeline_totals.merge(&totals)`,
+  `self.session = None`. Observability SURVIVES at engine level
+  (`frames_delivered` etc. accumulate across epochs — the soak observable);
+  the per-session emission state (damage windows, tick baselines) dies with
+  the `Session` struct. Everything the epoch owned is now gone — S4
+  honored: "source replacement never reuses the old epoch's demuxer,
+  queues, or decoders" (docs/03-engine-plan.md:514-515; epoch.rs:9-11).
+  What the engine NEVER destroys: the device, ring, clock, renderer,
+  consumer, provider — it held only `Arc` clones (SessionConfig,
+  session.rs:328-352; SessionRuntime session.rs:1001-1011); dropping an
+  Arc clone cannot destroy a host-held twin. THIS is the C8 fix's engine
+  half: the host is no longer forced through teardown to swap sources.
+- **R5 — Epoch mint.** Owner: existing code (session.rs:762-767):
+  `SessionEpoch(self.next_epoch)` = E+1, checked add. This is the "session
+  epoch bump" the card names; the wire sees a new `SessionId`
+  (epoch.rs:240-244) and the new session's `gen` restarts at 0
+  (epoch.rs:252-255) exactly as doc 05 §2.1 promises.
+- **R6 — Fresh open.** Owner: existing code (session.rs:768-785): new
+  inbox channel, `Session::new` with a fresh `TokenMinter` publishing
+  (E+1, 0), apply Idle→Opening, announcements to the outbox, `last_pair`
+  updated, new `SessionHandle` returned.
+- **R7 — Wiring.** Owner: the unchanged open step on the first poll
+  (session.rs:1466-1519): `Demuxer::start`, then `Pipeline::wire` builds
+  FRESH queues per enabled track and flushes them at (E+1, gen 0) — a
+  no-op on fresh queues, the standing boundary check (pipeline.rs:425-431)
+  — and FRESH decoders configured with gen 0 of E+1
+  (pipeline.rs:432-449). Nothing is recycled across the epoch boundary.
+- **R8 — Pre-roll to Playing.** Owner: the unchanged tick path
+  (Buffering → Primed → Playing). Composition: the new epoch's first
+  frames reach the HOST's retained device/ring only after the host seam
+  (§4) drained the ring and re-anchored the clock; W1-09's pre-roll
+  presentation hold is a SEEK-shaped mechanism (M10,
+  docs/audits/2026-10-22-directives-audit.md:55) and needs no
+  replacement-specific change — the hold flag (if session-scoped) dies with
+  the old Session at R4 and a fresh open has none.
+- **R9 — Old-output drain.** Owner: the OutputHub + `drain_outputs_into`.
+  Undelivered old-epoch events sit in the hub behind the new epoch's
+  events; the epoch-aware drain (W1-10) suppresses them by SESSION id.
+  Receipts always survive (session.rs:609-611 — they are request-correlated,
+  not pipeline-scoped). Event `seq` stays engine-global strictly increasing
+  across the switch (the session_flow.rs:959-999 reopen proof generalized).
+  Composition question Q2 for the Lead + W1-10's owner: the seek-terminal
+  drain exemption (session.rs:596-603, 613-616) exists so a completed
+  generation's terminal survives a LATER MINT within one session; after a
+  REPLACEMENT the emitting session is dead — recommend W1-10 scopes the
+  exemption to live sessions (suppress dead-session terminals engine-side)
+  rather than relying on the host to filter by session id (the CLI's
+  StalenessFilter is per-session watermarked, correlation.rs:75-86, and
+  would happily deliver a dead session's terminal).
+
+Failure corners (each gets a test): (a) the NEW open failing after the
+implicit close (corrupt header → `Error` under epoch E+1; the host's
+existing `teardown_after_fatal` shape, host.rs:721-726, covers it; no
+rollback to the old source — the old epoch is legally dead, matching doc
+03's SetSource row which has no rollback); (b) epoch-mint exhaustion at R5
+(session.rs:763-766) — engine left Idle, typed error returned, old session
+already destroyed (honest: the u64 epoch counter outliving the universe);
+(c) a replacement landing mid-seek — covered at R2 (slot dies silently).
+
+## 3. Teardown ordering — dependency graph
+
+The audit's C8 list of what stop+reopen destroyed (audit register line 40):
+session epoch, audio device + 131,072-frame ring (undrained tail), clock
+(re-anchored at requested not actual), decoders, renderer surface, all
+observability. The native replacement must NOT destroy the epoch-shared
+host objects; it MUST destroy exactly what S4 names.
+
+Dies with the old epoch (engine-owned, at R2–R4):
+demuxer (+ its input stream) · packet queues (flushed+closed) · decoders ·
+held demux packet · in-flight seek slot · session emission state ·
+(observability events die at the drain filter, not at teardown).
+
+Survives (host-owned `Arc`s the engine merely borrowed):
+audio device + ring (`CliHost.device`, host.rs:112; engine never references
+it — audio exits through `FrameConsumer` → ring, pipeline_host.rs:557-575) ·
+clock (`Arc<MediaClock>`, SessionRuntime clone at session.rs:1003) ·
+renderer/scheduler/consumer (`CliFrameConsumer`, host.rs:111) · decoder
+provider · engine-level observability totals (R4 merge) · the host's event
+log and state history.
+
+Engine-internal order (the synchronous v0 form of doc 03 §5's teardown,
+docs/03-engine-plan.md:895-897 — "mint → cancel token interrupt → flush
+queues → join threads → destroy device session"; no worker threads exist
+yet, so S2's join deadline is trivially met):
+1. mint (R2's BumpPipeline — staleness checks fire from here on),
+2. teardown queues: flush(G+1) then close (pipeline.rs:469-472),
+3. drop limbs/decoders/pending/demuxer (pipeline.rs:473-474; Pipeline drop),
+4. interrupt (R3 — belt-and-braces after the epoch is already superseded),
+5. drop the Session (R4 — totals merged BEFORE the drop).
+The trail events were pushed at each apply, so they precede the new
+epoch's announcements in the hub by construction (one VecDeque, causal
+order — doc 05 §4.3).
+
+Host-side seam order (the follow-up host card, §6; composes with W1-06's
+seek migration — same host.rs regions):
+1. `engine.open(new config)` returns (trail + new opening events arrive via
+   the normal drain),
+2. drain the ring to silence — render off `device.buffered_frames()`,
+   bounded by RING_FRAMES renders (generalize the `drain_tail_at_end`
+   pattern, host.rs:511-546; doc 03 §5 checking point 6: "drains the ring
+   to silence, then waits for the new generation's first packet"),
+3. clear the video presentation state explicitly — scheduler window, held
+   frame, `last_presented`, and the consumer's `video_hold` deque (a new
+   `VideoLimb`/`ConsumerState` clear method). DO NOT rely on the
+   scheduler's generation purge here: it compares bare `GenerationId`s
+   (scheduler.rs:341-365) which collide across epochs (§0.7) — an
+   old-epoch frame stamped gen 0 would SURVIVE a purge keyed on new-epoch
+   gen 0,
+4. re-anchor the clock at the new source's start (`pause` + `reanchor` +
+   later `resume`, clock.rs:416-439) — or construct a fresh clock if the
+   audio format changed (format change ⇒ a new stream on the device,
+   `NullBackend::open_stream` per format, pipeline_host.rs:794; Q4 for the
+   Lead: recommend keep-device/rebuild-stream, VLC parity),
+5. resume pumping — the new epoch's frames flow through the retained
+   consumer.
+Deterministic in the CLI's single-threaded pump model: steps 2–4 run
+before the new epoch can possibly deliver its first frame (the new session
+is `Opening`; first frames arrive many polls later).
+
+## 4. Stale decoder-output drain — mechanism
+
+Layered by where in-flight old work can exist:
+
+- **Decode output in flight (engine, v0): none by construction.** Decoding
+  happens inside `Engine::poll`'s bounded tick; `Engine::open` (hence
+  R2–R4) runs between ticks on the same thread. The decoders DROP at R2
+  with their reorder buffers; any frame they held dies un-presented. The
+  `LimbSink` generation check (pipeline.rs:936-950) remains the
+  within-epoch backstop. [The threaded future (3.B3) changes this: decode
+  workers must check the `CancelToken` before emitting (doc 03 §5 checking
+  point 5, docs/03-engine-plan.md:872-874) and the epoch pair comparison
+  (epoch.rs:19-23) already gives them the right staleness test — flag for
+  3.B3, not 3.A2.]
+- **Undelivered events (hub): W1-10's epoch-aware suppression is the
+  mechanism** (hard dependency; §0.6 shows today's bare-counter check
+  delivers old-epoch events after a replacement). 3.A2 adds the
+  cross-epoch pin: after switch k, a drain contains ZERO pipeline-scoped
+  events whose `event.session != live session id` (all v0 kinds are
+  pipeline-scoped, event.rs:453-460).
+- **Host tails (ring audio, scheduler window, holds): explicit clears at
+  the host seam** (§3, steps 2–3). The engine cannot do these — it does
+  not own the device or the scheduler; the C8 "undrained tail" is a host
+  duty by architecture.
+- **Frames already delivered to the consumer under the old epoch are NOT
+  stale** — they were presented truth; the no-stale-frames property is
+  about frames DELIVERED AFTER the switch, which must all belong to the
+  new source (asserted by content marker, §5).
+
+Composition with the in-flight Wave-1 siblings: W1-09 (pre-roll hold) —
+session-scoped state, dies at R4, no interaction; W1-10 (epoch hub) — hard
+dep, merge first, and Q2 (dead-session seek terminals) must be answered in
+W1-10's design; W1-07 (session.rs bounds) — the hub/inbox/receipt caps it
+hardens (session.rs:70-99) are what make the 50-switch memory bound
+provable; W1-06 (host seek) — disjoint host regions today, but the host
+replacement card must rebase on W1-06's `dispatch_seek` rewrite (both touch
+`open_session`/teardown paths, host.rs:621-742, 750-837).
+
+## 5. Test plan — the AC suite
+
+New engine integration suite `crates/playback-engine/tests/replacement.rs`
+(+ a sibling allocator binary), fakes modeled on the seek_flow.rs family
+(seek_flow.rs:61-260: scripted demuxer with compute-then-commit reanchor,
+scripted decoders, `Collector` FrameConsumer, virtual monotonic source).
+No fixture files needed at engine level (fake sources); deterministic; no
+`#[ignore]`, no env gates; ~50 × ~10 polls of μs-scale fakes per test.
+
+Fixture vocabulary (fake sources): source k (k = 0..49) has an audio track
+and/or video track; every packet payload encodes k (audio PCM bytes =
+`[k; n]`, video width = 32 + k) and the fake decoder copies the marker into
+every frame, so the sink can attribute each delivered frame to its source
+without any epoch plumbing (the frame's bare `GenerationId` cannot carry
+the epoch — §0.7). Track-shape ladder: even k = A+V, odd k = audio-only,
+k ≡ 0 (mod 10) = video-only — exercises limb-count changes 2→1→0→2 across
+switches. ~8 packets per track per source keeps 50 epochs short.
+
+1. `fifty_rapid_switches_playing_to_playing` — THE AC. For k in 0..50:
+   `engine.open(source_k)` → poll to `Playing` → 2 extra pumps (≥ 1 frame
+   per wired limb delivered) → next k, with NO close in between. Asserts
+   per switch: the returned handle's `session_id() == k+1` (epoch
+   sequence); the drained state-trail segment is exactly
+   `playing→stopped→idle→opening→…→buffering→playing` with the first three
+   stamped session k and the rest session k+1; ZERO delivered
+   pipeline-scoped events with `session != k+1` after the switch (the
+   W1-10 pin); Collector: every frame in the delivery window of epoch k
+   (frames delivered after open_k returned, before open_{k+1}) carries
+   marker k — THE no-stale-frames assertion (no frame from any j < k ever
+   appears after switch k); ≥ 1 frame per wired limb per epoch (progress).
+   Final: state `Playing`; `EngineStats::frames_delivered` == Collector
+   frame count (counter cross-check, session.rs:649-656).
+2. `memory_stays_bounded_across_fifty_switches` — THE bounded-memory
+   assertion, in a DEDICATED binary `tests/replacement_alloc.rs` (the
+   counting allocator is process-global — the testkit discipline,
+   alloc_count.rs:9-24; `#[global_allocator]` + `serialize_tests()`).
+   Warm-up: 5 switches (pool sizing). Measured window: switches 5..50,
+   with a NON-RETAINING consumer (count + last marker only — a retaining
+   Collector would attribute the test's own growth to the engine). After
+   each switch's settle, snapshot `ALLOC.state().snapshot()`
+   (alloc_count.rs:113-131). Assert: (a) `live_bytes` band —
+   `max − min ≤ BOUND_BAND` over switches 5..50; (b) no monotone creep —
+   `live_bytes[49] − live_bytes[6] ≤ BOUND_CREEP`; (c) per-switch
+   `alloc_calls` delta ≤ BOUND_CHURN. The three constants are PINNED FROM
+   MEASUREMENT by the implementer (first green run + documented ~2×
+   margin, the measured number recorded in a comment — D-6 runtime-green
+   discipline, no invented budgets). Suggested starting points
+   [PROPOSAL]: BOUND_BAND = 256 KiB (two fresh queues preallocate
+   ≤ 1024 slots each, queue.rs:243), BOUND_CREEP = 64 KiB, BOUND_CHURN =
+   4 096 events.
+3. `replacement_refuses_typed_from_buffering` (and the opening case):
+   open, poll into `Buffering` (not yet primed) → `open(source_2)` ⇒
+   `Err(SessionExists)`; engine state unchanged, old handle still answers,
+   no partial teardown (the P1 honesty pin; the Opening case is legal via
+   its Close row — assert it REPLACES, trail `opening→idle→opening`).
+4. `in_flight_seek_dies_silently_at_replacement`: open → seek (in flight,
+   pre-roll incomplete) → immediately open(source_2): no `Seeked`/
+   `SeekFailed` for the old epoch is ever delivered (slot cleared at R2,
+   session.rs:1194-1198; suppression at R9); new epoch plays normally.
+5. `replacement_preserves_engine_totals_and_seq`: `frames_delivered`
+   accumulates monotonically across epochs (R4 merge); event `seq` is
+   engine-global strictly increasing across the switch (extends
+   session_flow.rs:959-999 to the replacement path).
+6. `undrained_hub_suppresses_old_epoch_events`: skip draining for
+   switches 10..15 (hub accumulates under the 1024 cap, receipts pinned —
+   the 3.B4 behavior, session.rs:1876-1904), drain at 16: old-session
+   events suppressed and counted (`suppressed_stale_events` rises), the
+   live session's events all present, order preserved.
+7. `replacement_then_failed_open_lands_in_error_closeably`: switch to a
+   corrupt fake source → new epoch enters `Error` with the typed fatal
+   before `state-changed → error` (state.rs:370-375 ordering); a plain
+   `close` returns the engine to `Idle`; a third open succeeds (the
+   host.rs:721-726 shape, engine-proven).
+
+Host/CLI-level soak (FOLLOW-UP host card, not 3.A2's owned files; recorded
+as composition debt in §6): scripted session alternating real fixtures —
+`tests/fixtures/generated/valid/avi_mjpeg_pcm.avi` (A+V, deterministic,
+MANIFEST.toml class A) with a corpus video-only AVI (corpus/media/,
+ffmpeg-generated per corpus/manifest.json) — asserting the trail, ring
+drained, clock re-anchored, and no stale presents; a dirty-source variant
+switching AWAY mid-recovery uses the corpus `cut-mid-chunk`/`lie` families
+(corpus/dirty/). The doc 03 §4.6(f) 1000× open/play/stop soak
+(docs/03-engine-plan.md:520-521) remains the 3.F-scale superset of this.
+
+## 6. Ownership, sequencing, and follow-ups
+
+- 3.A2 touches: `crates/playback-engine/src/session.rs` (the R-flow in
+  `Engine::open` + trail emission) and the two new test files. Nothing
+  else. state.rs, epoch.rs, pipeline.rs, seek.rs are CONSUMED UNCHANGED
+  (the R-flow is a composition of existing rows/effects — that is the
+  design's chief virtue).
+- Merge order: W1-10 (epoch hub) MUST land first (or 3.A2 grows the
+  suppression itself and collides with W1-10's owned region
+  session.rs:382-403/604-630 — the Lead's file-ownership map already
+  anticipated this class of collision). W1-07's bounds harden the same
+  file's constants; sequence W1-07 → W1-10 → 3.A2 within session.rs.
+- Host migration (the user-visible C8 fix: device/ring/renderer survive a
+  file switch) is a separate follow-up card composing with W1-06 (host
+  seek) — this design's §3 host-seam order is its brief. Recommend the
+  Lead register it as ED-FIX-4b ("host replacement migration") next to
+  W1-06's seek migration in the audit register.
+- 3.B3 (threaded pipeline) must lift §4's "none by construction" claim:
+  decode workers get the CancelToken epoch-pair check; the bare-
+  GenerationId frame path should be hardened to epoch-unique published
+  generations at the same time (publish the (epoch, pipeline) pair, or a
+  monotone engine-global generation, to the clock and the scheduler —
+  kills the cross-epoch collision class of §0.7 everywhere at once).
+
+## 7. Risks + open questions for the Lead
+
+Risks (the 5 riskiest integration points):
+1. W1-10 is a hard dependency — today's hub delivers old-epoch events
+   after a replacement (the M11 arithmetic, §0.6); without it the AC's
+   no-stale-events pin cannot pass and 3.A2 must not ship the suppression
+   itself in W1-10's owned region.
+2. Wire-trail conformance — P1 is conformant only from
+   Playing/Paused/settled/Opening; Buffering refuses typed. If the Lead
+   wants replacement-from-any-state NOW, doc 05 §3.3 +
+   `commands::PlaybackState::can_transition_to` must change first
+   (Lead-owned; recommend deferring to 3.C1).
+3. Bare `GenerationId` collides across epochs on every generation-keyed
+   purge (frame.rs:267, scheduler.rs:341-365, clock.rs:450) — v0 is safe
+   only because per-epoch objects die; the host seam MUST use explicit
+   clears (§3 step 3), and 3.B3 must harden the stamp space.
+4. The host seam (device/ring/clock/renderer retention) is outside 3.A2's
+   owned files — the engine-side AC is provable without it, but the
+   user-visible "switch files without device teardown" lands only with
+   the follow-up host card, which must rebase on W1-06 (same host.rs
+   regions).
+5. Failure corners around the boundary: new-open failure leaves the
+   engine in Error with the old source already legally dead (no rollback
+   — test 7 pins the honest shape); a replacement racing an in-flight
+   seek must stay terminal-silent (test 4); W1-10's design must answer
+   whether dead-session seek terminals are suppressed engine-side (Q2) or
+   left to host session filtering.
+
+Open questions:
+- Q1: endorse trail shape P1 (recommended) vs P2 wire-edge change?
+- Q2: dead-session seek terminals across a replacement — suppress
+  engine-side (recommended; needs W1-10 coordination) or deliver and let
+  hosts filter by session?
+- Q3: distinct `SessionError::ReplacementBlocked` variant (touches
+  error.rs, outside owned files) vs reuse `SessionExists` (recommended for
+  now)?
+- Q4: audio-format change across a switch — keep device + rebuild stream
+  (recommended, VLC parity) vs full audio-session rebuild?
+- Q5: is the CLI-level 50-switch soak (real fixtures, retained ring/
+  scheduler) part of the host follow-up card or the 3.F soak card
+  (doc 03 §4.6(f) names the 1000× soak)?
+
+Stage Summary:
+- Full implementation design for card 3.A2 delivered: the nine-step R-flow
+  (precondition → old-session stop → close → destruction → epoch mint →
+  fresh open → wiring → pre-roll → old-output drain) as a composition of
+  EXISTING table rows and effects — zero changes to state.rs/epoch.rs/
+  pipeline.rs/seek.rs; the teardown dependency graph separating what dies
+  with the epoch (S4: demuxer, queues, decoders, seek slot) from what the
+  host must retain (device, ring, clock, renderer, observability — the C8
+  redress); the three-layer stale-output drain (v0 construction argument +
+  W1-10 epoch-aware hub + host explicit clears); and a seven-test AC suite
+  whose fixtures are self-marking fake sources, with the bounded-memory
+  assertion riding the testkit counting allocator's `live_bytes` in a
+  dedicated serialized binary.
+- Hard findings for the Lead: 3.A2 hard-depends on W1-10 (today's hub
+  DELIVERS old-epoch events after a replacement — the M11 comparison runs
+  backwards across epochs); the bare-GenerationId stamp space collides
+  across epochs and is a 3.B3 hardening item; the wire-conformant
+  replacement trail is possible only from Playing/Paused/settled states
+  (Buffering refuses typed until 3.C1); the user-visible device-retention
+  fix is a follow-up host card that must rebase on W1-06.
+- No code changed, no cargo run (recon card). All claims carry file:line.
+---
+Task ID: W1-17
+Agent: W1-17 (general-purpose, recon)
+Task: 3.A3 implementation design — track switching mid-play (A/V/S selection via
+commands, decoder instance recycling, per-track queue drain, subtitle swap without
+restart). Read-only recon at main 8e3e052; a Wave-2 agent implements from this
+design. Card: docs/13-agent-wave-program.md §6 row 3.A3 (line 370); owns
+`crates/playback-engine/src/tracks.rs` (does not exist yet — verified).
+
+Work Log:
+- Read docs/13-agent-wave-program.md §6 (3.A3 row, line 370; 3.B3/3.B4/3.E1/4.C2 dependents, lines 378-379, 401, 443).
+- Read docs/03-engine-plan.md §5 (cancellation/generations, lines 842-897), §6 (seek seven-step, 899-946), §7 (v0 stubs incl. "track switching (single audio + single video track)" line 990), §8 (scenario table row "track switching | multi-track synthetic container | new track's first frame follows switch generation", line 1056).
+- Read docs/05-command-layer.md §2.5 rows 249-252, §3.2 rows 386-388, §4.2 line 433 (gen-bump list), §4.3 invariant 4 line 445, §1.4 C2/C3, V5 line 37.
+- Read playback-engine: session.rs (2013 lines), pipeline.rs (951), epoch.rs (367), seek.rs (522), state.rs (823), event.rs (839), events.rs (428), lib.rs (100).
+- Read commands catalog: ids.rs (track command ids 108-114; track event ids 187-191), command.rs (129-163), types.rs (TrackSelector 84-96, TrackChangeKind 663-674, TrackSelections 681-690), event.rs (121-133).
+- Read codec-api: decode.rs (Decoder trait 86-113, drop_stale_packet 195-209), config.rs (DecoderConfig 79-115).
+- Read codecs: video/mjpeg/decoder.rs (DecodeContext, ED-FIX-1, 22-54, 220-241), video/mjpeg/mod.rs (MjpegDecoder 208-250), audio/pcm/decoder.rs (349-364, 437-463).
+- Read packet-queue: lib.rs (Q1-Q4 module doc), queue.rs (flush 336-374, try_push stale check 392-400, close 310-315), stamped.rs (is_stale strictly-past 57-62), limits.rs (audio_default/video_default 148-160).
+- Read demux: lib.rs (AVI-only, 4-5), avi/header.rs (strh fcc dispatch 550-660; txts/other skipped 655-660), avi/mod.rs (per-stream ladders, stream table 295-303, 552).
+- Read media-types: ids.rs (MediaKind 348-357, TrackFlags 477-498, Track 501-520), frame.rs (SubtitleCue 183-192, SubtitleFrame 228-237, Frame 241-245, is_stale 266-269), packet.rs (Packet 73-95, is_stale 100-102).
+- Fixture audit: tests/fixtures/CORPUS.md (rows 50-53: two parents, both 1 video + 1 audio), tools/xtask/src/cmd/fixtures.rs (strl_offsets: [usize; 2] line 1402; build_avi 1454; build_mp4 2047, "one video sample + one audio sample per tick" 2156), tools/corpus/gen_corpus.py (classes 156, 399-416; av_cmd single audio 338-373).
+- Read test patterns: tests/seek_flow.rs (fake harness 61-150), apps/cli dispatch.rs (tracks.list 136-138; "track switching is card 3.A3" 199-200), parse.rs (open-option stubs 502-504).
+- No code changes, no cargo. All claims below carry file:line citations from main 8e3e052.
+
+Stage Summary:
+
+# 3.A3 IMPLEMENTATION DESIGN — track switching mid-play
+
+## S0. Current-state findings (what the Wave-2 agent inherits)
+
+**Selection today is "wire everything".** `Pipeline::wire` (pipeline.rs:407-451)
+creates one limb (queue + decoder) for **every** `MediaKind::Audio|Video` track
+the demuxer reports (pipeline.rs:419), and marks every wired track `selected:
+true` (pipeline.rs:447). Subtitle/data tracks get no limb (pipeline.rs:420-422)
+and their packets are dropped at `push_packet` (pipeline.rs:786-794, "Unwired
+track: not selected, dropped by policy"). Consequences that 3.A3 must fix:
+
+- On a real multi-audio file (AVI demuxer enumerates every `auds` PCM stream,
+  header.rs:589-653) the engine would decode **all** audio tracks at once and
+  the audio-master anchor "the first audio limb's first delivered frame"
+  (SeekProgress::first_audio_ns, pipeline.rs:320-324, 344-352) is ill-defined.
+- `QueuePlan` has only `audio`/`video` limits; `for_kind` maps every non-video
+  kind to the audio caps with the recorded debt "subtitle/data limbs are owed to
+  the card that needs them" (pipeline.rs:101-129, esp. 120-123).
+
+**The command vocabulary already exists and is frozen.** Catalog ids
+`tracks.set-video-track`, `tracks.set-audio-track` (class A, gen-bumping),
+`tracks.set-subtitle-track` (class S, **no** pipeline invalidation),
+`tracks.set-secondary-audio` (class A) — commands/src/catalog/ids.rs:108-114,
+command.rs:129-163, doc 05 §2.5 lines 249-252. The wire selector is
+`TrackSelector::{Id, None, Auto}` (commands/src/catalog/types.rs:84-96).
+`session.open`'s OpenOptions carry `track` selectors / `no_video` / `no_audio` /
+`forced_subtitle_only` (doc 05 line 227; CLI stubs parse.rs:502-504).
+
+**The events exist on the wire, not in the engine.** `tracks.changed { trackKind:
+TrackKind|SecondaryAudio, selected: Option<TrackId> }` is the completion evidence
+for the class-A set-*-track commands (doc 05 §3.2 line 387; wire enum
+commands/src/catalog/event.rs:125-133; TrackChangeKind types.rs:663-674). The
+engine's `EngineEventKind::TracksChanged` (event.rs:103-108) maps to
+`tracks.list-ready`, the **full-list** event (event.rs:393-401) — there is no
+engine variant for `tracks.changed`; events.rs's audit row says exactly that:
+"tracks.changed | wired-by-sibling 3.A3" (events.rs:73).
+
+**The engine's command surface doesn't know track commands yet.**
+`SessionCommandKind` is Play/Pause/Stop/Close/Seek with the doc comment
+"`set-rate`/track selection are Phase 3" (session.rs:101-119). The CLI answers
+`tracks.set-*` with "track switching is card 3.A3" (apps/cli/src/dispatch.rs:199-200).
+
+**Generation machinery anticipates track switch.** epoch.rs module doc: pipeline
+generations are "minted on the gen-bumping events — in the minimal machine,
+`stop` (final) and `close` (terminal); **seek/track-switch joins with Phase 3**"
+(epoch.rs:15-17); `mint_pipeline` doc: "minted on seek / track switch / final
+stop / close" (epoch.rs:168-170). Doc 03 §5: pipeline generation "minted on
+`Seek`, `SwitchTrack`, `Stop` (final), and discontinuity-driven re-anchor"
+(doc 03 line 852-853). Doc 05 §4.2 line 433 lists `tracks.set-video-track`,
+`tracks.set-audio-track` among the gen-bumping commands.
+
+**Queue/decoder staleness is strictly-past.** `Stamped::is_stale` is
+`generation < current` (stamped.rs:57-62); the push boundary drops only
+strictly-older stamps (queue.rs:392-400); `flush(new)` drops residents wholesale
+and **never regresses** the published generation (queue.rs:317-374, esp.
+341-345). `Packet::is_stale`/`Frame::is_stale` are likewise strictly-past
+(packet.rs:100-102, frame.rs:266-269). Decoders drop stale packets on sight via
+`drop_stale_packet` against the **configured** generation (codec-api
+decode.rs:64-70, 195-209).
+
+**The sink's generation check is pipeline-global.** `decode_step` builds each
+`LimbSink` with `generation = self.generation` — the pipeline-wide scalar
+(pipeline.rs:818, 926-950). The demux driver stamps every packet with that same
+scalar at pull (pipeline.rs:747-753). This coupling is the core hazard a
+partial-pipeline (per-track) mint must break; see S4.
+
+**Both landed codecs are per-packet stateless with reusable working memory.**
+MJPEG: "stateless between packets… `configure` only installs the stream
+generation, so re-configuration after a seek is free. The working memory … is
+held in a reusable `DecodeContext`" (codecs/src/video/mjpeg/mod.rs:154-163; the
+context: padded planes reallocated only on MCU-geometry change, Huffman LUTs
+only on DHT change — decoder.rs:22-54, struct at 220-241). PCM: format plan +
+generation, no inter-packet state (codecs/src/audio/pcm/decoder.rs:349-364,
+520-523). `Decoder::configure` is contractually the re-configuration point "on a
+fresh generation, after seeks/source switches" (codec-api decode.rs:87-92).
+
+**Subtitle vocabulary exists end-to-end except the implementations.**
+`MediaKind::Subtitle` (media-types ids.rs:353), `Frame::Subtitle(SubtitleFrame
+{ cues: Vec<SubtitleCue{span, text}>, pts, generation })` (frame.rs:183-192,
+228-245), wire `TrackKind::Subtitle` (commands types.rs:77) — but: no demuxer
+emits subtitle tracks (AVI `txts`/other fcc skipped with damage
+"unsupported-stream-type", header.rs:655-660; the demux crate is AVI-only,
+demux/src/lib.rs:4-5), and no subtitle decoder exists (codecs carries mjpeg +
+pcm only, codecs/src/lib.rs:54-55).
+
+## S1. Generation semantics — a track switch is a PIPELINE GENERATION, not an epoch
+
+**Decision: `tracks.set-video-track` / `tracks.set-audio-track` mint a pipeline
+generation exactly like seek; `tracks.set-subtitle-track` mints nothing
+(class S).**
+
+Argument from the epoch.rs model (epoch.rs:1-45):
+
+- The **epoch** owns source identity: "Everything owned by an epoch — demuxer,
+  queues, decoders, device session — dies with it (invariant S4)" (epoch.rs:8-11).
+  A track switch keeps the same source, same demuxer instance, same session
+  identity, same wall-clock continuity. Nothing S4-scoped dies. It is therefore
+  not an epoch event (that is source replacement, card 3.A2).
+- The **pipeline generation** exists precisely for sub-source invalidations
+  where "stale packets and frames cannot reappear" (doc 03 §5, lines 844-846):
+  the switched-away track's resident packets and any decoder-buffered frames are
+  exactly such stale work. Doc 03 §5 names `SwitchTrack` in the mint list
+  (852-853); doc 05 §4.2 names both set-*-track commands (line 433); the
+  epoch.rs minter docs pre-announce it (epoch.rs:15-17, 168-170). Implementing
+  it any other way would contradict three landed documents and the minter's own
+  contract.
+- Cost check (why not a lighter "no-mint reconfigure"?): without a mint there is
+  no boundary at which the old track's in-flight packets become invalid — the
+  doc 03 §5 guarantee ("After the session publishes generation G and the flush
+  of each queue has returned, no packet or frame with stamp ≠ G can be popped,
+  decoded-into-output, presented, or mixed", 884-889) is the exact property the
+  AC's "no stale frames" assertions lean on, and the doc 03 §8 track-switch
+  scenario's pass condition is "new track's first frame follows switch
+  generation" (1056). The mint is the mechanism; skipping it buys one u64 and
+  loses the testable guarantee.
+
+It IS lighter than seek in work, not in identity: the demuxer never moves
+(no re-anchor), only the switched kind's limb is rebuilt, and the unchanged
+kind keeps playing through the mint (S4 explains why that is sound).
+
+## S2. The track-switch flow — seven steps, mirroring 3.A1
+
+Scope: `tracks.set-audio-track` / `tracks.set-video-track` (class A). Step 5
+of the card ("subtitle swap") is S5. `tracks.set-secondary-audio` is explicitly
+**out of scope** for 3.A3 (it needs a second concurrent audio limb + the
+audio-engine mix; doc 05 line 252 marks it `[PROPOSAL]` — a follow-up card; the
+TrackChangeKind::SecondaryAudio wire arm already exists, types.rs:672-673).
+
+Notation: current pipeline generation G, minted switch generation G+1; "the
+switched kind" = Audio or Video per the command; "the new track" = the selected
+track of that kind.
+
+1. **Accept (owner: session, in `apply_command` before the table).**
+   Two validations, both typed, both **before** any mint:
+   - *State legality* through the table (S6): legal from `Playing`, `Paused`,
+     `Buffering`; typed `NotReady` from `Opening`, `NoSession` from `Idle`,
+     `AlreadySettled` from `Ended/Stopped/Error` (the seek rejection families,
+     state.rs:680-728).
+   - *Selector resolution* (owner: the new `tracks::resolve_selector`):
+     `Id { id }` must exist in the live track list and match the command's kind
+     (doc 05 V5: reference validity checked at execution, line 37) else typed
+     `TrackNotFound` rejection; `None` = deselect the kind; `Auto` resolves per
+     product.toml track-selection rules **for the initial/open path only** — at
+     switch time `Auto` re-resolves to the container-default track
+     (`TrackFlags::default_on`, media-types ids.rs:480, else first-of-kind by
+     stream order).
+   **Asymmetry with seek, deliberate and documented:** an unresolvable *seek
+   target* still applies its row (the bump ran first) and fails via the
+   `SeekFailed` event (seek.rs:1386-1400); an invalid *track selector* is a
+   request-validity question, so it rejects before the table — no mint, no
+   state-changed, `Rejected` receipt. Rationale: doc 05 §2.5's `not-found` is a
+   rejection-class error (the menu checkmark must not wait on a dead id), and
+   not bumping the generation for a no-op keeps rapid UI cycling cheap. The
+   payload-less command (selector missing) short-circuits exactly like the
+   seek `MissingPayload` guard (session.rs:1303-1313).
+   Validated switch ⇒ `Accepted { generation: G+1 }` (class A: accepted ≠
+   completed; the receipt precedes all caused events — OutputHub push order,
+   session.rs:845-851, doc 05 §4.3 guarantee 2).
+2. **Bump (owner: the row's `Effect::BumpPipeline`).** Mint G+1, publish the
+   token (epoch.rs:176-184). The wire `gen` moves at accept (doc 05 §4.2);
+   `Pipeline::generation` (the demux driver's stamp, pipeline.rs:752) advances
+   with it — every packet demuxed from the next tick on is stamped G+1,
+   including the unchanged kind's.
+3. **Limb swap (owner: `tracks::pipeline_switch` via `Effect::SwitchPipeline`,
+   against `&mut Pipeline`; the `Session::switch_pipeline_step` interpreter
+   mirrors `seek_pipeline_step`, session.rs:1371-1461).** For the switched kind
+   only, **prepare-before-commit** (the D4 discipline applied to limbs):
+   a. *Obtain the new decoder first*: cache hit in the per-session decoder
+      cache (S3) → `decoder.configure(config @ G+1)`; miss →
+      `provider.decoder_for(track, config @ G+1)` (the wire() call shape,
+      pipeline.rs:432-439). A provider failure here is **fatal** — the recorded
+      contract is "a selection that fails after promising is fatal, not a skip"
+      (pipeline.rs:69-71): emit `Fatal` + enter `Error` via the `Failed` input
+      (the `fail_with` path, session.rs:1752-1764). Because the old limb is
+      untouched until the new decoder exists, no intermediate state is possible.
+      `[PROPOSAL — Lead flag]`: VLC-parity soft-failure (non-fatal
+      `playback.error {code: unsupported}` + no terminal + keep old track)
+      needs a wire refinement; v0 stays fatal, matching wire()'s precedent.
+   b. *Retire the old limb*: flush its queue at G+1 (wholesale drop, packet-queue
+      Q2, queue.rs:336-374), close it (queue.rs:310-315), run its decoder to
+      `Drained` through a generation-checking sink bounded by
+      `budget.flush_calls_per_limb` (the seek_flush loop, pipeline.rs:540-561 —
+      counts stale-dropped into the switch's observability totals), then park
+      the decoder **instance** in the decoder cache (S3) and drop queue + limb
+      struct. A retired limb is NOT "newly drained" — no `playback.end-of-track`
+      fires for it (that event is for natural stream ends, event.rs:203-213).
+   c. *Install the new limb*: fresh `BoundedQueue` from
+      `QueuePlan::for_kind(kind)` (construction allocates only the mutex +
+      empty deque — caps are limits, not pre-allocations), `flush(G+1)` to
+      publish the boundary (no-op drop, publishes the generation — the wire()
+      precedent, pipeline.rs:429-431), `Limb { track, queue, decoder, drained:
+      false, high_packets, generation: G+1 }`.
+   d. *Pending packet*: if `Pipeline::pending` (pipeline.rs:786) belongs to a
+      retired track, drop it (it is stamped G; the new queue would refuse it
+      as stale at push anyway — queue.rs:394 — and push_packet already drops
+      Stale silently, pipeline.rs:808; dropping it here saves the spin). If it
+      belongs to the unchanged kind, **keep it**: stamped G into that queue's
+      still-G boundary passes (`G < G` false, queue.rs:394).
+   e. *Selection truth*: update `Pipeline::selected` (and the session's mirror,
+      session.rs:950-951/1487-1490) so the next `tracks.list-ready`/snapshot
+      renders `is_selected` truthfully (event.rs track_info_wire, 624-647).
+   f. *Clock*: an **audio** switch freezes the clock at the old position now
+      (the audio master's samples stop; `clock.pause()` — the `FreezeClock`
+      interpreter, session.rs:1200-1205). A **video** switch does not touch the
+      clock (audio keeps playing; the scheduler snaps on the new track's first
+      frame — the seek drop-exemption analog is video-engine policy, out of
+      3.A3 scope). This freeze is conditional on the payload kind, so it lives
+      in the `SwitchPipeline` interpreter, not the row's effect list (contrast
+      seek's unconditional row-level `FreezeClock`, state.rs:447-452).
+   g. *Observation window*: arm the per-kind in-flight switch slot
+      (`InFlightTrackSwitch`, below) and mark the new limb's pre-roll watch
+      (S4.4). Any in-flight **seek** window re-arms for the swapped limb
+      (SeekProgress keys by TrackId after S6's change) — the seek's landing
+      needs the new track's frame anyway.
+4. **No demuxer movement (owner: nobody — that's the point).** The demuxer
+   stands where it stands; interleaved packets of the new track flow into the
+   new limb from the current position on the next tick (they were being dropped
+   as unwired before, pipeline.rs:789-794). Continuity semantics: a track whose
+   declared span (`Track.timing`, media-types ids.rs:519) ended before the
+   current position simply delivers nothing — the switch still completes via
+   the provably-never path (step 5), the limb stays silent, and `end-of-track`
+   fires when it drains at EOF. Sparse tracks (subtitles especially) must not
+   be refused for sparseness — VLC parity. `[PROPOSAL — Lead flag]`: refusing a
+   span-exhausted A/V track at step 1 would be stricter truth, but doc 05
+   §2.5's frozen error list (`not-ready`, `not-found`) has no shape for it;
+   default is accept-and-complete-honestly.
+5. **Re-prime (owner: tick path).** Completion is observed exactly like the
+   seek pre-roll: the new limb has delivered ≥ 1 frame under the current
+   pipeline generation, or can provably never (eof + nothing held/resident +
+   decoder `Drained` — the `can_never_deliver` rule, pipeline.rs:641-648). The
+   doc 03 §8 pass condition is literally this: "new track's first frame
+   follows switch generation" (1056). **Starvation carve-out [PROPOSAL]**: a
+   limb that has not yet delivered a frame under the current generation does
+   not count in the `starved` (underrun) check (pipeline.rs:709-714) nor gates
+   `primed` — otherwise every audio switch from `Playing` would flash
+   playing→buffering→playing (the new queue starts empty; `starved` fires on
+   the next tick). A switch is not an underrun: the input can keep up; we
+   changed which limb we listen to. Same carve-out family as the Paused decode
+   carve-out [PROPOSAL: 3.HARD-AUDIT D-a] (seek.rs:96-108, pipeline.rs:683-685).
+   Coordinate the wording with 3.B3 (queue backpressure owner).
+6. **Clock re-anchor (owner: `tracks::complete_switch`, mirroring
+   `complete_seek`, seek.rs:411-427).** Audio switch only: re-anchor on the new
+   track's **first delivered frame's own pts** (`clock.reanchor(pts_ns)` +
+   `clock.set_generation(G+1)`, media-clock clock.rs:180, 450) — anchor on
+   truth, not on the freeze position. Cross-track timestamps are already
+   normalized to ns by the demuxer's per-stream ladder arithmetic (AVI:
+   per-stream `strh` scale/rate, avi/mod.rs:552, ladders at 159), so the anchor
+   is coherent across tracks of one container. Video switch: no re-anchor.
+7. **Report (owner: tick path).** Emit the terminal
+   `EngineEventKind::TrackSelectionChanged { track_kind, selected }` under the
+   **switch's own generation** via the `emit_seek_terminal` pattern renamed to
+   the generic terminal-emission form (session.rs:1101-1116): the pair can
+   legitimately diverge from the live generation (a follow-up mint that raced
+   the completion), and exactly one terminal per completed generation is doc 05
+   §4.3 invariant 4 (line 445). The terminal's `origin` is the causing
+   `RequestId` (doc 05 §3.1). Ordering within the completing tick: the new
+   track's first frame is delivered to the sink **before** the terminal (the
+   frame's delivery IS the completion fact) — the same-tick causal order the
+   seek completion block uses (session.rs:1620-1663).
+
+**Supersession.** Per-kind single in-flight slots on `Session`
+(`inflight_switch_video/audio: Option<InFlightTrackSwitch>`, mirroring
+`inflight_seek`, session.rs:962-966): a second switch of the **same kind**
+accepted before completion replaces the slot — the older switch is silent (no
+terminal; the seek precedent, session.rs:79-86 and doc 05 §4.2). Different
+kinds are independent (an audio and a video switch may be in flight together —
+their limbs, queues and terminals are disjoint). A **seek** arriving mid-switch:
+the seek's `seek_flush` handles all limbs including the new one (flush +
+reconfigure are safe on an active limb, pipeline.rs:521-574), the seek's
+pre-roll subsumes the switch's (both watch "first frame under current gen"),
+and the switch's terminal still fires — stamped with the switch's gen G+1 and
+**exempt from drain-time staleness suppression** (S6 extends the outbox
+exemption, session.rs:604-630, from "seek terminals" to "terminal events =
+Seeked | SeekFailed | TrackSelectionChanged"). A switch arriving mid-seek: the
+limb swap re-arms the seek window for the swapped limb (S2.3g); the seek
+completes on the new track's first frame — correct, because that is what will
+actually present.
+
+## S3. Decoder instance recycling (D-1: no fresh multi-MB planes per switch)
+
+**Design: a per-session decoder cache inside `Pipeline`, keyed by `TrackId`.**
+
+```rust
+// pipeline.rs (3.A3 addition)
+struct CachedDecoder { track: TrackId, decoder: Box<dyn Decoder> }
+// Pipeline field: decoder_cache: Vec<CachedDecoder>
+```
+
+- **Why**: the only expensive decoder state today is MJPEG's `DecodeContext` —
+  padded per-component planes + Huffman LUTs + output buffer, reallocated only
+  on geometry/DHT change (ED-FIX-1: decoder.rs:22-54, 220-241; the pre-fix
+  churn was ~190 MB/s at 1080p60). A switch between two same-geometry MJPEG
+  tracks (the common multi-angle case) that tears down and rebuilds decoders
+  would discard a perfectly good multi-MB context per switch — exactly the D-1
+  violation the card calls out. Parking **instances** and re-`configure`-ing
+  them keeps the planes alive across switches.
+- **Lifecycle**: cache lives in `Pipeline`, so it dies at teardown (epoch
+  invariant S4, epoch.rs:8-11 — no cross-source reuse) and is bounded by the
+  source's track count (a finite, container-declared list) — bounded by
+  construction, D-1 compliant without an LRU.
+- **What resets on recycle** (the recycle protocol, all steps bounded by
+  `budget.flush_calls_per_limb`):
+  1. **Flush-to-`Drained` through a generation-checking sink before parking**
+     (the seek_flush loop, pipeline.rs:540-561) — drops any buffered frames of
+     the old generation, counted into the switch totals. This is belt: the
+     sink checkpoint is the guarantee (seek.rs:511-514).
+  2. **`configure(config @ new gen)` on re-activation** — the codec-api
+     contract's reset point ("Called once before decoding (and again, on a
+     fresh generation, after seeks/source switches)", decode.rs:87-92). For
+     both landed codecs configure is trivial (MJPEG: generation + descriptor
+     fields only, mjpeg/mod.rs:234-250; PCM: plan + generation,
+     pcm/decoder.rs:437-463). For future inter-frame codecs (H.264, Wave 5)
+     configure is the documented seam for full state reset — the cache design
+     is forward-compatible by contract, and doc 03 §4.5(c)'s "persistent per
+     track so internal state survives" (line 423-424) is exactly this pattern.
+  3. **Limb-local flags**: `drained = false`, fresh `high_packets`, the limb's
+     generation floor (S4.2).
+  4. **The queue is NOT recycled** — queues are flushed + closed + dropped and
+     a fresh one constructed per activation (cheap: no pre-allocation; and it
+     keeps packet-queue Q2's published-generation monotonicity per queue
+     intact, queue.rs:341-345).
+- **Seek interaction**: `seek_flush` iterates active limbs today
+  (pipeline.rs:531); 3.A3 extends it to also flush-to-Drained the **cached**
+  decoders (they are few, bounded, and a parked H.264 decoder holding pre-seek
+  reorder frames must not replay them into a post-seek recycle — the sink
+  checkpoint would catch them, but the flush makes it cheap instead).
+- **Observability (AC-adjacent)**: `EngineStats` gains `decoders_reused` /
+  `decoders_built` counters (the session totals pattern, session.rs:662-695) —
+  the switch test asserts provider build-count per track id == 1 across an
+  A→B→A cycle.
+
+## S4. Per-track queue drain and the generation-floor fix
+
+**S4.1 What drains on a switch.** Only the switched kind's queues: the retired
+limb's queue is flushed at G+1 (residents die wholesale; consumers would
+observe `PopOutcome::Discontinuity`, queue.rs:326-327 — irrelevant here since
+the limb is dropped) and closed. The new limb's queue starts empty at
+published G+1. The unchanged kind's queue is **not** flushed — that is the
+entire UX point (video keeps playing through an audio switch; VLC parity).
+
+**S4.2 Why the unchanged kind survives the mint — the per-limb generation
+floor.** Today the sink checks frames against the pipeline-global
+`self.generation` (pipeline.rs:818 → LimbSink, checked at 938). After the
+switch mint, that scalar is G+1, and the unchanged queue's **residents are
+stamped G** — they would be dropped as stale at the sink (`G < G+1`,
+frame.rs:267-269): a spurious purge of perfectly good packets. The fix:
+
+- `Limb` gains `generation: GenerationId` — the generation the limb was last
+  flushed/configured at (its "floor"); set at `wire` (pipeline.rs:431), at
+  `seek_flush` (which reconfigures all limbs, 562-570), and at limb swap (S2.3c).
+- `decode_step` and `seek_flush` construct `LimbSink` with `limb.generation`,
+  not the pipeline scalar (pipeline.rs:543, 825).
+- Soundness: every frame a limb emits carries its packet's stamp, and every
+  packet that limb decodes passed its queue's boundary (`stamp <
+  queue.published` refused, queue.rs:394) where `queue.published ≥
+  limb.generation` (flushes only ratchet, queue.rs:341-345). So emitted stamps
+  ≥ limb floor ⇒ never spuriously stale; and any genuinely stale work (a
+  retired limb's stragglers, a cached decoder's old frames) carries stamps
+  < the floor of the limb that would present them ⇒ still dropped. The doc 03
+  §5 point-5 checkpoint semantics are preserved per-limb; the guarantee
+  ("no frame with stamp ≠ G presented") is interpreted per the generation the
+  *consumer path* was last invalidated at — document this reading in
+  tracks.rs's module docs, and note it for 3.B4's contract suite.
+
+**S4.3 The pending packet.** S2.3d: drop if it belongs to a retired track;
+keep otherwise (its G stamp passes the unchanged queue's G boundary). A
+pending packet of the **new** track (stamped G, new queue publishes G+1) is
+refused stale at push and dropped by the existing `PushOutcome::Stale => {}`
+arm (pipeline.rs:804-808) — correct: the demuxer will re-emit from the current
+position under G+1 stamps.
+
+**S4.4 Priming/starvation/observation.**
+- `primed` (all-limbs-high) and `buffer_fill` (min over limbs,
+  pipeline.rs:694-707) operate over active limbs — with one limb per kind
+  (S6's wire change) this stays O(1)-per-kind and the semantics ("the
+  bottleneck limb is the honest progress", pipeline.rs:233-239) survive.
+- The S2.5 carve-out: limbs with `first_frame_pending == true` (a new
+  `Limb` flag set at swap, cleared on first delivered frame) are exempt from
+  `starved` and from `primed` gating while a switch of their kind is in flight.
+- `SeekProgress` (pipeline.rs:314-353) is index-aligned with `limbs` — **broken
+  by limb swaps**. 3.A3 re-keys it (and the switch's window) by `TrackId`:
+  `saw_frame: Vec<(TrackId, bool)>` with a find-on-observe (windows are rare,
+  per-open-scale allocations are the documented rule-3 exception family,
+  events.rs:20-23). The generalized window serves both seek (watch all active
+  limbs) and switch (watch the one new limb): one `Option<Window>` on
+  `Pipeline` with a completion predicate, replacing `seek_progress`
+  (pipeline.rs:298-301, 628-630).
+- `is_drained` (pipeline.rs:720-728) requires `!limbs.is_empty()`; with
+  deselect-both-kinds possible (`selector: None` twice), the empty-limb set at
+  EOF must count as drained (media ends honestly when the demuxer exhausts and
+  nothing is wired) — relax the guard to `eof && pending.is_none() && (limbs
+  all drained || limbs.is_empty())`, with a test pinning
+  deselect-all → playback runs to `Ended` (the guard's original purpose —
+  refusing an unwirable open — lives at wire time, `NoDecodableTrack`,
+  session.rs:1506-1511).
+
+**S4.5 QueuePlan per-kind limits.** `QueuePlan` gains `subtitle: QueueLimits`
++ a `MediaKind::Subtitle` arm in `for_kind` (replacing the "non-video ⇒ audio
+caps" fallback, pipeline.rs:124-129). Defaults `[PROPOSAL]`: 64 packets /
+64 KiB / 30 s (subtitle packets are tiny, sparse, and latency-tolerant;
+packet-queue constructors: limits.rs:128-160). `Data` keeps no limb (dropped at
+push, existing policy). **Coordinate with 3.B3** (queue backpressure owns
+config-driven per-kind limits, doc 13 line 378): 3.A3 lands the third axis
+with doc-default constants and the `for_kind` arm; 3.B3 config-wires the
+numbers. Live queue count stays ≤ 3 regardless of source track count — the
+memory bound under N-track sources is structural.
+
+## S5. Subtitle swap without restart — the honest seam
+
+**Wire contract (frozen, doc 05 §2.5 line 251):** `tracks.set-subtitle-track`
+is **class S** — "Subtitle switching is a selection over already-parsed
+streams; no A/V pipeline invalidation, hence class S. `Auto` applies the
+track-selection rules from `product.toml` defaults." Completion:
+`Completed(applied selector)` in the receipt; errors `not-ready`, `not-found`.
+It emits `tracks.changed { trackKind: subtitle, selected }` (doc 05 §3.2
+line 387: "Track selection applied (command) or lost").
+
+**Engine design (what 3.A3 implements):**
+- Subtitle selection is **session-attribute state**, not a state-machine
+  input: `Session` gains `selection: TrackSelections { video, audio, subtitle,
+  secondary_audio: Option<TrackId> }` (the wire shape already exists, commands
+  types.rs:681-690 — engine-side mirror in tracks.rs). No generation mint, no
+  table row, no `state-changed` (contrast the C8 self-transition confirmations
+  of state commands, state.rs:1251-1254 — subtitle selection changes no
+  session state). The executor path is the `apply_command` pre-table branch
+  (the `MissingPayload` short-circuit point, session.rs:1299-1313):
+  resolve selector (same `tracks::resolve_selector`, kind = Subtitle; `Auto`
+  → product rules → container-default subtitle track) → mutate `selection` →
+  emit `TrackSelectionChanged { subtitle, selected }` (current generation, no
+  mint) → receipt `Completed`.
+- **The subtitle limb**: when a subtitle track is selected AND the demuxer
+  reports it AND the `DecoderProvider` can build a decoder for it, the engine
+  wires a subtitle limb exactly like an A/V limb (queue from
+  `QueuePlan::for_kind(Subtitle)`, decoder, `LimbSink` per S4.2). Subtitle
+  frames flow to the host through the existing `FrameConsumer` seam as
+  `Frame::Subtitle(SubtitleFrame)` — the vocabulary is complete (frame.rs:228-245)
+  and the seam is immediate + generation-checked (pipeline.rs:926-950).
+  Swapping subtitle tracks = the S2 limb-swap machinery with kind = Subtitle
+  **minus** the mint (class S: no pipeline invalidation — the swap is a
+  queue-close + decoder-cache recycle + fresh queue at the *current*
+  generation). The renderer composites cues; that is host/video-engine work.
+- **What is STUB today (mark honestly in tracks.rs module docs, D-5):**
+  1. **No demuxer emits subtitle tracks**: the AVI demuxer skips `txts`/other
+     stream types with damage "unsupported-stream-type" (header.rs:655-660);
+     there is no MP4/MKV demuxer (demux/src/lib.rs:4-5). Real-container
+     subtitle tracks arrive with the Phase-5 subtitle card (doc 04 §5; doc 03
+     §4.12 timed-event model) and the SRT external-file path
+     (`subtitle.add-file`, doc 05 line 280).
+  2. **No subtitle decoder exists** (codecs/src/lib.rs:54-55: mjpeg + pcm).
+  3. Therefore, on every container the current demuxer can parse, a subtitle
+     selector resolves to `None`-or-refused: if the track list has no
+     Subtitle track, `Id` rejects typed `TrackNotFound` (truthful menus);
+     `None` succeeds trivially. **The AC's subtitle-swap proof is engine-level
+     on synthetic tracks**: a fake demuxer enumerating a Subtitle track + a
+     fake text decoder (the seek_flow.rs harness pattern, tests/seek_flow.rs:93-150)
+     exercises the full path — wire → queue → decode → `Frame::Subtitle` at
+     the sink → swap without restart → event sequence. This is the honest
+     scope; real-format subtitle coverage belongs to the Phase-5 card and its
+     fixture (S8).
+- `forced_subtitle_only` / product.toml subtitle rules: resolve at open
+  (initial selection) only in 3.A3; runtime `Auto` re-resolution beyond
+  container-default is `[PROPOSAL]` deferred (config rules engine is 4.E3-era).
+
+## S6. Code surface — module-by-module diff plan
+
+**New: `crates/playback-engine/src/tracks.rs`** (the card's file). Contents,
+mirroring seek.rs's structure (seek.rs:1-124 module docs first):
+- module docs: the seven steps, the generation-floor reading of doc 03 §5
+  point 5, the subtitle class-S seam and its honest stubs, the supersession
+  rules;
+- `pub enum TrackSelector { Id { id: TrackId }, None, Auto }` (engine-side;
+  the commands wire type converts at the session boundary — the SeekTarget
+  precedent, seek.rs:132-162 vs commands types.rs:187-215);
+- `pub(crate) enum ResolvedSelection { Track(TrackId), Deselect }` +
+  `resolve_selector(selector, tracks: &[Track], kind, /* product rules */) ->
+  Result<ResolvedSelection, TrackSelectionError>` (the step-1 semantic half;
+  `TrackSelectionError::NotFound` maps to wire `not-found`);
+- `pub(crate) struct InFlightTrackSwitch { kind: MediaKind, selected:
+  Option<TrackId>, generation: GenerationId, origin: Option<RequestId> }`
+  (mirrors InFlightSeek, seek.rs:314-328);
+- `pub(crate) struct SwitchOutcome { … }` + `pipeline_switch(pipeline,
+  generation, kind, resolved, flush_budget) -> SwitchOutcome` (step 3;
+  mirrors pipeline_seek, seek.rs:330-389);
+- `complete_switch(clock, inflight, anchor_ns) -> Result<(), EngineError>`
+  (step 6; mirrors complete_seek, seek.rs:403-427 — audio kind only);
+- unit tests: selector resolution table (default-on flag, first-of-kind,
+  kind-mismatch, unknown id, Auto/None).
+
+**`pipeline.rs`**: `Limb::generation` floor + `first_frame_pending` flag;
+`LimbSink` from limb floor (pipeline.rs:543, 825); `decoder_cache` +
+cache-aware `obtain_decoder`; `switch_limbs` (S2.3); re-keyed
+`SeekProgress`→`Window` by TrackId (pipeline.rs:314-353, 596-630);
+`wire` initial-selection change (below); `QueuePlan { audio, video, subtitle }`
++ `for_kind` arm (pipeline.rs:101-129); `is_drained` empty-limb relaxation
+(pipeline.rs:720-728); starved/primed carve-out (pipeline.rs:694-714);
+`seek_flush` also drains cached decoders (pipeline.rs:521-574);
+`push_packet` unchanged (unwired-drop policy already correct,
+pipeline.rs:786-794).
+- **`wire` initial selection** (behavior change, flag in module docs): wire
+  **one limb per kind** — the container-default track (`TrackFlags::default_on`,
+  media-types ids.rs:480) else the first of that kind in stream order; all
+  other tracks stay `selected: false` in the list (session.rs:1487-1490).
+  This fixes the decode-all-tracks waste and the first_audio anchor ambiguity
+  (pipeline.rs:344-352) and is the precondition for S2's swap semantics.
+  `SessionConfig` optionally gains `initial_selection` (defaults = Auto) —
+  **recommend deferring** the full `session.open` OpenOptions wiring
+  (`track`/`no_video`/`no_audio`, doc 05 line 227; CLI stubs parse.rs:502-504)
+  to a follow-up unless trivial; 3.A3's AC does not need it.
+
+**`session.rs`**: `SessionCommandKind::{SelectVideo, SelectAudio,
+SelectSubtitle}` + `as_command_id` (ids.rs:111-113) + `as_input` (session.rs:121-146);
+`SessionCommand.selector: Option<TrackSelector>` payload (the seek payload
+precedent, session.rs:148-158); `SessionHandle::set_video_track /
+set_audio_track / set_subtitle_track(request, selector)` (the seek helper
+precedent, session.rs:298-311); per-kind `inflight_switch` slots +
+`inflight_seek` coexistence; `switch_pipeline_step` (the `SwitchPipeline`
+effect interpreter, mirroring seek_pipeline_step, session.rs:1358-1461); the
+tick-path completion block (mirroring the seek completion, session.rs:1613-1664)
+— per-kind, before signal translation, terminal after the first-frame
+delivery; `selection: TrackSelections` field; subtitle pre-table branch;
+`EngineStats::decoders_reused/decoders_built`; **outbox exemption extension**
+(session.rs:613-616): the `seek_terminal` match becomes a `is_terminal()` fn
+covering `Seeked | SeekFailed | TrackSelectionChanged`; rename
+`emit_seek_terminal` → `emit_terminal` (session.rs:1101-1116).
+
+**`state.rs`**: `SessionInput::SwitchTrack` (one input; the kind rides the
+context — the payload-beside-the-table doctrine, state.rs:143-146) with three
+self-transition rows carrying `&[Effect::BumpPipeline, Effect::SwitchPipeline]`
+(Playing→Playing, Paused→Paused, Buffering→Buffering — the seek row shapes
+minus the state change; state.rs:443-476); rejection classification for the
+other five states (the NotReady/NoSession/AlreadySettled families,
+state.rs:680-728); `Effect::SwitchPipeline` doc'd as S2.3. `SessionInput::ALL`
+grows to 13; the exhaustive table tests (96 → 104 classifications) update
+accordingly (tests/table.rs; lib.rs:45-52 documents the counts).
+
+**`event.rs`**: `EngineEventKind::TrackSelectionChanged { track_kind:
+MediaKind, selected: Option<TrackId> }` + manual Clone/PartialEq arms
+(event.rs:227-291) + `as_wire` → `EventKind::TracksChanged` (commands event.rs:128-133;
+MediaKind→TrackChangeKind mapping beside `wire_track_kind`, event.rs:659-668).
+
+**`events.rs`**: audit row for `tracks.changed` flips to "**emitted** (3.A3)"
+(events.rs:73).
+
+**CLI (optional, small)**: `lumen audio-track <id|none>` etc. (doc 05 line
+516-518 maps them) — dispatch.rs's "card 3.A3" stub (199-200) becomes a real
+submit-and-await on the new handle methods. Recommend including: it is the
+cheap host-side proof of the command path.
+
+**lib.rs**: `pub mod tracks;` + re-exports (`TrackSelector`), module-map docs
+(lib.rs:11-33, "What is deliberately NOT here" line 37 drops "track
+switching").
+
+## S7. Acceptance-criteria test plan (event-sequence assertions)
+
+New suite `crates/playback-engine/tests/track_switch.rs`, harness = the
+seek_flow.rs pattern (scripted multi-track demuxer fake enumerating 1 video +
+2–3 audio tracks with **distinct rates/channels** so a wrong-track decode is
+observable; scripted per-codec decoders via a counting fake
+`DecoderProvider`; `Collector` sink; virtual monotonic clock —
+tests/seek_flow.rs:61-150). Cases:
+
+1. **Audio switch happy path from Playing** — ordered-subsequence assertion:
+   `Receipt(Accepted{gen G+1})` → `StateChanged{playing→playing}` (the C8
+   confirmation; state.rs:1251-1254) → (ticks) → first new-track frame at the
+   sink **stamped G+1** → `TrackSelectionChanged{audio, Some(id)}` stamped
+   **G+1**, `origin = request`. Plus: zero old-track frames after the receipt
+   (doc 03 §5 guarantee, instrumented sink — the seek_flow stale-purge
+   pattern); clock re-anchored on the new track's first frame pts.
+2. **Video switch** — same shape; clock NOT re-anchored (position continuity
+   assertion); video frames switch track id at the sink.
+3. **Subtitle select (class S)** — `Receipt(Completed)` immediately +
+   `TrackSelectionChanged{subtitle, …}` at the **unbumped** generation; **no**
+   `state-changed`; a `Frame::Subtitle` flows when the fake subtitle decoder
+   emits; swap subtitle A→B without any A/V interruption (assert continuous
+   video/audio frame delivery across the swap — "without restart").
+4. **Deselect (`None`)** — audio deselect: video continues to `Ended` (the
+   is_drained relaxation, S4.4); no `end-of-track` for the retired limb.
+5. **`not-found`** — selector id 99 / wrong-kind id → `Rejected
+   {reason: TrackNotFound}`, **no** generation bump, no state-changed (the S2.1
+   asymmetry, documented).
+6. **Rapid double switch** (b→a while b in flight) — exactly ONE terminal, for
+   the newest selection; no intermediate-track frames at the sink; the
+   superseded command's generation has no terminal (doc 05 §4.2).
+7. **Switch while `Paused`** — completes with the wire state never leaving
+   `paused` (the decode carve-out, generalized to switch windows,
+   pipeline.rs:683-685).
+8. **Interleavings** — switch-during-seek and seek-during-switch: both
+   terminals fire exactly once each, seek terminal under its gen, switch
+   terminal under its gen (drain exemption proof), first post-seek frame
+   belongs to the post-switch selection.
+9. **Decoder recycling** — A→B→A: fake provider build-count for each track id
+   == 1; `EngineStats::decoders_reused == 2`; (optional, if the ED-FIX-2
+   counting allocator is wired in scope) zero decoder-heap growth per switch
+   beyond the first activation of each track.
+10. **Queue drain** — old limb's resident packets dropped (queue flush
+    stats/discontinuity), new limb's queue fills from the demuxer's current
+    position (assert the first new-track packet's pts ≥ the demuxer position
+    at switch time), pending-packet-of-retired-kind dropped.
+11. **Conformance** — run the sequence assertions through the doc 05 §4
+    invariants the contract_suite pins (receipt-before-events; terminal-under-
+    own-gen; §4.3 invariant 4), extending contract_suite.rs's coverage list.
+12. **Real-fixture integration** (gated on S8's fixture): open
+    `avi_mjpeg_2pcm.avi` through the real `AviDemuxer` + real
+    MjpegDecoder/PcmDecoder provider → play → switch audio 0→1 → the sink's
+    audio frames change format/rate (48k stereo s16 → 44.1k mono u8 by fixture
+    design) and the event sequence of case 1 holds. This is the AC's
+    "switch tests on multi-track fixtures".
+
+## S8. MULTI-TRACK FIXTURE AUDIT — verdict: GAP (D-5)
+
+**Committed deterministic fixtures (what AC tests run on): NONE are
+multi-track.** The two parents are `avi_mjpeg_pcm.avi` and `mp4_mjpeg_pcm.mp4`
+— one MJPEG video + one PCM audio each (tests/fixtures/CORPUS.md rows 50-53).
+The in-tree generator hardcodes the shape: AVI with exactly two `strl`
+streams (`strl_offsets: [usize; 2]`, tools/xtask/src/cmd/fixtures.rs:1401-1402;
+`build_avi(frames, pcm)` at 1454) and MP4 with one video + one audio track
+(`build_mp4` at 2047, "one video sample + one audio sample per tick" at 2156).
+
+**Randomized corpus: also single-audio.** gen_corpus.py classes
+(`avi-video/avi-av/muxed-av/audio-only/…`, gen_corpus.py:156) build exactly
+one audio stream (`av_cmd`: one lavfi audio input + one `-c:a`,
+gen_corpus.py:338-373; family combos single-audio at 399-416). No `-map`
+multi-stream, no subtitle stream anywhere in the generator.
+
+**Without new fixtures the AC cannot be honestly met** (case 12 above).
+Required fixture card — propose **W2-FIX-MT** (blocks 3.A3's integration half;
+engine-level cases 1-11 run on fakes and are unblocked):
+
+1. **Primary (required)**: extend `tools/xtask/src/cmd/fixtures.rs` (the
+   deterministic, license-clean in-tree writer — CORPUS.md:10-16 mandates
+   in-tree authoring, "no external encoder output — ffmpeg was used only as a
+   local cross-check oracle"; do NOT commit ffmpeg output):
+   - New AVI parent `avi_mjpeg_2pcm.avi`: 1 MJPEG video (320×240 @ 10 fps) +
+     **2** PCM audio streams with deliberately distinct shapes — stream 0:
+     48 kHz stereo `pcm_s16le`; stream 1: 44.1 kHz mono `pcm_u8` (both format
+     families already parse: header.rs:589-653; distinct shapes make
+     wrong-track decode observable at the sink). Writer changes:
+     `strl_offsets` → per-stream Vec; `build_avi(frames, &[AudioStreamSpec])`
+     with per-stream strh scale/rate + strf; movi interleave with per-stream
+     ladders; idx1 entries per stream; avih stream count; structure-map JSON
+     gains the N-stream offsets; expectation TOML gains a per-track plan +
+     per-track essence digests + a `switch_plan` section (switch point,
+     expected post-switch audio format) per doc 10 §5.4's expectation/1 shape.
+   - Optional MP4 parent `mp4_mjpeg_2pcm.mp4` (second `trak`): media-probe
+     coverage only — there is no MP4 demuxer (demux/src/lib.rs:4-5), so it
+     cannot serve playback tests yet.
+   - **Subtitle-bearing container: NOT producible for the playback path
+     today** (no demuxer emits subtitle tracks — AVI `txts` skipped
+     header.rs:655-660; no MP4/MKV demuxer; no subtitle codec). Subtitle-swap
+     coverage stays engine-level on synthetic tracks (S5); the real-container
+     subtitle fixture belongs to the Phase-5 subtitle card.
+2. **ffmpeg ORACLE commands** (cross-check only, recorded in the card's
+   evidence, never in the build):
+   - `ffmpeg -f lavfi -i testsrc2=size=320x240:rate=10 -f lavfi -i
+     "sine=frequency=440:sample_rate=48000" -f lavfi -i
+     "sine=frequency=880:sample_rate=44100" -map 0:v -map 1:a -map 2:a -c:v
+     mjpeg -q:v 5 -c:a:0 pcm_s16le -ac:a:0 2 -c:a:1 pcm_u8 -ac:a:1 1 -t 3 -y
+     oracle_avi_mjpeg_2pcm.avi`
+   - MP4 oracle: same maps with `-c:v mjpeg -c:a:0 pcm_s16le -c:a:1 pcm_s16le
+     -y oracle.mp4` (note: PCM-in-MP4 needs ffmpeg's `-strict unofficial`
+     ipcm support — record whichever the pinned local ffmpeg answers; the
+     in-tree writer is unaffected).
+   - Future subtitle oracle (Phase-5 card): `ffmpeg -i in.mp4 -i sub.srt -map
+     0 -map 1 -c copy -c:s mov_text out.mp4` (and `-c:s srt` into MKV).
+3. **gen_corpus.py extension** (randomized dirty corpus, D-11 system): new
+   class `multi-av` (weight ~2): draw 2-3 audio codecs from the
+   container-supported set, one `-f lavfi -i sine=…` input per stream,
+   explicit `-map 0:v -map 1:a -map 2:a …` + per-stream `-c:a:N`; an
+   `avi-multi` variant for the AVI family (mjpeg + 2×PCM permutations — note
+   the current `avi-av` combo list, gen_corpus.py:399-403, is single-audio).
+   Manifest `params` gain `audio_streams: N`. This feeds the 3.E4 soak loop
+   (open/play/seek/switch/reopen) and fuzz tiers with multi-track coverage.
+
+## S9. Risk register (top integration risks for the Wave-2 agent)
+
+1. **SeekProgress/limb index alignment** (pipeline.rs:314-353): limb swap
+   invalidates the seek window's indices; both in-flight machineries share the
+   Paused decode carve-out (pipeline.rs:683-685). Re-key by TrackId first,
+   before any swap logic lands; add the switch-during-seek test early (S7.8).
+2. **The generation-floor change** (pipeline.rs:818/925/938): moving the sink
+   check from the pipeline scalar to the limb floor touches the doc 03 §5
+   point-5 checkpoint every stale-frame proof leans on; a wrong floor silently
+   *admits* stale frames (the inverse of the current bug direction). Pin with
+   a dedicated test: switch audio, assert zero video frames dropped +
+   zero old-audio frames presented.
+3. **The starvation carve-out** (pipeline.rs:709-714, [PROPOSAL]): without it
+   every Playing-switch flashes playing→buffering; with it too broad, a genuine
+   underrun of a just-switched track is masked. Scope it exactly to
+   `first_frame_pending` limbs of the switched kind while a switch is in
+   flight; coordinate wording with 3.B3 (queue owner) — it owns the
+   watermark policy contract (pipeline.rs:41-50).
+4. **wire() one-per-kind + `selected` semantics change** (pipeline.rs:407-451,
+   session.rs:1486-1490): changes the `tracks.list-ready` payload consumers
+   see (is_selected now means "the one active limb per kind", event.rs:393-401,
+   624-647), the `NoDecodableTrack` boundary (wired>0, session.rs:1486), and
+   the first_audio anchor. Any test asserting today's all-wired behavior
+   (session_flow.rs) needs the update — audit before refactoring.
+5. **Terminal-event machinery extension** (session.rs:604-630, 1101-1116):
+   `TrackSelectionChanged` must join the drain exemption or rapid
+   switch-then-mint swallows the completion the AC asserts on; this is the
+   same invariant-4 machinery 3.B4 just pinned in contract_suite.rs — extend
+   the suite, don't fork the semantics.
+6. (Watch) **Audio sink format change on switch**: the real audio pump (2.C3)
+   receives a new `AudioFormat` mid-stream (`AudioFrame.format`,
+   frame.rs:196-207); engine-side the FrameConsumer contract is immediate and
+   format-agnostic, but the pump's re-negotiation is 2.C3/3.B1 territory —
+   flag in the integration notes, not 3.A3 scope.
+
+## S10. Implementation order (for the Wave-2 agent)
+
+1. `tracks.rs` skeleton: selector types + resolution + unit tests (no wiring).
+2. pipeline.rs foundations: `Limb::generation` floor + LimbSink change +
+   re-keyed observation window + `is_drained` relaxation + QueuePlan.subtitle
+   (each with its own test; run the full existing suite after each).
+3. `wire` one-per-kind initial selection (+ session_flow test updates).
+4. Decoder cache + `switch_limbs` + `SeekProgress`→window migration.
+5. state.rs rows + Effect::SwitchPipeline; session.rs command plumbing,
+   switch_pipeline_step, tick completion, stats.
+6. event.rs TrackSelectionChanged + outbox terminal extension + events.rs
+   audit row.
+7. Subtitle class-S path (selection state + pre-table branch + limb wiring on
+   synthetic tracks).
+8. tests/track_switch.rs cases 1-11; contract_suite extension.
+9. (Blocked on W2-FIX-MT) the real-fixture integration case 12 + CLI
+   subcommands.
+10. Worklog entry per AGENTS.md §4; coordinate S4.5/S2.5 wording with the
+    3.B3 sibling and S9.5 with the 3.B4 contract-suite owner.
+
+Open questions for the Lead (flagged inline): the fatal-vs-soft decoder-build
+failure on switch (S2.3a); the span-exhausted-track refusal (S2.4); the
+starvation carve-out wording (S2.5/S9.3); whether `session.open` OpenOptions
+selection lands in 3.A3 or a follow-up (S6); secondary-audio is a follow-up
+card (S2 scope note).
+---
+Task ID: W1-18
+Agent: W1-18 (recon, Wave 1 — read-only: no code changes, no cargo)
+Task: Implementation design for card 3.B1 (doc 13 §6 row 3.B1): A/V sync hardening
+per doc 03 §4.7/§4.10 — drift measurement (audio-master), correction policy
+(bounded video drop/repeat, bounded audio resample), discontinuity handling.
+Closes audit M12 (docs/audits/2026-10-22-directives-audit.md:57: "DriftCorrection
+±1000ppm limiter: ZERO consumers — no measurement, no re-anchor, no resample").
+A Wave-2 implementation agent builds from this document.
+
+Work Log:
+- Read doc 13 §6 row 3.B1/3.B2 (docs/13-agent-wave-program.md:376-377), AGENTS.md
+  §3/§4 (clean-room, [PROPOSAL]/[VERIFY] discipline, worklog format), audit row M12.
+- Read the mandate: docs/03-engine-plan.md §4.7 (523-571), §4.8 (573-615), §4.10
+  (666-706), §6 seek flow (899-945), §8 test strategy (1018-1072), §9 threading (1074-1092).
+- Read media-clock: src/drift.rs (all), src/clock.rs (all), src/source.rs, src/mapping.rs,
+  Cargo.toml (deps: media-types only).
+- Read video-engine: src/scheduler.rs (all), src/policy.rs (all), src/test_support.rs
+  (VirtualVideoClock, RecordingPresenter), tests/scheduling.rs layout.
+- Read audio-engine: src/pipeline.rs, src/convert.rs, src/buffer.rs (AudioSink),
+  src/lib.rs; audio-output: src/counter.rs, src/null.rs (latency = ring fill),
+  src/render.rs seam references.
+- Read playback-engine (context only, NOT owned by 3.B1): src/events.rs (3.B4 policy
+  types), src/seek.rs (3.A1 re-anchor semantics), src/session.rs (SessionConfig,
+  FreezeClock effect), src/pipeline.rs (FrameConsumer seam).
+- Read composition root: apps/cli/src/host.rs (advance_time pump), apps/cli/src/
+  pipeline_host.rs (AudioLimb/VideoLimb, RENDER_QUANTUM, RING_FRAMES).
+- Read boundaries.toml (layer constraints), engineering-directives D-1/D-8,
+  testkit VirtualClock/StepClock, media-types Packet.discontinuity + frame types.
+
+Stage Summary:
+- Full design below. DriftCorrection's consumers land in audio-engine (micro-
+  resampler + drift governor); the measurement loop's video half lands in
+  video-engine's scheduler; the shared pure estimator lands in media-clock.
+- Five integration risks identified (§9); two files outside the card's owned
+  crates need Lead-granted touches (apps/cli pipeline_host.rs + host.rs; and the
+  boundaries.toml media-clock→audio-engine edge, pre-noted in the manifest).
+
+---
+
+# Card 3.B1 Implementation Design — A/V Sync Hardening
+
+## 0. Mandate and current-state evidence
+
+Doc 03 §4.7(e) (docs/03-engine-plan.md:561-565) assigns drift to two absorbers,
+"neither of which is the clock itself" (crates/media-clock/src/drift.rs:3-5):
+
+- **Video presentation error** → the video scheduler (§4.10): present the largest
+  `pts ≤ clock + target_lead` (687-689); late frames `pts < clock − threshold` →
+  drop, count, advance (692-693); nothing due → repeat last frame up to
+  `max_repeat`, then background (689-691); "Audio is never dropped for video's
+  sake" (694).
+- **Audio-side drift (device clock vs media rate)** → "a bounded micro-resampler
+  in audio-engine: correction rate limited to ±1000 ppm [PROPOSAL — the limiter
+  itself is the invariant, not the value]" (562-565). `DriftCorrection`
+  (crates/media-clock/src/drift.rs:37-124) is exactly that bounded rate
+  adjustment — with **zero consumers** (audit M12).
+- **Discontinuity**: "demuxer flags (packet `discontinuity`, PTS jumps beyond a
+  threshold [PROPOSAL: half the queue duration]) cause the session to reanchor at
+  the next audio frame actually output, and video re-syncs against the new
+  anchor" (557-560). `Packet.discontinuity: bool` already exists in media-types
+  (crates/media-types/src/packet.rs:88-91); frames do not carry it
+  (crates/media-types/src/frame.rs:196-226).
+
+What exists today (all claims file:line):
+
+| Piece | State | Evidence |
+|---|---|---|
+| Audio-master clock | done | clock.rs:368-374; `now() = anchor + counter_elapsed × rate` (clock.rs:15-16, mapping.rs:26-30) |
+| ±1000 ppm limiter | done, **0 consumers** | drift.rs:26, 50-54, 69-93, 104-123 |
+| Clock discontinuity detection (source regression / rate change → hold + `TimeError::Discontinuity`) | done | clock.rs:281-289, 591-596 |
+| Re-anchor (epoch bump) | done | clock.rs:619-633; `ClockSnapshot.anchor_epoch` clock.rs:122-123 |
+| Video late-drop / supersede / repeat | done, **non-adaptive** | scheduler.rs:371-381, 383-397, 408-421; policy.rs:40-79, 260-277 |
+| Drop observability | done (counters, no events) | scheduler.rs:143-155 (`TickDrops`), 173-201 (`SchedulerStats`) |
+| Seek re-anchor on first audio frame's own pts | done (3.A1) | playback-engine/src/seek.rs:52-55, 411-421 |
+| Audio resampler | **absent** | pipeline.rs:192-194 rejects any rate deviation (`audio.rate_mismatch`); convert.rs:24-25 conserves frame counts |
+| Ring-fill visibility | exists | `AudioSink::latency()` buffer.rs:60-62; NullSink reports ring fill null.rs:208-213 |
+| Any drift *measurement* | **absent** | no EMA/filter/estimator anywhere in the three crates |
+| Post-re-anchor snap exemption ("no drop-count penalty for the first frame after a seek", doc 03 §6 step 6, :927-929) | **absent** | scheduler tick (scheduler.rs:336-429) keys on generation only (342-365), never on `anchor_epoch` |
+
+The sync mandate's measurable target is doc 03 §4.10(f) (700-706): the A/V sync
+scenario "measures `|audio_pts − video_pts_presented|` at each present and
+asserts it stays within a stated tolerance [PROPOSAL: ±10 ms after first frame]".
+
+**Clean-room note (AGENTS.md §3.1, :25-27).** Doc 03 does *not* cite VLC's
+master-clock-correction internals. Where this design parallels publicly
+documented VLC behavior (sync modes "audio master (resync by stretching)" vs
+"drop/repeat", the avoidance of drop-threshold trashing), it does so from public
+specification/observed-behavior knowledge only, tagged `[VERIFY]`. No VLC source
+was consulted.
+
+## 1. Architecture: where the loop lives (ownership constraints)
+
+Card 3.B1 Owns: `crates/media-clock/**`, `crates/video-engine/**`,
+`crates/audio-engine/**` (doc 13:376). The layer manifest (boundaries.toml)
+constrains placement:
+
+- media-clock = L2, deps media-types only (boundaries.toml:138-143) → it can
+  host **pure** estimator/policy types, nothing that sees engines.
+- video-engine = L3, deps media-types + media-clock (boundaries.toml:225-230) →
+  it can self-measure A/V error (it already holds `Arc<dyn PlaybackClock>`,
+  scheduler.rs:213) and self-correct via its own drop/repeat policy.
+- audio-engine = L3, deps media-types only (boundaries.toml:242-247) — but the
+  manifest itself pre-approves the delta: "media-clock joins with the drift
+  micro-resampler, doc 03 §4.8 e" (boundaries.toml:238-239). **3.B1 adds that
+  edge** (root-config edit → Lead, R2).
+- playback-engine (L4) is **not owned** by this card; the pump that closes the
+  audio feedback loop lives today in apps/cli (L6): `advance_time` renders
+  quanta and ticks the scheduler (apps/cli/src/host.rs:427-485), over
+  `AudioLimb { pipeline, sink }` (apps/cli/src/pipeline_host.rs:257-276).
+
+**Design consequence — the loop is split into pure policy (owned crates) + thin
+wiring (existing seams):**
+
+1. **media-clock** gains `DriftEstimator` + `SyncBands` (pure, integer
+   arithmetic, epoch-reset aware) — §2.
+2. **video-engine** measures A/V error per present inside `tick`, runs the
+   bounded drop/repeat ladder with hysteresis, and gains re-anchor snap
+   semantics — §2, §3.1, §4.
+3. **audio-engine** gains the bounded micro-resampler (the `DriftCorrection`
+   consumer) and a `DriftGovernor` that maps fill error → `DriftCorrection` —
+   §3.2.
+4. The **loop-closing call** (sample sink latency → governor →
+   `set_drift`) is ~10 lines in `AudioLimb` + `advance_time` — outside the
+   owned crates; flagged for Lead grant (§8 wiring delta). Doc 03 §4.10(c)
+   itself places this wiring at the session/host level ("that thread is
+   session wiring… Phase 3", scheduler.rs:4-12).
+
+Invariant kept: **the clock is never drift-corrected.** No `set_rate` calls, no
+`playback.rate-changed` events (that event stays "wired-by-later 3.B1 rate
+support" for the *user* rate input — a different feature; see events.rs:77 and
+the open question OQ-4). Drift flows only to the two doc-mandated absorbers.
+
+## 2. (a) Drift measurement loop
+
+Two independent measurements, one shared estimator type.
+
+### 2.1 A/V presentation error (video side, audio-master)
+
+- **Sample site**: `PresentationScheduler::tick`, exactly where the frame is
+  selected. After step-4 selection (scheduler.rs:383-397), on a
+  `PresentAction::Present` the sample is
+  `e_v = pts_selected − snapshot.position` (both already on `NANO_BASE`;
+  compute in `i128` and saturate to `i64`, the `decide()` discipline,
+  policy.rs:260-262). Background/Repeat ticks produce no sample (a repeat
+  already tells the sign: nothing was due).
+- **Cadence**: per presented frame (~30–60 Hz). Cost is one subtraction plus an
+  EMA shift — no allocation, D-1 clean. Policy *decisions* run on a tick
+  counter, not per sample: every 16 ticks `[PROPOSAL: ≈0.5 s at 30 fps]` —
+  bounded churn, deterministic without a time source (the scheduler has none).
+- **Filter**: integer EMA with dyadic weight, `ema = (x + (2^k − 1)·ema) >> k`,
+  `k = 3` `[PROPOSAL]` (τ ≈ 8 frames ≈ 267 ms at 30 fps; no floats — the doc 01
+  §3.1 exact-arithmetic discipline, lib.rs:26-28). Exposed as `SyncSample`
+  on `TickOutcome` (additive field; existing `TickOutcome { action, .. }`
+  pattern-matches survive — pipeline_host.rs:298) and cumulative
+  `sync_error_abs_max_ns` / `sync_error_sum` / `sync_samples` in
+  `SchedulerStats` (MP §11 metrics; the stats surface the CLI already reads,
+  host.rs:284-294).
+- **Reset**: on generation change (seek/stop — the existing step-1 purge site,
+  scheduler.rs:342-365), on `ClockSnapshot.anchor_epoch` change (clock.rs:122-123
+  — the scheduler stores the last-seen epoch; this is the mid-stream re-anchor
+  detector), and while `ClockState::Paused` (samples discarded, not smeared).
+
+### 2.2 Audio-side drift (device clock vs media rate)
+
+- **Physical model** (the thing M12 says does not exist): the device consumes
+  `C(t)` sample instants (the counter, audio-output/src/counter.rs:30-92 — the
+  clock's truth, source.rs:35-46), the pump stages quanta into the SPSC ring.
+  Ring fill integrates `(production − consumption)`; a device-vs-nominal rate
+  error `d` ppm drains/fills the ring at `d` µs/s until underrun (silence is
+  inserted and *counted into the counter* — null.rs:506 "the counter counts
+  data + silence" — which permanently skews audio content behind the clock, i.e.
+  behind video) or backpressure (`audio.ring_full` refusal, pipeline_host.rs:87).
+  Ring fill is therefore *both* the error signal *and* an A/V error term
+  (audio at the speaker lags the clock by the fill).
+- **Sample site**: the pump's render pass. `AudioSink::latency()` already
+  answers the fill (buffer.rs:60-62; NullSink: null.rs:208-213, ring frames →
+  ns). The wiring samples it once per quantum (`RENDER_QUANTUM` = 1470 frames ≈
+  33.33 ms, pipeline_host.rs:72-74) in `AudioLimb::observe_drift()` (§8 wiring
+  delta). Sinks that answer `None` (unmeasurable) park the governor at
+  `DriftCorrection::ZERO` — honest degradation, today's behavior, never a
+  fabricated estimate (MP §8).
+- **Estimator** (`media-clock/src/sync.rs`, pure): windowed slope + EMA over
+  fill samples:
+  `error e = fill_ns − target_ns`; slope `d̂ = EMA(Δe/Δt)` over a `W = 2 s`
+  window `[PROPOSAL]`; all `i128` ns, injected `now_ns` (a
+  `MonotonicSource` — the events.rs:41-47 injection doctrine; tests inject a
+  virtual counter). Media-position time must NOT drive windows: the clock
+  freezes on pause/underrun (`Effect::FreezeClock`, session.rs:1200-1205) and a
+  frozen time source must yield zero updates deterministically (the
+  ProgressWindow frozen-source property, events.rs:199-217, mirrored).
+- **Cadence**: sample per quantum (~30 Hz); correction re-evaluation at most
+  1 Hz via a fixed window (`RateWindow`, same semantics as 3.B4's
+  `ProgressWindow` — which lives in playback-engine L4 and cannot be imported
+  downward; the concept and constants are reused, the ~30-line type is
+  re-implemented in media-clock beside the estimator. Noted as deliberate, not
+  duplication-by-oversight).
+- **Reset**: on generation change and on `anchor_epoch` change (post-seek fill
+  is a *new* regime — 3.A1 re-anchors at the first audio frame's pts,
+  seek.rs:52-55, so the fill-to-target relationship restarts). While the clock
+  is paused the governor holds (frozen window → no evaluation).
+
+### 2.3 Boundedness (D-1)
+
+Estimator state is fixed-size (a handful of `i128`s + two window timestamps);
+no collections grow with sample count. The scheduler's `SyncSample` is `Copy`.
+Zero new allocation on any hot path (per-tick, per-quantum); the resampler's
+buffers are preallocated at negotiation (§3.2).
+
+## 3. (b) Correction policy
+
+### 3.1 Video: bounded drop/repeat ladder with hysteresis
+
+The existing mechanisms *are* the actuators; 3.B1 adds the control law on top
+of the measured `ê_v` (EMA of §2.1). New pure type `SyncPolicy`
+(video-engine/src/policy.rs, defaulted field on `SchedulerCfg`):
+
+| Band (on `ê_v`, the filtered error) | Action | Bound |
+|---|---|---|
+| `|ê_v| ≤ H` (hold) | default policy (`DropPolicy::Late{threshold: frame_duration}`, lead = ½ frame — policy.rs:230-240) | none |
+| `H < ê_v ≤ 2 frames` (video persistently late) | widen late threshold to `clamp(2·ê_v, 1, 3) × frame_duration` | ≤ 3× frame duration `[PROPOSAL]`; ≤ 3 drops per 500 ms window `[PROPOSAL]` — beyond the budget the threshold stops widening (dropping is bounded, never a firehose) |
+| `ê_v < −H` (video persistently early/short) | extend effective `max_repeat` by +2 | `cfg.max_repeat + 2` (then background — the existing doc 03 §4.10e ladder, scheduler.rs:408-421); audio never touched (doc 03 §4.10e :694) |
+| snap (see §4) | present the most-due frame, exempt from late-drop accounting | 1 frame per snap, counted separately (`snap_presents`) |
+
+- **Hysteresis (anti-oscillation)**: Schmitt trigger — enter the correct band
+  at `|ê_v| > H`, exit at `|ê_v| ≤ H/2`, both sustained for `D = 8` ticks
+  `[PROPOSAL]`; threshold changes themselves are rate-limited to ≤ 2 per 5 s
+  `[PROPOSAL]` (test S5 asserts no flapping). `H = ½ frame duration`
+  `[PROPOSAL]` — equals the default `target_lead` (policy.rs:236), so the hold
+  band is "within the lead the scheduler already absorbs".
+- **VLC parallel** `[VERIFY, public behavior only]`: VLC's master-clock
+  correction avoids drop-threshold trashing by tolerating error inside a
+  tolerance band and only then dropping/repeating; its "audio master
+  (resampling)" mode prefers stretching audio over any video drop. Doc 03 does
+  not cite these internals; the ladder above is derived from doc 03 §4.10e plus
+  that public behavior.
+
+### 3.2 Audio: bounded micro-resample (the `DriftCorrection` consumer)
+
+- **New module `audio-engine/src/resample.rs`**: `MicroResampler`.
+  - `set_correction(DriftCorrection)` — **consumer #1 of `DriftCorrection`**
+    (closes M12). The resample ratio is derived exactly from
+    `correction.ppm()` (drift.rs:57-59): `out = in × (1e6 + ppm) / 1e6` —
+    positive correction (follower lags the master, drift.rs:34-35) emits *more*
+    device samples per media sample, refilling a draining ring.
+  - Interpolation: linear between adjacent input samples; phase is an exact
+    `i128` rational accumulator (`pos × (1e6+ppm) / 1e6`), remainder carried
+    across quanta — **no cumulative rounding drift, no floats on the control
+    path** (doc 01 §3.1 discipline). One shared phase across channels
+    (channel-coherent by construction). `[PROPOSAL: linear is inaudible at
+    ≤1000 ppm; cubic is a later quality knob, not a correctness need]`
+    `[VERIFY: parity claim vs VLC public docs]`.
+  - Seam: **after `mix`, before stage-D interleave** — resample the *mixed*
+    f32 planes (`AudioPipeline.mixed`, pipeline.rs:75) into the resampler's own
+    reused plane set, then `planes_to_f32_interleaved_into` reads those
+    (pipeline.rs:252, 296-299). One resampler serves all tracks; the per-track
+    mix-alignment invariant (pipeline.rs:233-238) and the mixer-rate admission
+    check (pipeline.rs:192-194) are untouched — micro-correction (±1000 ppm) is
+    not track-rate conversion (a different, later card).
+  - Doc-03 consistency: sample counts leaving the pipeline still map 1:1 to
+    device samples advanced (§4.8e, :607-608 — the ring/counter side is
+    unchanged); the in→out ratio is exactly §4.8f's "unless the filter declares
+    a rate change" (:612-613).
+  - D-1: planes + 1-sample-per-channel history preallocated at negotiation;
+    `out_len ≤ in_len + in_len/1000 + 1` — capacity reserved once; the
+    zero-alloc quantum test (crates/audio-engine/tests/zero_alloc_quantum.rs,
+    ED-FIX-2's counting allocator) extends to cover the resample stage.
+- **`AudioPipeline::set_drift(&mut self, DriftCorrection)`**: stores the
+  correction; `mix()` routes through the resampler. `DriftCorrection::ZERO`
+  must be behaviorally identical to today's path (bit-exact bypass when
+  `ppm == 0` — no interpolation on the zero-correction path, pinned by test).
+- **Governor** (`DriftGovernor`, audio-engine/src/pipeline.rs or a sibling):
+  per 1 s window computes
+  `c = DriftCorrection::for_divergence(e, W_c)` with `e = fill − target`
+  (follower − master) and integral time `W_c = 20 s` `[PROPOSAL — the limiter
+  is the invariant (drift.rs:23-25), the time constant is a Phase-3-measurable
+  number]` — **consumer #2 of `DriftCorrection::for_divergence`** (drift.rs:69-93).
+  Because the plant (ring fill) integrates rate error, proportional-on-position
+  is integral-in-the-loop: `e∞ = 0` for any `|d| < 1000 ppm`. Saturated
+  corrections (`|d| ≥ 1000 ppm`) hold at the bound — the controller is a pure
+  function of `e` plus a step limiter (≤ 250 ppm change per update
+  `[PROPOSAL]`, slack reset each window), so no wind-up state exists.
+- **Target band** `[PROPOSAL]`: target fill = 2× the doc 03 §4.8(c) jitter
+  margin (20 ms default, :596-597) = **40 ms**; hard acceptance band
+  [10 ms, 150 ms]; ring capacity 131 072 frames ≈ 3 s (pipeline_host.rs:85-91)
+  is the structural ceiling. Fill leaving the acceptance band *without* a
+  correction path (unmeasurable latency) is reported via counters only.
+
+## 4. (c) Discontinuity handling — compose 3.A1 + W1-09 + 3.B2
+
+Three tiers, keyed on what is observable inside the owned crates:
+
+1. **Small jumps (≤ snap threshold)**: absorbed by the §3.1 ladder — a one-off
+   `e_v` spike passes through the EMA without tripping the `D`-tick dwell, and
+   the existing late-purge/supersede handles the frames themselves.
+2. **PTS jump ≥ snap threshold at the scheduler's push site** (incoming frame
+   `pts` gap vs the window tail ≥ ½ the audio queue's duration cap — doc 03
+   §4.7e's `[PROPOSAL]` number; the caps live in `QueuePlan`, playback-engine
+   pipeline.rs:101-109, so the threshold is a `SyncPolicy` field set by the
+   wiring): the scheduler flags `SyncFlag::PtsGap` (a stats counter —
+   observable, doc 01 §1.3 rule 9), **holds** the pre-gap ordering (the window
+   is PTS-sorted; nothing special needed) and enters **snap mode**: the first
+   present after the gap is exempt from late-drop accounting (counted as
+   `snap_presents`, not `dropped_late` — implementing doc 03 §6 step 6's "no
+   drop-count penalty for the first frame after a seek" :927-929, generalized
+   to non-seek jumps), and the estimator resets.
+3. **Re-anchor (the heavy tier)**: whoever owns the decision (the session, per
+   doc 03 §4.7e :557-560 — *not* this card) calls `clock.reanchor(next audio
+   frame pts)` — exactly 3.A1's step-6 semantics (seek.rs:52-55, 411-421).
+   3.B1's scheduler-side duty: detect the resulting `anchor_epoch` bump in the
+   tick's `ClockSnapshot` (clock.rs:122-123; `reanchor` bumps it, clock.rs:625)
+   → reset `ê_v`, enter snap mode for one tick (skip the late purge once —
+   otherwise a backward re-anchor late-purges the entire fresh window), absorb
+   the first present under the exemption. The audio governor equally resets on
+   epoch bump (§2.2). **`Packet.discontinuity`** (packet.rs:88-91) is the
+   demuxer's marker; propagating it to a session-side re-anchor decision is
+   playback-engine work recorded for 3.B2 (its row already owns "discontinuity
+   unit tests", doc 13:377) — see OQ-2.
+
+**Composition with W1-09 (pre-roll hold)** and the paused-seek carve-out
+(seek.rs:96-108): while the clock is frozen, renders stop (host.rs:444-447) →
+no quantum samples → the governor's window is frozen → no corrections
+(deterministic hold, not an accident). The scheduler may still tick during
+pre-roll (a host that does — the M10 hazard W1-09 closes) and present landing
+frames against the frozen clock: those presents are inside snap mode's
+exemption window (epoch bumped at completion) and must not feed `ê_v` (the
+`Paused`/epoch reset of §2.1). The 3.A1 generation purge (scheduler.rs:342-365)
+already prevents stale frames from reappearing; 3.B1 changes nothing there.
+
+**Device-side discontinuities** (counter regression / rate change) already
+hold + report `TimeError::Discontinuity` until re-anchor (clock.rs:281-289,
+591-596) — unchanged; the governor additionally treats a held clock
+(`try_now` error) as "no sample", never as zero error.
+
+## 5. Events and observability — "no event storms" by construction
+
+- **No new event kinds.** The doc 05 catalog is frozen (D-017; events.rs:90-97)
+  and has no sync/drift row. All 3.B1 observability is counters:
+  `SchedulerStats` gains `snap_presents`, `sync_*`; the audio side gains a
+  `DriftStats { samples, correction_ppm_last, fill_ns_last_min/max, … }`
+  accessor on the pipeline — polled, never pushed. Drop/repeat stays
+  counted-not-evented (the existing discipline, scheduler.rs:140-155).
+- **Drift is not an error**: nothing here touches `playback.error` /
+  `DamageCoalescer` (events.rs:231-306) — underruns remain the sink's own
+  accounting (RenderStats, doc 03 §4.8d :603-604).
+- **If** the Lead later wants a `timing.sync-report` event (OQ-4), the policy
+  is pre-specified: one coalesced emission per `ProgressWindow`-shaped 1 s
+  window (events.rs:177-229 semantics), payload = last correction + fill —
+  i.e. ≤ 1 Hz, far under the 1000 events/s burst bound (events.rs:24-38).
+- The existing time-tick machinery is untouched; note events.rs:53-55 already
+  anticipates 3.B1 ("when card 3.B1 lands variable rate, the interval check
+  moves to the throttle source") — that applies to *user* rate support, not to
+  drift correction (which never changes the clock rate, §1).
+
+## 6. (d) Synthetic-drift convergence test plan (D-8: virtual clocks, no sleeps)
+
+Infra: a `DriftingCounter` fake `SampleCounterSource` (advances
+`nominal × (1 + ppm/1e6)` per virtual second — the `FakeCounter` pattern,
+clock.rs:678-708, generalized); `VirtualVideoClock` (video-engine
+test_support.rs:39-90) for the scheduler side; `StepClock`/injected
+`MonotonicSource` (testkit lib.rs:192-224) for windows. All scenarios run in
+virtual time; the audio loop is exercised through `AudioPipeline` + a fake
+`AudioSink` whose `latency()` answers a scripted fill (buffer.rs:60-63), so
+audio-engine tests need no device.
+
+| # | Scenario | Setup | Convergence / safety assertions |
+|---|---|---|---|
+| S1 | fixed +100 ppm device | 120 s virtual, 44.1 kHz, quantum 1470 | fill returns to `|e| ≤ 10 ms` within **45 s** and stays (≥ 30 s tail); **zero** underruns and zero `ring_full` refusals after t = 10 s; correction always within ±1000 ppm (limiter invariant, drift.rs:180-190 precedent); zero new event kinds |
+| S2 | fixed −100 ppm | symmetric | same, plus fill never exceeds the acceptance band upper bound after convergence (no unbounded growth) |
+| S3 | ±1000 ppm (at the bound) and +5000 ppm (adversarial, beyond) | d = 1000: converges (at-limit); d = 5000: net residual 4 ms/s | correction pinned at the bound, **no oscillation** (variance ≤ one step-limiter increment), no wind-up, no panic, fill error slope exactly `(d − 1000)/1e6` (closed-form first-order check) |
+| S4 | PTS step discontinuity | video pts jump +500 ms mid-stream (no seek) | exactly one snap (no drop-storm: `dropped_late` within the §3.1 window budget); `ê_v` resets; `|e_v| ≤ 1 frame` within 2 s after the snap; `snap_presents == 1` |
+| S5 | jitter | ±5 ms fill noise per quantum; ±½ frame pts noise | correction stays within ±150 ppm (no jitter amplification); late-threshold changes ≤ 2 per 5 s (no flapping) |
+| S6 | rate ≠ 1 | clock rate 5/4 (clock.rs:741-752 precedent) + +100 ppm device | correction composes with the rate (sample-ratio only, clock untouched); converges as S1 |
+| S7 | pause/resume + seek composition | 3.A1 seek flow mid-run; frozen clock (W1-09 hold) | during freeze: zero correction updates (frozen window — deterministic, events.rs:199-217 property mirrored); on epoch bump: estimator resets; post-resume transient ≤ one step-limiter increment; `snap_presents` per seek ≤ 1 |
+| S8 | end-to-end A/V (doc 03 §4.10f :700-706, §8 row :1055) | full pump: `AudioLimb` + scheduler + `DriftingCounter`, instrumented presents | `|audio_pts − video_pts_presented| ≤ ±10 ms` after the first frame `[PROPOSAL per doc 03]`; ≥ 95 % of presents within ±½ frame; no out-of-order presents (existing invariant) |
+| S9 | no-event-storm | runs S1–S5 with the event log captured | every 1 s virtual window: total events ≤ the 3.B4 steady budget (time-tick 4 Hz + slack; hard ceiling 1000/s, events.rs:24-27); **zero** events attributable to sync machinery; drop/repeat visible only in counters |
+| S10 | policy grids + properties (doc 03 §4.10f "exhaustive over small grids") | pure `SyncPolicy`/`DriftEstimator` over grids | ladder monotone in `|ê_v|`; hysteresis bands non-overlapping (enter > exit); drop budget never exceeded for any input sequence; estimator bounded for any i128 input (no overflow, ties documented) |
+
+Test homes: S10 + estimator units → media-clock (inline `mod tests` precedent,
+clock.rs:671); resampler units (ratio exactness, cross-quantum phase carry,
+zero-alloc via the counting allocator, `ZERO` bit-exact bypass) + S1–S3, S5
+governor loops → audio-engine (`tests/` precedent: zero_alloc_quantum.rs);
+scheduler bands, snap, S4 → video-engine (`tests/scheduling.rs` + test_support);
+S7/S8/S9 → the composition root (first-vertical harness drives `CliHost`
+through the command layer, boundaries.toml:355-367; mock-evidence label per
+testkit `HardwareClass::Mock`, lib.rs:235-241). Evidence records per doc 10 §7.
+
+## 7. Implementation plan for the Wave-2 agent (file-by-file, owned crates first)
+
+1. `crates/media-clock/src/sync.rs` (new): `DriftEstimator` (integer EMA +
+   windowed slope + epoch/generation/paused reset), `SyncBands`, `RateWindow`;
+   re-export from lib.rs:104-110. Unit tests (S10 half).
+2. `crates/media-clock/src/drift.rs`: doc-link the consumers (no behavior
+   change; `MAX_CORRECTION_PPM` stays `[PROPOSAL]`-tagged, drift.rs:23-25).
+3. `crates/video-engine/src/policy.rs`: `SyncPolicy` (bands, dwell, budget,
+   snap threshold) + `SchedulerCfg` field defaulted in `new()`/
+   `for_frame_duration()` (signature unchanged — callers in scheduler tests
+   and pipeline_host.rs:530+ keep compiling); pure classifier + grid tests.
+4. `crates/video-engine/src/scheduler.rs`: `SyncSample` on `TickOutcome`;
+   `last_anchor_epoch` tracking → snap mode; `ê_v` EMA; ladder application at
+   the tick counter cadence; `SchedulerStats` extensions; tests S4/S5/S10.
+5. `crates/audio-engine/src/resample.rs` (new): `MicroResampler`; unit tests.
+6. `crates/audio-engine/src/pipeline.rs`: `set_drift`, resample stage between
+   `mix` and `pooled_output`, `DriftGovernor` (or sibling module), `DriftStats`;
+   governor loop tests S1–S3/S5 with the scripted-latency fake sink.
+7. `crates/audio-engine/Cargo.toml` + **boundaries.toml** (Lead): add
+   media-clock edge (manifest note boundaries.toml:238-239 pre-justifies it).
+8. Wiring delta (Lead-granted, ~15 lines): `apps/cli/src/pipeline_host.rs`
+   `AudioLimb::observe_drift()` + `apps/cli/src/host.rs` call in
+   `advance_time` (host.rs:453-471). Merge-order with W1-09 (same function,
+   freeze gate host.rs:444-447) — land W1-09 first or coordinate ownership.
+9. Evidence: extend the existing stats surfaces (host.rs:284-294) with the sync
+   counters; doc 10 §7 records for S1–S10.
+
+## 8. Risks and open questions
+
+**Risks (integration-ranked):**
+- **R1 — the loop closes outside the owned crates.** `advance_time`
+  (host.rs:444-485) is the only place quantum renders and scheduler ticks
+  interleave; it is also W1-09's file. Without the Lead grant the card lands
+  with pure types and *still* zero wired consumers — M12 would recur one level
+  up. Mitigation: §7 step 8 is mandatory, not optional; S8/S9 cannot pass
+  without it.
+- **R2 — underrun→FreezeClock feedback deadlock.** A drift-induced underrun
+  freezes the clock (session.rs:1200-1205) → renders stop (host.rs:445) → the
+  governor's sample stream stops exactly when correction is most needed.
+  Mitigation: windows run on the injected monotonic source (§2.2); correction
+  holds (never winds down) during freeze; the real guard is the target band
+  (40 ms ≫ jitter margin) keeping fill off zero. Residual: a device far beyond
+  +1000 ppm still reaches underrun — by design (the limiter is the invariant);
+  the failure mode is the *existing* rebuffer, not a new one.
+- **R3 — ring/quantum sizing math shifts.** `RING_FRAMES` = 131 072 is sized
+  against "16 × 1470 pushed per poll" (pipeline_host.rs:76-91); the resampler
+  changes pushed frames by ≤ +0.1 % — inside the >2× margin, but the sizing
+  comment must be updated and the invariant re-asserted in the zero-alloc/
+  capacity tests (S1–S3 include `ring_full` refusal assertions).
+- **R4 — clock-vs-speaker latency semantics.** Audio at the speaker lags the
+  clock by the ring fill (§2.2); 3.A1's anchor maps content-pts to the counter
+  at *enter*, not at *speak*. The band keeps the term ≤ 150 ms, but the doc-03
+  ±10 ms A/V criterion (S8) implicitly assumes small fill; if Phase-3
+  measurements disagree, the fix (subtract output latency in `now()`, VLC
+  public behavior `[VERIFY]`) is a *clock semantics change* — Lead decision,
+  explicitly out of 3.B1 scope (OQ-3).
+- **R5 — `SchedulerCfg`/`TickOutcome` surface churn.** Additive fields break
+  exhaustive struct literals (none found in-tree — pattern matches use `..`,
+  pipeline_host.rs:298); `SchedulerCfg` is `Copy` — `SyncPolicy` must stay
+  `Copy`-small. Any external consumer appears only with the desktop app
+  (Phase 4), post-freeze.
+
+**Open questions (Lead):**
+- **OQ-1**: grant apps/cli `pipeline_host.rs` + `host.rs` (advance_time
+  region) to the Wave-2 agent, sequenced after W1-09's merge (R1).
+- **OQ-2**: who turns `Packet.discontinuity` (packet.rs:88-91) into a session
+  re-anchor? Proposed owner: 3.B2 (its row already claims discontinuity unit
+  tests, doc 13:377); 3.B1 ships the detection seam + response only (§4).
+- **OQ-3**: clock-side output-latency compensation (R4) — separate card if
+  measurements demand it.
+- **OQ-4**: does 3.B1 also land *user* `set-rate` input (`playback.rate-changed`
+  is "wired-by-later 3.B1", events.rs:77; time-tick interval semantics note
+  events.rs:53-55)? This design says **no** — the row's scope is drift/
+  discontinuity; rate input is a natural 3.B2 sibling. Lead to split explicitly.
+- **OQ-5**: the `[PROPOSAL]` numbers (W = 2 s, W_c = 20 s, step 250 ppm, H =
+  ½ frame, dwell 8, budget 3/500 ms, band 10–150 ms) are Phase-3-measurable
+  starting points in the drift.rs:23-25 spirit — the *invariants* (±1000 ppm
+  bound, bounded drops, hysteresis existence, convergence-under-|d|<bound) are
+  the contract; the constants are one-line changes with tests pinned to the
+  invariants, not the values.
+---
+Task ID: W1-19
+Agent: Agent W1-19 (general-purpose, Wave-1 recon)
+Task: Implementation design for card 3.B3 (queue backpressure tuning: per-kind limits from config, stall/resume thresholds, starvation metrics events, property tests) + the input read-into-borrow API (audit M4 read chain, committed to 3.B3). No code changed, no cargo run.
+
+Work Log:
+- Read the card (docs/13-agent-wave-program.md:378) + standard clauses (§1.4 :94-136) + sibling cards 3.A1/3.B4/3.D1/3.D3 (:368, :379, :393, :395) and doc 03 §4.4/§5/§6/§8/§9 (docs/03-engine-plan.md:325-376, :842-945, :1018-1092).
+- Read packet-queue in full: src/{queue,stamped,limits,lib}.rs + tests/{backpressure,concurrency,generation,limits}.rs.
+- Read playback-engine: pipeline.rs (queue consumption, QueuePlan, tick), session.rs (config surface, signal translation, buffering emissions), state.rs (Underrun row), events.rs (3.B4 policy module), epoch.rs (mint mechanics), event.rs.
+- Read the config spine: product.toml [limits], product-config/src/model.rs Limits, product.schema.json ranges, schemas/settings.toml engine.* rows; confirmed playback-engine has no product-config dependency (Cargo.toml:34-45).
+- Read the read chain (M4): input/src/{buffered,file,seekable,contract}.rs, plugin-api/src/access.rs, demux/src/avi/{riff,mod,index}.rs, media-types/src/packet.rs (SharedBytes).
+- Read the directives audit register (M4 row :49, minor note :72), testkit (alloc_count, VirtualClock/StepClock), and the Lead's Wave-1 launch entry (worklog.md:1706-1723) for the W1-07 session-bounds overlap and the worklog-queue protocol.
+
+Stage Summary:
+- Full implementation design below, ready for a Wave-2 implementation agent. Six parts: (A) per-kind limits config path; (B) stall/resume hysteresis; (C) starvation metrics events; (D) read-into-borrow input API (kills M4); (E) property-test plan; (F) risks/open questions + ordered implementation steps. Key findings: config keys `limits.queue_packets_audio/video` and settings `engine.queue-packets-*` already exist but nothing consumes them (engine constructs `QueuePlan::default()` at session.rs:371); the threshold policy is engine-owned `[PROPOSAL]` (pipeline.rs:46, :135-136, :157-158); hysteresis 3/4-vs-1/4 already exists but is unconfigured and un-proven against flapping; the demux read chain spends ~2 allocs + 2 copies per chunk header + payload and 2 virtual seeks per packet (riff.rs:246-257, :308-328; mod.rs:433, :485-538); repo property-test convention is hand-rolled seeded XorShift + model oracle (packet-queue/tests/limits.rs:36-91), NOT proptest (no dep in Cargo.lock — C5).
+
+# 3.B3 IMPLEMENTATION DESIGN — Queue backpressure tuning
+
+## 0. Current-state map (what exists, with citations)
+
+**The queue primitive (2.B1, landed).** `BoundedQueue<T>` = `Mutex<VecDeque<Slot>>` + two condvars (`space`, `items`), MPMC, lock held only for deque ops (queue.rs:227-231, module docs queue.rs:4-11). Three simultaneous caps — packets/bytes/duration, whichever hits first refuses the push (`QueueLimits::binding_axis`, limits.rs:174-193, checked in u128 so adversarial weights can't wrap, limits.rs:181-183). An unbounded queue is unconstructible (`NonZeroUsize` + known-positive duration, limits.rs:6-9, :128-142). Typed signals: `PushOutcome{Pushed,Full{binding},Closed,Stale}` (queue.rs:43-72), `PushAborted{Closed,Deadline,Stale}` (queue.rs:78-102), `PopOutcome{Discontinuity,Item,Empty,Closed}` (queue.rs:108-122). `flush(new_generation)` drops residents wholesale, publishes the generation (never regresses), merges unobserved discontinuity markers, wakes both condvars (queue.rs:336-374). `QueueStats{pushed,popped,full_rejections,stale_rejected,flushed}` (queue.rs:148-163). Watermarks: `WatermarkThresholds{high,low}` per-axis `QueueUsage`; predicate = high on ANY axis ≥ threshold, low on ALL axes ≤ threshold (limits.rs:264-272); default high=capacity, low=quarter (limits.rs:230-244). `Weigh` for `Packet`: payload bytes only, unknown duration counts 0 (stamped.rs:98-111, :92-95).
+
+**Engine consumption (2.C2 + 3.A1, landed).** One queue per wired audio/video limb, constructed from `QueuePlan::for_kind` with `QueuePlan::thresholds` (high = cap − cap/4, low = cap/4) and flushed to the live generation at wire time (pipeline.rs:424-431). The tick is synchronous and non-blocking: a full queue hands the packet back and the engine holds it in `Pipeline::pending` for the next tick — the synchronous form of the parking producer (pipeline.rs:788-810, demux_step pipeline.rs:733-783). `TickReport` carries `primed` (every limb high, Buffering state, pipeline.rs:694-696), `starved` (any limb low while demuxer can refill, Playing state, pipeline.rs:709-713), `buffer_fill` (bottleneck limb's packets/high, pipeline.rs:697-707). Signal priority fatal > drained > eof > primed > starved (session.rs:1666-1678); `Playing|Underrun → Buffering` with FreezeClock+EmitBufferingEnter (state.rs:426-431), `Buffering|Primed → Playing` (state.rs:384-389). The rebuffer cycle is test-pinned (session_flow.rs:598-641; table.rs:340-388). Seek composes: `Playing|Seek → Buffering` with BumpPipeline+SeekPipeline (state.rs:443-453); `Pipeline::seek_flush` flushes queues at the mint WITHOUT closing them (pipeline.rs:521-574) — the D-4-safe contrast to `teardown` (flush+close, pipeline.rs:468-475).
+
+**The config surface (exists, unconsumed).** product.toml `[limits]`: `cache_demux_mib = 32` (schema 4..=512), `queue_packets_audio = 1024` (64..=8192), `queue_packets_video = 512` (64..=4096) (product.toml:196-204; product.schema.json:185-193). `product_config::Limits` mirrors them (model.rs:165-174). Settings rows `engine.queue-packets-audio/video` default_ref the limits and are `restart_required = true` (schemas/settings.toml:363-385). **Nothing consumes any of it**: playback-engine is std-only with no product-config dependency (Cargo.toml:20-22, :34-45) and `SessionConfig::new` hardcodes `QueuePlan::default()` (session.rs:371) = doc 03 §4.4 defaults audio 200 pkt/1 s/1 MiB, video 300 pkt/2 s/4 MiB (pipeline.rs:154-167). Three explicit `[PROPOSAL … owed to card 3.B3]` markers sit in pipeline.rs:46, :135-136, :157-158. Note the number conflict: product.toml says 1024/512 packets, doc 03 defaults say 200/300 — both are legal (different layers); see Design A.
+
+**The 3.B4 event vocabulary (landed).** Catalog is frozen (23 rows, D-017). The starvation-relevant rows: `session.state-changed` (never coalesced), `session.buffering{progress}` (≤5 Hz, opens 0.0 / closes 1.0; commands/catalog/event.rs:75-79), `timing.time-tick`, `playback.error{fatal}`, `system.log` (rate-limited 100/s, event.rs:257-265). Engine-side policy module: `TimeTickPolicy` (250 ms default, 50 ms floor), `ProgressWindow` (the ≤5 Hz carrier, `BUFFERING_WINDOW_MS = 200`, events.rs:113-116, :177-218), `DamageCoalescer` (1 s window, events.rs:118-121), `EventPolicy` with injected `MonotonicSource` (events.rs:320-340). In-episode progress is monotonic, skips the exit tick (session.rs:1578-1590). Superseded-generation pipeline events are suppressed at drain (session.rs:37-40).
+
+**The read chain (M4 root cause).** `plugin_api::SourceStream::read(&mut self, len) -> Result<Vec<u8>>` allocates per call (access.rs:51). `BufferedReader::read` allocates a result Vec and copies out of its fixed window (buffered.rs:179-204). The AVI `SourceReader::read_exact_or_end` allocates a second Vec and copies again (riff.rs:246-257). `peek_chunk_header` runs the same shape for 8 header bytes plus a seek-away/seek-back pair (riff.rs:308-328) — the movi walk does this per chunk (mod.rs:433). Payloads take one of three read paths (mod.rs:485-538) and land in `SharedBytes::from_vec` (mod.rs:578; the Vec move itself is free, packet.rs:16-18). idx1 is parsed 16 bytes per entry through the same chain (index.rs:243-244). Net per packet: ~3 heap allocs (8 B header, source step Vec, payload Vec) + 2 payload copies + 2 virtual seeks; per idx1 entry: 2 tiny allocs + 2 copies.
+
+**Siblings in flight.** W1-07 (worktrees/w1-07) owns bounded inbox/outbox in session.rs (worklog.md:1717) — 3.B3's session.rs touches must rebase on it. W1-16..W1-18 recon 3.A2/A3/B1. 3.D1 (virtual clock, synthetic sources) and 3.D3 (property suites in `tests/property/**`) come AFTER 3.B in wave order (doc 13 :393, :395) — 3.B3 must be self-sufficient with today's testkit (StepClock, alloc_count, seeded loops) and leave harvestable suites.
+
+## Design A — Per-kind limits from config
+
+### A1. Principle: the engine stays config-transport-agnostic
+
+playback-engine keeps zero external deps (Cargo.toml C5 note :20-22). Config reaches the engine exactly one way: the **host** reads validated config and builds `SessionConfig.queues: QueuePlan` (session.rs:343). 3.B3 adds the typed constructor + validation in the engine, and a host-side wiring snippet (Lead-merged, R2 — apps/cli is not in the card's Owns column).
+
+### A2. The engine-side constructor
+
+New in `crates/playback-engine/src/pipeline.rs` (owned by the card):
+
+```rust
+/// A plan from product-config-shaped integers (card 3.B3): packet caps
+/// per kind plus the demux read-ahead budget. Byte caps stay the doc 03
+/// §4.4 [PROPOSAL] figures until the Lead ratifies the new keys (see
+/// the design's config proposal); duration caps stay 1 s / 2 s.
+pub fn from_product_limits(
+    audio_packets: u64,
+    video_packets: u64,
+) -> Result<QueuePlan, QueuePlanError>
+```
+
+- `QueuePlanError` (new typed enum in pipeline.rs): `PacketsBelowFloor { kind, value, floor: 64 }` / `PacketsAboveCeiling { kind, value, ceiling }` per kind, mirroring the schema ranges (product.schema.json:192-193). **Reject, never clamp** (MP §5, product.toml:194 comment). The floors/ceilings are duplicated constants in the engine — the schema is the authority; a constants test pins the duplication (see E4).
+- Packet caps map 1:1. Byte caps: keep the doc 03 [PROPOSAL] defaults (1 MiB / 4 MiB) inside the constructor for now — wiring a *byte* config key without a ratified key name would be inventing policy (AGENTS.md §3.6). Duration caps: 1 s / 2 s (doc 03 §4.4, limits.rs:144-166).
+- `QueuePlan::default()` **does not change** — it is the doc 03 library default and is test-pinned (limits.rs:318-330). Product behavior changes only when a host injects. The 1024/512-vs-200/300 divergence is then *visible by diff* (config vs default) rather than hidden; the design records it as the intended product posture (bigger buffers than the library floor).
+
+### A3. Per-kind: the subtitle lane
+
+doc 03 §4.4(b) names a third kind: "subtitle/event queue small and duration-only" (docs/03-engine-plan.md:355). Today `QueuePlan::for_kind` maps every non-video kind to the *audio* caps (pipeline.rs:124-129) — a silent misconfiguration trap for 3.A3's track switching. 3.B3:
+
+- Adds `QueuePlan::subtitle: QueueLimits` — duration-led caps: 128 packets / 16 MiB bytes / 10 s duration `[PROPOSAL figures]`, constructed via `QueueLimits::new` (so unboundedness stays unrepresentable, limits.rs:6-9).
+- Changes `for_kind` to an exhaustive match: `Audio => audio, Video => video, Subtitle => subtitle` — and since `MediaKind` may carry kinds with no lane (data), the method becomes `fn for_kind(&self, kind: MediaKind) -> Option<QueueLimits>`; the only caller (`Pipeline::wire`, pipeline.rs:424) already filters to wireable kinds (pipeline.rs:419), so `None` is unreachable there and the type tells the truth. **Coordinate with 3.A3/W1-18** (tracks.rs will be the second caller) — the signature change must land before or with it; flag in the report.
+- Wiring subtitle limbs themselves stays 3.A3's card (pipeline.rs:121-123 records the 2.B1 limitation); 3.B3 only owns the caps vocabulary and the kind mapping.
+
+### A4. The host wiring snippet (Lead-merged, R2)
+
+In `apps/cli` (the composition root that already builds the open path, demux_host.rs:6-30), after product-config load:
+
+```rust
+let plan = QueuePlan::from_product_limits(
+    limits.queue_packets_audio,
+    limits.queue_packets_video,
+)?;                       // typed refusal surfaces as the open failure
+config.queues = plan;
+```
+
+`cache_demux_mib` wires to the **input read-ahead window**, not to queue byte caps — its own comment says "demux read-ahead" (product.toml:197): `FileAccess::with_buffer_capacity(cache_demux_mib_bytes)` (file.rs:137-145). **Known conflict to resolve at wiring time**: the schema allows 4..=512 MiB but `BufferedReader::MAX_BUFFER_BYTES = 16 MiB` (buffered.rs:41) — the default 32 MiB would be a typed capacity error. Resolution in this design: do NOT raise the single-allocation ceiling; see D4, where the read-ahead becomes a **multi-chunk pool** (N × 64 KiB chunks ≈ the budget) and `FileAccess` grows a `with_read_ahead_budget(bytes)` that chunks under `MAX_BUFFER_BYTES`. If the Lead prefers the one-line fix (clamp schema to 16 MiB), the pool still stands for the borrow API — decide at review.
+
+### A5. New config keys [PROPOSAL — Lead-owned surfaces, snippet delivered in report]
+
+Deliver (do not edit; R2 — product.toml/product.schema.json/settings.toml are Lead-owned, doc 13 §1.2 R2 :47-51):
+
+```toml
+# product.toml [limits] — queue byte/duration axes (doc 03 §4.4(b))
+queue_bytes_audio_mib = 1        # schema 1..=64
+queue_bytes_video_mib = 4        # schema 1..=256
+queue_duration_audio_ms = 1000   # schema 250..=10_000
+queue_duration_video_ms = 2000   # schema 250..=20_000
+queue_subtitle_packets = 128     # schema 16..=1024
+queue_subtitle_duration_ms = 10_000  # schema 1_000..=60_000
+# stall/resume (fractions of each cap; see Design B)
+queue_stall_fraction = 25        # schema 5..=45  (% of cap, per-axis low)
+queue_resume_fraction = 75       # schema 55..=95 (% of cap, per-axis high)
+queue_starve_debounce_ticks = 2  # schema 1..=10
+```
+
+with matching settings rows (`engine.queue-*`, `default_ref` to the limits, `restart_required = true`, `advanced = true` — the pattern of settings.toml:363-385). Until ratified, the engine constructor takes only the two existing integer caps and uses `[PROPOSAL]` defaults for the rest; the constructor is **extended, not replaced**, when the keys land (additive parameters with a second constructor — never a behavior flip under existing callers).
+
+## Design B — Stall/resume thresholds (hysteresis)
+
+### B1. What "stall" and "resume" mean here (and the D-4 rule)
+
+- **Stall** = the watermark-driven rebuffer: a limb runs low while the demuxer can still refill → `starved` → `Underrun` → `Playing→Buffering` (pipeline.rs:709-713; state.rs:426-431). **Nobody tears anything down**: queues are never closed or flushed by backpressure — `flush` is mint-only territory (seek/stop/teardown call sites: pipeline.rs:431 wire-time, :468-475 teardown, :521-574 seek; the D-4 rule "no destructive lifecycle shortcuts" maps to: *backpressure modulates state, generations modulate data*). The pause of ingestion is the queue's own `Full` rejection — in v0 the held `pending` packet (pipeline.rs:788-810), in the threaded future the demux thread parked in `push_wait` (queue.rs:428-488, doc 03 §4.4(c) Q3 :367-368). **3.B3 adds no new pause mechanism**; it tunes when the *state machine* reacts.
+- **Resume** = `primed`: every enabled limb at/above its resume threshold (high watermark) → `Buffering|Primed → Playing` (pipeline.rs:694-696; state.rs:384-389).
+- End-of-stream drain is neither: `starved` is suppressed at eof (pipeline.rs:713 `!self.eof`), `drained` ends the media (session_flow.rs pins both).
+
+### B2. Hysteresis shape (existing) and its two gaps
+
+The 3/4-high vs 1/4-low engine policy (pipeline.rs:138-151) already gives a hysteresis band. Gaps 3.B3 closes:
+
+1. **Flapping** — a producer/consumer rate mix hovering at the low line can fire Underrun→Primed cycles every tick. Fix: a **starve debounce** — `starved` requires the low condition on the bottleneck limb for `starve_debounce_ticks` **consecutive** ticks (default 2 `[PROPOSAL]`). Implementation: per-limb `low_streak: u32` in `Limb` (pipeline.rs:260-272), reset on any non-low observation; `TickReport.starved` = any limb's streak ≥ N. The initial-priming path is untouched (Buffering state has no debounce — it is already filling).
+2. **Unreachable-low** — the packet-queue `low` predicate requires ALL axes ≤ threshold (limits.rs:268-270), and unknown-duration items count 0 toward duration (stamped.rs:92-95): a bytes-heavy or unknown-duration mix can sit at 1 packet and never signal low → unbounded silent stall. Fix **without touching the pinned predicate** (its tests are 2.B1-pinned, limits.rs:400-437; AGENTS.md §3.5): the *engine* chooses which axes participate — `QueuePlan::thresholds` sets `low.bytes = limits.max_bytes` and `low.duration = limits.max_duration` (never-binding) so **packets is the starvation axis** and the ALL-axes predicate degenerates to packets-only. This matches v0's existing packets-driven `buffer_fill` posture (pipeline.rs:237-239 `[PROPOSAL]`) and makes low reachable in every mix (packets ≥ 0 always). The high/resume predicate stays all-axes-eager (any axis ≥ threshold) — correct: resume means "full enough in some dimension".
+
+### B3. Per-kind thresholds
+
+`QueuePlan::thresholds` gains per-kind parameters rather than one global fraction: audio and video have different fill dynamics (1 s vs 2 s spans). Defaults: resume = 75% of each cap, stall = 25% (current behavior); config keys per A5. The subtitle lane (once wired) uses the same fractions over its own caps. Validation: `stall < resume` strictly (typed error, reject never clamp) — a crossing pair is a misconfiguration that would wedge the state machine in Buffering forever (never primed) or flap maximally.
+
+### B4. Composition with 3.A1's mint+flush mechanics
+
+- A starvation episode straddling a seek: the mint flushes queues (pipeline.rs:532) → all limbs go low/empty → but `starved` only fires in `Playing` (pipeline.rs:709) and the seek already moved the session to Buffering (state.rs:443-453), so no spurious Underrun. The pre-mint `buffering` progress events carry the old generation and are suppressed at drain if superseded (session.rs:37-40) — no stale-state flash, doc 03 §5 point 8 (:880-882).
+- Repeated seeks during a starve-streak: `seek_flush` resets the limb queues; the streak counters reset with them (streaks are per-pipeline-generation state — clear in `seek_flush`, pipeline.rs:530-536, alongside `eof`/`pending`).
+- `PushOutcome::Stale`/`Closed` during a starved tick: already counted, not fatal (pipeline.rs:804-808) — unchanged.
+- Teardown during starvation: `teardown` closes after flush (pipeline.rs:468-475); parked producers wake `Closed` (queue.rs:305-315). No interaction with debounce state (dies with the pipeline).
+
+## Design C — Starvation metrics events
+
+### C1. Wire-visible: reuse the 3.B4 vocabulary, add nothing to the frozen catalog
+
+The catalog is frozen (D-017, session.rs:96; 23 rows, commands/catalog/event.rs:46-55). Starvation's wire truth is exactly two existing rows:
+
+- `session.state-changed{playing→buffering}` (never coalesced) — the stall fact.
+- `session.buffering{0.0..1.0}` — enter 0.0, in-episode progress ≤5 Hz (ProgressWindow, events.rs:113-116), exit 1.0 (session.rs:1578-1590). With B2's packets-axis posture the progress number stays the bottleneck-limb fill (pipeline.rs:697-707) — already monotonic and honest.
+
+3.B3's contribution is the *inputs* (per-kind thresholds, debounce) plus C2's counters. A dedicated `engine.queue-starved` catalog row is **[PROPOSAL]** for the Lead only if a host ever needs a non-buffering starvation signal (e.g. paused starvation); today paused fills to the watermark and parks (pipeline.rs:670-672), so no such signal exists to emit — record, don't invent.
+
+### C2. Engine-side starvation metrics (observability, not wire)
+
+Extend the engine's stats surface (the `EngineStats` family that already counts `outbox_dropped_receipts`, session.rs:81-86) with per-limb lifetime counters, sampled from `TickReport`:
+
+- `starve_episodes: u64` (count of Underrun transitions actually applied — incremented in the `Playing|Underrun` effect path, not on raw low observations, so debounce-filtered),
+- `starved_ticks: u64` (ticks any limb observed low, pre-debounce — the honest raw),
+- `full_rejections_by_axis: [u64; 3]` (summed `QueueStats::full_rejections` cross-referenced with the binding axis the queue reports — extend `PushOutcome::Full{binding}` accounting in `push_packet`, pipeline.rs:798-802, to tally per axis; this is the "which cap starves us" diagnostic),
+- `pending_hold_ticks: u64` (how long the held packet waited — the ingestion-stall metric; increment when `demux_step` re-offers a non-None `pending`, pipeline.rs:737-739).
+
+These ride the engine's existing stats/query seam (no new events, no new channels). If a wire surface is wanted later, the `system.log` row exists with rate limiting (event.rs:257-265) — a `[PROPOSAL]` note only.
+
+### C3. Storm guards (all reuse 3.B4 machinery)
+
+- `session.buffering` ≤5 Hz via `ProgressWindow` (events.rs:177-218) — already wired (session.rs:1583-1589).
+- Debounce (B2) bounds state-changed flapping: worst case `1/(debounce × tick)` Underruns — with default 2 and the v0 poll loop, ≪ doc 05 §3.4's 1000 events/s burst bound.
+- The OutputHub capacity drop policy (1024 live events, session.rs:70-76) is the final backstop; receipts are separately capped (W1-07's territory — do not touch).
+- Damage-coalescer pattern (1 s window, events.rs:118-121) is the template if C2 counters ever become events: aggregate-then-emit, never per-tick.
+
+## Design D — Read-into-borrow input API (kills M4)
+
+Goal: per movi chunk, **0 heap allocs for the header, ≤1 alloc for the payload (steady state 0 via slot recycling), 1 payload copy, 0 virtual seeks**; per idx1 entry, amortized ~0. Two stages; Stage 1 is the card's deliverable, Stage 2 is [PROPOSAL] (media-types is Lead-owned, R2).
+
+### D1. The plugin-api seam (Lead-owned surface — one provided method)
+
+```rust
+// crates/plugin-api/src/access.rs — SourceStream gains:
+/// Read up to `out.len()` bytes into caller memory at the current
+/// position. Same contract as `read` (short reads are data; Ok(0) only
+/// at end of stream; errors leave the position unchanged) without the
+/// per-call Vec allocation. Default: allocate-and-copy over `read`, so
+/// every existing implementation keeps working; local sources override.
+fn read_into(&mut self, out: &mut [u8]) -> Result<usize, EngineError> {
+    let chunk = self.read(out.len())?;
+    out[..chunk.len()].copy_from_slice(&chunk);
+    Ok(chunk.len())
+}
+```
+
+Precedent for a 3.x card editing plugin-api: 3.A1 landed the `Demuxer` seek hooks there (worklog 3.LAUNCH-1, 23b1915). R2 still applies — the Lead ratifies this exact shape at wave review; the audit's minor-note commit ("input read-into-borrow API → the 3.B3 card", audits/2026-10-22-directives-audit.md:72) is the grant.
+
+### D2. The input crate (card-owned: crates/input/**)
+
+`BufferedReader` grows three methods, all over the existing fixed window (buffered.rs:55-66) — no new state, no growth:
+
+```rust
+/// Read up to `out.len()` bytes at the current position (advancing).
+/// Copies window→out; refills only when the window is empty (the
+/// existing read loop, buffered.rs:186-203, minus the result Vec).
+pub fn read_into(&mut self, out: &mut [u8]) -> Result<usize, EngineError>;
+
+/// Fill `out` completely or fail typed: the exact-read discipline of
+/// read_exact_or_end (riff.rs:240-257) with the truncation check of
+/// confirm_eof (buffered.rs:222-229) — Ok(()) or Corrupt::Truncated.
+pub fn read_exact_into(&mut self, out: &mut [u8]) -> Result<(), EngineError>;
+
+/// Copy up to `min(out.len(), buffered())` bytes WITHOUT advancing:
+/// pure window math (buffered.rs:146-158 index arithmetic), no I/O, no
+/// seek, no alloc. Answers 0 when the window is empty (caller refills
+/// via read_into first). This is the peek the movi walk needs.
+pub fn peek_into(&mut self, out: &mut [u8]) -> Result<usize, EngineError>;
+```
+
+`FileStream`/`SyntheticStream` override `SourceStream::read_into` to delegate (file.rs:198-200, contract.rs:181-183 today delegate `read` the same way). The contract module grows the executable checks (contract.rs:16-31 pattern): `assert_read_into_contract` (varied chunk sizes reconstruct; position tracks; `Ok(0)` only at EOF) and `assert_peek_into_contract` (no advancement; window-bound honesty: peeks beyond the buffered window return what's buffered, never fabricate).
+
+### D3. The demuxer side (card touches crates/demux AVI read paths — ED-FIX-3's register row names this chain)
+
+`SourceReader` (riff.rs:187) grows the borrow-flavored twins of its three reads, all built on `SourceStream::read_into`:
+
+```rust
+/// Exact read into caller memory (the riff.rs:246-257 semantics).
+pub fn read_exact_into(&mut self, out: &mut [u8]) -> Result<(), EngineError>;
+/// Prefix read at absolute position (riff.rs:283-293 semantics, the
+/// D-3/D-9 clamp primitive) into caller memory.
+pub fn read_prefix_into(&mut self, out: &mut [u8], to: u64) -> Result<usize, EngineError>;
+/// Peek a chunk header at `pos` without moving the read position:
+/// 8 bytes via the stream's read_into + positional restore — for
+/// buffered locals that is window math, not I/O.
+pub fn peek_chunk_header_into(&mut self, pos: u64, hdr: &mut [u8; 8]) -> Result<(), EngineError>;
+```
+
+- **Header path**: `step_movi_inner` (mod.rs:433) parses from a stack `#[u8; 8]` via a new `ChunkHeader::from_le_bytes(&[u8; 8])` (riff.rs:75-81 gains a const constructor). Kills the 8-byte Vec + the double copy.
+- **Payload path**: the walk reads into a **demuxer-owned payload slot**, then hands it to the packet. Slot management (the D-1 pool, below) replaces the three `read_exact_or_end_at`/`read_prefix_at` Vec returns (mod.rs:485-538) with `read_prefix_into`/`read_exact_into` into the slot.
+- **idx1 batching**: `scan_movi_with`/idx1 parse (index.rs:243-244) reads blocks of 256 entries (4 KiB) into a reused block buffer and parses entries by index arithmetic — per-entry allocs collapse to per-block.
+- Byte budget discipline is unchanged: single reads stay ≤ `READ_STEP_MAX` (riff.rs:161) by construction (the caller's buffer is the budget); payloads stay ≤ `MAX_CHUNK_PAYLOAD` (mod.rs:108, checked at mod.rs:463 before any read).
+
+### D4. The payload home: bounded slot pool over `SharedBytes` (std-only, no media-types change)
+
+`SharedBytes` is `Arc<[u8]>` (packet.rs:12) with `from_vec` (move, free) and `get_mut` — the refcount-1 recycle primitive, already documented as the D-1 pattern (packet.rs:40-52; ED-FIX-2 used the same rotation for audio quantums, worklog 1672). Design:
+
+```rust
+/// crates/demux — the demuxer's payload slot pool (D-1: bounded,
+/// recycled; the pool size IS the payload memory bound).
+struct PayloadSlots {
+    slots: Vec<SharedBytes>,   // fixed capacity, allocated at start()
+    next: usize,               // round-robin cursor
+    capacity_bytes: usize,     // per-slot size: MAX_CHUNK_PAYLOAD-ceiling?
+                               // NO — see below: slot size is a clamped
+                               // figure (64 KiB default) with a rare
+                               /// spill path for oversized payloads.
+}
+```
+
+- Slot size default 64 KiB (matching `READ_STEP_MAX`/the input window); payloads larger than a slot (rare: MAX_CHUNK_PAYLOAD is 32 MiB, mod.rs:108) take the **spill path**: a fresh exact-size Vec → `SharedBytes::from_vec` (today's behavior — still just 1 alloc + 1 copy, a strict improvement). `[PROPOSAL]`: cap the pool at 2 slots × 64 KiB per demuxer (256 KiB steady-state payload memory, bounded and tiny) — spills are the honest oversized escape.
+- Steady state per packet: pop next slot → `slot.get_mut()`; if `None` (a queued packet still holds a clone — the queue is deep), **spill** rather than wait (never block the demux thread on consumer progress — that would be a second backpressure channel). → `read_prefix_into(slot_bytes)` (copy #1, the only one) → `packet.data = slot.clone()` → push. When the consumer drops its clone the slot's refcount returns to 1 and the next cycle reuses it.
+- The pool's Arc rotation means the *queue's byte cap counts shared chunk bytes per packet* (Weigh counts `data.len()`, stamped.rs:99-103) — correct: that is resident memory the queue is accountable for. The pool adds at most `capacity × slot_size` of not-yet-consumed slots — a separate, small, fixed budget, stated in the module docs (bounded-memory proof target for E3).
+
+### D5. Stage 2 [PROPOSAL] — true zero-copy via a SharedBytes range flavor
+
+To remove the final copy, `SharedBytes` would grow an `(Arc<[u8]>, offset, len)` flavor so packets can own sub-ranges of pooled chunks (the `bytes::Bytes` shape, std-only). That is a media-types change (R2, Lead-owned) with a broad blast radius (Debug/Hash/PartialEq impls, packet.rs:11-69). **Out of scope for 3.B3**; recorded here as the follow-up with its motivation (the 1-copy path is already within D-1's letter — no per-packet *allocations* in steady state). The read-ahead budget from A4 (`cache_demux_mib`) maps to the pool in Stage 2 (more slots = deeper read-ahead); in Stage 1 the read-ahead remains the `BufferedReader` window (`FileAccess::with_buffer_capacity`, capped under 16 MiB per D4-conflict note).
+
+## Design E — Property-test plan (the card's AC)
+
+AC verbatim (doc 13:378): "property tests with synthetic producers/consumers — no deadlock, bounded memory under burst (doc 03 §8)". Convention: **hand-rolled seeded XorShift + model oracle** (packet-queue/tests/limits.rs:36-91 is the template; the doc's own words: "single-threaded, seeded model driver", limits.rs:2-5). **No proptest** — not in Cargo.lock, C5 forbids the dep without Lead approval, and 3.D3 (:395) will harvest these suites into `tests/property/**` later without a framework switch. Every failure prints its seed (limits.rs:36-37 discipline); fixed seed list in CI + one env-gated sweep (`LUMEN_PROP_SEEDS`, the env-gated-suite precedent from the corpus system, worklog 1713).
+
+### E1. Queue-level: synthetic producers/consumers, no deadlock
+
+Extend `crates/packet-queue/tests/` (card-owned):
+
+- **`limits.rs` extension (the model driver)**: the interleaving vocabulary grows `push_wait_bounded(tick)` (parking push with a virtual deadline), `pop_wait_bounded(tick)`, `close`, and *burst mode* (a run of K pushes before any pop). The oracle (limits.rs:58-91) already computes exact fits/`Full` verdicts; extend it with the conservation law `pushed == popped + resident + flushed + stale_rejected` (check_q1's identity, limits.rs:113-118, promoted to a per-step assert) and the hysteresis laws: `low ⇒ usage.packets ≤ stall_threshold` and `high ⇒ usage ≥ resume_threshold` on some axis, for engine-shaped thresholds.
+- **`concurrency.rs` extension**: (a) *burst storm* — 4 producers flood `push_wait(None)` until parked, one consumer drains at seeded paces; assert all items delivered exactly once, park count == producer count (the parked-MPMC shape, concurrency.rs:414-497, generalized over seeds), and the global wall-clock budget turns a lost wakeup into a loud failure (concurrency.rs:411-412 discipline). (b) *deadlock triad* — seeded interleavings of {flush, close, push_wait, pop_wait} from 2 threads each; join-with-budget assertions (5 s) with the seed in the panic message. No-deadlock is asserted as **termination within budget**, the only sound form for condvar code (bounded virtual time in the threaded world = deadlines on every park; the parking API already demands them, queue.rs:469-485).
+- **Flap property (B2)**: a seeded fill/drain schedule drives a 2-limb fake; assert no Underrun→Primed cycle shorter than the debounce window and resume only when both limbs ≥ resume threshold. Engine-level (E5) proves the state-machine half; this half proves the threshold/debounce arithmetic in isolation.
+
+### E2. Engine-level: synthetic pipeline on the existing fakes
+
+Reuse the tested vocabulary: `ScriptSource`/`SyntheticStream` (input/contract.rs:45-166) as the byte source; a **scripted-burst demuxer** (the fake `Demuxer` pattern from playback-engine/tests/seek_flow.rs + contract_suite.rs) emitting packets on a seeded timeline: bursts of B packets, stall gaps of G ticks, configurable payload sizes and durations (including unknown-duration packets — the stamped.rs:92-95 wedge case); a **pace-configurable fake decoder** (decode latency in ticks) and `FrameConsumer` collector. Drive `Engine::poll` in a loop with `EventPolicy` over an injected `MonotonicSource` (events.rs:320-340) = **virtual time for every throttle window** (ProgressWindow's `permits` is deterministic under a frozen/stepped source, events.rs:198-218 — the no-deadlock-under-virtual-time assertion for the *event* path: a frozen clock must permit exactly one in-episode emission, never block the tick).
+
+### E3. Bounded-memory-under-burst assertions (three instruments)
+
+1. **Usage sampler** (extend concurrency.rs:323 pattern): during the burst storm, a sampler thread continuously asserts `usage ≤ caps` on all three axes + `VecDeque` capacity ≤ `min(max_packets, 1024) + slack` (the constructor's pre-size, queue.rs:243). Best-effort sampling, but any observed violation is a real Q1 break (concurrency.rs:319-321's own honesty note).
+2. **Counting allocator** (testkit::alloc_count — the ED-FIX-2 instrument, alloc_count.rs:1-31, dedicated integration-test binary per crate, `serialize_tests()` whole-binary): (a) steady-state push/pop loop over a pre-filled queue allocates **0** (the mutex/deque path — today's code should pass; the test is the regression fence for 3.B3's changes); (b) the **movi walk**: an in-memory AVI with ≥1000 chunks walked to EOS with the slot pool warm allocates 0 per chunk after warm-up (header path) — the M4 kill proof; (c) idx1 parse over ≥256 entries allocates O(blocks), not O(entries).
+3. **Engine burst scenario**: 100k-packet synthetic walk through `Engine::poll` with an alloc guard around the loop: total allocations bounded by a stated constant × limbs (events and scratch are reused — D-1; `ended_limbs` scratch precedent, pipeline.rs:306-311).
+
+### E4. Config/validation property
+
+`QueuePlan::from_product_limits` over the seeded integer domain: every accepted plan satisfies caps-in-schema-ranges, `stall < resume`, and the derived thresholds are within caps; every rejected input carries the typed axis (a constants test pins the engine's duplicated floors/ceilings against product.schema.json's values — parse the JSON in the test, dev-dep-free via a tiny literal check or `serde_json` already in the workspace for commands; if pulling the schema file into a playback-engine test is unwanted, pin literals + a comment pointing at the schema and mark `[VERIFY]`).
+
+### E5. Existing tests to keep green (never weaken — AGENTS.md §3.5)
+
+limits.rs:318-330 (doc-03 defaults pinned — do not change when the constructor is added), limits.rs:400-437 (watermark predicate — untouched by B2's engine-side dodge), backpressure.rs:369-392 (watermark cycle over default thresholds — still true: the default engine thresholds keep the all-axes shape *inside packet-queue*; only `QueuePlan::thresholds` output changes if the Lead ratifies the packets-axis low, and then this test's engine-side twin, not the queue-side one, updates), session_flow.rs:598-641 (rebuffer cycle — debounce default 2 must not break the underrun test; it fires after N consecutive starved ticks, and the scripted stall is permanent, so it still triggers — pin this in the test's comment), table.rs:340-388 (signal translation — unchanged).
+
+## Design F — Risks, open questions, and implementation order
+
+### F1. The 5 riskiest integration points
+
+1. **`plugin_api::SourceStream::read_into` default method** (D1) — R2 Lead-owned trait; every implementor (FileStream, SyntheticStream, plugin-api's own test MemStreams, future streaming) inherits the alloc-copy default silently. Wrong signature = permanent tax on Phase 6 streaming. Mitigation: the exact snippet above + contract check (D2) that every override honors position semantics; Lead ratifies at review.
+2. **`QueuePlan::for_kind` signature change + subtitle lane** (A3) — the same region 3.A3/W1-18 will touch for track switching; a mid-flight collision would force one agent to rebase typed-signature changes. Mitigation: 3.B3 lands the exhaustive `Option<QueueLimits>` mapping first; 3.A3 consumes it (wave order already sequences 3.A2 → 3.B3 → 3.A3-adjacent; the Lead's merge order enforces it).
+3. **The `MAX_BUFFER_BYTES`(16 MiB) vs schema `cache_demux_mib`(≤512 MiB) conflict** (A4/D4) — wiring the read-ahead naively turns today's *default* product.toml value into a typed open failure. Mitigation: `with_read_ahead_budget` chunking under the ceiling (D4); decision recorded for the Lead (chunk vs clamp schema).
+4. **session.rs co-edits with W1-07's bounded inbox/outbox** (C2's counters live next to `EngineStats`; B2's debounce state lives in pipeline.rs but its events ride the same emissions struct) — merge-order dependency, not a design conflict. Mitigation: 3.B3 rebases on the W1-07 merge; the counters are additive fields, no policy interaction with inbox bounds.
+5. **The stall-debounce changing observable rebuffer timing** (B2) — every scenario test that asserts an underrun after a scripted stall (session_flow.rs:598, seek_flow.rs:998-1018) depends on when `starved` fires; a naive streak counter also *delays the first real underrun* by N ticks. Mitigation: debounce applies to **re-entry after a primed episode** (streak counting starts at the last Primed/Seek transition), keeping first-stall latency at 1 tick — spell this out in the implementation and pin with a new test; default 2 ticks is `[PROPOSAL]` pending 3.B1 sync observations.
+
+### F2. Open questions for the Lead (decide before/at wave review)
+
+1. Ratify the A5 config keys + ranges (queue byte/duration axes, subtitle lane, stall/resume fractions, debounce) — Lead-owned files; snippets in the report.
+2. Ratify the packets-axis-low engine posture (B2) vs changing packet-queue's low predicate (rejected here: weakens pinned tests' meaning, AGENTS.md §3.5; the predicate is also plausibly right *for the library* — the policy belongs to the engine, doc 03 Q4 :369).
+3. Decide A4's chunking-vs-schema-clamp for `cache_demux_mib`.
+4. Confirm the slot-pool constants (2 × 64 KiB default, spill path) as the D-1 payload budget (D4) — it is new bounded memory, small but policy.
+5. Whether Stage-2 zero-copy (D5) is carded now or deferred until a profile shows the single copy mattering (D-6: no perf claims without measurement — the E3(b) proof is the measured basis for deferring).
+6. The 1024/512 product.toml packet caps vs 200/300 doc-03 defaults divergence (A2) — confirm config-wins-when-injected is the intended posture (it follows from MP §5's config authority, but the numbers were authored in different phases and were never reconciled on record).
+
+### F3. Ordered implementation steps for the Wave-2 agent
+
+1. packet-queue: E1 model-driver extensions + conservation/flap properties (pure test additions, no src changes expected).
+2. playback-engine pipeline.rs: `QueuePlanError`, `from_product_limits`, subtitle lane, `for_kind → Option`, thresholds per-kind + packets-axis low; `Limb.low_streak` + debounce; TickReport counters (C2). Unit tests per E4/E5.
+3. playback-engine session.rs: stats surface extensions (additive), event wiring unchanged except starve-episode counting.
+4. input: D2 `read_into`/`read_exact_into`/`peek_into` + contract checks; `FileAccess::with_read_ahead_budget` (A4).
+5. plugin-api: D1 provided method (Lead-ratified shape).
+6. demux AVI: D3 reader twins + stack headers + idx1 blocking; D4 slot pool; E3(b)/(c) alloc proofs.
+7. Host wiring snippet (A4) — delivered in report for Lead merge.
+8. Gate: C3 commands verbatim (fmt/check/clippy/test workspace), plus the dedicated alloc binaries.
+
+Out of scope (recorded, not done): Stage-2 SharedBytes range flavor (D5); threaded demux/park integration (2.E1/Phase-3 threading — the queue API is already proven for it, concurrency.rs); any new wire event (frozen catalog); W1-07's session bounds; 3.D1's full virtual clock (StepClock suffices here).
+---
+Task ID: W1-20
+Agent: post-merge re-audit (read-only verification)
+Task: Verify merged main @ 8e3e052 actually satisfies the directives-audit register rows C1-C4 (ED-FIX-1), C5-C7+M2/M3/M18 (ED-FIX-2), M4-M8+M19 (ED-FIX-3), M13 (measurement); adversarial anti-echo-chamber check (real fixes vs ceremonial); spot-check 3.A1 seek + 3.B4 events. NO code changes, NO cargo — grep/read/git only.
+
+Work Log:
+- Read docs/audits/2026-10-22-directives-audit.md (all rows), AGENTS.md §4, worklog.md ED-AUDIT/ED-DISPATCH-1/ED-CORPUS-1/3.WAVE-PROGRAM entries, .agent-brief-edfix2.md.
+- Confirmed merge topology on main @ 8e3e052: 1762054 (ED-FIX-3), bdd7a5e (3.B4), a9e66a7 (ED-FIX-2), 433803b (ED-FIX-1); per-file git history cross-checked against each row's cited sites (lines drifted; located by symbol).
+- ED-FIX-1 (crates/codecs/src/video/mjpeg/): read idct.rs, color.rs, huffman.rs, bitreader.rs, decoder.rs, mod.rs in full.
+- ED-FIX-2: read renderer-wgpu/src/staging.rs + backend.rs; audio-engine/src/convert.rs, mix.rs, pipeline.rs; audio-output/src/null.rs; testkit alloc_count instrument + all 3 zero-alloc proof binaries; video-engine/src/scheduler.rs; media-types/src/time.rs; apps/desktop transport.rs, wire.rs, bridge.rs, mailbox.rs; `git diff 31161d8 7b8241f --stat` for the ED-FIX-2 branch.
+- ED-FIX-3: read demux/src/avi/header.rs, mod.rs, index.rs, riff.rs (+ tests.rs symbol scan); media-probe/src/signature/avi.rs + mp4.rs; fixture expectations for negheight0/absidx1.
+- M13: read codecs/tests/benches.rs, tools/corpus/ presence, corpus reports referenced in worklog.
+- 3.A1/3.B4 spot-check: playback-engine/src/pipeline.rs seek_flush/demuxer_reanchor/seek_preroll; session.rs OutputHub/inbox/receipt caps.
+- Adversarial sweep of the NEW fix code for D-1/D-2 regressions, phantom evidence claims, and guarded-off/bypassed fixes.
+
+## VERDICT TABLE (current file:line on main @ 8e3e052)
+
+| Row | Verdict | Evidence (current code) |
+|---|---|---|
+| C1 | **FIXED** | idct.rs:120-186 `idct8` factored transform (≤22 i64 mults/8-pt vs naive 64, zero-frequency-group skips); idct.rs:197-202 zero-AC fast path (direct DC placement, both passes skipped); dequant folded into pass 1 (208-216); naive matrix multiply demoted to `#[cfg(test)]` oracle `idct_block_naive` (244); bit-exactness pinned by `factored_idct_is_bit_exact_vs_naive` (8192 random blocks + structured). Measured ~2.3x avg on the D-11 corpus (worklog ED-CORPUS-1). NOTE: card text said "i32"; implementation is factored **i64** per Lead decision ED-c (bit-exactness; i32 only where provably small — module docs 60-62). Deviation is documented and defensible. |
+| C2 | **FIXED** | color.rs:126 `sy` hoisted once per row per plane (only divisions left: 3/row); color.rs:150-156 `RowSampler::step` additive Bresenham (exact floor, zero division); chroma-presence match hoisted (`compose_color_row` 223 / `compose_gray_row` 248); i32 math `ycc_to_rgb` 52-64; cold per-sample path only for hand-built inconsistent geometry (documented unreachable for decoder planes); equivalence pinned by `compose_row_matches_the_per_pixel_reference`. |
+| C3 | **FIXED** (open fidelity regression ED-FIX-1b) | huffman.rs:54 `lut: [(u8,u8); 256]`, built 95-109, hit at 134-143 with honest length-vs-available check (padding can't fabricate); slow MINCODE/MAXCODE walk only 9..=16 (156-180). bitreader.rs: 32-bit accumulator, word-granular `refill` 117-123, `peek8_padded` 151, `consume` 162; bit-at-a-time `next_bit` now `#[cfg(test)]` (178). Equivalence: `lut_decode_matches_the_bit_walk_on_random_streams` (600 rounds) + committed digests. CAVEAT: D-11 corpus caught the LUT/word-refill path concealing on 5 files the old decoder decoded cleanly (tiny64odd PSNR 8.7 dB / max_abs 128) — ED-FIX-1b registered, W1-01 triage in flight. Fix is real; fidelity follow-up open. |
+| C4 | **FIXED** | decoder.rs:220-239 `DecodeContext` (planes, dc/ac tables, cursors, out buffer); geometry-keyed `prepare_planes` 430-502 (`clear`+`resize` on retained allocs, PlaneKey compare); DHT-keyed `prepare_tables` 506-540 (LUT rebuild only on payload change); I420 crop-in-place `crop_plane_into` 665-678 (no intermediate Vec); production holder real: mod.rs:216 `MjpegDecoder.context`, decode→`take_output` per packet (mod.rs:269-273). Tests: `context_reuse_is_bit_exact_and_reallocates_only_on_change`, `concealment_does_not_leak_across_frames`, `take_output_hands_off_the_buffer`. MINOR NEW VIOLATION (see below): `DhtKey::of` clones `huff_vals` **per frame** (decoder.rs:207-212) — contradicts the module's "exactly one allocation per frame" claim (51-54). |
+| C5 | **FIXED** | staging.rs:42-98 `RecyclePool` (bounded `RECYCLE_SLOTS=3`, best-fit acquire, drop-return); `StagedFrame::drop` returns buffer to pool (120-128); `stage` acquires (286). backend.rs:68-72 `SoftwareCompositor` persistent `block`; 123-124 clear+reserve in place; row-slice fast path when `src.width==dst.width` (133-150, D-2 single row copy — covers height scaling too). Tests: `staged_buffers_return_to_the_pool_and_are_reused`, compositor PNG-hash suite. NIT: Bgra8 staging swizzle still per-pixel 4-byte `extend_from_slice` (staging.rs:293-297) — single pass, no alloc, cold-ish. |
+| C6 | **FIXED** | convert.rs:157-161 `resize_with` (never `clear()`-dropping inner Vecs) + per-plane `clear`/`reserve`; reciprocal multiplies 38-41 (exact pow-2); monomorphic per-format macros 103-124; `planes_to_f32_interleaved_into` caller-owned zero-alloc interleave 232-250. pipeline.rs:81 `out_slots` pooled `SharedBytes` rotation bounded `OUT_SLOTS=4` (`pooled_output` 280-322, `get_mut` in-place fill); mix.rs:91-124 takes `&[Vec<Vec<f32>>]` directly — refs Vec dead. **Zero-alloc proof**: tests/zero_alloc_quantum.rs — 512 quanta process+mix+take_output = 0 bytes (counting allocator). NIT: pipeline.rs:202 `frame_to_f32_planes(...)?` early-return drops the taken scratch on the corrupt-frame error path (cold path only — planes realloc next quantum). |
+| C7 | **NOT FIXED** | apps/desktop **untouched** by ED-FIX-2: `git log` shows transport.rs/wire.rs/bridge.rs last modified at f2f2885 (2.D3, pre-audit); branch diff 31161d8..7b8241f contains zero apps/desktop files. Violation persists verbatim: transport.rs:211 fresh `WireDecoder::new()` per `send`; wire.rs:371-372 `pending[..total].to_vec()` + `drain(..total)` (full-frame copy + O(n) drain); in-process handoff still does encode→feed→decode roundtrip per frame. Merge message a9e66a7 claims "C5-C7" — **overclaim**. Row absent from the wave-1 backlog (worklog 1714) — silently dropped. Brief item 9 was explicit; the branch continuation note (ea1a218) listed "desktop transport" as TODO; Lead salvage 7b8241f did not do it. |
+| M2 | **FIXED** | null.rs:171-178 fixed stack chunk `[0f32; 256]` + `f32::from_le_bytes` reinterpretation, ring receives byte-identical samples; zero-alloc proof tests/zero_alloc_null_sink.rs (counting allocator). |
+| M3 | **NOT FIXED** | video-engine/src/scheduler.rs unchanged since 2.C4 (a813905, pre-audit). `TickDrops::default()` fresh per tick (339), `drops.late: Vec<Timestamp>` push per late drop (375, pub field at 147), fresh `superseded` Vec collect per presenting tick (392-395). Registered "fixed-capacity drop arrays" absent. Note: only video-engine's own tests consume `drops` — the feared cross-crate pub-field constraint does not bind; fix would be unconstrained. Row absent from wave-1 backlog — silently dropped. |
+| M4 | **PARTIAL (deferred by the register's own routing)** | Dirty-world halves delivered (see M7/M8). Read-chain allocation root cause remains by design: 8-byte heap alloc per chunk header (riff.rs:247 `Vec::with_capacity` via `peek_chunk_header` 308-314), 16-byte heap alloc per idx1 entry (index.rs:244 `read_exact_or_end_at(16, ..)` per entry, up to 524k allocs/parse), per-packet payload intermediate Vec + copy (mod.rs:485-508 → `SharedBytes::from_vec` 578), 2 seeks per peek (seek-read-seek-back). Register routes this to card 3.B3 ("input read-into-borrow API kills M4's root cause"); W1-18 recon in flight — **tracked, but must stay visible when 3.B3 scopes**. Seek-time ladder replay now table-driven (`replay_ladders` index.rs:169-182, no re-reads). |
+| M5 | **FIXED** | header.rs:568-582: `biHeight` read **signed** (`riff::i32le`), negative = bottom-up DIB → `unsigned_abs` + damage note `negative-biheight-bottom-up`, stream ACCEPTED; absurd dims (|i32::MIN|) skip the stream (577-581). Test tests.rs:549 `negative_biheight_accepts_bottom_up_dib_with_damage`; fixture negheight0 (class-B, expectation committed). |
+| M6 | **FIXED** | header.rs `parse_strl` 442-662: every degenerate case returns `Ok(None)` (skip stream) with a named damage reason — strh-too-short 465-469, zero-rate-or-scale 526-531, strf-missing 556-558, strf-too-short 560-562, dimensions-out-of-range 577-581, bad-pcm-format 618-626, pcm-sample-size-zero 627-631. Siblings survive; all-bad files surface the caller's typed no-supported-streams refusal. Tests: short_strh/zero_rate/channels_over_ceiling siblings-survive. |
+| M7 | **FIXED** | mod.rs `step_movi_inner`: past-EOF chunk → real prefix + `chunk-payload-past-eof` damage + EndOfStream terminal (509-521, not fatal); past-list-bound-but-inside-file → clamp to bound + damage + resume at bound (522-537, not silent); over-ceiling size → positional skip + damage (463-468); truncated movi → typed truncated error, never silent EOS (420-427). Test tests.rs:1288 `truncated_movi_payload_delivers_prefix_damage_then_eos`. |
+| M8 | **FIXED** | index.rs: clamp **before** cap (212-227: `payload = declared.min(available)` + `idx1-size-past-available` damage, then cap check); absolute-base autodetect `probe_offset_base` 324-357 (FFmpeg-style: candidate must sit in movi AND fourcc at position must match; relative wins ties; absolute → damage note `idx1-absolute-offsets` 263-267); **coalesced** per-reason damage (234-236, 298-308 — one event per reason, count rides the byte total: no 524k-event storm); partial trailing entry → `idx1-partial-entry` (295-297). Tests: 1094 autodetect-and-seek, 1047 lying-size-clamps; fixture absidx1. |
+| M19 | **FIXED** | (a) mjpa/mjpb: probe deliberately unhints (avi.rs:154-158 stage-agreement rationale) + demuxer filters like any unsupported handler (tests.rs:709, V8) — stages AGREE on honest non-support. (b) cut-in-RIFF-head → typed **truncated** flavor, not Unsupported (mod.rs:857-868, 971-980). (c) wasm32: saturating advance chains in both probe walks (avi.rs:96-104, 137-141). (d) channels ceiling `MAX_PCM_CHANNELS=64` (header.rs:248, 609-611 skip-stream-with-damage). LATENT NOTE: mp4.rs:268 still hints mjpeg for mjpa/mjpb handlers in MP4 — no MP4 demuxer exists yet, so no live disagreement, but the MP4-demux card must settle that row or it re-creates M19. |
+| M13 | **PARTIAL** | Delivered and real: (1) counting-allocator instrument testkit/src/alloc_count.rs (std-only GlobalAlloc, guard/snapshot design) + in-gate zero-alloc proofs: zero_alloc_quantum (512 quanta, 0 bytes), zero_alloc_null_sink, alloc_count_e2e (instrument self-proof); (2) codecs/tests/benches.rs — 2 throughput probes through the contract path (fixture ≥60fps floor; synthetic dense-AC 4K ≥60fps realtime floor, zero-AC fast path deliberately defeated); (3) D-11 randomized corpus (486 files) + before/after reports — ED-FIX-1 measured ~2.3x avg, and it caught a real regression. GAPS: (a) the **renderer present-path zero-alloc proof does not exist** (no CountingGlobalAlloc user in renderer-wgpu) yet staging.rs:489-491 claims "the counting-allocator proof binary measures exactly zero bytes across steady-state presents" — phantom evidence; (b) benches.rs:3-4 says "numbers are committed in the worklog ED-FIX-1 entry" — **no ED-FIX-1 entry exists in main's worklog.md** (agent entries never merged; the real numbers live in ED-CORPUS-1's AFTER-report); (c) benches are `#[ignore]` (documented Lead decision ED-a — acceptable, but not gate-enforced). |
+| 3.A1 seek | **COMPLIANT** (spot-check) | pipeline.rs:521-574 `seek_flush`: queues stay OPEN (no teardown), decoders flushed to Drained through a generation-checking sink then **reconfigured in place** (562-569, not destroyed), held packet dropped, EOF reset for backward seeks, budget-bounded flush with straggler drop-at-sink guarantee, honest D4 failure path ("seek fails honestly... pipeline limps on"); `demuxer_reanchor` 591-93 compute-then-commit; pre-roll observation window armed after flush (572). |
+| 3.B4 events | **COMPLIANT** (spot-check) | session.rs: bounded `sync_channel(INBOX_CAPACITY=64)` inbox with typed `InboxBusy` (315-320, never blocks/drops); OutputHub: 1024 live-event capacity + separate hard receipt cap + `dropped_receipts` counter, tombstone O(1) push (no memmove), forward-only cursors, amortized in-place compaction (378-460+); upstream damage coalescing (M8) bounds event storms at the source. No new violations found in the merged events code. |
+
+Stage Summary:
+- **Counts (17 audited rows): FIXED 12 (C1, C2, C3*, C4, C5, C6, M2, M5, M6, M7, M8, M19) · PARTIAL 2 (M4—deferred to 3.B3 per register; M13—instrument real, renderer proof missing) · NOT FIXED 3 (C7, M3, M18).** (*C3 fixed but carries the registered ED-FIX-1b 5-file concealment regression, W1-01 in flight.)
+- **The headline finding: ED-FIX-2's merge message claims "C5-C7" but C7 (apps/desktop transport) was never touched** — same for M3 (scheduler drop arrays) and M18 (time.rs reciprocal), both explicit brief items (7, 8, 9 of .agent-brief-edfix2.md), both listed as continuation TODOs on the branch (ea1a218) and never finished; all three are ABSENT from the wave-1 backlog (worklog line 1714). Three registered rows silently fell out of the plan while the merge note reads as delivered. Anti-echo-chamber answer: ED-FIX-1 and ED-FIX-3 are real and thorough; ED-FIX-2 is ~60% real (C5, C6, M2, most of M13) with three rows ceremonial.
+- **New violations found in fix code (minor, none blocking):**
+  1. `DhtKey::of` clones the full DHT payload **per frame** (decoder.rs:207-212 called unconditionally in `prepare_tables`) — 2-4 small heap allocs/frame, contradicting decoder.rs:51-54's "exactly one allocation per frame" claim. Fix is easy: field-wise compare without materializing the key.
+  2. Phantom evidence: staging.rs:489-491 cites a renderer zero-alloc "proof binary" that does not exist (no CountingGlobalAlloc user in renderer-wgpu).
+  3. Phantom reference: benches.rs:3-4 cites "the worklog ED-FIX-1 entry" — no such entry exists on main.
+  4. staging.rs:550-551 test comment "A clone shares nothing pooled" is wrong — `derive(Clone)` copies the `recycle: Option<Arc<RecyclePool>>`, so cloned frames DO release their Vecs into the pool on drop (bounded at 3 slots; behavior safe, comment inaccurate).
+  5. `#[ignore]` inventory grew from the audited "exactly 4" to 10 (2 benches + 4 corpus suites) — all reason-tagged and worklog-recorded (documented creep, note only).
+- **Follow-ups for the Lead (ordered):** (1) re-register C7 + M3 + M18 (new card or fold into ED-FIX-4/Wave-2 — they are NOT owned anywhere today); (2) fix the DhtKey per-frame clone when touching codecs next; (3) either add the renderer present-path zero-alloc proof or correct the staging.rs comment; (4) correct benches.rs's stale worklog pointer (point at ED-CORPUS-1's AFTER-report); (5) keep M4's read-chain root cause visible in 3.B3's scope (W1-18 recon should carry it); (6) mp4.rs mjpa/mjpb hint row must be settled by the future MP4-demux card (latent M19 re-creation).
+- Read-only audit: no code changed, no cargo invoked. All evidence is file:line on main @ 8e3e052.
+---
+Task ID: 3.WAVE1-CLOSE (Lead)
+Agent: Lead
+Task: Wave 1 of the 10-wave program — merge, verify, gate, dispatch analysis.
+
+Work Log:
+- 18/20 agents returned; W1-06 (C8 host seek) + W1-09 (M10 pre-roll hold) died on transport deadline WITH uncommitted salvage in their worktrees (w1-06: host.rs/demux_host.rs/pipeline_host.rs + probe_seek.rs; w1-09: pipeline.rs/seek.rs/session.rs/seek_flow.rs/scheduler.rs) — worktrees preserved for Wave-2 continuation agents.
+- Merged 10 branches (w1-02/04/07/08/10/11/12/13/14/15) with one real conflict (session_flow.rs W1-07×W1-08): naive union was WRONG (interleaved shared tails); rebuilt via checkout-of-parent-blob + git apply --3way + brace fix; lesson recorded (scripts/resolve_w1_session_flow.py kept as the anti-pattern record).
+- Applied W1-10's Lead wiring verbatim (session.rs drain_into → is_stale_at_drain + the verified M11 regression test; scripts/m11_regression_test.rs) — playback-engine 111/0.
+- INFRA INCIDENT (systemic, root-caused): shared CARGO_TARGET_DIR bin-slot clobbering — env!("CARGO_MANIFEST_DIR") is baked at compile time; agents' worktree builds of xtask/localization wrote target/debug binaries pointing at now-deleted worktrees → phantom fixtures DRIFT + phantom locales test failure. Cure: rm+touch-rebuild xtask, then `cargo clean --profile dev` (3.6 GiB) + full rebuild from merged main. WAVE PROTOCOL FIX: at every wave close, `cargo clean --profile dev` before the gate — the gate's own compile is then provably from main.
+- DISK INCIDENT: rootfs hit 100% mid-gate (0 bytes free) — 12 worktree checkouts + private target dirs + corpus growth. Cure: rm worktrees/*/target + remove 10 merged worktrees (2.0G freed). Protocol: wave-close worktree pruning is mandatory.
+- Cross-branch test interaction fixed: pcm_fuzz_survival edge-lie pinned pcm.waveformat.tag; W1-02's merged extensible taxonomy returns the more-precise pcm.waveformat.extensible — expectation updated to the new code (equal strength, better precision). codecs 150/0.
+- Corpus: corpus-big/ = 310 files / 1095 MiB clean (seed 63117490995983871645529930018, plan.json is the reproducibility anchor); .gitignore'd. W1-05 proved setsid cannot survive tool-call kills — foreground-chunked generation is the pattern.
+- FINAL GATE: PASS — fmt CLEAN, clippy CLEAN, tests 1493 passed / 0 failed / 15 ignored (baseline ~1362 → +131), arch 5/5, fixtures no-drift 52. Raw log: /tmp/w1-gate4.log (mirrored into docs/gates/logs/wave1-merge.test.log by this commit).
+
+Stage Summary:
+- Wave 1 delivered: pcm fourcc/extensible recognition (oracle 16/57→57/57, 6/6 byte-exact), M9 concealment (1000-budget policy), M11 epoch-hub + wiring, M17 graceful exit, M14 fuzz scaffold + phantom materialized, M15 external oracle pins, M16 adversarial suites + real idx1-ordering bug fixed, harness decoded-rows, W1-01 refuted the ED-FIX-1b "regression" (it is ED-FIX-3 delivering MORE oracle-matching packets; concealment on dirty prefixes is correct) with a harness-fix prescription, W1-03 classified all 19 audio mismatches (all 0xFFFE) + filed 2 real dirty-walk bugs, four Phase-3 designs (3.A2/3.A3/3.B1/3.B3), W1-20 re-audit: 12 FIXED / 2 PARTIAL / 3 NOT-FIXED (C7 desktop transport, M3 scheduler arrays, M18 time reciprocal — silently dropped from ED-FIX-2, now Wave-2 cards) + new findings (DhtKey per-frame clone, phantom evidence comments).
+- Wave 2 roster (20, launching next): 2 salvage continuations (W1-06/W1-09), 4 re-audit fixes (C7/M3/M18/DhtKey+comments), 1 dirty-walk bug card, 3 harness/oracle cards (clean-dirty split, suite emission gaps, corpus-big measurement), 4 Phase-3 implementations (3.A2/3.A3/3.B1/3.B3), 4 adversarial verifiers of Wave-1 fixes, 2 recons (3.C*, 3.D*).
+Task ID: 3.WAVE2-LAUNCH (Lead)
+Agent: Lead
+Task: Wave 2 launch — 20 agents (2 salvage, 12 new worktrees, 6 worktree-less).
+
+Work Log:
+- Wave 1 closed at 3d246ed (gate PASS 1493/0/15, +131 tests). Root-caused infra: shared-target bin-slot contamination (cure: cargo clean --profile dev at wave close) + disk exhaustion (cure: worktree pruning).
+- Roster: W2-01/02 salvage continuations (C8 host-seek w1-06, M10 pre-roll w1-09); W2-03..07 re-audit fixes (C7, M3, M18, DhtKey+comments, dirty-walk bugs); W2-08..10 harness/measurement (clean-dirty split, suite rows, corpus-big run); W2-11..14 Phase-3 impls (3.A2/3.A3/3.B1/3.B3 from W1-16..19 designs in worklog.md); W2-15..18 adversarial verifiers (patch writers, Lead applies at close); W2-19/20 recon (3.C*, 3.D*).
+
+Stage Summary:
+- Wave 2 in flight. Disk guard: corpus-big (1.3G) is the emergency valve.

@@ -71,3 +71,9 @@ tool-results/
 # generator + manifest commands in-repo are the reproducibility anchor.
 /corpus/
 /corpus-smoke/
+
+# Parallel-wave agent queue (Lead merges at wave close)
+/worklog-queue/
+
+# Wave-1 corpora (regenerable via recorded seeds; too big for git)
+/corpus-big/

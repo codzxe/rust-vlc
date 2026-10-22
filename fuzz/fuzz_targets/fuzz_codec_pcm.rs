@@ -10,10 +10,13 @@
 // bytes — every PCM conversion is a width- and order-preserving
 // permutation of the input, see that module's docs) and is proven
 // today by the in-crate deterministic smoke tests plus the
-// committed-corpus survival run in
+// committed-corpus + seeded-mutation survival run in
 // `crates/codecs/tests/pcm_fuzz_survival.rs` (both class-A parents'
 // full audio tracks, systematic truncations and bit flips at sample
-// and sub-sample boundaries, adversarial format configurations).
+// and sub-sample boundaries, seeded bit-flip / truncation /
+// garbage-splice / format-lie mutations with typed-error and
+// concealment-accounting assertions, adversarial format
+// configurations).
 // Building THIS file needs the cargo-fuzz scaffolding
 // (`fuzz/Cargo.toml` + the `libfuzzer-sys` dev-dependency), which is
 // a Lead-owned dependency decision under AGENTS.md §3.2 / C5 — until

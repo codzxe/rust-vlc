@@ -1,0 +1,15 @@
+=== 1. fmt ===
+fmt: CLEAN
+=== 2. clippy ===
+clippy: CLEAN
+=== 3. test ===
+tests: 1493 passed / 0 failed / 15 ignored
+test: CLEAN
+=== 4. check-architecture ===
+architecture: result=pass edges=pass cycles=pass unsafe-lints=pass static-mut=pass testkit-direction=pass
+full log: target/architecture-report.json
+arch: PASS
+=== 5. fixtures --check ===
+result: no drift — 52 file(s) verified under /home/z/my-project/tests/fixtures
+fixtures: PASS
+=== GATE RESULT: PASS ===

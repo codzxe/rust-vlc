@@ -310,23 +310,19 @@ fn harvest_facts(demuxer: &AviDemuxer, tracks: &[Track]) -> MediaFacts {
                     Some((width, height)),
                 )
             }
-            Some(StreamFormat::Pcm {
-                channels,
-                samples_per_sec,
-                bits_per_sample,
-                ..
-            }) => {
-                // The registry vocabulary the strf bits-per-sample
-                // defines (header.rs's own descriptor mapping).
-                let codec = match bits_per_sample {
-                    8 => "pcm_u8",
-                    16 => "pcm_s16le",
-                    24 => "pcm_s24le",
-                    32 => "pcm_s32le",
-                    _ => "pcm",
-                };
+            Some(
+                stream_format @ StreamFormat::Pcm {
+                    channels,
+                    samples_per_sec,
+                    ..
+                },
+            ) => {
+                // The registry descriptor the strf declares — the
+                // demuxer's own single mapping (header.rs), not a
+                // local copy of the tag/bits table.
+                let codec = stream_format.codec_descriptor().to_string();
                 (
-                    codec.to_string(),
+                    codec,
                     Some((u32::from(channels), samples_per_sec)),
                     None,
                     None,
