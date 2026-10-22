@@ -332,6 +332,282 @@ fn close_while_opening_returns_to_idle() {
     assert_eq!(fixture.engine.state(), SessionState::Idle);
 }
 
+/// Card 3.C1's stop-during-opening row (doc 03 §4.6 `Opening | Stop |
+/// Stopped | cancel token; join threads`): the stop lands from the
+/// un-wired side — the row's `TeardownPipeline` is the `Option` no-op
+/// by construction (no pipeline was ever attached), no track list or
+/// buffering episode ever existed, and the stopped session is inert
+/// until close.
+#[test]
+fn stop_while_opening_tears_down_without_wiring() {
+    let mut fixture = open_with(
+        vec![track(1, MediaKind::Audio)],
+        vec![DemuxEvent::EndOfStream],
+        None,
+        None,
+    );
+    assert_eq!(fixture.engine.state(), SessionState::Opening);
+    fixture.handle.stop(RequestId(11)).must();
+    fixture.engine.poll();
+    assert_eq!(fixture.engine.state(), SessionState::Stopped);
+    let outputs = take_events(&mut fixture);
+    // The stop is the class-A gen-bump: generation 1 after the
+    // open's 0.
+    let receipt = receipt_for(&outputs, RequestId(11));
+    assert_eq!(
+        receipt.result,
+        ReceiptResult::Accepted {
+            session: SessionId(1),
+            generation: Generation(1),
+        }
+    );
+    // The trail is exactly the one edge — no tracks, no episode, no
+    // other work existed to report.
+    let mut trail = Vec::new();
+    for output in &outputs {
+        if let EngineOutput::Event(event) = output {
+            trail.push(match event.kind {
+                EngineEventKind::StateChanged { from, to } => {
+                    format!("{from} → {to}")
+                }
+                EngineEventKind::TracksChanged { .. } => "tracks".to_string(),
+                EngineEventKind::Buffering { progress } => {
+                    format!("buffering {progress}")
+                }
+                _ => "other".to_string(),
+            });
+        }
+    }
+    assert_eq!(trail, vec!["opening → stopped".to_string()]);
+    // Inert afterwards, and the settled close exits to Idle.
+    for _ in 0..3 {
+        fixture.engine.poll();
+        assert_eq!(fixture.engine.state(), SessionState::Stopped);
+    }
+    fixture.handle.close(RequestId(12)).must();
+    fixture.engine.poll();
+    assert_eq!(fixture.engine.state(), SessionState::Idle);
+}
+
+/// Card 3.C1's stop-during-buffering row (doc 03 §4.6 `Buffering |
+/// Stop | Stopped | flush, join`): a mid-episode stop closes the
+/// episode with its `1.0` bookend BEFORE the `state-changed →
+/// stopped` (doc 05 §3.2's "an episode must close with 1.0" — the
+/// never-lose-the-last-fact discipline; the alternative, an episode
+/// that simply never closes, breaks the bracket invariant the
+/// contract suite pins).
+#[test]
+fn stop_while_buffering_closes_the_episode() {
+    // Hold the session mid-episode: 4 packets preload (below the
+    // high watermark of 12) with the producer stalled.
+    let mut fixture = open_stalled_audio(4);
+    poll_until(
+        &mut fixture,
+        |s| s == SessionState::Buffering,
+        10,
+        "the episode opens",
+    );
+    fixture.handle.stop(RequestId(21)).must();
+    fixture.engine.poll();
+    assert_eq!(fixture.engine.state(), SessionState::Stopped);
+    let outputs = take_events(&mut fixture);
+    // The receipt: the class-A stop, gen-bumped.
+    let receipt = receipt_for(&outputs, RequestId(21));
+    assert_eq!(
+        receipt.result,
+        ReceiptResult::Accepted {
+            session: SessionId(1),
+            generation: Generation(1),
+        }
+    );
+    // The bookend precedes the settling state-change.
+    let mut exit_at = None;
+    let mut stopped_at = None;
+    for (index, output) in outputs.iter().enumerate() {
+        if let EngineOutput::Event(event) = output {
+            match event.kind {
+                EngineEventKind::Buffering { progress: 1.0 } => exit_at = Some(index),
+                EngineEventKind::StateChanged {
+                    to: SessionState::Stopped,
+                    ..
+                } => stopped_at = Some(index),
+                _ => {}
+            }
+        }
+    }
+    let (exit_at, stopped_at) = (exit_at.must(), stopped_at.must());
+    assert!(
+        exit_at < stopped_at,
+        "the episode's 1.0 (at {exit_at}) must precede → stopped (at {stopped_at})"
+    );
+    // Exactly one episode bracketed: the enter was in the pre-stop
+    // outputs, the exit here — one 0.0 and one 1.0 overall.
+    let exits = outputs
+        .iter()
+        .filter(|output| {
+            matches!(
+                output,
+                EngineOutput::Event(EngineEvent {
+                    kind: EngineEventKind::Buffering { progress: 1.0 },
+                    ..
+                })
+            )
+        })
+        .count();
+    assert_eq!(exits, 1);
+}
+
+/// Card 3.C1's close-from-active macro: a client's `session.close`
+/// in `Playing` is the executor's two-step composition — apply the
+/// Stop row (settle: teardown, gen-bump), then the Close row
+/// (destroy) — answering ONE Completed receipt for the whole
+/// composition and the honest `playing → stopped → idle` trail on
+/// the event stream, every edge wire-conformant (doc 05 §3.3 has no
+/// direct `playing → idle` edge; the pure table keeps the typed
+/// `SettleFirst` pair for its own totality).
+#[test]
+fn close_from_playing_is_the_two_step_composition() {
+    let mut fixture = open_audio(200);
+    poll_until(&mut fixture, |s| s == SessionState::Playing, 10, "priming");
+    fixture.handle.close(RequestId(31)).must();
+    fixture.engine.poll();
+    assert_eq!(fixture.engine.state(), SessionState::Idle);
+    let outputs = take_events(&mut fixture);
+    // ONE receipt, Completed — the whole composition is one command.
+    let receipts: Vec<&CommandReceipt> = outputs
+        .iter()
+        .filter_map(|output| match output {
+            EngineOutput::Receipt(receipt) if receipt.request == RequestId(31) => Some(receipt),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(receipts.len(), 1, "exactly one receipt for the close");
+    assert_eq!(
+        receipts[0].result,
+        ReceiptResult::Completed {
+            session: SessionId(1)
+        }
+    );
+    // The honest trail, in order, and nothing else state-shaped.
+    let trail: Vec<String> = outputs
+        .iter()
+        .filter_map(|output| match output {
+            EngineOutput::Event(EngineEvent {
+                kind: EngineEventKind::StateChanged { from, to },
+                ..
+            }) => Some(format!("{from} → {to}")),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        trail,
+        vec![
+            "playing → stopped".to_string(),
+            "stopped → idle".to_string(),
+        ],
+        "the two-step composition's trail"
+    );
+    // The composition's events carry the close's final generation
+    // (2: the stop's mint, then the close's) — the staleness rule
+    // must not swallow the stop half of the trail (the model-walk
+    // finding, pinned here at unit level).
+    for output in &outputs {
+        if let EngineOutput::Event(event) = output {
+            assert_eq!(
+                event.generation,
+                Generation(2),
+                "the composition's trail is stamped at its completion point"
+            );
+        }
+    }
+    // The engine holds no session afterwards, and a second close on
+    // the stale handle is the typed refusal (never a panic).
+    assert!(fixture.engine.session_id().is_none());
+    assert!(matches!(
+        fixture.handle.close(RequestId(32)),
+        Err(SessionError::SessionClosed)
+    ));
+}
+
+/// Card 3.C1's double-failure reopen cycle (the model-walk mix's
+/// named shape, pinned deterministically): two full open → fail →
+/// close cycles — each fatal strictly before its `→ error`, each
+/// epoch fresh (1 then 2), seq engine-global strictly increasing
+/// across the close/reopen boundary.
+#[test]
+fn error_cycle_twice() {
+    let mut engine = Engine::new();
+    let mut last_seq = 0u64;
+    for cycle in 0..2u64 {
+        let config = config_with(
+            vec![track(1, MediaKind::Audio)],
+            vec![],
+            Some(inaccessible("open.header.missing")),
+            None,
+            virtual_clock(),
+            Arc::new(Collector::default()),
+        );
+        let handle = engine.open(config).must();
+        assert_eq!(handle.session_id(), SessionId(cycle + 1));
+        // The open failure lands: fatal first, then → error.
+        for _ in 0..10 {
+            if engine.state() == SessionState::Error {
+                break;
+            }
+            engine.poll();
+        }
+        assert_eq!(
+            engine.state(),
+            SessionState::Error,
+            "the armed open failure lands"
+        );
+        let outputs = engine.take_outputs();
+        let mut fatal_at = None;
+        let mut error_at = None;
+        for (index, output) in outputs.iter().enumerate() {
+            if let EngineOutput::Event(event) = output {
+                match event.kind {
+                    EngineEventKind::Fatal { .. } => fatal_at = Some(index),
+                    EngineEventKind::StateChanged {
+                        to: SessionState::Error,
+                        ..
+                    } => error_at = Some(index),
+                    _ => {}
+                }
+                assert!(
+                    event.seq > last_seq,
+                    "seq {} not past {} (cycle {cycle})",
+                    event.seq,
+                    last_seq
+                );
+                last_seq = event.seq;
+                assert_eq!(event.session, SessionId(cycle + 1));
+            }
+        }
+        assert!(fatal_at.must() < error_at.must(), "the fatal comes first");
+        // The error session closes like any error (the settled row).
+        handle.close(RequestId(40 + cycle)).must();
+        engine.poll();
+        assert_eq!(engine.state(), SessionState::Idle);
+        let outputs = engine.take_outputs();
+        let receipt = receipt_for(&outputs, RequestId(40 + cycle));
+        assert_eq!(
+            receipt.result,
+            ReceiptResult::Completed {
+                session: SessionId(cycle + 1)
+            }
+        );
+        // The close's → idle continues the same strictly-increasing
+        // seq stream (nothing resets across the cycle).
+        for output in &outputs {
+            if let EngineOutput::Event(event) = output {
+                assert!(event.seq > last_seq);
+                last_seq = event.seq;
+            }
+        }
+    }
+}
+
 #[test]
 fn an_open_failure_lands_in_error_with_the_fatal_first() {
     let mut fixture = open_with(

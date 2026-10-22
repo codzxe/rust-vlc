@@ -1875,3 +1875,149 @@ fn a_failed_seek_holds_nothing_and_publishes_the_minted_generation() {
     poll_until(&mut fixture, |s| s == SessionState::Ended, 400, "drain");
     assert!(frames_of(&fixture.collector) > frames_before);
 }
+
+/// Card 3.C1's buffered-pause bookend (the `Paused + Primed` row):
+/// a pause that lands while a seek's rebuffer episode is open holds
+/// the session in `Paused` with the episode OPEN; the pre-roll keeps
+/// filling (the demux pump runs while a seek is in flight — the M10
+/// carve-out), and when the watermark lands the bookend row closes
+/// the episode (`1.0` + the work-carrying `Paused → Paused`
+/// confirmation — NOT a C8 idempotence). `Play` afterwards resumes
+/// straight into `Playing` with no re-priming: no second episode, no
+/// second `0.0`.
+#[test]
+fn pause_during_buffering_holds_and_primes_silently() {
+    let mut fixture = open_slow_prime_video(200, 5);
+    poll_until(&mut fixture, |s| s == SessionState::Playing, 10, "priming");
+    // The seek opens its rebuffer episode (Playing → Buffering, the
+    // 0.0 bookend) and stays in flight: the video limb primes only
+    // after its 5th post-seek packet, so the pre-roll spans ticks.
+    fixture
+        .handle
+        .seek(
+            RequestId(150),
+            SeekTarget::Absolute {
+                position_ns: 100 * MS,
+            },
+        )
+        .must();
+    poll_until(
+        &mut fixture,
+        |s| s == SessionState::Buffering,
+        10,
+        "the seek's episode opens",
+    );
+    // The pause lands mid-episode: Buffering + Pause → Paused (the
+    // clock freezes — already frozen for the pre-roll — and the
+    // episode stays open).
+    fixture.handle.pause(RequestId(151)).must();
+    poll_until(
+        &mut fixture,
+        |s| s == SessionState::Paused,
+        10,
+        "the buffered pause lands",
+    );
+    let outputs = take_events(&mut fixture);
+    let receipt = receipt_for(&outputs, RequestId(151));
+    assert_eq!(
+        receipt.result,
+        ReceiptResult::Accepted {
+            session: SessionId(1),
+            generation: Generation(1),
+        }
+    );
+    // The episode is still open at the pause: exactly one 0.0 so far
+    // (the seek's), no 1.0 yet.
+    let enters = buffering_count(&outputs, 0.0);
+    let exits = buffering_count(&outputs, 1.0);
+    assert_eq!(enters, 1, "the seek's episode enter");
+    assert_eq!(exits, 0, "the episode stays open across the pause");
+
+    // The pre-roll completes while held: the bookend row fires — the
+    // 1.0 rides with the Paused → Paused confirmation.
+    let mut bookend_seen = false;
+    for _ in 0..40 {
+        fixture.engine.poll();
+        let outputs = take_events(&mut fixture);
+        if buffering_count(&outputs, 1.0) > 0 {
+            // The bookend pair, in order: 1.0 then the self
+            // confirmation.
+            let mut exit_at = None;
+            let mut self_at = None;
+            for (index, output) in outputs.iter().enumerate() {
+                if let EngineOutput::Event(event) = output {
+                    match event.kind {
+                        EngineEventKind::Buffering { progress: 1.0 } => exit_at = Some(index),
+                        EngineEventKind::StateChanged {
+                            from: SessionState::Paused,
+                            to: SessionState::Paused,
+                        } => self_at = Some(index),
+                        _ => {}
+                    }
+                }
+            }
+            let (exit_at, self_at) = (exit_at.must(), self_at.must());
+            assert!(
+                exit_at < self_at,
+                "the bookend 1.0 (at {exit_at}) precedes the Paused → Paused (at {self_at})"
+            );
+            bookend_seen = true;
+            break;
+        }
+        assert_eq!(
+            fixture.engine.state(),
+            SessionState::Paused,
+            "the hold is silent — no presentation, no state work"
+        );
+    }
+    assert!(
+        bookend_seen,
+        "the Paused + Primed bookend row fired while held"
+    );
+    assert_eq!(fixture.engine.state(), SessionState::Paused);
+
+    // The resume: straight into Playing, no re-priming — no second
+    // episode, no second 0.0, the data is already buffered.
+    fixture.handle.play(RequestId(152)).must();
+    fixture.engine.poll();
+    assert_eq!(fixture.engine.state(), SessionState::Playing);
+    let outputs = take_events(&mut fixture);
+    let trail: Vec<String> = outputs
+        .iter()
+        .filter_map(|output| match output {
+            EngineOutput::Event(EngineEvent {
+                kind: EngineEventKind::StateChanged { from, to },
+                ..
+            }) => Some(format!("{from} → {to}")),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        trail,
+        vec!["paused → playing".to_string()],
+        "the resume is direct — no re-priming episode"
+    );
+    assert_eq!(
+        buffering_count(&outputs, 0.0),
+        0,
+        "no second episode opened at the resume"
+    );
+    // And the session runs on to the end from the hold.
+    poll_until(&mut fixture, |s| s == SessionState::Ended, 400, "drain");
+}
+
+/// Count `session.buffering` events at exactly `progress`.
+fn buffering_count(outputs: &[EngineOutput], progress: f32) -> usize {
+    outputs
+        .iter()
+        .filter(|output| {
+            matches!(
+                output,
+                EngineOutput::Event(EngineEvent {
+                    kind: EngineEventKind::Buffering { progress: at },
+                    ..
+                }) if *at == progress
+            )
+        })
+        .count()
+}

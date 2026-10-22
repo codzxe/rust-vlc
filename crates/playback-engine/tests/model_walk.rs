@@ -141,6 +141,9 @@ struct SessionFacts {
     episode_open: bool,
     /// A fatal is pending its `state-changed → error`.
     fatal_pending: bool,
+    /// The last delivered event was an episode's 1.0 (the bookend
+    /// pairing window for the Paused + Primed row).
+    bookend_just_closed: bool,
 }
 
 #[derive(Default, Debug)]
@@ -283,10 +286,22 @@ impl StreamChecker {
                     self.floors.buffered_pauses += 1;
                 }
                 if from == SessionState::Paused && to == SessionState::Paused {
-                    // The work-carrying bookend self-row (its `1.0`
-                    // rides alongside — the bracket check below).
+                    // A paused self-confirmation: the C8 idempotence
+                    // or the 3.C1 bookend row (the 1.0 pairing is
+                    // tracked separately — only the seek_flow fake
+                    // can hold a pre-roll open under pause, so the
+                    // walk's counter conflates the two; the
+                    // deterministic row-4 pin lives in seek_flow's
+                    // `pause_during_buffering_holds_and_primes_
+                    // silently`).
+                    self.floors.paused_self_confirmations += 1;
+                }
+                if from == SessionState::Paused && to == SessionState::Paused
+                    && self.session.bookend_just_closed
+                {
                     self.floors.paused_primed_bookends += 1;
                 }
+                self.session.bookend_just_closed = false;
                 if from == SessionState::Opening && to == SessionState::Stopped {
                     self.floors.stop_during_opening += 1;
                 }
@@ -318,6 +333,10 @@ impl StreamChecker {
                         "walk {walk} step {step}: episode 1.0 without an open episode"
                     );
                     self.session.episode_open = false;
+                    // The 3.C1 bookend signature: the 1.0 that rides
+                    // the Paused + Primed row is followed by the
+                    // work-carrying Paused → Paused confirmation.
+                    self.session.bookend_just_closed = true;
                 } else {
                     assert!(
                         self.session.episode_open,
