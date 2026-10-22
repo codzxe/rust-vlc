@@ -16,7 +16,10 @@ output):
   4. Drive the three env-gated Rust corpus suites (release profile):
      probe / avi-demux / codecs(mjpeg+pcm). Any panic or non-zero exit
      is a FAILED contract row in the report. `--skip-suites` omits this
-     step entirely (no cargo, no build lock — oracle-side validation).
+     step entirely (no cargo, no build lock): when persisted result TSVs
+     from a previous full run exist they are re-used for the judgement
+     sections — labeled as persisted rows, never as a fresh measurement;
+     with no persisted TSVs the sections stay empty.
   5. Record the per-file DECODED rows (W1-04): oracle decoded format and
      dimensions (ffprobe -show_streams: pix_fmt, width/height, sample_fmt,
      channels, sample_rate) side by side with the Lumen suites' decoded
@@ -31,6 +34,28 @@ output):
      oracle-side validation run never masquerades as the canonical
      measurement report).
 
+Metric changes (W2-08 — judge-side only, no engine code touched):
+  * Duration (demux section), W1-03's prescription: span_ms =
+    (last_v_pts_ns − first_v_pts_ns + v_frame_period_ns) / 1e6 with
+    v_frame_period_ns = 1e9·strh.scale/strh.rate, parsed from the
+    file's own first `vids` strh. The oracle's duration includes the
+    last frame's display period; the previous span-only form
+    under-reported by exactly one frame period (−40.0/−16.7/−8.3 ms
+    p50/p95/max on the 2026-10-22 corpus; corrected → 0.0/0.0/0.0
+    measured on that same corpus). THIS ROW'S NUMBERS CHANGE — that
+    is the point.
+  * MJPEG per-class table, W1-01's prescription: clean and dirty
+    corpus classes aggregate into separate rows (manifest-class join),
+    so dirty concealment can never pollute clean-class PSNR minima;
+    fidelity columns (PSNR min/mean, max abs, exact bytes) exclude
+    files with any concealed frame (file-level — per-frame exclusion
+    needs suite-emitted clean-only PSNR columns, registered
+    follow-up); demux terminal/recovered are recorded per case
+    (mjpeg-verdicts.tsv) so packet-count deltas are attributable.
+  * --skip-suites re-uses persisted suite-result TSVs when present
+    (see step 4). All other sections keep their shape; new
+    columns/sections are additive.
+
 Usage:
   run_harness.py [--corpus DIR] [--ffprobe BIN] [--ffmpeg BIN]
                  [--skip-gen-check] [--skip-suites] [--keep-refs]
@@ -43,6 +68,7 @@ import json
 import os
 import shutil
 import statistics
+import struct
 import subprocess
 import sys
 import time
@@ -165,6 +191,50 @@ def ffprobe_packets(path: Path, ffprobe: str, sel: str) -> int | None:
         return None
 
 
+def avi_video_strh_rate(path: Path, prefix_bytes: int = 1 << 18) -> tuple[int, int] | None:
+    """First `vids` strh's (scale, rate) of an AVI file, or None.
+
+    Bounded RIFF walk over a header prefix (the strl headers sit at the
+    file start, before movi): the video frame period 1e9·scale/rate is
+    the container's own declared ladder — the same one the AVI demuxer
+    stamps PTS with — so the W1-03-corrected duration span uses the
+    file's truth rather than a Lumen-reported value. Dirty-world safe:
+    reads at most `prefix_bytes`, stops at the declared RIFF end, honors
+    word alignment, and a garbage size simply ends the walk (-> None),
+    never loops.
+    """
+    try:
+        with path.open("rb") as f:
+            buf = f.read(prefix_bytes)
+    except OSError:
+        return None
+    if len(buf) < 12 or buf[0:4] != b"RIFF" or buf[8:12] != b"AVI ":
+        return None
+    end = min(len(buf), 8 + struct.unpack_from("<I", buf, 4)[0])
+
+    def chunks(pos: int, stop: int):
+        """Yield (chunk_id, body_offset, size) over a bounded chunk run."""
+        while pos + 8 <= stop:
+            cid = buf[pos:pos + 4]
+            size = struct.unpack_from("<I", buf, pos + 4)[0]
+            yield cid, pos + 8, size
+            pos = pos + 8 + size + (size & 1)  # RIFF chunks are word-aligned
+
+    for cid, body, size in chunks(12, end):                          # RIFF level
+        if cid != b"LIST" or buf[body:body + 4] != b"hdrl":
+            continue
+        for c2, b2, s2 in chunks(body + 4, min(end, body + size)):   # hdrl level
+            if c2 != b"LIST" or buf[b2:b2 + 4] != b"strl":
+                continue
+            for c3, b3, s3 in chunks(b2 + 4, min(end, b2 + s2)):     # strl level
+                if c3 == b"strh" and s3 >= 28 and b3 + 28 <= end and buf[b3:b3 + 4] == b"vids":
+                    scale, rate = struct.unpack_from("<II", buf, b3 + 20)
+                    if scale > 0 and rate > 0:
+                        return scale, rate
+                    return None  # first vids strh is corrupt — no honest period
+    return None
+
+
 def percentile(values: list[float], q: float) -> float:
     if not values:
         return float("nan")
@@ -188,8 +258,10 @@ def main() -> int:
                          "requires manifest.json to exist; nothing else is verified today)")
     ap.add_argument("--skip-suites", action="store_true",
                     help="do NOT drive the Rust suites (no cargo, no build lock): oracle-side "
-                         "validation only — suite sections are marked skipped and the report is "
-                         "written under a *-skip-suites name so it cannot pose as a measurement")
+                         "validation only — persisted result TSVs from a previous full run, when "
+                         "present, are re-used for the judgement sections (labeled as persisted, "
+                         "never as a fresh measurement); the report is written under a "
+                         "*-skip-suites name so it cannot pose as a measurement")
     args = ap.parse_args()
 
     corpus = Path(args.corpus).resolve()
@@ -402,13 +474,41 @@ def main() -> int:
         hdr = lines[0].split("\t")
         return [dict(zip(hdr, ln.split("\t"))) for ln in lines[1:] if ln.strip()]
 
+    reused: list[str] = []
+    man_rels = {e["rel"] for e in files}
+
+    def reuse_results(name: str) -> list[dict]:
+        """Persisted suite-result rows for --skip-suites validation runs.
+
+        Only rows whose rel is in the CURRENT manifest are kept — a corpus
+        regenerated since the last full run must not leak stale rows into
+        the judgement. Every reuse is printed with the TSV's mtime so
+        staleness is visible; the report labels these rows as persisted.
+        """
+        p = harness_dir / name
+        if not p.is_file():
+            return []
+        rows = read_tsv(p)
+        kept = [r for r in rows if r.get("rel") in man_rels]
+        stale = len(rows) - len(kept)
+        print(f"[h[harness] --skip-suites reuse: {name} -> {len(kept)} persisted rows "
+              f"(mtime {time.strftime('%Y-%m-%d %H:%M', time.localtime(p.stat().st_mtime))})"
+              + (f", {stale} stale rows dropped (absent from current manifest)" if stale else ""))
+        if kept:
+            reused.append(name)
+        return kept
+
     if args.skip_suites:
-        rc_probe = rc_demux = rc_mjpeg = rc_pcm = "skipped"
-        probe_res: list[dict] = []
-        demux_res: list[dict] = []
-        mjpeg_res: list[dict] = []
-        pcm_res: list[dict] = []
-        print("[h[harness] --skip-suites: Rust suites NOT driven (no cargo, no build lock)")
+        probe_res = reuse_results("probe-results.tsv")
+        demux_res = reuse_results("demux-results.tsv")
+        mjpeg_res = reuse_results("mjpeg-results.tsv")
+        pcm_res = reuse_results("pcm-results.tsv")
+        rc_probe = "reused" if probe_res else "skipped"
+        rc_demux = "reused" if demux_res else "skipped"
+        rc_mjpeg = "reused" if mjpeg_res else "skipped"
+        rc_pcm = "reused" if pcm_res else "skipped"
+        print("[h[harness] --skip-suites: Rust suites NOT driven (no cargo, no build lock)"
+              + (f" — judgement re-aggregated from persisted: {', '.join(reused)}" if reused else ""))
     else:
         rc_probe, res_probe = run_suite("media-probe", "corpus", probe_cases, "probe-results.tsv")
         rc_demux, res_demux = run_suite("demux", "corpus", avi_cases, "demux-results.tsv")
@@ -521,20 +621,39 @@ def main() -> int:
         classes[e["class"]] = classes.get(e["class"], 0) + 1
     report.append("- composition: " + ", ".join(f"{k}={v}" for k, v in sorted(classes.items())))
     if args.skip_suites:
-        report.append("- mode: **--skip-suites** — the Rust suites were NOT driven (oracle-side "
-                      "validation run): the suite sections below carry no rows by construction, "
-                      "and every Lumen-side decoded-format cell is a suite-gap row")
+        if reused:
+            report.append("- mode: **--skip-suites (persisted-results reuse)** — the Rust suites "
+                          "were NOT driven (no cargo, no build lock): the suite rows below are the "
+                          "persisted results of the last full run, re-aggregated here to validate "
+                          "this judge's logic — NOT a fresh measurement")
+        else:
+            report.append("- mode: **--skip-suites** — the Rust suites were NOT driven (oracle-side "
+                          "validation run): the suite sections below carry no rows by construction, "
+                          "and every Lumen-side decoded-format cell is a suite-gap row")
     report.append(f"- suite exit codes: probe={rc_probe} demux={rc_demux} mjpeg={rc_mjpeg} pcm={rc_pcm} "
                   + (("(**0 = no panic, no contract violation**)") if not args.skip_suites
-                     else "(skipped — not driven)"))
+                     else ("(reused from the persisted last-run TSVs — not driven this run)" if reused
+                           else "(skipped — not driven)")))
     report.append("")
+
+    def suite_note(rows: list[dict]) -> None:
+        """Suite-section banner: reuse notice when persisted rows are being
+        re-aggregated under --skip-suites, empty-marker when there are none,
+        nothing when the suites were actually driven."""
+        if not args.skip_suites:
+            return
+        if rows:
+            report.append("_suites not driven (--skip-suites): the rows below are the persisted "
+                          "results of the last full run — aggregation validation, not a fresh "
+                          "measurement_")
+        else:
+            report.append("_suite skipped (--skip-suites): no rows; section intentionally empty_")
+        report.append("")
 
     # -- probe judgement --------------------------------------------------
     report.append("## Probe (bounded format detection) vs ffprobe oracle")
     report.append("")
-    if args.skip_suites:
-        report.append("_suite skipped (--skip-suites): no rows; section intentionally empty_")
-        report.append("")
+    suite_note(probe_res)
     false_pos: list[str] = []
     probe_lat: list[float] = []
     for row in probe_res:
@@ -571,9 +690,7 @@ def main() -> int:
     # refusals, judged on the refusal, not on conformance.
     report.append("## AVI demux walk vs ffprobe oracle (supported fourccs: mjpeg + pcm)")
     report.append("")
-    if args.skip_suites:
-        report.append("_suite skipped (--skip-suites): no rows; section intentionally empty_")
-        report.append("")
+    suite_note(demux_res)
 
     def avi_supported(entry: dict) -> bool:
         fam = entry.get("family", [])
@@ -601,6 +718,7 @@ def main() -> int:
     vp_match = ap_match = 0
     vp_diffs: list[float] = []
     dur_err: list[float] = []
+    dur_no_strh = 0
     walked_eos = 0
     for r in clean:
         if num(r, "tracks") is not None and r.get("truth_streams") not in ("-", ""):
@@ -619,9 +737,23 @@ def main() -> int:
             walked_eos += 1
         tdm = r.get("truth_duration_ms")
         try:
-            span_ms = (int(r.get("last_v_pts_ns", 0)) - int(r.get("first_v_pts_ns", 0))) / 1e6
-            if tdm not in ("-", "", None):
-                dur_err.append(span_ms - float(tdm))
+            first_ns = int(r.get("first_v_pts_ns", ""))
+            last_ns = int(r.get("last_v_pts_ns", ""))
+            if tdm not in ("-", "", None) and (num(r, "v_pkts") or 0) > 0:
+                # W1-03's corrected span: the oracle's duration includes the
+                # last frame's display period, so the measured span must add
+                # one frame period. The period is the container's own ladder
+                # (1e9·strh.scale/strh.rate, parsed from the file's first
+                # `vids` strh) — the same ladder the demuxer stamps PTS
+                # with. Rows without a parsable strh are counted, never
+                # silently dropped; a walk with zero video packets has no
+                # span to measure (typed refusal, judged elsewhere).
+                sr = avi_video_strh_rate(corpus / r["rel"])
+                if sr is None:
+                    dur_no_strh += 1
+                else:
+                    span_ms = (last_ns - first_ns + 1e9 * sr[0] / sr[1]) / 1e6
+                    dur_err.append(span_ms - float(tdm))
         except ValueError:
             pass
     report.append("| metric | value |")
@@ -634,8 +766,10 @@ def main() -> int:
         report.append(f"| v-packet delta vs oracle p50/p95/max | {percentile([float(x) for x in vp_diffs], 0.5):+.0f} / "
                       f"{percentile([float(x) for x in vp_diffs], 0.95):+.0f} / {percentile([float(x) for x in vp_diffs], 1.0):+.0f} packets |")
     if dur_err:
-        report.append(f"| PTS-span duration error p50/p95/max | {fmt_ms(percentile(dur_err, 0.5))} / "
+        report.append(f"| duration error (PTS span + frame period) p50/p95/max | {fmt_ms(percentile(dur_err, 0.5))} / "
                       f"{fmt_ms(percentile(dur_err, 0.95))} / {fmt_ms(percentile(dur_err, 1.0))} ms |")
+    if dur_no_strh:
+        report.append(f"| duration rows excluded (no parsable vids strh) | {dur_no_strh} |")
     dirty_typed = sum(1 for r in dirty if r.get("terminal") in ("eos", "error", "start-error"))
     dirty_recovered = sum(1 for r in dirty if num(r, "recovered") and num(r, "recovered") > 0)
     report.append(f"| dirty AVIs reached a typed terminal (no panic, no hang) | **{dirty_typed}/{len(dirty)}** |")
@@ -644,52 +778,138 @@ def main() -> int:
     report.append(f"| unsupported-fourcc AVIs answered with a typed refusal | {refused_ok}/{len(refused)} "
                   f"(no panic on any) |")
     report.append("")
+    report.append("_Duration metric (W2-08, W1-03's prescription): span = last video PTS − first video PTS "
+                  "+ one frame period, period = 1e9·strh.scale/strh.rate parsed from the file's own first "
+                  "`vids` strh — the oracle's duration includes the last frame's display period, so the "
+                  "previous span-only form under-reported by exactly one frame period (−40.0/−16.7/−8.3 ms "
+                  "p50/p95/max on this corpus's 2026-10-22 13:33 run)._")
+    report.append("")
 
     # -- mjpeg judgement ---------------------------------------------------
     report.append("## MJPEG decode vs ffmpeg oracle (real throughput + fidelity)")
     report.append("")
-    if args.skip_suites:
-        report.append("_suite skipped (--skip-suites): no rows; section intentionally empty_")
-        report.append("")
-    by_res: dict[str, list[dict]] = {}
+    suite_note(mjpeg_res)
+
+    # W2-08 (W1-01's prescription): clean and dirty corpus classes are
+    # aggregated separately — a dirty sibling's concealment (the documented
+    # damage response on corrupt tails) must never pollute a clean class's
+    # PSNR minima again. The class comes from the manifest join; the suite
+    # result rows carry only rel.
+    demux_by_rel = {r.get("rel"): r for r in demux_res if r.get("rel")}
+    mjpeg_meta_by_rel = {m["rel"]: m for m in mjpeg_rows if "rel" in m}
+
+    def mjpeg_case_meta(rel: str) -> dict:
+        """Case metadata (res_name/w/h) from the case build, falling back to
+        the manifest params — identical values, so a --skip-suites reuse run
+        aggregates the same groups a full run would."""
+        m = mjpeg_meta_by_rel.get(rel)
+        if m is not None:
+            return m
+        p = man_index.get(rel, {}).get("params", {})
+        return {"res_name": p.get("res_name", "?"), "w": p.get("width") or 0, "h": p.get("height") or 0}
+
+    def case_kind(rel: str) -> str:
+        cls = man_index.get(rel, {}).get("class", "?")
+        if cls in ("video", "av", "avi-video", "avi-av"):
+            return "clean"
+        if cls in ("dirty", "dirty-lie-ext"):
+            return "dirty"
+        return cls  # unknown class labels its own rows — never silently merged
+
+    groups: dict[tuple[str, str], list[dict]] = {}
     res_px: dict[str, int] = {}
     for row in mjpeg_res:
-        meta = next((m for m in mjpeg_rows if m["rel"] == row["rel"]), {})
-        rn = meta.get("res_name", "?")
-        res_px[rn] = max(res_px.get(rn, 0), int(meta.get("w", 0)) * int(meta.get("h", 0)))
-        by_res.setdefault(rn, []).append(row)
-    report.append("| resolution | files | frames | decode errors | concealed | PSNR min (dB) | PSNR mean (dB) | max abs | exact bytes | throughput |")
-    report.append("|---|---|---|---|---|---|---|---|---|---|")
-    for rn in sorted(by_res, key=lambda k: res_px.get(k, 0)):
-        rows = by_res[rn]
+        rel = row.get("rel", "")
+        meta = mjpeg_case_meta(rel)
+        rn = str(meta.get("res_name", "?"))
+        res_px[rn] = max(res_px.get(rn, 0), int(meta.get("w", 0) or 0) * int(meta.get("h", 0) or 0))
+        groups.setdefault((rn, case_kind(rel)), []).append(row)
+    report.append("| resolution | kind | files | frames | decode errors | concealed | PSNR min (dB) | PSNR mean (dB) | max abs | exact bytes | throughput | demux terminal | demux rec |")
+    report.append("|---|---|---|---|---|---|---|---|---|---|---|---|---|")
+    for rn, kind in sorted(groups, key=lambda k: (res_px.get(k[0], 0), k[0], k[1] != "clean")):
+        rows = groups[(rn, kind)]
         frames = sum(int(r.get("decoded") or 0) for r in rows)
         errors = sum(int(r.get("errors") or 0) for r in rows)
         concealed = sum(int(r.get("concealed") or 0) for r in rows)
-        pmin = min((int(r.get("psnr_min_mdb") or 0) for r in rows if int(r.get("psnr_min_mdb") or 0) > 0), default=0)
-        pmeans = [int(r.get("psnr_mean_mdb") or 0) for r in rows if int(r.get("psnr_mean_mdb") or 0) > 0]
+        # Fidelity aggregates exclude files with ANY concealed frame: a
+        # concealed frame is the documented damage response (mid-gray tail
+        # vs ffmpeg's partial pixels), not decoder infidelity. File-level
+        # exclusion — per-frame exclusion needs the suites to emit
+        # clean-only PSNR columns (registered follow-up). Counts and
+        # throughput stay whole-group.
+        fid = [r for r in rows if int(r.get("concealed") or 0) == 0]
+        pmin = min((int(r.get("psnr_min_mdb") or 0) for r in fid if int(r.get("psnr_min_mdb") or 0) > 0), default=0)
+        pmeans = [int(r.get("psnr_mean_mdb") or 0) for r in fid if int(r.get("psnr_mean_mdb") or 0) > 0]
         pmean = statistics.mean(pmeans) if pmeans else 0
-        mabs = max((int(r.get("max_abs") or 0) for r in rows), default=0)
-        exact = sum(int(r.get("exact_bytes") or 0) for r in rows)
-        compared = sum(int(r.get("compared_bytes") or 0) for r in rows)
+        mabs = max((int(r.get("max_abs") or 0) for r in fid), default=0)
+        exact = sum(int(r.get("exact_bytes") or 0) for r in fid)
+        compared = sum(int(r.get("compared_bytes") or 0) for r in fid)
         payload = sum(int(r.get("payload_bytes") or 0) for r in rows)
         dus = sum(int(r.get("decode_us") or 0) for r in rows)
         thr = f"{payload / (1 << 20) / max(dus, 1) * 1e6:.1f} MB/s" if payload else "-"
         fps = f"{frames / max(dus, 1) * 1e6:.0f} fps" if frames else "-"
         exact_pct = f"{100.0 * exact / compared:.2f}%" if compared else "-"
-        report.append(f"| {rn} | {len(rows)} | {frames} | {errors} | {concealed} | {pmin / 1000:.1f} | "
-                      f"{pmean / 1000:.1f} | {mabs} | {exact_pct} | {thr}, {fps} |")
+        # demux attribution (W1-01 prescription 3): terminal + recovered per
+        # class row so packet-count deltas are attributable at a glance; the
+        # per-case ledger below carries the full join.
+        terms: Counter = Counter()
+        rec = 0
+        for r in rows:
+            d = demux_by_rel.get(r.get("rel"))
+            if d is None:
+                terms["no-demux-row"] += 1
+            else:
+                terms[str(d.get("terminal") or "?")] += 1
+                rec += int(d.get("recovered") or 0)
+        term_s = " ".join(f"{k}:{v}" for k, v in sorted(terms.items())) or "-"
+        report.append(f"| {rn} | {kind} | {len(rows)} | {frames} | {errors} | {concealed} | {pmin / 1000:.1f} | "
+                      f"{pmean / 1000:.1f} | {mabs} | {exact_pct} | {thr}, {fps} | {term_s} | {rec} |")
     report.append("")
     report.append("_PSNR across independent JPEG IDCT implementations is expected well above 45 dB; "
                   "byte-exactness is not expected cross-implementation. `exact bytes` is the bit-equal "
                   "fraction vs ffmpeg's decode._")
+    report.append("_W2-08 (W1-01's prescription): `kind` splits clean corpus classes from dirty siblings "
+                  "(manifest-class join) — dirty concealment can no longer pollute clean-class PSNR "
+                  "minima. Fidelity columns (PSNR min/mean, max abs, exact bytes) exclude files with any "
+                  "concealed frame; per-frame exclusion needs suite-emitted clean-only PSNR columns "
+                  "(registered follow-up). `demux terminal`/`demux rec` come from the demux walk of the "
+                  "same file, so packet-count deltas are attributable._")
+
+    # Per-case verdict ledger: every mjpeg decode row joined with its demux
+    # walk (terminal/recovered) and the oracle packet truth — the
+    # attribution record W1-01 asked for (packet-count deltas traceable per
+    # file, not just per class).
+    mjpeg_verdicts_path = harness_dir / "mjpeg-verdicts.tsv"
+    if mjpeg_res:
+        with mjpeg_verdicts_path.open("w") as f:
+            f.write("\t".join(["rel", "class", "kind", "res_name", "decoded", "errors", "concealed",
+                               "psnr_min_mdb", "psnr_mean_mdb", "demux_terminal", "demux_recovered",
+                               "demux_v_pkts", "truth_v_packets", "v_delta"]) + "\n")
+            for row in sorted(mjpeg_res, key=lambda r: r.get("rel", "")):
+                rel = row.get("rel", "")
+                d = demux_by_rel.get(rel) or {}
+                try:
+                    vdelta = str(int(d.get("v_pkts", "")) - int(d.get("truth_v_packets", "")))
+                except (ValueError, TypeError):
+                    vdelta = "-"
+                f.write("\t".join([
+                    rel, man_index.get(rel, {}).get("class", "?"), case_kind(rel),
+                    str(mjpeg_case_meta(rel).get("res_name", "?")),
+                    row.get("decoded", ""), row.get("errors", ""), row.get("concealed", ""),
+                    row.get("psnr_min_mdb", ""), row.get("psnr_mean_mdb", ""),
+                    d.get("terminal", ""), d.get("recovered", ""),
+                    d.get("v_pkts", ""), d.get("truth_v_packets", ""), vdelta,
+                ]) + "\n")
+        print(f"[h[harness] mjpeg-verdicts: {len(mjpeg_res)} rows -> {mjpeg_verdicts_path} "
+              "(demux terminal/recovered + packet deltas per case)")
+        report.append(f"Per-case attribution ledger (decode ⋈ demux ⋈ oracle packets): "
+                      f"`{mjpeg_verdicts_path}` ({len(mjpeg_res)} rows).")
     report.append("")
 
     # -- pcm judgement -----------------------------------------------------
     report.append("## PCM decode vs ffmpeg oracle (byte-exact expected)")
     report.append("")
-    if args.skip_suites:
-        report.append("_suite skipped (--skip-suites): no rows; section intentionally empty_")
-        report.append("")
+    suite_note(pcm_res)
     # A case is COMPARABLE only when the AVI demuxed the audio stream at
     # all; refused/undemuxable cases (unsupported fourcc combos, damaged
     # headers) are counted separately — they are demuxer-scope findings,
@@ -907,13 +1127,18 @@ def main() -> int:
     report.append("")
     if args.skip_suites:
         report.append(f"- probe suite rc={rc_probe}, demux rc={rc_demux}, mjpeg rc={rc_mjpeg}, pcm rc={rc_pcm} — "
-                      "SUITES SKIPPED (--skip-suites): oracle-side validation run, not a measurement run")
+                      + ("SUITES NOT DRIVEN (--skip-suites): judgement re-aggregated from the persisted "
+                         f"last-run TSVs ({', '.join(reused)}) — not a fresh measurement" if reused
+                         else "SUITES SKIPPED (--skip-suites): oracle-side validation run, not a measurement run"))
     else:
         report.append(f"- probe suite rc={rc_probe}, demux rc={rc_demux}, mjpeg rc={rc_mjpeg}, pcm rc={rc_pcm} — all must be 0")
     report.append(f"- harness wall: {time.time() - t0:.0f}s")
     report.append(f"- decoded-rows ledger: `{decoded_rows_path}` ({len(files)} rows, {n_gap_cells} suite-gap cells) — "
                   "registered follow-up: suites emit `out_format`/`out_w`/`out_h` (mjpeg) and "
                   "`out_desc`/`out_rate`/`out_ch` (pcm)")
+    if mjpeg_res:
+        report.append(f"- mjpeg verdicts ledger (per case: decode ⋈ demux terminal/recovered ⋈ oracle "
+                      f"packets): `{mjpeg_verdicts_path}` ({len(mjpeg_res)} rows)")
     report.append("")
 
     text = "\n".join(report)

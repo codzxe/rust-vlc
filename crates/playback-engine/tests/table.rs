@@ -217,7 +217,14 @@ fn self_transitions_are_the_idempotent_confirmations_and_seek_work_rows() {
             SessionInput::Play,  // Playing: play while playing (C8)
             SessionInput::Seek,  // Paused: seek while paused (work-carrying)
             SessionInput::Seek,  // Buffering: seek while priming (work-carrying)
-            SessionInput::Pause, // Paused: pause while paused (C8)
+            // Card 3.A3: the track-switch work-carriers — the seek row
+            // shapes minus the state change (the wire state never
+            // leaves playing/paused/buffering; video keeps playing
+            // through an audio switch).
+            SessionInput::SwitchTrack, // Playing
+            SessionInput::SwitchTrack, // Paused
+            SessionInput::SwitchTrack, // Buffering
+            SessionInput::Pause,       // Paused: pause while paused (C8)
         ]
     );
 }
@@ -519,6 +526,27 @@ fn session_commands_reconcile_with_the_wire_catalog() {
             CompletionClass::A,
             true,
         ),
+        // Card 3.A3: the track-selection commands reconcile with the
+        // frozen catalog rows — class A + gen-bumping for the A/V
+        // flavors, class S + no mint for the subtitle flavor.
+        (
+            SessionCommandKind::SelectVideo,
+            CommandId::TracksSetVideoTrack,
+            CompletionClass::A,
+            true,
+        ),
+        (
+            SessionCommandKind::SelectAudio,
+            CommandId::TracksSetAudioTrack,
+            CompletionClass::A,
+            true,
+        ),
+        (
+            SessionCommandKind::SelectSubtitle,
+            CommandId::TracksSetSubtitleTrack,
+            CompletionClass::S,
+            false,
+        ),
     ];
     for (kind, id, class, gen_bumping) in cases {
         assert_eq!(kind.as_command_id(), id);
@@ -540,11 +568,15 @@ fn gen_bumping_commands_carry_the_bump_effect_and_vice_versa() {
     // nowhere else. The one exception is the `Idle + Close`
     // self-confirmation: no session exists, so there is nothing to
     // mint (the row documents the idempotent no-op, doc 05 §2.3).
+    // Card 3.A3: the class-A `set-*-track` commands join the mint
+    // list (doc 05 §4.2) — the `SwitchTrack` rows mint exactly like
+    // the seek rows.
     for row in TRANSITIONS {
         let bumps = row.effects.contains(&Effect::BumpPipeline);
         match row.input {
             I::Stop => assert!(bumps, "{} + {} must mint", row.from, row.input),
             I::Seek => assert!(bumps, "{} + {} must mint", row.from, row.input),
+            I::SwitchTrack => assert!(bumps, "{} + {} must mint", row.from, row.input),
             I::Close if row.from != SessionState::Idle => {
                 assert!(bumps, "{} + {} must mint", row.from, row.input)
             }
@@ -617,7 +649,8 @@ fn effect_columns_match_the_doc_03_side_effects() {
 #[test]
 fn the_state_and_input_vocabularies_are_unique_and_complete() {
     assert_eq!(SessionState::ALL.len(), 8);
-    assert_eq!(SessionInput::ALL.len(), 12);
+    // Card 3.A3: `SwitchTrack` joins the vocabulary (13).
+    assert_eq!(SessionInput::ALL.len(), 13);
     for (index, state) in SessionState::ALL.iter().enumerate() {
         for other in SessionState::ALL.iter().skip(index + 1) {
             assert_ne!(state, other);
@@ -653,12 +686,13 @@ fn engine_states_map_one_to_one_onto_the_wire_states() {
     for (state, name) in SessionState::ALL.iter().zip(names) {
         assert_eq!(state.to_string(), name);
     }
-    // Command inputs are exactly the six client-facing ones.
+    // Command inputs are exactly the seven client-facing ones
+    // (card 3.A3: `SwitchTrack` is the set-*-track commands' input).
     let command_inputs: Vec<_> = SessionInput::ALL
         .iter()
         .filter(|input| input.is_command())
         .collect();
-    assert_eq!(command_inputs.len(), 6);
+    assert_eq!(command_inputs.len(), 7);
 }
 
 #[test]
@@ -669,6 +703,16 @@ fn command_kinds_map_onto_table_inputs() {
         (SessionCommandKind::Stop, SessionInput::Stop),
         (SessionCommandKind::Close, SessionInput::Close),
         (SessionCommandKind::Seek, SessionInput::Seek),
+        // Card 3.A3: the A/V selection flavors reach the table as the
+        // switch input; the class-S subtitle flavor never does (the
+        // executor's pre-table branch owns it) — its mapping is the
+        // same input, harmlessly unreachable.
+        (SessionCommandKind::SelectVideo, SessionInput::SwitchTrack),
+        (SessionCommandKind::SelectAudio, SessionInput::SwitchTrack),
+        (
+            SessionCommandKind::SelectSubtitle,
+            SessionInput::SwitchTrack,
+        ),
     ];
     for (kind, input) in cases {
         assert_eq!(kind.as_input(), input);

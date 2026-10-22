@@ -186,7 +186,8 @@ pub use policy::{
 };
 pub use queue::{DrainError, EnqueueOutcome, PresentationQueue, QueueStats};
 pub use scheduler::{
-    PresentAction, PresentationScheduler, PushOutcome, SchedulerStats, TickDrops, TickOutcome,
+    DropTrail, MAX_DROP_TRAIL, PresentAction, PresentationScheduler, PushOutcome, SchedulerStats,
+    TickDrops, TickOutcome,
 };
 pub use sink::{PresentInfo, PresentRequest, Presenter};
 

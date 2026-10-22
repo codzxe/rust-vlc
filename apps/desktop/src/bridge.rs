@@ -257,7 +257,8 @@ fn wire_to_engine(err: WireError) -> EngineError {
         | WireError::UnsupportedVersion { .. }
         | WireError::BadHeaderLen { .. }
         | WireError::ReservedNotZero { .. }
-        | WireError::Truncated { .. } => "render.stream.malformed",
+        | WireError::Truncated { .. }
+        | WireError::TrailingBytes { .. } => "render.stream.malformed",
     };
     EngineError::new(
         PipelineStage::Present,
