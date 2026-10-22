@@ -1,11 +1,11 @@
 {
   "schema": "evidence/1",
-  "run_id": "2e1-local-433803b30",
+  "run_id": "2e1-local-5b396e5fa",
   "commit": {
-    "sha": "433803b30a507d84ab4079eb04ec36a1d472f911",
+    "sha": "5b396e5fad61d6229e4456da5e283bb21fb3103f",
     "note": "the tree the evidence was regenerated FROM; the artifact commit itself lands one commit later (a file cannot carry its own sha)"
   },
-  "started_at": "2026-10-22T13:26:39Z",
+  "started_at": "2026-10-22T14:13:59Z",
   "environment": {
     "kind": "local",
     "os": "linux",
@@ -262,8 +262,8 @@
     },
     {
       "path": "evidence/transcripts/wire-session.json",
-      "bytes": 4835,
-      "sha256": "15b066b5737b429c748174c171652d05bcf6c5d239745335129838542c836078"
+      "bytes": 5096,
+      "sha256": "9f489d11d52b279d51838d9c1f2dfcf9a70211e935666e2f5cbe695186305ad1"
     },
     {
       "path": "evidence/final-frame.png",
