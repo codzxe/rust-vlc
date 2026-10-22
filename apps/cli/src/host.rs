@@ -587,7 +587,6 @@ impl CliHost {
         if let Some(consumer) = self.consumer.as_ref()
             && let Some(error) = consumer.take_video_error()
         {
-            eprintln!("PROBE video-error: {error}");
             self.last_fatal = Some(wire_error(&error));
         }
     }

@@ -318,11 +318,6 @@ impl VideoLimb {
                 // stop/seek landed): the request fell behind the
                 // published generation — dropped at the boundary and
                 // counted by the queue, never presented stale.
-                eprintln!(
-                    "PROBE queue-stale-drop: req_gen={} published={}",
-                    request.generation.counter(),
-                    self.queue.published().counter()
-                );
                 let _ = request;
                 return Ok(());
             }
@@ -697,19 +692,32 @@ fn accept_video(
         PushOutcome::Scheduled | PushOutcome::Inferred { .. } => Ok(()),
         PushOutcome::Held | PushOutcome::MissingDropped { .. } => Ok(()),
         PushOutcome::WindowFull { .. } if state.video_hold.len() < MAX_VIDEO_HOLD => {
-            // Early, not late: hold the CONVERTED frame (the outcome
-            // hands back exactly what was pushed — the uploadable
-            // one) and retry after the next scheduler tick (the pump
-            // moves time on `advance`; the window drains as the clock
-            // advances). [W1-06 defect fix: this arm previously
-            // stashed the UNCONVERTED original (`frame.clone()`), so
-            // every hold-retried I420 frame reached the renderer and
-            // was refused `render.upload.format-unsupported` — 176
-            // refusals per whole-media run, the surface frozen on an
-            // early window frame; found while proving the seek ACs'
-            // presentation numbers (D-6: syntactic green ≠ runtime
-            // green).]
-            state.video_hold.push_back(converted);
+            // Early, not late: hold the frame and retry after the next
+            // scheduler tick (the pump moves time on `advance`; the
+            // window drains as the clock advances).
+            //
+            // [KNOWN DEFECT, registered as the W1-06 follow-up card
+            // (Lead decision required): this arm stashes the
+            // UNCONVERTED original (`frame.clone()`), so every
+            // hold-retried I420 frame is refused at the renderer
+            // (`render.upload.format-unsupported`) and the surface
+            // freezes on an early window frame. Stashing the CONVERTED
+            // frame (the outcome hands it back) is the obvious fix —
+            // W1-06 proved it — but it EXPOSES a second, load-bearing
+            // defect: `advance_time`'s render loop drains the whole
+            // ring per pump, so with the renderer accepting frames one
+            // `advance` tick plays the ENTIRE 2.000 s fixture (the
+            // mid-media pause/stop scenarios become unreachable, and a
+            // longer media would fatal `ring_full` under a
+            // one-quantum-per-pump bound — the decode side has no
+            // backpressure from the ring yet, doc 03 §8 / 3.B). Main's
+            // pause/stop pacing is an artifact of this renderer
+            // refusal breaking the render loop early. The complete fix
+            // needs the Lead's pacing/backpressure decision; until
+            // then this keeps main's exact behavior (D-5: no test was
+            // weakened — the scenarios keep their bug-masked shape and
+            // the defect is on the register).]
+            state.video_hold.push_back(frame.clone());
             Ok(())
         }
         PushOutcome::WindowFull { .. } | PushOutcome::UnschedulablePts { .. } => {
