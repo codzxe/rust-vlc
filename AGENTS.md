@@ -41,8 +41,13 @@ with actual results, limitations, open issues).
 5a. **Engineering directives are binding** (docs/engineering-directives.md):
    zero-allocation hot paths, bounded memory everywhere, no naive-complexity
    algorithms, dirty-world parsers, no destructive lifecycle shortcuts, no
-   synthetic-echo-chamber testing. Every card's final report includes the
-   pre-submission audit checklist (D-0..D-5).
+   synthetic-echo-chamber testing (D-1..D-5); functional reality over ritual,
+   no deferring the hardest problem, tribal-knowledge capture, hardware-clock
+   realism & binary hot paths, and the four-question pre-submission reality
+   check (D-6..D-10); randomized real-media corpus mandate (D-11). Every
+   card's final report includes the pre-submission audit checklist (D-0..D-5)
+   and answers the D-10 four questions (MEASURE / NOT tested / what breaks /
+   who hits it first) — a report without all four answers is not accepted.
 6. **Ask, don't invent**: when a requirement is ambiguous, request a
    specification decision from the Lead instead of inventing behavior. Only stop
    and ask for decisions that change an interface, policy, or fixed decision.
