@@ -30,7 +30,7 @@
 use std::num::NonZeroUsize;
 
 use media_clock::NANO_BASE;
-use media_clock::sync::{SyncBand, SyncBands};
+use media_clock::sync::SyncBands;
 use media_types::time::{Nanoseconds, Timestamp};
 
 /// The late-frame drop policy (doc 03 §4.10 b).
@@ -449,9 +449,7 @@ impl SyncPolicy {
         // |ê| scaled by 2, capped at widen_cap × duration — i128
         // throughout, saturating into u64 (a negative-width threshold
         // is unrepresentable; extreme inputs clamp to the cap).
-        let doubled = i128::from(error_ema_ns)
-            .saturating_mul(2)
-            .saturating_abs();
+        let doubled = i128::from(error_ema_ns).saturating_mul(2).saturating_abs();
         let cap = i128::from(duration.0).saturating_mul(i128::from(self.widen_cap_frames));
         let width = doubled.clamp(i128::from(duration.0), cap);
         let ns = u64::try_from(width).unwrap_or(cap.max(0) as u64);

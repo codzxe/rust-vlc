@@ -176,9 +176,22 @@ impl DriftEstimator {
     }
 
     /// The last measured slope, rounded to whole ppm (observability).
+    ///
+    /// Ceiling division on signed milli-ppm, spelled out by hand: the
+    /// toolchain's `i64::div_ceil` is still `int_roundings`-unstable,
+    /// and the one-line identity below carries the same semantics
+    /// (round toward +∞) with stable primitives.
     #[must_use]
     pub fn slope_ppm(&self) -> Option<i64> {
-        self.slope_mppm().map(|mppm| mppm.div_ceil(1000))
+        self.slope_mppm().map(|mppm| {
+            let quotient = mppm / 1000;
+            let remainder = mppm % 1000;
+            if remainder > 0 {
+                quotient + 1
+            } else {
+                quotient
+            }
+        })
     }
 
     /// Total windowed samples since construction (monotonic; not
@@ -211,7 +224,8 @@ impl DriftEstimator {
             return;
         }
         let weight = (1u128 << self.shift.min(126)).saturating_sub(1) as i128;
-        let combined = i128::from(error_ns).saturating_add(i128::from(self.ema).saturating_mul(weight));
+        let combined =
+            i128::from(error_ns).saturating_add(i128::from(self.ema).saturating_mul(weight));
         self.ema = saturate_i64(combined >> self.shift);
     }
 }
@@ -483,20 +497,22 @@ mod tests {
             max = max.max(x);
             est.observe_sample(x);
             let ema = est.error_ema().must();
-            assert!(
-                ema >= min && ema <= max,
-                "ema {ema} escaped [{min}, {max}]"
-            );
+            assert!(ema >= min && ema <= max, "ema {ema} escaped [{min}, {max}]");
         }
         // i64 extremes: the EMA is a convex combination, so it stays
         // within [min, max] of what it has seen — saturating only at
         // the extreme itself, never panicking, never wrapping past it.
-        // (The dyadic floor can stall one unit below a positive fixed
-        // point — documented, bounded, irrelevant at ns scale.)
+        // The dyadic floor stalls the approach to a positive fixed
+        // point at up to 2^k − 1 = 7 units below `i64::MAX` (k = 3:
+        // `ema' = ema` once `MAX − ema ≤ 7`, since `floor((8·MAX −
+        // 7d)/8) = MAX − ceil(7d/8)` fixes at d = 7) — the exact stall
+        // point, hand-verified; documented, bounded, irrelevant at ns
+        // scale. The negative side has no stall: `>>` floors toward
+        // −∞, so a constant `i64::MIN` stream converges exactly.
         for _ in 0..1024 {
             est.observe_sample(i64::MAX);
         }
-        assert!(est.error_ema().must() >= i64::MAX - 1);
+        assert!(est.error_ema().must() >= i64::MAX - 7);
         let mut previous = i64::MAX;
         for _ in 0..64 {
             est.observe_sample(i64::MIN);
@@ -531,10 +547,7 @@ mod tests {
         let mut est = DriftEstimator::for_shift_and_window(3, 2_000_000_000);
         est.observe_windowed(0, 0);
         for second in 1i64..=10 {
-            est.observe_windowed(
-                u64::try_from(second).must() * 1_000_000_000,
-                -1000 * second,
-            );
+            est.observe_windowed(u64::try_from(second).must() * 1_000_000_000, -1000 * second);
         }
         assert_eq!(est.slope_mppm(), Some(-1000));
         assert_eq!(est.slope_ppm(), Some(-1));
@@ -614,11 +627,14 @@ mod tests {
         for _ in 0..50 {
             assert_eq!(b.classify(Some(-10_000_000)), SyncBand::WidenLate);
         }
-        // At half amplitude, 7 ticks: not yet.
+        // At half amplitude, 7 ticks: not yet (the 8th calm tick is
+        // the one that exits — symmetric with the entry test's 8th
+        // sustained tick entering; the checkpoint draft asserted a
+        // ninth WidenLate here, an off-by-one against its own pinned
+        // entry symmetry).
         for _ in 0..7 {
             assert_eq!(b.classify(Some(-8_000_000)), SyncBand::WidenLate);
         }
-        assert_eq!(b.classify(Some(-8_000_000)), SyncBand::WidenLate);
         // 8th: back to hold.
         assert_eq!(b.classify(Some(-8_000_000)), SyncBand::Hold);
     }

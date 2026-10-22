@@ -56,7 +56,7 @@ use media_types::GenerationId;
 use media_types::frame::VideoFrame;
 use media_types::time::{Nanoseconds, Stamp, TimeError, Timestamp};
 
-use crate::policy::{FrameDecision, SchedulerCfg};
+use crate::policy::SchedulerCfg;
 use crate::sink::PresentRequest;
 
 /// The result of offering a decoded frame to the scheduler.
@@ -371,17 +371,13 @@ impl SchedulerSync {
     /// Rotate the tumbling budget/rate windows (called per tick and
     /// per drop; both are `O(1)` compares).
     fn rotate_windows(&mut self, policy: &crate::policy::SyncPolicy) {
-        if self
-            .tick_index
-            .saturating_sub(self.drop_window_start)
+        if self.tick_index.saturating_sub(self.drop_window_start)
             >= u64::from(policy.drop_window_ticks)
         {
             self.drops_in_window = 0;
             self.drop_window_start = self.tick_index;
         }
-        if self
-            .tick_index
-            .saturating_sub(self.change_window_start)
+        if self.tick_index.saturating_sub(self.change_window_start)
             >= u64::from(policy.threshold_window_ticks)
         {
             self.changes_in_window = 0;
@@ -464,7 +460,7 @@ impl PresentationScheduler {
                     // 03 §4.4 audio queue duration cap.
                     if let Some(tail) = self.window.back() {
                         let gap = i128::from(pts.ticks) - i128::from(tail.pts.ticks);
-                        if gap.unsigned_abs() >= i128::from(self.cfg.sync.pts_gap_threshold.0) {
+                        if gap.abs() >= i128::from(self.cfg.sync.pts_gap_threshold.0) {
                             self.sync.reset_estimators(&self.cfg);
                             self.sync.snap_pending = true;
                             self.sync.purge_skip = true;
@@ -637,7 +633,8 @@ impl PresentationScheduler {
                     as i64;
                 self.sync.estimator.observe_sample(e_v);
                 self.stats.sync_samples += 1;
-                self.stats.sync_error_sum = self.stats.sync_error_sum.saturating_add(i128::from(e_v));
+                self.stats.sync_error_sum =
+                    self.stats.sync_error_sum.saturating_add(i128::from(e_v));
                 self.stats.sync_error_abs_max_ns =
                     self.stats.sync_error_abs_max_ns.max(e_v.unsigned_abs());
                 sync_sample.error_ns = Some(e_v);
@@ -667,14 +664,19 @@ impl PresentationScheduler {
         // 3.B1 seam 4 — the band decision runs every tick (the dwell
         // is tick-scaled); the actuators apply at the decide_every
         // cadence (bounded churn, deterministic without a time source).
-        let band = self.sync.bands.classify(
-            if snapshot.state == ClockState::Running {
+        let band = self
+            .sync
+            .bands
+            .classify(if snapshot.state == ClockState::Running {
                 self.sync.estimator.error_ema()
             } else {
                 None
-            },
-        );
-        if self.sync.tick_index.is_multiple_of(u64::from(self.cfg.sync.decide_every)) {
+            });
+        if self
+            .sync
+            .tick_index
+            .is_multiple_of(u64::from(self.cfg.sync.decide_every))
+        {
             self.apply_sync_ladder(band);
         }
 
@@ -739,10 +741,10 @@ impl PresentationScheduler {
                 if self.sync.drops_in_window >= self.cfg.sync.drop_budget {
                     return;
                 }
-                let Some(want) =
-                    self.cfg
-                        .sync
-                        .widened_threshold(ema, self.cfg.frame_duration)
+                let Some(want) = self
+                    .cfg
+                    .sync
+                    .widened_threshold(ema, self.cfg.frame_duration)
                 else {
                     return;
                 };
@@ -854,6 +856,19 @@ fn insert_sorted(window: &mut VecDeque<Pending>, item: Pending) {
 /// clamp for any real schedule).
 fn saturating_add(base: i64, dur: u64) -> i64 {
     (i128::from(base) + i128::from(dur)).clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64
+}
+
+/// The late-purge predicate against an **effective** threshold (the
+/// 3.B1 ladder can widen it): `pts < now − threshold` is late, with
+/// the strict comparison and i128 widening of `SchedulerCfg::decide`
+/// (`pts == now − threshold` is *on* the bound and presents). Kept as
+/// a free function so the purge loop needs no `&self` borrow while
+/// mutating the window.
+fn is_late(pts: Timestamp, now: Timestamp, threshold: Option<Nanoseconds>) -> bool {
+    let Some(Nanoseconds(threshold)) = threshold else {
+        return false;
+    };
+    i128::from(pts.ticks) < i128::from(now.ticks) - i128::from(threshold)
 }
 
 #[cfg(test)]
