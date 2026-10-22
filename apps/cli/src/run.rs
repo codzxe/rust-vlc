@@ -28,10 +28,19 @@
 //! with `--json` the observed events are emitted as NDJSON lines
 //! after each response (doc 05 §5.3: "`--json` emits every event as
 //! one NDJSON line on stdout").
+//!
+//! # Graceful exit (M17)
+//!
+//! `quit`/EOF never abandons a live session: the REPL (and the
+//! machine mode's EOF) runs a stop → close teardown through the same
+//! dispatch entry as the typed verbs, bounded by the engine's
+//! await-pump seam, and answers 0 — the teardown's state trail
+//! prints like any command's (doc 10 §6 scenario 16: "exit during
+//! playback leaves no temp state"). See [`graceful_exit`].
 
 use std::io::{BufRead, Write};
 
-use commands::{Command, CommandOutcome, CommandResult, WireEvent, WireRequest};
+use commands::{Command, CommandOutcome, CommandResult, PlaybackState, WireEvent, WireRequest};
 
 use crate::dispatch::lumen_dispatch;
 use crate::exit;
@@ -155,6 +164,8 @@ fn one_shot<W: Write, E: Write>(command: &CliCommand, json: bool, out: &mut W, e
 /// is given"): the argv `open` seeds the session, then stdin lines
 /// drive it. EOF or `quit`/`q` leaves; the exit code is 0 unless the
 /// OPEN itself failed (its typed error is the process answer).
+/// Leaving with a live session runs the graceful-exit teardown (M17,
+/// [`graceful_exit`]) — never an abandoned device mid-stream.
 #[allow(clippy::too_many_arguments)]
 fn repl_mode<R: BufRead, W: Write, E: Write>(
     source: &str,
@@ -264,6 +275,13 @@ fn repl_mode<R: BufRead, W: Write, E: Write>(
             }
         }
     }
+    // M17: the graceful exit — `quit`/EOF must not abandon a live
+    // session (doc 10 §6 scenario 16: "teardown within deadline;
+    // device closed; exit code clean"). The teardown goes through
+    // the same dispatch the typed verbs use; its trail prints here,
+    // and the answer stays 0.
+    graceful_exit(&mut host, err);
+    print_new_events(&host, printed, out);
     0
 }
 
@@ -283,7 +301,18 @@ fn machine_mode<R: BufRead, W: Write, E: Write>(
     loop {
         line.clear();
         match input.read_line(&mut line) {
-            Ok(0) | Err(_) => return 0,
+            Ok(0) | Err(_) => {
+                // M17: EOF tears a live session down before the exit —
+                // the machine twin of the REPL's graceful quit. The
+                // typed refusals land on stderr; the trail rides the
+                // NDJSON event stream when `--json` asked for it
+                // (doc 05 §5.3: "`--json` emits every event").
+                graceful_exit(&mut host, err);
+                if json_events {
+                    print_new_events_json(&host, printed, out);
+                }
+                return 0;
+            }
             Ok(_) => {}
         }
         let trimmed = line.trim();
@@ -333,6 +362,85 @@ fn print_new_events_json<W: Write>(host: &CliHost, printed: usize, out: &mut W) 
                 let _ = writeln!(out, "{{\"error\":\"event-serialization-failed\"}}");
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Graceful exit (M17 — doc 10 §6 scenario 16)
+// ---------------------------------------------------------------------------
+
+/// The bounded tail flush after a landed teardown: the close's
+/// receipt and its `→ Idle` event co-drain in the pump that answers
+/// the await, but the exit's observability must not lean on that
+/// coupling — a fixed pipeline-only flush drains whatever the hub
+/// still holds (in `Idle` every pump is a no-op, so the bound is
+/// cheap, deterministic, and exact).
+const TEARDOWN_TAIL_PUMPS: usize = 8;
+
+/// The graceful-exit teardown (M17): `quit`/EOF with a live session
+/// runs stop → close through [`lumen_dispatch`] — the same single
+/// command entry the typed verbs use (ARCH-5; no host-internal
+/// bypass — the runner owns no engine bypasses) — then a bounded
+/// tail flush, and the process answers 0. Doc 10 §6 scenario 16:
+/// "exit during playback — teardown within deadline; device closed;
+/// exit code clean". The bare `break` this replaces left the audio
+/// device abandoned mid-stream, dropped the session without the
+/// close protocol, and printed no `Stopped`/`Idle` trail.
+///
+/// The steps:
+///
+/// 1. `playback.stop` from the active states (`Playing`/`Paused` —
+///    the seek composition's own gating; the engine's transition
+///    table rejects stop elsewhere and answers `AlreadySettled` in
+///    the settled ones),
+/// 2. `session.close` while a session survives (the close protocol:
+///    destroy → `Idle`, the host's session-scoped halves dropped),
+/// 3. the tail flush ([`TEARDOWN_TAIL_PUMPS`]) so the `→ Idle` trail
+///    is drained and printable.
+///
+/// Every await rides the engine's existing bound (the host's
+/// `AWAIT_PUMPS` pipeline pumps — no wall clock anywhere), so the
+/// exit cannot hang. A refused or expired step is printed on stderr
+/// through the one error printer and never blocks the exit: the quit
+/// itself succeeded, and the engine's typed refusal names the owning
+/// card (the transient-state close from `Buffering` is 3.C1's — the
+/// registered host-side follow-up).
+fn graceful_exit<E: Write>(host: &mut CliHost, err: &mut E) {
+    if host.session_id().is_none() {
+        // Nothing live (e.g. `quit` after a typed close): plain exit.
+        return;
+    }
+    if matches!(host.state(), PlaybackState::Playing | PlaybackState::Paused) {
+        teardown_step(host, Command::PlaybackStop, err);
+    }
+    if host.session_id().is_some() {
+        teardown_step(host, Command::SessionClose, err);
+    }
+    if host.session_id().is_none() {
+        // The teardown landed: flush the trailing `→ Idle` events out
+        // of the hub (each pump in `Idle` is a no-op — bounded and
+        // cheap). On a refusal the engine still holds the session;
+        // pumping it further would advance a session we were told to
+        // leave, so the flush is success-only and the refusal line on
+        // stderr is the report.
+        host.pump_pipeline_until(|_| false, TEARDOWN_TAIL_PUMPS);
+    }
+}
+
+/// One teardown step through the single dispatch entry: a typed
+/// failure is reported on stderr (the one honest printer) and the
+/// exit proceeds — the quit must never hang on a refused close.
+fn teardown_step<E: Write>(host: &mut CliHost, command: Command, err: &mut E) {
+    let request_id = host.next_request();
+    let response = lumen_dispatch(
+        host,
+        &WireRequest {
+            request_id,
+            command,
+        },
+    );
+    if let Err(error) = response.result {
+        exit::print_error_to(&error, err);
     }
 }
 
