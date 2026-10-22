@@ -7440,3 +7440,9 @@ Work Log:
 Stage Summary:
 - Wave 2 delivered: M10 pre-roll hold (load-bearing for W3-01's C8), C7, M3, DhtKey/evidence hygiene, harness honesty (clean/dirty + duration), suite decoded-rows. Audit register: C1-C8 all closed except C8 (W3-01, salvage 80% done); M1-M19 all closed except M12 (W3-07 salvage) + M4-partial (W3-08 salvage).
 - Wave 3 = two batches of 10 (deadline mitigation): A = the 8 salvage/re-dispatch continuations + W3-09 pcm-hole fixes (W2-15 patches) + W3-10 exit/oracle fixes (W2-17 patches); B = 3.C1/3.C2/3.C3 + 3.D1/3.D2/3.D3 implementations + 2 adversarial verifiers of Wave-2 merges + 3.E/3.F/Phase-4 recons. All sonnet.
+Task ID: 3.WAVE3-A-LAUNCH (Lead)
+Agent: Lead
+Task: Wave 3 Batch A — 10 agents (7 salvage continuations + 3 verifier-hole fix cards). Batch B (3.C/3.D implementations) launches after A closes. All sonnet (opus = deadline death, proven twice).
+
+Stage Summary:
+- Base: main @ 2cd34fe, gate PASS 1526/0/16. CI unlocked (workflow-scope PAT).
