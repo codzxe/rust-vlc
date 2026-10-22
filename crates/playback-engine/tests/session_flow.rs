@@ -308,6 +308,17 @@ fn virtual_clock() -> Arc<media_clock::MediaClock> {
     )
 }
 
+/// A frozen virtual throttle source (card 3.B4): every emission
+/// window is deterministic — a never-advancing source permits
+/// exactly one in-episode buffering emission and never windows a
+/// damage flush mid-test (the terminal `flush_all` still fires).
+fn frozen_throttle() -> playback_engine::EventPolicy {
+    playback_engine::EventPolicy {
+        tick: playback_engine::TimeTickPolicy::default_policy(),
+        throttle: Arc::new(SharedNow(AtomicU64::new(0))),
+    }
+}
+
 fn config_with(
     tracks: Vec<Track>,
     script: Vec<DemuxEvent>,
@@ -330,6 +341,7 @@ fn config_with(
     );
     config.queues = tiny_queues();
     config.budget = tiny_budget();
+    config.throttle = frozen_throttle();
     config
 }
 
@@ -368,6 +380,7 @@ fn open_with(
     );
     config.queues = tiny_queues();
     config.budget = tiny_budget();
+    config.throttle = frozen_throttle();
     let mut engine = Engine::new();
     let handle = engine.open(config).must();
     Fixture {
@@ -830,6 +843,7 @@ fn an_armed_decode_failure_transitions_to_error_from_playing() {
     );
     config.queues = tiny_queues();
     config.budget = tiny_budget();
+    config.throttle = frozen_throttle();
     let mut engine = Engine::new();
     let handle = engine.open(config).must();
     // The failure fires during the first decode (Buffering tick): the

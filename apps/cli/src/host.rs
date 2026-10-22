@@ -54,7 +54,7 @@ use commands::catalog::types::{
 };
 use commands::envelope::{CommandOutcome, Generation, RequestId, SessionId};
 use commands::{CommandError, ErrorCode, PlaybackState, Stage, WireEvent};
-use media_clock::{MediaClock, PlaybackClock};
+use media_clock::{MediaClock, MonotonicSource, PlaybackClock};
 use media_types::MediaKind;
 use playback_engine::event::EngineEventKind;
 use playback_engine::{
@@ -136,6 +136,16 @@ pub struct CliHost {
     open_no_audio: bool,
     /// Session-local settings overrides (the settings-schema seam).
     settings: BTreeMap<String, SettingValue>,
+    /// The reused output-drain buffer (card 3.B4's addendum, D-1):
+    /// `take`-out / `drain_outputs_into` / move-back per pump —
+    /// steady state allocates nothing on the drain path.
+    outbox_scratch: Vec<EngineOutput>,
+    /// The injected event-throttle source (card 3.B4): when set,
+    /// sessions open with this monotonic source driving the doc 05
+    /// §3.4 emission windows instead of real time — the
+    /// determinism seam the first-vertical evidence harness uses
+    /// (a frozen source keeps the transcripts byte-stable).
+    event_throttle: Option<Arc<dyn MonotonicSource>>,
 }
 
 impl Default for CliHost {
@@ -167,7 +177,20 @@ impl CliHost {
             open_no_video: false,
             open_no_audio: false,
             settings: BTreeMap::new(),
+            outbox_scratch: Vec::new(),
+            event_throttle: None,
         }
+    }
+
+    /// Inject the event-throttle source (card 3.B4): every session
+    /// opened after this call reads its doc 05 §3.4 emission windows
+    /// from `source` instead of real monotonic time. The
+    /// first-vertical evidence harness injects a frozen source so
+    /// the in-episode `session.buffering` windows and the non-fatal
+    /// damage windows are deterministic — production hosts leave it
+    /// unset and get the real clock.
+    pub fn set_event_throttle(&mut self, source: Arc<dyn MonotonicSource>) {
+        self.event_throttle = Some(source);
     }
 
     // -- observation ------------------------------------------------------
@@ -353,8 +376,15 @@ impl CliHost {
 
     /// Drain the engine's output hub: receipts stashed for matching,
     /// events converted to wire, staleness-filtered and recorded.
+    /// The buffer is REUSED across pumps (D-1): take → clear →
+    /// `drain_outputs_into` → drain while processing → move back —
+    /// the Vec's allocation survives, steady state allocates
+    /// nothing per drain.
     fn drain_outputs(&mut self) {
-        for output in self.engine.take_outputs() {
+        let mut outputs = std::mem::take(&mut self.outbox_scratch);
+        outputs.clear();
+        self.engine.drain_outputs_into(&mut outputs);
+        for output in outputs.drain(..) {
             match output {
                 EngineOutput::Receipt(receipt) => self.pending_receipts.push(receipt),
                 EngineOutput::Event(event) => {
@@ -391,6 +421,7 @@ impl CliHost {
                 }
             }
         }
+        self.outbox_scratch = outputs;
     }
 
     /// Advance media time: render audio quanta (each moves the sample
@@ -639,13 +670,19 @@ impl CliHost {
         // DrainGatedDecoder — headless time moves only via `advance`).
         provider.attach_consumer(Arc::clone(&consumer));
         let provider = Arc::new(provider);
-        let config = SessionConfig::new(
+        let mut config = SessionConfig::new(
             opened.uri,
             Box::new(opened.demuxer),
             provider,
             Arc::clone(&consumer) as Arc<dyn playback_engine::FrameConsumer>,
             Arc::clone(&clock),
         );
+        if let Some(source) = self.event_throttle.clone() {
+            config.throttle = playback_engine::EventPolicy {
+                tick: playback_engine::TimeTickPolicy::default_policy(),
+                throttle: source,
+            };
+        }
         let handle = self
             .engine
             .open(config)
@@ -1053,6 +1090,12 @@ fn session_error_wire(error: &SessionError) -> CommandError {
             ErrorCode::Canceled,
             "the session closed before the command landed",
         ),
+        SessionError::InboxBusy => CommandError::new(
+            Stage::Session,
+            ErrorCode::ResourceLimit,
+            "the session inbox is full — poll the engine, then retry",
+        )
+        .with_detail("limit", "inbox-capacity"),
         SessionError::Invariant(detail) => CommandError::new(
             Stage::Control,
             ErrorCode::Internal,

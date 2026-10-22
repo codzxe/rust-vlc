@@ -23,6 +23,19 @@
 //! - `SeekFailed` → `timing.seek-failed` (contract D4: typed reason,
 //!   old position; exactly one terminal per seek generation — doc 05
 //!   §4.3 invariant 4)
+//! - `TimeTick` → `timing.time-tick` (card 3.B4, doc 05 §3.2/§3.4
+//!   rule 1: the only continuous stream, position-judged, never
+//!   queued — the outbox replaces the undelivered older tick)
+//! - `DurationKnown` → `timing.duration-known` (card 3.B4: the
+//!   greatest declared track extent, once per open, before any
+//!   time-tick that assumes it — doc 05 §4.3 invariant 4)
+//! - `MediaInfoReady` → `media.info-ready` (card 3.B4: the open-time
+//!   snapshot, once per open, before the first `→ playing`)
+//! - `EndOfTrack` → `playback.end-of-track` (card 3.B4: a limb
+//!   newly drained while the media continues)
+//! - `RecoveredDamage` → `playback.error` with `fatal: false` (card
+//!   3.B4: bounded-recovery damage, coalesced per 1 s window with a
+//!   count — doc 05 §3.2)
 //! - `FirstFrame` → **engine-private** (doc 05 §4.2: "internal
 //!   trigger of the `playing` transition, no separate v1 wire event")
 //! - `DamagedData` → **engine-private** (no v1 wire row; it is
@@ -45,6 +58,7 @@
 //! inline.
 
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use commands::catalog::types::{
@@ -54,7 +68,7 @@ use commands::catalog::types::{
 use commands::envelope::{Generation, RequestId, SessionId};
 use commands::{CommandError, EventKind, PlaybackState, WireEvent};
 use media_types::error::{ErrorKind, PipelineStage};
-use media_types::{EngineError, Stamp, Track};
+use media_types::{EngineError, MediaKind, SourceUri, Stamp, Track, TrackId};
 
 use crate::seek::SeekFailure;
 use crate::state::SessionState;
@@ -147,6 +161,67 @@ pub enum EngineEventKind {
         /// The position playback continues from (ns).
         position: i64,
     },
+    /// The continuous position report (card 3.B4, doc 05 §3.2
+    /// `timing.time-tick`): the playback clock's position and its
+    /// clamped fraction of the known duration. The only continuous
+    /// stream — never queued (doc 05 §3.4 rule 1: a newer tick
+    /// replaces an undelivered older one in the outbox). The payload
+    /// is plain data so the emission path itself stays allocation-
+    /// free (engineering directive D-1).
+    TimeTick {
+        /// The playback-clock position (ns).
+        position_ns: i64,
+        /// `0.0..=1.0` of the known duration (`0.0` when the
+        /// duration is unknown — the honest floor, never a guess).
+        fraction: f32,
+    },
+    /// The duration became known (card 3.B4, doc 05 §3.2
+    /// `timing.duration-known`): the greatest declared track extent,
+    /// once per open when derivable — delivered before any time-tick
+    /// that assumes it (doc 05 §4.3 invariant 4).
+    DurationKnown {
+        /// The duration (ns).
+        duration_ns: i64,
+    },
+    /// The metadata snapshot (card 3.B4, doc 05 §3.2
+    /// `media.info-ready`): the engine's open-time [`MediaInfo`],
+    /// once per open, before the first `state-changed → playing`.
+    /// The payload is the wire type itself (the assembly is the
+    /// bridge's job — see [`crate::event::media_info_wire`]), boxed
+    /// so the one fat variant does not inflate every
+    /// [`EngineEventKind`](crate::event::EngineEventKind) — and with
+    /// it every outbox slot — by 200 bytes (engineering directive
+    /// D-2's mechanical-sympathy rule). The once-per-open cadence is
+    /// the documented low-rate exception to the zero-allocation
+    /// rule (the `Clone` deep-copies the track list, and `as_wire`
+    /// hands over one owned copy per host conversion).
+    MediaInfoReady {
+        /// The assembled snapshot (source, duration, seekable,
+        /// tracks — the same data `media.get-info` answers).
+        info: Box<commands::catalog::types::MediaInfo>,
+    },
+    /// One elementary stream ended while the media continues (card
+    /// 3.B4, doc 05 §3.2 `playback.end-of-track`): a limb newly
+    /// drained while another still has work. When every limb drains
+    /// together the end-of-media event speaks instead — the last
+    /// limb's end IS the media's end.
+    EndOfTrack {
+        /// Which track ended.
+        track_kind: MediaKind,
+        /// Its engine handle.
+        id: TrackId,
+    },
+    /// A coalesced non-fatal recovery report (card 3.B4, doc 05
+    /// §3.2 `playback.error` with `fatal: false`): bounded-recovery
+    /// damage per pipeline stage, counted over the 1 s window — the
+    /// wire-visible half of the engine-private per-tick
+    /// [`EngineEventKind::DamagedData`] fact.
+    RecoveredDamage {
+        /// The stage that recovered the units.
+        stage: PipelineStage,
+        /// Units recovered in the window.
+        count: u64,
+    },
 }
 
 impl Clone for EngineEventKind {
@@ -189,6 +264,27 @@ impl Clone for EngineEventKind {
             EngineEventKind::SeekFailed { reason, position } => EngineEventKind::SeekFailed {
                 reason: reason.clone(),
                 position: *position,
+            },
+            EngineEventKind::TimeTick {
+                position_ns,
+                fraction,
+            } => EngineEventKind::TimeTick {
+                position_ns: *position_ns,
+                fraction: *fraction,
+            },
+            EngineEventKind::DurationKnown { duration_ns } => EngineEventKind::DurationKnown {
+                duration_ns: *duration_ns,
+            },
+            EngineEventKind::MediaInfoReady { info } => EngineEventKind::MediaInfoReady {
+                info: Box::new((**info).clone()),
+            },
+            EngineEventKind::EndOfTrack { track_kind, id } => EngineEventKind::EndOfTrack {
+                track_kind: *track_kind,
+                id: *id,
+            },
+            EngineEventKind::RecoveredDamage { stage, count } => EngineEventKind::RecoveredDamage {
+                stage: *stage,
+                count: *count,
             },
         }
     }
@@ -247,6 +343,38 @@ impl PartialEq for EngineEventKind {
                     position: d,
                 },
             ) => a == c && b == d,
+            (
+                EngineEventKind::TimeTick {
+                    position_ns: a,
+                    fraction: b,
+                },
+                EngineEventKind::TimeTick {
+                    position_ns: c,
+                    fraction: d,
+                },
+            ) => a == c && b == d,
+            (
+                EngineEventKind::DurationKnown { duration_ns: a },
+                EngineEventKind::DurationKnown { duration_ns: b },
+            ) => a == b,
+            (
+                EngineEventKind::MediaInfoReady { info: a },
+                EngineEventKind::MediaInfoReady { info: b },
+            ) => a == b,
+            (
+                EngineEventKind::EndOfTrack {
+                    track_kind: a,
+                    id: b,
+                },
+                EngineEventKind::EndOfTrack {
+                    track_kind: c,
+                    id: d,
+                },
+            ) => a == c && b == d,
+            (
+                EngineEventKind::RecoveredDamage { stage: a, count: b },
+                EngineEventKind::RecoveredDamage { stage: c, count: d },
+            ) => a == c && b == d,
             _ => false,
         }
     }
@@ -290,6 +418,34 @@ impl EngineEventKind {
             }),
             EngineEventKind::SeekFailed { reason, position } => Some(EventKind::TimingSeekFailed {
                 error: seek_error_wire(reason, *position),
+            }),
+            EngineEventKind::TimeTick {
+                position_ns,
+                fraction,
+            } => Some(EventKind::TimingTimeTick {
+                time: commands::catalog::types::Timestamp(ns_to_us(*position_ns)),
+                position: *fraction,
+            }),
+            EngineEventKind::DurationKnown { duration_ns } => {
+                Some(EventKind::TimingDurationKnown {
+                    duration: commands::catalog::types::Timestamp(ns_to_us(*duration_ns)),
+                })
+            }
+            EngineEventKind::MediaInfoReady { info } => Some(EventKind::MediaInfoReady {
+                info: (**info).clone(),
+            }),
+            EngineEventKind::EndOfTrack { track_kind, id } => Some(EventKind::PlaybackEndOfTrack {
+                track_kind: wire_track_kind(*track_kind),
+                id: commands::catalog::types::TrackId(id.handle()),
+            }),
+            EngineEventKind::RecoveredDamage { stage, count } => Some(EventKind::PlaybackError {
+                stage: wire_stage(*stage),
+                code: commands::ErrorCode::Corrupt,
+                message: format!(
+                    "the engine recovered {count} damaged unit(s) while resynchronizing"
+                ),
+                details: recovered_damage_details(*count),
+                fatal: false,
             }),
         }
     }
@@ -487,6 +643,84 @@ pub fn track_info_wire(track: &Track, is_selected: bool) -> WireTrackInfo {
         origin: WireTrackOrigin::Stream,
         video: None,
         audio: None,
+    }
+}
+
+/// Machine-readable hints for the non-fatal `playback.error`
+/// payload: the coalesced window count (doc 05 §3.2's "with a
+/// count"). `[PROPOSAL: the coalescing rule itself is `[PROPOSAL]`
+/// in the doc; the key name is this bridge's choice]`.
+fn recovered_damage_details(count: u64) -> BTreeMap<String, String> {
+    let mut details = BTreeMap::new();
+    details.insert("count".to_string(), count.to_string());
+    details
+}
+
+/// Bridge an engine track kind to the wire track kind.
+#[must_use]
+fn wire_track_kind(kind: MediaKind) -> WireTrackKind {
+    match kind {
+        MediaKind::Audio => WireTrackKind::Audio,
+        MediaKind::Video => WireTrackKind::Video,
+        MediaKind::Subtitle => WireTrackKind::Subtitle,
+        MediaKind::Data => WireTrackKind::Data,
+    }
+}
+
+/// Bridge the engine's source URI to the wire source spec (doc 05
+/// §2.2). `[PROPOSAL]`: the engine speaks the URI's **redacted**
+/// display form (V8 — it never re-derives the raw path; hosts that
+/// need the exact original carry it themselves, as the CLI host
+/// does for `media.get-info`); `file` URIs surface as `File` specs
+/// over the redacted path, everything else as a `Url`.
+#[must_use]
+pub fn source_spec_wire(source: &SourceUri) -> commands::catalog::types::SourceSpec {
+    use commands::catalog::types::SourceSpec;
+    let redacted = source.to_string();
+    if source.scheme().as_str() == "file" {
+        SourceSpec::File {
+            path: PathBuf::from(redacted.trim_start_matches("file://")),
+        }
+    } else {
+        SourceSpec::Url { url: redacted }
+    }
+}
+
+/// Assemble the wire [`MediaInfo`] snapshot for `media.info-ready`
+/// (card 3.B4, doc 05 §3.2 — the same data `media.get-info`
+/// answers). Heuristics are `[PROPOSAL]`-tagged at their site:
+/// `seekable` is the demuxer's declared [`SeekSupport`](plugin_api::SeekSupport)
+/// (non-`None`), `is_live` is `false` (no live sources exist in the
+/// engine yet), `container`/`title`/`metadata`/`chapters` are the
+/// v0 honest unknowns (the probe-side enrichment lands with the
+/// hosts that own it).
+#[must_use]
+pub fn media_info_wire(
+    source: &SourceUri,
+    duration_ns: Option<i64>,
+    seekable: bool,
+    tracks: &[Track],
+    selected: &[bool],
+) -> commands::catalog::types::MediaInfo {
+    commands::catalog::types::MediaInfo {
+        source: source_spec_wire(source),
+        container: None,
+        title: None,
+        duration: match duration_ns {
+            Some(ns) => commands::catalog::types::Duration::Known {
+                time: commands::catalog::types::Timestamp(ns_to_us(ns)),
+            },
+            None => commands::catalog::types::Duration::Unknown,
+        },
+        seekable,
+        is_live: false,
+        metadata: BTreeMap::new(),
+        tracks: tracks
+            .iter()
+            .zip(selected.iter())
+            .map(|(track, &is_selected)| track_info_wire(track, is_selected))
+            .collect(),
+        chapters: Vec::new(),
     }
 }
 

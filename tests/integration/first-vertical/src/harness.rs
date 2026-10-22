@@ -46,6 +46,19 @@ use crate::json::Json;
 /// The transcript schema tag (doc 10 §6.4's `transcripts/<id>.json`).
 pub const TRANSCRIPT_SCHEMA: &str = "transcript/1";
 
+/// A frozen monotonic source (card 3.B4's determinism seam): every
+/// emission window reads time 0 forever, so each buffering episode
+/// permits exactly one in-episode progress emission and the damage
+/// coalescer only ever flushes at its terminal points — pure
+/// functions of the pump count, like every other observable here.
+struct FrozenThrottle(std::sync::atomic::AtomicU64);
+
+impl lumen_cli::MonotonicSource for FrozenThrottle {
+    fn now_ns(&self) -> u64 {
+        self.0.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
 /// The doc 10 §7.1 label axes for one artifact.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Labels {
@@ -214,8 +227,18 @@ impl SessionHarness {
     /// paths are never recorded, V8).
     #[must_use]
     pub fn new(scenario_fixture: &'static str) -> SessionHarness {
+        let mut host = CliHost::new();
+        // Card 3.B4: freeze the event-emission windows (doc 05 §3.4)
+        // on the same virtual-time doctrine as the media clock — a
+        // frozen monotonic source keeps the in-episode
+        // `session.buffering` progress and the non-fatal damage
+        // coalescing byte-deterministic in the transcripts (the
+        // time-tick stream is position-judged and needs no help).
+        host.set_event_throttle(std::sync::Arc::new(FrozenThrottle(
+            std::sync::atomic::AtomicU64::new(0),
+        )));
         SessionHarness {
-            host: CliHost::new(),
+            host,
             next_id: 1,
             steps: Vec::new(),
             labels: Labels::detect(),
@@ -499,6 +522,21 @@ fn state_json(state: PlaybackState) -> Json {
 /// name + `Debug` payload for the rest (events never carry user
 /// paths: error messages arrive through the redaction-safe layer
 /// constructor).
+///
+/// # Seq gaps are engine-private events, never loss
+///
+/// The engine mints `seq` at emission for EVERY event, including the
+/// engine-private kinds that never reach the wire (doc 05 §4.2:
+/// `FirstFrame` is "the internal trigger of the playing transition,
+/// no separate v1 wire event"; `DamagedData` is bounded-recovery
+/// observability). The private kinds are filtered here, so their seq
+/// numbers are absent from every transcript — the deterministic
+/// `…4, 6, 7…` open pattern is exactly one private `FirstFrame`
+/// consuming seq 5 during priming (and the truncated-midplay `…4,
+/// 7…` adds the private `DamagedData` of the recovery). This is the
+/// doc 05 §4.3.1 rule — "gaps indicate filtered events … never
+/// reordering" — not a dropped or double-minted counter (audit-1
+/// finding, root-caused by card 3.B4).
 fn event_json(event: &WireEvent) -> Json {
     let mut fields = vec![
         ("seq".to_string(), Json::UInt(event.seq)),
@@ -537,6 +575,27 @@ fn event_json(event: &WireEvent) -> Json {
             fields.push(("kind".to_string(), Json::str("timing.duration-known")));
             fields.push(("duration_us".to_string(), Json::Int(duration.0)));
         }
+        EventKind::MediaInfoReady { info } => {
+            // The open-time snapshot (card 3.B4): the same facts
+            // `media.get-info` answers, as a compact record.
+            fields.push(("kind".to_string(), Json::str("media.info-ready")));
+            fields.push(("seekable".to_string(), Json::Bool(info.seekable)));
+            fields.push(("is_live".to_string(), Json::Bool(info.is_live)));
+            fields.push((
+                "duration_us".to_string(),
+                match info.duration {
+                    commands::catalog::types::Duration::Known { time } => Json::Int(time.0),
+                    commands::catalog::types::Duration::Unknown => Json::Null,
+                    _ => Json::Null,
+                },
+            ));
+            fields.push(("tracks".to_string(), Json::UInt(info.tracks.len() as u64)));
+        }
+        EventKind::PlaybackEndOfTrack { track_kind, id } => {
+            fields.push(("kind".to_string(), Json::str("playback.end-of-track")));
+            fields.push(("track_kind".to_string(), Json::str(kind_str(*track_kind))));
+            fields.push(("track_id".to_string(), Json::UInt(u64::from(id.0))));
+        }
         EventKind::PlaybackEndOfMedia => {
             fields.push(("kind".to_string(), Json::str("playback.end-of-media")));
         }
@@ -544,12 +603,26 @@ fn event_json(event: &WireEvent) -> Json {
             stage,
             code,
             message,
-            ..
+            details,
+            fatal,
         } => {
             fields.push(("kind".to_string(), Json::str("playback.error")));
             fields.push(("stage".to_string(), Json::str(stage.as_str())));
             fields.push(("code".to_string(), Json::str(code.as_str())));
             fields.push(("message".to_string(), Json::str(message.clone())));
+            // The fatal/non-fatal split and the non-fatal coalescing
+            // count (card 3.B4, doc 05 §3.2): a transcript reader
+            // must be able to tell the session-killing failure from
+            // the bounded-recovery report without parsing prose.
+            fields.push(("fatal".to_string(), Json::Bool(*fatal)));
+            match details.get("count") {
+                Some(count) => {
+                    fields.push(("count".to_string(), Json::str(count.clone())));
+                }
+                None => {
+                    fields.push(("count".to_string(), Json::Null));
+                }
+            }
         }
         other => {
             fields.push(("kind".to_string(), Json::str("(unrecorded event kind)")));

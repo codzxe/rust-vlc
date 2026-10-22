@@ -222,8 +222,27 @@ pub(crate) struct TickReport {
     /// arrives (doc 03 §4.6 `FirstFrame`).
     pub first_frame: Option<Stamp>,
     /// Units skipped by bounded recovery this tick (doc 03 §4.6
-    /// `DamagedData`).
+    /// `DamagedData`) — the demux and decode halves separately (the
+    /// non-fatal `playback.error` coalescer is per stage, card 3.B4).
+    pub damaged_demux: u64,
+    /// The decode half of `damaged`.
+    pub damaged_decode: u64,
+    /// Units skipped by bounded recovery this tick, both stages
+    /// combined (the engine-private `DamagedData` fact).
     pub damaged: u64,
+    /// The least-filled limb's queue as a fraction of its high
+    /// watermark, `0.0..=1.0` — the in-episode `session.buffering`
+    /// progress (card 3.B4, doc 05 §3.2: the bottleneck limb is the
+    /// honest progress; the episode's exit condition is every limb
+    /// high). `[PROPOSAL: packets are the axis — bytes/duration axes
+    /// would fire first for unusual packet-size mixes, and the
+    /// watermark policy is packets-driven in v0]`.
+    pub buffer_fill: f32,
+    /// Limbs whose decoder newly flushed to `Drained` this tick (the
+    /// `playback.end-of-track` candidates, card 3.B4) — the count;
+    /// the `(kind, id)` pairs ride the pipeline's reused
+    /// [`Pipeline::take_ended_limbs`] scratch.
+    pub newly_drained: u32,
     /// Frames delivered to the sink seam this tick.
     pub frames: u64,
     /// Frames dropped at the sink for stale generations (doc 03 §5
@@ -247,6 +266,9 @@ pub(crate) struct Limb {
     pub decoder: Box<dyn Decoder>,
     /// The decoder has flushed to `Drained` at end-of-stream.
     pub drained: bool,
+    /// The queue's high watermark in packets — the denominator of
+    /// the in-episode buffering progress (the priming target).
+    pub high_packets: usize,
 }
 
 /// The wired pipeline: demuxer, limbs, and the tick driver. Exists
@@ -281,6 +303,12 @@ pub(crate) struct Pipeline {
     /// the caller by [`Pipeline::take_seek_flush_stale`] for the
     /// session's observability totals).
     seek_flush_stale: u32,
+    /// The limbs whose decoder newly flushed to `Drained` this tick
+    /// (the `playback.end-of-track` candidates, card 3.B4) — a
+    /// **reused** scratch (drained by the session after each tick,
+    /// capacity retained), so the steady-state tick allocates
+    /// nothing (engineering directive D-1).
+    ended_limbs: Vec<(MediaKind, TrackId)>,
 }
 
 /// Per-limb facts the seek's pre-roll phase (doc 03 §6 step 5)
@@ -355,6 +383,7 @@ impl Pipeline {
             first_frame: None,
             seek_progress: None,
             seek_flush_stale: 0,
+            ended_limbs: Vec::new(),
         }
     }
 
@@ -394,6 +423,7 @@ impl Pipeline {
             }
             let limits = plan.for_kind(track.kind);
             let queue = Arc::new(BoundedQueue::new(limits, plan.thresholds(&limits)));
+            let high_packets = plan.thresholds(&limits).high.packets.max(1);
             // Publish the live generation before any producer starts
             // (doc 03 §5 checking point 4): a fresh queue publishes
             // FIRST, so this flush is a no-op at session start and
@@ -412,6 +442,7 @@ impl Pipeline {
                 queue,
                 decoder,
                 drained: false,
+                high_packets,
             });
             self.selected.push(true);
             wired += 1;
@@ -598,6 +629,15 @@ impl Pipeline {
         self.seek_progress = None;
     }
 
+    /// The limbs whose decoders newly flushed to `Drained` during
+    /// the last tick (the `playback.end-of-track` candidates, card
+    /// 3.B4), draining the reused scratch — the `Drain` iterator
+    /// yields the pairs and **keeps the capacity** (zero
+    /// steady-state allocation, D-1).
+    pub(crate) fn take_ended_limbs(&mut self) -> std::vec::Drain<'_, (MediaKind, TrackId)> {
+        self.ended_limbs.drain(..)
+    }
+
     /// Whether a limb can provably never deliver another frame:
     /// end-of-stream, nothing held, nothing resident, and the decoder
     /// already flushed to `Drained` (the seek-flush reset both flags,
@@ -617,7 +657,11 @@ impl Pipeline {
             eof_reached: false,
             drained: false,
             first_frame: None,
+            damaged_demux: 0,
+            damaged_decode: 0,
             damaged: 0,
+            buffer_fill: 0.0,
+            newly_drained: 0,
             frames: 0,
             stale_frames: 0,
             discontinuities: 0,
@@ -650,6 +694,17 @@ impl Pipeline {
         if state == SessionState::Buffering {
             report.primed =
                 !self.limbs.is_empty() && self.limbs.iter().all(|limb| limb.queue.watermark().high);
+            // The in-episode progress: the bottleneck limb's fill
+            // toward its high watermark (card 3.B4 — doc 05 §3.2's
+            // `0.0..1.0` while buffering). The exit bookend `1.0` is
+            // the table effect; this is the honest mid-episode view.
+            report.buffer_fill = self
+                .limbs
+                .iter()
+                .map(|limb| {
+                    (limb.queue.usage().packets as f32 / limb.high_packets as f32).clamp(0.0, 1.0)
+                })
+                .fold(1.0_f32, f32::min);
         }
         if state == SessionState::Playing {
             // An underrun is an input that cannot keep up — the
@@ -703,6 +758,7 @@ impl Pipeline {
                     }
                 }
                 Ok(DemuxEvent::Recovered { skipped, .. }) => {
+                    report.damaged_demux = report.damaged_demux.saturating_add(skipped);
                     report.damaged = report.damaged.saturating_add(skipped);
                 }
                 Ok(DemuxEvent::Discontinuity) => {
@@ -786,6 +842,8 @@ impl Pipeline {
                     Some(None) => continue,
                     Some(Some(packet)) => match limb.decoder.decode(packet, &mut sink) {
                         Ok(DecodeOutcome::Recovered { skipped, .. }) => {
+                            report.damaged_decode =
+                                report.damaged_decode.saturating_add(u64::from(skipped));
                             report.damaged = report.damaged.saturating_add(u64::from(skipped));
                         }
                         Ok(_) => {}
@@ -805,6 +863,13 @@ impl Pipeline {
                         match limb.decoder.flush(&mut sink) {
                             Ok(DecodeOutcome::Drained) => {
                                 limb.drained = true;
+                                // Newly drained this tick: the
+                                // `playback.end-of-track` candidate
+                                // (card 3.B4) — pushed into the reused
+                                // scratch the session drains after
+                                // the tick.
+                                self.ended_limbs.push((limb_kind, track_id));
+                                report.newly_drained = report.newly_drained.saturating_add(1);
                                 break;
                             }
                             Ok(_) => continue,

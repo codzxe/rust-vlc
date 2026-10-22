@@ -467,6 +467,13 @@ fn open(
     );
     config.queues = tiny_queues();
     config.budget = tiny_budget();
+    // Card 3.B4: a frozen virtual throttle keeps every emission
+    // window deterministic (the immediate post-seek time-tick is
+    // position-driven and deterministic regardless).
+    config.throttle = playback_engine::EventPolicy {
+        tick: playback_engine::TimeTickPolicy::default_policy(),
+        throttle: Arc::new(SharedNow(AtomicU64::new(0))),
+    };
     let mut engine = Engine::new();
     let handle = engine.open(config).must();
     Fixture {
