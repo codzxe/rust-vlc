@@ -18,6 +18,16 @@
 //!   byte-exact against ffmpeg's raw decode — PCM has no implementation
 //!   freedom, so any mismatch is a real defect signal, not rounding.
 //!
+//! Both suites also emit the DECODED OUTPUT shape each file actually
+//! produced (W2-09, closing W1-04's registered suite gap — the harness's
+//! decoded-fidelity ledger consumed "not-emitted (suite gap)" cells until
+//! these columns landed): mjpeg rows carry `out_format`/`out_w`/`out_h` —
+//! the first successfully decoded frame's `DecodedFormat` (snake_case)
+//! and dimensions — and pcm rows carry `out_desc`/`out_rate`/`out_ch` —
+//! the descriptor and the rate/channels the decode actually ran with. A
+//! file that decodes nothing records the explicit `-` marker in those
+//! cells: a measured gap, never a fabricated guess (D-5/D-11).
+//!
 //! The suite fails only on contract violations (panic, missing files);
 //! verdict quality is the aggregator's judgement, reported as numbers.
 //!
@@ -144,24 +154,75 @@ struct MjpegCase {
     frames: u64,
 }
 
-#[allow(clippy::too_many_arguments, clippy::type_complexity)]
-fn run_mjpeg_case(
-    corpus: &Path,
-    case: &MjpegCase,
-) -> (u64, u64, u64, i64, i64, u32, u64, u64, u64, u128, String) {
+/// One mjpeg result row. Named fields, not a positional tuple: the row
+/// must stay column-honest by construction as columns land (W2-09's
+/// `out_*` triple is the second extension — a 14-slot tuple would be a
+/// swap-defect waiting to happen).
+struct MjpegOutcome {
+    decoded: u64,
+    errors: u64,
+    concealed: u64,
+    psnr_min_mdb: i64,
+    psnr_mean_mdb: i64,
+    max_abs: u32,
+    exact_bytes: u64,
+    compared_bytes: u64,
+    payload_bytes: u64,
+    decode_us: u128,
+    note: String,
+    /// First successfully decoded frame's output shape: `DecodedFormat`
+    /// snake_case + dimensions. `None` when nothing decoded — the row
+    /// then carries the explicit `-` marker, never a guess. Concealed
+    /// frames count as decoded (they are real decoder output; the
+    /// `concealed` column already distinguishes them).
+    out: Option<(&'static str, u32, u32)>,
+}
+
+impl MjpegOutcome {
+    /// The all-zero row for a pipeline that never reached decoding (the
+    /// typed error code rides in `note`; the `out_*` cells are `-`).
+    fn failed(note: String) -> MjpegOutcome {
+        MjpegOutcome {
+            decoded: 0,
+            errors: 0,
+            concealed: 0,
+            psnr_min_mdb: 0,
+            psnr_mean_mdb: 0,
+            max_abs: 0,
+            exact_bytes: 0,
+            compared_bytes: 0,
+            payload_bytes: 0,
+            decode_us: 0,
+            note,
+            out: None,
+        }
+    }
+}
+
+/// The result-TSV spelling of `DecodedFormat` — W1-04's registered
+/// snake_case vocabulary (`i420`/`rgba8`); the harness maps it to
+/// sampling families for the oracle comparison.
+fn format_snake(format: DecodedFormat) -> &'static str {
+    match format {
+        DecodedFormat::I420 => "i420",
+        DecodedFormat::Rgba8 => "rgba8",
+    }
+}
+
+fn run_mjpeg_case(corpus: &Path, case: &MjpegCase) -> MjpegOutcome {
     let path = corpus.join(&case.rel);
     let ref_path = corpus.join(&case.ref_path);
     let stream = match open_via_input(&path) {
         Ok(s) => s,
-        Err(err) => return (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, err.context.code.to_owned()),
+        Err(err) => return MjpegOutcome::failed(err.context.code.to_owned()),
     };
     let mut dem = match AviDemuxer::new(stream) {
         Ok(d) => d,
-        Err(err) => return (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, err.context.code.to_owned()),
+        Err(err) => return MjpegOutcome::failed(err.context.code.to_owned()),
     };
     let tracks = match dem.start() {
         Ok(t) => t,
-        Err(err) => return (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, err.context.code.to_owned()),
+        Err(err) => return MjpegOutcome::failed(err.context.code.to_owned()),
     };
     let video_ids: Vec<TrackId> = tracks
         .iter()
@@ -175,6 +236,7 @@ fn run_mjpeg_case(
     let (mut exact_bytes, mut compared_bytes) = (0u64, 0u64);
     let mut payload_bytes = 0u64;
     let mut decode_elapsed = 0u128;
+    let mut first_out: Option<(&'static str, u32, u32)> = None;
     loop {
         let event = match dem.next_event() {
             Ok(e) => e,
@@ -196,6 +258,13 @@ fn run_mjpeg_case(
         match frame {
             Ok(frame) => {
                 decoded += 1;
+                // The decoded-output row (W2-09): the FIRST frame the
+                // decoder returned fixes the emitted format/dims; later
+                // frames are cross-checkable against the existing
+                // shape gate and PSNR columns.
+                if first_out.is_none() {
+                    first_out = Some((format_snake(frame.format), frame.width, frame.height));
+                }
                 if frame.concealed {
                     concealed += 1;
                 }
@@ -231,19 +300,20 @@ fn run_mjpeg_case(
     } else {
         0
     };
-    (
+    MjpegOutcome {
         decoded,
         errors,
         concealed,
-        psnr_min,
-        psnr_mean,
+        psnr_min_mdb: psnr_min,
+        psnr_mean_mdb: psnr_mean,
         max_abs,
         exact_bytes,
         compared_bytes,
         payload_bytes,
-        decode_elapsed / 1_000, // µs
-        String::new(),
-    )
+        decode_us: decode_elapsed / 1_000, // µs
+        note: String::new(),
+        out: first_out,
+    }
 }
 
 /// I420 planar size with ceil-half chroma (odd dims round up).
@@ -265,21 +335,63 @@ struct PcmCase {
     channels: u32,
 }
 
-#[allow(clippy::too_many_arguments, clippy::type_complexity)]
-fn run_pcm_case(corpus: &Path, case: &PcmCase) -> (u64, u64, u64, u32, u64, u128, String) {
+/// One pcm result row (named fields for the same column-honesty reason
+/// as [`MjpegOutcome`]).
+struct PcmOutcome {
+    ref_bytes: u64,
+    compared: u64,
+    mismatch: u64,
+    max_abs: u32,
+    dropped_tail: u64,
+    decode_us: u128,
+    note: String,
+    /// The decode's actual output configuration: the `PcmFormat`
+    /// descriptor that was constructed and the rate/channels the
+    /// decode ran with (from the decoded `AudioFormat`, which the
+    /// byte-exact comparison below was computed against). `None` when
+    /// no samples were decoded — the row then carries the explicit `-`
+    /// marker, never a guess.
+    ///
+    /// Provenance, stated honestly (D-5): the decode configuration is
+    /// harness-supplied via the case TSV (the corpus manifest's
+    /// generator intent), NOT re-derived from the file's strf header —
+    /// the emitted cells record what this decode actually ran with, and
+    /// the harness compares them against ffprobe's independently
+    /// measured stream facts.
+    out: Option<(&'static str, u32, u32)>,
+}
+
+impl PcmOutcome {
+    /// The all-zero row for a pipeline that never decoded anything
+    /// (typed error code / unknown-descriptor note; `out_*` cells `-`).
+    fn failed(note: String) -> PcmOutcome {
+        PcmOutcome {
+            ref_bytes: 0,
+            compared: 0,
+            mismatch: 0,
+            max_abs: 0,
+            dropped_tail: 0,
+            decode_us: 0,
+            note,
+            out: None,
+        }
+    }
+}
+
+fn run_pcm_case(corpus: &Path, case: &PcmCase) -> PcmOutcome {
     let path = corpus.join(&case.rel);
     let ref_path = corpus.join(&case.ref_path);
     let stream = match open_via_input(&path) {
         Ok(s) => s,
-        Err(err) => return (0, 0, 0, 0, 0, 0, err.context.code.to_owned()),
+        Err(err) => return PcmOutcome::failed(err.context.code.to_owned()),
     };
     let mut dem = match AviDemuxer::new(stream) {
         Ok(d) => d,
-        Err(err) => return (0, 0, 0, 0, 0, 0, err.context.code.to_owned()),
+        Err(err) => return PcmOutcome::failed(err.context.code.to_owned()),
     };
     let tracks = match dem.start() {
         Ok(t) => t,
-        Err(err) => return (0, 0, 0, 0, 0, 0, err.context.code.to_owned()),
+        Err(err) => return PcmOutcome::failed(err.context.code.to_owned()),
     };
     let audio_ids: Vec<TrackId> = tracks
         .iter()
@@ -304,7 +416,7 @@ fn run_pcm_case(corpus: &Path, case: &PcmCase) -> (u64, u64, u64, u32, u64, u128
     }
     let sample = match PcmFormat::from_descriptor(&case.descriptor) {
         Some(f) => f,
-        None => return (0, 0, 0, 0, 0, 0, "pcm.unknown-descriptor".to_owned()),
+        None => return PcmOutcome::failed("pcm.unknown-descriptor".to_owned()),
     };
     let source = PcmSource {
         sample,
@@ -314,7 +426,7 @@ fn run_pcm_case(corpus: &Path, case: &PcmCase) -> (u64, u64, u64, u32, u64, u128
     let t0 = Instant::now();
     let decoded = match decode_pcm(payload.as_slice(), source, case.rate) {
         Ok(d) => d,
-        Err(err) => return (0, 0, 0, 0, 0, 0, err.context.code.to_owned()),
+        Err(err) => return PcmOutcome::failed(err.context.code.to_owned()),
     };
     let decode_us = t0.elapsed().as_micros();
     let mut reference = Vec::new();
@@ -335,19 +447,33 @@ fn run_pcm_case(corpus: &Path, case: &PcmCase) -> (u64, u64, u64, u32, u64, u128
             max_abs = d as u32;
         }
     }
-    (
-        reference.len() as u64,
-        n as u64,
+    // The decoded-output cells (W2-09): emitted only when the decode
+    // actually produced samples. Zero decoded samples (no audio packets
+    // demuxed, or a tail too short to form one sample-frame) is the
+    // pcm-side analog of "zero frames decoded" — recorded as `-`.
+    let out = if decoded.samples.is_empty() {
+        None
+    } else {
+        Some((
+            sample.descriptor(),
+            decoded.format.rate,
+            decoded.format.channels,
+        ))
+    };
+    PcmOutcome {
+        ref_bytes: reference.len() as u64,
+        compared: n as u64,
         mismatch,
         max_abs,
-        decoded.dropped_tail_bytes as u64,
+        dropped_tail: decoded.dropped_tail_bytes as u64,
         decode_us,
-        if decoded.samples.len() != reference.len() {
+        note: if decoded.samples.len() != reference.len() {
             format!("len:{}vs{}", decoded.samples.len(), reference.len())
         } else {
             String::new()
         },
-    )
+        out,
+    }
 }
 
 // -------------------------------------------------------------------------
@@ -412,7 +538,13 @@ fn corpus_mjpeg_decode_measures_against_oracle() {
         .append(true)
         .open(&results_path)
         .must();
-    writeln!(out, "rel\tdecoded\terrors\tconcealed\tpsnr_min_mdb\tpsnr_mean_mdb\tmax_abs\texact_bytes\tcompared_bytes\tpayload_bytes\tdecode_us\tnote").must();
+    writeln!(
+        out,
+        "rel\tdecoded\terrors\tconcealed\tpsnr_min_mdb\tpsnr_mean_mdb\tmax_abs\
+         \texact_bytes\tcompared_bytes\tpayload_bytes\tdecode_us\tnote\
+         \tout_format\tout_w\tout_h"
+    )
+    .must();
     for case in &cases {
         assert!(corpus.join(&case.rel).is_file(), "missing {}", case.rel);
         assert!(
@@ -420,23 +552,31 @@ fn corpus_mjpeg_decode_measures_against_oracle() {
             "missing ref {}",
             case.ref_path
         );
-        let (decoded, errors, concealed, pmin, pmean, mabs, exact, compared, payload, dus, note) =
-            run_mjpeg_case(&corpus, case);
+        let r = run_mjpeg_case(&corpus, case);
+        // Decoded-output cells: the real first-frame shape, or the
+        // explicit `-` marker when nothing decoded — never a guess.
+        let (out_format, out_w, out_h) = match r.out {
+            Some((format, w, h)) => (format.to_owned(), w.to_string(), h.to_string()),
+            None => ("-".to_owned(), "-".to_owned(), "-".to_owned()),
+        };
         writeln!(
             out,
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
             case.rel,
-            decoded,
-            errors,
-            concealed,
-            pmin,
-            pmean,
-            mabs,
-            exact,
-            compared,
-            payload,
-            dus,
-            note
+            r.decoded,
+            r.errors,
+            r.concealed,
+            r.psnr_min_mdb,
+            r.psnr_mean_mdb,
+            r.max_abs,
+            r.exact_bytes,
+            r.compared_bytes,
+            r.payload_bytes,
+            r.decode_us,
+            r.note,
+            out_format,
+            out_w,
+            out_h
         )
         .must();
     }
@@ -470,7 +610,8 @@ fn corpus_pcm_decode_is_byte_exact_or_recorded() {
         .must();
     writeln!(
         out,
-        "rel\tref_bytes\tcompared\tmismatch\tmax_abs\tdropped_tail\tdecode_us\tnote"
+        "rel\tref_bytes\tcompared\tmismatch\tmax_abs\tdropped_tail\tdecode_us\tnote\
+         \tout_desc\tout_rate\tout_ch"
     )
     .must();
     for case in &cases {
@@ -480,11 +621,28 @@ fn corpus_pcm_decode_is_byte_exact_or_recorded() {
             "missing ref {}",
             case.ref_path
         );
-        let (ref_len, compared, mismatch, max_abs, tail, dus, note) = run_pcm_case(&corpus, case);
+        let r = run_pcm_case(&corpus, case);
+        // Decoded-output cells: the configuration the decode actually
+        // ran with, or the explicit `-` marker when no samples were
+        // decoded — never a guess.
+        let (out_desc, out_rate, out_ch) = match r.out {
+            Some((desc, rate, ch)) => (desc.to_owned(), rate.to_string(), ch.to_string()),
+            None => ("-".to_owned(), "-".to_owned(), "-".to_owned()),
+        };
         writeln!(
             out,
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
-            case.rel, ref_len, compared, mismatch, max_abs, tail, dus, note
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            case.rel,
+            r.ref_bytes,
+            r.compared,
+            r.mismatch,
+            r.max_abs,
+            r.dropped_tail,
+            r.decode_us,
+            r.note,
+            out_desc,
+            out_rate,
+            out_ch
         )
         .must();
     }
