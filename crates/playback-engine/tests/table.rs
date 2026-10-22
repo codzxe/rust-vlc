@@ -455,8 +455,10 @@ fn translate_mappings_are_pinned() {
             PipelineSignal::EofReached,
             Some(I::EofReached),
         ),
-        // Priming completes the initial fill.
+        // Priming completes the initial fill, and closes the episode
+        // of a buffered pause while held (card 3.C1's bookend row).
         (S::Buffering, PipelineSignal::Primed, Some(I::Primed)),
+        (S::Paused, PipelineSignal::Primed, Some(I::Primed)),
         // Rebuffer on a refillable underrun.
         (S::Playing, PipelineSignal::Starved, Some(I::Underrun)),
         // Absorbed facts (no session-level meaning): eof while
@@ -465,7 +467,6 @@ fn translate_mappings_are_pinned() {
         (S::Playing, PipelineSignal::EofReached, None),
         (S::Paused, PipelineSignal::EofReached, None),
         (S::Playing, PipelineSignal::Primed, None),
-        (S::Paused, PipelineSignal::Primed, None),
         (S::Buffering, PipelineSignal::Starved, None),
         (S::Idle, PipelineSignal::Fatal, None),
         (S::Idle, PipelineSignal::Drained, None),
