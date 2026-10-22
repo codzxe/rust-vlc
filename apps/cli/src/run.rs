@@ -38,11 +38,19 @@
 //! teardown's state trail prints like any command's (doc 10 §6
 //! scenario 16: "exit during playback leaves no temp state"). See
 //! [`graceful_exit`].
+//!
+//! # The argv-only bench verb
+//!
+//! `decode-bench <file>` (W4-R2) bypasses the catalog dispatch by
+//! design: it is not a player command but the ffmpeg speed-parity
+//! runner — it drives the open path + decoders directly
+//! ([`crate::bench`]) and prints one machine-parseable BENCH line.
 
 use std::io::{BufRead, Write};
 
 use commands::{Command, CommandOutcome, CommandResult, PlaybackState, WireEvent, WireRequest};
 
+use crate::bench;
 use crate::dispatch::lumen_dispatch;
 use crate::exit;
 use crate::help;
@@ -133,6 +141,7 @@ pub fn run<R: BufRead, W: Write, E: Write>(
             invocation.json,
             interactive,
         ),
+        Some(CliCommand::DecodeBench { source }) => bench::run_bench(&source, out, err),
         Some(command) => one_shot(&command, invocation.json, out, err),
     }
 }
@@ -824,6 +833,10 @@ fn to_catalog(command: &CliCommand) -> Result<Command, ParseError> {
                 value: parse_setting_value(value),
             })
         }
+        CliCommand::DecodeBench { .. } => Err(ParseError::new(
+            "`decode-bench` is an argv-only host verb (lumen decode-bench <file>)",
+            "usage: lumen decode-bench <file>",
+        )),
         CliCommand::Advance { .. } | CliCommand::Help | CliCommand::Quit => Err(ParseError::new(
             "host verbs (`advance`, `help`, `quit`) are REPL-only",
             USAGE,

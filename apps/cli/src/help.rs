@@ -80,6 +80,11 @@ pub const SUBCOMMANDS: &[(&str, &str, &str)] = &[
         "read/write a settings-schema key",
     ),
     (
+        "decode-bench <path>",
+        "(host verb)",
+        "decode-to-null speed benchmark (ffmpeg parity): one BENCH line, argv-only",
+    ),
+    (
         "advance [ticks]",
         "(host verb)",
         "pump the engine N ticks — deterministic, no wall clock",
