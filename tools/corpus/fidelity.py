@@ -21,7 +21,6 @@ Usage:
               --size 1280x720 [--fps 30] [--json out.json]
   fidelity.py --a lumen.raw --b ref.raw --audio --fmt s16le --rate 48000 \\
               --channels 2
-  fidelity.py --media-a lumen.mkv --media-b ref.mkv   # auto params+decode
 """
 
 from __future__ import annotations

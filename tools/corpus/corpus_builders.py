@@ -353,15 +353,21 @@ def _res_cap_for(codec):
 
 
 def _resolve_res(rng, vdef, forced_res, ctx, cap=None):
+    floor = vdef.get("min", 0)  # encoder-measured minimum (svt-av1/prores
+    #                            # reject tiny frames: measured 16x16/32x32)
     if forced_res:
         w, h = RES_BY_NAME[forced_res]
         if vdef["even"]:
             w += w % 2
             h += h % 2
-        return forced_res, w, h
-    return draw_resolution(rng, vdef["even"], max_pixels=cap,
-                           max_res=ctx.limits.get("max_res"),
-                           res_order=ctx.res_order)
+        return forced_res, max(w, floor), max(h, floor)
+    name, w, h = draw_resolution(rng, vdef["even"], max_pixels=cap,
+                                 max_res=ctx.limits.get("max_res"),
+                                 res_order=ctx.res_order)
+    if floor and (w < floor or h < floor):
+        w, h = max(w, floor), max(h, floor)
+        name = f"{name}+floor{floor}"
+    return name, w, h
 
 
 def _ensure_frames(fps: float, dur: float, max_dur: float) -> tuple[float, float]:

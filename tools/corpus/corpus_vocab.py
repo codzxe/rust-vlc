@@ -77,10 +77,10 @@ VIDEO_CODECS = {
     "h265":       {"enc": "libx265",     "pix": ["yuv420p", "yuv420p10le"],     "even": True, "preset": "ultrafast"},
     "vp8":        {"enc": "libvpx",      "pix": ["yuv420p"],                    "even": True},
     "vp9":        {"enc": "libvpx-vp9",  "pix": ["yuv420p", "yuv444p", "yuv420p10le"], "even": True, "deadline": "realtime"},
-    "av1":        {"enc": "libsvtav1",   "pix": ["yuv420p", "yuv420p10le"],     "even": True, "preset": "8"},
+    "av1":        {"enc": "libsvtav1",   "pix": ["yuv420p", "yuv420p10le"],     "even": True, "preset": "8", "min": 128},
     "theora":     {"enc": "libtheora",   "pix": ["yuv420p"],                    "even": True},
     "flv1":       {"enc": "flv",         "pix": ["yuv420p"],                    "even": True},
-    "prores":     {"enc": "prores_ks",   "pix": ["yuv422p10le", "yuv444p10le"], "even": True},
+    "prores":     {"enc": "prores_ks",   "pix": ["yuv422p10le", "yuv444p10le"], "even": True, "min": 128},
 }
 # pix_fmts that require a capability probe before they may be drawn.
 CAP_PROBED_PIX = {"yuv420p10le": "x264_10bit", "yuv422p10le": "prores",
