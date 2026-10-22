@@ -321,6 +321,10 @@ pub(crate) struct Limb {
     /// The queue's high watermark in packets — the denominator of
     /// the in-episode buffering progress (the priming target).
     pub high_packets: usize,
+    /// The queue's low watermark in packets — the **recovery target**
+    /// that ends a switch-installed limb's re-prime exemption (see
+    /// [`Limb::first_frame_pending`]).
+    pub low_packets: usize,
     /// **The limb's generation floor** (card 3.A3): the generation
     /// this limb was last flushed/configured at. The sink checks
     /// frames against this, not the pipeline-global scalar — after a
@@ -336,11 +340,16 @@ pub(crate) struct Limb {
     /// the consumer path was last invalidated at** (noted for
     /// 3.B4's contract suite).
     pub generation: GenerationId,
-    /// A limb installed by a switch that has not yet delivered its
-    /// first frame under that switch (card 3.A3 step 5): while a
-    /// switch of this kind is in flight, the limb is exempt from the
-    /// underrun check and from priming — a switch is not a
-    /// starvation. Cleared on the first delivered frame.
+    /// A limb installed by a switch whose queue has not yet
+    /// recovered from the swap (card 3.A3 step 5, the S2.5
+    /// carve-out): while armed, the limb is exempt from the underrun
+    /// check and from priming — the new queue starts empty through
+    /// no fault of the input, and a selection change is not a
+    /// starvation. Cleared when the queue first reaches its **low
+    /// watermark** (not at the first frame: the queue is still
+    /// climbing then, and the completing tick would otherwise flash
+    /// playing→buffering). A sparse or span-exhausted track simply
+    /// never re-paces (VLC parity — honest silence, no rebuffer).
     pub first_frame_pending: bool,
     /// The last presented **video** frame of the current generation —
     /// the per-frame-damage concealment cache (doc 03 §4.5(d), audit
@@ -483,6 +492,18 @@ pub(crate) struct Pipeline {
 struct CachedDecoder {
     track: TrackId,
     decoder: Box<dyn Decoder>,
+}
+
+/// The open-time wiring report (card 3.A3): how many limbs were
+/// wired, and how many decoders the provider **built** vs. the cache
+/// **reused** while wiring them — the open-time half of the
+/// decoder-recycling observability (`EngineStats::decoders_built` /
+/// `decoders_reused`; the switch-time half rides `SwitchOutcome`).
+#[derive(Default)]
+pub(crate) struct WireOutcome {
+    pub wired: usize,
+    pub decoders_built: u32,
+    pub decoders_reused: u32,
 }
 
 /// Which in-flight flows still watch the observation window. Bitmask
@@ -708,9 +729,11 @@ impl Pipeline {
     /// reason playback refuses to start; an A/V decoder failure
     /// remains fatal per the recorded contract).
     ///
-    /// Returns the wired limb count; zero means nothing is decodable
-    /// (the session turns that into the typed `NoDecodableTrack`
-    /// failure).
+    /// Returns the wire outcome — the wired limb count (zero means
+    /// nothing is decodable; the session turns that into the typed
+    /// `NoDecodableTrack` failure) plus the decoder-lifecycle counts
+    /// for the session's `EngineStats` (the open-time builds the
+    /// recycling proof counts alongside the switch-time ones).
     ///
     /// # Errors
     /// The provider's typed error, propagated verbatim (a selection
@@ -721,24 +744,29 @@ impl Pipeline {
         provider: &dyn DecoderProvider,
         plan: &QueuePlan,
         generation: GenerationId,
-    ) -> Result<usize, EngineError> {
+    ) -> Result<WireOutcome, EngineError> {
         self.generation = generation;
         self.tracks = tracks;
         self.selected = vec![false; self.tracks.len()];
-        let mut wired = 0;
+        let mut outcome = WireOutcome::default();
         for kind in [MediaKind::Video, MediaKind::Audio, MediaKind::Subtitle] {
             let Some(track) = crate::tracks::default_track(&self.tracks, kind) else {
                 continue;
             };
             let track = track.clone();
             match self.obtain_decoder(&track, generation, provider) {
-                Ok((decoder, _reused)) => {
+                Ok((decoder, reused)) => {
+                    if reused {
+                        outcome.decoders_reused += 1;
+                    } else {
+                        outcome.decoders_built += 1;
+                    }
                     if let Some(index) = self.tracks.iter().position(|t| t.id == track.id) {
                         self.selected[index] = true;
                     }
                     self.limbs
                         .push(self.build_limb(track, decoder, plan, generation));
-                    wired += 1;
+                    outcome.wired += 1;
                 }
                 Err(_error) if kind == MediaKind::Subtitle => {
                     // The optional kind: deselect, never fail the
@@ -748,7 +776,7 @@ impl Pipeline {
                 Err(error) => return Err(error),
             }
         }
-        Ok(wired)
+        Ok(outcome)
     }
 
     /// Build one wired limb: a fresh queue from the plan, published
@@ -764,7 +792,9 @@ impl Pipeline {
     ) -> Limb {
         let limits = plan.for_kind(track.kind);
         let queue = Arc::new(BoundedQueue::new(limits, plan.thresholds(&limits)));
-        let high_packets = plan.thresholds(&limits).high.packets.max(1);
+        let thresholds = plan.thresholds(&limits);
+        let high_packets = thresholds.high.packets.max(1);
+        let low_packets = thresholds.low.packets;
         let _ = queue.flush(generation);
         Limb {
             track,
@@ -772,6 +802,7 @@ impl Pipeline {
             decoder,
             drained: false,
             high_packets,
+            low_packets,
             generation,
             first_frame_pending: false,
             last_frame: None,
@@ -1490,26 +1521,20 @@ impl Pipeline {
     ///   subtitle queue is not an underrun and must not gate priming
     ///   (VLC parity: a sparse text stream never triggers
     ///   rebuffering).
-    /// - A limb installed by a switch that has not yet delivered its
-    ///   first frame does not pace **while its switch is in flight**
-    ///   — a switch is not a starvation; without the carve-out every
-    ///   audio switch from `Playing` would flash
-    ///   playing→buffering→playing (the new queue starts empty).
+    /// - A limb installed by a switch whose queue has not yet
+    ///   recovered to its low watermark does not pace — the S2.5
+    ///   carve-out: without it every switch from `Playing` would
+    ///   flash playing→buffering→playing (the new queue starts
+    ///   empty). The exemption is a property of the limb, not of the
+    ///   switch window: the window completes at the first delivered
+    ///   frame while the queue is still climbing, so gating on the
+    ///   window would re-admit the flash on the very tick that
+    ///   completes the switch.
     fn paces(&self, limb: &Limb) -> bool {
         if limb.track.kind == MediaKind::Subtitle {
             return false;
         }
-        if limb.first_frame_pending {
-            let switching = WindowOwner::switch_for(limb.track.kind);
-            if self
-                .window
-                .as_ref()
-                .is_some_and(|window| window.owners.contains(switching))
-            {
-                return false;
-            }
-        }
-        true
+        !limb.first_frame_pending
     }
 
     /// Run one bounded tick for `state`. Never blocks; every loop is
@@ -1564,8 +1589,8 @@ impl Pipeline {
         }
         if state == SessionState::Buffering {
             // Priming waits for every pacing limb's high watermark
-            // (subtitles and in-flight-switch limbs are exempt — see
-            // [`Pipeline::paces`]).
+            // (subtitles and switch-installed limbs still recovering
+            // are exempt — see [`Pipeline::paces`]).
             report.primed = !self.limbs.is_empty()
                 && self
                     .limbs
@@ -1912,9 +1937,17 @@ impl Pipeline {
             // The concealment cache follows the slice back into the
             // limb (the sink's latch or the frame it still holds).
             limb.last_frame = sink_last;
-            // The first delivered frame under a switch clears the
-            // re-prime exemption (the limb paces progress again).
-            if sink_frames > 0 {
+            // The re-prime exemption (card 3.A3 step 5) ends when the
+            // limb's queue has **recovered to its low watermark** —
+            // not at the first delivered frame: the queue is still
+            // climbing from empty on the completing tick, and
+            // re-admitting the limb to the underrun check at that
+            // moment would flash playing→buffering on every switch
+            // (the exact S2.5 bug the carve-out exists to prevent).
+            // A sparse or span-exhausted track whose queue never
+            // recovers simply stays exempt — honest silence, VLC
+            // parity (a selection change is not an underrun).
+            if limb.first_frame_pending && limb.queue.usage().packets >= limb.low_packets {
                 limb.first_frame_pending = false;
             }
             if self.first_frame.is_none()

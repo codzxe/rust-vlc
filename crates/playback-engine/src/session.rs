@@ -2073,7 +2073,19 @@ impl Session {
                     .as_mut()
                     .map(|pipeline| pipeline.wire(tracks, decoders, queues, generation));
                 match wired {
-                    Some(Ok(count)) if count > 0 => {
+                    Some(Ok(outcome)) if outcome.wired > 0 => {
+                        // The open-time decoder lifecycle joins the
+                        // recycling observability (card 3.A3): the
+                        // stats count wire-time builds alongside the
+                        // switch-time ones the outcomes report.
+                        self.totals.decoders_built = self
+                            .totals
+                            .decoders_built
+                            .saturating_add(u64::from(outcome.decoders_built));
+                        self.totals.decoders_reused = self
+                            .totals
+                            .decoders_reused
+                            .saturating_add(u64::from(outcome.decoders_reused));
                         if let Some(pipeline) = self.pipeline.as_ref() {
                             let (tracks, selected) = pipeline.tracks();
                             self.tracks = Arc::new(tracks.to_vec());

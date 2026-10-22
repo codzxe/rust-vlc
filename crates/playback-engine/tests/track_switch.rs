@@ -54,25 +54,22 @@ use std::sync::{Arc, Mutex};
 
 use codec_api::{DecodeOutcome, Decoder, DecoderConfig, FrameSink};
 use commands::envelope::{Generation, RequestId};
-use media_clock::MonotonicSource;
+use media_clock::{MonotonicSource, PlaybackClock};
 use media_types::frame::{AudioFormat, AudioLayout, SampleFormat};
 use media_types::packet::SharedBytes;
 use media_types::{
-    AudioFormat as _AudioFormatAliasUnused, Duration, EngineError, Frame, GenerationId, MediaKind,
-    Nanoseconds, Packet, SourceUri, Stamp, TimeBase, TimeSpan, Timestamp, Track, TrackFlags,
-    TrackId, TrackTiming,
+    Duration, EngineError, Frame, GenerationId, MediaKind, Nanoseconds, Packet, SourceUri, Stamp,
+    TimeBase, TimeSpan, Timestamp, Track, TrackFlags, TrackId, TrackTiming,
 };
 use packet_queue::QueueLimits;
 use playback_engine::state::{RejectionReason, SessionState};
 use playback_engine::{
     CommandReceipt, DecoderProvider, Engine, EngineEvent, EngineEventKind, EngineOutput,
-    FrameConsumer, QueuePlan, ReceiptResult, SessionCommandKind, SessionConfig, SessionError,
-    SessionHandle, TickBudget, TrackSelector,
+    FrameConsumer, QueuePlan, ReceiptResult, SessionCommandKind, SessionConfig, SessionHandle,
+    TickBudget, TrackSelector,
 };
 use plugin_api::{DemuxEvent, Demuxer, SeekSupport};
 use testkit::Must;
-
-const MS: i64 = 1_000_000;
 
 // ---------------------------------------------------------------------------
 // Fakes
@@ -246,11 +243,11 @@ impl Decoder for ScriptDecoder {
             MediaKind::Video => Frame::Video(media_types::frame::VideoFrame {
                 format: media_types::PixelFormat::I420,
                 size: (64, 48),
-                data: media_types::frame::FrameStorage::Cpu(SharedBytes::from_static(&[
-                    0u8; 64 * 48 * 3 / 2,
-                ])),
+                data: media_types::frame::FrameStorage::Cpu(SharedBytes::from_static(
+                    &[0u8; 64 * 48 * 3 / 2],
+                )),
                 pts: packet.pts,
-                color: media_types::frame::ColorDescription::SDR_BT601,
+                color: media_types::frame::ColorDescription::BT709_LIMITED,
                 interlaced: false,
                 generation: packet.generation,
             }),
@@ -415,8 +412,18 @@ fn tiny_queues() -> QueuePlan {
 }
 
 fn tiny_budget() -> TickBudget {
+    // The seek_flow demux sizing, rescaled for the three-track
+    // interleave: 18 events per tick is 6 per track, of which the
+    // two wired limbs (video + the one selected audio) keep 6 pushed
+    // vs 4 popped — the same +2-per-limb net progress that makes the
+    // prime land in ~6 polls, while 12 (the two-track number) would
+    // push only 4 per wired limb against the 4-packet decode slice
+    // and never fill a queue (the salvage debugging found exactly
+    // that: every case deadlocked in Buffering). 18 also keeps the
+    // single-wired-limb ceiling below the 12-resident high mark in
+    // one tick (6 < 12), so a re-prime episode stays wire-observable.
     TickBudget {
-        demux_events: 12,
+        demux_events: 18,
         packets_per_limb: 4,
         flush_calls_per_limb: 8,
     }
@@ -443,12 +450,22 @@ fn open_multi_track(extra_tracks: Vec<Track>, seekable: bool) -> Fixture {
         track(2, MediaKind::Audio),
         track(3, MediaKind::Audio),
     ];
-    tracks.extend(extra_tracks);
+    tracks.extend(extra_tracks.iter().cloned());
     let mut packets = Vec::new();
     for step in 0..240 {
         packets.push(packet(TrackId::new(1), step * 10));
         packets.push(packet(TrackId::new(2), step * 10 + 1));
         packets.push(packet(TrackId::new(3), step * 10 + 2));
+        // Extra tracks join the interleave at a fifth of the core
+        // cadence — a secondary angle or a sparse text stream, the
+        // realistic shapes (and the pacing math of `tiny_budget`
+        // stays intact: the core triple still owns the demux slice,
+        // so the pacing limbs keep their +2/tick net fill).
+        if step % 5 == 0 {
+            for (index, extra) in extra_tracks.iter().enumerate() {
+                packets.push(packet(extra.id, step * 10 + 3 + index as i64));
+            }
+        }
     }
     open(tracks, packets, seekable)
 }
@@ -610,24 +627,33 @@ fn audio_switch_happy_path_is_the_full_ordered_sequence() {
     let request = RequestId(41);
     fixture
         .handle
-        .set_audio_track(request, TrackSelector::Id { id: TrackId::new(3) })
+        .set_audio_track(
+            request,
+            TrackSelector::Id {
+                id: TrackId::new(3),
+            },
+        )
         .must();
     // One poll applies the command (receipt + confirmation + swap);
     // the next ticks decode the new track and complete the switch.
     poll_until(
         &mut fixture,
-        |s| s == SessionState::Playing, 50, "stay playing through the switch",
+        |s| s == SessionState::Playing,
+        50,
+        "stay playing through the switch",
     );
     let mut outputs = Vec::new();
     for _ in 0..10 {
         outputs = fixture.engine.take_outputs();
-        if outputs
-            .iter()
-            .any(|output| matches!(output, EngineOutput::Event(EngineEvent {
-                kind: EngineEventKind::TrackSelectionChanged { .. },
-                ..
-            })))
-        {
+        if outputs.iter().any(|output| {
+            matches!(
+                output,
+                EngineOutput::Event(EngineEvent {
+                    kind: EngineEventKind::TrackSelectionChanged { .. },
+                    ..
+                })
+            )
+        }) {
             break;
         }
         fixture.engine.poll();
@@ -635,9 +661,10 @@ fn audio_switch_happy_path_is_the_full_ordered_sequence() {
 
     // (a) The receipt precedes every event it caused (doc 05 §4.3
     // guarantee 2) and carries the post-bump generation.
-    let receipt_index = index_of(&outputs, |output| {
-        matches!(output, EngineOutput::Receipt(r) if r.request == request)
-    })
+    let receipt_index = index_of(
+        &outputs,
+        |output| matches!(output, EngineOutput::Receipt(r) if r.request == request),
+    )
     .must();
     let receipt = receipt_for(&outputs, request);
     assert_eq!(receipt.command, SessionCommandKind::SelectAudio);
@@ -649,10 +676,16 @@ fn audio_switch_happy_path_is_the_full_ordered_sequence() {
     }
     // (b) The C8 confirmation follows the receipt: playing→playing.
     let confirm_index = index_of(&outputs, |output| {
-        matches!(output, EngineOutput::Event(EngineEvent {
-            kind: EngineEventKind::StateChanged { to: SessionState::Playing, .. },
-            ..
-        }))
+        matches!(
+            output,
+            EngineOutput::Event(EngineEvent {
+                kind: EngineEventKind::StateChanged {
+                    to: SessionState::Playing,
+                    ..
+                },
+                ..
+            })
+        )
     })
     .must();
     assert!(
@@ -696,10 +729,13 @@ fn audio_switch_happy_path_is_the_full_ordered_sequence() {
         other => unreachable!("an audio limb delivers audio: {other:?}"),
     }
     let terminal_index = index_of(&outputs, |output| {
-        matches!(output, EngineOutput::Event(EngineEvent {
-            kind: EngineEventKind::TrackSelectionChanged { .. },
-            ..
-        }))
+        matches!(
+            output,
+            EngineOutput::Event(EngineEvent {
+                kind: EngineEventKind::TrackSelectionChanged { .. },
+                ..
+            })
+        )
     })
     .must();
     let _ = terminal_index;
@@ -731,7 +767,10 @@ fn audio_switch_happy_path_is_the_full_ordered_sequence() {
         Ok(ns) => i64::try_from(ns.0).unwrap_or(i64::MAX),
         Err(_) => 0,
     };
-    assert_eq!(position_ns, first_new_pts, "the clock anchors on the landing truth");
+    assert_eq!(
+        position_ns, first_new_pts,
+        "the clock anchors on the landing truth"
+    );
 }
 
 /// The collector length at the moment of the call (the boundary the
@@ -771,29 +810,45 @@ fn first_packet_pts_at_or_after(fixture: &Fixture, index: usize) -> i64 {
 fn video_switch_keeps_the_clock_and_changes_the_video_track() {
     let mut fixture = open_multi_track(vec![track(4, MediaKind::Video)], true);
     poll_until(&mut fixture, |s| s == SessionState::Playing, 50, "prime");
+    // A clean baseline: the prime's own transitions (→ playing and
+    // its bookends) leave residue in the outbox, and this case
+    // asserts on what the *command* caused — nothing older.
+    let _ = fixture.engine.take_outputs();
     let before = frames_snapshot(&fixture.collector);
-    let video_before = before.iter().filter(|(id, _)| id == &TrackId::new(1)).count();
+    let video_before = before
+        .iter()
+        .filter(|(id, _)| id == &TrackId::new(1))
+        .count();
     assert!(video_before > 0, "video track 1 is wired and playing");
 
     let request = RequestId(42);
     fixture
         .handle
-        .set_video_track(request, TrackSelector::Id { id: TrackId::new(4) })
+        .set_video_track(
+            request,
+            TrackSelector::Id {
+                id: TrackId::new(4),
+            },
+        )
         .must();
     poll_until(
         &mut fixture,
-        |s| s == SessionState::Playing, 50, "stay playing through the video switch",
+        |s| s == SessionState::Playing,
+        50,
+        "stay playing through the video switch",
     );
     let mut outputs = Vec::new();
     for _ in 0..10 {
         outputs = fixture.engine.take_outputs();
-        if outputs
-            .iter()
-            .any(|output| matches!(output, EngineOutput::Event(EngineEvent {
-                kind: EngineEventKind::TrackSelectionChanged { .. },
-                ..
-            })))
-        {
+        if outputs.iter().any(|output| {
+            matches!(
+                output,
+                EngineOutput::Event(EngineEvent {
+                    kind: EngineEventKind::TrackSelectionChanged { .. },
+                    ..
+                })
+            )
+        }) {
             break;
         }
         fixture.engine.poll();
@@ -817,11 +872,17 @@ fn video_switch_keeps_the_clock_and_changes_the_video_track() {
         .filter(|(id, _)| id == &TrackId::new(4))
         .count();
     assert!(new_video > 0, "the new video track delivers");
-    let old_video_after = after.iter().filter(|(id, _)| id == &TrackId::new(1)).count();
+    let old_video_after = after
+        .iter()
+        .filter(|(id, _)| id == &TrackId::new(1))
+        .count();
     assert_eq!(old_video_after, video_before, "no fresh old-video frames");
     // Audio never stopped (the unchanged kind keeps playing through
     // the mint — the entire UX point).
-    let audio = after.iter().filter(|(id, _)| id == &TrackId::new(2)).count();
+    let audio = after
+        .iter()
+        .filter(|(id, _)| id == &TrackId::new(2))
+        .count();
     assert!(
         audio > old_video_after.max(1),
         "audio kept delivering across the video switch"
@@ -858,13 +919,21 @@ fn video_switch_keeps_the_clock_and_changes_the_video_track() {
 fn subtitle_selection_is_class_s_over_parsed_streams() {
     let mut fixture = open_multi_track(vec![], true);
     poll_until(&mut fixture, |s| s == SessionState::Playing, 50, "prime");
+    // A clean baseline: the prime's transitions must not read as
+    // command-caused state changes below.
+    let _ = fixture.engine.take_outputs();
     let generation_before = fixture.engine.generation().must();
 
     // The typed refusal: a dead id is a request-validity question.
     let request = RequestId(51);
     fixture
         .handle
-        .set_subtitle_track(request, TrackSelector::Id { id: TrackId::new(99) })
+        .set_subtitle_track(
+            request,
+            TrackSelector::Id {
+                id: TrackId::new(99),
+            },
+        )
         .must();
     fixture.engine.poll();
     let outputs = fixture.engine.take_outputs();
@@ -888,12 +957,13 @@ fn subtitle_selection_is_class_s_over_parsed_streams() {
         "a rejected selector mints nothing"
     );
     assert!(
-        !outputs
-            .iter()
-            .any(|output| matches!(output, EngineOutput::Event(EngineEvent {
+        !outputs.iter().any(|output| matches!(
+            output,
+            EngineOutput::Event(EngineEvent {
                 kind: EngineEventKind::StateChanged { .. },
                 ..
-            }))),
+            })
+        )),
         "a subtitle selection never fires state-changed"
     );
     assert!(selection_terms(&outputs).is_empty());
@@ -915,21 +985,17 @@ fn subtitle_selection_is_class_s_over_parsed_streams() {
     // nothing — doc 05 §2.5), caused by the request.
     assert_eq!(
         selection_terms(&outputs),
-        vec![(
-            generation_before,
-            MediaKind::Subtitle,
-            None,
-            Some(request)
-        )],
+        vec![(generation_before, MediaKind::Subtitle, None, Some(request))],
         "the class-S confirmation rides the unbumped generation"
     );
     assert!(
-        !outputs
-            .iter()
-            .any(|output| matches!(output, EngineOutput::Event(EngineEvent {
+        !outputs.iter().any(|output| matches!(
+            output,
+            EngineOutput::Event(EngineEvent {
                 kind: EngineEventKind::StateChanged { .. },
                 ..
-            }))),
+            })
+        )),
         "subtitle selection changes no session state"
     );
     assert_eq!(
@@ -949,20 +1015,24 @@ fn subtitle_selection_is_class_s_over_parsed_streams() {
 #[test]
 fn subtitle_swap_delivers_frames_without_av_interruption() {
     let mut fixture = open_multi_track(
-        vec![
-            track(5, MediaKind::Subtitle),
-            track(6, MediaKind::Subtitle),
-        ],
+        vec![track(5, MediaKind::Subtitle), track(6, MediaKind::Subtitle)],
         true,
     );
     poll_until(&mut fixture, |s| s == SessionState::Playing, 50, "prime");
+    // A clean baseline (the prime's transitions are not the swap's).
+    let _ = fixture.engine.take_outputs();
     let generation_before = fixture.engine.generation().must();
 
     // Select subtitle A (id 5): class S, immediate.
     let request = RequestId(53);
     fixture
         .handle
-        .set_subtitle_track(request, TrackSelector::Id { id: TrackId::new(5) })
+        .set_subtitle_track(
+            request,
+            TrackSelector::Id {
+                id: TrackId::new(5),
+            },
+        )
         .must();
     fixture.engine.poll();
     let outputs = fixture.engine.take_outputs();
@@ -970,7 +1040,12 @@ fn subtitle_swap_delivers_frames_without_av_interruption() {
     assert!(matches!(receipt.result, ReceiptResult::Completed { .. }));
     assert_eq!(
         selection_terms(&outputs),
-        vec![(generation_before, MediaKind::Subtitle, Some(TrackId::new(5)), Some(request))]
+        vec![(
+            generation_before,
+            MediaKind::Subtitle,
+            Some(TrackId::new(5)),
+            Some(request)
+        )]
     );
     assert_eq!(
         fixture.engine.generation().must(),
@@ -980,12 +1055,6 @@ fn subtitle_swap_delivers_frames_without_av_interruption() {
 
     // Subtitle frames flow: the sink sees Frame::Subtitle from track
     // 5, with the A/V limbs uninterrupted.
-    poll_until(
-        &mut fixture,
-        |_| false, // drive a fixed number of polls below
-        1,
-        "drive",
-    );
     let mut saw_subtitle = false;
     for _ in 0..20 {
         fixture.engine.poll();
@@ -1006,21 +1075,32 @@ fn subtitle_swap_delivers_frames_without_av_interruption() {
     let request = RequestId(54);
     fixture
         .handle
-        .set_subtitle_track(request, TrackSelector::Id { id: TrackId::new(6) })
+        .set_subtitle_track(
+            request,
+            TrackSelector::Id {
+                id: TrackId::new(6),
+            },
+        )
         .must();
     fixture.engine.poll();
     let outputs = fixture.engine.take_outputs();
     assert_eq!(
         selection_terms(&outputs),
-        vec![(generation_before, MediaKind::Subtitle, Some(TrackId::new(6)), Some(request))]
+        vec![(
+            generation_before,
+            MediaKind::Subtitle,
+            Some(TrackId::new(6)),
+            Some(request)
+        )]
     );
     assert!(
-        !outputs
-            .iter()
-            .any(|output| matches!(output, EngineOutput::Event(EngineEvent {
+        !outputs.iter().any(|output| matches!(
+            output,
+            EngineOutput::Event(EngineEvent {
                 kind: EngineEventKind::StateChanged { .. },
                 ..
-            }))),
+            })
+        )),
         "the subtitle swap is not a state change"
     );
     // A/V delivery continued across the swap (the per-poll decode
@@ -1083,24 +1163,31 @@ fn audio_deselect_lets_video_run_to_ended() {
     poll_until(&mut fixture, |s| s == SessionState::Ended, 400, "drain");
     let outputs = fixture.engine.take_outputs();
     assert!(
-        !outputs
-            .iter()
-            .any(|output| matches!(output, EngineOutput::Event(EngineEvent {
+        !outputs.iter().any(|output| matches!(
+            output,
+            EngineOutput::Event(EngineEvent {
                 kind: EngineEventKind::EndOfTrack {
                     track_kind: MediaKind::Audio,
                     ..
                 },
                 ..
-            }))),
+            })
+        )),
         "a retired limb is not newly drained — no end-of-track for it"
     );
     let frames = frames_snapshot(&fixture.collector);
-    let audio_after = frames.iter().filter(|(id, _)| id == &TrackId::new(2)).count();
+    let audio_after = frames
+        .iter()
+        .filter(|(id, _)| id == &TrackId::new(2))
+        .count();
     assert_eq!(
         audio_after, audio_before,
         "the deselected kind delivered nothing new"
     );
-    let video = frames.iter().filter(|(id, _)| id == &TrackId::new(1)).count();
+    let video = frames
+        .iter()
+        .filter(|(id, _)| id == &TrackId::new(1))
+        .count();
     assert!(video > 0, "video kept playing to the end");
 }
 
@@ -1121,6 +1208,9 @@ fn terms0(outputs: &[EngineOutput]) -> Generation {
 fn not_found_rejects_before_the_mint_with_no_state_change() {
     let mut fixture = open_multi_track(vec![], true);
     poll_until(&mut fixture, |s| s == SessionState::Playing, 50, "prime");
+    // A clean baseline: the rejections below must not read the
+    // prime's transitions as command-caused state changes.
+    let _ = fixture.engine.take_outputs();
     let generation_before = fixture.engine.generation().must();
     let frames_before = frames_snapshot(&fixture.collector).len();
 
@@ -1128,14 +1218,24 @@ fn not_found_rejects_before_the_mint_with_no_state_change() {
     let request = RequestId(71);
     fixture
         .handle
-        .set_audio_track(request, TrackSelector::Id { id: TrackId::new(99) })
+        .set_audio_track(
+            request,
+            TrackSelector::Id {
+                id: TrackId::new(99),
+            },
+        )
         .must();
     // A wrong-kind id (the video track, asked of the audio
     // selection).
     let request_wrong_kind = RequestId(72);
     fixture
         .handle
-        .set_audio_track(request_wrong_kind, TrackSelector::Id { id: TrackId::new(1) })
+        .set_audio_track(
+            request_wrong_kind,
+            TrackSelector::Id {
+                id: TrackId::new(1),
+            },
+        )
         .must();
     fixture.engine.poll();
     let outputs = fixture.engine.take_outputs();
@@ -1159,12 +1259,13 @@ fn not_found_rejects_before_the_mint_with_no_state_change() {
         "a rejected selector mints nothing"
     );
     assert!(
-        !outputs
-            .iter()
-            .any(|output| matches!(output, EngineOutput::Event(EngineEvent {
+        !outputs.iter().any(|output| matches!(
+            output,
+            EngineOutput::Event(EngineEvent {
                 kind: EngineEventKind::StateChanged { .. },
                 ..
-            }))),
+            })
+        )),
         "a rejected selector changes no state"
     );
     assert!(selection_terms(&outputs).is_empty());
@@ -1198,25 +1299,37 @@ fn rapid_double_switch_emits_one_terminal_for_the_newest_selection() {
     let request_one = RequestId(81);
     fixture
         .handle
-        .set_audio_track(request_one, TrackSelector::Id { id: TrackId::new(3) })
+        .set_audio_track(
+            request_one,
+            TrackSelector::Id {
+                id: TrackId::new(3),
+            },
+        )
         .must();
     let request_two = RequestId(82);
     fixture
         .handle
-        .set_audio_track(request_two, TrackSelector::Id { id: TrackId::new(2) })
+        .set_audio_track(
+            request_two,
+            TrackSelector::Id {
+                id: TrackId::new(2),
+            },
+        )
         .must();
     fixture.engine.poll();
 
     let mut outputs = Vec::new();
     for _ in 0..10 {
         outputs = fixture.engine.take_outputs();
-        if outputs
-            .iter()
-            .any(|output| matches!(output, EngineOutput::Event(EngineEvent {
-                kind: EngineEventKind::TrackSelectionChanged { .. },
-                ..
-            })))
-        {
+        if outputs.iter().any(|output| {
+            matches!(
+                output,
+                EngineOutput::Event(EngineEvent {
+                    kind: EngineEventKind::TrackSelectionChanged { .. },
+                    ..
+                })
+            )
+        }) {
             break;
         }
         fixture.engine.poll();
@@ -1227,8 +1340,16 @@ fn rapid_double_switch_emits_one_terminal_for_the_newest_selection() {
         1,
         "exactly one terminal — the superseded switch is silent"
     );
-    assert_eq!(terms[0].2, Some(TrackId::new(2)), "the newest selection won");
-    assert_eq!(terms[0].3, Some(request_two), "the newest request is the origin");
+    assert_eq!(
+        terms[0].2,
+        Some(TrackId::new(2)),
+        "the newest selection won"
+    );
+    assert_eq!(
+        terms[0].3,
+        Some(request_two),
+        "the newest request is the origin"
+    );
     // The superseded generation has no terminal: the surviving one
     // is the second mint (the receipts' Accepted generations prove
     // the two mints happened).
@@ -1243,7 +1364,10 @@ fn rapid_double_switch_emits_one_terminal_for_the_newest_selection() {
         other => unreachable!("{other:?}"),
     };
     assert!(gen_two.0 > gen_one.0, "both mints happened");
-    assert_eq!(terms[0].0, gen_two, "the terminal belongs to the newest mint");
+    assert_eq!(
+        terms[0].0, gen_two,
+        "the terminal belongs to the newest mint"
+    );
     // No intermediate-track frames at the sink: track 3 (B) never
     // delivered.
     assert!(
@@ -1274,19 +1398,26 @@ fn switch_while_paused_completes_without_leaving_paused() {
     let request = RequestId(91);
     fixture
         .handle
-        .set_audio_track(request, TrackSelector::Id { id: TrackId::new(3) })
+        .set_audio_track(
+            request,
+            TrackSelector::Id {
+                id: TrackId::new(3),
+            },
+        )
         .must();
     let mut outputs = Vec::new();
     for _ in 0..20 {
         fixture.engine.poll();
         outputs = fixture.engine.take_outputs();
-        if outputs
-            .iter()
-            .any(|output| matches!(output, EngineOutput::Event(EngineEvent {
-                kind: EngineEventKind::TrackSelectionChanged { .. },
-                ..
-            })))
-        {
+        if outputs.iter().any(|output| {
+            matches!(
+                output,
+                EngineOutput::Event(EngineEvent {
+                    kind: EngineEventKind::TrackSelectionChanged { .. },
+                    ..
+                })
+            )
+        }) {
             break;
         }
     }
@@ -1298,7 +1429,12 @@ fn switch_while_paused_completes_without_leaving_paused() {
     let terms = selection_terms(&outputs);
     assert_eq!(
         terms,
-        vec![(terms[0].0, MediaKind::Audio, Some(TrackId::new(3)), Some(request))],
+        vec![(
+            terms[0].0,
+            MediaKind::Audio,
+            Some(TrackId::new(3)),
+            Some(request)
+        )],
         "the paused switch completes"
     );
     // The landing frame exists (the carve-out decoded it) — the
@@ -1313,12 +1449,13 @@ fn switch_while_paused_completes_without_leaving_paused() {
     // lifetime (the confirmation is the command's receipt's sibling,
     // not an episode change).
     assert!(
-        !outputs
-            .iter()
-            .any(|output| matches!(output, EngineOutput::Event(EngineEvent {
+        !outputs.iter().any(|output| matches!(
+            output,
+            EngineOutput::Event(EngineEvent {
                 kind: EngineEventKind::StateChanged { .. },
                 ..
-            }))),
+            })
+        )),
         "the paused switch changes no state"
     );
 }
@@ -1341,32 +1478,46 @@ fn switch_during_seek_completes_both_flows_under_their_own_generations() {
     let seek_request = RequestId(95);
     fixture
         .handle
-        .seek(seek_request, playback_engine::SeekTarget::Absolute { position_ns: 0 })
+        .seek(
+            seek_request,
+            playback_engine::SeekTarget::Absolute { position_ns: 0 },
+        )
         .must();
     fixture.engine.poll(); // the seek applies; its pre-roll runs
     // The switch, mid-seek.
     let switch_request = RequestId(96);
     fixture
         .handle
-        .set_audio_track(switch_request, TrackSelector::Id { id: TrackId::new(3) })
+        .set_audio_track(
+            switch_request,
+            TrackSelector::Id {
+                id: TrackId::new(3),
+            },
+        )
         .must();
 
     let mut outputs = Vec::new();
     for _ in 0..30 {
         fixture.engine.poll();
         outputs = fixture.engine.take_outputs();
-        let has_seek = outputs
-            .iter()
-            .any(|output| matches!(output, EngineOutput::Event(EngineEvent {
-                kind: EngineEventKind::Seeked { .. },
-                ..
-            })));
-        let has_switch = outputs
-            .iter()
-            .any(|output| matches!(output, EngineOutput::Event(EngineEvent {
-                kind: EngineEventKind::TrackSelectionChanged { .. },
-                ..
-            })));
+        let has_seek = outputs.iter().any(|output| {
+            matches!(
+                output,
+                EngineOutput::Event(EngineEvent {
+                    kind: EngineEventKind::Seeked { .. },
+                    ..
+                })
+            )
+        });
+        let has_switch = outputs.iter().any(|output| {
+            matches!(
+                output,
+                EngineOutput::Event(EngineEvent {
+                    kind: EngineEventKind::TrackSelectionChanged { .. },
+                    ..
+                })
+            )
+        });
         if has_seek && has_switch {
             break;
         }
@@ -1425,31 +1576,45 @@ fn seek_during_switch_completes_both_flows() {
     let switch_request = RequestId(97);
     fixture
         .handle
-        .set_audio_track(switch_request, TrackSelector::Id { id: TrackId::new(3) })
+        .set_audio_track(
+            switch_request,
+            TrackSelector::Id {
+                id: TrackId::new(3),
+            },
+        )
         .must();
     fixture.engine.poll(); // the switch applies; its re-prime runs
     let seek_request = RequestId(98);
     fixture
         .handle
-        .seek(seek_request, playback_engine::SeekTarget::Absolute { position_ns: 0 })
+        .seek(
+            seek_request,
+            playback_engine::SeekTarget::Absolute { position_ns: 0 },
+        )
         .must();
 
     let mut outputs = Vec::new();
     for _ in 0..30 {
         fixture.engine.poll();
         outputs = fixture.engine.take_outputs();
-        let has_seek = outputs
-            .iter()
-            .any(|output| matches!(output, EngineOutput::Event(EngineEvent {
-                kind: EngineEventKind::Seeked { .. },
-                ..
-            })));
-        let has_switch = outputs
-            .iter()
-            .any(|output| matches!(output, EngineOutput::Event(EngineEvent {
-                kind: EngineEventKind::TrackSelectionChanged { .. },
-                ..
-            })));
+        let has_seek = outputs.iter().any(|output| {
+            matches!(
+                output,
+                EngineOutput::Event(EngineEvent {
+                    kind: EngineEventKind::Seeked { .. },
+                    ..
+                })
+            )
+        });
+        let has_switch = outputs.iter().any(|output| {
+            matches!(
+                output,
+                EngineOutput::Event(EngineEvent {
+                    kind: EngineEventKind::TrackSelectionChanged { .. },
+                    ..
+                })
+            )
+        });
         if has_seek && has_switch {
             break;
         }
@@ -1457,10 +1622,13 @@ fn seek_during_switch_completes_both_flows() {
     assert_eq!(
         outputs
             .iter()
-            .filter(|output| matches!(output, EngineOutput::Event(EngineEvent {
-                kind: EngineEventKind::Seeked { .. },
-                ..
-            })))
+            .filter(|output| matches!(
+                output,
+                EngineOutput::Event(EngineEvent {
+                    kind: EngineEventKind::Seeked { .. },
+                    ..
+                })
+            ))
             .count(),
         1,
         "exactly one seek terminal"
@@ -1496,21 +1664,39 @@ fn decoder_cache_recycles_instances_across_switches() {
     let mut fixture = open_multi_track(vec![], true);
     poll_until(&mut fixture, |s| s == SessionState::Playing, 50, "prime");
     let builds_before = fixture.provider.total_builds();
-    assert_eq!(fixture.provider.build_count(1), 1, "video built once at wire");
-    assert_eq!(fixture.provider.build_count(2), 1, "audio A built once at wire");
+    assert_eq!(
+        fixture.provider.build_count(1),
+        1,
+        "video built once at wire"
+    );
+    assert_eq!(
+        fixture.provider.build_count(2),
+        1,
+        "audio A built once at wire"
+    );
     assert_eq!(fixture.provider.build_count(3), 0, "audio B not built yet");
 
     // A → B.
     fixture
         .handle
-        .set_audio_track(RequestId(101), TrackSelector::Id { id: TrackId::new(3) })
+        .set_audio_track(
+            RequestId(101),
+            TrackSelector::Id {
+                id: TrackId::new(3),
+            },
+        )
         .must();
     // B → A (before polling: both apply, only the second owns a limb
     // when the decode runs — the supersession shape; the CACHE proof
     // is the per-track build counts staying at one).
     fixture
         .handle
-        .set_audio_track(RequestId(102), TrackSelector::Id { id: TrackId::new(2) })
+        .set_audio_track(
+            RequestId(102),
+            TrackSelector::Id {
+                id: TrackId::new(2),
+            },
+        )
         .must();
     fixture.engine.poll();
     let mut outputs = Vec::new();
@@ -1531,7 +1717,11 @@ fn decoder_cache_recycles_instances_across_switches() {
         1,
         "audio A was never rebuilt (the cache served the re-activation)"
     );
-    assert_eq!(fixture.provider.build_count(3), 1, "audio B built exactly once");
+    assert_eq!(
+        fixture.provider.build_count(3),
+        1,
+        "audio B built exactly once"
+    );
     assert_eq!(
         fixture.provider.build_count(1),
         1,
@@ -1573,7 +1763,12 @@ fn the_new_limb_fills_from_the_demuxers_position() {
     let request = RequestId(111);
     fixture
         .handle
-        .set_audio_track(request, TrackSelector::Id { id: TrackId::new(3) })
+        .set_audio_track(
+            request,
+            TrackSelector::Id {
+                id: TrackId::new(3),
+            },
+        )
         .must();
     let mut outputs = Vec::new();
     for _ in 0..10 {
@@ -1602,7 +1797,9 @@ fn the_new_limb_fills_from_the_demuxers_position() {
     // (the retired limb's residents never presented).
     let stale_old = frames_snapshot(&fixture.collector)
         .iter()
-        .any(|(id, frame)| id == &TrackId::new(2) && stamp_ns(&frame.pts()).unwrap_or(0) > pts_at_switch);
+        .any(|(id, frame)| {
+            id == &TrackId::new(2) && stamp_ns(&frame.pts()).unwrap_or(0) > pts_at_switch
+        });
     assert!(
         !stale_old,
         "the retired track's post-boundary residents never presented"
