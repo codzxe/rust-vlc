@@ -32,11 +32,12 @@
 //! # Graceful exit (M17)
 //!
 //! `quit`/EOF never abandons a live session: the REPL (and the
-//! machine mode's EOF) runs a stop → close teardown through the same
-//! dispatch entry as the typed verbs, bounded by the engine's
-//! await-pump seam, and answers 0 — the teardown's state trail
-//! prints like any command's (doc 10 §6 scenario 16: "exit during
-//! playback leaves no temp state"). See [`graceful_exit`].
+//! machine mode's EOF and protocol-error paths) runs a stop → close
+//! teardown through the same dispatch entry as the typed verbs,
+//! bounded by the engine's await-pump seam, and answers 0 — the
+//! teardown's state trail prints like any command's (doc 10 §6
+//! scenario 16: "exit during playback leaves no temp state"). See
+//! [`graceful_exit`].
 
 use std::io::{BufRead, Write};
 
@@ -322,11 +323,16 @@ fn machine_mode<R: BufRead, W: Write, E: Write>(
         let request: WireRequest = match serde_json::from_str(trimmed) {
             Ok(request) => request,
             Err(failure) => {
-                // An unparseable request cannot be correlated — the
-                // honest machine answer is the typed parse failure on
-                // stderr and a usage exit (recorded interpretation:
-                // doc 05 §5.3 does not define the malformed-request
-                // reply shape; the control-protocol card owns it).
+                // W2-17 (M17 attack): a protocol error must not abandon
+                // a live session either — the EOF twin tears down before
+                // its exit, this path must too. The reply shape stays
+                // the control-protocol card's (doc 05 §5.3 does not
+                // define the malformed-request envelope; that card owns
+                // it); only the teardown ordering is fixed here.
+                graceful_exit(&mut host, err);
+                if json_events {
+                    print_new_events_json(&host, printed, out);
+                }
                 let _ = writeln!(err, "error: [control.invalid-argument] {failure}");
                 return exit::exit_code(commands::ErrorCode::InvalidArgument);
             }
@@ -337,6 +343,14 @@ fn machine_mode<R: BufRead, W: Write, E: Write>(
                 let _ = writeln!(out, "{line}");
             }
             Err(failure) => {
+                // The serialization twin (W2-17): same
+                // teardown-before-exit — a live session is never
+                // dropped just because its envelope could not be
+                // printed.
+                graceful_exit(&mut host, err);
+                if json_events {
+                    print_new_events_json(&host, printed, out);
+                }
                 let _ = writeln!(err, "error: [control.internal] {failure}");
                 return exit::exit_code(commands::ErrorCode::Internal);
             }
@@ -398,23 +412,53 @@ const TEARDOWN_TAIL_PUMPS: usize = 8;
 /// 3. the tail flush ([`TEARDOWN_TAIL_PUMPS`]) so the `→ Idle` trail
 ///    is drained and printable.
 ///
+/// W2-17's re-drive: the stop → close drive runs **twice**, with one
+/// bounded [`CliHost::settle`] window between the rounds. A refusal
+/// from a transient state (`Buffering` — the mid-seek/rebuffer quit;
+/// card 3.C1 owns the table row) can clear on its own a few pumps
+/// later (the priming signal makes `Playing` — and stop — legal
+/// again), so the settle window gives the engine that chance and the
+/// drive repeats once. This composes only wire-legal rows (stop from
+/// `Playing`/`Paused`, close from `Stopped`); the engine's table and
+/// the typed refusal are untouched — if the transient state persists
+/// through the settle bound, the refusal lines stand and the exit
+/// still proceeds (never blocks). Worst case
+/// `2 × (AWAIT_PUMPS + AWAIT_PUMPS) + TEARDOWN_TAIL_PUMPS` of
+/// pipeline-only work — no wall clock anywhere.
+///
 /// Every await rides the engine's existing bound (the host's
 /// `AWAIT_PUMPS` pipeline pumps — no wall clock anywhere), so the
 /// exit cannot hang. A refused or expired step is printed on stderr
 /// through the one error printer and never blocks the exit: the quit
 /// itself succeeded, and the engine's typed refusal names the owning
 /// card (the transient-state close from `Buffering` is 3.C1's — the
-/// registered host-side follow-up).
+/// registered follow-up; the re-drive is the bounded host-side
+/// composition until that card lands).
 fn graceful_exit<E: Write>(host: &mut CliHost, err: &mut E) {
     if host.session_id().is_none() {
         // Nothing live (e.g. `quit` after a typed close): plain exit.
         return;
     }
-    if matches!(host.state(), PlaybackState::Playing | PlaybackState::Paused) {
-        teardown_step(host, Command::PlaybackStop, err);
-    }
-    if host.session_id().is_some() {
+    for round in 0..2 {
+        if matches!(host.state(), PlaybackState::Playing | PlaybackState::Paused) {
+            teardown_step(host, Command::PlaybackStop, err);
+        }
+        if host.session_id().is_none() {
+            break;
+        }
         teardown_step(host, Command::SessionClose, err);
+        if host.session_id().is_none() {
+            break;
+        }
+        if round == 0 {
+            // The bounded settle window: pumps (pipeline-only) until
+            // the engine leaves the transient states, so a
+            // `Buffering` refusal that was about to clear on its own
+            // gets its chance before the second drive. On a settled
+            // engine this is a no-op (the predicate holds before the
+            // first pump).
+            host.settle();
+        }
     }
     if host.session_id().is_none() {
         // The teardown landed: flush the trailing `→ Idle` events out

@@ -411,7 +411,13 @@ fn mjpeg_loop(n: usize) {
         stats.distinct_lengths,
         started.elapsed()
     );
-    assert_honest(&stats, n, n / 4, 48, "mjpeg");
+    // W2-17: the deep fraction and length spread are pinned to the
+    // RECORDED default-run values (measured at f63fee4 and re-verified
+    // byte-identical after the main @ 9f082f3 merge: 599/1000 =
+    // 59.9% deep, 726 distinct lengths — the seeds are fixture-pinned
+    // and the Rng is local) so generator drift fails loudly instead
+    // of sliding under a loose n/4 floor.
+    assert_honest(&stats, n, n / 2, 700, "mjpeg");
 }
 
 #[test]
@@ -484,6 +490,61 @@ fn seeded_generation_is_deterministic_and_decorrelated() {
         assert!(
             zero.iter().map(|v| v.len()).collect::<HashSet<_>>().len() > 1,
             "zero seed must produce a varied stream"
+        );
+    }
+}
+
+/// W2-17: the determinism pin above covers `gen_input` only — pin the
+/// FULL loop accounting too: same seed → identical `Stats` for both
+/// harnesses (the `Rng` is a per-loop local with no shared/global
+/// state, so two runs cannot interfere; this test is the pin of that
+/// fact). Synthetic seeds keep it cheap; the real-seed loops above
+/// pin survival and the deep-fraction floors.
+#[test]
+fn loop_accounting_is_deterministic() {
+    let seeds: Vec<Vec<u8>> = vec![vec![0xa5; 96], vec![0x5a; 7], vec![0xff; 33]];
+    let refs: Vec<&[u8]> = seeds.iter().map(|s| s.as_slice()).collect();
+    let pcm_spec = Spec {
+        seeds: &refs,
+        cap: 512,
+        magic: Magic::PeriodicAudio,
+    };
+    let mjpeg_spec = Spec {
+        seeds: &refs,
+        cap: 512,
+        magic: Magic::Soi,
+    };
+    for (harness, deep, spec, label) in [
+        (
+            fuzz_codec_pcm as fn(&[u8]),
+            pcm_deep as fn(&[u8]) -> bool,
+            &pcm_spec,
+            "pcm",
+        ),
+        (
+            fuzz_codec_mjpeg as fn(&[u8]),
+            mjpeg_deep as fn(&[u8]) -> bool,
+            &mjpeg_spec,
+            "mjpeg",
+        ),
+    ] {
+        let first = run_loop(harness, deep, spec, 0xabcd_1234, 256);
+        let second = run_loop(harness, deep, spec, 0xabcd_1234, 256);
+        assert_eq!(first.inputs, 256, "{label}: the loop must run");
+        assert_eq!(
+            (
+                first.inputs,
+                first.bytes,
+                first.deep_entries,
+                first.distinct_lengths
+            ),
+            (
+                second.inputs,
+                second.bytes,
+                second.deep_entries,
+                second.distinct_lengths
+            ),
+            "{label}: same seed → identical loop accounting"
         );
     }
 }
