@@ -655,6 +655,12 @@ pub struct EngineStats {
     /// ticks — the counter is the checkpoint the threaded future
     /// (2.E1/3.B3) will exercise.
     pub stale_frames_dropped: u64,
+    /// Frames discarded from a seek's pre-roll presentation hold (M10,
+    /// D-4): a superseded or failed seek's held frames are stale by
+    /// generation and never present — the rollback's observable cost.
+    /// These are excluded from `frames_delivered` (the stat stays the
+    /// consumer-delivered truth).
+    pub preroll_frames_discarded: u64,
     /// Demuxer-marked discontinuities observed (the re-anchor policy
     /// is Phase 3, card 3.B1; the count is the observable fact).
     pub demux_discontinuities: u64,
@@ -670,6 +676,7 @@ pub(crate) struct PipelineTotals {
     frames_concealed: u64,
     stale_frames_dropped: u64,
     demux_discontinuities: u64,
+    preroll_frames_discarded: u64,
 }
 
 impl PipelineTotals {
@@ -697,6 +704,20 @@ impl PipelineTotals {
         self.demux_discontinuities = self
             .demux_discontinuities
             .saturating_add(other.demux_discontinuities);
+        self.preroll_frames_discarded = self
+            .preroll_frames_discarded
+            .saturating_add(other.preroll_frames_discarded);
+    }
+
+    /// Fold the pre-roll hold's discard count into the totals (M10):
+    /// discarded held frames were counted as delivered at sink
+    /// acceptance, so the delivery total is corrected down while the
+    /// discard total carries the rollback's observable cost.
+    fn fold_preroll_discards(&mut self, discarded: u32) {
+        self.frames_delivered = self.frames_delivered.saturating_sub(u64::from(discarded));
+        self.preroll_frames_discarded = self
+            .preroll_frames_discarded
+            .saturating_add(u64::from(discarded));
     }
 }
 
@@ -834,6 +855,7 @@ impl Engine {
             frames_delivered: totals.frames_delivered,
             frames_concealed: totals.frames_concealed,
             stale_frames_dropped: totals.stale_frames_dropped,
+            preroll_frames_discarded: totals.preroll_frames_discarded,
             demux_discontinuities: totals.demux_discontinuities,
         }
     }
@@ -1170,6 +1192,10 @@ impl Session {
                     if let Some(pipeline) = self.pipeline.as_mut() {
                         pipeline.teardown(generation);
                     }
+                    // M10: a seek still in flight at teardown loses
+                    // its hold with the pipeline — counted, never
+                    // silent.
+                    self.fold_preroll_discards();
                     self.pipeline = None;
                     self.closed = true;
                 }
@@ -1197,6 +1223,9 @@ impl Session {
                     if let Some(pipeline) = self.pipeline.as_mut() {
                         pipeline.teardown(generation);
                     }
+                    // M10: as at DestroySession — the in-flight seek's
+                    // held frames die with the pipeline, counted.
+                    self.fold_preroll_discards();
                     self.pipeline = None;
                     // A torn-down pipeline can never complete a seek:
                     // the in-flight slot dies here, silently — the
@@ -1426,8 +1455,15 @@ impl Session {
         // the row just minted.
         let generation = self.pair().pipeline.as_queue_generation();
         let flush_budget = self.runtime.budget.flush_calls_per_limb;
+        // M10: the pre-roll hold's per-limb hard capacity — the
+        // decode-slice bound the budget already carries (the most
+        // frames one pre-roll slice can produce per limb; beyond it
+        // the slice backpressures, packets stay queued, bounded).
+        let hold_cap = (self.runtime.budget.packets_per_limb as usize).max(1);
         let outcome = match self.pipeline.as_mut() {
-            Some(pipeline) => pipeline_seek(pipeline, generation, resolved_ns, flush_budget),
+            Some(pipeline) => {
+                pipeline_seek(pipeline, generation, resolved_ns, flush_budget, hold_cap)
+            }
             // Unreachable: seek-legal states own a live pipeline.
             None => return,
         };
@@ -1453,6 +1489,14 @@ impl Session {
                 if let Some(pipeline) = self.pipeline.as_mut() {
                     pipeline.end_seek();
                 }
+                // M10: the flush already moved the pipeline onto the
+                // minted generation — publish it on the clock. The
+                // scheduler's generation gate holds frames NEWER than
+                // the published token (a seek's pre-roll); without
+                // this publish, the rollback's re-fill would be
+                // mistaken for a pre-roll and video would freeze
+                // until the next successful seek.
+                self.runtime.clock.set_generation(generation);
                 self.inflight_seek = None;
                 if let Some(reason) = outcome.failure {
                     outputs.push(self.emit(
@@ -1464,6 +1508,22 @@ impl Session {
                     ));
                 }
             }
+        }
+        // M10 observability: the flush's supersession discard and the
+        // failure-path rollback discard both land in the totals here.
+        self.fold_preroll_discards();
+    }
+
+    /// Fold the pipeline's pre-roll-hold discard counter into the
+    /// session totals (M10) — called at every seek-path boundary
+    /// (apply, terminal, teardown) so the count is never lost.
+    fn fold_preroll_discards(&mut self) {
+        let discarded = self
+            .pipeline
+            .as_mut()
+            .map_or(0, Pipeline::take_preroll_discarded);
+        if discarded > 0 {
+            self.totals.fold_preroll_discards(discarded);
         }
     }
 
@@ -1651,23 +1711,44 @@ impl Session {
                         },
                         origin,
                     ));
+                    // M10: the terminal landed, the clock is
+                    // re-anchored on the landing truth and the
+                    // generation is published — release the pre-roll
+                    // hold. The held frames finally present, in pts
+                    // order, against the NEW position (never the
+                    // frozen old one).
+                    if let Some(pipeline) = self.pipeline.as_mut() {
+                        pipeline.release_preroll_hold();
+                    }
                 }
-                Err(reason) => outputs.push(self.emit_seek_terminal(
-                    EngineEventKind::SeekFailed {
-                        reason,
-                        position: clock_position_ns(&self.runtime.clock),
-                    },
-                    origin,
-                    generation,
-                )),
+                Err(reason) => {
+                    outputs.push(self.emit_seek_terminal(
+                        EngineEventKind::SeekFailed {
+                            reason,
+                            position: clock_position_ns(&self.runtime.clock),
+                        },
+                        origin,
+                        generation,
+                    ));
+                    // M10: the pre-roll ran under the minted
+                    // generation and the pipeline continues on it —
+                    // publish it so the scheduler's generation gate
+                    // does not mistake the post-failure re-fill for
+                    // another seek's pre-roll (the held frames
+                    // themselves are discarded below, never
+                    // presented).
+                    self.runtime.clock.set_generation(generation);
+                }
             }
             // The observation window closes either way: the
             // generation has its exactly-one terminal (doc 05 §4.3
-            // invariant 4).
+            // invariant 4) — and the hold went with it (released on
+            // success, discarded and counted on failure).
             self.inflight_seek = None;
             if let Some(pipeline) = self.pipeline.as_mut() {
                 pipeline.end_seek();
             }
+            self.fold_preroll_discards();
         }
         // One translated input, at most.
         let signal = if report.fatal.is_some() {
