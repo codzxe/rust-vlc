@@ -36,8 +36,10 @@
 //!    approximately report the truth). Success records the
 //!    [`InFlightSeek`]; steps 5–7 continue on the tick path.
 //! 5. **Re-prime** — the pipeline ticks resume demux from A; the
-//!    queues fill and decoders deliver the landing's frames.
-//!    Completion is observed by [`Pipeline::seek_preroll`]: every
+//!    queues fill and decoders deliver the landing's frames — into
+//!    the M10 **presentation hold**: nothing presents while the
+//!    clock is still frozen at the old position. Completion is
+//!    observed by [`Pipeline::seek_preroll`]: every
 //!    enabled limb has delivered ≥ 1 frame of the new generation,
 //!    or can provably never deliver (its queue is empty at
 //!    end-of-stream with the decoder already `Drained`). A landing
@@ -52,12 +54,30 @@
 //! 6. **Clock re-anchor** — [`complete_seek`]:
 //!    `clock.reanchor(A_adjusted)` where `A_adjusted` is the first
 //!    **audio** frame's own timestamp when an audio limb exists
-//!    (anchor on truth, not on request), otherwise A.
+//!    (anchor on truth, not on request), otherwise A. The generation
+//!    is published on the clock here — the scheduler's signal that
+//!    the held frames may present — and the hold is **released**
+//!    right after the terminal, in pts order.
 //! 7. **Report** — [`EngineEventKind::Seeked`] carries
 //!    `{requested, actual}` — the completion truth (doc 05 §3.2
 //!    `timing.seek-completed`); the wire-visible state may still be
 //!    `buffering` for a tick or two until the priming watermark
 //!    re-enters `Playing` through the existing machinery.
+//!
+//! # The M10 presentation hold
+//!
+//! Frames decoded between the flush (step 3) and the terminal
+//! (step 7) are captured into a bounded per-limb hold inside the
+//! pipeline's `SeekProgress` — the consumer seam sees nothing while
+//! the clock is frozen at the OLD position. On the terminal the hold
+//! is released in pts order (the clock has re-anchored and published
+//! the generation); on a typed failure or supersession the hold is
+//! **discarded and counted** (D-4: frames of a seek that will never
+//! complete are stale by generation — never presented). A failed
+//! seek also publishes the minted generation on the clock: the
+//! pipeline content the rollback re-fills with carries it, and the
+//! scheduler's generation gate must not mistake it for another
+//! seek's pre-roll.
 //!
 //! # Contract D4 — failed seeks
 //!
@@ -343,12 +363,15 @@ pub(crate) struct SeekOutcome {
 
 /// Steps 3–4 against the live pipeline: flush for `generation`, then
 /// re-anchor the demuxer at `target_ns`. Pure with respect to the
-/// session — the caller records/emits from the outcome.
+/// session — the caller records/emits from the outcome. `hold_cap`
+/// is the M10 pre-roll hold's per-limb hard capacity (the pre-roll
+/// budget the seek flow already carries; see [`Pipeline::seek_flush`]).
 pub(crate) fn pipeline_seek(
     pipeline: &mut Pipeline,
     generation: GenerationId,
     target_ns: i64,
     flush_budget: u32,
+    hold_cap: usize,
 ) -> SeekOutcome {
     let mut outcome = SeekOutcome::default();
     // Step 3 — the flush. A decoder flush/configure failure is a
@@ -356,7 +379,7 @@ pub(crate) fn pipeline_seek(
     // honestly and the pipeline limps on (the next decode error
     // surfaces through the normal fatal path). The frames the flush
     // already purged are still gone — count them.
-    if let Err(error) = pipeline.seek_flush(generation, flush_budget) {
+    if let Err(error) = pipeline.seek_flush(generation, flush_budget, hold_cap) {
         outcome.stale_frames_flushed = pipeline.take_seek_flush_stale();
         outcome.failure = Some(SeekFailure::Demux(error));
         return outcome;
