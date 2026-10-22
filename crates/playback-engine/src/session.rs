@@ -54,7 +54,7 @@ use plugin_api::SeekSupport;
 use crate::epoch::{CancelToken, GenerationPair, PipelineGeneration, SessionEpoch, TokenMinter};
 use crate::error::{SessionConfigError, SessionError};
 use crate::event::{EngineEvent, EngineEventKind, media_info_wire};
-use crate::events::{DamageCoalescer, EventPolicy, ProgressWindow, TimeTickPolicy};
+use crate::events::{DamageCoalescer, DrainStaleness, EventPolicy, ProgressWindow, TimeTickPolicy};
 use crate::pipeline::{
     DecoderProvider, FrameConsumer, Pipeline, QueuePlan, SeekPreroll, TickBudget, TickReport,
 };
@@ -602,7 +602,6 @@ impl OutputHub {
     /// their slot was replaced before any terminal was emitted, so
     /// there is nothing in the buffer to swallow.
     fn drain_into(&mut self, current: &GenerationPair, out: &mut Vec<EngineOutput>) {
-        let live = current.pipeline.0;
         while let Some(slot) = self.queue.pop_front() {
             match slot {
                 Slot::Dead => {}
@@ -610,11 +609,7 @@ impl OutputHub {
                     out.push(EngineOutput::Receipt(receipt));
                 }
                 Slot::Live(EngineOutput::Event(event)) => {
-                    let seek_terminal = matches!(
-                        event.kind,
-                        EngineEventKind::Seeked { .. } | EngineEventKind::SeekFailed { .. }
-                    );
-                    if event.generation.0 < live && !seek_terminal {
+                    if event.is_stale_at_drain(current) {
                         self.suppressed_stale = self.suppressed_stale.saturating_add(1);
                     } else {
                         out.push(EngineOutput::Event(event));
