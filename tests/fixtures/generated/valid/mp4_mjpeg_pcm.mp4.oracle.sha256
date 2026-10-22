@@ -29,5 +29,11 @@
 # oracle hashes must agree across containers (they do, at pin time).
 #
 # rows: <sha256>  <stream-label>
+# streams: video audio
+#   ^ the COMPLETE row set this pin must carry — enforced by
+#     scripts/oracle_check.sh (row-set completeness, W2-17's attack
+#     cure): a sidecar that drops a row, or grows an undeclared one,
+#     FAILS the check. Extend this set in the same commit as any
+#     fixture stream change.
 00c4f875fa15b765a2d1ffb5eaedf5c1b7647e3b3dbeeb995d9020f0ec78d9c4  video
 1d9f5019c9b5181f0910528dce360f46e74f9c4df8d9bc9a20c2c68fd218b95b  audio
