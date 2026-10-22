@@ -119,33 +119,39 @@ struct EventRecord {
 
 /// Extract the event records from a rendered transcript (the harness
 /// records one JSON object per event; the fields this matrix reads
-/// are the ones `event_json` writes).
+/// are the ones `event_json` writes — flat objects only, so a depth
+/// counter plus the events-array bounds are the whole grammar).
 fn event_records(text: &str) -> Vec<EventRecord> {
     let mut records = Vec::new();
     let mut current: Vec<(String, String)> = Vec::new();
     let mut in_events = false;
-    let mut depth_stack: Vec<bool> = Vec::new();
+    let mut depth = 0usize;
     for line in text.lines() {
         let trimmed = line.trim_start();
-        if trimmed.starts_with("\"events\"") {
-            in_events = true;
+        if !in_events {
+            if trimmed.starts_with("\"events\"") {
+                in_events = true;
+            }
             continue;
         }
-        if !in_events {
+        // The events array closes with `]` (alone or with a trailing
+        // comma); the observables block after it is not event data.
+        if trimmed == "]" || trimmed == "]," {
+            in_events = false;
             continue;
         }
         // An event object opens with `{` alone on the line and closes
         // with `},` or `}` (the harness's pretty renderer).
         if trimmed == "{" {
-            if depth_stack.is_empty() {
+            if depth == 0 {
                 current.clear();
             }
-            depth_stack.push(true);
+            depth += 1;
             continue;
         }
-        if trimmed.starts_with('}') {
-            depth_stack.pop();
-            if depth_stack.is_empty() {
+        if trimmed.starts_with('}') && depth > 0 {
+            depth -= 1;
+            if depth == 0 {
                 let field = |name: &str| {
                     current
                         .iter()
@@ -180,7 +186,7 @@ fn event_records(text: &str) -> Vec<EventRecord> {
             continue;
         }
         // A `"key": value,` line inside the current object.
-        if let Some((key, value)) = parse_field(trimmed) && !depth_stack.is_empty() {
+        if depth > 0 && let Some((key, value)) = parse_field(trimmed) {
             current.push((key, value));
         }
     }
