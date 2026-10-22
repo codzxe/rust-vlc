@@ -50,7 +50,9 @@ pub use ids::{
     GenerationId, LanguageTag, MediaKind, Scheme, SourceUri, StreamId, Track, TrackFlags, TrackId,
 };
 pub use packet::Packet;
-pub use time::{Duration, Nanoseconds, Rate, Scaler, Stamp, TimeBase, TimeSpan, Timestamp, TrackTiming};
+pub use time::{
+    Duration, Nanoseconds, Rate, Scaler, Stamp, TimeBase, TimeSpan, Timestamp, TrackTiming,
+};
 
 /// Prelude-style alias: every L0 type in one `use`.
 ///

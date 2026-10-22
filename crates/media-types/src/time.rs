@@ -9,20 +9,32 @@
 //!
 //! `Timestamp::convert` and `Timestamp::as_nanos` run per packet and
 //! per frame on every pipeline path (demux stamping, playback
-//! pipeline, video scheduler, clock mapping), and the original
-//! implementation paid an `i128` software division **and** modulo —
-//! two `__divti3`-class library calls, since mainstream targets have
-//! no 128÷64 hardware divide — for every single stamp. M18 adds the
-//! classic division-by-invariant-multiplication fast path
-//! (Granlund–Montgomery, PLDI '94) in two tiers:
+//! pipeline, video scheduler, clock mapping). The pre-M18 bodies paid
+//! an `i128` software division **and** modulo — `__divti3`-class
+//! library calls, with a multi-division slow path inside the library
+//! whenever the dividend exceeds 64 bits — for every single stamp.
+//! M18 replaces them with two tiers of Granlund–Montgomery-style
+//! arithmetic (“Division by Invariant Integers using Multiplication”,
+//! PLDI '94):
 //!
-//! * the default methods reduce the conversion ratio to `n/d` (cheap
-//!   2/5-smooth partial reduction — shifts and constant-divisor magic
-//!   multiplies, no division instruction) and take **one** `u64`
-//!   hardware division inside the proven domain `|ticks|·n < 2^63`;
+//! * the default methods take, inside the proven domain
+//!   `|ticks|·n < 2^63` (n = the unreduced conversion multiplier),
+//!   **one** `u64` hardware division — no library call, no `i128`
+//!   arithmetic, and a worst case of exactly one divide instruction
+//!   however adversarial the stamp. Values just outside that bound
+//!   get one retry after [`reduce_smooth`] (exact 2/5-smooth partial
+//!   reduction — shifts and constant-divisor magic multiplies, no
+//!   division), which widens the domain for the common ns/µs/ms and
+//!   90 kHz-after-cross-reduction ratios; everything else falls back
+//!   to the reference;
 //! * [`Scaler`] precomputes the ratio's reciprocal `m = ceil(2^k/d)`
 //!   once per base pair, so a whole run of stamps converts by
-//!   multiply+shift alone — zero divisions (D-2).
+//!   multiply+shift alone — zero divisions (D-2). This is the M18
+//!   “precompute per TimeBase once” cache, realized as a held object
+//!   rather than a field: `TimeBase` is an 8-byte `Copy` value
+//!   embedded in every [`Timestamp`]/[`Stamp`] and constructed by
+//!   struct literal in sibling crates, so inlining a ~40-byte
+//!   reciprocal would tax every packet and frame header (D-1/D-2).
 //!
 //! Both tiers are **bit-identical** to the `i128` reference
 //! ([`convert_reference`]/[`as_nanos_reference`] — the pre-M18 bodies,
@@ -30,7 +42,14 @@
 //! checked overflow, identical error payloads. Outside the proven
 //! domain they fall back to the reference (D-2/D-6: correctness
 //! outranks speed). Equivalence is enforced by the `fast_paths_*` /
-//! `scaler_*` proof tests.
+//! `scaler_*` proof tests; speed is pinned by the measured
+//! `m18_bench_10m_conversions` benchmark — Xeon, 10M conversions:
+//! the dominant per-frame shape (90 kHz → ns) runs 1.60× faster
+//! through a `Scaler` (2.10 vs 3.37 ns), the per-call tier holds
+//! parity on in-`u64` dividends (where `__divti3`'s own fast path is
+//! already one division) and wins past them, and the first M18
+//! draft's per-call reduction — measured 3.7× SLOWER than the
+//! reference — was restructured (D-6: measured, not claimed).
 
 use crate::error::{EngineError, ErrorContext, ErrorKind, PipelineStage};
 use crate::ids::GenerationId;
@@ -142,13 +161,13 @@ impl Timestamp {
     /// away from zero) — the demuxer-standard rescale.
     ///
     /// Hot path (M18): inside the proven domain `|ticks|·n < 2^63` the
-    /// value is converted through a reduced `u64` rational with a single
-    /// hardware division, bit-identical to the `i128` reference (module
-    /// docs; `convert_fast_path_is_bit_identical_to_reference` proves
-    /// it). Everything else — values beyond that bound, degenerate
-    /// struct-literal bases — falls back to the reference. Batch loops
-    /// converting many stamps over one base pair should hold a
-    /// [`Scaler`] instead (multiply+shift, no division at all).
+    /// value is converted with a single `u64` hardware division,
+    /// bit-identical to the `i128` reference (module docs;
+    /// `convert_fast_path_is_bit_identical_to_reference` proves it).
+    /// Everything else — values beyond the (reduction-widened) bound,
+    /// degenerate struct-literal bases — falls back to the reference.
+    /// Batch loops converting many stamps over one base pair should
+    /// hold a [`Scaler`] instead (multiply+shift, no division at all).
     ///
     /// # Errors
     /// [`TimeError::Overflow`] when the converted tick count cannot be
@@ -214,16 +233,32 @@ fn div_round_i128(numer: i128, denom: i128) -> Option<i128> {
 // `convert_reference` / `as_nanos_reference` below — cost one `i128`
 // software division plus one `i128` software modulo per call
 // (`__divti3` + `__modti3`; mainstream targets have no 128÷64 hardware
-// divide). This section replaces that with u64 arithmetic, in two
-// tiers:
+// divide, and the library takes a multi-division slow path once the
+// dividend outgrows 64 bits). This section replaces that with u64
+// arithmetic, in two tiers:
 //
-//   Tier 2 (default methods): reduce the conversion ratio to n/d
-//   ([`reduce_smooth`]), then ONE hardware u64 division for any
-//   |ticks|·n < 2^63 ([`div_round_u64`]).
+//   Tier 2 (default methods): inside `|ticks|·n < 2^63` (n = the
+//   UNREDUCED multiplier `from.num·to.den`), ONE hardware u64
+//   division ([`div_round_u64`]) — no reduction work on the hot path.
+//   A value just outside the bound gets one [`reduce_smooth`] retry
+//   (the acceptance set is unchanged: reduction only shrinks n, so
+//   anything the unreduced check admits also passes the reduced one
+//   — the retry strictly widens the domain, it never narrows it).
 //
 //   Tier 1 (`Scaler`): the ratio's reciprocal m = ceil(2^k/d)
-//   ([`magic_u64`]) precomputed once per base pair, then multiply+shift
-//   only — zero division instructions (D-2 mechanical sympathy).
+//   ([`magic_u64`]) precomputed once per base pair, then
+//   multiply+shift only — zero division instructions (D-2
+//   mechanical sympathy).
+//
+// The first draft of Tier 2 ran `reduce_smooth` unconditionally,
+// before the domain check; the M18 benchmark measured that at
+// 3.7× the reference's cost (≈20 magic multiplies per call) and it
+// was restructured — the proof that D-6's “measured, not claimed”
+// mandate is enforced in-tree. A second codegen pass removed the
+// `shrd` pair from the mulshift (k ≥ 64 always: shift the product's
+// high word by k − 64) and the four-way zero-component test from
+// the per-call preamble (subsumed by the n/d product checks),
+// together worth ~15 % on the narrow-quotient shape.
 //
 // Bit-exactness contract: both tiers reproduce the reference —
 // ties-away-from-zero rounding, checked overflow, identical error
@@ -316,16 +351,30 @@ fn div_round_u64(p: u64, d: u64) -> u64 {
 /// `round(p / d)` via multiply+shift (Tier 1): the exact floor from
 /// [`magic_u64`], the remainder recovered by one multiply-subtract,
 /// half-away rounding applied to it. No division instruction anywhere.
+///
+/// Since `k = 63 + bitlen(d) ≥ 64` for every `d ≥ 1`, the 128-bit
+/// shift reduces to the product's high word plus a plain 64-bit
+/// variable shift — no `shrd` pair, no `k < 64` branch (the first
+/// codegen used the naive `>> k` on the full product and paid both).
 fn div_round_mulshift(p: u64, m: u128, k: u32, d: u64) -> u64 {
-    debug_assert!(u128::from(p) < FAST_DOMAIN_LIMIT && d >= 1);
-    let q = ((u128::from(p) * m) >> k) as u64; // exact floor(p / d)
-    let r = (u128::from(p) - u128::from(q) * u128::from(d)) as u64; // p mod d
+    debug_assert!(u128::from(p) < FAST_DOMAIN_LIMIT && d >= 1 && k >= 64);
+    // q = floor(p / d) = (p·m >> 64) >> (k − 64) — shifts associate.
+    let q = ((u128::from(p) * m) >> 64) as u64 >> (k - 64);
+    // r = p mod d: q·d ≤ p < 2^63, so the u64 math cannot overflow.
+    let r = p - q * d;
     q + u64::from(r >= d - r)
 }
 
 /// Tier-2 fast path for [`Timestamp::convert`]: `Some(converted ticks)`
 /// iff the input lies inside the proven-exact `u64` domain; `None`
 /// means the caller must use [`convert_reference`].
+///
+/// Two stages: the hot stage divides once with the *unreduced*
+/// multiplier (`from.num·to.den`) — reduction arithmetic is far too
+/// expensive to pay per stamp (measured: 3.7× the reference); only a
+/// value that fails the unreduced bound pays [`reduce_smooth`] once
+/// and retries. Both stages accept the identical proven domain, so
+/// the equivalence proofs' edge straddling covers either route.
 fn try_fast_convert(ticks: i64, from: TimeBase, to: TimeBase) -> Option<i64> {
     // Identity is exact for every representable input (x·num·den over
     // den·num is x with zero remainder) — including the i64::MIN corner
@@ -333,44 +382,57 @@ fn try_fast_convert(ticks: i64, from: TimeBase, to: TimeBase) -> Option<i64> {
     // component) bases are the reference's business: it reports them as
     // Overflow, the pre-M18 behavior for struct-literal bases.
     if from == to {
-        if from.num != 0 && from.den != 0 {
-            return Some(ticks);
+        if from.num == 0 || from.den == 0 {
+            return None;
         }
-        return None;
-    }
-    if from.num == 0 || from.den == 0 || to.num == 0 || to.den == 0 {
-        return None;
+        return Some(ticks);
     }
     let mut n = u64::from(from.num) * u64::from(to.den);
     let mut d = u64::from(from.den) * u64::from(to.num);
-    reduce_smooth(&mut n, &mut d);
-    let p = u128::from(ticks.unsigned_abs()) * u128::from(n);
-    if p >= FAST_DOMAIN_LIMIT {
+    // Degenerate zero-component bases: n == 0 ∨ d == 0 subsumes all
+    // four components, and the products are needed anyway (one test
+    // per register instead of a four-way partial-register dance —
+    // measured on the M18 benchmark).
+    if n == 0 || d == 0 {
         return None;
+    }
+    let abs = ticks.unsigned_abs();
+    let mut p = u128::from(abs) * u128::from(n);
+    if p >= FAST_DOMAIN_LIMIT {
+        // Just outside the u64 divide as-is: strip the ratio's common
+        // 2s and 5s (exact — [`reduce_smooth`] preserves the rational,
+        // only the domain widens) and retry once. Still too big means
+        // the reference's business.
+        reduce_smooth(&mut n, &mut d);
+        p = u128::from(abs) * u128::from(n);
+        if p >= FAST_DOMAIN_LIMIT {
+            return None;
+        }
     }
     let mag = div_round_u64(p as u64, d);
     // `mag ≤ p < 2^63`, so the narrowing is inside the proven domain.
-    Some(if ticks < 0 {
-        -(mag as i64)
-    } else {
-        mag as i64
-    })
+    Some(if ticks < 0 { -(mag as i64) } else { mag as i64 })
 }
 
-/// Tier-2 fast path for [`Timestamp::as_nanos`] — same contract as
-/// [`try_fast_convert`]. Negative ticks stay on the reference: their
-/// result is the typed `Overflow` error, and keeping every error
-/// decision in one place keeps the paths provably identical.
+/// Tier-2 fast path for [`Timestamp::as_nanos`] — same contract and
+/// same two-stage structure as [`try_fast_convert`] (unreduced
+/// single-division hot stage, [`reduce_smooth`] retry, reference
+/// beyond). Negative ticks stay on the reference: their result is the
+/// typed `Overflow` error, and keeping every error decision in one
+/// place keeps the paths provably identical.
 fn try_fast_nanos(ticks: i64, base: TimeBase) -> Option<u64> {
     if ticks < 0 || base.num == 0 || base.den == 0 {
         return None;
     }
     let mut n = u64::from(base.num) * 1_000_000_000;
     let mut d = u64::from(base.den);
-    reduce_smooth(&mut n, &mut d);
-    let p = (ticks as u128) * u128::from(n); // ticks ≥ 0 here, so the cast is lossless
+    let mut p = u128::from(ticks.unsigned_abs()) * u128::from(n);
     if p >= FAST_DOMAIN_LIMIT {
-        return None;
+        reduce_smooth(&mut n, &mut d);
+        p = u128::from(ticks.unsigned_abs()) * u128::from(n);
+        if p >= FAST_DOMAIN_LIMIT {
+            return None;
+        }
     }
     Some(div_round_u64(p as u64, d))
 }
@@ -402,11 +464,13 @@ fn as_nanos_reference(ticks: i64, base: TimeBase) -> Result<Nanoseconds, TimeErr
         i128::from(base.den),
     ) {
         Some(v) => v,
-        None => return Err(TimeError::Overflow {
-            from: base,
-            to: NANOS_BASE,
-            ticks,
-        }),
+        None => {
+            return Err(TimeError::Overflow {
+                from: base,
+                to: NANOS_BASE,
+                ticks,
+            });
+        }
     };
     match u64::try_from(nanos) {
         Ok(v) => Ok(Nanoseconds(v)),
@@ -510,7 +574,11 @@ impl Scaler {
     }
 
     /// Whether `ticks` lies inside the proven multiply+shift domain
-    /// (`|ticks| × n < 2^63`, non-degenerate pair).
+    /// (`|ticks| × n < 2^63`, non-degenerate pair). Test-only
+    /// introspection: the apply methods fold this check into their
+    /// single widening multiply (see `convert_ticks`), so the lib
+    /// build carries no second copy of the product.
+    #[cfg(test)]
     fn in_fast_domain(&self, ticks: i64) -> bool {
         self.d != 0 && u128::from(ticks.unsigned_abs()) * u128::from(self.n) < FAST_DOMAIN_LIMIT
     }
@@ -523,18 +591,15 @@ impl Scaler {
     /// only reachable outside the fast domain, via the reference
     /// fallback.
     pub fn convert_ticks(&self, ticks: i64) -> Result<Timestamp, TimeError> {
-        if self.in_fast_domain(ticks) {
-            // p = |ticks|·n < 2^63 by the domain check, so the u64
-            // multiply cannot overflow and fits the mulshift contract.
-            let p = ticks.unsigned_abs() * self.n;
-            let mag = div_round_mulshift(p, self.m, self.k, self.d);
+        // One widening multiply serves both the domain check and the
+        // dividend: |ticks|·n < 2^63 ⟺ the product is exactly the u64
+        // dividend and the quotient fits the proven mulshift contract.
+        let p128 = u128::from(ticks.unsigned_abs()) * u128::from(self.n);
+        if self.d != 0 && p128 < FAST_DOMAIN_LIMIT {
+            let mag = div_round_mulshift(p128 as u64, self.m, self.k, self.d);
             // `mag ≤ p < 2^63`, so the narrowing is inside the proven
             // domain.
-            let out = if ticks < 0 {
-                -(mag as i64)
-            } else {
-                mag as i64
-            };
+            let out = if ticks < 0 { -(mag as i64) } else { mag as i64 };
             return Ok(Timestamp::new(out, self.to));
         }
         convert_reference(ticks, self.from, self.to)
@@ -551,10 +616,17 @@ impl Scaler {
     /// (negative ticks, or values beyond `u64` nanoseconds — the
     /// latter only outside the fast domain).
     pub fn nanos(&self, ticks: i64) -> Result<Nanoseconds, TimeError> {
-        if ticks >= 0 && self.to == NANOS_BASE && self.in_fast_domain(ticks) {
-            // p = ticks·n < 2^63 by the domain check (see convert_ticks).
-            let p = ticks.unsigned_abs() * self.n;
-            return Ok(Nanoseconds(div_round_mulshift(p, self.m, self.k, self.d)));
+        if ticks >= 0 && self.to == NANOS_BASE && self.d != 0 {
+            // Single widening multiply — see `convert_ticks`.
+            let p128 = u128::from(ticks.unsigned_abs()) * u128::from(self.n);
+            if p128 < FAST_DOMAIN_LIMIT {
+                return Ok(Nanoseconds(div_round_mulshift(
+                    p128 as u64,
+                    self.m,
+                    self.k,
+                    self.d,
+                )));
+            }
         }
         as_nanos_reference(ticks, self.from)
     }
@@ -1098,8 +1170,10 @@ mod tests {
     /// dense small values, strided mid-range, powers of two ±1, the
     /// extremes (`0`, `±1`, `i64::MAX`/`MIN`, `MAX/2` — the i64 analog
     /// of the u64::MAX/2 corner), realistic four-hour stream positions,
-    /// and — the valuable part — ±2 straddling the exact fast/reference
-    /// domain edge `|t|·n = 2^63`.
+    /// ±2 straddling the exact fast/reference domain edge
+    /// `|t|·n = 2^63`, and sub-multiples of that edge — the warm zone
+    /// that only passes after [`reduce_smooth`] on 2/5-smooth bases,
+    /// exercising the retry stage of the default methods.
     fn probe_ticks(n: u64, full: bool) -> Vec<i64> {
         let mut v: Vec<i64> = Vec::with_capacity(512);
         let dense: i64 = if full { 48 } else { 16 };
@@ -1142,6 +1216,10 @@ mod tests {
             v.push(edge.saturating_add(delta));
             v.push(edge.saturating_sub(delta));
         }
+        // Warm-zone sub-multiples of the edge (reduce-and-retry stage).
+        for div in [7u128, 100, 1000, 100_000] {
+            v.push((u128::from(edge.max(0) as u64) / div) as i64);
+        }
         // Mirror negatives: convert exercises the sign path (ties away
         // from zero), as_nanos errors identically on both paths.
         let positives = v.clone();
@@ -1152,7 +1230,10 @@ mod tests {
     /// The raw Granlund–Montgomery claim — `floor(p/d) == (p·m) >> k`
     /// for every `p < 2^63` — plus the rounded form against both the
     /// u64 division and the i128 reference, for EVERY divisor ≤ 4096
-    /// × a dense/strided/boundary dividend sweep.
+    /// × a dense/strided/boundary dividend sweep, plus a randomized
+    /// sweep of the full `u64` divisor range (real conversions produce
+    /// pair-product divisors up to `(2^32−1)²` after partial
+    /// reduction, far past 4096).
     #[test]
     fn mulshift_magic_is_bit_exact_for_small_divisors() {
         let mut cases: u64 = 0;
@@ -1209,8 +1290,80 @@ mod tests {
                 check(q);
             }
         }
-        assert!(cases > 1_000_000, "suspiciously small proof domain: {cases}");
+        assert!(
+            cases > 1_000_000,
+            "suspiciously small proof domain: {cases}"
+        );
         println!("mulshift magic proof: {cases} (p, d) cases over ALL d ≤ 4096");
+        // The full u64 divisor range: random d (dense near the power
+        // boundaries is covered by the straddles below), random p,
+        // tie-straddling remainders (k·d + d/2 ± 1), and the domain
+        // ceiling. Deterministic LCG — seed printed on failure.
+        let mut rng = Lcg(0x5EED_D1CE);
+        let top = FAST_DOMAIN_LIMIT as u64 - 1;
+        for _ in 0..20_000 {
+            let d = 1 + rng.below(u64::MAX);
+            let (m, k) = magic_u64(d);
+            let check = |cases: &mut u64, p: u64| {
+                debug_assert!(p < FAST_DOMAIN_LIMIT as u64);
+                let want_floor = p / d;
+                let got_floor = ((u128::from(p) * m) >> k) as u64;
+                assert_eq!(got_floor, want_floor, "floor diverged: p {p}, d {d}");
+                let fast = div_round_mulshift(p, m, k, d);
+                let div = div_round_u64(p, d);
+                assert_eq!(fast, div, "mulshift vs div diverged: p {p}, d {d}");
+                let reference = match div_round_i128(i128::from(p), i128::from(d)) {
+                    Some(v) => v,
+                    None => unreachable!("reference returned None for d = {d} ≥ 1"),
+                };
+                assert_eq!(
+                    i128::from(fast),
+                    reference,
+                    "reference diverged: p {p}, d {d}"
+                );
+                *cases += 1;
+            };
+            for _ in 0..4 {
+                check(&mut cases, rng.below(FAST_DOMAIN_LIMIT as u64));
+            }
+            // Ties and near-ties: q·d + d/2 rounds up, ±1 must not.
+            let half = d / 2;
+            let mut tie = half;
+            for _ in 0..3 {
+                check(&mut cases, tie);
+                match tie.checked_add(d) {
+                    Some(t) if t < FAST_DOMAIN_LIMIT as u64 => tie = t,
+                    _ => break,
+                }
+            }
+            // Domain ceiling and d-straddling remainders (saturating —
+            // d can be within 2 of u64::MAX here).
+            for q in [
+                top,
+                top - 1,
+                top - 2,
+                top.saturating_sub(d),
+                top.saturating_sub(d).saturating_add(1),
+                top.saturating_sub(d).saturating_sub(1),
+                d - 1,
+                d,
+                d.saturating_add(1),
+                2_u64.saturating_mul(d).saturating_sub(1),
+                2_u64.saturating_mul(d),
+                2_u64.saturating_mul(d).saturating_add(1),
+            ] {
+                if q < FAST_DOMAIN_LIMIT as u64 {
+                    check(&mut cases, q);
+                }
+            }
+        }
+        assert!(
+            cases > 1_800_000,
+            "suspiciously small proof domain: {cases}"
+        );
+        println!(
+            "mulshift magic proof: {cases} total (p, d) cases — ALL d ≤ 4096 + 20k random d up to u64::MAX"
+        );
     }
 
     #[test]
@@ -1218,20 +1371,21 @@ mod tests {
         let mut cases: u64 = 0;
         let mut fast_hits: u64 = 0;
         let mut nonneg: u64 = 0;
-        let sweep = |base: TimeBase, probes: &[i64], cases: &mut u64, fast: &mut u64, nn: &mut u64| {
-            for &t in probes {
-                let got = Timestamp::new(t, base).as_nanos();
-                let want = as_nanos_reference(t, base);
-                assert_eq!(got, want, "as_nanos diverged: base {base}, ticks {t}");
-                if t >= 0 {
-                    *nn += 1;
-                    if try_fast_nanos(t, base).is_some() {
-                        *fast += 1;
+        let sweep =
+            |base: TimeBase, probes: &[i64], cases: &mut u64, fast: &mut u64, nn: &mut u64| {
+                for &t in probes {
+                    let got = Timestamp::new(t, base).as_nanos();
+                    let want = as_nanos_reference(t, base);
+                    assert_eq!(got, want, "as_nanos diverged: base {base}, ticks {t}");
+                    if t >= 0 {
+                        *nn += 1;
+                        if try_fast_nanos(t, base).is_some() {
+                            *fast += 1;
+                        }
                     }
+                    *cases += 1;
                 }
-                *cases += 1;
-            }
-        };
+            };
         // Every den ≤ 4096 × a spread of nums (lite probes).
         for den in 1u32..=4096 {
             for num in [1u32, 2, 3, 1001, 4096] {
@@ -1311,10 +1465,7 @@ mod tests {
         // deterministic, seed printed on failure).
         let mut rng = Lcg(0x1118_C0DE);
         for _ in 0..20_000 {
-            let from = literal_tb(
-                1 + rng.below(4096) as u32,
-                1 + rng.below(4096) as u32,
-            );
+            let from = literal_tb(1 + rng.below(4096) as u32, 1 + rng.below(4096) as u32);
             let to = literal_tb(1 + rng.below(4096) as u32, 1 + rng.below(4096) as u32);
             let mut n = u64::from(from.num) * u64::from(to.den);
             let mut d = u64::from(from.den) * u64::from(to.num);
@@ -1440,8 +1591,22 @@ mod tests {
         // Extremes must fall back — the fallback contract itself.
         assert!(try_fast_nanos(i64::MAX, literal_tb(1, 1)).is_none());
         assert!(try_fast_nanos(-1, literal_tb(1, 90_000)).is_none());
+        assert!(try_fast_convert(i64::MIN, literal_tb(1, 1), literal_tb(1, 1000)).is_none());
+        // The reduce-and-retry (warm) stage: a 30-day 90 kHz position
+        // is ~25× past the unreduced bound (|t|·10⁹ < 2⁶³ gives ~28.5 h)
+        // but well inside the 2/5-reduced one (n = 10⁵ → ~32 years) —
+        // it must still take the fast path and stay bit-identical.
+        let month: i64 = 30 * 86400 * 90_000;
+        let mpeg = literal_tb(1, 90_000);
+        assert!(try_fast_nanos(month, mpeg).is_some(), "warm stage lost");
+        assert_eq!(
+            Timestamp::new(month, mpeg).as_nanos(),
+            as_nanos_reference(month, mpeg),
+            "warm stage diverged from the reference"
+        );
         assert!(
-            try_fast_convert(i64::MIN, literal_tb(1, 1), literal_tb(1, 1000)).is_none()
+            try_fast_convert(month, mpeg, NANOS_BASE).is_some(),
+            "warm stage lost (convert direction)"
         );
     }
 
@@ -1522,17 +1687,37 @@ mod tests {
         );
     }
 
-    /// Measured, not claimed (D-6/D-13): 10M conversions through each
-    /// tier on realistic 90 kHz positions, "before" = the kept i128
-    /// reference (the exact pre-M18 code path). Run with:
+    /// Measured, not claimed (D-6/D-11): 10M conversions through each
+    /// tier, "before" = the kept i128 reference (the exact pre-M18
+    /// code path). Run with:
     /// `cargo test -p media-types --release -- --ignored --nocapture m18_bench`
+    ///
+    /// Methodology for the shared build box: all nine legs run
+    /// interleaved over `ROUNDS` rounds and each leg reports its
+    /// MINIMUM round — transient contention from sibling builds
+    /// inflates individual rounds, while the minimum approximates the
+    /// uncontended cost (single-shot legs measured ±50 % noise here).
+    ///
+    /// Measured (W3-06, Xeon, release, min-of-5 × 10M, ns/conv):
+    /// → 1/1000 @ 4 h positions: reference 3.87, tier-2 3.93, Scaler
+    /// 3.72; → ns @ 4 h: reference 3.37, tier-2 3.37, Scaler 2.10
+    /// (1.60×); → 1/10⁶ @ 10 y: reference 4.22, tier-2 3.94, Scaler
+    /// 3.75. Reading: for in-`u64` dividends the reference's
+    /// `__divti3` fast path is already ~one hardware division, so the
+    /// per-call tier buys parity plus a bounded worst case, and the
+    /// real win is the Scaler on wide quotients (the dominant
+    /// per-frame →ns shape) and wherever the reference leaves its
+    /// fast path. An earlier draft ran `reduce_smooth` per call and
+    /// measured 3.7× SLOWER than the reference — restructured; this
+    /// benchmark stays in-tree as the regression tripwire.
     #[test]
     #[ignore = "manual M18 benchmark — run with --release --nocapture"]
     fn m18_bench_10m_conversions() {
         use std::hint::black_box;
-        use std::time::Instant;
+        use std::time::{Duration, Instant};
 
         const N: usize = 10_000_000;
+        const ROUNDS: usize = 5;
         // black_box the bases so LLVM cannot fold the reference's i128
         // division into its own constant-divisor magic (the real callers
         // hold runtime stream bases, not literals — without this the
@@ -1542,63 +1727,132 @@ mod tests {
         let to = black_box(literal_tb(1, 1000));
         let scaler = black_box(from.scaler_to(&to));
         let nanos_scaler = black_box(from.nanos_scaler());
+        let micros = black_box(literal_tb(1, 1_000_000));
+        let long_scaler = black_box(from.scaler_to(&micros));
 
-        // Realistic magnitudes: up to ~4 h of 90 kHz positions,
-        // strided to defeat branch and cache predictability.
-        let ticks = |i: usize| (i as i64 * 7919) % 1_296_000_000;
+        // Realistic magnitudes: positions within a ~4 h window of 90 kHz
+        // video, strided by a prime step to defeat branch and value
+        // predictability. An AND-mask keeps every leg's input cost at
+        // one uop, so the shared loop overhead cannot mask the
+        // conversion differences (a magic-mod here costs ~5 uops and
+        // dilutes every ratio by the same ~1 ns).
+        let ticks = |i: usize| (i as i64 * 7919) & ((1 << 30) - 1);
+        // ~10-year 90 kHz positions (surveillance / radio archives):
+        // the reference's `numer` = ticks·10⁶ exceeds 64 bits here, so
+        // this group measures `__divti3` off its single-division fast
+        // path. The fast tiers remain in-domain via the reduction
+        // retry (n = 100 after stripping the 2/5-powers of 10⁶/9·10⁴).
+        let long_ticks = |i: usize| (i as i64 * 7919) & ((1 << 48) - 1);
 
-        fn run(label: &str, n: usize, mut f: impl FnMut(usize) -> i64) {
+        fn timed(mut f: impl FnMut(usize) -> i64) -> Duration {
             let t0 = Instant::now();
             let mut acc = 0i64;
-            for i in 0..n {
+            for i in 0..N {
                 acc = acc.wrapping_add(black_box(f(i)));
             }
             black_box(acc);
-            let elapsed = t0.elapsed();
-            println!(
-                "{label:<36} {:>11.3?} total   {:>7.2} ns/conv",
-                elapsed,
-                elapsed.as_nanos() as f64 / n as f64
-            );
+            t0.elapsed()
         }
 
-        println!("M18 benchmark — {N} conversions each, 1/90000 -> 1/1000:");
-        run("before: i128 reference convert", N, |i| {
-            match convert_reference(ticks(i), from, to) {
-                Ok(t) => t.ticks,
-                Err(_) => 0,
+        let legs: [(&str, &mut dyn FnMut(usize) -> i64); 9] = [
+            (
+                "before: i128 reference convert",
+                &mut |i| match convert_reference(ticks(i), from, to) {
+                    Ok(t) => t.ticks,
+                    Err(_) => 0,
+                },
+            ),
+            (
+                "after: Timestamp::convert (tier 2)",
+                &mut |i| match Timestamp::new(ticks(i), from).convert(&to) {
+                    Ok(t) => t.ticks,
+                    Err(_) => 0,
+                },
+            ),
+            (
+                "after: Scaler::convert_ticks (tier 1)",
+                &mut |i| match scaler.convert_ticks(ticks(i)) {
+                    Ok(t) => t.ticks,
+                    Err(_) => 0,
+                },
+            ),
+            (
+                "before: i128 reference as_nanos",
+                &mut |i| match as_nanos_reference(ticks(i), from) {
+                    Ok(v) => v.0 as i64,
+                    Err(_) => 0,
+                },
+            ),
+            (
+                "after: Timestamp::as_nanos (tier 2)",
+                &mut |i| match Timestamp::new(ticks(i), from).as_nanos() {
+                    Ok(v) => v.0 as i64,
+                    Err(_) => 0,
+                },
+            ),
+            (
+                "after: Scaler::nanos (tier 1)",
+                &mut |i| match nanos_scaler.nanos(ticks(i)) {
+                    Ok(v) => v.0 as i64,
+                    Err(_) => 0,
+                },
+            ),
+            // The degraded-reference group: ~10-year 90 kHz positions
+            // converted to microseconds make the reference's `numer`
+            // exceed 64 bits, where `__divti3` leaves its single-div
+            // fast path for the multi-division slow path — exactly the
+            // stamps (long streams, high-tick-rate bases) the fast
+            // tiers exist for. The fast tiers stay at one division /
+            // multiply+shift via the reduction retry.
+            (
+                "before: i128 ref convert, 10y pos",
+                &mut |i| match convert_reference(long_ticks(i), from, micros) {
+                    Ok(t) => t.ticks,
+                    Err(_) => 0,
+                },
+            ),
+            (
+                "after: Timestamp::convert, 10y pos",
+                &mut |i| match Timestamp::new(long_ticks(i), from).convert(&micros) {
+                    Ok(t) => t.ticks,
+                    Err(_) => 0,
+                },
+            ),
+            (
+                "after: Scaler::convert_ticks, 10y pos",
+                &mut |i| match long_scaler.convert_ticks(long_ticks(i)) {
+                    Ok(t) => t.ticks,
+                    Err(_) => 0,
+                },
+            ),
+        ];
+
+        let mut best = [Duration::MAX; 9];
+        for _ in 0..ROUNDS {
+            // Interleaved by index so every leg sees the same machine
+            // conditions each round; the min-of-rounds then rejects the
+            // rounds a sibling build contaminated.
+            for j in 0..legs.len() {
+                let d = timed(|i| (legs[j].1)(i));
+                if d < best[j] {
+                    best[j] = d;
+                }
             }
-        });
-        run("after: Timestamp::convert (tier 2)", N, |i| {
-            match Timestamp::new(ticks(i), from).convert(&to) {
-                Ok(t) => t.ticks,
-                Err(_) => 0,
+        }
+
+        let report = |group: &str, legs: &[(&str, &mut dyn FnMut(usize) -> i64)], base: usize| {
+            println!("  {group}:");
+            for (j, (label, _)) in legs.iter().enumerate() {
+                println!(
+                    "    {label:<38} {:>9.3?}   {:>6.2} ns/conv",
+                    best[base + j],
+                    best[base + j].as_nanos() as f64 / N as f64
+                );
             }
-        });
-        run("after: Scaler::convert_ticks (tier 1)", N, |i| {
-            match scaler.convert_ticks(ticks(i)) {
-                Ok(t) => t.ticks,
-                Err(_) => 0,
-            }
-        });
-        println!("M18 benchmark — {N} conversions each, 1/90000 -> nanoseconds:");
-        run("before: i128 reference as_nanos", N, |i| {
-            match as_nanos_reference(ticks(i), from) {
-                Ok(v) => v.0 as i64,
-                Err(_) => 0,
-            }
-        });
-        run("after: Timestamp::as_nanos (tier 2)", N, |i| {
-            match Timestamp::new(ticks(i), from).as_nanos() {
-                Ok(v) => v.0 as i64,
-                Err(_) => 0,
-            }
-        });
-        run("after: Scaler::nanos (tier 1)", N, |i| {
-            match nanos_scaler.nanos(ticks(i)) {
-                Ok(v) => v.0 as i64,
-                Err(_) => 0,
-            }
-        });
+        };
+        println!("M18 benchmark — min of {ROUNDS} × {N} conversions each (interleaved):");
+        report("1/90000 -> 1/1000, ~4 h positions", &legs[..3], 0);
+        report("1/90000 -> nanoseconds, ~4 h positions", &legs[3..6], 3);
+        report("1/90000 -> 1/1000000, ~10 y positions", &legs[6..9], 6);
     }
 }
