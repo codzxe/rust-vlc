@@ -80,7 +80,7 @@ pub mod session;
 pub mod state;
 
 pub use epoch::{CancelToken, GenerationPair, PipelineGeneration, SessionEpoch, TokenMinter};
-pub use error::{SessionConfigError, SessionError, config_error};
+pub use error::{NoDecodableKnown, SessionConfigError, SessionError, config_error};
 pub use event::{
     EngineEvent, EngineEventKind, media_info_wire, source_spec_wire, track_info_wire,
     wire_error_code, wire_playback_state, wire_stage,

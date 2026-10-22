@@ -268,11 +268,15 @@ fn inaccessible(code: &'static str) -> EngineError {
 }
 
 fn decoder_error(code: &'static str) -> EngineError {
+    // A NON-per-frame decode failure (the fatal class): card 3.C2's
+    // G3 fix made per-frame kinds (`Corrupt`, `Decoder`/`Bitstream`)
+    // skippable on audio limbs, so the armed-fatal tests arm
+    // `Unsupported` — deterministic per stream, retrying the next
+    // packet cannot help. The per-frame audio skip lane is pinned in
+    // recovery_media.rs (the honest flip, recorded in the worklog).
     EngineError::new(
         PipelineStage::Decode,
-        ErrorKind::Decoder {
-            cause: media_types::error::DecodeCause::Bitstream,
-        },
+        ErrorKind::Unsupported { format: None },
         media_types::error::ErrorContext::new(code),
     )
 }
@@ -811,7 +815,12 @@ fn an_open_failure_lands_in_error_with_the_fatal_first() {
 fn an_armed_decode_failure_transitions_to_error_from_playing() {
     // The provider arms every decoder it hands out with a one-shot
     // failure; the first decode call turns fatal from Playing (the
-    // selection promised, the decoding did not deliver).
+    // selection promised, the decoding did not deliver). The armed
+    // error is the NON-per-frame class (`Unsupported`): since 3.C2's
+    // G3 fix, a per-frame kind on this AUDIO limb would be
+    // skipped-and-reported instead of fatal (pinned in
+    // recovery_media.rs) — the fatal transition is the class this
+    // test owns.
     struct ArmedProvider;
     impl DecoderProvider for ArmedProvider {
         fn decoder_for(

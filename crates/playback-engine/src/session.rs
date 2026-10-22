@@ -329,6 +329,13 @@ pub struct SessionConfig {
     /// The source being opened (carried for events and error
     /// context; access resolution is the demuxer impl's business).
     pub source: SourceUri,
+    /// The container's name, as the opening host's probe determined
+    /// it (card 3.C2, defect G1). The engine cannot learn it from
+    /// the [`plugin_api::Demuxer`] trait — hosts that probe before
+    /// opening set it; `None` keeps the un-enriched error shapes.
+    /// Consumed only by the `NoDecodableTrack` failure path, where it
+    /// becomes the error's known-format info.
+    pub container: Option<String>,
     /// The demux stage (plugin-api contract).
     pub demuxer: Box<dyn plugin_api::Demuxer>,
     /// The decoder seam (registry, future; fakes in tests).
@@ -364,6 +371,7 @@ impl SessionConfig {
     ) -> SessionConfig {
         SessionConfig {
             source,
+            container: None,
             demuxer,
             decoders,
             consumer,
@@ -1147,6 +1155,9 @@ struct SessionRuntime {
     clock: Arc<MediaClock>,
     queues: QueuePlan,
     budget: TickBudget,
+    /// The container name the opening host declared (defect G1's
+    /// known-format info source — see [`SessionConfig::container`]).
+    container: Option<String>,
     /// The event-emission policy (card 3.B4, doc 05 §3.4): the tick
     /// interval and the injected monotonic source the throttle
     /// windows read.
@@ -1167,6 +1178,7 @@ impl Session {
             clock: config.clock,
             queues: config.queues,
             budget: config.budget,
+            container: config.container,
             tick: config.throttle.tick,
             throttle: Arc::clone(&config.throttle.throttle),
         };
@@ -1688,8 +1700,20 @@ impl Session {
                     Some(Ok(_)) => {
                         // Nothing decodable: the engine refuses to
                         // fabricate playback (typed config failure).
+                        // The known-format enrichment (defect G1,
+                        // card 3.C2): the container the host declared
+                        // + the codec ids of every track the demuxer
+                        // reported — the zero-count `wire` still
+                        // stored them, and they are the evidence.
+                        let known = self.pipeline.as_ref().map(|pipeline| {
+                            crate::error::NoDecodableKnown::from_tracks(
+                                self.runtime.container.as_deref(),
+                                pipeline.tracks().0,
+                            )
+                        });
                         self.fail_with(crate::error::config_error(
                             SessionConfigError::NoDecodableTrack,
+                            known.as_ref(),
                         ))
                     }
                     Some(Err(error)) => self.fail_with(error),

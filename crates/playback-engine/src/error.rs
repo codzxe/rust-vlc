@@ -25,6 +25,41 @@ use std::fmt;
 
 use media_types::{EngineError, PipelineStage};
 
+/// What the engine knows about a container whose tracks it could not
+/// wire (card 3.C2, defect G1): the known-format info the
+/// `session.no-decodable-track` error must carry — the container's
+/// name and the codec id of every track the demuxer reported, so the
+/// failure answers "which formats would I have needed" instead of a
+/// bare refusal (the card's known-format-info AC).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NoDecodableKnown {
+    /// The container's name, as the opening host declared it (probe
+    /// truth — the engine itself never learns the name from the
+    /// demuxer trait). `None` when the host did not say; the error
+    /// then degrades honestly to the codec list alone.
+    pub container: Option<String>,
+    /// One `(kind, codec id)` pair per reported track, in demuxer
+    /// order — the fourcc list (the `Track.codec` descriptor string
+    /// `Pipeline::wire` consumed).
+    pub tracks: Vec<(media_types::MediaKind, String)>,
+}
+
+impl NoDecodableKnown {
+    /// Collect the enrichment from a wired track list (the zero-count
+    /// `wire` outcome still stores the demuxer's tracks — they are
+    /// the evidence).
+    #[must_use]
+    pub fn from_tracks(container: Option<&str>, tracks: &[media_types::Track]) -> NoDecodableKnown {
+        NoDecodableKnown {
+            container: container.map(str::to_string),
+            tracks: tracks
+                .iter()
+                .map(|track| (track.kind, track.codec.to_string()))
+                .collect(),
+        }
+    }
+}
+
 /// The error type of session/engine operations that fail before the
 /// state machine is asked anything (see the module docs).
 #[derive(Debug)]
@@ -120,17 +155,76 @@ impl fmt::Display for SessionConfigError {
 
 impl std::error::Error for SessionConfigError {}
 
+/// The source leaf of an enriched `NoDecodableTrack` failure (the
+/// `DemuxSourceInfo` chaining pattern, plugin-api's demux.rs): the
+/// codec list rides the error's `source` chain where `Display`'s
+/// kind summary cannot — structured data only, never a secret.
+#[derive(Debug)]
+struct NoDecodableLeaf {
+    known: NoDecodableKnown,
+}
+
+impl fmt::Display for NoDecodableLeaf {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.known.container {
+            Some(container) => write!(f, "container `{container}` tracks: ")?,
+            None => f.write_str("tracks: ")?,
+        }
+        if self.known.tracks.is_empty() {
+            return f.write_str("(none reported)");
+        }
+        for (index, (kind, codec)) in self.known.tracks.iter().enumerate() {
+            if index > 0 {
+                f.write_str(", ")?;
+            }
+            let kind = match kind {
+                media_types::MediaKind::Video => "video",
+                media_types::MediaKind::Audio => "audio",
+                media_types::MediaKind::Subtitle => "subtitle",
+                media_types::MediaKind::Data => "data",
+            };
+            write!(f, "{kind} `{codec}`")?;
+        }
+        Ok(())
+    }
+}
+impl std::error::Error for NoDecodableLeaf {}
+
 /// The engine-side tag for a config failure (stage `Control`, kind
 /// `Unsupported` — the L0 vocabulary, for callers that want a plain
 /// [`EngineError`]).
+///
+/// `known` enriches the `NoDecodableTrack` failure with the
+/// known-format info (defect G1, card 3.C2): the container name rides
+/// the `Unsupported` kind's [`media_types::error::FormatInfo`] and the
+/// track codec list rides the error's `source` leaf. `None` keeps the
+/// historical un-enriched shape (hosts that declare no container).
 #[must_use]
-pub fn config_error(cause: SessionConfigError) -> EngineError {
+pub fn config_error(cause: SessionConfigError, known: Option<&NoDecodableKnown>) -> EngineError {
     let code = match cause {
         SessionConfigError::NoDecodableTrack => "session.no-decodable-track",
     };
-    EngineError::new(
+    let format = known.and_then(|known| {
+        known
+            .container
+            .as_ref()
+            .map(|name| media_types::error::FormatInfo {
+                name: Some(name.clone()),
+                // The engine never sniffed bytes itself (the probe
+                // did, before the demuxer existed) — an empty sniff
+                // list is the honest form, never a fabricated one.
+                sniffed: Vec::new(),
+            })
+    });
+    let mut error = EngineError::new(
         PipelineStage::Control,
-        media_types::ErrorKind::Unsupported { format: None },
+        media_types::ErrorKind::Unsupported { format },
         media_types::error::ErrorContext::new(code),
-    )
+    );
+    if let Some(known) = known {
+        error = error.with_source(NoDecodableLeaf {
+            known: known.clone(),
+        });
+    }
+    error
 }
