@@ -520,6 +520,12 @@ const STRF: FourCC = FourCC::tag(b"strf");
 const STRN: FourCC = FourCC::tag(b"strn");
 /// The `strd` chunk id (codec-private data — skipped).
 const STRD: FourCC = FourCC::tag(b"strd");
+/// The `vprp` chunk id (video properties header — advisory metadata
+/// ffmpeg authors into every clean file's video `strl`; skipped, not
+/// parsed. W3-16 corpus audit: counting it as damage made all 57 clean
+/// supported rows report recovered=1/damage=68 — a silent-skip peer of
+/// `strd`/`JUNK`, not an unknown chunk).
+const VPRP: FourCC = FourCC::tag(b"vprp");
 
 /// Advance past a chunk payload + WORD pad (RIFF alignment).
 fn advance(pos: u64, size: u32) -> u64 {
@@ -632,7 +638,12 @@ fn parse_strl(
                 }
                 pos = advance(pos, header.size);
             }
-            STRD | JUNK => {
+            // Legitimate advisory children: strd (codec-private data),
+            // JUNK (padding), vprp (video properties) carry nothing the
+            // v0 stream model consumes — silently skipped so a clean
+            // ffmpeg-authored file walks with zero damage. Everything
+            // else really is unknown (D-3: noted, never fatal).
+            STRD | JUNK | VPRP => {
                 pos = advance(pos, header.size);
             }
             _ => {
