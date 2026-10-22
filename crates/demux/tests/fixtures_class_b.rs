@@ -68,6 +68,33 @@ fn drain(avi: &mut AviDemuxer) -> DrainOutcome {
     (packets, recovered, terminal)
 }
 
+/// The reasons-capturing drain outcome (the ED-FIX-3 containment flavors
+/// are pinned by name, not just by count).
+type DrainWithReasons = (
+    Vec<(u32, Vec<u8>)>,
+    Vec<&'static str>,
+    Result<(), EngineError>,
+);
+
+/// Drain that also captures the recovery reasons in order (the ED-FIX-3
+/// containment flavors are pinned by name, not just by count).
+fn drain_with_reasons(avi: &mut AviDemuxer) -> DrainWithReasons {
+    let mut packets = Vec::new();
+    let mut reasons = Vec::new();
+    let terminal = loop {
+        match avi.next_event() {
+            Ok(DemuxEvent::Packet(packet)) => {
+                packets.push((packet.track.handle(), packet.data.as_slice().to_vec()));
+            }
+            Ok(DemuxEvent::Recovered { reason, .. }) => reasons.push(reason),
+            Ok(DemuxEvent::Discontinuity) => {}
+            Ok(DemuxEvent::EndOfStream) => break Ok(()),
+            Err(err) => break Err(err),
+        }
+    };
+    (packets, reasons, terminal)
+}
+
 fn assert_video_hashes_match_parent(
     packets: &[(u32, Vec<u8>)],
     parent: &common::Expectation,
@@ -80,6 +107,33 @@ fn assert_video_hashes_match_parent(
         .collect();
     assert_eq!(video.len(), frames.len(), "video packet count");
     for (offset, data) in video.iter().enumerate() {
+        assert_eq!(
+            sha256_hex(data),
+            parent.video_sample_sha256[frames.start + offset],
+            "frame {} hash",
+            frames.start + offset
+        );
+    }
+}
+
+/// The prefix variant for containment walks: the FIRST `frames.len()`
+/// video packets must hash-match the parent; extra trailing video
+/// packets (a delivered clamped partial) are legal and excluded.
+fn assert_video_hashes_prefix_match_parent(
+    packets: &[(u32, Vec<u8>)],
+    parent: &common::Expectation,
+    frames: std::ops::Range<usize>,
+) {
+    let video: Vec<&Vec<u8>> = packets
+        .iter()
+        .filter(|(track, _)| *track == 0)
+        .map(|(_, data)| data)
+        .collect();
+    assert!(
+        video.len() >= frames.len(),
+        "at least the complete frames must be video packets"
+    );
+    for (offset, data) in video[..frames.len()].iter().enumerate() {
         assert_eq!(
             sha256_hex(data),
             parent.video_sample_sha256[frames.start + offset],
@@ -155,7 +209,14 @@ fn trunc2_at_first_movi_chunk_starts_but_errors_at_the_boundary() {
 }
 
 #[test]
-fn trunc3_mid_payload_emits_survivors_then_errors() {
+fn trunc3_mid_payload_delivers_prefix_with_counted_damage() {
+    // ED-FIX-3 semantics change (Lead-verified 2026-10-22, D-3/D-9): a
+    // mid-payload cut is bounded recovery, not a fatal truncation — the
+    // readable prefix of the cut chunk is DELIVERED as the final packet,
+    // every lying extent is damage-counted, and the walk ends in EOS.
+    // The 2.B2-era contract (60 packets + typed `demux.avi.truncated`)
+    // is superseded by this stronger observability contract: the loss
+    // is accounted, not fatal.
     let expect = derivative_expectation("trunc3");
     let parent = parse_expectation(PARENT_EXPECTATION);
     assert_eq!(
@@ -169,32 +230,40 @@ fn trunc3_mid_payload_emits_survivors_then_errors() {
         Err(err) => unreachable!("the header is intact: {err}"),
     };
     assert_eq!(tracks.len(), 2);
-    let (packets, _recovered, terminal) = drain(&mut avi);
-    // 30 complete video frames + their 30 audio ticks survived.
-    assert_eq!(packets.len(), 60);
-    assert_video_hashes_match_parent(&packets, &parent, 0..30);
+    let (packets, reasons, terminal) = drain_with_reasons(&mut avi);
+    // 30 complete video frames + their 30 audio ticks survive, plus the
+    // clamped prefix of the cut frame-30 video chunk.
+    assert_eq!(packets.len(), 61);
+    assert_video_hashes_prefix_match_parent(&packets, &parent, 0..30);
     let audio_bytes: usize = packets
         .iter()
         .filter(|(track, _)| *track == 1)
         .map(|(_, data)| data.len())
         .sum();
     assert_eq!(audio_bytes, 30 * 5_880, "the surviving PCM ticks");
-    match terminal {
-        Err(err) => {
-            // The frame-30 chunk's payload end vs the physical cut.
-            match err.kind {
-                ErrorKind::Corrupt {
-                    detail: CorruptDetail::Truncated { expected, found },
-                } => {
-                    assert_eq!(found, 212_512);
-                    assert!(expected > 212_512, "the cut is inside the payload");
-                }
-                other => unreachable!("trunc3 flavor, got {other:?}"),
-            }
-            assert_eq!(err.context.code, "demux.avi.truncated");
-        }
-        Ok(()) => unreachable!("a mid-payload cut must error"),
-    }
+    let (last_track, last_len) = match packets.last() {
+        Some((track, data)) => (*track, data.len()),
+        None => unreachable!("61 packets were just counted"),
+    };
+    assert_eq!(last_track, 0, "the partial is the video frame-30 prefix");
+    assert!(last_len > 0, "a non-empty readable prefix was delivered");
+    // Three counted repairs, in walk order: the RIFF extent lied past
+    // the stream, the movi list extended past the (clamped) RIFF, and
+    // the chunk payload crossed the end of the file.
+    assert_eq!(
+        reasons,
+        [
+            "riff-extends-past-stream",
+            "movi-extends-past-riff",
+            "chunk-payload-past-eof",
+        ],
+        "the containment flavors, by name"
+    );
+    assert!(
+        terminal.is_ok(),
+        "terminal containment: EOS after the delivered prefix"
+    );
+    assert!(avi.damage_total() > 0, "the loss is damage-accounted");
 }
 
 #[test]
@@ -208,7 +277,7 @@ fn trunc4_last_byte_demuxes_fully_with_index_salvage() {
         Err(err) => unreachable!("header intact: {err}"),
     };
     assert_eq!(tracks.len(), 2);
-    let (packets, recovered, terminal) = drain(&mut avi);
+    let (packets, reasons, terminal) = drain_with_reasons(&mut avi);
     match terminal {
         Ok(()) => {}
         Err(err) => unreachable!("losing the final byte is bounded recovery: {err}"),
@@ -221,17 +290,23 @@ fn trunc4_last_byte_demuxes_fully_with_index_salvage() {
         .flat_map(|(_, data)| data.iter().copied())
         .collect();
     assert_eq!(sha256_hex(&pcm), parent.audio_stream_sha256);
-    // Two counted repairs, both honest: the RIFF declared one byte
-    // more than the stream carries (1 byte), and the idx1 lost its
-    // final entry mid-record (15 of 16 bytes).
+    // Three counted repairs (ED-FIX-3 idx1 hardening): the RIFF declared
+    // one byte more than the stream carries (1 byte), the idx1 chunk's
+    // declared size crossed the available bytes (1 byte), and the idx1
+    // lost its final entry mid-record (15 of 16 bytes).
     assert_eq!(
-        recovered, 2,
-        "riff-extends-past-stream + idx1-partial-entry"
+        reasons,
+        [
+            "riff-extends-past-stream",
+            "idx1-size-past-available",
+            "idx1-partial-entry",
+        ],
+        "the salvage flavors, by name"
     );
     assert_eq!(
         avi.damage_total(),
-        16,
-        "1 missing stream byte + 15 partial-entry bytes"
+        17,
+        "1 missing stream byte + 1 idx1 size byte + 15 partial-entry bytes"
     );
 }
 

@@ -511,8 +511,7 @@ impl AviDemuxer {
                         // prefix, count the missing bytes, end the walk
                         // after this packet — nothing follows the end
                         // of the file.
-                        let prefix =
-                            self.reader.read_prefix_at(size as usize, payload_start)?;
+                        let prefix = self.reader.read_prefix_at(size as usize, payload_start)?;
                         self.damage.note(
                             size.saturating_sub(prefix.len() as u64),
                             "chunk-payload-past-eof",

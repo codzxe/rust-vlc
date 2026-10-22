@@ -2568,17 +2568,10 @@ fn avi_abs_idx1_derivative(
     let mut bytes = parent.bytes.clone();
     for entry in 0..entries {
         let at = first + entry * 16 + 8; // dwOffset field
-        let rel = u32::from_le_bytes([
-            bytes[at],
-            bytes[at + 1],
-            bytes[at + 2],
-            bytes[at + 3],
-        ]);
+        let rel = u32::from_le_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]]);
         let absolute = u64::from(rel) + movi_fourcc_pos as u64;
         let Ok(absolute) = u32::try_from(absolute) else {
-            return Err(format!(
-                "absolute idx1 offset {absolute} does not fit u32"
-            ));
+            return Err(format!("absolute idx1 offset {absolute} does not fit u32"));
         };
         bytes[at..at + 4].copy_from_slice(&absolute.to_le_bytes());
     }
@@ -2622,9 +2615,7 @@ fn avi_strl_chunk_payload_offset(
                 fourcc_str(want)
             ));
         }
-        let fourcc: [u8; 4] = parent.bytes[pos..pos + 4]
-            .try_into()
-            .unwrap_or([0; 4]);
+        let fourcc: [u8; 4] = parent.bytes[pos..pos + 4].try_into().unwrap_or([0; 4]);
         let size = u32::from_le_bytes([
             parent.bytes[pos + 4],
             parent.bytes[pos + 5],
@@ -4751,10 +4742,15 @@ mod tests {
         assert_eq!(differing, 4, "exactly the 4 biHeight bytes differ");
         // The patch site is the video strf's biHeight, and the value is
         // -240 as i32le (0xFFFFFF10).
-        assert_eq!(at, number_after_toml(
-            &utf8(find("expectations/malformed/avi_mjpeg_pcm__negheight0.avi.toml")),
-            "patched_offset"
-        ));
+        assert_eq!(
+            at,
+            number_after_toml(
+                &utf8(find(
+                    "expectations/malformed/avi_mjpeg_pcm__negheight0.avi.toml"
+                )),
+                "patched_offset"
+            )
+        );
         assert_eq!(le32(&derivative.bytes, at), 0xFFFF_FF10);
         assert_eq!(le32(&parent.bytes, at), FRAME_HEIGHT as u32);
         // The patch really is inside the header region (before the

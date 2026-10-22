@@ -216,7 +216,10 @@ pub fn parse_idx1(
     let available = bound.saturating_sub(idx1_pos + 8);
     let payload = u64::from(declared_size).min(available);
     if u64::from(declared_size) > payload {
-        damage.note(u64::from(declared_size) - payload, "idx1-size-past-available");
+        damage.note(
+            u64::from(declared_size) - payload,
+            "idx1-size-past-available",
+        );
     }
     let entry_count = payload.div_ceil(16);
     if entry_count > MAX_IDX1_ENTRIES as u64 {

@@ -1,11 +1,11 @@
 {
   "schema": "evidence/1",
-  "run_id": "2e1-local-5d213e5cd",
+  "run_id": "2e1-local-98f4ba3ff",
   "commit": {
-    "sha": "5d213e5cdb38e90aa654342c8c4368dd9dcb3437",
+    "sha": "98f4ba3ff2043ba653594eb8beda4793b24218ae",
     "note": "the tree the evidence was regenerated FROM; the artifact commit itself lands one commit later (a file cannot carry its own sha)"
   },
-  "started_at": "2026-10-21T02:46:02Z",
+  "started_at": "2026-10-22T12:42:44Z",
   "environment": {
     "kind": "local",
     "os": "linux",
@@ -152,11 +152,11 @@
       "checks": 7,
       "claims": [
         "the truncated body still opens (the headers are intact)",
-        "the settle lands in Error (the truncation surfaces while the buffers fill)",
-        "the session ends in Error (the typed mid-stream failure)",
-        "exactly one playback.error event is delivered",
-        "the error event is the demuxer's truncated-data truth",
-        "the bounded play-out actually happened (content presented before the failure)",
+        "the settle reaches Playing (containment keeps the pipeline alive)",
+        "the session ends cleanly in Ended (the bounded play-out completes)",
+        "zero playback.error events (the truncation is contained, not fatal)",
+        "exactly one playback.end-of-media event is delivered",
+        "the bounded play-out actually happened (content presented through the cut)",
         "the position stays within the media (no hang, bounded pumps)"
       ]
     },
@@ -246,8 +246,8 @@
     },
     {
       "path": "evidence/transcripts/corrupt-truncated-midplay.json",
-      "bytes": 2100,
-      "sha256": "90e2e8db629f9876025ede9b14c62fd50bb7728a58e331ae96ca9edf28f9acff"
+      "bytes": 2235,
+      "sha256": "5730b7d58459861f1105b0dcab77e47e932ef9ef83c2c68b3a9c2661c74d902f"
     },
     {
       "path": "evidence/transcripts/corrupt-garbage-appended.json",

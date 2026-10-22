@@ -225,7 +225,11 @@ fn build(streams: &[Stream], movi_chunks: &[MoviChunk<'_>], with_idx1: bool) -> 
             }
             Stream::ShortStrh => {
                 // A strh declared (and written) one byte short.
-                chunk(&mut out, b"strh", &strh(b"vids", b"MJPG", 1, 30, 1, 0)[..55]);
+                chunk(
+                    &mut out,
+                    b"strh",
+                    &strh(b"vids", b"MJPG", 1, 30, 1, 0)[..55],
+                );
             }
             Stream::Other { fcc, handler } => {
                 chunk(&mut out, b"strh", &strh(fcc, handler, 1, 1, 0, 0));
@@ -495,7 +499,11 @@ fn zero_rate_or_scale_skips_the_stream_not_the_file() {
         Err(err) => unreachable!("a bad sibling stream must not kill the file: {err}"),
     };
     assert_eq!(tracks.len(), 1, "only the healthy stream survives");
-    assert_eq!(tracks[0].id.handle(), 1, "ordinals stay aligned with strl order");
+    assert_eq!(
+        tracks[0].id.handle(),
+        1,
+        "ordinals stay aligned with strl order"
+    );
     // The skip is observable first.
     match avi.next_event() {
         Ok(DemuxEvent::Recovered { skipped, reason }) => {
@@ -898,8 +906,7 @@ fn rec_list_overrunning_parent_bound_clamps_with_damage() {
     // past the movi list end (the idx1 that follows makes those bytes
     // real file bytes).
     let rec_size = (out.len() - rec_size_pos - 4) as u32;
-    out[rec_size_pos..rec_size_pos + 4]
-        .copy_from_slice(&(rec_size + 20).to_le_bytes());
+    out[rec_size_pos..rec_size_pos + 4].copy_from_slice(&(rec_size + 20).to_le_bytes());
     end_sized(&mut out, movi_size_pos);
     // A minimal idx1 so bytes exist past the movi end.
     chunk(&mut out, b"idx1", &[]);
@@ -1043,7 +1050,11 @@ fn lying_idx1_size_clamps_to_available_bytes() {
     // salvaged index plus damage, not a fatal over-cap abort.
     let built = build(
         &[video_stream()],
-        &[(b"00dc", &b"a"[..]), (b"00dc", &b"b"[..]), (b"00dc", &b"c"[..])],
+        &[
+            (b"00dc", &b"a"[..]),
+            (b"00dc", &b"b"[..]),
+            (b"00dc", &b"c"[..]),
+        ],
         true,
     );
     let mut bytes = built.bytes;
@@ -1088,7 +1099,11 @@ fn absolute_idx1_offsets_are_autodetected_and_seek() {
     // variant as a damage note — and the index seeks correctly.
     let built = build(
         &[video_stream()],
-        &[(b"00dc", &b"a"[..]), (b"00dc", &b"b"[..]), (b"00dc", &b"c"[..])],
+        &[
+            (b"00dc", &b"a"[..]),
+            (b"00dc", &b"b"[..]),
+            (b"00dc", &b"c"[..]),
+        ],
         true,
     );
     let mut bytes = built.bytes;
@@ -1099,9 +1114,8 @@ fn absolute_idx1_offsets_are_autodetected_and_seek() {
         let at = idx1_pos + 8 + entry * 16 + 8;
         let rel = u32::from_le_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]]);
         let absolute = u64::from(rel) + built.movi_form_pos;
-        bytes[at..at + 4].copy_from_slice(
-            &u32::try_from(absolute).unwrap_or(u32::MAX).to_le_bytes(),
-        );
+        bytes[at..at + 4]
+            .copy_from_slice(&u32::try_from(absolute).unwrap_or(u32::MAX).to_le_bytes());
     }
     let mut avi = demuxer_over(bytes);
     match avi.start() {
@@ -1380,7 +1394,11 @@ fn chunk_size_past_movi_bound_clamps_and_continues() {
     // walk resumes at the bound — no silent early EOS, no fatal.
     let built = build(
         &[video_stream()],
-        &[(b"00dc", &b"v0"[..]), (b"00dc", &[0x42; 60]), (b"00dc", &b"v2"[..])],
+        &[
+            (b"00dc", &b"v0"[..]),
+            (b"00dc", &[0x42; 60]),
+            (b"00dc", &b"v2"[..]),
+        ],
         true,
     );
     let mut bytes = built.bytes;
