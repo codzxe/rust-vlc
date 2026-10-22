@@ -20,13 +20,17 @@
 //!    stale frames never reappear).
 //! 2. **Late purge**: pending frames with `pts < now − threshold` are
 //!    dropped, counted, advanced past. The window is PTS-sorted, so the
-//!    late frames are a prefix.
+//!    late frames are a prefix. Pre-roll holds (a generation the clock
+//!    has not published yet — see "Pre-roll hold" below) are exempt:
+//!    the purge stops at the first one.
 //! 3. **Selection**: present the frame with the **largest**
-//!    `pts ≤ now + target_lead`. Everything due before it is
+//!    `pts ≤ now + target_lead`, among published-generation frames
+//!    only. Everything due before it is
 //!    *superseded* — dropped and counted, because presenting it after
 //!    the selected frame would violate in-order presentation (the
 //!    structural drop applies under every policy, [`DropPolicy::Never`]
-//!    included; it is not a lateness drop).
+//!    included; it is not a lateness drop). A pre-roll hold is never
+//!    selected and stops the scan.
 //! 4. **Nothing due**: repeat the last frame (bounded by
 //!    [`SchedulerCfg::max_repeat`]), then fall back to background —
 //!    "video is subordinate to the audio clock, always" (doc 03
@@ -44,6 +48,27 @@
 //! ticking (and when to extend repeats) while paused is the session
 //! wiring's decision — v0 `tick` is mechanical and does not special-case
 //! [`ClockState::Paused`](media_clock::ClockState::Paused).
+//!
+//! # Pre-roll hold (M10, doc 03 §6 steps 2–6)
+//!
+//! While a seek is in flight the clock is **frozen at the old
+//! position** and lags the minted generation — the clock publishes
+//! the new token only at step 6, on completion. Frames of a
+//! not-yet-published generation are pre-roll holds: their PTS must
+//! not be judged against the frozen position, because a backward
+//! seek's landing would be purged wholesale as "late" and a small
+//! forward seek's landing would present before the terminal. The
+//! tick therefore exempts them from the late purge, from selection
+//! and from the wait hint: they wait in the bounded window until the
+//! clock publishes their generation — the seek terminal — and then
+//! present in PTS order against the re-anchored position. A
+//! generation that is superseded before publication (a failed or
+//! replaced seek) takes its held frames with it: the step-1 purge
+//! drops them, counted. This gate is the scheduler-side half of the
+//! M10 fix; the engine-side half (the pipeline's bounded pre-roll
+//! hold, released only at the terminal) keeps such frames out of the
+//! window in the first place — the gate makes the scheduler correct
+//! standalone, whatever the producer does.
 
 use std::collections::VecDeque;
 use std::fmt;
@@ -463,10 +488,16 @@ impl PresentationScheduler {
     ///
     /// Zero heap traffic (D-1/D-8): the drop trails are fixed-capacity
     /// inline arrays — measured by `tests/zero_alloc_scheduler.rs`.
+    /// Frames of a generation the clock has not published yet (a
+    /// seek's pre-roll, M10) are **held**: the frozen old position
+    /// never judges their PTS (no late drop, no selection, no wait
+    /// hint) — they present once the terminal publishes the
+    /// generation.
     #[must_use = "a tick outcome ignored is a frame presented late, dropped silently, or never shown"]
     pub fn tick(&mut self) -> TickOutcome {
         let snapshot = self.clock.snapshot();
         let now = snapshot.position;
+        let published = snapshot.generation;
         let mut drops = TickDrops::default();
 
         // Step 1: generation change → wholesale purge (doc 03 §5(7)).
@@ -502,7 +533,16 @@ impl PresentationScheduler {
         // Step 3: late purge — a prefix of the sorted window. The
         // dropped PTS land in the fixed-capacity trail (D-1: no
         // per-tick Vec); the lifetime count stays exact.
+        // Step 3: late purge — a prefix of the sorted window. A
+        // pre-roll hold (a generation the clock has not published
+        // yet — M10) is never judged against the frozen position: the
+        // purge stops at the first one; frames behind it stay for the
+        // generation flip to sort out (the window is bounded either
+        // way).
         while let Some(front) = self.window.front() {
+            if front.frame.generation > published {
+                break;
+            }
             if self.cfg.decide(front.pts, now) == FrameDecision::SkipLate {
                 if let Some(dropped) = self.window.pop_front() {
                     drops.late.record(dropped.pts);
@@ -513,12 +553,15 @@ impl PresentationScheduler {
             }
         }
 
-        // Step 4: selection — the largest pts ≤ now + target_lead.
+        // Step 4: selection — the largest pts ≤ now + target_lead,
+        // among PUBLISHED-generation frames only: a held frame is
+        // never due against the old position (M10) and stops the
+        // scan — anything behind it in the window waits with it.
         let due_bound = i128::from(now.ticks) + i128::from(self.cfg.target_lead.0);
         let due_count = self
             .window
             .iter()
-            .take_while(|p| i128::from(p.pts.ticks) <= due_bound)
+            .take_while(|p| p.frame.generation <= published && i128::from(p.pts.ticks) <= due_bound)
             .count();
         let mut selected = None;
         if due_count > 0 {
@@ -556,7 +599,19 @@ impl PresentationScheduler {
             PresentAction::Background
         };
 
-        let next_due = self.window.front().map(|p| self.cfg.due_at(p.pts));
+        // The wait hint: the earliest PUBLISHABLE pending frame — and
+        // only if the window's front is publishable at all. A held
+        // pre-roll frame at the front blocks everything behind it
+        // (selection stops there, and the generation flip will purge
+        // the blocked old-generation tail), so while a hold leads the
+        // window the honest hint is `None`: during a seek the wake
+        // source is the terminal (the clock's generation publication),
+        // not the clock position (M10).
+        let next_due = self
+            .window
+            .front()
+            .filter(|p| p.frame.generation <= published)
+            .map(|p| self.cfg.due_at(p.pts));
         TickOutcome {
             action,
             next_due,
@@ -1140,5 +1195,144 @@ mod tests {
         assert_eq!(sched.stats().dropped_superseded, 39);
         assert_eq!(sched.stats().presented, 1);
         assert_eq!(sched.pending_len(), 0);
+    }
+
+    // ------------------------------------------------------------------
+    // The pre-roll hold (M10, doc 03 §6 steps 2–6): frames of a
+    // generation the clock has not published yet are never judged
+    // against the frozen old position.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn preroll_holds_are_not_judged_while_the_clock_lags_the_generation() {
+        // A seek mints the next generation and lands backward
+        // (pts 100..120) while the clock stays frozen at the old
+        // position (500, generation FIRST). Aggressive ticking must
+        // neither present the held landing frames nor purge them as
+        // late; a still-resident old-generation slot behind them is
+        // blocked from presenting too (doc 03 §6: no Playing-looking
+        // output during steps 2–6).
+        let clock = VirtualVideoClock::new();
+        let mut sched = PresentationScheduler::new(cfg(), clock.clock());
+        let seek_gen = GenerationId::FIRST.next().must();
+        for pts in [100i64, 110, 120] {
+            assert!(
+                matches!(sched.push(frame(pts, seek_gen)), PushOutcome::Scheduled),
+                "newer-generation pushes wait in the window (never refused)"
+            );
+        }
+        // A pre-seek future slot still resident when the seek landed.
+        let _ = sched.push(frame(502, GenerationId::FIRST));
+        clock.set_ns(500);
+        for _ in 0..16 {
+            let outcome = sched.tick();
+            assert!(
+                matches!(outcome.action, PresentAction::Background),
+                "nothing presents against the frozen old position: {:?}",
+                outcome.action
+            );
+            assert!(
+                outcome.drops.late.is_empty(),
+                "a backward landing is never 'late' against the old position: {:?}",
+                outcome.drops.late
+            );
+            assert!(outcome.drops.superseded.is_empty());
+            assert_eq!(outcome.drops.stale, 0);
+            assert_eq!(
+                outcome.next_due, None,
+                "a held front is not a wait target during the seek"
+            );
+        }
+        assert_eq!(
+            sched.pending_len(),
+            4,
+            "everything waits in the bounded window"
+        );
+        let stats = sched.stats();
+        assert_eq!(stats.presented, 0);
+        assert_eq!(stats.dropped_late, 0);
+        assert_eq!(stats.dropped_superseded, 0);
+        assert_eq!(stats.dropped_stale, 0);
+    }
+
+    #[test]
+    fn preroll_holds_present_in_pts_order_once_the_generation_publishes() {
+        // The terminal shape: the clock publishes the seek's
+        // generation (step 6) and re-anchors at the landing — the
+        // held frames then present, in PTS order, against the NEW
+        // position. Before publication even a due-adjacent landing
+        // (pts 100 at now 95, within the lead) stays held (M10: the
+        // old position must never judge the new landing).
+        let clock = VirtualVideoClock::new();
+        let mut sched = PresentationScheduler::new(cfg(), clock.clock());
+        let seek_gen = GenerationId::FIRST.next().must();
+        for pts in [100i64, 120, 140] {
+            let _ = sched.push(frame(pts, seek_gen));
+        }
+        // Aggressive ticks at the would-be due slot: nothing presents.
+        clock.set_ns(95);
+        for _ in 0..8 {
+            let outcome = sched.tick();
+            assert!(
+                matches!(outcome.action, PresentAction::Background),
+                "the landing stays held pre-terminal: {:?}",
+                outcome.action
+            );
+            assert_eq!(outcome.drops.late.len() + outcome.drops.superseded.len(), 0);
+        }
+        // The terminal: publish the generation (the clock re-anchored
+        // at the landing when it did).
+        clock.set_generation(seek_gen);
+        let mut presented: Vec<i64> = Vec::new();
+        for (now, want) in [(95u64, 100i64), (115, 120), (135, 140)] {
+            clock.set_ns(now);
+            match sched.tick().action {
+                PresentAction::Present(request) => {
+                    assert_eq!(request.when.ticks, want);
+                    assert_eq!(request.generation, seek_gen);
+                    presented.push(request.when.ticks);
+                }
+                other => unreachable!("held frame {want} due after the terminal, got {other:?}"),
+            }
+        }
+        assert_eq!(presented, vec![100, 120, 140], "pts order, no drops");
+        let stats = sched.stats();
+        assert_eq!(stats.presented, 3);
+        assert_eq!(stats.dropped_late, 0);
+        assert_eq!(stats.dropped_superseded, 0);
+    }
+
+    #[test]
+    fn held_preroll_frames_are_discarded_when_a_later_generation_publishes() {
+        // The failed/superseded seek shape: its generation is never
+        // published — a LATER mint takes its place. The step-1 purge
+        // drops the held frames wholesale, counted, and they never
+        // presented (D-4: frames of a seek that will never complete
+        // are stale by generation).
+        let clock = VirtualVideoClock::new();
+        let mut sched = PresentationScheduler::new(cfg(), clock.clock());
+        let failed_gen = GenerationId::FIRST.next().must();
+        let later_gen = failed_gen.next().must();
+        for pts in [100i64, 110, 120] {
+            let _ = sched.push(frame(pts, failed_gen));
+        }
+        clock.set_ns(500);
+        // The seek fails: its generation is never published; a later
+        // seek mints `later_gen` and the clock publishes THAT.
+        for _ in 0..4 {
+            assert!(matches!(sched.tick().action, PresentAction::Background));
+        }
+        clock.set_generation(later_gen);
+        let outcome = sched.tick();
+        assert_eq!(
+            outcome.drops.stale, 3,
+            "the held landing frames die with their generation"
+        );
+        assert!(matches!(outcome.action, PresentAction::Background));
+        assert_eq!(sched.pending_len(), 0);
+        let stats = sched.stats();
+        assert_eq!(stats.presented, 0, "a failed seek's frames never present");
+        assert_eq!(stats.dropped_late, 0, "they were held, not dropped as late");
+        assert_eq!(stats.dropped_stale, 3, "the discard is observable");
     }
 }
