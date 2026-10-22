@@ -677,6 +677,15 @@ impl CliHost {
             Arc::clone(&consumer) as Arc<dyn playback_engine::FrameConsumer>,
             Arc::clone(&clock),
         );
+        // Card 3.B3: per-kind queue caps from the product limits —
+        // the open path consumes the product posture (1024/512 packet
+        // queues) instead of the library defaults (200/300). The
+        // values ride the product.toml mirror constants until the
+        // product-config load lands (see `demux_host`'s `[PROPOSAL]`).
+        config.queues = crate::demux_host::queue_plan_from_product_limits(
+            crate::demux_host::PRODUCT_QUEUE_PACKETS_AUDIO,
+            crate::demux_host::PRODUCT_QUEUE_PACKETS_VIDEO,
+        )?;
         if let Some(source) = self.event_throttle.clone() {
             config.throttle = playback_engine::EventPolicy {
                 tick: playback_engine::TimeTickPolicy::default_policy(),

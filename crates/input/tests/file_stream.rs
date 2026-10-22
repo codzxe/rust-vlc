@@ -178,3 +178,34 @@ fn oversized_read_requests_are_typed_limit_errors() {
     let head = stream.read(8).must();
     assert_eq!(head, pattern(32)[..8]);
 }
+
+/// The real file passes the borrow-twin contract (card 3.B3):
+/// `read_into` through the plugin-api trait object over a real
+/// `FileAccess` stream — varied caller buffers, position tracking,
+/// clean EOF, and byte-agreement with `read`.
+#[test]
+fn real_file_passes_the_read_into_contract() {
+    let data = pattern(5000);
+    let temp = TempFile::create("read-into-contract", &data).must();
+    let mut stream = open(&temp.file_uri()).must();
+    input::contract::assert_read_into_contract(stream.as_mut(), &data);
+}
+
+/// The read-ahead budget join over a real file (card 3.B3, design
+/// A4): `with_read_ahead_budget` sizes the window (at or below the
+/// ceiling) and the opened stream serves reads through it — the
+/// product.toml default (32 MiB) opens cleanly at the 16 MiB ceiling.
+#[test]
+fn read_ahead_budget_opens_and_serves() {
+    use plugin_api::SourceStream as _;
+    let data = pattern(4096);
+    let temp = TempFile::create("budget", &data).must();
+    let access = input::FileAccess::with_read_ahead_budget(32 * 1024 * 1024).must();
+    assert_eq!(access.buffer_capacity(), input::MAX_BUFFER_BYTES);
+    let uri = SourceUri::parse(&temp.file_uri()).must();
+    let mut stream = access.open(&uri).must();
+    let mut out = vec![0u8; 4096];
+    let got = stream.read_into(&mut out).must();
+    assert_eq!(got, 4096);
+    assert_eq!(out, data);
+}

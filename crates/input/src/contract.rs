@@ -18,6 +18,17 @@
 //!   consistent with bytes consumed; seeks round-trip; seek-to-length
 //!   is a clean EOF; seek past length and seek before start are typed
 //!   errors.
+//! - [`assert_read_into_contract`] (card 3.B3): the borrow twin of the
+//!   above over [`SourceStream::read_into`] — varied caller buffer
+//!   sizes reconstruct the data exactly, positions track consumption,
+//!   `Ok(0)` only at end of stream, a zero-length buffer is a
+//!   zero-length success without I/O, and the bytes match a `read`
+//!   pass over the same range byte-for-byte (the two APIs never
+//!   disagree).
+//! - [`assert_peek_into_contract`] (card 3.B3): window-bound peek
+//!   honesty for readers that expose it ([`SyntheticStream::peek_into`])
+//!   — peeks never advance, never do I/O, and never return more than
+//!   what is buffered.
 //! - [`assert_bounded_read`]: the card's "no unbounded buffering" proof —
 //!   a read many times the buffer capacity returns byte-exact data
 //!   while the underlying source never sees a read larger than the
@@ -182,6 +193,12 @@ impl SourceStream for SyntheticStream {
         self.reader.read(len)
     }
 
+    fn read_into(&mut self, out: &mut [u8]) -> Result<usize, EngineError> {
+        // The local-source override (card 3.B3): a direct window→out
+        // copy through the bounded reader, no per-call allocation.
+        self.reader.read_into(out)
+    }
+
     fn seek(&mut self, origin: SeekOrigin) -> Result<SourcePosition, EngineError> {
         let target = resolve_origin(self.reader.position(), origin)?;
         let to = self.reader.seek(target)?;
@@ -190,6 +207,22 @@ impl SourceStream for SyntheticStream {
 
     fn position(&self) -> SourcePosition {
         SourcePosition(self.reader.position())
+    }
+}
+
+impl SyntheticStream {
+    /// Peek up to `out.len()` buffered bytes without advancing (card
+    /// 3.B3 — the movi walk's header look-ahead): delegates to the
+    /// bounded reader's pure window math. Answers 0 when the window
+    /// is empty; never more than what is buffered.
+    pub fn peek_into(&mut self, out: &mut [u8]) -> Result<usize, EngineError> {
+        self.reader.peek_into(out)
+    }
+
+    /// The bounded reader's exact-read twin, surfaced for the demux
+    /// chain's contract checks.
+    pub fn read_exact_into(&mut self, out: &mut [u8]) -> Result<(), EngineError> {
+        self.reader.read_exact_into(out)
     }
 }
 
@@ -371,6 +404,128 @@ pub fn assert_bounded_read(stream: &mut SyntheticStream, want: usize, expected: 
     );
 }
 
+/// The borrow-twin contract (card 3.B3): [`SourceStream::read_into`]
+/// over a seekable stream whose bytes are `expected`. Varied caller
+/// buffer sizes reconstruct the data exactly; the position tracks
+/// consumption; `Ok(0)` only at end of stream; a zero-length buffer is
+/// a zero-length success; and a parallel `read` pass over the same
+/// bytes agrees byte-for-byte (the two APIs can never disagree).
+#[track_caller]
+pub fn assert_read_into_contract(stream: &mut dyn SourceStream, expected: &[u8]) {
+    let len = expected.len() as u64;
+    assert_eq!(stream.size(), Some(len), "size is the open-time truth");
+
+    // Pass 1: varied caller buffer sizes, position tracking.
+    let mut got = Vec::new();
+    let mut pos = 0u64;
+    for size in [1usize, 2, 3, 7, 64, 1000] {
+        let mut buf = vec![0u8; size];
+        loop {
+            let n = stream
+                .read_into(&mut buf)
+                .unwrap_or_else(|e| unreachable!("read_into: {e}"));
+            if n == 0 {
+                break;
+            }
+            assert!(n <= size, "read_into never exceeds the caller buffer");
+            got.extend_from_slice(&buf[..n]);
+            pos += n as u64;
+            assert_eq!(
+                stream.position(),
+                SourcePosition(pos),
+                "position tracks read_into consumption"
+            );
+            if n < size {
+                break;
+            }
+        }
+    }
+    assert_eq!(got, expected, "varied-size read_into reconstructs the data");
+
+    // End of stream is clean and sticky through the borrow path too.
+    for _ in 0..2 {
+        let mut tail = [0u8; 16];
+        let n = stream
+            .read_into(&mut tail)
+            .unwrap_or_else(|e| unreachable!("eof read_into: {e}"));
+        assert_eq!(n, 0, "Ok(0) only at end of stream");
+    }
+    // A zero-length buffer is a zero-length success.
+    let n = stream
+        .read_into(&mut [])
+        .unwrap_or_else(|e| unreachable!("zero-length read_into: {e}"));
+    assert_eq!(n, 0);
+    assert_eq!(stream.position(), SourcePosition(len));
+
+    // Pass 2: seek to start; one big borrow read returns the same
+    // bytes a `read` of the same range returns (the APIs agree).
+    stream
+        .seek(SeekOrigin::Start(0))
+        .unwrap_or_else(|e| unreachable!("seek 0: {e}"));
+    let mut whole = vec![0u8; expected.len() + 100];
+    let n = stream
+        .read_into(&mut whole)
+        .unwrap_or_else(|e| unreachable!("big read_into: {e}"));
+    assert_eq!(n, expected.len(), "short only at end of stream");
+    assert_eq!(&whole[..n], expected, "big borrow read reconstructs");
+    stream
+        .seek(SeekOrigin::Start(0))
+        .unwrap_or_else(|e| unreachable!("seek 0 again: {e}"));
+    let via_read = stream
+        .read(expected.len() + 100)
+        .unwrap_or_else(|e| unreachable!("parallel read: {e}"));
+    assert_eq!(via_read, expected, "read still reconstructs");
+}
+
+/// The peek contract (card 3.B3): [`SyntheticStream::peek_into`] is
+/// window-bound honesty — it never advances the position, never does
+/// I/O, and never returns more than what is currently buffered.
+#[track_caller]
+pub fn assert_peek_into_contract(stream: &mut SyntheticStream, expected: &[u8]) {
+    // Prime the window with a small read.
+    let mut take = [0u8; 8];
+    let n = stream
+        .read_into(&mut take)
+        .unwrap_or_else(|e| unreachable!("priming read: {e}"));
+    assert!(n > 0, "the contract needs a non-empty source");
+    let served = stream.source().reads_served();
+    let pos = stream.position();
+
+    let mut probe = [0u8; 16];
+    for _ in 0..3 {
+        let got = stream
+            .peek_into(&mut probe)
+            .unwrap_or_else(|e| unreachable!("peek_into: {e}"));
+        let window = stream.reader.buffered_bytes();
+        assert!(
+            got <= window,
+            "a peek returned {got} bytes but only {window} are buffered — fabrication"
+        );
+        assert!(
+            got <= probe.len(),
+            "a peek returned more than the caller buffer"
+        );
+        // What was peekable must equal the data at the position.
+        let at = pos.0 as usize;
+        assert_eq!(&probe[..got], &expected[at..at + got], "peeked bytes");
+    }
+    assert_eq!(stream.position(), pos, "peeks never advance");
+    assert_eq!(
+        stream.source().reads_served(),
+        served,
+        "peeks do no I/O"
+    );
+
+    // A peek larger than the window returns exactly the window.
+    let mut big = [0u8; 8192];
+    let got = stream
+        .peek_into(&mut big)
+        .unwrap_or_else(|e| unreachable!("big peek: {e}"));
+    let window = stream.reader.buffered_bytes();
+    assert_eq!(got, window, "never more than what is buffered");
+    assert_eq!(stream.position(), pos, "still no advancement");
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -385,6 +540,24 @@ mod tests {
         let data = pattern(5000);
         let mut stream = SyntheticStream::new(&data, 64).must();
         assert_stream_contract(&mut stream, &data);
+    }
+
+    /// The synthetic stream passes the borrow-twin contract through
+    /// the real trait-object shape (the override path the demuxer
+    /// consumes, card 3.B3).
+    #[test]
+    fn synthetic_stream_passes_the_read_into_contract() {
+        let data = pattern(5000);
+        let mut stream = SyntheticStream::new(&data, 64).must();
+        assert_read_into_contract(&mut stream, &data);
+    }
+
+    /// Window-bound peek honesty on the synthetic stream (card 3.B3).
+    #[test]
+    fn synthetic_stream_passes_the_peek_into_contract() {
+        let data = pattern(5000);
+        let mut stream = SyntheticStream::new(&data, 64).must();
+        assert_peek_into_contract(&mut stream, &data);
     }
 
     #[test]

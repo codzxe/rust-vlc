@@ -44,8 +44,44 @@ use demux::avi::header::StreamFormat;
 use media_types::ids::SourceUri;
 use media_types::time::{Stamp, TimeBase, TimeSpan, Timestamp};
 use media_types::{EngineError, MediaKind, Track, TrackId};
-use playback_engine::{wire_error_code, wire_stage};
+use playback_engine::{QueuePlan, wire_error_code, wire_stage};
 use plugin_api::{Access, DemuxEvent, Demuxer};
+
+/// The product's queue packet caps — the `[limits]` figures
+/// product.toml ships (`queue_packets_audio = 1024`,
+/// `queue_packets_video = 512`, product.toml:199-200). The CLI loads
+/// no product-config yet (that join is the rebrand-propagation card's,
+/// see `host.rs`'s `default_value` `[PROPOSAL]`), so these constants
+/// mirror the shipped values and the open path consumes the product
+/// posture **today**; when the product-config load lands it replaces
+/// this pair 1:1 (`limits.queue_packets_audio/video`). `[PROPOSAL]`
+pub const PRODUCT_QUEUE_PACKETS_AUDIO: u64 = 1024;
+/// The video half of the same mirror.
+pub const PRODUCT_QUEUE_PACKETS_VIDEO: u64 = 512;
+
+/// The host-side queue-plan join (card 3.B3, design A4): map the
+/// product limits' per-kind packet caps onto the engine's
+/// [`QueuePlan`]. A value the schema would reject surfaces here as a
+/// typed `CommandError` — the open failure, never a clamp and never a
+/// silent default.
+///
+/// # Errors
+/// [`CommandError`] (stage `Session`, code `InvalidArgument`) carrying
+/// the engine's [`playback_engine::QueuePlanError`] message when a
+/// packet cap is outside the schema range.
+pub fn queue_plan_from_product_limits(
+    audio_packets: u64,
+    video_packets: u64,
+) -> Result<QueuePlan, CommandError> {
+    QueuePlan::from_product_limits(audio_packets, video_packets).map_err(|err| {
+        CommandError::new(
+            Stage::Session,
+            ErrorCode::InvalidArgument,
+            format!("queue plan rejected: {err}"),
+        )
+        .with_detail("stage", "open.queues")
+    })
+}
 
 /// Bridge one engine error into the command layer's redaction-safe
 /// form (the single conversion point; stages/codes via
@@ -582,5 +618,34 @@ mod tests {
         assert_eq!(encode_path("/a b/c%d?e#f"), "/a%20b/c%25d%3Fe%23f");
         assert_eq!(encode_path("/plain/path.avi"), "/plain/path.avi");
         assert_eq!(encode_path("/üño"), "/%C3%BC%C3%B1o");
+    }
+
+    /// The queue-plan join (card 3.B3): the shipped product figures
+    /// build a plan; schema-range violations surface as typed
+    /// `CommandError`s naming the axis — reject, never clamp.
+    #[test]
+    fn queue_plan_join_maps_product_limits_or_refuses_typed() {
+        let plan = queue_plan_from_product_limits(
+            PRODUCT_QUEUE_PACKETS_AUDIO,
+            PRODUCT_QUEUE_PACKETS_VIDEO,
+        )
+        .unwrap_or_else(|e| unreachable!("{e}"));
+        assert_eq!(plan.audio.max_packets.get(), PRODUCT_QUEUE_PACKETS_AUDIO as usize);
+        assert_eq!(plan.video.max_packets.get(), PRODUCT_QUEUE_PACKETS_VIDEO as usize);
+
+        let err = match queue_plan_from_product_limits(63, 512) {
+            Ok(_) => unreachable!("below the floor must refuse"),
+            Err(err) => err,
+        };
+        assert_eq!(err.code, ErrorCode::InvalidArgument);
+        assert!(err.message.contains("audio"), "{err}");
+        assert!(err.message.contains("floor"), "{err}");
+
+        let err = match queue_plan_from_product_limits(1024, 4097) {
+            Ok(_) => unreachable!("above the ceiling must refuse"),
+            Err(err) => err,
+        };
+        assert!(err.message.contains("video"), "{err}");
+        assert!(err.message.contains("ceiling"), "{err}");
     }
 }
