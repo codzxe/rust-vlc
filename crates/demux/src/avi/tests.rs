@@ -1818,16 +1818,18 @@ fn smash_chunk_header(bytes: &mut [u8], pos: u64, garbage_size: u32) {
     bytes[pos + 4..pos + 8].copy_from_slice(&garbage_size.to_le_bytes());
 }
 
-/// Drain, capturing the `(skipped, reason)` damage pairs in order and
-/// the packet payloads (the resync flavors are pinned by name, not
-/// just by count).
-fn drain_with_damage(
-    avi: &mut AviDemuxer,
-) -> (
+/// The damage ledger a walk can report: `(skipped, reason)` pairs in
+/// order, the packet payloads, and the typed terminal.
+type DamageLedger = (
     Vec<(u64, &'static str)>,
     Vec<Vec<u8>>,
     Result<(), media_types::EngineError>,
-) {
+);
+
+/// Drain, capturing the `(skipped, reason)` damage pairs in order and
+/// the packet payloads (the resync flavors are pinned by name, not
+/// just by count).
+fn drain_with_damage(avi: &mut AviDemuxer) -> DamageLedger {
     let mut damage = Vec::new();
     let mut payloads = Vec::new();
     let terminal = loop {
