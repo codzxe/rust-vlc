@@ -73,10 +73,11 @@ fn strh(
     v
 }
 
-fn strf_video(width: u32, height: u32) -> Vec<u8> {
+fn strf_video(width: u32, height: i32) -> Vec<u8> {
     let mut v = Vec::with_capacity(40);
     v.extend_from_slice(&40u32.to_le_bytes());
     v.extend_from_slice(&width.to_le_bytes());
+    // biHeight is a SIGNED field: negative = bottom-up DIB.
     v.extend_from_slice(&height.to_le_bytes());
     v.extend_from_slice(&1u16.to_le_bytes());
     v.extend_from_slice(&24u16.to_le_bytes());
@@ -103,7 +104,17 @@ enum Stream {
         rate: u32,
         length: u32,
         width: u32,
-        height: u32,
+        /// Signed `biHeight` (negative exercises the bottom-up DIB
+        /// acceptance).
+        height: i32,
+    },
+    /// A video stream with raw `strf` bytes (degenerate-format
+    /// adversarial cases: short strf, zero dimensions, …).
+    VideoRaw {
+        scale: u32,
+        rate: u32,
+        length: u32,
+        strf: Vec<u8>,
     },
     Audio {
         scale: u32,
@@ -112,8 +123,10 @@ enum Stream {
         ssize: u32,
         strf: Vec<u8>,
     },
-    /// A real-but-unsupported stream (txts/mids/…): strl present,
-    /// outside the v0 codec filter.
+    /// A strl whose `strh` chunk is shorter than the 56-byte header.
+    ShortStrh,
+    /// A real-but-unsupported stream (txts/mids/mjpa/…): strl
+    /// present, outside the v0 codec filter.
     Other {
         fcc: &'static [u8; 4],
         handler: &'static [u8; 4],
@@ -183,6 +196,19 @@ fn build(streams: &[Stream], movi_chunks: &[MoviChunk<'_>], with_idx1: bool) -> 
                 );
                 chunk(&mut out, b"strf", &strf_video(width, height));
             }
+            Stream::VideoRaw {
+                scale,
+                rate,
+                length,
+                ref strf,
+            } => {
+                chunk(
+                    &mut out,
+                    b"strh",
+                    &strh(b"vids", b"MJPG", scale, rate, length, 0),
+                );
+                chunk(&mut out, b"strf", strf);
+            }
             Stream::Audio {
                 scale,
                 rate,
@@ -196,6 +222,14 @@ fn build(streams: &[Stream], movi_chunks: &[MoviChunk<'_>], with_idx1: bool) -> 
                     &strh(b"auds", &[0; 4], scale, rate, length, ssize),
                 );
                 chunk(&mut out, b"strf", strf);
+            }
+            Stream::ShortStrh => {
+                // A strh declared (and written) one byte short.
+                chunk(
+                    &mut out,
+                    b"strh",
+                    &strh(b"vids", b"MJPG", 1, 30, 1, 0)[..55],
+                );
             }
             Stream::Other { fcc, handler } => {
                 chunk(&mut out, b"strh", &strh(fcc, handler, 1, 1, 0, 0));
@@ -434,8 +468,59 @@ fn all_streams_unsupported_is_typed() {
     ));
 }
 
+// ---------------------------------------------------------------------------
+// Per-stream containment (D-3/D-9: a degenerate strl skips its stream,
+// never the file — Lead decision ED-e; the old abort behavior was the
+// audited violation M6)
+// ---------------------------------------------------------------------------
+
 #[test]
-fn zero_rate_or_scale_is_bad_stream_params() {
+fn zero_rate_or_scale_skips_the_stream_not_the_file() {
+    // The first strl carries a zero dwScale (no time base possible);
+    // the second is a healthy video stream. The file must open with
+    // the surviving stream and a damage record for the skipped one.
+    let built = build(
+        &[
+            Stream::Video {
+                scale: 0,
+                rate: 30,
+                length: 1,
+                width: 64,
+                height: 48,
+            },
+            video_stream(),
+        ],
+        &[(b"01dc", &b"x"[..])],
+        false,
+    );
+    let mut avi = demuxer_over(built.bytes);
+    let tracks = match avi.start() {
+        Ok(tracks) => tracks,
+        Err(err) => unreachable!("a bad sibling stream must not kill the file: {err}"),
+    };
+    assert_eq!(tracks.len(), 1, "only the healthy stream survives");
+    assert_eq!(
+        tracks[0].id.handle(),
+        1,
+        "ordinals stay aligned with strl order"
+    );
+    // The skip is observable first.
+    match avi.next_event() {
+        Ok(DemuxEvent::Recovered { skipped, reason }) => {
+            assert_eq!(skipped, 0, "a decision, not a byte range");
+            assert_eq!(reason, "zero-rate-or-scale");
+        }
+        other => unreachable!("damage surfaces first, got {other:?}"),
+    }
+    let packets = drain_packets(&mut avi);
+    assert_eq!(packets.len(), 1);
+    assert_eq!(packets[0].track.handle(), 1);
+}
+
+#[test]
+fn all_streams_degenerate_is_typed_no_supported_streams() {
+    // Every stream bad → the honest typed refusal (not a fabricated
+    // empty session, and not a per-stream error masquerading as one).
     let built = build(
         &[Stream::Video {
             scale: 0,
@@ -449,11 +534,206 @@ fn zero_rate_or_scale_is_bad_stream_params() {
     );
     let mut avi = demuxer_over(built.bytes);
     let err = match avi.start() {
-        Ok(_) => unreachable!("zero scale must be an error"),
+        Ok(_) => unreachable!("all-bad streams must refuse"),
         Err(err) => err,
     };
-    assert_eq!(err.context.code, "demux.avi.bad-stream-params");
+    assert_eq!(err.context.code, "demux.avi.no-supported-streams");
+    assert!(matches!(
+        err.kind,
+        media_types::ErrorKind::Unsupported { .. }
+    ));
     assert_eq!(err.stage, media_types::PipelineStage::Demux);
+}
+
+#[test]
+fn negative_biheight_accepts_bottom_up_dib_with_damage() {
+    // biHeight = -480: the bottom-up DIB convention (ubiquitous in
+    // real-world files) — the stream is accepted with height 480 and a
+    // damage note recording the flip.
+    let built = build(
+        &[Stream::Video {
+            scale: 1,
+            rate: 30,
+            length: 1,
+            width: 320,
+            height: -480,
+        }],
+        &[(b"00dc", &b"x"[..])],
+        false,
+    );
+    let mut avi = demuxer_over(built.bytes);
+    let tracks = match avi.start() {
+        Ok(tracks) => tracks,
+        Err(err) => unreachable!("bottom-up DIB must be accepted: {err}"),
+    };
+    assert_eq!(tracks.len(), 1);
+    assert_eq!(
+        avi.stream_format(tracks[0].id),
+        Some(header::StreamFormat::MotionJpeg {
+            width: 320,
+            height: 480
+        }),
+        "the absolute height is the frame geometry"
+    );
+    match avi.next_event() {
+        Ok(DemuxEvent::Recovered { skipped, reason }) => {
+            assert_eq!(skipped, 0);
+            assert_eq!(reason, "negative-biheight-bottom-up");
+        }
+        other => unreachable!("the flip note surfaces first, got {other:?}"),
+    }
+    assert_eq!(drain_packets(&mut avi).len(), 1);
+}
+
+#[test]
+fn short_strh_skips_the_stream_siblings_survive() {
+    let built = build(
+        &[Stream::ShortStrh, audio_stream()],
+        &[(b"01wb", &b"abcd"[..])],
+        false,
+    );
+    let mut avi = demuxer_over(built.bytes);
+    let tracks = match avi.start() {
+        Ok(tracks) => tracks,
+        Err(err) => unreachable!("containment: {err}"),
+    };
+    assert_eq!(tracks.len(), 1, "the audio stream survives");
+    match avi.next_event() {
+        Ok(DemuxEvent::Recovered { skipped, reason }) => {
+            assert_eq!(reason, "strh-too-short");
+            assert_eq!(skipped, 0);
+        }
+        other => unreachable!("damage first, got {other:?}"),
+    }
+    assert_eq!(drain_packets(&mut avi).len(), 1);
+}
+
+#[test]
+fn short_strf_skips_the_stream_siblings_survive() {
+    // A 39-byte video strf (BITMAPINFOHEADER needs 40) and a 15-byte
+    // audio strf (WAVEFORMATEX needs 16): both streams skipped with
+    // damage, a healthy sibling survives each.
+    let short_video_strf = strf_video(64, 48)[..39].to_vec();
+    let short_audio_strf = strf_pcm(2, 48_000, 4, 16)[..15].to_vec();
+    for (streams, expected_track) in [
+        (
+            vec![
+                Stream::VideoRaw {
+                    scale: 1,
+                    rate: 30,
+                    length: 1,
+                    strf: short_video_strf.clone(),
+                },
+                audio_stream(),
+            ],
+            1u32,
+        ),
+        (
+            vec![
+                video_stream(),
+                Stream::Audio {
+                    scale: 1,
+                    rate: 48_000,
+                    length: 4_000,
+                    ssize: 4,
+                    strf: short_audio_strf.clone(),
+                },
+            ],
+            0u32,
+        ),
+    ] {
+        let built = build(
+            &streams,
+            &[(b"00dc", &b"x"[..]), (b"01wb", &b"abcd"[..])],
+            false,
+        );
+        let mut avi = demuxer_over(built.bytes);
+        let tracks = match avi.start() {
+            Ok(tracks) => tracks,
+            Err(err) => unreachable!("containment: {err}"),
+        };
+        assert_eq!(tracks.len(), 1, "the healthy sibling survives");
+        assert_eq!(tracks[0].id.handle(), expected_track);
+        match avi.next_event() {
+            Ok(DemuxEvent::Recovered { skipped, reason }) => {
+                assert_eq!(reason, "strf-too-short");
+                assert_eq!(skipped, 0);
+            }
+            other => unreachable!("damage first, got {other:?}"),
+        }
+        let packets = drain_packets(&mut avi);
+        assert!(
+            packets.iter().all(|p| p.track.handle() == expected_track),
+            "only the surviving stream's chunks deliver"
+        );
+    }
+}
+
+#[test]
+fn channels_over_ceiling_skips_the_stream_siblings_survive() {
+    // nChannels = 0xFFFF: corruption, not a layout — skipped with
+    // damage, never fabricated (V11).
+    let built = build(
+        &[
+            video_stream(),
+            Stream::Audio {
+                scale: 1,
+                rate: 1_000,
+                length: 100,
+                ssize: 4,
+                strf: strf_pcm(65535, 1_000, 4, 16),
+            },
+        ],
+        &[(b"00dc", &b"x"[..]), (b"01wb", &b"abcd"[..])],
+        false,
+    );
+    let mut avi = demuxer_over(built.bytes);
+    let tracks = match avi.start() {
+        Ok(tracks) => tracks,
+        Err(err) => unreachable!("containment: {err}"),
+    };
+    assert_eq!(tracks.len(), 1, "the video stream survives");
+    match avi.next_event() {
+        Ok(DemuxEvent::Recovered { skipped, reason }) => {
+            assert_eq!(reason, "audio-channels-over-ceiling");
+            assert_eq!(skipped, 0);
+        }
+        other => unreachable!("damage first, got {other:?}"),
+    }
+    let packets = drain_packets(&mut avi);
+    assert_eq!(packets.len(), 1);
+    assert_eq!(packets[0].track.handle(), 0);
+}
+
+#[test]
+fn mjpa_handler_is_filtered_like_any_unsupported_handler() {
+    // Stage agreement (V8): the probe does not hint mjpeg for mjpa —
+    // and the demuxer's codec filter skips the handler exactly like
+    // any other unsupported one, with the audio sibling surviving.
+    let built = build(
+        &[
+            Stream::Other {
+                fcc: b"vids",
+                handler: b"mjpa",
+            },
+            audio_stream(),
+        ],
+        &[(b"00dc", &b"x"[..]), (b"01wb", &b"abcd"[..])],
+        false,
+    );
+    let mut avi = demuxer_over(built.bytes);
+    let tracks = match avi.start() {
+        Ok(tracks) => tracks,
+        Err(err) => unreachable!("containment: {err}"),
+    };
+    assert_eq!(tracks.len(), 1, "only the PCM stream survives");
+    match avi.next_event() {
+        Ok(DemuxEvent::Recovered { reason, .. }) => {
+            assert_eq!(reason, "unsupported-video-handler");
+        }
+        other => unreachable!("damage first, got {other:?}"),
+    }
+    assert_eq!(drain_packets(&mut avi).len(), 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -589,6 +869,67 @@ fn rec_lists_are_transparent() {
 }
 
 #[test]
+fn rec_list_overrunning_parent_bound_clamps_with_damage() {
+    // A `rec ` list whose declared end runs past the movi list (into
+    // the idx1 region — V6): clamped to the bound with damage, never a
+    // fatal bad-structure; the chunks inside still deliver.
+    let mut out: Vec<u8> = Vec::new();
+    out.extend_from_slice(b"RIFF");
+    let riff_size_pos = out.len();
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(b"AVI ");
+    out.extend_from_slice(b"LIST");
+    let hdrl_size_pos = out.len();
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(b"hdrl");
+    chunk(&mut out, b"avih", &avih(0, 1));
+    out.extend_from_slice(b"LIST");
+    let strl_size_pos = out.len();
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(b"strl");
+    chunk(&mut out, b"strh", &strh(b"vids", b"MJPG", 1, 30, 3, 0));
+    chunk(&mut out, b"strf", &strf_video(64, 48));
+    end_sized(&mut out, strl_size_pos);
+    end_sized(&mut out, hdrl_size_pos);
+    out.extend_from_slice(b"LIST");
+    let movi_size_pos = out.len();
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(b"movi");
+    out.extend_from_slice(b"LIST");
+    let rec_size_pos = out.len();
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(b"rec ");
+    chunk(&mut out, b"00dc", b"r0");
+    chunk(&mut out, b"00dc", b"r1");
+    chunk(&mut out, b"00dc", b"t0");
+    // The rec's honest size (form + children), then the lie: 20 bytes
+    // past the movi list end (the idx1 that follows makes those bytes
+    // real file bytes).
+    let rec_size = (out.len() - rec_size_pos - 4) as u32;
+    out[rec_size_pos..rec_size_pos + 4].copy_from_slice(&(rec_size + 20).to_le_bytes());
+    end_sized(&mut out, movi_size_pos);
+    // A minimal idx1 so bytes exist past the movi end.
+    chunk(&mut out, b"idx1", &[]);
+    end_sized(&mut out, riff_size_pos);
+
+    let mut avi = demuxer_over(out);
+    match avi.start() {
+        Ok(tracks) => assert_eq!(tracks.len(), 1),
+        Err(err) => unreachable!("clamped rec is not fatal: {err}"),
+    }
+    match avi.next_event() {
+        Ok(DemuxEvent::Recovered { skipped, reason }) => {
+            assert_eq!(reason, "rec-extends-past-list-bound");
+            assert_eq!(skipped, 20);
+        }
+        other => unreachable!("the rec clamp surfaces first, got {other:?}"),
+    }
+    let packets = drain_packets(&mut avi);
+    let payloads: Vec<&[u8]> = packets.iter().map(|p| p.data.as_slice()).collect();
+    assert_eq!(payloads, vec![&b"r0"[..], &b"r1"[..], &b"t0"[..]]);
+}
+
+#[test]
 fn unknown_movi_chunks_skip_with_damage() {
     let built = build(&[video_stream()], &[(b"00dc", &b"v0"[..])], false);
     let mut bytes = built.bytes;
@@ -702,6 +1043,167 @@ fn idx1_keyframe_flag_is_the_truth_when_present() {
     assert!(packets[2].keyframe);
 }
 
+#[test]
+fn lying_idx1_size_clamps_to_available_bytes() {
+    // V5: an idx1 declaring 0xFFFFFFF0 bytes with only 3 real entries
+    // (48 bytes) in the stream — clamp before the cap check: a small
+    // salvaged index plus damage, not a fatal over-cap abort.
+    let built = build(
+        &[video_stream()],
+        &[
+            (b"00dc", &b"a"[..]),
+            (b"00dc", &b"b"[..]),
+            (b"00dc", &b"c"[..]),
+        ],
+        true,
+    );
+    let mut bytes = built.bytes;
+    // The idx1 chunk header sits at the end; its size field is the
+    // last chunk header before EOF.
+    let idx1_pos = bytes.len() - 8 - 3 * 16;
+    assert_eq!(&bytes[idx1_pos..idx1_pos + 4], b"idx1");
+    bytes[idx1_pos + 4..idx1_pos + 8].copy_from_slice(&0xFFFF_FFF0u32.to_le_bytes());
+    let mut avi = demuxer_over(bytes);
+    match avi.start() {
+        Ok(tracks) => assert_eq!(tracks.len(), 1),
+        Err(err) => unreachable!("the lying size is clamped, not fatal: {err}"),
+    }
+    // The clamp is damage-counted…
+    match avi.next_event() {
+        Ok(DemuxEvent::Recovered { skipped, reason }) => {
+            assert_eq!(reason, "idx1-size-past-available");
+            assert_eq!(
+                skipped,
+                u64::from(0xFFFF_FFF0u32) - 48,
+                "declared minus the bytes that exist"
+            );
+        }
+        other => unreachable!("damage first, got {other:?}"),
+    }
+    // …and the salvaged index still works: Fast seekability, packets
+    // flow, an indexed seek lands on the target keyframe.
+    assert_eq!(
+        avi.seekability(),
+        SeekSupport::Fast { indexed: true },
+        "the salvaged index is a real index"
+    );
+    assert_eq!(drain_packets(&mut avi).len(), 3);
+}
+
+#[test]
+fn absolute_idx1_offsets_are_autodetected_and_seek() {
+    // V4 (Lead decision ED-d, FFmpeg behavior): a legacy writer stored
+    // absolute file positions in dwOffset. The parser probes the first
+    // entry against both bases, accepts the absolute interpretation
+    // (the chunk ids at the implied positions match), records the
+    // variant as a damage note — and the index seeks correctly.
+    let built = build(
+        &[video_stream()],
+        &[
+            (b"00dc", &b"a"[..]),
+            (b"00dc", &b"b"[..]),
+            (b"00dc", &b"c"[..]),
+        ],
+        true,
+    );
+    let mut bytes = built.bytes;
+    let idx1_pos = bytes.len() - 8 - 3 * 16;
+    assert_eq!(&bytes[idx1_pos..idx1_pos + 4], b"idx1");
+    // Rewrite every dwOffset as an absolute file position.
+    for entry in 0..3 {
+        let at = idx1_pos + 8 + entry * 16 + 8;
+        let rel = u32::from_le_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]]);
+        let absolute = u64::from(rel) + built.movi_form_pos;
+        bytes[at..at + 4]
+            .copy_from_slice(&u32::try_from(absolute).unwrap_or(u32::MAX).to_le_bytes());
+    }
+    let mut avi = demuxer_over(bytes);
+    match avi.start() {
+        Ok(tracks) => assert_eq!(tracks.len(), 1),
+        Err(err) => unreachable!("absolute offsets are a variant, not corruption: {err}"),
+    }
+    // The variant is recorded, never silent.
+    match avi.next_event() {
+        Ok(DemuxEvent::Recovered { skipped, reason }) => {
+            assert_eq!(reason, "idx1-absolute-offsets");
+            assert_eq!(skipped, 0, "a decision, not a byte range");
+        }
+        other => unreachable!("the variant note surfaces first, got {other:?}"),
+    }
+    // The index is real: Fast seekability and a landing on the
+    // keyframe at/below the target (tick 1 for 40 ms).
+    assert_eq!(avi.seekability(), SeekSupport::Fast { indexed: true });
+    let landing = match avi.seek(span_at_nanos(40_000_000)) {
+        Ok(span) => span,
+        Err(err) => unreachable!("indexed seek over absolute offsets: {err}"),
+    };
+    match landing.start.timestamp() {
+        Ok(ts) => assert_eq!(ts.ticks, 1, "lands on frame 1"),
+        Err(_) => unreachable!("landing start present"),
+    }
+    assert_eq!(drain_packets(&mut avi).len(), 3);
+}
+
+#[test]
+fn idx1_damage_coalesces_per_reason() {
+    // V4c: 1000 entries all pointing outside the movi — ONE damage
+    // event for the reason (the byte total carries the count: 16
+    // bytes per entry), not 1000 events (the audited 524k-event
+    // storm on a 2-hour file).
+    const LYING_ENTRIES: usize = 1000;
+    let built = build(&[video_stream()], &[(b"00dc", &b"a"[..])], false);
+    let mut bytes = built.bytes;
+    let mut idx: Vec<u8> = Vec::with_capacity(16 * LYING_ENTRIES);
+    for _ in 0..LYING_ENTRIES {
+        idx.extend_from_slice(b"00dc");
+        idx.extend_from_slice(&0x10u32.to_le_bytes());
+        // ~1 GiB past the movi: outside any real file's data region.
+        idx.extend_from_slice(&0x4000_0000u32.to_le_bytes());
+        idx.extend_from_slice(&1u32.to_le_bytes());
+    }
+    let idx1_offset = bytes.len();
+    chunk(&mut bytes, b"idx1", &idx);
+    let grow = (bytes.len() - idx1_offset) as u32;
+    patch_size(&mut bytes, 4, grow);
+
+    let mut avi = demuxer_over(bytes);
+    match avi.start() {
+        Ok(tracks) => assert_eq!(tracks.len(), 1),
+        Err(err) => unreachable!("a lying index never kills the file: {err}"),
+    }
+    let mut events_for_reason = 0;
+    let mut packets = 0;
+    let terminal = loop {
+        match avi.next_event() {
+            Ok(DemuxEvent::Packet(_)) => packets += 1,
+            Ok(DemuxEvent::Recovered { skipped, reason }) => {
+                if reason == "idx1-entry-outside-movi" {
+                    events_for_reason += 1;
+                    assert_eq!(
+                        skipped,
+                        (16 * LYING_ENTRIES) as u64,
+                        "the byte total carries the entry count"
+                    );
+                }
+            }
+            Ok(DemuxEvent::EndOfStream) => break "eos".to_string(),
+            Ok(_) => {}
+            Err(err) => break err.context.code.clone(),
+        }
+    };
+    assert_eq!(terminal, "eos");
+    assert_eq!(packets, 1, "the movi walk is the packet-extraction truth");
+    assert_eq!(
+        events_for_reason, 1,
+        "one coalesced event regardless of entry count"
+    );
+    assert_eq!(
+        avi.damage_total(),
+        (16 * LYING_ENTRIES) as u64,
+        "the damage total still counts every dropped entry"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Errors: typed flavors and stickiness
 // ---------------------------------------------------------------------------
@@ -727,15 +1229,36 @@ fn broken_magic_is_typed_not_avi() {
 #[test]
 fn truncated_head_is_typed_at_the_boundary() {
     let bytes = build(&[video_stream()], &[(b"00dc", &b"x"[..])], false).bytes;
-    // A prefix too short to even read the 12-byte RIFF head is
-    // honestly "not an AVI", not "truncated".
-    for cut in [4usize, 11] {
+    // A cut too short to carry the RIFF magic at all never promised
+    // AVI: honestly "not an AVI" (a zero-byte source is refused even
+    // earlier, at Open, by the source-capability check).
+    for cut in [1usize, 3] {
         let mut avi = demuxer_over(bytes[..cut].to_vec());
         let err = match avi.start() {
             Ok(_) => unreachable!("cut at {cut} must be an error"),
             Err(err) => err,
         };
         assert_eq!(err.context.code, "demux.avi.not-avi", "cut {cut}");
+    }
+    // A cut inside the RIFF head of a file that DOES say RIFF is
+    // truncation, not "not an AVI" (V9: the magic is a promise the
+    // bytes did not keep).
+    for cut in [4usize, 5, 11] {
+        let mut avi = demuxer_over(bytes[..cut].to_vec());
+        let err = match avi.start() {
+            Ok(_) => unreachable!("cut at {cut} must be an error"),
+            Err(err) => err,
+        };
+        assert_eq!(err.context.code, "demux.avi.truncated", "cut {cut}");
+        match err.kind {
+            media_types::ErrorKind::Corrupt {
+                detail: media_types::error::CorruptDetail::Truncated { expected, found },
+            } => {
+                assert_eq!(expected, 12, "cut {cut}: the RIFF head size");
+                assert_eq!(found, cut as u64, "cut {cut}");
+            }
+            other => unreachable!("truncated flavor at cut {cut}, got {other:?}"),
+        }
     }
     // Structural cuts inside the header are typed truncation at the
     // exact boundary the structure needed.
@@ -762,47 +1285,166 @@ fn truncated_head_is_typed_at_the_boundary() {
 }
 
 #[test]
-fn truncated_movi_payload_errors_and_sticks() {
+fn truncated_movi_payload_delivers_prefix_damage_then_eos() {
+    // A cut inside a chunk payload (V3a): the available prefix is
+    // delivered, the missing bytes are counted, and the stream ends
+    // with EndOfStream — the old sticky-fatal truncation was a
+    // whole-file abort for a recoverable cut (Lead decision ED-e).
     let built = build(
         &[video_stream()],
         &[(b"00dc", &b"v0"[..]), (b"00dc", &[0x42; 100])],
         false,
     );
-    // Cut inside the second chunk's payload.
+    // Cut inside the second chunk's payload, 40 of 100 bytes in.
     let cut = (built.chunk_positions[1] + 8 + 40) as usize;
+    let mut avi = demuxer_over(built.bytes[..cut].to_vec());
+    match avi.start() {
+        Ok(tracks) => assert_eq!(tracks.len(), 1),
+        Err(err) => unreachable!("header intact: {err}"),
+    }
+    // Drain every event in order (damage records included).
+    let mut events = Vec::new();
+    loop {
+        match avi.next_event() {
+            Ok(DemuxEvent::EndOfStream) => {
+                events.push("eos".to_string());
+                break;
+            }
+            Ok(DemuxEvent::Packet(packet)) => {
+                events.push(format!("packet:{}", packet.data.len()));
+            }
+            Ok(DemuxEvent::Recovered { skipped, reason }) => {
+                events.push(format!("recovered:{skipped}:{reason}"));
+            }
+            Ok(_) => {}
+            Err(err) => unreachable!("containment, not a fatal: {err}"),
+        }
+    }
+    // The parse-time clamps surface first (RIFF and movi both declared
+    // more than the cut stream carries)…
+    assert_eq!(
+        events[0],
+        format!(
+            "recovered:{}:riff-extends-past-stream",
+            built.bytes.len() as u64 - cut as u64
+        )
+    );
+    assert!(
+        events[1].starts_with("recovered:") && events[1].ends_with(":movi-extends-past-riff"),
+        "movi clamp damage: {:?}",
+        events[1]
+    );
+    // …then the surviving packet, the walk's own clamp record for the
+    // cut chunk, the delivered prefix, and the terminal EOS.
+    assert_eq!(events[2], "packet:2");
+    assert_eq!(events[3], "recovered:60:chunk-payload-past-eof");
+    assert_eq!(events[4], "packet:40");
+    assert_eq!(events[5], "eos");
+    assert_eq!(events.len(), 6);
+    // EOS is idempotent afterwards (not sticky-fatal).
+    for _ in 0..3 {
+        match avi.next_event() {
+            Ok(DemuxEvent::EndOfStream) => {}
+            other => unreachable!("EOS idempotent, got {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn cut_exactly_at_a_chunk_payload_start_is_damage_then_eos() {
+    // Zero payload bytes available: nothing to deliver — damage plus
+    // the terminal EOS, never a fabricated empty packet.
+    let built = build(
+        &[video_stream()],
+        &[(b"00dc", &b"v0"[..]), (b"00dc", &[0x42; 100])],
+        false,
+    );
+    let cut = (built.chunk_positions[1] + 8) as usize;
     let mut avi = demuxer_over(built.bytes[..cut].to_vec());
     match avi.start() {
         Ok(_) => {}
         Err(err) => unreachable!("header intact: {err}"),
     }
-    // Drain manually: the cut is expected to end the stream with the
-    // typed truncation, so a clean-drain helper is wrong here.
-    let mut packets = Vec::new();
-    let err = loop {
+    let mut recovered = 0;
+    let mut packets = 0;
+    let terminal = loop {
         match avi.next_event() {
-            Ok(DemuxEvent::Packet(packet)) => packets.push(packet),
-            Ok(DemuxEvent::EndOfStream) => unreachable!("cut payload must error"),
+            Ok(DemuxEvent::Packet(_)) => packets += 1,
+            Ok(DemuxEvent::Recovered { skipped, reason }) => {
+                if reason == "chunk-payload-past-eof" {
+                    assert_eq!(skipped, 100, "the whole declared payload is gone");
+                }
+                recovered += 1;
+            }
+            Ok(DemuxEvent::EndOfStream) => break "eos".to_string(),
             Ok(_) => {}
-            Err(err) => break err,
+            Err(err) => break err.context.code.clone(),
         }
     };
-    assert_eq!(packets.len(), 1, "first frame survives");
-    match err.kind {
-        media_types::ErrorKind::Corrupt {
-            detail: media_types::error::CorruptDetail::Truncated { expected, found },
-        } => {
-            assert_eq!(expected, built.chunk_positions[1] + 8 + 100);
-            assert_eq!(found, cut as u64);
-        }
-        other => unreachable!("truncated flavor, got {other:?}"),
+    assert_eq!(terminal, "eos");
+    assert_eq!(packets, 1, "only the first chunk survives");
+    assert!(recovered >= 3, "riff + movi clamps and the chunk clamp");
+}
+
+#[test]
+fn chunk_size_past_movi_bound_clamps_and_continues() {
+    // A mid-movi chunk whose declared size runs past the movi list end
+    // while the file continues (the idx1 follows — V3b): the payload
+    // is clamped to the bound, the clamp is damage-counted, and the
+    // walk resumes at the bound — no silent early EOS, no fatal.
+    let built = build(
+        &[video_stream()],
+        &[
+            (b"00dc", &b"v0"[..]),
+            (b"00dc", &[0x42; 60]),
+            (b"00dc", &b"v2"[..]),
+        ],
+        true,
+    );
+    let mut bytes = built.bytes;
+    // movi list end: right after the last chunk (2-byte payload, even
+    // → no pad).
+    let movi_end = built.chunk_positions[2] + 8 + 2;
+    let liar = built.chunk_positions[1];
+    let in_movi = movi_end - (liar + 8);
+    // Declare 40 bytes more than the movi holds (into the idx1
+    // region, still inside the file).
+    let lying_size = in_movi + 40;
+    bytes[(liar + 4) as usize..(liar + 8) as usize]
+        .copy_from_slice(&u32::try_from(lying_size).unwrap_or(u32::MAX).to_le_bytes());
+    let mut avi = demuxer_over(bytes);
+    match avi.start() {
+        Ok(_) => {}
+        Err(err) => unreachable!("containment: {err}"),
     }
-    // Sticky replay, byte-identical shape.
-    let replay = match avi.next_event() {
-        Ok(_) => unreachable!("sticky failure replays"),
-        Err(err) => err,
+    let mut clamped_packet: Option<usize> = None;
+    let mut clamp_damage = 0;
+    let terminal = loop {
+        match avi.next_event() {
+            Ok(DemuxEvent::Packet(packet)) => {
+                if packet.data.as_slice() == b"v0" {
+                    assert_eq!(packet.data.len(), 2);
+                } else {
+                    clamped_packet = Some(packet.data.len());
+                }
+            }
+            Ok(DemuxEvent::Recovered { skipped, reason }) => {
+                if reason == "chunk-payload-past-list-bound" {
+                    clamp_damage += skipped;
+                }
+            }
+            Ok(DemuxEvent::EndOfStream) => break "eos".to_string(),
+            Ok(_) => {}
+            Err(err) => break err.context.code.clone(),
+        }
     };
-    assert_eq!(replay.kind, err.kind);
-    assert_eq!(replay.context.code, err.context.code);
+    assert_eq!(terminal, "eos", "the clamp is not fatal");
+    // The lying chunk delivered exactly the bytes the movi actually
+    // holds for it; the 40 over-declared bytes are counted damage; the
+    // positionally-swallowed third chunk is lost but observable
+    // through the same clamp record.
+    assert_eq!(clamped_packet, Some(in_movi as usize));
+    assert_eq!(clamp_damage, 40);
 }
 
 #[test]

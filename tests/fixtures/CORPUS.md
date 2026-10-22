@@ -26,8 +26,10 @@ CC0 1.0 Universal Public Domain Dedication
 - `generated/valid/` — class A: the two decision-independent parents
   and their structure maps (`*.structure.json`, corpus-plan §2 — the
   recorded offsets the class-B cuts and patches derive from).
-- `generated/malformed/` — class B: ten derivatives per parent
-  (`<parent>__<op><n>.<ext>`), every mutation derived from the
+- `generated/malformed/` — class B: derivatives per parent
+  (`<parent>__<op><n>.<ext>`; twelve for the AVI parent — the ten
+  corpus-plan shapes plus the two ED-FIX-3 dirty-world variants —
+  ten for the MP4 parent), every mutation derived from the
   parent's structure map and a PRNG seeded by the parent's sha256
   (corpus-plan §1 B1/B2/B3; doc 03 §7's malformed variants).
 - `generated/MANIFEST.toml` — machine-readable form of the table
@@ -59,6 +61,8 @@ CC0 1.0 Universal Public Domain Dedication
 | generated/malformed/avi_mjpeg_pcm__flip4.avi | B | flip4 | 425516 | 004ba5af67591b8d235e950ec729b0139329fb206877cdab8ca92030516f6d2b | class-B seeded header bit-flips, k = 4 within the family header extent (corpus-plan §1 B2) |
 | generated/malformed/avi_mjpeg_pcm__flip16.avi | B | flip16 | 425516 | 2e08b0219bcc8025e29a87e973a803b631c8a98e46cdfee6e66b1122d753823b | class-B seeded header bit-flips, k = 16 within the family header extent (corpus-plan §1 B2) |
 | generated/malformed/avi_mjpeg_pcm__noidx0.avi | B | noidx0 | 423588 | 5752528d3d03d478d097e81c8201731c56c7ced191b1a9324fcb45523cb4f295 | spec violation: idx1 dropped, RIFF size patched, avih still claims AVIF_HASINDEX (doc 03 §7 malformed variant) |
+| generated/malformed/avi_mjpeg_pcm__negheight0.avi | B | negheight0 | 425516 | edae3802859061b9eda683c63ecd65ef45db0e87d96704eda1fdbb0be18beeaa | spec violation: video strf biHeight negated (bottom-up DIB convention; ED-FIX-3 V1 — accepted with damage, height absolute) |
+| generated/malformed/avi_mjpeg_pcm__absidx1.avi | B | absidx1 | 425516 | 7910eed2d7a9649ea1e78153e28df4fdb4ec23f5a8e7b29513645f991c2e2c1c | spec violation: every idx1 dwOffset rewritten as an absolute file position (legacy writer variant; ED-FIX-3 V4 — base auto-detected, index still seeks) |
 | generated/malformed/mp4_mjpeg_pcm__trunc0.mp4 | B | trunc0 | 28 | 1d514cd1aff19efd8f5b0f0e537c0f39c71ee0a4036a64dfccfb7aa0a6b0673d | class-B truncation at a structure boundary (corpus-plan §1 B1); cut offset recorded in the expectation file |
 | generated/malformed/mp4_mjpeg_pcm__trunc1.mp4 | B | trunc1 | 64 | 0730b80c4b7010c89acf82b2177d7a13c688232cce164d88d372704dcd1425c4 | class-B truncation at a structure boundary (corpus-plan §1 B1); cut offset recorded in the expectation file |
 | generated/malformed/mp4_mjpeg_pcm__trunc2.mp4 | B | trunc2 | 2208 | 7216c90ce930746bc357cb418b305071a956eb26cd526b7fa9f66fad6e73d26a | class-B truncation at a structure boundary (corpus-plan §1 B1); cut offset recorded in the expectation file |
@@ -70,5 +74,5 @@ CC0 1.0 Universal Public Domain Dedication
 | generated/malformed/mp4_mjpeg_pcm__flip16.mp4 | B | flip16 | 424452 | 63a746dead5ccbe006d0073f5374750c443a97d7f7e9b7eba9030f51abe2340c | class-B seeded header bit-flips, k = 16 within the family header extent (corpus-plan §1 B2) |
 | generated/malformed/mp4_mjpeg_pcm__stszlie0.mp4 | B | stszlie0 | 424452 | c7d9ece0d4e564cda2025b616ccf305abd0d540e9cdbe214450e3ce424097185 | spec violation: video stsz sample_count patched to 2^31-1 (corpus-plan §1 B3 oversize lie) |
 
-Total: 24 fixture file(s), 6395332 bytes. Ledger files (this file,
+Total: 26 fixture file(s), 7246364 bytes. Ledger files (this file,
 MANIFEST.toml, expectations/) are verified by `--check` byte-comparison.

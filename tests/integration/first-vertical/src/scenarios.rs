@@ -902,13 +902,15 @@ pub fn scenario_corrupt_truncated_open() -> ScenarioRun {
 }
 
 /// **`corrupt-truncated-midplay`** — the half-file truncation (movi
-/// cut mid-stream): the open lands, roughly half the media decodes
-/// and presents through the sinks (the bounded play-out), and then
-/// the demuxer's typed corrupt error surfaces as a wire
-/// `playback.error` event with the session transitioning
-/// `Buffering → Error` — bounded, no hang, no panic. (The engine never
-/// reaches `Playing` for this derivative: the truncation surfaces
-/// while the buffers fill — the honest shape this suite records.)
+/// cut mid-stream), ED-FIX-3 containment semantics (Lead-verified
+/// 2026-10-22): the open lands, roughly half the media decodes and
+/// presents through the sinks, the cut chunk's readable prefix is
+/// delivered as a final (concealed) frame, and the session ends
+/// CLEANLY — `Playing → Ended` with a wire `playback.end-of-media`
+/// and zero `playback.error` events. The loss is accounted at the
+/// demuxer (damage notes), never fatal end-to-end (D-3/D-9). The
+/// 2.B2-era contract (Buffering → Error + one playback.error naming
+/// the truncation) is superseded.
 pub fn scenario_corrupt_truncated_midplay() -> ScenarioRun {
     let source = match class_b_source(TRUNCATED_MIDPLAY) {
         Ok(source) => source,
@@ -936,38 +938,40 @@ pub fn scenario_corrupt_truncated_midplay() -> ScenarioRun {
         "the open refused",
     ));
     checks.push(Check::same(
-        "the settle lands in Error (the truncation surfaces while the buffers fill)",
+        "the settle reaches Playing (containment keeps the pipeline alive)",
         &format!("{settled:?}"),
-        "Error",
+        "Playing",
     ));
     checks.push(Check::same(
-        "the session ends in Error (the typed mid-stream failure)",
+        "the session ends cleanly in Ended (the bounded play-out completes)",
         &format!("{end_state:?}"),
-        "Error",
+        "Ended",
     ));
-    // The error event: wire-visible, stage-tagged demux, exactly one.
+    // The end-of-media event: wire-visible, exactly one; no error at all.
     let events = wire_events(&run);
     let error_events: Vec<&(String, String)> = events
         .iter()
         .filter(|(kind, _)| kind == "playback.error")
         .collect();
+    let end_events: Vec<&(String, String)> = events
+        .iter()
+        .filter(|(kind, _)| kind == "playback.end-of-media")
+        .collect();
     checks.push(Check::int(
-        "exactly one playback.error event is delivered",
+        "zero playback.error events (the truncation is contained, not fatal)",
         error_events.len() as i64,
+        0,
+    ));
+    checks.push(Check::int(
+        "exactly one playback.end-of-media event is delivered",
+        end_events.len() as i64,
         1,
     ));
-    if let Some((_, message)) = error_events.first() {
-        checks.push(Check::is(
-            "the error event is the demuxer's truncated-data truth",
-            message.contains("truncated"),
-            &format!("message {message:?} does not name the truncation"),
-        ));
-    }
     checks.push(Check::is(
         "the bounded play-out actually happened (content presented \
-         before the failure)",
-        matches!(&run_accounting(&run), Some(accounting) if accounting.staging_frames > 0),
-        "no frames presented before the failure",
+         through the cut)",
+        matches!(&run_accounting(&run), Some(accounting) if accounting.frames_accepted >= 61),
+        "expected the 60 complete chunks + the delivered partial prefix accepted",
     ));
     checks.push(Check::is(
         "the position stays within the media (no hang, bounded pumps)",

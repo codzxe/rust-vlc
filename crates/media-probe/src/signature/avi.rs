@@ -95,8 +95,13 @@ fn walk_hdrl(prefix: &[u8], start: usize, end: usize) -> (bool, Vec<TrackHint>, 
         }
         // RIFF chunks are WORD-aligned: header + size + one pad byte
         // when the payload is odd. A zero-size chunk still advances by
-        // its header, so the walk cannot stall.
-        pos = pos.saturating_add(size + 8 + (size & 1));
+        // its header, so the walk cannot stall. Every advance is a
+        // saturating chain: on 32-bit targets (wasm32) a lying size
+        // near `u32::MAX` must saturate, never wrap (D-9).
+        pos = pos
+            .saturating_add(size)
+            .saturating_add(8)
+            .saturating_add(size & 1);
     }
     (saw_avih, hints, pos.min(end))
 }
@@ -129,7 +134,11 @@ fn walk_strl(prefix: &[u8], start: usize, end: usize) -> Vec<TrackHint> {
                 u16_le(prefix, payload_start + 14),
             ));
         }
-        pos = pos.saturating_add(size + 8 + (size & 1));
+        // Saturating advance (32-bit target safety — see walk_hdrl).
+        pos = pos
+            .saturating_add(size)
+            .saturating_add(8)
+            .saturating_add(size & 1);
     }
     classify_stream(stream_type, wave)
 }
@@ -141,6 +150,12 @@ fn walk_strl(prefix: &[u8], start: usize, end: usize) -> Vec<TrackHint> {
 /// demuxer names them (`mjpeg`, `pcm_s16le`, …). Anything else stays
 /// unhinted: the probe never invents codec names (the decoder cards
 /// pin new rows when they land; additive).
+///
+/// `mjpa`/`mjpb` deliberately stay **unhinted** (stage-agreement with
+/// the demuxer's codec filter): they are the field-based Motion-JPEG
+/// variants, which this engine does not decode — hinting `mjpeg`
+/// would promise a decoder that does not exist. When a field-based
+/// decoder lands, its row joins here and in the demuxer together.
 fn classify_stream(
     stream_type: Option<(&[u8], &[u8])>,
     wave: Option<(u16, u16)>,
@@ -149,7 +164,7 @@ fn classify_stream(
         return Vec::new();
     };
     if fcc_type == b"vids"
-        && matches!(handler, b"MJPG" | b"mjpa" | b"mjpb")
+        && handler == b"MJPG"
         && let Some(hint) = TrackHint::new(MediaKind::Video, "mjpeg").ok()
     {
         return vec![hint];
@@ -490,6 +505,39 @@ mod tests {
             None => unreachable!("anchors"),
         };
         assert!(hit.track_hints.is_empty(), "no invented codec names");
+    }
+
+    #[test]
+    fn field_based_mjpeg_variants_stay_unhinted() {
+        // `mjpa`/`mjpb` are the field-based Motion-JPEG variants: the
+        // demuxer's codec filter rejects their handlers, so the probe
+        // must not hint `mjpeg` for them either — the two stages agree
+        // (hinting would promise a decoder that does not exist).
+        for handler in [b"mjpa", b"mjpb"] {
+            let mut strl = Vec::new();
+            strl.extend(strh(b"vids", handler));
+            strl.extend(strf_bitmap());
+            let mut hdrl = Vec::new();
+            chunk(&mut hdrl, b"avih", &[0u8; 56]);
+            list(&mut hdrl, b"strl", &strl);
+            let mut out = Vec::new();
+            out.extend_from_slice(b"RIFF");
+            out.extend_from_slice(&0u32.to_le_bytes());
+            out.extend_from_slice(b"AVI ");
+            list(&mut out, b"hdrl", &hdrl);
+            let hit = match probe(&out) {
+                Some(h) => h,
+                None => unreachable!("anchors for {}", String::from_utf8_lossy(handler)),
+            };
+            assert!(
+                hit.track_hints.is_empty(),
+                "{} must stay unhinted (stage agreement)",
+                String::from_utf8_lossy(handler)
+            );
+            // The container is still confidently an AVI — only the
+            // codec promise is withheld.
+            assert_eq!(hit.score, 90, "header confirmed, no track hint");
+        }
     }
 
     #[test]

@@ -16,10 +16,28 @@
 //!
 //! A truncated trailing entry is dropped, never fatal — the walk
 //! itself is intact whenever the `movi` is (the `trunc4` fixture loses
-//! exactly its last index entry and still demuxes fully). Entries
+//! exactly its last index entry and still demuxes fully). A lying
+//! declared size is clamped to the bytes that actually exist before
+//! any cap is applied, and the clamp is damage-counted. Entries
 //! pointing outside the `movi` data region are dropped as
-//! `BadIndex`-flavored damage. A payload cut *before* the first entry
-//! leaves an empty table — seek then falls back to the linear scan.
+//! `BadIndex`-flavored damage — **coalesced to one damage event per
+//! reason** (a 2-hour file with a wholly-lying index drops ~524k
+//! entries; one event per entry would queue an ~8k-tick event storm,
+//! so the count rides the event's byte total instead: 16 bytes per
+//! dropped entry). A payload cut *before* the first entry leaves an
+//! empty table — seek then falls back to the linear scan.
+//!
+//! # Offset base (the tribal-knowledge case, D-9)
+//!
+//! The AVI 1.0 spec says `dwOffset` is relative to the `movi` form
+//! FourCC — but real-world writers (and the OpenDML interregnum)
+//! emitted absolute file offsets. The parser probes the first packet
+//! entry against both bases (FFmpeg's own disambiguation): a base is
+//! accepted when the candidate position sits inside the `movi` data
+//! region **and** the chunk id actually stored there matches the
+//! entry's own fourcc. Relative wins ties (spec default); the
+//! absolute interpretation is recorded as a damage note so the
+//! variant is observable, never silent.
 
 use media_types::EngineError;
 
@@ -171,7 +189,8 @@ pub(crate) fn replay_ladders(
 /// (RIFF ∩ stream); `streams` supplies the tick ladders.
 ///
 /// # Errors
-/// [`error::index_too_large`] when the declared entry count exceeds
+/// [`error::index_too_large`] when the *clamped* entry count (the
+/// bytes that actually exist, never the declared size) still exceeds
 /// the cap; source errors propagate. Truncation is *never* fatal here
 /// (see the module docs).
 #[allow(clippy::too_many_arguments)]
@@ -190,16 +209,36 @@ pub fn parse_idx1(
         // An empty idx1 is an index that says nothing.
         return Ok(None);
     }
-    let entry_count = u64::from(declared_size).div_ceil(16);
+    // Clamp BEFORE the cap check (D-3/D-9): a lying declared size
+    // (0xFFFFFFF0 with 40 real bytes in the stream) must meet the
+    // bytes that exist, not the bytes it claims — a small salvage with
+    // damage, never a fatal over-cap abort for a recoverable lie.
+    let available = bound.saturating_sub(idx1_pos + 8);
+    let payload = u64::from(declared_size).min(available);
+    if u64::from(declared_size) > payload {
+        damage.note(
+            u64::from(declared_size) - payload,
+            "idx1-size-past-available",
+        );
+    }
+    let entry_count = payload.div_ceil(16);
     if entry_count > MAX_IDX1_ENTRIES as u64 {
         return Err(error::index_too_large(MAX_IDX1_ENTRIES as u64, entry_count));
     }
 
-    let available = bound.saturating_sub(idx1_pos + 8);
-    let payload = u64::from(declared_size).min(available);
     let mut entries: Vec<IndexEntry> = Vec::new();
     let mut ladders = Ladders::new(streams);
+    // Coalesced drop counters (one damage event per reason at the
+    // end — see the module docs for why per-entry events are a
+    // denial-of-service vector, not observability).
+    let mut dropped_outside_movi: u64 = 0;
+    let mut dropped_unknown_stream: u64 = 0;
+    let mut dropped_not_packet: u64 = 0;
     let mut offset: u64 = 0;
+    // The dwOffset base: probed against both interpretations on the
+    // first packet entry (relative is the spec default; absolute is
+    // the legacy variant — see the module docs).
+    let mut base: Option<u64> = None;
 
     while offset + 16 <= payload {
         let Some(block) = reader.read_exact_or_end_at(16, idx1_pos + 8 + offset)? else {
@@ -211,10 +250,26 @@ pub fn parse_idx1(
         let size = riff::u32le(&block, 12);
         match classify_movi_chunk(&fourcc) {
             MoviChunkKind::Packet { stream } => {
-                let chunk_pos = movi_form_pos.saturating_add(u64::from(rel));
+                if base.is_none() {
+                    base = Some(probe_offset_base(
+                        reader,
+                        &fourcc,
+                        rel,
+                        size,
+                        movi_form_pos,
+                        movi_data_start,
+                        movi_data_end,
+                    ));
+                    if base == Some(0) {
+                        // The legacy absolute-offset variant,
+                        // recognized and recorded — never silent.
+                        damage.note(0, "idx1-absolute-offsets");
+                    }
+                }
+                let chunk_pos = base.unwrap_or(movi_form_pos).saturating_add(u64::from(rel));
                 let data_end = chunk_pos.saturating_add(8 + u64::from(size));
                 if chunk_pos < movi_data_start || data_end > movi_data_end {
-                    damage.note(16, "idx1-entry-outside-movi");
+                    dropped_outside_movi = dropped_outside_movi.saturating_add(1);
                 } else if let Some(step) = ladders.advance(stream, u64::from(size)) {
                     entries.push(IndexEntry {
                         chunk_pos,
@@ -227,10 +282,12 @@ pub fn parse_idx1(
                     // A packet entry for a stream outside the table
                     // (unsupported type): positionally valid, not
                     // timeable — kept out of the seek table.
-                    damage.note(16, "idx1-entry-unknown-stream");
+                    dropped_unknown_stream = dropped_unknown_stream.saturating_add(1);
                 }
             }
-            _ => damage.note(16, "idx1-entry-not-a-packet"),
+            _ => {
+                dropped_not_packet = dropped_not_packet.saturating_add(1);
+            }
         }
         offset += 16;
     }
@@ -238,11 +295,65 @@ pub fn parse_idx1(
     if payload % 16 != 0 {
         damage.note(payload % 16, "idx1-partial-entry");
     }
+    // The coalesced per-reason damage: one event each, the byte total
+    // carrying the entry count (16 bytes per dropped entry).
+    if dropped_outside_movi > 0 {
+        damage.note(dropped_outside_movi * 16, "idx1-entry-outside-movi");
+    }
+    if dropped_unknown_stream > 0 {
+        damage.note(dropped_unknown_stream * 16, "idx1-entry-unknown-stream");
+    }
+    if dropped_not_packet > 0 {
+        damage.note(dropped_not_packet * 16, "idx1-entry-not-a-packet");
+    }
     if entries.is_empty() {
         Ok(None)
     } else {
         Ok(Some(IndexTable { entries }))
     }
+}
+
+/// Probe whether the first packet entry's `dwOffset` is movi-relative
+/// (the spec default) or an absolute file position (the legacy
+/// variant). A candidate base wins when the position it implies sits
+/// inside the `movi` data region **and** the chunk id actually stored
+/// at that position matches the entry's fourcc — the same
+/// disambiguation FFmpeg performs. Neither candidate matching keeps
+/// the spec-relative default (the entries then drop as
+/// outside-movi damage, exactly as before).
+fn probe_offset_base(
+    reader: &mut SourceReader,
+    entry_fourcc: &riff::FourCC,
+    rel: u32,
+    size: u32,
+    movi_form_pos: u64,
+    movi_data_start: u64,
+    movi_data_end: u64,
+) -> u64 {
+    let mut candidate_matches = |pos: u64| -> bool {
+        if pos < movi_data_start {
+            return false;
+        }
+        let end = pos.saturating_add(8 + u64::from(size));
+        if end > movi_data_end {
+            return false;
+        }
+        match reader.read_exact_or_end_at(8, pos) {
+            Ok(Some(bytes)) => {
+                riff::FourCC::new([bytes[0], bytes[1], bytes[2], bytes[3]]) == *entry_fourcc
+            }
+            _ => false,
+        }
+    };
+    let relative = movi_form_pos.saturating_add(u64::from(rel));
+    if candidate_matches(relative) {
+        return movi_form_pos;
+    }
+    let absolute = u64::from(rel);
+    if candidate_matches(absolute) {
+        return 0;
+    }
+    movi_form_pos
 }
 
 /// Search the index for the seek landing: the **last keyframe entry of
@@ -404,7 +515,10 @@ fn scan_movi_inner(
             break;
         }
         let header = riff::peek_chunk_header(reader, pos)?;
-        let next = pos + 8 + u64::from(header.size) + riff::pad_for(u64::from(header.size));
+        let next = pos
+            .saturating_add(8)
+            .saturating_add(u64::from(header.size))
+            .saturating_add(riff::pad_for(u64::from(header.size)));
         bytes = bytes.saturating_add(8 + u64::from(header.size));
         let is_packet = matches!(
             classify_movi_chunk(&header.fourcc),
@@ -447,7 +561,12 @@ fn scan_movi_inner(
                 if ends.len() >= super::MAX_LIST_DEPTH {
                     return Err(error::bad_structure(pos));
                 }
-                ends.push(pos + 8 + u64::from(header.size));
+                // Bound parity with the walk (D-3): a `rec ` list
+                // whose declared end crosses the parent bound is
+                // clamped here too — the scan must agree with the walk
+                // about where a corrupted rec ends.
+                let end = (pos + 8 + u64::from(header.size)).min(bound);
+                ends.push(end);
                 pos += 8 + 4;
             }
             MoviChunkKind::Other => {

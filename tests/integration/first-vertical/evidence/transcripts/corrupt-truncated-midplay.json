@@ -59,10 +59,8 @@
       "seq": 7,
       "session": 1,
       "gen": 0,
-      "kind": "playback.error",
-      "stage": "demux",
-      "code": "corrupt",
-      "message": "[demux] truncated data: expected 213101 bytes, found 212512 (demux.avi.truncated)"
+      "kind": "session.buffering",
+      "progress": "1.00"
     },
     {
       "seq": 8,
@@ -70,29 +68,43 @@
       "gen": 0,
       "kind": "session.state-changed",
       "from": "Buffering",
-      "to": "Error"
+      "to": "Playing"
+    },
+    {
+      "seq": 9,
+      "session": 1,
+      "gen": 0,
+      "kind": "playback.end-of-media"
+    },
+    {
+      "seq": 10,
+      "session": 1,
+      "gen": 0,
+      "kind": "session.state-changed",
+      "from": "Playing",
+      "to": "Ended"
     }
   ],
   "observables": {
-    "final_state": "Error",
-    "position_us": 500000,
+    "final_state": "Ended",
+    "position_us": 1000000,
     "session": 1,
     "accounting": {
-      "frames_accepted": 30,
+      "frames_accepted": 61,
       "frames_refused": 0,
-      "video_presented": 15,
+      "video_presented": 16,
       "video_refused": 0,
-      "scheduler_pushed": 15,
-      "scheduler_presented": 15,
-      "scheduler_repeats": 0,
+      "scheduler_pushed": 31,
+      "scheduler_presented": 30,
+      "scheduler_repeats": 42,
       "scheduler_dropped_late": 0,
-      "staging_frames": 15,
-      "staging_bytes": 4608000,
-      "staging_copies": 15
+      "staging_frames": 16,
+      "staging_bytes": 4915200,
+      "staging_copies": 16
     },
     "final_png": {
       "bytes": 307541,
-      "sha256": "3dde92339ebd20cfbb7976235fae8615f16d3f6d8846e7b8da6ff620fa9838a8",
+      "sha256": "af9b6aad3a767e0781912c83ab414508d1e99e3a9b156ab2dbb5f4dcda8700c5",
       "width": 320,
       "height": 240
     }
