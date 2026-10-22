@@ -18,6 +18,40 @@
 //! Header-level damage (no SOI, no SOF, bad segments) emits nothing
 //! and returns a typed error: fabricating a frame from nothing would
 //! not be concealment.
+//!
+//! # Decode context (ED-FIX-1, audit C4)
+//!
+//! Each frame still decodes **independently** (MJPEG is one complete
+//! JPEG per packet — there is no inter-frame codec state), but the
+//! working memory is now held by [`DecodeContext`] and reused across
+//! frames instead of being rebuilt per packet (audit C4: three fresh
+//! multi-MB planes + four Huffman LUT rebuilds + crop intermediates
+//! per frame ≈ 190 MB/s allocation churn at 1080p60, all of it pure
+//! waste under D-1):
+//!
+//! - the padded per-component planes are reallocated **only when the
+//!   MCU geometry changes** (sampling factors × MCU grid × frame
+//!   size). Reuse without clearing is safe and bit-exact because the
+//!   parser proves the single interleaved scan covers *every* frame
+//!   component (`Ns == Nf`, `parse_sos`), so every block of every
+//!   plane is rewritten each frame — decoded blocks by
+//!   [`Plane::write_block`], the concealed tail by
+//!   [`Plane::gray_blocks`];
+//! - the Huffman decoders (with their 8-bit look-ahead LUTs) are
+//!   rebuilt **only when the DHT payload changes** (raw BITS/HUFFVAL
+//!   compared per frame — a few hundred bytes);
+//! - the per-component cursors, and the output assembly buffer, are
+//!   capacity-reused the same way;
+//! - I420 output is assembled **in place**: each plane's valid region
+//!   is cropped row-by-row directly into its offset of the output
+//!   buffer (`Y ‖ Cb ‖ Cr`), with no intermediate crop `Vec` and no
+//!   second copy (the pre-FIX-1 path built one temp `Vec` per plane
+//!   and copied every byte twice).
+//!
+//! Per frame the contract path allocates exactly **one** buffer — the
+//! frame's own output bytes handed to the sink (the ownership
+//! transfer the frame contract requires; see
+//! [`DecodeContext::take_output`]). Everything else is reuse.
 
 use super::bitreader::{BitReader, ReaderStop};
 use super::color::{ComponentGeom, PlaneView, RgbComposer};
@@ -75,7 +109,21 @@ pub(crate) struct DecodedImage {
     pub cause: Option<ConcealCause>,
 }
 
+/// The frame metadata of a context decode: the pixel bytes stay in
+/// the context's output buffer until [`DecodeContext::take_output`]
+/// moves them out (callers that consume in place can read
+/// [`DecodeContext::output`] without any handoff allocation).
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct DecodedMeta {
+    pub width: u32,
+    pub height: u32,
+    pub format: OutputFormat,
+    pub concealed: bool,
+    pub cause: Option<ConcealCause>,
+}
+
 /// One padded per-component sample plane.
+#[derive(Debug)]
 struct Plane {
     data: Vec<u8>,
     /// Padded row pitch (bytes).
@@ -127,6 +175,377 @@ impl Plane {
             }
         }
     }
+}
+
+/// The identity of the padded-plane working set: everything that
+/// determines plane sizes. Equal keys ⇒ byte-identical plane
+/// layouts, so the buffers are reused as-is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PlaneKey {
+    /// Per-component sampling factors `(h_i, v_i)` in SOF order,
+    /// zero-padded (component count ≤ 3 by the earlier gate).
+    sampling: [(u8, u8); 4],
+    /// MCU grid dimensions.
+    mcu_w: usize,
+    mcu_h: usize,
+    /// Frame dimensions.
+    width: usize,
+    height: usize,
+}
+
+/// The identity of the Huffman table set: the raw DHT payload. Equal
+/// keys ⇒ identical decode tables, so the built decoders (including
+/// their look-ahead LUTs) are reused as-is.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct DhtKey {
+    present: [[bool; 4]; 2],
+    bits: [[[u8; 17]; 4]; 2],
+    vals: [[Vec<u8>; 4]; 2],
+}
+
+impl DhtKey {
+    fn of(info: &JpegInfo) -> DhtKey {
+        DhtKey {
+            present: info.huff_present,
+            bits: info.huff_bits,
+            vals: info.huff_vals.clone(),
+        }
+    }
+}
+
+/// Reusable decode state across frames (see module docs). Holds no
+/// inter-frame *codec* state — every field is scratch whose contents
+/// are fully rewritten per frame — only the allocations persist.
+#[derive(Debug, Default)]
+pub(crate) struct DecodeContext {
+    /// Padded per-component planes (geometry-keyed reuse).
+    planes: Vec<Plane>,
+    plane_key: Option<PlaneKey>,
+    /// Huffman decoders per (class, destination), built from the DHT
+    /// payload (DHT-keyed reuse).
+    dc_tables: [Option<HuffmanDecoder>; 4],
+    ac_tables: [Option<HuffmanDecoder>; 4],
+    dht_key: Option<DhtKey>,
+    /// Per-component decoded-block cursors (concealment fill points).
+    cursors: Vec<usize>,
+    /// The output assembly buffer (I420 crop / RGBA compose target);
+    /// moved out per frame by [`DecodeContext::take_output`].
+    out: Vec<u8>,
+    /// Diagnostics: plane-set rebuilds / table-set rebuilds seen so
+    /// far (steady state = one each per stream; observable by the
+    /// reuse tests).
+    pub(crate) plane_builds: u32,
+    pub(crate) table_builds: u32,
+}
+
+impl DecodeContext {
+    /// A fresh, empty context (no allocations until first decode).
+    pub(crate) fn new() -> DecodeContext {
+        DecodeContext::default()
+    }
+
+    /// Decode one complete JPEG into this context.
+    ///
+    /// On success the frame's pixel bytes are in
+    /// [`DecodeContext::output`] (or moved out by
+    /// [`DecodeContext::take_output`]); the metadata is returned
+    /// here. Semantics are identical to the stateless [`decode`]
+    /// (pinned bit-exact by the committed reference digests, which
+    /// run 60 consecutive frames through one context).
+    ///
+    /// # Errors
+    /// Typed [`MjpegError`]s, exactly as the stateless path.
+    pub(crate) fn decode(&mut self, data: &[u8]) -> Result<DecodedMeta, MjpegError> {
+        let parsed = parser::parse(data)?;
+        let info = &parsed.info;
+
+        // Component-count semantics: JFIF grayscale (1) or YCbCr (3).
+        // 2- and 4-component streams (e.g. Adobe CMYK/YCCK) are outside
+        // the honest baseline subset.
+        match info.components.len() {
+            1 | 3 => {}
+            other => {
+                return Err(super::error::unsupported(format!(
+                    "{other} frame components (JFIF grayscale=1 / YCbCr=3 only)"
+                )));
+            }
+        }
+
+        // Limits (fuzz-safety memory bound).
+        let w = u64::from(info.width);
+        let h = u64::from(info.height);
+        if w.saturating_mul(h) > MAX_PIXELS {
+            return Err(MjpegError::LimitExceeded {
+                limit: media_types::error::LimitKind::Memory,
+                budget: MAX_PIXELS,
+                attempted: w.saturating_mul(h),
+            });
+        }
+
+        // Geometry (§A.1.1): MCU grid from the maximum sampling factors.
+        let h_max = info.components.iter().map(|c| c.h).max().unwrap_or(1) as usize;
+        let v_max = info.components.iter().map(|c| c.v).max().unwrap_or(1) as usize;
+        let w = info.width as usize;
+        let h = info.height as usize;
+        let mcu_w = w.div_ceil(8 * h_max);
+        let mcu_h = h.div_ceil(8 * v_max);
+
+        self.prepare_planes(info, mcu_w, mcu_h, w, h)?;
+        self.prepare_tables(info)?;
+
+        // Scan walk.
+        let entropy = data.get(info.entropy_offset..).unwrap_or(&[]);
+        let mut reader = BitReader::new(entropy);
+        let mut dc_pred = [0i64; 4];
+        self.cursors.clear();
+        self.cursors.resize(info.components.len(), 0);
+        let mut concealed = false;
+        let mut cause: Option<ConcealCause> = None;
+        let restart_interval = info.restart_interval as usize;
+        let mut restart_count: u32 = 0;
+
+        'scan: for my in 0..mcu_h {
+            for mx in 0..mcu_w {
+                let mcu_index = my * mcu_w + mx;
+                if restart_interval > 0
+                    && mcu_index > 0
+                    && mcu_index.is_multiple_of(restart_interval)
+                {
+                    let expected = (restart_count & 7) as u8;
+                    if reader.take_restart(expected).is_err() {
+                        concealed = true;
+                        cause = Some(ConcealCause::RestartMismatch);
+                        break 'scan;
+                    }
+                    restart_count += 1;
+                    dc_pred = [0; 4];
+                }
+                for scan_comp in &info.scan {
+                    let comp: ComponentInfo = info.components[scan_comp.sof_index];
+                    let dc_table = match &self.dc_tables[scan_comp.td as usize] {
+                        Some(table) => table,
+                        None => {
+                            return Err(super::error::corrupt_entropy("mjpeg.huffman.no_dc_table"));
+                        }
+                    };
+                    let ac_table = match &self.ac_tables[scan_comp.ta as usize] {
+                        Some(table) => table,
+                        None => {
+                            return Err(super::error::corrupt_entropy("mjpeg.huffman.no_ac_table"));
+                        }
+                    };
+                    let qt = &info.quant_tables[comp.quant_table as usize];
+                    for by in 0..comp.v as usize {
+                        for bx in 0..comp.h as usize {
+                            let mut block = [0i16; 64];
+                            let pred = &mut dc_pred[scan_comp.sof_index.min(3)];
+                            match decode_block(&mut reader, dc_table, ac_table, pred, &mut block) {
+                                Ok(()) => {
+                                    let plane = &mut self.planes[scan_comp.sof_index];
+                                    let col = mx * comp.h as usize + bx;
+                                    let row = my * comp.v as usize + by;
+                                    let mut samples = [0u8; 64];
+                                    idct_block(&block, qt, &mut samples);
+                                    plane.write_block(&samples, col, row);
+                                    self.cursors[scan_comp.sof_index] += 1;
+                                }
+                                Err(stop) => {
+                                    // Entropy damage: conceal from here on
+                                    // (module docs: mid-gray, observable).
+                                    concealed = true;
+                                    cause = Some(match stop {
+                                        Stop::Exhausted => match reader.stop() {
+                                            Some(ReaderStop::Marker(code)) => {
+                                                ConcealCause::PrematureMarker(code)
+                                            }
+                                            _ => ConcealCause::EndOfData,
+                                        },
+                                        Stop::InvalidCode => ConcealCause::InvalidCode,
+                                    });
+                                    break 'scan;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if concealed {
+            for scan_comp in &info.scan {
+                let index = scan_comp.sof_index;
+                let cursor = self.cursors[index];
+                self.planes[index].gray_blocks(cursor);
+            }
+        }
+
+        // Output assembly, in place in the reused output buffer.
+        let format = choose_format(info, h_max, v_max);
+        let total = match format {
+            OutputFormat::I420 => i420_total(w, h)?,
+            OutputFormat::Rgba8 => w
+                .checked_mul(h)
+                .and_then(|px| px.checked_mul(4))
+                .ok_or_else(|| limit_error(w * h * 4))?,
+        };
+        self.out.clear();
+        self.out.resize(total, 0);
+        match format {
+            OutputFormat::I420 => assemble_i420_into(&mut self.out, &self.planes, w, h),
+            OutputFormat::Rgba8 => {
+                assemble_rgba_into(&mut self.out, &self.planes, info, h_max, v_max, w, h)
+            }
+        }
+        Ok(DecodedMeta {
+            width: info.width,
+            height: info.height,
+            format,
+            concealed,
+            cause,
+        })
+    }
+
+    /// The decoded frame's pixel bytes (layout per the returned
+    /// metadata's `format`) until the next decode or
+    /// [`DecodeContext::take_output`] — the in-place read point for
+    /// callers that consume the frame without an ownership handoff
+    /// (currently the reuse tests; every production consumer takes
+    /// the buffer into the frame).
+    #[cfg(test)]
+    pub(crate) fn output(&self) -> &[u8] {
+        &self.out
+    }
+
+    /// Move the decoded frame's pixel bytes out (the one allocation
+    /// per frame on the contract path: the frame's own buffer).
+    pub(crate) fn take_output(&mut self) -> Vec<u8> {
+        std::mem::take(&mut self.out)
+    }
+
+    /// (Re)build the padded planes when the geometry key changed;
+    /// reuse the existing buffers (without clearing — see module
+    /// docs) when it did not. Capacity is retained across geometry
+    /// *changes* too (a resize reuses the allocation; the retained
+    /// capacity stays bounded by the MAX_PIXELS-derived plane caps).
+    fn prepare_planes(
+        &mut self,
+        info: &JpegInfo,
+        mcu_w: usize,
+        mcu_h: usize,
+        w: usize,
+        h: usize,
+    ) -> Result<(), MjpegError> {
+        let mut sampling = [(0u8, 0u8); 4];
+        for (slot, comp) in sampling.iter_mut().zip(info.components.iter()) {
+            *slot = (comp.h, comp.v);
+        }
+        let key = PlaneKey {
+            sampling,
+            mcu_w,
+            mcu_h,
+            width: w,
+            height: h,
+        };
+        if self.plane_key == Some(key) {
+            return Ok(());
+        }
+        if self.planes.len() != info.components.len() {
+            self.planes = (0..info.components.len())
+                .map(|_| Plane {
+                    data: Vec::new(),
+                    stride: 0,
+                    block_cols: 0,
+                    block_rows: 0,
+                    valid_w: 0,
+                    valid_h: 0,
+                })
+                .collect();
+        }
+        for (plane, comp) in self.planes.iter_mut().zip(info.components.iter()) {
+            let block_cols = mcu_w * comp.h as usize;
+            let block_rows = mcu_h * comp.v as usize;
+            let stride = block_cols
+                .checked_mul(8)
+                .ok_or_else(|| MjpegError::LimitExceeded {
+                    limit: media_types::error::LimitKind::Memory,
+                    budget: MAX_PIXELS,
+                    attempted: u64::try_from(block_cols.saturating_mul(8)).unwrap_or(u64::MAX),
+                })?;
+            let rows = block_rows * 8;
+            let valid_w = (w * comp.h as usize).div_ceil(h_max_of(info));
+            let valid_h = (h * comp.v as usize).div_ceil(v_max_of(info));
+            let size = stride
+                .checked_mul(rows)
+                .ok_or_else(|| MjpegError::LimitExceeded {
+                    limit: media_types::error::LimitKind::Memory,
+                    budget: MAX_PIXELS,
+                    attempted: u64::try_from(rows).unwrap_or(u64::MAX).saturating_mul(1),
+                })?;
+            if u64::try_from(size).unwrap_or(u64::MAX) > MAX_PIXELS * 4 {
+                return Err(MjpegError::LimitExceeded {
+                    limit: media_types::error::LimitKind::Memory,
+                    budget: MAX_PIXELS * 4,
+                    attempted: u64::try_from(size).unwrap_or(u64::MAX),
+                });
+            }
+            plane.data.clear();
+            plane.data.resize(size, 0);
+            plane.stride = stride;
+            plane.block_cols = block_cols;
+            plane.block_rows = block_rows;
+            plane.valid_w = valid_w;
+            plane.valid_h = valid_h;
+        }
+        self.plane_key = Some(key);
+        self.plane_builds += 1;
+        Ok(())
+    }
+
+    /// (Re)build the Huffman decoders when the DHT payload changed;
+    /// reuse the built tables (LUTs included) when it did not.
+    fn prepare_tables(&mut self, info: &JpegInfo) -> Result<(), MjpegError> {
+        let key = DhtKey::of(info);
+        if self.dht_key.as_ref() == Some(&key) {
+            return Ok(());
+        }
+        for td in 0..4usize {
+            self.dc_tables[td] = if info.huff_present[0][td] {
+                Some(
+                    match HuffmanDecoder::new(&info.huff_bits[0][td], &info.huff_vals[0][td]) {
+                        Ok(table) => table,
+                        Err(_) => {
+                            return Err(super::error::corrupt_entropy("mjpeg.huffman.bad_table"));
+                        }
+                    },
+                )
+            } else {
+                None
+            };
+            self.ac_tables[td] = if info.huff_present[1][td] {
+                Some(
+                    match HuffmanDecoder::new(&info.huff_bits[1][td], &info.huff_vals[1][td]) {
+                        Ok(table) => table,
+                        Err(_) => {
+                            return Err(super::error::corrupt_entropy("mjpeg.huffman.bad_table"));
+                        }
+                    },
+                )
+            } else {
+                None
+            };
+        }
+        self.dht_key = Some(key);
+        self.table_builds += 1;
+        Ok(())
+    }
+}
+
+fn h_max_of(info: &JpegInfo) -> usize {
+    info.components.iter().map(|c| c.h).max().unwrap_or(1) as usize
+}
+
+fn v_max_of(info: &JpegInfo) -> usize {
+    info.components.iter().map(|c| c.v).max().unwrap_or(1) as usize
 }
 
 /// Receive-and-extend an amplitude value of `s` bits (§F.2.2.1 EXTEND).
@@ -191,198 +610,18 @@ fn decode_block(
     Ok(())
 }
 
-/// Decode one complete JPEG packet into a [`DecodedImage`].
+/// Decode one complete JPEG image with a fresh one-shot context (the
+/// stateless entry point — fuzz target and free-function callers).
 pub(crate) fn decode(data: &[u8]) -> Result<DecodedImage, MjpegError> {
-    let parsed = parser::parse(data)?;
-    let info = &parsed.info;
-
-    // Component-count semantics: JFIF grayscale (1) or YCbCr (3).
-    // 2- and 4-component streams (e.g. Adobe CMYK/YCCK) are outside
-    // the honest baseline subset.
-    match info.components.len() {
-        1 | 3 => {}
-        other => {
-            return Err(super::error::unsupported(format!(
-                "{other} frame components (JFIF grayscale=1 / YCbCr=3 only)"
-            )));
-        }
-    }
-
-    // Limits (fuzz-safety memory bound).
-    let w = u64::from(info.width);
-    let h = u64::from(info.height);
-    if w.saturating_mul(h) > MAX_PIXELS {
-        return Err(MjpegError::LimitExceeded {
-            limit: media_types::error::LimitKind::Memory,
-            budget: MAX_PIXELS,
-            attempted: w.saturating_mul(h),
-        });
-    }
-
-    // Geometry (§A.1.1): MCU grid from the maximum sampling factors.
-    let h_max = info.components.iter().map(|c| c.h).max().unwrap_or(1) as usize;
-    let v_max = info.components.iter().map(|c| c.v).max().unwrap_or(1) as usize;
-    let w = info.width as usize;
-    let h = info.height as usize;
-    let mcu_w = w.div_ceil(8 * h_max);
-    let mcu_h = h.div_ceil(8 * v_max);
-
-    // Per-component padded planes.
-    let mut planes: Vec<Plane> = Vec::with_capacity(info.components.len());
-    for comp in &info.components {
-        let block_cols = mcu_w * comp.h as usize;
-        let block_rows = mcu_h * comp.v as usize;
-        let stride = block_cols
-            .checked_mul(8)
-            .ok_or_else(|| MjpegError::LimitExceeded {
-                limit: media_types::error::LimitKind::Memory,
-                budget: MAX_PIXELS,
-                attempted: u64::try_from(block_cols.saturating_mul(8)).unwrap_or(u64::MAX),
-            })?;
-        let rows = block_rows * 8;
-        let valid_w = (w * comp.h as usize).div_ceil(h_max);
-        let valid_h = (h * comp.v as usize).div_ceil(v_max);
-        let size = stride
-            .checked_mul(rows)
-            .ok_or_else(|| MjpegError::LimitExceeded {
-                limit: media_types::error::LimitKind::Memory,
-                budget: MAX_PIXELS,
-                attempted: u64::try_from(rows).unwrap_or(u64::MAX).saturating_mul(1),
-            })?;
-        if u64::try_from(size).unwrap_or(u64::MAX) > MAX_PIXELS * 4 {
-            return Err(MjpegError::LimitExceeded {
-                limit: media_types::error::LimitKind::Memory,
-                budget: MAX_PIXELS * 4,
-                attempted: u64::try_from(size).unwrap_or(u64::MAX),
-            });
-        }
-        planes.push(Plane {
-            data: vec![0u8; size],
-            stride,
-            block_cols,
-            block_rows,
-            valid_w,
-            valid_h,
-        });
-    }
-
-    // Build the Huffman decoders (validated tables only — parse_sos
-    // proved presence for the referenced selectors).
-    let mut dc_tables: Vec<Option<HuffmanDecoder>> = Vec::with_capacity(4);
-    let mut ac_tables: Vec<Option<HuffmanDecoder>> = Vec::with_capacity(4);
-    for td in 0..4usize {
-        dc_tables.push(if info.huff_present[0][td] {
-            Some(
-                match HuffmanDecoder::new(&info.huff_bits[0][td], &info.huff_vals[0][td]) {
-                    Ok(table) => table,
-                    Err(_) => return Err(super::error::corrupt_entropy("mjpeg.huffman.bad_table")),
-                },
-            )
-        } else {
-            None
-        });
-        ac_tables.push(if info.huff_present[1][td] {
-            Some(
-                match HuffmanDecoder::new(&info.huff_bits[1][td], &info.huff_vals[1][td]) {
-                    Ok(table) => table,
-                    Err(_) => return Err(super::error::corrupt_entropy("mjpeg.huffman.bad_table")),
-                },
-            )
-        } else {
-            None
-        });
-    }
-
-    // Scan walk.
-    let entropy = data.get(info.entropy_offset..).unwrap_or(&[]);
-    let mut reader = BitReader::new(entropy);
-    let mut dc_pred = [0i64; 4];
-    let mut cursors: Vec<usize> = vec![0; info.components.len()];
-    let mut concealed = false;
-    let mut cause: Option<ConcealCause> = None;
-    let restart_interval = info.restart_interval as usize;
-    let mut restart_count: u32 = 0;
-
-    'scan: for my in 0..mcu_h {
-        for mx in 0..mcu_w {
-            let mcu_index = my * mcu_w + mx;
-            if restart_interval > 0 && mcu_index > 0 && mcu_index.is_multiple_of(restart_interval) {
-                let expected = (restart_count & 7) as u8;
-                if reader.take_restart(expected).is_err() {
-                    concealed = true;
-                    cause = Some(ConcealCause::RestartMismatch);
-                    break 'scan;
-                }
-                restart_count += 1;
-                dc_pred = [0; 4];
-            }
-            for scan_comp in &info.scan {
-                let comp: ComponentInfo = info.components[scan_comp.sof_index];
-                let dc_table = match &dc_tables[scan_comp.td as usize] {
-                    Some(table) => table,
-                    None => return Err(super::error::corrupt_entropy("mjpeg.huffman.no_dc_table")),
-                };
-                let ac_table = match &ac_tables[scan_comp.ta as usize] {
-                    Some(table) => table,
-                    None => return Err(super::error::corrupt_entropy("mjpeg.huffman.no_ac_table")),
-                };
-                let qt = &info.quant_tables[comp.quant_table as usize];
-                for by in 0..comp.v as usize {
-                    for bx in 0..comp.h as usize {
-                        let mut block = [0i16; 64];
-                        let pred = &mut dc_pred[scan_comp.sof_index.min(3)];
-                        match decode_block(&mut reader, dc_table, ac_table, pred, &mut block) {
-                            Ok(()) => {
-                                let plane = &mut planes[scan_comp.sof_index];
-                                let col = mx * comp.h as usize + bx;
-                                let row = my * comp.v as usize + by;
-                                let mut samples = [0u8; 64];
-                                idct_block(&block, qt, &mut samples);
-                                plane.write_block(&samples, col, row);
-                                cursors[scan_comp.sof_index] += 1;
-                            }
-                            Err(stop) => {
-                                // Entropy damage: conceal from here on
-                                // (module docs: mid-gray, observable).
-                                concealed = true;
-                                cause = Some(match stop {
-                                    Stop::Exhausted => match reader.stop() {
-                                        Some(ReaderStop::Marker(code)) => {
-                                            ConcealCause::PrematureMarker(code)
-                                        }
-                                        _ => ConcealCause::EndOfData,
-                                    },
-                                    Stop::InvalidCode => ConcealCause::InvalidCode,
-                                });
-                                break 'scan;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if concealed {
-        for scan_comp in &info.scan {
-            let index = scan_comp.sof_index;
-            planes[index].gray_blocks(cursors[index]);
-        }
-    }
-
-    // Output assembly.
-    let format = choose_format(info, h_max, v_max);
-    let out = match format {
-        OutputFormat::I420 => assemble_i420(&planes, w, h)?,
-        OutputFormat::Rgba8 => assemble_rgba(&planes, info, h_max, v_max, w, h)?,
-    };
+    let mut context = DecodeContext::new();
+    let meta = context.decode(data)?;
     Ok(DecodedImage {
-        width: info.width,
-        height: info.height,
-        format,
-        data: out,
-        concealed,
-        cause,
+        width: meta.width,
+        height: meta.height,
+        format: meta.format,
+        data: context.take_output(),
+        concealed: meta.concealed,
+        cause: meta.cause,
     })
 }
 
@@ -401,60 +640,82 @@ fn choose_format(info: &JpegInfo, h_max: usize, v_max: usize) -> OutputFormat {
     }
 }
 
-/// Crop one plane's valid region into a compact plane.
-fn crop_plane(plane: &Plane, out_w: usize, out_h: usize) -> Vec<u8> {
-    let mut out = Vec::with_capacity(out_w * out_h);
-    for y in 0..out_h.min(plane.valid_h) {
-        let start = y * plane.stride;
-        let end = start + out_w.min(plane.valid_w);
-        if let Some(row) = plane.data.get(start..end) {
-            out.extend_from_slice(row);
-        } else {
-            out.extend(std::iter::repeat_n(128u8, out_w));
-        }
-    }
-    out
-}
-
-/// I420 assembly: `Y || Cb || Cr`, chroma at ⌈w/2⌉×⌈h/2⌉.
-fn assemble_i420(planes: &[Plane], w: usize, h: usize) -> Result<Vec<u8>, MjpegError> {
+/// I420 buffer length: `Y ‖ Cb ‖ Cr` with chroma at ⌈w/2⌉×⌈h/2⌉.
+fn i420_total(w: usize, h: usize) -> Result<usize, MjpegError> {
     let cw = w.div_ceil(2);
     let ch = h.div_ceil(2);
     let luma_len = w.checked_mul(h).ok_or_else(|| limit_error(w * h))?;
     let chroma_len = cw.checked_mul(ch).ok_or_else(|| limit_error(cw * ch))?;
-    let total = luma_len
+    luma_len
         .checked_add(
             chroma_len
                 .checked_mul(2)
                 .ok_or_else(|| limit_error(chroma_len))?,
         )
-        .ok_or_else(|| limit_error(luma_len))?;
-    let mut out = Vec::with_capacity(total);
-    out.extend_from_slice(&crop_plane(&planes[0], w, h));
-    if planes.len() == 1 {
-        // Grayscale: neutral chroma, documented representation.
-        out.extend(std::iter::repeat_n(128u8, chroma_len * 2));
-    } else {
-        out.extend_from_slice(&crop_plane(&planes[1], cw, ch));
-        out.extend_from_slice(&crop_plane(&planes[2], cw, ch));
-    }
-    Ok(out)
+        .ok_or_else(|| limit_error(luma_len))
 }
 
-/// RGBA assembly via the upsample + convert row composer.
-fn assemble_rgba(
+/// Crop one plane's valid region directly into `dst` (one row copy —
+/// no intermediate buffer, no second copy). The row count is
+/// `dst.len() / out_w`. Rows/samples outside the plane's data read
+/// as neutral 128 (the cold-path convention of the RGBA composer;
+/// unreachable for the plane geometries the I420 path is selected
+/// for — luma and chroma `valid` extents always cover their output
+/// regions there).
+fn crop_plane_into(dst: &mut [u8], plane: &Plane, out_w: usize) {
+    for (y, dst_row) in dst.chunks_exact_mut(out_w).enumerate() {
+        if y >= plane.valid_h {
+            dst_row.fill(128);
+            continue;
+        }
+        let start = y * plane.stride;
+        let end = start + out_w.min(plane.valid_w);
+        match plane.data.get(start..end) {
+            Some(row) => dst_row.copy_from_slice(row),
+            None => dst_row.fill(128),
+        }
+    }
+}
+
+/// I420 assembly in place: `Y ‖ Cb ‖ Cr` at their output offsets,
+/// cropped straight from the padded planes. Grayscale carries
+/// neutral (constant-128) chroma planes — a documented
+/// representation, not fabricated data.
+fn assemble_i420_into(out: &mut [u8], planes: &[Plane], w: usize, h: usize) {
+    let cw = w.div_ceil(2);
+    let ch = h.div_ceil(2);
+    let luma_len = w * h;
+    let chroma_len = cw * ch;
+    if let Some(dst) = out.get_mut(..luma_len) {
+        crop_plane_into(dst, &planes[0], w);
+    }
+    match planes.len() {
+        1 => {
+            if let Some(dst) = out.get_mut(luma_len..) {
+                dst.fill(128);
+            }
+        }
+        _ => {
+            if let Some(dst) = out.get_mut(luma_len..luma_len + chroma_len) {
+                crop_plane_into(dst, &planes[1], cw);
+            }
+            if let Some(dst) = out.get_mut(luma_len + chroma_len..) {
+                crop_plane_into(dst, &planes[2], cw);
+            }
+        }
+    }
+}
+
+/// RGBA assembly via the upsample + convert row composer, in place.
+fn assemble_rgba_into(
+    out: &mut [u8],
     planes: &[Plane],
     info: &JpegInfo,
     h_max: usize,
     v_max: usize,
     w: usize,
     h: usize,
-) -> Result<Vec<u8>, MjpegError> {
-    let total = w
-        .checked_mul(h)
-        .and_then(|px| px.checked_mul(4))
-        .ok_or_else(|| limit_error(w * h * 4))?;
-    let mut out = vec![0u8; total];
+) {
     let geom = |index: usize| ComponentGeom {
         h: info.components.get(index).map_or(1, |c| c.h as usize),
         v: info.components.get(index).map_or(1, |c| c.v as usize),
@@ -486,13 +747,12 @@ fn assemble_rgba(
         v_max,
     );
     for y in 0..h {
-        let row_start = y.checked_mul(w * 4).ok_or_else(|| limit_error(y * w * 4))?;
+        let row_start = y * w * 4;
         let Some(row) = out.get_mut(row_start..row_start + w * 4) else {
             break;
         };
         composer.compose_row(y, w, row);
     }
-    Ok(out)
 }
 
 fn limit_error(attempted: usize) -> MjpegError {
@@ -508,8 +768,8 @@ mod tests {
     use super::*;
 
     // Integration-level tests of `decode` live in tests/ (corpus +
-    // synthetic JPEGs); the unit tests here target the geometry and
-    // assembly helpers with hand-built planes.
+    // synthetic JPEGs); the unit tests here target the geometry,
+    // assembly and context-reuse helpers with hand-built inputs.
 
     fn plane_of(bytes: &[u8], w: usize) -> Plane {
         let h = bytes.len() / w;
@@ -524,7 +784,7 @@ mod tests {
     }
 
     #[test]
-    fn crop_plane_trims_padding() {
+    fn crop_into_trims_padding() {
         // A 10x2 valid region inside a 16-wide padded plane.
         let mut data = vec![9u8; 16 * 2];
         data[10..16].fill(255); // padding marker bytes
@@ -537,9 +797,21 @@ mod tests {
             valid_w: 10,
             valid_h: 2,
         };
-        let cropped = crop_plane(&plane, 10, 2);
-        assert_eq!(cropped.len(), 20);
-        assert!(cropped.iter().all(|&b| b == 9));
+        let mut cropped = [0u8; 20];
+        crop_plane_into(&mut cropped, &plane, 10);
+        assert!(cropped.iter().all(|&b| b == 9), "{cropped:?}");
+    }
+
+    #[test]
+    fn crop_into_fills_neutral_past_the_data() {
+        // Rows beyond the valid height (unreachable for real I420
+        // geometry, defensive here) read as neutral 128, and a short
+        // destination is prefix-safe.
+        let plane = plane_of(&[7u8; 16], 16); // stride 16, one valid row
+        let mut dst = [0u8; 32];
+        crop_plane_into(&mut dst, &plane, 8);
+        assert_eq!(&dst[..8], &[7u8; 8], "the valid row copies");
+        assert_eq!(&dst[8..], &[128u8; 24], "rows past valid_h neutral");
     }
 
     #[test]
@@ -576,9 +848,9 @@ mod tests {
         dqt.extend(std::iter::repeat_n(16u8, 64));
         seg(&mut jpeg, 0xdb, &dqt);
         // DHT: DC table 0 with one symbol; AC table 0 with one symbol.
-        for class in [0x00u8, 0x10u8] {
+        for class in [0x00u8, 0x10] {
             let mut dht = vec![class];
-            dht.extend_from_slice(&[1u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+            dht.extend(&[1u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
             dht.push(0x00);
             seg(&mut jpeg, 0xc4, &dht);
         }
@@ -599,5 +871,193 @@ mod tests {
             }
             other => unreachable!("expected LimitExceeded, got {other:?}"),
         }
+    }
+
+    // --- ED-FIX-1 (C4): decode-context reuse, bit-exact ---
+
+    /// Hand-build a complete tiny baseline JPEG (the marker-segment
+    /// pattern of the fuzz tests) with selectable geometry and DHT
+    /// payload. Entropy data is all zero bits: every block decodes as
+    /// DC-diff 0 + immediate EOB (a flat mid-gray frame) — the point
+    /// here is state reuse, not content.
+    fn tiny_jpeg(
+        width: u16,
+        height: u16,
+        components: &[(u8, u8, u8)],
+        dc_symbols: &[u8],
+    ) -> Vec<u8> {
+        let mut jpeg = vec![0xff, 0xd8];
+        let seg = |jpeg: &mut Vec<u8>, marker: u8, payload: &[u8]| {
+            jpeg.push(0xff);
+            jpeg.push(marker);
+            jpeg.extend_from_slice(&((payload.len() + 2) as u16).to_be_bytes());
+            jpeg.extend_from_slice(payload);
+        };
+        // DQT: Tq=0, all 1s.
+        let mut dqt = vec![0u8];
+        dqt.extend(std::iter::repeat_n(1u8, 64));
+        seg(&mut jpeg, 0xdb, &dqt);
+        // DHT: DC table 0 carries `dc_symbols` as one code per symbol
+        // (1 bit each); AC table 0 is a single 1-bit EOB.
+        let mut dht = vec![0x00u8];
+        let mut bits = [0u8; 16];
+        bits[0] = dc_symbols.len() as u8;
+        dht.extend_from_slice(&bits);
+        dht.extend_from_slice(dc_symbols);
+        seg(&mut jpeg, 0xc4, &dht);
+        let mut dht = vec![0x10u8];
+        dht.extend_from_slice(&[1u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        dht.push(0x00);
+        seg(&mut jpeg, 0xc4, &dht);
+        // SOF0: precision 8, then Y (height) then X (width) per §B.2.2.
+        let mut sof = vec![8u8];
+        sof.extend_from_slice(&height.to_be_bytes());
+        sof.extend_from_slice(&width.to_be_bytes());
+        sof.push(components.len() as u8);
+        for &(id, hv, _tq) in components {
+            sof.push(id);
+            sof.push(hv);
+            sof.push(0); // Tq 0 (the single quant table above)
+        }
+        seg(&mut jpeg, 0xc0, &sof);
+        // SOS: all components, Td=0 Ta=0.
+        let mut sos = vec![components.len() as u8];
+        for (id, _hv, _tq) in components {
+            sos.push(*id);
+            sos.push(0x00);
+        }
+        sos.extend_from_slice(&[0, 63, 0]);
+        seg(&mut jpeg, 0xda, &sos);
+        // Entropy: enough zero bytes for every block (2 bits each:
+        // DC size 0 + EOB) — w·h·3/256 bytes worst case, so w·h/32
+        // plus slack always suffices; anything undecoded conceals
+        // identically anyway.
+        jpeg.extend(std::iter::repeat_n(
+            0u8,
+            usize::from(width) * usize::from(height) / 32 + 16,
+        ));
+        jpeg.extend_from_slice(&[0xff, 0xd9]);
+        jpeg
+    }
+
+    #[test]
+    fn context_reuse_is_bit_exact_and_reallocates_only_on_change() {
+        // Three geometries interleaved through ONE context: every
+        // output must equal the stateless decode bit-for-bit, the
+        // plane set rebuilds only per geometry change, and the DHT
+        // set rebuilds only when the tables change. The gray
+        // 4:2:0 / 4:4:4 / grayscale triple also crosses the I420
+        // (grayscale) and RGBA (4:4:4) output paths.
+        let gray = tiny_jpeg(16, 16, &[(1, 0x11, 0)], &[0x00]);
+        let yuv420 = tiny_jpeg(16, 16, &[(1, 0x22, 0), (2, 0x11, 0), (3, 0x11, 0)], &[0x00]);
+        let yuv444 = tiny_jpeg(24, 16, &[(1, 0x11, 0), (2, 0x11, 0), (3, 0x11, 0)], &[0x00]);
+        // Same geometry as `yuv420`, different DC table payload
+        // (two 1-bit codes vs one): same decode (entropy is all
+        // zeros — the first code is 0 → DC size 0 in both), new key.
+        let yuv420_alt_tables = tiny_jpeg(
+            16,
+            16,
+            &[(1, 0x22, 0), (2, 0x11, 0), (3, 0x11, 0)],
+            &[0x00, 0x00],
+        );
+
+        let mut ctx = DecodeContext::new();
+        let reference: Vec<DecodedImage> = [&gray, &yuv420, &yuv444, &yuv420_alt_tables]
+            .iter()
+            .map(|jpeg| match decode(jpeg) {
+                Ok(image) => image,
+                Err(e) => unreachable!("stateless decode: {e:?}"),
+            })
+            .collect();
+
+        // Sequence: gray, 420, 444, 420 (geometry back), 420-alt
+        // (tables change), 444, 444 (steady), gray.
+        let sequence = [
+            (&gray, 0usize),
+            (&yuv420, 1),
+            (&yuv444, 2),
+            (&yuv420, 1),
+            (&yuv420_alt_tables, 3),
+            (&yuv444, 2),
+            (&yuv444, 2),
+            (&gray, 0),
+        ];
+        for (jpeg, want) in sequence {
+            let meta = match ctx.decode(jpeg) {
+                Ok(meta) => meta,
+                Err(e) => unreachable!("context decode: {e:?}"),
+            };
+            let expected = &reference[want];
+            assert_eq!(ctx.output(), expected.data.as_slice(), "output equality");
+            assert_eq!(meta.width, expected.width);
+            assert_eq!(meta.height, expected.height);
+            assert_eq!(meta.format, expected.format);
+            assert_eq!(meta.concealed, expected.concealed);
+        }
+        // Geometry sequence: gray → 420 → 444 → 420(reuse) →
+        // 420-alt(reuse) → 444 → 444(reuse) → gray. The 420/444
+        // flip-flops must NOT reallocate (capacity retention), so
+        // the rebuild counter counts key *changes*: builds at
+        // entries 1, 2, 3, 4, 6 and 8 = 6 builds.
+        assert_eq!(
+            ctx.plane_builds, 6,
+            "plane rebuilds only on geometry change"
+        );
+        // Tables: first build (entry 1), the alt-tables frame
+        // (entry 5), and the restore to the original tables on the
+        // next frame (entry 6) = 3.
+        assert_eq!(ctx.table_builds, 3, "table rebuilds only on DHT change");
+
+        // And the stateless path (fresh context per call) agrees with
+        // the reused-context outputs — already asserted above via the
+        // reference decodes.
+    }
+
+    #[test]
+    fn concealment_does_not_leak_across_frames() {
+        // A truncated frame conceals its tail mid-gray; the very next
+        // clean frame through the same context must be bit-identical
+        // to a fresh decode (no stale gray, no stale plane bytes).
+        let clean = tiny_jpeg(32, 32, &[(1, 0x22, 0), (2, 0x11, 0), (3, 0x11, 0)], &[0x00]);
+        let mut damaged = clean.clone();
+        // Cut inside the entropy region (SOF/SOS headers intact).
+        damaged.truncate(damaged.len() * 3 / 4);
+
+        let mut ctx = DecodeContext::new();
+        let meta = match ctx.decode(&damaged) {
+            Ok(meta) => meta,
+            Err(e) => unreachable!("concealable damage decodes: {e:?}"),
+        };
+        assert!(meta.concealed, "truncation conceals");
+        let clean_meta = match ctx.decode(&clean) {
+            Ok(meta) => meta,
+            Err(e) => unreachable!("clean re-decode: {e:?}"),
+        };
+        assert!(!clean_meta.concealed, "clean frame is clean");
+
+        let fresh = match decode(&clean) {
+            Ok(image) => image,
+            Err(e) => unreachable!("stateless reference: {e:?}"),
+        };
+        assert_eq!(ctx.output(), fresh.data.as_slice());
+    }
+
+    #[test]
+    fn take_output_hands_off_the_buffer() {
+        let jpeg = tiny_jpeg(16, 16, &[(1, 0x11, 0)], &[0x00]);
+        let mut ctx = DecodeContext::new();
+        let _meta = match ctx.decode(&jpeg) {
+            Ok(meta) => meta,
+            Err(e) => unreachable!("decode: {e:?}"),
+        };
+        let taken = ctx.take_output();
+        assert!(!taken.is_empty());
+        assert!(ctx.output().is_empty(), "buffer moved out");
+        // The context still decodes afterwards (fresh buffer).
+        let _meta = match ctx.decode(&jpeg) {
+            Ok(meta) => meta,
+            Err(e) => unreachable!("decode after take: {e:?}"),
+        };
+        assert_eq!(ctx.output(), taken.as_slice());
     }
 }
