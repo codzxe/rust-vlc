@@ -52,9 +52,16 @@
 //! `Decoder`/`Bitstream`): the damaged slot is counted, the
 //! presentation conceals by repeating the limb's last presented frame
 //! (or holds when none exists), and playback continues — one corrupt
-//! frame no longer ends the session. A bounded run of consecutive
-//! failures ([`VIDEO_CONCEALMENT_BUDGET`]) still reaches a typed
-//! terminal, because a stream whose every frame fails is not playing.
+//! frame no longer ends the session. Since 3.C2 the audio lane
+//! mirrors the same shape MINUS concealment (defect G3, design D-2:
+//! there is no "last presented audio frame" worth repeating, and
+//! inserting silence would fabricate data): a per-frame-damaged audio
+//! packet is **dropped, counted, never synthesized** — the ring
+//! simply has a gap and the clock continues from the next delivered
+//! frame's pts. A bounded run of consecutive failures
+//! ([`VIDEO_CONCEALMENT_BUDGET`], one shared budget for both limbs)
+//! still reaches a typed terminal, because a stream whose every
+//! packet fails is not playing.
 //!
 //! # Watermark policy
 //!
@@ -308,45 +315,54 @@ pub(crate) struct Limb {
     /// (the staleness check at concealment time is the discard rule,
     /// so seek mints need no extra invalidation).
     last_frame: Option<Frame>,
-    /// Consecutive per-frame damage failures on this limb. Reset by
-    /// any `Ok` decode outcome; the run is bounded by
-    /// [`VIDEO_CONCEALMENT_BUDGET`] (D-3: recovery is bounded, never
-    /// an infinite freeze).
+    /// Consecutive per-frame damage failures on this limb — the video
+    /// concealment run or the audio skip run (3.C2 G3), whichever
+    /// lane this limb is. Reset by any `Ok` decode outcome; the run
+    /// is bounded by [`VIDEO_CONCEALMENT_BUDGET`] (D-3: recovery is
+    /// bounded, never an infinite freeze).
     conceal_failures: u32,
 }
 
-/// The per-frame video concealment budget: how many **consecutive**
-/// damaged frames the engine may conceal (repeating the last good
-/// frame / holding black) before the damage is declared catastrophic
-/// and reaches a typed terminal.
+/// The per-frame damage budget, shared by BOTH lanes: how many
+/// **consecutive** damaged packets the engine may ride out — video
+/// conceals (repeating the last good frame / holding black), audio
+/// **skips** (drops the packet, never synthesizing silence; 3.C2
+/// G3) — before the damage is declared catastrophic and reaches a
+/// typed terminal.
 ///
 /// The figure inherits doc 03 §4.3(d)'s bounded-recovery window for
 /// corrupt-but-skippable demux data — "attempt resynchronization once
 /// within a bounded window [PROPOSAL: 1 MiB or 1000 packets], else
 /// fatal `Corrupt`" — applied to the decode stage's per-frame damage
-/// (audit M9 / ED-FIX-4). Every concealment is observable (a
-/// `DamagedData` fact + the coalesced non-fatal `playback.error`), so
-/// the budget only draws the line where "playing" would become a lie:
-/// a stream whose every frame fails is not playing.
+/// (audit M9 / ED-FIX-4). Every concealed-or-skipped unit is
+/// observable (a `DamagedData` fact + the coalesced non-fatal
+/// `playback.error`), so the budget only draws the line where
+/// "playing" would become a lie: a stream whose every packet fails
+/// is not playing. ONE budget for both limbs by design (design D-2:
+/// the audio lane mirrors the video lane's shape) — the historical
+/// name says "video" because W1-08 landed it video-only.
 pub const VIDEO_CONCEALMENT_BUDGET: u32 = 1000;
 
 /// Whether `error` is **per-frame damage** — the doc 03 §4.5(d)
-/// `CorruptPacket` class the engine isolates on video limbs instead
-/// of tearing the session down (audit M9):
+/// `CorruptPacket` class the engine isolates on a limb (concealing on
+/// video, skipping on audio) instead of tearing the session down
+/// (audit M9; the audio lane since 3.C2 G3):
 ///
 /// - [`ErrorKind::Corrupt`] — the bytes of *this* packet are
 ///   structurally broken or truncated;
 /// - [`ErrorKind::Decoder { cause: Bitstream }`] — this packet's
 ///   entropy data violated the codec grammar.
 ///
-/// Everything else stays fatal: `Unsupported` and `ResourceLimit` are
-/// deterministic per stream (retrying the next frame cannot help),
-/// `BadState` is contract misuse, and a future inter-frame codec that
-/// *cannot* continue after damage must not report these kinds for it
-/// (doc 03 §4.5(d): such decoders "must document that and emit
-/// `Fatal` instead" — today's only video decoder, MJPEG, is
-/// stateless per frame by construction).
-fn per_frame_video_damage(error: &EngineError) -> bool {
+/// Everything else stays fatal on both lanes: `Unsupported` and
+/// `ResourceLimit` are deterministic per stream (retrying the next
+/// frame cannot help), `BadState` is contract misuse, and a future
+/// inter-frame codec that *cannot* continue after damage must not
+/// report these kinds for it (doc 03 §4.5(d): such decoders "must
+/// document that and emit `Fatal` instead" — today's only video
+/// decoder, MJPEG, is stateless per frame by construction, and PCM
+/// audio accepts any bytes, so the audio lane is exercised by
+/// scripted decoder faults, never by real bytes).
+fn per_frame_damage(error: &EngineError) -> bool {
     matches!(
         &error.kind,
         media_types::ErrorKind::Corrupt { .. }
@@ -1071,22 +1087,31 @@ impl Pipeline {
     ///
     /// # Per-frame damage isolation (doc 03 §4.5(d), audit M9)
     ///
-    /// A video packet that fails with a per-frame damage kind
-    /// ([`per_frame_video_damage`]) does **not** end the session: the
-    /// damage is counted into the tick's `damaged` facts (the engine
-    /// `DamagedData` event + the coalesced non-fatal `playback.error`,
-    /// card 3.B4 — the same Recovered-class shape the PCM decoder
-    /// already reports in-band), the presentation conceals by
-    /// repeating the limb's last presented frame at the damaged
-    /// slot's pts (or holds black when no current-generation frame
-    /// exists), and the slice continues. During a seek's pre-roll the
-    /// concealment slot holds (nothing repeats against the frozen
-    /// clock — M10); the damage counts are still the observable. The
-    /// run of consecutive failures is bounded by
-    /// [`VIDEO_CONCEALMENT_BUDGET`]; past it, the damage is
-    /// catastrophic and reaches a typed terminal (D-3: one corrupt
-    /// frame must not kill the session, but a stream of nothing but
-    /// corrupt frames must not fake playing either).
+    /// A packet that fails with a per-frame damage kind
+    /// ([`per_frame_damage`]) does **not** end the session:
+    ///
+    /// - **video** (W1-08): the damage is counted into the tick's
+    ///   `damaged` facts (the engine `DamagedData` event + the
+    ///   coalesced non-fatal `playback.error`, card 3.B4 — the same
+    ///   Recovered-class shape the PCM decoder already reports
+    ///   in-band), the presentation conceals by repeating the limb's
+    ///   last presented frame at the damaged slot's pts (or holds
+    ///   black when no current-generation frame exists), and the
+    ///   slice continues. During a seek's pre-roll the concealment
+    ///   slot holds (nothing repeats against the frozen clock — M10).
+    /// - **audio** (3.C2 G3, design D-2): the damaged packet is
+    ///   **dropped and counted** — no concealment (no "last presented
+    ///   audio frame" to repeat) and NO synthesized silence (that
+    ///   would fabricate data); the output ring simply has a gap and
+    ///   the clock continues from the next delivered frame's pts.
+    ///   [FLAG 3.B1/W2-13: the pts gap should ride the
+    ///   discontinuity re-anchor path, not be read as drift.]
+    ///
+    /// The run of consecutive failures is bounded by
+    /// [`VIDEO_CONCEALMENT_BUDGET`] (one shared budget); past it, the
+    /// damage is catastrophic and reaches a typed terminal (D-3: one
+    /// corrupt packet must not kill the session, but a stream of
+    /// nothing but corrupt packets must not fake playing either).
     fn decode_step(&mut self, budget: &TickBudget, report: &mut TickReport) {
         let consumer = Arc::clone(&self.consumer);
         let generation = self.generation;
@@ -1163,9 +1188,7 @@ impl Pipeline {
                                     }
                                 }
                                 Err(error) => {
-                                    if limb_kind == MediaKind::Video
-                                        && per_frame_video_damage(&error)
-                                    {
+                                    if per_frame_damage(&error) {
                                         limb.conceal_failures =
                                             limb.conceal_failures.saturating_add(1);
                                         if limb.conceal_failures > VIDEO_CONCEALMENT_BUDGET {
@@ -1184,21 +1207,32 @@ impl Pipeline {
                                         report.damaged_decode =
                                             report.damaged_decode.saturating_add(1);
                                         report.damaged = report.damaged.saturating_add(1);
-                                        // Conceal by repeating the last
-                                        // presented frame at this slot's
-                                        // pts — or holding (nothing
-                                        // presented) when no
-                                        // current-generation frame
-                                        // exists. During a seek's
-                                        // pre-roll the concealment
-                                        // holds too (M10 — see
-                                        // [`LimbSink::conceal_last`]).
-                                        // A consumer refusal is the
-                                        // sink contract's fatal.
-                                        if let Err(error) = sink.conceal_last(pts) {
-                                            fatal = Some(error);
-                                            break;
+                                        if limb_kind == MediaKind::Video {
+                                            // Conceal by repeating the last
+                                            // presented frame at this slot's
+                                            // pts — or holding (nothing
+                                            // presented) when no
+                                            // current-generation frame
+                                            // exists. During a seek's
+                                            // pre-roll the concealment
+                                            // holds too (M10 — see
+                                            // [`LimbSink::conceal_last`]).
+                                            // A consumer refusal is the
+                                            // sink contract's fatal.
+                                            if let Err(error) = sink.conceal_last(pts) {
+                                                fatal = Some(error);
+                                                break;
+                                            }
                                         }
+                                        // Audio (3.C2 G3, design D-2):
+                                        // skip-and-report. The packet is
+                                        // dropped — no sink call, no
+                                        // synthesized silence, no pts
+                                        // invention; the ring has a gap
+                                        // and the next delivered frame
+                                        // re-anchors the clock. The
+                                        // damage counts above are the
+                                        // observable.
                                     } else {
                                         fatal = Some(error);
                                         break;
