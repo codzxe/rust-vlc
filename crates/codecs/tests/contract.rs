@@ -160,6 +160,65 @@ fn corrupt_input_recovers_or_errors_typed() {
 }
 
 #[test]
+fn per_frame_damage_leaves_the_decoder_usable() {
+    // Doc 03 §4.5(d)'s CorruptPacket contract: "`CorruptPacket`
+    // affects only the current packet — the decoder must return to a
+    // state where it can accept the next packet." MJPEG is stateless,
+    // so a mid-stream header-smashed frame (audit M9's exact damage:
+    // one corrupt JPEG killing the session) must be followed by a
+    // clean decode of the very next frame — this is the guarantee the
+    // engine's per-frame isolation (W1-08) leans on.
+    let (mut decoder, generation) = configured();
+    let frames = fixture_frames();
+    let mut sink = contract::CountingFrameSink::new();
+
+    // Frame 0 decodes cleanly (the "last good frame" exists).
+    match decoder.decode(packet(frames[0].clone(), generation), &mut sink) {
+        Ok(DecodeOutcome::Emitted { frames: 1 }) => {}
+        other => unreachable!("clean frame 0: {other:?}"),
+    }
+
+    // Frame 1 is header-smashed: a typed per-frame Corrupt error,
+    // nothing emitted (the contract suite's own damage class).
+    let mut no_soi = frames[1].clone();
+    no_soi[0] = 0x00;
+    let err = match decoder.decode(packet(no_soi, generation), &mut sink) {
+        Ok(outcome) => unreachable!("header damage must not succeed: {outcome:?}"),
+        Err(e) => e,
+    };
+    assert!(
+        matches!(err.kind, ErrorKind::Corrupt { .. }),
+        "header damage is a typed Corrupt error: {err}"
+    );
+    assert_eq!(sink.accepted(), 1, "nothing emitted for the damaged frame");
+
+    // Frame 2 decodes normally — the decoder stayed usable, and the
+    // reused context still produces bit-exact output.
+    match decoder.decode(packet(frames[2].clone(), generation), &mut sink) {
+        Ok(DecodeOutcome::Emitted { frames: 1 }) => {}
+        other => unreachable!("frame after per-frame damage: {other:?}"),
+    }
+    assert_eq!(sink.accepted(), 2, "the frame after the damage decodes");
+
+    // An entropy-damaged frame (truncation past the header — the
+    // in-decoder concealment class, the fixtures suite's proven 3/5
+    // cut) is Recovered, and the very next frame is still clean:
+    // mixed damage classes stay isolated.
+    let mut truncated = frames[3].clone();
+    let cut = truncated.len() * 3 / 5;
+    truncated.truncate(cut);
+    match decoder.decode(packet(truncated, generation), &mut sink) {
+        Ok(DecodeOutcome::Recovered { .. }) => {}
+        other => unreachable!("entropy truncation: {other:?}"),
+    }
+    match decoder.decode(packet(frames[4].clone(), generation), &mut sink) {
+        Ok(DecodeOutcome::Emitted { frames: 1 }) => {}
+        other => unreachable!("frame after concealed damage: {other:?}"),
+    }
+    assert_eq!(sink.accepted(), 4);
+}
+
+#[test]
 fn sink_errors_propagate_verbatim() {
     let (mut decoder, generation) = configured();
     let frames = fixture_frames();

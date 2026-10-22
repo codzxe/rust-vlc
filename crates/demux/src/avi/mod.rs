@@ -66,8 +66,11 @@
 //! # v0 scope (documented limits)
 //!
 //! - AVI 1.0 only: no OpenDML (`indx`/`odml`, >2 GiB) — `idx1` only.
-//! - Codec filter: `vids`+`MJPG` and `auds`+PCM (integer + IEEE
-//!   float). Other stream types are skipped, damage-counted.
+//! - Codec filter: `vids`+`MJPG` and `auds`+PCM — the full WAVE family
+//!   the registry vocabulary names (tag `1` integer 8/16/24/32-bit,
+//!   tag `3` IEEE float 32/64-bit, and tag `0xFFFE`
+//!   WAVEFORMATEXTENSIBLE resolving its SubFormat GUID to either; see
+//!   [`header`]). Other stream types are skipped, damage-counted.
 //! - No stream switching, no `rec `-specific semantics beyond
 //!   transparent descent.
 

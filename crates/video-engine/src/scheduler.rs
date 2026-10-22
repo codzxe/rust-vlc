@@ -428,9 +428,7 @@ impl PresentationScheduler {
         let due_count = self
             .window
             .iter()
-            .take_while(|p| {
-                p.frame.generation <= published && i128::from(p.pts.ticks) <= due_bound
-            })
+            .take_while(|p| p.frame.generation <= published && i128::from(p.pts.ticks) <= due_bound)
             .count();
         let mut selected = None;
         if due_count > 0 {
@@ -961,7 +959,11 @@ mod tests {
                 "a held front is not a wait target during the seek"
             );
         }
-        assert_eq!(sched.pending_len(), 4, "everything waits in the bounded window");
+        assert_eq!(
+            sched.pending_len(),
+            4,
+            "everything waits in the bounded window"
+        );
         let stats = sched.stats();
         assert_eq!(stats.presented, 0);
         assert_eq!(stats.dropped_late, 0);
@@ -1038,7 +1040,10 @@ mod tests {
         }
         clock.set_generation(later_gen);
         let outcome = sched.tick();
-        assert_eq!(outcome.drops.stale, 3, "the held landing frames die with their generation");
+        assert_eq!(
+            outcome.drops.stale, 3,
+            "the held landing frames die with their generation"
+        );
         assert!(matches!(outcome.action, PresentAction::Background));
         assert_eq!(sched.pending_len(), 0);
         let stats = sched.stats();

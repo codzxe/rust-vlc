@@ -17,7 +17,12 @@
 //!
 //! Header-level damage (no SOI, no SOF, bad segments) emits nothing
 //! and returns a typed error: fabricating a frame from nothing would
-//! not be concealment.
+//! not be concealment. That error is still **per-frame** (doc 03
+//! §4.5(d)'s `CorruptPacket` contract): the context holds no
+//! inter-frame codec state, so the next packet decodes normally — the
+//! engine's decode slice isolates the damaged frame (repeat-last-
+//! frame concealment, damage events, bounded failure budget) instead
+//! of tearing the session down (audit M9 / ED-FIX-4).
 //!
 //! # Decode context (ED-FIX-1, audit C4)
 //!

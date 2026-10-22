@@ -40,9 +40,9 @@
 //!
 //! Unpacked PCM is a width + signedness + byte-order + layout tuple
 //! (doc 04 §3.2 "PCM variants"). The v0 vocabulary ([`PcmFormat`] ×
-//! layout) covers the card's matrix — **s16/s24/s32/f32, each little-
-//! and big-endian, interleaved and planar** — plus u8 (the demuxer's
-//! AVI descriptor vocabulary already emits `pcm_u8` for 8-bit
+//! layout) covers the card's matrix — **s16/s24/s32/f32/f64, each
+//! little- and big-endian, interleaved and planar** — plus u8 (the
+//! demuxer's AVI descriptor vocabulary already emits `pcm_u8` for 8-bit
 //! streams, so the decoder accepts what its sibling crate promises):
 //!
 //! | descriptor | sample | width | notes |
@@ -52,16 +52,19 @@
 //! | `pcm_s24le` / `pcm_s24be` | S24 | 3 | 3-byte groups, no padding |
 //! | `pcm_s32le` / `pcm_s32be` | S32 | 4 | |
 //! | `pcm_f32le` / `pcm_f32be` | F32 | 4 | IEEE 754 |
+//! | `pcm_f64le` / `pcm_f64be` | F64 | 8 | IEEE 754 (the AVI float-64 path) |
 //!
 //! Any of the above with a `_planar` suffix is the planar variant
 //! (one plane per channel, concatenated in channel order). Honest
 //! gaps, typed [`ErrorKind::Unsupported`](media_types::ErrorKind::Unsupported)
-//! at `configure`: f64 (no Phase-2 container emits it; the media-types
-//! vocabulary has the slot), the bare `pcm` descriptor (2.B2's demuxer
-//! fallback for unknown widths — the decoder refuses to guess a
+//! at `configure`: the bare `pcm` descriptor (the historical demuxer
+//! fallback for unknown widths, never emitted since the demuxer's
+//! sample vocabulary closed — the decoder still refuses to guess a
 //! layout), WAVE_FORMAT_EXTENSIBLE channel masks (doc 04's "rare
-//! channel orders" gap), and mid-stream format changes (doc 03
-//! §4.5(e) `FormatChanged` is a `[PROPOSAL]` the engine owns).
+//! channel orders" gap — the demuxer resolves the SubFormat GUID to
+//! a width, the mask→layout mapping is future work), and mid-stream
+//! format changes (doc 03 §4.5(e) `FormatChanged` is a `[PROPOSAL]`
+//! the engine owns).
 //!
 //! # Output format (codec-native, the MJPEG precedent)
 //!
@@ -118,12 +121,16 @@ pub enum PcmFormat {
     F32Le,
     /// IEEE 754 single precision, big-endian stream order.
     F32Be,
+    /// IEEE 754 double precision, little-endian stream order.
+    F64Le,
+    /// IEEE 754 double precision, big-endian stream order.
+    F64Be,
 }
 
 impl PcmFormat {
     /// The full vocabulary, descriptor order (test and fuzz sweeps
     /// iterate this).
-    pub const ALL: [PcmFormat; 9] = [
+    pub const ALL: [PcmFormat; 11] = [
         PcmFormat::U8,
         PcmFormat::S16Le,
         PcmFormat::S16Be,
@@ -133,9 +140,11 @@ impl PcmFormat {
         PcmFormat::S32Be,
         PcmFormat::F32Le,
         PcmFormat::F32Be,
+        PcmFormat::F64Le,
+        PcmFormat::F64Be,
     ];
 
-    /// Bytes per sample (1/2/3/4).
+    /// Bytes per sample (1/2/3/4/8).
     #[must_use]
     pub fn bytes_per_sample(self) -> u32 {
         match self {
@@ -143,6 +152,7 @@ impl PcmFormat {
             PcmFormat::S16Le | PcmFormat::S16Be => 2,
             PcmFormat::S24Le | PcmFormat::S24Be => 3,
             PcmFormat::S32Le | PcmFormat::S32Be | PcmFormat::F32Le | PcmFormat::F32Be => 4,
+            PcmFormat::F64Le | PcmFormat::F64Be => 8,
         }
     }
 
@@ -161,6 +171,8 @@ impl PcmFormat {
             PcmFormat::S32Be => "pcm_s32be",
             PcmFormat::F32Le => "pcm_f32le",
             PcmFormat::F32Be => "pcm_f32be",
+            PcmFormat::F64Le => "pcm_f64le",
+            PcmFormat::F64Be => "pcm_f64be",
         }
     }
 
@@ -181,10 +193,16 @@ impl PcmFormat {
     pub fn is_little_endian(self) -> Option<bool> {
         match self {
             PcmFormat::U8 => None,
-            PcmFormat::S16Le | PcmFormat::S24Le | PcmFormat::S32Le | PcmFormat::F32Le => Some(true),
-            PcmFormat::S16Be | PcmFormat::S24Be | PcmFormat::S32Be | PcmFormat::F32Be => {
-                Some(false)
-            }
+            PcmFormat::S16Le
+            | PcmFormat::S24Le
+            | PcmFormat::S32Le
+            | PcmFormat::F32Le
+            | PcmFormat::F64Le => Some(true),
+            PcmFormat::S16Be
+            | PcmFormat::S24Be
+            | PcmFormat::S32Be
+            | PcmFormat::F32Be
+            | PcmFormat::F64Be => Some(false),
         }
     }
 
@@ -198,6 +216,7 @@ impl PcmFormat {
             PcmFormat::S24Le | PcmFormat::S24Be => SampleFormat::S24,
             PcmFormat::S32Le | PcmFormat::S32Be => SampleFormat::S32,
             PcmFormat::F32Le | PcmFormat::F32Be => SampleFormat::F32,
+            PcmFormat::F64Le | PcmFormat::F64Be => SampleFormat::F64,
         }
     }
 }
@@ -287,6 +306,7 @@ mod tests {
                     PcmFormat::U8 => 1,
                     PcmFormat::S16Le | PcmFormat::S16Be => 2,
                     PcmFormat::S24Le | PcmFormat::S24Be => 3,
+                    PcmFormat::F64Le | PcmFormat::F64Be => 8,
                     _ => 4,
                 }
             });
@@ -294,12 +314,12 @@ mod tests {
         // Out-of-vocabulary descriptors stay out.
         for foreign in [
             "pcm",
-            "pcm_f64le",
-            "pcm_f64be",
             "mjpeg",
             "",
             "s16le",
             "pcm_s20le",
+            "pcm_f80le",
+            "pcm_u16le",
         ] {
             assert_eq!(PcmFormat::from_descriptor(foreign), None, "{foreign}");
         }
@@ -462,6 +482,39 @@ mod tests {
         assert_eq!(left, 0.5);
         assert_eq!(right, -0.25);
         assert_eq!(decoded.format.sample, SampleFormat::F32);
+    }
+
+    #[test]
+    fn f64_values_survive_the_byte_order_normalization() {
+        // The AVI float-64 path: 8-byte IEEE groups normalized to the
+        // host order, values asserted through a native re-read.
+        let source = PcmSource {
+            sample: PcmFormat::F64Le,
+            planar: false,
+            channels: 2,
+        };
+        let mut bytes = Vec::new();
+        for value in [0.25f64, -0.125] {
+            bytes.extend_from_slice(&value.to_le_bytes());
+        }
+        let decoded = match decode_pcm(&bytes, source, 48_000) {
+            Ok(d) => d,
+            Err(e) => unreachable!("{e}"),
+        };
+        let left = f64::from_ne_bytes(
+            decoded.samples[0..8]
+                .try_into()
+                .unwrap_or_else(|_| unreachable!("8 bytes")),
+        );
+        let right = f64::from_ne_bytes(
+            decoded.samples[8..16]
+                .try_into()
+                .unwrap_or_else(|_| unreachable!("8 bytes")),
+        );
+        assert_eq!(left, 0.25);
+        assert_eq!(right, -0.125);
+        assert_eq!(decoded.format.sample, SampleFormat::F64);
+        assert_eq!(decoded.format.frame_bytes(), 16);
     }
 
     #[test]

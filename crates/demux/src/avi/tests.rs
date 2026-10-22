@@ -87,13 +87,50 @@ fn strf_video(width: u32, height: i32) -> Vec<u8> {
 }
 
 fn strf_pcm(channels: u16, rate: u32, block_align: u16, bits: u16) -> Vec<u8> {
+    strf_wave(1, channels, rate, block_align, bits) // WAVE_FORMAT_PCM
+}
+
+/// A raw WAVEFORMATEX `strf` with an explicit format tag (1 = PCM,
+/// 3 = IEEE float, anything else = adversarial).
+fn strf_wave(tag: u16, channels: u16, rate: u32, block_align: u16, bits: u16) -> Vec<u8> {
     let mut v = Vec::with_capacity(16);
-    v.extend_from_slice(&1u16.to_le_bytes()); // WAVE_FORMAT_PCM
+    v.extend_from_slice(&tag.to_le_bytes());
     v.extend_from_slice(&channels.to_le_bytes());
     v.extend_from_slice(&rate.to_le_bytes());
     v.extend_from_slice(&(rate * u32::from(channels) * u32::from(bits / 8)).to_le_bytes());
     v.extend_from_slice(&block_align.to_le_bytes());
     v.extend_from_slice(&bits.to_le_bytes());
+    v
+}
+
+/// `KSDATAFORMAT_SUBTYPE_PCM` / `..._IEEE_FLOAT` (the SubFormat GUIDs
+/// WAVEFORMATEXTENSIBLE carries at byte 24 — byte-for-byte what
+/// ffmpeg's AVI muxer writes for multi-channel PCM).
+const GUID_PCM: [u8; 16] = [
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71,
+];
+const GUID_IEEE_FLOAT: [u8; 16] = [
+    0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71,
+];
+
+/// The 40-byte WAVEFORMATEXTENSIBLE `strf` ffmpeg writes: 18-byte
+/// WAVEFORMATEX (tag `0xFFFE`, `cbSize` 22) + valid bits + channel
+/// mask + SubFormat GUID. `valid_bits` and `mask` mirror real muxer
+/// output (container width; a plain channel-mask bitmap).
+fn strf_extensible(
+    guid: [u8; 16],
+    channels: u16,
+    rate: u32,
+    bits: u16,
+    valid_bits: u16,
+    mask: u32,
+) -> Vec<u8> {
+    let block_align = channels * (bits / 8);
+    let mut v = strf_wave(0xFFFE, channels, rate, block_align, bits);
+    v.extend_from_slice(&22u16.to_le_bytes()); // cbSize
+    v.extend_from_slice(&valid_bits.to_le_bytes());
+    v.extend_from_slice(&mask.to_le_bytes());
+    v.extend_from_slice(&guid);
     v
 }
 
@@ -364,7 +401,7 @@ fn two_stream_start_reports_the_track_table() {
         Some(header::StreamFormat::Pcm {
             channels: 2,
             samples_per_sec: 48_000,
-            bits_per_sample: 16,
+            sample: header::PcmSample::S16Le,
             block_align: 4
         })
     );
@@ -703,6 +740,325 @@ fn channels_over_ceiling_skips_the_stream_siblings_survive() {
     let packets = drain_packets(&mut avi);
     assert_eq!(packets.len(), 1);
     assert_eq!(packets[0].track.handle(), 0);
+}
+
+// ---------------------------------------------------------------------------
+// The WAVE PCM family: tag/width matrix, WAVEFORMATEXTENSIBLE, refusals.
+// (Registered follow-up "pcm stream-recognition gap": the randomized
+// corpus showed ffmpeg's AVI muxer emitting 0xFFFE extensible strf for
+// most multi-channel PCM, and the float tags carrying a descriptor that
+// lied about signedness.)
+// ---------------------------------------------------------------------------
+
+/// Drive one built AVI and return (tracks, format of the audio track,
+/// all events' damage reasons in order, packets).
+#[allow(clippy::type_complexity)]
+fn start_and_inspect(
+    built: BuiltAvi,
+) -> (
+    Vec<media_types::Track>,
+    Option<header::StreamFormat>,
+    Vec<&'static str>,
+    Vec<media_types::Packet>,
+) {
+    let mut avi = demuxer_over(built.bytes);
+    let tracks = match avi.start() {
+        Ok(tracks) => tracks,
+        Err(err) => unreachable!("containment: {err}"),
+    };
+    let audio_format = tracks
+        .iter()
+        .find(|t| matches!(t.kind, MediaKind::Audio))
+        .and_then(|t| avi.stream_format(t.id));
+    let mut reasons = Vec::new();
+    let mut packets = Vec::new();
+    loop {
+        match avi.next_event() {
+            Ok(DemuxEvent::Packet(p)) => packets.push(p),
+            Ok(DemuxEvent::Recovered { reason, .. }) => reasons.push(reason),
+            Ok(DemuxEvent::Discontinuity) => {}
+            Ok(DemuxEvent::EndOfStream) => break,
+            Err(err) => unreachable!("clean drain: {err}"),
+        }
+    }
+    (tracks, audio_format, reasons, packets)
+}
+
+/// One audio stream spec plus a movi payload of four whole
+/// sample-frames in that stream's width (the payload is returned so
+/// the caller can borrow it into `build`).
+fn audio_case(strf: Vec<u8>, rate: u32, ssize: u32) -> (Stream, Vec<u8>) {
+    let payload: Vec<u8> = (0..(ssize as usize) * 4)
+        .map(|i| (0x30 + (i % 10)) as u8)
+        .collect();
+    (
+        Stream::Audio {
+            scale: 1,
+            rate,
+            length: 4,
+            ssize,
+            strf,
+        },
+        payload,
+    )
+}
+
+#[test]
+fn pcm_wave_tag_matrix_maps_every_width_and_kind() {
+    // The plain-tag family: tag 1 (int) 8/16/24/32-bit and tag 3
+    // (IEEE float) 32/64-bit — each recognized, described with the
+    // registry vocabulary, and packet-extracted with the sample
+    // ladder (PTS advances by whole sample-frames).
+    for (tag, bits, sample, descriptor) in [
+        (1u16, 8u16, header::PcmSample::U8, "pcm_u8"),
+        (1, 16, header::PcmSample::S16Le, "pcm_s16le"),
+        (1, 24, header::PcmSample::S24Le, "pcm_s24le"),
+        (1, 32, header::PcmSample::S32Le, "pcm_s32le"),
+        (3, 32, header::PcmSample::F32Le, "pcm_f32le"),
+        (3, 64, header::PcmSample::F64Le, "pcm_f64le"),
+    ] {
+        let bytes_per_sample = bits / 8;
+        let (stream, payload) = audio_case(
+            strf_wave(tag, 2, 8_000, 2 * bytes_per_sample, bits),
+            8_000,
+            u32::from(2 * bytes_per_sample),
+        );
+        let built = build(
+            &[stream],
+            &[(b"00wb", payload.as_slice()), (b"00wb", payload.as_slice())],
+            false,
+        );
+        let (tracks, format, reasons, packets) = start_and_inspect(built);
+        assert_eq!(tracks.len(), 1, "tag {tag} bits {bits}: track kept");
+        assert_eq!(tracks[0].codec.as_str(), descriptor);
+        assert_eq!(
+            format,
+            Some(header::StreamFormat::Pcm {
+                channels: 2,
+                samples_per_sec: 8_000,
+                sample,
+                block_align: 2 * (bits / 8)
+            }),
+            "tag {tag} bits {bits}"
+        );
+        assert!(reasons.is_empty(), "tag {tag} bits {bits}: no damage");
+        assert_eq!(packets.len(), 2);
+        // PTS is each chunk's ladder position (start, AVI convention):
+        // 0, then 4 sample-frames later on the 1/8000 base.
+        let pts: Vec<i64> = packets
+            .iter()
+            .map(|p| match &p.pts {
+                media_types::Stamp::Present(ts) => ts.ticks,
+                media_types::Stamp::Missing => unreachable!("ladder stamps by construction"),
+            })
+            .collect();
+        assert_eq!(pts, vec![0, 4], "tag {tag} bits {bits}");
+    }
+}
+
+#[test]
+fn wave_format_extensible_resolves_subformat_guids() {
+    // The 40-byte WAVEFORMATEXTENSIBLE ffmpeg's AVI muxer writes for
+    // multi-channel PCM: int and float GUIDs both resolve to the same
+    // vocabulary the plain tags map to (the corpus's s24le 8-channel
+    // and f32le 4-channel shapes, reproduced byte-level).
+    for (guid, bits, sample, descriptor, channels, mask) in [
+        (
+            GUID_PCM,
+            24u16,
+            header::PcmSample::S24Le,
+            "pcm_s24le",
+            8u16,
+            0x63f,
+        ),
+        (GUID_PCM, 8, header::PcmSample::U8, "pcm_u8", 4, 0x107),
+        (GUID_PCM, 16, header::PcmSample::S16Le, "pcm_s16le", 1, 0x4),
+        (
+            GUID_IEEE_FLOAT,
+            32,
+            header::PcmSample::F32Le,
+            "pcm_f32le",
+            4,
+            0x107,
+        ),
+        (
+            GUID_IEEE_FLOAT,
+            64,
+            header::PcmSample::F64Le,
+            "pcm_f64le",
+            2,
+            0x3,
+        ),
+    ] {
+        let block_align = channels * (bits / 8);
+        let (stream, payload) = audio_case(
+            strf_extensible(guid, channels, 11_025, bits, bits, mask),
+            11_025,
+            u32::from(block_align),
+        );
+        let built = build(
+            &[stream],
+            &[(b"00wb", payload.as_slice()), (b"00wb", payload.as_slice())],
+            false,
+        );
+        let (tracks, format, reasons, packets) = start_and_inspect(built);
+        assert_eq!(tracks.len(), 1, "extensible bits {bits} ch {channels}");
+        assert_eq!(tracks[0].codec.as_str(), descriptor);
+        assert_eq!(
+            format,
+            Some(header::StreamFormat::Pcm {
+                channels,
+                samples_per_sec: 11_025,
+                sample,
+                block_align
+            }),
+            "extensible bits {bits} ch {channels}"
+        );
+        assert!(
+            reasons.is_empty(),
+            "extensible bits {bits} ch {channels}: no damage"
+        );
+        assert_eq!(packets.len(), 2, "extensible bits {bits} ch {channels}");
+    }
+}
+
+#[test]
+fn impossible_pcm_combinations_skip_the_stream_siblings_survive() {
+    // Typed refusals for combinations the WAVE PCM family cannot
+    // express — each skips only its stream (D-3 containment) with a
+    // distinct observable reason.
+    for (strf, reason) in [
+        // Tag 1 with 20-bit samples: not a PCM container width.
+        (strf_wave(1, 2, 5, 20, 20), "bad-pcm-format"),
+        // Tag 3 with 8-bit samples: IEEE float is 32/64-bit only.
+        (strf_wave(3, 2, 4, 8, 8), "float-pcm-bit-width-unsupported"),
+        // Tag 3 with 16-bit samples.
+        (strf_wave(3, 2, 4, 4, 16), "float-pcm-bit-width-unsupported"),
+        // A real non-PCM tag (0x0011 IMA ADPCM).
+        (strf_wave(0x0011, 2, 4, 1, 4), "unsupported-audio-format"),
+        // Extensible whose SubFormat GUID names something else (the
+        // μ-law GUID {00000007-...}).
+        (
+            strf_extensible(
+                [
+                    0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00,
+                    0x38, 0x9b, 0x71,
+                ],
+                2,
+                8_000,
+                16,
+                16,
+                0x3,
+            ),
+            "unsupported-audio-format",
+        ),
+        // Extensible declared but the chunk too short to carry the
+        // GUID (a 16-byte strf with tag 0xFFFE).
+        (strf_wave(0xFFFE, 2, 4, 4, 16), "extensible-strf-truncated"),
+    ] {
+        let built = build(
+            &[
+                video_stream(),
+                Stream::Audio {
+                    scale: 1,
+                    rate: 8_000,
+                    length: 4,
+                    ssize: 4,
+                    strf,
+                },
+            ],
+            &[(b"00dc", &b"frame"[..]), (b"01wb", &b"abcd"[..])],
+            false,
+        );
+        let mut avi = demuxer_over(built.bytes);
+        let tracks = match avi.start() {
+            Ok(tracks) => tracks,
+            Err(err) => unreachable!("containment: {err}"),
+        };
+        assert_eq!(tracks.len(), 1, "the video sibling survives {reason}");
+        match avi.next_event() {
+            Ok(DemuxEvent::Recovered {
+                skipped,
+                reason: got,
+            }) => {
+                assert_eq!(got, reason);
+                assert_eq!(skipped, 0);
+            }
+            other => unreachable!("damage first for {reason}, got {other:?}"),
+        }
+        let packets = drain_packets(&mut avi);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(packets[0].track.handle(), 0);
+    }
+}
+
+#[test]
+fn float_pcm_without_sample_ladder_skips_the_stream() {
+    // dwSampleSize = 0 on a float stream: no honest chunk→sample
+    // ladder either — the same typed skip the int path has always
+    // taken (previously float skipped this check; tightening it is
+    // required for honest PTS on the newly recognized streams).
+    let built = build(
+        &[
+            video_stream(),
+            Stream::Audio {
+                scale: 1,
+                rate: 8_000,
+                length: 4,
+                ssize: 0,
+                strf: strf_wave(3, 1, 8_000, 4, 32),
+            },
+        ],
+        &[(b"00dc", &b"frame"[..]), (b"01wb", &b"abcd"[..])],
+        false,
+    );
+    let mut avi = demuxer_over(built.bytes);
+    let tracks = match avi.start() {
+        Ok(tracks) => tracks,
+        Err(err) => unreachable!("containment: {err}"),
+    };
+    assert_eq!(tracks.len(), 1);
+    match avi.next_event() {
+        Ok(DemuxEvent::Recovered { reason, .. }) => {
+            assert_eq!(reason, "pcm-sample-size-zero");
+        }
+        other => unreachable!("damage first, got {other:?}"),
+    }
+}
+
+#[test]
+fn block_align_disagreements_are_damage_notes_not_skips() {
+    // A block_align that disagrees with channels × width (and a
+    // dwSampleSize agreeing with that lie) is real-world damage the
+    // stream survives: the strh dwSampleSize remains the ladder, the
+    // descriptor remains the truth, and both disagreements surface as
+    // damage notes.
+    let built = build(
+        &[Stream::Audio {
+            scale: 1,
+            rate: 8_000,
+            length: 4,
+            ssize: 5,
+            strf: strf_wave(1, 2, 8_000, 5, 16),
+        }],
+        &[(b"00wb", &b"abcdefghij"[..]), (b"00wb", &b"klmnopqrst"[..])],
+        false,
+    );
+    let (tracks, _format, reasons, packets) = start_and_inspect(built);
+    assert_eq!(tracks.len(), 1, "the stream survives the lies");
+    assert!(reasons.contains(&"block-align-disagrees-with-format"));
+    // The stream still delivers; the ladder advances by the strh's
+    // dwSampleSize (5), not the lying block_align: 10 bytes = 2
+    // sample-frames, so the second chunk lands on tick 2.
+    assert_eq!(packets.len(), 2);
+    let pts: Vec<i64> = packets
+        .iter()
+        .map(|p| match &p.pts {
+            media_types::Stamp::Present(ts) => ts.ticks,
+            media_types::Stamp::Missing => unreachable!("ladder stamps by construction"),
+        })
+        .collect();
+    assert_eq!(pts, vec![0, 2]);
 }
 
 #[test]

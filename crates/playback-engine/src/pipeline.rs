@@ -42,6 +42,20 @@
 //! through the sink seam, which is exactly the card's
 //! "decoders → sinks" boundary.
 //!
+//! # Damage policy (doc 03 §4.5(d), audit M9 / ED-FIX-4)
+//!
+//! Demux-stage bounded recovery and decoder-reported `Recovered`
+//! outcomes flow into the tick's damage facts (the engine-private
+//! `DamagedData` event + the coalesced non-fatal `playback.error`).
+//! Since W1-08 the decode slice extends the same isolation to video
+//! packets that **fail** with a per-frame damage kind (`Corrupt`,
+//! `Decoder`/`Bitstream`): the damaged slot is counted, the
+//! presentation conceals by repeating the limb's last presented frame
+//! (or holds when none exists), and playback continues — one corrupt
+//! frame no longer ends the session. A bounded run of consecutive
+//! failures ([`VIDEO_CONCEALMENT_BUDGET`]) still reaches a typed
+//! terminal, because a stream whose every frame fails is not playing.
+//!
 //! # Watermark policy
 //!
 //! Packet-queue *reports* watermarks; this crate (the engine) *owns
@@ -254,6 +268,13 @@ pub(crate) struct TickReport {
     /// `EngineStats::frames_delivered` stays the consumer-delivered
     /// truth).
     pub frames: u64,
+    /// Concealment presentations this tick: frames the engine
+    /// re-presented from the per-limb last-good cache because the
+    /// packet that owned the slot failed with per-frame damage (audit
+    /// M9 / doc 03 §4.5(d)) — repeated content, never new pixels.
+    /// Labeled separately from `frames` so a repeated frame is never
+    /// counted as decoded output.
+    pub concealed_frames: u64,
     /// Frames dropped at the sink for stale generations (doc 03 §5
     /// checking point 5). Always zero in v0's single-writer ticks —
     /// the checkpoint exists for the threaded future, and the tests
@@ -278,6 +299,79 @@ pub(crate) struct Limb {
     /// The queue's high watermark in packets — the denominator of
     /// the in-episode buffering progress (the priming target).
     pub high_packets: usize,
+    /// The last presented **video** frame of the current generation —
+    /// the per-frame-damage concealment cache (doc 03 §4.5(d), audit
+    /// M9): when a packet fails with a per-frame damage kind, the
+    /// presentation conceals by repeating this frame at the damaged
+    /// packet's pts (never new content). One slot per limb is the
+    /// hard bound (D-1); a stale-generation entry is never repeated
+    /// (the staleness check at concealment time is the discard rule,
+    /// so seek mints need no extra invalidation).
+    last_frame: Option<Frame>,
+    /// Consecutive per-frame damage failures on this limb. Reset by
+    /// any `Ok` decode outcome; the run is bounded by
+    /// [`VIDEO_CONCEALMENT_BUDGET`] (D-3: recovery is bounded, never
+    /// an infinite freeze).
+    conceal_failures: u32,
+}
+
+/// The per-frame video concealment budget: how many **consecutive**
+/// damaged frames the engine may conceal (repeating the last good
+/// frame / holding black) before the damage is declared catastrophic
+/// and reaches a typed terminal.
+///
+/// The figure inherits doc 03 §4.3(d)'s bounded-recovery window for
+/// corrupt-but-skippable demux data — "attempt resynchronization once
+/// within a bounded window [PROPOSAL: 1 MiB or 1000 packets], else
+/// fatal `Corrupt`" — applied to the decode stage's per-frame damage
+/// (audit M9 / ED-FIX-4). Every concealment is observable (a
+/// `DamagedData` fact + the coalesced non-fatal `playback.error`), so
+/// the budget only draws the line where "playing" would become a lie:
+/// a stream whose every frame fails is not playing.
+pub const VIDEO_CONCEALMENT_BUDGET: u32 = 1000;
+
+/// Whether `error` is **per-frame damage** — the doc 03 §4.5(d)
+/// `CorruptPacket` class the engine isolates on video limbs instead
+/// of tearing the session down (audit M9):
+///
+/// - [`ErrorKind::Corrupt`] — the bytes of *this* packet are
+///   structurally broken or truncated;
+/// - [`ErrorKind::Decoder { cause: Bitstream }`] — this packet's
+///   entropy data violated the codec grammar.
+///
+/// Everything else stays fatal: `Unsupported` and `ResourceLimit` are
+/// deterministic per stream (retrying the next frame cannot help),
+/// `BadState` is contract misuse, and a future inter-frame codec that
+/// *cannot* continue after damage must not report these kinds for it
+/// (doc 03 §4.5(d): such decoders "must document that and emit
+/// `Fatal` instead" — today's only video decoder, MJPEG, is
+/// stateless per frame by construction).
+fn per_frame_video_damage(error: &EngineError) -> bool {
+    matches!(
+        &error.kind,
+        media_types::ErrorKind::Corrupt { .. }
+            | media_types::ErrorKind::Decoder {
+                cause: media_types::error::DecodeCause::Bitstream
+            }
+    )
+}
+
+/// The typed terminal for a spent concealment budget (D-3 boundary
+/// honesty): the run of consecutive per-frame damage exceeded
+/// [`VIDEO_CONCEALMENT_BUDGET`], so the recovery attempt budget is
+/// exhausted — the last damage rides in the error's `source` chain
+/// for triage.
+fn concealment_budget_exhausted(failures: u32, last: EngineError) -> EngineError {
+    EngineError::new(
+        media_types::PipelineStage::Decode,
+        media_types::ErrorKind::ResourceLimit {
+            limit: media_types::error::LimitKind::RecoveryAttempts,
+            budget: u64::from(VIDEO_CONCEALMENT_BUDGET),
+            attempted: u64::from(failures),
+        },
+        media_types::error::ErrorContext::new("decode.concealment.budget"),
+    )
+    .with_source(last)
 }
 
 /// The wired pipeline: demuxer, limbs, and the tick driver. Exists
@@ -360,10 +454,7 @@ impl SeekProgress {
             first_audio_ns: None,
             // Pre-allocated once per seek (not per tick — D-1): pushes
             // within the capacity never allocate.
-            hold: limbs
-                .iter()
-                .map(|_| Vec::with_capacity(hold_cap))
-                .collect(),
+            hold: limbs.iter().map(|_| Vec::with_capacity(hold_cap)).collect(),
             hold_cap,
         }
     }
@@ -497,6 +588,8 @@ impl Pipeline {
                 decoder,
                 drained: false,
                 high_packets,
+                last_frame: None,
+                conceal_failures: 0,
             });
             self.selected.push(true);
             wired += 1;
@@ -615,8 +708,12 @@ impl Pipeline {
                 stale_dropped: 0,
                 // No hold: the flush's emissions are the OLD
                 // generation's reorder residue — the generation check
-                // drops them, they are never captured (M10).
+                // drops them, they are never captured (M10). No
+                // concealment latch either: a residue frame is never
+                // repeated (M9).
                 hold: None,
+                last: None,
+                concealed: 0,
             };
             for _ in 0..flush_budget {
                 match limb.decoder.flush(&mut sink) {
@@ -723,19 +820,21 @@ impl Pipeline {
             return;
         };
         // Merge the per-limb holds, then order by pts across limbs
-        // (once per seek — the merge/sort is not a hot path).
-        let mut held: Vec<(TrackId, Frame)> = Vec::new();
-        for (limb, slot) in self.limbs.iter().zip(progress.hold) {
+        // (once per seek — the merge/sort is not a hot path). The
+        // limb index rides along so a released video frame can latch
+        // the concealment cache (M9) on the limb that owns it.
+        let mut held: Vec<(usize, TrackId, Frame)> = Vec::new();
+        for (index, (limb, slot)) in self.limbs.iter().zip(progress.hold).enumerate() {
             for frame in slot {
-                held.push((limb.track.id, frame));
+                held.push((index, limb.track.id, frame));
             }
         }
         // Missing stamps sort last (arrival order among equals — the
         // stable sort keeps it); a present stamp orders by its
         // nanoseconds on the media base.
-        held.sort_by_key(|(_, frame)| stamp_ns(frame.pts()).unwrap_or(i64::MAX));
+        held.sort_by_key(|(_, _, frame)| stamp_ns(frame.pts()).unwrap_or(i64::MAX));
         let generation = self.generation;
-        for (track, frame) in held {
+        for (index, track, frame) in held {
             // Defense in depth: a frame that went stale between its
             // capture and the terminal (a threaded future's race)
             // never presents — dropped and counted, not guessed
@@ -744,8 +843,23 @@ impl Pipeline {
                 self.preroll_discarded = self.preroll_discarded.saturating_add(1);
                 continue;
             }
+            // The release hand-off is the presentation event: latch
+            // the concealment cache exactly as a live `accept` would
+            // have (a clone of fixed-size fields plus one
+            // `SharedBytes` reference bump — D-1), so a damaged slot
+            // after the terminal repeats the new landing's last
+            // frame, not nothing.
+            let latched = if matches!(frame, Frame::Video(_)) {
+                Some(frame.clone())
+            } else {
+                None
+            };
             if self.consumer.accept(frame, track).is_err() {
                 self.preroll_discarded = self.preroll_discarded.saturating_add(1);
+            } else if let Some(frame) = latched
+                && let Some(limb) = self.limbs.get_mut(index)
+            {
+                limb.last_frame = Some(frame);
             }
         }
     }
@@ -796,6 +910,7 @@ impl Pipeline {
             buffer_fill: 0.0,
             newly_drained: 0,
             frames: 0,
+            concealed_frames: 0,
             stale_frames: 0,
             discontinuities: 0,
         };
@@ -953,6 +1068,25 @@ impl Pipeline {
     /// consumer — and the slice backpressures at the hold's cap
     /// (packets stay in the bounded queues; the pre-roll evidence
     /// they already produced is what completes the seek).
+    ///
+    /// # Per-frame damage isolation (doc 03 §4.5(d), audit M9)
+    ///
+    /// A video packet that fails with a per-frame damage kind
+    /// ([`per_frame_video_damage`]) does **not** end the session: the
+    /// damage is counted into the tick's `damaged` facts (the engine
+    /// `DamagedData` event + the coalesced non-fatal `playback.error`,
+    /// card 3.B4 — the same Recovered-class shape the PCM decoder
+    /// already reports in-band), the presentation conceals by
+    /// repeating the limb's last presented frame at the damaged
+    /// slot's pts (or holds black when no current-generation frame
+    /// exists), and the slice continues. During a seek's pre-roll the
+    /// concealment slot holds (nothing repeats against the frozen
+    /// clock — M10); the damage counts are still the observable. The
+    /// run of consecutive failures is bounded by
+    /// [`VIDEO_CONCEALMENT_BUDGET`]; past it, the damage is
+    /// catastrophic and reaches a typed terminal (D-3: one corrupt
+    /// frame must not kill the session, but a stream of nothing but
+    /// corrupt frames must not fake playing either).
     fn decode_step(&mut self, budget: &TickBudget, report: &mut TickReport) {
         let consumer = Arc::clone(&self.consumer);
         let generation = self.generation;
@@ -968,6 +1102,8 @@ impl Pipeline {
             let sink_frames: u32;
             let sink_first: Option<Stamp>;
             let sink_stale: u32;
+            let sink_concealed: u32;
+            let sink_last: Option<Frame>;
             {
                 // M10: while a seek is in flight, the sink routes the
                 // slice's frames into the per-limb hold — they reach
@@ -981,6 +1117,11 @@ impl Pipeline {
                     frames: 0,
                     first: None,
                     stale_dropped: 0,
+                    // The concealment cache's slice-local half (M9):
+                    // seeded from the limb, written back after the
+                    // slice.
+                    last: limb.last_frame.clone(),
+                    concealed: 0,
                     hold: self.seek_progress.as_mut().and_then(|p| p.hold_slot(index)),
                 };
                 for _ in 0..budget.packets_per_limb {
@@ -1004,18 +1145,67 @@ impl Pipeline {
                     match popped {
                         None => break,
                         Some(None) => continue,
-                        Some(Some(packet)) => match limb.decoder.decode(packet, &mut sink) {
-                            Ok(DecodeOutcome::Recovered { skipped, .. }) => {
-                                report.damaged_decode =
-                                    report.damaged_decode.saturating_add(u64::from(skipped));
-                                report.damaged = report.damaged.saturating_add(u64::from(skipped));
+                        Some(Some(packet)) => {
+                            let pts = packet.pts;
+                            match limb.decoder.decode(packet, &mut sink) {
+                                Ok(outcome) => {
+                                    // The decoder stayed inside its
+                                    // contract on this packet: whatever
+                                    // per-frame damage run was building
+                                    // ends here.
+                                    limb.conceal_failures = 0;
+                                    if let DecodeOutcome::Recovered { skipped, .. } = outcome {
+                                        report.damaged_decode = report
+                                            .damaged_decode
+                                            .saturating_add(u64::from(skipped));
+                                        report.damaged =
+                                            report.damaged.saturating_add(u64::from(skipped));
+                                    }
+                                }
+                                Err(error) => {
+                                    if limb_kind == MediaKind::Video
+                                        && per_frame_video_damage(&error)
+                                    {
+                                        limb.conceal_failures =
+                                            limb.conceal_failures.saturating_add(1);
+                                        if limb.conceal_failures > VIDEO_CONCEALMENT_BUDGET {
+                                            // The bounded window is spent:
+                                            // catastrophic damage, typed
+                                            // terminal (D-3 honesty).
+                                            fatal = Some(concealment_budget_exhausted(
+                                                limb.conceal_failures,
+                                                error,
+                                            ));
+                                            break;
+                                        }
+                                        // The Recovered-class conversion:
+                                        // one damaged unit, counted and
+                                        // observable.
+                                        report.damaged_decode =
+                                            report.damaged_decode.saturating_add(1);
+                                        report.damaged = report.damaged.saturating_add(1);
+                                        // Conceal by repeating the last
+                                        // presented frame at this slot's
+                                        // pts — or holding (nothing
+                                        // presented) when no
+                                        // current-generation frame
+                                        // exists. During a seek's
+                                        // pre-roll the concealment
+                                        // holds too (M10 — see
+                                        // [`LimbSink::conceal_last`]).
+                                        // A consumer refusal is the
+                                        // sink contract's fatal.
+                                        if let Err(error) = sink.conceal_last(pts) {
+                                            fatal = Some(error);
+                                            break;
+                                        }
+                                    } else {
+                                        fatal = Some(error);
+                                        break;
+                                    }
+                                }
                             }
-                            Ok(_) => {}
-                            Err(error) => {
-                                fatal = Some(error);
-                                break;
-                            }
-                        },
+                        }
                     }
                 }
                 // End-of-stream draining: flush the decoder until it
@@ -1038,8 +1228,7 @@ impl Pipeline {
                                     // scratch the session drains after
                                     // the tick.
                                     self.ended_limbs.push((limb_kind, track_id));
-                                    report.newly_drained =
-                                        report.newly_drained.saturating_add(1);
+                                    report.newly_drained = report.newly_drained.saturating_add(1);
                                     break;
                                 }
                                 Ok(_) => continue,
@@ -1054,6 +1243,8 @@ impl Pipeline {
                 sink_frames = sink.frames;
                 sink_first = sink.first;
                 sink_stale = sink.stale_dropped;
+                sink_concealed = sink.concealed;
+                sink_last = sink.last;
             }
             if let Some(error) = fatal {
                 report.fatal = Some(error);
@@ -1062,9 +1253,17 @@ impl Pipeline {
             // Merge the sink's observations: the first frame ever
             // delivered becomes the session's FirstFrame fact; stale
             // frame drops are counted (v0 cannot produce them — the
-            // generation check is the doc 03 §5 point-5 checkpoint).
+            // generation check is the doc 03 §5 point-5 checkpoint);
+            // concealment presentations are counted separately so a
+            // repeated frame is never reported as decoded output.
             report.frames = report.frames.saturating_add(u64::from(sink_frames));
+            report.concealed_frames = report
+                .concealed_frames
+                .saturating_add(u64::from(sink_concealed));
             report.stale_frames = report.stale_frames.saturating_add(u64::from(sink_stale));
+            // The concealment cache follows the slice back into the
+            // limb (the sink's latch or the frame it still holds).
+            limb.last_frame = sink_last;
             if self.first_frame.is_none()
                 && let Some(position) = sink_first
             {
@@ -1097,7 +1296,11 @@ fn stamp_ns(stamp: Stamp) -> Option<i64> {
 /// first-frame timestamp. While a seek is in flight the sink carries
 /// the limb's M10 hold slot: live frames are captured into it instead
 /// of being delivered (released at the seek terminal, discarded on
-/// rollback — see [`Pipeline::release_preroll_hold`]).
+/// rollback — see [`Pipeline::release_preroll_hold`]). The sink also
+/// owns the slice's half of the per-frame-damage concealment cache
+/// (see [`Pipeline::decode_step`]): the last presented video frame,
+/// latched on `accept` and written back into the limb after the
+/// slice.
 struct LimbSink<'a> {
     consumer: Arc<dyn FrameConsumer>,
     track: TrackId,
@@ -1110,6 +1313,63 @@ struct LimbSink<'a> {
     /// flush itself (the flush's emissions are the old generation's
     /// residue — the generation check drops them, never held).
     hold: Option<PrerollHoldSlot<'a>>,
+    /// The last presented video frame of the current generation (the
+    /// concealment cache's slice-local half; `None` until a video
+    /// frame is presented under this generation — a frame captured
+    /// into the hold is not presented yet, so it never latches here;
+    /// the release path latches it at the terminal instead).
+    last: Option<Frame>,
+    /// Concealment presentations this slice (repeated frames —
+    /// labeled, never counted as decoded output).
+    concealed: u32,
+}
+
+impl LimbSink<'_> {
+    /// Conceal one per-frame-damaged video slot (doc 03 §4.5(d),
+    /// audit M9): re-present the latched last-good frame at `pts` —
+    /// the **same pixels again**, never new content. Counts
+    /// `concealed`, not `frames`; never sets `first` (a repeated
+    /// frame is not a first frame) and never latches itself. With no
+    /// latched current-generation frame the slot **holds**: nothing
+    /// is presented, the damage counts are the observable.
+    ///
+    /// During a seek's pre-roll (M10) the slot holds unconditionally:
+    /// a concealment repeat is a presentation, and nothing presents
+    /// while the clock is frozen at the old position.
+    ///
+    /// # Errors
+    /// The consumer's typed [`EngineError`] — a refusal downstream is
+    /// the [`FrameSink`] propagation contract's fatal, exactly as for
+    /// decoded frames.
+    fn conceal_last(&mut self, pts: Stamp) -> Result<(), EngineError> {
+        // M10: the pre-roll hold owns presentation until the terminal.
+        if self.hold.is_some() {
+            return Ok(());
+        }
+        let repeated = match self.last.as_ref() {
+            None => return Ok(()),
+            // A latched frame from an older generation (a seek minted
+            // since it was presented) is never repeated: the slot
+            // holds, matching the no-prior-frame rule.
+            Some(held) if held.is_stale(self.generation) => return Ok(()),
+            Some(held) => {
+                let mut repeated = held.clone();
+                if let Frame::Video(video) = &mut repeated {
+                    video.pts = pts;
+                }
+                repeated
+            }
+        };
+        self.consumer.accept(repeated, self.track)?;
+        self.concealed = self.concealed.saturating_add(1);
+        Ok(())
+    }
+
+    /// Whether the sink's hold (if any) is at capacity — `false`
+    /// when frames deliver straight through (no hold, no bound).
+    fn hold_is_full(&self) -> bool {
+        self.hold.as_ref().is_some_and(PrerollHoldSlot::is_full)
+    }
 }
 
 /// One limb's pre-roll hold slot, as handed to a decode slice (M10):
@@ -1140,14 +1400,6 @@ impl PrerollHoldSlot<'_> {
     }
 }
 
-impl LimbSink<'_> {
-    /// Whether the sink's hold (if any) is at capacity — `false`
-    /// when frames deliver straight through (no hold, no bound).
-    fn hold_is_full(&self) -> bool {
-        self.hold.as_ref().is_some_and(PrerollHoldSlot::is_full)
-    }
-}
-
 impl FrameSink for LimbSink<'_> {
     fn accept(&mut self, frame: Frame) -> Result<(), EngineError> {
         let pts = frame.pts();
@@ -1161,7 +1413,10 @@ impl FrameSink for LimbSink<'_> {
             // M10: capture, do not deliver. A refusal here is the
             // single-call-burst backstop — counted as a discard,
             // never an unbounded buffer and never a pre-terminal
-            // presentation.
+            // presentation. The capture does not latch the
+            // concealment cache (`last`): a held frame is not
+            // presented yet — the release path latches it at the
+            // terminal, on the actual hand-off.
             if !hold.push(frame) {
                 self.stale_dropped = self.stale_dropped.saturating_add(1);
             }
@@ -1171,10 +1426,22 @@ impl FrameSink for LimbSink<'_> {
             }
             return Ok(());
         }
+        // Latch the last presented video frame for the concealment
+        // cache before the hand-off — a clone of fixed-size fields
+        // plus one `SharedBytes` reference bump, no copy of the pixel
+        // bytes (D-1: no heap allocation on the frame path).
+        let latched = if matches!(frame, Frame::Video(_)) {
+            Some(frame.clone())
+        } else {
+            None
+        };
         self.consumer.accept(frame, self.track)?;
         self.frames = self.frames.saturating_add(1);
         if self.first.is_none() {
             self.first = Some(pts);
+        }
+        if let Some(frame) = latched {
+            self.last = Some(frame);
         }
         Ok(())
     }

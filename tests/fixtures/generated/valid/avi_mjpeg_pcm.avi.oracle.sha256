@@ -1,0 +1,32 @@
+# Lumen external-oracle hash pin — card W1-14 (audit M15 cure; directives
+# D-5 "escape the echo chamber" / D-11 "ffmpeg as the external oracle").
+# DO NOT hand-edit: these are hashes of FFMPEG'S OWN DECODE of the fixture,
+# not of Lumen output. To re-pin, follow the procedure in the header of
+# scripts/oracle_check.sh and record why in the commit message.
+#
+# fixture   : tests/fixtures/generated/valid/avi_mjpeg_pcm.avi
+# content   : AVI 1.0 (RIFF) — MJPEG video 320x240 4:2:0 full-range,
+#             60 frames, 2.0 s + PCM s16le 44100 Hz stereo, 2.0 s
+# oracle    : ffmpeg version 7.1.5-0+deb13u1 Copyright (c) 2000-2026 the FFmpeg developers
+#             (first line of `ffmpeg -version`; Debian 13 trixie build.
+#             On this build yuvj420p and yuv420p rawvideo output are
+#             byte-identical — the deprecated full-range format carries
+#             range as metadata only; verified at pin time: default /
+#             -pix_fmt yuv420p / -pix_fmt yuvj420p all hash equal.)
+# pinned on : 2026-10-22 (UTC) by agent W1-14
+#
+# exact commands (run from the repo root; digest is sha256 of stdout):
+#   video: ffmpeg -nostdin -v error -i tests/fixtures/generated/valid/avi_mjpeg_pcm.avi -map 0:v -pix_fmt yuv420p -f rawvideo - | sha256sum
+#   audio: ffmpeg -nostdin -v error -i tests/fixtures/generated/valid/avi_mjpeg_pcm.avi -map 0:a -f s16le - | sha256sum
+#
+# stream geometry at pin time (ffprobe -show_streams):
+#   video: 60 frames 320x240 yuvj420p -> 6,912,000 decoded bytes (yuv420p planar)
+#   audio: 88,200 samples/frame-pair 44100 Hz stereo s16 -> 352,800 decoded bytes
+#
+# cross-check: the MP4 twin (mp4_mjpeg_pcm.mp4.oracle.sha256) pins the SAME
+# digests — the two containers carry identical elementary streams, so the
+# oracle hashes must agree across containers (they do, at pin time).
+#
+# rows: <sha256>  <stream-label>
+00c4f875fa15b765a2d1ffb5eaedf5c1b7647e3b3dbeeb995d9020f0ec78d9c4  video
+1d9f5019c9b5181f0910528dce360f46e74f9c4df8d9bc9a20c2c68fd218b95b  audio

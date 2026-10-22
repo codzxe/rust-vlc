@@ -27,6 +27,24 @@
 //! dropped entry). A payload cut *before* the first entry leaves an
 //! empty table — seek then falls back to the linear scan.
 //!
+//! # Entry order (the dirty-world rule, D-9)
+//!
+//! Real-world writers have emitted `idx1` entries in orders other
+//! than file order (partial-sorted tables, appended entries, plain
+//! corruption). The entry's `dwChunkOffset` **identifies** its chunk;
+//! presentation time is a property of FILE order — the same ladder the
+//! `movi` walk advances. The parser therefore collects the raw
+//! entries, orders them by `chunk_pos` (FFmpeg's own ordered-insert
+//! disambiguation), and only then runs the ladder pass that assigns
+//! `pts_ticks`: an out-of-order `idx1` yields the same seek table the
+//! file-ordered equivalent would have, so [`search_index`]'s
+//! per-stream monotonicity precondition holds by construction. The
+//! reorder is never silent — one damage note carries the count of
+//! misplaced entries (16 bytes per entry, the established convention).
+//! Duplicate `dwOffset`s keep their relative order (the sort is
+//! stable); a lying `dwSize` still diverges the replayed ladder from
+//! the walk exactly as it did before, bounded and observable via pts.
+//!
 //! # Offset base (the tribal-knowledge case, D-9)
 //!
 //! The AVI 1.0 spec says `dwOffset` is relative to the `movi` form
@@ -181,12 +199,28 @@ pub(crate) fn replay_ladders(
     ladders
 }
 
+/// One raw `idx1` packet entry as stored, before the file-order pass
+/// sorts it and the ladders time it (see the module docs' entry-order
+/// rule). Positionally validated, not yet timed.
+struct RawIdxEntry {
+    chunk_pos: u64,
+    size: u32,
+    stream: u32,
+    keyframe: bool,
+}
+
 /// Parse the `idx1` chunk at `idx1_pos` (its header) into a table.
 ///
 /// `movi_form_pos` is the absolute position of the `movi` FourCC (the
 /// base `dwOffset` is relative to); `movi_data_start`/`movi_data_end`
 /// bound entry validation; `bound` is the outer extent
 /// (RIFF ∩ stream); `streams` supplies the tick ladders.
+///
+/// Entries come out **in file order with file-order timing** (the
+/// module docs' entry-order rule): raw entries are collected in
+/// `idx1` order, ordered by `chunk_pos`, and only then assigned
+/// `pts_ticks` by the ladder pass — so out-of-order tables are
+/// time-corrected, never silently mis-seeked.
 ///
 /// # Errors
 /// [`error::index_too_large`] when the *clamped* entry count (the
@@ -226,14 +260,21 @@ pub fn parse_idx1(
         return Err(error::index_too_large(MAX_IDX1_ENTRIES as u64, entry_count));
     }
 
-    let mut entries: Vec<IndexEntry> = Vec::new();
-    let mut ladders = Ladders::new(streams);
+    // Raw entries as stored (idx1 order), positionally validated but
+    // not yet timed — the ladder pass runs after the file-order sort
+    // (the module docs' entry-order rule).
+    let mut raw: Vec<RawIdxEntry> = Vec::new();
     // Coalesced drop counters (one damage event per reason at the
     // end — see the module docs for why per-entry events are a
     // denial-of-service vector, not observability).
     let mut dropped_outside_movi: u64 = 0;
     let mut dropped_unknown_stream: u64 = 0;
     let mut dropped_not_packet: u64 = 0;
+    // Entries stored out of file order (each compared against the
+    // highest position seen so far — an entry that belongs before an
+    // earlier-stored one is misplaced, duplicates are not).
+    let mut out_of_order: u64 = 0;
+    let mut highest_pos: Option<u64> = None;
     let mut offset: u64 = 0;
     // The dwOffset base: probed against both interpretations on the
     // first packet entry (relative is the spec default; absolute is
@@ -270,19 +311,18 @@ pub fn parse_idx1(
                 let data_end = chunk_pos.saturating_add(8 + u64::from(size));
                 if chunk_pos < movi_data_start || data_end > movi_data_end {
                     dropped_outside_movi = dropped_outside_movi.saturating_add(1);
-                } else if let Some(step) = ladders.advance(stream, u64::from(size)) {
-                    entries.push(IndexEntry {
+                } else {
+                    if highest_pos.is_some_and(|highest| chunk_pos < highest) {
+                        out_of_order = out_of_order.saturating_add(1);
+                    }
+                    highest_pos =
+                        Some(highest_pos.map_or(chunk_pos, |highest| highest.max(chunk_pos)));
+                    raw.push(RawIdxEntry {
                         chunk_pos,
                         size,
                         stream,
                         keyframe: flags & AVIIF_KEYFRAME != 0,
-                        pts_ticks: step.pts_ticks,
                     });
-                } else {
-                    // A packet entry for a stream outside the table
-                    // (unsupported type): positionally valid, not
-                    // timeable — kept out of the seek table.
-                    dropped_unknown_stream = dropped_unknown_stream.saturating_add(1);
                 }
             }
             _ => {
@@ -295,6 +335,32 @@ pub fn parse_idx1(
     if payload % 16 != 0 {
         damage.note(payload % 16, "idx1-partial-entry");
     }
+    // The file-order pass: order by the chunk each entry identifies,
+    // then time it (a shuffled or partially-sorted idx1 must yield the
+    // same seek table its file-ordered equivalent would — see the
+    // module docs' entry-order rule). Stable, so duplicate positions
+    // keep their stored order.
+    raw.sort_by_key(|entry| entry.chunk_pos);
+    let mut ladders = Ladders::new(streams);
+    // One allocation, sized to the raw table (D-1: the parse is a
+    // one-time start cost, never per-frame; the entry cap bounds it).
+    let mut entries: Vec<IndexEntry> = Vec::with_capacity(raw.len());
+    for entry in raw {
+        if let Some(step) = ladders.advance(entry.stream, u64::from(entry.size)) {
+            entries.push(IndexEntry {
+                chunk_pos: entry.chunk_pos,
+                size: entry.size,
+                stream: entry.stream,
+                keyframe: entry.keyframe,
+                pts_ticks: step.pts_ticks,
+            });
+        } else {
+            // A packet entry for a stream outside the table
+            // (unsupported type): positionally valid, not
+            // timeable — kept out of the seek table.
+            dropped_unknown_stream = dropped_unknown_stream.saturating_add(1);
+        }
+    }
     // The coalesced per-reason damage: one event each, the byte total
     // carrying the entry count (16 bytes per dropped entry).
     if dropped_outside_movi > 0 {
@@ -305,6 +371,9 @@ pub fn parse_idx1(
     }
     if dropped_not_packet > 0 {
         damage.note(dropped_not_packet * 16, "idx1-entry-not-a-packet");
+    }
+    if out_of_order > 0 {
+        damage.note(out_of_order * 16, "idx1-out-of-order-entries");
     }
     if entries.is_empty() {
         Ok(None)
@@ -583,6 +652,118 @@ fn scan_movi_inner(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::avi::header::StreamFormat;
+    use crate::avi::test_support;
+    use media_types::ids::MediaKind;
+
+    /// A one-stream video table for the parse-level fixtures (the same
+    /// shape the builder tests use: 30 fps, one tick per chunk).
+    fn video_stream_desc() -> StreamDesc {
+        StreamDesc {
+            ordinal: 0,
+            kind: MediaKind::Video,
+            handler: riff::FourCC::tag(b"MJPG"),
+            scale: 1,
+            rate: 30,
+            start: 0,
+            length: 3,
+            sample_size: 0,
+            format: StreamFormat::MotionJpeg {
+                width: 320,
+                height: 240,
+            },
+            title: None,
+            strh_offset: 0,
+        }
+    }
+
+    /// The regression for the out-of-order `idx1` fix (M16 family 1):
+    /// entries stored out of file order must come out FILE-ordered with
+    /// FILE-order timing (the same table the ordered equivalent would
+    /// parse to), and the reorder is damage-counted, never silent.
+    /// Pre-fix, the ladder ran in stored order — chunk C recorded pts 0
+    /// and in-range seeks mis-landed or refused (`search_index`'s
+    /// monotonicity precondition silently violated).
+    #[test]
+    fn out_of_order_idx1_parses_to_the_file_ordered_table() {
+        // Layout: `movi` form at 0 (the dwOffset base), three 1-byte
+        // video chunks at 4/14/24, then an idx1 storing them in the
+        // order C, A, B.
+        let mut bytes: Vec<u8> = Vec::new();
+        bytes.extend_from_slice(b"movi");
+        for label in *b"ABC" {
+            bytes.extend_from_slice(b"00dc");
+            bytes.extend_from_slice(&1u32.to_le_bytes());
+            bytes.push(label);
+            bytes.push(0); // WORD pad
+        }
+        let idx1_pos = bytes.len() as u64;
+        let mut idx = Vec::new();
+        for rel in [24u32, 4, 14] {
+            idx.extend_from_slice(b"00dc");
+            idx.extend_from_slice(&0x10u32.to_le_bytes());
+            idx.extend_from_slice(&rel.to_le_bytes());
+            idx.extend_from_slice(&1u32.to_le_bytes());
+        }
+        bytes.extend_from_slice(b"idx1");
+        bytes.extend_from_slice(&(idx.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(&idx);
+
+        let stream = match test_support::mem_stream(bytes.clone()) {
+            Ok(stream) => stream,
+            Err(err) => unreachable!("mem stream: {err}"),
+        };
+        let mut reader = match SourceReader::new(stream) {
+            Ok(reader) => reader,
+            Err(err) => unreachable!("reader: {err}"),
+        };
+        let streams = [video_stream_desc()];
+        let mut damage = DamageLog::default();
+        let table = match parse_idx1(
+            &mut reader,
+            idx1_pos,
+            idx.len() as u32,
+            0,  // movi_form_pos (the dwOffset base)
+            4,  // movi_data_start
+            34, // movi_data_end
+            bytes.len() as u64,
+            &streams,
+            &mut damage,
+        ) {
+            Ok(Some(table)) => table,
+            Ok(None) => unreachable!("three valid entries parse"),
+            Err(err) => unreachable!("out-of-order entries are salvage, not an error: {err}"),
+        };
+        // File order, file-order timing: A@4 pts 0, B@14 pts 1, C@24
+        // pts 2 — exactly what the ordered table parses to.
+        assert_eq!(
+            table
+                .entries
+                .iter()
+                .map(|entry| (entry.chunk_pos, entry.pts_ticks))
+                .collect::<Vec<_>>(),
+            vec![(4, 0), (14, 1), (24, 2)],
+            "out-of-order entries are time-corrected by file order"
+        );
+        // The search still lands correctly on the corrected table.
+        let landing = match search_index(&table, 0, 1) {
+            Some(landing) => landing,
+            None => unreachable!("in-range target lands"),
+        };
+        assert_eq!(landing.pts_ticks, 1);
+        assert_eq!(landing.chunk_pos, 14);
+        // And the reorder is observable: both A and B were stored
+        // after C though they precede it in the file — 2 misplaced
+        // entries, 16 bytes each.
+        assert!(
+            damage
+                .events
+                .iter()
+                .any(|(skipped, reason)| *reason == "idx1-out-of-order-entries" && *skipped == 32),
+            "damage events: {:?}",
+            damage.events
+        );
+    }
 
     #[test]
     fn search_index_finds_last_keyframe_at_or_below() {
