@@ -56,7 +56,9 @@ use media_types::frame::{
     VideoFrame,
 };
 use media_types::time::Timestamp;
-use media_types::{EngineError, ErrorKind, Frame, GenerationId, Packet, PipelineStage, Rate, Track, TrackId};
+use media_types::{
+    EngineError, ErrorKind, Frame, GenerationId, Packet, PipelineStage, Rate, Track, TrackId,
+};
 use playback_engine::{DecoderProvider, FrameConsumer};
 use renderer_wgpu::color::SurfaceFormat;
 use renderer_wgpu::params::Extent2D;
@@ -530,7 +532,8 @@ impl ConsumerState {
     /// the seek; this completes the boundary on the presentation
     /// side. Cold path — once per accepted seek, never per tick.
     pub fn seek_boundary(&mut self, generation: GenerationId) {
-        self.video_hold.retain(|frame| frame.generation >= generation);
+        self.video_hold
+            .retain(|frame| frame.generation >= generation);
         if let Some(video) = self.video.as_mut() {
             video.seek_boundary(generation);
         }

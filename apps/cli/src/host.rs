@@ -827,10 +827,7 @@ impl CliHost {
         // between here and the accept poll (the host is the single
         // writer), and the accept poll's own decode appends only
         // landing frames BEHIND this prefix (the ring is FIFO).
-        let stale_ring_frames = self
-            .device
-            .as_ref()
-            .map_or(0, NullDevice::buffered_frames);
+        let stale_ring_frames = self.device.as_ref().map_or(0, NullDevice::buffered_frames);
         handle
             .seek(request, engine_target)
             .map_err(|error| session_error_wire(&error))?;

@@ -89,10 +89,7 @@ fn scripted_session_open_play_pause_seek_stop() {
     // terminal reports the ACTUAL landing — 1.000000s, exactly half
     // of the 2.000s media (a frame-aligned target lands on itself).
     let seek_at = out.find("state-changed Paused → Paused").must();
-    assert!(
-        seek_at > info_at,
-        "seek follows the info snapshot:\n{out}"
-    );
+    assert!(seek_at > info_at, "seek follows the info snapshot:\n{out}");
     assert!(
         out.contains(
             "event: TimingSeekCompleted { position: Timestamp(1000000), \
@@ -246,13 +243,18 @@ fn seek_from_playing_rebuffers_in_pipeline() {
     // Playing through the existing transitions).
     let seek_at = out.find("state-changed Playing → Buffering").must();
     assert!(
-        out.contains("event: TimingSeekCompleted { position: Timestamp(1500000), \
-             seek_kind: Command }"),
+        out.contains(
+            "event: TimingSeekCompleted { position: Timestamp(1500000), \
+             seek_kind: Command }"
+        ),
         "{out}"
     );
     // The rebuffer's close comes AFTER the seek's own `→ Buffering`
     // (the open's earlier `Buffering → Playing` is not it).
-    let resumed = seek_at + out[seek_at..].find("state-changed Buffering → Playing").must();
+    let resumed = seek_at
+        + out[seek_at..]
+            .find("state-changed Buffering → Playing")
+            .must();
     assert!(resumed > seek_at, "the rebuffer closes:\n{out}");
     // The same session, minted generation, no reopen.
     assert!(out.contains("ok: accepted session=1 gen=1"), "{out}");
@@ -275,8 +277,10 @@ fn seek_reports_the_actual_not_the_requested() {
     assert_eq!(code, 0, "stdout:\n{out}\nstderr:\n{err}");
     assert!(err.is_empty(), "stderr:\n{err}");
     assert!(
-        out.contains("event: TimingSeekCompleted { position: Timestamp(266667), \
-             seek_kind: Command }"),
+        out.contains(
+            "event: TimingSeekCompleted { position: Timestamp(266667), \
+             seek_kind: Command }"
+        ),
         "the terminal carries the demuxer's landing:\n{out}"
     );
     assert!(
@@ -316,8 +320,10 @@ fn backward_seek_below_start_time_lands() {
     assert_eq!(code, 0, "stdout:\n{out}\nstderr:\n{err}");
     assert!(err.is_empty(), "stderr:\n{err}");
     assert!(
-        out.contains("event: TimingSeekCompleted { position: Timestamp(266667), \
-             seek_kind: Command }"),
+        out.contains(
+            "event: TimingSeekCompleted { position: Timestamp(266667), \
+             seek_kind: Command }"
+        ),
         "{out}"
     );
     assert!(out.contains("ok: time 0.266666s (13.3%)"), "{out}");

@@ -76,21 +76,15 @@ fn opened() -> CliHost {
 
 /// One `playback.seek` through the wire.
 fn seek(host: &mut CliHost, request_id: u64, target: SeekTarget) {
-    dispatch(
-        host,
-        request_id,
-        Command::PlaybackSeek { target },
-    );
+    dispatch(host, request_id, Command::PlaybackSeek { target });
 }
 
 /// The position payload of the first seek terminal in `host`'s event
 /// stream (the landing truth — `timing.seek-completed`, doc 05 §3.2).
 fn seek_completed_position(host: &CliHost) -> Option<Timestamp> {
-    host.events().iter().find_map(|event| {
-        match event.kind {
-            EventKind::TimingSeekCompleted { position, .. } => Some(position),
-            _ => None,
-        }
+    host.events().iter().find_map(|event| match event.kind {
+        EventKind::TimingSeekCompleted { position, .. } => Some(position),
+        _ => None,
     })
 }
 
@@ -151,20 +145,14 @@ fn native_seek_keeps_the_epoch_and_closes_the_accounting() {
     let mut host = opened();
     let session_before = host.session_id();
     let generation_before = host.generation();
-    seek(
-        &mut host,
-        2,
-        SeekTarget::Percent { fraction: 0.5 },
-    );
+    seek(&mut host, 2, SeekTarget::Percent { fraction: 0.5 });
 
     // Class-A truth: the SAME session answers under a minted
     // generation (the reopen composition answered session=2).
     assert_eq!(host.session_id(), session_before, "the epoch survives");
     assert_eq!(
         host.generation(),
-        generation_before.map(|generation| commands::envelope::Generation(
-            generation.0 + 1
-        )),
+        generation_before.map(|generation| commands::envelope::Generation(generation.0 + 1)),
         "the seek mints at accept"
     );
     // The landing truth: the terminal's actual position, the clock at
@@ -247,11 +235,7 @@ fn paused_seek_completes_and_resumes_from_the_landing() {
     let mut host = opened();
     dispatch(&mut host, 2, Command::PlaybackPause);
     assert_eq!(host.state(), PlaybackState::Paused);
-    seek(
-        &mut host,
-        3,
-        SeekTarget::Percent { fraction: 0.5 },
-    );
+    seek(&mut host, 3, SeekTarget::Percent { fraction: 0.5 });
     // The carve-out: still paused, but the landing truth arrived.
     assert_eq!(host.state(), PlaybackState::Paused);
     assert_eq!(
@@ -404,12 +388,18 @@ fn rapid_repeated_seeks_compose_in_pipeline() {
         seek(
             &mut host,
             index as u64 + 2,
-            SeekTarget::Percent { fraction: *fraction },
+            SeekTarget::Percent {
+                fraction: *fraction,
+            },
         );
     }
 
     // The epoch survived the whole storm (the C8 counter-proof).
-    assert_eq!(host.session_id(), session_before, "one session for five seeks");
+    assert_eq!(
+        host.session_id(),
+        session_before,
+        "one session for five seeks"
+    );
     assert_eq!(teardown_edges(&host), 0, "{:?}", host.state_history());
     assert_eq!(open_edges(&host), 1, "{:?}", host.state_history());
     assert_eq!(host.state(), PlaybackState::Playing);
@@ -417,9 +407,8 @@ fn rapid_repeated_seeks_compose_in_pipeline() {
     // Every seek minted at accept: generation = before + five.
     assert_eq!(
         host.generation(),
-        generation_before.map(|generation| commands::envelope::Generation(
-            generation.0 + targets.len() as u64
-        )),
+        generation_before
+            .map(|generation| commands::envelope::Generation(generation.0 + targets.len() as u64)),
         "each seek mints its own generation"
     );
 
