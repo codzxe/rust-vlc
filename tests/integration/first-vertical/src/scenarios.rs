@@ -907,10 +907,12 @@ pub fn scenario_corrupt_truncated_open() -> ScenarioRun {
 /// presents through the sinks, the cut chunk's readable prefix is
 /// delivered as a final (concealed) frame, and the session ends
 /// CLEANLY — `Playing → Ended` with a wire `playback.end-of-media`
-/// and zero `playback.error` events. The loss is accounted at the
-/// demuxer (damage notes), never fatal end-to-end (D-3/D-9). The
-/// 2.B2-era contract (Buffering → Error + one playback.error naming
-/// the truncation) is superseded.
+/// and exactly ONE `playback.error`: the coalesced NON-FATAL damage
+/// accounting ("the engine recovered N damaged unit(s) while
+/// resynchronizing"). The loss is counted at the demuxer (ED-FIX-3)
+/// and surfaced wire-visible by the event policy (3.B4), never fatal
+/// end-to-end (D-3/D-9). The 2.B2-era contract (Buffering → Error +
+/// a fatal truncation error) is superseded.
 pub fn scenario_corrupt_truncated_midplay() -> ScenarioRun {
     let source = match class_b_source(TRUNCATED_MIDPLAY) {
         Ok(source) => source,
@@ -958,10 +960,17 @@ pub fn scenario_corrupt_truncated_midplay() -> ScenarioRun {
         .filter(|(kind, _)| kind == "playback.end-of-media")
         .collect();
     checks.push(Check::int(
-        "zero playback.error events (the truncation is contained, not fatal)",
+        "exactly one playback.error event (the coalesced damage accounting)",
         error_events.len() as i64,
-        0,
+        1,
     ));
+    if let Some((_, message)) = error_events.first() {
+        checks.push(Check::is(
+            "the error event is the NON-FATAL damage accounting (ED-FIX-3 counts, 3.B4 coalesces)",
+            message.contains("recovered") && message.contains("damaged"),
+            &format!("message {message:?} is not the coalesced damage accounting"),
+        ));
+    }
     checks.push(Check::int(
         "exactly one playback.end-of-media event is delivered",
         end_events.len() as i64,
