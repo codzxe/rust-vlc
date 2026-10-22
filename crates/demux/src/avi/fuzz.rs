@@ -230,4 +230,94 @@ mod tests {
         // And the unpatched core itself.
         fuzz_demux_avi(&core);
     }
+
+    #[test]
+    fn scrambled_extensible_audio_headers_survive() {
+        // A well-formed AVI whose audio strf is the 40-byte
+        // WAVEFORMATEXTENSIBLE ffmpeg writes (the pcm stream-recognition
+        // follow-up's new header path), scrambled at increasing
+        // severity — every mutation of the tag/GUID/width fields must
+        // stay inside the typed skip/truncate vocabulary, never a
+        // panic (D-3 dirty-world on the new parse surface).
+        let strf: Vec<u8> = {
+            let mut v = Vec::new();
+            v.extend_from_slice(&0xFFFEu16.to_le_bytes()); // extensible
+            v.extend_from_slice(&8u16.to_le_bytes()); // channels
+            v.extend_from_slice(&11_025u32.to_le_bytes()); // rate
+            v.extend_from_slice(&264_600u32.to_le_bytes()); // avg bytes
+            v.extend_from_slice(&24u16.to_le_bytes()); // block align
+            v.extend_from_slice(&24u16.to_le_bytes()); // bits
+            v.extend_from_slice(&22u16.to_le_bytes()); // cbSize
+            v.extend_from_slice(&24u16.to_le_bytes()); // valid bits
+            v.extend_from_slice(&0x63fu32.to_le_bytes()); // channel mask
+            v.extend_from_slice(&[
+                0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38,
+                0x9b, 0x71,
+            ]);
+            v
+        };
+        let prefix: Vec<u8> = {
+            let mut b = Vec::new();
+            b.extend_from_slice(b"RIFF");
+            b.extend_from_slice(&0u32.to_le_bytes());
+            b.extend_from_slice(b"AVI ");
+            b.extend_from_slice(b"LIST");
+            let hdrl_size_pos = b.len();
+            b.extend_from_slice(&0u32.to_le_bytes());
+            b.extend_from_slice(b"hdrl");
+            b.extend_from_slice(b"avih");
+            b.extend_from_slice(&56u32.to_le_bytes());
+            b.extend_from_slice(&[0u8; 56]);
+            b.extend_from_slice(b"LIST");
+            let strl_size_pos = b.len();
+            b.extend_from_slice(&0u32.to_le_bytes());
+            b.extend_from_slice(b"strl");
+            b.extend_from_slice(b"strh");
+            b.extend_from_slice(&56u32.to_le_bytes());
+            let mut strh = vec![0u8; 56];
+            strh[0..4].copy_from_slice(b"auds");
+            strh[20..24].copy_from_slice(&1u32.to_le_bytes()); // scale
+            strh[24..28].copy_from_slice(&11_025u32.to_le_bytes()); // rate
+            strh[32..36].copy_from_slice(&200u32.to_le_bytes()); // length
+            strh[44..48].copy_from_slice(&24u32.to_le_bytes()); // sample size
+            b.extend_from_slice(&strh);
+            b.extend_from_slice(b"strf");
+            b.extend_from_slice(&(strf.len() as u32).to_le_bytes());
+            b.extend_from_slice(&strf);
+            let strl_size = b.len() - strl_size_pos - 4;
+            b[strl_size_pos..strl_size_pos + 4].copy_from_slice(&(strl_size as u32).to_le_bytes());
+            let hdrl_size = b.len() - hdrl_size_pos - 4;
+            b[hdrl_size_pos..hdrl_size_pos + 4].copy_from_slice(&(hdrl_size as u32).to_le_bytes());
+            b.extend_from_slice(b"LIST");
+            b.extend_from_slice(&4u32.to_le_bytes());
+            b.extend_from_slice(b"movi");
+            b.extend_from_slice(b"00wb");
+            b.extend_from_slice(&48u32.to_le_bytes());
+            b.extend_from_slice(&[0x55; 48]);
+            let riff = b.len() - 8;
+            b[4..8].copy_from_slice(&(riff as u32).to_le_bytes());
+            b
+        };
+        // The clean file first: it must fully walk (sanity for the
+        // fixture itself, exercised in detail by the unit suite).
+        fuzz_demux_avi(&prefix);
+        for flips in 0..64u32 {
+            let mut data = prefix.clone();
+            let mut rng = Scrambler(0xD1B5_4A32_E743_1C59 ^ u64::from(flips));
+            for _ in 0..flips {
+                rng.flip_byte(&mut data);
+            }
+            fuzz_demux_avi(&data);
+        }
+        // Truncations inside the strf region (its payload spans
+        // [172, 212) in this layout: cuts after 10 bytes, inside the
+        // 16-byte prefix, inside the GUID, and past the whole strf):
+        // every cut is a typed truncation or a contained skip, never
+        // a panic.
+        for cut_at in [160usize, 178, 182, 190, 198, 202, 206, 214] {
+            let mut data = prefix.clone();
+            data.truncate(cut_at);
+            fuzz_demux_avi(&data);
+        }
+    }
 }

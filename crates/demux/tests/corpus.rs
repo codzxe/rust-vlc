@@ -311,3 +311,178 @@ fn corpus_avi_walk_records_every_file() {
         cases.len()
     );
 }
+
+/// One manifest entry (the fields the audio matrix needs).
+struct ManifestEntry {
+    rel: String,
+    /// The record class (kept for the results TSV's future columns;
+    /// the parser only emits `avi-av` records).
+    #[allow(dead_code)]
+    class: String,
+    audio_codec: String,
+}
+
+/// Parse the corpus manifest's clean avi-av entries (files are picked
+/// by parameters, not names — the corpus is regenerated with fresh
+/// random seeds, so name-pinning would rot).
+fn parse_manifest_clean_avi_av(text: &str) -> Vec<ManifestEntry> {
+    // A tiny std-only JSON field scan (the manifest is flat
+    // ffmpeg-authored records; the harness owns full parsing). The
+    // record-level `class` ("avi-av") must not be confused with the
+    // nested `params.class` ("av") — fields are attributed by the
+    // `params` object's brace extent.
+    let mut out = Vec::new();
+    let mut rel = String::new();
+    let mut class = String::new();
+    let mut audio_codec = String::new();
+    let mut in_params = false;
+    for line in text.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("\"params\":") {
+            in_params = true;
+        } else if in_params && trimmed.starts_with('}') {
+            in_params = false;
+        } else if trimmed.starts_with('}') {
+            // Record close: a file entry (only `files` entries carry
+            // `rel`; `rejected_draws` entries do not).
+            if !rel.is_empty() && class == "avi-av" {
+                out.push(ManifestEntry {
+                    rel: rel.clone(),
+                    class: class.clone(),
+                    audio_codec: audio_codec.clone(),
+                });
+            }
+            rel.clear();
+            class.clear();
+            audio_codec.clear();
+        } else if in_params {
+            if let Some(rest) = trimmed.strip_prefix("\"audio_codec\":") {
+                audio_codec = unquote(rest);
+            }
+        } else if let Some(rest) = trimmed.strip_prefix("\"rel\":") {
+            rel = unquote(rest);
+        } else if let Some(rest) = trimmed.strip_prefix("\"class\":") {
+            class = unquote(rest);
+        }
+    }
+    out
+}
+
+/// The first double-quoted value of a `: "value",` remainder.
+fn unquote(rest: &str) -> String {
+    let rest = rest.trim_start();
+    let Some(start) = rest.find('"') else {
+        return String::new();
+    };
+    let tail = &rest[start + 1..];
+    match tail.find('"') {
+        Some(end) => tail[..end].to_string(),
+        None => String::new(),
+    }
+}
+
+/// The env-gated PCM recognition matrix (W1-02): every **clean** avi-av
+/// file in the corpus must demux an audio track and deliver at least
+/// one audio packet — grouped by the manifest's audio codec, with
+/// per-group packet totals recorded to the results TSV. The oracle
+/// comparison (ffprobe's exact packet counts) stays with the harness
+/// aggregator; this suite pins the recognition contract that was the
+/// registered follow-up's root cause.
+#[test]
+#[ignore = "randomized-corpus harness: run via tools/corpus/run_harness.py (audio matrix)"]
+fn corpus_avi_audio_matrix_recognizes_every_pcm_format() {
+    let (Some(corpus), Some(results_path)) = (
+        std::env::var("LUMEN_CORPUS").ok(),
+        std::env::var("LUMEN_CORPUS_RESULTS").ok(),
+    ) else {
+        eprintln!("corpus: LUMEN_CORPUS env pair not set — no-op");
+        return;
+    };
+    let corpus = PathBuf::from(corpus);
+    let manifest = std::fs::read_to_string(corpus.join("manifest.json")).must();
+    let entries = parse_manifest_clean_avi_av(&manifest);
+    assert!(
+        !entries.is_empty(),
+        "corpus manifest has no clean avi-av entries"
+    );
+    let mut out = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&results_path)
+        .must();
+    writeln!(
+        out,
+        "audio_codec\tfiles\tfiles_with_audio_track\tfiles_with_audio_packets\taudio_packets_total"
+    )
+    .must();
+    // Group by audio codec, preserving first-seen order.
+    let mut codecs: Vec<String> = Vec::new();
+    let mut per: Vec<(usize, usize, u64)> = Vec::new();
+    for entry in &entries {
+        let index = match codecs.iter().position(|c| *c == entry.audio_codec) {
+            Some(index) => index,
+            None => {
+                codecs.push(entry.audio_codec.clone());
+                per.push((0, 0, 0));
+                codecs.len() - 1
+            }
+        };
+        let path = corpus.join(&entry.rel);
+        assert!(path.is_file(), "corpus file missing: {path:?}");
+        let (terminal, tracks, _v, a_pkts, _vb, _ab, _rec, _dmg, _fp, _lp, err, _us) =
+            walk_one(&path);
+        let has_audio_track = walk_audio_track(&path);
+        if has_audio_track {
+            per[index].0 += 1;
+        }
+        if a_pkts > 0 {
+            per[index].1 += 1;
+        }
+        per[index].2 += a_pkts;
+        if !has_audio_track || a_pkts == 0 || terminal != "eos" {
+            eprintln!(
+                "audio-matrix MISS: {} ({}) terminal={terminal} tracks={tracks} a_pkts={a_pkts} err={err}",
+                entry.rel, entry.audio_codec
+            );
+        }
+    }
+    for (index, codec) in codecs.iter().enumerate() {
+        let files = entries.iter().filter(|e| &e.audio_codec == codec).count();
+        let (tracks, packets, total) = per[index];
+        writeln!(out, "{codec}\t{files}\t{tracks}\t{packets}\t{total}").must();
+        eprintln!(
+            "corpus(audio-matrix): {codec}: {tracks}/{files} with audio track, {packets}/{files} with packets, {total} packets"
+        );
+    }
+    // The recognition contract: every clean avi-av file yields an
+    // audio track and at least one audio packet (the demuxer-side AC
+    // of the pcm stream-recognition follow-up).
+    for (index, codec) in codecs.iter().enumerate() {
+        let files = entries.iter().filter(|e| &e.audio_codec == codec).count();
+        assert_eq!(
+            per[index].0, files,
+            "{codec}: every clean avi-av file must expose an audio track"
+        );
+        assert_eq!(
+            per[index].1, files,
+            "{codec}: every clean avi-av file must deliver audio packets"
+        );
+    }
+}
+
+/// Whether the file's `start()` track table carries an Audio track
+/// (recognition, independent of the walk).
+fn walk_audio_track(path: &Path) -> bool {
+    let Ok(stream) = open_via_input(path) else {
+        return false;
+    };
+    let Ok(mut dem) = AviDemuxer::new(stream) else {
+        return false;
+    };
+    match dem.start() {
+        Ok(tracks) => tracks
+            .iter()
+            .any(|t| matches!(t.kind, media_types::MediaKind::Audio)),
+        Err(_) => false,
+    }
+}
