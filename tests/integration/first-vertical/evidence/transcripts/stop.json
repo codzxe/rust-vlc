@@ -137,7 +137,7 @@
       "session": 1,
       "gen": 0,
       "kind": "media.info-ready",
-      "seekable": false,
+      "seekable": true,
       "is_live": false,
       "duration_us": 2000000,
       "tracks": 2

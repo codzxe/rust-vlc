@@ -19,15 +19,17 @@
 //!    documented decoder-config seam for 2.B4/2.B5) BEFORE the demuxer
 //!    moves into the engine. The engine's own `start()` call then
 //!    returns the cached tracks (the demuxer's idempotent re-start).
-//! 5. `--start-time` / seek landing: the demuxer's `seek` is a **pure
-//!    query** by contract (it does not move the read position — the
-//!    engine owns acting on it). The engine-level seek input is card
-//!    3.A1, so the CLI composes position jumps itself: the query
-//!    validates the target against the seek table, and
-//!    [`AviHostDemuxer`] drops packets that predate the target as the
-//!    (linear, bounded-by-file) rewalk proceeds. `[PROPOSAL: the
-//!    reopen-at-target composition is the CLI's 2.D2 shape; real
-//!    in-session cursor seeks are 3.A1]`
+//! 5. `--start-time`: the demuxer's `seek` is a **pure query** by
+//!    contract (it does not move the read position — the engine owns
+//!    acting on it) and [`AviHostDemuxer`] drops packets that
+//!    predate the target as the (linear, bounded-by-file) rewalk
+//!    proceeds. In-session position jumps are the engine's native
+//!    seek flow (card 3.A1, wired by W1-06): the wrapper forwards
+//!    [`Demuxer::reanchor`] — the trait's compute-then-commit
+//!    positioning hook — and clears the skip watermark at the
+//!    landing (the seek's own landing is the new truth; the
+//!    open-time filter would otherwise starve a backward seek below
+//!    the start time).
 //!
 //! # EngineError → CommandError
 //!
@@ -45,7 +47,7 @@ use media_types::ids::SourceUri;
 use media_types::time::{Stamp, TimeBase, TimeSpan, Timestamp};
 use media_types::{EngineError, MediaKind, Track, TrackId};
 use playback_engine::{wire_error_code, wire_stage};
-use plugin_api::{Access, DemuxEvent, Demuxer};
+use plugin_api::{Access, DemuxEvent, Demuxer, SeekSupport};
 
 /// Bridge one engine error into the command layer's redaction-safe
 /// form (the single conversion point; stages/codes via
@@ -416,6 +418,30 @@ impl Demuxer for AviHostDemuxer {
 
     fn seek(&mut self, target: TimeSpan) -> Result<TimeSpan, EngineError> {
         self.inner.seek(target)
+    }
+
+    fn seekability(&self) -> SeekSupport {
+        // The engine's seek-flow step 1 asks the demuxer (doc 03 §6):
+        // the wrapper adds no capability the inner AVI demuxer does
+        // not have (idx1 → `Fast { indexed }`, no index → the bounded
+        // slow scan, broken → the honest `None`). The trait default
+        // would answer `None` and refuse every native seek typed —
+        // forwarded, not invented.
+        self.inner.seekability()
+    }
+
+    fn reanchor(&mut self, target: TimeSpan) -> Result<TimeSpan, EngineError> {
+        // Doc 03 §6 step 4 through the wrapper: the inner demuxer's
+        // compute-then-commit `reanchor` (contract D4 — a failure
+        // leaves it at its pre-seek position). The open-time skip
+        // watermark dies here: the landing is the new position
+        // truth, and a `--start-time` filter left standing would
+        // drop every packet of a backward seek below the start time
+        // (the pre-roll would starve and the media would end at the
+        // landing — honest-looking, wrong).
+        let landed = self.inner.reanchor(target)?;
+        self.skip_until_ns = None;
+        Ok(landed)
     }
 }
 

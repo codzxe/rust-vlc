@@ -141,13 +141,18 @@ fn whole_media_runs_are_deterministic() {
     assert_eq!(first.3, second.3, "final frames (PNG bytes)");
 }
 
-/// The seek composition at the accounting level: a 50% reopen drops
-/// the pre-target packets (30+30 of 60+60) and still ends exactly at
-/// the duration.
+/// The native seek at the accounting level (C8/ED-FIX-4): a 50%
+/// in-pipeline seek keeps the session epoch and still ends exactly
+/// at the duration. The counters prove the pipeline was NOT rebuilt:
+/// the pre-seek decode-ahead deliveries stay counted (a reopen would
+/// have answered exactly the landing's 60), the pre-seek scheduler
+/// window purges wholesale as stale at the first post-seek tick, and
+/// the presentation queue carries the seek's mint.
 #[test]
-fn seek_reopen_accounting_closes() {
+fn native_seek_accounting_closes() {
     let mut host = CliHost::new();
     dispatch_open(&mut host, parent());
+    let session_before = host.session_id();
     let response = lumen_dispatch(
         &mut host,
         &WireRequest {
@@ -169,9 +174,26 @@ fn seek_reopen_accounting_closes() {
         "position: {}",
         host.position_us()
     );
+    // The epoch survived the seek (the reopen composition minted a
+    // second session here).
+    assert_eq!(host.session_id(), session_before);
     let accounting = host.headless_accounting().must();
-    // Half the media: 30 video frames + 30 audio packets.
-    assert_eq!(accounting.frames_accepted, 60, "{accounting:?}");
-    assert_eq!(accounting.scheduler_pushed, 30, "{accounting:?}");
+    // The decode accounting: the settle pumps' decode-ahead (94
+    // deliveries — the decode stage runs ahead of the clock by
+    // design) PLUS the landing's own half (30 video + 30 audio). A
+    // stop→close→reopen would have answered exactly 60.
+    assert_eq!(accounting.frames_accepted, 154, "{accounting:?}");
+    // The scheduler saw the pre-seek window (16 — the window cap)
+    // plus the landing's 30.
+    assert_eq!(accounting.scheduler_pushed, 46, "{accounting:?}");
+    // The seek-boundary proofs: the pre-seek window purged as stale
+    // at the generation change, the presentation queue's published
+    // generation carrying the seek's mint.
+    assert_eq!(accounting.scheduler_dropped_stale, 16, "{accounting:?}");
+    assert_eq!(accounting.queue_published, 1, "{accounting:?}");
+    // Nothing refused, nothing late: the landing's frames all
+    // scheduled and staged cleanly.
     assert_eq!(accounting.frames_refused, 0, "{accounting:?}");
+    assert_eq!(accounting.video_refused, 0, "{accounting:?}");
+    assert_eq!(accounting.scheduler_dropped_late, 0, "{accounting:?}");
 }
