@@ -641,6 +641,80 @@ fn an_underrun_rebuffers_and_recovery_primes_again() {
     assert_eq!(episodes, 2, "initial + rebuffer episodes");
 }
 
+/// Card 3.B3, design C2: the starvation metrics ride the engine's
+/// stats surface — one applied episode per underrun transition, the
+/// raw pre-debounce low-tick count, the post-debounce signal count,
+/// the ingestion-stall (held-packet) ticks, and the which-cap
+/// full-rejection tally. The tiny 16-packet fixture makes the packets
+/// axis provably the binding one (64 B payloads and 1 ms durations
+/// sit far below their caps).
+#[test]
+fn starvation_metrics_count_the_underrun_episode_in_engine_stats() {
+    let mut fixture = open_stalled_audio(20);
+    poll_until(&mut fixture, |s| s == SessionState::Playing, 10, "priming");
+    poll_until(
+        &mut fixture,
+        |s| s == SessionState::Buffering,
+        200,
+        "underrun",
+    );
+    // Release the stall and refill past the cap so the queue actually
+    // refuses pushes (the full-rejection and held-packet metrics need
+    // a producer faster than the consumer).
+    let mut script = fixture
+        .script
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    for index in 20..120 {
+        script.push_back(DemuxEvent::Packet(packet(TrackId::new(1), index)));
+    }
+    script.push_back(DemuxEvent::EndOfStream);
+    drop(script);
+    *fixture
+        .stall
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner()) = false;
+    poll_until(&mut fixture, |s| s == SessionState::Playing, 200, "reprime");
+    poll_until(&mut fixture, |s| s == SessionState::Ended, 400, "drain");
+
+    let stats = fixture.engine.stats();
+    // Exactly one applied episode and one reported signal: the
+    // stall was sustained (no flapping), and no higher-priority
+    // signal preempted the underrun.
+    assert_eq!(stats.starve_episodes, 1, "one applied underrun episode");
+    assert_eq!(stats.starve_signals, 1, "one post-debounce starve signal");
+    assert_eq!(
+        stats.starve_signals, stats.starve_episodes,
+        "signal and episode agree when nothing preempts"
+    );
+    // The raw count saw the low line (pre-debounce; ≥ the applied
+    // count is the invariant, equality is this scenario's shape).
+    assert!(
+        stats.starved_ticks >= stats.starve_episodes,
+        "raw low ticks ({}) ≥ applied episodes ({})",
+        stats.starved_ticks,
+        stats.starve_episodes
+    );
+    // The fill raced the consumer: the 16-packet cap refused pushes
+    // (packets axis — the binding-cap diagnostic) and the held packet
+    // waited for queue space (the ingestion-stall metric).
+    assert!(
+        stats.full_rejections_packets > 0,
+        "the packet cap refused pushes during the fills: {}",
+        stats.full_rejections_packets
+    );
+    assert_eq!(
+        (stats.full_rejections_bytes, stats.full_rejections_duration),
+        (0, 0),
+        "64 B payloads and 1 ms durations never bind their caps"
+    );
+    assert!(
+        stats.pending_hold_ticks > 0,
+        "the held packet waited across ticks: {}",
+        stats.pending_hold_ticks
+    );
+}
+
 #[test]
 fn short_media_starts_with_what_exists_and_drains_to_ended() {
     // 3 packets then eof: below the 12-packet high watermark, so the

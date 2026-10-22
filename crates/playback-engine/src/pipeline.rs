@@ -608,8 +608,10 @@ fn concealment_budget_exhausted(failures: u32, last: EngineError) -> EngineError
 /// Pipeline-side starvation observability (card 3.B3, design C2 —
 /// the engine-owned half; the wire-visible surface stays the 3.B4
 /// vocabulary: `session.state-changed` + `session.buffering`). The
-/// session-side merge into `EngineStats` is a one-field fold off
-/// [`Pipeline::starvation_counters`] (W2-11's session surface).
+/// session folds these into [`EngineStats`](crate::EngineStats)
+/// through `Session::absorb_pipeline_starvation` (the one-field
+/// snapshot at the tick boundary and at every pipeline-retiring
+/// effect).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(crate) struct StarvationCounters {
     /// Ticks in `Playing` where any limb observed the low watermark,
@@ -1286,11 +1288,10 @@ impl Pipeline {
     }
 
     /// The lifetime starvation counters (card 3.B3, design C2) — a
-    /// snapshot for the session's stats surface and for the
-    /// engine-level property tests. The `EngineStats` merge is
-    /// session-surface work (W2-11's file); until that one-field fold
-    /// lands this accessor is the documented hand-off point.
-    #[cfg_attr(not(test), allow(dead_code))] // W2-11: fold into EngineStats
+    /// snapshot for the session's stats surface
+    /// ([`EngineStats`](crate::EngineStats), through
+    /// `Session::absorb_pipeline_starvation`) and for the
+    /// engine-level property tests.
     pub(crate) fn starvation_counters(&self) -> StarvationCounters {
         self.starvation
     }

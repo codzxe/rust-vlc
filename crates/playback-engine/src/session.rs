@@ -56,7 +56,8 @@ use crate::error::{SessionConfigError, SessionError};
 use crate::event::{EngineEvent, EngineEventKind, media_info_wire};
 use crate::events::{DamageCoalescer, DrainStaleness, EventPolicy, ProgressWindow, TimeTickPolicy};
 use crate::pipeline::{
-    DecoderProvider, FrameConsumer, Pipeline, QueuePlan, SeekPreroll, TickBudget, TickReport,
+    DecoderProvider, FrameConsumer, Pipeline, QueuePlan, SeekPreroll, StarvationCounters,
+    TickBudget, TickReport,
 };
 use crate::seek::{
     InFlightSeek, ResolvedSeek, SeekTarget, complete_seek, nanos_i64, not_seekable, pipeline_seek,
@@ -664,6 +665,34 @@ pub struct EngineStats {
     /// Demuxer-marked discontinuities observed (the re-anchor policy
     /// is Phase 3, card 3.B1; the count is the observable fact).
     pub demux_discontinuities: u64,
+    /// Starvation episodes actually applied (card 3.B3, design C2):
+    /// `Playing → Buffering` underrun transitions, counted in the
+    /// applied-transition path — debounce-filtered by construction
+    /// (a flapping dip that never clears the debounce window is a
+    /// `starved_ticks`/`starve_signals` fact, never an episode).
+    pub starve_episodes: u64,
+    /// Ticks any limb observed the low watermark, **pre-debounce** —
+    /// the honest raw rate of near-empty queues (card 3.B3, design
+    /// C2).
+    pub starved_ticks: u64,
+    /// Starve signals the pipeline reported post-debounce
+    /// (`TickReport.starved`) — the pipeline-side upper bound on
+    /// applied episodes; a higher-priority signal (fatal, drained,
+    /// eof) can preempt one, so `starve_episodes ≤ starve_signals`.
+    pub starve_signals: u64,
+    /// Ticks the held packet waited before re-offer — the
+    /// ingestion-stall metric (a full queue is parking the demuxer;
+    /// card 3.B3, design C2).
+    pub pending_hold_ticks: u64,
+    /// Queue full-rejections on the packets axis — "the packet cap is
+    /// the binding cap" — the which-cap-starves-us diagnostic (card
+    /// 3.B3, design C2).
+    pub full_rejections_packets: u64,
+    /// Full-rejection tally on the bytes axis (the byte cap binds).
+    pub full_rejections_bytes: u64,
+    /// Full-rejection tally on the duration axis (the duration cap
+    /// binds).
+    pub full_rejections_duration: u64,
 }
 
 /// Per-session pipeline observability (merged into [`EngineStats`]).
@@ -677,6 +706,8 @@ pub(crate) struct PipelineTotals {
     stale_frames_dropped: u64,
     demux_discontinuities: u64,
     preroll_frames_discarded: u64,
+    starve_episodes: u64,
+    starvation: StarvationCounters,
 }
 
 impl PipelineTotals {
@@ -694,6 +725,18 @@ impl PipelineTotals {
             .saturating_add(report.discontinuities);
     }
 
+    /// Absorb the live pipeline's lifetime starvation counters
+    /// (card 3.B3, design C2). Assign, not add: the pipeline is the
+    /// single owner of its counters and they are monotonic for its
+    /// lifetime, so the session's snapshot is exactly the pipeline's
+    /// current value; the engine-level `merge` at close then adds
+    /// each session's final snapshot exactly once. `starve_episodes`
+    /// is NOT absorbed here — it counts applied transitions, which
+    /// only the session's own `apply` path observes.
+    fn absorb_starvation(&mut self, counters: &StarvationCounters) {
+        self.starvation = *counters;
+    }
+
     /// Fold another totals snapshot into this one (session close).
     fn merge(&mut self, other: &PipelineTotals) {
         self.frames_delivered = self.frames_delivered.saturating_add(other.frames_delivered);
@@ -707,6 +750,31 @@ impl PipelineTotals {
         self.preroll_frames_discarded = self
             .preroll_frames_discarded
             .saturating_add(other.preroll_frames_discarded);
+        self.starve_episodes = self.starve_episodes.saturating_add(other.starve_episodes);
+        self.starvation.starved_ticks = self
+            .starvation
+            .starved_ticks
+            .saturating_add(other.starvation.starved_ticks);
+        self.starvation.starve_signals = self
+            .starvation
+            .starve_signals
+            .saturating_add(other.starvation.starve_signals);
+        self.starvation.pending_hold_ticks = self
+            .starvation
+            .pending_hold_ticks
+            .saturating_add(other.starvation.pending_hold_ticks);
+        self.starvation.full_rejections_packets = self
+            .starvation
+            .full_rejections_packets
+            .saturating_add(other.starvation.full_rejections_packets);
+        self.starvation.full_rejections_bytes = self
+            .starvation
+            .full_rejections_bytes
+            .saturating_add(other.starvation.full_rejections_bytes);
+        self.starvation.full_rejections_duration = self
+            .starvation
+            .full_rejections_duration
+            .saturating_add(other.starvation.full_rejections_duration);
     }
 
     /// Fold the pre-roll hold's discard count into the totals (M10):
@@ -917,6 +985,13 @@ impl Engine {
             stale_frames_dropped: totals.stale_frames_dropped,
             preroll_frames_discarded: totals.preroll_frames_discarded,
             demux_discontinuities: totals.demux_discontinuities,
+            starve_episodes: totals.starve_episodes,
+            starved_ticks: totals.starvation.starved_ticks,
+            starve_signals: totals.starvation.starve_signals,
+            pending_hold_ticks: totals.starvation.pending_hold_ticks,
+            full_rejections_packets: totals.starvation.full_rejections_packets,
+            full_rejections_bytes: totals.starvation.full_rejections_bytes,
+            full_rejections_duration: totals.starvation.full_rejections_duration,
         }
     }
 
@@ -1273,6 +1348,15 @@ impl Session {
         let row: &'static Transition = apply_input(self.state, input)?;
         let mut outputs = Vec::new();
         let from = self.state;
+        // The applied-episode metric (card 3.B3, design C2): counted
+        // here — on the transition that actually applied, not on raw
+        // low observations — so the debounce filter and any
+        // higher-priority signal are already accounted for. The table
+        // carries exactly one Underrun row (Playing → Buffering), so
+        // every hit is one applied starvation episode.
+        if input == SessionInput::Underrun {
+            self.totals.starve_episodes = self.totals.starve_episodes.saturating_add(1);
+        }
         // Doc 05 §3.2: an immediate `time-tick` on **pause entry** —
         // the position the session freezes at, emitted before the
         // `state-changed → paused` so the tick is the last fact of
@@ -1303,6 +1387,10 @@ impl Session {
                     // mint (the row's BumpPipeline ran first), then
                     // interrupt, then flush+close+drop.
                     self.minter.interrupt();
+                    // The pipeline's lifetime starvation counters
+                    // survive the drop (card 3.B3, design C2 — a close
+                    // from a non-ticking state still carries them).
+                    self.absorb_pipeline_starvation();
                     let generation = self.pair().pipeline.as_queue_generation();
                     if let Some(pipeline) = self.pipeline.as_mut() {
                         pipeline.teardown(generation);
@@ -1334,6 +1422,11 @@ impl Session {
                     }
                 }
                 Effect::TeardownPipeline => {
+                    // The pipeline's lifetime starvation counters
+                    // survive the teardown (card 3.B3, design C2 — the
+                    // session continues in a non-ticking state and
+                    // tick_step will not sample again).
+                    self.absorb_pipeline_starvation();
                     let generation = self.pair().pipeline.as_queue_generation();
                     if let Some(pipeline) = self.pipeline.as_mut() {
                         pipeline.teardown(generation);
@@ -1642,6 +1735,19 @@ impl Session {
         }
     }
 
+    /// Fold the live pipeline's lifetime starvation counters into the
+    /// session totals (card 3.B3, design C2) — called at the tick
+    /// boundary and at every pipeline-retiring effect, so a close from
+    /// a non-ticking state still carries the counters to
+    /// [`Engine::stats`]. A no-op without a live pipeline (the totals
+    /// keep the last snapshot).
+    fn absorb_pipeline_starvation(&mut self) {
+        if let Some(pipeline) = self.pipeline.as_ref() {
+            self.totals
+                .absorb_starvation(&pipeline.starvation_counters());
+        }
+    }
+
     /// The `Opening` step (v0's synchronous open/probe): parse the
     /// container, wire the pipeline, raise `OpenReady` — or raise
     /// `Failed` with the typed cause.
@@ -1714,6 +1820,12 @@ impl Session {
             None => return Vec::new(),
         };
         self.totals.merge_tick(&report);
+        // Card 3.B3, design C2: the pipeline's lifetime starvation
+        // counters ride the session totals (assign — see
+        // `PipelineTotals::absorb_starvation`). Sampled right after the
+        // tick so this tick's signal increments land before the signal
+        // translation below can retire the pipeline.
+        self.absorb_pipeline_starvation();
         let now = self.runtime.throttle.now_ns();
         let mut outputs = Vec::new();
         // Side events first (they are facts about the tick itself).
