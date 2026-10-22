@@ -116,6 +116,18 @@ Project anchors: AGENTS.md §3.5; fixtures corpus with external pinned sources
 (tests/fixtures + corpus plan doc 10 §5); differential-vs-VLC harness (3.E3).
 Fixture provenance must always be recorded (generator-authored vs external).
 
+Adversarial escalation is corpus-backed (user directive, 2026-10-23): every
+new engine surface gets corpus classes whose explicit purpose is breaking
+it. The v3 corpus suite (`tools/corpus/`) ships the escalation vocabulary —
+VFR/timestamp chaos (`vfr-av`), dynamic-resolution switching
+(`dynres-video`), metadata bombs (`meta-bomb-av`), dirty cross-file splices
+(`splice-other` corruption op), and 23 garbage archetypes
+(`GARBAGE_ARCHETYPES` in `tools/corpus/corpus_vocab.py`, builders in
+`tools/corpus/corpus_builders.py`) — and ffmpeg speed parity is a tracked,
+measured metric (`tools/corpus/speed_bench.py`: ffmpeg decode-to-null
+baseline, best-of-N timing, ratio-vs-ffmpeg columns, JSON sidecar), not an
+aspiration.
+
 ---
 
 ## Universal Pre-Submission Audit (mandatory before claiming any card COMPLETE)
@@ -146,12 +158,21 @@ checklist. Verdicts are backed by evidence (file:line, benchmark, test name) —
 
 ---
 
-# Reality-Grounding Layer (D-6..D-10) — issued 2026-10-22, same authority
+# Reality-Grounding Layer (D-6..D-10) — issued 2026-10-22, extended 2026-10-23, same authority
 
-These supplement D-1..D-5 with the "battle-hardened systems engineer" posture.
-Citation handles D-6..D-10.
+These supplement D-1..D-5 with the "battle-hardened systems engineer"
+posture. Citation handles D-6..D-10. The 2026-10-23 user session added five
+directives — functional reality over ritual, no deferring the hardest
+problem, tribal-knowledge capture, hardware-clock realism & binary hot
+paths, and the four-question pre-submission reality check — merged below
+into the thematically-matching sections and marked (2026-10-23).
+Numbering note: that session's working labels "D-8 tribal knowledge" and
+"D-9 clock realism" land under this document's established **D-9** and
+**D-8** handles respectively; those numbers are already cited throughout
+the tree (docs/audits/2026-10-22-directives-audit.md, crate doc-comments)
+and are not renumbered.
 
-## D-6. Functional Reality Over "Looking Plausible"
+## D-6. Functional Reality Over "Looking Plausible" — and Over Ritual
 
 - **No superficial masterpieces.** Never write elegant types, complex trait
   ladders, and comprehensive comments that merely wrap a hollow or naive
@@ -160,41 +181,77 @@ Citation handles D-6..D-10.
 - **Syntactic green ≠ runtime green.** Compiling clean and passing unit tests
   does NOT mean the code works. Evaluate against runtime latency, memory
   bandwidth, cache misses, and CPU cycle consumption.
+- **Shipping ceremony is not capability (2026-10-23).** Status docs,
+  dashboards, and milestone theater never substitute for a working
+  capability. Every card's acceptance is measured end-to-end behavior on
+  real media, not artifact existence. If a ritual artifact stops informing
+  decisions, delete it.
 
-## D-7. Outlaw the "Path of Least Resistance"
+## D-7. No Deferring the Hardest Problem (Outlaw the "Path of Least Resistance")
 
 - **No destructive architectural cheats** (see D-4; restated because it is the
   single most common AI failure): seeking must NEVER destroy the session, drop
   hardware devices, or re-open files from disk. It must seek the byte stream,
   flush queues, and re-anchor clocks in-pipeline.
-- **No deferred implementation debt.** NEVER leave the hardest engineering
-  problem as a `// TODO` or `[PROPOSAL]` while implementing only the easy
-  surrounding scaffolding. Tackle the core algorithmic hurdle first.
+- **No deferred implementation debt — deferral-by-default is a process
+  violation (2026-10-23).** NEVER leave the hardest engineering problem as
+  a `// TODO`, `[PROPOSAL]`, or "follow-up card" while implementing only
+  the easy surrounding scaffolding. None of those may park the single
+  hardest sub-problem of the current card: either solve it in-card, or
+  escalate to the Lead with a concrete blocker — a failing repro, a
+  measured number, exhausted alternatives. Tackle the core algorithmic
+  hurdle first.
 - **No leaking state across transitions** (see D-4): a paused system must
   never blurt audio samples or render frames before the pause takes effect.
 
-## D-8. Hardware & Physical Clock Awareness
+## D-8. Hardware-Clock Realism & Binary Hot Paths
 
-- **Clocks drift.** Never assume hardware timers run synchronously — audio DAC
-  clocks and monitor refresh rates drift apart over time. Always implement
-  drift-compensation loops and master-clock re-anchoring.
+- **Clocks drift — model it, never assume it away.** Never assume hardware
+  timers run synchronously — audio DAC clocks and monitor refresh rates
+  drift apart over time. The clock chain MUST model DAC drift and crystal
+  ppm error, fed by measurement, not hand-waving: the corpus `drift-av`
+  class exists to measure long-duration DAC/clock drift (`DRIFT_DUR_RANGE`
+  45–110 s draws, `tools/corpus/corpus_vocab.py`; builder `build_drift` in
+  `tools/corpus/corpus_builders.py`). Always implement drift-compensation
+  loops and master-clock re-anchoring (project anchor:
+  `crates/media-clock/src/drift.rs`, `DriftCorrection`).
 - **Zero-allocation on hot paths** (see D-1): per-frame, per-tick, and
   real-time audio callback code MUST be zero-allocation with pre-allocated
   pools/arenas.
-- **No heavy serialization on fast streams.** NEVER use JSON or text strings
-  to pass high-frequency data (60 fps frames, timecode ticks) between threads
-  or processes. Use shared memory, raw byte rings, or compact binary
-  protocols.
+- **No heavy serialization on fast streams — FORBIDDEN, not merely
+  discouraged (2026-10-23).** JSON or text serialization on 60 fps hot
+  paths (frame and audio timing streams) is forbidden between threads or
+  processes: binary structs with measured nanosecond budgets only — shared
+  memory, raw byte rings, compact binary protocols. Text formats live in
+  cold paths: config, and telemetry at ≥ 1 s intervals.
 
-## D-9. The Tribal Knowledge Mandate (Dirty Reality > Clean Specs)
+## D-9. The Tribal Knowledge Mandate (Capture It — and Dirty Reality)
 
-Restates and hardens D-3: expect signed integers in unsigned fields (negative
-dimensions), advisory headers that lie (declared durations ≠ data), legacy
-variants (lowercase identifiers, omitted optional chunks). Always implement
-graceful degradation and damage recovery rather than aborting on the first
-non-standard byte.
+- **Capture hard-won knowledge or lose it (2026-10-23).** Any debugging
+  insight that took more than ~30 minutes to find MUST land in a `docs/`
+  file within the same card: root cause, repro recipe, prevention.
+  Undocumented hard-won knowledge is lost knowledge; the next agent pays
+  the cost again.
+- **Dirty reality > clean specs (restates and hardens D-3).** Expect
+  signed integers in unsigned fields (negative dimensions), advisory
+  headers that lie (declared durations ≠ data), legacy variants
+  (lowercase identifiers, omitted optional chunks). Always implement
+  graceful degradation and damage recovery rather than aborting on the
+  first non-standard byte.
 
-## D-10. The Pre-Commit Reality Check (mandatory, per card, in addition to the D-0..D-5 checklist)
+## D-10. The Pre-Submission Reality Check (mandatory, per card, in addition to the D-0..D-5 checklist)
+
+**Four questions, answered in every final report before merge** (user
+directive, 2026-10-23). A report without all four answers is not accepted:
+
+- **What did I MEASURE?** — numbers and commands, not adjectives.
+- **What did I NOT test?** — the honest gaps, named.
+- **What would break this?** — adversarial input, load, ordering.
+- **Who hits this first?** — the user scenario that meets the flaw before
+  anyone else does.
+
+The code-facing form of the same check (2026-10-22 issuance; numbering
+preserved — cited in-tree as D-10 q1..q4, e.g. crates/codecs/tests/benches.rs):
 
 1. Did I take any shortcut that tears down and rebuilds state instead of
    handling it in-pipeline?
