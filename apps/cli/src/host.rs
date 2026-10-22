@@ -697,6 +697,11 @@ impl CliHost {
             Arc::clone(&consumer) as Arc<dyn playback_engine::FrameConsumer>,
             Arc::clone(&clock),
         );
+        // Card 3.C2 (defect G1): the probe's container truth rides the
+        // config so the engine's `NoDecodableTrack` failure can name
+        // the format (the `--no-video --no-audio` all-disabled path is
+        // the reachable production case).
+        config.container = Some(facts.container.clone());
         if let Some(source) = self.event_throttle.clone() {
             config.throttle = playback_engine::EventPolicy {
                 tick: playback_engine::TimeTickPolicy::default_policy(),
