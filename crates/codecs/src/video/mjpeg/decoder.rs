@@ -24,7 +24,7 @@
 //! frame concealment, damage events, bounded failure budget) instead
 //! of tearing the session down (audit M9 / ED-FIX-4).
 //!
-//! # Decode context (ED-FIX-1, audit C4)
+//! # Decode context (ED-FIX-1, audit C4; W2-06 hardening)
 //!
 //! Each frame still decodes **independently** (MJPEG is one complete
 //! JPEG per packet — there is no inter-frame codec state), but the
@@ -34,6 +34,12 @@
 //! per frame ≈ 190 MB/s allocation churn at 1080p60, all of it pure
 //! waste under D-1):
 //!
+//! - the **marker walk itself** reuses a persistent `JpegInfo` scratch
+//!   (`parser::parse_into`): the component list, the scan list and the
+//!   HUFFVAL storage are cleared and refilled in place, so the
+//!   per-frame header parse allocates nothing either (W2-06 — the
+//!   walk used to build two fresh metadata `Vec`s plus one `to_vec`
+//!   per DHT table, every frame);
 //! - the padded per-component planes are reallocated **only when the
 //!   MCU geometry changes** (sampling factors × MCU grid × frame
 //!   size). Reuse without clearing is safe and bit-exact because the
@@ -43,8 +49,12 @@
 //!   [`Plane::write_block`], the concealed tail by
 //!   [`Plane::gray_blocks`];
 //! - the Huffman decoders (with their 8-bit look-ahead LUTs) are
-//!   rebuilt **only when the DHT payload changes** (raw BITS/HUFFVAL
-//!   compared per frame — a few hundred bytes);
+//!   rebuilt **only when the DHT payload changes**, detected by an
+//!   **allocation-free structural compare** of the raw BITS/HUFFVAL
+//!   against the last-built key ([`DhtKey::matches`]; the key and its
+//!   payload snapshot happen only on an actual change — W2-06: the
+//!   pre-hardening path cloned the whole DHT payload every frame just
+//!   to run the comparison, contradicting the count below);
 //! - the per-component cursors, and the output assembly buffer, are
 //!   capacity-reused the same way;
 //! - I420 output is assembled **in place**: each plane's valid region
@@ -53,10 +63,18 @@
 //!   second copy (the pre-FIX-1 path built one temp `Vec` per plane
 //!   and copied every byte twice).
 //!
-//! Per frame the contract path allocates exactly **one** buffer — the
-//! frame's own output bytes handed to the sink (the ownership
+//! Steady state therefore allocates exactly **one** buffer per frame
+//! — the frame's own output bytes handed to the sink (the ownership
 //! transfer the frame contract requires; see
-//! [`DecodeContext::take_output`]). Everything else is reuse.
+//! [`DecodeContext::take_output`]). Everything else is reuse. That
+//! count is **measured, not argued**: the counting-allocator binary
+//! `tests/zero_alloc_decode.rs` runs whole `MjpegDecoder` frames
+//! through the contract path and pins exactly **two** allocation
+//! events per steady-state frame — this output buffer, plus the
+//! `SharedBytes` (`Arc<[u8]>`) block the frame-contract handoff wraps
+//! that buffer in (an ownership header, not frame bytes; collapsing
+//! it needs a pooled-`Arc` flavor in media-types — the registered
+//! Lead-owned follow-up in worklog 3.B3's SharedBytes note).
 
 use super::bitreader::{BitReader, ReaderStop};
 use super::color::{ComponentGeom, PlaneView, RgbComposer};
@@ -209,6 +227,20 @@ struct DhtKey {
 }
 
 impl DhtKey {
+    /// Structural compare against the borrowed DHT payload — the
+    /// per-frame hot path (W2-06). Allocation-free by construction:
+    /// the fixed arrays compare field-wise and the `HUFFVAL` `Vec`s
+    /// compare *contents* through `==` (no clone, no hash, no fresh
+    /// key — the pre-W2-06 `DhtKey::of`-per-frame clone is gone).
+    fn matches(&self, info: &JpegInfo) -> bool {
+        self.present == info.huff_present
+            && self.bits == info.huff_bits
+            && self.vals == info.huff_vals
+    }
+
+    /// Snapshot the DHT payload — taken **only on a table-set
+    /// change** (never on the per-frame compare path), so the clone
+    /// here is a once-per-stream cost, not churn.
     fn of(info: &JpegInfo) -> DhtKey {
         DhtKey {
             present: info.huff_present,
@@ -221,7 +253,7 @@ impl DhtKey {
 /// Reusable decode state across frames (see module docs). Holds no
 /// inter-frame *codec* state — every field is scratch whose contents
 /// are fully rewritten per frame — only the allocations persist.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct DecodeContext {
     /// Padded per-component planes (geometry-keyed reuse).
     planes: Vec<Plane>,
@@ -231,6 +263,10 @@ pub(crate) struct DecodeContext {
     dc_tables: [Option<HuffmanDecoder>; 4],
     ac_tables: [Option<HuffmanDecoder>; 4],
     dht_key: Option<DhtKey>,
+    /// The persistent header scratch: the per-frame marker walk
+    /// (`parser::parse_into`) refills it in place — components, scan
+    /// list and HUFFVAL storage reuse their allocations (D-1, W2-06).
+    headers: JpegInfo,
     /// Per-component decoded-block cursors (concealment fill points).
     cursors: Vec<usize>,
     /// The output assembly buffer (I420 crop / RGBA compose target);
@@ -241,6 +277,23 @@ pub(crate) struct DecodeContext {
     /// reuse tests).
     pub(crate) plane_builds: u32,
     pub(crate) table_builds: u32,
+}
+
+impl Default for DecodeContext {
+    fn default() -> DecodeContext {
+        DecodeContext {
+            planes: Vec::new(),
+            plane_key: None,
+            dc_tables: [const { None }; 4],
+            ac_tables: [const { None }; 4],
+            dht_key: None,
+            headers: JpegInfo::empty(),
+            cursors: Vec::new(),
+            out: Vec::new(),
+            plane_builds: 0,
+            table_builds: 0,
+        }
+    }
 }
 
 impl DecodeContext {
@@ -261,8 +314,25 @@ impl DecodeContext {
     /// # Errors
     /// Typed [`MjpegError`]s, exactly as the stateless path.
     pub(crate) fn decode(&mut self, data: &[u8]) -> Result<DecodedMeta, MjpegError> {
-        let parsed = parser::parse(data)?;
-        let info = &parsed.info;
+        // Park an empty scratch where the persistent header storage
+        // lives, and walk into the real one (D-1): `JpegInfo::empty`
+        // allocates nothing, the moves are pointer-sized struct
+        // shuffles, and the walk refills the persistent Vecs in place.
+        // Splitting the borrow this way lets the scan body below read
+        // `info` freely while the context's planes/tables/output are
+        // mutated through `self`.
+        let mut info = std::mem::replace(&mut self.headers, JpegInfo::empty());
+        let decoded = self.decode_walk(&mut info, data);
+        self.headers = info;
+        decoded
+    }
+
+    /// The decode body behind [`DecodeContext::decode`]: `info` is the
+    /// context's own (persistent) header scratch, walked here and read
+    /// for the rest of the frame.
+    fn decode_walk(&mut self, info: &mut JpegInfo, data: &[u8]) -> Result<DecodedMeta, MjpegError> {
+        parser::parse_into(info, data)?;
+        let info = &*info;
 
         // Component-count semantics: JFIF grayscale (1) or YCbCr (3).
         // 2- and 4-component streams (e.g. Adobe CMYK/YCCK) are outside
@@ -507,10 +577,11 @@ impl DecodeContext {
     }
 
     /// (Re)build the Huffman decoders when the DHT payload changed;
-    /// reuse the built tables (LUTs included) when it did not.
+    /// reuse the built tables (LUTs included) when it did not. The
+    /// per-frame compare ([`DhtKey::matches`]) allocates nothing;
+    /// `DhtKey::of`'s payload snapshot happens only on a change.
     fn prepare_tables(&mut self, info: &JpegInfo) -> Result<(), MjpegError> {
-        let key = DhtKey::of(info);
-        if self.dht_key.as_ref() == Some(&key) {
+        if self.dht_key.as_ref().is_some_and(|key| key.matches(info)) {
             return Ok(());
         }
         for td in 0..4usize {
@@ -539,7 +610,7 @@ impl DecodeContext {
                 None
             };
         }
-        self.dht_key = Some(key);
+        self.dht_key = Some(DhtKey::of(info));
         self.table_builds += 1;
         Ok(())
     }
@@ -1016,6 +1087,89 @@ mod tests {
         // And the stateless path (fresh context per call) agrees with
         // the reused-context outputs — already asserted above via the
         // reference decodes.
+    }
+
+    #[test]
+    fn dht_key_compare_is_content_sensitive_without_rebuilding_steady_state() {
+        // W2-06: the per-frame table check is an allocation-free
+        // structural compare (`DhtKey::matches`). Two streams whose
+        // DC tables share the exact BITS histogram but carry
+        // DIFFERENT HUFFVAL symbols must be treated as different
+        // table sets (a bits-only compare would wrongly reuse), and
+        // repeated frames of the same set must not rebuild.
+        let symbol_zero = tiny_jpeg(16, 16, &[(1, 0x11, 0)], &[0x00]);
+        let symbol_five = tiny_jpeg(16, 16, &[(1, 0x11, 0)], &[0x05]);
+        let reference = [
+            match decode(&symbol_zero) {
+                Ok(image) => image,
+                Err(e) => unreachable!("stateless decode: {e:?}"),
+            },
+            match decode(&symbol_five) {
+                Ok(image) => image,
+                Err(e) => unreachable!("stateless decode: {e:?}"),
+            },
+        ];
+        // Sanity: the different symbol really does decode differently
+        // (DC size 5 vs 0 on an all-zero entropy stream).
+        assert_ne!(reference[0].data, reference[1].data);
+
+        // zero, zero, five, five, zero: build on 1, rebuild on 3,
+        // rebuild on 5 — nothing in between (content compare, not
+        // identity or bits-only).
+        let sequence = [
+            (&symbol_zero, 0usize),
+            (&symbol_zero, 0),
+            (&symbol_five, 1),
+            (&symbol_five, 1),
+            (&symbol_zero, 0),
+        ];
+        let mut ctx = DecodeContext::new();
+        for (jpeg, want) in sequence {
+            let meta = match ctx.decode(jpeg) {
+                Ok(meta) => meta,
+                Err(e) => unreachable!("context decode: {e:?}"),
+            };
+            assert_eq!(ctx.output(), reference[want].data.as_slice());
+            assert_eq!(meta.concealed, reference[want].concealed);
+        }
+        assert_eq!(
+            ctx.table_builds, 3,
+            "rebuild only on payload change (HUFFVAL content included)"
+        );
+    }
+
+    #[test]
+    fn header_error_does_not_poison_the_persistent_scratch() {
+        // W2-06: the marker walk now reuses the context's persistent
+        // `JpegInfo` scratch. A structurally damaged frame errors out
+        // mid-walk (partial scratch state); the very next clean frame
+        // through the same context must be bit-identical to a fresh
+        // decode — the pre-walk reset is a correctness property.
+        let clean = tiny_jpeg(16, 16, &[(1, 0x11, 0)], &[0x00]);
+        let mut damaged = clean.clone();
+        // Cut inside the SOF segment (layout: SOI 2 + DQT 69 + DHT 22
+        // + DHT 22 = 115, SOF runs 115..128): quant + both Huffman
+        // tables are already in the scratch when the walk fails —
+        // real partial state for the reset to clear.
+        damaged.truncate(120);
+        assert!(damaged.len() < clean.len());
+
+        let mut ctx = DecodeContext::new();
+        assert!(
+            ctx.decode(&damaged).is_err(),
+            "mid-header truncation is a typed error"
+        );
+        let meta = match ctx.decode(&clean) {
+            Ok(meta) => meta,
+            Err(e) => unreachable!("clean re-decode: {e:?}"),
+        };
+        assert!(!meta.concealed, "clean frame is clean");
+
+        let fresh = match decode(&clean) {
+            Ok(image) => image,
+            Err(e) => unreachable!("stateless reference: {e:?}"),
+        };
+        assert_eq!(ctx.output(), fresh.data.as_slice());
     }
 
     #[test]

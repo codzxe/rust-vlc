@@ -40,6 +40,7 @@ use codec_api::{DecodeOutcome, Decoder, DecoderConfig, FrameSink};
 use commands::envelope::{Generation, RequestId};
 use commands::{EventKind, SessionId};
 use media_clock::MonotonicSource;
+use media_clock::PlaybackClock;
 use media_types::error::ErrorKind;
 use media_types::frame::{AudioLayout, SampleFormat};
 use media_types::packet::SharedBytes;
@@ -269,30 +270,144 @@ impl Decoder for ReorderDecoder {
     }
 }
 
+/// The delayed decode stage (the slow-prime shape): emits nothing
+/// until `after` packets have been decoded since the last configure
+/// — wire and every seek flush reset the counter, so a post-seek
+/// pre-roll stays open across ticks while the limb primes.
+struct DelayedDecoder {
+    generation: GenerationId,
+    seen: u32,
+    after: u32,
+}
+
+impl Decoder for DelayedDecoder {
+    fn configure(&mut self, config: &DecoderConfig) -> Result<(), EngineError> {
+        self.generation = config.generation;
+        self.seen = 0;
+        Ok(())
+    }
+
+    fn decode(
+        &mut self,
+        packet: Packet,
+        out: &mut dyn FrameSink,
+    ) -> Result<DecodeOutcome, EngineError> {
+        if packet.is_stale(self.generation) {
+            return Ok(DecodeOutcome::NeedMoreInput);
+        }
+        self.seen = self.seen.saturating_add(1);
+        if self.seen <= self.after {
+            return Ok(DecodeOutcome::NeedMoreInput);
+        }
+        out.accept(audio_frame(packet.pts, packet.generation))?;
+        Ok(DecodeOutcome::Emitted { frames: 1 })
+    }
+
+    fn flush(&mut self, _out: &mut dyn FrameSink) -> Result<DecodeOutcome, EngineError> {
+        Ok(DecodeOutcome::Drained)
+    }
+}
+
+/// The damaged pre-roll shape (M10 × M9): packets whose pts is
+/// below `fail_below_ns` fail with the W1-08 per-frame damage class
+/// (a `Corrupt` decode error) — during a seek's pre-roll the damage
+/// is counted but the concealment must NOT present: the hold owns
+/// presentation until the terminal.
+struct FlakyDecoder {
+    generation: GenerationId,
+    fail_below_ns: i64,
+}
+
+impl Decoder for FlakyDecoder {
+    fn configure(&mut self, config: &DecoderConfig) -> Result<(), EngineError> {
+        self.generation = config.generation;
+        Ok(())
+    }
+
+    fn decode(
+        &mut self,
+        packet: Packet,
+        out: &mut dyn FrameSink,
+    ) -> Result<DecodeOutcome, EngineError> {
+        if packet.is_stale(self.generation) {
+            return Ok(DecodeOutcome::NeedMoreInput);
+        }
+        if stamp_ns(&packet.pts).unwrap_or(i64::MAX) < self.fail_below_ns {
+            return Err(EngineError::new(
+                PipelineStage::Decode,
+                ErrorKind::Corrupt {
+                    detail: media_types::error::CorruptDetail::InvalidStructure { offset: None },
+                },
+                media_types::error::ErrorContext::new("fake.damage.preroll"),
+            ));
+        }
+        out.accept(audio_frame(packet.pts, packet.generation))?;
+        Ok(DecodeOutcome::Emitted { frames: 1 })
+    }
+
+    fn flush(&mut self, _out: &mut dyn FrameSink) -> Result<DecodeOutcome, EngineError> {
+        Ok(DecodeOutcome::Drained)
+    }
+}
+
 /// The decoder seam: hands every track the scripted decoder the test
-/// chose.
+/// chose (per track — the mixed-limb fixtures need one limb delayed
+/// and the other immediate to keep a seek's pre-roll open across
+/// ticks).
+#[derive(Clone, Copy)]
 enum ProviderKind {
     Immediate,
     Reorder,
+    /// The slow-prime [`DelayedDecoder`].
+    Delayed {
+        after: u32,
+    },
+    /// The damaged pre-roll [`FlakyDecoder`].
+    Flaky {
+        fail_below_ns: i64,
+    },
 }
 
 struct FakeProvider {
-    kind: ProviderKind,
+    kinds: Vec<ProviderKind>,
+}
+
+impl FakeProvider {
+    /// One scripted decoder kind for every track.
+    fn uniform(kind: ProviderKind, tracks: usize) -> FakeProvider {
+        FakeProvider {
+            kinds: vec![kind; tracks],
+        }
+    }
 }
 
 impl DecoderProvider for FakeProvider {
     fn decoder_for(
         &self,
-        _track: &Track,
+        track: &Track,
         config: &DecoderConfig,
     ) -> Result<Box<dyn Decoder>, EngineError> {
-        Ok(match self.kind {
+        let kind = self
+            .kinds
+            .get((track.id.handle() as usize).saturating_sub(1))
+            .copied()
+            .unwrap_or(ProviderKind::Immediate);
+        Ok(match kind {
             ProviderKind::Immediate => Box::new(FakeDecoder {
                 generation: config.generation,
             }),
             ProviderKind::Reorder => Box::new(ReorderDecoder {
                 generation: config.generation,
                 held: None,
+            }),
+            ProviderKind::Delayed { after } => Box::new(DelayedDecoder {
+                generation: config.generation,
+                seen: 0,
+                after,
+            }),
+            ProviderKind::Flaky { fail_below_ns } => Box::new(FlakyDecoder {
+                generation: config.generation,
+                fail_below_ns,
             }),
         })
     }
@@ -440,6 +555,75 @@ fn open(
     seekable: bool,
     provider: ProviderKind,
 ) -> Fixture {
+    open_kinds(tracks, packets, seekable, |count| {
+        FakeProvider::uniform(provider, count)
+    })
+}
+
+/// The mixed-limb slow-prime fixture (M10): video delayed (`after`
+/// packets before its first post-seek frame), audio immediate — a
+/// seek's pre-roll stays open across ticks with the audio limb's
+/// frames already held, exactly the window the presentation hold
+/// must cover.
+fn open_slow_prime_video(count_each: u64, after: u32) -> Fixture {
+    let mut packets = Vec::new();
+    for step in 0..count_each {
+        packets.push(packet(TrackId::new(1), step as i64 * 2));
+        packets.push(packet(TrackId::new(2), step as i64 * 2 + 1));
+    }
+    let tracks = vec![
+        track(1, MediaKind::Video, Some(count_each as i64 * 2)),
+        track(2, MediaKind::Audio, Some(count_each as i64 * 2)),
+    ];
+    open_kinds(tracks, packets, true, |count| FakeProvider {
+        kinds: (1..=count as u32)
+            .map(|index| {
+                if index == 1 {
+                    ProviderKind::Delayed { after }
+                } else {
+                    ProviderKind::Immediate
+                }
+            })
+            .collect(),
+    })
+}
+
+/// The damaged pre-roll fixture (M10 × M9): video (id 1) flaky below
+/// `fail_below_ms`, audio immediate — a seek into the damaged stretch
+/// counts damage on the video limb while the audio limb's frames
+/// hold, and the concealment must stay off the sink until the
+/// terminal.
+fn open_flaky_video(count_each: u64, fail_below_ms: i64) -> Fixture {
+    let mut packets = Vec::new();
+    for step in 0..count_each {
+        packets.push(packet(TrackId::new(1), step as i64 * 2));
+        packets.push(packet(TrackId::new(2), step as i64 * 2 + 1));
+    }
+    let tracks = vec![
+        track(1, MediaKind::Video, Some(count_each as i64 * 2)),
+        track(2, MediaKind::Audio, Some(count_each as i64 * 2)),
+    ];
+    open_kinds(tracks, packets, true, |count| FakeProvider {
+        kinds: (1..=count as u32)
+            .map(|index| {
+                if index == 1 {
+                    ProviderKind::Flaky {
+                        fail_below_ns: fail_below_ms * MS,
+                    }
+                } else {
+                    ProviderKind::Immediate
+                }
+            })
+            .collect(),
+    })
+}
+
+fn open_kinds(
+    tracks: Vec<Track>,
+    packets: Vec<Packet>,
+    seekable: bool,
+    provider: impl Fn(usize) -> FakeProvider,
+) -> Fixture {
     let media = Arc::new(Mutex::new(Media {
         packets,
         cursor: 0,
@@ -454,6 +638,7 @@ fn open(
         )
         .must(),
     );
+    let provider = provider(tracks.len());
     let mut config = SessionConfig::new(
         SourceUri::parse("file:///tmp/lumen-seek-fake.media").must(),
         Box::new(SeekDemuxer {
@@ -461,7 +646,7 @@ fn open(
             media: Arc::clone(&media),
             seekable,
         }),
-        Arc::new(FakeProvider { kind: provider }),
+        Arc::new(provider),
         Arc::clone(&collector) as Arc<dyn FrameConsumer>,
         clock.clone(),
     );
@@ -1325,4 +1510,368 @@ fn a_stale_handle_cannot_seek_after_close() {
             .seek(RequestId(100), SeekTarget::Absolute { position_ns: 0 }),
         Err(SessionError::SessionClosed)
     ));
+}
+
+// ---------------------------------------------------------------------------
+// The pre-roll presentation hold (M10, doc 03 §6 steps 2–7)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn preroll_frames_are_held_until_the_seek_terminal_then_released_in_pts_order() {
+    // The slow-prime fixture: video (track 1) delivers only after its
+    // 5th post-seek packet, audio (track 2) immediately — so the
+    // pre-roll spans ticks with the audio limb's frames already
+    // decoded while the clock is still frozen at the OLD position.
+    // The observing sink must see ZERO deliveries between the seek's
+    // accept and its terminal (M10), and the release at the terminal
+    // must arrive in pts order across both limbs.
+    let mut fixture = open_slow_prime_video(200, 5);
+    poll_until(&mut fixture, |s| s == SessionState::Playing, 10, "priming");
+    let frames_before = frames_of(&fixture.collector);
+    assert!(frames_before > 0);
+
+    fixture
+        .handle
+        .seek(
+            RequestId(110),
+            SeekTarget::Absolute {
+                position_ns: 100 * MS,
+            },
+        )
+        .must();
+    // Aggressive polling through the pre-roll: every poll is a full
+    // engine tick, and between accept and terminal the collector must
+    // not grow by a single frame (the hold — the M10 invariant).
+    let mut terminal = None;
+    for _ in 0..10 {
+        fixture.engine.poll();
+        let outputs = take_events(&mut fixture);
+        if let Some(term) = seeked_terms(&outputs).first().copied() {
+            terminal = Some(term);
+            break;
+        }
+        assert_eq!(
+            frames_of(&fixture.collector),
+            frames_before,
+            "zero presentations between seek-accept and seek-terminal"
+        );
+    }
+    let term = match terminal {
+        Some(term) => term,
+        None => unreachable!("the slow-prime seek never completed"),
+    };
+    // The first audio frame's own timestamp is the landing truth:
+    // the audio limb delivered its first slice (101..105 ms — the
+    // post-flush discontinuity marker consumes one of the slice's 4
+    // pop slots) while the video limb was still priming.
+    assert_eq!(term, (Generation(1), 100 * MS, 101 * MS));
+    // The release: the held frames arrived with the terminal's tick,
+    // merged across limbs in pts order — the audio block (held on
+    // tick 1: 101, 103, 105 ms) plus the audio frame the second
+    // slice added (107 ms) before the video block (emitted on tick 2:
+    // 110, 112 ms — the delayed decoder swallows its first 5
+    // post-seek packets, and the marker ate one pop slot on tick 1).
+    // The video limb leads the limb order, so only the pts sort can
+    // produce this sequence (an unsorted per-limb concatenation
+    // would show 110 first).
+    let frames = frames_snapshot(&fixture.collector);
+    let released: Vec<i64> = frames[frames_before..]
+        .iter()
+        .map(|(_, frame)| stamp_ns(&frame.pts()).must())
+        .collect();
+    assert_eq!(
+        released,
+        [101, 103, 105, 107, 110, 112]
+            .iter()
+            .map(|ms| ms * MS)
+            .collect::<Vec<_>>(),
+        "the hold releases in pts order across limbs and ticks"
+    );
+    let released_tracks: Vec<u32> = frames[frames_before..]
+        .iter()
+        .map(|(track, _)| track.handle())
+        .collect();
+    assert_eq!(
+        released_tracks,
+        vec![2, 2, 2, 2, 1, 1],
+        "ordered by pts, not by limb: the video slot leads the limbs"
+    );
+    // Nothing was discarded on the happy path, and the session runs on
+    // to the end from the landing.
+    assert_eq!(fixture.engine.stats().preroll_frames_discarded, 0);
+    poll_until(&mut fixture, |s| s == SessionState::Ended, 400, "drain");
+    assert!(
+        frames_of(&fixture.collector) > frames_before + released.len(),
+        "playback continues past the release"
+    );
+}
+
+#[test]
+fn a_superseded_seek_discards_its_held_preroll_frames_counted() {
+    // The rollback shape with a non-empty hold: seek 1's pre-roll has
+    // the audio limb's frames held when seek 2 supersedes it. Those
+    // frames are stale by generation (D-4) — discarded at seek 2's
+    // flush, counted in the engine stats, and never presented.
+    let mut fixture = open_slow_prime_video(200, 5);
+    poll_until(&mut fixture, |s| s == SessionState::Playing, 10, "priming");
+    let frames_before = frames_of(&fixture.collector);
+
+    fixture
+        .handle
+        .seek(
+            RequestId(120),
+            SeekTarget::Absolute {
+                position_ns: 100 * MS,
+            },
+        )
+        .must();
+    // One poll: the seek applied and the audio limb's first slice is
+    // held (3 frames: 101, 103, 105 ms — the post-flush
+    // discontinuity marker consumes one of the slice's 4 pop slots);
+    // the video limb has not primed yet, so no terminal — the
+    // pre-roll is open with a non-empty hold.
+    fixture.engine.poll();
+    assert_eq!(
+        frames_of(&fixture.collector),
+        frames_before,
+        "the hold keeps the pre-roll off the sink"
+    );
+    assert!(seeked_terms(&take_events(&mut fixture)).is_empty());
+
+    // Seek 2 supersedes mid-pre-roll: its flush discards seek 1's
+    // held frames and re-opens the window under generation 2.
+    fixture
+        .handle
+        .seek(
+            RequestId(121),
+            SeekTarget::Absolute {
+                position_ns: 250 * MS,
+            },
+        )
+        .must();
+    poll_until(&mut fixture, |s| s == SessionState::Playing, 20, "re-prime");
+    poll_until(&mut fixture, |s| s == SessionState::Ended, 400, "drain");
+
+    let outputs = take_events(&mut fixture);
+    // Exactly one terminal — the newest seek's (the superseded
+    // generation is silent, doc 05 §4.2).
+    assert_eq!(
+        seeked_terms(&outputs),
+        vec![(Generation(2), 250 * MS, 251 * MS)]
+    );
+    assert!(seek_failed_terms(&outputs).is_empty());
+    // The rollback's observable cost: seek 1's three held audio
+    // frames (101, 103, 105 ms) discarded and counted.
+    assert_eq!(
+        fixture.engine.stats().preroll_frames_discarded,
+        3,
+        "{:?}",
+        fixture.engine.stats()
+    );
+    // And they never presented: nothing between seek 1's landing and
+    // seek 2's landing ever reached the sink (the pre-seek history
+    // below 100 ms is untouched).
+    let frames = frames_snapshot(&fixture.collector);
+    let leaked = frames
+        .iter()
+        .filter(|(track, frame)| {
+            track.handle() == 2 && (100 * MS..250 * MS).contains(&stamp_ns(&frame.pts()).must())
+        })
+        .count();
+    assert_eq!(leaked, 0, "a superseded seek's held frames never present");
+    assert!(frames.len() > frames_before);
+}
+
+#[test]
+fn a_session_stopped_mid_preroll_discards_its_held_frames_counted() {
+    // The teardown boundary: a seek's pre-roll is open with a
+    // non-empty hold (the audio limb's slice captured, the video limb
+    // still priming) when the host stops the session. The held frames
+    // die with the pipeline — discarded, counted, never presented
+    // (M10/D-4: nothing leaks across a lifecycle boundary, and the
+    // loss is never silent). The paused-seek shape keeps the pre-roll
+    // observable across ticks without racing the terminal: seek while
+    // paused runs the decode carve-out (the landing evidence) but the
+    // wire state stays `Paused`.
+    let mut fixture = open_slow_prime_video(200, 5);
+    poll_until(&mut fixture, |s| s == SessionState::Playing, 10, "priming");
+    let frames_before = frames_of(&fixture.collector);
+
+    fixture.handle.pause(RequestId(140)).must();
+    poll_until(&mut fixture, |s| s == SessionState::Paused, 5, "pause");
+    fixture
+        .handle
+        .seek(
+            RequestId(141),
+            SeekTarget::Absolute {
+                position_ns: 100 * MS,
+            },
+        )
+        .must();
+    // One poll: the paused seek applied (the work-carrying
+    // confirmation) and the decode carve-out ran — the audio limb's
+    // slice is held (101, 103, 105 ms), the video limb has not primed
+    // yet, so the pre-roll is open with a non-empty hold and the
+    // clock still frozen at the old position.
+    fixture.engine.poll();
+    assert_eq!(
+        frames_of(&fixture.collector),
+        frames_before,
+        "the hold keeps the pre-roll off the sink even while paused"
+    );
+    assert!(seeked_terms(&take_events(&mut fixture)).is_empty());
+
+    // Stop mid-pre-roll: the teardown takes the hold with it.
+    fixture.handle.stop(RequestId(142)).must();
+    fixture.engine.poll();
+    assert_eq!(fixture.engine.state(), SessionState::Stopped);
+    // The in-flight seek's three held frames died with the pipeline,
+    // counted — never silent (M10).
+    let stats = fixture.engine.stats();
+    assert_eq!(stats.preroll_frames_discarded, 3, "{stats:?}");
+    // And they never presented: the collector stands exactly where it
+    // stood when the seek was accepted.
+    assert_eq!(
+        frames_of(&fixture.collector),
+        frames_before,
+        "a stopped seek's held frames never present"
+    );
+    // The settled close still folds cleanly (no double count).
+    fixture.handle.close(RequestId(143)).must();
+    fixture.engine.poll();
+    assert_eq!(fixture.engine.state(), SessionState::Idle);
+    assert_eq!(fixture.engine.stats().preroll_frames_discarded, 3);
+}
+
+#[test]
+fn preroll_damage_conceals_nothing_the_hold_owns_presentation_until_the_terminal() {
+    // The M10 × M9 interplay: a seek lands in a damaged stretch —
+    // the video limb's packets below 120 ms fail with the W1-08
+    // per-frame damage class, so the pre-roll ticks carry counted
+    // damage while the audio limb's frames sit in the hold. The
+    // concealment (a repeat of the last presented frame) is itself a
+    // presentation: it must stay off the sink until the terminal,
+    // exactly like a decoded frame. Aggressive polling through the
+    // damaged pre-roll proves it — the collector cannot grow by even
+    // a repeated frame.
+    let mut fixture = open_flaky_video(200, 120);
+    poll_until(&mut fixture, |s| s == SessionState::Playing, 10, "priming");
+    let frames_before = frames_of(&fixture.collector);
+    assert!(frames_before > 0);
+
+    fixture
+        .handle
+        .seek(
+            RequestId(150),
+            SeekTarget::Absolute {
+                position_ns: 100 * MS,
+            },
+        )
+        .must();
+    // Aggressive polling through the damaged pre-roll: the video
+    // limb's packets 100..118 ms all fail (counted damage), the audio
+    // limb's slice is held — the collector must not grow by a single
+    // frame, decoded OR concealed.
+    let mut terminal = None;
+    for _ in 0..10 {
+        fixture.engine.poll();
+        let outputs = take_events(&mut fixture);
+        if let Some(term) = seeked_terms(&outputs).first().copied() {
+            terminal = Some(term);
+            break;
+        }
+        assert_eq!(
+            frames_of(&fixture.collector),
+            frames_before,
+            "zero presentations — decoded or concealed — between \
+             seek-accept and seek-terminal"
+        );
+    }
+    let term = match terminal {
+        Some(term) => term,
+        None => unreachable!("the damaged pre-roll never completed"),
+    };
+    // The audio limb's first frame is the landing truth; the video
+    // limb only delivers from 120 ms (its damaged stretch refuses).
+    assert_eq!(term, (Generation(1), 100 * MS, 101 * MS));
+    // The release: the held audio block (101..107 ms) plus the video
+    // limb's first survivor (120 ms), in pts order.
+    let frames = frames_snapshot(&fixture.collector);
+    let released: Vec<i64> = frames[frames_before..]
+        .iter()
+        .map(|(_, frame)| stamp_ns(&frame.pts()).must())
+        .collect();
+    assert_eq!(
+        released,
+        [101, 103, 105, 107, 120]
+            .iter()
+            .map(|ms| ms * MS)
+            .collect::<Vec<_>>(),
+        "the hold releases in pts order, damaged slots and all"
+    );
+    // The concealment never fired: the damaged pre-roll slots held
+    // (the hold owned presentation), and the post-terminal stream is
+    // past the damaged stretch. Nothing was discarded either — the
+    // damage was absorbed, not rolled back.
+    let stats = fixture.engine.stats();
+    assert_eq!(stats.frames_concealed, 0, "{stats:?}");
+    assert_eq!(stats.preroll_frames_discarded, 0, "{stats:?}");
+    // And the session runs on to the end from the landing.
+    poll_until(&mut fixture, |s| s == SessionState::Ended, 400, "drain");
+    assert!(
+        frames_of(&fixture.collector) > frames_before + released.len(),
+        "playback continues past the damaged landing"
+    );
+}
+
+#[test]
+fn a_failed_seek_holds_nothing_and_publishes_the_minted_generation() {
+    // A typed failure at the reanchor (steps 3–4): the flush opened
+    // the hold but no decode ran under it — nothing is held, nothing
+    // is discarded, and the session publishes the minted generation
+    // on the clock (the M10 scheduler gate treats frames newer than
+    // the published token as pre-roll; the rollback's re-fill carries
+    // the minted generation and must not be mistaken for one).
+    let mut fixture = open_audio(400, Some(400), true);
+    poll_until(&mut fixture, |s| s == SessionState::Playing, 10, "priming");
+    let frames_before = frames_of(&fixture.collector);
+    lock_media(&fixture.media).fail_reanchor = Some(reanchor_refusal("demux.reanchor.armed-m10"));
+
+    fixture
+        .handle
+        .seek(
+            RequestId(130),
+            SeekTarget::Absolute {
+                position_ns: 200 * MS,
+            },
+        )
+        .must();
+    fixture.engine.poll();
+    let outputs = take_events(&mut fixture);
+    let failures = seek_failed_terms(&outputs);
+    assert_eq!(failures.len(), 1);
+    assert_eq!(failures[0].0, Generation(1));
+    // Nothing was held (the failure preceded the pre-roll: no decode
+    // ran between the flush and the refused re-anchor), so the
+    // discard count is zero — and the rollback's re-fill already
+    // delivered in the same poll: the terminal landed first, then
+    // the decode slice ran normally against the unmoved stream (the
+    // D-4 in-pipeline rollback is seamless continuation, not a
+    // freeze; the flush's purged packets are counted separately in
+    // `stale_frames_dropped`).
+    assert!(
+        frames_of(&fixture.collector) > frames_before,
+        "the rollback re-fills in the failing poll itself"
+    );
+    let stats = fixture.engine.stats();
+    assert_eq!(stats.preroll_frames_discarded, 0, "{stats:?}");
+    // The clock published the minted generation 1 — the scheduler's
+    // liveness token now matches the pipeline content the rollback
+    // re-fills with (the post-failure frames are not a pre-roll).
+    assert_eq!(fixture.clock.snapshot().generation, GenerationId::new(1));
+    // D4: the rollback stays playable and the re-fill delivers under
+    // the published generation.
+    poll_until(&mut fixture, |s| s == SessionState::Playing, 40, "rebuffer");
+    poll_until(&mut fixture, |s| s == SessionState::Ended, 400, "drain");
+    assert!(frames_of(&fixture.collector) > frames_before);
 }

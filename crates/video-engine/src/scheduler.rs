@@ -20,13 +20,17 @@
 //!    stale frames never reappear).
 //! 2. **Late purge**: pending frames with `pts < now − threshold` are
 //!    dropped, counted, advanced past. The window is PTS-sorted, so the
-//!    late frames are a prefix.
+//!    late frames are a prefix. Pre-roll holds (a generation the clock
+//!    has not published yet — see "Pre-roll hold" below) are exempt:
+//!    the purge stops at the first one.
 //! 3. **Selection**: present the frame with the **largest**
-//!    `pts ≤ now + target_lead`. Everything due before it is
+//!    `pts ≤ now + target_lead`, among published-generation frames
+//!    only. Everything due before it is
 //!    *superseded* — dropped and counted, because presenting it after
 //!    the selected frame would violate in-order presentation (the
 //!    structural drop applies under every policy, [`DropPolicy::Never`]
-//!    included; it is not a lateness drop).
+//!    included; it is not a lateness drop). A pre-roll hold is never
+//!    selected and stops the scan.
 //! 4. **Nothing due**: repeat the last frame (bounded by
 //!    [`SchedulerCfg::max_repeat`]), then fall back to background —
 //!    "video is subordinate to the audio clock, always" (doc 03
@@ -44,6 +48,27 @@
 //! ticking (and when to extend repeats) while paused is the session
 //! wiring's decision — v0 `tick` is mechanical and does not special-case
 //! [`ClockState::Paused`](media_clock::ClockState::Paused).
+//!
+//! # Pre-roll hold (M10, doc 03 §6 steps 2–6)
+//!
+//! While a seek is in flight the clock is **frozen at the old
+//! position** and lags the minted generation — the clock publishes
+//! the new token only at step 6, on completion. Frames of a
+//! not-yet-published generation are pre-roll holds: their PTS must
+//! not be judged against the frozen position, because a backward
+//! seek's landing would be purged wholesale as "late" and a small
+//! forward seek's landing would present before the terminal. The
+//! tick therefore exempts them from the late purge, from selection
+//! and from the wait hint: they wait in the bounded window until the
+//! clock publishes their generation — the seek terminal — and then
+//! present in PTS order against the re-anchored position. A
+//! generation that is superseded before publication (a failed or
+//! replaced seek) takes its held frames with it: the step-1 purge
+//! drops them, counted. This gate is the scheduler-side half of the
+//! M10 fix; the engine-side half (the pipeline's bounded pre-roll
+//! hold, released only at the terminal) keeps such frames out of the
+//! window in the first place — the gate makes the scheduler correct
+//! standalone, whatever the producer does.
 
 use std::collections::VecDeque;
 use std::fmt;
@@ -137,18 +162,146 @@ pub enum PresentAction {
     Background,
 }
 
+/// Fixed capacity of each per-tick drop trail (D-1: bounded memory,
+/// zero heap traffic — the trails are inline arrays, never grown).
+///
+/// Sized to cover the default reorder window exactly
+/// ([`crate::policy::DEFAULT_MAX_PENDING`] = 16): a tick can drop at
+/// most one window's worth, so default-shaped playback never
+/// truncates. A wider configured window may exceed it — the overflow
+/// policy is **drop-count, never grow**: entries beyond the cap are
+/// omitted from the trail while every count stays exact
+/// ([`DropTrail::recorded`], [`DropTrail::truncated`], and the
+/// lifetime [`SchedulerStats`] counters).
+pub const MAX_DROP_TRAIL: usize = 16;
+
+/// One drop class's per-tick record (the audit M3 / ED-FIX-2 fix): a
+/// fixed-capacity inline PTS trail plus the exact count — the old
+/// per-tick `Vec<Timestamp>` materializations are gone (D-1: no heap
+/// traffic on the tick path; D-2: a plain array and a counter).
+///
+/// `len()` / `iter()` / `as_slice()` expose the **retained** prefix —
+/// the first [`MAX_DROP_TRAIL`] recorded entries, in drop order
+/// (ascending PTS for both classes: the late purge walks the sorted
+/// window front-first, the supersede drain is in window order).
+/// `recorded()` is the exact count even when the trail truncated
+/// (equal to `len()` whenever the tick dropped at most
+/// [`MAX_DROP_TRAIL`] frames — the default-window case);
+/// `truncated()` counts what the cap omitted.
+#[derive(Clone, Copy)]
+pub struct DropTrail {
+    /// Retained PTS prefix, inline. Slots at or beyond the retained
+    /// length are meaningless zero-tick fill — never read, compared
+    /// or printed.
+    pts: [Timestamp; MAX_DROP_TRAIL],
+    /// Exact drops recorded (may exceed the retained prefix under a
+    /// storm — the count is never truncated).
+    recorded: u64,
+}
+
+impl DropTrail {
+    /// The retained entries (≤ [`MAX_DROP_TRAIL`]) — the trail's
+    /// drop-ordered prefix.
+    #[must_use = "the length is the observable drop evidence"]
+    pub fn len(&self) -> usize {
+        (self.recorded.min(MAX_DROP_TRAIL as u64)) as usize
+    }
+
+    /// Whether nothing was recorded.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.recorded == 0
+    }
+
+    /// The exact number of drops recorded, truncation included.
+    #[must_use = "the exact count is the drop accounting"]
+    pub fn recorded(&self) -> u64 {
+        self.recorded
+    }
+
+    /// How many recorded entries the capacity cap omitted (zero
+    /// whenever the tick dropped at most [`MAX_DROP_TRAIL`] frames).
+    #[must_use = "the truncation count is the storm's overflow evidence"]
+    pub fn truncated(&self) -> u64 {
+        self.recorded.saturating_sub(MAX_DROP_TRAIL as u64)
+    }
+
+    /// The retained PTS prefix in drop order (ascending).
+    #[must_use = "the trail is the observable drop evidence"]
+    pub fn as_slice(&self) -> &[Timestamp] {
+        &self.pts[..self.len()]
+    }
+
+    /// Iterate the retained PTS prefix (see [`Self::as_slice`]).
+    #[must_use = "an unread trail hides the drops it names"]
+    pub fn iter(&self) -> std::slice::Iter<'_, Timestamp> {
+        self.as_slice().iter()
+    }
+
+    /// Record one dropped PTS (drop order). At capacity the entry is
+    /// omitted — only the count advances; the trail never grows
+    /// (D-1's overflow policy).
+    fn record(&mut self, pts: Timestamp) {
+        let retained = self.len();
+        if retained < MAX_DROP_TRAIL {
+            self.pts[retained] = pts;
+        }
+        self.recorded += 1;
+    }
+}
+
+impl Default for DropTrail {
+    /// The empty trail (the fill PTS beyond the retained prefix are
+    /// meaningless zeros — never observable through the API).
+    fn default() -> DropTrail {
+        DropTrail {
+            pts: [Timestamp::new(0, NANO_BASE); MAX_DROP_TRAIL],
+            recorded: 0,
+        }
+    }
+}
+
+impl fmt::Debug for DropTrail {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Only the retained prefix is state; the fill beyond it is
+        // never diagnostic.
+        f.debug_struct("DropTrail")
+            .field("recorded", &self.recorded)
+            .field("pts", &self.as_slice())
+            .finish()
+    }
+}
+
+impl PartialEq for DropTrail {
+    /// Exact count plus retained prefix: two trails are equal iff they
+    /// recorded the same number of drops and kept the same prefix
+    /// (fill slots are not state).
+    fn eq(&self, other: &DropTrail) -> bool {
+        self.recorded == other.recorded && self.as_slice() == other.as_slice()
+    }
+}
+
+impl Eq for DropTrail {}
+
 /// The drops one tick performed — skips are **observable events, never
 /// silent** (doc 01 §1.3 rule 9). Lifetime totals live in
 /// [`SchedulerStats`].
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+///
+/// Both PTS trails are fixed-capacity inline arrays (D-1): a tick
+/// allocates nothing, and a storm beyond [`MAX_DROP_TRAIL`] frames
+/// truncates the trail while every count stays exact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct TickDrops {
-    /// PTS (nanosecond base) of the frames the late policy dropped this
-    /// tick, in window order (ascending).
-    pub late: Vec<Timestamp>,
-    /// PTS of the frames dropped because a later frame was selected
-    /// over them (the in-order structural drop — see the [module
-    /// docs](self) step 3), ascending.
-    pub superseded: Vec<Timestamp>,
+    /// PTS trail (nanosecond base) of the frames the late policy
+    /// dropped this tick, in window order (ascending); the exact
+    /// count is [`DropTrail::recorded`] — equal to `len()` unless the
+    /// tick truncated.
+    pub late: DropTrail,
+    /// PTS trail of the frames dropped because a later frame was
+    /// selected over them (the in-order structural drop — see the
+    /// [module docs](self) step 3), ascending; exact count via
+    /// [`DropTrail::recorded`].
+    pub superseded: DropTrail,
     /// How many generation-stale frames were purged wholesale this tick
     /// (doc 03 §5 checking point 7), window and held-missing together.
     pub stale: u64,
@@ -332,10 +485,19 @@ impl PresentationScheduler {
     /// for the binding order). Drives nothing itself: the wiring
     /// enqueues the action's request (if any) on the presentation
     /// queue and drains that to the presenter.
+    ///
+    /// Zero heap traffic (D-1/D-8): the drop trails are fixed-capacity
+    /// inline arrays — measured by `tests/zero_alloc_scheduler.rs`.
+    /// Frames of a generation the clock has not published yet (a
+    /// seek's pre-roll, M10) are **held**: the frozen old position
+    /// never judges their PTS (no late drop, no selection, no wait
+    /// hint) — they present once the terminal publishes the
+    /// generation.
     #[must_use = "a tick outcome ignored is a frame presented late, dropped silently, or never shown"]
     pub fn tick(&mut self) -> TickOutcome {
         let snapshot = self.clock.snapshot();
         let now = snapshot.position;
+        let published = snapshot.generation;
         let mut drops = TickDrops::default();
 
         // Step 1: generation change → wholesale purge (doc 03 §5(7)).
@@ -368,11 +530,22 @@ impl PresentationScheduler {
         // possible (it is then judged by the same rules as any frame).
         self.admit_held();
 
-        // Step 3: late purge — a prefix of the sorted window.
+        // Step 3: late purge — a prefix of the sorted window. The
+        // dropped PTS land in the fixed-capacity trail (D-1: no
+        // per-tick Vec); the lifetime count stays exact.
+        // Step 3: late purge — a prefix of the sorted window. A
+        // pre-roll hold (a generation the clock has not published
+        // yet — M10) is never judged against the frozen position: the
+        // purge stops at the first one; frames behind it stay for the
+        // generation flip to sort out (the window is bounded either
+        // way).
         while let Some(front) = self.window.front() {
+            if front.frame.generation > published {
+                break;
+            }
             if self.cfg.decide(front.pts, now) == FrameDecision::SkipLate {
                 if let Some(dropped) = self.window.pop_front() {
-                    drops.late.push(dropped.pts);
+                    drops.late.record(dropped.pts);
                     self.stats.dropped_late += 1;
                 }
             } else {
@@ -380,19 +553,25 @@ impl PresentationScheduler {
             }
         }
 
-        // Step 4: selection — the largest pts ≤ now + target_lead.
+        // Step 4: selection — the largest pts ≤ now + target_lead,
+        // among PUBLISHED-generation frames only: a held frame is
+        // never due against the old position (M10) and stops the
+        // scan — anything behind it in the window waits with it.
         let due_bound = i128::from(now.ticks) + i128::from(self.cfg.target_lead.0);
         let due_count = self
             .window
             .iter()
-            .take_while(|p| i128::from(p.pts.ticks) <= due_bound)
+            .take_while(|p| p.frame.generation <= published && i128::from(p.pts.ticks) <= due_bound)
             .count();
         let mut selected = None;
         if due_count > 0 {
-            let superseded: Vec<Timestamp> =
-                self.window.drain(..due_count - 1).map(|p| p.pts).collect();
-            self.stats.dropped_superseded += superseded.len() as u64;
-            drops.superseded = superseded;
+            // The superseded prefix drops in place: each PTS lands in
+            // the fixed-capacity trail, the exact count in stats
+            // (D-1: the old per-tick `Vec` collect is gone).
+            self.stats.dropped_superseded += (due_count - 1) as u64;
+            for pending in self.window.drain(..due_count - 1) {
+                drops.superseded.record(pending.pts);
+            }
             selected = self.window.pop_front();
         }
         let action = if let Some(pending) = selected {
@@ -420,7 +599,19 @@ impl PresentationScheduler {
             PresentAction::Background
         };
 
-        let next_due = self.window.front().map(|p| self.cfg.due_at(p.pts));
+        // The wait hint: the earliest PUBLISHABLE pending frame — and
+        // only if the window's front is publishable at all. A held
+        // pre-roll frame at the front blocks everything behind it
+        // (selection stops there, and the generation flip will purge
+        // the blocked old-generation tail), so while a hold leads the
+        // window the honest hint is `None`: during a seek the wake
+        // source is the terminal (the clock's generation publication),
+        // not the clock position (M10).
+        let next_due = self
+            .window
+            .front()
+            .filter(|p| p.frame.generation <= published)
+            .map(|p| self.cfg.due_at(p.pts));
         TickOutcome {
             action,
             next_due,
@@ -647,7 +838,10 @@ mod tests {
             PresentAction::Present(r) => assert_eq!(r.when.ticks, 3, "largest due wins"),
             other => unreachable!("{other:?}"),
         }
-        assert_eq!(outcome.drops.superseded, vec![Timestamp::new(0, NANO_BASE)]);
+        assert_eq!(
+            outcome.drops.superseded.as_slice(),
+            [Timestamp::new(0, NANO_BASE)].as_slice()
+        );
         assert_eq!(sched.stats().dropped_superseded, 1);
         assert_eq!(sched.pending_len(), 0);
     }
@@ -856,5 +1050,289 @@ mod tests {
             PresentAction::Present(r) => assert_eq!(r.when.ticks, 100_000_000),
             other => unreachable!("{other:?}"),
         }
+    }
+
+    // ---- M3 (ED-FIX-2): fixed-capacity drop trails (D-1) ------------
+
+    #[test]
+    fn drop_trail_records_to_capacity_then_counts_only() {
+        let mut trail = DropTrail::default();
+        assert!(trail.is_empty());
+        assert_eq!(trail.len(), 0);
+        assert_eq!(trail.recorded(), 0);
+        assert_eq!(trail.truncated(), 0);
+        for pts in 0..MAX_DROP_TRAIL as i64 {
+            trail.record(Timestamp::new(pts, NANO_BASE));
+        }
+        // At capacity: exact, nothing omitted.
+        assert_eq!(trail.len(), MAX_DROP_TRAIL);
+        assert_eq!(trail.recorded(), MAX_DROP_TRAIL as u64);
+        assert_eq!(trail.truncated(), 0);
+        assert_eq!(
+            trail.as_slice().last().map(|t| t.ticks),
+            Some((MAX_DROP_TRAIL - 1) as i64)
+        );
+        // One past capacity: the count advances, the array never
+        // grows, the overflow entry is not retained.
+        trail.record(Timestamp::new(i64::MAX, NANO_BASE));
+        assert_eq!(trail.len(), MAX_DROP_TRAIL, "the trail never grows");
+        assert_eq!(trail.recorded(), MAX_DROP_TRAIL as u64 + 1);
+        assert_eq!(trail.truncated(), 1);
+        assert_eq!(
+            trail.iter().map(|t| t.ticks).max(),
+            Some((MAX_DROP_TRAIL - 1) as i64),
+            "the overflow PTS is not retained"
+        );
+        // Equality = exact count + retained prefix (fill is not state).
+        let mut other = DropTrail::default();
+        for pts in 0..MAX_DROP_TRAIL as i64 {
+            other.record(Timestamp::new(pts, NANO_BASE));
+        }
+        assert_ne!(trail, other, "the exact count is part of the state");
+        other.record(Timestamp::new(i64::MAX, NANO_BASE));
+        assert_eq!(trail, other, "same count, same retained prefix");
+    }
+
+    #[test]
+    fn drop_trail_debug_shows_only_retained_state() {
+        let mut trail = DropTrail::default();
+        for pts in 0..(MAX_DROP_TRAIL + 3) as i64 {
+            trail.record(Timestamp::new(pts, NANO_BASE));
+        }
+        let shown = format!("{trail:?}");
+        assert!(shown.contains("recorded: 19"), "{shown}");
+        // Retained prefix = pts 0..=15; the three truncated entries
+        // (16, 17, 18) must not appear.
+        for retained in [0i64, 8, 15] {
+            assert!(shown.contains(&format!("ticks: {retained}")), "{shown}");
+        }
+        for dropped in [16i64, 17, 18] {
+            assert!(!shown.contains(&format!("ticks: {dropped}")), "{shown}");
+        }
+    }
+
+    #[test]
+    fn late_storm_beyond_the_trail_cap_keeps_exact_counts() {
+        let clock = VirtualVideoClock::new();
+        // A window wider than the trail cap: one tick's late storm
+        // must truncate the trail, never grow it — and lose nothing
+        // from the accounting.
+        let wide = SchedulerCfg::new(
+            DropPolicy::Late {
+                threshold: Nanoseconds(10),
+            },
+            2,
+            Nanoseconds(5),
+            Some(Nanoseconds(10)),
+            std::num::NonZeroUsize::new(64).must(),
+        )
+        .must();
+        let mut sched = PresentationScheduler::new(wide, clock.clock());
+        for pts in 0i64..40 {
+            let _ = sched.push(frame(pts, GenerationId::FIRST));
+        }
+        clock.set_ns(1000);
+        let outcome = sched.tick();
+        assert_eq!(outcome.drops.late.recorded(), 40, "exact, truncation-proof");
+        assert_eq!(outcome.drops.late.len(), MAX_DROP_TRAIL, "the cap holds");
+        assert_eq!(outcome.drops.late.truncated(), 40 - MAX_DROP_TRAIL as u64);
+        // The retained prefix is the storm's onset: the earliest 16.
+        let onset: Vec<Timestamp> = (0..MAX_DROP_TRAIL as i64)
+            .map(|pts| Timestamp::new(pts, NANO_BASE))
+            .collect();
+        assert_eq!(outcome.drops.late.as_slice(), &onset[..]);
+        assert_eq!(sched.stats().dropped_late, 40);
+        assert_eq!(sched.pending_len(), 0, "the storm is fully purged");
+        // A second storm: the bound is structural, not one-shot.
+        for pts in 1000i64..1040 {
+            let _ = sched.push(frame(pts, GenerationId::FIRST));
+        }
+        clock.set_ns(2000);
+        let outcome = sched.tick();
+        assert_eq!(outcome.drops.late.recorded(), 40);
+        assert_eq!(outcome.drops.late.len(), MAX_DROP_TRAIL);
+        assert_eq!(sched.stats().dropped_late, 80);
+    }
+
+    #[test]
+    fn superseded_storm_beyond_the_trail_cap_keeps_exact_counts() {
+        let clock = VirtualVideoClock::new();
+        // Never-drop policy: nothing is ever late, so a window wider
+        // than the cap makes the selection's structural drop the
+        // storm — the same bound must hold there.
+        let wide = SchedulerCfg::new(
+            DropPolicy::Never,
+            0,
+            Nanoseconds(0),
+            Some(Nanoseconds(10)),
+            std::num::NonZeroUsize::new(64).must(),
+        )
+        .must();
+        let mut sched = PresentationScheduler::new(wide, clock.clock());
+        for pts in 0i64..40 {
+            let _ = sched.push(frame(pts, GenerationId::FIRST));
+        }
+        clock.set_ns(39); // lead 0 → everything at or below 39 is due
+        let outcome = sched.tick();
+        match &outcome.action {
+            PresentAction::Present(r) => assert_eq!(r.when.ticks, 39, "largest due wins"),
+            other => unreachable!("{other:?}"),
+        }
+        assert_eq!(outcome.drops.superseded.recorded(), 39);
+        assert_eq!(
+            outcome.drops.superseded.len(),
+            MAX_DROP_TRAIL,
+            "the cap holds"
+        );
+        assert_eq!(
+            outcome.drops.superseded.truncated(),
+            39 - MAX_DROP_TRAIL as u64
+        );
+        let onset: Vec<Timestamp> = (0..MAX_DROP_TRAIL as i64)
+            .map(|pts| Timestamp::new(pts, NANO_BASE))
+            .collect();
+        assert_eq!(outcome.drops.superseded.as_slice(), &onset[..]);
+        assert_eq!(sched.stats().dropped_superseded, 39);
+        assert_eq!(sched.stats().presented, 1);
+        assert_eq!(sched.pending_len(), 0);
+    }
+
+    // ------------------------------------------------------------------
+    // The pre-roll hold (M10, doc 03 §6 steps 2–6): frames of a
+    // generation the clock has not published yet are never judged
+    // against the frozen old position.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn preroll_holds_are_not_judged_while_the_clock_lags_the_generation() {
+        // A seek mints the next generation and lands backward
+        // (pts 100..120) while the clock stays frozen at the old
+        // position (500, generation FIRST). Aggressive ticking must
+        // neither present the held landing frames nor purge them as
+        // late; a still-resident old-generation slot behind them is
+        // blocked from presenting too (doc 03 §6: no Playing-looking
+        // output during steps 2–6).
+        let clock = VirtualVideoClock::new();
+        let mut sched = PresentationScheduler::new(cfg(), clock.clock());
+        let seek_gen = GenerationId::FIRST.next().must();
+        for pts in [100i64, 110, 120] {
+            assert!(
+                matches!(sched.push(frame(pts, seek_gen)), PushOutcome::Scheduled),
+                "newer-generation pushes wait in the window (never refused)"
+            );
+        }
+        // A pre-seek future slot still resident when the seek landed.
+        let _ = sched.push(frame(502, GenerationId::FIRST));
+        clock.set_ns(500);
+        for _ in 0..16 {
+            let outcome = sched.tick();
+            assert!(
+                matches!(outcome.action, PresentAction::Background),
+                "nothing presents against the frozen old position: {:?}",
+                outcome.action
+            );
+            assert!(
+                outcome.drops.late.is_empty(),
+                "a backward landing is never 'late' against the old position: {:?}",
+                outcome.drops.late
+            );
+            assert!(outcome.drops.superseded.is_empty());
+            assert_eq!(outcome.drops.stale, 0);
+            assert_eq!(
+                outcome.next_due, None,
+                "a held front is not a wait target during the seek"
+            );
+        }
+        assert_eq!(
+            sched.pending_len(),
+            4,
+            "everything waits in the bounded window"
+        );
+        let stats = sched.stats();
+        assert_eq!(stats.presented, 0);
+        assert_eq!(stats.dropped_late, 0);
+        assert_eq!(stats.dropped_superseded, 0);
+        assert_eq!(stats.dropped_stale, 0);
+    }
+
+    #[test]
+    fn preroll_holds_present_in_pts_order_once_the_generation_publishes() {
+        // The terminal shape: the clock publishes the seek's
+        // generation (step 6) and re-anchors at the landing — the
+        // held frames then present, in PTS order, against the NEW
+        // position. Before publication even a due-adjacent landing
+        // (pts 100 at now 95, within the lead) stays held (M10: the
+        // old position must never judge the new landing).
+        let clock = VirtualVideoClock::new();
+        let mut sched = PresentationScheduler::new(cfg(), clock.clock());
+        let seek_gen = GenerationId::FIRST.next().must();
+        for pts in [100i64, 120, 140] {
+            let _ = sched.push(frame(pts, seek_gen));
+        }
+        // Aggressive ticks at the would-be due slot: nothing presents.
+        clock.set_ns(95);
+        for _ in 0..8 {
+            let outcome = sched.tick();
+            assert!(
+                matches!(outcome.action, PresentAction::Background),
+                "the landing stays held pre-terminal: {:?}",
+                outcome.action
+            );
+            assert_eq!(outcome.drops.late.len() + outcome.drops.superseded.len(), 0);
+        }
+        // The terminal: publish the generation (the clock re-anchored
+        // at the landing when it did).
+        clock.set_generation(seek_gen);
+        let mut presented: Vec<i64> = Vec::new();
+        for (now, want) in [(95u64, 100i64), (115, 120), (135, 140)] {
+            clock.set_ns(now);
+            match sched.tick().action {
+                PresentAction::Present(request) => {
+                    assert_eq!(request.when.ticks, want);
+                    assert_eq!(request.generation, seek_gen);
+                    presented.push(request.when.ticks);
+                }
+                other => unreachable!("held frame {want} due after the terminal, got {other:?}"),
+            }
+        }
+        assert_eq!(presented, vec![100, 120, 140], "pts order, no drops");
+        let stats = sched.stats();
+        assert_eq!(stats.presented, 3);
+        assert_eq!(stats.dropped_late, 0);
+        assert_eq!(stats.dropped_superseded, 0);
+    }
+
+    #[test]
+    fn held_preroll_frames_are_discarded_when_a_later_generation_publishes() {
+        // The failed/superseded seek shape: its generation is never
+        // published — a LATER mint takes its place. The step-1 purge
+        // drops the held frames wholesale, counted, and they never
+        // presented (D-4: frames of a seek that will never complete
+        // are stale by generation).
+        let clock = VirtualVideoClock::new();
+        let mut sched = PresentationScheduler::new(cfg(), clock.clock());
+        let failed_gen = GenerationId::FIRST.next().must();
+        let later_gen = failed_gen.next().must();
+        for pts in [100i64, 110, 120] {
+            let _ = sched.push(frame(pts, failed_gen));
+        }
+        clock.set_ns(500);
+        // The seek fails: its generation is never published; a later
+        // seek mints `later_gen` and the clock publishes THAT.
+        for _ in 0..4 {
+            assert!(matches!(sched.tick().action, PresentAction::Background));
+        }
+        clock.set_generation(later_gen);
+        let outcome = sched.tick();
+        assert_eq!(
+            outcome.drops.stale, 3,
+            "the held landing frames die with their generation"
+        );
+        assert!(matches!(outcome.action, PresentAction::Background));
+        assert_eq!(sched.pending_len(), 0);
+        let stats = sched.stats();
+        assert_eq!(stats.presented, 0, "a failed seek's frames never present");
+        assert_eq!(stats.dropped_late, 0, "they were held, not dropped as late");
+        assert_eq!(stats.dropped_stale, 3, "the discard is observable");
     }
 }
