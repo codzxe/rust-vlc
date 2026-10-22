@@ -305,6 +305,14 @@ fn machine_mode_eof_during_play_tears_down() {
 /// still bounded and clean: the typed refusal lands on stderr, the
 /// process answers 0. `wait_with_output` returning (and these
 /// assertions running) is itself the no-hang proof.
+///
+/// W2-17's re-drive note: the round-0 refusal pinned here is still the
+/// honest FIRST answer (the settle window and second drive happen
+/// after it — see the neighboring
+/// `machine_mode_eof_transient_refusal_settles_then_tears_down`, which
+/// pins that the re-drive then lands the teardown instead of leaking
+/// the session). The assertions below are deliberately unchanged from
+/// the pre-re-drive pin.
 #[test]
 fn machine_mode_eof_refusal_is_bounded_and_honest() {
     let open = format!(
@@ -317,4 +325,63 @@ fn machine_mode_eof_refusal_is_bounded_and_honest() {
     assert!(err.contains("[session.not-ready]"), "{err}");
     assert!(err.contains("stop-or-close from Buffering"), "{err}");
     assert!(err.contains("card 3.C1"), "{err}");
+}
+
+/// W2-17's re-drive pin: the mid-quit `Buffering` refusal no longer
+/// LEAKS a session that becomes stoppable pumps later. After the
+/// round-0 refusal (pinned above), the exit's bounded settle window
+/// lets the fixture prime (`Buffering → Playing`), and the second
+/// stop → close drive lands. The event stream carries the whole
+/// honest story — the settle's `→ playing`, the re-driven `→ stopped`,
+/// the close's `→ idle` as the stream's tail — and the engine holds
+/// no session at the exit.
+#[test]
+fn machine_mode_eof_transient_refusal_settles_then_tears_down() {
+    let open = format!(
+        "{{\"requestId\": 1, \"cmd\": \"session.open\", \"args\": {{\"source\": \
+         {{\"kind\": \"file\", \"path\": \"{parent}\"}}}}}}\n",
+        parent = parent()
+    );
+    let (out, err, code) = run(&["--control-stdio", "--json"], &open);
+    assert_eq!(code, 0, "the quit still exits clean:\n{out}\n{err}");
+    // Round 0's refusal is still the honest first answer — the
+    // re-drive composes on top of it, it does not hide it.
+    assert!(err.contains("[session.not-ready]"), "{err}");
+    assert!(err.contains("stop-or-close from Buffering"), "{err}");
+    assert!(err.contains("card 3.C1"), "{err}");
+    // The settle window primes the fixture …
+    assert!(out.contains("\"to\":\"playing\""), "{out}");
+    // … and the second drive lands the teardown — no leaked session.
+    assert!(out.contains("\"to\":\"stopped\""), "{out}");
+    let last = out.lines().last().must();
+    assert!(
+        last.contains("\"to\":\"idle\""),
+        "the re-driven close's event closes the stream:\n{out}"
+    );
+}
+
+/// W2-17's attack regression: a malformed machine request mid-session
+/// must not abandon the live session — the teardown runs BEFORE the
+/// usage exit (previously the `Paused` session was dropped with exit
+/// 64 and no `Stopped`/`Idle` trail; the serialization-failure twin at
+/// exit 70 has the same cure in the runner).
+#[test]
+fn machine_mode_malformed_request_still_tears_down() {
+    let open = format!(
+        "{{\"requestId\": 1, \"cmd\": \"session.open\", \"args\": {{\"source\": \
+         {{\"kind\": \"file\", \"path\": \"{parent}\"}}, \
+         \"options\": {{\"startPaused\": true}}}}}}\n",
+        parent = parent()
+    );
+    let (out, err, code) = run(&["--control-stdio", "--json"], &format!("{open}not json\n"));
+    assert_eq!(
+        code, 64,
+        "the usage error is still the answer:\n{out}\n{err}"
+    );
+    assert!(err.contains("[control.invalid-argument]"), "{err}");
+    let last = out.lines().last().must();
+    assert!(
+        last.contains("\"to\":\"idle\""),
+        "the teardown still closes the stream — no abandonment:\n{out}"
+    );
 }

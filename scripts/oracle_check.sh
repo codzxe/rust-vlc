@@ -31,7 +31,26 @@
 # EXIT CODE
 #   0 = every fixture x stream hashed equal to its pin
 #   1 = at least one FAIL (hash mismatch, missing/malformed sidecar,
-#       missing fixture, ffmpeg error, or an empty fixture set)
+#       missing fixture, ffmpeg error, an empty fixture set, a sidecar
+#       whose row set does not match its header-declared stream set,
+#       or a media fixture outside the pinned extension perimeter)
+#
+# STREAM-SET DECLARATION (row-set completeness — W2-17's attack cure)
+#   Every sidecar header carries a `# streams: <label>…` row naming
+#   the fixture's COMPLETE pin set. The check enforces the row set ==
+#   the declared set exactly: deleting a row (a 2-stream sidecar with
+#   only its video row) used to PASS because only row-level integrity
+#   was checked; now it FAILs, and so does an undeclared extra row.
+#
+# PERIMETER (the other W2-17 cure — no silent unpin through growth)
+#   The pinned extensions are {.avi,.mp4} (the find below). Media
+#   files with any other KNOWN media extension are not silently
+#   skipped: each is explicitly warned about and FAILS the run — a
+#   future .mkv/.mov/.webm/… fixture must extend the pin set (find
+#   arm + sidecar + stream-set declaration) and the
+#   UNSUPPORTED_MEDIA list below in the same commit. Extensions
+#   outside both lists (json sidecar metadata, READMEs, …) are
+#   ignored.
 #
 # RE-PINNING (deliberate, never automatic)
 #   If a FAIL is legitimate (new ffmpeg whose decode genuinely changed,
@@ -62,8 +81,10 @@ FIXTURE_DIR="$ROOT/tests/fixtures/generated/valid"
 VERBOSE=0
 if [[ "${1:-}" == "-v" ]]; then VERBOSE=1; fi
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-  # Reprint this file's own header comment block as the help text.
-  sed -n '2,60p' "$0" | sed 's/^# \{0,1\}//'
+  # Reprint this file's own header comment block as the help text
+  # (everything up to the `set` line — no hardcoded line range to
+  # silently drift when the header grows).
+  sed '/^set -euo pipefail$/,$d' "$0" | sed '1d' | sed 's/^# \{0,1\}//'
   exit 0
 fi
 
@@ -123,6 +144,30 @@ mapfile -t FIXTURES < <(
 )
 if [[ ${#FIXTURES[@]} -eq 0 || -z "${FIXTURES[0]:-}" ]]; then
   echo "oracle_check: FAIL — no media fixtures found under $FIXTURE_DIR (the oracle pin set must not silently vanish)" >&2
+  exit 1
+fi
+
+# --- perimeter: known media extensions this script does NOT pin ---------------
+# The explicit unsupported-extension warning list. A file with one of
+# these extensions is media this build CANNOT oracle-pin today — it is
+# named loudly (never silently skipped) and fails the run, because an
+# unpinned fixture is audit finding M15 re-entering through growth.
+UNSUPPORTED_MEDIA="mkv mov webm ts m2ts mts flac mp3 wav ogg opus aac m4a wma ape mpc amr"
+UNPINNED=()
+while IFS= read -r file; do
+  base="$(basename -- "$file")"
+  ext="${base##*.}"
+  ext="${ext,,}"
+  case " $UNSUPPORTED_MEDIA " in
+    *" $ext "*) UNPINNED+=("$base") ;;
+  esac
+done < <(find "$FIXTURE_DIR" -maxdepth 1 -type f 2>/dev/null | sort)
+if [[ ${#UNPINNED[@]} -gt 0 ]]; then
+  echo "oracle_check: WARN — media fixtures outside the pinned perimeter {.avi,.mp4}:"
+  for base in "${UNPINNED[@]}"; do
+    echo "  WARN $base — not oracle-pinned (extend the pin set + UNSUPPORTED_MEDIA in the same commit)"
+  done
+  echo "oracle_check: RESULT = FAIL (media present outside the pinned perimeter)"
   exit 1
 fi
 
@@ -199,6 +244,33 @@ for fixture in "${FIXTURES[@]}"; do
   if [[ "${rows:-0}" -eq 0 ]]; then
     echo "  FAIL sidecar carries no hash rows (vacuous pin)"
     FAIL=$((FAIL + 1))
+  fi
+
+  # Row-set completeness (W2-17's attack cure): the sidecar header
+  # declares the fixture's complete stream set (`# streams: …`); the
+  # pinned row set must match it exactly. A sidecar that DROPPED a
+  # row used to pass (row-level integrity without row-set
+  # completeness); an undeclared extra row is the same drift. (The
+  # `|| true` matters: a declaration-less sidecar makes grep exit 1,
+  # and under `set -euo pipefail` that would kill the script silently
+  # instead of reporting the FAIL below.)
+  declared="$(grep -m1 '^# streams:' "$sidecar" | sed 's/^# streams://' | tr -s '[:space:]' ' ' || true)"
+  if [[ -z "${declared// /}" ]]; then
+    echo "  FAIL sidecar does not declare its stream set (add a '# streams: <label>…' header row)"
+    FAIL=$((FAIL + 1))
+  else
+    for label in $declared; do
+      if [[ " $seen_labels " != *" $label "* ]]; then
+        echo "  FAIL [$label] declared in the sidecar header but pinned by no row (row-set completeness — a dropped row must not pass)"
+        FAIL=$((FAIL + 1))
+      fi
+    done
+    for label in $seen_labels; do
+      if [[ " $declared " != *" $label "* ]]; then
+        echo "  FAIL [$label] pinned by a row but absent from the header's declared stream set"
+        FAIL=$((FAIL + 1))
+      fi
+    done
   fi
   echo
 done
