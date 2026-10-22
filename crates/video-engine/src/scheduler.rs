@@ -137,18 +137,146 @@ pub enum PresentAction {
     Background,
 }
 
+/// Fixed capacity of each per-tick drop trail (D-1: bounded memory,
+/// zero heap traffic — the trails are inline arrays, never grown).
+///
+/// Sized to cover the default reorder window exactly
+/// ([`crate::policy::DEFAULT_MAX_PENDING`] = 16): a tick can drop at
+/// most one window's worth, so default-shaped playback never
+/// truncates. A wider configured window may exceed it — the overflow
+/// policy is **drop-count, never grow**: entries beyond the cap are
+/// omitted from the trail while every count stays exact
+/// ([`DropTrail::recorded`], [`DropTrail::truncated`], and the
+/// lifetime [`SchedulerStats`] counters).
+pub const MAX_DROP_TRAIL: usize = 16;
+
+/// One drop class's per-tick record (the audit M3 / ED-FIX-2 fix): a
+/// fixed-capacity inline PTS trail plus the exact count — the old
+/// per-tick `Vec<Timestamp>` materializations are gone (D-1: no heap
+/// traffic on the tick path; D-2: a plain array and a counter).
+///
+/// `len()` / `iter()` / `as_slice()` expose the **retained** prefix —
+/// the first [`MAX_DROP_TRAIL`] recorded entries, in drop order
+/// (ascending PTS for both classes: the late purge walks the sorted
+/// window front-first, the supersede drain is in window order).
+/// `recorded()` is the exact count even when the trail truncated
+/// (equal to `len()` whenever the tick dropped at most
+/// [`MAX_DROP_TRAIL`] frames — the default-window case);
+/// `truncated()` counts what the cap omitted.
+#[derive(Clone, Copy)]
+pub struct DropTrail {
+    /// Retained PTS prefix, inline. Slots at or beyond the retained
+    /// length are meaningless zero-tick fill — never read, compared
+    /// or printed.
+    pts: [Timestamp; MAX_DROP_TRAIL],
+    /// Exact drops recorded (may exceed the retained prefix under a
+    /// storm — the count is never truncated).
+    recorded: u64,
+}
+
+impl DropTrail {
+    /// The retained entries (≤ [`MAX_DROP_TRAIL`]) — the trail's
+    /// drop-ordered prefix.
+    #[must_use = "the length is the observable drop evidence"]
+    pub fn len(&self) -> usize {
+        (self.recorded.min(MAX_DROP_TRAIL as u64)) as usize
+    }
+
+    /// Whether nothing was recorded.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.recorded == 0
+    }
+
+    /// The exact number of drops recorded, truncation included.
+    #[must_use = "the exact count is the drop accounting"]
+    pub fn recorded(&self) -> u64 {
+        self.recorded
+    }
+
+    /// How many recorded entries the capacity cap omitted (zero
+    /// whenever the tick dropped at most [`MAX_DROP_TRAIL`] frames).
+    #[must_use = "the truncation count is the storm's overflow evidence"]
+    pub fn truncated(&self) -> u64 {
+        self.recorded.saturating_sub(MAX_DROP_TRAIL as u64)
+    }
+
+    /// The retained PTS prefix in drop order (ascending).
+    #[must_use = "the trail is the observable drop evidence"]
+    pub fn as_slice(&self) -> &[Timestamp] {
+        &self.pts[..self.len()]
+    }
+
+    /// Iterate the retained PTS prefix (see [`Self::as_slice`]).
+    #[must_use = "an unread trail hides the drops it names"]
+    pub fn iter(&self) -> std::slice::Iter<'_, Timestamp> {
+        self.as_slice().iter()
+    }
+
+    /// Record one dropped PTS (drop order). At capacity the entry is
+    /// omitted — only the count advances; the trail never grows
+    /// (D-1's overflow policy).
+    fn record(&mut self, pts: Timestamp) {
+        let retained = self.len();
+        if retained < MAX_DROP_TRAIL {
+            self.pts[retained] = pts;
+        }
+        self.recorded += 1;
+    }
+}
+
+impl Default for DropTrail {
+    /// The empty trail (the fill PTS beyond the retained prefix are
+    /// meaningless zeros — never observable through the API).
+    fn default() -> DropTrail {
+        DropTrail {
+            pts: [Timestamp::new(0, NANO_BASE); MAX_DROP_TRAIL],
+            recorded: 0,
+        }
+    }
+}
+
+impl fmt::Debug for DropTrail {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Only the retained prefix is state; the fill beyond it is
+        // never diagnostic.
+        f.debug_struct("DropTrail")
+            .field("recorded", &self.recorded)
+            .field("pts", &self.as_slice())
+            .finish()
+    }
+}
+
+impl PartialEq for DropTrail {
+    /// Exact count plus retained prefix: two trails are equal iff they
+    /// recorded the same number of drops and kept the same prefix
+    /// (fill slots are not state).
+    fn eq(&self, other: &DropTrail) -> bool {
+        self.recorded == other.recorded && self.as_slice() == other.as_slice()
+    }
+}
+
+impl Eq for DropTrail {}
+
 /// The drops one tick performed — skips are **observable events, never
 /// silent** (doc 01 §1.3 rule 9). Lifetime totals live in
 /// [`SchedulerStats`].
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+///
+/// Both PTS trails are fixed-capacity inline arrays (D-1): a tick
+/// allocates nothing, and a storm beyond [`MAX_DROP_TRAIL`] frames
+/// truncates the trail while every count stays exact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct TickDrops {
-    /// PTS (nanosecond base) of the frames the late policy dropped this
-    /// tick, in window order (ascending).
-    pub late: Vec<Timestamp>,
-    /// PTS of the frames dropped because a later frame was selected
-    /// over them (the in-order structural drop — see the [module
-    /// docs](self) step 3), ascending.
-    pub superseded: Vec<Timestamp>,
+    /// PTS trail (nanosecond base) of the frames the late policy
+    /// dropped this tick, in window order (ascending); the exact
+    /// count is [`DropTrail::recorded`] — equal to `len()` unless the
+    /// tick truncated.
+    pub late: DropTrail,
+    /// PTS trail of the frames dropped because a later frame was
+    /// selected over them (the in-order structural drop — see the
+    /// [module docs](self) step 3), ascending; exact count via
+    /// [`DropTrail::recorded`].
+    pub superseded: DropTrail,
     /// How many generation-stale frames were purged wholesale this tick
     /// (doc 03 §5 checking point 7), window and held-missing together.
     pub stale: u64,
@@ -332,6 +460,9 @@ impl PresentationScheduler {
     /// for the binding order). Drives nothing itself: the wiring
     /// enqueues the action's request (if any) on the presentation
     /// queue and drains that to the presenter.
+    ///
+    /// Zero heap traffic (D-1/D-8): the drop trails are fixed-capacity
+    /// inline arrays — measured by `tests/zero_alloc_scheduler.rs`.
     #[must_use = "a tick outcome ignored is a frame presented late, dropped silently, or never shown"]
     pub fn tick(&mut self) -> TickOutcome {
         let snapshot = self.clock.snapshot();
@@ -368,11 +499,13 @@ impl PresentationScheduler {
         // possible (it is then judged by the same rules as any frame).
         self.admit_held();
 
-        // Step 3: late purge — a prefix of the sorted window.
+        // Step 3: late purge — a prefix of the sorted window. The
+        // dropped PTS land in the fixed-capacity trail (D-1: no
+        // per-tick Vec); the lifetime count stays exact.
         while let Some(front) = self.window.front() {
             if self.cfg.decide(front.pts, now) == FrameDecision::SkipLate {
                 if let Some(dropped) = self.window.pop_front() {
-                    drops.late.push(dropped.pts);
+                    drops.late.record(dropped.pts);
                     self.stats.dropped_late += 1;
                 }
             } else {
@@ -389,10 +522,13 @@ impl PresentationScheduler {
             .count();
         let mut selected = None;
         if due_count > 0 {
-            let superseded: Vec<Timestamp> =
-                self.window.drain(..due_count - 1).map(|p| p.pts).collect();
-            self.stats.dropped_superseded += superseded.len() as u64;
-            drops.superseded = superseded;
+            // The superseded prefix drops in place: each PTS lands in
+            // the fixed-capacity trail, the exact count in stats
+            // (D-1: the old per-tick `Vec` collect is gone).
+            self.stats.dropped_superseded += (due_count - 1) as u64;
+            for pending in self.window.drain(..due_count - 1) {
+                drops.superseded.record(pending.pts);
+            }
             selected = self.window.pop_front();
         }
         let action = if let Some(pending) = selected {
@@ -647,7 +783,10 @@ mod tests {
             PresentAction::Present(r) => assert_eq!(r.when.ticks, 3, "largest due wins"),
             other => unreachable!("{other:?}"),
         }
-        assert_eq!(outcome.drops.superseded, vec![Timestamp::new(0, NANO_BASE)]);
+        assert_eq!(
+            outcome.drops.superseded.as_slice(),
+            [Timestamp::new(0, NANO_BASE)].as_slice()
+        );
         assert_eq!(sched.stats().dropped_superseded, 1);
         assert_eq!(sched.pending_len(), 0);
     }
@@ -856,5 +995,150 @@ mod tests {
             PresentAction::Present(r) => assert_eq!(r.when.ticks, 100_000_000),
             other => unreachable!("{other:?}"),
         }
+    }
+
+    // ---- M3 (ED-FIX-2): fixed-capacity drop trails (D-1) ------------
+
+    #[test]
+    fn drop_trail_records_to_capacity_then_counts_only() {
+        let mut trail = DropTrail::default();
+        assert!(trail.is_empty());
+        assert_eq!(trail.len(), 0);
+        assert_eq!(trail.recorded(), 0);
+        assert_eq!(trail.truncated(), 0);
+        for pts in 0..MAX_DROP_TRAIL as i64 {
+            trail.record(Timestamp::new(pts, NANO_BASE));
+        }
+        // At capacity: exact, nothing omitted.
+        assert_eq!(trail.len(), MAX_DROP_TRAIL);
+        assert_eq!(trail.recorded(), MAX_DROP_TRAIL as u64);
+        assert_eq!(trail.truncated(), 0);
+        assert_eq!(
+            trail.as_slice().last().map(|t| t.ticks),
+            Some((MAX_DROP_TRAIL - 1) as i64)
+        );
+        // One past capacity: the count advances, the array never
+        // grows, the overflow entry is not retained.
+        trail.record(Timestamp::new(i64::MAX, NANO_BASE));
+        assert_eq!(trail.len(), MAX_DROP_TRAIL, "the trail never grows");
+        assert_eq!(trail.recorded(), MAX_DROP_TRAIL as u64 + 1);
+        assert_eq!(trail.truncated(), 1);
+        assert_eq!(
+            trail.iter().map(|t| t.ticks).max(),
+            Some((MAX_DROP_TRAIL - 1) as i64),
+            "the overflow PTS is not retained"
+        );
+        // Equality = exact count + retained prefix (fill is not state).
+        let mut other = DropTrail::default();
+        for pts in 0..MAX_DROP_TRAIL as i64 {
+            other.record(Timestamp::new(pts, NANO_BASE));
+        }
+        assert_ne!(trail, other, "the exact count is part of the state");
+        other.record(Timestamp::new(i64::MAX, NANO_BASE));
+        assert_eq!(trail, other, "same count, same retained prefix");
+    }
+
+    #[test]
+    fn drop_trail_debug_shows_only_retained_state() {
+        let mut trail = DropTrail::default();
+        for pts in 0..(MAX_DROP_TRAIL + 3) as i64 {
+            trail.record(Timestamp::new(pts, NANO_BASE));
+        }
+        let shown = format!("{trail:?}");
+        assert!(shown.contains("recorded: 19"), "{shown}");
+        // Retained prefix = pts 0..=15; the three truncated entries
+        // (16, 17, 18) must not appear.
+        for retained in [0i64, 8, 15] {
+            assert!(shown.contains(&format!("ticks: {retained}")), "{shown}");
+        }
+        for dropped in [16i64, 17, 18] {
+            assert!(!shown.contains(&format!("ticks: {dropped}")), "{shown}");
+        }
+    }
+
+    #[test]
+    fn late_storm_beyond_the_trail_cap_keeps_exact_counts() {
+        let clock = VirtualVideoClock::new();
+        // A window wider than the trail cap: one tick's late storm
+        // must truncate the trail, never grow it — and lose nothing
+        // from the accounting.
+        let wide = SchedulerCfg::new(
+            DropPolicy::Late {
+                threshold: Nanoseconds(10),
+            },
+            2,
+            Nanoseconds(5),
+            Some(Nanoseconds(10)),
+            std::num::NonZeroUsize::new(64).must(),
+        )
+        .must();
+        let mut sched = PresentationScheduler::new(wide, clock.clock());
+        for pts in 0i64..40 {
+            let _ = sched.push(frame(pts, GenerationId::FIRST));
+        }
+        clock.set_ns(1000);
+        let outcome = sched.tick();
+        assert_eq!(outcome.drops.late.recorded(), 40, "exact, truncation-proof");
+        assert_eq!(outcome.drops.late.len(), MAX_DROP_TRAIL, "the cap holds");
+        assert_eq!(outcome.drops.late.truncated(), 40 - MAX_DROP_TRAIL as u64);
+        // The retained prefix is the storm's onset: the earliest 16.
+        let onset: Vec<Timestamp> = (0..MAX_DROP_TRAIL as i64)
+            .map(|pts| Timestamp::new(pts, NANO_BASE))
+            .collect();
+        assert_eq!(outcome.drops.late.as_slice(), &onset[..]);
+        assert_eq!(sched.stats().dropped_late, 40);
+        assert_eq!(sched.pending_len(), 0, "the storm is fully purged");
+        // A second storm: the bound is structural, not one-shot.
+        for pts in 1000i64..1040 {
+            let _ = sched.push(frame(pts, GenerationId::FIRST));
+        }
+        clock.set_ns(2000);
+        let outcome = sched.tick();
+        assert_eq!(outcome.drops.late.recorded(), 40);
+        assert_eq!(outcome.drops.late.len(), MAX_DROP_TRAIL);
+        assert_eq!(sched.stats().dropped_late, 80);
+    }
+
+    #[test]
+    fn superseded_storm_beyond_the_trail_cap_keeps_exact_counts() {
+        let clock = VirtualVideoClock::new();
+        // Never-drop policy: nothing is ever late, so a window wider
+        // than the cap makes the selection's structural drop the
+        // storm — the same bound must hold there.
+        let wide = SchedulerCfg::new(
+            DropPolicy::Never,
+            0,
+            Nanoseconds(0),
+            Some(Nanoseconds(10)),
+            std::num::NonZeroUsize::new(64).must(),
+        )
+        .must();
+        let mut sched = PresentationScheduler::new(wide, clock.clock());
+        for pts in 0i64..40 {
+            let _ = sched.push(frame(pts, GenerationId::FIRST));
+        }
+        clock.set_ns(39); // lead 0 → everything at or below 39 is due
+        let outcome = sched.tick();
+        match &outcome.action {
+            PresentAction::Present(r) => assert_eq!(r.when.ticks, 39, "largest due wins"),
+            other => unreachable!("{other:?}"),
+        }
+        assert_eq!(outcome.drops.superseded.recorded(), 39);
+        assert_eq!(
+            outcome.drops.superseded.len(),
+            MAX_DROP_TRAIL,
+            "the cap holds"
+        );
+        assert_eq!(
+            outcome.drops.superseded.truncated(),
+            39 - MAX_DROP_TRAIL as u64
+        );
+        let onset: Vec<Timestamp> = (0..MAX_DROP_TRAIL as i64)
+            .map(|pts| Timestamp::new(pts, NANO_BASE))
+            .collect();
+        assert_eq!(outcome.drops.superseded.as_slice(), &onset[..]);
+        assert_eq!(sched.stats().dropped_superseded, 39);
+        assert_eq!(sched.stats().presented, 1);
+        assert_eq!(sched.pending_len(), 0);
     }
 }
