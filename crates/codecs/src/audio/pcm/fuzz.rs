@@ -19,8 +19,9 @@
 //! dev-dependency plus the `fuzz/Cargo.toml` scaffolding — both
 //! Lead-owned dependency decisions (AGENTS.md §3.2, C5), so until
 //! they land the harness logic is proven by the in-crate
-//! deterministic smoke tests here and by the committed-corpus
-//! survival run (`tests/pcm_fuzz_survival.rs`); the libFuzzer
+//! deterministic smoke tests here and by the committed-corpus +
+//! seeded-mutation survival run
+//! (`crates/codecs/tests/pcm_fuzz_survival.rs`); the libFuzzer
 //! campaign itself is owed CI wiring (same status as
 //! `fuzz_demux_avi` / `fuzz_codec_mjpeg`, worklogs 2.B2/2.B4).
 //!
