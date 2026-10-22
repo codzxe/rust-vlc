@@ -142,8 +142,18 @@ impl AudioPipeline {
     /// accepts direct [`AudioPipeline::set_drift`] control.
     #[must_use]
     pub fn with_drift_governor(mut self, target_ns: u64) -> AudioPipeline {
-        self.governor = Some(DriftGovernor::new(target_ns));
+        self.arm_drift_governor(target_ns);
         self
+    }
+
+    /// The late-arming half of [`AudioPipeline::with_drift_governor`]
+    /// (same contract): for pipelines built by a composition that
+    /// decides the pacing regime after construction — the composition
+    /// root opens the session unarmed (its decode-ahead regime makes
+    /// ring fill a buffering metric, not a drift signal) and arms the
+    /// governor where production is paced at the consumption rate.
+    pub fn arm_drift_governor(&mut self, target_ns: u64) {
+        self.governor = Some(DriftGovernor::new(target_ns));
     }
 
     /// Apply a drift correction directly (the micro-resampler's

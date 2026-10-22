@@ -75,6 +75,15 @@ use crate::demux_host::MediaFacts;
 /// docs' determinism note).
 pub const RENDER_QUANTUM: usize = 1470;
 
+/// The drift governor's target ring fill (ns; card 3.B1, W1-18 §3.2's
+/// `[PROPOSAL]` figure: 2× the doc 03 §4.8 c jitter margin of 20 ms).
+/// The hard acceptance band around it is the governor's own
+/// (`DriftGovernor`); the ring's 3 s capacity is the structural
+/// ceiling. The composition that arms the governor must pace
+/// production at roughly the consumption rate (one quantum per
+/// device period — see [`AudioLimb::observe_drift`]).
+pub const DRIFT_TARGET_FILL_NS: u64 = 40_000_000;
+
 /// The null output ring's capacity (frames; power of two — the ring's
 /// own shape rule). Sizing math (the invariant): one engine poll
 /// decodes at most `TickBudget::default().packets_per_limb` (16)
@@ -260,6 +269,10 @@ impl Decoder for DrainGatedDecoder {
 pub struct AudioLimb {
     pipeline: AudioPipeline,
     sink: NullSink,
+    /// The negotiated rate (the counter→ns arithmetic for the drift
+    /// window's injected time stamp — captured once, never re-derived
+    /// per quantum).
+    rate_hz: u32,
 }
 
 impl AudioLimb {
@@ -274,6 +287,90 @@ impl AudioLimb {
     #[must_use]
     pub fn buffered_frames(&self) -> usize {
         self.sink.buffered_frames()
+    }
+
+    /// One per-quantum drift observation (card 3.B1's loop closure —
+    /// W1-18 §7 step 8): sample the sink's measured latency, stamp it
+    /// with the device counter's nanoseconds, and feed the armed
+    /// governor, which re-evaluates the correction at its ≤1 Hz window
+    /// and applies it to the micro-resampler. An unarmed pipeline
+    /// ignores the sample (correction stays `ZERO`); an unmeasurable
+    /// sink parks the governor at zero — honest degradation, never a
+    /// fabricated estimate.
+    ///
+    /// **Regime note (the arming contract).** The error signal — ring
+    /// fill − target — is a drift estimate only when production paces
+    /// at roughly the consumption rate (steady state: one quantum
+    /// staged per device period). The first vertical's decode-ahead
+    /// regime (16-packet bursts into a 3 s ring, drained per pump)
+    /// makes the fill a *decode-ahead depth* metric instead; arming
+    /// the governor there would "correct" buffering as if it were
+    /// clock drift. The governor is therefore armed by compositions
+    /// that pace (the S8 convergence harness, and the production pump
+    /// once 3.B3's backpressure lands steady-state pacing).
+    ///
+    /// Zero heap traffic (D-1/D-8): integer arithmetic only; the
+    /// counter read is the same atomic the clock itself reads.
+    pub fn observe_drift(&mut self) -> media_clock::DriftCorrection {
+        if self.rate_hz == 0 {
+            return media_clock::DriftCorrection::ZERO;
+        }
+        let count = u128::from(self.sink.sample_count());
+        let now_ns = (count * 1_000_000_000_u128 / u128::from(self.rate_hz)) as u64;
+        let fill_ns = match audio_engine::AudioSink::latency(&self.sink) {
+            Some(media_types::time::Duration::Known(nanos)) => Some(nanos.0),
+            _ => None,
+        };
+        self.pipeline.observe_drift(now_ns, fill_ns)
+    }
+
+    /// A new timing regime (a seek's re-anchor): restart the drift
+    /// measurement and the resampler's stream phase (the S7 transient
+    /// is one step-limiter increment at most).
+    pub fn reset_drift(&mut self) {
+        self.pipeline.reset_drift();
+    }
+
+    /// Arm the drift governor (the late-arming composition path —
+    /// [`AudioLimb::observe_drift`]'s regime note): the production
+    /// open path leaves the limb unarmed; a composition that paces
+    /// production at the consumption rate arms with
+    /// [`crate::pipeline_host::DRIFT_TARGET_FILL_NS`] (or its own
+    /// target).
+    pub fn arm_drift_governor(&mut self, target_ns: u64) {
+        self.pipeline.arm_drift_governor(target_ns);
+    }
+
+    /// The correction in force (the micro-resampler's current ratio —
+    /// always within `±1000 ppm`, the limiter invariant).
+    #[must_use]
+    pub fn drift(&self) -> media_clock::DriftCorrection {
+        self.pipeline.drift()
+    }
+
+    /// Stage + mix + write one decoded audio frame into the ring (the
+    /// [`FrameConsumer`] path's per-frame step — also the composition
+    /// root's staging seam for paced producers, e.g. the 3.B1 sync
+    /// harness). The micro-resampler's correction applies inside the
+    /// mix; the ring's boundedness is the sink's own.
+    ///
+    /// # Errors
+    /// The pipeline's typed errors (format mismatch, mix shape) and
+    /// the sink's (ring full) — both already stage-tagged.
+    pub fn stage(&mut self, frame: &AudioFrame) -> Result<(), EngineError> {
+        self.pipeline.process(0, frame)?;
+        self.pipeline.mix()?;
+        if let Some(buffer) = self.pipeline.take_output() {
+            self.sink.write_bytes(buffer.data.as_slice())?;
+        }
+        Ok(())
+    }
+
+    /// The governor's polled observability (counters only — the
+    /// no-event-storm policy; all-zero when no governor is armed).
+    #[must_use]
+    pub fn drift_stats(&self) -> audio_engine::DriftStats {
+        self.pipeline.drift_stats()
     }
 }
 
@@ -518,6 +615,25 @@ impl ConsumerState {
         }
     }
 
+    /// The pump's per-quantum drift observation on the audio limb
+    /// (card 3.B1's loop closure — one call per rendered quantum, the
+    /// [`AudioLimb::observe_drift`] contract). No audio limb: a no-op.
+    pub fn observe_audio_drift(&mut self) {
+        if let Some(audio) = self.audio.as_mut() {
+            audio.observe_drift();
+        }
+    }
+
+    /// The audio limb's drift-governor counters (polled observability
+    /// — the no-event-storm policy; all-zero when no governor is
+    /// armed).
+    #[must_use]
+    pub fn audio_drift_stats(&self) -> audio_engine::DriftStats {
+        self.audio
+            .as_ref()
+            .map_or(audio_engine::DriftStats::default(), AudioLimb::drift_stats)
+    }
+
     /// The seek boundary's host duties on the consumer state (doc 03
     /// §6 step 3 — the halves behind the [`FrameConsumer`] seam the
     /// engine's pipeline flush cannot reach): drop the window-full
@@ -536,6 +652,13 @@ impl ConsumerState {
             .retain(|frame| frame.generation >= generation);
         if let Some(video) = self.video.as_mut() {
             video.seek_boundary(generation);
+        }
+        // The audio drift measurement is a new regime post-seek (the
+        // fill-to-target relationship restarts at the landing; the
+        // scheduler's estimator equally resets at the anchor-epoch
+        // bump). The correction drops to zero with the measurement.
+        if let Some(audio) = self.audio.as_mut() {
+            audio.reset_drift();
         }
     }
 }
@@ -618,12 +741,7 @@ fn accept_audio(state: &mut ConsumerState, frame: &AudioFrame) -> Result<(), Eng
             "an audio frame arrived with no audio limb wired",
         ));
     };
-    audio.pipeline.process(0, frame)?;
-    audio.pipeline.mix()?;
-    if let Some(buffer) = audio.pipeline.take_output() {
-        audio.sink.write_bytes(buffer.data.as_slice())?;
-    }
-    Ok(())
+    audio.stage(frame)
 }
 
 /// Convert (when needed) and schedule one video frame.
@@ -877,7 +995,11 @@ pub fn open_audio_session(
         Rate::ONE,
     )?);
     Ok(AudioSession {
-        limb: AudioLimb { pipeline, sink },
+        limb: AudioLimb {
+            pipeline,
+            sink,
+            rate_hz: rate,
+        },
         device,
         clock,
         channels,
