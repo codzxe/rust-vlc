@@ -21,7 +21,11 @@
 //!   [`LimbSink`] adapter that checks each output frame's generation
 //!   (doc 03 §5 checking point 5) and hands it to the
 //!   [`FrameConsumer`] seam (the audio pump / video scheduler of
-//!   cards 2.C3/2.C4).
+//!   cards 2.C3/2.C4). While a seek is in flight the hand-off is
+//!   **held** (M10): pre-roll frames are captured into a bounded
+//!   per-limb hold and reach the consumer only at the seek terminal —
+//!   never while the clock is frozen at the old position (see
+//!   [`Pipeline::release_preroll_hold`]).
 //!
 //! # The tick model (doc 03 §4.6(c)/§9 — non-blocking)
 //!
@@ -243,7 +247,12 @@ pub(crate) struct TickReport {
     /// the `(kind, id)` pairs ride the pipeline's reused
     /// [`Pipeline::take_ended_limbs`] scratch.
     pub newly_drained: u32,
-    /// Frames delivered to the sink seam this tick.
+    /// Frames delivered to the sink seam this tick (during a seek's
+    /// pre-roll, accepted frames enter the presentation **hold**
+    /// instead of the consumer — released at the terminal, discarded
+    /// on rollback; the session's totals subtract the discards, so
+    /// `EngineStats::frames_delivered` stays the consumer-delivered
+    /// truth).
     pub frames: u64,
     /// Frames dropped at the sink for stale generations (doc 03 §5
     /// checking point 5). Always zero in v0's single-writer ticks —
@@ -299,6 +308,12 @@ pub(crate) struct Pipeline {
     /// set by [`Pipeline::seek_flush`] and read by
     /// [`Pipeline::seek_preroll`]; `None` between seeks.
     seek_progress: Option<SeekProgress>,
+    /// Frames discarded from a seek's pre-roll presentation hold
+    /// (M10, D-4): a superseded or failed seek's held frames are
+    /// stale by generation and never present — this is the rollback's
+    /// observable cost, handed to the caller by
+    /// [`Pipeline::take_preroll_discarded`].
+    preroll_discarded: u32,
     /// Frames dropped as stale during the last seek flush (handed to
     /// the caller by [`Pipeline::take_seek_flush_stale`] for the
     /// session's observability totals).
@@ -313,7 +328,11 @@ pub(crate) struct Pipeline {
 
 /// Per-limb facts the seek's pre-roll phase (doc 03 §6 step 5)
 /// tracks: has this limb delivered a frame of the new generation,
-/// and the first audio frame's timestamp (the step-6 anchor truth).
+/// the first audio frame's timestamp (the step-6 anchor truth), and
+/// the M10 **presentation hold** — the bounded per-limb frame buffers
+/// that keep pre-roll frames away from the consumer until the seek
+/// terminal lands (doc 03 §6 "no `Playing`-looking output" during
+/// steps 2–6; D-4: nothing leaks across the state boundary).
 pub(crate) struct SeekProgress {
     /// Aligned with `limbs`: ≥ 1 frame delivered under the current
     /// generation.
@@ -322,14 +341,48 @@ pub(crate) struct SeekProgress {
     /// until an audio frame arrives — then the landing anchors the
     /// clock instead).
     first_audio_ns: Option<i64>,
+    /// The presentation hold, aligned with `limbs`: frames decoded
+    /// during the pre-roll, in arrival order. Bounded by `hold_cap`
+    /// (a hard per-limb capacity — D-1); the decode slice
+    /// backpressures at the cap (packets stay in the bounded queues),
+    /// so the only path past it is a single decode call's burst,
+    /// which is dropped and counted, never buffered unboundedly.
+    hold: Vec<Vec<Frame>>,
+    /// The per-limb hard capacity of the hold (the pre-roll budget:
+    /// the decode slice bound the seek flow already carries).
+    hold_cap: usize,
 }
 
 impl SeekProgress {
-    fn new(limbs: &[Limb]) -> SeekProgress {
+    fn new(limbs: &[Limb], hold_cap: usize) -> SeekProgress {
         SeekProgress {
             saw_frame: vec![false; limbs.len()],
             first_audio_ns: None,
+            // Pre-allocated once per seek (not per tick — D-1): pushes
+            // within the capacity never allocate.
+            hold: limbs
+                .iter()
+                .map(|_| Vec::with_capacity(hold_cap))
+                .collect(),
+            hold_cap,
         }
+    }
+
+    /// Total frames currently held across all limbs.
+    fn held_count(&self) -> u32 {
+        self.hold
+            .iter()
+            .fold(0u32, |sum, slot| sum.saturating_add(slot.len() as u32))
+    }
+
+    /// The M10 hold slot one decode slice routes its frames through;
+    /// `None` when the limb index is out of range (defensive — the
+    /// hold is aligned with the limbs the window was opened for).
+    fn hold_slot(&mut self, index: usize) -> Option<PrerollHoldSlot<'_>> {
+        let cap = self.hold_cap;
+        self.hold
+            .get_mut(index)
+            .map(|frames| PrerollHoldSlot { frames, cap })
     }
 
     /// Observe one limb's decode slice: frames delivered, and the
@@ -382,6 +435,7 @@ impl Pipeline {
             consumer,
             first_frame: None,
             seek_progress: None,
+            preroll_discarded: 0,
             seek_flush_stale: 0,
             ended_limbs: Vec::new(),
         }
@@ -465,7 +519,12 @@ impl Pipeline {
     /// refused from the boundary on — packet-queue Q2), close them
     /// (parked producers would wake with `Closed`), then drop the
     /// limbs. The caller mints and interrupts *before* calling this.
+    /// An in-flight seek's held pre-roll frames die with the pipeline
+    /// — counted, never silent (M10).
     pub(crate) fn teardown(&mut self, new_generation: GenerationId) {
+        if let Some(progress) = self.seek_progress.take() {
+            self.preroll_discarded = self.preroll_discarded.saturating_add(progress.held_count());
+        }
         for limb in &self.limbs {
             let _ = limb.queue.flush(new_generation);
             limb.queue.close();
@@ -505,7 +564,12 @@ impl Pipeline {
     /// presented) and then reconfigured for the new generation (the
     /// codec-api seek contract, `decode.rs`'s "drain path after seek
     /// generation switches"). A fresh [`SeekProgress`] opens the
-    /// step-5 observation window.
+    /// step-5 observation window **with its M10 presentation hold**
+    /// (per-limb, hard-capped at `hold_cap` — the pre-roll budget).
+    ///
+    /// A superseded seek's still-held frames are discarded here,
+    /// counted (D-4: they are stale by generation — the flush that
+    /// opens this window already invalidated their content).
     ///
     /// A flush budget that exhausts before a decoder answers
     /// `Drained` is **not** a failure: the straggler frames it still
@@ -522,12 +586,17 @@ impl Pipeline {
         &mut self,
         generation: GenerationId,
         flush_budget: u32,
+        hold_cap: usize,
     ) -> Result<(), EngineError> {
         // Invalidate any previous observation window first: a
         // half-completed flush must not leave a superseded seek's
         // pre-roll progress armed (it would answer Ready from stale
-        // data and keep the Paused decode carve-out alive).
-        self.seek_progress = None;
+        // data and keep the Paused decode carve-out alive). The
+        // superseded seek's held frames die with it — discarded,
+        // counted, never presented (M10/D-4).
+        if let Some(progress) = self.seek_progress.take() {
+            self.preroll_discarded = self.preroll_discarded.saturating_add(progress.held_count());
+        }
         for limb in &self.limbs {
             let _ = limb.queue.flush(generation);
         }
@@ -544,6 +613,10 @@ impl Pipeline {
                 frames: 0,
                 first: None,
                 stale_dropped: 0,
+                // No hold: the flush's emissions are the OLD
+                // generation's reorder residue — the generation check
+                // drops them, they are never captured (M10).
+                hold: None,
             };
             for _ in 0..flush_budget {
                 match limb.decoder.flush(&mut sink) {
@@ -569,7 +642,7 @@ impl Pipeline {
             limb.decoder.configure(&config)?;
             limb.drained = false;
         }
-        self.seek_progress = Some(SeekProgress::new(&self.limbs));
+        self.seek_progress = Some(SeekProgress::new(&self.limbs, hold_cap));
         Ok(())
     }
 
@@ -578,6 +651,14 @@ impl Pipeline {
     /// to the caller once for its observability totals, then reset.
     pub(crate) fn take_seek_flush_stale(&mut self) -> u32 {
         std::mem::take(&mut self.seek_flush_stale)
+    }
+
+    /// Frames discarded from the pre-roll presentation hold (M10,
+    /// D-4) — superseded or failed seeks' held frames, plus any
+    /// frames the release itself had to refuse — handed to the caller
+    /// once for its observability totals, then reset.
+    pub(crate) fn take_preroll_discarded(&mut self) -> u32 {
+        std::mem::take(&mut self.preroll_discarded)
     }
 
     /// Seek step 4 (doc 03 §6): position the demuxer at its
@@ -622,11 +703,63 @@ impl Pipeline {
         }
     }
 
+    /// M10 — release the pre-roll hold at the seek terminal (doc 03
+    /// §6 steps 6–7). The caller has already re-anchored the clock on
+    /// the landing truth and published the seek's generation, so the
+    /// held frames may finally present: they leave through the same
+    /// [`FrameConsumer`] seam they would have used without the hold,
+    /// in **pts order** (stable among equals — arrival order), every
+    /// limb merged. The observation window closes with the release
+    /// (the terminal is the window's end).
+    ///
+    /// A consumer refusal here is a bounded, counted loss (the
+    /// discard counter), never a swallowed error and never an
+    /// un-report of the already-emitted terminal: the seek completed
+    /// truthfully; the sink's refusal is a separate degraded fact the
+    /// host observes through the count (doc 03 §4.10 d — presentation
+    /// faults degrade, they do not unwind playback state).
+    pub(crate) fn release_preroll_hold(&mut self) {
+        let Some(progress) = self.seek_progress.take() else {
+            return;
+        };
+        // Merge the per-limb holds, then order by pts across limbs
+        // (once per seek — the merge/sort is not a hot path).
+        let mut held: Vec<(TrackId, Frame)> = Vec::new();
+        for (limb, slot) in self.limbs.iter().zip(progress.hold) {
+            for frame in slot {
+                held.push((limb.track.id, frame));
+            }
+        }
+        // Missing stamps sort last (arrival order among equals — the
+        // stable sort keeps it); a present stamp orders by its
+        // nanoseconds on the media base.
+        held.sort_by_key(|(_, frame)| stamp_ns(frame.pts()).unwrap_or(i64::MAX));
+        let generation = self.generation;
+        for (track, frame) in held {
+            // Defense in depth: a frame that went stale between its
+            // capture and the terminal (a threaded future's race)
+            // never presents — dropped and counted, not guessed
+            // around (doc 03 §5 checking point 5).
+            if frame.is_stale(generation) {
+                self.preroll_discarded = self.preroll_discarded.saturating_add(1);
+                continue;
+            }
+            if self.consumer.accept(frame, track).is_err() {
+                self.preroll_discarded = self.preroll_discarded.saturating_add(1);
+            }
+        }
+    }
+
     /// End the in-flight seek's observation window — completion,
     /// failure, or supersession: clears the pre-roll progress (and
     /// with it the Paused decode carve-out of [`Pipeline::tick`]).
+    /// Any frames still in the hold are **discarded and counted**
+    /// (M10, D-4): a seek that will never complete owns nothing
+    /// presentable — its frames are stale by generation.
     pub(crate) fn end_seek(&mut self) {
-        self.seek_progress = None;
+        if let Some(progress) = self.seek_progress.take() {
+            self.preroll_discarded = self.preroll_discarded.saturating_add(progress.held_count());
+        }
     }
 
     /// The limbs whose decoders newly flushed to `Drained` during
@@ -675,7 +808,10 @@ impl Pipeline {
         // one carve-out: while a seek is in flight, decode runs even
         // in Paused so the landing frame exists to re-anchor on (the
         // wire-visible state stays paused; the clock stays frozen
-        // until the completion report).
+        // until the completion report). While the seek is in flight
+        // the decode's frames enter the M10 presentation hold, not
+        // the consumer — the carve-out produces evidence and held
+        // frames, never a pre-terminal presentation.
         // [PROPOSAL: Lead decision 3.HARD-AUDIT D-a — there is no
         // paused→buffering wire edge (doc 05 §3.3), so the pre-roll
         // cannot ride the buffering episode while paused; revisit at
@@ -812,74 +948,112 @@ impl Pipeline {
     /// The decode slice: pop and decode bounded packets per limb,
     /// then (at end-of-stream) flush bounded. Frames leave through
     /// the sink seam with a generation check (doc 03 §5 checking
-    /// point 5).
+    /// point 5). While a seek is in flight the slice's frames are
+    /// **captured into the M10 pre-roll hold** instead of the
+    /// consumer — and the slice backpressures at the hold's cap
+    /// (packets stay in the bounded queues; the pre-roll evidence
+    /// they already produced is what completes the seek).
     fn decode_step(&mut self, budget: &TickBudget, report: &mut TickReport) {
         let consumer = Arc::clone(&self.consumer);
         let generation = self.generation;
         for (index, limb) in self.limbs.iter_mut().enumerate() {
             let track_id = limb.track.id;
             let limb_kind = limb.track.kind;
-            let mut sink = LimbSink {
-                consumer: Arc::clone(&consumer),
-                track: track_id,
-                generation,
-                frames: 0,
-                first: None,
-                stale_dropped: 0,
-            };
             let mut fatal: Option<EngineError> = None;
-            for _ in 0..budget.packets_per_limb {
-                // Three pop outcomes matter: an item (decode it), a
-                // discontinuity marker (observed, keep going), and
-                // nothing resident (stop this limb's slice).
-                let popped = match limb.queue.try_pop() {
-                    PopOutcome::Item(stamped) => Some(Some(stamped.value)),
-                    PopOutcome::Discontinuity(_) => Some(None),
-                    PopOutcome::Empty | PopOutcome::Closed => None,
+            // The slice's observed facts, hoisted out of the sink's
+            // scope so the pre-roll hold borrow ends before the
+            // observation merge below (the hold slot borrows the same
+            // `seek_progress` the merge reads). Assigned exactly once
+            // at the end of the scope below.
+            let sink_frames: u32;
+            let sink_first: Option<Stamp>;
+            let sink_stale: u32;
+            {
+                // M10: while a seek is in flight, the sink routes the
+                // slice's frames into the per-limb hold — they reach
+                // the consumer only at the seek terminal
+                // (`release_preroll_hold`), never against the frozen
+                // clock.
+                let mut sink = LimbSink {
+                    consumer: Arc::clone(&consumer),
+                    track: track_id,
+                    generation,
+                    frames: 0,
+                    first: None,
+                    stale_dropped: 0,
+                    hold: self.seek_progress.as_mut().and_then(|p| p.hold_slot(index)),
                 };
-                match popped {
-                    None => break,
-                    Some(None) => continue,
-                    Some(Some(packet)) => match limb.decoder.decode(packet, &mut sink) {
-                        Ok(DecodeOutcome::Recovered { skipped, .. }) => {
-                            report.damaged_decode =
-                                report.damaged_decode.saturating_add(u64::from(skipped));
-                            report.damaged = report.damaged.saturating_add(u64::from(skipped));
-                        }
-                        Ok(_) => {}
-                        Err(error) => {
-                            fatal = Some(error);
-                            break;
-                        }
-                    },
-                }
-            }
-            // End-of-stream draining: flush the decoder until it
-            // reports `Drained`, bounded per tick.
-            if fatal.is_none() && self.eof && !limb.drained {
-                let queue_empty = limb.queue.usage().packets == 0;
-                if queue_empty && self.pending.is_none() {
-                    for _ in 0..budget.flush_calls_per_limb {
-                        match limb.decoder.flush(&mut sink) {
-                            Ok(DecodeOutcome::Drained) => {
-                                limb.drained = true;
-                                // Newly drained this tick: the
-                                // `playback.end-of-track` candidate
-                                // (card 3.B4) — pushed into the reused
-                                // scratch the session drains after
-                                // the tick.
-                                self.ended_limbs.push((limb_kind, track_id));
-                                report.newly_drained = report.newly_drained.saturating_add(1);
-                                break;
+                for _ in 0..budget.packets_per_limb {
+                    // Hold backpressure (M10, D-1): a full hold ends
+                    // this limb's slice — the packets stay queued,
+                    // bounded, and the seek completes on the evidence
+                    // already held (a full slot implies the limb
+                    // delivered, so this can never wedge the
+                    // pre-roll).
+                    if sink.hold_is_full() {
+                        break;
+                    }
+                    // Three pop outcomes matter: an item (decode it), a
+                    // discontinuity marker (observed, keep going), and
+                    // nothing resident (stop this limb's slice).
+                    let popped = match limb.queue.try_pop() {
+                        PopOutcome::Item(stamped) => Some(Some(stamped.value)),
+                        PopOutcome::Discontinuity(_) => Some(None),
+                        PopOutcome::Empty | PopOutcome::Closed => None,
+                    };
+                    match popped {
+                        None => break,
+                        Some(None) => continue,
+                        Some(Some(packet)) => match limb.decoder.decode(packet, &mut sink) {
+                            Ok(DecodeOutcome::Recovered { skipped, .. }) => {
+                                report.damaged_decode =
+                                    report.damaged_decode.saturating_add(u64::from(skipped));
+                                report.damaged = report.damaged.saturating_add(u64::from(skipped));
                             }
-                            Ok(_) => continue,
+                            Ok(_) => {}
                             Err(error) => {
                                 fatal = Some(error);
                                 break;
                             }
+                        },
+                    }
+                }
+                // End-of-stream draining: flush the decoder until it
+                // reports `Drained`, bounded per tick. The same hold
+                // backpressure applies (a landing flush's frames are
+                // pre-roll frames too — held, not presented).
+                if fatal.is_none() && self.eof && !limb.drained {
+                    let queue_empty = limb.queue.usage().packets == 0;
+                    if queue_empty && self.pending.is_none() {
+                        for _ in 0..budget.flush_calls_per_limb {
+                            if sink.hold_is_full() {
+                                break;
+                            }
+                            match limb.decoder.flush(&mut sink) {
+                                Ok(DecodeOutcome::Drained) => {
+                                    limb.drained = true;
+                                    // Newly drained this tick: the
+                                    // `playback.end-of-track` candidate
+                                    // (card 3.B4) — pushed into the reused
+                                    // scratch the session drains after
+                                    // the tick.
+                                    self.ended_limbs.push((limb_kind, track_id));
+                                    report.newly_drained =
+                                        report.newly_drained.saturating_add(1);
+                                    break;
+                                }
+                                Ok(_) => continue,
+                                Err(error) => {
+                                    fatal = Some(error);
+                                    break;
+                                }
+                            }
                         }
                     }
                 }
+                sink_frames = sink.frames;
+                sink_first = sink.first;
+                sink_stale = sink.stale_dropped;
             }
             if let Some(error) = fatal {
                 report.fatal = Some(error);
@@ -889,12 +1063,10 @@ impl Pipeline {
             // delivered becomes the session's FirstFrame fact; stale
             // frame drops are counted (v0 cannot produce them — the
             // generation check is the doc 03 §5 point-5 checkpoint).
-            report.frames = report.frames.saturating_add(u64::from(sink.frames));
-            report.stale_frames = report
-                .stale_frames
-                .saturating_add(u64::from(sink.stale_dropped));
+            report.frames = report.frames.saturating_add(u64::from(sink_frames));
+            report.stale_frames = report.stale_frames.saturating_add(u64::from(sink_stale));
             if self.first_frame.is_none()
-                && let Some(position) = sink.first
+                && let Some(position) = sink_first
             {
                 self.first_frame = Some(position);
                 report.first_frame = Some(position);
@@ -903,7 +1075,7 @@ impl Pipeline {
             // step 5): frames delivered this slice, and the first
             // frame's stamp (the audio anchor truth for step 6).
             if let Some(progress) = self.seek_progress.as_mut() {
-                progress.observe(index, limb_kind, sink.frames, sink.first);
+                progress.observe(index, limb_kind, sink_frames, sink_first);
             }
         }
     }
@@ -922,23 +1094,81 @@ fn stamp_ns(stamp: Stamp) -> Option<i64> {
 /// The per-limb [`FrameSink`]: the only path frames leave the engine
 /// through in v0. Checks each frame's generation (doc 03 §5 checking
 /// point 5 — stale frames never reach the consumer) and records the
-/// first-frame timestamp.
-struct LimbSink {
+/// first-frame timestamp. While a seek is in flight the sink carries
+/// the limb's M10 hold slot: live frames are captured into it instead
+/// of being delivered (released at the seek terminal, discarded on
+/// rollback — see [`Pipeline::release_preroll_hold`]).
+struct LimbSink<'a> {
     consumer: Arc<dyn FrameConsumer>,
     track: TrackId,
     generation: GenerationId,
     frames: u32,
     first: Option<Stamp>,
     stale_dropped: u32,
+    /// The pre-roll hold slot (M10): `None` outside a seek's
+    /// pre-roll (frames deliver straight through) or during the seek
+    /// flush itself (the flush's emissions are the old generation's
+    /// residue — the generation check drops them, never held).
+    hold: Option<PrerollHoldSlot<'a>>,
 }
 
-impl FrameSink for LimbSink {
+/// One limb's pre-roll hold slot, as handed to a decode slice (M10):
+/// a hard-capped frame buffer plus the capacity that bounds it.
+#[derive(Debug)]
+struct PrerollHoldSlot<'a> {
+    frames: &'a mut Vec<Frame>,
+    cap: usize,
+}
+
+impl PrerollHoldSlot<'_> {
+    /// Whether the slot is at its hard capacity (D-1: the bound the
+    /// decode slice backpressures against).
+    fn is_full(&self) -> bool {
+        self.frames.len() >= self.cap
+    }
+
+    /// Capture one frame. At capacity the frame is refused — the
+    /// caller counts the loss (never buffered unboundedly, never
+    /// silently swallowed); reachable only through a single decode
+    /// call bursting past the whole slice's worth of frames.
+    fn push(&mut self, frame: Frame) -> bool {
+        if self.is_full() {
+            return false;
+        }
+        self.frames.push(frame);
+        true
+    }
+}
+
+impl LimbSink<'_> {
+    /// Whether the sink's hold (if any) is at capacity — `false`
+    /// when frames deliver straight through (no hold, no bound).
+    fn hold_is_full(&self) -> bool {
+        self.hold.as_ref().is_some_and(PrerollHoldSlot::is_full)
+    }
+}
+
+impl FrameSink for LimbSink<'_> {
     fn accept(&mut self, frame: Frame) -> Result<(), EngineError> {
         let pts = frame.pts();
         if frame.is_stale(self.generation) {
             // A stale frame is dropped on sight — no error, no
             // consumer call, counted (doc 03 §5 point 5).
             self.stale_dropped = self.stale_dropped.saturating_add(1);
+            return Ok(());
+        }
+        if let Some(hold) = self.hold.as_mut() {
+            // M10: capture, do not deliver. A refusal here is the
+            // single-call-burst backstop — counted as a discard,
+            // never an unbounded buffer and never a pre-terminal
+            // presentation.
+            if !hold.push(frame) {
+                self.stale_dropped = self.stale_dropped.saturating_add(1);
+            }
+            self.frames = self.frames.saturating_add(1);
+            if self.first.is_none() {
+                self.first = Some(pts);
+            }
             return Ok(());
         }
         self.consumer.accept(frame, self.track)?;
