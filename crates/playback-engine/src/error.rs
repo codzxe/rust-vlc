@@ -29,10 +29,12 @@ use media_types::{EngineError, PipelineStage};
 /// state machine is asked anything (see the module docs).
 #[derive(Debug)]
 pub enum SessionError {
-    /// The engine already hosts a live session. The minimal machine
-    /// is single-session `[PROPOSAL: multi-session hosting and
-    /// play-new-while-playing replacement are 3.A2+; v0 says no
-    /// honestly instead of silently replacing]`.
+    /// The engine already hosts a live session. Single-session v0
+    /// `[PROPOSAL: multi-session hosting arrives with the hosts that
+    /// need it]`; card 3.A2 wires source replacement on `open`, so
+    /// this refusal now surfaces for exactly one legal exit — a live
+    /// `Buffering` session (no `buffering → {stopped,idle}` wire
+    /// edge in v1; card 3.C1 owns the transient-state edges).
     SessionExists {
         /// The live session's wire id.
         session: commands::SessionId,
