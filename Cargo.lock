@@ -6,6 +6,7 @@ version = 4
 name = "audio-engine"
 version = "0.1.0"
 dependencies = [
+ "media-clock",
  "media-types",
  "testkit",
 ]

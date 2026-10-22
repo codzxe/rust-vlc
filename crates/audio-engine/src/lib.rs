@@ -33,11 +33,16 @@
 //! pipeline is rate-preserving by construction: every stage maps one
 //! input sample-instant to one output sample-instant (the mixer sums
 //! tracks sample-wise; the channel map changes channel count, never
-//! frame count). Rate conversion (the bounded micro-resampler for
-//! drift, doc 03 §4.7 e) is a later card — a track whose rate differs
-//! from the negotiated mixer rate is a typed
-//! [`Unsupported`](media_types::ErrorKind::Unsupported) error, never a
-//! silent resample.
+//! frame count). The **bounded drift micro-resampler** (card 3.B1,
+//! doc 03 §4.7 e — [`MicroResampler`], governed by [`DriftGovernor`])
+//! is the one sanctioned exception: a non-zero [`DriftCorrection`]
+//! shifts the quantum's device-sample count by ≤ ±1000 ppm — exactly
+//! doc 03 §4.8 f's "unless the filter declares a rate change" — while
+//! `DriftCorrection::ZERO` restores the 1:1 path bit-exactly. A track
+//! whose *rate* differs from the negotiated mixer rate remains a
+//! typed [`Unsupported`](media_types::ErrorKind::Unsupported) error,
+//! never a silent resample (track-rate conversion is a different,
+//! later card).
 //!
 //! # Errors
 //!
@@ -106,12 +111,16 @@ pub mod buffer;
 pub mod channel_map;
 pub mod convert;
 pub mod error;
+pub mod governor;
 pub mod mix;
 pub mod pipeline;
+pub mod resample;
 pub mod volume;
 
 pub use buffer::{AudioBuffer, AudioSink};
 pub use channel_map::ChannelMap;
+pub use governor::{DriftGovernor, DriftStats};
 pub use mix::Mixer;
 pub use pipeline::{AudioPipeline, PipelineSpec};
+pub use resample::MicroResampler;
 pub use volume::Volume;

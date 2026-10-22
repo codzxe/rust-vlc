@@ -21,6 +21,7 @@
 //! end; a track whose rate differs from the negotiated mixer rate is
 //! a typed error (the micro-resampler is a later card, doc 03 §4.7 e).
 
+use media_clock::DriftCorrection;
 use media_types::EngineError;
 use media_types::frame::{AudioFormat, AudioFrame, AudioLayout, SampleFormat};
 use media_types::packet::SharedBytes;
@@ -30,7 +31,9 @@ use crate::buffer::AudioBuffer;
 use crate::channel_map::ChannelMap;
 use crate::convert::{frame_to_f32_planes, planes_to_f32_interleaved_into};
 use crate::error;
+use crate::governor::{DriftGovernor, DriftStats};
 use crate::mix::Mixer;
+use crate::resample::MicroResampler;
 use crate::volume::Volume;
 
 /// The output-slot rotation depth: how many pooled quantum buffers the
@@ -73,6 +76,19 @@ pub struct AudioPipeline {
     timing: Option<Stamp>,
     /// Mixer output planes (reused).
     mixed: Vec<Vec<f32>>,
+    /// The bounded drift correction in force (card 3.B1): `ZERO`
+    /// keeps the sample-count-conserving bypass below; non-zero
+    /// routes the mixed planes through the micro-resampler between
+    /// `mix` and the stage-D interleave (doc 03 §4.8 e-f).
+    drift: DriftCorrection,
+    /// The micro-resampler (consumer #1 of `DriftCorrection` —
+    /// audit M12's missing half; dormant at `ZERO`).
+    resampler: MicroResampler,
+    /// The drift governor (consumer #2 — the `for_divergence`
+    /// derivation site), when the wiring arms it. `None` = the
+    /// pipeline applies corrections from `set_drift` only (direct
+    /// control — what a host with its own measurement loop wants).
+    governor: Option<DriftGovernor>,
     /// Stage-D output rotation: pooled [`SharedBytes`] slots the
     /// quantum is interleaved into in place (`get_mut` when the pool
     /// is the sole owner — no per-quantum Arc allocation after
@@ -110,10 +126,80 @@ impl AudioPipeline {
             staged: vec![0; spec.tracks],
             timing: None,
             mixed: Vec::new(),
+            drift: DriftCorrection::ZERO,
+            resampler: MicroResampler::new(spec.channels),
+            governor: None,
             out_slots: Vec::new(),
             out_next: 0,
             pending: None,
         })
+    }
+
+    /// Arm the drift governor toward `target_ns` of ring fill (card
+    /// 3.B1): the wiring's one-call loop closure — feed it the sink's
+    /// measured latency per quantum and the corrections land in the
+    /// resampler automatically. Without a governor the pipeline still
+    /// accepts direct [`AudioPipeline::set_drift`] control.
+    #[must_use]
+    pub fn with_drift_governor(mut self, target_ns: u64) -> AudioPipeline {
+        self.governor = Some(DriftGovernor::new(target_ns));
+        self
+    }
+
+    /// Apply a drift correction directly (the micro-resampler's
+    /// ratio; consumer #1 of `DriftCorrection` — audit M12).
+    /// `ZERO` restores the sample-count-conserving bypass exactly.
+    pub fn set_drift(&mut self, correction: DriftCorrection) {
+        self.drift = correction;
+        self.resampler.set_correction(correction);
+    }
+
+    /// The correction in force.
+    #[must_use]
+    pub fn drift(&self) -> DriftCorrection {
+        self.drift
+    }
+
+    /// One per-quantum drift observation through the armed governor
+    /// (see [`AudioPipeline::with_drift_governor`]): feeds the fill
+    /// sample, re-evaluates at the ≤1 Hz window, applies the
+    /// step-limited correction to the resampler, and answers it.
+    /// A pipeline without a governor ignores the sample (`ZERO`).
+    ///
+    /// * `now_ns` — the injected device-time stamp (the wiring
+    ///   derives it from the sample counter; a frozen device freezes
+    ///   the window — zero updates, deterministically).
+    /// * `fill_ns` — the sink's measured latency, `None` when
+    ///   unmeasurable (parks the governor at zero — honest
+    ///   degradation, never a fabricated estimate).
+    pub fn observe_drift(&mut self, now_ns: u64, fill_ns: Option<u64>) -> DriftCorrection {
+        let Some(governor) = self.governor.as_mut() else {
+            return DriftCorrection::ZERO;
+        };
+        let correction = governor.observe(now_ns, fill_ns);
+        self.set_drift(correction);
+        correction
+    }
+
+    /// A new timing regime (generation / anchor-epoch bump): reset
+    /// the governor's measurement and the resampler's stream phase.
+    /// The correction drops to zero with the measurement (the S7
+    /// transient is one step-limiter increment at most).
+    pub fn reset_drift(&mut self) {
+        if let Some(governor) = self.governor.as_mut() {
+            governor.reset();
+        }
+        self.set_drift(DriftCorrection::ZERO);
+        self.resampler.reset();
+    }
+
+    /// The governor's polled observability (counters only — the
+    /// no-event-storm policy; all-zero when no governor is armed).
+    #[must_use]
+    pub fn drift_stats(&self) -> DriftStats {
+        self.governor
+            .as_ref()
+            .map_or(DriftStats::default(), DriftGovernor::stats)
     }
 
     /// The negotiated spec.
@@ -248,8 +334,35 @@ impl AudioPipeline {
             self.mixed = mixed;
             mix_result?;
         }
-        // Stage D: interleave into a pooled output slot.
-        let data = self.pooled_output(frames)?;
+        // The 3.B1 drift seam — between `mix` and stage D (doc 03
+        // §4.7 e / §4.8 e-f): a non-zero correction resamples the
+        // mixed planes through the micro-resampler into its own
+        // reused plane set; `ZERO` is a bit-exact bypass by ownership
+        // (no interpolation, no copy — the mixed planes feed stage D
+        // directly, the pre-3.B1 path byte for byte).
+        let (planes, out_frames) = if self.drift.ppm() == 0 {
+            (self.mixed.as_slice(), frames)
+        } else {
+            // Field-disjoint borrows: the resampler mutates while the
+            // mixed planes are read (no `mem::take`, no Default).
+            let out_frames = self.resampler.process(&self.mixed, frames);
+            (self.resampler.planes(), out_frames)
+        };
+        // Stage D: interleave into a pooled output slot. The slot
+        // rotation is taken out of `self` so the `planes` borrow
+        // (mixed or the resampler's set — field-disjoint from the
+        // pool) survives the call.
+        let data = {
+            let mut slots = std::mem::take(&mut self.out_slots);
+            let filled = pooled_slot(
+                &mut slots,
+                &mut self.out_next,
+                planes,
+                out_frames * self.spec.channels as usize * 4,
+            );
+            self.out_slots = slots;
+            filled?
+        };
         let pts = self.timing.take().unwrap_or(Stamp::Missing);
         self.pending = Some(AudioBuffer {
             format: self.device_format(),
@@ -270,62 +383,57 @@ impl AudioPipeline {
         Ok(true)
     }
 
-    /// Fill the next pooled output slot with the mixed quantum's
-    /// interleaved bytes and hand out a clone (refcount 2: pool + the
-    /// pending buffer; the clone the sink saw returns to refcount 1
-    /// when its buffer drops, making the slot refillable in place).
-    /// Cold path (first quanta, geometry change, or an all-slots-busy
-    /// rotation): allocate a fresh slot and enter it into the
-    /// round-robin.
-    fn pooled_output(&mut self, frames: usize) -> Result<SharedBytes, EngineError> {
-        let len = frames * self.spec.channels as usize * 4;
-        let slots = self.out_slots.len();
-        for i in 0..slots {
-            let idx = (self.out_next + i) % slots;
-            if self.out_slots[idx].len() != len {
-                continue;
-            }
-            // Field-disjoint borrows: the slot is written in place,
-            // the mixed planes are read.
-            let Self {
-                out_slots,
-                out_next,
-                mixed,
-                ..
-            } = self;
-            if let Some(bytes) = out_slots[idx].get_mut() {
-                let filled = planes_to_f32_interleaved_into(mixed, bytes);
-                *out_next = (idx + 1) % slots;
-                filled?;
-                return Ok(out_slots[idx].clone());
-            }
-            // The slot still has downstream owners — try the next one.
-        }
-        // Cold path: allocate, then enter the rotation (growing it up
-        // to OUT_SLOTS; beyond that, evicting round-robin — bounded).
-        let mut fresh = SharedBytes::from_vec(vec![0; len]);
-        // Refcount is 1 by construction; fill in place, then share.
-        let filled = match fresh.get_mut() {
-            Some(bytes) => planes_to_f32_interleaved_into(&self.mixed, bytes),
-            None => unreachable!("fresh SharedBytes has refcount 1"),
-        };
-        if slots < OUT_SLOTS {
-            self.out_slots.push(fresh.clone());
-            self.out_next = (slots + 1) % OUT_SLOTS;
-        } else {
-            let evict = self.out_next;
-            self.out_slots[evict] = fresh.clone();
-            self.out_next = (evict + 1) % OUT_SLOTS;
-        }
-        filled?;
-        Ok(fresh)
-    }
-
     /// Take the mixed quantum (once per [`mix`](Self::mix) that
     /// returned `true`).
     pub fn take_output(&mut self) -> Option<AudioBuffer> {
         self.pending.take()
     }
+}
+
+/// Fill the next pooled output slot with `planes`' interleaved bytes
+/// and hand out a clone (refcount 2: pool + the pending buffer; the
+/// clone the sink saw returns to refcount 1 when its buffer drops,
+/// making the slot refillable in place). Warm path: an in-rotation
+/// slot of exactly `byte_len` whose `get_mut` succeeds (the pool is
+/// the sole owner). Cold path (first quanta, a length change — a
+/// correction shifts the quantum by ≤ +0.1 %, or an all-slots-busy
+/// rotation): allocate a fresh slot and enter it into the
+/// round-robin (bounded at [`OUT_SLOTS`], then evicting).
+fn pooled_slot(
+    slots: &mut Vec<SharedBytes>,
+    out_next: &mut usize,
+    planes: &[Vec<f32>],
+    byte_len: usize,
+) -> Result<SharedBytes, EngineError> {
+    let count = slots.len();
+    for i in 0..count {
+        let idx = (*out_next + i) % count;
+        if slots[idx].len() != byte_len {
+            continue;
+        }
+        if let Some(bytes) = slots[idx].get_mut() {
+            planes_to_f32_interleaved_into(planes, bytes)?;
+            *out_next = (idx + 1) % count;
+            return Ok(slots[idx].clone());
+        }
+        // The slot still has downstream owners — try the next one.
+    }
+    // Cold path: allocate, fill in place, then enter the rotation.
+    let mut fresh = SharedBytes::from_vec(vec![0; byte_len]);
+    let filled = match fresh.get_mut() {
+        Some(bytes) => planes_to_f32_interleaved_into(planes, bytes),
+        None => unreachable!("fresh SharedBytes has refcount 1"),
+    };
+    if count < OUT_SLOTS {
+        slots.push(fresh.clone());
+        *out_next = (count + 1) % OUT_SLOTS;
+    } else {
+        let evict = *out_next;
+        slots[evict] = fresh.clone();
+        *out_next = (evict + 1) % OUT_SLOTS;
+    }
+    filled?;
+    Ok(fresh)
 }
 
 #[cfg(test)]
