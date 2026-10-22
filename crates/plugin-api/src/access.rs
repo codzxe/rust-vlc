@@ -50,6 +50,28 @@ pub trait SourceStream: Send {
     /// [`PipelineStage::Open`].
     fn read(&mut self, len: usize) -> Result<Vec<u8>, EngineError>;
 
+    /// Read up to `out.len()` bytes into caller memory at the current
+    /// position — the borrow twin of [`read`](SourceStream::read)
+    /// (card 3.B3, directives-audit M4's root-cause fix).
+    ///
+    /// Same contract as `read` (short reads are data; `Ok(0)` only at
+    /// end of stream; a zero-length buffer is a zero-length success
+    /// without I/O) minus the per-call [`Vec`] allocation: the bytes
+    /// land in memory the caller already owns. Local sources override
+    /// this with a direct copy out of their buffer; the provided
+    /// default allocates once and copies, so every existing
+    /// implementation keeps working unchanged.
+    ///
+    /// # Errors
+    /// [`EngineError`] — the source's own read errors (stage
+    /// [`PipelineStage::Open`]); errors leave the position unchanged
+    /// where the source can honor that.
+    fn read_into(&mut self, out: &mut [u8]) -> Result<usize, EngineError> {
+        let chunk = self.read(out.len())?;
+        out[..chunk.len()].copy_from_slice(&chunk);
+        Ok(chunk.len())
+    }
+
     /// Reposition when [`supports_seek`](SourceStream::supports_seek).
     ///
     /// # Errors
@@ -267,5 +289,63 @@ mod tests {
             err.kind,
             media_types::ErrorKind::Unsupported { .. }
         ));
+    }
+
+    /// The provided `read_into` default (the alloc-copy over `read`)
+    /// honors the trait contract for implementations that do not
+    /// override it: varied buffer sizes reconstruct the data, the
+    /// position tracks consumption, `Ok(0)` only at end of stream,
+    /// and a zero-length buffer is a zero-length success.
+    #[test]
+    fn default_read_into_reconstructs_and_tracks_position() {
+        let uri = match SourceUri::parse("file:///tmp/a.mkv") {
+            Ok(u) => u,
+            Err(e) => unreachable!("{e}"),
+        };
+        let mut stream = match MemAccess.open(&uri) {
+            Ok(s) => s,
+            Err(e) => unreachable!("{e}"),
+        };
+        let expected: &[u8] = b"matroska-bytes";
+
+        let mut got = Vec::new();
+        let mut scratch = [0u8; 3];
+        loop {
+            let n = match stream.read_into(&mut scratch) {
+                Ok(n) => n,
+                Err(e) => unreachable!("{e}"),
+            };
+            if n == 0 {
+                break;
+            }
+            assert!(n <= scratch.len());
+            got.extend_from_slice(&scratch[..n]);
+            assert_eq!(
+                stream.position().0 as usize,
+                got.len(),
+                "position tracks read_into consumption"
+            );
+        }
+        assert_eq!(got, expected, "varied-size read_into reconstructs");
+
+        // Zero-length buffer: zero-length success, no position move.
+        let n = match stream.read_into(&mut []) {
+            Ok(n) => n,
+            Err(e) => unreachable!("{e}"),
+        };
+        assert_eq!(n, 0);
+        assert_eq!(stream.position().0 as usize, expected.len());
+
+        // Seek back and read the whole payload in one caller buffer.
+        match stream.seek(SeekOrigin::Start(0)) {
+            Ok(_) => {}
+            Err(e) => unreachable!("{e}"),
+        }
+        let mut whole = [0u8; 64];
+        let n = match stream.read_into(&mut whole) {
+            Ok(n) => n,
+            Err(e) => unreachable!("{e}"),
+        };
+        assert_eq!(&whole[..n], expected, "one big borrow read");
     }
 }

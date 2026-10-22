@@ -585,3 +585,300 @@ fn close_wakes_every_parked_producer() {
     assert_eq!(stats.pushed, RESIDENT, "the aborted pushes entered nothing");
     assert_eq!(stats.popped, RESIDENT);
 }
+
+// ---------------------------------------------------------------------------
+// Card 3.B3 (design E1b): the burst-storm and deadlock-triad properties.
+//
+// No-deadlock is asserted the only sound way for condvar code: **every
+// park carries a deadline** (the API demands one, queue.rs docs) and
+// every schedule **terminates inside a stated wall-clock budget** —
+// a lost wakeup either trips an in-thread budget assert or surfaces
+// as a deadline abort/overrun, never a hung gate. The seed rides
+// every panic message.
+// ---------------------------------------------------------------------------
+
+/// Deterministic xorshift* (the `limits.rs` convention).
+struct XorShift(u64);
+
+impl XorShift {
+    fn next(&mut self) -> u64 {
+        let mut x = self.0;
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        self.0 = x;
+        x
+    }
+
+    fn below(&mut self, n: u64) -> u64 {
+        self.next() % n
+    }
+}
+
+/// The burst storm (design E1b-a): 4 producers flood the parking push
+/// — bursts of back-to-back pushes separated by yields — into an
+/// 8-slot queue while one consumer drains at seeded paces. Every item
+/// is delivered exactly once; the producers' pushes never expire their
+/// generous deadline (`full_rejections == 0`), which is the healthy
+/// park/wake shape: with 1000 items against 8 slots and a consumer
+/// that sleeps, progress through a full queue can only come from the
+/// `space` condvar waking parked producers. The whole storm must
+/// finish inside the budget (termination is the no-deadlock proof).
+#[test]
+fn burst_storm_parks_drains_and_delivers_exactly_once() {
+    const PRODUCERS: u64 = 4;
+    const PER_PRODUCER: u64 = 250;
+    const TOTAL: u64 = PRODUCERS * PER_PRODUCER;
+    const STORM_BUDGET: Duration = Duration::from_secs(10);
+
+    for seed in [1u64, 2, 3, 0x9E37_79B9_7F4A_7C15] {
+        let started = Instant::now();
+        let queue = Arc::new(BoundedQueue::<Blob>::with_default_watermarks(limits(
+            8, 1_000, 2_000,
+        )));
+        let delivered: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(Vec::new()));
+
+        let mut handles = Vec::new();
+        for producer in 0..PRODUCERS {
+            let queue = Arc::clone(&queue);
+            handles.push(
+                thread::Builder::new()
+                    .name(format!("burst-producer-{producer}"))
+                    .spawn(move || {
+                        for step in 0..PER_PRODUCER {
+                            let id = producer * PER_PRODUCER + step;
+                            // The parking push with a generous budget:
+                            // in a healthy storm the deadline never
+                            // fires (the consumer always eventually
+                            // makes room), so an abort is a lost
+                            // wakeup, loudly.
+                            let deadline = started + STORM_BUDGET;
+                            if let Err(abort) = queue.push_wait(
+                                Stamped::new(GenerationId::FIRST, Blob { id }),
+                                Some(deadline),
+                            ) {
+                                unreachable!("seed {seed}: no close/flush in this storm, a parked push expired its deadline (id {id}): {abort:?}");
+                            }
+                            // Burst pacing: 16 back-to-back pushes, then
+                            // one yield — the flood shape of the AC.
+                            if step % 16 == 15 {
+                                thread::yield_now();
+                            }
+                        }
+                    })
+                    .must(),
+            );
+        }
+
+        let consumer_queue = Arc::clone(&queue);
+        let consumer_delivered = Arc::clone(&delivered);
+        let consumer_seed = seed | 1;
+        handles.push(
+            thread::Builder::new()
+                .name("burst-consumer".into())
+                .spawn(move || {
+                    let mut rng = XorShift(consumer_seed);
+                    let mut drained = 0u64;
+                    while drained < TOTAL {
+                        assert!(
+                            Instant::now() < started + STORM_BUDGET,
+                            "seed {consumer_seed}: consumer stalled at {drained}/{TOTAL} — a producer lost its wakeup"
+                        );
+                        match consumer_queue.pop_wait(Some(
+                            Instant::now() + Duration::from_millis(20),
+                        )) {
+                            PopOutcome::Item(item) => {
+                                record_id(&consumer_delivered, item.value.id);
+                                drained += 1;
+                            }
+                            PopOutcome::Empty => {
+                                // A seeded backoff: the consumer's pace
+                                // is the producers' backpressure.
+                                if rng.below(4) == 0 {
+                                    thread::sleep(Duration::from_millis(rng.below(2)));
+                                } else {
+                                    thread::yield_now();
+                                }
+                            }
+                            _ => unreachable!("seed {consumer_seed}: no close/flush in this storm"),
+                        }
+                    }
+                })
+                .must(),
+        );
+
+        join_or_propagate(handles);
+        let elapsed = started.elapsed();
+        assert!(
+            elapsed < STORM_BUDGET,
+            "seed {seed}: the storm overran the {STORM_BUDGET:?} budget ({elapsed:?}) — deadlock?"
+        );
+
+        // Exactly once, no loss, no duplication.
+        let ids = delivered.lock().unwrap_or_else(|p| p.into_inner()).clone();
+        assert_eq!(ids.len() as u64, TOTAL, "seed {seed}: every item delivered");
+        let unique: BTreeSet<u64> = ids.iter().copied().collect();
+        assert_eq!(unique.len() as u64, TOTAL, "seed {seed}: no duplication");
+        assert_eq!(unique.first().copied(), Some(0), "seed {seed}");
+        assert_eq!(
+            unique.last().copied(),
+            Some(TOTAL - 1),
+            "seed {seed}: every id in range"
+        );
+        // The healthy park/wake shape: no push ever expired its
+        // deadline (a Deadline abort would have panicked above, and
+        // the queue's own counter double-checks it).
+        let stats = queue.stats();
+        assert_eq!(stats.pushed, TOTAL, "seed {seed}");
+        assert_eq!(stats.popped, TOTAL, "seed {seed}");
+        assert_eq!(stats.flushed, 0, "seed {seed}");
+        assert_eq!(stats.stale_rejected, 0, "seed {seed}");
+        assert_eq!(
+            stats.full_rejections, 0,
+            "seed {seed}: no deadline expiries"
+        );
+        assert_eq!(queue.usage().packets, 0, "seed {seed}: drained at rest");
+    }
+}
+
+/// The deadlock triad (design E1b-b): seeded interleavings of
+/// {flush, close, push_wait, pop_wait} — two producers, two consumers,
+/// one flusher, one closer — against one small queue. Every park
+/// carries a short seeded deadline, so every schedule terminates; the
+/// whole triad must land inside the budget, and at rest Q1 and the
+/// conservation law hold whatever the interleaving did.
+#[test]
+fn deadlock_triad_terminates_under_seeded_interleavings() {
+    const TRIAD_BUDGET: Duration = Duration::from_secs(5);
+
+    for seed in [1u64, 2, 3, 4, 0x9E37_79B9_7F4A_7C15] {
+        let started = Instant::now();
+        let queue = Arc::new(BoundedQueue::<Blob>::with_default_watermarks(limits(
+            4, 64, 128,
+        )));
+
+        // Two producers: the parking push with short seeded deadlines
+        // (bounded virtual time — the only sound no-deadlock form for
+        // threaded condvar code).
+        let mut handles = Vec::new();
+        for producer in 0..2u64 {
+            let queue = Arc::clone(&queue);
+            let producer_seed = seed.wrapping_add(producer * 0x51ED) | 1;
+            handles.push(
+                thread::Builder::new()
+                    .name(format!("triad-producer-{producer}"))
+                    .spawn(move || {
+                        let mut rng = XorShift(producer_seed);
+                        for step in 0..200u64 {
+                            let item = Stamped::new(
+                                GenerationId::FIRST,
+                                Blob {
+                                    id: producer * 1_000 + step,
+                                },
+                            );
+                            let deadline = Some(Instant::now() + Duration::from_millis(3));
+                            match queue.push_wait(item, deadline) {
+                                Ok(()) => {}
+                                Err(PushAborted::Closed { .. }) => return,
+                                // A full queue that stayed full for the
+                                // short deadline: a legal interleaving,
+                                // the item is dropped by the producer's
+                                // own policy (counted by the queue as a
+                                // full rejection, not a loss).
+                                Err(PushAborted::Stale { .. } | PushAborted::Deadline { .. }) => {}
+                            }
+                            if rng.below(8) == 0 {
+                                thread::yield_now();
+                            }
+                            assert!(
+                                Instant::now() < started + TRIAD_BUDGET,
+                                "seed {producer_seed}: producer overran the budget"
+                            );
+                        }
+                    })
+                    .must(),
+            );
+        }
+
+        // Two consumers: the parking pop with the same deadline mix.
+        for consumer in 0..2u64 {
+            let queue = Arc::clone(&queue);
+            let consumer_seed = seed.wrapping_add(0xC0FFEE + consumer * 0x7F4A) | 1;
+            handles.push(
+                thread::Builder::new()
+                    .name(format!("triad-consumer-{consumer}"))
+                    .spawn(move || {
+                        let mut rng = XorShift(consumer_seed);
+                        for _ in 0..200u64 {
+                            let deadline = Some(Instant::now() + Duration::from_millis(3));
+                            match queue.pop_wait(deadline) {
+                                PopOutcome::Item(_) => {}
+                                PopOutcome::Discontinuity(_) => {}
+                                PopOutcome::Empty => {}
+                                PopOutcome::Closed => return,
+                            }
+                            if rng.below(8) == 0 {
+                                thread::yield_now();
+                            }
+                            assert!(
+                                Instant::now() < started + TRIAD_BUDGET,
+                                "seed {consumer_seed}: consumer overran the budget"
+                            );
+                        }
+                    })
+                    .must(),
+            );
+        }
+
+        // The control plane: one flusher and one closer, paced to land
+        // mid-storm (the triad's third leg).
+        let flush_queue = Arc::clone(&queue);
+        let flush_seed = seed.wrapping_mul(0x2545_F491) | 1;
+        handles.push(
+            thread::Builder::new()
+                .name("triad-flusher".into())
+                .spawn(move || {
+                    let mut rng = XorShift(flush_seed);
+                    for counter in 1u64..=40u64 {
+                        if rng.below(2) == 0 {
+                            thread::sleep(Duration::from_millis(rng.below(2)));
+                        } else {
+                            thread::yield_now();
+                        }
+                        let _ = flush_queue.flush(GenerationId::new(counter));
+                    }
+                })
+                .must(),
+        );
+        let close_queue = Arc::clone(&queue);
+        handles.push(
+            thread::Builder::new()
+                .name("triad-closer".into())
+                .spawn(move || {
+                    thread::sleep(Duration::from_millis(40));
+                    close_queue.close();
+                })
+                .must(),
+        );
+
+        join_or_propagate(handles);
+        let elapsed = started.elapsed();
+        assert!(
+            elapsed < TRIAD_BUDGET,
+            "seed {seed}: the triad overran the {TRIAD_BUDGET:?} budget ({elapsed:?}) — deadlock?"
+        );
+
+        // Whatever the interleaving, the invariants held at rest: Q1
+        // and the conservation law (pushed == popped + resident +
+        // flushed + stale_rejected; deadline-aborted pushes returned
+        // their items and entered nothing).
+        let stats = queue.stats();
+        let resident = queue.usage().packets as u64;
+        assert!(queue.usage().packets <= 4, "seed {seed}: Q1 at rest");
+        assert_eq!(
+            stats.pushed,
+            stats.popped + resident + stats.flushed,
+            "seed {seed}: conservation at rest (stale/deadline rejections never entered)"
+        );
+    }
+}

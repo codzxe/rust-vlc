@@ -144,6 +144,29 @@ impl FileAccess {
         Ok(FileAccess { capacity: bytes })
     }
 
+    /// A file access sized from a **read-ahead budget** (card 3.B3,
+    /// design A4): the `limits.cache_demux_mib` join. The budget is
+    /// honored up to the single-allocation ceiling — a budget at or
+    /// below [`MAX_BUFFER_BYTES`] becomes the window verbatim; a
+    /// larger one (the schema allows `cache_demux_mib` up to 512 MiB)
+    /// is served at the ceiling, which stays observable through
+    /// [`FileAccess::buffer_capacity`] — never a silent surprise, and
+    /// never the default product value turning into an open failure
+    /// `[PROPOSAL: the multi-chunk read-ahead pool (design A4/D4) is
+    /// the Lead's F2.3 decision; the borrow API makes the window's
+    /// exact depth a perf knob, not a correctness one]`.
+    ///
+    /// # Errors
+    /// [`EngineError`] — `input.buffer.capacity-zero` when `bytes` is
+    /// zero (no budget is no window, not the default).
+    pub fn with_read_ahead_budget(bytes: usize) -> Result<FileAccess, EngineError> {
+        if bytes == 0 {
+            return Err(error::capacity_zero());
+        }
+        let capacity = bytes.min(MAX_BUFFER_BYTES);
+        Ok(FileAccess { capacity })
+    }
+
     /// The configured read-ahead window.
     pub fn buffer_capacity(&self) -> usize {
         self.capacity
@@ -199,6 +222,12 @@ impl SourceStream for FileStream {
         self.reader.read(len)
     }
 
+    fn read_into(&mut self, out: &mut [u8]) -> Result<usize, EngineError> {
+        // The local-source override (card 3.B3): a direct window→out
+        // copy through the bounded reader, no per-call allocation.
+        self.reader.read_into(out)
+    }
+
     fn seek(&mut self, origin: SeekOrigin) -> Result<SourcePosition, EngineError> {
         let target = resolve_origin(self.reader.position(), origin)?;
         let to = self.reader.seek(target)?;
@@ -207,5 +236,46 @@ impl SourceStream for FileStream {
 
     fn position(&self) -> SourcePosition {
         SourcePosition(self.reader.position())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use testkit::Must;
+
+    /// The read-ahead budget join (card 3.B3, design A4): budgets at
+    /// or below the single-allocation ceiling become the window
+    /// verbatim; budgets above it are served at the ceiling (the
+    /// schema-vs-ceiling conflict is the Lead's F2.3 decision —
+    /// observable, never a silent surprise, never an open failure for
+    /// the default product value); zero is a typed refusal.
+    #[test]
+    fn read_ahead_budget_maps_to_the_window_under_the_ceiling() {
+        assert_eq!(
+            FileAccess::with_read_ahead_budget(64 * 1024)
+                .must()
+                .buffer_capacity(),
+            64 * 1024,
+            "a small budget is the window"
+        );
+        assert_eq!(
+            FileAccess::with_read_ahead_budget(MAX_BUFFER_BYTES)
+                .must()
+                .buffer_capacity(),
+            MAX_BUFFER_BYTES,
+            "the ceiling itself is honored verbatim"
+        );
+        // product.toml's default cache_demux_mib = 32: over the
+        // single-window ceiling, served at the ceiling.
+        assert_eq!(
+            FileAccess::with_read_ahead_budget(32 * 1024 * 1024)
+                .must()
+                .buffer_capacity(),
+            MAX_BUFFER_BYTES,
+            "an over-ceiling budget is served at the ceiling, observably"
+        );
+        let err = testkit::assert_err(FileAccess::with_read_ahead_budget(0), "zero budget");
+        assert_eq!(err.context.code, "input.buffer.capacity-zero");
     }
 }

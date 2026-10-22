@@ -165,6 +165,20 @@ impl QueueLimits {
         }
     }
 
+    /// Doc 03 §4.4(b) third-kind defaults — the subtitle/event queue
+    /// is "small and duration-only" (card 3.B3, design A3): 128
+    /// packets / 10 s, hard-capped in bytes by the caller's budget
+    /// `[PROPOSAL: figures — duration-led; wiring a subtitle limb is
+    /// card 3.A3's, this is only the caps vocabulary]`.
+    #[must_use]
+    pub fn subtitle_default(max_bytes: NonZeroUsize) -> QueueLimits {
+        QueueLimits {
+            max_packets: cap(128),
+            max_bytes,
+            max_duration: Nanoseconds(10_000_000_000),
+        }
+    }
+
     /// Which axis (if any) an additional item of the given weight would
     /// violate right now — `None` when the item fits.
     ///
@@ -327,6 +341,16 @@ mod tests {
         let l = QueueLimits::video_default(cap_of(4 << 20));
         assert_eq!(l.max_packets, cap_of(300));
         assert_eq!(l.max_duration, Nanoseconds(2_000_000_000));
+    }
+
+    #[test]
+    fn subtitle_default_is_small_and_duration_led() {
+        // Doc 03 §4.4(b): the third kind's queue is "small and
+        // duration-only" — card 3.B3's [PROPOSAL] figures.
+        let l = QueueLimits::subtitle_default(cap_of(16 << 20));
+        assert_eq!(l.max_packets, cap_of(128));
+        assert_eq!(l.max_bytes, cap_of(16 << 20));
+        assert_eq!(l.max_duration, Nanoseconds(10_000_000_000));
     }
 
     #[test]

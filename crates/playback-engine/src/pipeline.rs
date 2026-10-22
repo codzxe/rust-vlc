@@ -63,16 +63,39 @@
 //! still reaches a typed terminal, because a stream whose every
 //! packet fails is not playing.
 //!
-//! # Watermark policy
+//! # Watermark policy (card 3.B3)
 //!
 //! Packet-queue *reports* watermarks; this crate (the engine) *owns
-//! the policy* (2.B1's recorded hand-off). [`QueuePlan`] sets the
-//! high threshold at three quarters of each cap `[PROPOSAL: v0
-//! policy; the product.toml wiring is owed to card 3.B3]` and keeps
-//! the low threshold at packet-queue's quarter default. Priming
-//! (start) requires **every** enabled limb to be high; an underrun
-//! fires when **any** limb runs low while the demuxer can still
-//! refill — the end-of-stream drain is not an underrun.
+//! the policy* (2.B1's recorded hand-off). [`QueuePlan`] sets the high
+//! threshold at three quarters of every cap and makes **packets the
+//! starvation axis**: the low threshold binds on packets alone (the
+//! byte/duration low marks sit at their caps, never binding), so the
+//! queue's all-axes-low predicate degenerates to packets-only — a
+//! bytes-heavy or unknown-duration mix can always reach `low`
+//! through its packet count (design B2 gap 2: no unreachable-low
+//! silent stalls). Priming (start) requires **every** enabled limb to
+//! be high; an underrun fires when **any** limb runs low while the
+//! demuxer can still refill — the end-of-stream drain is not an
+//! underrun.
+//!
+//! ## Starve debounce (design B2/F1.5)
+//!
+//! A starvation **episode** opens when a limb's queue runs low and
+//! the stall fires; it closes when the limb recovers to its high
+//! watermark (a full refill — priming — or any in-Playing recovery)
+//! or at a seek mint. The **first** stall of a fresh episode fires at
+//! 1 tick (first-stall latency is never delayed); a **re-entry** —
+//! the queue dipping low again while an episode is still open, i.e.
+//! without a full recovery in between — must persist
+//! [`QueuePlan::starve_debounce_ticks`] consecutive low ticks before
+//! it fires. That filters the flapping producer/consumer rate mix
+//! that hovers at the low line (single-tick dips inside an open
+//! episode never re-fire) without delaying honest rebuffer cycles
+//! (each of those passes through a prime, which closes the episode).
+//!
+//! Backpressure itself never flushes or closes anything (D-4):
+//! *backpressure modulates state, generations modulate data* — the
+//! mint-only flush rule holds everywhere in this file.
 
 use std::sync::Arc;
 
@@ -123,6 +146,92 @@ pub trait FrameConsumer: Send + Sync {
     fn accept(&self, frame: Frame, track: TrackId) -> Result<(), EngineError>;
 }
 
+/// Which per-kind packet axis a [`QueuePlanError`] names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QueuePlanKind {
+    /// The audio packet cap (`limits.queue_packets_audio`).
+    Audio,
+    /// The video packet cap (`limits.queue_packets_video`).
+    Video,
+}
+
+impl std::fmt::Display for QueuePlanKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            QueuePlanKind::Audio => "audio",
+            QueuePlanKind::Video => "video",
+        })
+    }
+}
+
+/// An invalid product-shaped queue plan (card 3.B3, design A2):
+/// out-of-range packet caps are **rejected, never clamped** (MP §5 —
+/// the same posture as product.toml's own schema ranges).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QueuePlanError {
+    /// A packet cap below the schema floor (64).
+    PacketsBelowFloor {
+        /// Which per-kind axis.
+        kind: QueuePlanKind,
+        /// The value the host supplied.
+        value: u64,
+        /// The schema floor (product.schema.json:192-193).
+        floor: u64,
+    },
+    /// A packet cap above the schema ceiling (8192 audio / 4096
+    /// video).
+    PacketsAboveCeiling {
+        /// Which per-kind axis.
+        kind: QueuePlanKind,
+        /// The value the host supplied.
+        value: u64,
+        /// The schema ceiling for that kind.
+        ceiling: u64,
+    },
+}
+
+impl std::fmt::Display for QueuePlanError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            QueuePlanError::PacketsBelowFloor { kind, value, floor } => write!(
+                f,
+                "{kind} queue packet cap {value} is below the schema floor {floor} \
+                 (product.schema.json limits.queue_packets_{kind})"
+            ),
+            QueuePlanError::PacketsAboveCeiling {
+                kind,
+                value,
+                ceiling,
+            } => write!(
+                f,
+                "{kind} queue packet cap {value} is above the schema ceiling {ceiling} \
+                 (product.schema.json limits.queue_packets_{kind})"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for QueuePlanError {}
+
+/// The shared schema floor for per-kind packet caps
+/// (product.schema.json:192-193: `minimum: 64`). Duplicated by design
+/// A2 — the schema is the authority; the constants test in
+/// `tests/queue_policy.rs` pins the duplication against the file.
+pub const QUEUE_PACKETS_FLOOR: u64 = 64;
+/// The audio packet-cap ceiling (product.schema.json:192:
+/// `maximum: 8192`).
+pub const QUEUE_PACKETS_AUDIO_CEILING: u64 = 8192;
+/// The video packet-cap ceiling (product.schema.json:193:
+/// `maximum: 4096`).
+pub const QUEUE_PACKETS_VIDEO_CEILING: u64 = 4096;
+
+/// The default starve debounce (design B2/F1.5): a re-entry dip must
+/// persist this many consecutive low ticks to fire. `[PROPOSAL:
+/// pending 3.B1 sync observations; config key
+/// `queue_starve_debounce_ticks` in design A5 awaits Lead
+/// ratification]`.
+pub const DEFAULT_STARVE_DEBOUNCE_TICKS: u32 = 2;
+
 /// Per-kind queue caps for the session's packet queues (doc 03
 /// §4.4 defaults via packet-queue; the watermark policy lives here).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -131,62 +240,174 @@ pub struct QueuePlan {
     pub audio: QueueLimits,
     /// Caps for video limbs.
     pub video: QueueLimits,
+    /// Caps for the subtitle lane (doc 03 §4.4(b): "small and
+    /// duration-only") — the caps vocabulary only; wiring a subtitle
+    /// limb is card 3.A3's.
+    pub subtitle: QueueLimits,
+    /// How many consecutive low ticks a re-entry dip must persist
+    /// before it fires `starved` (design B2/F1.5).
+    pub starve_debounce_ticks: u32,
 }
 
 impl QueuePlan {
     /// A plan from explicit caps (both must be valid — they are the
-    /// packet-queue constructor's own outputs).
+    /// packet-queue constructor's own outputs); the subtitle lane and
+    /// the debounce take their documented defaults.
     #[must_use]
     pub fn new(audio: QueueLimits, video: QueueLimits) -> QueuePlan {
-        QueuePlan { audio, video }
+        QueuePlan {
+            audio,
+            video,
+            subtitle: default_subtitle_limits(),
+            starve_debounce_ticks: DEFAULT_STARVE_DEBOUNCE_TICKS,
+        }
     }
 
-    /// The caps for a track kind. Audio/video map to their limbs;
-    /// other kinds are not wired in v0 (subtitle/data limbs are owed
-    /// to the card that needs them — 2.B1's recorded limitation) and
-    /// the answer is only consulted for wired kinds.
+    /// A plan with every lane explicit (card 3.A3's track-switching
+    /// shape).
     #[must_use]
-    pub fn for_kind(&self, kind: MediaKind) -> QueueLimits {
+    pub fn with_subtitle(
+        audio: QueueLimits,
+        video: QueueLimits,
+        subtitle: QueueLimits,
+    ) -> QueuePlan {
+        QueuePlan {
+            audio,
+            video,
+            subtitle,
+            starve_debounce_ticks: DEFAULT_STARVE_DEBOUNCE_TICKS,
+        }
+    }
+
+    /// A plan from product-config-shaped integers (card 3.B3, design
+    /// A2): the `limits.queue_packets_audio` / `queue_packets_video`
+    /// values product.toml carries. Packet caps map 1:1 and are
+    /// validated against the schema ranges — **reject, never clamp**
+    /// (MP §5). Byte caps keep the doc 03 §4.4 figures (1 MiB / 4 MiB
+    /// `[PROPOSAL: until the Lead ratifies the byte-axis keys, design
+    /// A5]`); duration caps stay 1 s / 2 s; the subtitle lane and the
+    /// starve debounce take their documented defaults.
+    ///
+    /// `QueuePlan::default()` does not change when a host injects a
+    /// plan: the library default (200/300 packets) and the product
+    /// posture (1024/512) are different layers, visible by diff.
+    ///
+    /// # Errors
+    /// [`QueuePlanError`] — the typed axis and the violated schema
+    /// bound, per kind.
+    pub fn from_product_limits(
+        audio_packets: u64,
+        video_packets: u64,
+    ) -> Result<QueuePlan, QueuePlanError> {
+        let check = |kind: QueuePlanKind, value: u64, ceiling: u64| {
+            if value < QUEUE_PACKETS_FLOOR {
+                Err(QueuePlanError::PacketsBelowFloor {
+                    kind,
+                    value,
+                    floor: QUEUE_PACKETS_FLOOR,
+                })
+            } else if value > ceiling {
+                Err(QueuePlanError::PacketsAboveCeiling {
+                    kind,
+                    value,
+                    ceiling,
+                })
+            } else {
+                Ok(())
+            }
+        };
+        check(
+            QueuePlanKind::Audio,
+            audio_packets,
+            QUEUE_PACKETS_AUDIO_CEILING,
+        )?;
+        check(
+            QueuePlanKind::Video,
+            video_packets,
+            QUEUE_PACKETS_VIDEO_CEILING,
+        )?;
+        Ok(QueuePlan {
+            audio: QueueLimits {
+                max_packets: nonzero(audio_packets as usize),
+                max_bytes: nonzero(1 << 20),
+                max_duration: media_types::Nanoseconds(1_000_000_000),
+            },
+            video: QueueLimits {
+                max_packets: nonzero(video_packets as usize),
+                max_bytes: nonzero(4 << 20),
+                max_duration: media_types::Nanoseconds(2_000_000_000),
+            },
+            subtitle: default_subtitle_limits(),
+            starve_debounce_ticks: DEFAULT_STARVE_DEBOUNCE_TICKS,
+        })
+    }
+
+    /// The caps for a track kind, when the kind has a lane: audio,
+    /// video and subtitle map to their limbs; data (and any future
+    /// lane-less kind) maps to `None` — the exhaustive truth instead
+    /// of a silent audio fallback (design A3; the only caller,
+    /// [`Pipeline::wire`], filters to wireable kinds first).
+    #[must_use]
+    pub fn for_kind(&self, kind: MediaKind) -> Option<QueueLimits> {
         match kind {
-            MediaKind::Video => self.video,
-            _ => self.audio,
+            MediaKind::Audio => Some(self.audio),
+            MediaKind::Video => Some(self.video),
+            MediaKind::Subtitle => Some(self.subtitle),
+            MediaKind::Data => None,
         }
     }
 
     /// The engine's watermark thresholds for a queue built with
-    /// `limits`: high at three quarters of every cap, low at one
-    /// quarter (floored at one unit so degenerate caps still signal).
-    ///
-    /// `[PROPOSAL: v0 engine policy — packet-queue reports, the
-    /// engine decides; product.toml wiring owed to card 3.B3]`
+    /// `limits` (card 3.B3): high at three quarters of every cap
+    /// (eager on any axis — "full enough in some dimension"); **low
+    /// on the packets axis alone** — the byte and duration low marks
+    /// sit at their caps so the queue's all-axes-low predicate
+    /// degenerates to packets-only and every payload mix can reach
+    /// `low` (design B2 gap 2: a bytes-heavy or unknown-duration mix
+    /// can never wedge the signal unreachable). Floored at one unit
+    /// so degenerate caps still signal.
     #[must_use]
     pub fn thresholds(&self, limits: &QueueLimits) -> WatermarkThresholds {
-        let quarter = |value: u64| (value / 4).max(1);
         let high = QueueUsage {
             packets: limits.max_packets.get() - (limits.max_packets.get() / 4),
             bytes: limits.max_bytes.get() - (limits.max_bytes.get() / 4),
             duration: media_types::Nanoseconds(limits.max_duration.0 - limits.max_duration.0 / 4),
         };
         let low = QueueUsage {
-            packets: quarter(limits.max_packets.get() as u64) as usize,
-            bytes: quarter(limits.max_bytes.get() as u64) as usize,
-            duration: media_types::Nanoseconds(quarter(limits.max_duration.0)),
+            packets: ((limits.max_packets.get() as u64) / 4).max(1) as usize,
+            // Never-binding: usage can never exceed its own cap, so
+            // these two marks make the packets axis the only low
+            // authority (see the method docs).
+            bytes: limits.max_bytes.get(),
+            duration: limits.max_duration,
         };
         WatermarkThresholds::new(high, low)
+    }
+}
+
+/// The default subtitle lane (design A3): 128 packets / 16 MiB /
+/// 10 s `[PROPOSAL figures]` — duration-led, small.
+const fn default_subtitle_limits() -> QueueLimits {
+    QueueLimits {
+        max_packets: nonzero(128),
+        max_bytes: nonzero(16 << 20),
+        max_duration: media_types::Nanoseconds(10_000_000_000),
     }
 }
 
 impl Default for QueuePlan {
     /// Doc 03 §4.4's defaults through packet-queue's constructors:
     /// audio 200 packets / 1 s / 1 MiB, video 300 packets / 2 s /
-    /// 4 MiB `[PROPOSAL: the byte caps; the packet/duration figures
-    /// are doc 03 §4.4's]`.
+    /// 4 MiB, subtitle 128 packets / 16 MiB / 10 s `[PROPOSAL: the
+    /// byte caps; the packet/duration figures are doc 03 §4.4's]`.
     fn default() -> QueuePlan {
         let one_mib = 1usize << 20;
         let four_mib = 4usize << 20;
         QueuePlan {
             audio: QueueLimits::audio_default(nonzero(one_mib)),
             video: QueueLimits::video_default(nonzero(four_mib)),
+            subtitle: default_subtitle_limits(),
+            starve_debounce_ticks: DEFAULT_STARVE_DEBOUNCE_TICKS,
         }
     }
 }
@@ -259,9 +480,9 @@ pub(crate) struct TickReport {
     /// watermark, `0.0..=1.0` — the in-episode `session.buffering`
     /// progress (card 3.B4, doc 05 §3.2: the bottleneck limb is the
     /// honest progress; the episode's exit condition is every limb
-    /// high). `[PROPOSAL: packets are the axis — bytes/duration axes
-    /// would fire first for unusual packet-size mixes, and the
-    /// watermark policy is packets-driven in v0]`.
+    /// high). Packets are the axis by the card 3.B3 policy (see
+    /// [`QueuePlan::thresholds`]): the byte/duration axes would fire
+    /// first for unusual packet-size mixes.
     pub buffer_fill: f32,
     /// Limbs whose decoder newly flushed to `Drained` this tick (the
     /// `playback.end-of-track` candidates, card 3.B4) — the count;
@@ -306,6 +527,16 @@ pub(crate) struct Limb {
     /// The queue's high watermark in packets — the denominator of
     /// the in-episode buffering progress (the priming target).
     pub high_packets: usize,
+    /// Consecutive low-watermark ticks (card 3.B3, design B2): the
+    /// starve-debounce streak. Reset by any non-low observation;
+    /// per-pipeline-generation state (cleared at seek mints).
+    pub low_streak: u32,
+    /// A starvation episode has fired since this limb's queue last
+    /// reached its high watermark (card 3.B3, design B2/F1.5): the
+    /// first stall of a fresh episode fires at 1 tick; a re-entry
+    /// dip while the episode is open must persist
+    /// [`QueuePlan::starve_debounce_ticks`] consecutive low ticks.
+    pub episode_open: bool,
     /// The last presented **video** frame of the current generation —
     /// the per-frame-damage concealment cache (doc 03 §4.5(d), audit
     /// M9): when a packet fails with a per-frame damage kind, the
@@ -390,6 +621,36 @@ fn concealment_budget_exhausted(failures: u32, last: EngineError) -> EngineError
     .with_source(last)
 }
 
+/// Pipeline-side starvation observability (card 3.B3, design C2 —
+/// the engine-owned half; the wire-visible surface stays the 3.B4
+/// vocabulary: `session.state-changed` + `session.buffering`). The
+/// session folds these into [`EngineStats`](crate::EngineStats)
+/// through `Session::absorb_pipeline_starvation` (the one-field
+/// snapshot at the tick boundary and at every pipeline-retiring
+/// effect).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) struct StarvationCounters {
+    /// Ticks in `Playing` where any limb observed the low watermark,
+    /// **pre-debounce** — the honest raw rate of near-empty queues
+    /// (design C2).
+    pub starved_ticks: u64,
+    /// Starve signals actually reported (`TickReport.starved`,
+    /// post-debounce) — the pipeline-side upper bound on applied
+    /// Underrun transitions; the session's applied-episode count can
+    /// only be ≤ this (a higher-priority signal can preempt).
+    pub starve_signals: u64,
+    /// Ticks the held packet waited before re-offer — the
+    /// ingestion-stall metric (a full queue is parking the demuxer).
+    pub pending_hold_ticks: u64,
+    /// Full-rejection tally on the packets axis ("the packet cap is
+    /// the binding cap") — the which-cap-starves-us diagnostic.
+    pub full_rejections_packets: u64,
+    /// Full-rejection tally on the bytes axis.
+    pub full_rejections_bytes: u64,
+    /// Full-rejection tally on the duration axis.
+    pub full_rejections_duration: u64,
+}
+
 /// The wired pipeline: demuxer, limbs, and the tick driver. Exists
 /// from session construction (holding the demuxer) until teardown.
 pub(crate) struct Pipeline {
@@ -434,6 +695,10 @@ pub(crate) struct Pipeline {
     /// capacity retained), so the steady-state tick allocates
     /// nothing (engineering directive D-1).
     ended_limbs: Vec<(MediaKind, TrackId)>,
+    /// The starve debounce in force (from the plan at wire time).
+    starve_debounce: u32,
+    /// Lifetime starvation observability (card 3.B3, design C2).
+    starvation: StarvationCounters,
 }
 
 /// Per-limb facts the seek's pre-roll phase (doc 03 §6 step 5)
@@ -545,6 +810,8 @@ impl Pipeline {
             preroll_discarded: 0,
             seek_flush_stale: 0,
             ended_limbs: Vec::new(),
+            starve_debounce: DEFAULT_STARVE_DEBOUNCE_TICKS,
+            starvation: StarvationCounters::default(),
         }
     }
 
@@ -575,6 +842,7 @@ impl Pipeline {
         self.generation = generation;
         self.tracks = tracks;
         self.selected = Vec::with_capacity(self.tracks.len());
+        self.starve_debounce = plan.starve_debounce_ticks.max(1);
         let mut wired = 0;
         for track in &self.tracks {
             let wireable = matches!(track.kind, MediaKind::Audio | MediaKind::Video);
@@ -582,7 +850,13 @@ impl Pipeline {
                 self.selected.push(false);
                 continue;
             }
-            let limits = plan.for_kind(track.kind);
+            let Some(limits) = plan.for_kind(track.kind) else {
+                // Unreachable for wireable kinds (audio/video always
+                // have lanes); the exhaustive `Option` keeps the type
+                // honest for 3.A3's track switching.
+                self.selected.push(false);
+                continue;
+            };
             let queue = Arc::new(BoundedQueue::new(limits, plan.thresholds(&limits)));
             let high_packets = plan.thresholds(&limits).high.packets.max(1);
             // Publish the live generation before any producer starts
@@ -604,6 +878,8 @@ impl Pipeline {
                 decoder,
                 drained: false,
                 high_packets,
+                low_streak: 0,
+                episode_open: false,
                 last_frame: None,
                 conceal_failures: 0,
             });
@@ -712,6 +988,13 @@ impl Pipeline {
         self.pending = None;
         self.eof = false;
         self.generation = generation;
+        // Starve-debounce state is per-pipeline-generation (design
+        // B4): the seek's queues are empty and refilling — streaks and
+        // episodes reset with them.
+        for limb in &mut self.limbs {
+            limb.low_streak = 0;
+            limb.episode_open = false;
+        }
         let consumer = Arc::clone(&self.consumer);
         for limb in &mut self.limbs {
             let track_id = limb.track.id;
@@ -959,8 +1242,18 @@ impl Pipeline {
             report.drained = self.is_drained();
         }
         if state == SessionState::Buffering {
-            report.primed =
-                !self.limbs.is_empty() && self.limbs.iter().all(|limb| limb.queue.watermark().high);
+            let mut primed = !self.limbs.is_empty();
+            for limb in self.limbs.iter_mut() {
+                if limb.queue.watermark().high {
+                    // Priming is a full recovery: any starvation
+                    // episode closes here, so the next dip is a fresh
+                    // stall (1-tick latency, design B2/F1.5).
+                    limb.episode_open = false;
+                } else {
+                    primed = false;
+                }
+            }
+            report.primed = primed;
             // The in-episode progress: the bottleneck limb's fill
             // toward its high watermark (card 3.B4 — doc 05 §3.2's
             // `0.0..1.0` while buffering). The exit bookend `1.0` is
@@ -976,10 +1269,47 @@ impl Pipeline {
         if state == SessionState::Playing {
             // An underrun is an input that cannot keep up — the
             // end-of-stream drain is the media ending, not starving
-            // (rebuffering at the end would be a lie).
-            report.starved = !self.eof && self.limbs.iter().any(|limb| limb.queue.watermark().low);
+            // (rebuffering at the end would be a lie). The re-entry
+            // debounce (module docs) filters low-line flapping
+            // without delaying a fresh episode's first stall.
+            let mut starved = false;
+            let mut any_low = false;
+            for limb in self.limbs.iter_mut() {
+                let mark = limb.queue.watermark();
+                if mark.high {
+                    // A full recovery closes the episode even without
+                    // a rebuffer cycle in between.
+                    limb.episode_open = false;
+                }
+                if mark.low {
+                    any_low = true;
+                    limb.low_streak = limb.low_streak.saturating_add(1);
+                    if !limb.episode_open || limb.low_streak >= self.starve_debounce {
+                        limb.episode_open = true;
+                        starved = true;
+                    }
+                } else {
+                    limb.low_streak = 0;
+                }
+            }
+            if any_low {
+                self.starvation.starved_ticks = self.starvation.starved_ticks.saturating_add(1);
+            }
+            report.starved = !self.eof && starved;
+            if report.starved {
+                self.starvation.starve_signals = self.starvation.starve_signals.saturating_add(1);
+            }
         }
         report
+    }
+
+    /// The lifetime starvation counters (card 3.B3, design C2) — a
+    /// snapshot for the session's stats surface
+    /// ([`EngineStats`](crate::EngineStats), through
+    /// `Session::absorb_pipeline_starvation`) and for the
+    /// engine-level property tests.
+    pub(crate) fn starvation_counters(&self) -> StarvationCounters {
+        self.starvation
     }
 
     /// End-of-stream with nothing left anywhere: no held packet, no
@@ -1001,6 +1331,12 @@ impl Pipeline {
         // Re-offer first (FIFO across ticks is preserved: the held
         // packet predates everything still undemuxed). A full queue
         // hands it back again — held, never dropped, never spun on.
+        if self.pending.is_some() {
+            // The ingestion-stall metric (design C2): this tick began
+            // with the demuxer still parked on a full queue.
+            self.starvation.pending_hold_ticks =
+                self.starvation.pending_hold_ticks.saturating_add(1);
+        }
         if let Some(packet) = self.pending.take() {
             self.push_packet(packet);
         }
@@ -1062,7 +1398,23 @@ impl Pipeline {
         let queue = Arc::clone(&limb.queue);
         match queue.try_push(Stamped::from_payload(packet)) {
             PushOutcome::Pushed => {}
-            PushOutcome::Full { item, .. } => {
+            PushOutcome::Full { item, binding } => {
+                // The which-cap-starves-us diagnostic (design C2):
+                // tally the binding axis the queue reported.
+                match binding {
+                    packet_queue::LimitAxis::Packets => {
+                        self.starvation.full_rejections_packets =
+                            self.starvation.full_rejections_packets.saturating_add(1);
+                    }
+                    packet_queue::LimitAxis::Bytes => {
+                        self.starvation.full_rejections_bytes =
+                            self.starvation.full_rejections_bytes.saturating_add(1);
+                    }
+                    packet_queue::LimitAxis::Duration => {
+                        self.starvation.full_rejections_duration =
+                            self.starvation.full_rejections_duration.saturating_add(1);
+                    }
+                }
                 // Backpressure: hold the untouched packet for the
                 // next tick (doc 03 §4.4 Q3 — fresh data is never
                 // dropped).
@@ -1478,5 +1830,330 @@ impl FrameSink for LimbSink<'_> {
             self.last = Some(frame);
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! Card 3.B3's engine-side policy proofs: the starve debounce and
+    //! the packets-axis low, exercised against the real `Pipeline`
+    //! tick with minimal fakes. The queue levels are driven by hand
+    //! (the demuxer produces nothing, the decoder pops one packet per
+    //! tick through a 1-decode budget), so every watermark transition
+    //! is exactly scripted; the state-machine consequences (Underrun →
+    //! Buffering → Primed) live in `session_flow.rs`.
+
+    use super::*;
+    use media_types::packet::SharedBytes;
+    use testkit::Must;
+
+    /// A demuxer that reports one audio track and produces nothing
+    /// (a producer stall with no end-of-stream — the underrun shape).
+    struct StalledDemuxer;
+
+    impl Demuxer for StalledDemuxer {
+        fn start(&mut self) -> Result<Vec<Track>, EngineError> {
+            Ok(vec![Track {
+                id: TrackId::new(1),
+                stream: media_types::StreamId::new(1),
+                kind: MediaKind::Audio,
+                language: None,
+                codec: media_types::ids::CodecDescriptor::new("fake-pcm").must(),
+                title: None,
+                flags: media_types::TrackFlags::NONE,
+                timing: media_types::TrackTiming {
+                    span: media_types::TimeSpan::UNKNOWN,
+                    base: media_types::TimeBase::new(1, 1_000_000).must(),
+                    gaps: Vec::new(),
+                },
+            }])
+        }
+
+        fn next_event(&mut self) -> Result<plugin_api::DemuxEvent, EngineError> {
+            Ok(plugin_api::DemuxEvent::Discontinuity)
+        }
+
+        fn seek(
+            &mut self,
+            _target: media_types::TimeSpan,
+        ) -> Result<media_types::TimeSpan, EngineError> {
+            // This producer never demuxes; seeks land nowhere (the
+            // tests drive queue levels by hand).
+            Ok(media_types::TimeSpan::UNKNOWN)
+        }
+    }
+
+    /// A decoder that swallows packets silently (the tests observe
+    /// queue watermarks, not frames).
+    struct NullDecoder;
+
+    impl Decoder for NullDecoder {
+        fn configure(&mut self, _config: &DecoderConfig) -> Result<(), EngineError> {
+            Ok(())
+        }
+
+        fn decode(
+            &mut self,
+            _packet: Packet,
+            _out: &mut dyn FrameSink,
+        ) -> Result<DecodeOutcome, EngineError> {
+            Ok(DecodeOutcome::NeedMoreInput)
+        }
+
+        fn flush(&mut self, _out: &mut dyn FrameSink) -> Result<DecodeOutcome, EngineError> {
+            Ok(DecodeOutcome::Drained)
+        }
+    }
+
+    struct NullProvider;
+
+    impl DecoderProvider for NullProvider {
+        fn decoder_for(
+            &self,
+            _track: &Track,
+            _config: &DecoderConfig,
+        ) -> Result<Box<dyn Decoder>, EngineError> {
+            Ok(Box::new(NullDecoder))
+        }
+    }
+
+    struct NullConsumer;
+
+    impl FrameConsumer for NullConsumer {
+        fn accept(&self, _frame: Frame, _track: TrackId) -> Result<(), EngineError> {
+            Ok(())
+        }
+    }
+
+    /// A wired single-limb pipeline with an 8-packet cap (high 6, low
+    /// 2 on the packets axis) and a caller-chosen debounce; one
+    /// packet is decoded per tick, the demuxer produces nothing.
+    fn wired(debounce: u32) -> Pipeline {
+        let limits = QueueLimits {
+            max_packets: nonzero(8),
+            max_bytes: nonzero(1 << 20),
+            max_duration: media_types::Nanoseconds(1_000_000_000),
+        };
+        let mut plan = QueuePlan::new(limits, limits);
+        plan.starve_debounce_ticks = debounce;
+        let consumer: Arc<dyn FrameConsumer> = Arc::new(NullConsumer);
+        let mut pipeline = Pipeline::new(Box::new(StalledDemuxer), Arc::clone(&consumer));
+        let tracks = pipeline.start_demuxer().must();
+        let wired = pipeline
+            .wire(tracks, &NullProvider, &plan, GenerationId::FIRST)
+            .must();
+        assert_eq!(wired, 1);
+        // The wire-time mint publishes the generation and leaves a
+        // dropped=0 discontinuity marker pending in each fresh queue;
+        // drain it here so the scripted packet levels below are exact
+        // (the marker would otherwise eat the first tick's decode
+        // slice — `decode_step` spends one budget slot observing it).
+        for limb in pipeline.limbs.iter_mut() {
+            assert!(matches!(limb.queue.try_pop(), PopOutcome::Discontinuity(_)));
+            assert!(matches!(limb.queue.try_pop(), PopOutcome::Empty));
+        }
+        pipeline
+    }
+
+    /// The tick budget the scripted levels assume: no demux events, a
+    /// single decode per limb per tick.
+    fn budget() -> TickBudget {
+        TickBudget {
+            demux_events: 0,
+            packets_per_limb: 1,
+            flush_calls_per_limb: 0,
+        }
+    }
+
+    /// Push `n` plain packets into the limb's queue (generation-live,
+    /// duration-less — the packets-axis wedge case).
+    fn fill(pipeline: &mut Pipeline, n: usize) {
+        for _ in 0..n {
+            let packet = Packet {
+                track: TrackId::new(1),
+                pts: Stamp::Missing,
+                dts: Stamp::Missing,
+                duration: None,
+                data: SharedBytes::from_static(&[7u8; 32]),
+                keyframe: false,
+                discontinuity: false,
+                generation: GenerationId::FIRST,
+            };
+            let limb = pipeline.limbs.first_mut().must();
+            assert_eq!(
+                limb.queue.try_push(Stamped::from_payload(packet)),
+                PushOutcome::Pushed
+            );
+        }
+    }
+
+    /// The packets-axis low (design B2 gap 2): with the engine's
+    /// thresholds the all-axes low predicate degenerates to
+    /// packets-only — a bytes-heavy or duration-less mix can always
+    /// reach `low` through its packet count, and `high` stays
+    /// all-axes-eager.
+    #[test]
+    fn packets_axis_is_the_starvation_axis() {
+        let plan = QueuePlan::default();
+        let marks = plan.thresholds(&plan.audio);
+        let at_caps = QueueUsage {
+            packets: 1,
+            bytes: plan.audio.max_bytes.get(),
+            duration: plan.audio.max_duration,
+        };
+        assert!(
+            packet_queue::Watermark::evaluate(at_caps, &marks).low,
+            "bytes/duration at their caps never block low"
+        );
+        let high_on_bytes = QueueUsage {
+            packets: 1,
+            bytes: plan.audio.max_bytes.get(),
+            duration: media_types::Nanoseconds(0),
+        };
+        assert!(packet_queue::Watermark::evaluate(high_on_bytes, &marks).high);
+    }
+
+    /// First stall of a fresh episode fires at 1 tick (design F1.5:
+    /// first-stall latency is never delayed by the debounce).
+    #[test]
+    fn first_stall_of_a_fresh_episode_fires_at_one_tick() {
+        let mut pipeline = wired(2);
+        let budget = budget();
+        fill(&mut pipeline, 8); // 8 → high
+        let _ = pipeline.tick(SessionState::Playing, &budget); // 7? no: pops 1 → 7 (high)
+        let _ = pipeline.tick(SessionState::Playing, &budget); // 6 (high)
+        let _ = pipeline.tick(SessionState::Playing, &budget); // 5
+        let _ = pipeline.tick(SessionState::Playing, &budget); // 4
+        let _ = pipeline.tick(SessionState::Playing, &budget); // 3
+        let near = pipeline.tick(SessionState::Playing, &budget); // 2 → low
+        assert!(near.starved, "the first low tick fires immediately");
+        assert_eq!(pipeline.starvation_counters().starve_signals, 1);
+    }
+
+    /// A re-entry dip inside an open episode must persist the debounce
+    /// window: single-tick dips between recoveries never re-fire (the
+    /// flapping producer/consumer rate mix, design B2 gap 1).
+    #[test]
+    fn single_tick_reentry_dips_do_not_refire() {
+        let mut pipeline = wired(2);
+        let budget = budget();
+        // Open the episode: 3 packets, one tick pops to 2 → low → fire.
+        fill(&mut pipeline, 3);
+        let fired = pipeline.tick(SessionState::Playing, &budget); // 2 → low
+        assert!(fired.starved);
+        // Recover above low without reaching high, then dip once.
+        fill(&mut pipeline, 2); // 4
+        let _ = pipeline.tick(SessionState::Playing, &budget); // 3 (not low)
+        let dip = pipeline.tick(SessionState::Playing, &budget); // 2 → low
+        assert!(
+            !dip.starved,
+            "a first re-entry tick inside an open episode is debounced"
+        );
+        // Recover, dip again: still debounced — the flapping never fires.
+        fill(&mut pipeline, 2); // 4
+        let _ = pipeline.tick(SessionState::Playing, &budget); // 3
+        let dip = pipeline.tick(SessionState::Playing, &budget); // 2 → low
+        assert!(
+            !dip.starved,
+            "the second single-tick dip is still debounced"
+        );
+        assert_eq!(
+            pipeline.starvation_counters().starve_signals,
+            1,
+            "flapping never re-fires"
+        );
+        assert_eq!(
+            pipeline.starvation_counters().starved_ticks,
+            3,
+            "the pre-debounce raw rate counts every low tick"
+        );
+    }
+
+    /// A sustained low after a re-entry fires exactly at the debounce
+    /// count (design B2): persistence is starvation, a dip is jitter.
+    #[test]
+    fn sustained_low_fires_at_the_debounce_count() {
+        let mut pipeline = wired(3);
+        let budget = budget();
+        fill(&mut pipeline, 3);
+        assert!(pipeline.tick(SessionState::Playing, &budget).starved); // 2, fire
+        fill(&mut pipeline, 2); // 4
+        let _ = pipeline.tick(SessionState::Playing, &budget); // 3, not low
+        let t1 = pipeline.tick(SessionState::Playing, &budget); // 2, streak 1
+        assert!(!t1.starved, "re-entry streak 1 of 3");
+        let t2 = pipeline.tick(SessionState::Playing, &budget); // 1, streak 2
+        assert!(!t2.starved, "re-entry streak 2 of 3");
+        let t3 = pipeline.tick(SessionState::Playing, &budget); // 0, streak 3
+        assert!(t3.starved, "re-entry streak 3 of 3 fires");
+        let counters = pipeline.starvation_counters();
+        assert_eq!(counters.starved_ticks, 4, "the fire + 3 low re-entry ticks");
+        assert_eq!(counters.starve_signals, 2);
+    }
+
+    /// A full recovery (high watermark) closes the episode: the next
+    /// dip is a fresh stall and fires immediately again.
+    #[test]
+    fn full_recovery_closes_the_episode() {
+        let mut pipeline = wired(2);
+        let budget = budget();
+        fill(&mut pipeline, 3);
+        assert!(pipeline.tick(SessionState::Playing, &budget).starved); // 2
+        fill(&mut pipeline, 6); // 8 → high on the next tick's observation
+        let priming = pipeline.tick(SessionState::Playing, &budget); // 7, high
+        assert!(!priming.starved);
+        // Drain to low again: a FRESH stall — immediate.
+        let _ = pipeline.tick(SessionState::Playing, &budget); // 6
+        let _ = pipeline.tick(SessionState::Playing, &budget); // 5
+        let _ = pipeline.tick(SessionState::Playing, &budget); // 4
+        let _ = pipeline.tick(SessionState::Playing, &budget); // 3
+        let fresh = pipeline.tick(SessionState::Playing, &budget); // 2 → low
+        assert!(fresh.starved, "post-prime dips are fresh stalls");
+        assert_eq!(pipeline.starvation_counters().starve_signals, 2);
+    }
+
+    /// A seek mint resets the debounce state: streaks and episodes die
+    /// with the generation (design B4).
+    #[test]
+    fn seek_mint_resets_the_debounce_state() {
+        let mut pipeline = wired(2);
+        let budget = budget();
+        fill(&mut pipeline, 3);
+        assert!(pipeline.tick(SessionState::Playing, &budget).starved);
+        let generation = GenerationId::FIRST.next().must();
+        pipeline.seek_flush(generation, 8, 1).must();
+        let limb = pipeline.limbs.first().must();
+        assert_eq!(limb.low_streak, 0, "streaks reset at the mint");
+        assert!(!limb.episode_open, "episodes reset at the mint");
+    }
+
+    /// Debounce 1 is exactly the undebounced behavior: every low tick
+    /// fires (the configuration floor — a re-entry needs only itself).
+    #[test]
+    fn debounce_one_is_the_undebounced_behavior() {
+        let mut pipeline = wired(1);
+        let budget = budget();
+        fill(&mut pipeline, 3);
+        assert!(pipeline.tick(SessionState::Playing, &budget).starved); // 2
+        assert!(pipeline.tick(SessionState::Playing, &budget).starved); // 1
+        assert!(pipeline.tick(SessionState::Playing, &budget).starved); // 0
+        assert_eq!(pipeline.starvation_counters().starve_signals, 3);
+    }
+
+    /// A duration-less mix (the `Weigh`-maps-unknown-to-0 wedge case)
+    /// still starves on the packets axis.
+    #[test]
+    fn unknown_duration_mix_reaches_low() {
+        let mut pipeline = wired(2);
+        let budget = budget();
+        fill(&mut pipeline, 8);
+        for _ in 0..5 {
+            let report = pipeline.tick(SessionState::Playing, &budget);
+            assert!(!report.starved);
+        }
+        let report = pipeline.tick(SessionState::Playing, &budget); // 2 → low
+        assert!(
+            report.starved,
+            "a pure unknown-duration mix still starves on packets"
+        );
     }
 }

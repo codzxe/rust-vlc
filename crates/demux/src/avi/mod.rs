@@ -94,7 +94,6 @@ use std::collections::VecDeque;
 
 use media_types::error::ErrorContext;
 use media_types::ids::{GenerationId, TrackId};
-use media_types::packet::SharedBytes;
 use media_types::time::{Duration, Nanoseconds, Stamp, TimeBase, TimeSpan, Timestamp};
 use media_types::{EngineError, ErrorKind, Packet, PipelineStage, Track};
 use plugin_api::{DemuxEvent, Demuxer, SeekSupport};
@@ -112,7 +111,7 @@ pub mod riff;
 use crate::avi::header::{AviMainHeader, DamageLog, StreamDesc, StreamFormat, parse_hdrl};
 use crate::avi::index::{IndexTable, Ladders};
 use crate::avi::riff::{
-    FORM_AVI, FORM_HDRL, FORM_MOVI, FourCC, LIST, MoviChunkKind, RIFF, SourceReader,
+    FORM_AVI, FORM_HDRL, FORM_MOVI, FourCC, LIST, MoviChunkKind, PayloadSlots, RIFF, SourceReader,
     classify_movi_chunk, peek_chunk_header,
 };
 
@@ -334,6 +333,15 @@ pub struct AviDemuxer {
     tracks: Option<Vec<Track>>,
     /// The seek-primary stream ordinal (video if present, else first).
     seek_stream: Option<u32>,
+    /// The bounded payload slot pool (card 3.B3, design D4): every
+    /// `movi` payload is read into a pooled [`SharedBytes`] slot —
+    /// zero allocation in the steady state (uniform sizes recycle
+    /// through `get_mut`), one exact-size allocation on the spill
+    /// path (varying/oversized/busy-slot shapes). The pool itself is
+    /// bounded: at most `max_slots × slot_cap` bytes (default
+    /// 2 × 64 KiB = 128 KiB per demuxer) — the D-1 payload budget on
+    /// top of the queues' own byte caps.
+    pool: PayloadSlots,
 }
 
 impl AviDemuxer {
@@ -361,6 +369,7 @@ impl AviDemuxer {
             damage: DamageLog::default(),
             tracks: None,
             seek_stream: None,
+            pool: PayloadSlots::default(),
         })
     }
 
@@ -518,7 +527,15 @@ impl AviDemuxer {
                     // size is contained, never fatal on its own).
                     // Full read when the declared extent fits the
                     // walk bound; otherwise the real prefix, clamped
-                    // to whichever boundary it crosses first.
+                    // to whichever boundary it crosses first. All
+                    // three paths read through the payload slot pool
+                    // (card 3.B3, design D3/D4): the bytes land in a
+                    // pooled `SharedBytes` — zero allocation in the
+                    // steady state, one exact-size spill otherwise —
+                    // with `read_prefix_into`'s clamp semantics
+                    // ("at most `want`, whatever the stream actually
+                    // carries there") giving the same prefix the
+                    // Vec-returning twins delivered.
                     let payload_start = pos + 8;
                     let payload_end = payload_start.saturating_add(size);
                     let file_len = self.reader.length();
@@ -529,43 +546,18 @@ impl AviDemuxer {
                     // Where the walk resumes (the declared next chunk,
                     // or the clamped bound when the size lied past it).
                     let mut resume = next;
-                    let payload: Vec<u8> = if payload_end <= bound {
-                        match self
-                            .reader
-                            .read_exact_or_end_at(size as usize, payload_start)
-                        {
-                            Ok(Some(bytes)) => bytes,
-                            Ok(None) => {
-                                // Structurally unreachable (every walk
-                                // bound is clamped to the stream length
-                                // at parse time); the honest clamp
-                                // rather than a panic if that invariant
-                                // ever regresses.
-                                let prefix =
-                                    self.reader.read_prefix_at(size as usize, payload_start)?;
-                                self.damage.note(
-                                    size.saturating_sub(prefix.len() as u64),
-                                    "chunk-payload-past-eof",
-                                );
-                                self.surface_damage();
-                                hit_eof = true;
-                                prefix
-                            }
-                            Err(err) => return Err(self.fail(err)),
-                        }
+                    let want = if payload_end <= bound {
+                        // Inside the walk bound: the full declared size
+                        // (the old `read_exact_or_end_at`'s complete
+                        // case; its structurally-unreachable ended
+                        // case is the same prefix read).
+                        size as usize
                     } else if payload_end > file_len {
                         // Past the physical stream: deliver the real
                         // prefix, count the missing bytes, end the walk
                         // after this packet — nothing follows the end
                         // of the file.
-                        let prefix = self.reader.read_prefix_at(size as usize, payload_start)?;
-                        self.damage.note(
-                            size.saturating_sub(prefix.len() as u64),
-                            "chunk-payload-past-eof",
-                        );
-                        self.surface_damage();
-                        hit_eof = true;
-                        prefix
+                        size as usize
                     } else {
                         // Past the list bound but inside the file:
                         // clamp the payload to the bound, count the
@@ -573,16 +565,44 @@ impl AviDemuxer {
                         // remainder the lie swallowed is unreachable
                         // without a resync scan, and the damage note is
                         // what makes that loss non-silent.
-                        let clamped = (bound - payload_start) as usize;
-                        let prefix = self.reader.read_prefix_at(clamped, payload_start)?;
-                        self.damage.note(
-                            size.saturating_sub(prefix.len() as u64),
-                            "chunk-payload-past-list-bound",
-                        );
-                        self.surface_damage();
-                        resume = bound;
-                        prefix
+                        (bound - payload_start) as usize
                     };
+                    let payload = self
+                        .pool
+                        .fill(want, |out| self.reader.read_prefix_into(out, payload_start));
+                    let payload = match payload {
+                        Ok(handle) => handle,
+                        // The in-bound path kept the old
+                        // `read_exact_or_end_at`'s sticky-fail shape;
+                        // the two cut paths propagated their source
+                        // errors unsticked (the landed behavior —
+                        // preserved bit for bit).
+                        Err(err) if payload_end <= bound => return Err(self.fail(err)),
+                        Err(err) => return Err(err),
+                    };
+                    let delivered = payload.len() as u64;
+                    // Damage accounting for the cut paths (the full
+                    // in-bound read delivered `size` exactly — nothing
+                    // to note). A short read against the full ask is
+                    // the stream ending inside the payload (the walk
+                    // ends after this packet); the clamped ask's
+                    // shortfall is the bound containment (the walk
+                    // resumes AT the bound).
+                    if delivered < size {
+                        if want == size as usize {
+                            self.damage
+                                .note(size.saturating_sub(delivered), "chunk-payload-past-eof");
+                            self.surface_damage();
+                            hit_eof = true;
+                        } else {
+                            self.damage.note(
+                                size.saturating_sub(delivered),
+                                "chunk-payload-past-list-bound",
+                            );
+                            self.surface_damage();
+                            resume = bound;
+                        }
+                    }
                     if payload.is_empty() {
                         // Nothing deliverable: a cut that left zero
                         // payload bytes. The clamp damage above already
@@ -594,7 +614,6 @@ impl AviDemuxer {
                         cursor.pos = resume;
                         continue;
                     }
-                    let delivered = payload.len() as u64;
                     let (delta, _) = header::ticks_for_sample_size(sample_size, delivered);
                     let Some(step) = cursor.ladders.advance(stream, delivered) else {
                         cursor.pos = resume;
@@ -622,7 +641,10 @@ impl AviDemuxer {
                         // MJPEG (no B-frames) — DTS mirrors PTS.
                         dts: Stamp::Present(pts),
                         duration,
-                        data: SharedBytes::from_vec(payload),
+                        // The pool handed over the packet's own
+                        // handle (a pooled slot clone or an exact
+                        // spill) — no further copy, no `from_vec`.
+                        data: payload,
                         keyframe,
                         discontinuity: false,
                         // The engine's demux driver re-stamps the

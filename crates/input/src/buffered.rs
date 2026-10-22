@@ -215,6 +215,83 @@ impl<S: RawRead + Seekable> BufferedReader<S> {
         }
     }
 
+    /// Read up to `out.len()` bytes at the current position into
+    /// caller memory, advancing (card 3.B3 — the borrow twin of
+    /// [`read`](BufferedReader::read)).
+    ///
+    /// Serves leftover read-ahead first and refills the fixed window
+    /// only when it is completely empty — the existing [`read`] loop
+    /// minus the result [`Vec`]: **zero allocation**, one window→`out`
+    /// copy per refill. Short results are data (end of stream or a
+    /// smaller ask than window); `Ok(0)` only at end of stream (a
+    /// zero-length `out` is a zero-length success without I/O). Unlike
+    /// [`read`] there is no [`MAX_READ_BYTES`] request ceiling: the
+    /// caller owns the destination memory, so no allocation can spike.
+    ///
+    /// # Errors
+    /// [`EngineError`] — kind `Corrupt` (`input.file.truncated`) when
+    /// the source ends before its open-time length; the source's own
+    /// read errors fold otherwise.
+    pub fn read_into(&mut self, out: &mut [u8]) -> Result<usize, EngineError> {
+        if out.is_empty() {
+            return Ok(0);
+        }
+        let mut filled = 0;
+        while filled < out.len() {
+            if self.start == self.end {
+                self.start = 0;
+                self.end = 0;
+                let got = self.source.read(&mut self.buf)?;
+                if got == 0 {
+                    self.confirm_eof()?;
+                    break;
+                }
+                self.end = got;
+            }
+            let take = (out.len() - filled).min(self.end - self.start);
+            out[filled..filled + take].copy_from_slice(&self.buf[self.start..self.start + take]);
+            self.start += take;
+            self.buf_pos += take as u64;
+            filled += take;
+        }
+        Ok(filled)
+    }
+
+    /// Fill `out` completely or fail typed (card 3.B3): the exact-read
+    /// discipline with the truncation check of [`BufferedReader::read`]
+    /// — [`Ok(())`], or `Corrupt::Truncated` when the stream ends
+    /// before `out.len()` bytes (expected = the position a complete
+    /// read would reach, found = where the stream actually ends).
+    ///
+    /// # Errors
+    /// [`EngineError`] — kind `Corrupt` (`input.file.truncated`) on a
+    /// short stream; source read errors fold as in
+    /// [`read_into`](BufferedReader::read_into).
+    pub fn read_exact_into(&mut self, out: &mut [u8]) -> Result<(), EngineError> {
+        let start = self.buf_pos;
+        let mut filled = 0;
+        while filled < out.len() {
+            let got = self.read_into(&mut out[filled..])?;
+            if got == 0 {
+                return Err(error::truncated(start + out.len() as u64, self.buf_pos));
+            }
+            filled += got;
+        }
+        Ok(())
+    }
+
+    /// Copy up to `min(out.len(), buffered bytes)` from the front of
+    /// the window into `out` **without advancing** (card 3.B3): pure
+    /// window math — no I/O, no seek, no allocation. Answers 0 when
+    /// the window is empty (the caller refills via
+    /// [`read_into`](BufferedReader::read_into) first). Peeks never
+    /// fabricate: they return exactly what is buffered, never more.
+    pub fn peek_into(&mut self, out: &mut [u8]) -> Result<usize, EngineError> {
+        let take = out.len().min(self.end - self.start);
+        out[..take].copy_from_slice(&self.buf[self.start..self.start + take]);
+        Ok(take)
+    }
+
     /// The underlying source reported end-of-stream: either that is the
     /// truth (clean EOF) or the source shrank below the length this
     /// reader opened with — a typed truncation error, never a silent
@@ -408,5 +485,117 @@ mod tests {
         assert_eq!(r.position(), 40);
         let got = r.read(10).must();
         assert_eq!(&got, &data[40..50]);
+    }
+
+    /// The borrow twin reconstructs byte-exactly across window
+    /// refills, tracks the position, and does no extra source reads
+    /// beyond the capacity-sized refills the `Vec` path makes.
+    #[test]
+    fn read_into_reconstructs_and_streams_through_the_window() {
+        let data = pattern(1000);
+        let mut r = reader(&data, 32);
+        let mut out = vec![0u8; 1000];
+        let got = r.read_into(&mut out).must();
+        assert_eq!(got, 1000);
+        assert_eq!(&out, &data);
+        assert_eq!(r.position(), 1000);
+        assert_eq!(r.source().max_read_seen(), 32, "chunks stay window-sized");
+        assert!(r.buffered_bytes() <= 32);
+
+        // End of stream is a clean zero, repeatable.
+        for _ in 0..2 {
+            let n = r.read_into(&mut out).must();
+            assert_eq!(n, 0, "Ok(0) only at end of stream");
+        }
+        // A zero-length ask is a zero-length success without I/O.
+        let served = r.source().reads_served();
+        assert_eq!(r.read_into(&mut []).must(), 0);
+        assert_eq!(r.source().reads_served(), served);
+    }
+
+    /// Partial borrows: a small `out` takes from the read-ahead and
+    /// leaves the rest for the next call (the same locality the `Vec`
+    /// path gives, minus the per-call allocation).
+    #[test]
+    fn read_into_serves_small_asks_from_read_ahead() {
+        let data = pattern(300);
+        let mut r = reader(&data, 64);
+        let mut chunk = [0u8; 10];
+        assert_eq!(r.read_into(&mut chunk).must(), 10);
+        assert_eq!(&chunk, &data[..10]);
+        assert_eq!(r.source().reads_served(), 1, "one refill");
+        assert_eq!(r.read_into(&mut chunk).must(), 10);
+        assert_eq!(&chunk, &data[10..20]);
+        assert_eq!(
+            r.source().reads_served(),
+            1,
+            "the second ask is served from read-ahead"
+        );
+        assert_eq!(r.position(), 20);
+    }
+
+    /// The exact-read twin: complete fills are silent successes; a
+    /// stream that ends early is the typed truncation with the ask's
+    /// arithmetic; a shrink mid-read keeps the typed (open-time,
+    /// shrunk) pair.
+    #[test]
+    fn read_exact_into_fills_or_fails_typed() {
+        let data = pattern(200);
+        let mut r = reader(&data, 16);
+        let mut out = [0u8; 50];
+        r.read_exact_into(&mut out).must();
+        assert_eq!(&out, &data[..50]);
+        assert_eq!(r.position(), 50);
+
+        // Runs off the end: typed truncation, expected = 50 + 200,
+        // found = the stream end (200).
+        let mut rest = [0u8; 200];
+        let err = testkit::assert_err(r.read_exact_into(&mut rest), "past-the-end exact read");
+        assert_eq!(err.context.code, "input.file.truncated");
+        let (expected, found) = match err.kind {
+            ErrorKind::Corrupt {
+                detail: media_types::error::CorruptDetail::Truncated { expected, found },
+            } => (expected, found),
+            other => unreachable!("wrong kind: {other:?}"),
+        };
+        assert_eq!(expected, 250);
+        assert_eq!(found, 200);
+
+        // A shrink mid-read keeps the (open-time, shrunk) pair.
+        let mut r = reader(&data, 16);
+        let mut head = [0u8; 40];
+        r.read_exact_into(&mut head).must();
+        r.source_mut().shrink_to(100);
+        let mut rest = [0u8; 100];
+        let err = testkit::assert_err(r.read_exact_into(&mut rest), "truncated exact read");
+        assert_eq!(err.context.code, "input.file.truncated");
+    }
+
+    /// The peek twin: window-bound honesty, no advancement, no I/O.
+    #[test]
+    fn peek_into_never_advances_and_never_fabricates() {
+        let data = pattern(500);
+        let mut r = reader(&data, 128);
+        let mut probe = [0u8; 16];
+        assert_eq!(r.peek_into(&mut probe).must(), 0, "empty window peeks 0");
+
+        // Fill the window via a small read, then peek repeatedly.
+        let mut take = [0u8; 8];
+        r.read_into(&mut take).must();
+        let served = r.source().reads_served();
+        for _ in 0..3 {
+            let n = r.peek_into(&mut probe).must();
+            assert_eq!(n, 16, "the window holds 120 bytes — 16 are peekable");
+            assert_eq!(&probe[..n], &data[8..24]);
+        }
+        assert_eq!(r.position(), 8, "peeks never advance");
+        assert_eq!(r.source().reads_served(), served, "peeks do no I/O");
+
+        // A peek larger than the window returns exactly the window.
+        let mut big = [0u8; 4096];
+        let n = r.peek_into(&mut big).must();
+        assert_eq!(n, 120, "never more than what is buffered");
+        assert_eq!(&big[..n], &data[8..128]);
+        assert_eq!(r.position(), 8, "still no advancement");
     }
 }

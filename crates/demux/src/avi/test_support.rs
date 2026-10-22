@@ -65,6 +65,19 @@ impl SourceStream for BytesStream {
         Ok(out)
     }
 
+    /// The borrow-twin override (card 3.B3): a direct copy out of the
+    /// backing `Arc<[u8]>` into caller memory — zero allocation, so
+    /// the fuzz drivers and the zero-alloc proofs measure the
+    /// demuxer's own cost, not this seam's.
+    fn read_into(&mut self, out: &mut [u8]) -> Result<usize, EngineError> {
+        let end = (self.pos + out.len() as u64).min(self.data.len() as u64);
+        let start = (self.pos as usize).min(self.data.len());
+        out[..(end as usize - start)].copy_from_slice(&self.data[start..end as usize]);
+        let got = end as usize - start;
+        self.pos = end;
+        Ok(got)
+    }
+
     fn seek(&mut self, origin: SeekOrigin) -> Result<SourcePosition, EngineError> {
         let target = match origin {
             SeekOrigin::Start(to) => to,
