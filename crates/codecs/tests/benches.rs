@@ -1,7 +1,11 @@
 //! MJPEG decode throughput measurements (ED-FIX-1, audit M13 / Lead
 //! decision ED-a: std-only, `#[ignore]` tests — run explicitly with
 //! `cargo test -p codecs --release --ignored`; the numbers are
-//! committed in the worklog ED-FIX-1 entry).
+//! committed in the worklog's "ED-CORPUS-1 + ED-MERGE-WAVE" entry,
+//! AFTER-report bullet — W2-06 citation fix: the earlier text pointed
+//! at a "worklog ED-FIX-1 entry" that does not exist; the ED-FIX-1
+//! agent's own log never merged, and the real measurements live in
+//! the Lead's corpus entry).
 //!
 //! Two probes, both through the **contract path** (`MjpegDecoder` +
 //! sink, the real pipeline surface — persistent `DecodeContext`,
@@ -137,7 +141,7 @@ fn release_floor(release_fps: f64, debug_fps: f64) -> f64 {
 }
 
 #[test]
-#[ignore = "ED-FIX-1 M13 throughput measurement: cargo test -p codecs --release --ignored (numbers in worklog)"]
+#[ignore = "ED-FIX-1 M13 throughput measurement: cargo test -p codecs --release --ignored (numbers in the worklog ED-CORPUS-1 AFTER-report)"]
 fn mjpeg_decode_throughput_contract_path() {
     let bytes = match fixture_bytes(AVI) {
         Ok(b) => b,
@@ -216,7 +220,7 @@ fn dense_4k_jpeg() -> Vec<u8> {
 }
 
 #[test]
-#[ignore = "ED-FIX-1 M13 4K dense-content budget probe: cargo test -p codecs --release --ignored (numbers in worklog)"]
+#[ignore = "ED-FIX-1 M13 4K dense-content budget probe: cargo test -p codecs --release --ignored (numbers in the worklog ED-CORPUS-1 AFTER-report)"]
 fn mjpeg_decode_throughput_dense_4k_budget() {
     let jpeg = dense_4k_jpeg();
     // Sanity: it decodes cleanly (dense, nothing concealed) at 4K.
