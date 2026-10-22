@@ -1495,6 +1495,25 @@ impl Session {
         // event stream. Every step is a table row; a rejection is
         // unreachable by construction and honored as the typed
         // receipt rather than a panic.
+        //
+        // Staleness discipline (found by the 3.C1 model walks): the
+        // composition's own trail is stamped with the composition's
+        // FINAL generation. Each row mints as it applies (the Stop
+        // row's `BumpPipeline`, then the Close row's), so the stop
+        // half of the trail would otherwise carry a superseded
+        // counter and be swallowed by the intra-epoch staleness rule
+        // at the next drain — the macro would deliver a lone
+        // `→ idle` and lose the promised `… → stopped → idle`
+        // observability (a session-level machine fact, not pipeline
+        // work a mint supersedes). The macro is ONE command; its
+        // events carry the generation at the command's atomic
+        // completion point. Events already sitting in the outbox
+        // from earlier applies keep their own stamps and their own
+        // staleness fate (the standing doc 05 §4.2 discipline for
+        // hosts that do not drain per poll), and the replacement
+        // flow's cross-epoch suppression is untouched — an event of
+        // a superseded epoch is stale by construction regardless of
+        // its counter.
         if command.kind == SessionCommandKind::Close {
             let mut outputs = Vec::new();
             let mut rejection = None;
@@ -1509,6 +1528,17 @@ impl Session {
                     Err(refused) => {
                         rejection = Some(refused);
                         break;
+                    }
+                }
+            }
+            if rejection.is_none() {
+                // The composition completed: stamp its whole trail
+                // with the final generation (the doc 05 §4.2 `gen` of
+                // the close — the session's last).
+                let final_generation = self.pair().wire_generation();
+                for output in &mut outputs {
+                    if let EngineOutput::Event(event) = output {
+                        event.generation = final_generation;
                     }
                 }
             }
