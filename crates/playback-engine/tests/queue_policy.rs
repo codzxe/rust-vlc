@@ -99,27 +99,33 @@ fn from_product_limits_accepts_in_range_and_rejects_typed() {
                             assert_eq!(value, audio);
                             assert_eq!(floor, QUEUE_PACKETS_FLOOR);
                         }
-                        QueuePlanError::PacketsAboveCeiling { kind, value, ceiling } => {
+                        QueuePlanError::PacketsAboveCeiling {
+                            kind,
+                            value,
+                            ceiling,
+                        } => {
                             assert_eq!(kind, QueuePlanKind::Audio, "seed {seed}");
                             assert_eq!(value, audio);
                             assert_eq!(ceiling, QUEUE_PACKETS_AUDIO_CEILING);
                         }
                     }
                 }
-                (Err(err), true, false) => {
-                    match err {
-                        QueuePlanError::PacketsBelowFloor { kind, value, floor } => {
-                            assert_eq!(kind, QueuePlanKind::Video, "seed {seed}");
-                            assert_eq!(value, video);
-                            assert_eq!(floor, QUEUE_PACKETS_FLOOR);
-                        }
-                        QueuePlanError::PacketsAboveCeiling { kind, value, ceiling } => {
-                            assert_eq!(kind, QueuePlanKind::Video, "seed {seed}");
-                            assert_eq!(value, video);
-                            assert_eq!(ceiling, QUEUE_PACKETS_VIDEO_CEILING);
-                        }
+                (Err(err), true, false) => match err {
+                    QueuePlanError::PacketsBelowFloor { kind, value, floor } => {
+                        assert_eq!(kind, QueuePlanKind::Video, "seed {seed}");
+                        assert_eq!(value, video);
+                        assert_eq!(floor, QUEUE_PACKETS_FLOOR);
                     }
-                }
+                    QueuePlanError::PacketsAboveCeiling {
+                        kind,
+                        value,
+                        ceiling,
+                    } => {
+                        assert_eq!(kind, QueuePlanKind::Video, "seed {seed}");
+                        assert_eq!(value, video);
+                        assert_eq!(ceiling, QUEUE_PACKETS_VIDEO_CEILING);
+                    }
+                },
                 (Ok(_), false | true, false | true) => {
                     unreachable!("seed {seed}: accept/reject disagrees with the ranges");
                 }
@@ -289,8 +295,7 @@ fn thresholds_make_packets_the_starvation_axis() {
             "the byte low mark never binds"
         );
         assert_eq!(
-            marks.low.duration,
-            limits.max_duration,
+            marks.low.duration, limits.max_duration,
             "the duration low mark never binds"
         );
         assert_eq!(
@@ -317,10 +322,7 @@ fn queue_plan_errors_display_the_axis_and_bound() {
     let text = err.to_string();
     assert!(text.contains("video"), "{text}");
     assert!(text.contains("4096"), "{text}");
-    let boxed: Box<dyn std::error::Error> = Box::new(
-        QueuePlan::from_product_limits(0, 512)
-            .err()
-            .must(),
-    );
+    let boxed: Box<dyn std::error::Error> =
+        Box::new(QueuePlan::from_product_limits(0, 512).err().must());
     assert!(!boxed.to_string().is_empty());
 }

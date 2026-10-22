@@ -834,7 +834,9 @@ mod tests {
         assert_eq!(r.read_prefix_into(&mut out, 1).must(), 2);
         assert_eq!(out, [2, 3]);
         // Agreement with the Vec twin.
-        let vec = r.read_prefix_at(2, 3).unwrap_or_else(|e| unreachable!("{e}"));
+        let vec = r
+            .read_prefix_at(2, 3)
+            .unwrap_or_else(|e| unreachable!("{e}"));
         assert_eq!(vec, vec![4, 5]);
     }
 
@@ -847,13 +849,19 @@ mod tests {
         assert_eq!(borrow.to_vec(), data);
         // The Vec twin over a fresh reader returns the same bytes.
         let mut r = reader(&data);
-        match r.read_exact_or_end(300).unwrap_or_else(|e| unreachable!("{e}")) {
+        match r
+            .read_exact_or_end(300)
+            .unwrap_or_else(|e| unreachable!("{e}"))
+        {
             ReadExact::Complete(bytes) => assert_eq!(bytes, data),
             other => unreachable!("complete, got {other:?}"),
         }
         // And the Ended shape still reports the partial as data.
         let mut r = reader(&data);
-        match r.read_exact_or_end(400).unwrap_or_else(|e| unreachable!("{e}")) {
+        match r
+            .read_exact_or_end(400)
+            .unwrap_or_else(|e| unreachable!("{e}"))
+        {
             ReadExact::Ended { partial } => assert_eq!(partial, data),
             other => unreachable!("ended with the real prefix, got {other:?}"),
         }
@@ -909,7 +917,11 @@ mod tests {
             .must();
         assert_eq!(third.as_slice(), payload.as_slice());
         assert_eq!(fourth.as_slice(), payload.as_slice());
-        assert_eq!(pool.resident_slots(), 2, "the pool never grows past the bound");
+        assert_eq!(
+            pool.resident_slots(),
+            2,
+            "the pool never grows past the bound"
+        );
         // At most two distinct allocations serve the steady state.
         let mut ptrs = [third.as_slice().as_ptr(), fourth.as_slice().as_ptr()];
         ptrs.sort_unstable();

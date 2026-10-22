@@ -309,8 +309,16 @@ impl QueuePlan {
                 Ok(())
             }
         };
-        check(QueuePlanKind::Audio, audio_packets, QUEUE_PACKETS_AUDIO_CEILING)?;
-        check(QueuePlanKind::Video, video_packets, QUEUE_PACKETS_VIDEO_CEILING)?;
+        check(
+            QueuePlanKind::Audio,
+            audio_packets,
+            QUEUE_PACKETS_AUDIO_CEILING,
+        )?;
+        check(
+            QueuePlanKind::Video,
+            video_packets,
+            QUEUE_PACKETS_VIDEO_CEILING,
+        )?;
         Ok(QueuePlan {
             audio: QueueLimits {
                 max_packets: nonzero(audio_packets as usize),
@@ -1258,9 +1266,7 @@ impl Pipeline {
                 if mark.low {
                     any_low = true;
                     limb.low_streak = limb.low_streak.saturating_add(1);
-                    if !limb.episode_open
-                        || limb.low_streak >= self.starve_debounce
-                    {
+                    if !limb.episode_open || limb.low_streak >= self.starve_debounce {
                         limb.episode_open = true;
                         starved = true;
                     }
@@ -1269,13 +1275,11 @@ impl Pipeline {
                 }
             }
             if any_low {
-                self.starvation.starved_ticks =
-                    self.starvation.starved_ticks.saturating_add(1);
+                self.starvation.starved_ticks = self.starvation.starved_ticks.saturating_add(1);
             }
             report.starved = !self.eof && starved;
             if report.starved {
-                self.starvation.starve_signals =
-                    self.starvation.starve_signals.saturating_add(1);
+                self.starvation.starve_signals = self.starvation.starve_signals.saturating_add(1);
             }
         }
         report
@@ -1313,10 +1317,8 @@ impl Pipeline {
         if self.pending.is_some() {
             // The ingestion-stall metric (design C2): this tick began
             // with the demuxer still parked on a full queue.
-            self.starvation.pending_hold_ticks = self
-                .starvation
-                .pending_hold_ticks
-                .saturating_add(1);
+            self.starvation.pending_hold_ticks =
+                self.starvation.pending_hold_ticks.saturating_add(1);
         }
         if let Some(packet) = self.pending.take() {
             self.push_packet(packet);
@@ -1384,22 +1386,16 @@ impl Pipeline {
                 // tally the binding axis the queue reported.
                 match binding {
                     packet_queue::LimitAxis::Packets => {
-                        self.starvation.full_rejections_packets = self
-                            .starvation
-                            .full_rejections_packets
-                            .saturating_add(1);
+                        self.starvation.full_rejections_packets =
+                            self.starvation.full_rejections_packets.saturating_add(1);
                     }
                     packet_queue::LimitAxis::Bytes => {
-                        self.starvation.full_rejections_bytes = self
-                            .starvation
-                            .full_rejections_bytes
-                            .saturating_add(1);
+                        self.starvation.full_rejections_bytes =
+                            self.starvation.full_rejections_bytes.saturating_add(1);
                     }
                     packet_queue::LimitAxis::Duration => {
-                        self.starvation.full_rejections_duration = self
-                            .starvation
-                            .full_rejections_duration
-                            .saturating_add(1);
+                        self.starvation.full_rejections_duration =
+                            self.starvation.full_rejections_duration.saturating_add(1);
                     }
                 }
                 // Backpressure: hold the untouched packet for the
@@ -1802,7 +1798,6 @@ impl FrameSink for LimbSink<'_> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     //! Card 3.B3's engine-side policy proofs: the starve debounce and
@@ -1919,10 +1914,7 @@ mod tests {
         // (the marker would otherwise eat the first tick's decode
         // slice — `decode_step` spends one budget slot observing it).
         for limb in pipeline.limbs.iter_mut() {
-            assert!(matches!(
-                limb.queue.try_pop(),
-                PopOutcome::Discontinuity(_)
-            ));
+            assert!(matches!(limb.queue.try_pop(), PopOutcome::Discontinuity(_)));
             assert!(matches!(limb.queue.try_pop(), PopOutcome::Empty));
         }
         pipeline
@@ -2026,7 +2018,10 @@ mod tests {
         fill(&mut pipeline, 2); // 4
         let _ = pipeline.tick(SessionState::Playing, &budget); // 3
         let dip = pipeline.tick(SessionState::Playing, &budget); // 2 → low
-        assert!(!dip.starved, "the second single-tick dip is still debounced");
+        assert!(
+            !dip.starved,
+            "the second single-tick dip is still debounced"
+        );
         assert_eq!(
             pipeline.starvation_counters().starve_signals,
             1,

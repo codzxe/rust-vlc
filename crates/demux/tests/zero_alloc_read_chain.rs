@@ -16,8 +16,8 @@
 use media_types::ids::SourceUri;
 use media_types::{EngineError, PipelineStage};
 use plugin_api::{SeekOrigin, SourcePosition, SourceStream};
-use testkit::alloc_count::{CountingGlobalAlloc, serialize_tests};
 use testkit::Must;
+use testkit::alloc_count::{CountingGlobalAlloc, serialize_tests};
 
 #[global_allocator]
 static ALLOC: CountingGlobalAlloc = CountingGlobalAlloc::new();
@@ -131,11 +131,10 @@ fn header_peek_loop_allocates_nothing_when_warm() {
     let data = movi_layout(1024, 300);
     let payload = 300usize;
     let stride = 8 + payload + (payload & 1);
-    let mut reader =
-        demux::avi::riff::SourceReader::new(Box::new(BorrowMemSource::new(std::sync::Arc::clone(
-            &data,
-        ))))
-        .must();
+    let mut reader = demux::avi::riff::SourceReader::new(Box::new(BorrowMemSource::new(
+        std::sync::Arc::clone(&data),
+    )))
+    .must();
 
     // Warm-up: first peeks size nothing but the reader's internals
     // settle (the source's Arc, the position queries).
@@ -171,11 +170,10 @@ fn pooled_movi_walk_allocates_nothing_when_warm() {
     let data = movi_layout(1050, 512);
     let payload = 512usize;
     let stride = 8 + payload; // even payload: no pad byte
-    let mut reader =
-        demux::avi::riff::SourceReader::new(Box::new(BorrowMemSource::new(std::sync::Arc::clone(
-            &data,
-        ))))
-        .must();
+    let mut reader = demux::avi::riff::SourceReader::new(Box::new(BorrowMemSource::new(
+        std::sync::Arc::clone(&data),
+    )))
+    .must();
     let mut pool = demux::avi::riff::PayloadSlots::default();
 
     // Warm-up: hold two handles live so the pool grows to its bound,
@@ -202,9 +200,7 @@ fn pooled_movi_walk_allocates_nothing_when_warm() {
         let header = demux::avi::riff::ChunkHeader::from_le_bytes(&hdr);
         let at = cursor + 8;
         let handle = pool
-            .fill(header.size as usize, |out| {
-                reader.read_prefix_into(out, at)
-            })
+            .fill(header.size as usize, |out| reader.read_prefix_into(out, at))
             .must();
         // The bytes are the chunk's own (the layout's per-chunk base).
         let base = ((cursor / stride as u64) * 31 + 7) as u8;
@@ -223,11 +219,10 @@ fn pooled_movi_walk_allocates_nothing_when_warm() {
 fn borrow_reads_allocate_nothing() {
     let _serial = serialize_tests();
     let data = movi_layout(64, 2048);
-    let mut reader =
-        demux::avi::riff::SourceReader::new(Box::new(BorrowMemSource::new(std::sync::Arc::clone(
-            &data,
-        ))))
-        .must();
+    let mut reader = demux::avi::riff::SourceReader::new(Box::new(BorrowMemSource::new(
+        std::sync::Arc::clone(&data),
+    )))
+    .must();
 
     let mut scratch = vec![0u8; 2048];
     // Warm-up.
@@ -253,11 +248,10 @@ fn borrow_reads_allocate_nothing() {
 fn vec_twins_cost_exactly_one_allocation_per_call() {
     let _serial = serialize_tests();
     let data = movi_layout(64, 2048);
-    let mut reader =
-        demux::avi::riff::SourceReader::new(Box::new(BorrowMemSource::new(std::sync::Arc::clone(
-            &data,
-        ))))
-        .must();
+    let mut reader = demux::avi::riff::SourceReader::new(Box::new(BorrowMemSource::new(
+        std::sync::Arc::clone(&data),
+    )))
+    .must();
 
     // Warm-up.
     let _ = reader.read_exact_or_end(16).must();
@@ -276,7 +270,8 @@ fn vec_twins_cost_exactly_one_allocation_per_call() {
     }
     let delta = guard.delta();
     assert_eq!(
-        delta.alloc_calls, CALLS * 2,
+        delta.alloc_calls,
+        CALLS * 2,
         "exactly one allocation per Vec twin call (idx1's per-entry cost until \
          the walk/index swap lands): {} calls, {} allocs",
         CALLS * 2,
@@ -291,17 +286,14 @@ fn vec_twins_cost_exactly_one_allocation_per_call() {
 fn varying_size_spill_is_exactly_one_alloc_per_payload() {
     let _serial = serialize_tests();
     let data = movi_layout(64, 2048);
-    let mut reader =
-        demux::avi::riff::SourceReader::new(Box::new(BorrowMemSource::new(std::sync::Arc::clone(
-            &data,
-        ))))
-        .must();
+    let mut reader = demux::avi::riff::SourceReader::new(Box::new(BorrowMemSource::new(
+        std::sync::Arc::clone(&data),
+    )))
+    .must();
     let mut pool = demux::avi::riff::PayloadSlots::default();
 
     // Warm-up with one size so the pool is populated.
-    let _ = pool
-        .fill(256, |out| reader.read_prefix_into(out, 0))
-        .must();
+    let _ = pool.fill(256, |out| reader.read_prefix_into(out, 0)).must();
     let guard = ALLOC.state().guard();
     const PAYLOADS: u64 = 128;
     for index in 0..PAYLOADS {
@@ -320,8 +312,275 @@ fn varying_size_spill_is_exactly_one_alloc_per_payload() {
     // SharedBytes::from_vec — the same two-step every payload paid
     // pre-3.B3, minus the reader's accumulator.
     assert_eq!(
-        delta.alloc_calls, PAYLOADS * 2,
+        delta.alloc_calls,
+        PAYLOADS * 2,
         "one spill + one Arc conversion per varying payload: {} payloads, {} allocs",
-        PAYLOADS, delta.alloc_calls
+        PAYLOADS,
+        delta.alloc_calls
+    );
+}
+
+// ---------------------------------------------------------------------------
+// The end-to-end proofs (design E3(b)/(c)): the REAL `AviDemuxer` over
+// the real walk — the M4 kill demonstrated at the public-contract
+// boundary, not just at the seam.
+// ---------------------------------------------------------------------------
+
+use demux::avi::header::{DamageLog, StreamDesc, StreamFormat};
+use demux::avi::index::{AVIIF_KEYFRAME, parse_idx1};
+use demux::avi::riff::FourCC;
+use media_types::MediaKind;
+use plugin_api::Demuxer;
+
+/// Build a one-video-stream AVI (the doctest's builder shape) whose
+/// `movi` carries `chunks` uniform `payload`-byte `00dc` chunks, plus
+/// — when `with_idx1` — an `idx1` entry per chunk.
+fn avi_bytes(chunks: usize, payload: usize, with_idx1: bool) -> std::sync::Arc<[u8]> {
+    let mut b = Vec::with_capacity(chunks * (8 + payload) + 1024);
+    b.extend_from_slice(b"RIFF");
+    b.extend_from_slice(&0u32.to_le_bytes());
+    b.extend_from_slice(b"AVI ");
+    // hdrl: avih + one strl (video MJPG).
+    let hdrl_start = b.len();
+    b.extend_from_slice(b"LIST");
+    b.extend_from_slice(&0u32.to_le_bytes());
+    b.extend_from_slice(b"hdrl");
+    let mut avih = Vec::new();
+    avih.extend_from_slice(&33_333u32.to_le_bytes());
+    avih.extend_from_slice(&0u32.to_le_bytes());
+    avih.extend_from_slice(&0u32.to_le_bytes());
+    avih.extend_from_slice(&0x110u32.to_le_bytes());
+    avih.extend_from_slice(&1u32.to_le_bytes());
+    avih.extend_from_slice(&0u32.to_le_bytes());
+    avih.extend_from_slice(&2u32.to_le_bytes());
+    avih.extend_from_slice(&4u32.to_le_bytes());
+    avih.extend_from_slice(&320u32.to_le_bytes());
+    avih.extend_from_slice(&240u32.to_le_bytes());
+    avih.extend(&[0u8; 16]);
+    b.extend_from_slice(b"avih");
+    b.extend_from_slice(&(avih.len() as u32).to_le_bytes());
+    b.extend(&avih);
+    // strl: strh (video) + strf (BITMAPINFOHEADER).
+    b.extend_from_slice(b"LIST");
+    let strl_size_pos = b.len();
+    b.extend_from_slice(&0u32.to_le_bytes());
+    b.extend_from_slice(b"strl");
+    let mut strh = Vec::new();
+    strh.extend_from_slice(b"vids");
+    strh.extend_from_slice(b"MJPG");
+    strh.extend(&[0u8; 12]);
+    strh.extend_from_slice(&1u32.to_le_bytes()); // scale
+    strh.extend_from_slice(&30u32.to_le_bytes()); // rate
+    strh.extend_from_slice(&0u32.to_le_bytes());
+    strh.extend_from_slice(&(chunks as u32).to_le_bytes()); // length
+    strh.extend_from_slice(&4u32.to_le_bytes());
+    strh.extend_from_slice(&u32::MAX.to_le_bytes());
+    strh.extend_from_slice(&0u32.to_le_bytes()); // sample size
+    strh.extend(&[0u8; 8]);
+    b.extend_from_slice(b"strh");
+    b.extend_from_slice(&(strh.len() as u32).to_le_bytes());
+    b.extend(&strh);
+    let mut strf = Vec::new();
+    strf.extend_from_slice(&40u32.to_le_bytes());
+    strf.extend_from_slice(&320u32.to_le_bytes());
+    strf.extend_from_slice(&240u32.to_le_bytes());
+    strf.extend_from_slice(&1u16.to_le_bytes());
+    strf.extend_from_slice(&24u16.to_le_bytes());
+    strf.extend_from_slice(b"MJPG");
+    strf.extend(&vec![0u8; 20]);
+    b.extend_from_slice(b"strf");
+    b.extend_from_slice(&(strf.len() as u32).to_le_bytes());
+    b.extend(&strf);
+    let strl_size = b.len() - strl_size_pos - 4;
+    b[strl_size_pos..strl_size_pos + 4].copy_from_slice(&(strl_size as u32).to_le_bytes());
+    let hdrl_size = b.len() - hdrl_start - 8;
+    b[hdrl_start + 4..hdrl_start + 8].copy_from_slice(&(hdrl_size as u32).to_le_bytes());
+    // movi: `chunks` uniform video chunks.
+    let movi_list_pos = b.len();
+    b.extend_from_slice(b"LIST");
+    let movi_size_pos = b.len();
+    b.extend_from_slice(&0u32.to_le_bytes());
+    b.extend_from_slice(b"movi");
+    let movi_form_pos = (b.len() - 4) as u64;
+    let mut chunk_positions: Vec<u64> = Vec::with_capacity(chunks);
+    for index in 0..chunks {
+        chunk_positions.push(b.len() as u64);
+        b.extend_from_slice(b"00dc");
+        b.extend_from_slice(&(payload as u32).to_le_bytes());
+        let base = (index % 251) as u8;
+        b.extend(std::iter::repeat(base).take(payload));
+        if payload % 2 == 1 {
+            b.push(0);
+        }
+    }
+    let movi_size = b.len() - movi_size_pos - 4;
+    b[movi_size_pos..movi_size_pos + 4].copy_from_slice(&(movi_size as u32).to_le_bytes());
+    let _ = movi_list_pos;
+    // idx1: one entry per chunk (all keyframes, movi-relative offsets).
+    if with_idx1 {
+        b.extend_from_slice(b"idx1");
+        b.extend_from_slice(&((chunks * 16) as u32).to_le_bytes());
+        for &chunk_pos in &chunk_positions {
+            b.extend_from_slice(b"00dc");
+            b.extend_from_slice(&AVIIF_KEYFRAME.to_le_bytes());
+            b.extend_from_slice(&((chunk_pos - movi_form_pos) as u32).to_le_bytes());
+            b.extend_from_slice(&(payload as u32).to_le_bytes());
+        }
+    }
+    let riff_size = b.len() - 8;
+    b[4..8].copy_from_slice(&(riff_size as u32).to_le_bytes());
+    b.into()
+}
+
+/// The M4 kill, end to end (design E3(b)): a real `AviDemuxer` over an
+/// in-memory AVI with 1050 uniform chunks, walked through the public
+/// `Demuxer` contract. After the warm-up (pool growth, pending-queue
+/// seeding, sticky machinery), **1000 consecutive packet events
+/// allocate nothing** — header peek, payload read, packet hand-off
+/// all zero (the pre-3.B3 chain spent ~3 allocs + 2 copies per
+/// packet).
+#[test]
+fn real_movi_walk_allocates_nothing_per_packet() {
+    let _serial = serialize_tests();
+    const CHUNKS: usize = 1050;
+    const PAYLOAD: usize = 512;
+    let bytes = avi_bytes(CHUNKS, PAYLOAD, false);
+    let mut avi = demux::avi::AviDemuxer::new(
+        demux::avi::test_support::mem_stream(std::sync::Arc::clone(&bytes)).must(),
+    )
+    .must();
+    let tracks = avi.start().must();
+    assert_eq!(tracks.len(), 1, "one video track");
+
+    // Warm-up: the first events grow the pool to its bound, seed the
+    // pending queue, and settle the one-time machinery.
+    let mut seen = 0usize;
+    while seen < 50 {
+        match avi.next_event().must() {
+            plugin_api::DemuxEvent::Packet(packet) => {
+                assert_eq!(packet.data.len(), PAYLOAD);
+                drop(packet);
+                seen += 1;
+            }
+            plugin_api::DemuxEvent::EndOfStream => unreachable!("warm-up hit EOS at {seen}"),
+            _ => {}
+        }
+    }
+
+    let guard = ALLOC.state().guard();
+    let mut walked = 0usize;
+    while walked < 1000 {
+        match avi.next_event().must() {
+            plugin_api::DemuxEvent::Packet(packet) => {
+                assert_eq!(packet.data.len(), PAYLOAD, "packet {walked}");
+                // Content sanity: the chunk's uniform fill byte.
+                let base = ((seen + walked) % 251) as u8;
+                assert!(
+                    packet.data.as_slice().iter().all(|&byte| byte == base),
+                    "packet {walked}: payload bytes are the chunk's own"
+                );
+                drop(packet);
+                walked += 1;
+            }
+            plugin_api::DemuxEvent::EndOfStream => {
+                unreachable!("EOS at {walked} of 1000 with {} chunks", CHUNKS - seen)
+            }
+            _ => {}
+        }
+    }
+    guard.assert_zero("1000 packets through the real walk (M4 end-to-end kill)");
+    // And the stream still ends cleanly afterwards.
+    let mut ended = false;
+    while !ended {
+        ended = matches!(avi.next_event().must(), plugin_api::DemuxEvent::EndOfStream);
+    }
+}
+
+/// The idx1 batch proof (design E3(c)): parsing a 1024-entry index
+/// through the block reader allocates a **constant-plus-log** count —
+/// the 4 KiB block buffer (1), the raw-entry Vec's doubling ladder,
+/// the final entries Vec — NOT one allocation per entry (the
+/// pre-3.B3 shape: 1024 sixteen-byte reads, 1024 allocations). The
+/// 256-vs-1024 comparison pins the growth as the Vec ladder alone.
+#[test]
+fn idx1_parse_allocates_per_block_not_per_entry() {
+    let _serial = serialize_tests();
+    let parse = |entries: usize| -> u64 {
+        let bytes = avi_bytes(entries, 512, true);
+        let mut reader = demux::avi::riff::SourceReader::new(
+            demux::avi::test_support::mem_stream(std::sync::Arc::clone(&bytes)).must(),
+        )
+        .must();
+        // The idx1 chunk sits after the movi list: locate it by
+        // scanning for the fourcc (the file is ours; a direct find is
+        // the honest test-side locator).
+        let hay = bytes.as_ref();
+        let idx1_at = hay.windows(4).position(|window| window == b"idx1").must();
+        let idx1_pos = idx1_at as u64;
+        let declared = (entries * 16) as u32;
+        // movi geometry (the builder's own arithmetic).
+        let movi_form = (hay.windows(4).position(|w| w == b"movi").must()) as u64;
+        let movi_data_start = movi_form + 4;
+        // The movi list's data ends exactly where the idx1 chunk
+        // begins (the builder appends idx1 directly after movi).
+        let movi_data_end = idx1_pos;
+        let mut damage = DamageLog::default();
+        // One video stream (the builder's own strl): every entry is
+        // timeable, so the ladder pass runs too — the measured window
+        // is the WHOLE parse, not just the read loop.
+        let streams = [StreamDesc {
+            ordinal: 0,
+            kind: MediaKind::Video,
+            handler: FourCC::tag(b"MJPG"),
+            scale: 1,
+            rate: 30,
+            start: 0,
+            length: entries as u32,
+            sample_size: 0,
+            format: StreamFormat::MotionJpeg {
+                width: 320,
+                height: 240,
+            },
+            title: None,
+            strh_offset: 0,
+        }];
+        let guard = ALLOC.state().guard();
+        let table = parse_idx1(
+            &mut reader,
+            idx1_pos,
+            declared,
+            movi_form,
+            movi_data_start,
+            movi_data_end,
+            bytes.len() as u64,
+            &streams,
+            &mut damage,
+        )
+        .must();
+        let delta = guard.delta();
+        // Every entry is a valid in-movi keyframe chunk of a known
+        // stream: the table times all of them and no damage is noted —
+        // the parse is fully exercised inside the measured window.
+        let index = table.must();
+        assert_eq!(index.entries.len(), entries);
+        assert_eq!(damage.total, 0, "a clean index notes no damage");
+        delta.alloc_calls
+    };
+
+    let small = parse(256);
+    let large = parse(1024);
+    // The growth from 256 to 1024 entries is the raw Vec's doubling
+    // ladder (2 extra doublings) — everything else is constant.
+    assert!(
+        large <= small + 4,
+        "256 entries: {small} allocs; 1024 entries: {large} allocs — \
+         growth must be the Vec ladder, not per-entry reads"
+    );
+    // And the absolute shape: per-block reads (1024 entries = 4 KiB
+    // blocks = 4 reads) plus the ladder lands far below the old
+    // per-entry 1024.
+    assert!(
+        large < 64,
+        "1024 entries parsed with {large} allocs — the pre-3.B3 chain spent 1024 (one per entry)"
     );
 }

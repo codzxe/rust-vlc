@@ -116,11 +116,7 @@ fn check_conservation(queue: &BoundedQueue<Blob>, context: &str) {
 /// The hysteresis laws under engine-shaped thresholds (design B2/E1):
 /// a `low` flag implies the packets axis is at/below the stall line;
 /// a `high` flag implies some axis reached the resume line.
-fn check_hysteresis(
-    queue: &BoundedQueue<Blob>,
-    marks: &WatermarkThresholds,
-    context: &str,
-) {
+fn check_hysteresis(queue: &BoundedQueue<Blob>, marks: &WatermarkThresholds, context: &str) {
     let mark = queue.watermark();
     if mark.low {
         assert!(
@@ -271,14 +267,12 @@ fn backpressure_vocabulary_holds_q1_conservation_and_hysteresis() {
                     PopOutcome::Closed => assert!(closed, "{step}: unexpected close"),
                 },
                 // ---- bounded parking pop (expired deadline) ----
-                r if r < 92 => {
-                    match queue.pop_wait(Some(std::time::Instant::now())) {
-                        PopOutcome::Item(_) => {}
-                        PopOutcome::Discontinuity(_) => {}
-                        PopOutcome::Empty => {}
-                        PopOutcome::Closed => assert!(closed, "{step}: unexpected close"),
-                    }
-                }
+                r if r < 92 => match queue.pop_wait(Some(std::time::Instant::now())) {
+                    PopOutcome::Item(_) => {}
+                    PopOutcome::Discontinuity(_) => {}
+                    PopOutcome::Empty => {}
+                    PopOutcome::Closed => assert!(closed, "{step}: unexpected close"),
+                },
                 // ---- flush (advance/stutter/regress) ----
                 r if r < 97 => {
                     let current = queue.generation();

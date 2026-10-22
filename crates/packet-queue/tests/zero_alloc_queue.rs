@@ -17,8 +17,8 @@ use std::time::{Duration, Instant};
 use media_types::ids::GenerationId;
 use media_types::time::{Duration as MediaDuration, Nanoseconds};
 use packet_queue::{BoundedQueue, PopOutcome, PushOutcome, QueueLimits, Stamped, Weigh};
-use testkit::alloc_count::{CountingGlobalAlloc, serialize_tests};
 use testkit::Must;
+use testkit::alloc_count::{CountingGlobalAlloc, serialize_tests};
 
 #[global_allocator]
 static ALLOC: CountingGlobalAlloc = CountingGlobalAlloc::new();

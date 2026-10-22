@@ -510,11 +510,7 @@ pub fn assert_peek_into_contract(stream: &mut SyntheticStream, expected: &[u8]) 
         assert_eq!(&probe[..got], &expected[at..at + got], "peeked bytes");
     }
     assert_eq!(stream.position(), pos, "peeks never advance");
-    assert_eq!(
-        stream.source().reads_served(),
-        served,
-        "peeks do no I/O"
-    );
+    assert_eq!(stream.source().reads_served(), served, "peeks do no I/O");
 
     // A peek larger than the window returns exactly the window.
     let mut big = [0u8; 8192];

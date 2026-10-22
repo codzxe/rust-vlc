@@ -253,7 +253,9 @@ mod tests {
     #[test]
     fn read_ahead_budget_maps_to_the_window_under_the_ceiling() {
         assert_eq!(
-            FileAccess::with_read_ahead_budget(64 * 1024).must().buffer_capacity(),
+            FileAccess::with_read_ahead_budget(64 * 1024)
+                .must()
+                .buffer_capacity(),
             64 * 1024,
             "a small budget is the window"
         );

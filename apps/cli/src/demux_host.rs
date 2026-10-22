@@ -630,8 +630,14 @@ mod tests {
             PRODUCT_QUEUE_PACKETS_VIDEO,
         )
         .unwrap_or_else(|e| unreachable!("{e}"));
-        assert_eq!(plan.audio.max_packets.get(), PRODUCT_QUEUE_PACKETS_AUDIO as usize);
-        assert_eq!(plan.video.max_packets.get(), PRODUCT_QUEUE_PACKETS_VIDEO as usize);
+        assert_eq!(
+            plan.audio.max_packets.get(),
+            PRODUCT_QUEUE_PACKETS_AUDIO as usize
+        );
+        assert_eq!(
+            plan.video.max_packets.get(),
+            PRODUCT_QUEUE_PACKETS_VIDEO as usize
+        );
 
         let err = match queue_plan_from_product_limits(63, 512) {
             Ok(_) => unreachable!("below the floor must refuse"),

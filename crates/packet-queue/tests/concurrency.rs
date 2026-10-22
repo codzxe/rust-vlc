@@ -733,7 +733,10 @@ fn burst_storm_parks_drains_and_delivers_exactly_once() {
         assert_eq!(stats.popped, TOTAL, "seed {seed}");
         assert_eq!(stats.flushed, 0, "seed {seed}");
         assert_eq!(stats.stale_rejected, 0, "seed {seed}");
-        assert_eq!(stats.full_rejections, 0, "seed {seed}: no deadline expiries");
+        assert_eq!(
+            stats.full_rejections, 0,
+            "seed {seed}: no deadline expiries"
+        );
         assert_eq!(queue.usage().packets, 0, "seed {seed}: drained at rest");
     }
 }

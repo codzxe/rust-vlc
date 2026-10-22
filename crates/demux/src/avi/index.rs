@@ -281,55 +281,75 @@ pub fn parse_idx1(
     // the legacy variant — see the module docs).
     let mut base: Option<u64> = None;
 
+    // Block-batched entry reads (card 3.B3, design D3): 256 entries
+    // (4 KiB) per source read into one reused buffer, parsed by index
+    // arithmetic — the per-entry read (16 B + a seek each) collapses
+    // to per-block; `read_prefix_into`'s clamp gives the old
+    // "ended before the entry" break for free (a short block simply
+    // yields fewer whole entries).
+    const IDX1_BLOCK_ENTRIES: usize = 256;
+    const IDX1_BLOCK_BYTES: usize = IDX1_BLOCK_ENTRIES * 16;
+    let mut block = vec![0u8; IDX1_BLOCK_BYTES];
     while offset + 16 <= payload {
-        let Some(block) = reader.read_exact_or_end_at(16, idx1_pos + 8 + offset)? else {
-            break;
-        };
-        let fourcc = riff::FourCC::new([block[0], block[1], block[2], block[3]]);
-        let flags = riff::u32le(&block, 4);
-        let rel = riff::u32le(&block, 8);
-        let size = riff::u32le(&block, 12);
-        match classify_movi_chunk(&fourcc) {
-            MoviChunkKind::Packet { stream } => {
-                if base.is_none() {
-                    base = Some(probe_offset_base(
-                        reader,
-                        &fourcc,
-                        rel,
-                        size,
-                        movi_form_pos,
-                        movi_data_start,
-                        movi_data_end,
-                    ));
-                    if base == Some(0) {
-                        // The legacy absolute-offset variant,
-                        // recognized and recorded — never silent.
-                        damage.note(0, "idx1-absolute-offsets");
+        let block_want = ((payload - offset) as usize).min(IDX1_BLOCK_BYTES);
+        let got = reader.read_prefix_into(&mut block[..block_want], idx1_pos + 8 + offset)?;
+        let whole_entries = got / 16;
+        for index in 0..whole_entries {
+            let at = index * 16;
+            let fourcc =
+                riff::FourCC::new([block[at], block[at + 1], block[at + 2], block[at + 3]]);
+            let flags = riff::u32le(&block, at + 4);
+            let rel = riff::u32le(&block, at + 8);
+            let size = riff::u32le(&block, at + 12);
+            match classify_movi_chunk(&fourcc) {
+                MoviChunkKind::Packet { stream } => {
+                    if base.is_none() {
+                        base = Some(probe_offset_base(
+                            reader,
+                            &fourcc,
+                            rel,
+                            size,
+                            movi_form_pos,
+                            movi_data_start,
+                            movi_data_end,
+                        ));
+                        if base == Some(0) {
+                            // The legacy absolute-offset variant,
+                            // recognized and recorded — never silent.
+                            damage.note(0, "idx1-absolute-offsets");
+                        }
+                    }
+                    let chunk_pos = base.unwrap_or(movi_form_pos).saturating_add(u64::from(rel));
+                    let data_end = chunk_pos.saturating_add(8 + u64::from(size));
+                    if chunk_pos < movi_data_start || data_end > movi_data_end {
+                        dropped_outside_movi = dropped_outside_movi.saturating_add(1);
+                    } else {
+                        if highest_pos.is_some_and(|highest| chunk_pos < highest) {
+                            out_of_order = out_of_order.saturating_add(1);
+                        }
+                        highest_pos =
+                            Some(highest_pos.map_or(chunk_pos, |highest| highest.max(chunk_pos)));
+                        raw.push(RawIdxEntry {
+                            chunk_pos,
+                            size,
+                            stream,
+                            keyframe: flags & AVIIF_KEYFRAME != 0,
+                        });
                     }
                 }
-                let chunk_pos = base.unwrap_or(movi_form_pos).saturating_add(u64::from(rel));
-                let data_end = chunk_pos.saturating_add(8 + u64::from(size));
-                if chunk_pos < movi_data_start || data_end > movi_data_end {
-                    dropped_outside_movi = dropped_outside_movi.saturating_add(1);
-                } else {
-                    if highest_pos.is_some_and(|highest| chunk_pos < highest) {
-                        out_of_order = out_of_order.saturating_add(1);
-                    }
-                    highest_pos =
-                        Some(highest_pos.map_or(chunk_pos, |highest| highest.max(chunk_pos)));
-                    raw.push(RawIdxEntry {
-                        chunk_pos,
-                        size,
-                        stream,
-                        keyframe: flags & AVIIF_KEYFRAME != 0,
-                    });
+                _ => {
+                    dropped_not_packet = dropped_not_packet.saturating_add(1);
                 }
-            }
-            _ => {
-                dropped_not_packet = dropped_not_packet.saturating_add(1);
             }
         }
-        offset += 16;
+        if got < block_want {
+            // The stream ended inside this block: whatever whole
+            // entries it carried were parsed; the partial tail is the
+            // same "ended before the entry" the per-entry exact read
+            // reported as `None`.
+            break;
+        }
+        offset += got as u64;
     }
 
     if payload % 16 != 0 {
@@ -399,6 +419,11 @@ fn probe_offset_base(
     movi_data_start: u64,
     movi_data_end: u64,
 ) -> u64 {
+    // The probe reads through a stack buffer (card 3.B3): the borrow
+    // twin of the old 8-byte exact read — same verdicts (a candidate
+    // matches only when 8 full bytes exist and the chunk id agrees),
+    // no per-probe allocation (this runs once per parse, but the
+    // discipline is uniform now).
     let mut candidate_matches = |pos: u64| -> bool {
         if pos < movi_data_start {
             return false;
@@ -407,9 +432,10 @@ fn probe_offset_base(
         if end > movi_data_end {
             return false;
         }
-        match reader.read_exact_or_end_at(8, pos) {
-            Ok(Some(bytes)) => {
-                riff::FourCC::new([bytes[0], bytes[1], bytes[2], bytes[3]]) == *entry_fourcc
+        let mut header = [0u8; 8];
+        match reader.read_prefix_into(&mut header, pos) {
+            Ok(8) => {
+                riff::FourCC::new([header[0], header[1], header[2], header[3]]) == *entry_fourcc
             }
             _ => false,
         }

@@ -273,10 +273,7 @@ impl<S: RawRead + Seekable> BufferedReader<S> {
         while filled < out.len() {
             let got = self.read_into(&mut out[filled..])?;
             if got == 0 {
-                return Err(error::truncated(
-                    start + out.len() as u64,
-                    self.buf_pos,
-                ));
+                return Err(error::truncated(start + out.len() as u64, self.buf_pos));
             }
             filled += got;
         }
