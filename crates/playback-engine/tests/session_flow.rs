@@ -1294,3 +1294,73 @@ fn the_engine_debug_renders_the_observable_surface() {
     assert!(text.contains("Engine"), "{text}");
     assert!(text.contains("Opening"), "{text}");
 }
+
+/// The documented session bounds are pinned (directives-audit M1, card
+/// W1-07): the command inbox bound, the live-event outbox bound and
+/// the undelivered-receipt hard cap. Changing any of these is a policy
+/// change — this test is the tripwire that makes the change a visible,
+/// reviewed event. (The counting-allocator storm proofs over the same
+/// bounds live in `bounded_alloc.rs`.)
+#[test]
+fn the_documented_session_bounds_are_pinned() {
+    assert_eq!(
+        playback_engine::INBOX_CAPACITY,
+        64,
+        "the command inbox bound"
+    );
+    assert_eq!(
+        playback_engine::OUTBOX_CAPACITY,
+        1024,
+        "the live-event outbox bound"
+    );
+    assert_eq!(
+        playback_engine::RECEIPT_CAPACITY,
+        4096,
+        "the undelivered-receipt hard cap"
+    );
+}
+
+/// The inbox overflow policy (directives-audit M1 item ii), engine
+/// level: submissions past the bound answer the typed
+/// [`SessionError::InboxBusy`] — backpressure by rejection (doc 03
+/// §4.6(c)/§9: never a block, never a silent drop; D-1's
+/// explicit-rejection option) — exactly at the bound, never before;
+/// one poll drains the whole inbox in submit order; and there is room
+/// again after the drain.
+#[test]
+fn the_inbox_refuses_typed_at_its_bound_and_drains_whole() {
+    let mut fixture = open_audio(8);
+    let mut accepted = 0u64;
+    let mut busy = 0u64;
+    for index in 0..(playback_engine::INBOX_CAPACITY + 8) as u64 {
+        match fixture.handle.pause(RequestId(index)) {
+            Ok(()) => accepted += 1,
+            Err(SessionError::InboxBusy) => busy += 1,
+            Err(other) => unreachable!("pre-poll submit: {other}"),
+        }
+    }
+    assert_eq!(
+        accepted,
+        playback_engine::INBOX_CAPACITY as u64,
+        "the bound admits exactly its capacity"
+    );
+    assert_eq!(busy, 8, "and refuses the overflow, typed");
+    // One poll drains the whole inbox: every queued command answers,
+    // in submit order (no drops, no reordering).
+    fixture.engine.poll();
+    let drained = take_events(&mut fixture);
+    let requests: Vec<u64> = drained
+        .iter()
+        .filter_map(|output| match output {
+            EngineOutput::Receipt(receipt) => Some(receipt.request.0),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        requests,
+        (0..playback_engine::INBOX_CAPACITY as u64).collect::<Vec<_>>(),
+        "the whole inbox drained, in order"
+    );
+    // And there is room again.
+    fixture.handle.pause(RequestId(999)).must();
+}
