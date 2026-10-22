@@ -56,7 +56,7 @@ use media_types::frame::{
     VideoFrame,
 };
 use media_types::time::Timestamp;
-use media_types::{EngineError, ErrorKind, Frame, Packet, PipelineStage, Rate, Track, TrackId};
+use media_types::{EngineError, ErrorKind, Frame, GenerationId, Packet, PipelineStage, Rate, Track, TrackId};
 use playback_engine::{DecoderProvider, FrameConsumer};
 use renderer_wgpu::color::SurfaceFormat;
 use renderer_wgpu::params::Extent2D;
@@ -318,6 +318,11 @@ impl VideoLimb {
                 // stop/seek landed): the request fell behind the
                 // published generation — dropped at the boundary and
                 // counted by the queue, never presented stale.
+                eprintln!(
+                    "PROBE queue-stale-drop: req_gen={} published={}",
+                    request.generation.counter(),
+                    self.queue.published().counter()
+                );
                 let _ = request;
                 return Ok(());
             }
@@ -352,6 +357,20 @@ impl VideoLimb {
             PushOutcome::UnschedulablePts { .. } | PushOutcome::Stale { .. } => HoldRetry::Dropped,
         }
     }
+
+    /// The seek boundary's presentation-queue publish (doc 03 §6
+    /// step 3, “clear renderer mailbox”, the half behind this host's
+    /// seams): every resident present-request of the old generation
+    /// is dropped wholesale and counted, and later pushes of it are
+    /// refused at the boundary (doc 03 §5(7) — the mailbox is
+    /// replaced, not filtered). The scheduler window self-purges at
+    /// its own generation snapshot (the clock carries the mint after
+    /// step 6), so this is the only presentation-side boundary the
+    /// host must move.
+    fn seek_boundary(&mut self, generation: GenerationId) {
+        let _ = self.queue.publish(generation);
+    }
+
     /// The scheduler's lifetime counters.
     #[must_use]
     pub fn scheduler_stats(&self) -> video_engine::SchedulerStats {
@@ -362,6 +381,21 @@ impl VideoLimb {
     #[must_use]
     pub fn staging_stats(&self) -> renderer_wgpu::staging::StagingStats {
         self.renderer.staging_stats()
+    }
+
+    /// The presentation queue's lifetime counters (the seek-boundary
+    /// observability: `flushed` counts the generation-publish drops,
+    /// `published` is the live boundary).
+    #[must_use]
+    pub fn queue_stats(&self) -> video_engine::QueueStats {
+        self.queue.stats()
+    }
+
+    /// The presentation queue's published generation (the live
+    /// boundary the seek duties move).
+    #[must_use]
+    pub fn published_generation(&self) -> GenerationId {
+        self.queue.published()
     }
 
     /// Encode the current surface as a PNG screenshot (2.D1's
@@ -484,6 +518,26 @@ impl ConsumerState {
     pub fn note_video_error(&mut self, error: EngineError) {
         if self.video_error.is_none() {
             self.video_error = Some(error);
+        }
+    }
+
+    /// The seek boundary's host duties on the consumer state (doc 03
+    /// §6 step 3 — the halves behind the [`FrameConsumer`] seam the
+    /// engine's pipeline flush cannot reach): drop the window-full
+    /// hold's PRE-MINT frames (generation-filtered, not cleared: the
+    /// accept poll's decode may already have stashed the landing's
+    /// own frames behind the old ones — FIFO — and those must
+    /// survive; presenting an old-generation frame after the landing
+    /// would be the stale leak D-4 forbids) and publish the
+    /// presentation queue's generation (the renderer-mailbox clear).
+    /// The engine flushed the packet queues, the held demux packet
+    /// and the decoder reorder buffers in the same poll that accepted
+    /// the seek; this completes the boundary on the presentation
+    /// side. Cold path — once per accepted seek, never per tick.
+    pub fn seek_boundary(&mut self, generation: GenerationId) {
+        self.video_hold.retain(|frame| frame.generation >= generation);
+        if let Some(video) = self.video.as_mut() {
+            video.seek_boundary(generation);
         }
     }
 }
@@ -643,10 +697,19 @@ fn accept_video(
         PushOutcome::Scheduled | PushOutcome::Inferred { .. } => Ok(()),
         PushOutcome::Held | PushOutcome::MissingDropped { .. } => Ok(()),
         PushOutcome::WindowFull { .. } if state.video_hold.len() < MAX_VIDEO_HOLD => {
-            // Early, not late: hold the converted frame and retry
-            // after the next scheduler tick (the pump moves time on
-            // `advance`; the window drains as the clock advances).
-            state.video_hold.push_back(frame.clone());
+            // Early, not late: hold the CONVERTED frame (the outcome
+            // hands back exactly what was pushed — the uploadable
+            // one) and retry after the next scheduler tick (the pump
+            // moves time on `advance`; the window drains as the clock
+            // advances). [W1-06 defect fix: this arm previously
+            // stashed the UNCONVERTED original (`frame.clone()`), so
+            // every hold-retried I420 frame reached the renderer and
+            // was refused `render.upload.format-unsupported` — 176
+            // refusals per whole-media run, the surface frozen on an
+            // early window frame; found while proving the seek ACs'
+            // presentation numbers (D-6: syntactic green ≠ runtime
+            // green).]
+            state.video_hold.push_back(converted);
             Ok(())
         }
         PushOutcome::WindowFull { .. } | PushOutcome::UnschedulablePts { .. } => {
