@@ -1014,14 +1014,14 @@ impl Engine {
         // settled/opening states close directly). A mint exhaustion
         // inside the row lands the session in `Error`, from which
         // R3's close row still exits — the flow degrades honestly.
-        if let Some(session) = self.session.as_mut() {
-            if matches!(session.state, SessionState::Playing | SessionState::Paused) {
-                let outputs = session
-                    .apply(SessionInput::Stop, InputContext::default())
-                    .map_err(|rejection| SessionError::Invariant(format!("{rejection}")))?;
-                for output in outputs {
-                    self.outbox.push(output);
-                }
+        if let Some(session) = self.session.as_mut()
+            && matches!(session.state, SessionState::Playing | SessionState::Paused)
+        {
+            let outputs = session
+                .apply(SessionInput::Stop, InputContext::default())
+                .map_err(|rejection| SessionError::Invariant(format!("{rejection}")))?;
+            for output in outputs {
+                self.outbox.push(output);
             }
         }
         // R3 — the old session's close: `BumpPipeline` (the epoch's

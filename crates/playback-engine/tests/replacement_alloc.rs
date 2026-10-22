@@ -45,8 +45,8 @@ static ALLOC: testkit::alloc_count::CountingGlobalAlloc =
     testkit::alloc_count::CountingGlobalAlloc::new();
 
 use std::num::NonZeroUsize;
-use std::sync::atomic::{AtomicU8, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU8, AtomicU64, Ordering};
 
 use codec_api::{DecodeOutcome, Decoder, DecoderConfig, FrameSink};
 use media_clock::MonotonicSource;
@@ -55,7 +55,7 @@ use media_types::frame::{AudioLayout, ColorDescription, FrameStorage, SampleForm
 use media_types::packet::SharedBytes;
 use media_types::{
     AudioFormat, Duration, EngineError, Frame, GenerationId, MediaKind, Nanoseconds, Packet,
-    PixelFormat, PipelineStage, SourceUri, Stamp, TimeBase, TimeSpan, Timestamp, Track, TrackFlags,
+    PipelineStage, PixelFormat, SourceUri, Stamp, TimeBase, TimeSpan, Timestamp, Track, TrackFlags,
     TrackId, TrackTiming,
 };
 use packet_queue::QueueLimits;
@@ -154,7 +154,11 @@ impl Demuxer for MarkerDemuxer {
         let index = self.issued;
         self.issued += 1;
         let track = &self.tracks[index % self.tracks.len()];
-        Ok(DemuxEvent::Packet(marker_packet(track, index as i64, self.marker)))
+        Ok(DemuxEvent::Packet(marker_packet(
+            track,
+            index as i64,
+            self.marker,
+        )))
     }
 
     fn seek(&mut self, _target: TimeSpan) -> Result<TimeSpan, EngineError> {
@@ -284,7 +288,7 @@ fn track(id: u32, kind: MediaKind) -> Track {
 /// `k ≡ 0 (mod 10)`, audio-only at odd `k`, A+V otherwise — the
 /// memory band must absorb the limb-count swing.
 fn source_tracks(k: u32) -> Vec<Track> {
-    if k % 10 == 0 {
+    if k.is_multiple_of(10) {
         vec![track(1, MediaKind::Video)]
     } else if k % 2 == 1 {
         vec![track(1, MediaKind::Audio)]
@@ -460,8 +464,8 @@ fn memory_stays_bounded_across_fifty_switches() {
     assert_eq!(window.len(), 46);
 
     // (a) band: the steady-state oscillation is bounded.
-    let max_live = window.iter().map(|s| s.live_bytes).max().unwrap();
-    let min_live = window.iter().map(|s| s.live_bytes).min().unwrap();
+    let max_live = window.iter().map(|s| s.live_bytes).max().must();
+    let min_live = window.iter().map(|s| s.live_bytes).min().must();
     let band = max_live - min_live;
     assert!(
         band <= BOUND_BAND,
@@ -484,7 +488,7 @@ fn memory_stays_bounded_across_fifty_switches() {
         .windows(2)
         .map(|pair| pair[1].alloc_calls - pair[0].alloc_calls)
         .max()
-        .unwrap();
+        .must();
     assert!(
         max_churn <= BOUND_CHURN,
         "per-switch allocation events: {max_churn} exceeds the pinned {BOUND_CHURN}"

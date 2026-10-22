@@ -71,15 +71,15 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use codec_api::{DecodeOutcome, Decoder, DecoderConfig, FrameSink};
-use commands::envelope::{Generation, RequestId};
 use commands::SessionId;
+use commands::envelope::{Generation, RequestId};
 use media_clock::MonotonicSource;
 use media_types::error::ErrorKind;
 use media_types::frame::{AudioLayout, ColorDescription, FrameStorage, SampleFormat};
 use media_types::packet::SharedBytes;
 use media_types::{
     AudioFormat, Duration, EngineError, Frame, GenerationId, MediaKind, Nanoseconds, Packet,
-    PixelFormat, PipelineStage, SourceUri, Stamp, TimeBase, TimeSpan, Timestamp, Track, TrackFlags,
+    PipelineStage, PixelFormat, SourceUri, Stamp, TimeBase, TimeSpan, Timestamp, Track, TrackFlags,
     TrackId, TrackTiming,
 };
 use packet_queue::QueueLimits;
@@ -356,7 +356,7 @@ fn frame_marker(frame: &Frame) -> Option<u8> {
 /// `NoDecodableTrack` — pinned by the failed-open test instead; the
 /// soak's every epoch must play.)
 fn source_tracks(k: u32) -> Vec<Track> {
-    if k % 10 == 0 {
+    if k.is_multiple_of(10) {
         vec![track(1, MediaKind::Video)]
     } else if k % 2 == 1 {
         vec![track(1, MediaKind::Audio)]
@@ -667,10 +667,12 @@ fn fifty_rapid_switches_playing_to_playing() {
         for kind in source_kinds(k) {
             let count = frames
                 .iter()
-                .filter(|(_, frame)| matches!(
-                    (kind, frame),
-                    (MediaKind::Audio, Frame::Audio(_)) | (MediaKind::Video, Frame::Video(_))
-                ))
+                .filter(|(_, frame)| {
+                    matches!(
+                        (kind, frame),
+                        (MediaKind::Audio, Frame::Audio(_)) | (MediaKind::Video, Frame::Video(_))
+                    )
+                })
                 .count();
             assert!(
                 count >= 1,
@@ -724,7 +726,9 @@ fn replacement_refuses_typed_from_buffering_and_replaces_from_opening() {
     let stats_before = harness.engine.stats();
     assert!(matches!(
         harness.engine.open(harness.source_config(1)),
-        Err(SessionError::SessionExists { session: SessionId(1) })
+        Err(SessionError::SessionExists {
+            session: SessionId(1)
+        })
     ));
     // The refusal changed nothing: same state, same session, no
     // partial teardown (nothing pushed, nothing suppressed).
@@ -733,7 +737,10 @@ fn replacement_refuses_typed_from_buffering_and_replaces_from_opening() {
         harness.engine.stats().suppressed_stale_events,
         stats_before.suppressed_stale_events
     );
-    assert!(handle.play(RequestId(1)).is_ok(), "the handle still answers");
+    assert!(
+        handle.play(RequestId(1)).is_ok(),
+        "the handle still answers"
+    );
     // The proof the pipeline survived the refusal untouched: release
     // the stall and the SAME session primes and plays.
     harness.stall.store(false, Ordering::Relaxed);
@@ -742,7 +749,11 @@ fn replacement_refuses_typed_from_buffering_and_replaces_from_opening() {
     let frames = harness.consumer.take();
     assert!(!frames.is_empty());
     for (_, frame) in &frames {
-        assert_eq!(frame_marker(frame), Some(0), "the refused-open session's frames");
+        assert_eq!(
+            frame_marker(frame),
+            Some(0),
+            "the refused-open session's frames"
+        );
     }
 
     // ---- Part B: a live `Opening` session replaces (close-row
@@ -811,7 +822,12 @@ fn in_flight_seek_dies_silently_at_replacement() {
     // row), but the pre-roll can never see a new-generation packet —
     // it stays genuinely in flight.
     handle
-        .seek(RequestId(7), SeekTarget::Absolute { position_ns: 5_000_000 })
+        .seek(
+            RequestId(7),
+            SeekTarget::Absolute {
+                position_ns: 5_000_000,
+            },
+        )
         .must();
     harness.stall.store(true, Ordering::Relaxed);
     harness.engine.poll(); // the seek applies (Paused → Paused)
@@ -862,8 +878,12 @@ fn in_flight_seek_dies_silently_at_replacement() {
     let seek_receipt = receipts
         .iter()
         .find(|receipt| receipt.request == RequestId(7))
-        .expect("the seek's accept receipt survives the replacement");
-    assert_eq!(seek_receipt.command, SessionCommandKind::Seek);
+        .must();
+    assert_eq!(
+        seek_receipt.command,
+        SessionCommandKind::Seek,
+        "the seek's accept receipt survives the replacement"
+    );
     assert_eq!(
         seek_receipt.result.accepted_generation(),
         Some(Generation(1)),
@@ -895,7 +915,12 @@ fn in_flight_seek_dies_silently_at_replacement() {
     let handle = open_source(&mut harness, 0);
     pump_to_playing(&mut harness, "arm B first source");
     handle
-        .seek(RequestId(8), SeekTarget::Absolute { position_ns: 5_000_000 })
+        .seek(
+            RequestId(8),
+            SeekTarget::Absolute {
+                position_ns: 5_000_000,
+            },
+        )
         .must();
     harness.stall.store(true, Ordering::Relaxed);
     harness.engine.poll(); // the seek applies: the rebuffer episode
@@ -908,7 +933,9 @@ fn in_flight_seek_dies_silently_at_replacement() {
     );
     assert!(matches!(
         harness.engine.open(harness.source_config(1)),
-        Err(SessionError::SessionExists { session: SessionId(1) })
+        Err(SessionError::SessionExists {
+            session: SessionId(1)
+        })
     ));
     // The refusal is honest, not destructive: release the stall and
     // the SAME seek completes normally (terminal + resume).
@@ -973,7 +1000,10 @@ fn replacement_preserves_engine_totals_and_seq() {
     // `seq` is engine-global strictly increasing across the switch
     // (extends session_flow's reopen proof to the replacement path).
     for pair in seqs.windows(2) {
-        assert!(pair[0] < pair[1], "engine-global seq must strictly increase");
+        assert!(
+            pair[0] < pair[1],
+            "engine-global seq must strictly increase"
+        );
     }
     // Totals: merged across the boundary, exactly the sink's count,
     // never regressing at the switch instant.
@@ -1058,7 +1088,8 @@ fn undrained_hub_suppresses_old_epoch_events() {
     assert!(!facts.is_empty());
     for (seq, session, _) in &facts {
         assert_eq!(
-            *session, SessionId(17),
+            *session,
+            SessionId(17),
             "an undrained old-epoch event (seq {seq}) survived the drain"
         );
     }
@@ -1161,10 +1192,9 @@ fn replacement_then_failed_open_lands_in_error_closeably() {
             error_at = Some(index);
         }
     }
-    let (fatal_at, error_at) = (
-        fatal_at.expect("the typed fatal was emitted"),
-        error_at.expect("state-changed → error was emitted"),
-    );
+    assert!(fatal_at.is_some(), "the typed fatal was emitted");
+    assert!(error_at.is_some(), "state-changed → error was emitted");
+    let (fatal_at, error_at) = (fatal_at.must(), error_at.must());
     assert!(fatal_at < error_at, "the fatal precedes the state change");
     // The implicit close of the first epoch was suppressed as usual.
     assert_eq!(
