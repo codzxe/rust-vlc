@@ -15,12 +15,25 @@ output):
      and excluded from PSNR comparison (honest note, not silent drop).
   4. Drive the three env-gated Rust corpus suites (release profile):
      probe / avi-demux / codecs(mjpeg+pcm). Any panic or non-zero exit
-     is a FAILED contract row in the report.
-  5. Aggregate everything into measured-number tables and write
-     docs/corpus/report-<stamp>.md (+ corpus/REPORT.md copy).
+     is a FAILED contract row in the report. `--skip-suites` omits this
+     step entirely (no cargo, no build lock — oracle-side validation).
+  5. Record the per-file DECODED rows (W1-04): oracle decoded format and
+     dimensions (ffprobe -show_streams: pix_fmt, width/height, sample_fmt,
+     channels, sample_rate) side by side with the Lumen suites' decoded
+     output format/dims, in corpus/_harness/decoded-rows.tsv. The Rust
+     suites do not emit the Lumen cells yet — they are marked
+     "not-emitted (suite gap)" (never fabricated) until the registered
+     suite-emission follow-up lands; the driver consumes the out_* result
+     columns as soon as they exist.
+  6. Aggregate everything into measured-number tables and write
+     docs/corpus/report-<stamp>.md (+ corpus/REPORT.md copy; a
+     --skip-suites run writes *-skip-suites names instead, so an
+     oracle-side validation run never masquerades as the canonical
+     measurement report).
 
 Usage:
-  run_harness.py [--corpus DIR] [--skip-gen-check] [--profile release]
+  run_harness.py [--corpus DIR] [--ffprobe BIN] [--ffmpeg BIN]
+                 [--skip-gen-check] [--skip-suites] [--keep-refs]
 """
 
 from __future__ import annotations
@@ -33,6 +46,7 @@ import statistics
 import subprocess
 import sys
 import time
+from collections import Counter
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent.parent
@@ -49,6 +63,57 @@ PCM_REF_FMT = {
     "pcm_s16le": "s16le", "pcm_s24le": "s24le", "pcm_u8": "u8",
     "pcm_f32le": "f32le", "pcm_s16be": "s16be",
 }
+
+# --- decoded-rows vocabulary (W1-04) ------------------------------------
+# The Rust suites measure counts/PSNR/bytes but do not yet emit the decoded
+# output format/dims. These markers keep that gap EXPLICIT in the rows and
+# the report — a missing measurement is recorded as missing, never guessed.
+GAP = "not-emitted (suite gap)"
+NO_DECODER = "no-decoder (codec out of scope)"
+NO_PATH = "no-path (container unsupported)"
+
+# Lumen DecodedFormat variant (snake_case, as the suite follow-up will emit
+# it) -> pix sampling family, comparable with the oracle classifier below.
+# i420 and the oracle's yuvj420p are the same family — the j suffix is a
+# full-range flag, not a layout change.
+LUMEN_PIX_FAMILY = {"i420": "yuv420", "rgba8": "rgb"}
+
+
+def pix_family(pix_fmt: str) -> str:
+    """ffprobe pix_fmt -> sampling family (yuv420/yuv422/yuv444/gray/rgb)."""
+    if not pix_fmt or pix_fmt == "-":
+        return "-"
+    q = pix_fmt.lower()
+    if q.startswith("gray"):
+        return "gray"
+    if "420" in q:
+        return "yuv420"
+    if "422" in q:
+        return "yuv422"
+    if "444" in q:
+        return "yuv444"
+    if q.startswith(("rgb", "bgr", "gbr", "pal", "y8", "ya8")):
+        return "rgb"
+    return q
+
+
+def sample_family(fmt: str) -> str:
+    """ffprobe sample_fmt OR a pcm_* descriptor -> sample family.
+
+    ffprobe reports 24-bit PCM as the s32-padded layout — same sample
+    family as s24le, not a mismatch."""
+    if not fmt or fmt == "-":
+        return "-"
+    q = fmt.lower().removeprefix("pcm_")
+    if q in ("s16", "s16le", "s16be"):
+        return "s16"
+    if q in ("s24", "s24le", "s32", "s32le"):
+        return "s24"
+    if q in ("u8", "u8p"):
+        return "u8"
+    if q in ("flt", "f32", "f32le"):
+        return "f32"
+    return q
 
 
 def ref_frame_cap(entry: dict) -> int | None:
@@ -118,6 +183,13 @@ def main() -> int:
     ap.add_argument("--ffprobe", default="ffprobe")
     ap.add_argument("--ffmpeg", default="ffmpeg")
     ap.add_argument("--keep-refs", action="store_true", help="keep _harness/ refs after the run")
+    ap.add_argument("--skip-gen-check", action="store_true",
+                    help="compatibility flag: skip corpus freshness verification (this driver only "
+                         "requires manifest.json to exist; nothing else is verified today)")
+    ap.add_argument("--skip-suites", action="store_true",
+                    help="do NOT drive the Rust suites (no cargo, no build lock): oracle-side "
+                         "validation only — suite sections are marked skipped and the report is "
+                         "written under a *-skip-suites name so it cannot pose as a measurement")
     args = ap.parse_args()
 
     corpus = Path(args.corpus).resolve()
@@ -129,7 +201,8 @@ def main() -> int:
     harness_dir = corpus / "_harness"
     refs_dir = harness_dir / "refs"
     harness_dir.mkdir(parents=True, exist_ok=True)
-    refs_dir.mkdir(parents=True, exist_ok=True)
+    if not args.skip_suites:  # refs exist only to feed the suites
+        refs_dir.mkdir(parents=True, exist_ok=True)
 
     t0 = time.time()
     files = manifest["files"]
@@ -138,34 +211,67 @@ def main() -> int:
     # ------------------------------------------------------------------
     # 1. ffprobe truth for every file (the external oracle).
     #    Checkpointed: a reaper kill mid-run resumes from truth.json.
+    #    Since W1-04 each record also carries the DECODED stream facts —
+    #    video pix_fmt/width/height, audio sample_fmt/channels/sample_rate
+    #    (ffprobe -show_streams) — the expected side of the decoded-fidelity
+    #    comparison. Checkpoints from older runs lack those keys and are
+    #    upgraded file-by-file; entries missing from a partial checkpoint
+    #    are gap-filled here instead of being silently dropped.
     # ------------------------------------------------------------------
+    def probe_truth(entry: dict, path: Path) -> dict:
+        j = ffprobe_json(path, args.ffprobe)
+        rec: dict = {"format": "-", "duration_ms": "-", "streams": "-", "v_pkts": "-", "a_pkts": "-",
+                     "v_codec": "-", "v_pix_fmt": "-", "v_w": "-", "v_h": "-",
+                     "a_codec": "-", "a_sample_fmt": "-", "a_ch": "-", "a_rate": "-"}
+        if j is not None:
+            fmt = j.get("format", {})
+            rec["format"] = fmt.get("format_name", "-") or "-"
+            d = fmt.get("duration")
+            rec["duration_ms"] = f"{float(d) * 1000:.1f}" if d else "-"
+            rec["streams"] = str(len(j.get("streams", [])))
+            for s in j.get("streams", []):
+                if s.get("codec_type") == "video" and rec["v_codec"] == "-":
+                    rec["v_codec"] = s.get("codec_name") or "-"
+                    rec["v_pix_fmt"] = s.get("pix_fmt") or "-"
+                    rec["v_w"] = str(s.get("width") or "-")
+                    rec["v_h"] = str(s.get("height") or "-")
+                elif s.get("codec_type") == "audio" and rec["a_codec"] == "-":
+                    rec["a_codec"] = s.get("codec_name") or "-"
+                    rec["a_sample_fmt"] = s.get("sample_fmt") or "-"
+                    rec["a_ch"] = str(s.get("channels") or "-")
+                    rec["a_rate"] = str(s.get("sample_rate") or "-")
+            if entry["family"][0] == "avi":
+                rec["v_pkts"] = str(ffprobe_packets(path, args.ffprobe, "v:0") or "-")
+                rec["a_pkts"] = str(ffprobe_packets(path, args.ffprobe, "a:0") or "-")
+        return rec
+
     truth_path = harness_dir / "truth.json"
+    truth: dict[str, dict] = {}
     if truth_path.is_file():
-        truth = json.loads(truth_path.read_text())
-        print(f"[h[harness] truth checkpoint: {len(truth)} files (resumed)")
-    else:
-        truth: dict[str, dict] = {}
-        for i, entry in enumerate(files):
-            path = corpus / entry["rel"]
-            if not path.is_file():
-                print(f"[h[harness] WARNING missing file {entry['rel']}")
-                continue
-            j = ffprobe_json(path, args.ffprobe)
-            rec: dict = {"format": "-", "duration_ms": "-", "streams": "-", "v_pkts": "-", "a_pkts": "-"}
-            if j is not None:
-                fmt = j.get("format", {})
-                rec["format"] = fmt.get("format_name", "-") or "-"
-                d = fmt.get("duration")
-                rec["duration_ms"] = f"{float(d) * 1000:.1f}" if d else "-"
-                rec["streams"] = str(len(j.get("streams", [])))
-                if entry["family"][0] == "avi":
-                    rec["v_pkts"] = str(ffprobe_packets(path, args.ffprobe, "v:0") or "-")
-                    rec["a_pkts"] = str(ffprobe_packets(path, args.ffprobe, "a:0") or "-")
-            truth[entry["rel"]] = rec
-            if (i + 1) % 50 == 0:
-                print(f"[h[harness] ffprobe {i + 1}/{len(files)}", flush=True)
-                truth_path.write_text(json.dumps(truth))  # incremental checkpoint
+        try:
+            truth = json.loads(truth_path.read_text())
+        except json.JSONDecodeError:
+            truth = {}  # damaged checkpoint — rebuild honestly, never trust it
+    n_probed = 0
+    for i, entry in enumerate(files):
+        path = corpus / entry["rel"]
+        if not path.is_file():
+            print(f"[h[harness] WARNING missing file {entry['rel']}")
+            truth.pop(entry["rel"], None)
+            continue
+        rec = truth.get(entry["rel"])
+        if rec is not None and "v_pix_fmt" in rec and "a_sample_fmt" in rec:
+            continue  # current-schema checkpoint hit
+        truth[entry["rel"]] = probe_truth(entry, path)
+        n_probed += 1
+        if n_probed % 50 == 0:
+            print(f"[h[harness] ffprobe (schema upgrade / gap fill) {n_probed} probed, "
+                  f"{i + 1}/{len(files)} scanned", flush=True)
+            truth_path.write_text(json.dumps(truth))  # incremental checkpoint
+    if n_probed:
         truth_path.write_text(json.dumps(truth))
+    print(f"[h[harness] truth: {len(truth)} files on record "
+          f"({n_probed} probed this run, {len(truth) - n_probed} from checkpoint)")
 
     # ------------------------------------------------------------------
     # 2. Case lists.
@@ -187,74 +293,80 @@ def main() -> int:
             t = truth[e["rel"]]
             f.write(f"{e['rel']}\t{e['class']}\t{t['duration_ms']}\t{t['streams']}\t{t['v_pkts']}\t{t['a_pkts']}\n")
 
-    # mjpeg cases: AVI + mjpeg video (clean AND dirty — dirty measures
-    # concealment/error behavior against ffmpeg's own recovery).
-    mjpeg_entries = [e for e in avi_entries
-                     if e["params"].get("codec") == "mjpeg" or e["params"].get("codec", "").startswith("mjpeg")]
-    mjpeg_cases = harness_dir / "mjpeg-cases.tsv"
+    # mjpeg + pcm cases: AVI + mjpeg video / pcm audio (clean AND dirty —
+    # dirty measures concealment/error behavior against ffmpeg's own
+    # recovery). Both need ffmpeg reference decodes, which exist only to
+    # feed the Rust suites — skipped entirely under --skip-suites.
     mjpeg_rows: list[dict] = []
-    with mjpeg_cases.open("w") as f:
-        f.write("rel\tref\twidth\theight\tframes\n")
-        for i, e in enumerate(mjpeg_entries):
-            w, h = e["params"].get("width"), e["params"].get("height")
-            if not w or not h:
-                continue
-            src = corpus / e["rel"]
-            ref = refs_dir / f"mjpeg-{i:04d}.raw"
-            cap = ref_frame_cap(e)
-            if ref.is_file() and ref.stat().st_size > 0:
+    pcm_rows: list[dict] = []
+    if args.skip_suites:
+        print("[h[harness] --skip-suites: ffmpeg reference decodes + mjpeg/pcm case lists "
+              "not built (no suites to feed)")
+    else:
+        mjpeg_entries = [e for e in avi_entries
+                         if e["params"].get("codec") == "mjpeg" or e["params"].get("codec", "").startswith("mjpeg")]
+        mjpeg_cases = harness_dir / "mjpeg-cases.tsv"
+        with mjpeg_cases.open("w") as f:
+            f.write("rel\tref\twidth\theight\tframes\n")
+            for i, e in enumerate(mjpeg_entries):
+                w, h = e["params"].get("width"), e["params"].get("height")
+                if not w or not h:
+                    continue
+                src = corpus / e["rel"]
+                ref = refs_dir / f"mjpeg-{i:04d}.raw"
+                cap = ref_frame_cap(e)
+                if ref.is_file() and ref.stat().st_size > 0:
+                    fb = w * h + 2 * ((w + 1) // 2) * ((h + 1) // 2)
+                    size = ref.stat().st_size
+                    frames, rem = divmod(size, fb)
+                    if rem == 0 and frames > 0:
+                        f.write(f"{e['rel']}\t_harness/refs/{ref.name}\t{w}\t{h}\t{frames}\n")
+                        mjpeg_rows.append({"rel": e["rel"], "ref": f"_harness/refs/{ref.name}", "w": w, "h": h,
+                                           "frames": frames, "res_name": e["params"].get("res_name", "?")})
+                        continue
+                extract = [args.ffmpeg, "-v", "error", "-i", str(src), "-map", "0:v:0",
+                           "-c:v", "rawvideo", "-pix_fmt", "yuv420p", "-f", "rawvideo", "-y"]
+                if cap is not None:
+                    extract += ["-frames:v", str(cap)]
+                extract.append(str(ref))
+                p = sh(extract)
+                if p.returncode != 0 or not ref.is_file() or ref.stat().st_size == 0:
+                    mjpeg_rows.append({"rel": e["rel"], "note": "ref-extraction-failed"})
+                    continue
                 fb = w * h + 2 * ((w + 1) // 2) * ((h + 1) // 2)
                 size = ref.stat().st_size
                 frames, rem = divmod(size, fb)
-                if rem == 0 and frames > 0:
-                    f.write(f"{e['rel']}\t_harness/refs/{ref.name}\t{w}\t{h}\t{frames}\n")
-                    mjpeg_rows.append({"rel": e["rel"], "ref": f"_harness/refs/{ref.name}", "w": w, "h": h,
-                                       "frames": frames, "res_name": e["params"].get("res_name", "?")})
+                if rem != 0 or frames == 0:
+                    mjpeg_rows.append({"rel": e["rel"], "note": f"ref-layout-mismatch:{size}not%{fb}"})
+                    ref.unlink(missing_ok=True)
                     continue
-            extract = [args.ffmpeg, "-v", "error", "-i", str(src), "-map", "0:v:0",
-                       "-c:v", "rawvideo", "-pix_fmt", "yuv420p", "-f", "rawvideo", "-y"]
-            if cap is not None:
-                extract += ["-frames:v", str(cap)]
-            extract.append(str(ref))
-            p = sh(extract)
-            if p.returncode != 0 or not ref.is_file() or ref.stat().st_size == 0:
-                mjpeg_rows.append({"rel": e["rel"], "note": "ref-extraction-failed"})
-                continue
-            fb = w * h + 2 * ((w + 1) // 2) * ((h + 1) // 2)
-            size = ref.stat().st_size
-            frames, rem = divmod(size, fb)
-            if rem != 0 or frames == 0:
-                mjpeg_rows.append({"rel": e["rel"], "note": f"ref-layout-mismatch:{size}not%{fb}"})
-                ref.unlink(missing_ok=True)
-                continue
-            f.write(f"{e['rel']}\t_harness/refs/{ref.name}\t{w}\t{h}\t{frames}\n")
-            mjpeg_rows.append({"rel": e["rel"], "ref": f"_harness/refs/{ref.name}", "w": w, "h": h,
-                               "frames": frames, "res_name": e["params"].get("res_name", "?")})
+                f.write(f"{e['rel']}\t_harness/refs/{ref.name}\t{w}\t{h}\t{frames}\n")
+                mjpeg_rows.append({"rel": e["rel"], "ref": f"_harness/refs/{ref.name}", "w": w, "h": h,
+                                   "frames": frames, "res_name": e["params"].get("res_name", "?")})
 
-    # pcm cases: AVI + pcm audio (clean AND dirty).
-    pcm_entries = [e for e in avi_entries if e["params"].get("audio_codec", "").startswith("pcm")]
-    pcm_cases = harness_dir / "pcm-cases.tsv"
-    pcm_rows: list[dict] = []
-    with pcm_cases.open("w") as f:
-        f.write("rel\tref\tdescriptor\trate\tchannels\n")
-        for i, e in enumerate(pcm_entries):
-            desc = e["params"]["audio_codec"]
-            if desc not in PCM_REF_FMT:
-                continue
-            src = corpus / e["rel"]
-            ref = refs_dir / f"pcm-{i:04d}.raw"
-            if not (ref.is_file() and ref.stat().st_size > 0):
-                p = sh([args.ffmpeg, "-v", "error", "-i", str(src), "-map", "0:a:0",
-                        "-f", PCM_REF_FMT[desc], "-y", str(ref)])
-                if p.returncode != 0 or not ref.is_file():
-                    pcm_rows.append({"rel": e["rel"], "note": "ref-extraction-failed"})
+        pcm_entries = [e for e in avi_entries if e["params"].get("audio_codec", "").startswith("pcm")]
+        pcm_cases = harness_dir / "pcm-cases.tsv"
+        with pcm_cases.open("w") as f:
+            f.write("rel\tref\tdescriptor\trate\tchannels\n")
+            for i, e in enumerate(pcm_entries):
+                desc = e["params"]["audio_codec"]
+                if desc not in PCM_REF_FMT:
                     continue
-            f.write(f"{e['rel']}\t_harness/refs/{ref.name}\t{desc}\t{e['params']['audio_rate']}\t{e['params']['audio_channels']}\n")
-            pcm_rows.append({"rel": e["rel"], "ref": f"_harness/refs/{ref.name}", "desc": desc,
-                             "rate": e["params"]["audio_rate"], "ch": e["params"]["audio_channels"]})
+                src = corpus / e["rel"]
+                ref = refs_dir / f"pcm-{i:04d}.raw"
+                if not (ref.is_file() and ref.stat().st_size > 0):
+                    p = sh([args.ffmpeg, "-v", "error", "-i", str(src), "-map", "0:a:0",
+                            "-f", PCM_REF_FMT[desc], "-y", str(ref)])
+                    if p.returncode != 0 or not ref.is_file():
+                        pcm_rows.append({"rel": e["rel"], "note": "ref-extraction-failed"})
+                        continue
+                f.write(f"{e['rel']}\t_harness/refs/{ref.name}\t{desc}\t{e['params']['audio_rate']}\t{e['params']['audio_channels']}\n")
+                pcm_rows.append({"rel": e["rel"], "ref": f"_harness/refs/{ref.name}", "desc": desc,
+                                 "rate": e["params"]["audio_rate"], "ch": e["params"]["audio_channels"]})
 
     print(f"[h[harness] cases: probe={len(files)} avi={len(avi_entries)} "
-          f"mjpeg={len([r for r in mjpeg_rows if 'ref' in r])} pcm={len([r for r in pcm_rows if 'ref' in r])}")
+          f"mjpeg={len([r for r in mjpeg_rows if 'ref' in r])} pcm={len([r for r in pcm_rows if 'ref' in r])}"
+          + (" (suites skipped)" if args.skip_suites else ""))
 
     # ------------------------------------------------------------------
     # 3. Drive the Rust suites (release).
@@ -281,13 +393,6 @@ def main() -> int:
         (harness_dir / f"{results_name}.log").write_text(p.stdout[-20000:] + "\n=== STDERR ===\n" + p.stderr[-20000:])
         return p.returncode, results
 
-    rc_probe, res_probe = run_suite("media-probe", "corpus", probe_cases, "probe-results.tsv")
-    rc_demux, res_demux = run_suite("demux", "corpus", avi_cases, "demux-results.tsv")
-    rc_mjpeg, res_mjpeg = run_suite("codecs", "corpus", mjpeg_cases, "mjpeg-results.tsv",
-                                    "corpus_mjpeg_decode_measures_against_oracle")
-    rc_pcm, res_pcm = run_suite("codecs", "corpus", pcm_cases, "pcm-results.tsv",
-                                "corpus_pcm_decode_is_byte_exact_or_recorded")
-
     def read_tsv(path: Path) -> list[dict]:
         if not path.is_file():
             return []
@@ -297,10 +402,108 @@ def main() -> int:
         hdr = lines[0].split("\t")
         return [dict(zip(hdr, ln.split("\t"))) for ln in lines[1:] if ln.strip()]
 
-    probe_res = read_tsv(res_probe)
-    demux_res = read_tsv(res_demux)
-    mjpeg_res = read_tsv(res_mjpeg)
-    pcm_res = read_tsv(res_pcm)
+    if args.skip_suites:
+        rc_probe = rc_demux = rc_mjpeg = rc_pcm = "skipped"
+        probe_res: list[dict] = []
+        demux_res: list[dict] = []
+        mjpeg_res: list[dict] = []
+        pcm_res: list[dict] = []
+        print("[h[harness] --skip-suites: Rust suites NOT driven (no cargo, no build lock)")
+    else:
+        rc_probe, res_probe = run_suite("media-probe", "corpus", probe_cases, "probe-results.tsv")
+        rc_demux, res_demux = run_suite("demux", "corpus", avi_cases, "demux-results.tsv")
+        rc_mjpeg, res_mjpeg = run_suite("codecs", "corpus", mjpeg_cases, "mjpeg-results.tsv",
+                                        "corpus_mjpeg_decode_measures_against_oracle")
+        rc_pcm, res_pcm = run_suite("codecs", "corpus", pcm_cases, "pcm-results.tsv",
+                                    "corpus_pcm_decode_is_byte_exact_or_recorded")
+
+        probe_res = read_tsv(res_probe)
+        demux_res = read_tsv(res_demux)
+        mjpeg_res = read_tsv(res_mjpeg)
+        pcm_res = read_tsv(res_pcm)
+
+    # ------------------------------------------------------------------
+    # 3.5 Decoded-rows ledger (W1-04): per-file oracle decoded format/dims
+    #     side by side with the Lumen suites' decoded output. The suites
+    #     do not emit the Lumen cells yet (registered follow-up) — the gap
+    #     is recorded explicitly, never fabricated. When the suites grow
+    #     the out_* result columns, this code picks them up unchanged.
+    # ------------------------------------------------------------------
+    mjpeg_by_rel = {r.get("rel"): r for r in mjpeg_res if r.get("rel")}
+    pcm_by_rel = {r.get("rel"): r for r in pcm_res if r.get("rel")}
+
+    # Generator-intent accessors — the manifest records the video codec
+    # under `codec` only for video/av draws, and the audio codec under
+    # `audio_codec` (av draws) or `codec` (audio-only draws). Reading the
+    # wrong slot would misclassify rows, so the slots are resolved once.
+    def video_codec_intent(params: dict) -> str:
+        return (params.get("codec") or "") if params.get("class") in ("video", "av") else ""
+
+    def audio_codec_intent(params: dict) -> str:
+        if params.get("audio_codec"):
+            return str(params["audio_codec"])
+        return (params.get("codec") or "") if params.get("class") == "audio" else ""
+
+    def lumen_video_cells(entry: dict, t: dict) -> tuple[str, str, str]:
+        """(format, width, height) as measured by Lumen, or an explicit
+        gap/scope marker. Video decoder scope today: AVI + mjpeg."""
+        has_video = t.get("v_codec", "-") != "-" or bool(video_codec_intent(entry.get("params", {})))
+        if not has_video:
+            return ("", "", "")
+        fam = entry.get("family") or []
+        if not fam or fam[0] != "avi":
+            return (NO_PATH, NO_PATH, NO_PATH)
+        if not video_codec_intent(entry.get("params", {})).startswith("mjpeg"):
+            return (NO_DECODER, NO_DECODER, NO_DECODER)
+        row = mjpeg_by_rel.get(entry["rel"])
+        if row and row.get("out_format"):
+            return (row.get("out_format", "-"), row.get("out_w", "-"), row.get("out_h", "-"))
+        return (GAP, GAP, GAP)
+
+    def lumen_audio_cells(entry: dict, t: dict) -> tuple[str, str, str]:
+        """(descriptor, rate, channels) as measured by Lumen, or an explicit
+        gap/scope marker. Audio decoder scope today: AVI + pcm."""
+        acodec = audio_codec_intent(entry.get("params", {}))
+        has_audio = t.get("a_codec", "-") != "-" or bool(acodec)
+        if not has_audio:
+            return ("", "", "")
+        fam = entry.get("family") or []
+        if not fam or fam[0] != "avi":
+            return (NO_PATH, NO_PATH, NO_PATH)
+        if not acodec.startswith("pcm"):
+            return (NO_DECODER, NO_DECODER, NO_DECODER)
+        row = pcm_by_rel.get(entry["rel"])
+        if row and row.get("out_desc"):
+            return (row.get("out_desc", "-"), row.get("out_rate", "-"), row.get("out_ch", "-"))
+        return (GAP, GAP, GAP)
+
+    DEC_HDR = ["rel", "class", "v_codec", "v_pix_fmt", "v_w", "v_h",
+               "a_codec", "a_sample_fmt", "a_ch", "a_rate",
+               "lumen_v_format", "lumen_v_w", "lumen_v_h",
+               "lumen_a_desc", "lumen_a_rate", "lumen_a_ch"]
+    decoded_rows_path = harness_dir / "decoded-rows.tsv"
+    n_gap_cells = 0
+    with decoded_rows_path.open("w") as f:
+        f.write("\t".join(DEC_HDR) + "\n")
+        for entry in files:
+            t = truth.get(entry["rel"])
+            if t is None:
+                t = {"v_codec": "-", "v_pix_fmt": "-", "v_w": "-", "v_h": "-",
+                     "a_codec": "-", "a_sample_fmt": "-", "a_ch": "-", "a_rate": "-"}
+            lv = lumen_video_cells(entry, t)
+            la = lumen_audio_cells(entry, t)
+            n_gap_cells += sum(1 for c in lv + la if c == GAP)
+            f.write("\t".join([
+                entry["rel"], entry["class"],
+                t["v_codec"], t["v_pix_fmt"], t["v_w"], t["v_h"],
+                t["a_codec"], t["a_sample_fmt"], t["a_ch"], t["a_rate"],
+                *lv, la[0], la[1], la[2],
+            ]) + "\n")
+    n_vid_dim = sum(1 for e in files if truth.get(e["rel"], {}).get("v_w", "-") != "-")
+    n_aud_fmt = sum(1 for e in files if truth.get(e["rel"], {}).get("a_sample_fmt", "-") != "-")
+    print(f"[h[harness] decoded-rows: {len(files)} rows -> {decoded_rows_path} "
+          f"({n_vid_dim} with oracle video dims, {n_aud_fmt} with oracle audio sample_fmt, "
+          f"{n_gap_cells} suite-gap cells)")
 
     # ------------------------------------------------------------------
     # 4. Judge + measure.
@@ -317,13 +520,21 @@ def main() -> int:
     for e in files:
         classes[e["class"]] = classes.get(e["class"], 0) + 1
     report.append("- composition: " + ", ".join(f"{k}={v}" for k, v in sorted(classes.items())))
+    if args.skip_suites:
+        report.append("- mode: **--skip-suites** — the Rust suites were NOT driven (oracle-side "
+                      "validation run): the suite sections below carry no rows by construction, "
+                      "and every Lumen-side decoded-format cell is a suite-gap row")
     report.append(f"- suite exit codes: probe={rc_probe} demux={rc_demux} mjpeg={rc_mjpeg} pcm={rc_pcm} "
-                  f"(**0 = no panic, no contract violation**)")
+                  + (("(**0 = no panic, no contract violation**)") if not args.skip_suites
+                     else "(skipped — not driven)"))
     report.append("")
 
     # -- probe judgement --------------------------------------------------
     report.append("## Probe (bounded format detection) vs ffprobe oracle")
     report.append("")
+    if args.skip_suites:
+        report.append("_suite skipped (--skip-suites): no rows; section intentionally empty_")
+        report.append("")
     false_pos: list[str] = []
     probe_lat: list[float] = []
     for row in probe_res:
@@ -349,8 +560,9 @@ def main() -> int:
     if false_pos:
         for fp in false_pos[:10]:
             report.append(f"  - {fp}")
-    report.append(f"| probe latency p50/p95/max | {percentile(probe_lat, 0.5):.0f}µs / "
-                  f"{percentile(probe_lat, 0.95):.0f}µs / {percentile(probe_lat, 1.0):.0f}µs |")
+    if probe_lat:
+        report.append(f"| probe latency p50/p95/max | {percentile(probe_lat, 0.5):.0f}µs / "
+                      f"{percentile(probe_lat, 0.95):.0f}µs / {percentile(probe_lat, 1.0):.0f}µs |")
     report.append("")
 
     # -- demux judgement (scoped to the fourccs the demuxer can feed) -----
@@ -359,6 +571,9 @@ def main() -> int:
     # refusals, judged on the refusal, not on conformance.
     report.append("## AVI demux walk vs ffprobe oracle (supported fourccs: mjpeg + pcm)")
     report.append("")
+    if args.skip_suites:
+        report.append("_suite skipped (--skip-suites): no rows; section intentionally empty_")
+        report.append("")
 
     def avi_supported(entry: dict) -> bool:
         fam = entry.get("family", [])
@@ -433,6 +648,9 @@ def main() -> int:
     # -- mjpeg judgement ---------------------------------------------------
     report.append("## MJPEG decode vs ffmpeg oracle (real throughput + fidelity)")
     report.append("")
+    if args.skip_suites:
+        report.append("_suite skipped (--skip-suites): no rows; section intentionally empty_")
+        report.append("")
     by_res: dict[str, list[dict]] = {}
     res_px: dict[str, int] = {}
     for row in mjpeg_res:
@@ -469,6 +687,9 @@ def main() -> int:
     # -- pcm judgement -----------------------------------------------------
     report.append("## PCM decode vs ffmpeg oracle (byte-exact expected)")
     report.append("")
+    if args.skip_suites:
+        report.append("_suite skipped (--skip-suites): no rows; section intentionally empty_")
+        report.append("")
     # A case is COMPARABLE only when the AVI demuxed the audio stream at
     # all; refused/undemuxable cases (unsupported fourcc combos, damaged
     # headers) are counted separately — they are demuxer-scope findings,
@@ -498,21 +719,216 @@ def main() -> int:
             report.append(f"  - {row['rel']}: {row['mismatch']} mismatched bytes, max_abs={row['max_abs']}, note={row.get('note', '')}")
     report.append("")
 
+    # -- decoded format fidelity (W1-04) -----------------------------------
+    report.append("## Decoded format fidelity vs oracle (decoded output format + dimensions)")
+    report.append("")
+    report.append("Per-file ledger: `corpus/_harness/decoded-rows.tsv` — oracle columns from ffprobe "
+                  "`-show_streams` (video pix_fmt/width/height; audio sample_fmt/channels/sample_rate), "
+                  "Lumen columns from the corpus suites' decoded-output rows. Match-rate scope: the "
+                  "supported-format subset, AVI files whose fourccs Lumen decodes (mjpeg video + pcm "
+                  "audio), clean and dirty — the same population as the demux section's supported set.")
+    report.append("")
+
+    def t_of(e: dict) -> dict:
+        return truth.get(e.get("rel", ""), {})
+
+    vid_cases = [e for e in avi_entries if video_codec_intent(e.get("params", {})).startswith("mjpeg")]
+    aud_cases = [e for e in avi_entries if audio_codec_intent(e.get("params", {})).startswith("pcm")]
+    vid_oracle = [(e, t_of(e)) for e in vid_cases if t_of(e).get("v_w", "-") != "-"]
+    vid_pix = [(e, t) for e, t in vid_oracle if t.get("v_pix_fmt", "-") != "-"]
+    aud_oracle = [(e, t_of(e)) for e in aud_cases if t_of(e).get("a_sample_fmt", "-") != "-"]
+    mjpeg_elsewhere = sum(1 for e in files
+                          if video_codec_intent(e.get("params", {})).startswith("mjpeg")
+                          and (e.get("family") or ["?"])[0] != "avi")
+    pcm_elsewhere = sum(1 for e in files
+                        if audio_codec_intent(e.get("params", {})).startswith("pcm")
+                        and (e.get("family") or ["?"])[0] != "avi")
+
+    fam_counts = Counter(pix_family(t["v_pix_fmt"]) for _, t in vid_pix)
+    sfam_counts = Counter(sample_family(t["a_sample_fmt"]) for _, t in aud_oracle)
+    ch_counts = Counter(t["a_ch"] for _, t in aud_oracle)
+    rate_counts = Counter(t["a_rate"] for _, t in aud_oracle)
+    # oracle vs generator intent — measurable today; validates the oracle
+    # row itself and catches encoder-side drift (e.g. a gray-intent mjpeg
+    # draw coming back from the AVI as yuvj444p). Intent is only compared
+    # where the manifest actually recorded it (the av draw path persists
+    # no pix_fmt; audio-only draws record their codec under `codec`).
+    vid_dims_intent = [(e, t) for e, t in vid_oracle if e.get("params", {}).get("width")]
+    vid_pix_intent = [(e, t) for e, t in vid_pix if e.get("params", {}).get("pix_fmt")]
+    aud_chrate_intent = [(e, t) for e, t in aud_oracle if e.get("params", {}).get("audio_rate")]
+    dims_drift = [(e, t) for e, t in vid_dims_intent
+                  if str(e.get("params", {}).get("width")) != t["v_w"]
+                  or str(e.get("params", {}).get("height")) != t["v_h"]]
+    pix_drift = [(e, t) for e, t in vid_pix_intent
+                 if pix_family(str(e.get("params", {}).get("pix_fmt") or "-")) != pix_family(t["v_pix_fmt"])]
+    chrate_drift = [(e, t) for e, t in aud_chrate_intent
+                    if str(e.get("params", {}).get("audio_channels")) != t["a_ch"]
+                    or str(e.get("params", {}).get("audio_rate")) != t["a_rate"]]
+
+    def dist(counter: Counter) -> str:
+        return ", ".join(f"{k}={v}" for k, v in sorted(counter.items(), key=lambda kv: -kv[1])) or "-"
+
+    report.append("### Oracle-side decoded formats (measured)")
+    report.append("")
+    report.append("| metric | value |")
+    report.append("|---|---|")
+    report.append(f"| mjpeg AVIs with oracle dims (w×h) | {len(vid_oracle)}/{len(vid_cases)} |")
+    report.append(f"| oracle dims equal generator intent | {len(vid_dims_intent) - len(dims_drift)}/{len(vid_dims_intent)} |")
+    report.append(f"| oracle pix_fmt families (mjpeg AVIs) | {dist(fam_counts)} |")
+    report.append(f"| oracle pix_fmt family equal generator intent | {len(vid_pix_intent) - len(pix_drift)}/{len(vid_pix_intent)} "
+                  f"(intent recorded for {len(vid_pix_intent)}/{len(vid_pix)} — the av draw path persists no pix_fmt) |")
+    report.append(f"| pcm AVIs with oracle sample_fmt | {len(aud_oracle)}/{len(aud_cases)} |")
+    report.append(f"| oracle sample families (pcm AVIs) | {dist(sfam_counts)} |")
+    report.append(f"| oracle channel layouts (pcm AVIs) | {dist(ch_counts)} |")
+    report.append(f"| oracle sample rates (pcm AVIs) | {dist(rate_counts)} |")
+    report.append(f"| oracle channels+rate equal generator intent | {len(aud_chrate_intent) - len(chrate_drift)}/{len(aud_chrate_intent)} |")
+    report.append(f"| mjpeg/pcm streams outside AVI (mov/mkv/wav…) | {mjpeg_elsewhere} video / {pcm_elsewhere} audio "
+                  "(out of scope until their demuxers land — those rows carry no-path markers) |")
+    report.append("")
+
+    # Lumen vs oracle match rates. Forward-compatible: computes for real
+    # the moment the suites emit out_format/out_w/out_h (mjpeg) and
+    # out_desc/out_rate/out_ch (pcm); until then every Lumen cell is an
+    # explicit suite-gap marker, never a fabricated match.
+    v_dims_ok = v_fam_ok = v_compared = 0
+    for e, t in vid_oracle:
+        row = mjpeg_by_rel.get(e["rel"]) or {}
+        if not row.get("out_format"):
+            continue
+        v_compared += 1
+        if row.get("out_w") == t["v_w"] and row.get("out_h") == t["v_h"]:
+            v_dims_ok += 1
+        if LUMEN_PIX_FAMILY.get(str(row.get("out_format", "")).lower()) == pix_family(t["v_pix_fmt"]):
+            v_fam_ok += 1
+    a_fmt_ok = a_chrate_ok = a_compared = 0
+    for e, t in aud_oracle:
+        row = pcm_by_rel.get(e["rel"]) or {}
+        if not row.get("out_desc"):
+            continue
+        a_compared += 1
+        if sample_family(row.get("out_desc", "-")) == sample_family(t["a_sample_fmt"]):
+            a_fmt_ok += 1
+        if row.get("out_ch") == t["a_ch"] and row.get("out_rate") == t["a_rate"]:
+            a_chrate_ok += 1
+
+    def rate(ok: int, n: int, population: int) -> str:
+        if n:
+            return f"**{100.0 * ok / n:.1f}%** ({ok}/{n} comparable)"
+        return f"N/A — {GAP} (0/{population} comparable)"
+
+    report.append("### Lumen vs oracle match rates")
+    report.append("")
+    report.append("| metric | match | population |")
+    report.append("|---|---|---|")
+    report.append(f"| video dims match | {rate(v_dims_ok, v_compared, len(vid_oracle))} | {len(vid_oracle)} mjpeg AVIs with oracle dims |")
+    report.append(f"| pix_fmt family match | {rate(v_fam_ok, v_compared, len(vid_pix))} | {len(vid_pix)} with oracle pix_fmt |")
+    report.append(f"| audio sample_fmt match | {rate(a_fmt_ok, a_compared, len(aud_oracle))} | {len(aud_oracle)} pcm AVIs with oracle sample_fmt |")
+    report.append(f"| channels+rate match | {rate(a_chrate_ok, a_compared, len(aud_oracle))} | {len(aud_oracle)} |")
+    report.append("")
+    if v_compared == 0 and a_compared == 0:
+        report.append(f"Lumen-side decoded format/dims: **{GAP}** — the mjpeg/pcm corpus suites measure "
+                      "counts/PSNR/bytes but do not write the decoded `DecodedFrame`'s format "
+                      "(`DecodedFormat::I420`/`Rgba8`) or width/height, nor the PCM output format, into "
+                      "their result rows. Registered follow-up (suite emission): extend "
+                      "`mjpeg-results.tsv` with `out_format`/`out_w`/`out_h` (first decoded frame's "
+                      "DecodedFormat + dims) and `pcm-results.tsv` with `out_desc`/`out_rate`/`out_ch`; "
+                      "this harness already consumes those columns when present — no further driver "
+                      "change needed.")
+        report.append("")
+
+    # mismatch listing (file, expected, got)
+    report.append("### Mismatch listing (file, expected, got)")
+    report.append("")
+    vid_listing: list[str] = []
+    for e, t in vid_oracle:
+        row = mjpeg_by_rel.get(e["rel"]) or {}
+        exp = f"{t['v_w']}x{t['v_h']} {t['v_pix_fmt']} (family {pix_family(t['v_pix_fmt'])})"
+        if row.get("out_format"):
+            got = f"{row.get('out_w', '-')}x{row.get('out_h', '-')} {row.get('out_format', '-')}"
+            if (row.get("out_w") == t["v_w"] and row.get("out_h") == t["v_h"]
+                    and LUMEN_PIX_FAMILY.get(str(row.get("out_format", "")).lower()) == pix_family(t["v_pix_fmt"])):
+                continue  # confirmed match — not a mismatch row
+        else:
+            got = GAP
+        vid_listing.append(f"- {e['rel']} [{e['class']}]: expected {exp}, got {got}")
+    aud_listing: list[str] = []
+    for e, t in aud_oracle:
+        row = pcm_by_rel.get(e["rel"]) or {}
+        exp = f"{t['a_sample_fmt']} (family {sample_family(t['a_sample_fmt'])}) {t['a_rate']}Hz x{t['a_ch']}"
+        if row.get("out_desc"):
+            got = f"{row.get('out_desc', '-')} {row.get('out_rate', '-')}Hz x{row.get('out_ch', '-')}"
+            if (sample_family(row.get("out_desc", "-")) == sample_family(t["a_sample_fmt"])
+                    and row.get("out_ch") == t["a_ch"] and row.get("out_rate") == t["a_rate"]):
+                continue
+        else:
+            got = GAP
+        aud_listing.append(f"- {e['rel']} [{e['class']}]: expected {exp}, got {got}")
+    for line in vid_listing[:10]:
+        report.append(line)
+    if len(vid_listing) > 10:
+        report.append(f"- … and {len(vid_listing) - 10} more video rows (full ledger: decoded-rows.tsv)")
+    for line in aud_listing[:10]:
+        report.append(line)
+    if len(aud_listing) > 10:
+        report.append(f"- … and {len(aud_listing) - 10} more audio rows (full ledger: decoded-rows.tsv)")
+    if not vid_listing and not aud_listing:
+        report.append("- none")
+    report.append("")
+
+    # generator-intent vs oracle drift — the mismatches that ARE measurable
+    # today, on the oracle side of the ledger.
+    drift_rows: dict[str, tuple[dict, list[str]]] = {}
+    for e, t in dims_drift:
+        drift_rows.setdefault(e["rel"], (e, []))[1].append(
+            f"dims intent {e['params'].get('width')}x{e['params'].get('height')} vs oracle {t['v_w']}x{t['v_h']}")
+    for e, t in pix_drift:
+        drift_rows.setdefault(e["rel"], (e, []))[1].append(
+            f"pix intent {e['params'].get('pix_fmt')} (family {pix_family(str(e['params'].get('pix_fmt')))}) "
+            f"vs oracle {t['v_pix_fmt']} (family {pix_family(t['v_pix_fmt'])})")
+    for e, t in chrate_drift:
+        drift_rows.setdefault(e["rel"], (e, []))[1].append(
+            f"audio intent {e['params'].get('audio_rate')}Hz x{e['params'].get('audio_channels')} "
+            f"vs oracle {t['a_rate']}Hz x{t['a_ch']}")
+    report.append("#### Generator-intent vs oracle drift (real mismatches, measurable today)")
+    report.append("")
+    report.append(f"{len(drift_rows)} file(s) where the oracle's decoded facts disagree with the "
+                  "generator's declared parameters — dirty-class corruption is one legitimate source; "
+                  "encoder-side format drift (a gray-intent draw encoded as yuvj444p) is another:")
+    for rel, (e, notes) in list(drift_rows.items())[:8]:
+        report.append(f"- {rel} [{e['class']}]: " + "; ".join(notes))
+    if len(drift_rows) > 8:
+        report.append(f"- … and {len(drift_rows) - 8} more")
+    if not drift_rows:
+        report.append("- none")
+    report.append("")
+
     # -- suite health ------------------------------------------------------
     report.append("## Suite health")
     report.append("")
-    report.append(f"- probe suite rc={rc_probe}, demux rc={rc_demux}, mjpeg rc={rc_mjpeg}, pcm rc={rc_pcm} — all must be 0")
+    if args.skip_suites:
+        report.append(f"- probe suite rc={rc_probe}, demux rc={rc_demux}, mjpeg rc={rc_mjpeg}, pcm rc={rc_pcm} — "
+                      "SUITES SKIPPED (--skip-suites): oracle-side validation run, not a measurement run")
+    else:
+        report.append(f"- probe suite rc={rc_probe}, demux rc={rc_demux}, mjpeg rc={rc_mjpeg}, pcm rc={rc_pcm} — all must be 0")
     report.append(f"- harness wall: {time.time() - t0:.0f}s")
+    report.append(f"- decoded-rows ledger: `{decoded_rows_path}` ({len(files)} rows, {n_gap_cells} suite-gap cells) — "
+                  "registered follow-up: suites emit `out_format`/`out_w`/`out_h` (mjpeg) and "
+                  "`out_desc`/`out_rate`/`out_ch` (pcm)")
     report.append("")
 
     text = "\n".join(report)
-    out_md = REPO / "docs" / "corpus" / f"report-{time.strftime('%Y%m%d-%H%M')}.md"
+    suffix = "-skip-suites" if args.skip_suites else ""
+    out_md = REPO / "docs" / "corpus" / f"report-{time.strftime('%Y%m%d-%H%M')}{suffix}.md"
     out_md.parent.mkdir(parents=True, exist_ok=True)
     out_md.write_text(text)
-    (corpus / "REPORT.md").write_text(text)
+    corpus_report = corpus / ("REPORT-skip-suites.md" if args.skip_suites else "REPORT.md")
+    corpus_report.write_text(text)
     print(f"[h[harness] report: {out_md}")
-    if not args.keep_refs:
+    if not args.keep_refs and not args.skip_suites:
         shutil.rmtree(refs_dir, ignore_errors=True)
+    if args.skip_suites:
+        print("[h[harness] --skip-suites: oracle-side validation complete (rc=0 by construction)")
+        return 0
     return 0 if all(rc == 0 for rc in (rc_probe, rc_demux, rc_mjpeg, rc_pcm)) else 1
 
 
