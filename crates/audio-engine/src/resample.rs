@@ -201,7 +201,10 @@ impl MicroResampler {
                 // The loop guard keeps index ≤ last_abs, so this is
                 // in-bounds by construction; the `get` is the honest
                 // defensive backstop, never a fabricated value.
-                input[c].get((index - base_abs) as usize).copied().unwrap_or(0.0)
+                input[c]
+                    .get((index - base_abs) as usize)
+                    .copied()
+                    .unwrap_or(0.0)
             } else {
                 tail[c]
             }
@@ -291,10 +294,7 @@ mod tests {
             total += r.process(&input, 1470) as u64;
         }
         let want = 1000_u64 * 1470 * 1001 / 1000;
-        assert!(
-            total.abs_diff(want) <= 1,
-            "out {total} vs exact {want}"
-        );
+        assert!(total.abs_diff(want) <= 1, "out {total} vs exact {want}");
         // −1000 ppm symmetric.
         let mut r = MicroResampler::new(2);
         r.set_correction(DriftCorrection::new(-1000));

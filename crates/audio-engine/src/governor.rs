@@ -311,8 +311,10 @@ mod tests {
         let mut plant = Plant::new(100);
         let mut disturbed = false;
         let mut returned_at: Option<u64> = None;
+        let mut clamped_before_disturbance = 0_u64;
         for quantum in 0..(120 * 30) {
             if quantum == 60 * 30 {
+                clamped_before_disturbance = g.stats().clamped;
                 plant.fill_ns -= 25_000_000;
                 disturbed = true;
             }
@@ -350,7 +352,17 @@ mod tests {
         let ppm = g.correction().ppm();
         assert!((50..=350).contains(&ppm), "correction {ppm} not ~+100");
         assert!(g.stats().error_ns_last.must().abs() <= 5_000_000);
-        assert_eq!(g.stats().clamped, 0, "inside the correctable range");
+        // The limiter never bites inside the correctable range: the
+        // undisturbed regime (error ≈ −W_c·δ = −2 ms → desired ≈
+        // +100 ppm) clamps zero times. The −25 ms disturbance's
+        // transient (desired ≈ +1350 ppm) legitimately saturates —
+        // that is the limiter doing its job, not a violation — so it
+        // is excluded from the invariant and bounded by the
+        // per-quantum limiter assert above.
+        assert_eq!(
+            clamped_before_disturbance, 0,
+            "clamped inside the correctable range before the disturbance"
+        );
         // Zero underruns / zero floods after t = 10 s: the fill stays
         // strictly positive and inside the acceptance-band ceiling.
         assert!(g.stats().fill_ns_min.must() > 0, "underrun");
@@ -379,7 +391,11 @@ mod tests {
         }
         let converged = converged_at.expect("never converged");
         assert!(converged <= 45_000_000_000, "converged at {converged}");
-        assert!((g.correction().ppm() + 100).abs() <= 25, "{}", g.correction().ppm());
+        assert!(
+            (g.correction().ppm() + 100).abs() <= 25,
+            "{}",
+            g.correction().ppm()
+        );
         let fill = g.stats().fill_ns_last.must();
         assert!(
             fill <= 150_000_000,
@@ -421,7 +437,11 @@ mod tests {
         // ~2 ppm of the bound — and the clamp never bites for δ
         // exactly at the bound (the desired reaches 1000 only in the
         // limit); it bites beyond (the adversarial half below).
-        assert!(g.correction().ppm() >= 990, "at-limit: {}", g.correction().ppm());
+        assert!(
+            g.correction().ppm() >= 990,
+            "at-limit: {}",
+            g.correction().ppm()
+        );
         assert_eq!(g.stats().clamped, 0, "δ at the bound never trips the clamp");
         let fill = g.stats().fill_ns_last.must();
         assert!(fill >= 10_000_000 && fill <= 150_000_000, "fill {fill}");
@@ -447,7 +467,8 @@ mod tests {
             if (6..8).contains(&(plant.now_ns / 1_000_000_000)) {
                 if let Some(pq) = slope_per_quantum {
                     assert_eq!(
-                        prev_fill - plant.fill_ns, pq,
+                        prev_fill - plant.fill_ns,
+                        pq,
                         "slope changed while pinned at quantum {quantum}"
                     );
                 } else {
@@ -457,11 +478,17 @@ mod tests {
             prev_fill = plant.fill_ns;
         }
         assert_eq!(g.correction().ppm(), MAX_CORRECTION_PPM);
-        assert!(g.stats().clamped > 0, "beyond the bound the clamp must bite");
+        assert!(
+            g.stats().clamped > 0,
+            "beyond the bound the clamp must bite"
+        );
+        // The fill DROP per second is exactly (d − 1000) ppm = 4 ms/s
+        // (the closed-form first-order check; the slope itself — d
+        // fill/dt — is −4 ms/s).
         let per_second = i64::from(slope_per_quantum.must()) * 30;
         assert!(
-            (per_second + 4_000_000_i64).abs() <= 200_000,
-            "residual slope {per_second} ns/s ≠ −4 ms/s"
+            (per_second - 4_000_000_i64).abs() <= 200_000,
+            "residual drop {per_second} ns/s ≠ 4 ms/s"
         );
     }
 
@@ -491,6 +518,52 @@ mod tests {
             );
             plant.now_ns += plant.quantum_ns;
         }
+        assert_eq!(g.stats().clamped, 0);
+    }
+
+    #[test]
+    fn s6_rate_composition_converges_at_other_geometry() {
+        // Scenario S6 (audio half): a 48 kHz device with a 1024-frame
+        // quantum (21.33 ms — a different rate AND a different quantum
+        // geometry than S1's 44.1 kHz/1470) under +100 ppm drift
+        // converges exactly as S1. The correction composes with the
+        // session rate by construction: the micro-resampler has NO
+        // rate input (its ratio is `out = in × (1e6 + ppm)/1e6` over
+        // device samples — rate-blind), and the clock is never
+        // drift-corrected (doc 03 §4.7 e: neither absorber is the
+        // clock; the 5/4 clock-rate composition is the clock mapping's
+        // own multiplication, exercised in the apps/cli S8 loop).
+        let mut g = governor();
+        let mut plant = Plant {
+            drift_ppm: 100,
+            // A real displacement to converge from: 15 ms under
+            // target (outside the 10 ms convergence band, inside the
+            // correctable range — desired +750 ppm < the ±1000 ppm
+            // bound, so the limiter never bites), with the +100 ppm
+            // device draining further until the correction catches
+            // up.
+            fill_ns: TARGET_NS - 15_000_000,
+            now_ns: 0,
+            quantum_ns: 1024 * 1_000_000_000 / 48_000,
+        };
+        let mut converged_at: Option<u64> = None;
+        for _ in 0..(120 * (48_000 / 1024) + 1) {
+            let c = plant.step(&mut g);
+            assert!(c.ppm().abs() <= MAX_CORRECTION_PPM);
+            let error = g.stats().error_ns_last.must();
+            if error.abs() <= 10_000_000 {
+                converged_at.get_or_insert(plant.now_ns);
+            }
+        }
+        let converged = converged_at.expect("never converged at 48 kHz");
+        assert!(
+            converged >= 1_000_000_000,
+            "converged at {converged}: the displacement must be walked back, not assumed"
+        );
+        assert!(converged <= 45_000_000_000, "converged at {converged}");
+        assert!((50..=350).contains(&g.correction().ppm()));
+        assert!(g.stats().fill_ns_min.must() > 0, "underrun");
+        assert!(g.stats().fill_ns_max.must() <= 150_000_000, "flood");
         assert_eq!(g.stats().clamped, 0);
     }
 

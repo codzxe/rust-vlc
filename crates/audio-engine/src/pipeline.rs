@@ -788,4 +788,196 @@ mod tests {
         }
         assert!(pipeline.out_slots.len() <= OUT_SLOTS);
     }
+
+    // ---- 3.B1: the drift seam (set_drift / observe_drift / reset) -----
+
+    const TARGET_FILL_NS: u64 = 40_000_000;
+
+    fn drift_pipeline() -> AudioPipeline {
+        AudioPipeline::new(PipelineSpec {
+            rate: RATE,
+            channels: 2,
+            tracks: 1,
+        })
+        .must()
+        .with_drift_governor(TARGET_FILL_NS)
+    }
+
+    fn quantum(index: u64) -> AudioFrame {
+        let pairs: Vec<(i16, i16)> = (0..1470_u64)
+            .map(|i| {
+                let v = (((index * 37 + i * 11) % 4096) as i16) - 2048;
+                (v, -v)
+            })
+            .collect();
+        stereo_s16_frame(&pairs, index as i64 * 1470)
+    }
+
+    #[test]
+    fn zero_correction_is_the_bit_exact_bypass() {
+        // The pre-3.B1 identity, pinned: with `DriftCorrection::ZERO`
+        // in force (the default, and what an unarmed pipeline stays
+        // at forever), the quantum's bytes are exactly the pre-3.B1
+        // path's bytes — no interpolation, no copy, no resampler
+        // call (bypass by ownership).
+        let mut plain = AudioPipeline::new(PipelineSpec {
+            rate: RATE,
+            channels: 2,
+            tracks: 1,
+        })
+        .must();
+        let mut corrected = drift_pipeline();
+        corrected.set_drift(media_clock::DriftCorrection::ZERO);
+        for index in 0..4_u64 {
+            let frame = quantum(index);
+            plain.process(0, &frame).must();
+            corrected.process(0, &frame).must();
+            assert!(plain.mix().must());
+            assert!(corrected.mix().must());
+            let a = plain.take_output().must();
+            let b = corrected.take_output().must();
+            assert_eq!(a.frames().must(), b.frames().must());
+            assert_eq!(a.data.as_slice(), b.data.as_slice());
+        }
+        assert_eq!(corrected.drift(), media_clock::DriftCorrection::ZERO);
+    }
+
+    #[test]
+    fn nonzero_correction_shifts_the_quantum_by_the_exact_ratio() {
+        // +1000 ppm over 1000 quanta of 1470: out = in × 1.001 ± 1
+        // (the sub-sample phase straddling quantum boundaries) — the
+        // doc 03 §4.8 f "filter declares a rate change" exception,
+        // bounded by the ±1000 ppm limiter.
+        let mut pipeline = drift_pipeline();
+        pipeline.set_drift(media_clock::DriftCorrection::new(1000));
+        let mut total_in = 0_u64;
+        let mut total_out = 0_u64;
+        for index in 0..1000_u64 {
+            let frame = quantum(index);
+            total_in += 1470;
+            pipeline.process(0, &frame).must();
+            assert!(pipeline.mix().must());
+            total_out += pipeline.take_output().must().frames().must();
+        }
+        let want = total_in * 1001 / 1000;
+        assert!(
+            total_out.abs_diff(want) <= 1,
+            "out {total_out} vs exact {want}"
+        );
+        // And −1000 ppm symmetric.
+        let mut pipeline = drift_pipeline();
+        pipeline.set_drift(media_clock::DriftCorrection::new(-1000));
+        let mut total_out = 0_u64;
+        for index in 0..1000_u64 {
+            let frame = quantum(index);
+            pipeline.process(0, &frame).must();
+            assert!(pipeline.mix().must());
+            total_out += pipeline.take_output().must().frames().must();
+        }
+        let want = total_in * 999 / 1000;
+        assert!(
+            total_out.abs_diff(want) <= 1,
+            "out {total_out} vs exact {want}"
+        );
+    }
+
+    #[test]
+    fn armed_governor_closes_the_loop_through_observe_drift() {
+        // The pipeline-level loop closure (the wiring's one call): a
+        // draining device (fill below target) drives the correction
+        // positive, the correction reaches the resampler, and the
+        // quantum's device-sample count grows — the S1 plant, run
+        // through the pipeline's own seam.
+        let mut pipeline = drift_pipeline();
+        // Start at the target: no correction wanted.
+        let mut now = 0_u64;
+        let quantum_ns = 1470 * 1_000_000_000_u64 / u64::from(RATE);
+        let correction = pipeline.observe_drift(now, Some(TARGET_FILL_NS));
+        assert_eq!(correction, media_clock::DriftCorrection::ZERO);
+        // A persistently draining fill (20 ms under target): after
+        // the 1 s window the governor commands positive correction
+        // (emit MORE device samples to refill), step-limited. One
+        // quantum is 33 333 333 ns, so the window elapses at the
+        // 31st post-opening sample (31 × q = 1.033 s ≥ 1 s).
+        for _ in 0..40 {
+            now += quantum_ns;
+            let correction = pipeline.observe_drift(now, Some(TARGET_FILL_NS - 20_000_000));
+            assert!(correction.ppm() >= 0, "{}", correction.ppm());
+        }
+        // Exactly one full window has evaluated by then.
+        let stats = pipeline.drift_stats();
+        assert_eq!(stats.updates, 1, "{}", stats.updates);
+        assert_eq!(stats.samples, 41);
+        let ppm = pipeline.drift().ppm();
+        // for_divergence(−20 ms, 20 s) = +1000 ppm desired, but the
+        // step limiter caps the approach at +250 per window.
+        assert_eq!(ppm, 250, "step-limited first window: {ppm}");
+        // The correction is live in the resampler: the next quantum
+        // carries ~1.00025 × its input frames.
+        let frame = quantum(0);
+        pipeline.process(0, &frame).must();
+        assert!(pipeline.mix().must());
+        let frames = pipeline.take_output().must().frames().must();
+        assert!(
+            frames == 1470 || frames == 1471,
+            "1470 × 1.00025 ⇒ 1470.37: {frames}"
+        );
+    }
+
+    #[test]
+    fn unarmed_pipeline_ignores_drift_observations() {
+        // Without a governor the observations are honest no-ops
+        // (`ZERO`): direct `set_drift` remains the only control —
+        // what a host with its own measurement loop wants.
+        let mut pipeline = AudioPipeline::new(PipelineSpec {
+            rate: RATE,
+            channels: 2,
+            tracks: 1,
+        })
+        .must();
+        let mut now = 0_u64;
+        for _ in 0..90 {
+            now += 33_333_333;
+            let correction = pipeline.observe_drift(now, Some(0));
+            assert_eq!(correction, media_clock::DriftCorrection::ZERO);
+        }
+        assert_eq!(pipeline.drift_stats(), DriftStats::default());
+        // And an unmeasurable sink parks an ARMED governor at zero.
+        let mut armed = drift_pipeline();
+        armed.set_drift(media_clock::DriftCorrection::new(600));
+        let mut now = 0_u64;
+        for _ in 0..90 {
+            now += 33_333_333;
+            let correction = armed.observe_drift(now, None);
+            assert_eq!(correction, media_clock::DriftCorrection::ZERO);
+        }
+        assert_eq!(armed.drift_stats().unmeasurable, 90);
+    }
+
+    #[test]
+    fn reset_drift_restarts_the_measurement_regime() {
+        let mut pipeline = drift_pipeline();
+        let mut now = 0_u64;
+        for _ in 0..60 {
+            now += 33_333_333;
+            let _ = pipeline.observe_drift(now, Some(TARGET_FILL_NS - 30_000_000));
+        }
+        assert!(pipeline.drift().ppm() > 0);
+        let samples_before = pipeline.drift_stats().samples;
+        pipeline.reset_drift();
+        assert_eq!(pipeline.drift(), media_clock::DriftCorrection::ZERO);
+        assert_eq!(pipeline.drift_stats().resets, 1);
+        // The resampler's stream phase restarted too: the next
+        // quantum at zero correction conserves its count exactly.
+        let frame = quantum(0);
+        pipeline.process(0, &frame).must();
+        assert!(pipeline.mix().must());
+        assert_eq!(pipeline.take_output().must().frames().must(), 1470);
+        // The estimator's windowed-sample count is monotonic across
+        // resets by contract (media-clock sync.rs: "callers track
+        // resets through their own epochs"; the governor's own
+        // `resets` counter is the regime boundary).
+        let _ = pipeline.observe_drift(now, Some(TARGET_FILL_NS));
+        assert_eq!(pipeline.drift_stats().samples, samples_before + 1);
+    }
 }
