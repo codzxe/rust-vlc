@@ -4248,3 +4248,13 @@ Work Log:
 Stage Summary:
 - Wave 1 delivered: pcm fourcc/extensible recognition (oracle 16/57→57/57, 6/6 byte-exact), M9 concealment (1000-budget policy), M11 epoch-hub + wiring, M17 graceful exit, M14 fuzz scaffold + phantom materialized, M15 external oracle pins, M16 adversarial suites + real idx1-ordering bug fixed, harness decoded-rows, W1-01 refuted the ED-FIX-1b "regression" (it is ED-FIX-3 delivering MORE oracle-matching packets; concealment on dirty prefixes is correct) with a harness-fix prescription, W1-03 classified all 19 audio mismatches (all 0xFFFE) + filed 2 real dirty-walk bugs, four Phase-3 designs (3.A2/3.A3/3.B1/3.B3), W1-20 re-audit: 12 FIXED / 2 PARTIAL / 3 NOT-FIXED (C7 desktop transport, M3 scheduler arrays, M18 time reciprocal — silently dropped from ED-FIX-2, now Wave-2 cards) + new findings (DhtKey per-frame clone, phantom evidence comments).
 - Wave 2 roster (20, launching next): 2 salvage continuations (W1-06/W1-09), 4 re-audit fixes (C7/M3/M18/DhtKey+comments), 1 dirty-walk bug card, 3 harness/oracle cards (clean-dirty split, suite emission gaps, corpus-big measurement), 4 Phase-3 implementations (3.A2/3.A3/3.B1/3.B3), 4 adversarial verifiers of Wave-1 fixes, 2 recons (3.C*, 3.D*).
+Task ID: 3.WAVE2-LAUNCH (Lead)
+Agent: Lead
+Task: Wave 2 launch — 20 agents (2 salvage, 12 new worktrees, 6 worktree-less).
+
+Work Log:
+- Wave 1 closed at 3d246ed (gate PASS 1493/0/15, +131 tests). Root-caused infra: shared-target bin-slot contamination (cure: cargo clean --profile dev at wave close) + disk exhaustion (cure: worktree pruning).
+- Roster: W2-01/02 salvage continuations (C8 host-seek w1-06, M10 pre-roll w1-09); W2-03..07 re-audit fixes (C7, M3, M18, DhtKey+comments, dirty-walk bugs); W2-08..10 harness/measurement (clean-dirty split, suite rows, corpus-big run); W2-11..14 Phase-3 impls (3.A2/3.A3/3.B1/3.B3 from W1-16..19 designs in worklog.md); W2-15..18 adversarial verifiers (patch writers, Lead applies at close); W2-19/20 recon (3.C*, 3.D*).
+
+Stage Summary:
+- Wave 2 in flight. Disk guard: corpus-big (1.3G) is the emergency valve.
