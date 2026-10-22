@@ -25,6 +25,16 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 // ---------------------------------------------------------------------------
+// Counting-allocation instrument (ED-FIX-2, Lead decision ED-b)
+// ---------------------------------------------------------------------------
+
+pub mod alloc_count;
+
+pub use alloc_count::{
+    AllocDelta, AllocSnapshot, AllocState, CountingGlobalAlloc, CountingGuard, serialize_tests,
+};
+
+// ---------------------------------------------------------------------------
 // Assert helpers
 // ---------------------------------------------------------------------------
 

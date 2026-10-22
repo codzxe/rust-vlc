@@ -29,6 +29,17 @@ use media_types::frame::{AudioFrame, AudioLayout, SampleFormat};
 
 use crate::error;
 
+/// Exact int→f32 scale reciprocals. Each divisor is a power of two,
+/// so the reciprocal `2^-k` is exactly representable in f32 and
+/// multiplying by it performs the *same exact exponent shift* the
+/// division did — bit-identical results (D-2: multiply, never divide,
+/// in the sample loop; correctness pinned by the full-range round-trip
+/// test below and the sine-hash AC).
+const U8_RECIP: f32 = 1.0 / 128.0;
+const S16_RECIP: f32 = 1.0 / 32_768.0;
+const S24_RECIP: f32 = 1.0 / 8_388_608.0;
+const S32_RECIP: f32 = 1.0 / 2_147_483_648.0;
+
 /// Validate plane geometry: one plane per channel, one common length.
 fn check_planes(planes: &[Vec<f32>], channels: u32) -> Result<usize, EngineError> {
     if planes.len() != channels as usize {
@@ -41,42 +52,85 @@ fn check_planes(planes: &[Vec<f32>], channels: u32) -> Result<usize, EngineError
     Ok(frames)
 }
 
-/// Decode one scalar of `sample` format from little-endian bytes at
-/// `data[i..]` into f32 (the exact power-of-two scaling).
-fn scalar_to_f32(sample: SampleFormat, data: &[u8], i: usize) -> f32 {
-    match sample {
-        SampleFormat::U8 => (f32::from(data[i]) - 128.0) / 128.0,
-        SampleFormat::S16 => {
-            let v = i16::from_le_bytes([data[i], data[i + 1]]);
-            f32::from(v) / 32_768.0
+// The monomorphic per-format decoders: one static call site per
+// format, no per-sample `match`, no per-sample division.
+
+#[inline]
+fn u8_at(data: &[u8], i: usize) -> f32 {
+    (f32::from(data[i]) - 128.0) * U8_RECIP
+}
+
+#[inline]
+fn s16_at(data: &[u8], i: usize) -> f32 {
+    let v = i16::from_le_bytes([data[i], data[i + 1]]);
+    f32::from(v) * S16_RECIP
+}
+
+#[inline]
+fn s24_at(data: &[u8], i: usize) -> f32 {
+    let b0 = u32::from(data[i]);
+    let b1 = u32::from(data[i + 1]);
+    let b2 = u32::from(data[i + 2]);
+    // Little-endian 24-bit, sign-extended: lift the sign bit
+    // (bit 23) to bit 31, then arithmetic-shift back down.
+    let v24 = b0 | (b1 << 8) | (b2 << 16);
+    let v = ((v24 << 8) as i32) >> 8;
+    v as f32 * S24_RECIP
+}
+
+#[inline]
+fn s32_at(data: &[u8], i: usize) -> f32 {
+    let v = i32::from_le_bytes([data[i], data[i + 1], data[i + 2], data[i + 3]]);
+    v as f32 * S32_RECIP
+}
+
+#[inline]
+fn f32_at(data: &[u8], i: usize) -> f32 {
+    f32::from_le_bytes([data[i], data[i + 1], data[i + 2], data[i + 3]])
+}
+
+#[inline]
+fn f64_at(data: &[u8], i: usize) -> f32 {
+    let mut bytes = [0u8; 8];
+    bytes.copy_from_slice(&data[i..i + 8]);
+    f64::from_le_bytes(bytes) as f32
+}
+
+/// Fill the planes from **interleaved** `data`, one monomorphic
+/// instantiation per format: the format `match` is hoisted out of the
+/// sample loops (D-2 — branch-free inner loops, no per-sample
+/// division, vectorizable).
+macro_rules! decode_interleaved {
+    ($planes:expr, $data:expr, $frames:expr, $frame_bytes:expr, $bps:expr, $decode:ident) => {
+        for f in 0..$frames {
+            for (c, plane) in $planes.iter_mut().enumerate() {
+                plane.push($decode($data, f * $frame_bytes + c * $bps));
+            }
         }
-        SampleFormat::S24 => {
-            let b0 = u32::from(data[i]);
-            let b1 = u32::from(data[i + 1]);
-            let b2 = u32::from(data[i + 2]);
-            // Little-endian 24-bit, sign-extended: lift the sign bit
-            // (bit 23) to bit 31, then arithmetic-shift back down.
-            let v24 = b0 | (b1 << 8) | (b2 << 16);
-            let v = ((v24 << 8) as i32) >> 8;
-            v as f32 / 8_388_608.0
+    };
+}
+
+/// Fill the planes from **planar** `data` (same monomorphic-per-format
+/// discipline as [`decode_interleaved`]).
+macro_rules! decode_planar {
+    ($planes:expr, $data:expr, $frames:expr, $bps:expr, $plane_bytes:expr, $decode:ident) => {
+        for (c, plane) in $planes.iter_mut().enumerate() {
+            let base = c * $plane_bytes;
+            for f in 0..$frames {
+                plane.push($decode($data, base + f * $bps));
+            }
         }
-        SampleFormat::S32 => {
-            let v = i32::from_le_bytes([data[i], data[i + 1], data[i + 2], data[i + 3]]);
-            v as f32 / 2_147_483_648.0
-        }
-        SampleFormat::F32 => f32::from_le_bytes([data[i], data[i + 1], data[i + 2], data[i + 3]]),
-        SampleFormat::F64 => {
-            let mut bytes = [0u8; 8];
-            bytes.copy_from_slice(&data[i..i + 8]);
-            f64::from_le_bytes(bytes) as f32
-        }
-    }
+    };
 }
 
 /// Stage A: a decoded [`AudioFrame`] of any supported format/layout →
 /// f32 planar planes. `planes` is resized to the frame's channel
-/// count and its capacity is reused across calls (doc 03 §4.8 c — no
-/// per-frame allocation after warm-up). Returns the frame count.
+/// count and **both the outer Vec and every inner plane Vec keep
+/// their allocations across calls** — `resize_with` (never `clear`,
+/// which would drop the inner Vecs) plus a per-plane `clear`/
+/// `reserve` pair (doc 03 §4.8 c — no per-frame allocation after
+/// warm-up; this function's own doc claim, now true). Returns the
+/// frame count.
 ///
 /// # Errors
 /// [`Corrupt`](media_types::ErrorKind::Corrupt) with code
@@ -97,29 +151,42 @@ pub fn frame_to_f32_planes(
         ));
     }
     let frames = data.len() / frame_bytes;
-    planes.clear();
+    // True reuse: keep the plane Vecs alive, refit their length and
+    // capacity. A channel-count change (geometry change) grows the
+    // outer Vec or drops surplus planes — allocation only there.
+    planes.resize_with(fmt.channels as usize, Vec::new);
+    for plane in planes.iter_mut() {
+        plane.clear();
+        plane.reserve(frames);
+    }
     match fmt.layout {
-        AudioLayout::Interleaved => {
-            for _ in 0..fmt.channels {
-                planes.push(Vec::with_capacity(frames));
+        AudioLayout::Interleaved => match fmt.sample {
+            SampleFormat::U8 => decode_interleaved!(planes, data, frames, frame_bytes, bps, u8_at),
+            SampleFormat::S16 => {
+                decode_interleaved!(planes, data, frames, frame_bytes, bps, s16_at)
             }
-            for f in 0..frames {
-                for (c, plane) in planes.iter_mut().enumerate() {
-                    let i = f * frame_bytes + c * bps;
-                    plane.push(scalar_to_f32(fmt.sample, data, i));
-                }
+            SampleFormat::S24 => {
+                decode_interleaved!(planes, data, frames, frame_bytes, bps, s24_at)
             }
-        }
+            SampleFormat::S32 => {
+                decode_interleaved!(planes, data, frames, frame_bytes, bps, s32_at)
+            }
+            SampleFormat::F32 => {
+                decode_interleaved!(planes, data, frames, frame_bytes, bps, f32_at)
+            }
+            SampleFormat::F64 => {
+                decode_interleaved!(planes, data, frames, frame_bytes, bps, f64_at)
+            }
+        },
         AudioLayout::Planar => {
             let plane_bytes = frames * bps;
-            for c in 0..fmt.channels as usize {
-                let base = c * plane_bytes;
-                let plane = Vec::with_capacity(frames);
-                let mut out = plane;
-                for f in 0..frames {
-                    out.push(scalar_to_f32(fmt.sample, data, base + f * bps));
-                }
-                planes.push(out);
+            match fmt.sample {
+                SampleFormat::U8 => decode_planar!(planes, data, frames, bps, plane_bytes, u8_at),
+                SampleFormat::S16 => decode_planar!(planes, data, frames, bps, plane_bytes, s16_at),
+                SampleFormat::S24 => decode_planar!(planes, data, frames, bps, plane_bytes, s24_at),
+                SampleFormat::S32 => decode_planar!(planes, data, frames, bps, plane_bytes, s32_at),
+                SampleFormat::F32 => decode_planar!(planes, data, frames, bps, plane_bytes, f32_at),
+                SampleFormat::F64 => decode_planar!(planes, data, frames, bps, plane_bytes, f64_at),
             }
         }
     }
@@ -143,6 +210,40 @@ pub fn planes_to_f32_interleaved(
     for f in 0..frames {
         for plane in planes {
             out.extend_from_slice(&plane[f].to_le_bytes());
+        }
+    }
+    Ok(())
+}
+
+/// Stage D, f32 target, **caller-owned fixed buffer**: mixed planes →
+/// interleaved f32 little-endian bytes written into `out` (exactly
+/// `frames · channels · 4` bytes). The quantum hot path's zero-
+/// allocation interleave — the caller hands a slice it owns (a pooled
+/// [`SharedBytes`](media_types::packet::SharedBytes) slot filled via
+/// `get_mut`), so no Vec is grown or reallocated per quantum.
+/// Byte-identical to [`planes_to_f32_interleaved`] (same values, same
+/// order, same little-endian encoding).
+///
+/// # Errors
+/// [`Corrupt`](media_types::ErrorKind::Corrupt) with code
+/// `audio.planar_plane_mismatch` on inconsistent plane geometry, or
+/// `audio.partial_frame` when `out` is not exactly the interleaved
+/// byte length (a caller sizing bug — data, not a guess).
+pub fn planes_to_f32_interleaved_into(
+    planes: &[Vec<f32>],
+    out: &mut [u8],
+) -> Result<(), EngineError> {
+    let channels = planes.len() as u32;
+    let frames = check_planes(planes, channels)?;
+    let needed = frames * channels as usize * 4;
+    if out.len() != needed {
+        return Err(error::partial_frame(needed as u64, out.len() as u64));
+    }
+    let mut at = 0usize;
+    for f in 0..frames {
+        for plane in planes {
+            out[at..at + 4].copy_from_slice(&plane[f].to_le_bytes());
+            at += 4;
         }
     }
     Ok(())
@@ -217,6 +318,58 @@ mod tests {
             duration: None,
             generation: GenerationId::FIRST,
         }
+    }
+
+    #[test]
+    fn plane_capacity_is_reused_across_calls() {
+        // The doc-03 §4.8 c claim, machine-checked: after the first
+        // call the plane Vecs keep their allocations — capacities
+        // never shrink and never grow again at the same geometry.
+        let mut bytes = Vec::new();
+        for v in [100i16, -100, 200, -200, 300, -300, 400, -400] {
+            bytes.extend_from_slice(&v.to_le_bytes());
+        }
+        let frame = frame_of(SampleFormat::S16, AudioLayout::Interleaved, 2, bytes);
+        let mut planes: Vec<Vec<f32>> = Vec::new();
+        frame_to_f32_planes(&frame, &mut planes).must();
+        let outer = planes.capacity();
+        let inner: Vec<usize> = planes.iter().map(Vec::capacity).collect();
+        // A channel-count change (mono frame) trims to one plane —
+        // the survivor keeps its allocation.
+        let mono = frame_of(SampleFormat::S16, AudioLayout::Interleaved, 1, vec![0; 8]);
+        frame_to_f32_planes(&mono, &mut planes).must();
+        assert_eq!(planes.len(), 1);
+        assert!(planes[0].capacity() >= inner[0]);
+        // Back at stereo, same geometry: capacities intact, no churn.
+        let frame = frame_of(SampleFormat::S16, AudioLayout::Interleaved, 2, vec![0; 16]);
+        frame_to_f32_planes(&frame, &mut planes).must();
+        assert!(planes.capacity() >= outer);
+        assert!(planes[0].capacity() >= inner[0]);
+        assert!(planes[1].capacity() >= inner[1]);
+    }
+
+    #[test]
+    fn interleave_into_is_byte_identical_to_the_vec_version() {
+        let planes = vec![
+            vec![0.5f32, -0.25, 1.5, -2.5],
+            vec![0.0f32, 3.5, -0.125, 8.0],
+        ];
+        let mut vec_out = Vec::new();
+        planes_to_f32_interleaved(&planes, &mut vec_out).must();
+        let mut fixed_out = vec![0u8; vec_out.len()];
+        planes_to_f32_interleaved_into(&planes, &mut fixed_out).must();
+        assert_eq!(fixed_out, vec_out);
+        // Wrong-sized slice: typed, data-not-guess.
+        let mut short = vec![0u8; vec_out.len() - 1];
+        let err = planes_to_f32_interleaved_into(&planes, &mut short)
+            .err()
+            .must();
+        assert_eq!(err.context.code, "audio.partial_frame");
+        let mut long = vec![0u8; vec_out.len() + 1];
+        let err = planes_to_f32_interleaved_into(&planes, &mut long)
+            .err()
+            .must();
+        assert_eq!(err.context.code, "audio.partial_frame");
     }
 
     #[test]

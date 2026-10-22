@@ -59,15 +59,31 @@ pub trait Compositor: Send {
 
 /// The CPU rasterizer: point-sampled nearest-neighbor placement over
 /// the [`RenderSurface`] write protocol (module docs).
-#[derive(Debug, Default)]
-pub struct SoftwareCompositor;
+///
+/// Owns its pixel block scratch persistently (the C5b fix): the old
+/// `Vec::with_capacity(w·h·4)` per composite was a fresh full-frame
+/// allocation every present; now the block is cleared and refilled
+/// in place, reallocating only when the placement geometry grows.
+#[derive(Default)]
+pub struct SoftwareCompositor {
+    /// The composited destination block (reused; grown only on a
+    /// geometry change).
+    block: Vec<u8>,
+}
+
+impl std::fmt::Debug for SoftwareCompositor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Same rendering the old derive produced.
+        f.debug_struct("SoftwareCompositor").finish()
+    }
+}
 
 impl SoftwareCompositor {
-    /// A fresh software compositor (stateless — the placement carries
-    /// all per-frame state).
+    /// A fresh software compositor (empty scratch — the placement
+    /// carries all per-frame state).
     #[must_use = "pure constructor"]
     pub fn new() -> SoftwareCompositor {
-        SoftwareCompositor
+        SoftwareCompositor::default()
     }
 }
 
@@ -89,7 +105,8 @@ impl Compositor for SoftwareCompositor {
 
         // 2. Frame pass: nearest-neighbor sampling into the
         //    destination rectangle, delivered as one RGBA block per
-        //    composite (the write-protocol's natural batch).
+        //    composite (the write-protocol's natural batch) — into
+        //    the compositor's persistent scratch, refilled in place.
         let dst = placement.destination;
         if dst.width == 0 || dst.height == 0 {
             // An empty destination is legal placement output only for
@@ -102,18 +119,55 @@ impl Compositor for SoftwareCompositor {
         }
 
         let src = placement.source;
-        let mut block = Vec::with_capacity(dst.width as usize * dst.height as usize * 4);
+        let needed = dst.width as usize * dst.height as usize * 4;
+        self.block.clear();
+        self.block.reserve(needed);
+        let frame_stride = frame.extent.width as usize * 4;
         for dy in 0..dst.height {
             // Source row: nearest neighbor with the destination pixel
             // center mapped back into the source rectangle.
             let sy = src.y + nearest(dy, dst.height, src.height);
+            let row_base = (sy as usize)
+                .checked_mul(frame_stride)
+                .and_then(|at| at.checked_add(src.x as usize * 4));
+            if src.width == dst.width {
+                // Equal widths: `nearest` is the identity (test-pinned),
+                // so the destination row is one contiguous source
+                // slice — a single row copy instead of per-pixel
+                // sampling (D-2).
+                let row = row_base.and_then(|at| {
+                    let width_bytes = needed_width_bytes(dst.width)?;
+                    let end = at.checked_add(width_bytes)?;
+                    if end <= frame.rgba.len() {
+                        frame.rgba.get(at..end)
+                    } else {
+                        None
+                    }
+                });
+                if let Some(row) = row {
+                    self.block.extend_from_slice(row);
+                    continue;
+                }
+                // Degenerate frame (short rgba): fall through to the
+                // saturating per-pixel path so the behavior stays
+                // byte-identical to the documented saturation rule.
+            }
+            // Row-wise nearest-neighbor resample: 4-byte chunks
+            // appended contiguously (same `pixel` sampling math as
+            // ever — bit-identical output, PNG-hash pinned).
             for dx in 0..dst.width {
                 let sx = src.x + nearest(dx, dst.width, src.width);
-                block.extend_from_slice(&frame.pixel(sx, sy));
+                self.block.extend_from_slice(&frame.pixel(sx, sy));
             }
         }
-        target.write_rect(dst, &block)
+        target.write_rect(dst, &self.block)
     }
+}
+
+/// `width · 4` as a `usize`, checked (a zero-width rect never reaches
+/// here; the checkedness is defense in depth for u32 → usize).
+fn needed_width_bytes(width: u32) -> Option<usize> {
+    (width as usize).checked_mul(4)
 }
 
 /// Nearest-neighbor coordinate map: the `i`-th of `dst_n` destination
@@ -162,13 +216,13 @@ mod tests {
                 rgba.extend_from_slice(&paint(x, y));
             }
         }
-        StagedFrame {
-            extent: Extent2D {
+        StagedFrame::detached(
+            Extent2D {
                 width: w,
                 height: h,
             },
             rgba,
-        }
+        )
     }
 
     fn full_placement(frame: Extent2D, target: Extent2D) -> Placement {

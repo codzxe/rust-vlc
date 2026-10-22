@@ -76,7 +76,10 @@ impl Mixer {
     /// Mix `inputs` (one planar chunk per track) into `out`, ascending
     /// track order. `out` is resized to the input geometry; capacity
     /// is reused across calls (doc 03 §4.8 c). Returns the frame
-    /// count.
+    /// count. Takes the chunks by slice-of-owned-planes directly —
+    /// no per-mix `Vec<&[Vec<f32>]>` indirection is built (D-1: the
+    /// call site owns the staged chunks; the mixer reads them where
+    /// they live).
     ///
     /// # Errors
     /// [`Corrupt`](media_types::ErrorKind::Corrupt) with code
@@ -87,13 +90,13 @@ impl Mixer {
     /// §4.6).
     pub fn mix(
         &self,
-        inputs: &[&[Vec<f32>]],
+        inputs: &[Vec<Vec<f32>>],
         out: &mut Vec<Vec<f32>>,
     ) -> Result<usize, EngineError> {
         if inputs.len() != self.volumes.len() {
             return Err(error::chunk_alignment());
         }
-        let channels = inputs.first().map_or(0, |c| c.len());
+        let channels = inputs.first().map_or(0, Vec::len);
         let frames = inputs.first().map_or(0, |c| c.first().map_or(0, Vec::len));
         for chunk in inputs {
             if chunk.len() != channels || chunk.iter().any(|p| p.len() != frames) {
@@ -134,9 +137,8 @@ mod tests {
     fn single_track_at_unity_is_bit_exact() {
         let mixer = Mixer::new(1).must();
         let input = planes(&[&[0.0, 0.5, -0.25, 1.0], &[0.125, -1.0, 0.75, -0.5]]);
-        let refs: &[&[Vec<f32>]] = &[&input];
         let mut out = Vec::new();
-        let frames = mixer.mix(refs, &mut out).must();
+        let frames = mixer.mix(std::slice::from_ref(&input), &mut out).must();
         assert_eq!(frames, 4);
         assert_eq!(out, input);
     }
@@ -146,9 +148,8 @@ mod tests {
         let mixer = Mixer::new(2).must();
         let a = planes(&[&[1.0, 2.0], &[4.0, 8.0]]);
         let b = planes(&[&[10.0, 20.0], &[40.0, 80.0]]);
-        let refs: &[&[Vec<f32>]] = &[&a, &b];
         let mut out = Vec::new();
-        mixer.mix(refs, &mut out).must();
+        mixer.mix(&[a, b], &mut out).must();
         assert_eq!(out, planes(&[&[11.0, 22.0], &[44.0, 88.0]]));
     }
 
@@ -159,9 +160,8 @@ mod tests {
         mixer.set_volume(1, Volume::from_linear(2.0).must()).must();
         let a = planes(&[&[1.0], &[1.0]]);
         let b = planes(&[&[1.0], &[1.0]]);
-        let refs: &[&[Vec<f32>]] = &[&a, &b];
         let mut out = Vec::new();
-        mixer.mix(refs, &mut out).must();
+        mixer.mix(&[a, b], &mut out).must();
         assert_eq!(out, planes(&[&[2.5], &[2.5]]));
         assert_eq!(mixer.volume(0).must().linear(), 0.5);
         assert_eq!(mixer.volume(1).must().linear(), 2.0);
@@ -173,9 +173,8 @@ mod tests {
         mixer.set_volume(0, Volume::MUTE).must();
         let a = planes(&[&[5.0]]);
         let b = planes(&[&[7.0]]);
-        let refs: &[&[Vec<f32>]] = &[&a, &b];
         let mut out = Vec::new();
-        mixer.mix(refs, &mut out).must();
+        mixer.mix(&[a, b], &mut out).must();
         assert_eq!(out, planes(&[&[7.0]]));
     }
 
@@ -185,18 +184,15 @@ mod tests {
         let mut out = Vec::new();
         // Wrong track count.
         let a = planes(&[&[0.0]]);
-        let refs: &[&[Vec<f32>]] = &[&a];
-        let err = mixer.mix(refs, &mut out).err().must();
+        let err = mixer.mix(std::slice::from_ref(&a), &mut out).err().must();
         assert_eq!(err.context.code, "audio.chunk_length_mismatch");
         // Ragged planes.
         let b = planes(&[&[0.0, 1.0]]);
-        let refs: &[&[Vec<f32>]] = &[&a, &b];
-        let err = mixer.mix(refs, &mut out).err().must();
+        let err = mixer.mix(&[a.clone(), b], &mut out).err().must();
         assert_eq!(err.context.code, "audio.chunk_length_mismatch");
         // Channel-count disagreement.
         let c = planes(&[&[0.0], &[0.0]]);
-        let refs: &[&[Vec<f32>]] = &[&a, &c];
-        let err = mixer.mix(refs, &mut out).err().must();
+        let err = mixer.mix(&[a, c], &mut out).err().must();
         assert_eq!(err.context.code, "audio.chunk_length_mismatch");
         // Track index out of range.
         let err = mixer.set_volume(9, Volume::UNITY).err().must();
@@ -212,11 +208,10 @@ mod tests {
     fn output_capacity_is_reused() {
         let mixer = Mixer::new(1).must();
         let input = planes(&[&[0.5; 1024], &[0.25; 1024]]);
-        let refs: &[&[Vec<f32>]] = &[&input];
         let mut out = Vec::new();
-        mixer.mix(refs, &mut out).must();
+        mixer.mix(std::slice::from_ref(&input), &mut out).must();
         let capacity: usize = out.iter().map(Vec::capacity).sum();
-        mixer.mix(refs, &mut out).must();
+        mixer.mix(&[input], &mut out).must();
         assert_eq!(out.iter().map(Vec::capacity).sum::<usize>(), capacity);
     }
 }

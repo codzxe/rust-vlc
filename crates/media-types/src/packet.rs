@@ -36,6 +36,20 @@ impl SharedBytes {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
+
+    /// Unique mutable access to the bytes, when this handle is the
+    /// **only** remaining owner (refcount 1). The zero-allocation
+    /// buffer-recycling primitive (D-1): a producer that handed a
+    /// clone downstream and got it back (the consumer dropped its
+    /// handle) can refill the same allocation in place instead of
+    /// allocating a fresh one per quantum/frame.
+    ///
+    /// Returns `None` while any other handle is alive — never clones,
+    /// never copies, never blocks: the caller rotates to another
+    /// buffer or allocates (its policy, typed and bounded).
+    pub fn get_mut(&mut self) -> Option<&mut [u8]> {
+        std::sync::Arc::get_mut(&mut self.0)
+    }
 }
 
 impl std::fmt::Debug for SharedBytes {
