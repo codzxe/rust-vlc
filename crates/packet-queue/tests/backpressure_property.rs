@@ -99,14 +99,17 @@ fn check_q1(queue: &BoundedQueue<Blob>, limits: &QueueLimits, context: &str) {
 
 /// The conservation law as a per-step identity (doc 03 §8; the
 /// `limits.rs` end-of-run check promoted to an invariant):
-/// `pushed == popped + resident + flushed + stale_rejected`.
+/// `pushed == popped + resident + flushed` — every accepted item is
+/// exactly one of {popped, resident, flushed}. `stale_rejected` and
+/// `full_rejections` count *rejections* (items that never entered)
+/// and stay outside the identity.
 fn check_conservation(queue: &BoundedQueue<Blob>, context: &str) {
     let stats = queue.stats();
     let resident = queue.usage().packets as u64;
     assert_eq!(
         stats.pushed,
-        stats.popped + resident + stats.flushed + stats.stale_rejected,
-        "{context}: conservation pushed == popped + resident + flushed + stale_rejected"
+        stats.popped + resident + stats.flushed,
+        "{context}: conservation pushed == popped + resident + flushed"
     );
 }
 
@@ -314,8 +317,8 @@ fn backpressure_vocabulary_holds_q1_conservation_and_hysteresis() {
         assert_eq!(queue.usage().packets, 0, "{context}: drained");
         assert_eq!(
             stats.pushed,
-            stats.popped + stats.flushed + stats.stale_rejected,
-            "{context}: terminal conservation"
+            stats.popped + stats.flushed,
+            "{context}: terminal conservation (rejections never entered)"
         );
     }
 }
@@ -328,7 +331,6 @@ fn backpressure_vocabulary_holds_q1_conservation_and_hysteresis() {
 #[test]
 fn engine_shaped_low_is_reachable_for_every_mix() {
     for seed in seeds() {
-        let mut rng = XorShift(seed | 1);
         let limits = QueueLimits::new(
             NonZeroUsize::new(16).must(),
             NonZeroUsize::new(1 << 20).must(),

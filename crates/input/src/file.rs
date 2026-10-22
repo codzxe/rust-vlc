@@ -242,6 +242,7 @@ impl SourceStream for FileStream {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use testkit::Must;
 
     /// The read-ahead budget join (card 3.B3, design A4): budgets at
     /// or below the single-allocation ceiling become the window

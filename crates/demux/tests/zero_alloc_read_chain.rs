@@ -13,10 +13,7 @@
 //! once W2-07 wires it onto these seams (the walk itself is W2-07's
 //! file; this binary proves the seam's cost).
 
-use std::num::NonZeroUsize;
-
 use media_types::ids::SourceUri;
-use media_types::packet::SharedBytes;
 use media_types::{EngineError, PipelineStage};
 use plugin_api::{SeekOrigin, SourcePosition, SourceStream};
 use testkit::alloc_count::{CountingGlobalAlloc, serialize_tests};

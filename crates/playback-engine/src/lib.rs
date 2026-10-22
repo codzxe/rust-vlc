@@ -88,7 +88,9 @@ pub use events::{
     ProgressWindow, StalenessStamp, TIME_TICK_DEFAULT_MS, TIME_TICK_FLOOR_MS, TimeTickPolicy,
 };
 pub use pipeline::{
-    DecoderProvider, FrameConsumer, QueuePlan, TickBudget, VIDEO_CONCEALMENT_BUDGET,
+    DEFAULT_STARVE_DEBOUNCE_TICKS, DecoderProvider, FrameConsumer, QUEUE_PACKETS_AUDIO_CEILING,
+    QUEUE_PACKETS_FLOOR, QUEUE_PACKETS_VIDEO_CEILING, QueuePlan, QueuePlanError, QueuePlanKind,
+    TickBudget, VIDEO_CONCEALMENT_BUDGET,
 };
 pub use seek::{SeekFailure, SeekTarget};
 pub use session::{

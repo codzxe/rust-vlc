@@ -588,13 +588,16 @@ fn close_wakes_every_parked_producer() {
 
 // ---------------------------------------------------------------------------
 // Card 3.B3 (design E1b): the burst-storm and deadlock-triad properties.
-// No-deadlock is asserted as **termination within an explicit join
-// budget** — the only sound form for condvar code (a lost wakeup
-// becomes a loud, seeded failure instead of a hung gate).
+//
+// No-deadlock is asserted the only sound way for condvar code: **every
+// park carries a deadline** (the API demands one, queue.rs docs) and
+// every schedule **terminates inside a stated wall-clock budget** —
+// a lost wakeup either trips an in-thread budget assert or surfaces
+// as a deadline abort/overrun, never a hung gate. The seed rides
+// every panic message.
 // ---------------------------------------------------------------------------
 
-/// Deterministic xorshift* (the `limits.rs` convention; the seed rides
-/// every panic message so a failure reruns the exact schedule).
+/// Deterministic xorshift* (the `limits.rs` convention).
 struct XorShift(u64);
 
 impl XorShift {
@@ -612,45 +615,24 @@ impl XorShift {
     }
 }
 
-/// Join every handle within a hard wall-clock budget, propagating
-/// panics with the seed in the message (the no-deadlock assertion).
-fn join_within_budget(handles: Vec<JoinHandle<()>>, budget: Duration, seed: u64) {
-    let deadline = Instant::now() + budget;
-    for handle in handles {
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        let parked = Arc::new(AtomicBool::new(false));
-        // A watchdog thread turns a stuck join into a loud failure
-        // rather than an infinite hang (the budget is the assertion).
-        let mut stuck = parked.clone();
-        let watcher = thread::spawn(move || {
-            thread::sleep(remaining);
-            stuck.store(true, Ordering::Relaxed);
-        });
-        if let Err(panic_payload) = handle.join() {
-            std::panic::resume_unwind(panic_payload);
-        }
-        if parked.load(Ordering::Relaxed) {
-            unreachable!(
-                "seed {seed}: a participant overran the {budget:?} join budget — deadlock?"
-            );
-        }
-        // The watcher's own sleep may outlive the join; detach it (its
-        // flag is irrelevant once the join returned).
-    }
-}
-
 /// The burst storm (design E1b-a): 4 producers flood the parking push
-/// until the queue parks them, one consumer drains at seeded paces —
-/// every item is delivered exactly once, and the storm completes well
-/// inside the join budget (termination is the no-deadlock proof).
+/// — bursts of back-to-back pushes separated by yields — into an
+/// 8-slot queue while one consumer drains at seeded paces. Every item
+/// is delivered exactly once; the producers' pushes never expire their
+/// generous deadline (`full_rejections == 0`), which is the healthy
+/// park/wake shape: with 1000 items against 8 slots and a consumer
+/// that sleeps, progress through a full queue can only come from the
+/// `space` condvar waking parked producers. The whole storm must
+/// finish inside the budget (termination is the no-deadlock proof).
 #[test]
 fn burst_storm_parks_drains_and_delivers_exactly_once() {
     const PRODUCERS: u64 = 4;
     const PER_PRODUCER: u64 = 250;
     const TOTAL: u64 = PRODUCERS * PER_PRODUCER;
-    const JOIN_BUDGET: Duration = Duration::from_secs(10);
+    const STORM_BUDGET: Duration = Duration::from_secs(10);
 
     for seed in [1u64, 2, 3, 0x9E37_79B9_7F4A_7C15] {
+        let started = Instant::now();
         let queue = Arc::new(BoundedQueue::<Blob>::with_default_watermarks(limits(
             8, 1_000, 2_000,
         )));
@@ -659,29 +641,30 @@ fn burst_storm_parks_drains_and_delivers_exactly_once() {
         let mut handles = Vec::new();
         for producer in 0..PRODUCERS {
             let queue = Arc::clone(&queue);
-            let pace_seed = seed.wrapping_mul(0x9E37_79B9).wrapping_add(producer) | 1;
-            let delivered = Arc::clone(&delivered);
             handles.push(
                 thread::Builder::new()
                     .name(format!("burst-producer-{producer}"))
                     .spawn(move || {
                         for step in 0..PER_PRODUCER {
                             let id = producer * PER_PRODUCER + step;
-                            // The parking push: consent to wait for the
-                            // pipeline — the demux thread's own shape.
-                            if let Err(abort) =
-                                queue.push_wait(Stamped::new(GenerationId::FIRST, Blob { id }), None)
-                            {
-                                unreachable!("no close/flush in this storm: {abort:?}");
+                            // The parking push with a generous budget:
+                            // in a healthy storm the deadline never
+                            // fires (the consumer always eventually
+                            // makes room), so an abort is a lost
+                            // wakeup, loudly.
+                            let deadline = started + STORM_BUDGET;
+                            if let Err(abort) = queue.push_wait(
+                                Stamped::new(GenerationId::FIRST, Blob { id }),
+                                Some(deadline),
+                            ) {
+                                unreachable!("seed {seed}: no close/flush in this storm, a parked push expired its deadline (id {id}): {abort:?}");
                             }
-                            // A seeded intra-producer pace: bursts of
-                            // back-to-back pushes (no yield) separated
-                            // by yields.
+                            // Burst pacing: 16 back-to-back pushes, then
+                            // one yield — the flood shape of the AC.
                             if step % 16 == 15 {
                                 thread::yield_now();
                             }
                         }
-                        let _ = pace_seed;
                     })
                     .must(),
             );
@@ -689,14 +672,18 @@ fn burst_storm_parks_drains_and_delivers_exactly_once() {
 
         let consumer_queue = Arc::clone(&queue);
         let consumer_delivered = Arc::clone(&delivered);
-        let pace_seed = seed | 1;
+        let consumer_seed = seed | 1;
         handles.push(
             thread::Builder::new()
                 .name("burst-consumer".into())
                 .spawn(move || {
-                    let mut rng = XorShift(pace_seed);
+                    let mut rng = XorShift(consumer_seed);
                     let mut drained = 0u64;
                     while drained < TOTAL {
+                        assert!(
+                            Instant::now() < started + STORM_BUDGET,
+                            "seed {consumer_seed}: consumer stalled at {drained}/{TOTAL} — a producer lost its wakeup"
+                        );
                         match consumer_queue.pop_wait(Some(
                             Instant::now() + Duration::from_millis(20),
                         )) {
@@ -705,22 +692,27 @@ fn burst_storm_parks_drains_and_delivers_exactly_once() {
                                 drained += 1;
                             }
                             PopOutcome::Empty => {
-                                // A seeded backoff: the consumer's
-                                // pace is the producers' backpressure.
+                                // A seeded backoff: the consumer's pace
+                                // is the producers' backpressure.
                                 if rng.below(4) == 0 {
                                     thread::sleep(Duration::from_millis(rng.below(2)));
                                 } else {
                                     thread::yield_now();
                                 }
                             }
-                            _ => unreachable!("no close/flush in this storm"),
+                            _ => unreachable!("seed {consumer_seed}: no close/flush in this storm"),
                         }
                     }
                 })
                 .must(),
         );
 
-        join_within_budget(handles, JOIN_BUDGET, seed);
+        join_or_propagate(handles);
+        let elapsed = started.elapsed();
+        assert!(
+            elapsed < STORM_BUDGET,
+            "seed {seed}: the storm overran the {STORM_BUDGET:?} budget ({elapsed:?}) — deadlock?"
+        );
 
         // Exactly once, no loss, no duplication.
         let ids = delivered.lock().unwrap_or_else(|p| p.into_inner()).clone();
@@ -733,37 +725,41 @@ fn burst_storm_parks_drains_and_delivers_exactly_once() {
             Some(TOTAL - 1),
             "seed {seed}: every id in range"
         );
-        // And the queue's own counters conserve.
+        // The healthy park/wake shape: no push ever expired its
+        // deadline (a Deadline abort would have panicked above, and
+        // the queue's own counter double-checks it).
         let stats = queue.stats();
         assert_eq!(stats.pushed, TOTAL, "seed {seed}");
         assert_eq!(stats.popped, TOTAL, "seed {seed}");
         assert_eq!(stats.flushed, 0, "seed {seed}");
         assert_eq!(stats.stale_rejected, 0, "seed {seed}");
+        assert_eq!(stats.full_rejections, 0, "seed {seed}: no deadline expiries");
+        assert_eq!(queue.usage().packets, 0, "seed {seed}: drained at rest");
     }
 }
 
 /// The deadlock triad (design E1b-b): seeded interleavings of
-/// {flush, close, push_wait, pop_wait} from two threads per operation
-/// class against one queue. Every schedule must terminate inside the
-/// join budget — a lost wakeup (flush/close failing to notify) would
-/// strand a parked participant and blow the budget loudly.
+/// {flush, close, push_wait, pop_wait} — two producers, two consumers,
+/// one flusher, one closer — against one small queue. Every park
+/// carries a short seeded deadline, so every schedule terminates; the
+/// whole triad must land inside the budget, and at rest Q1 and the
+/// conservation law hold whatever the interleaving did.
 #[test]
 fn deadlock_triad_terminates_under_seeded_interleavings() {
-    const JOIN_BUDGET: Duration = Duration::from_secs(5);
+    const TRIAD_BUDGET: Duration = Duration::from_secs(5);
 
     for seed in [1u64, 2, 3, 4, 0x9E37_79B9_7F4A_7C15] {
+        let started = Instant::now();
         let queue = Arc::new(BoundedQueue::<Blob>::with_default_watermarks(limits(
             4, 64, 128,
         )));
-        let generation = Arc::new(AtomicBool::new(false));
 
-        // Two producers: the parking push with a bounded deadline (the
-        // v0 engine's pending-hold shape has no deadline; the threaded
-        // demux parks with one — both must terminate).
+        // Two producers: the parking push with short seeded deadlines
+        // (bounded virtual time — the only sound no-deadlock form for
+        // threaded condvar code).
         let mut handles = Vec::new();
         for producer in 0..2u64 {
             let queue = Arc::clone(&queue);
-            let generation = Arc::clone(&generation);
             let producer_seed = seed.wrapping_add(producer * 0x51ED) | 1;
             handles.push(
                 thread::Builder::new()
@@ -777,22 +773,25 @@ fn deadlock_triad_terminates_under_seeded_interleavings() {
                                     id: producer * 1_000 + step,
                                 },
                             );
-                            let deadline = if rng.below(2) == 0 {
-                                None
-                            } else {
-                                Some(Instant::now() + Duration::from_millis(rng.below(3)))
-                            };
+                            let deadline = Some(Instant::now() + Duration::from_millis(3));
                             match queue.push_wait(item, deadline) {
                                 Ok(()) => {}
                                 Err(PushAborted::Closed { .. }) => return,
-                                Err(PushAborted::Stale { .. }) => {}
-                                Err(PushAborted::Deadline { .. }) => {}
+                                // A full queue that stayed full for the
+                                // short deadline: a legal interleaving,
+                                // the item is dropped by the producer's
+                                // own policy (counted by the queue as a
+                                // full rejection, not a loss).
+                                Err(PushAborted::Stale { .. } | PushAborted::Deadline { .. }) => {}
                             }
                             if rng.below(8) == 0 {
                                 thread::yield_now();
                             }
+                            assert!(
+                                Instant::now() < started + TRIAD_BUDGET,
+                                "seed {producer_seed}: producer overran the budget"
+                            );
                         }
-                        let _ = generation;
                     })
                     .must(),
             );
@@ -808,11 +807,7 @@ fn deadlock_triad_terminates_under_seeded_interleavings() {
                     .spawn(move || {
                         let mut rng = XorShift(consumer_seed);
                         for _ in 0..200u64 {
-                            let deadline = if rng.below(2) == 0 {
-                                None
-                            } else {
-                                Some(Instant::now() + Duration::from_millis(rng.below(3)))
-                            };
+                            let deadline = Some(Instant::now() + Duration::from_millis(3));
                             match queue.pop_wait(deadline) {
                                 PopOutcome::Item(_) => {}
                                 PopOutcome::Discontinuity(_) => {}
@@ -822,6 +817,10 @@ fn deadlock_triad_terminates_under_seeded_interleavings() {
                             if rng.below(8) == 0 {
                                 thread::yield_now();
                             }
+                            assert!(
+                                Instant::now() < started + TRIAD_BUDGET,
+                                "seed {consumer_seed}: consumer overran the budget"
+                            );
                         }
                     })
                     .must(),
@@ -831,7 +830,7 @@ fn deadlock_triad_terminates_under_seeded_interleavings() {
         // The control plane: one flusher and one closer, paced to land
         // mid-storm (the triad's third leg).
         let flush_queue = Arc::clone(&queue);
-        let flush_seed = seed.wrapping_mul(0x2545F491) | 1;
+        let flush_seed = seed.wrapping_mul(0x2545_F491) | 1;
         handles.push(
             thread::Builder::new()
                 .name("triad-flusher".into())
@@ -861,20 +860,24 @@ fn deadlock_triad_terminates_under_seeded_interleavings() {
                 .must(),
         );
 
-        join_within_budget(handles, JOIN_BUDGET, seed);
-
-        // Whatever the interleaving, the invariants held: Q1 and the
-        // conservation law at rest.
-        let stats = queue.stats();
-        let resident = close_queue.usage().packets as u64;
+        join_or_propagate(handles);
+        let elapsed = started.elapsed();
         assert!(
-            close_queue.usage().packets <= 4,
-            "seed {seed}: Q1 at rest"
+            elapsed < TRIAD_BUDGET,
+            "seed {seed}: the triad overran the {TRIAD_BUDGET:?} budget ({elapsed:?}) — deadlock?"
         );
+
+        // Whatever the interleaving, the invariants held at rest: Q1
+        // and the conservation law (pushed == popped + resident +
+        // flushed + stale_rejected; deadline-aborted pushes returned
+        // their items and entered nothing).
+        let stats = queue.stats();
+        let resident = queue.usage().packets as u64;
+        assert!(queue.usage().packets <= 4, "seed {seed}: Q1 at rest");
         assert_eq!(
             stats.pushed,
-            stats.popped + resident + stats.flushed + stats.stale_rejected,
-            "seed {seed}: conservation at rest"
+            stats.popped + resident + stats.flushed,
+            "seed {seed}: conservation at rest (stale/deadline rejections never entered)"
         );
     }
 }

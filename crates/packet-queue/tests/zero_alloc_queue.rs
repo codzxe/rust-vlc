@@ -82,6 +82,9 @@ fn steady_state_push_pop_cycle_allocates_nothing() {
     for round in 0..100_000u64 {
         // The engine tick's queue surface: push (non-blocking and the
         // parking flavor with room), pop, watermark, stats, usage.
+        // Net-zero per round (+2 items, −2 items): the queue stays at
+        // its primed half-fill for the whole loop, so the caps never
+        // bind and both push flavors keep taking the accept fast path.
         assert_eq!(
             queue.try_push(Stamped::new(GenerationId::FIRST, Blob { id: round })),
             PushOutcome::Pushed
@@ -91,6 +94,7 @@ fn steady_state_push_pop_cycle_allocates_nothing() {
             deadline(),
         );
         assert!(parked.is_ok(), "room exists: the park is skipped");
+        assert!(matches!(queue.try_pop(), PopOutcome::Item(_)));
         assert!(matches!(queue.try_pop(), PopOutcome::Item(_)));
         let mark = queue.watermark();
         let _ = mark.usage.packets;

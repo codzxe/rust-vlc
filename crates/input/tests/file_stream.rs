@@ -197,7 +197,6 @@ fn real_file_passes_the_read_into_contract() {
 /// product.toml default (32 MiB) opens cleanly at the 16 MiB ceiling.
 #[test]
 fn read_ahead_budget_opens_and_serves() {
-    use plugin_api::SourceStream as _;
     let data = pattern(4096);
     let temp = TempFile::create("budget", &data).must();
     let access = input::FileAccess::with_read_ahead_budget(32 * 1024 * 1024).must();

@@ -567,6 +567,7 @@ impl Default for PayloadSlots {
 mod tests {
     use super::*;
     use media_types::ids::SourceUri;
+    use testkit::Must;
 
     /// In-memory seekable source (the plugin-api test pattern, trimmed
     /// to what the reader needs).
@@ -927,7 +928,7 @@ mod tests {
     #[test]
     fn payload_slots_spill_varying_sizes_and_stay_bounded() {
         let mut pool = PayloadSlots::new(2, 4096);
-        let byte = |want: usize, fill: u8| {
+        let byte = |_want: usize, fill: u8| {
             move |out: &mut [u8]| {
                 out.fill(fill);
                 Ok(out.len())
@@ -1015,23 +1016,31 @@ mod tests {
             handles.push(handle);
         }
         assert!(pool.resident_slots() <= pool.max_slots());
-        // Drop everything: the next uniform fills reuse the pooled
-        // allocations (pointer identity against a captured slot).
-        let probe = pool
-            .fill(512, |out| r.read_prefix_into(out, 2048))
-            .must();
-        let mut found_recycled = false;
-        for offset in [2560usize, 3072] {
-            let next = pool
+        // Drop every live handle: both pooled slots go idle. From here
+        // on, one handle is live at a time, so an idle same-size slot
+        // always exists and the pool can never spill — every fill must
+        // land on one of the pool's two allocations (pointer identity;
+        // a third distinct pointer would be a spill).
+        drop(handles);
+        let mut distinct_ptrs: Vec<*const u8> = Vec::new();
+        for offset in [2048usize, 2560, 3072, 2048, 2560, 3072] {
+            let handle = pool
                 .fill(512, |out| r.read_prefix_into(out, offset as u64))
                 .must();
-            if next.as_slice().as_ptr() == probe.as_slice().as_ptr() {
-                found_recycled = true;
+            assert_eq!(handle.len(), 512);
+            assert_eq!(handle.as_slice(), &data[offset..offset + 512]);
+            let ptr = handle.as_slice().as_ptr();
+            if !distinct_ptrs.contains(&ptr) {
+                distinct_ptrs.push(ptr);
             }
+            drop(handle);
         }
-        assert!(
-            found_recycled || pool.resident_slots() < pool.max_slots(),
-            "steady state reuses pooled allocations"
+        assert_eq!(
+            distinct_ptrs.len(),
+            2,
+            "six single-handle fills over a warm pool served by exactly the two \
+             pooled allocations (round-robin) — a third pointer would be a spill"
         );
+        assert_eq!(pool.resident_slots(), 2);
     }
 }

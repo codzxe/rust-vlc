@@ -1842,6 +1842,15 @@ mod tests {
         fn next_event(&mut self) -> Result<plugin_api::DemuxEvent, EngineError> {
             Ok(plugin_api::DemuxEvent::Discontinuity)
         }
+
+        fn seek(
+            &mut self,
+            _target: media_types::TimeSpan,
+        ) -> Result<media_types::TimeSpan, EngineError> {
+            // This producer never demuxes; seeks land nowhere (the
+            // tests drive queue levels by hand).
+            Ok(media_types::TimeSpan::UNKNOWN)
+        }
     }
 
     /// A decoder that swallows packets silently (the tests observe
@@ -1904,6 +1913,18 @@ mod tests {
             .wire(tracks, &NullProvider, &plan, GenerationId::FIRST)
             .must();
         assert_eq!(wired, 1);
+        // The wire-time mint publishes the generation and leaves a
+        // dropped=0 discontinuity marker pending in each fresh queue;
+        // drain it here so the scripted packet levels below are exact
+        // (the marker would otherwise eat the first tick's decode
+        // slice — `decode_step` spends one budget slot observing it).
+        for limb in pipeline.limbs.iter_mut() {
+            assert!(matches!(
+                limb.queue.try_pop(),
+                PopOutcome::Discontinuity(_)
+            ));
+            assert!(matches!(limb.queue.try_pop(), PopOutcome::Empty));
+        }
         pipeline
     }
 
@@ -2069,7 +2090,7 @@ mod tests {
         fill(&mut pipeline, 3);
         assert!(pipeline.tick(SessionState::Playing, &budget).starved);
         let generation = GenerationId::FIRST.next().must();
-        pipeline.seek_flush(generation, 8).must();
+        pipeline.seek_flush(generation, 8, 1).must();
         let limb = pipeline.limbs.first().must();
         assert_eq!(limb.low_streak, 0, "streaks reset at the mint");
         assert!(!limb.episode_open, "episodes reset at the mint");
