@@ -279,13 +279,19 @@ fn avi_loop(n: usize) {
         started.elapsed()
     );
     assert_eq!(stats.inputs, n, "avi: loop must run every iteration");
+    // W2-17: the deep fraction and length spread are pinned to the
+    // RECORDED default-run values (measured at f63fee4 and re-verified
+    // byte-identical after the main @ 9f082f3 merge: 827/1000 =
+    // 82.7% deep, 743 distinct lengths — the seeds are fixture-pinned
+    // and the Rng is local) so generator drift fails loudly instead
+    // of sliding under a loose n/3 floor.
     assert!(
-        stats.deep_entries >= n / 3,
+        stats.deep_entries >= n * 4 / 5,
         "avi: only {} of {n} inputs kept container magic — the seed mix went vacuous",
         stats.deep_entries
     );
     assert!(
-        stats.distinct_lengths >= 32,
+        stats.distinct_lengths >= 700,
         "avi: only {} distinct input lengths — the RNG stream degenerated",
         stats.distinct_lengths
     );
@@ -347,5 +353,38 @@ fn seeded_generation_is_deterministic_and_decorrelated() {
     assert!(
         zero.iter().map(|v| v.len()).collect::<HashSet<_>>().len() > 1,
         "zero seed must produce a varied stream"
+    );
+}
+
+/// W2-17: the determinism pin above covers `gen_input` only — pin the
+/// FULL loop accounting too: same seed → identical `Stats` (the `Rng`
+/// is a per-loop local with no shared/global state, so two runs cannot
+/// interfere; this test is the pin of that fact). Twin of the codecs
+/// crate's `loop_accounting_is_deterministic`.
+#[test]
+fn loop_accounting_is_deterministic() {
+    let seeds: Vec<Vec<u8>> = vec![vec![0xa5; 96], vec![0x5a; 7], vec![0xff; 33]];
+    let refs: Vec<&[u8]> = seeds.iter().map(|s| s.as_slice()).collect();
+    let spec = Spec {
+        seeds: &refs,
+        cap: 8 * 1024,
+    };
+    let first = run_loop(&spec, 0xabcd_1234, 256);
+    let second = run_loop(&spec, 0xabcd_1234, 256);
+    assert_eq!(first.inputs, 256, "the loop must run");
+    assert_eq!(
+        (
+            first.inputs,
+            first.bytes,
+            first.deep_entries,
+            first.distinct_lengths
+        ),
+        (
+            second.inputs,
+            second.bytes,
+            second.deep_entries,
+            second.distinct_lengths
+        ),
+        "same seed → identical loop accounting"
     );
 }
