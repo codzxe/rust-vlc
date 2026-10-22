@@ -1960,7 +1960,11 @@ fn garbage_chunk_jump_without_landing_is_typed_never_silent_eos() {
     let garbage_size = 125_437_440u32;
     let built = build(
         &[video_stream(), audio_stream()],
-        &[(b"00dc", &b"v0"[..]), (b"01wb", &[0xAA; 4]), (b"00dc", &[0x42; 6])],
+        &[
+            (b"00dc", &b"v0"[..]),
+            (b"01wb", &[0xAA; 4]),
+            (b"00dc", &[0x42; 6]),
+        ],
         true,
     );
     let mut bytes = built.bytes;
@@ -1985,10 +1989,7 @@ fn garbage_chunk_jump_without_landing_is_typed_never_silent_eos() {
     };
     assert_eq!(err.context.code, "demux.avi.walk-resync-failed");
     assert!(
-        matches!(
-            err.kind,
-            media_types::ErrorKind::Corrupt { .. }
-        ),
+        matches!(err.kind, media_types::ErrorKind::Corrupt { .. }),
         "structure corruption flavor: {:?}",
         err.kind
     );
@@ -2071,6 +2072,77 @@ fn garbage_chunk_jump_inside_rec_hands_back_to_parent() {
     );
     assert_eq!(payloads, vec![b"r0".to_vec(), b"t0".to_vec()]);
     assert!(terminal.is_ok(), "recovered walk ends EOS: {terminal:?}");
+}
+
+#[test]
+fn resync_budget_exhaustion_is_the_typed_terminal_not_an_endless_walk() {
+    // A corruption-dense `movi`: MORE damaged cursor jumps past the
+    // bound than the MAX_WALK_RESYNCS budget (33 vs 32). The first 32
+    // land via the idx1 ladder (the walk keeps recovering, exactly
+    // the zero-mid shape repeated); the 33rd refuses with the typed
+    // W2-07 terminal — the budget is what bounds the walk's
+    // worst-case work on adversarial files (D-3: bounded damage,
+    // never an endless skip).
+    let garbage_size = 125_437_440u32;
+    // c0 valid; c1..=c33 damaged (33 chunks); c34..=c36 a valid tail
+    // the refused walk must never reach. Every payload is 4 bytes, so
+    // every chunk occupies exactly 12 bytes (8 header + 4 payload,
+    // even — no pad).
+    let mut specs: Vec<MoviChunk<'_>> = Vec::with_capacity(37);
+    specs.push((b"00dc", &b"head"[..]));
+    for _ in 0..33 {
+        specs.push((b"00dc", &b"gggg"[..]));
+    }
+    for _ in 0..3 {
+        specs.push((b"00dc", &b"tail"[..]));
+    }
+    let built = build(&[video_stream()], &specs, true);
+    let mut bytes = built.bytes;
+    for &pos in &built.chunk_positions[1..=33] {
+        smash_chunk_header(&mut bytes, pos, garbage_size);
+    }
+    let mut avi = demuxer_over(bytes);
+    match avi.start() {
+        Ok(tracks) => assert_eq!(tracks.len(), 1),
+        Err(err) => unreachable!("start: {err}"),
+    }
+    let (damage, payloads, terminal) = drain_with_damage(&mut avi);
+    assert_eq!(
+        payloads,
+        vec![b"head".to_vec()],
+        "the damaged run delivers nothing; the tail stays unreached"
+    );
+    let err = match terminal {
+        Ok(()) => unreachable!("the budget is spent — the walk must refuse loudly"),
+        Err(err) => err,
+    };
+    assert_eq!(err.context.code, "demux.avi.walk-resync-failed");
+    assert!(
+        matches!(err.kind, media_types::ErrorKind::Corrupt { .. }),
+        "structure corruption flavor: {:?}",
+        err.kind
+    );
+    // The per-resync `Recovered` records die pending with the terminal
+    // error (the pre-existing sticky pattern — the typed terminal IS
+    // the loud record; same shape the no-landing test pins).
+    assert!(
+        damage.is_empty(),
+        "no events surface past the terminal error: {damage:?}"
+    );
+    // The budget proof is the exact damage ledger. Per damaged chunk
+    // k = 1..=33 (positions 12 bytes apart, the bound at chunk 36's
+    // end): the garbage size, the refused jump distance (12k + G -
+    // 436), and — for the MAX_WALK_RESYNCS landings that happened
+    // before the 33rd refusal — the 12-byte span to the next chunk:
+    //   33*G + (33*G - 7656) + 32*12  ==  66*G - 7272
+    // One landing more (budget bypassed) or fewer (early refusal)
+    // shifts the total by the 12-byte span — the arithmetic pins the
+    // budget as spent to exactly MAX_WALK_RESYNCS.
+    assert_eq!(
+        avi.damage_total(),
+        66 * u64::from(garbage_size) - 7272,
+        "every refusal and every landing is counted"
+    );
 }
 
 #[test]

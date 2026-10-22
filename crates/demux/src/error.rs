@@ -100,7 +100,8 @@ pub fn bad_stream_params(offset: u64) -> EngineError {
 /// The `movi` walk hit a damaged chunk whose cursor jump past the
 /// walk bound could not be re-synchronized within the resync budget
 /// (no `idx1` entry, no acceptable chunk signature in the scanned
-/// window, or the attempt budget spent — W2-07). The old behavior
+/// window, or the attempt budget spent — W2-07, completed by the
+/// W3-07 salvage continuation). The old behavior
 /// here was a silent `EndOfStream` that could be forfeiting every
 /// playable byte after the damage; the walk now refuses loudly
 /// (D-3: recover, never forfeit silently). `offset` is the damaged
@@ -235,7 +236,10 @@ mod tests {
             (payload_too_large(100, 200), "demux.avi.payload-too-large"),
             (index_too_large(100, 200), "demux.avi.index-too-large"),
             (no_movi(), "demux.avi.no-movi"),
-            (walk_resync_failed(1_400_632), "demux.avi.walk-resync-failed"),
+            (
+                walk_resync_failed(1_400_632),
+                "demux.avi.walk-resync-failed",
+            ),
             (not_started(), "demux.not-started"),
             (seek_out_of_range(), "demux.avi.seek.out-of-range"),
             (seek_unindexed(), "demux.avi.seek.unindexed"),

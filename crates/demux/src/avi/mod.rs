@@ -35,7 +35,8 @@
 //!   stays inside the file is clamped to the bound (damage-counted,
 //!   never a silent early end) and the walk resumes at the bound.
 //!   **A cursor jump that runs past the walk bound is clamped AND
-//!   re-synchronized** (W2-07, W1-03's class-d filings): damage-
+//!   re-synchronized** (W2-07, completed by the W3-07 salvage
+//!   continuation; W1-03's class-d filings): damage-
 //!   induced garbage reads a bogus size whose skip would strand the
 //!   cursor past the bound and end the walk EOS, forfeiting every
 //!   playable byte after the damage despite a valid `idx1`. The
@@ -679,7 +680,8 @@ impl AviDemuxer {
     }
 
     /// Clamp a damage-induced cursor jump past the walk bound and
-    /// re-synchronize the walk (W2-07; W1-03's class-d filings —
+    /// re-synchronize the walk (W2-07, completed by the W3-07
+    /// salvage continuation; W1-03's class-d filings —
     /// D-3/D-9: recover, never forfeit playable tail silently).
     ///
     /// `pos` is the damaged chunk's position; `next` its unclamped
@@ -726,8 +728,7 @@ impl AviDemuxer {
         bound: u64,
         next: u64,
     ) -> Result<(), EngineError> {
-        self.damage
-            .note(next - bound, "chunk-jump-past-list-bound");
+        self.damage.note(next - bound, "chunk-jump-past-list-bound");
         if cursor.resyncs >= MAX_WALK_RESYNCS {
             return Err(self.resync_terminal(region, pos));
         }
@@ -737,7 +738,11 @@ impl AviDemuxer {
         let indexed = self.index.as_ref().and_then(|table| {
             table
                 .entries
-                .get(table.entries.partition_point(|entry| entry.chunk_pos <= pos))
+                .get(
+                    table
+                        .entries
+                        .partition_point(|entry| entry.chunk_pos <= pos),
+                )
                 .map(|entry| entry.chunk_pos)
                 .filter(|landing| landing + 8 <= bound)
         });
@@ -769,12 +774,11 @@ impl AviDemuxer {
     /// keeps the walk's truncation flavor (the same expected/found
     /// numbers the walk-end boundary reports — a cut file's resync
     /// failure is a consequence of the cut, not a new verdict);
-    /// in-extent damage that cannot re-anchor is the W2-07 refusal
-    /// ([`error::walk_resync_failed`]) — never a silent EOS.
+    /// in-extent damage that cannot re-anchor is the W2-07/W3-07
+    /// refusal ([`error::walk_resync_failed`]) — never a silent EOS.
     fn resync_terminal(&mut self, region: MoviRegion, pos: u64) -> EngineError {
         if region.effective_end < region.declared_end {
-            return self
-                .fail(error::truncated(region.declared_end, region.effective_end));
+            return self.fail(error::truncated(region.declared_end, region.effective_end));
         }
         self.fail(error::walk_resync_failed(pos))
     }
