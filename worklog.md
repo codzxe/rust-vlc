@@ -4258,3 +4258,3191 @@ Work Log:
 
 Stage Summary:
 - Wave 2 in flight. Disk guard: corpus-big (1.3G) is the emergency valve.
+---
+Task ID: W2-02
+Agent: W2-02 (salvage continuation, playback-engine/video-engine)
+Task: M10 pre-roll presentation hold — salvage from dead predecessor (worktree w1-09, base OLD 5b396e5), merge wave-1 main (264a689), complete the card per original ACs.
+
+Work Log:
+- Surveyed the uncommitted salvage (931 insertions across pipeline.rs / seek.rs / session.rs / tests/seek_flow.rs / video-engine/scheduler.rs). Checkpoint commit f03d9f3.
+- Salvage assessment at base: engine-side code compiled clean and was structurally complete (hold capture in LimbSink, per-limb bounded hold in SeekProgress, release-in-pts-order, discard counting, clock generation publish on failure, scheduler generation gate). Test side had 2 mechanical compile errors (ProviderKind missing Copy, PlaybackClock import) and 3 failing tests whose EXPECTED numbers were the predecessor's arithmetic errors: the post-flush queue Discontinuity marker consumes one decode-budget slot per limb on the first post-seek slice (marker + 3 packets = 3 held, not 4; delayed video emits from its 6th packet = 110 ms, not 108). Fixed expectations to the true mechanics; the invariants (zero pre-terminal presentations, pts-order release, discard counts) all held.
+- Infra: hit shared-target contamination on first cargo check (impossible E0609 "no field preroll_frames_discarded" against a file that has it) — cured by touch + re-run per protocol. One stale test-count report (video-engine lib 32 vs real 31) also resolved by forced rebuild.
+- git merge main → single content conflict in pipeline.rs (session.rs auto-merged to the correct union; scheduler.rs/seek_flow.rs untouched by main). Hand-merged decode_step + LimbSink keeping BOTH behaviors:
+  - W1-08 per-frame damage isolation unioned into the M10 hold restructure (hoisted sink facts out of the hold-borrow scope; concealed/last hoisted too).
+  - conceal_last now holds during a seek's pre-roll (a concealment repeat IS a presentation — M10 forbids pre-terminal ones); accept-during-hold does not latch the concealment cache (a held frame is not presented yet); release_preroll_hold latches video frames into limb.last_frame on the terminal hand-off (post-terminal damage repeats the new landing's last frame).
+  - release_preroll_hold carries limb indexes so the latch lands on the owning limb.
+- Completed the card + 2 new tests beyond salvage: stop-mid-preroll teardown discard (paused-seek shape: Paused→Seek→poll→Stop = TeardownPipeline folds 3 discards, never presented, no double count at close) and damaged-preroll concealment suppression (M10×M9 interplay: flaky video decoder fails 100..118 ms during pre-roll — damage counted, collector grows by ZERO decoded-or-concealed frames pre-terminal).
+- Pre-submission audit D-0..D-5 + D-10: hold pre-allocated once per seek (Vec::with_capacity(hold_cap)), hard cap = packets_per_limb per limb (16 default), decode slice backpressures at cap (packets stay in the bounded queues; a full slot implies saw_frame so the pre-roll can never wedge), release merge+sort once per seek (≤ limbs×cap frames, not per-tick), stale-at-release defense, consumer refusal counted not swallowed. No test weakened.
+
+Stage Summary:
+- AC (a) ZERO presentations between seek-accept and seek-terminal under aggressive ticking: preroll_frames_are_held_until_the_seek_terminal_then_released_in_pts_order (engine, collector asserts per-poll) + preroll_holds_are_not_judged_while_the_clock_lags_the_generation (scheduler, 16 aggressive ticks → Background, no drops, next_due None). Also pinned for the concealment interplay: preroll_damage_conceals_nothing_the_hold_owns_presentation_until_the_terminal.
+- AC (b) terminal release in pts order: engine test asserts [101,103,105,107,110,112] ms with tracks [2,2,2,2,1,1] — the video limb LEADS the limbs, so only the cross-limb pts sort produces that sequence; scheduler test asserts [100,120,140] post-publication.
+- AC (c) typed-failure discards observable: a_superseded_seek_discards_its_held_preroll_frames_counted (3 held frames discarded at seek-2 flush, preroll_frames_discarded=3, leaked-to-sink=0), a_session_stopped_mid_preroll_discards_its_held_frames_counted (teardown boundary, 3, never presented), a_failed_seek_holds_nothing_and_publishes_the_minted_generation (typed SeekFailed at reanchor, discard=0, clock publishes minted gen so the rollback re-fill is not mistaken for pre-roll), scheduler: held_preroll_frames_are_discarded_when_a_later_generation_publishes (3 stale drops, never presented). Deviation: the complete_seek Clock-stage failure (the only mid-pre-roll failure reachable with a non-empty hold) is structurally unreachable under the virtual-clock fixtures (NANO_BASE reanchor never overflows) — same discard machinery as the covered paths; noted for the Lead.
+- AC (d) existing seek_flow tests green: 20/20 (15 pre-existing + 5 new M10).
+- Tests (real numbers): cargo test -p playback-engine = 116 passed / 0 failed (33 lib, 1 bounded_alloc, 12 contract_suite, 1 epoch_staleness_alloc, 20 seek_flow, 28 session_flow — W1-07/W1-08 concealment union intact, 21 table). cargo test -p video-engine = 53 passed / 0 failed (31 lib incl. 3 new scheduler pre-roll tests, 21 scheduling, 1 other). cargo check --workspace --tests clean; fmt + clippy clean.
+- Hold state machine (one line): seek-accept → flush (superseded hold discarded+counted) → hold armed (per-limb, cap=packets_per_limb) → decode slices capture+backpressure, concealment holds, scheduler exempts gen>published from purge/selection/wait-hint → terminal Seeked: reanchor+set_generation → release in pts order (+ concealment latch) | terminal SeekFailed/teardown/supersession: discard+count, generation still published.
+- Follow-ups: (1) W2-01's CLI native-seek wiring lands on top of this — the hold is now load-bearing; integration-level evidence (host ticking a real PresentationScheduler through the FrameConsumer seam during pre-roll) belongs to that card or a wave-2 integration pass. (2) [PROPOSAL] pre-roll frames currently count into frames_delivered at capture and are subtracted only on discard — a mid-seek stats() read transiently includes held frames; acceptable now (single-writer v0), revisit if hosts poll stats during seeks. (3) clock-generation publish on the failure path should get an M11-epoch-interplay review when the epoch hub consumes seek failures.
+- Branch wip/w1-09-preroll-hold, commits f03d9f3 (salvage checkpoint) + 9a01143 (merge + completion). No push, no gate (per Wave-2 rules).
+---
+Task ID: W2-03
+Agent: W2-03 (desktop transport)
+Task: C7 fix — zero-allocation desktop frame transport (apps/desktop transport.rs/wire.rs; ED-FIX-2's dropped row, per W1-20 re-audit NOT FIXED)
+
+Work Log:
+- Read AGENTS.md, engineering-directives.md (D-1/D-8), audits/2026-10-22-directives-audit.md C7 row + W1-20 re-audit findings, apps/desktop src (transport/wire/bridge/mailbox/host) + tests (protocol/pipeline/common).
+- Studied the landed house patterns: renderer-wgpu staging.rs RecyclePool/StagedFrame (ED-FIX-2), audio-output zero_alloc_null_sink.rs, testkit alloc_count instrument, playback-engine alloc binaries. Note: apps/cli has NO transport/wire equivalent (the C8 CLI card is seek-lifecycle, different problem) — the applicable landed pattern is the staging.rs pool.
+- wire.rs: WireDecoder → cursor-positioned ring (pos + copy_within compaction only when a partial record spans feeds; `next_frame` never shifts bytes — the O(n) `drain(..total)` is gone; fully-drained buffer resets in place, capacity retained). Payloads move out in ONE copy into a bounded RecyclePool (3 slots, best-fit acquire, Drop-return) shared with the handed-out DecodedFrames (staging.rs C5a shape). New `decode_record`: decode exactly one complete record direct from the slice — no pending traffic, no per-call state (the audit's "direct handoff + no per-frame decoder alloc").
+- transport.rs: MailboxTransport owns ONE WireDecoder for its whole life; send() = decode_record + offer. Killed the per-send `WireDecoder::new()` + feed roundtrip.
+- error.rs: added typed `WireError::TrailingBytes { count }` (multi-record hand-off; old path reported these dishonestly as `Truncated { missing: 0 }` via finish()); bridge.rs maps it into the existing render.stream.malformed family.
+- mailbox.rs test fixtures → `DecodedFrame::detached` (hand-built plain-owner convention, #[cfg(test)] pub(crate), staging.rs precedent).
+- New proof binary tests/zero_alloc_transport.rs (counting global allocator, serialize_tests): window 1 = 256 × (present → serialize → send → decode_record → offer → draw → drop-recycle); window 2 = 256 × (feed + next_frame + drop).
+- Negative control (temporarily restored the old per-frame-decoder send, then reverted): old path measured 6,342,503 bytes / 1,282 allocation events over the same 256-cycle window — the instrument demonstrably catches the violation; fixed path: 0 / 0.
+- cargo fmt + clippy clean; full suite run.
+
+Stage Summary:
+- AC met: zero-alloc proof on the per-frame path — 0 bytes / 0 allocation events after warm-up over 256 cycles on BOTH decode entry points (measured, not argued); negative control numbers recorded above.
+- Tests: cargo test -p desktop = 39/39 green (28 unit incl. 5 new wire tests: decode_record≡streaming equivalence, truncated/trailing refusals, pool-recycle correctness, cursor-compaction, clone/detached ownership; 4 pipeline; 4 protocol — all pre-existing codec/pipeline tests green UNMODIFIED; 2 zero-alloc; 1 doctest). No test weakened.
+- Wire protocol byte-identical: encode path untouched; golden-bytes/chunked-split/malformed/extension-header tests unmodified and green.
+- Per-frame cost after fix: 0 allocs, 1 decode-side copy (payload → pooled consumer-owned buffer; the ownership-transfer floor, same count as renderer-wgpu staging's "one measured copy"). Copy count 4→2 total per frame (encode copy retained — the byte seam is the wire contract).
+- Bounded memory: pool ≤ 3 payload buffers, mailbox ≤ capacity, scratch ≤ 1 record, pending ring compacts on feed.
+- Deviation (deliberate, documented): the encode half of the in-process roundtrip is retained — eliminating it needs a typed frame seam bypassing FrameTransport's byte contract, which would unhook the pipeline tests from the wire codec ("the seam keeps both shapes honest", 2.D3). Flagged as protocol-v2 territory.
+- Follow-ups: (1) protocol v2 SharedArrayBuffer ring = the true zero-copy desktop path [PROPOSAL, already noted in module docs]; (2) M3 scheduler drop arrays + M18 time reciprocal remain the other two NOT-FIXED W1-20 rows (other agents' cards).
+- Branch wip/w2-03-desktop-transport, commit c4d323a. No push, no gate (per Wave-2 rules).
+---
+Task ID: W2-04
+Agent: W2-04 (scheduler drop arrays)
+Task: M3 (NOT FIXED per W1-20 re-audit) — replace the per-tick `drops.late`/`superseded` Vec allocations in video-engine's PresentationScheduler with fixed-capacity drop accounting (ED-FIX-2's registered "scheduler fixed-capacity drop arrays"), with zero-alloc proof and a bounded-overflow storm test.
+
+Work Log:
+- Read AGENTS.md, docs/engineering-directives.md, scheduler.rs (full), tests/scheduling.rs (full), policy.rs, test_support/common fixtures; confirmed the W1-20 finding (scheduler.rs:339,375,392-395 fresh Vecs per dropping tick) and the API-freedom claim by grepping every in-tree consumer of `TickDrops`/`.drops` fields: only video-engine's own tests touch the entries; apps/cli host + integration harness + renderer-wgpu seam read `SchedulerStats` counters only.
+- Studied the ED-FIX-2 house style (renderer-wgpu RecyclePool w/ named `RECYCLE_SLOTS`, audio-output null-sink fixed 256-f32 stack chunk) and the counting-allocator pattern (testkit::alloc_count, zero_alloc_null_sink.rs).
+- Implemented `DropTrail` in scheduler.rs: fixed inline `[Timestamp; MAX_DROP_TRAIL=16]` + exact `recorded: u64` counter; `len()/is_empty()/iter()/as_slice()` expose the retained prefix, `recorded()` the truncation-proof count, `truncated()` the overflow; private `record()` writes the slot while capacity lasts, then counts only (**drop-count, never grow**). Manual `Default/Debug/PartialEq/Eq` (fill slots beyond the retained prefix are never state: not compared, not printed). `TickDrops.late/superseded` are now `DropTrail`; `TickDrops` is `Copy`.
+- Rewired tick(): late purge records into the trail in place; the supersede path drains the window prefix directly into the trail with the exact count bumped first (old `Vec::collect` gone). Zero edits to the hold-gating/admit_held region (W2-02's territory). lib.rs re-exports `DropTrail` + `MAX_DROP_TRAIL`.
+- Tests: 2 DropTrail unit tests (capacity→counts-only, Debug-prints-retained-only), late-storm test (window 64, 40-frame one-tick storm: trail capped at 16, `recorded()==40`, `truncated()==24`, retained prefix = storm onset, stats exact 40→80 across two storms), superseded-storm test (Never policy, 39 structural drops: cap 16, recorded 39, presented 1). One internal test line moved from Vec-equality to slice-equality (same strength — it still pins *which* PTS was superseded, i.e. the selection logic).
+- New tests/zero_alloc_scheduler.rs (dedicated binary, `#[global_allocator]` CountingGlobalAlloc + serialize_tests): warm-up outside the window (deque growth to bound, first present), then 128 cycles × (16-frame late storm tick + 4-frame supersede-burst/present tick + repeat tick) = 384 aggressive dropping ticks + 2560 pushes, all asserted on per-tick drop counts, then `guard.assert_zero`.
+- Teeth check (D-5, not committed): temporarily re-introduced the old per-tick Vec materializations inside the measured window → the proof FAILED with **512 allocation events / 65,536 bytes** (512 deallocs) — the instrument and test detect the violation. Reverted; final suite re-run green.
+- Verification: `cargo test -p video-engine` = 32+21+1+1 (doctest) passed / 0 failed; reverse deps `cargo check -p renderer-wgpu -p lumen-cli -p desktop -p first-vertical --all-targets` clean (public field-type change breaks nothing in-tree); `cargo clippy -p video-engine --all-targets` clean; `cargo fmt -p video-engine` applied. Shared CARGO_TARGET_DIR, no contamination observed.
+- Committed on wip/w2-04-scheduler-drops: cd3bddf.
+
+Stage Summary:
+- M3 is FIXED with evidence, not ceremony: dropping ticks allocate **0 events / 0 bytes** (measured), vs the old shape's measured **512 events / 64 KiB** over the identical window; the cap holds under 40-frame storms with every count exact.
+- Design decisions (recorded for Lead review): (1) inline fixed arrays in the by-value `TickOutcome` (the task's "[T; N] + len" shape) rather than scheduler-owned reused Vecs — a returned owned struct cannot borrow scheduler storage without lifetime-churning the public API; inline arrays keep the field names/semantics and are unconditionally heap-free. (2) Kept the per-tick PTS trail (the audit's registered "fixed-capacity drop arrays") rather than collapsing to pure counters — the trail is the documented doc 01 §1.3 rule 9 observability, and one existing unit test pins which PTS was superseded, which a count cannot express (AGENTS §3.5). (3) `MAX_DROP_TRAIL = 16 == DEFAULT_MAX_PENDING`: default-window playback never truncates (drops/tick ≤ window bound); wider configured windows truncate with exact counts.
+- API delta: `TickDrops{late, superseded}: Vec<Timestamp>` → `DropTrail` (`len()` = retained ≤ 16; `recorded()` = exact; `truncated()` = overflow). W1-20 verified no cross-crate consumer binds; re-verified: reverse deps compile clean, scheduling.rs (21 tests) untouched and green.
+- Pre-submission audit (D-1 focus): Memory — zero heap on the tick path, measured (0/0 over 384 dropping ticks; old shape 512 events/64 KiB). Complexity — O(1) per recorded drop, algorithm unchanged. Resilience — explicit overflow policy (drop-count, never grow), storm-tested both drop classes. Lifecycle — no teardown/rebuild; trails are per-tick values, no cross-tick state. Budgets — tick cost is memcpy-scale (trail is 264 B inline, `Copy`), no locks added.
+- Deviations: none from the card; the one test-line adaptation (Vec→slice equality) is strength-preserving.
+- Follow-ups: (a) W2-02's pre-roll hold work touches the same file's hold region — my diff is confined to the drop-accounting types, tick() steps 3-4 drop paths, and the test tail; merge should be conflict-light. (b) The window VecDeque still grows lazily to max_pending once (first fill) — one-time, outside the per-tick contract; construction-time reservation is a one-liner for a later card if the Lead wants it. (c) If DEFAULT_MAX_PENDING ever changes, revisit MAX_DROP_TRAIL (documented in the const's doc comment). (d) Consider a sibling zero-alloc proof for the queue/presenter wiring tick loop (pipeline_host) when 3.B3 lands.
+---
+Task ID: W2-06
+Agent: W2-06 (DhtKey clone + evidence)
+Task: W1-20 re-audit new findings in merged fix code — (a) DhtKey::of per-frame DHT clone vs the "exactly one allocation per frame" claim, (b) staging.rs:489 phantom zero-alloc-proof citation, (c) benches.rs phantom worklog citation, (d) staging.rs:550 wrong clone/pool comment, (e) #[ignore] inventory audit.
+
+Work Log:
+- Read AGENTS.md, docs/engineering-directives.md (D-1, D-5/D-10), worklog W1-20 re-audit entry (M13 gaps, follow-ups 2-4), decoder.rs/parser.rs/staging.rs/renderer.rs/backend.rs/surface.rs, testkit alloc_count instrument + the zero_alloc_{quantum,null_sink} precedents.
+- (a) Root-caused the contradiction beyond the flagged line: the DhtKey::of clone (up to 8 Vecs/frame) was NOT the only per-frame allocation contradicting the claim — the marker walk itself allocated per frame (components Vec + scan Vec + one to_vec per DHT table). Making the claim true required both fixes:
+  - DhtKey::matches(&JpegInfo): structural, allocation-free compare of present/bits/vals against the borrowed payload (fixed arrays field-wise; Vec CONTENTS via ==). DhtKey::of (the payload snapshot) now runs only on an actual table change — once per stream, not per frame.
+  - parser::parse_into(&mut JpegInfo, data): the walk refills a persistent JpegInfo scratch (components/scan cleared+refilled in place; HUFFVAL storage clear+extend, capacity retained, total ≤ 256/table keeps the retained capacity bounded). DecodeContext holds the scratch (`headers` field); decode() parks an empty JpegInfo via mem::replace (allocates nothing — Vec::new never hits the heap), walks into the real one, moves it back (pointer shuffles). Stateless parse() kept as #[cfg(test)] one-shot.
+- (a2) Test-pinned the claim with a REAL counting-allocator binary: codecs/tests/zero_alloc_decode.rs (global CountingGlobalAlloc + serialize_tests, one-test-per-binary discipline). 64 steady-state frames through the full public contract path (MjpegDecoder::decode + sink, fixture frame from the external-authored avi_mjpeg_pcm.avi) measure EXACTLY 2 allocation events/frame: the frame's output buffer (the decoder.rs "one buffer") + the SharedBytes Arc<[u8]> block the frame-contract handoff wraps it in (ownership header, not frame bytes; collapsing it = the registered media-types pooled-Arc follow-up, worklog 3.B3 note). Negative control (git stash of the src changes, same binary): pre-fix main measured 768 events / 64 frames = 12/frame (10 metadata + 2 handoff) → fixed = 128 events / 64 frames = 2/frame. Byte delta: 14,754,816 → 14,746,624 (the 8,192 saved = the fixture's small DHT metadata churn; the win is the event count, i.e. churn elimination for any table size). Identical numbers in debug AND release.
+- New unit tests (in-gate): parser parse_into_reuses_the_scratch_without_leaking_across_walks (3-comp walk → failed mid-SOS walk → grayscale walk through ONE scratch: no leftover components/scan/HUFFVAL/flags, capacities retained, every field == fresh parse); decoder dht_key_compare_is_content_sensitive_without_rebuilding_steady_state (same BITS histogram, different HUFFVAL symbol ⇒ rebuild: 3 builds over zero,zero,five,five,zero — a bits-only compare would wrongly reuse); decoder header_error_does_not_poison_the_persistent_scratch (mid-SOF truncation errors with partial scratch state; next clean frame bit-identical to fresh decode).
+- (b) Materialized the phantom evidence instead of rewriting around it (cheap: testkit is already a renderer-wgpu dev-dep): crates/renderer-wgpu/tests/zero_alloc_present.rs — 128 steady-state presents through the FULL Presenter path (stage → place → composite → present, letterboxed 2:1 frame so the background pass + resample + surface write all run; content sanity-pinned by readback before the window) measure exactly 0 bytes / 0 events after 8-presents warm-up. Debug and release. staging.rs:489-491 comment now cites the real binary (with the W2-06 note that it used to cite one that did not exist).
+- (c) benches.rs citation fixed to the real anchor: the numbers live in the worklog "Task ID: ED-CORPUS-1 + ED-MERGE-WAVE (Lead)" entry, AFTER-report bullet (fps before→after per resolution, avg ~2.3x). No "Task ID: ED-FIX-1" entry exists on main (agent logs never merged — W1-20 finding (b)); both #[ignore] reason strings updated to name the ED-CORPUS-1 AFTER-report too.
+- (d) staging.rs:550 comment corrected: a StagedFrame clone owns its own byte copy (Vec deep-copy) but SHARES the bounded pool handle (Arc<RecyclePool>); each drop returns its own buffer to the same pool, capped at RECYCLE_SLOTS=3 (full pool drops the returnee). Behavior was always safe/bounded — only the claim was wrong ("shares nothing pooled").
+- (e) #[ignore] inventory audited — rg over crates/tests/tools/apps found 15 attributes (W1-20's creep: 4 pre-ED-wave → 10 at the W1-20 audit → 15 after Wave-1's corpus/fuzz cards). Every one has a justified reason; NOTHING unjustified, NOTHING dead, ZERO new ignores from W2-06 (both new proofs are in-gate). Table below.
+- cargo fmt --all --check clean; cargo clippy -p codecs -p renderer-wgpu --all-targets clean (-D warnings via workspace lints). Full suites green.
+
+Stage Summary:
+- Real numbers: codecs 154 passed / 0 failed / 7 pre-existing ignored (lib 109 — 3 new; all integration binaries incl. the new zero_alloc_decode). renderer-wgpu 67 passed / 0 failed / 0 ignored (lib 55 + presenter_seam + png_hash + the new zero_alloc_present, all green). Zero-alloc proofs: decode path 128 events / 14,746,624 bytes over 64 frames (exactly 2/frame, was 768 events pre-fix); present path 0 bytes / 0 events over 128 presents. All identical in debug and release.
+- The one-allocation claim is now TRUE and MEASURED: steady state = the frame's output buffer (+ the frame-contract's Arc handoff header, honestly documented and attributed to its registered media-types follow-up). decoder.rs module docs rewritten to say exactly what is proven and by which binary.
+- #[ignore] inventory (15, all justified — keep):
+
+| # | Site | Reason string (class) | Verdict |
+|---|------|----------------------|---------|
+| 1 | tests/rebrand/rebrand_skeleton.rs:534 | runtime plane does not exist yet (Phase 2+): no window consumes product.toml — doc 07 §8.3 (future-runtime placeholder) | justified |
+| 2 | tests/rebrand/rebrand_skeleton.rs:543 | runtime plane does not exist yet (Phase 2+): no CLI binary to boot headlessly (future-runtime placeholder) | justified |
+| 3 | tests/rebrand/rebrand_skeleton.rs:552 | runtime plane does not exist yet (Phase 2+): no About model/engineInfo surface (future-runtime placeholder) | justified |
+| 4 | tests/integration/first-vertical/tests/evidence.rs:191 | rewrites the committed evidence artifacts (artifact-regen; must not run in gate) | justified |
+| 5 | crates/codecs/tests/benches.rs:144 | ED-FIX-1 M13 throughput measurement, release-only (Lead decision ED-a) | justified |
+| 6 | crates/codecs/tests/benches.rs:223 | ED-FIX-1 M13 4K dense-content budget probe, release-only (Lead decision ED-a) | justified |
+| 7 | crates/codecs/tests/corpus.rs:394 | randomized-corpus harness: run via tools/corpus/run_harness.py (env-gated, D-11) | justified |
+| 8 | crates/codecs/tests/corpus.rs:450 | randomized-corpus harness (env-gated, D-11) | justified |
+| 9 | crates/media-probe/tests/corpus.rs:137 | randomized-corpus harness (env-gated, D-11) | justified |
+| 10 | crates/demux/tests/corpus.rs:246 | randomized-corpus harness (env-gated, D-11) | justified |
+| 11 | crates/demux/tests/corpus.rs:392 | randomized-corpus harness, audio matrix (env-gated, D-11) | justified |
+| 12 | crates/codecs/tests/pcm_fuzz_survival.rs:1220 | deep run: N=2048 per class, on demand for the audit report (gate runs N=256) | justified |
+| 13 | crates/codecs/tests/fuzz_loop_stable.rs:423 | long fuzz run — --ignored --nocapture (gate runs 2,000) | justified |
+| 14 | crates/codecs/tests/fuzz_loop_stable.rs:434 | long fuzz run (gate runs 1,000) | justified |
+| 15 | crates/demux/tests/fuzz_loop_stable.rs:300 | long fuzz run (gate runs 1,000) | justified |
+
+  Creep drivers, each documented at introduction: rebrand placeholders (858c013, 3) + evidence regen (016c7c6, 1) = the pre-ED-wave 4; ED-FIX-1 benches (c2c583f, +2, Lead ED-a) + ED-CORPUS-1 suites (204d6be, +3) + demux audio matrix (ddbe194, +1) = W1-20's 10; Wave-1's pcm deep run (79c003c, +1) + W1-12 fuzz scaffolds (5d34901, +3) = today's 15. All are deep-run/corpus/placeholder classes, i.e. exactly the categories D-11/ED-a demand — the creep is growth of the evidence system, not evasion.
+- D-0..D-5 audit: (1) Memory — per-frame decode allocs 12→2 (both = the frame's own bytes + handoff header); present path 0. (2) Complexity — compare is O(payload) field-wise, no hashing. (3) Resilience — failed walks reset (test-pinned); HUFFVAL capacity bounded by the parser's total ≤ 256 check. (4) Lifecycle — no state teardown; scratch persists across errors. (5) Budgets — unchanged decode math; parse_into adds no per-byte work (same walk, in-place fills).
+- Deviation (deliberate, documented): "one allocation" is pinned as TWO events at the MjpegDecoder boundary — the output buffer plus the SharedBytes Arc block. The Arc block is the frame contract's ownership header, not frame bytes; eliminating it needs the Lead-owned media-types pooled-Arc flavor (registered 3.B3 follow-up). The decoder.rs docs state this split explicitly rather than claiming a false single event.
+- Files: crates/codecs/src/video/mjpeg/{decoder.rs,parser.rs}, crates/codecs/tests/{benches.rs,zero_alloc_decode.rs (new)}, crates/renderer-wgpu/src/staging.rs (comments only), crates/renderer-wgpu/tests/zero_alloc_present.rs (new). Branch wip/w2-06-dhtkey-clone, commit c787f6d. No push, no gate (per Wave-2 rules).
+- Follow-ups: none new from this card's scope; the media-types pooled-SharedBytes flavor remains the registered Lead-owned item if the handoff Arc block is ever to be collapsed.
+---
+Task ID: W2-08
+Agent: W2-08 (harness clean/dirty split)
+Task: W1-01's harness prescription — split clean vs dirty in the MJPEG per-class table, exclude concealed frames from PSNR aggregates, record demux terminal/recovered per mjpeg case — plus W1-03's duration-metric fix (span + frame period). Python only, tools/corpus/run_harness.py.
+
+Work Log:
+- Read AGENTS.md, engineering-directives.md (D-5/D-11), W1-01 + W1-03 worklog entries (full derivations), run_harness.py @ main, the suite TSV schemas on disk (demux/mjpeg/pcm/probe), crates/demux/tests/corpus.rs (PTS emission, terminal vocabulary), and the canonical 13:34 report's polluted table (tiny64odd 8.7 dB / qvga 21.8 dB minima, concealed=1 rows mixed into clean classes).
+- Pre-validated the duration formula on the persisted demux-results.tsv before touching the driver: scratch RIFF/strh parser over all 85 supported-clean rows reproduced the OLD errors exactly (-40.0/-16.7/-8.3 ms p50/p95/max) and the corrected residuals +0.0000/+0.0333/+0.0444 ms (max |residual| 0.044 ms, 0 rows >0.05 ms, 85/85 strh-parsable) — W1-03's analytic prediction confirmed.
+- Duration fix in the driver: span_ms = (last_v_pts_ns − first_v_pts_ns + v_frame_period_ns)/1e6, v_frame_period_ns = 1e9·strh.scale/strh.rate from the file's own first `vids` strh — new bounded `avi_video_strh_rate()` (256-KiB header-prefix RIFF walk: RIFF→hdrl→strl→strh only, word-aligned, garbage sizes end the walk, never loop). Unparsable-strh rows are COUNTED (`duration rows excluded`), not silently dropped; zero-video-packet walks (typed refusals) are excluded from a span metric they cannot define (guard is a no-op on current data, all 85 rows have v_pkts>0). Report row relabeled "duration error (PTS span + frame period)" + footnote recording the old numbers; script header documents the change (numbers change BY DESIGN).
+- MJPEG table: `kind` column splits clean (video/av/avi-video/avi-av) vs dirty (dirty/dirty-lie-ext) rows via the manifest join (suite rows carry only rel; unknown classes label their own rows, never silently merged). Fidelity aggregates (PSNR min/mean, max abs, exact bytes) now computed over files with concealed==0 only — file-level exclusion, honestly documented: per-frame exclusion is impossible driver-side because the suites emit only per-file psnr_min/mean (registered follow-up: suite-emitted clean-only PSNR columns, folded into W1-04's existing suite-emission follow-up list). frames/errors/concealed/throughput stay whole-group. Also replaced the O(n·m) `next(...)` case-meta scan with dict lookups (D-2).
+- Demux attribution: two new table columns (`demux terminal` e.g. "eos:4 start-error:2", `demux rec`) + a NEW per-case ledger `corpus/_harness/mjpeg-verdicts.tsv` (rel, class, kind, res_name, decoded, errors, concealed, psnr_min/mean, demux_terminal, demux_recovered, demux_v_pkts, truth_v_packets, v_delta) — packet-count deltas now attributable per file: the 5 W1-01 concealing files all show v_delta=0/term=eos/rec=4 (ED-FIX-3 clamp confirmed oracle-matching), zero-mid-061 shows eos/rec=264/v_delta=-49 (W1-03's class-d bug), smash-head files show start-error.
+- --skip-suites enhancement (needed so a no-cargo validation can exercise the judgement): persisted suite-result TSVs, when present, are re-used — manifest-filtered (stale rels dropped + counted), mtime-printed, per-section "persisted results of the last full run — not a fresh measurement" banners, mode banner "persisted-results reuse", rc="reused". With no persisted TSVs the output is byte-identical to the previous behavior (verified on an empty scratch corpus: 4 empty-section markers, old mode banner, rc=skipped, 1 stale row dropped).
+- Validation (no cargo, no build lock, corpus/ untouched except regenerable _harness validation artifacts): `python3 -m py_compile` clean; `--skip-suites` run on corpus/ re-aggregated the persisted 13:33/13:34 rows — probe/PCM/decoded-fidelity sections reproduce the canonical 13:34 numbers EXACTLY (224/224, 66/66, 10/11, 409/684/1210 µs; PCM 41/65, 18/41, 23) proving reuse ≡ full-run aggregation; duration row reads **0.0 / 0.0 / 0.0 ms** (was −40.0/−16.7/−8.3); clean/dirty table splits correctly (tiny64odd clean 68.7 dB, qvga clean 66.3 dB — W1-01's BEFORE values restored; dirty rows carry their own concealed counts and never touch clean minima). Evidence report committed: docs/corpus/report-20261022-1513-skip-suites.md.
+
+Stage Summary:
+- Branch wip/w2-08-harness-split @ e38ea27 (1 commit, 2 files: tools/corpus/run_harness.py +446/−46 total with report; no push, no gate, no cargo).
+- Corrected measured numbers (persisted 2026-10-22 corpus, 85/85 supported clean): duration error 0.0/0.0/0.0 ms p50/p95/max (max residual 0.044 ms); clean-class PSNR minima restored (tiny64odd 8.7→68.7, qvga 21.8→66.3); dirty concealment isolated to dirty rows (5 files, concealed=1 each, v_delta=0 — oracle packet-match preserved).
+- Judge-side only: no engine/Rust change; W2-10's corpus-big measurement (running the pre-W2-08 harness) is unaffected — the Lead's post-merge full re-run will produce the canonical fresh numbers with these metrics.
+- Deviations/judgement calls: (a) concealed-frame exclusion is FILE-level (per-frame needs suite-emitted clean-only PSNR columns — registered follow-up); (b) --skip-suites semantics extended with clearly-labeled persisted-results reuse (task required the corrected rows be visible in a --skip-suites validation run; the no-masquerade invariant is kept via banners + rc="reused" + *-skip-suites filename); (c) frame period parsed from the file's own strh, not ffprobe — W1-03's literal prescription, apples-to-apples with the demuxer's PTS ladder.
+- Follow-ups: (1) Lead re-run of the full harness post-merge for fresh canonical numbers (audio 12/31 → expected 31/31 per W1-02/W1-03 will also land); (2) suite emission: clean-only PSNR columns in mjpeg-results.tsv (+ the W1-04 out_format/out_w/out_h and pcm out_desc/out_rate/out_ch follow-ups); (3) corpus/REPORT-skip-suites.md + _harness/{decoded-rows,mjpeg-verdicts,probe-cases,avi-cases}.tsv in the shared corpus dir were regenerated by the validation run (regenerable validation artifacts, same content as W1-04's 14:17 run + the new ledger).
+---
+Task ID: W2-09
+Agent: W2-09 (suite decoded rows)
+Task: W1-04's registered suite-emission follow-up — the codecs corpus suites append the decoded-output columns to their result TSV rows (mjpeg: `out_format`/`out_w`/`out_h`; pcm: `out_desc`/`out_rate`/`out_ch`) from REAL decode results, closing the "not-emitted (suite gap)" cells in the harness's decoded-rows ledger and fidelity report.
+
+Work Log:
+- Read AGENTS.md, docs/engineering-directives.md (D-5/D-11), tools/corpus/run_harness.py (TSV contract: env trio `LUMEN_CORPUS`/`LUMEN_CORPUS_CASES`/`LUMEN_CORPUS_RESULTS`; the driver's `lumen_video_cells`/`lumen_audio_cells` + fidelity section consume `out_*` keys unchanged, forward-compatible by W1-04's design), W1-04's worklog entry (registered spec (a)+(b); optional (c) demux strf dims NOT in this card's scope), and both suite implementations (crates/codecs/tests/corpus.rs, crates/demux/tests/corpus.rs — read only, demux suite untouched).
+- crates/codecs/tests/corpus.rs: mjpeg suite rows now end with `out_format`/`out_w`/`out_h` = FIRST successfully decoded frame's `DecodedFormat` snake_case (`i420`/`rgba8`, new `format_snake` helper) + dims, captured at the decode site; pcm rows end with `out_desc`/`out_rate`/`out_ch` = the `PcmFormat` descriptor actually constructed + the decoded `AudioFormat`'s rate/channels. Zero-decode cases (demux failure, unknown descriptor, empty payload) emit the explicit `-` marker — never a guess. Concealed frames count as decoded (real decoder output; the `concealed` column distinguishes them). PCM provenance documented in-code (D-5): decode config is harness-supplied case data; the cells record what the decode actually ran with, compared by the harness against ffprobe's independent stream facts.
+- Refactor: the row builders returned positional 11-/7-tuples; replaced with named-field `MjpegOutcome`/`PcmOutcome` structs (+ `failed(code)` constructors) so the now-15/11-column rows stay position-honest by construction. Dropped the now-unneeded `clippy::too_many_arguments`/`type_complexity` allows. cargo fmt clean; clippy -p codecs --all-targets clean.
+- AC runs (real shared corpus /home/z/my-project/corpus, release profile, harness-style invocations; results written to /tmp/w209/*.tsv — the shared _harness canonical TSVs and the missing refs were NOT touched; the Lead's merge-time full run stays the measurement of record). The _harness refs (mjpeg-*.raw/pcm-*.raw) were missing from the shared dir (only w102-pcm-* remain), so refs for my runs were regenerated with the harness's exact ffmpeg commands + frame caps into /tmp/w209/refs* (110.3 MB for the full pcm set, verified frame counts match the canonical case lists).
+- MEASURED, mjpeg (6-case bounded subset incl. 4K, 12.31s): `media/0000-avi-video.avi ... rgba8 720 576` / `media/0003-avi-av.avi ... i420 720 575` (PSNR-compared, 43 frames, max_abs=1) / `media/0179-avi-video.avi ... rgba8 3840 2160` / `dirty/truncate-000-0117... 29 dec, 1 concealed, rgba8 1280 720` / `dirty/smash-head-042... decoded=0, note=demux.avi.not-avi, out cells = - - -` (the honest marker, exercised for real).
+- MEASURED, pcm (FULL 65-case run, 0.43s): all 65 rows carry populated out cells (e.g. `media/0003-avi-av.avi ... pcm_s24le 11025 8`); mismatch=0 on every compared byte of all 65 files incl. all 8 dirty (zero-mid truncations record honest `len:xvsy` notes). NOTE: the canonical 13:34 pcm-results.tsv showed 20/65 compared>0 — the difference is the merged W1-03/W1-02 WAVE_FORMAT_EXTENSIBLE fix present in this branch: 65/65 audio tracks now demux and decode byte-exact. No pcm corpus case decodes zero samples on this tree, so no pcm row carries `-` (the mjpeg run exercises the identical rendering).
+- Contract verified end-to-end with the driver's verbatim read_tsv + cell logic over my result files, with live ffprobe as oracle: mjpeg 15 cols / pcm 11 cols; 0 gap cells; pcm sample-family+ch+rate MATCH on every checked row (s24le vs oracle s32 = same family per the harness's classifier); mjpeg dims MATCH everywhere, pix-family MISMATCH on rgba8 outputs vs oracle yuvj444p — the genuine divergence W1-04 predicted, now surfaced honestly instead of hidden.
+- Tests: cargo test -p codecs → 150 passed / 0 failed (lib 106, fuzz-survival suites, corpus 2 ignored-env-gated as designed, doctests); cargo test -p demux → 107 passed / 0 failed (read-only for this card). Committed 45758d0 on wip/w2-09-suite-rows (1 file, +204/-46). No push, no gate.
+
+Stage Summary:
+- Branch wip/w2-09-suite-rows @ 45758d0. The W1-04 suite gap is closed exactly as registered: both suites emit decoded-output columns from real decode results with an honest `-` marker for zero-decode cases; the harness needs zero changes to consume them (verified with its own code path).
+- Real numbers from my runs: pcm 65/65 decodes, 100% byte-exact vs ffmpeg (mismatch=0 across all compared bytes, incl. dirty); mjpeg dims 6/6 match oracle; pix-family divergences (rgba8 vs yuvj444p) now visible per-file — a true finding for the fidelity report, not a suite artifact.
+- Follow-ups for the Lead: (1) merge-time full harness run will populate decoded-rows.tsv + the fidelity section for real (W1-04's match-rate code needs no change); (2) the rgba8-vs-yuvj444p family mismatch population is worth a decoder-scope discussion (I420-only PSNR comparison leaves 4:4:4/gray files uncompared — compared_bytes=0 on those rows); (3) W1-04's optional (c) (demux suite strf dims) remains unclaimed; (4) _harness refs were absent from the shared corpus dir — whoever runs the next full harness pass will regenerate them (the driver does this automatically when absent).
+Task ID: W2-15
+Agent: W2-15 (adversarial verifier — W1-02 pcm fourcc / WAVE_FORMAT_EXTENSIBLE)
+Task: Adversarially verify the merged W1-02 PCM recognition work (main @ 264a689): PcmSample vocabulary, StreamFormat::Pcm reshape, 0xFFFE GUID resolution, typed refusals, float dwSampleSize ladder. Break it across the six briefed surfaces (GUID coverage, dwSampleSize ladder, s24le odd align, f64le stage consistency, garbage GUID tail, cbSize-vs-size lies) plus whatever else the code exposes. Read-only analysis + attack-test patches for the Lead; no repo source edits.
+
+Work Log:
+- Read AGENTS.md, docs/engineering-directives.md (D-3/D-5/D-9/D-11 binding), worklog.md W1-02/W1-03/W1-04 entries, and the merged code in full: crates/demux/src/avi/header.rs (836 ln), crates/demux/src/avi/mod.rs (movi walk + ladders), crates/demux/src/avi/index.rs (Ladders), crates/demux/src/avi/riff.rs (read primitives), crates/demux/src/avi/tests.rs (W1-02 test set), crates/demux/src/avi/fuzz.rs, crates/codecs/src/audio/pcm/{mod.rs,decoder.rs,fuzz.rs}, crates/codecs/tests/pcm_fuzz_survival.rs, crates/media-probe/src/signature/avi.rs.
+- Baseline suites on main @ 264a689 (shared CARGO_TARGET_DIR, single-crate runs per wave protocol): demux 73 lib + 13 adversarial_gaps + 11 fixtures_class_b + 6 fixtures_parent + 3 fuzz_loop_stable + 1 doctest = 107 pass, 0 fail (2 env-gated corpus ignored); codecs 106 lib + 9 contract + 9 fixtures_parent + 4 fuzz_loop_stable + 5 fuzz_survival + 7 pcm_fixtures + 8 pcm_fuzz_survival + 2 doctests = 150 pass, 0 fail (1 deep + 2 corpus ignored); media-probe 62 lib + 8 fixtures_matrix + 10 probe_io + 1 doctest = 81 pass, 0 fail. No foreign test names in any output → no target-dir contamination; no touch needed.
+- External oracle runs (D-5/D-11: ffprobe 7.1.5, hand-built deterministic AVIs from /tmp/w215/gen.py — 40/42-byte extensible strf variants, all facts self-consistent except the lied axis):
+  * cbSize=22 control → pcm_s16le (tag normalized [1][0][0][0]) — Lumen matches.
+  * cbSize=24 + 2 vendor tail bytes (42-byte strf) → **pcm_s16le, accepted**. Lumen demux accepts, Lumen codecs REFUSES (`pcm.waveformat.length`) → stage disagreement, codecs side contradicts the oracle.
+  * cbSize=0 and cbSize=2 with a physically complete 40-byte blob + valid GUID → **codec_name=unknown** (ffmpeg only trusts the SubFormat GUID when cbSize ≥ 22). Lumen accepts on both stages (cbSize never read) → permissive divergence, stage-consistent.
+  * wValidBitsPerSample=12 in a 16-bit container → pcm_s16le; 20-in-24 → pcm_s24le (Lumen matches both: container width wins). valid=32 > bits=16 (a lie) → **ffprobe upgrades to pcm_s32le**; Lumen keeps pcm_s16le → recorded divergence (Lumen's choice is the self-consistent one given nBlockAlign still says 2ch×2B).
+  * float GUID + 64-bit → pcm_f64le (Lumen matches); 3ch×24-bit (9-byte odd block align) → pcm_s24le, 3 channels, accepted (Lumen matches).
+- Code-reading verdicts (file:line evidence, every branch walked):
+  * header.rs:738-780 — the auds strf branch reads offsets 0..16 (tag/ch/rate/align/bits) and the GUID at payload 24..40; **cbSize (16..18) is never read on any stage**; wValidBitsPerSample (18..20) and the channel mask (20..24) are never read (documented as advisory at header.rs:43-46).
+  * header.rs:756-760 — 0xFFFE with strf_size < 40 → typed per-stream skip "extensible-strf-truncated"; 757 uses `strf_size >= 40` (physical size), not cbSize → a 42-byte strf (cbSize=24 + vendor tail) is ACCEPTED (GUID fixed at 24..40).
+  * decoder.rs:226 — codecs length gate `matches!(len, 16 | 18 | 40)` refuses the 42-byte blob the demuxer accepts, while decoder.rs:215-220 claims "the demuxer accepts the same blobs" → contract contradiction (MAJOR).
+  * decoder.rs:318 — `(u32::from(channels) * format.bytes_per_sample()) as u16` is a **truncating cast**: channels=32768×s16 wraps to 0 (align=0 passes), 16384×f32 and 8192×f64 wrap to 0, 65535×s16 wraps to 65534. parse_waveformatex has **no channel ceiling** (demux MAX_PCM_CHANNELS=64 at header.rs:349) → crafted extra_data configures absurd channel counts (MAJOR).
+  * decoder.rs:113 — PcmPlan::new `source.channels as usize * bytes_per_sample` is **unchecked**: with_format(u32::MAX, rate) is accepted (only zero refused, decoder.rs:425-438); 64-bit = bounded skip, wasm32 debug = overflow panic / release wrap (the project explicitly targets wasm32 — media-probe avi.rs:98-100 saturates for exactly this).
+  * codecs fuzz.rs:99-139 — fuzz_codec_pcm exercises ONLY decode_pcm + with_format; **parse_waveformatex/extra_data is never fuzzed**; pcm_fuzz_survival.rs waveformat_lie mutates only the 16-byte fixture strf → the W1-02 40-byte blob path has zero seeded-mutation coverage (MAJOR, D-5).
+  * media-probe avi.rs:184-194 — pcm_descriptor maps only plain tags 0x0001/0x0003; **no 0xFFFE resolution** → zero audio hints for every extensible stream the demuxer now accepts (W1-03 census: 45 of the current corpus draw's streams; ffmpeg's default for multi-channel PCM). Violates the probe's own stage-agreement rule (avi.rs:150-152, the mjpa precedent) (MAJOR).
+  * header.rs:799-811 + mod.rs:553-573 + index.rs:147-160 — dwSampleSize=0 → typed skip (existing test); nonzero lie → damage note + ladder per dwSampleSize; ladder saturating (i64::MAX clamp), duration overflow → typed "packet-duration-unrepresentable" → None. u32::MAX dwSampleSize freezes PTS at 0 (every chunk "pcm-chunk-not-sample-aligned"); dwSampleSize=1 inflates the ladder. No panic anywhere.
+  * header.rs:806-810 — block-align cross-check `channels.saturating_mul(bytes_per_sample)` handles 3ch×3B=9 (odd) correctly; decode_payload's frame prefix rule is width-agnostic; demux delivers the declared chunk size (WORD pad ignored) → s24le odd-channel is SOLID (oracle-confirmed).
+  * GUID compare is a full 16-byte equality on both stages (header.rs:767-776, decoder.rs:269-279) — near-miss and garbage GUIDs are typed skips with sibling survival (SOLID; μ-law pinned by W1-02, near-miss margin added by attack test A6).
+  * header.rs:761 — the GUID read at `strf_offset+8+24` is bounded only by the physical file: a strf whose declared size crosses its parent's clamped extent can have its GUID read from bytes past the strl/RIFF declared end (within the file) — recognition decided by out-of-container bytes; bounded, typed at EOF, no misdecode (facts come from the in-bounds 16-byte prefix; movi payloads are clamped separately) (MINOR).
+- Wrote three attack-test patch blocks (below): 6 demux tests appended to crates/demux/src/avi/tests.rs, a new 5-test codecs integration file crates/codecs/tests/pcm_extensible_attacks.rs, 1 probe test appended to crates/media-probe/src/signature/avi.rs tests. Deterministic (fixed SplitMix64 seeds / fixed tables), no corpus dependency, mirroring the two briefed style references. Three of them are EXPECTED TO FAIL on main @ 264a689 — the failure is the finding (B2, B3, C1); the rest pin current correct/extreme behavior.
+- Hygiene: no repo files modified (queue file only, the mandated output); oracle fixtures live in /tmp/w215/ (gen.py + 9 .avi, outside the repo); no worktree, no commits, no gate runs.
+
+Stage Summary:
+- **Verdict: W1-02's core recognition is SOLID — no CRITICAL holes.** Every path I could reach is panic-free, bounded, and typed; the corpus-measured recognition + byte-exact decodes are consistent with my branch-by-branch reading. But the verification found **4 MAJOR + 6 MINOR** issues in and around the feature's blast radius (table below). The MAJORs are: (1) codecs refuses the 42-byte vendor-tail extensible blob the demuxer accepts and ffprobe plays; (2) media-probe hints nothing for ANY 0xFFFE stream (the dominant real-world form) while the demuxer accepts them; (3) the codecs block-align cross-check truncates through `as u16` and has no channel ceiling — crafted extra_data bypasses it; (4) the W1-02 parse surface (extra_data extensible blobs) has zero adversarial-mutation coverage in fuzz/survival suites.
+- Surfaces examined: 15 (the 6 briefed, split into 12 sub-surfaces, + 3 found beyond the brief). Holes: 0 CRITICAL, 4 MAJOR, 6 MINOR. 5 surfaces SOLID (GUID vocabulary, garbage-GUID tail, dwSampleSize=0, s24le odd align, f64le plain-tag stage agreement).
+- Attack patches: PATCH 1 (demux, 6 tests), PATCH 2 (codecs, new file, 5 tests), PATCH 3 (media-probe, 1 test). Expected-to-fail on main: B2, B3, C1 (each names its MAJOR). Everything else should pass; run order: `cargo test -p demux avi::`, `cargo test -p codecs --test pcm_extensible_attacks`, `cargo test -p media-probe`.
+- Fix directions for the owning cards: (B2/a4) accept len ≥ 40 extensible blobs in parse_waveformatex (GUID fixed at 24..40) — oracle agrees; (C1/d2) probe-side GUID resolution mirroring header.rs:756-776; (B3/g1) checked (`try_into`) align math + channel ceiling in stage agreement with MAX_PCM_CHANNELS; (B1/g2) land the attack suite as the blob-path survival layer, optionally extend fuzz_codec_pcm with an extra_data configure pass; (B5/g3) `checked_mul` + typed ceiling in PcmPlan::new; (a5/f) Lead decision: bless the cbSize-ignoring permissive read (D-3) on both stages or gate on cbSize ≥ 22 for ffprobe parity — A1/B4 pin today's cross-stage agreement either way.
+- Artifacts: this file; /tmp/w215/{gen.py, ctl_cbsize22.avi, cbsize24_tail42.avi, cbsize0_guid40.avi, cbsize2_guid40.avi, validbits12.avi, valid20_in24.avi, valid32_in16.avi, float64.avi, s24_3ch_odd.avi} + the recorded ffprobe outputs above.
+
+---
+
+# Verdict table
+
+| # | Surface | Finding | Severity | Attack test |
+|---|---------|---------|----------|-------------|
+| a1 | GUID vocabulary (brief a) | Only KSDATAFORMAT_SUBTYPE_PCM / _IEEE_FLOAT accepted; full 16-byte compare; everything else typed per-stream skip, sibling survives | SOLID | A6 (near-miss margin) |
+| a2 | wValidBitsPerSample (brief a) | Never read on any stage; width = wBitsPerSample. Matches ffprobe for valid ≤ bits (12-in-16, 20-in-24 measured); **diverges on the lying valid > bits** (ffprobe upgrades to pcm_s32le, measured) | MINOR (documented at header.rs:43-46; divergence now recorded) | A3 |
+| a3 | channel mask (brief a) | Ignored; mask→layout is the recorded codec-side gap | MINOR (documented) | A3 |
+| a4 | cbSize > 22 / vendor tail (brief a) | 42-byte strf: demux accepts (header.rs:757 physical-size rule), codecs refuses (decoder.rs:226 length gate), ffprobe plays it (measured pcm_s16le) → stage disagreement contradicting decoder.rs:215-220's parity claim | **MAJOR** | A2 (demux pin, passes) + **B2 (FAILS)** |
+| a5 | cbSize < 22 with 40-byte blob (briefs a+f) | Both stages ignore cbSize → accepted; ffprobe refuses (measured unknown) — permissive divergence, but cross-stage consistent | MINOR (Lead decision owed) | A1 + B4 |
+| a6 | GUID read extent | GUID may be read past the strl/RIFF declared end (within the physical file) when the strf's own declared size crosses the parent clamp — recognition decided by out-of-container bytes; bounded, typed at EOF, no misdecode | MINOR | analysis (header.rs:761) |
+| b1 | dwSampleSize = 0 (brief b) | Typed skip "pcm-sample-size-zero" for int and float | SOLID (W1-02 test exists) | — |
+| b2 | lying dwSampleSize (brief b) | Nonzero lie → damage note + ladder per dwSampleSize; u32::MAX freezes PTS at 0 + per-chunk misalign notes; 1 inflates the ladder; ladder saturating; duration overflow typed → None. No panic | MINOR (extremes unpinned until A4) | A4 |
+| c | s24le 3-byte packing, odd channels (brief c) | 3ch×24b = 9-byte align correct on both stages; no power-of-two assumption; odd chunk payloads read by declared size; ffprobe-confirmed | SOLID | A5 |
+| d1 | f64le plain-tag consistency (brief d) | probe/demux/codecs all name pcm_f64le (media-probe avi.rs:191, header.rs:202, PcmFormat::F64Le) | SOLID (existing tests) | C1 covers the extensible-f64 cell |
+| d2 | probe × extensible (brief d) | media-probe maps only plain tags → **no audio hint for ANY 0xFFFE stream** the demuxer accepts (45/… corpus streams; the probe's own stage-agreement rule violated) | **MAJOR** | **C1 (FAILS)** |
+| e | garbage GUID tail (brief e) | Typed skip "unsupported-audio-format" / "pcm.waveformat.subformat"; near-miss single-bit GUIDs also typed | SOLID | A6 |
+| f | 40-byte + cbSize < 22 (brief f) | Structure-vs-size contradiction resolves by physical size on both stages; typed either way; ffprobe disagrees (see a5) | MINOR | A1 + B4 |
+| g1 | beyond brief: codecs align-check truncation | `(channels × bps) as u16` wraps ≥ 65536 → channels=32768/s16 with align=0 configures (also 16384/f32, 8192/f64, 65535/s16); no channel ceiling at the codec seam (demux: 64) | **MAJOR** | **B3 (FAILS)** |
+| g2 | beyond brief: blob-path fuzz coverage | fuzz_codec_pcm + pcm_fuzz_survival never mutate an extensible extra_data blob — W1-02's parse surface has zero adversarial-mutation coverage | **MAJOR** (D-5) | B1 |
+| g3 | beyond brief: PcmPlan frame math | Unchecked `channels as usize × bps` (decoder.rs:113); with_format(u32::MAX) accepted → bounded skip on 64-bit, overflow panic (debug) / wrap (release) on wasm32 | MINOR (64-bit) / 32-bit hazard | B5 |
+
+CRITICAL: **0** — nothing panics, misdecodes, or runs unbounded on any input I could construct or reason to (saturating ladders, checked_div, typed truncations, bounded reads; B1/B5 turn this into mechanical evidence at wave close).
+
+---
+
+# PATCH 1 — demux attack tests (APPEND to `crates/demux/src/avi/tests.rs`)
+
+Context: appended at end of file, inside the existing flat `tests` module; reuses the
+file's own helpers (`build`, `video_stream`, `Stream::Audio`, `strf_pcm`, `strf_wave`,
+`strf_extensible`, `GUID_PCM`, `GUID_IEEE_FLOAT`, `audio_case`, `start_and_inspect`,
+`demuxer_over`, `drain_packets`, `MoviChunk`). All six PASS on main @ 264a689.
+
+```rust
+// ---------------------------------------------------------------------------
+// W2-15 adversarial attacks on the W1-02 PCM recognition surfaces
+// (extensible cbSize lies, vendor tails, valid-bits/mask advisory fields,
+// extreme dwSampleSize ladders, s24le odd block align, near-miss GUIDs).
+// Deterministic, corpus-free; oracle facts measured with ffprobe 7.1.5 on
+// hand-built siblings of these exact shapes (see worklog-queue/W2-15.md).
+// ---------------------------------------------------------------------------
+
+#[test]
+fn extensible_cbsize_lies_resolve_by_physical_size_not_declaration() {
+    // W2-15 surface (f)/(a5): a 40-byte strf whose wFormatTag says
+    // WAVEFORMATEXTENSIBLE but whose cbSize denies it (0, 2 — "structure
+    // says extensible, size says no"; 21/23 are the ±1 margins of the
+    // legal 22; 0xFFFF is the absurd lie). The parser never reads cbSize:
+    // the GUID at the fixed offset 24..40 decides, so a physically
+    // complete blob is accepted no matter what cbSize declares.
+    // MEASURED ORACLE DIVERGENCE (ffprobe 7.1.5): ffmpeg only trusts the
+    // SubFormat GUID when cbSize >= 22 and reports `unknown` for cbSize=0
+    // and cbSize=2. Lumen is deliberately more permissive (D-3: the bytes
+    // are all there, the stream facts are self-consistent). This test
+    // PINS the permissive choice on the demux side; the codecs side pins
+    // the same (see pcm_extensible_attacks.rs). Flipping to oracle parity
+    // is a two-crate Lead decision — flip both tests together, never
+    // silently.
+    for cbsize in [0u16, 2, 21, 23, 0xFFFF] {
+        let mut strf = strf_extensible(GUID_PCM, 2, 8_000, 16, 16, 0x3);
+        strf[16..18].copy_from_slice(&cbsize.to_le_bytes());
+        let (stream, payload) = audio_case(strf, 8_000, 4);
+        let built = build(
+            &[stream],
+            &[(b"00wb", payload.as_slice()), (b"00wb", payload.as_slice())],
+            false,
+        );
+        let (tracks, format, reasons, packets) = start_and_inspect(built);
+        assert_eq!(
+            tracks.len(),
+            1,
+            "cbSize {cbsize}: the blob is physically complete"
+        );
+        assert_eq!(tracks[0].codec.as_str(), "pcm_s16le", "cbSize {cbsize}");
+        assert_eq!(
+            format,
+            Some(header::StreamFormat::Pcm {
+                channels: 2,
+                samples_per_sec: 8_000,
+                sample: header::PcmSample::S16Le,
+                block_align: 4,
+            }),
+            "cbSize {cbsize}"
+        );
+        assert!(
+            reasons.is_empty(),
+            "cbSize {cbsize}: the cbSize lie is not damage today (it is unread)"
+        );
+        assert_eq!(packets.len(), 2, "cbSize {cbsize}");
+    }
+}
+
+#[test]
+fn extensible_vendor_tail_beyond_cbsize22_is_accepted_with_guid_at_24() {
+    // W2-15 surface (a4), demux half: cbSize = 24 with two vendor bytes
+    // after the GUID (42-byte strf) — legal WAVEFORMATEXTENSIBLE per the
+    // MS schema (cbSize counts the whole extension; trailing bytes are
+    // vendor space). The GUID stays at the fixed offset 24..40, so the
+    // demuxer accepts. MEASURED ORACLE (ffprobe 7.1.5): pcm_f32le —
+    // accepted and played. The codecs side REFUSES this same blob
+    // (parse_waveformatex length gate 16|18|40 → pcm.waveformat.length),
+    // a stage disagreement pinned by the companion attack test
+    // (pcm_extensible_attacks.rs, MAJOR — see worklog-queue/W2-15.md).
+    let mut strf = strf_extensible(GUID_IEEE_FLOAT, 1, 11_025, 32, 32, 0x4);
+    strf.extend_from_slice(&[0xDE, 0xAD]); // vendor tail → 42 bytes
+    let (stream, payload) = audio_case(strf, 11_025, 4);
+    let built = build(
+        &[stream],
+        &[(b"00wb", payload.as_slice()), (b"00wb", payload.as_slice())],
+        false,
+    );
+    let (tracks, format, reasons, packets) = start_and_inspect(built);
+    assert_eq!(tracks.len(), 1, "the 42-byte vendor-tail form is real media");
+    assert_eq!(tracks[0].codec.as_str(), "pcm_f32le");
+    assert_eq!(
+        format,
+        Some(header::StreamFormat::Pcm {
+            channels: 1,
+            samples_per_sec: 11_025,
+            sample: header::PcmSample::F32Le,
+            block_align: 4,
+        })
+    );
+    assert!(reasons.is_empty(), "no damage: the GUID is where it always is");
+    assert_eq!(packets.len(), 2);
+}
+
+#[test]
+fn extensible_valid_bits_and_channel_mask_stay_advisory() {
+    // W2-15 surface (a2)/(a3): wValidBitsPerSample and dwChannelMask are
+    // never read — the width truth is wBitsPerSample, the layout truth is
+    // nChannels. Cases: valid < bits (12 in 16), a LYING valid > bits
+    // (32 in 16), the classic 20-valid-in-24-container, and mask = 0.
+    // MEASURED ORACLE (ffprobe 7.1.5): 12-in-16 → pcm_s16le and 20-in-24
+    // → pcm_s24le (Lumen matches); the lying 32-in-16 → ffprobe upgrades
+    // to pcm_s32le while Lumen keeps the container width (recorded
+    // divergence — Lumen's choice is self-consistent with the
+    // nBlockAlign the same header declares).
+    for (bits, valid, mask, sample, descriptor) in [
+        (16u16, 12u16, 0x3u32, header::PcmSample::S16Le, "pcm_s16le"),
+        (16, 32, 0x3, header::PcmSample::S16Le, "pcm_s16le"),
+        (24, 20, 0x3f, header::PcmSample::S24Le, "pcm_s24le"),
+        (16, 16, 0, header::PcmSample::S16Le, "pcm_s16le"),
+    ] {
+        let bytes_per_sample = bits / 8;
+        let strf = strf_extensible(GUID_PCM, 2, 8_000, bits, valid, mask);
+        let (stream, payload) = audio_case(strf, 8_000, u32::from(2 * bytes_per_sample));
+        let built = build(
+            &[stream],
+            &[(b"00wb", payload.as_slice()), (b"00wb", payload.as_slice())],
+            false,
+        );
+        let (tracks, format, reasons, packets) = start_and_inspect(built);
+        assert_eq!(tracks.len(), 1, "valid {valid} in {bits}");
+        assert_eq!(tracks[0].codec.as_str(), descriptor, "valid {valid} in {bits}");
+        assert_eq!(
+            format,
+            Some(header::StreamFormat::Pcm {
+                channels: 2,
+                samples_per_sec: 8_000,
+                sample,
+                block_align: 2 * bytes_per_sample,
+            }),
+            "valid {valid} in {bits}: the container width is the truth"
+        );
+        assert!(reasons.is_empty(), "valid {valid} in {bits}: advisory fields are not damage");
+        assert_eq!(packets.len(), 2, "valid {valid} in {bits}");
+    }
+}
+
+#[test]
+fn extreme_dw_sample_size_lies_stay_typed_bounded_and_observable() {
+    // W2-15 surface (b): dwSampleSize is the PTS ladder, and a nonzero lie
+    // is a damage note, not a skip (the existing test pins the mild 5-vs-4
+    // lie). The extremes must stay typed, bounded and observable — never a
+    // panic, never a silent ladder.
+    //
+    // Sub-case 1: dwSampleSize = 0xFFFFFFFF — every realistic chunk floors
+    // to 0 whole sample-frames: the PTS ladder FREEZES at 0, every chunk
+    // is counted misaligned, and the header lie is damage-noted once.
+    let stream = Stream::Audio {
+        scale: 1,
+        rate: 8_000,
+        length: 4,
+        ssize: 0xFFFF_FFFF,
+        strf: strf_pcm(2, 8_000, 4, 16),
+    };
+    let built = build(
+        &[stream],
+        &[(b"00wb", &[0u8; 8]), (b"00wb", &[0u8; 8])],
+        false,
+    );
+    let (tracks, _format, reasons, packets) = start_and_inspect(built);
+    assert_eq!(tracks.len(), 1, "the stream survives the ladder lie");
+    assert_eq!(packets.len(), 2, "the payloads still deliver");
+    assert!(
+        reasons.contains(&"sample-size-disagrees-with-block-align"),
+        "the header lie is observable: {reasons:?}"
+    );
+    assert_eq!(
+        reasons
+            .iter()
+            .filter(|reason| **reason == "pcm-chunk-not-sample-aligned")
+            .count(),
+        2,
+        "every chunk is counted misaligned against the absurd ladder"
+    );
+    let pts: Vec<i64> = packets
+        .iter()
+        .map(|p| match &p.pts {
+            media_types::Stamp::Present(ts) => ts.ticks,
+            media_types::Stamp::Missing => unreachable!("ladder stamps by construction"),
+        })
+        .collect();
+    assert_eq!(pts, vec![0, 0], "0xFFFFFFFF: the ladder freezes at 0");
+    for packet in &packets {
+        assert!(
+            matches!(
+                &packet.duration,
+                Some(media_types::time::Duration::Known(_))
+            ),
+            "0-tick durations stay present-and-typed, not fabricated"
+        );
+    }
+
+    // Sub-case 2: dwSampleSize = 1 — the byte ladder inflates the timeline
+    // (8 payload bytes = 8 "sample-frames" on the 1/8000 base), silently
+    // aligned (payload % 1 == 0): only the header note marks the lie.
+    let stream = Stream::Audio {
+        scale: 1,
+        rate: 8_000,
+        length: 4,
+        ssize: 1,
+        strf: strf_pcm(2, 8_000, 4, 16),
+    };
+    let built = build(
+        &[stream],
+        &[(b"00wb", &[0u8; 8]), (b"00wb", &[0u8; 8])],
+        false,
+    );
+    let (tracks, _format, reasons, packets) = start_and_inspect(built);
+    assert_eq!(tracks.len(), 1);
+    assert_eq!(packets.len(), 2);
+    assert!(reasons.contains(&"sample-size-disagrees-with-block-align"));
+    assert_eq!(
+        reasons
+            .iter()
+            .filter(|reason| **reason == "pcm-chunk-not-sample-aligned")
+            .count(),
+        0,
+        "dwSampleSize=1 divides every payload exactly"
+    );
+    let pts: Vec<i64> = packets
+        .iter()
+        .map(|p| match &p.pts {
+            media_types::Stamp::Present(ts) => ts.ticks,
+            media_types::Stamp::Missing => unreachable!("ladder stamps by construction"),
+        })
+        .collect();
+    assert_eq!(pts, vec![0, 8], "dwSampleSize=1: the byte ladder inflates 4x");
+}
+
+#[test]
+fn s24le_three_channel_odd_block_align_end_to_end() {
+    // W2-15 surface (c): 3 channels x 24-bit = 9-byte sample frames — an
+    // ODD nBlockAlign with no power-of-two help anywhere. Both the demux
+    // cross-check (channels x bytes_per_sample) and the codec frame math
+    // must handle it; odd-length chunk payloads ride the RIFF WORD pad (a
+    // 9-byte chunk is 10 on disk; the declared size stays 9).
+    // MEASURED ORACLE (ffprobe 7.1.5): pcm_s24le, 3 channels — match.
+    let (stream, _payload) = audio_case(strf_extensible(GUID_PCM, 3, 8_000, 24, 24, 0x7), 8_000, 9);
+    let built = build(
+        &[stream],
+        &[
+            (b"00wb", &[0x11u8; 36]), // 4 whole 9-byte frames
+            (b"00wb", &[0x22u8; 9]),  // 1 frame; odd payload, WORD-padded on disk
+            (b"00wb", &[0x33u8; 10]), // 1 frame + 1 stray byte -> damage note
+        ],
+        false,
+    );
+    let (tracks, format, reasons, packets) = start_and_inspect(built);
+    assert_eq!(tracks.len(), 1);
+    assert_eq!(tracks[0].codec.as_str(), "pcm_s24le");
+    assert_eq!(
+        format,
+        Some(header::StreamFormat::Pcm {
+            channels: 3,
+            samples_per_sec: 8_000,
+            sample: header::PcmSample::S24Le,
+            block_align: 9,
+        }),
+        "the odd 9-byte block align is the honest geometry"
+    );
+    assert_eq!(packets.len(), 3);
+    assert_eq!(packets[0].data.len(), 36);
+    assert_eq!(packets[1].data.len(), 9, "the declared size, not the WORD pad");
+    assert_eq!(packets[2].data.len(), 10);
+    assert!(
+        !reasons.contains(&"block-align-disagrees-with-format"),
+        "3 x 3 bytes is exactly the declared align"
+    );
+    assert_eq!(
+        reasons
+            .iter()
+            .filter(|reason| **reason == "pcm-chunk-not-sample-aligned")
+            .count(),
+        1,
+        "the 10-byte chunk carries 1 stray byte"
+    );
+    let pts: Vec<i64> = packets
+        .iter()
+        .map(|p| match &p.pts {
+            media_types::Stamp::Present(ts) => ts.ticks,
+            media_types::Stamp::Missing => unreachable!("ladder stamps by construction"),
+        })
+        .collect();
+    assert_eq!(pts, vec![0, 4, 5], "the 9-byte ladder: 4, +1, +1 frames");
+}
+
+#[test]
+fn near_miss_subformat_guids_refuse_typed_siblings_survive() {
+    // W2-15 surface (e): the GUID comparison is all 16 bytes — pin the
+    // adversarial MARGIN around the two accepted GUIDs (single-byte and
+    // byte-value near-misses, the in-between PCM/float tag byte, plus the
+    // degenerate all-zero and all-FF blobs). Every one is the typed
+    // per-stream skip with the video sibling intact.
+    let mut variants: Vec<[u8; 16]> = Vec::new();
+    for (base, byte, value) in [
+        (GUID_PCM, 15usize, 0x72u8),      // 0x71 -> 0x72 (last byte)
+        (GUID_PCM, 0, 0x02),              // the PCM<->float tag byte
+        (GUID_IEEE_FLOAT, 11, 0xAB),      // ...00AA -> ...00AB
+        (GUID_IEEE_FLOAT, 6, 0x00),       // 0x10 -> 0x00 (the KSDATAFORMAT byte)
+    ] {
+        let mut guid = base;
+        guid[byte] = value;
+        variants.push(guid);
+    }
+    variants.push([0u8; 16]);
+    variants.push([0xFFu8; 16]);
+    for guid in variants {
+        let built = build(
+            &[
+                video_stream(),
+                Stream::Audio {
+                    scale: 1,
+                    rate: 8_000,
+                    length: 4,
+                    ssize: 4,
+                    strf: strf_extensible(guid, 2, 8_000, 16, 16, 0x3),
+                },
+            ],
+            &[(b"00dc", &b"frame"[..]), (b"01wb", &b"abcd"[..])],
+            false,
+        );
+        let mut avi = demuxer_over(built.bytes);
+        let tracks = match avi.start() {
+            Ok(tracks) => tracks,
+            Err(err) => unreachable!("containment: {err}"),
+        };
+        assert_eq!(tracks.len(), 1, "the video sibling survives {guid:02x?}");
+        match avi.next_event() {
+            Ok(DemuxEvent::Recovered { skipped, reason }) => {
+                assert_eq!(reason, "unsupported-audio-format");
+                assert_eq!(skipped, 0);
+            }
+            other => unreachable!("damage first for {guid:02x?}, got {other:?}"),
+        }
+        let packets = drain_packets(&mut avi);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(packets[0].track.handle(), 0);
+    }
+}
+```
+
+---
+
+# PATCH 2 — codecs attack tests (NEW FILE `crates/codecs/tests/pcm_extensible_attacks.rs`)
+
+Style: mirrors `crates/codecs/tests/pcm_fuzz_survival.rs` (seeded SplitMix64, no
+`unwrap` on decoder output, `unreachable!` only on impossible-by-contract branches,
+typed-error taxonomy asserts). Deterministic, corpus-free, no `common` dependency.
+Expected on main @ 264a689: B1, B4, B5 PASS; **B2 and B3 FAIL (the findings)**.
+
+```rust
+//! W2-15 adversarial attack suite for the W1-02 PCM stream-facts
+//! surfaces: the `extra_data` WAVEFORMATEX/WAVEFORMATEXTENSIBLE parse
+//! (`PcmDecoder::configure` → `parse_waveformatex`) and the channel
+//! extremes of the `with_format` seam.
+//!
+//! # What runs here
+//!
+//! 1. **Seeded blob mutations** — the 40-byte extensible form ffmpeg
+//!    writes, mutated across every field (tag, channels, rate, align,
+//!    bits, cbSize, valid bits, channel mask, GUID bytes) plus bit
+//!    flips, truncations and splices, through the public configure
+//!    path. Every failure must be a typed `Unsupported` from the
+//!    documented `pcm.waveformat.*` taxonomy; every acceptance must
+//!    then decode a payload with exact concealment accounting against
+//!    the blob's own facts. This is the adversarial-mutation layer the
+//!    W1-02 surface had none of (`fuzz_codec_pcm` exercises only
+//!    `decode_pcm`/`with_format`; the survival suite's `waveformat_lie`
+//!    mutates only the 16-byte fixture strf).
+//! 2. **Vendor-tail and wrap attacks** — the 42-byte blob the DEMUXER
+//!    accepts (and ffprobe plays) must configure here too (stage
+//!    agreement, decoder.rs's own "the demuxer accepts the same blobs"
+//!    contract); the block-align cross-check must not truncate through
+//!    `as u16` for huge channel counts.
+//! 3. **Channel extremes at the `with_format` seam** — `PcmPlan`'s
+//!    frame math under `u32::MAX` channels: bounded skip on 64-bit,
+//!    and a recorded wasm32 overflow hazard.
+//!
+//! Tests B2 and B3 are EXPECTED TO FAIL until the MAJOR findings in
+//! worklog-queue/W2-15.md are fixed; their failure text names the
+//! finding. Per D-5 they are never weakened to pass — the code moves.
+
+use codec_api::prelude::*;
+use codecs::audio::pcm::{PcmDecoder, PcmFormat, PcmSource, decode_pcm};
+use media_types::frame::AudioFrame;
+use media_types::time::{Duration, Nanoseconds};
+use media_types::{PipelineStage, Stamp, TrackId};
+
+/// `KSDATAFORMAT_SUBTYPE_PCM` — `{00000001-0000-0010-8000-00AA00389B71}`.
+const GUID_PCM: [u8; 16] = [
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71,
+];
+/// `KSDATAFORMAT_SUBTYPE_IEEE_FLOAT` — `{00000003-0000-0010-8000-00AA00389B71}`.
+const GUID_IEEE_FLOAT: [u8; 16] = [
+    0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71,
+];
+
+/// The typed codes a lying WAVEFORMATEX blob can produce (the
+/// `parse_waveformatex` taxonomy — every code is `Unsupported` at stage
+/// `Decode`).
+const WAVEFORMAT_CODES: [&str; 8] = [
+    "pcm.waveformat.length",
+    "pcm.waveformat.channels",
+    "pcm.waveformat.rate",
+    "pcm.waveformat.tag",
+    "pcm.waveformat.bits",
+    "pcm.waveformat.block_align",
+    "pcm.waveformat.extensible",
+    "pcm.waveformat.subformat",
+];
+
+/// The seeded PRNG (SplitMix64, public-domain reference generator — the
+/// pcm_fuzz_survival precedent; fixed seeds make every mutant exactly
+/// reproducible).
+struct SplitMix64(u64);
+
+impl SplitMix64 {
+    fn new(seed: u64) -> SplitMix64 {
+        SplitMix64(seed)
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = self.0;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    }
+
+    /// A value in `0..bound` (`bound > 0`).
+    fn below(&mut self, bound: usize) -> usize {
+        (self.next_u64() % bound as u64) as usize
+    }
+
+    /// One random byte.
+    fn byte(&mut self) -> u8 {
+        self.next_u64() as u8
+    }
+}
+
+/// The canonical 40-byte WAVEFORMATEXTENSIBLE (ffmpeg's AVI muxer
+/// shape): 18-byte WAVEFORMATEX + cbSize + valid bits + channel mask +
+/// SubFormat GUID.
+fn ext_blob(
+    guid: [u8; 16],
+    channels: u16,
+    rate: u32,
+    bits: u16,
+    valid: u16,
+    mask: u32,
+    cbsize: u16,
+) -> Vec<u8> {
+    let block_align = channels * (bits / 8);
+    let mut v = Vec::with_capacity(40);
+    v.extend_from_slice(&0xFFFEu16.to_le_bytes());
+    v.extend_from_slice(&channels.to_le_bytes());
+    v.extend_from_slice(&rate.to_le_bytes());
+    v.extend_from_slice(&(u32::from(block_align) * rate).to_le_bytes());
+    v.extend_from_slice(&block_align.to_le_bytes());
+    v.extend_from_slice(&bits.to_le_bytes());
+    v.extend_from_slice(&cbsize.to_le_bytes());
+    v.extend_from_slice(&valid.to_le_bytes());
+    v.extend_from_slice(&mask.to_le_bytes());
+    v.extend_from_slice(&guid);
+    v
+}
+
+/// A plain 16-byte PCMWAVEFORMAT with explicit tag/align (the wrap
+/// attack's carrier).
+fn plain_blob(tag: u16, channels: u16, rate: u32, block_align: u16, bits: u16) -> Vec<u8> {
+    let mut v = Vec::with_capacity(16);
+    v.extend_from_slice(&tag.to_le_bytes());
+    v.extend_from_slice(&channels.to_le_bytes());
+    v.extend_from_slice(&rate.to_le_bytes());
+    v.extend_from_slice(&(u32::from(block_align) * rate).to_le_bytes());
+    v.extend_from_slice(&block_align.to_le_bytes());
+    v.extend_from_slice(&bits.to_le_bytes());
+    v
+}
+
+fn next_generation() -> GenerationId {
+    GenerationId::FIRST
+        .next()
+        .unwrap_or_else(|e| unreachable!("generation: {e}"))
+}
+
+/// Configure a fresh decoder with `blob` as `extra_data` — the public
+/// surface the engine adapter will hand the container's verbatim `strf`.
+fn configure(
+    descriptor: &str,
+    blob: Vec<u8>,
+) -> Result<(PcmDecoder, GenerationId), EngineError> {
+    let descriptor = match CodecDescriptor::new(descriptor) {
+        Ok(d) => d,
+        Err(e) => unreachable!("in-vocabulary descriptor: {e}"),
+    };
+    let generation = next_generation();
+    let mut decoder = PcmDecoder::new();
+    decoder.configure(&DecoderConfig::new(
+        descriptor,
+        generation,
+        ThreadBudget::default(),
+        None,
+        Some(SharedBytes::from_vec(blob)),
+    ))?;
+    Ok((decoder, generation))
+}
+
+fn packet(bytes: Vec<u8>, generation: GenerationId) -> Packet {
+    Packet {
+        track: TrackId::new(1),
+        pts: Stamp::Missing,
+        dts: Stamp::Missing,
+        duration: None,
+        data: SharedBytes::from_vec(bytes),
+        keyframe: true,
+        discontinuity: false,
+        generation,
+    }
+}
+
+#[derive(Default)]
+struct CaptureSink {
+    frames: Vec<AudioFrame>,
+}
+
+impl FrameSink for CaptureSink {
+    fn accept(&mut self, frame: Frame) -> Result<(), EngineError> {
+        let Frame::Audio(audio) = frame else {
+            unreachable!("the PCM decoder emits audio frames only: {frame:?}");
+        };
+        self.frames.push(audio);
+        Ok(())
+    }
+}
+
+/// The presentation duration of `instants` sample-frames at `rate` —
+/// the decoder's documented formula, recomputed independently (floor
+/// division; saturating, like the decoder).
+fn duration_nanos(instants: u64, rate: u32) -> u64 {
+    instants
+        .saturating_mul(1_000_000_000)
+        .checked_div(u64::from(rate))
+        .unwrap_or(u64::MAX)
+}
+
+/// Lie pools for the field-targeted mutation class.
+const CBSIZE_POOL: [u16; 7] = [0, 2, 21, 22, 23, 24, 0xFFFF];
+const CHANNEL_POOL: [u16; 10] = [0, 1, 2, 3, 5, 8, 64, 65, 32768, 65535];
+const COHERENT_CHANNEL_POOL: [u16; 5] = [1, 2, 3, 5, 8];
+const BITS_POOL: [u16; 8] = [0, 8, 12, 16, 20, 24, 32, 64];
+const TAG_POOL: [u16; 5] = [1, 3, 0xFFFE, 0x0011, 0x0055];
+
+/// One seeded mutation of the canonical blob: a mutation class drawn
+/// from the PRNG, applied to a fresh copy. Classes 0-2 are structural
+/// (flips / truncation / splice — the splice can grow the blob past 40,
+/// pinning the length gate's 41..=48 margin); classes 3-10 target one
+/// field each; class 7 is a COHERENT channel change (align recomputed)
+/// so the accepted-lie accounting sees varied geometries.
+fn mutate(base: &[u8], rng: &mut SplitMix64) -> Vec<u8> {
+    let mut out = base.to_vec();
+    match rng.below(11) {
+        0 => {
+            let flips = 1 + rng.below(8);
+            for _ in 0..flips {
+                let at = rng.below(out.len());
+                out[at] ^= 1 << rng.below(8);
+            }
+        }
+        1 => {
+            let cut = rng.below(base.len() + 1);
+            out.truncate(cut);
+        }
+        2 => {
+            let at = rng.below(out.len() + 1);
+            let span = 1 + rng.below(8);
+            let mut spliced = Vec::with_capacity(out.len() + span);
+            spliced.extend_from_slice(&out[..at]);
+            for _ in 0..span {
+                spliced.push(rng.byte());
+            }
+            spliced.extend_from_slice(&out[at..]);
+            return spliced;
+        }
+        3 => {
+            let value = CBSIZE_POOL[rng.below(CBSIZE_POOL.len())];
+            out[16..18].copy_from_slice(&value.to_le_bytes());
+        }
+        4 => {
+            let value = rng.below(0x1000) as u16; // valid bits (incl. 0)
+            out[18..20].copy_from_slice(&value.to_le_bytes());
+        }
+        5 => {
+            let value = rng.next_u64() as u32; // channel mask
+            out[20..24].copy_from_slice(&value.to_le_bytes());
+        }
+        6 => {
+            let at = rng.below(16); // one GUID byte, one bit
+            out[24 + at] ^= 1 << rng.below(8);
+        }
+        7 => {
+            // Coherent channel change: align and avg follow, so this
+            // mutant must configure (the accepted-lie generator).
+            let channels = COHERENT_CHANNEL_POOL[rng.below(COHERENT_CHANNEL_POOL.len())];
+            let bits = u16::from_le_bytes([out[14], out[15]]);
+            let rate = u32::from_le_bytes([out[4], out[5], out[6], out[7]]);
+            let align = channels * (bits / 8);
+            out[2..4].copy_from_slice(&channels.to_le_bytes());
+            out[8..12].copy_from_slice(&(u32::from(align) * rate).to_le_bytes());
+            out[12..14].copy_from_slice(&align.to_le_bytes());
+        }
+        8 => {
+            let value = CHANNEL_POOL[rng.below(CHANNEL_POOL.len())]; // stale align
+            out[2..4].copy_from_slice(&value.to_le_bytes());
+        }
+        9 => {
+            let value = BITS_POOL[rng.below(BITS_POOL.len())];
+            out[14..16].copy_from_slice(&value.to_le_bytes());
+        }
+        _ => {
+            let value = TAG_POOL[rng.below(TAG_POOL.len())];
+            out[0..2].copy_from_slice(&value.to_le_bytes());
+        }
+    }
+    out
+}
+
+/// Assert one accepted configuration decodes the fixed payload with
+/// exact concealment accounting against the blob's own facts.
+fn assert_accounted(decoder: &mut PcmDecoder, generation: GenerationId, blob: &[u8], bps: usize) {
+    let channels = u16::from_le_bytes([blob[2], blob[3]]) as usize;
+    let rate = u32::from_le_bytes([blob[4], blob[5], blob[6], blob[7]]);
+    let payload: Vec<u8> = (0..30u8).map(|i| 0x40 + i).collect();
+    let frame_bytes = channels * bps;
+    let instants = payload.len() / frame_bytes;
+    let tail = payload.len() % frame_bytes;
+    let mut sink = CaptureSink::default();
+    let outcome = match decoder.decode(packet(payload, generation), &mut sink) {
+        Ok(outcome) => outcome,
+        Err(err) => unreachable!("a configured decoder never errors on payload damage: {err}"),
+    };
+    let expected = if instants == 0 {
+        DecodeOutcome::Recovered {
+            skipped: 1,
+            reason: RecoverReason::CorruptInput,
+        }
+    } else if tail > 0 {
+        DecodeOutcome::Recovered {
+            skipped: 0,
+            reason: RecoverReason::ConcealedFrame,
+        }
+    } else {
+        DecodeOutcome::Emitted { frames: 1 }
+    };
+    assert_eq!(outcome, expected, "concealment accounting vs the blob's facts");
+    if instants == 0 {
+        assert!(sink.frames.is_empty(), "silence is never fabricated");
+    } else {
+        assert_eq!(sink.frames.len(), 1);
+        let frame = &sink.frames[0];
+        assert_eq!(frame.samples.len(), instants * frame_bytes);
+        assert_eq!(frame.format.channels as usize, channels);
+        assert_eq!(frame.format.rate, rate);
+        assert_eq!(
+            frame.duration,
+            Some(Duration::Known(Nanoseconds(duration_nanos(
+                instants as u64,
+                rate
+            )))),
+            "duration derives from decoded instants at the blob's rate"
+        );
+    }
+}
+
+/// Assert an `EngineError` from the configure path is a typed PCM
+/// failure: stage `Decode`, `Unsupported` kind, a stable code from the
+/// documented taxonomy.
+fn assert_typed(err: &EngineError, context: &str) {
+    assert_eq!(err.stage, PipelineStage::Decode, "{context}: {err}");
+    assert!(
+        matches!(err.kind, ErrorKind::Unsupported { .. }),
+        "{context}: a configuration lie is Unsupported, never Corrupt: {err}"
+    );
+    assert!(
+        WAVEFORMAT_CODES.contains(&err.context.code.as_str()),
+        "{context}: unexpected code `{}` (allowed {:?}): {err}",
+        err.context.code,
+        WAVEFORMAT_CODES
+    );
+}
+
+// ---- B1: the seeded blob-mutation survival + taxonomy layer ----------------
+
+#[test]
+fn seeded_extensible_blob_mutations_are_typed_or_honestly_decoded() {
+    // W2-15 MAJOR coverage gap: the 40-byte extensible parse surface
+    // had zero adversarial-mutation coverage (fuzz_codec_pcm never
+    // passes extra_data; the survival suite's waveformat_lie mutates
+    // only the 16-byte fixture strf). 512 seeded mutants across every
+    // field and three structural classes: every failure typed, every
+    // acceptance honestly accounted against the blob's own facts.
+    const SEED: u64 = 0x5732_3135_4558_5455; // "W215EXTU"
+    let mut rng = SplitMix64::new(SEED);
+    let mut typed = 0usize;
+    let mut accepted = 0usize;
+
+    // Structural guarantees first: the two canonical blobs configure,
+    // and the empty blob is a typed length refusal (so both counters
+    // are provably populated regardless of the RNG split).
+    for (descriptor, blob, bps) in [
+        (
+            "pcm_s24le",
+            ext_blob(GUID_PCM, 2, 48_000, 24, 24, 0x3, 22),
+            3usize,
+        ),
+        (
+            "pcm_f32le",
+            ext_blob(GUID_IEEE_FLOAT, 1, 44_100, 32, 32, 0x4, 22),
+            4usize,
+        ),
+    ] {
+        let (mut decoder, generation) = match configure(descriptor, blob.clone()) {
+            Ok(pair) => pair,
+            Err(err) => unreachable!("the canonical blob configures: {err}"),
+        };
+        accepted += 1;
+        assert_accounted(&mut decoder, generation, &blob, bps);
+    }
+    match configure("pcm_s24le", Vec::new()) {
+        Ok(_) => unreachable!("the empty blob is a typed length refusal"),
+        Err(err) => {
+            typed += 1;
+            assert_typed(&err, "empty blob");
+        }
+    }
+
+    for index in 0..512usize {
+        let float = index % 2 == 0;
+        let (descriptor, canonical, bps) = if float {
+            (
+                "pcm_f32le",
+                ext_blob(GUID_IEEE_FLOAT, 1, 44_100, 32, 32, 0x4, 22),
+                4usize,
+            )
+        } else {
+            (
+                "pcm_s24le",
+                ext_blob(GUID_PCM, 2, 48_000, 24, 24, 0x3, 22),
+                3usize,
+            )
+        };
+        let mutant = mutate(&canonical, &mut rng);
+        match configure(descriptor, mutant.clone()) {
+            Err(err) => {
+                typed += 1;
+                assert_typed(&err, "mutant");
+            }
+            Ok((mut decoder, generation)) => {
+                accepted += 1;
+                assert_accounted(&mut decoder, generation, &mutant, bps);
+            }
+        }
+    }
+    assert_eq!(typed + accepted, 2 + 1 + 512, "every mutant classified exactly once");
+    assert!(accepted >= 3, "the canonical + coherent-class accepts");
+    assert!(typed >= 1, "the empty-blob refusal");
+}
+
+// ---- B2: the 42-byte vendor-tail stage disagreement ------------------------
+
+#[test]
+fn forty_two_byte_vendor_tail_extensible_configures_like_the_demuxer() {
+    // W2-15 MAJOR (stage disagreement): cbSize = 24 with two vendor
+    // bytes after the GUID is a legal WAVEFORMATEXTENSIBLE (42-byte
+    // strf). The DEMUXER accepts it (GUID fixed at 24..40; strf_size >=
+    // 40), and ffprobe 7.1.5 plays it as pcm_s16le (measured on the
+    // hand-built sibling of this exact blob). This seam's length gate
+    // `matches!(len, 16 | 18 | 40)` refuses the same bytes with
+    // pcm.waveformat.length — contradicting the decoder module's own
+    // contract ("the demuxer accepts the same blobs — the engine may
+    // hand either crate's view the container's verbatim strf").
+    // EXPECTED TO FAIL on main @ 264a689; the failure IS the finding.
+    // Fix direction: accept every length >= 40 that carries the GUID
+    // (keep 16 | 18 for the plain forms).
+    let mut blob = ext_blob(GUID_PCM, 2, 8_000, 16, 16, 0x3, 24);
+    blob.extend_from_slice(&[0xDE, 0xAD]); // vendor tail -> 42 bytes
+    let (mut decoder, generation) = match configure("pcm_s16le", blob) {
+        Ok(pair) => pair,
+        Err(err) => unreachable!(
+            "the 42-byte vendor-tail form is legal media (demux accepts, \
+             ffprobe decodes pcm_s16le): {err}"
+        ),
+    };
+    // And it must decode on the blob's own facts: 8 bytes = 1 stereo
+    // s16 sample-frame.
+    let mut sink = CaptureSink::default();
+    let outcome = match decoder.decode(packet(vec![0x11; 8], generation), &mut sink) {
+        Ok(outcome) => outcome,
+        Err(err) => unreachable!("{err}"),
+    };
+    assert_eq!(outcome, DecodeOutcome::Emitted { frames: 1 });
+    assert_eq!(sink.frames.len(), 1);
+    assert_eq!(sink.frames[0].samples.len(), 8);
+    assert_eq!(sink.frames[0].format.channels, 2);
+}
+
+// ---- B3: the block-align u16 truncation attack ------------------------------
+
+#[test]
+fn block_align_cross_check_must_not_wrap_u16() {
+    // W2-15 MAJOR (validation bypass): parse_waveformatex computes the
+    // expected nBlockAlign as `(u32::from(channels) * bps) as u16` — a
+    // TRUNCATING cast. For channels x bps >= 65536 the true product
+    // wraps: channels=32768/s16 wraps to 0 (so a blob declaring
+    // nBlockAlign = 0 passes its own "consistency" check), 65535/s16
+    // wraps to 65534, 16384/f32 and 8192/f64 wrap to 0. The demuxer
+    // refuses channels > 64 (MAX_PCM_CHANNELS) before ever reaching the
+    // GUID; this seam must not be bypassable by the same untrusted
+    // bytes it exists to cross-check (D-3: anticipate overflow values).
+    // EXPECTED TO FAIL on main @ 264a689; the failure IS the finding.
+    // Fix direction: checked math (`u16::try_from(product)` -> typed
+    // block_align refusal) plus a channel ceiling in stage agreement
+    // with the demuxer's.
+    for (channels, align, bits, tag, descriptor) in [
+        (32768u16, 0u16, 16u16, 1u16, "pcm_s16le"),  // 65536 -> wraps to 0
+        (65535, 65534, 16, 1, "pcm_s16le"),          // 131070 -> wraps to 65534
+        (16384, 0, 32, 3, "pcm_f32le"),              // 65536 -> wraps to 0
+        (8192, 0, 64, 3, "pcm_f64le"),               // 65536 -> wraps to 0
+    ] {
+        let blob = plain_blob(tag, channels, 8_000, align, bits);
+        let err = match configure(descriptor, blob) {
+            Ok(_) => unreachable!(
+                "channels {channels} x width must not configure: the align \
+                 cross-check wrapped (declared align {align})"
+            ),
+            Err(err) => err,
+        };
+        assert_eq!(err.stage, PipelineStage::Decode, "channels {channels}");
+        assert!(
+            matches!(err.kind, ErrorKind::Unsupported { .. }),
+            "channels {channels}: {err}"
+        );
+    }
+
+    // Adjacent observation — the ceiling disagreement: the demuxer caps
+    // nChannels at 64 (damage-counted skip); this seam accepts 65 with
+    // an honest align today. Whether the codec seam grows the same
+    // ceiling is a Lead decision (stage agreement); both outcomes below
+    // are valid, the decode must account honestly either way.
+    let blob = plain_blob(1, 65, 8_000, 130, 16);
+    match configure("pcm_s16le", blob) {
+        Ok((mut decoder, generation)) => {
+            // 130 bytes = exactly 1 whole 65x2-byte sample-frame.
+            let mut sink = CaptureSink::default();
+            let outcome = match decoder.decode(packet(vec![0x55; 130], generation), &mut sink) {
+                Ok(outcome) => outcome,
+                Err(err) => unreachable!("{err}"),
+            };
+            assert_eq!(outcome, DecodeOutcome::Emitted { frames: 1 });
+            assert_eq!(sink.frames[0].samples.len(), 130);
+            assert_eq!(sink.frames[0].format.channels, 65);
+        }
+        Err(err) => assert_typed(&err, "65-channel ceiling decision"),
+    }
+}
+
+// ---- B4: the cbSize=0 pin (stage-consistent, oracle-divergent) -------------
+
+#[test]
+fn cbsize_zero_with_a_complete_guid_is_stage_consistent_today() {
+    // W2-15 surfaces (a5)/(f), codecs half: this seam ALSO ignores
+    // cbSize (only the physical length gates), so the 40-byte cbSize=0
+    // blob configures exactly like the cbSize=22 one — the two stages
+    // agree with each other and both disagree with ffprobe 7.1.5
+    // (which reports `unknown`: ffmpeg only trusts the GUID when
+    // cbSize >= 22). This pins the current cross-stage agreement;
+    // flipping it is a two-crate Lead decision (flip the demux-side
+    // companion `extensible_cbsize_lies_resolve_by_physical_size_not_
+    // declaration` together with this one).
+    for cbsize in [0u16, 2, 21, 23, 0xFFFF] {
+        let blob = ext_blob(GUID_PCM, 2, 8_000, 16, 16, 0x3, cbsize);
+        let (mut decoder, generation) = match configure("pcm_s16le", blob.clone()) {
+            Ok(pair) => pair,
+            Err(err) => unreachable!("cbSize {cbsize} is unread today: {err}"),
+        };
+        assert_accounted(&mut decoder, generation, &blob, 2);
+    }
+}
+
+// ---- B5: channel extremes at the with_format seam ---------------------------
+
+#[test]
+fn with_format_channel_extremes_never_panic_and_skip_honestly() {
+    // W2-15 (g3): PcmPlan::new computes frame_bytes with an UNCHECKED
+    // `channels as usize * bytes_per_sample` — the with_format seam
+    // rejects only zero, so u32::MAX channels is accepted. On 64-bit
+    // the product is huge-but-finite: every sane packet decodes to 0
+    // whole sample-frames and skips whole (bounded, observable). On a
+    // 32-bit target (wasm32 — an explicit project target; see
+    // media-probe's own saturation comments) the same multiply
+    // overflows: debug builds panic, release builds wrap. This pins
+    // the 64-bit behavior and files the 32-bit hazard; fix direction:
+    // checked_mul + a typed channel ceiling at both seams.
+    for channels in [u32::MAX, 0x8000_0000, 0x2000_0000] {
+        let mut decoder = match PcmDecoder::with_format(channels, 8_000) {
+            Ok(decoder) => decoder,
+            Err(err) => unreachable!("only zero is refused today: {err}"),
+        };
+        let descriptor = match CodecDescriptor::new("pcm_s16le") {
+            Ok(d) => d,
+            Err(err) => unreachable!("{err}"),
+        };
+        let generation = next_generation();
+        decoder
+            .configure(&DecoderConfig::new(
+                descriptor,
+                generation,
+                ThreadBudget::default(),
+                None,
+                None,
+            ))
+            .unwrap_or_else(|err| unreachable!("coherent facts configure: {err}"));
+        let outcome = match decoder.decode(packet(vec![0x11; 4], generation), &mut CaptureSink::default()) {
+            Ok(outcome) => outcome,
+            Err(err) => unreachable!("{err}"),
+        };
+        assert_eq!(
+            outcome,
+            DecodeOutcome::Recovered {
+                skipped: 1,
+                reason: RecoverReason::CorruptInput,
+            },
+            "channels {channels}: no sane packet carries a whole sample-frame"
+        );
+        assert_eq!(
+            decoder.flush(&mut CaptureSink::default()).ok(),
+            Some(DecodeOutcome::Drained),
+            "channels {channels}: the decoder stays usable"
+        );
+    }
+
+    // The free surface shares the plan math — same pin, plus the exact
+    // concealment accounting for a sub-frame payload.
+    let decoded = match decode_pcm(
+        &[0xAB; 5],
+        PcmSource {
+            sample: PcmFormat::S16Le,
+            planar: false,
+            channels: u32::MAX,
+        },
+        8_000,
+    ) {
+        Ok(decoded) => decoded,
+        Err(err) => unreachable!("{err}"),
+    };
+    assert_eq!(decoded.samples.len(), 0, "no whole sample-frame exists");
+    assert_eq!(decoded.dropped_tail_bytes, 5, "the whole payload is the tail");
+}
+```
+
+---
+
+# PATCH 3 — media-probe attack test (APPEND inside `mod tests` in `crates/media-probe/src/signature/avi.rs`)
+
+Context: appended at the end of the existing `mod tests` (after
+`pcm_width_table_names_like_the_demuxer`'s group); reuses the module's own helpers
+(`chunk`, `list`, `strh`, `probe`, `hint_kinds`). **EXPECTED TO FAIL on main @
+264a689 — the failure is the MAJOR finding (d2).**
+
+```rust
+    // ------------------------------------------------------------------
+    // W2-15 adversarial attack: WAVEFORMATEXTENSIBLE stage agreement.
+    // ------------------------------------------------------------------
+
+    const W215_GUID_PCM: [u8; 16] = [
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38,
+        0x9b, 0x71,
+    ];
+    const W215_GUID_IEEE_FLOAT: [u8; 16] = [
+        0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38,
+        0x9b, 0x71,
+    ];
+
+    /// The 40-byte WAVEFORMATEXTENSIBLE `strf` payload (ffmpeg's AVI
+    /// muxer default for multi-channel PCM — the dominant real-world
+    /// form: 45 streams in the current randomized-corpus draw, per the
+    /// W1-03 census).
+    fn w215_strf_extensible_payload(
+        guid: [u8; 16],
+        channels: u16,
+        rate: u32,
+        bits: u16,
+    ) -> Vec<u8> {
+        let mut payload = Vec::with_capacity(40);
+        payload.extend_from_slice(&0xFFFEu16.to_le_bytes());
+        payload.extend_from_slice(&channels.to_le_bytes());
+        payload.extend_from_slice(&rate.to_le_bytes());
+        payload.extend_from_slice(&(rate * u32::from(channels) * u32::from(bits / 8)).to_le_bytes());
+        payload.extend_from_slice(&(channels * (bits / 8)).to_le_bytes());
+        payload.extend_from_slice(&bits.to_le_bytes());
+        payload.extend_from_slice(&22u16.to_le_bytes()); // cbSize
+        payload.extend_from_slice(&bits.to_le_bytes()); // valid bits
+        payload.extend_from_slice(&0x3u32.to_le_bytes()); // channel mask
+        payload.extend_from_slice(&guid);
+        payload
+    }
+
+    /// A minimal one-audio-stream AVI header prefix carrying the given
+    /// `strf` payload.
+    fn w215_audio_header_with_strf(payload: &[u8]) -> Vec<u8> {
+        let mut strl = Vec::new();
+        strl.extend(strh(b"auds", b"\0\0\0\0"));
+        let mut strf_chunk = Vec::new();
+        chunk(&mut strf_chunk, b"strf", payload);
+        strl.extend(strf_chunk);
+        let mut hdrl = Vec::new();
+        chunk(&mut hdrl, b"avih", &[0u8; 56]);
+        list(&mut hdrl, b"strl", &strl);
+        let mut file = Vec::new();
+        file.extend_from_slice(b"RIFF");
+        file.extend_from_slice(&0u32.to_le_bytes());
+        file.extend_from_slice(b"AVI ");
+        list(&mut file, b"hdrl", &hdrl);
+        let riff_size = (file.len() - 8) as u32;
+        file[4..8].copy_from_slice(&riff_size.to_le_bytes());
+        file
+    }
+
+    #[test]
+    fn extensible_strf_hints_the_pcm_family_like_the_demuxer() {
+        // W2-15 MAJOR (stage disagreement): since W1-02 the AVI DEMUXER
+        // resolves WAVEFORMATEXTENSIBLE SubFormat GUIDs (0xFFFE +
+        // KSDATAFORMAT_SUBTYPE_PCM/_IEEE_FLOAT -> the plain pcm_*
+        // vocabulary, header.rs:756-780); this signature still maps only
+        // plain tags 0x0001/0x0003, so the dominant real-world form
+        // (every multi-channel PCM file ffmpeg muxes) probes with NO
+        // audio hint while the demuxer accepts the stream. That violates
+        // the probe's own stage-agreement rule ("named exactly as the
+        // demuxer names them" — the mjpa precedent above).
+        // EXPECTED TO FAIL on main @ 264a689; the failure IS the
+        // finding. Fix: resolve the GUID the same way the demuxer does
+        // (strf payload >= 40 bytes -> GUID at offset 24) and feed the
+        // resolved tag through pcm_descriptor.
+        for (guid, channels, bits, name) in [
+            (W215_GUID_PCM, 8u16, 24u16, "pcm_s24le"),
+            (W215_GUID_PCM, 2, 16, "pcm_s16le"),
+            (W215_GUID_IEEE_FLOAT, 2, 32, "pcm_f32le"),
+            (W215_GUID_IEEE_FLOAT, 2, 64, "pcm_f64le"),
+        ] {
+            let file = w215_audio_header_with_strf(&w215_strf_extensible_payload(
+                guid, channels, 48_000, bits,
+            ));
+            let hit = match probe(&file) {
+                Some(hit) => hit,
+                None => unreachable!("the AVI magic anchors"),
+            };
+            assert_eq!(
+                hint_kinds(&hit),
+                vec![(MediaKind::Audio, name)],
+                "extensible {bits}-bit: the hint must name what the demuxer accepts"
+            );
+            assert_eq!(hit.score, 95, "a hinted track is the top rung");
+        }
+    }
+```
+
+---
+
+# Lead run sheet (wave close)
+
+1. `export CARGO_TARGET_DIR=/home/z/my-project/target` (wave protocol; if outputs reference code absent from main, touch the crate src and re-run — no contamination observed in this verification's runs).
+2. `cargo test -p demux avi::` — PATCH 1's six tests must pass.
+3. `cargo test -p codecs --test pcm_extensible_attacks` — B1, B4, B5 must pass; **B2, B3 expected to fail (MAJOR findings a4, g1)**.
+4. `cargo test -p media-probe` — **C1 (`extensible_strf_hints_the_pcm_family_like_the_demuxer`) expected to fail (MAJOR finding d2)**.
+5. Triage per the fix directions in the Stage Summary; per D-5 the expected-fail tests are fixed forward, never weakened.
+
+## Unfinished
+Nothing unfinished. [VERIFY]-free: every ffmpeg/ffprobe claim above was measured live (ffprobe 7.1.5, fixtures + exact outputs recorded in the Work Log); every code claim carries file:line evidence from main @ 264a689. The three expected-fail tests were hand-verified against the code paths they attack but could not be executed from the clean checkout (no repo edits allowed) — that is the Lead's apply-and-run step by design.
+Task ID: W2-17
+Agent: W2-17 (adversarial verification — W1-11 graceful exit + W1-12 fuzz scaffold + W1-13 pcm_fuzz_survival + W1-14 oracle pins; read-only on main @ 264a689)
+Task: BREAK the four merged Wave-1 deliverables: attack the 8-pump teardown under refused close / mid-seek / Opening / machine-mode divergence / exit-code honesty; attack the seed-loops' claimed paths, vacuity, runtime caps, determinism; attack pcm_fuzz_survival's accounting vs the W1-02 extensible paths, the stride skips, citation truth; attack the oracle pins' tamper resistance, stale-census exposure, provenance. Attack tests + patches below; Lead applies at close.
+
+Work Log:
+- Read AGENTS.md, docs/engineering-directives.md (D-3/D-4/D-5/D-10/D-11), apps/cli/src/{run.rs,exit.rs,dispatch.rs,host.rs}, crates/playback-engine/src/{state.rs,session.rs}, crates/codecs/src/audio/pcm/{fuzz.rs,decoder.rs}, crates/codecs/src/video/mjpeg/{fuzz.rs,decoder.rs}, crates/demux/src/avi/{fuzz.rs,mod.rs,header.rs,index.rs}, crates/{codecs,demux}/tests/fuzz_loop_stable.rs, crates/codecs/tests/pcm_fuzz_survival.rs, scripts/oracle_check.sh, both .oracle.sha256 sidecars, tests/integration/first-vertical/tests/baselines_consistency.rs, fuzz/{Cargo.toml,fuzz_targets/*}, W1-11..14 worklog entries.
+- Ran (read-only, shared CARGO_TARGET_DIR, contamination protocol — see INFRA): session_script 15/15; pcm_fuzz_survival 8/8 + deep run (16,863 mutants, ledgers exact); fuzz_loop_stable codecs 4+2ignored / demux 3+1ignored with stats; baselines_consistency 2/2; oracle_check.sh 4/4 PASS rc=0 (twice).
+- Drove the real binary through quit-from-{Ended,Playing,Paused,Error-attempt} states and the machine-mode malformed-request attack (transcripts below).
+- Tamper-attacked oracle_check.sh in a /tmp sandbox (repo untouched): missing-row, CRLF, duplicate, wrong-hash, uppercase, whitespace variants — exit codes recorded.
+- INFRA (contamination, CAUGHT + CURED, 3rd occurrence of the known shared-target hazard): `cargo test -p lumen-cli --test session_script` first ran 14/15 — the spawned `target/debug/lumen` was a FOREIGN build (md5 c9b3de85…; transcript showed `TimingSeekCompleted` + in-pipeline `Paused → Paused` seek, which exists on main ONLY in worktrees/w1-06's UNCOMMITTED WIP apps/cli/src/host.rs — grep-verified absent from main's host.rs). Purged all lumen-cli artifacts (bin + deps/liblumen_cli-* + 27 fingerprint dirs), rebuilt from main (rlib md5 changed 563b0c42→a30e3470 — the RLIB was foreign too; first-vertical failed to compile against it: "missing queue_flushed/queue_published/scheduler_dropped_stale", fields that exist nowhere on main). After cure: session_script 15/15, baselines_consistency 2/2. Evidence trail: binary md5s + compile error quoted in this log. Recommendation unchanged from W1-12/W1-13 filings and now escalated: the shared CARGO_TARGET_DIR across live worktrees produced a FALSE test failure on main's own suite — per-worktree target dirs (or Lead-owned purge-before-gate) before the Wave-2 close gate.
+
+Stage Summary — verdict table (per target):
+
+| Target | Verdict | Holes found (severity) |
+|---|---|---|
+| W1-11 graceful exit | PASS with holes | machine-mode malformed-request exit abandons a live teardown-able session (MAJOR, empirically confirmed, registered as W1-11 follow-up (2) but unfixed); one-shot teardown never re-drives after a transient-state refusal — mid-seek/rebuffer quit leaks a now-stoppable session (MAJOR design, patch below); REPL-side Buffering-refusal unpinned (machine-mode-only pin) (MINOR); quit-during-Opening unpinned but table-correct (MINOR) |
+| W1-12 fuzz scaffold | PASS with holes | ~40% of MJPEG inputs die at the SOI early guard (measured 599/1000 deep); ~17% of AVI inputs lack container magic (827/1000); PCM has 0% input-vacuity but config-novelty is bytes[0..2]-derived (MINOR, documented+floored honestly); full-loop Stats determinism unpinned (only gen_input is) (MINOR); worst-case MJPEG per-input ≈ 38 MB transient + O(8.4M px) ×2 passes — a pathological all-max-dims stream could pass 10 s in debug, committed seeds cannot (MINOR, document) |
+| W1-13 pcm_fuzz_survival | PASS with holes | accepted-extensible (40-byte WAVEFORMATEXTENSIBLE) lies have ZERO accounting coverage — W1-02's merged GUID-resolution path is pinned only for REFUSAL; `pcm.waveformat.subformat` missing from WAVEFORMAT_CODES (latent, currently unreachable) (MAJOR coverage gap, patch below); stride 32 skips ~96.9% of MSB positions and ~96.6% of prefix lengths for the harness's stress configs (accounting surfaces stay exhaustive) (MINOR, documented); deep-run worklog numbers stale vs main (9,612/6,546 emitted/concealed recorded; main measures 9,490/6,668 — W1-02 geometry shift, assertions still exact) (MINOR doc) |
+| W1-14 oracle pins | PASS with holes | sidecar row-set completeness NOT enforced: deleting the audio row from a 2-stream fixture's sidecar PASSES (empirically confirmed rc=0) (MAJOR, patch below); pin perimeter hard-codes {.avi,.mp4} in BOTH the script's find and baselines' family map — a future .mkv/.mov fixture is silently unpinned by both artifacts (MAJOR forward gap, patch below); both-sides census drift (JSON 502 ↔ dump 502 edited together) passes — inherent to pin-vs-dump, no third-side digest exists (accepted, documented in the test's own header; [PROPOSAL] below); version drift is informational NOTE only — by design, hash rows are the verdict |
+
+Detailed findings + evidence:
+
+W1-11 (graceful exit):
+1. (a) 8-pump bound + refused close: graceful_exit (run.rs:408-428) is bounded by construction — ≤2 teardown_steps × AWAIT_PUMPS(64) + conditional 8-pump tail; poll() applies commands before pipeline ticks (session.rs:845-869), so a refused close answers on pump 1. NO hang, NO spew. Session leaks undrained (no stop, no close, engine state left in Buffering) with one typed stderr line — PINNED as intended by machine_mode_eof_refusal_is_bounded_and_honest (session_script.rs:309-320, asserts exit 0 + "[session.not-ready]" + "stop-or-close from Buffering" + "card 3.C1").
+2. (b) quit during seek: the REPL is single-threaded and seek runs inside lumen_dispatch (host.rs:751+ stop→close→reopen composition) before the next line is read, so "in-flight at quit" reduces to the settle-bound expiring in Buffering → same refusal+leak as (a). A seek terminal CANNOT arrive after the exit decision: nothing pumps after graceful_exit returns (the 8-pump tail is Idle no-ops; the close-await pumps stop at the receipt). Machine-mode seek from Buffering refuses earlier still (host.rs:798-804). Clean, bounded, leaky — same hole as (a).
+3. (c) quit during Opening: Close IS a table row from Opening (state.rs:376-382, →Idle + BumpPipeline + DestroySession) — clean teardown if ever reachable. Today unreachable via the binary: open_session itself pumps until not-Opening (host.rs:705) and v0's open step is synchronous inside one poll. Unpinned by test (MINOR).
+4. (d) machine-mode EOF SHARES graceful_exit (run.rs:310) — same teardown, trail on the NDJSON stream under --json. DIVERGENCE (empirically confirmed): a malformed NDJSON line mid-session returns exit 64 WITHOUT any teardown — live Paused session abandoned, no Stopped/Idle trail (transcript: open(startPaused) → paused, then "not json" → `error: [control.invalid-argument] expected ident…`, rc=64, stream ends at "to":"paused"). The serde-serialization-failure path (run.rs:340-342, exit 70) has the same defect. The REPL's parse-error path is safe (continues).
+5. (e) exit-code honesty: teardown failure exiting 0 is PINNED AS INTENDED, not an accident — machine_mode_eof_refusal_is_bounded_and_honest asserts code==0 with the refusal on stderr; W1-11's worklog deviation (3) records the rationale ("quit is a user action; refusal reported on stderr"). Consequence: a script cannot detect a leaky teardown from the exit code — stderr is the only signal (MINOR design note, [PROPOSAL] a `--strict-teardown` flag or exit 69-on-refusal is a Lead decision).
+
+W1-12 (fuzz loops):
+1. (a) traced one iteration per target: PCM — fuzz_codec_pcm (pcm/fuzz.rs:99-139) runs BOTH surfaces under 3-4 configs on EVERY input (configurations() is unconditional; pcm_deep≡true is honest) — no trivial early guard exists. MJPEG — decode_image on every input, but the marker walk needs SOI; non-SOI inputs (mode-0 random, PCM-chunk seeds, RIFF-prefix seeds) die at parse's first-marker check: measured 599/1000 deep (floor n/4=250). AVI — start() gate; measured 827/1000 keep magic (floor n/3); the deep proxy is magic-presence only ("a landed start() is not guaranteed past this prefix" — the file's own honest caveat).
+2. (b) vacuity at defaults: PCM 0% vacuous inputs (2000/2000 deep) — but the derived config depends only on data[0..2], so config-spread novelty is near-constant across flip mutants. MJPEG ≈40% vacuous (early SOI reject; seeds are exact frame extractions ending at EOI, so post-EOI padding flips are ~nil). AVI ≈15-20% effectively trivial (no magic, or sub-header truncations failing start()). All floors and printed stats keep this honest — no false coverage claims found.
+3. (c) caps/runtime: NO recursion anywhere (AVI movi walk is an iterative loop with an explicit `ends` stack, mod.rs:416-433; hdrl parse iterative, header.rs:457-494; MJPEG scan conceals-and-STOPS at first entropy damage, decoder.rs:357-370, then bulk gray_blocks). Budgets: AVI 512 KiB cap + FUZZ_EVENT_BUDGET=200k + MAX_CHUNK_PAYLOAD=32 MiB + MAX_IDX1_ENTRIES=524,288; PCM O(8×n), n≤8 KiB. MJPEG worst legal input: SOF may declare up to 8,388,608 px (MAX_PIXELS, decoder.rs:74) from a 16 KiB buffer → ~25 MB planes + 12.6 MB I420 output ×2 harness passes ≈ tens of ms debug per input; 1000 all-pathological inputs could exceed 10 s — the committed seeds cannot (measured 1.44-1.55 s; reproduced).
+4. (d) determinism: Rng is a per-loop local (no shared/global state; tests in one binary are independent); same-seed runs reproduced byte-identical counts across MY two runs AND vs W1-12's recorded numbers (pcm 2000/6,672,464/2000/1361; mjpeg 599 deep/726 lengths; avi 827 deep/743 lengths) — cross-machine determinism proven. Gap: only gen_input determinism is pinned in-suite, not full-loop Stats equality (patch below). Manifest validated: cargo metadata resolves lumen-fuzz with the 3 registered bins; overflow-checks=true present.
+
+W1-13 (pcm_fuzz_survival):
+1. (a) accounting honesty: the per-mutant assertions are exact and recomputed from the injected damage (free_surface: dropped_tail==len%frame_bytes, prefix-only output; contract_surface: exact DecodeOutcome classification + duration from instants at the CONFIGURED rate). Accepted 16/18-byte WAVEFORMATEX lies are safe: configure validates tag/bits/block_align against the s16 descriptor, so channels×2/rate accounting against the blob is sound. Deep run on main: 16,863 mutants, 0 panics, ledgers exact — the W1-02 geometry shift moved 122 mutants emitted→concealed vs W1-13's recorded numbers but every assertion held (self-consistent honesty). HOLE: the W1-02-merged ACCEPTED-extensible path (40-byte WAVEFORMATEXTENSIBLE, GUID-resolved format — decoder.rs:261-282, unit-tested in decoder.rs:708-767 for s24/f32 decode but NOT for concealment accounting) has zero coverage in this suite: the mutation classes never build a 40-byte blob (extension branch maxes at 16+8=24), and the Lead's 997bade only re-pinned the bare-0xFFFE REFUSAL code. Also `pcm.waveformat.subformat` (decoder.rs:275) is missing from WAVEFORMAT_CODES — unreachable today, latent tomorrow (patch below). Content-vs-structure: the suite verifies lengths/outcomes, not sample VALUES (a byte-order/planar-reordering bug passes) — inherent to its stated claim, value fidelity is the corpus/oracle suites' job (noted, not a defect).
+2. (b) stride skips quantified (HARNESS_STRIDE=32, pcm_fuzz_survival.rs:111): prefix sweep 0..=5880 — harness covers cut≡0 (mod 32) OR boundary (cut<8 or cut>len-8) ≈ 199 of 5,881 lengths (3.4%); ~5,682 prefix lengths never reach the harness's stress configs (S24Be-planar-3ch frame_bytes=9, F32Be-1ch frame_bytes=4 — different sub-frame boundaries than the true config's 4). MSB-flip sweep: ~184 of 5,880 offsets (3.1%) harness-covered; ~5,696 positions untested through the harness. The two ACCOUNTING surfaces run on every mutant (exhaustive) and are the load-bearing assertions; the stride is documented at the constant. Honest, MINOR.
+3. (c) citations: re-grep confirms exactly two referencing files — crates/codecs/src/audio/pcm/fuzz.rs:24 and fuzz/fuzz_targets/fuzz_codec_pcm.rs:14 — both name the repo-root path and describe the suite's real shape (verified claim-by-claim against the file). No phantom references remain. TRUE.
+
+W1-14 (oracle pins):
+1. (a) tamper matrix (empirical, /tmp sandbox): CRLF sidecar → FAIL (rc=1; \r lands in `extra`/label — caught) ✓; duplicate rows → FAIL ✓; trailing junk → FAIL ✓; uppercase hex → FAIL ✓; valid-format WRONG hash (simulating a length-preserving decoded-output change) → FAIL ✓ — the hash is over the FULL streamed decode (sha256sum on the pipe; pipefail propagates ffmpeg failure; a second pass counts bytes; zero-byte decodes FAIL). Trailing/leading whitespace → tolerated (benign — row parses identically). HOLE: row-set completeness — a 2-stream fixture's sidecar with the audio row DELETED passes (rc=0, "1 stream(s) PASS"): the vacuous-pin guard only requires ≥1 row. Partial re-pin or row-dropping tamper is silent (patch below). ffmpeg rc=0 + stderr warning: warnings go to the errsink, decode is hashed and compared — a decode-changing warning FAILs on hash, a cosmetic one passes. Correct.
+2. (b) baselines_consistency stale census: the census row asserts JSON 502 == JSON 502 (terse==verbose) == dump non-comment line count (verified 502 on disk). If JSON counts AND dump lines are edited together, nothing catches it — INHERENT to pin-vs-dump; there is no third side (no digest of the raw dumps recorded anywhere in the JSON; the only sha256 is the VLC source-tarball sidecar, an external anchor for the SOURCE, not the dumps). The test's own header is honest about this ("the rows test agreement, not a frozen constant"). Single-sided drift fails loudly (W1-14 negative-verified; structure verified by reading). Severity: accepted limitation — a both-sides tamper requires repo write access, at which point any test is editable (AGENTS §3.5 + git history are the real backstops). [PROPOSAL]: record sha256 of raw/linux/04+05 inside the JSON as a third side, so a consistent tamper needs three coordinated edits.
+3. (c) provenance: sidecar headers record the full ffmpeg version line, exact commands, stream geometry, cross-container digest equality (verified: avi and mp4 pin identical digests, both PASS live). Version check is DOCUMENTATION ONLY — the script prints a NOTE when the running ffmpeg differs (grep -qF, oracle_check.sh:143-149); the hash rows are the verdict. Reproducibility on another ffmpeg version: a decode-affecting version change FAILS loudly (with the NOTE explaining possible drift) and re-pinning is a documented deliberate procedure — never a flag. Sound design; recorded as intended.
+4. Forward gap (MAJOR): the pin perimeter is closed-world {.avi,.mp4} in BOTH oracle_check.sh's find (line 122) and baselines' family map (baselines_consistency.rs:605). A future .mkv/.mov/.webm fixture is silently exempt from BOTH the sidecar requirement and the census capability row — the exact M15 silent-unpinned regression could re-enter through growth (patch below).
+
+Patches (Lead applies at close; each is attack-test + fix):
+
+--- PATCH 1 (W1-11 MAJOR): machine-mode protocol-error exits must not abandon a live session ---
+File: apps/cli/src/run.rs (machine_mode) — the malformed-request and serialization-failure returns gain the teardown. Test appended to apps/cli/tests/session_script.rs.
+
+```rust
+// apps/cli/src/run.rs — replace the two early returns in machine_mode:
+            Err(failure) => {
+                // M17 (W2-17 attack): a protocol error must not abandon a
+                // live session either — the EOF twin tears down, this path
+                // must too. The reply shape stays the control-protocol
+                // card's; only the teardown ordering is fixed here.
+                graceful_exit(&mut host, err);
+                if json_events {
+                    print_new_events_json(&host, printed, out);
+                }
+                let _ = writeln!(err, "error: [control.invalid-argument] {failure}");
+                return exit::exit_code(commands::ErrorCode::InvalidArgument);
+            }
+// …and symmetrically:
+            Err(failure) => {
+                graceful_exit(&mut host, err);
+                if json_events {
+                    print_new_events_json(&host, printed, out);
+                }
+                let _ = writeln!(err, "error: [control.internal] {failure}");
+                return exit::exit_code(commands::ErrorCode::Internal);
+            }
+```
+
+```rust
+// apps/cli/tests/session_script.rs — the W2-17 attack regression:
+/// W2-17: a malformed machine request mid-session must not abandon the
+/// live session — the teardown runs BEFORE the usage exit (previously
+/// the Paused session was dropped with no Stopped/Idle trail).
+#[test]
+fn machine_mode_malformed_request_still_tears_down() {
+    let open = format!(
+        "{{\"requestId\": 1, \"cmd\": \"session.open\", \"args\": {{\"source\": \
+         {{\"kind\": \"file\", \"path\": \"{parent}\"}}, \
+         \"options\": {{\"startPaused\": true}}}}}}\n",
+        parent = parent()
+    );
+    let (out, err, code) = run(&["--control-stdio", "--json"], &format!("{open}not json\n"));
+    assert_eq!(code, 64, "the usage error is still the answer:\n{out}\n{err}");
+    assert!(err.contains("[control.invalid-argument]"), "{err}");
+    let last = out.lines().last().must();
+    assert!(
+        last.contains("\"to\":\"idle\""),
+        "the teardown still closes the stream — no abandonment:\n{out}"
+    );
+}
+```
+
+--- PATCH 2 (W1-11 MAJOR, [PROPOSAL — touches the 3.C1 seam, Lead decision]): bounded re-drive after a transient-state refusal ---
+File: apps/cli/src/run.rs (graceful_exit). Today a quit that lands mid-seek/rebuffer (Buffering) leaks a session that becomes stoppable a few pumps later. The cure: one bounded settle between refusal and a second stop→close drive. NOTE: this CHANGES the pinned machine_mode_eof_refusal_is_bounded_and_honest expectation (the 2 s fixture primes during the settle, so the teardown would now SUCCEED where the test pins the refusal) — apply together with the test update below, and only if the Lead accepts moving the 3.C1 boundary for the exit path.
+
+```rust
+// apps/cli/src/run.rs — graceful_exit body:
+fn graceful_exit<E: Write>(host: &mut CliHost, err: &mut E) {
+    if host.session_id().is_none() {
+        return;
+    }
+    // Two bounded rounds of stop → close. A refusal from a transient
+    // state (Buffering — 3.C1) can clear on its own a few pumps later
+    // (Primed → Playing makes stop legal again): give the engine one
+    // AWAIT_PUMPS-bounded settle window, then re-drive once. If the
+    // transient state persists, the typed refusal lines stand and the
+    // exit still proceeds (never blocks). Worst case 2×(64+64)+8
+    // pipeline pumps — no wall clock anywhere.
+    for round in 0..2 {
+        if matches!(host.state(), PlaybackState::Playing | PlaybackState::Paused) {
+            teardown_step(host, Command::PlaybackStop, err);
+        }
+        if host.session_id().is_none() {
+            break;
+        }
+        teardown_step(host, Command::SessionClose, err);
+        if host.session_id().is_none() {
+            break;
+        }
+        if round == 0 {
+            host.settle();
+        }
+    }
+    if host.session_id().is_none() {
+        host.pump_pipeline_until(|_| false, TEARDOWN_TAIL_PUMPS);
+    }
+}
+```
+
+```rust
+// apps/cli/tests/session_script.rs — UPDATE the pinned refusal test
+// (behavior change is the point; the leak becomes a teardown):
+#[test]
+fn machine_mode_eof_refusal_is_bounded_and_honest() {
+    // … unchanged open …
+    let (out, err, code) = run(&["--control-stdio"], &open);
+    assert_eq!(code, 0, "the quit still exits clean:\n{out}\n{err}");
+    // The engine left Buffering inside the exit's bounded settle
+    // window, so the teardown now LANDS (stop → close → idle). The
+    // refusal is still exercised by … (keep a direct-refusal variant
+    // via a start-time seek that re-enters Buffering, or pin the
+    // settle-expired case with a never-priming synthetic source when
+    // 3.C1 lands).
+    let last = out.lines().last().must();
+    assert!(last.contains("\"to\":\"idle\"") || err.contains("card 3.C1"),
+        "either the teardown lands or the typed refusal names 3.C1:\n{out}\n{err}");
+}
+```
+
+--- PATCH 3 (W1-14 MAJOR): sidecar row-set completeness + open pin perimeter ---
+File: scripts/oracle_check.sh — after the row loop, before the vacuous-rows check:
+
+```bash
+  # W2-17 attack cure: a sidecar that DROPPED a stream row used to pass
+  # (row-level integrity without row-set completeness). Every fixture in
+  # this directory is an A/V container pinning exactly {video, audio};
+  # a future stream kind must extend this set in the same commit as the
+  # fixture.
+  for required in video audio; do
+    if [[ " $seen_labels " != *" $required "* ]]; then
+      echo "  FAIL [$required] sidecar pins no $required row (row-set completeness — a dropped row must not pass)"
+      FAIL=$((FAIL + 1))
+    fi
+  done
+
+# …and after the fixture enumeration (the perimeter must grow with the
+# fixture set — a media file the script does not check is silently
+# unpinned, the M15 regression re-entering through growth):
+mapfile -t UNCHECKED < <(
+  find "$FIXTURE_DIR" -maxdepth 1 -type f \
+       \( -name '*.mkv' -o -name '*.mov' -o -name '*.webm' -o -name '*.ts' \
+          -o -name '*.flac' -o -name '*.mp3' -o -name '*.wav' -o -name '*.ogg' \) 2>/dev/null | sort
+)
+if [[ ${#UNCHECKED[@]} -gt 0 && -n "${UNCHECKED[0]:-}" ]]; then
+  echo "oracle_check: FAIL — media fixtures outside the pinned perimeter (extend the sidecar set + this script):" >&2
+  printf '  %s\n' "${UNCHECKED[@]}" >&2
+  exit 1
+fi
+```
+
+Attack tests (already run in /tmp, quoted for the record): sidecar with only the video row → OLD rc=0 (PASS) / NEW rc=1 (FAIL); .mkv fixture present → NEW rc=1.
+
+--- PATCH 4 (W1-13 MAJOR): extensible-lie accounting stratum + taxonomy allow-list ---
+File: crates/codecs/tests/pcm_fuzz_survival.rs — (1) extend the allow-list, (2) add the 40-byte mutation + edge pins, (3) wire into both lie-class loops.
+
+```rust
+// (1) The parse taxonomy is 8 codes — subformat was missing (latent:
+// unreachable while mutations cap at 24-byte blobs).
+const WAVEFORMAT_CODES: [&str; 8] = [
+    "pcm.waveformat.length",
+    "pcm.waveformat.channels",
+    "pcm.waveformat.rate",
+    "pcm.waveformat.tag",
+    "pcm.waveformat.bits",
+    "pcm.waveformat.block_align",
+    "pcm.waveformat.extensible",
+    "pcm.waveformat.subformat",
+];
+
+// (2) The W1-02 accepted-extensible path, attacked: a coherent 40-byte
+// WAVEFORMATEXTENSIBLE (KSDATAFORMAT_SUBTYPE_PCM) lied at seeded
+/// offsets — every corruption typed or ACCEPTED-and-accounted against
+/// the RESOLVED geometry (the descriptor pins s16 → channels × 2 bytes
+/// at the blob's rate).
+const SUBFORMAT_PCM_GUID: [u8; 16] = [
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71,
+];
+
+fn extensible_lie(payload: &[u8], rng: &mut SplitMix64, ledger: &mut Ledger) {
+    let mut blob = Vec::with_capacity(40);
+    blob.extend_from_slice(&0xFFFEu16.to_le_bytes());   // extensible tag
+    blob.extend_from_slice(&2u16.to_le_bytes());        // channels
+    blob.extend_from_slice(&44_100u32.to_le_bytes());   // rate
+    blob.extend_from_slice(&176_400u32.to_le_bytes());  // avg bytes/sec
+    blob.extend_from_slice(&4u16.to_le_bytes());        // block align
+    blob.extend_from_slice(&16u16.to_le_bytes());       // bits (s16)
+    blob.extend_from_slice(&22u16.to_le_bytes());       // cbSize
+    blob.extend_from_slice(&16u16.to_le_bytes());       // valid bits
+    blob.extend_from_slice(&0x3u32.to_le_bytes());      // channel mask
+    blob.extend_from_slice(&SUBFORMAT_PCM_GUID);
+    let lies = 1 + rng.below(4);
+    for _ in 0..lies {
+        blob[rng.below(blob.len())] = rng.byte();
+    }
+    let generation = match GenerationId::FIRST.next() {
+        Ok(g) => g,
+        Err(e) => unreachable!("generation: {e}"),
+    };
+    let descriptor = match CodecDescriptor::new("pcm_s16le") {
+        Ok(d) => d,
+        Err(e) => unreachable!("pcm_s16le: {e}"),
+    };
+    let mut decoder = PcmDecoder::new();
+    if let Err(err) = decoder.configure(&DecoderConfig::new(
+        descriptor,
+        generation,
+        ThreadBudget::default(),
+        None,
+        Some(SharedBytes::from_vec(blob.clone())),
+    )) {
+        ledger.typed_errors += 1;
+        assert_typed_pcm_error(&err, &WAVEFORMAT_CODES, "extensible lie");
+        return;
+    }
+    // Accepted: the GUID resolved to PCM; the geometry is the blob's own
+    // (channels at [2..4], rate at [4..8], width pinned by the s16
+    // descriptor + bits cross-check).
+    ledger.accepted_lies += 1;
+    let channels = u16::from_le_bytes([blob[2], blob[3]]) as u32;
+    let rate = u32::from_le_bytes([blob[4], blob[5], blob[6], blob[7]]);
+    contract_surface(&mut decoder, payload, generation, channels as usize * 2, rate, ledger);
+}
+
+// (3) In seeded_format_header_lies_are_typed_or_honestly_decoded and
+// deep_seeded_mutation_run, add after waveformat_lie(...):
+//     extensible_lie(base, &mut rng, &mut ledger);
+// And pin the deterministic edges (alongside the existing 8):
+//     40-byte, GUID = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT, descriptor
+//     pcm_s16le → Some("pcm.waveformat.tag");
+//     40-byte, GUID = μ-law (0x07…) → Some("pcm.waveformat.subformat");
+//     40-byte coherent (2ch/44100/s16) → None (configures) and the
+//     accounting holds with frame_bytes 4 at 44100.
+```
+
+--- PATCH 5 (W1-12 MINOR): full-loop determinism pin + recorded deep-fraction pins ---
+File: crates/codecs/tests/fuzz_loop_stable.rs (twin for demux):
+
+```rust
+/// W2-17: the in-suite determinism test covers gen_input only — pin the
+/// FULL loop accounting too (same seed twice → identical Stats, order-
+/// independent, no shared RNG state).
+#[test]
+fn loop_accounting_is_deterministic() {
+    let seeds: Vec<Vec<u8>> = vec![vec![0xa5; 96], vec![0x5a; 7], vec![0xff; 33]];
+    let refs: Vec<&[u8]> = seeds.iter().map(|s| s.as_slice()).collect();
+    let spec = Spec { seeds: &refs, cap: 512, magic: Magic::Soi };
+    let first = run_loop(fuzz_codec_mjpeg, mjpeg_deep, &spec, 0xabcd_1234, 256);
+    let second = run_loop(fuzz_codec_mjpeg, mjpeg_deep, &spec, 0xabcd_1234, 256);
+    assert_eq!(
+        (first.inputs, first.bytes, first.deep_entries, first.distinct_lengths),
+        (second.inputs, second.bytes, second.deep_entries, second.distinct_lengths),
+        "same seed → identical loop accounting"
+    );
+}
+
+// And tighten the honesty floors to the RECORDED default-run values so
+// generator drift fails loudly instead of sliding:
+//   mjpeg: assert_honest(&stats, n, n * 5 / 10, 700, "mjpeg");   // measured 59.9% deep, 726 lengths
+//   avi:   deep floor n * 4 / 5, lengths 700                     // measured 82.7% deep, 743 lengths
+```
+
+--- Non-patch filings ---
+- W1-13 doc staleness: worklog deep-run ledger says 9,612 emitted / 6,546 concealed; main @ 264a689 measures 9,490 / 6,668 (W1-02 geometry shift; all per-mutant assertions still exact). Lead should annotate the W1-13 entry (worklog is append-only — a correction note in the next close entry).
+- W1-11 MINOR (no patch): REPL-side Buffering-refusal at quit is unpinned (machine-mode-only); unreachable with current fixtures because open+settle primes within bounds. Revisit when 3.C1 lands transient-state closes.
+- W1-11 MINOR (no patch): quit-during-Opening is table-correct (Opening→Close row) but unreachable and unpinned; add a test if opens ever become multi-poll.
+- W1-14 [PROPOSAL]: record sha256 of raw/linux/{04,05} inside vlc-3.0.23.json as a third side, asserted by baselines_consistency, so a consistent census tamper needs three coordinated edits (still not ground truth — only re-running VLC is; accepted as documented).
+- W1-12 MINOR (document only): MJPEG worst-case per-input work is MAX_PIXELS-derived (~38 MB transient, O(8.4M px) ×2 passes); a pathological adversarial stream could exceed the 10 s debug budget — bounded, not fast. The budget claim as stated ("default suite adds ~1.5-1.7 s") is accurate for the committed seeds (reproduced: 1.44/1.55/1.27 s).
+
+Tests run (read-only, after contamination cure): lumen-cli session_script 15/15; codecs pcm_fuzz_survival 8/8 + deep 1/1 (16,863 mutants, 0 panics, ledgers exact); codecs fuzz_loop_stable 4 pass + 2 ignored (stats reproduced twice, byte-identical); demux fuzz_loop_stable 3 pass + 1 ignored; first-vertical baselines_consistency 2/2; scripts/oracle_check.sh 4/4 PASS rc=0. No repo files modified; target-dir artifact purge (lumen-cli bin/rlib/fingerprints) was the contamination cure, not a repo edit.
+Task ID: W2-19
+Agent: Sub-agent W2-19 (general-purpose, Wave-2 recon; read-only, main @ 264a689)
+Task: IMPLEMENTATION DESIGNS for wave 3.C (docs/13-agent-wave-program.md:381-387): 3.C1
+state-machine completeness, 3.C2 media-level recovery, 3.C3 environment recovery. Wave-2
+siblings (W2-11..14) are implementing 3.A2/3.A3/3.B1/3.B3 right now from the W1-16..19
+designs; every dependency on their in-flight work is flagged in §D below so the Wave-3
+agents compose rather than collide. No code changed, no cargo run.
+
+Work Log:
+- Read the card rows + program context (docs/13-agent-wave-program.md:357-411: wave 3.C
+  owns state.rs / demux+codecs+engine-error-paths / recovery.rs+audio-output+renderer
+  hooks; wave 3.D rows 393-394 own testkit — the boundary question) and the standard
+  clauses (§1.4 :94-136).
+- Read the binding specs: doc 03 §4.5(d) decoder error contract (:427-434), §4.6 the
+  full 10-state table + invariants S1-S4 + model-based test mandate (:450-521, rows
+  cited per design below), §4.9(d)/(f) device-loss policy + VanishingSink (:652-664),
+  §4.11(d) surface loss (:734-737), §5 generations (:842-897), §8 testkit + the
+  16-scenario table (:1018-1062); doc 05 §3.2 event table (:377-403), §3.3 conformance
+  list (:405-412), §4.2/§4.3 generation + ordering invariants (:431-445); doc 10 §6.3
+  property 5 (state-machine model checking) + §6.4 scenarios 9-16 (:650-678).
+- Read the whole current surface: playback-engine {state, session, pipeline, epoch,
+  seek, event, events, error, lib} + tests {table, session_flow, seek_flow,
+  contract_suite}; media-types error.rs (the 7-kind taxonomy); input error.rs; plugin-api
+  {access, demux}; audio-output {device, error, lib, null}; renderer-wgpu error.rs;
+  demux avi/mod.rs (ED-FIX-3 containment); apps/cli {host, demux_host, run} +
+  unsupported_path.rs; testkit lib.rs; tools/corpus/gen_corpus.py; tests/fixtures
+  {CORPUS.md, expectations/malformed}; first-vertical scenarios.rs.
+- Read the Wave-1 recon precedents for format + the specific debts: W1-11 exit notes
+  (worklog.md:2044-2062, esp. follow-up 1: Buffering refuses close — 3.C1 owns the
+  seam), W1-16 §1 P1 + §7 risk 2 (worklog.md:2254-2277, 2595-2599: replacement-from-
+  Buffering refuses typed until 3.C1), W1-17 S9/S10, W1-18 R2, W1-19 F1.5.
+- Verified absence: crates/playback-engine/src/recovery.rs does NOT exist (lib.rs:71-78
+  module list); no testkit/src/faults.rs; no MP4 demuxer (demux/src/lib.rs AVI-only).
+
+Stage Summary: three implementation designs below, one per card, each with current-state
+evidence (file:line), ordered steps, and the AC test plan; then the cross-wave
+dependency flags (§D) and the risk register (§R).
+
+=======================================================================
+# 3.C1 IMPLEMENTATION DESIGN — State-machine completeness
+=======================================================================
+
+## C1.0 Current state (evidence baseline)
+
+1. The minimal machine is 8 states × 12 inputs = 96 pairs, classified 26 legal rows /
+   70 typed rejections (state.rs:73-107, 201-214, TRANSITIONS at 334-544; the counts
+   pinned by table.rs:126-129 and state.rs:811-816). `apply_input` is the only mover
+   (state.rs:651-666); `rejection_reason` is total without a wildcard so adding an
+   input or row is a compile error until every pair is classified (state.rs:733-746).
+2. The exhaustive suite already proves three things (table.rs header :6-18): (1)
+   `apply_input` ≡ `TRANSITIONS` for all 96 pairs (:95-130) — a SELF-consistency
+   proof, the table checked against itself; (2) every row is wire-conformant AND the
+   engine's edge projection is EXACTLY the wire's 18-edge set (:161-203); (3) the
+   driver guard only yields table-legal inputs (:332-350). What does NOT exist: an
+   independent oracle, a committed expected-table artifact, and a randomized
+   model-vs-executor walk — the "model-based" half of this card's AC.
+3. The deliberately-absent edges are recorded as 3.C1 debt in three places:
+   - state.rs:23-27 module docs: "Stop during Opening/Buffering and Close from
+     Buffering/Playing/Paused (doc 03 §4.6 has 'any active → Stop → Stopped'; the
+     doc 05 §3.3 wire list has no such edges — the reconciliation is owed to card
+     3.C1 'stop-during-opening' and reopen-cycle completeness)".
+   - The rejections themselves: (Opening, Stop), (Buffering, Stop|Close),
+     (Playing, Close), (Paused, Close) → `RejectionReason::StopFirst` (state.rs:690,
+     698, 703, 707; variant docs :555-560 say "lands with card 3.C1").
+   - (Buffering, Pause) → `NotReady` with the comment "a buffered-pause semantic is
+     owed to 3.C1 with the rest" (state.rs:694-697).
+   - (Ended, Seek) → `EndedNeedsWireEdge`: doc 03:488 has `Ended | Seek | Buffering`
+     but doc 05 §3.3 has no `ended→buffering` edge — "a Lead-owned wire-table
+     change" (state.rs:576-582); (Ended, Play) → `RestartNeedsSeek` (:713), which
+     W1-16 flagged as riding the same missing edge (worklog.md:2595-2599).
+4. Executor facts the new rows must compose with: the poll drives open_step only in
+   Opening and tick_step in Buffering/Playing/Paused (session.rs:860-866); Stop-row
+   effects [BumpPipeline, TeardownPipeline] are interpreted at session.rs:1176-1206
+   (mint → teardown → in-flight seek dies silently); the settling-transition damage
+   flush precedent (session.rs:1244-1257) is the pattern for closing a pending
+   buffering episode before a settling state-changed; `BumpPipeline` mint exhaustion
+   short-circuits to Error outside the table (session.rs:1181-1193) — the model walk
+   must document, not duplicate, that path.
+5. Reopen cycles already work at the engine level (fresh epoch, seq continues —
+   session_flow.rs:959-999) but are NOT pinned as an exhaustive-matrix property; the
+   doc 03 §4.6(f) mandate "random command sequences ... must never (i) reach an
+   illegal state, (ii) emit events out of the documented order, (iii) hang" (:516-519)
+   and doc 10 §6.3 property 5 ("illegal transitions and stuck states are failures",
+   :650-651) are unimplemented as property tests.
+6. The CLI pins the current refusal shapes: W1-11's exit test (e) "EOF while Buffering
+   → engine's v1 table refuses close (3.C1) → one typed stderr line, exit 0, no hang"
+   (apps/cli/tests/session_script.rs, worklog.md:2052) — this test FLIPS when 3.C1
+   lands close-from-Buffering (see step C1.7).
+
+## C1.1 Design decision D-0 — no new states
+
+Doc 03 §4.6(b) sketches 10 states (Probing, Demuxing extra); the minimal machine
+absorbs both into `Opening` (state.rs:7-14) and doc 05 §3.3 — the wire conformance
+contract — defines exactly 8. 3.C1 adds EDGES and EXECUTOR POLICY, never states: the
+wire catalog is frozen v1 (doc 05 §6), `PlaybackState` is the wire truth, and the
+table.rs proof #2 (engine edge projection == wire edge set, table.rs:181-203) would
+break by construction on a 9th state. This decision closes doc 03 open question 1
+(:1096-1098) for the engine side: seek/track-switch/suspend re-enter `Buffering`;
+they are not dedicated states.
+
+## C1.2 Design decision D-1 — the completion set (Lead decision L1 required)
+
+Four candidate new rows, each with its doc citation and wire consequence. The wire
+conformance list (doc 05 §3.3:412) + `commands::PlaybackState::can_transition_to`
+must gain the corresponding edges IN THE SAME ATOMIC CHANGE — proof #2 pins the
+engine projection to the wire set exactly, so a one-sided edit is a guaranteed red
+gate. `can_transition_to` is production code in `commands`, outside 3.C1's owned
+file (3.B4's precedent granted "crates/commands test-side only"); the Lead either
+grants the ~4-line edit or makes it personally (recommended: grant, same PR).
+
+| # | Row | Target | Effects | Doc 03 row | New wire edge |
+|---|-----|--------|---------|------------|---------------|
+| 1 | Opening + Stop | Stopped | BumpPipeline, TeardownPipeline | :476 `Opening \| Stop \| Stopped \| cancel token; join threads` | opening→stopped |
+| 2 | Buffering + Stop | Stopped | BumpPipeline, TeardownPipeline, EmitBufferingExit | :483 `Buffering \| Stop \| Stopped \| flush, join` | buffering→stopped |
+| 3 | Buffering + Pause | Paused | FreezeClock | VLC parity (pause during rebuffer) | buffering→paused |
+| 4 | Paused + Primed | Paused (self, work-carrying) | EmitBufferingExit | episode bookend for #3 | (self — no new edge) |
+
+`EmitBufferingExit` on row 2/4 keeps doc 05 §3.2's "an episode must close with 1.0"
+true when the episode ends at a settling/hold transition instead of Primed — the same
+never-lose-the-last-fact discipline as the damage flush at settling (session.rs:1244-
+1257). Alternative (close without 1.0) rejected: it breaks the monotonic-episode
+invariant the 3.B4 contract suite pins. Rows 1-2 are unambiguous doc-03 mandates
+(RECOMMENDED ADOPT); row 3-4 is VLC-parity policy (Lead question Q1 — recommend
+adopt; refusing keeps `NotReady` and row 4 becomes unnecessary).
+
+NOT new rows: `Close` from Playing/Paused/Buffering. Close-from-active is an
+executor-level COMPOSITION through existing rows — exactly the W1-16 P1 shape
+(worklog.md:2254-2277) generalized: apply Stop (new rows make this legal from every
+active state) then Close, emitting the honest trail `playing→stopped→idle` /
+`buffering→stopped→idle`, every edge wire-conformant TODAY with zero wire changes.
+The table stays pure: `(Playing, Close)` remains a typed rejection the macro never
+asks for directly; a pure helper `close_plan(state) -> Vec<SessionInput>` in state.rs
+documents the macro as data (Playing/Paused/Buffering → [Stop, Close];
+Opening/Ended/Stopped/Error → [Close]; Idle → [Close] idempotent). This generalizes
+3.A2's R2/R3 into the shared helper W2-11 already needs (flag D-1 in §D).
+
+Also deferred to Lead question Q2 (same PR if adopted): `Ended + Seek → Buffering`
+[BumpPipeline, SeekPipeline, EmitBufferingEnter] + `Ended + Play` as restart macro
+(seek-to-zero + primed), requiring the ended→buffering wire edge — the state.rs:576-582
+reconciliation. Recommend: adopt BOTH L1 edges now while the matrix work is done once;
+the alternative (keep `EndedNeedsWireEdge`/`RestartNeedsSeek` typed) remains conformant.
+
+Row-count arithmetic for the pins: 26 + 4 (+2 if Q2) = 30 (or 32) legal rows; 66 (64)
+typed rejections; wire edge set 18 → 21 (→22). `RejectionReason::StopFirst` loses
+every user once rows 1-2 + the close macro land — REMOVE the variant (engine-internal
+enum, not wire; the removal is the honest signal the debt is paid; table.rs's pinned
+`the_interesting_rejections_carry_their_documented_reasons` list :246-289 updates in
+the same PR — re-pinned, never weakened: each removed line is replaced by a
+new-row walk assertion).
+
+## C1.3 The model-based exhaustive test (the AC)
+
+Three independent opinions of the same 96-pair matrix, plus randomized walks against
+the real executor:
+
+1. **The oracle** — `tests/model/oracle.rs`: an imperative `fn model_answer(state,
+   input) -> ModelAnswer` (`Row { to, effects }` | `Reject { reason }`) encoding the
+   DOC rules (each match arm carries its doc 03 §4.6 row / doc 05 §3.3 citation in a
+   comment), total WITHOUT a wildcard — mirroring `rejection_reason`'s discipline
+   (state.rs:733-746) so adding an input (3.A3's `SwitchTrack`) or row is a compile
+   error until the oracle classifies it. This kills the self-referential echo chamber:
+   today's proof #1 checks the table against itself; the oracle is a second author.
+2. **The expected-table artifact** — `tests/model/expected_table.toml`, hand-maintained
+   (one row per pair: `[[pair]] state/input/to/effects[]` or `.../reject/reason`),
+   loaded by the test with a completeness assertion over `SessionState::ALL ×
+   SessionInput::ALL`. This is the review surface the Lead actually approves (TOML,
+   not Rust) and the diff that makes "adding a row is a deliberate act" visible
+   (the state.rs:812-816 count pin generalizes to it).
+3. **The 3-way agreement test** — for every pair: `apply_input` ≡ oracle ≡ artifact
+   (target, effects, reason); counts pinned (30/66 or 32/64); no duplicate rows;
+   every new row wire-conformant; engine edge projection == new wire edge set
+   (extends table.rs:161-203).
+4. **The walk suite** — `tests/model_walk.rs`: seeded XorShift64* PRNG (the repo
+   convention — hand-rolled seeded model drivers, packet-queue/tests/limits.rs:36-91;
+   NO proptest dependency exists in Cargo.lock, W1-19's finding), N=500 walks × ≤64
+   inputs, driving the REAL `Engine` through the session_flow.rs fake harness
+   (FakeDemuxer :92, FakeDecoder :138, FakeProvider :171, `open_with`/`poll_until`
+   :358-440 — hoist into `tests/common/mod.rs` for reuse). Per-step assertions:
+   (i) every emitted `StateChanged` edge is wire-legal; (ii) every submitted command
+   yields exactly one receipt (Accepted/Completed/Rejected-typed — never silence,
+   never panic, walk length bounds the hang check); (iii) ordering invariants (doc 05
+   §4.3): fatal `playback.error` strictly before `state-changed → error`; tracks
+   before first `→ playing`; buffering episodes bookended 0.0/1.0; (iv) `seq` strictly
+   increasing across closes and reopens, epoch strictly increasing per reopen; (v)
+   generation counters monotone per session. Command mix includes close-from-active
+   (the macro), stop-during-opening, double-failure reopen cycles
+   (Error→Close→Open→…→Error), and underrun flapping (Playing↔Buffering rapid
+   cycling — legal at table level; 3.B3's debounce owns the anti-flap policy, not
+   the legality).
+5. **No-stuck-states property** — BFS from every state over rows + the close macro:
+   `Idle` is reachable from all 8 (doc 10 §6.3 property 5's "stuck states" half).
+6. **Scenario pins for the four named completeness items** (executor-level, in
+   session_flow.rs): `stop_while_opening_tears_down_without_wiring` (Stop applied
+   in Opening → Stopped, pipeline teardown on the never-wired pipeline is a no-op
+   by construction, session.rs:1170-1173's `Option` guard); `stop_while_buffering
+   _closes_the_episode` (EmitBufferingExit 1.0 precedes `→ stopped`);
+   `close_from_playing_is_the_two_step_composition` (single `session.close` receipt
+   Completed, trail playing→stopped→idle); `pause_during_buffering_holds_and_primes
+   _silently` (if L1 row 3 adopted: Paused tick still runs tick_step per
+   session.rs:862, Primed absorbed while Paused — pin that the episode closes via
+   row 4 and Play resumes without re-priming); `error_cycle_twice` (two full
+   open→fail→close cycles: fatal ordering + epoch/seq continuity); and
+   `reopen_cycles_1000x` (the doc 03 §4.6(f) in-process fast form: 1000 ×
+   open→play→stop→close on the fakes, assert bounded Vec growth via one
+   testkit::AllocSnapshot delta — the 4 h wall-clock soak stays 3.E4's).
+
+## C1.4 Ordered implementation steps
+
+1. `tests/common/mod.rs`: hoist the session_flow fakes (no behavior change; run the
+   full existing suite).
+2. Lead decision L1 lands (or is granted): `commands::PlaybackState::
+   can_transition_to` + doc 05 §3.3 gain the new edges — one atomic PR with steps
+   3-5.
+3. state.rs: add rows (C1.2 table), delete `StopFirst`, add `close_plan`, update
+   `rejection_reason` (total, no wildcard), update module docs (the debt list
+   state.rs:23-31 shrinks to the Q2 residue), bump `table_size_is_pinned`.
+4. session.rs: nothing structural — the new rows' effects are all interpreted
+   already (EmitBufferingExit :1233-1235, TeardownPipeline :1195-1206); wire
+   `apply_command`'s Close arm to `close_plan` (submit N applications, one
+   Completed receipt, events in order).
+5. tests/model/{oracle.rs, expected_table.toml} + the 3-way test; extend table.rs
+   proofs to the new counts/edges; contract_suite.rs (doc 05 §7) gains the
+   new-edge proofs.
+6. tests/model_walk.rs + the six scenario pins; re-pin W1-11's CLI test (e) —
+   close-from-Buffering now succeeds; the transcript ends on the Idle event; the
+   worklog records the honest flip (never a silent weakening).
+7. Worklog entry; flag the 3.A2 Buffering-refusal removal to the Lead (§D flag 1).
+
+=======================================================================
+# 3.C2 IMPLEMENTATION DESIGN — Recovery, media level
+=======================================================================
+
+## C2.0 Current state (evidence baseline)
+
+1. **Demux-stage bounded recovery EXISTS (ED-FIX-3, merged 1762054).** The AVI
+   walker delivers clamped prefixes past EOF with damage notes + `EndOfStream`
+   terminal instead of aborting (demux/src/avi/mod.rs:24-41 docs, :509-537 code);
+   damage is coalesced per-reason (`DamageLog`, one event per reason, count rides
+   the byte total — no 524k-event storm, mod.rs:364-373); over-ceiling chunks are
+   positionally skipped, counted (mod.rs:463-468). `DemuxEvent::Recovered { skipped,
+   reason }` is the trait vocabulary (plugin-api/src/demux.rs:152-159).
+2. **Decode-stage bounded recovery EXISTS (W1-08, merged).** Per-frame video damage
+   (`Corrupt`, `Decoder`/`Bitstream` kinds) conceals by repeating the last presented
+   frame; a bounded run of consecutive failures (VIDEO_CONCEALMENT_BUDGET = 1000,
+   pipeline.rs:322) reaches the typed terminal `decode.concealment.budget`
+   (pipeline.rs:340-364, 916-1002); `LimbSink::conceal_last` (pipeline.rs:1124-1157)
+   is the presentation half. TickReport carries `damaged_demux`/`damaged_decode`/
+   `concealed_frames` (pipeline.rs:238-268).
+3. **The wire-visible warning EXISTS (3.B4, merged).** `RecoveredDamage { stage,
+   count }` → doc 05 `playback.error { fatal: false }`, coalesced per 1 s window,
+   flushed at terminals so the last count is never lost (event.rs:219-224;
+   events.rs:257-311; session.rs:1244-1257, 1268-1289). **3.C2 therefore CONSUMES
+   this observability and pins the composition end-to-end — it does not duplicate
+   any concealment policy (pipeline.rs owns that; W1-08's region is untouched).**
+4. **Error taxonomy is complete for the card's needs:** `Corrupt { Truncated {
+   expected, found } }` (media-types/src/error.rs:84-96), `Unsupported { format:
+   Option<FormatInfo> }` with known-format info = container name + sniffed bytes
+   (:72-81), `Inaccessible { NotFound }` (:98-111), stage tags (:13-42). Input
+   mints `input.file.missing` / `.permission` / `.not-a-regular-file` /
+   `.truncated` (input/src/error.rs:40-78).
+5. **Gaps found (each becomes a defect row in C2.3):**
+   - **G1 — `NoDecodableTrack` drops the known-format info.** A container whose
+     tracks are all undecodable (e.g. AVI + mpeg4 video) fails at `wire()` count 0
+     → `config_error` mints `Unsupported { format: None }`, code
+     `session.no-decodable-track` (session.rs:1513-1519; error.rs:100-134) — the
+     error names neither the container nor the codec fourccs. The card's
+     "known-format info in error" AC fails here today. (The CLI host half is
+     honest — `format \`mp4\` has no demuxer in this build` with a `format` detail,
+     demux_host.rs:244-252 — the ENGINE half is the gap.)
+   - **G2 — the class-B expectation contract is a union, not per-class.** All 22
+     committed malformed fixtures carry `expected = "typed-error-or-
+     bounded-recovery"` (expectations/malformed/*.toml, e.g. trunc3.toml:20-27).
+     Only 5 of 22 have engine-level scenario pins (first-vertical: missing-file,
+     corrupt-truncated-open, corrupt-truncated-midplay, corrupt-garbage-appended,
+     corrupt-noidx — scenarios.rs:59-63, 802-1010). trunc3/trunc4 are pinned at
+     DEMUX level only (fixtures_class_b.rs); the engine-level outcome (clean Ended
+     + RecoveredDamage warning) is unpinned for 17 of 22.
+   - **G3 — audio per-frame damage is fatal today.** `per_frame_video_damage` gates
+     on `limb_kind == MediaKind::Video` (pipeline.rs:978); an audio packet failing
+     with a per-frame kind ends the session. Doc 03 §4.5(d) says `CorruptPacket`
+     "affects only the current packet — the decoder must return to a state where
+     it can accept the next packet" (:427-431) — the engine policy for audio is
+     unwritten. (PCM cannot produce per-frame damage with real bytes — any bytes
+     are valid PCM — so this is exercised only via a scripted decoder fault.)
+   - **G4 — MP4 half of the corpus is probe-surface only.** No MP4 demuxer exists
+     (demux/src/lib.rs); the 10 mp4 class-B fixtures can only pin probe-stage
+     outcomes. Honest scoping required (the MP4 demux card is 5.x).
+
+## C2.1 The scenario matrix (corruption class × expected outcome)
+
+Two tiers, consuming BOTH corpus assets the card names:
+
+**Tier 1 — committed class-B fixtures, full engine path (the AC's "malformed-corpus
+scenario tests").** New suite `tests/integration/first-vertical/tests/recovery_matrix.rs`
+(or extends class_b.rs — the scenario owner), driving open→play→terminal per fixture:
+
+| Fixture class (CORPUS.md:54-75) | Expected engine outcome | Warning observable |
+|---|---|---|
+| trunc0/1/2 (12/52/324 B) | Typed open failure: stage demux (or probe for mp4), `Corrupt{Truncated}` / probe.unsupported | fatal `playback.error` first, then `state-changed → error` |
+| trunc3 (mid-movi cut) | **Clean Ended** (ED-FIX-3 clamped prefix + EOS) | ≥1 `RecoveredDamage{Demux}` before `→ ended` |
+| trunc4 (last byte cut) | Clean Ended OR typed truncation — pin whichever the walker's 1-byte clamp produces; document the boundary | damage note |
+| garbage0 (4 KiB appended) | Clean Ended, garbage never parsed | none required (pin: zero damage is CORRECT — the declared structure ends before the garbage) |
+| flip1/4/16 (header bits) | Typed open failure (probe/demux) with sniffed bytes named; flip1 MAY land in padding → pin per-fixture (deterministic, seeded) | fatal error |
+| noidx0 | Clean Ended (linear walk; seek refused typed if attempted) | damage note `idx1-*` if surfaced |
+| negheight0 / absidx1 | Clean Ended with damage (ED-FIX-3 V1/V4 semantics already demux-pinned) | `RecoveredDamage{Demux}` |
+| stszlie0 + mp4 trunc/flip/garbage | Probe-stage typed refusal (no MP4 demuxer) — scoped honest, G4 | fatal error naming `mp4` |
+
+Every row also asserts the union contract's never-terms: no panic, no hang
+(bounded poll count), rss/wall caps (expectation toml :25-27), and NO fabricated
+output: `duration-known` only from declared extents, `time-tick` fraction is the
+honest 0.0 floor while unknown (session.rs:1294-1301 — pin it), the Ended-after-
+truncation `time-tick` fraction is < 1.0 (declared duration vs delivered data —
+honest, never clamped to fake 1.0).
+
+**Tier 2 — randomized dirty corpus (the gen_corpus.py classes), env-gated.** The
+CORRUPTION_OPS (gen_corpus.py:148: truncate, zero-mid, flip-bytes, smash-head,
+tail-garbage, cut-mid-chunk, lie-ext) and garbage archetypes (:492-493: empty,
+one-byte, riff-magic, avi-magic-head, ftyp-magic, ebml-magic, random-bytes, text,
+all-ff, all-zero, id3-junk) each map to an outcome CLASS via a decision procedure,
+not a pinned verdict (a flip can land in padding; zero-mid can hit a chunk payload
+and conceal):
+
+`outcome ∈ {TypedOpenError(stage, kind), ErrorState(code), CleanEnded,
+NoDecodableTrack} ∪ {CleanEndedZeroDamage (legitimate for benign flips)}` plus the
+never-terms. The suite runs only against corpus-big when the env var is set (the
+corpus.rs ignored-by-design pattern), class-filtered to the today-testable surface
+(avi-* families; the same dirty/dirty-lie-ext/garbage classes the harness already
+consumes — the W1-04 clean/dirty split rows carry the class column). lie-ext is the
+content-truth-not-name-truth pin (the AVI parent behind a lying `.mp4` name demuxes
+fully — adversarial_gaps.rs family 4 pinned the demux half; the ENGINE half gets
+the scenario).
+
+## C2.2 Design decisions
+
+- **D-2 (audio per-frame damage → bounded skip-and-report, no synthesis).** Mirror
+  the video lane MINUS concealment (there is no "last presented audio frame" to
+  repeat, and inserting silence would fabricate data): an audio packet failing with
+  a per-frame kind is DROPPED, counted into `damaged_decode`, the ring simply has a
+  gap, and the clock master continues from the next delivered frame's pts. Budget:
+  the same 1000-consecutive rule (rename the constant's docs to cover both limbs;
+  keep ONE budget — a stream whose every packet fails is not playing). `[PROPOSAL]`
+  flagged to 3.B1 (W2-13): the pts gap must ride the DISCONTINUITY path, not read
+  as drift — see flag D-3 in §D. Exercised by a scripted FakeDecoder returning
+  `CorruptPacket` (session_flow.rs:270's `decoder_error` helper pattern), since PCM
+  cannot produce it from real bytes.
+- **D-3 (G1 fix — FormatInfo threading).** `Pipeline::wire`'s zero-count branch
+  (pipeline.rs) and `open_step`'s `fail_with(config_error(...))` (session.rs:1513-
+  1519) gain the container name + per-track codec ids: `FormatInfo { name: Some(
+  container), sniffed: Vec::new() }` in the `Unsupported` kind, plus the track
+  fourcc list in the error's `source` leaf (the `DemuxSourceInfo` chaining pattern,
+  plugin-api/src/demux.rs:200-211). The `Track.codec` id string is already in the
+  `Track` values wire() consumed. Defect G1's regression test: an AVI whose single
+  video track is an unsupported handler → open fails with `Unsupported` naming
+  `avi` + the fourcc (scripted FakeDemuxer track; real-fixture variant needs a
+  hand-built single-codec fixture — the xtask fixtures.rs generator gains the row).
+- **D-4 (compose, don't duplicate).** 3.C2 makes NO policy change in pipeline.rs's
+  concealment region (pipeline.rs:41-53, 916-1002, 1124-1157) and no change to the
+  DamageCoalescer. Its deliverable is the END-TO-END pinning of the composed chain:
+  demux clamp/note → decoder per-frame damage → concealment → budget terminal →
+  RecoveredDamage wire event → clean Ended. One composition scenario runs a
+  trunc3-class file through the FULL stack asserting every link's observable in
+  order.
+
+## C2.3 Defect protocol (the AC's "regression test per defect")
+
+Every defect found during 3.C2 (G1-G4 above plus anything Tier 1/2 surfaces) gets:
+(1) a committed reproducer — a class-B fixture addition via tools/xtask fixtures
+(the negheight0/absidx1 precedent: ED-FIX-3 added two fixtures + expectations in one
+PR) or a scripted synthetic (FakeDemuxer/FakeDecoder fault arm); (2) a named
+regression test in the owning crate; (3) a worklog row with root cause + the
+never-terms re-asserted. The W1-15 idx1-reorder fix (worklog.md:2142) is the format
+precedent. Known candidates to triage first: G1 (FormatInfo), trunc4's exact
+boundary behavior, zero-mid hitting the movi list boundary (does the walker resync
+or refuse — pin whichever, document), and the dirty-walk bugs W1-03 filed (already
+fixed? verify — worklog.md:4249 names them filed, not fixed).
+
+## C2.4 Ordered implementation steps
+
+1. Defect G1 (FormatInfo threading) + regression test (engine crate + one xtask
+   fixture row; Lead grants tools/xtask — root config).
+2. Tier-1 matrix suite: 22 fixtures × the table in C2.1 (first-vertical or a new
+   tests/integration/recovery/ crate per Lead preference; the harness
+   scenarios.rs's `class_b_plays_to_end` helper :1012 is the shape to
+   generalize into per-class assertions).
+3. D-2 audio skip lane in pipeline.rs decode_step (the ONE engine-code change;
+   ~30 lines mirroring the video arm minus concealment) + scripted-decoder tests +
+   the discontinuity flag to W2-13.
+4. Tier-2 env-gated randomized suite (class-filtered, decision-procedure asserts).
+5. Never-fabricated pins (fraction floor, truncation fraction < 1.0, no-duration
+   honesty) into the matrix rows.
+6. Defect ledger + regressions per C2.3; worklog entry.
+
+=======================================================================
+# 3.C3 IMPLEMENTATION DESIGN — Recovery, environment
+=======================================================================
+
+## C3.0 Current state (evidence baseline)
+
+1. **recovery.rs does not exist** (lib.rs:71-78). No network source exists either
+   (streaming is Phase 6; the CLI refuses URL sources typed,
+   demux_host.rs:226-233). The seams are all present and are what 3.C3 builds on:
+   - `SourceStream` contract: reads must "return (bounded work per call ... never
+     block forever; network impls use the engine's timeout + reconnect budget and
+     surface NetworkCause errors)" (plugin-api/src/access.rs:24-28, trait :29-63);
+     `Access::open`: "Reconnect policy is the engine's loop around fresh open
+     calls, not an internal forever-loop" (:93-96).
+   - The error taxonomy is ready: `NetworkCause { Dns, Tls, Timeout,
+     ReconnectExhausted { attempts }, ConnectionLost }` with Tls explicitly
+     "never retried on certificate mismatch — that would be a downgrade"
+     (media-types/src/error.rs:115-128); `DeviceCause { Disconnected, Lost, Busy,
+     FormatUnsupported }` + `DeviceSlot { AudioOutput, Display, Adapter }`
+     (:143-165); `LimitKind::RecoveryAttempts` (:180-181) — the budget axis.
+   - The engine is single-writer poll-driven (S3, no blocking; session.rs:845-881),
+     with an injectable `MonotonicSource` for time policy (session.rs:1017 — the
+     3.B4 throttle seam; backoff schedules read THIS, so clock-jump injection
+     needs no new seam).
+2. **Audio device loss:** the vocabulary exists and is unwired — `SinkEvent
+   { DeviceLost, DeviceChanged, Underrun }` (audio-output/src/device.rs:56-70,
+   "the event STREAM joins the session bus in the 3.B cards — the enum is the
+   recorded vocabulary": it did not join in 3.B4; this card owns it). The engine
+   NEVER touches the device: audio exits through `FrameConsumer` → host ring
+   (pipeline.rs:105-113; host.rs:112 owns the device). Doc 03 §4.9(d) is the
+   policy: "switch to the next device from the configured fallback order, or enter
+   an explicit `Buffering`-like suspended state if none — playback position is
+   preserved, never silently restarted [PROPOSAL: suspend-and-notify default]"
+   (:652-656); the sample counter "is monotonic ... and never rewinds across
+   device switches (offset-carried)" (:85-87, :657-658). Wire rows EXIST in the
+   catalog: `audio.device-lost { device_id }` / `audio.device-changed`
+   (commands/src/catalog/event.rs:171-183; doc 05 §3.2 :392-393) — the engine
+   event enum does NOT have them yet (event.rs:91-225 ends at RecoveredDamage;
+   the module doc :79-82 lists "device loss" as a later-wave addition).
+3. **Renderer surface loss:** `RendererError::SurfaceLost` exists and is non-fatal
+   by design — "the session degrades to audio-only or reattaches"
+   (renderer-wgpu/src/error.rs:63-67); doc 03 §4.11(d): "Surface loss (window
+   closed, GPU reset) → `RenderError::SurfaceLost`; the session degrades to
+   audio-only with an explicit event, or reattaches when a new surface is
+   provided (resize is non-fatal by construction)" (:734-737). There is NO wire
+   event for surface loss (doc 05 §3.2 has none) — the conformant signal is a
+   NON-FATAL `playback.error { stage: present, fatal: false }` (doc 05 §3.2 :390).
+4. **The frame-path seam for both device classes is `FrameConsumer::accept`'s
+   typed error** (pipeline.rs:105-113: "The consumer's typed EngineError
+   (backpressure, teardown) — propagated as the decode call's failure"). Today a
+   consumer error is FATAL (decode_step treats it as the limb's failure). This is
+   the exact seam 3.C3 reclassifies.
+5. **Buffering re-entry is free** (composes with 3.C1): `Playing + Underrun →
+   Buffering [FreezeClock, EmitBufferingEnter]` (state.rs:426-431) and
+   `Buffering + Primed → Playing [ResumeClock, EmitBufferingExit]` (:384-389)
+   already encode "freeze, show progress, resume when data returns". A suspended
+   session and a rebuffering session have the SAME wire shape — which is why
+   doc 03 §4.9(d) says "Buffering-like suspended state".
+6. **testkit has NO fault injection** (lib.rs: the v0 helpers are Must/asserts/
+   fixtures/StepClock/evidence + alloc_count). 3.D1/3.D2 (AFTER wave 3.C) own
+   `crates/testkit/**` and `testkit/src/faults.rs` specifically (doc 13:393-394).
+
+## C3.1 The boundary with 3.D2 (drawn precisely)
+
+The program orders 3.C BEFORE 3.D yet 3.C3's AC says "fault-injection tests via
+testkit synthetic sources" and 3.D2's AC says "3.C2/3.C3 scenarios run
+deterministically on the kit". Resolution (Lead to ratify, flag F-1): **3.C3 owns
+the RECOVERY POLICIES and their engine wiring, proven with crate-LOCAL fault
+fakes** (defined in playback-engine/tests/, audio-output and renderer-wgpu test
+modules — the session_flow.rs FakeDemuxer precedent); **3.D2 owns the CANONICAL
+kit** (`testkit/src/faults.rs`: FlakySource, device-loss simulator, clock-jump
+injector) and its AC is the promotion + rewire of the 3.C2/3.C3 scenarios onto the
+kit. 3.C3 therefore: (a) shapes its local fakes to the doc 03 §8 vocabulary
+(ScriptSource fault kinds: delay-before-read, hang-forever→typed-timeout, truncate,
+reset, corrupt, shrink; VanishingSink; StallingSink) so promotion is a move, not a
+rewrite; (b) adds NOTHING to crates/testkit (avoids the worktree collision with
+3.D1 which is scheduled next); (c) leaves `// 3.D2: promote to testkit/src/faults.rs`
+markers at each fake. The clock-jump injector is purely 3.D2's (3.B1 owns the
+clock-jump POLICY; 3.C3 only requires that its backoff arithmetic saturate against
+a jumping MonotonicSource — pinned with a local fake).
+
+## C3.2 recovery.rs — the policy module
+
+New `crates/playback-engine/src/recovery.rs` (the card's owned file), pure state +
+policy, std-only, no I/O — the same discipline as state.rs:
+
+1. `RecoveryClass` — the classifier: `classify(&EngineError) -> RecoveryClass`
+   mapping every error the tick can surface to one of
+   `TransientNetwork { cause }` (Timeout, ConnectionLost, Dns),
+   `PermanentNetwork` (Tls — never retried, error.rs:119-121),
+   `AudioDeviceLost { cause }` (Device{AudioOutput, Disconnected|Lost|Busy}),
+   `SurfaceLost` (Device{Display|Adapter, Lost} — and `RendererError::SurfaceLost`
+   folded by the host consumer into this kind before it reaches the engine),
+   `Fatal` (everything else). Total, doc-cited arms.
+2. `RetryPolicy` — `{ max_attempts: u32, min_backoff_ns: u64, max_backoff_ns: u64 }`
+   `[PROPOSAL: 4 attempts, 250 ms, 4 s exponential — product.toml [limits] carries
+   the budget via LimitKind::RecoveryAttempts; numbers are one-line changes, the
+   invariant (bounded attempts, monotone backoff) is the contract]`. Consumed
+   against the session's injected `MonotonicSource` (session.rs:1017) — `is_due(
+   now)`, `record_failure(cause, now)`, `record_success()`; saturating arithmetic
+   (clock-jump safe).
+3. `RecoveryState` — per-SESSION (a field on `Session`, dying at DestroySession —
+   S4-compliant: a retry never spans an epoch; a replacement mid-retry kills the
+   recovery with the session, no cross-epoch reuse): the active cause, attempts
+   used, next-due ns, and the suspend kind (network vs device) for event honesty.
+
+## C3.3 Network interruption — the flow (N-steps)
+
+- **N1 (mid-stream read fails transiently).** The demuxer's `next_event` surfaces
+  the stream's typed `Network{Timeout|ConnectionLost}` (the demuxer remains usable
+  — its contract distinguishes container failure from read failure; the AVI walker
+  already threads reader errors separately from parse damage). The tick's fatal
+  path (translate priority Fatal-first, state.rs:788-805) is PRE-EMPTED by the
+  classifier: `TransientNetwork` with budget remaining → the recovery layer
+  converts the fact into the EXISTING `PipelineSignal::Starved` semantics — the
+  session applies `Underrun` (Playing → Buffering: FreezeClock + episode open,
+  state.rs:426-431), emits the non-fatal network note (a `RecoveredDamage`-class
+  non-fatal playback.error with stage Open + code `recovery.network.retry`), and
+  schedules the backoff. NO new SessionInput, NO new table row — the state machine
+  is complete for this flow after 3.C1 (flag D-5: the 3.B3 stall-debounce must
+  classify recovery-caused entries like seek-entries, not like flapping).
+- **N2 (retry).** Later ticks skip demux work until `is_due(now)`; then `next_event`
+  is called again — the STREAM does the reconnect internally per its contract
+  (access.rs:26-28; the synthetic source's script decides when reads succeed
+  again). Success → queues refill → `Primed` → the existing Buffering+Primed row
+  resumes. Position preserved by construction (the clock froze; the demuxer never
+  moved; nothing restarted).
+- **N3 (budget spent).** The next transient failure with attempts exhausted →
+  `PipelineSignal::Fatal` with `Network { ReconnectExhausted { attempts } }`
+  (minted by recovery.rs) → the existing Failed row → Error state, fatal error
+  first. PermanentNetwork (Tls) and Inaccessible skip N1-N3 straight to Fatal.
+- **N4 (open-phase interruption).** The same policy wraps `open_step`: a transient
+  network error from `Demuxer::start` with budget remaining KEEPS the session in
+  Opening (the open deadline of doc 03 §4.6's `Opening | input error / deadline`
+  row — v0's synchronous open becomes retry-across-polls; `opening_attempted`
+  (session.rs:1474-1477) already gates re-entry). Budget spent → typed
+  `Error(Inaccessible…)` per the doc row. `[PROPOSAL: open retry reuses the same
+  RetryPolicy instance]`.
+- **N5 (never fabricated).** A network stall NEVER fabricates data: no filler
+  packets, no duration guesses; the buffering episode progress is queue-fill truth;
+  the resume position is the demuxer's unmoved position. Tier tests pin each.
+
+## C3.4 Audio device loss — suspend + reopen (doc 03 §4.9(d) proposal)
+
+- **D-1 (detection path).** The host owns the device; the engine learns of loss
+  through the SAME `FrameConsumer::accept` error seam (pipeline.rs:105-113): the
+  host's audio pump, finding the device gone (its backend raised
+  `SinkEvent::DeviceLost`, device.rs:61-63), returns
+  `Device{AudioOutput, Disconnected|Lost}` from accept. recovery.rs classifies →
+  NOT fatal.
+- **D-2 (suspend).** Apply the existing `Underrun` shape (Playing → Buffering,
+  FreezeClock, episode open) + the NEW `EngineEventKind::AudioDeviceLost {
+  device_id }` (additive; the enum is `#[non_exhaustive]`, event.rs:79-82, mapped
+  to the existing wire row `audio.device-lost`, catalog event.rs:171-176). Clock
+  master is gone with the device: consume 3.B2's master-loss fallback
+  (SystemMonotonic) for the suspended interval — 3.B2 is wave 3.B, merged BEFORE
+  3.C, so this is a consume not a dependency (verify at implementation; if the
+  fallback landed as design-only, 3.C3 freezes the clock and documents the
+  monotonic-master gap as the [VERIFY] item). Video: with the clock frozen the
+  scheduler holds the last frame (doc 03 §4.10 e repeat policy) — VLC-like.
+  Position preserved, never restarted (the AC's words, doc 03 §4.9(d)).
+- **D-3 (reopen policy).** The host re-enumerates its backends on its own cadence
+  (the fallback order is caller policy in v0 — audio-output/src/lib.rs:130-132,
+  ADR-005 owns the real order) and signals recovery two ways: (a) a recovered
+  `accept` (device back) → queues were still filling? No — audio accept is the
+  pump's pull; simpler: the host calls the new `Engine::report_audio_device(
+  DeviceId)` (a poll-consumed flag, the same single-writer discipline as the
+  inbox); the session re-arms, exits suspension via `Primed` when the ring re-
+  fills, and emits `AudioDeviceChanged { device_id }` (wire row exists,
+  catalog event.rs:178-183). The sample counter re-anchors to the NEW device's
+  `SampleCounterSource` with offset-carry (device.rs:85-87 contract;
+   doc 03 §4.9(e) :657-660 — the
+  clock-master re-anchor is 3.B1/3.B2 machinery; 3.C3 supplies the event + the
+  resume, the re-anchor composes). (b) No device ever returns: the reopen budget
+  (RetryPolicy, LimitKind::RecoveryAttempts) exhausts → typed
+  `Device{AudioOutput, Disconnected}` fatal → Error state. `[PROPOSAL: bounded
+  reopen, default 4 attempts — indefinite suspend is the doc's stated default but
+  violates the everything-bounded directive for headless/control-server hosts;
+  Lead question Q3: bounded fatal vs indefinite suspend + user close]`.
+- **D-4 (audio-output hooks — the card's named files).** error.rs gains the typed
+  constructors `device_lost()` / `device_busy()` (stage AudioOutput, Device kind —
+  the `format_unsupported` precedent, error.rs:23-36); device.rs's SinkEvent
+  contract doc gains the delivery rule (host polls its backend per its cadence;
+  the ENGINE consumes the classification through the FrameConsumer error, never
+  the SinkEvent directly — ARCH-6, no OS types, no new trait methods). The
+  VanishingSink/StallingSink SIMULATORS stay out of src/ (3.D2 promotes;
+  engine-side tests use a scripted FrameConsumer).
+
+## C3.5 Renderer surface loss — degrade + recreate (doc 03 §4.11(d))
+
+- **S-1.** The video limb's consumer error `Device{Display|Adapter, Lost}` (the
+  host's presenter folding `RendererError::SurfaceLost`, renderer-wgpu/src/
+  error.rs:63-67, into the taxonomy at its boundary) classifies `SurfaceLost` →
+  non-fatal, NO state change (the session stays Playing — audio continues; doc
+  03 §4.11(d) "degrades to audio-only"). recovery.rs marks the video limb
+  degraded: subsequent accept errors from that limb are COUNTED + coalesced
+  (the DamageCoalescer pattern, events.rs:257-311 — no per-frame event storm),
+  and ONE non-fatal `playback.error { stage: present, code:
+  renderer.surface-lost, fatal: false }` is emitted (the wire-conformant signal;
+  no new wire row exists and none is needed).
+- **S-2 (recreate).** The host rebuilds its surface (its ownership; the
+  renderer-wgpu seam test pins configure→lost→new-surface→present) and the
+  consumer's accepts succeed again → degraded flag clears, presents resume, no
+  session-visible transition. Engine-side pin: the video limb keeps DECODING
+  during degradation (drop happens at present, not decode — bounded by the
+  scheduler's window; the alternative — stalling decode — back-pressures the
+  demuxer and is rejected).
+- **S-3 (renderer-wgpu hooks).** The crate gains a headless surface-loss seam
+  test (synthetic.rs surface: force a configure error path / a fake
+  RenderSurface returning SurfaceLost then Ok) documenting the recreate contract;
+  no engine-facing API changes.
+
+## C3.6 Fault-injection inventory (what 3.C3 builds locally vs 3.D2)
+
+| Fault | 3.C3-local fake (crate tests/) | 3.D2 canonical (testkit/src/faults.rs) | Policy under test (3.C3) |
+|---|---|---|---|
+| Flaky network source | `ScriptedStream` (SourceStream impl; script `[(at_offset, ReturnErr(Network::…)/Truncate/Corrupt/DelayNs)]`, self-enforced read deadline via the injected clock — hang-forever models as typed Timeout) | FlakySource (drop/delay/corrupt at offsets) | N1-N5: retry window, resume via Primed, ReconnectExhausted typed fatal, Tls never retried, open-phase deadline |
+| Audio device loss | `ScriptedAudioConsumer` (FrameConsumer returning `Device{AudioOutput,Disconnected}` at frame N, recovering at M) | VanishingSink (doc 03 §4.9(f)) | D-1..D-4: suspend episode, device-lost event, position preserved, reopen budget, offset-carried counter |
+| Renderer surface loss | `ScriptedVideoConsumer` (returning `Device{Display,Lost}` for K frames then Ok) | (folded into FlakySource consumers) | S-1..S-3: audio-only degradation, coalesced non-fatal error, resume without transition |
+| Clock jump | NOT built (only a saturating-arithmetic unit test on RetryPolicy against a jumping fake MonotonicSource) | clock-jump injector | backoff schedule survives jumps (3.B1 owns the clock policy itself) |
+
+Determinism: every test drives the injected `MonotonicSource` (session.rs:1017) and
+bounded poll counts — no sleeps, no wall clock (doc 10 §6.2 :629-631). Each
+scenario asserts the transcript: e.g. network-resume = `… state-changed→buffering,
+playback.error{fatal:false, recovery.network.retry}, session.buffering 0.0/1.0,
+state-changed→playing …` with position continuity across the freeze.
+
+## C3.7 Ordered implementation steps
+
+1. recovery.rs: classifier + RetryPolicy + RecoveryState + unit tests (incl. the
+   clock-jump saturation test). Pure addition; lib.rs export.
+2. session.rs wiring: RecoveryState field; tick_step's fatal pre-pass (classify
+   before translate); the Underrun-shaped network entry; open_step retry (N4);
+   `Engine::report_audio_device` flag consumed at poll.
+3. event.rs: `AudioDeviceLost`/`AudioDeviceChanged` variants + wire mapping to the
+   existing catalog rows (event.rs's wire-map functions); the non-fatal
+   surface-lost/network notes ride the RecoveredDamage emission machinery.
+4. pipeline.rs: the ONE decode_step change — route consumer errors through the
+   classifier (audio-device → suspend; surface → degrade+coalesce; else fatal).
+   The concealment region stays untouched (3.C2's composition preserved).
+5. audio-output hooks: device_lost/device_busy constructors + SinkEvent delivery
+   docs. renderer-wgpu: the surface-loss seam test.
+6. The four scripted-fake scenario suites (network resume / exhaust / Tls /
+   open-deadline; device suspend-return / budget; surface degrade-recreate) +
+   the position-preservation and never-fabricated pins.
+7. 3.D2 promotion markers; worklog entry; Lead questions Q3 (bounded vs
+   indefinite suspend) + F-1 (the 3.D2 boundary ratification).
+
+=======================================================================
+# §D Cross-card dependencies on in-flight Wave-2 work (flags for the Lead)
+=======================================================================
+
+- **F-1 (3.C3 ↔ 3.D2, program-order inversion):** 3.C3's AC names testkit but
+  3.D1/3.D2 (the testkit owners) are scheduled AFTER wave 3.C. Ratify the boundary
+  of C3.1: 3.C3 = policies + crate-local fakes; 3.D2 = canonical faults.rs +
+  rewire. Without ratification the 3.C3 agent may either collide with 3.D1's
+  fresh ownership of crates/testkit/** or ship un-testable policies.
+- **F-2 (3.C1 ↔ 3.A2/W2-11, the Buffering refusal):** W1-16's P1 design refuses
+  replacement-from-Buffering typed precisely because the table lacks
+  buffering→stopped (worklog.md:2260-2263, risk 2 :2595-2599). 3.C1's rows 1-2 +
+  the close macro REMOVE that blocker. Merge order: 3.A2 lands first (Wave 2)
+  with the refusal + its Test 3; 3.C1 (Wave 3) deletes the special case and
+  re-pins 3.A2's Test 3 to the composing trail. The shared `close_plan` helper
+  generalizes 3.A2's R2/R3 — offer it to the 3.A2 follow-up rather than forking.
+- **F-3 (3.C1 ↔ 3.A3/W2-12, table-row collision):** track switching adds table
+  rows (`SwitchTrack` input, Buffering-targeted — W1-17 S2) and 3.C1 rewrites the
+  table + oracle + artifact + counts. Sequence: 3.C1 lands the model
+  infrastructure FIRST (Wave 3.C before nothing — 3.A3 is Wave 2, so it lands
+  FIRST; therefore 3.C1 must REBASE onto 3.A3's rows: the oracle/artifact are
+  written total-without-wildcard precisely so the rebase is a compile error until
+  the new pairs are classified — the discipline IS the collision detector).
+  Same for any 3.B3-driven input additions (none planned).
+- **F-4 (3.C2/3.C3 ↔ 3.B1/W2-13, clock seams):** (a) 3.C2's audio skip (D-2)
+  creates a pts gap that MUST ride the discontinuity path, not read as drift —
+  W1-18's §4 discontinuity design composes 3.A1 + W1-09 + 3.B2; the skip needs
+  the same treatment (flag to W2-13: expose or reuse the discontinuity hook for
+  engine-side skips). (b) 3.C3's suspend freezes the clock for a long interval —
+  W1-18 R2 already specifies "correction holds (never winds down) during freeze";
+  the resume re-anchor to a NEW device counter (offset-carry) is 3.B1/3.B2
+  machinery 3.C3 consumes; a wrong re-anchor silently shifts position (risk R-4).
+- **F-5 (3.C3 ↔ 3.B3/W2-14, stall machinery):** the network/device suspend enters
+  Buffering through the Underrun row that 3.B3's stall-debounce owns (W1-19 F1.5:
+  debounce applies to re-entry after a primed episode, first-stall latency 1
+  tick). A recovery-caused entry must (a) NOT be debounced (it is an engine
+  decision, not a queue watermark flap) and (b) RESET the streak exactly as seek
+  does. Flag the classification requirement to W2-14; 3.C1's re-entry tests +
+  3.C3's suspend tests jointly pin it.
+- **F-6 (3.C1/3.C2 ↔ 3.B4, contract suite):** the doc 05 §7 contract suite
+  (12 wire-vocabulary proofs, merged) extends with 3.C1's new edges and 3.C2/3.C3's
+  non-fatal error rows (recovery.network.retry, renderer.surface-lost) — one
+  suite, no forks (the W1-17 S9.5 instruction repeated).
+- **F-7 (3.C2 ↔ first-vertical/3.E2):** the recovery_matrix suite is scenarios
+  9-11's engine-level substrate (doc 10 §6.4 :671-673); 3.E2 (scenarios 9-16)
+  consumes and labels it — keep the scenario IDs aligned so 3.E2 wraps, not
+  duplicates.
+
+# §R The 5 riskiest integration points across the wave
+=======================================================================
+
+1. **Wire-edge atomicity (3.C1):** the new engine edges (opening→stopped,
+   buffering→stopped, buffering→paused, optionally ended→buffering) must land in
+   the SAME change as `commands::PlaybackState::can_transition_to` + doc 05 §3.3
+   — table.rs's proof pins engine-projection == wire-set EXACTLY (table.rs:181-
+   203); a one-sided merge is a guaranteed red gate, and `commands` is outside
+   3.C1's owned files (Lead grant L1 required before the agent starts).
+2. **The W1-11 CLI re-pin (3.C1):** `machine_mode_eof_refusal_is_bounded_and_
+   honest` (apps/cli/tests/session_script.rs) pins close-from-Buffering as a
+   typed refusal; 3.C1 flips the behavior. The re-pin must be explicit and
+   worklog-recorded (honest flip, never a silent weakening) — and the CLI
+   transcript evidence (first-vertical wire-session.json) regenerates.
+3. **The three-way Buffering-entry policy (3.C1 × 3.B3 × 3.C3):** ONE table row
+   (Playing+Underrun) is now entered by user-observable rebuffers (3.B3's
+   debounce policy), seek re-anchoring, network suspends and device suspends
+   (3.C3), each with different exit conditions and event trails. A mis-scoped
+   debounce delays a device-loss suspend (user sees playback freeze with NO
+   event); a mis-classified suspend flaps the state. The joint pin is
+   F-5's classification test — write it first, not last.
+4. **Clock-master re-anchor on device resume (3.C3 × 3.B1/3.B2):** the suspend
+   froze the audio-master clock; resume must re-anchor to the NEW device's sample
+   counter with offset-carry (doc 03 §4.9(e)) or every subsequent position,
+   time-tick and A/V decision is silently shifted — the exact "never silently
+   restarted" invariant the AC names. This is the one place 3.C3 depends on
+   machinery that may still be design-only when wave 3.C opens; verify 3.B2's
+   master-loss fallback actually landed, else freeze + [VERIFY] the gap.
+5. **The audio skip's discontinuity accounting (3.C2 × 3.B1):** dropping a
+   corrupt audio packet leaves the sample counter running against content that
+   jumps — if the drift estimator (W1-18) reads the gap as drift it will spend
+   the correction budget "fixing" damage, perturbing video timing (the exact
+   failure W1-18 R2 warns about, from a new cause). The skip must be visible to
+   the drift machinery as a discontinuity BEFORE 3.C2's lane ships; if W2-13's
+   discontinuity hook is not ready, D-2 stays flagged-off behind the existing
+   fatal path (one-line revert) rather than shipping an unaccounted gap.
+---
+Task ID: W2-20
+Agent: Sub-agent W2-20 (general-purpose, Wave-2 recon; read-only, main @ 264a689)
+Task: IMPLEMENTATION DESIGNS for wave 3.D (docs/13-agent-wave-program.md:389-395):
+3.D1 testkit v1 (virtual clock, scripted packet timelines, synthetic decoders;
+AC: engine tests rewritten on the virtual clock run deterministic and <10 s),
+3.D2 testkit fault injection (flaky source drop/delay/corrupt-at-offset,
+device-loss simulator, clock-jump injector; AC: 3.C2/3.C3 scenarios run
+deterministically on the kit), 3.D3 property suites per doc 03 §8 (timestamp
+arithmetic, queue invariants, generation monotonicity, seek roundtrips; AC:
+suites in CI, every shrunk counterexample committed as a regression).
+A Wave-3 agent implements directly from these designs. No code changed, no
+cargo run (read-only recon).
+
+Work Log:
+- Read the card rows + program context (docs/13-agent-wave-program.md:357-412:
+  Phase-3 gate names clocks/queues/generations/seeking/recovery; 3.D consumes
+  3.C1, parallelism 2-4, sizes M/S/M) and the binding specs: doc 03 §8
+  (docs/03-engine-plan.md:1018-1072 — the testkit inventory + property list +
+  13-scenario driver table), §5 generations (:842-897), §6 seek (:899-946),
+  §4.7 media-clock (:523-572), §4.9 audio-output (:617-666); doc 10 §6
+  (docs/10-testing-ci-quality.md:610-682 — property-test taxonomy §6.3, the
+  closed 16-scenario list §6.4), §7 evidence labels; doc 01 §5/boundaries.toml
+  direction contract.
+- Read the whole current testkit surface: crates/testkit/{Cargo.toml, src/lib.rs,
+  src/alloc_count.rs, tests/alloc_count_e2e.rs} — v0 is std-only, zero deps.
+- Read the existing private fake families end-to-end:
+  crates/playback-engine/tests/session_flow.rs (SharedNow, Collector,
+  FakeDemuxer, FakeDecoder, FakeProvider, open_with/open_on, virtual_clock,
+  frozen_throttle, Fixture, poll_until) and tests/seek_flow.rs (SharedNow,
+  SeekDemuxer with compute-then-commit reanchor, ReorderDecoder, VideoDecoder,
+  seek-term helpers), plus tests/table.rs and the two alloc binaries.
+- Read the production seams the kit must drive: media-clock source.rs/clock.rs
+  (MonotonicSource, SampleCounterSource, MediaClock::system_monotonic/
+  audio_master, regression detection at clock.rs:281), playback-engine
+  session.rs (SessionConfig fields :328-352, Engine::open/:poll, SessionHandle
+  submit/play/pause/stop/close/seek :258-305, SessionCommandKind :105-119),
+  events.rs (EventPolicy.throttle :481-507, read at session.rs:1542), pipeline.rs
+  (DecoderProvider :85, FrameConsumer :105, QueuePlan :118, TickBudget :197),
+  epoch.rs (TokenMinter/mint_pipeline/interrupt, GenerationPair), plugin-api
+  demux.rs (DemuxEvent :149-161), input contract.rs (ScriptSource +
+  SyntheticStream + conformance asserts), audio-output device.rs (AudioBackend
+  :88-132, SinkEvent::DeviceLost :61-70) + null.rs (NullBackend/NullDevice,
+  capture config, take_device), packet-queue tests/limits.rs (the seeded
+  XorShift house style :36-53, oracle Model, SEEDS :127).
+- Read workspace wiring: root Cargo.toml (members glob + the pre-announced
+  tests/integration/first-vertical membership edit :19-41), boundaries.toml
+  ([crates.testkit] :370-377 — "may depend on production crates (none yet —
+  add entries in the same change when it gains any)"; dev_only list :41),
+  tools/xtask check_architecture.rs check_testkit_direction (:1702-1729 —
+  scans members' deps for dev-only crates in prod position only), gate.rs,
+  tests/integration/first-vertical (the 2.E1 package pattern + evidence/).
+- Checked Wave-2 in-flight state: worktrees w2-11..w2-14 all branched at
+  3d246ed with no commits yet (3.A2 source-replacement, 3.A3 track-switching,
+  3.B1 av-sync, 3.B3 backpressure). **worklog-queue/ is EMPTY — the W2-19
+  (3.C recon) sibling's design file is ABSENT**; 3.D2 is designed independently
+  below with a named coordination point (§D2-6).
+- Read the W1-16..19 design entries in worklog.md (:2160-2651 etc.) for the
+  house format and the prior designs 3.D must compose with (W1-16's 3.A2
+  content-marker fixture vocabulary and §0.7 bare-GenerationId finding;
+  W1-18's E4 QueuePlan property groundwork that W2-14/3.B3 implements).
+
+# WAVE 3.D SHARED EVIDENCE BASELINE
+
+## 0. The honest inventory — what exists vs what the cards require
+
+Everything below is on main @ 264a689 with file:line; "gap" = the card
+requires it and it does not exist anywhere.
+
+### 0.1 Time control
+
+| Exists | Where | What it is | vs the cards |
+|---|---|---|---|
+| `VirtualClock` trait + `StepClock` | testkit/src/lib.rs:192-224 | std-only shape-stub: `advance(u64)`/`now_ns()`, saturating add, **no drift, no jump, no shared handle, zero consumers** (only testkit's own unit test uses StepClock) | 3.D1 must keep the trait (stable names) and add the real driver |
+| `SharedNow(AtomicU64)` + `MonotonicSource` impl | session_flow.rs:61-67, seek_flow.rs:68-76 | a **frozen** monotonic source: created at 0 and **never advanced by any test** (verified: no `store`/`fetch_add` on it in either file) — the clock exists only so tests never read wall time | the "virtual clock" of current engine tests is a *frozen* clock; nobody advances time deterministically — the actual 3.D1 gap |
+| `virtual_clock()` | session_flow.rs:300-309 | `MediaClock::system_monotonic(SharedNow(0), 0, Rate::ONE)` | promote, generalized over the real driver |
+| `frozen_throttle()` | session_flow.rs:315-320 | `EventPolicy { tick: default, throttle: SharedNow(0) }` — freezes event windows (session.rs:1542 reads `throttle.now_ns()`) | promote as one policy of many |
+| `FakeCounter` (SampleCounterSource with `advance_samples`/`reset`), `FakeMonotonic` | media-clock/src/clock.rs:678-716, `#[cfg(test)]` private | the audio-master truth-source fake | the shape 3.D1's `VirtualSampleCounter` generalizes |
+| `InstantSource` | media-clock/src/source.rs:61-87 | production wall-time source — **must never appear in a virtual-clock test** | the anti-target the determinism AC proves absent |
+
+**Gap (3.D1):** a shared, advanceable, drift-scriptable time authority with
+handles for `SessionConfig.clock` (both master modes), `EventPolicy.throttle`,
+and future deadline policies; a `VirtualSampleCounter` for audio-master tests.
+
+### 0.2 Synthetic sources / decoders
+
+| Exists | Where | What it is | vs the cards |
+|---|---|---|---|
+| `FakeDemuxer`/`SeekDemuxer` | session_flow.rs:92-134, seek_flow.rs:113-179 | scripted `VecDeque<DemuxEvent>` + stall flag (`Discontinuity` marks) + optional `fail_start`; seek_flow's adds compute-then-commit seek with scripted landing + `reanchor_refusal` | ~90 % duplicated between the two files; 3.D2/W2-11 will clone it again — the promotion target |
+| `FakeDecoder`/`ReorderDecoder`/`VideoDecoder` | session_flow.rs:138-167, seek_flow.rs:201-277, 1308-1347 | 1-frame-per-packet passthrough honoring `packet.is_stale(generation)`, one-shot `fail_decode`, reorder depth | the "synthetic decoders" — promote generalized |
+| `FakeProvider`/`VideoProvider` | session_flow.rs:171-189, seek_flow.rs:279-303 | `DecoderProvider` seam with `fail_select` | promote |
+| `Collector` | session_flow.rs:71-84 (dup in seek_flow.rs:79-95) | `FrameConsumer` recording every (track, frame) in delivery order | promote (doc 03 §8's FrameRecorder-lite) |
+| `input::ScriptSource`/`SyntheticStream` | input/src/contract.rs:44-194 | **production-crate** byte source with `shrink_to` (truncate), `fail_next_read`, read instrumentation, behind BufferedReader behind real `SourceStream` | byte-level faults exist HERE, not in testkit; 3.D2 extends this vocabulary (drop/corrupt/reset at offsets, time-gated delay) |
+| `NullBackend`/`NullDevice` | audio-output/src/null.rs | production null sink: split sink/device halves, `render()` drives the real callback, records underruns + advances the sample counter, optional capture of played bytes | the device seam the 3.D2 device-loss simulator wraps |
+
+**Gap (3.D1):** a *generated* packet timeline (function-of-index, not
+materialized Vec — required for the doc 10 §6.4 synthetic 4 h stream without
+~1.4 M materialized packets), a scripted-seek policy, video-shaped passthrough
+in a shared home, and the `SessionHarness` (doc 03 §8:1030-1032) that owns
+engine + clock + script handles with deterministic step discipline.
+
+### 0.3 Property testing
+
+| Exists | Where | What it is | vs the cards |
+|---|---|---|---|
+| Seeded XorShift + oracle model driver | packet-queue/tests/limits.rs:19-53, 121-327 | **the house style**: private `XorShift(u64)` (x^=x<<13; x^=x>>7; x^=x<<17, `below(n) = next() % n`), fixed `SEEDS` const, per-op context strings "seed {seed} op {op}", Q1 checked after *every* op, drain-time conservation | 3.D3's driver copies this algorithm bit-exact (canonicalized into testkit, §D3-2) |
+| W2-14 (3.B3) in flight | worktree w2-14, branch `wip/w2-14-backpressure`, no commits yet | will extend limits.rs/backpressure.rs with stall/resume + conservation properties (W1-18 E1-E5 design) | 3.D3 extends, never duplicates (§D3-6) |
+| `tests/property/**` | — | **does not exist** | 3.D3's deliverable |
+| proptest | — | absent everywhere; doc 10 §6.3 marks it `[PROPOSAL]`; the house has de-facto decided hand-rolled (C5 dependency-free) | 3.D3 confirms hand-rolled; no new deps |
+
+**Gap (3.D3):** the four cross-crate suites, the shrink machinery, the
+regression-file convention, and the workspace membership that puts them in the
+gate ("CI" today = `cargo xtask gate`'s workspace test step; no
+.github/workflows exists — doc 10 §4 is still `[PROPOSAL]`).
+
+### 0.4 Drift observations (recorded, not this card's to fix)
+
+- doc 10 §6.2 says unit tests use `testkit::t!` — **no such macro exists**
+  (testkit lib.rs has Must/assert helpers; the lint-legal vocabulary is
+  assert/unreachable). One doc-line fix for the Lead or 3.D1's report.
+- testkit lib.rs:14-15 and doc 03 §8 phrase VirtualClock as a future
+  `PlaybackClock` impl; the landed 2.C1 shape resolved this differently
+  (VirtualClock is the *source*; `MediaClock::system_monotonic` is the clock).
+  The 3.D1 design below adopts the landed shape and retires the stale promise.
+
+---
+
+# 3.D1 IMPLEMENTATION DESIGN — testkit v1
+
+## D1-1. Layering decision TD-1 (Lead question Q1) — where the engine-shaped kit lives
+
+The promoted fakes implement `plugin_api::Demuxer`, `codec_api::Decoder`, and
+**`playback_engine::{DecoderProvider, FrameConsumer}`** — the last two force a
+testkit **[dependencies]** entry on playback-engine (plus media-types,
+media-clock, packet-queue, input, audio-output for the other drivers). That is
+the direction contract working as designed (doc 03 §8:1020 "depends on
+production crates, never the reverse"; boundaries.toml [crates.testkit]:370-372
+pre-authorized exactly this: "add entries in the same change when it gains
+any"). The subtlety: playback-engine *dev*-depends on testkit today
+(session_flow.rs:54), creating a **dev-cycle** playback-engine→(dev)testkit→
+(prod)playback-engine. Cargo permits dev-cycles (the tokio/tokio-test
+precedent: a downstream test-util crate depending on the crate under test
+while the crate dev-depends on it), and check_architecture's check 5
+(check_architecture.rs:1702-1729) only flags dev-only crates in **prod**
+position — testkit's own prod deps on production crates pass. **This recon
+could not run cargo to verify the cycle resolves (read-only card)** — flagged
+as the #1 implementation risk with a fallback.
+
+- **Option A (RECOMMENDED — doc-conformant): monolithic testkit.** One crate
+  gains the prod deps. Cost: in `--workspace` builds every one of the ~13
+  testkit dev-consumers transitively links the engine (testkit's public API
+  would name playback-engine types), so `cargo test -p media-types` compiles
+  the engine tree — a real inner-loop cost for L0. Mitigation: the std-only
+  core stays module-disciplined (`assert`, `rng`, `clock`, `alloc_count`,
+  `evidence` never import engine types — a `#[cfg(test)]` unit test in testkit
+  enforces this by compiling the core modules with the engine feature off —
+  actually: enforce by review + the module list below), making a later split
+  mechanical. Card paths stay verbatim (`crates/testkit/**`, 3.D2's
+  `crates/testkit/src/faults.rs`).
+- **Option B (hygiene alternative, [PROPOSAL]): split `crates/testkit`**
+  (std-only core, unchanged consumers) **+ `crates/testkit-engine`** (the
+  promoted fakes + faults + harness; layer-less, `dev_only`, membership by the
+  `crates/*` glob with no root-manifest edit — same as any new crate; only
+  boundaries.toml gains `[crates.testkit-engine]` + the dev_only entry).
+  Dev-cycle exists only between testkit-engine and playback-engine. Cost: one
+  documented card-path deviation (faults.rs home) for the Lead's delta log.
+
+Both need a boundaries.toml edit (Lead-owned file, pre-announced single-edit
+pattern). The implementing agent proposes the exact manifest diff in the final
+report; the Lead applies it. **Recommendation: A**, because doc 03 §8, both
+card paths, and the boundaries comment all assume one crate — with the
+module-discipline mitigation and the explicit acceptance of the per-crate
+inner-loop cost. If the Lead prefers B, every design item below is unchanged
+except the crate name on the engine modules.
+
+## D1-2. The VirtualClock — API and injection points
+
+```rust
+// crates/testkit/src/clock.rs (new; std-only, no engine imports)
+pub struct VirtualClock { now: AtomicU64, drift: Mutex<DriftScript> }
+
+pub struct VirtualHandle(Arc<AtomicU64>, /* drift view */);
+
+impl VirtualClock {
+    pub fn new() -> VirtualClock                       // t=0, no drift
+    pub fn with_drift(script: DriftScript) -> ...      // scripted ppm segments
+    pub fn handle(&self) -> VirtualHandle              // cheap clone
+    pub fn advance_ns(&self, by: u64)                  // manual, monotonic
+    pub fn advance_ms(&self, ms: u64) / advance_secs
+    pub fn now_ns(&self) -> u64
+}
+impl VirtualClockTrait for VirtualClock { advance / now_ns }   // the v0 trait (lib.rs:192)
+
+impl VirtualHandle {
+    pub fn advance_ns(&self, by: u64)                  // shared with clock
+}
+impl media_clock::MonotonicSource for VirtualHandle { fn now_ns(&self) -> u64 }
+```
+
+Semantics, each pinned by a unit test:
+
+1. **Monotonic manual advance.** `advance_ns` uses `fetch_add` (Relaxed) so
+   concurrent advances stay monotonic even under the future threaded pipeline;
+   determinism comes from the test thread being the only advancer (the
+   single-writer discipline — advance only *between* `Engine::poll` calls,
+   never mid-poll, which the synchronous v0 engine makes structural: poll runs
+   to completion on the caller thread).
+2. **Scripted drift.** `DriftScript` is a sorted table `[(from_ns, ppm_i)]`;
+   `advance_ns(by)` moves `now` by `by + (by * ppm_i)/1_000_000` where ppm_i
+   is the segment active at the *current* now. Models device/wall skew for
+   3.B1-style convergence scenarios deterministically. Integer-only, i128
+   intermediate, saturating — same arithmetic discipline as
+   media-clock/drift.rs `DriftCorrection::for_divergence` (:69-104).
+3. **No auto-advance in v1.** The v0 lib comment promised "auto-advance
+   modes"; **deferred** — the harness's step helpers (D1-6) are the only
+   automation, so a test's time line is always explicit in its source.
+   Recorded as a deviation-with-reason (determinism first; auto-advance hides
+   the interleaving the AC must make visible).
+4. **The v0 `StepClock` stays** (lib.rs:204) — one consumer-free but stable
+   name; `VirtualClock` implements the same trait.
+
+**Injection points** (the three places the engine reads time today; all must
+come from the same clock instance in a virtual-clock test):
+
+- `SessionConfig.clock: Arc<MediaClock>` — built by kit builders:
+  `clock.system_monotonic_media_clock(at)` =
+  `MediaClock::system_monotonic(handle, at, Rate::ONE)` (the promoted
+  session_flow.rs:300-309); `clock.audio_master_media_clock(at)` over the
+  `VirtualSampleCounter`.
+- `SessionConfig.throttle.throttle: Arc<dyn MonotonicSource>` —
+  `clock.throttle_policy()` = `EventPolicy { tick: default_policy(), throttle:
+  handle }` (the promoted frozen_throttle, session_flow.rs:315-320 — frozen
+  until the test advances, then windows fire).
+- `VirtualSampleCounter` (new, `crates/testkit/src/clock.rs`):
+  `SampleCounterSource` over `AtomicU64` samples + fixed `rate_hz`, with
+  `advance_samples(n)` / `advance_ms(n, rate)` / `reset_to(0)` (device reopen)
+  — the promotion of media-clock's private `FakeCounter` (clock.rs:678-709).
+  Drives `MediaClock::audio_master` so audio-master sessions advance by
+  *rendering*, matching the real device counter semantics (monotonic while
+  running, frozen while paused — source.rs:19-28).
+- **Forwarded seam (not this card's code, but this card's requirement):** any
+  *deadline* policy (3.C3 recovery retry windows, 3.B1 correction intervals)
+  must read an injected `MonotonicSource`, never `InstantSource`. Filed as the
+  3.D2↔3.C3 coordination point (§D2-6) — the kit can only make those
+  scenarios deterministic if their deadlines are injectable.
+
+Determinism contract (asserted, not assumed): a virtual-clock test contains no
+`std::time::Instant`, no `InstantSource`, no `thread::sleep`; the proof is the
+transcript-hash discipline (D1-7) plus a review-time import audit of the
+touched files.
+
+## D1-3. Promotion inventory — what graduates, what changes, what stays
+
+| session_flow/seek_flow item | Disposition | Changes on graduation |
+|---|---|---|
+| `SharedNow` | **replaced** by `VirtualHandle` | gains advance/drift; old shape = `VirtualClock::new()` never advanced |
+| `virtual_clock()` | **graduates** → `clock.system_monotonic_media_clock` | parameterized anchor/rate |
+| `frozen_throttle()` | **graduates** → `clock.throttle_policy()` | same code, shared handle |
+| `FakeDemuxer`+`SeekDemuxer` | **graduate** → `ScriptDemuxer` (D1-4) | timeline becomes generated (function-of-index) + event-list mode; seek gains a scripted policy; stall becomes a handle (`AtomicBool` + optional time-gate) |
+| `FakeDecoder`/`VideoDecoder`/`ReorderDecoder` | **graduate** → `PassthroughDecoder`, `VideoPassthroughDecoder`, `ReorderDecoder { depth }` (D1-5) | parameterized output shape; one-shot `fail_decode` kept verbatim |
+| `FakeProvider`/`VideoProvider` | **graduates** → `ScriptDecoderProvider` | factory + `fail_select` kept |
+| `Collector` | **graduates** → `RecordingConsumer` | + delivery-index, per-track counts, `frames_snapshot` (seek_flow.rs:527), non-retaining mode (counts + last marker only — the W1-16 §5 test-2 pattern) |
+| builders (`base`, `at_micros`, `track`, `packet`, `audio_frame`, `tiny_queues`, `tiny_budget`, error constructors) | **graduate** into the harness module | unchanged shapes; `tiny_*` become `HarnessPresets::tiny()` |
+| `Fixture`/`open_with`/`open_on`/`open_audio`/`open_stalled_audio`/`poll_until`/`take_events`/`receipt_for`/`frames_of` | **graduate** into `SessionHarness` (D1-6) | see below |
+| per-test scripts, `table.rs`, the two alloc binaries, `shallow_clone` | **stay local** | untouched |
+
+**The compatibility rule (existing tests keep passing):** session_flow.rs,
+seek_flow.rs, table.rs are **not edited** by 3.D1. Their private fakes remain
+exactly as they are; the AC's "rewritten" applies to the *time-dependent
+behaviors*, delivered as **new harness-based tests that supersede the frozen-
+clock assumptions** (D1-7 lists them). Deleting the duplicated fakes from the
+old files is a mechanical follow-up commit *after* the harness is green (same
+card, last step, trivially revertible) — recommended because a third
+near-clone is being written right now by W2-11 (W1-16 §5 told that agent to
+model on seek_flow's family), but it is explicitly **optional** and must not
+touch a single assertion (AGENTS.md §3.5).
+
+## D1-4. Scripted packet timelines — the `ScriptDemuxer`
+
+Two construction modes, one engine:
+
+1. **Generated timeline (the default; the "scripted packet timeline" the card
+   names).** The script is a *function of packet index*, never materialized:
+
+```rust
+ScriptDemuxer::timeline()
+    .audio_track(1, 48_000, 2)               // fake-pcm, stereo
+    .video_track(2, (64, 48), fps: 25)       // keyframe every 15
+    .packets(TrackSel::All, 500, |track, i| PacketSpec {
+        pts: pts_stride(track) * i,          // audio 21 ms, video 40 ms
+        duration: stride(track),
+        keyframe: track.is_video() && i % 15 == 0,
+        payload: MarkerPayload::index(track, i),   // content-addressable
+    })
+    .interleave(Interleave::RoundRobin)      // or per-track blocks
+    .discontinuity_after(213)                // DemuxEvent::Discontinuity
+    .end(EndSpec::Eos)                       // or TruncatedAt(n) → typed error
+    .seek_policy(SeekPolicy::KeyframeFloor { tolerance })  // video lands on
+    .fail_start(None)                        //   keyframe ≤ target (doc 03 §6.4)
+```
+
+   `next_event()` derives event *i* from the spec — a 4 h synthetic stream
+   (doc 10 §6.4 "long media") is 2 tracks × ~7.2 M packets generated on
+   demand at O(1) memory. **Seek is cursor arithmetic:** `seek(target)`
+   computes the landing index from the policy (keyframe-floor, exact-land,
+   clamp-to-end, or a scripted failure) and moves the per-track cursors —
+   compute-then-commit exactly like seek_flow's `SeekDemuxer` (the landed 3.A1
+   contract shape), returning the *actual* position A per doc 03 §6.4. A
+   `seek_refusals(list)` arm scripts D4 failures (typed `Unsupported` /
+   reanchor-refusal, generalizing seek_flow.rs:189-199).
+2. **Event-list mode (exact control):** `ScriptDemuxer::events(vec![...])` —
+   the session_flow VecDeque verbatim (with shared stall handle), for
+   hand-built sequences where the generated form would obscure intent.
+
+Stall control (both modes): `demuxer.stall_until(release_ns)` — `next_event`
+answers `DemuxEvent::Discontinuity` (the honest non-blocking "nothing new",
+session_flow.rs:88-91) **until the shared VirtualHandle passes release_ns**;
+`stall_forever()` for permanent stalls. This is the seed of 3.D2's delay
+model — v1 ships the primitive, 3.D2 names the vocabulary.
+
+`MarkerPayload` encodes (source-id, track, index) in the payload bytes —
+W1-16's fixture vocabulary (worklog.md:2489-2496) standardized — so consumers
+attribute frames without epoch plumbing (necessary because of the
+bare-GenerationId cross-epoch collision, W1-16 §0.7 / worklog.md:2229-2240).
+
+## D1-5. Synthetic decoders
+
+- `PassthroughDecoder` — one `Frame` per packet at `packet.pts`, generation
+  copied from `DecoderConfig` at `configure` (codec-api contract,
+  session_flow.rs:143-167 verbatim semantics): honors
+  `packet.is_stale(self.generation)` → `NeedMoreInput`; `flush` → `Drained`;
+  one-shot `fail_decode: Option<EngineError>` preserved (3.D2 generalizes the
+  arming into the fault wrapper instead of baking more cases here).
+- `VideoPassthroughDecoder` — the seek_flow.rs:1308-1347 shape: keeps the
+  last frame for repeat-presentation, marks output with the packet's marker.
+- `ReorderDecoder { depth }` — seek_flow.rs:233-277 generalized: emits
+  out-of-order within the window, forces flush-path coverage.
+- `ScriptDecoderProvider` — `fail_select` + a per-track factory of the above
+  (session_flow.rs:171-189). Decoder *recycling* behavior (3.A3, in flight)
+  is the engine's business; the fakes stay stateless-per-generation so
+  whatever recycling policy lands, the fakes observe it through the existing
+  configure/flush contract.
+
+## D1-6. The `SessionHarness`
+
+```rust
+// crates/testkit/src/engine.rs (the module requiring Option A's prod deps)
+pub struct SessionHarness { engine: Engine, clock: VirtualClock,
+    sample_counter: Option<VirtualSampleCounter>, demux: ScriptDemuxerHandle,
+    collector: Arc<RecordingConsumer>, handle: SessionHandle }
+
+impl SessionHarness {
+    pub fn open(timeline: TimelineSpec) -> SessionHarness       // tiny presets
+    pub fn open_with(config: SessionConfig) -> ...              // escape hatch
+    pub fn poll(&mut self)                                      // one tick
+    pub fn poll_until(&mut self, pred, limit, ctx)              // session_flow.rs:421-438 verbatim
+    pub fn advance_and_poll(&mut self, ns: u64)                 // THE step:
+    pub fn render_audio_and_poll(&mut self, frames: u64)        //   advance → (render) → poll → drain
+    pub fn take_events(&mut self) -> Vec<EngineOutput>
+    pub fn transcript_hash(&mut self) -> u64                    // D1-7's proof
+    pub fn collector(&self) / clock(&self) / demux(&self) / stats(&self)
+    pub fn submit(&self, kind) / play / pause / stop / close /   // SessionHandle
+            seek(RequestId, SeekTarget)                          // forwarding
+}
+```
+
+The load-bearing rule: **`advance_and_poll` fixes the interleaving order —
+time moves, then the engine observes it.** The engine reads
+`throttle.now_ns()` and clock positions *inside* poll (session.rs:1148,
+1542, 1391); advancing after poll would make windows lag a step and be just
+as deterministic but subtly wrong against the doc 05 §3.4 emission model.
+`render_audio_and_poll` is the audio-master twin: drive
+`sample_counter.advance_samples(frames)` (standing in for
+`NullDevice::render`, null.rs — the engine-level tests do not need
+audio-output at all), then poll. Single-threaded inline execution is the v0
+reality the harness documents; the doc 03 §8 "single-threaded mode where
+workers run inline" promise holds automatically today and is **re-pointed at
+the future threaded pipeline card** (when workers exist, the harness grows a
+`VirtualScheduler` pump; transcript-level determinism then becomes
+property-level for threaded suites — recorded as the deferred seam, not
+solved here).
+
+## D1-7. The AC plan — "deterministic and <10 s"
+
+Scope of "rewritten": the time-dependent behaviors that the frozen clock
+could never exercise, each a **new** harness test (old files untouched):
+
+1. `time_tick_emission_follows_virtual_windows` — advance 50 ms × N between
+   polls; `timing.time-tick` events fire exactly per `TimeTickPolicy`
+   (events.rs:514-537 unit pins the policy; this pins the session emission).
+2. `pause_freezes_position_while_source_advances` — run, advance, pause,
+   advance more (source runs on — clock.rs:416-424's distrust), assert
+   position frozen; resume → continues from frozen (clock.rs:428-439
+   no-discontinuity AC at session level).
+3. `seek_reanchor_position_tracks_landing` — seek; after completion, clock
+   position equals the landing truth (audio frame's own timestamp, doc 03
+   §6.6) as time advances.
+4. `underrun_rebuffer_recovers_when_stall_releases` — the session_flow.rs:598
+   scenario with a *time-gated* stall: rebuffer fires, advance past release,
+   recovery primes — the first engine-level test where virtual time actually
+   has to pass for progress.
+5. `audio_master_clock_advances_by_rendering` — samples → position through
+   `VirtualSampleCounter` (the 2.C1 audio-master discipline end-to-end).
+6. Ports of the frozen-clock position assertions (session_flow.rs:571-596
+   pause/resume; seek_flow's landing-truth test) at an advancing clock.
+
+**Determinism proof:** each rewritten test drains all outputs and feeds
+`transcript_hash` — a u64 over (seq, kind, session, generation, salient
+payloads) of every `EngineOutput`. The suite runs the full set 10× in-process
+and asserts the 10 hashes per test are identical; the hash values are printed
+once and recorded in the worklog + the evidence record. **<10 s proof:**
+`time cargo test -p testkit --test harness_clock` plus the migrated-port
+suite, measured on the dev machine, number recorded (D-6 measured-not-argued;
+the μs-fakes make single-digit seconds the expectation — the real risk is a
+pathological poll loop, defended by `poll_until`'s hard limits, which the
+harness keeps mandatory). **Evidence artifact:** `EvidenceRecord
+("3.D1-clock", Mock).claim("engine.tests.virtual_clock.deterministic",
+"10× transcript-hash equal").claim("engine.tests.virtual_clock.runtime",
+"X.XXs measured")` written under the first-vertical evidence convention
+(tests/integration/evidence/ or crates/testkit/evidence/, implementer's
+choice, committed).
+
+**Files:** new `crates/testkit/src/{clock.rs, script.rs, decoders.rs,
+engine.rs}` + lib.rs re-exports + Cargo.toml deps + boundaries.toml diff
+(proposed in report); `crates/testkit/tests/harness_clock.rs` (new suite).
+Existing crates' test files: untouched.
+
+---
+
+# 3.D2 IMPLEMENTATION DESIGN — testkit fault injection (`crates/testkit/src/faults.rs`)
+
+## D2-1. The fault vocabulary — four layers, one naming discipline
+
+Faults are named `VerbObject` per layer, all `(position, seed)`-keyed, all
+side-effect-free until the engine touches the faulted position. `FaultScript`
+is a sorted Vec applied deterministically; the seed (testkit::rng) drives
+every byte pattern — identical seed ⇒ identical fault bytes ⇒ identical
+run. The AC "3.C2/3.C3 scenarios run deterministically on the kit" is
+exactly: scenario = base timeline + FaultScript + clock program, transcript-
+hash stable across repeats (3.D1's machinery reused).
+
+**Layer 1 — byte source (`FaultStream: SourceStream`, wraps any stream; the
+input::ScriptSource fault set generalized — input/src/contract.rs:76-97
+today has only shrink + fail-next):**
+
+| Op | Semantics | Serves |
+|---|---|---|
+| `DropBytes { at, len }` | region removed; visible length shrinks by len; positions after shift earlier | lossy transport (3.C2/6.x) |
+| `CorruptBytes { at, len, seed }` | bytes in region XOR-masked by the seeded stream (never zero-mask: a zero mask would be indistinguishable from valid silence/padding) | 3.C2 corrupt-stream, bounded skip-and-report |
+| `Truncate { at }` | = `ScriptSource::shrink_to` (typed `Corrupt::Truncated{expected,found}`) | 3.C2 truncated file |
+| `Reset { at }` | position → 0, length preserved (reconnect-from-start) | 3.C3 interrupted network |
+| `ReadError { at, code }` | typed IO failure on first read at/after `at` (generalized `fail_next_read`) | 3.C3 typed network error |
+| `Hang { at }` | **demux-level, not byte-level** (below) — recorded here to close the doc 03 §8:1024-1026 list | 3.C3 |
+
+**Layer 2 — demux (`FaultDemuxer: Demuxer`, wraps any Demuxer — the
+ScriptDemuxer or a real demuxer over a FaultStream):**
+
+| Op | Semantics |
+|---|---|
+| `StallUntil { release_ns }` / `StallForever` | `next_event` answers `Discontinuity` marks until the shared VirtualHandle passes release_ns — **the delay/hang model for the synchronous engine**: a blocking read would hang `poll` and kill the <10 s AC, so "hang" is honest non-blocking nothing-new + a time-gated release valve |
+| `DropPacket { index }` | packet skipped at the demux boundary (clean container, missing payload) |
+| `CorruptPacket { index, seed }` | packet payload masked post-container — clean container, damaged frame |
+| `FailStart { error }` | typed open failure |
+| `SeekFault { targets, error }` | scripted seek refusal (D4 rollback tests; generalizes seek_flow.rs:189-199) |
+| `StallSeek { release_ns }` | seek accepted but not completed until time passes (mid-seek recovery) |
+
+**Layer 3 — sink/device (`VanishingBackend: AudioBackend`, wraps any backend
+— D2-2). Layer 4 — clock (`ClockJumpInjector`, D2-3).**
+
+## D2-2. Device-loss simulator
+
+Doc 03 §8:1029 names `VanishingSink`; doc 10 §6.4's device-loss row pins the
+observable: "`DeviceLost` event; position preserved or explicit suspension;
+recovery on return". The simulator targets the **current** `AudioBackend`
+seam (audio-output/src/device.rs:88-132 — stable; the `SinkEvent` vocabulary
+:61-70 already carries `DeviceLost`/`DeviceChanged`):
+
+```rust
+pub struct VanishingBackend<B: AudioBackend> { inner: B, state: Mutex<VanishState> }
+impl<B> VanishingBackend<B> {
+    pub fn wrap(inner: B) -> ...
+    pub fn vanish(&self, mode: VanishMode);     // test-thread only, between polls
+    pub fn reappear(&self, mode: ReappearMode);
+    pub fn lost_writes(&self) -> u64;           // writes refused while vanished
+}
+pub enum VanishMode { RefuseWrites,               // typed Device error per write
+                      LoseCounter,                // counter freezes
+                      RegressCounter(u64) }       // counter JUMPS BACK (device
+                                                 // reset — the hostile case)
+pub enum ReappearMode { SameCounter, FreshCounter /* restarts at 0 */,
+                        NewRate(u32) /* 48k→44.1k device swap */ }
+```
+
+Semantics: while vanished, `write` returns the typed Device error (never
+silently discards — the kit must not lie on the engine's behalf);
+`clock_source()` keeps returning a counter whose behavior is the VanishMode
+(freeze / regress). `ReappearMode::FreshCounter` and `NewRate` reproduce the
+two media-clock discontinuity triggers precisely — counter regression below
+`last_source_ns` and rate change vs `anchor_rate_hz` (clock.rs:281-289) — so
+the 3.C3 "suspend + reopen policy per doc 03 §4.9" can be tested against the
+*real* clock detection rather than a mocked event. Wrapping `NullBackend`
+(the always-available CI backend, null.rs) gives the full path: sink → ring →
+render → counter. Determinism: vanish/reappear are explicit calls on the test
+thread — no timers, no threads.
+
+## D2-3. Clock-jump injector
+
+Two targets, both already spec'd as hostile-input handlers:
+
+1. **`MonotonicSource` jumps** — `ClockJumpInjector::wrap(handle)`: ops
+   `Forward(ns)` (deadlines fire early — benign), `Backward(ns)`
+   (**deliberately contract-violating**: source.rs:28 says `now_ns` must be
+   monotonic, period; the injector exists to prove the *defenses* — the clock
+   holds its last position and `try_now` reports `Discontinuity`,
+   clock.rs:264-267 — not to bless the input), `Freeze` (never advances).
+   Marked adversarial-only in docs; used by media-clock property suites
+   (3.D3 time domain) and 3.B2 master-loss tests.
+2. **`SampleCounterSource` jumps** — folded into `VanishingBackend`'s
+   RegressCounter/NewRate modes (same defense target); plus
+   `VirtualSampleCounter::reset_to(0)` for direct clock tests.
+
+## D2-4. Determinism guarantees (the kit's own contract)
+
+1. Every fault is keyed by absolute position (byte offset / packet index) and
+   a seed; application order is the script's sort order — stable across runs.
+2. Fault toggles (vanish, stall-release, jump) happen only on the test thread
+   between polls; the kit contains no threads, no timers, no wall clock.
+3. Scenario = (base spec, FaultScript, clock program); the transcript hash
+   (3.D1) is the equality witness; 10× repeat recorded in the evidence file.
+4. The kit never fabricates success: refused writes are typed errors, dropped
+   bytes shift positions honestly, hung sources answer marks — the same
+   never-fake discipline the engine is held to (AGENTS.md §3.4).
+
+## D2-5. Scenario mapping (the AC's "3.C2/3.C3 scenarios run deterministically")
+
+| doc 10 §6.4 row | Kit recipe |
+|---|---|
+| corrupt file | real demuxer over `FaultStream(CorruptBytes{seed})` (3.C2's malformed-corpus scenarios get the *parameterized* twin of their committed fixtures — offsets vary, base file fixed) |
+| truncated file | `Truncate{at}` → typed `Corrupt::Truncated`, clean Ended + warning path |
+| missing file | absent path (no kit needed) / `ReadError{at:0}` |
+| interrupted network | `Reset{at}` / `ReadError{at}` + `StallUntil{release}` → Buffering → resume or typed error, **no hang** (deadline fires on virtual time) |
+| device loss | `VanishingBackend(NullBackend)` + Reappear modes |
+
+## D2-6. The W2-19 coordination point (sibling design ABSENT)
+
+`worklog-queue/W2-19.md` does not exist at this card's writing (directory
+verified empty; worktrees show no w2-19). 3.D2 therefore fixes its vocabulary
+against the *stable documents* — doc 03 §8's fault list (:1024-1029), doc 03
+§4.9's suspend/reopen proposal, doc 10 §6.4's closed scenario table — and the
+*current* trait surfaces (AudioBackend, Demuxer, SourceStream), none of which
+3.C2/3.C3 owns. **Named coordination point:** at 3.D2 implementation time,
+the agent MUST read the then-landed 3.C2/3.C3 (or W2-19.md if it has
+appeared) and reconcile any fault-name collisions before merge; the one
+*known* coupling is the deadline seam — 3.C3's retry windows must read an
+injected `MonotonicSource` (else no kit can make them deterministic); the
+proposed API is `SessionConfig`-adjacent and would be 3.C3's to add, 3.D2's
+to consume. If 3.C3 has already landed ambient-time deadlines, that is a
+**blocker to escalate to the Lead**, not to paper over in the kit.
+
+**Files:** `crates/testkit/src/faults.rs` (all four layers; ~600 lines with
+docs) + `crates/testkit/tests/faults_determinism.rs` (the 10× transcript-hash
+suites per recipe above + kit unit tests for each op). Size S confirmed: it
+is vocabulary + wrappers over 3.D1 machinery.
+
+---
+
+# 3.D3 IMPLEMENTATION DESIGN — property suites (`tests/property/**`)
+
+## D3-1. Package, membership, CI wiring
+
+`tests/property/` as a path-named package `property-suites` — the
+first-vertical pattern verbatim (tests/integration/first-vertical/Cargo.toml):
+std-only by C5 (no proptest — the house decided hand-rolled in W1 and W2-14
+is extending that now), `[dependencies]` testkit (+ engine modules), media-
+types, media-clock, packet-queue, playback-engine; `[lints] workspace = true`;
+`publish = false`. **Membership:** append `"tests/property"` to the root
+members list — the pre-announced single-edit pattern (root Cargo.toml:19-41
+records the 2.E1 precedent; the edit is Lead-owned, proposed in 3.D3's
+report). **CI = the gate:** `cargo test --workspace` picks the package up;
+"suites in CI" is satisfied by workspace membership + gate green (no
+.github/workflows exists yet; when doc 10 §4 lands, the package is already a
+member — nothing to re-wire). No `#[ignore]`, no env gates, fixed seed sets.
+
+Layout:
+
+```
+tests/property/
+  Cargo.toml
+  src/lib.rs            # oracles + storm grammar + regression loader (std-only)
+  tests/time_arith.rs   # domain 1
+  tests/queue_wiring.rs # domain 2 (cross-crate slice only — see D3-6)
+  tests/generations.rs  # domain 3
+  tests/seek_roundtrip.rs # domain 4
+  tests/regressions.rs  # replays every committed counterexample
+  regressions/          # committed shrunk cases (D3-5)
+```
+
+## D3-2. The driver — canonical seeded XorShift
+
+`testkit::rng::XorShift64` (std-only, lives in the core module set): the
+**bit-exact** algorithm of packet-queue/tests/limits.rs:36-53 (`x^=x<<13;
+x^=x>>7; x^=x<<17`, `below(n) = next() % n`, seeds forced odd `seed | 1`) —
+promoted so the fourth copy (after limits.rs, W2-14's extension, and whatever
+W2-13 wrote) is the last. Migration policy: **new suites use testkit::rng;
+existing files adopt it only when touched** — no forced rewrite of green
+tests (AGENTS.md §3.5). Seed discipline: fixed `SEEDS` consts per suite
+(limits.rs:127 precedent: small ints + one golden constant) ⇒ every CI run is
+a replay of the same cases; the failing seed is always in the assertion
+context ("seed {seed} op {op}"); `[PROPOSAL]` an optional `LUMEN_PROP_SEED`
+env override for exploration (never set in CI).
+
+## D3-3. The four suites and their model oracles
+
+**1. `time_arith.rs` — timestamp arithmetic (overflow / discontinuity).**
+Objects: `media-types::time` (Timestamp::convert :120, as_nanos :145,
+TimeError :201, Stamp::Missing :278) + `media-clock` mapping + drift
+(DriftCorrection::for_divergence/apply, drift.rs:69-104) + the clock's
+discontinuity defense (clock.rs:281-289). Oracle: **exact rational arithmetic
+in i128** (independent reimplementation — the oracle may not call the code
+under test). Properties:
+- `convert` is exact or `TimeError::Overflow` — never wraps, never silently
+  rounds (compare against i128 fraction `ticks * a.num * to.den` reduced by
+  gcd, checked against i64/representation limits);
+- round-trip `convert(a→b→a) == identity` whenever the first leg succeeded
+  and no overflow intervened; conversion is a partial equivalence;
+- `Stamp::Missing` is invariant under `map_timestamp` (missing stays missing,
+  never interpolated — doc 01 §3.2);
+- **discontinuity (with 3.D2's ClockJumpInjector as the generator's adversarial
+  operator):** over seeded source-read sequences (monotone-with-regressions,
+  rate changes), `try_now` either returns positions that are monotone
+  non-decreasing within an anchor epoch or reports `Discontinuity` — never
+  silently interpolates across a jump; `now` (the infallible twin) never
+  regresses (clock.rs:150-154's saturate/hold contract);
+- drift: `DriftCorrection::apply` keeps the rate valid, bounded ppm, and the
+  correction direction opposes the divergence sign.
+
+**2. `queue_wiring.rs` — the cross-crate queue slice.** Q1/Q2/flap/
+conservation **stay in packet-queue's own tests** (limits.rs, backpressure,
+concurrency — W2-14's lane; D3-6). This suite owns what spans crates:
+- the `QueuePlan` config property W1-18's E4 specified and W2-14/3.B3 is
+  landing (`from_product_limits` over seeded integer grids: accepted ⇒
+  `stall < resume ≤ caps`, thresholds within schema ranges; rejected ⇒ typed
+  axis) — **consumes the landed surface, rebases on 3.B3**;
+- queue-generation × epoch-pair interaction: seeded flush/stamp sequences
+  through `Stamped`/`flush` (packet-queue) judged against
+  playback-engine `GenerationPair` staleness (epoch.rs:91-94) — the boundary
+  property that makes in-flight producers harmless (doc 03 §5 checking
+  point 3).
+
+**3. `generations.rs` — generation monotonicity (doc 03 §5's testable
+guarantee, :884-889).** The command-storm suite on the 3.D1 harness:
+seeded storms of `StormOp ∈ {Play, Pause, Stop, Close+Reopen, Seek(t),
+ReplaceSource(k), SwitchTrack(t) (when 3.A3 lands), Advance(ns), Render(f)}`
+against a two-track ScriptDemuxer with MarkerPayloads; the model tracks the
+expected live (epoch, pipeline) pair per doc 03 §5 mint rules (seek/stop/
+switch/replacement/discontinuity bump; epoch resets pipeline). Asserted after
+**every** op: every frame delivered since the last check carries the live
+generation **or** a content marker of the live source (the cross-epoch rule —
+bare GenerationId equality is unsound across epochs, W1-16 §0.7); engine `seq`
+strictly increasing; queue usage sampled ≤ caps; bounded polls per op (no
+hang — poll_until limits); non-retaining collector (memory bounded by
+construction + usage checks).
+
+**4. `seek_roundtrip.rs` — seek roundtrips (doc 03 §6).** Seeded target
+sequences on a keyframed timeline; the oracle is the timeline spec itself
+(landing = floor-keyframe ≤ target, audio exact, past-end clamps to duration).
+Asserted per seek: `Seeked{actual}` lands on a legal point (within tolerance);
+post-completion frame pts ≥ landing and monotone; **D4**: scripted
+`SeekFault` ⇒ position preserved (clock position and next-frame continuity
+unchanged), typed `SeekFailed`, never fake success; storm variant: 100 random
+targets, no waits between (doc 10 §6.4 "repeated seeks") ⇒ each completes or
+typed-fails, zero stale-generation frames ever, bounded memory.
+
+**Budget (measured at implementation, D-6):** time_arith 8 seeds × 4 k cases
+(pure arithmetic, <1 s); queue_wiring grids ~2 s; generations 6 seeds × 150-op
+storms ~2 s; seek_roundtrip 6 seeds × 100-target storms ~2 s — target <8 s
+total, actual number recorded in the worklog + evidence record.
+
+## D3-4. Shrink strategy — hand-rolled ddmin over the op list
+
+Counterexamples are **data**, not prose: each suite's failing input is a
+`Vec<StormOp>` (or parameter list for time_arith — shrink to boundary
+values). The shrinker (src/lib.rs, ~120 lines):
+
+1. **Prefix bisection** — rerun with `ops[..k]`, halving k: the failing core
+   is usually at the head (O(log n) reruns).
+2. **Greedy single-op deletion sweep** — left-to-right, keep deletions that
+   still fail; repeat until fixpoint (bounded rerun budget: 500 reruns; each
+   is μs–ms on the harness).
+3. **Argument simplification** — replace each op's args with boundary values
+   (0 / mid / MAX) greedily; time_arith cases shrink toward {i64::MIN, -1, 0,
+   1, i64::MAX} × {1, 2, odd primes} bases.
+4. Emit the minimized case + provenance (original seed, original length,
+   suite, date).
+
+Reruns are exact replays (same seed ⇒ same case) — the whole shrink is
+deterministic and offline (no cargo, no net). `--release`-free: the suites
+run in debug like everything else in the gate.
+
+## D3-5. The regression-file convention (the AC's second clause)
+
+`tests/property/regressions/<suite>/<nn>-<slug>.case` — flat std-parseable
+text, one op per line, `key=value` args, `#`-comment provenance header
+(original seed, shrunk-from length, found-by, defect summary). `tests/
+regressions.rs` walks the directory at run time (std::fs), replays each file
+through its suite's runner, and asserts **the property holds** — the case
+failed pre-fix, passes post-fix, and guards the fix forever (AGENTS.md §3.5:
+every defect gets a regression test; the file IS the test). Convention
+rules: append-only; a case that starts failing again means the defect
+returned; provenance headers are mandatory (the honesty rule for evidence).
+First users: any counterexample the four suites find during 3.D3 itself, plus
+— retroactively loadable — the W1-era shrunk finds (e.g. the idx1-ordering
+bug W1-16's sibling M16 fixed) if their inputs fit a suite's grammar
+[PROPOSAL: retrofit optional, not an AC].
+
+## D3-6. The W2-14 boundary — extend, never duplicate (the flagged dependency)
+
+3.B3 (W2-14, in flight on `wip/w2-14-backpressure`) owns packet-queue's
+property lane: Q1/Q2 model-driver (limits.rs), backpressure/stall thresholds,
+conservation/flap (W1-18 E1). 3.D3's rule, enforced at review:
+- packet-queue-internal invariants live **only** in crates/packet-queue/tests;
+  tests/property references them by citation, adds zero re-tests;
+- the shared *machinery* (XorShift, harness, shrinker) moves to testkit;
+  W2-14's landed files keep their private copy until touched;
+- `queue_wiring.rs` compiles against **3.B3's landed surface** — 3.D3 rebases
+  on W2-14's merge; if 3.B3's shape diverges from W1-18 E4, the suite adapts
+  to the landed reality (the property is the invariant, not the API).
+
+Same rule applies forward: 3.E1/3.E2 scenario suites (next wave) build on
+the harness; they add *scenarios*, not new drivers.
+
+---
+
+# RISKS AND OPEN QUESTIONS (all three cards)
+
+## The 5 riskiest integration points
+
+1. **TD-1's dev-cycle (testkit→playback-engine prod dep while playback-engine
+   dev-deps testkit).** Cargo supports dev-cycles (tokio/tokio-test shape)
+   and check_architecture's check 5 passes it by construction, but this recon
+   could not run cargo to prove the resolver accepts it in *this* workspace
+   (read-only card). If it fails: Option B (split `crates/testkit-engine`)
+   is the pre-designed fallback — module boundaries are drawn so the split is
+   mechanical. Verify FIRST: `cargo check -p testkit && cargo test -p
+   media-types && cargo test -p playback-engine` after the manifest edit.
+2. **In-flight Wave-2 trait churn under the fakes.** 3.A3 (W2-12) adds track
+   switching + decoder recycling against the very traits the synthetic
+   decoders implement; 3.B3 (W2-14) reshapes QueuePlan thresholds; 3.B1
+   (W2-13) reshapes drift policy. The wave order (3.D deps 3.C1, which deps
+   3.B4) means testkit compiles against *settled* seams — but any 3.* slip
+   cascades into 3.D rework. Mitigation: fakes implement the minimal current
+   traits; no speculative methods; 3.D implementation starts from merged
+   main only.
+3. **The synchronous-stall model vs 3.C3's deadlines.** "Hang/delay" is
+   modeled as demux marks + time-gated release precisely because a blocking
+   read would kill the <10 s AC. If W2-19's 3.C3 design introduces ambient-
+   time retry windows (InstantSource) or blocking waits, NO kit can make
+   those scenarios deterministic — 3.D2's AC fails at the seam. Blocker to
+   escalate, not to fake (§D2-6's named coordination point).
+4. **Blast radius of the monolithic kit (Option A).** In `--workspace`
+   builds all ~13 testkit dev-consumers transitively link the engine;
+   `cargo test -p media-types` (the most common inner loop) compiles the
+   engine tree. Plus the W1-close shared-target contamination lesson
+   (worklog.md 3.WAVE1-CLOSE): during the wave, agents must build
+   single-crate only. Mitigation: std-only core module discipline; Option B
+   if the Lead judges the cost real.
+5. **tests/property membership + duplication drift.** The root members edit
+   is Lead-owned (pre-announced pattern — must not be forgotten or the
+   suites silently never run in the gate: a GREEN-but-absent suite is the
+   echo-chamber failure mode). And by 3.D3's time the XorShift exists in ≥3
+   private copies — the canonicalization order (new suites use testkit::rng;
+   old files migrate only when touched) must be enforced at wave review or
+   the "extend not duplicate" rule erodes.
+
+## Open questions for the Lead
+
+- Q1 (TD-1): Option A monolithic testkit (recommended; doc 03 §8 verbatim)
+  vs Option B split `testkit`/`testkit-engine` (hygiene; card-path deviation
+  for faults.rs). Either way: ratify the boundaries.toml + root-members
+  edits as pre-announced single edits in 3.D's reports.
+- Q2: ratify the *deferred auto-advance* deviation from testkit v0's lib
+  comment (D1-2.3) — manual advance + harness steps only.
+- Q3: the doc 10 §6.2 `testkit::t!` reference names a macro that does not
+  exist — fix the doc line or card a `t!`; 3.D1's report should carry it.
+- Q4: ratify the regression `.case` convention (D3-5) as the house standard
+  for shrunk counterexamples (doc 10 §6.3's "seed recorded in CI output"
+  becomes: fixed SEEDS in-source + failing seed in assertion context +
+  committed .case files).
+- Q5: confirm 3.D3's scope reading — doc 10 §6.3 properties 4 (config merge)
+  and 6 (playlist shuffle) are NOT in card 3.D3's four domains and stay with
+  their owning cards (product-config, playlists); property 5 (state-machine
+  model checking) is partially covered by 3.C1's exhaustive table test and
+  partially folded into generations.rs command storms.
+
+Stage Summary:
+- Three implementation designs delivered at W1-16..19 rigor, all claims
+  file:line on main @ 264a689. **Honest inventory headline:** the "virtual
+  clock" that exists today is a *frozen* SharedNow no test ever advances —
+  the real 3.D1 deliverable is the advanceable, drift-scriptable, shared
+  time authority with three injection points (session clock, event throttle,
+  future deadline policies), plus the generated (function-of-index, O(1)
+  memory) packet timelines that make the 4 h synthetic stream possible, the
+  synthetic decoder trio, and the SessionHarness whose `advance_and_poll`
+  fixes the time-then-observe interleaving. Existing session_flow/seek_flow
+  tests stay untouched (new harness tests supersede the frozen-clock
+  assumptions; fake deduplication is an optional final mechanical commit).
+- 3.D2: a four-layer fault vocabulary (byte source drop/corrupt/truncate/
+  reset/read-error; demux stall-until-virtual-time/drop/corrupt/seek-fault;
+  VanishingBackend device-loss with counter-regress/rate-change reopen
+  modes aimed exactly at media-clock's two discontinuity triggers; a
+  deliberately contract-violating ClockJumpInjector for defense proofs), all
+  (position, seed)-keyed with transcript-hash determinism witnesses.
+  W2-19.md ABSENT — designed against doc-fixed vocabulary + stable traits,
+  with the deadline-seam blocker named for escalation.
+- 3.D3: package `property-suites` in tests/property/** (first-vertical
+  membership pattern), hand-rolled bit-exact XorShift canonicalized into
+  testkit (no proptest — C5), four suites with i128-exact/grammar-model
+  oracles, ddmin shrinker over serializable op lists, and the append-only
+  regressions/*.case convention where replay asserts the property HOLDS
+  (guard-the-fix semantics). W2-14 boundary rule: packet-queue internals
+  stay in-crate; 3.D3 adds only cross-crate slices and rebases on 3.B3's
+  landed surface.
+- Top risks: the testkit↔playback-engine dev-cycle (unverifiable without
+  cargo; Option B fallback pre-designed), Wave-2 trait churn under the
+  fakes, the 3.C3 deadline seam (escalate, never fake), monolithic-kit
+  blast radius, and the members-edit-forgetting failure mode.
+- No code changed, no cargo run (read-only recon). Worklog-queue protocol
+  followed: this entry filed as worklog-queue/W2-20.md for Lead merge.
+---
+Task ID: 3.WAVE2-CLOSE (Lead)
+Agent: Lead
+Task: Wave 2 close — merge what returned, salvage what died, dispatch Wave 3.
+
+Work Log:
+- 10/20 agents returned; 10 died on transport context-deadline (ALL FOUR opus agents failed; pattern across waves: opus = deadline death — DECISION: sonnet-only from Wave 3 on).
+- Salvage ledger: 7/10 failures left recoverable work — w1-06 (salvage checkpoint + main merge committed, host work in tree), w2-05 (time.rs reciprocal, uncommitted), w2-07 (dirty-walk fix, uncommitted), w2-11 (3.A2 session work, uncommitted), w2-12 (3.A3: multi-track fixture COMMITTED a171cfd + engine work in tree), w2-13 (592-line 3.B1 sync core LEAKED INTO MAIN TREE — stash-relocated to wip/w2-13-av-sync @ e9f8b40), w2-14 (3.B3 read-into-borrow, uncommitted). W2-10/W2-13-worktree were empty at survey; W2-10 (corpus-big measurement) re-dispatches fresh.
+- INFRA: W2-17 caught shared-target contamination a THIRD time (w1-06's uncommitted WIP rlib served as main's lumen_cli — purged + rebuilt). Protocol unchanged: wave-close clean+gate is the arbiter.
+- Merged 6 branches: W2-09 (suite rows; pcm decoded 65/65 vs canonical 20/65 — the extensible fix measured), W2-04 (DropTrail fixed-capacity, 0-alloc + teeth check), W2-06 (alloc-free DhtKey + persistent parser scratch — "one alloc per frame" now TRUE at 2 events/frame pinned; renderer phantom proof now a real 0/0 binary), W2-02 (pre-roll hold M10 completed from salvage; scheduler.rs union-resolved with W2-04 — one missing shared-tail brace, scripts/resolve_w2_scheduler.py), W2-03 (C7 closed: cursor ring + RecyclePool + one WireDecoder; 6.3MB/256 frames -> 0/0 with negative control), W2-08 (harness clean/dirty split; duration metric corrected to 0.0/0.0/0.0; attribution ledger mjpeg-verdicts.tsv).
+- Verifier findings registered as Wave-3 cards: W2-15 (0 CRITICAL; MAJOR: 42-byte vendor-tail extensible accepted-by-demux/refused-by-codecs, probe hints nothing for 0xFFFE, codecs block-align u16 truncation, no extensible fuzz coverage; + 6 MINOR; 3 patch blocks in queue-file -> worklog) and W2-17 (exit: machine-mode malformed NDJSON exits without teardown MAJOR + one-shot teardown design hole; oracle: sidecar row-deletion passes MAJOR + mkv perimeter; pcm_fuzz: extensible accepted-path accounting gap + missing allow-list code; 5 patch blocks in worklog).
+- Recon banked: W2-19 (3.C1/3.C2/3.C3 designs; D-0/D-1/D-2 decisions; F-1..F-7 cross-flags; 3.C2 found 4 defects G1-G4) and W2-20 (3.D1/3.D2/3.D3 designs + the honest inventory: VirtualClock is a stub with ZERO consumers, real fakes are ~90%-duplicated private per-file copies, input::ScriptSource lives in production input).
+- Gate result: PASS (fmt CLEAN / clippy CLEAN / tests 1526 passed / 0 failed / 16 ignored — baseline 1493, +33 / arch 5/5 / fixtures no-drift). Raw log committed: docs/gates/logs/wave2-merge.test.log. Two disk-full incidents mid-gate (rootfs 100%); cured by worktree pruning + incremental-cache/tmp cleanup; corpus/ (1.9G) + corpus-big/ (1.3G) retained as D-11 assets.
+- INFRA UNLOCK (user-issued): new GitHub PAT with repo+workflow scopes — CI (GitHub Actions) is now available for the first time; first CI workflow card dispatches in Wave 3. Token stored in sandbox git config only, never in the repo.
+
+Stage Summary:
+- Wave 2 delivered: M10 pre-roll hold (load-bearing for W3-01's C8), C7, M3, DhtKey/evidence hygiene, harness honesty (clean/dirty + duration), suite decoded-rows. Audit register: C1-C8 all closed except C8 (W3-01, salvage 80% done); M1-M19 all closed except M12 (W3-07 salvage) + M4-partial (W3-08 salvage).
+- Wave 3 = two batches of 10 (deadline mitigation): A = the 8 salvage/re-dispatch continuations + W3-09 pcm-hole fixes (W2-15 patches) + W3-10 exit/oracle fixes (W2-17 patches); B = 3.C1/3.C2/3.C3 + 3.D1/3.D2/3.D3 implementations + 2 adversarial verifiers of Wave-2 merges + 3.E/3.F/Phase-4 recons. All sonnet.
+Task ID: 3.WAVE3-A-LAUNCH (Lead)
+Agent: Lead
+Task: Wave 3 Batch A — 10 agents (7 salvage continuations + 3 verifier-hole fix cards). Batch B (3.C/3.D implementations) launches after A closes. All sonnet (opus = deadline death, proven twice).
+
+Stage Summary:
+- Base: main @ 2cd34fe, gate PASS 1526/0/16. CI unlocked (workflow-scope PAT).

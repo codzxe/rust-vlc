@@ -66,9 +66,63 @@ pub(crate) struct JpegInfo {
     pub scan: Vec<ScanComponent>,
 }
 
-/// Parsed marker-walk outcome.
+/// Parsed marker-walk outcome (the stateless [`parse`] — now a
+/// test/one-shot convenience; the decode context walks into its own
+/// persistent scratch via [`parse_into`]).
+#[cfg(test)]
 pub(crate) struct Parsed {
     pub info: JpegInfo,
+}
+
+impl JpegInfo {
+    /// The pre-parse state: capacity-free fields only (an `empty()`
+    /// allocates nothing — `Vec::new()` never hits the heap), so the
+    /// decode context can park one in place of the live scratch while
+    /// a frame walks (decoder.rs, D-1).
+    pub(crate) fn empty() -> JpegInfo {
+        JpegInfo {
+            width: 0,
+            height: 0,
+            components: Vec::new(),
+            quant_tables: [[1; 64]; 4],
+            quant_present: [false; 4],
+            huff_bits: [[[0; 17]; 4]; 2],
+            huff_vals: [
+                [Vec::new(), Vec::new(), Vec::new(), Vec::new()],
+                [Vec::new(), Vec::new(), Vec::new(), Vec::new()],
+            ],
+            huff_present: [[false; 4]; 2],
+            restart_interval: 0,
+            entropy_offset: 0,
+            jfif: false,
+            scan: Vec::new(),
+        }
+    }
+
+    /// Reset to the pre-parse state **keeping every Vec capacity**
+    /// (D-1: a caller-held scratch — the decode context's persistent
+    /// header storage — then rewalks in steady state without a single
+    /// allocation). Resetting to the same shape `empty()` produces is
+    /// what makes a failed walk harmless: the next `parse_into` starts
+    /// from the same clean state a fresh `JpegInfo` would.
+    pub(crate) fn reset(&mut self) {
+        self.width = 0;
+        self.height = 0;
+        self.components.clear();
+        self.quant_tables = [[1; 64]; 4];
+        self.quant_present = [false; 4];
+        self.huff_bits = [[[0; 17]; 4]; 2];
+        for class in &mut self.huff_vals {
+            for vals in class {
+                vals.clear();
+            }
+        }
+        self.huff_present = [[false; 4]; 2];
+        self.restart_interval = 0;
+        self.entropy_offset = 0;
+        self.jfif = false;
+        self.scan.clear();
+    }
 }
 
 /// Read a big-endian u16 at `pos`, bounds-checked.
@@ -95,7 +149,22 @@ mod marker {
     pub const TEM: u8 = 0x01;
 }
 
-/// Walk the marker segments of one complete JPEG packet.
+/// Walk the marker segments of one complete JPEG packet, stateless
+/// (fresh scratch — the one-shot/test convenience; the decode context
+/// uses [`parse_into`] on its persistent scratch instead).
+#[cfg(test)]
+pub(crate) fn parse(data: &[u8]) -> Result<Parsed, MjpegError> {
+    let mut info = JpegInfo::empty();
+    parse_into(&mut info, data)?;
+    Ok(Parsed { info })
+}
+
+/// Walk the marker segments of one complete JPEG packet into a
+/// caller-held scratch `JpegInfo` (the decode context's persistent
+/// header storage — D-1: in steady state this walk allocates
+/// **nothing**; every Vec is cleared and refilled in place,
+/// capacities retained across frames. The stateless [`parse`] above
+/// simply starts from an `empty()` scratch).
 ///
 /// Tolerances (documented, honest subset):
 /// - SOI (`FFD8`) must open the packet; leading pad bytes are rejected
@@ -106,7 +175,10 @@ mod marker {
 ///   skipped per §B.2 conventions.
 /// - A second SOF/SOI, or a missing SOS, is structural.
 /// - Bytes after EOI are ignored (AVI chunk padding reality).
-pub(crate) fn parse(data: &[u8]) -> Result<Parsed, MjpegError> {
+///
+/// On error the scratch may hold a partially walked state — the next
+/// call resets it first, so no damage can leak into a later frame.
+pub(crate) fn parse_into(info: &mut JpegInfo, data: &[u8]) -> Result<(), MjpegError> {
     if data.len() < 2 {
         return Err(MjpegError::Truncated {
             expected: 2,
@@ -116,24 +188,7 @@ pub(crate) fn parse(data: &[u8]) -> Result<Parsed, MjpegError> {
     if data[0] != 0xff || data[1] != marker::SOI {
         return Err(bad_marker("mjpeg.marker.no_soi", 0));
     }
-
-    let mut info = JpegInfo {
-        width: 0,
-        height: 0,
-        components: Vec::new(),
-        quant_tables: [[1; 64]; 4],
-        quant_present: [false; 4],
-        huff_bits: [[[0; 17]; 4]; 2],
-        huff_vals: [
-            [Vec::new(), Vec::new(), Vec::new(), Vec::new()],
-            [Vec::new(), Vec::new(), Vec::new(), Vec::new()],
-        ],
-        huff_present: [[false; 4]; 2],
-        restart_interval: 0,
-        entropy_offset: 0,
-        jfif: false,
-        scan: Vec::new(),
-    };
+    info.reset();
 
     let mut pos = 2usize;
     let mut seen_sof = false;
@@ -169,28 +224,27 @@ pub(crate) fn parse(data: &[u8]) -> Result<Parsed, MjpegError> {
                 if !seen_sof {
                     return Err(bad_marker("mjpeg.marker.sos_before_sof", pos));
                 }
-                let (scan_start, scan) = parse_sos(data, pos, &info)?;
-                info.entropy_offset = scan_start;
-                info.scan = scan;
+                // Fills `info.scan` in place (D-1: no per-frame Vec).
+                info.entropy_offset = parse_sos(data, pos, info)?;
                 // The scan decoder takes over from here; everything
                 // after SOS is entropy data until a marker or the end
                 // of the packet.
-                return Ok(Parsed { info });
+                return Ok(());
             }
             marker::DQT => {
-                pos = parse_dqt(data, pos, &mut info)?;
+                pos = parse_dqt(data, pos, &mut *info)?;
             }
             marker::DHT => {
-                pos = parse_dht(data, pos, &mut info)?;
+                pos = parse_dht(data, pos, &mut *info)?;
             }
             marker::DRI => {
-                pos = parse_dri(data, pos, &mut info)?;
+                pos = parse_dri(data, pos, &mut *info)?;
             }
             marker::SOF0 => {
                 if seen_sof {
                     return Err(bad_marker("mjpeg.marker.duplicate_sof", pos));
                 }
-                parse_sof0(data, pos, &mut info)?;
+                parse_sof0(data, pos, &mut *info)?;
                 seen_sof = true;
                 pos = next_segment(data, pos)?;
             }
@@ -278,7 +332,9 @@ fn parse_sof0(data: &[u8], pos: usize, info: &mut JpegInfo) -> Result<(), MjpegE
     if seg_end < payload + 6 + 3 * count {
         return Err(bad_marker("mjpeg.sof.truncated_components", pos));
     }
-    let mut components = Vec::with_capacity(count);
+    // Refill the persistent component list in place (D-1: no fresh
+    // Vec — cleared by the pre-walk reset, capacity retained).
+    info.components.reserve(count);
     for i in 0..count {
         let base = payload + 6 + 3 * i;
         let id = data[base];
@@ -292,7 +348,7 @@ fn parse_sof0(data: &[u8], pos: usize, info: &mut JpegInfo) -> Result<(), MjpegE
         if quant_table > 3 {
             return Err(bad_marker("mjpeg.sof.quant_selector", base));
         }
-        components.push(ComponentInfo {
+        info.components.push(ComponentInfo {
             id,
             h,
             v,
@@ -302,7 +358,7 @@ fn parse_sof0(data: &[u8], pos: usize, info: &mut JpegInfo) -> Result<(), MjpegE
     // Our honest baseline subset: sampling factors 1..=2 per axis (the
     // 4:4:4 / 4:2:2 / 4:4:0 / 4:2:0 family). Factors 3/4 are legal
     // baseline but exotic; they stay the 5.H3 polish card's territory.
-    for comp in &components {
+    for comp in &info.components {
         if comp.h > 2 || comp.v > 2 {
             return Err(unsupported(format!(
                 "sampling factor h{}v{} on component {} \
@@ -313,7 +369,6 @@ fn parse_sof0(data: &[u8], pos: usize, info: &mut JpegInfo) -> Result<(), MjpegE
     }
     info.width = u32::from(width);
     info.height = u32::from(height);
-    info.components = components;
     Ok(())
 }
 
@@ -409,9 +464,14 @@ fn parse_dht(data: &[u8], pos: usize, info: &mut JpegInfo) -> Result<usize, Mjpe
         if p + 17 + total > end {
             return Err(bad_marker("mjpeg.dht.symbol_truncation", p));
         }
-        let vals = data[p + 17..p + 17 + total].to_vec();
+        // Refill the persistent HUFFVAL storage in place (D-1: no
+        // per-frame `to_vec` — cleared by the pre-walk reset, capacity
+        // retained; `total ≤ 256` above keeps the retained capacity
+        // bounded).
+        let vals = &mut info.huff_vals[tc as usize][td as usize];
+        vals.clear();
+        vals.extend_from_slice(&data[p + 17..p + 17 + total]);
         info.huff_bits[tc as usize][td as usize] = bits;
-        info.huff_vals[tc as usize][td as usize] = vals;
         info.huff_present[tc as usize][td as usize] = true;
         p += 17 + total;
     }
@@ -445,12 +505,10 @@ pub(crate) struct ScanComponent {
 
 /// SOS (§B.2.3): scan header. Baseline subset: exactly one interleaved
 /// scan covering every frame component, full spectral range,
-/// successive-approximation bits zero.
-fn parse_sos(
-    data: &[u8],
-    pos: usize,
-    info: &JpegInfo,
-) -> Result<(usize, Vec<ScanComponent>), MjpegError> {
+/// successive-approximation bits zero. Fills `info.scan` in place
+/// (D-1: the persistent list is cleared and refilled — no per-frame
+/// Vec) and returns the entropy-data start offset.
+fn parse_sos(data: &[u8], pos: usize, info: &mut JpegInfo) -> Result<usize, MjpegError> {
     let end = next_segment(data, pos)?;
     let payload = pos + 4;
     if end < payload + 1 {
@@ -467,7 +525,8 @@ fn parse_sos(
     if end < payload + 1 + 2 * ns + 3 {
         return Err(bad_marker("mjpeg.sos.truncated", pos));
     }
-    let mut scan = Vec::with_capacity(ns);
+    info.scan.clear();
+    info.scan.reserve(ns);
     for i in 0..ns {
         let cs = data[payload + 1 + 2 * i];
         let tables = data[payload + 2 + 2 * i];
@@ -477,7 +536,8 @@ fn parse_sos(
             .position(|c| c.id == cs)
             .ok_or_else(|| bad_marker("mjpeg.sos.unknown_component", payload + 1 + 2 * i))?;
         // A component may appear only once in a scan (B.2.3).
-        if scan
+        if info
+            .scan
             .iter()
             .any(|sc: &ScanComponent| sc.sof_index == sof_index)
         {
@@ -504,7 +564,7 @@ fn parse_sos(
                 payload + 2 + 2 * i,
             ));
         }
-        scan.push(ScanComponent { sof_index, td, ta });
+        info.scan.push(ScanComponent { sof_index, td, ta });
     }
     let spectral_start = data[payload + 1 + 2 * ns];
     let spectral_end = data[payload + 2 + 2 * ns];
@@ -515,7 +575,7 @@ fn parse_sos(
              (Ss={spectral_start}, Se={spectral_end}, Ah/Al={ah_al})"
         )));
     }
-    Ok((end, scan))
+    Ok(end)
 }
 
 #[cfg(test)]
@@ -578,6 +638,81 @@ mod tests {
     fn sos() -> Vec<u8> {
         let payload = [1u8, 1, 0x00, 0, 63, 0];
         seg(0xda, &payload)
+    }
+
+    #[test]
+    fn parse_into_reuses_the_scratch_without_leaking_across_walks() {
+        // Walk A: a 3-component stream whose DC table carries two
+        // symbols; a failed walk in between; walk B (same scratch):
+        // grayscale with a single-symbol DC table. B must see none of
+        // A's components, scan entries, HUFFVAL bytes or table flags —
+        // the reset keeps *capacities*, never contents (W2-06 made
+        // the walk reuse persistent storage, so the reset is a
+        // correctness property, not just hygiene) — and B's fields
+        // must equal a fresh stateless parse byte-for-byte.
+        let mut a = soi();
+        a.extend(dqt());
+        // DC table 0 with two symbols: BITS[1]=2, HUFFVAL=[0,5].
+        let mut dht_dc2 = vec![0x00u8];
+        dht_dc2.extend_from_slice(&[2u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        dht_dc2.extend_from_slice(&[0x00, 0x05]);
+        a.extend(seg(0xc4, &dht_dc2));
+        a.extend(dht_ac());
+        // SOF0 with three components (4:2:0).
+        let mut sof = vec![8u8];
+        sof.extend_from_slice(&[0, 8, 0, 8, 3, 1, 0x22, 0, 2, 0x11, 0, 3, 0x11, 0]);
+        a.extend(seg(0xc0, &sof));
+        a.extend(seg(0xda, &[3, 1, 0x00, 2, 0x00, 3, 0x00, 0, 63, 0]));
+        a.extend_from_slice(&[0xff, 0xd9]);
+
+        let mut b = soi();
+        b.extend(dqt());
+        b.extend(dht());
+        b.extend(sof0(8, 8));
+        b.extend(sos());
+        b.extend_from_slice(&[0xff, 0xd9]);
+
+        let mut scratch = JpegInfo::empty();
+        parse_into(&mut scratch, &a).unwrap_or_else(|e| unreachable!("walk A: {e:?}"));
+        assert_eq!(scratch.components.len(), 3);
+        assert_eq!(scratch.huff_vals[0][0], vec![0x00, 0x05]);
+        assert_eq!(scratch.scan.len(), 3);
+
+        // A failed walk: cut inside the SOS segment, after SOF/DQT/DHT
+        // have already been applied — the scratch holds partial state.
+        let mut broken = a.clone();
+        broken.truncate(broken.len() - 10);
+        assert!(parse_into(&mut scratch, &broken).is_err(), "cut walk fails");
+
+        parse_into(&mut scratch, &b).unwrap_or_else(|e| unreachable!("walk B: {e:?}"));
+        assert_eq!(scratch.components.len(), 1, "no leftover components");
+        assert_eq!(scratch.scan.len(), 1, "no leftover scan entries");
+        assert_eq!(scratch.huff_vals[0][0], vec![0x00], "HUFFVAL refilled");
+        assert!(!scratch.huff_present[0][1], "no leftover table flags");
+        // The reuse this whole shape exists for: A's capacities are
+        // still behind B's smaller walk (nothing regrew).
+        assert!(scratch.components.capacity() >= 3);
+        assert!(scratch.huff_vals[0][0].capacity() >= 2);
+
+        // And B's parse equals a fresh stateless parse on every field.
+        let fresh = match parse(&b) {
+            Ok(p) => p,
+            Err(e) => unreachable!("fresh walk B: {e:?}"),
+        };
+        assert_eq!(scratch.components, fresh.info.components);
+        assert_eq!(scratch.scan, fresh.info.scan);
+        assert_eq!(scratch.huff_vals, fresh.info.huff_vals);
+        assert_eq!(scratch.huff_bits, fresh.info.huff_bits);
+        assert_eq!(scratch.huff_present, fresh.info.huff_present);
+        assert_eq!(scratch.quant_tables, fresh.info.quant_tables);
+        assert_eq!(scratch.quant_present, fresh.info.quant_present);
+        assert_eq!(scratch.entropy_offset, fresh.info.entropy_offset);
+        assert_eq!(scratch.restart_interval, fresh.info.restart_interval);
+        assert_eq!(scratch.jfif, fresh.info.jfif);
+        assert_eq!(
+            (scratch.width, scratch.height),
+            (fresh.info.width, fresh.info.height)
+        );
     }
 
     #[test]
