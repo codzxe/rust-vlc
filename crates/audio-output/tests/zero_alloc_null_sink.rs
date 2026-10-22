@@ -43,8 +43,7 @@ fn null_sink_write_path_is_zero_allocation_after_warm_up() {
     // Setup: input materialization allocates freely, outside the
     // measured window.
     let format = f32_format();
-    let mut stream =
-        NullBackend::open_stream(&format, 8192, NullConfig { capture: false }).must();
+    let mut stream = NullBackend::open_stream(&format, 8192, NullConfig { capture: false }).must();
     let mut bytes = Vec::with_capacity(QUANTUM_SAMPLES * 4);
     for i in 0..QUANTUM_SAMPLES {
         let v = ((i % 251) as f32 - 125.0) / 128.0;

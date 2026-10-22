@@ -138,7 +138,7 @@ mod tests {
         let mixer = Mixer::new(1).must();
         let input = planes(&[&[0.0, 0.5, -0.25, 1.0], &[0.125, -1.0, 0.75, -0.5]]);
         let mut out = Vec::new();
-        let frames = mixer.mix(&[input.clone()], &mut out).must();
+        let frames = mixer.mix(std::slice::from_ref(&input), &mut out).must();
         assert_eq!(frames, 4);
         assert_eq!(out, input);
     }
@@ -184,7 +184,7 @@ mod tests {
         let mut out = Vec::new();
         // Wrong track count.
         let a = planes(&[&[0.0]]);
-        let err = mixer.mix(&[a.clone()], &mut out).err().must();
+        let err = mixer.mix(std::slice::from_ref(&a), &mut out).err().must();
         assert_eq!(err.context.code, "audio.chunk_length_mismatch");
         // Ragged planes.
         let b = planes(&[&[0.0, 1.0]]);
@@ -209,7 +209,7 @@ mod tests {
         let mixer = Mixer::new(1).must();
         let input = planes(&[&[0.5; 1024], &[0.25; 1024]]);
         let mut out = Vec::new();
-        mixer.mix(&[input.clone()], &mut out).must();
+        mixer.mix(std::slice::from_ref(&input), &mut out).must();
         let capacity: usize = out.iter().map(Vec::capacity).sum();
         mixer.mix(&[input], &mut out).must();
         assert_eq!(out.iter().map(Vec::capacity).sum::<usize>(), capacity);

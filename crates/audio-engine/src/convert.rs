@@ -52,22 +52,6 @@ fn check_planes(planes: &[Vec<f32>], channels: u32) -> Result<usize, EngineError
     Ok(frames)
 }
 
-/// Decode one scalar of `sample` format from little-endian bytes at
-/// `data[i..]` into f32 (the exact power-of-two scaling). Cold,
-/// single-sample use (tests, probes); the per-frame loops below hoist
-/// the format `match` out and call the monomorphic per-format
-/// decoders instead (D-2).
-fn scalar_to_f32(sample: SampleFormat, data: &[u8], i: usize) -> f32 {
-    match sample {
-        SampleFormat::U8 => u8_at(data, i),
-        SampleFormat::S16 => s16_at(data, i),
-        SampleFormat::S24 => s24_at(data, i),
-        SampleFormat::S32 => s32_at(data, i),
-        SampleFormat::F32 => f32_at(data, i),
-        SampleFormat::F64 => f64_at(data, i),
-    }
-}
-
 // The monomorphic per-format decoders: one static call site per
 // format, no per-sample `match`, no per-sample division.
 
@@ -178,11 +162,21 @@ pub fn frame_to_f32_planes(
     match fmt.layout {
         AudioLayout::Interleaved => match fmt.sample {
             SampleFormat::U8 => decode_interleaved!(planes, data, frames, frame_bytes, bps, u8_at),
-            SampleFormat::S16 => decode_interleaved!(planes, data, frames, frame_bytes, bps, s16_at),
-            SampleFormat::S24 => decode_interleaved!(planes, data, frames, frame_bytes, bps, s24_at),
-            SampleFormat::S32 => decode_interleaved!(planes, data, frames, frame_bytes, bps, s32_at),
-            SampleFormat::F32 => decode_interleaved!(planes, data, frames, frame_bytes, bps, f32_at),
-            SampleFormat::F64 => decode_interleaved!(planes, data, frames, frame_bytes, bps, f64_at),
+            SampleFormat::S16 => {
+                decode_interleaved!(planes, data, frames, frame_bytes, bps, s16_at)
+            }
+            SampleFormat::S24 => {
+                decode_interleaved!(planes, data, frames, frame_bytes, bps, s24_at)
+            }
+            SampleFormat::S32 => {
+                decode_interleaved!(planes, data, frames, frame_bytes, bps, s32_at)
+            }
+            SampleFormat::F32 => {
+                decode_interleaved!(planes, data, frames, frame_bytes, bps, f32_at)
+            }
+            SampleFormat::F64 => {
+                decode_interleaved!(planes, data, frames, frame_bytes, bps, f64_at)
+            }
         },
         AudioLayout::Planar => {
             let plane_bytes = frames * bps;
@@ -347,12 +341,7 @@ mod tests {
         assert_eq!(planes.len(), 1);
         assert!(planes[0].capacity() >= inner[0]);
         // Back at stereo, same geometry: capacities intact, no churn.
-        let frame = frame_of(
-            SampleFormat::S16,
-            AudioLayout::Interleaved,
-            2,
-            vec![0; 16],
-        );
+        let frame = frame_of(SampleFormat::S16, AudioLayout::Interleaved, 2, vec![0; 16]);
         frame_to_f32_planes(&frame, &mut planes).must();
         assert!(planes.capacity() >= outer);
         assert!(planes[0].capacity() >= inner[0]);
@@ -361,7 +350,10 @@ mod tests {
 
     #[test]
     fn interleave_into_is_byte_identical_to_the_vec_version() {
-        let planes = vec![vec![0.5f32, -0.25, 1.5, -2.5], vec![0.0f32, 3.5, -0.125, 8.0]];
+        let planes = vec![
+            vec![0.5f32, -0.25, 1.5, -2.5],
+            vec![0.0f32, 3.5, -0.125, 8.0],
+        ];
         let mut vec_out = Vec::new();
         planes_to_f32_interleaved(&planes, &mut vec_out).must();
         let mut fixed_out = vec![0u8; vec_out.len()];

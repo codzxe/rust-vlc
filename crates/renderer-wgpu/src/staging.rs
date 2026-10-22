@@ -127,6 +127,20 @@ impl Drop for StagedFrame {
     }
 }
 
+impl StagedFrame {
+    /// A hand-built frame with no pool attachment (in-crate test
+    /// builders): behaves like a plain owner — dropping it frees the
+    /// buffer instead of recycling it.
+    #[cfg(test)]
+    pub(crate) fn detached(extent: Extent2D, rgba: Vec<u8>) -> StagedFrame {
+        StagedFrame {
+            extent,
+            rgba,
+            recycle: None,
+        }
+    }
+}
+
 impl std::fmt::Debug for StagedFrame {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Same rendering the old derive produced (the pool handle is
@@ -279,8 +293,7 @@ impl StagingUploader {
             PixelFormat::Bgra8 => {
                 buffer.reserve(needed as usize);
                 for pixel in source[..needed as usize].as_chunks::<4>().0 {
-                    buffer
-                        .extend_from_slice(&[pixel[2], pixel[1], pixel[0], pixel[3]]);
+                    buffer.extend_from_slice(&[pixel[2], pixel[1], pixel[0], pixel[3]]);
                 }
             }
             // Unreachable: the guard above rejected everything else.

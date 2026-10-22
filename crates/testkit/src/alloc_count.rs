@@ -47,8 +47,8 @@
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicIsize, AtomicU64, Ordering};
 use std::sync::MutexGuard;
+use std::sync::atomic::{AtomicIsize, AtomicU64, Ordering};
 
 /// The whole-binary serializer for counting-allocator test binaries.
 ///
@@ -207,6 +207,7 @@ impl CountingGuard<'_> {
 /// The counting global allocator. Wrap [`System`] exactly; count on
 /// the way through. See the [module docs](self) for the safety
 /// argument and the serialization discipline.
+#[derive(Debug, Default)]
 pub struct CountingGlobalAlloc {
     state: AllocState,
 }

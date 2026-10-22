@@ -64,16 +64,11 @@ pub trait Compositor: Send {
 /// `Vec::with_capacity(w·h·4)` per composite was a fresh full-frame
 /// allocation every present; now the block is cleared and refilled
 /// in place, reallocating only when the placement geometry grows.
+#[derive(Default)]
 pub struct SoftwareCompositor {
     /// The composited destination block (reused; grown only on a
     /// geometry change).
     block: Vec<u8>,
-}
-
-impl Default for SoftwareCompositor {
-    fn default() -> SoftwareCompositor {
-        SoftwareCompositor { block: Vec::new() }
-    }
 }
 
 impl std::fmt::Debug for SoftwareCompositor {
@@ -141,9 +136,13 @@ impl Compositor for SoftwareCompositor {
                 // slice — a single row copy instead of per-pixel
                 // sampling (D-2).
                 let row = row_base.and_then(|at| {
-                    let end = at.checked_add(needed_width_bytes(dst.width))?
-                        .filter(|end| *end <= frame.rgba.len())?;
-                    frame.rgba.get(at..end)
+                    let width_bytes = needed_width_bytes(dst.width)?;
+                    let end = at.checked_add(width_bytes)?;
+                    if end <= frame.rgba.len() {
+                        frame.rgba.get(at..end)
+                    } else {
+                        None
+                    }
                 });
                 if let Some(row) = row {
                     self.block.extend_from_slice(row);
@@ -217,14 +216,13 @@ mod tests {
                 rgba.extend_from_slice(&paint(x, y));
             }
         }
-        StagedFrame {
-            extent: Extent2D {
+        StagedFrame::detached(
+            Extent2D {
                 width: w,
                 height: h,
             },
             rgba,
-            recycle: None,
-        }
+        )
     }
 
     fn full_placement(frame: Extent2D, target: Extent2D) -> Placement {

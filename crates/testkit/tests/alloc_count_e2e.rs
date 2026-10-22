@@ -72,7 +72,7 @@ fn instrument_end_to_end() {
     let after = ALLOC.state().snapshot();
     drop(bump);
     assert!(after.total_bytes >= before.total_bytes + 256);
-    assert!(after.alloc_calls >= before.alloc_calls + 1);
+    assert!(after.alloc_calls > before.alloc_calls);
 
     // 4. An allocation inside a window fails loudly (proven via
     //    catch_unwind so this binary stays green while the failure
@@ -80,7 +80,10 @@ fn instrument_end_to_end() {
     //    allocations happen inside the deliberately-dirty window).
     let caught = std::panic::catch_unwind(|| {
         let guard = ALLOC.state().guard();
-        let _bump = vec![7u8; 128];
+        // Vec::with_capacity is one heap allocation without the vec!
+        // macro's fill loop (the lint's array suggestion would move the
+        // bump to the stack and defeat the dirty-window construction).
+        let _bump: Vec<u8> = Vec::with_capacity(128);
         guard.assert_zero("this window is dirty by construction");
     });
     assert!(caught.is_err(), "assert_zero must fail on a dirty window");

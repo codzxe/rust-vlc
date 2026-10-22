@@ -44,9 +44,7 @@ fn quantum_frame(index: usize) -> AudioFrame {
             rate: RATE,
         },
         samples: SharedBytes::from_vec(bytes),
-        pts: Stamp::Present(
-            Timestamp::from_parts((index * QUANTUM_FRAMES) as i64, 1, RATE).must(),
-        ),
+        pts: Stamp::Present(Timestamp::from_parts((index * QUANTUM_FRAMES) as i64, 1, RATE).must()),
         duration: None,
         generation: GenerationId::FIRST,
     }
