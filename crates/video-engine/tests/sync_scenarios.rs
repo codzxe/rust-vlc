@@ -18,8 +18,8 @@ use media_types::GenerationId;
 use media_types::time::Nanoseconds;
 use testkit::Must;
 use video_engine::{
-    DropPolicy, PresentAction, PresentationQueue, PresentationScheduler, PushOutcome,
-    SchedulerCfg, SyncPolicy, SyncSample, TickOutcome,
+    DropPolicy, PresentAction, PresentationQueue, PresentationScheduler, PushOutcome, SchedulerCfg,
+    SyncPolicy, SyncSample, TickOutcome,
 };
 
 /// 30 fps nominal frame duration (ns).
@@ -102,11 +102,22 @@ fn s4_pts_step_discontinuity_snaps_exactly_once() {
     // Phase 3 — the clock walks to the post-gap frame (500 ms ≈ 15
     // ticks of bounded repeats then background), the snap present
     // lands, and the stream continues at 30 fps from the new base.
-    // Two seconds of post-snap stream follow (60 ticks).
+    // Two seconds of post-snap stream follow (60 ticks). Pushes run
+    // BEFORE the tick they are due at (phase 1's pacing): a frame
+    // delivered only after its own slot is legitimately one frame
+    // late — that is the late policy's job, not the snap's, and would
+    // turn this scenario into a drop-storm measurement instead.
     let mut snapped_at: Option<usize> = None;
     let mut post_snap_errors: Vec<i64> = Vec::new();
     let mut bands: Vec<SyncBand> = Vec::new();
     for tick in 0..(15 + 61) {
+        if tick >= 15 {
+            pts += FRAME as i64;
+            match scheduler.push(frame(pts, GEN)) {
+                PushOutcome::Scheduled => {}
+                other => unreachable!("{other:?}"),
+            }
+        }
         let outcome = step(&mut scheduler, &mut queue, &mut sink);
         if outcome.sync.snapped {
             snapped_at.get_or_insert(tick);
@@ -116,13 +127,6 @@ fn s4_pts_step_discontinuity_snaps_exactly_once() {
             }
         }
         bands.push(outcome.sync.band);
-        if tick >= 15 {
-            pts += FRAME as i64;
-            match scheduler.push(frame(pts, GEN)) {
-                PushOutcome::Scheduled => {}
-                other => unreachable!("{other:?}"),
-            }
-        }
         clock.advance_ns(FRAME);
     }
 
@@ -215,10 +219,7 @@ fn s5_pts_jitter_never_flaps_the_threshold() {
     // window; with pure ±½ frame jitter the ladder never engages at
     // all (0 is the measured value — the hold band absorbs what the
     // lead already absorbs, the EMA smooths the rest).
-    assert_eq!(
-        threshold_changes, 0,
-        "jitter must not move the threshold"
-    );
+    assert_eq!(threshold_changes, 0, "jitter must not move the threshold");
     assert_eq!(
         correction_ticks, 0,
         "jitter must not trip a correction band"

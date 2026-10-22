@@ -603,18 +603,29 @@ impl PresentationScheduler {
                     }
                     // 3.B1 discontinuity seam (doc 03 §4.7 e's PTS-jump
                     // tier, scheduler-side): an incoming PTS that
-                    // jumps from the stream's continuation — the
-                    // window's tail, or the last-presented frame when
-                    // the stream is caught up (the window is empty —
-                    // the common case for a mid-stream gap) — by at
-                    // least the snap threshold arms snap mode: the
-                    // next present is exempt from late-drop
+                    // jumps FORWARD from the stream's continuation —
+                    // the window's tail, or the last-presented frame
+                    // when the stream is caught up (the window is
+                    // empty — the common case for a mid-stream gap) —
+                    // by at least the snap threshold arms snap mode:
+                    // the next present is exempt from late-drop
                     // accounting, and the error estimator restarts (a
                     // new regime). The window is PTS-sorted; ordering
                     // needs no help. The threshold is
                     // wiring-configurable (`SchedulerCfg::with_sync`),
                     // default ½ the doc 03 §4.4 audio queue duration
                     // cap.
+                    //
+                    // Forward-only, deliberately. A BACKWARD arrival
+                    // (a frame far behind the continuation) is not a
+                    // discontinuity: it is an out-of-order or stale
+                    // frame, and the late policy's job (drop, count,
+                    // never present) — arming the snap exemption for
+                    // it would suppress the very purge that exists to
+                    // remove it. A genuine backward stream jump
+                    // (seek, re-anchor) arrives through the
+                    // generation / anchor-epoch seams, which arm the
+                    // exemption themselves (tier 3, W1-18 §4).
                     let continuation = self
                         .window
                         .back()
@@ -622,7 +633,7 @@ impl PresentationScheduler {
                         .or_else(|| self.last.as_ref().map(|request| request.when.ticks));
                     if let Some(reference) = continuation {
                         let gap = i128::from(pts.ticks) - i128::from(reference);
-                        if gap.abs() >= i128::from(self.cfg.sync.pts_gap_threshold.0) {
+                        if gap >= i128::from(self.cfg.sync.pts_gap_threshold.0) {
                             self.sync.reset_estimators(&self.cfg);
                             self.sync.snap_pending = true;
                             self.sync.purge_skip = true;
