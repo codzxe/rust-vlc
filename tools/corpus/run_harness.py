@@ -51,6 +51,27 @@ PCM_REF_FMT = {
 }
 
 
+def ref_frame_cap(entry: dict) -> int | None:
+    """Per-file reference frame cap — enough frames for stable PSNR
+    statistics at every resolution, bounded disk (a full 4K rawvideo ref
+    is ~12 MB/frame; uncapped refs blew the disk at 6.6 GB). The Rust
+    RefReader stops comparing at ref EOF and keeps decoding, so a capped
+    ref never misaligns frames."""
+    w = entry["params"].get("width") or 0
+    h = entry["params"].get("height") or 0
+    px = w * h
+    dirty = entry["class"] in ("dirty", "dirty-lie-ext")
+    if px >= 3_000_000:      # 4K/DCI+
+        cap = 16
+    elif px >= 1_000_000:    # QHD
+        cap = 24
+    elif px >= 400_000:      # FHD-ish
+        cap = 45
+    else:
+        return None           # all frames (small anyway)
+    return min(cap, 16) if dirty else cap
+
+
 def sh(cmd: list[str], timeout: int = 300) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
 
@@ -112,31 +133,39 @@ def main() -> int:
 
     t0 = time.time()
     files = manifest["files"]
-    print(f"[harness] corpus: {len(files)} files, seed {manifest.get('seed')}")
+    print(f"[h[harness] corpus: {len(files)} files, seed {manifest.get('seed')}")
 
     # ------------------------------------------------------------------
     # 1. ffprobe truth for every file (the external oracle).
+    #    Checkpointed: a reaper kill mid-run resumes from truth.json.
     # ------------------------------------------------------------------
-    truth: dict[str, dict] = {}
-    for i, entry in enumerate(files):
-        path = corpus / entry["rel"]
-        if not path.is_file():
-            print(f"[harness] WARNING missing file {entry['rel']}")
-            continue
-        j = ffprobe_json(path, args.ffprobe)
-        rec: dict = {"format": "-", "duration_ms": "-", "streams": "-", "v_pkts": "-", "a_pkts": "-"}
-        if j is not None:
-            fmt = j.get("format", {})
-            rec["format"] = fmt.get("format_name", "-") or "-"
-            d = fmt.get("duration")
-            rec["duration_ms"] = f"{float(d) * 1000:.1f}" if d else "-"
-            rec["streams"] = str(len(j.get("streams", [])))
-            if entry["family"][0] == "avi" and entry["class"] in ("video", "av", "dirty", "dirty-lie-ext") or entry["class"] in ("avi-video", "avi-av"):
-                rec["v_pkts"] = str(ffprobe_packets(path, args.ffprobe, "v:0") or "-")
-                rec["a_pkts"] = str(ffprobe_packets(path, args.ffprobe, "a:0") or "-")
-        truth[entry["rel"]] = rec
-        if (i + 1) % 50 == 0:
-            print(f"[harness] ffprobe {i + 1}/{len(files)}", flush=True)
+    truth_path = harness_dir / "truth.json"
+    if truth_path.is_file():
+        truth = json.loads(truth_path.read_text())
+        print(f"[h[harness] truth checkpoint: {len(truth)} files (resumed)")
+    else:
+        truth: dict[str, dict] = {}
+        for i, entry in enumerate(files):
+            path = corpus / entry["rel"]
+            if not path.is_file():
+                print(f"[h[harness] WARNING missing file {entry['rel']}")
+                continue
+            j = ffprobe_json(path, args.ffprobe)
+            rec: dict = {"format": "-", "duration_ms": "-", "streams": "-", "v_pkts": "-", "a_pkts": "-"}
+            if j is not None:
+                fmt = j.get("format", {})
+                rec["format"] = fmt.get("format_name", "-") or "-"
+                d = fmt.get("duration")
+                rec["duration_ms"] = f"{float(d) * 1000:.1f}" if d else "-"
+                rec["streams"] = str(len(j.get("streams", [])))
+                if entry["family"][0] == "avi":
+                    rec["v_pkts"] = str(ffprobe_packets(path, args.ffprobe, "v:0") or "-")
+                    rec["a_pkts"] = str(ffprobe_packets(path, args.ffprobe, "a:0") or "-")
+            truth[entry["rel"]] = rec
+            if (i + 1) % 50 == 0:
+                print(f"[h[harness] ffprobe {i + 1}/{len(files)}", flush=True)
+                truth_path.write_text(json.dumps(truth))  # incremental checkpoint
+        truth_path.write_text(json.dumps(truth))
 
     # ------------------------------------------------------------------
     # 2. Case lists.
@@ -172,8 +201,22 @@ def main() -> int:
                 continue
             src = corpus / e["rel"]
             ref = refs_dir / f"mjpeg-{i:04d}.raw"
-            p = sh([args.ffmpeg, "-v", "error", "-i", str(src), "-map", "0:v:0",
-                    "-c:v", "rawvideo", "-pix_fmt", "yuv420p", "-f", "rawvideo", "-y", str(ref)])
+            cap = ref_frame_cap(e)
+            if ref.is_file() and ref.stat().st_size > 0:
+                fb = w * h + 2 * ((w + 1) // 2) * ((h + 1) // 2)
+                size = ref.stat().st_size
+                frames, rem = divmod(size, fb)
+                if rem == 0 and frames > 0:
+                    f.write(f"{e['rel']}\t_harness/refs/{ref.name}\t{w}\t{h}\t{frames}\n")
+                    mjpeg_rows.append({"rel": e["rel"], "ref": f"_harness/refs/{ref.name}", "w": w, "h": h,
+                                       "frames": frames, "res_name": e["params"].get("res_name", "?")})
+                    continue
+            extract = [args.ffmpeg, "-v", "error", "-i", str(src), "-map", "0:v:0",
+                       "-c:v", "rawvideo", "-pix_fmt", "yuv420p", "-f", "rawvideo", "-y"]
+            if cap is not None:
+                extract += ["-frames:v", str(cap)]
+            extract.append(str(ref))
+            p = sh(extract)
             if p.returncode != 0 or not ref.is_file() or ref.stat().st_size == 0:
                 mjpeg_rows.append({"rel": e["rel"], "note": "ref-extraction-failed"})
                 continue
@@ -200,40 +243,50 @@ def main() -> int:
                 continue
             src = corpus / e["rel"]
             ref = refs_dir / f"pcm-{i:04d}.raw"
-            p = sh([args.ffmpeg, "-v", "error", "-i", str(src), "-map", "0:a:0",
-                    "-f", PCM_REF_FMT[desc], "-y", str(ref)])
-            if p.returncode != 0 or not ref.is_file():
-                pcm_rows.append({"rel": e["rel"], "note": "ref-extraction-failed"})
-                continue
+            if not (ref.is_file() and ref.stat().st_size > 0):
+                p = sh([args.ffmpeg, "-v", "error", "-i", str(src), "-map", "0:a:0",
+                        "-f", PCM_REF_FMT[desc], "-y", str(ref)])
+                if p.returncode != 0 or not ref.is_file():
+                    pcm_rows.append({"rel": e["rel"], "note": "ref-extraction-failed"})
+                    continue
             f.write(f"{e['rel']}\t_harness/refs/{ref.name}\t{desc}\t{e['params']['audio_rate']}\t{e['params']['audio_channels']}\n")
             pcm_rows.append({"rel": e["rel"], "ref": f"_harness/refs/{ref.name}", "desc": desc,
                              "rate": e["params"]["audio_rate"], "ch": e["params"]["audio_channels"]})
 
-    print(f"[harness] cases: probe={len(files)} avi={len(avi_entries)} "
+    print(f"[h[harness] cases: probe={len(files)} avi={len(avi_entries)} "
           f"mjpeg={len([r for r in mjpeg_rows if 'ref' in r])} pcm={len([r for r in pcm_rows if 'ref' in r])}")
 
     # ------------------------------------------------------------------
     # 3. Drive the Rust suites (release).
     # ------------------------------------------------------------------
-    def run_suite(crate: str, test: str, cases: Path, results_name: str) -> tuple[int, Path]:
+    def run_suite(crate: str, test: str, cases: Path, results_name: str, test_filter: str | None = None) -> tuple[int, Path]:
         results = harness_dir / results_name
         results.unlink(missing_ok=True)
+        cargo = shutil.which("cargo") or str(Path.home() / ".cargo" / "bin" / "cargo")
         env = dict(os.environ)
         env.update({
             "LUMEN_CORPUS": str(corpus),
             "LUMEN_CORPUS_CASES": str(cases),
             "LUMEN_CORPUS_RESULTS": str(results),
             "CARGO_TARGET_DIR": os.environ.get("CARGO_TARGET_DIR", str(REPO / "target")),
+            "PATH": env["PATH"] + os.pathsep + str(Path(cargo).parent),
         })
-        cmd = ["cargo", "test", "--release", "-p", crate, "--test", test, "--", "--ignored", "--nocapture"]
+        cmd = [cargo, "test", "--release", "-p", crate, "--test", test, "--", "--ignored", "--nocapture"]
+        if test_filter is not None:
+            # One test per invocation: the codecs corpus binary carries two
+            # tests that would otherwise run in parallel and interleave their
+            # appends into the shared results TSV.
+            cmd.append(test_filter)
         p = subprocess.run(cmd, cwd=REPO, env=env, capture_output=True, text=True, timeout=7200)
         (harness_dir / f"{results_name}.log").write_text(p.stdout[-20000:] + "\n=== STDERR ===\n" + p.stderr[-20000:])
         return p.returncode, results
 
     rc_probe, res_probe = run_suite("media-probe", "corpus", probe_cases, "probe-results.tsv")
     rc_demux, res_demux = run_suite("demux", "corpus", avi_cases, "demux-results.tsv")
-    rc_mjpeg, res_mjpeg = run_suite("codecs", "corpus", mjpeg_cases, "mjpeg-results.tsv")
-    rc_pcm, res_pcm = run_suite("codecs", "corpus", pcm_cases, "pcm-results.tsv")
+    rc_mjpeg, res_mjpeg = run_suite("codecs", "corpus", mjpeg_cases, "mjpeg-results.tsv",
+                                    "corpus_mjpeg_decode_measures_against_oracle")
+    rc_pcm, res_pcm = run_suite("codecs", "corpus", pcm_cases, "pcm-results.tsv",
+                                "corpus_pcm_decode_is_byte_exact_or_recorded")
 
     def read_tsv(path: Path) -> list[dict]:
         if not path.is_file():
@@ -271,42 +324,16 @@ def main() -> int:
     # -- probe judgement --------------------------------------------------
     report.append("## Probe (bounded format detection) vs ffprobe oracle")
     report.append("")
-    ok_avi = ok_mp4 = n_avi = n_mp4 = 0
     false_pos: list[str] = []
-    garbage_total = garbage_rejected = 0
-    other_rejected = other_total = 0
     probe_lat: list[float] = []
     for row in probe_res:
-        lat = float(row.get("elapsed_us") or 0)
-        probe_lat.append(lat)
+        probe_lat.append(float(row.get("elapsed_us") or 0))
         verdict = row["verdict"]
         truth_fmt = row["truth_format"]
         cls = row["class"]
         if verdict == "probed":
-            if truth_fmt in LUMEN_FORMAT_OF:
-                false_pos.append(f"{row['rel']} probed={row['format']} truth={truth_fmt}")
-            elif cls.startswith("garbage"):
-                false_pos.append(f"{row['rel']} garbage probed={row['format']}")
-        elif verdict == "rejected":
-            if truth_fmt == "avi":
-                n_avi += 1
-            elif truth_fmt in ("mov,mp4,m4a,3gp,3g2,mj2",):
-                n_mp4 += 1
-            elif cls.startswith("garbage"):
-                garbage_rejected += 1
-            else:
-                other_rejected += 1
-        if truth_fmt == "avi":
-            n_avi += 1
-            if verdict == "probed" and row["format"] == "avi":
-                ok_avi += 1
-        if truth_fmt.startswith("mov,mp4"):
-            n_mp4 += 1
-            if verdict == "probed" and row["format"] == "mp4":
-                ok_mp4 += 1
-        if cls.startswith("garbage"):
-            garbage_total += 1
-    # truth-format counting above double-adds on rejected-avi; recompute cleanly
+            if truth_fmt not in LUMEN_FORMAT_OF:
+                false_pos.append(f"{row['rel']} probed={row['format']} truth={truth_fmt or '-'} class={cls}")
     n_avi = sum(1 for r in probe_res if r["truth_format"] == "avi")
     n_mp4 = sum(1 for r in probe_res if r["truth_format"].startswith("mov,mp4"))
     ok_avi = sum(1 for r in probe_res if r["truth_format"] == "avi" and r["verdict"] == "probed" and r["format"] == "avi")
@@ -326,10 +353,26 @@ def main() -> int:
                   f"{percentile(probe_lat, 0.95):.0f}µs / {percentile(probe_lat, 1.0):.0f}µs |")
     report.append("")
 
-    # -- demux judgement ---------------------------------------------------
-    report.append("## AVI demux walk vs ffprobe oracle")
+    # -- demux judgement (scoped to the fourccs the demuxer can feed) -----
+    # The AVI demuxer's supported set is mjpeg video + pcm audio (the
+    # codecs that exist); files outside it are expected to be TYPED
+    # refusals, judged on the refusal, not on conformance.
+    report.append("## AVI demux walk vs ffprobe oracle (supported fourccs: mjpeg + pcm)")
     report.append("")
-    clean = [r for r in demux_res if r["class"] in ("video", "av", "avi-video", "avi-av")]
+
+    def avi_supported(entry: dict) -> bool:
+        fam = entry.get("family", [])
+        if len(fam) < 2:
+            return False
+        parts = fam[1].split("+")
+        v = parts[0]
+        a = parts[1] if len(parts) > 1 else None
+        return v == "mjpeg" and (a is None or a.startswith("pcm"))
+
+    man_index = {e["rel"]: e for e in files}
+    sup = [r for r in demux_res if avi_supported(man_index.get(r.get("rel", ""), {}))]
+    refused = [r for r in demux_res if not avi_supported(man_index.get(r.get("rel", ""), {}))]
+    clean = [r for r in sup if r["class"] in ("video", "av", "avi-video", "avi-av")]
     dirty = [r for r in demux_res if r["class"] in ("dirty", "dirty-lie-ext")]
 
     def num(r: dict, k: str) -> int | None:
@@ -368,7 +411,7 @@ def main() -> int:
             pass
     report.append("| metric | value |")
     report.append("|---|---|")
-    report.append(f"| clean AVIs walked to EOS | **{walked_eos}/{len(clean)}** |")
+    report.append(f"| supported clean AVIs walked to EOS | **{walked_eos}/{len(clean)}** |")
     report.append(f"| stream count matches oracle | {tracks_match}/{streams_match} |")
     report.append(f"| video packet count matches oracle | **{vp_match}/{len([r for r in clean if r.get('truth_v_packets') not in ('-', '')])}** |")
     report.append(f"| audio packet count matches oracle | {ap_match}/{len([r for r in clean if r.get('truth_a_packets') not in ('-', '')])} |")
@@ -378,23 +421,28 @@ def main() -> int:
     if dur_err:
         report.append(f"| PTS-span duration error p50/p95/max | {fmt_ms(percentile(dur_err, 0.5))} / "
                       f"{fmt_ms(percentile(dur_err, 0.95))} / {fmt_ms(percentile(dur_err, 1.0))} ms |")
-    dirty_typed = sum(1 for r in dirty if r.get("terminal") in ("eos", "error"))
+    dirty_typed = sum(1 for r in dirty if r.get("terminal") in ("eos", "error", "start-error"))
     dirty_recovered = sum(1 for r in dirty if num(r, "recovered") and num(r, "recovered") > 0)
     report.append(f"| dirty AVIs reached a typed terminal (no panic, no hang) | **{dirty_typed}/{len(dirty)}** |")
     report.append(f"| dirty AVIs that recovered damage mid-walk | {dirty_recovered} |")
+    refused_ok = sum(1 for r in refused if r.get("terminal") == "start-error")
+    report.append(f"| unsupported-fourcc AVIs answered with a typed refusal | {refused_ok}/{len(refused)} "
+                  f"(no panic on any) |")
     report.append("")
 
     # -- mjpeg judgement ---------------------------------------------------
     report.append("## MJPEG decode vs ffmpeg oracle (real throughput + fidelity)")
     report.append("")
     by_res: dict[str, list[dict]] = {}
+    res_px: dict[str, int] = {}
     for row in mjpeg_res:
         meta = next((m for m in mjpeg_rows if m["rel"] == row["rel"]), {})
         rn = meta.get("res_name", "?")
+        res_px[rn] = max(res_px.get(rn, 0), int(meta.get("w", 0)) * int(meta.get("h", 0)))
         by_res.setdefault(rn, []).append(row)
     report.append("| resolution | files | frames | decode errors | concealed | PSNR min (dB) | PSNR mean (dB) | max abs | exact bytes | throughput |")
     report.append("|---|---|---|---|---|---|---|---|---|---|")
-    for rn in sorted(by_res, key=lambda k: -sum(r.get("w", 0) for r in [next((m for m in mjpeg_rows if m['rel'] == x['rel']), {'w': 0}) for x in by_res[k]]) / max(1, len(by_res[k]))):
+    for rn in sorted(by_res, key=lambda k: res_px.get(k, 0)):
         rows = by_res[rn]
         frames = sum(int(r.get("decoded") or 0) for r in rows)
         errors = sum(int(r.get("errors") or 0) for r in rows)
@@ -421,19 +469,31 @@ def main() -> int:
     # -- pcm judgement -----------------------------------------------------
     report.append("## PCM decode vs ffmpeg oracle (byte-exact expected)")
     report.append("")
+    # A case is COMPARABLE only when the AVI demuxed the audio stream at
+    # all; refused/undemuxable cases (unsupported fourcc combos, damaged
+    # headers) are counted separately — they are demuxer-scope findings,
+    # not PCM decoder verdicts.
+    comparable = [r for r in pcm_res if not r.get("note", "").startswith(("demux.", "pcm.unknown"))]
+    not_demuxable = len(pcm_res) - len(comparable)
     pcm_exact = 0
     pcm_mismatch_files = 0
-    for row in pcm_res:
+    pcm_short = 0
+    for row in comparable:
         mis = int(row.get("mismatch") or 0)
         if mis == 0 and not row.get("note"):
             pcm_exact += 1
         elif mis > 0:
             pcm_mismatch_files += 1
+        elif row.get("note", "").startswith("len:"):
+            pcm_short += 1
     report.append("| metric | value |")
     report.append("|---|---|")
-    report.append(f"| PCM cases byte-exact vs ffmpeg | **{pcm_exact}/{len(pcm_res)}** |")
-    report.append(f"| cases with mismatches | {pcm_mismatch_files} (any mismatch on clean files is a defect signal) |")
-    for row in pcm_res:
+    report.append(f"| comparable PCM cases (audio stream demuxed) | {len(comparable)}/{len(pcm_res)} "
+                  f"({not_demuxable} not demuxable — see demux section) |")
+    report.append(f"| comparable cases byte-exact vs ffmpeg | **{pcm_exact}/{len(comparable)}** |")
+    report.append(f"| cases with byte mismatches | {pcm_mismatch_files} (any mismatch is a defect signal) |")
+    report.append(f"| cases with shorter demuxed payload than oracle (len notes) | {pcm_short} |")
+    for row in comparable:
         if int(row.get("mismatch") or 0) > 0:
             report.append(f"  - {row['rel']}: {row['mismatch']} mismatched bytes, max_abs={row['max_abs']}, note={row.get('note', '')}")
     report.append("")
@@ -450,7 +510,7 @@ def main() -> int:
     out_md.parent.mkdir(parents=True, exist_ok=True)
     out_md.write_text(text)
     (corpus / "REPORT.md").write_text(text)
-    print(f"[harness] report: {out_md}")
+    print(f"[h[harness] report: {out_md}")
     if not args.keep_refs:
         shutil.rmtree(refs_dir, ignore_errors=True)
     return 0 if all(rc == 0 for rc in (rc_probe, rc_demux, rc_mjpeg, rc_pcm)) else 1
