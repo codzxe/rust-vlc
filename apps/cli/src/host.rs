@@ -503,6 +503,12 @@ impl CliHost {
                         guard.note_video_error(error);
                         break;
                     }
+                    // Card 3.B1's loop closure (W1-18 §7 step 8): one
+                    // drift observation per rendered quantum — the
+                    // device just consumed, so the fill this sample
+                    // sees is the steady-state residue. Counters only,
+                    // never events; an unarmed governor ignores it.
+                    guard.observe_audio_drift();
                 }
             }
             None => {

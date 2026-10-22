@@ -24,6 +24,13 @@ workspace = true
 
 [dependencies]
 media-types = { path = "../media-types" }
+# media-clock joins with card 3.B1's drift micro-resampler (doc 03
+# §4.8 e) — the manifest's own pre-noted edge (boundaries.toml's
+# audio-engine comment, written in 2.C3 for exactly this card):
+# DriftCorrection (the ±1000 ppm limiter), DriftEstimator/RateWindow
+# (the pure sync primitives). No clock objects cross this edge — the
+# pipeline stores a correction, never a clock.
+media-clock = { path = "../media-clock" }
 
 [dev-dependencies]
 # testkit is dev-only by contract (MP §3.7): Must-asserts for the

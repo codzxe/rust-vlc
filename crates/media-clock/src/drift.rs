@@ -16,6 +16,15 @@
 //! §3.1). Nothing here resamples audio or schedules video; the
 //! consumers (audio-engine, video-engine) apply the correction, and
 //! they can rely on it never exceeding the bound.
+//!
+//! **Consumers (card 3.B1 — audit M12 closed):** audio-engine's
+//! `MicroResampler` consumes a stored [`DriftCorrection`] as its
+//! resample ratio (`out = in × (1e6 + ppm)/1e6`, crates/audio-engine/
+//! src/resample.rs), and its `DriftGovernor` *derives* one per window
+//! via [`DriftCorrection::for_divergence`] over the measured ring-fill
+//! error (crates/audio-engine/src/governor.rs). The clock itself is
+//! never drift-corrected (doc 03 §4.7 e: the two absorbers are the
+//! video scheduler and the micro-resampler — never `set_rate`).
 
 use media_types::time::{Rate, TimeBase, TimeError};
 

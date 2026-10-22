@@ -182,12 +182,12 @@ mod test_support;
 
 pub use policy::{
     DEFAULT_MAX_PENDING, DEFAULT_MAX_REPEAT, DropPolicy, FrameDecision, SchedulerCfg,
-    SchedulerCfgError,
+    SchedulerCfgError, SyncPolicy,
 };
 pub use queue::{DrainError, EnqueueOutcome, PresentationQueue, QueueStats};
 pub use scheduler::{
     DropTrail, MAX_DROP_TRAIL, PresentAction, PresentationScheduler, PushOutcome, SchedulerStats,
-    TickDrops, TickOutcome,
+    SyncSample, TickDrops, TickOutcome,
 };
 pub use sink::{PresentInfo, PresentRequest, Presenter};
 
