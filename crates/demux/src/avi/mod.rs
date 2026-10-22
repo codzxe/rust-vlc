@@ -34,9 +34,25 @@
 //!   a recoverable cut. A payload that runs past its list bound but
 //!   stays inside the file is clamped to the bound (damage-counted,
 //!   never a silent early end) and the walk resumes at the bound.
-//!   `movi`-level structure cuts remain typed errors at the exact
-//!   boundary: a walk that cannot even read a chunk header inside the
-//!   clamped `movi` reports the declared end, never a silent EOF.
+//!   **A cursor jump that runs past the walk bound is clamped AND
+//!   re-synchronized** (W2-07, completed by the W3-07 salvage
+//!   continuation; W1-03's class-d filings): damage-
+//!   induced garbage reads a bogus size whose skip would strand the
+//!   cursor past the bound and end the walk EOS, forfeiting every
+//!   playable byte after the damage despite a valid `idx1`. The
+//!   resync ladder: the index's first entry past the damaged chunk
+//!   (the file's own account of where real chunks live), else a
+//!   bounded WORD-aligned signature scan for a chunk header the walk
+//!   itself would accept (the ffmpeg `avi_sync` equivalent); every
+//!   step is damage-counted, and a resync that finds no landing
+//!   within the budget is a typed terminal — never a silent
+//!   EOS-with-playable-tail. The presentation ladders are not
+//!   replayed on landing: timestamps continue from the bytes actually
+//!   delivered (documented v0 limit — the same trade ffmpeg's sync
+//!   recovery makes). `movi`-level structure cuts remain typed errors
+//!   at the exact boundary: a walk that cannot even read a chunk
+//!   header inside the clamped `movi` reports the declared end, never
+//!   a silent EOF.
 //! - **Degenerate streams are contained per-stream** (see
 //!   [`header`]): one bad `strl` skips that stream with damage; the
 //!   file and its other tracks survive.
@@ -109,6 +125,17 @@ pub mod test_support;
 /// corruption and is positionally skipped with damage, not read]`.
 pub const MAX_CHUNK_PAYLOAD: u64 = 32 * 1024 * 1024;
 
+/// Maximum bytes the mid-walk resync signature scan may inspect per
+/// attempt `[PROPOSAL: 1 MiB — damage regions are chunk-granular
+/// (KBs); the budget bounds worst-case work on adversarial files
+/// while staying far above any real resync distance]`.
+pub const RESYNC_SCAN_BUDGET: u64 = 1024 * 1024;
+
+/// Maximum mid-walk resync attempts before the walk refuses with the
+/// typed terminal `[PROPOSAL: 32 — one per damaged region; a file
+/// that needs more is corruption-dense, not media]`.
+pub const MAX_WALK_RESYNCS: u32 = 32;
+
 /// Maximum `movi` list nesting (`rec ` lists inside `rec ` lists …)
 /// `[PROPOSAL: 8 — the AVI 1.0 spec nests one level (`rec `); deeper
 /// is corruption]`.
@@ -163,6 +190,9 @@ struct WalkCursor {
     /// Position into the index's file-ordered entries (keyframe
     /// lookup without re-scanning).
     index_cursor: usize,
+    /// Mid-walk resync attempts spent (the [`MAX_WALK_RESYNCS`]
+    /// budget; a re-anchor starts a fresh walk and a fresh budget).
+    resyncs: u32,
 }
 
 /// The AVI 1.0 demuxer.
@@ -457,7 +487,14 @@ impl AviDemuxer {
                         // A packet chunk of an unsupported/unknown
                         // stream: skipped silently here — the parse-time
                         // skip already counted it.
-                        cursor.pos = next;
+                        if next > bound {
+                            // The skip's declared extent is a damage-sized
+                            // lie past the bound: clamp + resync (see the
+                            // `Other` arm — same class-d recovery).
+                            self.resync_after_clamp(cursor, region, pos, bound, next)?;
+                        } else {
+                            cursor.pos = next;
+                        }
                         continue;
                     };
                     // Everything borrowed from the stream table is
@@ -474,8 +511,15 @@ impl AviDemuxer {
                     let size = u64::from(header.size);
                     if size > MAX_CHUNK_PAYLOAD {
                         self.damage.note(size, "chunk-payload-over-ceiling");
-                        self.surface_damage();
-                        cursor.pos = next;
+                        if next > bound {
+                            // The over-ceiling skip would jump past the
+                            // bound: clamp + resync (see the `Other`
+                            // arm — same class-d recovery).
+                            self.resync_after_clamp(cursor, region, pos, bound, next)?;
+                        } else {
+                            self.surface_damage();
+                            cursor.pos = next;
+                        }
                         continue;
                     }
 
@@ -639,11 +683,179 @@ impl AviDemuxer {
                 MoviChunkKind::Other => {
                     self.damage
                         .note(u64::from(header.size), "unknown-chunk-in-movi");
+                    if next > bound {
+                        // The class-d dirty walk (W1-03's filings): a
+                        // garbage size read off misaligned bytes at
+                        // the tail of a damaged region. Clamping alone
+                        // would strand the cursor at the bound and end
+                        // the walk EOS — forfeiting every playable
+                        // byte after the damage. Clamp AND resync
+                        // (D-3: recover, never forfeit silently).
+                        self.resync_after_clamp(cursor, region, pos, bound, next)?;
+                    } else {
+                        cursor.pos = next;
+                    }
                     self.surface_damage();
-                    cursor.pos = next;
                 }
             }
         }
+    }
+
+    /// Clamp a damage-induced cursor jump past the walk bound and
+    /// re-synchronize the walk (W2-07, completed by the W3-07
+    /// salvage continuation; W1-03's class-d filings —
+    /// D-3/D-9: recover, never forfeit playable tail silently).
+    ///
+    /// `pos` is the damaged chunk's position; `next` its unclamped
+    /// jump target, already known to run past `bound` (the caller
+    /// checked). Resolution order:
+    ///
+    /// 1. **idx1-informed** (the ladder): the first index entry past
+    ///    the damaged chunk whose header sits inside the current
+    ///    walk bound — the file's own account of where the next real
+    ///    chunk lives. Entries at or before `pos` are excluded: the
+    ///    damaged chunk's own entry describes the bytes just
+    ///    classified as garbage.
+    /// 2. **Bounded signature scan** (the ffmpeg `avi_sync`
+    ///    equivalent): WORD-aligned positions from `pos` forward, at
+    ///    most [`RESYNC_SCAN_BUDGET`] bytes, for a chunk header the
+    ///    walk itself would accept (a `NNdc`/`NNwb` id of a known
+    ///    stream, declared extent inside the bound and the payload
+    ///    ceiling).
+    /// 3. **Parent handback**: inside a `rec ` list with no landing,
+    ///    the position hands back to the parent walk at the list's
+    ///    end — the damaged list's tail is surrendered (counted),
+    ///    the parent keeps walking.
+    ///
+    /// Every path records damage: the refused jump distance first
+    /// (`chunk-jump-past-list-bound`, the same declared-minus-
+    /// deliverable arithmetic the payload clamp uses), then the span
+    /// surrendered until the landing. The presentation ladders are
+    /// NOT replayed on landing — timestamps continue from the bytes
+    /// actually delivered (the documented v0 limit).
+    ///
+    /// # Errors
+    /// Typed terminal when the attempt budget is spent or no landing
+    /// exists and no parent list remains — the loud refusal that
+    /// replaces the old silent EOS-with-playable-tail. The flavor:
+    /// a physically-short `movi` (`effective_end < declared_end`)
+    /// keeps the walk's typed truncation (the resync failure is a
+    /// consequence of the cut, not the verdict); in-extent damage
+    /// with no landing is [`error::walk_resync_failed`].
+    fn resync_after_clamp(
+        &mut self,
+        cursor: &mut WalkCursor,
+        region: MoviRegion,
+        pos: u64,
+        bound: u64,
+        next: u64,
+    ) -> Result<(), EngineError> {
+        self.damage.note(next - bound, "chunk-jump-past-list-bound");
+        if cursor.resyncs >= MAX_WALK_RESYNCS {
+            return Err(self.resync_terminal(region, pos));
+        }
+        cursor.resyncs += 1;
+
+        // 1) The index ladder.
+        let indexed = self.index.as_ref().and_then(|table| {
+            table
+                .entries
+                .get(
+                    table
+                        .entries
+                        .partition_point(|entry| entry.chunk_pos <= pos),
+                )
+                .map(|entry| entry.chunk_pos)
+                .filter(|landing| landing + 8 <= bound)
+        });
+        if let Some(landing) = indexed {
+            self.damage.note(landing - pos, "movi-resync-idx1");
+            cursor.pos = landing;
+            return Ok(());
+        }
+
+        // 2) The bounded signature scan.
+        if let Some(landing) = self.scan_for_landing(pos, bound)? {
+            self.damage.note(landing - pos, "movi-resync-scan");
+            cursor.pos = landing;
+            return Ok(());
+        }
+
+        // 3) Hand the position back to the parent list.
+        if let Some(end) = cursor.ends.pop() {
+            self.damage.note(end - pos, "movi-resync-parent");
+            cursor.pos = end;
+            return Ok(());
+        }
+
+        // 4) Top-level damage, no landing: the loud terminal.
+        Err(self.resync_terminal(region, pos))
+    }
+
+    /// The resync failure's typed verdict: a physically-short `movi`
+    /// keeps the walk's truncation flavor (the same expected/found
+    /// numbers the walk-end boundary reports — a cut file's resync
+    /// failure is a consequence of the cut, not a new verdict);
+    /// in-extent damage that cannot re-anchor is the W2-07/W3-07
+    /// refusal ([`error::walk_resync_failed`]) — never a silent EOS.
+    fn resync_terminal(&mut self, region: MoviRegion, pos: u64) -> EngineError {
+        if region.effective_end < region.declared_end {
+            return self.fail(error::truncated(region.declared_end, region.effective_end));
+        }
+        self.fail(error::walk_resync_failed(pos))
+    }
+
+    /// The bounded signature scan (resync path 2): the first
+    /// WORD-aligned position in `[pos, bound)` — at most
+    /// [`RESYNC_SCAN_BUDGET`] bytes of it — whose 8 header bytes the
+    /// walk itself would accept as a packet chunk (see
+    /// [`is_landing_header`]; no acceptance criterion the walk does
+    /// not already apply). Reads stay inside the per-source-call
+    /// budget ([`riff::READ_STEP_MAX`]); each block's 7-byte
+    /// header-straddle tail is re-windowed by the next, so no
+    /// candidate position is ever skipped.
+    ///
+    /// # Errors
+    /// Source errors propagate (the scan is a read, not a verdict).
+    fn scan_for_landing(&mut self, pos: u64, bound: u64) -> Result<Option<u64>, EngineError> {
+        let limit = bound.min(pos.saturating_add(RESYNC_SCAN_BUDGET));
+        let mut at = pos;
+        while at + 8 <= limit {
+            let want = ((limit - at) as usize).min(riff::READ_STEP_MAX);
+            let block = self.reader.read_prefix_at(want, at)?;
+            if block.len() < 8 {
+                break;
+            }
+            let mut offset = 0usize;
+            while offset + 8 <= block.len() {
+                if self.is_landing_header(&block[offset..offset + 8], at + offset as u64, bound) {
+                    return Ok(Some(at + offset as u64));
+                }
+                offset += 2;
+            }
+            // Resume at the first even position this block could not
+            // fully window (the straddle tail).
+            at += ((block.len() - 8 + 2) & !1) as u64;
+        }
+        Ok(None)
+    }
+
+    /// Whether the 8 bytes at `at` are a chunk header the walk would
+    /// itself accept as a deliverable packet chunk: a `NNdc`/`NNwb`
+    /// id of a stream in the table, declared payload under the
+    /// ceiling, extent inside `bound`. This is the walk's own Packet
+    /// acceptance (plus the extent check — a landing whose declared
+    /// size immediately jumps back out of the bound is damage
+    /// mimicking a header, not a resync point).
+    fn is_landing_header(&self, bytes: &[u8], at: u64, bound: u64) -> bool {
+        let fourcc = FourCC::new([bytes[0], bytes[1], bytes[2], bytes[3]]);
+        let MoviChunkKind::Packet { stream } = classify_movi_chunk(&fourcc) else {
+            return false;
+        };
+        let size = u64::from(riff::u32le(bytes, 4));
+        size <= MAX_CHUNK_PAYLOAD
+            && at.saturating_add(8).saturating_add(size) <= bound
+            && self.streams.iter().any(|desc| desc.ordinal == stream)
     }
 
     /// The keyframe truth for a chunk: `idx1`'s flag when an entry
@@ -771,6 +983,9 @@ impl Demuxer for AviDemuxer {
             ends: Vec::new(),
             ladders,
             index_cursor,
+            // A re-anchor is a fresh walk: the resync budget resets
+            // with it (the prior walk's damage already surfaced).
+            resyncs: 0,
         });
         // Pre-seek queued events (damage reports) die with the old
         // position — the demux-side stale purge (doc 03 §5's "events
@@ -1032,6 +1247,7 @@ impl AviDemuxer {
             ends: Vec::new(),
             ladders: Ladders::new(&self.streams),
             index_cursor: 0,
+            resyncs: 0,
         });
         self.started = true;
         Ok(tracks)

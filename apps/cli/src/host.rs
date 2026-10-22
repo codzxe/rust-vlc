@@ -23,25 +23,55 @@
 //! reads a wall clock, and every observable (states, events, frames
 //! staged, samples rendered) is a pure function of the pump count.
 //!
-//! # Seek (the card's honest composition)
+//! # Seek (the engine's native flow — card 3.A1 wired host-side by
+//! W1-06, per the directives-audit C8/ED-FIX-4 fix)
 //!
-//! The engine's seek input is card 3.A1. The CLI composes
-//! `playback.seek` from the primitives that DO exist — every step a
-//! real engine transition with real generation minting:
+//! `playback.seek` submits the engine's `Seek` command through
+//! [`SessionHandle::seek`] and the seven-step flow of doc 03 §6 runs
+//! IN-PIPELINE: mint + flush, demux re-anchor, pre-roll,
+//! clock re-anchor on the first audio frame's own timestamp, the
+//! `Seeked{requested, actual}` terminal. The session epoch, the
+//! audio device and its ring, the decoders, the renderer surface and
+//! the whole observability trail SURVIVE the seek — the old
+//! stop→close→reopen composition (2.D2's) destroyed all of them and
+//! is FORBIDDEN for seek (D-4/D-7: seeking must never destroy the
+//! session, drop hardware handles, or re-open files).
 //!
-//! 1. resolve the target (absolute µs; relative against the live
-//!    clock position; percent against the demuxed duration), clamp to
-//!    `[0, duration]` (doc 05 §2.4 — clamping is truth),
-//! 2. `playback.stop` from `Playing`/`Paused` (gen-bumping teardown),
-//! 3. `session.close` (session destroyed → `Idle`),
-//! 4. `session.open` at the target: the demuxer's real seek query
-//!    validates the landing, the skip wrapper drops pre-target
-//!    packets, the clock anchors at the target.
+//! ## The host duties at the seek boundary
 //!
-//! `[PROPOSAL]` — the session id changes across a seek (a reopen),
-//! and the state trail shows `Paused/Playing → Stopped → Idle →
-//! Opening → Buffering → Playing`. That is the honest 2.D2 shape;
-//! in-session seeks with generation-carrying pipelines are 3.A1.
+//! Doc 03 §6 step 3 flushes the pipeline; the halves behind THIS
+//! host's own seams (the audio ring, the window-full hold, the
+//! presentation queue) are the host's to move —
+//! [`CliHost::seek_boundary`], run once per accepted seek whose
+//! pipeline actually moved:
+//!
+//! 1. **ring flush** — discard exactly the ring's PRE-SEEK prefix
+//!    (doc 03 §6 “flush … ring (to silence)”): the undrained tail of
+//!    the old position, never the landing frames the accept poll's
+//!    decode may already have appended behind it (FIFO);
+//! 2. **hold clear** — drop the window-full hold's pre-mint frames;
+//! 3. **queue publish** — the presentation queue's renderer-mailbox
+//!    clear (the new generation replaces the residents).
+//!
+//! A seek that failed AT the accept poll (unseekable, unresolvable,
+//! reanchor refusal) performs NONE of these: contract D4 rolled the
+//! pipeline back and the old content is still live. And because the
+//! engine's `poll` may run the accept AND the whole pre-roll in one
+//! call (the fast-completion case), the clock re-anchor compensation
+//! documented on [`CliHost::seek_boundary`] absorbs the discard's
+//! counter movement into the landing anchor.
+//!
+//! ## Class-A truth
+//!
+//! The receipt answers at accept (class A: accepted ≠ completed);
+//! the landing truth arrives as the `Seeked`/`SeekFailed` terminal
+//! event, awaited bounded here (the same pacing the REPL's settle
+//! gives every class-A command — a seek visibly lands before the
+//! next line is read, and a Paused seek — whose wire state never
+//! leaves `paused` — still reports). Typed failures surface as the
+//! `timing.seek-failed` event with the old position (contract D4:
+//! rollback, playable-at-old-position, never a fake success); the
+//! reopen fallback does not exist.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -53,13 +83,13 @@ use commands::catalog::types::{
     TrackInfo, TrackKind,
 };
 use commands::envelope::{CommandOutcome, Generation, RequestId, SessionId};
-use commands::{CommandError, ErrorCode, PlaybackState, Stage, WireEvent};
+use commands::{CommandError, ErrorCode, EventKind, PlaybackState, Stage, WireEvent};
 use media_clock::{MediaClock, MonotonicSource, PlaybackClock};
 use media_types::MediaKind;
 use playback_engine::event::EngineEventKind;
 use playback_engine::{
-    CommandReceipt, Engine, EngineOutput, ReceiptResult, SessionCommandKind, SessionConfig,
-    SessionError, SessionHandle, SessionState,
+    CommandReceipt, Engine, EngineOutput, ReceiptResult, SeekTarget, SessionCommandKind,
+    SessionConfig, SessionError, SessionHandle, SessionState,
 };
 
 use crate::demux_host::{MediaFacts, OpenedMedia, open_source, wire_error};
@@ -95,6 +125,18 @@ pub struct HeadlessAccounting {
     pub staging_bytes: u64,
     /// Staging buffer copies performed.
     pub staging_copies: u64,
+    /// Frames dropped wholesale at scheduler generation changes
+    /// (doc 03 §5(7)) — the pre-seek window content purged at the
+    /// first post-seek tick (the seek-boundary proof on the
+    /// scheduler side).
+    pub scheduler_dropped_stale: u64,
+    /// Present-requests dropped wholesale by the presentation
+    /// queue's generation publish (the renderer-mailbox clear of doc
+    /// 03 §6 step 3 — the seek-boundary proof on the queue side).
+    pub queue_flushed: u64,
+    /// The presentation queue's published generation counter (the
+    /// host-duty proof: after a seek it carries the seek's mint).
+    pub queue_published: u64,
 }
 
 /// The pump bound for run-to-end (the scripted session's `advance`).
@@ -126,14 +168,6 @@ pub struct CliHost {
     last_fatal: Option<CommandError>,
     /// The last track-list snapshot (wire form).
     tracks: Vec<TrackInfo>,
-    /// The session's clock anchor (ns).
-    anchor_ns: i64,
-    /// The open options a seek must preserve on reopen (`--no-video`
-    /// / `--no-audio` — the seek composition reopens the SAME source
-    /// shape, not the default one).
-    open_no_video: bool,
-    /// See [`Self::open_no_video`].
-    open_no_audio: bool,
     /// Session-local settings overrides (the settings-schema seam).
     settings: BTreeMap<String, SettingValue>,
     /// The reused output-drain buffer (card 3.B4's addendum, D-1):
@@ -173,9 +207,6 @@ impl CliHost {
             state_history: Vec::new(),
             last_fatal: None,
             tracks: Vec::new(),
-            anchor_ns: 0,
-            open_no_video: false,
-            open_no_audio: false,
             settings: BTreeMap::new(),
             outbox_scratch: Vec::new(),
             event_throttle: None,
@@ -283,6 +314,7 @@ impl CliHost {
         let video = guard.video()?;
         let scheduler = video.scheduler_stats();
         let staging = video.staging_stats();
+        let queue = video.queue_stats();
         Some(HeadlessAccounting {
             frames_accepted: guard.frames_accepted,
             frames_refused: guard.frames_refused,
@@ -292,6 +324,9 @@ impl CliHost {
             scheduler_presented: scheduler.presented,
             scheduler_repeats: scheduler.repeats,
             scheduler_dropped_late: scheduler.dropped_late,
+            scheduler_dropped_stale: scheduler.dropped_stale,
+            queue_flushed: queue.flushed,
+            queue_published: video.published_generation().counter(),
             staging_frames: staging.frames_staged,
             staging_bytes: staging.bytes_staged,
             staging_copies: staging.staging_copies,
@@ -578,22 +613,7 @@ impl CliHost {
         handle
             .submit(request, kind)
             .map_err(|_| session_error_wire(&SessionError::SessionClosed))?;
-        for _ in 0..AWAIT_PUMPS {
-            self.pump_pipeline();
-            if let Some(position) = self
-                .pending_receipts
-                .iter()
-                .position(|receipt| receipt.request == request)
-            {
-                let receipt = self.pending_receipts.remove(position);
-                return Ok(receipt);
-            }
-        }
-        Err(CommandError::new(
-            Stage::Control,
-            ErrorCode::Internal,
-            "the engine never answered the command (bounded wait expired)",
-        ))
+        self.await_receipt(request)
     }
 
     /// Translate one receipt into the truthful-UI outcome.
@@ -702,9 +722,6 @@ impl CliHost {
         self.clock = Some(clock);
         self.facts = Some(facts);
         self.source = Some(source);
-        self.anchor_ns = anchor_ns;
-        self.open_no_video = no_video;
-        self.open_no_audio = no_audio;
         self.tracks.clear();
         // Pump the open to a settled state (Opening → Buffering → …).
         // The truthful answer for the class-A open is `Accepted` —
@@ -745,7 +762,6 @@ impl CliHost {
         self.clock = None;
         self.facts = None;
         self.source = None;
-        self.anchor_ns = 0;
         self.tracks.clear();
         self.pending_receipts.clear();
     }
@@ -756,37 +772,46 @@ impl CliHost {
         self.teardown_session_scoped();
     }
 
-    /// The `playback.seek` composition (see the module docs).
+    /// The `playback.seek` path — the engine's native seek flow (see
+    /// the module docs). The session, the device, the ring, the
+    /// decoders and the observability trail all survive: the host
+    /// submits the `Seek` command, performs the boundary duties
+    /// engine-side flush cannot reach ([`Self::seek_boundary`]) and
+    /// awaits the terminal event (the landing truth, class A).
+    ///
+    /// # Errors
+    /// Typed at each honest stage: no session (`not-ready`), the
+    /// state table's refusal (`rejection_wire` — e.g. seek from
+    /// `Ended` needs the doc 05 §3.3 wire edge), a submit failure
+    /// (`session_error_wire`), or the bounded terminal wait expiring
+    /// (`internal` — the engine never answered). The flow's own
+    /// typed failures (unseekable source, unresolvable target,
+    /// reanchor refusal) are NOT errors here: they answer the class-A
+    /// accept and surface as the `timing.seek-failed` event with the
+    /// old position (contract D4 — never a fake success, never a
+    /// reopen).
     pub(crate) fn dispatch_seek(
         &mut self,
         target: commands::catalog::types::SeekTarget,
     ) -> Result<CommandOutcome<CommandResult>, CommandError> {
-        use commands::catalog::types::SeekTarget;
-        let Some(facts) = self.facts.clone() else {
-            return Err(CommandError::new(
-                Stage::Session,
-                ErrorCode::NotReady,
-                "no session open",
-            ));
-        };
-        let duration_us = facts.duration_us();
-        // 1. Resolve the absolute target (µs).
-        let target_us: i64 = match target {
-            SeekTarget::Absolute { time } => time.0,
-            SeekTarget::Relative { delta_ms } => self
-                .position_us()
-                .saturating_add(delta_ms.saturating_mul(1000)),
-            SeekTarget::Percent { fraction } => {
-                let Some(duration) = duration_us else {
-                    return Err(CommandError::new(
-                        Stage::Session,
-                        ErrorCode::NotSeekable,
-                        "percent seek needs a known duration",
-                    ));
-                };
-                ((duration as f64) * f64::from(fraction)).round() as i64
-            }
-            SeekTarget::Chapter { index } => {
+        use commands::catalog::types::SeekTarget as WireTarget;
+        // The wire target → the engine's. Resolution and clamping are
+        // the ENGINE's (doc 05 §2.4: clamping is truth — the engine
+        // clamps against the live pipeline's duration and the
+        // position); the host no longer pre-resolves. Chapters stay
+        // the host's typed refusal: no chapter source exists anywhere
+        // in the vertical (seek.rs: "hosts resolve chapters to
+        // `Absolute`" — with nothing to resolve against, not-found is
+        // the honest answer, unchanged from 2.D2).
+        let engine_target = match target {
+            WireTarget::Absolute { time } => SeekTarget::Absolute {
+                position_ns: time.0.saturating_mul(1000),
+            },
+            WireTarget::Relative { delta_ms } => SeekTarget::Relative {
+                delta_ns: delta_ms.saturating_mul(1_000_000),
+            },
+            WireTarget::Percent { fraction } => SeekTarget::Percent { fraction },
+            WireTarget::Chapter { index } => {
                 return Err(CommandError::new(
                     Stage::Session,
                     ErrorCode::NotFound,
@@ -796,53 +821,180 @@ impl CliHost {
                 ));
             }
         };
-        let clamped = target_us.clamp(0, duration_us.unwrap_or(i64::MAX / 4));
-        // 2. Stop from the active states (the transient states are
-        //    3.C1's — refuse honestly there).
-        match self.engine.state() {
-            SessionState::Playing | SessionState::Paused => {
-                let receipt = self.submit_and_await(SessionCommandKind::Stop)?;
-                self.receipt_outcome(receipt)?;
+        let handle = self.handle.as_ref().ok_or_else(|| {
+            CommandError::new(Stage::Session, ErrorCode::NotReady, "no session open")
+        })?;
+        let request = self.allocator.allocate();
+        // Snapshot the event stream: THIS seek's terminal is the first
+        // `timing.seek-completed`/`timing.seek-failed` observed after
+        // submission (a superseded seek is silent by contract — doc 05
+        // §4.2 — so the first terminal is always the live one's).
+        let terminal_from = self.events.len();
+        // The pre-seek ring content: exactly the frames that must NOT
+        // survive the boundary (doc 03 §6 step 3 “flush … ring (to
+        // silence)”). Snapshot BEFORE submitting — nothing writes
+        // between here and the accept poll (the host is the single
+        // writer), and the accept poll's own decode appends only
+        // landing frames BEHIND this prefix (the ring is FIFO).
+        let stale_ring_frames = self.device.as_ref().map_or(0, NullDevice::buffered_frames);
+        handle
+            .seek(request, engine_target)
+            .map_err(|error| session_error_wire(&error))?;
+        // 1. The class-A receipt (accept under the bumped generation,
+        //    or the state table's typed refusal).
+        let receipt = self.await_receipt(request)?;
+        let outcome = self.receipt_outcome(receipt)?;
+        // 2. The seek boundary's host duties — only on accept, and
+        //    only when the pipeline actually moved: a seek that
+        //    failed AT the accept poll (unseekable source,
+        //    unresolvable target, reanchor refusal — the engine emits
+        //    those synchronously, so the terminal is already in the
+        //    drained events) rolled back per contract D4 and the
+        //    ring's pre-seek content is still LIVE audio at the old
+        //    position; discarding it would punch a hole in
+        //    playable-at-old-position. A seek still in flight (or one
+        //    that completed within the accept poll — see
+        //    [`Self::seek_boundary`]) moved the demuxer: the prefix
+        //    dies here.
+        if let CommandOutcome::Accepted { generation, .. } = &outcome {
+            let failed_at_accept = self.events[terminal_from..]
+                .iter()
+                .any(|event| matches!(event.kind, EventKind::TimingSeekFailed { .. }));
+            if !failed_at_accept {
+                self.seek_boundary(*generation, stale_ring_frames)?;
             }
-            SessionState::Opening | SessionState::Buffering => {
-                return Err(CommandError::new(
-                    Stage::Session,
-                    ErrorCode::NotReady,
-                    "seek while opening/buffering lands with the transient-state stop (card 3.C1)",
-                ));
-            }
-            _ => {}
         }
-        // 3. Close (idempotent when settled).
-        if self.handle.is_some() {
-            let receipt = self.submit_and_await(SessionCommandKind::Close)?;
-            self.receipt_outcome(receipt)?;
-        }
-        self.handle = None;
-        self.consumer = None;
-        self.device = None;
-        self.clock = None;
-        // 4. Reopen at the target.
-        let source = self
-            .source
-            .clone()
-            .ok_or_else(|| CommandError::new(Stage::Session, ErrorCode::NotReady, "no source"))?;
-        let outcome = self.open_session(
-            source,
-            Some(clamped),
-            self.open_no_video,
-            self.open_no_audio,
-        )?;
-        // 5. Let it reach Playing (bounded; short media may go straight
-        //    through to Ended — both are success).
-        self.pump_pipeline_until(
-            |host| matches!(host.state(), PlaybackState::Playing | PlaybackState::Ended),
+        // 3. The terminal: `Seeked{requested, actual}` (the landing
+        //    truth — the clock re-anchored at the first audio frame's
+        //    own timestamp) or `SeekFailed` (contract D4). Bounded
+        //    pipeline-only pumps; the pre-roll completes on the tick
+        //    path (the Paused decode carve-out included).
+        let landed = self.pump_pipeline_until(
+            |host| host.events[terminal_from..].iter().any(is_seek_terminal),
             AWAIT_PUMPS,
         );
-        if let Some(error) = self.last_fatal.take() {
-            return Err(error);
+        if !landed {
+            return Err(CommandError::new(
+                Stage::Control,
+                ErrorCode::Internal,
+                "the engine never reported the seek terminal (bounded wait expired)",
+            ));
         }
         Ok(outcome)
+    }
+
+    /// Await one submitted command's receipt (pipeline-only pumps; the
+    /// shared half of every `submit_and_await` shape).
+    fn await_receipt(&mut self, request: RequestId) -> Result<CommandReceipt, CommandError> {
+        for _ in 0..AWAIT_PUMPS {
+            self.pump_pipeline();
+            if let Some(position) = self
+                .pending_receipts
+                .iter()
+                .position(|receipt| receipt.request == request)
+            {
+                return Ok(self.pending_receipts.remove(position));
+            }
+        }
+        Err(CommandError::new(
+            Stage::Control,
+            ErrorCode::Internal,
+            "the engine never answered the command (bounded wait expired)",
+        ))
+    }
+
+    /// The seek boundary's host duties (doc 03 §6 step 3 — the halves
+    /// behind this host's seams; see the module docs): the audio
+    /// ring's pre-seek prefix (`stale_ring_frames`) is discarded, the
+    /// window-full hold is cleared, and the presentation queue's
+    /// generation is published (the renderer-mailbox clear). Called
+    /// once per accepted-and-moving seek, after the receipt pump — a
+    /// cold path, never per tick (D-1).
+    ///
+    /// # The fast-completion compensation
+    ///
+    /// The engine's `poll` drains the inbox (the accept: mint, flush,
+    /// reanchor) and THEN ticks the pipeline in the same call — so a
+    /// seek whose pre-roll completes in its first tick (the common
+    /// case: every MJPEG frame is a keyframe, one decode slice
+    /// delivers both limbs) has ALREADY re-anchored the clock at the
+    /// landing by the time the host regains control. The discard
+    /// renders advance the device sample counter (the clock's truth
+    /// source) AFTER that anchor — unabsorbed, the discarded tail
+    /// would fabricate a position overshoot of exactly its length.
+    /// The compensation: snapshot the clock BEFORE discarding (it
+    /// reads the completion's landing truth — the engine just
+    /// re-anchored it), discard, then re-anchor at the snapshot so
+    /// the new anchor adopts the post-discard counter. The slow
+    /// pre-roll path needs no compensation (its completion re-anchor
+    /// runs after the discard, on a later pump).
+    ///
+    /// # Errors
+    /// The clock re-anchor's typed failure (an unrepresentable
+    /// position — the compensation is honest, never silent).
+    fn seek_boundary(
+        &mut self,
+        generation: Generation,
+        stale_ring_frames: usize,
+    ) -> Result<(), CommandError> {
+        let landed_ns = self.clock.as_ref().map(|clock| clock.now());
+        let discarded = self.discard_ring_prefix(stale_ring_frames);
+        if discarded > 0
+            && let (Some(clock), Some(landed)) = (self.clock.as_ref(), landed_ns)
+        {
+            // Absorb the discard's counter movement into the anchor.
+            clock
+                .reanchor(landed)
+                .map_err(|error| wire_error(&media_types::EngineError::from(error)))?;
+        }
+        if let Some(consumer) = self.consumer.as_ref() {
+            consumer
+                .lock()
+                .seek_boundary(media_types::GenerationId::new(generation.0));
+        }
+        Ok(())
+    }
+
+    /// The ring-flush seam (doc 03 §6 step 3 “flush … ring (to
+    /// silence)”): discard exactly the first `frames` frames of the
+    /// null device's ring with discarded renders — the device's own
+    /// consumption mechanism (the null device has no audible output;
+    /// a discarded render is exactly the nothing a real device's
+    /// flush API would play). Exact-prefix, not whole-ring: the
+    /// accept poll's decode may already have appended landing frames
+    /// behind the stale prefix (FIFO), and those MUST survive — they
+    /// are the first audio of the new position. Bounded by the
+    /// requested prefix over the render quantum, once per seek.
+    /// Answers how many frames were actually discarded.
+    ///
+    /// `[PROPOSAL: the null-device render-discard is this host's
+    /// flush; a real backend gets a true device-flush API on the
+    /// audio-output seam (drop buffered content WITHOUT advancing
+    /// the sample counter — then the clock compensation disappears) —
+    /// registered as the engine-side follow-up of W1-06, with the CLI
+    /// switching to it when the backends land]`
+    fn discard_ring_prefix(&mut self, frames: usize) -> usize {
+        if frames == 0 {
+            return 0;
+        }
+        let channels = self.audio_channels();
+        let Some(device) = self.device.as_mut() else {
+            return 0;
+        };
+        let mut remaining = frames.min(device.buffered_frames());
+        let requested = remaining;
+        // The exact-residue pattern of `drain_tail_at_end`: one sized
+        // discard buffer per render, no underrun counted (the ring is
+        // never over-read).
+        while remaining > 0 {
+            let take = remaining.min(RENDER_QUANTUM);
+            let mut discard = vec![0.0_f32; take * channels];
+            if device.render(&mut discard).is_err() {
+                break;
+            }
+            remaining -= take;
+        }
+        requested - remaining
     }
 
     /// The class-S snapshot answers.
@@ -981,6 +1133,17 @@ impl CliHost {
 /// depending on the private field).
 fn session_state_as_wire(state: SessionState) -> PlaybackState {
     state.as_wire()
+}
+
+/// Whether one wire event is a seek flow terminal — the class-A
+/// completion truth of `playback.seek` (doc 05 §3.2
+/// `timing.seek-completed` / `timing.seek-failed`; exactly one
+/// terminal per completed generation, §4.3 invariant 4).
+fn is_seek_terminal(event: &WireEvent) -> bool {
+    matches!(
+        event.kind,
+        EventKind::TimingSeekCompleted { .. } | EventKind::TimingSeekFailed { .. }
+    )
 }
 
 /// The engine's `track_info_wire` — reused, not re-implemented

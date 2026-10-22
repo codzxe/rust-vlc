@@ -26,6 +26,22 @@ use super::{
 };
 use crate::report::{FormatId, ProbeHit, SourceMeta, TrackHint};
 
+/// `wFormatTag` for WAVEFORMATEXTENSIBLE — the 40-byte form whose
+/// SubFormat GUID names the real format (ffmpeg's AVI muxer emits it
+/// for most multi-channel PCM; the demuxer resolves the same GUID —
+/// stage agreement, W2-15 d2).
+const WAVE_FORMAT_EXTENSIBLE: u16 = 0xFFFE;
+/// `KSDATAFORMAT_SUBTYPE_PCM` — `{00000001-0000-0010-8000-00AA00389B71}`
+/// (the SubFormat GUID for integer PCM inside WAVEFORMATEXTENSIBLE).
+const SUBFORMAT_PCM_GUID: [u8; 16] = [
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71,
+];
+/// `KSDATAFORMAT_SUBTYPE_IEEE_FLOAT` —
+/// `{00000003-0000-0010-8000-00AA00389B71}`.
+const SUBFORMAT_IEEE_FLOAT_GUID: [u8; 16] = [
+    0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71,
+];
+
 /// The AVI (RIFF, form `AVI `) signature.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct AviSignature;
@@ -126,13 +142,8 @@ fn walk_strl(prefix: &[u8], start: usize, end: usize) -> Vec<TrackHint> {
                 &prefix[payload_start + 4..payload_start + 8],
             ));
         }
-        if fourcc == b"strf" && payload_end >= payload_start + 16 {
-            // WAVEFORMATEX: wFormatTag, nChannels, nSamplesPerSec,
-            // nAvgBytesPerSec, nBlockAlign, wBitsPerSample.
-            wave = Some((
-                u16_le(prefix, payload_start),
-                u16_le(prefix, payload_start + 14),
-            ));
+        if fourcc == b"strf" {
+            wave = sniff_wave(prefix, payload_start, payload_end);
         }
         // Saturating advance (32-bit target safety — see walk_hdrl).
         pos = pos
@@ -141,6 +152,41 @@ fn walk_strl(prefix: &[u8], start: usize, end: usize) -> Vec<TrackHint> {
             .saturating_add(size & 1);
     }
     classify_stream(stream_type, wave)
+}
+
+/// Sniff a `strf` payload's `(wFormatTag, wBitsPerSample)`, resolving
+/// WAVEFORMATEXTENSIBLE to its plain tag via the SubFormat GUID —
+/// exactly the demuxer's own resolution (`header.rs:756-776`): a
+/// physically complete ≥ 40-byte blob carries the GUID at the fixed
+/// offset 24, and that GUID — not the declared `cbSize` — names the
+/// real format. Every unresolved form yields `None` and the stream
+/// stays unhinted, agreeing with the demuxer's per-stream skip (W2-15
+/// d2: 45 of the current corpus draw's PCM streams are extensible —
+/// the dominant real-world form ffmpeg muxes — and hinting nothing
+/// for them violated this signature's own stage-agreement rule, the
+/// `mjpa` precedent above).
+fn sniff_wave(prefix: &[u8], start: usize, end: usize) -> Option<(u16, u16)> {
+    // WAVEFORMATEX: wFormatTag, nChannels, nSamplesPerSec,
+    // nAvgBytesPerSec, nBlockAlign, wBitsPerSample.
+    if end < start + 16 {
+        return None;
+    }
+    let tag = u16_le(prefix, start);
+    let bits = u16_le(prefix, start + 14);
+    if tag != WAVE_FORMAT_EXTENSIBLE {
+        return Some((tag, bits));
+    }
+    if end < start + 40 {
+        return None; // too short to carry the GUID it declares
+    }
+    let guid = &prefix[start + 24..start + 40];
+    if guid == SUBFORMAT_PCM_GUID {
+        Some((0x0001, bits))
+    } else if guid == SUBFORMAT_IEEE_FLOAT_GUID {
+        Some((0x0003, bits))
+    } else {
+        None // a family this engine has no PCM mapping for
+    }
 }
 
 /// Map a sniffed (`strh`, `strf`) pair to a hint.
@@ -180,7 +226,8 @@ fn classify_stream(
 }
 
 /// The PCM WAVEFORMATEX tag × bit-width → descriptor table (the
-/// demuxer's own naming; PCM integer tags 0x0001, IEEE float 0x0003).
+/// demuxer's own naming; plain tags 0x0001/0x0003 — the extensible
+/// 0xFFFE form is resolved to these by [`sniff_wave`] first).
 fn pcm_descriptor(tag: u16, bits: u16) -> Option<&'static str> {
     match (tag, bits) {
         (0x0001, 8) => Some("pcm_u8"),
@@ -485,6 +532,130 @@ mod tests {
         };
         assert!(hit.track_hints.is_empty());
         assert_eq!(hit.score, 90);
+    }
+
+    // ------------------------------------------------------------------
+    // W2-15 adversarial attack: WAVEFORMATEXTENSIBLE stage agreement.
+    // ------------------------------------------------------------------
+
+    const W215_GUID_PCM: [u8; 16] = [
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b,
+        0x71,
+    ];
+    const W215_GUID_IEEE_FLOAT: [u8; 16] = [
+        0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b,
+        0x71,
+    ];
+
+    /// The 40-byte WAVEFORMATEXTENSIBLE `strf` payload (ffmpeg's AVI
+    /// muxer default for multi-channel PCM — the dominant real-world
+    /// form: 45 streams in the current randomized-corpus draw, per the
+    /// W1-03 census).
+    fn w215_strf_extensible_payload(
+        guid: [u8; 16],
+        channels: u16,
+        rate: u32,
+        bits: u16,
+    ) -> Vec<u8> {
+        let mut payload = Vec::with_capacity(40);
+        payload.extend_from_slice(&0xFFFEu16.to_le_bytes());
+        payload.extend_from_slice(&channels.to_le_bytes());
+        payload.extend_from_slice(&rate.to_le_bytes());
+        payload
+            .extend_from_slice(&(rate * u32::from(channels) * u32::from(bits / 8)).to_le_bytes());
+        payload.extend_from_slice(&(channels * (bits / 8)).to_le_bytes());
+        payload.extend_from_slice(&bits.to_le_bytes());
+        payload.extend_from_slice(&22u16.to_le_bytes()); // cbSize
+        payload.extend_from_slice(&bits.to_le_bytes()); // valid bits
+        payload.extend_from_slice(&0x3u32.to_le_bytes()); // channel mask
+        payload.extend_from_slice(&guid);
+        payload
+    }
+
+    /// A minimal one-audio-stream AVI header prefix carrying the given
+    /// `strf` payload.
+    fn w215_audio_header_with_strf(payload: &[u8]) -> Vec<u8> {
+        let mut strl = Vec::new();
+        strl.extend(strh(b"auds", b"\0\0\0\0"));
+        let mut strf_chunk = Vec::new();
+        chunk(&mut strf_chunk, b"strf", payload);
+        strl.extend(strf_chunk);
+        let mut hdrl = Vec::new();
+        chunk(&mut hdrl, b"avih", &[0u8; 56]);
+        list(&mut hdrl, b"strl", &strl);
+        let mut file = Vec::new();
+        file.extend_from_slice(b"RIFF");
+        file.extend_from_slice(&0u32.to_le_bytes());
+        file.extend_from_slice(b"AVI ");
+        list(&mut file, b"hdrl", &hdrl);
+        let riff_size = (file.len() - 8) as u32;
+        file[4..8].copy_from_slice(&riff_size.to_le_bytes());
+        file
+    }
+
+    #[test]
+    fn extensible_strf_hints_the_pcm_family_like_the_demuxer() {
+        // W2-15 MAJOR (stage disagreement, d2): since W1-02 the AVI
+        // DEMUXER resolves WAVEFORMATEXTENSIBLE SubFormat GUIDs (0xFFFE
+        // + KSDATAFORMAT_SUBTYPE_PCM/_IEEE_FLOAT -> the plain pcm_*
+        // vocabulary, header.rs:756-780); this signature mapped only
+        // plain tags 0x0001/0x0003, so the dominant real-world form
+        // (every multi-channel PCM file ffmpeg muxes) probed with NO
+        // audio hint while the demuxer accepts the stream. That
+        // violated the probe's own stage-agreement rule ("named
+        // exactly as the demuxer names them" — the mjpa precedent
+        // above). Fix: resolve the GUID the same way the demuxer does
+        // (strf payload >= 40 bytes -> GUID at offset 24) and feed the
+        // resolved tag through pcm_descriptor.
+        for (guid, channels, bits, name) in [
+            (W215_GUID_PCM, 8u16, 24u16, "pcm_s24le"),
+            (W215_GUID_PCM, 2, 16, "pcm_s16le"),
+            (W215_GUID_IEEE_FLOAT, 2, 32, "pcm_f32le"),
+            (W215_GUID_IEEE_FLOAT, 2, 64, "pcm_f64le"),
+        ] {
+            let file = w215_audio_header_with_strf(&w215_strf_extensible_payload(
+                guid, channels, 48_000, bits,
+            ));
+            let hit = match probe(&file) {
+                Some(hit) => hit,
+                None => unreachable!("the AVI magic anchors"),
+            };
+            assert_eq!(
+                hint_kinds(&hit),
+                vec![(MediaKind::Audio, name)],
+                "extensible {bits}-bit: the hint must name what the demuxer accepts"
+            );
+            assert_eq!(hit.score, 95, "a hinted track is the top rung");
+        }
+    }
+
+    #[test]
+    fn unresolved_extensible_forms_stay_unhinted_like_the_demuxer() {
+        // The stage-agreement margins of the d2 fix: a 0xFFFE `strf`
+        // too short to carry the GUID it declares, and one whose GUID
+        // names a family outside the PCM vocabulary, are per-stream
+        // skips on the demux side (`extensible-strf-truncated` /
+        // `unsupported-audio-format`) — the probe must not promise a
+        // decoder for them either.
+        let mut truncated = w215_strf_extensible_payload(W215_GUID_PCM, 2, 48_000, 16);
+        truncated.truncate(30); // sub-GUID: the plain 16 bytes survive, the GUID does not
+        let mut foreign_guid = w215_strf_extensible_payload(W215_GUID_PCM, 2, 48_000, 16);
+        foreign_guid[24] = 0x07; // KSDATAFORMAT_SUBTYPE_MULAW
+        for (label, payload) in [
+            ("truncated", &truncated[..]),
+            ("foreign GUID", &foreign_guid[..]),
+        ] {
+            let file = w215_audio_header_with_strf(payload);
+            let hit = match probe(&file) {
+                Some(hit) => hit,
+                None => unreachable!("{label}: the AVI magic anchors"),
+            };
+            assert!(
+                hit.track_hints.is_empty(),
+                "{label}: the demuxer skips this stream, the probe must not hint it"
+            );
+            assert_eq!(hit.score, 90, "{label}: header confirmed, no track hint");
+        }
     }
 
     #[test]

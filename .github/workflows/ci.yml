@@ -1,0 +1,112 @@
+# Lumen CI — the local gate, replicated (W3-10; doc 10 §2 gate/CI parity).
+#
+# INFRA UNLOCK: this is the repo's FIRST live workflow. CI was documented as
+# blocked (PAT lacked `workflow` scope; see docs/gates/phase1-exit.md:21,
+# docs/gates/phase2-exit.md:5,74-77 and the Phase-1 skeleton parked under
+# .github/workflows-disabled/). A user-issued workflow-scoped PAT unlocked
+# GitHub Actions (worklog 3.WAVE2-CLOSE, "INFRA UNLOCK", 2026-10-22); this
+# card (W3-10) turns the unlock into a running pipeline. No token is embedded
+# in this file: the implicit per-run GITHUB_TOKEN (permissions: contents:
+# read, below) is sufficient for checkout and cache.
+#
+# PARITY TARGET: scripts/full_gate.sh — the *implemented* local gate (the
+# doc 10 §2.1 table's engine subset, i.e. the `cargo xtask gate --no-ui`
+# shape of doc 10 §2.2: the UI/tauri/wasm steps do not exist yet and land
+# with their owning cards). The five cargo commands below are the gate
+# script's five commands VERBATIM, in the same order, with the same
+# keep-going aggregation (full_gate.sh runs every step and reports the
+# aggregate; `if: always()` on the gate steps replicates that — one failing
+# step never hides the state of the others).
+#
+# RUNNER BUDGET: GitHub standard runners are 2-core — this is deliberately
+# ONE lean ubuntu job: no --release, no 3-OS matrix, no artifact uploads.
+# The full Phase-1 matrix design (fmt/actionlint/deps/check/clippy/test ×
+# 3 OS + later-gate stubs) remains parked in .github/workflows-disabled/
+# pending Lead reconciliation with this file. Cargo caching uses
+# Swatinem/rust-cache (keyed on Cargo.lock + rust-toolchain.toml); it needs
+# no PAT scopes beyond the default GITHUB_TOKEN.
+#
+# Toolchain: rust-toolchain.toml pins 1.99.1 + [rustfmt, clippy] (Lead-owned,
+# doc 10 §2.5). The dtolnay/rust-toolchain `1.99.1` branch installs exactly
+# that version with no inputs; the assert step below fails loudly if the
+# file pin, the action, and the effective rustc ever disagree.
+#
+# Action pins (re-resolved via `git ls-remote` on 2026-10-22, W3-10; all
+# three match the 1.A2 table recorded in worklog.md):
+#   actions/checkout       v7.0.1  3d3c42e5aac5ba805825da76410c181273ba90b1
+#   dtolnay/rust-toolchain 1.99.1  d124f86f28ff42855784ff3319f48ac182c248f8  (branch)
+#   Swatinem/rust-cache    v2.9.2  6323deb102c322ba6fcbdcafc7e3dddab59af2b6  (peeled commit)
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  # One run per branch/PR head (doc 10 §10.1); superseded PR runs are
+  # cancelled, pushes to main never are.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_INCREMENTAL: "0" # leaner target dir + cache on 2-core runners
+  CARGO_TERM_COLOR: always
+
+jobs:
+  gate:
+    name: gate (fmt / clippy / test / arch / fixtures)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/ci.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      # --- scripts/full_gate.sh steps 1-5, verbatim -------------------------
+      # `if: always()` = the gate script's keep-going aggregation: every step
+      # runs and reports, the job fails if any of them failed.
+      - name: "1. fmt (full_gate.sh #1)"
+        if: always()
+        run: cargo fmt --all --check
+
+      - name: "2. clippy (full_gate.sh #2)"
+        if: always()
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: "3. test (full_gate.sh #3)"
+        if: always()
+        run: cargo test --workspace --all-features
+
+      - name: "4. check-architecture (full_gate.sh #4)"
+        if: always()
+        run: cargo xtask check-architecture
+
+      - name: "5. fixtures --check (full_gate.sh #5)"
+        if: always()
+        run: cargo xtask fixtures --check

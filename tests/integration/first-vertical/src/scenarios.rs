@@ -447,9 +447,11 @@ pub fn scenario_pause() -> ScenarioRun {
     run
 }
 
-/// **`seek`** — the 2.D2 composition (stop → close → reopen at the
-/// target) through the engine's real transitions: the 50% target
-/// lands at exactly half the duration under a new session id, and the
+/// **`seek`** — the engine's NATIVE in-pipeline flow (C8/ED-FIX-4,
+/// host-side W1-06): a Paused 50% seek through the decode carve-out,
+/// then a resume — the session id SURVIVES (no stop→close→reopen;
+/// D-4/D-7), the 50% target lands at the demuxer's actual position
+/// (exactly half the duration — a frame-aligned target), and the
 /// remainder plays out to the exact duration.
 pub fn scenario_seek() -> ScenarioRun {
     let source = match parent_source() {
@@ -476,6 +478,9 @@ pub fn scenario_seek() -> ScenarioRun {
     harness.settle();
     let landing = harness.position_us();
     let second_session = harness.session_id();
+    // Resume from the landing (the Paused seek parks the wire state;
+    // the remainder plays from where the seek landed).
+    harness.dispatch("playback.play", Command::PlaybackPlay);
     harness.advance(run_pumps());
     let end = harness.position_us();
     let mut run = harness.finish("seek");
@@ -487,8 +492,8 @@ pub fn scenario_seek() -> ScenarioRun {
         DURATION_US / 2,
     ));
     checks.push(Check::is(
-        "the seek composition mints a new session id (the 2.D2 reopen shape)",
-        first_session.is_some() && second_session.is_some() && first_session != second_session,
+        "the session id survives the native seek (the C8 in-pipeline flow)",
+        first_session.is_some() && first_session == second_session,
         &format!("sessions {first_session:?} → {second_session:?}"),
     ));
     checks.push(Check::int(
@@ -498,28 +503,51 @@ pub fn scenario_seek() -> ScenarioRun {
     ));
     let trail = state_trail(&run);
     checks.push(Check::is(
-        "the trail shows the composition (Paused→Stopped→Idle→Opening)",
-        trail.iter().any(|(from, to)| {
+        "the trail is in-pipeline (no teardown edges; exactly one open)",
+        !trail.iter().any(|(from, to)| {
             matches!(
                 (from, to),
                 (PlaybackState::Paused, PlaybackState::Stopped)
                     | (PlaybackState::Stopped, PlaybackState::Idle)
-                    | (PlaybackState::Idle, PlaybackState::Opening)
+                    | (PlaybackState::Playing, PlaybackState::Stopped)
             )
-        }) && trail.len() >= 6,
+        }) && trail
+            .iter()
+            .filter(|(from, to)| {
+                matches!((from, to), (PlaybackState::Idle, PlaybackState::Opening))
+            })
+            .count()
+            == 1,
         &format!("trail: {trail:?}"),
     ));
     if let Some(accounting) = run_accounting(&run) {
-        // The reopen drops the pre-target half: 30 video + 30 audio.
+        // The decode accounting proves the pipeline was not rebuilt:
+        // the pre-seek decode-ahead deliveries stay counted plus the
+        // landing's own half — a stop→close→reopen would have
+        // answered exactly the landing's 60.
         checks.push(Check::int(
-            "the post-seek limb counts half the media (30+30)",
+            "the decode accounting keeps the pre-seek deliveries",
             i64::try_from(accounting.frames_accepted).unwrap_or(i64::MAX),
-            60,
+            154,
         ));
         checks.push(Check::int(
-            "the scheduler sees the 30 remaining frames",
+            "the scheduler saw the pre-seek window plus the landing",
             i64::try_from(accounting.scheduler_pushed).unwrap_or(i64::MAX),
-            30,
+            46,
+        ));
+        // The seek-boundary proofs: the pre-seek scheduler window
+        // purged wholesale as stale at the generation change, and the
+        // presentation queue's published generation carries the
+        // seek's mint.
+        checks.push(Check::int(
+            "the pre-seek scheduler window purged as stale",
+            i64::try_from(accounting.scheduler_dropped_stale).unwrap_or(i64::MAX),
+            16,
+        ));
+        checks.push(Check::int(
+            "the presentation queue carries the seek's mint",
+            i64::try_from(accounting.queue_published).unwrap_or(i64::MAX),
+            1,
         ));
     } else {
         checks.push(Check::is(
@@ -1402,6 +1430,9 @@ fn run_accounting(run: &ScenarioRun) -> Option<lumen_cli::host::HeadlessAccounti
         scheduler_presented: 0,
         scheduler_repeats: 0,
         scheduler_dropped_late: 0,
+        scheduler_dropped_stale: 0,
+        queue_flushed: 0,
+        queue_published: 0,
         staging_frames: 0,
         staging_bytes: 0,
         staging_copies: 0,
@@ -1425,6 +1456,9 @@ fn run_accounting(run: &ScenarioRun) -> Option<lumen_cli::host::HeadlessAccounti
                     "scheduler_presented" => accounting.scheduler_presented = number,
                     "scheduler_repeats" => accounting.scheduler_repeats = number,
                     "scheduler_dropped_late" => accounting.scheduler_dropped_late = number,
+                    "scheduler_dropped_stale" => accounting.scheduler_dropped_stale = number,
+                    "queue_flushed" => accounting.queue_flushed = number,
+                    "queue_published" => accounting.queue_published = number,
                     "staging_frames" => accounting.staging_frames = number,
                     "staging_bytes" => accounting.staging_bytes = number,
                     "staging_copies" => accounting.staging_copies = number,
