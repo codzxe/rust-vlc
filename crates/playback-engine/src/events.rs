@@ -3,6 +3,23 @@
 //! stream, as data-driven types — the emission points live in
 //! [`crate::session`], the payload vocabulary in [`crate::event`].
 //!
+//! # The epoch-aware staleness stamp (card ED-FIX-4/M11, D-4)
+//!
+//! This module also owns the **drain-time staleness policy** of the
+//! engine's output hub: [`StalenessStamp`] is the composite
+//! (epoch, pipeline-counter) identity an event is judged against,
+//! and [`DrainStaleness`] is the extension that derives it from an
+//! [`EngineEvent`](crate::event::EngineEvent)'s correlation envelope
+//! and applies the doc 05 §4.2 rule epoch-aware. The hub itself
+//! lives in [`crate::session`] (sibling-owned); the policy is
+//! defined here so the hub's check is a one-line consumer — the
+//! exact `session.rs` wiring line is registered as a Lead-merge
+//! follow-up in the Wave-1 worklog. The bare-counter comparison it
+//! replaces is the trap [`crate::epoch`]'s own docs name: a pipeline
+//! counter **resets each epoch**, so an old-epoch counter can
+//! masquerade as fresh (or even compare newer) against the live
+//! session's.
+//!
 //! # The doc 05 §3.4 rules, formalized
 //!
 //! 1. **`timing.time-tick` is the only continuous stream** — its
@@ -100,6 +117,9 @@ use std::fmt;
 use std::sync::Arc;
 
 use media_clock::MonotonicSource;
+
+use crate::epoch::{GenerationPair, SessionEpoch};
+use crate::event::{EngineEvent, EngineEventKind};
 
 /// The default `timing.time-tick` interval (doc 05 §3.2: "default
 /// every 250 ms").
@@ -311,6 +331,147 @@ impl Default for DamageCoalescer {
     }
 }
 
+/// The composite (epoch, pipeline-counter) stamp the output hub
+/// compares for staleness (card ED-FIX-4/M11, directive D-4 — the
+/// 2026-10-22 directives-audit finding `session.rs` vs `epoch.rs`).
+///
+/// # Why a composite (the trap `epoch.rs` names)
+///
+/// A pipeline counter **resets each epoch** (doc 03 §5: minted from
+/// 0 at open), so a bare counter has no identity across sessions:
+/// epoch 2's generation 0 is *not* epoch 1's generation 0, and an
+/// old-epoch counter can even compare **newer** than the live one
+/// (epoch 1 ended at pipeline 5; epoch 2 is live at pipeline 0).
+/// The output hub is engine-scoped — it outlives sessions, and an
+/// undrained event of a closed session stays resident across the
+/// open of its successor — so its liveness test must be the doc 03
+/// §5 pair rule exactly: *different epoch OR different pipeline ⇒
+/// stale*. An event from a superseded epoch is stale **by
+/// construction**, whatever its counter says.
+///
+/// The stamp is two `u64` words: `Copy`, no allocation, two integer
+/// compares per decision (directives D-1/D-2 — the drain path stays
+/// flat whether the resident population is one event or a storm).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct StalenessStamp {
+    /// The owning session epoch (the wire `session`, doc 05 §4.2's
+    /// explicit SessionId ↔ session-epoch mapping).
+    epoch: SessionEpoch,
+    /// The pipeline generation within the epoch (the wire `gen`).
+    counter: u64,
+}
+
+impl StalenessStamp {
+    /// A stamp from its two words.
+    #[must_use]
+    pub fn new(epoch: SessionEpoch, counter: u64) -> StalenessStamp {
+        StalenessStamp { epoch, counter }
+    }
+
+    /// The stamp of a live pair — the drain-side "current" the hub
+    /// judges residents against.
+    #[must_use]
+    pub fn from_pair(pair: GenerationPair) -> StalenessStamp {
+        StalenessStamp {
+            epoch: pair.epoch,
+            counter: pair.pipeline.0,
+        }
+    }
+
+    /// The owning session epoch.
+    #[must_use]
+    pub fn epoch(self) -> SessionEpoch {
+        self.epoch
+    }
+
+    /// The pipeline counter within the epoch.
+    #[must_use]
+    pub fn counter(self) -> u64 {
+        self.counter
+    }
+
+    /// The doc 03 §5 liveness rule, pair-wise: stale iff the epoch
+    /// differs **or** the pipeline counter differs. The epoch arm
+    /// runs first, so a superseded epoch is stale regardless of its
+    /// counter — the bare-counter masquerade is dead by construction.
+    ///
+    /// For genuinely-emitted events the within-epoch arm is exactly
+    /// "older": the session's minter only moves forward, so `!=` and
+    /// `<` agree on every reachable state — `!=` is merely the
+    /// fail-safe form for impossible ones (a same-epoch counter
+    /// ahead of the live pair cannot be minted; if a bug ever
+    /// produced one, suppression is the conservative answer).
+    #[must_use]
+    pub fn is_stale_against(self, current: GenerationPair) -> bool {
+        self.epoch != current.epoch || self.counter != current.pipeline.0
+    }
+}
+
+/// The epoch-aware drain policy for the event stream's counter
+/// carriers (card ED-FIX-4/M11): the correlation envelope's
+/// `session` + `generation` fields ARE the two halves of the
+/// composite [`StalenessStamp`]. This trait is the seam that lets
+/// the output hub compare the **pair** instead of the bare counter,
+/// without editing the carrier's own definition — implemented here
+/// for [`EngineEvent`], the hub's only event carrier.
+///
+/// The hub-side wiring is deliberately one line (the `drain_into`
+/// staleness check consumes [`DrainStaleness::is_stale_at_drain`]);
+/// this module owns the policy, `session.rs` owns the buffer it
+/// polices.
+pub trait DrainStaleness {
+    /// The composite (epoch, counter) stamp of this carrier's
+    /// correlation envelope.
+    #[must_use]
+    fn staleness_stamp(&self) -> StalenessStamp;
+
+    /// Whether the hub suppresses this carrier at drain, judged
+    /// against the live `current` pair: the doc 05 §4.2 rule made
+    /// epoch-aware, with its one exemption kept **intra-epoch** — a
+    /// `Seeked`/`SeekFailed` terminal of a completed generation
+    /// survives later mints of the *same* epoch (doc 05 §4.3
+    /// invariant 4: exactly one terminal per completed generation).
+    ///
+    /// Cross-epoch there is no exemption: an event of a superseded
+    /// epoch is stale by construction (directive D-4 — no state,
+    /// sound or visible, crosses a session boundary; a host that
+    /// wants a dying session's last words drains before opening the
+    /// next one, which every drain-per-poll host does).
+    #[must_use]
+    fn is_stale_at_drain(&self, current: &GenerationPair) -> bool;
+}
+
+impl DrainStaleness for EngineEvent {
+    fn staleness_stamp(&self) -> StalenessStamp {
+        // The envelope's session id IS the epoch (doc 05 §4.2's
+        // mapping) and its generation IS the pipeline counter — the
+        // wire form of the pair the engine compares.
+        StalenessStamp {
+            epoch: SessionEpoch(self.session.0),
+            counter: self.generation.0,
+        }
+    }
+
+    fn is_stale_at_drain(&self, current: &GenerationPair) -> bool {
+        let stamp = self.staleness_stamp();
+        if !stamp.is_stale_against(*current) {
+            return false; // the live pair
+        }
+        if stamp.epoch != current.epoch {
+            return true; // superseded epoch: stale BY CONSTRUCTION
+        }
+        // Superseded within the epoch: only the seek terminals
+        // survive (doc 05 §4.3 invariant 4). Terminals are always
+        // stamped with the live epoch (`emit_seek_terminal`), so
+        // this arm is the exemption's whole reachable domain —
+        // cross-epoch terminals exited above.
+        !matches!(
+            self.kind,
+            EngineEventKind::Seeked { .. } | EngineEventKind::SeekFailed { .. }
+        )
+    }
+}
+
 /// The full per-session event policy (doc 05 §3.4), carried by
 /// [`SessionConfig`](crate::session::SessionConfig).
 ///
@@ -424,5 +585,292 @@ mod tests {
         // (terminal flushes are unconditional).
         assert_eq!(coalescer.flush_all(), Some((0, 1)));
         assert_eq!(coalescer.flush_all(), None);
+    }
+
+    // -----------------------------------------------------------------
+    // M11: the epoch-aware staleness stamp (ED-FIX-4, D-4)
+    // -----------------------------------------------------------------
+
+    use crate::epoch::{PipelineGeneration, TokenMinter};
+    use crate::seek::SeekFailure;
+    use crate::session::{CommandReceipt, EngineOutput, ReceiptResult, SessionCommandKind};
+    use crate::state::SessionState;
+    use commands::envelope::{Generation, RequestId, SessionId};
+    use testkit::Must;
+
+    fn pair(epoch: u64, pipeline: u64) -> GenerationPair {
+        GenerationPair {
+            epoch: SessionEpoch(epoch),
+            pipeline: PipelineGeneration(pipeline),
+        }
+    }
+
+    fn stamped_event(epoch: u64, counter: u64, kind: EngineEventKind) -> EngineEvent {
+        EngineEvent {
+            seq: 0,
+            session: SessionId(epoch),
+            generation: Generation(counter),
+            origin: None,
+            kind,
+        }
+    }
+
+    fn receipt(request: u64, epoch: u64) -> EngineOutput {
+        EngineOutput::Receipt(CommandReceipt {
+            request: RequestId(request),
+            command: SessionCommandKind::Play,
+            result: ReceiptResult::Completed {
+                session: SessionId(epoch),
+            },
+        })
+    }
+
+    /// AC (a): a superseded epoch is stale **by construction**,
+    /// whatever its counter says — the same-counter masquerade
+    /// (today's bare `event.generation.0 < live` answers "fresh"),
+    /// the lower-counter case it happens to catch, and the
+    /// higher-counter leak it must not.
+    #[test]
+    fn cross_epoch_is_stale_by_construction_whatever_the_counter() {
+        let current = pair(2, 3);
+        // Same counter, different epoch — both masquerade directions
+        // (older epoch, and defensively a newer one).
+        for other_epoch in [1u64, 3] {
+            assert!(
+                StalenessStamp::new(SessionEpoch(other_epoch), 3).is_stale_against(current),
+                "epoch {other_epoch} counter 3 must be stale against {current:?}"
+            );
+        }
+        // Old-epoch counter below the live one (the only case the
+        // bare `<` ever caught) — still stale.
+        assert!(StalenessStamp::new(SessionEpoch(1), 0).is_stale_against(current));
+        // Old-epoch counter ABOVE the live one — the leak shape:
+        // `5 < 3` is false, the bare comparison waves it through.
+        assert!(StalenessStamp::new(SessionEpoch(1), 5).is_stale_against(current));
+        // The fresh-open shape: the closed session's gen-0 events
+        // against the new session's gen-0.
+        assert!(StalenessStamp::new(SessionEpoch(1), 0).is_stale_against(pair(2, 0)));
+        // The drain decision agrees, for every kind — seek terminals
+        // included: cross-epoch, the exemption does not apply.
+        let kinds = [
+            EngineEventKind::EndOfMedia,
+            EngineEventKind::StateChanged {
+                from: SessionState::Playing,
+                to: SessionState::Paused,
+            },
+            EngineEventKind::TimeTick {
+                position_ns: 0,
+                fraction: 0.0,
+            },
+            EngineEventKind::Seeked {
+                requested: 0,
+                actual: 0,
+            },
+            EngineEventKind::SeekFailed {
+                reason: SeekFailure::NotSeekable,
+                position: 0,
+            },
+        ];
+        for kind in kinds {
+            assert!(
+                stamped_event(1, 3, kind.clone()).is_stale_at_drain(&current),
+                "an epoch-1 {kind:?} must be stale against {current:?}"
+            );
+        }
+    }
+
+    /// AC (b): the live pair passes; the near misses do not.
+    #[test]
+    fn fresh_epoch_fresh_counter_passes() {
+        let current = pair(2, 0);
+        assert!(!StalenessStamp::new(SessionEpoch(2), 0).is_stale_against(current));
+        assert!(!stamped_event(2, 0, EngineEventKind::EndOfMedia).is_stale_at_drain(&current));
+        // Near misses: same epoch, superseded counter…
+        assert!(StalenessStamp::new(SessionEpoch(2), 1).is_stale_against(current));
+        // …same counter, wrong epoch.
+        assert!(StalenessStamp::new(SessionEpoch(1), 0).is_stale_against(current));
+        // A same-epoch superseded non-terminal is suppressed at drain.
+        assert!(stamped_event(2, 0, EngineEventKind::EndOfMedia).is_stale_at_drain(&pair(2, 1)));
+    }
+
+    /// AC (c): supersede (open the next epoch), then push a storm —
+    /// every resident event of the superseded epoch is dropped and
+    /// counted at drain, receipts survive untouched, and nothing is
+    /// retained. The decision itself is two integer compares (see
+    /// `tests/epoch_staleness_alloc.rs` for the measured
+    /// zero-allocation proof — bounded work, not argued work).
+    #[test]
+    fn supersede_then_push_storm_all_dropped_counted_bounded() {
+        let current = pair(2, 0);
+        // The storm: 10_000 undelivered events of the superseded
+        // epoch, mixed kinds — seek terminals included (the
+        // cross-epoch arm must not let the exemption resurrect
+        // them) — with receipts interleaved.
+        let mut queue = std::collections::VecDeque::new();
+        for seq in 0..10_000u64 {
+            let kind = match seq % 4 {
+                0 => EngineEventKind::EndOfMedia,
+                1 => EngineEventKind::TimeTick {
+                    position_ns: seq as i64,
+                    fraction: 0.5,
+                },
+                2 => EngineEventKind::StateChanged {
+                    from: SessionState::Playing,
+                    to: SessionState::Paused,
+                },
+                _ => EngineEventKind::Seeked {
+                    requested: 0,
+                    actual: 0,
+                },
+            };
+            let mut event = stamped_event(1, 3, kind);
+            event.seq = seq;
+            queue.push_back(EngineOutput::Event(event));
+            if seq % 1_000 == 0 {
+                queue.push_back(receipt(seq, 1));
+            }
+        }
+        // The drain, in the hub's own shape (pop, decide, count).
+        let mut suppressed_stale = 0u64;
+        let mut delivered = Vec::new();
+        while let Some(output) = queue.pop_front() {
+            match output {
+                EngineOutput::Receipt(_) => delivered.push(output),
+                EngineOutput::Event(event) => {
+                    if event.is_stale_at_drain(&current) {
+                        suppressed_stale = suppressed_stale.saturating_add(1);
+                    } else {
+                        delivered.push(EngineOutput::Event(event));
+                    }
+                }
+            }
+        }
+        assert_eq!(suppressed_stale, 10_000, "every storm event dropped");
+        let receipts: Vec<_> = delivered
+            .iter()
+            .filter(|output| matches!(output, EngineOutput::Receipt(_)))
+            .collect();
+        assert_eq!(receipts.len(), 10, "receipts are never suppressed");
+        assert_eq!(delivered.len(), 10, "nothing else survives the boundary");
+    }
+
+    /// The seek-terminal exemption is **intra-epoch only** (doc 05
+    /// §4.3 invariant 4): a completed generation's terminal survives
+    /// later mints of the same epoch; no terminal of another epoch
+    /// does — the exemption cannot resurrect a dead session's words.
+    #[test]
+    fn seek_terminal_exemption_is_intra_epoch_only() {
+        // Same epoch, superseded counter: the terminals survive…
+        let current = pair(1, 2);
+        assert!(
+            !stamped_event(
+                1,
+                1,
+                EngineEventKind::Seeked {
+                    requested: 5,
+                    actual: 5,
+                }
+            )
+            .is_stale_at_drain(&current)
+        );
+        assert!(
+            !stamped_event(
+                1,
+                1,
+                EngineEventKind::SeekFailed {
+                    reason: SeekFailure::NotSeekable,
+                    position: 5,
+                }
+            )
+            .is_stale_at_drain(&current)
+        );
+        // …while their same-generation siblings do not.
+        assert!(
+            stamped_event(
+                1,
+                1,
+                EngineEventKind::TimeTick {
+                    position_ns: 5,
+                    fraction: 0.0
+                }
+            )
+            .is_stale_at_drain(&current)
+        );
+        // Cross-epoch, the very same terminal is stale — even with a
+        // counter that compares fresh against the live pair.
+        assert!(
+            stamped_event(
+                2,
+                2,
+                EngineEventKind::Seeked {
+                    requested: 5,
+                    actual: 5,
+                }
+            )
+            .is_stale_at_drain(&current)
+        );
+        // The real direction: the dead session's terminal against
+        // the successor's live pair (same counter, new epoch).
+        assert!(
+            stamped_event(
+                1,
+                1,
+                EngineEventKind::Seeked {
+                    requested: 5,
+                    actual: 5,
+                }
+            )
+            .is_stale_at_drain(&pair(3, 1))
+        );
+    }
+
+    /// D-5 (escape the echo chamber): the stamp's pair rule is
+    /// differential-checked against [`crate::epoch::CancelToken`] —
+    /// the independently-written carrier of the same doc 03 §5 rule
+    /// (mint, publish, compare) — across an epoch × counter matrix.
+    #[test]
+    fn the_stamp_rule_agrees_with_the_cancel_token_oracle() {
+        for current_epoch in [1u64, 2, 3] {
+            for current_pipeline in 0u64..4 {
+                let mut minter = TokenMinter::new(SessionEpoch(current_epoch));
+                for _ in 0..current_pipeline {
+                    minter.mint_pipeline().must();
+                }
+                let token = minter.token();
+                let current = minter.pair();
+                for epoch in [1u64, 2, 3] {
+                    for counter in 0u64..4 {
+                        let candidate = pair(epoch, counter);
+                        assert_eq!(
+                            StalenessStamp::from_pair(candidate).is_stale_against(current),
+                            token.is_stale(&candidate),
+                            "stamp vs token disagree: {candidate:?} against {current:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// The stamp's own vocabulary: constructors, accessors, the
+    /// envelope derivation, and the u64 boundary epochs (no wrapping
+    /// arithmetic anywhere in the rule).
+    #[test]
+    fn stamps_round_trip_through_pairs_and_envelopes() {
+        let stamp = StalenessStamp::new(SessionEpoch(7), 4);
+        assert_eq!(stamp.epoch(), SessionEpoch(7));
+        assert_eq!(stamp.counter(), 4);
+        assert_eq!(StalenessStamp::from_pair(pair(7, 4)), stamp);
+        // The envelope derivation: session IS the epoch, generation
+        // IS the counter (doc 05 §4.2's mapping).
+        assert_eq!(
+            stamped_event(7, 4, EngineEventKind::EndOfMedia).staleness_stamp(),
+            stamp
+        );
+        // Boundaries: max epochs/counters never wrap into freshness.
+        let max_stamp = StalenessStamp::new(SessionEpoch(u64::MAX), u64::MAX);
+        assert!(!max_stamp.is_stale_against(pair(u64::MAX, u64::MAX)));
+        assert!(max_stamp.is_stale_against(pair(1, u64::MAX)));
+        assert!(StalenessStamp::new(SessionEpoch(1), u64::MAX).is_stale_against(pair(1, 0)));
     }
 }
