@@ -139,13 +139,14 @@ const DESCRIPTOR_LIES: [&str; 10] = [
 /// The typed codes a lying WAVEFORMATEX can produce (the parse
 /// taxonomy of `pcm::decoder`; every code is `Unsupported` at stage
 /// `Decode`).
-const WAVEFORMAT_CODES: [&str; 6] = [
+const WAVEFORMAT_CODES: [&str; 7] = [
     "pcm.waveformat.length",
     "pcm.waveformat.channels",
     "pcm.waveformat.rate",
     "pcm.waveformat.tag",
     "pcm.waveformat.bits",
     "pcm.waveformat.block_align",
+    "pcm.waveformat.extensible",
 ];
 
 // ---- the seeded PRNG -------------------------------------------------------
@@ -1168,7 +1169,7 @@ fn seeded_format_header_lies_are_typed_or_honestly_decoded() {
     let mut align = strf.clone();
     align[12..14].copy_from_slice(&8u16.to_le_bytes()); // align lie
     let cases: [(&[u8], Option<&str>); 8] = [
-        (&tag, Some("pcm.waveformat.tag")),
+        (&tag, Some("pcm.waveformat.extensible")),
         (&zero_channels, Some("pcm.waveformat.channels")),
         (&zero_rate, Some("pcm.waveformat.rate")),
         (&bits, Some("pcm.waveformat.bits")),
