@@ -225,13 +225,22 @@ fn mjpeg_decode_throughput_dense_4k_budget() {
         Err(e) => unreachable!("dense 4K frame decodes: {e}"),
     };
     assert_eq!((image.width, image.height), (3840, 2160));
-    assert!(!image.concealed, "the dense frame must decode without concealment");
+    assert!(
+        !image.concealed,
+        "the dense frame must decode without concealment"
+    );
     assert_eq!(image.data.len(), 3840 * 2160 * 3 / 2, "I420 layout");
 
     warm_up(std::slice::from_ref(&jpeg));
     let passes = if cfg!(debug_assertions) { 1 } else { 12 };
     let (elapsed, frames) = timed_passes(std::slice::from_ref(&jpeg), passes);
-    let fps = report("synthetic dense-AC 3840x2160 4:2:0 (worst case)", frames, elapsed, 3840, 2160);
+    let fps = report(
+        "synthetic dense-AC 3840x2160 4:2:0 (worst case)",
+        frames,
+        elapsed,
+        3840,
+        2160,
+    );
     // The 4K60 budget question (D-10 q2): realtime is 60 frames/s.
     // Release asserts realtime; debug only sanity-checks.
     let floor = release_floor(60.0, 1.0);
