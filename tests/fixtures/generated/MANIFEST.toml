@@ -3,7 +3,7 @@
 schema = "manifest/1"
 generator = "cargo xtask fixtures (tools/xtask/src/cmd/fixtures.rs)"
 seed_root = "lumen-2a3-v1"
-file_count = 26
+file_count = 28
 
 [[files]]
 path = "generated/valid/avi_mjpeg_pcm.avi"
@@ -19,6 +19,21 @@ op = "structure-map"
 parent = "generated/valid/avi_mjpeg_pcm.avi"
 sha256 = "dc24d8b6bec5d3ff030ed234e0f3e491c2016c9d33354b331586d02d51cf0a32"
 size_bytes = 6_123
+
+[[files]]
+path = "generated/valid/avi_mjpeg_2pcm.avi"
+class = "A"
+op = "parent"
+sha256 = "14d3a0e9a842e66710524dcbd6ccd17caf462541a2d8335327854698479868f3"
+size_bytes = 497_160
+
+[[files]]
+path = "generated/valid/avi_mjpeg_2pcm.avi.structure.json"
+class = "A"
+op = "structure-map"
+parent = "generated/valid/avi_mjpeg_2pcm.avi"
+sha256 = "2f0d059fb27379ff168872987bb3ec44f38dbf4985207c4cd8b2a3345e39e640"
+size_bytes = 3_404
 
 [[files]]
 path = "generated/valid/mp4_mjpeg_pcm.mp4"
