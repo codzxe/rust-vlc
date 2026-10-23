@@ -1,26 +1,25 @@
-//! One-buffer-per-frame proof for the MJPEG contract path (W2-06,
-//! hardening the ED-FIX-1 C4 claim the W1-20 re-audit flagged: the
-//! old `DhtKey::of` cloned the whole DHT payload every frame, and the
-//! marker walk built fresh metadata `Vec`s per frame — both are gone;
-//! see `src/video/mjpeg/decoder.rs` module docs).
+//! Zero-allocation proof for the MJPEG contract path (W2-06 hardened
+//! the reuse discipline; **W6-02 closed the handoff**: the two
+//! remaining steady-state events — the frame's fresh output `Vec`
+//! and the `SharedBytes` `Arc` block — are gone, replaced by the
+//! pooled-slot handoff, the PCM `CONVERT_SLOTS` pattern lifted to
+//! video; see `src/video/mjpeg/decoder.rs` module docs).
 //!
-//! After warm-up, each steady-state `MjpegDecoder::decode` through the
-//! real contract surface (configure → decode → sink handoff) allocates
-//! exactly **two** events, both belonging to the frame's own bytes:
-//!
-//! 1. the frame's output buffer — `DecodeContext::take_output` moved
-//!    the previous one into the sink, so this decode's assembly
-//!    `resize` grows the fresh one (the one buffer the decoder.rs
-//!    claim counts); and
-//! 2. the `SharedBytes` (`Arc<[u8]>`) block the frame contract's
-//!    ownership handoff wraps that buffer in (an ownership header,
-//!    not frame bytes — collapsing it needs a pooled-`Arc` flavor in
-//!    media-types, the registered Lead-owned follow-up).
+//! After warm-up, each steady-state `MjpegDecoder::decode` through
+//! the real contract surface (configure → decode → sink handoff)
+//! allocates **nothing**: the scan fills the reusable planes and the
+//! assembly writes straight into a pooled `SharedBytes` slot of
+//! exactly the frame's byte count (refilled in place via `get_mut`,
+//! handed out as an `Arc` clone). The pool is bounded at
+//! `FRAME_SLOTS` (4) · current-frame-bytes and keyed on exact
+//! length, so a geometry change re-enters the cold path (allocation)
+//! instead of accumulating — the pool bound is pinned separately in
+//! the decoder module tests.
 //!
 //! Everything else — marker walk (persistent `JpegInfo` scratch),
 //! padded planes, Huffman LUTs, the DHT structural compare, cursors —
-//! is reuse (D-1). The input packet is cloned per iteration (an
-//! `Arc` refcount bump — allocation-free), so the measured window
+//! was already reuse (D-1). The input packet is cloned per iteration
+//! (an `Arc` refcount bump — allocation-free), so the measured window
 //! sees only the decode side.
 //!
 //! One `#[test]` per binary by design (the allocator is
@@ -74,7 +73,7 @@ fn packet_for(jpeg: &[u8], generation: GenerationId) -> Packet {
 }
 
 #[test]
-fn mjpeg_contract_path_allocates_exactly_one_buffer_per_frame() {
+fn mjpeg_contract_path_allocates_nothing_per_frame_after_warm_up() {
     let _serial = serialize_tests();
 
     // Setup: fixture read, frame extraction, decoder configure — all
@@ -134,23 +133,21 @@ fn mjpeg_contract_path_allocates_exactly_one_buffer_per_frame() {
     let delta = guard.delta();
     assert_eq!(sink.frames, 4 + FRAMES);
 
-    // The pin: exactly two allocation events per frame — the frame's
-    // own output buffer (the decoder.rs "one buffer" claim) plus the
-    // SharedBytes Arc block the handoff wraps it in. Any third event
-    // is a regression of the reuse discipline (D-1) and must fail
-    // loudly here, not hide in a doc claim.
+    // The pin (W6-02: tightened from "exactly two events" to zero —
+    // the pooled-slot handoff eliminated both the fresh output `Vec`
+    // and the `SharedBytes` `Arc` copy; any single event is now a
+    // regression of the reuse discipline (D-1) and must fail loudly
+    // here, not hide in a doc claim).
     assert_eq!(
-        delta.alloc_calls,
-        2 * FRAMES as u64,
-        "expected exactly 2 allocation events per steady-state frame \
-         (output buffer + SharedBytes handoff block); measured {} events \
-         for {FRAMES} frames ({} bytes) — the reuse discipline regressed",
-        delta.alloc_calls,
-        delta.total_bytes,
+        delta.alloc_calls, 0,
+        "expected ZERO allocation events per steady-state frame \
+         (pooled-slot handoff); measured {} events for {FRAMES} frames \
+         ({} bytes) — the reuse discipline regressed",
+        delta.alloc_calls, delta.total_bytes,
     );
     eprintln!(
         "[zero_alloc_decode] {FRAMES} frames: {} alloc events, {} bytes \
-         (per frame: output buffer + Arc handoff block)",
+         (per frame: zero — pooled-slot handoff)",
         delta.alloc_calls, delta.total_bytes
     );
 }

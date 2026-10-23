@@ -247,6 +247,14 @@ pub struct MjpegDecoder {
     /// Reusable decode state across frames (ED-FIX-1 C4: planes,
     /// Huffman LUTs, cursors, output buffer — see `decoder.rs`).
     context: decoder::DecodeContext,
+    /// Pooled frame-output slots (W6-02 / V-4: the PCM `CONVERT_SLOTS`
+    /// pattern lifted to the video handoff — steady-state decodes
+    /// refill a slot in place instead of allocating the frame buffer
+    /// plus the `SharedBytes` block per frame; bounded at
+    /// `decoder::FRAME_SLOTS` · current-frame-bytes).
+    frame_slots: Vec<SharedBytes>,
+    /// Round-robin cursor into `frame_slots`.
+    slot_next: usize,
 }
 
 impl MjpegDecoder {
@@ -309,11 +317,30 @@ impl Decoder for MjpegDecoder {
         if let Some(outcome) = drop_stale_packet(&packet, generation) {
             return Ok(outcome);
         }
+        // Two-phase decode (W6-02 / V-4): the scan fills the reusable
+        // planes, then the assembly writes straight into a pooled
+        // `SharedBytes` slot — the frame's own bytes, handed to the
+        // sink with zero steady-state allocation (the pre-W6-02 path
+        // took the context's `Vec` and re-copied it into a fresh `Arc`
+        // block: 2 allocs + 2 wasted frame-writes per frame).
         let meta = self
             .context
-            .decode(packet.data.as_slice())
+            .decode_scan(packet.data.as_slice())
             .map_err(|e| e.into_engine_error())?;
-        let data = self.context.take_output();
+        let len = self
+            .context
+            .frame_len()
+            .map_err(|e| e.into_engine_error())?;
+        let MjpegDecoder {
+            context,
+            frame_slots,
+            slot_next,
+            ..
+        } = self;
+        let data = decoder::pooled_frame_slot(frame_slots, slot_next, len, |bytes| {
+            context.assemble_frame(bytes)
+        })
+        .map_err(|e| e.into_engine_error())?;
 
         let format = match meta.format {
             OutputFormat::I420 => media_types::PixelFormat::I420,
@@ -322,7 +349,7 @@ impl Decoder for MjpegDecoder {
         let frame = Frame::Video(VideoFrame {
             format,
             size: (meta.width, meta.height),
-            data: media_types::frame::FrameStorage::Cpu(SharedBytes::from_vec(data)),
+            data: media_types::frame::FrameStorage::Cpu(data),
             pts: packet.pts,
             color: JFIF_COLOR,
             interlaced: false,
