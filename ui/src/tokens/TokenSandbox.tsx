@@ -18,6 +18,7 @@ const MODE_SETTINGS: readonly ThemeModeSetting[] = ["dark", "light", "auto"];
 
 const SWATCH_ROLES = [
   "accent",
+  "accent-bright",
   "accent-strong",
   "accent-tinted",
   "surface-raised",
