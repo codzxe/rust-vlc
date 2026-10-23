@@ -143,16 +143,16 @@ pub(crate) fn idct_block_dispatch(block: &[i16; 64], qt: &[u16; 64], out: &mut [
 #[target_feature(enable = "sse2")]
 unsafe fn hsum32(x: std::arch::x86_64::__m128i) -> i32 {
     use std::arch::x86_64::*;
-    // SAFETY: plain lane-shuffle adds; exact in i32 (module bound
-    // proof keeps every partial < 2³¹).
-    unsafe {
-        // _MM_SHUFFLE(2,3,0,1): swap lane pairs.
-        let pair = _mm_add_epi32(x, _mm_shuffle_epi32(x, 0b10_11_00_01));
-        // _MM_SHUFFLE(1,0,3,2): swap the two sums — lane 0 then holds
-        // the full four-lane total.
-        let full = _mm_add_epi32(pair, _mm_shuffle_epi32(pair, 0b01_00_11_10));
-        _mm_cvtsi128_si32(full)
-    }
+    // Register-only ops: with `#[target_feature(enable = "sse2")]`
+    // these intrinsics are safe calls; the fn stays `unsafe` because
+    // CALLING it requires the SSE2 feature guarantee. Lane-shuffle
+    // adds are integer-exact (module bound proof: partials < 2³¹).
+    // _MM_SHUFFLE(2,3,0,1): swap lane pairs.
+    let pair = _mm_add_epi32(x, _mm_shuffle_epi32(x, 0b10_11_00_01));
+    // _MM_SHUFFLE(1,0,3,2): swap the two sums — lane 0 then holds
+    // the full four-lane total.
+    let full = _mm_add_epi32(pair, _mm_shuffle_epi32(pair, 0b01_00_11_10));
+    _mm_cvtsi128_si32(full)
 }
 
 /// Classic SSE2 8×8 `i16` transpose (row-major in, column-major out).
@@ -163,35 +163,34 @@ unsafe fn hsum32(x: std::arch::x86_64::__m128i) -> i32 {
 #[target_feature(enable = "sse2")]
 unsafe fn transpose8x16(rows: [std::arch::x86_64::__m128i; 8]) -> [std::arch::x86_64::__m128i; 8] {
     use std::arch::x86_64::*;
-    // SAFETY: pure lane permutations on fully-initialized vectors.
-    unsafe {
-        let t0 = _mm_unpacklo_epi16(rows[0], rows[1]);
-        let t1 = _mm_unpacklo_epi16(rows[2], rows[3]);
-        let t2 = _mm_unpacklo_epi16(rows[4], rows[5]);
-        let t3 = _mm_unpacklo_epi16(rows[6], rows[7]);
-        let t4 = _mm_unpackhi_epi16(rows[0], rows[1]);
-        let t5 = _mm_unpackhi_epi16(rows[2], rows[3]);
-        let t6 = _mm_unpackhi_epi16(rows[4], rows[5]);
-        let t7 = _mm_unpackhi_epi16(rows[6], rows[7]);
-        let u0 = _mm_unpacklo_epi32(t0, t1);
-        let u1 = _mm_unpackhi_epi32(t0, t1);
-        let u2 = _mm_unpacklo_epi32(t4, t5);
-        let u3 = _mm_unpackhi_epi32(t4, t5);
-        let u4 = _mm_unpacklo_epi32(t2, t3);
-        let u5 = _mm_unpackhi_epi32(t2, t3);
-        let u6 = _mm_unpacklo_epi32(t6, t7);
-        let u7 = _mm_unpackhi_epi32(t6, t7);
-        [
-            _mm_unpacklo_epi64(u0, u4),
-            _mm_unpackhi_epi64(u0, u4),
-            _mm_unpacklo_epi64(u1, u5),
-            _mm_unpackhi_epi64(u1, u5),
-            _mm_unpacklo_epi64(u2, u6),
-            _mm_unpackhi_epi64(u2, u6),
-            _mm_unpacklo_epi64(u3, u7),
-            _mm_unpackhi_epi64(u3, u7),
-        ]
-    }
+    // Register-only lane permutations on fully-initialized vectors
+    // (safe calls under the enabled SSE2 feature).
+    let t0 = _mm_unpacklo_epi16(rows[0], rows[1]);
+    let t1 = _mm_unpacklo_epi16(rows[2], rows[3]);
+    let t2 = _mm_unpacklo_epi16(rows[4], rows[5]);
+    let t3 = _mm_unpacklo_epi16(rows[6], rows[7]);
+    let t4 = _mm_unpackhi_epi16(rows[0], rows[1]);
+    let t5 = _mm_unpackhi_epi16(rows[2], rows[3]);
+    let t6 = _mm_unpackhi_epi16(rows[4], rows[5]);
+    let t7 = _mm_unpackhi_epi16(rows[6], rows[7]);
+    let u0 = _mm_unpacklo_epi32(t0, t1);
+    let u1 = _mm_unpackhi_epi32(t0, t1);
+    let u2 = _mm_unpacklo_epi32(t4, t5);
+    let u3 = _mm_unpackhi_epi32(t4, t5);
+    let u4 = _mm_unpacklo_epi32(t2, t3);
+    let u5 = _mm_unpackhi_epi32(t2, t3);
+    let u6 = _mm_unpacklo_epi32(t6, t7);
+    let u7 = _mm_unpackhi_epi32(t6, t7);
+    [
+        _mm_unpacklo_epi64(u0, u4),
+        _mm_unpackhi_epi64(u0, u4),
+        _mm_unpacklo_epi64(u1, u5),
+        _mm_unpackhi_epi64(u1, u5),
+        _mm_unpacklo_epi64(u2, u6),
+        _mm_unpackhi_epi64(u2, u6),
+        _mm_unpacklo_epi64(u3, u7),
+        _mm_unpackhi_epi64(u3, u7),
+    ]
 }
 
 /// SSE4.1 kernel: SIMD dequant + pass 1, scalar pass 2 (module docs).
