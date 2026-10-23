@@ -29,6 +29,7 @@ use std::path::{Path, PathBuf};
 // ---------------------------------------------------------------------------
 
 pub mod alloc_count;
+pub mod faults;
 
 pub use alloc_count::{
     AllocDelta, AllocSnapshot, AllocState, CountingGlobalAlloc, CountingGuard, serialize_tests,
