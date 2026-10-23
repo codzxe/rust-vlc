@@ -325,6 +325,10 @@ pub struct AviDemuxer {
     sticky: Option<StickyShape>,
     main: AviMainHeader,
     streams: Vec<StreamDesc>,
+    /// Per-declared-ordinal disposition from the header parse (the
+    /// idx1-side scope truth — see
+    /// [`header::HeaderList::filtered_ordinals`]; W5-14).
+    filtered: Vec<bool>,
     movi: Option<MoviRegion>,
     index: Option<IndexTable>,
     cursor: Option<WalkCursor>,
@@ -362,6 +366,7 @@ impl AviDemuxer {
             sticky: None,
             main: header::zeroed_main_header(),
             streams: Vec::new(),
+            filtered: Vec::new(),
             movi: None,
             index: None,
             cursor: None,
@@ -472,7 +477,12 @@ impl AviDemuxer {
             }
 
             let pos = cursor.pos;
-            let header = match peek_chunk_header(&mut self.reader, pos) {
+            // The walk's own header read: no position restore (the
+            // walk owns the cursor — the peek's save/restore pair is
+            // two source calls of pure overhead per chunk; W5-14). The
+            // seek paths that must not move the read position keep
+            // their peeks.
+            let header = match self.reader.read_chunk_header_at(pos) {
                 Ok(header) => header,
                 Err(err) => return Err(self.fail(err)),
             };
@@ -483,10 +493,16 @@ impl AviDemuxer {
 
             match classify_movi_chunk(&header.fourcc) {
                 MoviChunkKind::Packet { stream } => {
-                    let Some(desc) = self.streams.iter().find(|s| s.ordinal == stream) else {
-                        // A packet chunk of an unsupported/unknown
-                        // stream: skipped silently here — the parse-time
-                        // skip already counted it.
+                    // The deliverability gate: one indexed lane lookup
+                    // (W5-14's D-3 cleanup — the pre-lane walk scanned
+                    // the stream table per chunk). A packet chunk of a
+                    // stream with no lane — codec-filtered or never
+                    // declared — is skipped silently: the parse-time
+                    // skip already counted the filtered ones, and the
+                    // idx1 entries of a filtered stream skip silently
+                    // for the same reason (W5-14, the `vprp`
+                    // rationale, D-9).
+                    if !cursor.ladders.has_lane(stream) {
                         if next > bound {
                             // The skip's declared extent is a damage-sized
                             // lie past the bound: clamp + resync (see the
@@ -496,18 +512,7 @@ impl AviDemuxer {
                             cursor.pos = next;
                         }
                         continue;
-                    };
-                    // Everything borrowed from the stream table is
-                    // copied up front: the rest of the step calls
-                    // `&mut self` methods (fail/surface_damage), which
-                    // cannot coexist with a live `&self.streams`
-                    // borrow.
-                    let base = match desc.time_base(0) {
-                        Ok(base) => base,
-                        Err(err) => return Err(self.fail(err)),
-                    };
-                    let sample_size = desc.sample_size;
-                    let sample_frame = u64::from(sample_size.max(1));
+                    }
                     let size = u64::from(header.size);
                     if size > MAX_CHUNK_PAYLOAD {
                         self.damage.note(size, "chunk-payload-over-ceiling");
@@ -614,19 +619,25 @@ impl AviDemuxer {
                         cursor.pos = resume;
                         continue;
                     }
-                    let (delta, _) = header::ticks_for_sample_size(sample_size, delivered);
+                    // The ladder step carries everything the packet
+                    // needs — pts, duration ticks, the cached base,
+                    // the sample size — computed once here (W5-14: the
+                    // pre-lane walk recomputed the tick arithmetic
+                    // beside the ladder's own, and fetched the base
+                    // through a per-packet `TimeBase::new` gcd).
                     let Some(step) = cursor.ladders.advance(stream, delivered) else {
                         cursor.pos = resume;
                         continue;
                     };
                     if step.unaligned {
+                        let sample_frame = u64::from(step.sample_size.max(1));
                         let stray = delivered % sample_frame;
                         self.damage.note(stray, "pcm-chunk-not-sample-aligned");
                         self.surface_damage();
                     }
                     let keyframe = self.keyframe_for(cursor, pos, stream);
-                    let pts = Timestamp::new(step.pts_ticks, base);
-                    let duration = match Timestamp::new(delta, base).as_nanos() {
+                    let pts = Timestamp::new(step.pts_ticks, step.base);
+                    let duration = match Timestamp::new(step.delta_ticks, step.base).as_nanos() {
                         Ok(Nanoseconds(nanos)) => Some(Duration::Known(Nanoseconds(nanos))),
                         Err(_) => {
                             self.damage.note(0, "packet-duration-unrepresentable");
@@ -1144,6 +1155,7 @@ impl AviDemuxer {
                         )?;
                         self.main = hdr.main;
                         self.streams = hdr.streams;
+                        self.filtered = hdr.filtered_ordinals;
                         saw_hdrl = true;
                         // Recognition, not the declared size, decides
                         // where the walk resumes (a lying hdrl size
@@ -1187,6 +1199,7 @@ impl AviDemuxer {
                         region.declared_end,
                         bound,
                         &self.streams,
+                        &self.filtered,
                         &mut self.damage,
                     )? {
                         table.entries.sort_by_key(|entry| entry.chunk_pos);
