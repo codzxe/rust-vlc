@@ -1,0 +1,75 @@
+/* Hotkeys editor (card 4.E2) — semantic tokens only (doc 08 §3.2). */
+
+.hotkeys-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.hotkeys-table th,
+.hotkeys-table td {
+  text-align: left;
+  padding: var(--space-inset);
+  vertical-align: top;
+  border-bottom: 1px solid var(--color-stroke-border);
+}
+
+.hotkeys-table th {
+  color: var(--color-content-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.hotkeys-row[data-changed] .hotkeys-row__input {
+  border-color: var(--color-accent);
+}
+
+.hotkeys-row[data-conflict] .hotkeys-row__input,
+.hotkeys-row[data-conflict] .hotkeys-row__action {
+  border-color: var(--color-accent-strong);
+}
+
+.hotkeys-row[data-conflict] .hotkeys-row__action {
+  font-weight: var(--font-weight-medium);
+}
+
+.hotkeys-row__input {
+  color: var(--color-content-primary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-control);
+  font-size: var(--font-size-label);
+  min-width: 10ch;
+}
+
+.hotkeys-row__input:disabled {
+  color: var(--color-content-tertiary);
+  background: var(--color-surface-muted);
+}
+
+.hotkeys-row__conflict {
+  margin: var(--space-inset) 0 0;
+  color: var(--color-accent-strong);
+  font-size: var(--font-size-micro);
+}
+
+.hotkeys-row__command {
+  font-size: var(--font-size-micro);
+  color: var(--color-content-secondary);
+}
+
+.hotkeys-row__mode {
+  color: var(--color-content-tertiary);
+  font-size: var(--font-size-micro);
+}
+
+.hotkeys-row__reset {
+  text-align: right;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

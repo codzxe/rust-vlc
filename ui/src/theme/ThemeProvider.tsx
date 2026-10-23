@@ -36,7 +36,10 @@ export interface ThemeContextValue {
   setAccent(accent: AccentId): void;
 }
 
-const ThemeContext = createContext<ThemeContextValue | null>(null);
+// Exported for the settings-consumption seam (card 4.E2): the sync hook
+// reads the context optionally so settings screens render (inert) even
+// without a ThemeProvider host (tests, embeds).
+export const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function systemPrefersLight(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
