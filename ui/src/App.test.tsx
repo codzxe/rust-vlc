@@ -24,10 +24,10 @@ describe("App routing skeleton (doc 08 §1.6)", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Music player");
   });
 
-  it("renders the settings route with its area segment", () => {
-    renderAt("/settings/audio");
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Settings");
-    expect(screen.getByText("audio")).toBeInTheDocument();
+  it("renders the settings route via the schema-generated framework (4.E1); unknown areas redirect to the first schema area", async () => {
+    renderAt("/settings/audio"); // "audio" has no schema entries yet (4.E2–4.E4)
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent("Settings");
+    expect(screen.getByRole("button", { name: "Global" })).toHaveAttribute("aria-current", "page");
   });
 
   it("renders the onboarding route", () => {
