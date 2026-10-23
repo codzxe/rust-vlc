@@ -3,12 +3,21 @@
 // The matrix dimensions come from doc 08 §6.1/§6.3 where it names them
 // (dark + light, default accent at 1×, DPI/accent expansion in the nightly
 // lane) and from the 4.G1 card's [PROPOSAL] minimal set where it does not
-// (viewports 1280×720 + 1920×1080, DPI 1 + 2). The route set for G1 is the
-// four representative routes the card names (player, playlist, settings,
-// onboarding) — 4.G2 grows this to the full doc 08 §1.6 inventory (~40
-// compositions) when it captures the FROZEN baseline matrix after F4
-// merges, and adds the doc §6.1 accent ×9 sampling on onboarding +
-// settings (nightly only).
+// (viewports 1280×720 + 1920×1080, DPI 1 + 2).
+//
+// 4.G2 grew the route set to the full routed inventory of ui/src/App.tsx
+// (every <Route> has a case: player, player/music, miniplayer, playlist,
+// media-info, the 5 settings areas, onboarding, keyboard-shortcuts,
+// open-network-stream, the catch-all not-found, /dev/tokens). Doc 08 §1.6's
+// not-yet-routed compositions (player.customize, context menus, audio/video
+// tools, the playlist/subtitles flow) join ROUTES when their routes land.
+//
+// 4.G2 scaling decision (recorded in MATRIX-20261024.md): the accent ×9
+// sampling of doc 08 §6.1 runs at one pinned combo (1280×720 @1× dark) on
+// the two routes the doc names — onboarding + settings/global — for the 8
+// non-default accents; the default accent already covers the full
+// route × viewport × DPI × mode grid. Full matrix = 15 × 2 × 2 × 2 + 16
+// = 136 nightly cases; PR lane = 15 routes × {dark, light} = 30.
 
 export type ThemeMode = "dark" | "light";
 
@@ -21,7 +30,7 @@ export interface VisualCase {
   /** deviceScaleFactor (DPI). 1 = 1×, 2 = 2×. */
   readonly dpi: number;
   readonly theme: ThemeMode;
-  /** Accent id from tokens (doc 08 §3.3); G1 pins the default only. */
+  /** Accent id from tokens (doc 08 §3.3); the grid pins the default. */
   readonly accent: string;
   /** Include in the PR-lite lane (doc 08 §9.3: "every PR (1× dark/light)"). */
   readonly pr: boolean;
@@ -38,16 +47,52 @@ export const DPIS: readonly number[] = [1, 2] as const;
 
 export const THEMES: readonly ThemeMode[] = ["dark", "light"] as const;
 
-/** G1 representative routes (card 4.G1); 4.G2 extends to doc 08 §1.6. */
+/** Full routed surface of ui/src/App.tsx (card 4.G2, doc 08 §1.6). */
 export const ROUTES: readonly string[] = [
   "/player",
+  "/player/music",
+  "/miniplayer",
   "/playlist",
+  "/media-info",
   "/settings/global",
+  "/settings/interface",
+  "/settings/privacy",
+  "/settings/playback",
+  "/settings/performance",
   "/onboarding",
+  "/keyboard-shortcuts",
+  "/open-network-stream",
+  // No literal /not-found route exists: navigating to an unmatched path
+  // renders the catch-all `*` placeholder (App.tsx).
+  "/not-found",
+  "/dev/tokens",
 ] as const;
 
 /** The default accent (doc 08 §3.3 product default). */
 export const DEFAULT_ACCENT = "orange";
+
+/**
+ * The 9 accent ids (doc 08 §3.3), mirroring
+ * src/tokens/generated/tokens.ts ACCENTS (kept in sync by that module's
+ * committed-set test; duplicated here so the e2e tsconfig stays self-contained).
+ */
+export const ACCENTS: readonly string[] = [
+  "blue",
+  "cyan",
+  "gray",
+  "green",
+  "orange",
+  "pink",
+  "red",
+  "violet",
+  "yellow",
+] as const;
+
+/** Doc 08 §6.1 accent-sampling routes (exports Onboarding-3..10). */
+export const ACCENT_SAMPLE_ROUTES: readonly string[] = [
+  "/onboarding",
+  "/settings/global",
+] as const;
 
 function slug(route: string): string {
   return route === "/" ? "root" : route.slice(1).replaceAll("/", "-");
@@ -61,11 +106,10 @@ export function caseId(c: VisualCase): string {
   return `${slug(c.route)}-${c.width}x${c.height}-${c.dpi}x-${c.theme}${accent}`;
 }
 
-/** Full matrix; the spec filters it down to the PR-lite lane. */
-export const MANIFEST: readonly VisualCase[] = VIEWPORTS.flatMap(([w, h]) =>
+/** Route × viewport × DPI × mode grid at the default accent. */
+const GRID: readonly VisualCase[] = VIEWPORTS.flatMap(([w, h]) =>
   DPIS.flatMap((dpi) =>
     THEMES.map((theme) => ({
-      route: "",
       width: w,
       height: h,
       dpi,
@@ -78,3 +122,22 @@ export const MANIFEST: readonly VisualCase[] = VIEWPORTS.flatMap(([w, h]) =>
 ).flatMap((partial) =>
   ROUTES.map((route) => ({ ...partial, route }) satisfies VisualCase),
 );
+
+/** Nightly accent sampling (doc 08 §6.1): the 8 non-default accents on the
+ *  sampling routes at one pinned combo — the default accent is already
+ *  covered by GRID at every viewport × DPI × mode. */
+const ACCENT_SAMPLES: readonly VisualCase[] = ACCENT_SAMPLE_ROUTES.flatMap(
+  (route) =>
+    ACCENTS.filter((a) => a !== DEFAULT_ACCENT).map((accent) => ({
+      route,
+      width: 1280,
+      height: 720,
+      dpi: 1,
+      theme: "dark" as const,
+      accent,
+      pr: false,
+    })),
+);
+
+/** Full matrix; the spec filters it down to the PR-lite lane. */
+export const MANIFEST: readonly VisualCase[] = [...GRID, ...ACCENT_SAMPLES];

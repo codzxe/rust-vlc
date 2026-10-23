@@ -46,12 +46,23 @@ $ npm run visual:nightly
 `cargo xtask visual --mode=pr` runs the same lane through the Rust task
 runner and forwards the exit code verbatim (verified: 0).
 
-## What 4.G2 inherits
+## What 4.G2 delivered (2026-10-24)
 
-- Capture the FROZEN baseline matrix after F4 merges (`npm run visual
-  -- --mode=nightly --update`) — current baselines are proof-of-mechanism
-  pins on the pre-F4 tree.
-- Extend `ROUTES` to the full doc 08 §1.6 inventory and add the §6.1
-  accent ×9 sampling on onboarding + settings (nightly only).
+- Full-route manifest: every route in `ui/src/App.tsx` (15) × the
+  viewport/DPI/mode grid + the doc 08 §6.1 accent sampling (8 non-default
+  accents on onboarding + settings-global) → **136 nightly cases**, 30 in
+  the PR lane. Scaling decisions + run record:
+  [`MATRIX-20261024.md`](MATRIX-20261024.md).
+- FROZEN baseline matrix captured post-F4 merge
+  (`npm run visual -- --mode=nightly --update`) and verified green without
+  `--update` — Linux canonical set (per-OS sets pending CI runners; the
+  `<platform>` baseline dir is the extension seam, doc 08 §6.3).
+
+## What remains
+
 - Wire CI: per-OS jobs (Linux canonical), PR lane on every PR, full matrix
-  nightly (doc 08 §6.3).
+  nightly (doc 08 §6.3). macOS/Windows baseline sets get pinned by one
+  `--update` run per OS once runners exist.
+- Grow `ROUTES` as doc 08 §1.6's unrouted compositions land (player
+  customize/hide-ui, miniplayer states, context menus, audio/video tools,
+  playlist/subtitles flow).
