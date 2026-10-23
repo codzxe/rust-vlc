@@ -19,6 +19,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useMsg } from "../../i18n/messages";
+import { PlaylistPanel, PlaylistProvider } from "../playlist";
 import { PlayerControlsProvider, usePlayerControls } from "./context";
 import { ControlBar, controlCommandOf } from "./controls";
 import {
@@ -255,10 +256,15 @@ function PanelRegion({ region, side }: { region: LayoutRegion; side: "left" | "r
       aria-label={m(region.labelKey)}
       className={`lumen-player__panel lumen-player__panel--${side}`}
     >
-      {/* Placeholder container — panel content belongs to later cards
-          (library/playlist: 4.F3; media-info: later). One shared
-          placeholder MessageKey; per-panel copy lands with those cards. */}
-      <p className="lumen-player__sr-note">{m("player.panel.placeholder")}</p>
+      {/* Playlist region content landed with card 4.D1 (panel + queue
+          semantics); library/media-info remain honest placeholders. */}
+      {region.id === "playlist" ? (
+        <PlaylistProvider>
+          <PlaylistPanel />
+        </PlaylistProvider>
+      ) : (
+        <p className="lumen-player__sr-note">{m("player.panel.placeholder")}</p>
+      )}
     </aside>
   );
 }

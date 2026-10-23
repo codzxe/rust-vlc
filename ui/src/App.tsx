@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { PlayerScreen } from "./screens/player";
+import { PlaylistScreen } from "./screens/playlist";
 import { ScreenPlaceholder } from "./screens/ScreenPlaceholder";
 import { SettingsScreen } from "./screens/settings/SettingsScreen";
 import { TokenSandbox } from "./tokens/TokenSandbox";
@@ -19,7 +20,8 @@ export function App() {
         element={<ScreenPlaceholder routeKey="screen.player.music" />}
       />
       <Route path="/miniplayer" element={<ScreenPlaceholder routeKey="screen.miniplayer" />} />
-      <Route path="/playlist" element={<ScreenPlaceholder routeKey="screen.playlist" />} />
+      {/* Card 4.D1: real playlist panel + queue semantics. */}
+      <Route path="/playlist" element={<PlaylistScreen />} />
       <Route path="/settings" element={<Navigate to="/settings/global" replace />} />
       <Route path="/settings/:area" element={<SettingsScreen />} />
       <Route path="/onboarding" element={<ScreenPlaceholder routeKey="screen.onboarding" />} />

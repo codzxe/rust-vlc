@@ -43,6 +43,27 @@ export type MessageKey =
   | "player.controls.seekbar"
   | "player.controls.volume"
   | "player.controls.mute"
+  // --- playlist panel + queue (card 4.D1) ---
+  | "playlist.panel.title"
+  | "playlist.panel.count-suffix"
+  | "playlist.panel.empty-title"
+  | "playlist.panel.empty-body"
+  | "playlist.panel.not-exposed"
+  | "playlist.panel.load-handoff"
+  | "playlist.controls.prev"
+  | "playlist.controls.next"
+  | "playlist.controls.shuffle"
+  | "playlist.controls.repeat.off"
+  | "playlist.controls.repeat.one"
+  | "playlist.controls.repeat.all"
+  | "playlist.controls.clear"
+  | "playlist.entry.current"
+  | "playlist.entry.unknown-title"
+  | "playlist.entry.unknown-duration"
+  | "playlist.entry.play-now"
+  | "playlist.entry.play-next"
+  | "playlist.entry.play-later"
+  | "playlist.entry.remove"
   | "player.controls.unmute"
   | "player.controls.duration-unknown"
   | "player.controls.group-transport"
@@ -363,6 +384,27 @@ const messages: Readonly<Record<MessageKey, string>> = {
   "player.controls.seekbar": "Seek",
   "player.controls.volume": "Volume",
   "player.controls.mute": "Mute",
+  // --- playlist panel + queue (card 4.D1) ---
+  "playlist.panel.title": "Playlist",
+  "playlist.panel.count-suffix": "items",
+  "playlist.panel.empty-title": "Nothing in the queue",
+  "playlist.panel.empty-body": "Files you open are listed here in order.",
+  "playlist.panel.not-exposed": "Playlist commands are not exposed by this build — showing seeded data only.",
+  "playlist.panel.load-handoff": "Opening playlist files (.m3u) is wired by the app shell (card 4.H1).",
+  "playlist.controls.prev": "Previous item",
+  "playlist.controls.next": "Next item",
+  "playlist.controls.shuffle": "Shuffle",
+  "playlist.controls.repeat.off": "Repeat: off",
+  "playlist.controls.repeat.one": "Repeat: one",
+  "playlist.controls.repeat.all": "Repeat: all",
+  "playlist.controls.clear": "Clear playlist",
+  "playlist.entry.current": "Now playing",
+  "playlist.entry.unknown-title": "Unknown title",
+  "playlist.entry.unknown-duration": "—",
+  "playlist.entry.play-now": "Play now",
+  "playlist.entry.play-next": "Play next",
+  "playlist.entry.play-later": "Play later",
+  "playlist.entry.remove": "Remove from queue",
   "player.controls.unmute": "Unmute",
   "player.controls.duration-unknown": "--:--",
   "player.controls.group-transport": "Playback controls",
