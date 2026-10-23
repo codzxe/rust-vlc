@@ -1,0 +1,37 @@
+fixture,run,status,wall_ext_ms,bench_wall_s,bench_decode_s,v_frames,v_decoded,a_frames,a_decoded,bytes,refusal
+avi_mjpeg_pcm.avi,1,ok,8.492,0.008,0.008,60,60,60,60,425516,
+avi_mjpeg_pcm.avi,2,ok,8.537,0.008,0.008,60,60,60,60,425516,
+avi_mjpeg_pcm.avi,3,ok,8.361,0.008,0.007,60,60,60,60,425516,
+avi_mjpeg_pcm.avi,4,ok,8.437,0.008,0.007,60,60,60,60,425516,
+avi_mjpeg_pcm.avi,5,ok,8.435,0.008,0.007,60,60,60,60,425516,
+avi_mjpeg_pcm.avi,6,ok,8.525,0.008,0.008,60,60,60,60,425516,
+avi_mjpeg_pcm.avi,7,ok,8.491,0.008,0.007,60,60,60,60,425516,
+avi_mjpeg_pcm.avi,8,ok,8.45,0.008,0.007,60,60,60,60,425516,
+avi_mjpeg_pcm.avi,9,ok,8.444,0.008,0.007,60,60,60,60,425516,
+avi_mjpeg_pcm.avi,10,ok,8.602,0.008,0.008,60,60,60,60,425516,
+avi_mjpeg_pcm.avi,11,ok,8.481,0.008,0.007,60,60,60,60,425516,
+avi_mjpeg_pcm.avi,12,ok,8.562,0.008,0.008,60,60,60,60,425516,
+avi_mjpeg_2pcm.avi,1,ok,3.763,0.003,0.003,20,20,20,20,497160,
+avi_mjpeg_2pcm.avi,2,ok,3.659,0.003,0.003,20,20,20,20,497160,
+avi_mjpeg_2pcm.avi,3,ok,3.643,0.003,0.003,20,20,20,20,497160,
+avi_mjpeg_2pcm.avi,4,ok,3.585,0.003,0.003,20,20,20,20,497160,
+avi_mjpeg_2pcm.avi,5,ok,3.692,0.003,0.003,20,20,20,20,497160,
+avi_mjpeg_2pcm.avi,6,ok,3.863,0.003,0.003,20,20,20,20,497160,
+avi_mjpeg_2pcm.avi,7,ok,3.794,0.003,0.003,20,20,20,20,497160,
+avi_mjpeg_2pcm.avi,8,ok,3.747,0.003,0.003,20,20,20,20,497160,
+avi_mjpeg_2pcm.avi,9,ok,3.842,0.003,0.003,20,20,20,20,497160,
+avi_mjpeg_2pcm.avi,10,ok,3.76,0.003,0.003,20,20,20,20,497160,
+avi_mjpeg_2pcm.avi,11,ok,3.684,0.003,0.003,20,20,20,20,497160,
+avi_mjpeg_2pcm.avi,12,ok,3.609,0.003,0.003,20,20,20,20,497160,
+mp4_mjpeg_pcm.mp4,1,exit65,0.868,,,,,,,,"error: [probe.unsupported]: format `mp4` has no demuxer in this build (first vertical: AVI, D-018)"
+mp4_mjpeg_pcm.mp4,2,exit65,0.726,,,,,,,,"error: [probe.unsupported]: format `mp4` has no demuxer in this build (first vertical: AVI, D-018)"
+mp4_mjpeg_pcm.mp4,3,exit65,0.718,,,,,,,,"error: [probe.unsupported]: format `mp4` has no demuxer in this build (first vertical: AVI, D-018)"
+mp4_mjpeg_pcm.mp4,4,exit65,0.713,,,,,,,,"error: [probe.unsupported]: format `mp4` has no demuxer in this build (first vertical: AVI, D-018)"
+mp4_mjpeg_pcm.mp4,5,exit65,0.74,,,,,,,,"error: [probe.unsupported]: format `mp4` has no demuxer in this build (first vertical: AVI, D-018)"
+mp4_mjpeg_pcm.mp4,6,exit65,0.718,,,,,,,,"error: [probe.unsupported]: format `mp4` has no demuxer in this build (first vertical: AVI, D-018)"
+mp4_mjpeg_pcm.mp4,7,exit65,0.777,,,,,,,,"error: [probe.unsupported]: format `mp4` has no demuxer in this build (first vertical: AVI, D-018)"
+mp4_mjpeg_pcm.mp4,8,exit65,0.783,,,,,,,,"error: [probe.unsupported]: format `mp4` has no demuxer in this build (first vertical: AVI, D-018)"
+mp4_mjpeg_pcm.mp4,9,exit65,0.801,,,,,,,,"error: [probe.unsupported]: format `mp4` has no demuxer in this build (first vertical: AVI, D-018)"
+mp4_mjpeg_pcm.mp4,10,exit65,0.733,,,,,,,,"error: [probe.unsupported]: format `mp4` has no demuxer in this build (first vertical: AVI, D-018)"
+mp4_mjpeg_pcm.mp4,11,exit65,0.735,,,,,,,,"error: [probe.unsupported]: format `mp4` has no demuxer in this build (first vertical: AVI, D-018)"
+mp4_mjpeg_pcm.mp4,12,exit65,0.709,,,,,,,,"error: [probe.unsupported]: format `mp4` has no demuxer in this build (first vertical: AVI, D-018)"
