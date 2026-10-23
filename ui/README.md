@@ -74,15 +74,18 @@ All versions pinned exact in `package.json`; `package-lock.json` committed;
 Resolved 2026-02-05 from registry.npmjs.org (network PONG 201ms), `npm install
 --save-exact`, 0 vulnerabilities reported by npm audit at install time.
 
-## Lint rules (scaffold-local, v1)
+## Lint rules (scaffold-local, v2)
 
-- `local/i18n-no-literals` — flags JSX text nodes and literal `aria-label`/`alt`/
-  `title` props (doc 07 §6.5: user-visible copy must come from `useMsg()` +
-  `MessageKey`). Exemptions: `ui/i18n-allowlist.json` entries
+- `local/i18n-no-literals` — flags user-visible copy outside `useMsg()` +
+  `MessageKey` (doc 07 §6.5). v2 (closure session) covers JSX text nodes,
+  no-substitution template literals, `{"Copy"}` expression containers in text
+  position, and literal or expression values of `aria-label`/`alt`/`title`.
+  Exemptions: `ui/i18n-allowlist.json` entries
   `{ "text": "...", "reason": "...", "owner": "..." }`. Test files skipped.
 - `local/boundary-imports` — files under `src/` may not relatively import outside
   `ui/src`, and absolute-path imports are banned (doc 08 §8 import boundaries).
 
-Both verified live against deliberate violations at scaffold time. v1 is
-AST-literal/regex-grade (no template-literal coverage, no plugin package yet) —
-see NEXT-STEPS.md.
+Both verified live against deliberate violations (v2 probe: container, template,
+`aria-label`, `alt` all flagged). Known gaps, documented not faked: interpolated
+templates need flow awareness; promotion to `tools/eslint-plugin-lumen/` with
+schema + tests remains NEXT-STEPS #2.
