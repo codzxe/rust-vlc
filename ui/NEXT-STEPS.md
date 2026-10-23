@@ -549,3 +549,40 @@ Handoff to 4.G2: re-pin the FROZEN baseline matrix after F4 merges
 (`npm run visual -- --mode=nightly --update`), extend ROUTES to the full
 doc 08 §1.6 inventory + accent ×9 sampling, wire the per-OS CI jobs
 (PR lane per PR, full matrix nightly).
+
+## 4.F4 — keyboard navigation + focus + a11y pass landed (2026-10-24)
+
+`ui/e2e/a11y.spec.ts` (16 tests, all green): axe wcag2a+wcag2aa scan on
+EVERY routable screen — player, player/music, miniplayer, playlist,
+media-info, settings ×5 areas, onboarding (onboarded routes seed the 4.F1
+gate) — plus a tab-order audit (focus order == DOM order, every stop
+visible, every stop paints a ring) on player/playlist/settings/onboarding,
+plus a computed-style assertion that the ring color resolves from
+`--color-accent` (not a hardcoded paint). Exclusions live in
+`JUSTIFIED_EXCLUSIONS` with reasons and print on every run — currently
+EMPTY (zero justified findings).
+
+Fixes (all additive, tokens only): global `:focus-visible` floor +
+body-level surface paint floor (`src/a11y/focus.css`, `src/a11y/page.css`)
+— playlist/media-info previously rendered on raw browser WHITE in dark
+theme (headings ~3.2:1); player error chip raised→chrome surface
+(4.08/4.46→5.3:1+); toggle off-label and playlist micro-text
+tertiary→secondary (3.3–3.7:1→5.4:1+); settings badge muted→selected
+surface (3.5→5.4:1). Playlist visual baselines re-pinned (the white-page
+bug was in the old captures); player/settings/onboarding baselines
+unchanged. `e2e/visual/visual.spec.ts` got a zero-dep `process` typing
+(pre-existing `tsc --noEmit` break over e2e/). Toggle.test.tsx off-label
+expectation updated tertiary→secondary — deliberate, documented deviation:
+tertiary can never clear 4.5:1 on either theme's track (design follow-up
+below). Dep added per AGENTS.md rule 2: @axe-core/playwright 4.14.0
+(MPL-2.0, dev-only, no bundle/runtime impact, npm provenance) — recorded
+in ui/README's dependency table; Lead approval to confirm.
+
+Handoffs: (1) design — a compliant "dim" text tier is needed; tertiary
+fails 1.4.3 on every dark surface, so all micro-text now uses secondary
+(Figma state frames should follow). (2) shortcuts — only the player is
+keymap-data-driven (C1/C2); settings-search focus shortcut and onboarding
+key nav have NO keymap data in doc 05 yet — gap for a future card, not
+invented here. (3) C3 overlays already announce (role=status/alert);
+player/music + miniplayer routes are still placeholders (axe-green but
+trivially so — rescan when 4.G2+ land real variants).

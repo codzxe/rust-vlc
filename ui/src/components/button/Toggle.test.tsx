@@ -95,11 +95,15 @@ describe("Toggle state styling consumes semantic tokens (Toggle.svg)", () => {
     expect(cssRule(".lumen-toggle__knob")).toContain("background: var(--color-surface-muted)");
   });
 
-  it("micro labels: font-size-micro, on=accent, off=content-tertiary (doc 08 §1.3/§1.5)", () => {
+  // 4.F4 a11y: the off label moved tertiary → secondary — tertiary can
+  // never clear 4.5:1 on the deep track in either theme (axe wcag2aa
+  // color-contrast). Secondary keeps "dimmer than the accent on-state"
+  // while being compliant; design deviation documented in ui/NEXT-STEPS.md.
+  it("micro labels: font-size-micro, on=accent, off=content-secondary (doc 08 §1.3/§1.5, 4.F4 contrast fix)", () => {
     const label = cssRule(".lumen-toggle__label");
     expect(label).toContain("font-size: var(--font-size-micro)");
     expect(cssRule(".lumen-toggle__label--on")).toContain("color: var(--color-accent)");
-    expect(cssRule(".lumen-toggle__label--off")).toContain("color: var(--color-content-tertiary)");
+    expect(cssRule(".lumen-toggle__label--off")).toContain("color: var(--color-content-secondary)");
   });
 
   it("focus-visible: accent ring from tokens", () => {
