@@ -68,11 +68,14 @@ describe("PlayerScreen — ARIA landmarks + honest placeholders (doc 08 §4.5)",
     expect(within(controls).getByRole("button", { name: "Stop" })).toBeInTheDocument();
   });
 
-  it("renders open side panels as labelled complementary landmarks with honest placeholder notes", () => {
+  it("renders open side panels as labelled complementary landmarks (playlist = real 4.D1 panel)", () => {
     renderWithClient(<PlayerScreen openPanels={["playlist", "media-info"]} media={{ hasVideo: true, hasChapters: false }} />);
     const playlist = screen.getByRole("complementary", { name: "Playlist" });
     expect(playlist).toHaveAttribute("data-region-id", "playlist");
-    expect(playlist.textContent).toContain("implemented by a later card");
+    // Card 4.D1: the playlist region now renders the real panel + queue
+    // semantics (empty state honest until the app shell wires playlist.load).
+    expect(within(playlist).getByText("Nothing in the queue")).toBeInTheDocument();
+    expect(within(playlist).getByRole("button", { name: "Shuffle" })).toBeInTheDocument();
     // media-info needs has-media (visible_when) — provided above
     expect(screen.getByRole("complementary", { name: "Media information" })).toBeInTheDocument();
     // closed panels (library) render nothing

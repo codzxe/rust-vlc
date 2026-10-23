@@ -1,0 +1,163 @@
+/* Card 4.D1 — playlist panel (doc 08 §1.6: 377px translucent panel over
+ * video; §1.5 option.svg 48h rows; §4.5 listbox semantics). Semantic tokens
+ * only (§3.2); raw px solely for structural dimensions with no token. */
+
+.lumen-playlist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+  min-height: 0;
+  flex: 1;
+}
+
+.lumen-playlist__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-grid);
+  padding: 0 var(--space-inset);
+}
+
+.lumen-playlist__title {
+  margin: 0;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-content-primary);
+}
+
+.lumen-playlist__count {
+  font-size: var(--font-size-micro);
+  color: var(--color-content-tertiary);
+}
+
+.lumen-playlist__controls {
+  display: flex;
+  gap: var(--space-grid);
+  margin-left: auto;
+}
+
+.lumen-playlist__note,
+.lumen-playlist__footer {
+  margin: 0;
+  padding: 0 var(--space-inset);
+  font-size: var(--font-size-micro);
+  color: var(--color-content-tertiary);
+}
+
+.lumen-playlist__empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+  padding: var(--space-inset);
+}
+
+.lumen-playlist__empty-title {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-content-primary);
+}
+
+.lumen-playlist__empty-body {
+  margin: 0;
+  font-size: var(--font-size-micro);
+  color: var(--color-content-tertiary);
+}
+
+.lumen-playlist__list {
+  flex: 1;
+  min-height: 0;
+}
+
+.lumen-playlist__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* 48h rows (option.svg): marker | title+location | duration | actions. */
+.lumen-plrow {
+  position: absolute;
+  inset: 0 auto auto 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-grid);
+  padding: 0 var(--space-inset);
+  font-family: var(--font-family-sans);
+  color: var(--color-content-primary);
+  background: transparent;
+  border-radius: var(--radius-panel);
+}
+
+.lumen-plrow:hover {
+  background: var(--color-surface-hover);
+}
+
+.lumen-plrow--current {
+  color: var(--color-content-bright);
+  background: var(--color-surface-selected);
+}
+
+.lumen-plrow__marker {
+  display: inline-flex;
+  width: 14px;
+  color: var(--color-content-bright);
+}
+
+.lumen-plrow__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.lumen-plrow__title {
+  font-size: var(--font-size-body);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lumen-plrow__location,
+.lumen-plrow__duration {
+  font-size: var(--font-size-micro);
+  color: var(--color-content-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lumen-plrow__actions {
+  display: none; /* hover/focus surface; keyboard users tab into the row */
+  gap: var(--space-grid);
+}
+
+.lumen-plrow:hover .lumen-plrow__actions,
+.lumen-plrow:focus-within .lumen-plrow__actions {
+  display: inline-flex;
+}
+
+/* /playlist route page shell. */
+.lumen-playlist-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+  height: 100%;
+}
+
+.lumen-playlist-page__title {
+  margin: 0;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-content-primary);
+}
+
+.lumen-playlist-page__panel {
+  flex: 1;
+  min-height: 0;
+}
