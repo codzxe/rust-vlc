@@ -1,0 +1,125 @@
+/* Card 4.C1 — player screen shell layout + chrome visibility.
+ * Design provenance: doc 08 §1.6 player anatomy (top bar / video canvas /
+ * control bar / side panels), §4.3 unobtrusive controls (auto-hide on idle
+ * in fullscreen, [PROPOSAL] timing), §4.5 (reduced-motion disables fades;
+ * focus order topbar → canvas → controls → panels = DOM order),
+ * "Player - hide UI.svg" (chrome-hidden target state).
+ * Semantic tokens only (§3.2); raw px appears solely for structural
+ * dimensions with no token (panel width 377px per doc 08 §4.3, fade
+ * duration — no motion token exists yet, 160ms matches the 4.B4 sheet
+ * animation precedent; both recorded in ui/NEXT-STEPS.md). */
+
+.lumen-player {
+  display: flex;
+  box-sizing: border-box;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--color-surface-deep);
+  color: var(--color-content-primary);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body);
+}
+
+/* Chrome parts (top bar, controls bar, panels — never the video canvas):
+ * fade on hide, pointer-transparent + focus-hostile when hidden. The
+ * transition lives inside no-preference so prefers-reduced-motion gets an
+ * instant switch (doc 08 §4.5). */
+.lumen-player [data-chrome-part] {
+  transition: opacity 160ms ease;
+}
+
+.lumen-player[data-chrome="hidden"] {
+  cursor: none;
+}
+
+.lumen-player[data-chrome="hidden"] [data-chrome-part] {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.lumen-player__main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.lumen-player__topbar {
+  display: flex;
+  align-items: center;
+  padding: var(--space-grid) var(--space-inset);
+  background: var(--color-surface-chrome);
+  color: var(--color-content-secondary);
+}
+
+.lumen-player__title {
+  margin: 0;
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-bright);
+}
+
+.lumen-player__canvas {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  background: var(--color-surface-deep);
+}
+
+.lumen-player__controls {
+  padding: var(--space-grid) var(--space-inset);
+  background: var(--color-surface-chrome);
+}
+
+/* Side-panel containers (doc 08 §4.3: PlaylistPanel is 377px wide). */
+.lumen-player__panel {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 377px;
+  flex-shrink: 0;
+  padding: var(--space-grid);
+  background: var(--color-surface-panel);
+  border-left: 1px solid var(--color-stroke-border);
+  border-right: 1px solid var(--color-stroke-border);
+  overflow: auto;
+}
+
+/* First-run empty state, centered on the canvas (doc 08 §5.3). */
+.lumen-player__empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-inset);
+  text-align: center;
+}
+
+.lumen-player__empty-title {
+  margin: 0;
+  font-size: var(--font-size-display);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-bright);
+}
+
+.lumen-player__empty-body {
+  margin: 0;
+  color: var(--color-content-secondary);
+}
+
+/* Screen-reader-only honest placeholder notes (pattern from 4.B4 surface). */
+.lumen-player__sr-note {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
