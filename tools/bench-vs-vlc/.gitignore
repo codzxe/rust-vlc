@@ -1,0 +1,3 @@
+# Python unit-test bytecode caches (never committed).
+__pycache__/
+*.pyc

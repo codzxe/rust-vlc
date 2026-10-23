@@ -1,0 +1,51 @@
+# tools/bench-vs-vlc — differential-vs-VLC harness v1 (card 3.E3, doc 10
+# §6.6). OWNED by 3.E3 (tools/bench-vs-vlc/**).
+#
+# Deliberately a STANDALONE workspace (empty [workspace] table below), NOT a
+# member of the root workspace: the root manifest's membership policy
+# (root Cargo.toml) requires Lead approval for every members-array edit, and
+# this card's scope grants tools/bench-vs-vlc/** only. Path dependencies on
+# the engine crates resolve their own `[lints] workspace = true` inheritance
+# against the ROOT workspace (their manifest walk-up), so the engine crates
+# build unchanged; this crate mirrors the root lint policy locally so the
+# same discipline holds on both sides of the path edge.
+#
+# Std-only, zero external dependencies (AGENTS.md §3.2: every dependency
+# needs Lead intake; MD5 is implemented in-repo from RFC 1321 — a public
+# specification, clean-room-legal per AGENTS.md §3.1).
+
+[workspace]
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+unused_must_use = "deny"
+unused_imports = "deny"
+unused_variables = "deny"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+await_holding_lock = "deny"
+
+[package]
+name = "bench-vs-vlc"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen side of the differential-vs-VLC 3.0.23 harness (card 3.E3, doc 10 §6.6): decode the first PCM audio track through the real demux+codec crates and digest the decoded PCM (MD5, RFC 1321 in-repo)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+codec-api = { path = "../../crates/codec-api" }
+codecs = { path = "../../crates/codecs" }
+demux = { path = "../../crates/demux" }
+input = { path = "../../crates/input" }
+media-probe = { path = "../../crates/media-probe" }
+media-types = { path = "../../crates/media-types" }
+plugin-api = { path = "../../crates/plugin-api" }
