@@ -50,9 +50,10 @@ rebuild from this worktree (§2 environment note).
 | 1b | env fix, then `cargo test --workspace --no-fail-fast` | **1939 passed / 0 failed / 36 ignored across 163 test binaries** — incl. scenarios_b **23/23 green (5.53 s)** and soak **11/11 green (120.06 s, `soak_loops_stay_memory_bounded` ok)**. Exit 101 from exactly ONE target: `-p first-vertical --doc` doctest **compile** failure (E0463 `can't find crate for lumen_cli`, harness.rs:40) — which **PASSES on immediate targeted retry** (`running 0 tests … ok`), consistent with a transient shared-target-dir artifact under concurrent sibling builds, not a deterministic code failure [VERIFY: Lead re-run on main] | `logs/phase3-exit-workspace-test.log` (RERUN section) |
 | 2 | `cargo fmt --check` (pre-fix) | **FAIL — 32 diffs across 15 files** (drift accumulated from wave-6/7 partial merges; scenario/queue_policy/sweep/tool files) | `logs/phase3-exit-fmt-initial-drift.log` |
 | 3 | `cargo fmt --all` + `cargo fmt --check` (post-fix) | **CLEAN (exit 0)** — drift fixed on this branch (commit 56f135a), re-check clean. The Lead should fold this hygiene fix into the merge | `logs/phase3-exit-fmt.log` |
-| 4 | `cargo clippy --workspace --all-targets -- -D warnings` | **[PENDING — see log]** (see §2.1 note) | `logs/phase3-exit-clippy.log` |
+| 4 | `cargo clippy --workspace --all-targets -- -D warnings` (final form: `--keep-going` to enumerate all) | **NOT CLEAN — 3 targets / 16 errors, all PRE-EXISTING on main b8cb904** (none from this branch; this session's huffman fix REMOVED a 17th, see row 4b): (a) `codecs` example `stage_bench` 8× dead_code (decoder.rs:136/157/676/840/854/1014, error.rs:73/131 — the example `#[path]`-includes lib sources, so `pub(crate)` items read as dead; from the 7-b partial merge db7d151); (b) `lumen-sweep` 1× `assert!(false)` worker.rs:553 (from the 7-d skeleton merge b8cb904; note: replacing with `unreachable!`/`panic!` interacts with the F-5 check-panics gate — owner's call); (c) `playback-engine` test `scenarios_b` 6× (5× `expect()` on Option: scenario_02_play.rs:44/78/84, scenario_03_pause_resume.rs:45/92 + host.rs:535 — the known pre-existing base issue 7-a's worklog registered with a "whoever owns scenarios 2/3" handoff) | `logs/phase3-exit-clippy.log` |
+| 4b | `codecs` lint fix (this session) | 7-GATE fixed the `needless_range_loop` at `crates/codecs/src/video/mjpeg/huffman.rs:94` (loop rewritten to `bits.iter().enumerate().skip(1)` — behavior-identical; **codecs suite re-verified 170 passed / 0 failed after the edit**) | commit on this branch; log §2.1 |
 
-Environment note (recorded for reproducibility): the repo-committed `.cargo/config.toml` pins `target-dir = /home/z/my-project/target` (SHARED across all worktrees/agents — the 7-a stale-rlib caution applies). This worktree has no local `target/`; the first-vertical evidence test resolves the `lumen` binary relatively, so 7-GATE (a) force-rebuilt `-p lumen-cli` from THIS worktree (provenance line `Compiling lumen-cli v0.1.0 (/home/z/my-project/worktrees/w7-gate/apps/cli)` in the session) and (b) symlinked `<worktree>/target → /home/z/my-project/target` so the relative path resolves. Both runs' raw output is in the log.
+Environment note (recorded for reproducibility): the repo-committed `.cargo/config.toml` pins `target-dir = /home/z/my-project/target` (SHARED across all worktrees/agents — the 7-a stale-rlib caution applies). This worktree has no local `target/`; the first-vertical evidence test resolves the `lumen` binary relatively, so 7-GATE (a) force-rebuilt `-p lumen-cli` from THIS worktree (provenance line `Compiling lumen-cli v0.1.0 (/home/z/my-project/worktrees/w7-gate/apps/cli)` in the session) and (b) symlinked `<worktree>/target → /home/z/my-project/target` so the relative path resolves. Both runs' raw output is in the log. **Disk incident (ENOSPC) mid-session**: the shared target dir filled the 9.9 G rootfs to 100% during the clippy sweep (4 agents building concurrently); 7-GATE freed 2.7 G by deleting `target/debug/incremental` (regenerable cache; the DISK-INCIDENT-1 precedent's capped+cleaned pattern) — the first clippy log entries showing "No space left on device" are that transient, not code findings; the committed clippy log is the post-cleanup definitive run.
 
 Notes on deltas vs the draft §4 command table: (a) row 1 was run without
 `--all-features` and in debug, per the gate-agent brief — the draft's
@@ -81,9 +82,13 @@ sign-off. (c) CI was not re-run (no push of this branch; CI runs on main).
     compile failure (E0463) — passes on immediate retry; see §2 row 1b.
 - Trajectory: 1329 (Phase-2 exit) → 1718/0/20 (wave-3 merge log) → 1914/0
   (worklog 7.LEAD-RESET @ 9393b53) → **1939/0/36 (this gate run)**.
-- Clippy: **[PENDING]** — if `logs/phase3-exit-clippy.log` ends with
-  `EXIT_CODE:0`, clippy is clean; otherwise the findings are in that log
-  (7-GATE ran it last; a successor re-runs if the session was cut first).
+- Clippy: **NOT clean — 3 targets / 16 errors, all pre-existing on main b8cb904**
+  (full file:line map in §2 row 4; owners: 7-b stage_bench example, 7-d
+  lumen-sweep, 3.E1 scenarios 2/3 expect()s). This session REMOVED one error
+  (huffman `needless_range_loop`, codecs re-verified 170/0). The workspace
+  last verifiably clippy-clean commit is 95f4031 (pre-dates the wave-7 partial
+  merges). Disposition is a Lead decision at sign-off: fold small fixes at
+  merge, or dispatch to the owning in-flight cards.
 
 ## 3. Card ledger — Phase 3 (doc 13 §6, 19 rows)
 
@@ -163,10 +168,14 @@ catches seeded violations).
 ## 6. Decisions for the Lead at sign-off
 
 - Sign the verdict (or reject with named blockers) on this evidence record.
+- **Clippy debt disposition** (§2 row 4): 16 pre-existing errors on 3 targets
+  from the wave-7 partial merges — fold fixes at merge or assign to the owning
+  in-flight cards (7-b/7-d/scenarios 2-3).
 - The 16-vs-19 card-count reconciliation (resolved in §3 — confirm).
 - 3-OS matrix shape + scenarios_b as required CI check (gap 1).
 - Freeze the soak target after the first 4 h run (gap 3).
-- Fold this branch's fmt-drift fix (56f135a) into main.
+- Fold this branch's fixes into main: fmt drift (56f135a) + huffman lint fix
+  (§2 row 4b).
 - Phase 4 launch (§7) — issue the dispatch.
 
 ## 7. Phase 4 launch list (doc 13 §7 — waves 4.A-4.I, 25 tasks)

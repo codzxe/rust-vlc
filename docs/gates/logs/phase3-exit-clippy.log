@@ -1,0 +1,168 @@
+    Checking lumen-sweep v0.1.0 (/home/z/my-project/worktrees/w7-gate/tools/sweep)
+    Checking playback-engine v0.1.0 (/home/z/my-project/worktrees/w7-gate/crates/playback-engine)
+error: this assertion is always `false`
+   --> tools/sweep/src/worker.rs:553:13
+    |
+553 |             assert!(false, "marker line must round-trip the parser");
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: replace this with `panic!()` or `unreachable!()`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#assertions_on_constants
+    = note: `-D clippy::assertions-on-constants` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::assertions_on_constants)]`
+
+error: could not compile `lumen-sweep` (bin "lumen-sweep" test) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+    Checking codecs v0.1.0 (/home/z/my-project/worktrees/w7-gate/crates/codecs)
+error: method `last_pts_ns_of_track` is never used
+   --> crates/playback-engine/tests/scenarios_b/host.rs:535:12
+    |
+506 | impl ObservingSink {
+    | ------------------ method in this implementation
+...
+535 |     pub fn last_pts_ns_of_track(&self, track: u32) -> Option<i64> {
+    |            ^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `-D dead-code` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[expect(dead_code)]` or `#[allow(dead_code)]`
+
+error: used `expect()` on an `Option` value
+  --> crates/playback-engine/tests/scenarios_b/scenario_02_play.rs:44:17
+   |
+44 |       let first = host
+   |  _________________^
+45 | |         .sink()
+46 | |         .must()
+47 | |         .frame_ring()
+48 | |         .first()
+49 | |         .copied()
+50 | |         .expect("the first frame landed at settle");
+   | |___________________________________________________^
+   |
+   = note: if this value is `None`, it will panic
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#expect_used
+   = note: requested on the command line with `-D clippy::expect-used`
+
+error: used `expect()` on an `Option` value
+  --> crates/playback-engine/tests/scenarios_b/scenario_02_play.rs:78:22
+   |
+78 |       let last_audio = ring
+   |  ______________________^
+79 | |         .iter()
+80 | |         .rev()
+81 | |         .find(|(_, audio, _)| *audio)
+82 | |         .map(|(_, _, pts)| pts)
+83 | |         .expect("audio samples flowed");
+   | |_______________________________________^
+   |
+   = note: if this value is `None`, it will panic
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#expect_used
+
+error: used `expect()` on an `Option` value
+  --> crates/playback-engine/tests/scenarios_b/scenario_02_play.rs:84:22
+   |
+84 |       let last_video = ring
+   |  ______________________^
+85 | |         .iter()
+86 | |         .rev()
+87 | |         .find(|(_, audio, _)| !*audio)
+88 | |         .map(|(_, _, pts)| pts)
+89 | |         .expect("video frames flowed");
+   | |______________________________________^
+   |
+   = note: if this value is `None`, it will panic
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#expect_used
+
+error: used `expect()` on an `Option` value
+  --> crates/playback-engine/tests/scenarios_b/scenario_03_pause_resume.rs:45:26
+   |
+45 |       let last_audio_pts = last_ring
+   |  __________________________^
+46 | |         .iter()
+47 | |         .rev()
+48 | |         .find(|(_, audio, _)| *audio)
+49 | |         .map(|(_, _, pts)| *pts)
+50 | |         .expect("audio flowed before the pause");
+   | |________________________________________________^
+   |
+   = note: if this value is `None`, it will panic
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#expect_used
+
+error: used `expect()` on an `Option` value
+  --> crates/playback-engine/tests/scenarios_b/scenario_03_pause_resume.rs:92:9
+   |
+92 | /         ring.iter()
+93 | |             .filter(|(_, audio, _)| *audio)
+94 | |             .map(|(_, _, pts)| *pts)
+95 | |             .find(|pts| *pts > last_audio_pts)
+96 | |             .expect("audio resumed")
+   | |____________________________________^
+   |
+   = note: if this value is `None`, it will panic
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#expect_used
+
+error: could not compile `playback-engine` (test "scenarios_b") due to 6 previous errors
+error: struct `DecodedImage` is never constructed
+   --> crates/codecs/examples/../src/video/mjpeg/decoder.rs:136:19
+    |
+136 | pub(crate) struct DecodedImage {
+    |                   ^^^^^^^^^^^^
+    |
+    = note: `-D dead-code` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[expect(dead_code)]` or `#[allow(dead_code)]`
+
+error: field `cause` is never read
+   --> crates/codecs/examples/../src/video/mjpeg/decoder.rs:157:9
+    |
+152 | pub(crate) struct DecodedMeta {
+    |                   ----------- field in this struct
+...
+157 |     pub cause: Option<ConcealCause>,
+    |         ^^^^^
+    |
+    = note: `DecodedMeta` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+error: method `take_output` is never used
+   --> crates/codecs/examples/../src/video/mjpeg/decoder.rs:676:19
+    |
+412 | impl DecodeContext {
+    | ------------------ method in this implementation
+...
+676 |     pub(crate) fn take_output(&mut self) -> Vec<u8> {
+    |                   ^^^^^^^^^^^
+
+error: constant `FRAME_SLOTS` is never used
+   --> crates/codecs/examples/../src/video/mjpeg/decoder.rs:840:18
+    |
+840 | pub(crate) const FRAME_SLOTS: usize = 4;
+    |                  ^^^^^^^^^^^
+
+error: function `pooled_frame_slot` is never used
+   --> crates/codecs/examples/../src/video/mjpeg/decoder.rs:854:15
+    |
+854 | pub(crate) fn pooled_frame_slot(
+    |               ^^^^^^^^^^^^^^^^^
+
+error: function `decode` is never used
+    --> crates/codecs/examples/../src/video/mjpeg/decoder.rs:1014:15
+     |
+1014 | pub(crate) fn decode(data: &[u8]) -> Result<DecodedImage, MjpegError> {
+     |               ^^^^^^
+
+error: method `into_engine_error` is never used
+  --> crates/codecs/examples/../src/video/mjpeg/error.rs:73:19
+   |
+71 | impl MjpegError {
+   | --------------- method in this implementation
+72 |     /// Convert to the public contract error (stage `Decode`, doc 01 §3.4).
+73 |     pub(crate) fn into_engine_error(self) -> EngineError {
+   |                   ^^^^^^^^^^^^^^^^^
+
+error: struct `FeatureDetail` is never constructed
+   --> crates/codecs/examples/../src/video/mjpeg/error.rs:131:8
+    |
+131 | struct FeatureDetail(String);
+    |        ^^^^^^^^^^^^^
+
+error: could not compile `codecs` (example "stage_bench") due to 8 previous errors
+EXIT_CODE:101
