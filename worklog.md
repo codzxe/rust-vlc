@@ -8197,7 +8197,6 @@ Stage Summary:
 - Handoffs: (1) Lead: review the 5bc51ef pin amendment (rationale in the test doc-comment + docs/perf/v1-input-readpath-20261024.md §2). (2) Part-2 agent: input crate must honor large read_into asks without a window-copy per call; the default trait read_into allocates out.len() per call. (3) Follow-up (any demux owner): clamp past-EOF declared payload asks to file_len − payload_start (bounds the worst spill; touches damage accounting — pinned tests exist).
 
 ---
-<<<<<<< HEAD
 Task ID: 7-c
 Agent: 7-c (relaunch 3)
 Task: card completion — part 2 (input-crate large-read path) + closure
@@ -8310,7 +8309,6 @@ Handoffs:
 - Lead: merge wip/w7-b (5 commits: clippy fixes, scalar arm, measurement doc + raw); decide the dispatch-default proposal.
 - Next optimizer: assemble/color path (45.7% of avi-av walk) then huffman read/decode fusion — measured order in the doc.
 - Whoever has 5 min: one `speed_bench.py --runner lumen='lumen decode-bench {file}'` run on /tmp/corpus-w7b + the uhd4k stage_bench row closes the two named DNFs.
-=======
 Agent: 7-d (relaunch 5)
 Task: card completion — parity doc (docs/perf/parity-v4-20261024.md) + speed re-measure of the 3 canonical scenarios + this closure entry.
 
@@ -8326,4 +8324,3 @@ Stage Summary:
 - Card 7-d COMPLETE: sweep tool (sessions 1-2), census doc + parity raw (3), parity doc + speed re-measure + closure (4). All measurements real, on committed raw data; no engine code touched (contract honored: tools/sweep/**, docs/perf/parity-v4-*, docs/perf/raw/parity-*, docs/perf/raw/speed-* + the one flagged bench-vs-vlc build fix).
 - D-10: MEASURE? — parity: 19/19 frame counts, 8/9 PCM MD5s, durations and speed numbers all from recorded runs (raw files committed, N stated). NOT tested? — PSNR/video-MD5 vs ffmpeg (out of card scope, cross-implementation byte-exactness not expected); the 105 unsupported-container files carry no parity claim by construction. What breaks? — nothing: docs + tools only; the bench-vs-vlc feature flag is additive and needs 3.E3 ratification. Who hits it first? — the Lead at merge (gitignored raw .log/.json need force-add, as before); the demux owner via the dup-range payload-loss handoff.
 - Handoffs (engine, from parity evidence): (1) HEVC-in-AVI (0074) and MPEG4-in-AVI (0066, 0021) decode gaps — streams walk but decode silently skips, outcome stays `ok` with v=0. (2) Multi-stream surfacing (0076): 29-entry inventory, first-v+first-a policy — product/engine decision. (3) dup-range demux recovery drops whole audio payloads post-recovery (4 recoveries → −2 packets/−4,524 B) — skip-vs-conceal policy call. (4) 103 unsupported-container files: coverage census in corpus-v4-sweep doc, demuxer roadmap input. (5) Duration deltas on a+v files (audio-tail/span rounding, max +130 ms) — a small engine-side duration-rule card if parity-to-ms matters.
->>>>>>> wip/w7-d
