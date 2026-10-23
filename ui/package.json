@@ -1,0 +1,15 @@
+{
+  "name": "lumen-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Lumen player UI — React + TypeScript (doc 08 §8 scaffold, card 4.A1)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  }
+}
