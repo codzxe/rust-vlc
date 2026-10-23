@@ -6,6 +6,7 @@ import { SettingsScreen } from "./screens/settings/SettingsScreen";
 // Card 4.F1 first-run gate: /onboarding is the landing until the wizard is
 // finished or skipped; after that, normal routing.
 import { OnboardingEntry, RequireOnboarding } from "./screens/onboarding/OnboardingScreen";
+import { MediaInfoScreen } from "./screens/media-info";
 import { TokenSandbox } from "./tokens/TokenSandbox";
 
 // Routing skeleton for the doc 08 §1.6 screen inventory. Route names are the
@@ -32,6 +33,8 @@ export function App() {
       <Route path="/miniplayer" element={<ScreenPlaceholder routeKey="screen.miniplayer" />} />
       {/* Card 4.D1: real playlist panel + queue semantics. */}
       <Route path="/playlist" element={<PlaylistScreen />} />
+      {/* Card 4.D2: real media information screen (media.get-info). */}
+      <Route path="/media-info" element={<MediaInfoScreen />} />
       <Route path="/settings" element={<Navigate to="/settings/global" replace />} />
       <Route path="/settings/:area" element={<SettingsScreen />} />
       <Route path="/onboarding" element={<OnboardingEntry />} />
