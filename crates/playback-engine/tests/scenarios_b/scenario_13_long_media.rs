@@ -103,13 +103,16 @@ fn four_hour_timeline_ends_with_bounded_memory() {
         "the last frame's pts is the final packet's"
     );
 
-    // D-2: the measured plateau — live bytes at the halfway point
-    // equal live bytes at the end (zero growth across 2 h-equivalent
-    // of steady-state playback).
+    // D-2: the measured plateau — live bytes at the end of 2 more
+    // h-equivalent of steady-state playback are AT OR BELOW the
+    // halfway snapshot (zero growth; a decrease is warm-up
+    // structures retiring, not a violation — growth is the failure
+    // mode this pin exists to catch).
     let end = alloc_state().snapshot().live_bytes;
-    assert_eq!(
-        mid, end,
-        "memory plateau: live bytes at half ({mid}) == at end ({end})"
+    assert!(
+        end <= mid,
+        "memory plateau: live bytes must not grow across the second \
+         half (half {mid} → end {end})"
     );
 
     // The engine's own feeding counters stayed clean: no underrun

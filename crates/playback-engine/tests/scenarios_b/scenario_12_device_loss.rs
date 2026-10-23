@@ -162,13 +162,32 @@ fn vanishing_device_fails_typed_with_position_preserved() {
         close.result
     );
     assert_eq!(host.state(), PlaybackState::Idle);
-    open_parent(&mut host);
-    let position_after_reopen = host.position_us();
-    assert!(
-        position_after_reopen < position_at_loss,
-        "the reopened session starts from the beginning ({position_after_reopen} µs), \
-         not the loss point — the resume policy is 3.C3's, recorded here honestly"
+    // The reopened session starts from the beginning — position ZERO
+    // at the open boundary, before this harness's racing sink can
+    // self-feed any playback time (the sample-counter clock advances
+    // with every accept, so "position after settle" measures the
+    // harness's pump count, not the open's start policy). The
+    // resume-at-loss-point policy is 3.C3's, recorded here honestly.
+    let path = testkit::fixture_path(crate::host::PARENT).must();
+    let reopen = dispatch(
+        &mut host,
+        Command::SessionOpen {
+            source: SourceSpec::File { path },
+            options: OpenOptions::default(),
+        },
     );
+    assert!(
+        matches!(&reopen.result, Ok(CommandOutcome::Accepted { .. })),
+        "the parent reopens: {:?}",
+        reopen.result
+    );
+    assert_eq!(
+        host.position_us(),
+        0,
+        "the reopened session starts from the beginning, not the loss point"
+    );
+    host.settle();
+    assert_eq!(host.state(), PlaybackState::Playing, "the reopen plays");
     let close = dispatch(&mut host, Command::SessionClose);
     assert!(
         close.result.is_ok(),

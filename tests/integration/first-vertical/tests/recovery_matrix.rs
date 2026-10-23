@@ -607,6 +607,10 @@ fn matrix_avi_negheight0_clean_ended_full_payout() {
     let checks = drive(Row {
         fixture: "generated/malformed/avi_mjpeg_pcm__negheight0.avi",
         outcome: Outcome::CleanEnded {
+            // The negative-`biHeight` bottom-up DIB is recorded as a
+            // ZERO-BYTE note: a legal idiom, zero units lost — the
+            // wire's loss-counting damage event deliberately stays
+            // silent (demux-level observability only).
             damage: Damage::Zero,
             frames: 120,
             position_us: DECLARED_DURATION_US,
@@ -621,6 +625,9 @@ fn matrix_avi_absidx1_clean_ended_full_payout() {
     let checks = drive(Row {
         fixture: "generated/malformed/avi_mjpeg_pcm__absidx1.avi",
         outcome: Outcome::CleanEnded {
+            // The absolute-offset idx1 interpretation is a zero-byte
+            // note — nothing lost, no wire damage (the scenario_09
+            // matrix pins the same).
             damage: Damage::Zero,
             frames: 120,
             position_us: DECLARED_DURATION_US,

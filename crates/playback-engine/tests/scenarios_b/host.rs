@@ -730,6 +730,20 @@ pub fn wire_error(error: &EngineError) -> CommandError {
     .with_detail("code", error.context.code.as_str())
 }
 
+/// The access-layer refusal with the source named by its redacted
+/// form (V8: the basename survives, the machine path does not). The
+/// input crate's errors are deliberately path-free (its module
+/// doctrine), so the HOST layer — the one that knows the URI —
+/// attaches the name.
+fn access_refusal(error: &EngineError, uri: &SourceUri) -> CommandError {
+    let base = wire_error(error);
+    let name = uri.redacted();
+    if base.message.contains(&name) {
+        return base;
+    }
+    CommandError::new(base.stage, base.code, format!("{}: {name}", base.message))
+        .with_detail("code", error.context.code.as_str())
+}
 /// The wire conversion of a session-construction failure (the CLI's
 /// `session_error_wire`).
 fn session_error_wire(error: &SessionError) -> CommandError {
@@ -931,6 +945,12 @@ pub struct ScenarioHost {
     /// consulted at wiring time so every session's stage objects are
     /// counted).
     drop_hooks: Option<Arc<DropHooks>>,
+    /// A one-shot queue-plan override for the NEXT open (scenario
+    /// 11's mid-play faults: tight packet caps keep the demuxer
+    /// genuinely mid-file when the fault is armed, so a "mid-play"
+    /// cut actually bites — with the default caps the sink races the
+    /// whole stream during the open's own pumps).
+    paced_queues: Option<QueuePlan>,
 }
 
 impl Default for ScenarioHost {
@@ -954,6 +974,7 @@ impl ScenarioHost {
             last_fatal: None,
             tracks_wire: Vec::new(),
             outbox_scratch: Vec::new(),
+            paced_queues: None,
             drop_hooks: None,
         }
     }
@@ -968,6 +989,21 @@ impl ScenarioHost {
         });
         self.drop_hooks = Some(Arc::clone(&hooks));
         hooks
+    }
+
+    /// Pace the NEXT open with tight per-limb packet caps (scenario
+    /// 11's mid-play fault arming). The default caps let the sink
+    /// race the whole stream during the open's own pumps — a fault
+    /// armed after `settle()` then finds the demuxer already done.
+    /// With `max_packets` per limb the demuxer stays genuinely
+    /// mid-file, so the armed cut/reset bites during playback.
+    pub fn pace_next_open(&mut self, max_packets: usize) {
+        let limits = QueueLimits {
+            max_packets: NonZeroUsize::new(max_packets).must(),
+            max_bytes: NonZeroUsize::new(8 << 20).must(),
+            max_duration: Nanoseconds(400_000_000),
+        };
+        self.paced_queues = Some(QueuePlan::new(limits, limits));
     }
 
     // -- pacing -----------------------------------------------------------
@@ -1241,7 +1277,7 @@ impl ScenarioHost {
                 let uri = file_uri(path)?;
                 let mut stream = input::FileAccess::new()
                     .open(&uri)
-                    .map_err(|err| wire_error(&err))?;
+                    .map_err(|err| access_refusal(&err, &uri))?;
                 let format = sniff_format(stream.as_mut());
                 if !matches!(format, Ok("avi")) {
                     return Err(probe_refusal(format.unwrap_or("unknown")));
@@ -1266,6 +1302,7 @@ impl ScenarioHost {
         let provider = Arc::new(RealProvider {
             pcm_facts: pcm_fact_map(&demuxer, &tracks),
         });
+        let queues = self.paced_queues.take().unwrap_or_else(avi_queues);
         self.finish_wiring(
             uri,
             Box::new(demuxer),
@@ -1273,7 +1310,7 @@ impl ScenarioHost {
             facts,
             script,
             source,
-            avi_queues(),
+            queues,
             avi_budget(),
         )
     }
@@ -1405,13 +1442,17 @@ impl ScenarioHost {
     }
 
     /// Clear every session-scoped host half (after a settled Close or
-    /// a fatal): the recordings too — bounded per session.
+    /// a fatal): the recordings too — bounded per session. The stale
+    /// `last_fatal` dies with its session: a LATER open must not
+    /// answer with the dead session's error (the reopen-after-fatal
+    /// recovery shape).
     fn teardown_session_scoped(&mut self) {
         self.wired = None;
         self.pending_receipts.clear();
         self.events.clear();
         self.state_history.clear();
         self.tracks_wire.clear();
+        self.last_fatal = None;
     }
 
     /// The class-S snapshot answers.
@@ -1624,7 +1665,7 @@ fn route(
 /// (the CLI's `unserved` shape).
 fn unserved(command: &Command) -> CommandError {
     let id = command_id_string(command);
-    let owner = owner_of(&id);
+    let owner = owner_of(&catalog_prefix(&id));
     CommandError::new(
         Stage::Control,
         ErrorCode::UnsupportedForHost,
@@ -1645,6 +1686,38 @@ fn command_id_string(command: &Command) -> String {
         .next()
         .unwrap_or("(unnamed)")
         .to_string()
+}
+
+/// The catalog-style dotted prefix of one Debug-form command token
+/// (`AudioListDevices` → `audio.`, `TracksSetVideo` → `tracks.set-`):
+/// the CLI reads the real `"cmd"` tag from serde — the authoritative
+/// dotted id — while this host only has the Debug form; the tokens
+/// share the catalog's word structure by construction, so the
+/// prefix derives deterministically (lowercased leading words, the
+/// set/step verbs hyphenated, `system.plugin` joined).
+fn catalog_prefix(debug_token: &str) -> String {
+    let mut words: Vec<String> = Vec::new();
+    let mut current = String::new();
+    for ch in debug_token.chars() {
+        if ch.is_ascii_uppercase() && !current.is_empty() {
+            words.push(current.clone());
+            current.clear();
+        }
+        current.push(ch.to_ascii_lowercase());
+    }
+    if !current.is_empty() {
+        words.push(current);
+    }
+    match words.as_slice() {
+        [first, second, ..] if first == "system" && second == "plugin" => {
+            "system.plugin".to_string()
+        }
+        [first, second, ..] if second == "set" || second == "step" => {
+            format!("{first}.{second}-")
+        }
+        [first, ..] => format!("{first}."),
+        [] => String::new(),
+    }
 }
 
 /// The owning-subsystem note (the CLI's `owner_of`, verbatim for the
@@ -1900,8 +1973,13 @@ impl TempDir {
         // The header patch: hdrl copied verbatim (offsets are stable —
         // the copy lands at the same file offset), avih/strh patched.
         let mut hdrl = parent[12..hdrl_end].to_vec();
-        let mut sub = 12 + 8 + 4;
-        while sub < hdrl_end {
+        // The walk is HDRL-SLICE-LOCAL: the slice starts at the
+        // `LIST` fourcc (file offset 12), so the first inner chunk
+        // (`avih`) sits at slice offset 12 — NOT its file offset 24
+        // (the original 12+8+4 walked past it and patched nothing,
+        // leaving the parent's 60-frame declarations in place).
+        let mut sub = 12;
+        while sub + 8 <= hdrl.len() {
             let size = u32_le(&hdrl, sub + 4) as usize;
             match &fourcc_at(&hdrl, sub) {
                 b"avih" => {

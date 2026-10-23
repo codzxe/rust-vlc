@@ -2029,6 +2029,16 @@ impl Pipeline {
                     }
                 }
                 Ok(DemuxEvent::Recovered { skipped, .. }) => {
+                    // The count is a LOSS count (units skipped): a
+                    // zero-skip `Recovered` is a reason-only note —
+                    // e.g. the legal negative-`biHeight` bottom-up
+                    // DIB, or the absolute-idx1 interpretation
+                    // choice — with zero units lost. Those stay
+                    // demuxer-level observability (`damage_total()`,
+                    // the demux drains); the wire's damage event
+                    // speaks only when something was actually
+                    // skipped (the recovery_env stall stand-in's
+                    // documented inertness relies on this).
                     report.damaged_demux = report.damaged_demux.saturating_add(skipped);
                     report.damaged = report.damaged.saturating_add(skipped);
                 }

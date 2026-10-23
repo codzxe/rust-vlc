@@ -112,6 +112,20 @@ pub fn wire_error(error: &EngineError) -> CommandError {
     .with_detail("code", error.context.code.as_str())
 }
 
+/// The access-layer refusal with the source named by its redacted
+/// form (V8: the basename survives, the machine path does not —
+/// MP §12; the input crate's errors are deliberately path-free, so
+/// the HOST layer — the one that knows the URI — attaches the name).
+fn access_refusal(error: &EngineError, uri: &SourceUri) -> CommandError {
+    let base = wire_error(error);
+    let name = uri.redacted();
+    if base.message.contains(&name) {
+        return base;
+    }
+    CommandError::new(base.stage, base.code, format!("{}: {name}", base.message))
+        .with_detail("code", error.context.code.as_str())
+}
+
 /// Per-track facts the CLI harvested at the pre-pass — everything the
 /// decoder provider, the sinks and `media.get-info` need that the L0
 /// [`Track`] deliberately does not carry (codec parameters).
@@ -272,7 +286,9 @@ pub fn open_source(
     };
     // 1. Access (the 2.A1 stack).
     let access = input::FileAccess::new();
-    let mut stream = access.open(&uri).map_err(|err| wire_error(&err))?;
+    let mut stream = access
+        .open(&uri)
+        .map_err(|err| access_refusal(&err, &uri))?;
     // 2. Probe (the 2.A2 bounded window; non-consuming).
     let registry = media_probe::ProbeRegistry::with_builtins();
     let config = media_probe::ProbeConfig::default();

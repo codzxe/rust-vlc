@@ -55,6 +55,56 @@ use crate::host::{ScenarioHost, count_events, dispatch, error_events};
 /// The scripted parent's URL (the synthetic network source).
 const SCRIPTED: &str = "script://avi-parent";
 
+/// The documented mid-movi cut (the parent structure map's frame-30
+/// `00dc` chunk — the same offset as the committed `trunc3` class-B
+/// derivative).
+const CUT: u64 = 212_512;
+
+/// Open the scripted source into the **mid-stream parked hold** the
+/// mid-play faults need: tight queue caps (4 packets per limb) plus
+/// an immediate pause. This v0 engine has no wall-clock pacing — the
+/// synthetic sink's sample counter self-feeds, so a `Playing` settle
+/// drains the whole stream inside its own pumps and an armed fault
+/// would never fire. `Paused` parks decode (doc 03 §4.6's pause row:
+/// the demuxer fills to the watermark, then stops), which holds the
+/// demuxer genuinely mid-file: the cut/reset below bites a live
+/// mid-stream download, not an already-drained one.
+fn open_scripted_parked(host: &mut ScenarioHost) {
+    host.pace_next_open(4);
+    let response = dispatch(
+        host,
+        Command::SessionOpen {
+            source: SourceSpec::Url {
+                url: SCRIPTED.to_string(),
+            },
+            options: OpenOptions::default(),
+        },
+    );
+    assert!(
+        matches!(&response.result, Ok(CommandOutcome::Accepted { .. })),
+        "the scripted source opens: {:?}",
+        response.result
+    );
+    // Land the pause BEFORE any settle-style pumping can race the
+    // sink forward (the buffered pause, card 3.C1).
+    let pause = dispatch(host, Command::PlaybackPause);
+    assert!(pause.result.is_ok(), "the pause lands: {:?}", pause.result);
+    assert_eq!(host.state(), PlaybackState::Paused, "parked mid-stream");
+    // The honest guard: the demuxer is parked before the cut — the
+    // mid-play fault arming is real, not a fiction.
+    let (reads, bytes) = host.script().must().read_stats();
+    assert!(
+        bytes < CUT,
+        "the parked demuxer sits before the cut (reads {reads}, \
+         bytes {bytes} >= {CUT}) — the fault arming would never fire"
+    );
+    let before_frames = host.sink().map(|sink| sink.frames_accepted()).must();
+    assert!(
+        before_frames < 120,
+        "the park held playback mid-stream ({before_frames} frames)"
+    );
+}
+
 fn open_scripted(host: &mut ScenarioHost) {
     let response = dispatch(
         host,
@@ -113,21 +163,25 @@ fn url_sources_refuse_the_phase_named() {
     assert_eq!(host.state(), PlaybackState::Idle);
 }
 
-/// The **truncate** script: the source's visible length drops to a
-/// documented mid-movi offset (the parent's structure map: the
-/// frame-30 `00dc` chunk, offset 212_512 — the same cut as the
-/// committed `trunc3` class-B derivative) while the session plays.
-/// The containment contract holds end-to-end and nothing hangs.
+/// The **truncate** script: parked mid-stream, the source's visible
+/// length drops to a documented mid-movi offset (the parent's
+/// structure map: the frame-30 `00dc` chunk, offset 212_512 — the
+/// same cut as the committed `trunc3` class-B derivative) and the
+/// session resumes. The containment contract holds end-to-end and
+/// nothing hangs.
 #[test]
 fn truncated_midstream_source_ends_cleanly_within_deadline() {
     let _serial = serialize_tests();
     let mut host = ScenarioHost::new();
-    open_scripted(&mut host);
+    open_scripted_parked(&mut host);
 
     let before_frames = host.sink().map(|sink| sink.frames_accepted()).must();
-    // The mid-play cut: the download stops delivering at 212_512
+    // The mid-stream cut: the download stops delivering at `CUT`
     // bytes (documented offset — the structure map's frame-30 chunk).
-    host.script().must().shrink_to(212_512);
+    host.script().must().shrink_to(CUT);
+    // Resume: the parked session plays on into the cut.
+    let play = dispatch(&mut host, Command::PlaybackPlay);
+    assert!(play.result.is_ok(), "resumes: {:?}", play.result);
 
     let (pumps, terminal) = host.run_until_terminal(512);
     assert_eq!(
@@ -163,23 +217,27 @@ fn truncated_midstream_source_ends_cleanly_within_deadline() {
         "the cut actually bit: {frames} of 120 frames delivered"
     );
     // The visible length is the truth the source reports now.
-    assert_eq!(host.script().must().visible_len(), 212_512);
+    assert_eq!(host.script().must().visible_len(), CUT);
 
     let close = dispatch(&mut host, Command::SessionClose);
     assert!(close.result.is_ok(), "closes: {:?}", close.result);
 }
 
-/// The **reset** script: the next read fails with the typed mid-read
-/// I/O failure. A typed fatal lands (`Playing → Error`), bounded —
-/// never a hang, never a panic.
+/// The **reset** script: parked mid-stream, the next read fails
+/// with the typed mid-read I/O failure and the session resumes. A
+/// typed fatal lands (`Playing → Error`), bounded — never a hang,
+/// never a panic.
 #[test]
 fn reset_midstream_source_fails_typed_within_deadline() {
     let _serial = serialize_tests();
     let mut host = ScenarioHost::new();
-    open_scripted(&mut host);
+    open_scripted_parked(&mut host);
 
     // The connection reset: the very next read fails typed.
     host.script().must().fail_next_read();
+    // Resume: the parked session plays into the failed read.
+    let play = dispatch(&mut host, Command::PlaybackPlay);
+    assert!(play.result.is_ok(), "resumes: {:?}", play.result);
 
     let (pumps, terminal) = host.run_until_terminal(512);
     assert_eq!(
