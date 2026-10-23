@@ -99,7 +99,16 @@ export type MessageKey =
   | "settings.value.playback-subtitle-mode.off"
   | "settings.value.playback-hw-decode-policy.software-only"
   | "settings.value.playback-hw-decode-policy.prefer-hardware"
-  | "settings.value.playback-hw-decode-policy.hardware-only";
+  | "settings.value.playback-hw-decode-policy.hardware-only"
+  // Settings group 2 areas (card 4.E3) — audio/video/subtitles screens.
+  | "settings.section.audio.output"
+  | "settings.audio.output-device"
+  | "settings.audio.device-list-loading"
+  | "settings.audio.device-enumeration-unavailable"
+  | "settings.audio.no-devices"
+  | "settings.audio.device-default"
+  | "settings.capability-unavailable"
+  | "settings.area.empty";
 
 const messages: Readonly<Record<MessageKey, string>> = {
   "screen.player": "Player",
@@ -191,6 +200,15 @@ const messages: Readonly<Record<MessageKey, string>> = {
   "settings.value.playback-hw-decode-policy.software-only": "Software only",
   "settings.value.playback-hw-decode-policy.prefer-hardware": "Prefer hardware",
   "settings.value.playback-hw-decode-policy.hardware-only": "Hardware only",
+  // Settings group 2 areas (card 4.E3).
+  "settings.section.audio.output": "Output",
+  "settings.audio.output-device": "Output device",
+  "settings.audio.device-list-loading": "Checking for available audio devices…",
+  "settings.audio.device-enumeration-unavailable": "Device enumeration is not available",
+  "settings.audio.no-devices": "No audio devices found",
+  "settings.audio.device-default": "default",
+  "settings.capability-unavailable": "Not available in this build",
+  "settings.area.empty": "No options in this area yet.",
 };
 
 export type Msg = (key: MessageKey) => string;
