@@ -22,6 +22,7 @@ import { useMsg } from "../../i18n/messages";
 import { PlaylistPanel, PlaylistProvider } from "../playlist";
 import { PlayerControlsProvider, usePlayerControls } from "./context";
 import { ControlBar, controlCommandOf } from "./controls";
+import { CustomizePanels } from "./customize";
 import {
   matchBindings,
   shellActionFor,
@@ -360,11 +361,14 @@ function PanelRegion({
       className={`lumen-player__panel lumen-player__panel--${side}`}
     >
       {/* Playlist region content landed with card 4.D1 (panel + queue
-          semantics); library/media-info remain honest placeholders. */}
+          semantics); customize panels with 4.F3 (capability-gated fields);
+          library/media-info remain honest placeholders. */}
       {region.id === "playlist" ? (
         <PlaylistProvider>
           <PlaylistPanel />
         </PlaylistProvider>
+      ) : region.id === "customize" ? (
+        <CustomizePanels />
       ) : (
         <p className="lumen-player__sr-note">{m("player.panel.placeholder")}</p>
       )}
