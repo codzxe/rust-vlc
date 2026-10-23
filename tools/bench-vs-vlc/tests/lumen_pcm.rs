@@ -375,15 +375,20 @@ fn filtered_video_stream_does_not_touch_the_audio_digest() {
     assert_eq!(report.pcm_bytes, first.len() as u64);
     assert_eq!(report.concealed, 0);
     assert_eq!(
-        report.demux_recovered, 2,
-        "two Recovered events on this build: the filter decision \
-         (unsupported-video-handler, skipped 0) + the filtered stream's \
-         idx1 entries dropping as idx1-entry-unknown-stream (16 B each — \
-         W5-14's pending merge silences the latter)"
+        report.demux_recovered, 1,
+        "one Recovered event on this build: the codec-filter decision only \
+         (unsupported-video-handler, skipped 0). W5-14 HAS merged since this \
+         pin was written (3b1a9e2 + merge 90fb182): the filtered stream's \
+         idx1 entries now skip SILENTLY — corroborated by the engine's own \
+         pin, crates/demux/tests/idx1_stream_scope.rs::filtered_stream_\
+         idx1_entries_are_silent (reasons == the filter decision alone, \
+         damage ledger empty)"
     );
     assert_eq!(
-        report.demux_skip_bytes, 32,
-        "2 video idx1 entries x 16 B — seek-table drops, not walked data"
+        report.demux_skip_bytes, 0,
+        "W5-14 merged: the filtered stream's 2 idx1 entries (2 x 16 B) are \
+         no longer damage-noted — a decision, not bytes; the ledger stays \
+         empty (same demux idx1_stream_scope pin)"
     );
     assert_eq!(
         report.md5_hex,
