@@ -677,11 +677,7 @@ impl PayloadSlots {
 /// the rounding would cross it (callers guarantee `want <= cap`).
 fn next_fit(len: usize, want: usize, cap: usize) -> usize {
     let target = want.next_power_of_two().max(len);
-    if target > cap {
-        want
-    } else {
-        target
-    }
+    if target > cap { want } else { target }
 }
 
 impl Default for PayloadSlots {
@@ -1139,6 +1135,43 @@ mod tests {
             .must();
         assert_eq!(spilled.len(), 40);
         assert!(spilled.as_slice().iter().all(|&b| b == 0x33));
+    }
+
+    /// The bounded-memory observable (7-c, D-1): a demand-driven
+    /// growth sequence — the frame classes of a stream that escalates
+    /// from 100 B to ~50 KB payloads — keeps `pool_bytes` under the
+    /// declared `max_slots x slot_cap` bound at every step, settles at
+    /// ONE arena, and grows it by doubling to exactly the ceiling that
+    /// covers the class (never a fresh block per size, never past the
+    /// bound).
+    #[test]
+    fn arena_growth_stays_under_the_declared_bound() {
+        let mut pool = PayloadSlots::new(2, 64 * 1024);
+        let bound = pool.max_slots() * pool.slot_cap();
+        for want in [100usize, 1_000, 10_000, 50_000] {
+            let handle = pool
+                .fill(want, |out| {
+                    out.fill(0x7E);
+                    Ok(out.len())
+                })
+                .must();
+            assert_eq!(handle.len(), want);
+            assert!(handle.as_slice().iter().all(|&b| b == 0x7E));
+            drop(handle);
+            assert!(
+                pool.pool_bytes() <= bound,
+                "residency {} over bound {}",
+                pool.pool_bytes(),
+                bound
+            );
+            assert!(pool.pool_bytes() >= want, "residency covers the class");
+        }
+        assert_eq!(pool.resident_slots(), 1, "one arena serves the class");
+        assert_eq!(
+            pool.pool_bytes(),
+            64 * 1024,
+            "one doubling chain 100 -> 1024 -> 16384 -> 65536 — the ceiling, no further"
+        );
     }
 
     /// The pool over a real reader: uniform payloads read through

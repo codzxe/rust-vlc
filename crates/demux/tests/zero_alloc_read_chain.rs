@@ -989,15 +989,20 @@ fn idx1_parse_allocates_per_block_not_per_entry() {
 
 /// The seam-call census instrument (shared counters — the source moves
 /// into the demuxer's `Box`, the test keeps the handles): counts
-/// `read_into` calls, bytes served, and the largest ask received. This
-/// is the syscall-count proxy for the in-memory walk; the real-file
-/// syscall count is the input crate's `large_read_bypasses_the_window`
+/// `read_into` calls, bytes served, the largest ask received, and the
+/// payload-class asks (asks over the `BIG_ASK` threshold — the open
+/// phase's header/format reads are all ≤ 56 B). This is the
+/// syscall-count proxy for the in-memory walk; the real-file syscall
+/// count is the input crate's `large_read_bypasses_the_window`
 /// proof.
+const BIG_ASK: usize = 1024;
+
 #[derive(Default)]
 struct SeamStats {
     calls: std::sync::atomic::AtomicU64,
     bytes: std::sync::atomic::AtomicU64,
     max_ask: std::sync::atomic::AtomicU64,
+    big_asks: std::sync::atomic::AtomicU64,
 }
 
 impl SeamStats {
@@ -1006,6 +1011,9 @@ impl SeamStats {
         self.calls.fetch_add(1, Relaxed);
         self.bytes.fetch_add(got, Relaxed);
         self.max_ask.fetch_max(ask as u64, Relaxed);
+        if ask > BIG_ASK {
+            self.big_asks.fetch_add(1, Relaxed);
+        }
     }
 }
 
@@ -1045,14 +1053,32 @@ impl SourceStream for CountingSource {
 /// `AviDemuxer` walk over 6 uniform 1.5 MiB `00dc` chunks issues
 /// exactly one `read_into` per payload — of the FULL frame size — plus
 /// the 8-byte header read per chunk. Before 7-c the payload read was
-/// chopped into `ceil(want / 64 KiB)` = 24 seam calls per frame (the
-/// pinned failure that motivated the change; see
-/// docs/perf/v1-input-readpath-20261024.md §3).
+/// chopped into `ceil(want / 64 KiB)` = 24 seam calls per frame: red on
+/// main @ 3f04786 the census read **164 calls** (14 open-phase reads +
+/// 150 walk calls = 6 × (24 chopped payload steps + 1 header)); after
+/// 7-c it reads **26** (the same 14 open-phase reads + 6 full payload
+/// asks + 6 header asks).
+///
+/// The original pin (5bc51ef) asserted a total of 12, assuming the
+/// open phase's reads (RIFF head, `hdrl` peeks, `avih`/`strh`/`strf`
+/// payloads, `movi` discovery — every one of them routes through the
+/// card-3.B3 borrow seam, all asks ≤ 56 B) were Vec reads. They are
+/// not, and making them Vec reads would be a regression (an allocation
+/// per open read). The amended census pins the same contract where it
+/// matters, more precisely: **exactly one payload-class ask per
+/// frame**, of the full frame size, with the open phase's fixed 14
+/// small reads accounted by name.
 #[test]
 fn big_payload_reads_are_one_source_call_per_frame() {
     let _serial = serialize_tests();
     const CHUNKS: usize = 6;
     const PAYLOAD: usize = 1536 * 1024; // 1.5 MiB — the frame class
+    /// The open-phase `read_into` calls for this fixture (measured:
+    /// RIFF head 12 B, `LIST hdrl` peek + form, `avih` peek + 56 B,
+    /// `LIST strl` peek + form, `strh` peek + 56 B, `strf` peek +
+    /// 40 B, `LIST movi` peek + form — 14 small asks, none over
+    /// 56 B, none per-payload).
+    const OPEN_READS: u64 = 14;
     let bytes = avi_bytes(CHUNKS, PAYLOAD, false);
     let stats = std::sync::Arc::new(SeamStats::default());
     let source = CountingSource {
@@ -1076,13 +1102,23 @@ fn big_payload_reads_are_one_source_call_per_frame() {
     }
     assert_eq!(packets, CHUNKS);
     use std::sync::atomic::Ordering::Relaxed;
-    // The payload census: exactly one payload-sized ask per packet (the
-    // header reads are 8-byte asks and never reach PAYLOAD).
+    // The payload census: exactly one payload-class ask per packet —
+    // the contract the pin exists for. A chopped payload (the 64 KiB
+    // step loop) shows up here immediately as 24 asks per frame.
+    assert_eq!(
+        stats.big_asks.load(Relaxed),
+        CHUNKS as u64,
+        "one payload-class ask per frame — every extra big ask is a chopped \
+         payload (main @ 3f04786: 6 x 24 = 144)"
+    );
+    // The full census, open phase accounted by name: OPEN_READS small
+    // open asks + one header ask and one full payload ask per chunk.
     assert_eq!(
         stats.calls.load(Relaxed),
-        (CHUNKS * 2) as u64,
-        "6 chunks: 6 payload reads (one per frame, full ask) + 6 header reads \
-         (8 B each) — every extra call is a chopped payload"
+        OPEN_READS + (CHUNKS * 2) as u64,
+        "14 open-phase reads (≤ 56 B, fixed) + 6 payload reads (one per \
+         frame, full ask) + 6 header reads (8 B each) — every extra call \
+         is a chopped payload"
     );
     assert_eq!(
         stats.max_ask.load(Relaxed),
