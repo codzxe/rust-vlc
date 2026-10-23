@@ -532,6 +532,11 @@ impl ObservingSink {
     }
 
     /// The last ring pts of one track id (None before any).
+    ///
+    /// Harness observation API kept for track-scoped stamp queries
+    /// (symmetric with `frame_ring`); no scenario asserts on it yet —
+    /// the gate doc §2 row 4c dead-code hit that surfaced this.
+    #[allow(dead_code)]
     pub fn last_pts_ns_of_track(&self, track: u32) -> Option<i64> {
         self.frame_ring
             .lock()
