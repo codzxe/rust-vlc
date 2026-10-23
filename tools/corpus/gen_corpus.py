@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Lumen randomized real-media corpus generator — v3, INDUSTRIAL GRADE.
+"""Lumen randomized real-media corpus generator — v4, ESCALATION.
 
-ED-FIX-5 charter; user directives 2026-10-22 (random, real, many, measured)
-and 2026-10-23 (industrial: parallel, VFR chaos, multi-track/subs/chapters,
+ED-FIX-5 charter; user directives 2026-10-22 (random, real, many, measured),
+2026-10-23 (industrial: parallel, VFR chaos, multi-track/subs/chapters,
 dynamic resolution, anamorphic, crash minimization companion, HLS/fMP4,
 fidelity scoring companion, FFmpeg speed parity companion, adversarial by
-default, no hardcoded shortcuts).
+default, no hardcoded shortcuts), and the W5-16 escalation order (corpus's
+only job: break the player — more brittle, more unusual, more hostile).
 
-Design contract (binding, extends v2):
+Design contract (binding, extends v3):
   * RANDOM by default — seed from OS entropy; the full randomness is frozen
     into plan.json before any encoding starts, so a reaper kill mid-run
     loses nothing and `--seed S` (or replaying the recorded seed)
@@ -17,15 +18,38 @@ Design contract (binding, extends v2):
     serialized in the main thread; completion order cannot change content.
   * COVERAGE-GUIDED — the stratification matrix pins every key surface
     (codec x container, VFR, multi-track, subs, chapters, dyn-res, raw,
-    fMP4, HLS, cover art, drift, bombs); random composition fills the rest.
-  * CAPABILITY-DISCOVERED — 10-bit profiles, prores, rotation metadata,
-    HLS-fMP4, concat-copy dynres are PROBED against the real ffmpeg at run
-    start; unsupported draws land in the honest rejected-draws ledger.
+    fMP4, HLS, cover art, drift, bombs + the 15 v4 escalation classes);
+    random composition fills the rest.
+  * CAPABILITY-DISCOVERED — 10-bit profiles, prores, rotation metadata
+    routes, HLS-fMP4, concat-copy, zeroframe tracks, libxvid, HEVC-in-AVI,
+    mpeg2-in-mp4, odd 1x1, fractional-framerate stills are PROBED against
+    the real ffmpeg at run start; unsupported draws land in the honest
+    rejected-draws ledger.
   * DIRTY WORLD (D-3) — ~18% of clean files get a corrupted sibling (12
-    byte-level ops incl. cross-file splices and header size lies) plus 23
-    garbage archetypes.  Originals stay clean for oracle comparison.
+    byte-level ops incl. cross-file splices and header size lies) plus 22
+    garbage archetypes, plus v4's dedicated dirty-class factories
+    (riff-size-lie, odd-chunk-avi byte post-processing).  Originals stay
+    clean for oracle comparison.
   * HONEST LEDGER — encoder rejections, over-budget skips, capability
     gaps, and ffprobe failures of CLEAN files are all recorded as data.
+
+v4 escalation classes (W5-16; every param randomized within
+measured-encoder-feasible bounds, no lazy hardcoded constants):
+  rot-display      display-matrix rotation (90/180/270 + flips) mp4/mkv/mov
+  odd-dims         1x1..101x101 odd/sub-16 geometry, yuv422/444 where allowed
+  maxtracks-avi    AVI with 16-32 mixed video/audio/data streams
+  bframe-storm     h264/h265 bf>=3 + b-pyramid reorder storms (mp4/ts/mkv/mov)
+  packed-bs        libxvid packed b-frames / mpeg4 bf / avcC oddities
+  param-midchange  mid-stream SPS/bitrate/profile change via concat copy
+  vbv-burst        extreme bitrate spikes (concat step or single-pass VBV)
+  fps-extremes     1 fps slideshow <-> 240 fps tiny-res burst
+  sr-chaos         8000/11025/192000/384000 Hz + odd channel layouts
+  chapter-bomb     1000-3000 FFMETADATA chapters on a seconds-long clip
+  zeroframe-stream video track declared, zero samples (mkv/ts)
+  still-24h        single-frame ~6-48 h still, bounded bytes
+  riff-size-lie    dirty-class: AVI RIFF size field lies (byte post-op)
+  odd-chunk-avi    1-byte-payload movi chunks + JUNK pad storms (post-op)
+  hevc-in-avi      the lie-class: HEVC stream renamed to an AVI video tag
 
 Usage:
   gen_corpus.py [--out DIR] [--preset smoke|standard|big|insane]
@@ -62,7 +86,7 @@ from corpus_vocab import (  # noqa: E402
     ANAMORPHIC_SAR, AUDIO_CODECS, AUDIO_CONTAINERS, CLASS_WEIGHTS,
     CONTAINERS, CORRUPTION_OPS, GARBAGE_ARCHETYPES, MANDATORY_RESOLUTIONS,
     PRESETS, RAW_VIDEO_TARGETS, RES_ORDER, ROTATIONS, STRATIFICATION,
-    VIDEO_CODECS,
+    V4_CLASSES, VIDEO_CODECS,
 )
 from corpus_builders import BUILDERS, Ctx, draw_audio_params  # noqa: E402
 
@@ -88,7 +112,21 @@ KIND_FOR_CLASS = {
     "fmp4-video": "fmp4-video", "hls-av": "hls-av",
     "cover-audio": "cover-audio", "multivideo-av": "multivideo-av",
     "drift-av": "drift-av", "meta-bomb-av": "meta-bomb-av",
+    # ---- v4 escalation classes (W5-16) ----
+    "rot-display": "rot-display", "odd-dims": "odd-dims",
+    "maxtracks-avi": "maxtracks-avi", "bframe-storm": "bframe-storm",
+    "packed-bs": "packed-bs", "param-midchange": "param-midchange",
+    "vbv-burst": "vbv-burst", "fps-extremes": "fps-extremes",
+    "sr-chaos": "sr-chaos", "chapter-bomb": "chapter-bomb",
+    "zeroframe-stream": "zeroframe-stream", "still-24h": "still-24h",
+    "riff-size-lie": "riff-size-lie", "odd-chunk-avi": "odd-chunk-avi",
+    "hevc-in-avi": "hevc-in-avi",
 }
+
+# Classes whose generated files are lies by construction — they land in
+# dirty/ and are excluded from the clean-file ffprobe gate (like v3's
+# derived dirty classes).
+DIRTY_CLASSES = {"riff-size-lie"}
 
 
 def sha256_file(path: Path) -> str:
@@ -142,6 +180,13 @@ def probe_commands() -> dict[str, list[str]]:
                              "-f", "mov", "-y", "__TMP__"],
         "adpcm_ms": sine + ["-c:a", "adpcm_ms", "-f", "wav", "-y", "__TMP__"],
         "adpcm_ima": sine + ["-c:a", "adpcm_ima_wav", "-f", "wav", "-y", "__TMP__"],
+        # ---- v4 escalation probes (W5-16) ----
+        "xvid": tiny + ["-c:v", "libxvid", "-bf", "2", "-g", "24"] + null,
+        "hevc_avi": tiny + ["-c:v", "libx265", "-preset", "ultrafast",
+                            "-pix_fmt", "yuv420p", "-tag:v", "h265",
+                            "-f", "avi", "-y", "__TMP__"],
+        "mpeg2_mp4": tiny + ["-c:v", "mpeg2video", "-b:v", "300k",
+                             "-f", "mp4", "-y", "__TMP__"],
     }
 
 
@@ -226,6 +271,110 @@ def probe_caps(ffmpeg: str, tmp_root: Path) -> dict:
         caps[f"concat_copy:{cont}"] = (rc1 == 0 and rc2 == 0 and rc3 == 0
                                        and out.stat().st_size > 0)
         shutil.rmtree(d, ignore_errors=True)
+    # ---- v4 escalation probes (W5-16) ----
+    # display-matrix rotation via -display_rotation on the input + copy:
+    # movenc AND matroskaenc write real display matrices this way (the v3
+    # `rotate=` metadata route is dead on ffmpeg 7.x).
+    rot_src = tmp_root / "probe-v4-rot-src.mp4"
+    rc, _ = run([ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
+                 "-f", "lavfi", "-i", "testsrc2=duration=0.3:size=64x48:rate=10",
+                 "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt",
+                 "yuv420p", "-f", "mp4", "-y", str(rot_src)], 60)
+    for cont, fmt in (("mp4", "mp4"), ("mov", "mov"), ("mkv", "matroska")):
+        dst = tmp_root / f"probe-v4-rot.{cont}"
+        if rc == 0:
+            rc2, _ = run([ffmpeg, "-hide_banner", "-loglevel", "error",
+                          "-nostdin", "-display_rotation:v:0", "90",
+                          "-i", str(rot_src), "-c", "copy", "-f", fmt,
+                          "-y", str(dst)], 60)
+            ok = rc2 == 0
+            if ok:
+                p = subprocess.run([FFPROBE, "-v", "error", "-show_streams",
+                                    str(dst)], capture_output=True, text=True,
+                                   timeout=30)
+                ok = "displaymatrix" in (p.stdout or "").lower()
+        else:
+            ok = False
+        caps[f"rot_copy:{cont}"] = ok
+        dst.unlink(missing_ok=True)
+    rot_src.unlink(missing_ok=True)
+    # tkhd patch route (flips): encode, patch, ffprobe must see the matrix
+    tk_src = tmp_root / "probe-v4-tkhd.mp4"
+    rc, _ = run([ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
+                 "-f", "lavfi", "-i", "testsrc2=duration=0.3:size=64x48:rate=10",
+                 "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt",
+                 "yuv420p", "-f", "mp4", "-y", str(tk_src)], 60)
+    if rc == 0:
+        note = post_tkhd_rotate(tk_src, {"rot": 90, "hflip": 1, "vflip": 0},
+                                random.Random(1))
+        p = subprocess.run([FFPROBE, "-v", "error", "-show_streams",
+                            str(tk_src)], capture_output=True, text=True,
+                           timeout=30)
+        caps["rot_tkhd"] = bool(note.get("applied")) and \
+            "displaymatrix" in (p.stdout or "").lower()
+    else:
+        caps["rot_tkhd"] = False
+    tk_src.unlink(missing_ok=True)
+    # 1x1 odd-dimension probe (color source preserves 1x1; mpeg4 accepts)
+    odd_tmp = tmp_root / "probe-v4-odd.avi"
+    rc, _ = run([ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
+                 "-f", "lavfi", "-i", "color=size=1x1:rate=10:duration=0.3",
+                 "-c:v", "mpeg4", "-pix_fmt", "yuv420p", "-f", "avi", "-y",
+                 str(odd_tmp)], 60)
+    if rc == 0:
+        p = subprocess.run([FFPROBE, "-v", "error", "-select_streams", "v:0",
+                            "-show_entries", "stream=width", "-of", "csv=p=0",
+                            str(odd_tmp)], capture_output=True, text=True,
+                           timeout=30)
+        caps["odd1x1"] = (p.stdout or "").strip() == "1"
+    else:
+        caps["odd1x1"] = False
+    odd_tmp.unlink(missing_ok=True)
+    # zeroframe tracks: select=0 + audio; the video TRACK must survive the
+    # muxer (mp4 rc=0 but silently drops the track — that is the probe truth)
+    for cont, fmt in (("mkv", "matroska"), ("ts", "mpegts"), ("mp4", "mp4")):
+        zf = tmp_root / f"probe-v4-zf.{cont}"
+        rc, _ = run([ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
+                     "-f", "lavfi", "-i",
+                     "testsrc2=duration=0.5:size=64x48:rate=10",
+                     "-f", "lavfi", "-i", "sine=duration=0.5:sample_rate=8000",
+                     "-map", "0:v", "-map", "1:a", "-vf", "select=0",
+                     "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt",
+                     "yuv420p", "-c:a", "pcm_u8", "-f", fmt, "-y",
+                     str(zf)], 60)
+        ok = rc == 0
+        if ok:
+            p = subprocess.run([FFPROBE, "-v", "error", "-select_streams",
+                                "v:0", "-show_entries", "stream=codec_type",
+                                "-of", "csv=p=0", str(zf)],
+                               capture_output=True, text=True, timeout=30)
+            ok = "video" in (p.stdout or "")
+        caps[f"zeroframe:{cont}"] = ok
+        zf.unlink(missing_ok=True)
+    # fractional-framerate image2 loop (single-frame still, huge duration)
+    still_dir = tmp_root / "probe-v4-still"
+    still_dir.mkdir(parents=True, exist_ok=True)
+    png = still_dir / "s.png"
+    out24 = still_dir / "s.mp4"
+    rc1, _ = run([ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
+                  "-f", "lavfi", "-i",
+                  "testsrc2=duration=0.04:size=160x120:rate=25",
+                  "-frames:v", "1", "-y", str(png)], 60)
+    rc2, _ = run([ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
+                  "-loop", "1", "-framerate", "1/21600", "-i", str(png),
+                  "-t", "21600", "-c:v", "libx264", "-preset", "ultrafast",
+                  "-pix_fmt", "yuv420p", "-y", str(out24)], 60)
+    ok = rc1 == 0 and rc2 == 0
+    if ok:
+        p = subprocess.run([FFPROBE, "-v", "error", "-show_entries",
+                            "format=duration", "-of", "csv=p=0", str(out24)],
+                           capture_output=True, text=True, timeout=30)
+        try:
+            ok = float((p.stdout or "0").strip()) > 10_000.0
+        except ValueError:
+            ok = False
+    caps["still_frac"] = ok
+    shutil.rmtree(still_dir, ignore_errors=True)
     return caps
 
 
@@ -238,6 +387,211 @@ def available_encoders(ffmpeg: str) -> set[str]:
         if len(fields) >= 2 and len(fields[0]) == 6 and fields[0][0] in "VAS":
             encs.add(fields[1])
     return encs
+
+
+# ---------------------------------------------------------------------------
+# v4 byte-level post-ops (W5-16).  Builders freeze a spec into the plan;
+# these run AFTER the argvs succeed and BEFORE harvest/validation.  All
+# structure walks are bounded and refuse (recorded, not raised) on shapes
+# they do not recognize — dirty-world discipline (D-3).
+# ---------------------------------------------------------------------------
+
+def _avi_boxes(buf: bytes, start: int, end: int):
+    """Bounded top-level RIFF chunk walk (size<8 or overrun stops it).
+    RIFF chunk sizes cover the DATA only — advance past header+data+pad."""
+    off = start
+    while off + 8 <= end:
+        size = struct.unpack("<I", buf[off + 4:off + 8])[0]
+        if size < 8 or off + 8 + size > end:
+            return
+        yield buf[off:off + 4], off, size
+        off += 8 + size + (size & 1)
+
+
+def _avi_find_movi_idx1(buf: bytes):
+    movi = idx1 = None
+    for cid, off, size in _avi_boxes(buf, 12, len(buf)):
+        if cid == b"LIST" and buf[off + 8:off + 12] == b"movi" and movi is None:
+            movi = (off, size)
+        elif cid == b"idx1" and idx1 is None:
+            idx1 = (off, size)
+    return movi, idx1
+
+
+def _avi_movi_chunks(buf: bytes, movi):
+    """Chunks inside the movi LIST (children start past the 'movi' fourcc),
+    descending into 'rec ' groupings; JUNK skipped."""
+    start, end = movi[0] + 12, movi[0] + 8 + movi[1]
+    stack = [(start, end)]
+    while stack:
+        lo, hi = stack.pop()
+        off = lo
+        while off + 8 <= hi:
+            cid = buf[off:off + 4]
+            size = struct.unpack("<I", buf[off + 4:off + 8])[0]
+            if off + 8 + size > hi:
+                break
+            if cid == b"LIST" and buf[off + 8:off + 12] == b"rec ":
+                stack.append((off + 12, off + size))
+            elif cid not in (b"JUNK", b"LIST"):
+                yield cid, off, size, buf[off + 8:off + 8 + size]
+            off += 8 + size + (size & 1)
+
+
+def post_avi_rechunk(path: Path, spec: dict, erng: random.Random) -> dict:
+    """Re-pack the movi payload as `split`-byte chunks + JUNK pad storms;
+    rebuild idx1 to match (or drop it as JUNK).  Stale header fields (e.g.
+    dwSuggestedBufferSize) are left lying — that is the point."""
+    buf = path.read_bytes()
+    if buf[:4] != b"RIFF":
+        return {"op": "avi-rechunk", "applied": False,
+                "reason": "not-riff"}
+    movi, idx1 = _avi_find_movi_idx1(buf)
+    if movi is None:
+        return {"op": "avi-rechunk", "applied": False,
+                "reason": "no-movi"}
+    split = max(1, int(spec.get("split", 1)))
+    junk_every = max(0, int(spec.get("junk_every", 3)))
+    junk_lo = max(1, int(spec.get("junk_lo", 5)))
+    junk_hi = max(junk_lo, int(spec.get("junk_hi", 64)))
+    drop_idx1 = bool(spec.get("drop_idx1", False))
+    out = bytearray(buf[:movi[0] + 12])
+    idx_entries = []
+    n_in = 0
+    for k, (cid, _off, _sz, payload) in enumerate(_avi_movi_chunks(buf, movi)):
+        n_in += 1
+        for j in range(0, len(payload), split):
+            piece = payload[j:j + split]
+            rel = len(out) - (movi[0] + 8)
+            out += cid + struct.pack("<I", len(piece)) + piece
+            if len(piece) & 1:
+                out += b"\x00"
+            idx_entries.append((cid, rel, len(piece), 0x10 if k == 0 else 0))
+        if junk_every and k % junk_every == 0:
+            jsz = erng.randint(junk_lo, junk_hi)
+            out += b"JUNK" + struct.pack("<I", jsz) + \
+                bytes(erng.randrange(256) for _ in range(jsz))
+            if jsz & 1:
+                out += b"\x00"
+    # movi payload ends HERE (before idx1 / its JUNK replacement is appended)
+    movi_end = len(out)
+    if idx1 is not None and drop_idx1:
+        out += b"JUNK" + struct.pack("<I", idx1[1]) + \
+            b"\x00" * idx1[1]
+    else:
+        idx = bytearray(b"idx1" + struct.pack("<I", 16 * len(idx_entries)))
+        for cid, rel, sz, fl in idx_entries:
+            idx += cid + struct.pack("<III", fl, rel, sz)
+        out += idx
+    # The movi LIST size MUST be repatched to the re-packed payload — a
+    # stale (smaller) size makes every idx1 entry land "outside movi" and
+    # demuxers truncate the walk at the old boundary (measured: ffmpeg
+    # decode of the rechunked file failed with "No JPEG data found" until
+    # this patch).  LIST size covers the 'movi' fourcc + chunk bytes.
+    struct.pack_into("<I", out, movi[0] + 4, movi_end - (movi[0] + 8))
+    struct.pack_into("<I", out, 4, len(out) - 8)
+    path.write_bytes(bytes(out))
+    return {"op": "avi-rechunk", "applied": True, "split": split,
+            "chunks_in": n_in, "chunks_out": len(idx_entries),
+            "junk_every": junk_every, "drop_idx1": drop_idx1,
+            "bytes": len(out)}
+
+
+def post_riff_size_lie(path: Path, spec: dict, erng: random.Random) -> dict:
+    """Patch the RIFF size field with a drawn lie (oversize/max/tiny/zero)."""
+    buf = bytearray(path.read_bytes())
+    if len(buf) < 8 or buf[:4] != b"RIFF":
+        return {"op": "riff-size-lie", "applied": False,
+                "reason": "not-riff"}
+    real = len(buf) - 8
+    mode = spec.get("mode", "oversize")
+    if mode == "oversize":
+        lie = real + int(spec.get("oversize_bytes", 1 << 20))
+    elif mode == "max":
+        lie = 0xFFFFFFFF
+    elif mode == "tiny":
+        lie = int(spec.get("tiny_bytes", 7))
+    else:  # zero
+        lie = 0
+    lie &= 0xFFFFFFFF
+    buf[4:8] = struct.pack("<I", lie)
+    path.write_bytes(bytes(buf))
+    return {"op": "riff-size-lie", "applied": True, "mode": mode,
+            "real": real, "lie": lie}
+
+
+def _mp4_boxes(buf: bytes, start: int, end: int):
+    off = start
+    while off + 8 <= end:
+        size = struct.unpack(">I", buf[off:off + 4])[0]
+        typ = buf[off + 4:off + 8]
+        if size == 1:
+            if off + 16 > end:
+                return
+            size = struct.unpack(">Q", buf[off + 8:off + 16])[0]
+        if size < 8 or off + size > end:
+            return
+        yield typ, off, size
+        off += size + (size & 1)
+
+
+def post_tkhd_rotate(path: Path, spec: dict, erng: random.Random) -> dict:
+    """Patch the video trak's tkhd transformation matrix (16.16 fixed).
+    v0 matrix sits at body+40, v1 at body+52 (creation/mod/duration grow).
+    Composes flip scale into the rotation, ISO 14496-12 style."""
+    buf = bytearray(path.read_bytes())
+    mat_off = None
+    for typ, off, size in _mp4_boxes(buf, 0, len(buf)):
+        if typ != b"moov":
+            continue
+        for t2, o2, s2 in _mp4_boxes(buf, off + 8, off + size):
+            if t2 != b"trak":
+                continue
+            is_video = False
+            tkhd_mat = None
+            for t3, o3, s3 in _mp4_boxes(buf, o2 + 8, o2 + s2):
+                if t3 == b"tkhd":
+                    body = o3 + 8
+                    ver = buf[body]
+                    tkhd_mat = body + (40 if ver == 0 else 52)
+                elif t3 == b"mdia":
+                    for t4, o4, s4 in _mp4_boxes(buf, o3 + 8, o3 + s3):
+                        if t4 == b"hdlr" and buf[o4 + 16:o4 + 20] == b"vide":
+                            is_video = True
+            if is_video and tkhd_mat is not None:
+                mat_off = tkhd_mat
+                break
+        if mat_off is not None:
+            break
+    if mat_off is None or mat_off + 36 > len(buf):
+        return {"op": "tkhd-rotate", "applied": False,
+                "reason": "no-video-tkhd"}
+    rot = int(spec.get("rot", 0)) % 360
+    hflip = bool(spec.get("hflip", 0))
+    vflip = bool(spec.get("vflip", 0))
+    # rotation quadrant -> 2x2 integer matrix (row-major)
+    quads = {0: (1, 0, 0, 1), 90: (0, 1, -1, 0), 180: (-1, 0, 0, -1),
+             270: (0, -1, 1, 0)}
+    a, b, c, d = quads[rot]
+    if hflip:
+        a, b = -a, -b
+    if vflip:
+        c, d = -c, -d
+    one, w16 = 0x10000, 0x40000000
+    matrix = [a * one, b * one, 0, c * one, d * one, 0, 0, 0, w16]
+    buf[mat_off:mat_off + 36] = b"".join(
+        struct.pack(">i", v) for v in matrix)
+    path.write_bytes(bytes(buf))
+    return {"op": "tkhd-rotate", "applied": True, "rot": rot,
+            "hflip": hflip, "vflip": vflip,
+            "name": spec.get("name", str(rot))}
+
+
+POST_OPS = {
+    "avi-rechunk": post_avi_rechunk,
+    "riff-size-lie": post_riff_size_lie,
+    "tkhd-rotate": post_tkhd_rotate,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -305,6 +659,63 @@ def draw_family(rng: random.Random, cls: str):
                 rng.choice(["h264+aac", "h264+mp3", "mpeg4+aac", "h264+opus"]))
     if cls == "meta-bomb-av":
         return (rng.choice(BOMB_CONTAINERS), rng.choice(["h264+aac", "mpeg4+mp3"]))
+    # ---- v4 escalation classes (W5-16) ----
+    if cls == "rot-display":
+        return (rng.choice(["mp4", "mov", "mkv"]),
+                rng.choice(["h264", "h264", "mpeg4", "mjpeg"]))
+    if cls == "odd-dims":
+        codec = rng.choices(["mpeg4", "mjpeg", "ffv1", "h264"],
+                            weights=[30, 30, 20, 20], k=1)[0]
+        cont = {"mpeg4": ["avi", "mp4", "mkv", "mov"],
+                "mjpeg": ["avi", "mov", "mp4", "mkv"],
+                "ffv1": ["avi", "mkv"],
+                "h264": ["mp4", "mkv", "mov"]}[codec]
+        return (rng.choice(cont), codec)
+    if cls == "maxtracks-avi":
+        return ("avi", "max")
+    if cls == "bframe-storm":
+        codec = rng.choice(["h264", "h264", "h264", "h265"])
+        cont = rng.choice(["mp4", "ts", "mkv", "mov"]) \
+            if codec == "h264" else rng.choice(["mp4", "ts", "mkv"])
+        return (cont, codec)
+    if cls == "packed-bs":
+        mode = rng.choices(["xvid", "mpeg4bf", "avcc"], weights=[3, 3, 4],
+                           k=1)[0]
+        if mode == "xvid":
+            return ("avi", "xvid")
+        if mode == "mpeg4bf":
+            return (rng.choice(["avi", "mp4"]), "mpeg4bf")
+        return (rng.choice(["mp4", "mov"]), "avcc")
+    if cls == "param-midchange":
+        codec = rng.choice(["h264", "h264", "mpeg2video", "mpeg4"])
+        return (rng.choice(["ts", "mp4", "mkv"]), codec)
+    if cls == "vbv-burst":
+        return (rng.choice(["mp4", "mkv", "ts"]),
+                rng.choice(["h264", "mpeg4", "mpeg2video"]))
+    if cls == "fps-extremes":
+        return (rng.choice(["mp4", "mkv", "ts", "avi", "mov"]),
+                rng.choice(["h264", "mpeg4", "mjpeg"]))
+    if cls == "sr-chaos":
+        codec = rng.choices(["pcm_s16le", "pcm_f32le", "pcm_s24le",
+                             "flac", "alac"], weights=[4, 3, 2, 3, 2], k=1)[0]
+        return (rng.choice(AUDIO_CODECS[codec]["cont"]), codec)
+    if cls == "chapter-bomb":
+        return (rng.choice(["mkv", "mp4"]),
+                rng.choice(["h264+aac", "mpeg4+aac", "h264+mp3"]))
+    if cls == "zeroframe-stream":
+        return (rng.choice(["mkv", "ts"]), rng.choice(["h264+aac",
+                                                          "mpeg4+aac"]))
+    if cls == "still-24h":
+        return (rng.choice(["mp4", "mkv", "mov"]),
+                rng.choice(["h264", "mjpeg", "mpeg4"]))
+    if cls == "riff-size-lie":
+        return ("avi", rng.choice(["mjpeg+pcm_s16le", "mpeg4+pcm_u8",
+                                    "mjpeg+pcm_u8"]))
+    if cls == "odd-chunk-avi":
+        return ("avi", rng.choice(["mjpeg+pcm_s16le", "mpeg4+pcm_u8",
+                                    "mjpeg+pcm_u8"]))
+    if cls == "hevc-in-avi":
+        return ("avi", "h265")
     raise ValueError(cls)
 
 
@@ -335,7 +746,11 @@ def random_features(rng: random.Random, cls: str, family: tuple) -> dict:
 
 
 def est_bytes(params: dict) -> int:
-    """Deterministic plan-time size estimate (budget gate)."""
+    """Deterministic plan-time size estimate (budget gate).  v4 builders
+    with pathological geometry (maxtracks, rechunk blow-up, chapter bombs,
+    ~24 h stills) carry a builder-computed `est_hint` that wins here."""
+    if params.get("est_hint"):
+        return int(params["est_hint"])
     w = params.get("width") or 64
     h = params.get("height") or 64
     dur = params.get("duration") or 2.0
@@ -362,7 +777,8 @@ def est_bytes(params: dict) -> int:
 class Generator:
     def __init__(self, out: Path, count: int, budget_mb: int, jobs: int,
                  seed: int, limits: dict, validate: bool,
-                 do_dirty: bool, do_garbage: bool, replay_seed: int | None):
+                 do_dirty: bool, do_garbage: bool, replay_seed: int | None,
+                 replay_tool_version: int | None = None):
         self.out = out
         self.media = out / "media"
         self.count = count
@@ -375,6 +791,11 @@ class Generator:
         self.do_dirty = do_dirty
         self.do_garbage = do_garbage
         self.replay_seed = replay_seed
+        # v3 replay-compat: replaying a pre-v4 manifest restricts the
+        # drawable universe to the v3 classes so the recorded seed
+        # reproduces the exact corpus the v3 tool drew.
+        self.replay_v3 = bool(replay_seed is not None
+                              and (replay_tool_version or 4) < 4)
         self.encoders: set[str] = set()
         self.caps: dict = {}
         self.files: list[dict] = []
@@ -388,14 +809,20 @@ class Generator:
     # -- planning ----------------------------------------------------------
     def draw_plan(self) -> list[dict]:
         plan: list[tuple] = []
-        for pin in STRATIFICATION:
+        pins = STRATIFICATION
+        class_weights = CLASS_WEIGHTS
+        if self.replay_v3:
+            pins = [p for p in STRATIFICATION if p[0] not in V4_CLASSES]
+            class_weights = [(c, w) for c, w in CLASS_WEIGHTS
+                             if c not in V4_CLASSES]
+        for pin in pins:
             pin = tuple(pin) + (None,) * (4 - len(pin))
             cls, family, forced_res, forced_feats = pin[:4]
             plan.append((cls, tuple(family), forced_res, forced_feats))
         for res in MANDATORY_RESOLUTIONS:
             plan.append(("avi-video", ("avi", "mjpeg"), res, None))
-        classes = [c for c, _ in CLASS_WEIGHTS]
-        weights = [w for _, w in CLASS_WEIGHTS]
+        classes = [c for c, _ in class_weights]
+        weights = [w for _, w in class_weights]
         guard = 0
         while len(plan) < self.count and guard < self.count * 4:
             plan.append((self.rng.choices(classes, weights=weights, k=1)[0],
@@ -421,20 +848,28 @@ class Generator:
                 rel = f"hls/{idx:04d}/master.m3u8"
                 ext = "m3u8"
             else:
-                if cls in ("audio-only", "cover-audio"):
+                if cls in ("audio-only", "cover-audio", "sr-chaos"):
                     ext = AUDIO_CONTAINERS.get(fam[0], CONTAINERS.get(fam[0], {"ext": "bin"}))["ext"]
                 elif cls == "raw-video":
                     ext = RAW_VIDEO_TARGETS[fam[1]]["ext"]
                 else:
                     ext = CONTAINERS[fam[0]]["ext"]
                 stem = f"{idx:04d}-{cls}"
-                rel = f"media/{stem}.{ext}"
+                if cls in DIRTY_CLASSES:
+                    # lies by construction — live with the derived dirty
+                    # files, excluded from the clean ffprobe gate
+                    rel = f"dirty/{stem}.{ext}"
+                else:
+                    rel = f"media/{stem}.{ext}"
             built = builder(erng, self.ctx, fam, forced_res, feats)
             if built is None:
                 self.rejected.append({"idx": idx, "family": list(fam),
                                       "reason": "unsupported-draw"})
                 continue
-            argvs, params, aux = built
+            if len(built) == 4:
+                argvs, params, aux, post = built
+            else:
+                argvs, params, aux, post = *built, []
             est = est_bytes(params)
             if self.bytes_planned + est > self.budget:
                 self.rejected.append({"idx": idx, "family": list(fam),
@@ -446,6 +881,7 @@ class Generator:
                             "argvs": argvs, "params": params,
                             "aux": [{"name": n, "b64": base64.b64encode(b).decode()}
                                     for n, b in (aux or [])],
+                            "post": post or [],
                             "aux_seed": aux_seed, "est": est})
         return entries
 
@@ -501,6 +937,22 @@ class Generator:
                                   "params": entry["params"]})
             target.unlink(missing_ok=True)
             return None
+        # v4 byte-level post-ops (rechunk / riff lies / tkhd rotation):
+        # applied to the finished file BEFORE harvest + validation.  The
+        # per-entry erng makes pad bytes deterministic (replay-safe).
+        post_notes = []
+        for spec in entry.get("post") or []:
+            fn = POST_OPS.get(spec.get("op"))
+            if fn is None:
+                post_notes.append({"op": spec.get("op"), "applied": False,
+                                   "reason": "unknown-op"})
+                continue
+            erng = random.Random(entry.get("aux_seed", 0))
+            try:
+                post_notes.append(fn(target, spec, erng))
+            except (OSError, ValueError, struct.error) as e:
+                post_notes.append({"op": spec.get("op"), "applied": False,
+                                   "reason": f"{type(e).__name__}: {e}"})
         # harvest
         if entry["cls"] == "hls-av":
             segs = sorted(p for p in target_dir.iterdir() if p.is_file())
@@ -525,6 +977,8 @@ class Generator:
         }
         if seg_list is not None:
             rec["segments"] = seg_list
+        if post_notes:
+            rec["post"] = post_notes
         return rec
 
     def _validate(self, path: Path):
@@ -603,7 +1057,7 @@ class Generator:
         dirty_dir = self.out / "dirty"
         dirty_dir.mkdir(parents=True, exist_ok=True)
         clean = [f for f in self.files if f["class"] not in
-                 ("dirty", "dirty-lie-ext", "garbage")]
+                 {"dirty", "dirty-lie-ext", "garbage"} | DIRTY_CLASSES]
         n_dirty = max(6, int(len(clean) * self.rng.uniform(0.14, 0.22)))
         picks = self.rng.sample(clean, min(n_dirty, len(clean)))
         for i, entry in enumerate(picks):
@@ -782,7 +1236,9 @@ class Generator:
     def write_manifest(self, final: bool = False) -> None:
         manifest = {
             "generator": "tools/corpus/gen_corpus.py",
-            "tool_version": 3,
+            "tool_version": 4,
+            "schema_note": "v4 = v3 keys + per-file 'post' notes + v4 "
+                           "classes/probes; v3 manifests replay unchanged",
             "seed": self.seed,
             "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
             "count": len(self.files),
@@ -804,7 +1260,17 @@ class Generator:
 def main() -> int:
     global FFMPEG, FFPROBE
     ap = argparse.ArgumentParser(
-        description="Lumen randomized real-media corpus generator v3")
+        description="Lumen randomized real-media corpus generator v4 "
+                    "(W5-16 escalation: rot-display, odd-dims, maxtracks-avi, "
+                    "bframe-storm, packed-bs, param-midchange, vbv-burst, "
+                    "fps-extremes, sr-chaos, chapter-bomb, zeroframe-stream, "
+                    "still-24h, riff-size-lie, odd-chunk-avi, hevc-in-avi; "
+                    "29 capability probes; byte-level post-ops; manifest v3 "
+                    "join keys unchanged — v3 manifests replay unchanged)",
+        epilog="v3 classes (video/av/audio/multi/dynres/raw/fmp4/hls/cover/"
+               "multivideo/drift/meta-bomb) are unchanged; v4 adds the 15 "
+               "escalation classes above with randomized params inside "
+               "measured-encoder-feasible bounds (D-11).")
     ap.add_argument("--out", default="corpus")
     ap.add_argument("--preset", choices=list(PRESETS), default=None,
                     help="count/budget/duration bundle (default: standard)")
@@ -833,10 +1299,16 @@ def main() -> int:
     out = Path(args.out).resolve()
     seed = args.seed
     replay_seed = None
+    replay_tool_version = None
     if args.replay:
         man = json.loads(Path(args.replay).read_text())
         seed = man.get("seed")
         replay_seed = seed
+        replay_tool_version = man.get("tool_version") or 1
+        if replay_tool_version < 4:
+            print(f"[replay] v{replay_tool_version} manifest: drawable "
+                  f"universe restricted to v3 classes (bit-exact replay)",
+                  flush=True)
         print(f"[replay] re-running corpus seed {seed} verbatim", flush=True)
     if (out / "plan.json").is_file() and seed is None \
             and (out / "manifest.json").is_file():
@@ -857,7 +1329,7 @@ def main() -> int:
 
     gen = Generator(out, count, budget, args.jobs, seed, limits,
                     not args.no_validate, not args.no_dirty,
-                    not args.no_garbage, replay_seed)
+                    not args.no_garbage, replay_seed, replay_tool_version)
     gen.run()
     return 0
 

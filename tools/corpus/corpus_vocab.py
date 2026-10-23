@@ -1,5 +1,5 @@
 """corpus_vocab.py — the randomized feature universe for Lumen's adversarial
-corpus generator (v3, industrial grade).
+corpus generator (v4, escalation).
 
 Nothing in this file is a "decision" — it is the BOUNDS of what is drawable.
 Every concrete value (resolution, fps, gop structure, bitrate, SAR, subtitle
@@ -19,6 +19,20 @@ v3 additions over v2 (user directive 2026-10-23, "industrial grade"):
   * long-duration drift probes (DAC/clock drift measurement)
   * metadata bombs (bounded, 1-64 KiB tag values)
   * extended corruption + garbage catalogs
+
+v4 additions (user directive, W5-16 "break the player" escalation):
+  * display-matrix rotation/flip transforms (encoder-assisted copy route +
+    tkhd byte patch route) on mp4/mov/mkv
+  * odd/sub-16 dimension pools with odd-preserving lavfi sources
+  * max-track AVI stream storms (16-32 mixed video/audio/data streams)
+  * B-frame storm / packed-bitstream / AVCDecoderConfiguration oddity pools
+  * mid-stream parameter-change ladders + VBV burst profiles
+  * fps extremes (1 fps slideshow <-> 240 fps burst)
+  * audio sample-rate chaos (8000..384000 Hz) + odd channel layouts
+  * chapter bombs (1000-3000 chapters)
+  * zero-frame video tracks, single-frame ~24 h stills
+  * dirty-class additions: RIFF size lies, 1-byte-payload AVI re-chunking
+    with JUNK pad storms, and the HEVC-in-AVI bait-and-switch tag lie
 """
 
 from __future__ import annotations
@@ -256,6 +270,12 @@ CLASS_WEIGHTS = [
     ("ogv-video", 1), ("dynres-video", 3), ("raw-video", 3), ("fmp4-video", 3),
     ("hls-av", 2), ("cover-audio", 2), ("multivideo-av", 2), ("drift-av", 2),
     ("meta-bomb-av", 1),
+    # ---- v4 escalation classes (W5-16) ----
+    ("odd-dims", 3), ("bframe-storm", 2), ("packed-bs", 2),
+    ("rot-display", 2), ("param-midchange", 2), ("vbv-burst", 2),
+    ("fps-extremes", 2), ("sr-chaos", 2), ("chapter-bomb", 1),
+    ("maxtracks-avi", 1), ("zeroframe-stream", 1), ("still-24h", 1),
+    ("odd-chunk-avi", 1), ("riff-size-lie", 1), ("hevc-in-avi", 1),
 ]
 
 # Every (class, family[, forced_res, forced_features]) pin below MUST appear
@@ -299,6 +319,30 @@ STRATIFICATION = [
     ("multivideo-av", ("mkv", "h264+vp9+aac")),
     ("drift-av", ("mkv", "h264+aac")), ("drift-av", ("mp4", "h264+aac")),
     ("meta-bomb-av", ("mkv", "h264+aac")), ("meta-bomb-av", ("mp4", "h264+aac")),
+    # ---- v4 escalation pins (W5-16) — every family below was probed green
+    # ---- on ffmpeg 7.1.5 before pinning (see README §9 v4 realities) ----
+    ("rot-display", ("mp4", "h264"), None, {"rotation": "90"}),
+    ("rot-display", ("mkv", "h264"), None, {"rotation": "180"}),
+    ("odd-dims", ("avi", "mpeg4"), None, {"dims": [1, 1]}),
+    ("odd-dims", ("avi", "mjpeg"), None, {"dims": [33, 17]}),
+    ("maxtracks-avi", ("avi", "max")),
+    ("bframe-storm", ("mp4", "h264")),
+    ("bframe-storm", ("ts", "h265")),
+    ("packed-bs", ("avi", "xvid")),
+    ("packed-bs", ("mp4", "avcc")),
+    ("param-midchange", ("ts", "h264")),
+    ("param-midchange", ("mp4", "mpeg2video")),
+    ("vbv-burst", ("mp4", "h264")),
+    ("fps-extremes", ("mp4", "h264"), None, {"fps_mode": "hi"}),
+    ("fps-extremes", ("mkv", "mpeg4"), None, {"fps_mode": "lo"}),
+    ("sr-chaos", ("wav", "pcm_s16le")),
+    ("sr-chaos", ("mka", "flac")),
+    ("chapter-bomb", ("mkv", "h264+aac")),
+    ("zeroframe-stream", ("mkv", "h264+aac")),
+    ("still-24h", ("mp4", "h264")),
+    ("riff-size-lie", ("avi", "mjpeg+pcm_s16le")),
+    ("odd-chunk-avi", ("avi", "mjpeg+pcm_s16le")),
+    ("hevc-in-avi", ("avi", "h265")),
 ]
 MANDATORY_RESOLUTIONS = ["tiny16", "qcif", "vga", "ntsc", "hd720", "fhd",
                          "uhd4k", "portrait720", "square512"]
@@ -321,3 +365,90 @@ MAX_SUB_TRACKS = 2
 MAX_CHAPTERS = 12
 DRIFT_DUR_RANGE = (45.0, 110.0)
 BOMB_TAG_MAX = 65536
+
+# ---------------------------------------------------------------------------
+# v4 escalation vocabulary (W5-16).  Same rule as everything above: these are
+# BOUNDS, not decisions — every concrete value is rolled per file, and any
+# draw ffmpeg refuses lands in the rejected-draws ledger.
+# ---------------------------------------------------------------------------
+
+# Display-matrix transforms for rot-display.  (name, ccw degrees, hflip, vflip).
+# Pure rotations go through the encoder-assisted -display_rotation + copy
+# route; flip combos need the tkhd byte-patch route (ffmpeg 7.1.5 refuses
+# -display_hflip/-display_vflip as CLI options — measured, README §9).
+ROT_TRANSFORMS = [
+    ("90", 90, 0, 0), ("180", 180, 0, 0), ("270", 270, 0, 0),
+    ("hflip", 0, 1, 0), ("vflip", 0, 0, 1),
+    ("90+hflip", 90, 1, 0), ("90+vflip", 90, 0, 1), ("180+hflip", 180, 1, 0),
+]
+
+# Odd-dimension pools.  Sub-16 and small-odd are separate draw ranges; the
+# canonical (1,1)/(7,13)/(33,17)/(99,101) shapes arrive via stratification
+# pins and random draws alike.  Sources MUST be odd-preserving: testsrc2
+# rounds odd sizes down to even internally (1x1 even fails as 0x0 — measured).
+ODD_SOURCES = ["color", "rgbtestsrc", "smptebars", "gradients", "testsrc",
+               "nullsrc"]
+ODD_DIM_SUB16 = (1, 15)    # inclusive odd range
+ODD_DIM_SMALL = (17, 101)  # inclusive odd range
+
+# Max-track AVI storms: stream count range and per-stream pools.
+MAXTRACKS_RANGE = (16, 32)
+MAXTRACKS_DATA_STREAMS = (0, 2)   # data streams via `-f data` aux bins
+MAXTRACKS_AUDIO_RATES = [4000, 5512, 8000, 11025]
+
+# B-frame storm: consecutive b-frame counts (x265 capped at 4 by its
+# lookahead, v3 reality #2).
+BFRAME_STORM_H264 = (3, 16)
+BFRAME_STORM_H265 = (3, 4)
+
+# packed-bs: AVCDecoderConfiguration oddity pools (profile -> sane levels).
+AVCC_PROFILES = {
+    "baseline": [10, 11, 12, 13, 20, 21, 22, 30],
+    "main": [10, 11, 12, 13, 20, 21, 22, 30, 31, 32, 40, 41],
+    "high": [10, 11, 12, 13, 20, 21, 22, 30, 31, 32, 40, 41, 42,
+             50, 51, 52, 60, 61, 62],
+}
+
+# param-midchange: per-segment bitrate pools (lo vs hi are the point).
+MIDCHANGE_LO_KBPS = (30, 120)
+MIDCHANGE_HI_KBPS = (900, 4000)
+
+# vbv-burst: default (floor) vs spike pools, VBV buffer drawn small relative
+# to the spike so the burst actually lands.
+VBV_FLOOR_KBPS = (24, 80)
+VBV_SPIKE_KBPS = (1500, 6000)
+VBV_BUF_KB = (8, 120)
+
+# fps-extremes.
+FPS_EXTREME_LO = [1, 1, 2]
+FPS_EXTREME_HI = [120, 180, 240]
+
+# sr-chaos: hostile sample rates + odd channel layouts (layout, channels).
+# The pan filter needs exactly N `cN=c0` specs — counts are per-layout truth.
+SR_CHAOS_RATES = [5512, 8000, 11025, 16000, 22050, 37800, 44056, 47250,
+                  176400, 192000, 384000]
+ODD_LAYOUTS = [
+    ("2.1", 3), ("3.0", 3), ("4.0", 4), ("quad", 4), ("5.0", 5),
+    ("5.1", 6), ("hexagonal", 6), ("6.1", 7), ("7.1", 8), ("octagonal", 8),
+    ("downmix", 2), ("22.2", 24),
+]
+
+# chapter-bomb / still-24h / riff-size-lie / odd-chunk-avi / hevc-in-avi.
+CHAPTER_BOMB_RANGE = (1000, 3000)
+STILL_HOURS_RANGE = (6, 48)          # "24h" centered by draw, bounded both ways
+STILL_SLIDE_INTERVAL = (600, 7200)   # slideshow variant: one frame per N s
+RIFF_LIE_MODES = ["oversize", "max", "tiny", "zero"]
+RECHUNK_SPLIT_POOL = [1, 1, 1, 2]    # 1-byte payload chunks dominate (the spec)
+HEVC_AVI_TAGS = ["h265", "H265", "hevc", "HEVC", "x265"]
+
+# The 15 v4 escalation classes, as a set — used by the generator's v3
+# replay-compat filter (see gen_corpus.py draw_plan): replaying a manifest
+# with tool_version < 4 restricts the drawable universe to the v3 classes,
+# so the recorded seed reproduces the exact corpus the v3 tool drew (the v4
+# pins/weights would otherwise perturb the RNG stream).
+V4_CLASSES = {
+    "rot-display", "odd-dims", "maxtracks-avi", "bframe-storm", "packed-bs",
+    "param-midchange", "vbv-burst", "fps-extremes", "sr-chaos",
+    "chapter-bomb", "zeroframe-stream", "still-24h", "riff-size-lie",
+    "odd-chunk-avi", "hevc-in-avi",
+}
