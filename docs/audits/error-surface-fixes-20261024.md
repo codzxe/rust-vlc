@@ -77,9 +77,13 @@ shrink).
   (3 ignored pre-existing), includes the 4 new fixture tests.
 - `cargo clippy -p xtask --all-targets` → clean (0 warnings).
 - `cargo fmt -p xtask` → applied.
-- Four-crate suites (F-1/F-2/F-3/F-4 owners): see the worklog 7-e
-  entry for the recorded numbers (`cargo test -p playback-engine -p
-  packet-queue -p input -p media-probe`).
+- Four-crate suites (F-1/F-2/F-3/F-4 owners): `cargo test -q -p
+  playback-engine -p packet-queue -p input -p media-probe` →
+  **339 passed, 0 failed across 31 suites** (incl. the new
+  `queue_policy.rs` WiredKind tests, `parked_codec_rides_the_recycle_path`,
+  and the feature-off `file_stream.rs`/`truncation.rs`/`probe_io.rs`
+  gates; run on the shared target dir, no other cargo/ffmpeg load
+  observed competing at measure time).
 
 ## Honest limits
 
