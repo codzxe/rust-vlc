@@ -1,10 +1,11 @@
 import { Navigate, Route, Routes, useParams } from "react-router-dom";
+import { PlayerScreen } from "./screens/player";
 import { ScreenPlaceholder } from "./screens/ScreenPlaceholder";
 import { TokenSandbox } from "./tokens/TokenSandbox";
 
 // Routing skeleton for the doc 08 §1.6 screen inventory. Route names are the
-// doc's [PROPOSAL] names; every screen renders an honest placeholder until
-// its Figma-exact composition card lands.
+// doc's [PROPOSAL] names. The player route is the real 4.C1 screen shell;
+// every other screen renders an honest placeholder until its card lands.
 
 function SettingsScreen() {
   const { area } = useParams();
@@ -15,7 +16,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/player" replace />} />
-      <Route path="/player" element={<ScreenPlaceholder routeKey="screen.player" />} />
+      <Route path="/player" element={<PlayerScreen />} />
       <Route
         path="/player/music"
         element={<ScreenPlaceholder routeKey="screen.player.music" />}
