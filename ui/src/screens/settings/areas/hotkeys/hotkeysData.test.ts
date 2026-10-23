@@ -13,7 +13,7 @@ interface NodeProcess {
 }
 
 async function runCheck(): Promise<number> {
-  // @ts-expect-error node builtin without @types/node (zero-dep rule)
+  // @types/node is a devDependency now; the old directive is unused.
   const cp = (await import("node:child_process")) as NodeChildProcess;
   const proc = (globalThis as unknown as { process: NodeProcess }).process;
   try {

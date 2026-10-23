@@ -32,11 +32,10 @@ interface NodeProcess {
 }
 
 async function loadNode() {
-  // @ts-expect-error node builtin without @types/node (zero-dep rule)
+  // @types/node is now a devDependency (F4/G1 tooling required it), so the
+  // old zero-dep @ts-expect-error directives are unused and were removed.
   const fs = (await import("node:fs")) as NodeFs;
-  // @ts-expect-error node builtin without @types/node (zero-dep rule)
   const os = (await import("node:os")) as NodeOs;
-  // @ts-expect-error node builtin without @types/node (zero-dep rule)
   const cp = (await import("node:child_process")) as NodeChildProcess;
   const proc = (globalThis as unknown as { process: NodeProcess }).process;
   return { fs, os, cp, proc };

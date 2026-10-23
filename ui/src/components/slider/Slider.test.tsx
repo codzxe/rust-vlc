@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-// @ts-expect-error node:fs is untyped in ui/ (no @types/node; zero-new-deps rule, card 4.B1).
+// @types/node is a devDependency since F4/G1; directive removed.
 import { readFileSync } from "node:fs";
 import { createRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
