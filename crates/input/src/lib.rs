@@ -15,9 +15,13 @@
 //!   doc 01 §2.4 assigns to this crate) and the raw [`FileSource`] it
 //!   wraps.
 //! - [`buffered`] — [`BufferedReader`]: the fixed-capacity, bounded-memory
-//!   reader. Its buffer is allocated once and never grows; read requests
-//!   larger than the capacity are streamed through it in capacity-sized
-//!   chunks, and requests above a hard ceiling are refused with a typed
+//!   reader. Its buffer is allocated once and never grows; small reads
+//!   are served from the window with read-ahead locality, while requests
+//!   at or above the capacity (the demux arena's payload class, 7-c
+//!   part 2) bypass the window — leftover read-ahead drains first, then
+//!   the source is asked directly for the remainder in caller-visible
+//!   memory (one transfer instead of `want / capacity` window refills),
+//!   and requests above a hard ceiling are refused with a typed
 //!   `ResourceLimit` error (MP §12: bound memory).
 //! - [`seekable`] — the [`Seekable`] trait (position/length/typed seek)
 //!   and the [`RawRead`] chunk primitive the reader is generic over.
