@@ -1,0 +1,198 @@
+{
+ "corpus": "/tmp/corpus-w7b",
+ "repeat": 1,
+ "runners": [
+  "ffmpeg",
+  "lumen"
+ ],
+ "per_file": [
+  {
+   "rel": "media/0001-avi-video.avi",
+   "class": "avi-video",
+   "bytes": 8089236,
+   "frames": 133,
+   "dur_s": 2.216667,
+   "ffmpeg": {
+    "ok": true,
+    "wall_best": 2.5057381760000226,
+    "wall_median": 2.5057381760000226,
+    "cpu_best": 1.2837589999999999,
+    "n": 1,
+    "fps": 53.07817124465553,
+    "realtime_x": 0.8846363204389237
+   },
+   "lumen": {
+    "ok": true,
+    "wall_best": 1.9831520139998702,
+    "wall_median": 1.9831520139998702,
+    "cpu_best": 0.9184110000000003,
+    "n": 1,
+    "fps": 67.06495470901844,
+    "realtime_x": 1.1177494132329007
+   }
+  },
+  {
+   "rel": "media/0011-avi-video.avi",
+   "class": "avi-video",
+   "bytes": 835120,
+   "frames": 647,
+   "dur_s": 10.783333,
+   "ffmpeg": {
+    "ok": true,
+    "wall_best": 0.2994003370001792,
+    "wall_median": 0.2994003370001792,
+    "cpu_best": 0.16157100000000035,
+    "n": 1,
+    "fps": 2160.9862115806927,
+    "realtime_x": 36.016435746341685
+   },
+   "lumen": {
+    "ok": false,
+    "dnf": true,
+    "rc": 65
+   }
+  },
+  {
+   "rel": "media/0012-avi-video.avi",
+   "class": "avi-video",
+   "bytes": 151110,
+   "frames": 186,
+   "dur_s": 3.72,
+   "ffmpeg": {
+    "ok": true,
+    "wall_best": 0.2041572799998903,
+    "wall_median": 0.2041572799998903,
+    "cpu_best": 0.06939399999999996,
+    "n": 1,
+    "fps": 911.0622947175822,
+    "realtime_x": 18.221245894351643
+   },
+   "lumen": {
+    "ok": true,
+    "wall_best": 0.01876650300005167,
+    "wall_median": 0.01876650300005167,
+    "cpu_best": 0.005033000000000065,
+    "n": 1,
+    "fps": 9911.276490856495,
+    "realtime_x": 198.2255298171299
+   }
+  },
+  {
+   "rel": "media/0013-avi-video.avi",
+   "class": "avi-video",
+   "bytes": 1804538,
+   "frames": 126,
+   "dur_s": 2.1,
+   "ffmpeg": {
+    "ok": true,
+    "wall_best": 0.9940016149998883,
+    "wall_median": 0.9940016149998883,
+    "cpu_best": 0.3049489999999997,
+    "n": 1,
+    "fps": 126.7603574265965,
+    "realtime_x": 2.1126726237766085
+   },
+   "lumen": {
+    "ok": true,
+    "wall_best": 1.5078020809999089,
+    "wall_median": 1.5078020809999089,
+    "cpu_best": 0.7254380000000005,
+    "n": 1,
+    "fps": 83.5653442767782,
+    "realtime_x": 1.3927557379463034
+   }
+  },
+  {
+   "rel": "media/0019-avi-video.avi",
+   "class": "avi-video",
+   "bytes": 89220,
+   "frames": 146,
+   "dur_s": 5.84,
+   "ffmpeg": {
+    "ok": true,
+    "wall_best": 0.210762337999995,
+    "wall_median": 0.210762337999995,
+    "cpu_best": 0.09542200000000012,
+    "n": 1,
+    "fps": 692.7233840042308,
+    "realtime_x": 27.708935360169228
+   },
+   "lumen": {
+    "ok": false,
+    "dnf": true,
+    "rc": 65
+   }
+  },
+  {
+   "rel": "media/0017-avi-video.avi",
+   "class": "avi-video",
+   "bytes": 69827792,
+   "frames": 95,
+   "dur_s": 3.958333,
+   "ffmpeg": {
+    "ok": true,
+    "wall_best": 2.0210456840000006,
+    "wall_median": 2.0210456840000006,
+    "cpu_best": 0.9888560000000002,
+    "n": 1,
+    "fps": 47.00536991918881,
+    "realtime_x": 1.958556915035078
+   },
+   "lumen": {
+    "ok": true,
+    "wall_best": 4.201839498000027,
+    "wall_median": 4.201839498000027,
+    "cpu_best": 1.9378620000000009,
+    "n": 1,
+    "fps": 22.609145362457962,
+    "realtime_x": 0.9420476441054139
+   }
+  },
+  {
+   "rel": "media/0026-avi-video.avi",
+   "class": "avi-video",
+   "bytes": 1493842,
+   "frames": 28,
+   "dur_s": 2.8,
+   "ffmpeg": {
+    "ok": true,
+    "wall_best": 0.2568016410000382,
+    "wall_median": 0.2568016410000382,
+    "cpu_best": 0.09785100000000213,
+    "n": 1,
+    "fps": 109.0335711678565,
+    "realtime_x": 10.903357116785648
+   },
+   "lumen": {
+    "ok": true,
+    "wall_best": 0.3641517930000191,
+    "wall_median": 0.3641517930000191,
+    "cpu_best": 0.14353899999999875,
+    "n": 1,
+    "fps": 76.89101231474241,
+    "realtime_x": 7.6891012314742415
+   }
+  },
+  {
+   "rel": "media/0027-avi-video.avi",
+   "class": "avi-video",
+   "bytes": 33150432,
+   "frames": 123,
+   "dur_s": 4.92,
+   "ffmpeg": {
+    "ok": true,
+    "wall_best": 0.5959171490001154,
+    "wall_median": 0.5959171490001154,
+    "cpu_best": 0.3441989999999997,
+    "n": 1,
+    "fps": 206.40453158023848,
+    "realtime_x": 8.25618126320954
+   },
+   "lumen": {
+    "ok": false,
+    "dnf": true,
+    "rc": 65
+   }
+  }
+ ]
+}
