@@ -586,3 +586,48 @@ key nav have NO keymap data in doc 05 yet — gap for a future card, not
 invented here. (3) C3 overlays already announce (role=status/alert);
 player/music + miniplayer routes are still placeholders (axe-green but
 trivially so — rescan when 4.G2+ land real variants).
+
+## 4.H3 — Localization completion (agent P4-H3)
+
+State: DONE (l10n gate + pseudo locale + proofs green).
+
+`npm run l10n:check` (ui/scripts/l10n-check.mjs, zero-dep): 472 MessageKeys
+vs 472 en-US strings — missing 0, duplicates 0, orphans 0; doc 07 §6.1 key
+grammar + §6.2 placeholder grammar enforced (UI catalog currently carries 0
+placeholders — grammar wired for future keys); i18n-allowlist.json shape
+validated (5 entries, all with reasons). One real fix: `settings.locale.en-US`
+→ `settings.locale.en-us` (kebab-case grammar violation; consumer locales.ts
+updated). eslint `lumen/i18n-no-literals` already bans JSX text +
+aria-label/alt/title attribute literals (green, 0 errors); no non-JSX
+user-visible literals found in .ts data files.
+
+Pseudo locale: `ui/src/i18n/pseudo.ts` — deterministic en-US transform
+(bracket-wrapped, accented/tall glyphs, ≥1.5× lengthening; doc 07 §6.2
+placeholders + `{{ }}` escapes preserved verbatim via brace-depth masking).
+Selected via `setActiveLocale("pseudo")` in messages.ts (en-US fallback keeps
+the doc 07 §6.3 chain total) — NOT a locales/ pack (picker lists real
+catalogs only). Bootstrap hook: `?locale=pseudo` in main.tsx — the ONLY
+override point; G1/G2 harness passes the param from outside (no harness
+internals touched). Proofs: (a) vitest render of player/music/playlist/
+settings/onboarding/media-info/not-found under pseudo — no crash, no
+`undefined`/`missing:` fallback, bracketed headings (13 i18n tests green,
+full suite 548/548); (b) clipping probe `ui/scripts/l10n-pseudo-probe.mjs`
+(real Chromium 1280×720, dev server): pageOverflowX=0 and ellipsized text
+count 0 on all five key routes — no layout breakout, no truncation at 1.5×
+length (screenshots in /home/z/pseudo-probe/, env-specific, not committed).
+
+Generated docs + CLI --help: mechanisms exist and verified in sync, no
+drift, nothing to commit — `cargo xtask codegen --check` (61 commands /
+23 events) and `cargo xtask schema-gen --check` (27 entries, 6 screens)
+both green; ui-side `settings:check` / `tokens:check` / `hotkeys:check`
+green. CI: l10n:check added to .github/workflows/ui.yml as keep-going step
+3 (Lead-owned file — minimal additive edit, Lead reviews at merge).
+
+Handoffs: (1) Lead — confirm ui.yml step-3 insertion (numbering 3→5
+updated); (2) local sandbox node_modules lacks @axe-core/playwright (in
+package-lock; devDeps of 4.F4) so `tsc --noEmit` shows 5 pre-existing
+e2e/a11y.spec.ts errors here that CI's `npm ci` will not; (3) formal
+pixel-matrix pseudo screenshots remain with G1/G2 — append `&locale=pseudo`
+to their URLs when the matrix is free; (4) real locale packs (de, pt-BR…)
++ the crates/localization runtime pipeline stay per doc 07 §6 (out of
+scope).

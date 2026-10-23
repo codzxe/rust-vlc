@@ -18,7 +18,7 @@ export const REFERENCE_LOCALE = "en-US";
 
 /** Catalog label msgids per locale tag (raw tag shown when copy is missing). */
 const LOCALE_LABEL_MSGIDS: Readonly<Record<string, MessageKey>> = {
-  "en-US": "settings.locale.en-US",
+  "en-US": "settings.locale.en-us",
 };
 
 /** Human label for a locale tag — the tag itself when no catalog copy exists. */

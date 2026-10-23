@@ -80,11 +80,18 @@ jobs:
         if: always()
         run: npm run lint
 
-      - name: "3. unit tests (vitest)"
+      # Added by card 4.H3 (agent P4-H3): l10n catalog gate — en-US 100%
+      # key coverage, no duplicates, doc 07 §6.1 key grammar + §6.2
+      # placeholder grammar, allowlist shape. Lead reviews at merge.
+      - name: "3. l10n catalog check"
+        if: always()
+        run: npm run l10n:check
+
+      - name: "4. unit tests (vitest)"
         if: always()
         run: npm run test
 
-      - name: "4. e2e smoke (playwright, chromium)"
+      - name: "5. e2e smoke (playwright, chromium)"
         if: always()
         run: |
           npx playwright install --with-deps chromium

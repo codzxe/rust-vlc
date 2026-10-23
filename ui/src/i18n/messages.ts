@@ -5,6 +5,14 @@
 // bans raw JSX literals. The real generated locale packs arrive with the i18n
 // pipeline (doc 07); this hand-written table is the scaffold stand-in and
 // every entry honestly labels its screen as a placeholder.
+//
+// Card 4.H3 adds the locale-selection seam: `setActiveLocale("pseudo")`
+// switches useMsg() to a deterministic transform of this catalog (./pseudo.ts)
+// for clipping/hardcode proofs. Integrity (coverage, duplicates, key grammar,
+// placeholder grammar) is gated by `npm run l10n:check`
+// (ui/scripts/l10n-check.mjs).
+
+import { PSEUDO_LOCALE_TAG, toPseudo } from "./pseudo";
 
 export type MessageKey =
   | "screen.player"
@@ -292,7 +300,7 @@ export type MessageKey =
   | "settings.hotkeys.apply"
   | "settings.hotkeys.revert"
   | "settings.hotkeys.defaults-note"
-  | "settings.locale.en-US"
+  | "settings.locale.en-us"
   | "settings.appearance.theme-note"
   | "hotkeys.about"
   | "hotkeys.advanced-controls"
@@ -497,7 +505,9 @@ export type MessageKey =
   | "onboarding.progress.label"
   | "onboarding.progress.of";
 
-const messages: Readonly<Record<MessageKey, string>> = {
+// The en-US reference catalog (doc 07 §6.3) — exported for the pseudo
+// generator, tests, and l10n tooling.
+export const messages: Readonly<Record<MessageKey, string>> = {
   "screen.player": "Player",
   "screen.player.music": "Music player (placeholder)",
   "screen.miniplayer": "Miniplayer (placeholder)",
@@ -781,7 +791,7 @@ const messages: Readonly<Record<MessageKey, string>> = {
   "settings.hotkeys.apply": "Apply",
   "settings.hotkeys.revert": "Revert",
   "settings.hotkeys.defaults-note": "Bindings are seeded from the default keymap (keymaps/default.toml).",
-  "settings.locale.en-US": "English (United States)",
+  "settings.locale.en-us": "English (United States)",
   "settings.appearance.theme-note": "Theme changes apply instantly for preview.",
   "hotkeys.about": "About",
   "hotkeys.advanced-controls": "Advanced Controls",
@@ -997,6 +1007,30 @@ const messages: Readonly<Record<MessageKey, string>> = {
 
 export type Msg = (key: MessageKey) => string;
 
+// --- locale selection (card 4.H3) ------------------------------------------
+// en-US is the reference catalog (doc 07 §6.3); `pseudo` is GENERATED from
+// it at module load (never a second hand-written catalog — no drift). The
+// real locale-pack pipeline (doc 07 §6, crates/localization) replaces this
+// scaffold switch; the hook shape stays so call sites do not change.
+export type LocaleTag = "en-US" | typeof PSEUDO_LOCALE_TAG;
+
+const pseudoCatalog: Readonly<Record<MessageKey, string>> = Object.fromEntries(
+  (Object.entries(messages) as [MessageKey, string][]).map(([k, v]) => [k, toPseudo(v)]),
+) as Readonly<Record<MessageKey, string>>;
+
+let active: LocaleTag = "en-US";
+
+/** Select the active catalog ("en-US" | "pseudo"). Unknown tags fall back to
+ * the reference catalog — selection can never crash rendering (doc 07 §6.3). */
+export function setActiveLocale(tag: string): void {
+  active = tag === PSEUDO_LOCALE_TAG ? PSEUDO_LOCALE_TAG : "en-US";
+}
+
+/** The currently selected catalog tag (test/bootstrap introspection). */
+export function activeLocale(): LocaleTag {
+  return active;
+}
+
 /** Runtime guard for config-provided label keys (doc 07 §7.2 validator rule:
  * every `label_key` must resolve — the consumption side fails loudly on an
  * unknown key instead of rendering an empty label). */
@@ -1007,5 +1041,9 @@ export function isMessageKey(key: string): key is MessageKey {
 // Scaffold stand-in for the generated i18n hook. Hook-shaped on purpose so
 // call sites do not change when the real locale-pack implementation lands.
 export function useMsg(): Msg {
-  return (key) => messages[key];
+  const catalog: Readonly<Record<MessageKey, string>> =
+    active === PSEUDO_LOCALE_TAG ? pseudoCatalog : messages;
+  // Fallback to the reference catalog keeps the doc 07 §6.3 chain total —
+  // a missing entry can never render `undefined`.
+  return (key) => catalog[key] ?? messages[key];
 }
