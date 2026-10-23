@@ -95,7 +95,8 @@ fn backend_surface_is_zero_allocation_after_warm_up() {
         let guard = ALLOC.state().guard();
         for i in 0..ticks {
             // The video master: interpolate, steer, read, drain.
-            wall.0.store(u64::try_from(i).unwrap_or(0) * 1_000_000, Ordering::Relaxed);
+            wall.0
+                .store(u64::try_from(i).unwrap_or(0) * 1_000_000, Ordering::Relaxed);
             let position = clock.now();
             let _ = clock.try_now();
             let _ = clock.snapshot();
@@ -132,7 +133,10 @@ fn backend_surface_is_zero_allocation_after_warm_up() {
         let _ = clock.on_master_lost(MasterStream::Video);
         assert_eq!(clock.master(), media_clock::ClockMaster::FreeRunning);
         for i in 0..ticks {
-            wall.0.store(10_000_000_000 + u64::try_from(i).unwrap_or(0), Ordering::Relaxed);
+            wall.0.store(
+                10_000_000_000 + u64::try_from(i).unwrap_or(0),
+                Ordering::Relaxed,
+            );
             let _ = clock.now();
             let _ = clock.try_now();
             let _ = clock.snapshot();
@@ -141,12 +145,16 @@ fn backend_surface_is_zero_allocation_after_warm_up() {
         let snap = clock.mark_ended();
         assert_eq!(snap.state, media_clock::ClockState::Ended);
         let _ = clock.is_ended();
-        let re_armed = clock.seek_back(ts(42)).unwrap_or_else(|e| unreachable!("{e}"));
+        let re_armed = clock
+            .seek_back(ts(42))
+            .unwrap_or_else(|e| unreachable!("{e}"));
         assert_eq!(re_armed.state, media_clock::ClockState::Paused);
         clock.resume();
         for i in 0..ticks {
-            wall.0
-                .store(20_000_000_000 + u64::try_from(i).unwrap_or(0), Ordering::Relaxed);
+            wall.0.store(
+                20_000_000_000 + u64::try_from(i).unwrap_or(0),
+                Ordering::Relaxed,
+            );
             let _ = clock.now();
         }
         while clock.take_master_change().is_some() {}

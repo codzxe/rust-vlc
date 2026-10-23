@@ -85,8 +85,8 @@ use media_types::GenerationId;
 use media_types::time::{Rate, TimeError, Timestamp};
 
 use crate::clock::{
-    Core, Extrapolation, MediaClock, Source, adopt_anchor, clock_state,
-    now_locked, position_nanos, read_source, snapshot_locked,
+    Core, Extrapolation, MediaClock, Source, adopt_anchor, clock_state, now_locked, position_nanos,
+    read_source, snapshot_locked,
 };
 use crate::mapping::NANO_BASE;
 use crate::source::{MonotonicSource, SampleCounterSource};
@@ -270,18 +270,14 @@ pub enum MasterLoss {
     /// The loss was recorded (the kind can no longer be a fallback
     /// target) but the current master was a *different* kind — no
     /// switch, no event. Stale or preemptive loss reports land here.
-    Recorded {
-        current: crate::ClockMaster,
-    },
+    Recorded { current: crate::ClockMaster },
     /// The current master's stream was lost and **nothing** wired
     /// remains to fall back to (a single-master 3.B1 clock, or a
     /// backends clock whose every other backend was already lost).
     /// The clock stays on the dead master and its position holds —
     /// frozen truth, never a fabricated seamless clock. The engine
     /// must re-anchor or rebuild.
-    NoFallback {
-        current: crate::ClockMaster,
-    },
+    NoFallback { current: crate::ClockMaster },
 }
 
 /// The engine's initial-master choice for
@@ -338,9 +334,7 @@ pub enum MasterSwitch {
         to: crate::ClockMaster,
     },
     /// The clock already runs that master — idempotent no-op.
-    Already {
-        current: crate::ClockMaster,
-    },
+    Already { current: crate::ClockMaster },
 }
 
 /// A [`MediaClock::switch_master`] refusal — typed, the clock
@@ -371,6 +365,22 @@ pub enum SeekBackError {
         target: Timestamp,
         source: TimeError,
     },
+}
+
+impl std::fmt::Display for SeekBackError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SeekBackError::NotEnded { state, position } => write!(
+                f,
+                "seek_back refused: clock is not Ended (state {state:?}, position {position}); \
+                 the Ended re-arm is a distinct terminal transition"
+            ),
+            SeekBackError::Overflow { target, source } => write!(
+                f,
+                "seek_back refused: target {target} not representable as nanoseconds ({source})"
+            ),
+        }
+    }
 }
 
 /// The outcome of a video-master steering observation (card 3.B2) —
@@ -416,38 +426,22 @@ impl WiredBackends {
     fn source_for(&self, kind: MasterKind) -> Option<Source> {
         match kind {
             MasterKind::Audio => self.audio.clone().map(Source::Samples),
-            MasterKind::External => {
-                self.external
-                    .clone()
-                    .map(|source| Source::Monotonic {
-                        source,
-                        kind: MonotonicKind::External,
-                    })
-            }
-            MasterKind::Video => {
-                self.wall
-                    .clone()
-                    .map(|source| Source::Monotonic {
-                        source,
-                        kind: MonotonicKind::VideoWall,
-                    })
-            }
-            MasterKind::Free => {
-                self.wall
-                    .clone()
-                    .map(|source| Source::Monotonic {
-                        source,
-                        kind: MonotonicKind::Free,
-                    })
-            }
-            MasterKind::System => {
-                self.wall
-                    .clone()
-                    .map(|source| Source::Monotonic {
-                        source,
-                        kind: MonotonicKind::System,
-                    })
-            }
+            MasterKind::External => self.external.clone().map(|source| Source::Monotonic {
+                source,
+                kind: MonotonicKind::External,
+            }),
+            MasterKind::Video => self.wall.clone().map(|source| Source::Monotonic {
+                source,
+                kind: MonotonicKind::VideoWall,
+            }),
+            MasterKind::Free => self.wall.clone().map(|source| Source::Monotonic {
+                source,
+                kind: MonotonicKind::Free,
+            }),
+            MasterKind::System => self.wall.clone().map(|source| Source::Monotonic {
+                source,
+                kind: MonotonicKind::System,
+            }),
         }
     }
 
@@ -704,14 +698,10 @@ impl MediaClock {
             video: backends.video,
         };
         let initial = match backends.initial {
-            InitialMaster::Auto => [
-                MasterKind::Audio,
-                MasterKind::Video,
-                MasterKind::System,
-            ]
-            .into_iter()
-            .find(|kind| wired.wired(*kind))
-            .unwrap_or(MasterKind::System),
+            InitialMaster::Auto => [MasterKind::Audio, MasterKind::Video, MasterKind::System]
+                .into_iter()
+                .find(|kind| wired.wired(*kind))
+                .unwrap_or(MasterKind::System),
             InitialMaster::Audio => MasterKind::Audio,
             InitialMaster::Video => MasterKind::Video,
             InitialMaster::External => MasterKind::External,
@@ -1081,9 +1071,7 @@ mod tests {
         Timestamp::new(ns, NANO_BASE)
     }
 
-    fn backends(
-        wall: std::sync::Arc<FakeMonotonic>,
-    ) -> ClockBackends {
+    fn backends(wall: std::sync::Arc<FakeMonotonic>) -> ClockBackends {
         ClockBackends::new(wall)
     }
 
@@ -1093,7 +1081,7 @@ mod tests {
     fn auto_picks_audio_when_wired() {
         let wall = std::sync::Arc::new(FakeMonotonic::new());
         let clock = MediaClock::with_backends(
-            backends(wall)
+            backends(wall.clone())
                 .audio(std::sync::Arc::new(FakeCounter::new(48_000)))
                 .video(true),
             ts(0),
@@ -1106,16 +1094,15 @@ mod tests {
     #[test]
     fn auto_picks_video_for_audioless_with_video() {
         let wall = std::sync::Arc::new(FakeMonotonic::new());
-        let clock =
-            MediaClock::with_backends(backends(wall).video(true), ts(0), Rate::ONE)
-                .unwrap_or_else(|e| unreachable!("{e}"));
+        let clock = MediaClock::with_backends(backends(wall.clone()).video(true), ts(0), Rate::ONE)
+            .unwrap_or_else(|e| unreachable!("{e}"));
         assert_eq!(clock.master(), VideoOutput);
     }
 
     #[test]
     fn auto_picks_system_wall_when_only_wall() {
         let wall = std::sync::Arc::new(FakeMonotonic::new());
-        let clock = MediaClock::with_backends(backends(wall), ts(0), Rate::ONE)
+        let clock = MediaClock::with_backends(backends(wall.clone()), ts(0), Rate::ONE)
             .unwrap_or_else(|e| unreachable!("{e}"));
         assert_eq!(clock.master(), SystemMonotonic);
         wall.advance_ns(1_000_000_000);
@@ -1127,7 +1114,7 @@ mod tests {
         let wall = std::sync::Arc::new(FakeMonotonic::new());
         let device = std::sync::Arc::new(FakeMonotonic::new());
         let clock = MediaClock::with_backends(
-            backends(wall)
+            backends(wall.clone())
                 .audio(std::sync::Arc::new(FakeCounter::new(48_000)))
                 .external(device.clone()),
             ts(0),
@@ -1138,7 +1125,7 @@ mod tests {
         assert_eq!(clock.master(), AudioOutput);
 
         let explicit = MediaClock::with_backends(
-            backends(wall)
+            backends(wall.clone())
                 .external(device.clone())
                 .initial(InitialMaster::External),
             ts(2_000_000_000),
@@ -1154,12 +1141,12 @@ mod tests {
     fn unwired_initial_master_is_a_typed_refusal() {
         let wall = std::sync::Arc::new(FakeMonotonic::new());
         let err = MediaClock::with_backends(
-            backends(wall).initial(InitialMaster::Audio),
+            backends(wall.clone()).initial(InitialMaster::Audio),
             ts(0),
             Rate::ONE,
         )
         .err()
-        .must("audio initial without an audio backend must refuse");
+        .must(); // audio initial without an audio backend must refuse
         assert_eq!(err.stage, media_types::PipelineStage::Control);
         assert!(matches!(
             err.kind,
@@ -1216,8 +1203,7 @@ mod tests {
                     let Some(next) = plan else {
                         // None requires nothing wired-and-unlost.
                         for kind in DEMOTION_ORDER {
-                            let available =
-                                kind.loss_bit() & lost == 0 && wired.wired(kind);
+                            let available = kind.loss_bit() & lost == 0 && wired.wired(kind);
                             assert!(
                                 !available,
                                 "wiring {wiring} lost {lost}: {kind:?} available but plan None"
@@ -1295,7 +1281,7 @@ mod tests {
         assert_eq!(clock.now().ticks, carried + 1_000_000_000);
 
         // The trail: two typed events, FIFO, correct seams.
-        let first = clock.take_master_change().must("first event");
+        let first = clock.take_master_change().must(); // first event
         assert_eq!(
             first,
             MasterChanged {
@@ -1307,7 +1293,7 @@ mod tests {
                 generation: GenerationId::FIRST,
             }
         );
-        let second = clock.take_master_change().must("second event");
+        let second = clock.take_master_change().must(); // second event
         assert_eq!(second.from, VideoOutput);
         assert_eq!(second.to, FreeRunning);
         assert_eq!(
@@ -1326,7 +1312,7 @@ mod tests {
         let wall = std::sync::Arc::new(FakeMonotonic::new());
         let device = std::sync::Arc::new(FakeMonotonic::new());
         let clock = MediaClock::with_backends(
-            backends(wall)
+            backends(wall.clone())
                 .audio(std::sync::Arc::new(FakeCounter::new(48_000)))
                 .external(device.clone())
                 .video(true),
@@ -1361,7 +1347,7 @@ mod tests {
         let wall = std::sync::Arc::new(FakeMonotonic::new());
         let counter = std::sync::Arc::new(FakeCounter::new(48_000));
         let clock = MediaClock::with_backends(
-            backends(wall).audio(counter).video(true),
+            backends(wall.clone()).audio(counter.clone()).video(true),
             ts(0),
             Rate::ONE,
         )
@@ -1369,7 +1355,9 @@ mod tests {
         // Video "ends" while audio is master: recorded, no switch.
         assert_eq!(
             clock.on_master_lost(MasterStream::Video),
-            MasterLoss::Recorded { current: AudioOutput }
+            MasterLoss::Recorded {
+                current: AudioOutput
+            }
         );
         assert_eq!(clock.master(), AudioOutput);
         assert_eq!(clock.take_master_change(), None);
@@ -1389,7 +1377,7 @@ mod tests {
     fn repeated_loss_reports_are_idempotent() {
         let wall = std::sync::Arc::new(FakeMonotonic::new());
         let clock = MediaClock::with_backends(
-            backends(wall)
+            backends(wall.clone())
                 .audio(std::sync::Arc::new(FakeCounter::new(48_000)))
                 .video(true),
             ts(0),
@@ -1399,7 +1387,9 @@ mod tests {
         let _ = clock.on_master_lost(MasterStream::Audio);
         assert_eq!(
             clock.on_master_lost(MasterStream::Audio),
-            MasterLoss::Recorded { current: VideoOutput }
+            MasterLoss::Recorded {
+                current: VideoOutput
+            }
         );
         assert_eq!(clock.master(), VideoOutput);
     }
@@ -1416,7 +1406,9 @@ mod tests {
         assert_eq!(held.ticks, 1_000_000_000);
         assert_eq!(
             clock.on_master_lost(MasterStream::Audio),
-            MasterLoss::NoFallback { current: AudioOutput }
+            MasterLoss::NoFallback {
+                current: AudioOutput
+            }
         );
         assert_eq!(clock.master(), AudioOutput);
         assert_eq!(clock.now(), held); // frozen truth, not invented time
@@ -1431,7 +1423,7 @@ mod tests {
         let wall = std::sync::Arc::new(FakeMonotonic::new());
         let counter = std::sync::Arc::new(FakeCounter::new(48_000));
         let clock = MediaClock::with_backends(
-            backends(wall).audio(counter).video(true),
+            backends(wall.clone()).audio(counter.clone()).video(true),
             ts(0),
             Rate::ONE,
         )
@@ -1461,7 +1453,7 @@ mod tests {
         fn run() -> (Vec<crate::ClockMaster>, Vec<MasterChanged>, u64) {
             let wall = std::sync::Arc::new(FakeMonotonic::new());
             let clock = MediaClock::with_backends(
-                backends(wall)
+                backends(wall.clone())
                     .audio(std::sync::Arc::new(FakeCounter::new(48_000)))
                     .external(std::sync::Arc::new(FakeMonotonic::new()))
                     .video(true),
@@ -1489,7 +1481,7 @@ mod tests {
         let wall = std::sync::Arc::new(FakeMonotonic::new());
         let counter = std::sync::Arc::new(FakeCounter::new(48_000));
         let clock = MediaClock::with_backends(
-            backends(wall).audio(counter.clone()).video(true),
+            backends(wall.clone()).audio(counter.clone()).video(true),
             ts(0),
             Rate::ONE,
         )
@@ -1503,13 +1495,15 @@ mod tests {
             })
         );
         assert_eq!(clock.now().ticks, 1_000_000_000); // carried
-        let event = clock.take_master_change().must("engine switch event");
+        let event = clock.take_master_change().must(); // engine switch event
         assert_eq!(event.reason, MasterChangeReason::EngineSwitch);
         assert_eq!(event.position.ticks, 1_000_000_000);
         // Idempotent.
         assert_eq!(
             clock.switch_master(MasterTarget::Video),
-            Ok(MasterSwitch::Already { current: VideoOutput })
+            Ok(MasterSwitch::Already {
+                current: VideoOutput
+            })
         );
         assert_eq!(clock.take_master_change(), None);
     }
@@ -1518,7 +1512,7 @@ mod tests {
     fn engine_switch_refusals_are_typed() {
         let wall = std::sync::Arc::new(FakeMonotonic::new());
         let clock = MediaClock::with_backends(
-            backends(wall)
+            backends(wall.clone())
                 .audio(std::sync::Arc::new(FakeCounter::new(48_000)))
                 .video(true),
             ts(0),
@@ -1597,7 +1591,9 @@ mod tests {
         wall.advance_ns(10_000_000);
         assert_eq!(
             clock.observe_video(ts(30_000_000)),
-            Ok(VideoSteer::Snapped { error_ns: 20_000_000 })
+            Ok(VideoSteer::Snapped {
+                error_ns: 20_000_000
+            })
         );
         assert_eq!(clock.now().ticks, 30_000_000);
 
@@ -1609,7 +1605,9 @@ mod tests {
         // monotone clamp holds until the wall catches up.
         assert_eq!(
             clock.observe_video(ts(110_000_000)),
-            Ok(VideoSteer::Snapped { error_ns: -20_000_000 })
+            Ok(VideoSteer::Snapped {
+                error_ns: -20_000_000
+            })
         );
         assert_eq!(clock.now().ticks, 130_000_000); // held
         wall.advance_ns(20_000_000);
@@ -1622,7 +1620,7 @@ mod tests {
     fn out_of_bound_frame_is_a_typed_jump_with_epoch_bump() {
         let wall = std::sync::Arc::new(FakeMonotonic::new());
         let clock = MediaClock::with_backends(
-            backends(wall).video(true).video_snap_ns(40_000_000),
+            backends(wall.clone()).video(true).video_snap_ns(40_000_000),
             ts(1_000_000_000),
             Rate::ONE,
         )
@@ -1640,7 +1638,9 @@ mod tests {
         // A visible backward jump is legal immediately after.
         assert_eq!(
             clock.observe_video(ts(1_000_000_000)),
-            Ok(VideoSteer::Jumped { error_ns: -5_000_000_000 })
+            Ok(VideoSteer::Jumped {
+                error_ns: -5_000_000_000
+            })
         );
         assert_eq!(clock.now().ticks, 1_000_000_000);
     }
@@ -1650,14 +1650,16 @@ mod tests {
         let wall = std::sync::Arc::new(FakeMonotonic::new());
         let counter = std::sync::Arc::new(FakeCounter::new(48_000));
         let clock = MediaClock::with_backends(
-            backends(wall).audio(counter.clone()).video(true),
+            backends(wall.clone()).audio(counter.clone()).video(true),
             ts(0),
             Rate::ONE,
         )
         .unwrap_or_else(|e| unreachable!("{e}"));
         assert_eq!(
             clock.observe_video(ts(1_000_000)),
-            Ok(VideoSteer::NotMaster { master: AudioOutput })
+            Ok(VideoSteer::NotMaster {
+                master: AudioOutput
+            })
         );
         // The anchor is untouched: the counter still rules.
         counter.advance_samples(48_000);
@@ -1667,12 +1669,8 @@ mod tests {
     #[test]
     fn steering_is_rejected_while_paused_and_ended() {
         let wall = std::sync::Arc::new(FakeMonotonic::new());
-        let clock = MediaClock::with_backends(
-            backends(wall).video(true),
-            ts(0),
-            Rate::ONE,
-        )
-        .unwrap_or_else(|e| unreachable!("{e}"));
+        let clock = MediaClock::with_backends(backends(wall.clone()).video(true), ts(0), Rate::ONE)
+            .unwrap_or_else(|e| unreachable!("{e}"));
         clock.pause();
         assert_eq!(clock.observe_video(ts(1_000_000)), Ok(VideoSteer::Paused));
         clock.resume();
@@ -1683,10 +1681,9 @@ mod tests {
     #[test]
     fn unrepresentable_frame_pts_is_a_typed_overflow() {
         let wall = std::sync::Arc::new(FakeMonotonic::new());
-        let clock = MediaClock::with_backends(backends(wall).video(true), ts(0), Rate::ONE)
+        let clock = MediaClock::with_backends(backends(wall.clone()).video(true), ts(0), Rate::ONE)
             .unwrap_or_else(|e| unreachable!("{e}"));
-        let huge =
-            Timestamp::from_parts(i64::MAX, 1000, 1).unwrap_or_else(|e| unreachable!("{e}"));
+        let huge = Timestamp::from_parts(i64::MAX, 1000, 1).unwrap_or_else(|e| unreachable!("{e}"));
         assert!(matches!(
             clock.observe_video(huge),
             Err(TimeError::Overflow { .. })
@@ -1707,9 +1704,13 @@ mod tests {
                 self.ns.load(Ordering::Relaxed)
             }
         }
-        let wall = std::sync::Arc::new(Regressable { ns: AtomicU64::new(0) });
+        let wall = std::sync::Arc::new(Regressable {
+            ns: AtomicU64::new(0),
+        });
         let clock = MediaClock::with_backends(
-            ClockBackends::new(wall.clone()).video(true).video_snap_ns(50_000_000),
+            ClockBackends::new(wall.clone())
+                .video(true)
+                .video_snap_ns(50_000_000),
             ts(0),
             Rate::ONE,
         )
@@ -1723,7 +1724,9 @@ mod tests {
         // A frame 30 ms past the held position cures the anchor.
         assert_eq!(
             clock.observe_video(ts(1_030_000_000)),
-            Ok(VideoSteer::Snapped { error_ns: 30_000_000 })
+            Ok(VideoSteer::Snapped {
+                error_ns: 30_000_000
+            })
         );
         assert!(clock.try_now().is_ok());
         // The wall then jumps to 1.05 s: a forward jump is elapsed
@@ -1761,7 +1764,9 @@ mod tests {
 
         // Seek-back: re-armed paused at the new position.
         let epoch = clock.snapshot().anchor_epoch;
-        let re_armed = clock.seek_back(ts(500_000_000)).unwrap_or_else(|e| unreachable!("{e}"));
+        let re_armed = clock
+            .seek_back(ts(500_000_000))
+            .unwrap_or_else(|e| unreachable!("{e}"));
         assert_eq!(re_armed.state, Paused);
         assert_eq!(re_armed.position.ticks, 500_000_000);
         assert_eq!(re_armed.anchor_epoch, epoch + 1);
@@ -1785,7 +1790,7 @@ mod tests {
         let counter = std::sync::Arc::new(FakeCounter::new(48_000));
         let wall = std::sync::Arc::new(FakeMonotonic::new());
         let clock = MediaClock::with_backends(
-            backends(wall).audio(counter.clone()),
+            backends(wall.clone()).audio(counter.clone()),
             ts(0),
             Rate::ONE,
         )
@@ -1797,7 +1802,9 @@ mod tests {
         counter.advance_samples(24_000);
         assert_eq!(clock.now().ticks, 1_000_000_000);
 
-        let re_armed = clock.seek_back(ts(250_000_000)).unwrap_or_else(|e| unreachable!("{e}"));
+        let re_armed = clock
+            .seek_back(ts(250_000_000))
+            .unwrap_or_else(|e| unreachable!("{e}"));
         assert_eq!(re_armed.state, Paused);
         assert_eq!(re_armed.position.ticks, 250_000_000);
         // The counter is at 72 000 samples; resume anchors there —
@@ -1829,12 +1836,11 @@ mod tests {
     #[test]
     fn seek_back_overflow_keeps_the_latch_and_the_frozen_position() {
         let wall = std::sync::Arc::new(FakeMonotonic::new());
-        let clock = MediaClock::with_backends(backends(wall), ts(0), Rate::ONE)
+        let clock = MediaClock::with_backends(backends(wall.clone()), ts(0), Rate::ONE)
             .unwrap_or_else(|e| unreachable!("{e}"));
         wall.advance_ns(1_000_000_000);
         let _ = clock.mark_ended();
-        let huge =
-            Timestamp::from_parts(i64::MAX, 1000, 1).unwrap_or_else(|e| unreachable!("{e}"));
+        let huge = Timestamp::from_parts(i64::MAX, 1000, 1).unwrap_or_else(|e| unreachable!("{e}"));
         assert!(matches!(
             clock.seek_back(huge),
             Err(SeekBackError::Overflow { .. })
@@ -1886,7 +1892,9 @@ mod tests {
             .unwrap_or_else(|e| unreachable!("{e}"));
         wall.advance_ns(10_000_000_000);
         let _ = clock.mark_ended();
-        let re_armed = clock.seek_back(ts(0)).unwrap_or_else(|e| unreachable!("{e}"));
+        let re_armed = clock
+            .seek_back(ts(0))
+            .unwrap_or_else(|e| unreachable!("{e}"));
         assert_eq!(re_armed.state, Paused);
         assert_eq!(re_armed.position.ticks, 0);
         clock.resume();
@@ -1901,19 +1909,11 @@ mod tests {
     /// is representable.
     #[test]
     fn switches_across_i64_position_edges_carry_saturated() {
-        let edges = [
-            i64::MIN,
-            i64::MIN + 1,
-            -1,
-            0,
-            1,
-            i64::MAX - 1,
-            i64::MAX,
-        ];
+        let edges = [i64::MIN, i64::MIN + 1, -1, 0, 1, i64::MAX - 1, i64::MAX];
         for &edge in &edges {
             let wall = std::sync::Arc::new(FakeMonotonic::new());
             let clock = MediaClock::with_backends(
-                backends(wall)
+                backends(wall.clone())
                     .audio(std::sync::Arc::new(FakeCounter::new(48_000)))
                     .video(true),
                 Timestamp::new(edge, NANO_BASE),
@@ -1929,7 +1929,7 @@ mod tests {
             );
             let now = clock.now();
             assert_eq!(now.ticks, edge); // carried exactly at the edge
-            let event = clock.take_master_change().must("edge event");
+            let event = clock.take_master_change().must(); // edge event
             assert_eq!(event.position.ticks, edge);
             // The wall advances a second: i128 extrapolation
             // saturates at the bounds, never wraps.
@@ -1953,7 +1953,9 @@ mod tests {
     fn video_steer_errors_at_the_i64_bounds_are_i128_safe() {
         let wall = std::sync::Arc::new(FakeMonotonic::new());
         let clock = MediaClock::with_backends(
-            backends(wall).video(true).video_snap_ns(1_000_000_000),
+            backends(wall.clone())
+                .video(true)
+                .video_snap_ns(1_000_000_000),
             Timestamp::new(i64::MAX - 5_000_000_000, NANO_BASE),
             Rate::ONE,
         )
@@ -2015,7 +2017,7 @@ mod tests {
         let wall = std::sync::Arc::new(FakeMonotonic::new());
         let huge = Rate::new(u32::MAX, 1).unwrap_or_else(|e| unreachable!("{e}"));
         let clock = MediaClock::with_backends(
-            backends(wall).video(true),
+            backends(wall.clone()).video(true),
             Timestamp::new(i64::MAX / 2, NANO_BASE),
             huge,
         )
@@ -2069,7 +2071,7 @@ mod tests {
     fn switch_storm_without_drain_surfaces_the_lost_count() {
         let wall = std::sync::Arc::new(FakeMonotonic::new());
         let clock = MediaClock::with_backends(
-            backends(wall)
+            backends(wall.clone())
                 .audio(std::sync::Arc::new(FakeCounter::new(48_000)))
                 .video(true),
             ts(0),
