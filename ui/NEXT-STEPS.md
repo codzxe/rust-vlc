@@ -250,3 +250,34 @@ Handoffs / next actions:
   `messages.ts` for now — migrate to `locales/en-US.toml` when the generated
   locale packs land; the localization crate's reference-complete audit (rule
   4) will then own the join.
+
+## Card 4.C2 — Control bar (transport/seek/volume/track menus) — DONE
+
+Delivered (branch `wip/p4-c2`, commit 12ec606): `ui/src/screens/player/context.tsx`
+(shared player state seam — **4.C3 consumes `usePlayerControls()`; do not duplicate**),
+`controls/{state-mapping.ts,ControlBar.tsx,controls.css}` + 52 tests. 330/330 ui
+tests green, tsc strict clean, eslint 0 errors.
+
+- **State mapping**: doc 08 §5.1 table pinned in `state-mapping.ts` + parametrized
+  tests. Doc-silent cells recorded as `[PROPOSAL]` in code: `buffering` → transport
+  disabled + aria-busy hint (volume/track stay live per §5.3); `stopped` → restart
+  affordance like `ended`, stop disabled.
+- **Keymap wiring**: `controlCommandOf()` maps binding `command` data
+  (playback.play/pause/toggle-play-pause/stop) → dispatch in PlayerScreen's
+  forward branch. **The keymap SEED has no space→play/pause binding** — when the
+  keymap loader (doc 05 §8.1, inventory Q4) lands, add the binding to
+  `keymaps/default.toml`; no control-bar change needed. `[PROPOSAL]`.
+- **session.open is NOT wired**: the empty-state "Open media" stub stays disabled —
+  it needs the file-dialog ui-action host (doc 07 §7.2 registry) which no card has
+  exposed. Owner: whoever builds ui-actions. The §5.1 opening→pending path IS
+  implemented (event-driven).
+- **Track menus** use B3 `Dropdown` with identity label resolution (runtime track
+  names are data, not msgids). When a real menu primitive with selected-markers in
+  the trigger lands, swap — mapping stays in `ControlBar.tsx`.
+- **Disk**: npm install failed (nospc); `ui/node_modules` is a SYMLINK to
+  `worktrees/p4-c1/ui/node_modules` (same lockfile, zero new deps). Replace with a
+  real install when disk is freed.
+- **4.C3 note**: `PlayerControlsProvider` requires a `ClientProvider` ancestor
+  (like `main.tsx`); tests wrap with `MockTransport` — with it, all mount queries
+  answer typed `feature-not-exposed` and the bar renders honestly disabled with
+  the error surfaced (by design).

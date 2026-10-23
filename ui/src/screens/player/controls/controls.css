@@ -1,0 +1,62 @@
+/* Card 4.C2 — control bar composition (doc 08 §1.6 bottom bar, §4.3
+ * unobtrusive controls, §5 truthful states). Semantic tokens only (§3.2);
+ * raw px only for structural dimensions with no token (gaps, min widths). */
+
+.lumen-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 16px;
+  color: var(--color-content-primary);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-label);
+}
+
+.lumen-controls__transport,
+.lumen-controls__volume,
+.lumen-controls__tracks {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lumen-controls__seek {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.lumen-controls__time {
+  font-family: var(--font-family-time);
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Truthful buffering hint (doc 08 §5.3): transport inert but visible. */
+.lumen-controls[data-playback-state="buffering"] .lumen-controls__transport {
+  opacity: 0.7;
+}
+
+.lumen-controls__error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 4px;
+  background: var(--color-surface-raised);
+  color: var(--color-content-primary);
+}
+
+.lumen-controls__error-title {
+  font-weight: 600;
+}
+
+.lumen-controls__error-detail {
+  color: var(--color-content-secondary);
+}

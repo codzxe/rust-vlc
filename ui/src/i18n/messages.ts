@@ -34,6 +34,31 @@ export type MessageKey =
   | "player.empty.title"
   | "player.empty.body"
   | "player.empty.open"
+  // --- control bar (card 4.C2) ---
+  | "player.controls.play"
+  | "player.controls.pause"
+  | "player.controls.stop"
+  | "player.controls.restart"
+  | "player.controls.buffering-hint"
+  | "player.controls.seekbar"
+  | "player.controls.volume"
+  | "player.controls.mute"
+  | "player.controls.unmute"
+  | "player.controls.duration-unknown"
+  | "player.controls.group-transport"
+  | "player.controls.group-volume"
+  | "player.controls.group-tracks"
+  | "player.controls.reason.no-media"
+  | "player.controls.reason.not-seekable"
+  | "player.controls.reason.unknown"
+  | "player.track.audio"
+  | "player.track.video"
+  | "player.track.subtitle"
+  | "player.track.unknown"
+  | "player.track.auto"
+  | "player.track.disable"
+  | "player.error.title"
+  | "player.error.dismiss"
   // Settings framework chrome (card 4.E1).
   | "settings.nav.title"
   | "settings.search.label"
@@ -130,6 +155,30 @@ const messages: Readonly<Record<MessageKey, string>> = {
   "player.empty.title": "No media open",
   "player.empty.body": "Open media to start playback.",
   "player.empty.open": "Open media",
+  "player.controls.play": "Play",
+  "player.controls.pause": "Pause",
+  "player.controls.stop": "Stop",
+  "player.controls.restart": "Restart playback",
+  "player.controls.buffering-hint": "Buffering…",
+  "player.controls.seekbar": "Seek",
+  "player.controls.volume": "Volume",
+  "player.controls.mute": "Mute",
+  "player.controls.unmute": "Unmute",
+  "player.controls.duration-unknown": "--:--",
+  "player.controls.group-transport": "Playback controls",
+  "player.controls.group-volume": "Audio controls",
+  "player.controls.group-tracks": "Track selection",
+  "player.controls.reason.no-media": "no media open",
+  "player.controls.reason.not-seekable": "media is not seekable",
+  "player.controls.reason.unknown": "unavailable",
+  "player.track.audio": "Audio track",
+  "player.track.video": "Video track",
+  "player.track.subtitle": "Subtitle track",
+  "player.track.unknown": "Unknown",
+  "player.track.auto": "Automatic",
+  "player.track.disable": "Disabled",
+  "player.error.title": "Playback error",
+  "player.error.dismiss": "Dismiss",
   "settings.nav.title": "Settings",
   "settings.search.label": "Search settings",
   "settings.search.no-results": "No settings match your search",

@@ -1,13 +1,17 @@
 import { render, screen } from "@testing-library/react";
+import { ClientProvider } from "./client/ClientProvider";
+import { MockTransport } from "./client/transport";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import { App } from "./App";
 
 function renderAt(path: string): void {
   render(
-    <MemoryRouter initialEntries={[path]}>
-      <App />
-    </MemoryRouter>,
+    <ClientProvider transport={new MockTransport()}>
+      <MemoryRouter initialEntries={[path]}>
+        <App />
+      </MemoryRouter>
+    </ClientProvider>,
   );
 }
 
