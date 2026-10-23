@@ -467,3 +467,28 @@ by the next settings Apply. App layer must, at startup or on wizard finish:
 4. Appearance step previews via ThemeProvider only (rendering seam,
    card 4.A2) — persisting theme/accent belongs to the settings
    integration (4.E2 sync seam), not the wizard.
+## Card 4.D2 — media info screen handoff
+
+`ui/src/screens/media-info/**`: `MediaInfoProvider` (seeds via `media.get-info`,
+stays authoritative from `media.info-ready` events), shared `MediaInfoPanel`
+(general / video / audio / subtitles / metadata sections, `data-field` hooks),
+`MediaInfoScreen` (/media-info route body), token-only `media-info.css`,
+fixture set shaped exactly like the `MediaInfo` wire type. Wired: `/media-info`
+route in App.tsx + the player shell `media-info` region (PanelRegion in
+PlayerScreen.tsx). **AC honored:** every absent field renders the i18n
+`media-info.unknown` ("Unknown") — never an invented value; streams keep
+showing missing fields (info-density), and empty/not-exposed states are honest.
+
+**Catalog gaps (recorded, never faked):** the `MediaInfo` wire type carries no
+`size` and no `bitrate` (general or per-stream), no per-stream bitrate/tag
+details, and no disc/track numbers. Those General rows render "Unknown" today;
+adding fields to the catalog (`crates/commands/src/catalog`) + codegen would
+let them render for real. `duration: infinite` renders the labeled "∞ (live)"
+(engine-reported), `unknown` renders "Unknown".
+
+**App-layer handoffs:** (1) no navigation affordance reaches /media-info yet —
+menu/keymap wiring (e.g. an "Info" toggle over the player region, mpv `i`
+semantics) is app-shell work; (2) the player-shell region wiring line is
+covered only indirectly (PlayerScreen test suite renders it via openPanels);
+(3) doc 08 has no dedicated media-info frame [VERIFY-DESIGN] — styling follows
+the settings language per the doc's own proposal.

@@ -72,6 +72,49 @@ export type MessageKey =
   | "playlist.entry.play-next"
   | "playlist.entry.play-later"
   | "playlist.entry.remove"
+  // --- media info screen (card 4.D2) ---
+  | "screen.media-info"
+  | "media-info.panel.title"
+  | "media-info.unknown"
+  | "media-info.section.general"
+  | "media-info.section.video"
+  | "media-info.section.audio"
+  | "media-info.section.subtitle"
+  | "media-info.section.metadata"
+  | "media-info.field.title"
+  | "media-info.field.source"
+  | "media-info.field.container"
+  | "media-info.field.duration"
+  | "media-info.field.size"
+  | "media-info.field.bitrate"
+  | "media-info.field.live"
+  | "media-info.field.seekable"
+  | "media-info.field.chapters"
+  | "media-info.field.codec"
+  | "media-info.field.profile"
+  | "media-info.field.level"
+  | "media-info.field.dimensions"
+  | "media-info.field.frame-rate"
+  | "media-info.field.bit-depth"
+  | "media-info.field.hdr"
+  | "media-info.field.channels"
+  | "media-info.field.sample-rate"
+  | "media-info.field.codec-params"
+  | "media-info.field.language"
+  | "media-info.field.name"
+  | "media-info.field.origin"
+  | "media-info.stream.video"
+  | "media-info.stream.audio"
+  | "media-info.stream.subtitle"
+  | "media-info.origin.stream"
+  | "media-info.origin.external"
+  | "media-info.value.yes"
+  | "media-info.value.no"
+  | "media-info.duration.infinite"
+  | "media-info.metadata.none"
+  | "media-info.empty.title"
+  | "media-info.empty.body"
+  | "media-info.panel.not-exposed"
   | "player.controls.unmute"
   | "player.controls.duration-unknown"
   | "player.controls.group-transport"
@@ -467,6 +510,49 @@ const messages: Readonly<Record<MessageKey, string>> = {
   "playlist.panel.empty-body": "Files you open are listed here in order.",
   "playlist.panel.not-exposed": "Playlist commands are not exposed by this build — showing seeded data only.",
   "playlist.panel.load-handoff": "Opening playlist files (.m3u) is wired by the app shell (card 4.H1).",
+  // --- media info screen (card 4.D2) ---
+  "screen.media-info": "Media information",
+  "media-info.panel.title": "Media information",
+  "media-info.unknown": "Unknown",
+  "media-info.section.general": "General",
+  "media-info.section.video": "Video",
+  "media-info.section.audio": "Audio",
+  "media-info.section.subtitle": "Subtitles",
+  "media-info.section.metadata": "Metadata",
+  "media-info.field.title": "Title",
+  "media-info.field.source": "Source",
+  "media-info.field.container": "Container",
+  "media-info.field.duration": "Duration",
+  "media-info.field.size": "Size",
+  "media-info.field.bitrate": "Bitrate",
+  "media-info.field.live": "Live",
+  "media-info.field.seekable": "Seekable",
+  "media-info.field.chapters": "Chapters",
+  "media-info.field.codec": "Codec",
+  "media-info.field.profile": "Profile",
+  "media-info.field.level": "Level",
+  "media-info.field.dimensions": "Dimensions",
+  "media-info.field.frame-rate": "Frame rate",
+  "media-info.field.bit-depth": "Bit depth",
+  "media-info.field.hdr": "HDR",
+  "media-info.field.channels": "Channels",
+  "media-info.field.sample-rate": "Sample rate",
+  "media-info.field.codec-params": "Codec parameters",
+  "media-info.field.language": "Language",
+  "media-info.field.name": "Name",
+  "media-info.field.origin": "Origin",
+  "media-info.stream.video": "Video stream",
+  "media-info.stream.audio": "Audio stream",
+  "media-info.stream.subtitle": "Subtitle stream",
+  "media-info.origin.stream": "Container stream",
+  "media-info.origin.external": "External file",
+  "media-info.value.yes": "Yes",
+  "media-info.value.no": "No",
+  "media-info.duration.infinite": "∞ (live)",
+  "media-info.metadata.none": "No metadata tags reported.",
+  "media-info.empty.title": "No media open",
+  "media-info.empty.body": "Media information appears once a media file or stream is open.",
+  "media-info.panel.not-exposed": "Media information is not available — the command layer did not expose it.",
   "playlist.controls.prev": "Previous item",
   "playlist.controls.next": "Next item",
   "playlist.controls.shuffle": "Shuffle",

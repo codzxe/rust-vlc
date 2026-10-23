@@ -1,0 +1,118 @@
+/* Card 4.D2 — media info panel (doc 08 §4.3: styling borrowed from the
+ * settings language — the design has no dedicated frame [VERIFY-DESIGN]).
+ * Semantic tokens only (doc 08 §3.2). */
+
+.lumen-mi {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.lumen-mi__title {
+  margin: 0;
+  padding: 0 var(--space-inset);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-content-primary);
+}
+
+.lumen-mi__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+  padding: 0 var(--space-inset);
+}
+
+.lumen-mi__section-title {
+  margin: 0;
+  font-size: var(--font-size-micro);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-content-tertiary);
+}
+
+.lumen-mi__rows {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+}
+
+.lumen-mi__row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 40%) 1fr;
+  gap: var(--space-grid);
+  align-items: baseline;
+}
+
+.lumen-mi__term {
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+}
+
+.lumen-mi__value {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-primary);
+  overflow-wrap: anywhere;
+}
+
+.lumen-mi__stream {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+  padding: var(--space-grid) 0;
+  border-top: var(--border-width-hairline) solid var(--color-stroke-subtle);
+}
+
+.lumen-mi__stream-title {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-content-secondary);
+}
+
+.lumen-mi__note,
+.lumen-mi__empty-title,
+.lumen-mi__empty-body {
+  margin: 0;
+  padding: 0 var(--space-inset);
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+}
+
+.lumen-mi__empty-title {
+  color: var(--color-content-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* --- /media-info route body --- */
+
+.lumen-mi-screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: var(--space-inset);
+  min-height: 100%;
+}
+
+.lumen-mi-screen__title {
+  margin: 0;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-heading);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-content-primary);
+}
+
+.lumen-mi-screen__panel {
+  border: var(--border-width-hairline) solid var(--color-stroke-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-grid) 0;
+}

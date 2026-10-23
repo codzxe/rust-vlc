@@ -19,6 +19,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMsg } from "../../i18n/messages";
+import { MediaInfoPanel, MediaInfoProvider } from "../media-info";
 import { PlaylistPanel, PlaylistProvider } from "../playlist";
 import { PlayerControlsProvider, usePlayerControls } from "./context";
 import { ControlBar, controlCommandOf } from "./controls";
@@ -360,11 +361,16 @@ function PanelRegion({
       className={`lumen-player__panel lumen-player__panel--${side}`}
     >
       {/* Playlist region content landed with card 4.D1 (panel + queue
-          semantics); library/media-info remain honest placeholders. */}
+          semantics); media-info region content landed with card 4.D2 —
+          library remains an honest placeholder. */}
       {region.id === "playlist" ? (
         <PlaylistProvider>
           <PlaylistPanel />
         </PlaylistProvider>
+      ) : region.id === "media-info" ? (
+        <MediaInfoProvider>
+          <MediaInfoPanel />
+        </MediaInfoProvider>
       ) : (
         <p className="lumen-player__sr-note">{m("player.panel.placeholder")}</p>
       )}

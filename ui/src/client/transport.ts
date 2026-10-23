@@ -14,9 +14,11 @@ export type { CommandRequest, CommandResponse, Event };
 // Wire types consumed by the player state seam (4.C2 context.tsx) — type-only
 // re-exports keep src/generated imports in one place (single import-site rule).
 export type {
+  CodecDescriptor,
   CommandError,
   CommandResult,
   Duration,
+  MediaInfo,
   PlaybackState,
   PlaylistChange,
   PlaylistItemId,
