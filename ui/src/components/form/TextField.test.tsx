@@ -1,5 +1,4 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-// @ts-expect-error node:fs is untyped in ui/ (no @types/node; zero-new-deps rule, card 4.B1) — vitest runs on Node, so the runtime import is sound.
 import { readFileSync } from "node:fs";
 import { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
