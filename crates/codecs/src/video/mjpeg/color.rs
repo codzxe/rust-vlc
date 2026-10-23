@@ -218,6 +218,23 @@ impl<'a> RgbComposer<'a> {
         }
     }
 
+    /// Forced-scalar compose (the W6-03 bench seam: the same path as
+    /// [`Self::compose_row`], pinned for `examples/color_bench.rs`
+    /// measurement and differential tests — never called by the
+    /// decoder, which uses the dispatching entry above).
+    #[allow(dead_code)] // baseline commit only: unused until the W6-03 rewrite arms it
+    pub(crate) fn compose_row_scalar(&self, row_y: usize, width: usize, out: &mut [u8]) {
+        self.compose_row(row_y, width, out);
+    }
+
+    /// Forced-SIMD compose (the W6-03 bench seam; until the SIMD
+    /// kernel lands this maps to the scalar path, and
+    /// [`simd_available`] reports `false` so callers do not arm it).
+    #[allow(dead_code)] // baseline commit only: unused until the W6-03 rewrite arms it
+    pub(crate) fn compose_row_simd(&self, row_y: usize, width: usize, out: &mut [u8]) {
+        self.compose_row(row_y, width, out);
+    }
+
     /// The hot color path: all rows proven, direct indexing, zero
     /// divisions, zero per-sample branches beyond the step carries.
     fn compose_color_row(
@@ -301,6 +318,13 @@ impl<'a> RgbComposer<'a> {
             .unwrap_or(0);
         *plane.data.get(index).unwrap_or(&128)
     }
+}
+
+/// Whether the SIMD compose entry is available in this build on this
+/// CPU (the W6-03 bench seam; `false` until the kernel lands).
+#[allow(dead_code)] // baseline commit only: unused until the W6-03 rewrite arms it
+pub(crate) fn simd_available() -> bool {
+    false
 }
 
 #[cfg(test)]
