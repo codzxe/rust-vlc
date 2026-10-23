@@ -1,0 +1,15 @@
+/* Card 4.F4 — global keyboard-focus floor (additive).
+ *
+ * The B1 primitives (button/icon-button/toggle/slider/field/menu) each carry
+ * the token-driven :focus-visible ring from doc 08 §2 interim language
+ * (2px `--color-accent`, 2px offset). Screens occasionally mark up custom
+ * focusables outside those primitives (hyperlinks in about text, custom
+ * click targets); this rule guarantees EVERY keyboard focus stop in the app
+ * shows the same token ring instead of relying on per-screen auditing. It is
+ * a floor, not a replacement — primitives keep their own identical
+ * declarations. */
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}

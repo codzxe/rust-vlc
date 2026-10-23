@@ -28,7 +28,9 @@
 
 .lumen-playlist__count {
   font-size: var(--font-size-micro);
-  color: var(--color-content-tertiary);
+  /* 4.F4 a11y fix: tertiary micro-text on the page surface was 3.29:1
+   * (wcag 1.4.3 fail, caught by the axe suite). */
+  color: var(--color-content-secondary);
 }
 
 .lumen-playlist__controls {
@@ -42,7 +44,8 @@
   margin: 0;
   padding: 0 var(--space-inset);
   font-size: var(--font-size-micro);
-  color: var(--color-content-tertiary);
+  /* 4.F4 a11y fix: tertiary micro-text on the panel was 3.6:1 (wcag 1.4.3). */
+  color: var(--color-content-secondary);
 }
 
 .lumen-playlist__empty {
@@ -61,7 +64,8 @@
 .lumen-playlist__empty-body {
   margin: 0;
   font-size: var(--font-size-micro);
-  color: var(--color-content-tertiary);
+  /* 4.F4 a11y fix: tertiary micro-text on the panel was 3.6:1 (wcag 1.4.3). */
+  color: var(--color-content-secondary);
 }
 
 .lumen-playlist__list {
@@ -141,12 +145,17 @@
   display: inline-flex;
 }
 
-/* /playlist route page shell. */
+/* /playlist route page shell. 4.F4 a11y fix: the page previously painted
+ * NO background — the dark theme rendered on the browser default white,
+ * dropping every heading below 4.5:1. Mirrors the settings framework
+ * (same surface/content tokens, tokens only). */
 .lumen-playlist-page {
   display: flex;
   flex-direction: column;
   gap: var(--space-grid);
-  height: 100%;
+  min-height: 100vh;
+  color: var(--color-content-primary);
+  background: var(--color-surface);
 }
 
 .lumen-playlist-page__title {

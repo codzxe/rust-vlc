@@ -63,6 +63,7 @@ All versions pinned exact in `package.json`; `package-lock.json` committed;
 | @testing-library/dom | 10.4.2 | MIT | RTL peer dep (queries/matchers core) |
 | @testing-library/jest-dom | 7.0.1 | MIT | DOM matchers (`toBeInTheDocument`) |
 | @playwright/test | 1.64.1 | Apache-2.0 | e2e/visual/keyboard-nav (doc 08 §9.3/§9.6) |
+| @axe-core/playwright | 4.14.0 | MPL-2.0 (axe-core) | a11y scan per route in the 4.F4 e2e suite (doc 08 §9.4) |
 | eslint | 10.13.0 | MIT | Lint incl. custom rules |
 | @eslint/js | 10.0.1 | MIT | ESLint recommended base |
 | typescript-eslint | 8.72.0 | MIT | TS-aware lint |

@@ -23,6 +23,10 @@
 import { expect, test } from "@playwright/test";
 import { MANIFEST, caseId } from "./manifest";
 
+// 4.F4: zero-dep node-env typing (repo rule — no @types/node; the generated
+// settings test documents the same seam). Restores `tsc --noEmit` over e2e/.
+declare const process: { env: Record<string, string | undefined> };
+
 const MODE = process.env.VISUAL_MODE === "nightly" ? "nightly" : "pr";
 const SEED_2PX = process.env.SEED_2PX === "1";
 const cases = MANIFEST.filter((c) => MODE === "nightly" || c.pr);

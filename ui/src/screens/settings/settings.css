@@ -147,7 +147,9 @@
   font-size: var(--font-size-micro);
   padding: var(--space-grid) calc(var(--space-grid) * 1.5);
   border-radius: var(--radius-control);
-  background: var(--color-surface-muted);
+  /* 4.F4 a11y fix: secondary text on the muted chip was 3.5:1 (wcag 1.4.3
+   * fail). selected surface keeps the same quiet chip weight at 5.4:1. */
+  background: var(--color-surface-selected);
   color: var(--color-content-secondary);
 }
 

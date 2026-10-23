@@ -1,0 +1,14 @@
+/* Card 4.F4 — page paint floor (additive).
+ *
+ * The /playlist and /media-info routes painted no background of their own,
+ * so the dark theme rendered on the browser-default white page — every
+ * heading sat at ~3.2:1 contrast (wcag 1.4.3 fail, caught by the 4.F4 axe
+ * suite). Screen roots still paint their own surfaces (player = deep,
+ * settings = surface); this body-level floor guarantees the page behind
+ * them is NEVER the raw browser white, for today's screens and any future
+ * screen that forgets its paint. Tokens only, both theme modes resolve. */
+
+body {
+  background: var(--color-surface);
+  color: var(--color-content-primary);
+}
