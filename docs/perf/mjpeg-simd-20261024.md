@@ -67,7 +67,7 @@ bad news: these are the numbers, unfiltered.
 | fixture | parse | huffman | idct+dequant | store | assemble (color/upsample) | residual |
 |---|---|---|---|---|---|---|
 | 0063 avi-av | ~0% | 27.8% | 23.2% | 3.1% | **45.7%** | 0.10 ms |
-| 0127 heavy | ~0% | 44.0% (5 295/12 053) | 24.7% | ~0% | 29.6% | small |
+| 0127 heavy | ~0% | 44.0% (5 295/12 053) | 24.7% | 1.4% (noidct−huffonly ≈ 165 ms) | 29.6% | small |
 
 ### 4.3 Where the 0.16×/0.30× target stands
 
