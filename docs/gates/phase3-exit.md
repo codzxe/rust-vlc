@@ -211,3 +211,40 @@ Wave-7 in-flight optimizations (§5) feed Phase-4 targets, not its launch —
   (32 diffs).
 - `docs/gates/logs/phase3-exit-fmt.log` — post-fix re-check (clean).
 - Prior-phase logs in the same directory (wave1/2/3-merge, merge-3a1).
+
+## 9. LEAD SIGN-OFF (card 3.F2-V — final verdict)
+
+- **Verdict: PASS WITH REGISTERED CAVEATS — PHASE 4 IS AUTHORIZED TO LAUNCH.**
+- Signed: 2026-10-24, Lead, on `main` post-merge of all wave-7 branches
+  (scenarios closure 8d039bc, F-fixes c239e57, V-1/V-3/input b8cb904+,
+  gate evidence + fmt hygiene cddf0db-side merges, SIMD 3278344-side merge).
+- **Lead review performed:** (a) scenarios_b 23/23 re-run by the Lead on
+  merged main pre-signature (independent of 7-a/7-GATE runs); (b) the single
+  workspace exit-101 (first-vertical --doc E0463, recorded §2 row 1b as
+  transient) **re-verified CLEAN on main by the Lead post-merge**
+  (`running 0 tests … ok`) — the shared-target-dir concurrency artifact is
+  confirmed non-deterministic-infra, not code; (c) the stray worktree
+  `target` symlink incident (gate agent's ENOSPC workaround, committed by
+  accident) was caught at merge and reverted with the .gitignore pattern
+  hardened to `/target` — no build state affects any verdict here.
+- **The caveats (each already registered in this doc, restated for the
+  record):** (1) 3-OS scenario matrix infra-blocked — Linux evidence only in
+  this sandbox; CI stays one lean ubuntu job (§1 row 3, §4 gap 1);
+  (2) 4 h soak baseline PENDING — the operational harness is green (11/11,
+  2-min, live-bytes slope under the 50 MB/h CI ceiling) but no 4 h run
+  exists on disk; the 5 MB/h design target stays a [PROPOSAL] until the
+  first real 4 h baseline freezes it (§4 gap 3) — a merged-tree 4 h re-run
+  is registered as a Phase-4-parallel follow-up; (3) differential oracle
+  cells PENDING-VLC — 35 real Lumen MD5 rows stand, no VLC binary exists in
+  this sandbox, nothing was mocked (§1 row 5, §4 gap 2); (4) workspace
+  clippy carries 16 pre-existing errors enumerated §2 row 4 (stage_bench
+  dead_code ×8, sweep assert!(false) ×1, scenarios_b expect() ×6 + host)
+  — dispatch card 7-f owns their cleanup; they are lint debt on partial-
+  merge scaffolding, not engine defects, and the 1939/0 test evidence
+  stands independent of them.
+- **Why PASS is honest at this bar:** every capability claim in the doc-13
+  §6 question is backed by merged, re-runnable code with committed logs;
+  every unmet clause is named, owned, and infra- or wall-clock-bound rather
+  than capability-bound; nothing in this record was mocked or fabricated
+  (mock/real separation is mechanically asserted in the differential
+  harness). The Phase-4 launch list (§7) is the operative output.
