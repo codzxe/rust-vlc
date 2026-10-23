@@ -1,0 +1,18 @@
+cargo xtask visual — screenshot-diff fidelity harness (card 4.G1, doc 08 §6)
+
+Usage: cargo xtask visual [--mode=pr|nightly] [--update] [--seed]
+
+  --mode=pr       PR-lite lane (default): 1280x720 @1x, dark + light on the
+                  current screens — the fast, strict per-PR gate
+  --mode=nightly  full matrix: {1280x720, 1920x1080} x DPI {1,2} x {dark,light}
+  --update        re-record baselines (doc 08 §6.5 policy applies: only in a
+                  commit that references a token / layout-config / design
+                  package change, with diff images attached)
+  --seed          inject the 2-px regression proof shift; the harness must
+                  FAIL (acceptance demonstration only — never in CI)
+
+Baselines: ui/e2e/visual/baselines/<platform>/<case>.png (per-OS sets, doc
+08 §6.3; linux is canonical). Diff artifacts land in ui/test-results/ and
+ui/playwright-report-visual/.
+
+Exit codes: 0 pass | 1 visual diff/failure | 2 hard error.

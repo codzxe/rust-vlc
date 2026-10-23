@@ -467,3 +467,19 @@ by the next settings Apply. App layer must, at startup or on wizard finish:
 4. Appearance step previews via ThemeProvider only (rendering seam,
    card 4.A2) — persisting theme/accent belongs to the settings
    integration (4.E2 sync seam), not the wizard.
+
+## 4.G1 — screenshot-diff harness landed (2026-10-23)
+
+`npm run visual` / `cargo xtask visual [--mode=pr|nightly] [--update]
+[--seed]`: Playwright-driven screenshot-diff harness per doc 08 §6 —
+manifest-driven matrix, per-OS baselines (`e2e/visual/baselines/<platform>/`),
+PR-lite (8 cases, ~12 s, strict) + nightly (32 cases) modes, tolerance
+threshold 0.1 / maxDiffPixelRatio 0.001, flakiness controls (reduced
+motion, deterministic onboarding state, #root clip, retries=1). Seeded
+2-px regression FAILS as required (7440 px diff, exit 1); clean tree
+passes both lanes. Demo transcript: `e2e/visual/README.md`.
+
+Handoff to 4.G2: re-pin the FROZEN baseline matrix after F4 merges
+(`npm run visual -- --mode=nightly --update`), extend ROUTES to the full
+doc 08 §1.6 inventory + accent ×9 sampling, wire the per-OS CI jobs
+(PR lane per PR, full matrix nightly).

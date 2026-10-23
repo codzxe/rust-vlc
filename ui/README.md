@@ -106,3 +106,46 @@ gen-tokens.mjs, zero deps) → `src/tokens/generated/{tokens.css,tokens.ts}`
 See `src/tokens/README.md` for the full decision record. Theme switching:
 `ThemeProvider` (`src/theme/`) sets `data-theme`/`data-accent` on `<html>` —
 dark/light/auto × 9 accents, attribute-only per doc 08 §3.3.
+
+## Visual screenshot-diff harness (card 4.G1, doc 08 §6)
+
+`npm run visual` (or `cargo xtask visual` from the workspace root — same
+flags, exit code forwarded verbatim) renders the screen manifest under
+Playwright Chromium and diffs each case against pinned baselines via
+`expect(page).toHaveScreenshot` — Playwright's built-in pixel comparison is
+the tolerance engine, zero new npm deps.
+
+- **Manifest** (`e2e/visual/manifest.ts`): route × viewport × DPI ×
+  theme-mode × accent. G1 covers the 4 representative routes (player,
+  playlist, settings/global, onboarding) × {1280×720, 1920×1080} × DPI
+  {1, 2} × {dark, light} × default accent. 4.G2 grows the route set to the
+  full doc 08 §1.6 inventory and adds the accent ×9 sampling (§6.1).
+- **Modes**: `--mode=pr` (default, `npm run visual:pr`) = PR-lite lane —
+  1280×720 @1×, dark + light, strict fail, ~12 s. `--mode=nightly`
+  (`npm run visual:nightly`) = the full 32-case matrix. CI wiring is 4.G2+.
+- **Tolerance** (`playwright.visual.config.ts`): per-pixel `threshold: 0.1`
+  (perceptual YIQ delta; below ~0.1 is invisible AA jitter — tighter than
+  Playwright's 0.2 default to catch token drift) + `maxDiffPixelRatio:
+  0.001` (doc 08 §6.2's ≤0.1 %-differing-pixels threshold, applied globally
+  since Playwright has no tolerance zones [PROPOSAL]).
+- **Baselines**: `e2e/visual/baselines/<platform>/<case>.png`, per-OS sets
+  (doc 08 §6.3; Linux canonical). Missing baseline → the first run records
+  it and FAILS (record-first); re-run to verify. `npm run visual:update`
+  re-pins (doc 08 §6.5 policy: only alongside a token/layout/design
+  change, diff images attached).
+- **Flakiness controls** (doc 08 §6.4): `prefers-reduced-motion` forced +
+  `animations: "disabled"` + caret hidden; deterministic app state
+  (onboarding marked complete via `localStorage` stub except on the wizard
+  route); theme forced through the `data-theme`/`data-accent` attribute
+  seam; network-idle + `document.fonts.ready` + 250 ms settle; screenshot
+  clipped to `#root` (stable area); `retries: 1` — a transient diff gets
+  one fresh re-screenshot, a real regression fails twice.
+- **Seeded-regression proof** (`npm run visual:seed`): injects a test-only
+  2-px `translateX` on the app shell; the harness must FAIL (see
+  `e2e/visual/README.md` for the recorded demonstration).
+
+Known gaps, honest: no tolerance *zones* (global ratio instead), no fixed
+clock injection yet (no screen renders wall-clock time today; revisit when
+one does), player chrome auto-hide is 3 s so captures happen ~1 s after
+load — if a future screen adds sub-second timers the settle policy needs
+revisiting. Font bundling (§6.4) still pending the typeface decision.
