@@ -1,0 +1,10 @@
+#EXTM3U
+# this is a plain comment
+#another comment that contains: a colon — not a directive
+
+#EXTINF:5,T
+a/b.wav
+
+# plain comment between entries
+#EXTINF:5.5,U
+c d.wav

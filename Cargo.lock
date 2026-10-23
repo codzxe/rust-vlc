@@ -237,6 +237,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "playlists"
+version = "0.1.0"
+dependencies = [
+ "thiserror",
+]
+
+[[package]]
 name = "plugin-api"
 version = "0.1.0"
 dependencies = [
