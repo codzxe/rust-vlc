@@ -1,0 +1,311 @@
+/* Card 4.B3 — menu primitives (MenuBar, MenuPopup/MenuItem, Dropdown/Select,
+ * ContextMenu, Tooltip).
+ * Design provenance: docs/08-ui-figma-fidelity.md §1.4/§2/§115/§116:
+ *   Context menu: 265×296 rx10 #191919 @ 0.95 + inset ring; items 48 high,
+ *     hover 257×48 rx6 #1F1F1F  -> --radius-menu, --space-item-pitch,
+ *     --radius-control, --color-surface, --color-surface-hover.
+ *   Dropdown: trigger 48 rx6 (inner 44 rx4), open list rx6 #191919,
+ *     selected item #1F1F1F     -> --radius-control, --radius-inset.
+ *   menu.svg: items with accelerator glyphs on the trailing edge.
+ * Semantic tokens only (doc 08 §3.2); raw px appears solely for structural
+ * dimensions with no token (check slot, minimum popup width) — see states.md.
+ * Known token gap: the 0.95 surface translucency has no rgba token; the popup
+ * renders solid --color-surface (flagged in states.md for the token pipeline).
+ */
+
+/* ---- MenuBar (horizontal app menu) ---- */
+.lumen-menubar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-grid);
+}
+
+.lumen-menubar__item-wrapper {
+  position: relative; /* anchors the popup (portal-free absolute positioning) */
+}
+
+.lumen-menubar__trigger {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: var(--space-item-pitch);
+  padding: 0 var(--space-inset);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-control);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.lumen-menubar__trigger:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-content-bright);
+}
+
+.lumen-menubar__trigger:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.lumen-menubar__trigger[aria-expanded="true"] {
+  background: var(--color-surface-selected);
+  color: var(--color-content-bright);
+}
+
+/* ---- Menu popup (role=menu) — shared by MenuBar menus, ContextMenu, submenus ---- */
+.lumen-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 10; /* overlays chrome; structural, no token */
+  display: flex;
+  flex-direction: column;
+  min-width: 257px; /* item hover width per doc 08 §115 — structural */
+  padding: var(--space-grid);
+  background: var(--color-surface);
+  border: 1px solid var(--color-stroke-border); /* inset ring approximation */
+  border-radius: var(--radius-menu);
+  box-shadow: var(--shadow-overlay);
+}
+
+.lumen-menu--submenu {
+  top: calc(-1 * var(--space-grid)); /* align with the parent item row */
+  left: 100%;
+  margin-left: var(--space-grid);
+}
+
+.lumen-menu__host {
+  position: relative; /* anchors a nested submenu */
+}
+
+.lumen-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-grid);
+  box-sizing: border-box;
+  height: var(--space-item-pitch); /* 48px rows (doc 08 §115) */
+  padding: 0 var(--space-inset);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body);
+  color: var(--color-content-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-control); /* hover fill rx6 */
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.lumen-menu__item:hover {
+  background: var(--color-surface-hover); /* #1F1F1F per doc 08 §115 */
+  color: var(--color-content-bright);
+}
+
+.lumen-menu__item:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.lumen-menu__item[aria-disabled="true"] {
+  opacity: var(--opacity-disabled);
+  pointer-events: none; /* roving focus still reaches it — inert, not hidden */
+}
+
+/* check slot — 16px structural gutter; glyph only for checked items */
+.lumen-menu__check {
+  flex: none;
+  width: 16px;
+  font-size: var(--font-size-body);
+  color: var(--color-accent-icon);
+}
+
+.lumen-menu__item[aria-checked="true"] > .lumen-menu__check::before {
+  content: "\2713"; /* check glyph — graphical, not an i18n string */
+}
+
+.lumen-menu__label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lumen-menu__accelerator {
+  margin-left: auto;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-tertiary);
+}
+
+.lumen-menu__submenu-arrow::before {
+  content: "\25B8"; /* right-pointing submenu affordance */
+  color: var(--color-content-tertiary);
+}
+
+.lumen-menu__separator {
+  height: 1px;
+  margin: var(--space-grid) var(--space-grid);
+  background: var(--color-stroke-border);
+}
+
+/* ---- ContextMenu popup: fixed at the pointer coordinates ---- */
+.lumen-context-menu__popup {
+  position: fixed;
+  top: auto;
+  left: auto;
+}
+
+/* ---- Dropdown / Select ---- */
+.lumen-dropdown {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+}
+
+.lumen-dropdown__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-inset);
+  box-sizing: border-box;
+  min-width: 0;
+  height: var(--space-item-pitch); /* 48px trigger (doc 08 §116) */
+  padding: 2px; /* inner 44px rx4 surface (structural) */
+  background: var(--color-surface-deep);
+  border: none;
+  border-radius: var(--radius-control); /* trigger rx6 */
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.lumen-dropdown__trigger > span {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px; /* inner surface (structural) */
+  padding: 0 var(--space-inset);
+  background: var(--color-surface);
+  border-radius: var(--radius-inset); /* inner rx4 */
+}
+
+.lumen-dropdown__trigger:hover {
+  background: var(--color-surface-hover);
+}
+
+.lumen-dropdown__trigger:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.lumen-dropdown__trigger[aria-expanded="true"] {
+  background: var(--color-surface-selected);
+}
+
+.lumen-dropdown__trigger:disabled {
+  opacity: var(--opacity-disabled);
+  pointer-events: none;
+}
+
+.lumen-dropdown--invalid .lumen-dropdown__trigger {
+  outline: 2px solid var(--color-record);
+  outline-offset: -2px;
+}
+
+.lumen-dropdown__value {
+  overflow: hidden;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body);
+  color: var(--color-content-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lumen-dropdown__arrow::before {
+  content: "\25BE"; /* chevron-down affordance */
+  color: var(--color-content-tertiary);
+}
+
+.lumen-dropdown__list {
+  position: absolute;
+  top: calc(100% + var(--space-grid));
+  left: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-grid);
+  background: var(--color-surface);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-control); /* open list rx6 (doc 08 §116) */
+  box-shadow: var(--shadow-overlay);
+}
+
+.lumen-dropdown__option {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: var(--space-item-pitch);
+  padding: 0 var(--space-inset);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body);
+  color: var(--color-content-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-control);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.lumen-dropdown__option:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-content-bright);
+}
+
+.lumen-dropdown__option:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.lumen-dropdown__option[aria-selected="true"] {
+  background: var(--color-surface-selected); /* #1F1F1F per doc 08 §116 */
+  color: var(--color-content-bright);
+}
+
+.lumen-dropdown__option[aria-disabled="true"] {
+  opacity: var(--opacity-disabled);
+  pointer-events: none;
+}
+
+/* ---- Tooltip ---- */
+.lumen-tooltip {
+  position: relative;
+  display: inline-flex;
+}
+
+.lumen-tooltip__bubble {
+  position: absolute;
+  bottom: calc(100% + var(--space-grid));
+  left: 50%;
+  transform: translateX(-50%);
+  padding: var(--space-grid) var(--space-inset);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+  white-space: nowrap;
+  background: var(--color-surface-deep);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-overlay);
+}
+
+.lumen-tooltip__bubble--bottom {
+  top: calc(100% + var(--space-grid));
+  bottom: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lumen-menu__item,
+  .lumen-menubar__trigger,
+  .lumen-dropdown__trigger,
+  .lumen-dropdown__option {
+    transition: none;
+  }
+}

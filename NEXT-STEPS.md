@@ -82,3 +82,28 @@ it ends**:
 - `NEXT-STEPS.md` (this file) — committed.
 - `soak-4h.log` — the reaped attempt's log (8 `Compiling` lines, untracked
   evidence; overwrite it on relaunch).
+
+## 4.B3 — menu primitives (2026-10-24, session 1)
+
+Card 4.B3 DONE for this session: `ui/src/components/menu/**` — MenuBar,
+Dropdown/Select, ContextMenu, Tooltip + shared MenuPopup/MenuItem core, all
+rendering from doc 05 §8.3 data (`{id, labelKey, accelerator?, submenu?,
+disabled?, checked?}` via the `resolveLabel`/useMsg seam; accelerators render
+verbatim from keymap data). WAI-ARIA model: roving tabindex (doc 08 §4.5),
+arrow/Home/End nav, submenu ArrowRight/hover-intent (150/100 ms), Escape
+close + focus restore, Tab focus trap, typeahead in Select, right-click
+coordinates in ContextMenu, tooltip delays 500/150 ms. Portal-free absolute
+positioning (doc 08 specifies no portals). 38 new tests, ui suite 120/120,
+tsc strict clean, eslint 0 errors.
+
+Remaining for a successor:
+1. Token gap: popup surfaces need a translucent rgba token for doc 08 §115
+   ("#191919 @ 0.95") — currently solid `--color-surface` (states.md notes).
+2. ContextMenu coordinates unclamped against viewport (no layout in jsdom) —
+   clamp when composed into real screens.
+3. Menubar typeahead omitted (APG-optional; Select has it).
+4. Visual snapshots (card `+SB` AC) await 4.G1's screenshot harness — states.md
+   carries the state tables + design provenance (context menu rx10, items 48px,
+   hover `#1F1F1F` rx6, dropdown trigger rx6/inner rx4).
+5. Compose app MenuBar from `layouts/menus.toml` + keymap binding-id
+   accelerators when those config files land (doc 05 §8.1/§8.3).
