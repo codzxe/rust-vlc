@@ -1,0 +1,56 @@
+# tools/mem-audit (card W5-15) — the memory measurement instrument.
+#
+# A std-only bin that installs a counting global allocator and drives
+# the REAL first-vertical decode path (input access → media-probe →
+# demux AVI → codecs MJPEG/PCM behind codec-api's Decoder contract,
+# the apps/cli decode-bench pattern — card W4-R2) over a file set,
+# printing per-file: peak-bytes, total-bytes, alloc-count,
+# bytes-per-frame, allocs-per-frame. The per-frame ratios are the D-1
+# violation detector (docs/engineering-directives.md).
+#
+# Package/bin name `lumen-mem-audit` (run: cargo run -p lumen-mem-audit).
+# Std-only: zero external dependencies (C5). Internal deps = the engine
+# crates under audit, EXACTLY the driver-level set apps/cli's bench
+# uses (demux + codecs + codec-api + input + media-probe + the L0/L1
+# vocabulary crates media-types/plugin-api); no commands/playback-
+# engine edge — this is a direct engine driver, not a command host.
+#
+# UNSAFE POSTURE (Lead flag, recorded for ratification): a counting
+# GLOBAL allocator is impossible without `unsafe impl GlobalAlloc` +
+# `#[global_allocator]` — there is no safe Rust surface for either.
+# This crate carries the minimal, safety-commented unsafe blocks for
+# exactly that (allocator.rs) plus the overhead micro-bench's raw
+# alloc calls (selfcheck.rs), nothing else. It is a measurement tool,
+# not an engine/codec crate (AGENTS.md hard rule 3 scopes the no-
+# unsafe rule to application/core crates); the W5 wave's sanctioned
+# std::arch exception for codecs/mjpeg SIMD is the adjacent precedent.
+# [PROPOSAL: ADR "measurement instruments may carry unsafe impl
+# GlobalAlloc" — Lead decision.]
+#
+# Workspace membership: appended to the root members array by card
+# W5-15's granted one-line edit (the card's own scope). boundaries.toml
+# [crates.lumen-mem-audit] entry: Lead union handoff (not this card's
+# file set) — see docs/perf/memory-audit-20261023.md §handoffs.
+
+[package]
+name = "lumen-mem-audit"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Lumen memory-audit instrument — counting allocator over the real decode path (card W5-15)"
+
+[[bin]]
+name = "lumen-mem-audit"
+path = "src/main.rs"
+
+[dependencies]
+codec-api = { path = "../../crates/codec-api" }
+codecs = { path = "../../crates/codecs" }
+demux = { path = "../../crates/demux" }
+input = { path = "../../crates/input" }
+media-probe = { path = "../../crates/media-probe" }
+media-types = { path = "../../crates/media-types" }
+plugin-api = { path = "../../crates/plugin-api" }
+
+[lints]
+workspace = true
