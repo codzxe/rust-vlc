@@ -13,10 +13,11 @@
 //
 // Owned here: chrome show/auto-hide/lock, fullscreen + keymap-driven ESC/F/I
 // (doc 05 §8.1 semantics from keymap DATA, never hardcoded), layout-config
-// consumption, empty (first-run) state, ARIA landmarks.
+// consumption, ARIA landmarks. The first-run empty state + playback UX
+// overlays moved to ./states (card 4.C3) — the shell renders them on the
+// canvas region via the `engineState` prop / honest fallback.
 
 import { useEffect, useMemo, useRef } from "react";
-import { Button } from "../../components";
 import { useMsg } from "../../i18n/messages";
 import {
   DEFAULT_KEYMAP,
@@ -30,6 +31,7 @@ import {
   type LayoutConditionContext,
   type LayoutRegion,
 } from "./layout";
+import { EmptyOverlay, StateRouter, type PlayerEngineView } from "./states";
 import "./player.css";
 import { useChromeAutoHide } from "./useChromeAutoHide";
 import { useFullscreen } from "./useFullscreen";
@@ -56,6 +58,16 @@ export interface PlayerScreenProps {
    * dispatch attaches here (e.g. exit-fullscreen's dialog-close half).
    */
   readonly onBinding?: (binding: KeyBinding) => void;
+  /**
+   * Engine-truth playback view for the 4.C3 state overlays. Absent → no
+   * engine connected yet: first-run Empty when no media, nothing otherwise
+   * (never a fabricated state — doc 05 §1 C4).
+   */
+  readonly engineState?: PlayerEngineView;
+  /** Retry / open-media affordances for the 4.C3 overlays (C2 wires real
+   * commands; unwired affordances render disabled, never fake success). */
+  readonly onRetry?: () => void;
+  readonly onOpenMedia?: () => void;
 }
 
 export function PlayerScreen({
@@ -63,6 +75,9 @@ export function PlayerScreen({
   media = null,
   openPanels = [],
   onBinding,
+  engineState,
+  onRetry,
+  onOpenMedia,
 }: PlayerScreenProps) {
   const m = useMsg();
   const layout = useMemo(() => resolveLayout(layoutSource), [layoutSource]);
@@ -169,21 +184,15 @@ export function PlayerScreen({
                 ui/NEXT-STEPS.md). Screen-reader note says so. */}
             <p className="lumen-player__sr-note">{m("player.canvas.placeholder")}</p>
 
-            {!hasMedia ? (
-              <div className="lumen-player__empty" data-empty-state="first-run">
-                <h2 className="lumen-player__empty-title">{m("player.empty.title")}</h2>
-                <p className="lumen-player__empty-body">{m("player.empty.body")}</p>
-                <Button
-                  // Wiring stub: session.open + the open-media ui-action land
-                  // with card 4.C2's command dispatch — until then the
-                  // affordance renders disabled, never faking success.
-                  disabled
-                  data-wiring-stub="session.open — card 4.C2"
-                >
-                  {m("player.empty.open")}
-                </Button>
-              </div>
-            ) : null}
+            {/* Card 4.C3 playback UX states: exactly zero or one overlay on
+                the canvas region, driven by the engine view. No engine view
+                provided (scaffold/tests) → honest fallback: first-run Empty
+                when no media, nothing otherwise — never a fabricated state. */}
+            {engineState !== undefined ? (
+              <StateRouter view={engineState} onRetry={onRetry} onOpenMedia={onOpenMedia} />
+            ) : hasMedia ? null : (
+              <EmptyOverlay onOpenMedia={onOpenMedia} />
+            )}
           </div>
         )}
 

@@ -1,0 +1,150 @@
+/* Card 4.C3 — playback UX-state overlays (doc 08 §5.3/§5.4).
+ * Semantic tokens only for color/type/radius (§3.2); raw px appears solely
+ * for structural dimensions with no token (gaps/padding/indicator sizes —
+ * the spacing-scale token doesn't exist yet, recorded in ui/NEXT-STEPS.md,
+ * same precedent as the 4.C1 shell's structural px). Motion (spinner, fill
+ * transition) lives inside a prefers-reduced-motion: no-preference block so
+ * reduced-motion users get a static indicator (doc 08 §4.5) — the honest
+ * state is still fully conveyed by text + aria. */
+
+/* The 4.C1 canvas region hosts the overlays (states sit ON the labeled
+ * region; the canvas itself remains engine-owned, card 4.H1). */
+.lumen-player__canvas {
+  position: relative;
+}
+
+.lumen-state-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 24px;
+  background: var(--color-surface-deep);
+  color: var(--color-content-primary);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body);
+}
+
+.lumen-state-overlay__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: 480px;
+  text-align: center;
+}
+
+.lumen-state-overlay__title {
+  margin: 0;
+  color: var(--color-content-bright);
+  font-size: var(--font-size-label);
+  font-weight: 600;
+}
+
+.lumen-state-overlay__label,
+.lumen-state-overlay__body,
+.lumen-state-overlay__action {
+  margin: 0;
+  color: var(--color-content-secondary);
+}
+
+.lumen-state-overlay__action {
+  color: var(--color-content-primary);
+}
+
+/* Stage tag (doc 08 §5.4: stage-named message) — a compact pill. */
+.lumen-state-overlay__stagetag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 2px 8px;
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-menu);
+  background: var(--color-surface-panel);
+  font-size: var(--font-size-caption);
+}
+
+.lumen-state-overlay__stagetag-label {
+  color: var(--color-content-tertiary);
+}
+
+.lumen-state-overlay__stagetag-value {
+  color: var(--color-content-primary);
+}
+
+/* Format facts (Unsupported surface): definition list of engine-reported
+ * container/codec (doc 05 §2 rule 3 details hints). */
+.lumen-state-overlay__facts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+}
+
+.lumen-state-overlay__fact {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.lumen-state-overlay__fact-label {
+  color: var(--color-content-tertiary);
+}
+
+.lumen-state-overlay__fact-value {
+  margin: 0;
+  color: var(--color-content-primary);
+  font-family: var(--font-family-time);
+}
+
+/* Progress indicator: spinner (always) + bar fill (determinate only). */
+.lumen-state-overlay__progress {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.lumen-state-overlay__spinner {
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--color-surface-muted);
+  border-top-color: var(--color-accent);
+}
+
+.lumen-state-overlay__bar {
+  box-sizing: border-box;
+  display: block;
+  width: 160px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--radius-panel);
+  background: var(--color-surface-muted);
+}
+
+.lumen-state-overlay__fill {
+  display: block;
+  height: 100%;
+  background: var(--color-accent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lumen-state-overlay__spinner {
+    animation: lumen-state-spin 1s linear infinite;
+  }
+
+  .lumen-state-overlay__fill {
+    transition: width 200ms ease;
+  }
+}
+
+@keyframes lumen-state-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
