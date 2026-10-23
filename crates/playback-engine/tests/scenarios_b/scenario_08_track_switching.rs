@@ -151,7 +151,7 @@ fn audio_track_switch_mints_generation_with_no_old_frames_after() {
     let first_new = ring
         .iter()
         .position(|(track, audio, _)| *audio && *track == TO_TRACK)
-        .expect("the new track's frames flowed");
+        .must(); // the new track's frames flowed
     let stale_after = ring[first_new..]
         .iter()
         .filter(|(track, audio, _)| *audio && *track == FROM_TRACK)

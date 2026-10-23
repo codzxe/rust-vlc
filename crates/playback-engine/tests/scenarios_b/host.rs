@@ -1883,10 +1883,10 @@ fn route(
             })
         }
         Command::TracksSetAudioTrack { selector } => {
-            host.dispatch_set_track(SessionCommandKind::SelectAudio, selector.clone())
+            host.dispatch_set_track(SessionCommandKind::SelectAudio, *selector)
         }
         Command::TracksSetVideoTrack { selector } => {
-            host.dispatch_set_track(SessionCommandKind::SelectVideo, selector.clone())
+            host.dispatch_set_track(SessionCommandKind::SelectVideo, *selector)
         }
         other => Err(unserved(other)),
     }

@@ -39,7 +39,7 @@ impl Lcg {
     }
     /// One target in `[0, duration_us)`.
     fn target_us(&mut self, duration_us: i64) -> i64 {
-        (self.next_u64() % duration_us.unsigned_abs() as u64) as i64
+        (self.next_u64() % duration_us.unsigned_abs()) as i64
     }
 }
 
