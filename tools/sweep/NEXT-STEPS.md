@@ -10,10 +10,12 @@ census data).
 ## Remaining for the card (in order)
 
 1. Regenerate corpus-v4 smoke (126 files):
-   `python3 tools/corpus/gen_corpus.py --help` FIRST (find the
-   manifest flag), manifest
-   `docs/corpus/corpus-v4-smoke-manifest-20261023.json`, out to
-   /tmp NOT the repo.
+   there is NO `--manifest` flag — regeneration of a committed
+   manifest goes through `--replay` (re-runs the manifest's seed
+   verbatim):
+   `python3 tools/corpus/gen_corpus.py --replay
+   docs/corpus/corpus-v4-smoke-manifest-20261023.json --out /tmp/<corpus-out> --jobs 8`
+   (~45 s, ~66 MiB for the smoke manifest).
 2. `cargo run -p lumen-sweep -- --timeout-secs 30 /tmp/<corpus-out>`
    → save stdout as the raw log (docs/perf raw data).
 3. Census tables (panic census: any Panic outcome's crash_note is
