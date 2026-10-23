@@ -23,6 +23,27 @@ at merge), README brought to closure state. All four gates green.
 
 ## Do next (roughly in order)
 
+> **4.B1 in progress** (agent P4-B1, session 1, commits `7c6eb1d` + `a79e9f7`):
+> ALL components landed — button trio (`Button` default/primary variants,
+> sizes 28/32/48; `IconButton` mandatory `aria-label`; `Toggle`
+> `role="switch"`+`aria-checked` per doc 08 §4.5 — the task-card blurb said
+> `aria-pressed`, doc wins, deviation recorded in
+> `src/components/button/states.md`) AND form inputs (`TextField`,
+> `NumberField` with clamping steppers, `Checkbox`, `RadioGroup` with roving
+> tabindex + arrow keys, `Switch` = Toggle re-export). All states
+> (hover/pressed/focus-visible/disabled/loading/error) token-only CSS; 62
+> component tests (RTL behavior + DOM snapshots + CSS-source→semantic-token
+> assertions via node:fs); full suite 82/82, typecheck + lint clean.
+> **Remains to CLOSE 4.B1 (next session)**: (1) Toggle micro labels
+> (`--font-size-micro`); (2) token-seam decisions: 3px knob radius, rx5 input
+> radius, dedicated `--color-danger` (currently `--color-record`) — raise with
+> token owner, don't hack locally; (3) full state-matrix audit vs doc 08 §4.4
+> (loading on form inputs?); (4) worklog entry (---, Task ID: 4.B1) recording
+> the visual-snapshot adaptation: 4.G1 harness absent + vitest stubs `.css`
+> imports (`?raw` returns EMPTY; `new URL(rel, import.meta.url)` throws in
+> vitest — use `import.meta.dirname`), so "visual snapshot" = DOM snapshot +
+> CSS-source→token assertions. Swap for real screenshots when 4.G1 lands.
+
 1. ~~**4.A2 completion pass**~~ — DONE (closure session 3, agent P4-A2
    relaunch 2): full 9-accent × light/dark visual matrix E2E (18 tests,
    computed-style assertions vs values from themes/tokens.json) green;

@@ -1,0 +1,230 @@
+/* Card 4.B1 — button primitives (Button, IconButton, Toggle).
+ * Design provenance: docs/08-ui-figma-fidelity.md §1.4/§1.5/§2/§4.4.
+ *   Button.svg: 360x32 rx4, rest #090909, hover #191919  -> surface-deep /
+ *     surface-hover tokens, --radius-inset.
+ *   Onboarding primary button: rx6 accent fill -> --radius-control, --color-accent.
+ *   Toggle.svg: 68x32 rx6 track #090909; ON fill 33x26 #371F06 + knob 26x26
+ *     rx3 #AB6314 right; OFF knob #404040 left.
+ *   Interim states (doc 08 §2 [PROPOSAL], §4.4): focus = 2px accent ring at
+ *     2px offset; disabled = opacity token + pointer-events none; pending =
+ *     0.7 opacity + spinner glyph.
+ * Semantic tokens only (doc 08 §3.2). Raw px appears solely for structural
+ * dimensions with no token (heights, ring width, spinner) — see states.md. */
+
+.lumen-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-grid);
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 var(--space-inset);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-secondary);
+  background: var(--color-surface-deep);
+  border: none;
+  border-radius: var(--radius-inset);
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.lumen-button:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-content-bright);
+}
+
+.lumen-button:active {
+  background: var(--color-surface-selected);
+}
+
+.lumen-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* variant: primary — onboarding accent button (rx6, accent fill, on-accent glyph) */
+.lumen-button--primary {
+  background: var(--color-accent);
+  color: var(--color-content-on-accent);
+  border-radius: var(--radius-control);
+}
+
+.lumen-button--primary:hover {
+  background: var(--color-accent-strong);
+  color: var(--color-content-on-accent);
+}
+
+.lumen-button--primary:active {
+  background: var(--color-accent-tinted);
+}
+
+/* sizes — doc 08 §1.4 control heights 28/32/48 [VERIFY-DESIGN] */
+.lumen-button--sm {
+  height: 28px;
+}
+
+.lumen-button--lg {
+  height: 48px;
+}
+
+/* disabled (doc 08 §2 interim): content at 0.5 opacity, no pointer events */
+.lumen-button:disabled,
+.lumen-button[aria-disabled="true"] {
+  opacity: var(--opacity-disabled);
+  pointer-events: none;
+}
+
+/* pending/loading (doc 08 §4.4): 0.7 opacity + spinner glyph */
+.lumen-button[aria-busy="true"] {
+  opacity: var(--opacity-emphasis);
+  pointer-events: none;
+}
+
+.lumen-button[aria-busy="true"]::before {
+  content: "";
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%; /* functional circle, not a design radius */
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  animation: lumen-button-spin 800ms linear infinite;
+}
+
+@keyframes lumen-button-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lumen-button {
+    transition: none;
+  }
+
+  .lumen-button[aria-busy="true"]::before {
+    animation: none;
+  }
+}
+
+/* IconButton — icon-only action (icon system: stroke #8F8F8F, hit ~48) */
+.lumen-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--color-stroke-icon);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.lumen-icon-button:hover {
+  color: var(--color-content-bright);
+  background: var(--color-surface-hover);
+}
+
+.lumen-icon-button:active {
+  color: var(--color-accent-icon);
+}
+
+.lumen-icon-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.lumen-icon-button:disabled,
+.lumen-icon-button[aria-disabled="true"] {
+  opacity: var(--opacity-disabled);
+  pointer-events: none;
+}
+
+.lumen-icon-button[aria-busy="true"] {
+  opacity: var(--opacity-emphasis);
+  pointer-events: none;
+}
+
+.lumen-icon-button--sm {
+  width: 28px;
+  height: 28px;
+}
+
+.lumen-icon-button--lg {
+  width: 48px;
+  height: 48px;
+}
+
+/* Toggle — role=switch (doc 08 §4.5), 68x32 rx6 track, 26x26 rx3 knob */
+.lumen-toggle {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  width: 68px;
+  height: 32px;
+  padding: 3px; /* 26px knob inside 32px track */
+  background: var(--color-surface-deep);
+  border: none;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.lumen-toggle:hover {
+  background: var(--color-surface-hover);
+}
+
+.lumen-toggle:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.lumen-toggle__fill {
+  width: 0;
+  height: 26px;
+  background: var(--color-accent-tinted);
+  border-radius: var(--radius-panel);
+  transition: width 120ms ease;
+}
+
+.lumen-toggle__knob {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 3px; /* rx3 per Toggle.svg — no 3px semantic token (gap: states.md) */
+  background: var(--color-surface-muted);
+  transition: background-color 120ms ease;
+}
+
+.lumen-toggle[aria-checked="true"] {
+  justify-content: space-between;
+}
+
+.lumen-toggle[aria-checked="true"] .lumen-toggle__fill {
+  width: 33px;
+}
+
+.lumen-toggle[aria-checked="true"] .lumen-toggle__knob {
+  background: var(--color-accent-strong);
+}
+
+.lumen-toggle:disabled {
+  opacity: var(--opacity-disabled);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lumen-toggle,
+  .lumen-toggle__fill,
+  .lumen-toggle__knob {
+    transition: none;
+  }
+}
