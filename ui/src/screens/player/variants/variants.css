@@ -1,0 +1,71 @@
+/* Card 4.F2 — player variants: Miniplayer + Music mode styling.
+ * Design provenance: doc 08 §1.4 — Miniplayer card 391×339 rx14 #1B1B1B +
+ * shadow (dy 4.76 / blur 4.76 / 38% black = --shadow-card), thumbnail
+ * 373×209 rx5 + 2px #090909 stroke, seek 375×16 rx6, knob 8×12 rx4;
+ * Music-mode album art 737×737 rx20, slim seek knob 4×24 rx2.
+ * Semantic tokens only; raw px appears solely for the design's structural
+ * dimensions with no token (C1 player.css precedent — recorded in
+ * ui/NEXT-STEPS.md). The miniplayer card is a fixed-size compact surface
+ * [PROPOSAL: window-level always-on-top is host-owned; the DOM renders the
+ * compact frame inside the player root]. */
+
+.lumen-mini {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+  box-sizing: border-box;
+  width: 391px;
+  height: 339px;
+  padding: var(--space-grid);
+  margin: auto; /* centered compact card while window-level placement is host-owned */
+  border-radius: var(--radius-window); /* design rx14 */
+  background: var(--color-surface-chrome);
+  box-shadow: var(--shadow-card);
+}
+
+.lumen-mini__thumb {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border-radius: var(--radius-thumbnail);
+  background: var(--color-surface-deep);
+  outline: 2px solid var(--color-surface-deep); /* design: 2px #090909 thumb stroke */
+}
+
+.lumen-mini__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-grid);
+  height: 16px; /* design: mini seek track height */
+  flex-shrink: 0;
+}
+
+/* Music mode: album-art placeholder (honest — no fabricated art). */
+.lumen-music__art {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  margin: auto;
+  aspect-ratio: 1 / 1;
+  max-width: 737px; /* design: 737×737 art square [VERIFY-DESIGN rx20 → --radius-app] */
+  max-height: 737px;
+  border-radius: var(--radius-app);
+  background: var(--color-surface-chrome);
+}
+
+.lumen-music__art-hint {
+  margin: 0;
+  padding: var(--space-inset);
+  text-align: center;
+  color: var(--color-content-secondary);
+}
+
+/* Music-mode seek re-weighting (doc 08 §1.4 "Music-mode seek" — slim knob).
+ * The C2 seekbar is reused; only geometry is restyled via the shell's
+ * data-variant="music" hook. */
+.lumen-player[data-variant="music"] .lumen-controls__time {
+  color: var(--color-content-secondary);
+}

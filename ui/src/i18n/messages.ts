@@ -34,6 +34,14 @@ export type MessageKey =
   | "player.empty.title"
   | "player.empty.body"
   | "player.empty.open"
+  // --- player variants (card 4.F2: miniplayer + music mode) ---
+  | "player.variant.miniplayer.label"
+  | "player.variant.miniplayer.controls"
+  | "player.variant.miniplayer.expand"
+  | "player.variant.miniplayer.close"
+  | "player.art.label"
+  | "player.art.placeholder"
+  | "player.music.waveform-placeholder"
   // --- control bar (card 4.C2) ---
   | "player.controls.play"
   | "player.controls.pause"
@@ -436,6 +444,14 @@ const messages: Readonly<Record<MessageKey, string>> = {
   "player.empty.title": "No media open",
   "player.empty.body": "Open media to start playback.",
   "player.empty.open": "Open media",
+  "player.variant.miniplayer.label": "Miniplayer",
+  "player.variant.miniplayer.controls": "Miniplayer controls",
+  "player.variant.miniplayer.expand": "Expand to full player",
+  "player.variant.miniplayer.close": "Close miniplayer",
+  "player.art.label": "Album art",
+  "player.art.placeholder": "Album art placeholder — artwork renders once the engine reports it.",
+  "player.music.waveform-placeholder":
+    "Waveform seek appears when the engine reports audio levels; the standard seekbar is shown meanwhile.",
   "player.controls.play": "Play",
   "player.controls.pause": "Pause",
   "player.controls.stop": "Stop",

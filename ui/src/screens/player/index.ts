@@ -32,3 +32,20 @@ export type {
   LayoutMenuItem,
   LayoutRegion,
 } from "./layout";
+// Card 4.F2 — player variants (miniplayer + music mode) public surface.
+export {
+  MiniPlayer,
+  MusicMode,
+  PLAYER_SHELL_KEYMAP,
+  PLAYER_VARIANTS,
+  PLAYER_VARIANT_LAYOUTS,
+  VARIANT_KEYMAP,
+  VARIANT_KEYMAP_TOML,
+  isPlayerVariant,
+  loadPersistedVariant,
+  mergeKeymaps,
+  parsePlayerVariant,
+  persistVariant,
+  resolveVariantLayout,
+} from "./variants";
+export type { PlayerVariant } from "./variants";
