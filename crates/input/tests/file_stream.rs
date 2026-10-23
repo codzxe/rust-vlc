@@ -5,9 +5,9 @@
 mod common;
 
 use common::{TempDir, TempFile, pattern, running_privileged};
+use input::FileAccess;
 #[cfg(feature = "contract")]
 use input::contract::assert_stream_contract;
-use input::FileAccess;
 use media_types::error::AccessDenied;
 use media_types::ids::SourceUri;
 use media_types::{EngineError, ErrorKind};

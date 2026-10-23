@@ -67,7 +67,10 @@ fn play_flows_first_frame_samples_and_honest_stamps() {
         "exactly one end-of-media"
     );
     let errors = error_events(&host);
-    assert!(errors.is_empty(), "a clean play reports no errors: {errors:?}");
+    assert!(
+        errors.is_empty(),
+        "a clean play reports no errors: {errors:?}"
+    );
 
     // A/V stamp distance at the end-of-media checkpoint: the last
     // audio and last video stamps are within one frame duration.

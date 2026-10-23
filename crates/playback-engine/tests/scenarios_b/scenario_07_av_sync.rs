@@ -98,7 +98,10 @@ fn full_playback_keeps_av_stamps_within_tolerance_at_checkpoints() {
         "exactly one end-of-media"
     );
     let errors = error_events(&host);
-    assert!(errors.is_empty(), "a clean sync run reports no errors: {errors:?}");
+    assert!(
+        errors.is_empty(),
+        "a clean sync run reports no errors: {errors:?}"
+    );
 
     let close = dispatch(&mut host, Command::SessionClose);
     assert!(close.result.is_ok(), "closes: {:?}", close.result);

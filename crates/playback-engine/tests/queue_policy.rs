@@ -260,7 +260,9 @@ fn for_kind_is_exhaustive_and_honest() {
     // instead; audit F-1).
     assert_eq!(
         WiredKind::try_from(MediaKind::Data),
-        Err(UnwiredKind { kind: MediaKind::Data }),
+        Err(UnwiredKind {
+            kind: MediaKind::Data
+        }),
         "data has no lane"
     );
     // And the wired kinds round-trip through their full-kind view.

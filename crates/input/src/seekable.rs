@@ -83,10 +83,7 @@ pub trait RawRead {
 /// [`EngineError`] (stage `Open`) — `input.seek.before-start` when
 /// the resolved target is negative, `input.seek.overflow` when it
 /// exceeds `u64::MAX`.
-pub(crate) fn resolve_origin(
-    from: u64,
-    origin: SeekOrigin,
-) -> Result<u64, EngineError> {
+pub(crate) fn resolve_origin(from: u64, origin: SeekOrigin) -> Result<u64, EngineError> {
     match origin {
         SeekOrigin::Start(to) => Ok(to),
         SeekOrigin::Current(delta) => {

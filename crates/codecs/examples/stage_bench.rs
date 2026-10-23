@@ -61,20 +61,20 @@ use std::time::Instant;
 // The live decoder sources, compiled into this example (the
 // `#[path]`-include pattern of `color_bench.rs`: pub(crate) internals
 // benched without widening the library API).
-#[path = "../src/video/mjpeg/error.rs"]
-mod error;
 #[path = "../src/video/mjpeg/bitreader.rs"]
 mod bitreader;
+#[path = "../src/video/mjpeg/color.rs"]
+mod color;
+#[path = "../src/video/mjpeg/decoder.rs"]
+mod decoder;
+#[path = "../src/video/mjpeg/error.rs"]
+mod error;
 #[path = "../src/video/mjpeg/huffman.rs"]
 mod huffman;
 #[path = "../src/video/mjpeg/idct.rs"]
 mod idct;
 #[path = "../src/video/mjpeg/parser.rs"]
 mod parser;
-#[path = "../src/video/mjpeg/color.rs"]
-mod color;
-#[path = "../src/video/mjpeg/decoder.rs"]
-mod decoder;
 
 use decoder::{DecodeContext, FullStages, NoIdctNoWriteStages, NoIdctStages, NoWriteStages};
 
@@ -212,9 +212,11 @@ fn run_file(file: &str, passes: usize) -> Result<(), String> {
             let mut out_b = vec![0u8; len];
             ctx.assemble_frame(&mut out_a)
                 .map_err(|e| format!("assemble a: {e:?}"))?;
-            staged.assemble_frame(&mut out_b)
+            staged
+                .assemble_frame(&mut out_b)
                 .map_err(|e| format!("assemble b: {e:?}"))?;
-            if out_a != out_b || (a.width, a.height, a.concealed) != (b.width, b.height, b.concealed)
+            if out_a != out_b
+                || (a.width, a.height, a.concealed) != (b.width, b.height, b.concealed)
             {
                 return Err(format!(
                     "staged-full walk diverged from the production path on {file} \

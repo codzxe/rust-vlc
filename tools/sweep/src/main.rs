@@ -57,10 +57,11 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
-use outcome::{classify, crash_note, class_of, parse_worker_line, Outcome, Tally, WorkerLine};
+use outcome::{Outcome, Tally, WorkerLine, class_of, classify, crash_note, parse_worker_line};
 
 /// Usage (stderr; exit 64 path).
-const USAGE: &str = "Usage: lumen-sweep [--timeout-secs N] [--max-files N] [(CLASS=)DIR-OR-FILE]...";
+const USAGE: &str =
+    "Usage: lumen-sweep [--timeout-secs N] [--max-files N] [(CLASS=)DIR-OR-FILE]...";
 
 /// Default per-file deadline (seconds). The v4 smoke files are
 /// small; generous enough that a timeout means a real hang.
@@ -179,9 +180,7 @@ fn run(args: &[String]) -> i32 {
     let mut out = stdout.lock();
     for (class_override, path) in &files {
         let file_result = sweep_one(&exe, path, timeout_secs);
-        let class = class_override
-            .clone()
-            .unwrap_or_else(|| class_of(path));
+        let class = class_override.clone().unwrap_or_else(|| class_of(path));
         tally.record(&class, file_result.outcome);
         let _ = writeln!(out, "{}", sweepline(&class, path, &file_result));
         let _ = out.flush();
@@ -266,7 +265,10 @@ fn sweep_one(exe: &Path, path: &Path, timeout_secs: u64) -> FileResult {
 /// Wait for the child up to `timeout_secs`; on the deadline, kill
 /// it and report the timeout. Polls `try_wait` so the deadline is
 /// actually enforced (a blocking `wait` would hang with it).
-fn wait_with_timeout(child: &mut Child, timeout_secs: u64) -> (Option<std::process::ExitStatus>, bool) {
+fn wait_with_timeout(
+    child: &mut Child,
+    timeout_secs: u64,
+) -> (Option<std::process::ExitStatus>, bool) {
     let deadline = Instant::now() + Duration::from_secs(timeout_secs);
     loop {
         if let Ok(Some(status)) = child.try_wait() {
@@ -306,7 +308,10 @@ fn walk_dir(dir: &Path, out: &mut Vec<PathBuf>) {
     let mut paths: Vec<PathBuf> = entries.flatten().map(|entry| entry.path()).collect();
     paths.sort();
     for path in paths {
-        let name = path.file_name().and_then(|name| name.to_str()).unwrap_or("");
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("");
         if name.starts_with('.') {
             continue;
         }
@@ -349,7 +354,8 @@ fn sweepline(class: &str, path: &Path, result: &FileResult) -> String {
         field(line.map(|line| &line.limbs)),
         field(line.map(|line| &line.container)),
         result.secs,
-        line.map(|line| line.detail.clone()).unwrap_or_else(|| result.note.clone()),
+        line.map(|line| line.detail.clone())
+            .unwrap_or_else(|| result.note.clone()),
     )
 }
 
