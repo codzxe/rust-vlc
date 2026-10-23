@@ -23,13 +23,13 @@ const here = dirname(fileURLToPath(import.meta.url));
 // --- allowlist loading (i18n-allowlist.json) -----------------------------
 const allowlistRaw = JSON.parse(
   readFileSync(resolve(here, "i18n-allowlist.json"), "utf8"),
-) as unknown;
+);
 if (!Array.isArray(allowlistRaw)) {
   throw new Error("ui/i18n-allowlist.json must be a JSON array of { text, reason, owner }");
 }
 const allowlistedTexts = new Set(
   allowlistRaw
-    .filter((e): e is { text: string } => typeof e === "object" && e !== null && "text" in e)
+    .filter((e) => typeof e === "object" && e !== null && "text" in e)
     .map((e) => e.text),
 );
 
