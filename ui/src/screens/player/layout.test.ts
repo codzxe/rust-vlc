@@ -18,6 +18,7 @@ describe("parseLayoutConfig (doc 07 §7.2)", () => {
       "library",
       "playlist",
       "media-info",
+      "customize",
     ]);
     const byId = new Map(DEFAULT_LAYOUT.regions.map((r) => [r.id, r]));
     expect(byId.get("video-canvas")).toMatchObject({ anchor: "center", order: 10 });
@@ -30,8 +31,10 @@ describe("parseLayoutConfig (doc 07 §7.2)", () => {
     const menu = DEFAULT_LAYOUT.menus[0];
     expect(menu).toBeDefined();
     expect(menu!.id).toBe("app");
-    expect(menu!.items).toHaveLength(1);
+    expect(menu!.items).toHaveLength(2);
     expect(menu!.items[0]).toMatchObject({ id: "open-media", uiAction: "open-media" });
+    // Card 4.F3 — the customize surface opens via the menu/ui-action seam.
+    expect(menu!.items[1]).toMatchObject({ id: "customize-player", uiAction: "open-panel:customize" });
   });
 
   it("parses a minimal valid custom layout and sorts regions by order", () => {

@@ -383,6 +383,16 @@ label_key = "player.region.media-info"
 order = 20
 visible_when = "has-media"
 
+# Card 4.F3 — the customize surface (Crop/Aspect, Video Colors, Essential,
+# HDR panels). Content is capability-gated per field; the panel itself opens
+# through the same openPanels seam as the other side panels.
+[[region]]
+id = "customize"
+anchor = "right"
+label_key = "player.region.customize"
+order = 30
+visible_when = "has-media"
+
 [[menu]]
 id = "app"
 label_key = "player.menu.app"
@@ -392,6 +402,12 @@ id = "open-media"
 label_key = "player.empty.open"
 ui_action = "open-media"
 order = 10
+
+[[menu.item]]
+id = "customize-player"
+label_key = "player.region.customize"
+ui_action = "open-panel:customize"
+order = 20
 `;
 
 /** Parsed default layout (module-load; a bad default is a programmer error). */

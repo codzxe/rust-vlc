@@ -58,6 +58,45 @@ export type MessageKey =
   | "playlist.panel.empty-body"
   | "playlist.panel.not-exposed"
   | "playlist.panel.load-handoff"
+  // --- customize panels (card 4.F3) ---
+  | "player.region.customize"
+  | "customize.panel.crop-aspect"
+  | "customize.panel.video-colors"
+  | "customize.panel.essential"
+  | "customize.panel.hdr"
+  | "customize.field.aspect"
+  | "customize.field.crop"
+  | "customize.field.zoom"
+  | "customize.field.brightness"
+  | "customize.field.contrast"
+  | "customize.field.saturation"
+  | "customize.field.hue"
+  | "customize.field.gamma"
+  | "customize.field.speed"
+  | "customize.field.tonemap-mode"
+  | "customize.field.tonemap-strength"
+  | "customize.option.default"
+  | "customize.option.none"
+  | "customize.ratio.1-1"
+  | "customize.ratio.4-3"
+  | "customize.ratio.16-9"
+  | "customize.ratio.16-10"
+  | "customize.ratio.2-35-1"
+  | "customize.ratio.2-39-1"
+  | "customize.repeat.off"
+  | "customize.repeat.all"
+  | "customize.repeat.one"
+  | "customize.tonemap.clip"
+  | "customize.tonemap.mobius"
+  | "customize.tonemap.reinhard"
+  | "customize.tonemap.hable"
+  | "customize.action.seek-back-10"
+  | "customize.action.seek-fwd-10"
+  | "customize.action.seek-back-60"
+  | "customize.action.seek-fwd-60"
+  | "customize.action.repeat"
+  | "customize.action.shuffle"
+  | "customize.none-available"
   | "playlist.controls.prev"
   | "playlist.controls.next"
   | "playlist.controls.shuffle"
@@ -553,6 +592,45 @@ const messages: Readonly<Record<MessageKey, string>> = {
   "media-info.empty.title": "No media open",
   "media-info.empty.body": "Media information appears once a media file or stream is open.",
   "media-info.panel.not-exposed": "Media information is not available — the command layer did not expose it.",
+  // --- customize panels (card 4.F3) ---
+  "player.region.customize": "Customize",
+  "customize.panel.crop-aspect": "Crop & aspect ratio",
+  "customize.panel.video-colors": "Video colors",
+  "customize.panel.essential": "Essential",
+  "customize.panel.hdr": "HDR options",
+  "customize.field.aspect": "Aspect ratio",
+  "customize.field.crop": "Crop",
+  "customize.field.zoom": "Zoom",
+  "customize.field.brightness": "Brightness",
+  "customize.field.contrast": "Contrast",
+  "customize.field.saturation": "Saturation",
+  "customize.field.hue": "Hue",
+  "customize.field.gamma": "Gamma",
+  "customize.field.speed": "Playback speed",
+  "customize.field.tonemap-mode": "Tone mapping",
+  "customize.field.tonemap-strength": "Tone-mapping strength",
+  "customize.option.default": "Default",
+  "customize.option.none": "None",
+  "customize.ratio.1-1": "1:1",
+  "customize.ratio.4-3": "4:3",
+  "customize.ratio.16-9": "16:9",
+  "customize.ratio.16-10": "16:10",
+  "customize.ratio.2-35-1": "2.35:1",
+  "customize.ratio.2-39-1": "2.39:1",
+  "customize.repeat.off": "Off",
+  "customize.repeat.all": "All",
+  "customize.repeat.one": "One",
+  "customize.tonemap.clip": "Clip",
+  "customize.tonemap.mobius": "Mobius",
+  "customize.tonemap.reinhard": "Reinhard",
+  "customize.tonemap.hable": "Hable",
+  "customize.action.seek-back-10": "-10 s",
+  "customize.action.seek-fwd-10": "+10 s",
+  "customize.action.seek-back-60": "-60 s",
+  "customize.action.seek-fwd-60": "+60 s",
+  "customize.action.repeat": "Repeat",
+  "customize.action.shuffle": "Shuffle",
+  "customize.none-available": "No customize controls are supported by the connected engine.",
   "playlist.controls.prev": "Previous item",
   "playlist.controls.next": "Next item",
   "playlist.controls.shuffle": "Shuffle",

@@ -23,6 +23,7 @@ import { MediaInfoPanel, MediaInfoProvider } from "../media-info";
 import { PlaylistPanel, PlaylistProvider } from "../playlist";
 import { PlayerControlsProvider, usePlayerControls } from "./context";
 import { ControlBar, controlCommandOf } from "./controls";
+import { CustomizePanels } from "./customize";
 import {
   matchBindings,
   shellActionFor,
@@ -363,6 +364,8 @@ function PanelRegion({
       {/* Playlist region content landed with card 4.D1 (panel + queue
           semantics); media-info region content landed with card 4.D2 —
           library remains an honest placeholder. */}
+          semantics); customize panels with 4.F3 (capability-gated fields);
+          library/media-info remain honest placeholders. */}
       {region.id === "playlist" ? (
         <PlaylistProvider>
           <PlaylistPanel />
@@ -371,6 +374,8 @@ function PanelRegion({
         <MediaInfoProvider>
           <MediaInfoPanel />
         </MediaInfoProvider>
+      ) : region.id === "customize" ? (
+        <CustomizePanels />
       ) : (
         <p className="lumen-player__sr-note">{m("player.panel.placeholder")}</p>
       )}

@@ -492,3 +492,44 @@ semantics) is app-shell work; (2) the player-shell region wiring line is
 covered only indirectly (PlayerScreen test suite renders it via openPanels);
 (3) doc 08 has no dedicated media-info frame [VERIFY-DESIGN] — styling follows
 the settings language per the doc's own proposal.
+
+## Card 4.F3 — customize panels handoff
+
+`ui/src/screens/player/customize/**` implements the four design panels
+(Crop/Aspect, Video Colors, Essential, HDR — doc 08 §1.6) as a fully
+data-driven surface: `panels.ts` is the field catalog (field → command id →
+args payload), `capabilities.ts` gates each field on the engine's
+`system.list-commands` listing, and `CustomizePanels.tsx` renders only
+capability-backed fields (unsupported = HIDDEN, per the card AC — contrast
+settings' disabled-with-reason). Panels whose fields are ALL unsupported are
+hidden entirely; against the scaffold MockTransport (empty listing) the
+whole surface renders only an sr-only honest note.
+
+Handoffs / decisions for later cards:
+
+1. **Forward-declared commands:** video colors (`video.set-brightness` /
+   `-contrast` / `-saturation` / `-hue` / `-gamma`) and HDR tone mapping
+   (`video.set-tone-mapping`, `-strength`) are in the DESIGN but not the 1.D4
+   wire catalog. `CustomizePanels.dispatch` bridges with an
+   `as unknown as CommandRequest` cast; their arg keys (`value`, `mode`,
+   `strength`) are [PROPOSAL]. When `cargo xtask codegen` regrows the
+   catalog, replace the cast + reconcile arg keys; fields light up purely by
+   listing exposure — no renderer change.
+2. **Layout seam:** the `customize` region (right anchor, `visible_when =
+   "has-media"`) + `open-panel:customize` menu ui-action are additive entries
+   in `DEFAULT_LAYOUT_TOML`. The app layer still needs to route that
+   ui-action to the `openPanels` prop (the shell already renders the region
+   content when open) and add real `config/layouts/customize.toml` when the
+   config system lands (doc 07 §7).
+3. **Confirmed-state sources:** select selections / slider committed values
+   update ONLY from command completions (`applied-aspect-ratio`, `applied-crop`,
+   `applied-repeat`, `applied-rate`, `applied-zoom`, `applied-bool`) and
+   events (`playback.rate-changed`, `playlist.changed` repeat-set/shuffle-set).
+   Live slider drags are visual-only (doc 08 §5). An engine-side query for
+   current color/crop values would let panels open PRE-populated — none
+   exists in the catalog yet, so panels start at neutral display positions.
+4. **Essential panel scope:** speed slider, ±10 s/±60 s seeks, stop, repeat
+   (off/all/one), shuffle. The design's full button catalog also lists
+   Record / Snapshot / PiP / A-B loop — Snapshot maps to `video.take-screenshot`
+   (in catalog) but is a control-bar candidate (4.C2 ownership), and Record /
+   PiP / A-B have no commands; they were left out rather than rendered dead.
