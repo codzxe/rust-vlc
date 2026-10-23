@@ -140,3 +140,54 @@ Unsupported reason breakdown (103): `probe.no-demuxer` 75,
 2. corpus-big (485-file) sweep once runtime budget allows.
 3. Speed re-measure of the 3 canonical scenarios vs ffmpeg under the
    IDENTICAL 20261022 protocol.
+
+---
+
+## Addendum — corpus-big sweep (2026-10-24, card 7-h)
+
+Closes the "corpus-big sweep remains open" limitation above. Raw data:
+`docs/perf/raw/sweep-corpus-big-20261024.log` (force-added;
+`docs/perf/raw/*.log` is gitignored).
+
+### Protocol
+
+- Corpus: corpus-big regenerated at seed 58007138736976908607880252061
+  (`gen_corpus.py --preset standard --jobs 2`, exit 0; generator report
+  "TOTAL 587 files, 606 MiB"; clean phase 493 files + 20 rejected
+  draws; 1 ffprobe validation warning recorded in the manifest:
+  media/0336-cover-audio.mp3).
+- Run: `lumen-sweep --timeout-secs 30` over the four class dirs
+  (media/dirty/garbage/hls) = **538 files** (whole-tree walk is 540
+  including manifest.json + plan.json; the generator's 587 is its own
+  plan accounting). Single pass, wall **57 s**.
+- Binary: fresh release build from wip/w7-h @ main 171d0a7 — the
+  compile log shows every engine crate compiled from this worktree
+  (12.5 s), no stale shared-target rlib. Load conditions: idle sandbox
+  (loadavg 0.08, no other cargo/ffmpeg running).
+
+### Headline tally — big (538) vs smoke (126)
+
+| Outcome | big | big % | smoke | smoke % |
+|---|---|---|---|---|
+| ok | 82 | 15.2% | 21 | 16.7% |
+| unsupported | 446 | 82.9% | 103 | 81.7% |
+| dirty-reject | 9 | 1.7% | 1 | 0.8% |
+| typed-error | 1 | 0.2% | 1 | 0.8% |
+| panic | **0** | 0% | **0** | 0% |
+| timeout | **0** | 0% | **0** | 0% |
+
+**Rates hold at 4.3× scale: 0 panics, 0 timeouts across 538 files**
+(77 dirty + 22 garbage + 50 hls adversarial inputs). The unsupported
+share is unchanged (82.9% vs 81.7%) — the honest AVI-only
+container-coverage state; corpus-big surfaces no new crash shape.
+
+Notes: (a) per-class: avi-av 25/25 ok; avi-video 30 ok / 43
+unsupported; audio-only 0/43. (b) dirty-reject 1→9: the bigger dirty
+sample reaches more AVI damage shapes (4 truncated, 2
+walk-resync-failed, 2 riff-size-lie no-movi, 1 garbage truncated) —
+all typed + bounded, consistent with the smoke's single case.
+(c) typed-error 1 = the odd-chunk-avi concealment-budget shape
+(media/0214, resource-limit). (d) slowest file media/0339-avi-video.avi
+at **25.5 s** (ok) — ~10× the next-slowest (2.7 s) and near the 30 s
+deadline; smoke max was 0.63 s. **Engine handoff**: profile 0339's
+decode path before any larger corpus run.

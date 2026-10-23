@@ -42,22 +42,21 @@ Command: `python3 tools/corpus/gen_corpus.py --preset standard --out
 - Background-proc reaping (7-g's finding) reconfirmed: `setsid nohup`
   gen died at tool-call end; foreground resume completed it.
 
-## Item 3 — corpus-big sweep: see below / successor
+## Item 3 — corpus-big sweep: COMPLETE (same session, verified)
 
-Attempt launched from this session after this file was committed. If
-no follow-up commit updates this section, the attempt died with the
-session — re-run (corpus in /tmp persists across sessions here):
-
-```
-cd /home/z/my-project/worktrees/w7-h
-export PATH="$HOME/.cargo/bin:$PATH"
-cargo build --release -p lumen-sweep        # shared target; watch Compiling lines
-/home/z/my-project/target/release/lumen-sweep --timeout-secs 30 /tmp/corpus-big \
-  > docs/perf/raw/sweep-corpus-big-20261024.log 2>&1
-git add -f docs/perf/raw/sweep-corpus-big-20261024.log   # *.log gitignored
-```
-
-Then: short addendum section in `docs/perf/corpus-v4-sweep-20261024.md`
-(smoke 126 vs big census rates), and the 7-h worklog entry (both items
-then complete). Load conditions for the census: record `uptime` +
-running cargo/ffmpeg processes alongside the run.
+- Fresh release build from this worktree: 12.5 s, compile log shows
+  every engine crate compiled from w7-h paths (no stale shared-target
+  rlib).
+- `lumen-sweep --timeout-secs 30` over media/dirty/garbage/hls =
+  **538 files**, wall 57 s, idle load (loadavg 0.08, no other
+  cargo/ffmpeg running).
+- TALLY: **82 ok / 446 unsupported / 9 dirty-reject / 1 typed-error /
+  0 panic / 0 timeout** — smoke-vs-big rates hold (ok 15.2% vs 16.7%,
+  unsupported 82.9% vs 81.7%; panic/timeout zero at 4.3× scale).
+- Raw log: docs/perf/raw/sweep-corpus-big-20261024.log (force-added).
+- Addendum: docs/perf/corpus-v4-sweep-20261024.md §Addendum.
+- Engine handoff: slowest file media/0339-avi-video.avi **25.5 s** (ok)
+  — ~10× the next-slowest (2.7 s), near the 30 s deadline; smoke max
+  was 0.63 s. Profile before larger corpora.
+- All three items complete; 7-h worklog entry appended to the main-tree
+  worklog.

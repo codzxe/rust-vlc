@@ -1,0 +1,696 @@
+SWEEPLINE	riff-size-lie	/tmp/corpus-big/dirty/0165-riff-size-lie.avi	ok	-	-	-	0/0	8/8	0/0	2	1	a	avi	0.03	-
+SWEEPLINE	riff-size-lie	/tmp/corpus-big/dirty/0181-riff-size-lie.avi	ok	-	-	-	15/15	12/12	0/0	1	2	v+a	avi	0.03	-
+SWEEPLINE	riff-size-lie	/tmp/corpus-big/dirty/0218-riff-size-lie.avi	ok	-	-	-	10/10	6/6	0/0	1	2	v+a	avi	0.03	-
+SWEEPLINE	riff-size-lie	/tmp/corpus-big/dirty/0349-riff-size-lie.avi	dirty-reject	demux	corrupt	demux.avi.no-movi	0/0	0/0	0/0	0	0	none	-	0.03	[demux] corrupt structure (demux.avi.no-movi)
+SWEEPLINE	riff-size-lie	/tmp/corpus-big/dirty/0415-riff-size-lie.avi	dirty-reject	demux	corrupt	demux.avi.no-movi	0/0	0/0	0/0	0	0	none	-	0.03	[demux] corrupt structure (demux.avi.no-movi)
+SWEEPLINE	bit-drift-region-023-0112-dynres-video	/tmp/corpus-big/dirty/bit-drift-region-023-0112-dynres-video.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	bit-drift-region-038-0239-sr-chaos	/tmp/corpus-big/dirty/bit-drift-region-038-0239-sr-chaos.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 be ef 0d 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	bit-drift-region-041-0011-audio-only	/tmp/corpus-big/dirty/bit-drift-region-041-0011-audio-only.aac	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed ff f1 40 40 1c 5f fc de 02 00 4c 61 76 63 36 31) (probe.no-demuxer)
+SWEEPLINE	bit-drift-region-063-0120-ts-video	/tmp/corpus-big/dirty/bit-drift-region-063-0120-ts-video.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.04	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	cut-mid-chunk-002-0109-audio-only	/tmp/corpus-big/dirty/cut-mid-chunk-002-0109-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 a2 f0 09 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	cut-mid-chunk-003-0303-zeroframe-stream	/tmp/corpus-big/dirty/cut-mid-chunk-003-0303-zeroframe-stream.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.04	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	cut-mid-chunk-019-0039-ogv-video	/tmp/corpus-big/dirty/cut-mid-chunk-019-0039-ogv-video.ogv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 4f 67 67 53 00 02 00 00 00 00 00 00 00 00 0c 8d) (probe.no-demuxer)
+SWEEPLINE	cut-mid-chunk-029-0254-mp4-video	/tmp/corpus-big/dirty/cut-mid-chunk-029-0254-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	cut-mid-chunk-031-0035-flv-video	/tmp/corpus-big/dirty/cut-mid-chunk-031-0035-flv-video.flv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 46 4c 56 01 01 00 00 00 09 00 00 00 00 12 00 00) (probe.no-demuxer)
+SWEEPLINE	cut-mid-chunk-047-0044-bframe-storm	/tmp/corpus-big/dirty/cut-mid-chunk-047-0044-bframe-storm.mov	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	cut-mid-chunk-052-0199-avi-video	/tmp/corpus-big/dirty/cut-mid-chunk-052-0199-avi-video.avi	dirty-reject	demux	corrupt	demux.avi.truncated	0/0	0/0	0/0	0	0	none	-	0.03	[demux] truncated data: expected 34934 bytes, found 19683 (demux.avi.truncated)
+SWEEPLINE	cut-mid-chunk-066-0298-packed-bs	/tmp/corpus-big/dirty/cut-mid-chunk-066-0298-packed-bs.avi	dirty-reject	demux	corrupt	demux.avi.truncated	0/0	0/0	0/0	0	0	none	-	0.03	[demux] truncated data: expected 4424 bytes, found 2266 (demux.avi.truncated)
+SWEEPLINE	dup-range-006-0403-dynres-video	/tmp/corpus-big/dirty/dup-range-006-0403-dynres-video.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	dup-range-008-0056-avi-av	/tmp/corpus-big/dirty/dup-range-008-0056-avi-av.avi	ok	-	-	-	2285/2285	411/410	0/0	5	2	v+a	avi	0.13	-
+SWEEPLINE	dup-range-020-0404-mp4-video	/tmp/corpus-big/dirty/dup-range-020-0404-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	dup-range-027-0374-avi-video	/tmp/corpus-big/dirty/dup-range-027-0374-avi-video.avi	dirty-reject	demux	corrupt	demux.avi.walk-resync-failed	6/5	0/0	1/0	0	1	v	avi	0.03	[demux] corrupt structure at byte 24386 (demux.avi.walk-resync-failed)
+SWEEPLINE	dup-range-057-0287-avi-video	/tmp/corpus-big/dirty/dup-range-057-0287-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	flip-bytes-025-0032-still-24h	/tmp/corpus-big/dirty/flip-bytes-025-0032-still-24h.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	flip-bytes-032-master	/tmp/corpus-big/dirty/flip-bytes-032-master.m3u8	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.04	[probe] unsupported (sniffed a3 45 58 54 4c 33 45 0a 23 44 58 54 2d 58 2d 54) (probe.no-demuxer)
+SWEEPLINE	flip-bytes-055-0305-chapter-bomb	/tmp/corpus-big/dirty/flip-bytes-055-0305-chapter-bomb.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	flip-bytes-068-0064-still-24h	/tmp/corpus-big/dirty/flip-bytes-068-0064-still-24h.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	head-size-lie-007-0293-avi-av	/tmp/corpus-big/dirty/head-size-lie-007-0293-avi-av.avi	ok	-	-	-	26/26	164/164	0/0	1	2	v+a	avi	0.38	-
+SWEEPLINE	head-size-lie-010-0383-mov-video	/tmp/corpus-big/dirty/head-size-lie-010-0383-mov-video.mov	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	head-size-lie-017-0419-audio-only	/tmp/corpus-big/dirty/head-size-lie-017-0419-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 c0 36 11 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	head-size-lie-022-0046-still-24h	/tmp/corpus-big/dirty/head-size-lie-022-0046-still-24h.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	head-size-lie-034-0355-multi-av	/tmp/corpus-big/dirty/head-size-lie-034-0355-multi-av.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	head-size-lie-039-0173-chapter-bomb	/tmp/corpus-big/dirty/head-size-lie-039-0173-chapter-bomb.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	head-size-lie-043-0277-avi-video	/tmp/corpus-big/dirty/head-size-lie-043-0277-avi-video.avi	dirty-reject	demux	corrupt	demux.avi.truncated	0/0	0/0	0/0	0	0	none	-	0.03	[demux] truncated data: expected 74744 bytes, found 16712 (demux.avi.truncated)
+SWEEPLINE	head-size-lie-061-0323-audio-only	/tmp/corpus-big/dirty/head-size-lie-061-0323-audio-only.flac	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 66 4c 61 43 00 00 00 22 02 40 02 40 00 02 b7 00) (probe.no-demuxer)
+SWEEPLINE	head-size-lie-065-0380-avi-video	/tmp/corpus-big/dirty/head-size-lie-065-0380-avi-video.avi	ok	-	-	-	502/502	0/0	0/0	1	1	v	avi	0.12	-
+SWEEPLINE	head-size-lie-067-0106-cover-audio	/tmp/corpus-big/dirty/head-size-lie-067-0106-cover-audio.mp3	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 49 44 33 04 00 00 00 01 48 79 54 53 53 45 00 00) (probe.no-demuxer)
+SWEEPLINE	head-size-lie-070-0414-drift-av	/tmp/corpus-big/dirty/head-size-lie-070-0414-drift-av.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	lie-000-0170-dynres-video	/tmp/corpus-big/dirty/lie-000-0170-dynres-video.mp3	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	lie-004-0097-mkv-video	/tmp/corpus-big/dirty/lie-004-0097-mkv-video.265	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	lie-005-0105-muxed-av	/tmp/corpus-big/dirty/lie-005-0105-muxed-av.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	lie-024-0000-webm-video	/tmp/corpus-big/dirty/lie-024-0000-webm-video.265	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 9f 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	lie-028-0180-hevc-in-avi	/tmp/corpus-big/dirty/lie-028-0180-hevc-in-avi.ts	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	lie-040-0382-avi-video	/tmp/corpus-big/dirty/lie-040-0382-avi-video.mkv	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	lie-042-0028-audio-only	/tmp/corpus-big/dirty/lie-042-0028-audio-only.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.04	[probe] unsupported (sniffed 4f 67 67 53 00 02 00 00 00 00 00 00 00 00 38 a6) (probe.no-demuxer)
+SWEEPLINE	lie-059-0031-multi-av	/tmp/corpus-big/dirty/lie-059-0031-multi-av.mkv	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	smash-head-009-0343-avi-video	/tmp/corpus-big/dirty/smash-head-009-0343-avi-video.avi	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 3b 39 29 60 af 81 ce 2a ac 0d 1b a3 a4 c7 b1 2b) (probe.no-demuxer)
+SWEEPLINE	smash-head-014-0281-audio-only	/tmp/corpus-big/dirty/smash-head-014-0281-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 07 1d 07 f9 ff b1 20 5d 79 77 91 b2 2b 25 fb 46) (probe.no-demuxer)
+SWEEPLINE	smash-head-035-0048-avi-video	/tmp/corpus-big/dirty/smash-head-035-0048-avi-video.avi	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed af f1 d6 d7 96 40 a6 58 de 77 27 4d 35 03 d6 f2) (probe.no-demuxer)
+SWEEPLINE	smash-head-036-0366-packed-bs	/tmp/corpus-big/dirty/smash-head-036-0366-packed-bs.mp4	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 18 be 76 48 be 51 25 38 6d 84 17 14 48 57 34 88) (probe.no-demuxer)
+SWEEPLINE	smash-head-048-0185-audio-only	/tmp/corpus-big/dirty/smash-head-048-0185-audio-only.mka	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 40 30 f8 38 6f f5 4b 29 1a a9 f7 f3 48 da d6 38) (probe.no-demuxer)
+SWEEPLINE	smash-head-053-0215-raw-video	/tmp/corpus-big/dirty/smash-head-053-0215-raw-video.h264	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed a1 56 7f f3 42 64 b3 82 a6 08 f4 f9 1c 65 8d 8c) (probe.no-demuxer)
+SWEEPLINE	splice-other-001-0399-audio-only	/tmp/corpus-big/dirty/splice-other-001-0399-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 32 3e 42 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	splice-other-018-0283-raw-video	/tmp/corpus-big/dirty/splice-other-018-0283-raw-video.h264	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 01 67 f4 10 1e 91 97 02 80 bf e2 70 11) (probe.no-demuxer)
+SWEEPLINE	splice-other-021-0192-audio-only	/tmp/corpus-big/dirty/splice-other-021-0192-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 6a c6 10 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	splice-other-044-0089-bframe-storm	/tmp/corpus-big/dirty/splice-other-044-0089-bframe-storm.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	splice-other-046-0329-avi-av	/tmp/corpus-big/dirty/splice-other-046-0329-avi-av.avi	dirty-reject	demux	corrupt	demux.avi.walk-resync-failed	33/33	17/17	0/0	0	2	v+a	avi	0.08	[demux] corrupt structure at byte 513132 (demux.avi.walk-resync-failed)
+SWEEPLINE	splice-other-056-0036-webm-video	/tmp/corpus-big/dirty/splice-other-056-0036-webm-video.webm	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 9f 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	swap-halves-011-0145-dynres-video	/tmp/corpus-big/dirty/swap-halves-011-0145-dynres-video.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 01 00 1e 7e b3 e2 bb 58 e9 b5 51 2c fa 7e 88) (probe.no-demuxer)
+SWEEPLINE	swap-halves-026-0313-multivideo-av	/tmp/corpus-big/dirty/swap-halves-026-0313-multivideo-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 63 a0 07 41 8e 80 1d 06 3a c0 b5 99 6b 02 d6 65) (probe.no-demuxer)
+SWEEPLINE	swap-halves-033-0335-audio-only	/tmp/corpus-big/dirty/swap-halves-033-0335-audio-only.aac	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed e5 9e 59 e5 9e 59 e5 e3 e5 f1 f2 f8 f9 7c 7c be) (probe.no-demuxer)
+SWEEPLINE	swap-halves-054-0129-audio-only	/tmp/corpus-big/dirty/swap-halves-054-0129-audio-only.mka	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed de 57 96 6b 72 33 25 58 f7 eb fd 41 98 25 6b a6) (probe.no-demuxer)
+SWEEPLINE	swap-halves-060-0191-raw-video	/tmp/corpus-big/dirty/swap-halves-060-0191-raw-video.265	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 01 01 60 00 00 03 00 90 00 00 03 00 00 03 00 1e) (probe.no-demuxer)
+SWEEPLINE	swap-halves-069-0001-avi-video	/tmp/corpus-big/dirty/swap-halves-069-0001-avi-video.avi	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00) (probe.no-demuxer)
+SWEEPLINE	tail-garbage-013-0159-packed-bs	/tmp/corpus-big/dirty/tail-garbage-013-0159-packed-bs.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	tail-garbage-015-0193-fps-extremes	/tmp/corpus-big/dirty/tail-garbage-015-0193-fps-extremes.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	tail-garbage-030-0368-avi-video	/tmp/corpus-big/dirty/tail-garbage-030-0368-avi-video.avi	ok	-	-	-	415/415	0/0	0/0	0	1	v	avi	1.72	-
+SWEEPLINE	tail-garbage-045-0114-meta-bomb-av	/tmp/corpus-big/dirty/tail-garbage-045-0114-meta-bomb-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	tail-garbage-049-0309-maxtracks-avi	/tmp/corpus-big/dirty/tail-garbage-049-0309-maxtracks-avi.avi	ok	-	-	-	9/9	8/8	0/0	0	22	v+a	avi	0.03	-
+SWEEPLINE	tail-garbage-058-0176-mkv-video	/tmp/corpus-big/dirty/tail-garbage-058-0176-mkv-video.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	tail-garbage-064-0234-avi-av	/tmp/corpus-big/dirty/tail-garbage-064-0234-avi-av.avi	ok	-	-	-	93/93	135/135	0/0	0	2	v+a	avi	1.10	-
+SWEEPLINE	truncate-016-0096-dynres-video	/tmp/corpus-big/dirty/truncate-016-0096-dynres-video.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	truncate-037-0238-avi-video	/tmp/corpus-big/dirty/truncate-037-0238-avi-video.avi	dirty-reject	demux	corrupt	demux.avi.truncated	0/0	0/0	0/0	0	0	none	-	0.03	[demux] truncated data: expected 20913568 bytes, found 5257160 (demux.avi.truncated)
+SWEEPLINE	truncate-050-0363-audio-only	/tmp/corpus-big/dirty/truncate-050-0363-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 46 9b 19 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	truncate-062-0318-sr-chaos	/tmp/corpus-big/dirty/truncate-062-0318-sr-chaos.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.05	[probe] unsupported (sniffed 52 49 46 46 f6 1d 02 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	truncate-071-0209-sr-chaos	/tmp/corpus-big/dirty/truncate-071-0209-sr-chaos.mka	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	zero-mid-012-0257-maxtracks-avi	/tmp/corpus-big/dirty/zero-mid-012-0257-maxtracks-avi.avi	ok	-	-	-	7/7	12/12	0/0	2	28	v+a	avi	0.03	-
+SWEEPLINE	zero-mid-051-0337-avi-video	/tmp/corpus-big/dirty/zero-mid-051-0337-avi-video.avi	ok	-	-	-	238/238	0/0	0/0	378	1	v	avi	0.10	-
+SWEEPLINE	all-ff-08	/tmp/corpus-big/garbage/all-ff-08.bin	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff) (probe.no-demuxer)
+SWEEPLINE	all-zero-09	/tmp/corpus-big/garbage/all-zero-09.bin	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00) (probe.no-demuxer)
+SWEEPLINE	avi-magic-head-03	/tmp/corpus-big/garbage/avi-magic-head-03.bin	dirty-reject	demux	corrupt	demux.avi.truncated	0/0	0/0	0/0	0	0	none	-	0.03	[demux] truncated data: expected 425516 bytes, found 244 (demux.avi.truncated)
+SWEEPLINE	ebml-magic-05	/tmp/corpus-big/garbage/ebml-magic-05.bin	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 d7 8c 36 35 73 60 45 be b5 40 ef 7e) (probe.no-demuxer)
+SWEEPLINE	ebml-size-lie-16	/tmp/corpus-big/garbage/ebml-size-lie-16.bin	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 ff 01 ff ff ff ff 04 ce f1 31 9e 57) (probe.no-demuxer)
+SWEEPLINE	empty-00	/tmp/corpus-big/garbage/empty-00.bin	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (probe.no-demuxer)
+SWEEPLINE	ftyp-magic-04	/tmp/corpus-big/garbage/ftyp-magic-04.bin	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sniffed 00 00 00 18 66 74 79 70 2a 73 b5 a1 85 c2 90 80) (probe.no-demuxer)
+SWEEPLINE	ftyp-only-13	/tmp/corpus-big/garbage/ftyp-only-13.bin	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	gif-magic-17	/tmp/corpus-big/garbage/gif-magic-17.bin	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 49 46 38 39 61 54 16 54 db d5 a4 0f 3c ad 13) (probe.no-demuxer)
+SWEEPLINE	html-text-21	/tmp/corpus-big/garbage/html-text-21.bin	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 3c 68 74 6d 6c 3e 3c 62 6f 64 79 3e 6e 6f 74 20) (probe.no-demuxer)
+SWEEPLINE	id3-junk-10	/tmp/corpus-big/garbage/id3-junk-10.bin	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 49 44 33 a8 52 7a a7 04 25 2a 89 e5 d4 1b 16 c6) (probe.no-demuxer)
+SWEEPLINE	id3-size-lie-14	/tmp/corpus-big/garbage/id3-size-lie-14.bin	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 49 44 33 04 00 00 7b 7d 7e 7f 2d ae 5e 9d 97 64) (probe.no-demuxer)
+SWEEPLINE	jpeg-magic-19	/tmp/corpus-big/garbage/jpeg-magic-19.bin	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed ff d8 ff e0 b3 11 17 78 45 be cd 42 31 a0 83 ed) (probe.no-demuxer)
+SWEEPLINE	m3u8-garbage-15	/tmp/corpus-big/garbage/m3u8-garbage-15.bin	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 23 45 58 54 4d 33 55 0a 23 45 58 54 2d 58 2d 56) (probe.no-demuxer)
+SWEEPLINE	mdat-only-12	/tmp/corpus-big/garbage/mdat-only-12.bin	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 15 b5 6d 64 61 74 0b 80 9c 3a f1 48 9a 63) (probe.no-demuxer)
+SWEEPLINE	moov-only-11	/tmp/corpus-big/garbage/moov-only-11.bin	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 0c 9e 6d 6f 6f 76 f3 ca ee d0 43 4a d0 12) (probe.no-demuxer)
+SWEEPLINE	one-byte-01	/tmp/corpus-big/garbage/one-byte-01.bin	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed dc) (probe.no-demuxer)
+SWEEPLINE	png-magic-18	/tmp/corpus-big/garbage/png-magic-18.bin	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 89 50 4e 47 0d 0a 1a 0a 57 c3 58 64 b3 b7 16 09) (probe.no-demuxer)
+SWEEPLINE	random-bytes-06	/tmp/corpus-big/garbage/random-bytes-06.bin	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 02 c5 0c 3f 25 7e e1 ee 1d e4 06 e1 a7 04 64 de) (probe.no-demuxer)
+SWEEPLINE	riff-magic-02	/tmp/corpus-big/garbage/riff-magic-02.bin	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 c3 6a 30 1d 31 5b f2 cf 4b 02 28 e8) (probe.no-demuxer)
+SWEEPLINE	text-07	/tmp/corpus-big/garbage/text-07.bin	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 20 74 65 73 74 20 6c 75 6d 65 6e 20) (probe.no-demuxer)
+SWEEPLINE	zip-magic-20	/tmp/corpus-big/garbage/zip-magic-20.bin	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 50 4b 03 04 d8 86 fc ab 57 ff 44 59 fa f4 88 92) (probe.no-demuxer)
+SWEEPLINE	init0	/tmp/corpus-big/hls/0041/init0.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	master	/tmp/corpus-big/hls/0041/master.m3u8	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 23 45 58 54 4d 33 55 0a 23 45 58 54 2d 58 2d 56) (probe.no-demuxer)
+SWEEPLINE	v0	/tmp/corpus-big/hls/0041/v0.m3u8	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 23 45 58 54 4d 33 55 0a 23 45 58 54 2d 58 2d 56) (probe.no-demuxer)
+SWEEPLINE	v0_000	/tmp/corpus-big/hls/0041/v0_000.m4s	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 18 73 74 79 70 6d 73 64 68 00 00 00 00) (probe.no-demuxer)
+SWEEPLINE	v0_001	/tmp/corpus-big/hls/0041/v0_001.m4s	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 18 73 74 79 70 6d 73 64 68 00 00 00 00) (probe.no-demuxer)
+SWEEPLINE	master	/tmp/corpus-big/hls/0137/master.m3u8	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 23 45 58 54 4d 33 55 0a 23 45 58 54 2d 58 2d 56) (probe.no-demuxer)
+SWEEPLINE	v0	/tmp/corpus-big/hls/0137/v0.m3u8	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 23 45 58 54 4d 33 55 0a 23 45 58 54 2d 58 2d 56) (probe.no-demuxer)
+SWEEPLINE	v0_000	/tmp/corpus-big/hls/0137/v0_000.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	v0_001	/tmp/corpus-big/hls/0137/v0_001.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 11 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	v0_002	/tmp/corpus-big/hls/0137/v0_002.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 12 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	v0_003	/tmp/corpus-big/hls/0137/v0_003.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 13 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	v1	/tmp/corpus-big/hls/0137/v1.m3u8	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 23 45 58 54 4d 33 55 0a 23 45 58 54 2d 58 2d 56) (probe.no-demuxer)
+SWEEPLINE	v1_000	/tmp/corpus-big/hls/0137/v1_000.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	v1_001	/tmp/corpus-big/hls/0137/v1_001.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 11 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	v1_002	/tmp/corpus-big/hls/0137/v1_002.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 12 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	v1_003	/tmp/corpus-big/hls/0137/v1_003.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 13 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	v2	/tmp/corpus-big/hls/0137/v2.m3u8	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 23 45 58 54 4d 33 55 0a 23 45 58 54 2d 58 2d 56) (probe.no-demuxer)
+SWEEPLINE	v2_000	/tmp/corpus-big/hls/0137/v2_000.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	v2_001	/tmp/corpus-big/hls/0137/v2_001.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 11 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	v2_002	/tmp/corpus-big/hls/0137/v2_002.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 12 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	v2_003	/tmp/corpus-big/hls/0137/v2_003.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 13 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	init0	/tmp/corpus-big/hls/0148/init0.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	master	/tmp/corpus-big/hls/0148/master.m3u8	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 23 45 58 54 4d 33 55 0a 23 45 58 54 2d 58 2d 56) (probe.no-demuxer)
+SWEEPLINE	v0	/tmp/corpus-big/hls/0148/v0.m3u8	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 23 45 58 54 4d 33 55 0a 23 45 58 54 2d 58 2d 56) (probe.no-demuxer)
+SWEEPLINE	v0_000	/tmp/corpus-big/hls/0148/v0_000.m4s	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 18 73 74 79 70 6d 73 64 68 00 00 00 00) (probe.no-demuxer)
+SWEEPLINE	v0_001	/tmp/corpus-big/hls/0148/v0_001.m4s	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 18 73 74 79 70 6d 73 64 68 00 00 00 00) (probe.no-demuxer)
+SWEEPLINE	init0	/tmp/corpus-big/hls/0294/init0.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	init1	/tmp/corpus-big/hls/0294/init1.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	master	/tmp/corpus-big/hls/0294/master.m3u8	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 23 45 58 54 4d 33 55 0a 23 45 58 54 2d 58 2d 56) (probe.no-demuxer)
+SWEEPLINE	v0	/tmp/corpus-big/hls/0294/v0.m3u8	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 23 45 58 54 4d 33 55 0a 23 45 58 54 2d 58 2d 56) (probe.no-demuxer)
+SWEEPLINE	v0_000	/tmp/corpus-big/hls/0294/v0_000.m4s	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 18 73 74 79 70 6d 73 64 68 00 00 00 00) (probe.no-demuxer)
+SWEEPLINE	v0_001	/tmp/corpus-big/hls/0294/v0_001.m4s	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 18 73 74 79 70 6d 73 64 68 00 00 00 00) (probe.no-demuxer)
+SWEEPLINE	v0_002	/tmp/corpus-big/hls/0294/v0_002.m4s	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 18 73 74 79 70 6d 73 64 68 00 00 00 00) (probe.no-demuxer)
+SWEEPLINE	v1	/tmp/corpus-big/hls/0294/v1.m3u8	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 23 45 58 54 4d 33 55 0a 23 45 58 54 2d 58 2d 56) (probe.no-demuxer)
+SWEEPLINE	v1_000	/tmp/corpus-big/hls/0294/v1_000.m4s	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 18 73 74 79 70 6d 73 64 68 00 00 00 00) (probe.no-demuxer)
+SWEEPLINE	v1_001	/tmp/corpus-big/hls/0294/v1_001.m4s	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 18 73 74 79 70 6d 73 64 68 00 00 00 00) (probe.no-demuxer)
+SWEEPLINE	v1_002	/tmp/corpus-big/hls/0294/v1_002.m4s	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 18 73 74 79 70 6d 73 64 68 00 00 00 00) (probe.no-demuxer)
+SWEEPLINE	init0	/tmp/corpus-big/hls/0379/init0.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	init1	/tmp/corpus-big/hls/0379/init1.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	master	/tmp/corpus-big/hls/0379/master.m3u8	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 23 45 58 54 4d 33 55 0a 23 45 58 54 2d 58 2d 56) (probe.no-demuxer)
+SWEEPLINE	v0	/tmp/corpus-big/hls/0379/v0.m3u8	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 23 45 58 54 4d 33 55 0a 23 45 58 54 2d 58 2d 56) (probe.no-demuxer)
+SWEEPLINE	v0_000	/tmp/corpus-big/hls/0379/v0_000.m4s	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 18 73 74 79 70 6d 73 64 68 00 00 00 00) (probe.no-demuxer)
+SWEEPLINE	v0_001	/tmp/corpus-big/hls/0379/v0_001.m4s	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 18 73 74 79 70 6d 73 64 68 00 00 00 00) (probe.no-demuxer)
+SWEEPLINE	v0_002	/tmp/corpus-big/hls/0379/v0_002.m4s	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 18 73 74 79 70 6d 73 64 68 00 00 00 00) (probe.no-demuxer)
+SWEEPLINE	v0_003	/tmp/corpus-big/hls/0379/v0_003.m4s	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 18 73 74 79 70 6d 73 64 68 00 00 00 00) (probe.no-demuxer)
+SWEEPLINE	v1	/tmp/corpus-big/hls/0379/v1.m3u8	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 23 45 58 54 4d 33 55 0a 23 45 58 54 2d 58 2d 56) (probe.no-demuxer)
+SWEEPLINE	v1_000	/tmp/corpus-big/hls/0379/v1_000.m4s	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 18 73 74 79 70 6d 73 64 68 00 00 00 00) (probe.no-demuxer)
+SWEEPLINE	v1_001	/tmp/corpus-big/hls/0379/v1_001.m4s	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 18 73 74 79 70 6d 73 64 68 00 00 00 00) (probe.no-demuxer)
+SWEEPLINE	v1_002	/tmp/corpus-big/hls/0379/v1_002.m4s	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 18 73 74 79 70 6d 73 64 68 00 00 00 00) (probe.no-demuxer)
+SWEEPLINE	v1_003	/tmp/corpus-big/hls/0379/v1_003.m4s	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 18 73 74 79 70 6d 73 64 68 00 00 00 00) (probe.no-demuxer)
+SWEEPLINE	webm-video	/tmp/corpus-big/media/0000-webm-video.webm	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 9f 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0001-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0002-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	flv-video	/tmp/corpus-big/media/0003-flv-video.flv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 46 4c 56 01 01 00 00 00 09 00 00 00 00 12 00 00) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0004-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	zeroframe-stream	/tmp/corpus-big/media/0005-zeroframe-stream.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	dynres-video	/tmp/corpus-big/media/0006-dynres-video.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0007-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	mp4-video	/tmp/corpus-big/media/0008-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0009-avi-video.avi	ok	-	-	-	99/99	0/0	0/0	0	1	v	avi	0.48	-
+SWEEPLINE	dynres-video	/tmp/corpus-big/media/0010-dynres-video.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0011-audio-only.aac	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed ff f1 40 40 1c 5f fc de 02 00 4c 61 76 63 36 31) (probe.no-demuxer)
+SWEEPLINE	dynres-video	/tmp/corpus-big/media/0012-dynres-video.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	mp4-video	/tmp/corpus-big/media/0013-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	muxed-av	/tmp/corpus-big/media/0014-muxed-av.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	multi-av	/tmp/corpus-big/media/0015-multi-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	ts-video	/tmp/corpus-big/media/0016-ts-video.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0017-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0018-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	cover-audio	/tmp/corpus-big/media/0019-cover-audio.mp3	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0020-avi-av.avi	ok	-	-	-	0/0	327/327	0/0	1	1	a	avi	0.03	-
+SWEEPLINE	fps-extremes	/tmp/corpus-big/media/0021-fps-extremes.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	meta-bomb-av	/tmp/corpus-big/media/0022-meta-bomb-av.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	packed-bs	/tmp/corpus-big/media/0023-packed-bs.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0024-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 92 a1 1d 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	bframe-storm	/tmp/corpus-big/media/0025-bframe-storm.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0026-audio-only.mp2	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed ff fd e4 00 55 66 55 66 77 66 66 77 55 66 76 db) (probe.no-demuxer)
+SWEEPLINE	dynres-video	/tmp/corpus-big/media/0027-dynres-video.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0028-audio-only.ogg	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 4f 67 67 53 00 02 00 00 00 00 00 00 00 00 38 a6) (probe.no-demuxer)
+SWEEPLINE	raw-video	/tmp/corpus-big/media/0029-raw-video.265	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 01 40 01 0c 01 ff ff 01 60 00 00 03 00) (probe.no-demuxer)
+SWEEPLINE	muxed-av	/tmp/corpus-big/media/0030-muxed-av.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	multi-av	/tmp/corpus-big/media/0031-multi-av.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	still-24h	/tmp/corpus-big/media/0032-still-24h.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	param-midchange	/tmp/corpus-big/media/0033-param-midchange.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0034-avi-video.avi	ok	-	-	-	58/58	0/0	0/0	0	1	v	avi	0.23	-
+SWEEPLINE	flv-video	/tmp/corpus-big/media/0035-flv-video.flv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 46 4c 56 01 01 00 00 00 09 00 00 00 00 12 00 00) (probe.no-demuxer)
+SWEEPLINE	webm-video	/tmp/corpus-big/media/0036-webm-video.webm	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 9f 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	muxed-av	/tmp/corpus-big/media/0037-muxed-av.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	flv-video	/tmp/corpus-big/media/0038-flv-video.flv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 46 4c 56 01 01 00 00 00 09 00 00 00 00 12 00 00) (probe.no-demuxer)
+SWEEPLINE	ogv-video	/tmp/corpus-big/media/0039-ogv-video.ogv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 4f 67 67 53 00 02 00 00 00 00 00 00 00 00 0c 8d) (probe.no-demuxer)
+SWEEPLINE	vfr-av	/tmp/corpus-big/media/0040-vfr-av.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0042-avi-av.avi	ok	-	-	-	0/0	464/464	0/0	1	1	a	avi	0.03	-
+SWEEPLINE	muxed-av	/tmp/corpus-big/media/0043-muxed-av.webm	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 9f 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	bframe-storm	/tmp/corpus-big/media/0044-bframe-storm.mov	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	vfr-av	/tmp/corpus-big/media/0045-vfr-av.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	still-24h	/tmp/corpus-big/media/0046-still-24h.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	hevc-in-avi	/tmp/corpus-big/media/0047-hevc-in-avi.avi	ok	-	-	-	0/0	10/10	0/0	1	1	a	avi	0.03	-
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0048-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	muxed-av	/tmp/corpus-big/media/0049-muxed-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	sr-chaos	/tmp/corpus-big/media/0050-sr-chaos.mka	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	bframe-storm	/tmp/corpus-big/media/0051-bframe-storm.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	fmp4-video	/tmp/corpus-big/media/0052-fmp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0053-avi-video.avi	ok	-	-	-	73/73	0/0	0/0	0	1	v	avi	1.71	-
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0054-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 1e 14 50 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	cover-audio	/tmp/corpus-big/media/0055-cover-audio.m4a	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0056-avi-av.avi	ok	-	-	-	2291/2291	412/412	0/0	0	2	v+a	avi	0.18	-
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0057-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0058-audio-only.ac3	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 0b 77 24 14 0c 40 2f 84 2b c0 b1 d2 09 d6 bc 37) (probe.no-demuxer)
+SWEEPLINE	odd-dims	/tmp/corpus-big/media/0059-odd-dims.avi	ok	-	-	-	11/11	0/0	0/0	0	1	v	avi	0.03	-
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0060-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 e0 1b 01 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	cover-audio	/tmp/corpus-big/media/0061-cover-audio.m4a	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 49 44 33 04 00 00 00 02 5d 52 54 53 53 45 00 00) (probe.no-demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0062-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 46 b6 05 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0063-avi-av.avi	ok	-	-	-	0/0	209/209	0/0	1	1	a	avi	0.03	-
+SWEEPLINE	still-24h	/tmp/corpus-big/media/0064-still-24h.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	raw-video	/tmp/corpus-big/media/0065-raw-video.h264	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 01 67 6e 10 1e a6 cb 81 40 7b 60 22 00) (probe.no-demuxer)
+SWEEPLINE	dynres-video	/tmp/corpus-big/media/0066-dynres-video.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	ts-video	/tmp/corpus-big/media/0067-ts-video.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0068-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0069-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	flv-video	/tmp/corpus-big/media/0070-flv-video.flv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 46 4c 56 01 01 00 00 00 09 00 00 00 00 12 00 00) (probe.no-demuxer)
+SWEEPLINE	dynres-video	/tmp/corpus-big/media/0071-dynres-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	mp4-video	/tmp/corpus-big/media/0072-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	multivideo-av	/tmp/corpus-big/media/0073-multivideo-av.avi	ok	-	-	-	112/112	72/72	0/0	1	2	v+a	avi	0.31	-
+SWEEPLINE	zeroframe-stream	/tmp/corpus-big/media/0074-zeroframe-stream.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	mp4-video	/tmp/corpus-big/media/0075-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0076-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 e2 55 e9 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0077-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.05	[probe] unsupported (sniffed 52 49 46 46 3e cf 01 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	webm-video	/tmp/corpus-big/media/0078-webm-video.webm	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 9f 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0079-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 56 20 02 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	raw-video	/tmp/corpus-big/media/0081-raw-video.h264	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 01 67 42 c0 1f da 0b 13 b0 11 00 00 03) (probe.no-demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0083-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 46 6e 0a 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	vfr-av	/tmp/corpus-big/media/0084-vfr-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	muxed-av	/tmp/corpus-big/media/0085-muxed-av.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	raw-video	/tmp/corpus-big/media/0086-raw-video.265	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 01 40 01 0c 01 ff ff 02 20 00 00 03 00) (probe.no-demuxer)
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0087-avi-av.avi	ok	-	-	-	118/118	422/422	0/0	0	2	v+a	avi	0.05	-
+SWEEPLINE	webm-video	/tmp/corpus-big/media/0088-webm-video.webm	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 9f 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	bframe-storm	/tmp/corpus-big/media/0089-bframe-storm.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0090-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	zeroframe-stream	/tmp/corpus-big/media/0091-zeroframe-stream.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	sr-chaos	/tmp/corpus-big/media/0093-sr-chaos.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 9c 33 01 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0094-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	muxed-av	/tmp/corpus-big/media/0095-muxed-av.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	dynres-video	/tmp/corpus-big/media/0096-dynres-video.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	mkv-video	/tmp/corpus-big/media/0097-mkv-video.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	raw-video	/tmp/corpus-big/media/0098-raw-video.265	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 01 40 01 0c 01 ff ff 01 60 00 00 03 00) (probe.no-demuxer)
+SWEEPLINE	odd-dims	/tmp/corpus-big/media/0099-odd-dims.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0101-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	vfr-av	/tmp/corpus-big/media/0102-vfr-av.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	vbv-burst	/tmp/corpus-big/media/0103-vbv-burst.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	mp4-video	/tmp/corpus-big/media/0104-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	muxed-av	/tmp/corpus-big/media/0105-muxed-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	cover-audio	/tmp/corpus-big/media/0106-cover-audio.mp3	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 49 44 33 04 00 00 00 01 48 79 54 53 53 45 00 00) (probe.no-demuxer)
+SWEEPLINE	bframe-storm	/tmp/corpus-big/media/0108-bframe-storm.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0109-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 a2 f0 09 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	fps-extremes	/tmp/corpus-big/media/0110-fps-extremes.mov	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0111-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 1e dc 15 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	dynres-video	/tmp/corpus-big/media/0112-dynres-video.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	mkv-video	/tmp/corpus-big/media/0113-mkv-video.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	meta-bomb-av	/tmp/corpus-big/media/0114-meta-bomb-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0115-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 1e f0 6a 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	mov-video	/tmp/corpus-big/media/0116-mov-video.mov	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	mp4-video	/tmp/corpus-big/media/0117-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0118-audio-only.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	odd-dims	/tmp/corpus-big/media/0119-odd-dims.mov	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	ts-video	/tmp/corpus-big/media/0120-ts-video.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	vfr-av	/tmp/corpus-big/media/0121-vfr-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0122-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 5e 19 1a 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	vfr-av	/tmp/corpus-big/media/0123-vfr-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0125-avi-av.avi	ok	-	-	-	177/177	278/278	0/0	0	2	v+a	avi	1.15	-
+SWEEPLINE	rot-display	/tmp/corpus-big/media/0126-rot-display.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0128-avi-av.avi	ok	-	-	-	0/0	116/116	0/0	1	1	a	avi	0.03	-
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0129-audio-only.mka	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0130-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 9c e2 09 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	bframe-storm	/tmp/corpus-big/media/0131-bframe-storm.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	packed-bs	/tmp/corpus-big/media/0132-packed-bs.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0133-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 ca bc 1d 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0134-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	zeroframe-stream	/tmp/corpus-big/media/0135-zeroframe-stream.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	mp4-video	/tmp/corpus-big/media/0136-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	sr-chaos	/tmp/corpus-big/media/0139-sr-chaos.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 de b6 04 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	ogv-video	/tmp/corpus-big/media/0140-ogv-video.ogv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 4f 67 67 53 00 02 00 00 00 00 00 00 00 00 6c 0b) (probe.no-demuxer)
+SWEEPLINE	drift-av	/tmp/corpus-big/media/0141-drift-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0142-avi-av.avi	ok	-	-	-	0/0	78/78	0/0	1	1	a	avi	0.03	-
+SWEEPLINE	mp4-video	/tmp/corpus-big/media/0143-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	dynres-video	/tmp/corpus-big/media/0145-dynres-video.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.04	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0146-avi-av.avi	ok	-	-	-	0/0	92/92	0/0	1	1	a	avi	0.03	-
+SWEEPLINE	mkv-video	/tmp/corpus-big/media/0147-mkv-video.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0149-audio-only.m4a	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	multivideo-av	/tmp/corpus-big/media/0150-multivideo-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	muxed-av	/tmp/corpus-big/media/0151-muxed-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	mkv-video	/tmp/corpus-big/media/0152-mkv-video.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0153-avi-av.avi	ok	-	-	-	0/0	87/87	0/0	1	1	a	avi	0.03	-
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0154-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	mkv-video	/tmp/corpus-big/media/0155-mkv-video.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0156-avi-video.avi	ok	-	-	-	58/58	0/0	0/0	0	1	v	avi	0.11	-
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0157-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 6a a8 0e 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0158-avi-video.avi	ok	-	-	-	83/83	0/0	0/0	0	1	v	avi	0.88	-
+SWEEPLINE	packed-bs	/tmp/corpus-big/media/0159-packed-bs.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	dynres-video	/tmp/corpus-big/media/0160-dynres-video.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	multi-av	/tmp/corpus-big/media/0161-multi-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	drift-av	/tmp/corpus-big/media/0162-drift-av.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	param-midchange	/tmp/corpus-big/media/0163-param-midchange.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0164-avi-video.avi	ok	-	-	-	12/12	0/0	0/0	0	1	v	avi	0.03	-
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0166-audio-only.ogg	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 4f 67 67 53 00 02 00 00 00 00 00 00 00 00 b9 ac) (probe.no-demuxer)
+SWEEPLINE	mp4-video	/tmp/corpus-big/media/0167-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.04	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	ts-video	/tmp/corpus-big/media/0168-ts-video.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	cover-audio	/tmp/corpus-big/media/0169-cover-audio.flac	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 66 4c 61 43 00 00 00 22 02 40 02 40 00 05 c4 00) (probe.no-demuxer)
+SWEEPLINE	dynres-video	/tmp/corpus-big/media/0170-dynres-video.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	vfr-av	/tmp/corpus-big/media/0171-vfr-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0172-avi-video.avi	ok	-	-	-	45/45	0/0	0/0	0	1	v	avi	0.20	-
+SWEEPLINE	chapter-bomb	/tmp/corpus-big/media/0173-chapter-bomb.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	dynres-video	/tmp/corpus-big/media/0174-dynres-video.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0175-avi-video.avi	ok	-	-	-	20/20	0/0	0/0	0	1	v	avi	0.03	-
+SWEEPLINE	mkv-video	/tmp/corpus-big/media/0176-mkv-video.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	mkv-video	/tmp/corpus-big/media/0177-mkv-video.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	mov-video	/tmp/corpus-big/media/0178-mov-video.mov	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	dynres-video	/tmp/corpus-big/media/0179-dynres-video.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	hevc-in-avi	/tmp/corpus-big/media/0180-hevc-in-avi.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0182-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 12 f8 56 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	zeroframe-stream	/tmp/corpus-big/media/0183-zeroframe-stream.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0184-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0185-audio-only.mka	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	mkv-video	/tmp/corpus-big/media/0186-mkv-video.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0187-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	rot-display	/tmp/corpus-big/media/0189-rot-display.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0190-avi-av.avi	ok	-	-	-	0/0	177/177	0/0	1	1	a	avi	0.03	-
+SWEEPLINE	raw-video	/tmp/corpus-big/media/0191-raw-video.265	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 01 40 01 0c 01 ff ff 01 60 00 00 03 00) (probe.no-demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0192-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 6a c6 10 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	fps-extremes	/tmp/corpus-big/media/0193-fps-extremes.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	webm-video	/tmp/corpus-big/media/0194-webm-video.webm	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 9f 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	fps-extremes	/tmp/corpus-big/media/0195-fps-extremes.mov	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0196-avi-video.avi	ok	-	-	-	5/5	0/0	0/0	0	1	v	avi	0.05	-
+SWEEPLINE	mov-video	/tmp/corpus-big/media/0197-mov-video.mov	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	hevc-in-avi	/tmp/corpus-big/media/0198-hevc-in-avi.avi	ok	-	-	-	0/0	15/15	0/0	1	1	a	avi	0.03	-
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0199-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0200-audio-only.ogg	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 4f 67 67 53 00 02 00 00 00 00 00 00 00 00 2e aa) (probe.no-demuxer)
+SWEEPLINE	muxed-av	/tmp/corpus-big/media/0201-muxed-av.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	flv-video	/tmp/corpus-big/media/0202-flv-video.flv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 46 4c 56 01 01 00 00 00 09 00 00 00 00 12 00 00) (probe.no-demuxer)
+SWEEPLINE	param-midchange	/tmp/corpus-big/media/0203-param-midchange.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	muxed-av	/tmp/corpus-big/media/0204-muxed-av.mov	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	multivideo-av	/tmp/corpus-big/media/0205-multivideo-av.avi	ok	-	-	-	83/83	162/162	0/0	1	2	v+a	avi	0.31	-
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0206-audio-only.ogg	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 4f 67 67 53 00 02 00 00 00 00 00 00 00 00 e2 6f) (probe.no-demuxer)
+SWEEPLINE	vbv-burst	/tmp/corpus-big/media/0207-vbv-burst.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	fmp4-video	/tmp/corpus-big/media/0208-fmp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	sr-chaos	/tmp/corpus-big/media/0209-sr-chaos.mka	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0210-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	mp4-video	/tmp/corpus-big/media/0211-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	meta-bomb-av	/tmp/corpus-big/media/0212-meta-bomb-av.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	bframe-storm	/tmp/corpus-big/media/0213-bframe-storm.mov	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	odd-chunk-avi	/tmp/corpus-big/media/0214-odd-chunk-avi.avi	typed-error	decode	resource-limit	sweep.concealment.budget	1000/0	0/0	1000/0	0	2	v+a	avi	0.03	[decode] resource limit: memory (budget 1000, attempted 1000) (sweep.concealment.budget)
+SWEEPLINE	raw-video	/tmp/corpus-big/media/0215-raw-video.h264	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 01 67 f4 00 0a 91 9d 92 d8 08 80 00 00) (probe.no-demuxer)
+SWEEPLINE	muxed-av	/tmp/corpus-big/media/0216-muxed-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	mp4-video	/tmp/corpus-big/media/0217-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	mkv-video	/tmp/corpus-big/media/0219-mkv-video.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.05	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	rot-display	/tmp/corpus-big/media/0220-rot-display.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	vfr-av	/tmp/corpus-big/media/0221-vfr-av.mov	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	packed-bs	/tmp/corpus-big/media/0222-packed-bs.mov	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	mp4-video	/tmp/corpus-big/media/0223-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0224-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 56 20 03 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0225-avi-video.avi	ok	-	-	-	497/497	0/0	0/0	0	1	v	avi	0.18	-
+SWEEPLINE	ts-video	/tmp/corpus-big/media/0226-ts-video.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	raw-video	/tmp/corpus-big/media/0228-raw-video.h264	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 01 67 64 10 14 f2 e4 b6 02 d9 00 00 03) (probe.no-demuxer)
+SWEEPLINE	rot-display	/tmp/corpus-big/media/0229-rot-display.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	fmp4-video	/tmp/corpus-big/media/0231-fmp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	mp4-video	/tmp/corpus-big/media/0232-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	mov-video	/tmp/corpus-big/media/0233-mov-video.mov	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0234-avi-av.avi	ok	-	-	-	93/93	135/135	0/0	0	2	v+a	avi	0.73	-
+SWEEPLINE	param-midchange	/tmp/corpus-big/media/0235-param-midchange.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	raw-video	/tmp/corpus-big/media/0236-raw-video.h264	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 01 67 6e 00 1f a6 ce c0 80 10 6c 04 40) (probe.no-demuxer)
+SWEEPLINE	fmp4-video	/tmp/corpus-big/media/0237-fmp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0238-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	sr-chaos	/tmp/corpus-big/media/0239-sr-chaos.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 be ef 0d 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	multi-av	/tmp/corpus-big/media/0240-multi-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	sr-chaos	/tmp/corpus-big/media/0242-sr-chaos.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 ae a8 07 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0243-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	maxtracks-avi	/tmp/corpus-big/media/0244-maxtracks-avi.avi	ok	-	-	-	5/5	5/5	0/0	0	24	v+a	avi	0.03	-
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0245-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	odd-chunk-avi	/tmp/corpus-big/media/0246-odd-chunk-avi.avi	ok	-	-	-	0/0	4707/4707	0/0	8	1	a	avi	0.03	-
+SWEEPLINE	maxtracks-avi	/tmp/corpus-big/media/0248-maxtracks-avi.avi	ok	-	-	-	0/0	6/6	0/0	2	15	a	avi	0.03	-
+SWEEPLINE	cover-audio	/tmp/corpus-big/media/0249-cover-audio.m4a	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	ts-video	/tmp/corpus-big/media/0250-ts-video.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	muxed-av	/tmp/corpus-big/media/0251-muxed-av.webm	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 9f 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0253-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	mp4-video	/tmp/corpus-big/media/0254-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	zeroframe-stream	/tmp/corpus-big/media/0255-zeroframe-stream.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0256-avi-av.avi	ok	-	-	-	0/0	400/400	0/0	1	1	a	avi	0.03	-
+SWEEPLINE	maxtracks-avi	/tmp/corpus-big/media/0257-maxtracks-avi.avi	ok	-	-	-	7/7	12/12	0/0	2	28	v+a	avi	0.03	-
+SWEEPLINE	multi-av	/tmp/corpus-big/media/0258-multi-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	bframe-storm	/tmp/corpus-big/media/0259-bframe-storm.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	cover-audio	/tmp/corpus-big/media/0260-cover-audio.flac	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0262-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 26 a0 3a 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	bframe-storm	/tmp/corpus-big/media/0263-bframe-storm.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	mp4-video	/tmp/corpus-big/media/0264-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	still-24h	/tmp/corpus-big/media/0265-still-24h.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	mkv-video	/tmp/corpus-big/media/0266-mkv-video.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0267-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 56 44 01 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	muxed-av	/tmp/corpus-big/media/0268-muxed-av.webm	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 9f 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	rot-display	/tmp/corpus-big/media/0269-rot-display.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	bframe-storm	/tmp/corpus-big/media/0270-bframe-storm.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	packed-bs	/tmp/corpus-big/media/0271-packed-bs.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	fmp4-video	/tmp/corpus-big/media/0272-fmp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0273-avi-av.avi	ok	-	-	-	129/129	42/42	0/0	0	2	v+a	avi	0.10	-
+SWEEPLINE	multi-av	/tmp/corpus-big/media/0274-multi-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0275-avi-av.avi	ok	-	-	-	0/0	281/281	0/0	1	1	a	avi	0.03	-
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0276-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0277-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	multivideo-av	/tmp/corpus-big/media/0278-multivideo-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0279-avi-video.avi	ok	-	-	-	469/469	0/0	0/0	0	1	v	avi	0.03	-
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0280-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0281-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 ba 9b 02 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	vfr-av	/tmp/corpus-big/media/0282-vfr-av.mov	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	raw-video	/tmp/corpus-big/media/0283-raw-video.h264	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 01 67 f4 10 1e 91 97 02 80 bf e2 70 11) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0284-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0285-avi-av.avi	ok	-	-	-	216/216	226/226	0/0	0	2	v+a	avi	0.45	-
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0286-avi-video.avi	ok	-	-	-	13/13	0/0	0/0	0	1	v	avi	0.05	-
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0287-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	mkv-video	/tmp/corpus-big/media/0288-mkv-video.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	webm-video	/tmp/corpus-big/media/0289-webm-video.webm	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 9f 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	multivideo-av	/tmp/corpus-big/media/0290-multivideo-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	mp4-video	/tmp/corpus-big/media/0291-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0292-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0293-avi-av.avi	ok	-	-	-	26/26	164/164	0/0	0	2	v+a	avi	0.25	-
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0295-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0296-avi-video.avi	ok	-	-	-	78/78	0/0	0/0	0	1	v	avi	0.03	-
+SWEEPLINE	ts-video	/tmp/corpus-big/media/0297-ts-video.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	packed-bs	/tmp/corpus-big/media/0298-packed-bs.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0299-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	still-24h	/tmp/corpus-big/media/0300-still-24h.mov	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0301-avi-video.avi	ok	-	-	-	179/179	0/0	0/0	0	1	v	avi	0.48	-
+SWEEPLINE	hevc-in-avi	/tmp/corpus-big/media/0302-hevc-in-avi.avi	ok	-	-	-	0/0	8/8	0/0	1	1	a	avi	0.03	-
+SWEEPLINE	zeroframe-stream	/tmp/corpus-big/media/0303-zeroframe-stream.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0304-avi-av.avi	ok	-	-	-	519/519	115/115	0/0	0	2	v+a	avi	0.05	-
+SWEEPLINE	chapter-bomb	/tmp/corpus-big/media/0305-chapter-bomb.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0306-avi-av.avi	ok	-	-	-	172/172	46/46	0/0	0	2	v+a	avi	0.85	-
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0307-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 74 cc 00 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	mp4-video	/tmp/corpus-big/media/0308-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	maxtracks-avi	/tmp/corpus-big/media/0309-maxtracks-avi.avi	ok	-	-	-	9/9	8/8	0/0	0	22	v+a	avi	0.03	-
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0310-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0311-avi-video.avi	ok	-	-	-	294/294	0/0	0/0	0	1	v	avi	0.03	-
+SWEEPLINE	multivideo-av	/tmp/corpus-big/media/0312-multivideo-av.avi	ok	-	-	-	57/57	36/36	0/0	1	2	v+a	avi	0.08	-
+SWEEPLINE	multivideo-av	/tmp/corpus-big/media/0313-multivideo-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	raw-video	/tmp/corpus-big/media/0314-raw-video.265	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 00 00 00 01 40 01 0c 01 ff ff 02 20 00 00 03 00) (probe.no-demuxer)
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0315-avi-av.avi	ok	-	-	-	33/33	30/30	0/0	0	2	v+a	avi	0.03	-
+SWEEPLINE	maxtracks-avi	/tmp/corpus-big/media/0316-maxtracks-avi.avi	ok	-	-	-	0/0	10/10	0/0	11	13	a	avi	0.03	-
+SWEEPLINE	vbv-burst	/tmp/corpus-big/media/0317-vbv-burst.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	sr-chaos	/tmp/corpus-big/media/0318-sr-chaos.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 f6 1d 02 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0319-avi-av.avi	ok	-	-	-	179/179	513/513	0/0	0	2	v+a	avi	0.60	-
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0320-avi-av.avi	ok	-	-	-	0/0	366/366	0/0	1	1	a	avi	0.03	-
+SWEEPLINE	fmp4-video	/tmp/corpus-big/media/0321-fmp4-video.mov	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	flv-video	/tmp/corpus-big/media/0322-flv-video.flv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 46 4c 56 01 01 00 00 00 09 00 00 00 00 12 00 00) (probe.no-demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0323-audio-only.flac	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 66 4c 61 43 00 00 00 22 02 40 02 40 00 02 b7 00) (probe.no-demuxer)
+SWEEPLINE	mp4-video	/tmp/corpus-big/media/0324-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	param-midchange	/tmp/corpus-big/media/0325-param-midchange.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0326-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 de 7a 0b 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0327-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	webm-video	/tmp/corpus-big/media/0328-webm-video.webm	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 9f 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0329-avi-av.avi	ok	-	-	-	385/385	200/200	0/0	0	2	v+a	avi	0.30	-
+SWEEPLINE	still-24h	/tmp/corpus-big/media/0330-still-24h.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0331-audio-only.mp3	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 49 44 33 04 00 00 00 00 00 22 54 53 53 45 00 00) (probe.no-demuxer)
+SWEEPLINE	rot-display	/tmp/corpus-big/media/0332-rot-display.mov	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	multivideo-av	/tmp/corpus-big/media/0333-multivideo-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0334-avi-av.avi	ok	-	-	-	0/0	396/396	0/0	1	1	a	avi	0.03	-
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0335-audio-only.aac	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed ff f1 54 80 36 5f fc de 02 00 4c 61 76 63 36 31) (probe.no-demuxer)
+SWEEPLINE	cover-audio	/tmp/corpus-big/media/0336-cover-audio.mp3	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 49 44 33 04 00 00 00 06 0a 62 54 53 53 45 00 00) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0337-avi-video.avi	ok	-	-	-	241/241	0/0	0/0	0	1	v	avi	0.08	-
+SWEEPLINE	mkv-video	/tmp/corpus-big/media/0338-mkv-video.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0339-avi-video.avi	ok	-	-	-	299/299	0/0	0/0	0	1	v	avi	25.48	-
+SWEEPLINE	sr-chaos	/tmp/corpus-big/media/0340-sr-chaos.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 1e a7 0e 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0341-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	odd-dims	/tmp/corpus-big/media/0342-odd-dims.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0343-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0344-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	sr-chaos	/tmp/corpus-big/media/0345-sr-chaos.flac	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 66 4c 61 43 00 00 00 22 12 00 12 00 00 02 e3 00) (probe.no-demuxer)
+SWEEPLINE	ts-video	/tmp/corpus-big/media/0346-ts-video.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	vfr-av	/tmp/corpus-big/media/0347-vfr-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	multi-av	/tmp/corpus-big/media/0348-multi-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	muxed-av	/tmp/corpus-big/media/0350-muxed-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	maxtracks-avi	/tmp/corpus-big/media/0351-maxtracks-avi.avi	ok	-	-	-	5/5	4/4	0/0	0	28	v+a	avi	0.03	-
+SWEEPLINE	flv-video	/tmp/corpus-big/media/0352-flv-video.flv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 46 4c 56 01 01 00 00 00 09 00 00 00 00 12 00 00) (probe.no-demuxer)
+SWEEPLINE	fps-extremes	/tmp/corpus-big/media/0353-fps-extremes.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	mp4-video	/tmp/corpus-big/media/0354-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	multi-av	/tmp/corpus-big/media/0355-multi-av.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	avi-av	/tmp/corpus-big/media/0356-avi-av.avi	ok	-	-	-	0/0	322/322	0/0	1	1	a	avi	0.03	-
+SWEEPLINE	hevc-in-avi	/tmp/corpus-big/media/0357-hevc-in-avi.avi	ok	-	-	-	0/0	14/14	0/0	1	1	a	avi	0.03	-
+SWEEPLINE	vfr-av	/tmp/corpus-big/media/0358-vfr-av.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	drift-av	/tmp/corpus-big/media/0359-drift-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	flv-video	/tmp/corpus-big/media/0360-flv-video.flv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 46 4c 56 01 01 00 00 00 09 00 00 00 00 12 00 00) (probe.no-demuxer)
+SWEEPLINE	muxed-av	/tmp/corpus-big/media/0361-muxed-av.mov	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0362-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 96 9c de 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0363-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 46 9b 19 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	packed-bs	/tmp/corpus-big/media/0364-packed-bs.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	zeroframe-stream	/tmp/corpus-big/media/0365-zeroframe-stream.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	packed-bs	/tmp/corpus-big/media/0366-packed-bs.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0367-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0368-avi-video.avi	ok	-	-	-	415/415	0/0	0/0	0	1	v	avi	1.13	-
+SWEEPLINE	multi-av	/tmp/corpus-big/media/0371-multi-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0372-avi-video.avi	ok	-	-	-	27/27	0/0	0/0	0	1	v	avi	0.03	-
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0373-avi-video.avi	ok	-	-	-	86/86	0/0	0/0	0	1	v	avi	0.28	-
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0374-avi-video.avi	ok	-	-	-	7/7	0/0	0/0	0	1	v	avi	0.03	-
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0375-avi-video.avi	ok	-	-	-	65/65	0/0	0/0	0	1	v	avi	0.13	-
+SWEEPLINE	odd-chunk-avi	/tmp/corpus-big/media/0376-odd-chunk-avi.avi	ok	-	-	-	0/0	3247/3247	0/0	3	1	a	avi	0.03	-
+SWEEPLINE	packed-bs	/tmp/corpus-big/media/0377-packed-bs.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	muxed-av	/tmp/corpus-big/media/0378-muxed-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0380-avi-video.avi	ok	-	-	-	502/502	0/0	0/0	0	1	v	avi	0.10	-
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0381-audio-only.mp2	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed ff f5 98 c0 ab 77 bb ff ff ff ff ff ff e4 00 00) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0382-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	mov-video	/tmp/corpus-big/media/0383-mov-video.mov	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0384-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	vfr-av	/tmp/corpus-big/media/0386-vfr-av.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	ts-video	/tmp/corpus-big/media/0387-ts-video.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0388-avi-video.avi	ok	-	-	-	241/241	0/0	0/0	0	1	v	avi	0.05	-
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0389-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0390-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	mp4-video	/tmp/corpus-big/media/0391-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0392-avi-video.avi	ok	-	-	-	157/157	0/0	0/0	0	1	v	avi	2.71	-
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0394-avi-video.avi	ok	-	-	-	204/204	0/0	0/0	0	1	v	avi	0.20	-
+SWEEPLINE	cover-audio	/tmp/corpus-big/media/0395-cover-audio.mp3	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	mp4-video	/tmp/corpus-big/media/0396-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	ts-video	/tmp/corpus-big/media/0398-ts-video.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0399-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 32 3e 42 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0400-avi-video.avi	ok	-	-	-	124/124	0/0	0/0	0	1	v	avi	0.43	-
+SWEEPLINE	mkv-video	/tmp/corpus-big/media/0401-mkv-video.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	rot-display	/tmp/corpus-big/media/0402-rot-display.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	dynres-video	/tmp/corpus-big/media/0403-dynres-video.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	mp4-video	/tmp/corpus-big/media/0404-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0405-avi-video.avi	ok	-	-	-	273/273	0/0	0/0	0	1	v	avi	0.03	-
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0406-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	meta-bomb-av	/tmp/corpus-big/media/0407-meta-bomb-av.mkv	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81) (probe.no-demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0408-avi-video.avi	unsupported	demux	unsupported	demux.avi.no-supported-streams	0/0	0/0	0/0	0	0	none	avi	0.03	[demux] unsupported in avi (demux.avi.no-supported-streams)
+SWEEPLINE	zeroframe-stream	/tmp/corpus-big/media/0409-zeroframe-stream.ts	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 47 40 11 10 00 42 f0 25 00 01 c1 00 00 ff 01 ff) (probe.no-demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0410-audio-only.mp3	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 49 44 33 04 00 00 00 00 00 22 54 53 53 45 00 00) (probe.no-demuxer)
+SWEEPLINE	fmp4-video	/tmp/corpus-big/media/0411-fmp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	muxed-av	/tmp/corpus-big/media/0412-muxed-av.mov	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0413-avi-video.avi	ok	-	-	-	57/57	0/0	0/0	0	1	v	avi	0.23	-
+SWEEPLINE	drift-av	/tmp/corpus-big/media/0414-drift-av.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	mp4-video	/tmp/corpus-big/media/0416-mp4-video.mp4	unsupported	probe	unsupported	sweep.container.no_demuxer	0/0	0/0	0/0	0	0	none	mp4	0.03	[probe] unsupported in mp4 (sweep.container.no_demuxer)
+SWEEPLINE	avi-video	/tmp/corpus-big/media/0417-avi-video.avi	ok	-	-	-	60/60	0/0	0/0	0	1	v	avi	0.10	-
+SWEEPLINE	cover-audio	/tmp/corpus-big/media/0418-cover-audio.m4a	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 49 44 33 04 00 00 00 01 5a 60 54 53 53 45 00 00) (probe.no-demuxer)
+SWEEPLINE	audio-only	/tmp/corpus-big/media/0419-audio-only.wav	unsupported	probe	unsupported	probe.no-demuxer	0/0	0/0	0/0	0	0	none	-	0.03	[probe] unsupported (sniffed 52 49 46 46 d6 85 10 00 57 41 56 45 66 6d 74 20) (probe.no-demuxer)
+=== SWEEP SUMMARY ===
+total files: 538
+ok             82
+unsupported    446
+dirty-reject   9
+typed-error    1
+panic          0
+timeout        0
+unknown        0
+
+per-class matrix (class: ok unsupported dirty-reject typed-error panic timeout unknown total)
+all-ff-08	0	1	0	0	0	0	0	1
+all-zero-09	0	1	0	0	0	0	0	1
+audio-only	0	43	0	0	0	0	0	43
+avi-av	25	0	0	0	0	0	0	25
+avi-magic-head-03	0	0	1	0	0	0	0	1
+avi-video	30	43	0	0	0	0	0	73
+bframe-storm	0	10	0	0	0	0	0	10
+bit-drift-region-023-0112-dynres-video	0	1	0	0	0	0	0	1
+bit-drift-region-038-0239-sr-chaos	0	1	0	0	0	0	0	1
+bit-drift-region-041-0011-audio-only	0	1	0	0	0	0	0	1
+bit-drift-region-063-0120-ts-video	0	1	0	0	0	0	0	1
+chapter-bomb	0	2	0	0	0	0	0	2
+cover-audio	0	10	0	0	0	0	0	10
+cut-mid-chunk-002-0109-audio-only	0	1	0	0	0	0	0	1
+cut-mid-chunk-003-0303-zeroframe-stream	0	1	0	0	0	0	0	1
+cut-mid-chunk-019-0039-ogv-video	0	1	0	0	0	0	0	1
+cut-mid-chunk-029-0254-mp4-video	0	1	0	0	0	0	0	1
+cut-mid-chunk-031-0035-flv-video	0	1	0	0	0	0	0	1
+cut-mid-chunk-047-0044-bframe-storm	0	1	0	0	0	0	0	1
+cut-mid-chunk-052-0199-avi-video	0	0	1	0	0	0	0	1
+cut-mid-chunk-066-0298-packed-bs	0	0	1	0	0	0	0	1
+drift-av	0	4	0	0	0	0	0	4
+dup-range-006-0403-dynres-video	0	1	0	0	0	0	0	1
+dup-range-008-0056-avi-av	1	0	0	0	0	0	0	1
+dup-range-020-0404-mp4-video	0	1	0	0	0	0	0	1
+dup-range-027-0374-avi-video	0	0	1	0	0	0	0	1
+dup-range-057-0287-avi-video	0	1	0	0	0	0	0	1
+dynres-video	0	14	0	0	0	0	0	14
+ebml-magic-05	0	1	0	0	0	0	0	1
+ebml-size-lie-16	0	1	0	0	0	0	0	1
+empty-00	0	1	0	0	0	0	0	1
+flip-bytes-025-0032-still-24h	0	1	0	0	0	0	0	1
+flip-bytes-032-master	0	1	0	0	0	0	0	1
+flip-bytes-055-0305-chapter-bomb	0	1	0	0	0	0	0	1
+flip-bytes-068-0064-still-24h	0	1	0	0	0	0	0	1
+flv-video	0	8	0	0	0	0	0	8
+fmp4-video	0	7	0	0	0	0	0	7
+fps-extremes	0	5	0	0	0	0	0	5
+ftyp-magic-04	0	1	0	0	0	0	0	1
+ftyp-only-13	0	1	0	0	0	0	0	1
+gif-magic-17	0	1	0	0	0	0	0	1
+head-size-lie-007-0293-avi-av	1	0	0	0	0	0	0	1
+head-size-lie-010-0383-mov-video	0	1	0	0	0	0	0	1
+head-size-lie-017-0419-audio-only	0	1	0	0	0	0	0	1
+head-size-lie-022-0046-still-24h	0	1	0	0	0	0	0	1
+head-size-lie-034-0355-multi-av	0	1	0	0	0	0	0	1
+head-size-lie-039-0173-chapter-bomb	0	1	0	0	0	0	0	1
+head-size-lie-043-0277-avi-video	0	0	1	0	0	0	0	1
+head-size-lie-061-0323-audio-only	0	1	0	0	0	0	0	1
+head-size-lie-065-0380-avi-video	1	0	0	0	0	0	0	1
+head-size-lie-067-0106-cover-audio	0	1	0	0	0	0	0	1
+head-size-lie-070-0414-drift-av	0	1	0	0	0	0	0	1
+hevc-in-avi	4	1	0	0	0	0	0	5
+html-text-21	0	1	0	0	0	0	0	1
+id3-junk-10	0	1	0	0	0	0	0	1
+id3-size-lie-14	0	1	0	0	0	0	0	1
+init0	0	4	0	0	0	0	0	4
+init1	0	2	0	0	0	0	0	2
+jpeg-magic-19	0	1	0	0	0	0	0	1
+lie-000-0170-dynres-video	0	1	0	0	0	0	0	1
+lie-004-0097-mkv-video	0	1	0	0	0	0	0	1
+lie-005-0105-muxed-av	0	1	0	0	0	0	0	1
+lie-024-0000-webm-video	0	1	0	0	0	0	0	1
+lie-028-0180-hevc-in-avi	0	1	0	0	0	0	0	1
+lie-040-0382-avi-video	0	1	0	0	0	0	0	1
+lie-042-0028-audio-only	0	1	0	0	0	0	0	1
+lie-059-0031-multi-av	0	1	0	0	0	0	0	1
+m3u8-garbage-15	0	1	0	0	0	0	0	1
+master	0	5	0	0	0	0	0	5
+maxtracks-avi	6	0	0	0	0	0	0	6
+mdat-only-12	0	1	0	0	0	0	0	1
+meta-bomb-av	0	4	0	0	0	0	0	4
+mkv-video	0	13	0	0	0	0	0	13
+moov-only-11	0	1	0	0	0	0	0	1
+mov-video	0	5	0	0	0	0	0	5
+mp4-video	0	23	0	0	0	0	0	23
+multi-av	0	9	0	0	0	0	0	9
+multivideo-av	3	5	0	0	0	0	0	8
+muxed-av	0	18	0	0	0	0	0	18
+odd-chunk-avi	2	0	0	1	0	0	0	3
+odd-dims	1	3	0	0	0	0	0	4
+ogv-video	0	2	0	0	0	0	0	2
+one-byte-01	0	1	0	0	0	0	0	1
+packed-bs	0	9	0	0	0	0	0	9
+param-midchange	0	5	0	0	0	0	0	5
+png-magic-18	0	1	0	0	0	0	0	1
+random-bytes-06	0	1	0	0	0	0	0	1
+raw-video	0	11	0	0	0	0	0	11
+riff-magic-02	0	1	0	0	0	0	0	1
+riff-size-lie	3	0	2	0	0	0	0	5
+rot-display	0	7	0	0	0	0	0	7
+smash-head-009-0343-avi-video	0	1	0	0	0	0	0	1
+smash-head-014-0281-audio-only	0	1	0	0	0	0	0	1
+smash-head-035-0048-avi-video	0	1	0	0	0	0	0	1
+smash-head-036-0366-packed-bs	0	1	0	0	0	0	0	1
+smash-head-048-0185-audio-only	0	1	0	0	0	0	0	1
+smash-head-053-0215-raw-video	0	1	0	0	0	0	0	1
+splice-other-001-0399-audio-only	0	1	0	0	0	0	0	1
+splice-other-018-0283-raw-video	0	1	0	0	0	0	0	1
+splice-other-021-0192-audio-only	0	1	0	0	0	0	0	1
+splice-other-044-0089-bframe-storm	0	1	0	0	0	0	0	1
+splice-other-046-0329-avi-av	0	0	1	0	0	0	0	1
+splice-other-056-0036-webm-video	0	1	0	0	0	0	0	1
+sr-chaos	0	9	0	0	0	0	0	9
+still-24h	0	6	0	0	0	0	0	6
+swap-halves-011-0145-dynres-video	0	1	0	0	0	0	0	1
+swap-halves-026-0313-multivideo-av	0	1	0	0	0	0	0	1
+swap-halves-033-0335-audio-only	0	1	0	0	0	0	0	1
+swap-halves-054-0129-audio-only	0	1	0	0	0	0	0	1
+swap-halves-060-0191-raw-video	0	1	0	0	0	0	0	1
+swap-halves-069-0001-avi-video	0	1	0	0	0	0	0	1
+tail-garbage-013-0159-packed-bs	0	1	0	0	0	0	0	1
+tail-garbage-015-0193-fps-extremes	0	1	0	0	0	0	0	1
+tail-garbage-030-0368-avi-video	1	0	0	0	0	0	0	1
+tail-garbage-045-0114-meta-bomb-av	0	1	0	0	0	0	0	1
+tail-garbage-049-0309-maxtracks-avi	1	0	0	0	0	0	0	1
+tail-garbage-058-0176-mkv-video	0	1	0	0	0	0	0	1
+tail-garbage-064-0234-avi-av	1	0	0	0	0	0	0	1
+text-07	0	1	0	0	0	0	0	1
+truncate-016-0096-dynres-video	0	1	0	0	0	0	0	1
+truncate-037-0238-avi-video	0	0	1	0	0	0	0	1
+truncate-050-0363-audio-only	0	1	0	0	0	0	0	1
+truncate-062-0318-sr-chaos	0	1	0	0	0	0	0	1
+truncate-071-0209-sr-chaos	0	1	0	0	0	0	0	1
+ts-video	0	10	0	0	0	0	0	10
+v0	0	5	0	0	0	0	0	5
+v0_000	0	5	0	0	0	0	0	5
+v0_001	0	5	0	0	0	0	0	5
+v0_002	0	3	0	0	0	0	0	3
+v0_003	0	2	0	0	0	0	0	2
+v1	0	3	0	0	0	0	0	3
+v1_000	0	3	0	0	0	0	0	3
+v1_001	0	3	0	0	0	0	0	3
+v1_002	0	3	0	0	0	0	0	3
+v1_003	0	2	0	0	0	0	0	2
+v2	0	1	0	0	0	0	0	1
+v2_000	0	1	0	0	0	0	0	1
+v2_001	0	1	0	0	0	0	0	1
+v2_002	0	1	0	0	0	0	0	1
+v2_003	0	1	0	0	0	0	0	1
+vbv-burst	0	3	0	0	0	0	0	3
+vfr-av	0	12	0	0	0	0	0	12
+webm-video	0	7	0	0	0	0	0	7
+zero-mid-012-0257-maxtracks-avi	1	0	0	0	0	0	0	1
+zero-mid-051-0337-avi-video	1	0	0	0	0	0	0	1
+zeroframe-stream	0	9	0	0	0	0	0	9
+zip-magic-20	0	1	0	0	0	0	0	1
