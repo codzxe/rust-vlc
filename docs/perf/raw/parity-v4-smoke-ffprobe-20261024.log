@@ -1,0 +1,83 @@
+== dirty/0029-riff-size-lie.avi
+index=0|codec_name=mjpeg|codec_type=video|nb_read_frames=9
+index=1|codec_name=pcm_s16le|codec_type=audio|nb_read_frames=6
+duration=N/A
+== dirty/dup-range-001-0063-avi-av.avi
+index=0|codec_name=mjpeg|codec_type=video|nb_read_frames=18
+index=1|codec_name=pcm_s24le|codec_type=audio|nb_read_frames=340
+duration=3.600000
+== media/0002-avi-video.avi
+index=0|codec_name=mjpeg|codec_type=video|nb_read_frames=47
+duration=1.566667
+== media/0019-avi-video.avi
+index=0|codec_name=mjpeg|codec_type=video|nb_read_frames=66
+duration=2.752753
+== media/0021-multivideo-av.avi
+index=0|codec_name=mpeg4|codec_type=video|nb_read_frames=60
+index=1|codec_name=mjpeg|codec_type=video|nb_read_frames=120
+index=2|codec_name=pcm_s16le|codec_type=audio|nb_read_frames=32
+duration=4.000000
+== media/0030-avi-video.avi
+index=0|codec_name=mjpeg|codec_type=video|nb_read_frames=33
+duration=1.376376
+== media/0036-avi-video.avi
+index=0|codec_name=mjpeg|codec_type=video|nb_read_frames=36
+duration=3.000000
+== media/0038-avi-video.avi
+index=0|codec_name=mjpeg|codec_type=video|nb_read_frames=36
+duration=1.500000
+== media/0039-avi-av.avi
+index=0|codec_name=mjpeg|codec_type=video|nb_read_frames=37
+index=1|codec_name=pcm_f32le|codec_type=audio|nb_read_frames=41377
+duration=3.700000
+== media/0054-avi-video.avi
+index=0|codec_name=mjpeg|codec_type=video|nb_read_frames=904
+duration=3.766667
+== media/0056-avi-av.avi
+index=0|codec_name=mjpeg|codec_type=video|nb_read_frames=93
+index=1|codec_name=pcm_s16le|codec_type=audio|nb_read_frames=353
+duration=3.720000
+== media/0063-avi-av.avi
+index=0|codec_name=mjpeg|codec_type=video|nb_read_frames=18
+index=1|codec_name=pcm_s24le|codec_type=audio|nb_read_frames=339
+duration=3.600000
+== media/0066-avi-av.avi
+index=0|codec_name=mpeg4|codec_type=video|nb_read_frames=8
+index=1|codec_name=pcm_u8|codec_type=audio|nb_read_frames=14
+duration=1.600000
+== media/0069-avi-video.avi
+index=0|codec_name=mjpeg|codec_type=video|nb_read_frames=4
+duration=2.000000
+== media/0072-avi-video.avi
+index=0|codec_name=mjpeg|codec_type=video|nb_read_frames=51
+duration=1.020000
+== media/0074-hevc-in-avi.avi
+index=0|codec_name=hevc|codec_type=video|nb_read_frames=11
+index=1|codec_name=pcm_u8|codec_type=audio|nb_read_frames=7
+duration=0.916667
+== media/0076-maxtracks-avi.avi
+index=0|codec_name=mjpeg|codec_type=video|nb_read_frames=8
+index=1|codec_name=mjpeg|codec_type=video|nb_read_frames=8
+index=2|codec_name=mjpeg|codec_type=video|nb_read_frames=8
+index=3|codec_name=mjpeg|codec_type=video|nb_read_frames=8
+index=4|codec_name=mjpeg|codec_type=video|nb_read_frames=8
+index=5|codec_name=mjpeg|codec_type=video|nb_read_frames=8
+index=6|codec_name=mjpeg|codec_type=video|nb_read_frames=8
+index=7|codec_name=mjpeg|codec_type=video|nb_read_frames=8
+index=8|codec_name=mjpeg|codec_type=video|nb_read_frames=8
+index=9|codec_name=pcm_u8|codec_type=audio|nb_read_frames=8
+index=10|codec_name=pcm_u8|codec_type=audio|nb_read_frames=6
+index=11|codec_name=pcm_u8|codec_type=audio|nb_read_frames=8
+index=12|codec_name=pcm_u8|codec_type=audio|nb_read_frames=6
+== media/0078-avi-video.avi
+index=0|codec_name=mjpeg|codec_type=video|nb_read_frames=221
+duration=3.687020
+== media/0087-odd-dims.avi
+index=0|codec_name=mjpeg|codec_type=video|nb_read_frames=18
+duration=1.500000
+== media/0090-avi-video.avi
+index=0|codec_name=mjpeg|codec_type=video|nb_read_frames=16
+duration=1.600000
+== media/0091-avi-video.avi
+index=0|codec_name=mjpeg|codec_type=video|nb_read_frames=76
+duration=3.166667
