@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { NumberField } from "../../components/form/NumberField";
 import { RadioGroup } from "../../components/form/RadioGroup";
 import { Switch } from "../../components/form/Switch";
@@ -35,10 +36,14 @@ export function SettingField({ entry }: { entry: SettingEntry }) {
     entry.restartRequired && (isDirty(entry.key) || restartPending.includes(entry.key));
   const canReset = current !== entry.defaultValue;
 
-  let control: React.ReactNode = null;
+  let control: ReactNode;
   if (entry.type === "bool") {
     control = (
-      <Switch checked={current === true} onChange={(checked) => setValue(entry.key, checked)} />
+      <Switch
+        aria-label={m(labelOf(entry))}
+        checked={current === true}
+        onChange={(checked) => setValue(entry.key, checked)}
+      />
     );
   } else if (entry.type === "enum") {
     control = (

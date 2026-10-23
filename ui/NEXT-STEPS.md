@@ -129,3 +129,51 @@ Next for sliders:
   against Figma when a buffer state export exists (states.md).
 - Miniplayer dense variant (16px track / 8×12 knob) reuses base `.lumen-slider`
   styles as-is; add a variant class only if the composite needs it.
+
+## Card 4.E1 — Settings framework (schema-driven) — DONE
+
+What landed (branch wip/p4-e1, commits d8114b1 + tests):
+
+- **Generator** `ui/scripts/gen-settings-screens.mjs` (zero-dep node): parses
+  `schemas/settings.toml` (READ-ONLY source of truth, card 1.B2 — decision:
+  no JSON export exists; the crate's `schemas/generated/settings.d.ts` is
+  types-only, so the generator embeds a TOML-subset parser) and resolves
+  `default_ref` targets + `[features]` exposure from `product.toml`. Emits
+  committed `ui/src/screens/settings/generated/{schema.ts, Screens.tsx}`.
+  `npm run settings:generate` / `settings:check` (byte-compare drift guard,
+  wired like `tokens:check`). Validates D1–D5 subset + ranges at generation.
+- **Framework** `ui/src/screens/settings/`: `SettingsProvider` (draft vs
+  persisted dirty-state, apply/revert, restart-pending tracking, per-field +
+  per-screen reset-to-default), cross-area search with honest no-results,
+  confirm-on-leave via 4.B4 Dialog, `SettingField` type→primitive map
+  (bool→Switch, enum→RadioGroup, numeric→NumberField w/ schema min/max,
+  string/list→TextField). Feature-gated entries hidden+inert (product.toml
+  F1/F2 — playback.hw-decode-policy correctly absent until 7.B).
+- **AC proof**: `generated.test.ts` mutates a COPY of the schema (default
+  change / restart-flag flip / entry removal) and asserts `settings:check`
+  exits 1; pristine check exits 0. 39 new tests total, 229 ui-wide green,
+  tsc strict + eslint 0 errors, vite build OK.
+
+Handoffs / next actions:
+
+- **App layer (owner: app team)**: replace the localStorage MOCK persistence
+  seam (`persistence.ts`) with the real write path — `config.set-setting`
+  over the client bridge (doc 05 §2.11). Interface is ready
+  (`SettingsPersistence`); overrides-only store shape matches layer-4 user
+  config.
+- **4.E2/E3/E4 (content groups)**: add `[[setting]]` entries to
+  `schemas/settings.toml` (crate is read-only for us; schema edits belong to
+  the schema owner card), then run `npm run settings:generate` — new areas
+  appear in nav automatically; add label msgids to `ui/src/i18n/messages.ts`
+  (the i18n-coverage test fails loudly until you do). Section folding for
+  `advanced = true` fields is currently a badge only — real VLC-style folding
+  is open.
+- **Schema owner**: doc 07 §5.2 note says the ~45-entry fuller seed "arrives
+  with the settings framework (card 4.E1)" — NOT done (schema is read-only
+  for this card; we render all 21 ui entries that exist). Growing the schema
+  needs the 1.B2 owner; `layouts/settings-areas.toml` (§5.4) does not exist
+  yet — nav order currently follows `[areas].known` in the schema.
+- **i18n pipeline (doc 07 §6)**: settings msgids live in the scaffold
+  `messages.ts` for now — migrate to `locales/en-US.toml` when the generated
+  locale packs land; the localization crate's reference-complete audit (rule
+  4) will then own the join.
