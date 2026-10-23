@@ -11,6 +11,21 @@ import type {
 } from "../generated/commands";
 
 export type { CommandRequest, CommandResponse, Event };
+// Wire types consumed by the player state seam (4.C2 context.tsx) — type-only
+// re-exports keep src/generated imports in one place (single import-site rule).
+export type {
+  CommandError,
+  CommandResult,
+  Duration,
+  PlaybackState,
+  ResultWire,
+  TimeRange,
+  TrackId,
+  TrackInfo,
+  TrackKind,
+  TrackSelector,
+  TrackSelections,
+} from "../generated/commands";
 
 /** Host-configurable transport: apps/desktop (Tauri) and apps/web (wasm). */
 export interface CommandTransport {

@@ -18,6 +18,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Button } from "../../components";
 import { useMsg } from "../../i18n/messages";
+import { PlayerControlsProvider, usePlayerControls } from "./context";
+import { ControlBar, controlCommandOf } from "./controls";
 import {
   DEFAULT_KEYMAP,
   matchBindings,
@@ -58,7 +60,18 @@ export interface PlayerScreenProps {
   readonly onBinding?: (binding: KeyBinding) => void;
 }
 
-export function PlayerScreen({
+export function PlayerScreen(props: PlayerScreenProps) {
+  // Shared player state seam (card 4.C2 context.tsx) — the transport comes
+  // from ClientProvider (hosts/tests may not inject one here; tests wrap
+  // with ClientProvider, matching main.tsx composition).
+  return (
+    <PlayerControlsProvider>
+      <PlayerScreenInner {...props} />
+    </PlayerControlsProvider>
+  );
+}
+
+function PlayerScreenInner({
   layoutSource,
   media = null,
   openPanels = [],
@@ -78,6 +91,10 @@ export function PlayerScreen({
     enabled: isFullscreen,
     locked: !hasMedia || openPanels.length > 0,
   });
+
+  // Control-bar commands (4.C2) via the shared state seam — keymap DATA
+  // drives which bindings reach here (see controls/state-mapping.ts).
+  const { actions } = usePlayerControls();
 
   // Keymap-data-driven shortcuts (doc 05 §8.1): the shell listens for
   // bindings it owns (fullscreen-toggle, exit-fullscreen,
@@ -103,15 +120,22 @@ export function PlayerScreen({
           case "show-controls":
             chrome.show();
             break;
-          case "forward":
-            onBinding?.(action.binding);
+          case "forward": {
+            const fwd = action.binding;
+            const command = controlCommandOf(fwd);
+            if (command === "playback.play") actions.play();
+            else if (command === "playback.pause") actions.pause();
+            else if (command === "playback.toggle-play-pause") actions.togglePlayPause();
+            else if (command === "playback.stop") actions.stop();
+            else onBinding?.(fwd);
             break;
+          }
         }
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [toggleFullscreen, exitFullscreen, chrome, onBinding]);
+  }, [toggleFullscreen, exitFullscreen, chrome, onBinding, actions]);
 
   const conditionCtx: LayoutConditionContext = {
     hasMedia,
@@ -196,9 +220,10 @@ export function PlayerScreen({
             aria-label={m(region.labelKey)}
             className="lumen-player__controls"
           >
-            {/* Placeholder region container — transport controls are card
-                4.C2's (ui/src/screens/player/controls/**). */}
-            <p className="lumen-player__sr-note">{m("player.controls.placeholder")}</p>
+            {/* Card 4.C2 — the real control bar: transport (doc 08 §5.1
+                mapping), seekbar (§5.2 truthful pending), volume/mute, track
+                menus — all wired to the command-layer client seam. */}
+            <ControlBar />
           </footer>
         ))}
       </div>

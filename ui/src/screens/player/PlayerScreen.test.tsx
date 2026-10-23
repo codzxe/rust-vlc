@@ -2,9 +2,15 @@
 // layout-config consumption, chrome lock, keymap-driven fullscreen/ESC.
 // Visual fidelity (screenshot diff) waits for 4.G1 — these are DOM-shape +
 // behavior assertions per the card AC.
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ClientProvider } from "../../client/ClientProvider";
+import { MockTransport } from "../../client/transport";
 import { PlayerScreen } from "./PlayerScreen";
+
+/** Card 4.C2: PlayerScreen hosts the player state seam → needs a client. */
+const renderWithClient = (ui: React.ReactElement) =>
+  render(<ClientProvider transport={new MockTransport()}>{ui}</ClientProvider>);
 import { CHROME_AUTO_HIDE_DELAY_MS } from "./useChromeAutoHide";
 
 function setFullscreenElement(element: Element | null): void {
@@ -40,7 +46,7 @@ afterEach(() => {
 
 describe("PlayerScreen — ARIA landmarks + honest placeholders (doc 08 §4.5)", () => {
   it("renders the canvas as a labelled region, not a fake <video>/<canvas> element", () => {
-    const { container } = render(<PlayerScreen />);
+    const { container } = renderWithClient(<PlayerScreen />);
     const canvas = screen.getByRole("region", { name: "Video canvas" });
     expect(canvas).toHaveAttribute("data-region-id", "video-canvas");
     expect(canvas).toHaveAttribute("data-placeholder", "engine-wiring-4.H1");
@@ -51,17 +57,19 @@ describe("PlayerScreen — ARIA landmarks + honest placeholders (doc 08 §4.5)",
     expect(canvas.textContent).toContain("engine wiring lands with card 4.H1");
   });
 
-  it("renders the top bar (banner) with the screen title and the controls-bar region stub", () => {
-    render(<PlayerScreen />);
+  it("renders the top bar (banner) with the screen title and the real control bar (4.C2)", () => {
+    renderWithClient(<PlayerScreen />);
     expect(screen.getByRole("banner")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Player" })).toBeInTheDocument();
     const controls = screen.getByRole("region", { name: "Playback controls" });
     expect(controls).toHaveAttribute("data-region-id", "controls-bar");
-    expect(controls.textContent).toContain("card 4.C2");
+    // Card 4.C2: the transport cluster now lives here (play/pause + stop).
+    expect(within(controls).getByRole("button", { name: /play/i })).toBeInTheDocument();
+    expect(within(controls).getByRole("button", { name: "Stop" })).toBeInTheDocument();
   });
 
   it("renders open side panels as labelled complementary landmarks with honest placeholder notes", () => {
-    render(<PlayerScreen openPanels={["playlist", "media-info"]} media={{ hasVideo: true, hasChapters: false }} />);
+    renderWithClient(<PlayerScreen openPanels={["playlist", "media-info"]} media={{ hasVideo: true, hasChapters: false }} />);
     const playlist = screen.getByRole("complementary", { name: "Playlist" });
     expect(playlist).toHaveAttribute("data-region-id", "playlist");
     expect(playlist.textContent).toContain("implemented by a later card");
@@ -74,7 +82,7 @@ describe("PlayerScreen — ARIA landmarks + honest placeholders (doc 08 §4.5)",
 
 describe("PlayerScreen — first-run empty state (doc 08 §5.3)", () => {
   it("shows the empty state with a disabled Open-media affordance when no source", () => {
-    render(<PlayerScreen />);
+    renderWithClient(<PlayerScreen />);
     expect(screen.getByRole("heading", { level: 2, name: "No media open" })).toBeInTheDocument();
     expect(screen.getByText("Open media to start playback.")).toBeInTheDocument();
     const open = screen.getByRole("button", { name: "Open media" });
@@ -83,7 +91,7 @@ describe("PlayerScreen — first-run empty state (doc 08 §5.3)", () => {
   });
 
   it("hides the empty state once media is present; has-media regions appear", () => {
-    render(<PlayerScreen media={{ hasVideo: true, hasChapters: false }} />);
+    renderWithClient(<PlayerScreen media={{ hasVideo: true, hasChapters: false }} />);
     expect(screen.queryByRole("heading", { name: "No media open" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Open media" })).toBeNull();
     const root = document.querySelector(".lumen-player")!;
@@ -91,20 +99,19 @@ describe("PlayerScreen — first-run empty state (doc 08 §5.3)", () => {
   });
 
   it("hides has-media-gated regions in the empty state (visible_when = has-media)", () => {
-    render(<PlayerScreen openPanels={["media-info"]} />);
+    renderWithClient(<PlayerScreen openPanels={["media-info"]} />);
     expect(screen.queryByRole("complementary", { name: "Media information" })).toBeNull();
   });
 
   it("chrome stays visible in the empty state (locked, doc 08 §5.3)", () => {
-    render(<PlayerScreen />);
+    renderWithClient(<PlayerScreen />);
     expect(document.querySelector(".lumen-player")).toHaveAttribute("data-chrome", "locked");
   });
 });
 
 describe("PlayerScreen — layout-config consumption (doc 07 §7)", () => {
   it("renders a custom layout source (regions from config, not hardcoded)", () => {
-    render(
-      <PlayerScreen
+    renderWithClient(<PlayerScreen
         layoutSource={`schema = "layout.v1"
 [[region]]
 id = "canvas"
@@ -125,21 +132,21 @@ label_key = "player.region.title-bar"
   it("throws loudly on an invalid layout source (never a silent fallback)", () => {
     // suppress the expected console.error from React's error boundary path
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(() => render(<PlayerScreen layoutSource="schema = nope" />)).toThrow();
+    expect(() => renderWithClient(<PlayerScreen layoutSource="schema = nope" />)).toThrow();
     spy.mockRestore();
   });
 });
 
 describe("PlayerScreen — chrome lock + auto-hide integration (doc 08 §4.3)", () => {
   it("locks chrome visible while a panel is open, even in fullscreen", () => {
-    render(<PlayerScreen openPanels={["playlist"]} />);
+    renderWithClient(<PlayerScreen openPanels={["playlist"]} />);
     const root = document.querySelector(".lumen-player")!;
     expect(root).toHaveAttribute("data-chrome", "locked");
   });
 
   it("hides chrome on idle in fullscreen and reveals on activity", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    render(<PlayerScreen media={{ hasVideo: true, hasChapters: false }} />);
+    renderWithClient(<PlayerScreen media={{ hasVideo: true, hasChapters: false }} />);
     const root = document.querySelector(".lumen-player")!;
     expect(root).toHaveAttribute("data-chrome", "visible");
 
@@ -162,7 +169,7 @@ describe("PlayerScreen — chrome lock + auto-hide integration (doc 08 §4.3)", 
 
 describe("PlayerScreen — keymap-driven fullscreen + ESC (doc 05 §8.1 data)", () => {
   it("F requests fullscreen on the container (fullscreen-toggle recipe from keymap data)", () => {
-    render(<PlayerScreen />);
+    renderWithClient(<PlayerScreen />);
     const root = document.querySelector(".lumen-player") as HTMLElement;
     pressKey("f");
     expect(root.requestFullscreen).toHaveBeenCalledTimes(1);
@@ -170,7 +177,7 @@ describe("PlayerScreen — keymap-driven fullscreen + ESC (doc 05 §8.1 data)", 
   });
 
   it("Escape exits while fullscreen (native events sync state honestly)", () => {
-    render(<PlayerScreen />);
+    renderWithClient(<PlayerScreen />);
     const root = document.querySelector(".lumen-player") as HTMLElement;
     act(() => {
       setFullscreenElement(root);
@@ -187,7 +194,7 @@ describe("PlayerScreen — keymap-driven fullscreen + ESC (doc 05 §8.1 data)", 
 
   it("Escape when NOT fullscreen is forwarded to the 4.C2 seam (dialog-close half)", () => {
     const onBinding = vi.fn();
-    render(<PlayerScreen onBinding={onBinding} />);
+    renderWithClient(<PlayerScreen onBinding={onBinding} />);
     pressKey("Escape");
     expect(onBinding).toHaveBeenCalledTimes(1);
     expect(onBinding).toHaveBeenCalledWith(
@@ -200,7 +207,7 @@ describe("PlayerScreen — keymap-driven fullscreen + ESC (doc 05 §8.1 data)", 
 
   it("unbound keys forward nothing; modifier combos are not claimed by the shell", () => {
     const onBinding = vi.fn();
-    render(<PlayerScreen onBinding={onBinding} />);
+    renderWithClient(<PlayerScreen onBinding={onBinding} />);
     pressKey("z");
     act(() => {
       window.dispatchEvent(new KeyboardEvent("keydown", { key: "f", metaKey: true }));
@@ -211,7 +218,7 @@ describe("PlayerScreen — keymap-driven fullscreen + ESC (doc 05 §8.1 data)", 
 
   it("I (show-controls-fullscreen) reveals hidden chrome", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    render(<PlayerScreen media={{ hasVideo: true, hasChapters: false }} />);
+    renderWithClient(<PlayerScreen media={{ hasVideo: true, hasChapters: false }} />);
     const root = document.querySelector(".lumen-player")!;
     act(() => {
       setFullscreenElement(root);
