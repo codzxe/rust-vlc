@@ -15,6 +15,7 @@
     "isolatedModules": true,
     "useDefineForClassFields": true,
     "skipLibCheck": true,
+    "resolveJsonModule": true,
     "noEmit": true,
     "types": ["vite/client"]
   },

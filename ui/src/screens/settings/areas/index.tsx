@@ -8,6 +8,11 @@ import type { SettingEntry } from "../generated/schema";
 import { HotkeysEditor } from "./hotkeys/HotkeysEditor";
 import { LocalePicker } from "./language/LocalePicker";
 import { ThemeModePicker } from "./appearance/ThemeModePicker";
+import { CodecsArea } from "./codecs";
+import { PlaylistServicesArea } from "./playlist-services";
+import { NetworkArea } from "./privacy-network";
+import { AboutArea } from "./updates-about";
+import { AdvancedArea } from "./advanced";
 
 // Settings AREAS layer (card 4.E2) — the content/extension half of the 4.E1
 // framework. MECHANISM (recorded per the card): the generator only emits what
@@ -24,18 +29,60 @@ function HotkeysAreaScreen(): ReactElement {
   return <HotkeysEditor />;
 }
 
-export type SettingsAreaId = (typeof GENERATED_AREA_IDS)[number] | "hotkeys";
+/** Card 4.E4 group-3 areas — hand-authored, registered like hotkeys. */
+function CodecsAreaScreen(): ReactElement {
+  return <CodecsArea />;
+}
+function PlaylistServicesAreaScreen(): ReactElement {
+  return <PlaylistServicesArea />;
+}
+function NetworkAreaScreen(): ReactElement {
+  return <NetworkArea />;
+}
+function AboutAreaScreen(): ReactElement {
+  return <AboutArea />;
+}
+function AdvancedAreaScreen(): ReactElement {
+  return <AdvancedArea />;
+}
 
-export const SETTINGS_AREA_IDS: readonly SettingsAreaId[] = [...GENERATED_AREA_IDS, "hotkeys"];
+export type SettingsAreaId =
+  | (typeof GENERATED_AREA_IDS)[number]
+  | "hotkeys"
+  | "codecs"
+  | "library"
+  | "network"
+  | "about"
+  | "advanced";
+
+export const SETTINGS_AREA_IDS: readonly SettingsAreaId[] = [
+  ...GENERATED_AREA_IDS,
+  "hotkeys",
+  "codecs",
+  "library",
+  "network",
+  "about",
+  "advanced",
+];
 
 export const SETTINGS_AREA_TITLES: Record<SettingsAreaId, MessageKey> = {
   ...GENERATED_AREA_TITLES,
   hotkeys: "settings.area.hotkeys",
+  codecs: "settings.area.codecs",
+  library: "settings.area.library",
+  network: "settings.area.network",
+  about: "settings.area.about",
+  advanced: "settings.area.advanced",
 };
 
 export const SETTINGS_SCREENS: Record<SettingsAreaId, () => ReactElement> = {
   ...GENERATED_SCREENS,
   hotkeys: HotkeysAreaScreen,
+  codecs: CodecsAreaScreen,
+  library: PlaylistServicesAreaScreen,
+  network: NetworkAreaScreen,
+  about: AboutAreaScreen,
+  advanced: AdvancedAreaScreen,
 };
 
 /**
