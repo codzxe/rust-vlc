@@ -55,9 +55,53 @@ npm run tokens:check      # CI drift guard
 ## Honest status / follow-ups
 
 - Persistence + settings-schema wiring ("Accent color" setting, doc 07 /
-  doc 08 §3.3) lands with the settings cards — ThemeProvider currently
-  defaults to the product defaults (dark + orange) with no storage.
-- The full 9-accent × contrast matrix is verified Rust-side (crate
-  `TokenError::Contrast`); a UI-side visual matrix pass is a later session.
+  doc 08 §3.3) lands with the settings cards (4.E2) — ThemeProvider currently
+  defaults to the product defaults (dark + orange) with no storage;
+  `ui/src/theme/` is the seam.
+- The full 9-accent × light/dark visual matrix IS now verified UI-side too
+  (closure session 3, `e2e/theme.spec.ts` — 18 computed-style assertions
+  against the values resolved from themes/tokens.json; see below).
 - Stylelint for plain `.css` files (doc 08 §3.4) is deferred — the TSX lint
   rule is live; sandbox CSS is var()-only by construction.
+
+## Visual matrix verification (closure session, 4.A2 relaunch 2)
+
+`e2e/theme.spec.ts` loops all 9 accents × dark/light (18 tests) on the
+`/dev/tokens` sandbox and asserts, per combination, the computed
+`background-color` of `swatch-accent` (`--color-accent`, mode-independent
+  accent primary) and `swatch-accent-bright` (`--color-accent-bright`, which
+per-mode blocks re-point) — proving BOTH axes cascade for every combo.
+Expected hex values are transcribed from the committed pipeline output
+(`themes/generated/tokens.css`, itself diff-tested Rust-side), i.e. from
+`themes/tokens.json`. `accent-bright` was added to the sandbox
+`SWATCH_ROLES` + CSS for this (it re-points in light mode; `accent` alone
+could not distinguish dark from light).
+
+## Rust-constants consumer survey (NEXT-STEPS item 2 — for the Lead, ARCH-3)
+
+Surveyed (READ-ONLY; no engine code touched). `cargo xtask tokens` also
+emits `crates/theme-tokens/src/generated/tokens.rs` (semantic-layer Rust
+constants: `MODES`, `DEFAULT_MODE`, `ACCENTS`, `ACCENT_{ID}_{ROLE}` ramps,
+per-mode `_{MODE}` suffixes). **Current consumers: ZERO** — no engine crate's
+Cargo.toml depends on `theme-tokens`; the only mentions outside the crate are
+doc comments (settings-schema, xtask). Would-be consumers identified:
+
+1. **Renderer clear/letterbox color** (doc 08 §3.1): `renderer-wgpu`
+   `backend.rs` takes `background: Rgba` as a runtime parameter and the
+   default today is the hardcoded `color::BLACK` ("opaque black — the default
+   letterbox background", `color.rs:83`). Token candidates:
+   `--color-surface-deep` (#090909 dark / #dedede light) or intentional
+   black. ARCH-3 note: the engine must NOT read current theme state — the
+   correct seam already exists: the UI/host resolves the token and passes the
+   concrete `Rgba` in (as `backend.rs` already does for background). Rust
+   constants would only justify a dep for engine-side DEFAULTS/fallbacks.
+2. **Subtitle-safe margins** (doc 08 §3.1): no margin constants exist yet
+   anywhere — `plugin-api/src/subtitle.rs` is plain-text v1 (no styling),
+   `media-types::frame::SubtitleCue` carries no layout. Future consumers:
+   the L2 `subtitles` impl crate and/or the renderer compose pass; token
+   candidates are the `--space-*` family.
+
+Recommendation for the Lead: defer adding any engine-side `theme-tokens`
+dep until a concrete consumer lands (renderer default clear color when
+video-out surface params are wired); prefer value-passing over the command
+API / render params so the engine stays UI-stateless.

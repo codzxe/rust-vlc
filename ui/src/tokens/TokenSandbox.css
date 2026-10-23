@@ -74,6 +74,10 @@
   background: var(--color-accent);
 }
 
+.ts-swatch[data-role="accent-bright"] {
+  background: var(--color-accent-bright);
+}
+
 .ts-swatch[data-role="accent-strong"] {
   background: var(--color-accent-strong);
 }

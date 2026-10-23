@@ -23,20 +23,23 @@ at merge), README brought to closure state. All four gates green.
 
 ## Do next (roughly in order)
 
-1. **4.A2 completion pass (later session)**: worklog entry (---, Task ID:
-   4.A2) once the remaining items land; full 9-accent × light/dark visual
-   matrix verification (unit tests already assert structure; add a
-   Playwright loop over all 9 accents); check `cargo xtask tokens` still
-   regenerates byte-stable after any themes/tokens.json change and re-pin
-   `PINNED_SHA256` in `src/tokens/tokens.test.ts` in the same commit.
-2. **Rust-constants side**: survey consumers of
-   `crates/theme-tokens/src/generated/tokens.rs` (engine-side needs);
-   renderer clear colors / subtitle-safe margins per doc 08 §3.1 — Lead
-   gates which crates consume them (ARCH-3: engine owns no UI state).
+1. ~~**4.A2 completion pass**~~ — DONE (closure session 3, agent P4-A2
+   relaunch 2): full 9-accent × light/dark visual matrix E2E (18 tests,
+   computed-style assertions vs values from themes/tokens.json) green;
+   `npm run tokens:check` green (sha256 832da9d0… unchanged — no Rust-side
+   change, no re-pin needed); worklog entry filed; Rust-consumer survey
+   written into `src/tokens/README.md` (next item).
+2. ~~**Rust-constants side**: survey consumers~~ — DONE, survey only, see
+   `ui/src/tokens/README.md` § "Rust-constants consumer survey": zero
+   current consumers of `crates/theme-tokens/src/generated/tokens.rs`;
+   would-be consumers = renderer clear/letterbox color (today hardcoded
+   `color::BLACK`; `backend.rs` already takes `background: Rgba` as a
+   param — the ARCH-3-correct seam) + future subtitle-safe margins (no
+   margin constants exist yet). Lead gates any engine-side dep.
 3. **Settings wiring**: ThemeProvider currently defaults to dark + orange
    with NO persistence — wire the "Accent color" + theme settings through
-   the settings schema (doc 07) when those cards land; `ui/src/theme/` is
-   the seam.
+   the settings schema (doc 07) when those cards land (4.E2); `ui/src/theme/`
+   is the seam.
 4. **ESLint rules v2**: promote the three inline rules in `eslint.config.js`
    into a proper local plugin (e.g. `tools/eslint-plugin-lumen/`) with real
    schema + tests; template-literal coverage for

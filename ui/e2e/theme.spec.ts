@@ -46,3 +46,59 @@ test("auto mode follows the emulated OS color scheme", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" });
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 });
+
+// Card 4.A2 closure AC: the FULL visual matrix — every accent (9) × every
+// mode (2), 18 combinations, asserted through computed styles on the
+// /dev/tokens sandbox swatches. Expected values are the semantic accent
+// roles as resolved from themes/tokens.json via the committed pipeline
+// output (`themes/generated/tokens.css` → `src/tokens/generated/`):
+// `--color-accent` is mode-independent (each accent's ramp sets one
+// primary; light only re-points bright/icon/tinted), while
+// `--color-accent-bright` differs per mode — so the pair proves both the
+// accent axis AND the mode axis cascade for every combination.
+const ACCENT_MATRIX = [
+  ["orange", "#d37918", "#d37918", "#e8851a"],
+  ["red", "#e15032", "#e15032", "#e66044"],
+  ["yellow", "#c49e23", "#c49e23", "#daaf24"],
+  ["green", "#19a234", "#19a234", "#1ab839"],
+  ["cyan", "#18aad3", "#18aad3", "#1abbe8"],
+  ["blue", "#185dd3", "#185dd3", "#1a66e8"],
+  ["violet", "#8e42ff", "#8e42ff", "#9c59ff"],
+  ["pink", "#f052b3", "#f052b3", "#f365bd"],
+  ["gray", "#afafaf", "#afafaf", "#bababa"],
+] as const;
+
+function hexToRgb(hex: string): string {
+  const n = Number.parseInt(hex.slice(1), 16);
+  return `rgb(${(n >> 16) & 0xff}, ${(n >> 8) & 0xff}, ${n & 0xff})`;
+}
+
+for (const [accent, accentDark, accentLight, brightLight] of ACCENT_MATRIX) {
+  for (const mode of ["dark", "light"] as const) {
+    test(`matrix: ${accent} × ${mode} resolves the accent cascade`, async ({
+      page,
+    }) => {
+      await page.goto("/dev/tokens");
+      const swatch = page.getByTestId("swatch-accent");
+      const bright = page.getByTestId("swatch-accent-bright");
+
+      await page.getByRole("button", { name: mode, exact: true }).click();
+      await page.getByRole("button", { name: accent, exact: true }).click();
+      await expect(page.locator("html")).toHaveAttribute("data-theme", mode);
+      await expect(page.locator("html")).toHaveAttribute("data-accent", accent);
+
+      // --color-accent is the mode-independent accent primary…
+      const expectedAccent = mode === "dark" ? accentDark : accentLight;
+      await expect(swatch).toHaveCSS(
+        "background-color",
+        hexToRgb(expectedAccent),
+      );
+      // …--color-accent-bright proves the per-mode block layered on top.
+      const expectedBright = mode === "dark" ? accentDark : brightLight;
+      await expect(bright).toHaveCSS(
+        "background-color",
+        hexToRgb(expectedBright),
+      );
+    });
+  }
+}
