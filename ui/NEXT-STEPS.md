@@ -129,3 +129,77 @@ Next for sliders:
   against Figma when a buffer state export exists (states.md).
 - Miniplayer dense variant (16px track / 8×12 knob) reuses base `.lumen-slider`
   styles as-is; add a variant class only if the composite needs it.
+
+## 4.C1 — player screen shell (session 1, committed 77f4888 on wip/p4-c1)
+
+Done (ui/src/screens/player/** only + /player route + player.* i18n keys):
+
+- `PlayerScreen` — layout root per doc 08 §1.6 anatomy: top bar (banner,
+  h1), video canvas (role="region" + aria-label, data-placeholder=
+  "engine-wiring-4.H1"), controls-bar region stub, side panels as labelled
+  complementary landmarks when open. First-run empty state (doc 08 §5.3)
+  with a DISABLED "Open media" Button (data-wiring-stub="session.open —
+  card 4.C2"). No <video>/<canvas> element anywhere — dishonest until the
+  render engine is wired.
+- `layout.ts` — full consumption side of doc 07 §7.2: TOML-subset parser
+  ([[region]]/[[menu]]/[[menu.item]], inline tables, scalars), layout.v1
+  validation (anchors, unique ids, condition tokens, label_key resolution
+  via new i18n `isMessageKey` guard), visible_when evaluation against a
+  has-media/has-video/fullscreen/has-chapters context. [PROPOSAL] recorded:
+  config/layouts/ does not exist yet → `DEFAULT_LAYOUT_TOML` (same format,
+  parsed by the same parser) is the stand-in; missing/empty source →
+  default, invalid source → loud LayoutParseError (doc 07 §3.5 philosophy).
+- `keymap.ts` — keymap-data-driven seam (doc 05 §8.1): parser + key
+  normalization ("Esc"→Escape, modifier combos captured but unclaimed) +
+  matcher for plain-key player-focused bindings + shell recipe dispatch
+  (fullscreen-toggle / exit-fullscreen-close-dialog /
+  show-controls-fullscreen per keymaps/default.toml lines 154-156 —
+  verbatim excerpt constant; swap for the real loader when it lands, open
+  question Q1/Q4 in ui-inventory.md §9). Everything else → `onBinding`
+  seam for 4.C2's command dispatch.
+- `useChromeAutoHide` — visible/hidden/locked machine. [PROPOSAL] 3000 ms
+  idle delay (doc 08 §4.3 pins NO number — VERIFY against design when a
+  timing lands); scoped to fullscreen per §4.3; any pointer/key activity
+  reveals + restarts; open panels or empty state lock; stale `hidden`
+  cleared on unlock/disable. Fade is CSS under prefers-reduced-motion:
+  no-preference (§4.5).
+- `useFullscreen` — request on container; state synced ONLY from
+  fullscreenchange (jsdom-verified: request without event ≠ fullscreen);
+  FullscreenUnsupportedError for bare hosts (4.C2 surfaces it per doc 05
+  taxonomy). ESC exits natively + via keymap data.
+- `controls/index.ts` + `states/index.ts` — explicit TODO stubs; 4.C2/4.C3
+  own those subtrees.
+- Tests: 49 new (landmarks, empty state, layout valid/minimal/missing/
+  invalid, condition gating, chrome timing w/ fake timers, fullscreen
+  event sync, keymap match/forward). typecheck + lint + vitest 239/239
+  green; tokens:check OK; zero new deps.
+
+Next for 4.C2 (control bar) — wiring points already in place:
+
+- `onBinding` seam: dispatch forwarded bindings (e.g. exit-fullscreen's
+  dialog-close half) to real commands via the client.
+- Enable the Open-media button: file-dialog ui-action + `session.open`.
+- Fill the controls-bar region (transport per doc 08 §5.1 state table,
+  Seekbar pending wiring per §5.2, volume, track menus from `tracks.list`).
+- Panel toggle ui-actions should drive `openPanels` (shell locks chrome
+  while any is open — keep that invariant).
+
+Open items (VERIFY/PROPOSAL ledger for this card):
+
+- Chrome auto-hide delay 3000 ms + fullscreen-only scoping: [PROPOSAL],
+  doc 08 §4.3 leaves timing open ("Player - hide UI.svg" has no number).
+- Fade duration 160 ms and panel width 377 px in player.css have no
+  semantic token (no motion/size tokens exist yet) — 160 ms matches the
+  4.B4 sheet-animation precedent; 377 px is doc 08 §4.3. Promote to tokens
+  if/when they land.
+- Default layout content (regions set, media-info visible_when=has-media,
+  app menu leaf) is [PROPOSAL] until config/layouts/main.toml + the
+  schemas/layout.schema.json validator land; then `resolveLayout` swaps
+  its source and DEFAULT_LAYOUT_TOML is deleted.
+- Full keymap loading (whole keymaps/default.toml, `when` conditions,
+  modifier combos, mode gating beyond player-focused) — 4.C2 command layer.
+- Empty-state visual polish (centering tokens, art) deferred to 4.G1
+  visual pass; DOM shape + ARIA asserted now.
+- 4.C3 note: first-run empty state lives in the shell per card 4.C1;
+  coordinate if states/** re-implements it richer (loading/buffering/
+  unsupported/error own that dir).
