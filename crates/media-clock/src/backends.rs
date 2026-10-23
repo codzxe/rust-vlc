@@ -85,7 +85,7 @@ use media_types::GenerationId;
 use media_types::time::{Rate, TimeError, Timestamp};
 
 use crate::clock::{
-    Core, Extrapolation, MediaClock, MonotonicKind, Source, adopt_anchor, clock_state,
+    Core, Extrapolation, MediaClock, Source, adopt_anchor, clock_state,
     now_locked, position_nanos, read_source, snapshot_locked,
 };
 use crate::mapping::NANO_BASE;
@@ -104,6 +104,28 @@ pub const DEFAULT_VIDEO_SNAP_NS: u64 = 40_000_000;
 /// playback; a consumer that lets 8 pile up un-drained gets the
 /// lost-count receipt, never unbounded growth.
 const MASTER_EVENT_CAPACITY: usize = 8;
+
+/// The role label a monotonic source currently plays (card 3.B2).
+/// The reading math in [`crate::clock::Source::Monotonic`] is
+/// identical for every variant; the label is the truthful state the
+/// master-loss fallback policy and the UI reason over. `System` and
+/// `Free` have no media stream and can never be lost; `VideoWall` is
+/// steered per presented frame ([`VideoSteer`]); `External` follows
+/// an externally-reported position.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MonotonicKind {
+    /// The process wall clock (the 3.B1 `system_monotonic` shape).
+    System,
+    /// Video-master mode: the wall advances freely, steered by
+    /// per-frame observations within the snap bound.
+    VideoWall,
+    /// External-master mode: an outside reporter (e.g. a broadcast
+    /// clock) drives the position.
+    External,
+    /// Free-running: every master was lost and no source remains —
+    /// the demotion chain's floor.
+    Free,
+}
 
 /// Which stream a master follows — the loss-report vocabulary the
 /// engine uses (card 3.B2). `Free`/`System` have no stream and can
@@ -332,7 +354,7 @@ pub enum SwitchError {
 }
 
 /// A [`MediaClock::seek_back`] refusal — typed, the clock unchanged.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SeekBackError {
     /// The clock is not in the Ended latch: the normal seek path is
     /// [`crate::PlaybackClock::reanchor`]; the Ended re-arm is a
@@ -449,7 +471,7 @@ pub(crate) struct BackendCore {
     /// The video snap bound (ns).
     video_snap_ns: u64,
     /// The Ended latch (card 3.B2).
-    ended: bool,
+    pub(crate) ended: bool,
     /// The bounded master-change event ring.
     events: EventRing,
 }
@@ -699,7 +721,7 @@ impl MediaClock {
             return Err(media_types::EngineError::new(
                 media_types::PipelineStage::Control,
                 media_types::ErrorKind::Unsupported { format: None },
-                media_types::ErrorContext::new("clock.backend-not-wired"),
+                media_types::error::ErrorContext::new("clock.backend-not-wired"),
             ));
         };
         let backend = BackendCore::multi(wired, backends.video_snap_ns);
