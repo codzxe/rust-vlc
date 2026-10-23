@@ -2,19 +2,27 @@
 //!
 //! [`BufferedReader`] wraps any [`RawRead`] + [`Seekable`](crate::Seekable)
 //! source with a **fixed-capacity** buffer allocated once at
-//! construction and never grown. Reads larger than the capacity are
-//! streamed through it in capacity-sized chunks; a single read request
-//! above [`MAX_READ_BYTES`] is refused with a typed `ResourceLimit`
-//! error instead of an allocation. A source that shrinks below its
-//! open-time length surfaces `Corrupt::Truncated`, never a silent EOF.
+//! construction and never grown. Small reads (below the capacity) are
+//! served from the window with read-ahead locality; requests **at or
+//! above the capacity** bypass the window entirely — leftover
+//! read-ahead is drained first, then the source is asked directly for
+//! the remainder in caller-visible memory (one transfer instead of
+//! `want / capacity` window refills — the 7-c part-2 payload-class
+//! path). A single read request above [`MAX_READ_BYTES`] is refused
+//! with a typed `ResourceLimit` error instead of an allocation. A
+//! source that shrinks below its open-time length surfaces
+//! `Corrupt::Truncated`, never a silent EOF.
 //!
 //! # Memory accounting (the card's "no unbounded buffering" proof)
 //!
 //! Steady-state memory = the fixed buffer (≤ [`MAX_BUFFER_BYTES`]) + the
 //! caller-visible result of one bounded read (≤ [`MAX_READ_BYTES`]).
-//! The [`contract`](crate::contract) checks instrument the underlying
-//! source so tests can prove no read ever asks it for more than the
-//! buffer's capacity.
+//! The bypass reads straight into memory the caller already owns (the
+//! borrow path) or the result `Vec` it would have allocated anyway —
+//! the reader never asks the source for more than the caller's own
+//! request, and the internal window never grows. The
+//! [`contract`](crate::contract) checks instrument the underlying
+//! source so tests can prove both bounds.
 //!
 //! # Position invariant
 //!
@@ -164,8 +172,17 @@ impl<S: RawRead + Seekable> BufferedReader<S> {
         Ok(at)
     }
 
-    /// Read up to `want` bytes at the current position, streaming
-    /// through the fixed buffer in capacity-sized chunks.
+    /// Read up to `want` bytes at the current position.
+    ///
+    /// Two regimes (7-c part 2):
+    /// - `want <` the window capacity: served from the fixed window
+    ///   with read-ahead locality (small asks, header probes).
+    /// - `want ≥` the window capacity — the payload class the demux
+    ///   arena asks for: leftover read-ahead is drained, then the
+    ///   source is asked **directly** for the remainder into the
+    ///   result — one source call for the bulk instead of
+    ///   `want / capacity` window refills, and no window→result copy
+    ///   for the transferred bytes (the source writes through).
     ///
     /// Returns fewer than `want` bytes only at end of stream (short
     /// reads are data, not errors); `Ok(empty)` only at end of stream.
@@ -182,6 +199,9 @@ impl<S: RawRead + Seekable> BufferedReader<S> {
         }
         if want > MAX_READ_BYTES {
             return Err(error::read_over_budget(want, MAX_READ_BYTES));
+        }
+        if want >= self.buf.len() {
+            return self.read_bypassing_window(want);
         }
         let mut out = Vec::with_capacity(want);
         self.drain_into(&mut out);
@@ -203,6 +223,30 @@ impl<S: RawRead + Seekable> BufferedReader<S> {
         Ok(out)
     }
 
+    /// The payload-class path (7-c part 2): a request at or above the
+    /// window capacity. Drains leftover read-ahead, then asks the
+    /// source directly for the remainder — the bytes land in the
+    /// caller-visible result without passing through the window. A
+    /// short-but-nonzero source read is re-asked for the remainder;
+    /// `Ok(0)` is end of stream (typed truncation check applies). The
+    /// zero-filled `Vec` is the price of the safe (no-`unsafe`) API:
+    /// `RawRead` needs initialized memory, and one `want`-sized memset
+    /// replaces `want / capacity` syscall-sized copies.
+    fn read_bypassing_window(&mut self, want: usize) -> Result<Vec<u8>, EngineError> {
+        let mut out = vec![0u8; want];
+        let mut filled = self.drain_leftover_into(&mut out);
+        while filled < want {
+            let got = self.source.read(&mut out[filled..])?;
+            if got == 0 {
+                self.confirm_eof()?;
+                break;
+            }
+            filled += got;
+        }
+        out.truncate(filled);
+        Ok(out)
+    }
+
     /// Move buffered bytes into `out`'s spare capacity, advancing the
     /// window. Never reallocates: the take is bounded by the room left.
     fn drain_into(&mut self, out: &mut Vec<u8>) {
@@ -219,14 +263,19 @@ impl<S: RawRead + Seekable> BufferedReader<S> {
     /// caller memory, advancing (card 3.B3 — the borrow twin of
     /// [`read`](BufferedReader::read)).
     ///
-    /// Serves leftover read-ahead first and refills the fixed window
-    /// only when it is completely empty — the existing [`read`] loop
-    /// minus the result [`Vec`]: **zero allocation**, one window→`out`
-    /// copy per refill. Short results are data (end of stream or a
-    /// smaller ask than window); `Ok(0)` only at end of stream (a
-    /// zero-length `out` is a zero-length success without I/O). Unlike
-    /// [`read`] there is no [`MAX_READ_BYTES`] request ceiling: the
-    /// caller owns the destination memory, so no allocation can spike.
+    /// Leftover read-ahead is served first; then the request splits by
+    /// size (7-c part 2): an `out` **below** the window capacity goes
+    /// through the fixed window (read-ahead locality for header-sized
+    /// asks); an `out` **at or above** the capacity — the demux arena's
+    /// full-frame payload class — is filled by asking the source
+    /// **directly** for the remainder: zero allocation, zero
+    /// intermediate copies, one source call for the bulk instead of
+    /// `out.len() / capacity` window refills. Short results are data
+    /// (end of stream or a smaller ask than window); `Ok(0)` only at
+    /// end of stream (a zero-length `out` is a zero-length success
+    /// without I/O). Unlike [`read`] there is no [`MAX_READ_BYTES`]
+    /// request ceiling: the caller owns the destination memory, so no
+    /// allocation can spike.
     ///
     /// # Errors
     /// [`EngineError`] — kind `Corrupt` (`input.file.truncated`) when
@@ -236,7 +285,21 @@ impl<S: RawRead + Seekable> BufferedReader<S> {
         if out.is_empty() {
             return Ok(0);
         }
-        let mut filled = 0;
+        let mut filled = self.drain_leftover_into(out);
+        if out.len() >= self.buf.len() {
+            // The bypass (7-c part 2): the destination is caller-owned
+            // and already window-sized or larger — the source writes
+            // straight into it.
+            while filled < out.len() {
+                let got = self.source.read(&mut out[filled..])?;
+                if got == 0 {
+                    self.confirm_eof()?;
+                    break;
+                }
+                filled += got;
+            }
+            return Ok(filled);
+        }
         while filled < out.len() {
             if self.start == self.end {
                 self.start = 0;
@@ -255,6 +318,20 @@ impl<S: RawRead + Seekable> BufferedReader<S> {
             filled += take;
         }
         Ok(filled)
+    }
+
+    /// Move the front of the buffered window into `out` (at most
+    /// `out.len()` bytes, at most what is buffered), advancing the
+    /// window — the shared first step of both read paths. Returns the
+    /// number of bytes taken.
+    fn drain_leftover_into(&mut self, out: &mut [u8]) -> usize {
+        let take = out.len().min(self.end - self.start);
+        if take > 0 {
+            out[..take].copy_from_slice(&self.buf[self.start..self.start + take]);
+            self.start += take;
+            self.buf_pos += take as u64;
+        }
+        take
     }
 
     /// Fill `out` completely or fail typed (card 3.B3): the exact-read
@@ -415,19 +492,118 @@ mod tests {
         assert_eq!(r.source().reads_served(), 1);
     }
 
-    /// Large reads stream through the fixed window in capacity-sized
-    /// chunks and stay byte-exact (the no-unbounded-buffering proof at
-    /// unit level; the contract check repeats it through the trait).
+    /// Large reads take the 7-c part-2 **bypass**: one full-size
+    /// source ask instead of capacity-sized window refills, byte-exact,
+    /// and the fixed buffer neither grows nor is touched.
+    ///
+    /// Supersedes the card-2.A1 pin "no chunk above capacity": V-1 made
+    /// the demux arena ask for whole frames, and chunking a
+    /// multi-hundred-KB ask through a 64 KiB window costs
+    /// `want / capacity` syscalls plus a window copy per chunk. The
+    /// bounded-memory proof moves with it — the reader never asks the
+    /// source for more than the caller's own request, and the window
+    /// stays fixed (both asserted below).
     #[test]
-    fn large_reads_stream_through_the_fixed_window() {
+    fn large_reads_bypass_the_window_in_one_source_call() {
         let data = pattern(1000);
         let mut r = reader(&data, 32);
         let got = r.read(1000).must();
         assert_eq!(got, data);
-        assert_eq!(r.source().max_read_seen(), 32, "no chunk above capacity");
+        assert_eq!(r.source().reads_served(), 1, "one source call, not 32");
+        assert_eq!(
+            r.source().max_read_seen(),
+            1000,
+            "the ask is the caller's request — never a speculative over-read"
+        );
         assert!(r.buffered_bytes() <= 32);
         assert_eq!(r.buffer_capacity(), 32, "the buffer never grows");
         assert_eq!(r.position(), 1000);
+    }
+
+    /// The bypass serves leftover read-ahead first: bytes already in
+    /// the window are never re-fetched from the source, and the direct
+    /// ask is only for the remainder.
+    #[test]
+    fn bypass_reads_serve_leftover_read_ahead_first() {
+        let data = pattern(200);
+        let mut r = reader(&data, 64);
+        // Prime the window: one 64-byte refill, 54 bytes of leftover.
+        let head = r.read(10).must();
+        assert_eq!(&head, &data[..10]);
+        assert_eq!(r.source().reads_served(), 1);
+
+        // A payload-class ask: the 54 leftover bytes drain from the
+        // window, then ONE direct ask covers the remaining 136.
+        let payload = r.read(190).must();
+        assert_eq!(&payload, &data[10..200]);
+        assert_eq!(r.source().reads_served(), 2, "leftover + one direct ask");
+        assert_eq!(r.source().max_read_seen(), 136, "the remainder, exactly");
+        assert_eq!(r.position(), 200);
+    }
+
+    /// A source that serves short-but-nonzero reads is re-asked for
+    /// the remainder — the bypass loop makes strict progress and stays
+    /// byte-exact (the multi-syscall honest path when the kernel or a
+    /// remote source dribbles).
+    #[test]
+    fn bypass_reads_survive_short_source_reads() {
+        /// A source that never serves more than 40 bytes per call —
+        /// the dribble shape of a slow pipe, pinned at unit level.
+        struct Dribble {
+            data: Vec<u8>,
+            pos: usize,
+            calls: usize,
+            max_ask: usize,
+        }
+        impl Seekable for Dribble {
+            fn position(&self) -> u64 {
+                self.pos as u64
+            }
+            fn length(&self) -> Option<u64> {
+                Some(self.data.len() as u64)
+            }
+            fn seek(&mut self, to: u64) -> Result<u64, EngineError> {
+                self.pos = to as usize;
+                Ok(to)
+            }
+        }
+        impl RawRead for Dribble {
+            fn read(&mut self, out: &mut [u8]) -> Result<usize, EngineError> {
+                self.calls += 1;
+                self.max_ask = self.max_ask.max(out.len());
+                let n = out.len().min(40).min(self.data.len() - self.pos);
+                out[..n].copy_from_slice(&self.data[self.pos..self.pos + n]);
+                self.pos += n;
+                Ok(n)
+            }
+        }
+
+        let data = pattern(300);
+        let src = Dribble {
+            data: data.clone(),
+            pos: 0,
+            calls: 0,
+            max_ask: 0,
+        };
+        let mut r = BufferedReader::new(src, 16).must();
+        let mut out = vec![0u8; 300];
+        let got = r.read_into(&mut out).must();
+        assert_eq!(got, 300);
+        assert_eq!(&out, &data, "byte-exact across dribbled refills");
+        assert_eq!(r.source().calls, 8, "300 bytes in ≤ 40-byte slices");
+        assert_eq!(r.source().max_ask, 300, "asks stay caller-sized");
+    }
+
+    /// A payload-class read past the end of a short stream is a clean
+    /// short result (end of stream is data), and the window stays put.
+    #[test]
+    fn bypass_read_past_end_short_reads_cleanly() {
+        let data = pattern(100);
+        let mut r = reader(&data, 16);
+        let got = r.read(1000).must();
+        assert_eq!(got, data, "the whole file, short of the ask");
+        assert_eq!(r.position(), 100);
+        assert!(r.read(64).must().is_empty(), "sticky EOF");
     }
 
     /// End-of-stream at the open-time length is clean and repeatable.
@@ -487,11 +663,12 @@ mod tests {
         assert_eq!(&got, &data[40..50]);
     }
 
-    /// The borrow twin reconstructs byte-exactly across window
-    /// refills, tracks the position, and does no extra source reads
-    /// beyond the capacity-sized refills the `Vec` path makes.
+    /// The borrow twin reconstructs byte-exactly, and a payload-class
+    /// borrow (the demux arena's full-frame ask, 7-c part 2) is ONE
+    /// full-size source call — no window refills, no intermediate
+    /// copies — while the fixed window never grows.
     #[test]
-    fn read_into_reconstructs_and_streams_through_the_window() {
+    fn read_into_reconstructs_and_bypasses_for_payload_asks() {
         let data = pattern(1000);
         let mut r = reader(&data, 32);
         let mut out = vec![0u8; 1000];
@@ -499,8 +676,10 @@ mod tests {
         assert_eq!(got, 1000);
         assert_eq!(&out, &data);
         assert_eq!(r.position(), 1000);
-        assert_eq!(r.source().max_read_seen(), 32, "chunks stay window-sized");
+        assert_eq!(r.source().reads_served(), 1, "one source call for the bulk");
+        assert_eq!(r.source().max_read_seen(), 1000, "caller-sized asks");
         assert!(r.buffered_bytes() <= 32);
+        assert_eq!(r.buffer_capacity(), 32, "the buffer never grows");
 
         // End of stream is a clean zero, repeatable.
         for _ in 0..2 {

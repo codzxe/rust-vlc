@@ -29,10 +29,13 @@
 //!   honesty for readers that expose it ([`SyntheticStream::peek_into`])
 //!   — peeks never advance, never do I/O, and never return more than
 //!   what is buffered.
-//! - [`assert_bounded_read`]: the card's "no unbounded buffering" proof —
-//!   a read many times the buffer capacity returns byte-exact data
-//!   while the underlying source never sees a read larger than the
-//!   capacity and the internal buffer never exceeds it.
+//! - [`assert_bounded_read`]: the card's "no unbounded buffering" proof
+//!   (repinned for the 7-c part-2 bypass): a read many times the
+//!   buffer capacity returns byte-exact data in **one** source call
+//!   (the payload-class path — no capacity-sized refill loop), the
+//!   underlying source never sees a read larger than the caller's own
+//!   request (no speculative over-read), and the internal buffer
+//!   stays within its fixed capacity — it never grows.
 //! - [`assert_truncated`]: a mid-read shrink surfaces the typed
 //!   `Corrupt::Truncated` error, never a silent EOF.
 //!
@@ -364,10 +367,15 @@ pub fn assert_stream_contract(stream: &mut dyn SourceStream, expected: &[u8]) {
     );
 }
 
-/// The bounded-memory proof (card 2.A1 AC): reading `want` bytes — many
-/// times the buffer capacity — returns byte-exact data while the
-/// underlying source never receives a read larger than the capacity and
-/// the reader's internal buffer stays within it.
+/// The bounded-memory proof (card 2.A1 AC, repinned for the 7-c part-2
+/// bypass): reading `want` bytes — many times the buffer capacity —
+/// returns byte-exact data in **one** source call (no
+/// `want / capacity` refill loop), the underlying source never
+/// receives a read larger than the caller's own request (no
+/// speculative over-read — the old "chunked to the capacity" pin was
+/// an implementation detail, not the memory bound; the real bounds are
+/// the fixed window and the caller-owned destination), and the
+/// reader's internal buffer stays within its capacity without growing.
 #[track_caller]
 pub fn assert_bounded_read(stream: &mut SyntheticStream, want: usize, expected: &[u8]) {
     let capacity = stream.reader.buffer_capacity();
@@ -378,6 +386,7 @@ pub fn assert_bounded_read(stream: &mut SyntheticStream, want: usize, expected: 
     );
     let from = stream.reader.position() as usize;
     let remaining = &expected[from.min(expected.len())..];
+    let served_before = stream.source().reads_served();
     let data = stream
         .read(want)
         .unwrap_or_else(|e| unreachable!("bounded read: {e}"));
@@ -397,10 +406,20 @@ pub fn assert_bounded_read(stream: &mut SyntheticStream, want: usize, expected: 
         stream.reader.buffered_bytes(),
         capacity
     );
+    assert_eq!(
+        stream.reader.buffer_capacity(),
+        capacity,
+        "the internal buffer never grows"
+    );
     let seen = stream.source().max_read_seen();
     assert!(
-        seen <= capacity,
-        "underlying reads are chunked to the capacity (saw {seen}, capacity {capacity})"
+        seen <= want.max(capacity),
+        "the source never sees a read beyond the caller's request (saw {seen}, want {want})"
+    );
+    assert_eq!(
+        stream.source().reads_served(),
+        served_before + 1,
+        "a payload-class read is ONE source call (7-c part 2)"
     );
 }
 

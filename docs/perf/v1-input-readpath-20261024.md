@@ -126,3 +126,68 @@ ignores).
 * **Who hits it first?** The merge gate (full workspace run) and the
   input-crate agent (part 2) who must make the source side honor
   large asks without a window-copy per call.
+
+## 7. Part 2 — the input-crate large-read path (7-c, relaunch 3, 2026-10-24)
+
+### Audit (what part 1 left us)
+
+V-1 made the demux ask for **one full-size `read_into` per frame** —
+but the input layer served that ask as a window-refill loop:
+`BufferedReader::read_into` refilled the fixed 64 KiB window
+`ceil(len / 64 KiB)` times, one `read()` syscall + one 64 KiB
+window→arena copy per refill. For the pinned 1.5 MiB MJPEG frame
+class that is **24 syscalls and 1.5 MiB of intermediate copying per
+frame**, with the default `SourceStream::read_into` (non-overriding
+sources) additionally paying a per-call result Vec. Bounded memory
+(D-1) was already honest: fixed window, `MAX_READ_BYTES` request
+ceiling, typed truncation. The waste was transfer granularity, not
+memory.
+
+### Change (crates/input)
+
+`BufferedReader` now splits asks by size:
+
+* `want < capacity` (headers, probes): unchanged window path with
+  read-ahead locality.
+* `want >= capacity` (the payload class): **window bypass** — leftover
+  read-ahead drains into the destination first, then the source is
+  asked **directly** for the remainder. `read_into` is a true
+  zero-copy handoff: the syscall writes straight into the demux arena
+  slot, zero allocation, zero window→out copies. `read` (the Vec
+  twin) reads straight into the result Vec — one `want`-sized
+  zero-fill replaces the per-chunk copies (the price of the
+  no-`unsafe` API: `RawRead` takes `&mut [u8]`).
+* Short-but-nonzero source reads are re-asked for the remainder
+  (strict progress, `Ok(0)` = typed-EOF check, unchanged truncation
+  semantics). No `unsafe`, no API change, no new allocation anywhere.
+
+### Evidence (instrumented source counts — the honest syscall proxy)
+
+Before/after under identical protocol (`ScriptSource` read ledger,
+same data, same capacities; run in this branch's test suite):
+
+| ask | before (source calls / window→out bytes) | after |
+|---|---|---|
+| `read_into` 1000 B, window 32 B | 32 calls / 1000 B copied | **1 call / 0 B** |
+| `read` 1000 B, window 32 B | 32 calls / 1000 B copied | **1 call / 0 B** (+1 zero-fill) |
+| leftover-then-payload (54 B buffered, 190 B ask) | n/a | 1 drain + **1 call** for the 136 B remainder |
+
+Pinned by: `large_reads_bypass_the_window_in_one_source_call`,
+`bypass_reads_serve_leftover_read_ahead_first`,
+`bypass_reads_survive_short_source_reads` (dribbling source: 8 calls,
+byte-exact), `bypass_read_past_end_short_reads_cleanly`,
+`read_into_reconstructs_and_bypasses_for_payload_asks`, and the
+repinned `contract::assert_bounded_read` (one source call, no
+over-read beyond the caller's request, window never grows).
+
+**Supersession (recorded honestly):** the card-2.A1 pins "no chunk
+above capacity" / "reads are chunked to the capacity" asserted the
+refill-loop implementation detail, not the memory bound. They are
+repinned to the stronger transfer contract above; the D-1 memory
+proof (fixed window, never grows; result bounded by the
+`MAX_READ_BYTES` ceiling; caller-owned destinations) is asserted in
+the same tests. Not measured this session: wall-clock ms/frame and
+real-kernel syscall counts (no strace pass under the session budget;
+the ScriptSource ledger is the measurable proxy). Load conditions:
+shared sandbox, 4 sibling agents intermittently holding the cargo
+lock.
