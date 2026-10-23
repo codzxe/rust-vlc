@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Lumen",
+  "version": "0.1.0",
+  "identifier": "dev.lumen.desktop",
+  "build": {
+    "frontendDist": "../../../ui/dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Lumen",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 940,
+        "minHeight": 600
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": []
+  }
+}

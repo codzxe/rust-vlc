@@ -364,6 +364,9 @@ function PanelRegion({
       {/* Playlist region content landed with card 4.D1 (panel + queue
           semantics); media-info with 4.D2, customize panels with 4.F3
           (capability-gated fields); library remains an honest placeholder. */}
+          semantics); media-info region content landed with card 4.D2;
+          customize panels landed with 4.F3 (capability-gated fields);
+          library remains an honest placeholder. */}
       {region.id === "playlist" ? (
         <PlaylistProvider>
           <PlaylistPanel />
