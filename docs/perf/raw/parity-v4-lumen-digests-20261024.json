@@ -1,0 +1,15 @@
+{
+  "schema": "bench-vs-vlc/lumen-pcm-digests/1",
+  "host_endian": "little",
+  "results": [
+  {"rel": "dirty/0029-riff-size-lie.avi", "status": "ok", "md5": "017b4b1d7a7cf6ba96256c984e4e1183", "pcm_bytes": 10912, "frames": 6, "packets": 6, "codec": "pcm_s16le", "channels": 1, "rate": 8000, "sample": "s16", "layout": "interleaved", "track": 1, "concealed": 0, "demux_recovered": 1, "demux_skip_bytes": 12191955, "format_changes": 0},
+  {"rel": "dirty/dup-range-001-0063-avi-av.avi", "status": "ok", "md5": "26b5fc050114c2a86c2276da02b778b8", "pcm_bytes": 2072532, "frames": 338, "packets": 338, "codec": "pcm_s24le", "channels": 2, "rate": 96000, "sample": "s24", "layout": "interleaved", "track": 1, "concealed": 0, "demux_recovered": 4, "demux_skip_bytes": 8554896367, "format_changes": 0},
+  {"rel": "media/0021-multivideo-av.avi", "status": "ok", "md5": "dc7f363f3f2bc081c0f6afb783882203", "pcm_bytes": 128000, "frames": 32, "packets": 32, "codec": "pcm_s16le", "channels": 2, "rate": 8000, "sample": "s16", "layout": "interleaved", "track": 2, "concealed": 0, "demux_recovered": 1, "demux_skip_bytes": 0, "format_changes": 0},
+  {"rel": "media/0039-avi-av.avi", "status": "ok", "md5": "9aea5399bfaa405e3fbef5b7186f2ab8", "pcm_bytes": 1324064, "frames": 41, "packets": 41, "codec": "pcm_f32le", "channels": 8, "rate": 11025, "sample": "f32", "layout": "interleaved", "track": 1, "concealed": 0, "demux_recovered": 0, "demux_skip_bytes": 0, "format_changes": 0},
+  {"rel": "media/0056-avi-av.avi", "status": "ok", "md5": "48d67ede8a35a3c44ccae9f6e2abc932", "pcm_bytes": 2164608, "frames": 353, "packets": 353, "codec": "pcm_s16le", "channels": 3, "rate": 96000, "sample": "s16", "layout": "interleaved", "track": 1, "concealed": 0, "demux_recovered": 0, "demux_skip_bytes": 0, "format_changes": 0},
+  {"rel": "media/0063-avi-av.avi", "status": "ok", "md5": "b32051df0df59b17b2e19f9bb959d16a", "pcm_bytes": 2077056, "frames": 339, "packets": 339, "codec": "pcm_s24le", "channels": 2, "rate": 96000, "sample": "s24", "layout": "interleaved", "track": 1, "concealed": 0, "demux_recovered": 0, "demux_skip_bytes": 0, "format_changes": 0},
+  {"rel": "media/0066-avi-av.avi", "status": "ok", "md5": "cec484652225e331a65f4f91cbdd78c1", "pcm_bytes": 27680, "frames": 14, "packets": 14, "codec": "pcm_u8", "channels": 2, "rate": 8000, "sample": "u8", "layout": "interleaved", "track": 1, "concealed": 0, "demux_recovered": 1, "demux_skip_bytes": 0, "format_changes": 0},
+  {"rel": "media/0074-hevc-in-avi.avi", "status": "ok", "md5": "9d678b81718e9d52035dcc6a780b555d", "pcm_bytes": 7168, "frames": 7, "packets": 7, "codec": "pcm_u8", "channels": 1, "rate": 8000, "sample": "u8", "layout": "interleaved", "track": 1, "concealed": 0, "demux_recovered": 1, "demux_skip_bytes": 0, "format_changes": 0},
+  {"rel": "media/0076-maxtracks-avi.avi", "status": "ok", "md5": "cc2be167eb514a2b5fcfa1f9681321af", "pcm_bytes": 7768, "frames": 8, "packets": 8, "codec": "pcm_u8", "channels": 1, "rate": 8000, "sample": "u8", "layout": "interleaved", "track": 9, "concealed": 0, "demux_recovered": 2, "demux_skip_bytes": 0, "format_changes": 0}
+  ]
+}
