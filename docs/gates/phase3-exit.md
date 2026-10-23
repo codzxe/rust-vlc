@@ -29,9 +29,9 @@ harness operational. AC: evidence record + ledger + Phase 4 launch list."**
 | Clause | Status | Evidence |
 |---|---|---|
 | clocks, queues, generations, seeking, source replacement, sync, recovery (7 capability families) | **MET (merged)** | 8 cards complete through wave 3 (worklog 3.WAVE3-CLOSE) + wave-5 merges dce1b64 (3.B2), a181b81 (3.C3), df75bf5 (3.D3), 6f30ac9 (3.B4 hardening); W5R-03's harder 3.A2 re-proof (`tests/source_swap.rs`, 4/4 green, cherry-picked per 6.HOUSEKEEPING). Residuals: none gate-blocking; 3.B1's two PENDING-ACs remain registered (s7 stage-time seam, s8 10 ms margin) — carried, not forgotten |
-| 16/16 scenarios green | **MET (Linux, this sandbox)** | 16 scenario files `crates/playback-engine/tests/scenarios_b/scenario_01..16_*.rs` (+ `host.rs`/`main.rs`/`probe.rs` harness), doc-10 §6.4 closed 16-row list. 7-a closure: **23 passed / 0 failed, 3 consecutive runs** of the final code (5.59 s / 5.67 s / 5.54 s; merge 8d039bc; worklog 7-a). Re-verification on THIS branch: see §2 workspace run (scenarios_b binary result in `docs/gates/logs/phase3-exit-workspace-test.log`) |
+| 16/16 scenarios green | **MET (Linux, this sandbox)** | 16 scenario files `crates/playback-engine/tests/scenarios_b/scenario_01..16_*.rs` (+ `host.rs`/`main.rs`/`probe.rs` harness), doc-10 §6.4 closed 16-row list. 7-a closure: **23 passed / 0 failed, 3 consecutive runs** of the final code (5.59 s / 5.67 s / 5.54 s; merge 8d039bc; worklog 7-a). **Re-verified on THIS branch this session: 23 passed / 0 failed in 5.53 s** inside the full workspace run (§2 row 1b) |
 | …green **on 3 OS** | **PENDING (infra-blocked, honest)** | This sandbox is Linux-only; CI is deliberately ONE lean ubuntu job (`.github/workflows/ci.yml`); the 3-OS matrix stays parked under `.github/workflows-disabled/` pending Lead reconciliation. Same posture as draft §5 gap 1 — recorded, never fabricated. To-run list in §4 gap 1 |
-| soak slope within target | **PART (harness operational; 4 h run PENDING)** | Harness `crates/playback-engine/tests/soak/{main,memory,dispatch,scenario,report}.rs` (merge 6f792d6, 2,749 lines): open→play→seek→track-switch→reopen loop **through the command layer** (ARCH-5), two instruments (counting-allocator `live_bytes` = precise leak signal; `/proc` `VmRSS`), least-squares slope reported in MB/h with warmup exclusion. Assertion = generous 50 MB/h CI ceiling + liveness (D-6); the 5 MB/h design target is `[PROPOSAL]` — **reported, never asserted** (soak/main.rs:32-36). The CI-short 2-min soak runs in the default workspace suite (green — §2). The 4 h nightly run (`SOAK_MINUTES=240 … --release`) has **not been executed in this sandbox** (wall-clock + release-build cost); no 4 h report exists on disk → the "within target" comparison against 5 MB/h remains PENDING the first real 4 h baseline (§4 gap 3) |
+| soak slope within target | **PART (harness operational; 4 h run PENDING)** | Harness `crates/playback-engine/tests/soak/{main,memory,dispatch,scenario,report}.rs` (merge 6f792d6, 2,749 lines): open→play→seek→track-switch→reopen loop **through the command layer** (ARCH-5), two instruments (counting-allocator `live_bytes` = precise leak signal; `/proc` `VmRSS`), least-squares slope reported in MB/h with warmup exclusion. Assertion = generous 50 MB/h CI ceiling + liveness (D-6); the 5 MB/h design target is `[PROPOSAL]` — **reported, never asserted** (soak/main.rs:32-36). The CI-short 2-min soak runs in the default workspace suite — **green this session (11/11, 120.06 s, `soak_loops_stay_memory_bounded` ok = live-bytes slope under the 50 MB/h CI ceiling)**. The 4 h nightly run (`SOAK_MINUTES=240 … --release`) has **not been executed in this sandbox** (wall-clock + release-build cost); no 4 h report exists on disk → the "within target" comparison against 5 MB/h remains PENDING the first real 4 h baseline (§4 gap 3) |
 | differential harness operational | **MET (operational; oracle cells PENDING-VLC)** | `tools/bench-vs-vlc/` (merge ad3ae53, +14,571 lines): Rust digest lib + `run.py` driver + `mock_vlc.py`, mock/real separation **mechanically asserted in code and labels**. Per-fixture report `docs/corpus/vlc-diff-report-20261023.{md,json}` over the 500-file regenerated corpus-big: **35 comparable rows with real Lumen decoded-PCM MD5 digests** (each cross-verified by an independent Python RIFF walk + ffprobe byte cross-check 35/35), 369 non-comparable with explicit reasons, 96 excluded by class. Oracle side = **PENDING-VLC**: no VLC 3.0.23 binary exists in this sandbox (install attempt recorded; nothing mocked — mock runs went to /tmp only). Suites green: 12 Rust + 30 Python. Comparison set per doc 10 §6.6: duration, track inventory, decoded-PCM MD5 (lossless), frame hashes at sample points, seek accuracy; non-comparables documented, not hidden |
 | evidence record | **THIS DOCUMENT** | §2 command table + committed logs (`docs/gates/logs/phase3-exit-*.log`) |
 | ledger | §3 | all 19 Phase-3 rows with status + branch/merge refs |
@@ -39,16 +39,20 @@ harness operational. AC: evidence record + ledger + Phase 4 launch list."**
 
 ## 2. Evidence record — verification commands run by 7-GATE on `wip/w7-gate`
 
-Fresh target dir (worktree-local, no shared-dir stale-rlib risk — the 7-a
-caution does not apply; every `Compiling … (worktrees/w7-gate)` line is in the
-log). Commands recorded verbatim; logs committed under `docs/gates/logs/`.
+Fresh-eyes session note: the build target dir is the config-pinned SHARED
+`/home/z/my-project/target` (not worktree-local — corrected from the first
+draft of this note); the lumen bin provenance was verified by a forced
+rebuild from this worktree (§2 environment note).
 
 | # | Command (as run) | Result | Log |
 |---|---|---|---|
-| 1 | `cargo test --workspace` (debug) | **[PENDING — see log]** full per-crate pass/fail counts recorded in the log; totals to be transcribed into §2.1 by 7-GATE or successor when the run completes | `logs/phase3-exit-workspace-test.log` |
+| 1 | `cargo test --workspace` (debug; first invocation) | **ABORTED (fail-fast) at `-p first-vertical --test evidence`**: `committed_transcripts_match_fresh_runs` panicked — the `lumen` bin was not at the test's relative path `<worktree>/target/debug/lumen` (worktree-path artifact: builds go to the config-pinned shared dir; see note below) | `logs/phase3-exit-workspace-test.log` |
+| 1b | env fix, then `cargo test --workspace --no-fail-fast` | **1939 passed / 0 failed / 36 ignored across 163 test binaries** — incl. scenarios_b **23/23 green (5.53 s)** and soak **11/11 green (120.06 s, `soak_loops_stay_memory_bounded` ok)**. Exit 101 from exactly ONE target: `-p first-vertical --doc` doctest **compile** failure (E0463 `can't find crate for lumen_cli`, harness.rs:40) — which **PASSES on immediate targeted retry** (`running 0 tests … ok`), consistent with a transient shared-target-dir artifact under concurrent sibling builds, not a deterministic code failure [VERIFY: Lead re-run on main] | `logs/phase3-exit-workspace-test.log` (RERUN section) |
 | 2 | `cargo fmt --check` (pre-fix) | **FAIL — 32 diffs across 15 files** (drift accumulated from wave-6/7 partial merges; scenario/queue_policy/sweep/tool files) | `logs/phase3-exit-fmt-initial-drift.log` |
 | 3 | `cargo fmt --all` + `cargo fmt --check` (post-fix) | **CLEAN (exit 0)** — drift fixed on this branch (commit 56f135a), re-check clean. The Lead should fold this hygiene fix into the merge | `logs/phase3-exit-fmt.log` |
-| 4 | `cargo clippy --workspace --all-targets -- -D warnings` | **[PENDING — see log]** (chained after the workspace test in the same background job) | `logs/phase3-exit-clippy.log` |
+| 4 | `cargo clippy --workspace --all-targets -- -D warnings` | **[PENDING — see log]** (see §2.1 note) | `logs/phase3-exit-clippy.log` |
+
+Environment note (recorded for reproducibility): the repo-committed `.cargo/config.toml` pins `target-dir = /home/z/my-project/target` (SHARED across all worktrees/agents — the 7-a stale-rlib caution applies). This worktree has no local `target/`; the first-vertical evidence test resolves the `lumen` binary relatively, so 7-GATE (a) force-rebuilt `-p lumen-cli` from THIS worktree (provenance line `Compiling lumen-cli v0.1.0 (/home/z/my-project/worktrees/w7-gate/apps/cli)` in the session) and (b) symlinked `<worktree>/target → /home/z/my-project/target` so the relative path resolves. Both runs' raw output is in the log.
 
 Notes on deltas vs the draft §4 command table: (a) row 1 was run without
 `--all-features` and in debug, per the gate-agent brief — the draft's
@@ -61,12 +65,25 @@ sign-off. (c) CI was not re-run (no push of this branch; CI runs on main).
 
 ### 2.1 Workspace test totals
 
-- **[PENDING]** — transcribe from `logs/phase3-exit-workspace-test.log` when
-  the run completes: total passed/failed/ignored per crate, scenarios_b binary
-  result, soak binary result (2-min CI-short). Reference points from disk:
-  wave-3 merge = 1718/0/20 (`logs/wave3-merge.test.log`); W5R-19 close @
-  9393b53 = 1914/0 (worklog 7.LEAD-RESET); 7-a full `cargo test -p
-  playback-engine` = all ~23 binaries green incl. 120 s soak (worklog 7-a).
+- **Rerun (this session, `wip/w7-gate` @ 56f135a + fmt fix, sources = main b8cb904
+  + fmt/whitespace only): 1939 passed / 0 failed / 36 ignored across 163 test
+  binaries** — `test result:` lines tally in
+  `logs/phase3-exit-workspace-test.log` (RERUN section). Every test binary
+  green, including:
+  - `scenarios_b`: **23 passed / 0 failed (5.53 s)** — the 16/16 gate clause
+    re-verified on this branch this session.
+  - `soak`: **11 passed / 0 failed (120.06 s)** incl.
+    `soak_loops_stay_memory_bounded` — the 2-min CI-short soak's live-bytes
+    slope stayed under the asserted 50 MB/h CI ceiling. The numeric slope
+    value is not printed to the log (`SOAK_REPORT` unset); the 5 MB/h target
+    comparison stays PENDING the 4 h run (§4 gap 3).
+  - The single non-green target is the `-p first-vertical --doc` doctest
+    compile failure (E0463) — passes on immediate retry; see §2 row 1b.
+- Trajectory: 1329 (Phase-2 exit) → 1718/0/20 (wave-3 merge log) → 1914/0
+  (worklog 7.LEAD-RESET @ 9393b53) → **1939/0/36 (this gate run)**.
+- Clippy: **[PENDING]** — if `logs/phase3-exit-clippy.log` ends with
+  `EXIT_CODE:0`, clippy is clean; otherwise the findings are in that log
+  (7-GATE ran it last; a successor re-runs if the session was cut first).
 
 ## 3. Card ledger — Phase 3 (doc 13 §6, 19 rows)
 
