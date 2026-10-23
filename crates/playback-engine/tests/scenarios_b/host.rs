@@ -330,7 +330,9 @@ pub struct DropHooks {
 impl DropHooks {
     /// Whether the demuxer half observed its drop.
     pub fn demuxer_dropped(&self) -> bool {
-        self.demuxer_drops.load(std::sync::atomic::Ordering::Relaxed) > 0
+        self.demuxer_drops
+            .load(std::sync::atomic::Ordering::Relaxed)
+            > 0
     }
 
     /// Whether the sink half observed its drop.
@@ -974,6 +976,26 @@ fn avi_budget() -> TickBudget {
     }
 }
 
+/// The multi-audio-track parents' tick budget: ONE packet per limb
+/// per poll. The prime watermarks are evaluated AFTER the decode
+/// slice, so the slice must stay at or below the high watermark's
+/// distance from the queue cap for the queues to still read `high`
+/// post-decode (the green `tests/track_switch_fixture.rs` doctrine,
+/// its `fixture_budget` docs): the track-switch parents carry
+/// ~100 ms-granularity packets against the 400 ms duration caps, so
+/// the 4-packet `avi_budget` slice drains the queue below `high`
+/// every tick — priming never fires mid-media and the open races
+/// the whole stream to EOS while still `Buffering` (observed:
+/// scenario 8's switch landed at the end, the new limb
+/// `can_never_deliver`-completed, no new-track frame ever flowed).
+fn multitrack_budget() -> TickBudget {
+    TickBudget {
+        demux_events: 64,
+        packets_per_limb: 1,
+        flush_calls_per_limb: 8,
+    }
+}
+
 fn timeline_budget() -> TickBudget {
     TickBudget {
         demux_events: 64,
@@ -1485,6 +1507,19 @@ impl ScenarioHost {
             pcm_facts: pcm_fact_map(&demuxer, &tracks),
         });
         let queues = self.paced_queues.take().unwrap_or_else(avi_queues);
+        // The decode slice follows the track layout (see
+        // `multitrack_budget`): ≥2 audio tracks ⇒ the coarse-packet
+        // track-switch parents ⇒ one packet per limb per poll.
+        let budget = if tracks
+            .iter()
+            .filter(|track| track.kind == MediaKind::Audio)
+            .count()
+            >= 2
+        {
+            multitrack_budget()
+        } else {
+            avi_budget()
+        };
         self.finish_wiring(
             uri,
             Box::new(demuxer),
@@ -1493,7 +1528,7 @@ impl ScenarioHost {
             script,
             source,
             queues,
-            avi_budget(),
+            budget,
         )
     }
 
@@ -1842,15 +1877,16 @@ fn route(
         // (this host's sink is the direct seam), and card 3.A3's
         // selector kinds.
         Command::PlaybackSeek { target } => host.dispatch_seek(*target),
-        Command::PlaybackSetPosition { fraction } => host
-            .dispatch_seek(commands::catalog::types::SeekTarget::Percent {
+        Command::PlaybackSetPosition { fraction } => {
+            host.dispatch_seek(commands::catalog::types::SeekTarget::Percent {
                 fraction: *fraction,
-            }),
+            })
+        }
         Command::TracksSetAudioTrack { selector } => {
-            host.dispatch_set_track(SessionCommandKind::SelectAudio, selector.clone())
+            host.dispatch_set_track(SessionCommandKind::SelectAudio, *selector)
         }
         Command::TracksSetVideoTrack { selector } => {
-            host.dispatch_set_track(SessionCommandKind::SelectVideo, selector.clone())
+            host.dispatch_set_track(SessionCommandKind::SelectVideo, *selector)
         }
         other => Err(unserved(other)),
     }

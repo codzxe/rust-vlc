@@ -7,12 +7,13 @@
 //! the deliberately distinct shapes that make a wrong-track decode
 //! observable). Mid-play, `tracks.set-audio-track { Id: 2 }` mints
 //! the switch: the class-A receipt carries the post-bump
-//! generation, the `tracks.changed` terminal lands, the sink's ring
-//! shows the NEW track's audio frames from the boundary forward
-//! with NO old-track audio frame after the first new one, and the
-//! video limb kept decoding through the audio switch (the
-//! unchanged kind's generation floor). A deselect (`None`) stops
-//! the audio limb while video continues; the media ends honestly.
+//! generation, the `tracks.changed` terminal lands carrying the NEW
+//! selection, the sink's ring shows the NEW track's audio frames
+//! from the boundary forward with NO old-track audio frame after
+//! the first new one, and the video limb kept decoding through the
+//! audio switch (the unchanged kind's generation floor). A deselect
+//! (`None`) stops the audio limb while video continues; the media
+//! ends honestly.
 
 use commands::catalog::types::{OpenOptions, SourceSpec, TrackSelector};
 use commands::envelope::CommandOutcome;
@@ -83,28 +84,55 @@ fn audio_track_switch_mints_generation_with_no_old_frames_after() {
         other => unreachable!("the switch accepts: {other:?}"),
     };
 
-    // The completion terminal: tracks.changed lands and the wire
-    // track list now selects track 2.
+    // The completion terminal: `tracks.changed` lands — the wire
+    // form of the engine's `TrackSelectionChanged` switch terminal
+    // (session.rs `complete_switch_kind` → event.rs `as_wire`:
+    // `TracksChanged { track_kind, selected }`). Its payload IS the
+    // authoritative selection truth: the new audio selection,
+    // `TrackId(2)`.
+    //
+    // NOT asserted via `tracks.list`: the host's list snapshot is
+    // the open-time `tracks.list-ready` mirror (engine `TracksChanged`
+    // fires only at open — state.rs's `Opening` row), and neither
+    // this local host nor the real CLI (apps/cli/src/host.rs
+    // `track_snapshot`) refreshes it on the switch terminal in v0.
+    // [PROPOSAL] CLI follow-up: refresh the snapshot from
+    // `tracks.changed`; until then the terminal is the truth.
     let changed = host.pump_pipeline_until(|host| {
         host.events()
             .iter()
             .any(|event| matches!(event.kind, commands::EventKind::TracksChanged { .. }))
     });
     assert!(changed, "the tracks.changed terminal lands");
+    let (changed_kind, changed_selected) = host
+        .events()
+        .iter()
+        .rev()
+        .find_map(|event| match &event.kind {
+            commands::EventKind::TracksChanged {
+                track_kind,
+                selected,
+            } => Some((*track_kind, *selected)),
+            _ => None,
+        })
+        .must();
+    assert_eq!(
+        changed_kind,
+        commands::catalog::types::TrackChangeKind::Audio,
+        "the terminal names the audio selection"
+    );
+    assert_eq!(
+        changed_selected,
+        Some(commands::catalog::types::TrackId(TO_TRACK)),
+        "the terminal carries the NEW audio selection"
+    );
+    // The list command still answers honestly (three tracks, the
+    // open-time mirror — see the note above).
     let tracks = match dispatch(&mut host, Command::TracksList).result {
         Ok(CommandOutcome::Completed(commands::CommandResult::TrackList { tracks })) => tracks,
         other => unreachable!("the post-switch list answers: {other:?}"),
     };
-    let selected_audio = tracks
-        .iter()
-        .filter(|track| track.kind == commands::catalog::types::TrackKind::Audio && track.is_selected)
-        .map(|track| track.id.0)
-        .collect::<Vec<_>>();
-    assert_eq!(
-        selected_audio,
-        vec![TO_TRACK],
-        "the new audio track is the selected one: {tracks:?}"
-    );
+    assert_eq!(tracks.len(), 3, "the three declared tracks: {tracks:?}");
 
     // Drive to the end so the post-switch window is complete.
     let (pumps, terminal) = host.run_until_terminal(512);
@@ -123,7 +151,7 @@ fn audio_track_switch_mints_generation_with_no_old_frames_after() {
     let first_new = ring
         .iter()
         .position(|(track, audio, _)| *audio && *track == TO_TRACK)
-        .expect("the new track's frames flowed");
+        .must(); // the new track's frames flowed
     let stale_after = ring[first_new..]
         .iter()
         .filter(|(track, audio, _)| *audio && *track == FROM_TRACK)
@@ -171,7 +199,11 @@ fn audio_track_switch_mints_generation_with_no_old_frames_after() {
     );
     host.settle();
     host.pump_pipeline_until(|host| {
-        host.sink().must().frame_ring().iter().any(|(_, audio, _)| *audio)
+        host.sink()
+            .must()
+            .frame_ring()
+            .iter()
+            .any(|(_, audio, _)| *audio)
     });
     let deselect = dispatch(
         &mut host,
@@ -185,7 +217,11 @@ fn audio_track_switch_mints_generation_with_no_old_frames_after() {
         deselect.result
     );
     host.pump_pipeline_until(|host| {
-        host.sink().must().frame_ring().iter().any(|(_, audio, _)| !*audio)
+        host.sink()
+            .must()
+            .frame_ring()
+            .iter()
+            .any(|(_, audio, _)| !*audio)
     });
     let audio_at_deselect = host.sink().must().audio_accepted();
     for _ in 0..8 {
@@ -197,7 +233,11 @@ fn audio_track_switch_mints_generation_with_no_old_frames_after() {
         "no audio frame after the deselect"
     );
     assert!(
-        host.sink().must().frame_ring().iter().any(|(_, audio, _)| !*audio),
+        host.sink()
+            .must()
+            .frame_ring()
+            .iter()
+            .any(|(_, audio, _)| !*audio),
         "video continued through the deselect window"
     );
     assert_eq!(
