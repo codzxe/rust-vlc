@@ -1,0 +1,152 @@
+/* Card 4.B2 — slider primitives (Slider, Seekbar, VolumeSlider).
+ * Design provenance: docs/08-ui-figma-fidelity.md §1.4/§1.5/§4/§5.
+ *   Miniplayer seek: 375×16 rx6 track #090909, knob 8×12 rx4 -> base slider
+ *     anatomy (16px track, surface-deep, accent-tinted inset-2 fill, 8px knob).
+ *   Main seek bar: track ×28 rx6 #090909; progress fill inset 2 (×24 rx4
+ *     #371F06 = accent-tinted); handle 8×24 rx4 #D37918 (accent) — a slim
+ *     vertical bar, not a circle.
+ *   EQ slider (vertical): track 16, fill 12, thumb 8×24 rx4 #AB6314
+ *     (accent-strong).
+ *   volume.svg: vertical stroke-based flyout slider -> 2px stroke track,
+ *     accent fill, EQ-style 8×24 accent-strong thumb.
+ *   Pending seek (§5.2.2): knob locks at the requested target in
+ *     accent-strong while the fill stays at engine truth.
+ * Semantic tokens only (doc 08 §3.2); raw px below are structural dimensions
+ * pinned by the design exports (no token exists) — see states.md. */
+
+.lumen-slider {
+  position: relative;
+  display: inline-block;
+  box-sizing: border-box;
+  width: 160px; /* caller-sized extent; structural default */
+  height: 16px; /* miniplayer seek track height (§1.4) */
+  touch-action: none; /* pointer-driven scrub (doc 08 §4) */
+  user-select: none;
+  cursor: pointer;
+  outline: none;
+}
+
+.lumen-slider:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.lumen-slider__track {
+  position: absolute;
+  inset: 0;
+  background: var(--color-surface-deep);
+  border-radius: var(--radius-control);
+}
+
+/* fill — committed/engine value; width driven by --lumen-slider-fill */
+.lumen-slider__fill {
+  position: absolute;
+  top: 2px; /* fill inset 2 per §1.4 (12px inside a 16px track) */
+  bottom: 2px;
+  left: 0;
+  width: calc(var(--lumen-slider-fill, 0) * 1%);
+  background: var(--color-accent-tinted);
+  border-radius: var(--radius-inset);
+  transition: width 120ms ease;
+}
+
+/* thumb — 8px-wide slim bar (never a circle), left = committed/preview pos */
+.lumen-slider__thumb {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  width: 8px; /* 8×12 inside a 16px track (miniplayer knob, §1.4) */
+  left: calc((100% - 8px) * var(--lumen-slider-thumb, 0) / 100);
+  background: var(--color-accent);
+  border-radius: var(--radius-inset);
+  transition: left 120ms ease, background-color 120ms ease;
+}
+
+/* disabled (doc 08 §2 interim): token opacity, fully inert */
+.lumen-slider[aria-disabled="true"] {
+  opacity: var(--opacity-disabled);
+  pointer-events: none;
+}
+
+.lumen-slider[data-dragging="true"] {
+  cursor: grabbing;
+}
+
+/* orientation: vertical (EQ §1.4: track 16 wide, fill 12, thumb 8×24) */
+.lumen-slider--vertical {
+  width: 16px;
+  height: 160px; /* caller-sized extent */
+}
+
+.lumen-slider--vertical .lumen-slider__fill {
+  top: auto;
+  bottom: 0;
+  left: 2px;
+  right: 2px;
+  width: auto;
+  height: calc(var(--lumen-slider-fill, 0) * 1%);
+  transition: height 120ms ease;
+}
+
+.lumen-slider--vertical .lumen-slider__thumb {
+  top: auto;
+  left: calc(50% - 4px); /* 8px thumb centered in the 16px track */
+  width: 8px;
+  height: 24px; /* 8×24 per §1.4 */
+  bottom: calc((100% - 24px) * var(--lumen-slider-thumb, 0) / 100);
+  transition: bottom 120ms ease, background-color 120ms ease;
+}
+
+/* Seekbar — main-window seek anatomy (§1.4): 28px track, fill inset 2 (×24),
+ * 8×24 rx4 accent knob. */
+.lumen-seekbar {
+  width: 100%;
+  height: 28px; /* seek track height (§1.4) */
+}
+
+/* buffer sub-regions — engine-reported, honest overlay (doc 08 §4.3);
+ * deliberately *no* ARIA: the spec (§4.5) assigns roles to the slider itself */
+.lumen-seekbar__buffer {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  background: var(--color-surface-muted); /* [PROPOSAL] token mapping — states.md */
+  border-radius: var(--radius-inset);
+}
+
+/* pending seek (§5.2.2): knob locked at the *requested* target, distinct
+ * accent-strong; fill remains at the engine position until confirmation */
+.lumen-seekbar[data-pending="true"] .lumen-slider__thumb {
+  background: var(--color-accent-strong);
+}
+
+/* VolumeSlider — vertical stroke-based flyout slider (volume.svg §1.5) */
+.lumen-volume {
+  width: 24px; /* hit area around the 2px stroke track */
+}
+
+.lumen-volume .lumen-slider__track {
+  left: calc(50% - 1px); /* 2px stroke track */
+  right: calc(50% - 1px);
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-hairline);
+}
+
+.lumen-volume .lumen-slider__fill {
+  left: calc(50% - 1px);
+  right: calc(50% - 1px);
+  background: var(--color-accent);
+  border-radius: var(--radius-hairline);
+}
+
+.lumen-volume .lumen-slider__thumb {
+  left: calc(50% - 4px);
+  background: var(--color-accent-strong); /* EQ thumb color (§1.4) */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lumen-slider__fill,
+  .lumen-slider__thumb {
+    transition: none;
+  }
+}
