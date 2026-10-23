@@ -4,6 +4,10 @@ import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
 import { ClientProvider } from "./client/ClientProvider";
 import { MockTransport } from "./client/transport";
+import { ThemeProvider } from "./theme/ThemeProvider";
+// Generated semantic tokens (card 4.A2): the CSS custom-property cascade the
+// whole UI consumes. Import stays inside ui/src (boundary-imports rule).
+import "./tokens/generated/tokens.css";
 
 const rootElement = document.getElementById("root");
 if (rootElement === null) {
@@ -14,10 +18,12 @@ if (rootElement === null) {
 // hosts (apps/desktop, apps/web) inject their own CommandTransport here.
 createRoot(rootElement).render(
   <StrictMode>
-    <ClientProvider transport={new MockTransport()}>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </ClientProvider>
+    <ThemeProvider>
+      <ClientProvider transport={new MockTransport()}>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </ClientProvider>
+    </ThemeProvider>
   </StrictMode>,
 );

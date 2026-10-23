@@ -1,0 +1,91 @@
+/* TokenSandbox styles — card 4.A2 proof-of-consumption (doc 08 §3.2).
+ *
+ * SEMANTIC TOKENS ONLY: every color, radius, font-size, space and shadow
+ * below is a `var(--…)` reference into the generated token CSS. No raw
+ * hex/rgb/px values — that is exactly what local/semantic-tokens-only
+ * enforces in TSX; this file is the CSS-side demonstration of the same rule.
+ */
+
+.ts-sandbox {
+  background: var(--color-surface);
+  color: var(--color-content-primary);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body);
+  padding: var(--space-inset);
+  border-radius: var(--radius-card);
+  min-height: var(--space-item-pitch);
+}
+
+.ts-sandbox h1 {
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-bright);
+}
+
+.ts-controls {
+  background: var(--color-surface-raised);
+  border-radius: var(--radius-control);
+  padding: var(--space-inset);
+  box-shadow: var(--shadow-card);
+}
+
+.ts-controls section + section {
+  margin-top: var(--space-inset);
+}
+
+.ts-controls h2 {
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-secondary);
+  margin: 0 0 var(--space-grid) 0;
+}
+
+.ts-controls button {
+  font-size: var(--font-size-body);
+  font-family: var(--font-family-sans);
+  color: var(--color-content-primary);
+  background: var(--color-surface-panel);
+  border: var(--stroke-icon) solid var(--color-stroke-border);
+  border-radius: var(--radius-control);
+  padding: var(--space-grid) var(--space-inset);
+}
+
+.ts-controls button[aria-pressed="true"] {
+  background: var(--color-accent);
+  color: var(--color-content-on-accent);
+  border-color: var(--color-accent-strong);
+}
+
+.ts-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-inset);
+  margin-top: var(--space-inset);
+}
+
+.ts-swatch {
+  width: var(--space-item-pitch);
+  height: var(--space-item-pitch);
+  border-radius: var(--radius-control);
+  border: var(--stroke-icon) solid var(--color-stroke-icon);
+}
+
+.ts-swatch[data-role="accent"] {
+  background: var(--color-accent);
+}
+
+.ts-swatch[data-role="accent-strong"] {
+  background: var(--color-accent-strong);
+}
+
+.ts-swatch[data-role="accent-tinted"] {
+  background: var(--color-accent-tinted);
+}
+
+.ts-swatch[data-role="surface-raised"] {
+  background: var(--color-surface-raised);
+}
+
+.ts-swatch[data-role="content-primary"] {
+  background: var(--color-content-primary);
+}

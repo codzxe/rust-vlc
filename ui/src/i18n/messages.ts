@@ -16,7 +16,10 @@ export type MessageKey =
   | "screen.keyboard-shortcuts"
   | "screen.open-network-stream"
   | "screen.not-found"
-  | "screen.placeholder.body";
+  | "screen.placeholder.body"
+  | "screen.dev.tokens"
+  | "tokens.mode"
+  | "tokens.accent";
 
 const messages: Readonly<Record<MessageKey, string>> = {
   "screen.player": "Player (placeholder)",
@@ -30,6 +33,9 @@ const messages: Readonly<Record<MessageKey, string>> = {
   "screen.not-found": "Screen not found",
   "screen.placeholder.body":
     "Route skeleton only — the Figma-exact composition lands in later Phase-4 cards (doc 08 §1.6).",
+  "screen.dev.tokens": "Token sandbox (dev fixture — not a product screen)",
+  "tokens.mode": "Mode",
+  "tokens.accent": "Accent",
 };
 
 export type Msg = (key: MessageKey) => string;

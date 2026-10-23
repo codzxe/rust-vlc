@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { ScreenPlaceholder } from "./screens/ScreenPlaceholder";
+import { TokenSandbox } from "./tokens/TokenSandbox";
 
 // Routing skeleton for the doc 08 §1.6 screen inventory. Route names are the
 // doc's [PROPOSAL] names; every screen renders an honest placeholder until
@@ -31,6 +32,9 @@ export function App() {
         path="/open-network-stream"
         element={<ScreenPlaceholder routeKey="screen.open-network-stream" />}
       />
+      {/* Card 4.A2 dev fixture: token-pipeline proof (NOT a product screen;
+          real screens land with wave 4.B+ per doc 08 §1.6). */}
+      <Route path="/dev/tokens" element={<TokenSandbox />} />
       <Route path="*" element={<ScreenPlaceholder routeKey="screen.not-found" />} />
     </Routes>
   );
