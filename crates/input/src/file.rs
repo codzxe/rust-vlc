@@ -29,9 +29,8 @@ use media_types::ids::SourceUri;
 use plugin_api::{Access, SeekOrigin, SourcePosition, SourceStream};
 
 use crate::buffered::{BufferedReader, DEFAULT_BUFFER_BYTES, MAX_BUFFER_BYTES};
-use crate::contract::resolve_origin;
 use crate::error;
-use crate::seekable::{RawRead, Seekable};
+use crate::seekable::{RawRead, Seekable, resolve_origin};
 
 /// A raw local-file byte source: an open `std::fs` handle plus the
 /// position and length bookkeeping the [`Seekable`] contract needs

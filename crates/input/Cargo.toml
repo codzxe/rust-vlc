@@ -21,6 +21,14 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+# The executable-contract module (`src/contract.rs`) is test/conformance
+# surface only (audit F-2, error-surface-20261023 §3): unit tests compile
+# it via cfg(test); this feature is how integration tests, the future doc 06
+# §7.2 conformance kit, and any downstream test harness opt in. Release
+# binaries (no feature) carry zero of its panicky conformance vocabulary.
+contract = []
+
 [dependencies]
 media-types = { path = "../media-types" }
 plugin-api = { path = "../plugin-api" }

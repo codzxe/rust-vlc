@@ -1,6 +1,15 @@
 //! The scripted synthetic source + access conformance checks (card
 //! 2.A1; the codec-api `contract` pattern).
 //!
+//! **Test/conformance-only surface (audit F-2):** the whole module
+//! is `#[cfg(any(test, feature = "contract"))]` — unit tests compile
+//! it always, integration tests and the doc 06 §7.2 conformance kit
+//! enable the `contract` feature, and **release binaries carry none
+//! of it** (the executable-contract `assert_*`/`unreachable!`
+//! vocabulary is a failure signal for implementations under test,
+//! not a runtime condition; the production helper that used to live
+//! here, `resolve_origin`, moved to `seekable.rs`).
+//!
 //! [`ScriptSource`] is an in-memory byte source with scriptable faults —
 //! shrink (a file truncated mid-read), an injected read failure — plus
 //! instrumentation of the largest chunk any reader asked it to read and
@@ -48,7 +57,7 @@ use plugin_api::{SeekOrigin, SourcePosition, SourceStream};
 
 use crate::buffered::BufferedReader;
 use crate::error;
-use crate::seekable::{RawRead, Seekable};
+use crate::seekable::{RawRead, Seekable, resolve_origin};
 
 /// An in-memory byte source with scriptable faults and read
 /// instrumentation (doc 03 §4.1(a) "test synthetic sources").
@@ -223,24 +232,6 @@ impl SyntheticStream {
     /// chain's contract checks.
     pub fn read_exact_into(&mut self, out: &mut [u8]) -> Result<(), EngineError> {
         self.reader.read_exact_into(out)
-    }
-}
-
-/// Resolve a [`SeekOrigin`] against `from` into an absolute target,
-/// rejecting before-start and overflowing positions with typed errors.
-pub(crate) fn resolve_origin(from: u64, origin: SeekOrigin) -> Result<u64, EngineError> {
-    match origin {
-        SeekOrigin::Start(to) => Ok(to),
-        SeekOrigin::Current(delta) => {
-            let target = i128::from(from) + i128::from(delta);
-            if target < 0 {
-                Err(error::seek_before_start())
-            } else if target > i128::from(u64::MAX) {
-                Err(error::seek_overflow())
-            } else {
-                Ok(target as u64)
-            }
-        }
     }
 }
 
@@ -634,24 +625,6 @@ mod tests {
             stream.source().reads_served(),
             served + 1,
             "a refill after the window dropped"
-        );
-    }
-
-    /// Relative-origin resolution: negatives, overflow, exact bounds.
-    #[test]
-    fn resolve_origin_math_is_checked() {
-        assert_eq!(resolve_origin(10, SeekOrigin::Start(3)).must(), 3);
-        assert_eq!(resolve_origin(10, SeekOrigin::Current(5)).must(), 15);
-        assert_eq!(resolve_origin(10, SeekOrigin::Current(-10)).must(), 0);
-        let before = testkit::assert_err(resolve_origin(0, SeekOrigin::Current(-1)), "before");
-        assert_eq!(before.context.code, "input.seek.before-start");
-        let over =
-            testkit::assert_err(resolve_origin(u64::MAX, SeekOrigin::Current(2)), "overflow");
-        assert_eq!(over.context.code, "input.seek.overflow");
-        // The u64::MAX boundary itself resolves.
-        assert_eq!(
-            resolve_origin(u64::MAX - 1, SeekOrigin::Current(1)).must(),
-            u64::MAX
         );
     }
 }

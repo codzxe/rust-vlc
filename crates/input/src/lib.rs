@@ -24,7 +24,10 @@
 //! - [`contract`] — the scripted synthetic source + conformance checks
 //!   (the codec-api `contract` pattern): every access implementation —
 //!   here, in `streaming` (Phase 6), and in the conformance kit — can
-//!   reuse the same executable contract.
+//!   reuse the same executable contract. **Test/conformance-only**
+//!   (audit F-2): compiled under `#[cfg(any(test, feature =
+//!   "contract"))]` — release binaries carry none of its panicky
+//!   conformance vocabulary.
 //! - [`error`] — constructors that *mint* `media_types::EngineError`
 //!   values with input-specific context codes. The taxonomy itself is
 //!   media-types' (doc 01 §3.4) and is never duplicated here.
@@ -54,6 +57,7 @@
 //!   `source` chain of `EngineError`.
 
 pub mod buffered;
+#[cfg(any(test, feature = "contract"))]
 pub mod contract;
 pub mod error;
 pub mod file;
@@ -61,6 +65,7 @@ pub mod seekable;
 pub mod uri;
 
 pub use buffered::{BufferedReader, DEFAULT_BUFFER_BYTES, MAX_BUFFER_BYTES, MAX_READ_BYTES};
+#[cfg(any(test, feature = "contract"))]
 pub use contract::{ScriptSource, SyntheticStream};
 pub use file::{FileAccess, FileSource, FileStream};
 pub use seekable::{RawRead, Seekable};
