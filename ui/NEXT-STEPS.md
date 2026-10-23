@@ -375,3 +375,32 @@ Handoffs / gaps (honest):
 - **E3/E4 coordination**: `areas/index.tsx`, `SettingField.tsx` (3-line seam)
   and `messages.ts` (append-only) are the shared touchpoints — merge order
   may need a trivial resolve.
+## Card 4.E3 — Settings group 2 (audio / video / subtitles) @ c2b6e66
+
+**Done:** `areas/audio.tsx` (output-device control via `audio.list-devices` /
+`audio.set-device`; absent capability → DISABLED WITH REASON, proven against
+MockTransport's `feature-not-exposed`), `areas/video.tsx` + `areas/subtitles.tsx`
+(honest empty states — zero controls), `areas/audio-fixtures.ts` (test seam),
+16 tests in `areas/*.test.tsx` (294/294 green).
+
+**Schema owner handoff (blocking most of this card's documented surface):**
+`schemas/settings.toml` has ZERO entries for screens `video`, `audio`,
+`subtitles` (doc 07 §5.4 seeds them: `video.deinterlace`/`default-aspect-ratio`/
+`default-crop`/`frame-drop-policy`; `audio.output-device`/`volume-default`/
+`volume-ceiling`/`normalize`/`visualizer`; `subtitle.font-size`/`color`/
+`outline-strength`/`position`/`sync-step-ms`/`fallback-encoding`). Until
+entries land, E1's generator emits no such screens and my area files render
+nothing for those options (never dead controls). Specifically requested by the
+card but schema-absent: **audio exclusivity mode**, **video display selection**
+(also no display-enumeration command in the catalog — needs a 1.D4 schema
+decision, not just a settings entry), and **OSD options** (doc 07 §5.4 puts
+`controls.osd-duration-ms` on the *controls* screen — confirm ownership).
+
+**Integration:** `AudioArea`/`VideoArea`/`SubtitlesArea` are exported but NOT
+wired into `SettingsScreen` routing (`GENERATED_AREA_IDS` is generated from
+the schema). When schema entries land, either let the generator own these
+screens or register the hand-authored modules; decide before deleting them.
+Feature-gate note: E1's `SettingField` hides feature-gated entries
+(doc 05 §6.4) — if the schema owner wants gated-but-documented entries to
+render disabled-with-reason instead (the 4.E3 pattern), that's a framework
+change in `SettingField.tsx` + `SettingsSections.tsx` (E1 owner).
