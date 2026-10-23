@@ -70,6 +70,9 @@ All versions pinned exact in `package.json`; `package-lock.json` committed;
 
 Resolved 2026-02-05 from registry.npmjs.org (network PONG 201ms), `npm install
 --save-exact`, 0 vulnerabilities reported by npm audit at install time.
+Card 4.A2 added ZERO packages — the token pipeline (scripts/gen-tokens.mjs,
+ThemeProvider, generated CSS/TS) is pure node + react + CSS custom
+properties.
 
 ## Lint rules (scaffold-local, v1)
 
@@ -79,7 +82,21 @@ Resolved 2026-02-05 from registry.npmjs.org (network PONG 201ms), `npm install
   `{ "text": "...", "reason": "...", "owner": "..." }`. Test files skipped.
 - `local/boundary-imports` — files under `src/` may not relatively import outside
   `ui/src`, and absolute-path imports are banned (doc 08 §8 import boundaries).
+- `local/semantic-tokens-only` (card 4.A2) — raw `#hex`/`rgb()`/`rgba()` string
+  literals and raw `px` on font-size/radius keys are rejected in TSX; colors and
+  dimensions must resolve through `var(--semantic-token)` (doc 08 §3.2/§3.4).
+  Generated and test files are exempt.
 
-Both verified live against deliberate violations at scaffold time. v1 is
+All three verified live against deliberate violations. v1 is
 AST-literal/regex-grade (no template-literal coverage, no plugin package yet) —
 see NEXT-STEPS.md.
+
+## Token pipeline (card 4.A2, doc 08 §3)
+
+`themes/tokens.json` (Rust-owned, card 1.B4) → `cargo xtask tokens` →
+`themes/generated/tokens.css` → `npm run tokens:generate` (ui/scripts/
+gen-tokens.mjs, zero deps) → `src/tokens/generated/{tokens.css,tokens.ts}`
+(typed accessors + sha256). `npm run tokens:check` is the drift guard for CI.
+See `src/tokens/README.md` for the full decision record. Theme switching:
+`ThemeProvider` (`src/theme/`) sets `data-theme`/`data-accent` on `<html>` —
+dark/light/auto × 9 accents, attribute-only per doc 08 §3.3.
