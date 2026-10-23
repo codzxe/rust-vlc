@@ -89,6 +89,10 @@ pub(crate) mod error;
 /// outside the crate (the `demux::avi::fuzz` precedent, worklog 2.B2).
 pub mod fuzz;
 pub(crate) mod huffman;
+// (idct_simd: card 7-b stub — SIMD plan + dispatch skeleton, not yet
+// wired; see that module's docs before implementing.)
+#[allow(unused)]
+pub(crate) mod idct_simd;
 pub(crate) mod idct;
 pub(crate) mod parser;
 
