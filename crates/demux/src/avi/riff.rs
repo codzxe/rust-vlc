@@ -381,6 +381,40 @@ impl SourceReader {
             }
         }
     }
+
+    /// Read one chunk header at `pos` **without** restoring the read
+    /// position — the walk-cursor twin of
+    /// [`peek_chunk_header_into`](SourceReader::peek_chunk_header_into)
+    /// (W5-14).
+    ///
+    /// The `movi` walk owns its cursor and never returns to the saved
+    /// position, so the peek's save/restore pair is pure overhead —
+    /// and worse than two extra source calls on the real file path:
+    /// the seek **back** always lands behind the input layer's
+    /// read-ahead window (the 8 header bytes advanced it), so
+    /// `BufferedReader::seek` drops the window and re-fills it for
+    /// every chunk — the walk re-read its way through the file with
+    /// the read-ahead defeated. Measured, W5-14 (the full lane +
+    /// header-read change set; the in-memory floor was unchanged
+    /// within noise, so the file-path delta is this window recovery):
+    /// the 300-frame mjpeg+pcm bench walked 3.80 ms → 2.07 ms per
+    /// walk; a 731-chunk ~1 MB file 2.43 ms → 0.23 ms. Here
+    /// the source simply lands at `pos + 8` — exactly where the
+    /// chunk's payload read wants to be — and the next header read
+    /// (or a skip, or a resync) re-seeks to wherever the walk decides.
+    /// Position-restoring callers keep the peek.
+    ///
+    /// # Errors
+    /// As [`peek_chunk_header_into`](SourceReader::peek_chunk_header_into)
+    /// (typed truncation when the stream ends before a full header);
+    /// on error the position is left at the short read's end — the
+    /// caller's error handling owns it (the walk's errors are sticky).
+    pub fn read_chunk_header_at(&mut self, pos: u64) -> Result<ChunkHeader, EngineError> {
+        self.seek_to(pos)?;
+        let mut hdr = [0u8; 8];
+        self.read_exact_into(&mut hdr)?;
+        Ok(ChunkHeader::from_le_bytes(&hdr))
+    }
 }
 
 /// Read one chunk header (`fourcc` + `u32le` size) at `pos` without

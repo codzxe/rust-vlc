@@ -409,6 +409,20 @@ pub struct HeaderList {
     /// Every kept stream, in `strl` order (unsupported stream types are
     /// filtered; each skip is recorded in `damage`).
     pub streams: Vec<StreamDesc>,
+    /// Per-declared-ordinal disposition (W5-14): `true` at index N when
+    /// the Nth `strl` list was **declared but filtered** out of
+    /// `streams` (unsupported type/handler, degenerate parameters —
+    /// every such skip is damage-counted at parse time, once). Length
+    /// = the number of `strl` lists seen; an ordinal ≥ length was
+    /// never declared by any `strl` at all.
+    ///
+    /// This is the idx1-side scope truth: entries whose stream ordinal
+    /// has `true` here describe real chunks of a stream the codec
+    /// filter already accounted for skipping — re-counting them per
+    /// idx1 entry is damage-channel noise (D-9, the W4-R1 `vprp`
+    /// rationale), while ordinals with no `strl` at all stay genuine
+    /// unknown-stream damage.
+    pub filtered_ordinals: Vec<bool>,
     /// Where the header parse stopped handing structure to its parent —
     /// the declared `hdrl` end when fully recognized, or the position
     /// of the first unrecognized chunk (early stop).
@@ -452,6 +466,9 @@ pub fn parse_hdrl(
     }
     let mut main: Option<AviMainHeader> = None;
     let mut streams: Vec<StreamDesc> = Vec::new();
+    // One disposition flag per declared `strl`, in ordinal order (see
+    // `HeaderList::filtered_ordinals` — the idx1 scope truth).
+    let mut filtered_ordinals: Vec<bool> = Vec::new();
     let mut ordinal: u32 = 0;
 
     while pos + 8 <= end {
@@ -469,7 +486,9 @@ pub fn parse_hdrl(
             }
             b"LIST" => {
                 if peek_form(reader, pos)? == Some(FourCC::tag(b"strl")) {
-                    if let Some(desc) = parse_strl(reader, pos, end, ordinal, damage)? {
+                    let kept = parse_strl(reader, pos, end, ordinal, damage)?;
+                    filtered_ordinals.push(kept.is_none());
+                    if let Some(desc) = kept {
                         streams.push(desc);
                     }
                     ordinal = ordinal.saturating_add(1);
@@ -508,6 +527,7 @@ pub fn parse_hdrl(
     Ok(HeaderList {
         main: main.unwrap_or_else(zeroed_main_header),
         streams,
+        filtered_ordinals,
         resume_at: pos,
     })
 }

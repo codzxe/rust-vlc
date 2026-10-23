@@ -27,6 +27,17 @@
 //! dropped entry). A payload cut *before* the first entry leaves an
 //! empty table — seek then falls back to the linear scan.
 //!
+//! Entries for a stream the `hdrl` **declared but the v0 codec filter
+//! dropped** are silent-skipped (W5-14, the W4-R1 `vprp` rationale,
+//! D-9): the `strl` parse already damage-counted the filter decision
+//! once, the `movi` walk already skips the stream's chunks silently,
+//! and re-counting the same known decision once per idx1 entry (the
+//! pre-W5-14 `idx1-entry-unknown-stream` fallout — a clean
+//! ffmpeg-authored FMP4+PCM file walked with damage 16 × entries)
+//! is damage-channel noise that drowns real corruption. Entries whose
+//! ordinal **no `strl` ever declared** stay genuine unknown-stream
+//! damage — that is the dirty-world signal the fix must not weaken.
+//!
 //! # Entry order (the dirty-world rule, D-9)
 //!
 //! Real-world writers have emitted `idx1` entries in orders other
@@ -58,8 +69,9 @@
 //! variant is observable, never silent.
 
 use media_types::EngineError;
+use media_types::time::TimeBase;
 
-use super::header::{DamageLog, StreamDesc};
+use super::header::{DamageLog, StreamDesc, ticks_for_sample_size};
 use super::riff::{self, MoviChunkKind, SourceReader, classify_movi_chunk};
 use crate::error;
 
@@ -110,59 +122,105 @@ pub(crate) struct LadderStep {
     /// The chunk's presentation ticks (the ladder position *before*
     /// the advance).
     pub pts_ticks: i64,
+    /// The chunk's tick advance — the packet's duration in ticks,
+    /// computed once here (the pre-W5-14 walk recomputed it alongside
+    /// the ladder's own arithmetic).
+    pub delta_ticks: i64,
     /// The chunk's payload was not a whole number of sample frames
     /// (PCM misalignment) — the caller counts damage.
     pub unaligned: bool,
+    /// The stream's reduced time base, cached in its lane (the gcd
+    /// runs once per stream at ladder construction, never per packet).
+    pub base: TimeBase,
+    /// The stream's `strh` `dwSampleSize` (0 = one tick per chunk).
+    pub sample_size: u32,
+}
+
+/// One kept stream's lane state: everything the ladder advances per
+/// chunk, indexed by the stream's ordinal (no per-packet scan of the
+/// stream table — W5-14's D-3 cleanup of the walk's hot path).
+#[derive(Clone, Copy)]
+struct LaneState {
+    /// The stream's `strh` `dwSampleSize`.
+    sample_size: u32,
+    /// The stream's gcd-reduced time base, computed once per lane.
+    base: TimeBase,
+    /// The ladder position in `base` ticks.
+    ticks: i64,
 }
 
 /// The per-stream presentation ladders: how far each stream has
 /// advanced, in its own base's ticks. Shared by the `movi` walk, the
 /// index parse and the linear-scan fallback so all three agree on
 /// time by construction.
+///
+/// Internally one `Option<LaneState>` per stream **ordinal** (the
+/// `None` slots are the filtered/never-declared ordinals): every
+/// per-chunk operation — the walk's deliverability gate, the base
+/// lookup, the advance — is a single indexed access, not a scan of
+/// the stream table (D-3; the pre-W5-14 walk ran two `Vec::find`s
+/// plus a `TimeBase::new` gcd per packet).
 pub(crate) struct Ladders {
-    ticks: Vec<i64>,
-    descs: Vec<StreamDesc>,
+    lanes: Vec<Option<LaneState>>,
 }
 
 impl Ladders {
     /// Ladders for the given stream table (indexed by ordinal).
     pub(crate) fn new(streams: &[StreamDesc]) -> Ladders {
         let max_ordinal = streams.iter().map(|s| s.ordinal).max().unwrap_or(0);
-        let mut ticks = vec![0i64; max_ordinal as usize + 1];
+        let mut lanes = vec![None; max_ordinal as usize + 1];
         for stream in streams {
             let idx = stream.ordinal as usize;
-            if idx < ticks.len() {
-                ticks[idx] = i64::from(stream.start);
+            if idx < lanes.len() {
+                // The gcd-reduced base is computed once per stream
+                // here (D-1/D-3: `TimeBase::new` reduces by gcd —
+                // once per lane, never once per packet). A base that
+                // cannot construct leaves no lane: unreachable
+                // through the demuxer (`parse_strl` skips zero
+                // rate/scale streams, and `start`'s track construction
+                // would fail typed on any degenerate survivor), so
+                // the lane-less ordinal demotes to the walk's ordinary
+                // unknown-stream skip, never a panic.
+                lanes[idx] = stream.time_base(0).ok().map(|base| LaneState {
+                    sample_size: stream.sample_size,
+                    base,
+                    ticks: i64::from(stream.start),
+                });
             }
         }
-        Ladders {
-            ticks,
-            descs: streams.to_vec(),
-        }
+        Ladders { lanes }
+    }
+
+    /// Whether `stream` has a kept lane — the walk's deliverability
+    /// gate (O(1) per chunk; the stream-table scan's replacement).
+    pub(crate) fn has_lane(&self, stream: u32) -> bool {
+        self.lanes.get(stream as usize).is_some_and(Option::is_some)
     }
 
     /// Advance the stream's ladder over a chunk of `payload_bytes`;
-    /// returns the chunk's presentation ticks, or `None` for an
+    /// returns the chunk's presentation step, or `None` for an
     /// ordinal outside the table.
     pub(crate) fn advance(&mut self, stream: u32, payload_bytes: u64) -> Option<LadderStep> {
-        let desc = self.descs.iter().find(|d| d.ordinal == stream)?;
-        let idx = stream as usize;
-        if idx >= self.ticks.len() {
-            return None;
-        }
-        let (delta, unaligned) = desc.ticks_per_chunk(payload_bytes);
-        let before = self.ticks[idx];
-        self.ticks[idx] = self.ticks[idx].saturating_add(delta);
-        Some(LadderStep {
-            pts_ticks: before,
+        let lane = self.lanes.get_mut(stream as usize)?.as_mut()?;
+        let (delta_ticks, unaligned) = ticks_for_sample_size(lane.sample_size, payload_bytes);
+        let step = LadderStep {
+            pts_ticks: lane.ticks,
+            delta_ticks,
             unaligned,
-        })
+            base: lane.base,
+            sample_size: lane.sample_size,
+        };
+        lane.ticks = lane.ticks.saturating_add(delta_ticks);
+        Some(step)
     }
 
     /// A copy of every stream's ladder position (the re-anchor input
     /// the linear scan captures when it finds a landing).
     pub(crate) fn ticks_snapshot(&self) -> Vec<i64> {
-        self.ticks.clone()
+        self.lanes
+            .iter()
+            .map(|lane| lane.as_ref().map_or(0, |state| state.ticks))
+            .collect()
     }
 
     /// Ladders for `streams` restored to a captured position. The
@@ -171,8 +229,12 @@ impl Ladders {
     /// fresh ladder rather than guessing.
     pub(crate) fn with_ticks(streams: &[StreamDesc], ticks: Vec<i64>) -> Ladders {
         let mut ladders = Ladders::new(streams);
-        if ticks.len() == ladders.ticks.len() {
-            ladders.ticks = ticks;
+        if ticks.len() == ladders.lanes.len() {
+            for (lane, ticks) in ladders.lanes.iter_mut().zip(ticks) {
+                if let Some(lane) = lane {
+                    lane.ticks = ticks;
+                }
+            }
         }
         ladders
     }
@@ -214,7 +276,12 @@ struct RawIdxEntry {
 /// `movi_form_pos` is the absolute position of the `movi` FourCC (the
 /// base `dwOffset` is relative to); `movi_data_start`/`movi_data_end`
 /// bound entry validation; `bound` is the outer extent
-/// (RIFF ∩ stream); `streams` supplies the tick ladders.
+/// (RIFF ∩ stream); `streams` supplies the tick ladders;
+/// `filtered_ordinals` is the per-declared-ordinal disposition from
+/// [`super::header::HeaderList`] (`true` = declared but filtered by
+/// the codec filter — those streams' entries skip silently, see the
+/// module docs; ordinals past the slice's length were never declared
+/// and keep the unknown-stream damage).
 ///
 /// Entries come out **in file order with file-order timing** (the
 /// module docs' entry-order rule): raw entries are collected in
@@ -237,6 +304,7 @@ pub fn parse_idx1(
     movi_data_end: u64,
     bound: u64,
     streams: &[StreamDesc],
+    filtered_ordinals: &[bool],
     damage: &mut DamageLog,
 ) -> Result<Option<IndexTable>, EngineError> {
     if declared_size == 0 {
@@ -374,10 +442,18 @@ pub fn parse_idx1(
                 keyframe: entry.keyframe,
                 pts_ticks: step.pts_ticks,
             });
+        } else if filtered_ordinals.get(entry.stream as usize) == Some(&true) {
+            // A stream the hdrl declared but the v0 codec filter
+            // dropped (W5-14): its chunks and its idx1 entries are real
+            // media the filter already accounted for — the strl parse
+            // damage-counted the skip once, and the movi walk skips
+            // the chunks silently. Silent here too (D-9, the `vprp`
+            // rationale); genuinely-unknown ordinals (no strl at all)
+            // fall through to the damage below.
         } else {
-            // A packet entry for a stream outside the table
-            // (unsupported type): positionally valid, not
-            // timeable — kept out of the seek table.
+            // A packet entry for a stream nothing declared — kept out
+            // of the seek table and surfaced (the dirty-world signal
+            // the silent-skip rule above must not weaken).
             dropped_unknown_stream = dropped_unknown_stream.saturating_add(1);
         }
     }
@@ -754,6 +830,7 @@ mod tests {
             34, // movi_data_end
             bytes.len() as u64,
             &streams,
+            &[], // no declared-but-filtered ordinals in this fixture
             &mut damage,
         ) {
             Ok(Some(table)) => table,

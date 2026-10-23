@@ -614,6 +614,224 @@ fn real_movi_walk_allocates_nothing_per_packet() {
     );
 }
 
+/// Build a two-stream AVI (video MJPG + audio PCM — the W5-14 lane
+/// shape): `pairs` × (`00dc` video of `video_payload` uniform bytes,
+/// `01wb` audio of `audio_payload` uniform bytes), one idx1 entry per
+/// chunk (so the walk's keyframe cursor runs too).
+fn avi_bytes_av(pairs: usize, video_payload: usize, audio_payload: usize) -> std::sync::Arc<[u8]> {
+    let mut b = Vec::with_capacity(pairs * (16 + video_payload + audio_payload) + 1024);
+    b.extend_from_slice(b"RIFF");
+    b.extend_from_slice(&0u32.to_le_bytes());
+    b.extend_from_slice(b"AVI ");
+    let hdrl_start = b.len();
+    b.extend_from_slice(b"LIST");
+    b.extend_from_slice(&0u32.to_le_bytes());
+    b.extend_from_slice(b"hdrl");
+    let mut avih = Vec::new();
+    for value in [33_333u32, 0, 0, 0x110, (pairs as u32), 0, 2, 0, 320, 240] {
+        avih.extend_from_slice(&value.to_le_bytes());
+    }
+    avih.extend(&[0u8; 16]);
+    b.extend_from_slice(b"avih");
+    b.extend_from_slice(&(avih.len() as u32).to_le_bytes());
+    b.extend(&avih);
+    // strl 0: video MJPG.
+    b.extend_from_slice(b"LIST");
+    let v_strl_pos = b.len();
+    b.extend_from_slice(&0u32.to_le_bytes());
+    b.extend_from_slice(b"strl");
+    let mut strh = Vec::new();
+    strh.extend_from_slice(b"vids");
+    strh.extend_from_slice(b"MJPG");
+    strh.extend(&[0u8; 12]);
+    strh.extend_from_slice(&1u32.to_le_bytes()); // scale
+    strh.extend_from_slice(&30u32.to_le_bytes()); // rate
+    strh.extend_from_slice(&0u32.to_le_bytes());
+    strh.extend_from_slice(&(pairs as u32).to_le_bytes());
+    strh.extend_from_slice(&4u32.to_le_bytes());
+    strh.extend_from_slice(&u32::MAX.to_le_bytes());
+    strh.extend_from_slice(&0u32.to_le_bytes()); // sample size (video)
+    strh.extend(&[0u8; 8]);
+    b.extend_from_slice(b"strh");
+    b.extend_from_slice(&(strh.len() as u32).to_le_bytes());
+    b.extend(&strh);
+    let mut strf = Vec::new();
+    strf.extend_from_slice(&40u32.to_le_bytes());
+    strf.extend_from_slice(&320u32.to_le_bytes());
+    strf.extend_from_slice(&240u32.to_le_bytes());
+    strf.extend_from_slice(&1u16.to_le_bytes());
+    strf.extend_from_slice(&24u16.to_le_bytes());
+    strf.extend_from_slice(b"MJPG");
+    strf.extend(&vec![0u8; 20]);
+    b.extend_from_slice(b"strf");
+    b.extend_from_slice(&(strf.len() as u32).to_le_bytes());
+    b.extend(&strf);
+    let size = b.len() - v_strl_pos - 4;
+    b[v_strl_pos..v_strl_pos + 4].copy_from_slice(&(size as u32).to_le_bytes());
+    // strl 1: audio PCM (stereo 16-bit 48 kHz, block align 4).
+    b.extend_from_slice(b"LIST");
+    let a_strl_pos = b.len();
+    b.extend_from_slice(&0u32.to_le_bytes());
+    b.extend_from_slice(b"strl");
+    let mut strh = Vec::new();
+    strh.extend_from_slice(b"auds");
+    strh.extend(&[0u8; 4]); // no handler
+    strh.extend(&[0u8; 12]);
+    strh.extend_from_slice(&1u32.to_le_bytes()); // scale
+    strh.extend_from_slice(&48_000u32.to_le_bytes()); // rate
+    strh.extend_from_slice(&0u32.to_le_bytes());
+    strh.extend_from_slice(&((pairs * audio_payload / 4) as u32).to_le_bytes());
+    strh.extend_from_slice(&4u32.to_le_bytes());
+    strh.extend_from_slice(&u32::MAX.to_le_bytes());
+    strh.extend_from_slice(&4u32.to_le_bytes()); // sample size = block align
+    strh.extend(&[0u8; 8]);
+    b.extend_from_slice(b"strh");
+    b.extend_from_slice(&(strh.len() as u32).to_le_bytes());
+    b.extend(&strh);
+    let mut strf = Vec::new();
+    strf.extend_from_slice(&1u16.to_le_bytes()); // WAVE_FORMAT_PCM
+    strf.extend_from_slice(&2u16.to_le_bytes()); // channels
+    strf.extend_from_slice(&48_000u32.to_le_bytes()); // rate
+    strf.extend_from_slice(&192_000u32.to_le_bytes()); // avg bytes/sec
+    strf.extend_from_slice(&4u16.to_le_bytes()); // block align
+    strf.extend_from_slice(&16u16.to_le_bytes()); // bits
+    b.extend_from_slice(b"strf");
+    b.extend_from_slice(&(strf.len() as u32).to_le_bytes());
+    b.extend(&strf);
+    let size = b.len() - a_strl_pos - 4;
+    b[a_strl_pos..a_strl_pos + 4].copy_from_slice(&(size as u32).to_le_bytes());
+    let hdrl_size = b.len() - hdrl_start - 8;
+    b[hdrl_start + 4..hdrl_start + 8].copy_from_slice(&(hdrl_size as u32).to_le_bytes());
+    // movi: interleaved uniform chunks.
+    let movi_size_pos = b.len() + 4;
+    b.extend_from_slice(b"LIST");
+    b.extend_from_slice(&0u32.to_le_bytes());
+    b.extend_from_slice(b"movi");
+    let movi_form_pos = (b.len() - 4) as u64;
+    let mut chunk_positions: Vec<u64> = Vec::with_capacity(pairs * 2);
+    for index in 0..pairs {
+        chunk_positions.push(b.len() as u64);
+        b.extend_from_slice(b"00dc");
+        b.extend_from_slice(&(video_payload as u32).to_le_bytes());
+        b.extend(std::iter::repeat_n(
+            0xa0 | (index % 16) as u8,
+            video_payload,
+        ));
+        chunk_positions.push(b.len() as u64);
+        b.extend_from_slice(b"01wb");
+        b.extend_from_slice(&(audio_payload as u32).to_le_bytes());
+        b.extend(std::iter::repeat_n(
+            0x50 | (index % 16) as u8,
+            audio_payload,
+        ));
+    }
+    let movi_size = b.len() - movi_size_pos - 4;
+    b[movi_size_pos..movi_size_pos + 4].copy_from_slice(&(movi_size as u32).to_le_bytes());
+    // idx1: one keyframe entry per chunk, movi-relative.
+    b.extend_from_slice(b"idx1");
+    b.extend_from_slice(&((chunk_positions.len() * 16) as u32).to_le_bytes());
+    for (index, &chunk_pos) in chunk_positions.iter().enumerate() {
+        let tag: &[u8; 4] = if index % 2 == 0 { b"00dc" } else { b"01wb" };
+        let size = if index % 2 == 0 {
+            video_payload
+        } else {
+            audio_payload
+        };
+        b.extend_from_slice(tag);
+        b.extend_from_slice(&AVIIF_KEYFRAME.to_le_bytes());
+        b.extend_from_slice(&((chunk_pos - movi_form_pos) as u32).to_le_bytes());
+        b.extend_from_slice(&(size as u32).to_le_bytes());
+    }
+    let riff_size = b.len() - 8;
+    b[4..8].copy_from_slice(&(riff_size as u32).to_le_bytes());
+    b.into()
+}
+
+/// The two-stream lane shape (W5-14): a real `AviDemuxer` over an
+/// in-memory video+audio AVI — uniform payloads per stream, so the
+/// pool's two slots serve both sizes in the steady state — walked
+/// through the public contract with the idx1 keyframe cursor live.
+/// After warm-up, **1000 consecutive packet events allocate nothing**:
+/// this pins the lanes restructure (per-ordinal lane lookups, the
+/// cached per-stream `TimeBase`) as allocation-neutral on the hot path.
+#[test]
+fn two_stream_interleaved_walk_allocates_nothing_per_packet() {
+    let _serial = serialize_tests();
+    const PAIRS: usize = 550;
+    const VIDEO: usize = 512;
+    const AUDIO: usize = 256;
+    let delta = clean_replay(
+        || {
+            let bytes = avi_bytes_av(PAIRS, VIDEO, AUDIO);
+            let mut avi = demux::avi::AviDemuxer::new(
+                demux::avi::test_support::mem_stream(std::sync::Arc::clone(&bytes)).must(),
+            )
+            .must();
+            let tracks = avi.start().must();
+            assert_eq!(tracks.len(), 2, "video + audio tracks");
+
+            // Warm-up: pool growth to its bound (both sizes), queue
+            // seeding, one-time machinery.
+            let mut seen = 0usize;
+            while seen < 50 {
+                match avi.next_event().must() {
+                    plugin_api::DemuxEvent::Packet(packet) => {
+                        drop(packet);
+                        seen += 1;
+                    }
+                    plugin_api::DemuxEvent::EndOfStream => {
+                        unreachable!("warm-up hit EOS at {seen}")
+                    }
+                    _ => {}
+                }
+            }
+
+            let guard = ALLOC.state().guard();
+            let mut walked = 0usize;
+            while walked < 1000 {
+                match avi.next_event().must() {
+                    plugin_api::DemuxEvent::Packet(packet) => {
+                        // The measured window starts after the warm-up's
+                        // `seen` packets — the chunk index is global.
+                        let global = seen + walked;
+                        let (want_len, want_track, fill) = if global.is_multiple_of(2) {
+                            (VIDEO, 0u32, 0xa0 | ((global / 2) % 16) as u8)
+                        } else {
+                            (AUDIO, 1u32, 0x50 | ((global / 2) % 16) as u8)
+                        };
+                        assert_eq!(packet.data.len(), want_len, "packet {walked}");
+                        assert_eq!(packet.track.handle(), want_track, "packet {walked}");
+                        assert!(
+                            packet.data.as_slice().iter().all(|&byte| byte == fill),
+                            "packet {walked}: payload bytes are the chunk's own"
+                        );
+                        drop(packet);
+                        walked += 1;
+                    }
+                    plugin_api::DemuxEvent::EndOfStream => {
+                        unreachable!("EOS at {walked} of 1000 with {PAIRS} pairs")
+                    }
+                    _ => {}
+                }
+            }
+            let delta = guard.delta();
+            // The stream still ends cleanly afterwards (outside the
+            // measured window).
+            let mut ended = false;
+            while !ended {
+                ended = matches!(avi.next_event().must(), plugin_api::DemuxEvent::EndOfStream);
+            }
+            delta
+        },
+        is_zero,
+    );
+    assert_eq!(
+        (delta.alloc_calls, delta.total_bytes),
+        (0, 0),
+        "1000 packets through the two-stream lane walk — zero allocs"
+    );
+}
+
 /// The idx1 batch proof (design E3(c)): parsing a 1024-entry index
 /// through the block reader allocates a **constant-plus-log** count —
 /// the 4 KiB block buffer (1), the raw-entry Vec's doubling ladder,
@@ -674,6 +892,7 @@ fn idx1_parse_allocates_per_block_not_per_entry() {
                     movi_data_end,
                     bytes.len() as u64,
                     &streams,
+                    &[], // no declared-but-filtered ordinals in this fixture
                     &mut damage,
                 )
                 .must();
