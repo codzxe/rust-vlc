@@ -63,15 +63,38 @@ impl HuffmanDecoder {
     /// disagreeing) — surfaced as `Err` so the caller can reject the
     /// stream before any scan work.
     pub(crate) fn new(bits: &[u8; 17], values: &[u8]) -> Result<Self, Stop> {
-        let mut min_code = [0i32; 17];
-        let mut max_code = [-1i32; 17];
-        let mut val_ptr = [0usize; 17];
+        let mut table = HuffmanDecoder {
+            min_code: [0i32; 17],
+            max_code: [-1i32; 17],
+            val_ptr: [0usize; 17],
+            values: Vec::new(),
+            lut: [(0u8, 0u8); 256],
+        };
+        table.rebuild(bits, values)?;
+        Ok(table)
+    }
+
+    /// Rebuild every derived table in place (V-3,
+    /// docs/perf/memory-audit-20261023.md): the canonical-code arrays
+    /// and the look-ahead LUT are overwritten, and the owned `HUFFVAL`
+    /// storage reuses its allocation (`clear` + `extend_from_slice` —
+    /// capacity retained, bounded by the 256-symbol DHT limit). A
+    /// table-set change on a persistent decoder therefore allocates
+    /// nothing once the first build exists — the pre-V-3 `to_vec` per
+    /// rebuild is gone.
+    ///
+    /// # Errors
+    /// Same [`Stop::InvalidCode`] semantics as [`HuffmanDecoder::new`].
+    pub(crate) fn rebuild(&mut self, bits: &[u8; 17], values: &[u8]) -> Result<(), Stop> {
+        self.min_code = [0i32; 17];
+        self.max_code = [-1i32; 17];
+        self.val_ptr = [0usize; 17];
         let mut code: i32 = 0;
         let mut symbol_index = 0usize;
         for length in 1..=16usize {
             if bits[length] > 0 {
-                val_ptr[length] = symbol_index;
-                min_code[length] = code;
+                self.val_ptr[length] = symbol_index;
+                self.min_code[length] = code;
                 // Canonical codes are consecutive at each length
                 // (Annex C.2): the last is code + count - 1.
                 let count = i32::from(bits[length]);
@@ -79,7 +102,7 @@ impl HuffmanDecoder {
                 if last >= (1i32 << length) {
                     return Err(Stop::InvalidCode);
                 }
-                max_code[length] = last;
+                self.max_code[length] = last;
                 code = last + 1;
                 symbol_index += bits[length] as usize;
             }
@@ -92,29 +115,27 @@ impl HuffmanDecoder {
         // Look-ahead LUT: every code of length ≤ 8 claims the range of
         // 8-bit windows it prefixes (ranges are disjoint — the code is
         // prefix-free).
-        let mut lut = [(0u8, 0u8); 256];
+        self.lut = [(0u8, 0u8); 256];
         for length in 1..=8usize {
             if bits[length] == 0 {
                 continue;
             }
-            let base = min_code[length];
+            let base = self.min_code[length];
             let width = 1usize << (8 - length);
             for offset in 0..bits[length] as i32 {
-                let symbol = values[val_ptr[length] + offset as usize];
+                let symbol = values[self.val_ptr[length] + offset as usize];
                 let start = ((base + offset) as usize) << (8 - length);
-                for entry in lut.iter_mut().skip(start).take(width) {
+                for entry in self.lut.iter_mut().skip(start).take(width) {
                     *entry = (symbol, length as u8);
                 }
             }
         }
 
-        Ok(HuffmanDecoder {
-            min_code,
-            max_code,
-            val_ptr,
-            values: values.to_vec(),
-            lut,
-        })
+        // V-3: HUFFVAL storage last — the loops above read the
+        // borrowed `values` slice, this owns the copy.
+        self.values.clear();
+        self.values.extend_from_slice(values);
+        Ok(())
     }
 
     /// Decode one symbol, MSB-first, from the reader.

@@ -343,6 +343,24 @@ impl DhtKey {
             vals: info.huff_vals.clone(),
         }
     }
+
+    /// Refill the snapshot in place (V-3,
+    /// docs/perf/memory-audit-20261023.md): the `HUFFVAL` `Vec`s
+    /// reuse their allocations (`clear` + `extend`; capacity bounded
+    /// by the 256-symbol DHT limit), so a per-frame DHT change on a
+    /// persistent context no longer allocates for the key either.
+    /// Semantically `*self = DhtKey::of(info)`.
+    fn update_from(&mut self, info: &JpegInfo) {
+        self.present = info.huff_present;
+        self.bits = info.huff_bits;
+        for class in 0..2 {
+            for td in 0..4 {
+                let dst = &mut self.vals[class][td];
+                dst.clear();
+                dst.extend_from_slice(&info.huff_vals[class][td]);
+            }
+        }
+    }
 }
 
 /// Reusable decode state across frames (see module docs). Holds no
@@ -741,40 +759,63 @@ impl DecodeContext {
     /// (Re)build the Huffman decoders when the DHT payload changed;
     /// reuse the built tables (LUTs included) when it did not. The
     /// per-frame compare ([`DhtKey::matches`]) allocates nothing;
-    /// `DhtKey::of`'s payload snapshot happens only on a change.
+    /// `DhtKey`'s payload snapshot happens only on a change.
     fn prepare_tables(&mut self, info: &JpegInfo) -> Result<(), MjpegError> {
         if self.dht_key.as_ref().is_some_and(|key| key.matches(info)) {
             return Ok(());
         }
+        // V-3 (memory-audit): present tables rebuild **in place** —
+        // `HuffmanDecoder::rebuild` overwrites the derived arrays and
+        // reuses the HUFFVAL storage, so a stream whose encoder
+        // re-emits a varying DHT every frame allocates nothing here
+        // after the first build. Absent tables still drop to `None`
+        // (the previous semantics — a scan may only reference a
+        // declared table).
         for td in 0..4usize {
-            self.dc_tables[td] = if info.huff_present[0][td] {
-                Some(
-                    match HuffmanDecoder::new(&info.huff_bits[0][td], &info.huff_vals[0][td]) {
-                        Ok(table) => table,
-                        Err(_) => {
-                            return Err(super::error::corrupt_entropy("mjpeg.huffman.bad_table"));
-                        }
-                    },
+            if info.huff_present[0][td] {
+                refresh_table(
+                    &mut self.dc_tables[td],
+                    &info.huff_bits[0][td],
+                    &info.huff_vals[0][td],
                 )
+                .map_err(|_| super::error::corrupt_entropy("mjpeg.huffman.bad_table"))?;
             } else {
-                None
-            };
-            self.ac_tables[td] = if info.huff_present[1][td] {
-                Some(
-                    match HuffmanDecoder::new(&info.huff_bits[1][td], &info.huff_vals[1][td]) {
-                        Ok(table) => table,
-                        Err(_) => {
-                            return Err(super::error::corrupt_entropy("mjpeg.huffman.bad_table"));
-                        }
-                    },
+                self.dc_tables[td] = None;
+            }
+            if info.huff_present[1][td] {
+                refresh_table(
+                    &mut self.ac_tables[td],
+                    &info.huff_bits[1][td],
+                    &info.huff_vals[1][td],
                 )
+                .map_err(|_| super::error::corrupt_entropy("mjpeg.huffman.bad_table"))?;
             } else {
-                None
-            };
+                self.ac_tables[td] = None;
+            }
         }
-        self.dht_key = Some(DhtKey::of(info));
+        match &mut self.dht_key {
+            Some(key) => key.update_from(info),
+            None => self.dht_key = Some(DhtKey::of(info)),
+        }
         self.table_builds += 1;
         Ok(())
+    }
+}
+
+/// Build-or-rebuild one decoder slot in place (V-3): an existing
+/// decoder reuses its buffers (`HuffmanDecoder::rebuild`); a fresh
+/// slot allocates once (first build per stream).
+fn refresh_table(
+    slot: &mut Option<HuffmanDecoder>,
+    bits: &[u8; 17],
+    vals: &[u8],
+) -> Result<(), Stop> {
+    match slot.as_mut() {
+        Some(table) => table.rebuild(bits, vals),
+        None => {
+            *slot = Some(HuffmanDecoder::new(bits, vals)?);
+            Ok(())
+        }
     }
 }
 
