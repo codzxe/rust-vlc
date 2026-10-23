@@ -55,26 +55,37 @@
 //!   payload snapshot happen only on an actual change — W2-06: the
 //!   pre-hardening path cloned the whole DHT payload every frame just
 //!   to run the comparison, contradicting the count below);
-//! - the per-component cursors, and the output assembly buffer, are
-//!   capacity-reused the same way;
+//! - the per-component cursors are capacity-reused the same way;
 //! - I420 output is assembled **in place**: each plane's valid region
 //!   is cropped row-by-row directly into its offset of the output
 //!   buffer (`Y ‖ Cb ‖ Cr`), with no intermediate crop `Vec` and no
 //!   second copy (the pre-FIX-1 path built one temp `Vec` per plane
 //!   and copied every byte twice).
 //!
-//! Steady state therefore allocates exactly **one** buffer per frame
-//! — the frame's own output bytes handed to the sink (the ownership
-//! transfer the frame contract requires; see
-//! [`DecodeContext::take_output`]). Everything else is reuse. That
-//! count is **measured, not argued**: the counting-allocator binary
-//! `tests/zero_alloc_decode.rs` runs whole `MjpegDecoder` frames
-//! through the contract path and pins exactly **two** allocation
-//! events per steady-state frame — this output buffer, plus the
-//! `SharedBytes` (`Arc<[u8]>`) block the frame-contract handoff wraps
-//! that buffer in (an ownership header, not frame bytes; collapsing
-//! it needs a pooled-`Arc` flavor in media-types — the registered
-//! Lead-owned follow-up in worklog 3.B3's SharedBytes note).
+//! # Output handoff (W6-02, registered violation V-4 fixed)
+//!
+//! The decode is split in two: [`DecodeContext::decode_scan`] walks
+//! headers + entropy into the reusable planes and returns the frame
+//! metadata; [`DecodeContext::frame_len`] +
+//! [`DecodeContext::assemble_frame`] then write the pixel bytes into
+//! a caller-provided buffer. The contract path
+//! ([`super::MjpegDecoder`]) points that buffer at a **pooled
+//! `SharedBytes` slot** ([`FRAME_SLOTS`], the PCM decoder's
+//! `CONVERT_SLOTS` pattern lifted to the video side): a warm slot of
+//! exactly the frame's byte count is refilled in place through
+//! `get_mut` and handed out as an `Arc` clone, so the steady-state
+//! handoff allocates **nothing** — the pre-W6-02 path took the
+//! context's `Vec` (`take_output`, leaving capacity 0), resized a
+//! fresh buffer (zero-filling bytes the assembly overwrites anyway)
+//! and copied it again into the `SharedBytes` `Arc` block: 2 allocs
+//! + ~2 frames of wasted writes per frame (W5-15's registered V-4).
+//!
+//! Both assembly paths (I420 crop, RGBA compose) provably overwrite
+//! **every** byte of the output buffer — pinned by the
+//! stale-slot-poisoning differential tests in this module — so reuse
+//! without zeroing cannot leak a previous frame's pixels. Bounded
+//! memory: at most [`FRAME_SLOTS`] · current-frame-bytes (empty on
+//! the one-shot stateless path, which keeps its own `Vec`).
 
 use super::bitreader::{BitReader, ReaderStop};
 use super::color::{ComponentGeom, PlaneView, RgbComposer};
@@ -82,6 +93,7 @@ use super::error::MjpegError;
 use super::huffman::{HuffmanDecoder, Stop};
 use super::idct::idct_block;
 use super::parser::{self, ComponentInfo, JpegInfo, ZIGZAG};
+use media_types::packet::SharedBytes;
 
 /// Pixel-count cap — the fuzz-safety memory bound.
 ///
@@ -314,23 +326,76 @@ impl DecodeContext {
     /// # Errors
     /// Typed [`MjpegError`]s, exactly as the stateless path.
     pub(crate) fn decode(&mut self, data: &[u8]) -> Result<DecodedMeta, MjpegError> {
+        let meta = self.decode_scan(data)?;
+        let total = self.frame_len()?;
+        self.out.clear();
+        self.out.resize(total, 0);
+        let Self {
+            headers,
+            planes,
+            out,
+            ..
+        } = self;
+        assemble_frame_into(headers, planes, out)?;
+        Ok(meta)
+    }
+
+    /// Walk the headers and decode the entropy scan into the
+    /// reusable planes **without** assembling the output (the pooled
+    /// handoff's first half, W6-02 / V-4): the caller reads
+    /// [`DecodeContext::frame_len`], obtains a destination buffer of
+    /// exactly that length (a pooled [`SharedBytes`] slot on the
+    /// contract path), and fills it via
+    /// [`DecodeContext::assemble_frame`]. The walked `JpegInfo`
+    /// stays parked in `self.headers` for those two calls.
+    ///
+    /// # Errors
+    /// Typed [`MjpegError`]s, exactly like [`DecodeContext::decode`]
+    /// (the context remains usable for the next frame either way —
+    /// the scratch is restored before any error escapes).
+    pub(crate) fn decode_scan(&mut self, data: &[u8]) -> Result<DecodedMeta, MjpegError> {
         // Park an empty scratch where the persistent header storage
         // lives, and walk into the real one (D-1): `JpegInfo::empty`
         // allocates nothing, the moves are pointer-sized struct
         // shuffles, and the walk refills the persistent Vecs in place.
         // Splitting the borrow this way lets the scan body below read
-        // `info` freely while the context's planes/tables/output are
+        // `info` freely while the context's planes/tables are
         // mutated through `self`.
         let mut info = std::mem::replace(&mut self.headers, JpegInfo::empty());
-        let decoded = self.decode_walk(&mut info, data);
+        let decoded = self.scan_into(&mut info, data);
         self.headers = info;
         decoded
     }
 
-    /// The decode body behind [`DecodeContext::decode`]: `info` is the
-    /// context's own (persistent) header scratch, walked here and read
-    /// for the rest of the frame.
-    fn decode_walk(&mut self, info: &mut JpegInfo, data: &[u8]) -> Result<DecodedMeta, MjpegError> {
+    /// The exact output byte count for the frame last walked by
+    /// [`DecodeContext::decode_scan`] (the pooled caller sizes its
+    /// slot with this before filling).
+    ///
+    /// # Errors
+    /// [`MjpegError::LimitExceeded`] when the total overflows the
+    /// pixel-cap arithmetic (the same check the assembly runs).
+    pub(crate) fn frame_len(&self) -> Result<usize, MjpegError> {
+        frame_total_for(&self.headers).map(|(_, total)| total)
+    }
+
+    /// Assemble the frame last walked by [`DecodeContext::decode_scan`]
+    /// into `out` (the pooled handoff's second half). `out.len()` must
+    /// equal [`DecodeContext::frame_len`] — every byte of `out` is
+    /// overwritten (rows crop or fill for I420; every row composes for
+    /// RGBA), so a reused pooled slot can never leak a stale pixel.
+    ///
+    /// # Errors
+    /// Typed [`MjpegError`] when `out.len()` disagrees with the walked
+    /// geometry (a caller bug, surfaced loudly — never a partial
+    /// frame).
+    pub(crate) fn assemble_frame(&self, out: &mut [u8]) -> Result<(), MjpegError> {
+        assemble_frame_into(&self.headers, &self.planes, out)
+    }
+
+    /// The scan body behind [`DecodeContext::decode_scan`]: `info` is
+    /// the context's own (persistent) header scratch, walked here and
+    /// read for the rest of the frame.
+    fn scan_into(&mut self, info: &mut JpegInfo, data: &[u8]) -> Result<DecodedMeta, MjpegError> {
         parser::parse_into(info, data)?;
         let info = &*info;
 
@@ -454,27 +519,10 @@ impl DecodeContext {
             }
         }
 
-        // Output assembly, in place in the reused output buffer.
-        let format = choose_format(info, h_max, v_max);
-        let total = match format {
-            OutputFormat::I420 => i420_total(w, h)?,
-            OutputFormat::Rgba8 => w
-                .checked_mul(h)
-                .and_then(|px| px.checked_mul(4))
-                .ok_or_else(|| limit_error(w * h * 4))?,
-        };
-        self.out.clear();
-        self.out.resize(total, 0);
-        match format {
-            OutputFormat::I420 => assemble_i420_into(&mut self.out, &self.planes, w, h),
-            OutputFormat::Rgba8 => {
-                assemble_rgba_into(&mut self.out, &self.planes, info, h_max, v_max, w, h)
-            }
-        }
         Ok(DecodedMeta {
             width: info.width,
             height: info.height,
-            format,
+            format: choose_format(info, h_max, v_max),
             concealed,
             cause,
         })
@@ -622,6 +670,126 @@ fn h_max_of(info: &JpegInfo) -> usize {
 
 fn v_max_of(info: &JpegInfo) -> usize {
     info.components.iter().map(|c| c.v).max().unwrap_or(1) as usize
+}
+
+/// The pooled-output slot rotation depth (W6-02 / V-4; the PCM
+/// decoder's `CONVERT_SLOTS` and `pipeline.rs`'s `OUT_SLOTS`
+/// precedent, lifted to the video handoff): how many pooled
+/// [`SharedBytes`] frame buffers the contract decoder keeps. Four
+/// covers the decoded frame still held downstream (sink, presenter,
+/// renderer) plus slack — a pipeline that hands frames off
+/// asynchronously never starves the pool into the allocate path.
+/// Bounded memory: at most `FRAME_SLOTS · current-frame-bytes`
+/// (the pool re-keys on exact length, so a geometry change evicts
+/// rather than accumulates).
+pub(crate) const FRAME_SLOTS: usize = 4;
+
+/// Fill the next pooled frame slot through `fill` (exactly `len`
+/// bytes) and hand out a clone (refcount 2: pool + the decoded
+/// frame; the clone the sink saw returns the slot to refcount 1 when
+/// its buffer drops, making it refillable in place). Warm path: an
+/// in-rotation slot of exactly `len` bytes whose `get_mut` succeeds
+/// (the pool is the sole owner). Cold path (first frames of a
+/// geometry, an all-slots-busy rotation): allocate a fresh slot and
+/// enter it into the round-robin (bounded at [`FRAME_SLOTS`], then
+/// evicting). The PCM `pooled_convert_slot` pattern verbatim in
+/// shape; the fill is fallible because the video assembly validates
+/// its destination length (a caller bug surfaces as a typed error,
+/// never a panic or a partial frame).
+pub(crate) fn pooled_frame_slot(
+    slots: &mut Vec<SharedBytes>,
+    next: &mut usize,
+    len: usize,
+    fill: impl FnOnce(&mut [u8]) -> Result<(), MjpegError>,
+) -> Result<SharedBytes, MjpegError> {
+    let count = slots.len();
+    for i in 0..count {
+        let idx = (*next + i) % count;
+        if slots[idx].len() != len {
+            continue;
+        }
+        if let Some(bytes) = slots[idx].get_mut() {
+            fill(bytes)?;
+            *next = (idx + 1) % count;
+            return Ok(slots[idx].clone());
+        }
+        // The slot still has downstream owners — try the next one.
+    }
+    // Cold path: allocate, fill in place, then enter the rotation.
+    let mut fresh = SharedBytes::from_vec(vec![0; len]);
+    match fresh.get_mut() {
+        Some(bytes) => fill(bytes)?,
+        None => {
+            // A freshly built `SharedBytes` has refcount 1 by
+            // construction; `get_mut` failing here is impossible —
+            // surface it loudly instead of fabricating an empty
+            // frame.
+            return Err(super::error::corrupt_entropy(
+                "mjpeg.output.fresh_slot_not_exclusive",
+            ));
+        }
+    }
+    if count < FRAME_SLOTS {
+        slots.push(fresh.clone());
+        *next = (count + 1) % FRAME_SLOTS;
+    } else {
+        let evict = *next;
+        slots[evict] = fresh.clone();
+        *next = (evict + 1) % FRAME_SLOTS;
+    }
+    Ok(fresh)
+}
+
+/// The output format + exact byte count for a walked `JpegInfo`.
+///
+/// # Errors
+/// [`MjpegError::LimitExceeded`] when the buffer arithmetic
+/// overflows the pixel cap (the fuzz-safety bound).
+fn frame_total_for(info: &JpegInfo) -> Result<(OutputFormat, usize), MjpegError> {
+    let h_max = h_max_of(info);
+    let v_max = v_max_of(info);
+    let w = info.width as usize;
+    let h = info.height as usize;
+    let format = choose_format(info, h_max, v_max);
+    let total = match format {
+        OutputFormat::I420 => i420_total(w, h)?,
+        OutputFormat::Rgba8 => w
+            .checked_mul(h)
+            .and_then(|px| px.checked_mul(4))
+            .ok_or_else(|| limit_error(w * h * 4))?,
+    };
+    Ok((format, total))
+}
+
+/// Assemble the walked frame's pixels from `planes` into `out`
+/// (the shared body of the stateless `Vec` path and the pooled-slot
+/// contract path — identical bytes by construction, pinned by the
+/// differential tests).
+///
+/// # Errors
+/// A typed corrupt-structure error when `out.len()` is not the exact
+/// [`frame_total_for`] length (surfaced loudly; `out` is left
+/// untouched in that case).
+fn assemble_frame_into(
+    info: &JpegInfo,
+    planes: &[Plane],
+    out: &mut [u8],
+) -> Result<(), MjpegError> {
+    let h_max = h_max_of(info);
+    let v_max = v_max_of(info);
+    let w = info.width as usize;
+    let h = info.height as usize;
+    let (format, total) = frame_total_for(info)?;
+    if out.len() != total {
+        return Err(super::error::corrupt_entropy(
+            "mjpeg.output.length_mismatch",
+        ));
+    }
+    match format {
+        OutputFormat::I420 => assemble_i420_into(out, planes, w, h),
+        OutputFormat::Rgba8 => assemble_rgba_into(out, planes, info, h_max, v_max, w, h),
+    }
+    Ok(())
 }
 
 /// Receive-and-extend an amplitude value of `s` bits (§F.2.2.1 EXTEND).
@@ -1218,5 +1386,192 @@ mod tests {
             Err(e) => unreachable!("decode after take: {e:?}"),
         };
         assert_eq!(ctx.output(), taken.as_slice());
+    }
+
+    // --- W6-02: pooled-slot handoff (V-4) ---
+
+    #[test]
+    fn pooled_slot_refill_is_bit_exact_and_stale_byte_safe() {
+        // Two frames whose decoded bytes differ everywhere (flat
+        // 128 vs flat ~122), decoded through the pooled path back to
+        // back: the second decode must equal the stateless reference
+        // EXACTLY — a single byte the assembly failed to overwrite
+        // would survive as frame A's pixel and fail this compare (the
+        // stale-slot-poisoning proof the module docs promise).
+        let flat_mid = tiny_jpeg(16, 16, &[(1, 0x11, 0)], &[0x00]);
+        // DC size 6, all-zero entropy → receive_extend(6 bits of 0)
+        // = -63: a distinctly darker flat frame.
+        let flat_dark = tiny_jpeg(16, 16, &[(1, 0x11, 0)], &[0x06]);
+        let reference_mid = match decode(&flat_mid) {
+            Ok(image) => image,
+            Err(e) => unreachable!("stateless mid: {e:?}"),
+        };
+        let reference_dark = match decode(&flat_dark) {
+            Ok(image) => image,
+            Err(e) => unreachable!("stateless dark: {e:?}"),
+        };
+        assert_ne!(
+            reference_mid.data, reference_dark.data,
+            "the pair must differ for stale bytes to be observable"
+        );
+
+        let mut ctx = DecodeContext::new();
+        let mut slots: Vec<SharedBytes> = Vec::new();
+        let mut next = 0usize;
+        let decode_pooled = |ctx: &mut DecodeContext,
+                             slots: &mut Vec<SharedBytes>,
+                             next: &mut usize,
+                             jpeg: &[u8]|
+         -> SharedBytes {
+            match ctx.decode_scan(jpeg) {
+                Ok(_) => {}
+                Err(e) => unreachable!("scan: {e:?}"),
+            }
+            let len = match ctx.frame_len() {
+                Ok(len) => len,
+                Err(e) => unreachable!("frame_len: {e:?}"),
+            };
+            match pooled_frame_slot(slots, next, len, |bytes| ctx.assemble_frame(bytes)) {
+                Ok(slot) => slot,
+                Err(e) => unreachable!("pooled fill: {e:?}"),
+            }
+        };
+
+        // Frame A fills the cold slot; frame B must overwrite ALL of
+        // it (no zeroing happens on the warm path). All three handles
+        // stay retained (downstream ownership), so each decode finds
+        // its predecessors busy and the pool grows one slot per
+        // retained frame — the PCM pool's documented cold behavior.
+        let a = decode_pooled(&mut ctx, &mut slots, &mut next, &flat_mid);
+        assert_eq!(a.as_slice(), reference_mid.data.as_slice());
+        assert_eq!(slots.len(), 1);
+        let b = decode_pooled(&mut ctx, &mut slots, &mut next, &flat_dark);
+        assert_eq!(
+            b.as_slice(),
+            reference_dark.data.as_slice(),
+            "warm-slot refill leaves no stale pixel"
+        );
+        assert_eq!(slots.len(), 2, "a retained → a fresh slot for b");
+        // And a third, back to A's content, through the warm pool.
+        let a2 = decode_pooled(&mut ctx, &mut slots, &mut next, &flat_mid);
+        assert_eq!(a2.as_slice(), reference_mid.data.as_slice());
+        assert_eq!(slots.len(), 3, "a+b retained → a third slot");
+        // Releasing the downstream owners returns slot 0 to the
+        // rotation: the next decode refills in place instead of
+        // growing the pool.
+        drop(a);
+        drop(b);
+        drop(a2);
+        let a3 = decode_pooled(&mut ctx, &mut slots, &mut next, &flat_mid);
+        assert_eq!(a3.as_slice(), reference_mid.data.as_slice());
+        assert_eq!(
+            slots.len(),
+            3,
+            "released slots re-enter the rotation, not the allocator"
+        );
+    }
+
+    #[test]
+    fn pooled_slots_rekey_on_geometry_and_stay_bounded() {
+        // Alternating geometries (different output lengths) plus a
+        // downstream owner that RETAINS frames: the pool re-keys on
+        // exact length (cold path per new length), never grows past
+        // FRAME_SLOTS, and every handed-out frame is bit-exact vs the
+        // stateless reference.
+        let small = tiny_jpeg(16, 16, &[(1, 0x11, 0)], &[0x00]);
+        let large = tiny_jpeg(32, 32, &[(1, 0x11, 0)], &[0x00]);
+        let ref_small = match decode(&small) {
+            Ok(image) => image,
+            Err(e) => unreachable!("stateless small: {e:?}"),
+        };
+        let ref_large = match decode(&large) {
+            Ok(image) => image,
+            Err(e) => unreachable!("stateless large: {e:?}"),
+        };
+
+        let mut ctx = DecodeContext::new();
+        let mut slots: Vec<SharedBytes> = Vec::new();
+        let mut next = 0usize;
+        let mut retained: Vec<SharedBytes> = Vec::new();
+        for round in 0..12 {
+            let (jpeg, reference) = if round % 2 == 0 {
+                (&small, &ref_small)
+            } else {
+                (&large, &ref_large)
+            };
+            match ctx.decode_scan(jpeg) {
+                Ok(_) => {}
+                Err(e) => unreachable!("scan: {e:?}"),
+            }
+            let len = match ctx.frame_len() {
+                Ok(len) => len,
+                Err(e) => unreachable!("frame_len: {e:?}"),
+            };
+            let slot = match pooled_frame_slot(&mut slots, &mut next, len, |bytes| {
+                ctx.assemble_frame(bytes)
+            }) {
+                Ok(slot) => slot,
+                Err(e) => unreachable!("pooled fill: {e:?}"),
+            };
+            assert_eq!(slot.as_slice(), reference.data.as_slice());
+            retained.push(slot); // downstream keeps every frame
+            assert!(
+                slots.len() <= FRAME_SLOTS,
+                "pool bounded at FRAME_SLOTS ({} entries)",
+                slots.len()
+            );
+        }
+        // With every frame retained the pool entered its full
+        // rotation; dropping the downstream owners returns the slots
+        // to refillable state (the next decode reuses, not grows).
+        let before = slots.len();
+        retained.clear();
+        match ctx.decode_scan(&small) {
+            Ok(_) => {}
+            Err(e) => unreachable!("scan: {e:?}"),
+        }
+        let len = match ctx.frame_len() {
+            Ok(len) => len,
+            Err(e) => unreachable!("frame_len: {e:?}"),
+        };
+        let slot = match pooled_frame_slot(&mut slots, &mut next, len, |bytes| {
+            ctx.assemble_frame(bytes)
+        }) {
+            Ok(slot) => slot,
+            Err(e) => unreachable!("pooled fill: {e:?}"),
+        };
+        assert_eq!(slot.as_slice(), ref_small.data.as_slice());
+        assert_eq!(slots.len(), before, "release returns slots to rotation");
+    }
+
+    #[test]
+    fn assemble_frame_rejects_a_wrong_length_destination() {
+        // The length contract is loud: a destination that disagrees
+        // with the walked geometry is a typed error, never a partial
+        // frame and never a panic.
+        let jpeg = tiny_jpeg(16, 16, &[(1, 0x11, 0)], &[0x00]);
+        let mut ctx = DecodeContext::new();
+        match ctx.decode_scan(&jpeg) {
+            Ok(_) => {}
+            Err(e) => unreachable!("scan: {e:?}"),
+        }
+        let len = match ctx.frame_len() {
+            Ok(len) => len,
+            Err(e) => unreachable!("frame_len: {e:?}"),
+        };
+        let mut too_short = vec![0u8; len - 1];
+        assert!(ctx.assemble_frame(&mut too_short).is_err());
+        let mut too_long = vec![0u8; len + 1];
+        assert!(ctx.assemble_frame(&mut too_long).is_err());
+        let mut exact = vec![0u8; len];
+        match ctx.assemble_frame(&mut exact) {
+            Ok(()) => {}
+            Err(e) => unreachable!("exact length assembles: {e:?}"),
+        }
+        let reference = match decode(&jpeg) {
+            Ok(image) => image,
+            Err(e) => unreachable!("stateless reference: {e:?}"),
+        };
+        assert_eq!(exact, reference.data);
     }
 }
