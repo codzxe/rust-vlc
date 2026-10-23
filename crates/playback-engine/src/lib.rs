@@ -120,4 +120,4 @@ pub use state::{
     Effect, PipelineSignal, RejectionReason, SessionInput, SessionState, TRANSITIONS, Transition,
     TransitionRejected, apply_input, close_plan, rejection_reason, translate_pipeline_signal,
 };
-pub use tracks::{TrackSelectionError, TrackSelector};
+pub use tracks::{TrackSelectionError, TrackSelector, UnwiredKind, WiredKind};

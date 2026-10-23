@@ -1,6 +1,14 @@
 //! The instrumented sources + probe conformance checks (card 2.A2; the
 //! input crate's `contract` pattern, doc 03 §4.1/§4.2).
 //!
+//! **Test/conformance-only surface (audit F-2):** the whole module is
+//! `#[cfg(any(test, feature = "contract"))]` — unit tests compile it
+//! always, integration tests and the doc 06 §7 conformance kit enable
+//! the `contract` feature, and **release binaries carry none of it**
+//! (the executable-contract `assert_*`/`unreachable!` vocabulary is a
+//! failure signal for implementations under test, not a runtime
+//! condition).
+//!
 //! [`CountingSource`] is an in-memory [`SourceStream`] and
 //! [`CountingStream`] a pass-through adapter over any opened stream
 //! (the real access stack) — both record every read request they

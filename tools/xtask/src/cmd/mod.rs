@@ -17,6 +17,7 @@
 //! | `cmd::tokens`            | `tokens`             | 1.B4 (implemented) |
 //! | `cmd::codegen`           | `codegen`            | 1.D4 (implemented) |
 //! | `cmd::check_architecture`| `check-architecture` | 1.E1 (implemented) |
+//! | `cmd::check_panics`     | `check-panics`      | 7-e (implemented — the F-5 panic-surface gate; registered under card 7-e's granted ownership of tools/xtask for the F-5 step) |
 //! | `cmd::rebrand`           | `rebrand`            | 1.E4 (implemented) |
 //! | `cmd::fixtures`          | `fixtures`           | 2.A3 |
 
@@ -25,6 +26,7 @@ use std::process::ExitCode;
 use crate::XtaskError;
 
 pub mod check_architecture;
+pub mod check_panics;
 pub mod codegen;
 pub mod fixtures;
 pub mod gate;
@@ -83,6 +85,13 @@ pub const SUBCOMMANDS: &[Subcommand] = &[
         summary: "Architecture boundary checks (doc 01 §5)",
         implemented: true,
         run: check_architecture::run,
+    },
+    Subcommand {
+        name: "check-panics",
+        card: "7-e",
+        summary: "Panic-surface gate: panic family outside test context (audit F-5)",
+        implemented: true,
+        run: check_panics::run,
     },
     Subcommand {
         name: "rebrand",

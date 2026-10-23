@@ -5,8 +5,9 @@
 mod common;
 
 use common::{TempDir, TempFile, pattern, running_privileged};
-use input::FileAccess;
+#[cfg(feature = "contract")]
 use input::contract::assert_stream_contract;
+use input::FileAccess;
 use media_types::error::AccessDenied;
 use media_types::ids::SourceUri;
 use media_types::{EngineError, ErrorKind};
@@ -22,6 +23,10 @@ fn open(uri: &str) -> Result<Box<dyn SourceStream>, EngineError> {
 /// Read/seek/EOF over a real file, through the plugin-api trait: the
 /// shared contract check (varied chunk sizes, position consistency,
 /// clean sticky EOF, typed seek errors both sides of the length).
+///
+/// Feature-gated (audit F-2): drives the test/conformance-only
+/// `input::contract` module — CI's `--all-features` runs it.
+#[cfg(feature = "contract")]
 #[test]
 fn real_file_passes_the_stream_contract() {
     let data = pattern(5000);
@@ -183,6 +188,10 @@ fn oversized_read_requests_are_typed_limit_errors() {
 /// `read_into` through the plugin-api trait object over a real
 /// `FileAccess` stream — varied caller buffers, position tracking,
 /// clean EOF, and byte-agreement with `read`.
+///
+/// Feature-gated (audit F-2): drives the test/conformance-only
+/// `input::contract` module — CI's `--all-features` runs it.
+#[cfg(feature = "contract")]
 #[test]
 fn real_file_passes_the_read_into_contract() {
     let data = pattern(5000);

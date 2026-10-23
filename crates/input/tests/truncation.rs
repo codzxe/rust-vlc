@@ -7,6 +7,12 @@
 //! fault is real: `set_len` on the live file underneath an open stream,
 //! at several positions relative to the reader cursor and the buffer
 //! window.
+//!
+//! Feature-gated (audit F-2): the suite drives the shared executable
+//! contract in `input::contract`, which is test/conformance-only —
+//! run with `--features contract` (CI's `--all-features` always
+//! does).
+#![cfg(feature = "contract")]
 
 mod common;
 

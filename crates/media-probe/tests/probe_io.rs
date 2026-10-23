@@ -10,6 +10,12 @@
 //! the same instrumentation shape as `input`'s own
 //! `contract::assert_bounded_read`, applied at the probe's window
 //! instead of the reader's capacity.
+//!
+//! Feature-gated (audit F-2): the instrumentation and executable
+//! checks live in `media_probe::contract`, a test/conformance-only
+//! module — run with `--features contract` (CI's `--all-features`
+//! always does).
+#![cfg(feature = "contract")]
 
 mod common;
 

@@ -29,6 +29,7 @@
 //! `plugin_api::SourceStream`).
 
 use media_types::EngineError;
+use plugin_api::SeekOrigin;
 
 /// A byte source whose position and length are observable and whose
 /// seeks fail with typed errors (card 2.A1: position/length; seek
@@ -68,4 +69,61 @@ pub trait RawRead {
     /// [`EngineError`] — the source's I/O fold (see
     /// [`crate::error`]).
     fn read(&mut self, out: &mut [u8]) -> Result<usize, EngineError>;
+}
+
+/// Resolve a [`SeekOrigin`] against `from` into an absolute target,
+/// rejecting before-start and overflowing positions with typed errors
+/// (the module's shared seek semantics, in the
+/// `SourceStream::seek` shape — used by the file access stack and
+/// the synthetic conformance source alike; audit F-2 moved it here
+/// from the test-side contract module so the module can be
+/// feature-gated without touching production).
+///
+/// # Errors
+/// [`EngineError`] (stage `Open`) — `input.seek.before-start` when
+/// the resolved target is negative, `input.seek.overflow` when it
+/// exceeds `u64::MAX`.
+pub(crate) fn resolve_origin(
+    from: u64,
+    origin: SeekOrigin,
+) -> Result<u64, EngineError> {
+    match origin {
+        SeekOrigin::Start(to) => Ok(to),
+        SeekOrigin::Current(delta) => {
+            let target = i128::from(from) + i128::from(delta);
+            if target < 0 {
+                Err(crate::error::seek_before_start())
+            } else if target > i128::from(u64::MAX) {
+                Err(crate::error::seek_overflow())
+            } else {
+                Ok(target as u64)
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use testkit::Must;
+
+    /// Relative-origin resolution: negatives, overflow, exact bounds
+    /// (pinned with the helper in its new home, audit F-2 — the test
+    /// ran in the contract module before the module was gated).
+    #[test]
+    fn resolve_origin_math_is_checked() {
+        assert_eq!(resolve_origin(10, SeekOrigin::Start(3)).must(), 3);
+        assert_eq!(resolve_origin(10, SeekOrigin::Current(5)).must(), 15);
+        assert_eq!(resolve_origin(10, SeekOrigin::Current(-10)).must(), 0);
+        let before = testkit::assert_err(resolve_origin(0, SeekOrigin::Current(-1)), "before");
+        assert_eq!(before.context.code, "input.seek.before-start");
+        let over =
+            testkit::assert_err(resolve_origin(u64::MAX, SeekOrigin::Current(2)), "overflow");
+        assert_eq!(over.context.code, "input.seek.overflow");
+        // The u64::MAX boundary itself resolves.
+        assert_eq!(
+            resolve_origin(u64::MAX - 1, SeekOrigin::Current(1)).must(),
+            u64::MAX
+        );
+    }
 }

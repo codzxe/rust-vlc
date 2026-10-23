@@ -12,18 +12,39 @@ use std::num::NonZeroUsize;
 
 use media_types::time::{Duration, Nanoseconds};
 
-/// A non-zero cap from a compile-time literal.
+/// A non-zero cap from a compile-time literal (audit F-3, the
+/// video-engine `policy.rs:186-190` precedent).
 ///
 /// Only ever called with literals in this crate (the doc 03 §4.4(b)
-/// defaults), so the `None` arm is a broken-invariant abort, not a
-/// runtime condition — the same contract testkit's `Must` expresses,
-/// kept local because testkit is dev-only (ARCH-7).
-fn cap(literal: usize) -> NonZeroUsize {
+/// defaults), and only from `const` items — so the impossible arm is
+/// a **build failure**, not a runtime abort: a `loop` in const
+/// position never yields a value, which means zeroing one of the
+/// literal call sites below fails compilation instead of panicking
+/// (or hanging) when the default is first used. The runtime abort
+/// arm this replaces (`unreachable!`) only ever fired after the
+/// damage was already shipped.
+///
+/// Scoped `allow`: clippy's suggested fix for the empty loop is
+/// `panic!()` — denied by the workspace lint block — so this is a
+/// false positive here; the arm is provably dead const code.
+#[allow(clippy::empty_loop)]
+const fn cap(literal: usize) -> NonZeroUsize {
     match NonZeroUsize::new(literal) {
         Some(n) => n,
-        None => unreachable!("cap literal {literal} is non-zero by construction"),
+        None => loop {},
     }
 }
+
+/// Doc 03 §4.4(b) audio-queue packet cap: 200. A `const` item so the
+/// literal is const-evaluated (see [`cap`]).
+const AUDIO_DEFAULT_PACKETS: NonZeroUsize = cap(200);
+
+/// Doc 03 §4.4(b) video-queue packet cap: 300.
+const VIDEO_DEFAULT_PACKETS: NonZeroUsize = cap(300);
+
+/// Doc 03 §4.4(b) subtitle-queue packet cap: 128 (card 3.B3's
+/// "small and duration-only" figures).
+const SUBTITLE_DEFAULT_PACKETS: NonZeroUsize = cap(128);
 
 /// One axis of a queue's boundedness — the limit that refused a push.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -147,7 +168,7 @@ impl QueueLimits {
     #[must_use]
     pub fn audio_default(max_bytes: NonZeroUsize) -> QueueLimits {
         QueueLimits {
-            max_packets: cap(200),
+            max_packets: AUDIO_DEFAULT_PACKETS,
             max_bytes,
             max_duration: Nanoseconds(1_000_000_000),
         }
@@ -159,7 +180,7 @@ impl QueueLimits {
     #[must_use]
     pub fn video_default(max_bytes: NonZeroUsize) -> QueueLimits {
         QueueLimits {
-            max_packets: cap(300),
+            max_packets: VIDEO_DEFAULT_PACKETS,
             max_bytes,
             max_duration: Nanoseconds(2_000_000_000),
         }
@@ -173,7 +194,7 @@ impl QueueLimits {
     #[must_use]
     pub fn subtitle_default(max_bytes: NonZeroUsize) -> QueueLimits {
         QueueLimits {
-            max_packets: cap(128),
+            max_packets: SUBTITLE_DEFAULT_PACKETS,
             max_bytes,
             max_duration: Nanoseconds(10_000_000_000),
         }

@@ -23,7 +23,10 @@
 //! - [`contract`] — the instrumented [`CountingSource`] and the
 //!   executable probe-side contract (depth bound, position restore)
 //!   for this crate's tests, the engine wiring tests and the doc 06
-//!   §7 conformance kit.
+//!   §7 conformance kit. **Test/conformance-only** (audit F-2):
+//!   compiled under `#[cfg(any(test, feature = "contract"))]` —
+//!   release binaries carry none of its panicky conformance
+//!   vocabulary.
 //! - [`error`] — typed error constructors at stage
 //!   [`PipelineStage::Probe`](media_types::PipelineStage::Probe); the
 //!   taxonomy is media-types' and is never duplicated here.
@@ -66,34 +69,80 @@
 //! Std-only, zero external dependencies (C5); no `unsafe`; no
 //! `unwrap`/`expect`/`panic!`/`todo!`/`dbg!` in non-test code
 //! (`unreachable!` only on provably-dead literal-contract arms, the
-//! testkit `must` precedent); bounded memory: the window is the only
-//! allocation and it is ceiling-capped.
+//! testkit `must` precedent — confined to the feature-gated
+//! `contract` module, which never compiles into release builds);
+//! bounded memory: the window is the only allocation and it is
+//! ceiling-capped.
 //!
 //! # Example
 //!
-//! Probe an in-memory window (the pure path), then a real stream:
+//! Probe an in-memory window (the pure path), then a stream:
 //!
 //! ```
-//! use media_probe::contract::CountingSource;
-//! use media_probe::{probe_stream, ProbeConfig, ProbeRegistry};
-//! use plugin_api::SourceStream;
+//! use media_probe::{ProbeConfig, ProbeRegistry, SourceMeta, probe_stream};
+//! use media_types::ids::SourceUri;
+//! use media_types::EngineError;
+//! use plugin_api::{SeekOrigin, SourcePosition, SourceStream};
 //!
-//! # fn main() -> Result<(), media_types::EngineError> {
+//! # fn main() -> Result<(), EngineError> {
 //! // A minimal RIFF/AVI header window.
 //! let mut avi = b"RIFF\x24\x7e\x06\x00AVI ".to_vec();
 //! avi.extend_from_slice(b"LIST\xec\x00\x00\x00hdrlavih\x38\x00\x00\x00");
 //!
 //! // Pure scoring: registry + window + meta + config.
 //! let registry = ProbeRegistry::with_builtins();
-//! let meta = media_probe::SourceMeta::new(Some(avi.len() as u64), Some("avi"));
+//! let meta = SourceMeta::new(Some(avi.len() as u64), Some("avi"));
 //! let config = ProbeConfig::default();
 //! let report = registry.probe(&avi, &meta, &config)?;
 //! assert_eq!(report.format.as_str(), "avi");
 //! assert_eq!(report.confidence.as_u8(), 90); // magic + hdrl + avih
 //!
 //! // Stream probing: the window is filled (bounded), scored, and the
-//! // position restored — the source serves the same bytes again.
-//! let mut source = CountingSource::new(&avi);
+//! // position restored — the source serves the same bytes again. The
+//! // source here is a minimal in-memory `SourceStream` (a doc stand-in
+//! // for a real access stream; the crate's own instrumented sources
+//! // live in the test-only `contract` module).
+//! struct Window {
+//!     data: Vec<u8>,
+//!     pos: usize,
+//!     uri: SourceUri,
+//! }
+//! impl SourceStream for Window {
+//!     fn uri(&self) -> &SourceUri {
+//!         &self.uri
+//!     }
+//!     fn size(&self) -> Option<u64> {
+//!         Some(self.data.len() as u64)
+//!     }
+//!     fn supports_seek(&self) -> bool {
+//!         true
+//!     }
+//!     fn read(&mut self, len: usize) -> Result<Vec<u8>, EngineError> {
+//!         let take = len.min(self.data.len() - self.pos);
+//!         let out = self.data[self.pos..self.pos + take].to_vec();
+//!         self.pos += take;
+//!         Ok(out)
+//!     }
+//!     fn seek(&mut self, origin: SeekOrigin) -> Result<SourcePosition, EngineError> {
+//!         let to = match origin {
+//!             SeekOrigin::Start(to) => to.min(self.data.len() as u64) as usize,
+//!             SeekOrigin::Current(delta) => {
+//!                 (self.pos as i64 + delta).clamp(0, self.data.len() as i64) as usize
+//!             }
+//!         };
+//!         self.pos = to;
+//!         Ok(SourcePosition(to as u64))
+//!     }
+//!     fn position(&self) -> SourcePosition {
+//!         SourcePosition(self.pos as u64)
+//!     }
+//! }
+//! let uri = SourceUri::parse("file:///probe-example.avi")?;
+//! let mut source = Window {
+//!     data: avi.clone(),
+//!     pos: 0,
+//!     uri,
+//! };
 //! let report = probe_stream(&registry, &mut source, &config)?;
 //! assert_eq!(report.format.as_str(), "avi");
 //! assert_eq!(source.position().0, 0, "position restored");
@@ -104,6 +153,7 @@
 //! ```
 
 pub mod config;
+#[cfg(any(test, feature = "contract"))]
 pub mod contract;
 pub mod error;
 pub mod report;
@@ -185,6 +235,31 @@ fn fill_window(stream: &mut dyn SourceStream, max: usize) -> Result<Vec<u8>, Eng
 mod tests {
     use super::*;
     use crate::contract::{CountingSource, assert_position_restored, assert_probe_depth_bounded};
+
+    /// The doctest's inline in-memory source, against the crate's own
+    /// instrumented source: both must probe identically (audit F-2's
+    /// doctest rewrite keeps the example honest — this pin keeps the
+    /// crate honest about it).
+    #[test]
+    fn doctest_shape_probes_like_the_instrumented_source() {
+        let mut data = b"RIFF\x24\x7e\x06\x00AVI ".to_vec();
+        data.extend_from_slice(b"LIST\xec\x00\x00\x00hdrlavih\x38\x00\x00\x00");
+        let registry = ProbeRegistry::with_builtins();
+        let mut source = CountingSource::new(&data);
+        let config = match ProbeConfig::new(4096, 60) {
+            Ok(config) => config,
+            Err(e) => unreachable!("{e}"),
+        };
+        let report = match probe_stream(&registry, &mut source, &config) {
+            Ok(report) => report,
+            Err(e) => unreachable!("{e}"),
+        };
+        assert_eq!(report.format.as_str(), "avi");
+        assert_eq!(report.confidence.as_u8(), 90);
+        assert_eq!(source.position().0, 0, "position restored");
+        assert_position_restored(&source, plugin_api::SourcePosition(0));
+        assert_probe_depth_bounded(&source, config.max_lookahead);
+    }
 
     fn ok<T, E: std::fmt::Display>(r: Result<T, E>) -> T {
         match r {
