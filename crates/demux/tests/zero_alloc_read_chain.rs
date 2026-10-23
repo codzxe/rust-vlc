@@ -378,11 +378,17 @@ fn vec_twins_cost_exactly_one_allocation_per_call() {
     );
 }
 
-/// The pool's spill path for varying sizes is bounded and honest: a
-/// mixed-size walk (the JPEG shape) pays one exact-size allocation per
-/// payload — never growth, never waits.
+/// The pool's varying-size path (7-c, V-1): a mixed-size walk — the
+/// JPEG shape, a distinct size per payload — pays **zero** allocations
+/// once the arena is warm. Pre-7-c the exact-size slot pool never
+/// matched a varying size, so every payload spilled (one exact-size
+/// allocation + one Arc conversion = 2 events/payload — the pin this
+/// test replaced, `PAYLOADS * 2`); the arena serves any size ≤ its
+/// capacity, packing small payloads at the cursor and recycling the
+/// drained generation, so the per-payload count went 2 → 0 (the
+/// counting-allocator evidence for the memory-audit V-1 fix).
 #[test]
-fn varying_size_spill_is_exactly_one_alloc_per_payload() {
+fn varying_size_payloads_pack_into_the_arena_zero_alloc() {
     let _serial = serialize_tests();
     const PAYLOADS: u64 = 128;
     let delta = clean_replay(
@@ -394,12 +400,13 @@ fn varying_size_spill_is_exactly_one_alloc_per_payload() {
             .must();
             let mut pool = demux::avi::riff::PayloadSlots::default();
 
-            // Warm-up with one size so the pool is populated.
+            // Warm-up: one fill spills a 256-byte arena into the pool.
             let _ = pool.fill(256, |out| reader.read_prefix_into(out, 0)).must();
             let guard = ALLOC.state().guard();
             for index in 0..PAYLOADS {
-                // A distinct size per payload: every one spills (the varying
-                // shape), each into one exact-size allocation.
+                // A distinct size per payload (the varying shape): each
+                // packs at the cursor or recycles the drained arena —
+                // never an allocation.
                 let want = 64 + (index as usize % 512);
                 let at = (index % 32) * 64;
                 let handle = pool
@@ -410,15 +417,59 @@ fn varying_size_spill_is_exactly_one_alloc_per_payload() {
             }
             guard.delta()
         },
+        is_zero,
+    );
+    assert_eq!(
+        delta.alloc_calls,
+        0,
+        "128 varying payloads over a warm arena: 0 allocs (pre-7-c pin: {} — \
+         one spill + one Arc conversion per payload)",
+        PAYLOADS * 2
+    );
+}
+
+/// The true spill path stays bounded and honest (7-c): payloads over
+/// the arena ceiling — or arriving while every arena is pinned — pay
+/// exactly one exact-size allocation plus the constant-size Arc
+/// header (2 events/payload, the same two-step the pre-7-c varying
+/// walk paid for *every* payload), and oversized spills never enter
+/// the pool.
+#[test]
+fn over_ceiling_spill_is_exactly_two_allocs_per_payload() {
+    let _serial = serialize_tests();
+    const PAYLOADS: u64 = 32;
+    const CEILING: usize = 1024;
+    let delta = clean_replay(
+        || {
+            let data = movi_layout(64, 4096);
+            let mut reader = demux::avi::riff::SourceReader::new(Box::new(BorrowMemSource::new(
+                std::sync::Arc::clone(&data),
+            )))
+            .must();
+            // A tight ceiling: every ask in the loop is over it, so
+            // each payload is a true spill that never pools.
+            let mut pool = demux::avi::riff::PayloadSlots::new(2, CEILING);
+
+            // Warm-up: one under-ceiling fill populates the pool.
+            let _ = pool.fill(256, |out| reader.read_prefix_into(out, 0)).must();
+            let guard = ALLOC.state().guard();
+            for index in 0..PAYLOADS {
+                let want = CEILING + 64 + (index as usize % 256);
+                let handle = pool
+                    .fill(want, |out| reader.read_prefix_into(out, 0))
+                    .must();
+                assert_eq!(handle.len(), want);
+                drop(handle);
+            }
+            assert_eq!(pool.resident_slots(), 1, "oversized spills never pool");
+            guard.delta()
+        },
         |delta: &AllocDelta| delta.alloc_calls == PAYLOADS * 2,
     );
-    // The spill allocation plus the Arc conversion inside
-    // SharedBytes::from_vec — the same two-step every payload paid
-    // pre-3.B3, minus the reader's accumulator.
     assert_eq!(
         delta.alloc_calls,
         PAYLOADS * 2,
-        "one spill + one Arc conversion per varying payload: {} payloads, {} allocs",
+        "one spill buffer + one Arc header per over-ceiling payload: {} payloads, {} allocs",
         PAYLOADS,
         delta.alloc_calls
     );
