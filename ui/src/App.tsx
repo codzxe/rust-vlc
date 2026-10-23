@@ -2,6 +2,9 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { PlayerScreen } from "./screens/player";
 import { ScreenPlaceholder } from "./screens/ScreenPlaceholder";
 import { SettingsScreen } from "./screens/settings/SettingsScreen";
+// Card 4.F1 first-run gate: /onboarding is the landing until the wizard is
+// finished or skipped; after that, normal routing.
+import { OnboardingEntry, RequireOnboarding } from "./screens/onboarding/OnboardingScreen";
 import { TokenSandbox } from "./tokens/TokenSandbox";
 
 // Routing skeleton for the doc 08 §1.6 screen inventory. Route names are the
@@ -13,7 +16,14 @@ export function App() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/player" replace />} />
-      <Route path="/player" element={<PlayerScreen />} />
+      <Route
+        path="/player"
+        element={
+          <RequireOnboarding>
+            <PlayerScreen />
+          </RequireOnboarding>
+        }
+      />
       <Route
         path="/player/music"
         element={<ScreenPlaceholder routeKey="screen.player.music" />}
@@ -22,7 +32,7 @@ export function App() {
       <Route path="/playlist" element={<ScreenPlaceholder routeKey="screen.playlist" />} />
       <Route path="/settings" element={<Navigate to="/settings/global" replace />} />
       <Route path="/settings/:area" element={<SettingsScreen />} />
-      <Route path="/onboarding" element={<ScreenPlaceholder routeKey="screen.onboarding" />} />
+      <Route path="/onboarding" element={<OnboardingEntry />} />
       <Route
         path="/keyboard-shortcuts"
         element={<ScreenPlaceholder routeKey="screen.keyboard-shortcuts" />}

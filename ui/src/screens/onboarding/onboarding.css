@@ -1,0 +1,226 @@
+/* Onboarding wizard (card 4.F1). Geometry from the design exports
+ * (doc 08 §1.4/§1.6): window 1090×759 rx14, step-progress bars 14-high rx3,
+ * theme cards 100×100 rx12 with a 21-radius accent selection ring, primary
+ * button 32-high. Colors/radii/spacing strictly via semantic tokens. */
+
+.onboarding {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: var(--space-inset);
+  background: var(--color-surface-deep);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body);
+  color: var(--color-content-primary);
+}
+
+/* Window: 1090×759 rx14 capped to the viewport (exports are 1.1× artboards;
+ * height clamps, width is max-content-ish per §1.3 scale note). */
+.onboarding__window {
+  display: flex;
+  flex-direction: column;
+  width: min(1090px, 100%);
+  max-height: min(759px, 100%);
+  padding: calc(var(--space-grid) * 3);
+  gap: var(--space-grid);
+  border-radius: var(--radius-window);
+  background: var(--color-surface);
+  overflow: auto;
+}
+
+.onboarding__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+}
+
+.onboarding__title {
+  margin: 0;
+  font-size: var(--font-size-display);
+  font-weight: var(--font-weight-medium);
+}
+
+.onboarding__body {
+  margin: 0;
+  max-width: 60ch;
+  color: var(--color-content-secondary);
+}
+
+/* Step progress: 14-high bars rx3 (normalized from the 15.4px/1.1× export). */
+.onboarding__progress {
+  display: flex;
+  gap: calc(var(--space-grid) / 2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.onboarding__progress-bar {
+  width: calc(var(--space-grid) * 4);
+  height: calc(var(--space-grid) * 2);
+  border-radius: var(--radius-inset);
+  background: var(--color-surface-muted);
+}
+
+.onboarding__progress-bar--done,
+.onboarding__progress-bar--current {
+  background: var(--color-accent);
+}
+
+.onboarding__progress-bar--current {
+  opacity: var(--opacity-emphasis);
+}
+
+/* Step body fills the window between header and footer. */
+.onboarding__step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+  min-height: 0;
+}
+
+/* Privacy rows: label + honest description + opt-in switch. */
+.onboarding__privacy-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.onboarding__privacy-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-grid);
+  padding: var(--space-grid);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface-deep);
+}
+
+.onboarding__privacy-text {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-grid) / 2);
+}
+
+.onboarding__privacy-label {
+  font-weight: var(--font-weight-medium);
+}
+
+.onboarding__privacy-description {
+  margin: 0;
+  color: var(--color-content-secondary);
+  font-size: var(--font-size-caption);
+}
+
+.onboarding__privacy-note {
+  margin: 0;
+  color: var(--color-content-tertiary);
+  font-size: var(--font-size-caption);
+}
+
+/* Appearance: theme cards 100×100 rx12 + 21-radius selection ring (accent). */
+.onboarding__theme-cards {
+  display: flex;
+  gap: var(--space-grid);
+  flex-wrap: wrap;
+}
+
+.onboarding__theme-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--space-grid) / 2);
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--color-content-primary);
+  cursor: pointer;
+}
+
+.onboarding__theme-swatch {
+  width: 100px;
+  height: 100px;
+  border-radius: var(--radius-card);
+  background: var(--color-surface-muted);
+  box-shadow: 0 0 0 2px transparent; /* keeps layout when the ring appears */
+}
+
+.onboarding__theme-card--light .onboarding__theme-swatch {
+  background: var(--color-surface-selected);
+}
+
+.onboarding__theme-card--dark .onboarding__theme-swatch {
+  background: var(--color-surface-deep);
+}
+
+.onboarding__theme-card--auto .onboarding__theme-swatch {
+  background: linear-gradient(
+    135deg,
+    var(--color-surface-selected) 50%,
+    var(--color-surface-deep) 50%
+  );
+}
+
+.onboarding__theme-card[aria-pressed="true"] .onboarding__theme-swatch {
+  box-shadow: 0 0 0 4px var(--color-accent);
+  border-radius: var(--radius-ring);
+}
+
+/* Accent swatches (doc 08 §1.5 secondary set, 9 ids). */
+.onboarding__accents {
+  display: flex;
+  gap: var(--space-grid);
+  flex-wrap: wrap;
+}
+
+.onboarding__accent {
+  width: calc(var(--space-grid) * 4);
+  height: calc(var(--space-grid) * 4);
+  border-radius: 999px;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background: var(--color-accent-tinted);
+}
+
+/* The selected swatch fills with the LIVE accent token — picking a swatch
+ * updates root[data-accent], so this is the live preview itself. */
+.onboarding__accent[aria-pressed="true"] {
+  background: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-content-primary);
+}
+
+.onboarding__shortcut-list {
+  margin: 0;
+  padding: 0 0 0 var(--space-grid);
+  color: var(--color-content-secondary);
+}
+
+/* Footer actions: Back (default) · Skip (default) · Next/Done (primary). */
+.onboarding__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-grid);
+}
+
+.onboarding__footer-group {
+  display: flex;
+  gap: var(--space-grid);
+}
+
+.onboarding__hidden {
+  visibility: hidden; /* keeps footer geometry stable across steps */
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .onboarding__progress-bar {
+    transition: background 120ms ease;
+  }
+}
