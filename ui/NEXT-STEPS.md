@@ -130,7 +130,6 @@ Next for sliders:
 - Miniplayer dense variant (16px track / 8×12 knob) reuses base `.lumen-slider`
   styles as-is; add a variant class only if the composite needs it.
 
-<<<<<<< HEAD
 ## 4.C1 — player screen shell (session 1, committed 77f4888 on wip/p4-c1)
 
 Done (ui/src/screens/player/** only + /player route + player.* i18n keys):
@@ -204,7 +203,6 @@ Open items (VERIFY/PROPOSAL ledger for this card):
 - 4.C3 note: first-run empty state lives in the shell per card 4.C1;
   coordinate if states/** re-implements it richer (loading/buffering/
   unsupported/error own that dir).
-=======
 ## Card 4.E1 — Settings framework (schema-driven) — DONE
 
 What landed (branch wip/p4-e1, commits d8114b1 + tests):
@@ -252,4 +250,3 @@ Handoffs / next actions:
   `messages.ts` for now — migrate to `locales/en-US.toml` when the generated
   locale packs land; the localization crate's reference-complete audit (rule
   4) will then own the join.
->>>>>>> wip/p4-e1

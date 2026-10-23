@@ -1,27 +1,13 @@
-<<<<<<< HEAD
-import { Navigate, Route, Routes, useParams } from "react-router-dom";
-import { PlayerScreen } from "./screens/player";
-=======
 import { Navigate, Route, Routes } from "react-router-dom";
->>>>>>> wip/p4-e1
+import { PlayerScreen } from "./screens/player";
 import { ScreenPlaceholder } from "./screens/ScreenPlaceholder";
 import { SettingsScreen } from "./screens/settings/SettingsScreen";
 import { TokenSandbox } from "./tokens/TokenSandbox";
 
 // Routing skeleton for the doc 08 §1.6 screen inventory. Route names are the
-<<<<<<< HEAD
 // doc's [PROPOSAL] names. The player route is the real 4.C1 screen shell;
+// the settings routes render the real schema-generated framework (card 4.E1);
 // every other screen renders an honest placeholder until its card lands.
-
-function SettingsScreen() {
-  const { area } = useParams();
-  return <ScreenPlaceholder routeKey="screen.settings" detail={area} />;
-}
-=======
-// doc's [PROPOSAL] names; every screen renders an honest placeholder until
-// its Figma-exact composition card lands. The settings routes render the
-// real schema-generated framework (card 4.E1); content groups land 4.E2–4.E4.
->>>>>>> wip/p4-e1
 
 export function App() {
   return (

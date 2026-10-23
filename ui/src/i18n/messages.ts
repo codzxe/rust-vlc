@@ -20,7 +20,6 @@ export type MessageKey =
   | "screen.dev.tokens"
   | "tokens.mode"
   | "tokens.accent"
-<<<<<<< HEAD
   // --- player screen shell (card 4.C1) ---
   | "player.canvas.label"
   | "player.canvas.placeholder"
@@ -34,8 +33,7 @@ export type MessageKey =
   | "player.menu.app"
   | "player.empty.title"
   | "player.empty.body"
-  | "player.empty.open";
-=======
+  | "player.empty.open"
   // Settings framework chrome (card 4.E1).
   | "settings.nav.title"
   | "settings.search.label"
@@ -102,7 +100,6 @@ export type MessageKey =
   | "settings.value.playback-hw-decode-policy.software-only"
   | "settings.value.playback-hw-decode-policy.prefer-hardware"
   | "settings.value.playback-hw-decode-policy.hardware-only";
->>>>>>> wip/p4-e1
 
 const messages: Readonly<Record<MessageKey, string>> = {
   "screen.player": "Player",
@@ -119,7 +116,6 @@ const messages: Readonly<Record<MessageKey, string>> = {
   "screen.dev.tokens": "Token sandbox (dev fixture — not a product screen)",
   "tokens.mode": "Mode",
   "tokens.accent": "Accent",
-<<<<<<< HEAD
   // --- player screen shell (card 4.C1) ---
   "player.canvas.label": "Video canvas",
   "player.canvas.placeholder": "Placeholder: video output is not connected yet — engine wiring lands with card 4.H1.",
@@ -134,7 +130,6 @@ const messages: Readonly<Record<MessageKey, string>> = {
   "player.empty.title": "No media open",
   "player.empty.body": "Open media to start playback.",
   "player.empty.open": "Open media",
-=======
   "settings.nav.title": "Settings",
   "settings.search.label": "Search settings",
   "settings.search.no-results": "No settings match your search",
@@ -196,7 +191,6 @@ const messages: Readonly<Record<MessageKey, string>> = {
   "settings.value.playback-hw-decode-policy.software-only": "Software only",
   "settings.value.playback-hw-decode-policy.prefer-hardware": "Prefer hardware",
   "settings.value.playback-hw-decode-policy.hardware-only": "Hardware only",
->>>>>>> wip/p4-e1
 };
 
 export type Msg = (key: MessageKey) => string;
