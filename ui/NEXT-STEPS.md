@@ -101,3 +101,37 @@ at merge), README brought to closure state. All four gates green.
 - Node 24.21.0 / npm 11.19.0; registry reachable (PONG 201ms).
 - Vite 8 / vitest 5 / TS 6 / ESLint 10 are the current majors — if any behave
   oddly, pinning down one major is acceptable, record why here.
+
+## 4.B2 — slider primitives (Slider / Seekbar / VolumeSlider)
+
+Done, committed on `wip/p4-b2` (`ui/src/components/slider/**` only):
+
+- `Slider` — generic controlled slider, horizontal + vertical (EQ §1.4
+  anatomy). Pointer scrub with `setPointerCapture`, keyboard: arrows ±step,
+  Shift = coarse ×10, PageUp/PageDown coarse, Home/End bounds.
+- `Seekbar` — 28px track / inset-2 accent-tinted fill / 8×24 rx4 accent knob
+  per design; engine-reported `buffered` ranges rendered as honest
+  `surface-muted` sub-regions (no ARIA on them — §4.5 assigns none);
+  caller-owned `pending` prop renders doc 08 §5.2 truthfully: knob locks at
+  the requested target (`data-pending`, accent-strong) while the fill stays
+  at engine position until the caller confirms via `value`.
+- `VolumeSlider` — vertical stroke-based variant (volume.svg §1.5), 0…1,
+  percent `aria-valuetext`. Icon + flyout chrome = later VolumeControl
+  composite (mute-pending etc.).
+- Live-vs-committed contract: `onChangeLive` continuous during drag / on each
+  key step; `onCommit` on release / keyboard set (live fires before commit —
+  asserted in tests). Fully controlled: no optimistic jumps.
+- 31 tests (pointer sequences, keyboard, call-order, pending/buffer
+  rendering, ARIA, token-only CSS). typecheck + lint + vitest all green
+  (113 total). Zero new deps.
+
+Next for sliders:
+
+- Wire `Seekbar.pending` to the command layer's `playback.seek`
+  request/generation lifecycle (doc 05 §4 staleness) when composites land.
+- i18n: components take `aria-label` from callers via `useMsg` — composites
+  must pass MessageKeys (no literals in primitives, lint-enforced).
+- Buffer-range token (`surface-muted`) is a [PROPOSAL] mapping — confirm
+  against Figma when a buffer state export exists (states.md).
+- Miniplayer dense variant (16px track / 8×12 knob) reuses base `.lumen-slider`
+  styles as-is; add a variant class only if the composite needs it.
