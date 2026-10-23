@@ -1,0 +1,42 @@
+
+> lumen-ui@0.1.0 test
+> vitest run
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - JSON import "./package.json" without import attributes (vite.config.ts:2:17). Add `with { type: 'json' }`
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.5 /home/z/my-project/worktrees/p4-gate/ui
+
+ ✓ src/screens/settings/SettingsScreen.test.tsx (14 tests) 679ms
+ ✓ src/screens/player/controls/ControlBar.test.tsx (28 tests) 578ms
+ ✓ src/screens/playlist/PlaylistProvider.test.tsx (13 tests) 461ms
+ ✓ src/screens/playlist/PlaylistPanel.test.tsx (12 tests) 440ms
+ ✓ src/screens/player/customize/CustomizePanels.test.tsx (17 tests) 403ms
+ ✓ src/components/menu/MenuBar.test.tsx (16 tests) 412ms
+ ✓ src/screens/media-info/MediaInfoPanel.test.tsx (12 tests) 350ms
+ ✓ src/screens/player/PlayerScreen.test.tsx (16 tests) 353ms
+ ✓ src/screens/settings/areas/areas.test.tsx (8 tests) 365ms
+ ✓ src/screens/onboarding/OnboardingScreen.test.tsx (15 tests) 311ms
+ ✓ src/components/surface/Surface.test.tsx (11 tests) 221ms
+ ✓ src/screens/player/variants/variants.test.tsx (17 tests) 271ms
+ ✓ src/components/list/List.test.tsx (18 tests) 274ms
+ ✓ src/screens/settings/areas/hotkeys/HotkeysEditor.test.tsx (8 tests) 254ms
+ ✓ src/components/menu/Dropdown.test.tsx (10 tests) 253ms
+ ✓ src/screens/settings/areas/codecs.test.tsx (8 tests) 216ms
+ ✓ src/screens/settings/areas/audio.test.tsx (10 tests) 229ms
+ ✓ src/components/menu/ContextMenu.test.tsx (6 tests) 221ms
+ ✓ src/App.test.tsx (5 tests) 178ms
+ ✓ src/screens/player/states/StateRouter.test.tsx (28 tests) 307ms
+ ✓ src/i18n/pseudo.render.test.tsx (7 tests) 464ms
+ ✓ src/screens/settings/areas/privacy-network.test.tsx (6 tests) 383ms
+ ✓ src/screens/settings/generated.test.ts (10 tests) 256ms
+ ✓ src/components/menu/Tooltip.test.tsx (6 tests) 376ms
+ ✓ src/components/slider/Slider.test.tsx (14 tests) 398ms
+ ✓ src/components/form/RadioGroup.test.tsx (8 tests) 299ms
+ ✓ src/components/slider/Volume.test.tsx (6 tests) 299ms
+ ✓ src/components/slider/Seekbar.test.tsx (11 tests) 321ms
+ ✓ src/screens/media-info/MediaInfoScreen.test.tsx (2 tests) 164ms
+ ✓ src/components/button/Toggle.test.tsx (14 tests) 134ms
+ ✓ src/components/button/Button.test.tsx (16 tests) 132ms
+ ✓ src/screens/settings/areas/playlist-services.test.tsx (3 tests) 119ms
