@@ -103,19 +103,31 @@
 //! | `system.log` | wired-by-later (no logging bridge; the burst-bound drop refinement activates here) | n/a |
 //! | `media.info-ready` | **emitted** (3.B4) | `{info}` — the engine's open-time snapshot (source, duration, tracks), once per open, before the first `→ playing` |
 //!
-//! 11 of 23 rows are engine-emitted today (the 11 ids above,
-//! counting both seek terminals and both halves of
-//! `playback.error`); 12 rows are honestly owned by later cards.
-//! The catalog itself (61/23) is frozen data (decision D-017) — this
-//! card changes emission completeness only. The machine-checked
-//! twin of this table is the catalog-side 23-row ledger
-//! (`crates/commands/tests/catalog_emission_ledger.rs`) plus the
-//! contract suite (`crates/playback-engine/tests/contract_suite.rs`),
-//! which proves every "emitted" row against the real engine.
+//! 12 of 23 rows are engine-emitted today — the 12 ids above
+//! (card 3.A3 moved `tracks.changed` into the emitted bucket after
+//! the 11-row arithmetic was first written; the map below is the
+//! machine-checked count). 11 rows are honestly owned by later
+//! cards. The catalog itself (61/23) is frozen data (decision
+//! D-017) — this card changes emission completeness only.
+//!
+//! The machine-checked twin of this table is [`CATALOG_EMISSIONS`]
+//! (the completeness map — asserted bijective against the generated
+//! `EventId::ALL`, the source of truth), cross-checked by the
+//! catalog-side 23-row ledger
+//! (`crates/commands/tests/catalog_emission_ledger.rs` — still
+//! carrying the pre-3.A3 11/12 split for `tracks.changed`; a
+//! handoff for its owner) and proven live by the contract suites
+//! (`crates/playback-engine/tests/contract_suite.rs` and
+//! `tests/events_contract.rs`), which drive every "emitted" row out
+//! of the real engine.
 
+use std::collections::VecDeque;
 use std::fmt;
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 
+use commands::envelope::{Generation, RequestId};
+use commands::{EventId, EventKind, PlaybackState, WireEvent};
 use media_clock::MonotonicSource;
 
 use crate::epoch::{GenerationPair, SessionEpoch};
@@ -245,6 +257,12 @@ impl ProgressWindow {
         if self.opened_ns.is_none() {
             self.opened_ns = Some(now_ns);
         }
+    }
+
+    /// The window's length in milliseconds (the rate cap's period).
+    #[must_use]
+    pub fn window_ms(&self) -> u64 {
+        self.window_ms
     }
 }
 
@@ -509,6 +527,939 @@ impl EventPolicy {
             tick: TimeTickPolicy::default_policy(),
             throttle: Arc::new(media_clock::InstantSource::new()),
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The completeness map (doc 05 §3.2 — 23 rows, D-017-frozen)
+// ---------------------------------------------------------------------------
+
+/// The engine-side emission status of one catalog row (doc 05 §3.2).
+///
+/// "Emitted" means proven: the contract suites drive the row out of
+/// the real engine with its doc-05 payload. Anything else is
+/// [`EmissionStatus::WiredLater`] with the owning card named — honest
+/// incompleteness, never silence (a row with no trigger and no owner
+/// is a bug the map's bijection test surfaces).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EmissionStatus {
+    /// The engine emits this row today; the contract suites
+    /// (`tests/contract_suite.rs`, `tests/events_contract.rs`) prove
+    /// the payload live.
+    Emitted,
+    /// No engine-side trigger exists yet: the subsystem that owns the
+    /// row is not in the engine. `owner` names the card/phase that
+    /// will close it.
+    WiredLater {
+        /// The owning card / phase note.
+        owner: &'static str,
+    },
+}
+
+impl EmissionStatus {
+    /// Whether the row is engine-emitted today.
+    #[must_use]
+    pub fn is_emitted(self) -> bool {
+        matches!(self, EmissionStatus::Emitted)
+    }
+}
+
+/// One row of the engine-side completeness map.
+#[derive(Debug, Clone, Copy)]
+pub struct CatalogEmission {
+    /// The catalog row (a D-017-frozen id).
+    pub id: EventId,
+    /// Its engine-side status.
+    pub status: EmissionStatus,
+}
+
+/// How many rows the engine emits today (post-3.A3 arithmetic —
+/// `tracks.changed` joined the emitted bucket with the track-switch
+/// terminal; the count is asserted against the map below).
+pub const ENGINE_EMITTED_ROWS: usize = 12;
+
+/// The engine-side completeness map: every doc 05 §3.2 row, in table
+/// order, classified. The unit tests assert it is a bijection onto
+/// `EventId::ALL` (the generated catalog — the source of truth), so a
+/// catalog change that does not update the map fails the build rather
+/// than drifting silently.
+pub const CATALOG_EMISSIONS: &[CatalogEmission] = &[
+    // session (§3.2)
+    CatalogEmission {
+        id: EventId::SessionStateChanged,
+        status: EmissionStatus::Emitted,
+    },
+    CatalogEmission {
+        id: EventId::SessionOpeningProgress,
+        status: EmissionStatus::WiredLater {
+            owner: "streaming opens are Phase 6; local opens are synchronous",
+        },
+    },
+    CatalogEmission {
+        id: EventId::SessionBuffering,
+        status: EmissionStatus::Emitted,
+    },
+    // timing (§3.2)
+    CatalogEmission {
+        id: EventId::TimingTimeTick,
+        status: EmissionStatus::Emitted,
+    },
+    CatalogEmission {
+        id: EventId::TimingDurationKnown,
+        status: EmissionStatus::Emitted,
+    },
+    CatalogEmission {
+        id: EventId::TimingSeekCompleted,
+        status: EmissionStatus::Emitted,
+    },
+    CatalogEmission {
+        id: EventId::TimingSeekFailed,
+        status: EmissionStatus::Emitted,
+    },
+    // tracks (§3.2)
+    CatalogEmission {
+        id: EventId::TracksListReady,
+        status: EmissionStatus::Emitted,
+    },
+    CatalogEmission {
+        id: EventId::TracksChanged,
+        status: EmissionStatus::Emitted,
+    },
+    // playback (§3.2)
+    CatalogEmission {
+        id: EventId::PlaybackEndOfTrack,
+        status: EmissionStatus::Emitted,
+    },
+    CatalogEmission {
+        id: EventId::PlaybackEndOfMedia,
+        status: EmissionStatus::Emitted,
+    },
+    CatalogEmission {
+        id: EventId::PlaybackError,
+        status: EmissionStatus::Emitted,
+    },
+    CatalogEmission {
+        id: EventId::PlaybackRateChanged,
+        status: EmissionStatus::WiredLater {
+            owner: "3.B1 (rate support; no set-rate engine input exists)",
+        },
+    },
+    // audio (§3.2)
+    CatalogEmission {
+        id: EventId::AudioDeviceLost,
+        status: EmissionStatus::WiredLater {
+            owner: "2.C3/7.C1 (device observation; the null device cannot be lost)",
+        },
+    },
+    CatalogEmission {
+        id: EventId::AudioDeviceChanged,
+        status: EmissionStatus::WiredLater {
+            owner: "2.C3/7.C1 (same)",
+        },
+    },
+    // video (§3.2)
+    CatalogEmission {
+        id: EventId::VideoScreenshotSaved,
+        status: EmissionStatus::WiredLater {
+            owner: "renderer/host work (the sink seam never writes files)",
+        },
+    },
+    // playlist (§3.2)
+    CatalogEmission {
+        id: EventId::PlaylistChanged,
+        status: EmissionStatus::WiredLater {
+            owner: "no playlist model in the engine (Phase 4, 4.D1)",
+        },
+    },
+    // config (§3.2)
+    CatalogEmission {
+        id: EventId::ConfigSettingChanged,
+        status: EmissionStatus::WiredLater {
+            owner: "settings writes are host/config-layer work (doc 07, Phase 4)",
+        },
+    },
+    // plugins (§3.2)
+    CatalogEmission {
+        id: EventId::PluginsLoaded,
+        status: EmissionStatus::WiredLater {
+            owner: "plugin registry (doc 06)",
+        },
+    },
+    CatalogEmission {
+        id: EventId::PluginsFailed,
+        status: EmissionStatus::WiredLater {
+            owner: "plugin registry (doc 06)",
+        },
+    },
+    CatalogEmission {
+        id: EventId::PluginsCrashed,
+        status: EmissionStatus::WiredLater {
+            owner: "sandboxed WASM host (plugin-host-wasm, Phase 7)",
+        },
+    },
+    // system (§3.2)
+    CatalogEmission {
+        id: EventId::SystemLog,
+        status: EmissionStatus::WiredLater {
+            owner: "no logging bridge; the §3.4 burst-bound drop refinement activates here",
+        },
+    },
+    // media (§3.2)
+    CatalogEmission {
+        id: EventId::MediaInfoReady,
+        status: EmissionStatus::Emitted,
+    },
+];
+
+/// The status of one catalog row, by id.
+#[must_use]
+pub fn emission_status(id: EventId) -> Option<EmissionStatus> {
+    CATALOG_EMISSIONS
+        .iter()
+        .find(|row| row.id == id)
+        .map(|row| row.status)
+}
+
+/// Whether the engine emits this catalog row today.
+#[must_use]
+pub fn is_engine_emitted(id: EventId) -> bool {
+    emission_status(id).is_some_and(EmissionStatus::is_emitted)
+}
+
+/// The catalog id of a wire event payload — the total
+/// `EventKind` ↔ `EventId` bridge the completeness map and the
+/// ordering guard speak.
+///
+/// The match is compiler-exhaustive **by design**: a new catalog row
+/// breaks this function at compile time, forcing the map (and the
+/// guard's review) to grow with the catalog — D-017's frozen count is
+/// a reviewed change, never a silent drift.
+#[must_use]
+pub fn wire_event_id(kind: &EventKind) -> EventId {
+    match kind {
+        EventKind::SessionStateChanged { .. } => EventId::SessionStateChanged,
+        EventKind::SessionOpeningProgress { .. } => EventId::SessionOpeningProgress,
+        EventKind::SessionBuffering { .. } => EventId::SessionBuffering,
+        EventKind::TimingTimeTick { .. } => EventId::TimingTimeTick,
+        EventKind::TimingDurationKnown { .. } => EventId::TimingDurationKnown,
+        EventKind::TimingSeekCompleted { .. } => EventId::TimingSeekCompleted,
+        EventKind::TimingSeekFailed { .. } => EventId::TimingSeekFailed,
+        EventKind::TracksListReady { .. } => EventId::TracksListReady,
+        EventKind::TracksChanged { .. } => EventId::TracksChanged,
+        EventKind::PlaybackEndOfTrack { .. } => EventId::PlaybackEndOfTrack,
+        EventKind::PlaybackEndOfMedia => EventId::PlaybackEndOfMedia,
+        EventKind::PlaybackError { .. } => EventId::PlaybackError,
+        EventKind::PlaybackRateChanged { .. } => EventId::PlaybackRateChanged,
+        EventKind::AudioDeviceLost { .. } => EventId::AudioDeviceLost,
+        EventKind::AudioDeviceChanged { .. } => EventId::AudioDeviceChanged,
+        EventKind::VideoScreenshotSaved { .. } => EventId::VideoScreenshotSaved,
+        EventKind::PlaylistChanged { .. } => EventId::PlaylistChanged,
+        EventKind::ConfigSettingChanged { .. } => EventId::ConfigSettingChanged,
+        EventKind::PluginsLoaded { .. } => EventId::PluginsLoaded,
+        EventKind::PluginsFailed { .. } => EventId::PluginsFailed,
+        EventKind::PluginsCrashed { .. } => EventId::PluginsCrashed,
+        EventKind::SystemLog { .. } => EventId::SystemLog,
+        EventKind::MediaInfoReady { .. } => EventId::MediaInfoReady,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The ordering guard (doc 05 §3.3 + §4.3 — the debug_assert form)
+// ---------------------------------------------------------------------------
+
+/// A named doc 05 §3.3/§4.3 ordering violation the
+/// [`OrderingGuard`] can catch. The names quote the doc's own rule
+/// language so a failure reads as a spec citation, not a stack trace.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum OrderingViolation {
+    /// §4.3.1 — `seq` is engine-global, strictly increasing; a host
+    /// observes gaps (filtered/dropped), never regressions.
+    SeqRegression { observed: u64, last: u64 },
+    /// §3.3 — the transition is not a legal wire edge (and the trail
+    /// must be contiguous: every transition is emitted, C8 echoes
+    /// included, so `from` must equal the engine's current state).
+    IllegalTransition {
+        from: PlaybackState,
+        to: PlaybackState,
+        engine_at: PlaybackState,
+    },
+    /// §3.2 — `timing.time-tick` reports "continuous position while
+    /// `playing`" (plus the documented immediate ticks). A tick in any
+    /// other state — the PositionUpdate-after-Stopped class — is a
+    /// violation.
+    TickOutsidePlaying { at: PlaybackState },
+    /// §4.3.4 — `duration-known` is delivered before any `time-tick`
+    /// that assumes it (a nonzero fraction; the engine's honest floor
+    /// is `0.0` while the duration is unknown).
+    TickAssumesUnknownDuration,
+    /// §3.3 — `state-changed → error` is always accompanied by its
+    /// fatal `playback.error`, **ordered first**.
+    MissingFatalBeforeError,
+    /// §3.3 — a fatal `playback.error` is always followed by
+    /// `state-changed → error`; no other transition may intervene and
+    /// none may remain dangling at the end of the stream.
+    FatalWithoutErrorState { at: PlaybackState },
+    /// §4.3.4 — `end-of-media` precedes `state-changed → ended`.
+    EndOfMediaAfterEnded,
+    /// §3.2 — `end-of-track` fires for a limb that ends *while the
+    /// media continues*; after `end-of-media` the last limb's end IS
+    /// the media's end (no second end-of-track).
+    EndOfTrackAfterMedia,
+    /// §4.3.4 — `tracks.list-ready` is delivered before the first
+    /// `state-changed → playing` of a session.
+    FirstPlayingWithoutTracksList,
+    /// §3.2 — `media.info-ready` is the snapshot *just before* first
+    /// `playing`.
+    FirstPlayingWithoutMediaInfo,
+    /// §3.2 — a buffering episode "must open with `0.0`".
+    EpisodeOpenedWithoutZero { offered: f32 },
+    /// §3.2 — a buffering episode "must close with `1.0`": leaving the
+    /// buffering/paused-hold family with the episode still open is a
+    /// violation.
+    EpisodeUnclosedAtExit {
+        from: PlaybackState,
+        to: PlaybackState,
+    },
+    /// §4.3.4 / finish — an episode that never closed strands a `0.0`
+    /// on the wire.
+    EpisodeNeverClosed { at: PlaybackState },
+    /// §3.4.2 — progress events are monotonic within one episode.
+    NonMonotonicProgress { previous: f32, offered: f32 },
+    /// §3.2 — progress is `0.0..=1.0` (NaN included: a NaN payload is
+    /// out of bounds, not merely unordered).
+    ProgressOutOfBounds { offered: f32 },
+    /// §3.2 — a seek terminal carries the completing generation (the
+    /// completion-matching `gen` of §1.4 C3).
+    TerminalWithoutGeneration,
+    /// §4.3.4 — exactly one terminal seek event per completed seek
+    /// generation.
+    DuplicateSeekTerminal { generation: Generation },
+    /// §4.3.2 — the response for request R precedes every event
+    /// attributable to R (one ordered channel, causal order).
+    EventBeforeItsReceipt { origin: RequestId },
+}
+
+/// How many recent seek terminals the guard remembers for the
+/// duplicate check (doc 05 §4.3.4). Bounded memory (D-2): a sliding
+/// window, O(window) per terminal — terminals are rare (one per
+/// seek), so the constant is the honest bound.
+const SEEK_TERMINAL_WINDOW: usize = 64;
+
+/// How many recent request ids the guard remembers as answered
+/// (receipt-seen). Bounded memory (D-2); a sliding window.
+const ANSWERED_REQUEST_WINDOW: usize = 128;
+
+/// The per-session wire-ordering policy checker (doc 05 §3.3 + §4.3):
+/// feed it one session's ordered output stream — every wire event,
+/// plus receipts via [`OrderingGuard::observe_receipt`] — and it
+/// answers whether each observation keeps the documented ordering
+/// invariants. [`OrderingGuard::finish`] checks the dangling ones
+/// (an episode left open, a fatal never reaching `error`).
+///
+/// This is the policy layer's *guard* half: the emission sites
+/// ( [`crate::session`] ) are the production carriers; hosts and the
+/// contract suites run the guard over what actually crossed the wire
+/// — the differential check that keeps the policy and the engine
+/// honest about each other (D-5). The [`debug_assert_wire_ordered`]
+/// form wraps [`OrderingGuard::observe`] for engine-internal
+/// self-checks: zero cost in release builds, a named violation in
+/// debug builds.
+///
+/// Cross-session streams are out of scope by the doc itself (§4.3.3:
+/// cross-session order is unspecified) — one guard per session.
+#[derive(Debug)]
+pub struct OrderingGuard {
+    /// The last observed engine-global `seq` (§4.3.1).
+    last_seq: Option<u64>,
+    /// The session's current playback state (every transition is
+    /// emitted, so the trail reconstructs the state exactly).
+    state: PlaybackState,
+    /// Whether the first `state-changed → playing` has been seen.
+    playing_seen: bool,
+    /// Whether `tracks.list-ready` has been seen (§4.3.4).
+    list_ready_seen: bool,
+    /// Whether `media.info-ready` has been seen (§3.2).
+    info_ready_seen: bool,
+    /// Whether `timing.duration-known` has been seen (§4.3.4).
+    duration_known: bool,
+    /// Whether a buffering episode is currently open (§3.2 bookends).
+    episode_open: bool,
+    /// The last in-episode progress value (§3.4.2 monotonicity).
+    episode_progress: f32,
+    /// A fatal `playback.error` awaiting its `state-changed → error`.
+    pending_fatal: bool,
+    /// Whether `playback.end-of-media` has been seen (§4.3.4).
+    eom_seen: bool,
+    /// Whether the immediately-preceding event was a seek completion
+    /// (the documented immediate tick after `seek-completed` is the
+    /// one legal tick outside `playing`).
+    prev_was_seek_completion: bool,
+    /// Recent seek-terminal generations (bounded, §4.3.4).
+    seek_terminal_gens: Vec<Generation>,
+    /// Recent request ids answered by a receipt (bounded, §4.3.2).
+    answered_requests: Vec<RequestId>,
+}
+
+impl OrderingGuard {
+    /// A guard for a fresh session (state `idle`, nothing seen).
+    #[must_use]
+    pub fn new() -> OrderingGuard {
+        OrderingGuard {
+            last_seq: None,
+            state: PlaybackState::Idle,
+            playing_seen: false,
+            list_ready_seen: false,
+            info_ready_seen: false,
+            duration_known: false,
+            episode_open: false,
+            episode_progress: 0.0,
+            pending_fatal: false,
+            eom_seen: false,
+            prev_was_seek_completion: false,
+            seek_terminal_gens: Vec::new(),
+            answered_requests: Vec::new(),
+        }
+    }
+
+    /// Observe one wire event; `Err` names the violated rule.
+    ///
+    /// Rows without engine-side rules yet (rate, devices, playlist,
+    /// config, plugins, log, `tracks.changed`, `opening-progress`)
+    /// are observed without judgement — their rules land with their
+    /// wiring, tracked by [`CATALOG_EMISSIONS`].
+    pub fn observe(&mut self, event: &WireEvent) -> Result<(), OrderingViolation> {
+        // §4.3.1 — engine-global, strictly increasing. Gaps are legal
+        // (filtered or dropped events); regressions never are.
+        if let Some(last) = self.last_seq
+            && event.seq <= last
+        {
+            return Err(OrderingViolation::SeqRegression {
+                observed: event.seq,
+                last,
+            });
+        }
+        self.last_seq = Some(event.seq);
+        // §4.3.2 — a caused event must not precede its own receipt.
+        if let Some(origin) = event.origin
+            && !self.answered_requests.contains(&origin)
+        {
+            return Err(OrderingViolation::EventBeforeItsReceipt { origin });
+        }
+        let verdict = match &event.kind {
+            EventKind::SessionStateChanged { from, to } => self.observe_state_change(*from, *to),
+            EventKind::TimingTimeTick { position, .. } => self.observe_tick(*position),
+            EventKind::TimingDurationKnown { .. } => {
+                self.duration_known = true;
+                Ok(())
+            }
+            EventKind::TracksListReady { .. } => {
+                self.list_ready_seen = true;
+                Ok(())
+            }
+            EventKind::MediaInfoReady { .. } => {
+                self.info_ready_seen = true;
+                Ok(())
+            }
+            EventKind::SessionBuffering { progress } => self.observe_buffering(*progress),
+            EventKind::PlaybackEndOfMedia => {
+                self.eom_seen = true;
+                Ok(())
+            }
+            EventKind::PlaybackEndOfTrack { .. } => {
+                if self.eom_seen {
+                    Err(OrderingViolation::EndOfTrackAfterMedia)
+                } else {
+                    Ok(())
+                }
+            }
+            EventKind::PlaybackError { fatal, .. } => {
+                if *fatal {
+                    self.pending_fatal = true;
+                }
+                Ok(())
+            }
+            EventKind::TimingSeekCompleted { .. } | EventKind::TimingSeekFailed { .. } => {
+                self.observe_seek_terminal(event.generation)
+            }
+            _ => Ok(()),
+        };
+        self.prev_was_seek_completion = matches!(event.kind, EventKind::TimingSeekCompleted { .. });
+        verdict
+    }
+
+    /// Observe one command receipt on the same ordered channel
+    /// (§4.3.2): the response for request `R` positions causally
+    /// before every event attributable to `R`.
+    pub fn observe_receipt(&mut self, request: RequestId) {
+        self.answered_requests.push(request);
+        if self.answered_requests.len() > ANSWERED_REQUEST_WINDOW {
+            let drop = self.answered_requests.len() - ANSWERED_REQUEST_WINDOW;
+            self.answered_requests.drain(0..drop);
+        }
+    }
+
+    /// The dangling invariants (call at end-of-stream): a buffering
+    /// episode must have closed with `1.0` (§3.2), and a fatal
+    /// `playback.error` must have reached `state-changed → error`
+    /// (§3.3).
+    pub fn finish(&self) -> Result<(), OrderingViolation> {
+        if self.pending_fatal {
+            return Err(OrderingViolation::FatalWithoutErrorState { at: self.state });
+        }
+        if self.episode_open {
+            return Err(OrderingViolation::EpisodeNeverClosed { at: self.state });
+        }
+        Ok(())
+    }
+
+    fn observe_state_change(
+        &mut self,
+        from: PlaybackState,
+        to: PlaybackState,
+    ) -> Result<(), OrderingViolation> {
+        if from != self.state || !from.can_transition_to(to) {
+            return Err(OrderingViolation::IllegalTransition {
+                from,
+                to,
+                engine_at: self.state,
+            });
+        }
+        // §3.3 — a fatal is always followed by `state-changed →
+        // error`, and by nothing else.
+        if self.pending_fatal && to != PlaybackState::Error {
+            return Err(OrderingViolation::FatalWithoutErrorState { at: self.state });
+        }
+        // §3.2 — the episode's `1.0` exit bookend precedes every exit
+        // of the buffering/paused-hold family. Moves *within* the
+        // family (the buffered pause's hold, and the mid-episode
+        // seek/switch self-transitions) keep the episode open — the
+        // engine's card 3.C1 discipline.
+        let in_family = |state: PlaybackState| {
+            matches!(state, PlaybackState::Buffering | PlaybackState::Paused)
+        };
+        if in_family(from) && !in_family(to) && self.episode_open {
+            return Err(OrderingViolation::EpisodeUnclosedAtExit { from, to });
+        }
+        if to == PlaybackState::Error {
+            if !self.pending_fatal {
+                return Err(OrderingViolation::MissingFatalBeforeError);
+            }
+            self.pending_fatal = false;
+        }
+        // §4.3.4 — `end-of-media` precedes `state-changed → ended`.
+        if to == PlaybackState::Ended && !self.eom_seen {
+            return Err(OrderingViolation::EndOfMediaAfterEnded);
+        }
+        // §4.3.4 / §3.2 — the open facts precede the first `playing`.
+        if to == PlaybackState::Playing && !self.playing_seen {
+            if !self.list_ready_seen {
+                return Err(OrderingViolation::FirstPlayingWithoutTracksList);
+            }
+            if !self.info_ready_seen {
+                return Err(OrderingViolation::FirstPlayingWithoutMediaInfo);
+            }
+            self.playing_seen = true;
+        }
+        self.state = to;
+        Ok(())
+    }
+
+    fn observe_tick(&mut self, position: f32) -> Result<(), OrderingViolation> {
+        // §3.2 — the continuous stream runs "while `playing`"; the
+        // documented immediate ticks (seek completion, pause entry,
+        // rate change) are the exceptions. Pause entry fires while
+        // still `playing`; seek completion is tracked by its
+        // immediately-preceding terminal; rate changes do not exist
+        // in the engine yet (the map's row).
+        let legal_state = self.state == PlaybackState::Playing || self.prev_was_seek_completion;
+        if !legal_state {
+            return Err(OrderingViolation::TickOutsidePlaying { at: self.state });
+        }
+        // §4.3.4 — a tick that assumes the duration (a nonzero
+        // fraction) must follow `duration-known`.
+        if position > 0.0 && !self.duration_known {
+            return Err(OrderingViolation::TickAssumesUnknownDuration);
+        }
+        Ok(())
+    }
+
+    fn observe_buffering(&mut self, progress: f32) -> Result<(), OrderingViolation> {
+        // §3.2 — progress is `0.0..=1.0`, NaN included in the ban.
+        if progress.is_nan() || !(0.0..=1.0).contains(&progress) {
+            return Err(OrderingViolation::ProgressOutOfBounds { offered: progress });
+        }
+        if !self.episode_open {
+            // The open bookend.
+            if progress != 0.0 {
+                return Err(OrderingViolation::EpisodeOpenedWithoutZero { offered: progress });
+            }
+            self.episode_open = true;
+            self.episode_progress = 0.0;
+            return Ok(());
+        }
+        if progress == 1.0 {
+            // The close bookend.
+            self.episode_open = false;
+            return Ok(());
+        }
+        // §3.4.2 — monotonic within one episode.
+        if progress <= self.episode_progress {
+            return Err(OrderingViolation::NonMonotonicProgress {
+                previous: self.episode_progress,
+                offered: progress,
+            });
+        }
+        self.episode_progress = progress;
+        Ok(())
+    }
+
+    fn observe_seek_terminal(
+        &mut self,
+        generation: Option<Generation>,
+    ) -> Result<(), OrderingViolation> {
+        let Some(generation) = generation else {
+            return Err(OrderingViolation::TerminalWithoutGeneration);
+        };
+        if self.seek_terminal_gens.contains(&generation) {
+            return Err(OrderingViolation::DuplicateSeekTerminal { generation });
+        }
+        self.seek_terminal_gens.push(generation);
+        if self.seek_terminal_gens.len() > SEEK_TERMINAL_WINDOW {
+            let drop = self.seek_terminal_gens.len() - SEEK_TERMINAL_WINDOW;
+            self.seek_terminal_gens.drain(0..drop);
+        }
+        Ok(())
+    }
+}
+
+impl Default for OrderingGuard {
+    fn default() -> OrderingGuard {
+        OrderingGuard::new()
+    }
+}
+
+/// The violation as a one-line spec citation (the `must()`-friendly
+/// form; hosts log this verbatim).
+impl fmt::Display for OrderingViolation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            OrderingViolation::SeqRegression { observed, last } => {
+                write!(f, "doc 05 §4.3.1: seq regressed to {observed} after {last}")
+            }
+            OrderingViolation::IllegalTransition {
+                from,
+                to,
+                engine_at,
+            } => write!(
+                f,
+                "doc 05 §3.3: illegal wire transition {from:?}->{to:?} (engine at {engine_at:?})"
+            ),
+            OrderingViolation::TickOutsidePlaying { at } => {
+                write!(f, "doc 05 §3.2: a time-tick outside `playing` (at {at:?})")
+            }
+            OrderingViolation::TickAssumesUnknownDuration => write!(
+                f,
+                "doc 05 §4.3.4: a time-tick assumed a duration never delivered"
+            ),
+            OrderingViolation::MissingFatalBeforeError => write!(
+                f,
+                "doc 05 §3.3: state-changed -> error without its fatal playback.error first"
+            ),
+            OrderingViolation::FatalWithoutErrorState { at } => write!(
+                f,
+                "doc 05 §3.3: a fatal playback.error never reached state-changed -> error (at {at:?})"
+            ),
+            OrderingViolation::EndOfMediaAfterEnded => write!(
+                f,
+                "doc 05 §4.3.4: state-changed -> ended before end-of-media"
+            ),
+            OrderingViolation::EndOfTrackAfterMedia => write!(
+                f,
+                "doc 05 §3.2: end-of-track after end-of-media (the last limb's end IS the media's end)"
+            ),
+            OrderingViolation::FirstPlayingWithoutTracksList => write!(
+                f,
+                "doc 05 §4.3.4: first state-changed -> playing before tracks.list-ready"
+            ),
+            OrderingViolation::FirstPlayingWithoutMediaInfo => write!(
+                f,
+                "doc 05 §3.2: first state-changed -> playing before media.info-ready"
+            ),
+            OrderingViolation::EpisodeOpenedWithoutZero { offered } => write!(
+                f,
+                "doc 05 §3.2: a buffering episode opened with {offered} (must open with 0.0)"
+            ),
+            OrderingViolation::EpisodeUnclosedAtExit { from, to } => write!(
+                f,
+                "doc 05 §3.2: left {from:?}->{to:?} with the buffering episode open (must close with 1.0)"
+            ),
+            OrderingViolation::EpisodeNeverClosed { at } => write!(
+                f,
+                "doc 05 §3.2: the stream ended with the buffering episode open (at {at:?})"
+            ),
+            OrderingViolation::NonMonotonicProgress { previous, offered } => write!(
+                f,
+                "doc 05 §3.4.2: buffering progress {offered} after {previous} (monotonic within one episode)"
+            ),
+            OrderingViolation::ProgressOutOfBounds { offered } => write!(
+                f,
+                "doc 05 §3.2: buffering progress {offered} outside 0.0..=1.0"
+            ),
+            OrderingViolation::TerminalWithoutGeneration => write!(
+                f,
+                "doc 05 §3.2: a seek terminal without its completing generation"
+            ),
+            OrderingViolation::DuplicateSeekTerminal { generation } => write!(
+                f,
+                "doc 05 §4.3.4: a second seek terminal for generation {generation:?}"
+            ),
+            OrderingViolation::EventBeforeItsReceipt { origin } => write!(
+                f,
+                "doc 05 §4.3.2: an event caused by {origin:?} preceded its own receipt"
+            ),
+        }
+    }
+}
+
+/// The `debug_assert` form of the ordering guard (card 3.B4): a
+/// one-line self-check emission sites and hosts can sprinkle over
+/// their streams — a named violation with a panic in debug builds,
+/// compiled away to nothing in release (the state tracking itself is
+/// a handful of integer compares; the *assertion* is the zero-cost
+/// half).
+///
+/// The guard still tracks state in release builds (it is a
+/// [`Result`]-returning validator too); only the panic disappears.
+#[inline]
+pub fn debug_assert_wire_ordered(guard: &mut OrderingGuard, event: &WireEvent) {
+    let verdict = guard.observe(event);
+    if verdict.is_err() {
+        debug_assert!(
+            false,
+            "doc 05 §3/§4 ordering violation at seq {}: {:?}",
+            event.seq, verdict
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The latest-value coalescer (doc 05 §3.4 rule 2 — drop-coalesce
+// that keeps the LATEST value)
+// ---------------------------------------------------------------------------
+
+/// The drop-coalesce throttle window for progress streams (doc 05
+/// §3.4 rule 2: "progress events are monotonic within one episode
+/// and coalesced to their rate cap").
+///
+/// Semantics, made precise — the part the doc names but does not
+/// define:
+///
+/// - **Monotonic**: an offer that does not strictly exceed the last
+///   *emitted* value is dropped (counted) — the emitted stream is
+///   monotonic by construction, whatever the input does.
+/// - **Drop-coalesce, latest wins**: an offer the rate window denies
+///   is dropped *from the stream* but retained as **pending**; a
+///   later offer overwrites it. When the window reopens (or at a
+///   terminal [`LatestCoalescer::flush_now`]), the **latest** offered
+///   value is the one that emits — intermediate values never cross
+///   the wire, and the newest fact is never lost to the window.
+///
+/// `[PROPOSAL]` — the doc's "coalesced to their rate cap" admits a
+/// lossier reading (drop until the next sample arrives); the
+/// keep-the-latest form is this policy layer's choice, and the
+/// engine's in-episode `session.buffering` path
+/// ([`crate::session`], the `EmissionState` fields) can adopt it as
+/// a one-structure swap — recorded as a handoff, not wired here
+/// (scope discipline: the emission site is sibling-owned).
+///
+/// All windows read an injected monotonic source, never ambient time
+/// (the media-clock injection doctrine; see the module docs).
+#[derive(Debug)]
+pub struct LatestCoalescer {
+    window: ProgressWindow,
+    last_emitted: Option<f32>,
+    pending: Option<f32>,
+    dropped_stale: u64,
+}
+
+impl LatestCoalescer {
+    /// A coalescer over a window of `window_ms` milliseconds.
+    #[must_use]
+    pub fn new(window_ms: u64) -> LatestCoalescer {
+        LatestCoalescer {
+            window: ProgressWindow::new(window_ms),
+            last_emitted: None,
+            pending: None,
+            dropped_stale: 0,
+        }
+    }
+
+    /// The `session.buffering` rate window ([`BUFFERING_WINDOW_MS`],
+    /// the ≤ 5 Hz cap).
+    #[must_use]
+    pub fn for_buffering() -> LatestCoalescer {
+        LatestCoalescer::new(BUFFERING_WINDOW_MS)
+    }
+
+    /// Offer the newest sample. `Some(value)` when an emission is due
+    /// now (the window permits it and the value is monotonic);
+    /// otherwise the value is retained as pending (latest wins) or
+    /// dropped as stale (non-monotonic, counted).
+    pub fn offer(&mut self, value: f32, now_ns: u64) -> Option<f32> {
+        if let Some(last) = self.last_emitted
+            && value <= last
+        {
+            self.dropped_stale = self.dropped_stale.saturating_add(1);
+            return None;
+        }
+        if self.window.permits(now_ns) {
+            self.last_emitted = Some(value);
+            // A fresh emission subsumes anything still pending — the
+            // value just emitted is by definition at least as new.
+            self.pending = None;
+            return Some(value);
+        }
+        // Drop-coalesce: the denied value is retained; the LATEST
+        // wins. `max` keeps the retained set monotonic even for a
+        // non-monotonic offer burst (in the engine's domain — queue
+        // fill during a refill — the climb is monotonic, so latest
+        // and max coincide; this is the fail-safe form).
+        self.pending = Some(match self.pending {
+            Some(pending) => pending.max(value),
+            None => value,
+        });
+        None
+    }
+
+    /// Flush the pending latest value if the rate window has elapsed
+    /// (call per tick; a closed window with nothing pending is left
+    /// untouched, so idle calls never push the window forward).
+    pub fn flush_if_due(&mut self, now_ns: u64) -> Option<f32> {
+        // Short-circuit: `permits` is never consulted with nothing
+        // pending (an idle caller must not open a window).
+        if self.pending.is_some() && self.window.permits(now_ns) {
+            return self.flush_now();
+        }
+        None
+    }
+
+    /// Flush unconditionally (terminal points: episode exit, end of
+    /// media — the doc's window is a *rate* rule, not a loss rule).
+    pub fn flush_now(&mut self) -> Option<f32> {
+        let value = self.pending?;
+        self.pending = None;
+        self.last_emitted = Some(value);
+        Some(value)
+    }
+
+    /// Reset for a fresh episode: a fresh window, no memory of the
+    /// previous climb (the `0.0` bookend starts a new monotonic
+    /// episode). The stale-drop counter is lifetime observability
+    /// and survives.
+    pub fn reset(&mut self) {
+        self.window = ProgressWindow::new(self.window_ms());
+        self.last_emitted = None;
+        self.pending = None;
+    }
+
+    /// The retained latest value, if any.
+    #[must_use]
+    pub fn pending(&self) -> Option<f32> {
+        self.pending
+    }
+
+    /// Offers dropped as non-monotonic (lifetime observability).
+    #[must_use]
+    pub fn dropped_stale(&self) -> u64 {
+        self.dropped_stale
+    }
+
+    /// The rate window's length in milliseconds.
+    #[must_use]
+    pub fn window_ms(&self) -> u64 {
+        self.window.window_ms()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The bounded queue (engineering directive D-2 — the policy twin)
+// ---------------------------------------------------------------------------
+
+/// The bounded-queue policy (D-2: bounded memory everywhere): a
+/// fixed-capacity FIFO that drops the **oldest** item at capacity and
+/// counts the drop — the same overflow policy the engine's output
+/// hub applies to live events
+/// ([`crate::session::OUTBOX_CAPACITY`]; receipts pinned, ticks
+/// replaced — the hub's two refinements stay there, where the
+/// channel's semantics live).
+///
+/// This is the policy twin for the engine's *edges*: hosts, test
+/// collectors and future bridges that accumulate wire events must be
+/// as bounded as the engine feeding them — an unbounded collector on
+/// a bounded channel is a leak with extra steps. The contract suite
+/// (`tests/events_contract.rs`) collects its streams through this
+/// queue, so the policy is proven on every scenario it runs.
+///
+/// [`BoundedEventQueue::drain_into`] is the reuse API (D-1): the
+/// caller keeps one `Vec` alive across drains; the queue itself
+/// never allocates after construction.
+pub struct BoundedEventQueue<T> {
+    queue: VecDeque<T>,
+    capacity: usize,
+    dropped: u64,
+}
+
+impl<T> BoundedEventQueue<T> {
+    /// A queue of exactly `capacity` live items (nonzero — a
+    /// zero-capacity queue is a drop-everything sink, not a policy).
+    #[must_use]
+    pub fn new(capacity: NonZeroUsize) -> BoundedEventQueue<T> {
+        BoundedEventQueue {
+            queue: VecDeque::new(),
+            capacity: capacity.get(),
+            dropped: 0,
+        }
+    }
+
+    /// Append one item; at capacity the oldest live item is dropped
+    /// and counted (O(1), no reallocation — the deque's ring).
+    pub fn push(&mut self, item: T) {
+        if self.queue.len() >= self.capacity {
+            self.queue.pop_front();
+            self.dropped = self.dropped.saturating_add(1);
+        }
+        self.queue.push_back(item);
+    }
+
+    /// Drain everything live into a caller-owned buffer (reuse API,
+    /// D-1 — no per-drain allocation), leaving the queue empty.
+    pub fn drain_into(&mut self, out: &mut Vec<T>) {
+        out.extend(self.queue.drain(..));
+    }
+
+    /// Live items right now (always ≤ the capacity, whatever the
+    /// push history — the D-2 structural bound).
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.queue.len()
+    }
+
+    /// Whether no live items remain.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.queue.is_empty()
+    }
+
+    /// The live-item bound.
+    #[must_use]
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
+
+    /// Items dropped for capacity over the queue's lifetime.
+    #[must_use]
+    pub fn dropped_total(&self) -> u64 {
+        self.dropped
     }
 }
 
@@ -895,5 +1846,627 @@ mod tests {
         assert!(!max_stamp.is_stale_against(pair(u64::MAX, u64::MAX)));
         assert!(max_stamp.is_stale_against(pair(1, u64::MAX)));
         assert!(StalenessStamp::new(SessionEpoch(1), u64::MAX).is_stale_against(pair(1, 0)));
+    }
+
+    // -----------------------------------------------------------------
+    // W5-05 (card 3.B4 rebuild): the completeness map, the ordering
+    // guard, the latest-value coalescer, the bounded queue
+    // -----------------------------------------------------------------
+
+    /// The map is a bijection onto the generated catalog (the source
+    /// of truth): same count, same order, every id exactly once, and
+    /// the arithmetic is the module-doc claim (12 + 11 = 23, D-017).
+    #[test]
+    fn the_completeness_map_partitions_the_catalog_exactly() {
+        assert_eq!(
+            CATALOG_EMISSIONS.len(),
+            EventId::ALL.len(),
+            "the map must carry one row per catalog id"
+        );
+        assert_eq!(EventId::ALL.len(), 23, "D-017: the frozen count");
+        // Table order mirrors the catalog's own order.
+        for (row, id) in CATALOG_EMISSIONS.iter().zip(EventId::ALL) {
+            assert_eq!(row.id, *id, "the map must mirror doc 05 §3.2 order");
+        }
+        let emitted = CATALOG_EMISSIONS
+            .iter()
+            .filter(|row| row.status.is_emitted())
+            .count();
+        let later = CATALOG_EMISSIONS.len() - emitted;
+        assert_eq!(emitted, ENGINE_EMITTED_ROWS, "the emitted count");
+        assert_eq!(later, 11, "the honest later bucket");
+        assert_eq!(emitted + later, 23, "12 emitted + 11 later = 23");
+        // Every later row names its owner (a trigger-less row with no
+        // owner is silence, not honesty).
+        for row in CATALOG_EMISSIONS {
+            if let EmissionStatus::WiredLater { owner } = row.status
+                && owner.is_empty()
+            {
+                unreachable!("{} carries an empty owner note", row.id.as_str());
+            }
+        }
+        // The lookups agree with the map.
+        assert!(is_engine_emitted(EventId::SessionStateChanged));
+        assert!(!is_engine_emitted(EventId::PlaylistChanged));
+        assert_eq!(
+            emission_status(EventId::PlaybackError),
+            Some(EmissionStatus::Emitted)
+        );
+        assert!(emission_status(EventId::SystemLog).is_some());
+    }
+
+    /// The `EventKind` ↔ `EventId` bridge: a representative sample
+    /// maps onto the right ids, and every emitted row's sample lands
+    /// in the emitted bucket (the full 23-sample bijection proof is
+    /// the contract suite's job — `tests/events_contract.rs`).
+    #[test]
+    fn the_wire_id_bridge_agrees_with_the_map() {
+        let samples: [(EventKind, EventId, bool); 8] = [
+            (
+                EventKind::SessionStateChanged {
+                    from: PlaybackState::Idle,
+                    to: PlaybackState::Opening,
+                },
+                EventId::SessionStateChanged,
+                true,
+            ),
+            (
+                EventKind::SessionBuffering { progress: 0.5 },
+                EventId::SessionBuffering,
+                true,
+            ),
+            (
+                EventKind::TimingTimeTick {
+                    time: commands::catalog::types::Timestamp(0),
+                    position: 0.0,
+                },
+                EventId::TimingTimeTick,
+                true,
+            ),
+            (
+                EventKind::TimingSeekFailed {
+                    error: commands::CommandError::new(
+                        commands::Stage::Control,
+                        commands::ErrorCode::Unsupported,
+                        "nope",
+                    ),
+                },
+                EventId::TimingSeekFailed,
+                true,
+            ),
+            (
+                EventKind::TracksChanged {
+                    track_kind: commands::catalog::types::TrackChangeKind::Audio,
+                    selected: None,
+                },
+                EventId::TracksChanged,
+                true,
+            ),
+            (
+                EventKind::PlaybackEndOfMedia,
+                EventId::PlaybackEndOfMedia,
+                true,
+            ),
+            (
+                EventKind::PlaybackRateChanged { rate: 2.0 },
+                EventId::PlaybackRateChanged,
+                false,
+            ),
+            (
+                EventKind::SystemLog {
+                    level: commands::catalog::types::LogLevel::Info,
+                    target: "lumen::engine".to_owned(),
+                    message: "line".to_owned(),
+                },
+                EventId::SystemLog,
+                false,
+            ),
+        ];
+        for (kind, id, emitted) in samples {
+            assert_eq!(wire_event_id(&kind), id);
+            assert_eq!(
+                is_engine_emitted(id),
+                emitted,
+                "{id} must sit in the bucket the map says"
+            );
+        }
+    }
+
+    /// One guard helper: a bare wire event (seq 1, 2, … — no session
+    /// or origin unless the scenario says otherwise).
+    fn wire(seq: u64, kind: EventKind) -> WireEvent {
+        WireEvent {
+            seq,
+            session: None,
+            generation: None,
+            origin: None,
+            kind,
+        }
+    }
+
+    fn state_changed(seq: u64, from: PlaybackState, to: PlaybackState) -> WireEvent {
+        wire(seq, EventKind::SessionStateChanged { from, to })
+    }
+
+    /// `tracks.list-ready` with an empty list (the §4.3.4 open fact,
+    /// minimal form).
+    fn list_ready(seq: u64) -> WireEvent {
+        wire(seq, EventKind::TracksListReady { tracks: Vec::new() })
+    }
+
+    /// `media.info-ready`, minimal snapshot (the §3.2 open fact).
+    fn info_ready(seq: u64) -> WireEvent {
+        wire(
+            seq,
+            EventKind::MediaInfoReady {
+                info: commands::catalog::types::MediaInfo {
+                    source: commands::catalog::types::SourceSpec::Url {
+                        url: "fixture://x".to_owned(),
+                    },
+                    container: None,
+                    title: None,
+                    duration: commands::catalog::types::Duration::Unknown,
+                    seekable: true,
+                    is_live: false,
+                    metadata: std::collections::BTreeMap::new(),
+                    tracks: Vec::new(),
+                    chapters: Vec::new(),
+                },
+            },
+        )
+    }
+
+    /// The minimal **legal** open-to-playing prefix: both §3.2/§4.3.4
+    /// open facts (`tracks.list-ready`, `media.info-ready`) precede
+    /// the first `state-changed → playing` — the prefix every
+    /// violation scenario builds on top of (seq 1..=5).
+    fn open_to_playing() -> Vec<WireEvent> {
+        vec![
+            state_changed(1, PlaybackState::Idle, PlaybackState::Opening),
+            list_ready(2),
+            state_changed(3, PlaybackState::Opening, PlaybackState::Buffering),
+            info_ready(4),
+            state_changed(5, PlaybackState::Buffering, PlaybackState::Playing),
+        ]
+    }
+
+    /// The guard walks a legal happy-path prefix without a single
+    /// complaint (the full-session proofs live in the contract suite;
+    /// this pins the guard's own machinery on a hand-built stream).
+    #[test]
+    fn the_guard_accepts_a_legal_hand_built_stream() {
+        let mut guard = OrderingGuard::new();
+        // The engine's real open-to-pause order: the 0.0 bookend
+        // precedes its state change, the 1.0 exit precedes the primed
+        // transition, the open facts precede the first `playing`, and
+        // the pause-entry tick is the last fact of the playing era.
+        for event in [
+            state_changed(1, PlaybackState::Idle, PlaybackState::Opening),
+            wire(2, EventKind::TracksListReady { tracks: Vec::new() }),
+            wire(3, EventKind::SessionBuffering { progress: 0.0 }),
+            state_changed(4, PlaybackState::Opening, PlaybackState::Buffering),
+            wire(
+                5,
+                EventKind::TimingDurationKnown {
+                    duration: commands::catalog::types::Timestamp(1),
+                },
+            ),
+            wire(
+                6,
+                EventKind::MediaInfoReady {
+                    info: commands::catalog::types::MediaInfo {
+                        source: commands::catalog::types::SourceSpec::Url {
+                            url: "fixture://x".to_owned(),
+                        },
+                        container: None,
+                        title: None,
+                        duration: commands::catalog::types::Duration::Unknown,
+                        seekable: true,
+                        is_live: false,
+                        metadata: std::collections::BTreeMap::new(),
+                        tracks: Vec::new(),
+                        chapters: Vec::new(),
+                    },
+                },
+            ),
+            wire(7, EventKind::SessionBuffering { progress: 1.0 }),
+            state_changed(8, PlaybackState::Buffering, PlaybackState::Playing),
+            wire(
+                9,
+                EventKind::TimingTimeTick {
+                    time: commands::catalog::types::Timestamp(250_000),
+                    position: 0.25,
+                },
+            ),
+            state_changed(10, PlaybackState::Playing, PlaybackState::Paused),
+        ] {
+            guard.observe(&event).must();
+        }
+        guard.finish().must();
+    }
+
+    /// The guard's negative matrix, hand-built: every violation name
+    /// is reachable and names its rule (the contract suite plants the
+    /// same violations against the real engine's stream shape).
+    #[test]
+    fn the_guard_catches_the_planted_violations() {
+        use PlaybackState as S;
+        let seq_regression = || {
+            let mut guard = OrderingGuard::new();
+            let a = state_changed(5, S::Idle, S::Opening);
+            let b = state_changed(5, S::Opening, S::Buffering);
+            guard.observe(&a).must();
+            guard.observe(&b)
+        };
+        assert_eq!(
+            seq_regression().err(),
+            Some(OrderingViolation::SeqRegression {
+                observed: 5,
+                last: 5
+            })
+        );
+
+        let illegal = || {
+            let mut guard = OrderingGuard::new();
+            guard.observe(&state_changed(1, S::Stopped, S::Playing))
+        };
+        assert_eq!(
+            illegal().err(),
+            Some(OrderingViolation::IllegalTransition {
+                from: S::Stopped,
+                to: S::Playing,
+                engine_at: S::Idle,
+            })
+        );
+
+        // The card's named audit shape: a PositionUpdate (time-tick)
+        // after Stopped.
+        let tick_after_stop = || {
+            let mut guard = OrderingGuard::new();
+            let mut events = open_to_playing();
+            events.push(state_changed(6, S::Playing, S::Stopped));
+            for event in events {
+                guard.observe(&event).must();
+            }
+            guard.observe(&wire(
+                7,
+                EventKind::TimingTimeTick {
+                    time: commands::catalog::types::Timestamp(1),
+                    position: 0.0,
+                },
+            ))
+        };
+        assert_eq!(
+            tick_after_stop().err(),
+            Some(OrderingViolation::TickOutsidePlaying { at: S::Stopped })
+        );
+
+        let tick_before_duration = || {
+            let mut guard = OrderingGuard::new();
+            for event in open_to_playing() {
+                guard.observe(&event).must();
+            }
+            guard.observe(&wire(
+                6,
+                EventKind::TimingTimeTick {
+                    time: commands::catalog::types::Timestamp(1),
+                    position: 0.5,
+                },
+            ))
+        };
+        assert_eq!(
+            tick_before_duration().err(),
+            Some(OrderingViolation::TickAssumesUnknownDuration)
+        );
+
+        let error_without_fatal = || {
+            let mut guard = OrderingGuard::new();
+            for event in [
+                state_changed(1, S::Idle, S::Opening),
+                state_changed(2, S::Opening, S::Buffering),
+            ] {
+                guard.observe(&event).must();
+            }
+            guard.observe(&state_changed(3, S::Buffering, S::Error))
+        };
+        assert_eq!(
+            error_without_fatal().err(),
+            Some(OrderingViolation::MissingFatalBeforeError)
+        );
+
+        let fatal_then_wrong_state = || {
+            let mut guard = OrderingGuard::new();
+            guard.observe(&state_changed(1, S::Idle, S::Opening)).must();
+            guard
+                .observe(&wire(
+                    2,
+                    EventKind::PlaybackError {
+                        stage: commands::Stage::Demux,
+                        code: commands::ErrorCode::Corrupt,
+                        message: "boom".to_owned(),
+                        details: std::collections::BTreeMap::new(),
+                        fatal: true,
+                    },
+                ))
+                .must();
+            guard.observe(&state_changed(3, S::Opening, S::Stopped))
+        };
+        assert_eq!(
+            fatal_then_wrong_state().err(),
+            Some(OrderingViolation::FatalWithoutErrorState { at: S::Opening })
+        );
+
+        let ended_without_eom = || {
+            let mut guard = OrderingGuard::new();
+            for event in open_to_playing() {
+                guard.observe(&event).must();
+            }
+            guard.observe(&state_changed(6, S::Playing, S::Ended))
+        };
+        assert_eq!(
+            ended_without_eom().err(),
+            Some(OrderingViolation::EndOfMediaAfterEnded)
+        );
+
+        let eot_after_eom = || {
+            let mut guard = OrderingGuard::new();
+            let mut events = open_to_playing();
+            events.push(wire(6, EventKind::PlaybackEndOfMedia));
+            for event in events {
+                guard.observe(&event).must();
+            }
+            guard.observe(&wire(
+                7,
+                EventKind::PlaybackEndOfTrack {
+                    track_kind: commands::catalog::types::TrackKind::Audio,
+                    id: commands::catalog::types::TrackId(1),
+                },
+            ))
+        };
+        assert_eq!(
+            eot_after_eom().err(),
+            Some(OrderingViolation::EndOfTrackAfterMedia)
+        );
+
+        let playing_without_tracks = || {
+            let mut guard = OrderingGuard::new();
+            for event in [
+                state_changed(1, S::Idle, S::Opening),
+                state_changed(2, S::Opening, S::Buffering),
+            ] {
+                guard.observe(&event).must();
+            }
+            guard.observe(&state_changed(3, S::Buffering, S::Playing))
+        };
+        assert_eq!(
+            playing_without_tracks().err(),
+            Some(OrderingViolation::FirstPlayingWithoutTracksList)
+        );
+        let playing_without_info = || {
+            let mut guard = OrderingGuard::new();
+            guard.observe(&state_changed(1, S::Idle, S::Opening)).must();
+            guard
+                .observe(&wire(2, EventKind::TracksListReady { tracks: Vec::new() }))
+                .must();
+            guard
+                .observe(&state_changed(3, S::Opening, S::Buffering))
+                .must();
+            guard.observe(&state_changed(4, S::Buffering, S::Playing))
+        };
+        assert_eq!(
+            playing_without_info().err(),
+            Some(OrderingViolation::FirstPlayingWithoutMediaInfo)
+        );
+
+        let episode_bad_open = || {
+            let mut guard = OrderingGuard::new();
+            guard.observe(&wire(1, EventKind::SessionBuffering { progress: 0.3 }))
+        };
+        assert_eq!(
+            episode_bad_open().err(),
+            Some(OrderingViolation::EpisodeOpenedWithoutZero { offered: 0.3 })
+        );
+
+        let episode_unclosed_exit = || {
+            let mut guard = OrderingGuard::new();
+            for event in [
+                state_changed(1, S::Idle, S::Opening),
+                state_changed(2, S::Opening, S::Buffering),
+                wire(3, EventKind::SessionBuffering { progress: 0.0 }),
+            ] {
+                guard.observe(&event).must();
+            }
+            guard.observe(&state_changed(4, S::Buffering, S::Stopped))
+        };
+        assert_eq!(
+            episode_unclosed_exit().err(),
+            Some(OrderingViolation::EpisodeUnclosedAtExit {
+                from: S::Buffering,
+                to: S::Stopped,
+            })
+        );
+
+        let non_monotonic = || {
+            let mut guard = OrderingGuard::new();
+            guard
+                .observe(&wire(1, EventKind::SessionBuffering { progress: 0.0 }))
+                .must();
+            guard
+                .observe(&wire(2, EventKind::SessionBuffering { progress: 0.4 }))
+                .must();
+            guard.observe(&wire(3, EventKind::SessionBuffering { progress: 0.2 }))
+        };
+        assert_eq!(
+            non_monotonic().err(),
+            Some(OrderingViolation::NonMonotonicProgress {
+                previous: 0.4,
+                offered: 0.2,
+            })
+        );
+
+        let out_of_bounds = || {
+            let mut guard = OrderingGuard::new();
+            guard.observe(&wire(1, EventKind::SessionBuffering { progress: 1.5 }))
+        };
+        assert_eq!(
+            out_of_bounds().err(),
+            Some(OrderingViolation::ProgressOutOfBounds { offered: 1.5 })
+        );
+        let nan_progress = || {
+            let mut guard = OrderingGuard::new();
+            guard.observe(&wire(1, EventKind::SessionBuffering { progress: f32::NAN }))
+        };
+        // NaN breaks `PartialEq` — the variant name is the assertion.
+        assert!(matches!(
+            nan_progress().err(),
+            Some(OrderingViolation::ProgressOutOfBounds { .. })
+        ));
+
+        let terminal_without_gen = || {
+            let mut guard = OrderingGuard::new();
+            guard.observe(&wire(
+                1,
+                EventKind::TimingSeekCompleted {
+                    position: commands::catalog::types::Timestamp(0),
+                    seek_kind: commands::catalog::types::SeekKind::Command,
+                },
+            ))
+        };
+        assert_eq!(
+            terminal_without_gen().err(),
+            Some(OrderingViolation::TerminalWithoutGeneration)
+        );
+
+        let duplicate_terminal = || {
+            let mut guard = OrderingGuard::new();
+            let terminal = EventKind::TimingSeekCompleted {
+                position: commands::catalog::types::Timestamp(0),
+                seek_kind: commands::catalog::types::SeekKind::Command,
+            };
+            let mut event = wire(1, terminal.clone());
+            event.generation = Some(Generation(3));
+            guard.observe(&event).must();
+            let mut event = wire(2, terminal);
+            event.generation = Some(Generation(3));
+            guard.observe(&event)
+        };
+        assert_eq!(
+            duplicate_terminal().err(),
+            Some(OrderingViolation::DuplicateSeekTerminal {
+                generation: Generation(3)
+            })
+        );
+
+        let event_before_receipt = || {
+            let mut guard = OrderingGuard::new();
+            let mut event = wire(1, EventKind::PlaybackEndOfMedia);
+            event.origin = Some(RequestId(7));
+            guard.observe(&event)
+        };
+        assert_eq!(
+            event_before_receipt().err(),
+            Some(OrderingViolation::EventBeforeItsReceipt {
+                origin: RequestId(7)
+            })
+        );
+
+        let episode_never_closed = || {
+            let mut guard = OrderingGuard::new();
+            guard
+                .observe(&wire(1, EventKind::SessionBuffering { progress: 0.0 }))
+                .must();
+            guard.finish()
+        };
+        assert_eq!(
+            episode_never_closed().err(),
+            Some(OrderingViolation::EpisodeNeverClosed { at: S::Idle })
+        );
+    }
+
+    /// Drop-coalesce keeps the LATEST value (doc 05 §3.4 rule 2):
+    /// a frozen window swallows a climb, the window's opening emits
+    /// the newest sample — and the rate cap holds over a long
+    /// virtual timeline without ever losing the last fact.
+    #[test]
+    fn the_latest_coalescer_keeps_the_newest_value() {
+        let mut coalescer = LatestCoalescer::for_buffering();
+        assert_eq!(coalescer.window_ms(), BUFFERING_WINDOW_MS);
+        // The frozen window (t=0): the first offer opens and emits,
+        // the climb is retained, latest wins.
+        assert_eq!(coalescer.offer(0.1, 0), Some(0.1));
+        assert_eq!(coalescer.offer(0.4, 0), None);
+        assert_eq!(coalescer.offer(0.9, 0), None);
+        assert_eq!(coalescer.pending(), Some(0.9), "the LATEST value");
+        // Inside the window: no flush.
+        assert_eq!(coalescer.flush_if_due(100_000_000), None);
+        // The window opens at t=200 ms: the latest value emits.
+        assert_eq!(coalescer.flush_if_due(200_000_000), Some(0.9));
+        assert_eq!(coalescer.pending(), None);
+        // A non-monotonic offer is dropped and counted (§3.4.2).
+        assert_eq!(coalescer.offer(0.5, 250_000_000), None);
+        assert_eq!(coalescer.dropped_stale(), 1);
+        // The rate cap over a virtual second: one emission per
+        // elapsed window, monotonic, and the terminal flush never
+        // loses the last fact.
+        let mut emissions = Vec::new();
+        for step in 0..20_u64 {
+            let t = 300_000_000_u64 + step * 50_000_000;
+            let value = 0.9 + f32::from(step as u16) * 0.005;
+            if let Some(emitted) = coalescer.offer(value, t) {
+                emissions.push(emitted);
+            }
+            if let Some(emitted) = coalescer.flush_if_due(t) {
+                emissions.push(emitted);
+            }
+        }
+        assert!(
+            emissions.len() <= 5,
+            "≤ 5 Hz over the virtual second: {emissions:?}"
+        );
+        assert!(
+            emissions.windows(2).all(|pair| pair[0] < pair[1]),
+            "monotonic: {emissions:?}"
+        );
+        let last = coalescer.flush_now();
+        assert_eq!(last, Some(0.9 + f32::from(19_u16) * 0.005));
+        assert_eq!(coalescer.flush_now(), None);
+        // Reset: a fresh episode forgets the climb.
+        coalescer.reset();
+        assert_eq!(coalescer.pending(), None);
+        assert_eq!(coalescer.offer(0.05, 0), Some(0.05));
+    }
+
+    /// The bounded queue's structural guarantee (D-2): whatever the
+    /// push history, the live population never exceeds the capacity;
+    /// drops are oldest-first and counted; drains preserve order and
+    /// reuse the caller's buffer.
+    #[test]
+    fn the_bounded_queue_stays_bounded_under_any_push_count() {
+        let capacity = NonZeroUsize::new(256).must();
+        let mut queue = BoundedEventQueue::new(capacity);
+        assert_eq!(queue.capacity(), 256);
+        for seq in 0..10_000_u64 {
+            queue.push(wire(seq, EventKind::PlaybackEndOfMedia));
+            assert!(
+                queue.len() <= 256,
+                "the structural bound must hold mid-storm too"
+            );
+        }
+        assert_eq!(queue.len(), 256);
+        assert_eq!(queue.dropped_total(), 10_000 - 256);
+        let mut drained = Vec::new();
+        queue.drain_into(&mut drained);
+        assert_eq!(drained.len(), 256);
+        assert!(queue.is_empty());
+        // Oldest-first drops: the survivors are the NEWEST 256, in
+        // order.
+        let seqs: Vec<u64> = drained.iter().map(|event| event.seq).collect();
+        assert_eq!(seqs.first(), Some(&9_744));
+        assert_eq!(seqs.last(), Some(&9_999));
+        // The reuse API appends into the caller's buffer.
+        queue.push(wire(10_000, EventKind::PlaybackEndOfMedia));
+        queue.drain_into(&mut drained);
+        assert_eq!(drained.len(), 257);
+        assert_eq!(drained.last().map(|event| event.seq), Some(10_000));
     }
 }
