@@ -20,6 +20,11 @@
 //!   decoders → sinks** (plugin-api `Demuxer`, packet-queue
 //!   `BoundedQueue<Packet>`, codec-api `Decoder`/`FrameSink`) driven
 //!   one bounded tick at a time;
+//! - [`recovery`] — the environment-level recovery policies (card
+//!   3.C3): the interrupted-network retry window, the audio-device
+//!   suspend/reopen policy, and the renderer-surface loss guard —
+//!   pure policy cores answering typed actions + catalog events
+//!   under injected virtual time;
 //! - [`seek`] — the seven-step seek flow of doc 03 §6 (card 3.A1):
 //!   target resolution, the pipeline flush + demux re-anchor, the
 //!   pre-roll observation, and the failed-seek contract D4;
@@ -84,6 +89,7 @@ pub mod error;
 pub mod event;
 pub mod events;
 pub mod pipeline;
+pub mod recovery;
 pub mod seek;
 pub mod session;
 pub mod state;
