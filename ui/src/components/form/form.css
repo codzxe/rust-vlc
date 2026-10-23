@@ -1,0 +1,183 @@
+/* Card 4.B1 — form input primitives (TextField, NumberField, Checkbox,
+ * Radio/RadioGroup, Switch).
+ * Design provenance: docs/08-ui-figma-fidelity.md §1.4 — onboarding text
+ * input 469x34, fill #090909, 2px #191919 stroke (-> surface-deep fill,
+ * stroke-border ring); Controls.svg text_input states (hover surface language
+ * shared with Button). Values.svg steppers -> NumberField steppers.
+ * Semantic tokens only (doc 08 §3.2). Raw px only for structural dimensions
+ * with no token (heights, stroke widths) — see states.md. */
+
+.lumen-field {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body);
+  color: var(--color-content-primary);
+}
+
+.lumen-field__label {
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+}
+
+.lumen-field__control {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 34px; /* onboarding text input height (doc 08 §1.4) */
+  padding: 0 var(--space-inset);
+  font-family: inherit;
+  font-size: var(--font-size-body);
+  color: var(--color-content-bright);
+  background: var(--color-surface-deep);
+  border: 2px solid var(--color-surface); /* #191919 stroke per export */
+  border-radius: var(--radius-control); /* export rx5 — no 5px token (gap, states.md) */
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.lumen-field__control:hover {
+  background: var(--color-surface-hover);
+}
+
+.lumen-field__control:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.lumen-field__control::placeholder {
+  color: var(--color-content-tertiary);
+}
+
+.lumen-field__control:disabled {
+  opacity: var(--opacity-disabled);
+  pointer-events: none;
+}
+
+/* error state (doc 08 §4.4/§5.4): --color-record is the only red semantic
+ * token today; a dedicated --color-danger token is a recorded token-seam gap. */
+.lumen-field__control[aria-invalid="true"] {
+  border-color: var(--color-record);
+}
+
+.lumen-field__error {
+  display: flex;
+  gap: var(--space-grid);
+  font-size: var(--font-size-caption);
+  color: var(--color-record);
+}
+
+/* NumberField stepper (Values.svg) */
+.lumen-number {
+  display: inline-flex;
+}
+
+.lumen-number__control {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.lumen-number__steppers {
+  display: inline-flex;
+  flex-direction: column;
+}
+
+.lumen-number__stepper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 28px;
+  height: 17px; /* half of the 34px control + 2px border share */
+  padding: 0;
+  font-family: inherit;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+  background: var(--color-surface-deep);
+  border: 2px solid var(--color-surface);
+  border-left: none;
+  cursor: pointer;
+}
+
+.lumen-number__stepper:first-of-type {
+  border-bottom: none;
+}
+
+.lumen-number__stepper:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-content-bright);
+}
+
+.lumen-number__stepper:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.lumen-number__stepper:disabled {
+  opacity: var(--opacity-disabled);
+  pointer-events: none;
+}
+
+/* Checkbox / Radio — native inputs, accent-styled (no checkbox/radio export
+ * exists in the package; composed from the icon/accent language, doc 08 §2) */
+.lumen-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-grid);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body);
+  color: var(--color-content-secondary);
+  cursor: pointer;
+}
+
+.lumen-choice:hover {
+  color: var(--color-content-bright);
+}
+
+.lumen-choice__input {
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--color-accent);
+  cursor: inherit;
+}
+
+.lumen-choice__input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.lumen-choice--disabled {
+  opacity: var(--opacity-disabled);
+  pointer-events: none;
+}
+
+.lumen-choice--error .lumen-choice__input {
+  outline-color: var(--color-record);
+}
+
+.lumen-radiogroup {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+  font-family: var(--font-family-sans);
+}
+
+.lumen-radiogroup__label {
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+}
+
+.lumen-radiogroup__options {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lumen-field__control,
+  .lumen-number__stepper {
+    transition: none;
+  }
+}

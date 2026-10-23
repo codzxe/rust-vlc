@@ -1,5 +1,3 @@
-/**
- * Primitive library barrel (card 4.B1). Form inputs land in `./form` in a
- * follow-up session — see button/states.md "Honest gaps".
- */
+/** Primitive library barrel (card 4.B1). */
 export * from "./button";
+export * from "./form";
