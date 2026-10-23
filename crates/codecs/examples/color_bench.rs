@@ -539,7 +539,8 @@ impl RowComposer for FloatComposer<'_> {
         };
         let has_chroma = self.cb.is_some();
         if !has_chroma {
-            for (px, y) in out.chunks_exact_mut(4).zip(y_row.iter()).take(width) {
+            let pxs = out.as_chunks_mut::<4>().0;
+            for (px, y) in pxs.iter_mut().zip(y_row.iter()).take(width) {
                 let y = *y;
                 px[0] = y;
                 px[1] = y;
@@ -550,14 +551,11 @@ impl RowComposer for FloatComposer<'_> {
         }
         if self.h_max == 2 {
             let pairs = width / 2;
-            for (i, pair) in out.chunks_exact_mut(8).take(pairs).enumerate() {
+            let pair_chunks = out.as_chunks_mut::<8>().0;
+            for (i, pair) in pair_chunks.iter_mut().take(pairs).enumerate() {
                 let cb = f32::from(cb_row[i]) - 128.0;
                 let cr = f32::from(cr_row[i]) - 128.0;
-                let (r, g, b) = (
-                    1.402 * cr,
-                    -0.344_136 * cb - 0.714_136 * cr,
-                    1.772 * cb,
-                );
+                let (r, g, b) = (1.402 * cr, -0.344_136 * cb - 0.714_136 * cr, 1.772 * cb);
                 let y0 = f32::from(y_row[2 * i]);
                 let y1 = f32::from(y_row[2 * i + 1]);
                 let (pa, pb) = pair.split_at_mut(4);
@@ -586,7 +584,8 @@ impl RowComposer for FloatComposer<'_> {
                 }
             }
         } else {
-            for (i, px) in out.chunks_exact_mut(4).take(width).enumerate() {
+            let pxs = out.as_chunks_mut::<4>().0;
+            for (i, px) in pxs.iter_mut().take(width).enumerate() {
                 let cb = f32::from(cb_row[i]) - 128.0;
                 let cr = f32::from(cr_row[i]) - 128.0;
                 let y = f32::from(y_row[i]);
@@ -622,16 +621,18 @@ fn print_machine_header(phase: &str) {
         })
         .unwrap_or_else(|| "unknown".to_string());
     let load = std::fs::read_to_string("/proc/loadavg").unwrap_or_default();
-    let load = load.split_whitespace().take(3).collect::<Vec<_>>().join(" ");
+    let load = load
+        .split_whitespace()
+        .take(3)
+        .collect::<Vec<_>>()
+        .join(" ");
     println!(
         "# cpu=\"{model}\" cores={}",
         std::thread::available_parallelism().map_or(0, |n| n.get())
     );
     println!("# loadavg_start=\"{load}\"");
     println!("# seed=0x5eed000000000603 reps=21 warmup=2 interleaved");
-    println!(
-        "# REP columns: tag phase arm fill WxH sampling rep_idx ns"
-    );
+    println!("# REP columns: tag phase arm fill WxH sampling rep_idx ns");
     println!(
         "# MEDIAN columns: tag phase arm fill WxH sampling median_ns best_ns bitexact_vs_legacy"
     );
@@ -640,19 +641,27 @@ fn print_machine_header(phase: &str) {
 
 fn print_load_footer() {
     let load = std::fs::read_to_string("/proc/loadavg").unwrap_or_default();
-    let load = load.split_whitespace().take(3).collect::<Vec<_>>().join(" ");
+    let load = load
+        .split_whitespace()
+        .take(3)
+        .collect::<Vec<_>>()
+        .join(" ");
     println!("# loadavg_end=\"{load}\"");
 }
 
 /// One benchmark arm: builds a fresh composer per rep (the per-frame
 /// construction shape) and composes the full frame.
+type ArmRun<'a> = Box<dyn FnMut(&mut [u8]) + 'a>;
+
 struct Arm<'a> {
     name: &'static str,
-    run: Box<dyn FnMut(&mut [u8]) + 'a>,
+    run: ArmRun<'a>,
 }
 
 fn main() {
-    let phase = std::env::args().nth(1).unwrap_or_else(|| "unlabeled".to_string());
+    let phase = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "unlabeled".to_string());
     print_machine_header(&phase);
     let sizes: [(usize, usize); 3] = [(640, 480), (1280, 720), (3840, 2160)];
     let samplings = [
@@ -879,7 +888,12 @@ fn build_float<'a>(p: &'a Planes) -> FloatComposer<'a> {
 
 /// Forced-scalar full frame (live kernel; `compose_row` dispatch may
 /// pick SIMD — this arm pins the scalar path).
-fn compose_frame_scalar(composer: &now::RgbComposer<'_>, w: usize, h: usize, out: &mut [u8]) -> u64 {
+fn compose_frame_scalar(
+    composer: &now::RgbComposer<'_>,
+    w: usize,
+    h: usize,
+    out: &mut [u8],
+) -> u64 {
     for row_y in 0..h {
         let start = row_y * w * 4;
         let row = &mut out[start..start + w * 4];
@@ -911,10 +925,7 @@ fn checksum(out: &[u8]) -> u64 {
 /// public `decode_image` entry, N=15 medians, so the isolated compose
 /// numbers can be stated as a share of real full-decode time.
 fn decode_share(phase: &str) {
-    for (tag, h_sampling, v_sampling) in [
-        ("422", 2usize, 1usize),
-        ("444", 1usize, 1usize),
-    ] {
+    for (tag, h_sampling, v_sampling) in [("422", 2usize, 1usize), ("444", 1usize, 1usize)] {
         let jpeg = dense_4k_jpeg(h_sampling, v_sampling);
         let image = match codecs::video::mjpeg::decode_image(&jpeg) {
             Ok(image) => image,
@@ -993,11 +1004,7 @@ fn dense_4k_jpeg(h_sampling: usize, v_sampling: usize) -> Vec<u8> {
     sof.extend(HEIGHT.to_be_bytes());
     sof.extend(WIDTH.to_be_bytes());
     sof.push(3);
-    sof.extend([
-        1u8,
-        (h_sampling as u8) << 4 | v_sampling as u8,
-        0,
-    ]);
+    sof.extend([1u8, (h_sampling as u8) << 4 | v_sampling as u8, 0]);
     sof.extend([2u8, 0x11, 0]);
     sof.extend([3u8, 0x11, 0]);
     seg(&mut jpeg, 0xc0, &sof);
