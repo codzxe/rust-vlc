@@ -156,6 +156,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "lumen-mem-audit"
+version = "0.1.0"
+dependencies = [
+ "codec-api",
+ "codecs",
+ "demux",
+ "input",
+ "media-probe",
+ "media-types",
+ "plugin-api",
+]
+
+[[package]]
 name = "media-clock"
 version = "0.1.0"
 dependencies = [
