@@ -85,8 +85,8 @@ use crate::state::{
     TransitionRejected, apply_input, close_plan, translate_pipeline_signal,
 };
 use crate::tracks::{
-    InFlightTrackSwitch, ResolvedSelection, TrackSelector, complete_switch, pipeline_switch,
-    resolve_selector,
+    InFlightTrackSwitch, ResolvedSelection, TrackSelector, WiredKind, complete_switch,
+    pipeline_switch, resolve_selector,
 };
 
 /// The outbox capacity (live events; receipts are bounded separately
@@ -187,13 +187,19 @@ impl SessionCommandKind {
         }
     }
 
-    /// The kind of the selection this command moves (3.A3).
+    /// The kind of the selection this command moves (3.A3; audit
+    /// F-1): the lane-typed answer — the three selection commands
+    /// carry their [`WiredKind`], every other command answers `None`
+    /// (no silent audio fallback for a non-selection command, and a
+    /// future selection command cannot compile without choosing a
+    /// lane here).
     #[must_use]
-    fn selection_kind(self) -> MediaKind {
+    fn selection_kind(self) -> Option<WiredKind> {
         match self {
-            SessionCommandKind::SelectVideo => MediaKind::Video,
-            SessionCommandKind::SelectSubtitle => MediaKind::Subtitle,
-            _ => MediaKind::Audio,
+            SessionCommandKind::SelectVideo => Some(WiredKind::Video),
+            SessionCommandKind::SelectAudio => Some(WiredKind::Audio),
+            SessionCommandKind::SelectSubtitle => Some(WiredKind::Subtitle),
+            _ => None,
         }
     }
 }
@@ -1286,10 +1292,10 @@ struct InputContext {
     /// effect consumes it).
     seek: Option<SeekTarget>,
     /// The resolved track selection for a `SwitchTrack` application
-    /// (card 3.A3): the switched kind + the resolution the
-    /// pre-table validation produced — the `SwitchPipeline` effect
-    /// consumes it.
-    switch: Option<(MediaKind, ResolvedSelection)>,
+    /// (card 3.A3): the switched kind (lane-typed, audit F-1) + the
+    /// resolution the pre-table validation produced — the
+    /// `SwitchPipeline` effect consumes it.
+    switch: Option<(WiredKind, ResolvedSelection)>,
 }
 
 /// The session (single-writer; driven only through `Engine::poll`).
@@ -1779,12 +1785,18 @@ impl Session {
         // The class-A A/V flavors: selector resolution pre-table (a
         // request-validity question — reject before the mint, the
         // documented asymmetry with seek), state legality through
-        // the table's SwitchTrack rows.
-        let mut resolved_switch: Option<(MediaKind, ResolvedSelection)> = None;
-        if let SessionCommandKind::SelectVideo | SessionCommandKind::SelectAudio = command.kind {
-            let kind = command.kind.selection_kind();
+        // the table's SwitchTrack rows. The kind is lane-typed
+        // (audit F-1): `selection_kind` answers the WiredKind, so a
+        // lane-less kind cannot enter the switch flow. The subtitle
+        // flavor already returned through its class-S step above, so
+        // the Some arms here are the A/V flavors in practice — if a
+        // future refactor ever let the subtitle flavor reach this
+        // point it would switch as a wired kind (defined, typed
+        // behavior), never the old silent no-op.
+        let mut resolved_switch: Option<(WiredKind, ResolvedSelection)> = None;
+        if let Some(kind) = command.kind.selection_kind() {
             let selector = command.selector.unwrap_or(TrackSelector::Auto);
-            match resolve_selector(selector, &self.tracks, kind) {
+            match resolve_selector(selector, &self.tracks, kind.as_media_kind()) {
                 Ok(resolved) => resolved_switch = Some((kind, resolved)),
                 Err(_not_found) => {
                     let receipt = CommandReceipt {
@@ -2089,7 +2101,7 @@ impl Session {
     /// (C8) → `playback.error` → `state-changed → error`.
     fn switch_pipeline_step(
         &mut self,
-        switch: Option<(MediaKind, ResolvedSelection)>,
+        switch: Option<(WiredKind, ResolvedSelection)>,
         origin: Option<RequestId>,
         _outputs: &mut Vec<EngineOutput>,
     ) {
@@ -2101,7 +2113,7 @@ impl Session {
         };
         // S2.3f — the audio switch freezes the clock at the old
         // position now (the video switch does not touch it).
-        if kind == MediaKind::Audio {
+        if kind == WiredKind::Audio {
             self.runtime.clock.pause();
         }
         let generation = self.pair().pipeline.as_queue_generation();
@@ -2139,7 +2151,7 @@ impl Session {
                 // is silent — no terminal; doc 05 §4.2). The causing
                 // request is the terminal's origin (doc 05 §3.1).
                 let inflight = InFlightTrackSwitch {
-                    kind,
+                    kind: kind.as_media_kind(),
                     selected: match resolved {
                         ResolvedSelection::Track(id) => Some(id),
                         ResolvedSelection::Deselect => None,
@@ -2148,7 +2160,7 @@ impl Session {
                     origin,
                 };
                 match kind {
-                    MediaKind::Audio => self.inflight_switch_audio = Some(inflight),
+                    WiredKind::Audio => self.inflight_switch_audio = Some(inflight),
                     _ => self.inflight_switch_video = Some(inflight),
                 }
             }
@@ -2225,7 +2237,7 @@ impl Session {
             };
             if let Ok(outcome) = pipeline.switch_limbs(
                 generation,
-                MediaKind::Subtitle,
+                WiredKind::Subtitle,
                 match target {
                     crate::tracks::ResolvedSelection::Track(id) => Some(id),
                     crate::tracks::ResolvedSelection::Deselect => None,

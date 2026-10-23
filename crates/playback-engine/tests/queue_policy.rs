@@ -233,22 +233,45 @@ fn schema_constants_pin_the_engine_copies() {
     );
 }
 
-/// The exhaustive kind mapping (design A3): audio, video and subtitle
-/// have lanes; data does not — `None`, never a silent audio fallback.
+/// The exhaustive kind mapping (design A3, audit F-1): the lane
+/// lookup is **total** over [`WiredKind`] — every wired kind has its
+/// caps by construction — and the lane-less truth (data) lives in the
+/// single typed conversion `WiredKind::try_from(MediaKind)`, never a
+/// silent audio fallback and never a runtime abort in the lane
+/// builder.
 #[test]
 fn for_kind_is_exhaustive_and_honest() {
+    use playback_engine::UnwiredKind;
+
     use media_types::MediaKind;
+    use playback_engine::WiredKind;
     let plan = QueuePlan::default();
-    let audio = plan.for_kind(MediaKind::Audio).must();
-    let video = plan.for_kind(MediaKind::Video).must();
-    let subtitle = plan.for_kind(MediaKind::Subtitle).must();
+    let audio = plan.for_kind(WiredKind::Audio);
+    let video = plan.for_kind(WiredKind::Video);
+    let subtitle = plan.for_kind(WiredKind::Subtitle);
     assert_eq!(audio, plan.audio);
     assert_eq!(video, plan.video);
     assert_eq!(subtitle, plan.subtitle);
-    assert_eq!(plan.for_kind(MediaKind::Data), None, "data has no lane");
     // The three lanes are actually distinct postures.
     assert_ne!(audio.max_packets, video.max_packets);
     assert_ne!(audio.max_duration, subtitle.max_duration);
+    // Data has no lane — the typed refusal at the single conversion
+    // point (the retired convention panicked in the lane builder
+    // instead; audit F-1).
+    assert_eq!(
+        WiredKind::try_from(MediaKind::Data),
+        Err(UnwiredKind { kind: MediaKind::Data }),
+        "data has no lane"
+    );
+    // And the wired kinds round-trip through their full-kind view.
+    for (wired, media) in [
+        (WiredKind::Audio, MediaKind::Audio),
+        (WiredKind::Video, MediaKind::Video),
+        (WiredKind::Subtitle, MediaKind::Subtitle),
+    ] {
+        assert_eq!(wired.as_media_kind(), media);
+        assert_eq!(WiredKind::try_from(media), Ok(wired));
+    }
 }
 
 /// `QueuePlan::default()` keeps the doc 03 §4.4 figures (the library

@@ -138,6 +138,93 @@ use media_types::{EngineError, MediaKind, Track, TrackId};
 
 use crate::pipeline::Pipeline;
 
+/// A media kind with a queue lane (audit F-1, error-surface
+/// 2026-10-23 §3): the three kinds the pipeline wires.
+///
+/// This is the vocabulary [`QueuePlan::for_kind`](crate::pipeline::QueuePlan::for_kind)
+/// indexes. It replaces the cross-module "wired kinds" convention the
+/// audit flagged as the crate's one REAL RISK (a `MediaKind`-keyed
+/// `Option` lookup whose caller carried a production `expect`): a
+/// lane-less kind is now **unrepresentable** at the lane-building
+/// seams — [`Pipeline::wire`](crate::pipeline::Pipeline::wire)
+/// iterates `WiredKind` values and
+/// [`SessionCommandKind::selection_kind`](crate::session::SessionCommandKind::selection_kind)
+/// answers `Option<WiredKind>` — so the invariant lives in the type
+/// system, not in a runtime abort reachable by a future `MediaKind`
+/// variant or a new `build_limb` caller.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum WiredKind {
+    /// The audio lane.
+    Audio,
+    /// The video lane.
+    Video,
+    /// The subtitle lane (the optional kind — class S).
+    Subtitle,
+}
+
+impl WiredKind {
+    /// The full-kind view of this lane: the track-list vocabulary
+    /// ([`default_track`], track-kind comparisons, event payloads)
+    /// stays [`MediaKind`]; this is the widening direction, total by
+    /// construction.
+    #[must_use]
+    pub fn as_media_kind(self) -> MediaKind {
+        match self {
+            WiredKind::Audio => MediaKind::Audio,
+            WiredKind::Video => MediaKind::Video,
+            WiredKind::Subtitle => MediaKind::Subtitle,
+        }
+    }
+}
+
+/// The typed refusal of the [`MediaKind`] → [`WiredKind`]
+/// conversion: the offered kind has no queue lane (design A3 — data
+/// is not wired; the exhaustive truth, never a silent audio
+/// fallback).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UnwiredKind {
+    /// The lane-less kind that was offered.
+    pub kind: MediaKind,
+}
+
+impl std::fmt::Display for UnwiredKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self.kind {
+            MediaKind::Audio => "audio",
+            MediaKind::Video => "video",
+            MediaKind::Subtitle => "subtitle",
+            MediaKind::Data => "data",
+        };
+        write!(
+            f,
+            "the {name} kind has no queue lane (design A3: lane-less kinds are never wired)"
+        )
+    }
+}
+
+impl std::error::Error for UnwiredKind {}
+
+impl TryFrom<MediaKind> for WiredKind {
+    type Error = UnwiredKind;
+
+    /// The single `MediaKind` → `WiredKind` conversion point (audit
+    /// F-1): the one place a full kind meets the lane vocabulary.
+    ///
+    /// # Errors
+    /// [`UnwiredKind`] for a lane-less kind (`MediaKind::Data` — and
+    /// any future lane-less variant, which this match will refuse to
+    /// compile without) — the typed truth where the retired
+    /// convention aborted at runtime.
+    fn try_from(kind: MediaKind) -> Result<WiredKind, UnwiredKind> {
+        match kind {
+            MediaKind::Audio => Ok(WiredKind::Audio),
+            MediaKind::Video => Ok(WiredKind::Video),
+            MediaKind::Subtitle => Ok(WiredKind::Subtitle),
+            MediaKind::Data => Err(UnwiredKind { kind }),
+        }
+    }
+}
+
 /// One track-selection request, engine-side (doc 05 §2.5's
 /// `TrackSelector` — the wire type converts at the session boundary,
 /// the `SeekTarget` precedent).
@@ -297,7 +384,7 @@ pub(crate) struct SwitchOutcome {
 pub(crate) fn pipeline_switch(
     pipeline: &mut Pipeline,
     generation: media_types::GenerationId,
-    kind: MediaKind,
+    kind: WiredKind,
     resolved: ResolvedSelection,
     provider: &dyn crate::pipeline::DecoderProvider,
     plan: &crate::pipeline::QueuePlan,
@@ -462,5 +549,40 @@ mod tests {
             TrackSelector::from_wire(commands::catalog::types::TrackSelector::None),
             TrackSelector::None
         );
+    }
+
+    /// Audit F-1: the three wired kinds widen losslessly to their
+    /// full-kind view (the track-list vocabulary stays `MediaKind`).
+    #[test]
+    fn wired_kinds_widen_to_their_media_kinds() {
+        assert_eq!(WiredKind::Audio.as_media_kind(), MediaKind::Audio);
+        assert_eq!(WiredKind::Video.as_media_kind(), MediaKind::Video);
+        assert_eq!(WiredKind::Subtitle.as_media_kind(), MediaKind::Subtitle);
+    }
+
+    /// Audit F-1: the single `MediaKind` → `WiredKind` conversion
+    /// answers the typed `UnwiredKind` refusal for the lane-less kind
+    /// — the data-has-no-lane truth is now a typed error at the
+    /// conversion seam, not a runtime abort in `build_limb`.
+    #[test]
+    fn data_is_the_typed_unwired_kind() {
+        for kind in [MediaKind::Audio, MediaKind::Video, MediaKind::Subtitle] {
+            let wired = match WiredKind::try_from(kind) {
+                Ok(wired) => wired,
+                Err(unwired) => unreachable!("{kind:?} is wired, got {unwired}"),
+            };
+            assert_eq!(wired.as_media_kind(), kind);
+        }
+        let err = match WiredKind::try_from(MediaKind::Data) {
+            Ok(_) => unreachable!("data is lane-less by design A3"),
+            Err(err) => err,
+        };
+        assert_eq!(err, UnwiredKind { kind: MediaKind::Data });
+        assert_eq!(
+            err.to_string(),
+            "the data kind has no queue lane (design A3: lane-less kinds are never wired)"
+        );
+        let boxed: Box<dyn std::error::Error> = Box::new(err);
+        assert!(!boxed.to_string().is_empty());
     }
 }

@@ -109,6 +109,7 @@ use plugin_api::{DemuxEvent, Demuxer, SeekSupport};
 
 use crate::seek::nanos_i64;
 use crate::state::SessionState;
+use crate::tracks::WiredKind;
 
 /// The registry seam (card 2.C2): produces a decoder for a track.
 ///
@@ -345,18 +346,21 @@ impl QueuePlan {
         })
     }
 
-    /// The caps for a track kind, when the kind has a lane: audio,
-    /// video and subtitle map to their limbs; data (and any future
-    /// lane-less kind) maps to `None` — the exhaustive truth instead
-    /// of a silent audio fallback (design A3; the only caller,
-    /// [`Pipeline::wire`], filters to wireable kinds first).
+    /// The caps for a wired kind (design A3; audit F-1): audio,
+    /// video and subtitle each have a lane — the function is
+    /// **total** over [`WiredKind`], so a lane-less kind cannot
+    /// reach the lane-building seams at all. (The retired form
+    /// answered `Option<QueueLimits>` for a [`MediaKind`] and its
+    /// only caller carried the crate's one production `expect`; the
+    /// data-is-lane-less truth now lives in the typed
+    /// [`WiredKind::try_from`](crate::tracks::WiredKind::try_from)
+    /// refusal.)
     #[must_use]
-    pub fn for_kind(&self, kind: MediaKind) -> Option<QueueLimits> {
+    pub fn for_kind(&self, kind: WiredKind) -> QueueLimits {
         match kind {
-            MediaKind::Audio => Some(self.audio),
-            MediaKind::Video => Some(self.video),
-            MediaKind::Subtitle => Some(self.subtitle),
-            MediaKind::Data => None,
+            WiredKind::Audio => self.audio,
+            WiredKind::Video => self.video,
+            WiredKind::Subtitle => self.subtitle,
         }
     }
 
@@ -750,9 +754,16 @@ pub(crate) struct Pipeline {
 }
 
 /// One parked decoder instance (the per-session decoder cache, card
-/// 3.A3 — see [`Pipeline::decoder_cache`]).
+/// 3.A3 — see [`Pipeline::decoder_cache`]). The parked **codec
+/// descriptor** rides the entry (audit F-4): the recycle path's
+/// `configure` call reuses the exact descriptor the decoder was built
+/// under, decoupled from both the live track list (a cache entry
+/// outliving its row was the old fallback's premise) and the
+/// registry's validation rules (the retired `new("unknown")` dance
+/// could panic if the registry ever rejected the literal).
 struct CachedDecoder {
     track: TrackId,
+    codec: media_types::ids::CodecDescriptor,
     decoder: Box<dyn Decoder>,
 }
 
@@ -1014,8 +1025,9 @@ impl Pipeline {
         self.selected = vec![false; self.tracks.len()];
         self.starve_debounce = plan.starve_debounce_ticks.max(1);
         let mut outcome = WireOutcome::default();
-        for kind in [MediaKind::Video, MediaKind::Audio, MediaKind::Subtitle] {
-            let Some(track) = crate::tracks::default_track(&self.tracks, kind) else {
+        for wired in [WiredKind::Video, WiredKind::Audio, WiredKind::Subtitle] {
+            let Some(track) = crate::tracks::default_track(&self.tracks, wired.as_media_kind())
+            else {
                 continue;
             };
             let track = track.clone();
@@ -1030,10 +1042,10 @@ impl Pipeline {
                         self.selected[index] = true;
                     }
                     self.limbs
-                        .push(self.build_limb(track, decoder, plan, generation));
+                        .push(self.build_limb(track, wired, decoder, plan, generation));
                     outcome.wired += 1;
                 }
-                Err(_error) if kind == MediaKind::Subtitle => {
+                Err(_error) if wired == WiredKind::Subtitle => {
                     // The optional kind: deselect, never fail the
                     // open (the class-S seam's open-time half).
                     continue;
@@ -1048,21 +1060,21 @@ impl Pipeline {
     /// at `generation` (doc 03 §5 checking point 4 — a fresh queue
     /// publishes FIRST, so this flush is a no-op at session start and
     /// the standing boundary for every later mint).
+    ///
+    /// The lane caps come from the total
+    /// [`QueuePlan::for_kind(WiredKind)`](QueuePlan::for_kind): the
+    /// kind parameter is lane-typed, so a lane-less kind is
+    /// unrepresentable here (audit F-1 — the `expect` + `allow` this
+    /// replaces was the crate's one production panic surface).
     fn build_limb(
         &self,
         track: Track,
+        kind: WiredKind,
         decoder: Box<dyn Decoder>,
         plan: &QueuePlan,
         generation: GenerationId,
     ) -> Limb {
-        // Wired kinds always have lanes (audio/video/subtitle); the
-        // exhaustive `Option` keeps the type honest (3.B3). The
-        // `None` arm is structurally unreachable for wired kinds —
-        // build_limb is only called for kinds default_track selected.
-        #[allow(clippy::expect_used, reason = "wired kinds always have a lane")]
-        let limits = plan
-            .for_kind(track.kind)
-            .expect("wired kinds always have a queue lane");
+        let limits = plan.for_kind(kind);
         let thresholds = plan.thresholds(&limits);
         let queue = Arc::new(BoundedQueue::new(limits, thresholds));
         let high_packets = thresholds.high.packets.max(1);
@@ -1271,7 +1283,7 @@ impl Pipeline {
             }
             self.seek_flush_stale = self.seek_flush_stale.saturating_add(sink.stale_dropped);
             let config = DecoderConfig::new(
-                cached_track_codec(&self.tracks, cached.track),
+                cached.codec.clone(),
                 generation,
                 ThreadBudget::default(),
                 None,
@@ -1679,7 +1691,7 @@ impl Pipeline {
     pub(crate) fn switch_limbs(
         &mut self,
         generation: GenerationId,
-        kind: MediaKind,
+        kind: WiredKind,
         new_track: Option<TrackId>,
         provider: &dyn DecoderProvider,
         plan: &QueuePlan,
@@ -1703,7 +1715,11 @@ impl Pipeline {
             None => None,
         };
         // 2. Retire the old limb of the kind.
-        if let Some(position) = self.limbs.iter().position(|limb| limb.track.kind == kind) {
+        if let Some(position) = self
+            .limbs
+            .iter()
+            .position(|limb| limb.track.kind == kind.as_media_kind())
+        {
             let mut limb = self.limbs.swap_remove(position);
             let retired = limb.track.id;
             let _ = limb.queue.flush(generation);
@@ -1737,6 +1753,11 @@ impl Pipeline {
             self.seek_flush_stale = self.seek_flush_stale.saturating_add(sink.stale_dropped);
             self.decoder_cache.push(CachedDecoder {
                 track: retired,
+                // Audit F-4: the parked codec IS the recycle path's
+                // descriptor — captured at park time, never re-derived
+                // from the track list or a fabricated "unknown"
+                // literal.
+                codec: limb.track.codec.clone(),
                 decoder: limb.decoder,
             });
             // Selection truth + the held packet of the retired track.
@@ -1760,17 +1781,17 @@ impl Pipeline {
             {
                 self.selected[index] = true;
             }
-            let mut limb = self.build_limb(track.clone(), decoder, plan, generation);
+            let mut limb = self.build_limb(track.clone(), kind, decoder, plan, generation);
             limb.first_frame_pending = true;
             let watched = track.id;
             self.limbs.push(limb);
             // 5. The demux stamp advances with the mint.
             self.generation = generation;
             // 6. Arm the window.
-            self.window_arm_switch(kind, Some(watched));
+            self.window_arm_switch(kind.as_media_kind(), Some(watched));
         } else {
             self.generation = generation;
-            self.window_arm_switch(kind, None);
+            self.window_arm_switch(kind.as_media_kind(), None);
         }
         outcome.stale_frames_flushed = self.take_seek_flush_stale();
         Ok(outcome)
@@ -2367,25 +2388,6 @@ impl Pipeline {
     }
 }
 
-/// The codec descriptor of a cached track — the configure call the
-/// recycle path needs. A cache entry always has a live `tracks` row
-/// (the cache is bounded by the source's track list), so the
-/// fallback descriptor is the unreachable-by-construction guard.
-fn cached_track_codec(tracks: &[Track], track: TrackId) -> media_types::ids::CodecDescriptor {
-    tracks
-        .iter()
-        .find(|candidate| candidate.id == track)
-        .map_or_else(empty_codec_descriptor, |candidate| candidate.codec.clone())
-}
-
-/// The unreachable-by-construction fallback descriptor for a cached
-/// track with no live row (kept total, never panics).
-fn empty_codec_descriptor() -> media_types::ids::CodecDescriptor {
-    media_types::ids::CodecDescriptor::new("unknown").unwrap_or_else(|error| {
-        unreachable!("the literal `unknown` is a valid descriptor: {error}")
-    })
-}
-
 /// A present stamp's nanoseconds (`None` when missing or
 /// unrepresentable — absence is data, never a guess).
 fn stamp_ns(stamp: Stamp) -> Option<i64> {
@@ -2565,6 +2567,7 @@ mod tests {
 
     use super::*;
     use media_types::packet::SharedBytes;
+    use std::sync::Mutex;
     use testkit::Must;
 
     /// A demuxer that reports one audio track and produces nothing
@@ -2874,6 +2877,145 @@ mod tests {
         assert!(
             report.starved,
             "a pure unknown-duration mix still starves on packets"
+        );
+    }
+
+    /// A demuxer that reports two audio tracks with distinct codec
+    /// descriptors (the F-4 recycle shape: one gets parked, the other
+    /// takes over the lane).
+    struct TwoCodecDemuxer;
+
+    impl Demuxer for TwoCodecDemuxer {
+        fn start(&mut self) -> Result<Vec<Track>, EngineError> {
+            let track = |id: u32, codec: &str| Track {
+                id: TrackId::new(id),
+                stream: media_types::StreamId::new(id),
+                kind: MediaKind::Audio,
+                language: None,
+                codec: media_types::ids::CodecDescriptor::new(codec).must(),
+                title: None,
+                flags: media_types::TrackFlags::NONE,
+                timing: media_types::TrackTiming {
+                    span: media_types::TimeSpan::UNKNOWN,
+                    base: media_types::TimeBase::new(1, 1_000_000).must(),
+                    gaps: Vec::new(),
+                },
+            };
+            Ok(vec![
+                track(1, "fake-pcm-a"),
+                track(2, "fake-pcm-b"),
+            ])
+        }
+
+        fn next_event(&mut self) -> Result<plugin_api::DemuxEvent, EngineError> {
+            Ok(plugin_api::DemuxEvent::Discontinuity)
+        }
+
+        fn seek(
+            &mut self,
+            _target: media_types::TimeSpan,
+        ) -> Result<media_types::TimeSpan, EngineError> {
+            Ok(media_types::TimeSpan::UNKNOWN)
+        }
+    }
+
+    /// A decoder that records every codec it is configured with (the
+    /// F-4 observable: exactly which descriptor the recycle path
+    /// handed over).
+    struct RecordingDecoder {
+        log: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl Decoder for RecordingDecoder {
+        fn configure(&mut self, config: &DecoderConfig) -> Result<(), EngineError> {
+            self.log.lock().must().push(config.codec.as_str().to_string());
+            Ok(())
+        }
+
+        fn decode(
+            &mut self,
+            _packet: Packet,
+            _out: &mut dyn FrameSink,
+        ) -> Result<DecodeOutcome, EngineError> {
+            Ok(DecodeOutcome::NeedMoreInput)
+        }
+
+        fn flush(&mut self, _out: &mut dyn FrameSink) -> Result<DecodeOutcome, EngineError> {
+            Ok(DecodeOutcome::Drained)
+        }
+    }
+
+    /// Hands out [`RecordingDecoder`] instances sharing one log.
+    struct RecordingProvider {
+        log: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl DecoderProvider for RecordingProvider {
+        fn decoder_for(
+            &self,
+            _track: &Track,
+            _config: &DecoderConfig,
+        ) -> Result<Box<dyn Decoder>, EngineError> {
+            Ok(Box::new(RecordingDecoder {
+                log: Arc::clone(&self.log),
+            }))
+        }
+    }
+
+    /// Audit F-4: the recycle path's reconfigure uses the codec
+    /// parked **with** the decoder (captured at park time), never a
+    /// descriptor re-derived from the track list or a fabricated
+    /// `unknown` literal — the retire→park→seek-flush chain stays
+    /// decoupled from the registry's validation rules. The retired
+    /// fallback (`CodecDescriptor::new("unknown")` +
+    /// `unreachable!`) would have panicked here the day the registry
+    /// learned to reject that literal.
+    #[test]
+    fn parked_codec_rides_the_recycle_path() {
+        let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let provider = RecordingProvider {
+            log: Arc::clone(&log),
+        };
+        let consumer: Arc<dyn FrameConsumer> = Arc::new(NullConsumer);
+        let mut pipeline = Pipeline::new(Box::new(TwoCodecDemuxer), Arc::clone(&consumer));
+        let tracks = pipeline.start_demuxer().must();
+        let limits = QueueLimits {
+            max_packets: nonzero(8),
+            max_bytes: nonzero(1 << 20),
+            max_duration: media_types::Nanoseconds(1_000_000_000),
+        };
+        let plan = QueuePlan::new(limits, limits);
+        let wired = pipeline
+            .wire(tracks, &provider, &plan, GenerationId::FIRST)
+            .must();
+        assert_eq!(wired.wired, 1, "the default audio track (id 1) wires");
+        // Switch audio 1 → 2 under a fresh generation: track 1's
+        // decoder parks (with its codec), track 2's takes the lane.
+        let generation = GenerationId::FIRST.next().must();
+        let outcome = pipeline
+            .switch_limbs(
+                generation,
+                WiredKind::Audio,
+                Some(TrackId::new(2)),
+                &provider,
+                &plan,
+                8,
+            )
+            .must();
+        assert!(outcome.decoder_built && !outcome.decoder_reused);
+        // A seek mint reconfigures the live limb and every parked
+        // decoder — each with the codec that rode its owner.
+        let seek_generation = generation.next().must();
+        pipeline.seek_flush(seek_generation, 8, 1).must();
+        let configured = log.lock().must().clone();
+        assert_eq!(
+            configured,
+            ["fake-pcm-b".to_string(), "fake-pcm-a".to_string()],
+            "the live limb's codec first, then the parked decoder's own codec — never a fabricated fallback"
+        );
+        assert!(
+            !configured.iter().any(|codec| codec == "unknown"),
+            "the recycle path must not fabricate descriptors"
         );
     }
 }
