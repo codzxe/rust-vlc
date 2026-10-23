@@ -1,16 +1,24 @@
 """corpus_builders.py — ffmpeg command assembly for every corpus class.
 
-Each builder returns (argvs, params, aux) where:
+Each builder returns (argvs, params, aux) — or, for v4 classes that need
+byte-level post-processing, (argvs, params, aux, post) — where:
   argvs : list of ffmpeg argv LISTS (multi-pass classes run them in order;
           the LAST one produces the entry's target file).  Path markers:
           __OUT__ (target file), __OUTDIR__ (target dir for HLS),
           __TMP__ (per-entry temp dir), __AUX__ (per-entry aux dir),
           __AUXIDX__ (resolved to the aux input index at build time).
   params: manifest `params` dict (harness-compatible keys: width/height/
-          fps/pix_fmt/duration/audio_rate/audio_channels/audio_codec/res_name)
+          fps/pix_fmt/duration/audio_rate/audio_channels/audio_codec/res_name;
+          v4 builders may add `est_hint` — a builder-computed byte estimate
+          the budget gate uses instead of the generic formula — and record
+          their post-op spec under `post`)
   aux   : list of (relname, content-bytes) written before argvs run
-          (subtitles, FFMETADATA chapters, concat lists, m3u8 masters).
+          (subtitles, FFMETADATA chapters, concat lists, m3u8 masters,
+          maxtracks data-stream bins, still-24h source frames).
           Content is a pure function of the entry's rng — replay-safe.
+  post  : optional list of post-op specs executed by the generator AFTER the
+          argvs succeed and BEFORE harvest/validation (v4): {"op":
+          "avi-rechunk"|"riff-size-lie"|"tkhd-rotate", ...drawn params}.
 
 A builder returns None when a draw is unsupported (pix fmt without the
 capability probe, etc.) — the generator records an honest rejected draw.
@@ -25,11 +33,19 @@ from __future__ import annotations
 import random
 
 from corpus_vocab import (
-    ANAMORPHIC_SAR, AUDIO_CODECS, AUDIO_CONTAINERS, AUDIO_SOURCES,
-    ANY_CONTAINERS, CONTAINERS, FPS_POOL, FPS_WEIGHTS, MAX_AUDIO_TRACKS,
-    MAX_CHAPTERS, MAX_SUB_TRACKS, NO_DURATION_SRCS, RAW_VIDEO_TARGETS,
-    RES_BY_NAME, RES_WEIGHTS, SUB_TEXT_POOL, SUBTITLE_CODEC_FOR,
-    VIDEO_CODECS, VIDEO_SOURCES, VIDEO_SOURCE_WEIGHTS, draw_gop, vfr_expr,
+    ANAMORPHIC_SAR, AUDIO_CODECS, AUDIO_SOURCES,
+    ANY_CONTAINERS, AVCC_PROFILES, BFRAME_STORM_H264, BFRAME_STORM_H265,
+    CHAPTER_BOMB_RANGE, CONTAINERS, FPS_EXTREME_HI,
+    FPS_EXTREME_LO, FPS_POOL, FPS_WEIGHTS,
+    HEVC_AVI_TAGS, MAXTRACKS_AUDIO_RATES, MAXTRACKS_DATA_STREAMS,
+    MAXTRACKS_RANGE, MAX_AUDIO_TRACKS, MAX_CHAPTERS, MAX_SUB_TRACKS,
+    MIDCHANGE_HI_KBPS, MIDCHANGE_LO_KBPS, NO_DURATION_SRCS, ODD_DIM_SMALL,
+    ODD_DIM_SUB16, ODD_LAYOUTS, ODD_SOURCES, RAW_VIDEO_TARGETS,
+    RECHUNK_SPLIT_POOL, RES_BY_NAME, RES_WEIGHTS, RIFF_LIE_MODES,
+    ROT_TRANSFORMS, SR_CHAOS_RATES, STILL_HOURS_RANGE, STILL_SLIDE_INTERVAL,
+    SUB_TEXT_POOL, SUBTITLE_CODEC_FOR, VBV_BUF_KB, VBV_FLOOR_KBPS,
+    VBV_SPIKE_KBPS, VIDEO_CODECS, VIDEO_SOURCES, VIDEO_SOURCE_WEIGHTS,
+    draw_gop, vfr_expr,
 )
 
 STD_RATES_LIST = [8000, 11025, 16000, 22050, 32000, 44100, 48000, 88200, 96000]
@@ -934,10 +950,714 @@ def build_bomb(rng, ctx, family, forced_res=None, forced_feats=None):
     return [argv], params, []
 
 
+# ---------------------------------------------------------------------------
+# v4 escalation builders (W5-16).  Every mechanism below was probed against
+# the real ffmpeg 7.1.5 before being wired in (see README §9 v4 realities);
+# remaining uncertainty flows through the per-draw honest-rejects ledger.
+# ---------------------------------------------------------------------------
+
+def _odd_source(rng, w, h, fps, dur):
+    """Odd-preserving lavfi video input (color-family sources only: testsrc2
+    rounds odd sizes down to even internally — measured)."""
+    src = rng.choice(ODD_SOURCES)
+    extra = ""
+    if src == "color":
+        extra = f"color={rng.choice(['red', 'green', 'blue', 'gray', 'black'])}:"
+    elif src == "gradients" and rng.random() < 0.5:
+        extra = f"n={rng.randint(2, 8)}:"
+    return ["-f", "lavfi", "-i",
+            f"{src}={extra}size={w}x{h}:rate={_fmt_fps(fps)}:duration={dur:.3f}"]
+
+
+def _tiny_res(rng, cap=100_000):
+    names = [n for n in RES_WEIGHTS
+             if RES_BY_NAME[n][0] * RES_BY_NAME[n][1] <= cap]
+    name = rng.choices(names, weights=[RES_WEIGHTS[n] for n in names], k=1)[0]
+    w, h = RES_BY_NAME[name]
+    return name, w, h
+
+
+def build_odd_dims(rng, ctx, family, forced_res=None, forced_feats=None):
+    """1x1 .. 101x101 odd/sub-16/non-mod-2 geometry, yuv422/444 where the
+    encoder permits.  Odd dims are preserved by the color-family sources;
+    ffmpeg silently crops odd sizes handed to even-only encoders, so the
+    codec pool is the measured odd-preserving set."""
+    container, codec = family
+    feats = dict(forced_feats or {})
+    if feats.get("dims"):
+        w, h = feats["dims"]
+        rname = f"odd{w}x{h}"
+    else:
+        lo, hi = rng.choice([ODD_DIM_SUB16, ODD_DIM_SMALL, ODD_DIM_SUB16])
+        w = rng.randrange(lo, hi + 1, 2)
+        h = rng.randrange(lo, hi + 1, 2)
+        rname = f"odd{w}x{h}"
+    fps = rng.randint(5, 25)
+    dur = rng.uniform(0.4, 2.0)
+    if w == 1 and h == 1 and not ctx.caps.get("odd1x1"):
+        return None  # capability-probed: encoder refuses 1x1 on this build
+    if codec == "h264":
+        pix = "yuv444p"  # 4:2:0 h264 silently crops odd dims (measured)
+        if not ctx.caps.get("x264_444"):
+            return None
+    elif codec == "mjpeg":
+        pix = rng.choice(["yuv420p", "yuv422p", "yuv444p", "gray"])
+    elif codec == "ffv1":
+        pix = rng.choice(["yuv420p", "yuv444p"])
+    else:  # mpeg4
+        pix = "yuv420p"
+    argv = _odd_source(rng, w, h, fps, dur)
+    argv += ["-c:v", VIDEO_CODECS[codec]["enc"], "-pix_fmt", pix]
+    if "preset" in VIDEO_CODECS[codec]:
+        argv += ["-preset", VIDEO_CODECS[codec]["preset"]]
+    argv += ["-f", CONTAINERS[container]["fmt"], "-y", "__OUT__"]
+    params = {"class": "odd-dims", "container": container, "codec": codec,
+              "res_name": rname, "width": w, "height": h, "fps": fps,
+              "pix_fmt": pix, "duration": round(dur, 3),
+              "features": {"odd_dims": True}}
+    return [argv], params, []
+
+
+def build_rot_display(rng, ctx, family, forced_res=None, forced_feats=None):
+    """Display-matrix rotation metadata (90/180/270 + flips) on mp4/mkv/mov.
+    Pure rotations ride the encoder-assisted route: `-display_rotation` on
+    the input + `-c copy` — movenc AND matroskaenc write real display
+    matrices this way (measured; the v3 `rotate=` metadata route is dead).
+    Flip combos need the tkhd byte-patch route (ffmpeg 7.1.5 refuses
+    -display_hflip/-display_vflip as CLI options)."""
+    container, vcodec = family
+    feats = dict(forced_feats or {})
+    name = feats.get("rotation")
+    if name is None:
+        name = rng.choice([t[0] for t in ROT_TRANSFORMS])
+    tf = next((t for t in ROT_TRANSFORMS if t[0] == name), ROT_TRANSFORMS[0])
+    _, angle, hflip, vflip = tf
+    rname, w, h = _tiny_res(rng)
+    fps = rng.randint(10, 30)
+    dur = rng.uniform(1.0, 3.0)
+    pix = "yuv420p"
+    if vcodec not in ("h264", "mpeg4", "mjpeg"):
+        vcodec = "h264"
+    vin = ["-f", "lavfi", "-i",
+           f"testsrc2=duration={dur:.3f}:size={w}x{h}:rate={fps}"]
+    pass1 = vin + ["-c:v", VIDEO_CODECS[vcodec]["enc"], "-pix_fmt", pix,
+                   "-preset", "ultrafast", "-f", "mp4", "-y", "__TMP__/r0.mp4"]
+    fmt = CONTAINERS[container]["fmt"]
+    if (hflip or vflip):
+        if container not in ("mp4", "mov") or not ctx.caps.get("rot_tkhd"):
+            return None  # patch route is ISO-BMFF only, probe-gated
+        pass2 = ["-i", "__TMP__/r0.mp4", "-c", "copy",
+                 "-f", fmt, "-y", "__OUT__"]
+        post = [{"op": "tkhd-rotate", "rot": angle, "hflip": hflip,
+                 "vflip": vflip, "name": name}]
+        route = "tkhd-patch"
+    else:
+        if not ctx.caps.get(f"rot_copy:{container}"):
+            return None  # capability-probed: no display-matrix write route
+        pass2 = ["-display_rotation:v:0", str(angle), "-i", "__TMP__/r0.mp4",
+                 "-c", "copy", "-f", fmt, "-y", "__OUT__"]
+        post = []
+        route = "display-rotation-copy"
+    params = {"class": "rot-display", "container": container, "codec": vcodec,
+              "res_name": rname, "width": w, "height": h, "fps": fps,
+              "pix_fmt": pix, "duration": round(dur, 3),
+              "features": {"rotation": name, "route": route},
+              "est_hint": int(w * h * dur * 0.10) + 12_288}
+    return [pass1, pass2], params, [], post
+
+
+def build_maxtracks_avi(rng, ctx, family, forced_res=None, forced_feats=None):
+    """AVI with 16-32 streams (mixed video/audio/data).  Subtitle streams
+    are REFUSED by the AVI muxer ('Not yet implemented') — data streams via
+    `-f data` aux bins are the third brand (muxed with an empty fourcc)."""
+    n_streams = rng.randint(*MAXTRACKS_RANGE)
+    n_data = rng.randint(*MAXTRACKS_DATA_STREAMS)
+    n_video = rng.randint(max(2, n_streams // 6), max(3, n_streams // 2))
+    n_audio = max(1, n_streams - n_video - n_data)
+    w, h = rng.choice([(64, 48), (96, 64), (128, 96), (160, 120)])
+    fps = rng.randint(4, 8)
+    dur = rng.uniform(0.8, 1.5)
+    vcodec = rng.choice(["mjpeg", "mjpeg", "mpeg4"])
+    argv = []
+    maps = []
+    aux = []
+    est = 0
+    for i in range(n_video):
+        argv += ["-f", "lavfi", "-i",
+                 f"testsrc2=duration={dur:.3f}:size={w}x{h}:rate={fps}"]
+        maps.append((len([a for a in argv if a == "-i"]) - 1, "v"))
+    for i in range(n_audio):
+        arate = rng.choice(MAXTRACKS_AUDIO_RATES)
+        argv += ["-f", "lavfi", "-i",
+                 f"anoisesrc=color=pink:duration={dur:.3f}:"
+                 f"sample_rate={arate}:amplitude=0.5"]
+        maps.append((len([a for a in argv if a == "-i"]) - 1, "a"))
+        est += int(arate * dur * 1.2)
+    for i in range(n_data):
+        blob = bytes(rng.randrange(256) for _ in range(rng.randint(64, 512)))
+        aux.append((f"data{i}.bin", blob))
+        argv += ["-f", "data", "-i", f"__AUX__/data{i}.bin"]
+        maps.append((len([a for a in argv if a == "-i"]) - 1, "d"))
+    for inp, kind in maps:
+        argv += ["-map", f"{inp}:{kind}"]
+    for i in range(n_video):
+        argv += [f"-c:v:{i}", VIDEO_CODECS[vcodec]["enc"],
+                 f"-pix_fmt:v:{i}", "yuv420p"]
+    for i in range(n_audio):
+        argv += [f"-c:a:{i}", "pcm_u8"]
+    for i in range(n_data):
+        argv += [f"-c:d:{i}", "copy"]
+    est += int(w * h * dur * 0.25 * 0.5 * n_video) + 24_576
+    argv += ["-f", "avi", "-y", "__OUT__"]
+    params = {"class": "maxtracks-avi", "container": "avi", "codec": vcodec,
+              "res_name": f"{w}x{h}", "width": w, "height": h, "fps": fps,
+              "pix_fmt": "yuv420p", "duration": round(dur, 3),
+              "audio_codec": "pcm_u8", "audio_rate": MAXTRACKS_AUDIO_RATES[0],
+              "audio_channels": 1,
+              "features": {"n_streams": n_streams, "n_video": n_video,
+                           "n_audio": n_audio, "n_data": n_data},
+              "est_hint": est}
+    return [argv], params, aux
+
+
+def build_bframe_storm(rng, ctx, family, forced_res=None, forced_feats=None):
+    """h264/h265 with bf >= 3 + b-pyramid: maximum decode-reorder depth.
+    The demuxer must hold a deep reorder window; ts carries it raw."""
+    container, codec = family
+    if codec == "h264":
+        bf = rng.randint(*BFRAME_STORM_H264)
+        cont_pool = ["mp4", "ts", "mkv", "mov"]
+    else:
+        bf = rng.randint(*BFRAME_STORM_H265)  # x265 lookahead cap (v3 #2)
+        cont_pool = ["mp4", "ts", "mkv"]
+    if container not in cont_pool:
+        container = rng.choice(cont_pool)
+    rname, w, h = _tiny_res(rng, cap=200_000)
+    fps = rng.randint(12, 30)
+    dur = rng.uniform(1.0, 2.5)
+    argv = ["-f", "lavfi", "-i",
+            f"testsrc2=duration={dur:.3f}:size={w}x{h}:rate={fps}"]
+    if rng.random() < 0.3:
+        ar = rng.choice([22050, 44100, 48000])
+        argv += ["-f", "lavfi", "-i",
+                 f"sine=duration={dur:.3f}:sample_rate={ar}"]
+        have_audio = True
+    else:
+        ar = None
+        have_audio = False
+    argv += ["-c:v", VIDEO_CODECS[codec]["enc"], "-pix_fmt", "yuv420p",
+             "-preset", "ultrafast", "-bf", str(bf), "-b-pyramid", "1",
+             "-g", str(rng.randint(12, 90))]
+    all_b = rng.random() < 0.35 and codec == "h264"
+    if all_b:
+        argv += ["-x264-params", "b-adapt=0"]
+    if have_audio:
+        argv += ["-map", "0:v", "-map", "1:a", "-c:a", "aac",
+                 "-ar", str(ar)]
+    argv += ["-f", CONTAINERS[container]["fmt"], "-y", "__OUT__"]
+    params = {"class": "bframe-storm", "container": container, "codec": codec,
+              "res_name": rname, "width": w, "height": h, "fps": fps,
+              "pix_fmt": "yuv420p", "duration": round(dur, 3),
+              "features": {"bf": bf, "bpyramid": True, "all_b": all_b}}
+    if have_audio:
+        params["audio_codec"] = "aac"
+        params["audio_rate"] = ar
+        params["audio_channels"] = 2
+    return [argv], params, []
+
+
+def build_packed_bs(rng, ctx, family, forced_res=None, forced_feats=None):
+    """Packed-bitstream / AVCDecoderConfiguration oddities where ffmpeg
+    permits: libxvid packed b-frames in AVI, native mpeg4 b-frame reordering,
+    and h264 avcC profile/level/inline-header lies in the mp4 family."""
+    container, mode = family
+    rname, w, h = _tiny_res(rng)
+    fps = rng.randint(10, 25)
+    dur = rng.uniform(0.8, 2.0)
+    argv = ["-f", "lavfi", "-i",
+            f"testsrc2=duration={dur:.3f}:size={w}x{h}:rate={fps}"]
+    feats = {}
+    if mode == "xvid":
+        if not ctx.caps.get("xvid"):
+            return None  # capability-probed: no libxvid on this build
+        bf = rng.randint(2, 3)
+        argv += ["-c:v", "libxvid", "-bf", str(bf),
+                 "-g", str(rng.randint(12, 60)),
+                 "-b:v", str(rng.randint(80, 400)) + "k"]
+        feats = {"mode": "xvid-packed", "bf": bf}
+        fmt = "avi"
+    elif mode == "mpeg4bf":
+        bf = rng.randint(2, 3)
+        argv += ["-c:v", "mpeg4", "-bf", str(bf),
+                 "-g", str(rng.randint(12, 60)),
+                 "-b:v", str(rng.randint(80, 500)) + "k"]
+        feats = {"mode": "mpeg4-bf", "bf": bf}
+        fmt = container if container in ("avi", "mp4") else "avi"
+    else:  # avcc oddities
+        profile = rng.choice(list(AVCC_PROFILES))
+        level = rng.choice(AVCC_PROFILES[profile])
+        xp = []
+        if rng.random() < 0.35:
+            xp.append("repeat-headers=1")
+        if rng.random() < 0.35:
+            xp.append("aud=1")
+        argv += ["-c:v", "libx264", "-preset", "ultrafast",
+                 "-pix_fmt", "yuv420p", "-profile:v", profile,
+                 "-level", str(level)]
+        if xp:
+            argv += ["-x264-params", ":".join(xp)]
+        feats = {"mode": "avcc-oddity", "profile": profile, "level": level,
+                 "x264_params": xp}
+        fmt = container if container in ("mp4", "mov") else "mp4"
+    argv += ["-f", fmt, "-y", "__OUT__"]
+    params = {"class": "packed-bs", "container": fmt,
+              "codec": "mpeg4" if mode != "avcc" else "h264",
+              "res_name": rname, "width": w, "height": h, "fps": fps,
+              "pix_fmt": "yuv420p", "duration": round(dur, 3),
+              "features": feats}
+    return [argv], params, []
+
+
+def _concat_segs_pass(segs):
+    return ["-f", "concat", "-safe", "0", "-i", "__AUX__/concat.txt",
+            "-c", "copy", "-y", "__OUT__"]
+
+
+def build_param_midchange(rng, ctx, family, forced_res=None, forced_feats=None):
+    """Mid-stream SPS/parameter change (same resolution, different encode
+    parameters) via per-segment encode + concat copy — h264 in ts, mpeg2 in
+    mp4, per the capability probes."""
+    container, codec = family
+    if not ctx.caps.get(f"concat_copy:{container}"):
+        return None
+    if codec == "mpeg2video" and container == "mp4" \
+            and not ctx.caps.get("mpeg2_mp4"):
+        return None  # capability-probed: mp4 muxer refuses mpeg2 here
+    rname, w, h = _tiny_res(rng)
+    fps = rng.randint(10, 24)
+    n_seg = rng.randint(2, 3)
+    argvs = []
+    seg_names = []
+    ladder = []
+    total = 0.0
+    for i in range(n_seg):
+        sd = rng.uniform(0.8, 2.5)
+        total += sd
+        seg = f"seg{i}"
+        seg_names.append(seg)
+        a = ["-f", "lavfi", "-i",
+             f"testsrc2=duration={sd:.3f}:size={w}x{h}:rate={fps}"]
+        a += ["-c:v", VIDEO_CODECS[codec]["enc"], "-pix_fmt", "yuv420p"]
+        if "preset" in VIDEO_CODECS[codec]:
+            a += ["-preset", VIDEO_CODECS[codec]["preset"]]
+        seg_feats = {}
+        if i % 2 == 0:
+            seg_feats["b"] = rng.randint(*MIDCHANGE_LO_KBPS)
+        else:
+            seg_feats["b"] = rng.randint(*MIDCHANGE_HI_KBPS)
+        a += ["-b:v", f"{seg_feats['b']}k"]
+        if codec == "h264" and i > 0:
+            prof = rng.choice(["baseline", "main", "high"])
+            a += ["-profile:v", prof]
+            seg_feats["profile"] = prof
+        a += ["-g", str(rng.randint(6, 40)), "-f",
+              CONTAINERS[container]["fmt"], "-y", f"__TMP__/{seg}"]
+        argvs.append(a)
+        ladder.append(seg_feats)
+    concat_txt = "\n".join(f"file '__TMP__/{s}'" for s in seg_names)
+    argvs.append(_concat_segs_pass(seg_names))
+    aux = [("concat.txt", concat_txt.encode())]
+    params = {"class": "param-midchange", "container": container,
+              "codec": codec, "res_name": rname, "width": w, "height": h,
+              "fps": fps, "pix_fmt": "yuv420p",
+              "duration": round(total, 3),
+              "features": {"seg_params": ladder},
+              "est_hint": int(w * h * total * 0.35) + 24_576}
+    return argvs, params, aux
+
+
+def build_vbv_burst(rng, ctx, family, forced_res=None, forced_feats=None):
+    """Extreme bitrate spikes: a low floor with a short high-bitrate spike,
+    either via per-segment encode + concat copy (true step function) or
+    single-pass VBV burst settings (maxrate >> b:v with a tiny bufsize)."""
+    container, codec = family
+    concat_ok = ctx.caps.get(f"concat_copy:{container}")
+    use_concat = concat_ok and rng.random() < 0.6
+    rname, w, h = _tiny_res(rng)
+    fps = rng.randint(10, 24)
+    floor_k = rng.randint(*VBV_FLOOR_KBPS)
+    spike_k = rng.randint(*VBV_SPIKE_KBPS)
+    buf_k = rng.randint(*VBV_BUF_KB)
+    if use_concat:
+        base_d = rng.uniform(1.5, 4.0)
+        spike_d = rng.uniform(0.8, 2.0)
+        argvs = []
+        seg_names = []
+        for name, kbps, d in (("low", floor_k, base_d),
+                              ("spike", spike_k, spike_d)):
+            seg = f"{name}0"
+            seg_names.append(seg)
+            src = "mandelbrot" if name == "spike" else "testsrc2"
+            a = ["-f", "lavfi", "-i",
+                 f"{src}=size={w}x{h}:rate={fps}"]
+            a += ["-c:v", VIDEO_CODECS[codec]["enc"], "-pix_fmt", "yuv420p",
+                  "-preset", "ultrafast", "-b:v", f"{kbps}k",
+                  "-maxrate", f"{int(kbps * 1.2)}k", "-bufsize", f"{buf_k}k",
+                  "-g", str(rng.randint(15, 60)), "-t", f"{d:.3f}",
+                  "-f", CONTAINERS[container]["fmt"], "-y", f"__TMP__/{seg}"]
+            argvs.append(a)
+        concat_txt = "\n".join(f"file '__TMP__/{s}'" for s in seg_names)
+        argvs.append(_concat_segs_pass(seg_names))
+        aux = [("concat.txt", concat_txt.encode())]
+        feats = {"mode": "concat-step", "floor_kbps": floor_k,
+                 "spike_kbps": spike_k, "spike_s": round(spike_d, 3)}
+        est = int(spike_k * 125 * spike_d + floor_k * 125 * base_d) + 32_768
+        dur = base_d + spike_d
+        source = "concat:mandelbrot-spike"
+    else:
+        dur = rng.uniform(2.0, 5.0)
+        argv = ["-f", "lavfi", "-i", f"testsrc2=duration={dur:.3f}:"
+                f"size={w}x{h}:rate={fps}"]
+        argv += ["-c:v", VIDEO_CODECS[codec]["enc"], "-pix_fmt", "yuv420p",
+                 "-preset", "ultrafast", "-b:v", f"{floor_k}k",
+                 "-maxrate", f"{spike_k}k", "-bufsize", f"{buf_k}k",
+                 "-f", CONTAINERS[container]["fmt"], "-y", "__OUT__"]
+        argvs = [argv]
+        aux = []
+        feats = {"mode": "single-pass-vbv", "floor_kbps": floor_k,
+                 "spike_kbps": spike_k, "bufsize_kb": buf_k}
+        est = int((floor_k + spike_k) / 2 * 125 * dur * 0.6) + 32_768
+        source = "testsrc2"
+    params = {"class": "vbv-burst", "container": container, "codec": codec,
+              "res_name": rname, "width": w, "height": h, "fps": fps,
+              "pix_fmt": "yuv420p", "duration": round(dur, 3),
+              "features": feats, "est_hint": est, "source": source}
+    return argvs, params, aux
+
+
+def build_fps_extremes(rng, ctx, family, forced_res=None, forced_feats=None):
+    """1 fps slideshow <-> 240 fps short burst.  High rates only at tiny
+    resolutions (bounded frames); low rates stretch a handful of frames
+    over seconds — clocks and frame-timers get no rest either way."""
+    container, codec = family
+    feats = dict(forced_feats or {})
+    mode = feats.get("fps_mode") or rng.choice(["lo", "hi"])
+    if mode == "hi":
+        fps = rng.choice(FPS_EXTREME_HI)
+        rname, w, h = _tiny_res(rng, cap=40_000)
+        dur = rng.uniform(0.4, 2.0)
+    else:
+        fps = rng.choice(FPS_EXTREME_LO)
+        rname, w, h = _tiny_res(rng, cap=150_000)
+        dur = rng.uniform(3.0, min(12.0, ctx.limits.get("max_dur", 14.0)))
+        fps, dur = _ensure_frames(fps, dur, ctx.limits.get("max_dur", 14.0))
+    pix = "yuv420p"
+    if codec not in ("h264", "mpeg4", "mjpeg"):
+        codec = rng.choice(["h264", "mpeg4"])
+    argv = ["-f", "lavfi", "-i",
+            f"testsrc2=duration={dur:.3f}:size={w}x{h}:rate={_fmt_fps(fps)}"]
+    argv += ["-c:v", VIDEO_CODECS[codec]["enc"], "-pix_fmt", pix]
+    if "preset" in VIDEO_CODECS[codec]:
+        argv += ["-preset", VIDEO_CODECS[codec]["preset"]]
+    argv += ["-f", CONTAINERS[container]["fmt"], "-y", "__OUT__"]
+    params = {"class": "fps-extremes", "container": container, "codec": codec,
+              "res_name": rname, "width": w, "height": h, "fps": fps,
+              "pix_fmt": pix, "duration": round(dur, 3),
+              "features": {"fps_mode": mode},
+              "est_hint": int(w * h * dur * 0.10) + 16_384}
+    return [argv], params, []
+
+
+def build_sr_chaos(rng, ctx, family, forced_res=None, forced_feats=None):
+    """Audio sample-rate chaos (8000/11025/192000/384000 Hz and friends) +
+    odd channel layouts the encoder accepts (pan-built hexagonal/octagonal/
+    22.2/...).  High rates draw narrow layouts, exotic layouts draw sane
+    rates, so est_bytes stays bounded either way."""
+    container, codec = family
+    exotic = rng.random() < 0.65
+    if exotic:
+        layout, ch = rng.choice(ODD_LAYOUTS)
+        rate = rng.choice([8000, 11025, 16000, 22050, 32000, 44100, 48000])
+    else:
+        layout, ch = None, rng.choice([1, 2])
+        rate = rng.choice(SR_CHAOS_RATES)
+    dur = rng.uniform(0.5, 2.5)
+    argv = ["-f", "lavfi", "-i",
+            f"anoisesrc=color={rng.choice(['pink', 'white', 'brown'])}:"
+            f"duration={dur:.3f}:sample_rate={rate}:amplitude=0.5"]
+    if layout:
+        specs = "|".join(f"c{i}=c0" for i in range(ch))
+        argv += ["-af", f"pan={layout}|{specs}"]
+    else:
+        argv += ["-ac", str(ch)]
+    argv += ["-c:a", AUDIO_CODECS[codec]["enc"], "-ar", str(rate)]
+    cdef = ANY_CONTAINERS[container]
+    argv += ["-f", cdef["fmt"], "-y", "__OUT__"]
+    params = {"class": "sr-chaos", "container": container, "codec": codec,
+              "audio_codec": codec, "duration": round(dur, 3),
+              "audio_rate": rate, "audio_channels": ch,
+              "features": {"layout": layout or f"{ch}ch",
+                           "odd_rate": rate not in STD_RATES_LIST},
+              "est_hint": int(rate * ch * 2 * dur * 0.9) + 16_384}
+    return [argv], params, []
+
+
+def write_chapter_bomb(rng, dur, n):
+    """FFMETADATA chapter bomb: n >= 1000 densely-cut chapters with random
+    titles.  Chapter slices are >= ~1 ms; overlapping is allowed (hostile)."""
+    per = dur / n
+    chars = "abcdefghijkmnopqrstuvwxyz0123456789"
+    out = [";FFMETADATA1", f"title=lumen-chapter-bomb-{rng.randint(1000, 9999)}"]
+    for i in range(n):
+        s = i * per
+        e = max((i + 1) * per, s + 0.0012)
+        t = "".join(rng.choice(chars) for _ in range(rng.randint(3, 14)))
+        out += ["[CHAPTER]", "TIMEBASE=1/1000",
+                f"START={int(s * 1000)}", f"END={int(e * 1000)}",
+                f"title=b{i:05d}{t}"]
+    return ("\n".join(out) + "\n").encode("utf-8")
+
+
+def build_chapter_bomb(rng, ctx, family, forced_res=None, forced_feats=None):
+    """1000-3000 chapters on a seconds-long clip — chapter-driven UIs,
+    seek tables and progress bars all get their stress test."""
+    container, combo = family
+    vcodec, acodec = combo.split("+")
+    n = rng.randint(*CHAPTER_BOMB_RANGE)
+    max_dur = ctx.limits.get("max_dur", 14.0)
+    dur = rng.uniform(max(2.0, n * 0.0011), max(max(2.5, n * 0.0011), max_dur))
+    rname, w, h = _tiny_res(rng)
+    fps = rng.randint(8, 20)
+    argv = ["-f", "lavfi", "-i",
+            f"testsrc2=duration={dur:.3f}:size={w}x{h}:rate={fps}",
+            "-f", "lavfi", "-i",
+            f"sine=duration={dur:.3f}:sample_rate=44100",
+            "-i", "__AUX__/bomb.txt",
+            "-map", "0:v", "-map", "1:a",
+            "-c:v", VIDEO_CODECS[vcodec]["enc"], "-pix_fmt", "yuv420p"]
+    if "preset" in VIDEO_CODECS[vcodec]:
+        argv += ["-preset", VIDEO_CODECS[vcodec]["preset"]]
+    argv += ["-c:a", AUDIO_CODECS[acodec]["enc"], "-ar", "44100", "-ac", "1",
+             "-map_chapters", "2", "-f", CONTAINERS[container]["fmt"], "-y",
+             "__OUT__"]
+    aux = [("bomb.txt", write_chapter_bomb(rng, dur, n))]
+    params = {"class": "chapter-bomb", "container": container,
+              "codec": vcodec, "audio_codec": acodec, "res_name": rname,
+              "width": w, "height": h, "fps": fps, "pix_fmt": "yuv420p",
+              "duration": round(dur, 3), "audio_rate": 44100,
+              "audio_channels": 1, "features": {"n_chapters": n},
+              "est_hint": int(w * h * dur * 0.10) + n * 48 + 32_768}
+    return [argv], params, aux
+
+
+def build_zeroframe_stream(rng, ctx, family, forced_res=None,
+                           forced_feats=None):
+    """A video track that exists in the container but emits ZERO frames
+    (select=0 drops every frame pre-encode).  mkv keeps the empty track and
+    ts still declares it in the PMT; the mp4 muxer silently drops the track
+    (probe truth) — only probed containers are drawn."""
+    container, combo = family
+    if not ctx.caps.get(f"zeroframe:{container}"):
+        return None  # capability-probed: muxer drops or refuses empty tracks
+    vcodec, acodec = combo.split("+")
+    rname, w, h = _tiny_res(rng)
+    fps = rng.randint(10, 24)
+    dur = rng.uniform(1.0, 3.0)
+    ar = rng.choice([22050, 44100, 48000])
+    argv = ["-f", "lavfi", "-i",
+            f"testsrc2=duration={dur:.3f}:size={w}x{h}:rate={fps}",
+            "-f", "lavfi", "-i", f"sine=duration={dur:.3f}:sample_rate={ar}",
+            "-map", "0:v", "-map", "1:a", "-vf", "select=0",
+            "-c:v", VIDEO_CODECS[vcodec]["enc"], "-pix_fmt", "yuv420p",
+            "-preset", "ultrafast", "-c:a", AUDIO_CODECS[acodec]["enc"],
+            "-ar", str(ar), "-f", CONTAINERS[container]["fmt"], "-y",
+            "__OUT__"]
+    params = {"class": "zeroframe-stream", "container": container,
+              "codec": vcodec, "audio_codec": acodec, "res_name": rname,
+              "width": w, "height": h, "fps": fps, "pix_fmt": "yuv420p",
+              "duration": round(dur, 3), "audio_rate": ar, "audio_channels": 1,
+              "features": {"zero_frames": True},
+              "est_hint": int(ar * 2 * dur * 0.2) + 12_288}
+    return [argv], params, []
+
+
+def build_still_24h(rng, ctx, family, forced_res=None, forced_feats=None):
+    """Single-frame (or one-frame-per-N-seconds) still with a huge duration:
+    image2 -loop 1 at a fractional framerate claims ~6-48 h from a handful
+    of frames at a tiny bitrate — bounded bytes, pathological durations."""
+    container, codec = family
+    if not ctx.caps.get("still_frac"):
+        return None  # capability-probed: no fractional-framerate image2 loop
+    hours = rng.randint(*STILL_HOURS_RANGE)
+    total = hours * 3600
+    w = rng.choice([160, 240, 320, 480])
+    h = int(w * rng.choice([0.75, 1.0, 1.25]))
+    slideshow = rng.random() < 0.4
+    # movenc writes 32-bit track durations in the track timescale (16384
+    # for these weird timebases): a single-frame 1/total cadence past
+    # 2^31/16384 = 131 072 s (~36.4 h) overflows — "Application provided
+    # duration: ... is invalid", rc 234 (measured: 36 h OK, 40 h fails;
+    # mkv has no such limit).  Long mp4/mov draws switch to the slideshow
+    # route, whose coarse cadence keeps duration x timescale in range.
+    if container in ("mp4", "mov") and not slideshow and total > 130_000:
+        slideshow = True
+    if slideshow:
+        interval = rng.randint(*STILL_SLIDE_INTERVAL)
+        cadence = f"1/{interval}"
+        n_frames = total // interval + 1
+    else:
+        cadence = f"1/{total}"
+        n_frames = 1
+    src = rng.choice(["testsrc2", "smptebars", "gradients", "rgbtestsrc"])
+    pass1 = ["-f", "lavfi", "-i",
+             f"{src}=duration=0.04:size={w}x{h}:rate=25",
+             "-frames:v", "1", "-y", "__TMP__/still.png"]
+    argv = ["-loop", "1", "-framerate", cadence, "-i", "__TMP__/still.png",
+            "-t", str(total)]
+    if codec == "h264":
+        argv += ["-c:v", "libx264", "-preset", "ultrafast",
+                 "-tune", "stillimage", "-crf", str(rng.choice([30, 35, 40]))]
+    elif codec == "mjpeg":
+        argv += ["-c:v", "mjpeg", "-q:v", str(rng.choice([20, 30, 40]))]
+    else:  # mpeg4
+        argv += ["-c:v", "mpeg4", "-b:v", str(rng.choice([8, 16, 32])) + "k"]
+    argv += ["-pix_fmt", "yuv420p", "-f", CONTAINERS[container]["fmt"],
+             "-y", "__OUT__"]
+    params = {"class": "still-24h", "container": container, "codec": codec,
+              "res_name": f"{w}x{h}", "width": w, "height": h,
+              "fps": round(1.0 / (total if not slideshow else interval), 9),
+              "pix_fmt": "yuv420p", "duration": total,
+              "features": {"hours": hours, "cadence": cadence,
+                           "n_frames": n_frames},
+              "est_hint": 131_072}
+    return [pass1, argv], params, []
+
+
+def build_riff_size_lie(rng, ctx, family, forced_res=None,
+                        forced_feats=None):
+    """Dirty-class addition: an honest little AVI whose RIFF size field lies
+    (oversized / 0xFFFFFFFF / tiny / zero) via byte post-processing —
+    v3's head-size-lie corruption op promoted to a dedicated factory with
+    randomized lies.  Lands in dirty/ (excluded from the clean gate)."""
+    _, combo = family
+    vcodec, acodec = combo.split("+")
+    w = rng.choice([64, 96, 128, 160])
+    h = int(w * 0.75)
+    fps = rng.randint(8, 15)
+    dur = rng.uniform(0.6, 1.5)
+    ar = rng.choice([8000, 11025, 16000])
+    argv = ["-f", "lavfi", "-i",
+            f"testsrc2=duration={dur:.3f}:size={w}x{h}:rate={fps}",
+            "-f", "lavfi", "-i", f"sine=duration={dur:.3f}:sample_rate={ar}",
+            "-map", "0:v", "-map", "1:a",
+            "-c:v", VIDEO_CODECS[vcodec]["enc"], "-pix_fmt", "yuv420p",
+            "-c:a", AUDIO_CODECS[acodec]["enc"], "-ar", str(ar), "-ac", "1",
+            "-f", "avi", "-y", "__OUT__"]
+    mode = rng.choice(RIFF_LIE_MODES)
+    post = [{"op": "riff-size-lie", "mode": mode,
+             "oversize_bytes": rng.randint(1 << 10, 1 << 28),
+             "tiny_bytes": rng.randint(0, 4096)}]
+    params = {"class": "riff-size-lie", "container": "avi", "codec": vcodec,
+              "audio_codec": acodec, "res_name": f"{w}x{h}", "width": w,
+              "height": h, "fps": fps, "pix_fmt": "yuv420p",
+              "duration": round(dur, 3), "audio_rate": ar,
+              "audio_channels": 1,
+              "features": {"lie_mode": mode}}
+    return [argv], params, [], post
+
+
+def build_odd_chunk_avi(rng, ctx, family, forced_res=None,
+                        forced_feats=None):
+    """AVI re-packed with 1-byte-payload movi chunks + JUNK pad storms
+    (byte post-processing).  Structurally valid RIFF that ffprobe still
+    parses — but a 1.5 s file becomes ~10^5 chunks, and each 1-byte chunk
+    is a packet on the demux side (measured).  idx1 is rebuilt to match or
+    dropped as JUNK (drawn)."""
+    _, combo = family
+    vcodec, acodec = combo.split("+")
+    w = rng.choice([64, 96, 128, 160])
+    h = int(w * 0.75)
+    fps = rng.randint(8, 15)
+    dur = rng.uniform(0.5, 1.2)
+    ar = rng.choice([4000, 5512, 8000])
+    argv = ["-f", "lavfi", "-i",
+            f"testsrc2=duration={dur:.3f}:size={w}x{h}:rate={fps}",
+            "-f", "lavfi", "-i", f"sine=duration={dur:.3f}:sample_rate={ar}",
+            "-map", "0:v", "-map", "1:a",
+            "-c:v", VIDEO_CODECS[vcodec]["enc"], "-pix_fmt", "yuv420p",
+            "-c:a", AUDIO_CODECS[acodec]["enc"], "-ar", str(ar), "-ac", "1",
+            "-f", "avi", "-y", "__OUT__"]
+    split = rng.choice(RECHUNK_SPLIT_POOL)
+    junk_every = rng.randint(2, 8)
+    junk_lo, junk_hi = 5, rng.choice([32, 64, 128])
+    drop_idx1 = rng.random() < 0.5
+    post = [{"op": "avi-rechunk", "split": split, "junk_every": junk_every,
+             "junk_lo": junk_lo, "junk_hi": junk_hi,
+             "drop_idx1": drop_idx1}]
+    # movi payload estimate: mjpeg factor 0.25 (est_bytes convention) +
+    # pcm_u8 at 1 byte/sample; each split-byte piece costs 8 header bytes
+    # + 1 pad byte on disk (measured: 49 584 chunks from a 1.2 s file).
+    payload_est = int(w * h * dur * 0.25) + int(ar * dur)
+    params = {"class": "odd-chunk-avi", "container": "avi", "codec": vcodec,
+              "audio_codec": acodec, "res_name": f"{w}x{h}", "width": w,
+              "height": h, "fps": fps, "pix_fmt": "yuv420p",
+              "duration": round(dur, 3), "audio_rate": ar,
+              "audio_channels": 1,
+              "features": {"rechunk_split": split, "junk_every": junk_every,
+                           "drop_idx1": drop_idx1},
+              "est_hint": int(payload_est * (24 / split)) + 65_536}
+    return [argv], params, [], post
+
+
+def build_hevc_in_avi(rng, ctx, family, forced_res=None, forced_feats=None):
+    """The lie-class: an HEVC bitstream renamed to an AVI video tag
+    (bait-and-switch family/codec metadata).  Valid RIFF, valid HEVC — the
+    container family lies about what the stream is.  -tag:v is required;
+    without it the muxer writes an empty tag (rawvideo guess — also probed)."""
+    _, _codec = family
+    if not ctx.caps.get("hevc_avi"):
+        return None  # capability-probed: AVI muxer refuses HEVC tags here
+    tag = rng.choice(HEVC_AVI_TAGS)
+    w = rng.choice([96, 128, 160, 192])
+    h = int(w * 0.75)
+    fps = rng.randint(10, 24)
+    dur = rng.uniform(0.8, 2.0)
+    argv = ["-f", "lavfi", "-i",
+            f"testsrc2=duration={dur:.3f}:size={w}x{h}:rate={fps}"]
+    have_audio = rng.random() < 0.4
+    if have_audio:
+        argv += ["-f", "lavfi", "-i",
+                 f"sine=duration={dur:.3f}:sample_rate=8000",
+                 "-map", "0:v", "-map", "1:a"]
+    argv += ["-c:v", "libx265", "-preset", "ultrafast", "-pix_fmt",
+             "yuv420p", "-tag:v", tag]
+    if have_audio:
+        argv += ["-c:a", "pcm_u8", "-ar", "8000"]
+    argv += ["-f", "avi", "-y", "__OUT__"]
+    params = {"class": "hevc-in-avi", "container": "avi", "codec": "h265",
+              "res_name": f"{w}x{h}", "width": w, "height": h, "fps": fps,
+              "pix_fmt": "yuv420p", "duration": round(dur, 3),
+              "features": {"fourcc_lie": tag}}
+    if have_audio:
+        params["audio_codec"] = "pcm_u8"
+        params["audio_rate"] = 8000
+        params["audio_channels"] = 1
+    return [argv], params, []
+
+
 BUILDERS = {
     "video": build_video, "av": build_av, "audio": build_audio,
     "multi-av": build_multi_av, "dynres-video": build_dynres,
     "raw-video": build_raw, "fmp4-video": build_fmp4, "hls-av": build_hls,
     "cover-audio": build_cover, "multivideo-av": build_multivideo,
     "drift-av": build_drift, "meta-bomb-av": build_bomb,
+    # ---- v4 escalation builders (W5-16) ----
+    "odd-dims": build_odd_dims, "rot-display": build_rot_display,
+    "maxtracks-avi": build_maxtracks_avi, "bframe-storm": build_bframe_storm,
+    "packed-bs": build_packed_bs, "param-midchange": build_param_midchange,
+    "vbv-burst": build_vbv_burst, "fps-extremes": build_fps_extremes,
+    "sr-chaos": build_sr_chaos, "chapter-bomb": build_chapter_bomb,
+    "zeroframe-stream": build_zeroframe_stream, "still-24h": build_still_24h,
+    "riff-size-lie": build_riff_size_lie, "odd-chunk-avi": build_odd_chunk_avi,
+    "hevc-in-avi": build_hevc_in_avi,
 }
