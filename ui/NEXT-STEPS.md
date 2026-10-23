@@ -281,3 +281,38 @@ tests green, tsc strict clean, eslint 0 errors.
   (like `main.tsx`); tests wrap with `MockTransport` — with it, all mount queries
   answer typed `feature-not-exposed` and the bar renders honestly disabled with
   the error surfaced (by design).
+## Card 4.C3 — playback UX states (branch wip/p4-c3, commit d55ef69)
+
+Shipped: `ui/src/screens/player/states/**` — `StateRouter` (engine
+`PlaybackState` → exactly zero-or-one overlay on the C1 canvas region),
+`LoadingOverlay`/`BufferingOverlay` (determinate only from engine
+`session.opening-progress`/`session.buffering` events; else honest
+indeterminate — never a fabricated %), `UnsupportedOverlay` (format/codec
+from the typed error's `details` whitelist + "no playback attempted"),
+`ErrorOverlay` (stage-tagged pill from the typed `Stage`, redacted Display
+message verbatim, actionable hint per `ErrorCode`, retry only when wired),
+`EmptyOverlay` (migrated from the C1 shell markup). 28 matrix tests.
+
+Open items for later cards:
+
+- **4.C2 reconciliation**: `states/context-bridge.ts` is the MINIMAL
+  stand-in for C2's `player/context.ts` (absent when this card started —
+  note in-file). When it lands, delete the bridge and feed
+  `StateRouter`'s `PlayerEngineView` from the canonical context; the
+  components need no changes. Also wire the real `onRetry` (re-issue
+  `session.open` of the same source) and `onOpenMedia` (file-dialog
+  ui-action) — both currently render as disabled honest stubs.
+- **Shell engine feed**: `PlayerScreen` takes `engineState` as a prop;
+  nothing calls `usePlayerEngineView(useClient())` in the app tree yet
+  (engine wiring is 4.H1). No transport → honest first-run empty.
+- **Error copy-details affordance** (doc 08 §5.4): blocked on an error-id
+  field in the catalog envelope — `CommandError` has no id today; adding
+  one is a `crates/commands` change, not UI.
+- **Non-fatal error counters** (doc 05 C5, e.g. decode errors): need an
+  engine-side counter query; not renderable from the current event set.
+- **States state-table md** (doc 08 §5.5): `states/states.md` prose table
+  for these overlays is a nice-to-have follow-up; the executable matrix in
+  `StateRouter.test.tsx` is the source of truth for now.
+- **Spacing/motion tokens**: overlay CSS uses structural raw px (gaps,
+  28px spinner, 160px bar) + 200ms fill transition — no spacing/motion
+  tokens exist yet (same precedent as the C1 shell's structural px).

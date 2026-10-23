@@ -59,6 +59,50 @@ export type MessageKey =
   | "player.track.disable"
   | "player.error.title"
   | "player.error.dismiss"
+  // --- playback UX states (card 4.C3, doc 08 §5.3/§5.4) ---
+  | "player.state.loading.label"
+  | "player.state.buffering.label"
+  | "player.state.unsupported.title"
+  | "player.state.unsupported.body"
+  | "player.state.unsupported.container-label"
+  | "player.state.unsupported.codec-label"
+  | "player.state.unsupported.no-format"
+  | "player.state.error.title"
+  | "player.state.error.stage-label"
+  | "player.state.error.stage.unknown"
+  | "player.state.error.unknown"
+  | "player.state.error.retry"
+  | "player.state.error.stage.session"
+  | "player.state.error.stage.input"
+  | "player.state.error.stage.probe"
+  | "player.state.error.stage.demux"
+  | "player.state.error.stage.decode"
+  | "player.state.error.stage.audio-output"
+  | "player.state.error.stage.video-output"
+  | "player.state.error.stage.subtitle"
+  | "player.state.error.stage.renderer"
+  | "player.state.error.stage.playlist"
+  | "player.state.error.stage.config"
+  | "player.state.error.stage.plugin"
+  | "player.state.error.stage.control"
+  | "player.state.error.action.unsupported"
+  | "player.state.error.action.corrupt"
+  | "player.state.error.action.inaccessible"
+  | "player.state.error.action.network"
+  | "player.state.error.action.decoder"
+  | "player.state.error.action.device"
+  | "player.state.error.action.resource-limit"
+  | "player.state.error.action.invalid-argument"
+  | "player.state.error.action.out-of-range"
+  | "player.state.error.action.not-found"
+  | "player.state.error.action.not-ready"
+  | "player.state.error.action.not-seekable"
+  | "player.state.error.action.canceled"
+  | "player.state.error.action.feature-not-exposed"
+  | "player.state.error.action.unsupported-for-host"
+  | "player.state.error.action.permission-denied"
+  | "player.state.error.action.io"
+  | "player.state.error.action.internal"
   // Settings framework chrome (card 4.E1).
   | "settings.nav.title"
   | "settings.search.label"
@@ -179,6 +223,50 @@ const messages: Readonly<Record<MessageKey, string>> = {
   "player.track.disable": "Disabled",
   "player.error.title": "Playback error",
   "player.error.dismiss": "Dismiss",
+  // --- playback UX states (card 4.C3, doc 08 §5.3/§5.4) ---
+  "player.state.loading.label": "Opening media…",
+  "player.state.buffering.label": "Buffering…",
+  "player.state.unsupported.title": "Format not supported",
+  "player.state.unsupported.body": "No playback was attempted.",
+  "player.state.unsupported.container-label": "Container",
+  "player.state.unsupported.codec-label": "Codec",
+  "player.state.unsupported.no-format": "The engine reported no format details for this source.",
+  "player.state.error.title": "Playback error",
+  "player.state.error.stage-label": "Failed at stage",
+  "player.state.error.stage.unknown": "unknown",
+  "player.state.error.unknown": "Playback failed. The engine provided no error details.",
+  "player.state.error.retry": "Try again",
+  "player.state.error.stage.session": "session",
+  "player.state.error.stage.input": "input",
+  "player.state.error.stage.probe": "probe",
+  "player.state.error.stage.demux": "demux",
+  "player.state.error.stage.decode": "decode",
+  "player.state.error.stage.audio-output": "audio output",
+  "player.state.error.stage.video-output": "video output",
+  "player.state.error.stage.subtitle": "subtitle",
+  "player.state.error.stage.renderer": "renderer",
+  "player.state.error.stage.playlist": "playlist",
+  "player.state.error.stage.config": "config",
+  "player.state.error.stage.plugin": "plugin",
+  "player.state.error.stage.control": "control",
+  "player.state.error.action.unsupported": "Open a different file, or install a decoder that supports this format.",
+  "player.state.error.action.corrupt": "The file appears damaged — try re-downloading or repairing it.",
+  "player.state.error.action.inaccessible": "Check that the source exists and Lumen has permission to read it.",
+  "player.state.error.action.network": "Check the connection, then try again.",
+  "player.state.error.action.decoder": "Try again, or switch the hardware-decode policy to software-only in Settings.",
+  "player.state.error.action.device": "Check the audio/video output device, then try again.",
+  "player.state.error.action.resource-limit": "Close other sessions or raise the resource limits in Settings, then try again.",
+  "player.state.error.action.invalid-argument": "This action is not valid in the current playback state.",
+  "player.state.error.action.out-of-range": "The requested value is outside the allowed range.",
+  "player.state.error.action.not-found": "The requested item no longer exists.",
+  "player.state.error.action.not-ready": "No media is open yet — open media first.",
+  "player.state.error.action.not-seekable": "This media cannot be seeked (it may be a live stream).",
+  "player.state.error.action.canceled": "The action was superseded by a newer one.",
+  "player.state.error.action.feature-not-exposed": "This feature is disabled in the current build.",
+  "player.state.error.action.unsupported-for-host": "This host cannot open that source type.",
+  "player.state.error.action.permission-denied": "Lumen is not authorized to perform this action.",
+  "player.state.error.action.io": "A read or write error occurred — check the file and storage, then try again.",
+  "player.state.error.action.internal": "An internal error occurred — try again; if it persists, check the logs.",
   "settings.nav.title": "Settings",
   "settings.search.label": "Search settings",
   "settings.search.no-results": "No settings match your search",
