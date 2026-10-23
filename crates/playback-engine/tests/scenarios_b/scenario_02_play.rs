@@ -47,7 +47,7 @@ fn play_flows_first_frame_samples_and_honest_stamps() {
         .frame_ring()
         .first()
         .copied()
-        .expect("the first frame landed at settle");
+        .unwrap_or_else(|| unreachable!("the first frame landed at settle"));
     assert_eq!(first.2, 0, "the first frame's pts is zero: {first:?}");
 
     // Full play-out to the honest end.
@@ -80,13 +80,13 @@ fn play_flows_first_frame_samples_and_honest_stamps() {
         .rev()
         .find(|(_, audio, _)| *audio)
         .map(|(_, _, pts)| pts)
-        .expect("audio samples flowed");
+        .unwrap_or_else(|| unreachable!("audio samples flowed"));
     let last_video = ring
         .iter()
         .rev()
         .find(|(_, audio, _)| !*audio)
         .map(|(_, _, pts)| pts)
-        .expect("video frames flowed");
+        .unwrap_or_else(|| unreachable!("video frames flowed"));
     let drift = (last_audio - last_video).abs();
     assert!(
         drift <= FRAME_NS,

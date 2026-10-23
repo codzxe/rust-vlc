@@ -47,7 +47,7 @@ fn pause_freezes_samples_and_resume_continues_at_same_media_time() {
         .rev()
         .find(|(_, audio, _)| *audio)
         .map(|(_, _, pts)| *pts)
-        .expect("audio flowed before the pause");
+        .unwrap_or_else(|| unreachable!("audio flowed before the pause"));
 
     // The pause.
     let pause = dispatch(&mut host, Command::PlaybackPause);
@@ -93,7 +93,7 @@ fn pause_freezes_samples_and_resume_continues_at_same_media_time() {
             .filter(|(_, audio, _)| *audio)
             .map(|(_, _, pts)| *pts)
             .find(|pts| *pts > last_audio_pts)
-            .expect("audio resumed")
+            .unwrap_or_else(|| unreachable!("audio resumed"))
     };
     assert!(
         resumed - last_audio_pts <= quantum + 1_000_000,
