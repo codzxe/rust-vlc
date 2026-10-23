@@ -577,7 +577,12 @@ mod tests {
             Ok(_) => unreachable!("data is lane-less by design A3"),
             Err(err) => err,
         };
-        assert_eq!(err, UnwiredKind { kind: MediaKind::Data });
+        assert_eq!(
+            err,
+            UnwiredKind {
+                kind: MediaKind::Data
+            }
+        );
         assert_eq!(
             err.to_string(),
             "the data kind has no queue lane (design A3: lane-less kinds are never wired)"

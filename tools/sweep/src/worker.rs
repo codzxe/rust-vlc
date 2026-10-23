@@ -31,12 +31,10 @@
 use std::path::Path;
 
 use codec_api::{DecodeOutcome, Decoder, DecoderConfig, FrameSink, ThreadBudget};
-use demux::avi::header::StreamFormat;
 use demux::avi::AviDemuxer;
+use demux::avi::header::StreamFormat;
 use media_types::ids::CodecDescriptor;
-use media_types::{
-    EngineError, ErrorKind, Frame, GenerationId, MediaKind, Packet, TrackId,
-};
+use media_types::{EngineError, ErrorKind, Frame, GenerationId, MediaKind, Packet, TrackId};
 use plugin_api::{Access, DemuxEvent, Demuxer};
 
 use crate::outcome::sanitize;
@@ -159,8 +157,7 @@ fn per_frame_damage(error: &EngineError) -> bool {
 fn encode_path(path: &str) -> String {
     let mut out = String::with_capacity(path.len());
     for byte in path.bytes() {
-        let keep =
-            byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/');
+        let keep = byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/');
         if keep {
             out.push(byte as char);
         } else {
@@ -213,10 +210,7 @@ fn file_uri(path: &Path) -> Result<media_types::SourceUri, EngineError> {
 /// Configure one decoder for the walk (the bench pattern: the
 /// track's own codec descriptor, the demuxer's FIRST generation,
 /// one thread, no accelerator, no extradata).
-fn configure(
-    decoder: &mut dyn Decoder,
-    codec: &CodecDescriptor,
-) -> Result<(), EngineError> {
+fn configure(decoder: &mut dyn Decoder, codec: &CodecDescriptor) -> Result<(), EngineError> {
     let config = DecoderConfig::new(
         codec.clone(),
         GenerationId::FIRST,

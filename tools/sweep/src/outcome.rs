@@ -173,10 +173,7 @@ pub fn parse_worker_line(line: &str) -> Option<WorkerLine> {
 /// then `other`.
 #[must_use]
 pub fn class_of(path: &Path) -> String {
-    let stem = path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("other");
+    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("other");
     // `NNNN-class...` — at least three leading digits then '-'.
     let digits = stem.chars().take_while(char::is_ascii_digit).count();
     if digits >= 3 && stem[digits..].starts_with('-') {
@@ -226,7 +223,14 @@ pub fn crash_note(stderr: &str, exit_code: Option<i32>) -> String {
         Some(code) => format!("exit={code}"),
         None => "killed-by-signal".to_string(),
     };
-    let tail: String = stderr.chars().rev().take(200).collect::<Vec<_>>().into_iter().rev().collect();
+    let tail: String = stderr
+        .chars()
+        .rev()
+        .take(200)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect();
     if tail.trim().is_empty() {
         exit
     } else {
@@ -240,7 +244,13 @@ pub fn crash_note(stderr: &str, exit_code: Option<i32>) -> String {
 pub fn sanitize(text: &str) -> String {
     let clean: String = text
         .chars()
-        .map(|c| if c == '\t' || c == '\n' || c == '\r' { ' ' } else { c })
+        .map(|c| {
+            if c == '\t' || c == '\n' || c == '\r' {
+                ' '
+            } else {
+                c
+            }
+        })
         .collect();
     let clean = clean.trim();
     if clean.is_empty() {
@@ -297,26 +307,14 @@ impl Tally {
         out.push_str("=== SWEEP SUMMARY ===\n");
         out.push_str(&format!("total files: {}\n", self.total()));
         for (i, n) in self.outcome_totals().iter().enumerate() {
-            out.push_str(&format!(
-                "{:<14} {}\n",
-                Outcome::ALL[i].as_str(),
-                n
-            ));
+            out.push_str(&format!("{:<14} {}\n", Outcome::ALL[i].as_str(), n));
         }
         out.push_str("\nper-class matrix (class: ok unsupported dirty-reject typed-error panic timeout unknown total)\n");
         for (class, row) in &self.rows {
             let class_total: u64 = row.iter().sum();
             out.push_str(&format!(
                 "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
-                class,
-                row[0],
-                row[1],
-                row[2],
-                row[3],
-                row[4],
-                row[5],
-                row[6],
-                class_total
+                class, row[0], row[1], row[2], row[3], row[4], row[5], row[6], class_total
             ));
         }
         out
@@ -350,7 +348,9 @@ mod tests {
         let line = "SWEEP\tok\t-\t-\t-\t10\t10\t4\t4\t1\t0\t2\t2\tv+a\tavi\t-";
         let parsed = parse_worker_line(line);
         assert!(parsed.is_some(), "parse failed");
-        let Some(parsed) = parsed else { return; };
+        let Some(parsed) = parsed else {
+            return;
+        };
         assert_eq!(parsed.status, "ok");
         assert_eq!(parsed.v_pkts, 10);
         assert_eq!(parsed.a_dec, 4);
@@ -365,7 +365,9 @@ mod tests {
         let line = "SWEEP\terror\tDecode\tdecoder\tdemux.fatal\t0\t0\t0\t0\t0\t0\t0\t0\tnone\tavi\tboom boom boom";
         let parsed = parse_worker_line(line);
         assert!(parsed.is_some(), "parse failed");
-        let Some(parsed) = parsed else { return; };
+        let Some(parsed) = parsed else {
+            return;
+        };
         assert_eq!(parsed.status, "error");
         assert_eq!(parsed.detail, "boom boom boom");
     }

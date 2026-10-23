@@ -2901,10 +2901,7 @@ mod tests {
                     gaps: Vec::new(),
                 },
             };
-            Ok(vec![
-                track(1, "fake-pcm-a"),
-                track(2, "fake-pcm-b"),
-            ])
+            Ok(vec![track(1, "fake-pcm-a"), track(2, "fake-pcm-b")])
         }
 
         fn next_event(&mut self) -> Result<plugin_api::DemuxEvent, EngineError> {
@@ -2928,7 +2925,10 @@ mod tests {
 
     impl Decoder for RecordingDecoder {
         fn configure(&mut self, config: &DecoderConfig) -> Result<(), EngineError> {
-            self.log.lock().must().push(config.codec.as_str().to_string());
+            self.log
+                .lock()
+                .must()
+                .push(config.codec.as_str().to_string());
             Ok(())
         }
 

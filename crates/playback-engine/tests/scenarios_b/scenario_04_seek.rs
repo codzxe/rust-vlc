@@ -135,7 +135,11 @@ fn seek_lands_three_targets_within_tolerance_without_stale_frames() {
     );
 
     // Row 3: percent 0.5 of the known duration (lands at 1.000 s).
-    seek_and_assert(&mut host, "percent-half", SeekTarget::Percent { fraction: 0.5 });
+    seek_and_assert(
+        &mut host,
+        "percent-half",
+        SeekTarget::Percent { fraction: 0.5 },
+    );
 
     // The media still ends honestly after three seeks.
     let (pumps, terminal) = host.run_until_terminal(512);

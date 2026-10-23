@@ -50,8 +50,14 @@ fn open_answers_honest_facts_or_typed_refusals() {
     else {
         unreachable!()
     };
-    assert!(session.is_some() || host.session_id().is_some(), "the accept carries a session");
-    assert!(host.generation().is_some(), "the accept carries a generation");
+    assert!(
+        session.is_some() || host.session_id().is_some(),
+        "the accept carries a session"
+    );
+    assert!(
+        host.generation().is_some(),
+        "the accept carries a generation"
+    );
     host.settle();
     assert_eq!(host.state(), PlaybackState::Playing, "the parent plays");
 
@@ -71,7 +77,10 @@ fn open_answers_honest_facts_or_typed_refusals() {
     // `duration-known` fact arrived after the track list.
     let duration = match dispatch(&mut host, Command::MediaGetDuration).result {
         Ok(CommandOutcome::Completed(commands::CommandResult::Duration {
-            duration: commands::catalog::types::Duration::Known { time: Timestamp(us) },
+            duration:
+                commands::catalog::types::Duration::Known {
+                    time: Timestamp(us),
+                },
         })) => us,
         other => unreachable!("the duration is known: {other:?}"),
     };

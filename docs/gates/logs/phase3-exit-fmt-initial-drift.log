@@ -1,0 +1,403 @@
+Diff in /home/z/my-project/worktrees/w7-gate/crates/codecs/examples/../src/video/mjpeg/decoder.rs:1712:
+         // 32×32 (not 16×16) so the 3/4 cut lands inside the entropy
+         // region — headers intact, the tail conceals (the
+         // `concealment_does_not_leak_across_frames` precedent).
+-        let mut truncated =
+-            tiny_jpeg(32, 32, &[(1, 0x22, 0), (2, 0x11, 0), (3, 0x11, 0)], &[0x00]);
++        let mut truncated = tiny_jpeg(32, 32, &[(1, 0x22, 0), (2, 0x11, 0), (3, 0x11, 0)], &[0x00]);
+         truncated.truncate(truncated.len() * 3 / 4); // concealed tail
+         for jpeg in [&gray, &yuv420, &yuv422, &truncated] {
+             let mut production = DecodeContext::new();
+Diff in /home/z/my-project/worktrees/w7-gate/crates/codecs/examples/stage_bench.rs:61:
+ // The live decoder sources, compiled into this example (the
+ // `#[path]`-include pattern of `color_bench.rs`: pub(crate) internals
+ // benched without widening the library API).
+-#[path = "../src/video/mjpeg/error.rs"]
+-mod error;
+ #[path = "../src/video/mjpeg/bitreader.rs"]
+ mod bitreader;
++#[path = "../src/video/mjpeg/color.rs"]
++mod color;
++#[path = "../src/video/mjpeg/decoder.rs"]
++mod decoder;
++#[path = "../src/video/mjpeg/error.rs"]
++mod error;
+ #[path = "../src/video/mjpeg/huffman.rs"]
+ mod huffman;
+ #[path = "../src/video/mjpeg/idct.rs"]
+Diff in /home/z/my-project/worktrees/w7-gate/crates/codecs/examples/stage_bench.rs:71:
+ mod idct;
+ #[path = "../src/video/mjpeg/parser.rs"]
+ mod parser;
+-#[path = "../src/video/mjpeg/color.rs"]
+-mod color;
+-#[path = "../src/video/mjpeg/decoder.rs"]
+-mod decoder;
+ 
+ use decoder::{DecodeContext, FullStages, NoIdctNoWriteStages, NoIdctStages, NoWriteStages};
+ 
+Diff in /home/z/my-project/worktrees/w7-gate/crates/codecs/examples/stage_bench.rs:212:
+             let mut out_b = vec![0u8; len];
+             ctx.assemble_frame(&mut out_a)
+                 .map_err(|e| format!("assemble a: {e:?}"))?;
+-            staged.assemble_frame(&mut out_b)
++            staged
++                .assemble_frame(&mut out_b)
+                 .map_err(|e| format!("assemble b: {e:?}"))?;
+-            if out_a != out_b || (a.width, a.height, a.concealed) != (b.width, b.height, b.concealed)
++            if out_a != out_b
++                || (a.width, a.height, a.concealed) != (b.width, b.height, b.concealed)
+             {
+                 return Err(format!(
+                     "staged-full walk diverged from the production path on {file} \
+Diff in /home/z/my-project/worktrees/w7-gate/crates/codecs/src/video/mjpeg/decoder.rs:1712:
+         // 32×32 (not 16×16) so the 3/4 cut lands inside the entropy
+         // region — headers intact, the tail conceals (the
+         // `concealment_does_not_leak_across_frames` precedent).
+-        let mut truncated =
+-            tiny_jpeg(32, 32, &[(1, 0x22, 0), (2, 0x11, 0), (3, 0x11, 0)], &[0x00]);
++        let mut truncated = tiny_jpeg(32, 32, &[(1, 0x22, 0), (2, 0x11, 0), (3, 0x11, 0)], &[0x00]);
+         truncated.truncate(truncated.len() * 3 / 4); // concealed tail
+         for jpeg in [&gray, &yuv420, &yuv422, &truncated] {
+             let mut production = DecodeContext::new();
+Diff in /home/z/my-project/worktrees/w7-gate/crates/codecs/src/video/mjpeg/mod.rs:91:
+ pub(crate) mod huffman;
+ // (idct_simd: card 7-b stub — SIMD plan + dispatch skeleton, not yet
+ // wired; see that module's docs before implementing.)
++pub(crate) mod idct;
+ #[allow(unused)]
+ pub(crate) mod idct_simd;
+-pub(crate) mod idct;
+ pub(crate) mod parser;
+ 
+ use codec_api::prelude::*;
+Diff in /home/z/my-project/worktrees/w7-gate/crates/input/src/seekable.rs:83:
+ /// [`EngineError`] (stage `Open`) — `input.seek.before-start` when
+ /// the resolved target is negative, `input.seek.overflow` when it
+ /// exceeds `u64::MAX`.
+-pub(crate) fn resolve_origin(
+-    from: u64,
+-    origin: SeekOrigin,
+-) -> Result<u64, EngineError> {
++pub(crate) fn resolve_origin(from: u64, origin: SeekOrigin) -> Result<u64, EngineError> {
+     match origin {
+         SeekOrigin::Start(to) => Ok(to),
+         SeekOrigin::Current(delta) => {
+Diff in /home/z/my-project/worktrees/w7-gate/crates/input/tests/file_stream.rs:5:
+ mod common;
+ 
+ use common::{TempDir, TempFile, pattern, running_privileged};
++use input::FileAccess;
+ #[cfg(feature = "contract")]
+ use input::contract::assert_stream_contract;
+-use input::FileAccess;
+ use media_types::error::AccessDenied;
+ use media_types::ids::SourceUri;
+ use media_types::{EngineError, ErrorKind};
+Diff in /home/z/my-project/worktrees/w7-gate/crates/playback-engine/src/pipeline.rs:2901:
+                     gaps: Vec::new(),
+                 },
+             };
+-            Ok(vec![
+-                track(1, "fake-pcm-a"),
+-                track(2, "fake-pcm-b"),
+-            ])
++            Ok(vec![track(1, "fake-pcm-a"), track(2, "fake-pcm-b")])
+         }
+ 
+         fn next_event(&mut self) -> Result<plugin_api::DemuxEvent, EngineError> {
+Diff in /home/z/my-project/worktrees/w7-gate/crates/playback-engine/src/pipeline.rs:2928:
+ 
+     impl Decoder for RecordingDecoder {
+         fn configure(&mut self, config: &DecoderConfig) -> Result<(), EngineError> {
+-            self.log.lock().must().push(config.codec.as_str().to_string());
++            self.log
++                .lock()
++                .must()
++                .push(config.codec.as_str().to_string());
+             Ok(())
+         }
+ 
+Diff in /home/z/my-project/worktrees/w7-gate/crates/playback-engine/src/tracks.rs:577:
+             Ok(_) => unreachable!("data is lane-less by design A3"),
+             Err(err) => err,
+         };
+-        assert_eq!(err, UnwiredKind { kind: MediaKind::Data });
++        assert_eq!(
++            err,
++            UnwiredKind {
++                kind: MediaKind::Data
++            }
++        );
+         assert_eq!(
+             err.to_string(),
+             "the data kind has no queue lane (design A3: lane-less kinds are never wired)"
+Diff in /home/z/my-project/worktrees/w7-gate/crates/playback-engine/tests/queue_policy.rs:260:
+     // instead; audit F-1).
+     assert_eq!(
+         WiredKind::try_from(MediaKind::Data),
+-        Err(UnwiredKind { kind: MediaKind::Data }),
++        Err(UnwiredKind {
++            kind: MediaKind::Data
++        }),
+         "data has no lane"
+     );
+     // And the wired kinds round-trip through their full-kind view.
+Diff in /home/z/my-project/worktrees/w7-gate/crates/playback-engine/tests/scenarios_b/scenario_01_open.rs:50:
+     else {
+         unreachable!()
+     };
+-    assert!(session.is_some() || host.session_id().is_some(), "the accept carries a session");
+-    assert!(host.generation().is_some(), "the accept carries a generation");
++    assert!(
++        session.is_some() || host.session_id().is_some(),
++        "the accept carries a session"
++    );
++    assert!(
++        host.generation().is_some(),
++        "the accept carries a generation"
++    );
+     host.settle();
+     assert_eq!(host.state(), PlaybackState::Playing, "the parent plays");
+ 
+Diff in /home/z/my-project/worktrees/w7-gate/crates/playback-engine/tests/scenarios_b/scenario_01_open.rs:71:
+     // `duration-known` fact arrived after the track list.
+     let duration = match dispatch(&mut host, Command::MediaGetDuration).result {
+         Ok(CommandOutcome::Completed(commands::CommandResult::Duration {
+-            duration: commands::catalog::types::Duration::Known { time: Timestamp(us) },
++            duration:
++                commands::catalog::types::Duration::Known {
++                    time: Timestamp(us),
++                },
+         })) => us,
+         other => unreachable!("the duration is known: {other:?}"),
+     };
+Diff in /home/z/my-project/worktrees/w7-gate/crates/playback-engine/tests/scenarios_b/scenario_02_play.rs:67:
+         "exactly one end-of-media"
+     );
+     let errors = error_events(&host);
+-    assert!(errors.is_empty(), "a clean play reports no errors: {errors:?}");
++    assert!(
++        errors.is_empty(),
++        "a clean play reports no errors: {errors:?}"
++    );
+ 
+     // A/V stamp distance at the end-of-media checkpoint: the last
+     // audio and last video stamps are within one frame duration.
+Diff in /home/z/my-project/worktrees/w7-gate/crates/playback-engine/tests/scenarios_b/scenario_04_seek.rs:135:
+     );
+ 
+     // Row 3: percent 0.5 of the known duration (lands at 1.000 s).
+-    seek_and_assert(&mut host, "percent-half", SeekTarget::Percent { fraction: 0.5 });
++    seek_and_assert(
++        &mut host,
++        "percent-half",
++        SeekTarget::Percent { fraction: 0.5 },
++    );
+ 
+     // The media still ends honestly after three seeks.
+     let (pumps, terminal) = host.run_until_terminal(512);
+Diff in /home/z/my-project/worktrees/w7-gate/crates/playback-engine/tests/scenarios_b/scenario_07_av_sync.rs:98:
+         "exactly one end-of-media"
+     );
+     let errors = error_events(&host);
+-    assert!(errors.is_empty(), "a clean sync run reports no errors: {errors:?}");
++    assert!(
++        errors.is_empty(),
++        "a clean sync run reports no errors: {errors:?}"
++    );
+ 
+     let close = dispatch(&mut host, Command::SessionClose);
+     assert!(close.result.is_ok(), "closes: {:?}", close.result);
+Diff in /home/z/my-project/worktrees/w7-gate/tools/sweep/src/main.rs:57:
+ use std::process::{Child, Command, Stdio};
+ use std::time::{Duration, Instant};
+ 
+-use outcome::{classify, crash_note, class_of, parse_worker_line, Outcome, Tally, WorkerLine};
++use outcome::{Outcome, Tally, WorkerLine, class_of, classify, crash_note, parse_worker_line};
+ 
+ /// Usage (stderr; exit 64 path).
+-const USAGE: &str = "Usage: lumen-sweep [--timeout-secs N] [--max-files N] [(CLASS=)DIR-OR-FILE]...";
++const USAGE: &str =
++    "Usage: lumen-sweep [--timeout-secs N] [--max-files N] [(CLASS=)DIR-OR-FILE]...";
+ 
+ /// Default per-file deadline (seconds). The v4 smoke files are
+ /// small; generous enough that a timeout means a real hang.
+Diff in /home/z/my-project/worktrees/w7-gate/tools/sweep/src/main.rs:179:
+     let mut out = stdout.lock();
+     for (class_override, path) in &files {
+         let file_result = sweep_one(&exe, path, timeout_secs);
+-        let class = class_override
+-            .clone()
+-            .unwrap_or_else(|| class_of(path));
++        let class = class_override.clone().unwrap_or_else(|| class_of(path));
+         tally.record(&class, file_result.outcome);
+         let _ = writeln!(out, "{}", sweepline(&class, path, &file_result));
+         let _ = out.flush();
+Diff in /home/z/my-project/worktrees/w7-gate/tools/sweep/src/main.rs:266:
+ /// Wait for the child up to `timeout_secs`; on the deadline, kill
+ /// it and report the timeout. Polls `try_wait` so the deadline is
+ /// actually enforced (a blocking `wait` would hang with it).
+-fn wait_with_timeout(child: &mut Child, timeout_secs: u64) -> (Option<std::process::ExitStatus>, bool) {
++fn wait_with_timeout(
++    child: &mut Child,
++    timeout_secs: u64,
++) -> (Option<std::process::ExitStatus>, bool) {
+     let deadline = Instant::now() + Duration::from_secs(timeout_secs);
+     loop {
+         if let Ok(Some(status)) = child.try_wait() {
+Diff in /home/z/my-project/worktrees/w7-gate/tools/sweep/src/main.rs:306:
+     let mut paths: Vec<PathBuf> = entries.flatten().map(|entry| entry.path()).collect();
+     paths.sort();
+     for path in paths {
+-        let name = path.file_name().and_then(|name| name.to_str()).unwrap_or("");
++        let name = path
++            .file_name()
++            .and_then(|name| name.to_str())
++            .unwrap_or("");
+         if name.starts_with('.') {
+             continue;
+         }
+Diff in /home/z/my-project/worktrees/w7-gate/tools/sweep/src/main.rs:349:
+         field(line.map(|line| &line.limbs)),
+         field(line.map(|line| &line.container)),
+         result.secs,
+-        line.map(|line| line.detail.clone()).unwrap_or_else(|| result.note.clone()),
++        line.map(|line| line.detail.clone())
++            .unwrap_or_else(|| result.note.clone()),
+     )
+ }
+ 
+Diff in /home/z/my-project/worktrees/w7-gate/tools/sweep/src/outcome.rs:173:
+ /// then `other`.
+ #[must_use]
+ pub fn class_of(path: &Path) -> String {
+-    let stem = path
+-        .file_stem()
+-        .and_then(|s| s.to_str())
+-        .unwrap_or("other");
++    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("other");
+     // `NNNN-class...` — at least three leading digits then '-'.
+     let digits = stem.chars().take_while(char::is_ascii_digit).count();
+     if digits >= 3 && stem[digits..].starts_with('-') {
+Diff in /home/z/my-project/worktrees/w7-gate/tools/sweep/src/outcome.rs:226:
+         Some(code) => format!("exit={code}"),
+         None => "killed-by-signal".to_string(),
+     };
+-    let tail: String = stderr.chars().rev().take(200).collect::<Vec<_>>().into_iter().rev().collect();
++    let tail: String = stderr
++        .chars()
++        .rev()
++        .take(200)
++        .collect::<Vec<_>>()
++        .into_iter()
++        .rev()
++        .collect();
+     if tail.trim().is_empty() {
+         exit
+     } else {
+Diff in /home/z/my-project/worktrees/w7-gate/tools/sweep/src/outcome.rs:240:
+ pub fn sanitize(text: &str) -> String {
+     let clean: String = text
+         .chars()
+-        .map(|c| if c == '\t' || c == '\n' || c == '\r' { ' ' } else { c })
++        .map(|c| {
++            if c == '\t' || c == '\n' || c == '\r' {
++                ' '
++            } else {
++                c
++            }
++        })
+         .collect();
+     let clean = clean.trim();
+     if clean.is_empty() {
+Diff in /home/z/my-project/worktrees/w7-gate/tools/sweep/src/outcome.rs:297:
+         out.push_str("=== SWEEP SUMMARY ===\n");
+         out.push_str(&format!("total files: {}\n", self.total()));
+         for (i, n) in self.outcome_totals().iter().enumerate() {
+-            out.push_str(&format!(
+-                "{:<14} {}\n",
+-                Outcome::ALL[i].as_str(),
+-                n
+-            ));
++            out.push_str(&format!("{:<14} {}\n", Outcome::ALL[i].as_str(), n));
+         }
+         out.push_str("\nper-class matrix (class: ok unsupported dirty-reject typed-error panic timeout unknown total)\n");
+         for (class, row) in &self.rows {
+Diff in /home/z/my-project/worktrees/w7-gate/tools/sweep/src/outcome.rs:308:
+             let class_total: u64 = row.iter().sum();
+             out.push_str(&format!(
+                 "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+-                class,
+-                row[0],
+-                row[1],
+-                row[2],
+-                row[3],
+-                row[4],
+-                row[5],
+-                row[6],
+-                class_total
++                class, row[0], row[1], row[2], row[3], row[4], row[5], row[6], class_total
+             ));
+         }
+         out
+Diff in /home/z/my-project/worktrees/w7-gate/tools/sweep/src/outcome.rs:350:
+         let line = "SWEEP\tok\t-\t-\t-\t10\t10\t4\t4\t1\t0\t2\t2\tv+a\tavi\t-";
+         let parsed = parse_worker_line(line);
+         assert!(parsed.is_some(), "parse failed");
+-        let Some(parsed) = parsed else { return; };
++        let Some(parsed) = parsed else {
++            return;
++        };
+         assert_eq!(parsed.status, "ok");
+         assert_eq!(parsed.v_pkts, 10);
+         assert_eq!(parsed.a_dec, 4);
+Diff in /home/z/my-project/worktrees/w7-gate/tools/sweep/src/outcome.rs:365:
+         let line = "SWEEP\terror\tDecode\tdecoder\tdemux.fatal\t0\t0\t0\t0\t0\t0\t0\t0\tnone\tavi\tboom boom boom";
+         let parsed = parse_worker_line(line);
+         assert!(parsed.is_some(), "parse failed");
+-        let Some(parsed) = parsed else { return; };
++        let Some(parsed) = parsed else {
++            return;
++        };
+         assert_eq!(parsed.status, "error");
+         assert_eq!(parsed.detail, "boom boom boom");
+     }
+Diff in /home/z/my-project/worktrees/w7-gate/tools/sweep/src/worker.rs:31:
+ use std::path::Path;
+ 
+ use codec_api::{DecodeOutcome, Decoder, DecoderConfig, FrameSink, ThreadBudget};
+-use demux::avi::header::StreamFormat;
+ use demux::avi::AviDemuxer;
++use demux::avi::header::StreamFormat;
+ use media_types::ids::CodecDescriptor;
+-use media_types::{
+-    EngineError, ErrorKind, Frame, GenerationId, MediaKind, Packet, TrackId,
+-};
++use media_types::{EngineError, ErrorKind, Frame, GenerationId, MediaKind, Packet, TrackId};
+ use plugin_api::{Access, DemuxEvent, Demuxer};
+ 
+ use crate::outcome::sanitize;
+Diff in /home/z/my-project/worktrees/w7-gate/tools/sweep/src/worker.rs:159:
+ fn encode_path(path: &str) -> String {
+     let mut out = String::with_capacity(path.len());
+     for byte in path.bytes() {
+-        let keep =
+-            byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/');
++        let keep = byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/');
+         if keep {
+             out.push(byte as char);
+         } else {
+Diff in /home/z/my-project/worktrees/w7-gate/tools/sweep/src/worker.rs:213:
+ /// Configure one decoder for the walk (the bench pattern: the
+ /// track's own codec descriptor, the demuxer's FIRST generation,
+ /// one thread, no accelerator, no extradata).
+-fn configure(
+-    decoder: &mut dyn Decoder,
+-    codec: &CodecDescriptor,
+-) -> Result<(), EngineError> {
++fn configure(decoder: &mut dyn Decoder, codec: &CodecDescriptor) -> Result<(), EngineError> {
+     let config = DecoderConfig::new(
+         codec.clone(),
+         GenerationId::FIRST,
+FMT_EXIT_CODE:1

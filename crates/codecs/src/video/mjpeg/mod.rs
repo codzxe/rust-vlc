@@ -91,9 +91,9 @@ pub mod fuzz;
 pub(crate) mod huffman;
 // (idct_simd: card 7-b stub — SIMD plan + dispatch skeleton, not yet
 // wired; see that module's docs before implementing.)
+pub(crate) mod idct;
 #[allow(unused)]
 pub(crate) mod idct_simd;
-pub(crate) mod idct;
 pub(crate) mod parser;
 
 use codec_api::prelude::*;
