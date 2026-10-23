@@ -324,7 +324,24 @@ export type MessageKey =
   | "settings.audio.no-devices"
   | "settings.audio.device-default"
   | "settings.capability-unavailable"
-  | "settings.area.empty";
+  | "settings.area.empty"
+  // Settings group 3 areas (card 4.E4) — codecs / library / network / about / advanced.
+  | "settings.area.codecs"
+  | "settings.section.codecs.decode"
+  | "settings.section.codecs.cache"
+  | "settings.codecs.hw-decode-unavailable"
+  | "settings.area.library"
+  | "settings.area.network"
+  | "settings.area.about"
+  | "settings.section.about.updates"
+  | "settings.section.about.about"
+  | "settings.about.product"
+  | "settings.about.ui-package"
+  | "settings.about.version"
+  | "settings.area.advanced"
+  | "settings.advanced.fold-show"
+  | "settings.advanced.fold-hide"
+  | "settings.advanced.intro";
 
 const messages: Readonly<Record<MessageKey, string>> = {
   "screen.player": "Player",
@@ -643,6 +660,24 @@ const messages: Readonly<Record<MessageKey, string>> = {
   "settings.audio.device-default": "default",
   "settings.capability-unavailable": "Not available in this build",
   "settings.area.empty": "No options in this area yet.",
+  // Settings group 3 areas (card 4.E4).
+  "settings.area.codecs": "Input & Codecs",
+  "settings.section.codecs.decode": "Decoding",
+  "settings.section.codecs.cache": "Cache",
+  "settings.codecs.hw-decode-unavailable":
+    "Hardware decode is accepted policy (ADR-001) but ships in a later phase — disabled while the feature is not exposed (F2).",
+  "settings.area.library": "Playlist & Services",
+  "settings.area.network": "Network",
+  "settings.area.about": "Updates & About",
+  "settings.section.about.updates": "Updates",
+  "settings.section.about.about": "About",
+  "settings.about.product": "Product",
+  "settings.about.ui-package": "UI package",
+  "settings.about.version": "Version",
+  "settings.area.advanced": "Advanced",
+  "settings.advanced.fold-show": "Show advanced settings",
+  "settings.advanced.fold-hide": "Hide advanced settings",
+  "settings.advanced.intro": "Advanced options from every screen, folded by default.",
 };
 
 export type Msg = (key: MessageKey) => string;

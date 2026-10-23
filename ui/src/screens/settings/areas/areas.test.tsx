@@ -13,9 +13,15 @@ import { useMsg } from "../../../i18n/messages";
 
 describe("areas layer — extension registry", () => {
   it("appends the hotkeys area after the generated schema areas", () => {
-    expect(SETTINGS_AREA_IDS).toEqual(["global", "interface", "privacy", "playback", "performance", "hotkeys"]);
+    // Card 4.E4: group-3 areas (codecs/library/network/about/advanced) append
+    // after hotkeys — the same areas/index.tsx mechanism, no generator change.
+    expect(SETTINGS_AREA_IDS).toEqual([
+      "global", "interface", "privacy", "playback", "performance",
+      "hotkeys", "codecs", "library", "network", "about", "advanced",
+    ]);
     expect(SETTINGS_SCREENS.hotkeys).toBeTruthy();
     expect(useMsg()(SETTINGS_AREA_TITLES.hotkeys)).toBe("Hotkeys");
+    expect(useMsg()(SETTINGS_AREA_TITLES.advanced)).toBe("Advanced");
   });
 
   it("every special widget key IS a real schemas/settings.toml key (AC)", () => {

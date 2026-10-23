@@ -404,3 +404,43 @@ Feature-gate note: E1's `SettingField` hides feature-gated entries
 (doc 05 §6.4) — if the schema owner wants gated-but-documented entries to
 render disabled-with-reason instead (the 4.E3 pattern), that's a framework
 change in `SettingField.tsx` + `SettingsSections.tsx` (E1 owner).
+
+## Card 4.E4 — Settings group 3 (input/codecs, playlist/services, privacy/network, updates/about, advanced)
+
+**Done:** five hand-authored areas registered through the `areas/index.tsx`
+mechanism (no generator change): `areas/codecs.tsx` (hw-decode policy bound to
+`playback.hw-decode-policy`, rendered DISABLED-WITH-REASON per ADR-001's
+honest status — accepted policy, Phase 7 implementation, product.toml F2 keeps
+`features.hw-decode = false`; cache controls bound to
+`performance.cache-demux-mib` / `cache-network-mib`), `areas/playlist-services.tsx`
++ `areas/privacy-network.tsx` (honest empty states — zero schema entries for
+service discovery or proxies; the privacy half renders via E1's generated
+screen with telemetry defaults OFF, asserted in tests), `areas/updates-about.tsx`
+(About panel with REAL version data injected at build time from
+ui/package.json via vite `define` — `src/build-info.ts`; no hardcoded literal;
+update-checks bound to `privacy.update-checks`), `areas/advanced.tsx` (every
+`advanced = true` schema entry folded into one screen, collapsed by default,
+engine ui=false entries excluded). 26 tests across
+`areas/{codecs,playlist-services,privacy-network,updates-about,advanced}.test.tsx`
++ updated the areas-registry assertion (48 files / 435 tests green; tsc, eslint,
+`settings:check`, `vite build` all clean).
+
+**Schema owner handoff (blocking documented surface):** ZERO entries exist for
+service discovery (discover-enable etc.), network proxies, and update actions
+(no update command in the catalog either — no "check now" button by design).
+Until entries land these areas render NOTHING (never dead controls).
+
+**Placement duplication (D-rules follow-up):** `performance.cache-*` render on
+both the generated performance screen and the codecs area;
+`privacy.update-checks` renders on both the generated privacy screen and the
+Updates & About area. The schema owner should consolidate placement (move
+cache to a codecs/input section, update-checks to an updates section) — then
+the hand-authored areas become pure presentation. E3's unrouted
+`AudioArea`/`VideoArea`/`SubtitlesArea` remain unregistered (their schema
+screens are still empty); same decision pending.
+
+**Build-info seam:** `vite.config.ts` `define` reads ui/package.json →
+`src/build-info.ts` (+ `build-info.globals.d.ts`, `resolveJsonModule` added).
+If the engine later exposes `system.get-engine-info` version data in the UI
+shell, the About panel should prefer it for engine/protocol versions; the
+package identity stays build-injected.
