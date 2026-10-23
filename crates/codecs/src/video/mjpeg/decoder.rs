@@ -159,7 +159,7 @@ pub(crate) struct DecodedMeta {
 
 /// One padded per-component sample plane.
 #[derive(Debug)]
-struct Plane {
+pub(crate) struct Plane {
     data: Vec<u8>,
     /// Padded row pitch (bytes).
     stride: usize,
@@ -226,6 +226,89 @@ struct PlaneKey {
     /// Frame dimensions.
     width: usize,
     height: usize,
+}
+
+/// Per-block compute stages of the scan walk, as replaceable hooks
+/// (the W7-b profiling seam — the ablation instrument behind
+/// `examples/stage_bench.rs`).
+///
+/// The production walk always runs [`FullStages`], whose impls are
+/// `#[inline]` one-line forwardings to the real stages, so after
+/// monomorphization the production instantiation is codegen-identical
+/// to the pre-seam body (the seam adds no branch, no call). The
+/// stubbed impls exist so the **same walk, on the same bitstream**,
+/// can be timed with one compute stage removed: the Huffman entropy
+/// decode depends only on the tables and the reader, so
+/// `decode_scan − decode_scan_with::<NoIdctStages>` is exactly the
+/// dequant+IDCT share of a real decode (same for the plane store via
+/// [`NoWriteStages`]). Bit-exactness of the full-stages instantiation
+/// against the production path is pinned by a test below; the stubs
+/// deliberately alter output and are therefore never callable from
+/// the contract path.
+pub(crate) trait ScanHooks {
+    /// Dequantize + inverse-DCT one block into `out` samples
+    /// (default: the real [`idct_block`], dequantization folded in).
+    #[inline]
+    fn transform(block: &[i16; 64], qt: &[u16; 64], out: &mut [u8]) {
+        idct_block(block, qt, out)
+    }
+
+    /// Store one block's samples into its plane slot (default: the
+    /// real [`Plane::write_block`]).
+    #[inline]
+    fn store(plane: &mut Plane, samples: &[u8; 64], col: usize, row: usize) {
+        plane.write_block(samples, col, row)
+    }
+}
+
+/// The production stage set: all stages live (the trait defaults).
+pub(crate) struct FullStages;
+
+impl ScanHooks for FullStages {}
+
+/// Profiling arm: the dequant+IDCT stubbed to a constant mid-gray
+/// fill (the store still runs, so plane-write traffic is measured in
+/// this arm). Constructed only by `examples/stage_bench.rs` (and the
+/// seam test below) — the lib itself never stubs a stage.
+#[allow(dead_code)] // profiling arm: constructed by examples/stage_bench.rs
+pub(crate) struct NoIdctStages;
+
+impl ScanHooks for NoIdctStages {
+    #[inline]
+    fn transform(_block: &[i16; 64], _qt: &[u16; 64], out: &mut [u8]) {
+        out.fill(128)
+    }
+}
+
+/// Profiling arm: the plane store stubbed to nothing but a
+/// `black_box` anchor (the transform still runs, so its compute is
+/// measured; the anchor keeps the optimizer from dead-code-eliminating
+/// the transform whose output is no longer stored).
+#[allow(dead_code)] // profiling arm: constructed by examples/stage_bench.rs
+pub(crate) struct NoWriteStages;
+
+impl ScanHooks for NoWriteStages {
+    #[inline]
+    fn store(_plane: &mut Plane, samples: &[u8; 64], _col: usize, _row: usize) {
+        std::hint::black_box(samples);
+    }
+}
+
+/// Profiling arm: both the transform and the store stubbed — the
+/// walk is parse + Huffman entropy decode only.
+#[allow(dead_code)] // profiling arm: constructed by examples/stage_bench.rs
+pub(crate) struct NoIdctNoWriteStages;
+
+impl ScanHooks for NoIdctNoWriteStages {
+    #[inline]
+    fn transform(_block: &[i16; 64], _qt: &[u16; 64], out: &mut [u8]) {
+        out.fill(128)
+    }
+
+    #[inline]
+    fn store(_plane: &mut Plane, samples: &[u8; 64], _col: usize, _row: usize) {
+        std::hint::black_box(samples);
+    }
 }
 
 /// The identity of the Huffman table set: the raw DHT payload. Equal
@@ -354,6 +437,27 @@ impl DecodeContext {
     /// (the context remains usable for the next frame either way —
     /// the scratch is restored before any error escapes).
     pub(crate) fn decode_scan(&mut self, data: &[u8]) -> Result<DecodedMeta, MjpegError> {
+        self.decode_scan_with::<FullStages>(data)
+    }
+
+    /// The staged-scan profiling entry (W7-b): the same walk as
+    /// [`DecodeContext::decode_scan`] with the per-block compute
+    /// stages selected by `H`'s hooks — [`NoIdctStages`] stubs the
+    /// dequant+IDCT (constant mid-gray samples), [`NoWriteStages`]
+    /// stubs the plane store. The Huffman entropy walk consumes the
+    /// identical bitstream in every arm (it depends on the tables and
+    /// the reader only), which is what makes the ablation deltas a
+    /// valid stage attribution: `decode_scan − decode_scan_with::<NoIdct>`
+    /// is the dequant+IDCT share of the real walk. Never used by the
+    /// production contract path; exercised by `examples/stage_bench.rs`
+    /// and the equivalence test below.
+    ///
+    /// # Errors
+    /// Typed [`MjpegError`]s, exactly like [`DecodeContext::decode_scan`].
+    pub(crate) fn decode_scan_with<H: ScanHooks>(
+        &mut self,
+        data: &[u8],
+    ) -> Result<DecodedMeta, MjpegError> {
         // Park an empty scratch where the persistent header storage
         // lives, and walk into the real one (D-1): `JpegInfo::empty`
         // allocates nothing, the moves are pointer-sized struct
@@ -362,7 +466,7 @@ impl DecodeContext {
         // `info` freely while the context's planes/tables are
         // mutated through `self`.
         let mut info = std::mem::replace(&mut self.headers, JpegInfo::empty());
-        let decoded = self.scan_into(&mut info, data);
+        let decoded = self.scan_into::<H>(&mut info, data);
         self.headers = info;
         decoded
     }
@@ -394,8 +498,18 @@ impl DecodeContext {
 
     /// The scan body behind [`DecodeContext::decode_scan`]: `info` is
     /// the context's own (persistent) header scratch, walked here and
-    /// read for the rest of the frame.
-    fn scan_into(&mut self, info: &mut JpegInfo, data: &[u8]) -> Result<DecodedMeta, MjpegError> {
+    /// read for the rest of the frame. Generic over the stage hooks
+    /// (the W7-b profiling seam): the production entry instantiates
+    /// [`FullStages`], whose trait impls are `#[inline]` forwardings
+    /// to the real stages, so the monomorphized production walk is
+    /// codegen-identical to a non-generic body (pinned by output
+    /// equality against `decode_scan` in the tests below and by the
+    /// committed decode-reference digests).
+    fn scan_into<H: ScanHooks>(
+        &mut self,
+        info: &mut JpegInfo,
+        data: &[u8],
+    ) -> Result<DecodedMeta, MjpegError> {
         parser::parse_into(info, data)?;
         let info = &*info;
 
@@ -485,8 +599,8 @@ impl DecodeContext {
                                     let col = mx * comp.h as usize + bx;
                                     let row = my * comp.v as usize + by;
                                     let mut samples = [0u8; 64];
-                                    idct_block(&block, qt, &mut samples);
-                                    plane.write_block(&samples, col, row);
+                                    H::transform(&block, qt, &mut samples);
+                                    H::store(plane, &samples, col, row);
                                     self.cursors[scan_comp.sof_index] += 1;
                                 }
                                 Err(stop) => {
@@ -1542,6 +1656,51 @@ mod tests {
         };
         assert_eq!(slot.as_slice(), ref_small.data.as_slice());
         assert_eq!(slots.len(), before, "release returns slots to rotation");
+    }
+
+    #[test]
+    fn staged_full_scan_is_bit_exact_vs_the_production_path() {
+        // W7-b profiling seam: `decode_scan_with::<FullStages>` (the
+        // generic walk the staged arms share) must be bit-identical to
+        // `decode_scan` (the production instantiation) on every
+        // geometry/output-format the decoder can produce, clean and
+        // concealed — the seam's license to exist.
+        let gray = tiny_jpeg(16, 16, &[(1, 0x11, 0)], &[0x00]);
+        let yuv420 = tiny_jpeg(16, 16, &[(1, 0x22, 0), (2, 0x11, 0), (3, 0x11, 0)], &[0x00]);
+        let yuv422 = tiny_jpeg(24, 16, &[(1, 0x21, 0), (2, 0x11, 0), (3, 0x11, 0)], &[0x00]);
+        let mut truncated = yuv420.clone();
+        truncated.truncate(truncated.len() * 3 / 4); // concealed tail
+        for jpeg in [&gray, &yuv420, &yuv422, &truncated] {
+            let mut production = DecodeContext::new();
+            let mut staged = DecodeContext::new();
+            let a = match production.decode_scan(jpeg) {
+                Ok(meta) => meta,
+                Err(e) => unreachable!("production scan: {e:?}"),
+            };
+            let b = match staged.decode_scan_with::<FullStages>(jpeg) {
+                Ok(meta) => meta,
+                Err(e) => unreachable!("staged scan: {e:?}"),
+            };
+            assert_eq!(
+                (a.width, a.height, a.format, a.concealed),
+                (b.width, b.height, b.format, b.concealed)
+            );
+            let len = match production.frame_len() {
+                Ok(len) => len,
+                Err(e) => unreachable!("frame_len: {e:?}"),
+            };
+            let mut out_a = vec![0u8; len];
+            let mut out_b = vec![0u8; len];
+            match production.assemble_frame(&mut out_a) {
+                Ok(()) => {}
+                Err(e) => unreachable!("assemble a: {e:?}"),
+            }
+            match staged.assemble_frame(&mut out_b) {
+                Ok(()) => {}
+                Err(e) => unreachable!("assemble b: {e:?}"),
+            }
+            assert_eq!(out_a, out_b, "staged-full output diverged");
+        }
     }
 
     #[test]
