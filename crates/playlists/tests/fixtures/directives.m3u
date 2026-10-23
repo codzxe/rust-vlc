@@ -1,0 +1,9 @@
+#EXTM3U
+#EXTVLCOPT:http-user-agent=Lumen/1.0
+#EXTGRP:Favourites
+#EXTCUSTOM-UNKNOWN:some value: with colons
+#EXTINF:42,Title with: colon
+http://example.com/x.mp3
+#EXTVLCOPT:http-referrer=http://example.com/
+#EXTINF:7.25,
+plain/track two.wav

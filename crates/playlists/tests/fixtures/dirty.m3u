@@ -1,0 +1,8 @@
+#EXTM
+#EXTINF abc,Title Without Colon
+#EXTINF:not-a-number,Bad Duration
+still-plays.mp3
+#EXTINF:7,
+after-empty-title.mp3
+#EXTINF:11.5,Dangling
+#EXTVLCOPT:http-referrer=http://example.com
