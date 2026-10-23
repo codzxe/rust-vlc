@@ -20,6 +20,7 @@
 //! | `cmd::check_panics`     | `check-panics`      | 7-e (implemented — the F-5 panic-surface gate; registered under card 7-e's granted ownership of tools/xtask for the F-5 step) |
 //! | `cmd::rebrand`           | `rebrand`            | 1.E4 (implemented) |
 //! | `cmd::fixtures`          | `fixtures`           | 2.A3 |
+//! | `cmd::visual`            | `visual`             | 4.G1 (implemented — screenshot-diff harness driver, doc 08 §6; registered under card 4.G1's granted ownership of the registry, same precedent as check-panics/7-e) |
 
 use std::process::ExitCode;
 
@@ -33,6 +34,7 @@ pub mod gate;
 pub mod rebrand;
 pub mod schema_gen;
 pub mod tokens;
+pub mod visual;
 
 /// One registered subcommand: name, owning card, help text and entry point.
 pub struct Subcommand {
@@ -107,6 +109,13 @@ pub const SUBCOMMANDS: &[Subcommand] = &[
         implemented: true,
         run: fixtures::run,
     },
+    Subcommand {
+        name: "visual",
+        card: "4.G1",
+        summary: "Screenshot-diff fidelity harness (doc 08 §6; PR-lite + nightly modes)",
+        implemented: true,
+        run: visual::run,
+    },
 ];
 
 /// Find a registered subcommand by exact name.
@@ -142,6 +151,7 @@ mod tests {
             "check-architecture",
             "rebrand",
             "fixtures",
+            "visual",
         ] {
             assert!(
                 lookup(expected).is_some(),
