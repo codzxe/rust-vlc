@@ -1,11 +1,15 @@
 // ESLint flat config for the ui/ workspace (doc 08 §8, card 4.A1).
 //
-// Includes two scaffold-local rules (v1: AST-literal + regex-approximate;
-// refine into proper typed rules in a follow-up session — see NEXT-STEPS.md):
-//   * local/i18n-no-literals — JSX text nodes and literal `aria-label` /
-//     `alt` / `title` props must not carry user-visible copy; use useMsg() +
-//     MessageKey (doc 07 §6.5). Exemptions live in ui/i18n-allowlist.json as
-//     { text, reason, owner } entries.
+// Includes two scaffold-local rules (v2, closure session — still inline in
+// this file, promotion to tools/eslint-plugin-lumen/ remains NEXT-STEPS #2):
+//   * local/i18n-no-literals — user-visible copy must come from useMsg() +
+//     MessageKey (doc 07 §6.5). v2 covers: JSX text nodes, no-substitution
+//     template literals, string-literal expression containers in text
+//     position ({"Copy"}), and literal/expression values of the
+//     user-visible attrs aria-label/alt/title. NOT yet covered:
+//     interpolated templates (`{`Hi ${name}`}` needs flow awareness) and
+//     string literals passed to DOM-building helpers — document, don't fake.
+//     Exemptions: ui/i18n-allowlist.json { text, reason, owner } entries.
 //   * local/boundary-imports — files under src/ may not relatively import
 //     outside ui/src (the generated client lives inside src/generated, so it
 //     stays reachable; doc 08 §8 "no Tauri APIs outside bindings").
@@ -59,21 +63,46 @@ const i18nNoLiterals = {
         context.report({ node, messageId: "literal" });
       }
     };
+    // String content of a literal-ish node: "..." or `...` (no substitutions).
+    const literalText = (node) => {
+      if (node.type === "Literal" && typeof node.value === "string") {
+        return node.value;
+      }
+      if (
+        node.type === "TemplateLiteral" &&
+        node.expressions.length === 0 &&
+        node.quasis.length === 1
+      ) {
+        return node.quasis[0].value.cooked ?? "";
+      }
+      return null;
+    };
     return {
       JSXText(node) {
         check(node, node.value);
+      },
+      // {"Copy"} in text position (child of a JSX element, not an attribute).
+      JSXExpressionContainer(node) {
+        if (node.parent?.type !== "JSXElement") {
+          return;
+        }
+        const text = literalText(node.expression);
+        if (text !== null) {
+          check(node, text);
+        }
       },
       JSXAttribute(node) {
         const name = node.name.name;
         if (name !== "aria-label" && name !== "alt" && name !== "title") {
           return;
         }
-        if (
-          node.value !== null &&
-          node.value.type === "Literal" &&
-          typeof node.value.value === "string"
-        ) {
-          check(node, node.value.value);
+        const value =
+          node.value?.type === "JSXExpressionContainer"
+            ? node.value.expression // alt={"..."}
+            : node.value; // alt="..."
+        const text = value !== null && value !== undefined ? literalText(value) : null;
+        if (text !== null) {
+          check(node, text);
         }
       },
     };

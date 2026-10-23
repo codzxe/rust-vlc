@@ -1,8 +1,8 @@
 # ui/ — Lumen player UI workspace (card 4.A1 scaffold, doc 08 §8)
 
 React + TypeScript (strict) application scaffolded per doc 08 §8. Vite dev/build,
-vitest + RTL unit tests, Playwright e2e (config only — browsers not yet installed),
-ESLint with two scaffold-local rules (`local/i18n-no-literals`, `local/boundary-imports`).
+vitest + RTL unit tests, Playwright e2e smoke (chromium, **green** since the 4.A1
+closure session), ESLint with two scaffold-local rules (`local/i18n-no-literals`, `local/boundary-imports`).
 
 ## Dev commands
 
@@ -13,11 +13,14 @@ ESLint with two scaffold-local rules (`local/i18n-no-literals`, `local/boundary-
 | `npm run typecheck` | `tsc --noEmit` (strict, `noUncheckedIndexedAccess`, `verbatimModuleSyntax`) |
 | `npm run test` | vitest run (jsdom + RTL, `src/**/*.test.{ts,tsx}`) |
 | `npm run lint` | ESLint flat config incl. the two local rules |
-| `npm run test:e2e` | Playwright (needs `npx playwright install chromium` first — deferred, see NEXT-STEPS.md) |
+| `npm run test:e2e` | Playwright smoke (first clone: `npx playwright install chromium`) |
 
-Status at scaffold commit: **typecheck ✅ · test 9/9 ✅ · lint 0 errors ✅** (1 benign
+Status at card closure (4.A1, relaunch 2): **typecheck ✅ · test 9/9 ✅ · lint 0
+errors ✅ · e2e smoke 1/1 ✅** (chromium 156.0.8078.4 headless; 1 benign
 `react-refresh/only-export-components` warning: `useClient` exported beside
-`ClientProvider` — standard provider/hook pairing, accepted for now).
+`ClientProvider` — standard provider/hook pairing, accepted for now). CI job for
+these four gates is proposed at `.github/workflows/ui.yml` (Lead-owned — wires
+it at merge).
 
 ## Layout (as built so far)
 
@@ -33,7 +36,7 @@ ui/
     screens/                 ScreenPlaceholder (honest placeholders, doc 08 §1.6)
     App.tsx main.tsx         routing skeleton + root providers
     test/setup.ts            RTL cleanup (vitest globals:false) + jest-dom
-  e2e/smoke.spec.ts          Playwright smoke (browsers pending)
+  e2e/smoke.spec.ts          Playwright smoke (chromium, green)
 ```
 
 `src/client/transport.ts` is the **only** module importing `src/generated/` — the
@@ -74,11 +77,13 @@ Card 4.A2 added ZERO packages — the token pipeline (scripts/gen-tokens.mjs,
 ThemeProvider, generated CSS/TS) is pure node + react + CSS custom
 properties.
 
-## Lint rules (scaffold-local, v1)
+## Lint rules (scaffold-local, v2)
 
-- `local/i18n-no-literals` — flags JSX text nodes and literal `aria-label`/`alt`/
-  `title` props (doc 07 §6.5: user-visible copy must come from `useMsg()` +
-  `MessageKey`). Exemptions: `ui/i18n-allowlist.json` entries
+- `local/i18n-no-literals` — flags user-visible copy outside `useMsg()` +
+  `MessageKey` (doc 07 §6.5). v2 (closure session) covers JSX text nodes,
+  no-substitution template literals, `{"Copy"}` expression containers in text
+  position, and literal or expression values of `aria-label`/`alt`/`title`.
+  Exemptions: `ui/i18n-allowlist.json` entries
   `{ "text": "...", "reason": "...", "owner": "..." }`. Test files skipped.
 - `local/boundary-imports` — files under `src/` may not relatively import outside
   `ui/src`, and absolute-path imports are banned (doc 08 §8 import boundaries).
@@ -87,9 +92,10 @@ properties.
   dimensions must resolve through `var(--semantic-token)` (doc 08 §3.2/§3.4).
   Generated and test files are exempt.
 
-All three verified live against deliberate violations. v1 is
-AST-literal/regex-grade (no template-literal coverage, no plugin package yet) —
-see NEXT-STEPS.md.
+Both verified live against deliberate violations (v2 probe: container, template,
+`aria-label`, `alt` all flagged). Known gaps, documented not faked: interpolated
+templates need flow awareness; promotion to `tools/eslint-plugin-lumen/` with
+schema + tests remains NEXT-STEPS #2.
 
 ## Token pipeline (card 4.A2, doc 08 §3)
 

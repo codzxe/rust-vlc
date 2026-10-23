@@ -15,6 +15,12 @@ unit tests + 4/4 e2e (browsers were already cached; added the missing
 `baseURL` to playwright.config.ts — latent 4.A1 gap). Decision record:
 `src/tokens/README.md`.
 
+Closure session (P4-A1 relaunch 2, 2026-10-23): chromium installed
+(156.0.8078.4), smoke spec GREEN 1/1 (needed `baseURL` added to
+playwright.config.ts — the scaffold config had omitted it), HTML reporter
+added for the CI artifact, `.github/workflows/ui.yml` PROPOSED (Lead wires it
+at merge), README brought to closure state. All four gates green.
+
 ## Do next (roughly in order)
 
 1. **4.A2 completion pass (later session)**: worklog entry (---, Task ID:
