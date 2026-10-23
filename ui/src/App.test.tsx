@@ -16,11 +16,12 @@ function renderAt(path: string): void {
 }
 
 // Route smoke over the doc 08 §1.6 skeleton: each design route renders its
-// honest placeholder heading.
+// honest placeholder heading. Updated by card 4.F1: on a fresh run the
+// first-run gate owns / and /player until the wizard completes/skips.
 describe("App routing skeleton (doc 08 §1.6)", () => {
-  it("redirects / to the player screen", () => {
+  it("first run: / redirects through /player into the onboarding gate", () => {
     renderAt("/");
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Player");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Welcome to Lumen");
   });
 
   it("renders the music-player route", () => {
@@ -34,9 +35,9 @@ describe("App routing skeleton (doc 08 §1.6)", () => {
     expect(screen.getByRole("button", { name: "Global" })).toHaveAttribute("aria-current", "page");
   });
 
-  it("renders the onboarding route", () => {
+  it("renders the onboarding route (real 4.F1 wizard)", () => {
     renderAt("/onboarding");
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Onboarding");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Welcome to Lumen");
   });
 
   it("renders unknown paths as the not-found screen", () => {

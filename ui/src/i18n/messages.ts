@@ -362,7 +362,50 @@ export type MessageKey =
   | "settings.area.advanced"
   | "settings.advanced.fold-show"
   | "settings.advanced.fold-hide"
-  | "settings.advanced.intro";
+  | "settings.advanced.intro"
+  // --- onboarding wizard (card 4.F1; privacy copy is an honest
+  // [PROPOSAL] placeholder — the design package has no privacy artboard,
+  // wording follows doc 07 §2.6/§5.4) ---
+  | "onboarding.welcome.title"
+  | "onboarding.welcome.body"
+  | "onboarding.privacy.title"
+  | "onboarding.privacy.body"
+  | "onboarding.privacy.note"
+  | "onboarding.privacy.telemetry.label"
+  | "onboarding.privacy.telemetry.description"
+  | "onboarding.privacy.update-checks.label"
+  | "onboarding.privacy.update-checks.description"
+  | "onboarding.privacy.online-suggestions.label"
+  | "onboarding.privacy.online-suggestions.description"
+  | "onboarding.appearance.title"
+  | "onboarding.appearance.body"
+  | "onboarding.appearance.theme.light"
+  | "onboarding.appearance.theme.dark"
+  | "onboarding.appearance.theme.system"
+  | "onboarding.appearance.accent"
+  | "onboarding.accent.blue"
+  | "onboarding.accent.cyan"
+  | "onboarding.accent.gray"
+  | "onboarding.accent.green"
+  | "onboarding.accent.orange"
+  | "onboarding.accent.pink"
+  | "onboarding.accent.red"
+  | "onboarding.accent.violet"
+  | "onboarding.accent.yellow"
+  | "onboarding.shortcuts.title"
+  | "onboarding.shortcuts.body"
+  | "onboarding.shortcuts.hint-play-pause"
+  | "onboarding.shortcuts.hint-seek"
+  | "onboarding.shortcuts.hint-fullscreen"
+  | "onboarding.shortcuts.hint-more"
+  | "onboarding.done.title"
+  | "onboarding.done.body"
+  | "onboarding.action.back"
+  | "onboarding.action.next"
+  | "onboarding.action.skip"
+  | "onboarding.action.get-started"
+  | "onboarding.progress.label"
+  | "onboarding.progress.of";
 
 const messages: Readonly<Record<MessageKey, string>> = {
   "screen.player": "Player",
@@ -720,6 +763,56 @@ const messages: Readonly<Record<MessageKey, string>> = {
   "settings.advanced.fold-show": "Show advanced settings",
   "settings.advanced.fold-hide": "Hide advanced settings",
   "settings.advanced.intro": "Advanced options from every screen, folded by default.",
+  // Onboarding wizard (card 4.F1).
+  "onboarding.welcome.title": "Welcome to Lumen",
+  "onboarding.welcome.body":
+    "A local-first media player. This short walkthrough sets your privacy choices and look — you can skip it and change everything later in Settings.",
+  "onboarding.privacy.title": "Privacy first",
+  "onboarding.privacy.body":
+    "Everything below is off by default. Lumen shares nothing unless you turn a switch on.",
+  "onboarding.privacy.note":
+    "All choices are optional and stay off unless you enable them. You can change them any time in Settings → Privacy.",
+  "onboarding.privacy.telemetry.label": "Send anonymous usage statistics",
+  "onboarding.privacy.telemetry.description":
+    "Off by default. If enabled, anonymous usage reports are sent to help improve Lumen. No media, file names, or identifiers are ever included.",
+  "onboarding.privacy.update-checks.label": "Check for updates automatically",
+  "onboarding.privacy.update-checks.description":
+    "Off by default. If enabled, Lumen periodically asks the update server whether a new version is available.",
+  "onboarding.privacy.online-suggestions.label": "Online suggestions",
+  "onboarding.privacy.online-suggestions.description":
+    "Off by default. If enabled, Lumen may fetch artwork and metadata suggestions from the internet for your library.",
+  "onboarding.appearance.title": "Make it yours",
+  "onboarding.appearance.body":
+    "Pick a theme and an accent color — the preview updates instantly and nothing is locked in.",
+  "onboarding.appearance.theme.light": "Light",
+  "onboarding.appearance.theme.dark": "Dark",
+  "onboarding.appearance.theme.system": "System",
+  "onboarding.appearance.accent": "Accent color",
+  "onboarding.accent.blue": "Blue",
+  "onboarding.accent.cyan": "Cyan",
+  "onboarding.accent.gray": "Gray",
+  "onboarding.accent.green": "Green",
+  "onboarding.accent.orange": "Orange",
+  "onboarding.accent.pink": "Pink",
+  "onboarding.accent.red": "Red",
+  "onboarding.accent.violet": "Violet",
+  "onboarding.accent.yellow": "Yellow",
+  "onboarding.shortcuts.title": "Handy shortcuts",
+  "onboarding.shortcuts.body":
+    "Placeholder shortcut tour — the full map lives in the keyboard shortcuts screen.",
+  "onboarding.shortcuts.hint-play-pause": "Space — play or pause",
+  "onboarding.shortcuts.hint-seek": "Arrow keys — seek and adjust volume",
+  "onboarding.shortcuts.hint-fullscreen": "F — toggle fullscreen",
+  "onboarding.shortcuts.hint-more": "See all shortcuts under Help → Keyboard shortcuts",
+  "onboarding.done.title": "You are set",
+  "onboarding.done.body":
+    "That is everything. Your privacy choices are exactly what you set — nothing was enabled for you.",
+  "onboarding.action.back": "Back",
+  "onboarding.action.next": "Next",
+  "onboarding.action.skip": "Skip",
+  "onboarding.action.get-started": "Get started",
+  "onboarding.progress.label": "Onboarding step",
+  "onboarding.progress.of": "of",
 };
 
 export type Msg = (key: MessageKey) => string;

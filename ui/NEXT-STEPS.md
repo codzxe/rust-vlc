@@ -444,3 +444,26 @@ screens are still empty); same decision pending.
 If the engine later exposes `system.get-engine-info` version data in the UI
 shell, the About panel should prefer it for engine/protocol versions; the
 package identity stays build-injected.
+## Card 4.F1 — onboarding handoff (app layer)
+
+`ui/src/screens/onboarding/onboardingState.ts` persists to its own
+localStorage seam (`lumen.onboarding.v1`) via an E1-shaped
+`OnboardingPersistence` interface — separate key on purpose: E1's
+`SettingsProvider.apply()` rewrites `lumen.settings.overrides.v1` wholesale
+(schema overrides only), so an onboarding flag written there would be wiped
+by the next settings Apply. App layer must, at startup or on wizard finish:
+
+1. Translate the choices to real config writes over the client bridge
+   (doc 05 §2.11 `config.set-setting`): `choices.telemetry` →
+   `privacy.telemetry`, `choices.updateChecks` → `privacy.update-checks`
+   (both schema keys, doc 07 §5.4), then delete the onboarding store row.
+2. `choices.onlineSuggestions` has NO schema key yet ([PROPOSAL], card
+   4.F1 wording) — needs a settings-schema entry before it can be written
+   for real; until then it stays a UI-only flag, honestly labeled.
+3. `onboarding.complete` is the first-run gate (`RequireOnboarding` on
+   /player in App.tsx); the app layer may pre-seed it true for
+   migrated/managed installs (admin lock list, doc 07 §8) to skip the
+   wizard — that path must still default every privacy flag OFF.
+4. Appearance step previews via ThemeProvider only (rendering seam,
+   card 4.A2) — persisting theme/accent belongs to the settings
+   integration (4.E2 sync seam), not the wizard.
