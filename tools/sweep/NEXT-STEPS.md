@@ -1,5 +1,30 @@
 # tools/sweep — card 7-d session breadcrumbs
 
+Session 2 (relaunch 3) ran the FIRST REAL corpus-v4 smoke sweep:
+
+- corpus regenerated to `/tmp/corpus-v4-smoke` via `--replay` (all
+  126 manifest files verified on disk, 77.4 MB; hls/0048 + hls/0067
+  carry extra segment/playlist files NOT in the 126 — don't walk
+  the corpus root).
+- exact-126 file list extracted from the manifest `rel` fields
+  (`/tmp/v4smoke-files.txt`, still there) and passed as explicit
+  args; binary at /home/z/my-project/target/release/lumen-sweep.
+- RAW LOG COMMITTED: docs/perf/raw/sweep-v4-smoke-20261024.log
+  (force-add: docs/perf/raw/*.log is gitignored).
+  TALLY: 126 files — 21 ok / 103 unsupported / 1 dirty-reject /
+  1 typed-error / **0 panics / 0 timeouts**.
+- Notable lines for the census doc:
+  * odd-chunk-avi → typed-error `sweep.concealment.budget`
+    (1000/1000 concealment budget, v=1000 concealed) — check the
+    budget is doing what doc intends.
+  * avi-magic-head-03 (garbage) → dirty-reject `demux.avi.truncated`
+    (expected 425516 B, found 47) — typed/bounded, good.
+  * hevc-in-avi 0074 → "ok" but 0 video frames / 7 audio frames —
+    HEVC stream silently skipped, audio-only decode. First-vertical
+    truth; census should call this out as coverage, maybe handoff.
+  * dirty byte-op classes on mp4/mkv targets land `unsupported`
+    (no demuxer for those containers) — honest, not rejection.
+
 Session 1 (relaunch 2) committed the skeleton: supervisor + worker,
 subprocess-per-file isolation, timeout, 6-way classification,
 per-class tallies, 15 unit tests green, smoke-validated on the
