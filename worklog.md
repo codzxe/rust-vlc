@@ -8123,3 +8123,21 @@ Stage Summary:
 - Repo hygiene restored: 83 branches + 20 stale worktrees removed; every kept branch is either main, the phase-1 backup, or an active wave-6 agent branch.
 - W5R-03's unique value (3.A2 hard source-swap AC) is now in main and verified green; its superseded media-clock salvage commits were dropped, not merged.
 - Remaining work unchanged: Phase 3 = 3.E1 + 3.F2-V gate fill (media-clock wall confirmed DOWN — cargo check green at 4a2b415); wave-6 in-flight unmerged commits: w6-02 (MJPEG V-4 pooled slots), w6-03 (color-pipeline bench), w6-04 (walk_bench --allocs), w6-05 (SharedBytes range/build); Phase 4 = 25 tasks / 9 waves, 0 done.
+
+---
+Task ID: 7.LEAD-RESET (Lead)
+Agent: Lead
+Task: Session continuation — absorb unlogged wave-6 close-out, verify tree, dispatch Wave 7 (user order: merge+push done by predecessor; complete remaining phases via subagent waves, no manual work).
+
+Work Log:
+- Found main 1 unpushed commit past 6.HOUSEKEEPING, made by a cut-off session WITHOUT worklog entries: merges 4826572 (W6-05 SharedBytes), 393ca75 (W6-02 MJPEG pooled slots V-4 + huffman_bench), 0b18a10 (W6-03 color-pipeline bench), 3ab3164 (W6-04 walk_bench --allocs), 95f4031 (post-merge clippy/fmt hygiene, workspace clippy -D warnings clean), 9393b53 (W5R-19 known-red closed: all 15 then-existing scenarios_b green, workspace 1914/0), and a UUID-message commit containing 3.E1 scenarios 1-8 (+1308 lines, 10 files).
+- Verified all 20 w6 branches: 0 unmerged commits (merges complete); pruned 20 dead worktrees, deleted 20 merged wip/w6-* branches.
+- Toolchain wiped a 7th time: rustup 1.99.1 reinstalled per rust-toolchain.toml pin; .cargo/config.toml target-dir intact.
+- Ran scenarios_b on the UUID commit: compile error (scenario_01_open.rs:48 unused `generation`, -D unused-variables) — fixed (generation: _) as lead hygiene inside the amend; then 20/23 green with 3 REDs: s05 stop_midstream (expects settle→Idle, engine gives Stopped), s06 hundred_random_seeks (in-flight count 4 vs expected 1 at scenario_06:109), s08 audio_track_switch (selection still track 1 after switch command, scenario_08:103). Reds dispatched to Wave-7 card 7-a for honest closure against engine ground truth (never weaken to green).
+- Amended the UUID commit to 8866aa0 with a proper 3.E1 message; pushed main to origin (this entry + brief commit follow immediately).
+- Wrote .agent-brief-w7.md; dispatched Wave 7 (5 parallel agents, disjoint ownership): 7-a 3.E1 red closure; 7-b MJPEG SIMD honest push (0.16x target) + V-3 in-place huffman tables; 7-c V-1 demux pool/arena adoption + input-crate large-read path; 7-d corpus-v4 parity sweep + randomized engine sweep (panic/damage census, honest FFmpeg comparison); 7-e F-1..F-5 error-surface fixes. 3.F2-V gate agent launches on 7-a's merge; Phase 4 waves launch on gate pass.
+
+Stage Summary:
+- main = 8866aa0 pushed; repo back to main + phase1-backup only; wave-6 leftovers (MJPEG SIMD, V-1/V-3, input read path, corpus sweeps, F-fixes) now in flight as Wave 7 alongside Phase-3 closure.
+- Honest status: scenarios_b = 20/23 green, 3 reds named above with owners; workspace full-suite re-verification is 3.F2-V's job on the merged Wave-7 tree, not claimed here.
+- Phase 4 (25 tasks/9 waves) blocked only on 3.F2-V; UI toolchain verified available (node 24.21.0, npm 11.19.0).
