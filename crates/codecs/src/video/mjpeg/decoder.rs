@@ -1668,7 +1668,11 @@ mod tests {
         let gray = tiny_jpeg(16, 16, &[(1, 0x11, 0)], &[0x00]);
         let yuv420 = tiny_jpeg(16, 16, &[(1, 0x22, 0), (2, 0x11, 0), (3, 0x11, 0)], &[0x00]);
         let yuv422 = tiny_jpeg(24, 16, &[(1, 0x21, 0), (2, 0x11, 0), (3, 0x11, 0)], &[0x00]);
-        let mut truncated = yuv420.clone();
+        // 32×32 (not 16×16) so the 3/4 cut lands inside the entropy
+        // region — headers intact, the tail conceals (the
+        // `concealment_does_not_leak_across_frames` precedent).
+        let mut truncated =
+            tiny_jpeg(32, 32, &[(1, 0x22, 0), (2, 0x11, 0), (3, 0x11, 0)], &[0x00]);
         truncated.truncate(truncated.len() * 3 / 4); // concealed tail
         for jpeg in [&gray, &yuv420, &yuv422, &truncated] {
             let mut production = DecodeContext::new();
