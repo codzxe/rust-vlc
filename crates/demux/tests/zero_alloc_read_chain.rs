@@ -924,3 +924,118 @@ fn idx1_parse_allocates_per_block_not_per_entry() {
         "1024 entries parsed with {large} allocs — the pre-3.B3 chain spent 1024 (one per entry)"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Card 7-c (V-1 + the input read path): the per-payload source-call
+// count. `READ_STEP_MAX` used to chop every payload read into 64 KiB
+// source calls — a multi-hundred-KB MJPEG frame paid ceil(want / 64 KiB)
+// read_into calls through the seam (and, on the real file path, one
+// buffered window refill + one window→slot copy per call). The borrow
+// seam's destination is caller-owned memory (the payload pool's arena
+// slot), so the step loop bounds nothing the caller has not already
+// bounded; the payload ask is now one read_into of the full `want`.
+// ---------------------------------------------------------------------------
+
+/// The seam-call census instrument (shared counters — the source moves
+/// into the demuxer's `Box`, the test keeps the handles): counts
+/// `read_into` calls, bytes served, and the largest ask received. This
+/// is the syscall-count proxy for the in-memory walk; the real-file
+/// syscall count is the input crate's `large_read_bypasses_the_window`
+/// proof.
+#[derive(Default)]
+struct SeamStats {
+    calls: std::sync::atomic::AtomicU64,
+    bytes: std::sync::atomic::AtomicU64,
+    max_ask: std::sync::atomic::AtomicU64,
+}
+
+impl SeamStats {
+    fn record(&self, ask: usize, got: u64) {
+        use std::sync::atomic::Ordering::Relaxed;
+        self.calls.fetch_add(1, Relaxed);
+        self.bytes.fetch_add(got, Relaxed);
+        self.max_ask.fetch_max(ask as u64, Relaxed);
+    }
+}
+
+/// An in-memory source that counts every `read_into` it serves.
+struct CountingSource {
+    inner: BorrowMemSource,
+    stats: std::sync::Arc<SeamStats>,
+}
+
+impl SourceStream for CountingSource {
+    fn uri(&self) -> &SourceUri {
+        self.inner.uri()
+    }
+    fn size(&self) -> Option<u64> {
+        self.inner.size()
+    }
+    fn supports_seek(&self) -> bool {
+        self.inner.supports_seek()
+    }
+    fn read(&mut self, len: usize) -> Result<Vec<u8>, EngineError> {
+        self.inner.read(len)
+    }
+    fn read_into(&mut self, out: &mut [u8]) -> Result<usize, EngineError> {
+        let got = self.inner.read_into(out)?;
+        self.stats.record(out.len(), got as u64);
+        Ok(got)
+    }
+    fn seek(&mut self, origin: SeekOrigin) -> Result<SourcePosition, EngineError> {
+        self.inner.seek(origin)
+    }
+    fn position(&self) -> SourcePosition {
+        self.inner.position()
+    }
+}
+
+/// The payload-class ask is one source call per frame (7-c): a real
+/// `AviDemuxer` walk over 6 uniform 1.5 MiB `00dc` chunks issues
+/// exactly one `read_into` per payload — of the FULL frame size — plus
+/// the 8-byte header read per chunk. Before 7-c the payload read was
+/// chopped into `ceil(want / 64 KiB)` = 24 seam calls per frame (the
+/// pinned failure that motivated the change; see
+/// docs/perf/v1-input-readpath-20261024.md §3).
+#[test]
+fn big_payload_reads_are_one_source_call_per_frame() {
+    let _serial = serialize_tests();
+    const CHUNKS: usize = 6;
+    const PAYLOAD: usize = 1536 * 1024; // 1.5 MiB — the frame class
+    let bytes = avi_bytes(CHUNKS, PAYLOAD, false);
+    let stats = std::sync::Arc::new(SeamStats::default());
+    let source = CountingSource {
+        inner: BorrowMemSource::new(std::sync::Arc::clone(&bytes)),
+        stats: std::sync::Arc::clone(&stats),
+    };
+    let mut avi = demux::avi::AviDemuxer::new(Box::new(source)).must();
+    let tracks = avi.start().must();
+    assert_eq!(tracks.len(), 1);
+
+    let mut packets = 0usize;
+    loop {
+        match avi.next_event().must() {
+            plugin_api::DemuxEvent::Packet(packet) => {
+                assert_eq!(packet.data.len(), PAYLOAD, "packet {packets}");
+                packets += 1;
+            }
+            plugin_api::DemuxEvent::EndOfStream => break,
+            _ => {}
+        }
+    }
+    assert_eq!(packets, CHUNKS);
+    use std::sync::atomic::Ordering::Relaxed;
+    // The payload census: exactly one payload-sized ask per packet (the
+    // header reads are 8-byte asks and never reach PAYLOAD).
+    assert_eq!(
+        stats.calls.load(Relaxed),
+        (CHUNKS * 2) as u64,
+        "6 chunks: 6 payload reads (one per frame, full ask) + 6 header reads \
+         (8 B each) — every extra call is a chopped payload"
+    );
+    assert_eq!(
+        stats.max_ask.load(Relaxed),
+        PAYLOAD as u64,
+        "the payload ask is the full frame size, not a 64 KiB step"
+    );
+}
