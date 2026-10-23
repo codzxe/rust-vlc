@@ -1,0 +1,53 @@
+# tools/sweep (card 7-d) — the corpus-v4 sweep instrument.
+#
+# A std-only bin that fires the corpus at the REAL first-vertical
+# decode path (input access -> media-probe -> demux AVI -> codecs
+# MJPEG/PCM behind codec-api's Decoder contract — the same
+# driver-level pipeline tools/mem-audit walks and apps/cli's
+# decode-bench drives) and produces:
+#   * a per-file line (grep/awk-able tab-separated `SWEEPLINE ...`),
+#   * a per-class tally table (class = the corpus-v4 class name
+#     derived from the `NNNN-<class>.<ext>` naming, or `CLASS=path`
+#     overrides),
+#   * a panic/damage census input: panics and hangs are isolated
+#     per file and captured, never allowed to kill the run.
+#
+# Package/bin name `lumen-sweep` (run: `cargo run -p lumen-sweep`),
+# following the tools/mem-audit precedent (`lumen-mem-audit` at
+# tools/mem-audit) — directory `tools/sweep`, package `lumen-sweep`.
+#
+# Std-only: zero external dependencies (C5). Internal deps = the
+# same driver-level engine set as mem-audit; no commands/
+# playback-engine edge — this is a direct engine driver, not a
+# command host. NO unsafe (unlike mem-audit's counting allocator,
+# this tool needs no global allocator; panic isolation is handled
+# by subprocesses, not catch_unwind — see main.rs for the
+# justification).
+#
+# Workspace membership: appended to the root members array by card
+# 7-d's granted one-line edit (the card's own scope, the same
+# pre-announced single-edit pattern as tools/xtask and
+# tools/mem-audit before it).
+
+[package]
+name = "lumen-sweep"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Lumen corpus sweep instrument — panic/damage census over the real decode path (card 7-d)"
+
+[[bin]]
+name = "lumen-sweep"
+path = "src/main.rs"
+
+[dependencies]
+codec-api = { path = "../../crates/codec-api" }
+codecs = { path = "../../crates/codecs" }
+demux = { path = "../../crates/demux" }
+input = { path = "../../crates/input" }
+media-probe = { path = "../../crates/media-probe" }
+media-types = { path = "../../crates/media-types" }
+plugin-api = { path = "../../crates/plugin-api" }
+
+[lints]
+workspace = true
