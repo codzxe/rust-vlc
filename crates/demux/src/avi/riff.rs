@@ -5,11 +5,13 @@
 //! Two layers:
 //!
 //! - [`SourceReader`] — the bounded positional reader over a
-//!   [`SourceStream`](plugin_api::SourceStream). Every read is
-//!   chunk-bounded (`READ_STEP_MAX` per source call), exact-length
-//!   reads surface truncation as the caller's typed error, and nothing
-//!   trusts a declared size before it has been ceiling-checked by the
-//!   caller.
+//!   [`SourceStream`](plugin_api::SourceStream). Vec-returning and
+//!   exact borrow reads are chunk-bounded (`READ_STEP_MAX` per source
+//!   call); the prefix borrow read — the payload path — makes **one**
+//!   full `read_into` ask of the caller-sized destination (7-c),
+//!   exact-length reads surface truncation as the caller's typed
+//!   error, and nothing trusts a declared size before it has been
+//!   ceiling-checked by the caller.
 //! - [`FourCC`] / [`ChunkHeader`] — RIFF's little-endian chunk
 //!   vocabulary. Chunks are WORD-aligned: a payload of odd length is
 //!   followed by one pad byte that is **not** counted in the chunk
@@ -19,6 +21,7 @@
 
 use media_types::packet::SharedBytes;
 use media_types::{EngineError, ErrorKind, PipelineStage};
+use std::sync::Arc;
 
 use crate::error;
 
@@ -337,15 +340,26 @@ impl SourceReader {
     /// [`read_prefix_at`], the D-3/D-9 clamp primitive): returns the
     /// count actually obtained. A position past the stream end clamps
     /// to the end (the empty prefix) — "nothing there" is the honest
-    /// answer, never an access error. Per-source-call steps stay
-    /// bounded by [`READ_STEP_MAX`].
+    /// answer, never an access error.
+    ///
+    /// The ask is **one `read_into` of the full `out.len()`** (7-c,
+    /// V-1): the destination is caller-owned memory — the payload
+    /// pool's arena — so the ask is already bounded by the caller's
+    /// own ceiling check, and a step loop here would bound nothing
+    /// the caller has not bounded while chopping a multi-hundred-KB
+    /// MJPEG frame into `ceil(want / 64 KiB)` seam calls (the pinned
+    /// regression `big_payload_reads_are_one_source_call_per_frame`).
+    /// [`READ_STEP_MAX`] still governs the reads whose destination is
+    /// the reader's own buffer (the Vec twins). A source that serves
+    /// a short-but-nonzero read is re-asked for the remainder — each
+    /// iteration makes strict progress, and `Ok(0)` means the prefix
+    /// is over.
     pub fn read_prefix_into(&mut self, out: &mut [u8], to: u64) -> Result<usize, EngineError> {
         let to = to.min(self.length);
         self.seek_to(to)?;
         let mut filled = 0;
         while filled < out.len() {
-            let step = (out.len() - filled).min(READ_STEP_MAX);
-            let got = self.stream.read_into(&mut out[filled..filled + step])?;
+            let got = self.stream.read_into(&mut out[filled..])?;
             if got == 0 {
                 break;
             }
@@ -440,94 +454,137 @@ pub fn peek_chunk_header(reader: &mut SourceReader, pos: u64) -> Result<ChunkHea
     Ok(ChunkHeader::from_le_bytes(&hdr))
 }
 
-/// The demuxer's bounded payload slot pool (card 3.B3, design D4 as
-/// landed — see the deviation note below).
+/// The demuxer's bounded payload arena pool (card 3.B3 design D4;
+/// rebuilt on the W6-05 `(Arc, offset, len)` range views as card 7-c —
+/// the V-1 fix of the memory-audit register).
 ///
 /// # What it is
 ///
-/// A fixed-count pool of exact-size [`SharedBytes`] slots. A payload
-/// of `want` bytes reuses a pooled slot of exactly that length when
-/// one is idle ([`SharedBytes::get_mut`] — the refcount-1 recycle
-/// primitive): the read fills the slot in place and the packet takes a
-/// clone — **zero allocation, one copy** per payload. A size with no
-/// idle slot takes the spill path (one exact-size allocation, the
-/// packet's own buffer) and the fresh slot enters the pool for future
-/// same-size payloads. Streams with recurring payload sizes (PCM
-/// `##wb` chunks are uniform) reach a zero-allocation steady state;
-/// varying sizes (JPEG `##dc`) degrade gracefully to one allocation
-/// per payload — never a wait: a busy slot (its clone still queued
-/// downstream) is skipped, never blocking the demux thread on
-/// consumer progress (that would be a second backpressure channel).
+/// A bounded pool of **arenas**: shared `Arc<Vec<u8>>` backing blocks
+/// with a fill cursor. A payload of `want` bytes is read **into the
+/// arena at the cursor** and the packet receives a
+/// [`SharedBytes::from_pool_range`] view — one refcount bump and two
+/// integers: zero allocation, one copy (the read itself) per payload,
+/// for **any** size mix. Successive small payloads (uniform PCM
+/// `##wb` chunks) pack at successive cursor offsets; large varying
+/// payloads (JPEG `##dc` frames) each take what they need and recycle
+/// the arena when it is exhausted.
+///
+/// An arena is reusable the moment its refcount returns to 1 (every
+/// minted view dropped — [`Arc::get_mut`] is the exclusivity probe,
+/// the `&mut` twin of the W6-05 `Arc::try_unwrap` recycle template):
+/// the cursor resets and the same allocation serves the next payload,
+/// growing by doubling only when a payload larger than the block
+/// arrives. Growth is demand-driven and log-bounded: over a whole
+/// stream an arena grows at most `log2(slot_cap)` times.
+///
+/// A pinned arena (its views still queued downstream) is never written
+/// through — the pool rotates to the next arena, and when every arena
+/// is pinned it **spills**: one exact-size buffer that rides with the
+/// packet only. Never a wait: a busy pool degrades to per-payload
+/// allocations instead of blocking the demux thread on consumer
+/// progress (that would be a second backpressure channel).
 ///
 /// # Memory bound (D-1)
 ///
-/// The pool itself holds at most `max_slots` buffers of at most
-/// `slot_cap` bytes each — `max_slots × slot_cap` bytes, allocated
-/// lazily and never exceeded (default 2 × 64 KiB = 128 KiB). Payloads
-/// larger than `slot_cap` always spill and are never pooled, so an
-/// oversized chunk cannot hog the pool. In-flight (unconsumed)
-/// payload bytes are the queues' own byte caps' accountability.
+/// The pool holds at most `max_slots` arenas of at most `slot_cap`
+/// bytes each — `max_slots × slot_cap` bytes, **lazily grown and never
+/// exceeded**. The default is 2 × 16 MiB: the growth is driven by the
+/// file's own frame class (a 720p-MJPEG stream settles at 64–256 KiB
+/// arenas; the 16 MiB ceiling covers the measured corpus frame classes
+/// up to 4K MJPEG ≈ 12.5 MB — memory-audit 2026-10-23 §4), matching
+/// the input crate's `MAX_BUFFER_BYTES` precedent. Payloads larger
+/// than `slot_cap` always spill and are never pooled. In-flight
+/// (unconsumed) payload bytes are the queues' own byte caps'
+/// accountability.
 ///
-/// # Deviation from the W1-19 design (recorded, D-6)
+/// # Slot-cap policy (7-c, measured — docs/perf/v1-input-readpath-20261024.md)
 ///
-/// The design's literal shape — fixed 64 KiB slots handed out as
-/// `slot.clone()` — cannot produce exact-length packet data:
-/// `SharedBytes` is `Arc<[u8]>` with a fixed length per allocation,
-/// so a 300-byte payload in a 64 KiB slot would claim `data.len() ==
-/// 65 536` and corrupt every downstream consumer (the queue's byte
-/// axis, the decoders' entropy reads). Exact-size slots preserve the
-/// design's intent (bounded pool, `get_mut` recycling, spill escape)
-/// within the landed `SharedBytes`; the true fixed-slot zero-copy is
-/// the design's own D5 `[PROPOSAL]` — a `(Arc, offset, len)` range
-/// flavor, media-types' Lead-owned surface, recorded as the follow-up.
+/// The pre-7-c pool was an exact-size slot pool with a 64 KiB
+/// `slot_cap`: uniform audio payloads recycled exact-size slots
+/// (zero alloc), but varying-size video payloads never repeated a
+/// size and mostly exceeded 64 KiB, so **every video packet spilled**
+/// (memory-audit register V-1: 2 events + ~1× payload bytes per video
+/// packet, measured again for this card at exactly 2.000 events/pkt).
+/// The range-view arenas make the exact-size match unnecessary — any
+/// size ≤ the ceiling is served — so one policy covers both classes:
+/// uniform audio packs at the cursor, varying video recycles per
+/// frame, both at zero allocations per packet.
 #[derive(Debug)]
 pub struct PayloadSlots {
-    /// The pooled buffers (grows lazily to `max_slots`, each ≤
-    /// `slot_cap` bytes).
-    slots: Vec<SharedBytes>,
+    /// The arenas (grows lazily to `max_slots`, each ≤ `slot_cap`
+    /// bytes; `Arena::buf.len()` is the block's capacity).
+    arenas: Vec<Arena>,
     /// Round-robin cursor for the reuse scan.
     cursor: usize,
-    /// Per-slot byte ceiling; larger payloads spill unpooled.
+    /// Per-arena byte ceiling; larger payloads spill unpooled.
     slot_cap: usize,
-    /// The slot-count bound (the D-1 memory bound with `slot_cap`).
+    /// The arena-count bound (the D-1 memory bound with `slot_cap`).
     max_slots: usize,
+}
+
+/// One pooled backing block: the shared allocation plus the fill
+/// cursor. `buf.len()` is the block's capacity (the `Vec` is allocated
+/// at full length; the region past the cursor holds dead bytes from
+/// earlier generations — never exposed: views cover only what their
+/// fill wrote).
+#[derive(Debug)]
+struct Arena {
+    buf: Arc<Vec<u8>>,
+    /// Bytes of the current generation already handed out as views.
+    used: usize,
 }
 
 impl PayloadSlots {
     /// An empty pool with the given bounds (default shape:
-    /// `PayloadSlots::default()` = 2 slots × 64 KiB).
+    /// `PayloadSlots::default()` = 2 arenas × 16 MiB ceiling).
     #[must_use]
     pub fn new(max_slots: usize, slot_cap: usize) -> PayloadSlots {
         PayloadSlots {
-            slots: Vec::new(),
+            arenas: Vec::new(),
             cursor: 0,
             slot_cap,
             max_slots,
         }
     }
 
-    /// The pool's slot-count bound.
+    /// The pool's arena-count bound.
     #[must_use]
     pub fn max_slots(&self) -> usize {
         self.max_slots
     }
 
-    /// The pool's current slot population (≤ [`PayloadSlots::max_slots`]).
+    /// The pool's current arena population (≤ [`PayloadSlots::max_slots`]).
     #[must_use]
     pub fn resident_slots(&self) -> usize {
-        self.slots.len()
+        self.arenas.len()
     }
 
-    /// Fill one slot with `want` bytes produced by `read` (the caller
+    /// Bytes of backing storage the pool currently holds (≤
+    /// `max_slots × slot_cap`; the D-1 observable — growth is
+    /// demand-driven, so this is also the measured residency figure).
+    #[must_use]
+    pub fn pool_bytes(&self) -> usize {
+        self.arenas.iter().map(|arena| arena.buf.len()).sum()
+    }
+
+    /// The per-arena growth ceiling (payloads above it spill unpooled).
+    #[must_use]
+    pub fn slot_cap(&self) -> usize {
+        self.slot_cap
+    }
+
+    /// Fill one arena with `want` bytes produced by `read` (the caller
     /// supplies the positioned borrow read — e.g. a closure over
     /// [`SourceReader::read_prefix_into`]) and return the packet's
-    /// handle. See the type docs for the reuse/spill policy and the
-    /// memory bound.
+    /// view. See the type docs for the cursor/recycle/spill policy and
+    /// the memory bound.
     ///
     /// # Errors
     /// The `read` closure's error, propagated unchanged (the pool
     /// state stays consistent: a failed read leaves no half-filled
-    /// slot behind — spill buffers are only committed on success).
+    /// generation behind — the cursor only advances on success, and
+    /// spill buffers are only committed on success).
     pub fn fill<F>(&mut self, want: usize, read: F) -> Result<SharedBytes, EngineError>
     where
         F: FnOnce(&mut [u8]) -> Result<usize, EngineError>,
@@ -538,62 +595,98 @@ impl PayloadSlots {
             return Ok(SharedBytes::from_static(b""));
         }
         if want <= self.slot_cap {
-            let len = self.slots.len();
+            let len = self.arenas.len();
+            // Pass 1 — serve from an exclusively-owned arena that
+            // already has the room: packed at the cursor, or by
+            // recycling a drained generation (the bytes behind a reset
+            // cursor are dead by definition — no view is alive on a
+            // free arena). The `used`/`cap` reads happen before the
+            // `get_mut` borrow and the write after its last use (the
+            // arena is a plain struct; the exclusivity probe is the
+            // only bridge).
             for i in 0..len {
                 let index = (self.cursor + i) % len;
-                if self.slots[index].len() == want
-                    && let Some(slice) = self.slots[index].get_mut()
-                {
-                    let got = read(slice)?;
-                    self.cursor = (index + 1) % len;
-                    if got == want {
-                        return Ok(self.slots[index].clone());
+                let cap = self.arenas[index].buf.len();
+                let mut at = self.arenas[index].used;
+                if at + want > cap {
+                    if want > cap {
+                        continue; // too small even recycled — pass 2 grows
                     }
-                    // Short (clamped) read: the packet's data must be
-                    // exactly what was delivered — spill the prefix
-                    // (the rare damage path pays one copy).
-                    return Ok(SharedBytes::from_vec(slice[..got].to_vec()));
+                    at = 0; // recycle the drained block
                 }
+                let Some(block) = Arc::get_mut(&mut self.arenas[index].buf) else {
+                    continue; // pinned: views still alive downstream
+                };
+                let got = read(&mut block[at..at + want])?;
+                self.cursor = (index + 1) % len;
+                self.arenas[index].used = at + got;
+                return Ok(SharedBytes::from_pool_range(
+                    Arc::clone(&self.arenas[index].buf),
+                    at,
+                    got,
+                ));
+            }
+            // Pass 2 — every free arena is too small: grow the first
+            // free one by doubling to fit (one resize, log-bounded
+            // over a stream; never past `slot_cap` — an exact fit when
+            // the power-of-two rounding would cross the ceiling).
+            for i in 0..len {
+                let index = (self.cursor + i) % len;
+                let cap = self.arenas[index].buf.len();
+                if want <= cap {
+                    continue; // pass 1 served every free fit already
+                }
+                let Some(block) = Arc::get_mut(&mut self.arenas[index].buf) else {
+                    continue;
+                };
+                let grown = next_fit(cap, want, self.slot_cap);
+                block.resize(grown, 0);
+                let got = read(&mut block[..want])?;
+                self.cursor = (index + 1) % len;
+                self.arenas[index].used = got;
+                return Ok(SharedBytes::from_pool_range(
+                    Arc::clone(&self.arenas[index].buf),
+                    0,
+                    got,
+                ));
             }
         }
-        // Spill: one exact-size buffer, filled directly. Same-size
-        // payloads recycle it through the pool from now on.
+        // Spill: one exact-size buffer, filled directly, that rides
+        // with the packet (every arena pinned, or the payload over the
+        // ceiling). It enters the pool for future payloads only while
+        // below the arena bound — at the bound every arena is pinned
+        // (a free one would have been grown in pass 2), so there is
+        // nothing idle to replace.
         let mut fresh = vec![0u8; want];
         let got = read(&mut fresh)?;
-        if got < want {
-            fresh.truncate(got);
+        let block = Arc::new(fresh);
+        let view = SharedBytes::from_pool_range(Arc::clone(&block), 0, got);
+        if want <= self.slot_cap && self.arenas.len() < self.max_slots {
+            self.arenas.push(Arena {
+                buf: block,
+                used: got,
+            });
         }
-        let shared = SharedBytes::from_vec(fresh);
-        if want <= self.slot_cap {
-            self.remember(shared.clone());
-        }
-        Ok(shared)
-    }
-
-    /// Admit a fresh buffer into the pool: append while below the
-    /// bound, else recycle the first idle slot (refcount 1); when
-    /// every slot is busy downstream the buffer rides with the packet
-    /// only (the queue's byte cap bounds it — nothing leaks past the
-    /// two budgets).
-    fn remember(&mut self, fresh: SharedBytes) {
-        if self.slots.len() < self.max_slots {
-            self.slots.push(fresh);
-            return;
-        }
-        for slot in &mut self.slots {
-            if slot.get_mut().is_some() {
-                *slot = fresh;
-                return;
-            }
-        }
+        Ok(view)
     }
 }
 
+/// The grown length for a block of `len` that must fit `want` under
+/// `cap`: the power-of-two doubling of the demand, never below the
+/// current length, never past the ceiling — an exact `want` fit when
+/// the rounding would cross it (callers guarantee `want <= cap`).
+fn next_fit(len: usize, want: usize, cap: usize) -> usize {
+    let target = want.next_power_of_two().max(len);
+    if target > cap { want } else { target }
+}
+
 impl Default for PayloadSlots {
-    /// 2 slots × 64 KiB (design D4's `[PROPOSAL]` figure): 128 KiB of
-    /// bounded payload memory per demuxer.
+    /// 2 arenas × 16 MiB ceiling (the measured corpus frame classes'
+    /// scale — see the type docs; the input crate's `MAX_BUFFER_BYTES`
+    /// precedent): at most 32 MiB of lazily-grown payload memory per
+    /// demuxer.
     fn default() -> PayloadSlots {
-        PayloadSlots::new(2, 64 * 1024)
+        PayloadSlots::new(2, 16 * 1024 * 1024)
     }
 }
 
@@ -1042,6 +1135,43 @@ mod tests {
             .must();
         assert_eq!(spilled.len(), 40);
         assert!(spilled.as_slice().iter().all(|&b| b == 0x33));
+    }
+
+    /// The bounded-memory observable (7-c, D-1): a demand-driven
+    /// growth sequence — the frame classes of a stream that escalates
+    /// from 100 B to ~50 KB payloads — keeps `pool_bytes` under the
+    /// declared `max_slots x slot_cap` bound at every step, settles at
+    /// ONE arena, and grows it by doubling to exactly the ceiling that
+    /// covers the class (never a fresh block per size, never past the
+    /// bound).
+    #[test]
+    fn arena_growth_stays_under_the_declared_bound() {
+        let mut pool = PayloadSlots::new(2, 64 * 1024);
+        let bound = pool.max_slots() * pool.slot_cap();
+        for want in [100usize, 1_000, 10_000, 50_000] {
+            let handle = pool
+                .fill(want, |out| {
+                    out.fill(0x7E);
+                    Ok(out.len())
+                })
+                .must();
+            assert_eq!(handle.len(), want);
+            assert!(handle.as_slice().iter().all(|&b| b == 0x7E));
+            drop(handle);
+            assert!(
+                pool.pool_bytes() <= bound,
+                "residency {} over bound {}",
+                pool.pool_bytes(),
+                bound
+            );
+            assert!(pool.pool_bytes() >= want, "residency covers the class");
+        }
+        assert_eq!(pool.resident_slots(), 1, "one arena serves the class");
+        assert_eq!(
+            pool.pool_bytes(),
+            64 * 1024,
+            "one doubling chain 100 -> 1024 -> 16384 -> 65536 — the ceiling, no further"
+        );
     }
 
     /// The pool over a real reader: uniform payloads read through

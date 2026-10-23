@@ -378,11 +378,17 @@ fn vec_twins_cost_exactly_one_allocation_per_call() {
     );
 }
 
-/// The pool's spill path for varying sizes is bounded and honest: a
-/// mixed-size walk (the JPEG shape) pays one exact-size allocation per
-/// payload — never growth, never waits.
+/// The pool's varying-size path (7-c, V-1): a mixed-size walk — the
+/// JPEG shape, a distinct size per payload — pays **zero** allocations
+/// once the arena is warm. Pre-7-c the exact-size slot pool never
+/// matched a varying size, so every payload spilled (one exact-size
+/// allocation + one Arc conversion = 2 events/payload — the pin this
+/// test replaced, `PAYLOADS * 2`); the arena serves any size ≤ its
+/// capacity, packing small payloads at the cursor and recycling the
+/// drained generation, so the per-payload count went 2 → 0 (the
+/// counting-allocator evidence for the memory-audit V-1 fix).
 #[test]
-fn varying_size_spill_is_exactly_one_alloc_per_payload() {
+fn varying_size_payloads_pack_into_the_arena_zero_alloc() {
     let _serial = serialize_tests();
     const PAYLOADS: u64 = 128;
     let delta = clean_replay(
@@ -394,12 +400,13 @@ fn varying_size_spill_is_exactly_one_alloc_per_payload() {
             .must();
             let mut pool = demux::avi::riff::PayloadSlots::default();
 
-            // Warm-up with one size so the pool is populated.
+            // Warm-up: one fill spills a 256-byte arena into the pool.
             let _ = pool.fill(256, |out| reader.read_prefix_into(out, 0)).must();
             let guard = ALLOC.state().guard();
             for index in 0..PAYLOADS {
-                // A distinct size per payload: every one spills (the varying
-                // shape), each into one exact-size allocation.
+                // A distinct size per payload (the varying shape): each
+                // packs at the cursor or recycles the drained arena —
+                // never an allocation.
                 let want = 64 + (index as usize % 512);
                 let at = (index % 32) * 64;
                 let handle = pool
@@ -410,15 +417,59 @@ fn varying_size_spill_is_exactly_one_alloc_per_payload() {
             }
             guard.delta()
         },
+        is_zero,
+    );
+    assert_eq!(
+        delta.alloc_calls,
+        0,
+        "128 varying payloads over a warm arena: 0 allocs (pre-7-c pin: {} — \
+         one spill + one Arc conversion per payload)",
+        PAYLOADS * 2
+    );
+}
+
+/// The true spill path stays bounded and honest (7-c): payloads over
+/// the arena ceiling — or arriving while every arena is pinned — pay
+/// exactly one exact-size allocation plus the constant-size Arc
+/// header (2 events/payload, the same two-step the pre-7-c varying
+/// walk paid for *every* payload), and oversized spills never enter
+/// the pool.
+#[test]
+fn over_ceiling_spill_is_exactly_two_allocs_per_payload() {
+    let _serial = serialize_tests();
+    const PAYLOADS: u64 = 32;
+    const CEILING: usize = 1024;
+    let delta = clean_replay(
+        || {
+            let data = movi_layout(64, 4096);
+            let mut reader = demux::avi::riff::SourceReader::new(Box::new(BorrowMemSource::new(
+                std::sync::Arc::clone(&data),
+            )))
+            .must();
+            // A tight ceiling: every ask in the loop is over it, so
+            // each payload is a true spill that never pools.
+            let mut pool = demux::avi::riff::PayloadSlots::new(2, CEILING);
+
+            // Warm-up: one under-ceiling fill populates the pool.
+            let _ = pool.fill(256, |out| reader.read_prefix_into(out, 0)).must();
+            let guard = ALLOC.state().guard();
+            for index in 0..PAYLOADS {
+                let want = CEILING + 64 + (index as usize % 256);
+                let handle = pool
+                    .fill(want, |out| reader.read_prefix_into(out, 0))
+                    .must();
+                assert_eq!(handle.len(), want);
+                drop(handle);
+            }
+            assert_eq!(pool.resident_slots(), 1, "oversized spills never pool");
+            guard.delta()
+        },
         |delta: &AllocDelta| delta.alloc_calls == PAYLOADS * 2,
     );
-    // The spill allocation plus the Arc conversion inside
-    // SharedBytes::from_vec — the same two-step every payload paid
-    // pre-3.B3, minus the reader's accumulator.
     assert_eq!(
         delta.alloc_calls,
         PAYLOADS * 2,
-        "one spill + one Arc conversion per varying payload: {} payloads, {} allocs",
+        "one spill buffer + one Arc header per over-ceiling payload: {} payloads, {} allocs",
         PAYLOADS,
         delta.alloc_calls
     );
@@ -922,5 +973,156 @@ fn idx1_parse_allocates_per_block_not_per_entry() {
     assert!(
         large < 64,
         "1024 entries parsed with {large} allocs — the pre-3.B3 chain spent 1024 (one per entry)"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Card 7-c (V-1 + the input read path): the per-payload source-call
+// count. `READ_STEP_MAX` used to chop every payload read into 64 KiB
+// source calls — a multi-hundred-KB MJPEG frame paid ceil(want / 64 KiB)
+// read_into calls through the seam (and, on the real file path, one
+// buffered window refill + one window→slot copy per call). The borrow
+// seam's destination is caller-owned memory (the payload pool's arena
+// slot), so the step loop bounds nothing the caller has not already
+// bounded; the payload ask is now one read_into of the full `want`.
+// ---------------------------------------------------------------------------
+
+/// The seam-call census instrument (shared counters — the source moves
+/// into the demuxer's `Box`, the test keeps the handles): counts
+/// `read_into` calls, bytes served, the largest ask received, and the
+/// payload-class asks (asks over the `BIG_ASK` threshold — the open
+/// phase's header/format reads are all ≤ 56 B). This is the
+/// syscall-count proxy for the in-memory walk; the real-file syscall
+/// count is the input crate's `large_read_bypasses_the_window`
+/// proof.
+const BIG_ASK: usize = 1024;
+
+#[derive(Default)]
+struct SeamStats {
+    calls: std::sync::atomic::AtomicU64,
+    bytes: std::sync::atomic::AtomicU64,
+    max_ask: std::sync::atomic::AtomicU64,
+    big_asks: std::sync::atomic::AtomicU64,
+}
+
+impl SeamStats {
+    fn record(&self, ask: usize, got: u64) {
+        use std::sync::atomic::Ordering::Relaxed;
+        self.calls.fetch_add(1, Relaxed);
+        self.bytes.fetch_add(got, Relaxed);
+        self.max_ask.fetch_max(ask as u64, Relaxed);
+        if ask > BIG_ASK {
+            self.big_asks.fetch_add(1, Relaxed);
+        }
+    }
+}
+
+/// An in-memory source that counts every `read_into` it serves.
+struct CountingSource {
+    inner: BorrowMemSource,
+    stats: std::sync::Arc<SeamStats>,
+}
+
+impl SourceStream for CountingSource {
+    fn uri(&self) -> &SourceUri {
+        self.inner.uri()
+    }
+    fn size(&self) -> Option<u64> {
+        self.inner.size()
+    }
+    fn supports_seek(&self) -> bool {
+        self.inner.supports_seek()
+    }
+    fn read(&mut self, len: usize) -> Result<Vec<u8>, EngineError> {
+        self.inner.read(len)
+    }
+    fn read_into(&mut self, out: &mut [u8]) -> Result<usize, EngineError> {
+        let got = self.inner.read_into(out)?;
+        self.stats.record(out.len(), got as u64);
+        Ok(got)
+    }
+    fn seek(&mut self, origin: SeekOrigin) -> Result<SourcePosition, EngineError> {
+        self.inner.seek(origin)
+    }
+    fn position(&self) -> SourcePosition {
+        self.inner.position()
+    }
+}
+
+/// The payload-class ask is one source call per frame (7-c): a real
+/// `AviDemuxer` walk over 6 uniform 1.5 MiB `00dc` chunks issues
+/// exactly one `read_into` per payload — of the FULL frame size — plus
+/// the 8-byte header read per chunk. Before 7-c the payload read was
+/// chopped into `ceil(want / 64 KiB)` = 24 seam calls per frame: red on
+/// main @ 3f04786 the census read **164 calls** (14 open-phase reads +
+/// 150 walk calls = 6 × (24 chopped payload steps + 1 header)); after
+/// 7-c it reads **26** (the same 14 open-phase reads + 6 full payload
+/// asks + 6 header asks).
+///
+/// The original pin (5bc51ef) asserted a total of 12, assuming the
+/// open phase's reads (RIFF head, `hdrl` peeks, `avih`/`strh`/`strf`
+/// payloads, `movi` discovery — every one of them routes through the
+/// card-3.B3 borrow seam, all asks ≤ 56 B) were Vec reads. They are
+/// not, and making them Vec reads would be a regression (an allocation
+/// per open read). The amended census pins the same contract where it
+/// matters, more precisely: **exactly one payload-class ask per
+/// frame**, of the full frame size, with the open phase's fixed 14
+/// small reads accounted by name.
+#[test]
+fn big_payload_reads_are_one_source_call_per_frame() {
+    let _serial = serialize_tests();
+    const CHUNKS: usize = 6;
+    const PAYLOAD: usize = 1536 * 1024; // 1.5 MiB — the frame class
+    /// The open-phase `read_into` calls for this fixture (measured:
+    /// RIFF head 12 B, `LIST hdrl` peek + form, `avih` peek + 56 B,
+    /// `LIST strl` peek + form, `strh` peek + 56 B, `strf` peek +
+    /// 40 B, `LIST movi` peek + form — 14 small asks, none over
+    /// 56 B, none per-payload).
+    const OPEN_READS: u64 = 14;
+    let bytes = avi_bytes(CHUNKS, PAYLOAD, false);
+    let stats = std::sync::Arc::new(SeamStats::default());
+    let source = CountingSource {
+        inner: BorrowMemSource::new(std::sync::Arc::clone(&bytes)),
+        stats: std::sync::Arc::clone(&stats),
+    };
+    let mut avi = demux::avi::AviDemuxer::new(Box::new(source)).must();
+    let tracks = avi.start().must();
+    assert_eq!(tracks.len(), 1);
+
+    let mut packets = 0usize;
+    loop {
+        match avi.next_event().must() {
+            plugin_api::DemuxEvent::Packet(packet) => {
+                assert_eq!(packet.data.len(), PAYLOAD, "packet {packets}");
+                packets += 1;
+            }
+            plugin_api::DemuxEvent::EndOfStream => break,
+            _ => {}
+        }
+    }
+    assert_eq!(packets, CHUNKS);
+    use std::sync::atomic::Ordering::Relaxed;
+    // The payload census: exactly one payload-class ask per packet —
+    // the contract the pin exists for. A chopped payload (the 64 KiB
+    // step loop) shows up here immediately as 24 asks per frame.
+    assert_eq!(
+        stats.big_asks.load(Relaxed),
+        CHUNKS as u64,
+        "one payload-class ask per frame — every extra big ask is a chopped \
+         payload (main @ 3f04786: 6 x 24 = 144)"
+    );
+    // The full census, open phase accounted by name: OPEN_READS small
+    // open asks + one header ask and one full payload ask per chunk.
+    assert_eq!(
+        stats.calls.load(Relaxed),
+        OPEN_READS + (CHUNKS * 2) as u64,
+        "14 open-phase reads (≤ 56 B, fixed) + 6 payload reads (one per \
+         frame, full ask) + 6 header reads (8 B each) — every extra call \
+         is a chopped payload"
+    );
+    assert_eq!(
+        stats.max_ask.load(Relaxed),
+        PAYLOAD as u64,
+        "the payload ask is the full frame size, not a 64 KiB step"
     );
 }
