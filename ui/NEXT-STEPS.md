@@ -586,3 +586,26 @@ key nav have NO keymap data in doc 05 yet — gap for a future card, not
 invented here. (3) C3 overlays already announce (role=status/alert);
 player/music + miniplayer routes are still placeholders (axe-green but
 trivially so — rescan when 4.G2+ land real variants).
+
+## 4.G2 — full baseline matrix captured + first run green (2026-10-24)
+
+Manifest grown to the full routed surface (15 routes: player,
+player/music, miniplayer, playlist, media-info, 5 settings areas,
+onboarding, keyboard-shortcuts, open-network-stream, not-found,
+/dev/tokens) × {1280×720,1920×1080} × DPI {1,2} × {dark,light} × default
+accent, + doc 08 §6.1 accent sampling (8 non-default accents on
+onboarding + settings-global @1280×720 1× dark) = 136 nightly / 30 PR
+cases. Post-F4 re-pin captured (4.5 m), nightly verify 136/136 green
+(3.2 m, zero retries), PR lane 30/30 (43 s). Zero remediations; no
+tolerance changes. Record: ui/e2e/visual/MATRIX-20261024.md (scaling
+decisions, Linux-only scope note, per-OS extension path).
+
+NEXT: (1) CI wiring — per-OS jobs (Linux canonical), PR lane per PR,
+nightly full matrix (doc 08 §6.3); macOS/Windows baseline sets pin with
+one --update run each once runners exist (sandbox is Linux-only —
+infra-blocked, gate precedent). (2) Grow ROUTES as §1.6's unrouted
+compositions land (player customize/hide-ui, miniplayer states, context
+menus, audio/video tools, playlist/subtitles flow) — each lands with its
+own re-pin commit per doc 08 §6.5. (3) A cross-OS text nondeterminism
+that survives retries still needs the per-case documented-exception path
+(zero cases so far — mechanism documented in the matrix record).
