@@ -8342,3 +8342,21 @@ Stage Summary:
 - Card 4.A1 CLOSED. All four UI gates green with real output: `tsc --noEmit` clean; `eslint .` 0 errors / 1 accepted warning (react-refresh/only-export-components on the provider/hook pairing); vitest 2 files / 9 tests passed; Playwright smoke 1/1 on headless chromium 156.0.8078.4. CI ui job proposed (not wired — Lead action).
 - D-10: MEASURE? — all gate outputs are real command runs on this branch (not transcript claims); e2e timings from actual runs (first fail 99 ms, pass 375 ms). NOT tested? — ui.yml has NEVER executed in GitHub Actions (Lead wires it; pins resolved by ls-remote but runner behavior unverified); e2e is single-browser chromium, no matrix (doc 08 §9.3 later); i18n rule v2 gaps: interpolated templates, DOM-helper strings; no build gate in CI proposal (build == typecheck + vite build locally proven at s1). What breaks? — nothing outside ui/** + the new workflow file; zero touches to crates/apps. Who hits it first? — the Lead at merge (review ui.yml pins/shape); 4.A2 (tokens) hits the i18n allowlist growth and the mock transport seam; a CI runner with <2 GB free disk may find the chromium install tight (cache mitigates run 2+).
 - Handoffs: (1) Lead: review + wire .github/workflows/ui.yml (proposal on wip/p4-a1; verify action pins + consider PR-run path filters). (2) 4.A2: consume the token seam — src/client/transport.ts is the single generated-code import; placeholder copy already flows through useMsg()/MessageKey; grow ui/i18n-allowlist.json as real screens land. (3) NEXT-STEPS #2 owner: promote the two inline eslint rules to tools/eslint-plugin-lumen/ with schema + RuleTester tests (the technical-identifier exemption list className/data-testid/icon/key/ref from doc 07 §6.5 is still unimplemented — extending to all literal props would false-positive Route `path` today; needs a presentation-component notion first).
+
+---
+Task ID: 7-h
+Agent: 7-h (wave-7 loose ends)
+Task: bench-vs-vlc contract-feature verification + corpus-big sweep (7-d descoped fuller scope)
+
+Work Log:
+- bench-vs-vlc: 7-d's input `contract` feature fix VERIFIED — first run 8 passed / 1 FAILED / 1 ignored; the failure was a stale pre-W5-14 expectation (2 Recovered / 32 skip B), NOT the V-1 gating. W5-14 (3b1a9e2, merge 90fb182) makes filtered-stream idx1 entries a silent skip, so the pin was aligned to 1 Recovered / 0 skip B (digest assertions untouched; corroborated by reading demux's own idx1_stream_scope pin). Final: 9 passed / 0 failed / 1 ignored (corpus_batch_via_env is env-driven by design). Commit ca5db91.
+- corpus-big regenerated to /tmp (seed 58007138736976908607880252061; prior session left 493 clean files, resume finished in 6 s, exit 0; generator report TOTAL 587 files / 606 MiB; 493 clean + 20 rejected draws; 1 ffprobe validation warning: media/0336-cover-audio.mp3). 7-g's background-reaping finding reconfirmed (setsid'd gen died at tool-call end; foreground resume worked).
+- FULL corpus-big sweep: fresh release build (12.5 s, every engine crate compiled from w7-h paths — no stale shared-target rlib), lumen-sweep --timeout-secs 30 over media/dirty/garbage/hls = 538 files, wall 57 s, idle load (loadavg 0.08, no other cargo/ffmpeg). TALLY: 82 ok / 446 unsupported / 9 dirty-reject / 1 typed-error / 0 panic / 0 timeout — smoke-vs-big census rates hold (ok 15.2% vs 16.7%, unsupported 82.9% vs 81.7%). Raw: docs/perf/raw/sweep-corpus-big-20261024.log (force-added); addendum in docs/perf/corpus-v4-sweep-20261024.md; NEXT-STEPS-w7h.md breadcrumbs.
+
+Stage Summary (D-10):
+- MEASURE? Yes — test counts (9/0/1), sweep census (538 files, per-outcome tally, 57 s wall, loadavg 0.08, fresh-build compile lines). No other perf numbers claimed.
+- NOT tested? bench-vs-vlc env-driven corpus batch (stays ignored); demux idx1_stream_scope read but not executed; parity/speed re-measures out of card scope.
+- What breaks? Nothing on main; wip/w7-h carries the expectation change — if 3.E3 disagrees, revert ca5db91's two assertions.
+- Who hits it first? 3.E3 owner (pin re-bless); engine owners (media/0339-avi-video.avi 25.5 s vs 2.7 s next-slowest, near the 30 s sweep deadline).
+
+Handoffs: 3.E3 — re-bless the W5-14 pin alignment (ca5db91). Engine — profile 0339 decode path. Lead — wip/w7-h ready to merge (3 commits).
