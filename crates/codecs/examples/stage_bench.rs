@@ -61,20 +61,37 @@ use std::time::Instant;
 // The live decoder sources, compiled into this example (the
 // `#[path]`-include pattern of `color_bench.rs`: pub(crate) internals
 // benched without widening the library API).
+//
+// `#[allow(dead_code)]` on each include: the example's module tree
+// reads the lib's `mod.rs`-only consumers (DecodedImage, free `decode`,
+// `into_engine_error`, the frame pool, …) as dead, because `mod.rs`
+// itself is NOT included. The suppression is scoped to this bench
+// harness's view of the sources; the library target (clippy
+// `-p codecs` without the example) still lints every one of these
+// items unsuppressed — this is the honest-minimal fix for the 8
+// dead_code errors the phase3-exit gate lists (§2 row 4a).
+#[allow(dead_code)]
 #[path = "../src/video/mjpeg/error.rs"]
 mod error;
+#[allow(dead_code)]
 #[path = "../src/video/mjpeg/bitreader.rs"]
 mod bitreader;
+#[allow(dead_code)]
 #[path = "../src/video/mjpeg/huffman.rs"]
 mod huffman;
+#[allow(dead_code)]
 #[path = "../src/video/mjpeg/idct.rs"]
 mod idct;
+#[allow(dead_code)]
 #[path = "../src/video/mjpeg/idct_simd.rs"]
 mod idct_simd;
+#[allow(dead_code)]
 #[path = "../src/video/mjpeg/parser.rs"]
 mod parser;
+#[allow(dead_code)]
 #[path = "../src/video/mjpeg/color.rs"]
 mod color;
+#[allow(dead_code)]
 #[path = "../src/video/mjpeg/decoder.rs"]
 mod decoder;
 
@@ -173,6 +190,21 @@ fn loadavg() -> Option<String> {
     Some(first.to_string())
 }
 
+/// Full walk with the IDCT pinned to the scalar reference — the
+/// SIMD ablation arm ("dispatch off"): identical parse + huffman +
+/// store + assemble, only [`ScanHooks::transform`] routes to
+/// `idct::idct_block` instead of the runtime dispatch. scalar vs
+/// `full` on the same bitstream is the honest before/after of the
+/// SSE4.1 IDCT pass under the identical protocol.
+struct ScalarIdctStages;
+
+impl decoder::ScanHooks for ScalarIdctStages {
+    #[inline]
+    fn transform(block: &[i16; 64], qt: &[u16; 64], out: &mut [u8]) {
+        idct::idct_block(block, qt, out)
+    }
+}
+
 /// One arm's per-pass closure shape: returns elapsed ms for one pass
 /// over all frames.
 fn timed_pass(mut body: impl FnMut()) -> f64 {
@@ -234,6 +266,7 @@ fn run_file(file: &str, passes: usize) -> Result<(), String> {
     }
 
     let mut full_v = Vec::with_capacity(passes);
+    let mut scalar_v = Vec::with_capacity(passes);
     let mut scan_v = Vec::with_capacity(passes);
     let mut noidct_v = Vec::with_capacity(passes);
     let mut nowrite_v = Vec::with_capacity(passes);
@@ -241,11 +274,23 @@ fn run_file(file: &str, passes: usize) -> Result<(), String> {
     let mut parse_v = Vec::with_capacity(passes);
 
     let load_before = loadavg();
+    // Scratch output buffer for the scalar arm's assemble step (the
+    // `full` arm decodes into `ctx`'s own buffer; the scalar arm
+    // reuses `decode_scan_with` + `assemble_frame` on one shared
+    // scratch so the walk shape matches `decode` exactly).
+    let out_len = ctx.frame_len().map_err(|e| format!("frame_len: {e:?}"))?;
+    let mut scratch = vec![0u8; out_len];
     for pass in 0..passes {
         // Arms interleaved within each pass (drift hits all equally).
         full_v.push(timed_pass(|| {
             for frame in &spans {
                 let _ = ctx.decode(frame);
+            }
+        }));
+        scalar_v.push(timed_pass(|| {
+            for frame in &spans {
+                let _ = ctx.decode_scan_with::<ScalarIdctStages>(frame);
+                let _ = ctx.assemble_frame(&mut scratch);
             }
         }));
         scan_v.push(timed_pass(|| {
@@ -274,9 +319,10 @@ fn run_file(file: &str, passes: usize) -> Result<(), String> {
             }
         }));
         eprintln!(
-            "pass {pass:>2}: full {:8.1} | scan {:8.1} | noidct {:8.1} | nowrite {:8.1} | \
+            "pass {pass:>2}: full {:8.1} | scalar {:8.1} | scan {:8.1} | noidct {:8.1} | nowrite {:8.1} | \
              huffonly {:8.1} | parse {:8.1} ms",
             full_v[pass],
+            scalar_v[pass],
             scan_v[pass],
             noidct_v[pass],
             nowrite_v[pass],
@@ -297,6 +343,7 @@ fn run_file(file: &str, passes: usize) -> Result<(), String> {
             .fold(f64::INFINITY, |a, b| if b < a { b } else { a })
     };
     let full = median(&full_v);
+    let scalar = median(&scalar_v);
     let scan = median(&scan_v);
     let noidct = median(&noidct_v);
     let nowrite = median(&nowrite_v);
@@ -323,6 +370,7 @@ fn run_file(file: &str, passes: usize) -> Result<(), String> {
     // minimum approximates the unloaded cost of each arm (recorded as
     // supplementary stability evidence, medians stay the headline).
     let full_min = minimum(&full_v);
+    let scalar_min = minimum(&scalar_v);
     let scan_min = minimum(&scan_v);
     let noidct_min = minimum(&noidct_v);
     let nowrite_min = minimum(&nowrite_v);
@@ -352,17 +400,24 @@ fn run_file(file: &str, passes: usize) -> Result<(), String> {
         pct(store),
         pct(assemble),
     );
+    eprintln!(
+        "simd-vs-scalar (identical walk, transform only): full(simd) {full:.1} ms \
+         vs full(scalar) {scalar:.1} ms -> {:.3}x ({:.1}% of scalar walk)",
+        full / scalar,
+        100.0 * full / scalar,
+    );
     println!(
         "STAGEBENCH file={file} frames={} passes={passes} {format} {}x{} med_full_ms={full:.1} \
-         med_scan_ms={scan:.1} parse_ms={parse:.1} huffman_ms={huffman:.1} idct_ms={idct:.1} \
+         med_scalar_full_ms={scalar:.1} simd_speedup={:.3} med_scan_ms={scan:.1} parse_ms={parse:.1} huffman_ms={huffman:.1} idct_ms={idct:.1} \
          store_ms={store:.1} assemble_ms={assemble:.1} residual_ms={residual:.2} \
          pct_parse={:.1} pct_huffman={:.1} pct_idct={:.1} pct_store={:.1} pct_assemble={:.1} \
-         min_full_ms={full_min:.1} min_huffman_ms={huffman_min:.1} min_idct_ms={idct_min:.1} \
+         min_full_ms={full_min:.1} min_scalar_full_ms={scalar_min:.1} min_huffman_ms={huffman_min:.1} min_idct_ms={idct_min:.1} \
          min_store_ms={store_min:.1} min_assemble_ms={assemble_min:.1} \
          load_before={} load_after={}",
         spans.len(),
         meta.width,
         meta.height,
+        full / scalar,
         pct(parse),
         pct(huffman),
         pct(idct),
