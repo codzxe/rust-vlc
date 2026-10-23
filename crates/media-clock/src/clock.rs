@@ -60,26 +60,52 @@
 //! - [`ClockAnchor::at_wall_ns`] replaces the sketch's
 //!   `at_instant: Option<Instant>`: the wall source is injectable
 //!   (virtual time in tests), so no concrete `Instant` is stored.
+//! - Card 3.B2 extends the doc's two-variant `ClockMaster` sketch
+//!   with [`ClockMaster::VideoOutput`], [`ClockMaster::External`]
+//!   and [`ClockMaster::FreeRunning`] (the card's own scope), and
+//!   [`ClockState`] with [`ClockState::Ended`]. The 3.B1
+//!   single-master constructors and their semantics are unchanged;
+//!   the multi-backend surface is strictly opt-in via
+//!   [`MediaClock::with_backends`] (see [`crate::backends`]).
 
 use std::sync::{Arc, Mutex};
 
 use media_types::GenerationId;
 use media_types::time::{Rate, TimeError, Timestamp};
 
+use crate::backends::{BackendCore, MonotonicKind};
 use crate::mapping::{NANO_BASE, timestamp_to_nanos};
 use crate::source::{MonotonicSource, SampleCounterSource};
 
-/// Which truth source drives the clock (doc 03 §4.7 b).
+/// Which truth source drives the clock (doc 03 §4.7 b; card 3.B2
+/// extends the doc's two-variant sketch with the backend modes).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ClockMaster {
     /// The audio output's sample counter — the default when audio
     /// exists (MP §3). `ClockMasterChanged` events on fallback are the
     /// playback-engine's to emit (doc 03 §4.7 d); this crate has no
-    /// event bus by design (L2, no I/O).
+    /// event bus by design (L2, no I/O) — the typed records the
+    /// engine wraps live in [`crate::backends::MasterChanged`].
     AudioOutput,
     /// An injected monotonic source — the explicit fallback for
     /// audio-less media (doc 01 §1.4 invariant 8 `[PROPOSAL]`).
     SystemMonotonic,
+    /// Video frames drive the clock (card 3.B2): the clock
+    /// interpolates on the injected monotonic source between
+    /// [`MediaClock::observe_video`] steers, and the audio side
+    /// resyncs to video within bounded limits (the existing ±1000
+    /// ppm [`crate::DriftCorrection`] budget — no new mechanism).
+    VideoOutput,
+    /// An external device clock (a WASAPI/CoreAudio-style clock
+    /// domain) drives the clock — modeled as an injectable monotonic
+    /// source (card 3.B2).
+    External,
+    /// Free-running wall drift — the terminal master-loss fallback
+    /// (card 3.B2): no master stream remains, the clock coasts on
+    /// wall time, and the drift vs media time is unbounded and
+    /// uncorrectable. The [`crate::backends::MasterChanged`] trail
+    /// says so; the clock never fabricates a seamless master.
+    FreeRunning,
 }
 
 impl std::fmt::Display for ClockMaster {
@@ -87,6 +113,9 @@ impl std::fmt::Display for ClockMaster {
         f.write_str(match self {
             ClockMaster::AudioOutput => "audio-output",
             ClockMaster::SystemMonotonic => "system-monotonic",
+            ClockMaster::VideoOutput => "video-output",
+            ClockMaster::External => "external",
+            ClockMaster::FreeRunning => "free-running",
         })
     }
 }
@@ -98,6 +127,13 @@ pub enum ClockState {
     Running,
     /// The position is frozen; resume continues from it.
     Paused,
+    /// Playback reached the end and the clock was told
+    /// ([`MediaClock::mark_ended`], card 3.B2): the position is
+    /// frozen at the end and stays frozen — the only re-arm is
+    /// [`MediaClock::seek_back`] (paused at the new position).
+    /// `resume()` is a no-op in this state: continuing past the end
+    /// without a seek would be a fabricated position.
+    Ended,
 }
 
 /// One consistent read of the clock (doc 01 §2.2 interface sketch):
@@ -117,9 +153,17 @@ pub struct ClockSnapshot {
     /// Which truth source drives the clock.
     pub master: ClockMaster,
     /// The clock's own anchor epoch: bumped on every re-anchor
-    /// (reanchor, set_rate, resume). Monotonicity of `position` is
-    /// guaranteed *within* one epoch; across epochs a jump is expected
-    /// (seek) or impossible by construction (rate change, resume).
+    /// (reanchor, set_rate, resume, master switches) and on
+    /// out-of-bound video steers ([`MediaClock::observe_video`]).
+    /// Monotonicity of `position` is guaranteed *within* one epoch;
+    /// across epochs a jump is expected (seek) or impossible by
+    /// construction (rate change, resume, master switch — the
+    /// position carries). Card 3.B2 refinement: an in-bound video
+    /// snap moves the anchor **without** an epoch bump — the
+    /// monotone clamp makes it invisible (ahead: advances within
+    /// the snap bound; behind: holds until the wall catches up), so
+    /// bumping would advertise a jump that never happens. The epoch
+    /// advertises jumps, not anchor arithmetic.
     pub anchor_epoch: u64,
 }
 
@@ -197,14 +241,50 @@ pub trait PlaybackClock: Send + Sync {
     fn snapshot(&self) -> ClockSnapshot;
 }
 
-/// The injected truth, boxed by constructor choice.
-enum Source {
+/// The injected truth, boxed by constructor choice. Card 3.B2: the
+/// source lives inside [`Core`]'s lock so a master switch swaps it
+/// atomically with the re-anchor it performs — a read of an old
+/// source can never be extrapolated against a new master's anchor.
+pub(crate) enum Source {
     Samples(Arc<dyn SampleCounterSource>),
-    Monotonic(Arc<dyn MonotonicSource>),
+    /// A monotonic-nanosecond source, labeled by the master role it
+    /// plays right now (card 3.B2). The reading math is identical
+    /// for all four roles; the label is the truthful state the UI
+    /// and the fallback policy reason over.
+    Monotonic {
+        source: Arc<dyn MonotonicSource>,
+        kind: MonotonicKind,
+    },
 }
 
-/// One reading of the source, converted to its own nanosecond scale.
-enum Reading {
+impl Source {
+    /// The truthful master label this source currently plays.
+    pub(crate) fn master(&self) -> ClockMaster {
+        match self {
+            Source::Samples(_) => ClockMaster::AudioOutput,
+            Source::Monotonic {
+                kind: MonotonicKind::System,
+                ..
+            } => ClockMaster::SystemMonotonic,
+            Source::Monotonic {
+                kind: MonotonicKind::VideoWall,
+                ..
+            } => ClockMaster::VideoOutput,
+            Source::Monotonic {
+                kind: MonotonicKind::External,
+                ..
+            } => ClockMaster::External,
+            Source::Monotonic {
+                kind: MonotonicKind::Free,
+                ..
+            } => ClockMaster::FreeRunning,
+        }
+    }
+}
+
+/// One reading of the source, converted to its own nanosecond scale
+/// (card 3.B2: the backend switch inspects readability).
+pub(crate) enum Reading {
     /// Interpretable: counter nanoseconds (its own scale — audio: from
     /// the sample count; monotonic: the reading itself), the raw
     /// sample count, and the rate it was scaled by. May be below the
@@ -217,43 +297,59 @@ enum Reading {
 }
 
 /// The mutable core. Every field is written only inside the lock;
-/// critical sections are pure checked arithmetic.
-struct Core {
+/// critical sections are one source read plus pure checked
+/// arithmetic.
+pub(crate) struct Core {
     /// Engine-set session generation (snapshots, error context).
-    generation: GenerationId,
+    pub(crate) generation: GenerationId,
     /// The anchored media position (nanoseconds, i64 range by
     /// construction — reanchor checks).
-    anchor_media_ns: i64,
+    pub(crate) anchor_media_ns: i64,
     /// The source's own scale at the anchor (nanoseconds). i128: the
     /// raw sample-to-ns conversion can legitimately exceed i64 for
     /// extreme counts; the *position* clamps in i64, the anchor does
     /// not need to.
-    anchor_source_ns: i128,
+    pub(crate) anchor_source_ns: i128,
     /// The raw sample count at the anchor (introspection; audio only).
-    anchor_sample: u64,
+    pub(crate) anchor_sample: u64,
     /// The sample rate the anchor was taken against (audio only;
     /// monotonic masters anchor with 0 = "no sample scale").
-    anchor_rate_hz: u32,
+    pub(crate) anchor_rate_hz: u32,
     /// The playback rate in force (validated: non-zero components).
-    rate: Rate,
+    pub(crate) rate: Rate,
     /// Paused: `now()` returns `frozen_ns`.
-    paused: bool,
-    /// The frozen position while paused.
-    frozen_ns: i64,
+    pub(crate) paused: bool,
+    /// The frozen position while paused (and while the Ended latch
+    /// holds, card 3.B2).
+    pub(crate) frozen_ns: i64,
     /// The last source reading successfully extrapolated from (its own
     /// nanosecond scale). Regression detection compares against THIS,
     /// not the anchor: a device reset from a mid-stream counter back to
     /// zero must be caught even when the anchor was taken at zero.
     /// Updated only inside the lock, only for sound readings.
-    last_source_ns: i128,
+    pub(crate) last_source_ns: i128,
     /// The last value returned by `now()` — the monotonic clamp.
-    last_ns: i64,
+    pub(crate) last_ns: i64,
     /// The anchor-epoch counter (bumped on every re-anchor).
-    epoch: u64,
+    pub(crate) epoch: u64,
+    /// The truth source (card 3.B2: inside the lock — see [`Source`]).
+    pub(crate) source: Source,
+    /// Card 3.B2 backend state: the wired fallback sources, the loss
+    /// bitset, the video snap bound, the Ended latch and the bounded
+    /// master-change event ring.
+    pub(crate) backend: BackendCore,
+    /// A master switch landed on a source that could not yet be read
+    /// (an audio backend reporting a zero sample rate): the clock
+    /// holds the carried position and adopts the source's **first**
+    /// usable reading as the fresh anchor baseline — no jump, no
+    /// false discontinuity from comparing a new counter domain
+    /// against the old master's anchor (card 3.B2; construction
+    /// keeps 3.B1's hold-until-re-anchor semantics instead).
+    pub(crate) awaiting_anchor: bool,
 }
 
 /// What the extrapolation over one reading produced.
-enum Extrapolation {
+pub(crate) enum Extrapolation {
     Paused(i64),
     /// The raw position (i128; the caller saturates or reports
     /// overflow against the i64 position range).
@@ -269,8 +365,10 @@ enum Extrapolation {
 impl Core {
     /// Extrapolate the position for `reading` under this anchor.
     /// Pure: no source reads, no mutation.
-    fn extrapolate(&self, reading: &Reading) -> Extrapolation {
-        if self.paused {
+    pub(crate) fn extrapolate(&self, reading: &Reading) -> Extrapolation {
+        // The Ended latch (card 3.B2) freezes exactly like a pause —
+        // but only [`MediaClock::seek_back`] clears it.
+        if self.paused || self.backend.ended {
             return Extrapolation::Paused(self.frozen_ns);
         }
         let Reading::Usable { ns, rate_hz, .. } = reading else {
@@ -334,7 +432,7 @@ fn checked_div_round(numer: i128, denom: i128) -> Option<i128> {
 ///
 /// # Errors
 /// [`TimeError::Overflow`] when `media` cannot be represented.
-fn position_nanos(media: Timestamp) -> Result<i64, TimeError> {
+pub(crate) fn position_nanos(media: Timestamp) -> Result<i64, TimeError> {
     i64::try_from(timestamp_to_nanos(media)?).map_err(|_| TimeError::Overflow {
         from: media.base,
         to: NANO_BASE,
@@ -343,15 +441,28 @@ fn position_nanos(media: Timestamp) -> Result<i64, TimeError> {
 }
 
 /// Saturate an i128 nanosecond value into the i64 position range.
-fn saturate_position(ns: i128) -> i64 {
+pub(crate) fn saturate_position(ns: i128) -> i64 {
     ns.clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64
 }
 
-/// The clock (doc 03 §4.7). Construct with [`MediaClock::audio_master`]
-/// or [`MediaClock::system_monotonic`].
+/// The clock's run state under this core (card 3.B2: the Ended
+/// latch outranks the pause flag).
+pub(crate) fn clock_state(core: &Core) -> ClockState {
+    if core.backend.ended {
+        ClockState::Ended
+    } else if core.paused {
+        ClockState::Paused
+    } else {
+        ClockState::Running
+    }
+}
+
+/// The clock (doc 03 §4.7). Construct with [`MediaClock::audio_master`],
+/// [`MediaClock::system_monotonic`] or — for the card 3.B2 backend
+/// surface (video/external masters, master-loss fallback, the Ended
+/// latch) — [`MediaClock::with_backends`].
 pub struct MediaClock {
-    core: Mutex<Core>,
-    source: Source,
+    pub(crate) core: Mutex<Core>,
 }
 
 impl MediaClock {
@@ -370,7 +481,12 @@ impl MediaClock {
         media: Timestamp,
         rate: Rate,
     ) -> Result<MediaClock, media_types::EngineError> {
-        Self::build(Source::Samples(source), media, rate)
+        Self::build(
+            Source::Samples(source.clone()),
+            BackendCore::no_fallback(),
+            media,
+            rate,
+        )
     }
 
     /// The explicit fallback master for audio-less media (doc 03 §4.7
@@ -385,11 +501,20 @@ impl MediaClock {
         media: Timestamp,
         rate: Rate,
     ) -> Result<MediaClock, media_types::EngineError> {
-        Self::build(Source::Monotonic(source), media, rate)
+        Self::build(
+            Source::Monotonic {
+                source,
+                kind: MonotonicKind::System,
+            },
+            BackendCore::no_fallback(),
+            media,
+            rate,
+        )
     }
 
-    fn build(
+    pub(crate) fn build(
         source: Source,
+        backend: BackendCore,
         media: Timestamp,
         rate: Rate,
     ) -> Result<MediaClock, media_types::EngineError> {
@@ -401,44 +526,50 @@ impl MediaClock {
         // rate — a broken device) leaves the zero anchors from
         // `anchor_core`, so every read holds/reports until a
         // re-anchor: the honest behavior, never a guess.
-        let mut core = anchor_core(media_ns, validated);
+        let mut core = anchor_core(media_ns, validated, source, backend);
         adopt_anchor(&mut core, &reading);
         Ok(MediaClock {
             core: Mutex::new(core),
-            source,
         })
     }
 
     /// Freeze the position (idempotent). The frozen value survives a
     /// source that keeps running while paused — the clock does not
     /// trust the source to freeze (doc 03 §4.7 e defines pause via the
-    /// *device* pausing; the clock enforces it regardless).
+    /// *device* pausing; the clock enforces it regardless). Under the
+    /// Ended latch (card 3.B2) this is a no-op: the ended freeze is
+    /// terminal and only [`MediaClock::seek_back`] re-arms it.
     pub fn pause(&self) {
-        let reading = read_source(&self.source);
         let mut core = self.lock_core();
-        if core.paused {
+        if core.paused || core.backend.ended {
             return;
         }
+        let reading = read_source(&core.source);
         core.frozen_ns = now_locked(&mut core, &reading);
         core.paused = true;
     }
 
     /// Continue from the frozen position (idempotent): re-anchors at
     /// (frozen position, current source reading) so progress resumes
-    /// with **no discontinuity** (card 2.C1 AC).
+    /// with **no discontinuity** (card 2.C1 AC). Under the Ended
+    /// latch (card 3.B2) this is a no-op — resuming past the end
+    /// without a seek would fabricate a position; the re-arm is
+    /// [`MediaClock::seek_back`].
     pub fn resume(&self) {
-        let reading = read_source(&self.source);
         let mut core = self.lock_core();
-        if !core.paused {
+        if !core.paused || core.backend.ended {
             return;
         }
+        let reading = read_source(&core.source);
         core.anchor_media_ns = core.frozen_ns;
         adopt_anchor(&mut core, &reading);
         core.paused = false;
         core.epoch += 1;
     }
 
-    /// Whether the clock is paused.
+    /// Whether the clock is paused (a clock in the Ended latch
+    /// reports `false`: Ended is the terminal freeze, not a pause —
+    /// see [`ClockState::Ended`]).
     pub fn is_paused(&self) -> bool {
         self.lock_core().paused
     }
@@ -454,9 +585,9 @@ impl MediaClock {
     /// The current anchor, for introspection (doc 03 §4.7 b).
     pub fn anchor(&self) -> ClockAnchor {
         let core = self.lock_core();
-        let (at_sample, at_wall_ns) = match &self.source {
+        let (at_sample, at_wall_ns) = match &core.source {
             Source::Samples(_) => (Some(core.anchor_sample), None),
-            Source::Monotonic(_) => (
+            Source::Monotonic { .. } => (
                 None,
                 Some(saturate_position(core.anchor_source_ns.max(0)) as u64),
             ),
@@ -466,18 +597,14 @@ impl MediaClock {
             at_sample,
             at_wall_ns,
             rate: core.rate,
-            state: if core.paused {
-                ClockState::Paused
-            } else {
-                ClockState::Running
-            },
+            state: clock_state(&core),
         }
     }
 
     /// Lock the core, recovering from poisoning (critical sections are
     /// pure checked arithmetic — poisoning cannot originate here; a
     /// foreign panic leaves at worst a stale-but-valid anchor).
-    fn lock_core(&self) -> std::sync::MutexGuard<'_, Core> {
+    pub(crate) fn lock_core(&self) -> std::sync::MutexGuard<'_, Core> {
         match self.core.lock() {
             Ok(guard) => guard,
             Err(poisoned) => poisoned.into_inner(),
@@ -485,8 +612,25 @@ impl MediaClock {
     }
 }
 
-/// A fresh anchor core at `media_ns` with `rate`.
-fn anchor_core(media_ns: i64, rate: Rate) -> Core {
+/// One consistent snapshot computed under a held lock (shared by
+/// `PlaybackClock::snapshot`, [`MediaClock::mark_ended`] and
+/// [`MediaClock::seek_back`]).
+pub(crate) fn snapshot_locked(core: &mut Core) -> ClockSnapshot {
+    let reading = read_source(&core.source);
+    let position = Timestamp::new(now_locked(core, &reading), NANO_BASE);
+    ClockSnapshot {
+        generation: core.generation,
+        position,
+        rate: core.rate,
+        state: clock_state(core),
+        master: core.source.master(),
+        anchor_epoch: core.epoch,
+    }
+}
+
+/// A fresh anchor core at `media_ns` with `rate` (card 3.B2: the
+/// source and backend state come with it).
+fn anchor_core(media_ns: i64, rate: Rate, source: Source, backend: BackendCore) -> Core {
     Core {
         generation: GenerationId::FIRST,
         anchor_media_ns: media_ns,
@@ -499,6 +643,9 @@ fn anchor_core(media_ns: i64, rate: Rate) -> Core {
         last_source_ns: 0,
         last_ns: media_ns,
         epoch: 0,
+        source,
+        backend,
+        awaiting_anchor: false,
     }
 }
 
@@ -506,7 +653,7 @@ fn anchor_core(media_ns: i64, rate: Rate) -> Core {
 /// set_rate). An unusable reading keeps the previous source anchor:
 /// the position stays held/reported until the source recovers and the
 /// session re-anchors.
-fn adopt_anchor(core: &mut Core, reading: &Reading) {
+pub(crate) fn adopt_anchor(core: &mut Core, reading: &Reading) {
     if let Reading::Usable {
         ns,
         sample,
@@ -520,8 +667,11 @@ fn adopt_anchor(core: &mut Core, reading: &Reading) {
     }
 }
 
-/// Read the source (no lock held; non-blocking by contract).
-fn read_source(source: &Source) -> Reading {
+/// Read the source (non-blocking by contract; card 3.B2: callers
+/// hold the core lock — the read is part of the critical section
+/// doc 03 §4.7 c already describes, "one source read plus pure
+/// checked arithmetic").
+pub(crate) fn read_source(source: &Source) -> Reading {
     match source {
         Source::Samples(samples) => {
             let sample = samples.sample_count();
@@ -541,18 +691,40 @@ fn read_source(source: &Source) -> Reading {
                 None => Reading::Unusable,
             }
         }
-        Source::Monotonic(monotonic) => Reading::Usable {
-            ns: i128::from(monotonic.now_ns()),
+        Source::Monotonic { source, .. } => Reading::Usable {
+            ns: i128::from(source.now_ns()),
             sample: 0,
             rate_hz: 0,
         },
     }
 }
 
+/// Adopt the first usable reading after a master switch landed on an
+/// unreadable source (card 3.B2): fresh baseline at the carried
+/// position — no jump, and no false discontinuity from comparing a
+/// new counter domain against the old master's anchor.
+pub(crate) fn adopt_if_awaiting(core: &mut Core, reading: &Reading) {
+    if core.awaiting_anchor {
+        if let Reading::Usable {
+            ns,
+            sample,
+            rate_hz,
+        } = reading
+        {
+            core.anchor_source_ns = *ns;
+            core.anchor_sample = *sample;
+            core.anchor_rate_hz = *rate_hz;
+            core.last_source_ns = *ns;
+            core.awaiting_anchor = false;
+        }
+    }
+}
+
 /// The clamped `now()` computation, shared by `now`, `snapshot` and
 /// `pause`. Updates the monotonic clamp (`last_ns`) and, for sound
 /// readings, the regression baseline (`last_source_ns`).
-fn now_locked(core: &mut Core, reading: &Reading) -> i64 {
+pub(crate) fn now_locked(core: &mut Core, reading: &Reading) -> i64 {
+    adopt_if_awaiting(core, reading);
     match core.extrapolate(reading) {
         Extrapolation::Paused(pos) => {
             if pos > core.last_ns {
@@ -574,7 +746,8 @@ fn now_locked(core: &mut Core, reading: &Reading) -> i64 {
 
 /// The typed extrapolation for `try_now` (no position clamping; the
 /// regression baseline does advance — the reading was sound).
-fn try_now_locked(core: &mut Core, reading: &Reading) -> Result<Timestamp, TimeError> {
+pub(crate) fn try_now_locked(core: &mut Core, reading: &Reading) -> Result<Timestamp, TimeError> {
+    adopt_if_awaiting(core, reading);
     match core.extrapolate(reading) {
         Extrapolation::Paused(pos) => Ok(Timestamp::new(pos, NANO_BASE)),
         Extrapolation::Running(raw) => {
@@ -598,35 +771,35 @@ fn try_now_locked(core: &mut Core, reading: &Reading) -> Result<Timestamp, TimeE
 
 impl PlaybackClock for MediaClock {
     fn now(&self) -> Timestamp {
-        let reading = read_source(&self.source);
         let mut core = self.lock_core();
+        let reading = read_source(&core.source);
         Timestamp::new(now_locked(&mut core, &reading), NANO_BASE)
     }
 
     fn try_now(&self) -> Result<Timestamp, TimeError> {
-        let reading = read_source(&self.source);
         let mut core = self.lock_core();
+        let reading = read_source(&core.source);
         try_now_locked(&mut core, &reading)
     }
 
     fn master(&self) -> ClockMaster {
-        match &self.source {
-            Source::Samples(_) => ClockMaster::AudioOutput,
-            Source::Monotonic(_) => ClockMaster::SystemMonotonic,
-        }
+        self.lock_core().source.master()
     }
 
     fn reanchor(&self, media: Timestamp) -> Result<(), TimeError> {
         let media_ns = position_nanos(media)?;
-        let reading = read_source(&self.source);
         let mut core = self.lock_core();
+        let reading = read_source(&core.source);
         core.anchor_media_ns = media_ns;
         adopt_anchor(&mut core, &reading);
         core.epoch += 1;
         // A re-anchor jump is expected: reset the monotonic clamp to
-        // the new position, and move the freeze if paused.
+        // the new position, and move the freeze if paused. Card 3.B2:
+        // the Ended latch survives a re-anchor (the freeze moves; only
+        // `seek_back` re-arms) — a plain re-anchor must never turn an
+        // ended clock back into a free-running one.
         core.last_ns = media_ns;
-        if core.paused {
+        if core.paused || core.backend.ended {
             core.frozen_ns = media_ns;
         }
         Ok(())
@@ -634,13 +807,14 @@ impl PlaybackClock for MediaClock {
 
     fn set_rate(&self, rate: Rate) -> Result<(), media_types::EngineError> {
         let validated = crate::validate_rate(rate)?;
-        let reading = read_source(&self.source);
         let mut core = self.lock_core();
+        let reading = read_source(&core.source);
         // Re-anchor at the current (clamped) position: the change never
-        // jumps it. While paused the frozen position is kept.
+        // jumps it. While paused (or ended, card 3.B2) the frozen
+        // position is kept.
         let pos = now_locked(&mut core, &reading);
         core.anchor_media_ns = pos;
-        if core.paused {
+        if core.paused || core.backend.ended {
             core.frozen_ns = pos;
         }
         adopt_anchor(&mut core, &reading);
@@ -650,21 +824,8 @@ impl PlaybackClock for MediaClock {
     }
 
     fn snapshot(&self) -> ClockSnapshot {
-        let reading = read_source(&self.source);
         let mut core = self.lock_core();
-        let position = Timestamp::new(now_locked(&mut core, &reading), NANO_BASE);
-        ClockSnapshot {
-            generation: core.generation,
-            position,
-            rate: core.rate,
-            state: if core.paused {
-                ClockState::Paused
-            } else {
-                ClockState::Running
-            },
-            master: self.master(),
-            anchor_epoch: core.epoch,
-        }
+        snapshot_locked(&mut core)
     }
 }
 

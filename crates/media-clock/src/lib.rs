@@ -51,6 +51,16 @@
 //!   ([`DriftCorrection`], ±1000 ppm); the limiter is the invariant,
 //!   the number is a Phase-3 measurement away (doc 03 §4.7 e).
 //!
+//! # Card 3.B2: clock backends
+//!
+//! [`MediaClock`] also runs as a multi-backend clock
+//! ([`MediaClock::with_backends`]): a video master steered per
+//! presented frame, an external device-clock master, the
+//! deterministic master-loss demotion chain (audio → video →
+//! free-running wall) with a bounded typed event trail, and an
+//! Ended latch whose only re-arm is `seek_back` (paused at the new
+//! position — never free-running). See [`backends`].
+//!
 //! # Example
 //!
 //! ```
@@ -96,12 +106,17 @@
 //! I/O, device APIs, UI, threads of its own (doc 01 §2.2 d). The clock
 //! observes; it never drives the audio device.
 
+pub mod backends;
 pub mod clock;
 pub mod drift;
 pub mod mapping;
 pub mod source;
 pub mod sync;
 
+pub use backends::{
+    ClockBackends, DEFAULT_VIDEO_SNAP_NS, InitialMaster, MasterChangeReason, MasterChanged,
+    MasterLoss, MasterStream, MasterSwitch, MasterTarget, SeekBackError, SwitchError, VideoSteer,
+};
 pub use clock::{ClockAnchor, ClockMaster, ClockSnapshot, ClockState, MediaClock, PlaybackClock};
 pub use drift::{DriftCorrection, MAX_CORRECTION_PPM};
 pub use mapping::{

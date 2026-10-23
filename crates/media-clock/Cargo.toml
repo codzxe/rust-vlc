@@ -10,7 +10,7 @@
 name = "media-clock"
 version = "0.1.0"
 edition = "2024"
-description = "Lumen playback clock: audio-master timing over an injectable sample counter, MediaTime mapping, pause and bounded drift correction (doc 03 §4.7)."
+description = "Lumen playback clock: audio-master timing over an injectable sample counter, video/external master backends with deterministic master-loss fallback and an Ended seek-back re-arm, MediaTime mapping, pause and bounded drift correction (doc 03 §4.7, card 3.B2)."
 publish = false
 
 [lints]
