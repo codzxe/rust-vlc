@@ -1,0 +1,22 @@
+{
+  "binary": {
+    "bytes": 3232328,
+    "md5": "18e6b1ccdf8b16077b5f199d608856fe",
+    "mtime_utc": "2026-10-23T07:58:42.856591+00:00",
+    "path": "/tmp/w5-11-perf2/lumen"
+  },
+  "captured_utc": "2026-10-23T07:59:46.602979+00:00",
+  "clock": "time.perf_counter_ns (monotonic)",
+  "cpu": {
+    "family": "6",
+    "logical_cores": 2,
+    "model_id": "173",
+    "model_name": "Intel(R) Xeon(R) Processor"
+  },
+  "git_head": "a63fe2251230eee0b5425e6ac957d2d2aa77c4e4",
+  "hostname": "c-6adae26f-145cf406-fea3e6817a12",
+  "kernel": "5.10.134-013.15.kangaroo.al8.x86_64",
+  "mem_total_kb": "4138564 kB",
+  "python": "3.12.15",
+  "timing_note": "shared 2-core sandbox; other wave agents may run concurrently \u2014 medians+raw are the record, single rows are not"
+}

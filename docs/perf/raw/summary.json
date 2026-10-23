@@ -1,0 +1,222 @@
+{
+  "decode_ms": {
+    "avi_mjpeg_2pcm.avi/bench_decode_s": {
+      "max": 3.0,
+      "median": 3.0,
+      "min": 3.0,
+      "n": 12,
+      "p95": 3.0
+    },
+    "avi_mjpeg_2pcm.avi/bench_wall_s": {
+      "max": 3.0,
+      "median": 3.0,
+      "min": 3.0,
+      "n": 12,
+      "p95": 3.0
+    },
+    "avi_mjpeg_2pcm.avi/per_frame_ms_derived": {
+      "max": 0.15,
+      "median": 0.15,
+      "min": 0.15,
+      "n": 12,
+      "p95": 0.15
+    },
+    "avi_mjpeg_pcm.avi/bench_decode_s": {
+      "max": 8.0,
+      "median": 7.0,
+      "min": 7.0,
+      "n": 12,
+      "p95": 8.0
+    },
+    "avi_mjpeg_pcm.avi/bench_wall_s": {
+      "max": 8.0,
+      "median": 8.0,
+      "min": 8.0,
+      "n": 12,
+      "p95": 8.0
+    },
+    "avi_mjpeg_pcm.avi/per_frame_ms_derived": {
+      "max": 0.133,
+      "median": 0.117,
+      "min": 0.117,
+      "n": 12,
+      "p95": 0.133
+    }
+  },
+  "peak_rss_kib": {
+    "decode-bench:avi_mjpeg_2pcm.avi": {
+      "max": 3548.0,
+      "median": 3380.0,
+      "min": 3344.0,
+      "n": 5,
+      "p95": 3548.0
+    },
+    "decode-bench:avi_mjpeg_pcm.avi": {
+      "max": 3676.0,
+      "median": 3532.0,
+      "min": 3284.0,
+      "n": 5,
+      "p95": 3676.0
+    },
+    "decode-bench:mp4_mjpeg_pcm.mp4 [exit65-refusal]": {
+      "max": 3124.0,
+      "median": 3000.0,
+      "min": 2928.0,
+      "n": 5,
+      "p95": 3124.0
+    },
+    "help": {
+      "max": 3348.0,
+      "median": 3224.0,
+      "min": 3204.0,
+      "n": 5,
+      "p95": 3348.0
+    },
+    "session:avi_mjpeg_2pcm.avi": {
+      "max": 11868.0,
+      "median": 11796.0,
+      "min": 11732.0,
+      "n": 5,
+      "p95": 11868.0
+    },
+    "session:avi_mjpeg_pcm.avi": {
+      "max": 12440.0,
+      "median": 12356.0,
+      "min": 12320.0,
+      "n": 5,
+      "p95": 12440.0
+    },
+    "session:mp4_mjpeg_pcm.mp4": {
+      "max": 3272.0,
+      "median": 3160.0,
+      "min": 3084.0,
+      "n": 5,
+      "p95": 3272.0
+    }
+  },
+  "probe_ms": {
+    "avi_mjpeg_2pcm.avi/media_info_ms": {
+      "max": 1.098,
+      "median": 1.034,
+      "min": 0.935,
+      "n": 20,
+      "p95": 1.081
+    },
+    "avi_mjpeg_pcm.avi/media_info_ms": {
+      "max": 2.427,
+      "median": 1.074,
+      "min": 1.018,
+      "n": 20,
+      "p95": 2.347
+    },
+    "mp4_mjpeg_pcm.mp4/refusal_response_ms": {
+      "max": 0.617,
+      "median": 0.52,
+      "min": 0.508,
+      "n": 20,
+      "p95": 0.548
+    }
+  },
+  "seek_ms": {
+    "avi_mjpeg_2pcm.avi/open_response_ms": {
+      "max": 1.183,
+      "median": 1.032,
+      "min": 0.999,
+      "n": 20,
+      "p95": 1.111
+    },
+    "avi_mjpeg_2pcm.avi/seek1_event_ms": {
+      "max": 5.597,
+      "median": 5.351,
+      "min": 5.244,
+      "n": 20,
+      "p95": 5.55
+    },
+    "avi_mjpeg_2pcm.avi/seek1_response_ms": {
+      "max": 5.579,
+      "median": 5.339,
+      "min": 5.238,
+      "n": 20,
+      "p95": 5.543
+    },
+    "avi_mjpeg_2pcm.avi/seek2_event_ms": {
+      "max": 5.461,
+      "median": 5.352,
+      "min": 5.238,
+      "n": 20,
+      "p95": 5.407
+    },
+    "avi_mjpeg_2pcm.avi/seek2_response_ms": {
+      "max": 5.453,
+      "median": 5.346,
+      "min": 5.232,
+      "n": 20,
+      "p95": 5.399
+    },
+    "avi_mjpeg_pcm.avi/open_response_ms": {
+      "max": 1.117,
+      "median": 1.023,
+      "min": 0.881,
+      "n": 20,
+      "p95": 1.09
+    },
+    "avi_mjpeg_pcm.avi/seek1_event_ms": {
+      "max": 8.013,
+      "median": 6.992,
+      "min": 6.841,
+      "n": 20,
+      "p95": 7.32
+    },
+    "avi_mjpeg_pcm.avi/seek1_response_ms": {
+      "max": 8.001,
+      "median": 6.983,
+      "min": 6.838,
+      "n": 20,
+      "p95": 7.312
+    },
+    "avi_mjpeg_pcm.avi/seek2_event_ms": {
+      "max": 6.002,
+      "median": 5.81,
+      "min": 5.756,
+      "n": 20,
+      "p95": 6.002
+    },
+    "avi_mjpeg_pcm.avi/seek2_response_ms": {
+      "max": 5.994,
+      "median": 5.804,
+      "min": 5.753,
+      "n": 20,
+      "p95": 5.988
+    }
+  },
+  "startup_ms": {
+    "--help/warm": {
+      "max": 1.433,
+      "median": 1.138,
+      "min": 1.093,
+      "n": 25,
+      "p95": 1.35
+    },
+    "--version/cold-fadvise": {
+      "max": 7.538,
+      "median": 6.706,
+      "min": 4.757,
+      "n": 5,
+      "p95": 7.538
+    },
+    "--version/warm": {
+      "max": 0.613,
+      "median": 0.537,
+      "min": 0.511,
+      "n": 25,
+      "p95": 0.605
+    },
+    "ready(engine-info)/warm": {
+      "max": 1.593,
+      "median": 0.546,
+      "min": 0.486,
+      "n": 25,
+      "p95": 0.694
+    }
+  }
+}
