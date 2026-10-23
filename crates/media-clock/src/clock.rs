@@ -704,19 +704,18 @@ pub(crate) fn read_source(source: &Source) -> Reading {
 /// position — no jump, and no false discontinuity from comparing a
 /// new counter domain against the old master's anchor.
 pub(crate) fn adopt_if_awaiting(core: &mut Core, reading: &Reading) {
-    if core.awaiting_anchor {
-        if let Reading::Usable {
+    if core.awaiting_anchor
+        && let Reading::Usable {
             ns,
             sample,
             rate_hz,
         } = reading
-        {
-            core.anchor_source_ns = *ns;
-            core.anchor_sample = *sample;
-            core.anchor_rate_hz = *rate_hz;
-            core.last_source_ns = *ns;
-            core.awaiting_anchor = false;
-        }
+    {
+        core.anchor_source_ns = *ns;
+        core.anchor_sample = *sample;
+        core.anchor_rate_hz = *rate_hz;
+        core.last_source_ns = *ns;
+        core.awaiting_anchor = false;
     }
 }
 

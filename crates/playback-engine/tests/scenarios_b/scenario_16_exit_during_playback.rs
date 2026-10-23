@@ -43,13 +43,13 @@
 
 use std::time::{Duration, Instant};
 
-use commands::envelope::CommandOutcome;
 use commands::catalog::types::{OpenOptions, SourceSpec};
+use commands::envelope::CommandOutcome;
 use commands::{Command, PlaybackState};
-use testkit::alloc_count::serialize_tests;
 use testkit::Must;
+use testkit::alloc_count::serialize_tests;
 
-use crate::host::{dispatch, open_fds, thread_count, ScenarioHost, TempDir};
+use crate::host::{ScenarioHost, TempDir, dispatch, open_fds, thread_count};
 
 /// Doc 03 §4.6 S2's proposed teardown deadline.
 const TEARDOWN_DEADLINE: Duration = Duration::from_secs(2);
@@ -118,7 +118,9 @@ fn abrupt_drop_mid_playback_releases_everything_within_deadline() {
     // Drop-hook counters: the engine released the demux stage and
     // the consumer seam (the device).
     assert_eq!(
-        hooks.demuxer_drops.load(std::sync::atomic::Ordering::Relaxed),
+        hooks
+            .demuxer_drops
+            .load(std::sync::atomic::Ordering::Relaxed),
         1,
         "the demux stage was released by the abrupt teardown"
     );
@@ -194,7 +196,9 @@ fn abrupt_drop_mid_timeline_releases_stage_objects() {
     let teardown = started.elapsed();
 
     assert_eq!(
-        hooks.demuxer_drops.load(std::sync::atomic::Ordering::Relaxed),
+        hooks
+            .demuxer_drops
+            .load(std::sync::atomic::Ordering::Relaxed),
         1,
         "the timeline's demux stage was released"
     );

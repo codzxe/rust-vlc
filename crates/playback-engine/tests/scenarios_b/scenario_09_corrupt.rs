@@ -25,11 +25,13 @@
 
 use commands::envelope::CommandOutcome;
 use commands::{Command, PlaybackState};
-use testkit::alloc_count::serialize_tests;
 use testkit::Must;
+use testkit::alloc_count::serialize_tests;
 
 use crate::alloc_state;
-use crate::host::{count_events, corrupt_bytes, dispatch, error_events, ScenarioHost, TempDir, PARENT};
+use crate::host::{
+    PARENT, ScenarioHost, TempDir, corrupt_bytes, count_events, dispatch, error_events,
+};
 
 /// One row's pinned expectation.
 #[derive(Debug, Clone, PartialEq)]
@@ -39,7 +41,10 @@ enum Pinned {
     /// Bounded play-out to a clean `Ended` with exactly
     /// `damage_events` non-fatal accountings and at least
     /// `min_frames` delivered.
-    Contained { damage_events: usize, min_frames: u64 },
+    Contained {
+        damage_events: usize,
+        min_frames: u64,
+    },
 }
 
 /// One matrix row.
@@ -165,12 +170,12 @@ fn open_and_drive(host: &mut ScenarioHost, path: std::path::PathBuf) -> Observed
     );
     match &open.result {
         Err(error) => {
-            let context = format!(
-                "state {:?}, session {:?}",
+            let context = format!("state {:?}, session {:?}", host.state(), host.session_id());
+            assert_eq!(
                 host.state(),
-                host.session_id()
+                PlaybackState::Idle,
+                "after refusal: {context}"
             );
-            assert_eq!(host.state(), PlaybackState::Idle, "after refusal: {context}");
             assert!(
                 host.session_id().is_none(),
                 "no session survives a refusal: {context}"
@@ -234,9 +239,9 @@ fn assert_row(name: &str, observed: &Observed, pinned: &Pinned) {
                 "{name}: bounded recovery, not a runaway ({frames} frames)"
             );
         }
-        (observed, pinned) => unreachable!(
-            "{name}: flavor drift — pinned {pinned:?}, observed {observed:?}"
-        ),
+        (observed, pinned) => {
+            unreachable!("{name}: flavor drift — pinned {pinned:?}, observed {observed:?}")
+        }
     }
 }
 
@@ -276,7 +281,12 @@ fn corrupt_media_is_typed_bounded_and_memory_neutral() {
         // sessions behind).
         if host.session_id().is_some() {
             let close = dispatch(&mut host, Command::SessionClose);
-            assert!(close.result.is_ok(), "{}: closes: {:?}", row.fixture, close.result);
+            assert!(
+                close.result.is_ok(),
+                "{}: closes: {:?}",
+                row.fixture,
+                close.result
+            );
         }
     }
 

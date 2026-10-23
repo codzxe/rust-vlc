@@ -12,10 +12,10 @@ use std::os::unix::fs::PermissionsExt;
 
 use commands::envelope::CommandOutcome;
 use commands::{Command, ErrorCode, Stage};
-use testkit::alloc_count::serialize_tests;
 use testkit::Must;
+use testkit::alloc_count::serialize_tests;
 
-use crate::host::{dispatch, ScenarioHost, TempDir, PARENT};
+use crate::host::{PARENT, ScenarioHost, TempDir, dispatch};
 
 /// Dispatch one `session.open` for `path` and hand back the typed
 /// error (or fail the test — success is not an outcome here).

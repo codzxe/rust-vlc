@@ -28,13 +28,13 @@
 //! (the poll model); the tiny AVIs are pure functions of the committed
 //! parent bytes. No wall-clock waiting anywhere.
 
-use commands::envelope::CommandOutcome;
 use commands::catalog::types::{OpenOptions, SourceSpec};
+use commands::envelope::CommandOutcome;
 use commands::{Command, PlaybackState};
-use testkit::alloc_count::serialize_tests;
 use testkit::Must;
+use testkit::alloc_count::serialize_tests;
 
-use crate::host::{count_events, dispatch, error_events, ScenarioHost, TempDir};
+use crate::host::{ScenarioHost, TempDir, count_events, dispatch, error_events};
 
 /// The doc 03 §4.6 short-media rule, asserted on the observed trail:
 /// the session reached `Playing` (immediate start — never a terminal
@@ -62,7 +62,12 @@ fn assert_short_media_trail(host: &ScenarioHost, pumps: usize) {
 /// Open `path`, drive to the terminal, and assert the full clean
 /// short-media shape. Answers the declared duration (µs) for the
 /// caller's pinned range check.
-fn play_short_file(host: &mut ScenarioHost, path: std::path::PathBuf, frames: u64, name: &str) -> u64 {
+fn play_short_file(
+    host: &mut ScenarioHost,
+    path: std::path::PathBuf,
+    frames: u64,
+    name: &str,
+) -> u64 {
     let open = dispatch(
         host,
         Command::SessionOpen {

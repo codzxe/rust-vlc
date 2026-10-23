@@ -31,13 +31,13 @@
 //!   exactly the per-cycle accounting (every cycle decoded its two
 //!   frames — no silent skips, no double deliveries).
 
-use commands::envelope::CommandOutcome;
 use commands::catalog::types::{OpenOptions, SourceSpec};
+use commands::envelope::CommandOutcome;
 use commands::{Command, PlaybackState};
 use testkit::alloc_count::serialize_tests;
 
 use crate::alloc_state;
-use crate::host::{dispatch, open_fds, thread_count, ScenarioHost, TempDir};
+use crate::host::{ScenarioHost, TempDir, dispatch, open_fds, thread_count};
 
 /// The doc's full count (§6.4 row 15: "1000× open/play/stop").
 const CYCLES: usize = 1_000;
@@ -73,12 +73,27 @@ fn cycle(host: &mut ScenarioHost, media: &std::path::Path, index: usize) {
     // has no pipeline left to stop — Close from Ended is the exit.
     if settled == PlaybackState::Playing {
         let stop = dispatch(host, Command::PlaybackStop);
-        assert!(stop.result.is_ok(), "cycle {index}: stops: {:?}", stop.result);
+        assert!(
+            stop.result.is_ok(),
+            "cycle {index}: stops: {:?}",
+            stop.result
+        );
     }
     let close = dispatch(host, Command::SessionClose);
-    assert!(close.result.is_ok(), "cycle {index}: closes: {:?}", close.result);
-    assert_eq!(host.state(), PlaybackState::Idle, "cycle {index}: idle again");
-    assert!(host.session_id().is_none(), "cycle {index}: no session survives");
+    assert!(
+        close.result.is_ok(),
+        "cycle {index}: closes: {:?}",
+        close.result
+    );
+    assert_eq!(
+        host.state(),
+        PlaybackState::Idle,
+        "cycle {index}: idle again"
+    );
+    assert!(
+        host.session_id().is_none(),
+        "cycle {index}: no session survives"
+    );
 }
 
 /// 1_000 open/play/stop cycles on one engine: every counter returns

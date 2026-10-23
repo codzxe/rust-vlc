@@ -20,14 +20,14 @@
 //! nightly-tier proposal; this pins the stronger zero-growth claim
 //! for the engine's steady state on a virtual clock).
 
-use commands::envelope::CommandOutcome;
 use commands::catalog::types::{OpenOptions, SourceSpec};
+use commands::envelope::CommandOutcome;
 use commands::{Command, PlaybackState};
-use testkit::alloc_count::serialize_tests;
 use testkit::Must;
+use testkit::alloc_count::serialize_tests;
 
 use crate::alloc_state;
-use crate::host::{count_events, dispatch, error_events, ScenarioHost};
+use crate::host::{ScenarioHost, count_events, dispatch, error_events};
 
 /// The timeline: 14_400 one-second packets = exactly 4 h.
 const PACKETS: u64 = 14_400;
@@ -99,7 +99,7 @@ fn four_hour_timeline_ends_with_bounded_memory() {
     // final packet's start (4 h minus one step).
     assert_eq!(
         host.sink().map(|sink| sink.last_pts_ns()).must(),
-        u64::try_from((PACKETS - 1) * STEP_US as u64).must() * 1_000,
+        (PACKETS - 1) * u64::try_from(STEP_US).must() * 1_000,
         "the last frame's pts is the final packet's"
     );
 

@@ -29,13 +29,13 @@
 //!   naming the owning subsystem (ADR-005 real backends) — device
 //!   control is typed, not silent.
 
-use commands::envelope::CommandOutcome;
 use commands::catalog::types::{OpenOptions, SourceSpec};
+use commands::envelope::CommandOutcome;
 use commands::{Command, ErrorCode, PlaybackState, Stage};
-use testkit::alloc_count::serialize_tests;
 use testkit::Must;
+use testkit::alloc_count::serialize_tests;
 
-use crate::host::{dispatch, error_events, ScenarioHost};
+use crate::host::{ScenarioHost, dispatch, error_events};
 
 fn open_parent(host: &mut ScenarioHost) {
     let path = testkit::fixture_path(crate::host::PARENT).must();
@@ -97,9 +97,7 @@ fn vanishing_device_fails_typed_with_position_preserved() {
     open_parent(&mut host);
 
     // Play into the media (frames consumed, position advancing).
-    host.pump_pipeline_until(|host| {
-        host.sink().map(|sink| sink.audio_accepted()).must() >= 10
-    });
+    host.pump_pipeline_until(|host| host.sink().map(|sink| sink.audio_accepted()).must() >= 10);
     let position_at_loss = host.position_us();
     let duration = match dispatch(&mut host, Command::MediaGetDuration).result {
         Ok(CommandOutcome::Completed(commands::CommandResult::Duration {
@@ -141,7 +139,10 @@ fn vanishing_device_fails_typed_with_position_preserved() {
     // was delivered past the vanish arm.
     let sink = std::sync::Arc::clone(host.sink().must());
     let accepted_at_loss = sink.frames_accepted();
-    assert!(sink.frames_while_vanished() >= 1, "the refusal was observed");
+    assert!(
+        sink.frames_while_vanished() >= 1,
+        "the refusal was observed"
+    );
     host.pump_pipeline_until(|host| {
         host.sink().map(|sink| sink.frames_accepted()).must() == accepted_at_loss
     });
@@ -155,7 +156,11 @@ fn vanishing_device_fails_typed_with_position_preserved() {
     // dead session, a fresh open plays again from zero (the
     // resume-at-position semantics belong to 3.C3's policy).
     let close = dispatch(&mut host, Command::SessionClose);
-    assert!(close.result.is_ok(), "closes after the fatal: {:?}", close.result);
+    assert!(
+        close.result.is_ok(),
+        "closes after the fatal: {:?}",
+        close.result
+    );
     assert_eq!(host.state(), PlaybackState::Idle);
     open_parent(&mut host);
     let position_after_reopen = host.position_us();
@@ -165,5 +170,9 @@ fn vanishing_device_fails_typed_with_position_preserved() {
          not the loss point — the resume policy is 3.C3's, recorded here honestly"
     );
     let close = dispatch(&mut host, Command::SessionClose);
-    assert!(close.result.is_ok(), "the reopened session closes: {:?}", close.result);
+    assert!(
+        close.result.is_ok(),
+        "the reopened session closes: {:?}",
+        close.result
+    );
 }

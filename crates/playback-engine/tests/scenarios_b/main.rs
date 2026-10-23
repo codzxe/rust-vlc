@@ -44,6 +44,7 @@ pub fn alloc_state() -> &'static testkit::AllocState {
 mod common;
 
 mod host;
+mod probe;
 mod scenario_09_corrupt;
 mod scenario_10_missing;
 mod scenario_11_interrupted_network;
@@ -52,4 +53,3 @@ mod scenario_13_long_media;
 mod scenario_14_short_media;
 mod scenario_15_reopen_cycles;
 mod scenario_16_exit_during_playback;
-mod probe;

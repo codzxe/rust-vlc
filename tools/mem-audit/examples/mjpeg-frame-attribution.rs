@@ -89,11 +89,10 @@ fn main() {
         eprintln!("error: not an AVI");
         std::process::exit(65);
     }
-    let mut demuxer =
-        demux::avi::AviDemuxer::new(stream).unwrap_or_else(|err| {
-            eprintln!("error: {err}");
-            std::process::exit(65);
-        });
+    let mut demuxer = demux::avi::AviDemuxer::new(stream).unwrap_or_else(|err| {
+        eprintln!("error: {err}");
+        std::process::exit(65);
+    });
     let tracks = demuxer.start().unwrap_or_else(|err| {
         eprintln!("error: {err}");
         std::process::exit(65);
@@ -184,7 +183,9 @@ fn main() {
     let mut histogram: std::collections::BTreeMap<(u64, u64), usize> =
         std::collections::BTreeMap::new();
     for iteration in 0..ITERATIONS {
-        *histogram.entry((calls[iteration], bytes[iteration])).or_default() += 1;
+        *histogram
+            .entry((calls[iteration], bytes[iteration]))
+            .or_default() += 1;
     }
     println!("# decoded frames: {decoded}/{ITERATIONS}");
     println!("# per-iteration (calls, bytes) -> count:");
@@ -216,12 +217,10 @@ fn main() {
             }
         }
         *stream_hist
-            .entry(
-                (
-                    ALLOC_CALLS.load(Ordering::Relaxed) - before_calls,
-                    ALLOC_BYTES.load(Ordering::Relaxed) - before_bytes,
-                ),
-            )
+            .entry((
+                ALLOC_CALLS.load(Ordering::Relaxed) - before_calls,
+                ALLOC_BYTES.load(Ordering::Relaxed) - before_bytes,
+            ))
             .or_default() += 1;
     }
     println!("# streamed frames: {streamed}");

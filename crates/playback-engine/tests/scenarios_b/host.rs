@@ -98,8 +98,8 @@ use commands::{
     Command, CommandError, ErrorCode, EventKind, PlaybackState, Stage, WireEvent, WireRequest,
     WireResponse,
 };
-use demux::avi::header::StreamFormat;
 use demux::avi::AviDemuxer;
+use demux::avi::header::StreamFormat;
 use media_clock::{MonotonicSource, NANO_BASE, PlaybackClock};
 use media_types::error::{DeviceCause, DeviceSlot};
 use media_types::frame::SampleFormat;
@@ -110,8 +110,8 @@ use media_types::{
 };
 use packet_queue::QueueLimits;
 use playback_engine::{
-    CommandReceipt, DecoderProvider, Engine, EngineOutput, EngineStats, EventPolicy,
-    EngineEventKind, FrameConsumer, QueuePlan, ReceiptResult, SessionCommandKind, SessionConfig,
+    CommandReceipt, DecoderProvider, Engine, EngineEventKind, EngineOutput, EngineStats,
+    EventPolicy, FrameConsumer, QueuePlan, ReceiptResult, SessionCommandKind, SessionConfig,
     SessionError, SessionHandle, SessionState, TickBudget, TimeTickPolicy, track_info_wire,
     wire_error_code, wire_stage,
 };
@@ -358,10 +358,7 @@ impl TimelineDemuxer {
     /// A single-audio-track timeline of `count` packets, each
     /// `step_us` long, with a declared span to match.
     pub fn audio_timeline(count: u64, step_us: i64) -> TimelineDemuxer {
-        let span_end_us = i64::try_from(count)
-            .must()
-            .checked_mul(step_us)
-            .must();
+        let span_end_us = i64::try_from(count).must().checked_mul(step_us).must();
         TimelineDemuxer {
             track: timeline_track(Some(span_end_us)),
             remaining: count,
@@ -537,7 +534,7 @@ impl ObservingSink {
             return None;
         };
         if let Some(Duration::Known(Nanoseconds(ns))) = audio.duration {
-            return Some(ns.max(0) as u64);
+            return Some(ns);
         }
         let (channels, rate) = self.pcm?;
         let bytes = u64::try_from(audio.samples.len()).ok()?;
@@ -765,8 +762,7 @@ fn session_error_wire(error: &SessionError) -> CommandError {
 fn encode_path(path: &str) -> String {
     let mut out = String::with_capacity(path.len());
     for byte in path.bytes() {
-        let keep =
-            byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/');
+        let keep = byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/');
         if keep {
             out.push(byte as char);
         } else {
@@ -1286,11 +1282,7 @@ impl ScenarioHost {
     /// fixture over the fault-scripted access fake) or
     /// `timeline://<count>x<step-us>` (the on-demand demux stage).
     /// Every other URL answers the real host's typed refusal.
-    fn wire_scripted(
-        &mut self,
-        url: &str,
-        source: SourceSpec,
-    ) -> Result<Wired, CommandError> {
+    fn wire_scripted(&mut self, url: &str, source: SourceSpec) -> Result<Wired, CommandError> {
         if url == "script://avi-parent" {
             let parent = testkit::fixture_bytes(PARENT).map_err(|err| {
                 CommandError::new(
@@ -1339,6 +1331,9 @@ impl ScenarioHost {
     }
 
     /// The shared wiring tail: clock, sink, config, engine open.
+    /// (Bundled tail args keep clippy's fn-arity ceiling: the pieces
+    /// always travel together.)
+    #[allow(clippy::too_many_arguments)]
     fn finish_wiring(
         &mut self,
         uri: SourceUri,
@@ -1357,7 +1352,7 @@ impl ScenarioHost {
                 Timestamp::new(0, base),
                 media_types::Rate::ONE,
             )
-            .map_err(|err| wire_error(&media_types::EngineError::from(err)))?,
+            .map_err(|err| wire_error(&err))?,
         );
         let sink = ObservingSink::counting(
             Arc::clone(&self.now),
@@ -1366,7 +1361,10 @@ impl ScenarioHost {
             self.drop_hooks.clone(),
         );
         let demuxer: Box<dyn Demuxer> = match self.drop_hooks.clone() {
-            Some(hooks) => Box::new(DropCountingDemuxer { inner: demuxer, hooks }),
+            Some(hooks) => Box::new(DropCountingDemuxer {
+                inner: demuxer,
+                hooks,
+            }),
             None => demuxer,
         };
         let mut config = SessionConfig::new(
@@ -1643,7 +1641,7 @@ fn unserved(command: &Command) -> CommandError {
 fn command_id_string(command: &Command) -> String {
     let debug = format!("{command:?}");
     debug
-        .split(|c: char| c == '{' || c == ' ' || c == '(')
+        .split(['{', ' ', '('])
         .next()
         .unwrap_or("(unnamed)")
         .to_string()
@@ -1767,10 +1765,8 @@ pub struct TempDir {
 impl TempDir {
     /// Create a unique scratch dir under the system temp root.
     pub fn new(tag: &str) -> TempDir {
-        let path = std::env::temp_dir().join(format!(
-            "lumen-scenarios-b-{tag}-{}",
-            std::process::id()
-        ));
+        let path =
+            std::env::temp_dir().join(format!("lumen-scenarios-b-{tag}-{}", std::process::id()));
         std::fs::create_dir_all(&path).must();
         TempDir { path }
     }
@@ -1873,8 +1869,7 @@ impl TempDir {
         cursor = movi_end;
         assert_eq!(fourcc_at(&parent, cursor), *b"idx1");
         let idx1_data = cursor + 8;
-        let idx1_entries =
-            u32_le(&parent, cursor + 4) as usize / 16;
+        let idx1_entries = u32_le(&parent, cursor + 4) as usize / 16;
 
         // Walk the movi chunks, collecting the first 2*`frames`.
         let mut kept_end = movi_data;

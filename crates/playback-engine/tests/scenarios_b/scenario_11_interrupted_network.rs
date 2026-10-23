@@ -44,13 +44,13 @@
 //! scripts move to its access layer and the retry/deadline machinery
 //! gets its own assertions.
 
-use commands::envelope::CommandOutcome;
 use commands::catalog::types::{OpenOptions, SourceSpec};
+use commands::envelope::CommandOutcome;
 use commands::{Command, ErrorCode, PlaybackState, Stage};
-use testkit::alloc_count::serialize_tests;
 use testkit::Must;
+use testkit::alloc_count::serialize_tests;
 
-use crate::host::{count_events, dispatch, error_events, ScenarioHost};
+use crate::host::{ScenarioHost, count_events, dispatch, error_events};
 
 /// The scripted parent's URL (the synthetic network source).
 const SCRIPTED: &str = "script://avi-parent";
@@ -190,7 +190,11 @@ fn reset_midstream_source_fails_typed_within_deadline() {
     let errors = error_events(&host);
     let fatal: Vec<_> = errors.iter().filter(|(_, fatal, _)| *fatal).collect();
     assert_eq!(fatal.len(), 1, "exactly one fatal error event: {errors:?}");
-    assert_eq!(fatal[0].0.as_str(), "input.inaccessible", "the typed fatal: {fatal:?}");
+    assert_eq!(
+        fatal[0].0.as_str(),
+        "input.inaccessible",
+        "the typed fatal: {fatal:?}"
+    );
     // The fatal error event is ordered BEFORE the state change to
     // Error (doc 05 §3.3) — the state trail ends with → Error.
     let trail = host.state_history();
@@ -202,9 +206,17 @@ fn reset_midstream_source_fails_typed_within_deadline() {
     // The host recovers: a close settles the dead session and the
     // next open works (no poisoned state after a network fatal).
     let close = dispatch(&mut host, Command::SessionClose);
-    assert!(close.result.is_ok(), "closes after the fatal: {:?}", close.result);
+    assert!(
+        close.result.is_ok(),
+        "closes after the fatal: {:?}",
+        close.result
+    );
     assert_eq!(host.state(), PlaybackState::Idle);
     open_scripted(&mut host);
     let close = dispatch(&mut host, Command::SessionClose);
-    assert!(close.result.is_ok(), "the reopened session closes: {:?}", close.result);
+    assert!(
+        close.result.is_ok(),
+        "the reopened session closes: {:?}",
+        close.result
+    );
 }
