@@ -100,7 +100,9 @@ const O7: [i64; 4] = [6393, -18205, 27246, -32138]; // A[7][0..4]
 const DC_SCALE: i64 = 23170 * 23170;
 
 /// Divide by 2³² with round-half-away-from-zero.
-fn shr32_round(value: i64) -> i64 {
+// pub(crate): shared by the SIMD pass-2 reuse (idct_simd.rs) so the
+// rounding stays literally the same code on both arms.
+pub(crate) fn shr32_round(value: i64) -> i64 {
     if value >= 0 {
         (value + (1i64 << 31)) >> 32
     } else {
@@ -116,8 +118,10 @@ fn shr32_round(value: i64) -> i64 {
 /// half (`po[7−x] = −po[x]`), so only `x ∈ 0..4` is computed and the
 /// rest mirrors. Worst case 22 i64 multiplies vs the naive 64;
 /// all-zero frequency groups skip their share.
+// pub(crate): the SIMD kernel (idct_simd.rs) reuses this verbatim
+// for pass 2 — bit-exactness by shared code, not by re-derivation.
 #[inline]
-fn idct8(w: &[i64; 8]) -> [i64; 8] {
+pub(crate) fn idct8(w: &[i64; 8]) -> [i64; 8] {
     let mut pe = [0i64; 4];
     let mut po = [0i64; 4];
 

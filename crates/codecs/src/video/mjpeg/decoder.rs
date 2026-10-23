@@ -91,7 +91,7 @@ use super::bitreader::{BitReader, ReaderStop};
 use super::color::{ComponentGeom, PlaneView, RgbComposer};
 use super::error::MjpegError;
 use super::huffman::{HuffmanDecoder, Stop};
-use super::idct::idct_block;
+use super::idct_simd::idct_block_dispatch;
 use super::parser::{self, ComponentInfo, JpegInfo, ZIGZAG};
 use media_types::packet::SharedBytes;
 
@@ -247,10 +247,12 @@ struct PlaneKey {
 /// the contract path.
 pub(crate) trait ScanHooks {
     /// Dequantize + inverse-DCT one block into `out` samples
-    /// (default: the real [`idct_block`], dequantization folded in).
+    /// (default: the real transform via [`idct_block_dispatch`] —
+    /// SSE4.1 SIMD pass 1 where the CPU has it, scalar otherwise,
+    /// bit-exact either way per `idct_simd`'s bounds proof).
     #[inline]
     fn transform(block: &[i16; 64], qt: &[u16; 64], out: &mut [u8]) {
-        idct_block(block, qt, out)
+        idct_block_dispatch(block, qt, out)
     }
 
     /// Store one block's samples into its plane slot (default: the
