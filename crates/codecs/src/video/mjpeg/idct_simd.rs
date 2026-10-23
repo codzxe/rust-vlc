@@ -114,19 +114,27 @@ const A_COLS: [[i16; 8]; 8] = {
     cols
 };
 
-/// Runtime dispatch: SSE4.1 → SIMD kernel, anything else (including
-/// every non-x86_64 target, which compiles the kernel away) → the
-/// bit-exact scalar reference. Wired in `decoder.rs` as the
-/// [`crate::video::mjpeg::decoder::ScanHooks::transform`] default.
+/// Runtime dispatch — LEAD DECISION 2026-10-24 (W7-b [PROPOSAL] accepted):
+/// the measured ablation (docs/perf/mjpeg-simd-20261024.md: 0063-avi-av
+/// 1.021×, 0127-heavy 0.995× — SIMD on the SLOW side of noise, N=7/N=4
+/// medians, release, interleaved arms) means the wave-brief's keep-scalar
+/// rule applies: **scalar is the default**. The SSE4.1 kernel stays
+/// compiled, tested (bit-exactness suite), and reachable for re-measurement
+/// via the `LUMEN_MJPEG_IDCT_SIMD=1` opt-in — flipping the default back
+/// requires a fresh ablation showing a real win, per the honest-numbers
+/// mandate.
 pub(crate) fn idct_block_dispatch(block: &[i16; 64], qt: &[u16; 64], out: &mut [u8]) {
     #[cfg(target_arch = "x86_64")]
     {
-        // SAFETY: the kernel is #[target_feature(enable = "sse4.1")]
-        // and is only entered after the "sse4.1" CPU feature bit is
-        // detected at runtime; it touches only the caller-provided
-        // slices (no escapes, no unaligned UB — all loads/stores use
-        // the unaligned intrinsics on validly-referenced memory).
-        if std::arch::is_x86_feature_detected!("sse4.1") {
+        // Opt-in only (see the LEAD DECISION note above).
+        if std::env::var_os("LUMEN_MJPEG_IDCT_SIMD").is_some()
+            && std::arch::is_x86_feature_detected!("sse4.1")
+        {
+            // SAFETY: the kernel is #[target_feature(enable = "sse4.1")]
+            // and is only entered after the "sse4.1" CPU feature bit is
+            // detected at runtime; it touches only the caller-provided
+            // slices (no escapes, no unaligned UB — all loads/stores use
+            // the unaligned intrinsics on validly-referenced memory).
             return unsafe { idct_block_sse41(block, qt, out) };
         }
     }
