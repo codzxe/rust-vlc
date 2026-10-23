@@ -167,6 +167,21 @@ impl MicroResampler {
     /// cursor is exactly `base − 1` or `base`, so the deepest
     /// cross-quantum read is `base − 1` — one sample).
     ///
+    /// # Loop shape (W5-19, bit-exact restructure)
+    ///
+    /// The kernel is split at the two places the old single loop paid
+    /// a per-sample branch: a short **tail-reading prefix** (entry
+    /// cursor `base − 1`; `a` is the history sample, `b` the first
+    /// input sample — at most two iterations at the ±1000 ppm bound),
+    /// the **body** (`cursor < last_abs`: both kernel samples are
+    /// in-quantum, fetched as one two-sample window — one bounds
+    /// check per output instead of a branch plus a checked `get`
+    /// per sample), and the **exact-tail emission** (the single
+    /// `frac == 0 && cursor == last_abs` output, weight 0). The emit
+    /// order, the interpolation arithmetic and the phase advance are
+    /// unchanged — outputs are bit-identical, pinned by the
+    /// differential test against the former single-loop kernel.
+    ///
     /// # Bounds
     ///
     /// Emits while the kernel's right sample (`cursor + 1`) is inside
@@ -191,57 +206,81 @@ impl MicroResampler {
         let mut frac = self.frac_num;
         let tail = &self.tail;
 
-        // The interpolated read for one absolute index. `index <
-        // base_abs` happens only for `base_abs − 1` (the entry-cursor
-        // invariant) — the one-sample tail.
-        let sample = |c: usize, index: i128| -> f32 {
-            if index >= base_abs {
-                // The loop guard keeps index ≤ last_abs, so this is
-                // in-bounds by construction; the `get` is the honest
-                // defensive backstop, never a fabricated value.
-                input[c]
-                    .get((index - base_abs) as usize)
-                    .copied()
-                    .unwrap_or(0.0)
-            } else {
-                tail[c]
-            }
-        };
-
-        // Emit: clear the reused planes, reserve the worst-case
-        // capacity once (after warm-up a no-op — D-1).
+        // Emit: pre-size the reused planes to the worst-case capacity
+        // once (after warm-up a plain length refit — D-1), write by
+        // index (no per-sample `push` capacity bookkeeping), truncate
+        // to the emitted count.
         let cap = in_frames + in_frames / 1000 + 1;
         for plane in &mut self.out {
-            plane.clear();
-            plane.reserve(cap);
+            plane.resize(cap, 0.0);
         }
         let mut emitted = 0usize;
-        // Emit while the kernel's right sample lies inside the
-        // quantum, OR the phase sits exactly on a whole sample at
-        // the quantum's last index (weight 0 — no right neighbor
-        // needed, so a ppm == 0 quantum conserves its count exactly;
-        // the deferred sample otherwise waits for the next quantum).
-        while cursor <= last_abs && (frac == 0 || cursor < last_abs) {
-            // Both operands ≤ 1_001_000 < 2^24: exact in f32, and the
-            // division is the only float on this path — it scales
-            // sample *data*, never a position.
+
+        // The interpolation weight and phase advance, shared by all
+        // three loop segments (the division is the only float on this
+        // path — it scales sample *data*, never a position; both
+        // operands ≤ 1_001_000 < 2^24, exact in f32).
+        macro_rules! advance {
+            () => {
+                frac += step_num;
+                while frac >= step_den {
+                    frac -= step_den;
+                    cursor += 1;
+                }
+            };
+        }
+
+        // Prefix: the entry-cursor invariant puts the stream at most
+        // one sample behind the quantum (`base − 1`); `a` is the
+        // carried history sample, `b` the quantum's first input
+        // sample (the old kernel's cross-quantum read — never the
+        // exact-tail shape: `base − 1 < last_abs` for any in_frames ≥ 1).
+        while cursor < base_abs {
             let weight = frac as f32 / step_den as f32;
-            let i0 = cursor;
-            let exact_tail = frac == 0 && cursor == last_abs;
             for (c, plane) in self.out.iter_mut().enumerate() {
-                let a = sample(c, i0);
-                let b = if exact_tail { a } else { sample(c, i0 + 1) };
-                plane.push(a + (b - a) * weight);
+                let a = tail[c];
+                let b = input[c][0];
+                plane[emitted] = a + (b - a) * weight;
             }
             emitted += 1;
-            // Advance the exact rational phase: at most two whole
-            // wraps per output sample (step_num < 2·step_den for any
-            // |ppm| ≤ 1000).
-            frac += step_num;
-            while frac >= step_den {
-                frac -= step_den;
-                cursor += 1;
+            advance!();
+        }
+
+        // Body: both kernel samples inside the quantum, fetched as one
+        // two-sample window (single bounds check per output).
+        while cursor < last_abs {
+            let weight = frac as f32 / step_den as f32;
+            let idx = (cursor - base_abs) as usize;
+            for (plane, in_plane) in self.out.iter_mut().zip(input.iter()) {
+                let window = &in_plane[idx..idx + 2];
+                let a = window[0];
+                let b = window[1];
+                plane[emitted] = a + (b - a) * weight;
             }
+            emitted += 1;
+            advance!();
+        }
+
+        // Exact tail: the one whole-sample emission whose right
+        // neighbor would lie in the next quantum — weight 0, no right
+        // sample read. The interpolation formula is kept verbatim
+        // (`a + (b − a) · weight` with `b = a`): flushing a `−0.0`
+        // sample to `+0.0` through the `a + 0.0` sum is part of the
+        // pinned output bits, not an accident to “fix”.
+        if cursor == last_abs && frac == 0 {
+            let weight = frac as f32 / step_den as f32;
+            let idx = (cursor - base_abs) as usize;
+            for (plane, in_plane) in self.out.iter_mut().zip(input.iter()) {
+                let a = in_plane[idx];
+                let b = a;
+                plane[emitted] = a + (b - a) * weight;
+            }
+            emitted += 1;
+            advance!();
+        }
+
+        for plane in &mut self.out {
+            plane.truncate(emitted);
         }
 
         // Commit the phase and roll the tail: this quantum's last
@@ -447,6 +486,212 @@ mod tests {
             let out = r.process(&input, 6);
             for v in &r.planes()[0][..out] {
                 assert!((-100.0..=100.0).contains(v), "escaped hull: {v}");
+            }
+        }
+    }
+
+    // ---- W5-19: the restructured kernel is bit-identical ---------------------
+
+    /// The former single-loop kernel, verbatim (the pre-W5-19
+    /// `process` body) — the differential reference for the
+    /// tail-prefix / body / exact-tail restructure above.
+    struct ReferenceResampler {
+        channels: usize,
+        correction: DriftCorrection,
+        cursor_abs: i128,
+        frac_num: i64,
+        tail_base: i128,
+        tail: Vec<f32>,
+        out: Vec<Vec<f32>>,
+    }
+
+    impl ReferenceResampler {
+        fn new(channels: u32) -> ReferenceResampler {
+            let channels = channels as usize;
+            ReferenceResampler {
+                channels,
+                correction: DriftCorrection::ZERO,
+                cursor_abs: 0,
+                frac_num: 0,
+                tail_base: -1,
+                tail: vec![0.0; channels],
+                out: vec![Vec::new(); channels],
+            }
+        }
+
+        fn set_correction(&mut self, correction: DriftCorrection) {
+            if correction.ppm() == self.correction.ppm() {
+                return;
+            }
+            self.correction = correction;
+            let step_den = PPM_SCALE + correction.ppm();
+            while self.frac_num >= step_den {
+                self.frac_num -= step_den;
+                self.cursor_abs += 1;
+            }
+        }
+
+        fn reset(&mut self) {
+            self.cursor_abs = 0;
+            self.frac_num = 0;
+            self.tail_base = -1;
+            self.tail.fill(0.0);
+        }
+
+        fn process(&mut self, input: &[Vec<f32>], in_frames: usize) -> usize {
+            if in_frames == 0 || input.len() != self.channels {
+                return 0;
+            }
+            let step_num = PPM_SCALE;
+            let step_den = PPM_SCALE + self.correction.ppm();
+            let base_abs = self.tail_base + 1;
+            let last_abs = base_abs + in_frames as i128 - 1;
+            let mut cursor = self.cursor_abs;
+            let mut frac = self.frac_num;
+            let tail = &self.tail;
+            let sample = |c: usize, index: i128| -> f32 {
+                if index >= base_abs {
+                    input[c]
+                        .get((index - base_abs) as usize)
+                        .copied()
+                        .unwrap_or(0.0)
+                } else {
+                    tail[c]
+                }
+            };
+            let cap = in_frames + in_frames / 1000 + 1;
+            for plane in &mut self.out {
+                plane.clear();
+                plane.reserve(cap);
+            }
+            let mut emitted = 0usize;
+            while cursor <= last_abs && (frac == 0 || cursor < last_abs) {
+                let weight = frac as f32 / step_den as f32;
+                let i0 = cursor;
+                let exact_tail = frac == 0 && cursor == last_abs;
+                for (c, plane) in self.out.iter_mut().enumerate() {
+                    let a = sample(c, i0);
+                    let b = if exact_tail { a } else { sample(c, i0 + 1) };
+                    plane.push(a + (b - a) * weight);
+                }
+                emitted += 1;
+                frac += step_num;
+                while frac >= step_den {
+                    frac -= step_den;
+                    cursor += 1;
+                }
+            }
+            self.cursor_abs = cursor;
+            self.frac_num = frac;
+            for (c, slot) in self.tail.iter_mut().enumerate() {
+                *slot = input[c][in_frames - 1];
+            }
+            self.tail_base = last_abs;
+            emitted
+        }
+    }
+
+    #[test]
+    fn restructured_kernel_is_bit_identical_to_the_former_single_loop() {
+        // Differential bit-exactness proof over the whole reachable
+        // state space: every correction in the legal range (incl. the
+        // bounds, zero and asymmetric values), every quantum length
+        // regime (1-sample quanta stress the tail prefix; large quanta
+        // the body; lengths around 1000 the capacity boundary),
+        // multi-quantum streams (phase carry + history tail), channel
+        // counts 1..3, and mid-stream correction changes + resets.
+        // Outputs, counts and (via continued processing) the carried
+        // phase must match the reference sample-for-sample.
+        let mut seed = 0xabcd_ef01_2345_6789_u64;
+        let mut next = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        for channels in [1u32, 2, 3] {
+            for ppm in [-1000i64, -777, -1, 0, 1, 250, 600, 999, 1000] {
+                let mut mine = MicroResampler::new(channels);
+                let mut reference = ReferenceResampler::new(channels);
+                mine.set_correction(DriftCorrection::new(ppm));
+                reference.set_correction(DriftCorrection::new(ppm));
+                for quantum in 0..24 {
+                    let in_frames = [1usize, 2, 3, 999, 1000, 1001, 1470, 4096][quantum % 8];
+                    let input: Vec<Vec<f32>> = (0..channels)
+                        .map(|c| {
+                            (0..in_frames)
+                                .map(|i| {
+                                    // Values from a wide dynamic range
+                                    // incl. exact zeros (the -0.0 flush
+                                    // case lives at zero crossings).
+                                    let v = (next() % 20_001) as i32 - 10_000;
+                                    v as f32 / 512.0 + c as f32 + ((i % 7) as f32) * 0.125
+                                })
+                                .collect()
+                        })
+                        .collect();
+                    let out_mine = mine.process(&input, in_frames);
+                    let out_ref = reference.process(&input, in_frames);
+                    assert_eq!(out_mine, out_ref, "ch {channels} ppm {ppm} q {quantum}");
+                    for (c, (a, b)) in mine.planes().iter().zip(reference.out.iter()).enumerate() {
+                        assert_eq!(
+                            a[..out_mine],
+                            b[..out_ref],
+                            "ch {channels} ppm {ppm} quantum {quantum} plane {c}"
+                        );
+                    }
+                    // Mid-stream correction change + occasional reset:
+                    // the renormalization path must also stay identical.
+                    if quantum == 7 {
+                        let next_ppm = (next() % 2001) as i64 - 1000;
+                        mine.set_correction(DriftCorrection::new(next_ppm));
+                        reference.set_correction(DriftCorrection::new(next_ppm));
+                    }
+                    if quantum == 15 {
+                        mine.reset();
+                        reference.reset();
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn special_values_survive_the_exact_tail_identically() {
+        // `-0.0`, `+0.0`, ±inf and NaN through every emission shape
+        // (body at ppm ≠ 0 — weight ≠ 0; exact tail at ppm = 0 — the
+        // `b = a` shortcut): the restructured kernel keeps the
+        // interpolation formula verbatim, so even the sign-flush of
+        // `-0.0` through `a + 0.0` must match the reference bits.
+        let specials = [-0.0f32, 0.0, f32::INFINITY, f32::NEG_INFINITY, f32::NAN];
+        for ppm in [0i64, 500, -500, 1000] {
+            for channels in [1u32, 2] {
+                let mut mine = MicroResampler::new(channels);
+                let mut reference = ReferenceResampler::new(channels);
+                mine.set_correction(DriftCorrection::new(ppm));
+                reference.set_correction(DriftCorrection::new(ppm));
+                for quantum in 0..6 {
+                    let input: Vec<Vec<f32>> = (0..channels)
+                        .map(|c| {
+                            (0..8)
+                                .map(|i| specials[(quantum + i + c as usize) % specials.len()])
+                                .collect()
+                        })
+                        .collect();
+                    let out_mine = mine.process(&input, 8);
+                    let out_ref = reference.process(&input, 8);
+                    assert_eq!(out_mine, out_ref, "ppm {ppm} ch {channels} q {quantum}");
+                    for (a, b) in mine.planes().iter().zip(reference.out.iter()) {
+                        assert_eq!(
+                            a[..out_mine]
+                                .iter()
+                                .map(|v| v.to_bits())
+                                .collect::<Vec<_>>(),
+                            b[..out_ref].iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+                            "ppm {ppm} ch {channels} quantum {quantum}"
+                        );
+                    }
+                }
             }
         }
     }

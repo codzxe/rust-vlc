@@ -62,6 +62,10 @@
 //! is bounded by the packet (which the demuxer's chunk ceilings and
 //! the packet queue already bound — no additional budget constant is
 //! needed, unlike a container walk; the 2.B4 `fuzz.rs` rationale).
+//! The conversion-carrying paths additionally keep a bounded slot
+//! pool (W5-19, ≤ 4 packet-sized buffers, empty on the zero-copy
+//! path) so steady-state decoding allocates nothing per buffer
+//! (D-1) — bounded memory, not unbounded caching.
 
 use crate::audio::pcm::error::{PcmError, unsupported};
 use codec_api::prelude::*;
@@ -178,41 +182,162 @@ pub(crate) struct Payload {
     pub dropped_tail: usize,
 }
 
+/// The whole-sample-frame prefix of `data` under `plan` (the shared
+/// arithmetic of the free surface and the contract path — see the
+/// module docs for why one expression serves both layouts).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Prefix {
+    /// Whole sample-frames in the prefix (all channels).
+    pub instants: u64,
+    /// Prefix length in bytes (`instants × frame_bytes`).
+    pub cut: usize,
+    /// Trailing bytes that belonged to no complete sample-frame.
+    pub dropped_tail: usize,
+}
+
+pub(crate) fn whole_frame_prefix(data: &[u8], plan: &PcmPlan) -> Prefix {
+    // `frame_bytes` is ≥ 1 by construction (PcmPlan::new validates
+    // channels ≥ 1 and the width ≥ 1); checked_div keeps the total
+    // function shape explicit anyway.
+    let instants = data.len().checked_div(plan.frame_bytes).unwrap_or(0);
+    let cut = instants * plan.frame_bytes;
+    Prefix {
+        instants: instants as u64,
+        cut,
+        dropped_tail: data.len() - cut,
+    }
+}
+
 /// The byte-level decode: whole-sample-frame prefix, per-sample
 /// byte-order normalization (see module docs — the prefix rule is
 /// layout-uniform: a whole number of sample-frames is exactly a whole
 /// number of equal sample-aligned planes, and vice versa).
 pub(crate) fn decode_payload(data: &[u8], plan: &PcmPlan) -> Payload {
     let bps = plan.source.sample.bytes_per_sample() as usize;
-    // `frame_bytes` is ≥ 1 by construction (PcmPlan::new validates
-    // channels ≥ 1 and the width ≥ 1); checked_div keeps the total
-    // function shape explicit anyway.
-    let instants = data.len().checked_div(plan.frame_bytes).unwrap_or(0);
-    let cut = instants * plan.frame_bytes;
-    let segment = &data[..cut];
+    let prefix = whole_frame_prefix(data, plan);
+    let segment = &data[..prefix.cut];
     let converted = if plan.swap {
         Some(swapped(segment, bps))
-    } else if cut != data.len() {
+    } else if prefix.cut != data.len() {
         Some(segment.to_vec())
     } else {
         None
     };
     Payload {
         converted,
-        instants: instants as u64,
-        dropped_tail: data.len() - cut,
+        instants: prefix.instants,
+        dropped_tail: prefix.dropped_tail,
     }
 }
 
 /// A swapped copy: every `bps`-byte sample group reversed (the
 /// stream/host byte-order normalization — identical code for 2/3/4
-/// byte samples; 1-byte samples never swap).
+/// byte samples; 1-byte samples never swap). Cold path (the free
+/// surface); the contract path fills a pooled buffer through
+/// [`swap_groups_into`] instead.
 fn swapped(data: &[u8], bps: usize) -> Vec<u8> {
     let mut out = Vec::with_capacity(data.len());
     for group in data.chunks(bps) {
         out.extend(group.iter().rev());
     }
     out
+}
+
+/// Write the byte-order-normalized form of `data` (every `bps`-byte
+/// sample group reversed) into `dst` — the hot-path twin of
+/// [`swapped`] with zero allocation and a specialized 2-byte loop
+/// (the s16be stream shape; a pairwise byte exchange compiles to a
+/// tight vectorizable loop, where the generic per-group reversal
+/// hides the reversal behind an inner index walk). The contract path
+/// always feeds the whole-sample-frame prefix (a multiple of `bps`)
+/// with `dst.len() == data.len()`; a ragged tail is still handled
+/// identically to [`swapped`] (the last partial group reverses too —
+/// total function, defense in depth), and the two buffers never
+/// overlap (`dst` is a pooled slot, `data` the packet's own bytes).
+/// Byte-for-byte identical to `swapped` — pinned by the differential
+/// test below.
+fn swap_groups_into(data: &[u8], bps: usize, dst: &mut [u8]) {
+    debug_assert_eq!(dst.len(), data.len());
+    if bps == 2 {
+        // The s16 shape: a plain pairwise exchange.
+        for (src, out) in data.chunks(2).zip(dst.chunks_mut(2)) {
+            if let [a, b] = *src {
+                out[0] = b;
+                out[1] = a;
+            } else if let [a] = *src {
+                // A lone trailing byte (impossible on the prefix path;
+                // total-function parity with `swapped`).
+                out[0] = a;
+            }
+        }
+        return;
+    }
+    // The general shape (s24's 3-byte groups, s32/f32's 4, f64's 8):
+    // reverse each group in place in the destination (a ragged final
+    // group reverses over its own bytes — `swapped` parity).
+    for (src, out) in data.chunks(bps).zip(dst.chunks_mut(bps)) {
+        let group = src.len();
+        for k in 0..group {
+            out[k] = src[group - 1 - k];
+        }
+    }
+}
+
+/// The conversion-slot rotation depth (D-1 object pool, the
+/// `pipeline.rs` `OUT_SLOTS` precedent): how many pooled
+/// [`SharedBytes`] buffers the converted-path decoder keeps. Four
+/// covers the decoded frame still held downstream plus slack — a
+/// sink that hands buffers off asynchronously never starves the pool
+/// into the allocate path. Bounded memory: at most
+/// `CONVERT_SLOTS · max-packet-bytes`, and empty on the zero-copy
+/// path (only conversion-carrying formats — byte-swapped streams,
+/// damaged tails — ever enter a slot).
+const CONVERT_SLOTS: usize = 4;
+
+/// Fill the next pooled conversion slot through `fill` (exactly
+/// `len` bytes) and hand out a clone (refcount 2: pool + the decoded
+/// frame; the clone the sink saw returns the slot to refcount 1 when
+/// its buffer drops, making it refillable in place). Warm path: an
+/// in-rotation slot of exactly `len` bytes whose `get_mut` succeeds
+/// (the pool is the sole owner). Cold path (first packets of a
+/// geometry, an all-slots-busy rotation): allocate a fresh slot and
+/// enter it into the round-robin (bounded at [`CONVERT_SLOTS`], then
+/// evicting). The `pipeline.rs` `pooled_slot` pattern, lifted to the
+/// decoder side of the same handoff.
+fn pooled_convert_slot(
+    slots: &mut Vec<SharedBytes>,
+    next: &mut usize,
+    len: usize,
+    fill: impl FnOnce(&mut [u8]),
+) -> SharedBytes {
+    let count = slots.len();
+    for i in 0..count {
+        let idx = (*next + i) % count;
+        if slots[idx].len() != len {
+            continue;
+        }
+        if let Some(bytes) = slots[idx].get_mut() {
+            fill(bytes);
+            *next = (idx + 1) % count;
+            return slots[idx].clone();
+        }
+        // The slot still has downstream owners — try the next one.
+    }
+    // Cold path: allocate, fill in place, then enter the rotation.
+    let mut fresh = SharedBytes::from_vec(vec![0; len]);
+    match fresh.get_mut() {
+        Some(bytes) => fill(bytes),
+        None => unreachable!("fresh SharedBytes has refcount 1"),
+    }
+    if count < CONVERT_SLOTS {
+        slots.push(fresh.clone());
+        *next = (count + 1) % CONVERT_SLOTS;
+    } else {
+        let evict = *next;
+        slots[evict] = fresh.clone();
+        *next = (evict + 1) % CONVERT_SLOTS;
+    }
+    fresh
 }
 
 /// The stream facts a configuration carries: channel count and rate.
@@ -389,8 +514,10 @@ fn parse_waveformatex(bytes: &[u8], format: PcmFormat) -> Result<Facts, PcmError
 /// The PCM decoder behind the codec-api [`Decoder`] contract (card
 /// 2.B5; doc 01 §2.5, doc 03 §4.5/§7).
 ///
-/// Stateless between packets (unpacked PCM has no inter-packet
-/// state); `configure` installs the negotiated format + facts, so
+/// Stream-stateless between packets (unpacked PCM has no inter-packet
+/// decode state — the only carried buffers are the bounded conversion
+/// slot pool of the byte-swap/truncation paths, which carry no stream
+/// position); `configure` installs the negotiated format + facts, so
 /// re-configuration after a seek is free.
 ///
 /// # Example
@@ -461,6 +588,14 @@ pub struct PcmDecoder {
     generation: Option<GenerationId>,
     /// Codec descriptor accepted at configure time (diagnostics).
     codec: Option<String>,
+    /// Conversion-slot pool for the conversion-carrying decode paths
+    /// (byte-swapped streams, damaged tails) — the D-1 rotation that
+    /// keeps the contract path allocation-free per buffer after
+    /// warm-up. Empty and untouched on the zero-copy path (native-
+    /// order whole packets never materialize a slot).
+    convert_pool: Vec<SharedBytes>,
+    /// Round-robin cursor into `convert_pool`.
+    convert_next: usize,
 }
 
 impl PcmDecoder {
@@ -583,8 +718,8 @@ impl Decoder for PcmDecoder {
             return Ok(outcome);
         }
         let data = packet.data.as_slice();
-        let payload = decode_payload(data, plan);
-        if payload.instants == 0 {
+        let prefix = whole_frame_prefix(data, plan);
+        if prefix.instants == 0 {
             if data.is_empty() {
                 // Consumed, nothing decodable, nothing dropped: the
                 // honest "nothing to emit" report.
@@ -597,21 +732,41 @@ impl Decoder for PcmDecoder {
                 reason: RecoverReason::CorruptInput,
             });
         }
-        let samples = match payload.converted {
-            None => packet.data.clone(), // zero-copy: the bytes ARE the frame
-            Some(bytes) => SharedBytes::from_vec(bytes),
+        // The handoff: zero-copy when the packet's own bytes are the
+        // decoded samples (native byte order, whole packet — the
+        // committed corpus's s16le shape); the pooled conversion
+        // rotation otherwise (byte-swap and/or tail truncation),
+        // allocation-free per buffer after warm-up (D-1).
+        let samples = if !plan.swap && prefix.cut == data.len() {
+            packet.data.clone() // zero-copy: the bytes ARE the frame
+        } else {
+            let bps = plan.source.sample.bytes_per_sample() as usize;
+            let segment = &data[..prefix.cut];
+            // Field-disjoint borrows: the pool rotation is taken out
+            // of `self` so the `plan` borrow survives.
+            let mut pool = std::mem::take(&mut self.convert_pool);
+            let filled =
+                pooled_convert_slot(&mut pool, &mut self.convert_next, prefix.cut, |dst| {
+                    if plan.swap {
+                        swap_groups_into(segment, bps, dst);
+                    } else {
+                        dst.copy_from_slice(segment);
+                    }
+                });
+            self.convert_pool = pool;
+            filled
         };
         let frame = Frame::Audio(AudioFrame {
             format: plan.output_format(),
             samples,
             pts: packet.pts,
             duration: Some(Duration::Known(Nanoseconds(
-                plan.duration_nanos(payload.instants),
+                plan.duration_nanos(prefix.instants),
             ))),
             generation: packet.generation,
         });
         out.accept(frame)?;
-        if payload.dropped_tail > 0 {
+        if prefix.dropped_tail > 0 {
             Ok(DecodeOutcome::Recovered {
                 skipped: 0,
                 reason: RecoverReason::ConcealedFrame,
@@ -634,6 +789,7 @@ impl Decoder for PcmDecoder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::audio::pcm::decode_pcm;
     use media_types::ids::CodecDescriptor;
     use media_types::{Packet, Stamp, TrackId};
 
@@ -1307,5 +1463,110 @@ mod tests {
         // Saturating: absurd instants never panic or wrap — the
         // saturating product divides down to a huge-but-finite span.
         assert_eq!(plan.duration_nanos(u64::MAX), u64::MAX / 44_100);
+    }
+
+    // ---- the W5-19 conversion hot path --------------------------------------
+
+    #[test]
+    fn swap_groups_into_is_byte_identical_to_the_reference_swapped() {
+        // Differential bit-exactness proof for the pooled conversion
+        // fill: the hot-path group reversal must produce exactly the
+        // bytes the reference (free-surface) `swapped` produces, for
+        // every width and adversarial lengths (including empty and
+        // lengths the whole-frame rule can never produce — the helper
+        // is width-uniform and must stay so).
+        let mut seed = 0x5a19_c0de_1234_5678_u64;
+        let mut next = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        for bps in [2usize, 3, 4, 8] {
+            for len in [0usize, 1, 2, 7, 64, 1470 * bps, 4096] {
+                let data: Vec<u8> = (0..len).map(|_| (next() & 0xff) as u8).collect();
+                let reference = swapped(&data, bps);
+                let mut pooled = vec![0x5a; len];
+                swap_groups_into(&data, bps, &mut pooled);
+                assert_eq!(pooled, reference, "bps {bps} len {len}");
+                // Spot semantics: every bps-byte group reversed.
+                for (src, got) in data.chunks(bps).zip(pooled.chunks(bps)) {
+                    assert_eq!(got, src.iter().rev().copied().collect::<Vec<u8>>());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn converted_path_reuses_pooled_slots_and_stays_bit_exact() {
+        // The D-1 contract-path pool: repeated converted decodes at a
+        // stable geometry reuse a bounded slot rotation (no growth
+        // past CONVERT_SLOTS), survive the frame being dropped
+        // mid-rotation (slot returns to refcount 1 and is refilled),
+        // and stay byte-exact against the free-surface reference.
+        let (mut decoder, _generation) = configured("pcm_s16be", Some(waveformat(44_100)));
+        let source = PcmSource {
+            sample: PcmFormat::S16Be,
+            planar: false,
+            channels: 2,
+        };
+        let mut seed = 0x1234_5678_9abc_def0_u64;
+        for packet_index in 0..64 {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            // 1470-frame stereo packets, content varying per packet
+            // (a stale slot would surface as wrong bytes).
+            let bytes: Vec<u8> = (0..1470 * 4)
+                .map(|i| ((seed >> (i % 8 * 8)) & 0xff) as u8)
+                .collect();
+            let (outcome, sink) = decode_one(&mut decoder, bytes.clone());
+            assert_eq!(outcome, DecodeOutcome::Emitted { frames: 1 });
+            // Bit-exact against the free-surface reference decode.
+            let reference =
+                decode_pcm(&bytes, source, 44_100).unwrap_or_else(|e| unreachable!("{e}"));
+            assert_eq!(
+                sink.frames[0].samples.as_slice(),
+                reference.samples.as_slice(),
+                "packet {packet_index}"
+            );
+            // Frames dropped immediately: the slot must return to the
+            // pool (refcount 1) and be refilled in place.
+            drop(sink);
+        }
+        assert!(
+            decoder.convert_pool.len() <= CONVERT_SLOTS,
+            "pool grew past the bound: {}",
+            decoder.convert_pool.len()
+        );
+        // A geometry change enters a fresh slot length into the
+        // bounded rotation; decoding continues bit-exact.
+        let (outcome, sink) = decode_one(&mut decoder, vec![1; 400]);
+        assert_eq!(outcome, DecodeOutcome::Emitted { frames: 1 });
+        let reference =
+            decode_pcm(&[1; 400], source, 44_100).unwrap_or_else(|e| unreachable!("{e}"));
+        assert_eq!(
+            sink.frames[0].samples.as_slice(),
+            reference.samples.as_slice()
+        );
+        assert!(decoder.convert_pool.len() <= CONVERT_SLOTS);
+    }
+
+    #[test]
+    fn zero_copy_path_never_materializes_a_pool_slot() {
+        // The common shape (native byte order, whole packets — the
+        // committed corpus's s16le): the pool must stay empty and the
+        // frame must BE the packet's bytes (pointer identity).
+        let (mut decoder, generation) = configured("pcm_s16le", Some(waveformat(44_100)));
+        let bytes: Vec<u8> = (0..1470 * 4).map(|i| (i % 251) as u8).collect();
+        let packet = packet(bytes, generation);
+        let ptr = packet.data.as_slice().as_ptr();
+        let mut sink = Capture::default();
+        match decoder.decode(packet, &mut sink) {
+            Ok(DecodeOutcome::Emitted { frames: 1 }) => {}
+            other => unreachable!("{other:?}"),
+        }
+        assert!(decoder.convert_pool.is_empty(), "zero-copy path pooled");
+        assert_eq!(sink.frames[0].samples.as_slice().as_ptr(), ptr);
     }
 }
