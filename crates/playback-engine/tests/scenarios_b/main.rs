@@ -1,10 +1,19 @@
-//! Scenarios B — doc 10 §6.4 scenarios 9–16 (card 3.E2 part 2),
-//! driven through the command layer over the real engine.
+//! Scenarios B — doc 10 §6.4's complete §13 scenario list (cards
+//! 3.E1 + 3.E2), driven through the command layer over the real
+//! engine.
 //!
-//! The eight scenario modules each own one §6.4 row:
+//! The sixteen scenario modules each own one §6.4 row:
 //!
 //! | Module | Scenario | Pass criteria (doc 10 §6.4) |
 //! |---|---|---|
+//! | `scenario_01_open` | open | tracks/duration correct or typed error; never success-with-garbage |
+//! | `scenario_02_play` | play | first-frame event + samples flow; A/V stamps within tolerance |
+//! | `scenario_03_pause_resume` | pause / resume | zero samples while paused; resume at same media time |
+//! | `scenario_04_seek` | seek | `Seeked{actual}` within tolerance; no stale frames after completion |
+//! | `scenario_05_stop` | stop | teardown complete within deadline |
+//! | `scenario_06_repeated_seeks` | repeated seeks | no stale output ever; bounded memory; each completes or typed-fails |
+//! | `scenario_07_av_sync` | A/V sync | drift within doc 03 §4.10 tolerance at checkpoints |
+//! | `scenario_08_track_switching` | track switching | new track's first frame carries the switch generation; no old-track frames after |
 //! | `scenario_09_corrupt` | corrupt file | typed `Corrupt`; bounded recovery count; no hang/crash |
 //! | `scenario_10_missing` | missing file | typed `Inaccessible` with redacted message |
 //! | `scenario_11_interrupted_network` | interrupted network | `Buffering` → resume or typed error; no hang (deadlines fire) |
@@ -45,6 +54,14 @@ mod common;
 
 mod host;
 mod probe;
+mod scenario_01_open;
+mod scenario_02_play;
+mod scenario_03_pause_resume;
+mod scenario_04_seek;
+mod scenario_05_stop;
+mod scenario_06_repeated_seeks;
+mod scenario_07_av_sync;
+mod scenario_08_track_switching;
 mod scenario_09_corrupt;
 mod scenario_10_missing;
 mod scenario_11_interrupted_network;

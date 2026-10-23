@@ -81,7 +81,7 @@
 //! exact in-process (D-2: allocator-live-bytes deltas stand in for
 //! RSS, which is not measurable in-proc).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -111,14 +111,23 @@ use media_types::{
 use packet_queue::QueueLimits;
 use playback_engine::{
     CommandReceipt, DecoderProvider, Engine, EngineEventKind, EngineOutput, EngineStats,
-    EventPolicy, FrameConsumer, QueuePlan, ReceiptResult, SessionCommandKind, SessionConfig,
-    SessionError, SessionHandle, SessionState, TickBudget, TimeTickPolicy, track_info_wire,
-    wire_error_code, wire_stage,
+    EventPolicy, FrameConsumer, QueuePlan, ReceiptResult, SeekTarget, SessionCommandKind,
+    SessionConfig, SessionError, SessionHandle, SessionState, TickBudget, TimeTickPolicy,
+    TrackSelector, track_info_wire, wire_error_code, wire_stage,
 };
 use plugin_api::{Access, DemuxEvent, Demuxer, SeekOrigin, SourcePosition, SourceStream};
 use testkit::Must;
 
 use crate::common::{FakeProvider, SharedNow};
+
+/// A present stamp's ns (None when missing).
+fn stamp_ns(stamp: &media_types::Stamp) -> Option<i64> {
+    stamp
+        .timestamp()
+        .ok()
+        .and_then(|ts| ts.convert(&NANO_BASE).ok())
+        .map(|ts| ts.ticks)
+}
 
 /// The bounded await (the CLI host's own pacing constant).
 pub const AWAIT_PUMPS: usize = 64;
@@ -126,6 +135,11 @@ pub const AWAIT_PUMPS: usize = 64;
 /// The class-A parent fixture (MJPEG+PCM, 2.000 s, 320x240 @ 30 fps,
 /// stereo s16le 44.1 kHz — the first vertical's own fixture).
 pub const PARENT: &str = "generated/valid/avi_mjpeg_pcm.avi";
+
+/// The committed multi-track parent (W2-FIX-MT): 1 MJPEG video +
+/// 2 PCM audio streams (48 kHz stereo s16le + 44.1 kHz mono u8) —
+/// scenario 8's track-switching container.
+pub const MULTITRACK: &str = "generated/valid/avi_mjpeg_2pcm.avi";
 
 // ---------------------------------------------------------------------------
 // The scripted access source (scenario 11's local fake)
@@ -313,6 +327,18 @@ pub struct DropHooks {
     pub sink_drops: AtomicU64,
 }
 
+impl DropHooks {
+    /// Whether the demuxer half observed its drop.
+    pub fn demuxer_dropped(&self) -> bool {
+        self.demuxer_drops.load(std::sync::atomic::Ordering::Relaxed) > 0
+    }
+
+    /// Whether the sink half observed its drop.
+    pub fn sink_dropped(&self) -> bool {
+        self.sink_drops.load(std::sync::atomic::Ordering::Relaxed) > 0
+    }
+}
+
 /// A forwarding demuxer that counts its own drop (the demuxer-half
 /// drop hook — the engine owns the boxed stage, so its release is the
 /// counter's proof).
@@ -457,6 +483,11 @@ pub struct ObservingSink {
     last_pts_ns: AtomicU64,
     /// The vanish arm (device loss). `Some(error)` once armed.
     vanish: Mutex<Option<EngineError>>,
+    /// The bounded frame ring `(track, is-audio, pts-ns)` — the
+    /// stamp and stale-frame assertion surface for the A/V-sync and
+    /// track-switch scenarios. Capped; old entries roll out (D-2:
+    /// the sink never grows unboundedly).
+    frame_ring: Mutex<VecDeque<(u32, bool, i64)>>,
     /// The virtual monotonic source (the sample-counter stand-in).
     now: Arc<SharedNow>,
     /// The session clock (paused checks mirror the CLI's render
@@ -471,6 +502,44 @@ pub struct ObservingSink {
 }
 
 impl ObservingSink {
+    /// The frame ring's cap (D-2: bounded by construction).
+    const RING_CAP: usize = 1024;
+
+    /// Push one ring entry (accept-order, capped).
+    fn ring_push(&self, track: u32, audio: bool, pts_ns: i64) {
+        let mut ring = self
+            .frame_ring
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if ring.len() >= Self::RING_CAP {
+            ring.pop_front();
+        }
+        ring.push_back((track, audio, pts_ns));
+    }
+
+    /// The bounded frame ring's snapshot: `(track, is-audio, pts-ns)`
+    /// in accept order — the stamp/stale assertion surface (A/V
+    /// sync, track-switch boundaries).
+    pub fn frame_ring(&self) -> Vec<(u32, bool, i64)> {
+        self.frame_ring
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .iter()
+            .copied()
+            .collect()
+    }
+
+    /// The last ring pts of one track id (None before any).
+    pub fn last_pts_ns_of_track(&self, track: u32) -> Option<i64> {
+        self.frame_ring
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .iter()
+            .rev()
+            .find(|(id, _, _)| *id == track)
+            .map(|(_, _, pts)| *pts)
+    }
+
     /// A counting sink over `clock`/`now` with `pcm` facts.
     pub fn counting(
         now: Arc<SharedNow>,
@@ -484,6 +553,7 @@ impl ObservingSink {
             frames_while_vanished: AtomicU64::new(0),
             last_pts_ns: AtomicU64::new(0),
             vanish: Mutex::new(None),
+            frame_ring: Mutex::new(VecDeque::new()),
             now,
             clock,
             pcm,
@@ -585,10 +655,18 @@ impl FrameConsumer for ObservingSink {
                 .and_then(|ts| ts.convert(&NANO_BASE).map(|ts| ts.ticks))
             {
                 self.last_pts_ns.store(ns.max(0) as u64, Ordering::Relaxed);
+                self.ring_push(_track.handle(), true, ns);
             }
         } else {
             // Video limb: counted only (the clock stays the audio
-            // sample counter's truth — doc 03 §4.7).
+            // sample counter's truth — doc 03 §4.7) — but the stamp
+            // rides the ring (the A/V-sync assertion surface).
+            let Frame::Video(video) = &frame else {
+                unreachable!("the third frame kind never wires in v0");
+            };
+            if let Some(ns) = stamp_ns(&video.pts) {
+                self.ring_push(_track.handle(), false, ns);
+            }
         }
         self.frames_accepted.fetch_add(1, Ordering::Relaxed);
         Ok(())
@@ -1185,6 +1263,110 @@ impl ScenarioHost {
         self.await_receipt(request)
     }
 
+    /// Submit `playback.seek` with its target (the CLI
+    /// `dispatch_seek` shape, minus the CLI's audio ring — this
+    /// host's sink is the direct seam): map the wire target, submit,
+    /// answer the class-A receipt, then pump to the seek terminal
+    /// (`timing.seek-completed`/`-failed` — the first terminal after
+    /// submission is the live seek's, doc 05 §4.2).
+    fn dispatch_seek(
+        &mut self,
+        target: commands::catalog::types::SeekTarget,
+    ) -> Result<CommandOutcome<CommandResult>, CommandError> {
+        use commands::catalog::types::SeekTarget as WireTarget;
+        let engine_target = match target {
+            WireTarget::Absolute { time } => SeekTarget::Absolute {
+                position_ns: time.0.saturating_mul(1000),
+            },
+            WireTarget::Relative { delta_ms } => SeekTarget::Relative {
+                delta_ns: delta_ms.saturating_mul(1_000_000),
+            },
+            WireTarget::Percent { fraction } => SeekTarget::Percent { fraction },
+            WireTarget::Chapter { index } => {
+                return Err(CommandError::new(
+                    Stage::Session,
+                    ErrorCode::NotFound,
+                    format!(
+                        "no chapter {index}: AVI v0 carries no chapter markers \
+                         (the chapter card owns this)"
+                    ),
+                ));
+            }
+        };
+        let request = RequestId(self.next_request);
+        self.next_request += 1;
+        let terminal_from = self.events.len();
+        let handle = self
+            .wired
+            .as_ref()
+            .map(|wired| &wired.handle)
+            .ok_or_else(|| {
+                CommandError::new(Stage::Session, ErrorCode::NotReady, "no session open")
+            })?;
+        handle
+            .seek(request, engine_target)
+            .map_err(|error| session_error_wire(&error))?;
+        let receipt = self.await_receipt(request)?;
+        let outcome = self.receipt_outcome(receipt)?;
+        let landed = self.pump_pipeline_until(|host| {
+            host.events[terminal_from..]
+                .iter()
+                .any(|event| is_seek_terminal(&event.kind))
+        });
+        if !landed {
+            return Err(CommandError::new(
+                Stage::Control,
+                ErrorCode::Internal,
+                "the engine never reported the seek terminal (bounded wait expired)",
+            ));
+        }
+        Ok(outcome)
+    }
+
+    /// Submit `tracks.set-audio-track`/`tracks.set-video-track`
+    /// (card 3.A3's command-layer composition): map the selector,
+    /// submit, answer the class-A receipt, then pump to the switch
+    /// completion terminal (`tracks.changed` under the post-bump
+    /// generation).
+    fn dispatch_set_track(
+        &mut self,
+        kind: SessionCommandKind,
+        selector: commands::catalog::types::TrackSelector,
+    ) -> Result<CommandOutcome<CommandResult>, CommandError> {
+        use commands::catalog::types::TrackSelector as WireSelector;
+        let engine_selector = match selector {
+            WireSelector::Id { id } => TrackSelector::Id {
+                id: media_types::TrackId::new(id.0),
+            },
+            WireSelector::None => TrackSelector::None,
+            WireSelector::Auto => {
+                return Err(CommandError::new(
+                    Stage::Session,
+                    ErrorCode::InvalidArgument,
+                    "Auto selection is the subtitle-only form (§2.5) — \
+                     audio/video take Id or None",
+                ));
+            }
+        };
+        let request = RequestId(self.next_request);
+        self.next_request += 1;
+        let handle = self
+            .wired
+            .as_ref()
+            .map(|wired| &wired.handle)
+            .ok_or_else(|| {
+                CommandError::new(Stage::Session, ErrorCode::NotReady, "no session open")
+            })?;
+        let submit = || match kind {
+            SessionCommandKind::SelectVideo => handle.set_video_track(request, engine_selector),
+            SessionCommandKind::SelectAudio => handle.set_audio_track(request, engine_selector),
+            other => unreachable!("dispatch_set_track owns the two selector kinds, got {other:?}"),
+        };
+        submit().map_err(|error| session_error_wire(&error))?;
+        let receipt = self.await_receipt(request)?;
+        self.receipt_outcome(receipt)
+    }
+
     /// Await one submitted command's receipt (bounded pipeline-only
     /// pumps).
     fn await_receipt(&mut self, request: RequestId) -> Result<CommandReceipt, CommandError> {
@@ -1655,10 +1837,33 @@ fn route(
         Command::TracksList => Ok(CommandOutcome::Completed(CommandResult::TrackList {
             tracks: host.tracks_wire.clone(),
         })),
-        // The scenarios this suite owns need no seek; the real host's
-        // seek composition stays the first-vertical suite's evidence.
+        // The seek and track-switch compositions (3.E1's scenarios
+        // 4/6/8): the CLI `dispatch_seek` shape minus its audio ring
+        // (this host's sink is the direct seam), and card 3.A3's
+        // selector kinds.
+        Command::PlaybackSeek { target } => host.dispatch_seek(*target),
+        Command::PlaybackSetPosition { fraction } => host
+            .dispatch_seek(commands::catalog::types::SeekTarget::Percent {
+                fraction: *fraction,
+            }),
+        Command::TracksSetAudioTrack { selector } => {
+            host.dispatch_set_track(SessionCommandKind::SelectAudio, selector.clone())
+        }
+        Command::TracksSetVideoTrack { selector } => {
+            host.dispatch_set_track(SessionCommandKind::SelectVideo, selector.clone())
+        }
         other => Err(unserved(other)),
     }
+}
+
+/// The seek terminal test (the first terminal after submission is the
+/// live seek's — a superseded seek is silent by contract, doc 05
+/// §4.2).
+fn is_seek_terminal(kind: &EventKind) -> bool {
+    matches!(
+        kind,
+        EventKind::TimingSeekCompleted { .. } | EventKind::TimingSeekFailed { .. }
+    )
 }
 
 /// The typed refusal for a command this local host does not serve
