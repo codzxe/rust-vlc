@@ -429,7 +429,7 @@ fn track(id: u32, kind: MediaKind) -> Track {
 fn source_tracks(k: u32) -> Vec<Track> {
     if k.is_multiple_of(10) {
         vec![track(1, MediaKind::Video)]
-    } else if k % 2 == 0 {
+    } else if k.is_multiple_of(2) {
         vec![track(1, MediaKind::Audio)]
     } else {
         vec![track(1, MediaKind::Video), track(2, MediaKind::Audio)]
@@ -784,7 +784,7 @@ fn fifty_rapid_switches_with_in_flight_seeks() {
                 },
             )
             .must();
-        if k % 2 == 0 {
+        if k.is_multiple_of(2) {
             harness.pump_until_seeked_and_playing(k);
             let tail = harness.poll_and_check(k);
             assert_eq!(tail.seeked, 0, "switch {k}: a second terminal");
@@ -823,16 +823,18 @@ fn fifty_rapid_switches_with_in_flight_seeks() {
         let suppressed = after.suppressed_stale_events - before.suppressed_stale_events;
         if k == 0 {
             assert_eq!(suppressed, 0, "the first open closes nothing");
-        } else if k % 2 == 0 {
+        } else if k.is_multiple_of(2) {
             assert_eq!(
-                suppressed, 3,
+                suppressed,
+                3,
                 "switch {k}: the mid-seek Buffering departure (window {}) \
                  suppresses bookend + stopped + idle",
                 k - 1
             );
         } else {
             assert_eq!(
-                suppressed, 2,
+                suppressed,
+                2,
                 "switch {k}: the Playing departure (window {}) suppresses \
                  stopped + idle",
                 k - 1
@@ -859,7 +861,7 @@ fn fifty_rapid_switches_with_in_flight_seeks() {
         let preroll = after.preroll_frames_discarded - before.preroll_frames_discarded;
         if k == 0 {
             assert_eq!(preroll, 0, "the first window discards nothing");
-        } else if k % 2 == 0 {
+        } else if k.is_multiple_of(2) {
             assert!(
                 preroll > 0,
                 "switch {k}: window {}'s superseded seek held pre-roll \
@@ -898,8 +900,14 @@ fn fifty_rapid_switches_with_in_flight_seeks() {
 
     // The soak really played, both seek flavors ran, and the engine's
     // counter agrees with the sink across all 51 epochs.
-    assert_eq!(completed_seeks, 26, "even windows 0..=50 completed their seeks");
-    assert_eq!(superseded_seeks, 25, "odd windows 1..=49 were cut off mid-seek");
+    assert_eq!(
+        completed_seeks, 26,
+        "even windows 0..=50 completed their seeks"
+    );
+    assert_eq!(
+        superseded_seeks, 25,
+        "odd windows 1..=49 were cut off mid-seek"
+    );
     assert_eq!(harness.engine.state(), SessionState::Playing);
     assert_eq!(
         harness.engine.stats().frames_delivered,
@@ -1034,7 +1042,10 @@ fn teardown_orders_token_decoders_demuxer_and_drains_by_drop() {
     assert_eq!(second.session_id(), SessionId(2));
 
     // The token: interrupted, and stale for the pair it published.
-    assert!(old_token.interrupted(), "DestroySession interrupts the token");
+    assert!(
+        old_token.interrupted(),
+        "DestroySession interrupts the token"
+    );
     assert!(
         old_token.is_stale(&old_pair),
         "the mint + interrupt make the old pair stale"
@@ -1197,7 +1208,7 @@ fn memory_stays_bounded_across_the_seek_interleaved_switches() {
                 },
             )
             .must();
-        if k % 2 == 0 {
+        if k.is_multiple_of(2) {
             harness.pump_until_seeked_and_playing(k);
         } else {
             // The same cut-off shape as the AC test: starved audio

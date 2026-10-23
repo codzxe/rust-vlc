@@ -39,6 +39,23 @@
 //! **suppressed** at drain time — the engine-side half of doc 05
 //! §4.2's staleness rule — while receipts always survive.
 
+//! # Source replacement (card 3.A2, W5R-03 re-proof)
+//!
+//! [`Engine::open`] on a live session is play-new-while-playing: the
+//! implicit close through existing table rows, the epoch bump, the
+//! doc 03 §5 teardown order, and the cross-epoch staleness rule. The
+//! wave-3 `replacement`/`replacement_alloc` suites pin the base flow;
+//! the W5R-03 relaunch re-proved the acceptance criteria on the
+//! hardest shape in `tests/source_swap.rs` — 50 switches with every
+//! window interleaving a seek (completed and cut-off-mid-flight with
+//! a non-empty pre-roll hold), one-packet-latency decoders holding an
+//! undelivered frame at every generation boundary, a zero-poll switch
+//! storm, the teardown-ordering journal (decoders drop before the
+//! demuxer; teardown never solicits decoder output — the stale drain
+//! is drop-by-construction), and the bounded-memory soak under the
+//! testkit counting allocator (band/creep/churn pinned from
+//! measurement).
+
 use std::collections::VecDeque;
 use std::fmt;
 use std::sync::Arc;
@@ -980,11 +997,14 @@ impl Engine {
     ///   `BumpPipeline` mints the old epoch's final generation (every
     ///   stage-held `CancelToken` answers stale from here),
     ///   `TeardownPipeline` flushes + closes every queue, drops the
-    ///   limbs (decoders die with their reorder buffers), the held
-    ///   demux packet, and the in-flight seek slot (doc 05 §4.2: a
-    ///   generation that never completed owes no terminal). Emits
-    ///   `state-changed → stopped` (a mid-episode `Buffering` stop
-    ///   closes its episode with the 1.0 bookend first).
+    ///   limbs (decoders die with their reorder buffers — **no
+    ///   decoder output is solicited at teardown**, so a latency-held
+    ///   frame cannot leak; the W5R-03 `source_swap` journal pins
+    ///   this), the held demux packet, and the in-flight seek slot
+    ///   (doc 05 §4.2: a generation that never completed owes no
+    ///   terminal). Emits `state-changed → stopped` (a mid-episode
+    ///   `Buffering` stop closes its episode with the 1.0 bookend
+    ///   first).
     /// - **R3** — apply `Close` (from `Stopped`, or directly from
     ///   `Opening`/`Ended`/`Stopped`/`Error`): the row's
     ///   `DestroySession` interrupts the token and drops the
