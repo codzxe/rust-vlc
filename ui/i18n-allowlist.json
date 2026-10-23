@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "text": "ON",
+    "reason": "Toggle.svg micro-label glyph (doc 08 §1.3 row 4.4/§1.5) — decorative artwork inside aria-hidden track, not translatable copy; switch state is conveyed by aria-checked",
+    "owner": "4.B1"
+  },
+  {
+    "text": "OFF",
+    "reason": "Toggle.svg micro-label glyph (doc 08 §1.3 row 4.4/§1.5) — decorative artwork inside aria-hidden track, not translatable copy; switch state is conveyed by aria-checked",
+    "owner": "4.B1"
+  }
+]

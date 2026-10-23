@@ -10,6 +10,7 @@ steppers, §2/§4.4 interim states. Enforced by colocated tests.
 |---|---|---|
 | rest | `--color-surface-deep` fill, 2px `--color-surface` stroke, `--radius-control` | class `lumen-field__control` |
 | hover | `--color-surface-hover` fill | `:hover` |
+| pressed | `--color-surface-selected` fill | `:active` (§4.4 closure 2026-10-24) |
 | focus-visible | 2px `--color-accent` ring, 2px offset | `:focus-visible` |
 | disabled | `--opacity-disabled` + pointer-events none | `:disabled` |
 | error | `--color-record` stroke + caption message; `aria-invalid` + `aria-describedby` | `[aria-invalid="true"]` |
@@ -34,6 +35,32 @@ per-option disabled supported.
 
 Re-export of the button family's `Toggle` (doc 08 §1.5 ships a single
 Toggle.svg; §4.5 assigns it the `switch` role) — see ../button/states.md.
+
+## §4.4 state-matrix audit (closure, 2026-10-24)
+
+Doc 08 §4.4: "Every interactive primitive implements: rest, hover,
+active/pressed, focus-visible, disabled, and where relevant selected, checked,
+open, dragging, pending (§5)."
+
+- rest/hover/pressed/focus-visible/disabled: present on every interactive
+  control — field controls + steppers (`:active` → surface-selected) and
+  choice rows (`:active` → accent-icon, IconButton's pressed language) gained
+  pressed skins in the closure commit; enforced by the CSS-token tests in
+  TextField.test.tsx.
+- checked: Checkbox/Radio via native `accent-color`; Switch via Toggle.
+- selected: RadioGroup selection = roving tabindex + `aria-checked`
+  (Radio.tsx) — no separate visual skin pending a radio export in the design
+  package.
+- open/dragging: N/A for value-entry primitives.
+- **pending/loading on form inputs: NOT required by the doc** — §4.4 scopes
+  pending to "where relevant (§5)", and §5's pending states (PlayButton
+  command dispatch, SeekBar pending seek, VolumeControl mute-pending,
+  TrackMenu disabled-while-loading, PlaylistPanel reorder-pending, dialog
+  Save-pending) all belong to command-dispatching components. Form inputs
+  dispatch no engine commands; a loading skin here would be fabricated state
+  (MP §2). Recorded so the next auditor doesn't re-derive it.
+- error: beyond the matrix — wired per §5.4 adjacency (typed errors render,
+  never throw).
 
 ## Honest gaps (next sessions)
 

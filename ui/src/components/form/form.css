@@ -40,6 +40,11 @@
   background: var(--color-surface-hover);
 }
 
+/* pressed (doc 08 §4.4 matrix: every interactive primitive) */
+.lumen-field__control:active {
+  background: var(--color-surface-selected);
+}
+
 .lumen-field__control:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
@@ -108,6 +113,10 @@
   color: var(--color-content-bright);
 }
 
+.lumen-number__stepper:active {
+  background: var(--color-surface-selected);
+}
+
 .lumen-number__stepper:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
@@ -132,6 +141,11 @@
 
 .lumen-choice:hover {
   color: var(--color-content-bright);
+}
+
+/* pressed (doc 08 §4.4) — IconButton's accent-icon pressed language */
+.lumen-choice:active {
+  color: var(--color-accent-icon);
 }
 
 .lumen-choice__input {

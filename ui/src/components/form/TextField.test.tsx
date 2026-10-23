@@ -1,7 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+// @ts-expect-error node:fs is untyped in ui/ (no @types/node; zero-new-deps rule, card 4.B1) — vitest runs on Node, so the runtime import is sound.
+import { readFileSync } from "node:fs";
 import { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { TextField } from "./TextField";
+
+const { dirname } = import.meta as ImportMeta & { dirname?: string };
+const formCss = readFileSync(`${dirname}/form.css`, "utf8");
 
 describe("TextField", () => {
   it("wires label, input and typing", () => {
@@ -46,5 +51,23 @@ describe("TextField", () => {
     const { container } = render(<TextField ref={ref} label="Snapshot" error="boom" />);
     expect(ref.current).toBeInstanceOf(HTMLInputElement);
     expect(container.firstChild).toMatchSnapshot();
+  });
+});
+
+describe("Form-control state matrix consumes semantic tokens (doc 08 §4.4)", () => {
+  // §4.4 audit closure (states.md): rest/hover/pressed/focus-visible/disabled
+  // all present on every interactive form control; pending NOT required —
+  // §4.4 scopes it "where relevant (§5)" and §5's pending states belong to
+  // command-dispatching components, not value-entry primitives.
+  it("control: hover, pressed, focus-visible, disabled all styled via tokens", () => {
+    expect(formCss).toMatch(/\.lumen-field__control:hover\s*\{[^}]*--color-surface-hover/);
+    expect(formCss).toMatch(/\.lumen-field__control:active\s*\{[^}]*--color-surface-selected/);
+    expect(formCss).toMatch(/\.lumen-field__control:focus-visible\s*\{[^}]*--color-accent/);
+    expect(formCss).toMatch(/\.lumen-field__control:disabled\s*\{[^}]*--opacity-disabled/);
+  });
+
+  it("steppers and choice rows carry pressed too (buttons/labels are interactive)", () => {
+    expect(formCss).toMatch(/\.lumen-number__stepper:active\s*\{[^}]*--color-surface-selected/);
+    expect(formCss).toMatch(/\.lumen-choice:active\s*\{[^}]*--color-accent-icon/);
   });
 });
