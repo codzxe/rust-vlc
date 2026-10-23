@@ -61,6 +61,13 @@ describe("Toggle (doc 08 §4.5: role=switch)", () => {
     expect(container.querySelector(".lumen-toggle__fill")).toBeInTheDocument();
   });
 
+  it("renders decorative ON/OFF micro labels, hidden from the a11y tree", () => {
+    render(<Toggle checked={false} onChange={() => {}} />);
+    // decorative per states.md: checked state is conveyed by aria-checked alone
+    expect(screen.getByText("ON").closest("[aria-hidden='true']")).toBeTruthy();
+    expect(screen.getByText("OFF").closest("[aria-hidden='true']")).toBeTruthy();
+  });
+
   it("DOM snapshot (on and off)", () => {
     const off = render(<Toggle checked={false} onChange={() => {}} />);
     expect(off.container.firstChild).toMatchSnapshot("toggle-off");
@@ -86,6 +93,13 @@ describe("Toggle state styling consumes semantic tokens (Toggle.svg)", () => {
 
   it("off knob: surface-muted per Toggle.svg", () => {
     expect(cssRule(".lumen-toggle__knob")).toContain("background: var(--color-surface-muted)");
+  });
+
+  it("micro labels: font-size-micro, on=accent, off=content-tertiary (doc 08 §1.3/§1.5)", () => {
+    const label = cssRule(".lumen-toggle__label");
+    expect(label).toContain("font-size: var(--font-size-micro)");
+    expect(cssRule(".lumen-toggle__label--on")).toContain("color: var(--color-accent)");
+    expect(cssRule(".lumen-toggle__label--off")).toContain("color: var(--color-content-tertiary)");
   });
 
   it("focus-visible: accent ring from tokens", () => {

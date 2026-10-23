@@ -15,7 +15,10 @@ export interface ToggleProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
  * `switch` carries checked state, not `aria-pressed`; deviation from the
  * task-card blurb recorded in states.md). Geometry per Toggle.svg: 68x32 rx6
  * track; ON: 33x26 accent-tinted fill + 26x26 rx3 accent-strong knob right;
- * OFF: surface-muted knob left.
+ * OFF: surface-muted knob left. Micro labels (doc 08 §1.3 row 4.4, §1.5):
+ * "ON" in the fill (accent), "OFF" right of the knob (content-tertiary),
+ * --font-size-micro — decorative (aria-hidden): the switch's checked state
+ * is already conveyed by aria-checked.
  */
 export const Toggle = forwardRef<HTMLButtonElement, ToggleProps>(
   ({ checked, onChange, disabled, type = "button", className = "", onClick, ...rest }, ref) => (
@@ -33,8 +36,13 @@ export const Toggle = forwardRef<HTMLButtonElement, ToggleProps>(
       }}
       {...rest}
     >
-      <span className="lumen-toggle__fill" aria-hidden="true" />
+      <span className="lumen-toggle__fill" aria-hidden="true">
+        <span className="lumen-toggle__label lumen-toggle__label--on">ON</span>
+      </span>
       <span className="lumen-toggle__knob" aria-hidden="true" />
+      <span className="lumen-toggle__label lumen-toggle__label--off" aria-hidden="true">
+        OFF
+      </span>
     </button>
   ),
 );
