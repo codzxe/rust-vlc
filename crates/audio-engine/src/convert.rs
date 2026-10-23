@@ -99,25 +99,29 @@ fn f64_at(data: &[u8], i: usize) -> f32 {
 /// Fill the planes from **interleaved** `data`, one monomorphic
 /// instantiation per format: the format `match` is hoisted out of the
 /// sample loops (D-2 — branch-free inner loops, no per-sample
-/// division, vectorizable).
+/// division, vectorizable). Plane-major with a `step_by` walk: each
+/// plane is written sequentially (the planes are pre-sized — no
+/// per-sample `push` capacity bookkeeping) and the zip bounds both
+/// iterators exactly at `frames` (no indexed-write bounds checks).
 macro_rules! decode_interleaved {
     ($planes:expr, $data:expr, $frames:expr, $frame_bytes:expr, $bps:expr, $decode:ident) => {
-        for f in 0..$frames {
-            for (c, plane) in $planes.iter_mut().enumerate() {
-                plane.push($decode($data, f * $frame_bytes + c * $bps));
+        for (c, plane) in $planes.iter_mut().enumerate() {
+            for (slot, at) in plane.iter_mut().zip((c * $bps..).step_by($frame_bytes)) {
+                *slot = $decode($data, at);
             }
         }
     };
 }
 
 /// Fill the planes from **planar** `data` (same monomorphic-per-format
-/// discipline as [`decode_interleaved`]).
+/// discipline as [`decode_interleaved`]): each plane's source segment
+/// is a contiguous slice, walked with the same zip+`step_by` shape.
 macro_rules! decode_planar {
     ($planes:expr, $data:expr, $frames:expr, $bps:expr, $plane_bytes:expr, $decode:ident) => {
         for (c, plane) in $planes.iter_mut().enumerate() {
-            let base = c * $plane_bytes;
-            for f in 0..$frames {
-                plane.push($decode($data, base + f * $bps));
+            let seg = &$data[c * $plane_bytes..(c + 1) * $plane_bytes];
+            for (slot, at) in plane.iter_mut().zip((0..).step_by($bps)) {
+                *slot = $decode(seg, at);
             }
         }
     };
@@ -156,8 +160,28 @@ pub fn frame_to_f32_planes(
     // outer Vec or drops surplus planes — allocation only there.
     planes.resize_with(fmt.channels as usize, Vec::new);
     for plane in planes.iter_mut() {
-        plane.clear();
-        plane.reserve(frames);
+        // Pre-size each plane to the exact frame count (a plain
+        // `clear` + `reserve` + per-sample `push` pays a capacity
+        // bookkeeping check per sample; `resize` reuses the retained
+        // allocation and hands the loops raw slots — W5-19).
+        plane.resize(frames, 0.0);
+    }
+    // The s16 stereo interleaved fast path (the first vertical's own
+    // shape, and the dominant real-world one): whole-frame 4-byte
+    // chunks, both channels converted in one pass. Byte-identical to
+    // the generic path below (same `f32::from(i16) · S16_RECIP`
+    // arithmetic per sample) — pinned by the differential test.
+    if fmt.layout == AudioLayout::Interleaved
+        && fmt.sample == SampleFormat::S16
+        && fmt.channels == 2
+    {
+        let (quads, _) = data.as_chunks::<4>();
+        for (f, quad) in quads.iter().enumerate() {
+            let [l0, l1, r0, r1] = *quad;
+            planes[0][f] = f32::from(i16::from_le_bytes([l0, l1])) * S16_RECIP;
+            planes[1][f] = f32::from(i16::from_le_bytes([r0, r1])) * S16_RECIP;
+        }
+        return Ok(frames);
     }
     match fmt.layout {
         AudioLayout::Interleaved => match fmt.sample {
@@ -239,11 +263,15 @@ pub fn planes_to_f32_interleaved_into(
     if out.len() != needed {
         return Err(error::partial_frame(needed as u64, out.len() as u64));
     }
-    let mut at = 0usize;
-    for f in 0..frames {
-        for plane in planes {
-            out[at..at + 4].copy_from_slice(&plane[f].to_le_bytes());
-            at += 4;
+    // One whole sample-frame per outer step: `chunks_exact_mut`
+    // bounds the frame stride once and the inner `as_chunks_mut`
+    // hands the loop exact 4-byte quads (the `to_le_bytes` mirror) —
+    // no per-sample arithmetic on `at` (W5-19; byte-identical
+    // writes).
+    let stride = channels as usize * 4;
+    for (f, frame) in out.chunks_exact_mut(stride).enumerate() {
+        for (plane, quad) in planes.iter().zip(frame.as_chunks_mut::<4>().0.iter_mut()) {
+            quad.copy_from_slice(&plane[f].to_le_bytes());
         }
     }
     Ok(())
@@ -511,5 +539,44 @@ mod tests {
         assert_eq!(err.context.code, "audio.planar_plane_mismatch");
         let err = planes_to_s16_interleaved(&planes, &mut out).err().must();
         assert_eq!(err.context.code, "audio.planar_plane_mismatch");
+    }
+
+    #[test]
+    fn s16_stereo_fast_path_is_bit_identical_to_the_generic_loop() {
+        // Differential bit-exactness proof for the W5-19 fast path:
+        // the whole-frame chunk loop must produce exactly the planes
+        // the generic plane-major `step_by` walk produces, over
+        // adversarial lengths and pseudo-random content (the sine-hash
+        // ACs pin the end-to-end bytes; this pins the branch itself).
+        let mut seed = 0xfeed_face_cafe_babe_u64;
+        let mut next = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        for frames in [0usize, 1, 2, 3, 1470, 4096] {
+            let bytes: Vec<u8> = (0..frames * 4).map(|_| (next() & 0xff) as u8).collect();
+            let frame = frame_of(
+                SampleFormat::S16,
+                AudioLayout::Interleaved,
+                2,
+                bytes.clone(),
+            );
+            // The production path (fast path taken).
+            let mut fast = Vec::new();
+            let got = frame_to_f32_planes(&frame, &mut fast).must();
+            assert_eq!(got, frames);
+            // The generic reference: the same arithmetic per sample,
+            // walked frame-major by hand.
+            let mut reference: Vec<Vec<f32>> = vec![Vec::new(), Vec::new()];
+            for f in 0..frames {
+                let l = i16::from_le_bytes([bytes[f * 4], bytes[f * 4 + 1]]);
+                let r = i16::from_le_bytes([bytes[f * 4 + 2], bytes[f * 4 + 3]]);
+                reference[0].push(f32::from(l) * S16_RECIP);
+                reference[1].push(f32::from(r) * S16_RECIP);
+            }
+            assert_eq!(fast, reference, "frames {frames}");
+        }
     }
 }
