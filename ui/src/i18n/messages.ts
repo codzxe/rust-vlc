@@ -99,7 +99,154 @@ export type MessageKey =
   | "settings.value.playback-subtitle-mode.off"
   | "settings.value.playback-hw-decode-policy.software-only"
   | "settings.value.playback-hw-decode-policy.prefer-hardware"
-  | "settings.value.playback-hw-decode-policy.hardware-only";
+  | "settings.value.playback-hw-decode-policy.hardware-only"
+  | "settings.area.hotkeys"
+  | "settings.section.hotkeys.bindings"
+  | "settings.hotkeys.column.action"
+  | "settings.hotkeys.column.key"
+  | "settings.hotkeys.column.command"
+  | "settings.hotkeys.column.mode"
+  | "settings.hotkeys.conflict"
+  | "settings.hotkeys.edit-hint"
+  | "settings.hotkeys.reset"
+  | "settings.hotkeys.apply"
+  | "settings.hotkeys.revert"
+  | "settings.hotkeys.defaults-note"
+  | "settings.locale.en-US"
+  | "settings.appearance.theme-note"
+  | "hotkeys.about"
+  | "hotkeys.advanced-controls"
+  | "hotkeys.aspect-ratio-cycle"
+  | "hotkeys.audio-delay-down"
+  | "hotkeys.audio-delay-up"
+  | "hotkeys.audio-device-cycle"
+  | "hotkeys.audio-track-cycle"
+  | "hotkeys.autoscale-toggle"
+  | "hotkeys.bookmarks"
+  | "hotkeys.chapter-next"
+  | "hotkeys.chapter-prev"
+  | "hotkeys.clear-playlist"
+  | "hotkeys.codec-info"
+  | "hotkeys.convert"
+  | "hotkeys.crop-cycle"
+  | "hotkeys.crop-one-px-bottom"
+  | "hotkeys.crop-one-px-left"
+  | "hotkeys.crop-one-px-right"
+  | "hotkeys.crop-one-px-top"
+  | "hotkeys.deinterlace-mode-cycle"
+  | "hotkeys.deinterlace-toggle"
+  | "hotkeys.disc-menu"
+  | "hotkeys.dock-playlist"
+  | "hotkeys.effects-and-filters"
+  | "hotkeys.exit-fullscreen"
+  | "hotkeys.file-browser-toggle"
+  | "hotkeys.frame-next"
+  | "hotkeys.frame-prev"
+  | "hotkeys.fullscreen"
+  | "hotkeys.hide-ui"
+  | "hotkeys.history-back"
+  | "hotkeys.jump-to-time"
+  | "hotkeys.load-playlist"
+  | "hotkeys.media-info"
+  | "hotkeys.messages"
+  | "hotkeys.minimal-view"
+  | "hotkeys.mute"
+  | "hotkeys.nav-activate"
+  | "hotkeys.nav-down"
+  | "hotkeys.nav-left"
+  | "hotkeys.nav-right"
+  | "hotkeys.nav-up"
+  | "hotkeys.next-item"
+  | "hotkeys.next-track"
+  | "hotkeys.open-capture-device"
+  | "hotkeys.open-disc"
+  | "hotkeys.open-file"
+  | "hotkeys.open-folder"
+  | "hotkeys.open-location-clipboard"
+  | "hotkeys.open-network-stream"
+  | "hotkeys.pause"
+  | "hotkeys.play"
+  | "hotkeys.play-bookmark-1"
+  | "hotkeys.play-bookmark-10"
+  | "hotkeys.play-bookmark-2"
+  | "hotkeys.play-bookmark-3"
+  | "hotkeys.play-bookmark-4"
+  | "hotkeys.play-bookmark-5"
+  | "hotkeys.play-bookmark-6"
+  | "hotkeys.play-bookmark-7"
+  | "hotkeys.play-bookmark-8"
+  | "hotkeys.play-bookmark-9"
+  | "hotkeys.play-pause"
+  | "hotkeys.playlist-panel"
+  | "hotkeys.preferences"
+  | "hotkeys.prev-item"
+  | "hotkeys.prev-track"
+  | "hotkeys.program-next"
+  | "hotkeys.program-prev"
+  | "hotkeys.queue-toggle"
+  | "hotkeys.quit"
+  | "hotkeys.rate-faster"
+  | "hotkeys.rate-faster-fine"
+  | "hotkeys.rate-normal"
+  | "hotkeys.rate-slower"
+  | "hotkeys.rate-slower-fine"
+  | "hotkeys.record"
+  | "hotkeys.save-playlist"
+  | "hotkeys.scale-down"
+  | "hotkeys.scale-up"
+  | "hotkeys.seek-backward"
+  | "hotkeys.seek-backward-extrashort"
+  | "hotkeys.seek-backward-long"
+  | "hotkeys.seek-backward-medium"
+  | "hotkeys.seek-forward"
+  | "hotkeys.seek-forward-extrashort"
+  | "hotkeys.seek-forward-long"
+  | "hotkeys.seek-forward-medium"
+  | "hotkeys.set-bookmark-1"
+  | "hotkeys.set-bookmark-10"
+  | "hotkeys.set-bookmark-2"
+  | "hotkeys.set-bookmark-3"
+  | "hotkeys.set-bookmark-4"
+  | "hotkeys.set-bookmark-5"
+  | "hotkeys.set-bookmark-6"
+  | "hotkeys.set-bookmark-7"
+  | "hotkeys.set-bookmark-8"
+  | "hotkeys.set-bookmark-9"
+  | "hotkeys.show-controls-fullscreen"
+  | "hotkeys.show-position"
+  | "hotkeys.shuffle"
+  | "hotkeys.snapshot"
+  | "hotkeys.stop"
+  | "hotkeys.subsync-apply"
+  | "hotkeys.subsync-mark-audio"
+  | "hotkeys.subsync-mark-sub"
+  | "hotkeys.subsync-reset"
+  | "hotkeys.subtitle-delay-down"
+  | "hotkeys.subtitle-delay-up"
+  | "hotkeys.subtitle-scale-down"
+  | "hotkeys.subtitle-scale-normal"
+  | "hotkeys.subtitle-scale-up"
+  | "hotkeys.subtitle-toggle"
+  | "hotkeys.subtitle-track-cycle"
+  | "hotkeys.subtitle-track-cycle-reverse"
+  | "hotkeys.title-next"
+  | "hotkeys.title-prev"
+  | "hotkeys.uncrop-one-px-bottom"
+  | "hotkeys.uncrop-one-px-left"
+  | "hotkeys.uncrop-one-px-right"
+  | "hotkeys.uncrop-one-px-top"
+  | "hotkeys.unzoom"
+  | "hotkeys.viewpoint-fov-in"
+  | "hotkeys.viewpoint-fov-out"
+  | "hotkeys.vlm"
+  | "hotkeys.volume-down"
+  | "hotkeys.volume-up"
+  | "hotkeys.wallpaper"
+  | "hotkeys.zoom-cycle"
+  | "hotkeys.zoom-double"
+  | "hotkeys.zoom-half"
+  | "hotkeys.zoom-original"
+  | "hotkeys.zoom-quarter";
 
 const messages: Readonly<Record<MessageKey, string>> = {
   "screen.player": "Player",
@@ -191,6 +338,156 @@ const messages: Readonly<Record<MessageKey, string>> = {
   "settings.value.playback-hw-decode-policy.software-only": "Software only",
   "settings.value.playback-hw-decode-policy.prefer-hardware": "Prefer hardware",
   "settings.value.playback-hw-decode-policy.hardware-only": "Hardware only",
+  // Hotkeys editor + settings-area extensions (card 4.E2). Copy for the
+  // hotkeys.* rows is derived from the keymaps/default.toml label-msgids —
+  // replace with reference-catalog copy when the i18n pipeline lands (doc 07 §6).
+  "settings.area.hotkeys": "Hotkeys",
+  "settings.section.hotkeys.bindings": "Keyboard shortcuts",
+  "settings.hotkeys.column.action": "Action",
+  "settings.hotkeys.column.key": "Key",
+  "settings.hotkeys.column.command": "Command",
+  "settings.hotkeys.column.mode": "Mode",
+  "settings.hotkeys.conflict": "Key combination already in use",
+  "settings.hotkeys.edit-hint": "Type a key combination, e.g. Ctrl+K",
+  "settings.hotkeys.reset": "Reset to default",
+  "settings.hotkeys.apply": "Apply",
+  "settings.hotkeys.revert": "Revert",
+  "settings.hotkeys.defaults-note": "Bindings are seeded from the default keymap (keymaps/default.toml).",
+  "settings.locale.en-US": "English (United States)",
+  "settings.appearance.theme-note": "Theme changes apply instantly for preview.",
+  "hotkeys.about": "About",
+  "hotkeys.advanced-controls": "Advanced Controls",
+  "hotkeys.aspect-ratio-cycle": "Aspect Ratio Cycle",
+  "hotkeys.audio-delay-down": "Audio Delay Down",
+  "hotkeys.audio-delay-up": "Audio Delay Up",
+  "hotkeys.audio-device-cycle": "Audio Device Cycle",
+  "hotkeys.audio-track-cycle": "Audio Track Cycle",
+  "hotkeys.autoscale-toggle": "Autoscale Toggle",
+  "hotkeys.bookmarks": "Bookmarks",
+  "hotkeys.chapter-next": "Chapter Next",
+  "hotkeys.chapter-prev": "Chapter Prev",
+  "hotkeys.clear-playlist": "Clear Playlist",
+  "hotkeys.codec-info": "Codec Info",
+  "hotkeys.convert": "Convert",
+  "hotkeys.crop-cycle": "Crop Cycle",
+  "hotkeys.crop-one-px-bottom": "Crop One Px Bottom",
+  "hotkeys.crop-one-px-left": "Crop One Px Left",
+  "hotkeys.crop-one-px-right": "Crop One Px Right",
+  "hotkeys.crop-one-px-top": "Crop One Px Top",
+  "hotkeys.deinterlace-mode-cycle": "Deinterlace Mode Cycle",
+  "hotkeys.deinterlace-toggle": "Deinterlace Toggle",
+  "hotkeys.disc-menu": "Disc Menu",
+  "hotkeys.dock-playlist": "Dock Playlist",
+  "hotkeys.effects-and-filters": "Effects And Filters",
+  "hotkeys.exit-fullscreen": "Exit Fullscreen",
+  "hotkeys.file-browser-toggle": "File Browser Toggle",
+  "hotkeys.frame-next": "Frame Next",
+  "hotkeys.frame-prev": "Frame Prev",
+  "hotkeys.fullscreen": "Fullscreen",
+  "hotkeys.hide-ui": "Hide Ui",
+  "hotkeys.history-back": "History Back",
+  "hotkeys.jump-to-time": "Jump To Time",
+  "hotkeys.load-playlist": "Load Playlist",
+  "hotkeys.media-info": "Media Info",
+  "hotkeys.messages": "Messages",
+  "hotkeys.minimal-view": "Minimal View",
+  "hotkeys.mute": "Mute",
+  "hotkeys.nav-activate": "Nav Activate",
+  "hotkeys.nav-down": "Nav Down",
+  "hotkeys.nav-left": "Nav Left",
+  "hotkeys.nav-right": "Nav Right",
+  "hotkeys.nav-up": "Nav Up",
+  "hotkeys.next-item": "Next Item",
+  "hotkeys.next-track": "Next Track",
+  "hotkeys.open-capture-device": "Open Capture Device",
+  "hotkeys.open-disc": "Open Disc",
+  "hotkeys.open-file": "Open File",
+  "hotkeys.open-folder": "Open Folder",
+  "hotkeys.open-location-clipboard": "Open Location Clipboard",
+  "hotkeys.open-network-stream": "Open Network Stream",
+  "hotkeys.pause": "Pause",
+  "hotkeys.play": "Play",
+  "hotkeys.play-bookmark-1": "Play Bookmark 1",
+  "hotkeys.play-bookmark-10": "Play Bookmark 10",
+  "hotkeys.play-bookmark-2": "Play Bookmark 2",
+  "hotkeys.play-bookmark-3": "Play Bookmark 3",
+  "hotkeys.play-bookmark-4": "Play Bookmark 4",
+  "hotkeys.play-bookmark-5": "Play Bookmark 5",
+  "hotkeys.play-bookmark-6": "Play Bookmark 6",
+  "hotkeys.play-bookmark-7": "Play Bookmark 7",
+  "hotkeys.play-bookmark-8": "Play Bookmark 8",
+  "hotkeys.play-bookmark-9": "Play Bookmark 9",
+  "hotkeys.play-pause": "Play Pause",
+  "hotkeys.playlist-panel": "Playlist Panel",
+  "hotkeys.preferences": "Preferences",
+  "hotkeys.prev-item": "Prev Item",
+  "hotkeys.prev-track": "Prev Track",
+  "hotkeys.program-next": "Program Next",
+  "hotkeys.program-prev": "Program Prev",
+  "hotkeys.queue-toggle": "Queue Toggle",
+  "hotkeys.quit": "Quit",
+  "hotkeys.rate-faster": "Rate Faster",
+  "hotkeys.rate-faster-fine": "Rate Faster Fine",
+  "hotkeys.rate-normal": "Rate Normal",
+  "hotkeys.rate-slower": "Rate Slower",
+  "hotkeys.rate-slower-fine": "Rate Slower Fine",
+  "hotkeys.record": "Record",
+  "hotkeys.save-playlist": "Save Playlist",
+  "hotkeys.scale-down": "Scale Down",
+  "hotkeys.scale-up": "Scale Up",
+  "hotkeys.seek-backward": "Seek Backward",
+  "hotkeys.seek-backward-extrashort": "Seek Backward Extrashort",
+  "hotkeys.seek-backward-long": "Seek Backward Long",
+  "hotkeys.seek-backward-medium": "Seek Backward Medium",
+  "hotkeys.seek-forward": "Seek Forward",
+  "hotkeys.seek-forward-extrashort": "Seek Forward Extrashort",
+  "hotkeys.seek-forward-long": "Seek Forward Long",
+  "hotkeys.seek-forward-medium": "Seek Forward Medium",
+  "hotkeys.set-bookmark-1": "Set Bookmark 1",
+  "hotkeys.set-bookmark-10": "Set Bookmark 10",
+  "hotkeys.set-bookmark-2": "Set Bookmark 2",
+  "hotkeys.set-bookmark-3": "Set Bookmark 3",
+  "hotkeys.set-bookmark-4": "Set Bookmark 4",
+  "hotkeys.set-bookmark-5": "Set Bookmark 5",
+  "hotkeys.set-bookmark-6": "Set Bookmark 6",
+  "hotkeys.set-bookmark-7": "Set Bookmark 7",
+  "hotkeys.set-bookmark-8": "Set Bookmark 8",
+  "hotkeys.set-bookmark-9": "Set Bookmark 9",
+  "hotkeys.show-controls-fullscreen": "Show Controls Fullscreen",
+  "hotkeys.show-position": "Show Position",
+  "hotkeys.shuffle": "Shuffle",
+  "hotkeys.snapshot": "Snapshot",
+  "hotkeys.stop": "Stop",
+  "hotkeys.subsync-apply": "Subsync Apply",
+  "hotkeys.subsync-mark-audio": "Subsync Mark Audio",
+  "hotkeys.subsync-mark-sub": "Subsync Mark Sub",
+  "hotkeys.subsync-reset": "Subsync Reset",
+  "hotkeys.subtitle-delay-down": "Subtitle Delay Down",
+  "hotkeys.subtitle-delay-up": "Subtitle Delay Up",
+  "hotkeys.subtitle-scale-down": "Subtitle Scale Down",
+  "hotkeys.subtitle-scale-normal": "Subtitle Scale Normal",
+  "hotkeys.subtitle-scale-up": "Subtitle Scale Up",
+  "hotkeys.subtitle-toggle": "Subtitle Toggle",
+  "hotkeys.subtitle-track-cycle": "Subtitle Track Cycle",
+  "hotkeys.subtitle-track-cycle-reverse": "Subtitle Track Cycle Reverse",
+  "hotkeys.title-next": "Title Next",
+  "hotkeys.title-prev": "Title Prev",
+  "hotkeys.uncrop-one-px-bottom": "Uncrop One Px Bottom",
+  "hotkeys.uncrop-one-px-left": "Uncrop One Px Left",
+  "hotkeys.uncrop-one-px-right": "Uncrop One Px Right",
+  "hotkeys.uncrop-one-px-top": "Uncrop One Px Top",
+  "hotkeys.unzoom": "Unzoom",
+  "hotkeys.viewpoint-fov-in": "Viewpoint Fov In",
+  "hotkeys.viewpoint-fov-out": "Viewpoint Fov Out",
+  "hotkeys.vlm": "Vlm",
+  "hotkeys.volume-down": "Volume Down",
+  "hotkeys.volume-up": "Volume Up",
+  "hotkeys.wallpaper": "Wallpaper",
+  "hotkeys.zoom-cycle": "Zoom Cycle",
+  "hotkeys.zoom-double": "Zoom Double",
+  "hotkeys.zoom-half": "Zoom Half",
+  "hotkeys.zoom-original": "Zoom Original",
+  "hotkeys.zoom-quarter": "Zoom Quarter",
 };
 
 export type Msg = (key: MessageKey) => string;

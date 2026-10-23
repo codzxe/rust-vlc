@@ -14,7 +14,9 @@
     "tokens:generate": "node scripts/gen-tokens.mjs",
     "tokens:check": "node scripts/gen-tokens.mjs --check",
     "settings:generate": "node scripts/gen-settings-screens.mjs",
-    "settings:check": "node scripts/gen-settings-screens.mjs --check"
+    "settings:check": "node scripts/gen-settings-screens.mjs --check",
+    "hotkeys:generate": "node scripts/gen-hotkeys-data.mjs",
+    "hotkeys:check": "node scripts/gen-hotkeys-data.mjs --check"
   },
   "dependencies": {
     "react": "19.3.1",

@@ -4,13 +4,14 @@ import { Button } from "../../components/button/Button";
 import { Dialog } from "../../components/surface/Surface";
 import { useMsg } from "../../i18n/messages";
 import type { MessageKey } from "../../i18n/messages";
-import { GENERATED_AREA_IDS } from "./generated/Screens";
-import { GENERATED_AREA_TITLES } from "./generated/Screens";
-import { GENERATED_SCREENS } from "./generated/Screens";
-import type { SettingsAreaId } from "./generated/Screens";
+import { SETTINGS_AREA_IDS } from "./areas";
+import { SETTINGS_AREA_TITLES } from "./areas";
+import { SETTINGS_SCREENS } from "./areas";
+import type { SettingsAreaId } from "./areas";
 import { SETTINGS_AREAS } from "./generated/schema";
 import { SettingsProvider } from "./SettingsProvider";
 import { useSettings } from "./SettingsProvider";
+import { useSettingsThemeSync } from "../../theme/settingsThemeSync";
 import { SettingsSearchContext } from "./search";
 import { searchSettings } from "./search";
 import { SettingField } from "./SettingField";
@@ -19,20 +20,25 @@ import "./settings.css";
 // SettingsScreen — card 4.E1 framework shell (doc 07 §5): schema-generated
 // navigation + screens, cross-area search, dirty-state Apply/Revert bar,
 // confirm-on-navigate when dirty (4.B4 Dialog), restart-required badges and
-// per-screen reset-to-default. Content modules land with 4.E2–4.E4.
+// per-screen reset-to-default. Content modules land with 4.E2–4.E4; the
+// areas layer (./areas) merges the generated registry with the hand-written
+// extensions (hotkeys) and per-key special widgets, and mounts the settings→
+// ThemeProvider seam (card 4.E2).
 
 const isAreaId = (area: string | undefined): area is SettingsAreaId =>
-  area !== undefined && (GENERATED_AREA_IDS as readonly string[]).includes(area);
+  area !== undefined && (SETTINGS_AREA_IDS as readonly string[]).includes(area);
 
 function SettingsShell() {
   const m = useMsg();
   const navigate = useNavigate();
   const { area } = useParams<{ area: string }>();
   const settings = useSettings();
+  // Card 4.E2: interface.theme draft → ThemeProvider → data-theme on <html>.
+  useSettingsThemeSync();
   const [query, setQuery] = useState("");
   const [pendingArea, setPendingArea] = useState<SettingsAreaId | null>(null);
 
-  if (!isAreaId(area)) return <Navigate to={`/settings/${GENERATED_AREA_IDS[0]}`} replace />;
+  if (!isAreaId(area)) return <Navigate to={`/settings/${SETTINGS_AREA_IDS[0]}`} replace />;
 
   const labelOf = (entry: { description: string }): string => m(entry.description as MessageKey);
   const matches = (entry: { description: string; featureExposed: boolean }): boolean =>
@@ -40,7 +46,7 @@ function SettingsShell() {
   const searchValue: SettingsSearchContextValueLike = { query, setQuery, matches };
   const searching = query.trim() !== "";
   const hits = searching ? searchSettings(SETTINGS_AREAS, query, labelOf) : [];
-  const Current = GENERATED_SCREENS[area];
+  const Current = SETTINGS_SCREENS[area];
 
   const requestArea = (next: SettingsAreaId) => {
     if (next === area) return;
@@ -57,7 +63,7 @@ function SettingsShell() {
         <aside className="settings-screen__nav" aria-label={m("settings.nav.title")}>
           <h1 className="settings-screen__title">{m("screen.settings")}</h1>
           <ul>
-            {GENERATED_AREA_IDS.map((id) => (
+            {SETTINGS_AREA_IDS.map((id) => (
               <li key={id}>
                 <button
                   type="button"
@@ -65,7 +71,7 @@ function SettingsShell() {
                   aria-current={id === area ? "page" : undefined}
                   onClick={() => requestArea(id)}
                 >
-                  {m(GENERATED_AREA_TITLES[id])}
+                  {m(SETTINGS_AREA_TITLES[id])}
                 </button>
               </li>
             ))}
@@ -105,7 +111,7 @@ function SettingsShell() {
                 {hits.map((hit) => (
                   <section key={`${hit.area.id}/${hit.sectionTitle}`} className="settings-section">
                     <h2 className="settings-section__title">
-                      {m(GENERATED_AREA_TITLES[hit.area.id as SettingsAreaId])} — {m(hit.sectionTitle as MessageKey)}
+                      {m(SETTINGS_AREA_TITLES[hit.area.id as SettingsAreaId])} — {m(hit.sectionTitle as MessageKey)}
                     </h2>
                     {hit.entries.map((entry) => (
                       <SettingField key={entry.key} entry={entry} />

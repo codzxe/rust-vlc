@@ -6,6 +6,7 @@ import { TextField } from "../../components/form/TextField";
 import { useMsg } from "../../i18n/messages";
 import type { MessageKey } from "../../i18n/messages";
 import type { SettingEntry } from "./generated/schema";
+import { SPECIAL_FIELD_WIDGETS } from "./areas";
 import { useSettings } from "./SettingsProvider";
 
 // Field renderer (card 4.E1): maps schema field types → the 4.B1 form
@@ -15,6 +16,9 @@ import { useSettings } from "./SettingsProvider";
 //    float 0.05, duration-ms 50) · string/list<string> → TextField.
 // Every option is bound to a REAL schema key; gated-but-unexposed features
 // render nothing (hidden + inert, doc 05 §6.4).
+// Card 4.E2 seam: the areas layer can register a SPECIAL widget per setting
+// key (areas/index.tsx SPECIAL_FIELD_WIDGETS) which replaces the control
+// while keeping this wrapper's dirty/restart/reset chrome.
 
 const labelOf = (entry: SettingEntry): MessageKey => entry.description as MessageKey;
 
@@ -37,7 +41,10 @@ export function SettingField({ entry }: { entry: SettingEntry }) {
   const canReset = current !== entry.defaultValue;
 
   let control: ReactNode;
-  if (entry.type === "bool") {
+  const Special = SPECIAL_FIELD_WIDGETS[entry.key];
+  if (Special !== undefined) {
+    control = <Special entry={entry} />;
+  } else if (entry.type === "bool") {
     control = (
       <Switch
         aria-label={m(labelOf(entry))}
