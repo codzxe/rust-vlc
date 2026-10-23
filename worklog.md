@@ -8107,3 +8107,19 @@ Stage Summary:
 - D-0..D-5 audit: D-1 harness reuses one drain buffer + pre-sized records (per-poll checks allocate nothing; churn 407/switch all freed — creep ≤ 0); D-2 all test collectors bounded (records cap 256 cleared in place, journal only in non-measuring tests); D-3 no naive-complexity paths added; D-4 superseded seek's held frames discarded AND counted, never silently; D-5 not an echo chamber — real Engine::open/poll/seek paths through the plugin-api/codec-api seams with latency decoders and starved limbs, no engine mocks.
 - D-10: MEASURE? — every number above is from runs I executed (3× suite repeats, alloc-counter pinning runs, full-suite gate). NOT tested? — real-codec footprints at replacement (fake 16 B/8 B payloads; the real-decode memory domain is W5-15's mem-audit tool); threaded re-entrancy (v0 is single-writer by construction); the flush-at-teardown alternative design (pinned against, not evaluated); multi-session Engine hosting. What breaks? — nothing pre-existing: zero engine-code changes, 260-pass baseline preserved, the 8 scenarios_b failures are the documented pre-existing red owned by W5R-19. Who hits it first? — the Lead at the merge gate (re-run cargo test -p playback-engine); hosts doing rapid playlist-advance (the zero-poll storm shape) are the beneficiaries of the pinned guarantees.
 - Honest gaps: (1) frame-level epoch tagging is a media-types wire change (Lead decision) — the proof stands on marker content + generation equality; (2) the starved-audio-limb shape keeps the seek in flight via Discontinuity spam (no packets), which exercises the hold-discard path but not a slow-packet path; (3) the zero-poll storm intentionally delivers nothing (it pins the event/suppression arithmetic, not frame flow).
+
+---
+Task ID: 6.HOUSEKEEPING
+Agent: Lead
+Task: Branch inventory + repo cleanup + W5R-03 absorption; user asked "how much remains / too many branches".
+
+Work Log:
+- Inventoried: 52 local branches (47 merged, 5 with unique commits) + 31 remote branches (29 stale wip/1d4-3a1, all zero unmerged commits) + 41 worktrees (20 w5 worktrees prunable).
+- Pruned 20 stale w5 worktrees (git worktree prune); deleted 30 merged local branches (w3/w4/ed-fix/w5-*); deleted 29 stale merged remote wip branches + later wip/w5r-03.
+- Found origin/wip/w5r-03 with 19 unmerged commits: media-clock salvage (SUPERSEDED by main df10bad/4d2f4d4) + card 3.A2 source_swap re-proof (NOT in main). Cherry-picked the 3 unique commits (42bc00c suite, f60d23e docs, 267ff8b worklog; worklog conflict resolved by append). 1267-line source_swap.rs suite: 4/4 green on main (fifty_rapid_switches_with_in_flight_seeks, fifty_switches_with_zero_polls_between_opens, memory_stays_bounded, teardown_orders).
+- Pushed main 4a2b415..af6d819; remote now = origin/main only. Local = main + local-backup/phase1-aa2f1bf (phase-1 snapshot, kept as backup) + 20 active w6 worktree branches.
+
+Stage Summary:
+- Repo hygiene restored: 83 branches + 20 stale worktrees removed; every kept branch is either main, the phase-1 backup, or an active wave-6 agent branch.
+- W5R-03's unique value (3.A2 hard source-swap AC) is now in main and verified green; its superseded media-clock salvage commits were dropped, not merged.
+- Remaining work unchanged: Phase 3 = 3.E1 + 3.F2-V gate fill (media-clock wall confirmed DOWN — cargo check green at 4a2b415); wave-6 in-flight unmerged commits: w6-02 (MJPEG V-4 pooled slots), w6-03 (color-pipeline bench), w6-04 (walk_bench --allocs), w6-05 (SharedBytes range/build); Phase 4 = 25 tasks / 9 waves, 0 done.
