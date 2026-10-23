@@ -76,13 +76,25 @@ fn hundred_random_seeks_complete_without_stale_output_or_growth() {
         );
         assert!(warm.result.is_ok(), "the warm-up seek: {:?}", warm.result);
     }
+    // The seek-completed counter is SESSION-CUMULATIVE and every
+    // warm-up seek already reached its terminal: this host's
+    // `dispatch_seek` pumps to the seek terminal BEFORE answering
+    // (host.rs `dispatch_seek` — the first terminal after submission
+    // is the live seek's, doc 05 §4.2), so the storm's baseline is
+    // the post-warm-up count, not zero.
+    let storm_baseline = count_events(&host, "timing.seek-completed");
+    assert_eq!(
+        count_events(&host, "timing.seek-failed"),
+        0,
+        "the warm-up seeks never typed-fail either"
+    );
     let baseline_live = alloc_state().snapshot().live_bytes;
 
     // The storm: 100 deterministic random targets, no waits between
     // submissions (each dispatch awaits its own terminal — the
     // synchronous host's "no waits" is back-to-back dispatches).
     let mut rng = Lcg(0x5EED_0000_00C0_FFEE);
-    let mut completed = 0usize;
+    let mut completed = storm_baseline;
     let mut landed_deltas: Vec<i64> = Vec::with_capacity(STORM);
     for _ in 0..STORM {
         let target_us = rng.target_us(2_000_000);
@@ -143,7 +155,11 @@ fn hundred_random_seeks_complete_without_stale_output_or_growth() {
             "no stale frames behind the landing {landed} µs"
         );
     }
-    assert_eq!(completed, STORM, "all {STORM} seeks completed");
+    assert_eq!(
+        completed,
+        storm_baseline + STORM,
+        "all {STORM} storm seeks completed (on top of the warm-up's {storm_baseline})"
+    );
     assert!(
         landed_deltas.iter().all(|delta| *delta <= TOLERANCE_US),
         "every landing within tolerance (worst {:?})",
