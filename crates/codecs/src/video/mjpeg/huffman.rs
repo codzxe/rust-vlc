@@ -91,7 +91,7 @@ impl HuffmanDecoder {
         self.val_ptr = [0usize; 17];
         let mut code: i32 = 0;
         let mut symbol_index = 0usize;
-        for (length, &count_u8) in bits.iter().enumerate().skip(1) {
+        for (length, &count_u8) in bits.iter().enumerate().take(17).skip(1) {
             if count_u8 > 0 {
                 self.val_ptr[length] = symbol_index;
                 self.min_code[length] = code;
@@ -104,7 +104,7 @@ impl HuffmanDecoder {
                 }
                 self.max_code[length] = last;
                 code = last + 1;
-                symbol_index += count as usize;
+                symbol_index += count_u8 as usize;
             }
             code <<= 1;
         }
