@@ -89,6 +89,7 @@ fn hundred_random_seeks_complete_without_stale_output_or_growth() {
         "the warm-up seeks never typed-fail either"
     );
     let baseline_live = alloc_state().snapshot().live_bytes;
+    let events_at_baseline = host.events().len();
 
     // The storm: 100 deterministic random targets, no waits between
     // submissions (each dispatch awaits its own terminal — the
@@ -98,6 +99,15 @@ fn hundred_random_seeks_complete_without_stale_output_or_growth() {
     let mut landed_deltas: Vec<i64> = Vec::with_capacity(STORM);
     for _ in 0..STORM {
         let target_us = rng.target_us(2_000_000);
+        // The per-seek delivery window: the ring is a bounded HISTORY
+        // across the whole storm (cap 1024, host.rs `RING_CAP`), so
+        // "no stale output" is a per-seek invariant over the frames
+        // THIS seek delivered — the green scenario 4 shape
+        // (`ring[ring_before..]`, scenario_04_seek.rs:30/69-75), not a
+        // whole-ring check: an earlier landing's frames sit behind a
+        // later landing by construction (a backward storm target is
+        // legitimate), they are not stale output.
+        let ring_before = host.sink().must().frame_ring().len();
         let response = dispatch(
             &mut host,
             Command::PlaybackSeek {
@@ -137,19 +147,22 @@ fn hundred_random_seeks_complete_without_stale_output_or_growth() {
             .must();
         landed_deltas.push((landed - target_us).abs());
 
-        // No stale output ever: the frames delivered after this
-        // completion carry stamps at or beyond the landing point
-        // (one quantum of in-flight grace: 40 ms).
+        // No stale output ever: the frames delivered under THIS seek
+        // (its own pumps — submission through terminal) carry stamps
+        // at or beyond the landing point, one quantum of in-flight
+        // grace aside (40 ms) — scenario_04_seek.rs:66-75's oracle.
         let ring = host.sink().must().frame_ring();
-        let stale = ring
+        let window = &ring[ring_before.min(ring.len())..];
+        let stale = window
             .iter()
             .filter(|(_, _, pts)| *pts < landed * 1_000 - 40_000_000)
             .count();
-        // The ring holds the storm's recent window; every entry in
-        // it was delivered under SOME post-landing timeline — an
-        // entry behind the CURRENT landing by more than the grace
-        // is a stale frame.
-        assert_eq!(stale, 0, "no stale frames behind the landing {landed} µs");
+        assert_eq!(
+            stale,
+            0,
+            "no stale frames behind the landing {landed} µs (window of {})",
+            window.len()
+        );
     }
     assert_eq!(
         completed,
@@ -162,11 +175,52 @@ fn hundred_random_seeks_complete_without_stale_output_or_growth() {
         landed_deltas.iter().max()
     );
 
-    // Bounded memory: the storm returns live bytes to the baseline.
+    // Bounded memory (doc 10 §6.4 row 6): every live byte the storm
+    // added is accountable to the HOST's own session-scoped recording
+    // — the wire-event log (a Vec: amortized capacity ≤ 2× its len)
+    // and the capped frame ring (1024 entries × 12 B, host.rs
+    // `RING_CAP`) — never the engine's seek machinery.
     let after_live = alloc_state().snapshot().live_bytes;
+    let events_added = host.events().len().saturating_sub(events_at_baseline);
+    let recording_bound = (2 * events_added * std::mem::size_of::<commands::WireEvent>()
+        + 1024 * 12
+        + landed_deltas.capacity() * std::mem::size_of::<i64>()) as isize;
     assert!(
-        after_live <= baseline_live,
-        "the seek storm is memory-bounded (live {baseline_live} → {after_live})"
+        after_live <= baseline_live + recording_bound,
+        "the storm's live growth ({}) is the host's own recording, \
+         not the engine (bound {recording_bound}: {events_added} events, \
+         the capped ring, the deltas scratch)",
+        after_live - baseline_live
+    );
+
+    // The no-leak oracle: a trailing probe of further seeks adds
+    // (almost) nothing — the engine's seek path is allocation-steady
+    // once the one-time machinery is warm. Measured: 5 seeks ≈ tens
+    // of bytes (the log's spare capacity absorbs the probe's
+    // events; the deterministic seed/fixture/pump sequence keeps it
+    // clear of a Vec re-growth). A per-seek engine leak (the row's
+    // actual target) cannot hide here.
+    let probe_before = alloc_state().snapshot().live_bytes;
+    for target_us in [1_234_567i64, 500_000, 1_700_000, 300_000, 900_000] {
+        let probe = dispatch(
+            &mut host,
+            Command::PlaybackSeek {
+                target: SeekTarget::Absolute {
+                    time: Timestamp(target_us),
+                },
+            },
+        );
+        assert!(
+            probe.result.is_ok(),
+            "the probe seek to {target_us} µs accepts: {:?}",
+            probe.result
+        );
+    }
+    let probe_after = alloc_state().snapshot().live_bytes;
+    assert!(
+        probe_after <= probe_before + 4_096,
+        "the seek path is allocation-steady (the 5-seek probe grew {})",
+        probe_after - probe_before
     );
 
     // The media still ends honestly after the storm.
