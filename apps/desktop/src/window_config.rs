@@ -69,10 +69,16 @@ impl fmt::Display for WindowConfigError {
                 write!(f, "window config: `{key}`: {reason}")
             }
             WindowConfigError::BadBool { key, found } => {
-                write!(f, "window config: `{key}` must be true/false, found {found:?}")
+                write!(
+                    f,
+                    "window config: `{key}` must be true/false, found {found:?}"
+                )
             }
             WindowConfigError::UnknownTemplateVariable { found } => {
-                write!(f, "window config: title template variable {{{found}}} is not allowed")
+                write!(
+                    f,
+                    "window config: title template variable {{{found}}} is not allowed"
+                )
             }
         }
     }
@@ -158,7 +164,9 @@ pub fn parse_window_table(toml_text: &str) -> Result<WindowConfig, WindowConfigE
             "min_width" => min_width = Some(parse_u32("min_width", value, 1, 3840)?),
             "min_height" => min_height = Some(parse_u32("min_height", value, 1, 2160)?),
             "start_maximized" => start_maximized = Some(parse_bool("start_maximized", value)?),
-            "remember_geometry" => remember_geometry = Some(parse_bool("remember_geometry", value)?),
+            "remember_geometry" => {
+                remember_geometry = Some(parse_bool("remember_geometry", value)?)
+            }
             "title_template" => title_template = Some(parse_string(value)),
             "title_idle_key" => title_idle_key = Some(parse_string(value)),
             // Unknown keys inside [window] are tolerated the way TOML
@@ -177,14 +185,18 @@ pub fn parse_window_table(toml_text: &str) -> Result<WindowConfig, WindowConfigE
         height,
         min_width,
         min_height,
-        start_maximized: start_maximized
-            .ok_or(WindowConfigError::MissingKey { key: "start_maximized" })?,
-        remember_geometry: remember_geometry
-            .ok_or(WindowConfigError::MissingKey { key: "remember_geometry" })?,
-        title_template: title_template
-            .ok_or(WindowConfigError::MissingKey { key: "title_template" })?,
-        title_idle_key: title_idle_key
-            .ok_or(WindowConfigError::MissingKey { key: "title_idle_key" })?,
+        start_maximized: start_maximized.ok_or(WindowConfigError::MissingKey {
+            key: "start_maximized",
+        })?,
+        remember_geometry: remember_geometry.ok_or(WindowConfigError::MissingKey {
+            key: "remember_geometry",
+        })?,
+        title_template: title_template.ok_or(WindowConfigError::MissingKey {
+            key: "title_template",
+        })?,
+        title_idle_key: title_idle_key.ok_or(WindowConfigError::MissingKey {
+            key: "title_idle_key",
+        })?,
     };
     validate(&config)?;
     Ok(config)
@@ -195,7 +207,10 @@ fn validate(config: &WindowConfig) -> Result<(), WindowConfigError> {
     if config.min_width >= config.width {
         return Err(WindowConfigError::BadNumber {
             key: "min_width",
-            reason: format!("min_width ({}) must be < width ({})", config.min_width, config.width),
+            reason: format!(
+                "min_width ({}) must be < width ({})",
+                config.min_width, config.width
+            ),
         });
     }
     if config.min_height >= config.height {
@@ -274,7 +289,7 @@ mod tests {
     #[test]
     fn the_shipped_product_toml_parses() {
         let product = include_str!("../../../product.toml");
-        let config = parse_window_table(product).unwrap_or_else(|err| panic!("{err}"));
+        let config = parse_window_table(product).unwrap_or_else(|err| unreachable!("{err}"));
         assert_eq!(config.width, 1280);
         assert_eq!(config.height, 720);
         assert_eq!(config.min_width, 480);
@@ -305,13 +320,19 @@ mod tests {
         bad = base.replace("min_width = 480", "min_width = 2000");
         assert!(matches!(
             parse_window_table(&bad),
-            Err(WindowConfigError::BadNumber { key: "min_width", .. })
+            Err(WindowConfigError::BadNumber {
+                key: "min_width",
+                ..
+            })
         ));
 
         bad = base.replace("start_maximized = false", "start_maximized = maybe");
         assert!(matches!(
             parse_window_table(&bad),
-            Err(WindowConfigError::BadBool { key: "start_maximized", .. })
+            Err(WindowConfigError::BadBool {
+                key: "start_maximized",
+                ..
+            })
         ));
 
         bad = base.replace(
@@ -340,7 +361,7 @@ mod tests {
                     min_width = 480\nmin_height = 320\nstart_maximized = true\n\
                     remember_geometry = false\ntitle_template = \"{product_name}\"\n\
                     title_idle_key = \"k\"\n[brand]\naccent_color = \"#4f8cff\"\n";
-        let config = parse_window_table(text).unwrap_or_else(|err| panic!("{err}"));
+        let config = parse_window_table(text).unwrap_or_else(|err| unreachable!("{err}"));
         assert_eq!(config.width, 960);
         assert!(config.start_maximized);
         assert!(!config.remember_geometry);

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Main-window capability: core defaults only. Every UI-originated command flows EXCLUSIVELY through the single lumen_dispatch command (doc 05 §5.1 single-command rule); engine events arrive on the lumen://event channel, covered by core:event:default. No plugin permissions are granted.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

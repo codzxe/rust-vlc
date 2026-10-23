@@ -81,7 +81,7 @@ pub mod wire;
 pub use bridge::{BridgeStats, CanvasBridge, EmitClock, MonotonicEmitClock};
 pub use dispatch::{EventSink, ShellHost, lumen_dispatch, open_file_request};
 pub use error::{HostError, WireError};
-pub use files::{DragDropHandler, NativeFileDialog, NativeDialog, PathDragDrop, is_media_path};
+pub use files::{DragDropHandler, NativeDialog, NativeFileDialog, PathDragDrop, is_media_path};
 pub use host::{
     DesktopHost, EventDelivery, PresentationVariant, ResponseObservation, StrategyReport, TargetOs,
     strategy_for,

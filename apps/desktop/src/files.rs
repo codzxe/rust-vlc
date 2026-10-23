@@ -23,21 +23,22 @@
 //! plugin-backed ones at the composition root — the seam, not the
 //! rule, is what moves.
 
+use std::path::Path;
 use std::path::PathBuf;
 
 use crate::dispatch::open_file_request;
 use crate::error::HostError;
-use commands::envelope::RequestId;
 use commands::WireRequest;
+use commands::envelope::RequestId;
 
 /// Media-file suffixes the drop handler accepts (the open path owns
 /// format truth; this is the shell's pre-filter so a dropped README
 /// never becomes a session.open error the UI must handle).
 #[must_use = "pure reporter"]
-pub fn is_media_path(path: &PathBuf) -> bool {
+pub fn is_media_path(path: &Path) -> bool {
     const MEDIA_SUFFIXES: &[&str] = &[
-        "avi", "mkv", "mp4", "mov", "webm", "m4v", "mpg", "mpeg", "ts", "flv", "wmv", "wav",
-        "mp3", "flac", "ogg", "opus", "aac", "m4a", "aiff",
+        "avi", "mkv", "mp4", "mov", "webm", "m4v", "mpg", "mpeg", "ts", "flv", "wmv", "wav", "mp3",
+        "flac", "ogg", "opus", "aac", "m4a", "aiff",
     ];
     path.extension()
         .and_then(|ext| ext.to_str())
@@ -85,7 +86,7 @@ impl DragDropHandler for PathDragDrop {
         let Some(first) = paths.iter().find(|path| is_media_path(path)) else {
             return Ok(None);
         };
-        Ok(Some(open_file_request(request_id, first)))
+        Ok(Some(open_file_request(request_id, first.as_path())))
     }
 }
 
@@ -110,13 +111,17 @@ mod tests {
     #[test]
     fn drops_become_the_open_command_first_media_wins() {
         let mut dnd = PathDragDrop;
-        let request = dnd
-            .on_files_dropped(
-                &[PathBuf::from("/tmp/notes.txt"), PathBuf::from("/tmp/movie.avi")],
-                RequestId(5),
-            )
-            .expect("drop translation is pure logic")
-            .expect("a media file was dropped");
+        let request = match dnd.on_files_dropped(
+            &[
+                PathBuf::from("/tmp/notes.txt"),
+                PathBuf::from("/tmp/movie.avi"),
+            ],
+            RequestId(5),
+        ) {
+            Ok(Some(request)) => request,
+            Ok(None) => unreachable!("a media file was dropped"),
+            Err(err) => unreachable!("drop translation is pure logic: {err}"),
+        };
         assert_eq!(request.request_id, RequestId(5));
         match request.command {
             Command::SessionOpen { source, .. } => match source {
@@ -134,12 +139,12 @@ mod tests {
         let mut dnd = PathDragDrop;
         let answer = dnd
             .on_files_dropped(&[PathBuf::from("/tmp/README.md")], RequestId(6))
-            .expect("no media is a no-op");
+            .unwrap_or_else(|err| unreachable!("no media is a no-op: {err}"));
         assert!(answer.is_none());
         // Case-insensitive suffix matching.
         let answer = dnd
             .on_files_dropped(&[PathBuf::from("/tmp/Song.MP3")], RequestId(7))
-            .expect("one media file");
+            .unwrap_or_else(|err| unreachable!("one media file: {err}"));
         assert!(answer.is_some());
     }
 
@@ -148,7 +153,10 @@ mod tests {
     #[test]
     fn native_dialog_is_the_typed_pending_state() {
         let mut dialog = NativeDialog;
-        let err = dialog.pick_media_file().expect_err("no webview linked");
+        let err = match dialog.pick_media_file() {
+            Err(err) => err,
+            Ok(path) => unreachable!("no webview is linked, got {path:?}"),
+        };
         assert_eq!(err, HostError::WebviewPending { adr: "ADR-004" });
         assert!(err.to_string().contains("ADR-004"));
     }

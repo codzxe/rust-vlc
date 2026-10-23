@@ -54,7 +54,7 @@
 //! (and the future same-`tokio::mpsc` ordering rule lands at that
 //! wrapper, not here, so this half stays webview-free).
 
-use std::path::PathBuf;
+use std::path::Path;
 
 use commands::envelope::RequestId;
 use commands::{Command, WireEvent, WireRequest, WireResponse};
@@ -66,6 +66,12 @@ pub struct ShellHost {
     /// How many of `host.events()` have already been forwarded —
     /// the once-only, in-order drain cursor.
     forwarded: usize,
+}
+
+impl Default for ShellHost {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ShellHost {
@@ -124,14 +130,17 @@ pub fn lumen_dispatch(shell: &mut ShellHost, request: &WireRequest) -> WireRespo
 /// produce a [`WireRequest`] and send it through [`lumen_dispatch`] —
 /// a file open is a command, never a shell-side engine call).
 #[must_use = "builds the wire request; the caller dispatches it"]
-pub fn open_file_request(request_id: RequestId, path: &PathBuf) -> WireRequest {
+pub fn open_file_request(request_id: RequestId, path: &Path) -> WireRequest {
     let command = Command::SessionOpen {
         source: commands::catalog::types::SourceSpec::File {
-            path: path.clone(),
+            path: path.to_path_buf(),
         },
         options: Default::default(),
     };
-    WireRequest { request_id, command }
+    WireRequest {
+        request_id,
+        command,
+    }
 }
 
 #[cfg(test)]
@@ -139,6 +148,7 @@ mod tests {
     use super::*;
     use commands::CommandOutcome;
     use commands::ErrorCode;
+    use std::path::PathBuf;
 
     /// A recording sink — the test half of the egress seam.
     #[derive(Default)]
@@ -188,10 +198,7 @@ mod tests {
     #[test]
     fn served_commands_reach_the_engine_and_answer() {
         let mut shell = ShellHost::new();
-        let response = lumen_dispatch(
-            &mut shell,
-            &request(11, Command::SystemListCommands),
-        );
+        let response = lumen_dispatch(&mut shell, &request(11, Command::SystemListCommands));
         assert_eq!(response.request_id, RequestId(11));
         match response.result {
             Ok(CommandOutcome::Completed(commands::CommandResult::CommandListings {
