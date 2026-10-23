@@ -159,7 +159,9 @@ memory.
   no-`unsafe` API: `RawRead` takes `&mut [u8]`).
 * Short-but-nonzero source reads are re-asked for the remainder
   (strict progress, `Ok(0)` = typed-EOF check, unchanged truncation
-  semantics). No `unsafe`, no API change, no new allocation anywhere.
+  semantics). After a **complete** bypass, exactly one capacity-bounded
+  read-ahead refill re-arms the window (bounded by D-1: ≤ one window).
+  No `unsafe`, no API change, no new allocation anywhere.
 
 ### Evidence (instrumented source counts — the honest syscall proxy)
 
@@ -168,17 +170,26 @@ same data, same capacities; run in this branch's test suite):
 
 | ask | before (source calls / window→out bytes) | after |
 |---|---|---|
-| `read_into` 1000 B, window 32 B | 32 calls / 1000 B copied | **1 call / 0 B** |
-| `read` 1000 B, window 32 B | 32 calls / 1000 B copied | **1 call / 0 B** (+1 zero-fill) |
-| leftover-then-payload (54 B buffered, 190 B ask) | n/a | 1 drain + **1 call** for the 136 B remainder |
+| `read_into` 1000 B, window 32 B | 32 calls / 1000 B copied | **2 calls / 0 B** (1 full-size bulk + 1 capacity-bounded read-ahead refill) |
+| `read` 1000 B, window 32 B | 32 calls / 1000 B copied | **2 calls / 0 B** (+1 `want`-sized zero-fill on the Vec twin) |
+| leftover-then-payload (54 B buffered, 190 B ask) | n/a | 1 window drain + **1 bulk call** for the 136 B remainder (+1 refill) |
 
-Pinned by: `large_reads_bypass_the_window_in_one_source_call`,
+The trailing read-ahead refill is deliberate: it keeps the
+header-after-payload demux pattern a window hit (payload 2 calls +
+header 0, vs 24 refills + 1 header refill = 25 before part 2 for the
+1.5 MiB frame class) and preserves the pinned truncation snapshot
+semantics (≤ one capacity of pre-fetched bytes served before the
+typed error — `truncation_below_the_cursor_drains_the_snapshot…`).
+
+Pinned by: `large_reads_bypass_the_window_in_one_source_call` (bulk ask + refill counts),
 `bypass_reads_serve_leftover_read_ahead_first`,
 `bypass_reads_survive_short_source_reads` (dribbling source: 8 calls,
 byte-exact), `bypass_read_past_end_short_reads_cleanly`,
 `read_into_reconstructs_and_bypasses_for_payload_asks`, and the
-repinned `contract::assert_bounded_read` (one source call, no
-over-read beyond the caller's request, window never grows).
+repinned `contract::assert_bounded_read` (one full-size bulk call + ≤1
+refill, no over-read beyond the caller's request, window never grows).
+Suites this branch: `cargo test -p input` **54/0**; `cargo test -p
+demux` **140/0** (V-1 pins still hold).
 
 **Supersession (recorded honestly):** the card-2.A1 pins "no chunk
 above capacity" / "reads are chunked to the capacity" asserted the

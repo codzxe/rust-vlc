@@ -31,11 +31,12 @@
 //!   what is buffered.
 //! - [`assert_bounded_read`]: the card's "no unbounded buffering" proof
 //!   (repinned for the 7-c part-2 bypass): a read many times the
-//!   buffer capacity returns byte-exact data in **one** source call
-//!   (the payload-class path — no capacity-sized refill loop), the
-//!   underlying source never sees a read larger than the caller's own
-//!   request (no speculative over-read), and the internal buffer
-//!   stays within its fixed capacity — it never grows.
+//!   buffer capacity returns byte-exact data in **one full-size source
+//!   call** for the bulk (plus at most one capacity-bounded read-ahead
+//!   refill — no capacity-sized refill loop), the underlying source
+//!   never sees a read larger than the caller's own request (no
+//!   speculative over-read), and the internal buffer stays within its
+//!   fixed capacity — it never grows.
 //! - [`assert_truncated`]: a mid-read shrink surfaces the typed
 //!   `Corrupt::Truncated` error, never a silent EOF.
 //!
@@ -369,7 +370,8 @@ pub fn assert_stream_contract(stream: &mut dyn SourceStream, expected: &[u8]) {
 
 /// The bounded-memory proof (card 2.A1 AC, repinned for the 7-c part-2
 /// bypass): reading `want` bytes — many times the buffer capacity —
-/// returns byte-exact data in **one** source call (no
+/// returns byte-exact data via **one full-size source call** for the
+/// bulk plus at most one capacity-bounded read-ahead refill (no
 /// `want / capacity` refill loop), the underlying source never
 /// receives a read larger than the caller's own request (no
 /// speculative over-read — the old "chunked to the capacity" pin was
@@ -418,8 +420,8 @@ pub fn assert_bounded_read(stream: &mut SyntheticStream, want: usize, expected: 
     );
     assert_eq!(
         stream.source().reads_served(),
-        served_before + 1,
-        "a payload-class read is ONE source call (7-c part 2)"
+        served_before + if data.len() == want { 2 } else { 1 },
+        "a payload-class read is ONE full-size bulk call (+1 read-ahead refill when complete)"
     );
 }
 

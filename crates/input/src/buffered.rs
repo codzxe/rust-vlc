@@ -180,9 +180,11 @@ impl<S: RawRead + Seekable> BufferedReader<S> {
     /// - `want ≥` the window capacity — the payload class the demux
     ///   arena asks for: leftover read-ahead is drained, then the
     ///   source is asked **directly** for the remainder into the
-    ///   result — one source call for the bulk instead of
+    ///   result — one full-size transfer for the bulk instead of
     ///   `want / capacity` window refills, and no window→result copy
-    ///   for the transferred bytes (the source writes through).
+    ///   for the transferred bytes (the source writes through), plus
+    ///   one capacity-bounded read-ahead refill so the following
+    ///   header-sized ask stays a window hit.
     ///
     /// Returns fewer than `want` bytes only at end of stream (short
     /// reads are data, not errors); `Ok(empty)` only at end of stream.
@@ -241,10 +243,32 @@ impl<S: RawRead + Seekable> BufferedReader<S> {
                 self.confirm_eof()?;
                 break;
             }
+            self.buf_pos += got as u64;
             filled += got;
+        }
+        if filled == want {
+            // One capacity-bounded read-ahead refill: keeps the
+            // header-after-payload pattern a window hit and preserves
+            // the truncation snapshot semantics (≤ one capacity of
+            // pre-fetched bytes). At exact end of stream it returns 0
+            // and leaves the window empty — the truncation check
+            // belongs to reads that still need data.
+            self.refill_read_ahead()?;
         }
         out.truncate(filled);
         Ok(out)
+    }
+
+    /// Refill the (empty) window from the source — one capacity-sized
+    /// read-ahead step, bounded by construction. Only called with an
+    /// empty window, so the position invariant
+    /// (`source.position() == buf_pos + buffered_bytes()`) is preserved.
+    fn refill_read_ahead(&mut self) -> Result<(), EngineError> {
+        self.start = 0;
+        self.end = 0;
+        let filled = self.source.read(&mut self.buf)?;
+        self.end = filled;
+        Ok(())
     }
 
     /// Move buffered bytes into `out`'s spare capacity, advancing the
@@ -269,8 +293,10 @@ impl<S: RawRead + Seekable> BufferedReader<S> {
     /// asks); an `out` **at or above** the capacity — the demux arena's
     /// full-frame payload class — is filled by asking the source
     /// **directly** for the remainder: zero allocation, zero
-    /// intermediate copies, one source call for the bulk instead of
-    /// `out.len() / capacity` window refills. Short results are data
+    /// intermediate copies, one full-size bulk transfer instead of
+    /// `out.len() / capacity` window refills (plus one capacity-bounded
+    /// read-ahead refill so the next header-sized ask stays a window
+    /// hit). Short results are data
     /// (end of stream or a smaller ask than window); `Ok(0)` only at
     /// end of stream (a zero-length `out` is a zero-length success
     /// without I/O). Unlike [`read`] there is no [`MAX_READ_BYTES`]
@@ -296,7 +322,14 @@ impl<S: RawRead + Seekable> BufferedReader<S> {
                     self.confirm_eof()?;
                     break;
                 }
+                self.buf_pos += got as u64;
                 filled += got;
+            }
+            if filled == out.len() {
+                // The same capacity-bounded read-ahead refill as the
+                // `Vec` twin: the next header-sized ask stays a window
+                // hit instead of a fresh syscall.
+                self.refill_read_ahead()?;
             }
             return Ok(filled);
         }
@@ -493,8 +526,9 @@ mod tests {
     }
 
     /// Large reads take the 7-c part-2 **bypass**: one full-size
-    /// source ask instead of capacity-sized window refills, byte-exact,
-    /// and the fixed buffer neither grows nor is touched.
+    /// source ask for the bulk (plus one capacity-bounded read-ahead
+    /// refill) instead of capacity-sized window refills, byte-exact,
+    /// and the fixed buffer neither grows nor is copied through.
     ///
     /// Supersedes the card-2.A1 pin "no chunk above capacity": V-1 made
     /// the demux arena ask for whole frames, and chunking a
@@ -509,11 +543,15 @@ mod tests {
         let mut r = reader(&data, 32);
         let got = r.read(1000).must();
         assert_eq!(got, data);
-        assert_eq!(r.source().reads_served(), 1, "one source call, not 32");
+        assert_eq!(
+            r.source().reads_served(),
+            2,
+            "one full-size bulk ask + one capacity-bounded read-ahead refill — not 32"
+        );
         assert_eq!(
             r.source().max_read_seen(),
             1000,
-            "the ask is the caller's request — never a speculative over-read"
+            "the bulk ask is the caller's request — never a speculative over-read"
         );
         assert!(r.buffered_bytes() <= 32);
         assert_eq!(r.buffer_capacity(), 32, "the buffer never grows");
@@ -533,10 +571,15 @@ mod tests {
         assert_eq!(r.source().reads_served(), 1);
 
         // A payload-class ask: the 54 leftover bytes drain from the
-        // window, then ONE direct ask covers the remaining 136.
+        // window, then ONE direct ask covers the remaining 136 (the
+        // trailing read-ahead refill hits exact EOF and returns 0).
         let payload = r.read(190).must();
         assert_eq!(&payload, &data[10..200]);
-        assert_eq!(r.source().reads_served(), 2, "leftover + one direct ask");
+        assert_eq!(
+            r.source().reads_served(),
+            3,
+            "prime + bulk + read-ahead refill (EOF)"
+        );
         assert_eq!(r.source().max_read_seen(), 136, "the remainder, exactly");
         assert_eq!(r.position(), 200);
     }
@@ -590,7 +633,7 @@ mod tests {
         let got = r.read_into(&mut out).must();
         assert_eq!(got, 300);
         assert_eq!(&out, &data, "byte-exact across dribbled refills");
-        assert_eq!(r.source().calls, 8, "300 bytes in ≤ 40-byte slices");
+        assert_eq!(r.source().calls, 9, "8 dribbled bulk calls + 1 refill");
         assert_eq!(r.source().max_ask, 300, "asks stay caller-sized");
     }
 
@@ -676,7 +719,11 @@ mod tests {
         assert_eq!(got, 1000);
         assert_eq!(&out, &data);
         assert_eq!(r.position(), 1000);
-        assert_eq!(r.source().reads_served(), 1, "one source call for the bulk");
+        assert_eq!(
+            r.source().reads_served(),
+            2,
+            "one bulk call + one read-ahead refill"
+        );
         assert_eq!(r.source().max_read_seen(), 1000, "caller-sized asks");
         assert!(r.buffered_bytes() <= 32);
         assert_eq!(r.buffer_capacity(), 32, "the buffer never grows");
