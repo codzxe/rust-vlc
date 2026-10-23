@@ -69,6 +69,14 @@
 //! `docs/perf/raw/mjpeg/`) is the successor session's first job; if
 //! this kernel does not win, rule 5 applies (say so, keep scalar).
 
+// The ONE sanctioned `unsafe` exception (contract rule 5 / D-10):
+// this module — and only this module — re-allows the workspace-wide
+// `unsafe_code = "deny"` lint so the `std::arch` x86_64 intrinsics
+// below can exist behind `is_x86_feature_detected!`, each `unsafe`
+// block carrying its safety comment, with the bit-exact scalar
+// fallback remaining the default off-path.
+#![allow(unsafe_code)]
+
 // x86_64-only consumers (the scalar pass-2 reuse lives in the
 // cfg-gated kernel); non-x86_64 builds must not see an unused import.
 #[cfg(target_arch = "x86_64")]
