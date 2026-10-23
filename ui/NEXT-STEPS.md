@@ -5,11 +5,16 @@ RTL (9/9 green), ESLint flat config with the two local rules (verified live),
 mock command transport + ClientProvider hook, routing skeleton for all doc 08
 §1.6 routes, Playwright config (no browsers). typecheck/test/lint all green.
 
+Closure session (P4-A1 relaunch 2, 2026-10-23): chromium installed
+(156.0.8078.4), smoke spec GREEN 1/1 (needed `baseURL` added to
+playwright.config.ts — the scaffold config had omitted it), HTML reporter
+added for the CI artifact, `.github/workflows/ui.yml` PROPOSED (Lead wires it
+at merge), README brought to closure state. All four gates green.
+
 ## Do next (roughly in order)
 
-1. **Playwright browsers**: `npx playwright install chromium --with-deps`, then
-   `npm run test:e2e` must pass the smoke spec (e2e/smoke.spec.ts). Headless
-   chromium only for now; matrix per doc 08 §9.3 later.
+1. ~~Playwright browsers~~ DONE (closure session) — smoke green on chromium;
+   matrix per doc 08 §9.3 still future work.
 2. **ESLint rules v2**: promote the two inline rules in `eslint.config.js` into
    a proper local plugin (e.g. `tools/eslint-plugin-lumen/`) with real schema +
    tests; cover template literals and literal props on presentation components
@@ -25,10 +30,11 @@ mock command transport + ClientProvider hook, routing skeleton for all doc 08
 4. **Screen stubs**: split ScreenPlaceholder into real per-screen modules under
    `src/screens/` as cards land (4.A2 tokens first — placeholder text already
    flows through useMsg()/MessageKey so i18n stays clean).
-5. **CI UI job** (Lead-owned at merge): propose `.github/workflows/ui.yml` —
-   `working-directory: ui`, steps: `npm ci`, `npm run typecheck`, `npm run lint`,
-   `npm run test`, then Playwright with cached browser install. Include the
-   exact yaml in the final 4.A1-session report.
+5. **CI UI job** (Lead-owned at merge): PROPOSED at `.github/workflows/ui.yml`
+   in branch wip/p4-a1 (closure session) — `working-directory: ui`,
+   setup-node 24 + npm cache, `npm ci`, then typecheck/lint/test/e2e with
+   `if: always()` keep-going aggregation, playwright browser cache, HTML
+   report artifact. Lead reviews pins + wires it.
 6. **Directory drift note**: doc 08 §8 wants `src/bindings/` (generated client)
    + `src/app/` (root providers/router); current scaffold has `src/generated/`
    (1.D4 output path — don't move it without updating `cargo xtask codegen`)
