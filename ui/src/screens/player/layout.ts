@@ -33,15 +33,35 @@ export class LayoutParseError extends Error {
 /** Region anchors (doc 08 player anatomy: top bar, canvas, control bar, side panels). */
 export type LayoutAnchor = "top" | "bottom" | "left" | "right" | "center";
 
-/** Condition tokens (doc 07 §7.3 — same grammar as keymaps `when`). */
-export type LayoutConditionToken = "has-media" | "has-video" | "fullscreen" | "has-chapters";
+/**
+ * Condition tokens (doc 07 §7.3 — same grammar as keymaps `when`). Card
+ * 4.F2 added the variant-scoped tokens "miniplayer" / "music-mode": a
+ * region carrying them is visible only in that player variant (doc 08 §4
+ * lists layout mode as UI-owned state; variant layouts in
+ * variants/variantLayout.ts consume them).
+ */
+export type LayoutConditionToken =
+  | "has-media"
+  | "has-video"
+  | "fullscreen"
+  | "has-chapters"
+  | "miniplayer"
+  | "music-mode";
 
-/** Runtime values for the condition tokens above. */
+/**
+ * Runtime values for the condition tokens above. The variant flags are
+ * optional for backward compatibility with pre-4.F2 callers; absent means
+ * "not in that variant" (honest default — the full layout).
+ */
 export interface LayoutConditionContext {
   readonly hasMedia: boolean;
   readonly hasVideo: boolean;
   readonly fullscreen: boolean;
   readonly hasChapters: boolean;
+  /** True while the player runs the miniplayer variant (4.F2). */
+  readonly miniplayer?: boolean;
+  /** True while the player runs the music variant (4.F2). */
+  readonly musicMode?: boolean;
 }
 
 /** A declared UI region (doc 07 §7.2 `[[region]]`). */
@@ -222,6 +242,8 @@ const CONDITION_TOKENS: readonly LayoutConditionToken[] = [
   "has-video",
   "fullscreen",
   "has-chapters",
+  "miniplayer",
+  "music-mode",
 ];
 
 function requireString(v: unknown, what: string): string {
@@ -401,5 +423,9 @@ export function evaluateCondition(
       return ctx.fullscreen;
     case "has-chapters":
       return ctx.hasChapters;
+    case "miniplayer":
+      return ctx.miniplayer === true;
+    case "music-mode":
+      return ctx.musicMode === true;
   }
 }

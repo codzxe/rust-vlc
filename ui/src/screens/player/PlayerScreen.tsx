@@ -17,23 +17,30 @@
 // overlays moved to ./states (card 4.C3) — the shell renders them on the
 // canvas region via the `engineState` prop / honest fallback.
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMsg } from "../../i18n/messages";
 import { PlayerControlsProvider, usePlayerControls } from "./context";
 import { ControlBar, controlCommandOf } from "./controls";
 import {
-  DEFAULT_KEYMAP,
   matchBindings,
   shellActionFor,
   type KeyBinding,
 } from "./keymap";
 import {
   evaluateCondition,
-  resolveLayout,
   type LayoutConditionContext,
   type LayoutRegion,
 } from "./layout";
 import { EmptyOverlay, StateRouter, type PlayerEngineView } from "./states";
+import {
+  MiniPlayer,
+  MusicMode,
+  PLAYER_SHELL_KEYMAP,
+  loadPersistedVariant,
+  persistVariant,
+  resolveVariantLayout,
+  type PlayerVariant,
+} from "./variants";
 import "./player.css";
 import { useChromeAutoHide } from "./useChromeAutoHide";
 import { useFullscreen } from "./useFullscreen";
@@ -70,6 +77,15 @@ export interface PlayerScreenProps {
    * commands; unwired affordances render disabled, never fake success). */
   readonly onRetry?: () => void;
   readonly onOpenMedia?: () => void;
+  /**
+   * Player variant override (card 4.F2 — controlled mode). Absent → the
+   * internal persisted variant state ("full" first run). Keymap-driven
+   * toggles update it and call onVariantChange.
+   */
+  readonly variant?: PlayerVariant;
+  /** Variant-change seam (card 4.F2): fires on keymap-driven switches and
+   * the miniplayer expand/close affordances. */
+  readonly onVariantChange?: (variant: PlayerVariant) => void;
 }
 
 export function PlayerScreen(props: PlayerScreenProps) {
@@ -91,9 +107,31 @@ function PlayerScreenInner({
   engineState,
   onRetry,
   onOpenMedia,
+  variant: variantProp,
+  onVariantChange,
 }: PlayerScreenProps) {
   const m = useMsg();
-  const layout = useMemo(() => resolveLayout(layoutSource), [layoutSource]);
+
+  // Card 4.F2 — player variant (UI-owned state per doc 08 §4, persisted via
+  // the same localStorage pattern as the settings seam). Controlled prop
+  // wins; otherwise the internal state starts from the persisted value.
+  const [variantState, setVariantState] = useState<PlayerVariant>(
+    () => loadPersistedVariant() ?? "full",
+  );
+  const variant = variantProp ?? variantState;
+  const setVariant = useCallback(
+    (next: PlayerVariant) => {
+      setVariantState(next);
+      persistVariant(next);
+      onVariantChange?.(next);
+    },
+    [onVariantChange],
+  );
+
+  const layout = useMemo(
+    () => resolveVariantLayout(layoutSource, variant),
+    [layoutSource, variant],
+  );
 
   const rootRef = useRef<HTMLDivElement>(null);
   const fullscreen = useFullscreen(rootRef);
@@ -117,11 +155,19 @@ function PlayerScreenInner({
   // to the 4.C2 seam. Native ESC exit is handled by the browser.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      for (const binding of matchBindings(DEFAULT_KEYMAP, event)) {
+      for (const binding of matchBindings(PLAYER_SHELL_KEYMAP, event)) {
         const action = shellActionFor(binding);
         switch (action.kind) {
           case "toggle-fullscreen":
             void toggleFullscreen();
+            break;
+          case "toggle-miniplayer":
+            // Keymap-data-driven variant switch (4.F2 — recipe seed in
+            // variants/variantKeymap.ts [PROPOSAL]).
+            setVariant(variant === "miniplayer" ? "full" : "miniplayer");
+            break;
+          case "toggle-music-mode":
+            setVariant(variant === "music" ? "full" : "music");
             break;
           case "exit-fullscreen":
             // "exit-fullscreen-close-dialog": exit when fullscreen; the
@@ -150,13 +196,15 @@ function PlayerScreenInner({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [toggleFullscreen, exitFullscreen, chrome, onBinding, actions]);
+  }, [toggleFullscreen, exitFullscreen, chrome, onBinding, actions, setVariant, variant]);
 
   const conditionCtx: LayoutConditionContext = {
     hasMedia,
     hasVideo: media?.hasVideo ?? false,
     fullscreen: isFullscreen,
     hasChapters: media?.hasChapters ?? false,
+    miniplayer: variant === "miniplayer",
+    musicMode: variant === "music",
   };
   const visible = (region: LayoutRegion): boolean =>
     evaluateCondition(region.visibleWhen, conditionCtx);
@@ -166,13 +214,53 @@ function PlayerScreenInner({
 
   const sidePanel = (region: LayoutRegion): boolean => openPanels.includes(region.id);
   const leftRegions = regionsOf("left").filter(sidePanel);
-  const rightRegions = regionsOf("right").filter(sidePanel);
+  // Music mode (4.F2): the playlist panel is LAYOUT-DRIVEN prominent — every
+  // visible right-anchor region renders without the openPanels gate
+  // (design matrix in variants/variantLayout.ts).
+  const rightRegions =
+    variant === "music"
+      ? regionsOf("right")
+      : regionsOf("right").filter(sidePanel);
+
+  // Miniplayer (4.F2): the whole surface is the compact card — no top bar,
+  // no side panels, no full control bar (design: Miniplayer.svg default).
+  if (variant === "miniplayer") {
+    const thumb = regionsOf("center")[0];
+    const controls = regionsOf("bottom")[0];
+    return (
+      <div
+        ref={rootRef}
+        className="lumen-player"
+        data-screen="player"
+        data-variant="miniplayer"
+        data-chrome={chrome.visibility}
+        data-fullscreen={String(isFullscreen)}
+        data-has-media={hasMedia}
+      >
+        {thumb === undefined || controls === undefined ? null : (
+          <MiniPlayer
+            thumbnailRegion={thumb}
+            controlsRegion={controls}
+            onExpand={() => setVariant("full")}
+            onClose={() => {
+              // [PROPOSAL]: window-level close is host-owned; the honest
+              // in-app close stops playback (real command) and restores the
+              // full variant.
+              actions.stop();
+              setVariant("full");
+            }}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div
       ref={rootRef}
       className="lumen-player"
       data-screen="player"
+      data-variant={variant}
       data-chrome={chrome.visibility}
       data-fullscreen={String(isFullscreen)}
       data-has-media={hasMedia}
@@ -195,7 +283,11 @@ function PlayerScreenInner({
           </header>
         ))}
 
-        {canvasRegion === undefined ? null : (
+        {canvasRegion === undefined ? null : variant === "music" ? (
+          /* Music mode (4.F2): the canvas region IS the album-art placeholder
+           * (honest — no fabricated artwork; doc 08 §1.4 album art 737²). */
+          <MusicMode artRegion={canvasRegion} />
+        ) : (
           <div
             data-region-id={canvasRegion.id}
             role="region"
@@ -225,6 +317,7 @@ function PlayerScreenInner({
             key={region.id}
             data-region-id={region.id}
             data-chrome-part=""
+            data-variant={variant === "music" ? "music" : undefined}
             role="region"
             aria-label={m(region.labelKey)}
             className="lumen-player__controls"
@@ -238,19 +331,29 @@ function PlayerScreenInner({
       </div>
 
       {rightRegions.map((region) => (
-        <PanelRegion key={region.id} region={region} side="right" />
+        <PanelRegion key={region.id} region={region} side="right" emphasized={variant === "music"} />
       ))}
     </div>
   );
 }
 
 /** An empty, honestly-labelled side-panel container from layout config. */
-function PanelRegion({ region, side }: { region: LayoutRegion; side: "left" | "right" }) {
+function PanelRegion({
+  region,
+  side,
+  emphasized = false,
+}: {
+  region: LayoutRegion;
+  side: "left" | "right";
+  /** Music-mode playlist emphasis (4.F2) — styling hook only. */
+  emphasized?: boolean;
+}) {
   const m = useMsg();
   return (
     <aside
       data-region-id={region.id}
       data-chrome-part=""
+      data-emphasized={emphasized || undefined}
       role="complementary"
       aria-label={m(region.labelKey)}
       className={`lumen-player__panel lumen-player__panel--${side}`}

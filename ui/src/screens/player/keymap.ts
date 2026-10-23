@@ -154,8 +154,17 @@ export function matchBindings(
  * this table only declares which recipes are shell-owned. Everything else is
  * forwarded to the onBinding seam for card 4.C2's command dispatch.
  */
-/** The recipes/ui-actions the shell itself implements (see shellActionFor). */
-type ShellActionKind = "toggle-fullscreen" | "exit-fullscreen" | "show-controls";
+/** The recipes/ui-actions the shell itself implements (see shellActionFor).
+ * Card 4.F2 added the variant-toggle recipes — UI-owned layout state per
+ * doc 08 §4, so no engine command exists; the seed rows live in
+ * variants/variantKeymap.ts [PROPOSAL] until keymaps/default.toml carries
+ * them. */
+type ShellActionKind =
+  | "toggle-fullscreen"
+  | "exit-fullscreen"
+  | "show-controls"
+  | "toggle-miniplayer"
+  | "toggle-music-mode";
 
 export type PlayerShellAction =
   | { readonly kind: ShellActionKind }
@@ -164,6 +173,8 @@ export type PlayerShellAction =
 const SHELL_RECIPES: Readonly<Record<string, ShellActionKind>> = {
   "fullscreen-toggle": "toggle-fullscreen",
   "exit-fullscreen-close-dialog": "exit-fullscreen",
+  "miniplayer-toggle": "toggle-miniplayer",
+  "music-mode-toggle": "toggle-music-mode",
 };
 const SHELL_UI_ACTIONS: Readonly<Record<string, ShellActionKind>> = {
   "show-controls-fullscreen": "show-controls",
