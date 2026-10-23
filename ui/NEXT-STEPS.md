@@ -250,3 +250,63 @@ Handoffs / next actions:
   `messages.ts` for now — migrate to `locales/en-US.toml` when the generated
   locale packs land; the localization crate's reference-complete audit (rule
   4) will then own the join.
+
+## Card 4.E2 — Settings group 1 (Interface, Appearance, Language, Hotkeys) — DONE
+
+Branch `wip/p4-e2`, commit `f3bc058`. 312/312 vitest, tsc strict, eslint 0
+errors, settings:check + new hotkeys:check green.
+
+What landed (`ui/src/screens/settings/areas/**` + `ui/src/theme/settingsThemeSync.ts`):
+
+- **Extension mechanism (recorded choice)**: E1's generator emits only what is
+  schema-static. `areas/index.tsx` merges `GENERATED_{AREA_IDS,TITLES,SCREENS}`
+  with hand-written extensions and exports the merged registry
+  (`SETTINGS_AREA_*`); `SettingsScreen` imports from `./areas` instead of
+  `generated/Screens`. E3/E4: append your dynamic areas + per-key widgets
+  there (schema-backed ones still come via the generator). `SettingField`
+  consults `SPECIAL_FIELD_WIDGETS[entry.key]` before its type-based renderer
+  (wrapper chrome — dirty/restart/reset — preserved).
+- **Appearance wiring**: `useSettingsThemeSync` (theme-side seam; ThemeProvider
+  untouched except `ThemeContext` export) pushes the `interface.theme` DRAFT
+  into ThemeProvider → `data-theme` on `<html>` (live preview, revert-safe).
+  Special widget: `ThemeModePicker` (schema enum dark/light).
+- **Language**: `LocalePicker` for `global.language` — options = schema enum ∩
+  real shipped catalogs (`locales/` dir = en-US only today, per
+  crates/localization `load_locales_dir`).
+- **Hotkeys editor**: `scripts/gen-hotkeys-data.mjs` (zero-dep; reuses
+  gen-settings-screens' TOML parser — player/layout.ts's cannot parse dotted
+  headers/nested inline tables) → `areas/hotkeys/generated/bindings.ts`
+  (141 bindings + 9 macOS overrides from keymaps/default.toml), drift-guarded
+  via `npm run hotkeys:check`. `HotkeysEditor`: per-binding combo edit,
+  reset-to-default per row, draft→Apply→localStorage overrides seam
+  (`lumen.hotkeys.overrides.v1` — real write path = app-layer handoff, same as
+  settings persistence), conflict detection on normalized (mode, combo) groups
+  using 4.C1's `normalizeBindingKey`, inline warning on EVERY conflicting row.
+- **Tests (34 new)**: theme wiring incl. html-attribute flips + revert +
+  never-guess; locale rendering/binding; editor render/edit/conflict-fire/
+  conflict-clear/reset/apply/disabled; conflicts pure logic (7); AC test —
+  every SPECIAL_FIELD_WIDGETS key ∈ schemas/settings.toml + every interface
+  entry renders bound to its schema key + hotkeys rows from real data.
+
+Handoffs / gaps (honest):
+
+- **Schema owner (1.B2 follow-up)**: NO `interface.accent` key in
+  schemas/settings.toml → accent picker NOT rendered (config-never-invents);
+  ThemeProvider's 9 accents stay on the 4.A2 default until the key lands (the
+  sync seam is ready to grow). Likewise no hotkey [[setting]] entries exist —
+  intentional: hotkeys are dynamic keymap data, handled via the generated
+  bindings module instead.
+- **i18n pipeline**: 133 `hotkeys.*` label msgids added to messages.ts with
+  copy derived mechanically from the keymap label-msgids — replace with real
+  copy via locales/en-US.toml when the localization pipeline owns the join
+  (doc 07 §6).
+- **Hotkeys editor known limits**: key capture is a plain text input (typed
+  combo must match keymap spelling grammar — `Ctrl+Shift+X`); search does not
+  cover hotkey rows (schema-entry search only); the editor's draft state is
+  NOT wired into the shell's confirm-on-leave dialog (self-contained bar);
+  platform overrides are surfaced as data only. Startup theme still defaults
+  dark until an app-level mount reads persisted settings before the settings
+  screen opens (my seam only runs while SettingsProvider is mounted).
+- **E3/E4 coordination**: `areas/index.tsx`, `SettingField.tsx` (3-line seam)
+  and `messages.ts` (append-only) are the shared touchpoints — merge order
+  may need a trivial resolve.
