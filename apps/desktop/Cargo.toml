@@ -31,6 +31,13 @@ path = "src/main.rs"
 
 [dependencies]
 commands = { path = "../../crates/commands" }
+# The engine + session wiring (card 4.H1): the CLI's host.rs is the
+# established composition pattern ("host.rs drives the engine via the
+# command layer"); the desktop composition root ADOPTS it as a library
+# dependency rather than re-implementing a second engine host (ARCH-5:
+# one command layer, no per-host re-implementations). apps/* → apps/*
+# at the same L6 layer; no engine crate is touched.
+lumen-cli = { path = "../cli" }
 media-types = { path = "../../crates/media-types" }
 renderer-wgpu = { path = "../../crates/renderer-wgpu" }
 video-engine = { path = "../../crates/video-engine" }

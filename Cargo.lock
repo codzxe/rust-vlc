@@ -64,6 +64,7 @@ name = "desktop"
 version = "0.1.0"
 dependencies = [
  "commands",
+ "lumen-cli",
  "media-clock",
  "media-types",
  "renderer-wgpu",

@@ -69,14 +69,19 @@
 //! dependencies (std-only by C5 until ADR-004 changes that).
 
 pub mod bridge;
+pub mod dispatch;
 pub mod error;
+pub mod files;
 pub mod host;
 pub mod mailbox;
 pub mod transport;
+pub mod window_config;
 pub mod wire;
 
 pub use bridge::{BridgeStats, CanvasBridge, EmitClock, MonotonicEmitClock};
+pub use dispatch::{EventSink, ShellHost, lumen_dispatch, open_file_request};
 pub use error::{HostError, WireError};
+pub use files::{DragDropHandler, NativeFileDialog, NativeDialog, PathDragDrop, is_media_path};
 pub use host::{
     DesktopHost, EventDelivery, PresentationVariant, ResponseObservation, StrategyReport, TargetOs,
     strategy_for,
@@ -89,6 +94,7 @@ pub use transport::{
     CaptureTransport, FrameTransport, MailboxTransport, NullTransport, TransportError,
     WebviewHostKind,
 };
+pub use window_config::{WindowConfig, WindowConfigError, parse_window_table};
 pub use wire::{
     DecodedFrame, FormatCode, FrameFlags, FrameHeader, MAGIC, MAX_DIMENSION, MAX_HEADER_LEN,
     MAX_PAYLOAD_LEN, MIN_HEADER_LEN, VERSION, WireDecoder,
