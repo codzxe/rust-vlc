@@ -1,48 +1,73 @@
-# NEXT-STEPS — card 4.A1 successors
+# NEXT-STEPS — card 4.A1/4.A2 successors
 
 Session 1 (agent P4-A1) delivered: Vite + React + TS-strict scaffold, vitest +
-RTL (9/9 green), ESLint flat config with the two local rules (verified live),
-mock command transport + ClientProvider hook, routing skeleton for all doc 08
-§1.6 routes, Playwright config (no browsers). typecheck/test/lint all green.
+RTL, ESLint flat config with two local rules, mock command transport +
+ClientProvider hook, routing skeleton for all doc 08 §1.6 routes, Playwright
+config. typecheck/test/lint green.
+
+Session 2 (agent P4-A2) delivered the token pipeline (doc 08 §3):
+`ui/scripts/gen-tokens.mjs` (zero deps) syncing the crates/theme-tokens
+output (`themes/generated/tokens.css`) into `src/tokens/generated/` (CSS copy
++ typed accessors + sha256), `ThemeProvider`/`useTheme` (dark/light/auto × 9
+accents via `data-theme`/`data-accent` on `<html>`), the
+`local/semantic-tokens-only` lint rule, a `/dev/tokens` sandbox fixture, 20/20
+unit tests + 4/4 e2e (browsers were already cached; added the missing
+`baseURL` to playwright.config.ts — latent 4.A1 gap). Decision record:
+`src/tokens/README.md`.
 
 ## Do next (roughly in order)
 
-1. **Playwright browsers**: `npx playwright install chromium --with-deps`, then
-   `npm run test:e2e` must pass the smoke spec (e2e/smoke.spec.ts). Headless
-   chromium only for now; matrix per doc 08 §9.3 later.
-2. **ESLint rules v2**: promote the two inline rules in `eslint.config.js` into
-   a proper local plugin (e.g. `tools/eslint-plugin-lumen/`) with real schema +
-   tests; cover template literals and literal props on presentation components
-   with the technical-identifier exemption list the old placeholder sketch
-   carried (`className`, `data-testid`, `icon`, `key`, `ref` — doc 07 §6.5);
-   consider `no-restricted-imports` for Tauri APIs (doc 08 §8). The legacy
-   `ui/.eslintrc.json` sketch was deleted at s1 (ESLint 10 ignores eslintrc;
-   flat `eslint.config.js` is live) — its content is in git history.
-3. **Command client growth**: extend `src/client/transport.ts` — requestId
-   allocation, pending-request map, event dispatch, stale-generation handling
-   (doc 05 §4); keep the `src/generated/` import seam in one file. Add a
-   `useCommand` hook. Real fixture replay comes from doc 05 §7 testkit.
-4. **Screen stubs**: split ScreenPlaceholder into real per-screen modules under
-   `src/screens/` as cards land (4.A2 tokens first — placeholder text already
-   flows through useMsg()/MessageKey so i18n stays clean).
-5. **CI UI job** (Lead-owned at merge): propose `.github/workflows/ui.yml` —
-   `working-directory: ui`, steps: `npm ci`, `npm run typecheck`, `npm run lint`,
-   `npm run test`, then Playwright with cached browser install. Include the
-   exact yaml in the final 4.A1-session report.
-6. **Directory drift note**: doc 08 §8 wants `src/bindings/` (generated client)
-   + `src/app/` (root providers/router); current scaffold has `src/generated/`
-   (1.D4 output path — don't move it without updating `cargo xtask codegen`)
-   and root-level `App.tsx`/`main.tsx`. Reconcile when components land.
-7. **README**: keep the dependency table in sync (AGENTS.md audit rule) — every
-   new package needs name/version/license/why.
+1. **4.A2 completion pass (later session)**: worklog entry (---, Task ID:
+   4.A2) once the remaining items land; full 9-accent × light/dark visual
+   matrix verification (unit tests already assert structure; add a
+   Playwright loop over all 9 accents); check `cargo xtask tokens` still
+   regenerates byte-stable after any themes/tokens.json change and re-pin
+   `PINNED_SHA256` in `src/tokens/tokens.test.ts` in the same commit.
+2. **Rust-constants side**: survey consumers of
+   `crates/theme-tokens/src/generated/tokens.rs` (engine-side needs);
+   renderer clear colors / subtitle-safe margins per doc 08 §3.1 — Lead
+   gates which crates consume them (ARCH-3: engine owns no UI state).
+3. **Settings wiring**: ThemeProvider currently defaults to dark + orange
+   with NO persistence — wire the "Accent color" + theme settings through
+   the settings schema (doc 07) when those cards land; `ui/src/theme/` is
+   the seam.
+4. **ESLint rules v2**: promote the three inline rules in `eslint.config.js`
+   into a proper local plugin (e.g. `tools/eslint-plugin-lumen/`) with real
+   schema + tests; template-literal coverage for
+   `local/semantic-tokens-only` (currently regex-grade on quasis only);
+   Stylelint for plain `.css` files (doc 08 §3.4) — TokenSandbox.css is
+   var()-only by construction, not by enforcement.
+5. **Command client growth**: extend `src/client/transport.ts` — requestId
+   allocation, pending-request map, event dispatch, stale-generation
+   handling (doc 05 §4); keep the `src/generated/` import seam in one file.
+   Add a `useCommand` hook. Real fixture replay comes from doc 05 §7 testkit.
+6. **Screen stubs**: split ScreenPlaceholder into real per-screen modules as
+   4.B primitives land. The `/dev/tokens` route is a dev fixture, NOT a
+   product screen — do not copy its pattern into product screens.
+7. **CI UI job** (Lead-owned at merge): propose `.github/workflows/ui.yml` —
+   `working-directory: ui`, steps: `npm ci`, `npm run typecheck`, `npm run
+   lint`, `npm run tokens:check`, `npm run test`, then Playwright with
+   cached browser install.
+8. **Directory drift note**: doc 08 §8 wants `src/bindings/` + `src/app/`;
+   current scaffold has `src/generated/` (1.D4 output path — don't move it
+   without updating `cargo xtask codegen`) and root-level `App.tsx`/
+   `main.tsx`. Reconcile when components land.
 
-## Honest caveats from session 1
+## Honest caveats from session 2 (4.A2)
 
-- `react-refresh/only-export-components` warns on `useClient` living beside
-  `ClientProvider` (provider/hook pairing) — accepted warning, not suppressed.
-- `ui/.eslintrc.json` from the placeholder era was superseded by the flat
-  `eslint.config.js` (ESLint 10); the i18n-allowlist entry format is now
-  `{ text, reason, owner }`.
+- `react-refresh/only-export-components` now also warns on `useTheme` beside
+  `ThemeProvider` — same accepted provider/hook-pairing warning as 4.A1.
+- vitest stubs raw `.css` imports, so the generated CSS text is also carried
+  inside `tokens.ts` (`TOKENS_CSS`) for the snapshot test — the browserside
+  cascade still loads the real `tokens.css` via `main.tsx`.
+- `local/semantic-tokens-only` v1 misses: CSS-in-`<style>` tags, non-literal
+  (computed) color strings, px on non-font-size/radius keys. Documented in
+  the rule comment; v2 promotion tracked above.
+- `themes/generated/tokens.css` was NOT regenerated this session (Rust side
+  untouched, read-only) — the pipeline consumes the committed 1.B4 output.
+
+## Honest caveats from session 1 (4.A1)
+
 - Node 24.21.0 / npm 11.19.0; registry reachable (PONG 201ms).
 - Vite 8 / vitest 5 / TS 6 / ESLint 10 are the current majors — if any behave
   oddly, pinning down one major is acceptable, record why here.

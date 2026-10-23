@@ -10,6 +10,10 @@ export default defineConfig({
   use: {
     browserName: "chromium",
     headless: true,
+    // Relative page.goto("/") targets resolve against the dev server
+    // (card 4.A2: without an explicit baseURL, goto("/") is an invalid URL —
+    // latent 4.A1 gap, first exercised now that browsers are installed).
+    baseURL: "http://localhost:5173",
   },
   webServer: {
     command: "npm run dev -- --port 5173 --strictPort",
