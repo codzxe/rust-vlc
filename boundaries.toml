@@ -382,6 +382,18 @@ dev_deps = []
 external_allowlist = []
 external_dev_allowlist = []
 
+# tools/mem-audit (package lumen-mem-audit, card W5-15): measurement
+# instrument — counting GlobalAlloc harness for the memory-audit card.
+# Dev-tool position: NOTHING may depend on it. unsafe note: the counting
+# GlobalAlloc is the instrument's purpose (unsafe impl GlobalAlloc +
+# #[global_allocator], safety-commented in-source; ADR ratification is
+# the card's recorded handoff).
+[crates.lumen-mem-audit]
+internal_deps = []
+dev_deps = []
+external_allowlist = []
+external_dev_allowlist = []
+
 # crates/_template (package name `template`, task 1.A1): workspace member
 # and lint canary, publish = false, "no crate may ever depend on it" —
 # encoded by appearing in no internal_deps list above. Outside the layer
