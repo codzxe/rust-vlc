@@ -82,3 +82,50 @@ it ends**:
 - `NEXT-STEPS.md` (this file) — committed.
 - `soak-4h.log` — the reaped attempt's log (8 `Compiling` lines, untracked
   evidence; overwrite it on relaunch).
+
+---
+
+## Task 4.B4 — surface/list/icon primitives (agent P4-B4)
+
+**Status: COMPLETE (core scope).** Worktree `wip/p4-b4`, based on main @ 91e1f15.
+Gates: `tsc --noEmit` ✓ · `eslint` clean ✓ · vitest **117/117** (35 new:
+Surface 11, List 16, Icon 6).
+
+### Shipped (`ui/src/components/{surface,list,icon}/**`)
+
+- **Dialog/Sheet** (`surface/`): focus trap (Tab/Shift+Tab cycle taken over
+  explicitly — deterministic in jsdom *and* browsers), Escape closes, focus
+  restores to opener, `aria-modal` + `role=dialog` + `aria-labelledby`
+  (synthesized sr-only title when no `labelledBy`). Sheet = edge-anchored
+  variant (`top/right/bottom/left`), slide-in honoring reduced-motion.
+- **Tabs**: `tablist/tab/tabpanel`, roving tabindex, arrows per orientation +
+  Home/End + wrap, selection-follows-focus, full aria wiring.
+- **ScrollArea**: labelled native scroll region; thin token-styled scrollbars
+  (`scrollbar-width: thin` + webkit pseudos) — no fake physics.
+- **VirtualList/VirtualTable**: hand-rolled windowing in `list/range.ts`
+  (`computeRange`, pure + unit-tested), fixed `itemHeight` + overscan +
+  absolute rows in a `count × itemHeight` spacer. **AC proven: 10k rows →
+  30 DOM row nodes (< 100 asserted), spacer 280000px, contiguous window with
+  no gaps after scroll-jump, `scrollToIndex` (start/center/end, clamped).**
+  Table adds `table/row/columnheader/cell` roles + sticky head + aria-rowcount.
+- **Icon**: 32-name registry — ONLY names doc 08 §1.5/§1.6 actually names
+  (transport, volume mute/low/med/high, customize-panel catalog, menu
+  accelerators). 1.5 stroke, `currentColor`, size prop, decorative-by-default,
+  state variants via `.lumen-icon-host*` CSS classes (§4.4).
+
+### Known gaps / next actions
+
+1. **Icon glyphs are provisional geometry** (TODO [VERIFY-DESIGN] in
+   `icon/icons.tsx`): `design/figma/Icon.svg` layer ids are anonymous
+   ("Frame 1_17"), so names→paths can't be attributed mechanically yet. Next
+   agent: mine real paths from Icon.svg/Controls.svg (318 stroke-width-1.5
+   elements available) or get named exports from design; also emphasis
+   variants (stroke 2/3) are unimplemented.
+2. Dialog has **no portal** (renders in place, fixed-position scrim). Fine for
+   current hosts; revisit if stacking contexts clip it (DialogHost overlay is
+   a doc 08 §4.1 `[PROPOSAL]`).
+3. Virtualization is fixed-height only (per doc). Variable heights / grid
+   virtualization not needed by any current screen — do not add speculatively.
+4. `scrollToIndex` is prop-driven (target object), not ref-imperative; if
+   4.C*/4.D* screens need programmatic control mid-gesture, wrap in
+   `useImperativeHandle`.

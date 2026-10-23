@@ -1,0 +1,49 @@
+/* Card 4.B4 — icon system styles.
+ * Design provenance: docs/08-ui-figma-fidelity.md §1.4 (line icons, stroke
+ * #8F8F8F, stroke-width 1.5; emphasis 2/3), §4.4 interim state rules.
+ * State variants are CSS so hosts (Button/IconButton/menu rows) get them for
+ * free by nesting; `currentColor` carries the token tint. */
+
+.lumen-icon {
+  display: inline-block;
+  flex: none; /* don't shrink inside flex rows */
+  box-sizing: content-box;
+  color: var(--color-stroke-icon);
+  /* Icon Wrapper.svg: ~48px hit area. Padding reaches it without inflating
+   * layout — interactive hosts opt in via --lumen-icon-hit. */
+  padding: var(--lumen-icon-hit, 0);
+  pointer-events: none; /* the hit area belongs to the host control */
+  vertical-align: middle;
+  transition: color 120ms ease;
+}
+
+/* Host-driven state variants (§4.4): hosts add .lumen-icon-host and the
+ * state modifier; the icon inherits the right token color. */
+.lumen-icon-host:hover .lumen-icon {
+  color: var(--color-content-bright);
+}
+
+.lumen-icon-host:active .lumen-icon {
+  color: var(--color-content-bright);
+}
+
+.lumen-icon-host--selected .lumen-icon,
+.lumen-icon-host--open .lumen-icon {
+  color: var(--color-accent-icon);
+}
+
+.lumen-icon-host:focus-visible .lumen-icon {
+  color: var(--color-content-bright);
+}
+
+.lumen-icon-host--disabled .lumen-icon,
+.lumen-icon--disabled {
+  color: var(--color-stroke-icon);
+  opacity: var(--opacity-disabled);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lumen-icon {
+    transition: none;
+  }
+}

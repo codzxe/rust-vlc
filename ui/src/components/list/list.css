@@ -1,0 +1,176 @@
+/* Card 4.B4 — list primitives (Tabs, ScrollArea, VirtualList, VirtualTable).
+ * Design provenance: docs/08-ui-figma-fidelity.md §4 (thin-scrollbar spec,
+ * virtualization), §1.4 (radius ramp, selected category rx2), §1.5
+ * (option.svg: 48h rows, rest/hover/selected), §4.4 interim state rules.
+ * Semantic tokens only (§3.2). Raw px solely for structural dimensions with
+ * no token (focus ring width, hairline scrollbar). */
+
+/* ---------------------------------------------------------------- Tabs -- */
+
+.lumen-tabs__list {
+  display: flex;
+  gap: var(--space-grid);
+}
+
+.lumen-tabs__tab {
+  box-sizing: border-box;
+  height: 28px; /* doc 08 §1.4 control height `sm` */
+  padding: 0 var(--space-inset);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-primary);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-panel); /* selected category rx2 */
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.lumen-tabs__tab:hover {
+  color: var(--color-content-bright);
+  background: var(--color-surface-hover);
+}
+
+.lumen-tabs__tab--selected {
+  color: var(--color-content-bright);
+  background: var(--color-surface-selected);
+}
+
+.lumen-tabs__tab:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.lumen-tabs__tab:disabled {
+  opacity: var(--opacity-disabled);
+  pointer-events: none;
+}
+
+.lumen-tabs__panel {
+  padding: var(--space-grid) 0;
+  color: var(--color-content-secondary);
+}
+
+.lumen-tabs__panel:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------- ScrollArea -- */
+
+.lumen-scrollarea {
+  box-sizing: border-box;
+  overflow: auto; /* honest native scrolling — no fake physics */
+  border-radius: var(--radius-inset);
+}
+
+.lumen-scrollarea:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Thin-scrollbar spec (doc 08 §4): token-colored hairline scrollbars. */
+.lumen-scrollarea,
+.lumen-vlist,
+.lumen-vtable__body {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-surface-muted) transparent;
+}
+
+.lumen-scrollarea::-webkit-scrollbar,
+.lumen-vlist::-webkit-scrollbar,
+.lumen-vtable__body::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.lumen-scrollarea::-webkit-scrollbar-thumb,
+.lumen-vlist::-webkit-scrollbar-thumb,
+.lumen-vtable__body::-webkit-scrollbar-thumb {
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-hairline);
+}
+
+.lumen-scrollarea::-webkit-scrollbar-track,
+.lumen-vlist::-webkit-scrollbar-track,
+.lumen-vtable__body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ------------------------------------------------- VirtualList / Table -- */
+
+.lumen-vlist {
+  position: relative;
+  overflow: auto;
+  box-sizing: border-box;
+}
+
+.lumen-vlist:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.lumen-vlist__spacer {
+  position: relative;
+  width: 100%;
+}
+
+.lumen-vrow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 0 var(--space-grid);
+  color: var(--color-content-secondary);
+}
+
+.lumen-vrow:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-content-bright);
+}
+
+.lumen-vtable {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.lumen-vtable__head {
+  display: grid;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.lumen-vtable__body {
+  position: relative;
+  overflow: auto;
+  flex: 1;
+}
+
+.lumen-vtable__row {
+  display: grid;
+  position: absolute;
+  left: 0;
+  right: 0;
+  align-items: center;
+}
+
+.lumen-vtable__cell {
+  padding: 0 var(--space-grid);
+  overflow: hidden;
+  color: var(--color-content-secondary);
+  font-size: var(--font-size-body);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.lumen-vtable__cell--head {
+  color: var(--color-content-primary);
+  font-weight: var(--font-weight-medium);
+  background: var(--color-surface-chrome);
+}
