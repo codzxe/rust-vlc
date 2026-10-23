@@ -73,6 +73,8 @@ mod error;
 mod huffman;
 #[path = "../src/video/mjpeg/idct.rs"]
 mod idct;
+#[path = "../src/video/mjpeg/idct_simd.rs"]
+mod idct_simd;
 #[path = "../src/video/mjpeg/parser.rs"]
 mod parser;
 
