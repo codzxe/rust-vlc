@@ -1,0 +1,35 @@
+== dirty/0029-riff-size-lie.avi
+index=1|codec_name=pcm_s16le|nb_read_packets=6
+== dirty/dup-range-001-0063-avi-av.avi
+index=1|codec_name=pcm_s24le|nb_read_packets=340
+== media/0021-multivideo-av.avi
+index=2|codec_name=pcm_s16le|nb_read_packets=32
+== media/0039-avi-av.avi
+index=1|codec_name=pcm_f32le|nb_read_packets=41377
+== media/0056-avi-av.avi
+index=1|codec_name=pcm_s16le|nb_read_packets=353
+== media/0063-avi-av.avi
+index=1|codec_name=pcm_s24le|nb_read_packets=339
+== media/0066-avi-av.avi
+index=1|codec_name=pcm_u8|nb_read_packets=14
+== media/0074-hevc-in-avi.avi
+index=1|codec_name=pcm_u8|nb_read_packets=7
+== media/0076-maxtracks-avi.avi
+index=9|codec_name=pcm_u8|nb_read_packets=8
+index=10|codec_name=pcm_u8|nb_read_packets=6
+index=11|codec_name=pcm_u8|nb_read_packets=8
+index=12|codec_name=pcm_u8|nb_read_packets=6
+index=13|codec_name=pcm_u8|nb_read_packets=8
+index=14|codec_name=pcm_u8|nb_read_packets=11
+index=15|codec_name=pcm_u8|nb_read_packets=6
+index=16|codec_name=pcm_u8|nb_read_packets=11
+index=17|codec_name=pcm_u8|nb_read_packets=6
+index=18|codec_name=pcm_u8|nb_read_packets=8
+index=19|codec_name=pcm_u8|nb_read_packets=6
+index=20|codec_name=pcm_u8|nb_read_packets=6
+index=21|codec_name=pcm_u8|nb_read_packets=4
+index=22|codec_name=pcm_u8|nb_read_packets=4
+index=23|codec_name=pcm_u8|nb_read_packets=4
+index=24|codec_name=pcm_u8|nb_read_packets=8
+index=25|codec_name=pcm_u8|nb_read_packets=8
+index=26|codec_name=pcm_u8|nb_read_packets=8

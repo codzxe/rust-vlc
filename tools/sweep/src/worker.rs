@@ -541,20 +541,22 @@ mod tests {
     }
 
     #[test]
-    fn marker_line_shape_matches_the_parser() {
+    fn marker_line_shape_matches_the_parser() -> Result<(), String> {
         let mut result = result_skeleton("ok", None);
         result.v_pkts = 3;
         result.v_dec = 3;
         result.limbs = "v";
         result.container = "avi".to_string();
         let line = marker_line(&result);
-        let parsed = crate::outcome::parse_worker_line(&line);
-        let Some(parsed) = parsed else {
-            assert!(false, "marker line must round-trip the parser");
-            return;
+        let Some(parsed) = crate::outcome::parse_worker_line(&line) else {
+            // Typed failure: no panic macro (F-5 panic-surface hygiene) and no
+            // `assert!(false)` (clippy::assertions_on_constants). The test still
+            // fails with the offending line in the message.
+            return Err(format!("marker line must round-trip the parser: {line}"));
         };
         assert_eq!(parsed.status, "ok");
         assert_eq!(parsed.v_pkts, 3);
         assert_eq!(parsed.container, "avi");
+        Ok(())
     }
 }

@@ -1,5 +1,41 @@
 # tools/sweep — card 7-d session breadcrumbs
 
+Session 3 (relaunch 4):
+- Clippy error FIXED (worker.rs test): `assert!(false, …)` → test now
+  returns `Result<(), String>` and fails via typed `Err(format!(…))`.
+  Chose typed-Err over `unreachable!`/`panic!` so BOTH clippy
+  (`assertions_on_constants`) and the F-5 panic-surface scan stay green.
+  Verified: `cargo clippy -p lumen-sweep --all-targets` clean, 15/15
+  tests green. Committed fadd570 (with census doc).
+- CENSUS DOC DONE: docs/perf/corpus-v4-sweep-20261024.md (panic census
+  0/0, damage census, per-class matrix, findings, limitations).
+- PARITY RAW DATA (start of deliverable #2), corpus regenerated from
+  the manifest (`--replay`, 126 files verified):
+  * docs/perf/raw/parity-v4-smoke-ffprobe-20261024.log — ffprobe
+    (-count_frames) track inventory + decoded frame counts + duration
+    for all 21 ok-class files.
+  * docs/perf/raw/parity-v4-smoke-audio-pkts-20261024.log — ffprobe
+    -count_packets audio-side for the 9 audio-bearing ok files.
+  Headline parity findings (write up in parity doc next session):
+  * mjpeg video frame counts MATCH ffmpeg exactly on every file where
+    the mjpeg stream was decoded: 9,18,47,66,120,33,36,36,37,904,93,18,
+    4,51,8,221,18,16,76 — all equal (17 streams).
+  * silent-skip family (engine handoffs): hevc-in-avi/0074 (ffmpeg 11
+    hevc frames, Lumen 0 v), 0066-avi-av (ffmpeg 8 mpeg4 frames, Lumen
+    v=0/0 — mpeg4 stream skipped), 0021-multivideo-av (ffmpeg has BOTH
+    mpeg4(60f) and mjpeg(120f) streams; Lumen decodes only mjpeg 120).
+  * maxtracks-avi/0076: ffmpeg sees 27 streams (9 mjpeg v + 18 pcm_u8
+    a); Lumen surfaces 2 tracks (first v + first a), v=8/8 a=8/8.
+  * 0039-avi-av: pcm_f32le — ffprobe counts 41,377 packets vs Lumen
+    a_pkts=41 (packetization granularity differs; compare duration +
+    PCM MD5, not packet counts).
+  * dup-range-001 (dirty): a 338 vs ffmpeg 340 packets — 2-packet loss
+    after the 4 demux recoveries; riff-size-lie: exact 9/9 + 6/6.
+  NEXT: PCM MD5 comparison (ffmpeg -f s16le pipe vs Lumen digest infra
+  in tools/bench-vs-vlc/; 35 rows already in
+  docs/corpus/vlc-diff-report-20261023.md), duration deltas, then
+  docs/perf/parity-v4-20261024.md.
+
 Session 2 (relaunch 3) ran the FIRST REAL corpus-v4 smoke sweep:
 
 - corpus regenerated to `/tmp/corpus-v4-smoke` via `--replay` (all
