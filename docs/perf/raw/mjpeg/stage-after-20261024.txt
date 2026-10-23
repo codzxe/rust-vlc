@@ -1,0 +1,14 @@
+pass  0: full     62.6 | scalar     54.8 | scan     30.2 | noidct     17.7 | nowrite     28.5 | huffonly     15.5 | parse      0.0 ms
+pass  1: full     56.0 | scalar     54.6 | scan     30.4 | noidct     17.2 | nowrite     28.4 | huffonly     15.5 | parse      0.0 ms
+pass  2: full     55.8 | scalar     54.7 | scan     30.3 | noidct     17.1 | nowrite     28.4 | huffonly     15.4 | parse      0.0 ms
+pass  3: full     56.1 | scalar     59.1 | scan     30.2 | noidct     17.2 | nowrite     28.3 | huffonly     15.5 | parse      0.0 ms
+pass  4: full     55.8 | scalar     54.5 | scan     30.3 | noidct     17.2 | nowrite     28.5 | huffonly     15.6 | parse      0.0 ms
+pass  5: full     55.8 | scalar     54.7 | scan     30.4 | noidct     17.4 | nowrite     28.8 | huffonly     15.4 | parse      0.0 ms
+pass  6: full     55.8 | scalar     54.6 | scan     30.7 | noidct     17.2 | nowrite     28.6 | huffonly     15.5 | parse      0.0 ms
+shares of full: parse 0.0% | huffman 27.8% | idct+dequant 23.2% | store 3.1% | assemble(color/crop) 45.7% | residual 0.1 ms
+simd-vs-scalar (identical walk, transform only): full(simd) 55.8 ms vs full(scalar) 54.7 ms -> 1.021x (102.1% of scalar walk)
+STAGEBENCH file=/tmp/corpus-w7b/media/0063-avi-av.avi frames=17 passes=7 RGBA 512x512 med_full_ms=55.8 med_scalar_full_ms=54.7 simd_speedup=1.021 med_scan_ms=30.3 parse_ms=0.0 huffman_ms=15.5 idct_ms=13.0 store_ms=1.7 assemble_ms=25.5 residual_ms=0.10 pct_parse=0.0 pct_huffman=27.8 pct_idct=23.2 pct_store=3.1 pct_assemble=45.7 min_full_ms=55.8 min_scalar_full_ms=54.5 min_huffman_ms=15.4 min_idct_ms=12.9 min_store_ms=1.7 min_assemble_ms=25.6 load_before=0.38 load_after=0.38
+pass  0: full  12054.6 | scalar  11984.3 | scan   8480.4 | noidct   5455.9 | nowrite   8261.4 | huffonly   5290.7 | parse      0.8 ms
+pass  1: full  12051.3 | scalar  12008.3 | scan   8468.8 | noidct   5442.7 | nowrite   8287.0 | huffonly   5299.1 | parse      0.8 ms
+pass  2: full  12157.8 | scalar  12009.9 | scan   8510.8 | noidct   5452.5 | nowrite   8266.8 | huffonly   5301.3 | parse      0.8 ms
+pass  3: full  12045.0 | scalar  11956.4 | scan   8486.4 | noidct   5516.8 | nowrite   8270.9 | huffonly   5289.0 | parse      0.8 ms

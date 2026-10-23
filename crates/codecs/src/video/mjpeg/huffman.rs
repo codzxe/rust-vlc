@@ -91,20 +91,20 @@ impl HuffmanDecoder {
         self.val_ptr = [0usize; 17];
         let mut code: i32 = 0;
         let mut symbol_index = 0usize;
-        for length in 1..=16usize {
-            if bits[length] > 0 {
+        for (length, &count_u8) in bits.iter().enumerate().take(17).skip(1) {
+            if count_u8 > 0 {
                 self.val_ptr[length] = symbol_index;
                 self.min_code[length] = code;
                 // Canonical codes are consecutive at each length
                 // (Annex C.2): the last is code + count - 1.
-                let count = i32::from(bits[length]);
+                let count = i32::from(count_u8);
                 let last = code.checked_add(count - 1).ok_or(Stop::InvalidCode)?;
                 if last >= (1i32 << length) {
                     return Err(Stop::InvalidCode);
                 }
                 self.max_code[length] = last;
                 code = last + 1;
-                symbol_index += bits[length] as usize;
+                symbol_index += count_u8 as usize;
             }
             code <<= 1;
         }
