@@ -8195,3 +8195,117 @@ Stage Summary:
 - PARTIAL (part 1 done, part 2 not started by design). `cargo test -p demux`: **140 passed / 0 failed** (corpus ignored — media dirs absent, 4 pre-existing ignores); clippy -p demux --all-targets: 0 warnings; fmt clean. Load conditions: shared target dir, up to 4 sibling Wave-7 agents compiling concurrently (lock waits only); suites serialized.
 - D-10: MEASURE? — every number is a pinned test assertion run on this branch (2.000→0.000 alloc events/video packet; 164→26 seam calls), not estimates. NOT tested? — real-file I/O (input crate serves the large asks — part 2), corpus suite, latency benches (W5-14 color_bench re-run owed at merge). What breaks? — open-phase seam-call count 14 is fixture-shaped (a header.rs change shifts it); consumers holding many packets live degrade to correct-but-allocating spill. Who hits it first? — the merge gate (full workspace) and the part-2 input agent.
 - Handoffs: (1) Lead: review the 5bc51ef pin amendment (rationale in the test doc-comment + docs/perf/v1-input-readpath-20261024.md §2). (2) Part-2 agent: input crate must honor large read_into asks without a window-copy per call; the default trait read_into allocates out.len() per call. (3) Follow-up (any demux owner): clamp past-EOF declared payload asks to file_len − payload_start (bounds the worst spill; touches damage accounting — pinned tests exist).
+
+---
+Task ID: 7-c
+Agent: 7-c (relaunch 3)
+Task: card completion — part 2 (input-crate large-read path) + closure
+
+Work Log:
+- AUDIT (crates/input): after V-1, the demux asks ONE full-size `read_into` per frame, but `BufferedReader` served it as a window-refill loop — `ceil(len / 64 KiB)` source calls, each a 64 KiB syscall + window→arena copy (1.5 MiB frame class = 24 calls + 1.5 MiB intermediate copying). D-1 memory was already honest (fixed window, MAX_READ_BYTES ceiling, typed truncation); the waste was transfer granularity. Confirmed demux payload path is the borrow seam (riff.rs `read_prefix_into` → `stream.read_into(&mut arena_slot)`), so a zero-copy handoff is type-legal.
+- CHANGE (crates/input/src/buffered.rs): asks now split by size. `want < capacity`: unchanged window path (read-ahead locality for headers/probes). `want >= capacity`: **window bypass** — leftover read-ahead drains into the destination first, then the source is asked directly for the remainder: `read_into` is a true zero-copy handoff (syscall writes straight into the demux arena slot; 0 alloc, 0 window→out copies); `read` reads straight into the result Vec (one `want`-sized zero-fill replaces per-chunk copies — the price of the no-unsafe API). Short-but-nonzero source reads re-asked (strict progress); after a COMPLETE bypass exactly one capacity-bounded read-ahead refill re-arms the window (keeps header-after-payload a window hit; payload 2 calls + header 0 vs 24 + 1 = 25 before). Two bugs caught by my own tests mid-session: bypass loops initially failed to advance `buf_pos` (position invariant) and omitted the refill (breaking the pinned truncation snapshot semantics `truncation_below_the_cursor…`) — both fixed; tests were the net that caught them.
+- PINS: repinned the card-2.A1 "no chunk above capacity" assertions (unit `large_reads…`/`read_into…` + `contract::assert_bounded_read`) to the stronger transfer contract: one full-size bulk call (+ ≤1 refill), no speculative over-read beyond the caller's request, window never grows, byte-exact, truncation semantics unchanged. New pins: leftover-drain-first, dribbling-source short-read survival, clean EOF past end. Supersession reasoning recorded in test doc-comments + perf doc (the old pin asserted a refill-loop implementation detail, not the memory bound).
+- Docs: docs/perf/v1-input-readpath-20261024.md §7 (part 2) — audit, change, before/after table, supersession, limits. lib.rs/contract.rs/buffered.rs module docs updated. No unsafe, no API change, no new allocation.
+
+Stage Summary:
+- COMPLETE. `cargo test -p input`: **54 passed / 0 failed**; `cargo test -p demux`: **140 passed / 0 failed** (V-1 pins hold; corpus ignores pre-existing, media absent). Commits on wip/w7-c: be6d9cd (bypass + repins), d0b4cdb (buf_pos/refill correctness + doc numbers). Load conditions: shared target dir, 4 sibling Wave-7 agents intermittently compiling (lock waits only).
+- D-10: MEASURE? — yes, via the instrumented ScriptSource read ledger (before/after identical protocol: 32→2 source calls for a 1000 B ask over a 32 B window; 0 window→out bytes copied after); counts are pinned assertions, not estimates. NOT tested? — real-kernel syscall counts via strace and wall-clock ms/frame (session budget; ledger is the honest proxy; color_bench re-run owed at merge). What breaks? — nothing in-suite; callers that relied on large `read()` calls populating >capacity of read-ahead now get exactly one window (truncation-snapshot and header-locality pins prove the observable contract). Who hits it first? — the merge gate (full workspace) and any streaming-crate consumer reusing assert_bounded_read (signature unchanged; semantics repinned, documented).
+- Handoffs: (1) Lead: merge wip/w7-c (V-1 + part 2); review the assert_bounded_read repin (same reasoning class as the V-1 pin amendment). (2) streaming crate (Phase 6): large asks now bypass the window — override `read_into` the way FileAccess does to get the zero-copy handoff. (3) Open from V-1, unchanged: clamp past-EOF declared payload asks (demux owner).
+
+---
+Task ID: 3.F2-V
+Agent: 7-GATE (Phase-3 exit gate evidence; worktree worktrees/w7-gate, branch wip/w7-gate, commits 56f135a..cddf0db)
+Task: Produce the Phase-3 exit-gate evidence record + docs/gates/phase3-exit.md (verdict left PENDING LEAD SIGNATURE; Lead signs after review).
+
+Work Log:
+- Full workspace verification on wip/w7-gate (= main b8cb904 + this branch): first `cargo test --workspace` aborted fail-fast at first-vertical evidence (lumen bin absent at the test's relative worktree path — builds go to the config-pinned SHARED /home/z/my-project/target); fixed env (forced `-p lumen-cli` rebuild from this worktree for provenance + worktree target symlink), reran `--no-fail-fast`: **1939 passed / 0 failed / 36 ignored across 163 test binaries** — scenarios_b 23/23 (5.53 s), soak 11/11 (120.06 s incl. soak_loops_stay_memory_bounded). Single non-green target: `-p first-vertical --doc` E0463 doctest compile failure that PASSES on immediate retry (transient shared-dir artifact, recorded [VERIFY] for Lead). Raw logs committed (docs/gates/logs/phase3-exit-workspace-test.log, -fmt*.log, -clippy.log).
+- fmt: initial check FAILED (32 diffs / 15 files, wave-6/7 drift) → `cargo fmt --all` fix (56f135a) → re-check CLEAN; initial-drift log preserved.
+- clippy `--workspace --all-targets --keep-going -D warnings`: **NOT clean — 3 targets / 16 errors, ALL pre-existing on main b8cb904** (last verifiably clean = 95f4031): codecs example stage_bench 8× dead_code (7-b's #[path]-include pattern), lumen-sweep worker.rs:553 assert!(false) (7-d), scenarios_b 6× expect()/host.rs:535 (the known 7-a-registered base issue). This session FIXED one more (huffman.rs:94 needless_range_loop → iter().enumerate().skip(1); codecs re-verified 170/0 after).
+- ENOSPC incident: shared target dir filled the 9.9 G rootfs to 100% mid-clippy (4 concurrent agents); freed 2.7 G by deleting target/debug/incremental (regenerable; DISK-INCIDENT-1 pattern). Recorded in the doc's environment note.
+- Clauses filled from disk evidence (no reruns of recorded results): 16/16 scenarios (7-a 3× runs + this session's re-verification); soak harness operational (merge 6f792d6; 50 MB/h CI ceiling asserted, 5 MB/h target [PROPOSAL] reported-not-asserted; 4 h run NOT executed in sandbox — no report on disk, stays PENDING per doc 10 §6.5 nightly); differential harness operational (merge ad3ae53; 35 comparable rows real Lumen MD5, 369 non-comparable w/ reasons, 96 excluded; oracle cells PENDING-VLC, nothing mocked); 3-OS clause recorded infra-blocked exactly as draft §5 gap 1 (Linux-only sandbox, lean ubuntu CI, matrix parked).
+- 19-row card ledger reconciled (16-vs-19 count resolved: doc 13 lists 19; 3.D1 folded into W5-02+04); Phase-4 launch list built from doc 13 §7 (waves 4.A-4.I, 25 tasks, deps + parallelism; 4.A1 unblocked on gate pass); wave-7 in-flight (7-b SIMD, 7-c input path, 7-d sweep) recorded as non-gate-blocking optimizations feeding Phase-4 targets.
+- docs/gates/phase3-exit.md written on the phase2-exit.md model; verdict field = PENDING LEAD SIGNATURE.
+
+Stage Summary:
+- 3.F2-V evidence COMPLETE: workspace 1939/0/36 (one transient doctest anomaly documented), fmt CLEAN (after 32-diff fix), clippy NOT clean (16 pre-existing errors, 3 targets, owners named — the one honest gate blocker the Lead must disposition), scenarios 23/23, soak 2-min green + 4 h PENDING, differential operational + PENDING-VLC, 3-OS infra-blocked. All logs committed on wip/w7-gate @ cddf0db.
+- D-10: MEASURE? — every number is from a run executed this session (logs committed) or a committed log/commit on disk (cited per row in the doc). NOT tested? — `--all-features` test variant, `cargo xtask gate` aggregate, check-architecture/fixtures/codegen/schema gates, CI re-run (not re-run this session; last committed evidence cited); 4 h soak; real VLC oracle; 3-OS. What breaks? — nothing: the two source fixes (fmt whitespace + huffman loop form) are behavior-identical (codecs 170/0 re-verified). Who hits it first? — the Lead at sign-off (clippy disposition decision + verdict).
+- Handoffs (Lead): (1) sign/reject the verdict on docs/gates/phase3-exit.md; (2) disposition the 16 clippy errors (fold at merge vs assign to 7-b/7-d/scenarios-2-3 owners — note the sweep assert!(false) fix interacts with the F-5 check-panics gate); (3) fold wip/w7-gate (fmt fix + huffman lint fix + gate doc/logs) into main; (4) verify the first-vertical doctest E0463 on main (passed on retry here — likely transient shared-dir staleness); (5) re-run scenarios_b x3 + full gate on the merged tree per 7-a's merge-time handoff.
+
+---
+Task ID: 7-f
+Agent: 7-f
+Task: scenarios_b clippy closure (gate doc phase3-exit §2 row 4c — 6 errors)
+
+Work Log:
+- Read all 6 sites in the owned files (scenario_02_play.rs:44/78/84, scenario_03_pause_resume.rs:45/92, host.rs:535) before touching anything.
+- 5× `.expect(msg)` on Option → `.unwrap_or_else(|| unreachable!(msg))` with each scenario-context message preserved VERBATIM ("the first frame landed at settle" / "audio samples flowed" / "video frames flowed" / "audio flowed before the pause" / "audio resumed"). Form note: the card suggested `unwrap_or_else(|| panic!(...))`, but `clippy::panic` is denied workspace-wide (root Cargo.toml [workspace.lints.clippy]) so `panic!` would not compile clean; `unreachable!` is the house style (testkit::Must itself does `None => unreachable!(...)`) with identical panic-on-None semantics. No assertion weakened — same values, same messages, same None ⇒ failure.
+- host.rs:535 was NOT a 6th expect() but `dead_code`: `ObservingSink::last_pts_ns_of_track` is never called (dead since its 3.E1 birth, per `git log -S`). Honest minimal choice: kept as harness observation API with `#[allow(dead_code)]` + doc comment (repo precedent: track_switch_alloc.rs:199, contract_suite.rs:88) rather than deleting test-harness surface — noted for Lead in case deletion is preferred.
+- `cargo fmt -p playback-engine`: diff confined to the 3 owned files. Committed wip/w7-f @ f10785b.
+
+Stage Summary:
+- D-10: MEASURE? — clippy `-D warnings` scenarios_b error count: 6 before → 0 after (`cargo clippy -p playback-engine --all-targets ... | grep -c scenarios_b` = 0; the remaining workspace errors are 7-b's stage_bench ×8 + 7-d's sweep ×1, NOT mine). Tests: scenarios_b 23 passed / 0 failed (7.99 s, single run, load = this agent's clippy/test only, no competing cargo observed). NOT tested? — 3× consecutive reruns not done (card asked one green run; Lead's merge-time 3× handoff covers it); other targets untouched. What breaks? — nothing: behavior-identical rewrites in 2 scenario files + one allow on dead harness code; failure paths still panic with the same messages. Who hits it first? — the Lead folding wip/w7-f at merge; the phase3-exit clippy ledger drops 6→10 errors.
+- Handoffs (Lead): fold wip/w7-f @ f10785b; remaining clippy debt is stage_bench ×8 (7-b) + lumen-sweep ×1 (7-d); if you'd rather DELETE `last_pts_ns_of_track` than carry the allow, it's a 5-line revert on my commit.
+
+---
+Task ID: 7-d
+Agent: 7-d (relaunch 4)
+Task: corpus-v4 smoke sweep census + clippy fix + parity start
+
+Work Log:
+- FIXED the 1 clippy error in lumen-sweep (worker.rs test `assert!(false, …)`): test now returns `Result<(), String>` and fails via typed `Err(format!(…))`. Chose typed-Err (not `unreachable!`/`panic!`) so clippy `assertions_on_constants` AND the F-5 panic-surface scan both stay green. Verified `cargo clippy -p lumen-sweep --all-targets` clean + 15/15 tests green. wip/w7-d @ fadd570.
+- WROTE docs/perf/corpus-v4-sweep-20261024.md (census, from committed raw log): 126 files — 21 ok / 103 unsupported / 1 dirty-reject / 1 typed-error / 0 panics / 0 timeouts; panic census (would-be panic table), damage census, per-class matrix, findings (hevc-in-avi silent 0-video skip; odd-chunk-avi concealment-budget typed-error; 103 unsupported = AVI-only first vertical), honest limitations (smoke 126 not corpus-big 485, single seed). @ fadd570.
+- STARTED parity (deliverable #2): regenerated corpus from manifest (--replay, 126 files), ffprobe -count_frames/-count_packets over all 21 ok-class files; raw committed as docs/perf/raw/parity-v4-smoke-{ffprobe,audio-pkts}-20261024.log + NEXT-STEPS session-3 notes. @ dd7076e.
+
+Stage Summary (status PARTIAL — parity doc + speed re-measure remain):
+- D-10: MEASURE? — mjpeg frame counts match ffmpeg EXACTLY on all 17 decoded mjpeg streams (9,18,47,66,120,33,36,36,37,904,93,18,4,51,8,221,18,16,76); ffprobe 7.1.5, single run, no competing load observed. NOT tested? — PCM MD5, duration deltas, corpus-big sweep, speed scenarios. What breaks? — silent-skip family: hevc-in-avi/0074 (ffmpeg 11 hevc frames, Lumen 0), 0066 (mpeg4 8 frames skipped), 0021 (mpeg4 60-frame stream skipped alongside decoded mjpeg 120), maxtracks-0076 (ffmpeg 27 streams vs Lumen 2 tracks). Who hits it first? — users playing those files get "ok" with no/missing picture; engine team via handoffs below.
+- Handoffs (engine, via census doc): (1) undecodable-but-present streams must surface as visible warning/typed notice, not silent skip (0074/0066/0021); (2) odd-chunk-avi concealment-budget message wording (1000/1000, "attempted == budget" phrasing) needs owner confirmation; (3) dup-range-001 audio 338 vs ffmpeg 340 packets (2-packet loss post-recovery); (4) 0039 pcm_f32le packetization differs (41 vs 41,377 packets) — needs duration/MD5 comparison; (5) Lead: boundaries.toml still lacks [crates.lumen-sweep].
+
+---
+Task ID: 4.A1
+Agent: P4-A1 (relaunch 1)
+Task: ui/ workspace scaffold per doc 08 §8 (Vite + React + TS strict, vitest + RTL, Playwright config, ESLint with i18n-no-literals + boundary-imports rules; generated command client seam + mock transport; routing skeleton for design screens). AC: lint + typecheck + tests green.
+
+Work Log:
+- Network: registry.npmjs.org reachable (npm ping PONG 201ms) — no offline blocker.
+- Two commits on wip/p4-a1: 7f1a8bf (pre-install scaffold: package.json/tsconfig strict incl. noUncheckedIndexedAccess + verbatimModuleSyntax/vite.config vitest-jsdom/index.html/routing skeleton/mock transport/flat eslint config/playwright config/e2e smoke) and 9ebe3f5 (deps + fixes + docs).
+- 19 JS deps pinned EXACT + package-lock.json committed (node_modules ignored): react 19.3.1, react-dom 19.3.1, react-router-dom 7.18.4; dev: vite 8.3.5, vitest 5.0.5, typescript 6.0.3, eslint 10.13.0, @eslint/js 10.0.1, typescript-eslint 8.72.0, eslint-plugin-react-hooks 7.1.1, eslint-plugin-react-refresh 0.5.7, @vitejs/plugin-react 6.1.2, jsdom 30.1.3, @testing-library/react 16.3.3, @testing-library/dom 10.4.2, @testing-library/jest-dom 7.0.1, @playwright/test 1.64.1, @types/react 19.3.0, @types/react-dom 19.3.0. npm audit at install: 0 vulnerabilities. Full name/version/license/why table in ui/README.md (AGENTS.md audit rule).
+- Routing skeleton = ALL doc 08 §1.6 routes (player, player/music, miniplayer, playlist, settings/:area, onboarding, keyboard-shortcuts, open-network-stream, not-found) rendering honest placeholders via useMsg()/MessageKey stand-in (i18n/messages.ts) — nothing faked.
+- Command client: src/client/transport.ts is the single seam importing 1.D4 generated types; MockTransport simulates ONLY system.list-commands (empty listing) and returns typed feature-not-exposed errors otherwise; ClientProvider/useClient React context; both under vitest.
+- Two bugs found+fixed by the gates themselves: RTL cleanup missing (vitest globals:false → route smokes accumulated DOM → 4 failures) → explicit afterEach(cleanup) in setup.ts; TS 'as' casts in eslint.config.js broke Node ESM parsing → removed.
+- Custom lint rules VERIFIED LIVE against deliberate violations before removal of probe files: local/i18n-no-literals caught JSX text + aria-label literal; local/boundary-imports caught ../.. escape. Allowlist format {text, reason, owner} (ui/i18n-allowlist.json). v1 grade: AST-literal, no template literals, no plugin package.
+- Deleted legacy ui/.eslintrc.json placeholder (ESLint 10 ignores eslintrc; superseded by flat config; its allowedProps exemption list preserved in NEXT-STEPS for rule v2).
+- GATES (real command outputs, this session, ui/): npm run typecheck → clean exit; npm run test → Test Files 2 passed (2), Tests 9 passed (9); npm run lint → 0 errors, 1 warning (react-refresh/only-export-components on useClient beside ClientProvider — standard provider/hook pairing, accepted, not suppressed).
+
+Stage Summary:
+- D-10: MEASURE? — typecheck/test/lint outputs above are pasted verbatim from runs this session; dep versions from package.json; licenses read from node_modules package.json files. NOT tested? — Playwright e2e NOT run (chromium not installed — deferred per session plan; config + smoke spec committed); npm run build NOT run (typecheck half verified via tsc, vite build untested); no 3× reruns (single green run per session budget). What breaks? — nothing: additive ui/ scaffold, one deleted placeholder file (git history preserves it), no Rust-side changes, no test weakened. Who hits it first? — successor sessions (ui/NEXT-STEPS.md has the ordered list: playwright browsers → eslint plugin v2 → transport requestId/event dispatch → real screens → CI yaml proposal for the Lead).
+- Card 4.A1 session-1 scope COMPLETE with registered caveats: e2e browsers pending, CI UI job yaml to be proposed by final session (Lead wires at merge), doc 08 §8 directory drift (src/generated vs src/bindings, root App.tsx vs src/app/) recorded in NEXT-STEPS.
+
+---
+Task ID: 7-b
+Agent: 7-b (relaunch 4)
+Task: card completion — honest SIMD measurement + clippy closure (docs/perf/mjpeg-simd-20261024.md)
+
+Work Log:
+- Fixed the 8 gate-listed stage_bench clippy dead_code errors: scoped `#[allow(dead_code)]` on the example's `#[path]` mod includes (mod.rs-only consumers read dead in the example tree); the lib target stays fully linted. Also fixed one pre-existing `needless_range_loop` in huffman.rs `rebuild` (enumerate, semantics identical). `cargo clippy -p codecs --all-targets -- -D warnings` now CLEAN.
+- Added the SIMD-ablation arm to stage_bench (`ScalarIdctStages`: identical walk, transform pinned to scalar) — the "dispatch off" before/after instrument.
+- MEASURED (release build, /tmp/corpus-w7b fixtures, arms interleaved, medians, loadavg recorded, raw per-pass data in docs/perf/raw/mjpeg/stage-after-20261024.txt):
+  - 0063-avi-av (512x512, 17f, N=7, load 0.38): full SIMD 55.8 ms vs scalar 54.7 ms -> 1.021x (SIMD SLOWER); min 55.8/54.5 same direction.
+  - 0127 heavy-mjpeg (219.5 MB, N=4 of 7 — deadline kill, 4 passes recorded): SIMD 12 053 ms vs scalar 11 996 ms -> 0.995x (SIMD slower).
+  - 0001 uhd4k-mjpeg: DNF (session deadline) — not measured, named as such.
+  - Verdict: SSE4.1 pass-1 IDCT is a measured NO-WIN (parity within noise, point estimates slow side). Stage profile: assemble/color 45.7% (avi-av) is now the top target, huffman 27.8-44.0%, idct only 23-25%.
+- zero_alloc_decode pin check: PASS unchanged — V-3/SIMD did not move event counts, no pin edits.
+- Post-fix verification: mjpeg lib tests 81/81 GREEN (incl. dispatch bit-exactness + seam equality), huffman 10/10, idct 12/12, zero_alloc 1/1.
+- WROTE docs/perf/mjpeg-simd-20261024.md (profile -> what was SIMD'd -> bit-exactness proof -> before/after table -> remains), raw data committed.
+
+Stage Summary:
+- MEASURE? Yes — SIMD-vs-scalar identical-walk medians above (N=7 and N=4-partial, load conditions in raw file); clippy/zero_alloc verified by real runs.
+- NOT tested? End-to-end post-SIMD lumen-vs-ffmpeg (no lumen CLI release rebuild in budget — labeled expectation-not-measurement in the doc, handoff below); uhd4k fixture row; 0127 run truncated at pass 3 (medians over N=4, labeled).
+- What breaks? Nothing — decode output is bit-exact (in-crate 256-block seeded test + stage_bench's per-fixture equality gate, both green); worst case is the measured ~2% decode slowdown on SSE4.1 CPUs.
+- Who hits it first? Any user decoding MJPEG on x86_64 hits the SIMD path every frame (default-on dispatch); the slowdown is within run-to-run noise but real in the medians.
+
+[PROPOSAL] Dispatch default: per the brief's own rule ("if SIMD does not win, say so and keep scalar"), consider flipping the IDCT dispatch default to scalar (keep kernel + tests for a future AVX2 two-pass rewrite). Left SIMD-default this session; Lead decision.
+
+Handoffs:
+- Lead: merge wip/w7-b (5 commits: clippy fixes, scalar arm, measurement doc + raw); decide the dispatch-default proposal.
+- Next optimizer: assemble/color path (45.7% of avi-av walk) then huffman read/decode fusion — measured order in the doc.
+- Whoever has 5 min: one `speed_bench.py --runner lumen='lumen decode-bench {file}'` run on /tmp/corpus-w7b + the uhd4k stage_bench row closes the two named DNFs.
