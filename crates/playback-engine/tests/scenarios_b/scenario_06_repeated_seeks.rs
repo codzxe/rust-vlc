@@ -18,8 +18,8 @@ use commands::{Command, PlaybackState};
 use testkit::Must;
 use testkit::alloc_count::serialize_tests;
 
-use crate::host::{PARENT, ScenarioHost, count_events, dispatch};
 use crate::alloc_state;
+use crate::host::{PARENT, ScenarioHost, count_events, dispatch};
 
 /// The parent's recorded seek tolerance (its expectation TOML).
 const TOLERANCE_US: i64 = 100_000;
@@ -114,8 +114,7 @@ fn hundred_random_seeks_complete_without_stale_output_or_growth() {
         let completed_now = count_events(&host, "timing.seek-completed");
         let failed_now = count_events(&host, "timing.seek-failed");
         assert_eq!(
-            failed_now,
-            0,
+            failed_now, 0,
             "an in-range seek on the seekable parent never typed-fails"
         );
         assert_eq!(
@@ -150,10 +149,7 @@ fn hundred_random_seeks_complete_without_stale_output_or_growth() {
         // it was delivered under SOME post-landing timeline — an
         // entry behind the CURRENT landing by more than the grace
         // is a stale frame.
-        assert_eq!(
-            stale, 0,
-            "no stale frames behind the landing {landed} µs"
-        );
+        assert_eq!(stale, 0, "no stale frames behind the landing {landed} µs");
     }
     assert_eq!(
         completed,

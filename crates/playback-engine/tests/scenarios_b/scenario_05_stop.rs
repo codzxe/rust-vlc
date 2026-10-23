@@ -79,15 +79,10 @@ fn stop_midstream_releases_stage_objects_within_deadline() {
     let frozen_us = host.position_us();
     let snapshot = dispatch(&mut host, Command::MediaGetCurrentTime);
     match snapshot.result {
-        Ok(CommandOutcome::Completed(commands::CommandResult::CurrentTime {
-            time,
-            ..
-        })) => {
+        Ok(CommandOutcome::Completed(commands::CommandResult::CurrentTime { time, .. })) => {
             assert_eq!(time.0, frozen_us, "the stopped clock's frozen position");
         }
-        other => unreachable!(
-            "a stopped-but-open session answers its frozen position: {other:?}"
-        ),
+        other => unreachable!("a stopped-but-open session answers its frozen position: {other:?}"),
     }
     for _ in 0..8 {
         host.pump_pipeline();
@@ -112,16 +107,15 @@ fn stop_midstream_releases_stage_objects_within_deadline() {
         close.result
     );
     assert_eq!(host.state(), PlaybackState::Idle, "idle after the close");
-    assert_eq!(
-        host.session_id(),
-        None,
-        "no session survives the close"
-    );
+    assert_eq!(host.session_id(), None, "no session survives the close");
     assert!(
         hooks.demuxer_dropped(),
         "the demuxer is released at the close (DestroySession)"
     );
-    assert!(hooks.sink_dropped(), "the sink twin is released at the close");
+    assert!(
+        hooks.sink_dropped(),
+        "the sink twin is released at the close"
+    );
 
     // The position snapshot after the close: the typed not-ready —
     // never a fabricated position.

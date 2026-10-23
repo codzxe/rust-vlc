@@ -99,12 +99,9 @@ fn audio_track_switch_mints_generation_with_no_old_frames_after() {
     // [PROPOSAL] CLI follow-up: refresh the snapshot from
     // `tracks.changed`; until then the terminal is the truth.
     let changed = host.pump_pipeline_until(|host| {
-        host.events().iter().any(|event| {
-            matches!(
-                event.kind,
-                commands::EventKind::TracksChanged { .. }
-            )
-        })
+        host.events()
+            .iter()
+            .any(|event| matches!(event.kind, commands::EventKind::TracksChanged { .. }))
     });
     assert!(changed, "the tracks.changed terminal lands");
     let (changed_kind, changed_selected) = host
@@ -112,9 +109,10 @@ fn audio_track_switch_mints_generation_with_no_old_frames_after() {
         .iter()
         .rev()
         .find_map(|event| match &event.kind {
-            commands::EventKind::TracksChanged { track_kind, selected } => {
-                Some((*track_kind, *selected))
-            }
+            commands::EventKind::TracksChanged {
+                track_kind,
+                selected,
+            } => Some((*track_kind, *selected)),
             _ => None,
         })
         .must();
@@ -201,7 +199,11 @@ fn audio_track_switch_mints_generation_with_no_old_frames_after() {
     );
     host.settle();
     host.pump_pipeline_until(|host| {
-        host.sink().must().frame_ring().iter().any(|(_, audio, _)| *audio)
+        host.sink()
+            .must()
+            .frame_ring()
+            .iter()
+            .any(|(_, audio, _)| *audio)
     });
     let deselect = dispatch(
         &mut host,
@@ -215,7 +217,11 @@ fn audio_track_switch_mints_generation_with_no_old_frames_after() {
         deselect.result
     );
     host.pump_pipeline_until(|host| {
-        host.sink().must().frame_ring().iter().any(|(_, audio, _)| !*audio)
+        host.sink()
+            .must()
+            .frame_ring()
+            .iter()
+            .any(|(_, audio, _)| !*audio)
     });
     let audio_at_deselect = host.sink().must().audio_accepted();
     for _ in 0..8 {
@@ -227,7 +233,11 @@ fn audio_track_switch_mints_generation_with_no_old_frames_after() {
         "no audio frame after the deselect"
     );
     assert!(
-        host.sink().must().frame_ring().iter().any(|(_, audio, _)| !*audio),
+        host.sink()
+            .must()
+            .frame_ring()
+            .iter()
+            .any(|(_, audio, _)| !*audio),
         "video continued through the deselect window"
     );
     assert_eq!(
