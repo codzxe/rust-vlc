@@ -1,0 +1,60 @@
+{
+ "corpus": "/tmp/corpus-7d-speed",
+ "repeat": 2,
+ "runners": [
+  "ffmpeg",
+  "lumen"
+ ],
+ "per_file": [
+  {
+   "rel": "media/0001-avi-video.avi",
+   "class": "avi-video",
+   "bytes": 8089236,
+   "frames": 133,
+   "dur_s": 2.216667,
+   "ffmpeg": {
+    "ok": true,
+    "wall_best": 1.2198652639999636,
+    "wall_median": 1.2238964094999574,
+    "cpu_best": 1.2186219999999999,
+    "n": 2,
+    "fps": 109.02843447143518,
+    "realtime_x": 1.8171408477781414
+   },
+   "lumen": {
+    "ok": true,
+    "wall_best": 1.778976694999983,
+    "wall_median": 1.7929426124997008,
+    "cpu_best": 1.777818,
+    "n": 2,
+    "fps": 74.76208113001799,
+    "realtime_x": 1.2460348728739368
+   }
+  },
+  {
+   "rel": "media/0127-avi-video.avi",
+   "class": "avi-video",
+   "bytes": 220281586,
+   "frames": 1338,
+   "dur_s": 5.575,
+   "ffmpeg": {
+    "ok": true,
+    "wall_best": 3.7642662549997112,
+    "wall_median": 3.7698232429997915,
+    "cpu_best": 3.8390510000000013,
+    "n": 2,
+    "fps": 355.44775777294285,
+    "realtime_x": 1.4810323240539285
+   },
+   "lumen": {
+    "ok": true,
+    "wall_best": 12.874713099000473,
+    "wall_median": 13.431472606500392,
+    "cpu_best": 11.483755000000002,
+    "n": 2,
+    "fps": 103.92464590949801,
+    "realtime_x": 0.43301935795624175
+   }
+  }
+ ]
+}

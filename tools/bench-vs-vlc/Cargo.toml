@@ -45,7 +45,11 @@ workspace = true
 codec-api = { path = "../../crates/codec-api" }
 codecs = { path = "../../crates/codecs" }
 demux = { path = "../../crates/demux" }
-input = { path = "../../crates/input" }
+# `contract` feature (Lead's V-1 input-path rework gates the synthetic
+# helpers behind it out-of-crate): the lumen_pcm test drives
+# SyntheticStream for its unit fixtures — 7-d build fix after the merge,
+# flagged in the 7-d worklog entry for the 3.E3 owner.
+input = { path = "../../crates/input", features = ["contract"] }
 media-probe = { path = "../../crates/media-probe" }
 media-types = { path = "../../crates/media-types" }
 plugin-api = { path = "../../crates/plugin-api" }

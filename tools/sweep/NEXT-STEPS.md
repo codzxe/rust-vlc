@@ -1,5 +1,39 @@
 # tools/sweep — card 7-d session breadcrumbs
 
+Session 4 (relaunch 5) — CARD COMPLETE (see worklog 7-d closure entry):
+
+- Merged main first (Lead's ce9cc4a: scalar-IDCT default restored +
+  V-1/V-3/input-path memory fixes + ui scaffold) so the speed
+  re-measure runs the shipped engine, not the stale branch.
+- PARITY DOC DONE: docs/perf/parity-v4-20261024.md.
+  * Frame counts 19/19 mjpeg streams EXACT (17 clean + 2 dirty).
+  * Duration: 12/19 µs-exact; deltas cluster on a+v audio-tail files
+    (max +130 ms, 0066); 0029 ffprobe=N/A where Lumen answers.
+  * PCM MD5 8/9 EXACT; 1 honest MISMATCH (dup-range dirty: −2 packets
+    = 4,524 B payload dropped after 4 demux recoveries — demux
+    handoff, recorded not hidden).
+  * 0039 f32 packet-granularity dispute settles byte-exact on MD5.
+  * 0076 inventory truth: 29 ffprobe streams (9v+18a+2 unknown strl),
+    not 27; Lumen surfaces 2.
+- SPEED RE-MEASURE DONE (identical decode-to-null protocol, best-of-2,
+  fresh process, warmup discarded; release lumen-cli from merged HEAD;
+  load 0.47→0.14; raw in docs/perf/raw/speed-v4-20261024-*):
+  * avi-av (8 files): ffmpeg med 81.7 ms vs lumen 73.6 ms → 1.11×
+    (was 1.18×).
+  * uhd4k-mjpeg (0001, 133 f): 1.220 s vs 1.779 s → 0.686× (was 0.75×).
+  * heavy-mjpeg (0127, 219.5 MB, 1338 f): 3.764 s vs 12.875 s →
+    **0.292×** (was 0.16× — ≈1.8× better; Lead's V-1/input-path +
+    W7-b V-3, NOT SIMD).
+- BUILD FIX (flagged to 3.E3 owner): tools/bench-vs-vlc/Cargo.toml now
+  enables input's `contract` feature — the Lead's V-1 gating of
+  `SyntheticStream` broke the lumen_pcm digest test at merge; one-line
+  fix, no behavior change.
+- Gotcha for successors: nohup'd `cargo test` batches die silently
+  between tool calls — use setsid; `tee | head` SIGPIPEs truncates
+  files (durations.tsv needed a rerun); speed_bench needs manifest
+  entries WITH a `bytes` field (synthetic mini-corpus manifest must
+  copy real entries, not invent them).
+
 Session 3 (relaunch 4):
 - Clippy error FIXED (worker.rs test): `assert!(false, …)` → test now
   returns `Result<(), String>` and fails via typed `Err(format!(…))`.
