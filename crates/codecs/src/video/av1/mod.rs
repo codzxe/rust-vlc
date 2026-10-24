@@ -76,6 +76,8 @@
 pub mod decoder;
 pub mod obu;
 
+pub mod fuzz;
+
 pub use decoder::Av1Decoder;
 pub use obu::{
     MAX_OBUS_PER_TU, OBU_FRAME, OBU_FRAME_HEADER, OBU_METADATA, OBU_PADDING,

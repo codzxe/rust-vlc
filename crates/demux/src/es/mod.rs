@@ -41,6 +41,7 @@
 pub mod aac;
 pub mod annexb;
 pub mod error;
+pub mod fuzz;
 pub mod h264;
 pub mod hevc;
 pub mod mp3;

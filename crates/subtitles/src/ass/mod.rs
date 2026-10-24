@@ -51,3 +51,5 @@ pub use parser::{AssDamage, AssDocument, AssStats, AssStyle, StyleFlavour, parse
 // deduplicates at the union, not in either worktree.
 pub mod layout;
 pub mod render;
+
+pub mod fuzz;

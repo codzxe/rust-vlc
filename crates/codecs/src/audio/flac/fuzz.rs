@@ -59,6 +59,28 @@ impl FrameSink for CountingSink {
     }
 }
 
+/// The native-FLAC **demux** fuzz pass (card 5.Q1; doc 04 §8.5
+/// registry name `fuzz_demux_flac`, table §2.1 row "FLAC (native,
+/// Ogg-FLAC)" — the container-surface half of this module's codec
+/// harness): the metadata/STREAMINFO/seektable walk plus the seek
+/// resolver over the walked layout. Same survival contract; the
+/// decode surfaces stay with [`fuzz_codec_flac`].
+pub fn fuzz_demux_flac(data: &[u8]) {
+    if let Ok(layout) = parse_stream(data) {
+        if let Some(total) = layout.stream_info.total_samples {
+            let target = total / 2;
+            if let Ok(planner) = super::seek::planner(
+                data,
+                &layout.stream_info,
+                layout.seek_index.as_ref(),
+                layout.frames_start,
+            ) {
+                let _ = planner.resolve(target);
+            }
+        }
+    }
+}
+
 /// Synthetic STREAMINFO facts derived from the input (so the decode
 /// surface is exercised even when no valid metadata is present):
 /// block size, channels and bit depth all come from input bytes, in
@@ -167,6 +189,14 @@ pub fn fuzz_codec_flac(data: &[u8]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn demux_pass_survives_hostile_input() {
+        fuzz_demux_flac(&[]);
+        fuzz_demux_flac(b"fLaC");
+        fuzz_demux_flac(&vec![0xff; 4096]);
+        fuzz_demux_flac(&vec![0x00; 4096]);
+    }
 
     #[test]
     fn empty_input_survives_all_passes() {

@@ -98,6 +98,7 @@ pub(crate) mod ms;
 pub(crate) mod oki;
 pub(crate) mod swf;
 pub(crate) mod yamaha;
+pub mod fuzz;
 
 use codec_api::prelude::*;
 use media_types::frame::{AudioFormat, AudioFrame, AudioLayout, SampleFormat};

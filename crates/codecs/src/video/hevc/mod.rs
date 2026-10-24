@@ -19,4 +19,5 @@
 //! structure or a typed [`parser::HevcError`] — no panics, no
 //! unbounded work (the fuzz-lite suite pins this).
 
+pub mod fuzz;
 pub mod parser;

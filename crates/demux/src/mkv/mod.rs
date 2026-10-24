@@ -39,6 +39,7 @@ pub mod ebml;
 pub mod editions;
 pub mod error;
 pub mod header;
+pub mod fuzz;
 pub mod tags;
 
 use std::collections::HashMap;

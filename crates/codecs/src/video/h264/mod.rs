@@ -43,6 +43,7 @@
 
 pub mod decode;
 pub mod hw;
+pub mod fuzz;
 pub mod parser;
 
 pub use decode::H264Decoder;
