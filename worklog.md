@@ -8650,3 +8650,16 @@ Stage Summary:
   seek = "Cues"         # index-driven, keyframe-safe landing (at-or-before target)
   ```
 - Zero-copy note for 5.X2: MKV blocks are parsed out of a bounded per-cluster window copy (MAX_CLUSTER_WINDOW bytes read via `read_prefix_at`, unknown-size clusters clamped to segment end) — packet payloads are sliced views into that window handed to the decoder as SharedBytes, so steady-state per-packet allocation is bounded by window refills, not per-packet copies. A mkv row in tests/zero_alloc_read_chain.rs (window-refill counting) is the natural 5.X2 extension; the cluster window ceiling should be surfaced like ogg's `pool_bytes()`.
+
+---
+Task ID: 5.R3-COMMIT (Lead)
+Agent: Lead
+Task: User directive: commit in-flight work, nothing else.
+
+Work Log:
+- 5.D1 MERGED to main (18959e2) + pushed: Matroska/WebM complete (295/0/4 on merged main re-verified).
+- 5.C1 committed on its branch (26f7695 WIP) NOT merged: core demuxer landed (ccc8950) but 3 known-red assertions in uncommitted tests documented honestly: chapter markers 2-vs-3, 0029 m4a cover-art trak not surfaced. Finisher must fix implementation (or truth) + re-gate before merge.
+- No new agent launches per user instruction.
+
+Stage Summary:
+- Phase 5 standing: 5 of 47 cards COMPLETE+merged (A1 FLAC, A2 WAV/AIFF, A3 MP3, B1 Ogg, D1 MKV); C1 MP4 ~70% on branch; 41 cards not started. Project: 103 of ~201 executing cards.
