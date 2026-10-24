@@ -28,6 +28,11 @@ pub mod aac;
 
 pub mod adpcm;
 pub mod flac;
+/// [`mp2`] is the dedicated MP2 (MPEG audio Layer II) decoder: the
+/// family engine (`symphonia-bundle-mp3`, no new dependency) behind
+/// our own Layer II gate, CBR geometry/seek arithmetic and typed
+/// error surface (card 5.J3 — the J3b half; doc 04 §3.1 row "MP2").
+pub mod mp2;
 pub mod mp3;
 pub mod pcm;
 pub mod vorbis;
