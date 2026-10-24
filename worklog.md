@@ -8848,3 +8848,46 @@ Work Log:
 
 Stage Summary:
 - D-10 MEASURE? — YES: 31/31 corpus mkv lanes tag-differential vs live ffprobe (global + per-stream scopes, names+values, NUL-stripping pinned by DURATION), 2/2 chapter lanes edition/UID-count vs ffprobe, 2 generated ffmpeg lanes (metadata + ffmetadata chapters). NOT measured: tags surfaced through a running player (wiring seam below). What breaks? — nothing known: bombs/depth/truncation all typed, fuzz surface unchanged (parse layer is bounded reads like 5.D1's). Who hits it first? — the Lead merge (D2a+D2b into MkvDemuxer::open + accessors + the R3 row's capabilities), then 5.X2 (tag memory is ceiling-bounded, pool unaffected).
+Task ID: 5.B2
+Agent: P5-B2F
+Task: finish+commit Vorbis card (prior session died leaving the full tree uncommitted; probe scratch folded into named suites, reference-data errors corrected honestly)
+
+Work Log:
+- Found the prior session's complete module UNCOMMITTED: crates/codecs/src/audio/vorbis/** (2 045 lines: mod/headers/comments/seek/decoder/error/fuzz — symphonia-codec-vorbis =0.6.1 engine, our own header-chain/comment/granule surface), 4 ffmpeg-authored fixtures (23.7 KB), reference data, purity record, Cargo.toml/lock + audio/mod.rs wiring. `tests/vorbis_probe_scratch.rs` (debug probe) DELETED — folded into four named suites authored this session: vorbis_bitexact.rs (differential + corruption + comments), vorbis_fuzz_survival.rs (fuzz-lite through the registered `fuzz_codec_vorbis`), vorbis_vlc_differential.rs (pending-infra), vorbis_bench.rs (ignored throughput test, flac_bench convention).
+- HONEST CORRECTION of the dying session's reference data (the reason the session was not green): it had recorded the raw−final-granule distances (1114 / 384) as the two sine fixtures' head trims, and their `max_delta = 1e-7` bounds were never actually measured (live ffmpeg delta on those mis-aligned windows was ~9e-2 — every sample off). Corrected by exhaustive alignment scan (argmin of per-sample max delta vs the pinned ffmpeg 7.1.5 f32le dumps): true head delays 128 (44.1k sine) / 256 (8k mono) — exactly the decoder's first-stamp shift measurement (raw_emitted − granule at the first stamped page: 44736−44608=128, 8192−7936=256); the raw−granule distance is delay + TAIL padding (the 5.A3 gapless split), excluded by the window length cut. Both lumen_window_md5 pins re-derived for the corrected windows; the correction is documented inside tests/data/vorbis_reference.txt. Silence/tagged (single-data-page) streams verified as-recorded: their only stamp is the EOS page so the pts series stays honestly Missing; trims are the scan-derived delays (832 / 128).
+- DIFFERENTIAL TABLE (the card AC; live ffmpeg 7.1.5-0+deb13u1 oracle, f32le, aligned window, `-0.0`→`+0.0` canonicalized):
+  | file | ch/rate | window samples | lumen_window_md5 | ffmpeg_md5_f32le | live maxΔ |
+  | corpus 0085-audio-only.ogg | 2/8000 | 32000 | 1918a1ed5ec5eebc5df944434061e5a8 | 1f117e4bc819f5db437de4e758ab9a48 | 5.96e-8 |
+  | vorbis_sine_44100_stereo.ogg | 2/44100 | 66150 | 658af0c3fc2b9302077a9f42e38e535c | 7e36fc4df7e261a2a743f543d8d9b80b | 3.73e-8 |
+  | vorbis_sine_8000_mono.ogg | 1/8000 | 9600 | 07962e4ec66fe7c291df7db43ce74c08 | f60a54f43807061d277655d0c163caa4 | 4.47e-8 |
+  | vorbis_silence_48000_stereo.ogg | 2/48000 | 47872 | 9f3a19b1740ac999088756035046c146 | 9f3a19b1740ac999088756035046c146 | 0 — BIT-EXACT |
+  | vorbis_tagged_sine.ogg | 2/44100 | 43972 | 546fc5d9d0d8d211a767ddca59984c02 | 29179dc21a985b00ba9fa89bfbb0c266 | 2.98e-8 |
+  (the card's literal `ffmpeg -map 0:a -f md5` digests — ffmpeg's native fltp layout — are recorded per file in the reference data; the comparable base is f32le.) Silence is the true byte-exact corridor: every conforming decoder emits exact zeros and the canonicalized MD5s are equal.
+- Error paths: bad id magic / truncated identification / version / rate / blocksize / framing (headers.rs unit tests, codes vorbis.ident.*); truncated comment + missing/wrong setup (vorbis.comment.magic / vorbis.setup.truncated / vorbis.setup.magic / vorbis.headers.count); mid-stream corruption through the contract path: an all-0xFF data packet (post-CRC) → exactly one typed `vorbis.packet.decode` refusal, decoding resumes next packet (66/67 blocks still emitted — the overlap-scoped one-block scar, doc 03 §4.5(d)). Honest note: single flipped bytes inside a Vorbis payload can still decode (entropy-coded local robustness) — the guaranteed-refusal lane uses the garbage block.
+- Fuzz-lite (+FB): `fuzz_codec_vorbis` (3 surfaces: header chain, free block, contract path ×2 incl. discontinuity reset) over 280 seeded mutants + 80 truncations + pristine lanes — no panic, no hang, bounded allocation.
+- Comments/metadata AC: vendor + TITLE/ARTIST/ALBUM/DATE parsed from the comment header, case-insensitive lookup, repeatable tags (unit + tagged-fixture integration vs ffmpeg-written values).
+- VLC differential: PENDING-VLC (no vlc/cvlc on PATH, $VLC unset) — Lumen digests asserted against the ffmpeg oracle, pinned float32 dump command + version gate ready (3.E3 posture, same as 5.A1).
+- Purity record verified against the actual graph: Cargo.lock adds exactly the 4 documented nodes (symphonia-codec-vorbis 0.6.1, symphonia-common, symphonia-metadata, regex-lite) and Cargo.toml pins =0.6.1; record explains the spelling finding (`symphonia-bundle-vorbis` does not exist on crates.io; the 0.6.1 train's crate is `-codec-vorbis` — mirror image of 5.A3).
+- Fixed 3 clippy -D warnings in the prior session's code (manual_ignore_case_cmp → u8::eq_ignore_ascii_case; collapsible_if → let-chain; if_same_then_else in fuzz.rs) + 2 in my new tests; no behavior change, no test weakened.
+- GATES (exact): `cargo fmt -p codecs` clean; `cargo clippy -p codecs --all-targets --all-features -- -D warnings` → 0 errors; `cargo test -p codecs --all-features` → 278 passed / 0 failed (27 test binaries).
+- Throughput (release, `cargo test -p codecs --release --test vorbis_bench -- --ignored --nocapture`, corpus 0085, full ogg→decoder composition, median of 7): 23 373 371 inter-channel samples/s ≈ 2922× realtime at 8 kHz stereo.
+- Committed 8122db2 `feat(codecs): Vorbis decoder via symphonia — comments, bit-exact corpus (5.B2)` (code + tests + fixtures + reference + record; this entry follows).
+
+Stage Summary:
+- D-10 MEASURE? YES — release throughput 23.4M samples/s (2922× realtime) on corpus 0085; differential MD5s measured live vs ffmpeg on 4 fixtures + corpus (silence lane bit-exact).
+- NOT tested? Ogg muxing (out of scope); VLC oracle (PENDING-VLC, no binary); libFuzzer campaign (harness logic proven by in-tree survival tests; CI wiring owed by the Lead's fuzz card, same status as flac/mp3/pcm); Vorbis-in-Matroska composition (5.D1's extra_data seam is ready — the header chain is container-agnostic; the first MKV vorbis file will pin it).
+- What breaks? Nothing known: corruption is typed + recovery-scoped; fuzz survival green; single-data-page streams expose honest Missing pts (never invented).
+- Who hits it first? R3 (registry row below); the Lead's allowlist row + merge (doc 11 §3.1) — boundaries.toml/deny.toml untouched by this card.
+- R3 registration snippet (draft for the registration card):
+  ```toml
+  id = "vorbis"         # media-types CodecDescriptor("vorbis"), container .ogg (via 5.B1)
+  kind = "audio"
+  decoder = "codecs::audio::vorbis::VorbisDecoder"  # engine: symphonia-codec-vorbis =0.6.1
+  probe = "headers::is_vorbis_ident(packet)"  # \x01vorbis + ident geometry
+  capabilities = ["decode", "comments", "granule-timeline"]
+  # comments: Vorbis comment header (vendor + user tags, case-insensitive,
+  # repeatable); granule-timeline: pts = raw − measured shift on the valid
+  # (delay/padding-trimmed) timeline, seek landing via seek::landing_first_sample
+  output = "f32 interleaved native-endian, no rate/channel conversion"
+  feature = null        # rides unconditionally today (per-codec features land with R3)
+  ```
