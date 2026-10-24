@@ -10,25 +10,23 @@
 //! [`vorbis`] is the Vorbis decoder through the purity-pinned
 //! `symphonia-codec-vorbis` engine with our own header-chain,
 //! Vorbis-comment and granule-arithmetic surface (card 5.B2, doc 04
-//! §3.1 row "Vorbis"). Per-codec Cargo features arrive with the
-//! registration card (doc 01 §2.5(a)); today the modules ship
-//! unconditionally.
-//! [`aac`] is the AAC-LC decoder through the purity-pinned
-//! `symphonia-codec-aac` engine with our own ADTS header parse and
-//! profile/HE gates (card 5.C2a — the decoder half of 5.C2; HE-AAC
-//! honestly partial, see its module docs).
-//! [`alac`] is the ALAC decoder through the purity-pinned
+//! §3.1 row "Vorbis"). [`aac`] is the AAC-LC decoder through the
+//! purity-pinned `symphonia-codec-aac` engine with our own ADTS
+//! header parse and profile/HE gates (card 5.C2a — the decoder half
+//! of 5.C2; HE-AAC honestly partial, see its module docs). [`alac`]
+//! is the ALAC decoder through the purity-pinned
 //! `symphonia-codec-alac` engine with our own magic-cookie parse and
 //! error taxonomy (card 5.J3a — the ALAC half of 5.J3, lossless).
 //! Per-codec Cargo features arrive with the registration card
 //! (doc 01 §2.5(a)); today the modules ship unconditionally.
 
 pub mod aac;
-// [`adpcm`] is the in-house MS + IMA-WAV ADPCM pair (card 5.J2a,
-// doc 04 §3.1 rows "ADPCM MS"/"ADPCM IMA"). Per-codec Cargo features
-// arrive with the registration card (doc 01 §2.5(a)); today the
-// modules ship unconditionally.
-
+/// [`adpcm`] is the in-house ADPCM family (cards 5.J2a + 5.J2b, doc
+/// 04 §3.1 rows "ADPCM MS"/"ADPCM IMA" and the ADPCM breadth rows):
+/// the WAV-carried MS/IMA-WAV pair plus Yamaha, OKI/Dialogic, SWF,
+/// Apple IMA4 and Westwood IMA — one `AdpcmDecoder`, seven flavors,
+/// bit-exact against the ffmpeg 7.1.5 reference. Per-codec Cargo
+/// features arrive with the registration card (doc 01 §2.5(a)).
 pub mod adpcm;
 pub mod alac;
 pub mod flac;
@@ -38,13 +36,5 @@ pub mod flac;
 /// error surface (card 5.J3 — the J3b half; doc 04 §3.1 row "MP2").
 pub mod mp2;
 pub mod mp3;
-//! v0's first vertical carried [`pcm`] — the unpacked-PCM decoder
-//! behind [`codec_api::Decoder`] (card 2.B5, doc 03 §7). [`adpcm`]
-//! joins with card 5.J2b's breadth flavors (Yamaha, OKI/Dialogic,
-//! SWF, Apple IMA4, Westwood IMA — in-house, bit-exact against the
-//! ffmpeg 7.1.5 reference). Per-codec Cargo features arrive with the
-//! next codec family (doc 01 §2.5(a)).
-
-pub mod adpcm;
 pub mod pcm;
 pub mod vorbis;
