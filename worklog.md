@@ -9013,3 +9013,39 @@ Work Log:
 
 Stage Summary:
 - Effective Phase-5 state: 14 of 47 cards landed (waves 1-4). Wave 5 redo dispatching now.
+
+---
+Task ID: 5.I3a
+Agent: P5-I3A
+Task: Raw elementary-stream file access (card 5.I3 my half): .264/.265/.mp3/.aac demuxers, NATIVE self-build, ffmpeg differential on the real corpus.
+
+Work Log:
+- Implemented `crates/demux/src/es/` (NEW, 8 files + corpus suite): `annexb.rs` (the shared Annex-B video engine: windowed start-code scan — 256 KiB window + 32 B carry, only NAL headers classified, multi-MB NAL bodies skipped unread; NAL-type-aware AU boundaries — non-VCL prefix NAL after VCL opens an AU (measured: ffmpeg packet 19 of 0019 starts at the mid-stream SPS at 4338, not the slice), VCL-after-VCL opens one on H.264 `first_mb_in_slice==0` / HEVC `first_slice_segment_in_pic_flag` — both a single escape-free bit probe; zero-walk-back boundary clamped at the previous NAL's header; `AnnexbVideoDemuxer` with 2-slot `PayloadSlots` pool, `MAX_AU_BYTES` 16 MiB typed ceiling), `h264.rs`/`hevc.rs` (lanes + probes; HEVC VPS/SPS/PPS 32/33/34 in the prefix class, filler/suffix-SEI deliberately excluded), `mp3.rs` (thin local walk: ID3v2.2/2.3/2.4 skip at head AND between frames, published ISO tables — the codecs-side mp3 module's read-only twin, layer ordering forbids sharing the crate — strict first-frame validation, bounded resync with `Recovered` events, exact sample-clock pts on a 1/rate base, Xing/Info/VBRI first frame packet-skipped — the measured ffmpeg behavior: 0139's VBR header frame at 44 is not a packet, ffmpeg packet 1 starts at 1088), `aac.rs` (the landed `adts::AdtsDemuxer` consumed as-is — registry surface only), `error.rs` (typed `demux.es.*`: no-sync Unsupported-after-scan carrying sniffed bytes, sticky truncation, AU ceiling, bad-header, not-started), `mod.rs`, in-crate `tests.rs` (12 tests), `tests/es_corpus.rs` (the differential).
+- Timing honesty: raw Annex-B carries no stamps — video packets carry `Stamp::Missing`/no duration (the L0 vocabulary's own raw-stream case; ffmpeg's own pts for 0019 are N/A, measured), track span Missing, base 1/25 minted as ffmpeg's documented fallback only; mp3/aac use exact sample arithmetic.
+- DIFFERENTIAL (corpus-v4 @ /tmp/my-project/corpus-v4/media, ffprobe 7.1.5, all in-session measurements, all lanes present — no skips exercised):
+  | file | lane | our packets | ffprobe packets | boundary geometry | notes |
+  |---|---|---|---|---|---|
+  | 0019-raw-video.h264 | es::h264 | 26 | 26 | ALL 26 AU sizes byte-equal to ffprobe's size column (contiguous ⇒ equal boundaries; first packet [0,1135) incl. the stray leading byte, ffmpeg's own shape) | keyframe: ours IDR-only; ffmpeg additionally marks packet 19 K via recovery-point SEI (decode-domain — recorded divergence) |
+  | 0044-raw-video.265 | es::hevc | 56 | 56 | first 8 AU sizes exact (19745, 13800, …); total = file length (contiguous coverage) | all-IRAP stream: our K flags = ffprobe's (all K) |
+  | 0139-audio-only.mp3 | es::mp3 | 79 | 79 | MPEG-2.5 L3 11025 Hz stereo, 576-sample frames; pts step 576 verified | Xing frame packet-skipped (the ffmpeg rule, measured) |
+  | 0145-cover-audio.mp3 | es::mp3 | 6 | 6 audio (+1 ffmpeg-synthesized attached-pic mjpeg packet) | ID3 APIC cover art skipped as metadata — the attached-pic stream is player behavior, not framing; recorded divergence |
+  | 0059-audio-only.aac | es::aac | 346 | 346 | landed adts walk | adts, 88.2 kHz mono |
+  | 0110-audio-only.aac | es::aac | 376 | 376 | landed adts walk | adts, 96 kHz mono |
+  Resolution truth for 0019 (h264, 64×48): ffprobe measured in-session (`stream,h264,video,64,48`); the landed-parser side is the codecs corpus suite (green at the 4cbb827 merge, 5.F1a: High@1.3 64×48) — this crate cannot link codecs (L2↛L3 + the reverse dev-edge = cycle), so the resolution differential is cited, not re-linked; the in-session codecs rerun was blocked by disk exhaustion from parallel worktrees (infra event, below).
+- Error paths (typed, all unit-pinned): empty source refused at construction; no-sync window → `demux.es.no-sync` (Unsupported, sniffed bytes, sticky); mp3 frame overrunning EOF → `demux.es.truncated` (sticky Corrupt::Truncated — ffmpeg emits a short packet instead, the adts-recorded divergence); `next_event` before `start` → `demux.es.not-started`; mid-stream garbage → bounded resync + `Recovered`; AU > 16 MiB → `ResourceLimit` refusal.
+- +FB fuzz-lite (`es::tests::fuzz_lite_mutations_never_panic_or_hang`): seeded-LCG mutations (flips/wild bytes/truncations/zero bursts ×1–6 per round) × 512 rounds over a <2 KB real-shaped h264+hevc+mp3 hybrid stream, each round drained through all three demuxers — no panic, no hang, Ok-or-typed only.
+- INFRA (Lead attention): disk hit 100% twice mid-card (parallel worktree target dirs); freed my own incremental caches + the idle main-tree `target/debug/{deps,build,.fingerprint}` (the 5.W4-CLOSE precedent; Lead will rebuild). Root cause is 10+ concurrent worktree targets on a 9.9G rootfs — a sweep or shared target dir is overdue.
+- GATES (exact, worktree target): `cargo fmt -p demux -- --check` CLEAN; `cargo clippy -p demux --all-targets --all-features -- -D warnings` EXIT 0; `cargo test -p demux --all-features` ALL GREEN — 310 lib (12 new es) + every integration suite incl. the new es_corpus (4) — 0 failed.
+- Scope discipline: only `crates/demux/src/es/**` (new), the pre-announced one-line `pub mod es;` in `crates/demux/src/lib.rs`, and `crates/demux/tests/es_corpus.rs`. The landed adts module and the codecs mp3/h264 modules were consumed read-only, untouched.
+
+Stage Summary:
+- D-10 MEASURE? — YES: packet counts AND exact AU boundary geometry vs ffprobe on all six real-corpus lanes (table above; 26/56/79/6/346/376, boundary sizes byte-equal for the video lanes). NOT measured? — the landed-parser resolution rerun in-session (disk-blocked; cited from the green 4cbb827 suite + live ffprobe), big-endian hosts, >16 MiB AUs (typed refusal). What breaks? — nothing known: fuzz-lite 512/512 green, all error paths typed, contiguous coverage proven. Who hits it first? — R3 registration (snippet below) and the engine open path (raw-file playback now has a demuxer for all four extensions).
+- R3 registration snippet (draft):
+  ```toml
+  id = "h264-es"        # raw Annex-B .264; demux::es::h264::open
+  probe = "demux::es::h264::probe (start-code + NAL type)"
+  capabilities = ["nal-type-au-boundaries", "first-mb-probe", "corpus-boundary-exact"]
+  codecs = ["h264"]
+  # siblings: hevc-es (.265, VPS/SPS/PPS 32/33/34), mp3-es (.mp3/.mp2,
+  # ID3v2 skip + Xing packet-skip), aac-es (.aac = the landed adts row)
+  ```
