@@ -40,3 +40,44 @@ Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
  ✓ src/components/button/Toggle.test.tsx (14 tests) 134ms
  ✓ src/components/button/Button.test.tsx (16 tests) 132ms
  ✓ src/screens/settings/areas/playlist-services.test.tsx (3 tests) 119ms
+ ✓ src/screens/settings/areas/updates-about.test.tsx (5 tests) 128ms
+ ✓ src/components/button/IconButton.test.tsx (6 tests) 143ms
+ ✓ src/screens/settings/areas/language/LocalePicker.test.tsx (4 tests) 124ms
+ ✓ src/components/form/Switch.test.tsx (3 tests) 113ms
+ ✓ src/screens/settings/areas/video.test.tsx (3 tests) 104ms
+ ✓ src/screens/settings/areas/subtitles.test.tsx (3 tests) 112ms
+ ✓ src/screens/settings/areas/advanced.test.tsx (5 tests) 93ms
+stderr | src/components/icon/Icon.test.tsx > Icon (1.5-stroke set, doc 08 §1.4/§1.5) > every registry name renders a glyph
+Invalid DOM property `stroke-width`. Did you mean `strokeWidth`?
+
+ ✓ src/components/icon/Icon.test.tsx (6 tests) 81ms
+ ✓ src/components/form/TextField.test.tsx (8 tests) 66ms
+ ✓ src/components/form/NumberField.test.tsx (6 tests) 67ms
+ ✓ src/theme/settingsThemeSync.test.tsx (5 tests) 53ms
+ ✓ src/theme/ThemeProvider.test.tsx (6 tests) 51ms
+ ✓ src/screens/player/useFullscreen.test.tsx (5 tests) 51ms
+ ✓ src/screens/settings/areas/hotkeys/hotkeysData.test.ts (2 tests) 52ms
+ ✓ src/components/form/Checkbox.test.tsx (5 tests) 55ms
+ ✓ src/screens/settings/SettingsProvider.test.tsx (10 tests) 32ms
+ ✓ src/screens/player/useChromeAutoHide.test.tsx (6 tests) 61ms
+ ✓ src/i18n/messages.test.ts (6 tests) 27ms
+ ✓ src/tokens/tokens.test.ts (5 tests) 17ms
+ ✓ src/client/tauri-transport.test.ts (9 tests) 17ms
+ ✓ src/screens/player/layout.test.ts (12 tests) 8ms
+ ✓ src/screens/player/keymap.test.ts (10 tests) 7ms
+ ✓ src/screens/player/controls/state-mapping.test.ts (24 tests) 6ms
+ ✓ src/screens/settings/search.test.ts (5 tests) 5ms
+ ✓ src/screens/playlist/queue.test.ts (12 tests) 5ms
+ ✓ src/screens/settings/areas/hotkeys/conflicts.test.ts (7 tests) 5ms
+ ✓ src/client/transport.test.ts (4 tests) 4ms
+
+  Snapshots  9 written
+ Test Files  59 passed (59)
+      Tests  557 passed (557)
+   Start at  23:59:11
+   Duration  63.53s (environment 63%, tests 21%, setup 11%, import 3%, transform 2%, worker 1%)
+
+Environment  jsdom was created 59 times · 35.27s total, 63% of tracked time
+             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)
+             learn more: https://vitest.dev/guide/improving-performance#test-environments
+
