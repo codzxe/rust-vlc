@@ -9229,4 +9229,41 @@ Stage Summary:
   codecs = ["h264"]
   # siblings: hevc-es (.265, VPS/SPS/PPS 32/33/34), mp3-es (.mp3/.mp2,
   # ID3v2 skip + Xing packet-skip), aac-es (.aac = the landed adts row)
+
+---
+Task ID: 5.I3b
+Agent: P5-I3B
+Task: IVF container demuxer (doc 04 §8.5 registry row `ivf`): AV1/VP9 delivery — DKIF header, fourcc gate, length-prefixed frame walk, ffmpeg differential, fuzz-lite.
+
+Work Log:
+- Implemented `crates/demux/src/ivf/` (NEW, 5 files): `mod.rs` (module docs: timing/codec-honesty/damage/seek contracts; `IvfHeader` parse+validate — DKIF magic, hlen==32, nonzero dims/rate; `IvfStreamInfo`; `IvfDemuxer` over the landed `Demuxer` trait via the shared `SourceReader`/`PayloadSlots`/`DamageLog` seams), `error.rs` (10 typed constructors, `demux.ivf.*` codes at stage Demux), `test_support.rs` (header/frame builders, demo stream), `tests.rs` (23 unit tests), `fuzz.rs` (`fuzz_demux_ivf` — open/drain/seek-probe pass, 500K event budget).
+- Header field semantics pinned empirically against ffmpeg 7.1.5 (hexdump + ffprobe, not memory): @16=rate (fps numerator = muxer's time_base.den), @20=scale (denominator) → **one tick = scale/rate seconds**, pts in ticks; ffprobe reads the 30fps fixture back as time_base=1/30, packet duration=1 tick, pts ladder 0..N−1 — all mirrored exactly.
+- Walk: 12-byte frame headers (u32 size + u64 pts), payloads passed through **byte-for-byte** (no OBU/superframe parse — decode domain); zero-size frames emitted (ffmpeg does too: ffprobe `pts=0,size=0` verified); VFR pts gaps passed through; declared frame count advisory (exposed in stream_info, walk is truth).
+- Codec honesty: fourcc gate AV01→"av1", VP90→"vp9" (typed `unsupported-fourcc` refusal for everything else, fourcc bytes in the sniffed hint); packets carry keyframe=false + dts=Missing (IVF declares neither — ffprobe's `K_` on packet 0 is parser-derived, excluded from the differential's compared columns as the recorded honesty note); no AV1/VP9 decoder exists at v0 → decode attempts fail typed at the codec registry, never silently.
+- Error paths (typed, sticky, unit-pinned): truncated header (`demux.ivf.truncated`), bad magic (`not-ivf`), hlen≠32 / zero dims / zero rate (`bad-header` — ffmpeg's own "Invalid frame rate" refusal matches), unsupported fourcc, zero frames (`no-frames`), frame size beyond file (`frame-beyond-file` — ffmpeg emits a short packet instead, the recorded divergence), size > 16MiB ceiling (`frame-too-large`, refused before allocation), u64 pts > i64::MAX (`pts-overflow`), not-started, seek out-of-range. Trailing sub-header fragment → bounded `Recovered` + clean end (ffmpeg: clean EOF).
+- DIFFERENTIAL (ffmpeg 7.1.5, generated + committed under `tests/fixtures/generated/ivf/`, ≈4.5KB total; truth measured this session, never transcribed):
+  | fixture (ffmpeg cmd: lavfi testsrc2 → `-c:v libaom-av1|libvpx-vp9 -f ivf`) | codec/fourcc | dims | fps (rate/scale) | frames ours=ffprobe nb_read_packets | pts ladder ours=ffprobe | payload MD5 ours=`ffmpeg -c copy -f md5 -` |
+  |---|---|---|---|---|---|---|
+  | av1_64x48_30fps.ivf (libaom v3.12.1, `-cpu-used 8 -deadline realtime`) | av1/AV01 | 64×48 | 30/1 | 30 = 30 ✓ | 0..29 = 0..29 ✓ | `0db6161ace241fb5966eaea0e3339aac` ✓ |
+  | vp9_64x48_25fps.ivf (libvpx, `-deadline realtime -cpu-used 8`) | vp9/VP90 | 64×48 | 25/1 | 25 = 25 ✓ | 0..24 = 0..24 ✓ | `e62f0aba008315efcb91734112aad24e` ✓ |
+  Pinned in `crates/demux/tests/ivf_fixtures.rs` (demux through `input`'s FileAccess — the 2.A1+2.B2 composition seam; MD5 via the shared in-tree RFC 1321 `common::md5_hex`).
+- ffmpeg-behavior probes (recorded, /tmp crafted shapes): truncated final frame → ffmpeg emits a SHORT packet (ffprobe `size=10`) vs our typed refusal; header-only file → ffmpeg opens clean-empty vs our typed `no-frames` (AVI no-movi/ADIF no-data precedent); hlen=64 file → ffmpeg rejects ("Invalid data" — it reads from offset 32 regardless) vs our typed `bad-header`; zero rate → ffmpeg "Invalid frame rate" = our typed `bad-header`; VP80 → ffmpeg demuxes fine, ours is the v0-scope typed refusal. All divergences documented in the integration suite's header docs.
+- Seek: `SeekSupport::SlowLinear` — bounded payload-free frame-header scan (2M-frame budget, ADTS precedent); lands on last frame with pts ≤ target, clamps to first/last frame at the extremes (ffmpeg's demuxer semantics); `reanchor` commits D4-clean (failures leave the walk untouched, unit-pinned).
+- +FB fuzz-lite: `fuzz_demux_ivf` driven by seeded-LCG bit-flip sweeps (512 rounds × 1–8 flips) over the demo stream AND the two committed ffmpeg fixtures, full truncation sweeps, wild-size/wild-pts crafting — no panic/hang/unbounded allocation (pool bounded 2×4MiB slots, ceiling refusal pinned: `pool_bytes() == 4` after a 16MiB+ claim). Committed fuzz inputs ≈4.5KB < 200KB budget.
+- GATES (exact, worktree target): `cargo fmt -p demux -- --check` CLEAN; `cargo clippy -p demux --all-targets --all-features -- -D warnings` EXIT 0; `cargo test -p demux --all-features` EXIT 0 — **437 passed / 0 failed** (322 lib incl. 26 new ivf + 4 ivf_fixtures integration + all prior suites green).
+- Scope discipline: only `crates/demux/src/ivf/**` (new), `crates/demux/tests/ivf_fixtures.rs` (new), `tests/fixtures/generated/ivf/` (2 ffmpeg-generated fixtures), the pre-announced wiring in `crates/demux/src/lib.rs` (one `pub mod ivf;` line + one doc bullet — TEMPORARY until Lead merge, the I3a sibling adds its own), worklog. File-disjoint from the I3a parallel agent.
+
+Stage Summary:
+- D-10 MEASURE? — YES: the two ffmpeg-generated AV1/VP9 deliveries demux bit-exactly vs ffmpeg 7.1.5 (whole-payload MD5, full pts ladders, frame counts, dims — table above); ffmpeg's malformed-shape behaviors probed and recorded (5 divergences, all documented + tested). NOT measured? — seek wall-time (header-only scan, O(frames) reads of 12 bytes — structurally bounded, not benchmarked), and VP8-in-IVF (typed v0 scope refusal, ffmpeg-parity exists for a later card). What breaks? — nothing known: fuzz-lite green over real ffmpeg bytes + crafted wilds, every error path typed and sticky, no panics. Who hits it first? — R3 registration (snippet below) and the AV1/VP9 decoder cards (payload passthrough contract: descriptors `av1`/`vp9`, byte-exact OBU/superframe payloads).
+- R3 registration snippet (draft for the registration card):
+  ```toml
+  id = "ivf"               # DKIF container, fourcc-gated
+  kind = "video"           # demuxer: demux::ivf::IvfDemuxer (single video track)
+  probe = "demux::ivf::probe (DKIF magic)"
+  capabilities = ["av01-fourcc", "vp90-fourcc", "pts-ticks", "slowlinear-seek",
+                 "payload-passthrough", "ffmpeg-differential-bitexact"]
+  codecs = ["av1", "vp9"]  # decode owed to the AV1/VP9 decoder cards (typed unsupported there today)
+  seek = "header-scan (SlowLinear, 2M-frame budget)"
+  extensions = ["ivf"]
+  # unsupported fourcc (VP80/H264/…) and hlen≠32 are typed refusals — v0 scope, ffmpeg-parity noted
   ```
