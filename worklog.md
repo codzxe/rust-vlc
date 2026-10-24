@@ -9388,3 +9388,20 @@ Work Log:
 
 Stage Summary:
 - WORKSPACE GATE: fmt clean, clippy -D warnings clean, cargo test --workspace = 2752 passed / 0 failed. Phase 5 now 25 of 47 cards landed. PUSHING IMMEDIATELY (restart lesson).
+
+---
+Task ID: 5.O1b
+Agent: P5-O1BF
+Task: PLS + XSPF parsers for crates/playlists — complete the prior session's uncommitted work (pls.rs, xspf.rs, two suites + 6 fixtures, lib.rs wiring), verify, gate, commit.
+
+Work Log:
+- Prior session's 11 uncommitted files found intact and complete; verified by reading (module docs, error/warning enums, parser bodies) — no stubs, no TODOs.
+- PLS (src/pls.rs): INI-style parse — case-insensitive `[playlist]` header w/ INI foreign-section semantics; `FileN`/`TitleN`/`LengthN` 1-indexed triples, sparse-tolerant (BTreeMap, index-order emission); `NumberOfEntries` cross-check → `EntryCountMismatch` damage-note (parsed entries win); `Version`≠2 → `UnexpectedVersion`; -1 length = unknown marker preserved; first-`=` split, BOM/CRLF/comment/foreign-key tolerance.
+- XSPF (src/xspf.rs, 1036 L): hand-rolled XML-subset pull parser, zero new deps — Scanner tokens (Start/End/Text) + frame stack; playlist/trackList/track + location/title/creator/duration/annotation; 5 named entities + decimal `&#38;` + hex `&#x27;` refs (unknown kept verbatim + `BadEntity`); CDATA raw; namespace/prefix-tolerant local-name match; attribute subset (both quote styles); depth guard 64 (fatal at 65, `TooDeep`); unclosed elements salvaged never fatal; ms→s duration conversion; creator/annotation ride `("creator",…)`/`("annotation",…)` directive pairs.
+- Both bridge onto shared `Playlist`/`Entry` vocabulary; M3U bridge round-trip pinned lossless for PLS, documented text-preserving asymmetry for XSPF creator/annotation.
+- AC VERDICT: PASS. Handcrafted sets — basic/sparse/dirty PLS + basic/namespaced/dirty XSPF — golden tests assert exact Entry equality vs truth (counts, locations, titles, durations, entity-decoded creators/annotations, CDATA, first-wins dup, self-closing track kept). Malformed tolerance pinned by exact warning-sequence asserts (dirty fixtures). Fuzz-lite BOTH: random-bytes + mutation harnesses (deterministic splitmix64), no-panic pinned, budget counters assert <100 KB/file, <200 KB combined.
+- GATES: `cargo fmt -p playlists` clean (no diffs); `cargo clippy -p playlists --all-targets --all-features -- -D warnings` CLEAN; `cargo test -p playlists --all-features` = 46 passed / 0 failed (18 m3u + 14 pls + 14 xspf).
+- No changes needed to the prior session's code — it was complete and green as-left; this session was verify + gate + commit only.
+
+Stage Summary:
+- D-10 MEASURE? — YES: 46/0 tests incl. both fuzz-lite harnesses and both golden truth-sets this session. NOT measured? — full-workspace gate (out of card scope; playlists-only per card). What breaks? — nothing known. Who hits it first? — R3/playlist import: `parse_pls`/`parse_xspf` (+`_bytes`/`_detailed`) now exported from `playlists` alongside M3U.
