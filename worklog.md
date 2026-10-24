@@ -8933,3 +8933,40 @@ Stage Summary:
   fuzz = "fuzz_codec_aac"   # harness landed; libFuzzer CI owed (family status)
   ```
 - [PENDING-VLC]: the VLC half of the differential (no binary in sandbox). [PENDING-LEAD]: deny.toml `MPL-2.0` same-PR addition (family-wide, owed since 5.A3) + allowlist row. [VERIFY-P1]: lock diff at merge = exactly 4 nodes (regex-lite/symphonia-codec-aac/symphonia-common/symphonia-metadata) — verified on this branch.
+Task ID: 5.J2a
+Agent: P5-J2A
+Task: ADPCM MS + IMA-WAV audio decoders (doc 04 §3.1 rows "ADPCM MS"/"ADPCM IMA"), in-house on the D-018 zero-new-dependency logic, codec-api contract, real-corpus differential vs ffmpeg, fuzz-lite.
+
+Work Log:
+- Implemented `crates/codecs/src/audio/adpcm/` (NEW, 3 files): `mod.rs` (module docs, `AdpcmError` taxonomy → `EngineError` kinds, `AdpcmDecoder` implementing `Decoder` — descriptor gate exactly `adpcm_ms`/`adpcm_ima_wav`, facts via `DecoderConfig::extra_data` = the WAV demuxer's verbatim `fmt` payload, pooled 4-slot output rotation allocation-free per packet after warm-up), `ms.rs` (7-pair coefficient table, field-interleaved per-channel block headers, nibble expansion with the multiplicative delta update, hi=ch0/lo=ch1 per-instant nibble packing), `ima.rs` (89-entry step table, 8-entry index table, 4-byte-per-channel nibble granules with LOW nibble first, multiply-before-shift diff `(step·m)>>3`).
+- THE NON-OBVIOUS BITS, all pinned empirically against ffmpeg 7.1.5 on the real corpus bytes (not from memory of any spec): (1) MS header is field-interleaved (preds all, then deltas all, then samp1s, then samp2s) — NOT per-channel contiguous; (2) MS delta update is multiplicative (`delta·ADAPT[nib]/256`), not the additive table lookup; (3) IMA nibble order inside each byte is LOW-then-HIGH; (4) IMA diff is `(step × (1+8b4+4b2+2b1)) >> 3` — the multiply folds `step>>3` in before the shift, which rounds differently from the partial-sum form on odd steps (step 7/nib 15: 13 vs 11 — this was the 3-iteration empirical find). First-block dumps from ffmpeg (`-frames:a 1 -f s16le`) + a Python harness over the corpus block bytes settled all four before a line of Rust was written.
+- Corpus verdict (corpus-v4, this tree, release build): **bit-exact, both files** — concatenated decoded PCM MD5 equals `ffmpeg -map 0:a -f md5 -` exactly:
+  | file | descriptor | ch/rate | data window | decoded frames | our MD5 = ffmpeg MD5 |
+  |---|---|---|---|---|---|
+  | 0042-audio-only.wav | adpcm_ima_wav | 2/44056 | 166×1024 B | 168_822 | `72528c03a21636ae7e69c5ada81077e6` ✓ |
+  | 0102-audio-only.wav | adpcm_ms | 2/32000 | 127×1024 B | 128_524 | `a1de073a928ed1209422852ff5b99a28` ✓ |
+  | tests/fixtures/adpcm_ima_mono.wav (ffmpeg `-c:a adpcm_ima_wav`, sine 440 Hz 1.5 s 8 kHz) | adpcm_ima_wav | 1/8000 | 6×1024 B | 12_246 | `8a8146087f7573fa71963c3ae2c65f3b` ✓ |
+  | tests/fixtures/adpcm_ms_mono.wav (ffmpeg `-c:a adpcm_ms`, same source) | adpcm_ms | 1/8000 | 6×1024 B | 12_216 | `a95d2cbb66f65a4adcb36b57bc68e48e` ✓ |
+  The comparison window is the DATA-derived extent on both sides (fact-chunk damage documented in 5.A2: fact says 167_853/128_000, both ffmpeg's decoder and ours decode the data-derived 168_822/128_524 — verified byte counts 675_288/514_096 = frames×4). No truncation, no smoothing.
+- Error paths (typed, no panics, all unit-tested): configure-time — `adpcm.codec_descriptor` (incl. the raw DVI/`adpcm_ima` gap, documented), `adpcm.facts.missing`, `adpcm.waveformat.short/tag/channels/rate/block_align` (zero blocksize included), `adpcm.ms.coef_count` (wNumCoex≠7, the ffmpeg init check), `adpcm.ms.coef_short`, `adpcm.ms.coef_nonstandard` (file pairs ≠ published table), `adpcm.ms.channels` (>2: the per-instant nibble packing is undefined), `adpcm.not_configured` (BadState). Decode-time block damage is concealment: block < header or MS predictor > 6 → block skipped + `Recovered{CorruptInput}`; short tail block → whole-byte prefix + `Recovered{ConcealedFrame}`; IMA header index > 88 → clamp to 88 (ffmpeg's own healing, flagged). MS delta growth is i64-clamped at 32767 (ffmpeg's C `int` wraps — UB we refuse to mirror; clean streams stay 4 orders below).
+- +FB fuzz-lite (`tests/adpcm_fuzz_survival.rs`): seeded-LCG mutations (flips/truncations/wild headers/bursts) × 512 rounds over the 2 committed fixtures + the corpus files' first 3 blocks (data-chunk size field rewritten so the trimmed files parse), plus fmt-header mangling × 256 and empty/stray-byte edges — no panic, no hang, decode never `Err`s (damage is typed outcomes), configure damage is typed `Unsupported`, decode is deterministic across runs. Committed fuzz inputs: 2 fixtures ≈ 12.5 KB total (the corpus is read from disk, not committed).
+- Throughput note for 5.X1 (release build, full open→demux→decode→md5 pipeline, so decode-only is strictly higher): 0042 IMA 168_822 frames in 5.7 ms ≈ 118 MB/s of decoded PCM (~1330× realtime at 44.056 kHz stereo); 0102 MS 128_524 frames in 4.9 ms ≈ 105 MB/s; mono fixtures 129/253 MB/s. Memory: pooled 4-slot output rotation (the PCM `convert_pool` pattern), allocation-free per packet after warm-up; worst-case slot = `out_bound` (4× payload + seeds' headroom ≈ 262 KB for a 64 KiB packet), slots reused via `get_mut`.
+- GATES (exact): `cargo fmt -p codecs` clean; `cargo clippy -p codecs --all-targets --all-features -- -D warnings` EXIT 0; `cargo test -p codecs --all-features` EXIT 0 — 198 lib tests (17 new adpcm) + all integration suites green incl. the new differential (2) and fuzz (4) binaries.
+- Scope discipline: only `crates/codecs/src/audio/adpcm/{mod,ms,ima}.rs` (new), the pre-announced `pub mod adpcm;` line + doc line in `crates/codecs/src/audio/mod.rs`, and `crates/codecs/tests/` (2 suites + 2 fixtures). File-disjoint from the J2b variant agent (their files + their mod lines stay theirs).
+
+Stage Summary:
+- D-10 MEASURE? — YES: the two real-corpus ADPCM files decode bit-exactly vs the ffmpeg 7.1.5 reference (whole-output PCM MD5, data-derived window, table above), plus 2 ffmpeg-generated mono fixtures (also bit-exact) covering the mono nibble paths; throughput measured (105–253 MB/s PCM, release, full pipeline). NOT measured? — big-endian hosts (native-endian S16 output equals LE on the x86-64 differential host; the `to_ne_bytes` portability seam is documented), and the >2-channel MS packing (typed refusal, not implemented). What breaks? — nothing known: fuzz-lite 4/4 green, all error paths typed and unit-pinned, no panics on any mutation. Who hits it first? — R3 registration (snippet below) and 5.X1 (bench numbers above).
+- R3 registration snippet (draft for the registration card):
+  ```toml
+  id = "adpcm_ms"       # media-types CodecDescriptor("adpcm_ms"), WAV wFormatTag 0x0002
+  kind = "audio"        # decoder: codecs::audio::adpcm::AdpcmDecoder (in-house, zero deps)
+  probe = "demux::wav (fmt tag 0x0002)"     # facts ride DecoderConfig::extra_data
+  capabilities = ["ms-7coef", "stereo-interleave", "block-conceal", "corpus-bitexact"]
+  codecs = []           # decoder entry, not a container
+  seek = "block-aligned (demuxer)"           # self-contained nBlockAlign blocks
+  # and the sibling:
+  id = "adpcm_ima_wav"  # WAV wFormatTag 0x0011, same decoder type
+  capabilities = ["ima-89step", "group-interleave", "index-clamp88", "corpus-bitexact"]
+  # raw DVI/adpcm_ima (headerless) is a typed Unsupported at the gate — owed to the
+  # card that owns raw DVI containers, see audio/adpcm module docs
+  ```
