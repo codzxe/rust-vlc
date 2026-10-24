@@ -84,4 +84,10 @@ pub use types::{Entry, Playlist};
 pub use xspf::{
     MAX_XML_DEPTH, XspfError, XspfParsed, XspfWarning, parse as parse_xspf,
     parse_bytes as parse_xspf_bytes, parse_detailed as parse_xspf_detailed,
+
+mod cue;
+
+pub use cue::{
+    CueFile, CueFileKind, CueFlag, CueIndex, CueSheet, CueTrack, CueTrackType, CueWarning,
+    FRAMES_PER_SECOND, TimeContext, TrackWindow, frames_to_ns, parse_cue, parse_cue_bytes,
 };
