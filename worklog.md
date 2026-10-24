@@ -8510,3 +8510,17 @@ Work Log:
 
 Stage Summary:
 - All Phase-3/4 code PUSHED; UI done and gated. Phase 5 authorized; wave-1 briefs issued to 5 subagents with C5 conditional dep-approval (claxon for 5.A1 pending [VERIFY] purity + record; A2/B1/C1/D1 native). Preflight build + npm ci running.
+
+---
+Task ID: 5.DIRECTIVE (Lead)
+Agent: Lead
+Task: User directive at Phase-5 launch — full scope binding for all Phase-5 waves.
+
+Work Log:
+- USER MANDATES (verbatim intent): (1) complete ALL of Phase 5 with subagents, in depth, NO workarounds — real implementation; (2) differential-test every format vs ffmpeg/ffprobe against the REAL corpus; (3) find every bad/slow algorithm implemented and remove it — target speed; (4) measure memory consumption — target reduction.
+- Assets verified: corpus-v4 live at /tmp/my-project/corpus-v4 (143 media files, 120M: 44 avi, 31 mkv, 24 mp4, 12 wav, 5 ts, 5 mov, 3 flac, 3 ogg, 2 mp3, 2 aac, 2 mka, 2 m4a, 2 mp2, 1 each webm/ogv/h264/265/flv/ac3 + dirty/garbage fuzz dirs + _harness). Differential tooling exists: tools/corpus/{fidelity.py,run_harness.py,speed_bench.py}. ffmpeg/ffprobe installed.
+- Delta cards added to doc 13 (Lead privilege, dated): 5.X1 algorithmic-quality audit (profile → replace bad algorithms; known target MJPEG color/assemble 45.7%, heavy-mjpeg 0.292x → ≥1.0x) and 5.X2 memory audit (tools/mem-audit, peak RSS + per-frame allocs on corpus-v4, eliminate copies).
+- Execution plan: 24 dispatch rounds of 2 zone-disjoint agents (tool-dedeadline-proven width), dependency-ordered: R1 A1+A2, R2 B1+A3, R3 C1+D1, R4 F1+J2, R5 C2+B2, R6 D2+J3, R7 G1+J1, R8 F2+H3, R9 H1+I1, R10 I2+I3, R11 E1+G2, R12 E2+K1, R13 L1+H2-I, R14 L2+K2-I, R15 M1+M2, R16 M3+K3-I, R17 N1+K4-I, R18 N2+N3, R19 O1+P1-I, R20 O2+O3, R21 P2-I+X1, R22 X2+Q1, R23 Q2-V+R1, R24 R2-V gate (Lead). Every format card carries the ffmpeg-differential-on-real-corpus mandate. Merge+registry integration (R3) after each round = Lead work.
+
+Stage Summary:
+- Phase 5 fully launched under expanded honesty+perf mandate. 45 original cards + 2 delta cards = 47 cards to land or honestly block.
