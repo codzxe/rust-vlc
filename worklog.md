@@ -8495,3 +8495,18 @@ Work Log:
 Stage Summary:
 - Phases 3 and 4 COMPLETE and gated; main pushed through the whole arc (8866aa0 -> final). All work executed by subagent waves (17 dispatch rounds, ~45 agent sessions, 6 relaunch-resumes after tool deadlines); the Lead's manual work was git orchestration, conflict resolution, two one-line hygiene fixes, and gate sign-offs.
 - Honest ledger for Phase 5: MJPEG heavy 0.292x (color/assemble 45.7% = next target), hevc/mpeg4 silent-skip bugs, 103-unsupported container coverage, 4h-soak + 3-OS CI pending, app-layer wiring handoffs, schema-owner gaps.
+
+---
+Task ID: 5.LAUNCH (Lead)
+Agent: Lead
+Task: User check-in ("ui done? pushed?") + Phase-5 launch prep per the standing autonomous-wave directive.
+
+Work Log:
+- Verified push state: origin/main...main = 0/0 (HEAD a14ca13 "4.WAVE-CLOSE" pushed), working tree clean, all 20 w6 worktree branches merged+deleted; only local-backup/phase1-aa2f1bf remains. Answer to user: YES, all code pushed.
+- Verified UI state: Phase 4 complete per gate 4.I1-V (PASS WITH REGISTERED CAVEATS) — UI scaffold/tokens/primitives/player/playlists/settings/onboarding/a11y/visual(136)/l10n(472)/desktop-shell/rebrand all landed.
+- ENVIRONMENT RESET DISCOVERED: sandbox recreated between sessions; ~/.cargo + ~/.rustup + ui/node_modules GONE (repo intact). Reinstalled rustup + pinned toolchain 1.99.1 (build hash 58cf8f9c3 matches rust-toolchain.toml pin). Started `cargo check --workspace --all-targets --all-features` (preflight) and `npm ci` in ui/ in background.
+- crates.io reachability verified: index.crates.io 200, static.crates.io 200 (new deps fetchable; C5 records still required).
+- Phase-5 wave-1 cut per doc 13 §8: 5.A1 (FLAC), 5.A2 (WAV/AIFF), 5.B1 (Ogg), 5.C1 (MP4/MOV), 5.D1 (Matroska) — R1-disjoint zones, parallelism 5. 5.A3 MP3 + dependents (5.B2/5.C2/5.D2) in round 2.
+
+Stage Summary:
+- All Phase-3/4 code PUSHED; UI done and gated. Phase 5 authorized; wave-1 briefs issued to 5 subagents with C5 conditional dep-approval (claxon for 5.A1 pending [VERIFY] purity + record; A2/B1/C1/D1 native). Preflight build + npm ci running.
