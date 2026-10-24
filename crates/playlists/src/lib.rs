@@ -90,4 +90,16 @@ mod cue;
 pub use cue::{
     CueFile, CueFileKind, CueFlag, CueIndex, CueSheet, CueTrack, CueTrackType, CueWarning,
     FRAMES_PER_SECOND, TimeContext, TrackWindow, frames_to_ns, parse_cue, parse_cue_bytes,
+
+// Card 5.O3 (append-only wiring): playlist probing + bounded directory
+// loading. The crate keeps its I/O-free posture — every byte and every
+// directory listing arrives through caller-supplied impls; see
+// `probe`'s module docs for the R4 (directory-access trait) seam and
+// the media-magic table note.
+pub mod probe;
+
+pub use probe::{
+    DEFAULT_MAX_DEPTH, DEFAULT_MAX_ENTRIES, DirEntryKind, DirSource, ListedEntry,
+    PROBE_PREFIX_BYTES, PlaylistFormat, ProbedKind, WalkConfig, WalkError, WalkResult,
+    WalkWarnings, probe, probe_path, walk,
 };
