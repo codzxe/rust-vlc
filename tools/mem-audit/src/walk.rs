@@ -49,6 +49,31 @@ use plugin_api::{Access, DemuxEvent, Demuxer};
 
 use crate::allocator::{Phase, Window};
 
+/// The demuxer families the audit can drive (card 5.X2a: the wave-5/6
+/// demuxers landed in `crates/demux` without probe signatures — the
+/// audit constructs them directly, the honest in-tree state).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Family {
+    Avi,
+    Mkv,
+    Mp4,
+    Wav,
+    Ogg,
+}
+
+impl Family {
+    /// The container name for the report line.
+    fn name(self) -> &'static str {
+        match self {
+            Family::Avi => "avi",
+            Family::Mkv => "mkv",
+            Family::Mp4 => "mp4",
+            Family::Wav => "wav",
+            Family::Ogg => "ogg",
+        }
+    }
+}
+
 /// The maximum run of consecutive concealed per-frame damage before
 /// the walk gives up (mirrors `playback-engine`'s
 /// `VIDEO_CONCEALMENT_BUDGET` / bench.rs's `CONCEALMENT_BUDGET`).
@@ -108,6 +133,14 @@ pub struct WalkReport {
     /// The container the probe named ("avi"; the refused format, or
     /// "-" when the walk never reached a container answer).
     pub container: String,
+    /// Peak RSS (VmHWM, kB) for this file's run — reset via
+    /// `/proc/self/clear_refs` before the open window, read after the
+    /// walk window (card 5.X2a; `None` when `/proc` is unavailable,
+    /// e.g. non-Linux — the honest gap, never a zero).
+    pub rss_hwm_kb: Option<u64>,
+    /// RSS (VmRSS, kB) at the moment just before the open window —
+    /// the per-file floor the peak rides on.
+    pub rss_base_kb: Option<u64>,
 }
 
 impl WalkReport {
@@ -299,11 +332,11 @@ impl FrameSink for NullSink {
 /// What a successful open produced (all engine objects alive, ready
 /// for the walk window).
 struct Opened {
-    demuxer: AviDemuxer,
+    demuxer: Box<dyn Demuxer>,
     video: Option<Limb>,
     audio: Option<Limb>,
     tracks: usize,
-    container: String,
+    family: Family,
 }
 
 /// A mid-walk fatal: the typed error plus which stage stopped.
@@ -314,32 +347,74 @@ struct Fatal(EngineError, &'static str);
 /// (or engine-adjacent configure) work. `demux_only` builds
 /// counting-only limbs (no decoders — the drilldown that isolates
 /// demux+pool allocations).
+///
+/// Demuxer selection (card 5.X2a): the probe registry knows `avi` +
+/// `mp4`; the wave-5/6 demuxers (mkv/wav/ogg) landed without probe
+/// signatures, so for a probe refusal the audit tries their
+/// constructors directly on fresh streams — each typed start error
+/// simply advances the try-list, and an exhausted list propagates the
+/// probe's own refusal (the honest in-tree answer).
 fn open(uri: &media_types::SourceUri, demux_only: bool) -> Result<Opened, EngineError> {
     let access = input::FileAccess::new();
     let mut stream = access.open(uri)?;
     let registry = media_probe::ProbeRegistry::with_builtins();
     let config = media_probe::ProbeConfig::default();
-    let report = media_probe::probe_stream(&registry, &mut *stream, &config)?;
-    let container = report.format.as_str().to_string();
-    if container != "avi" {
-        // The first vertical carries exactly one demuxer (D-018) —
-        // the same refusal `apps/cli`'s open path answers with.
-        return Err(EngineError::new(
-            media_types::PipelineStage::Probe,
-            ErrorKind::Unsupported {
-                format: Some(media_types::error::FormatInfo {
-                    name: Some(container),
-                    sniffed: Vec::new(),
-                }),
-            },
-            media_types::error::ErrorContext::new("memaudit.container.no_demuxer"),
-        ));
+    let probe_report = media_probe::probe_stream(&registry, &mut *stream, &config);
+    let probed: Option<String> = match &probe_report {
+        Ok(report) => Some(report.format.as_str().to_string()),
+        Err(_) => None,
+    };
+    // Family try-list: the probe's answer first, then the
+    // signature-less landed demuxers (each on a FRESH stream — a
+    // failed construction leaves the byte position undefined).
+    let mut try_list: Vec<Family> = Vec::new();
+    match probed.as_deref() {
+        Some("avi") => try_list.push(Family::Avi),
+        Some("mp4") => try_list.push(Family::Mp4),
+        _ => {
+            try_list.push(Family::Mkv);
+            try_list.push(Family::Wav);
+            try_list.push(Family::Ogg);
+            try_list.push(Family::Mp4);
+        }
     }
+    let mut last: Option<EngineError> = None;
+    for family in try_list {
+        let stream = access.open(uri)?;
+        let attempt = match family {
+            Family::Avi => open_avi(stream, demux_only),
+            Family::Mkv => open_counting(stream, Family::Mkv, demux::mkv::MkvDemuxer::new),
+            Family::Mp4 => open_counting(stream, Family::Mp4, demux::mp4::Mp4Demuxer::new),
+            Family::Wav => open_wav(stream, demux_only),
+            Family::Ogg => open_counting(stream, Family::Ogg, demux::ogg::OggDemuxer::new),
+        };
+        match attempt {
+            Ok(opened) => return Ok(opened),
+            Err(error) => last = Some(error),
+        }
+    }
+    // Nothing started: prefer the probe's own typed refusal (it names
+    // the family); else the last demuxer start error.
+    match probe_report {
+        Ok(_) => Err(last.unwrap_or_else(|| {
+            EngineError::new(
+                media_types::PipelineStage::Probe,
+                ErrorKind::Unsupported { format: None },
+                media_types::error::ErrorContext::new("memaudit.container.no_demuxer"),
+            )
+        })),
+        Err(error) => Err(error),
+    }
+}
+
+/// The AVI open: the concrete demuxer stays in scope so limb
+/// selection can harvest the strf facts (the bench pattern).
+fn open_avi(
+    stream: Box<dyn plugin_api::SourceStream>,
+    demux_only: bool,
+) -> Result<Opened, EngineError> {
     let mut demuxer = AviDemuxer::new(stream)?;
     let tracks = demuxer.start()?;
-    // Limb selection over the strf facts (the bench pattern): the
-    // first video (mjpeg) and first audio (pcm) streams the v0
-    // decoders cover; other tracks are counted, not decoded.
     let mut video: Option<Limb> = None;
     let mut audio: Option<Limb> = None;
     for track in &tracks {
@@ -348,20 +423,12 @@ fn open(uri: &media_types::SourceUri, demux_only: bool) -> Result<Opened, Engine
         };
         match (track.kind, format) {
             (MediaKind::Video, StreamFormat::MotionJpeg { .. }) if video.is_none() => {
-                let decoder = if demux_only {
-                    None
-                } else {
-                    let mut decoder = codecs::video::mjpeg::MjpegDecoder::new();
-                    configure(&mut decoder, &track.codec)?;
-                    Some(Box::new(decoder) as Box<dyn Decoder>)
-                };
-                video = Some(Limb {
-                    decoder,
-                    track: track.id,
-                    pkts: 0,
-                    decoded: 0,
-                    concealed: 0,
-                });
+                video = Some(make_decode_limb(
+                    &track.codec,
+                    Box::new(codecs::video::mjpeg::MjpegDecoder::new()),
+                    track.id,
+                    demux_only,
+                )?);
             }
             (
                 MediaKind::Audio,
@@ -371,40 +438,157 @@ fn open(uri: &media_types::SourceUri, demux_only: bool) -> Result<Opened, Engine
                     ..
                 },
             ) if audio.is_none() => {
-                let decoder = if demux_only {
-                    None
-                } else {
-                    let mut decoder = codecs::audio::pcm::PcmDecoder::with_format(
-                        u32::from(channels),
-                        samples_per_sec,
-                    )?;
-                    configure(&mut decoder, &track.codec)?;
-                    Some(Box::new(decoder) as Box<dyn Decoder>)
-                };
-                audio = Some(Limb {
-                    decoder,
-                    track: track.id,
-                    pkts: 0,
-                    decoded: 0,
-                    concealed: 0,
-                });
+                audio = Some(make_seeded_pcm_limb(
+                    &track.codec,
+                    u32::from(channels),
+                    samples_per_sec,
+                    track.id,
+                    demux_only,
+                )?);
             }
             _ => {}
         }
     }
     Ok(Opened {
-        demuxer,
+        demuxer: Box::new(demuxer),
         video,
         audio,
         tracks: tracks.len(),
-        container: "avi".to_string(),
+        family: Family::Avi,
+    })
+}
+
+/// The counting-only open for families whose codecs are outside the
+/// first vertical (mkv/mp4/ogg): packets of the first video + first
+/// audio track are counted and dropped — the demux+pool cost
+/// isolated (the `--demux-only` drilldown, always on for these
+/// families).
+fn open_counting<D>(
+    stream: Box<dyn plugin_api::SourceStream>,
+    family: Family,
+    construct: fn(Box<dyn plugin_api::SourceStream>) -> Result<D, EngineError>,
+) -> Result<Opened, EngineError>
+where
+    D: Demuxer + 'static,
+{
+    let mut demuxer = construct(stream)?;
+    let tracks = demuxer.start()?;
+    let mut video: Option<Limb> = None;
+    let mut audio: Option<Limb> = None;
+    for track in &tracks {
+        match track.kind {
+            MediaKind::Video if video.is_none() => video = Some(counting_limb(track.id)),
+            MediaKind::Audio if audio.is_none() => audio = Some(counting_limb(track.id)),
+            _ => {}
+        }
+    }
+    Ok(Opened {
+        demuxer: Box::new(demuxer),
+        video,
+        audio,
+        tracks: tracks.len(),
+        family,
+    })
+}
+
+/// The WAV open: plain-PCM streams get the real `PcmDecoder` limb
+/// (seeded from the fmt facts, the AVI pattern); other payload
+/// codecs (ADPCM, FLAC-in-WAV) fall back to counting-only — their
+/// decode lanes have not landed, and a typed configure refusal must
+/// not cost the demux measurement.
+fn open_wav(
+    stream: Box<dyn plugin_api::SourceStream>,
+    demux_only: bool,
+) -> Result<Opened, EngineError> {
+    let mut demuxer = demux::wav::WavDemuxer::new(stream)?;
+    let tracks = demuxer.start()?;
+    let mut audio: Option<Limb> = None;
+    let pcm_facts = demuxer
+        .format()
+        .filter(|format| matches!(format.codec, demux::wav::format::WavCodec::Pcm { .. }));
+    for track in &tracks {
+        if track.kind == MediaKind::Audio && audio.is_none() {
+            audio = Some(match pcm_facts.as_ref() {
+                Some(format) => make_seeded_pcm_limb(
+                    &track.codec,
+                    u32::from(format.channels),
+                    format.samples_per_sec,
+                    track.id,
+                    demux_only,
+                )
+                .unwrap_or_else(|_| counting_limb(track.id)),
+                None => counting_limb(track.id),
+            });
+        }
+    }
+    Ok(Opened {
+        demuxer: Box::new(demuxer),
+        video: None,
+        audio,
+        tracks: tracks.len(),
+        family: Family::Wav,
+    })
+}
+
+/// A counting-only limb (no decoder — pure demux+pool counting).
+fn counting_limb(track: TrackId) -> Limb {
+    Limb {
+        decoder: None,
+        track,
+        pkts: 0,
+        decoded: 0,
+        concealed: 0,
+    }
+}
+
+/// Wrap a configured decoder as a limb (or a counting-only limb when
+/// `demux_only`).
+fn make_decode_limb(
+    codec: &media_types::ids::CodecDescriptor,
+    mut decoder: Box<dyn Decoder>,
+    track: TrackId,
+    demux_only: bool,
+) -> Result<Limb, EngineError> {
+    if demux_only {
+        return Ok(counting_limb(track));
+    }
+    configure(&mut *decoder, codec)?;
+    Ok(Limb {
+        decoder: Some(decoder),
+        track,
+        pkts: 0,
+        decoded: 0,
+        concealed: 0,
+    })
+}
+
+/// The seeded PCM limb (channels/rate from the container's own facts —
+/// strf for AVI, `fmt ` for WAV).
+fn make_seeded_pcm_limb(
+    codec: &media_types::ids::CodecDescriptor,
+    channels: u32,
+    rate: u32,
+    track: TrackId,
+    demux_only: bool,
+) -> Result<Limb, EngineError> {
+    if demux_only {
+        return Ok(counting_limb(track));
+    }
+    let mut decoder = codecs::audio::pcm::PcmDecoder::with_format(channels, rate)?;
+    configure(&mut decoder, codec)?;
+    Ok(Limb {
+        decoder: Some(Box::new(decoder)),
+        track,
+        pkts: 0,
+        decoded: 0,
+        concealed: 0,
     })
 }
 
 /// The packet loop + drains (inside the walk window). Returns the
 /// fatal, if one struck.
 fn run_loop(
-    demuxer: &mut AviDemuxer,
+    demuxer: &mut dyn Demuxer,
     video: &mut Option<Limb>,
     audio: &mut Option<Limb>,
     sink: &mut dyn FrameSink,
@@ -458,7 +642,13 @@ fn probe_format_of(error: &EngineError) -> String {
 
 /// The refusal report: open-phase numbers only, an honest zeroed walk
 /// phase (formatted after the windows closed).
-fn refused_report(size: u64, error: EngineError, container: &str) -> WalkReport {
+fn refused_report(
+    size: u64,
+    error: EngineError,
+    container: &str,
+    rss_hwm_kb: Option<u64>,
+    rss_base_kb: Option<u64>,
+) -> WalkReport {
     let stage = error.stage.to_string();
     WalkReport {
         verdict: Verdict::Refused,
@@ -491,15 +681,33 @@ fn refused_report(size: u64, error: EngineError, container: &str) -> WalkReport 
         tracks: 0,
         limbs: "none",
         container: container.to_string(),
+        rss_hwm_kb,
+        rss_base_kb,
     }
 }
 
-/// Run one file's full walk (decode included) — the plain form the
-/// tests use (`main` always goes through [`walk_with`]).
-#[cfg(test)]
-#[must_use]
-pub fn walk(path: &Path) -> WalkReport {
-    walk_with(path, false)
+/// Read one `kB` field out of `/proc/self/status` (e.g. `VmHWM`,
+/// `VmRSS`); `None` when `/proc` is unavailable — the honest gap,
+/// never a fabricated zero (outside every window: it allocates).
+fn proc_status_kb(field: &str) -> Option<u64> {
+    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    let prefix = format!("{field}:");
+    for line in status.lines() {
+        if let Some(rest) = line.strip_prefix(&prefix) {
+            let kb = rest.split_whitespace().next()?;
+            return kb.parse::<u64>().ok();
+        }
+    }
+    None
+}
+
+/// Reset the process's peak-RSS watermark (VmHWM) to the current
+/// RSS, so each audited file gets its own peak (Linux
+/// `/proc/self/clear_refs` mode 5; best-effort — when the write
+/// fails the reported HWM stays cumulative, which the doc calls
+/// out). Outside every window.
+fn reset_vm_hwm() {
+    let _ = std::fs::write("/proc/self/clear_refs", b"5");
 }
 
 /// Run one file's walk: open (windowed), loop (windowed), teardown
@@ -511,8 +719,13 @@ pub fn walk_with(path: &Path, demux_only: bool) -> WalkReport {
     let size = std::fs::metadata(path).map_or(0, |meta| meta.len());
     let uri = match file_uri(path) {
         Ok(uri) => uri,
-        Err(error) => return refused_report(size, error, "-"),
+        Err(error) => return refused_report(size, error, "-", None, None),
     };
+    // Peak-RSS bracketing: reset the watermark so this file's HWM is
+    // its own, then read it after both windows close (outside every
+    // window — the /proc reads allocate).
+    reset_vm_hwm();
+    let rss_base_kb = proc_status_kb("VmRSS");
 
     // ---- Open window: access → probe → demuxer start → limbs -------
     let open_window = Window::open();
@@ -522,7 +735,8 @@ pub fn walk_with(path: &Path, demux_only: bool) -> WalkReport {
         Ok(opened) => opened,
         Err(error) => {
             let container = probe_format_of(&error);
-            let mut report = refused_report(size, error, &container);
+            let rss_hwm_kb = proc_status_kb("VmHWM");
+            let mut report = refused_report(size, error, &container, rss_hwm_kb, rss_base_kb);
             report.open = open_phase;
             return report;
         }
@@ -536,7 +750,7 @@ pub fn walk_with(path: &Path, demux_only: bool) -> WalkReport {
     let mut sink = NullSink;
     let mut demux_recovered: u64 = 0;
     let fatal = run_loop(
-        &mut demuxer,
+        demuxer.as_mut(),
         &mut video,
         &mut audio,
         &mut sink,
@@ -557,6 +771,7 @@ pub fn walk_with(path: &Path, demux_only: bool) -> WalkReport {
     drop(audio);
     drop(demuxer);
     let walk_phase = walk_window.close();
+    let rss_hwm_kb = proc_status_kb("VmHWM");
 
     // ---- Report (outside every window; formatting is free) ---------
     let (verdict, stage, error) = match fatal {
@@ -583,6 +798,16 @@ pub fn walk_with(path: &Path, demux_only: bool) -> WalkReport {
         walk: walk_phase,
         tracks: opened.tracks,
         limbs,
-        container: opened.container,
+        container: opened.family.name().to_string(),
+        rss_hwm_kb,
+        rss_base_kb,
     }
+}
+
+/// Run one file's full walk (decode included) — the plain form the
+/// tests use (`main` always goes through [`walk_with`]).
+#[cfg(test)]
+#[must_use]
+pub fn walk(path: &Path) -> WalkReport {
+    walk_with(path, false)
 }
