@@ -6,6 +6,7 @@
 //! decoder consumes. Everything is bounds-checked; no panics on any
 //! input (fuzz guarantee).
 
+use super::FieldPolarity;
 use super::error::{MjpegError, bad_marker, unsupported};
 
 /// Zigzag order: natural (row-major) position of the i-th coefficient
@@ -57,6 +58,10 @@ pub(crate) struct JpegInfo {
     pub huff_present: [[bool; 4]; 2],
     /// Restart interval in MCUs (0 = no restart markers).
     pub restart_interval: u32,
+    /// AVI1 APP0 field polarity (card 5.H3): `None` for progressive
+    /// frames (no AVI1 marker — the JFIF world), `Some` for the
+    /// "AVI 1.1" field-based extension (OpenDML AVI M-JPEG).
+    pub field_polarity: Option<FieldPolarity>,
     /// Byte offset just past the SOS segment: entropy data starts here.
     pub entropy_offset: usize,
     /// Whether an APP0 JFIF marker was seen (colorimetry default).
@@ -93,6 +98,7 @@ impl JpegInfo {
             ],
             huff_present: [[false; 4]; 2],
             restart_interval: 0,
+            field_polarity: None,
             entropy_offset: 0,
             jfif: false,
             scan: Vec::new(),
@@ -119,6 +125,7 @@ impl JpegInfo {
         }
         self.huff_present = [[false; 4]; 2];
         self.restart_interval = 0;
+        self.field_polarity = None;
         self.entropy_offset = 0;
         self.jfif = false;
         self.scan.clear();
@@ -249,8 +256,12 @@ pub(crate) fn parse_into(info: &mut JpegInfo, data: &[u8]) -> Result<(), MjpegEr
                 pos = next_segment(data, pos)?;
             }
             m if (marker::APPN_FIRST..=marker::APPN_LAST).contains(&m) || m == marker::COM => {
-                if m == marker::APP0 && is_jfif(data, pos) {
-                    info.jfif = true;
+                if m == marker::APP0 {
+                    if is_jfif(data, pos) {
+                        info.jfif = true;
+                    } else if let Some(polarity) = parse_avi1(data, pos) {
+                        info.field_polarity = Some(polarity?);
+                    }
                 }
                 pos = next_segment(data, pos)?;
             }
@@ -305,6 +316,37 @@ fn next_segment(data: &[u8], pos: usize) -> Result<usize, MjpegError> {
 fn is_jfif(data: &[u8], pos: usize) -> bool {
     let payload = pos + 4;
     data.len() >= payload + 5 && &data[payload..payload + 5] == b"JFIF\0"
+}
+
+/// Parse the AVI1 APP0 of a field-based MJPEG frame (card 5.H3; the
+/// "AVI 1.1" extension — OpenDML AVI File Format Extensions, Motion
+/// JPEG DIB): payload `AVI1\0` + one polarity byte.
+///
+/// Returns `None` when the segment is not an AVI1 APP0 (some other
+/// APP0 — JFIF checked first by the caller, anything else skipped per
+/// §B.2), `Some(Ok(polarity))` when it is, `Some(Err(..))` when it is
+/// an AVI1 segment with structural damage (cut short, or a polarity
+/// byte outside the spec's 0..=2 vocabulary).
+fn parse_avi1(data: &[u8], pos: usize) -> Option<Result<FieldPolarity, MjpegError>> {
+    let payload = pos + 4;
+    if data.len() < payload + 5 || &data[payload..payload + 5] != b"AVI1\0" {
+        return None;
+    }
+    // The polarity byte must lie inside the declared segment: a
+    // segment that ends at `AVI1\0` is damaged (never read the next
+    // marker's bytes as polarity). A segment-length failure here
+    // yields `None`; the caller's own `next_segment` then surfaces
+    // the typed error.
+    let end = next_segment(data, pos).ok()?;
+    if payload + 6 > end {
+        return Some(Err(bad_marker("mjpeg.app0.avi1.no_polarity", pos)));
+    }
+    Some(match data[payload + 5] {
+        0 => Ok(FieldPolarity::FirstField),
+        1 => Ok(FieldPolarity::SecondField),
+        2 => Ok(FieldPolarity::Interleaved),
+        _ => Err(bad_marker("mjpeg.app0.avi1.polarity", pos + 4)),
+    })
 }
 
 /// SOF0 (§B.2.2): baseline frame header.
@@ -919,5 +961,89 @@ mod tests {
             Err(e) => unreachable!("parse failed: {e:?}"),
         };
         assert_eq!(parsed.info.quant_tables[0], natural);
+    }
+
+    #[test]
+    fn avi1_polarity_parses_for_all_three_values() {
+        // Card 5.H3: the "AVI 1.1" field-based MJPEG APP0. Polarity 0
+        // = first field, 1 = second field, 2 = both fields
+        // interleaved (OpenDML AVI M-JPEG).
+        for (byte, want) in [
+            (0u8, FieldPolarity::FirstField),
+            (1, FieldPolarity::SecondField),
+            (2, FieldPolarity::Interleaved),
+        ] {
+            let mut jpeg = soi();
+            let mut app0 = b"AVI1\0".to_vec();
+            app0.push(byte);
+            jpeg.extend(seg(0xe0, &app0));
+            jpeg.extend(dqt());
+            jpeg.extend(dht());
+            jpeg.extend(sof0(8, 4));
+            jpeg.extend(sos());
+            jpeg.extend_from_slice(&[0x00, 0xff, 0xd9]);
+            let parsed = match parse(&jpeg) {
+                Ok(p) => p,
+                Err(e) => unreachable!("parse failed: {e:?}"),
+            };
+            assert_eq!(parsed.info.field_polarity, Some(want), "polarity {byte}");
+            assert!(!parsed.info.jfif, "AVI1 is not JFIF");
+        }
+    }
+
+    #[test]
+    fn avi1_polarity_out_of_vocabulary_is_structural() {
+        let mut jpeg = soi();
+        let mut app0 = b"AVI1\0".to_vec();
+        app0.push(3);
+        jpeg.extend(seg(0xe0, &app0));
+        jpeg.extend(dqt());
+        jpeg.extend(dht());
+        jpeg.extend(sof0(8, 8));
+        let e = parse(&jpeg).err().unwrap_or_else(|| unreachable!());
+        assert!(
+            matches!(e, MjpegError::BadMarker { code, .. } if code == "mjpeg.app0.avi1.polarity")
+        );
+    }
+
+    #[test]
+    fn avi1_segment_without_the_polarity_byte_is_structural() {
+        // The declared segment ends at `AVI1\0`: no polarity byte
+        // inside the segment (the byte after it in the buffer belongs
+        // to the next marker — it must not be read as polarity).
+        let mut jpeg = soi();
+        jpeg.extend(seg(0xe0, b"AVI1\0"));
+        jpeg.extend(dqt());
+        let e = parse(&jpeg).err().unwrap_or_else(|| unreachable!());
+        assert!(
+            matches!(e, MjpegError::BadMarker { code, .. } if code == "mjpeg.app0.avi1.no_polarity")
+        );
+    }
+
+    #[test]
+    fn avi1_field_polarity_resets_between_walks() {
+        // The persistent-scratch contract: a walk that saw AVI1 must
+        // not leak the polarity into the next progressive frame's
+        // walk (the reset clears it like every other field).
+        let mut with_marker = soi();
+        let mut app0 = b"AVI1\0".to_vec();
+        app0.push(2);
+        with_marker.extend(seg(0xe0, &app0));
+        with_marker.extend(dqt());
+        with_marker.extend(dht());
+        with_marker.extend(sof0(8, 8));
+        with_marker.extend(sos());
+        with_marker.extend_from_slice(&[0x00, 0xff, 0xd9]);
+        let mut plain = soi();
+        plain.extend(dqt());
+        plain.extend(dht());
+        plain.extend(sof0(8, 8));
+        plain.extend(sos());
+        plain.extend_from_slice(&[0x00, 0xff, 0xd9]);
+        let mut scratch = JpegInfo::empty();
+        parse_into(&mut scratch, &with_marker).unwrap_or_else(|e| unreachable!("{e:?}"));
+        assert_eq!(scratch.field_polarity, Some(FieldPolarity::Interleaved));
+        parse_into(&mut scratch, &plain).unwrap_or_else(|e| unreachable!("{e:?}"));
+        assert_eq!(scratch.field_polarity, None, "no polarity leak");
     }
 }

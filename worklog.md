@@ -9050,3 +9050,51 @@ Stage Summary:
   # 5.A3's Mp3Decoder also accepts "mp2" in its family gate — its recorded
   # behavior, unchanged; R3 should point the registry row at Mp2Decoder.
   ```
+
+---
+Task ID: 5.H3
+Agent: P5-H3F
+Task: MJPEG polish (AVI1.1 fields, 420/422 edges, differential record) — finisher: prior session died uncommitted; verify/complete/gate/commit.
+
+Work Log:
+- Inherited uncommitted (6 paths): mjpeg/{decoder,mod,parser}.rs (AVI1 APP0 field-polarity parse + metadata surfacing), fuzz_survival.rs (+FB AVI1/RST mutation harness), new tests/mjpeg_field_differential.rs (17-lane pinned-truth suite) + tests/fixtures/mjpeg_h3/ (4 generated fixtures). Verified complete per card; fixed 2 inherited build breaks: E0502 borrow loop in fuzz_survival (rewritten as find+write), and stage_bench example E0432 (FieldPolarity moved to its own field.rs so the #[path]-include example tree resolves `super::FieldPolarity`; mod.rs re-exports, public API unchanged).
+- AVI1.1 audit: APP0 `AVI1\0`+polarity byte; vocab 0/1/2 (FirstField/SecondField/Interleaved), out-of-vocab and missing-polarity-byte are typed structural errors (never read past the declared segment); Interleaved is metadata-only (bit-exact vs marker-free decode, order-preserving: stream row order IS field order); single-field frames decode at field height with polarity surfaced — weaving is presentation-layer, documented in mod.rs. Polarity resets between persistent-scratch walks (no leak). `interlaced` frame flag = polarity present. ffmpeg 7.1 neither writes nor parses AVI1 (verified absent from libavcodec) — AVI1 paths pinned by hand-built unit suite; interlaced CONTENT pinned via tinterlace fixtures below.
+- Edge coverage: restart intervals mid-MCU-row and row-boundary (DRI=2 on 3x2 MCU grid, bit-exact vs restart-free); odd 87x63 4:2:0 (exact I420 size, no padding leak incl. plane-reuse after different geometry); odd 4:2:2/4:2:0 ffmpeg-generated fixtures; last-pixel (box) replication pinned by the differential lanes.
+- DIFFERENTIAL (independently re-measured this session, ffmpeg 7.1.5-0+deb13u1, corpus-v4 present): 13 corpus avi-mjpeg + 4 generated fixtures vs `ffmpeg -f rawvideo` dumps; I420 lanes native planar vs yuvj420p dumps, 422/444 lanes RGBA vs rgba+`-sws_flags neighbor` dumps (each side's own color tables):
+  | file | sampling | frames | verdict |
+  |---|---|---|---|
+  | 0015 | 420 | 146 | BIT-EXACT (MD5 equal, incl. damaged EOI-truncated tail) |
+  | 0125 | 420 | 8 | BIT-EXACT (MD5 equal) |
+  | 0039 | 420 | 3 | ±1 LSB, 1.26% samples |
+  | 0111 | 420 | 65 | ±1 LSB, 0.90% |
+  | 0081 | 420 | 46 | ±1 LSB, 0.76% |
+  | 0143 | 420 | 11 | ±1 LSB, 0.056% |
+  | 0076 | 420 | 4 | ±1 LSB, 0.14% |
+  | 0031 | 420 | 21 | ±1 LSB, 0.15% |
+  | 0084 | 420 | 151 | ±1 LSB, 0.29% (31575/11.6M luma) |
+  | 0072 | 420 | 79 | ±1 LSB, 0.35% |
+  | 0033 | 444→RGBA | 105 | max 3, 0.19% (conversion-table rounding) |
+  | 0064 | 422→RGBA | 79 | max 4, 43.4% (neighbor-upsample phase + tables) |
+  | 0092 | 422→RGBA | 7 | max 4, 9.96% |
+  | mjpeg_420_odd (86x62) | 420 | 5 | ±1 LSB, 0.94% |
+  | mjpeg_422_odd (84x46) | 422→RGBA | 5 | max 3, 32.9% |
+  | mjpeg_interlaced_tff | 420 | 4 | ±1 LSB, 0.79% — field order byte-preserved |
+  | mjpeg_interlaced_bff | 420 | 4 | ±1 LSB, 0.86% — field order byte-preserved |
+  Verdict: every I420 lane within ±1 LSB (IDCT rounding class, 2.B4-documented); 2 bit-exact; RGBA lanes record the conversion-convention divergence honestly (decode pinned by the I420/444 classes). Honest tooling note: two earlier sweep passes of mine reported max-255 garbage — root-caused to my own compare script (non-natural frame sort → permuted frames) and an ffmpeg-stdin-eating loop; ffmpeg itself verified self-consistent (AVI pipeline == standalone JPEG decode, max 0) before the clean numbers above were pinned.
+- Fuzz: +FB avi1_field_marker_mutations (all 256 polarity values, truncations, doubled markers, mid-entropy splices, DRI/RST renumber/drop/fill damage + half-stream truncations) — Ok-or-typed, zero panics.
+
+Stage Summary:
+- 5.H3 COMPLETE on wip/p5-h3: gates fmt/clippy/test green (371/0 codecs), differential table recorded, committed. Fancy (libjpeg triangular) upsampling remains the documented 444/422 conversion convention (RGBA box-replication), unchanged by this card.
+
+---
+Task ID: 5.H3
+Agent: P5-H3F2
+Task: MJPEG polish — finisher retry (prior dispatch believed dead pre-spawn); verify/complete/gate/commit.
+
+Work Log:
+- On arrival the retry was moot: P5-H3F had in fact completed and COMMITTED before dying (e8a8bd1 on wip/p5-h3, tree clean, worklog entry present). Verified rather than redid: full commit read (12 files: field.rs + decoder/parser/mod AVI1.1, fuzz harness, 17-lane differential suite + 4 fixtures, worklog).
+- Gates re-run this session, all green: fmt -p codecs clean (idct_simd.rs:341 no drift present); clippy --all-targets --all-features -D warnings = 0; test -p codecs --all-features = 371 passed / 0 failed, incl. mjpeg_field_differential 3/3 in 31s against corpus-v4 (present, 44 avi).
+- Differential honesty spot-check (independent, this session): ffmpeg 7.1.5 dump MD5s re-measured — 0015 = 5a2e8a0d... and 0125 = c1b4b1d1... both EQUAL the pinned/decoder MD5s (bit-exact claims true); 0084 ffmpeg = d8f9c184... ≠ pinned 43637e06... and dump bytes 17,395,200 = exactly 151×320×240×1.5 (±1-LSB class recorded honestly, geometry/frame-count exact).
+
+Stage Summary:
+- 5.H3 verified COMPLETE and committed (e8a8bd1 + this entry). Branch wip/p5-h3 ready for merge; no code changes needed by retry.
