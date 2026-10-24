@@ -8478,3 +8478,20 @@ Work Log:
 
 Stage Summary:
 - D-10: MEASURE? — every number above is from a run this session with its log committed. NOT tested? — H2 rebrand (in flight, parallel worktree, Lead fills the slot); 3-OS anything (Linux-only sandbox, webkit absent); end-to-end config propagation through the desktop shell (seams proven, wiring is H1's handoff). What breaks? — nothing merged by this session beyond two behavior-neutral hygiene fixes (eslint config block, smoke spec onboarding seed) which the Lead should fold. Who hits it first? — the Lead at sign-off (H2 slot + the §6 decisions); any agent running bare `npx playwright test` hits the visual config mismatch (NEXT-STEPS item).
+
+---
+Task ID: 4.WAVE-CLOSE (Lead)
+Agent: Lead
+Task: Phase 3 + Phase 4 completion arc — the user's "merge local branches, push, complete the remaining phases, use subagent waves" directive, executed.
+
+Work Log:
+- 7.LEAD-RESET: absorbed the cut-off session's unlogged wave-6 close-out (all 20 w6 branches merged, 0 unmerged); amended the UUID-message 3.E1 commit; pushed.
+- Wave 7 (8 cards, subagent waves of 2-5 with relaunch-resume on tool deadlines): 7-a closed the 3 red scenarios (23/23, all test-side guesses); 7-b MJPEG honest optimization (V-3 in-place huffman; SSE4.1 IDCT bit-exact but measured NO-WIN 1.021x/0.995x — Lead kept scalar default per the keep-scalar rule); 7-c V-1 arena + input window bypass (164->26 seam calls, 256->0 allocs, 32->2 source calls); 7-d corpus-v4 parity (19/19 frame counts exact, 8/9 PCM MD5 bit-exact, heavy-mjpeg 0.292x vs 0.16x baseline) + corpus-big sweep (587 files, 0 panics); 7-e F-1..F-5 error-surface fixes; 7-f scenarios clippy; 7-g 4h-soak honestly BLOCKED (sandbox reaps background processes); 7-h bench-vs-vlc verify + big sweep.
+- 3.F2-V Phase-3 gate: evidence agent (workspace 1939/0/36 across 163 binaries), Lead verified the E0463 transient on main, signed PASS WITH REGISTERED CAVEATS (3-OS infra-blocked, 4h-soak pending, VLC-oracle pending).
+- Phase 4 (25 cards, 9 waves, ALL LANDED): 4.A1/A2 scaffold+tokens (Vite 8, React 19, TS strict; token pipeline with 9-accent matrix); 4.B1-B4 primitives (8+slider-seekbar-volume+menus+dialog/tabs/scroll/virtual-list/icons — 10k-row AC at 30 DOM nodes); 4.C1-C3 player shell/controls/states; 4.D1/D2 playlists crate (18/18, fuzz-lite clean) + panel + media-info; 4.E1-E4 settings framework (schema-drift AC proven) + 4 area groups; 4.F1-F4 onboarding (privacy opt-in-off proven) + variants + customize panels + axe-clean a11y (11 routes, real contrast fixes); 4.G1/G2 visual harness (seeded 2-px regression AC proven) + 136-case matrix green; 4.H1 desktop shell (composition root 38/0, single lumen_dispatch, TauriTransport 9/9 — launch infra-blocked, webkit absent); 4.H2 rebrand acceptance (7 PASS / 2 honest BLOCKED / 0 FAIL); 4.H3 l10n (472/472, pseudo-locale clipping-clean).
+- 4.I1-V Phase-4 gate: evidence agent + Lead sign-off PASS WITH REGISTERED CAVEATS; Phase 5 launch list issued (doc 13 §8, waves 5.A-5.R).
+- Final tree: vitest 557/557 (59 files), typecheck+lint clean, l10n 472/472, drift guards green, visual PR 30/30, playwright 38/38, phase-4 Rust crates 82/0; two gate docs (phase3-exit.md, phase4-exit.md) with full evidence chains.
+
+Stage Summary:
+- Phases 3 and 4 COMPLETE and gated; main pushed through the whole arc (8866aa0 -> final). All work executed by subagent waves (17 dispatch rounds, ~45 agent sessions, 6 relaunch-resumes after tool deadlines); the Lead's manual work was git orchestration, conflict resolution, two one-line hygiene fixes, and gate sign-offs.
+- Honest ledger for Phase 5: MJPEG heavy 0.292x (color/assemble 45.7% = next target), hevc/mpeg4 silent-skip bugs, 103-unsupported container coverage, 4h-soak + 3-OS CI pending, app-layer wiring handoffs, schema-owner gaps.
