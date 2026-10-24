@@ -3,8 +3,9 @@
 Status: **in progress** (feature-matrix row `container-matroska-webm`,
 Phase 5). This record is the container's honest coverage ledger after
 cards 5.D1 (core) and 5.D2b (editions + tags). Card 5.D2a
-(attachments + chapter atoms) executes in parallel, file-disjoint;
-its surface is marked **in flight** below, never claimed.
+(attachments + chapter atoms) **landed at wave-4 close — see the
+audit addendum at the bottom (5.REC-1); its "in flight" markers in
+the table below are superseded**.
 
 - Layer: L2 demux (`crates/demux/src/mkv/`), C5 std-only, zero
   external dependencies, no `unsafe`.
@@ -145,3 +146,44 @@ at 5.D1 merge; +7 unit, +14 integration). Note: run with a
 worktree-local `CARGO_TARGET_DIR` — the shared `/home/z/my-project/
 target` races with the parallel wave-4 worktrees compiling the same
 crate.
+
+---
+
+## Audit addendum (5.REC-1, 2026-10-24 — records consolidation)
+
+Re-audit of this record against the tree at `774ac5b` (wave-7
+close). Verified in-tree this session:
+
+- **5.D2a LANDED** (wave-4 merge, 5.W4-CLOSE: "5.D2a
+  attachments+chapters 315/0, 34-lane differential, ns-vs-ticks
+  spec fix"). The table's two "in flight" rows are therefore
+  **superseded**: `Attachments` (0x1941A469) = full parse via
+  `MkvDemuxer::attachments()` (attachments.rs:317);
+  `ChapterAtom` (0xB6) = full parse via
+  `MkvDemuxer::chapters()` (chapters.rs:567) with the **ns
+  doctrine** (ChapterTimeStart/End are nanoseconds BY SPEC and do
+  NOT scale with TimestampScale — the inherited ticks×scale model
+  was removed at the root; ffprobe matches byte-for-byte on every
+  lane). Evidence: 0007-chapter-bomb 2580 atoms matched; 0063 10
+  chapters matched; 30 remaining lanes 0/0; generated fixture
+  (ffmpeg -attach + ffmetadata) attachment bytes exact. Bounds:
+  MAX_ATTACHMENTS 1024; atom budget 65 536; depth guard
+  ebml::MAX_PARSE_DEPTH; >32 MiB FileData = NonInline{offset,len},
+  never read.
+- **The wiring seam is STILL OPEN** (re-verified:
+  mkv/mod.rs:285 — the `open()` walk still skips
+  SeekHead/Tags/Attachments/Chapters). The parse layers remain
+  public positional-scan getters (`scan_segment_for`), so this is
+  an ergonomics gap, not a correctness one — unchanged from the
+  record's "Known gaps" list. Still the Lead merge follow-up.
+- **TrackUID (0x73C5) still not retained** by the track table
+  (re-verified: no 0x73C5/track_uid in header.rs) — gap 4 stands.
+- Test counts superseded: card-time 316/0/4 → wave-7 workspace
+  **3040 passed / 0 failed** (5.W7-CLOSE, fmt + clippy clean).
+- Codec rides landed since: AV1 decode via rav1d (5.E1, bit-exact
+  ×5), HEVC parser (5.G1, 3/3 corpus incl. mkv hvcC lane),
+  MPEG-1/2 sequence layer (5.H1), H264 parser corpus 18/18 mkv
+  lanes (5.F1a) — demux carriage unchanged.
+- Matrix row `container-matroska-webm` still reads `not_started` /
+  empty evidence (Lead-owned backfill; same amendment shape as the
+  9 records written by this card).
