@@ -1,0 +1,39 @@
+# crates/subtitles — subtitle formats + the compositing contract
+# (doc 01 §2.2 registry row "subtitles", L2; cards 5.L1 + 5.L2).
+#
+# Scaffold note (Lead-ratification): this crate does NOT exist on main;
+# 5.L1 (compositing) and 5.L2 (cue model) both create a minimal
+# scaffold in their own worktrees — Lead unifies at merge. Root
+# Cargo.toml needs no edit: `members = ["crates/*"]` glob-picks the
+# directory (the 1.A1 membership policy). boundaries.toml carries the
+# [crates.subtitles] entry in the same change.
+#
+# Deps (5.L1 half): media-types only — the registry row also lists
+# plugin-api, which joins when the SubtitleParser seam lands (5.M1);
+# the manifest is an allowlist, missing allowed-edges are fine.
+# media-clock is DEV-ONLY (renderer-wgpu 2.D1 precedent): the
+# sample-exact timing AC drives the REAL MediaClock end-to-end, while
+# the library API speaks media-types' Timestamp only — a dev edge
+# cannot leak into the public API (ARCH-7). Std-only by C5.
+
+[package]
+name = "subtitles"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen subtitle compositing contract: safe-area placement, scaling with the video extent, z-ordered alpha blending onto a renderer-implemented ComposeTarget, and sample-exact [t0,t1) cue timing against the shared clock (doc 04 §5 compositing contract; card 5.L1)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+media-types = { path = "../media-types" }
+
+[dev-dependencies]
+# testkit is dev-only by contract (MP §3.7): the counting allocator for
+# the zero-alloc steady-state proof + the Must unwrap vocabulary.
+testkit = { path = "../testkit" }
+# The REAL clock, test-only: the duration AC proves sample-exact cue
+# boundaries over MediaClock::audio_master (renderer-wgpu 2.D1
+# precedent for a media-clock dev edge).
+media-clock = { path = "../media-clock" }
