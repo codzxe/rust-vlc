@@ -41,6 +41,25 @@
 //! semantics). Structural damage our framing rejects surfaces as a
 //! typed `ErrorKind::Corrupt` per doc 03 §4.5(d).
 //!
+//! # Reference-state gate (the upstream-abort containment)
+//!
+//! rav1d 1.1.0 has a **confirmed process abort** when a dependent
+//! (INTER/SWITCH/show-existing) frame meets broken reference state —
+//! `decode.rs`'s `on_error` unwraps a `None` frame header (a port
+//! bug; C dav1d errors the frame gracefully). Dropping one packet
+//! mid-stream, or feeding crafted garbage, hits it. This decoder
+//! therefore tracks reference validity: the engine is fed a TU only
+//! after an independent frame (KEY/INTRA_ONLY — the OBU framer's
+//! 3-bit header peek,
+//! [`TemporalUnit::has_independent_frame`](super::obu::TemporalUnit))
+//! has established reference state, and any corrupt-class outcome
+//! closes the gate again until the next independent frame. Gated
+//! packets return [`DecodeOutcome::Recovered`] with
+//! [`RecoverReason::Discontinuity`] — typed, counted, bounded, never
+//! an abort. Misclassification degrades to a refusal, never a
+//! mis-decode; the gate retires when the rav1d bump fixes the abort
+//! (record re-trigger, doc 11 §3.7).
+//!
 //! # Presentation-time association (the honest way)
 //!
 //! rav1d emits pictures in presentation order, which can lag the
@@ -76,17 +95,17 @@
 use super::obu;
 use codec_api::prelude::*;
 use media_types::frame::{
-    ColorDescription, ColorMatrix, ColorPrimaries, ColorRange, FrameStorage, TransferCharacteristics,
-    VideoFrame,
+    ColorDescription, ColorMatrix, ColorPrimaries, ColorRange, FrameStorage,
+    TransferCharacteristics, VideoFrame,
 };
 use media_types::packet::SharedBytes;
 use media_types::{EngineError, ErrorKind, PipelineStage, Stamp};
 use rav1d::include::dav1d::common::Dav1dDataProps;
-use rav1d::include::dav1d::dav1d::{Dav1dContext, Dav1dSettings};
 use rav1d::include::dav1d::data::Dav1dData;
+use rav1d::include::dav1d::dav1d::{Dav1dContext, Dav1dSettings};
 use rav1d::include::dav1d::headers::{
-    DAV1D_COLOR_PRI_BT2020, DAV1D_COLOR_PRI_BT470BG, DAV1D_COLOR_PRI_BT470M, DAV1D_COLOR_PRI_BT601,
-    DAV1D_COLOR_PRI_BT709, DAV1D_MC_BT2020_CL, DAV1D_MC_BT2020_NCL, DAV1D_MC_BT601,
+    DAV1D_COLOR_PRI_BT470BG, DAV1D_COLOR_PRI_BT470M, DAV1D_COLOR_PRI_BT601, DAV1D_COLOR_PRI_BT709,
+    DAV1D_COLOR_PRI_BT2020, DAV1D_MC_BT601, DAV1D_MC_BT2020_CL, DAV1D_MC_BT2020_NCL,
     DAV1D_PIXEL_LAYOUT_I420, DAV1D_TRC_HLG, DAV1D_TRC_SMPTE2084, DAV1D_TRC_SRGB,
 };
 use rav1d::include::dav1d::picture::Dav1dPicture;
@@ -118,16 +137,25 @@ const SEND_RETRY_CAP: usize = 64;
 /// allocation failure).
 const ERRNO_ENOMEM: c_int = 12;
 
+/// rav1d returns errno **negated** (the dav1d/kernel convention —
+/// every call site feeds a raw `Dav1dResult`); std's mapping wants
+/// the platform's positive code. `unsigned_abs` is total (no
+/// `i32::MIN` panic); values outside the platform errno range simply
+/// classify as `Uncategorized` — never a false EAGAIN/EINVAL.
+fn errno_kind(code: c_int) -> std::io::ErrorKind {
+    std::io::Error::from_raw_os_error(code.unsigned_abs() as i32).kind()
+}
+
 /// Platform-correct `EAGAIN` test without a libc edge: Rust's own
 /// `ErrorKind` mapping classifies the raw os error code for us
 /// (errno values differ across platforms; the mapping does not).
 fn is_eagain(code: c_int) -> bool {
-    std::io::Error::from_raw_os_error(code).kind() == std::io::ErrorKind::WouldBlock
+    errno_kind(code) == std::io::ErrorKind::WouldBlock
 }
 
 /// Platform-correct `EINVAL` test (same trick).
 fn is_einval(code: c_int) -> bool {
-    std::io::Error::from_raw_os_error(code).kind() == std::io::ErrorKind::InvalidInput
+    errno_kind(code) == std::io::ErrorKind::InvalidInput
 }
 
 /// The rav1d context handle: one owned `Dav1dContext` (an opaque Arc
@@ -177,18 +205,23 @@ impl Rav1dHandle {
         // SAFETY: both pointers are valid, aligned locals of the
         // exact pointee types; `dav1d_open` only writes through them.
         let r = unsafe {
-            dav1d_open(Some(NonNull::from(&mut ctx_out)), Some(NonNull::from(&settings)))
+            dav1d_open(
+                Some(NonNull::from(&mut ctx_out)),
+                Some(NonNull::from(&settings)),
+            )
         };
         if r.0 != 0 {
             return Err(EngineError::new(
                 PipelineStage::Decode,
-                ErrorKind::Decoder { cause: media_types::error::DecodeCause::BadState },
+                ErrorKind::Decoder {
+                    cause: media_types::error::DecodeCause::BadState,
+                },
                 media_types::error::ErrorContext::new("av1.init.engine"),
             ));
         }
-        let ctx = ctx_out.take().unwrap_or_else(|| {
-            unreachable!("dav1d_open success guarantees a context handle")
-        });
+        let ctx = ctx_out
+            .take()
+            .unwrap_or_else(|| unreachable!("dav1d_open success guarantees a context handle"));
         Ok(Rav1dHandle { ctx: Some(ctx) })
     }
 
@@ -223,6 +256,7 @@ impl Drop for Rav1dHandle {
 /// corrupt TU is typed and skipped, the engine resyncs, the next TU
 /// decodes. `flush` drains the reordering delay and resets the
 /// pending-time map.
+#[derive(Default)]
 pub struct Av1Decoder {
     /// The configured stream generation (None until `configure`).
     generation: Option<GenerationId>,
@@ -232,23 +266,15 @@ pub struct Av1Decoder {
     pending: VecDeque<(u64, Stamp)>,
     /// Monotonic TU counter stamped into `Dav1dDataProps::timestamp`.
     tu_counter: u64,
+    /// Whether the engine holds usable reference state (the
+    /// reference-state gate, module docs): `false` until an
+    /// independent frame decodes cleanly and after any corrupt-class
+    /// outcome.
+    refs_valid: bool,
     /// Pooled output slots (the MJPEG pattern, module docs).
     frame_slots: Vec<SharedBytes>,
     /// Round-robin cursor into `frame_slots`.
     slot_next: usize,
-}
-
-impl Default for Av1Decoder {
-    fn default() -> Self {
-        Av1Decoder {
-            generation: None,
-            engine: None,
-            pending: VecDeque::new(),
-            tu_counter: 0,
-            frame_slots: Vec::new(),
-            slot_next: 0,
-        }
-    }
 }
 
 impl Av1Decoder {
@@ -271,7 +297,10 @@ impl Av1Decoder {
             if let DecodeOutcome::Recovered { skipped: s, .. } = *outcome {
                 skipped = skipped.saturating_add(s);
             }
-            *outcome = DecodeOutcome::Recovered { skipped, reason: RecoverReason::CorruptInput };
+            *outcome = DecodeOutcome::Recovered {
+                skipped,
+                reason: RecoverReason::CorruptInput,
+            };
         }
     }
 
@@ -338,7 +367,10 @@ impl Av1Decoder {
         unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), ptr, len) };
         // The props ride with the data into the picture (module
         // docs): stamp the TU counter.
-        data.m = Dav1dDataProps { timestamp: counter as i64, ..Default::default() };
+        data.m = Dav1dDataProps {
+            timestamp: counter as i64,
+            ..Default::default()
+        };
 
         let result = self.feed_loop(ctx, &mut data, out, generation, damage);
         if data.r#ref.is_some() {
@@ -385,7 +417,9 @@ impl Av1Decoder {
         }
         Err(EngineError::new(
             PipelineStage::Decode,
-            ErrorKind::Decoder { cause: media_types::error::DecodeCause::BadState },
+            ErrorKind::Decoder {
+                cause: media_types::error::DecodeCause::BadState,
+            },
             media_types::error::ErrorContext::new("av1.feed.stalled"),
         ))
     }
@@ -428,7 +462,9 @@ impl Av1Decoder {
             if is_einval(r.0) {
                 return Err(EngineError::new(
                     PipelineStage::Decode,
-                    ErrorKind::Decoder { cause: media_types::error::DecodeCause::BadState },
+                    ErrorKind::Decoder {
+                        cause: media_types::error::DecodeCause::BadState,
+                    },
                     media_types::error::ErrorContext::new("av1.picture.einval"),
                 ));
             }
@@ -567,13 +603,7 @@ impl Av1Decoder {
 /// `src` must point to a plane of at least `(rows − 1) · stride +
 /// row_bytes` readable bytes (the caller establishes the lifetime
 /// and the `row_bytes ≤ stride` bound).
-unsafe fn copy_plane(
-    dst: &mut [u8],
-    src: *const u8,
-    rows: usize,
-    row_bytes: usize,
-    stride: usize,
-) {
+unsafe fn copy_plane(dst: &mut [u8], src: *const u8, rows: usize, row_bytes: usize, stride: usize) {
     for row in 0..rows {
         // SAFETY: caller-guaranteed readable `row_bytes` at the
         // row start (`src + row·stride`, within the plane), and the
@@ -623,8 +653,17 @@ fn picture_color(pic: &Dav1dPicture) -> ColorDescription {
         DAV1D_MC_BT2020_NCL | DAV1D_MC_BT2020_CL => ColorMatrix::Bt2020Ncl,
         _ => ColorMatrix::Bt709,
     };
-    let range = if seq.color_range != 0 { ColorRange::Full } else { ColorRange::Limited };
-    ColorDescription { primaries, transfer, matrix, range }
+    let range = if seq.color_range != 0 {
+        ColorRange::Full
+    } else {
+        ColorRange::Limited
+    };
+    ColorDescription {
+        primaries,
+        transfer,
+        matrix,
+        range,
+    }
 }
 
 /// Classify a non-EAGAIN engine return from the feed path.
@@ -642,7 +681,9 @@ fn classify_engine_error(code: c_int, site: &'static str) -> EngineError {
     } else if is_einval(code) {
         EngineError::new(
             PipelineStage::Decode,
-            ErrorKind::Decoder { cause: media_types::error::DecodeCause::BadState },
+            ErrorKind::Decoder {
+                cause: media_types::error::DecodeCause::BadState,
+            },
             media_types::error::ErrorContext::new(site),
         )
     } else {
@@ -730,6 +771,7 @@ impl Decoder for Av1Decoder {
         self.frame_slots.clear();
         self.slot_next = 0;
         self.tu_counter = 0;
+        self.refs_valid = false;
         self.generation = Some(cfg.generation);
         Ok(())
     }
@@ -749,14 +791,18 @@ impl Decoder for Av1Decoder {
         let Some(generation) = self.generation else {
             return Err(EngineError::new(
                 PipelineStage::Decode,
-                ErrorKind::Decoder { cause: media_types::error::DecodeCause::BadState },
+                ErrorKind::Decoder {
+                    cause: media_types::error::DecodeCause::BadState,
+                },
                 media_types::error::ErrorContext::new("av1.not_configured"),
             ));
         };
         if self.engine.is_none() {
             return Err(EngineError::new(
                 PipelineStage::Decode,
-                ErrorKind::Decoder { cause: media_types::error::DecodeCause::BadState },
+                ErrorKind::Decoder {
+                    cause: media_types::error::DecodeCause::BadState,
+                },
                 media_types::error::ErrorContext::new("av1.no_engine"),
             ));
         }
@@ -764,7 +810,9 @@ impl Decoder for Av1Decoder {
             return Ok(outcome);
         }
         // A discontinuity (seek landed mid-stream): the engine's
-        // reference frames are stale — flush it before feeding.
+        // reference frames are stale — flush it before feeding, and
+        // close the reference-state gate (module docs: stale refs +
+        // dependent frames are exactly the upstream abort's trigger).
         if packet.discontinuity {
             if let Some(engine) = &self.engine {
                 // SAFETY: `engine.get()` is the live handle; the ABI
@@ -772,32 +820,81 @@ impl Decoder for Av1Decoder {
                 unsafe { dav1d_flush(engine.get()) };
             }
             self.pending.clear();
+            self.refs_valid = false;
         }
         // Frame the TU first — typed, byte-precise damage before the
-        // engine sees anything.
-        let tu = obu::parse_temporal_unit(packet.data.as_slice())?;
+        // engine sees anything. A framing refusal is corrupt-class:
+        // the engine never saw the TU, so its reference chain is
+        // missing a link — close the gate.
+        let tu = match obu::parse_temporal_unit(packet.data.as_slice()) {
+            Ok(tu) => tu,
+            Err(err) => {
+                self.refs_valid = false;
+                return Err(err);
+            }
+        };
+        // Reference-state gate (module docs): until an independent
+        // frame establishes reference state — and again after any
+        // corrupt-class damage — dependent TUs are skipped typed
+        // rather than fed to an engine whose missing-reference path
+        // aborts the process in 1.1.0.
+        if !self.refs_valid && !tu.has_independent_frame {
+            self.tu_counter = self.tu_counter.wrapping_add(1);
+            return Ok(DecodeOutcome::Recovered {
+                skipped: 1,
+                reason: RecoverReason::Discontinuity,
+            });
+        }
         let counter = self.tu_counter;
         if tu.may_produce_picture {
             self.push_pending(counter, packet.pts);
         }
         self.tu_counter = counter.wrapping_add(1);
         let mut damage = 0u32;
-        let emitted =
-            self.feed_tu(counter, packet.data.as_slice(), out, packet.generation, &mut damage)?;
-        let mut outcome = if emitted > 0 {
-            DecodeOutcome::Emitted { frames: emitted as u32 }
-        } else {
-            DecodeOutcome::NeedMoreInput
+        let result = self
+            .feed_tu(
+                counter,
+                packet.data.as_slice(),
+                out,
+                packet.generation,
+                &mut damage,
+            )
+            .map(|emitted| {
+                let mut outcome = if emitted > 0 {
+                    DecodeOutcome::Emitted {
+                        frames: emitted as u32,
+                    }
+                } else {
+                    DecodeOutcome::NeedMoreInput
+                };
+                Self::take_damage(&mut outcome, damage);
+                outcome
+            });
+        // Reference-state bookkeeping (module docs): corrupt-class
+        // outcomes close the gate; a cleanly-fed independent frame
+        // (re)opens it. Output-boundary refusals (the Unsupported
+        // bitdepth/layout family) leave it open — the engine decoded
+        // the frame; only our pixel vocabulary refused it.
+        let corrupt = match &result {
+            Err(err) => matches!(err.kind, ErrorKind::Corrupt { .. }),
+            Ok(DecodeOutcome::Recovered { .. }) => true,
+            _ => false,
         };
-        Self::take_damage(&mut outcome, damage);
-        Ok(outcome)
+        if corrupt {
+            self.refs_valid = false;
+        } else if tu.has_independent_frame {
+            self.refs_valid = true;
+        }
+        result
     }
 
     fn flush(&mut self, out: &mut dyn FrameSink) -> Result<DecodeOutcome, EngineError> {
         let Some(generation) = self.generation else {
             return Err(EngineError::new(
                 PipelineStage::Decode,
-                ErrorKind::Decoder { cause: media_types::error::DecodeCause::BadState },
+                ErrorKind::Decoder {
+                    cause: media_types::error::DecodeCause::BadState,
+                },
                 media_types::error::ErrorContext::new("av1.not_configured"),
             ));
         };
@@ -806,7 +903,9 @@ impl Decoder for Av1Decoder {
             None => {
                 return Err(EngineError::new(
                     PipelineStage::Decode,
-                    ErrorKind::Decoder { cause: media_types::error::DecodeCause::BadState },
+                    ErrorKind::Decoder {
+                        cause: media_types::error::DecodeCause::BadState,
+                    },
                     media_types::error::ErrorContext::new("av1.no_engine"),
                 ));
             }
@@ -822,7 +921,9 @@ impl Decoder for Av1Decoder {
         let mut damage = 0u32;
         let emitted = self.drain_pictures(out, generation, &mut damage)?;
         self.pending.clear();
-        let mut outcome = DecodeOutcome::Emitted { frames: emitted as u32 };
+        let mut outcome = DecodeOutcome::Emitted {
+            frames: emitted as u32,
+        };
         Self::take_damage(&mut outcome, damage);
         if emitted > 0 || damage > 0 {
             Ok(outcome)
@@ -835,6 +936,7 @@ impl Decoder for Av1Decoder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use testkit::Must;
 
     #[test]
     fn descriptor_gate_accepts_the_delivery_vocabulary() {
@@ -871,12 +973,18 @@ mod tests {
         Av1Decoder::take_damage(&mut outcome, 1);
         assert_eq!(
             outcome,
-            DecodeOutcome::Recovered { skipped: 1, reason: RecoverReason::CorruptInput }
+            DecodeOutcome::Recovered {
+                skipped: 1,
+                reason: RecoverReason::CorruptInput
+            }
         );
         Av1Decoder::take_damage(&mut outcome, 3);
         assert_eq!(
             outcome,
-            DecodeOutcome::Recovered { skipped: 4, reason: RecoverReason::CorruptInput }
+            DecodeOutcome::Recovered {
+                skipped: 4,
+                reason: RecoverReason::CorruptInput
+            }
         );
         // Zero damage leaves outcomes untouched.
         let mut drained = DecodeOutcome::Drained;
@@ -893,7 +1001,7 @@ mod tests {
         decoder.push_pending(PENDING_CAP as u64, Stamp::Missing);
         assert_eq!(decoder.pending.len(), PENDING_CAP);
         // Out-of-order (presentation vs feed) resolution works.
-        let pts = media_types::time::Timestamp::from_nanos(42);
+        let pts = media_types::time::Timestamp::from_parts(42, 1, 1_000_000_000).must();
         decoder.push_pending(9999, Stamp::Present(pts));
         assert_eq!(decoder.pop_pending(9999), Stamp::Present(pts));
         assert_eq!(decoder.pop_pending(9999), Stamp::Missing);
