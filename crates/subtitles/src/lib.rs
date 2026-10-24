@@ -45,7 +45,6 @@
 //! row's "Never: rendering (that is presentation)" is honored by
 //! owning the contract and the reference blend, never a window).
 
-
 //! THE LUMEN SUBTITLES CRATE (cards 5.L1 + 5.L2, doc 04 §5).
 //!
 //! **Scaffold note (Lead-ratification required):** the parallel wave-5
@@ -71,8 +70,6 @@
 //! Everything is pure data + pure functions: no I/O, no threads, no
 //! unsafe (workspace lint: `deny`), no panics on any input — failure is
 //! typed ([`model::ModelError`]/[`model::WireError`]), per MP §8.
-
-
 
 pub mod compositing;
 pub mod model;

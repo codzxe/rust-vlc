@@ -9375,3 +9375,16 @@ Work Log:
 
 Stage Summary:
 - D-10 MEASURE? — YES: both differentials re-run green on the real corpus through the FUSED decoder this session (J2a: 0042 + 0102 + 2 fixtures, all bit-exact MD5s; J2b: 8/8 breadth cases bit-exact), full codecs suite 457/0, demux unblocked 408/0 lib. NOT measured? — big-endian hosts (the breadth MD5s are little-endian-native s16), lettered adpcm_oki (still no ffmpeg 7.1.5 oracle — inherited typed gap, unchanged). What breaks? — nothing known: gates green, fuzz suites green, both parents' error codes preserved verbatim (adpcm.facts.missing/waveformat.*/ms.*/raw.facts.*/oki.no_reference/not_configured). Who hits it first? — R3 registration: `adpcm` now registers 7 descriptors (8 gate strings) through one Decoder impl; the demux-side raw containers (.vox/.adp/SWF/MOV/AUD) remain the recorded future seam for the tag-0 skeleton.
+
+---
+Task ID: 5.W5-CLOSE (Lead)
+Agent: Lead
+Task: Wave 5 redo — merge + full-tree gate + push.
+
+Work Log:
+- 11 cards LANDED and merged: 5.J3a ALAC (372/0, 5/5 ffmpeg bit-exact — the lost session's multi-frame bug NOT reproduced), 5.J3b MP2 (±1 LSB honest), 5.H3 MJPEG polish (371/0, corpus differential 3/3 + pinned 17-lane), 5.I1a TS PSI (442/0, 5/5 corpus incl. SDT 5-byte-loop spec fix), 5.I1b TS PES (318/0, 5/5 corpus, honest DTS-None policy), 5.I2 PS/VOB (442/0, payload MD5 bit-exact), 5.I3a ES wrappers (310/0, 6/6 corpus), 5.I3b IVF (437/0, bit-exact), 5.L1 compositor (30/0, zero-alloc proven), 5.L2 cue model (34/0, 1584-cue roundtrip matrix), 5.J2b ADPCM breadth (fused with J2a by merge-surgery agent: one AdpcmDecoder, 8 descriptors, 457/0, BOTH differentials bit-exact).
+- Merge surgery: subtitles crate L1+L2 unified (docs+mods+deps), ts/mod.rs I1a-supersedes-minimal, adpcm halves fused by dedicated agent (also fixed stranded-//! E0753 in ts + demux fmt drift), audio/mod.rs dedup, xtask visual.rs pre-existing expect() denial fixed (Phase-4 leftover, one test, Lead hygiene).
+- INFRA: disk hit 100% 3x — worktree targets + incremental cleaned each time; workspace rebuilt with CARGO_PROFILE_DEV_DEBUG=0 (5.2G→1.7G target).
+
+Stage Summary:
+- WORKSPACE GATE: fmt clean, clippy -D warnings clean, cargo test --workspace = 2752 passed / 0 failed. Phase 5 now 25 of 47 cards landed. PUSHING IMMEDIATELY (restart lesson).
