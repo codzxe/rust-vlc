@@ -9158,3 +9158,40 @@ Work Log:
 Stage Summary:
 - D-10 MEASURE? — YES: all five real-corpus .ts lanes verified against measured ffprobe truth (table above): PES counts, PTS endpoints, wire-DTS endpoints, payload byte sums (exact), monotonicity, plus the full 53-value reorder series on 0091. NOT measured? — multi-program TS (corpus has single-program files; PAT/PMT walk is I1a's half), scrambled/TEI packets, non-PES PIDs beyond the dormancy tolerance. What breaks? — nothing known: fuzz-lite green, all damage paths typed and unit-pinned, no panics on any mutation. Who hits it first? — I1a/Lead I1 (the push_packet/observe_pcr seam, the mod.rs append rule), R3 registration (ts row).
 - Honest divergences from ffprobe (measured, recorded, asserted): wire-absent DTS reported as `None` where ffprobe synthesizes; 0091 audio = 6 wire PES vs 43 parser-split AUs (byte sums equal).
+
+---
+Task ID: 5.I2
+Agent: P5-I2F
+Task: MPEG-PS/VOB demux — finisher: prior session died leaving the module uncommitted and untested; verify/complete/gate/commit.
+
+Work Log:
+- Inherited uncommitted: crates/demux/src/ps/{mod,error,fuzz,test_support}.rs (1.6 kloc) + 4 ffmpeg fixtures (mpg + ac3/dts/lpcm VOBs) — but NO tests.rs (the `mod tests;` decl pointed at a missing file), NO lib.rs wiring, and 5 mechanical compile errors (usize/u64 adds, `stamp_of(Option)` call sites, unused import). Completed all.
+- REAL BUG #1 (blocking, inherited): `parse_pack_at` read the 14-byte window *including* the 4-byte pack start code but indexed fields from `buf[0]` — so `buf[0]=0x00` failed both the MPEG-2 `'01'` and MPEG-1 `'0010'` prefix checks: **every real PS/VOB was rejected at byte 0** (the draft had never run). Fixed: fields at `buf[4..]`, SCR/mux-rate/stuffing indices shifted; pinned by all four fixtures now parsing. REAL BUG #2: the `mpeg2_pack` test builder wrote the SCR marker at bit 3 (0x08, SCR data) instead of bit 2 (0x04) — round-trip caught it. Also fixed the prior-session's recorded `b[11]&1` false-marker lesson from the parse side (rate/flag trailing bits parsed, never enforced — VOB `01 89 c3` + MPEG-1 `..01` rates accepted).
+- Scope verified complete: pack headers both flavors (SCR base 33-bit width-checked, mux rate 22-bit, MPEG-2 stuffing skip), system header 0xBC / PSM skip, PES 0xC0..=0xDF / 0xE0..=0xEF with MPEG-2 ('10' flags, PTS/PTS+DTS, header-len overrun check) and MPEG-1 (0xFF stuffing, 0010/0011/0001 stamps, 0x0F no-stamp) flavors, 0xBD private-1 routing 0x80+ AC-3 / 0x88+ DTS / 0xA0+ LPCM (7-byte strip) / 0x20+ SPU (Subtitle kind), 0xBF private-2 = dvd_nav_packet Data track, 0xBE padding damage-noted, 0xB9 program-end, PES len 0 = damage-noted bounded skip, window-bounded resync, seek SlowLinear + reanchor compute-then-commit. AC-3/DTS/LPCM/SPU exposed with honest descriptors (decode pending — typed, never silent).
+- Exact-delta pins (prior-session notes, now asserted): (1) unstamped MPEG-1 PES carries a single 0x0F byte (spec's 0xFF stuffing must still terminate in 0x0F — accepted both); (2) ffmpeg `dvd` writes substream+3 filler bytes before AC-3/DTS frames (strip 4) — bit-exact vs `ffmpeg -c copy -f ac3`; (3) LPCM: ffmpeg's pcm_dvd extraction retains a 3-byte AU header per packet (96144 = 48×(3+2000)); ours strips the full 7-byte DVD prefix → 96000 B pure samples — the delta `ffmpeg_size − ours == 3 × packets` is asserted exactly.
+- DIFFERENTIAL (measured live this session, ffmpeg 7.1.5, committed fixtures, real access stack): | fixture | ffprobe streams | ffprobe pkts | ours (PES truth) | payload verdict | |---|---|---|---|---| | ps-mp2-video-audio.mpg | mpeg2video+mp2 | 25v+39a | 32v+5a | video 63898 B + mp2 8150 B md5 == ffmpeg `-c copy` bit-exact | | ps-vob-ac3.vob | nav+mpeg2video+ac3 | 0+25+32 | 4nav+68v+7ac3 | video 135397 B + ac3 12288 B md5 == ffmpeg bit-exact | | ps-vob-dts.vob | nav+mpeg2video+dts | 0+25+94 | 4nav+68v+24dts | dts 48128 B md5 == ffmpeg bit-exact | | ps-vob-lpcm.vob | nav+mpeg2video+pcm_dvd | 0+25+48 | 4nav+68v+48lpcm | ours 96000 B; ffmpeg 96144 = +3B×48 pcm_dvd AU hdrs (exact delta) | Packet-count divergence is pinned, not matched (container truth = PES; ffmpeg re-packetizes to AUs). Honest PTS note: track span end = last observed PES stamp (mpg audio 118149 vs ffprobe-interpolated 136957; ac3 126034 vs 137554) — recorded, ffprobe interpolates unstamped AUs, we don't. Nav: ffprobe demuxes 0 (its dvd demuxer consumes them), we expose 4 zero/0x01-lead Data packets (sizes 980/1018 alternating, measured).
+- Error paths typed + tested: not-ps/truncated/bad-pack/bad-pes-header/resync-failed/payload-too-large/not-started/seek-out-of-range (stable `demux.ps.*` codes); unclassified private-1 substreams + unregistered stream-ids skipped with Recovered events (never silent). Fuzz-lite (+FB): 240 LCG mutations+truncations biased into header regions over the 2 smallest fixtures (<200 KB) + all 4 clean — Ok-or-typed only, zero panics.
+- INFRA (this session): rootfs hit 100% — freed ~5.5 GB (all worktree incremental caches per Lead precedent, 4 stale ≥50-min-idle wave-5 targets, browser/puppeteer caches, /tmp stale checkout trim); linking had failed with Bus errors mid-wave for everyone.
+- NO software-decode claim: parse/route only. AC-3/DTS/LPCM/SPU decoders owed to their codec cards; DVD-LPCM header facts owed to the PCM-DVD card `[PROPOSAL in module docs]`.
+
+Stage Summary:
+- 5.I2 COMPLETE on branch wip/p5-i2, gated + committed, ready for Lead merge. `cargo fmt -p demux -- --check` CLEAN; `cargo clippy -p demux --all-targets --all-features -- -D warnings` CLEAN; `cargo test -p demux --all-features` 442 passed / 0 failed (lib 327 incl. 22 ps unit + 3 error tests; ps_fixtures differential 4/4; doctests 6/6 incl. the PsDemuxer example).
+- D-10: the inherited draft's byte-0 rejection was found by running the fixtures, not papered over; both builder bugs root-caused via round-trips; pins re-measured from ffmpeg live when my first transcription was wrong (lpcm sizes, nav 1018 shape, span ends) — never weakened, corrected to measurement.
+- R3 registration snippet (draft for the registration card):
+  ```toml
+  id = "mpeg-ps"        # media-types CodecDescriptor("mpeg-ps"), containers .mpg/.vob
+  kind = "container"    # MPEG-1 system + MPEG-2 program stream / DVD-VOB
+  demuxer = "demux::ps::PsDemuxer"            # native, zero deps
+  probe = "demux::ps::probe(header)"          # pack start code 00 00 01 BA (4 B)
+  extensions = ["mpg", "mpeg", "ps", "vob", "m2p"]   # demux::ps::EXTENSIONS
+  capabilities = ["packs", "private-streams", "nav-tolerant", "damage-resync"]
+  # packs: MPEG-1 12 B / MPEG-2 14 B + stuffing, SCR extent + mux rate parsed,
+  #        marker bits never enforced (the b[11]&1 lesson)
+  # private-streams: 0xBD routed 0x80+ ac3 / 0x88+ dts / 0xA0+ pcm_dvd / 0x20+
+  #        dvd_subtitle — honest descriptors, decode pending at the registry
+  # nav-tolerant: 0xBF private-2 exposed as dvd_nav_packet Data track
+  # damage-resync: 64 KiB window, Recovered events, typed sticky failures
+  codecs = ["mpeg1video", "mpeg2video", "mp1", "mp2", "mp3",
+            "ac3", "dts", "pcm_dvd", "dvd_subtitle", "dvd_nav_packet"]
+  seek = "SlowLinear"   # SCR-mapped linear scan; reanchor marks discontinuity
+  ```
