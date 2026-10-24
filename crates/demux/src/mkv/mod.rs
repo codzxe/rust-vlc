@@ -562,7 +562,7 @@ impl MkvDemuxer {
                 self.cluster_damage += frame.len as u64;
                 continue;
             }
-            let at = block.payload_offset + frame.start as u64;
+            let at = block.payload_offset + (block.body_offset + frame.start) as u64;
             let data = self.pool.fill(frame.len, |buf| {
                 let got = self.reader.read_prefix_at(buf.len(), at, at + buf.len() as u64)?;
                 buf.copy_from_slice(&got);

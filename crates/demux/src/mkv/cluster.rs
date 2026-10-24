@@ -47,8 +47,14 @@ pub struct ParsedBlock {
     pub keyframe: bool,
     /// Lacing coding of the payload.
     pub lacing: Lacing,
-    /// The frames (empty = a parse failure the caller types).
+    /// The frames (offsets relative to the *body* — see
+    /// [`ParsedBlock::body_offset`]).
     pub frames: Vec<BlockFrame>,
+    /// Where the laced body starts inside the block payload (past
+    /// the track vint + i16 timecode + flags byte). Frame starts are
+    /// body-relative; absolute payload offsets are
+    /// `payload_offset + body_offset + frame.start`.
+    pub body_offset: usize,
     /// Absolute file offset of the block payload start (error context).
     pub payload_offset: u64,
     /// The block payload's total declared length in bytes.
@@ -175,6 +181,7 @@ pub fn parse_block(data: &[u8], payload_offset: u64, simple: bool) -> Result<Par
         keyframe: simple && flags & FLAG_KEYFRAME != 0,
         lacing,
         frames,
+        body_offset: after_track + 3,
         payload_offset,
         payload_len: data.len(),
     })
