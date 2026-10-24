@@ -52,11 +52,36 @@
 //!   HLS playlists; inputs bounded well under 200 KiB).
 //! * Std + `thiserror` only (the workspace's existing error family); no
 //!   `unsafe`, per the workspace lint policy.
+//! * **Card 5.O1b** — [`parse_pls`] and [`parse_xspf`]: the two sibling
+//!   playlist formats join M3U on the same [`Playlist`] vocabulary. PLS
+//!   is read as the INI-style `[playlist]`/`FileN`/`TitleN`/`LengthN`
+//!   triples (1-indexed, sparse-tolerant, `NumberOfEntries` cross-check
+//!   with a damage note on a lying count). XSPF is a hand-rolled XML
+//!   subset pull parser (no new dependency): the five named entities
+//!   plus numeric references, CDATA, namespace/prefix-tolerant
+//!   local-name matching, an attribute subset, and a 64-element depth
+//!   guard; unclosed elements are salvaged, never fatal. XSPF
+//!   `creator`/`annotation` ride the entry directive pairs
+//!   (`("creator", …)` then `("annotation", …)`); both parsers carry
+//!   the same D-1/D-2 damage discipline and are fuzz-pinned like the
+//!   M3U one.
 
 mod error;
 mod m3u;
+mod pls;
 mod types;
+mod xspf;
 
 pub use error::{ParseError, ParseWarning};
 pub use m3u::{MAX_LINE_BYTES, Parsed, parse, parse_bytes, parse_detailed, resolve_uri, write};
 pub use types::{ByteRange, EncryptionMethod, Entry, HlsKey, HlsMap, HlsSegment, Playlist};
+pub use m3u::{MAX_LINE_BYTES, Parsed, parse, parse_bytes, parse_detailed, write};
+pub use pls::{
+    PlsError, PlsParsed, PlsWarning, parse as parse_pls, parse_bytes as parse_pls_bytes,
+    parse_detailed as parse_pls_detailed,
+};
+pub use types::{Entry, Playlist};
+pub use xspf::{
+    MAX_XML_DEPTH, XspfError, XspfParsed, XspfWarning, parse as parse_xspf,
+    parse_bytes as parse_xspf_bytes, parse_detailed as parse_xspf_detailed,
+};

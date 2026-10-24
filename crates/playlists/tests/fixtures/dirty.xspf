@@ -1,0 +1,13 @@
+<playlist version="2">
+  <trackList>
+    <track>
+      <location>one.mp3</location>
+      <duration>not-a-number</duration>
+      <title>First Track
+    </track>
+    <track>
+      <location>two.mp3</location>
+      <creator>Second &badent; Track
+  </trackList>
+</wrong>
+<playlist>
