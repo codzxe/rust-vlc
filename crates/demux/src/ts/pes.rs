@@ -52,8 +52,11 @@
 //! # The transport seam (for the Lead's I1 unification)
 //!
 //! [`PesAssembler::push_packet`] receives the payload of one
-//! transport packet **after pointer-field stripping** — the
-//! `pointer_field` belongs to the transport layer (I1a), which also
+//! transport packet as-is — the `pointer_field` is a **PSI-only**
+//! construct (§2.4.4.1); a PES packet commences directly at the
+//! payload when `payload_unit_start_indicator` is set (§2.4.4.2,
+//! verified on the corpus bytes: the first payload bytes after the
+//! adaptation field are `00 00 01 E0`). The transport layer (I1a)
 //! parses the adaptation field and hands this layer the
 //! `discontinuity_indicator` bit and PCR observations
 //! ([`PesAssembler::observe_pcr`]). The deliberately small
@@ -134,7 +137,10 @@ pub fn bad_start_code() -> EngineError {
 pub fn short_header() -> EngineError {
     mint(
         ErrorKind::Corrupt {
-            detail: CorruptDetail::Truncated { expected: 0, found: 0 },
+            detail: CorruptDetail::Truncated {
+                expected: 0,
+                found: 0,
+            },
         },
         "demux.ts.pes.short-header",
     )
@@ -435,8 +441,11 @@ pub enum TimingEvent {
     DtsRegressed { pid: u16, from: u64, to: u64 },
     /// DTS jumped forward past [`MAX_SANE_STEP_TICKS`] on `pid`.
     DtsJump { pid: u16, from: u64, to: u64 },
-    /// PTS went backwards on a stream emitting no DTS (audio-style
-    /// streams are monotone; video reorder is DTS-protected).
+    /// PTS went backwards on a stream that has **never** carried a
+    /// DTS (audio-style monotone streams; a PID that has emitted any
+    /// DTS has declared reorder capability — its PTS-only packets
+    /// are the muxer's "DTS derivable" omission, not damage, the
+    /// measured 0091 pattern).
     PtsRegressedNoDts { pid: u16, from: u64, to: u64 },
     /// The program clock (PCR) went backwards without a
     /// discontinuity having been flagged since the last observation.
@@ -452,6 +461,10 @@ struct Assembly {
     last_dts: Option<u64>,
     /// Last emitted PTS (the no-DTS regression reference).
     last_pts: Option<u64>,
+    /// True once any packet on this PID carried a DTS — the PID has
+    /// declared reorder capability, so PTS-only packets that regress
+    /// are benign muxer omission, not timing damage.
+    seen_dts: bool,
     /// True once this PID's payload failed a start-code check — it
     /// is probably not a PES PID (PSI/DATA); stop accumulating until
     /// the next `payload_unit_start`.
@@ -465,6 +478,7 @@ impl Assembly {
             disc: false,
             last_dts: None,
             last_pts: None,
+            seen_dts: false,
             dormant: false,
         }
     }
@@ -496,11 +510,13 @@ impl PesAssembler {
         }
     }
 
-    /// Feed one transport packet's PES payload for `pid` —
-    /// **pointer-field already stripped** (the transport layer's
-    /// job, I1a). `start` is `payload_unit_start_indicator`;
-    /// `discontinuity` is the adaptation field's
-    /// `discontinuity_indicator` (a clock-reset boundary).
+    /// Feed one transport packet's PES payload for `pid`, verbatim
+    /// (§2.4.4.2: PES uses no `pointer_field` — that is a PSI-only
+    /// construct; the payload commences with the PES start code
+    /// when `start` is set). `start` is
+    /// `payload_unit_start_indicator`; `discontinuity` is the
+    /// adaptation field's `discontinuity_indicator` (a clock-reset
+    /// boundary).
     ///
     /// # Errors
     /// The typed memory-ceiling refusal ([`MAX_PES_BYTES`]) only;
@@ -548,13 +564,16 @@ impl PesAssembler {
             });
             return Ok(());
         }
-        if let Some(total) = state.buf.len().checked_add(payload.len()) {
-            if total > MAX_PES_BYTES {
-                let attempted = total as u64;
-                state.buf.clear();
-                self.damage_bytes += attempted;
-                return Err(payload_over_ceiling(MAX_PES_BYTES as u64, attempted));
-            }
+        if let Some(attempted) = state
+            .buf
+            .len()
+            .checked_add(payload.len())
+            .filter(|&total| total > MAX_PES_BYTES)
+            .map(|total| total as u64)
+        {
+            state.buf.clear();
+            self.damage_bytes += attempted;
+            return Err(payload_over_ceiling(MAX_PES_BYTES as u64, attempted));
         }
         state.buf.extend_from_slice(payload);
         if discontinuity {
@@ -585,11 +604,11 @@ impl PesAssembler {
             self.last_pcr = None;
             return;
         }
-        if let Some(prev) = self.last_pcr.replace(pcr) {
-            if pcr < prev {
-                self.timing
-                    .push_back(TimingEvent::PcrRegressed { from: prev, to: pcr });
-            }
+        if let Some(prev) = self.last_pcr.replace(pcr).filter(|prev| pcr < *prev) {
+            self.timing.push_back(TimingEvent::PcrRegressed {
+                from: prev,
+                to: pcr,
+            });
         }
     }
 
@@ -610,32 +629,33 @@ impl PesAssembler {
                     return;
                 }
                 if let (Some(pts), None) = (header.pts, header.dts) {
-                    if let Some(prev) = state.last_pts {
-                        if pts < prev {
-                            self.timing.push_back(TimingEvent::PtsRegressedNoDts {
-                                pid,
-                                from: prev,
-                                to: pts,
-                            });
-                        }
+                    if let Some(event) = state
+                        .last_pts
+                        .filter(|&prev| pts < prev && !state.seen_dts)
+                        .map(|prev| TimingEvent::PtsRegressedNoDts {
+                            pid,
+                            from: prev,
+                            to: pts,
+                        })
+                    {
+                        self.timing.push_back(event);
                     }
                     state.last_pts = Some(pts);
                 }
                 if let Some(dts) = header.dts {
-                    if let Some(prev) = state.last_dts {
-                        if dts < prev {
-                            self.timing.push_back(TimingEvent::DtsRegressed {
-                                pid,
-                                from: prev,
-                                to: dts,
-                            });
-                        } else if dts.saturating_sub(prev) > MAX_SANE_STEP_TICKS {
-                            self.timing.push_back(TimingEvent::DtsJump {
-                                pid,
-                                from: prev,
-                                to: dts,
-                            });
-                        }
+                    state.seen_dts = true;
+                    if let Some(prev) = state.last_dts.filter(|&prev| dts < prev) {
+                        self.timing.push_back(TimingEvent::DtsRegressed {
+                            pid,
+                            from: prev,
+                            to: dts,
+                        });
+                    } else if let Some(from) = state
+                        .last_dts
+                        .filter(|&prev| dts.saturating_sub(prev) > MAX_SANE_STEP_TICKS)
+                    {
+                        self.timing
+                            .push_back(TimingEvent::DtsJump { pid, from, to: dts });
                     }
                     state.last_dts = Some(dts);
                 }
@@ -693,12 +713,14 @@ impl PesAssembler {
                     // with their table_id, never 00 00 01): dormancy
                     // keeps the walk cheap. Other header errors may
                     // still be a too-short buffer — hold it.
-                    if err.context.code == "demux.ts.pes.bad-start-code" {
-                        if let Some(state) = self.states.get_mut(&pid) {
-                            self.damage_bytes += state.buf.len() as u64;
-                            state.buf.clear();
-                            state.dormant = true;
-                        }
+                    if let Some(state) = self
+                        .states
+                        .get_mut(&pid)
+                        .filter(|_| err.context.code == "demux.ts.pes.bad-start-code")
+                    {
+                        self.damage_bytes += state.buf.len() as u64;
+                        state.buf.clear();
+                        state.dormant = true;
                     }
                     return;
                 }
@@ -802,6 +824,15 @@ mod tests {
     use super::*;
     use testkit::Must;
 
+    /// The typed-error code of a result ("" when `Ok`) — the
+    /// lint-legal `unwrap_err` replacement for the unit suite.
+    fn err_code<T>(result: Result<T, EngineError>) -> String {
+        match result {
+            Err(err) => err.context.code.to_string(),
+            Ok(_) => String::new(),
+        }
+    }
+
     /// A video PES (stream_id 0xE0, unbounded) with optional stamps.
     fn video_pes(pts: Option<u64>, dts: Option<u64>, payload: &[u8]) -> Vec<u8> {
         let mut out = vec![0x00, 0x00, 0x01, 0xE0, 0x00, 0x00];
@@ -858,24 +889,15 @@ mod tests {
         }
         let mut bad = encode_ts5(126_000, 0b0010);
         bad[2] &= 0xFE; // clear the middle marker
-        assert_eq!(
-            decode_ts5(&bad, 0b0010).unwrap_err().context.code,
-            "demux.ts.pes.bad-pts"
-        );
+        assert_eq!(err_code(decode_ts5(&bad, 0b0010)), "demux.ts.pes.bad-pts");
         // Wrong prefix (a PTS-shape field where a DTS prefix is law).
         assert_eq!(
-            decode_ts5(&encode_ts5(5, 0b0010), 0b0001)
-                .unwrap_err()
-                .context
-                .code,
+            err_code(decode_ts5(&encode_ts5(5, 0b0010), 0b0001)),
             "demux.ts.pes.bad-pts"
         );
         // Too few bytes for the guarded field at all.
         assert_eq!(
-            decode_ts5(&[0x21, 0x00, 0x01], 0b0010)
-                .unwrap_err()
-                .context
-                .code,
+            err_code(decode_ts5(&[0x21, 0x00, 0x01], 0b0010)),
             "demux.ts.pes.short-header"
         );
     }
@@ -974,7 +996,8 @@ mod tests {
     fn non_pes_pid_goes_dormant_instead_of_accumulating() {
         let mut asm = PesAssembler::new();
         // PAT-shaped: starts with table_id 0x00, never 00 00 01.
-        asm.push_packet(0x0000, true, false, &[0x00, 0xB0, 0x0D]).must();
+        asm.push_packet(0x0000, true, false, &[0x00, 0xB0, 0x0D])
+            .must();
         asm.push_packet(0x0000, false, false, &[0x11; 180]).must();
         assert_eq!(asm.damage_bytes(), 3 + 180);
         assert!(asm.next_pes().is_none());
@@ -987,12 +1010,18 @@ mod tests {
         pes.extend_from_slice(&[1, 2, 3]); // 3 of 32 payload bytes
         let mut asm = PesAssembler::new();
         asm.push_packet(0x101, true, false, &pes).must();
-        let err = asm.finish().unwrap_err();
+        let err = match asm.finish() {
+            Err(err) => err,
+            Ok(()) => unreachable!("the short bounded PES must refuse"),
+        };
         assert_eq!(err.context.code, "demux.ts.pes.truncated");
         assert!(matches!(
             err.kind,
             ErrorKind::Corrupt {
-                detail: CorruptDetail::Truncated { expected: 38, found: 12 }
+                detail: CorruptDetail::Truncated {
+                    expected: 38,
+                    found: 12
+                }
             }
         ));
     }
@@ -1019,8 +1048,10 @@ mod tests {
     fn forbidden_pts_dts_flags_refuse_typed() {
         let mut pes = vec![0x00, 0x00, 0x01, 0xE0, 0x00, 0x00, 0x80, 0x40, 0x00];
         pes.extend_from_slice(&[0x55; 4]);
-        let err = PesHeader::parse(&pes).unwrap_err();
-        assert_eq!(err.context.code, "demux.ts.pes.short-header");
+        assert_eq!(
+            err_code(PesHeader::parse(&pes)),
+            "demux.ts.pes.short-header"
+        );
     }
 
     #[test]
@@ -1029,8 +1060,10 @@ mod tests {
         // (6 + 6): nothing payload-shaped remains.
         let mut pes = vec![0x00, 0x00, 0x01, 0xE0, 0x00, 0x06, 0x80, 0x00, 0x0A];
         pes.extend_from_slice(&[0x00; 12]);
-        let err = PesHeader::parse(&pes).unwrap_err();
-        assert_eq!(err.context.code, "demux.ts.pes.short-header");
+        assert_eq!(
+            err_code(PesHeader::parse(&pes)),
+            "demux.ts.pes.short-header"
+        );
     }
 
     #[test]
@@ -1086,7 +1119,14 @@ mod tests {
         asm.push_packet(0x100, true, false, &r1).must();
         asm.push_packet(0x100, true, false, &r2).must();
         assert!(asm.take_timing_events().is_empty());
-        // Audio without DTS: PTS regression — event.
+        // The same PID then omits DTS (the muxer's "derivable"
+        // omission) and regresses PTS — still no event: the PID has
+        // declared reorder capability (the measured 0091 pattern).
+        let r3 = video_pes(Some(2_500), None, &[0x03; 4]);
+        asm.push_packet(0x100, true, false, &r3).must();
+        asm.finish().must();
+        assert!(asm.take_timing_events().is_empty());
+        // Audio without DTS ever: PTS regression — event.
         let audio = |pts: u64| {
             let mut out = vec![0x00, 0x00, 0x01, 0xC0, 0x00, 0x0D, 0x80, 0x80, 0x05];
             out.extend_from_slice(&encode_ts5(pts, 0b0010));
@@ -1151,8 +1191,9 @@ mod tests {
 
     #[test]
     fn pts_stamp_maps_to_the_ninety_kilohertz_base() {
-        let Stamp::Present(ts) = pts_stamp(126_000).must() else {
-            panic!("expected a present stamp");
+        let ts = match pts_stamp(126_000).must() {
+            Stamp::Present(ts) => ts,
+            Stamp::Missing => unreachable!("126_000 ticks is a present stamp"),
         };
         assert_eq!(ts.base.as_parts(), (1, MPEG_CLOCK_HZ));
         assert_eq!(ts.ticks, 126_000);
