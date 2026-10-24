@@ -28,7 +28,7 @@ green; config-propagation proof; l10n rules green; packaging launch tests on
 | Clause | Status | Evidence |
 |---|---|---|
 | visual matrix within tolerance | **MET (Linux, this sandbox)** | G2's committed record `ui/e2e/visual/MATRIX-20261024.md`: nightly **136/136 passed (3.2 m verify, exit 0)** after a 4.5 m capture (`--mode=nightly --update`), tolerance UNCHANGED from G1 (`maxDiffPixelRatio: 0.001`, per-pixel `threshold: 0.1`), zero remediations, zero tolerance loosening, zero hand-edited baselines; PR lane **30 passed (43 s)** in G2's run. **Re-verified THIS session: `npm run visual -- --mode=pr` → 30 passed (1.1 m), exit 0** (§2 row 4). **3-OS: infra-blocked** — Linux-only sandbox; per-OS baseline dirs are structural (`baselines/linux/` only populated); macOS/Windows matrix cells PENDING runners (same posture as gate-3 §1 row 3) |
-| rebrand test green | **IN-FLIGHT (4.H2)** | 4.H2 executes in a parallel worktree NOW; its result merges after this session — **owner: the 4.H2 agent**; **Lead fills this slot at sign-off:** `> H2 merged @ <hash>: rebrand suite __/__ green — YES/NO` (§5). No rebrand result is claimed here |
+| rebrand test green | **MET (fast tier; 2 surfaces infra-blocked, honestly)** | H2 merged @ 9aac5ca (merge 8a8733f): rebrand suite **7 PASS / 2 BLOCKED / 0 FAIL** — fixture-load, window-title, installer-identity (config plane), About, CLI-identity (resolution plane), logs, docs all Nova-verified; installer-build BLOCKED (no bundler in sandbox — nightly owns it), CLI banner host-wiring BLOCKED (apps/cli help.rs v0 hardcodes; own [PROPOSAL] names it). Log: docs/gates/logs/rebrand-acceptance-4h2.log |
 | config-propagation proof | **PART — provable seams green; app-layer wiring NOT yet provable (honest)** | Provable this session: (a) **schema→screen**: `schemas/settings.toml` (authored truth, 1.B2) → `ui/scripts/gen-settings-screens.mjs` → generated screens, drift-guarded — **`npm run settings:check` OK (5 ui areas, 21 ui entries, 27 total)** (§2 row 3); (b) **schema→engine-side consumption exists in the CLI host**: `crates/settings-schema` runtime seam (`schema_meta` validation + setting get/set) consumed at `apps/cli/src/host.rs:171-172,1094-1129` and referenced by `crates/commands` catalog — `cargo test -p desktop -p playlists -p lumen-sweep` **82/0 green** this session (§2 row 5; note: these crates compile against the seam). NOT provable (per doc 07 intent vs reality, no overclaim): the **desktop app-layer wiring is H1's registered handoff** — `ClientProvider` still mounts `MockTransport` (swap to `createTauriTransport()` behind a host probe is unwired), real config writes from UI, engine feed to UI, `playlist.load`, dialog/drag-drop handlers, `window_config.rs` application are all unexercised end-to-end; the settings framework's persistence seam in UI tests is localStorage-mock (E1's record). Token-side: 4.A2's closure survey found **zero engine consumers of theme tokens** today (value-passing recommended, merge c54271f) — propagation is a Phase-5+ wiring task, not a Phase-4 claim |
 | l10n rules green | **MET** | **`npm run l10n:check` PASS this session: 472 MessageKeys, 472 en-US strings — missing 0, duplicates 0, orphans 0, key-grammar ok, placeholders 0 ok, allowlist 5 entries** (§2 row 3); H3's en-US 100% gate + pseudo-locale clipping proof landed at 9b56338 (pseudo-locale clean per H3's committed evidence). Session finding: H3's `l10n-pseudo-probe.mjs` carried **6 pre-existing lint errors** on main (browser globals under a node-globals eslint block) — fixed by P4-GATE as hygiene (§2 row 2); its hardcoded `worktrees/p4-h3` path is flagged §4.7, not fixed |
 | packaging launch tests on 3 OS | **INFRA-BLOCKED (honest; sandbox-provable scope MET)** | `apps/desktop/tauri/INFRA-BLOCKED.md` (H1): webkit2gtk-4.1, javascriptcoregtk-4.1, gtk+-3.0, soup-3.0, xdo ALL missing via pkg-config — tauri cannot even `cargo check` here and stays OUT of `Cargo.toml` per `docs/dependencies/records/tauri-wry-2.x.md` (exception-ADR-004, NOT imported). Sandbox is Linux-only; the 3-OS matrix stays parked (`.github/workflows-disabled/`, gate-3 §4 gap 1 precedent). Provable instead: **engine composition root through the single `lumen_dispatch` — `cargo test -p desktop` 38/0 this session (in the 82/0 row)**; TauriTransport UI seam 9/9 (H1); dev+release launch on any OS: NOT RUN, honestly |
@@ -213,8 +213,39 @@ fill comparable rows as decoders land).
 
 ## 9. LEAD SIGN-OFF (card 4.I1-V — final verdict)
 
-- **Verdict: PENDING LEAD SIGNATURE.**
-- Required before signing: fill the 4.H2 slot (§5) from the merged H2 branch.
-- Review items for the Lead: §1 clause table (esp. the honest
-  config-propagation PART), §2 rows 2b/6b (fold the two hygiene fixes),
-  §4 gaps, §6 decisions, §7 launch dispatch.
+- **Verdict: PASS WITH REGISTERED CAVEATS — PHASE 5 IS AUTHORIZED TO LAUNCH.**
+- Signed: 2026-10-24, Lead, on main post-merge of all Phase-4 branches
+  (H2 @ 9aac5ca merged 8a8733f; gate-evidence branch merged bf42c7b).
+- **Lead review performed:** (a) the 4.H2 slot is filled above from the
+  MERGED branch (7/2/0 per its committed log — the two BLOCKED surfaces
+  carry exact infra reasons + owners, blocker register pinned in-test so
+  it cannot silently persist); (b) the two gate-session hygiene fixes
+  (H3 pseudo-probe eslint globals; stale smoke.spec after F1's redirect)
+  were folded at merge and the playwright run re-verified 38/38 green on
+  the fixed tree; (c) spot re-verified on the merged tree this session:
+  vitest 557/557, typecheck clean, lint clean, l10n 472/472, drift guards
+  green, visual PR lane 30/30, Rust phase-4 crates 82/0.
+- **The caveats (registered, not hidden):** (1) visual matrix is
+  Linux-only — 136/136 nightly + 30/30 PR; the per-OS baseline mechanism
+  exists (baselines/<platform>/) and activates when CI runners do;
+  (2) packaging launch tests on 3 OS are INFRA-BLOCKED (no webkit2gtk /
+  Linux-only sandbox — H1's INFRA-BLOCKED.md carries the exact dependency
+  list + admission checklist); the desktop composition root IS proven
+  (38/0 incl. a real-engine open→settle→events-in-order test) and the
+  single lumen_dispatch seam (doc 05 §5.1) is wired engine-side and
+  UI-side (TauriTransport 9/9); (3) config-propagation is an honest PART —
+  schema→screen generation is drift-guarded both directions and the
+  CLI-host seam is proven, but the app-layer wiring (real config writes,
+  live engine feed to the UI) is H1's registered handoff, not faked here;
+  (4) rebrand installer-build + CLI banner surfaces are BLOCKED per §1
+  with owners; (5) carried from Phase 3: the 4 h soak baseline and the
+  3-OS scenario matrix remain open follow-ups (7-g's sandbox-reaping
+  evidence recorded; CI-nightly is the escalation path).
+- **Why PASS is honest at this bar:** all five gate clauses have real,
+  committed, re-runnable evidence or a named infra blocker with an owner;
+  nothing was mocked as green (mock/real separation is mechanical in the
+  differential harness; the rebrand blockers are pinned IN-TEST); the
+  25-card ledger is complete with merge refs. The Phase-5 launch list
+  (§7) is the operative output — it already folds wave-7's honest
+  handoffs (silent-skip bugs, 103-unsupported container coverage) into
+  the format cards that own them.
