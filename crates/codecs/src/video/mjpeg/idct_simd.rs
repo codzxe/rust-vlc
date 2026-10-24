@@ -341,7 +341,9 @@ mod tests {
             if scalar != simd {
                 for (i, (&a, &b)) in scalar.iter().zip(simd.iter()).enumerate() {
                     if a != b {
-                        diverged.push(format!("{tag}/len{out_len} sample {i}: scalar {a} vs simd {b}"));
+                        diverged.push(format!(
+                            "{tag}/len{out_len} sample {i}: scalar {a} vs simd {b}"
+                        ));
                     }
                 }
             }
@@ -429,11 +431,15 @@ mod tests {
             if std::arch::is_x86_feature_detected!("sse4.1") {
                 let cases: [(&[i16; 64], &[u16; 64], &str); 4] = [
                     (&[0i16; 64], &[1u16; 64], "zero"),
-                    (&{
-                        let mut b = [0i16; 64];
-                        b[0] = 40;
-                        b
-                    }, &[1u16; 64], "dc"),
+                    (
+                        &{
+                            let mut b = [0i16; 64];
+                            b[0] = 40;
+                            b
+                        },
+                        &[1u16; 64],
+                        "dc",
+                    ),
                     (&[-32768i16; 64], &[65535u16; 64], "hostile-neg"),
                     (&[32767i16; 64], &[65535u16; 64], "hostile-pos"),
                 ];

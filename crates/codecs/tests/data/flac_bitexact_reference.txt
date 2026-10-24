@@ -1,0 +1,121 @@
+# 5.A1 FLAC bit-exact reference data (card 5.A1 AC evidence).
+#
+# One [fixture.<name>] section per committed FLAC under
+#   crates/codecs/tests/fixtures/<name>.flac
+# and one [corpus.<name>] section per real-corpus FLAC
+#   $LUMEN_CORPUS/media/<name>.flac
+# (corpus is /tmp-resident and may be re-imaged away — the corpus tests
+# SKIP with a message when LUMEN_CORPUS is unset or the file is absent;
+# the fixture rows are the always-on coverage).
+#
+# PROVENANCE (honesty rules, AGENTS.md sec.3.4): every fixture's PCM
+# essence is authored by the external ffmpeg 7.1.5-0+deb13u1 encoder
+# (oracle, never a dependency) with the exact commands below, 2026-10-24;
+# the SEEKTABLE carrier additionally has its metadata block authored
+# in-tree by data/flac_insert_seektable.py (recorded verbatim below in
+# spirit — run the committed script; ffmpeg 7.1.5's flac muxer writes NO
+# seektable, verified: blocks are STREAMINFO/VORBIS_COMMENT/PADDING).
+# The reference MD5s are ffmpeg's own decoded dumps (commands below);
+# for every file the STREAMINFO md5 field equals the native-width dump
+# (s16le for 16-bit, s24le for 24-bit), independently confirming the
+# FLAC MD5 convention AND our decoder's byte layout. The tests compare
+# Lumen's decoded output against these digests AND the STREAMINFO md5.
+#
+# Generation commands (verbatim; cwd anywhere, sha256 of results below):
+#   ffmpeg -y -f lavfi -i "aevalsrc=0.5*sin(2*PI*440*t)|0.5*sin(2*PI*440*t):d=0.5:s=44100" \
+#     -c:a flac -sample_fmt s16 -compression_level 8 flac_s16_stereo_44100.flac
+#   ffmpeg -y -f lavfi -i "sine=frequency=330:duration=0.25:sample_rate=44100" -ac 1 \
+#     -c:a flac -sample_fmt s16 -compression_level 8 flac_mono_s16_44100.flac
+#   ffmpeg -y -f lavfi -i "aevalsrc=0.45*sin(2*PI*293.66*t)|0.45*sin(2*PI*369.99*t):d=0.4:s=48000" \
+#     -c:a flac -sample_fmt s32 -compression_level 8 flac_s24_stereo_48000.flac
+#   ffmpeg -y -f lavfi -i "aevalsrc=0.5*sin(2*PI*440*t)|0.5*sin(2*PI*440*t):d=4.5:s=44100" \
+#     -c:a flac -sample_fmt s16 -compression_level 8 flac_s16_stereo_44100_seektable_src.flac
+#   python3 data/flac_insert_seektable.py flac_s16_stereo_44100_seektable_src.flac \
+#     flac_s16_stereo_44100_seektable.flac   # drops PADDING, inserts 6-point table
+#
+# Reference dumps (per file; MD5 over the whole stream):
+#   ffmpeg -i F.flac -f s16le -c:a pcm_s16le -  | md5sum
+#   ffmpeg -i F.flac -f s24le -c:a pcm_s24le -  | md5sum
+#   ffmpeg -i F.flac -f s32le -c:a pcm_s32le -  | md5sum
+#   ffprobe -v error -select_streams a -show_entries packet=pts -of csv=p=0 F.flac
+#     (packet pts are sample numbers; the per-frame list is recorded in
+#      first_samples and pins the decoder's BlockMeta.first_sample and
+#      the seek planner's resolution, tail frame included)
+#
+# The 24-bit comparison base is the s32le dump (ffmpeg left-justifies
+# 24-bit FLAC into s32; our decoder emits S24 3-byte and the test lifts
+# by << 8). The s24le dump MD5 doubles as the STREAMINFO-md5 check.
+
+[fixture.flac_s16_stereo_44100]
+sha256 = ac3f81b4cd3fc9c050a82d9a7f66330ccf0a9bc94d903a640c491a84947555a4
+frames = 5
+channels = 2
+rate = 44100
+bps = 16
+total_samples = 22050
+pcm_s16le_md5 = e0f96555d1465acbd566af4259f52c92
+pcm_s32le_md5 = b4ce67323d1c4cd6c89d7c00204a35f4
+streaminfo_md5 = e0f96555d1465acbd566af4259f52c92
+first_samples = 0,4608,9216,13824,18432
+
+[fixture.flac_mono_s16_44100]
+sha256 = aa5969e3636b5aa46e885c6060e4928dd1df5ebbe4e7e51521eb417134bb7aa2
+frames = 3
+channels = 1
+rate = 44100
+bps = 16
+total_samples = 11025
+pcm_s16le_md5 = 1d93295ee95911eb570c34e7d40a69fd
+pcm_s32le_md5 = 2f2cb2d98fe9be9ca348c73f51563989
+streaminfo_md5 = 1d93295ee95911eb570c34e7d40a69fd
+first_samples = 0,4608,9216
+
+[fixture.flac_s24_stereo_48000]
+sha256 = d9968c8399532f30d2ab4c5af8a78267af847d9f6453c2e8df6cd50077b526d2
+frames = 5
+channels = 2
+rate = 48000
+bps = 24
+total_samples = 19200
+pcm_s24le_md5 = 4cf977a1d3410922c32aab97854ab46a
+pcm_s32le_md5 = e8e8caf60af492fe8bcbf78532f3739b
+streaminfo_md5 = 4cf977a1d3410922c32aab97854ab46a
+first_samples = 0,4608,9216,13824,18432
+
+[fixture.flac_s16_stereo_44100_seektable]
+sha256 = 3f0cfc4d8e56ba388e6bbd41ab45c8b4fadb5408c86b3e0af4895531eaf3a0cc
+frames = 44
+channels = 2
+rate = 44100
+bps = 16
+total_samples = 198450
+seektable_points = 6
+pcm_s16le_md5 = 61726f3206de0b9383c16f46dcdceb76
+pcm_s32le_md5 = bf91378404b6ebffd73ed2a6c9c8ba0e
+streaminfo_md5 = 61726f3206de0b9383c16f46dcdceb76
+first_samples = 0,4608,9216,13824,18432,23040,27648,32256,36864,41472,46080,50688,55296,59904,64512,69120,73728,78336,82944,87552,92160,96768,101376,105984,110592,115200,119808,124416,129024,133632,138240,142848,147456,152064,156672,161280,165888,170496,175104,179712,184320,188928,193536,198144
+
+# The real corpus (corpus-v4): three .flac-named files, honestly unlike.
+# 0046 is a real decodable FLAC (the differential row); 0106 is a
+# metadata-only FLAC (cover art, zero frames — ffmpeg itself decodes 0
+# audio packets, 0 PCM bytes); 0071 is an ID3/MP3 file with a .flac
+# extension (probe must reject it typed). The dirty/ mutants of 0046
+# and 0071 are fuzz-survival input, pinned in flac_fuzz_survival.rs.
+
+[corpus.0046-audio-only]
+kind = flac
+sha256 = pending-at-test-time
+frames = 44
+channels = 2
+rate = 88200
+bps = 24
+total_samples = 352800
+pcm_s24le_md5 = 9a35c095533720371b09c78d949730e6
+pcm_s32le_md5 = 9f15cbbdc7943b42ffb7d8dbb8b65c87
+streaminfo_md5 = 9a35c095533720371b09c78d949730e6
+
+[corpus.0071-cover-audio]
+kind = not_flac
+
+[corpus.0106-cover-audio]
+kind = metadata_only

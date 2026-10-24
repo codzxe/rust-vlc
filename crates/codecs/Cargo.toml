@@ -7,20 +7,22 @@
 # allowlist, so the narrower dep list is legal (boundaries.toml mirrors it
 # exactly, video-engine precedent).
 #
-# Std-only by C5: zero external dependencies. The 2.B4 dependency decision
-# (recorded in the worklog) is an IN-HOUSE baseline JPEG decoder seeded by
-# the 2.A3 in-repo encoder's primitives, following the D-018
-# zero-new-dependency logic for the first vertical.
+# Std-only at 2.B4/2.B5; the Phase-5 FLAC card (5.A1) adds the FIRST external
+# engine dependency under the Lead's C5 conditional approval:
+# `claxon` — purity-verified in docs/dependencies/records/claxon-0.4.3.md
+# (F1-F7 all NO, zero normal dependencies, Apache-2.0, sha256-pinned; the
+# historical RUSTSEC-2018-0004 advisory is outside the pinned range).
+# Exact pin per doc 11 §3.7: a bump re-triggers the record.
 #
-# `decoders` feature: v0 ships the mjpeg module unconditionally; the
-# per-codec Cargo features of doc 01 §2.5(a) arrive with the second codec
-# (feature-flagging a single module adds no compile-time choice yet).
+# `decoders` feature: v0 shipped the mjpeg module unconditionally; per-codec
+# Cargo features of doc 01 §2.5(a) arrive with the registration card (R3) —
+# flac rides the crate unconditionally for now, like pcm.
 
 [package]
 name = "codecs"
 version = "0.1.0"
 edition = "2024"
-description = "Lumen builtin software codecs: baseline-JPEG/MJPEG video decoder and unpacked-PCM audio decoder behind the codec-api contract (doc 01 §2.5, cards 2.B4/2.B5)."
+description = "Lumen builtin software codecs: baseline-JPEG/MJPEG video decoder, unpacked-PCM audio decoder and FLAC audio decoder (claxon engine) behind the codec-api contract (doc 01 §2.5, cards 2.B4/2.B5/5.A1)."
 publish = false
 
 [lints]
@@ -29,6 +31,7 @@ workspace = true
 [dependencies]
 codec-api = { path = "../codec-api" }
 media-types = { path = "../media-types" }
+claxon = "=0.4.3"
 
 [dev-dependencies]
 # The randomized-corpus vertical (ED-FIX-5; user directive 2026-10-22):
