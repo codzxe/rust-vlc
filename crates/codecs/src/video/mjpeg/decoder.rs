@@ -438,7 +438,13 @@ impl DecodeContext {
     pub(crate) fn decode(&mut self, data: &[u8]) -> Result<DecodedMeta, MjpegError> {
         let meta = self.decode_scan(data)?;
         let total = self.frame_len()?;
-        self.out.clear();
+        // 5.X1b: the same-length buffer is reused WITHOUT the zero
+        // fill — both assembly paths provably overwrite every byte
+        // (pinned by `pooled_slot_refill_is_bit_exact_and_stale_byte_safe`),
+        // so `clear + resize(total, 0)` was a full-frame memset per
+        // frame (measured ~20% of the heavy-lane full-decode time on
+        // its own). `resize` still zeroes any grown tail; shrinking
+        // truncates.
         self.out.resize(total, 0);
         let Self {
             headers,
@@ -1073,6 +1079,25 @@ fn i420_total(w: usize, h: usize) -> Result<usize, MjpegError> {
 /// for — luma and chroma `valid` extents always cover their output
 /// regions there).
 fn crop_plane_into(dst: &mut [u8], plane: &Plane, out_w: usize) {
+    // 5.X1b fast path: tightly packed rows (stride == out_w) with the
+    // valid region covering the whole destination — one bulk copy
+    // instead of one `copy_from_slice` per row. Byte-identical to the
+    // per-row loop by construction (same source span, contiguous).
+    let rows = dst.len() / out_w;
+    if plane.valid_w >= out_w
+        && plane.stride == out_w
+        && plane.valid_h >= rows
+        && out_w > 0
+        && rows > 0
+    {
+        let end = out_w
+            .checked_mul(rows)
+            .and_then(|len| plane.data.get(..len).map(|_| len));
+        if let Some(len) = end {
+            dst.copy_from_slice(&plane.data[..len]);
+            return;
+        }
+    }
     for (y, dst_row) in dst.chunks_exact_mut(out_w).enumerate() {
         if y >= plane.valid_h {
             dst_row.fill(128);
