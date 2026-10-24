@@ -1,0 +1,38 @@
+# stage_bench stdout (5.X1a, 2026-10-24) — run 1: uhd4k+1080p, run 2: 0124+0052
+# binary: release example from wip/p5-x1a @ 774ac5b; corpus /tmp/my-project/corpus-v4/media; loadavg 1.4-4.0 shared sandbox
+STAGEBENCH file=0073-avi-video.avi frames=19 passes=5 RGBA 3840x2160 med_full_ms=1380.7 med_scalar_full_ms=1079.4 simd_speedup=1.279 med_scan_ms=509.2 parse_ms=0.0 huffman_ms=93.0 idct_ms=325.6 store_ms=73.9 assemble_ms=871.5 residual_ms=16.65 pct_parse=0.0 pct_huffman=6.7 pct_idct=23.6 pct_store=5.4 pct_assemble=63.1 min_full_ms=1372.1 min_scalar_full_ms=1072.6 min_huffman_ms=93.0 min_idct_ms=324.1 min_store_ms=73.4 min_assemble_ms=869.8 load_before=2.88 load_after=2.40
+STAGEBENCH file=0087-avi-video.avi frames=77 passes=5 I420 1920x1080 med_full_ms=631.3 med_scalar_full_ms=394.9 simd_speedup=1.599 med_scan_ms=548.0 parse_ms=0.0 huffman_ms=137.7 idct_ms=358.8 store_ms=71.4 assemble_ms=83.3 residual_ms=-20.05 pct_parse=0.0 pct_huffman=21.8 pct_idct=56.8 pct_store=11.3 pct_assemble=13.2 min_full_ms=590.8 min_scalar_full_ms=391.8 min_huffman_ms=113.7 min_idct_ms=269.3 min_store_ms=38.8 min_assemble_ms=173.7 load_before=2.40 load_after=2.46
+STAGEBENCH file=0124-avi-video.avi frames=337 passes=5 RGBA 512x512 med_full_ms=1088.6 med_scalar_full_ms=925.4 simd_speedup=1.176 med_scan_ms=584.7 parse_ms=0.2 huffman_ms=174.8 idct_ms=362.7 store_ms=33.3 assemble_ms=503.9 residual_ms=13.70 pct_parse=0.0 pct_huffman=16.1 pct_idct=33.3 pct_store=3.1 pct_assemble=46.3 min_full_ms=1083.2 min_scalar_full_ms=915.9 min_huffman_ms=174.3 min_idct_ms=356.3 min_store_ms=32.6 min_assemble_ms=509.6 load_before=1.84 load_after=1.60
+STAGEBENCH file=0052-avi-video.avi frames=150 passes=5 RGBA 1024x768 med_full_ms=1382.4 med_scalar_full_ms=1160.7 simd_speedup=1.191 med_scan_ms=716.3 parse_ms=0.1 huffman_ms=222.0 idct_ms=408.3 store_ms=57.9 assemble_ms=666.1 residual_ms=27.99 pct_parse=0.0 pct_huffman=16.1 pct_idct=29.5 pct_store=4.2 pct_assemble=48.2 min_full_ms=1375.2 min_scalar_full_ms=1145.8 min_huffman_ms=221.1 min_idct_ms=405.0 min_store_ms=56.5 min_assemble_ms=669.4 load_before=1.55 load_after=1.40
+
+## per-pass stderr rows (arm,pass,ms) — run 1 (0073, 0087)
+pass  0: full   1372.1 | scalar   1083.3 | scan    509.2 | noidct    191.2 | nowrite    418.4 | huffonly     96.7 | parse      0.0 ms
+pass  1: full   1381.0 | scalar   1072.9 | scan    515.1 | noidct    167.1 | nowrite    438.0 | huffonly     93.0 | parse      0.0 ms
+pass  2: full   1380.7 | scalar   1072.6 | scan    504.0 | noidct    166.9 | nowrite    417.1 | huffonly     94.0 | parse      0.0 ms
+pass  3: full   1379.1 | scalar   1079.4 | scan    517.4 | noidct    166.9 | nowrite    432.9 | huffonly     93.0 | parse      0.0 ms
+pass  4: full   1382.7 | scalar   1090.6 | scan    502.3 | noidct    166.4 | nowrite    418.6 | huffonly     93.0 | parse      0.0 ms
+shares of full: parse 0.0% | huffman 6.7% | idct+dequant 23.6% | store 5.4% | assemble(color/crop) 63.1% | residual 16.6 ms
+simd-vs-scalar (identical walk, transform only): full(simd) 1380.7 ms vs full(scalar) 1079.4 ms -> 1.279x (127.9% of scalar walk)
+pass  0: full    641.2 | scalar    440.9 | scan    548.0 | noidct    209.2 | nowrite    503.0 | huffonly    161.9 | parse      0.0 ms
+pass  1: full    612.7 | scalar    394.9 | scan    532.2 | noidct    254.3 | nowrite    490.9 | huffonly    137.8 | parse      0.0 ms
+pass  2: full    680.6 | scalar    396.5 | scan    581.2 | noidct    216.9 | nowrite    496.6 | huffonly    135.5 | parse      0.0 ms
+pass  3: full    590.8 | scalar    391.8 | scan    605.0 | noidct    197.1 | nowrite    509.5 | huffonly    161.8 | parse      0.0 ms
+pass  4: full    631.3 | scalar    392.3 | scan    417.1 | noidct    152.5 | nowrite    383.0 | huffonly    113.7 | parse      0.0 ms
+shares of full: parse 0.0% | huffman 21.8% | idct+dequant 56.8% | store 11.3% | assemble(color/crop) 13.2% | residual -20.0 ms
+simd-vs-scalar (identical walk, transform only): full(simd) 631.3 ms vs full(scalar) 394.9 ms -> 1.599x (159.9% of scalar walk)
+
+## per-pass stderr rows — run 2 (0124, 0052)
+pass  0: full   1083.2 | scalar    915.9 | scan    584.8 | noidct    213.7 | nowrite    537.7 | huffonly    175.0 | parse      0.2 ms
+pass  1: full   1097.9 | scalar    925.4 | scan    573.9 | noidct    207.0 | nowrite    530.8 | huffonly    174.5 | parse      0.2 ms
+pass  2: full   1088.2 | scalar    930.3 | scan    589.1 | noidct    211.2 | nowrite    548.8 | huffonly    175.4 | parse      0.2 ms
+pass  3: full   1099.5 | scalar    933.7 | scan    573.6 | noidct    207.2 | nowrite    550.6 | huffonly    174.6 | parse      0.2 ms
+pass  4: full   1088.6 | scalar    917.5 | scan    584.7 | noidct    208.3 | nowrite    536.4 | huffonly    175.1 | parse      0.2 ms
+shares of full: parse 0.0% | huffman 16.1% | idct+dequant 33.3% | store 3.1% | assemble(color/crop) 46.3% | residual 13.7 ms
+simd-vs-scalar (identical walk, transform only): full(simd) 1088.6 ms vs full(scalar) 925.4 ms -> 1.176x (117.6% of scalar walk)
+pass  0: full   1381.2 | scalar   1156.3 | scan    712.8 | noidct    281.3 | nowrite    630.4 | huffonly    222.4 | parse      0.1 ms
+pass  1: full   1383.1 | scalar   1189.1 | scan    765.3 | noidct    280.0 | nowrite    642.0 | huffonly    222.9 | parse      0.1 ms
+pass  2: full   1375.2 | scalar   1172.0 | scan    732.4 | noidct    278.4 | nowrite    626.2 | huffonly    221.2 | parse      0.1 ms
+pass  3: full   1401.4 | scalar   1160.7 | scan    716.3 | noidct    286.8 | nowrite    632.5 | huffonly    222.1 | parse      0.1 ms
+pass  4: full   1382.4 | scalar   1145.8 | scan    705.8 | noidct    277.7 | nowrite    626.6 | huffonly    221.3 | parse      0.1 ms
+shares of full: parse 0.0% | huffman 16.1% | idct+dequant 29.5% | store 4.2% | assemble(color/crop) 48.2% | residual 28.0 ms
+simd-vs-scalar (identical walk, transform only): full(simd) 1382.4 ms vs full(scalar) 1160.7 ms -> 1.191x (119.1% of scalar walk)
