@@ -38,6 +38,7 @@ pub mod adts;
 pub mod aiff;
 pub mod avi;
 pub mod error;
+pub mod es;
 pub mod mkv;
 pub mod mp4;
 pub mod ogg;
