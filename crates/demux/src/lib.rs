@@ -19,6 +19,9 @@
 //!   `ds64`, LIST/INFO, odd-chunk word-align.
 //! - [`aiff`] — the AIFF/AIFC demuxer (card 5.A2): COMM (incl. the
 //!   extended-80-bit float sample rate), SSND, skip-tolerant chunks.
+//! - [`ts`] — the MPEG-TS layers (card 5.I1): [`ts::pes`] is the
+//!   PES header/assembly layer and the 90 kHz PTS/DTS timing model
+//!   with honest discontinuity events (the I1b half; PSI is I1a's).
 //! - [`error`] — typed error constructors at stage
 //!   [`PipelineStage::Demux`](media_types::PipelineStage::Demux); the
 //!   *taxonomy* is media-types' (never redefined here).
