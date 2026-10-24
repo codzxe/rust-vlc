@@ -165,7 +165,7 @@ impl OggCodec {
         match self {
             OggCodec::Vorbis => matches!(data.first(), Some(0x01 | 0x03 | 0x05)),
             OggCodec::Opus => data.starts_with(b"OpusHead") || data.starts_with(b"OpusTags"),
-            OggCodec::Theora => matches!(data.first(), Some(0x80 | 0x81 | 0x82)),
+            OggCodec::Theora => matches!(data.first(), Some(0x80..=0x82)),
             OggCodec::FlacInOgg => {
                 data.starts_with(&[0x7F, b'F', b'L', b'A', b'C'])
                     || data.starts_with(&[0x00, 0x00, 0x00, 0x22])
@@ -242,7 +242,10 @@ fn identify(first_packet: &[u8]) -> (OggCodec, Option<Clock>) {
         let rate = u32::from(first_packet[12])
             | (u32::from(first_packet[13]) << 8)
             | (u32::from(first_packet[14]) << 16);
-        return (OggCodec::Vorbis, (rate > 0).then_some(Clock::Samples { rate }));
+        return (
+            OggCodec::Vorbis,
+            (rate > 0).then_some(Clock::Samples { rate }),
+        );
     }
     if first_packet.starts_with(b"OpusHead") && first_packet.len() >= 12 {
         return (OggCodec::Opus, Some(Clock::Opus48000));
@@ -257,8 +260,7 @@ fn identify(first_packet: &[u8]) -> (OggCodec, Option<Clock>) {
         let num = be32(first_packet, 22);
         let den = be32(first_packet, 26);
         let shift = (u32::from(first_packet[40] & 0x03) << 3) | u32::from(first_packet[41] >> 5);
-        let clock = (num > 0 && den > 0 && shift < 63)
-            .then_some(Clock::Theora { num, den, shift });
+        let clock = (num > 0 && den > 0 && shift < 63).then_some(Clock::Theora { num, den, shift });
         return (OggCodec::Theora, clock);
     }
     if first_packet.starts_with(&[0x7F, b'F', b'L', b'A', b'C']) {
@@ -270,7 +272,10 @@ fn identify(first_packet: &[u8]) -> (OggCodec, Option<Clock>) {
                 .try_into()
                 .unwrap_or_else(|_| unreachable!("length checked above")),
         );
-        return (OggCodec::Speex, (rate > 0).then_some(Clock::Samples { rate }));
+        return (
+            OggCodec::Speex,
+            (rate > 0).then_some(Clock::Samples { rate }),
+        );
     }
     if first_packet.starts_with(b"fishead\0") {
         return (OggCodec::Skeleton, None);
@@ -534,8 +539,12 @@ impl OggDemuxer {
     pub fn track_duration(&self, track: TrackId) -> Option<Duration> {
         let stream = self.streams.values().find(|s| s.track == track)?;
         let clock = stream.clock?;
-        let granule = stream.last_granule.max(self.tail_granules.get(&stream.serial).copied())?;
-        clock.nanos(granule).map(|ns| Duration::Known(Nanoseconds(ns)))
+        let granule = stream
+            .last_granule
+            .max(self.tail_granules.get(&stream.serial).copied())?;
+        clock
+            .nanos(granule)
+            .map(|ns| Duration::Known(Nanoseconds(ns)))
     }
 
     // -- internals ---------------------------------------------------------
@@ -706,7 +715,8 @@ impl OggDemuxer {
 
     fn queue_recovered(&mut self, skipped: u64, reason: &'static str) {
         if skipped > 0 {
-            self.pending.push_back(DemuxEvent::Recovered { skipped, reason });
+            self.pending
+                .push_back(DemuxEvent::Recovered { skipped, reason });
         }
     }
 
@@ -750,12 +760,13 @@ impl OggDemuxer {
                 .streams
                 .get_mut(&header.serial)
                 .unwrap_or_else(|| unreachable!("inserted above"));
-            if let Some(expected) = s.last_seq.map(|q| q.wrapping_add(1)) {
-                if expected != header.seq {
-                    self.damage.note(0, "ogg: page sequence discontinuity");
-                    self.granule_discontinuities += 1;
-                    self.pending.push_back(DemuxEvent::Discontinuity);
-                }
+            if s.last_seq
+                .map(|q| q.wrapping_add(1))
+                .is_some_and(|expected| expected != header.seq)
+            {
+                self.damage.note(0, "ogg: page sequence discontinuity");
+                self.granule_discontinuities += 1;
+                self.pending.push_back(DemuxEvent::Discontinuity);
             }
             s.last_seq = Some(header.seq);
         }
@@ -806,9 +817,11 @@ impl OggDemuxer {
             .is_some_and(|s| s.pending.is_some());
         let orphan_run = header.continued && !had_pending;
         if orphan_run {
-            self.damage.note(0, "ogg: continued flag without an open packet");
+            self.damage
+                .note(0, "ogg: continued flag without an open packet");
         } else if !header.continued && had_pending {
-            self.damage.note(0, "ogg: open packet dropped at a non-continued page");
+            self.damage
+                .note(0, "ogg: open packet dropped at a non-continued page");
             self.granule_discontinuities += 1;
             self.pending.push_back(DemuxEvent::Discontinuity);
             if let Some(s) = self.streams.get_mut(&header.serial) {
@@ -876,10 +889,10 @@ impl OggDemuxer {
         }
 
         // -- EOS ----------------------------------------------------------
-        if header.eos {
-            if let Some(s) = self.streams.get_mut(&header.serial) {
-                s.ended = true;
-            }
+        if header.eos
+            && let Some(s) = self.streams.get_mut(&header.serial)
+        {
+            s.ended = true;
         }
         Ok(true)
     }
@@ -980,10 +993,7 @@ impl OggDemuxer {
                 .streams
                 .get(&serial)
                 .unwrap_or_else(|| unreachable!("checked above"));
-            (
-                stream.codec.unwrap_or(OggCodec::Unknown),
-                stream.clock,
-            )
+            (stream.codec.unwrap_or(OggCodec::Unknown), stream.clock)
         };
         // Header/data split: recognized codecs keep header packets
         // opaque-passthrough (decoder config, not events). Skeleton
@@ -1208,9 +1218,11 @@ impl OggDemuxer {
 
     /// The first clock-bearing stream (the seek reference).
     fn reference_stream(&self) -> Option<(u32, Clock)> {
-        self.serial_order
-            .iter()
-            .find_map(|serial| self.streams.get(serial).and_then(|s| s.clock.map(|c| (*serial, c))))
+        self.serial_order.iter().find_map(|serial| {
+            self.streams
+                .get(serial)
+                .and_then(|s| s.clock.map(|c| (*serial, c)))
+        })
     }
 }
 
@@ -1396,7 +1408,10 @@ mod clock_unit {
         };
         assert_eq!((num, den, shift), (1, 2, 6));
         // EOS granule 65 → 2 frames → 4.0 s (matches ffprobe).
-        assert_eq!(clock.unwrap().nanos(65), Some(4_000_000_000));
+        assert_eq!(
+            Clock::Theora { num, den, shift }.nanos(65),
+            Some(4_000_000_000)
+        );
     }
 
     #[test]

@@ -196,7 +196,7 @@ pub fn crc32(data: &[u8]) -> u32 {
     for &byte in data {
         // MSB-first: the top byte of the register selects the entry.
         let idx = ((crc >> 24) as u8 ^ byte) as usize;
-        crc = ((crc << 8) ^ table[idx]) & 0xFFFF_FFFF;
+        crc = (crc << 8) ^ table[idx];
     }
     crc
 }
@@ -229,7 +229,7 @@ fn crc32_cont(mut crc: u32, data: &[u8]) -> u32 {
     let table = crc_table();
     for &byte in data {
         let idx = ((crc >> 24) as u8 ^ byte) as usize;
-        crc = ((crc << 8) ^ table[idx]) & 0xFFFF_FFFF;
+        crc = (crc << 8) ^ table[idx];
     }
     crc
 }

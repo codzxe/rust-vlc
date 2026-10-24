@@ -168,10 +168,7 @@ mod tests {
             (no_streams(), "demux.ogg.no-streams"),
             (not_started(), "demux.ogg.not-started"),
             (seek_out_of_range(), "demux.ogg.seek.out-of-range"),
-            (
-                recovery_budget_exhausted(4096),
-                "demux.ogg.recovery-budget",
-            ),
+            (recovery_budget_exhausted(4096), "demux.ogg.recovery-budget"),
         ];
         for (error, code) in cases {
             assert_eq!(error.stage, STAGE, "{code}");

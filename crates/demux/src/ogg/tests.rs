@@ -3,10 +3,10 @@
 //! physical/logical mapping, chains, packet assembly and every typed
 //! error path on built fixtures (deterministic bytes, no I/O).
 
-use plugin_api::{Demuxer, DemuxEvent, SeekSupport};
+use plugin_api::{DemuxEvent, Demuxer, SeekSupport};
 
-use super::test_support::{build_page, mem_stream, vorbis_id_packet, BOS, CONTINUED, EOS};
 use super::OggDemuxer;
+use super::test_support::{BOS, CONTINUED, EOS, build_page, mem_stream, vorbis_id_packet};
 
 /// Drive `demuxer` to end, collecting (events, sticky-error code).
 fn drain(demuxer: &mut OggDemuxer) -> (Vec<DemuxEvent>, Option<String>) {
@@ -24,7 +24,9 @@ fn packets(events: &[DemuxEvent]) -> Vec<(u32, Vec<u8>, bool)> {
     events
         .iter()
         .filter_map(|e| match e {
-            DemuxEvent::Packet(p) => Some((p.track.handle(), p.data.as_slice().to_vec(), p.keyframe)),
+            DemuxEvent::Packet(p) => {
+                Some((p.track.handle(), p.data.as_slice().to_vec(), p.keyframe))
+            }
             _ => None,
         })
         .collect()
@@ -166,7 +168,11 @@ fn chained_links_boundary_discontinuity_and_fresh_tracks() {
     assert_eq!(after, vec![1, 1], "link 2 packets ride a fresh track id");
     assert_eq!(pkts.len(), 4);
     assert_eq!(ogg.links(), 2);
-    assert_eq!(ogg.tracks().len(), 2, "the accessor surfaces link 2's track");
+    assert_eq!(
+        ogg.tracks().len(),
+        2,
+        "the accessor surfaces link 2's track"
+    );
 }
 
 #[test]
@@ -179,7 +185,13 @@ fn continued_packet_assembles_across_pages() {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(&build_page(BOS, 0, 0x1111, 0, &[&id]));
     bytes.extend_from_slice(&build_page(0, -1, 0x1111, 1, &[&big[..255]]));
-    bytes.extend_from_slice(&build_page(CONTINUED, 600, 0x1111, 2, &[&big[255..], b"\x00tail"]));
+    bytes.extend_from_slice(&build_page(
+        CONTINUED,
+        600,
+        0x1111,
+        2,
+        &[&big[255..], b"\x00tail"],
+    ));
     let mut ogg = OggDemuxer::new(mem_stream(bytes).unwrap_or_else(|e| unreachable!("{e}")))
         .unwrap_or_else(|e| unreachable!("{e}"));
     let _ = ogg.start().unwrap_or_else(|e| unreachable!("{e}"));
@@ -188,7 +200,10 @@ fn continued_packet_assembles_across_pages() {
     let pkts = packets(&events);
     assert_eq!(pkts.len(), 2, "one assembled 600-byte packet + the tail");
     assert_eq!(pkts[0].1.len(), 600);
-    assert_eq!(pkts[0].1, (0..600u32).map(|i| (i % 256) as u8).collect::<Vec<u8>>());
+    assert_eq!(
+        pkts[0].1,
+        (0..600u32).map(|i| (i % 256) as u8).collect::<Vec<u8>>()
+    );
     assert_eq!(pkts[1].1, b"\x00tail");
 }
 
@@ -213,9 +228,13 @@ fn bad_crc_page_is_dropped_with_sync_recovery() {
         .collect();
     assert_eq!(recovered.len(), 1, "one recovery skip for the bad page");
     let pkts = packets(&events);
-    assert_eq!(pkts.len(), 2, "the corrupt page's packet is lost, the rest survive");
+    assert_eq!(
+        pkts.len(),
+        2,
+        "the corrupt page's packet is lost, the rest survive"
+    );
     assert_eq!(pkts[0].1, b"\x00a2");
-    assert_eq!(ogg.damage_total() > 0, true);
+    assert!(ogg.damage_total() > 0);
 }
 
 #[test]
@@ -253,7 +272,11 @@ fn truncated_page_is_a_typed_sticky_error() {
     let _ = ogg.start().unwrap_or_else(|e| unreachable!("{e}"));
     let (events, err) = drain(&mut ogg);
     assert_eq!(err.as_deref(), Some("demux.ogg.truncated-page"));
-    assert_eq!(packets(&events).len(), 1, "the first data packet already flowed");
+    assert_eq!(
+        packets(&events).len(),
+        1,
+        "the first data packet already flowed"
+    );
     // Sticky: the error replays by shape.
     match ogg.next_event() {
         Err(replay) => assert_eq!(replay.context.code, "demux.ogg.truncated-page"),
@@ -300,7 +323,11 @@ fn granule_regression_is_an_honest_discontinuity() {
     let (events, err) = drain(&mut ogg);
     assert_eq!(err, None);
     assert_eq!(ogg.granule_discontinuities(), 1);
-    assert!(events.iter().any(|e| matches!(e, DemuxEvent::Discontinuity)));
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, DemuxEvent::Discontinuity))
+    );
 }
 
 #[test]
@@ -318,7 +345,11 @@ fn minus_one_data_page_punches_a_visible_hole() {
     let _ = ogg.start().unwrap_or_else(|e| unreachable!("{e}"));
     let (events, err) = drain(&mut ogg);
     assert_eq!(err, None);
-    assert_eq!(ogg.granule_discontinuities(), 1, "leaving the hole re-anchors loudly");
+    assert_eq!(
+        ogg.granule_discontinuities(),
+        1,
+        "leaving the hole re-anchors loudly"
+    );
     // The hole page's packet is stamped Missing (never guessed).
     let stamps: Vec<Option<i64>> = events
         .iter()
@@ -340,7 +371,13 @@ fn continued_flag_lies_are_damage_noted() {
     bytes.extend_from_slice(&build_page(BOS, 0, 0x1111, 0, &[&id]));
     // Page 2 says "continued" but nothing is open: the orphan tail
     // is dropped.
-    bytes.extend_from_slice(&build_page(CONTINUED, 256, 0x1111, 1, &[b"\x00orphan", b"\x00a1"]));
+    bytes.extend_from_slice(&build_page(
+        CONTINUED,
+        256,
+        0x1111,
+        1,
+        &[b"\x00orphan", b"\x00a1"],
+    ));
     let mut ogg = OggDemuxer::new(mem_stream(bytes).unwrap_or_else(|e| unreachable!("{e}")))
         .unwrap_or_else(|e| unreachable!("{e}"));
     let _ = ogg.start().unwrap_or_else(|e| unreachable!("{e}"));
@@ -348,8 +385,16 @@ fn continued_flag_lies_are_damage_noted() {
     assert_eq!(err, None);
     let pkts = packets(&events);
     assert_eq!(pkts.len(), 1);
-    assert_eq!(pkts[0].1, b"\x00a1", "the orphan run is dropped, the real packet survives");
-    assert!(!events.iter().any(|e| matches!(e, DemuxEvent::Recovered { .. })), "nothing was skipped");
+    assert_eq!(
+        pkts[0].1, b"\x00a1",
+        "the orphan run is dropped, the real packet survives"
+    );
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, DemuxEvent::Recovered { .. })),
+        "nothing was skipped"
+    );
 }
 
 #[test]
@@ -361,7 +406,13 @@ fn unterminated_lacing_run_is_a_typed_overrun() {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(&build_page(BOS, 0, 0x1111, 0, &[&id]));
     for seq in 1..=(super::MAX_PACKET_BYTES / 255 + 3) as u32 {
-        let page = build_page(if seq == 1 { 0 } else { CONTINUED }, -1, 0x1111, seq, &[&big]);
+        let page = build_page(
+            if seq == 1 { 0 } else { CONTINUED },
+            -1,
+            0x1111,
+            seq,
+            &[&big],
+        );
         bytes.extend_from_slice(&page);
     }
     let mut ogg = OggDemuxer::new(mem_stream(bytes).unwrap_or_else(|e| unreachable!("{e}")))
@@ -427,8 +478,9 @@ fn skeleton_stream_mints_no_track_and_no_packets() {
 
 #[test]
 fn not_started_and_not_ogg_are_typed() {
-    let mut ogg = OggDemuxer::new(mem_stream(vec![1u8; 64]).unwrap_or_else(|e| unreachable!("{e}")))
-        .unwrap_or_else(|e| unreachable!("{e}"));
+    let mut ogg =
+        OggDemuxer::new(mem_stream(vec![1u8; 64]).unwrap_or_else(|e| unreachable!("{e}")))
+            .unwrap_or_else(|e| unreachable!("{e}"));
     match ogg.next_event() {
         Err(err) => assert_eq!(err.context.code, "demux.ogg.not-started"),
         Ok(_) => unreachable!("start must run first"),
@@ -466,7 +518,11 @@ fn seek_and_reanchor_land_on_the_last_page_before_the_target() {
     // point (pages at granule ≥ 1024), preceded by the discontinuity.
     let (events, err) = drain(&mut ogg);
     assert_eq!(err, None);
-    assert!(events.iter().any(|e| matches!(e, DemuxEvent::Discontinuity)));
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, DemuxEvent::Discontinuity))
+    );
     assert_eq!(packets(&events).len(), 5, "pages at granule 1024..=2048");
 }
 
@@ -476,7 +532,13 @@ fn pool_stays_bounded_and_packets_are_zero_copy_views() {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(&build_page(BOS, 0, 0x1111, 0, &[&id]));
     for i in 0..32u32 {
-        bytes.extend_from_slice(&build_page(0, 256 * i64::from(i), 0x1111, i + 1, &[b"\x00payload"]));
+        bytes.extend_from_slice(&build_page(
+            0,
+            256 * i64::from(i),
+            0x1111,
+            i + 1,
+            &[b"\x00payload"],
+        ));
     }
     let mut ogg = OggDemuxer::new(mem_stream(bytes).unwrap_or_else(|e| unreachable!("{e}")))
         .unwrap_or_else(|e| unreachable!("{e}"));

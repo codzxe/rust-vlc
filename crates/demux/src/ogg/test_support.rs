@@ -34,13 +34,7 @@ pub const EOS: u8 = 0x04;
 /// packet open into the next page — the caller's tool for continued
 /// packets). `granule` of `-1` writes the "no position" value.
 #[must_use]
-pub fn build_page(
-    flags: u8,
-    granule: i64,
-    serial: u32,
-    seq: u32,
-    packets: &[&[u8]],
-) -> Vec<u8> {
+pub fn build_page(flags: u8, granule: i64, serial: u32, seq: u32, packets: &[&[u8]]) -> Vec<u8> {
     let mut segments: Vec<u8> = Vec::new();
     let mut body: Vec<u8> = Vec::new();
     for packet in packets {
@@ -120,7 +114,13 @@ pub fn demo_stream() -> Arc<[u8]> {
     let id = vorbis_id_packet(8_000);
     let mut bytes = Vec::new();
     bytes.extend_from_slice(&build_page(BOS, 0, 0xAA11, 0, &[&id]));
-    bytes.extend_from_slice(&build_page(0, 512, 0xAA11, 1, &[b"\x00audio-a", b"\x00audio-b"]));
+    bytes.extend_from_slice(&build_page(
+        0,
+        512,
+        0xAA11,
+        1,
+        &[b"\x00audio-a", b"\x00audio-b"],
+    ));
     bytes.extend_from_slice(&build_page(EOS, 1024, 0xAA11, 2, &[b"\x00audio-c"]));
     Arc::from(bytes)
 }

@@ -33,6 +33,6 @@
 
 pub mod aiff;
 pub mod avi;
-pub mod ogg;
 pub mod error;
+pub mod ogg;
 pub mod wav;
