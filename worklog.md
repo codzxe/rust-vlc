@@ -8570,3 +8570,16 @@ Stage Summary:
 - R3 registration (Lead merges into the format registry): WAV row → probe: `demux::wav::probe(header)` accepts 12-byte head where magic ∈ {RIFF, RF64, BW64} and form == WAVE; extensions: `["wav","wave","rf64","bw64"]` (`demux::wav::EXTENSIONS`); constructs `WavDemuxer::new(Box<dyn SourceStream>)`; capabilities: audio-only, codecs pcm_s8..s64/u8/f32/f64 (LE), adpcm_ms (0x0002), adpcm_ima_wav (0x0011), flac-in-WAV (0xFFFE+FLAC GUID — frames() None, no packet stamps, [PROPOSAL] frame alignment belongs to 5.A1); seek: `Fast { indexed: false }`; metadata: LIST/INFO via `info()`. AIFF row → probe: `demux::aiff::probe(header)` accepts `FORM <sz> AIFF|AIFC`; extensions: `["aiff","aif","aifc"]` (`demux::aiff::EXTENSIONS`); constructs `AiffDemuxer::new(Box<dyn SourceStream>)`; capabilities: audio-only, pcm_s8/16/24/32 (BE), aifc `NONE`/`sowt` (u8/LE-pass-through), COMM rate = 80-bit extended float (non-normalizable rates → typed structural refusal); seek: `Fast { indexed: false }`; MARK/INST parsed skip-tolerantly (advisory).
 - Zero-copy notes for 5.X2: both demuxers frame PCM by arithmetic (no per-packet parse); payload lives in a 2-slot `PayloadSlots` pool of `MAX_PACKET_BYTES` = 64 KiB (pool_bytes() reports live footprint) — per-packet steady-state allocations are zero (mirrors the AVI zero-alloc suite; a wav/aiff row in tests/zero_alloc_read_chain.rs is the natural 5.X2 extension). SSND `offset` skip is a single seek, not a read-and-discard.
 
+
+---
+Task ID: 5.A3 (Lead-recorded)
+Agent: P5-A3 core session + P5-A3-R finisher (both cut by tool deadlines before worklog append)
+Task: MP3/MP2 decoder via symphonia-bundle-mp3 0.6.1 + ID3v2/Xing/VBRI + gapless.
+
+Work Log:
+- Commits on wip/p5-a3: 2a23ed1 (dep admission + purity record, C5 order followed), b8a138c (core: header/ID3v2.2-2.4/Xing/VBRI/CBR+VBR seek/gapless window, 34 unit tests), fdf9e21 (completion: corpus differential, fuzz-lite, fixtures).
+- Lead verification on merged branch (this entry): cargo test -p codecs --all-features = 251 passed / 0 failed (MP3 added ~43 incl. xing-frame-count-inconsistency typed, gapless-window latency shift/clamp, taxonomy, fuzz survival); clippy -p codecs -D warnings clean; fixtures 6 committed.
+- Corpus differential details were reported in the finisher's final report but its worklog append was lost to the deadline; numbers recoverable from test run logs. [VERIFY-P2] The corpus MP3 PCM-MD5 table should be re-printed into the record by 5.Q2-V's audit.
+
+Stage Summary:
+- 5.A3 landed: mp3+mp2 probe/decode/seek + gapless. Symphonia purity record at docs/dependencies/records/symphonia-mp3-0.6.1.md. R3 snippet: id=mp3 (family mp3+mp2), capabilities=[probe,decode,seek], feature=decoders, gapless=encoder-delay/padding trim via Info/LAME tag.
