@@ -9555,3 +9555,29 @@ Work Log:
 
 Stage Summary:
 - Phase 5: 35 of 47 cards landed. Remaining: E1/E2 AV1, F2/G1/G2 (H264/HEVC decode-path + parser), H1/H2-I (MPEG12), K1 TrueHD, K4-I AC3/DTS, N1-N3 bitmap subs (conditional), P1-I/P2-I decisions, Q1 fuzz sweep, Q2-V audit, R1 perf, R2-V gate, X1/X2 audits. PUSHING NOW.
+Task ID: 5.H1
+Agent: P5-H1F (finisher — prior session died post-write, pre-record-doc; this session assessed 4 uncommitted files complete, authored the missing record doc, gated, committed)
+Task: MPEG-1/2 video sequence layer self-build (NO decode claim): start codes, sequence/GOP/picture/slice headers + MPEG-2 extension family; codec-api descriptor gate + typed Unsupported decode; honest record docs/formats/video-mpeg12.md; ffprobe differential on fixtures + corpus mpeg2video lanes; +FB fuzz-lite.
+
+Work Log:
+- LANDED (prior session, assessed complete this session): crates/codecs/src/video/mpeg12/{mod,startcode,bitreader,headers,facts,error}.rs (~2.3k lines): `00 00 01` scanner (Table 6-1 classification, zero-copy units); MSB-first uimsbf/bslbf reader; sequence_header (w/h/aspect/framerate-table/bitrate/vbv/quant-matrix flags), GOP (timecode/closed/broken), picture_header (temporal-ref/type/vbv-delay), slice_header (quant/intra-addr + Table B-1 macroblock-addressing VLC), sequence_extension (profile-and-level, chroma 420/422/444, progressive, frame-rate ext, 12-bit size ext), picture_coding_extension. `Mpeg12Facts::scan`: one-pass, total, damage-tolerant walk (bad headers counted, walk continues at next start code; no start codes => empty fact set, never a guess); mid-stream sequence_header change flagged (`sequence_changes`). Decode = typed `ErrorKind::Unsupported` @ `mpeg12.decode.blocked` for mpeg1video/mpeg2video (error::decode_refusal) — facts flow, pixels refuse loudly.
+- THIS SESSION: (1) verified all 4 files compile+pass; (2) authored the MISSING record doc docs/formats/video-mpeg12.md (verdict: sequence layer self-built + decode BLOCKED — `oxideav-mpeg12video` 0.0.13 (2026-04-18, MIT, 2,427 dl, tarball 124 .rs/0 C/no build.rs, claims full decode+encode) and `na_mpeg2_decoder` 0.1.0 (2026-10-08, 72 dl) both pre-1.0 below admission bar; libmpeg2=C forbidden; HONESTY FLAG: this session had NO crates.io egress — candidate list dated 2026-10-19 feasibility [RV], Phase-6 spike must re-verify first-step-regardless; gaps recorded: no macroblock decode, AVI/MP4 corpus lanes extracted via ffmpeg -c copy because landed AVI demuxer is MJPG-only v0 + MP4 lacks OTI refinement — TS lane runs through our TsDemuxer PES seam, PS lanes through our PsDemuxer; display/quant-matrix extensions counted not parsed; fuzz-lite in-tree, fuzz_codec_mpeg2 deferred to admission).
+- DIFFERENTIAL (ffprobe 7.1.5 oracle, same build that authored fixtures):
+  | lane | size | profile@level | chroma | rate | interlaced | verdict |
+  |---|---|---|---|---|---|---|
+  | mpeg2-main-ipb.m2v | 320x240 | Main@8 | yuv420p | 25/1 | prog | PASS (I+P+B census) |
+  | mpeg2-422.m2v | 192x108 | 4:2:2@5 (escaped 0x85) | yuv422p | 25/1 | prog | PASS |
+  | mpeg2-interlaced-ntsc.m2v | 192x108 | Main@8 | yuv420p | 30000/1001 | ILACE | PASS |
+  | mpeg1-ipb.m1v | 320x240 | — (MPEG-1) | yuv420p | 25/1 | prog | PASS |
+  | mpeg2-in-ts.ts (our TsDemuxer+PES seam) | 192x108 | Main@8 | yuv420p | 25/1 | prog | PASS |
+  | ps-mp2-video-audio.mpg (our PsDemuxer) | 160x120 | Main@8 | yuv420p | 25/1 | prog | PASS |
+  | ps-vob-ac3.vob (our PsDemuxer) | 720x480 | Main@8 | yuv420p | 24000/1001 | prog | PASS |
+  | corpus 0065-avi-video.avi | 480x360 | 4:2:2@5 | yuv422p | 25/1 | prog | PASS |
+  | corpus 0128-param-midchange.mp4 | 320x240 | Main@8 | yuv420p | 12000/1001 | prog | PASS (seq_changes=true, 4 seqs) |
+  | corpus 0130-avi-video.avi | 320x240 | 4:2:2@5 | yuv422p | 2/1 | prog | PASS |
+  10/10 PASS, 0 FAIL. +FB fuzz-lite: 8k rounds random+mutated+truncated, scan total, counters monotone.
+- GATES (worktree, CARGO_TARGET_DIR=$PWD/target): cargo fmt -p codecs CLEAN; cargo clippy -p codecs --all-targets --all-features -- -D warnings CLEAN; cargo test -p codecs --all-features = 380 lib + 43 integration suites 0 FAILED (incl. mpeg12_corpus: 3/3 tests, 10/10 rows).
+- R3 SNIPPET (Lead merge point): ownership zone `crates/codecs/src/video/mpeg12/**` + `crates/codecs/tests/mpeg12_corpus.rs` + `tests/fixtures/mpeg12/*`; shared-file edit delivered = one line `pub mod mpeg12;` in crates/codecs/src/video/mod.rs; NO Cargo.toml/feature-list change (std-only, zero new deps); codec-api consumed as-is (EngineError/ErrorKind::Unsupported — R4 satisfied, no interface change); feature-matrix `codec-video-mpeg1-2` evidence backfill PROPOSED in the record doc (matrix is Lead-owned R2, not edited).
+
+Stage Summary:
+- D-10 MEASURE? — YES: 10-lane ffprobe differential (above, all PASS), full codecs suite green, fuzz-lite 8k rounds total. NOT measured? — crates.io candidate freshness (no egress this session; 2026-10-19 data flagged in the record), any decode (none exists — honest), AVI/MP4 lanes through our own demuxers (recorded gap). What breaks? — nothing known: gates green, scan is total (no panic on any bytes), refusal is typed not silent. Who hits it first? — users opening DVD/DVB/legacy content get full track facts + typed mpeg12.decode.blocked instead of pixels; the Phase-6 admission spike hits the re-verify-first requirement and consumes the sequence layer as its front half.

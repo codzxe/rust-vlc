@@ -7,3 +7,4 @@
 
 pub mod h264;
 pub mod mjpeg;
+pub mod mpeg12;
