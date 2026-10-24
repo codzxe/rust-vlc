@@ -8986,3 +8986,17 @@ Work Log:
 
 Stage Summary:
 - 5.F1b COMPLETE on branch wip/p5-f1b, gated + committed, ready for Lead merge (meets F1a's SliceSpsInfo/SlicePpsInfo seam). NO software-decode claim.
+
+---
+Task ID: 5.W4-CLOSE (Lead)
+Agent: Lead
+Task: Wave 4 harvest + merge + gate.
+
+Work Log:
+- 9 of 10 wave-4 cards landed and MERGED to main: 5.C1 (MP4 complete — 298/0/4 + corpus 30/30 incl. cover-art/attached-pic synthesis + real chapter-trak packet-leak fix), 5.B2 (Vorbis 278/0, honest reference-data correction), 5.C2a (AAC-LC 271/0/13, max-delta 1 LSB), 5.C2b (ADTS/ADIF 331/0, resync truncation bug fixed), 5.D2a (attachments+chapters 315/0, 34-lane differential, ns-vs-ticks spec fix), 5.D2b (editions+tags 316/0/4, 31/31), 5.F1a (H264 NAL/SPS/PPS 273/0, corpus 19/19), 5.F1b (slice+SEI 266/0, forbidden_zero_bit bug fixed), 5.J2a (ADPCM MS+IMA, corpus bit-exact).
+- 5.J2b: 3 dispatches failed to spawn (0 activity); retry queued into wave 5.
+- Merge surgery: worklog union-resolves; demux lib.rs + audio/mod.rs unions (one E0753 doc-comment fix); codecs Cargo.toml union (3 symphonia bundles coexist); Cargo.lock regenerated via cargo check; h264 add/add mod.rs unified (F1a+F1b halves).
+- INFRA: disk hit 100% (parallel worktree target dirs) — cleaned merged worktrees' targets + incremental caches, freed 5.2G.
+
+Stage Summary:
+- WAVE-4 MERGED TREE: cargo test -p codecs -p demux = 768 passed / 0 failed. Pushing now. Wave 5 (J3a/J3b/H3/I1a/I1b/I2/I3a/I3b/L1/L2 + J2b retry) dispatching.

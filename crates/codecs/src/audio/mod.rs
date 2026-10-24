@@ -21,10 +21,10 @@
 //! (doc 01 §2.5(a)); today the modules ship unconditionally.
 
 pub mod aac;
-//! [`adpcm`] is the in-house MS + IMA-WAV ADPCM pair (card 5.J2a,
-//! doc 04 §3.1 rows "ADPCM MS"/"ADPCM IMA"). Per-codec Cargo features
-//! arrive with the registration card (doc 01 §2.5(a)); today the
-//! modules ship unconditionally.
+// [`adpcm`] is the in-house MS + IMA-WAV ADPCM pair (card 5.J2a,
+// doc 04 §3.1 rows "ADPCM MS"/"ADPCM IMA"). Per-codec Cargo features
+// arrive with the registration card (doc 01 §2.5(a)); today the
+// modules ship unconditionally.
 
 pub mod adpcm;
 pub mod flac;
