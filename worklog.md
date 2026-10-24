@@ -9746,3 +9746,22 @@ Work Log:
 
 Stage Summary:
 - Phase 5: 37 of 47 parent cards landed (E2 AV1-record, G2 HEVC-integration, N1-N3 bitmap subs, Q1 fuzz sweep, Q2-V audit, R1 perf, R2-V gate, X1/X2 audits remain + K1 pending-unblock). PUSHING NOW.
+
+---
+Task ID: 5.Q1 (fuzz-target sweep completion)
+Agent: P5-Q1F
+D-10. Runtime: ~7 min.
+
+Task: Verify/complete/gate/commit the Phase-5 fuzz sweep left uncommitted on 8de20fa.
+
+Work Log:
+- Surveyed 46 uncommitted files: 15 modified (in-crate fuzz.rs harnesses — mostly let-chain refactors + alphabetical `pub mod fuzz` ordering; fuzz/Cargo.toml +205 lines of [[bin]] declarations; README registry; full_gate.sh wiring) + 31 untracked (28 new fuzz_targets/*.rs shims, fuzz/corpus/ seeds, scripts/fuzz_registry_check.sh).
+- Registry gate: scripts/fuzz_registry_check.sh PASS — "fuzz-registry: CLEAN — 32 targets, diff empty, corpora present". Cross-checks 4 sets (manifest bins / target files / README rows / in-crate harness fns via rg) + non-empty seed corpus per target. Wired into scripts/full_gate.sh as gate #6.
+- Seeds: 32 corpus dirs, 1.4 MB total, largest single seed 48 KB — small, committed.
+- Tests: cargo test -p codecs -p demux -p subtitles -p playlists --all-features = 1393 passed / 0 failed (includes the in-crate harness survival suites: committed corpora + systematic truncation/byte-flip/adversarial-geometry mutations).
+- Gates: cargo fmt --check clean on 4 crates + rustfmt clean on shims; clippy -D warnings clean on 4 crates.
+- WHAT RAN vs WHAT DIDN'T (honest): cargo-fuzz is NOT installed in this sandbox ("no such command: `fuzz`") — so NO libFuzzer runs, NO sanitizer/coverage campaigns executed here. What actually ran: (a) every in-crate harness via cargo test over committed corpora + mutation arms, (b) the scripted registry-vs-implementation diff check (exit 0, empty diff). CI wiring for real cargo-fuzz campaigns is documented in fuzz/README.md (install + per-target commands, incl. ASan shape), pending a machine with cargo-fuzz + nightly.
+- INFRA NOTE: rootfs hit 100% (p5-e2 worktree target = 3.0G, actively building — untouched). Freed space by rm -rf of own target + lean rebuild (CARGO_INCREMENTAL=0, test/dev debug=0 with debug-assertions kept ON — assertions preserved, only DWARF dropped). p5-e2's `cargo clean` quirk ("Removed 0 files") noted; manual rm -rf used on own target only.
+
+Stage Summary:
+- Phase-5 fuzz sweep COMPLETE: every Phase-5 parser registered per doc 04 §8.5 naming (fuzz_<crate>_<format>), 32 targets, seeds committed, registry diff EMPTY, gates green. Committed as one feat(fuzz) commit.

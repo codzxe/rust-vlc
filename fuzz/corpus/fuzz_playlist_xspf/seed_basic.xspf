@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<playlist version="1" xmlns="http://xspf.org/ns/0/">
+  <title>My &amp; Your Playlist</title>
+  <trackList>
+    <track>
+      <location>file:///music/song1.mp3</location>
+      <title>Song &amp; Dance</title>
+      <creator>Artist &lt;One&gt;</creator>
+      <annotation>First &#38; foremost</annotation>
+      <duration>213000</duration>
+    </track>
+    <track>
+      <location>http://example.com/stream</location>
+      <creator>&quot;Quoted&quot; &#x27;name&#x27;</creator>
+      <duration>0</duration>
+    </track>
+    <track>
+      <location>../relative/track03.ogg</location>
+      <title>Unicode: &#233;tude</title>
+      <duration>321500</duration>
+    </track>
+  </trackList>
+</playlist>

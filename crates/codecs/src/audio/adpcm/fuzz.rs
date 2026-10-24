@@ -153,7 +153,7 @@ mod tests {
             let channels = u16::from_le_bytes([skeleton[2], skeleton[3]]);
             let rate = u32::from_le_bytes([skeleton[4], skeleton[5], skeleton[6], skeleton[7]]);
             assert!((1..=2).contains(&channels));
-            assert!(rate >= 8_000 && rate <= 48_000);
+            assert!((8_000..=48_000).contains(&rate));
         }
     }
 }

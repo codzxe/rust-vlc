@@ -43,7 +43,6 @@ pub const FUZZ_NAL_BUDGET: usize = 4096;
 /// never hangs, never allocates beyond input-derived bounds — by
 /// construction of the bounded parser paths.
 pub fn fuzz_codec_hevc(data: &[u8]) {
-
     // Pass 1 + 2: the Annex-B walk with per-NAL parameter-set parses.
     let nals = super::parser::nal::annexb_nals(data);
     let mut rbsp = Vec::new();

@@ -47,6 +47,8 @@ libfuzzer-sys = "0.4.13"
 # bodies. Path edges mirror the workspace-internal dependency style.
 codecs = { path = "../crates/codecs" }
 demux = { path = "../crates/demux" }
+subtitles = { path = "../crates/subtitles" }
+playlists = { path = "../crates/playlists" }
 
 # Release-mode fuzzing keeps overflow checks: integer overflow in a
 # decoder walking attacker bytes is a finding, not noise. (cargo-fuzz
@@ -80,3 +82,206 @@ bench = false
 # it's not") because the parent Lumen workspace's member globs do not
 # include it and its root manifest is Lead-owned.
 [workspace]
+
+[[bin]]
+name = "fuzz_demux_wav"
+path = "fuzz_targets/fuzz_demux_wav.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_demux_aiff"
+path = "fuzz_targets/fuzz_demux_aiff.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_demux_ivf"
+path = "fuzz_targets/fuzz_demux_ivf.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_demux_mp4"
+path = "fuzz_targets/fuzz_demux_mp4.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_demux_ogg"
+path = "fuzz_targets/fuzz_demux_ogg.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_demux_ps"
+path = "fuzz_targets/fuzz_demux_ps.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_demux_adts"
+path = "fuzz_targets/fuzz_demux_adts.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_demux_mkv"
+path = "fuzz_targets/fuzz_demux_mkv.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_demux_ts"
+path = "fuzz_targets/fuzz_demux_ts.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_demux_es"
+path = "fuzz_targets/fuzz_demux_es.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_demux_mp3stream"
+path = "fuzz_targets/fuzz_demux_mp3stream.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_demux_flac"
+path = "fuzz_targets/fuzz_demux_flac.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_codec_flac"
+path = "fuzz_targets/fuzz_codec_flac.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_codec_mp3"
+path = "fuzz_targets/fuzz_codec_mp3.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_codec_mp2"
+path = "fuzz_targets/fuzz_codec_mp2.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_codec_vorbis"
+path = "fuzz_targets/fuzz_codec_vorbis.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_codec_aac"
+path = "fuzz_targets/fuzz_codec_aac.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_codec_alac"
+path = "fuzz_targets/fuzz_codec_alac.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_codec_adpcm"
+path = "fuzz_targets/fuzz_codec_adpcm.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_codec_av1"
+path = "fuzz_targets/fuzz_codec_av1.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_codec_h264"
+path = "fuzz_targets/fuzz_codec_h264.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_codec_hevc"
+path = "fuzz_targets/fuzz_codec_hevc.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_sub_srt"
+path = "fuzz_targets/fuzz_sub_srt.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_sub_ass"
+path = "fuzz_targets/fuzz_sub_ass.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_sub_vtt"
+path = "fuzz_targets/fuzz_sub_vtt.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_playlist_m3u"
+path = "fuzz_targets/fuzz_playlist_m3u.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_playlist_pls"
+path = "fuzz_targets/fuzz_playlist_pls.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_playlist_xspf"
+path = "fuzz_targets/fuzz_playlist_xspf.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_playlist_cue"
+path = "fuzz_targets/fuzz_playlist_cue.rs"
+test = false
+doc = false
+bench = false

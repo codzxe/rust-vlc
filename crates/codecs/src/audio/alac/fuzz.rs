@@ -72,11 +72,7 @@ pub fn fuzz_codec_alac(data: &[u8]) {
         return;
     };
     let mut decoder = AlacDecoder::new();
-    let cookie = if data.len() >= 36 {
-        &data[..36]
-    } else {
-        data
-    };
+    let cookie = if data.len() >= 36 { &data[..36] } else { data };
     if decoder
         .configure(&DecoderConfig::new(
             descriptor,

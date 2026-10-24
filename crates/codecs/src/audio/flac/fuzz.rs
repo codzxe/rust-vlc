@@ -66,18 +66,16 @@ impl FrameSink for CountingSink {
 /// resolver over the walked layout. Same survival contract; the
 /// decode surfaces stay with [`fuzz_codec_flac`].
 pub fn fuzz_demux_flac(data: &[u8]) {
-    if let Ok(layout) = parse_stream(data) {
-        if let Some(total) = layout.stream_info.total_samples {
-            let target = total / 2;
-            if let Ok(planner) = super::seek::planner(
-                data,
-                &layout.stream_info,
-                layout.seek_index.as_ref(),
-                layout.frames_start,
-            ) {
-                let _ = planner.resolve(target);
-            }
-        }
+    if let Ok(layout) = parse_stream(data)
+        && let Some(total) = layout.stream_info.total_samples
+        && let Ok(planner) = super::seek::planner(
+            data,
+            &layout.stream_info,
+            layout.seek_index.as_ref(),
+            layout.frames_start,
+        )
+    {
+        let _ = planner.resolve(total / 2);
     }
 }
 

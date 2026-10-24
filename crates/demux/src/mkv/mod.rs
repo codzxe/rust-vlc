@@ -38,8 +38,8 @@ pub mod cues;
 pub mod ebml;
 pub mod editions;
 pub mod error;
-pub mod header;
 pub mod fuzz;
+pub mod header;
 pub mod tags;
 
 use std::collections::HashMap;

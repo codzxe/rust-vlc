@@ -54,8 +54,12 @@ mod tests {
         let mut hostile = b"[Events]\nFormat: Layer, Start, End, Style, Text\n".to_vec();
         for i in 0..64u32 {
             hostile.extend_from_slice(
-                format!("Dialogue: 0,0:0:{i:02}.{:02},0:0:{:02}.00,Default,,0,0,0,,", i % 60, i % 60)
-                    .as_bytes(),
+                format!(
+                    "Dialogue: 0,0:0:{i:02}.{:02},0:0:{:02}.00,Default,,0,0,0,,",
+                    i % 60,
+                    i % 60
+                )
+                .as_bytes(),
             );
         }
         fuzz_sub_ass(&hostile);

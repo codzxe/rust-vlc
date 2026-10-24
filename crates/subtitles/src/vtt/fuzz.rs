@@ -49,8 +49,13 @@ mod tests {
         let mut hostile = b"WEBVTT\n\n".to_vec();
         for i in 0..64u32 {
             hostile.extend_from_slice(
-                format!("00:00:{:02}.{:03} --> 00:00:{:02}.000 align:start line:0%\n", i % 60, i, i % 60)
-                    .as_bytes(),
+                format!(
+                    "00:00:{:02}.{:03} --> 00:00:{:02}.000 align:start line:0%\n",
+                    i % 60,
+                    i,
+                    i % 60
+                )
+                .as_bytes(),
             );
         }
         fuzz_sub_vtt(&hostile);

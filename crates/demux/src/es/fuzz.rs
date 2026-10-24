@@ -40,9 +40,7 @@ pub const FUZZ_EVENT_BUDGET: usize = 200_000;
 
 /// Construct/start/drain one ES lane (the shared body of the annexb
 /// and raw-AAC lanes). Never panics; see the module docs.
-fn drain_lane(
-    opened: Result<impl Demuxer, media_types::EngineError>,
-) {
+fn drain_lane(opened: Result<impl Demuxer, media_types::EngineError>) {
     let Ok(mut demuxer) = opened else {
         return;
     };

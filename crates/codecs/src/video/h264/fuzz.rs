@@ -47,7 +47,6 @@ pub const FUZZ_NAL_BUDGET: usize = 4096;
 /// never hangs, never allocates beyond input-derived bounds — by
 /// construction of the bounded parser paths.
 pub fn fuzz_codec_h264(data: &[u8]) {
-
     // Pass 1 + 2: the Annex-B walk with per-NAL parameter-set/SEI
     // parses (reusable RBSP buffer — steady state performs no
     // allocation per NAL).
