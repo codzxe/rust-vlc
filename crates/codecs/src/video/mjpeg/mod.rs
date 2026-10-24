@@ -36,8 +36,31 @@
 //! progressive JPEG (SOF2), extended/lossless/arithmetic coding,
 //! 12-bit precision, 16-bit quant tables, 2-/4-component streams
 //! (CMYK/YCCK), sampling factors 3–4, non-interleaved scans,
-//! spectral-selection scans, field-based (interlaced) MJPEG and the
-//! AVI1 chunk format (doc 04's gap list — the 5.H3 polish card).
+//! spectral-selection scans (doc 04's gap list).
+//!
+//! # Field-based MJPEG / AVI1 (card 5.H3)
+//!
+//! The "AVI 1.1" field-based extension (OpenDML AVI M-JPEG, Motion
+//! JPEG DIB) is honored: an APP0 segment carrying `AVI1\0` + one
+//! polarity byte classifies the frame — see [`FieldPolarity`].
+//! `Interleaved` frames (both fields, lines already interleaved — the
+//! polarity-2 form interlaced content uses) decode as complete
+//! pictures with `interlaced` set on the emitted frame, the sample
+//! rows passed through in stream order (field 1 = even lines first,
+//! so top-field-first content stays top-field-first: the decode is
+//! order-preserving by construction). `FirstField`/`SecondField`
+//! frames are single-field pictures: the SOF height *is* the field
+//! height, so each decodes as its own half-height frame with
+//! `interlaced` set — weaving a field pair into one full picture is
+//! presentation-layer compositing (the `il`-filter class of
+//! operation), deliberately outside a stateless per-packet decoder;
+//! the polarity is surfaced on [`DecodedFrame`] for the layer that
+//! owns it. Measured consequence (worklog 5.H3): ffmpeg 7.1's mjpeg
+//! codec neither writes nor parses AVI1 (no `AVI1` byte sequence
+//! anywhere in libavcodec), so interlaced-content streams generated
+//! the ffmpeg way (`-vf tinterlace -c:v mjpeg`) are plain JFIF
+//! frames — the differential pins those, and the AVI1 paths are
+//! pinned by the hand-built unit suite instead.
 //!
 //! # Damage model (card 2.B4 / doc 03 §4.5(d); audit M9 / ED-FIX-4)
 //!
@@ -96,6 +119,9 @@ pub(crate) mod idct;
 pub(crate) mod idct_simd;
 pub(crate) mod parser;
 
+mod field;
+pub use field::FieldPolarity;
+
 use codec_api::prelude::*;
 use decoder::{ConcealCause, OutputFormat};
 use media_types::frame::{ColorDescription, ColorMatrix, ColorPrimaries, ColorRange, VideoFrame};
@@ -134,6 +160,7 @@ pub fn decode_image(jpeg: &[u8]) -> Result<DecodedFrame, EngineError> {
             ConcealCause::InvalidCode => ConcealReason::InvalidCode,
             ConcealCause::RestartMismatch => ConcealReason::RestartMismatch,
         }),
+        field_polarity: image.field_polarity,
     })
 }
 
@@ -178,6 +205,9 @@ pub struct DecodedFrame {
     pub concealed: bool,
     /// The damage class when `concealed`.
     pub conceal_reason: Option<ConcealReason>,
+    /// AVI1 field polarity when the frame carried the marker (module
+    /// docs: field-based MJPEG handling).
+    pub field_polarity: Option<FieldPolarity>,
 }
 
 /// The JFIF colorimetry default (see module docs).
@@ -356,7 +386,7 @@ impl Decoder for MjpegDecoder {
             data: media_types::frame::FrameStorage::Cpu(data),
             pts: packet.pts,
             color: JFIF_COLOR,
-            interlaced: false,
+            interlaced: meta.field_polarity.is_some(),
             generation: packet.generation,
         });
         out.accept(frame)?;

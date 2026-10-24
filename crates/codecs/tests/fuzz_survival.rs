@@ -171,3 +171,85 @@ fn adversarial_geometries_survive_the_harness() {
     oversize.extend_from_slice(&[0x00, 0xff, 0xd9]);
     fuzz_codec_mjpeg(&oversize);
 }
+
+#[test]
+fn avi1_field_marker_mutations_survive_the_harness() {
+    // Card 5.H3 +FB: the new AVI1 APP0 parse path under systematic
+    // mutation — every polarity byte (valid, invalid, at the segment
+    // cut), every truncation of the inserted marker, marker-in-odd
+    // places, and RST-marker damage inside a restart-interval stream.
+    // The contract is the harness's: absence of panic; outcomes are
+    // typed errors, concealed frames, or clean field decodes.
+    let bytes = match fixture_bytes("generated/valid/avi_mjpeg_pcm.avi") {
+        Ok(b) => b,
+        Err(e) => unreachable!("{e}"),
+    };
+    let frames = match extract_avi_mjpeg_frames(&bytes) {
+        Ok(f) => f,
+        Err(e) => unreachable!("{e}"),
+    };
+    let frame = &frames[0];
+
+    let with_avi1 = |polarity: Option<u8>, cut: usize| -> Vec<u8> {
+        let mut out = Vec::with_capacity(frame.len() + 12);
+        out.extend_from_slice(&frame[..2]);
+        out.extend_from_slice(&[0xff, 0xe0, 0x00, 0x08]);
+        out.extend_from_slice(b"AVI1\0");
+        if let Some(p) = polarity {
+            out.push(p);
+        }
+        out.extend_from_slice(&frame[2..]);
+        out.truncate(out.len() - cut);
+        out
+    };
+    // Every polarity value 0..=255 (the 3 valid ones, the damage
+    // band beyond, and the stuffed-FF/marker-colliding values).
+    for polarity in 0u8..=255 {
+        fuzz_codec_mjpeg(&with_avi1(Some(polarity), 0));
+    }
+    // Marker-only (polarity byte absent) and every truncation of the
+    // tail after it.
+    fuzz_codec_mjpeg(&with_avi1(None, 0));
+    for cut in 1..frame.len().min(4096) {
+        fuzz_codec_mjpeg(&with_avi1(Some(2), cut));
+    }
+    // A second AVI1 marker later in the stream (damage: the walk
+    // keeps the last one), and AVI1 spliced mid-entropy.
+    let mut doubled = with_avi1(Some(0), 0);
+    let mid = doubled.len() / 2;
+    let mut spliced = doubled.split_off(mid);
+    doubled.extend_from_slice(&[0xff, 0xe0, 0x00, 0x08]);
+    doubled.extend_from_slice(b"AVI1\0");
+    doubled.push(2);
+    doubled.append(&mut spliced);
+    fuzz_codec_mjpeg(&doubled);
+
+    // Restart-interval damage: a DRI + RST-bearing stream (the scan
+    // walk's restart path) with each RST marker renumbered, dropped,
+    // or turned into a fill run.
+    let mut rst = Vec::with_capacity(frame.len() + 32);
+    rst.extend_from_slice(&frame[..2]);
+    rst.extend_from_slice(&[0xff, 0xdd, 0x00, 0x04, 0x00, 0x01]);
+    rst.extend_from_slice(&frame[2..]);
+    for damage in [
+        0u8,  // RST0 where RSTm is expected (mismatch class)
+        1,    // correct successor
+        7,    // wrong number
+        0xff, // fill byte before the next marker
+    ] {
+        let mut damaged = rst.clone();
+        // Smash the first entropy-region FF after offset 3 with the
+        // damage byte (found by scan — the corpus frame is stuffed,
+        // so FF bytes exist only at markers).
+        let hit = (3..damaged.len() - 1).find(|&i| damaged[i] == 0xff && damaged[i + 1] != 0x00);
+        if let Some(i) = hit {
+            damaged[i + 1] = damage;
+        }
+        fuzz_codec_mjpeg(&damaged);
+        fuzz_codec_mjpeg(&{
+            let mut truncated = damaged.clone();
+            truncated.truncate(truncated.len() / 2);
+            truncated
+        });
+    }
+}
