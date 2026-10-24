@@ -201,10 +201,7 @@ impl SeqParameterSet {
     ///
     /// # Errors
     /// As [`SeqParameterSet::parse`].
-    pub fn parse_with_buffer(
-        nal: &[u8],
-        rbsp: &mut Vec<u8>,
-    ) -> Result<SeqParameterSet, HevcError> {
+    pub fn parse_with_buffer(nal: &[u8], rbsp: &mut Vec<u8>) -> Result<SeqParameterSet, HevcError> {
         let (header, payload) = NalHeader::split(nal)?;
         if header.unit_type != NalUnitType::SpsNut {
             return Err(HevcError::Invalid {
@@ -227,14 +224,15 @@ impl SeqParameterSet {
 
         let seq_parameter_set_id = bounded_ue(r, "sps_seq_parameter_set_id", 15)? as u8;
         let chroma_format_idc = bounded_ue(r, "chroma_format_idc", 3)? as u8;
-        let chroma_format = ChromaFormat::from_idc(chroma_format_idc).ok_or(HevcError::Invalid {
-            code: "hevc.sps.chroma_format",
-        })?;
-        let separate_colour_plane =
-            chroma_format_idc == 3 && r.bit()? == 1;
+        let chroma_format =
+            ChromaFormat::from_idc(chroma_format_idc).ok_or(HevcError::Invalid {
+                code: "hevc.sps.chroma_format",
+            })?;
+        let separate_colour_plane = chroma_format_idc == 3 && r.bit()? == 1;
 
         let pic_width_in_luma_samples = bounded_ue(r, "pic_width_in_luma_samples", 65_535)? as u32;
-        let pic_height_in_luma_samples = bounded_ue(r, "pic_height_in_luma_samples", 65_535)? as u32;
+        let pic_height_in_luma_samples =
+            bounded_ue(r, "pic_height_in_luma_samples", 65_535)? as u32;
         let mut conf_win = (0u32, 0u32, 0u32, 0u32);
         if r.bit()? == 1 {
             conf_win = (
@@ -457,9 +455,11 @@ fn skip_st_ref_pic_set(
                     code: "hevc.rps.ref_idx",
                 })?;
         }
-        let ref_deltas = *num_delta_pocs.get(ref_idx as usize).ok_or(HevcError::Invalid {
-            code: "hevc.rps.ref_idx",
-        })?;
+        let ref_deltas = *num_delta_pocs
+            .get(ref_idx as usize)
+            .ok_or(HevcError::Invalid {
+                code: "hevc.rps.ref_idx",
+            })?;
         let _delta_rps_sign = r.bit()?;
         let _abs_delta_rps_minus1 = r.ue()?;
         for _ in 0..=ref_deltas {

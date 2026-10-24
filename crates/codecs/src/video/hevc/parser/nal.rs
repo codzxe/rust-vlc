@@ -711,10 +711,7 @@ fn read_u16(bytes: &[u8], pos: &mut usize) -> Result<u16, HevcError> {
 }
 
 /// One `u16`-length-prefixed NAL inside an `hvcC` record.
-fn read_counted_nal<'a>(
-    bytes: &'a [u8],
-    pos: &mut usize,
-) -> Result<&'a [u8], HevcError> {
+fn read_counted_nal<'a>(bytes: &'a [u8], pos: &mut usize) -> Result<&'a [u8], HevcError> {
     let len = usize::from(read_u16(bytes, pos)?);
     if len == 0 || bytes.len() < *pos + len {
         if len == 0 {
@@ -830,14 +827,22 @@ impl<'a> BitReader<'a> {
         }
     }
 
-    /// Is there at least one more `1` bit in the unread data (the
-    /// `more_rbsp_data()` predicate, §7.2)?
+    /// Is there more RBSP data before the `rbsp_trailing_bits()`?
+    /// True iff at least two `1` bits remain unread: the stop bit is
+    /// the *last* `1` in the RBSP (§7.2), so a lone remaining `1` is
+    /// exactly the trailing bits and not data. (This is stricter than
+    /// a naive "any 1 bit" scan, which would count the stop bit as
+    /// data — noted for the h264 sibling card's identical helper.)
     #[must_use]
     pub fn more_rbsp_data(&self) -> bool {
+        let mut ones = 0u32;
         let mut i = self.bit_pos;
         while i < self.data.len() * 8 {
             if (self.data[i / 8] >> (7 - (i % 8))) & 1 == 1 {
-                return true;
+                ones += 1;
+                if ones >= 2 {
+                    return true;
+                }
             }
             i += 1;
         }
@@ -882,5 +887,631 @@ impl<'a> BitReader<'a> {
             });
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+
+    /// MSB-first bit writer for handcrafting syntax (the inverse of
+    /// [`BitReader`]) — shared by every sibling test module.
+    pub(crate) struct Bits {
+        out: Vec<u8>,
+        bit: u8,
+        n: u32,
+    }
+
+    impl Bits {
+        pub(crate) fn new() -> Bits {
+            Bits {
+                out: Vec::new(),
+                bit: 0,
+                n: 0,
+            }
+        }
+
+        pub(crate) fn put(&mut self, n: u32, value: u64) {
+            assert!(
+                n <= 64 && (n == 64 || value < 1u64 << n),
+                "bad put({n}, {value})"
+            );
+            for i in (0..n).rev() {
+                self.bit = (self.bit << 1) | ((value >> i) & 1) as u8;
+                self.n += 1;
+                if self.n == 8 {
+                    self.out.push(self.bit);
+                    self.bit = 0;
+                    self.n = 0;
+                }
+            }
+        }
+
+        pub(crate) fn flag(&mut self, v: bool) {
+            self.put(1, u64::from(v));
+        }
+
+        pub(crate) fn ue(&mut self, v: u64) {
+            let v1 = v + 1;
+            let width = 64 - v1.leading_zeros();
+            self.put(width - 1, 0);
+            self.put(width, v1);
+        }
+
+        pub(crate) fn se(&mut self, v: i64) {
+            let k = if v <= 0 { -2 * v } else { 2 * v - 1 };
+            self.ue(k as u64);
+        }
+
+        /// Finish with `rbsp_trailing_bits` and return the RBSP.
+        pub(crate) fn finish(mut self) -> Vec<u8> {
+            self.flag(true);
+            while self.n != 0 {
+                self.bit <<= 1;
+                self.n += 1;
+                if self.n == 8 {
+                    self.out.push(self.bit);
+                    self.bit = 0;
+                    self.n = 0;
+                }
+            }
+            self.out
+        }
+
+        /// Wrap an RBSP in a NAL unit of the given type (layer 0,
+        /// temporal id 0 → plus1 = 1), no emulation prevention
+        /// (test RBSPs are handcrafted to avoid 00 00 0x runs).
+        pub(crate) fn nal(self, unit_type: u8) -> Vec<u8> {
+            let rbsp = self.finish();
+            let mut nal = vec![(unit_type << 1) & 0x7e, 0x01];
+            nal.extend_from_slice(&rbsp);
+            nal
+        }
+    }
+
+    /// The real 0100-mp4-video.mp4 VPS NAL (x265 4.1, from the
+    /// `hvcC` arrays) — pins the overlapping-escape constraint run.
+    pub(crate) const VPS_0100: [u8; 24] = [
+        0x40, 0x01, 0x0c, 0x01, 0xff, 0xff, 0x01, 0x60, 0x00, 0x00, 0x03, 0x00, 0x90, 0x00, 0x00,
+        0x03, 0x00, 0x00, 0x03, 0x00, 0x5d, 0xba, 0x02, 0x40,
+    ];
+
+    /// The real 0100 SPS NAL (Main / level 93 / 1024x768).
+    pub(crate) const SPS_0100: [u8; 41] = [
+        0x42, 0x01, 0x01, 0x01, 0x60, 0x00, 0x00, 0x03, 0x00, 0x90, 0x00, 0x00, 0x03, 0x00, 0x00,
+        0x03, 0x00, 0x5d, 0xa0, 0x02, 0x00, 0x80, 0x30, 0x16, 0x5b, 0xa4, 0xa4, 0xc2, 0xf0, 0x56,
+        0x80, 0x80, 0x00, 0x00, 0x03, 0x00, 0x80, 0x00, 0x00, 0x0c, 0x04,
+    ];
+
+    /// The real 0100 PPS NAL.
+    pub(crate) const PPS_0100: [u8; 6] = [0x44, 0x01, 0xc0, 0x73, 0xc1, 0x89];
+
+    /// Corpus path lookup (skip-with-msg contract of the wave): the
+    /// `LUMEN_HEVC_CORPUS` env var, else the canonical corpus dir.
+    pub(crate) fn corpus_path(name: &str) -> Option<std::path::PathBuf> {
+        let dir = std::env::var("LUMEN_HEVC_CORPUS")
+            .unwrap_or_else(|_| "/tmp/my-project/corpus-v4/media".to_string());
+        let p = std::path::Path::new(&dir).join(name);
+        if p.exists() { Some(p) } else { None }
+    }
+
+    /// The corpus's splitmix64 (wave convention) for fuzz-lite.
+    pub(crate) fn splitmix64(state: &mut u64) -> u64 {
+        *state = state.wrapping_add(0x9e37_79b9_7f4a_7c15);
+        let mut z = *state;
+        z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+        z ^ (z >> 31)
+    }
+
+    #[test]
+    fn nal_classification_roundtrips_table_7_1() {
+        assert_eq!(NalUnitType::from_id(0), NalUnitType::TrailN);
+        assert_eq!(NalUnitType::from_id(1), NalUnitType::TrailR);
+        assert_eq!(NalUnitType::from_id(9), NalUnitType::RaslR);
+        assert_eq!(NalUnitType::from_id(19), NalUnitType::IdrWRadl);
+        assert_eq!(NalUnitType::from_id(21), NalUnitType::CraNut);
+        assert_eq!(NalUnitType::from_id(32), NalUnitType::VpsNut);
+        assert_eq!(NalUnitType::from_id(33), NalUnitType::SpsNut);
+        assert_eq!(NalUnitType::from_id(34), NalUnitType::PpsNut);
+        assert_eq!(NalUnitType::from_id(39), NalUnitType::SeiPrefix);
+        assert_eq!(NalUnitType::from_id(13), NalUnitType::Reserved(13));
+        assert_eq!(NalUnitType::from_id(22), NalUnitType::Reserved(22));
+        assert_eq!(NalUnitType::from_id(45), NalUnitType::Reserved(45));
+        assert_eq!(NalUnitType::from_id(48), NalUnitType::Unspecified(48));
+        assert_eq!(NalUnitType::from_id(63), NalUnitType::Unspecified(63));
+        for id in 0u8..=63 {
+            assert_eq!(NalUnitType::from_id(id).id(), id);
+        }
+        assert!(NalUnitType::from_id(16).is_irap());
+        assert!(NalUnitType::from_id(23).is_irap());
+        assert!(!NalUnitType::from_id(24).is_irap());
+        assert!(NalUnitType::from_id(21).is_vcl());
+        assert!(!NalUnitType::from_id(32).is_vcl());
+    }
+
+    #[test]
+    fn header_split_decodes_two_byte_geometry() {
+        let (h, payload) =
+            NalHeader::split(&[0x40, 0x01, 0xaa]).unwrap_or_else(|e| unreachable!("{e}"));
+        assert_eq!(h.unit_type, NalUnitType::VpsNut);
+        assert_eq!(h.layer_id, 0);
+        assert_eq!(h.temporal_id_plus1, 1);
+        assert_eq!(payload, &[0xaa]);
+        // Type 33 (SPS) with layer 33 and tid+1 7: b0 = 0b100_0011,
+        // b1 = 0b00001_111 → layer 0b100001, tid 7.
+        let (h, _) = NalHeader::split(&[0x43, 0x0f]).unwrap_or_else(|e| unreachable!("{e}"));
+        assert_eq!(h.unit_type, NalUnitType::SpsNut);
+        assert_eq!(h.layer_id, 33);
+        assert_eq!(h.temporal_id_plus1, 7);
+        assert_eq!(
+            NalHeader::split(&[0x40]),
+            Err(HevcError::Truncated { needed: 2, have: 1 })
+        );
+        assert_eq!(
+            NalHeader::split(&[]),
+            Err(HevcError::Truncated { needed: 2, have: 0 })
+        );
+        assert_eq!(
+            NalHeader::split(&[0xc0, 0x01]),
+            Err(HevcError::ForbiddenZeroBit)
+        );
+        assert_eq!(
+            NalHeader::split(&[0x40, 0x00]),
+            Err(HevcError::Invalid {
+                code: "hevc.nal.temporal_id"
+            })
+        );
+    }
+
+    #[test]
+    fn annexb_splits_three_and_four_byte_prefixes() {
+        let stream = [
+            0xff, 0xff, // leading garbage before first start code
+            0x00, 0x00, 0x00, 0x01, 0x40, 0x01, 0xaa, //
+            0x00, 0x00, 0x01, 0x42, 0x01, 0xbb, 0x00, 0x00, // trailing zeros
+        ];
+        let nals: Vec<&[u8]> = AnnexBNals::new(&stream).collect();
+        assert_eq!(
+            nals,
+            vec![&[0x40u8, 0x01, 0xaa][..], &[0x42u8, 0x01, 0xbb][..]]
+        );
+        assert!(AnnexBNals::new(&[0x00, 0x00, 0x02, 0x99]).next().is_none());
+    }
+
+    #[test]
+    fn emulation_removal_handles_overlapping_escapes() {
+        // The corpus 0100 VPS constraint run: five RBSP zeros behind
+        // a 0x90 escape in TWO chained escapes — the case a
+        // consume-the-suffix unescape mis-decodes (see the module
+        // doc; the exact bytes are pinned in VPS_0100).
+        assert_eq!(
+            unescape_rbsp(&[
+                0x60, 0x00, 0x00, 0x03, 0x00, 0x90, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x5d
+            ])
+            .unwrap_or_default(),
+            vec![
+                0x60, 0x00, 0x00, 0x00, 0x90, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5d
+            ]
+        );
+        // Simple forms.
+        assert_eq!(
+            unescape_rbsp(&[0x00, 0x00, 0x03, 0x02, 0xaa]).unwrap_or_default(),
+            vec![0x00, 0x00, 0x02, 0xaa]
+        );
+        assert_eq!(
+            unescape_rbsp(&[0x00, 0x00, 0x03, 0x03]).unwrap_or_default(),
+            vec![0x00, 0x00, 0x03]
+        );
+        // Typed violations.
+        assert_eq!(
+            unescape_rbsp(&[0x00, 0x00, 0x03, 0x99]),
+            Err(HevcError::Emulation {
+                code: "hevc.ep.bad_suffix"
+            })
+        );
+        assert_eq!(
+            unescape_rbsp(&[0xaa, 0x00, 0x00, 0x03]),
+            Err(HevcError::Emulation {
+                code: "hevc.ep.dangling"
+            })
+        );
+        // The whole real VPS payload round-trips (header stripped):
+        // 22 escaped bytes → 19 RBSP bytes, three chained escapes
+        // collapsed to five constraint-zero bytes, level intact.
+        let rbsp = unescape_rbsp(&VPS_0100[2..]).unwrap_or_default();
+        assert_eq!(rbsp.len(), 19);
+        assert_eq!(rbsp[15], 0x5d); // level_idc survives the unescape
+    }
+
+    #[test]
+    fn length_prefixed_split_and_typed_failures() {
+        // length_size 2: [2, 0x40, 0x01] [3, 0x42, 0x01, 0xaa] pad.
+        let data = [0x00, 0x02, 0x40, 0x01, 0x00, 0x03, 0x42, 0x01, 0xaa, 0x00];
+        let nals: Vec<_> = LengthPrefixedNals::new(&data, 2)
+            .unwrap_or_else(|e| unreachable!("{e}"))
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        assert_eq!(nals, vec![&[0x40u8, 0x01][..], &[0x42u8, 0x01, 0xaa][..]]);
+        // Zero padding ends the walk.
+        assert_eq!(
+            LengthPrefixedNals::new(&[0x00, 0x02, 0x40, 0x01, 0x00], 2)
+                .unwrap_or_else(|e| unreachable!("{e}"))
+                .count(),
+            1
+        );
+        // Non-zero short tail: typed truncation.
+        assert_eq!(
+            LengthPrefixedNals::new(&[0x00, 0x02, 0x40, 0x01, 0x77], 2)
+                .unwrap_or_else(|e| unreachable!("{e}"))
+                .last(),
+            Some(Err(HevcError::Truncated { needed: 2, have: 1 }))
+        );
+        // Zero length mid-stream: refuse to spin.
+        assert_eq!(
+            LengthPrefixedNals::new(&[0x00, 0x00, 0x40], 2)
+                .unwrap_or_else(|e| unreachable!("{e}"))
+                .last(),
+            Some(Err(HevcError::Invalid {
+                code: "hevc.av.zero_length"
+            }))
+        );
+        // Overrun: typed truncation with byte geometry.
+        assert_eq!(
+            LengthPrefixedNals::new(&[0x00, 0x09, 0x40], 2)
+                .unwrap_or_else(|e| unreachable!("{e}"))
+                .last(),
+            Some(Err(HevcError::Truncated {
+                needed: 11,
+                have: 3
+            }))
+        );
+        assert!(matches!(
+            LengthPrefixedNals::new(&[], 5),
+            Err(HevcError::Invalid {
+                code: "hevc.av.length_size"
+            })
+        ));
+    }
+
+    /// Build a minimal-but-real `hvcC` record around the corpus
+    /// parameter sets (the 0100 record's arrays — VPS/SPS/PPS, the
+    /// record's 4th SEI array dropped and the count fixed to match —
+    /// over the byte-exact 0100 header; each array carries its
+    /// `numNalus` per ISO/IEC 14496-15 §8.3.3.1).
+    fn hvcc_0100() -> Vec<u8> {
+        let mut rec = vec![
+            0x01, 0x01, 0x60, 0x00, 0x00, 0x00, 0x90, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5d, 0xf0,
+            0x00, 0xfc, 0xfd, 0xf8, 0xf8, 0x00, 0x00, 0x0f, 0x03,
+        ];
+        for (nut, nal) in [
+            (32u8, &VPS_0100[..]),
+            (33, &SPS_0100[..]),
+            (34, &PPS_0100[..]),
+        ] {
+            rec.push(nut);
+            rec.extend_from_slice(&[0x00, 0x01]); // numNalus = 1
+            rec.extend_from_slice(
+                &u16::try_from(nal.len())
+                    .unwrap_or_else(|e| unreachable!("nal len fits u16: {e}"))
+                    .to_be_bytes(),
+            );
+            rec.extend_from_slice(nal);
+        }
+        rec
+    }
+
+    #[test]
+    fn hvcc_parse_field_exact_on_corpus_arrays() {
+        let rec = hvcc_0100();
+        let cfg = HvcCConfig::parse(&rec).unwrap_or_else(|e| unreachable!("{e}"));
+        assert_eq!(cfg.profile_space, 0);
+        assert!(!cfg.tier);
+        assert_eq!(cfg.profile_idc, 1); // Main
+        assert_eq!(cfg.profile_compatibility_flags, 0x6000_0000);
+        assert_eq!(cfg.constraint_indicator_flags, 0x9000_0000_0000);
+        assert_eq!(cfg.level_idc, 93); // 9.3, the ffprobe spelling
+        assert_eq!(cfg.min_spatial_segmentation_idc, 0);
+        assert_eq!(cfg.parallelism_type, 0);
+        assert_eq!(cfg.chroma_format, 1); // 4:2:0
+        assert_eq!(cfg.bit_depth_luma_minus8, 0);
+        assert_eq!(cfg.bit_depth_chroma_minus8, 0);
+        assert_eq!(cfg.avg_frame_rate, 0);
+        assert_eq!(cfg.constant_frame_rate, 0);
+        assert_eq!(cfg.num_temporal_layers, 1);
+        assert!(cfg.temporal_id_nested);
+        assert_eq!(cfg.length_size, 4);
+        assert_eq!(cfg.arrays.len(), 3);
+        assert_eq!(cfg.arrays[0].nal_unit_type, 32);
+        assert!(!cfg.arrays[0].completeness);
+        assert_eq!(cfg.arrays[0].nals, vec![VPS_0100.to_vec()]);
+        assert_eq!(cfg.arrays[1].nal_unit_type, 33);
+        assert_eq!(cfg.arrays[1].nals, vec![SPS_0100.to_vec()]);
+        assert_eq!(cfg.arrays[2].nal_unit_type, 34);
+        assert_eq!(cfg.arrays[2].nals, vec![PPS_0100.to_vec()]);
+        assert!(HvcCConfig::looks_like_hvcc(&rec));
+    }
+
+    #[test]
+    fn hvcc_typed_error_paths() {
+        let good = hvcc_0100();
+        assert_eq!(
+            HvcCConfig::parse(&good[..22]),
+            Err(HevcError::Truncated {
+                needed: 23,
+                have: 22
+            })
+        );
+        let mut bad = good.clone();
+        bad[0] = 2;
+        assert_eq!(
+            HvcCConfig::parse(&bad),
+            Err(HevcError::Invalid {
+                code: "hevc.hvcc.version"
+            })
+        );
+        let mut bad = good.clone();
+        bad[16] = 0x01; // cleared chroma reserved bits
+        assert_eq!(
+            HvcCConfig::parse(&bad),
+            Err(HevcError::Invalid {
+                code: "hevc.hvcc.reserved"
+            })
+        );
+        // Array count promises a NAL that isn't there.
+        let mut truncated = good.clone();
+        truncated[22] = 4; // 4 arrays, only 3 present
+        assert!(matches!(
+            HvcCConfig::parse(&truncated),
+            Err(HevcError::Truncated { .. })
+        ));
+        // Zero-length array NAL (a 4th SPS array whose single NAL
+        // has length 0).
+        let mut zero = good.clone();
+        zero[22] = 4;
+        zero.push(33);
+        zero.extend_from_slice(&[0x00, 0x01, 0x00, 0x00]);
+        assert_eq!(
+            HvcCConfig::parse(&zero),
+            Err(HevcError::Invalid {
+                code: "hevc.hvcc.zero_length"
+            })
+        );
+        // NAL length overruns the record.
+        let mut over = good.clone();
+        over[22] = 4;
+        over.push(33);
+        over.extend_from_slice(&[0x00, 0x01, 0x00, 0x63]); // len 99 > tail
+        assert!(matches!(
+            HvcCConfig::parse(&over),
+            Err(HevcError::Truncated { .. })
+        ));
+        assert!(!HvcCConfig::looks_like_hvcc(&[0x00; 23]));
+    }
+
+    #[test]
+    fn bit_reader_roundtrip_and_bounds() {
+        let mut b = Bits::new();
+        b.put(2, 0b10);
+        b.flag(true);
+        b.put(5, 0x1f);
+        b.ue(0);
+        b.ue(5);
+        b.ue(255);
+        b.se(-3);
+        b.se(4);
+        let rbsp = b.finish();
+        let mut r = BitReader::new(&rbsp);
+        assert_eq!(r.bits(2), Ok(0b10));
+        assert_eq!(r.bit(), Ok(1));
+        assert_eq!(r.bits(5), Ok(0x1f));
+        assert_eq!(r.ue(), Ok(0));
+        assert_eq!(r.ue(), Ok(5));
+        assert_eq!(r.ue(), Ok(255));
+        assert_eq!(r.se(), Ok(-3));
+        assert_eq!(r.se(), Ok(4));
+        assert!(!r.more_rbsp_data());
+        assert!(r.finish().is_ok());
+        // Reads past the end are typed, not panics.
+        let mut r = BitReader::new(&[0x80]);
+        assert_eq!(r.bits(9), Err(HevcError::Truncated { needed: 9, have: 8 }));
+        assert_eq!(
+            r.bits(0),
+            Err(HevcError::Invalid {
+                code: "hevc.bits.width"
+            })
+        );
+        assert_eq!(
+            r.bits(33),
+            Err(HevcError::Invalid {
+                code: "hevc.bits.width"
+            })
+        );
+        // 32 zero bits then data: the ue prefix cap fires at >31.
+        let mut r = BitReader::new(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x80]);
+        assert_eq!(
+            r.ue(),
+            Err(HevcError::Invalid {
+                code: "hevc.ue.overflow"
+            })
+        );
+        // Nonzero tail after the stop bit is a violation.
+        let mut r = BitReader::new(&[0x03]);
+        assert_eq!(
+            r.finish(),
+            Err(HevcError::Invalid {
+                code: "hevc.rbsp.tail"
+            })
+        );
+        let mut r = BitReader::new(&[0x00]);
+        assert_eq!(r.finish(), Err(HevcError::Truncated { needed: 9, have: 8 }));
+    }
+
+    #[test]
+    fn fuzz_lite_no_panics_on_random_and_mutated_bytes() {
+        // +FB (card 5.G1): 10k splitmix64 random buffers plus 5k
+        // mutations of the real corpus parameter sets, driven
+        // through every surface. Structural invariants: the
+        // splitters never yield overlapping/descaping slices; the
+        // parsers never panic; every failure is a typed HevcError.
+        let mut state = 0x5eed_1a5e_u64;
+        for i in 0..10_000u32 {
+            let len = (splitmix64(&mut state) % 512) as usize;
+            let mut buf = Vec::with_capacity(len);
+            for _ in 0..len {
+                buf.push((splitmix64(&mut state) & 0xff) as u8);
+            }
+            // Frame it as each NAL type so random bytes reach the
+            // deep syntax walks, not just the header check.
+            for (head, parse_vps, parse_sps, parse_pps) in [
+                ([0x40u8, 0x01], true, false, false),
+                ([0x42, 0x01], false, true, false),
+                ([0x44, 0x01], false, false, true),
+            ] {
+                let mut nal = head.to_vec();
+                nal.extend_from_slice(&buf);
+                let _ = crate::video::hevc::parser::vps::VideoParameterSet::parse(&nal);
+                let _ = crate::video::hevc::parser::sps::SeqParameterSet::parse(&nal);
+                let _ = crate::video::hevc::parser::pps::PicParameterSet::parse(&nal);
+                if parse_vps || parse_sps || parse_pps {
+                    // Also exercise the shared unescape on the raw tail.
+                    let _ = unescape_rbsp(&nal[2..]);
+                }
+            }
+            if i % 7 == 0 {
+                let _ = annexb_nals(&buf);
+                let _ = HvcCConfig::parse(&buf);
+            }
+        }
+        // Mutations of the real 0100 parameter sets + the hvcC: bit
+        // flips, byte sets, truncations.
+        let seeds: Vec<Vec<u8>> = [
+            VPS_0100.to_vec(),
+            SPS_0100.to_vec(),
+            PPS_0100.to_vec(),
+            hvcc_0100(),
+        ]
+        .into_iter()
+        .chain((0..16).map(|i| {
+            let mut v = SPS_0100.to_vec();
+            v.truncate(i);
+            v
+        }))
+        .collect();
+        for k in 0..5_000u32 {
+            let mut seed = seeds[(k as usize) % seeds.len()].clone();
+            if seed.is_empty() {
+                seed.push(0); // mutated empties stay parseable inputs
+            }
+            let rounds = (splitmix64(&mut state) % 4) + 1;
+            for _ in 0..rounds {
+                match splitmix64(&mut state) % 4 {
+                    0 => {
+                        let pos = (splitmix64(&mut state) as usize) % seed.len();
+                        seed[pos] ^= 1 << (splitmix64(&mut state) % 8);
+                    }
+                    1 => {
+                        let pos = (splitmix64(&mut state) as usize) % seed.len();
+                        seed[pos] = (splitmix64(&mut state) & 0xff) as u8;
+                    }
+                    2 => {
+                        let cut = (splitmix64(&mut state) as usize) % seed.len();
+                        seed.truncate(cut.max(1));
+                    }
+                    _ => {
+                        seed.push((splitmix64(&mut state) & 0xff) as u8);
+                    }
+                }
+            }
+            let _ = crate::video::hevc::parser::vps::VideoParameterSet::parse(&seed);
+            let _ = crate::video::hevc::parser::sps::SeqParameterSet::parse(&seed);
+            let _ = crate::video::hevc::parser::pps::PicParameterSet::parse(&seed);
+            let _ = HvcCConfig::parse(&seed);
+            let _ = unescape_rbsp(&seed);
+        }
+    }
+    /// The real corpus 0044 lane (raw Annex-B .265, Rext 360x640):
+    /// every parameter set parses, the id lattice is consistent
+    /// (VPS←SPS←PPS), the SPS and VPS agree on the general PTL, and
+    /// the slice-segment prefix parses for a representative sample
+    /// of VCL NALs. The ffprobe oracle comparison lives in
+    /// `tests/hevc_parser_corpus.rs` (field table in the worklog).
+    #[test]
+    fn corpus_0044_parameter_sets_and_slice_prefixes_parse() {
+        let Some(path) = corpus_path("0044-raw-video.265") else {
+            eprintln!("SKIP hevc corpus: 0044-raw-video.265 absent (corpus re-imaged)");
+            return;
+        };
+        let Ok(bytes) = std::fs::read(&path) else {
+            eprintln!("SKIP hevc corpus: 0044 unreadable");
+            return;
+        };
+        let mut vps = None;
+        let mut sps = None;
+        let mut pps = None;
+        for nal in AnnexBNals::new(&bytes) {
+            if let Ok((h, _)) = NalHeader::split(nal) {
+                match h.unit_type {
+                    NalUnitType::VpsNut if vps.is_none() => {
+                        vps = crate::video::hevc::parser::vps::VideoParameterSet::parse(nal).ok();
+                    }
+                    NalUnitType::SpsNut if sps.is_none() => {
+                        sps = crate::video::hevc::parser::sps::SeqParameterSet::parse(nal).ok();
+                    }
+                    NalUnitType::PpsNut if pps.is_none() => {
+                        pps = crate::video::hevc::parser::pps::PicParameterSet::parse(nal).ok();
+                    }
+                    _ => {}
+                }
+            }
+        }
+        let (vps, sps, pps) = (vps, sps, pps);
+        let (Some(vps), Some(sps), Some(pps)) = (&vps, &sps, &pps) else {
+            unreachable!(
+                "0044 must yield VPS+SPS+PPS (got {}/{}/{}), parser regressed",
+                vps.is_some(),
+                sps.is_some(),
+                pps.is_some()
+            );
+        };
+        // The id lattice: SPS names the VPS, PPS names the SPS.
+        assert_eq!(sps.video_parameter_set_id, vps.video_parameter_set_id);
+        assert_eq!(pps.seq_parameter_set_id, sps.seq_parameter_set_id);
+        // General PTL agreement between VPS and SPS (base streams).
+        assert_eq!(sps.profile_tier_level, vps.profile_tier_level);
+        // Slice-segment prefixes over the seam derived from the sets.
+        let sps_seam = crate::video::hevc::parser::slice::SliceSegmentSpsInfo::from_sps(sps).ok();
+        let pps_seam = crate::video::hevc::parser::slice::SliceSegmentPpsInfo::from_pps(pps);
+        let (Some(sps_seam), pps_seam) = (sps_seam, pps_seam) else {
+            unreachable!("0044 SPS geometry rejected by the slice seam");
+        };
+        let poc_mask = (1u64 << sps_seam.log2_max_pic_order_cnt_lsb) - 1;
+        let mut vcl = 0usize;
+        let mut first_irap = 0usize;
+        for nal in AnnexBNals::new(&bytes) {
+            let Ok((h, _)) = NalHeader::split(nal) else {
+                continue;
+            };
+            if !h.unit_type.is_vcl() || vcl >= 64 {
+                continue;
+            }
+            vcl += 1;
+            let parsed = crate::video::hevc::parser::slice::SliceSegmentHeader::parse(
+                nal, &sps_seam, &pps_seam,
+            )
+            .unwrap_or_else(|e| unreachable!("0044 slice {vcl}: {e}"));
+            assert_eq!(parsed.slice_pic_parameter_set_id, pps.pic_parameter_set_id);
+            if let Some(poc) = parsed.slice_pic_order_cnt_lsb {
+                assert!(
+                    u64::from(poc) <= poc_mask,
+                    "poc lsb {poc} > mask {poc_mask}"
+                );
+            }
+            if h.unit_type.is_irap() && parsed.first_slice_segment_in_pic {
+                first_irap += 1;
+            }
+        }
+        assert!(vcl > 10, "0044 carries a slice train, walked {vcl}");
+        assert!(first_irap >= 1, "0044 must open with an IRAP picture");
     }
 }

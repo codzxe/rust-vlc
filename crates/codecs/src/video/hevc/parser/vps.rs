@@ -120,8 +120,7 @@ impl ProfileTierLevel {
         }
 
         let mut sub_layers = Vec::with_capacity(usize::from(max_sub_layers_minus1));
-        for i in 0..usize::from(max_sub_layers_minus1) {
-            let (profile_present, level_present) = present[i];
+        for &(profile_present, level_present) in &present[..usize::from(max_sub_layers_minus1)] {
             if profile_present {
                 // Sub-layer profile payload: 2+1+5 + 32 + 44 bits,
                 // walked (the general layer above is the retained
@@ -135,7 +134,11 @@ impl ProfileTierLevel {
                     r.bit()?;
                 }
             }
-            let level_idc = if level_present { Some(r.bits(8)? as u8) } else { None };
+            let level_idc = if level_present {
+                Some(r.bits(8)? as u8)
+            } else {
+                None
+            };
             sub_layers.push(SubLayerProfileTierLevel {
                 profile_present,
                 level_present,
