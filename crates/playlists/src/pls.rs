@@ -54,7 +54,7 @@
 use std::collections::BTreeMap;
 
 use crate::m3u::MAX_LINE_BYTES;
-use crate::types::{Entry, Playlist};
+use crate::types::{Entry, HlsSegment, Playlist};
 
 /// Fatal parse failures. Dirty input degrades to [`PlsWarning`]s; only the
 /// D-1 line-cap violation and non-UTF-8 input are fatal (same policy, and
@@ -355,6 +355,7 @@ pub fn parse_detailed(input: &str) -> Result<PlsParsed, PlsError> {
             duration: part.length,
             title: part.title,
             directives: Vec::new(),
+            hls: HlsSegment::default(),
         });
     }
     if let Some(declared) = declared_count

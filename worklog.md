@@ -9542,3 +9542,16 @@ Work Log:
 
 Stage Summary:
 - D-10 MEASURE? — YES (the only measurable surface for an investigation card): 8 crates.io API queries + 2 README fetches, all timestamped 2026-10-24, quoted verbatim (names, versions, dates, licenses, download counts, yank states); corpus-v4 media walked (0 asf/wmv/wma lanes); VLC baseline probe + census lines cited by file:line. NOT measured? — everything runtime: no ASF parse was run (no code), oxideav-wma/wmvkit were NOT compiled or tested (API+README evidence only — stated in both records as [VERIFY] bars), WMA MFT availability on Windows unverified. What would break this? — crates.io churn (new/renamed crates — mitigated: exact query names + collision disambiguation recorded); oxideav-wma releasing 0.1 with conformance evidence (would move the Phase-7 recheck, not this card's blocked verdict); a spec-grade WMA spec publication (same). Who hits it first? — the Phase-6 ASF container agent (consumes the split-card proposal + wmvkit oracle pointer) and the Phase-7 R-10 decision agent (consumes the oxideav-wma recheck trigger); users: anyone opening a .wmv/.wma file sees typed-unsupported audio instead of a silent file once Phase 6 lands.
+
+---
+Task ID: 5.W6-CLOSE (Lead)
+Agent: Lead
+Task: Wave 6 — merge + gate + push.
+
+Work Log:
+- 10 cards LANDED and merged: 5.M1 SRT (105/0), 5.M2a ASS parser (85/0), 5.M2b ASS render (81/0, 9/9 alignment grid pixel-exact), 5.M3 WebVTT (92/0), 5.O1a M3U8 attrs (38/0, RFC3986 join pinned), 5.O1b PLS+XSPF (46/0), 5.O2 CUE (39/0, gapless windows), 5.O3 probe+dir (33/0, corpus 143-file classification), 5.K2-I Opus (BLOCKED upheld — reason amended: no VALIDATED pure engine; ruopus 0.1.2 discovered as S-spike candidate), 5.K3-I ASF/WMA (ASF=Phase-6 self-build proposal; WMA=blocked×4 with typed-unsupported semantics).
+- Merge surgery: subtitles lib.rs ass-line dedupe + orphaned-doc fixes (ass/mod.rs, lib.rs), playlists lib.rs brace/use dedupe, Entry.hls field backfill into pls/xspf constructors + test literals (o1a's API extended Entry; o1b branched pre-o1a).
+- WORKSPACE GATE: fmt clean, clippy -D warnings clean, cargo test --workspace = 2943 passed / 0 failed.
+
+Stage Summary:
+- Phase 5: 35 of 47 cards landed. Remaining: E1/E2 AV1, F2/G1/G2 (H264/HEVC decode-path + parser), H1/H2-I (MPEG12), K1 TrueHD, K4-I AC3/DTS, N1-N3 bitmap subs (conditional), P1-I/P2-I decisions, Q1 fuzz sweep, Q2-V audit, R1 perf, R2-V gate, X1/X2 audits. PUSHING NOW.

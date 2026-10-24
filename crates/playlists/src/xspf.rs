@@ -58,7 +58,7 @@
 //! field-preserving, for creator/annotation — pinned by tests).
 
 use crate::m3u::MAX_LINE_BYTES;
-use crate::types::{Entry, Playlist};
+use crate::types::{Entry, HlsSegment, Playlist};
 
 /// Maximum accepted element nesting depth (D-1 bounded input). XSPF needs
 /// four (`playlist`/`trackList`/`track`/field); 64 allows generous
@@ -920,6 +920,7 @@ fn track_entry(tb: TrackBuilder, warnings: &mut Vec<XspfWarning>) -> Entry {
         duration: tb.duration,
         title: tb.title,
         directives,
+        hls: HlsSegment::default(),
     }
 }
 

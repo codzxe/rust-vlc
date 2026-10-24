@@ -11,8 +11,8 @@
 //! pinned by runtime byte counters.
 
 use playlists::{
-    Entry, MAX_LINE_BYTES, MAX_XML_DEPTH, XspfError, XspfWarning, parse_xspf, parse_xspf_bytes,
-    parse_xspf_detailed,
+    Entry, HlsSegment, MAX_LINE_BYTES, MAX_XML_DEPTH, XspfError, XspfWarning, parse_xspf,
+    parse_xspf_bytes, parse_xspf_detailed,
 };
 
 const BASIC: &str = include_str!("fixtures/basic.xspf");
@@ -44,6 +44,7 @@ fn golden_basic_entities_and_fields() {
                 ("creator".to_string(), "Artist <One>".into()),
                 ("annotation".to_string(), "First & foremost".into()),
             ],
+            hls: HlsSegment::default(),
         }
     );
     // Title-less track; entities in creator; 0 ms duration kept.
@@ -54,6 +55,7 @@ fn golden_basic_entities_and_fields() {
             duration: Some(0.0),
             title: None,
             directives: vec![("creator".to_string(), "\"Quoted\" 'name'".into())],
+            hls: HlsSegment::default(),
         }
     );
     // Decimal numeric reference decodes (é = U+00E9).
@@ -86,6 +88,7 @@ fn golden_namespaced_prefixes_cdata_and_subsets() {
             duration: Some(10.0),
             title: Some("First wins".into()),
             directives: vec![],
+            hls: HlsSegment::default(),
         }
     );
     // CDATA content is raw (no entity decoding); multiline annotation is
@@ -100,6 +103,7 @@ fn golden_namespaced_prefixes_cdata_and_subsets() {
                 ("creator".to_string(), "The <b>Creator</b>".into()),
                 ("annotation".to_string(), "text with\nmultiple lines".into()),
             ],
+            hls: HlsSegment::default(),
         }
     );
     // Self-closing track: kept, empty location.
@@ -167,6 +171,7 @@ fn dirty_fixture_salvages_entries() {
             duration: None,
             title: Some("First Track".into()),
             directives: vec![],
+            hls: HlsSegment::default(),
         }
     );
     assert_eq!(
@@ -176,6 +181,7 @@ fn dirty_fixture_salvages_entries() {
             duration: None,
             title: None,
             directives: vec![("creator".to_string(), "Second &badent; Track".into())],
+            hls: HlsSegment::default(),
         }
     );
 }

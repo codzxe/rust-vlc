@@ -74,22 +74,22 @@ mod xspf;
 
 pub use error::{ParseError, ParseWarning};
 pub use m3u::{MAX_LINE_BYTES, Parsed, parse, parse_bytes, parse_detailed, resolve_uri, write};
-pub use types::{ByteRange, EncryptionMethod, Entry, HlsKey, HlsMap, HlsSegment, Playlist};
-pub use m3u::{MAX_LINE_BYTES, Parsed, parse, parse_bytes, parse_detailed, write};
 pub use pls::{
     PlsError, PlsParsed, PlsWarning, parse as parse_pls, parse_bytes as parse_pls_bytes,
     parse_detailed as parse_pls_detailed,
 };
-pub use types::{Entry, Playlist};
+pub use types::{ByteRange, EncryptionMethod, Entry, HlsKey, HlsMap, HlsSegment, Playlist};
 pub use xspf::{
     MAX_XML_DEPTH, XspfError, XspfParsed, XspfWarning, parse as parse_xspf,
     parse_bytes as parse_xspf_bytes, parse_detailed as parse_xspf_detailed,
+};
 
 mod cue;
 
 pub use cue::{
     CueFile, CueFileKind, CueFlag, CueIndex, CueSheet, CueTrack, CueTrackType, CueWarning,
     FRAMES_PER_SECOND, TimeContext, TrackWindow, frames_to_ns, parse_cue, parse_cue_bytes,
+};
 
 // Card 5.O3 (append-only wiring): playlist probing + bounded directory
 // loading. The crate keeps its I/O-free posture — every byte and every

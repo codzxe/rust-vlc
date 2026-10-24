@@ -10,7 +10,8 @@
 //! total fuzz-input budget, pinned by runtime byte counters.
 
 use playlists::{
-    Entry, MAX_LINE_BYTES, PlsError, PlsWarning, parse_pls, parse_pls_bytes, parse_pls_detailed,
+    Entry, HlsSegment, MAX_LINE_BYTES, PlsError, PlsWarning, parse_pls, parse_pls_bytes,
+    parse_pls_detailed,
 };
 
 const BASIC: &str = include_str!("fixtures/basic.pls");
@@ -33,6 +34,7 @@ fn golden_basic_spec_shaped() {
             duration: Some(-1.0), // the spec's unknown/live marker, preserved
             title: Some("Live Stream".into()),
             directives: vec![],
+            hls: HlsSegment::default(),
         }
     );
     assert_eq!(
@@ -42,6 +44,7 @@ fn golden_basic_spec_shaped() {
             duration: Some(213.0),
             title: Some("Track One".into()),
             directives: vec![],
+            hls: HlsSegment::default(),
         }
     );
     // Windows path kept verbatim; fractional length parses.
@@ -68,6 +71,7 @@ fn golden_sparse_indexes_case_and_comments() {
             duration: None,
             title: None,
             directives: vec![],
+            hls: HlsSegment::default(),
         }
     );
     assert_eq!(d.playlist.entries[1].location, "five.wav");

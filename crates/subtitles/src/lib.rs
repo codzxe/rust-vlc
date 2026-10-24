@@ -80,7 +80,6 @@ pub mod srt;
 // (numpad alignment grid + margins) and `ass/render.rs` (plain-text
 // cue -> CompositedCue). The parallel 5.M2a parser half is
 // file-disjoint; see `ass/mod.rs` for the [LEAD SEAM] note.
-pub mod ass;
 
 /// Card 5.M3 — the WebVTT parser (`src/vtt/**`): cue blocks with the
 /// positioning-settings subset (`line`/`position`/`align` mapped onto
