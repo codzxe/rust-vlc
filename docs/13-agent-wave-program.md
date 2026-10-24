@@ -879,7 +879,19 @@ Notes on the count:
   runs lower because shared interfaces serialize.
 - **Delta log:** the Lead may split, merge, or add cards between waves (each
   delta recorded here with date and reason). Phase gates (MP §16) are fixed;
-  the card list is a living plan. Deltas so far: none (initial issue, Wave C).
+  the card list is a living plan. Deltas so far:
+  - 2026-10-24 (user directive at Phase-5 launch): two added cards.
+    **5.X1** imp — algorithmic-quality audit: profile the full decode pipeline
+    (criterion + perf), identify every slow/wasteful algorithm (known target:
+    MJPEG color/assemble 45.7% of heavy-decode time; heavy-mjpeg 0.292x
+    realtime vs ≥1.0x goal), replace with measured-better ones. AC:
+    per-hotspot before/after numbers, bit-exactness preserved. Owns: hot
+    paths in crates/codecs + docs/perf/algorithm-audit.md. **5.X2** imp —
+    memory audit: peak RSS + per-frame allocation counts on corpus-v4 via
+    tools/mem-audit; eliminate avoidable copies/buffers (zero-copy
+    SharedBytes paths). AC: measured before/after tables. Owns:
+    tools/mem-audit/** + docs/perf/memory-audit.md. Both consume the 5.*
+    format cards; both feed 5.R1.
 
 Ledger maintenance is part of the wave gate (§1.5 step 8): per-card status
 (`not_started`/`in_progress`/`implemented`/`verified`/`blocked`/
