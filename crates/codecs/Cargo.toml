@@ -55,6 +55,12 @@ symphonia-codec-vorbis = "=0.6.1"
 # brief's `symphonia-bundle-aac` spelling does not exist on crates.io —
 # the record's reality check.)
 symphonia-codec-aac = "=0.6.1"
+# 5.J3a (Lead pre-approval, C5): the ALAC decode engine. Purity
+# verified in docs/dependencies/records/symphonia-alac-0.6.1.md BEFORE
+# this edit; the ALACSpecificConfig parse + error taxonomy stay ours.
+# Adds exactly 1 lock node (log/common/core all shared with the
+# siblings — the record's R2).
+symphonia-codec-alac = "=0.6.1"
 
 [dev-dependencies]
 # The randomized-corpus vertical (ED-FIX-5; user directive 2026-10-22):

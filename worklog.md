@@ -9305,3 +9305,21 @@ Work Log:
 
 Stage Summary:
 - D-10 MEASURE? — YES: roundtrip matrix + perf numbers above (release, min-of-3, raw counts printed by the test). NOT measured? — parse under a hostile allocator / fragmenting realloc patterns; the wire form is interchange/debug, no render-path claim. What breaks? — nothing known: all 34 tests green incl. 4 fuzz suites; every fallible path typed; saturating math pinned at i64 extremes. Who hits it first? — 5.L1 (parsers project into `model::Cue`; `CueText`/`Positioning` contract + [PROPOSAL] wire form are the Lead unification points) and the R3 registration row.
+
+---
+Task ID: 5.J3a
+Agent: P5-J3AF
+Task: ALAC decoder — finisher: prior session left 5 files uncommitted; verify/complete/gate/commit.
+
+Work Log:
+- Inherited: 3 commits on wip/p5-j3a (0d80b65 module + cookie parse + typed errors, fbf73a0 4-fixture differential, 49be868 fuzz-lite) + 5 uncommitted files (clippy/fmt polish of decoder/tests + new `alac_bench.rs`). Uncommitted diff verified non-semantic (rustfmt + clippy `as_chunks_mut`/`expect_err`-as-match modernization) — kept as-is.
+- DIFFERENTIAL re-verified independently this session (ffmpeg 7.1.5): all 4 pinned interleaved-dump MD5 truths recomputed from the fixtures — exact match; tests green. ADDED 5th row `alac_stereo24_noise.m4a`: 1.1 s white noise, 24-bit stereo @48k, 13 packets (longest multi-frame run, maximum-entropy content = the heaviest rice-escape stressor) — bit-exact (`1ee6321067a82b421e33038f4fc00b70`). Honest scope note: a 32-bit differential row is impossible with this ffmpeg (its ALAC encoder quantizes s32p to 24 bits per raw sample) — the S32 output width stays unit-tested.
+- KNOWN ISSUE (multi-frame bug) verdict: NOT REPRODUCED — 5/5 fixtures bit-exact through the real MP4 composition, including 3 multi-frame stereo files (8/9/13 packets, mono + stereo, 16/24-bit, partial final frames). The prior session's rice-escape `read_unary_ones_capped(9)` suspicion was re-derived bit-for-bit vs ffmpeg's `get_unary_0_9`+`get_bits_long(bps)` in the decoder docs (committed) — engine matches; one harmless under-consumption (trailing `111` END tag never read) documented, zero output impact. NO engine patching, NO #[ignore] rows needed — the pinned digests ARE the tripwire.
+- Fuzz-lite (committed 49be868, re-run green): 512 packet + 256 cookie LCG mutation rounds — Ok-or-typed only, zero panics, mutations verified to bite.
+- D-10 (allocation): engine reuses its AudioBuffer; interleaver fills pooled SharedBytes slots sized to the cookie frame max — zero per-frame alloc after warm-up (5.A1 SAMPLE_SLOTS pattern).
+- R3 snippet (deps record `symphonia-alac-0.6.1.md`): symphonia-codec-alac =0.6.1, NO build.rs (F2 NO), no native links/blob — pure-Rust ALAC chain; tarball sha256 matched, `#![forbid(unsafe_code)]`.
+- Throughput (release, median of 7, FULL pipeline incl. MP4 demux): stereo24 130.3 MB/s, stereo16 100.8 MB/s of decoded PCM (≈450× realtime for 48k stereo).
+- Gates (worktree-local target): `cargo fmt -p codecs -- --check` CLEAN; `cargo clippy -p codecs --all-targets --all-features -- -D warnings` CLEAN; `cargo test -p codecs --all-features` 372 passed / 0 failed / 15 ignored (all ignored = bench measurements per convention).
+
+Stage Summary:
+- 5.J3a COMPLETE on wip/p5-j3a, gated + committed (this commit), ready for Lead merge. ALAC lossless decode bit-exact vs ffmpeg on 5/5 fixtures incl. noise-stressor; suspected engine defect recorded honestly as not-reproduced (audit in decoder.rs docs).

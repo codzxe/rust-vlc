@@ -17,6 +17,9 @@
 //! `symphonia-codec-aac` engine with our own ADTS header parse and
 //! profile/HE gates (card 5.C2a — the decoder half of 5.C2; HE-AAC
 //! honestly partial, see its module docs).
+//! [`alac`] is the ALAC decoder through the purity-pinned
+//! `symphonia-codec-alac` engine with our own magic-cookie parse and
+//! error taxonomy (card 5.J3a — the ALAC half of 5.J3, lossless).
 //! Per-codec Cargo features arrive with the registration card
 //! (doc 01 §2.5(a)); today the modules ship unconditionally.
 
@@ -27,6 +30,7 @@ pub mod aac;
 // modules ship unconditionally.
 
 pub mod adpcm;
+pub mod alac;
 pub mod flac;
 /// [`mp2`] is the dedicated MP2 (MPEG audio Layer II) decoder: the
 /// family engine (`symphonia-bundle-mp3`, no new dependency) behind
