@@ -71,6 +71,7 @@
 //! unsafe (workspace lint: `deny`), no panics on any input — failure is
 //! typed ([`model::ModelError`]/[`model::WireError`]), per MP §8.
 
+pub mod ass;
 pub mod compositing;
 pub mod model;
 pub mod srt;
