@@ -14,6 +14,11 @@
 //! - [`avi`] — the demuxer itself: RIFF chunk walk, `hdrl`/`strl`
 //!   track discovery, `idx1` seek table, MJPEG+PCM packet extraction,
 //!   seek-to-time.
+//! - [`wav`] — the RIFF/WAVE demuxer (card 5.A2): `fmt ` (plain /
+//!   extensible / float), `fact`, `data` PCM framing, RF64/BW64
+//!   `ds64`, LIST/INFO, odd-chunk word-align.
+//! - [`aiff`] — the AIFF/AIFC demuxer (card 5.A2): COMM (incl. the
+//!   extended-80-bit float sample rate), SSND, skip-tolerant chunks.
 //! - [`error`] — typed error constructors at stage
 //!   [`PipelineStage::Demux`](media_types::PipelineStage::Demux); the
 //!   *taxonomy* is media-types' (never redefined here).
@@ -26,5 +31,7 @@
 //! chunk-bounded and declared sizes are ceiling-checked before they are
 //! trusted into an allocation.
 
+pub mod aiff;
 pub mod avi;
 pub mod error;
+pub mod wav;
