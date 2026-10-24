@@ -452,7 +452,12 @@ pub fn parse_tracks(
                 damage.push((child_end - pos, "track-over-ceiling"));
             } else {
                 match parse_track_entry(reader, &child, child_end)? {
-                    Some(entry) => entries.push(entry),
+                    Some(mut entry) => {
+                        // The table position is the demuxer ordinal
+                        // (the L0 TrackId/StreamId value).
+                        entry.ordinal = entries.len() as u32;
+                        entries.push(entry);
+                    }
                     None => damage.push((child_end - pos, "degenerate-track-entry")),
                 }
             }

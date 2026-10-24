@@ -164,6 +164,13 @@ impl MkvDemuxer {
         &self.info
     }
 
+    /// The parsed track table (diagnostics/tests + the R3 registry's
+    /// CodecID exposure seam).
+    #[must_use]
+    pub fn track_entries(&self) -> &[TrackEntry] {
+        &self.entries
+    }
+
     /// The cue index when the segment carries one (diagnostics/tests).
     #[must_use]
     pub fn cue_index(&self) -> Option<&CueIndex> {
@@ -377,7 +384,7 @@ impl MkvDemuxer {
         let Some(mut window) = self.window.take() else {
             return Ok(None);
         };
-        loop {
+        let outcome = loop {
             // Slide the window when the cursor reaches its end but
             // not the cluster's.
             if window.cursor >= window.base + window.data.len() as u64
@@ -396,17 +403,17 @@ impl MkvDemuxer {
                 continue;
             }
             if window.cursor >= window.end || window.data.is_empty() {
-                return Ok(None);
+                break Ok(None);
             }
             let offset = (window.cursor - window.base) as usize;
             if offset >= window.data.len() {
-                return Ok(None);
+                break Ok(None);
             }
             let Some((id, size, hdr_len, unknown)) = parse_header_mem(&window.data[offset..])
             else {
                 // Trailing partial header: the cluster's declared end
                 // crosses the stream — typed truncation.
-                return Err(error::truncated(
+                break Err(error::truncated(
                     window.cursor + 12,
                     window.base + window.data.len() as u64,
                 ));
@@ -414,17 +421,17 @@ impl MkvDemuxer {
             if unknown {
                 // Unknown-size inside a cluster: not legal (the
                 // streaming form is a Segment/Cluster property).
-                return Err(error::bad_structure(window.cursor));
+                break Err(error::bad_structure(window.cursor));
             }
             let data_start = window.cursor + hdr_len as u64;
             let data_end = data_start + size;
             if data_end > window.end {
                 // The block claims bytes past the cluster: contained
                 // lie → typed truncation at the cluster end.
-                return Err(error::truncated(data_end, window.end));
+                break Err(error::truncated(data_end, window.end));
             }
             if size > MAX_BLOCK_BYTES {
-                return Err(error::bad_structure(data_start));
+                break Err(error::bad_structure(data_start));
             }
             if data_end > window.base + window.data.len() as u64 {
                 // Spans past the window but inside the cluster: slide
@@ -451,10 +458,13 @@ impl MkvDemuxer {
                 if packets.is_empty() {
                     continue;
                 }
-                self.window = Some(window);
-                return Ok(Some(packets));
+                break Ok(Some(packets));
             }
-        }
+        };
+        // Every exit restores the window (the recovery path needs the
+        // failure position to skip the damaged remainder).
+        self.window = Some(window);
+        outcome
     }
 
     /// Turn one cluster child element (SimpleBlock or BlockGroup)
@@ -696,8 +706,13 @@ impl Demuxer for MkvDemuxer {
                     return Ok(self.pending.pop_front().unwrap_or(DemuxEvent::EndOfStream));
                 }
                 Ok(None) => {
-                    // Cluster exhausted: flush its damage note, load
-                    // the next top-level element.
+                    // Cluster exhausted: advance the top-level walk
+                    // past it (the window's end IS the cluster's
+                    // effective end), flush its damage note, load
+                    // the next element.
+                    if let Some(window) = self.window.take() {
+                        self.walk = window.end;
+                    }
                     if self.cluster_damage > 0 {
                         self.damage_total += self.cluster_damage;
                         self.cluster_damage = 0;
@@ -723,13 +738,12 @@ impl Demuxer for MkvDemuxer {
                     {
                         return Err(e);
                     }
-                    let skipped = self
-                        .window
-                        .as_ref()
-                        .map(|w| w.end - w.cursor)
-                        .unwrap_or(0);
+                    let mut skipped = 0u64;
+                    if let Some(window) = self.window.take() {
+                        skipped = window.end.saturating_sub(window.cursor);
+                        self.walk = window.end;
+                    }
                     self.damage_total += skipped;
-                    self.window = None;
                     return Ok(DemuxEvent::Recovered {
                         skipped: self.damage_total,
                         reason: "cluster-parse-recovery",
