@@ -45,6 +45,7 @@ pub mod merge;
 pub mod model;
 pub mod partial;
 pub mod patterns;
+pub mod runtime;
 pub mod schema;
 pub mod semantic;
 pub mod suggest;
@@ -54,5 +55,9 @@ pub use load::{load_file, load_partial_file, load_partial_str, load_str};
 pub use merge::{Layer, LayerSource, layer, resolve_layers};
 pub use model::ProductConfig;
 pub use partial::PartialProduct;
+pub use runtime::{
+    AboutFacts, InstallerIdentity, about_facts, cli_usage_header, cli_version_line,
+    installer_identity, log_line_prefix, log_startup_line, resolve_window_title,
+};
 pub use schema::{RequiredMode, Schema, SchemaError};
 pub use semantic::{FeatureRegistry, SemanticInputs, validate_semantics};

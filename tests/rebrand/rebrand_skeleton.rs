@@ -29,6 +29,15 @@
 //! 3. Error paths: missing config file, malformed TOML, missing identity
 //!    fields — each an honest exit-2 with an actionable message.
 //!
+//! Card 4.H2 extensions (the §8.3 acceptance surfaces the build-time plane
+//! can prove without a bundler): dest `apps/desktop/tauri/tauri.conf.json`
+//! carries the Nova installer identity (productName / identifier / window
+//! title — the installer-identity config-file surface) and dest
+//! `schemas/generated/settings-docs.md` carries the Nova header (the
+//! generated-docs surface). The runtime surfaces (window title, About,
+//! CLI, logs) are proven from the same fixture in
+//! `tests/rebrand/rebrand_acceptance.rs` (hosted in crates/product-config).
+//!
 //! Steps 3–4 of doc 07 §8.3 (boot the rebranded CLI; window title, About,
 //! `engineInfo`) need the runtime plane, which does not exist in Phase 1:
 //! they are parked as `#[ignore]`d placeholder tests at the bottom with
@@ -363,6 +372,43 @@ fn nova_fixture_rebrand_passes_skeleton_assertions() {
         "README must carry no Lumen identity"
     );
 
+    // --- (4.H2) installer identity: the tauri config file carries Nova -----
+    // The scaffold is infra-blocked for *builds* (no bundler here), but the
+    // config content is the generation/wiring proof (doc 07 §8.3 step 2):
+    // productName + window title + identifier all flow from the fixture.
+
+    let tauri = read(&dest.0, "apps/desktop/tauri/tauri.conf.json");
+    assert!(
+        tauri.contains("\"productName\": \"Nova Player\""),
+        "dest tauri.conf.json productName: {tauri}"
+    );
+    assert!(
+        tauri.contains("\"identifier\": \"org.novaplayer.desktop\""),
+        "dest tauri.conf.json identifier (reverse_dns + .desktop): {tauri}"
+    );
+    assert!(
+        tauri.contains("\"title\": \"Nova Player\""),
+        "dest tauri.conf.json window title: {tauri}"
+    );
+    for stale in ["Lumen", "dev.lumen"] {
+        assert!(
+            !tauri.contains(stale),
+            "source identity {stale:?} survived in dest tauri.conf.json"
+        );
+    }
+
+    // --- (4.H2) generated docs: the settings reference header is Nova ------
+
+    let docs = read(&dest.0, "schemas/generated/settings-docs.md");
+    assert!(
+        docs.contains("# Nova Player settings reference"),
+        "dest settings-docs.md header: first line is {docs:?}"
+    );
+    assert!(
+        !docs.contains("Lumen"),
+        "dest settings-docs.md must carry no Lumen identity"
+    );
+
     // --- (c) the report lists exactly the expected files ----------------------
 
     let touched = report_lines(&out.stdout, "touched: ");
@@ -370,6 +416,7 @@ fn nova_fixture_rebrand_passes_skeleton_assertions() {
         touched,
         [
             "product.toml (19 rewrites)",
+            "apps/desktop/tauri/tauri.conf.json (3 rewrites)",
             "README.md (2 rewrites)",
             "schemas/generated/settings-docs.md (1 rewrite)",
             "schemas/generated/settings-help.txt (4 rewrites)",
@@ -392,7 +439,7 @@ fn nova_fixture_rebrand_passes_skeleton_assertions() {
     }
     assert!(
         out.stdout
-            .contains("result: 4 surface(s) touched, 26 rewrites, 4 asset(s) copied"),
+            .contains("result: 5 surface(s) touched, 29 rewrites, 4 asset(s) copied"),
         "result line mismatch (stdout:\n{})",
         out.stdout
     );
@@ -433,6 +480,7 @@ fn reverse_control_real_product_toml_is_a_noop() {
     // repository file (doc 07 §8.3 step 1 reverse control).
     for surface in [
         "product.toml",
+        "apps/desktop/tauri/tauri.conf.json",
         "README.md",
         "schemas/generated/settings-docs.md",
         "schemas/generated/settings-help.txt",
@@ -531,7 +579,7 @@ fn temp_dest(tag: &str) -> PathBuf {
 // ---- runtime-plane placeholders (doc 07 §8.3 steps 3–4) ---------------------------
 
 #[test]
-#[ignore = "runtime plane does not exist yet (Phase 2+): no window, CLI binary or About model consumes product.toml — doc 07 §8.3 steps 3-4"]
+#[ignore = "boot tier: the unit-tier proof lives in tests/rebrand/rebrand_acceptance.rs::surface_window_title_resolves_nova (card 4.H2); this placeholder keeps the full-desktop boot assertion for the nightly tier — doc 07 §8.3 step 4"]
 fn window_title_renders_nova() {
     // FUTURE ASSERTION (doc 07 §8.3 step 4): unit-assert the window-title
     // template with the fixture config loaded — "{media_title} — Nova
@@ -540,7 +588,7 @@ fn window_title_renders_nova() {
 }
 
 #[test]
-#[ignore = "runtime plane does not exist yet (Phase 2+): no CLI binary to boot headlessly — doc 07 §8.3 step 3"]
+#[ignore = "boot tier: the unit-tier proof lives in tests/rebrand/rebrand_acceptance.rs::surface_cli_identity_resolves_nova (card 4.H2) + the BLOCKED(wiring) register for the CLI host; this placeholder keeps the full-build boot assertion for the nightly/release job — doc 07 §8.3 step 3"]
 fn cli_identity_is_nova() {
     // FUTURE ASSERTION (doc 07 §8.3 step 3): build the rebranded tree
     // (full-build tier, nightly/release job), boot the CLI headlessly and
@@ -549,7 +597,7 @@ fn cli_identity_is_nova() {
 }
 
 #[test]
-#[ignore = "runtime plane does not exist yet (Phase 2+): no About model or engineInfo surface — doc 07 §8.3 step 4"]
+#[ignore = "boot tier: the unit-tier proof lives in tests/rebrand/rebrand_acceptance.rs::surface_about_facts_render_nova + ui/src/screens/settings/areas/updates-about.nova.test.tsx (card 4.H2); this placeholder keeps the booted-About/engineInfo assertion for the nightly tier — doc 07 §8.3 step 4"]
 fn about_model_renders_nova_logo() {
     // FUTURE ASSERTION (doc 07 §8.3 step 4): unit-assert the About model
     // with the fixture config loaded — Nova name + publisher copyright
