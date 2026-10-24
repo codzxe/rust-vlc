@@ -1,0 +1,42 @@
+
+> lumen-ui@0.1.0 visual
+> node scripts/visual-run.mjs --mode=pr
+
+[visual] mode=pr update=false seed=false
+
+Running 30 tests using 1 worker
+
+(node:5162) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 e2e/visual/visual.spec.ts:44:5 › visual player-1280x720-1x-dark › matches pinned baseline (pr) (3.4s)
+  ✓   2 e2e/visual/visual.spec.ts:44:5 › visual player-music-1280x720-1x-dark › matches pinned baseline (pr) (1.9s)
+  ✓   3 e2e/visual/visual.spec.ts:44:5 › visual miniplayer-1280x720-1x-dark › matches pinned baseline (pr) (2.2s)
+  ✓   4 e2e/visual/visual.spec.ts:44:5 › visual playlist-1280x720-1x-dark › matches pinned baseline (pr) (2.6s)
+  ✓   5 e2e/visual/visual.spec.ts:44:5 › visual media-info-1280x720-1x-dark › matches pinned baseline (pr) (2.0s)
+  ✓   6 e2e/visual/visual.spec.ts:44:5 › visual settings-global-1280x720-1x-dark › matches pinned baseline (pr) (2.4s)
+  ✓   7 e2e/visual/visual.spec.ts:44:5 › visual settings-interface-1280x720-1x-dark › matches pinned baseline (pr) (2.1s)
+  ✓   8 e2e/visual/visual.spec.ts:44:5 › visual settings-privacy-1280x720-1x-dark › matches pinned baseline (pr) (2.7s)
+  ✓   9 e2e/visual/visual.spec.ts:44:5 › visual settings-playback-1280x720-1x-dark › matches pinned baseline (pr) (3.1s)
+  ✓  10 e2e/visual/visual.spec.ts:44:5 › visual settings-performance-1280x720-1x-dark › matches pinned baseline (pr) (2.8s)
+  ✓  11 e2e/visual/visual.spec.ts:44:5 › visual onboarding-1280x720-1x-dark › matches pinned baseline (pr) (2.2s)
+  ✓  12 e2e/visual/visual.spec.ts:44:5 › visual keyboard-shortcuts-1280x720-1x-dark › matches pinned baseline (pr) (1.8s)
+  ✓  13 e2e/visual/visual.spec.ts:44:5 › visual open-network-stream-1280x720-1x-dark › matches pinned baseline (pr) (1.8s)
+  ✓  14 e2e/visual/visual.spec.ts:44:5 › visual not-found-1280x720-1x-dark › matches pinned baseline (pr) (1.5s)
+  ✓  15 e2e/visual/visual.spec.ts:44:5 › visual dev-tokens-1280x720-1x-dark › matches pinned baseline (pr) (2.0s)
+  ✓  16 e2e/visual/visual.spec.ts:44:5 › visual player-1280x720-1x-light › matches pinned baseline (pr) (2.2s)
+  ✓  17 e2e/visual/visual.spec.ts:44:5 › visual player-music-1280x720-1x-light › matches pinned baseline (pr) (2.1s)
+  ✓  18 e2e/visual/visual.spec.ts:44:5 › visual miniplayer-1280x720-1x-light › matches pinned baseline (pr) (2.2s)
+  ✓  19 e2e/visual/visual.spec.ts:44:5 › visual playlist-1280x720-1x-light › matches pinned baseline (pr) (2.4s)
+  ✓  20 e2e/visual/visual.spec.ts:44:5 › visual media-info-1280x720-1x-light › matches pinned baseline (pr) (1.9s)
+  ✓  21 e2e/visual/visual.spec.ts:44:5 › visual settings-global-1280x720-1x-light › matches pinned baseline (pr) (1.9s)
+  ✓  22 e2e/visual/visual.spec.ts:44:5 › visual settings-interface-1280x720-1x-light › matches pinned baseline (pr) (1.7s)
+  ✓  23 e2e/visual/visual.spec.ts:44:5 › visual settings-privacy-1280x720-1x-light › matches pinned baseline (pr) (1.9s)
+  ✓  24 e2e/visual/visual.spec.ts:44:5 › visual settings-playback-1280x720-1x-light › matches pinned baseline (pr) (2.0s)
+  ✓  25 e2e/visual/visual.spec.ts:44:5 › visual settings-performance-1280x720-1x-light › matches pinned baseline (pr) (1.8s)
+  ✓  26 e2e/visual/visual.spec.ts:44:5 › visual onboarding-1280x720-1x-light › matches pinned baseline (pr) (1.8s)
+  ✓  27 e2e/visual/visual.spec.ts:44:5 › visual keyboard-shortcuts-1280x720-1x-light › matches pinned baseline (pr) (1.7s)
+  ✓  28 e2e/visual/visual.spec.ts:44:5 › visual open-network-stream-1280x720-1x-light › matches pinned baseline (pr) (1.4s)
+  ✓  29 e2e/visual/visual.spec.ts:44:5 › visual not-found-1280x720-1x-light › matches pinned baseline (pr) (1.4s)
+  ✓  30 e2e/visual/visual.spec.ts:44:5 › visual dev-tokens-1280x720-1x-light › matches pinned baseline (pr) (1.4s)
+
+  30 passed (1.1m)

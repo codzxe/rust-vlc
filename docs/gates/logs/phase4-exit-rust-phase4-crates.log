@@ -1,0 +1,166 @@
+   Compiling media-types v0.1.0 (/home/z/my-project/worktrees/p4-gate/crates/media-types)
+   Compiling commands v0.1.0 (/home/z/my-project/worktrees/p4-gate/crates/commands)
+   Compiling codec-api v0.1.0 (/home/z/my-project/worktrees/p4-gate/crates/codec-api)
+   Compiling plugin-api v0.1.0 (/home/z/my-project/worktrees/p4-gate/crates/plugin-api)
+   Compiling media-clock v0.1.0 (/home/z/my-project/worktrees/p4-gate/crates/media-clock)
+   Compiling video-engine v0.1.0 (/home/z/my-project/worktrees/p4-gate/crates/video-engine)
+   Compiling audio-engine v0.1.0 (/home/z/my-project/worktrees/p4-gate/crates/audio-engine)
+   Compiling demux v0.1.0 (/home/z/my-project/worktrees/p4-gate/crates/demux)
+   Compiling input v0.1.0 (/home/z/my-project/worktrees/p4-gate/crates/input)
+   Compiling media-probe v0.1.0 (/home/z/my-project/worktrees/p4-gate/crates/media-probe)
+   Compiling codecs v0.1.0 (/home/z/my-project/worktrees/p4-gate/crates/codecs)
+   Compiling packet-queue v0.1.0 (/home/z/my-project/worktrees/p4-gate/crates/packet-queue)
+   Compiling playback-engine v0.1.0 (/home/z/my-project/worktrees/p4-gate/crates/playback-engine)
+   Compiling audio-output v0.1.0 (/home/z/my-project/worktrees/p4-gate/crates/audio-output)
+   Compiling renderer-wgpu v0.1.0 (/home/z/my-project/worktrees/p4-gate/crates/renderer-wgpu)
+   Compiling settings-schema v0.1.0 (/home/z/my-project/worktrees/p4-gate/crates/settings-schema)
+   Compiling testkit v0.1.0 (/home/z/my-project/worktrees/p4-gate/crates/testkit)
+   Compiling lumen-cli v0.1.0 (/home/z/my-project/worktrees/p4-gate/apps/cli)
+   Compiling desktop v0.1.0 (/home/z/my-project/worktrees/p4-gate/apps/desktop)
+   Compiling playlists v0.1.0 (/home/z/my-project/worktrees/p4-gate/crates/playlists)
+   Compiling lumen-sweep v0.1.0 (/home/z/my-project/worktrees/p4-gate/tools/sweep)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 52.61s
+     Running unittests src/lib.rs (/home/z/my-project/target/debug/deps/desktop-07b16eceb7331457)
+
+running 38 tests
+test bridge::tests::present_ships_a_decodable_record_and_echoes_the_slot ... ok
+test bridge::tests::monotonic_emit_clock_advances ... ok
+test bridge::tests::repeat_entry_flags_the_record_and_reships_the_payload ... ok
+test bridge::tests::truncated_frames_are_refused_not_padded ... ok
+test bridge::tests::yuv_and_opaque_frames_are_typed_refusals ... ok
+test dispatch::tests::file_open_funnel_is_the_catalog_command ... ok
+test dispatch::tests::served_commands_reach_the_engine_and_answer ... ok
+test dispatch::tests::unserved_commands_refuse_typed_and_echo ... ok
+test files::tests::drops_become_the_open_command_first_media_wins ... ok
+test files::tests::drops_without_media_are_noops_not_errors ... ok
+test files::tests::native_dialog_is_the_typed_pending_state ... ok
+test host::tests::generation_bumps_signal_the_mailbox_flush ... ok
+test host::tests::ids_are_monotonic_and_responses_echo_legally ... ok
+test host::tests::stale_events_are_dropped_current_ones_kept ... ok
+test host::tests::strategy_table_is_the_adr_landing ... ok
+test host::tests::webview_open_is_a_typed_pending_never_a_fake ... ok
+test mailbox::tests::generation_flush_drops_everything_counted_once ... ok
+test mailbox::tests::latency_accountant_is_exact_floor_arithmetic ... ok
+test mailbox::tests::latest_wins_drops_oldest_and_counts ... ok
+test mailbox::tests::zero_capacity_is_unconstructible_but_typed ... ok
+test window_config::tests::bounds_and_cross_fields_are_typed_errors ... ok
+test window_config::tests::other_sections_and_comments_do_not_leak ... ok
+test window_config::tests::the_shipped_product_toml_parses ... ok
+test wire::tests::chunked_feed_at_every_split_point ... ok
+test wire::tests::clones_and_hand_built_frames_behave_like_plain_owners ... ok
+test wire::tests::decode_record_is_the_streaming_result_direct_from_the_slice ... ok
+test wire::tests::decode_record_refuses_truncated_and_trailing_input ... ok
+test wire::tests::encoder_refuses_unexpressible_records ... ok
+test wire::tests::extension_headers_are_skipped_not_guessed ... ok
+test wire::tests::format_code_table_is_exactly_the_upload_path ... ok
+test wire::tests::golden_bytes_match_the_spec_table ... ok
+test wire::tests::header_overhead_is_recorded_math_not_assertions ... ok
+test wire::tests::malformed_inputs_are_typed_refusals ... ok
+test wire::tests::one_decoder_recycles_payload_buffers_across_records ... ok
+test wire::tests::partial_records_compact_without_losing_bytes ... ok
+test wire::tests::round_trip_exact_fields ... ok
+test wire::tests::truncated_streams_report_exact_missing_bytes ... ok
+test dispatch::tests::events_forward_in_order_exactly_once ... ok
+
+test result: ok. 38 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.90s
+
+     Running unittests src/main.rs (/home/z/my-project/target/debug/deps/lumen_desktop-82639dd15032bc62)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/pipeline.rs (/home/z/my-project/target/debug/deps/pipeline-79ac91f0d63bf7f8)
+
+running 4 tests
+test generation_bump_flushes_in_flight_frames ... ok
+test nominal_pipeline_delivers_every_frame_with_exact_latency ... ok
+test stub_binary_reports_pending_state ... ok
+test slow_consumer_latest_wins_with_structural_bounds ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/protocol.rs (/home/z/my-project/target/debug/deps/protocol-880a8fd21a49dbdc)
+
+running 4 tests
+test bad_magic_reports_stream_offset_after_consumed_records ... ok
+test bridge_stream_round_trips_sixty_frames_varied_sizes ... ok
+test renderer_composited_output_streams_byte_exact ... ok
+test full_hd_frame_round_trips ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+
+     Running tests/zero_alloc_transport.rs (/home/z/my-project/target/debug/deps/zero_alloc_transport-0582dabb1d5f3b8f)
+
+running 2 tests
+test streaming_decoder_path_is_zero_allocation_after_warm_up ... ok
+test mailbox_frame_path_is_zero_allocation_after_warm_up ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src/main.rs (/home/z/my-project/target/debug/deps/lumen_sweep-51db9fb812deb5cf)
+
+running 15 tests
+test outcome::tests::classify_maps_worker_and_crash_paths ... ok
+test outcome::tests::class_of_handles_corpus_and_fixture_naming ... ok
+test outcome::tests::outcome_mapping_is_total_for_worker_statuses ... ok
+test outcome::tests::parses_a_full_ok_line ... ok
+test outcome::tests::parses_an_error_line_with_spaces_in_detail ... ok
+test outcome::tests::rejects_malformed_lines ... ok
+test outcome::tests::sanitize_kills_field_breaking_chars ... ok
+test outcome::tests::tally_records_and_renders ... ok
+test tests::parse_entry_handles_overrides_and_bare_paths ... ok
+test tests::sweepline_for_a_timeout_has_dashes_and_the_note ... ok
+test tests::sweepline_for_an_ok_file_carries_the_worker_fields ... ok
+test worker::tests::encode_path_percent_encodes_spaces_but_keeps_slashes ... ok
+test worker::tests::marker_line_shape_matches_the_parser ... ok
+test worker::tests::missing_file_is_a_typed_inaccessible_refusal_not_a_crash ... ok
+test outcome::tests::crash_note_finds_panic_line_or_exit_fact ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/lib.rs (/home/z/my-project/target/debug/deps/playlists-d4513c69a2d1b242)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/m3u_suite.rs (/home/z/my-project/target/debug/deps/m3u_suite-c74c258f63aeb333)
+
+running 18 tests
+test dirty_fixture_degrades_honestly ... ok
+test bom_and_crlf_tolerance ... ok
+test empty_and_comment_only_inputs ... ok
+test fuzz_lite_mutations_of_valid_playlist_5k ... ok
+test garbage_bytes_are_typed_invalid_utf8 ... ok
+test fuzz_lite_random_bytes_10k_no_panic ... ok
+test golden_basic_extended ... ok
+test golden_comments_and_blanks_ignored ... ok
+test golden_plain_urls_without_header ... ok
+test lf_crlf_mix ... ok
+test golden_directives_attach_in_order ... ok
+test lone_cr_file_does_not_panic ... ok
+test non_finite_durations_are_bad_duration ... ok
+test repeated_header_anywhere_is_ignored ... ok
+test roundtrip_all_fixtures_and_dirty_corpus ... ok
+test line_cap_boundaries ... ok
+test write_canonical_golden_pin ... ok
+test ten_megabyte_line_is_a_typed_error ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+
+   Doc-tests desktop
+
+running 2 tests
+test apps/desktop/src/dispatch.rs - dispatch (line 20) ... ignored
+test apps/desktop/src/lib.rs - (line 53) ... ok
+
+test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+all doctests ran in 1.31s; merged doctests compilation took 1.30s
+   Doc-tests playlists
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -1,0 +1,799 @@
+[WebServer] (node:4625) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+[WebServer]   - JSON import "./package.json" without import attributes (vite.config.ts:2:17). Add `with { type: 'json' }`
+[WebServer] Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+Running 68 tests using 1 worker
+
+(node:4674) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 e2e/a11y.spec.ts:58:3 › axe: zero wcag2a/2aa violations on player (1.6s)
+  ✓   2 e2e/a11y.spec.ts:58:3 › axe: zero wcag2a/2aa violations on player-music (1.4s)
+  ✓   3 e2e/a11y.spec.ts:58:3 › axe: zero wcag2a/2aa violations on miniplayer (1.5s)
+  ✓   4 e2e/a11y.spec.ts:58:3 › axe: zero wcag2a/2aa violations on playlist (1.4s)
+  ✓   5 e2e/a11y.spec.ts:58:3 › axe: zero wcag2a/2aa violations on media-info (1.4s)
+  ✓   6 e2e/a11y.spec.ts:58:3 › axe: zero wcag2a/2aa violations on settings-global (3.2s)
+  ✓   7 e2e/a11y.spec.ts:58:3 › axe: zero wcag2a/2aa violations on settings-interface (4.0s)
+  ✓   8 e2e/a11y.spec.ts:58:3 › axe: zero wcag2a/2aa violations on settings-privacy (4.1s)
+  ✓   9 e2e/a11y.spec.ts:58:3 › axe: zero wcag2a/2aa violations on settings-playback (4.4s)
+  ✓  10 e2e/a11y.spec.ts:58:3 › axe: zero wcag2a/2aa violations on settings-performance (3.9s)
+  ✓  11 e2e/a11y.spec.ts:58:3 › axe: zero wcag2a/2aa violations on onboarding (3.2s)
+  ✓  12 e2e/a11y.spec.ts:136:3 › keyboard: tab order is DOM order, focus visible on player (1.9s)
+  ✓  13 e2e/a11y.spec.ts:136:3 › keyboard: tab order is DOM order, focus visible on playlist (1.6s)
+  ✓  14 e2e/a11y.spec.ts:136:3 › keyboard: tab order is DOM order, focus visible on settings-global (2.0s)
+  ✓  15 e2e/a11y.spec.ts:136:3 › keyboard: tab order is DOM order, focus visible on onboarding (1.8s)
+  ✓  16 e2e/a11y.spec.ts:166:1 › focus ring paints the --color-accent token (not a hardcoded color) (1.3s)
+  ✘  17 e2e/smoke.spec.ts:6:1 › boot lands on the player placeholder (6.9s)
+(node:7185) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  18 e2e/theme.spec.ts:8:1 › default theme lands on <html> as dark + orange (1.8s)
+  ✓  19 e2e/theme.spec.ts:14:1 › switching mode + accent swaps the CSS variable cascade (1.2s)
+  ✓  20 e2e/theme.spec.ts:40:1 › auto mode follows the emulated OS color scheme (1.7s)
+  ✓  21 e2e/theme.spec.ts:78:5 › matrix: orange × dark resolves the accent cascade (1.2s)
+  ✓  22 e2e/theme.spec.ts:78:5 › matrix: orange × light resolves the accent cascade (1.3s)
+  ✓  23 e2e/theme.spec.ts:78:5 › matrix: red × dark resolves the accent cascade (1.7s)
+  ✓  24 e2e/theme.spec.ts:78:5 › matrix: red × light resolves the accent cascade (1.3s)
+  ✓  25 e2e/theme.spec.ts:78:5 › matrix: yellow × dark resolves the accent cascade (1.2s)
+  ✓  26 e2e/theme.spec.ts:78:5 › matrix: yellow × light resolves the accent cascade (1.5s)
+  ✓  27 e2e/theme.spec.ts:78:5 › matrix: green × dark resolves the accent cascade (1.2s)
+  ✓  28 e2e/theme.spec.ts:78:5 › matrix: green × light resolves the accent cascade (1.0s)
+  ✓  29 e2e/theme.spec.ts:78:5 › matrix: cyan × dark resolves the accent cascade (1.0s)
+  ✓  30 e2e/theme.spec.ts:78:5 › matrix: cyan × light resolves the accent cascade (674ms)
+  ✓  31 e2e/theme.spec.ts:78:5 › matrix: blue × dark resolves the accent cascade (946ms)
+  ✓  32 e2e/theme.spec.ts:78:5 › matrix: blue × light resolves the accent cascade (950ms)
+  ✓  33 e2e/theme.spec.ts:78:5 › matrix: violet × dark resolves the accent cascade (849ms)
+  ✓  34 e2e/theme.spec.ts:78:5 › matrix: violet × light resolves the accent cascade (823ms)
+  ✓  35 e2e/theme.spec.ts:78:5 › matrix: pink × dark resolves the accent cascade (909ms)
+  ✓  36 e2e/theme.spec.ts:78:5 › matrix: pink × light resolves the accent cascade (905ms)
+  ✓  37 e2e/theme.spec.ts:78:5 › matrix: gray × dark resolves the accent cascade (899ms)
+  ✓  38 e2e/theme.spec.ts:78:5 › matrix: gray × light resolves the accent cascade (847ms)
+  ✘  39 e2e/visual/visual.spec.ts:44:5 › visual player-1280x720-1x-dark › matches pinned baseline (pr) (1.7s)
+(node:8913) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  40 e2e/visual/visual.spec.ts:44:5 › visual player-music-1280x720-1x-dark › matches pinned baseline (pr) (1.5s)
+(node:9027) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  41 e2e/visual/visual.spec.ts:44:5 › visual miniplayer-1280x720-1x-dark › matches pinned baseline (pr) (1.5s)
+(node:9121) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  42 e2e/visual/visual.spec.ts:44:5 › visual playlist-1280x720-1x-dark › matches pinned baseline (pr) (1.6s)
+(node:9204) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  43 e2e/visual/visual.spec.ts:44:5 › visual media-info-1280x720-1x-dark › matches pinned baseline (pr) (1.5s)
+(node:9290) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  44 e2e/visual/visual.spec.ts:44:5 › visual settings-global-1280x720-1x-dark › matches pinned baseline (pr) (1.6s)
+(node:9373) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  45 e2e/visual/visual.spec.ts:44:5 › visual settings-interface-1280x720-1x-dark › matches pinned baseline (pr) (1.6s)
+(node:9459) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  46 e2e/visual/visual.spec.ts:44:5 › visual settings-privacy-1280x720-1x-dark › matches pinned baseline (pr) (1.7s)
+(node:9539) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  47 e2e/visual/visual.spec.ts:44:5 › visual settings-playback-1280x720-1x-dark › matches pinned baseline (pr) (1.6s)
+(node:9621) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  48 e2e/visual/visual.spec.ts:44:5 › visual settings-performance-1280x720-1x-dark › matches pinned baseline (pr) (1.6s)
+(node:9709) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  49 e2e/visual/visual.spec.ts:44:5 › visual onboarding-1280x720-1x-dark › matches pinned baseline (pr) (1.6s)
+(node:9793) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  50 e2e/visual/visual.spec.ts:44:5 › visual keyboard-shortcuts-1280x720-1x-dark › matches pinned baseline (pr) (1.5s)
+(node:9875) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  51 e2e/visual/visual.spec.ts:44:5 › visual open-network-stream-1280x720-1x-dark › matches pinned baseline (pr) (1.5s)
+(node:9961) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  52 e2e/visual/visual.spec.ts:44:5 › visual not-found-1280x720-1x-dark › matches pinned baseline (pr) (1.5s)
+(node:10044) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  53 e2e/visual/visual.spec.ts:44:5 › visual dev-tokens-1280x720-1x-dark › matches pinned baseline (pr) (1.5s)
+(node:10126) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  54 e2e/visual/visual.spec.ts:44:5 › visual player-1280x720-1x-light › matches pinned baseline (pr) (1.5s)
+(node:10211) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  55 e2e/visual/visual.spec.ts:44:5 › visual player-music-1280x720-1x-light › matches pinned baseline (pr) (1.5s)
+(node:10291) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  56 e2e/visual/visual.spec.ts:44:5 › visual miniplayer-1280x720-1x-light › matches pinned baseline (pr) (1.5s)
+(node:10379) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  57 e2e/visual/visual.spec.ts:44:5 › visual playlist-1280x720-1x-light › matches pinned baseline (pr) (1.6s)
+(node:10462) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  58 e2e/visual/visual.spec.ts:44:5 › visual media-info-1280x720-1x-light › matches pinned baseline (pr) (1.5s)
+(node:10546) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  59 e2e/visual/visual.spec.ts:44:5 › visual settings-global-1280x720-1x-light › matches pinned baseline (pr) (1.6s)
+(node:10626) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  60 e2e/visual/visual.spec.ts:44:5 › visual settings-interface-1280x720-1x-light › matches pinned baseline (pr) (1.6s)
+(node:10710) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  61 e2e/visual/visual.spec.ts:44:5 › visual settings-privacy-1280x720-1x-light › matches pinned baseline (pr) (1.6s)
+(node:10793) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  62 e2e/visual/visual.spec.ts:44:5 › visual settings-playback-1280x720-1x-light › matches pinned baseline (pr) (1.6s)
+(node:10883) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  63 e2e/visual/visual.spec.ts:44:5 › visual settings-performance-1280x720-1x-light › matches pinned baseline (pr) (1.6s)
+(node:10965) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  64 e2e/visual/visual.spec.ts:44:5 › visual onboarding-1280x720-1x-light › matches pinned baseline (pr) (1.6s)
+(node:11043) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  65 e2e/visual/visual.spec.ts:44:5 › visual keyboard-shortcuts-1280x720-1x-light › matches pinned baseline (pr) (1.5s)
+(node:11126) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  66 e2e/visual/visual.spec.ts:44:5 › visual open-network-stream-1280x720-1x-light › matches pinned baseline (pr) (1.5s)
+(node:11216) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  67 e2e/visual/visual.spec.ts:44:5 › visual not-found-1280x720-1x-light › matches pinned baseline (pr) (1.5s)
+(node:11296) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  68 e2e/visual/visual.spec.ts:44:5 › visual dev-tokens-1280x720-1x-light › matches pinned baseline (pr) (1.5s)
+
+
+  1) e2e/smoke.spec.ts:6:1 › boot lands on the player placeholder ──────────────────────────────────
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: getByRole('heading', { level: 1 })
+    Expected substring: "Player"
+    Received string:    "Welcome to Lumen"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "toContainText" getByRole('heading', { level: 1 }) with timeout 5000ms
+      - waiting for getByRole('heading', { level: 1 })
+        12 × locator resolved to <h1 id="onboarding-title" class="onboarding__title">Welcome to Lumen</h1>
+           - unexpected value "Welcome to Lumen"
+
+
+       6 | test("boot lands on the player placeholder", async ({ page }) => {
+       7 |   await page.goto("/");
+    >  8 |   await expect(page.getByRole("heading", { level: 1 })).toContainText("Player");
+         |                                                         ^
+       9 | });
+      10 |
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/smoke.spec.ts:8:57
+
+    Error Context: test-results/smoke-boot-lands-on-the-player-placeholder/error-context.md
+
+  2) e2e/visual/visual.spec.ts:44:5 › visual player-1280x720-1x-dark › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/player-1280x720-1x-dark-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: player-1280x720-1x-dark (image/png) ─────────────────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/player-1280x720-1x-dark-linux.png
+    Received: test-results/visual-visual-visual-playe-46b8a-matches-pinned-baseline-pr-/player-1280x720-1x-dark-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-playe-46b8a-matches-pinned-baseline-pr-/error-context.md
+
+  3) e2e/visual/visual.spec.ts:44:5 › visual player-music-1280x720-1x-dark › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/player-music-1280x720-1x-dark-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: player-music-1280x720-1x-dark (image/png) ───────────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/player-music-1280x720-1x-dark-linux.png
+    Received: test-results/visual-visual-visual-playe-fbc05-matches-pinned-baseline-pr-/player-music-1280x720-1x-dark-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-playe-fbc05-matches-pinned-baseline-pr-/error-context.md
+
+  4) e2e/visual/visual.spec.ts:44:5 › visual miniplayer-1280x720-1x-dark › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/miniplayer-1280x720-1x-dark-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: miniplayer-1280x720-1x-dark (image/png) ─────────────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/miniplayer-1280x720-1x-dark-linux.png
+    Received: test-results/visual-visual-visual-minip-88239-matches-pinned-baseline-pr-/miniplayer-1280x720-1x-dark-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-minip-88239-matches-pinned-baseline-pr-/error-context.md
+
+  5) e2e/visual/visual.spec.ts:44:5 › visual playlist-1280x720-1x-dark › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/playlist-1280x720-1x-dark-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: playlist-1280x720-1x-dark (image/png) ───────────────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/playlist-1280x720-1x-dark-linux.png
+    Received: test-results/visual-visual-visual-playl-06343-matches-pinned-baseline-pr-/playlist-1280x720-1x-dark-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-playl-06343-matches-pinned-baseline-pr-/error-context.md
+
+  6) e2e/visual/visual.spec.ts:44:5 › visual media-info-1280x720-1x-dark › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/media-info-1280x720-1x-dark-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: media-info-1280x720-1x-dark (image/png) ─────────────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/media-info-1280x720-1x-dark-linux.png
+    Received: test-results/visual-visual-visual-media-43227-matches-pinned-baseline-pr-/media-info-1280x720-1x-dark-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-media-43227-matches-pinned-baseline-pr-/error-context.md
+
+  7) e2e/visual/visual.spec.ts:44:5 › visual settings-global-1280x720-1x-dark › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/settings-global-1280x720-1x-dark-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: settings-global-1280x720-1x-dark (image/png) ────────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/settings-global-1280x720-1x-dark-linux.png
+    Received: test-results/visual-visual-visual-setti-0e47c-matches-pinned-baseline-pr-/settings-global-1280x720-1x-dark-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-setti-0e47c-matches-pinned-baseline-pr-/error-context.md
+
+  8) e2e/visual/visual.spec.ts:44:5 › visual settings-interface-1280x720-1x-dark › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/settings-interface-1280x720-1x-dark-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: settings-interface-1280x720-1x-dark (image/png) ─────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/settings-interface-1280x720-1x-dark-linux.png
+    Received: test-results/visual-visual-visual-setti-b429b-matches-pinned-baseline-pr-/settings-interface-1280x720-1x-dark-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-setti-b429b-matches-pinned-baseline-pr-/error-context.md
+
+  9) e2e/visual/visual.spec.ts:44:5 › visual settings-privacy-1280x720-1x-dark › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/settings-privacy-1280x720-1x-dark-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: settings-privacy-1280x720-1x-dark (image/png) ───────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/settings-privacy-1280x720-1x-dark-linux.png
+    Received: test-results/visual-visual-visual-setti-d53dd-matches-pinned-baseline-pr-/settings-privacy-1280x720-1x-dark-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-setti-d53dd-matches-pinned-baseline-pr-/error-context.md
+
+  10) e2e/visual/visual.spec.ts:44:5 › visual settings-playback-1280x720-1x-dark › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/settings-playback-1280x720-1x-dark-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: settings-playback-1280x720-1x-dark (image/png) ──────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/settings-playback-1280x720-1x-dark-linux.png
+    Received: test-results/visual-visual-visual-setti-469b5-matches-pinned-baseline-pr-/settings-playback-1280x720-1x-dark-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-setti-469b5-matches-pinned-baseline-pr-/error-context.md
+
+  11) e2e/visual/visual.spec.ts:44:5 › visual settings-performance-1280x720-1x-dark › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/settings-performance-1280x720-1x-dark-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: settings-performance-1280x720-1x-dark (image/png) ───────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/settings-performance-1280x720-1x-dark-linux.png
+    Received: test-results/visual-visual-visual-setti-50987-matches-pinned-baseline-pr-/settings-performance-1280x720-1x-dark-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-setti-50987-matches-pinned-baseline-pr-/error-context.md
+
+  12) e2e/visual/visual.spec.ts:44:5 › visual onboarding-1280x720-1x-dark › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/onboarding-1280x720-1x-dark-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: onboarding-1280x720-1x-dark (image/png) ─────────────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/onboarding-1280x720-1x-dark-linux.png
+    Received: test-results/visual-visual-visual-onboa-caf04-matches-pinned-baseline-pr-/onboarding-1280x720-1x-dark-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-onboa-caf04-matches-pinned-baseline-pr-/error-context.md
+
+  13) e2e/visual/visual.spec.ts:44:5 › visual keyboard-shortcuts-1280x720-1x-dark › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/keyboard-shortcuts-1280x720-1x-dark-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: keyboard-shortcuts-1280x720-1x-dark (image/png) ─────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/keyboard-shortcuts-1280x720-1x-dark-linux.png
+    Received: test-results/visual-visual-visual-keybo-12d8b-matches-pinned-baseline-pr-/keyboard-shortcuts-1280x720-1x-dark-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-keybo-12d8b-matches-pinned-baseline-pr-/error-context.md
+
+  14) e2e/visual/visual.spec.ts:44:5 › visual open-network-stream-1280x720-1x-dark › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/open-network-stream-1280x720-1x-dark-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: open-network-stream-1280x720-1x-dark (image/png) ────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/open-network-stream-1280x720-1x-dark-linux.png
+    Received: test-results/visual-visual-visual-open--483e5-matches-pinned-baseline-pr-/open-network-stream-1280x720-1x-dark-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-open--483e5-matches-pinned-baseline-pr-/error-context.md
+
+  15) e2e/visual/visual.spec.ts:44:5 › visual not-found-1280x720-1x-dark › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/not-found-1280x720-1x-dark-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: not-found-1280x720-1x-dark (image/png) ──────────────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/not-found-1280x720-1x-dark-linux.png
+    Received: test-results/visual-visual-visual-not-f-8854d-matches-pinned-baseline-pr-/not-found-1280x720-1x-dark-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-not-f-8854d-matches-pinned-baseline-pr-/error-context.md
+
+  16) e2e/visual/visual.spec.ts:44:5 › visual dev-tokens-1280x720-1x-dark › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/dev-tokens-1280x720-1x-dark-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: dev-tokens-1280x720-1x-dark (image/png) ─────────────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/dev-tokens-1280x720-1x-dark-linux.png
+    Received: test-results/visual-visual-visual-dev-t-d4a15-matches-pinned-baseline-pr-/dev-tokens-1280x720-1x-dark-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-dev-t-d4a15-matches-pinned-baseline-pr-/error-context.md
+
+  17) e2e/visual/visual.spec.ts:44:5 › visual player-1280x720-1x-light › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/player-1280x720-1x-light-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: player-1280x720-1x-light (image/png) ────────────────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/player-1280x720-1x-light-linux.png
+    Received: test-results/visual-visual-visual-playe-46c07-matches-pinned-baseline-pr-/player-1280x720-1x-light-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-playe-46c07-matches-pinned-baseline-pr-/error-context.md
+
+  18) e2e/visual/visual.spec.ts:44:5 › visual player-music-1280x720-1x-light › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/player-music-1280x720-1x-light-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: player-music-1280x720-1x-light (image/png) ──────────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/player-music-1280x720-1x-light-linux.png
+    Received: test-results/visual-visual-visual-playe-4aea5-matches-pinned-baseline-pr-/player-music-1280x720-1x-light-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-playe-4aea5-matches-pinned-baseline-pr-/error-context.md
+
+  19) e2e/visual/visual.spec.ts:44:5 › visual miniplayer-1280x720-1x-light › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/miniplayer-1280x720-1x-light-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: miniplayer-1280x720-1x-light (image/png) ────────────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/miniplayer-1280x720-1x-light-linux.png
+    Received: test-results/visual-visual-visual-minip-9439f-matches-pinned-baseline-pr-/miniplayer-1280x720-1x-light-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-minip-9439f-matches-pinned-baseline-pr-/error-context.md
+
+  20) e2e/visual/visual.spec.ts:44:5 › visual playlist-1280x720-1x-light › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/playlist-1280x720-1x-light-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: playlist-1280x720-1x-light (image/png) ──────────────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/playlist-1280x720-1x-light-linux.png
+    Received: test-results/visual-visual-visual-playl-50276-matches-pinned-baseline-pr-/playlist-1280x720-1x-light-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-playl-50276-matches-pinned-baseline-pr-/error-context.md
+
+  21) e2e/visual/visual.spec.ts:44:5 › visual media-info-1280x720-1x-light › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/media-info-1280x720-1x-light-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: media-info-1280x720-1x-light (image/png) ────────────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/media-info-1280x720-1x-light-linux.png
+    Received: test-results/visual-visual-visual-media-91ca6-matches-pinned-baseline-pr-/media-info-1280x720-1x-light-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-media-91ca6-matches-pinned-baseline-pr-/error-context.md
+
+  22) e2e/visual/visual.spec.ts:44:5 › visual settings-global-1280x720-1x-light › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/settings-global-1280x720-1x-light-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: settings-global-1280x720-1x-light (image/png) ───────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/settings-global-1280x720-1x-light-linux.png
+    Received: test-results/visual-visual-visual-setti-1d78f-matches-pinned-baseline-pr-/settings-global-1280x720-1x-light-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-setti-1d78f-matches-pinned-baseline-pr-/error-context.md
+
+  23) e2e/visual/visual.spec.ts:44:5 › visual settings-interface-1280x720-1x-light › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/settings-interface-1280x720-1x-light-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: settings-interface-1280x720-1x-light (image/png) ────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/settings-interface-1280x720-1x-light-linux.png
+    Received: test-results/visual-visual-visual-setti-885fb-matches-pinned-baseline-pr-/settings-interface-1280x720-1x-light-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-setti-885fb-matches-pinned-baseline-pr-/error-context.md
+
+  24) e2e/visual/visual.spec.ts:44:5 › visual settings-privacy-1280x720-1x-light › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/settings-privacy-1280x720-1x-light-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: settings-privacy-1280x720-1x-light (image/png) ──────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/settings-privacy-1280x720-1x-light-linux.png
+    Received: test-results/visual-visual-visual-setti-64029-matches-pinned-baseline-pr-/settings-privacy-1280x720-1x-light-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-setti-64029-matches-pinned-baseline-pr-/error-context.md
+
+  25) e2e/visual/visual.spec.ts:44:5 › visual settings-playback-1280x720-1x-light › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/settings-playback-1280x720-1x-light-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: settings-playback-1280x720-1x-light (image/png) ─────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/settings-playback-1280x720-1x-light-linux.png
+    Received: test-results/visual-visual-visual-setti-8e82c-matches-pinned-baseline-pr-/settings-playback-1280x720-1x-light-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-setti-8e82c-matches-pinned-baseline-pr-/error-context.md
+
+  26) e2e/visual/visual.spec.ts:44:5 › visual settings-performance-1280x720-1x-light › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/settings-performance-1280x720-1x-light-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: settings-performance-1280x720-1x-light (image/png) ──────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/settings-performance-1280x720-1x-light-linux.png
+    Received: test-results/visual-visual-visual-setti-144c2-matches-pinned-baseline-pr-/settings-performance-1280x720-1x-light-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-setti-144c2-matches-pinned-baseline-pr-/error-context.md
+
+  27) e2e/visual/visual.spec.ts:44:5 › visual onboarding-1280x720-1x-light › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/onboarding-1280x720-1x-light-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: onboarding-1280x720-1x-light (image/png) ────────────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/onboarding-1280x720-1x-light-linux.png
+    Received: test-results/visual-visual-visual-onboa-d6984-matches-pinned-baseline-pr-/onboarding-1280x720-1x-light-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-onboa-d6984-matches-pinned-baseline-pr-/error-context.md
+
+  28) e2e/visual/visual.spec.ts:44:5 › visual keyboard-shortcuts-1280x720-1x-light › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/keyboard-shortcuts-1280x720-1x-light-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: keyboard-shortcuts-1280x720-1x-light (image/png) ────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/keyboard-shortcuts-1280x720-1x-light-linux.png
+    Received: test-results/visual-visual-visual-keybo-ad9a8-matches-pinned-baseline-pr-/keyboard-shortcuts-1280x720-1x-light-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-keybo-ad9a8-matches-pinned-baseline-pr-/error-context.md
+
+  29) e2e/visual/visual.spec.ts:44:5 › visual open-network-stream-1280x720-1x-light › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/open-network-stream-1280x720-1x-light-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: open-network-stream-1280x720-1x-light (image/png) ───────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/open-network-stream-1280x720-1x-light-linux.png
+    Received: test-results/visual-visual-visual-open--502a5-matches-pinned-baseline-pr-/open-network-stream-1280x720-1x-light-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-open--502a5-matches-pinned-baseline-pr-/error-context.md
+
+  30) e2e/visual/visual.spec.ts:44:5 › visual not-found-1280x720-1x-light › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/not-found-1280x720-1x-light-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: not-found-1280x720-1x-light (image/png) ─────────────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/not-found-1280x720-1x-light-linux.png
+    Received: test-results/visual-visual-visual-not-f-b7c56-matches-pinned-baseline-pr-/not-found-1280x720-1x-light-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-not-f-b7c56-matches-pinned-baseline-pr-/error-context.md
+
+  31) e2e/visual/visual.spec.ts:44:5 › visual dev-tokens-1280x720-1x-light › matches pinned baseline (pr) 
+
+    Error: A snapshot doesn't exist at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts-snapshots/dev-tokens-1280x720-1x-light-linux.png, writing actual.
+
+      100 |       // because Playwright has no zone concept [PROPOSAL]). 2-px shifts of
+      101 |       // viewport-scale elements produce ~0.3%+ differing pixels → FAIL.
+    > 102 |       await expect(page).toHaveScreenshot(`${id}.png`, { clip: box });
+          |       ^
+      103 |     });
+      104 |   });
+      105 | }
+        at /home/z/my-project/worktrees/p4-gate/ui/e2e/visual/visual.spec.ts:102:7
+
+    attachment #1: dev-tokens-1280x720-1x-light (image/png) ────────────────────────────────────────
+    Expected: e2e/visual/visual.spec.ts-snapshots/dev-tokens-1280x720-1x-light-linux.png
+    Received: test-results/visual-visual-visual-dev-t-f5889-matches-pinned-baseline-pr-/dev-tokens-1280x720-1x-light-actual.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/visual-visual-visual-dev-t-f5889-matches-pinned-baseline-pr-/error-context.md
+
+  31 failed
+    e2e/smoke.spec.ts:6:1 › boot lands on the player placeholder ───────────────────────────────────
+    e2e/visual/visual.spec.ts:44:5 › visual player-1280x720-1x-dark › matches pinned baseline (pr) ─
+    e2e/visual/visual.spec.ts:44:5 › visual player-music-1280x720-1x-dark › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual miniplayer-1280x720-1x-dark › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual playlist-1280x720-1x-dark › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual media-info-1280x720-1x-dark › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual settings-global-1280x720-1x-dark › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual settings-interface-1280x720-1x-dark › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual settings-privacy-1280x720-1x-dark › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual settings-playback-1280x720-1x-dark › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual settings-performance-1280x720-1x-dark › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual onboarding-1280x720-1x-dark › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual keyboard-shortcuts-1280x720-1x-dark › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual open-network-stream-1280x720-1x-dark › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual not-found-1280x720-1x-dark › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual dev-tokens-1280x720-1x-dark › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual player-1280x720-1x-light › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual player-music-1280x720-1x-light › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual miniplayer-1280x720-1x-light › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual playlist-1280x720-1x-light › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual media-info-1280x720-1x-light › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual settings-global-1280x720-1x-light › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual settings-interface-1280x720-1x-light › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual settings-privacy-1280x720-1x-light › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual settings-playback-1280x720-1x-light › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual settings-performance-1280x720-1x-light › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual onboarding-1280x720-1x-light › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual keyboard-shortcuts-1280x720-1x-light › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual open-network-stream-1280x720-1x-light › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual not-found-1280x720-1x-light › matches pinned baseline (pr) 
+    e2e/visual/visual.spec.ts:44:5 › visual dev-tokens-1280x720-1x-light › matches pinned baseline (pr) 
+  37 passed (2.3m)

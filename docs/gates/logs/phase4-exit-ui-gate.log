@@ -1,0 +1,76 @@
+
+> lumen-ui@0.1.0 typecheck
+> tsc --noEmit
+
+
+> lumen-ui@0.1.0 lint
+> eslint .
+
+
+/home/z/my-project/worktrees/p4-gate/ui/scripts/l10n-pseudo-probe.mjs
+   8:26   error  'setTimeout' is not defined        no-undef
+  19:17   error  'document' is not defined          no-undef
+  20:45   error  'window' is not defined            no-undef
+  22:22   error  'document' is not defined          no-undef
+  24:28   error  'getComputedStyle' is not defined  no-undef
+  29:103  error  'document' is not defined          no-undef
+
+/home/z/my-project/worktrees/p4-gate/ui/src/client/ClientProvider.tsx
+  20:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/home/z/my-project/worktrees/p4-gate/ui/src/components/menu/Dropdown.tsx
+  8:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/home/z/my-project/worktrees/p4-gate/ui/src/components/menu/MenuPopup.tsx
+  11:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  12:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/home/z/my-project/worktrees/p4-gate/ui/src/components/menu/Tooltip.tsx
+  10:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  11:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/home/z/my-project/worktrees/p4-gate/ui/src/components/slider/Seekbar.tsx
+  43:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/home/z/my-project/worktrees/p4-gate/ui/src/screens/media-info/MediaInfoProvider.tsx
+  84:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/home/z/my-project/worktrees/p4-gate/ui/src/screens/player/context.tsx
+  119:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  387:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  401:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  413:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/home/z/my-project/worktrees/p4-gate/ui/src/screens/player/states/StateRouter.tsx
+  26:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/home/z/my-project/worktrees/p4-gate/ui/src/screens/playlist/PlaylistProvider.tsx
+  276:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/home/z/my-project/worktrees/p4-gate/ui/src/screens/settings/SettingsProvider.tsx
+  131:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/home/z/my-project/worktrees/p4-gate/ui/src/screens/settings/areas/advanced.tsx
+  22:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/home/z/my-project/worktrees/p4-gate/ui/src/screens/settings/areas/hotkeys/generated/bindings.ts
+  4:1  warning  Unused eslint-disable directive (no problems were reported)
+
+/home/z/my-project/worktrees/p4-gate/ui/src/screens/settings/areas/index.tsx
+  28:10  warning  Fast refresh only works when a file only exports components. Move your component(s) to a separate file. If all exports are HOCs, add them to the `extraHOCs` option  react-refresh/only-export-components
+  33:10  warning  Fast refresh only works when a file only exports components. Move your component(s) to a separate file. If all exports are HOCs, add them to the `extraHOCs` option  react-refresh/only-export-components
+  36:10  warning  Fast refresh only works when a file only exports components. Move your component(s) to a separate file. If all exports are HOCs, add them to the `extraHOCs` option  react-refresh/only-export-components
+  39:10  warning  Fast refresh only works when a file only exports components. Move your component(s) to a separate file. If all exports are HOCs, add them to the `extraHOCs` option  react-refresh/only-export-components
+  42:10  warning  Fast refresh only works when a file only exports components. Move your component(s) to a separate file. If all exports are HOCs, add them to the `extraHOCs` option  react-refresh/only-export-components
+  45:10  warning  Fast refresh only works when a file only exports components. Move your component(s) to a separate file. If all exports are HOCs, add them to the `extraHOCs` option  react-refresh/only-export-components
+
+/home/z/my-project/worktrees/p4-gate/ui/src/screens/settings/generated/schema.ts
+  5:1  warning  Unused eslint-disable directive (no problems were reported)
+
+/home/z/my-project/worktrees/p4-gate/ui/src/theme/ThemeProvider.tsx
+   42:14  warning  Fast refresh only works when a file only exports components. Move your React context(s) to a separate file                      react-refresh/only-export-components
+  101:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+✖ 32 problems (6 errors, 26 warnings)
+  0 errors and 2 warnings potentially fixable with the `--fix` option.
+

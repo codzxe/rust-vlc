@@ -1,0 +1,50 @@
+[WebServer] (node:15323) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+[WebServer]   - JSON import "./package.json" without import attributes (vite.config.ts:2:17). Add `with { type: 'json' }`
+[WebServer] Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+Running 38 tests using 1 worker
+
+(node:15341) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 e2e/a11y.spec.ts:58:3 › axe: zero wcag2a/2aa violations on player (1.5s)
+  ✓   2 e2e/a11y.spec.ts:58:3 › axe: zero wcag2a/2aa violations on player-music (1.4s)
+  ✓   3 e2e/a11y.spec.ts:58:3 › axe: zero wcag2a/2aa violations on miniplayer (1.4s)
+  ✓   4 e2e/a11y.spec.ts:58:3 › axe: zero wcag2a/2aa violations on playlist (1.4s)
+  ✓   5 e2e/a11y.spec.ts:58:3 › axe: zero wcag2a/2aa violations on media-info (1.3s)
+  ✓   6 e2e/a11y.spec.ts:58:3 › axe: zero wcag2a/2aa violations on settings-global (1.4s)
+  ✓   7 e2e/a11y.spec.ts:58:3 › axe: zero wcag2a/2aa violations on settings-interface (1.4s)
+  ✓   8 e2e/a11y.spec.ts:58:3 › axe: zero wcag2a/2aa violations on settings-privacy (1.7s)
+  ✓   9 e2e/a11y.spec.ts:58:3 › axe: zero wcag2a/2aa violations on settings-playback (1.9s)
+  ✓  10 e2e/a11y.spec.ts:58:3 › axe: zero wcag2a/2aa violations on settings-performance (1.5s)
+  ✓  11 e2e/a11y.spec.ts:58:3 › axe: zero wcag2a/2aa violations on onboarding (1.3s)
+  ✓  12 e2e/a11y.spec.ts:136:3 › keyboard: tab order is DOM order, focus visible on player (985ms)
+  ✓  13 e2e/a11y.spec.ts:136:3 › keyboard: tab order is DOM order, focus visible on playlist (932ms)
+  ✓  14 e2e/a11y.spec.ts:136:3 › keyboard: tab order is DOM order, focus visible on settings-global (937ms)
+  ✓  15 e2e/a11y.spec.ts:136:3 › keyboard: tab order is DOM order, focus visible on onboarding (908ms)
+  ✓  16 e2e/a11y.spec.ts:166:1 › focus ring paints the --color-accent token (not a hardcoded color) (1.2s)
+  ✓  17 e2e/smoke.spec.ts:15:1 › boot lands on the player placeholder (1.0s)
+  ✓  18 e2e/theme.spec.ts:8:1 › default theme lands on <html> as dark + orange (943ms)
+  ✓  19 e2e/theme.spec.ts:14:1 › switching mode + accent swaps the CSS variable cascade (613ms)
+  ✓  20 e2e/theme.spec.ts:40:1 › auto mode follows the emulated OS color scheme (574ms)
+  ✓  21 e2e/theme.spec.ts:78:5 › matrix: orange × dark resolves the accent cascade (578ms)
+  ✓  22 e2e/theme.spec.ts:78:5 › matrix: orange × light resolves the accent cascade (875ms)
+  ✓  23 e2e/theme.spec.ts:78:5 › matrix: red × dark resolves the accent cascade (1.2s)
+  ✓  24 e2e/theme.spec.ts:78:5 › matrix: red × light resolves the accent cascade (968ms)
+  ✓  25 e2e/theme.spec.ts:78:5 › matrix: yellow × dark resolves the accent cascade (892ms)
+  ✓  26 e2e/theme.spec.ts:78:5 › matrix: yellow × light resolves the accent cascade (718ms)
+  ✓  27 e2e/theme.spec.ts:78:5 › matrix: green × dark resolves the accent cascade (693ms)
+  ✓  28 e2e/theme.spec.ts:78:5 › matrix: green × light resolves the accent cascade (658ms)
+  ✓  29 e2e/theme.spec.ts:78:5 › matrix: cyan × dark resolves the accent cascade (780ms)
+  ✓  30 e2e/theme.spec.ts:78:5 › matrix: cyan × light resolves the accent cascade (889ms)
+  ✓  31 e2e/theme.spec.ts:78:5 › matrix: blue × dark resolves the accent cascade (892ms)
+  ✓  32 e2e/theme.spec.ts:78:5 › matrix: blue × light resolves the accent cascade (905ms)
+  ✓  33 e2e/theme.spec.ts:78:5 › matrix: violet × dark resolves the accent cascade (649ms)
+  ✓  34 e2e/theme.spec.ts:78:5 › matrix: violet × light resolves the accent cascade (624ms)
+  ✓  35 e2e/theme.spec.ts:78:5 › matrix: pink × dark resolves the accent cascade (604ms)
+  ✓  36 e2e/theme.spec.ts:78:5 › matrix: pink × light resolves the accent cascade (652ms)
+  ✓  37 e2e/theme.spec.ts:78:5 › matrix: gray × dark resolves the accent cascade (648ms)
+  ✓  38 e2e/theme.spec.ts:78:5 › matrix: gray × light resolves the accent cascade (651ms)
+
+  38 passed (40.2s)

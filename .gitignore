@@ -5,6 +5,8 @@ Cargo.lock.bak
 
 # Node / UI
 node_modules/
+# symlink flavor (matches links, not just dirs — gate-3 target-symlink precedent)
+/ui/node_modules
 dist/
 .next/
 *.tsbuildinfo

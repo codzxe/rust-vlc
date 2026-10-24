@@ -1,0 +1,15 @@
+
+> lumen-ui@0.1.0 tokens:check
+> node scripts/gen-tokens.mjs --check
+
+gen-tokens --check: OK (70 semantic tokens, 2 modes, 9 accents, sha256 832da9d0a9cb…)
+
+> lumen-ui@0.1.0 settings:check
+> node scripts/gen-settings-screens.mjs --check
+
+gen-settings-screens --check: OK (5 ui areas, 21 ui entries, 27 total)
+
+> lumen-ui@0.1.0 l10n:check
+> node scripts/l10n-check.mjs
+
+PASS l10n:check — 472 MessageKeys, 472 en-US strings: missing 0, duplicates 0, orphans 0, key-grammar ok, placeholders 0 ok, allowlist 5 entries

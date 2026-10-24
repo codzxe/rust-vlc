@@ -240,6 +240,24 @@ export default [
     files: ["scripts/**/*.mjs"],
     languageOptions: { globals: { console: "readonly", process: "readonly" } },
   },
+  {
+    // l10n-pseudo-probe.mjs is a Playwright driver: node-side timers +
+    // a page.evaluate() callback whose body runs IN THE BROWSER (document/
+    // window/getComputedStyle are browser globals there, not node). Hygiene
+    // fix by P4-GATE (phase-4 gate): pre-existing no-undef errors on main
+    // @ be4e4c6 blocked `npm run lint`; behavior-neutral config-only change.
+    files: ["scripts/l10n-pseudo-probe.mjs"],
+    languageOptions: {
+      globals: {
+        console: "readonly",
+        process: "readonly",
+        setTimeout: "readonly",
+        document: "readonly",
+        window: "readonly",
+        getComputedStyle: "readonly",
+      },
+    },
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
