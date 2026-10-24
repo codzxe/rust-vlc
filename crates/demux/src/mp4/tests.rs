@@ -8,6 +8,7 @@ use plugin_api::{DemuxEvent, Demuxer, SeekSupport};
 
 use super::test_support::{
     SampleSpec, TrackSpec, chapter_track, fragmented, progressive, progressive_with_chapters,
+    progressive_with_cover,
 };
 use super::{Mp4Demuxer, probe};
 
@@ -287,6 +288,116 @@ fn chap_tref_chapters_surface_with_titles() {
     // DTS ladder: 0 ticks and 1000 ticks at 1000 timescale = 1 s.
     assert_eq!(chapters[0].start.0, 0);
     assert_eq!(chapters[1].start.0, 1_000_000_000);
+    // The chapter trak is metadata, not media: its text samples
+    // never surface as packets (the ffmpeg discard precedent —
+    // ffprobe reads zero packets off the text trak).
+    let (_, packets) = drain(&mut mp4);
+    assert!(!packets.is_empty());
+    assert!(
+        packets.iter().all(|p| p.track.handle() == 0),
+        "chapter samples leaked onto a hidden handle"
+    );
+}
+
+// ---- attached pictures (udta cover art) -------------------------
+
+#[test]
+fn cover_art_surfaces_as_a_still_image_video_track() {
+    // The corpus-0029 shape: an M4A whose only real trak is audio,
+    // with the picture in `udta/meta/ilst/covr/data`.
+    let audio = audio_track(2, 1024);
+    let jpeg: &[u8] = &[0xFF, 0xD8, 0xFF, 0xE0, 0, 1, 2, 3, 4, 5, 6, 7];
+    let bytes = progressive_with_cover(&[audio], b"M4A ", 13, jpeg);
+    let mut mp4 = open(&bytes);
+    let tracks = mp4.start().unwrap_or_else(|e| unreachable!("start: {e}"));
+    assert_eq!(tracks.len(), 2, "the cover is a surfaced track");
+    assert_eq!(tracks[0].codec.as_str(), "aac");
+    assert_eq!(tracks[1].codec.as_str(), "mjpeg");
+    assert_eq!(tracks[1].kind, media_types::MediaKind::Video);
+    assert!(tracks[1].flags.still_image, "cover traks are still-image");
+    let (_, packets) = drain(&mut mp4);
+    assert_eq!(packets.len(), 3);
+    let covers: Vec<&media_types::Packet> =
+        packets.iter().filter(|p| p.track.handle() == 1).collect();
+    assert_eq!(covers.len(), 1, "exactly one cover packet");
+    assert!(covers[0].keyframe);
+    assert_eq!(covers[0].data.as_ref(), jpeg, "the picture bytes verbatim");
+    // The media trak still walks in file order behind the header-time
+    // cover packet.
+    let audio_packets: Vec<&media_types::Packet> =
+        packets.iter().filter(|p| p.track.handle() == 0).collect();
+    assert_eq!(audio_packets.len(), 2);
+    assert_eq!(audio_packets[0].data.as_ref(), &[0xA0, 0xA0]);
+    assert_eq!(audio_packets[1].data.as_ref(), &[0xA1, 0xA1]);
+}
+
+#[test]
+fn png_cover_and_unknown_cover_types_map_or_note() {
+    // Type 14 = PNG — a real descriptor, surfaced like the JPEG lane.
+    let audio = audio_track(1, 1024);
+    let png: &[u8] = &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 9, 9];
+    let bytes = progressive_with_cover(std::slice::from_ref(&audio), b"M4A ", 14, png);
+    let mut mp4 = open(&bytes);
+    let tracks = mp4.start().unwrap_or_else(|e| unreachable!("start: {e}"));
+    assert_eq!(tracks.len(), 2);
+    assert_eq!(tracks[1].codec.as_str(), "png");
+    let (_, packets) = drain(&mut mp4);
+    let covers: Vec<&media_types::Packet> =
+        packets.iter().filter(|p| p.track.handle() == 1).collect();
+    assert_eq!(covers.len(), 1);
+    assert_eq!(covers[0].data.as_ref(), png);
+
+    // An unknown well-known type: damage-noted and skipped — the
+    // audio still demuxes, no fake codec is guessed.
+    let bytes = progressive_with_cover(&[audio], b"M4A ", 27, &[1, 2, 3, 4]);
+    let mut mp4 = open(&bytes);
+    let tracks = mp4.start().unwrap_or_else(|e| unreachable!("start: {e}"));
+    assert_eq!(tracks.len(), 1, "unknown cover types surface no track");
+    let mut recovered = false;
+    let mut packets = 0usize;
+    loop {
+        match mp4
+            .next_event()
+            .unwrap_or_else(|e| unreachable!("event: {e}"))
+        {
+            DemuxEvent::Packet(_) => packets += 1,
+            DemuxEvent::Recovered { reason, .. } => {
+                assert_eq!(reason, "cover-type-unsupported");
+                recovered = true;
+            }
+            DemuxEvent::EndOfStream => break,
+            _ => {}
+        }
+    }
+    assert!(recovered, "the skipped cover is damage-noted");
+    assert_eq!(packets, 1);
+}
+
+#[test]
+fn cover_and_chapters_keep_packet_handles_aligned_with_tracks() {
+    // The gap-alignment case: a hidden chapter trak between the media
+    // trak and the appended cover — packets must still carry exactly
+    // the handles of the exposed list (0 = audio, 1 = cover).
+    let mut audio = audio_track(1, 1024);
+    audio.chap_ref = Some(2); // reference the chapter trak (id 2)
+    let chapter = chapter_track(1000, &[(1000, "Intro")]);
+    let jpeg: &[u8] = &[0xFF, 0xD8, 0xFF, 0xE0, 7, 7, 7];
+    let udta_tracks = [audio, chapter];
+    let bytes = progressive_with_cover(&udta_tracks, b"isom", 13, jpeg);
+    let mut mp4 = open(&bytes);
+    let tracks = mp4.start().unwrap_or_else(|e| unreachable!("start: {e}"));
+    assert_eq!(tracks.len(), 2, "chapter hidden, cover exposed");
+    assert_eq!(mp4.chapters().len(), 1);
+    assert_eq!(tracks[0].codec.as_str(), "aac");
+    assert_eq!(tracks[1].codec.as_str(), "mjpeg");
+    let (_, packets) = drain(&mut mp4);
+    assert_eq!(packets.len(), 2);
+    assert!(packets.iter().all(|p| p.track.handle() <= 1));
+    let cover = packets
+        .iter()
+        .find(|p| p.track.handle() == 1)
+        .unwrap_or_else(|| unreachable!("cover packet on the exposed handle"));
+    assert_eq!(cover.data.as_ref(), jpeg);
 }
 
 // ---- seek -------------------------------------------------------

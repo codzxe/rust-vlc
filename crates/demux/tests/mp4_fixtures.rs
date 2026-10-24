@@ -258,21 +258,18 @@ fn malformed_mp4_fixtures_only_ever_refuse_or_demux_typed() {
         let stream = open_via_input(&path).unwrap_or_else(|e| unreachable!("open: {e}"));
         let mut mp4 = Mp4Demuxer::new(stream).unwrap_or_else(|e| unreachable!("new: {e}"));
         let mut events = 0u64;
-        match mp4.start() {
-            Err(err) => {
-                // Typed refusal — the stage and code must be ours.
-                assert_eq!(
-                    err.stage,
-                    media_types::PipelineStage::Demux,
-                    "{fixture}: {err}"
-                );
-                assert!(
-                    err.context.code.as_str().starts_with("demux.mp4."),
-                    "{fixture}: {err}"
-                );
-                continue;
-            }
-            Ok(_) => {}
+        if let Err(err) = mp4.start() {
+            // Typed refusal — the stage and code must be ours.
+            assert_eq!(
+                err.stage,
+                media_types::PipelineStage::Demux,
+                "{fixture}: {err}"
+            );
+            assert!(
+                err.context.code.as_str().starts_with("demux.mp4."),
+                "{fixture}: {err}"
+            );
+            continue;
         }
         loop {
             events += 1;

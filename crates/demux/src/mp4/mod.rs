@@ -68,6 +68,16 @@
 //! - `cmov` (compressed MOV) is refused typed (bad-box vocabulary).
 //! - Chapter titles read QuickTime text samples (16-bit
 //!   length-prefixed) and `chpl`; other chapter codecs damage-note.
+//!   Chapter-referenced traks are *consumed* as metadata — hidden
+//!   from the track list and from the packet walk (the ffmpeg
+//!   `mov_read_chapters` discard precedent: ffprobe shows the text
+//!   trak with zero read packets).
+//! - Attached pictures (`moov/udta/meta/ilst/covr/data`, the iTunes
+//!   cover shape) are surfaced as a still-image video track appended
+//!   after the media traks (ffprobe stream order), with the picture
+//!   bytes as one keyframe packet emitted ahead of the media walk
+//!   (header-resident, the ffmpeg attached-pic precedent; a seek
+//!   past it does not re-deliver it — ffmpeg's behavior too).
 //! - 3GP: brand family (`3gp4/3gp5/3gg6/3g2a/3g2b`) and the
 //!   `samr/sawb/s263` sample entries are mapped; 3GP-specific text
 //!   styling is not interpreted (doc 04's honest-subset note).
@@ -217,6 +227,9 @@ struct TrackState {
     media_time: u64,
     /// `tref`/`chap` says this track *is* a chapter track.
     is_chapter: bool,
+    /// Synthesized attached-picture track (udta cover art): one
+    /// header-time packet, never on the media walk.
+    is_cover: bool,
     /// Progressive per-sample table (empty for fragmented tracks).
     samples: Vec<Sample>,
     /// Cursor: next sample index to emit.
@@ -285,6 +298,10 @@ pub struct Mp4Demuxer {
     movie_timescale: u32,
     fragmented: bool,
     tracks: Vec<TrackState>,
+    /// Exposed ordinal per raw track index (`u32::MAX` for hidden
+    /// chapter traks) — the handle `mint_packet` stamps, so packets
+    /// match the `start()` list even when hidden traks leave gaps.
+    exposed: Vec<u32>,
     chapters: Vec<Chapter>,
     pending: VecDeque<DemuxEvent>,
     /// Progressive emission order: (file offset, track idx, sample
@@ -518,12 +535,11 @@ fn esds_oti(entry: &[u8]) -> Option<u8> {
             continue;
         };
         for b in boxes {
-            if b.kind == *b"esds" {
-                if let Some(body) = entry.get(b.body.start..b.body.end) {
-                    if let Some(oti) = oti_of_esds(body) {
-                        return Some(oti);
-                    }
-                }
+            if b.kind == *b"esds"
+                && let Some(body) = entry.get(b.body.start..b.body.end)
+                && let Some(oti) = oti_of_esds(body)
+            {
+                return Some(oti);
             }
         }
     }
@@ -552,6 +568,7 @@ impl Mp4Demuxer {
             movie_timescale: 1000,
             fragmented: false,
             tracks: Vec::new(),
+            exposed: Vec::new(),
             chapters: Vec::new(),
             pending: VecDeque::new(),
             order: Vec::new(),
@@ -703,7 +720,7 @@ impl Mp4Demuxer {
         if got as u64 != moov_len {
             return Err(error::truncated(moov_end, moov_start + got as u64));
         }
-        self.parse_moov(&data)?;
+        self.parse_moov(&data, moov_start)?;
         if !self.tracks.iter().any(|t| !t.is_chapter) {
             return Err(error::no_tracks());
         }
@@ -729,6 +746,12 @@ impl Mp4Demuxer {
         if !self.fragmented {
             let mut order: Vec<(u64, usize, usize)> = Vec::new();
             for (ti, t) in self.tracks.iter().enumerate() {
+                // Chapter traks are consumed as metadata (titles are
+                // read below) and the attached-picture trak rides the
+                // header-time pending queue — neither is media.
+                if t.is_chapter || t.is_cover {
+                    continue;
+                }
                 for (si, s) in t.samples.iter().enumerate() {
                     order.push((s.offset, ti, si));
                 }
@@ -738,6 +761,22 @@ impl Mp4Demuxer {
         }
         // Chapter titles from the referenced text tracks.
         self.read_chapter_titles()?;
+        // Exposed ordinals (hidden chapter traks leave gaps).
+        let mut ordinal = 0u32;
+        self.exposed = self
+            .tracks
+            .iter()
+            .map(|t| {
+                if t.is_chapter {
+                    u32::MAX
+                } else {
+                    ordinal += 1;
+                    ordinal - 1
+                }
+            })
+            .collect();
+        // Attached-picture packets: surfaced ahead of the media walk.
+        self.queue_cover_packets()?;
         self.started = true;
         let out: Vec<Track> = self
             .tracks
@@ -797,7 +836,16 @@ impl Mp4Demuxer {
             language,
             codec,
             title: None,
-            flags: TrackFlags::NONE,
+            flags: if t.is_cover {
+                // Still-image trak (doc 01 §3.1: cover-art audio
+                // files with an attached video stream).
+                TrackFlags {
+                    still_image: true,
+                    ..TrackFlags::NONE
+                }
+            } else {
+                TrackFlags::NONE
+            },
             timing: TrackTiming {
                 span: TimeSpan {
                     start: Stamp::Present(Timestamp::new(start, t.base)),
@@ -811,7 +859,7 @@ impl Mp4Demuxer {
 
     // ---- moov parse (in-memory over the whole box) ----------------
 
-    fn parse_moov(&mut self, data: &[u8]) -> Result<(), EngineError> {
+    fn parse_moov(&mut self, data: &[u8], moov_start: u64) -> Result<(), EngineError> {
         // `data` is the moov *payload* (children start immediately).
         let inner = iter_boxes(data, 0, data.len())?;
         // mvhd.
@@ -823,9 +871,11 @@ impl Mp4Demuxer {
                 self.movie_timescale = scale;
             }
         }
-        // trex defaults (per track_id) + chapter refs.
+        // trex defaults (per track_id) + chapter refs + cover art.
         let mut trex: Vec<(u32, TrexDefaults)> = Vec::new();
         let mut chapter_ids: Vec<u32> = Vec::new();
+        // (cover payload offset within `data`, size, well-known type)
+        let mut cover: Option<(usize, usize, u32)> = None;
         for b in &inner {
             match &b.kind {
                 b"mvex" => {
@@ -850,6 +900,13 @@ impl Mp4Demuxer {
                         self.note(0, "chpl-unparseable");
                         let _ = err;
                     }
+                    if cover.is_none() {
+                        cover = cover_in_udta(data, b.body.clone());
+                    }
+                }
+                b"meta" => {
+                    // Some authors hang the ilst straight off moov.
+                    cover = cover.or_else(|| cover_in_meta(data, b.body.clone()));
                 }
                 _ => {}
             }
@@ -873,6 +930,12 @@ impl Mp4Demuxer {
             if chapter_ids.contains(&t.track_id) {
                 t.is_chapter = true;
             }
+        }
+        // The attached-picture trak rides after every media trak —
+        // the ffprobe stream order for cover files (aac, mjpeg).
+        if let Some((at, size, wkt)) = cover {
+            let abs = moov_start.saturating_add(at as u64);
+            self.push_cover_track(abs, size as u64, wkt);
         }
         // Surface per-track damage collected during the parse.
         let mut track_damage: Vec<(u64, &'static str)> = Vec::new();
@@ -1075,6 +1138,7 @@ impl Mp4Demuxer {
             empty_edit_delay,
             media_time,
             is_chapter: false,
+            is_cover: false,
             samples: Vec::new(),
             next: 0,
             trex: trex_entry,
@@ -1204,7 +1268,8 @@ impl Mp4Demuxer {
         let count = sizes.len().min(deltas.len());
         if !offsets.is_empty() && count > 0 {
             let pcm = codec.starts_with("pcm_");
-            let mut samples: Vec<Sample> = Vec::with_capacity(if pcm { offsets.len() } else { count });
+            let mut samples: Vec<Sample> =
+                Vec::with_capacity(if pcm { offsets.len() } else { count });
             let mut si = 0usize;
             let mut dts = 0u64;
             let mut sample_no = 1u32;
@@ -1250,7 +1315,7 @@ impl Mp4Demuxer {
                     // packets, chunk-local 1024-splits).
                     const PCM_SAMPLES_PER_PACKET: usize = 1024;
                     let mut run: Vec<Sample> = Vec::new();
-                    let mut flush = |run: &mut Vec<Sample>, samples: &mut Vec<Sample>| {
+                    let flush = |run: &mut Vec<Sample>, samples: &mut Vec<Sample>| {
                         if run.is_empty() {
                             return;
                         }
@@ -1282,6 +1347,95 @@ impl Mp4Demuxer {
             track.samples = samples;
         }
         self.tracks.push(track);
+        Ok(())
+    }
+
+    /// Append the synthesized attached-picture track for a found
+    /// `ilst/covr/data` (well-known type 13 = JPEG, 14 = PNG — the
+    /// ffprobe `mjpeg`/`png` stream names). One sync sample at dts 0
+    /// on the movie timescale; unregistered types damage-note and
+    /// skip rather than guess a codec.
+    fn push_cover_track(&mut self, offset: u64, size: u64, wkt: u32) {
+        let codec = match wkt {
+            13 => "mjpeg",
+            14 => "png",
+            _ => {
+                self.note(size, "cover-type-unsupported");
+                return;
+            }
+        };
+        if size == 0 || size > MAX_SAMPLE_BYTES {
+            self.note(size, "cover-over-ceiling");
+            return;
+        }
+        let base = TimeBase::new(1, self.movie_timescale);
+        let base = match base {
+            Ok(base) => base,
+            Err(_) => {
+                self.note(size, "cover-timescale-invalid");
+                return;
+            }
+        };
+        self.tracks.push(TrackState {
+            // Synthetic id that cannot collide with a real trak's.
+            track_id: u32::MAX,
+            kind: MediaKind::Video,
+            codec: codec.to_string(),
+            extra: None,
+            timescale: self.movie_timescale,
+            base,
+            media_duration: 0,
+            empty_edit_delay: 0,
+            media_time: 0,
+            is_chapter: false,
+            is_cover: true,
+            samples: vec![Sample {
+                offset,
+                size,
+                dts: 0,
+                cts: 0,
+                dur: 0,
+                sync: true,
+            }],
+            next: 0,
+            trex: None,
+            language: None,
+            damage: Vec::new(),
+        });
+    }
+
+    /// Emit every attached-picture packet ahead of the media walk
+    /// (header-resident bytes — the ffmpeg attached-pic precedent;
+    /// a later seek does not re-deliver them, matching ffmpeg).
+    fn queue_cover_packets(&mut self) -> Result<(), EngineError> {
+        let len = self.reader.length();
+        for ti in 0..self.tracks.len() {
+            let (is_cover, sample) = {
+                let t = &self.tracks[ti];
+                (t.is_cover, t.samples.first().copied())
+            };
+            let Some(sample) = sample else {
+                continue;
+            };
+            if !is_cover {
+                continue;
+            }
+            if sample.offset >= len || sample.offset + sample.size > len {
+                self.note(sample.size, "cover-past-stream");
+                continue;
+            }
+            let want = sample.size as usize;
+            let at = sample.offset;
+            let payload = self
+                .pool
+                .fill(want, |out| self.reader.read_prefix_into(out, at))?;
+            if payload.len() != want {
+                self.note(sample.size, "cover-unreadable");
+                continue;
+            }
+            let packet = self.mint_packet(ti, &sample, payload, false);
+            self.pending.push_back(DemuxEvent::Packet(packet));
+        }
         Ok(())
     }
 
@@ -1452,6 +1606,13 @@ impl Mp4Demuxer {
                 self.note(0, "traf-unknown-track");
                 continue;
             };
+            if self.tracks[ti].is_chapter {
+                // A fragment walk never targets the hidden chapter
+                // trak — noted, never minted on a handle the exposed
+                // list does not carry.
+                self.note(0, "traf-chapter-track");
+                continue;
+            }
             let trex = self.tracks[ti].trex;
             let dur_default = if default_dur != 0 {
                 default_dur
@@ -1640,7 +1801,10 @@ impl Mp4Demuxer {
             None
         };
         Packet {
-            track: TrackId::new(ti as u32),
+            // The exposed ordinal — matches the start() track list;
+            // the parse_moof guard keeps hidden-trak sentinels off
+            // the wire.
+            track: TrackId::new(self.exposed[ti]),
             pts: Stamp::Present(Timestamp::new(pts_ticks, t.base)),
             dts: Stamp::Present(Timestamp::new(dts_ticks, t.base)),
             duration,
@@ -1674,6 +1838,59 @@ impl Mp4Demuxer {
             })
             .max()
     }
+}
+
+/// The iTunes cover art inside one `meta` box body
+/// (`ilst/covr/data`): (payload offset within `data`, payload size,
+/// well-known type). `meta` is a FullBox (4 version/flags bytes) but
+/// QuickTime writers sometimes emit it plain — both child offsets
+/// are tried; a walk that finds no `ilst` just misses.
+fn cover_in_meta(data: &[u8], meta_body: std::ops::Range<usize>) -> Option<(usize, usize, u32)> {
+    for skip in [4usize, 0] {
+        let start = meta_body.start.checked_add(skip)?;
+        if start > meta_body.end {
+            continue;
+        }
+        let Ok(children) = iter_boxes(data, start, meta_body.end) else {
+            continue;
+        };
+        let Some(ilst) = children.iter().find(|b| b.kind == *b"ilst") else {
+            continue;
+        };
+        let Ok(items) = iter_boxes(data, ilst.body.start, ilst.body.end) else {
+            continue;
+        };
+        let Some(covr) = items.iter().find(|b| b.kind == *b"covr") else {
+            continue;
+        };
+        let Ok(inner) = iter_boxes(data, covr.body.start, covr.body.end) else {
+            continue;
+        };
+        let Some(dbox) = inner.iter().find(|b| b.kind == *b"data") else {
+            continue;
+        };
+        let body = data.get(dbox.body.start..dbox.body.end)?;
+        if body.len() < 8 {
+            return None;
+        }
+        let wkt = u32be(body, 0)?;
+        let size = body.len() - 8;
+        if size == 0 {
+            return None;
+        }
+        return Some((dbox.body.start + 8, size, wkt));
+    }
+    None
+}
+
+/// The cover art inside a `udta` body (the common
+/// `moov/udta/meta/ilst` hang).
+fn cover_in_udta(data: &[u8], udta_body: std::ops::Range<usize>) -> Option<(usize, usize, u32)> {
+    let Ok(children) = iter_boxes(data, udta_body.start, udta_body.end) else {
+        return None;
+    };
+    let meta = children.iter().find(|b| b.kind == *b"meta")?;
+    cover_in_meta(data, meta.body.clone())
 }
 
 /// tref/chap referenced track ids of one trak body.
@@ -1805,7 +2022,9 @@ impl Mp4Demuxer {
         // PTS of a sample on the emitted timeline: `elst` media_time
         // trims, the empty edit delays (mirrors `mint_packet`).
         let pts_of = |t: &TrackState, s: &Sample| {
-            s.dts.saturating_sub(t.media_time).saturating_add(t.empty_edit_delay)
+            s.dts
+                .saturating_sub(t.media_time)
+                .saturating_add(t.empty_edit_delay)
         };
         let ref_track = &self.tracks[ref_idx];
         let target_ticks = nanos_to_ticks(target_nanos, ref_track.timescale);
@@ -1825,7 +2044,10 @@ impl Mp4Demuxer {
         while land_idx > 0 && !ref_track.samples[land_idx].sync {
             land_idx -= 1;
         }
-        let land_pts = pts_of(&self.tracks[ref_idx], &self.tracks[ref_idx].samples[land_idx]);
+        let land_pts = pts_of(
+            &self.tracks[ref_idx],
+            &self.tracks[ref_idx].samples[land_idx],
+        );
         let land_nanos = ticks_to_nanos(land_pts, self.tracks[ref_idx].timescale);
         // Commit: per-track cursors (compute-then-commit — every
         // landing above already succeeded).

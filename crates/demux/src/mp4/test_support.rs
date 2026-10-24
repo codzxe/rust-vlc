@@ -250,6 +250,28 @@ fn trak(spec: &TrackSpec, track_id: u32, offsets: Option<&[u64]>) -> Vec<u8> {
     boxb(b"trak", &t)
 }
 
+/// The `udta/meta/ilst/covr/data` box ladder for an attached
+/// picture (the iTunes cover shape ffmpeg surfaces as an attached-pic
+/// stream; `wkt` 13 = JPEG, 14 = PNG).
+fn udta_cover(wkt: u32, payload: &[u8]) -> Vec<u8> {
+    let mut data_body = Vec::new();
+    data_body.extend_from_slice(&u32b(wkt)); // well-known type
+    data_body.extend_from_slice(&u32b(0)); // locale
+    data_body.extend_from_slice(payload);
+    let covr = boxb(b"covr", &boxb(b"data", &data_body));
+    let ilst = boxb(b"ilst", &covr);
+    let mut hdlr_body = Vec::new();
+    hdlr_body.extend_from_slice(&u32b(0)); // predefined
+    hdlr_body.extend_from_slice(b"mdir"); // iTunes metadata handler
+    hdlr_body.extend_from_slice(&[0u8; 12]); // reserved
+    hdlr_body.extend_from_slice(&[0]); // name
+    let mut meta = Vec::new();
+    meta.extend_from_slice(&[0, 0, 0, 0]); // version/flags (FullBox)
+    meta.extend_from_slice(&fullbox(b"hdlr", 0, &hdlr_body));
+    meta.extend_from_slice(&ilst);
+    boxb(b"udta", &boxb(b"meta", &meta))
+}
+
 /// The moov body (children) over the tracks (offsets None for
 /// fragment tracks).
 fn moov_body(tracks: &[TrackSpec], offsets: Option<&[Vec<u64>]>) -> Vec<u8> {
@@ -259,6 +281,13 @@ fn moov_body(tracks: &[TrackSpec], offsets: Option<&[Vec<u64>]>) -> Vec<u8> {
         let offs = offsets.map(|o| o[i].as_slice());
         m.extend_from_slice(&trak(spec, i as u32 + 1, offs));
     }
+    m
+}
+
+/// The moov body plus trailing `udta` children (the cover hang).
+fn moov_body_with_udta(tracks: &[TrackSpec], offsets: Option<&[Vec<u64>]>, udta: &[u8]) -> Vec<u8> {
+    let mut m = moov_body(tracks, offsets);
+    m.extend_from_slice(udta);
     m
 }
 
@@ -292,6 +321,52 @@ pub fn progressive(tracks: &[TrackSpec], major: &[u8; 4]) -> Arc<[u8]> {
     let mut file = Vec::new();
     file.extend_from_slice(&ftyp(major));
     file.extend_from_slice(&moov(tracks, Some(&offsets)));
+    let mut mdat = Vec::new();
+    for t in tracks {
+        for s in &t.samples {
+            mdat.extend_from_slice(&s.bytes);
+        }
+    }
+    file.extend_from_slice(&boxb(b"mdat", &mdat));
+    Arc::from(file)
+}
+
+/// [`progressive`] with an iTunes cover-art `udta` spliced into the
+/// moov (the attached-pic shape of corpus 0029-cover-audio.m4a).
+#[must_use]
+pub fn progressive_with_cover(
+    tracks: &[TrackSpec],
+    major: &[u8; 4],
+    wkt: u32,
+    cover: &[u8],
+) -> Arc<[u8]> {
+    let udta = udta_cover(wkt, cover);
+    // Pass 1: measure with zero offsets (same byte lengths).
+    let zero: Vec<Vec<u64>> = tracks.iter().map(|t| vec![0u64; t.samples.len()]).collect();
+    let mut file = Vec::new();
+    file.extend_from_slice(&ftyp(major));
+    file.extend_from_slice(&boxb(
+        b"moov",
+        &moov_body_with_udta(tracks, Some(&zero), &udta),
+    ));
+    let mdat_payload_start = file.len() as u64 + 8;
+    // Pass 2: real offsets.
+    let mut offsets: Vec<Vec<u64>> = Vec::new();
+    let mut at = mdat_payload_start;
+    for t in tracks {
+        let mut list = Vec::new();
+        for s in &t.samples {
+            list.push(at);
+            at += s.bytes.len() as u64;
+        }
+        offsets.push(list);
+    }
+    let mut file = Vec::new();
+    file.extend_from_slice(&ftyp(major));
+    file.extend_from_slice(&boxb(
+        b"moov",
+        &moov_body_with_udta(tracks, Some(&offsets), &udta),
+    ));
     let mut mdat = Vec::new();
     for t in tracks {
         for s in &t.samples {
