@@ -21,12 +21,17 @@
 
 mod avi;
 mod mp4;
+mod phase5;
 
 use media_types::EngineError;
 use plugin_api::manifest::DEFAULT_PRIORITY_BUILTIN;
 
 pub use avi::AviSignature;
 pub use mp4::Mp4Signature;
+pub use phase5::{
+    AdtsSignature, AiffSignature, IvfSignature, MkvSignature, OggSignature, PsSignature,
+    TsSignature, WavSignature,
+};
 
 use crate::config::ProbeConfig;
 use crate::error;
@@ -41,6 +46,14 @@ use crate::report::{Confidence, ProbeHit, ProbeReport, SourceMeta};
 /// allocate unboundedly (hints are capped by the walk guards below),
 /// and never touch a stream — the window is all they see.
 pub trait ProbePlugin: Send {
+    /// The file extensions this format's demuxer claims (the open
+    /// path's extension route mirrors it; content always wins over
+    /// the hint — doc 03 §4.2(f)). Mirror-pinned to each demuxer's
+    /// own `EXTENSIONS` table by the round-trip suite.
+    fn extensions(&self) -> &'static [&'static str] {
+        &[]
+    }
+
     /// Score `prefix` (the probe window) against this signature.
     ///
     /// Returns [`None`] when the signature does not anchor at all; a
@@ -105,11 +118,22 @@ impl ProbeRegistry {
     /// The builtin signature set at the builtin priority (doc 06 §2.2
     /// `DEFAULT_PRIORITY_BUILTIN`): AVI and MP4 — the fixture corpus
     /// formats of the first vertical (D-018 variant A) and its
-    /// decision-independent sibling (2.A3).
+    /// decision-independent sibling (2.A3) — plus the Phase-5 R3
+    /// consolidation rows (card 5.R3-REG): WAV, AIFF, Ogg,
+    /// Matroska/WebM, ADTS/ADIF, MPEG-TS, MPEG-PS and IVF, every
+    /// container whose demuxer card landed in waves 4–7.
     pub fn with_builtins() -> ProbeRegistry {
         let mut registry = ProbeRegistry::empty();
         registry.register(Box::new(AviSignature), DEFAULT_PRIORITY_BUILTIN);
         registry.register(Box::new(Mp4Signature), DEFAULT_PRIORITY_BUILTIN);
+        registry.register(Box::new(WavSignature), DEFAULT_PRIORITY_BUILTIN);
+        registry.register(Box::new(AiffSignature), DEFAULT_PRIORITY_BUILTIN);
+        registry.register(Box::new(OggSignature), DEFAULT_PRIORITY_BUILTIN);
+        registry.register(Box::new(MkvSignature), DEFAULT_PRIORITY_BUILTIN);
+        registry.register(Box::new(AdtsSignature), DEFAULT_PRIORITY_BUILTIN);
+        registry.register(Box::new(TsSignature), DEFAULT_PRIORITY_BUILTIN);
+        registry.register(Box::new(PsSignature), DEFAULT_PRIORITY_BUILTIN);
+        registry.register(Box::new(IvfSignature), DEFAULT_PRIORITY_BUILTIN);
         registry
     }
 
@@ -427,7 +451,10 @@ mod tests {
     #[test]
     fn builtin_registry_shape() {
         let r = ProbeRegistry::with_builtins();
-        assert_eq!(r.len(), 2);
+        // 2.A2's first-vertical pair + the eight Phase-5 R3 rows
+        // (card 5.R3-REG): wav, aiff, ogg, matroska, adts, mpegts,
+        // mpegps, ivf.
+        assert_eq!(r.len(), 10);
     }
 
     #[test]
