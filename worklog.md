@@ -9048,3 +9048,16 @@ Work Log:
 
 Stage Summary:
 - 5.H3 COMPLETE on wip/p5-h3: gates fmt/clippy/test green (371/0 codecs), differential table recorded, committed. Fancy (libjpeg triangular) upsampling remains the documented 444/422 conversion convention (RGBA box-replication), unchanged by this card.
+
+---
+Task ID: 5.H3
+Agent: P5-H3F2
+Task: MJPEG polish — finisher retry (prior dispatch believed dead pre-spawn); verify/complete/gate/commit.
+
+Work Log:
+- On arrival the retry was moot: P5-H3F had in fact completed and COMMITTED before dying (e8a8bd1 on wip/p5-h3, tree clean, worklog entry present). Verified rather than redid: full commit read (12 files: field.rs + decoder/parser/mod AVI1.1, fuzz harness, 17-lane differential suite + 4 fixtures, worklog).
+- Gates re-run this session, all green: fmt -p codecs clean (idct_simd.rs:341 no drift present); clippy --all-targets --all-features -D warnings = 0; test -p codecs --all-features = 371 passed / 0 failed, incl. mjpeg_field_differential 3/3 in 31s against corpus-v4 (present, 44 avi).
+- Differential honesty spot-check (independent, this session): ffmpeg 7.1.5 dump MD5s re-measured — 0015 = 5a2e8a0d... and 0125 = c1b4b1d1... both EQUAL the pinned/decoder MD5s (bit-exact claims true); 0084 ffmpeg = d8f9c184... ≠ pinned 43637e06... and dump bytes 17,395,200 = exactly 151×320×240×1.5 (±1-LSB class recorded honestly, geometry/frame-count exact).
+
+Stage Summary:
+- 5.H3 verified COMPLETE and committed (e8a8bd1 + this entry). Branch wip/p5-h3 ready for merge; no code changes needed by retry.
