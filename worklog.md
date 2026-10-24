@@ -8683,3 +8683,65 @@ Work Log:
 
 Stage Summary:
 - Execution structure bound. Wave 4 dispatching now.
+
+---
+Task ID: 5.C2b
+Agent: P5-C2BF
+Task: ADTS/ADIF raw-AAC demuxer (finisher: prior session died uncommitted; verify/complete/gate/commit).
+
+Work Log:
+- Inherited uncommitted crates/demux/src/adts/** (mod/error/tests/fuzz/test_support), tests/adts_corpus.rs, fixtures/adts/ (4 mutation derivatives), lib.rs wiring (verified: diff is exactly one `pub mod adts;` line).
+- Fixed 3 breaks in the inherited test/impl without weakening any assertion: (1) format-string arg count in adts_corpus seek log; (2) `track_base(&AdtsDemuxer)` → `&mut`; (3) REAL impl gap — resync silently skipped a structurally valid frame claim that overruns EOF (dirty lane ended clean-EOS instead of the pinned typed truncation). Fix: resync now raises the same sticky `demux.adts.truncated` the strict walk raises (a frame claim is a claim wherever the scan finds it); doc comments updated. Corpus dirty lane then pins 350 pkts + typed truncation vs ffmpeg's 351-with-short-packet (the one recorded divergence).
+- Shared-target-dir note: /home/z/my-project/target is shared across worktrees; a stale adts-less libdemux rlib from a concurrent main-checkout build poisoned doctest/integration links ("could not find `adts` in `demux`"). Gates re-verified under a worktree-local CARGO_TARGET_DIR; also freed 318 MB incremental cache after a linker bus-error (disk 100% full, now 88%).
+- clippy -D warnings: fixed 6 inherited lints (manual is_multiple_of ×4, assign-op ×2); fmt applied.
+- AC audit (all tested, suite green): ADTS syncword/layer/protection-absent+CRC-16(poly 0x1021, header scope)/profile/sampling-index/channel-config/13-bit variable frame length/ID3v2 head+interframe skip (syncsafe, 16 MiB ceiling); ADIF header+PCE parse, CBR block arithmetic `bitrate×128/rate`, VBR + multi-program typed refusals; error paths EACH: lost-sync bounded resync (4 MiB) with Recovered events, truncated frame (mid + first + resync-found), sampling-index 15, channel-config 0, CRC mismatch; fuzz-lite harness + corpus sweeps + committed mutation fixtures; timestamps are exact frame arithmetic `n·1024/rate`.
+- DIFFERENTIAL (run + independently re-verified this session, ffmpeg 7.1.5/Lavf61.7.103, corpus-v4 @ /tmp/my-project/corpus-v4):
+  | lane | ffprobe truth | lumen | verdict |
+  |---|---|---|---|
+  | 0059-audio-only.aac | 346 pkts, aac/LC 88200 Hz mono, pts[100]=1.160998, last=4.005442 | 346 pkts, aac-lc, base 1/88200, every pts = i·1024, dur 4.017052154 s | PASS |
+  | 0059 payload | `ffmpeg -map 0:a -c copy -f data` md5 9c5542e88a9ff8baa2eb15ba488c8354; `-f adts` roundtrip == source == raw dump | identical md5 | PASS |
+  | 0110-audio-only.aac | 376 pkts, aac/LC 96000 Hz mono, last pts 4.0 | 376 pkts, identical series, dur 4.010666666 s | PASS |
+  | 0110 payload | raw md5 693bead87996e2d0aada5ee9f56ea4e7; roundtrip == source | identical md5 | PASS |
+  | dirty/tail-garbage-003 (0059+39757 rand) | 351 pkts (4 garbage frames accepted mid-scan, final overrunner emitted SHORT 3405 B) | 346 real frames byte-exact (payload[..130920] md5 == clean lane), +4 recovered garbage frames, overrunner = sticky `demux.adts.truncated` | PASS w/ recorded divergence (350 vs 351: short-packet vs typed refusal) |
+  | ADIF (generated CBR) | ffmpeg has NO ADIF demuxer/muxer (measured) | cross-format agreement: same essence as ADTS vs ADIF demuxes to identical payload bytes (unit `adts_and_adif_agree_on_the_same_payload`) | PASS (only available reference) |
+  - profile mapping row: ffprobe `codec_name=aac, profile=LC` → descriptor `aac-lc` (ADTS cannot prove SBR/HE — decode domain; vocabulary Main/LC/SSR/LTP).
+- D-10: resync acceptance = measured ffmpeg predicate (syncword + header-covered frame + fits; layer/sampling-index NOT rechecked mid-scan) EXCEPT an overrunning claim raises typed truncation instead of ffmpeg's short packet — consistency with the strict-walk policy; divergence recorded above.
+- Zero-copy note for 5.X2: frames land in a 2-slot PayloadSlots pool capped at MAX_FRAME_BYTES (8191+9 B) → ≤ ~16.4 KiB resident, one fill = one shared view, zero per-packet allocation in steady state; `pool_bytes()` is the observable (test `pool_memory_stays_bounded`). Natural 5.X2 extension: an adts row in tests/zero_alloc_read_chain.rs.
+- Gates (worktree-local target): `cargo fmt -p demux -- --check` CLEAN; `cargo clippy -p demux --all-targets --all-features -- -D warnings` CLEAN; `cargo test -p demux --all-features` 331 passed / 0 failed (244 unit incl. 30 adts + 13 suites + 4 adts_corpus incl. differential/dirty/fuzz + 5 doctests). Corpus present this instance (no skips exercised beyond designed absent-corpus paths).
+- R3 registry snippet (adts row):
+  ```toml
+  id = "adts"           # media-types CodecDescriptor("adts"), extensions .aac/.adts/.adif
+  kind = "audio"        # raw headered AAC (ADTS frames + ADIF CBR)
+  demuxer = "demux::adts::AdtsDemuxer"       # native, zero deps
+  probe = "demux::adts::probe(header)"        # 0xFFFx syncword or "ADIF" (ID3-prefixed legal)
+  extensions = ["aac", "adts", "adif"]        # demux::adts::EXTENSIONS
+  capabilities = ["resync", "id3-skip", "adif-cbr", "unsupported-typed"]
+  # resync: bounded 4 MiB lost-sync scan w/ Recovered events; id3-skip:
+  # head+interframe ID3v2 (syncsafe, 16 MiB ceiling); adif-cbr: PCE parse
+  # + block arithmetic seek (O(1)); unsupported-typed: VBR/multi-program
+  # ADIF refuse typed (boundaries are decode-domain)
+  codecs = ["aac-lc", "aac-main", "aac-ssr", "aac-ltp"]
+  seek = "SlowLinear"   # ADTS frame-header scan (2 M-frame bound); ADIF: Fast{indexed:false}
+  ```
+
+Stage Summary:
+- 5.C2b COMPLETE on branch wip/p5-c2b, gated + committed, ready for Lead merge. Phase 5: 6 of 47 cards complete-or-on-branch (A1, A2, A3, B1, D1 merged; C1 on branch ~70%; C2b this commit).
+
+---
+Task ID: 5.F1a
+Agent: P5-F1AF
+Task: H.264 bitstream parser (NAL/SPS/PPS) — finisher: prior session died uncommitted; verify/complete/gate/commit.
+
+Work Log:
+- Inherited uncommitted crates/codecs/src/video/h264/** (parser/{mod,nal,sps,pps}.rs, 2.7 kloc), video/mod.rs wiring (exactly one `pub mod h264;` line), tests/h264_parser_corpus.rs; deleted debug-scratch tests/dbg_h264.rs (its mkv-private dump mission folded into a temporary diagnostic, then removed).
+- REAL parser bug found via the corpus (every ffmpeg-authored mkv avcC was rejected as `h264.avcc.count`): ffmpeg's `ff_isom_write_avcc` writes the PPS count byte as the BARE count (0x01) — reserved bits clear — while ISO/IEC 14496-15 §5.3.3.1 declares `reserved(3)+count`. Fix: counts read as masked 5-bit fields, reserved bits ignored (documented deviation, zero counts still typed-invalid); `looks_like_avcc` aligned; trailing extension bytes (e.g. `fe f8 f8 00`) left unread. Result: 18/18 mkv lanes went SKIP→PASS.
+- Test-side additions (no assertion weakened): avcc_accepts_ffmpeg_writer_reality (byte-exact 0003 CodecPrivate fixture); poc_type_1_cycle_offsets_parse_and_bound (SPS poc type 1 cycle offsets + the structural i32 bound via the ue-width cap, honest assertion rewritten after verifying ⌈k/2⌉ ceiling arithmetic); SpsBits builder gained a correct se(v) encoder (2v−1 / −2v).
+- clippy -D warnings: fixed 4 inherited lints (manual_div_ceil on se — where I initially introduced an off-by-one, caught by tests and corrected to k.div_ceil(2); while→for; collapsible ifs ×3 in corpus test; unnecessary_cast).
+- AC audit (all green): Annex-B 3/4-byte start codes + leading-garbage skip + trailing-zero trim; emulation-prevention removal w/ typed bad_suffix/dangling violations; NAL classification (Table 7-1 full 0..=31 roundtrip, forbidden_zero_bit, zero-length bodies typed); AVC 4-byte-length form (AvcNals: truncation, zero-padding tail, zero-length spin guard) + avcC record (version/count/reserved error paths, ffmpeg deviation above); SPS profile/constraints/level, chroma_format_idc+separate_colour_plane, bit depths, frame_num bits, poc types 0+1 (+2 default), ref-frame budget, cropping→visible resolution (crop-unit arithmetic incl. 4:4:4 and monochrome+interlace cases, overflow→None); PPS ids, entropy mode, ref-idx defaults, weighted pred, QP/QS/chroma offsets, deblocking/constrained/redundant flags, FMO typed-Unsupported; error paths truncated/forbidden/invalid-sps-id all typed, zero panics; fuzz-lite 3000-round xorshift mutations (nal.rs) + 2000-round mutations of the real 0019 stream (corpus suite).
+- NO software-decode claim: parse/classify only (module honesty note, doc 04 §4.2); no Decoder impl under h264/.
+- DIFFERENTIAL (live ffprobe oracle, corpus-v4 @ /tmp/my-project/corpus-v4, this instance): 19/19 lanes PASS, 0 FAIL — 0019-raw-video.h264 (Annex-B: High@L1.3, 64x48, 4:0:0-gray→yuvj420p ffprobe-view mapping documented) + 18 mkv h264 tracks via real FileAccess→MkvDemuxer→avcC CodecPrivate (in-band length-prefixed and Annex-B fallbacks wired, unexercised by this corpus): profiles Baseline/Constrained/Main/High/High 4:2:2/High 4:4:4 Predictive, levels 10–32, sizes 32x32–1280x720, chroma 420/422/444/mono, PPS pairing checked per lane. MP4/MOV/TS h264 lanes skip-with-msg (demuxer cards 5.C1/5.I1 not on this tree; same AvcConfig path when they land).
+- Environment: root disk hit 100% mid-build (linker bus-error); freed ~4 GB by removing stale SHARED /home/z/my-project/target debug caches (all agents on worktree-local CARGO_TARGET_DIR per protocol — no other worktree touched); built with CARGO_INCREMENTAL=0.
+- Gates (worktree-local target): `cargo fmt -p codecs` CLEAN; `cargo clippy -p codecs --all-targets --all-features -- -D warnings` CLEAN; `cargo test -p codecs --all-features` 273 passed / 0 failed across 24 suites (201 unit incl. 26 h264 + corpus differential + all pre-existing codec suites). Corpus + ffprobe present this instance.
+
+Stage Summary:
+- 5.F1a COMPLETE on branch wip/p5-f1a, gated + committed, ready for Lead merge. NO software-decode claim — parser only. Slice headers + SEI remain sibling card 5.F1b (module map already points there).
