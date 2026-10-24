@@ -1,0 +1,115 @@
+# 5.A3 MP3/MP2 differential reference data (card 5.A3 AC evidence).
+#
+# One [fixture.<name>] section per committed fixture under
+#   crates/codecs/tests/fixtures/<name>.mp3|.mp2
+# (160 KB total — inside the card's < 200 KB fixture budget:
+# cbr128 36K, mono48 16K, mp2_48k 36K, mpeg2_24k 8K, tagged_art 52K,
+#  vbr_q4 12K) and one [corpus.<name>] section per real-corpus MP3
+#   $LUMEN_CORPUS/media/<name>.mp3
+# (corpus is /tmp-resident; the corpus differential SKIPs with a
+# message when absent — the fixture rows are the always-on coverage).
+#
+# PROVENANCE (honesty rules): every fixture's PCM essence is authored
+# by the external ffmpeg 7.1.5-0+deb13u1 encoder (oracle, never a
+# dependency) during the 5.A3 dev sessions — libmp3lame for the Layer
+# III set (CBR 128k stereo 44.1 kHz; VBR q4; mono 48 kHz; MPEG-2 LSF
+# 24 kHz; the same CBR audio plus a large ID3v2.3 tag + embedded art
+# for tagged_art), the mp2 encoder for the Layer II 48 kHz stereo
+# file. All facts below were re-derived live this session with the
+# exact commands:
+#   ffmpeg -i F -map 0:a -c:a pcm_s16le -f md5 -        (ffmpeg_pcm_md5)
+#   ffmpeg -i F -map 0:a -c:a pcm_s16le -f s16le -      (sample counts)
+#   ffprobe -select_streams a -show_entries stream=sample_rate,channels
+#
+# THE GAPLESS WINDOW (what each side decodes — the card's mandate to
+# document it exactly): ffmpeg decodes the LAME-tagged Layer III
+# fixtures to exactly frames × spf − delay − padding samples
+# (its mp3 demuxer exports skip_samples/trim from the LAME tag),
+# Layer II/MP2 to all frames × 1152 (no tag). Lumen decodes the same
+# window: Xing/Info header frame excluded from the audio count, raw
+# pipeline window [delay, total − padding) SHIFTED by +529
+# samples/channel — the Layer III synthesis-pipeline latency that
+# symphonia's raw output carries and ffmpeg's never emits (measured:
+# exhaustive shift search, bit-exact ±1 LSB once aligned; see
+# src/audio/mp3/decoder.rs module doc). Both windows therefore cover
+# the SAME samples; lumen_pcm_md5 is Lumen's s16le MD5 over that
+# window (regression pin — a lossy decoder's MD5 is NOT expected to
+# equal ffmpeg's), and max_sample_delta is the measured per-sample
+# |lumen − ffmpeg| bound on the aligned window (the honest lossy-
+# decoder tolerance: ±1 LSB rounding).
+
+[fixture.cbr128]
+codec = mp3
+rate = 44100
+channels = 2
+frames = 78
+samples_per_channel = 88200
+ffmpeg_pcm_md5 = 253c926ff193cfe2db3a5b092acba2f4
+lumen_pcm_md5 = 52d32e3c30972087dadbd97998a0d3cd
+max_sample_delta = 1
+
+[fixture.vbr_q4]
+codec = mp3
+rate = 44100
+channels = 2
+frames = 78
+samples_per_channel = 88200
+ffmpeg_pcm_md5 = aa132c33436a959052f262e82d5d1e86
+lumen_pcm_md5 = 988161d1c81b5723c44ebab84fa2afb9
+max_sample_delta = 1
+
+[fixture.mono48]
+codec = mp3
+rate = 48000
+channels = 1
+frames = 64
+samples_per_channel = 72000
+ffmpeg_pcm_md5 = 204e24ea83aee0b18df7b041dc898b16
+lumen_pcm_md5 = 95e0c8a02a5a2cce9c6175165fdbaaa6
+max_sample_delta = 1
+
+[fixture.mpeg2_24k]
+codec = mp3
+rate = 24000
+channels = 2
+frames = 65
+samples_per_channel = 36000
+ffmpeg_pcm_md5 = bba85e8d4e9c1d0b6eb3f0dae13a37c9
+lumen_pcm_md5 = c808aa5c0f0af3eba1ab9401840bd0fa
+max_sample_delta = 1
+
+[fixture.mp2_48k]
+codec = mp2
+rate = 48000
+channels = 2
+frames = 63
+samples_per_channel = 72576
+ffmpeg_pcm_md5 = bf3bee58ca7e7c34d791abeffb6f9bfb
+lumen_pcm_md5 = 6db7b51bbe177897a71e213bf1f3a8f2
+max_sample_delta = 1
+
+[fixture.tagged_art]
+codec = mp3
+rate = 44100
+channels = 2
+frames = 78
+samples_per_channel = 88200
+ffmpeg_pcm_md5 = 253c926ff193cfe2db3a5b092acba2f4
+lumen_pcm_md5 = 52d32e3c30972087dadbd97998a0d3cd
+max_sample_delta = 1
+# same PCM essence as cbr128 (identical MD5s both sides) behind a
+# 15 KB ID3v2.3 tag with embedded album art — pins tag-skip neutrality.
+
+[corpus.0139-audio-only]
+codec = mp3
+rate = 11025
+channels = 2
+ffmpeg_pcm_md5 = 87ffd7a83802f439d60fad3a91783515
+samples_per_channel = 44100
+
+[corpus.0145-cover-audio]
+codec = mp3
+rate = 24000
+channels = 2
+ffmpeg_pcm_md5 = 98454c6c428e916f1f80db77073a4ab0
+samples_per_channel = 2304

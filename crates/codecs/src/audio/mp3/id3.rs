@@ -38,7 +38,7 @@ pub enum Id3Frame {
         value: String,
     },
     /// A picture frame (APIC/PIC): kept raw (the embedded image bytes
-        /// are the picture pipeline's input, not ours).
+    /// are the picture pipeline's input, not ours).
     Picture {
         /// MIME type (`JPG`/`PNG` in v2.2, `image/jpeg`… later).
         mime: String,
@@ -48,7 +48,7 @@ pub enum Id3Frame {
         data: Vec<u8>,
     },
     /// Any other frame, id + raw payload (kept for completeness of
-        /// the walk; unknown frames are skipped, not fatal).
+    /// the walk; unknown frames are skipped, not fatal).
     Other {
         /// The frame id.
         id: String,
@@ -143,7 +143,9 @@ fn decode_text(payload: &[u8]) -> Result<String, EngineError> {
                 _ => (true, rest),
             };
             let units: Vec<u16> = body
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .take_while(|c| !(c[0] == 0 && c[1] == 0))
                 .map(|c| {
                     if le {
@@ -170,7 +172,9 @@ fn decode_text(payload: &[u8]) -> Result<String, EngineError> {
 }
 
 fn body_utf16be(rest: &[u8]) -> Vec<u16> {
-    rest.chunks_exact(2)
+    rest.as_chunks::<2>()
+        .0
+        .iter()
         .take_while(|c| !(c[0] == 0 && c[1] == 0))
         .map(|c| u16::from_be_bytes([c[0], c[1]]))
         .collect()
@@ -308,12 +312,7 @@ pub fn parse_id3v2(data: &[u8]) -> Result<Id3Tag, EngineError> {
                 | u32::from(body[pos + 5]);
             (s as usize, 0u8)
         } else {
-            let raw = [
-                body[pos + 4],
-                body[pos + 5],
-                body[pos + 6],
-                body[pos + 7],
-            ];
+            let raw = [body[pos + 4], body[pos + 5], body[pos + 6], body[pos + 7]];
             let s = if version.0 >= 4 {
                 syncsafe32(&raw).unwrap_or(0) as usize
             } else {

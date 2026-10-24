@@ -128,14 +128,12 @@ const BITRATES_V2_L1: [u32; 14] = [
     32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256,
 ];
 /// MPEG-2/2.5 Layer II and Layer III share the same table.
-const BITRATES_V2_L23: [u32; 14] = [
-    8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160,
-];
+const BITRATES_V2_L23: [u32; 14] = [8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160];
 
 /// Sample-rate tables: `[version][index]`; index 3 is reserved.
 const SAMPLE_RATES: [[u32; 3]; 4] = [
-    [11_025, 12_000, 8_000], // MPEG-2.5
-    [0, 0, 0],               // reserved version — unreachable
+    [11_025, 12_000, 8_000],  // MPEG-2.5
+    [0, 0, 0],                // reserved version — unreachable
     [22_050, 24_000, 16_000], // MPEG-2
     [44_100, 48_000, 32_000], // MPEG-1
 ];
@@ -213,9 +211,9 @@ fn compute_frame_size(
     }
     let padding_u32 = u32::from(padding);
     let size = match layer {
-        Layer::L1 => (12u64 * u64::from(bitrate_bps) / u64::from(sample_rate)
-            + u64::from(padding_u32))
-            * 4,
+        Layer::L1 => {
+            (12u64 * u64::from(bitrate_bps) / u64::from(sample_rate) + u64::from(padding_u32)) * 4
+        }
         Layer::L2 => {
             // Layer II is 1152 samples/frame in every version: 144.
             144 * u64::from(bitrate_bps) / u64::from(sample_rate) + u64::from(padding_u32)
@@ -223,7 +221,11 @@ fn compute_frame_size(
         Layer::L3 => {
             // 1152 samples over 8 bits per byte at MPEG-1 = 144;
             // 576 at MPEG-2/2.5 = 72.
-            let coeff = if matches!(version, MpegVersion::V1) { 144 } else { 72 };
+            let coeff = if matches!(version, MpegVersion::V1) {
+                144
+            } else {
+                72
+            };
             coeff * u64::from(bitrate_bps) / u64::from(sample_rate) + u64::from(padding_u32)
         }
         Layer::Reserved => return None,
@@ -390,10 +392,11 @@ pub fn parse_frame_header(data: &[u8]) -> Result<FrameHeader, EngineError> {
 pub fn scan_sync(data: &[u8], from: usize) -> Option<usize> {
     let mut pos = from;
     while pos + 4 <= data.len() {
-        if data[pos] == 0xFF && data[pos + 1] & 0xE0 == 0xE0 {
-            if parse_frame_header(&data[pos..]).is_ok() {
-                return Some(pos);
-            }
+        if data[pos] == 0xFF
+            && data[pos + 1] & 0xE0 == 0xE0
+            && parse_frame_header(&data[pos..]).is_ok()
+        {
+            return Some(pos);
         }
         pos += 1;
     }
@@ -505,7 +508,10 @@ mod tests {
             Ok(h) => h,
             Err(e) => unreachable!("{e:?}"),
         };
-        assert_eq!((h.layer, h.bitrate_bps, h.sample_rate), (Layer::L2, 384_000, 48_000));
+        assert_eq!(
+            (h.layer, h.bitrate_bps, h.sample_rate),
+            (Layer::L2, 384_000, 48_000)
+        );
         assert_eq!(h.frame_size, 1152);
         // MPEG-2 Layer III 64 kbps 24 kHz: 72*64000/24000=192.
         let m2 = [0xFF, 0xF3, 0x84, 0x00];

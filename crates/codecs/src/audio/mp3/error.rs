@@ -76,8 +76,12 @@ impl Mp3Error {
                 code,
                 detail,
                 detail_text,
-            } => EngineError::new(stage, ErrorKind::Corrupt { detail }, ErrorContext::new(code))
-                .with_source(Detail(detail_text)),
+            } => EngineError::new(
+                stage,
+                ErrorKind::Corrupt { detail },
+                ErrorContext::new(code),
+            )
+            .with_source(Detail(detail_text)),
             Mp3Error::BadState => EngineError::new(
                 stage,
                 ErrorKind::Decoder {

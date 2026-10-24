@@ -179,8 +179,9 @@ mod tests {
         let target_frames = half / 1152;
         assert!(plan.first_sample_at_offset / 1152 <= target_frames);
         assert!(
-            target_frames - plan.first_sample_at_offset / 1152 <= (40 / 100).max(1) + 1,
-            "TOC granularity violated"
+            target_frames - plan.first_sample_at_offset / 1152 <= 2,
+            "TOC granularity violated (one 1% TOC entry spans 0.4 frames here; \
+             2 frames of slack covers it plus rounding)"
         );
     }
 

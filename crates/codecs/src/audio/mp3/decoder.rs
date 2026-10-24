@@ -44,6 +44,25 @@
 //! exactly `frames × spf − delay − padding` samples of the
 //! ffmpeg-authored fixtures) and record both the PCM MD5 and the
 //! max sample delta; see `tests/mp3_bitexact.rs` for the verdicts.
+//!
+//! # The window's position: the 529-sample pipeline shift
+//!
+//! The LAME `delay`/`padding` fields are coordinates in the DECODER
+//! PIPELINE's raw timeline, and the two timelines differ by a fixed
+//! head offset: symphonia (with `gapless = false`) emits **529
+//! samples/channel of Layer III synthesis-pipeline priming at the
+//! stream head** that ffmpeg's decode never contains (mpg123
+//! suppresses the same 529). Measured, not theorized: an exhaustive
+//! shift search on five independent fixtures (MPEG-1 and MPEG-2,
+//! mono and stereo, CBR and VBR) puts ffmpeg's output at exactly
+//! `+529` samples/channel against our raw-trimmed output, bit-exact
+//! to ±1 LSB once aligned (Layer II/MP2 has no such offset — its
+//! output aligns at shift 0). Our window therefore applies
+//! [`LAYER3_PIPELINE_LATENCY`] to both ends (`[delay + 529,
+//! total − padding + 529)`), which lands on ffmpeg's window exactly;
+//! when `padding < 529` the tail is honestly clamped to what was
+//! decoded (the shortfall is `(529 − padding)` samples, documented
+//! in the differential suite).
 
 use super::error::{Mp3Error, corrupt, unsupported};
 use super::header::{FrameHeader, Layer, parse_frame_header};
@@ -55,10 +74,8 @@ use media_types::packet::SharedBytes;
 use media_types::time::{Nanoseconds, TimeBase, Timestamp};
 use media_types::{Duration, Stamp};
 use symphonia_bundle_mp3::MpaDecoder;
-use symphonia_core::codecs::audio::{
-    AudioCodecParameters, AudioDecoder, AudioDecoderOptions,
-};
 use symphonia_core::codecs::audio::well_known::{CODEC_ID_MP1, CODEC_ID_MP2, CODEC_ID_MP3};
+use symphonia_core::codecs::audio::{AudioCodecParameters, AudioDecoder, AudioDecoderOptions};
 use symphonia_core::packet::PacketRef;
 use symphonia_core::units::{Duration as SymDuration, Timestamp as SymTimestamp};
 
@@ -94,6 +111,12 @@ fn codec_id(header: &FrameHeader) -> Option<symphonia_core::codecs::audio::Audio
     }
 }
 
+/// Layer III synthesis-pipeline latency, in per-channel samples:
+/// the head of symphonia's raw (gapless = false) output that ffmpeg's
+/// decode never emits. Empirically pinned (see the module doc); the
+/// gapless window shifts by this much to land on ffmpeg's timeline.
+const LAYER3_PIPELINE_LATENCY: u64 = 529;
+
 /// Decode one framed packet through the engine (shared by the
 /// contract path and the stream pipeline).
 ///
@@ -125,12 +148,7 @@ fn decode_one(
         )
         .into_engine_error());
     }
-    let pkt = PacketRef::new(
-        0,
-        SymTimestamp::ZERO,
-        SymDuration::ZERO,
-        packet,
-    );
+    let pkt = PacketRef::new(0, SymTimestamp::ZERO, SymDuration::ZERO, packet);
     let decoded = match decoder.decode_ref(&pkt) {
         Ok(buf) => buf,
         Err(e) => {
@@ -199,7 +217,11 @@ pub fn decode_stream(data: &[u8]) -> Result<DecodedMp3, EngineError> {
         None
     };
     let has_header_frame = xing.is_some() || vbri.is_some();
-    let audio = if has_header_frame { &frames[1..] } else { &frames[..] };
+    let audio = if has_header_frame {
+        &frames[1..]
+    } else {
+        &frames[..]
+    };
     if audio.is_empty() {
         return Err(corrupt(
             "mp3.stream.header_frame_only",
@@ -213,20 +235,20 @@ pub fn decode_stream(data: &[u8]) -> Result<DecodedMp3, EngineError> {
     }
     // The Xing consistency gate (the card's typed error path): the
     // claimed frame count must equal the walked audio frames.
-    if let Some(claimed) = xing.as_ref().and_then(|x| x.frames) {
-        if claimed as usize != audio.len() {
-            return Err(corrupt(
-                "mp3.xing.frame_count_mismatch",
-                media_types::error::CorruptDetail::InvalidStructure {
-                    offset: Some(xing.as_ref().map(|x| x.frame_offset).unwrap_or(0)),
-                },
-                format!(
-                    "Xing header claims {claimed} frames but the stream walks {}",
-                    audio.len()
-                ),
-            )
-            .into_engine_error());
-        }
+    if let Some(claimed) = xing.as_ref().and_then(|x| x.frames)
+        && claimed as usize != audio.len()
+    {
+        return Err(corrupt(
+            "mp3.xing.frame_count_mismatch",
+            media_types::error::CorruptDetail::InvalidStructure {
+                offset: Some(xing.as_ref().map(|x| x.frame_offset).unwrap_or(0)),
+            },
+            format!(
+                "Xing header claims {claimed} frames but the stream walks {}",
+                audio.len()
+            ),
+        )
+        .into_engine_error());
     }
     // Engine set-up from the first AUDIO frame's header.
     let header0 = audio[0].header;
@@ -253,11 +275,10 @@ pub fn decode_stream(data: &[u8]) -> Result<DecodedMp3, EngineError> {
     let mut engine = match MpaDecoder::try_new(&params, &engine_opts) {
         Ok(e) => e,
         Err(e) => {
-            return Err(unsupported(
-                "mp3.engine.init",
-                format!("engine refused the stream: {e}"),
-            )
-            .into_engine_error());
+            return Err(
+                unsupported("mp3.engine.init", format!("engine refused the stream: {e}"))
+                    .into_engine_error(),
+            );
         }
     };
     let mut scratch: Vec<f32> = Vec::new();
@@ -268,10 +289,7 @@ pub fn decode_stream(data: &[u8]) -> Result<DecodedMp3, EngineError> {
         let bytes = data
             .get(frame.offset..frame.offset + frame.header.frame_size as usize)
             .unwrap_or(&[]);
-        let (frames_decoded, _h) = match decode_one(&mut engine, bytes, &mut scratch) {
-            Ok(x) => x,
-            Err(e) => return Err(e),
-        };
+        let (frames_decoded, _h) = decode_one(&mut engine, bytes, &mut scratch)?;
         if spec_channels == 0 {
             let decoded = engine.last_decoded();
             let spec = decoded.spec();
@@ -289,17 +307,19 @@ pub fn decode_stream(data: &[u8]) -> Result<DecodedMp3, EngineError> {
         )
         .into_engine_error());
     }
-    // The gapless window: [delay, total − padding) in per-channel
-    // samples, converted to interleaved positions.
+    // The gapless window: [delay, total − padding) in the LAME tag's
+    // raw pipeline coordinates, shifted by the 529-sample Layer III
+    // synthesis latency to land on ffmpeg's timeline (module doc),
+    // clamped to what was actually decoded.
     let gapless = xing.as_ref().and_then(|x| x.lame);
     if let Some(lame) = gapless {
         let total_ch = (samples.len() / spec_channels) as u64;
-        let (start, end) = lame.trim_window(total_ch);
-        let start_i = (start as usize) * spec_channels;
-        let end_i = (end as usize) * spec_channels;
-        let window = samples
-            .get(start_i.min(samples.len())..end_i.min(samples.len()))
-            .unwrap_or(&[]);
+        let (raw_start, raw_end) = lame.trim_window(total_ch);
+        let start = raw_start + LAYER3_PIPELINE_LATENCY;
+        let end = (raw_end + LAYER3_PIPELINE_LATENCY).min(total_ch);
+        let start_i = (start as usize).min(total_ch as usize) * spec_channels;
+        let end_i = (end as usize).min(total_ch as usize) * spec_channels;
+        let window = samples.get(start_i..end_i.max(start_i)).unwrap_or(&[]);
         let trimmed = window.to_vec();
         samples = trimmed;
     }
@@ -437,10 +457,8 @@ impl Decoder for Mp3Decoder {
             )
             .into_engine_error());
         }
-        let (delay, padding, total_frames) = match cfg.extra_data.as_ref().map(|d| d.as_slice())
-        {
-            None => (0, 0, 0),
-            Some(blob) if blob.is_empty() => (0, 0, 0),
+        let (delay, padding, total_frames) = match cfg.extra_data.as_ref().map(|d| d.as_slice()) {
+            None | Some([]) => (0, 0, 0),
             Some(blob) => facts::decode(blob).ok_or_else(|| {
                 unsupported(
                     "mp3.facts.length",
@@ -457,8 +475,7 @@ impl Decoder for Mp3Decoder {
         let mut engine_opts = AudioDecoderOptions::default();
         engine_opts.gapless = false;
         engine_opts.verify = false;
-        let engine = MpaDecoder::try_new(&params, &engine_opts)
-        .map_err(|e| {
+        let engine = MpaDecoder::try_new(&params, &engine_opts).map_err(|e| {
             unsupported(
                 "mp3.engine.init",
                 format!("engine refused the configuration: {e}"),
@@ -473,7 +490,7 @@ impl Decoder for Mp3Decoder {
         self.total_frames = total_frames;
         self.packet_index = 0;
         self.samples_fed = 0;
-        self.pending_start_trim = delay;
+        self.pending_start_trim = delay.saturating_add(LAYER3_PIPELINE_LATENCY as u32);
         self.scratch.clear();
         self.sample_pool.clear();
         self.slot_next = 0;
@@ -501,7 +518,8 @@ impl Decoder for Mp3Decoder {
         if packet.data.is_empty() {
             return Ok(DecodeOutcome::NeedMoreInput);
         }
-        let (frame_samples, _header) = decode_one(engine, packet.data.as_slice(), &mut self.scratch)?;
+        let (frame_samples, _header) =
+            decode_one(engine, packet.data.as_slice(), &mut self.scratch)?;
         if self.out_channels == 0 {
             let decoded = engine.last_decoded();
             let spec = decoded.spec();
@@ -520,22 +538,33 @@ impl Decoder for Mp3Decoder {
         // End trim: the declared last frame loses its padding tail.
         let is_last = self.total_frames > 0 && self.packet_index + 1 == self.total_frames;
         if is_last && self.padding > 0 {
-            let keep = frame_samples.saturating_sub(self.padding as usize);
-            let keep = keep.min(frame_samples);
+            // The padding is in the LAME tag's raw pipeline coordinates;
+            // the 529-sample synthesis latency (already absent from the
+            // stream's intended tail on ffmpeg's timeline) is not part
+            // of the end trim (see the module doc).
+            let drop = (u64::from(self.padding))
+                .saturating_sub(LAYER3_PIPELINE_LATENCY)
+                .min(frame_samples as u64) as usize;
+            let keep = frame_samples - drop;
             emit = emit.get(..keep * channels).unwrap_or(emit);
         }
         self.packet_index += 1;
         let emitted_samples = emit.len() / channels.max(1);
         if emitted_samples > 0 {
             let slot_len = MAX_SAMPLES_PER_FRAME * channels * 4;
-            let bytes = pooled_sample_slot(&mut self.sample_pool, &mut self.slot_next, slot_len, |dst| {
-                let mut cursor = 0usize;
-                for v in emit {
-                    dst[cursor..cursor + 4].copy_from_slice(&v.to_ne_bytes());
-                    cursor += 4;
-                }
-                Ok::<(), Mp3Error>(())
-            })?;
+            let bytes = pooled_sample_slot(
+                &mut self.sample_pool,
+                &mut self.slot_next,
+                slot_len,
+                |dst| {
+                    let mut cursor = 0usize;
+                    for v in emit {
+                        dst[cursor..cursor + 4].copy_from_slice(&v.to_ne_bytes());
+                        cursor += 4;
+                    }
+                    Ok::<(), Mp3Error>(())
+                },
+            )?;
             let exact = emitted_samples * channels * 4;
             let base = TimeBase::new(1, self.out_rate.max(1)).map_err(|_| {
                 unsupported("mp3.stream.rate", "negotiated rate is 0").into_engine_error()
@@ -559,8 +588,10 @@ impl Decoder for Mp3Decoder {
                     ))
                 },
                 duration: Some(Duration::Known(Nanoseconds(
-                    u64::try_from(emitted_samples as u128 * 1_000_000_000u128
-                        / u128::from(self.out_rate.max(1)))
+                    u64::try_from(
+                        emitted_samples as u128 * 1_000_000_000u128
+                            / u128::from(self.out_rate.max(1)),
+                    )
                     .unwrap_or(u64::MAX),
                 ))),
                 generation: packet.generation,
@@ -710,5 +741,88 @@ mod tests {
             Ok(()) => unreachable!("short facts must be refused"),
         };
         assert_eq!(e.context.code, "mp3.facts.length");
+    }
+
+    /// Build a first frame carrying a Xing header (the xing.rs test
+    /// helper's construction, repeated for the stream-level tests).
+    fn xing_first_frame(frames_claim: u32, lame: Option<(u32, u32)>) -> Vec<u8> {
+        let mut f = Vec::new();
+        f.extend_from_slice(&[0xFF, 0xFB, 0x90, 0x00]); // MPEG-1 L3 128k stereo
+        f.extend_from_slice(&[0u8; 32]); // side info (stereo MPEG-1)
+        f.extend_from_slice(b"Xing");
+        f.extend_from_slice(&0x000Fu32.to_be_bytes()); // frames|bytes|toc|quality
+        f.extend_from_slice(&frames_claim.to_be_bytes());
+        f.extend_from_slice(&417u32.to_be_bytes());
+        f.extend_from_slice(&[0u8; 100]); // TOC
+        f.extend_from_slice(&0u32.to_be_bytes()); // quality
+        if let Some((delay, padding)) = lame {
+            f.extend_from_slice(b"LAME3.100");
+            f.extend_from_slice(&[0; 12]);
+            let packed: u32 = (delay.min(0x0FFF) << 12) | padding.min(0x0FFF);
+            f.extend_from_slice(&packed.to_be_bytes()[1..4]);
+            f.extend_from_slice(&[0; 8]);
+        }
+        f.resize(417, 0);
+        f
+    }
+
+    /// One decodable MPEG-1 L3 frame (header + zero side info/payload:
+    /// the `mod.rs` minimal-stream precedent — 1152 samples of
+    /// near-silence).
+    fn plain_audio_frame() -> Vec<u8> {
+        let mut f = Vec::new();
+        f.extend_from_slice(&[0xFF, 0xFB, 0x90, 0x00]);
+        f.extend_from_slice(&[0u8; 413]);
+        f
+    }
+
+    #[test]
+    fn xing_frame_count_inconsistency_is_typed() {
+        // The header claims 7 frames; the stream walks exactly 1.
+        let mut data = xing_first_frame(7, None);
+        data.extend_from_slice(&plain_audio_frame());
+        let e = match decode_stream(&data) {
+            Err(e) => e,
+            Ok(_) => unreachable!("the lying Xing count must be refused"),
+        };
+        assert_eq!(e.context.code, "mp3.xing.frame_count_mismatch");
+        assert!(matches!(e.kind, media_types::ErrorKind::Corrupt { .. }));
+        assert_eq!(e.stage, media_types::PipelineStage::Decode);
+    }
+
+    #[test]
+    fn gapless_window_applies_the_pipeline_latency_shift() {
+        // delay=100, padding=600: the raw LAME window would be
+        // [100, 1152-600) = 452 samples/channel; the pipeline shift
+        // moves it to [100+529, 1152-600+529) = [629, 1081) — the
+        // same 452 samples, positioned on ffmpeg's timeline.
+        let mut data = xing_first_frame(1, Some((100, 600)));
+        data.extend_from_slice(&plain_audio_frame());
+        let d = match decode_stream(&data) {
+            Ok(d) => d,
+            Err(e) => unreachable!("consistent stream must decode: {e}"),
+        };
+        assert_eq!(d.frames, 1);
+        assert!(d.gapless.is_some());
+        assert_eq!(d.samples.len(), 452 * 2);
+        // Without the shift the window would start at raw sample 100;
+        // with it, the first emitted sample is raw sample 629 — pinned
+        // by asserting the length above plus the corpus differential's
+        // bit-exact alignment (tests/mp3_corpus_differential.rs).
+    }
+
+    #[test]
+    fn gapless_window_clamps_when_padding_undercuts_the_latency() {
+        // padding=100 < 529: raw window [50, 1052); shifted end
+        // 1052+529 clamps to the decoded 1152 → [579, 1152) = 573
+        // samples/channel, honestly short of ffmpeg's (never-decoded)
+        // tail by 529-100 samples.
+        let mut data = xing_first_frame(1, Some((50, 100)));
+        data.extend_from_slice(&plain_audio_frame());
+        let d = match decode_stream(&data) {
+            Ok(d) => d,
+            Err(e) => unreachable!("consistent stream must decode: {e}"),
+        };
+        assert_eq!(d.samples.len(), 573 * 2);
     }
 }

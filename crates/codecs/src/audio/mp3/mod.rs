@@ -63,8 +63,8 @@ pub(crate) mod id3;
 pub(crate) mod seek;
 pub(crate) mod xing;
 
-pub use decoder::{DecodedMp3, Mp3Decoder, decode_stream};
 pub use decoder::facts;
+pub use decoder::{DecodedMp3, Mp3Decoder, decode_stream};
 pub use header::{
     ChannelMode, Emphasis, FrameAt, FrameHeader, Layer, MpegVersion, channel_count,
     parse_frame_header, samples_per_frame, scan_sync, side_info_size, walk_frames,

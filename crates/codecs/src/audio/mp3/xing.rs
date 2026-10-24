@@ -45,8 +45,8 @@
 //! path is unit-tested against hand-crafted headers — stated
 //! honestly in the worklog.
 
-use super::header::{FrameHeader, side_info_size};
 use super::error::{corrupt, unsupported};
+use super::header::{FrameHeader, side_info_size};
 use media_types::EngineError;
 use media_types::error::CorruptDetail;
 
@@ -292,10 +292,7 @@ fn parse_head(frame: &[u8]) -> Option<FrameHeader> {
 
 fn find_magic(frame: &[u8], base: usize, magic: &[u8; 4]) -> Option<usize> {
     let window = frame.get(base..(base + 64 + 4).min(frame.len()))?;
-    window
-        .windows(4)
-        .position(|w| w == magic)
-        .map(|p| base + p)
+    window.windows(4).position(|w| w == magic).map(|p| base + p)
 }
 
 /// Parse the LAME tag (delay/padding) from the bytes following the
@@ -405,7 +402,10 @@ pub fn parse_vbri(frame: &[u8], frame_offset: u64) -> Result<Option<VbriInfo>, E
 
 fn find_magic_vbri(frame: &[u8], base: usize) -> Option<usize> {
     let window = frame.get(base..(base + 40).min(frame.len()))?;
-    window.windows(4).position(|w| w == b"VBRI").map(|p| base + p)
+    window
+        .windows(4)
+        .position(|w| w == b"VBRI")
+        .map(|p| base + p)
 }
 
 #[cfg(test)]

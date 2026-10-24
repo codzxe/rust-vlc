@@ -63,6 +63,7 @@ dependencies = [
  "media-types",
  "plugin-api",
  "symphonia-bundle-mp3",
+ "symphonia-core",
  "testkit",
 ]
 

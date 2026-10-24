@@ -91,13 +91,10 @@ pub fn fuzz_mp3_stream(data: &[u8]) -> FuzzOutcome {
         contract_frames: 0,
     };
     // 1. ID3 walk.
-    match id3v2_len(data) {
-        Ok(Some(len)) => {
-            outcome.id3 = true;
-            let _ = parse_id3v2(data);
-            let _ = len;
-        }
-        Ok(None) | Err(_) => {}
+    if let Ok(Some(len)) = id3v2_len(data) {
+        outcome.id3 = true;
+        let _ = parse_id3v2(data);
+        let _ = len;
     }
     // 2. Header walk from post-ID3 (or 0).
     let start = match id3v2_len(data) {
@@ -107,9 +104,8 @@ pub fn fuzz_mp3_stream(data: &[u8]) -> FuzzOutcome {
     let frames = walk_frames(data, start.min(data.len()));
     outcome.frames = frames.len();
     if let Some(first) = frames.first() {
-        if let Some(bytes) = data.get(
-            first.offset..first.offset + first.header.frame_size as usize,
-        ) {
+        if let Some(bytes) = data.get(first.offset..first.offset + first.header.frame_size as usize)
+        {
             // 3. Xing (and its internal LAME parse).
             if let Ok(Some(x)) = parse_xing(bytes, first.offset as u64) {
                 outcome.xing = true;
@@ -203,7 +199,7 @@ mod tests {
         );
         let garbage = [0xFFu8; 4096];
         let o = fuzz_mp3_stream(&garbage);
-        assert_eq!(o.id3, false);
+        assert!(!o.id3);
         // Repeated 0xFF syncs fail validation (bad bitrate etc.) so
         // the walk stays at zero frames — no hang, no panic.
         assert_eq!(o.frames, 0);
