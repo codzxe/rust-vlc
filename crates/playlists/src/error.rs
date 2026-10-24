@@ -72,4 +72,15 @@ pub enum ParseWarning {
         /// 1-based line number of the first pending metadata line.
         line: usize,
     },
+
+    /// An `#EXT-X-*` tag from the HLS subset (card 5.O1) was malformed —
+    /// broken attribute-list syntax, a badly-typed or missing required
+    /// attribute, a non-numeric byte-range, or junk on a valueless tag.
+    /// The line is skipped; segments already parsed are unaffected and
+    /// later lines still parse (D-2 line-level skip).
+    #[error("playlists: line {line}: malformed #EXT-X-* tag (line skipped, entry survives)")]
+    BadExtXTag {
+        /// 1-based line number.
+        line: usize,
+    },
 }
