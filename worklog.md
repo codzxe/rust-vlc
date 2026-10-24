@@ -8583,3 +8583,35 @@ Work Log:
 
 Stage Summary:
 - 5.A3 landed: mp3+mp2 probe/decode/seek + gapless. Symphonia purity record at docs/dependencies/records/symphonia-mp3-0.6.1.md. R3 snippet: id=mp3 (family mp3+mp2), capabilities=[probe,decode,seek], feature=decoders, gapless=encoder-delay/padding trim via Info/LAME tag.
+Task ID: 5.B1
+Agent: P5-B1-R
+Task: finish+commit Ogg card (prior session landed the core in 553f515 as WIP; this session completed the remaining ACs + gate + commit)
+
+Work Log:
+- Found the core COMMITTED but incomplete: crates/demux/src/ogg/** (2 651 lines: mod/page/error/fuzz/test_support/tests) already carried every error-path unit test (bad CRC + sync-scan recovery, 255-run lacing overrun, mid-stream capture corruption, truncated page, sequence discontinuity — one test each, typed, no panics) plus chains, granule clocks, seek, pool bounds. Missing: fuzz-lite fixtures, real `cat`-chain test, real-corpus differential, worklog. Also UNGATED: the prior session never ran clippy/fmt.
+- Fixed 7 clippy `-D warnings` errors (no behavior change, no test weakened): no-op `& 0xFFFF_FFFF` masks in page.rs CRC loops ×2, or-pattern→range `0x80..=0x82`, collapsible-if→`is_some_and`/let-chain ×2, bool-literal assert in tests.rs, `Option::unwrap` in a unit test. `cargo fmt -p demux` normalized the prior session's unformatted tree (import order + line rewraps — the only lib.rs/tests.rs churn).
+- Generated ffmpeg-authored fixtures (lavfi sine, ffmpeg 7.1.5; ≈23 KiB committed < 200 KiB mandate): ogg_vorbis_8k_st.ogg (serial 1073372718), ogg_vorbis_16k_mono.ogg (1983438), ogg_opus_48k_mono.opus (516290875), ogg_chain_two_links.ogg = literal `cat` of the two vorbis parents (distinct serials) + 9 derivatives (trunc0..4 exact prefixes, flip1/4/16 single-bit XORs, garbage0 +4096 B).
+- Added crates/demux/tests/ogg_fixtures.rs (4 tests): valid fixtures bit-exact vs ffmpeg (`ffmpeg -map 0:a -c copy -f md5` + `ffprobe -count_packets`: 14/14/21 packets, granules 3200/6400/19512, md5s 335fd5…/73b12e…/3e6f08…); CHAIN AC: 2 links, boundary = Discontinuity, link 2 rides a fresh track id, per-serial granule clocks restart (gdisc 0 — no fabricated cross-link timeline), payload byte-equal to parent A || parent B; derivative family pinned exactly (trunc0→demux.ogg.no-streams, trunc1/2/4→demux.ogg.truncated-page at start, trunc3 clean-empty end, flip1 CRC-drop keeps all 14 audio packets byte-identical damage 2745 gdisc 1, flip4 drops the audio page damage 442, flip16 headless stream→ogg-opaque 16 pkts, garbage0 lost-capture damage 4096); fuzz-lite harness over 13 fixtures + truncation/flip sweeps.
+- Added crates/demux/tests/corpus_ogg.rs (2 tests): the real-corpus differential (live, not skipped — corpus-v4 present, ffmpeg 7.1.5) + fuzz survival over the 4 lanes with 4 KiB-stride truncation/flip sweeps and ALL dirty/ (27 files) + garbage/ (22 files) bytes (this corpus instance has no .ogg-labeled dirty lanes — any bytes are legal fuzz input).
+- CORPUS TABLE (measured this session; ffprobe-side channels/dims are decode-domain, header-stashed by us — noted, not asserted): PASS 0047-audio-only.ogg opus 48000 mono granule 192312 packets 201 (ffprobe 201) md5 f2d264496a62b16f9d064f7ba7b8c955 (= ffmpeg dump); PASS 0077-audio-only.ogg opus 48000 6ch granule 192312 packets 201 (201) md5 fb151c11ff11c460fa420831ca0fd220; PASS 0085-audio-only.ogg vorbis 8000 stereo granule 32000 packets 126 (126) md5 d0e0f86e6cd41d1d84fbe17f0ee64776; PASS 0090-ogv-video.ogv theora 360×640 @ 1/2 fps granule 2 (2 frames = 4.0 s) packets 2 (2) md5 c0cd6bbf4fb3d61528923fc1f4f06d83 (= `ffmpeg -map 0:v -c copy -f md5`). 4/4 PASS, all walks clean (0 damage, 0 granule discontinuities, 1 link).
+- Honest ffmpeg disagreement (surfaced, not smoothed): on the two-link chain ffmpeg's ogg demuxer reports 31 packets (it strips only the FIRST link's Vorbis headers into extradata; link 2's 3 header packets leak as data) while we stash both links' headers → 28 packets, payload = the two ffmpeg-verified parents concatenated. Recorded in the fixture-suite module docs + this table.
+- GATES (exact): `cargo fmt -p demux` clean; `cargo clippy -p demux --all-targets --all-features -- -D warnings` PASS (0 warnings) after the 7 fixes; `cargo test -p demux --all-features` PASS 265 / 0 failed / 4 ignored (pre-existing opt-in corpus deep suites; includes the 6 new ogg tests); `cargo check --workspace --all-targets` PASS (15.6 s). One stale-fingerprint E0432 ("cannot find ogg in demux") cleared by `touch src/lib.rs` — the same incremental-artifact incident class 5.A2 recorded; clean rebuild, no source change.
+- Committed e5ccee5 `feat(demux): Ogg completion — error paths, fuzz-lite, chain + corpus differential (5.B1)` on wip/p5-b1 (base 553f515). Nothing [PENDING] in this card.
+
+Stage Summary:
+- D-10 MEASURE? — YES: the corpus differential is 4/4 measured live (packet counts + EOS granules vs ffprobe, payload MD5s vs ffmpeg raw dumps — bit-exact); derivative outcomes pinned to the byte. NOT measured? — decode-throughput (Ogg demux is page/CRC arithmetic + pooled assembly; 5.X1 owns the bench) and multi-link seek across a chain (single-link seek is tested; cross-link seek targets are documented as link-local clocks). What breaks? — nothing known: fuzz-lite green over all fixtures, derivatives, 4 KiB-stride sweeps and 49 dirty/garbage real-world files; every malformed shape lands in the typed vocabulary (demux.ogg.* / bounded recovery). Who hits it first? — 5.X2 (memory audit) will probe pool_bytes() (already bounded: 2-slot PayloadSlots × 256 KiB ceiling, demand-grown — measured 80 B..4 KiB live on corpus lanes); R3 registration consumes the row below.
+- R3 registration snippet (draft for the registration card):
+  ```toml
+  id = "ogg"            # media-types CodecDescriptor("ogg"), container .ogg
+  kind = "container"    # muxed audio+video demuxer
+  demuxer = "demux::ogg::OggDemuxer"          # native, zero deps
+  probe = "demux::ogg::probe(header)"         # magic "OggS" (4 B)
+  extensions = ["ogg", "oga", "ogv", "opus", "spx"]   # demux::ogg::EXTENSIONS
+  capabilities = ["mux", "chains", "granule-events"]
+  # mux: N serials per link, interleaved; chains: `cat` links each
+  # open fresh tracks behind a Discontinuity event; granule-events:
+  # regressions/holes/seq-gaps surface as Discontinuity (never smoothed)
+  codecs = ["vorbis", "opus", "theora", "flac-in-ogg", "speex", "ogg-opaque"]
+  seek = "SlowLinear"   # granule-mapped linear scan, MAX_SEEK_SCAN_PAGES bound
+  ```
+- Zero-copy note for 5.X2: Ogg packet assembly USES the pooled-slot scheme like wav/avi — a 2-slot `PayloadSlots` pool (per-packet ceiling MAX_PACKET_BYTES = 256 KiB, demand-grown, `pool_bytes()` observable; unit test pins ≤ 2×ceiling and measured 80 B..4 KiB live on corpus lanes). Packets surface as zero-copy `SharedBytes` views; per-packet steady-state allocations are zero. An ogg row in tests/zero_alloc_read_chain.rs is the natural 5.X2 extension (not this card's).
