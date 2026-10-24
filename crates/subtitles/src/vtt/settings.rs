@@ -20,9 +20,7 @@
 //! valid occurrence; settings apply in encounter order so a later
 //! `align` can override a `position:…,X` suffix's horizontal choice.
 
-use crate::model::position::{
-    HorizontalAlign, LinePlacement, Percent, Positioning, VerticalAlign,
-};
+use crate::model::position::{HorizontalAlign, LinePlacement, Percent, Positioning, VerticalAlign};
 
 use super::DamageEvent;
 
@@ -227,6 +225,7 @@ mod tests {
     use super::{parse_settings, to_positioning};
     use crate::model::position::{HorizontalAlign, LinePlacement, Percent, VerticalAlign};
     use crate::vtt::damage::DamageKind;
+    use testkit::Must;
 
     fn run(settings: &str) -> (super::SettingsOutcome, Vec<crate::vtt::DamageEvent>) {
         let mut damage = Vec::new();
@@ -238,11 +237,8 @@ mod tests {
     fn subset_maps_to_model() {
         let (o, d) = run("line:0% position:50% align:start");
         assert!(d.is_empty());
-        assert_eq!(
-            o.line,
-            Some(LinePlacement::Percent(Percent::new(0).unwrap()))
-        );
-        assert_eq!(o.position, Some(Percent::new(50).unwrap()));
+        assert_eq!(o.line, Some(LinePlacement::Percent(Percent::new(0).must())));
+        assert_eq!(o.position, Some(Percent::new(50).must()));
         assert_eq!(o.horizontal, Some(HorizontalAlign::Left));
 
         let (o, d) = run("align:center");
@@ -253,7 +249,7 @@ mod tests {
         assert!(d.is_empty());
         assert_eq!(o.line, Some(LinePlacement::LineNumber(-1)));
         assert_eq!(o.vertical, Some(VerticalAlign::Bottom));
-        assert_eq!(o.position, Some(Percent::new(12).unwrap()));
+        assert_eq!(o.position, Some(Percent::new(12).must()));
         assert_eq!(o.horizontal, None);
 
         let (o, d) = run("position:75%,line-right");
@@ -276,8 +272,15 @@ mod tests {
     #[test]
     fn bad_values_damage_not_panic() {
         for bad in [
-            "line:abc", "line:101%", "line:-101%", "position:150%", "position:50",
-            "position:", "align:diagonal", "line:5,sideways", "position:9,up",
+            "line:abc",
+            "line:101%",
+            "line:-101%",
+            "position:150%",
+            "position:50",
+            "position:",
+            "align:diagonal",
+            "line:5,sideways",
+            "position:9,up",
         ] {
             let (_o, d) = run(bad);
             assert_eq!(d.len(), 1, "{bad:?} produced {d:?}");
@@ -294,7 +297,7 @@ mod tests {
         // A later `align` overrides a `position` suffix (encounter order).
         let (o, _) = run("position:10%,left align:right");
         assert_eq!(o.horizontal, Some(HorizontalAlign::Right));
-        assert_eq!(o.position, Some(Percent::new(10).unwrap()));
+        assert_eq!(o.position, Some(Percent::new(10).must()));
     }
 
     #[test]
@@ -303,7 +306,7 @@ mod tests {
         let p = to_positioning(&outcome);
         assert_eq!(p.alignment.vertical, VerticalAlign::Bottom);
         assert_eq!(p.alignment.horizontal, HorizontalAlign::Center);
-        assert_eq!(p.position, Some(Percent::new(50).unwrap()));
+        assert_eq!(p.position, Some(Percent::new(50).must()));
         assert_eq!(p.line, None);
     }
 }

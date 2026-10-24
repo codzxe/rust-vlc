@@ -84,6 +84,7 @@ fn timestamp_us(s: &str) -> Option<i64> {
 #[cfg(test)]
 mod tests {
     use super::{parse_timestamp, parse_timestamp_prefix};
+    use testkit::Must;
 
     #[test]
     fn full_forms() {
@@ -127,10 +128,10 @@ mod tests {
 
     #[test]
     fn greedy_prefix_leaves_settings() {
-        let (us, rest) = parse_timestamp_prefix("00:00:04.000 position:50% align:center").unwrap();
+        let (us, rest) = parse_timestamp_prefix("00:00:04.000 position:50% align:center").must();
         assert_eq!(us, 4_000_000);
         assert_eq!(rest, " position:50% align:center");
-        let (us, rest) = parse_timestamp_prefix("12:34.567junk").unwrap();
+        let (us, rest) = parse_timestamp_prefix("12:34.567junk").must();
         assert_eq!(us, 754_567_000);
         assert_eq!(rest, "junk");
         assert_eq!(parse_timestamp_prefix(""), None);
@@ -140,9 +141,6 @@ mod tests {
     #[test]
     fn saturates_at_i64_max() {
         // ~1e14 hours overflows; the result must clamp, not wrap.
-        assert_eq!(
-            parse_timestamp("99999999999999:00:00.000"),
-            Some(i64::MAX)
-        );
+        assert_eq!(parse_timestamp("99999999999999:00:00.000"), Some(i64::MAX));
     }
 }

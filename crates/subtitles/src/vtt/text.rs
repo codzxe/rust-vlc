@@ -130,7 +130,10 @@ mod tests {
             decode_cue_text("sync <00:00:01.000>karaoke"),
             "sync karaoke"
         );
-        assert_eq!(decode_cue_text("<ruby>kanji<rt>reading</rt></ruby>"), "kanjireading");
+        assert_eq!(
+            decode_cue_text("<ruby>kanji<rt>reading</rt></ruby>"),
+            "kanjireading"
+        );
     }
 
     #[test]
@@ -154,7 +157,10 @@ mod tests {
 
     #[test]
     fn malformed_input_is_tolerated() {
-        assert_eq!(decode_cue_text("a & b &notanentity; c"), "a & b &notanentity; c");
+        assert_eq!(
+            decode_cue_text("a & b &notanentity; c"),
+            "a & b &notanentity; c"
+        );
         assert_eq!(decode_cue_text("&#999999999999;"), "&#999999999999;");
         assert_eq!(decode_cue_text("&#xD800;"), "&#xD800;");
         assert_eq!(decode_cue_text("&#0;"), "&#0;");
@@ -162,7 +168,10 @@ mod tests {
         assert_eq!(decode_cue_text("keep <oops dropped"), "keep ");
         assert_eq!(decode_cue_text("just </close>"), "just ");
         // Multi-line payloads keep their newlines.
-        assert_eq!(decode_cue_text("line one\n<b>line</b> two"), "line one\nline two");
+        assert_eq!(
+            decode_cue_text("line one\n<b>line</b> two"),
+            "line one\nline two"
+        );
         // Empty stays empty.
         assert_eq!(decode_cue_text(""), "");
     }

@@ -1,0 +1,38 @@
+﻿WEBVTT - handcrafted settings-heavy (card 5.M3)
+
+NOTE
+a multi-line comment
+
+STYLE
+::cue {
+  background-color: rgba(0, 0, 0, 0.8);
+}
+::cue(b) { color: cyan; }
+
+REGION
+id:main width:80%
+
+1
+00:00:01.000 --> 00:00:03.000 line:0% position:50% align:start
+Top-left anchored
+
+2
+00:00:04.000 --> 00:00:06.000 line:100% align:center
+<i>Bottom</i> via line:100%
+
+three
+00:07.000 --> 00:09.000 position:25%,left line:2,start
+&lt;v Kim&gt;Left quarter &amp; entity
+
+4
+00:10.000 --> 00:12.500 align:end vertical:rl size:50%
+Right-aligned &amp; unsupported
+
+00:13.000 --> 00:15.000 line:-1
+From the bottom
+
+00:16.000 --> 00:15.000
+Reversed, dropped
+
+00:17.500 --> 00:18.500 position:120%
+Kept, position dropped

@@ -47,14 +47,14 @@
 //! # Examples
 //!
 //! ```
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use subtitles::model::cue::CueText;
 //! use subtitles::model::position::{LinePlacement, Percent};
 //! use subtitles::vtt::parse;
 //!
 //! let doc = parse(
 //!     "WEBVTT\n\nintro\n00:01.000 --> 00:04.000 line:0% align:start\n<v Fred>Hello &amp; welcome!\n",
-//! )
-//! .unwrap();
+//! )?;
 //! assert_eq!(doc.cues.len(), 1);
 //! let cue = &doc.cues[0];
 //! assert_eq!(cue.interval.start_us(), 1_000_000);
@@ -62,6 +62,8 @@
 //! assert_eq!(cue.text, CueText::Plain("Hello & welcome!".into()));
 //! assert_eq!(cue.positioning.line, Some(LinePlacement::Percent(Percent::ZERO)));
 //! assert!(doc.damage.is_empty());
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::model::cue::{Cue, CueId, CueText};
@@ -179,10 +181,8 @@ fn parse_block(block: &[&str], block_base: usize, doc: &mut VttDocument, auto_id
         return;
     }
     if first.starts_with("REGION") {
-        doc.damage.push(DamageEvent::unsupported_block(
-            "REGION",
-            line_no(0),
-        ));
+        doc.damage
+            .push(DamageEvent::unsupported_block("REGION", line_no(0)));
         return;
     }
     // Cue candidate: find the line carrying the separator.
@@ -277,30 +277,31 @@ fn is_blank(line: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse, VttError};
+    use super::{VttError, parse};
     use crate::model::cue::CueText;
     use crate::model::position::{HorizontalAlign, LinePlacement, Percent, VerticalAlign};
     use crate::vtt::damage::DamageKind;
+    use testkit::Must;
 
     #[test]
     fn header_forms_and_empty_documents() {
-        assert_eq!(parse("WEBVTT").unwrap().cues.len(), 0);
-        let doc = parse("WEBVTT\n").unwrap();
+        assert_eq!(parse("WEBVTT").must().cues.len(), 0);
+        let doc = parse("WEBVTT\n").must();
         assert_eq!(doc.cues.len(), 0);
-        let doc = parse("WEBVTT - this file has header text\n\n").unwrap();
+        let doc = parse("WEBVTT - this file has header text\n\n").must();
         assert_eq!(doc.cues.len(), 0);
         // BOM + CRLF tolerated.
-        let doc = parse("\u{feff}WEBVTT\r\n\r\n00:01.000 --> 00:02.000\r\nhi\r\n").unwrap();
+        let doc = parse("\u{feff}WEBVTT\r\n\r\n00:01.000 --> 00:02.000\r\nhi\r\n").must();
         assert_eq!(doc.cues.len(), 1);
-        assert_eq!(parse("").unwrap_err(), VttError::MissingHeader);
-        assert_eq!(parse("SRT-ish\n").unwrap_err(), VttError::MissingHeader);
-        assert_eq!(parse("WEB VTT\n").unwrap_err(), VttError::MissingHeader);
+        assert_eq!(parse(""), Err(VttError::MissingHeader));
+        assert_eq!(parse("SRT-ish\n"), Err(VttError::MissingHeader));
+        assert_eq!(parse("WEB VTT\n"), Err(VttError::MissingHeader));
     }
 
     #[test]
     fn basic_cue_with_id_and_settings() {
         let src = "WEBVTT\n\n7\n00:00:01.000 --> 00:00:04.000 line:0% position:50% align:start\n<v Fred>Hello &amp; welcome!\n";
-        let doc = parse(src).unwrap();
+        let doc = parse(src).must();
         assert_eq!(doc.damage.len(), 0);
         assert_eq!(doc.cues.len(), 1);
         let cue = &doc.cues[0];
@@ -308,7 +309,10 @@ mod tests {
         assert_eq!(cue.interval.start_us(), 1_000_000);
         assert_eq!(cue.interval.end_us(), 4_000_000);
         assert_eq!(cue.text, CueText::Plain("Hello & welcome!".into()));
-        assert_eq!(cue.positioning.line, Some(LinePlacement::Percent(Percent::ZERO)));
+        assert_eq!(
+            cue.positioning.line,
+            Some(LinePlacement::Percent(Percent::ZERO))
+        );
         assert_eq!(cue.positioning.position, Some(Percent::HALF));
         assert_eq!(cue.positioning.alignment.horizontal, HorizontalAlign::Left);
         assert_eq!(cue.positioning.alignment.vertical, VerticalAlign::Bottom);
@@ -317,7 +321,7 @@ mod tests {
     #[test]
     fn ids_numeric_nonnumeric_and_absent() {
         let src = "WEBVTT\n\n1\n00:01.000 --> 00:02.000\na\n\nnamed-cue\n00:03.000 --> 00:04.000\nb\n\n00:05.000 --> 00:06.000\nc\n";
-        let doc = parse(src).unwrap();
+        let doc = parse(src).must();
         assert_eq!(doc.cues.len(), 3);
         assert_eq!(doc.cues[0].id.get(), 1);
         // Non-numeric then absent: auto ids 1, 2 (numeric "1" kept as-is).
@@ -334,40 +338,56 @@ mod tests {
             "REGION\nid:fred width:40%\n\n",
             "00:01.000 --> 00:02.000\nvisible\n"
         );
-        let doc = parse(src).unwrap();
+        let doc = parse(src).must();
         assert_eq!(doc.cues.len(), 1);
         assert_eq!(doc.cues[0].text, CueText::Plain("visible".into()));
         assert_eq!(doc.style_blocks.len(), 1);
         assert_eq!(doc.style_blocks[0].cue_rule_count, 2);
-        assert!(doc
-            .style_blocks[0]
-            .css
-            .contains("::cue(b) { font-weight: bold; }"));
+        assert!(
+            doc.style_blocks[0]
+                .css
+                .contains("::cue(b) { font-weight: bold; }")
+        );
         assert_eq!(doc.damage.len(), 1); // REGION
-        assert!(matches!(doc.damage[0].kind, DamageKind::UnsupportedBlock { .. }));
+        assert!(matches!(
+            doc.damage[0].kind,
+            DamageKind::UnsupportedBlock { .. }
+        ));
     }
 
     #[test]
     fn malformed_blocks_are_damages_not_panics() {
         let src = concat!(
             "WEBVTT\n\n",
-            "00:xx.000 --> 00:02.000\nbad stamp\n\n",        // BadTimestamp
-            "00:05.000 --> 00:04.000\nreversed\n\n",          // ReversedInterval
-            "junk line\nanother junk\n\n",                    // OrphanBlock
+            "00:xx.000 --> 00:02.000\nbad stamp\n\n", // BadTimestamp
+            "00:05.000 --> 00:04.000\nreversed\n\n",  // ReversedInterval
+            "junk line\nanother junk\n\n",            // OrphanBlock
             "id line\nfiller\n00:07.000 --> 00:08.000\nlate\n\n", // TimingLineNotSecond
             "00:09.000 --> 00:10.000 size:50% vertical:lr\nok\n\n", // unsupported notes
-            "99999999999999999999999\n00:11.000 --> 00:12.000\nbig id\n" // IdOverflow → auto
+            "99999999999999999999999\n00:11.000 --> 00:12.000\nbig id\n"  // IdOverflow → auto
         );
-        let doc = parse(src).unwrap();
+        let doc = parse(src).must();
         assert_eq!(doc.cues.len(), 2);
         assert_eq!(doc.cues[0].text, CueText::Plain("ok".into()));
         assert_eq!(doc.cues[1].text, CueText::Plain("big id".into()));
         assert!(matches!(doc.damage[0].kind, DamageKind::BadTimestamp));
-        assert!(matches!(doc.damage[1].kind, DamageKind::ReversedInterval { .. }));
+        assert!(matches!(
+            doc.damage[1].kind,
+            DamageKind::ReversedInterval { .. }
+        ));
         assert!(matches!(doc.damage[2].kind, DamageKind::OrphanBlock));
-        assert!(matches!(doc.damage[3].kind, DamageKind::TimingLineNotSecond));
-        assert!(matches!(doc.damage[4].kind, DamageKind::UnsupportedSetting { .. }));
-        assert!(matches!(doc.damage[5].kind, DamageKind::UnsupportedSetting { .. }));
+        assert!(matches!(
+            doc.damage[3].kind,
+            DamageKind::TimingLineNotSecond
+        ));
+        assert!(matches!(
+            doc.damage[4].kind,
+            DamageKind::UnsupportedSetting { .. }
+        ));
+        assert!(matches!(
+            doc.damage[5].kind,
+            DamageKind::UnsupportedSetting { .. }
+        ));
         assert!(matches!(doc.damage[6].kind, DamageKind::IdOverflow));
         assert_eq!(doc.damage[6].line_no, 20);
         // The overflowing-id cue survived with an auto id.
@@ -377,7 +397,7 @@ mod tests {
     #[test]
     fn glued_separator_and_empty_cue_text() {
         // No spaces around `-->`, and a cue whose payload is empty.
-        let doc = parse("WEBVTT\n\n00:01.500-->00:02.750\n").unwrap();
+        let doc = parse("WEBVTT\n\n00:01.500-->00:02.750\n").must();
         assert_eq!(doc.damage.len(), 0);
         assert_eq!(doc.cues.len(), 1);
         assert_eq!(doc.cues[0].interval.start_us(), 1_500_000);
@@ -388,7 +408,7 @@ mod tests {
     #[test]
     fn multiline_text_and_line_numbers() {
         let src = "WEBVTT\n\n00:01.000 --> 00:02.000\nfirst &lt;b&gt;line\nsecond <i>line</i>\n\n99:00.000 --> 100:00.000\nlater\n";
-        let doc = parse(src).unwrap();
+        let doc = parse(src).must();
         assert_eq!(doc.cues.len(), 2);
         assert_eq!(
             doc.cues[0].text,
