@@ -31,6 +31,8 @@
 //! [`MAX_BLOCK_BYTES`]). Per-packet steady-state allocations are
 //! zero for the common case.
 
+pub mod attachments;
+pub mod chapters;
 pub mod cluster;
 pub mod cues;
 pub mod ebml;

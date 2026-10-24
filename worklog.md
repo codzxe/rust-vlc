@@ -8785,3 +8785,40 @@ Stage Summary:
             "pcm_mulaw", "pcm_alaw", "mov_text"]
   seek = "stss+stco | moof-scan"  # keyframe-safe, lands at-or-before target
   ```
+Task ID: 5.D2a
+Agent: P5-D2AF3
+Task: MKV attachments + chapters — finisher (solo dispatch; two pair-dispatches died before spawning): verify/complete/gate/commit the prior agent's uncommitted 22 KB attachments.rs + chapters.rs + mod.rs wiring + tests/mkv_attachments_chapters.rs.
+
+Work Log:
+- Inherited uncommitted D2a work (untouched since 10:20). It did NOT compile: the prior agent had mid-flight renamed the chapter model to the ns doctrine (start_ticks/end_ticks → start_ns/end_ns, flag_beyond_duration 3→2 args, ChapterAtom::nanos deleted) but left 3 lib + 11 test errors. Completed the refactor in that direction — it is the CORRECT one (below), never weakened:
+  - chapters.rs lib: 2 field assigns to start_ns/end_ns; getter drops the timestamp_scale arg; doc updated to the ns doctrine.
+  - tests (unit + integration) rewritten to raw-ns semantics: flag tests now compare ns directly (duration 5_000 ns vs atoms 0..500 / 2_000..9_000); the old "unrepresentable ×scale overflow" test became extreme_times_land_in_the_tolerant_bucket (u64::MAX ns kept+flagged — honest: no scale math exists to overflow); generated-fixture asserts 0/1_500_000_000/1_500_000_000/4_000_000_000 ns raw.
+  - clippy -D warnings: 8× unwrap_err → the crate's match{Ok=>unreachable,Err=>e} convention; 1 collapsible if-let chain in the getter; fmt applied (import order, 2 line splits).
+- THE DOCTRINE (root-caused, not papered over — D-10): Matroska ChapterTimeStart/End are nanoseconds BY SPEC and do NOT scale with Info.TimestampScale (block times scale; chapter times don't). Live-verified: ffprobe -show_chapters emits time_base 1/1000000000 and 0007's first chapter end = 1000000 = the raw element 0x0F4240 with TimestampScale 1e6. The inherited ticks×scale model could never match ffprobe; the completed ns model matches byte-for-byte on every lane.
+- AC AUDIT (all green): attachments exposure = MkvDemuxer::attachments() → AttachedFile{description,name,mime_type,uid,data} with FileData::Inline(bytes) | NonInline{offset,len} (declared >32 MiB never read — bounded memory; MAX_ATTACHMENTS 1024 over-ceiling = skip-with-damage). Positional scan_segment_for over the demuxer's own reader — packet walk untouched (test asserts packets still flow after both getters). Chapters = MkvDemuxer::chapters() → editions{uid,hidden,ordered} → atoms{uid,start_ns,end_ns,hidden,enabled,track_numbers,displays,children,past_duration} → displays{string,language,language_ietf,country}; nested atoms depth-guarded at ebml::MAX_PARSE_DEPTH (17th level = typed bad_structure); atom budget 65_536 = typed demux.mkv.chapter-table-too-large ResourceLimit (cue-table precedent); beyond-duration = tolerant note (kept+flagged, count in ChapterList::beyond_duration, only vs a declared finite non-negative Duration). Error paths: contained-lie + physically-short FileData both typed demux.mkv.truncated; unknown-size inner masters = bad_structure; degenerate AttachedFile-without-FileData and atom-without-TimeStart = damage rows; invalid-UTF-8/over-ceiling labels tolerated as absent (never fabricated).
+- DIFFERENTIAL (live this session, ffprobe/ffmpeg on corpus-v4 @ /tmp/my-project/corpus-v4 — 34 corpus lanes + 1 generated, 0 FAIL):
+  | lane | ffprobe truth | lumen | verdict |
+  |---|---|---|---|
+  | 0007-chapter-bomb.mkv | 2580 chapters, first 0..1_000_000 ns (tb 1/1e9), title b00000465j0h | 2580 atoms flattened, start_ns 0 / end_ns 1e6, every start/end/title matched, beyond_duration 0 | PASS |
+  | 0017-meta-bomb-av.mkv | 0 chapters; 0 attachments (2 streams, attached_pic 0) | 0/0, damage empty | PASS |
+  | 0063-multi-av.mkv | 10 chapters | 10, times+titles matched | PASS |
+  | d2a-generated.mkv (ffmpeg -attach cover.jpg+notes.txt, ffmetadata chapters) | 2 chapters 0..1.5e9 / 1.5e9..4e9 ns, 2 attachments (image/jpeg, text/plain) | identical + FileData byte-exact vs the generator's own files | PASS |
+  | remaining 30 corpus mkv/mka/webm lanes | 0 chapters / 0 attachments | 0/0 each | PASS |
+- Gates (worktree-local target): `cargo fmt -p demux -- --check` CLEAN; `cargo clippy -p demux --all-targets --all-features -- -D warnings` CLEAN; `cargo test -p demux --all-features` 315 passed / 0 failed / 3 ignored (pre-existing env-gated corpus.rs lanes) + 4 doctests. Corpus + ffmpeg present this instance (no skips exercised beyond designed absent-corpus paths).
+- D-10 four questions: MEASURE? — yes, live ffprobe on all 34 corpus lanes + generated fixture, per-chapter start/end/title + attachment name/mime/payload. NOT tested? — no corpus file carries a >32 MiB attachment (NonInline path unit-pinned via a synthetic 33 MiB declared extent; nothing reads it); WebM-with-chapters absent from corpus (grammar identical, unit-covered). What breaks / who hits it first? — a consumer assuming chapter times are scale ticks (field names end in _ns; ffprobe+spec agree); a >32 MiB attachment consumer must fetch NonInline{offset,len} itself. Divergences vs ffprobe: ZERO (the inherited scale-multiply model was the divergence — removed at the root).
+- R3 addendum (mkv registry row):
+  ```toml
+  # 5.D2a additions to the mkv row:
+  capabilities += ["attachments", "chapters"]
+  # attachments: MkvDemuxer::attachments() → AttachedFile{name, mime_type,
+  #   description, uid, data: Inline(≤32 MiB) | NonInline{offset,len}};
+  #   MAX_ATTACHMENTS 1024; positional scan, packet walk untouched.
+  # chapters: MkvDemuxer::chapters() → editions{uid,hidden,ordered} →
+  #   atoms{uid,start_ns,end_ns,hidden,enabled,track_numbers,displays,
+  #   children}; times are ns BY SPEC (no TimestampScale math);
+  #   past_duration tolerant flag; depth guard = ebml::MAX_PARSE_DEPTH;
+  #   atom budget 65_536 typed ResourceLimit.
+  ```
+
+Stage Summary:
+- 5.D2a COMPLETE on branch wip/p5-d2a, gated + committed, ready for Lead merge. Sibling 5.D2b (editions+tags) untouched — mod.rs grant stayed the two `pub mod` lines, scan_segment_for shared as pub(crate).
