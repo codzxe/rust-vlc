@@ -8745,3 +8745,43 @@ Work Log:
 
 Stage Summary:
 - 5.F1a COMPLETE on branch wip/p5-f1a, gated + committed, ready for Lead merge. NO software-decode claim — parser only. Slice headers + SEI remain sibling card 5.F1b (module map already points there).
+Task ID: 5.C1
+Agent: P5-C1F (wave 4, card 5.C1 finisher)
+
+Work Log:
+- Root-caused the 3 known-reds from 26f7695 with live ffprobe + raw box dumps before touching code (honest diagnosis first):
+  - CHAPTERS 2-vs-3: the committed mp4_chapters.mp4 factually contained only TWO markers — text trak stsz/stts = 2 samples ("First"@0ms dts 0 + 600ms delta, "Second"), mdhd dur 1500, chpl body `01 … 02 | 0ns "First" | 6000000ns "Second"`; ffprobe agrees: 2 chapters, stream#2 bin_data with 0 read packets. The prior session's "ffmetadata-authored fixture has 3" was a miscount of intent — the ffmeta only carried 2 chapters. A fresh 3-chapter ffmeta through the same sandbox ffmpeg muxes all 3 (verified: duration extends to 2.0s, text trak gains a third sample) — so the FIXTURE was regenerated with the intended 3 chapters (identical recipe: lavfi testsrc 128x96 6fps 1.5s + sine 44100 mono, libx264 CB + aac, ffmeta chapters First[0,600]/Second[600,1500]/Third[1500,2000]); ffprobe on the new parent: 3 chapters, titled, monotone. The malformed derivative mp4_chapters__flip1.mp4 was regenerated from the new parent (deterministic single-byte XOR at chpl body+12, the same region the old flip landed in). Tests unchanged — they now encode measured ffmpeg truth.
+  - REAL implementation gap #1 (exposed by the regenerated fixture's drain): the hidden chapter text trak still EMITTED its samples as packets on a track handle absent from the start() list. Fixed: is_chapter traks are excluded from the progressive emission order (consumed as metadata by read_chapter_titles) and guarded in parse_moof (`traf-chapter-track` damage note) — the ffmpeg mov_read_chapters discard precedent (ffprobe reads 0 packets off the chapter trak).
+  - REAL implementation gap #2: 0029-cover-audio.m4a track count 1-vs-2 — the cover art is NOT a trak; ffprobe's second stream is synthesized from moov/udta/meta/ilst/covr/data (well-known type 13 = JPEG, 14 566 B JFIF payload). Implemented `cover_in_udta`/`cover_in_meta` (meta FullBox +4 and plain +0 child offsets both walked; moov-level meta hang too) → `push_cover_track`: appended TrackState (synthetic track_id u32::MAX, Video, codec mjpeg/png by well-known type, movie-timescale base, one sync sample at dts 0, still_image TrackFlags per doc 01 §3.1) + `queue_cover_packets`: the picture bytes emit as ONE keyframe packet ahead of the media walk (header-resident, ffmpeg attached-pic precedent; a seek past it does not re-deliver it — ffmpeg behavior too). Unknown cover types damage-note `cover-type-unsupported`, never a guessed codec.
+  - Handle alignment hardening: packets now carry the EXPOSED ordinal via an explicit `exposed` map (hidden chapter traks leave gaps; raw-index handles would skew when a hidden trak precedes the appended cover) — unit-pinned by cover_and_chapters_keep_packet_handles_aligned_with_tracks.
+- Tests added: 3 unit tests (cover surfacing with verbatim payload + still_image flag + single keyframe packet; png lane + unknown-type damage note; chapter+cover handle alignment) and `progressive_with_cover` test_support builder (udta/meta/ilst/covr/data ladder, two-pass offset patching). Extended chap_tref test to assert chapter samples never leak as packets.
+- Clippy fixes en route (the WIP tree was not clean): collapsible ifs in esds_oti (let-chain), single_match in mp4_fixtures typed pass, saturating_add, `?` for the pool fill, unused_mut flush closure.
+- GATES (exact): `cargo fmt -p demux` clean; `cargo clippy -p demux --all-targets --all-features -- -D warnings` EXIT 0; `cargo test -p demux --all-features` EXIT 0 — 298 passed / 0 failed / 4 ignored (all four pre-existing intentional opt-ins: 3 randomized-corpus harness + 1 long-fuzz), unit suite 224/0. corpus_mp4 2/2 (seek + full 30-file differential incl. 0029 aac(2 pkts)+mjpeg(1 pkt, 1 keyframe)), mp4_fixtures 5/5 (valid ×7, chapters 3 titled markers monotone, edts first-PTS shift, 14 malformed derivatives through fuzz + typed passes).
+- Committed 110225f on wip/p5-c1 (atop 26f7695/ccc8950). Nothing [PENDING] in this card. Recorded honest scope: 0128-param-midchange.mp4 (mp2v) still refuses typed `no-tracks` — the MPEG-2 codec card's row, unchanged; sidx parsed-and-skipped (moof-scan seek covers the AC), unchanged.
+
+Stage Summary:
+- D-10 MEASURE? — YES: corpus differential 30/30 mp4-family lanes vs live ffprobe (track count + codec identity + per-stream packet counts + first-video keyframe count), fixture suite vs ffprobe-authored parents (3-chapter parent re-verified: chapters 0/600/1500 ms titled), cover-art lane bit-verified (mjpeg payload starts ffd8ffe0…JFIF, 1 packet, K-flagged). NOT measured? — decode-throughput (5.X1 owns the bench) and the decoders themselves (h264/aac/mjpeg/etc. are 5.X cards — demux-only, honestly recorded). What breaks? — nothing known: fuzz-lite 14 malformed derivatives + in-crate fuzz_mutations green, all error paths typed (demux.mp4.* vocabulary), unknown stsd entries and unknown cover types refuse/damage-note rather than guess. Who hits it first? — 5.C2a/C2b (aac: esds rides extra_data verbatim), F1a/F1b (h264: avcC in extra_data), 5.X2 (memory: pool_bytes() observable; cover bytes ride the same 2×16 MiB PayloadSlots ceiling), R3 (row below).
+- R3 registration snippet (draft for the registration card):
+  ```toml
+  id = "mp4"            # media-types CodecDescriptor("mp4"), ISO-BMFF
+  kind = "container"    # MP4/MOV/3GP/M4A family demuxer
+  demuxer = "demux::mp4::Mp4Demuxer"         # native, zero deps
+  probe = "demux::mp4::probe(header)"        # ftyp brand gate (isom/qt/3gp/M4A…) or pre-ftyp moov/wide/free head
+  extensions = ["mp4", "m4v", "m4a", "mov", "qt", "3gp", "3g2", "3ga", "3gpp"]  # demux::mp4::EXTENSIONS
+  capabilities = ["progressive", "fragmented", "edit-lists", "chapters", "attached-pic", "keyframe-seek", "unsupported-typed"]
+  # progressive: stbl sample tables, file-offset interleave truth;
+  # fragmented: moof/traf/trun with mvex/trex defaults, tfdt ladder,
+  # default-base-is-moof; edit-lists: first elst entry (empty-edit
+  # delay + media_time trim); chapters: tref/chap QuickTime text
+  # traks (hidden from tracks AND packets) + chpl fallback;
+  # attached-pic: udta/meta/ilst/covr → still_image mjpeg/png track,
+  # one keyframe packet ahead of the media walk; keyframe-seek:
+  # stss walk-back (Fast{indexed}) / bounded moof-scan (SlowLinear);
+  # unsupported-typed: unknown stsd entries refuse typed downstream
+  codecs = ["h264", "hevc", "mpeg4video", "mjpeg", "png", "vp8", "vp9",
+            "av1", "h263", "aac", "alac", "ac3", "eac3", "opus", "flac",
+            "mp3", "amr_nb", "amr_wb", "pcm_s16le", "pcm_s16be",
+            "pcm_s24be", "pcm_s32be", "pcm_f32be", "pcm_f64be",
+            "pcm_mulaw", "pcm_alaw", "mov_text"]
+  seek = "stss+stco | moof-scan"  # keyframe-safe, lands at-or-before target
+  ```
