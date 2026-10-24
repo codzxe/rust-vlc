@@ -1,0 +1,24 @@
+# crates/subtitles — the Lumen subtitle crate (cards 5.L1 + 5.L2, doc 04 §5).
+#
+# SCAFFOLD NOTE (Lead-ratification required): the parallel wave-5 cards
+# 5.L1 (text-format parsers) and 5.L2 (cue model) each create this crate
+# in their OWN worktree; the Lead unifies the scaffold at wave close.
+# This worktree (wip/p5-l2, card 5.L2) owns `src/model/**`; 5.L1 owns
+# the format parsers. Registration: boundaries.toml `[crates.subtitles]`.
+#
+# Std-only by design (doc 11: zero external dependencies — the model is
+# pure data + pure functions; any future dependency needs the doc-11
+# audit). No dev-dependencies either: the roundtrip/fuzz suites are
+# std-only and deterministic.
+
+[package]
+name = "subtitles"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen subtitle cue model: timing intervals, positioning/alignment, style-token subset, stable wire roundtrip (cards 5.L1/5.L2, doc 04 §5)"
+publish = false
+
+[lints]
+workspace = true
+
+# No dependencies. Deliberately boring (doc 01 §2.2 vocabulary style).
