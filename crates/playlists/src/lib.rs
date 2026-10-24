@@ -40,3 +40,10 @@ mod types;
 pub use error::{ParseError, ParseWarning};
 pub use m3u::{MAX_LINE_BYTES, Parsed, parse, parse_bytes, parse_detailed, write};
 pub use types::{Entry, Playlist};
+
+mod cue;
+
+pub use cue::{
+    CueFile, CueFileKind, CueFlag, CueIndex, CueSheet, CueTrack, CueTrackType, CueWarning,
+    FRAMES_PER_SECOND, TimeContext, TrackWindow, frames_to_ns, parse_cue, parse_cue_bytes,
+};
