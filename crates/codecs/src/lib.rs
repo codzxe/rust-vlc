@@ -38,7 +38,11 @@
 //!   baseline-JPEG decoder (card 2.B4, doc 04 §4 row "Motion-JPEG").
 //! - [`audio`] — audio decoders; [`audio::pcm`] is the unpacked-PCM
 //!   decoder (card 2.B5, doc 04 §3.1 row "PCM") — its module docs
-//!   record the 2.B5 dependency decision (in-house, D-018 logic).
+//!   record the 2.B5 dependency decision (in-house, D-018 logic);
+//!   [`audio::flac`] is the FLAC decoder (card 5.A1, doc 04 §3.1 row
+//!   "FLAC") through the purity-verified `claxon` engine — the first
+//!   external dependency of this crate, recorded in
+//!   `docs/dependencies/records/claxon-0.4.3.md`.
 //!
 //! # Conventions (crate-wide)
 //!

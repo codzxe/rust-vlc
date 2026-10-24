@@ -8524,3 +8524,31 @@ Work Log:
 
 Stage Summary:
 - Phase 5 fully launched under expanded honesty+perf mandate. 45 original cards + 2 delta cards = 47 cards to land or honestly block.
+
+---
+Task ID: 5.A1
+Agent: P5-A1-R2
+Task: finish+commit FLAC card
+Work Log:
+- Found two prior sessions' full tree UNCOMMITTED: crates/codecs/src/audio/flac/** (2 382 lines: mod/decoder/metadata/seek/error/fuzz), 5 test binaries (bit-exact, seek, VLC differential, fuzz survival, bench), 4 ffmpeg-authored fixtures (136 KB < 200 KB mandate), reference data + seektable-insertion script, Cargo.toml/lock + claxon-0.4.3 purity record. Nothing needed rewriting; finished the gate pass.
+- Fixed 10 clippy `-D warnings` errors the prior sessions never gated: doc_lazy_continuation (module doc: a line began `+ CRC-16`), chunks_exact→as_chunks (metadata.rs), collapsible-if→let-chain (seek.rs), bool_assert_comparison (mod.rs unit test), unused-assignment/unused-mut (flac_seek.rs), manual_is_multiple_of (flac_fuzz_survival.rs). No behavior change; no test weakened.
+- Verified bit-exact suite is REAL: ffmpeg 7.1.5-authored fixtures + recorded decode/dump commands and MD5s (tests/data/flac_bitexact_reference.txt); 4 fixtures byte-exact vs ffmpeg dumps AND STREAMINFO md5; corpus 0046 (88.2 kHz/24-bit, 44 frames) byte-exact both ways; 0106 metadata-only (0 frames, matches ffmpeg's own 0 packets); 0071 ID3/MP3-mislabeled → typed `flac.probe.magic` rejection.
+- Verified purity record against the actual registry source: tarball sha256 4bfbf567…0688 matches, no build.rs, no links=, no extern/asm (F1–F7 NO), Apache-2.0, zero normal deps (5 dev-deps only, never compiled) — Cargo.lock diff is the single claxon node. Fixed the record's pin spelling to `=0.4.3` to match Cargo.toml.
+- Added tests/flac_bench.rs (W5-19 pcm_bench convention, ignored measurement test) for the throughput note.
+- GATES (exact): `cargo fmt -p codecs` clean; `cargo clippy -p codecs --all-targets --all-features -- -D warnings` → 0 errors; `cargo test -p codecs --all-features` (LUMEN_CORPUS=corpus-v4) → 208 passed / 0 failed / 11 ignored (documented opt-in deep-fuzz + throughput runs, incl. 13.1 s exhaustive flip sweep).
+- Throughput (release, `cargo test -p codecs --release --test flac_bench -- --ignored`, corpus 0046, contract path, median of 7): 47 552 483 inter-channel samples/s ≈ 539× realtime at 88.2 kHz stereo 24-bit.
+- Remains (outside this card): Lead's allowlist row + merge (doc 11 §3.1); R3 registration; workspace-wide `cargo fmt --all`/`cargo check --workspace` gate re-run at merge (crate-scoped gates green here).
+
+Stage Summary:
+- D-10 MEASURE? YES — release throughput 47.6M samples/s (539× realtime) on corpus 0046; bit-exactness MD5-measured vs ffmpeg + STREAMINFO on 4 fixtures + corpus.
+- NOT tested? Ogg-FLAC (out of card scope — 5.B1's Ogg demuxer pairs it); 32-bit fixture depth (no fixture; claxon supports it); wasm32 build of claxon ([VERIFY-P1] flagged in the record for the first wasm gate).
+- What breaks? Nothing known: fuzz survival suite (bit-flip sweeps, 512-seed classes, corpus dirty/mutants incl. 0071/0046 mutants) passes with typed errors, no panics/hangs; channel-mismatch panic class pinned as typed `flac.frame.channels`.
+- Who hits it first? The R3 registration card (needs the flac row + per-codec feature) and the Lead's merge (allowlist row); 5.B1 (Ogg demuxer) is the first consumer of Ogg-FLAC rejection/deferral.
+- R3 registration snippet (draft for the registration card):
+  ```toml
+  id = "flac"            # media-types CodecDescriptor("flac"), container .flac
+  kind = "audio"
+  decoder = "codecs::audio::flac::FlacDecoder"   # engine: claxon =0.4.3
+  capabilities = ["probe", "decode", "seek"]     # seek = SEEKTABLE + verified binary search
+  feature = null          # rides the `decoders` set unconditionally today (per-codec features land with R3)
+  ```

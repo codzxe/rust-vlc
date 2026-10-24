@@ -71,11 +71,17 @@ use std::time::Instant;
 // items unsuppressed — this is the honest-minimal fix for the 8
 // dead_code errors the phase3-exit gate lists (§2 row 4a).
 #[allow(dead_code)]
-#[path = "../src/video/mjpeg/error.rs"]
-mod error;
-#[allow(dead_code)]
 #[path = "../src/video/mjpeg/bitreader.rs"]
 mod bitreader;
+#[allow(dead_code)]
+#[path = "../src/video/mjpeg/color.rs"]
+mod color;
+#[allow(dead_code)]
+#[path = "../src/video/mjpeg/decoder.rs"]
+mod decoder;
+#[allow(dead_code)]
+#[path = "../src/video/mjpeg/error.rs"]
+mod error;
 #[allow(dead_code)]
 #[path = "../src/video/mjpeg/huffman.rs"]
 mod huffman;
@@ -88,12 +94,6 @@ mod idct_simd;
 #[allow(dead_code)]
 #[path = "../src/video/mjpeg/parser.rs"]
 mod parser;
-#[allow(dead_code)]
-#[path = "../src/video/mjpeg/color.rs"]
-mod color;
-#[allow(dead_code)]
-#[path = "../src/video/mjpeg/decoder.rs"]
-mod decoder;
 
 use decoder::{DecodeContext, FullStages, NoIdctNoWriteStages, NoIdctStages, NoWriteStages};
 
@@ -246,9 +246,11 @@ fn run_file(file: &str, passes: usize) -> Result<(), String> {
             let mut out_b = vec![0u8; len];
             ctx.assemble_frame(&mut out_a)
                 .map_err(|e| format!("assemble a: {e:?}"))?;
-            staged.assemble_frame(&mut out_b)
+            staged
+                .assemble_frame(&mut out_b)
                 .map_err(|e| format!("assemble b: {e:?}"))?;
-            if out_a != out_b || (a.width, a.height, a.concealed) != (b.width, b.height, b.concealed)
+            if out_a != out_b
+                || (a.width, a.height, a.concealed) != (b.width, b.height, b.concealed)
             {
                 return Err(format!(
                     "staged-full walk diverged from the production path on {file} \
