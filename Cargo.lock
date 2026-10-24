@@ -64,6 +64,7 @@ dependencies = [
  "plugin-api",
  "symphonia-bundle-mp3",
  "symphonia-codec-aac",
+ "symphonia-codec-alac",
  "symphonia-codec-vorbis",
  "symphonia-core",
  "testkit",
@@ -500,6 +501,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f5bf8e39552d34a3c4c98333370e62f48c92456d2e814f273b5c3ad7c4a5f45c"
 dependencies = [
  "lazy_static",
+ "log",
+ "symphonia-common",
+ "symphonia-core",
+]
+
+[[package]]
+name = "symphonia-codec-alac"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "920a78f96f3cf62932d0c497959c0cc2100ef36b03c7ca1417b260f432a482d8"
+dependencies = [
  "log",
  "symphonia-common",
  "symphonia-core",
