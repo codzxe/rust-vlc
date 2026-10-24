@@ -6,4 +6,5 @@
 //! with the second codec (doc 01 §2.5(a)).
 
 pub mod h264;
+pub mod hevc;
 pub mod mjpeg;
