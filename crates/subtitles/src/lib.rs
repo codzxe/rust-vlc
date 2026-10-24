@@ -81,3 +81,13 @@ pub mod srt;
 // cue -> CompositedCue). The parallel 5.M2a parser half is
 // file-disjoint; see `ass/mod.rs` for the [LEAD SEAM] note.
 pub mod ass;
+
+/// Card 5.M3 — the WebVTT parser (`src/vtt/**`): cue blocks with the
+/// positioning-settings subset (`line`/`position`/`align` mapped onto
+/// [`model::Positioning`]; `vertical`/`size` typed-unsupported notes),
+/// NOTE blocks skipped, STYLE blocks collected tolerantly with CSS
+/// application deferred (the ASS staging, doc 06 §7.8), tag-stripped
+/// plain cue text with entity decoding, and a damage-event tolerance
+/// ledger that never panics. The only fatal is a missing `WEBVTT`
+/// header. Future 5.M1 unification: the `SubtitleParser` seam.
+pub mod vtt;
