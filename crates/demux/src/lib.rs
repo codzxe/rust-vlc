@@ -38,4 +38,5 @@ pub mod error;
 pub mod mkv;
 pub mod mp4;
 pub mod ogg;
+pub mod ts;
 pub mod wav;

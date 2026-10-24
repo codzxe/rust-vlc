@@ -9013,3 +9013,39 @@ Work Log:
 
 Stage Summary:
 - Effective Phase-5 state: 14 of 47 cards landed (waves 1-4). Wave 5 redo dispatching now.
+
+---
+Task ID: 5.I1a
+Agent: P5-I1AF
+Task: MPEG-TS packet layer + PSI/SI (doc 04 §3.1 row "MPEG-TS"): ISO/IEC 13818-1 §2.4.3 packet walk + §2.4.4 PSI (PAT/PMT/CAT) + EN 300 468 SDT, multi-program track surface, PES delivery seam for the sibling I1b card; real-corpus differential vs ffprobe, fuzz-lite.
+
+Work Log:
+- RECOVERY SESSION: prior dispatch died with the card ~95% done but uncommitted (6 files). This session verified the work, fixed 20 clippy violations the dead session never gated (int_plus_one, collapsible_if→let-chain, doc_lazy_continuation ×3, unusual_byte_groupings, match→`?`/`matches!` ×3, and `panic!`/`unwrap_or_else(panic!)` ×10 → the repo's `testkit::Must` convention + `assert!`), re-ran every gate, committed.
+- Landed `crates/demux/src/ts/` (NEW, 4 files): `mod.rs` (TsDemuxer over the Demuxer contract: bounded-resync 188-byte walk — sync 0x47/TEI/PUSI/13-bit PID/AF-control/CC; raw PCR 33+9 surfaced un-interpolated; tolerant CC policy: duplicates counted, jumps reset + one Discontinuity event, AF indicator same; PSI head-window collection until PAT+all PMTs+SDT then rewind; `PesConsumer` seam = the I1b plug point — default consumer counts, NO fake packets; SeekSupport::None typed; scrambled delivered+counted), `psi.rs` (section arithmetic clamped at every sub-length; native const CRC-32/MPEG-2 table, section-must-hash-to-zero; **SDT service-loop header pinned at 5 bytes** per EN 300 468 §5.2.3 — the dead session's doc notes a prior 6-byte misread that the corpus differential caught; DVB text annex-A subset incl. ISO 6937 composition), `test_support.rs` (synthetic TS minters), `tests.rs` (28 unit tests). Wiring: one `pub mod ts;` line in lib.rs.
+- AC audit (all pinned by tests): packet fields parse incl. PCR base/extension; PAT/PMT(PID+PCR+ES loop+descriptors)/SDT(names+provider)/CAT skip-with-note; sections spanning packets + multi-section payloads; truncated section → typed + drop-and-continue; CRC mismatch → typed drop-not-fatal; resync scan + unresyncable garbage typed; no-PAT typed; not-ts typed; next-before-start typed; partial tail packet = note; multi-program surface.
+- DIFFERENTIAL (corpus-v4, 5/5 lanes ran — none skipped; truth independently re-verified against ffprobe 7.1.5 this session):
+  | file | programs (PMT/PCR PID) | streams: type→PID = ffprobe codec | service | packets (= bytes/188) |
+  |---|---|---|---|---|
+  | 0000-param-midchange.ts | 1 (0x1000/0x100) | 0x1B→0x100 = h264 | Service01/FFmpeg | 408 |
+  | 0018-ts-video.ts | 1 (0x1000/0x100) | 0x1B→0x100 = h264 | Service01/FFmpeg | 331 |
+  | 0091-bframe-storm.ts | 1 (0x1000/0x100) | 0x24→0x100 = hevc, 0x0F→0x101 = aac | Service01/FFmpeg | 723 |
+  | 0113-dynres-video.ts | 1 (0x1000/0x100) | 0x1B→0x100 = h264 | Service01/FFmpeg | 621 |
+  | 0134-ts-video.ts | 1 (0x1000/0x100) | 0x1B→0x100 = h264 | Service01/FFmpeg | 96 |
+  Every lane: psi_crc_failures=0, sync_errors=0, TEI=0, PES seam saw payloads, no undeclared PID traffic.
+- Fuzz-lite (`tests/ts_fuzz_survival.rs`): seeded-LCG 512 rounds × 1–8 mutations (flips biased to headers/PSI, truncations, garbage splices, wild 5-byte headers) over a synthetic 2-program stream — zero panics, deterministic replays, most rounds stay walkable; boundary truncation sweep; 256-round real-corpus-head lane (64 KiB of 0091). Plus `tests/ts_corpus.rs` (the 2 differential suites above).
+- INFRA: disk hit 100% again mid-gate (parallel worktree targets); freed 192 MB by dropping MY OWN worktree's incremental cache only — other agents' trees untouched.
+- GATES (exact, this session): `cargo fmt -p demux` clean; `cargo clippy -p demux --all-targets --all-features -- -D warnings` EXIT 0; `cargo test -p demux --all-features` EXIT 0 — 442 passed / 0 failed across 23 green binaries (33 new TS tests: 28 unit + 2 corpus + 3 fuzz).
+- Scope discipline: only `crates/demux/src/ts/**`, `crates/demux/tests/{ts_corpus,ts_fuzz_survival}.rs`, one wiring line in `crates/demux/src/lib.rs`, this worklog. The I1b sibling's minimal ts/mod.rs is superseded by this tree at merge (unification seam: `PesConsumer`).
+
+Stage Summary:
+- D-10 MEASURE? — YES: 5/5 real-corpus TS lanes match ffprobe-measured truth (program count/number, PMT+PCR PIDs, per-program stream types + elementary PIDs + codec descriptors, SDT service names/providers, packet totals = byte-count/188, CRC/sync/TEI health). NOT measured? — PCR pacing/interpolation (raw 33+9 surfaced; engine's job), descrambling (delivered as-is + counted; CA module scope), full ISO 6937 composition table (Western subset, Latin-1 fallback documented), SDT service_type→genre mapping (raw byte surfaced). What breaks? — nothing known: fuzz-lite green, every error path typed (`demux.ts.*` vocabulary), no panics. Who hits it first? — I1b (PES half: plugs into `PesConsumer`, gets programs/streams/PCR for free), I2 (PS: shares the §2.4.4 PSI shapes), R3 registration (snippet below).
+- R3 registration snippet (draft for the registration card):
+  ```toml
+  id = "mpegts"          # ISO/IEC 13818-1 transport stream container
+  kind = "container"     # demuxer: demux::ts::TsDemuxer (in-house, zero deps)
+  probe = "sync@stride-188 in a bounded head window (typed not-ts refusal)"
+  capabilities = ["pat-pmt-sdt", "multi-program", "crc32-native", "bounded-resync",
+                  "raw-pcr", "dvb-text-subset", "pes-seam", "corpus-verified-5"]
+  codecs = []            # elementary decode rides the PES half (5.I1b) + codec cards
+  seek = "none (typed refusal — no container index; keyframe truth needs PES timestamps)"
+  ```
