@@ -538,12 +538,12 @@ mod tests {
     fn id_vints_reject_invalid_grammar() {
         // Zero length byte.
         assert_eq!(parse_vint_id(&[0x00]), Err(VintError::Invalid));
-        // 5-octet pattern (0x08 → 1000_ prefix would be 1 byte; 0x04…
-        // the 5-byte marker is 0x08 — reserved for sizes, invalid for
-        // ids? No: 0x08 is a legal 4-byte *size* head, but as an ID the
-        // 4-octet cap applies to 0x08-pattern = length 4? Recheck:
-        // 0x08 = 0000_1000 → first 1 at bit 4 → len 4 → legal id head.
-        assert!(parse_vint_id(&[0x08, 0x00, 0x00, 0x01]).is_ok());
+        // 0x08 = 0000_1000 → first 1 at bit 3 → five-octet pattern:
+        // invalid for ids (the 4-octet cap).
+        assert_eq!(
+            parse_vint_id(&[0x08, 0x00, 0x00, 0x00, 0x01]),
+            Err(VintError::Invalid)
+        );
         // 5-octet id pattern: 0x04 = 0000_0100 → len 5 → invalid for ids.
         assert_eq!(
             parse_vint_id(&[0x04, 0x00, 0x00, 0x00, 0x01]),
@@ -583,11 +583,21 @@ mod tests {
             })
         );
         assert_eq!(
-            parse_vint_size(&[0x7F, 0xFF, 0xFF]),
+            parse_vint_size(&[0x3F, 0xFF, 0xFF]),
             Ok(VintSize {
-                value: 0x3F_FF_FF,
+                value: 0x1F_FF_FF,
                 unknown: true,
                 len: 3
+            })
+        );
+        // 0x7F is a *two*-octet head (one leading zero) — value bits
+        // all ones + 0xFF data byte still spell unknown size.
+        assert_eq!(
+            parse_vint_size(&[0x7F, 0xFF]),
+            Ok(VintSize {
+                value: 0x3F_FF,
+                unknown: true,
+                len: 2
             })
         );
         // Eight-byte sizes (the segment's `01 xx xx …` form).

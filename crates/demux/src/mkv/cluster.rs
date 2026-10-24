@@ -272,18 +272,23 @@ fn ebml_sizes(body: &[u8]) -> Result<(usize, Vec<usize>, usize), usize> {
     let mut sizes: Vec<usize> = Vec::with_capacity(frame_count);
     let mut at = 1usize;
     // First size: vint value plus 1 (the spec's −1 offset keeps the
-    // 1-byte vint usable for small frames).
+    // 1-byte vint usable for small frames). A single-frame lace
+    // (count 1) carries just it.
     let v = parse_vint_value(body, at)?;
     at = v.1;
     let mut current = usize::try_from(v.0.checked_add(1).ok_or(at)?).map_err(|_| at)?;
     sizes.push(current);
-    for _ in 1..frame_count {
-        let (value, len) = parse_vint_value(body, at)?;
-        at = len;
-        // Deltas center at 2^(8·len − 1) − 1... no: at 2^(bits−1) − 1
-        // where bits = 8·len (the full vint width, marker included in
-        // the value's high bit per the spec's signed reading).
-        let center = (1u64 << (len as u32 * 8 - 1)).saturating_sub(1);
+    // The first size vint plus (count − 2) deltas: count − 1 vints
+    // total, the last frame is the payload remainder (Xiph's shape).
+    for _ in 2..frame_count {
+        let prev = at;
+        let (value, end) = parse_vint_value(body, at)?;
+        at = end;
+        // Deltas center at 2^(7·n − 1) − 1 where n is the *vint's
+        // byte length* (its value bits are 7·n — the bias
+        // libmatroska/ffmpeg share).
+        let vlen = (end - prev) as u32;
+        let center = (1u64 << (vlen * 7 - 1)).saturating_sub(1);
         let delta = value as i64 - center as i64;
         let next = (current as i64).checked_add(delta).ok_or(at)?;
         if next < 0 {
@@ -335,6 +340,7 @@ fn build_frames(
 ) -> Result<Vec<BlockFrame>, usize> {
     let declared: usize = sizes.iter().sum();
     let rest = body.len().saturating_sub(consumed);
+
     if declared > rest {
         // The declared head frames overrun the payload: the card's
         // lacing-count-vs-data mismatch.
@@ -375,7 +381,9 @@ mod tests {
     use super::*;
 
     fn block(track: u8, rel: i16, flags: u8, body: &[u8]) -> Vec<u8> {
-        let mut v = vec![track];
+        // Track numbers ride as vints: the marker bit for ≤ 126.
+        assert!(track <= 126);
+        let mut v = vec![0x80 | track];
         v.extend_from_slice(&rel.to_be_bytes());
         v.push(flags);
         v.extend_from_slice(body);
@@ -391,19 +399,19 @@ mod tests {
         assert!(b.keyframe);
         assert_eq!(b.lacing, Lacing::None);
         assert_eq!(b.frames.len(), 1);
-        assert_eq!(&data[b.frames[0].start..b.frames[0].start + b.frames[0].len], b"frame-bytes");
+        assert_eq!(
+            &data[4 + b.frames[0].start..4 + b.frames[0].start + b.frames[0].len],
+            b"frame-bytes"
+        );
     }
 
     #[test]
     fn xiph_lacing_splits_and_remainder_last() {
         // 3 frames: sizes 5, 300 (0xFF,0x2D continuation), rest.
-        let body = [3, 5, 0xFF, 0x2D, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4];
-        let mut sizes_tail = Vec::new();
-        sizes_tail.extend_from_slice(&[0xA0; 5]);
-        sizes_tail.extend_from_slice(&[0xB0; 300]);
-        sizes_tail.extend_from_slice(&[0xC0; 160]);
-        let mut body = body.to_vec();
-        body.extend_from_slice(&sizes_tail);
+        let mut body = vec![3, 5, 0xFF, 0x2D];
+        body.extend_from_slice(&[0xA0; 5]);
+        body.extend_from_slice(&[0xB0; 300]);
+        body.extend_from_slice(&[0xC0; 160]);
         let data = block(1, 0, 0x02, &body); // 0b10 >> 1 = Xiph
         let b = parse_block(&data, 0, true).unwrap();
         assert_eq!(b.lacing, Lacing::Xiph);
@@ -426,11 +434,9 @@ mod tests {
 
     #[test]
     fn ebml_lacing_sizes_decode() {
-        // 3 frames; first size vint 0x40 (value 0 → size 1); deltas:
-        // 0x40 (0 → +(-0)? EBML delta centers at 2^(n-1)-1).
-        // body: count=3, first vint 0x82 (2 → size 3), delta 0x81
-        // (1 − (2^1−1) = 0 → size 3), then bytes.
-        let mut body = vec![3, 0x82, 0x81];
+        // 3 frames; first size vint 0x82 (value 2 → size 3); the
+        // equal-size delta 0 encodes as value 63 = bias 2^6−1 → 0xBF.
+        let mut body = vec![3, 0x82, 0xBF];
         body.extend_from_slice(&[0xAA; 3]);
         body.extend_from_slice(&[0xBB; 3]);
         body.extend_from_slice(&[0xCC; 2]);
