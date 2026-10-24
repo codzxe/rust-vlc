@@ -127,8 +127,13 @@ pub struct AlacConfig {
     pub max_frame_bytes: u32,
 }
 
-/// Skip the optional 12-byte atom headers a magic cookie may carry
-/// (`frma` / `alac`), returning the remaining slice.
+/// Strip the container's passthrough wrappers down to the cookie
+/// body (24 bytes + optional `chan` block): the optional 12-byte
+/// `frma`/`alac` atom headers, and the MP4 AudioSampleEntry fixed
+/// header that 5.C1's `sample_entry_bytes` hands downstream verbatim
+/// (ISO 8 bytes / QuickTime 28 — ffmpeg writes the QT shape, both
+/// handled by locating the well-formed `alac` atom; never a blind
+/// skip).
 fn skip_cookie_prefixes(mut buf: &[u8]) -> &[u8] {
     loop {
         if buf.len() >= 12 && &buf[4..8] == b"frma" {
@@ -139,15 +144,38 @@ fn skip_cookie_prefixes(mut buf: &[u8]) -> &[u8] {
             buf = &buf[12..];
             continue;
         }
+        if let Some(at) = find_alac_atom(buf) {
+            buf = &buf[at..];
+            continue;
+        }
         return buf;
     }
 }
 
+/// Locate a well-formed `alac` atom inside an MP4 AudioSampleEntry
+/// payload: the fourcc with a size that self-delimits the buffer
+/// (the entry is the last thing in the payload). The scan is capped
+/// at the first 40 bytes — sample-entry fixed headers live there;
+/// a bare cookie never carries the fourcc at a valid atom position.
+fn find_alac_atom(buf: &[u8]) -> Option<usize> {
+    let scan = buf.len().saturating_sub(8).min(40);
+    for at in 0..scan {
+        if &buf[at + 4..at + 8] == b"alac" {
+            let size =
+                u32::from_be_bytes([buf[at], buf[at + 1], buf[at + 2], buf[at + 3]]) as usize;
+            if size >= 12 && at + size == buf.len() {
+                return Some(at);
+            }
+        }
+    }
+    None
+}
+
 /// Parse the ALAC magic cookie (the ALACSpecificConfig plus the
 /// passthrough prefixes/extension the containers ride — see the
-/// module docs). The SAME bytes go to the engine untouched; this parse
-/// exists so the wrapper owns the typed gate and the output-format
-/// negotiation without trusting the blob twice.
+/// module docs). The stripped cookie body goes to the engine; this
+/// parse exists so the wrapper owns the typed gate and the
+/// output-format negotiation without trusting the blob twice.
 ///
 /// # Errors
 /// Typed [`EngineError`]s (`alac.config.*`, all `Unsupported`): length,
@@ -271,11 +299,16 @@ pub struct DecodedAlac {
 
 /// Build a throwaway engine for a cookie (the free surface / fuzz
 /// entry; the contract path builds ONE engine at configure and reuses
-/// it — the engine's internal `AudioBuffer` is the D-1 reuse).
+/// it — the engine's internal `AudioBuffer` is the D-1 reuse). The
+/// container wrappers are stripped first: the engine's
+/// `MagicCookie::read` accepts the bare/`frma`/`alac`-prefixed cookie
+/// but NOT the MP4 sample-entry header, and the wrapper owns that
+/// translation (no engine patching).
 fn engine_for(cookie: &[u8]) -> Result<AlacEngine, AlacError> {
+    let body = skip_cookie_prefixes(cookie);
     let params = AudioCodecParameters {
         codec: CODEC_ID_ALAC,
-        extra_data: Some(cookie.to_vec().into_boxed_slice()),
+        extra_data: Some(body.to_vec().into_boxed_slice()),
         ..AudioCodecParameters::default()
     };
     AlacEngine::try_new(&params, &AudioDecoderOptions::default())
