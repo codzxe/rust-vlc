@@ -73,3 +73,9 @@
 
 pub mod compositing;
 pub mod model;
+
+// 5.M2b (wave 6): the ASS plain-text render path — `ass/layout.rs`
+// (numpad alignment grid + margins) and `ass/render.rs` (plain-text
+// cue -> CompositedCue). The parallel 5.M2a parser half is
+// file-disjoint; see `ass/mod.rs` for the [LEAD SEAM] note.
+pub mod ass;
