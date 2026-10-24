@@ -108,6 +108,22 @@ dev_deps = []
 external_allowlist = ["serde_json"]
 external_dev_allowlist = []
 
+# L1 — the subtitle cue model (card 5.L2, doc 04 §5; doc 01 §2.2's
+# "format-specific parsing belongs to demux/codecs/subtitles" note).
+# Std-only, no deps: pure data + pure functions (cue intervals,
+# positioning/alignment, style-token subset, stable wire roundtrip).
+# SCAFFOLD NOTE (Lead-ratification required): the parallel wave-5 card
+# 5.L1 (SRT/WebVTT text-format parsers) creates the same crate in its
+# own worktree with the same minimal registration — Lead unifies the
+# two scaffolds at wave close; this worktree (wip/p5-l2) owns
+# crates/subtitles/src/model/**, 5.L1 owns its parser modules.
+[crates.subtitles]
+layer = 1
+internal_deps = []
+dev_deps = []
+external_allowlist = []
+external_dev_allowlist = []
+
 # L1 — the one command layer (doc 01 §2.3, cards 1.D3 + 1.D4). Std-only
 # in 1.D3; card 1.D4 adds the serde/schemars wire-form family (doc 05
 # §5.1 schema-first codegen; preaudit-pass). No internal deps in 1.D4:
