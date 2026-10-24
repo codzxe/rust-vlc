@@ -8822,3 +8822,29 @@ Work Log:
 
 Stage Summary:
 - 5.D2a COMPLETE on branch wip/p5-d2a, gated + committed, ready for Lead merge. Sibling 5.D2b (editions+tags) untouched — mod.rs grant stayed the two `pub mod` lines, scan_segment_for shared as pub(crate).
+Task ID: 5.D2b
+Agent: P5-D2B
+Task: MKV EDITIONS + TAGS deep support + the container record (wave 4, card 5.D2 half; file-disjoint with D2a's attachments+chapters)
+
+Work Log:
+- SCOPE: crates/demux/src/mkv/{editions.rs,tags.rs} NEW, mod.rs append-only 2 lines (pub mod editions; pub mod tags;), docs/formats/container-matroska.md NEW record, tests/mkv_editions_tags.rs NEW (14 integration tests + 7 unit tests in-module).
+- TAGS (tags.rs): full Tags→Tag→{Targets,SimpleTag} parse — Targets (TargetTypeValue default 50 with UNKNOWN VALUES TOLERANTLY RECORDED never refused, TargetType, TagTrackUID/TagEditionUID/TagChapterUID/TagAttachmentUID repeatable lists), the GLOBAL FORM (absent Targets or all-zero UIDs = the global-tag UID 0 rule, ffmpeg's format-metadata shape), SimpleTag (TagName/TagLanguage "und"/TagLanguageIETF/TagDefault + TagString with NUL padding stripped exactly like ffmpeg's reader — corpus DURATION pairs carry trailing \0 — + TagBinary raw passthrough + NESTED SimpleTag depth-guarded at 8), differential accessors global_text_pairs()/track_text_pairs(uid). Bomb ceilings typed ResourceLimit (demux.mkv.tags.budget): 4096 tags, 16384 simple tags, 1 MiB per value, 8 MiB cumulative.
+- EDITIONS (editions.rs): EditionEntry parse — EditionUID + FlagHidden/FlagDefault/FlagOrdered with spec defaults; the EDITION→CHAPTER-UID LINKS (every ChapterUID in the edition's atoms, nested included, file order — the join key for TagChapterUID/TagEditionUID targeting); default_edition() selection (flagged → first visible → first); atom nesting depth-guarded at 8, atom ceiling 65536 (chapter-bomb guard; corpus 0007 carries 2580). SEAM RECORDED HONESTLY: ChapterAtom's full parse (times/displays/titles) is D2a's file-disjoint chapters.rs — collect_atom_uids is the documented integration point; if D2a's attachment lands after my branch, the merge replaces that walk, Edition.chapter_uids stays the link contract.
+- ERROR PATHS: truncated SimpleTag (stream cut mid-TagString) = typed Corrupt::Truncated demux.mkv.truncated; over-deep nesting (tags + atoms) = Corrupt::InvalidStructure demux.mkv.bad-structure; unknown TargetTypeValue = tolerant; bombs = ResourceLimit demux.mkv.{tags,editions}.budget. File-disjointness: zone-specific constructors minted INSIDE tags.rs/editions.rs (error.rs is 5.D1's file; D2a owns its own additions).
+- DIFFERENTIAL (live ffprobe 7.1.5, this tree, tag names+values):
+  | File | scope | mine == ffprobe | detail |
+  |---|---|---|---|
+  | 0017-meta-bomb-av.mkv | global+2 streams | PASS | 5 global (COPYRIGHT/COMMENT/ARTIST[UTF-8]/LYRICS[32,768 B]/ENCODER), 47,908 B Tags element |
+  | 0003-multi-av.mkv | global+5 streams | PASS | per-track ENCODER/DURATION |
+  | 0014-muxed-av.mkv | global+2 streams | PASS | |
+  | 0007-chapter-bomb.mkv | global+2 streams + editions | PASS | 1 default edition, 2580 chapter-UID links == ffprobe chapter count 2580 |
+  | 0063-multi-av.mkv | global+4 streams + editions | PASS | 1 edition, 10 links == ffprobe |
+  | generated meta_title.mkv (ffmpeg -metadata title/artist/comment) | global+2 streams | PASS | ARTIST/COMMENT in global Tags; title lands in Info.Title (0x7BA9) — recorded 5.D1 gap, ffprobe-side exclusion pinned |
+  | generated meta_chapters.mkv (ffmetadata) | editions | PASS | 1 default edition, 2 links == ffprobe |
+  ALL 31 corpus mkv lanes: every Tags element parses (30 carry one; 0007 is chapters-only), global + stream scopes set-equal to ffprobe (3 recorded-gap exclusions: format-title=Info.Title, stream-title=TrackEntry.Name, stream-language=TrackEntry.Language — all 5.D1 surfaces, not Tags products).
+- RECORD: docs/formats/container-matroska.md — structure coverage table (5.D1 core + 5.D2b; D2a marked in-flight, never claimed), corpus evidence numbers, recorded gaps (MkvDemuxer::open still skips Tags/Chapters — parse layer public, Lead-merge wiring step shared with D2a; Info.Title/TrackUID not retained; TagBinary no consumer yet; ordered-edition playback semantics are engine-level).
+- GATES (exact, run with worktree-local CARGO_TARGET_DIR — the shared /home/z/my-project/target RACES with parallel wave-4 worktrees compiling the same crate, symptom: E0432 unresolved demux::mkv::editions from a clobbered rlib): cargo fmt -p demux clean; cargo clippy -p demux --all-targets --all-features -- -D warnings EXIT 0; cargo test -p demux --all-features 316 passed / 0 failed / 4 ignored (5.D1 baseline 295/0/4; +7 unit, +14 integration).
+- Committed cf45670 feat(demux): MKV editions + tags + container record (5.D2b) on wip/p5-d2b (implementation+tests), this commit adds the record + worklog.
+
+Stage Summary:
+- D-10 MEASURE? — YES: 31/31 corpus mkv lanes tag-differential vs live ffprobe (global + per-stream scopes, names+values, NUL-stripping pinned by DURATION), 2/2 chapter lanes edition/UID-count vs ffprobe, 2 generated ffmpeg lanes (metadata + ffmetadata chapters). NOT measured: tags surfaced through a running player (wiring seam below). What breaks? — nothing known: bombs/depth/truncation all typed, fuzz surface unchanged (parse layer is bounded reads like 5.D1's). Who hits it first? — the Lead merge (D2a+D2b into MkvDemuxer::open + accessors + the R3 row's capabilities), then 5.X2 (tag memory is ceiling-bounded, pool unaffected).

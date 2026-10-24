@@ -36,8 +36,10 @@ pub mod chapters;
 pub mod cluster;
 pub mod cues;
 pub mod ebml;
+pub mod editions;
 pub mod error;
 pub mod header;
+pub mod tags;
 
 use std::collections::HashMap;
 use std::collections::VecDeque;
