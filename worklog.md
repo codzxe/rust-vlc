@@ -8663,3 +8663,23 @@ Work Log:
 
 Stage Summary:
 - Phase 5 standing: 5 of 47 cards COMPLETE+merged (A1 FLAC, A2 WAV/AIFF, A3 MP3, B1 Ogg, D1 MKV); C1 MP4 ~70% on branch; 41 cards not started. Project: 103 of ~201 executing cards.
+
+---
+Task ID: 5.WAVE-STRUCTURE (Lead)
+Agent: Lead
+Task: User directive: run 200 agents in 20 waves (10/wave), small cards per agent, relaunch on failure, complete ALL of Phase 5 with real-corpus tests. Decision is final — not to be overridden.
+
+Work Log:
+- Wave plan (10 agents each, small-scope cards, R1 file-disjoint where possible; trivial mod.rs/Cargo.toml line conflicts resolved by Lead at merge):
+  W4: C1-fix, B2 Vorbis, C2a AAC-LC, C2b ADTS, D2a MKV attach+chapters, D2b MKV editions+tags, F1a H264 NAL/SPS/PPS, F1b H264 slice+SEI, J2a ADPCM MS+IMA, J2b ADPCM Yamaha+OKI.
+  W5: J3a ALAC, J3b MP2, H3 MJPEG polish, I1a TS PSI, I1b TS PES, I2 PS/VOB, I3a ES wrappers, I3b IVF, L1 subtitle compositor, L2 cue model.
+  W6: M1 SRT, M2a ASS core, M2b ASS render, M3 VTT, O1a M3U, O1b PLS, O1c XSPF, O2 CUE, O3 probe/dir, K2-I Opus.
+  W7: K3-I ASF, K4-I AC3/DTS, P1-I VP8/9, P2a-d-I decisions, H2-I MPEG4ASP, H1a MPEG12 inv, E1a AV1 core.
+  W8: E1b AV1 plumbing, E2 AV1 conf, G1a/G1b HEVC parser, K1 TrueHD, N-ADR prep, F2/G2 conditional, X1a/X1b algo audit.
+  W9: X2a/X2b memory, J1 AVI polish, N1-N3 (post-ADR), R3 registry, records, Q1a/b fuzz.
+  W10: Q2-V audit, R1 perf, R2-V gate, fixers.
+  W11-20: harvest/fix/verify rounds as needed to reach every card DONE or honestly BLOCKED.
+- Harvest protocol per wave: wait → per-worktree status → finisher dispatches for incomplete (start-again rule) → Lead merge+gate+push → next wave.
+
+Stage Summary:
+- Execution structure bound. Wave 4 dispatching now.
