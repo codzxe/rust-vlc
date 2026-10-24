@@ -9733,3 +9733,16 @@ Work Log:
 
 Stage Summary:
 - D-10 MEASURE? — YES: 40+ crates.io API queries (names/versions/licenses/dates/downloads/dep-graphs) all timestamped 2026-10-24 and quoted per record; VLC census/probe facts cited by file:line (modules-linux.json decoder lists, formats.json families); in-tree facts read from source (OggCodec enum, demux/src listing). NOT measured? — every runtime claim (no decode exists anywhere in this card); wmv-decoder/filmcraft-dnx/rustysynth-ext/ferrosintesis purity + conformance (README/API evidence only, [VERIFY] bars stated); ADR-008/ADR-010 content (not yet written — recorded as open Lead work). What breaks? — nothing: no code touched; matrix rows unchanged. Who hits it first? — Phase-6/7 planning agents (ASF container card consumes the WMV pairing; R-10 decision agent consumes the wmv-decoder/filmcraft-dnx/veloster recheck triggers); the Lead hits the two doc-drift flags (matrix Ogg-note Kate claim; platform-disc-dvd inventory_ref) and the missing ADR-008/ADR-010 at the next doc pass; users see typed-unsupported/absent-file honesty exactly as before.
+
+---
+Task ID: 5.W7-CLOSE (Lead)
+Agent: Lead
+Task: Wave 7 — merge + gate + push.
+
+Work Log:
+- 10 cards LANDED: 5.E1 AV1 via rav1d 1.1.0 asm-off (pixel-MD5 BIT-EXACT vs ffmpeg on 5 fixtures; purity proven; 10-bit typed refusal), 5.F2 H264 hw decode-path (H264HwDecoder/HwBridge seams per ADR-001; typed-only fallback; AU assembly 26/26), 5.G1 HEVC parser (479/0; corpus 3/3 incl. hvcC arrays + conf-window crop), 5.H1 MPEG-1/2 sequence layer (corpus 3/3 + 10/10 differential rows; decode honestly blocked — oxideav-mpeg12video pre-1.0), 5.H2-I MPEG4ASP (BLOCKED-with-record; oxideav-mpeg4video 0.1.8 discovered as Phase-6 validate candidate), 5.K1 TrueHD (PENDING-honest: truehd 0.7.2 purity PASS but rustc-1.99.1 OOM on bitstream-io macro; scratch-patch differential 4/4 bit-exact; unblock = upstream fix or 60-line vendor patch), 5.K4-I AC-3/DTS (blocked ×4 upheld; oxideav-ac3 + rusty_vp9-style validate plans; ADR-010 patent-registration gate; IEC 61937 passthrough card proposed), 5.P1-I VP8/VP9 (rusty_vp9 0.1.3 validate-then-admit plan Phase 6), 5.P2a-I Theora (DEFER; theora-rs 0.1.0 provenance-unresolvable monitor trigger), 5.P2b-I (7 blocked/deferred records: WMV/ProRes-DNxHD/screen/Kate/FFv1/DVD/MIDI — rustysynth recommended for MIDI [PROPOSAL]).
+- DECISION-RECORD PATTERN EMERGED: three investigations independently amended "no pure-Rust decoder exists" to "no VALIDATED pure-Rust engine" with concrete Phase-6 validate-then-admit candidates (ruopus, oxideav-*, rusty_vp9, filmcraft-dnx). Honest + actionable.
+- WORKSPACE GATE: fmt clean, clippy -D warnings clean, cargo test --workspace = 3040 passed / 0 failed (disk pressure handled: worktree targets pruned).
+
+Stage Summary:
+- Phase 5: 37 of 47 parent cards landed (E2 AV1-record, G2 HEVC-integration, N1-N3 bitmap subs, Q1 fuzz sweep, Q2-V audit, R1 perf, R2-V gate, X1/X2 audits remain + K1 pending-unblock). PUSHING NOW.
