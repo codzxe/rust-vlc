@@ -1,6 +1,6 @@
 //! H.264/AVC **bitstream parser** (card 5.F1, doc 04 §4.2's "what we
-//! can self-build cheaply regardless": NAL/SPS/PPS, Annex-B and
-//! AVC-length-prefixed unwrapping).
+//! can self-build cheaply regardless": NAL/SPS/PPS, slice headers,
+//! SEI, Annex-B and AVC-length-prefixed unwrapping).
 //!
 //! # The honesty boundary (doc 04 §4.2, verbatim scope)
 //!
@@ -11,12 +11,15 @@
 //! structures) or a spec-driven decoder project is approved. No
 //! `Decoder` impl lives under this module tree.
 //!
-//! # Structure
+//! # Structure (wave-4 split, unified at Lead merge)
 //!
 //! [`parser`] owns the whole surface: NAL-unit framing (both the
 //! Annex-B start-code form and the AVC length-prefixed form incl. the
-//! `avcC` record), the SPS/PPS parameter sets, and (sibling card
-//! 5.F1b) slice headers + SEI.
+//! `avcC` record — card 5.F1a), the SPS/PPS parameter sets (5.F1a),
+//! and slice headers + SEI (sibling card 5.F1b). The halves meet at
+//! the `parser::slice` context structs ([`parser::slice::SliceSpsInfo`],
+//! [`parser::slice::SlicePpsInfo`]) — minimal seams that F1a's parsed
+//! SPS/PPS populate.
 //!
 //! # Damage model
 //!
