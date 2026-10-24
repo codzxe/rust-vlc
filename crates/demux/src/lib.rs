@@ -31,6 +31,7 @@
 //! chunk-bounded and declared sizes are ceiling-checked before they are
 //! trusted into an allocation.
 
+pub mod adts;
 pub mod aiff;
 pub mod avi;
 pub mod error;
