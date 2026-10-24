@@ -32,6 +32,14 @@ workspace = true
 codec-api = { path = "../codec-api" }
 media-types = { path = "../media-types" }
 claxon = "=0.4.3"
+# 5.A3 (Lead pre-approval, C5): the MP3/MP2/MP3 decode engine. Purity
+# verified in docs/dependencies/records/symphonia-mp3-0.6.1.md BEFORE
+# this edit; the metadata/ID3/Xing/VBRI/seek surface stays ours.
+symphonia-bundle-mp3 = "=0.6.1"
+# Direct edge to the engine's core (same pinned version; the node is
+# already in the graph transitively — the direct edge adds NO new
+# packages, it only names the types our glue code touches).
+symphonia-core = "=0.6.1"
 
 [dev-dependencies]
 # The randomized-corpus vertical (ED-FIX-5; user directive 2026-10-22):
