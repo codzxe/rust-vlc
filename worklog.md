@@ -9000,3 +9000,16 @@ Work Log:
 
 Stage Summary:
 - WAVE-4 MERGED TREE: cargo test -p codecs -p demux = 768 passed / 0 failed. Pushing now. Wave 5 (J3a/J3b/H3/I1a/I1b/I2/I3a/I3b/L1/L2 + J2b retry) dispatching.
+
+---
+Task ID: 5.RESTART-1 (Lead)
+Agent: Lead
+Task: RECOVERY COMPLETE — the push rejection revealed GitHub retained all session pushes.
+
+Work Log:
+- git fetch: origin/main = ca4d8bf (wave-4 close), 51 commits ahead of rolled-back local main. main reset --hard to ca4d8bf: ALL of rounds 1-4 RECOVERED (5.A1 FLAC, 5.A2 WAV/AIFF, 5.B1 Ogg, 5.A3 MP3, 5.D1 MKV, 5.C1 MP4-fixed, 5.B2 Vorbis, 5.C2a AAC, 5.C2b ADTS, 5.D2a/D2b MKV-extras, 5.F1a/F1b H264 parser, 5.J2a ADPCM-MS/IMA — merged tree 768/0 codecs+demux).
+- STILL LOST (wave-5, never pushed): J3a ALAC-partial, J3b MP2, H3 MJPEG-polish, I1a/I1b TS, I2 PS, I3a ES, I3b IVF, L1/L2 subtitles. 10 cards to redo. 5.J2b agent still running in its worktree (from a14ca13 — merges after).
+- LESSON ENFORCED: push after EVERY wave close (this recovery was only possible because wave-4 was pushed).
+
+Stage Summary:
+- Effective Phase-5 state: 14 of 47 cards landed (waves 1-4). Wave 5 redo dispatching now.
