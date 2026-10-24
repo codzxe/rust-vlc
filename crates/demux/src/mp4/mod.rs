@@ -469,44 +469,60 @@ fn unpack_language(packed: u16) -> Option<String> {
     if tag == "und" { None } else { Some(tag) }
 }
 
-/// Look for an `esds` child inside an stsd entry payload and read its
-/// ObjectTypeIndication; `Some(0x6b)` means the mp4a entry actually
-/// carries MPEG-1 Layer III (the mislabeled-mp3 quirk).
-fn esds_oti(entry: &[u8]) -> Option<u8> {
-    // The entry payload's fixed prefix before child config boxes
-    // (esds et al.): 6 reserved + 2 data-ref + 12 fixed (channelcount
-    // ..samplerate 16.16) = 20 (ISO 14496-12 §12.4.3).
-    let start = 20;
-    if entry.len() < start + 12 {
+/// Read the ObjectTypeIndication out of one `esds` box payload.
+fn oti_of_esds(body: &[u8]) -> Option<u8> {
+    // ES_Descriptor(0x03) expandable-len ... DecoderConfig(0x04) len OTI
+    let mut at = 4; // version/flags
+    if body.get(at) != Some(&0x03) {
         return None;
     }
-    let boxes = iter_boxes(entry, start, entry.len()).ok()?;
-    for b in boxes {
-        if b.kind == *b"esds" {
-            let body = entry.get(b.body.start..b.body.end)?;
-            // ES_Descriptor(0x03) expandable-len ... DecoderConfig(0x04) len OTI
-            let mut at = 4; // version/flags
-            if body.get(at) == Some(&0x03) {
-                at += 1;
-                // Expandable length (1..4 bytes).
-                for _ in 0..4 {
-                    let byte = *body.get(at)?;
-                    at += 1;
-                    if byte & 0x80 == 0 {
-                        break;
+    at += 1;
+    // Expandable length (1..4 bytes).
+    for _ in 0..4 {
+        let byte = *body.get(at)?;
+        at += 1;
+        if byte & 0x80 == 0 {
+            break;
+        }
+    }
+    at += 3; // ES_ID + flags (no-dependency flags in practice)
+    if body.get(at) != Some(&0x04) {
+        return None;
+    }
+    at += 1;
+    for _ in 0..4 {
+        let byte = *body.get(at)?;
+        at += 1;
+        if byte & 0x80 == 0 {
+            break;
+        }
+    }
+    body.get(at).copied()
+}
+
+/// Look for an `esds` child inside an stsd entry payload and read its
+/// ObjectTypeIndication — the mislabeled-codec quirks: `Some(0x6b)`
+/// means an `mp4a` entry actually carries MPEG-1 Layer III, and
+/// `Some(0x6c)` means an `mp4v` entry actually carries M-JPEG.
+fn esds_oti(entry: &[u8]) -> Option<u8> {
+    // Child config boxes ride after the sample entry's fixed prefix,
+    // whose length depends on the entry class: 28 for
+    // AudioSampleEntry (§12.4.3), 76 for VisualSampleEntry (§12.1.3;
+    // the corpus's ffmpeg build pads to 78 — both tried). A wrong
+    // candidate walks no well-formed `esds` child and falls through.
+    for start in [28usize, 76, 78] {
+        if entry.len() < start + 12 {
+            continue;
+        }
+        let Ok(boxes) = iter_boxes(entry, start, entry.len()) else {
+            continue;
+        };
+        for b in boxes {
+            if b.kind == *b"esds" {
+                if let Some(body) = entry.get(b.body.start..b.body.end) {
+                    if let Some(oti) = oti_of_esds(body) {
+                        return Some(oti);
                     }
-                }
-                at += 3; // ES_ID + flags (no-dependency flags in practice)
-                if body.get(at) == Some(&0x04) {
-                    at += 1;
-                    for _ in 0..4 {
-                        let byte = *body.get(at)?;
-                        at += 1;
-                        if byte & 0x80 == 0 {
-                            break;
-                        }
-                    }
-                    return body.get(at).copied();
                 }
             }
         }
@@ -1033,9 +1049,14 @@ impl Mp4Demuxer {
         }
         let entry = body.get(16..8 + entry_size).unwrap_or(&[]);
         let mut codec = codec_of(&entry_kind);
-        // The mp4a-mislabeled-mp3 quirk (esds OTI 0x6b).
+        // The mp4a-mislabeled-mp3 quirk (esds OTI 0x6b) and the
+        // mp4v-mislabeled-MJPEG quirk (esds OTI 0x6c — corpus 0115:
+        // ffmpeg muxes M-JPEG under `mp4v` with a JPEG OTI).
         if entry_kind == *b"mp4a" && esds_oti(entry) == Some(0x6b) {
             codec = Some("mp3");
+        }
+        if entry_kind == *b"mp4v" && esds_oti(entry) == Some(0x6c) {
+            codec = Some("mjpeg");
         }
         let Some(codec) = codec else {
             self.note(entry_size as u64, "unknown-stsd-entry");
@@ -1175,10 +1196,15 @@ impl Mp4Demuxer {
             }
         }
         // Expand to per-sample records (progressive only; fragmented
-        // tracks carry empty tables).
+        // tracks carry empty tables). PCM tracks collapse to one
+        // packet per chunk — a PCM "sample" is a single frame, and
+        // the MOV precedent (ffmpeg's demuxer) emits chunk-sized
+        // packets (corpus 0051: 93 chunks × 1024 frames = 93 packets,
+        // not 95 232).
         let count = sizes.len().min(deltas.len());
         if !offsets.is_empty() && count > 0 {
-            let mut samples: Vec<Sample> = Vec::with_capacity(count);
+            let pcm = codec.starts_with("pcm_");
+            let mut samples: Vec<Sample> = Vec::with_capacity(if pcm { offsets.len() } else { count });
             let mut si = 0usize;
             let mut dts = 0u64;
             let mut sample_no = 1u32;
@@ -1192,6 +1218,7 @@ impl Mp4Demuxer {
                     }
                 }
                 let mut offset = chunk_offset;
+                let mut chunk: Vec<Sample> = Vec::new();
                 for _ in 0..per {
                     if si >= count {
                         break;
@@ -1203,7 +1230,7 @@ impl Mp4Demuxer {
                         // ISO 14496-12 §8.6.2: absent stss ⇒ all sync.
                         None => true,
                     };
-                    samples.push(Sample {
+                    chunk.push(Sample {
                         offset,
                         size,
                         dts,
@@ -1215,6 +1242,38 @@ impl Mp4Demuxer {
                     offset = offset.saturating_add(size);
                     si += 1;
                     sample_no += 1;
+                }
+                if pcm && chunk.len() > 1 {
+                    // ffmpeg's observed packetization for PCM-in-BMFF
+                    // (mov.c): runs of 1024 samples within a chunk,
+                    // tail shorter (corpus 0051: 95 232 samples → 93
+                    // packets, chunk-local 1024-splits).
+                    const PCM_SAMPLES_PER_PACKET: usize = 1024;
+                    let mut run: Vec<Sample> = Vec::new();
+                    let mut flush = |run: &mut Vec<Sample>, samples: &mut Vec<Sample>| {
+                        if run.is_empty() {
+                            return;
+                        }
+                        let first = run[0];
+                        samples.push(Sample {
+                            offset: first.offset,
+                            size: run.iter().map(|s| s.size).sum(),
+                            dts: first.dts,
+                            cts: first.cts,
+                            dur: run.iter().map(|s| s.dur).sum(),
+                            sync: first.sync,
+                        });
+                        run.clear();
+                    };
+                    for s in chunk.drain(..) {
+                        run.push(s);
+                        if run.len() == PCM_SAMPLES_PER_PACKET {
+                            flush(&mut run, &mut samples);
+                        }
+                    }
+                    flush(&mut run, &mut samples);
+                } else {
+                    samples.append(&mut chunk);
                 }
             }
             if si < count {
@@ -1734,18 +1793,26 @@ impl Demuxer for Mp4Demuxer {
 
 impl Mp4Demuxer {
     /// Progressive seek: reference-track keyframe walk-back, then
-    /// every track's first sample ≥ the landing.
+    /// every track's first sample ≥ the landing. The landing is in
+    /// the emitted (movie-timeline PTS) domain — exactly what
+    /// `mint_packet` stamps, so a caller re-targeting the landing
+    /// never chases a stamp the demuxer will not produce.
     fn seek_progressive(
         &mut self,
         ref_idx: usize,
         target_nanos: u64,
     ) -> Result<TimeSpan, EngineError> {
+        // PTS of a sample on the emitted timeline: `elst` media_time
+        // trims, the empty edit delays (mirrors `mint_packet`).
+        let pts_of = |t: &TrackState, s: &Sample| {
+            s.dts.saturating_sub(t.media_time).saturating_add(t.empty_edit_delay)
+        };
         let ref_track = &self.tracks[ref_idx];
-        let target_ticks = nanos_to_ticks(target_nanos, ref_track.timescale) + ref_track.media_time;
-        // Last sample with DTS ≤ target.
+        let target_ticks = nanos_to_ticks(target_nanos, ref_track.timescale);
+        // Last sample with PTS ≤ target.
         let mut land = None;
         for (i, s) in ref_track.samples.iter().enumerate() {
-            if s.dts + ref_track.media_time <= target_ticks {
+            if pts_of(ref_track, s) <= target_ticks {
                 land = Some(i);
             } else {
                 break;
@@ -1758,30 +1825,27 @@ impl Mp4Demuxer {
         while land_idx > 0 && !ref_track.samples[land_idx].sync {
             land_idx -= 1;
         }
-        let land_nanos = ticks_to_nanos(
-            self.tracks[ref_idx].samples[land_idx].dts + self.tracks[ref_idx].media_time,
-            self.tracks[ref_idx].timescale,
-        );
+        let land_pts = pts_of(&self.tracks[ref_idx], &self.tracks[ref_idx].samples[land_idx]);
+        let land_nanos = ticks_to_nanos(land_pts, self.tracks[ref_idx].timescale);
         // Commit: per-track cursors (compute-then-commit — every
         // landing above already succeeded).
         for (ti, t) in self.tracks.iter_mut().enumerate() {
             if ti == ref_idx {
                 t.next = land_idx;
             } else {
-                let land_ticks = nanos_to_ticks(land_nanos, t.timescale) + t.media_time;
+                let land_ticks = nanos_to_ticks(land_nanos, t.timescale);
                 t.next = t
                     .samples
                     .iter()
-                    .position(|s| s.dts + t.media_time >= land_ticks)
+                    .position(|s| pts_of(t, s) >= land_ticks)
                     .unwrap_or(t.samples.len());
             }
         }
         self.pending.clear();
         self.eos = false;
         let base = self.tracks[ref_idx].base;
-        let land_dts = self.tracks[ref_idx].samples[land_idx].dts + self.tracks[ref_idx].media_time;
         Ok(TimeSpan {
-            start: Stamp::Present(Timestamp::new(land_dts as i64, base)),
+            start: Stamp::Present(Timestamp::new(land_pts as i64, base)),
             end: Stamp::Missing,
         })
     }
@@ -1795,6 +1859,10 @@ impl Mp4Demuxer {
     ) -> Result<TimeSpan, EngineError> {
         let len = self.reader.length();
         let timescale = self.tracks[ref_idx].timescale;
+        let media_time = self.tracks[ref_idx].media_time;
+        let edit_delay = self.tracks[ref_idx].empty_edit_delay;
+        // Emitted-timeline PTS (mirrors `mint_packet`).
+        let pts_of = |s: &Sample| s.dts.saturating_sub(media_time).saturating_add(edit_delay);
         let target_ticks = nanos_to_ticks(target_nanos, timescale);
         let mut pos = self.frag_pos.unwrap_or(len);
         let mut best: Option<(u64, u64)> = None; // (moof offset, land dts)
@@ -1825,13 +1893,13 @@ impl Mp4Demuxer {
                 let land = frag_samples
                     .iter()
                     .filter(|(ti, _)| *ti == ref_idx)
-                    .find(|(_, s)| s.sync && s.dts <= target_ticks)
-                    .map(|(_, s)| s.dts);
+                    .find(|(_, s)| s.sync && pts_of(s) <= target_ticks)
+                    .map(|(_, s)| pts_of(s));
                 if let Some(land_dts) = land {
                     best = Some((pos, land_dts));
                 } else if frag_samples
                     .iter()
-                    .any(|(ti, s)| *ti == ref_idx && s.dts > target_ticks)
+                    .any(|(ti, s)| *ti == ref_idx && pts_of(s) > target_ticks)
                 {
                     // Passed the target without a sync landing.
                     break;
