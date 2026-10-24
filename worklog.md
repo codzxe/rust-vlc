@@ -8891,3 +8891,45 @@ Stage Summary:
   output = "f32 interleaved native-endian, no rate/channel conversion"
   feature = null        # rides unconditionally today (per-codec features land with R3)
   ```
+Task ID: 5.C2a
+Agent: P5-C2A (wave 4, card 5.C2 decoder half)
+Task: AAC-LC decoder via symphonia (ADTS-frame-aware decode entry, typed errors, HE honestly partial; +FB fuzz-lite; ffmpeg differential on the real corpus).
+
+Work Log:
+- C5 DEPENDENCY (record FIRST, the mp3 pattern): `docs/dependencies/records/symphonia-aac-0.6.1.md`. REALITY CHECK: the brief's `symphonia-bundle-aac` does NOT exist on crates.io (sparse-index key → S3 NoSuchKey, verified); the actual crate — the one doc 04 §3.1 names — is `symphonia-codec-aac` 0.6.1 (+ NEW NODES `symphonia-common` 0.6.1, `symphonia-metadata` 0.6.1, `regex-lite` 0.1.9; the lock diff on this branch is EXACTLY these 4). Pure Rust, no build.rs, no native files, 0 unsafe sites everywhere (`#![forbid(unsafe_code)]` in codec-aac + metadata; common has no forbid but 0 sites — recorded as the honest weakening), MPL-2.0 (same-PR deny.toml `MPL-2.0` addition still owed by the Lead from 5.A3 — now covers the whole family), regex-lite MIT OR Apache-2.0 (already allowed). No advisories. Pinned `=0.6.1`.
+- MODULE `crates/codecs/src/audio/aac/**` (mp3 pattern): `adts.rs` — the byte-level 7/9-byte ADTS fixed-header parse (sync/ID/layer/profile/sampling-index/channel-config/frame-length/fullness/raw-blocks) + resync walker (trailing partial dropped like ffmpeg); `decoder.rs` — `decode_stream` (walk → gates → engine) + the codec-api `AacDecoder` (ADTS mode: one packet = one complete ADTS frame, engine built lazily from the FIRST frame's header, per-packet param-switch gate; ASC mode: `extra_data` = ASC, one packet = one raw data block, the MP4/esds path), pooled 4-slot output rotation (8 KiB slots), 1024-samples/frame pts bookkeeping; `error.rs` — the typed taxonomy; `fuzz.rs` — `fuzz_codec_aac` harness (wiring status honest: same libFuzzer-owed-CI as flac/mp3/mjpeg/pcm).
+- HE-AAC HONESTY (doc 04 §3.2, quoted by the card): explicit-ASC HE (AOT 5/29) → typed `aac.he_sbr` Unsupported (unit-tested, never reaches the engine); non-LC ADTS/ASC profiles → `aac.profile`; channel-config 0 (PCE) → `aac.channel_config_pce`; >2 channels → `aac.channel_count` (engine caps at stereo — its own gate, mapped typedly). Implicit-ADTS HE is UNDETECTABLE from the header (SBR hides behind full SCE/CPE syntax; the engine sets an internal flag with no public accessor — record R6): such streams decode as half-rate LC, recorded as degradation, never silently passed. SBR/PS itself = doc 04's self-build M, unscheduled. 6ch/8ch and PCE recorded partial.
+- ERROR PATHS (all typed + unit-tested): bad sync (`aac.adts.sync`), non-zero layer, reserved sampling index, truncated frame (`aac.adts.truncated` at both packet and walk level), frame_len < header, param switch mid-stream (`aac.adts.param_switch`), empty/garbage buffer (`aac.stream.no_frames`), ASC length, descriptor gate, BadState before configure.
+- +FB FUZZ-LITE: `tests/aac_fuzz_survival.rs` — 80 seeded mutations (60 byte-flip + 20 truncations) of the committed 2.5 KB `fuzz_base_lc.aac` + sync-storm/garbage-interleave cases through the full harness: 32 decoded, 48 typed refusals, codes ⊆ {aac.adts.param_switch, aac.frame.decode, aac.stream.no_frames}, zero panics. Committed fixture budget: 40 920 B total (3 files) — well under the 200 KB mandate.
+- DIFFERENTIAL (the AC): `tests/aac_corpus_differential.rs` + `tests/aac_bitexact.rs` + recorded `tests/data/aac_bitexact_reference.txt`. Window = all complete ADTS frames (both sides `frames × 1024` exactly). Table (live ffmpeg 7.x oracle):
+  | file | rate | ch | samples/ch | differing | maxΔ | verdict |
+  |---|---|---|---|---|---|---|
+  | 0059-audio-only.aac | 88200 | 1 | 354304 | 476 (0.13%) | 1 LSB | PASS |
+  | 0110-audio-only.aac | 96000 | 1 | 385024 | 487 (0.13%) | 1 LSB | PASS |
+  | 0029-cover-audio.m4a | 12000 | 2 | 2048 | 26 (0.63%) | 1 LSB | PASS (bridge) |
+  | 0094-audio-only.m4a | 12000 | 6 | — | — | — | TYPED partial `aac.channel_count` (ffmpeg decodes 6ch) |
+  | sine441_lc_stereo.aac (gen.) | 44100 | 2 | 134144 | 84 (0.03%) | 1 LSB | PASS |
+  | sine48_lc_mono.aac (gen.) | 48000 | 1 | 145408 | 53 (0.04%) | 1 LSB | PASS |
+  Lumen + ffmpeg PCM MD5s recorded per row (regression pins; corpus re-imaging FAILS loudly). m4a bridge: ffmpeg stream-copy (`-c:a copy`) to ADTS + `-f aac` forced input on BOTH sides (ffmpeg's own probe refuses short extracted ADTS — measured quirk, documented); 0029's container edit-list trim (0.085 s media duration) is 5.C1's demuxer surface, deliberately out of the codec comparison. ISO 14496-4 conformance vectors not redistributable (license+size) — LC conformance = ffmpeg-authored fixtures + real corpus, the 5.A3 precedent (recorded in the reference file).
+- VLC: PENDING-INFRA (the 5.A1 flac_vlc_differential.rs pattern) — no vlc/cvlc binary in the sandbox; the ±1-LSB ffmpeg differential above is the always-on half; the moment a VLC oracle exists, all digests must agree within the same tolerance class.
+- THROUGHPUT (for 5.X1): `tests/aac_bench.rs` (ignored measurement test): 0059 → 66.8 M samples/s = 758× realtime; 0110 → 109.2 M/s = 1137×; sine441 stereo → 99.8 M/s = 1131×. Whole-stream free surface, 7-rep median. Memory: pooled 4×8 KiB output slots, reused engine buffers, walk is single-pass — bounded by input, no per-frame allocation beyond the scratch reuse.
+- GATES (exact): `cargo fmt -p codecs --check` CLEAN; `cargo clippy -p codecs --all-targets --all-features -- -D warnings` EXIT 0; `cargo test -p codecs --all-features` EXIT 0 — 271 passed / 0 failed / 13 ignored (all pre-existing intentional bench/opt-in rows; aac adds: 14 unit + 2 bitexact + 1 differential + 2 fuzz-survival + 1 ignored bench).
+- Committed on wip/p5-c2a: `feat(codecs): AAC-LC decoder via symphonia — bit-exact corpus (5.C2a)`.
+
+Stage Summary:
+- D-10 MEASURE? — YES: 6-row live ffmpeg differential (2 corpus .aac + 2 m4a lanes + 2 generated LC fixtures), max sample delta 1 LSB on every comparable row, MD5 regression pins recorded; throughput 758–1137× realtime. NOT measured? — HE-AAC/SBR/PS decode (honestly absent: typed refusal on explicit signaling, half-rate-LC degradation recorded on implicit; upstream engine has no SBR), >2ch decode (typed partial, 0094 row), PCE streams. What breaks? — nothing known: 80-mutant fuzz survival zero-panic, all error paths typed (`aac.*` vocabulary). Who hits it first? — 5.C2b (ADTS demuxer: needs `is_adts_stream`/walk — provided `pub` in the codec module) and 5.C1 finisher (m4a esds → ASC mode configure is ready: `extra_data` = ASC, `aac.he_sbr` typed on HE files).
+- R3 registration snippet (draft for the registration card):
+  ```toml
+  id = "aac"            # media-types CodecDescriptor("aac"), .aac/.adts/.m4a payloads
+  kind = "audio"        # AAC-LC decoder (HE-AAC honestly partial — typed refusal)
+  decoder = "codecs::audio::aac::AacDecoder"    # symphonia-codec-aac 0.6.1 engine
+  packets = "one ADTS frame (header incl.) | one raw block + ASC extra_data"
+  capabilities = ["aac-lc", "adts-framed", "asc-config", "mono-stereo"]
+  # aac-lc: LC only — Main/SSR/LTP/reserved typed `aac.profile`;
+  # adts-framed: 7/9-byte header parse + resync walk, lazy engine
+  # from first frame, param-switch gate; asc-config: MP4/esds path,
+  # HE (AOT 5/29) typed `aac.he_sbr`; partial: >2ch (`aac.channel_count`),
+  # PCE config 0, SBR/PS (doc 04 self-build M)
+  fuzz = "fuzz_codec_aac"   # harness landed; libFuzzer CI owed (family status)
+  ```
+- [PENDING-VLC]: the VLC half of the differential (no binary in sandbox). [PENDING-LEAD]: deny.toml `MPL-2.0` same-PR addition (family-wide, owed since 5.A3) + allowlist row. [VERIFY-P1]: lock diff at merge = exactly 4 nodes (regex-lite/symphonia-codec-aac/symphonia-common/symphonia-metadata) — verified on this branch.

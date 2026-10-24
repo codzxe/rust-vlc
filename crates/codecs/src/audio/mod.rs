@@ -13,7 +13,14 @@
 //! §3.1 row "Vorbis"). Per-codec Cargo features arrive with the
 //! registration card (doc 01 §2.5(a)); today the modules ship
 //! unconditionally.
+//! [`aac`] is the AAC-LC decoder through the purity-pinned
+//! `symphonia-codec-aac` engine with our own ADTS header parse and
+//! profile/HE gates (card 5.C2a — the decoder half of 5.C2; HE-AAC
+//! honestly partial, see its module docs).
+//! Per-codec Cargo features arrive with the registration card
+//! (doc 01 §2.5(a)); today the modules ship unconditionally.
 
+pub mod aac;
 pub mod flac;
 pub mod mp3;
 pub mod pcm;

@@ -1,0 +1,78 @@
+# tests/data/aac_bitexact_reference.txt — card 5.C2a recorded
+# expectations (the 5.A3 mp3_bitexact_reference.txt convention).
+#
+# Provenance: every fixture was authored THIS SESSION by the sandbox's
+# ffmpeg 7.x native AAC encoder (`-c:a aac -profile:a aac_low`) from a
+# lavfi sine source; every `ffmpeg_pcm_md5` / `max_sample_delta` was
+# measured against that same ffmpeg's decode (`-map 0:a -c:a
+# pcm_s16le -f s16le -`, the exact command in tests/aac/mod.rs). The
+# corpus rows' `ffmpeg_pcm_md5` values pin the corpus bytes — a
+# re-imaged corpus FAILS the row loudly instead of silently testing
+# different bytes.
+#
+# The comparison window: ALL complete ADTS frames (Lumen's walker
+# drops a trailing partial frame exactly like ffmpeg; measured:
+# sample counts are `frames x 1024` on both sides). AAC is lossy —
+# two decoders are not sample-identical in general; the measured
+# class of this engine pair is max_delta = 1 LSB (s16), recorded per
+# row, the same honest tolerance posture as 5.A3's MP3 suite.
+#
+# ISO 14496-4 conformance vectors: not redistributed in this repo
+# (license + size); the LC conformance surface here is the
+# ffmpeg-authored fixture set + the real corpus, the 5.A3 precedent.
+
+[fixture.sine441_lc_stereo]
+rate = 44100
+channels = 2
+frames = 131
+samples_per_channel = 134144
+lumen_pcm_md5 = 85836a9bb32268f3fdd3b6cc74f27198
+ffmpeg_pcm_md5 = ebb4ae6edb452a22fe301f3f0efb58a4
+max_sample_delta = 1
+
+[fixture.sine48_lc_mono]
+rate = 48000
+channels = 1
+frames = 142
+samples_per_channel = 145408
+lumen_pcm_md5 = e8f063891bdbe997a54bcd694d5da0bf
+ffmpeg_pcm_md5 = 0b5b973fe9f32823deee93130bab892b
+max_sample_delta = 1
+
+[corpus.0059-audio-only]
+rate = 88200
+channels = 1
+frames = 346
+samples_per_channel = 354304
+lumen_pcm_md5 = c18f85b069732afa99fd082049495048
+ffmpeg_pcm_md5 = 6329d50395e2abe9ce9f222a376dd6a6
+max_sample_delta = 1
+
+[corpus.0110-audio-only]
+rate = 96000
+channels = 1
+frames = 376
+samples_per_channel = 385024
+lumen_pcm_md5 = c1bb4de65fd61536a5960d2c031d2f39
+ffmpeg_pcm_md5 = 1dfcbf725dc4ab6c5c5210079788d49b
+max_sample_delta = 1
+
+# 0029-cover-audio.m4a, audio track via the stream-copy ADTS bridge
+# (tests/aac/mod.rs): the reference MD5 is ffmpeg's decode of the SAME
+# extracted essence (`-f aac` forced input — the container-level
+# edit-list trim is 5.C1's demuxer surface, out of the codec
+# comparison; see the differential's m4a note).
+[corpus.0029-cover-audio-bridge]
+rate = 12000
+channels = 2
+frames = 2
+samples_per_channel = 2048
+lumen_pcm_md5 = 6becaacf21207259393989b5927589ae
+ffmpeg_pcm_md5 = 294366b2c371795b67da0b5368a8858f
+max_sample_delta = 1
+
+# Committed fixture budget (the card's < 200 KB mandate):
+#   sine441_lc_stereo.aac 25 219 B
+#   sine48_lc_mono.aac    13 201 B
+#   fuzz_base_lc.aac       2 500 B
+#   total                 40 920 B

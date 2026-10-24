@@ -49,6 +49,12 @@ symphonia-core = "=0.6.1"
 # R1 explains. Adds 4 lock nodes: -codec-vorbis, -common, -metadata,
 # regex-lite.)
 symphonia-codec-vorbis = "=0.6.1"
+# 5.C2a (Lead pre-approval, C5): the AAC-LC decode engine. Purity
+# verified in docs/dependencies/records/symphonia-aac-0.6.1.md BEFORE
+# this edit; the ADTS header parse + error taxonomy stay ours. (The
+# brief's `symphonia-bundle-aac` spelling does not exist on crates.io —
+# the record's reality check.)
+symphonia-codec-aac = "=0.6.1"
 
 [dev-dependencies]
 # The randomized-corpus vertical (ED-FIX-5; user directive 2026-10-22):
