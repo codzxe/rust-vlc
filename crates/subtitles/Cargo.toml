@@ -35,7 +35,6 @@ version = "0.1.0"
 edition = "2024"
 description = "Lumen subtitle compositing contract: safe-area placement, scaling with the video extent, z-ordered alpha blending onto a renderer-implemented ComposeTarget, and sample-exact [t0,t1) cue timing against the shared clock (doc 04 §5 compositing contract; card 5.L1)."
 
-description = "Lumen subtitle cue model: timing intervals, positioning/alignment, style-token subset, stable wire roundtrip (cards 5.L1/5.L2, doc 04 §5)"
 publish = false
 
 [lints]
