@@ -73,3 +73,4 @@
 
 pub mod compositing;
 pub mod model;
+pub mod srt;
