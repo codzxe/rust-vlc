@@ -182,6 +182,24 @@ dev_deps = ["testkit", "input"]
 external_allowlist = []
 external_dev_allowlist = []
 
+# L2 — subtitle formats + the compositing contract (doc 01 §2.2
+# registry row, card 5.L1). SCAFFOLD NOTE (Lead-ratification): this
+# crate does not exist on main; 5.L1 (compositing, this entry) and
+# 5.L2 (cue model) both created a minimal scaffold in their own
+# worktrees — Lead unifies at merge. Deps: media-types only in v0
+# (the registry row also lists plugin-api, which joins with the
+# SubtitleParser seam, 5.M1 — the manifest is an allowlist).
+# media-clock is a DEV-ONLY edge (renderer-wgpu 2.D1 precedent): the
+# sample-exact timing AC drives the REAL MediaClock end-to-end; a dev
+# edge cannot leak into the public API (ARCH-7) — the library speaks
+# media-types' Timestamp only. Std-only by C5.
+[crates.subtitles]
+layer = 2
+internal_deps = ["media-types"]
+dev_deps = ["testkit", "media-clock"]
+external_allowlist = []
+external_dev_allowlist = []
+
 # L4 — the session orchestrator (doc 01 §2.6, card 2.C2; doc 03 §4.6 +
 # §5). Owns the playback state machine, mints the two-level session
 # epochs, and wires the pipeline demux→queues→decoders→sinks at the
