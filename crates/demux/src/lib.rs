@@ -34,5 +34,6 @@
 pub mod aiff;
 pub mod avi;
 pub mod error;
+pub mod mkv;
 pub mod ogg;
 pub mod wav;
