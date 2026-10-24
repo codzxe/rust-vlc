@@ -49,7 +49,9 @@
 pub(crate) mod decoder;
 pub(crate) mod error;
 
-pub use decoder::{AlacConfig, AlacDecoder, DecodedAlac, decode_frame, output_format, parse_alac_config};
+pub use decoder::{
+    AlacConfig, AlacDecoder, DecodedAlac, decode_frame, output_format, parse_alac_config,
+};
 
 #[cfg(test)]
 mod tests {

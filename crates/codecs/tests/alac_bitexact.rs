@@ -24,9 +24,17 @@
 //! | `alac_mono16.m4a` | 1 | 44_100 | s16le | `a2a11b40df939a1d604fd71233cf83e8` |
 //! | `alac_stereo24.m4a` | 2 | 48_000 | s24le | `04ca6310cf048ddca4f12374b1c3849e` |
 //! | `alac_mono24.m4a` | 1 | 48_000 | s24le | `109eea10ed4c881a5516143c817f1595` |
+//! | `alac_stereo24_noise.m4a` | 2 | 48_000 | s24le | `1ee6321067a82b421e33038f4fc00b70` |
 //!
 //! The 24-bit rows exercise the extra-bits (shift > 0) splice and the
-//! wider rice-escape width. The prior wave-5 session's suspected
+//! wider rice-escape width; `alac_stereo24_noise.m4a` (added by the
+//! finisher session) is 1.1 s of **white noise** — 13 packets, the
+//! longest multi-frame run here, and maximum-entropy content, i.e.
+//! the heaviest rice-escape stressor available (the exact path the
+//! prior session's suspicion named). A 32-bit differential row is
+//! impossible with this ffmpeg: its ALAC encoder quantizes every
+//! `s32p` input to 24 bits per raw sample, so the S32 output width
+//! stays unit-tested. The prior wave-5 session's suspected
 //! engine bug (`alac.frame.truncated` on multi-frame stereo) is
 //! **not reproduced** here — see the decoder module docs for the
 //! bit-level audit; these rows are the tripwire: any engine or
@@ -52,11 +60,13 @@ struct Truth {
     /// `s16le` / `s24le` — the oracle dump format (= our width).
     dump: &'static str,
     md5: &'static str,
-    /// Expected packets (7 × 4096 + 1 partial at 0.7 s).
+    /// Expected packets (7 × 4096 + 1 partial at 0.7 s; 12 + 1 at 1.1 s).
     packets: u64,
+    /// Content duration in seconds (decoded-extent check).
+    secs: f64,
 }
 
-const TRUTHS: [Truth; 4] = [
+const TRUTHS: [Truth; 5] = [
     Truth {
         fixture: "alac_stereo16.m4a",
         channels: 2,
@@ -64,6 +74,7 @@ const TRUTHS: [Truth; 4] = [
         dump: "s16le",
         md5: "e33ff912590e04d68117017a1a2ccd23",
         packets: 8,
+        secs: 0.7,
     },
     Truth {
         fixture: "alac_mono16.m4a",
@@ -72,6 +83,7 @@ const TRUTHS: [Truth; 4] = [
         dump: "s16le",
         md5: "a2a11b40df939a1d604fd71233cf83e8",
         packets: 8,
+        secs: 0.7,
     },
     Truth {
         fixture: "alac_stereo24.m4a",
@@ -80,6 +92,7 @@ const TRUTHS: [Truth; 4] = [
         dump: "s24le",
         md5: "04ca6310cf048ddca4f12374b1c3849e",
         packets: 9,
+        secs: 0.7,
     },
     Truth {
         fixture: "alac_mono24.m4a",
@@ -88,15 +101,29 @@ const TRUTHS: [Truth; 4] = [
         dump: "s24le",
         md5: "109eea10ed4c881a5516143c817f1595",
         packets: 9,
+        secs: 0.7,
+    },
+    Truth {
+        fixture: "alac_stereo24_noise.m4a",
+        channels: 2,
+        rate: 48_000,
+        dump: "s24le",
+        md5: "1ee6321067a82b421e33038f4fc00b70",
+        packets: 13,
+        secs: 1.1,
     },
 ];
 
 fn fixture_path(name: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/alac").join(name)
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/alac")
+        .join(name)
 }
 
 /// The real byte source (the 5.J2a composition: input FileAccess).
-fn open_via_input(path: &Path) -> Result<Box<dyn plugin_api::SourceStream>, media_types::EngineError> {
+fn open_via_input(
+    path: &Path,
+) -> Result<Box<dyn plugin_api::SourceStream>, media_types::EngineError> {
     let uri = match SourceUri::parse(&format!("file://{}", path.to_str().unwrap_or(""))) {
         Ok(uri) => uri,
         Err(err) => unreachable!("fixture path is a valid file URI ({path:?}): {err}"),
@@ -160,7 +187,12 @@ fn decode_file(path: &Path) -> (Vec<u8>, u64, bool, media_types::frame::AudioFor
         path.display()
     );
     let descriptor = tracks[0].codec.as_str().to_string();
-    assert_eq!(descriptor, "alac", "{}: registry descriptor", path.display());
+    assert_eq!(
+        descriptor,
+        "alac",
+        "{}: registry descriptor",
+        path.display()
+    );
     let cookie = mp4
         .sample_entry_bytes(tracks[0].id)
         .unwrap_or_else(|| unreachable!("{}: sample entry present", path.display()))
@@ -211,7 +243,11 @@ fn fixtures_bitexact_vs_ffmpeg() {
         // The free surface's shape preview agrees with the contract's.
         assert_eq!(format.layout, media_types::frame::AudioLayout::Interleaved);
         assert_eq!(packets, truth.packets, "{}: packet count", truth.fixture);
-        assert_eq!(format.channels, truth.channels, "{}: channels", truth.fixture);
+        assert_eq!(
+            format.channels, truth.channels,
+            "{}: channels",
+            truth.fixture
+        );
         assert_eq!(format.rate, truth.rate, "{}: rate", truth.fixture);
         assert!(pts_monotonic, "{}: pts monotone", truth.fixture);
         let ours = md5_hex(&pcm);
@@ -221,11 +257,11 @@ fn fixtures_bitexact_vs_ffmpeg() {
             truth.fixture, truth.dump
         );
         // Byte-level window sanity: the dump length is the full
-        // decoded extent on both sides (0.7 s × rate × channels ×
+        // decoded extent on both sides (duration × rate × channels ×
         // width — no truncation, no padding).
         let width = if truth.dump == "s16le" { 2 } else { 3 };
         let expected_len =
-            (f64::from(truth.rate) * 0.7).round() as usize * truth.channels as usize * width;
+            (f64::from(truth.rate) * truth.secs).round() as usize * truth.channels as usize * width;
         assert_eq!(
             pcm.len(),
             expected_len,

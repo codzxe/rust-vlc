@@ -214,7 +214,10 @@ fn parse_alac_config_inner(cookie: &[u8]) -> Result<AlacConfig, AlacError> {
     if body[4] > 0 {
         return Err(unsupported(
             "alac.config.version",
-            format!("compatibleVersion {} — only ALAC version 0 is supported", body[4]),
+            format!(
+                "compatibleVersion {} — only ALAC version 0 is supported",
+                body[4]
+            ),
         ));
     }
     if config.bit_depth == 0 || config.bit_depth > 32 {
@@ -311,8 +314,12 @@ fn engine_for(cookie: &[u8]) -> Result<AlacEngine, AlacError> {
         extra_data: Some(body.to_vec().into_boxed_slice()),
         ..AudioCodecParameters::default()
     };
-    AlacEngine::try_new(&params, &AudioDecoderOptions::default())
-        .map_err(|e| unsupported("alac.engine.init", format!("engine refused the cookie: {e}")))
+    AlacEngine::try_new(&params, &AudioDecoderOptions::default()).map_err(|e| {
+        unsupported(
+            "alac.engine.init",
+            format!("engine refused the cookie: {e}"),
+        )
+    })
 }
 
 /// Map an engine error to the typed taxonomy (the truncation
@@ -441,23 +448,29 @@ pub(crate) fn decode_into(
         return Err(corrupt(
             "alac.output.slot_size",
             media_types::error::CorruptDetail::InvalidStructure { offset: None },
-            format!("output slot is {} bytes, block needs {output_len}", dst.len()),
+            format!(
+                "output slot is {} bytes, block needs {output_len}",
+                dst.len()
+            ),
         ));
     }
     match width {
         2 => {
-            for (word, pair) in out.iter().zip(dst.chunks_exact_mut(2)) {
+            let (chunks, _) = dst.as_chunks_mut::<2>();
+            for (word, pair) in out.iter().zip(chunks) {
                 let value = (word >> shift) as i16;
                 pair.copy_from_slice(&value.to_ne_bytes());
             }
         }
         3 => {
-            for (word, triple) in out.iter().zip(dst.chunks_exact_mut(3)) {
+            let (chunks, _) = dst.as_chunks_mut::<3>();
+            for (word, triple) in out.iter().zip(chunks) {
                 write_i24(triple, word >> shift);
             }
         }
         _ => {
-            for (word, quad) in out.iter().zip(dst.chunks_exact_mut(4)) {
+            let (chunks, _) = dst.as_chunks_mut::<4>();
+            for (word, quad) in out.iter().zip(chunks) {
                 quad.copy_from_slice(&(*word >> shift).to_ne_bytes());
             }
         }
@@ -503,9 +516,7 @@ pub fn decode_frame(packet: &[u8], cookie: &[u8]) -> Result<DecodedAlac, EngineE
     let mut scratch = Vec::new();
     let mut out = vec![0u8; max_output_len(&config)];
     let meta = decode_into(&mut engine, packet, &config, &mut scratch, &mut out)?;
-    out.truncate(
-        meta.samples as usize * config.num_channels as usize * bytes_per(meta.format),
-    );
+    out.truncate(meta.samples as usize * config.num_channels as usize * bytes_per(meta.format));
     Ok(DecodedAlac {
         format: meta.format,
         samples: meta.samples,
@@ -666,8 +677,8 @@ impl Decoder for AlacDecoder {
         let meta = pooled.meta;
         let exact_len =
             meta.samples as usize * config.num_channels as usize * bytes_per(meta.format);
-        let duration_nanos = u128::from(meta.samples) * 1_000_000_000u128
-            / u128::from(meta.format.rate.max(1));
+        let duration_nanos =
+            u128::from(meta.samples) * 1_000_000_000u128 / u128::from(meta.format.rate.max(1));
         // `config.sample_rate` is validated non-zero at configure; the
         // mapping keeps a hypothetical zero a typed error, not a panic.
         let base = TimeBase::new(1, meta.format.rate).map_err(|_| {
@@ -732,7 +743,11 @@ fn pooled_sample_slot(
         // The slot still has downstream owners — try the next one.
     }
     let mut fresh = SharedBytes::from_vec(vec![0u8; slot_len]);
-    let meta = fill(fresh.get_mut().unwrap_or_else(|| unreachable!("fresh slot is exclusive")))?;
+    let meta = fill(
+        fresh
+            .get_mut()
+            .unwrap_or_else(|| unreachable!("fresh slot is exclusive")),
+    )?;
     let bytes = fresh.clone();
     if slots.len() < SAMPLE_SLOTS {
         slots.push(fresh);
@@ -784,7 +799,10 @@ mod tests {
         prefixed.extend_from_slice(b"alac");
         prefixed.extend_from_slice(&0u32.to_be_bytes());
         prefixed.extend_from_slice(&bare);
-        assert_eq!(parse_alac_config(&prefixed).unwrap_or_else(|e| unreachable!("{:?}", e.kind)), config);
+        assert_eq!(
+            parse_alac_config(&prefixed).unwrap_or_else(|e| unreachable!("{:?}", e.kind)),
+            config
+        );
         // 48-byte shape: bare + a zeroed chan block (the engine parses
         // the chan tag; our parse only needs to accept the length).
         let mut extended = bare.to_vec();
@@ -796,7 +814,10 @@ mod tests {
     fn cookie_damage_is_typed_per_rule() {
         let good = cookie_16_stereo();
         // Too short.
-        let code = |cookie: &[u8]| parse_alac_config(cookie).expect_err("must reject").context.code;
+        let code = |cookie: &[u8]| match parse_alac_config(cookie) {
+            Ok(_) => unreachable!("damaged cookie must reject"),
+            Err(e) => e.context.code,
+        };
         assert_eq!(code(&good[..23]), "alac.config.length");
         // Version.
         let mut bad = good;
@@ -837,35 +858,24 @@ mod tests {
         let packet = [0x00u8];
         let mut scratch = Vec::new();
         let mut out = vec![0u8; max_output_len(&config)];
-        let err = decode_into(&mut engine, &packet, &config, &mut scratch, &mut out)
-            .expect_err("truncated packet must fail");
-        assert_eq!(
-            err.into_engine_error().context.code,
-            "alac.frame.truncated"
-        );
+        let err = match decode_into(&mut engine, &packet, &config, &mut scratch, &mut out) {
+            Ok(_) => unreachable!("truncated packet must fail"),
+            Err(e) => e,
+        };
+        assert_eq!(err.into_engine_error().context.code, "alac.frame.truncated");
         // An empty packet is the free surface's structure damage.
-        let err = decode_into(&mut engine, &[], &config, &mut scratch, &mut out)
-            .expect_err("empty packet must fail");
+        let err = match decode_into(&mut engine, &[], &config, &mut scratch, &mut out) {
+            Ok(_) => unreachable!("empty packet must fail"),
+            Err(e) => e,
+        };
         assert_eq!(err.into_engine_error().context.code, "alac.frame.empty");
     }
 
     #[test]
     fn output_width_follows_the_bit_depth() {
-        assert_eq!(
-            output_sample_format(16),
-            (SampleFormat::S16, 16)
-        );
-        assert_eq!(
-            output_sample_format(20),
-            (SampleFormat::S24, 24)
-        );
-        assert_eq!(
-            output_sample_format(24),
-            (SampleFormat::S24, 24)
-        );
-        assert_eq!(
-            output_sample_format(32),
-            (SampleFormat::S32, 32)
-        );
+        assert_eq!(output_sample_format(16), (SampleFormat::S16, 16));
+        assert_eq!(output_sample_format(20), (SampleFormat::S24, 24));
+        assert_eq!(output_sample_format(24), (SampleFormat::S24, 24));
+        assert_eq!(output_sample_format(32), (SampleFormat::S32, 32));
     }
 }

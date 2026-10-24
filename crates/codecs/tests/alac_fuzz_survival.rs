@@ -16,10 +16,14 @@ use media_types::ids::SourceUri;
 use plugin_api::{Access, DemuxEvent, Demuxer};
 
 fn fixture_path(name: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/alac").join(name)
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/alac")
+        .join(name)
 }
 
-fn open_via_input(path: &Path) -> Result<Box<dyn plugin_api::SourceStream>, media_types::EngineError> {
+fn open_via_input(
+    path: &Path,
+) -> Result<Box<dyn plugin_api::SourceStream>, media_types::EngineError> {
     let uri = match SourceUri::parse(&format!("file://{}", path.to_str().unwrap_or(""))) {
         Ok(uri) => uri,
         Err(err) => unreachable!("fixture path is a valid file URI ({path:?}): {err}"),
@@ -39,7 +43,10 @@ fn corpus_bytes(name: &str, max: usize) -> (Vec<u8>, Vec<Vec<u8>>) {
         .to_vec();
     let mut packets = Vec::new();
     loop {
-        match mp4.next_event().unwrap_or_else(|e| unreachable!("event: {e}")) {
+        match mp4
+            .next_event()
+            .unwrap_or_else(|e| unreachable!("event: {e}"))
+        {
             DemuxEvent::Packet(p) => {
                 if packets.len() < max {
                     packets.push(p.data.as_slice().to_vec());
@@ -58,7 +65,10 @@ struct Lcg(u64);
 
 impl Lcg {
     fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        self.0 = self
+            .0
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
         self.0
     }
     fn below(&mut self, n: usize) -> usize {
@@ -92,7 +102,8 @@ fn try_decode(packet: &[u8], cookie: &[u8]) -> bool {
 fn mutated_packets_never_panic_or_hang() {
     let (cookie16, packets16) = corpus_bytes("alac_mono16.m4a", 4);
     let (cookie24, packets24) = corpus_bytes("alac_stereo24.m4a", 3);
-    let corpora: [(&Vec<u8>, &Vec<Vec<u8>>); 2] = [(&cookie16, &packets16), (&cookie24, &packets24)];
+    let corpora: [(&Vec<u8>, &Vec<Vec<u8>>); 2] =
+        [(&cookie16, &packets16), (&cookie24, &packets24)];
     let mut lcg = Lcg(0x5eed_a1ac);
     let mut ok = 0usize;
     let mut typed = 0usize;
@@ -143,7 +154,10 @@ fn mutated_packets_never_panic_or_hang() {
     // The mutations must bite: with 512 rounds over real frames, both
     // outcomes occur (a purely-Ok or purely-Err run means the harness
     // tested nothing).
-    assert!(ok > 0 && typed > 0, "ok={ok} typed={typed} — mutations must bite");
+    assert!(
+        ok > 0 && typed > 0,
+        "ok={ok} typed={typed} — mutations must bite"
+    );
 }
 
 #[test]
