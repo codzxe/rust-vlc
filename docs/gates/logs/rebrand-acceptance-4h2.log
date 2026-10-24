@@ -1,0 +1,220 @@
+# Rebrand acceptance gate log — card 4.H2 (doc 07 §8.3 fast tier, MP §5 proof)
+# Run: 2026-10-24T00:02:29Z @ be4e4c6+dirty, branch wip/p4-h2
+
+## 1. Runtime plane — cargo test -p product-config --test rebrand_host -- --nocapture
+```
+
+running 7 tests
+test rebrand_acceptance::surface_about_facts_render_nova ... ok
+
+rebrand-acceptance (card 4.H2 — doc 07 §8.3 fast tier)
+  fixture-load                 PASS     nova.toml loads via product-config with the committed schema
+  window-title                 PASS     "{media_title} — Nova Player"; idle "Nova Player"
+  installer-identity(runtime)  PASS     name/desktop-bundle/per-OS ids derive from the fixture; config-file rewrite in tools/xtask cli test
+  about                        PASS     facts render Nova + fixture logo; UI seam: updates-about.nova.test.tsx (vitest)
+  cli-identity(resolution)     PASS     version line + usage header resolve Nova via product-config::runtime
+  logs                         PASS     prefix "nova"; startup line carries ids
+  docs                         PASS     build-time plane: tools/xtask tests/cli.rs asserts dest README/settings-docs/settings-help + tauri.conf.json carry Nova, zero Lumen
+  installer-build              BLOCKED(infra)  no bundler/toolchain in this sandbox; tauri scaffold cannot build an installer — config-file identity is the tested stand-in (nightly tier owns the real build)
+  cli-identity(host-wiring)    BLOCKED(wiring)  apps/cli help.rs v0 hardcodes its banner (its own [PROPOSAL] marker names the rebrand wiring); resolution proven at the product-config seam — no CLI spawn is claimed
+  summary: 7 PASS, 2 BLOCKED (reasons above), 0 FAIL
+
+test rebrand_acceptance::rebrand_acceptance_report ... ok
+test rebrand_acceptance::surface_cli_identity_resolves_nova ... ok
+test rebrand_acceptance::surface_fixture_load_nova_through_the_real_pipeline ... ok
+test rebrand_acceptance::surface_installer_identity_derives_from_nova_config ... ok
+test rebrand_acceptance::surface_log_identity_resolves_nova ... ok
+test rebrand_acceptance::surface_window_title_resolves_nova ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+```
+
+## 2. Full product-config suite (regression guard for the new runtime module)
+```
+running 41 tests
+test result: ok. 41 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 27 tests
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+running 1 test
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 15 tests
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+running 7 tests
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 17 tests
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+running 0 tests
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+```
+
+## 3. Build-time plane — cargo test -p xtask (skeleton: dest surfaces carry Nova, zero Lumen; incl. tauri.conf.json installer-identity + settings-docs header)
+```
+running 111 tests
+test cmd::check_architecture::tests::cycle_detection_is_quiet_on_a_dag ... ok
+test cmd::check_architecture::tests::cycle_detection_finds_dev_edge_cycles_and_self_loops ... ok
+test cmd::check_architecture::tests::json_report_escapes_and_carries_violations ... ok
+test cmd::check_architecture::tests::machine_line_lists_every_check_status ... ok
+test cmd::check_architecture::tests::static_mut_matcher_requires_word_boundaries_and_whitespace ... ok
+test cmd::check_architecture::tests::stripper_removes_comments_and_strings_but_keeps_code ... ok
+test cmd::check_architecture::tests::toml_handles_quoted_header_segments_and_arrays_of_tables ... ok
+test cmd::check_architecture::tests::toml_parses_a_crate_manifest_shape ... ok
+test cmd::check_architecture::tests::toml_parses_the_boundaries_shape ... ok
+test cmd::check_architecture::tests::toml_rejects_duplicate_tables_and_keys ... ok
+test cmd::check_architecture::tests::toml_rejects_multiline_arrays_dotted_keys_and_bad_escapes ... ok
+test cmd::check_architecture::tests::toml_subset_supports_bom_and_trailing_comments ... ok
+test cmd::check_panics::tests::cfg_test_regions_cover_their_items ... ok
+test cmd::check_panics::tests::inner_cfg_test_whole_file ... ok
+test cmd::check_panics::tests::file_level_test_mod_marks_the_file ... ok
+test cmd::check_panics::tests::macro_forms_need_token_boundaries ... ok
+test cmd::check_panics::tests::pub_cfg_test_mod_declaration_is_recognized ... ok
+test cmd::check_panics::tests::raw_strings_and_lifetimes_do_not_confuse_the_scanner ... ok
+test cmd::check_panics::tests::stripping_removes_doc_examples_and_strings ... ok
+test cmd::check_panics::tests::test_attribute_shapes ... ok
+test cmd::fixtures::tests::audio_probe_conversion_pins_the_f32_serialization ... ok
+test cmd::fixtures::tests::audio_probe_spans_multiple_chunks_and_is_stable ... ok
+test cmd::fixtures::tests::avi_derivatives_cut_at_recorded_structure_boundaries ... ok
+test cmd::fixtures::tests::avi_abs_idx1_derivative_rewrites_only_the_dw_offsets ... ok
+test cmd::fixtures::tests::avi_neg_height_derivative_negates_only_the_video_biheight ... ok
+test cmd::fixtures::tests::avi_no_idx1_derivative_drops_the_index_and_patches_riff_size ... ok
+test cmd::fixtures::tests::avi_parent_is_a_self_consistent_riff_avi ... ok
+test cmd::fixtures::tests::avi_structure_map_records_the_walked_layout ... ok
+test cmd::fixtures::tests::bitflip_derivatives_flip_exactly_k_header_bits ... ok
+test cmd::fixtures::tests::corpus_layout_starts_with_the_avi_parent ... ok
+test cmd::fixtures::tests::avi_movi_carries_the_planned_essence ... ok
+test cmd::fixtures::tests::default_invocation_is_write_mode ... ok
+test cmd::fixtures::tests::corpus_ledger_declares_cc0_and_lists_every_fixture ... ok
+test cmd::fixtures::tests::derivatives_never_equal_their_parent ... ok
+test cmd::fixtures::tests::drawn_frame_matches_the_planned_geometry ... ok
+test cmd::fixtures::tests::derivative_expectations_carry_the_error_contract ... ok
+test cmd::fixtures::tests::encoded_jpeg_has_well_formed_structure ... ok
+test cmd::fixtures::tests::fdct_matches_float_reference_on_a_gradient_block ... ok
+test cmd::fixtures::tests::fdct_of_constant_block_is_dc_only ... ok
+test cmd::fixtures::tests::flags_parse_and_reject_bad_usage ... ok
+test cmd::fixtures::tests::frames_differ_and_reject_out_of_range ... ok
+test cmd::fixtures::tests::every_fixture_frame_encodes ... ok
+test cmd::fixtures::tests::garbage_derivatives_append_a_seeded_block ... ok
+test cmd::fixtures::tests::help_flag_prints_usage ... ok
+test cmd::fixtures::tests::huffman_round_trips_through_a_mini_decoder ... ok
+test cmd::fixtures::tests::huffman_single_symbol_uses_a_one_bit_code ... ok
+test cmd::fixtures::tests::huffman_table_is_prefix_free_and_complete ... ok
+test cmd::fixtures::tests::manifest_records_every_fixture_with_recomputed_hashes ... ok
+test cmd::fixtures::tests::md5_matches_rfc1321_vectors ... ok
+test cmd::fixtures::tests::mp4_derivatives_cut_at_recorded_structure_boundaries ... ok
+test cmd::fixtures::tests::mp4_parent_boxes_walk_cleanly ... ok
+test cmd::fixtures::tests::mp4_sample_tables_point_at_the_essence ... ok
+test cmd::fixtures::tests::mp4_structure_map_records_the_walked_layout ... ok
+test cmd::fixtures::tests::mp4_stsz_lie_derivative_patches_only_the_count ... ok
+test cmd::fixtures::tests::parent_expectations_match_the_doc10_v0_shape ... ok
+test cmd::fixtures::tests::pcm_payload_has_exact_shape_and_starts_silent ... ok
+test cmd::fixtures::tests::prng_is_deterministic_and_seed_sensitive ... ok
+test cmd::fixtures::tests::prng_stays_in_bounds ... ok
+test cmd::fixtures::tests::sha256_is_update_split_invariant ... ok
+test cmd::fixtures::tests::sha256_matches_nist_vectors ... ok
+test cmd::fixtures::tests::sine_oscillator_is_bounded_and_starts_at_zero ... ok
+test cmd::fixtures::tests::sine_table_has_correct_shape ... ok
+test cmd::fixtures::tests::tree_shape_is_the_planned_55_files ... ok
+test cmd::gate::tests::block_matches_doc10_shape ... ok
+test cmd::gate::tests::details_section_empty_without_failures ... ok
+test cmd::gate::tests::details_section_lists_failures_with_tails ... ok
+test cmd::gate::tests::doc10_commands_are_verbatim ... ok
+test cmd::gate::tests::doc10_preconditions_and_cwd ... ok
+test cmd::gate::tests::doc10_table_has_ten_ordered_steps ... ok
+test cmd::gate::tests::dry_run_executes_nothing_but_reports_preconditions ... ok
+test cmd::gate::tests::dry_run_result_line ... ok
+test cmd::gate::tests::duration_formatting_matches_doc10_examples ... ok
+test cmd::gate::tests::fail_fast_marks_remaining_steps_not_run ... ok
+test cmd::gate::tests::finds_repo_root_from_crate_dir ... ok
+test cmd::gate::tests::flag_exclusions_match_doc10 ... ok
+test cmd::gate::tests::hint_is_first_error_line_bounded ... ok
+test cmd::gate::tests::iso8601_known_instants ... ok
+test cmd::gate::tests::json_escape_specials_and_passthrough ... ok
+test cmd::gate::tests::json_report_has_stable_schema_and_escapes_strings ... ok
+test cmd::gate::tests::json_result_dry_run ... ok
+test cmd::gate::tests::keep_going_collects_every_failure ... ok
+test cmd::gate::tests::no_workspace_root_above_temp_dir ... ok
+test cmd::gate::tests::pass_captures_exit_code_and_bounded_output ... ok
+test cmd::gate::tests::round3_millis ... ok
+test cmd::gate::tests::success_result_line_omits_zero_counts ... ok
+test cmd::gate::tests::tail_lines_bounds_and_trims_blanks ... ok
+test cmd::rebrand::tests::allowlist_integrity_requires_path_reason_and_owner ... ok
+test cmd::rebrand::tests::allowlist_parses_entries_and_matches_files_and_directories ... ok
+test cmd::rebrand::tests::args_accept_help_config_dest ... ok
+test cmd::rebrand::tests::args_reject_missing_and_duplicate_values ... ok
+test cmd::rebrand::tests::args_reject_unknown_flags ... ok
+test cmd::rebrand::tests::args_require_config ... ok
+test cmd::rebrand::tests::missing_identity_fields_are_all_reported_together ... ok
+test cmd::rebrand::tests::product_toml_rewrite_elides_unchanged_values ... ok
+test cmd::rebrand::tests::product_toml_rewrite_replaces_identity_values_in_table_context ... ok
+test cmd::rebrand::tests::reader_parses_nested_tables_and_skips_non_string_values ... ok
+test cmd::rebrand::tests::reader_rejects_malformed_lines_with_line_numbers ... ok
+test cmd::rebrand::tests::readme_title_rule_rewrites_name_tokens ... ok
+test cmd::rebrand::tests::rebuild_preserves_spacing_and_comments_exactly ... ok
+test cmd::rebrand::tests::slug_is_deterministic ... ok
+test cmd::rebrand::tests::token_table_orders_longest_first_and_drops_identity_equals ... ok
+test cmd::tests::all_subcommands_are_implemented_invariant ... ok
+test cmd::tests::all_wave1_subcommands_are_implemented ... ok
+test cmd::tests::registry_contains_all_wave1_subcommands ... ok
+test cmd::tests::registry_names_are_unique ... ok
+test cmd::visual::tests::npm_program_uses_the_cmd_shim_on_windows ... ok
+test cmd::visual::tests::ui_dir_resolves_to_the_workspace_ui_package ... ok
+test tests::io_error_includes_context_and_source ... ok
+test tests::not_yet_implemented_message_names_subcommand_and_card ... ok
+test tests::usage_error_renders_message ... ok
+test cmd::fixtures::tests::full_tree_is_byte_stable_across_two_runs ... ok
+test result: ok. 111 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.85s
+running 12 tests
+test clean_run_writes_the_json_report_artifact ... ok
+test clean_scratch_workspace_passes_all_five_checks ... ok
+test dev_edge_cycle_is_caught ... ok
+test forbidden_internal_edge_is_caught ... ok
+test missing_lints_inheritance_is_caught ... ok
+test static_mut_declaration_is_caught ... ok
+test testkit_in_dependencies_is_caught ... ok
+test unapproved_external_dependency_is_caught ... ok
+test undeclared_and_stale_manifest_entries_are_caught ... ok
+test unlisted_same_layer_edge_is_caught ... ok
+test upward_layer_edge_is_caught ... ok
+test usage_errors_exit_two ... ok
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 4 tests
+test a_missing_scanned_crate_is_an_error_not_a_scope_shrink ... ok
+test cited_invariant_allowance_is_scoped_to_the_message ... ok
+test seeded_non_test_site_fails ... ok
+test sanctioned_zones_pass_clean ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 15 tests
+test gate_bad_flag_is_a_usage_error ... ok
+test codegen_bridge_dispatches_to_catalog_gen ... ok
+test gate_dry_run_executes_nothing_and_reports_the_full_table ... ok
+test help_exits_zero_and_lists_the_frozen_subcommand_table ... ok
+test no_args_is_a_usage_error ... ok
+test rebrand_skeleton::about_model_renders_nova_logo ... ignored, boot tier: the unit-tier proof lives in tests/rebrand/rebrand_acceptance.rs::surface_about_facts_render_nova + ui/src/screens/settings/areas/updates-about.nova.test.tsx (card 4.H2); this placeholder keeps the booted-About/engineInfo assertion for the nightly tier — doc 07 §8.3 step 4
+test rebrand_skeleton::cli_identity_is_nova ... ignored, boot tier: the unit-tier proof lives in tests/rebrand/rebrand_acceptance.rs::surface_cli_identity_resolves_nova (card 4.H2) + the BLOCKED(wiring) register for the CLI host; this placeholder keeps the full-build boot assertion for the nightly/release job — doc 07 §8.3 step 3
+test rebrand_skeleton::nova_fixture_rebrand_passes_skeleton_assertions ... ok
+test rebrand_skeleton::rebrand_malformed_config_is_an_error ... ok
+test rebrand_skeleton::rebrand_missing_config_file_is_an_error ... ok
+test rebrand_skeleton::rebrand_missing_identity_fields_is_an_error ... ok
+test gate_dry_run_json_prints_the_envelope ... ok
+test rebrand_skeleton::window_title_renders_nova ... ignored, boot tier: the unit-tier proof lives in tests/rebrand/rebrand_acceptance.rs::surface_window_title_resolves_nova (card 4.H2); this placeholder keeps the full-desktop boot assertion for the nightly tier — doc 07 §8.3 step 4
+test rebrand_skeleton::reverse_control_real_product_toml_is_a_noop ... ok
+test unknown_subcommand_is_a_usage_error_listing_known_ones ... ok
+test result: ok. 12 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.05s
+```
+
+## 4. About UI seam — npx vitest run updates-about.nova.test.tsx
+```
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  00:02:42
+   Duration  815ms (environment 70%, setup 12%, transform 8%, import 5%, tests 4%, worker 1%)
+
+```
+
+## 5. Hygiene
+```
+cargo fmt -p product-config -- --check: OK
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.04s
+PRE-EXISTING (not this card, file owned by 4.H1): cargo clippy -p xtask --all-targets fails on expect_used in tools/xtask/src/cmd/visual.rs:91 (test mod) — observed, left untouched.
+```
