@@ -72,7 +72,7 @@ pub const ID_SEEKHEAD: u32 = 0x114D_9B74;
 /// `Info` — segment information.
 pub const ID_INFO: u32 = 0x1549_A966;
 /// `TimestampScale` — nanoseconds per timestamp tick (default 1_000_000).
-pub const ID_TIMESTAMP_SCALE: u32 = 0x2AD7_B1;
+pub const ID_TIMESTAMP_SCALE: u32 = 0x002A_D7B1;
 /// `Duration` — segment duration in scale units... in *seconds* (a
 /// float; the spec's own unit quirk — see `header::SegmentInfo`).
 pub const ID_DURATION: u32 = 0x4489;
@@ -91,7 +91,7 @@ pub const ID_FLAG_DEFAULT: u32 = 0x88;
 /// `FlagForced`.
 pub const ID_FLAG_FORCED: u32 = 0x55AA;
 /// `DefaultDuration` — nanoseconds per frame (video/audio cadence).
-pub const ID_DEFAULT_DURATION: u32 = 0x23E3_83;
+pub const ID_DEFAULT_DURATION: u32 = 0x0023_E383;
 /// `CodecID` — the registry string (`V_MPEG4/ISO/AVC`, `A_OPUS`, …).
 pub const ID_CODEC_ID: u32 = 0x86;
 /// `CodecPrivate` — codec initialization bytes (avcC, OpusHead, …);
@@ -102,10 +102,10 @@ pub const ID_CODEC_DELAY: u32 = 0x56AA;
 /// `SeekPreRoll` — nanoseconds to decode before the seek target (Opus).
 pub const ID_SEEK_PREROLL: u32 = 0x56BB;
 /// `Language` — the legacy Matroska language element (default `eng`).
-pub const ID_LANGUAGE: u32 = 0x22B5_9C;
+pub const ID_LANGUAGE: u32 = 0x0022_B59C;
 /// `LanguageIETF` — the BCP 47 language element (preferred over the
 /// legacy form when both exist).
-pub const ID_LANGUAGE_IETF: u32 = 0x24B7_D;
+pub const ID_LANGUAGE_IETF: u32 = 0x0002_4B7D;
 /// `Name` — the human-readable track name.
 pub const ID_NAME: u32 = 0x536E;
 /// `Video` master + `PixelWidth`/`PixelHeight`.
@@ -228,8 +228,7 @@ pub fn parse_vint_size(data: &[u8]) -> Result<VintSize, VintError> {
     // The unknown-size marker: every value bit set. Note the first
     // byte's marker bit is not part of `value` — the all-ones check is
     // `value_bits == mask - 1` and all data bytes 0xFF.
-    let all_ones = value_bits == u64::from(mask - 1)
-        && data[1..len].iter().all(|&b| b == 0xFF);
+    let all_ones = value_bits == u64::from(mask - 1) && data[1..len].iter().all(|&b| b == 0xFF);
     Ok(VintSize {
         value,
         unknown: all_ones,

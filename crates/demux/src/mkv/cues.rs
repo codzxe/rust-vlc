@@ -15,7 +15,7 @@
 
 use media_types::EngineError;
 
-use crate::mkv::ebml::{self, ElementHeader, EbmlReader};
+use crate::mkv::ebml::{self, EbmlReader, ElementHeader};
 use crate::mkv::error;
 
 /// The cue-entry ceiling (MP §12 index memory; ~1 h at one cue per
@@ -191,6 +191,7 @@ fn parse_cue_track_positions(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use testkit::Must;
 
     #[test]
     fn landing_before_is_floor_binary_search() {
@@ -204,9 +205,9 @@ mod tests {
             });
         }
         assert_eq!(index.landing_before(-1), None);
-        assert_eq!(index.landing_before(0).unwrap().time_ticks, 0);
-        assert_eq!(index.landing_before(150).unwrap().time_ticks, 100);
-        assert_eq!(index.landing_before(300).unwrap().time_ticks, 300);
-        assert_eq!(index.landing_before(999).unwrap().time_ticks, 300);
+        assert_eq!(index.landing_before(0).must().time_ticks, 0);
+        assert_eq!(index.landing_before(150).must().time_ticks, 100);
+        assert_eq!(index.landing_before(300).must().time_ticks, 300);
+        assert_eq!(index.landing_before(999).must().time_ticks, 300);
     }
 }

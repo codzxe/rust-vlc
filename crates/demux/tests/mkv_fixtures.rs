@@ -24,19 +24,29 @@ use demux::avi::test_support::mem_stream;
 use demux::mkv::MkvDemuxer;
 use media_types::time::Stamp;
 use plugin_api::{DemuxEvent, Demuxer};
+use testkit::Must;
 
 fn fixture(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/generated/valid").join(name)
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/generated/valid")
+        .join(name)
 }
 
 /// ffprobe's per-stream packet count (live measurement; the fixtures
 /// are committed so the truth is stable).
 fn probe_packets(path: &std::path::Path) -> Vec<(String, u64)> {
     let out = Command::new("ffprobe")
-        .args(["-v", "error", "-count_packets", "-show_streams", "-of", "json"])
+        .args([
+            "-v",
+            "error",
+            "-count_packets",
+            "-show_streams",
+            "-of",
+            "json",
+        ])
         .arg(path)
         .output()
-        .expect("ffprobe installed");
+        .must();
     let text = String::from_utf8_lossy(&out.stdout).to_string();
     let mut streams = Vec::new();
     for chunk in text.split("\"index\":").skip(1) {
@@ -47,12 +57,14 @@ fn probe_packets(path: &std::path::Path) -> Vec<(String, u64)> {
             if let Some(stripped) = rest.strip_prefix('"') {
                 Some(stripped[..stripped.find('"')?].to_string())
             } else {
-                Some(rest[..rest.find(|c: char| c == ',' || c == '}')?].trim().to_string())
+                Some(rest[..rest.find([',', '}'])?].trim().to_string())
             }
         };
         streams.push((
             field("codec_name").unwrap_or_default(),
-            field("nb_read_packets").and_then(|v| v.parse().ok()).unwrap_or(0),
+            field("nb_read_packets")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(0),
         ));
     }
     streams
@@ -65,9 +77,11 @@ fn ffmpeg_stream_md5(path: &std::path::Path, kind: &str) -> String {
         .arg(path)
         .args(["-map", &format!("0:{kind}"), "-c", "copy", "-f", "md5", "-"])
         .output()
-        .expect("ffmpeg installed");
+        .must();
     if !out.status.success() {
-        panic!(
+        // A failing ffmpeg is a broken fixture contract, not a
+        // product condition (unreachable! is the allowed form).
+        unreachable!(
             "ffmpeg digest failed for {}: {}",
             path.display(),
             String::from_utf8_lossy(&out.stderr)
@@ -80,7 +94,7 @@ fn walk_all(demuxer: &mut MkvDemuxer) -> (u64, Vec<(u64, u64)>) {
     let mut total = 0u64;
     let mut keyframes = Vec::new();
     loop {
-        match demuxer.next_event().expect("walk clean") {
+        match demuxer.next_event().must() {
             DemuxEvent::Packet(p) => {
                 let i = p.track.handle() as usize;
                 while keyframes.len() <= i {
@@ -109,8 +123,8 @@ fn valid_fixtures_match_ffprobe_packet_counts() {
         assert!(path.exists(), "{name} missing");
         let probe = probe_packets(&path);
         assert_eq!(probe.len(), kinds, "{name}: ffprobe stream count");
-        let mut demuxer = MkvDemuxer::new(open(&path)).expect("construct {name}");
-        let tracks = demuxer.start().expect("start {name}");
+        let mut demuxer = MkvDemuxer::new(open(&path)).must();
+        let tracks = demuxer.start().must();
         assert_eq!(tracks.len(), kinds, "{name}: track count");
         let (total, per) = walk_all(&mut demuxer);
         let expected: u64 = probe.iter().map(|(_, n)| n).sum();
@@ -131,8 +145,8 @@ fn audio_payload_is_bit_exact_vs_ffmpeg() {
         "mkv_multitrack.mkv",
     ] {
         let path = fixture(name);
-        let mut demuxer = MkvDemuxer::new(open(&path)).expect("construct");
-        demuxer.start().expect("start");
+        let mut demuxer = MkvDemuxer::new(open(&path)).must();
+        demuxer.start().must();
         // Every audio track's payload bytes, in order, compared with
         // ffmpeg's per-stream raw dump (multi-audio files compare per
         // stream, not the -map 0:a interleave).
@@ -146,7 +160,7 @@ fn audio_payload_is_bit_exact_vs_ffmpeg() {
         assert!(!audio_ordinals.is_empty(), "{name}: audio tracks");
         let mut per_track: Vec<Vec<u8>> = audio_ordinals.iter().map(|_| Vec::new()).collect();
         loop {
-            match demuxer.next_event().expect("walk") {
+            match demuxer.next_event().must() {
                 DemuxEvent::Packet(p) => {
                     if let Some(slot) = audio_ordinals
                         .iter()
@@ -260,9 +274,8 @@ fn laced_fixture() -> Arc<[u8]> {
 #[test]
 fn hand_built_laced_fixture_decodes_all_three_codings() {
     let bytes = laced_fixture();
-    let mut demuxer = MkvDemuxer::new(mem_stream(bytes.clone()).expect("mem"))
-        .expect("construct");
-    let tracks = demuxer.start().expect("start");
+    let mut demuxer = MkvDemuxer::new(mem_stream(bytes.clone()).must()).must();
+    let tracks = demuxer.start().must();
     assert_eq!(tracks.len(), 1);
     assert_eq!(demuxer.doctype(), "matroska");
     let (total, per) = walk_all(&mut demuxer);
@@ -275,13 +288,12 @@ fn hand_built_laced_fixture_decodes_all_three_codings() {
 #[test]
 fn laced_frame_payloads_are_byte_exact() {
     let bytes = laced_fixture();
-    let mut demuxer = MkvDemuxer::new(mem_stream(bytes.clone()).expect("mem"))
-        .expect("construct");
-    demuxer.start().expect("start");
+    let mut demuxer = MkvDemuxer::new(mem_stream(bytes.clone()).must()).must();
+    demuxer.start().must();
     let mut payloads = Vec::new();
     let mut stamps = Vec::new();
     loop {
-        match demuxer.next_event().expect("walk") {
+        match demuxer.next_event().must() {
             DemuxEvent::Packet(p) => {
                 payloads.push(p.data.to_vec());
                 if let Stamp::Present(ts) = &p.pts {
@@ -309,15 +321,18 @@ fn laced_frame_payloads_are_byte_exact() {
     }
     // Relative timecodes ride the block stamp (no DefaultDuration
     // declared → laced frames share it; the honest absence).
-    assert!(stamps.iter().all(|&t| t == 0 || t == 8 || t == 16), "{stamps:?}");
+    assert!(
+        stamps.iter().all(|&t| t == 0 || t == 8 || t == 16),
+        "{stamps:?}"
+    );
 }
 
 // ---- Derivatives: fuzz-lite (never panic, never hang) -----------
 
 #[test]
 fn malformed_derivatives_are_typed_or_recover_never_panics() {
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures/generated/malformed");
+    let dir =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/generated/malformed");
     let mut checked = 0usize;
     for name in [
         "mkv_h264_aac__trunc0.mkv",
@@ -341,9 +356,8 @@ fn malformed_derivatives_are_typed_or_recover_never_panics() {
     ] {
         let path = dir.join(name);
         assert!(path.exists(), "{name} missing");
-        let bytes: Arc<[u8]> = std::fs::read(&path).expect("read").into();
-        let mut demuxer =
-            MkvDemuxer::new(mem_stream(bytes.clone()).expect("mem")).expect("construct");
+        let bytes: Arc<[u8]> = std::fs::read(&path).must().into();
+        let mut demuxer = MkvDemuxer::new(mem_stream(bytes.clone()).must()).must();
         match demuxer.start() {
             Err(e) => {
                 // A typed refusal at open (trunc0's empty file, the
@@ -387,14 +401,10 @@ fn unknown_doctype_is_the_typed_refusal() {
     let mut bytes: Vec<u8> = laced_fixture().to_vec();
     // Rewrite the DocType payload in place: "matroska" → "ebml\0\0\0\0"
     // (same length, so every size stays valid).
-    let at = bytes
-        .windows(8)
-        .position(|w| w == b"matroska")
-        .expect("doctype payload");
+    let at = bytes.windows(8).position(|w| w == b"matroska").must();
     bytes[at..at + 8].copy_from_slice(b"ebml\0\0\0\0");
-    let mut demuxer = MkvDemuxer::new(mem_stream(bytes).expect("mem"))
-        .expect("construct");
-    let err = demuxer.start().expect_err("unknown doctype refused");
+    let mut demuxer = MkvDemuxer::new(mem_stream(bytes).must()).must();
+    let err = demuxer.start().err().must();
     assert_eq!(err.context.code, "demux.mkv.unknown-doctype");
     assert_eq!(demuxer.doctype(), "");
 }
@@ -404,9 +414,8 @@ fn zero_head_is_the_typed_bad_vint() {
     let bytes = laced_fixture();
     let mut corrupt = vec![0x00];
     corrupt.extend_from_slice(&bytes[1..]);
-    let mut demuxer =
-        MkvDemuxer::new(mem_stream(corrupt.clone()).expect("mem")).expect("construct");
-    let err = demuxer.start().expect_err("zero vint head refused");
+    let mut demuxer = MkvDemuxer::new(mem_stream(corrupt.clone()).must()).must();
+    let err = demuxer.start().err().must();
     assert_eq!(err.context.code, "demux.mkv.not-matroska");
 }
 
@@ -416,12 +425,11 @@ fn truncated_cluster_is_the_typed_truncation() {
     // Cut mid-SimpleBlock payload (inside the Xiph block's data).
     let at = bytes
         .windows(3)
-        .position(|w| w == &[0xA1, 0xA2, 0xA3])
-        .expect("xiph frame data");
+        .position(|w| *w == [0xA1, 0xA2, 0xA3])
+        .must();
     let cut = &bytes[..at + 1];
-    let mut demuxer = MkvDemuxer::new(mem_stream(cut.to_vec()).expect("mem"))
-        .expect("construct");
-    demuxer.start().expect("start survives (header intact)");
+    let mut demuxer = MkvDemuxer::new(mem_stream(cut.to_vec()).must()).must();
+    demuxer.start().must();
     let mut saw_typed = false;
     loop {
         match demuxer.next_event() {
@@ -445,5 +453,5 @@ fn probe_matches_the_ebml_magic() {
 }
 
 fn open(path: &std::path::Path) -> Box<dyn plugin_api::SourceStream> {
-    open_via_input(path).expect("open fixture via input")
+    open_via_input(path).must()
 }

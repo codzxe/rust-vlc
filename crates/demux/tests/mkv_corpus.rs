@@ -25,8 +25,10 @@ mod common;
 
 use common::open_via_input;
 use demux::mkv::MkvDemuxer;
+use media_types::ids::MediaKind;
 use media_types::time::Stamp;
 use plugin_api::{DemuxEvent, Demuxer};
+use testkit::Must;
 
 fn corpus_dir() -> Option<PathBuf> {
     let dir = std::env::var("LUMEN_CORPUS")
@@ -47,10 +49,17 @@ struct ProbeStream {
 
 fn ffprobe_streams(path: &std::path::Path) -> Vec<ProbeStream> {
     let out = Command::new("ffprobe")
-        .args(["-v", "error", "-show_streams", "-count_packets", "-of", "json"])
+        .args([
+            "-v",
+            "error",
+            "-show_streams",
+            "-count_packets",
+            "-of",
+            "json",
+        ])
         .arg(path)
         .output()
-        .expect("ffprobe installed in this environment");
+        .must();
     let text = String::from_utf8_lossy(&out.stdout).to_string();
     let mut streams = Vec::new();
     // Minimal JSON field scrape (std-only, C5): the probe shape is
@@ -65,7 +74,7 @@ fn ffprobe_streams(path: &std::path::Path) -> Vec<ProbeStream> {
                 let end = stripped.find('"')?;
                 Some(stripped[..end].to_string())
             } else {
-                let end = rest.find(|c: char| c == ',' || c == '}')?;
+                let end = rest.find([',', '}'])?;
                 Some(rest[..end].trim().to_string())
             }
         };
@@ -79,28 +88,15 @@ fn ffprobe_streams(path: &std::path::Path) -> Vec<ProbeStream> {
     streams
 }
 
-/// The Matroska CodecID → ffprobe codec_name map for the payload set
-/// this corpus instance carries (recorded honestly; unknown ids fail
-/// the differential rather than being smoothed).
-fn codec_id_to_probe_name(codec_id: &str) -> &str {
-    match codec_id {
-        "V_MPEG4/ISO/AVC" => "h264",
-        "V_MPEG4/ISO/ASP" => "mpeg4",
-        "V_VP8" => "vp8",
-        "V_VP9" => "vp9",
-        "V_AV1" => "av1",
-        "V_MJPEG" => "mjpeg",
-        "A_AAC" => "aac",
-        "A_OPUS" => "opus",
-        "A_VORBIS" => "vorbis",
-        "A_FLAC" => "flac",
-        "A_AC3" => "ac3",
-        "A_EAC3" => "eac3",
-        "A_DTS" => "dts",
-        "A_TRUEHD" => "truehd",
-        "A_PCM/INT/LIT" => "pcm_s16le",
-        "S_TEXT/UTF8" => "subrip",
-        other => other,
+/// ffprobe's `codec_type` spelling for a track kind (the honest,
+/// recorded mapping; anything unmapped shows up as a differential
+/// failure rather than being smoothed).
+fn kind_probe_name(kind: MediaKind) -> &'static str {
+    match kind {
+        MediaKind::Audio => "audio",
+        MediaKind::Video => "video",
+        MediaKind::Subtitle => "subtitle",
+        MediaKind::Data => "data",
     }
 }
 
@@ -111,7 +107,7 @@ fn corpus_matroska_differential_vs_ffprobe() {
         return;
     };
     let mut files: Vec<PathBuf> = std::fs::read_dir(&media)
-        .expect("corpus media dir readable")
+        .must()
         .filter_map(|e| e.ok().map(|e| e.path()))
         .filter(|p| {
             matches!(
@@ -127,15 +123,26 @@ fn corpus_matroska_differential_vs_ffprobe() {
     for path in &files {
         let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("?");
         let probe = ffprobe_streams(path);
-        let mut demuxer = MkvDemuxer::new(open_via_input(path).expect("open via input")).expect("construct");
-        let tracks = demuxer.start().expect("start");
+        let mut demuxer = MkvDemuxer::new(open_via_input(path).must()).must();
+        let tracks = demuxer.start().must();
         for e in demuxer.track_entries() {
-            eprintln!("TRACKS {name}: number={} ordinal={} kind={:?} codec={}", e.number, e.ordinal, e.kind, e.codec_descriptor);
+            eprintln!(
+                "TRACKS {name}: number={} ordinal={} kind={:?} codec={}",
+                e.number, e.ordinal, e.kind, e.codec_descriptor
+            );
         }
         // Count our packets per track + first/last pts.
         let mut ours: Vec<(u64, i64, i64, u64, String)> = Vec::new(); // (n, first, last, keyframes, codec)
         for _ in 0..tracks.len() {
             ours.push((0, i64::MAX, i64::MIN, 0, String::new()));
+        }
+        let kinds: Vec<&str> = demuxer
+            .track_entries()
+            .iter()
+            .map(|e| kind_probe_name(e.kind))
+            .collect();
+        for (slot, e) in ours.iter_mut().zip(demuxer.track_entries().iter()) {
+            slot.4 = e.codec_descriptor.clone();
         }
         let mut events = 0u64;
         let mut clean = true;
@@ -168,16 +175,35 @@ fn corpus_matroska_differential_vs_ffprobe() {
             events += 1;
             assert!(events < 5_000_000, "packet storm guard");
         }
-        // Compare against ffprobe.
+        // Compare against ffprobe: per-stream packet count, codec
+        // identity and track kind (the demux-comparable surface).
         let mut why = String::new();
         if tracks.len() != probe.len() {
             why.push_str(&format!("tracks {} vs {} ", tracks.len(), probe.len()));
         }
         for (i, (slot, ps)) in ours.iter().zip(probe.iter()).enumerate() {
-            if let Some(expected) = ps.nb_read_packets {
-                if slot.0 != expected {
-                    why.push_str(&format!("s{i} packets {} vs {expected} ", slot.0));
-                }
+            if let Some(expected) = ps.nb_read_packets
+                && slot.0 != expected
+            {
+                why.push_str(&format!(
+                    "s{}(probe {}) packets {} vs {expected} ",
+                    i, ps.index, slot.0
+                ));
+            }
+            if !slot.4.is_empty() && slot.4 != ps.codec_name {
+                why.push_str(&format!(
+                    "s{}(probe {}) codec {} vs {} ",
+                    i, ps.index, slot.4, ps.codec_name
+                ));
+            }
+            if !ps.kind.is_empty() && kinds.get(i).copied() != Some(ps.kind.as_str()) {
+                why.push_str(&format!(
+                    "s{}(probe {}) kind {:?} vs {} ",
+                    i,
+                    ps.index,
+                    kinds.get(i),
+                    ps.kind
+                ));
             }
         }
         if !clean {
@@ -205,16 +231,21 @@ fn corpus_matroska_seek_roundtrip() {
         return;
     };
     let mut files: Vec<PathBuf> = std::fs::read_dir(&media)
-        .expect("corpus media dir readable")
+        .must()
         .filter_map(|e| e.ok().map(|e| e.path()))
-        .filter(|p| matches!(p.extension().and_then(|e| e.to_str()), Some("mkv") | Some("webm")))
+        .filter(|p| {
+            matches!(
+                p.extension().and_then(|e| e.to_str()),
+                Some("mkv") | Some("webm")
+            )
+        })
         .collect();
     files.sort();
     let mut pass = 0usize;
     for path in &files {
         let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("?");
-        let mut demuxer = MkvDemuxer::new(open_via_input(path).expect("open")).expect("construct");
-        demuxer.start().expect("start");
+        let mut demuxer = MkvDemuxer::new(open_via_input(path).must()).must();
+        demuxer.start().must();
         if demuxer.cue_index().is_none() {
             println!("PASS {name}: seek (no cues — SlowLinear path untested here)");
             continue;
@@ -222,7 +253,7 @@ fn corpus_matroska_seek_roundtrip() {
         // Drain to the end once to learn the last stamp, then reanchor.
         let mut last = 0i64;
         loop {
-            match demuxer.next_event().expect("walk") {
+            match demuxer.next_event().must() {
                 DemuxEvent::Packet(p) => {
                     if let Stamp::Present(ts) = &p.pts {
                         last = last.max(ts.ticks);
@@ -232,30 +263,28 @@ fn corpus_matroska_seek_roundtrip() {
                 _ => {}
             }
         }
-        let base = demuxer.segment_info().time_base().expect("base");
+        let base = demuxer.segment_info().time_base().must();
         let target = media_types::time::TimeSpan {
             start: Stamp::Present(media_types::time::Timestamp::new(last / 2, base)),
             end: Stamp::Missing,
         };
-        let landed = demuxer.reanchor(target).expect("reanchor");
+        let landed = demuxer.reanchor(target).must();
         let mut got = 0u64;
         loop {
-            match demuxer.next_event().expect("post-seek walk") {
+            match demuxer.next_event().must() {
                 DemuxEvent::Packet(_) => got += 1,
                 DemuxEvent::EndOfStream => break,
                 _ => {}
             }
         }
         assert!(got > 0, "{name}: no packets after mid-point reanchor");
-        let landed_ticks = landed
-            .start
-            .timestamp()
-            .map(|t| t.ticks)
-            .unwrap_or(0);
+        let landed_ticks = landed.start.timestamp().map(|t| t.ticks).unwrap_or(0);
         assert!(landed_ticks <= last / 2 + 1, "{name}: landed after target");
         println!(
             "PASS {name}: seek mid={}/{} landed={} post-packets={got}",
-            last / 2, last, landed_ticks
+            last / 2,
+            last,
+            landed_ticks
         );
         pass += 1;
     }

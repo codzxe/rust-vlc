@@ -213,7 +213,10 @@ mod tests {
             (timecode_overflow(9_999), "demux.mkv.timecode-overflow"),
             (no_tracks(), "demux.mkv.no-tracks"),
             (no_clusters(), "demux.mkv.no-clusters"),
-            (cue_table_too_large(100, 200), "demux.mkv.cue-table-too-large"),
+            (
+                cue_table_too_large(100, 200),
+                "demux.mkv.cue-table-too-large",
+            ),
             (not_started(), "demux.not-started"),
             (seek_out_of_range(), "demux.mkv.seek.out-of-range"),
             (scan_too_slow(100, 200), "demux.mkv.seek.too-slow"),
@@ -251,9 +254,7 @@ mod tests {
         assert_eq!(
             bad_vint(7).kind,
             ErrorKind::Corrupt {
-                detail: CorruptDetail::InvalidStructure {
-                    offset: Some(7)
-                }
+                detail: CorruptDetail::InvalidStructure { offset: Some(7) }
             }
         );
         assert_eq!(

@@ -27,14 +27,13 @@ use media_types::time::{Stamp, TimeBase, TimeSpan, Timestamp, TrackTiming};
 use media_types::{EngineError, Track};
 
 use crate::mkv::ebml::{
-    self, ElementHeader, EbmlReader, ID_AUDIO, ID_BIT_DEPTH, ID_CHANNELS, ID_CODEC_ID,
-    ID_CODEC_PRIVATE, ID_CODEC_DELAY, ID_DEFAULT_DURATION, ID_DOCTYPE, ID_DOCTYPE_READ_VERSION,
-    ID_SEEK_PREROLL,
+    self, EbmlReader, ElementHeader, ID_AUDIO, ID_BIT_DEPTH, ID_CHANNELS, ID_CODEC_DELAY,
+    ID_CODEC_ID, ID_CODEC_PRIVATE, ID_DEFAULT_DURATION, ID_DOCTYPE, ID_DOCTYPE_READ_VERSION,
     ID_DOCTYPE_VERSION, ID_DURATION, ID_EBML_HEADER, ID_EBML_MAX_ID_LENGTH,
     ID_EBML_MAX_SIZE_LENGTH, ID_EBML_READ_VERSION, ID_EBML_VERSION, ID_FLAG_DEFAULT,
     ID_FLAG_FORCED, ID_FLAG_LACING, ID_LANGUAGE, ID_LANGUAGE_IETF, ID_NAME, ID_PIXEL_HEIGHT,
-    ID_PIXEL_WIDTH, ID_SAMPLING_FREQUENCY, ID_TIMESTAMP_SCALE, ID_TRACK_ENTRY, ID_TRACK_NUMBER,
-    ID_TRACK_TYPE, ID_VIDEO,
+    ID_PIXEL_WIDTH, ID_SAMPLING_FREQUENCY, ID_SEEK_PREROLL, ID_TIMESTAMP_SCALE, ID_TRACK_ENTRY,
+    ID_TRACK_NUMBER, ID_TRACK_TYPE, ID_VIDEO,
 };
 use crate::mkv::error;
 
@@ -213,8 +212,7 @@ impl TrackEntry {
     /// the mapped vocabulary — the constructors are still honored,
     /// never bypassed).
     pub fn track(&self, base: TimeBase) -> Result<Track, EngineError> {
-        let codec =
-            CodecDescriptor::new(&self.codec_descriptor).map_err(|_| error::no_tracks())?;
+        let codec = CodecDescriptor::new(&self.codec_descriptor).map_err(|_| error::no_tracks())?;
         Ok(Track {
             id: media_types::ids::TrackId::new(self.ordinal),
             stream: media_types::ids::StreamId::new(self.ordinal),
@@ -330,17 +328,16 @@ pub fn parse_ebml_header(
                     return Err(error::unsupported_ebml_limits());
                 }
             }
-            ID_EBML_VERSION | ID_EBML_READ_VERSION | ID_DOCTYPE_VERSION
+            ID_EBML_VERSION
+            | ID_EBML_READ_VERSION
+            | ID_DOCTYPE_VERSION
             | ID_DOCTYPE_READ_VERSION => {
                 if len > 8 {
                     return Err(error::bad_structure(child.data_pos));
                 }
-                let value = ebml::uint_from_be(&reader.read_exact_at(
-                    len,
-                    child.data_pos,
-                    child_end,
-                )?)
-                .unwrap_or(0);
+                let value =
+                    ebml::uint_from_be(&reader.read_exact_at(len, child.data_pos, child_end)?)
+                        .unwrap_or(0);
                 match child.id {
                     ID_DOCTYPE_VERSION => facts.doctype_version = value,
                     ID_DOCTYPE_READ_VERSION => facts.doctype_read_version = value,
@@ -422,6 +419,9 @@ pub fn parse_info(
     Ok(parsed)
 }
 
+/// Track-table damage rows: (absolute offset, reason).
+pub type TrackDamage = Vec<(u64, &'static str)>;
+
 /// The `Tracks` parse → the demuxer-side track table plus the per-skip
 /// damage notes (byte count, reason — the avi `DamageLog` shape).
 ///
@@ -435,7 +435,7 @@ pub fn parse_tracks(
     reader: &mut EbmlReader,
     tracks: &ElementHeader,
     bound: u64,
-) -> Result<(Vec<TrackEntry>, Vec<(u64, &'static str)>), EngineError> {
+) -> Result<(Vec<TrackEntry>, TrackDamage), EngineError> {
     let end = tracks.declared_end().unwrap_or(bound).min(bound);
     let mut entries: Vec<TrackEntry> = Vec::new();
     let mut damage: Vec<(u64, &'static str)> = Vec::new();
@@ -634,6 +634,9 @@ fn parse_track_entry(
         return Ok(None);
     };
     let codec_id = codec_id.unwrap_or_default();
+    // Mapped before the move into `TrackPrivate` (the private bytes
+    // feed the VFW fourcc lane of the descriptor).
+    let codec_descriptor = codec_descriptor_for(&codec_id, bit_depth, &codec_private);
     let language = language_ietf
         .or(language_legacy)
         .filter(|tag| !tag.is_empty())
@@ -655,7 +658,7 @@ fn parse_track_entry(
             pixel_height,
             lacing_allowed,
         },
-        codec_descriptor: codec_descriptor_for(&codec_id, bit_depth),
+        codec_descriptor,
         language,
         title,
         flags: TrackFlags {
@@ -721,13 +724,12 @@ fn parse_audio_master(
                 let bytes = reader.read_prefix_at(len.min(8), child.data_pos, child_end)?;
                 *sampling_frequency = ebml::float_from_be(&bytes);
             }
-            ID_CHANNELS | ID_BIT_DEPTH => {
-                if len <= 8 {
-                    let bytes = reader.read_exact_at(len, child.data_pos, child_end)?;
-                    match child.id {
-                        ID_CHANNELS => *channels = ebml::uint_from_be(&bytes),
-                        _ => *bit_depth = ebml::uint_from_be(&bytes),
-                    }
+            ID_CHANNELS | ID_BIT_DEPTH if len <= 8 => {
+                let bytes = reader.read_exact_at(len, child.data_pos, child_end)?;
+                if child.id == ID_CHANNELS {
+                    *channels = ebml::uint_from_be(&bytes);
+                } else {
+                    *bit_depth = ebml::uint_from_be(&bytes);
                 }
             }
             _ => {}
@@ -741,21 +743,58 @@ fn parse_audio_master(
 /// descriptor. Unknown ids pass through **raw** — the honest exposure:
 /// the codec registry refuses them as typed Unsupported, and the
 /// descriptor renders the truth in the UI.
-pub fn codec_descriptor_for(codec_id: &str, bit_depth: Option<u64>) -> String {
+pub fn codec_descriptor_for(
+    codec_id: &str,
+    bit_depth: Option<u64>,
+    codec_private: &[u8],
+) -> String {
     if codec_id.starts_with("V_MPEG4/ISO/AVC") {
         return "h264".to_string();
+    }
+    if codec_id.starts_with("V_MPEG4/ISO/ASP") {
+        return "mpeg4".to_string();
+    }
+    if codec_id == "V_MPEGH/ISO/HEVC" {
+        return "hevc".to_string();
+    }
+    // The VFW lane rides its real codec in the BITMAPINFOHEADER's
+    // `biCompression` fourcc (little-endian, offset 16 — after biSize,
+    // biWidth, biHeight, biPlanes, biBitCount — of CodecPrivate).
+    // Known fourccs map to the vocabulary; unknown ones stay raw for
+    // the typed refusal downstream — never a silent guess.
+    if codec_id == "V_MS/VFW/FOURCC" {
+        if codec_private.len() >= 20 && &codec_private[16..20] == b"FFV1" {
+            return "ffv1".to_string();
+        }
+        return codec_id.to_string();
     }
     match codec_id {
         "V_VP9" => return "vp9".to_string(),
         "V_VP8" => return "vp8".to_string(),
+        "V_AV1" => return "av1".to_string(),
+        "V_MJPEG" => return "mjpeg".to_string(),
         "A_FLAC" => return "flac".to_string(),
         "A_OPUS" => return "opus".to_string(),
         "A_VORBIS" => return "vorbis".to_string(),
+        "A_ALAC" => return "alac".to_string(),
+        "A_AC3" => return "ac3".to_string(),
+        "A_EAC3" => return "eac3".to_string(),
+        "A_DTS" => return "dts".to_string(),
+        "A_TRUEHD" => return "truehd".to_string(),
         "S_TEXT/UTF8" => return "subrip".to_string(),
+        "S_TEXT/ASS" => return "ass".to_string(),
+        "S_TEXT/SSA" => return "ssa".to_string(),
+        "S_TEXT/WEBVTT" => return "webvtt".to_string(),
         _ => {}
     }
     if codec_id.starts_with("A_AAC") {
         return "aac".to_string();
+    }
+    if codec_id.starts_with("A_MPEG/L3") {
+        return "mp3".to_string();
+    }
+    if codec_id.starts_with("A_MPEG/L2") {
+        return "mp2".to_string();
     }
     if codec_id.starts_with("A_PCM/INT/LIT") {
         return match bit_depth {
@@ -821,20 +860,60 @@ mod tests {
 
     #[test]
     fn codec_descriptors_follow_the_registry_vocabulary() {
-        assert_eq!(codec_descriptor_for("V_MPEG4/ISO/AVC", None), "h264");
-        assert_eq!(codec_descriptor_for("V_MPEG4/ISO/AVC", None), "h264");
-        assert_eq!(codec_descriptor_for("V_VP9", None), "vp9");
-        assert_eq!(codec_descriptor_for("V_VP8", None), "vp8");
-        assert_eq!(codec_descriptor_for("A_FLAC", None), "flac");
-        assert_eq!(codec_descriptor_for("A_OPUS", None), "opus");
-        assert_eq!(codec_descriptor_for("A_VORBIS", None), "vorbis");
-        assert_eq!(codec_descriptor_for("A_AAC/MPEG4/LC", None), "aac");
-        assert_eq!(codec_descriptor_for("S_TEXT/UTF8", None), "subrip");
-        assert_eq!(codec_descriptor_for("A_PCM/INT/LIT", Some(16)), "pcm_s16le");
-        assert_eq!(codec_descriptor_for("A_PCM/INT/LIT", Some(24)), "pcm_s24le");
-        assert_eq!(codec_descriptor_for("A_PCM/FLOAT/IEEE", Some(64)), "pcm_f64le");
+        assert_eq!(codec_descriptor_for("V_MPEG4/ISO/AVC", None, &[]), "h264");
+        assert_eq!(codec_descriptor_for("V_MPEG4/ISO/ASP", None, &[]), "mpeg4");
+        assert_eq!(codec_descriptor_for("V_MPEGH/ISO/HEVC", None, &[]), "hevc");
+        assert_eq!(codec_descriptor_for("V_VP9", None, &[]), "vp9");
+        assert_eq!(codec_descriptor_for("V_VP8", None, &[]), "vp8");
+        assert_eq!(codec_descriptor_for("V_AV1", None, &[]), "av1");
+        assert_eq!(codec_descriptor_for("V_MJPEG", None, &[]), "mjpeg");
+        assert_eq!(codec_descriptor_for("A_FLAC", None, &[]), "flac");
+        assert_eq!(codec_descriptor_for("A_OPUS", None, &[]), "opus");
+        assert_eq!(codec_descriptor_for("A_VORBIS", None, &[]), "vorbis");
+        assert_eq!(codec_descriptor_for("A_ALAC", None, &[]), "alac");
+        assert_eq!(codec_descriptor_for("A_AC3", None, &[]), "ac3");
+        assert_eq!(codec_descriptor_for("A_EAC3", None, &[]), "eac3");
+        assert_eq!(codec_descriptor_for("A_DTS", None, &[]), "dts");
+        assert_eq!(codec_descriptor_for("A_TRUEHD", None, &[]), "truehd");
+        assert_eq!(codec_descriptor_for("A_AAC/MPEG4/LC", None, &[]), "aac");
+        assert_eq!(codec_descriptor_for("A_MPEG/L3", None, &[]), "mp3");
+        assert_eq!(codec_descriptor_for("A_MPEG/L2", None, &[]), "mp2");
+        assert_eq!(codec_descriptor_for("S_TEXT/UTF8", None, &[]), "subrip");
+        assert_eq!(codec_descriptor_for("S_TEXT/ASS", None, &[]), "ass");
+        assert_eq!(codec_descriptor_for("S_TEXT/SSA", None, &[]), "ssa");
+        assert_eq!(codec_descriptor_for("S_TEXT/WEBVTT", None, &[]), "webvtt");
+        // The VFW fourcc rides CodecPrivate's biCompression (LE, off 16).
+        let mut vfw = vec![0u8; 20];
+        vfw[16..20].copy_from_slice(b"FFV1");
+        assert_eq!(codec_descriptor_for("V_MS/VFW/FOURCC", None, &vfw), "ffv1");
+        // Unknown fourcc and too-short private stay raw (typed refusal).
+        let mut vfw_x = vec![0u8; 20];
+        vfw_x[16..20].copy_from_slice(b"HFYU");
+        assert_eq!(
+            codec_descriptor_for("V_MS/VFW/FOURCC", None, &vfw_x),
+            "V_MS/VFW/FOURCC"
+        );
+        assert_eq!(
+            codec_descriptor_for("V_MS/VFW/FOURCC", None, &[]),
+            "V_MS/VFW/FOURCC"
+        );
+        assert_eq!(
+            codec_descriptor_for("A_PCM/INT/LIT", Some(16), &[]),
+            "pcm_s16le"
+        );
+        assert_eq!(
+            codec_descriptor_for("A_PCM/INT/LIT", Some(24), &[]),
+            "pcm_s24le"
+        );
+        assert_eq!(
+            codec_descriptor_for("A_PCM/FLOAT/IEEE", Some(64), &[]),
+            "pcm_f64le"
+        );
         // Unknown ids pass through raw (honest exposure).
-        assert_eq!(codec_descriptor_for("V_AVS2", None), "V_AVS2");
-        assert_eq!(codec_descriptor_for("A_PCM/INT/LIT", None), "A_PCM/INT/LIT");
+        assert_eq!(codec_descriptor_for("V_AVS2", None, &[]), "V_AVS2");
+        assert_eq!(
+            codec_descriptor_for("A_PCM/INT/LIT", None, &[]),
+            "A_PCM/INT/LIT"
+        );
     }
 }

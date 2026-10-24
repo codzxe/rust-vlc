@@ -19,7 +19,7 @@
 
 use media_types::EngineError;
 
-use crate::mkv::ebml::{self, ElementHeader, EbmlReader};
+use crate::mkv::ebml::{self, EbmlReader, ElementHeader};
 use crate::mkv::error;
 
 /// `SimpleBlock`/`Block` flag bit: keyframe (SimpleBlock only).
@@ -110,12 +110,14 @@ pub fn parse_timecode(
             return Err(error::bad_structure(child.data_pos));
         };
         if child.id == ebml::ID_TIMECODE {
-            let len = usize::try_from(child.size).map_err(|_| error::bad_structure(child.data_pos))?;
+            let len =
+                usize::try_from(child.size).map_err(|_| error::bad_structure(child.data_pos))?;
             if len > 8 {
                 return Err(error::bad_structure(child.data_pos));
             }
             let bytes = reader.read_exact_at(len, child.data_pos, child_end)?;
-            let value = ebml::uint_from_be(&bytes).ok_or_else(|| error::bad_structure(child.data_pos))?;
+            let value =
+                ebml::uint_from_be(&bytes).ok_or_else(|| error::bad_structure(child.data_pos))?;
             return Ok(ClusterTimecode {
                 ticks: value as i64,
                 offset: child.data_pos,
@@ -137,7 +139,11 @@ pub fn parse_timecode(
 /// unknown lacing value is impossible (2 bits saturate), or a lacing
 /// count/size contradiction; the offset is the payload's absolute
 /// position plus the in-block offset for precision.
-pub fn parse_block(data: &[u8], payload_offset: u64, simple: bool) -> Result<ParsedBlock, EngineError> {
+pub fn parse_block(
+    data: &[u8],
+    payload_offset: u64,
+    simple: bool,
+) -> Result<ParsedBlock, EngineError> {
     let bad = |at: usize| error::bad_structure(payload_offset + at as u64);
     if data.len() < 4 {
         return Err(bad(data.len()));
@@ -219,7 +225,7 @@ fn lace_frames(body: &[u8], lacing: Lacing) -> Result<Vec<BlockFrame>, usize> {
                 return Err(0);
             }
             let rest = body.len() - consumed;
-            if rest % frame_count != 0 || rest == 0 {
+            if !rest.is_multiple_of(frame_count) || rest == 0 {
                 // Fixed lacing divides the payload exactly.
                 return Err(consumed);
             }
@@ -357,7 +363,10 @@ fn build_frames(
     let mut frames = Vec::with_capacity(frame_count);
     let mut at = consumed;
     for &size in sizes {
-        frames.push(BlockFrame { start: at, len: size });
+        frames.push(BlockFrame {
+            start: at,
+            len: size,
+        });
         at += size;
     }
     frames.push(BlockFrame {
@@ -386,6 +395,7 @@ pub fn absolute_ticks(cluster: i64, relative: i16, offset: u64) -> Result<i64, E
 #[cfg(test)]
 mod tests {
     use super::*;
+    use testkit::Must;
 
     fn block(track: u8, rel: i16, flags: u8, body: &[u8]) -> Vec<u8> {
         // Track numbers ride as vints: the marker bit for ≤ 126.
@@ -400,7 +410,7 @@ mod tests {
     #[test]
     fn no_lacing_single_frame() {
         let data = block(3, -5, 0x80, b"frame-bytes");
-        let b = parse_block(&data, 0, true).unwrap();
+        let b = parse_block(&data, 0, true).must();
         assert_eq!(b.track, 3);
         assert_eq!(b.relative, -5);
         assert!(b.keyframe);
@@ -420,7 +430,7 @@ mod tests {
         body.extend_from_slice(&[0xB0; 300]);
         body.extend_from_slice(&[0xC0; 160]);
         let data = block(1, 0, 0x02, &body); // 0b10 >> 1 = Xiph
-        let b = parse_block(&data, 0, true).unwrap();
+        let b = parse_block(&data, 0, true).must();
         assert_eq!(b.lacing, Lacing::Xiph);
         assert_eq!(b.frames.len(), 3);
         assert_eq!(b.frames[0].len, 5);
@@ -433,7 +443,7 @@ mod tests {
     fn fixed_lacing_divides_exactly() {
         let body = [4u8, 1, 2, 3, 4, 5, 6, 7, 8];
         let data = block(2, 10, 0x04, &body); // 0b100 >> 1 = Fixed
-        let b = parse_block(&data, 0, true).unwrap();
+        let b = parse_block(&data, 0, true).must();
         assert_eq!(b.lacing, Lacing::Fixed);
         assert_eq!(b.frames.len(), 4);
         assert!(b.frames.iter().all(|f| f.len == 2));
@@ -448,7 +458,7 @@ mod tests {
         body.extend_from_slice(&[0xBB; 3]);
         body.extend_from_slice(&[0xCC; 2]);
         let data = block(1, 0, 0x06, &body); // 0b110 >> 1 = EBML
-        let b = parse_block(&data, 0, true).unwrap();
+        let b = parse_block(&data, 0, true).must();
         assert_eq!(b.lacing, Lacing::Ebml);
         assert_eq!(b.frames.len(), 3);
         assert_eq!(b.frames[0].len, 3);
@@ -461,7 +471,7 @@ mod tests {
         // Declared head sizes exceed the body.
         let body = [2, 10, 10, 0x01];
         let data = block(1, 0, 0x02, &body);
-        let err = parse_block(&data, 100, true).unwrap_err();
+        let err = parse_block(&data, 100, true).err().must();
         assert_eq!(err.context.code, "demux.mkv.bad-structure");
     }
 
@@ -469,19 +479,19 @@ mod tests {
     fn fixed_lacing_remainder_is_refused() {
         let body = [3u8, 1, 2, 3, 4, 5];
         let data = block(1, 0, 0x04, &body);
-        let err = parse_block(&data, 0, true).unwrap_err();
+        let err = parse_block(&data, 0, true).err().must();
         assert_eq!(err.context.code, "demux.mkv.bad-structure");
     }
 
     #[test]
     fn short_block_header_is_typed() {
-        let err = parse_block(&[0x81, 0x00], 0, true).unwrap_err();
+        let err = parse_block(&[0x81, 0x00], 0, true).err().must();
         assert_eq!(err.context.code, "demux.mkv.bad-structure");
     }
 
     #[test]
     fn absolute_ticks_checks_the_timeline() {
-        assert_eq!(absolute_ticks(1000, -40, 0).unwrap(), 960);
+        assert_eq!(absolute_ticks(1000, -40, 0).must(), 960);
         assert!(absolute_ticks(10, -40, 7).is_err());
         assert!(absolute_ticks(i64::MAX, 2, 7).is_err());
     }

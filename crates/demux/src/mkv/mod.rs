@@ -48,7 +48,7 @@ use plugin_api::demux::{DemuxEvent, Demuxer, SeekSupport};
 use crate::avi::riff::PayloadSlots;
 use crate::mkv::cluster::ParsedBlock;
 use crate::mkv::cues::CueIndex;
-use crate::mkv::ebml::{ElementHeader, EbmlReader};
+use crate::mkv::ebml::{EbmlReader, ElementHeader};
 use crate::mkv::header::{SegmentInfo, TrackEntry};
 
 /// File extensions this demuxer claims (the R3 registry row).
@@ -75,7 +75,8 @@ pub const MAX_SEEK_SCAN_BYTES: u64 = 512 * 1024 * 1024;
 /// `start`'s typed verdict).
 #[must_use]
 pub fn probe(header: &[u8]) -> bool {
-    header.len() >= 4 && u32::from_be_bytes([header[0], header[1], header[2], header[3]]) == ebml::ID_EBML_HEADER
+    header.len() >= 4
+        && u32::from_be_bytes([header[0], header[1], header[2], header[3]]) == ebml::ID_EBML_HEADER
 }
 
 /// One loaded cluster window.
@@ -309,19 +310,25 @@ impl MkvDemuxer {
             if self.walk >= self.segment_end {
                 return Ok(false);
             }
-            let Some(el) =
-                ebml::parse_header_at(&mut self.reader, self.walk, self.segment_end)?
+            let Some(el) = ebml::parse_header_at(&mut self.reader, self.walk, self.segment_end)?
             else {
                 return Ok(false);
             };
             match el.id {
                 ebml::ID_CLUSTER => {
-                    let effective_end = el.declared_end().unwrap_or(self.segment_end).min(self.segment_end);
-                    let timecode = cluster::parse_timecode(&mut self.reader, &el, self.segment_end)?;
-                    let window_end = effective_end.min(self.walk.saturating_add(MAX_CLUSTER_WINDOW));
-                    let data = self
-                        .reader
-                        .read_prefix_at((window_end - el.data_pos) as usize, el.data_pos, window_end)?;
+                    let effective_end = el
+                        .declared_end()
+                        .unwrap_or(self.segment_end)
+                        .min(self.segment_end);
+                    let timecode =
+                        cluster::parse_timecode(&mut self.reader, &el, self.segment_end)?;
+                    let window_end =
+                        effective_end.min(self.walk.saturating_add(MAX_CLUSTER_WINDOW));
+                    let data = self.reader.read_prefix_at(
+                        (window_end - el.data_pos) as usize,
+                        el.data_pos,
+                        window_end,
+                    )?;
                     // Past the Timecode element: find where the
                     // timecode child ended so blocks start there.
                     let block_start = self.block_start_after_timecode(&el, &data)?;
@@ -387,8 +394,7 @@ impl MkvDemuxer {
         let outcome = loop {
             // Slide the window when the cursor reaches its end but
             // not the cluster's.
-            if window.cursor >= window.base + window.data.len() as u64
-                && window.cursor < window.end
+            if window.cursor >= window.base + window.data.len() as u64 && window.cursor < window.end
             {
                 let from = window.cursor;
                 let to = window.end.min(from + MAX_CLUSTER_WINDOW);
@@ -502,17 +508,18 @@ impl MkvDemuxer {
                             payload_offset + payload.len() as u64,
                         ));
                     }
-                    match cid {
-                        ebml::ID_BLOCK => {
-                            let block =
-                                cluster::parse_block(&payload[cstart..cend], payload_offset + cstart as u64, false)?;
-                            packets = self.emit_block(&block, &payload[cstart..cend], cluster_timecode)?;
-                        }
-                        _ => {} // BlockDuration/ReferenceBlock: the
-                                // keyframe derivation is
-                                // ReferenceBlock-absence; duration
-                                // rides DefaultDuration.
+                    if cid == ebml::ID_BLOCK {
+                        let block = cluster::parse_block(
+                            &payload[cstart..cend],
+                            payload_offset + cstart as u64,
+                            false,
+                        )?;
+                        packets =
+                            self.emit_block(&block, &payload[cstart..cend], cluster_timecode)?;
                     }
+                    // BlockDuration/ReferenceBlock: the keyframe
+                    // derivation is ReferenceBlock-absence; duration
+                    // rides DefaultDuration.
                     at = cend;
                 }
                 Ok(Some(packets))
@@ -535,7 +542,8 @@ impl MkvDemuxer {
             return Ok(Vec::new());
         };
         let entry = &self.entries[ordinal as usize];
-        let absolute = cluster::absolute_ticks(cluster_timecode, block.relative, block.payload_offset)?;
+        let absolute =
+            cluster::absolute_ticks(cluster_timecode, block.relative, block.payload_offset)?;
         // Laced frames advance by the track's DefaultDuration when
         // declared (the spec's cadence rule); without it every frame
         // carries the block stamp (recorded honest absence).
@@ -543,12 +551,11 @@ impl MkvDemuxer {
             .private
             .default_duration_ns
             .and_then(|ns| {
+                // A zero scale is the typed honest absence (checked
+                // division refuses it rather than panicking).
                 let scale = u64::from(self.info.timestamp_scale);
-                if scale == 0 {
-                    None
-                } else {
-                    i64::try_from(ns / scale).ok()
-                }
+                let ticks = ns.checked_div(scale)?;
+                i64::try_from(ticks).ok()
             })
             .unwrap_or(0);
         let duration = entry
@@ -564,7 +571,9 @@ impl MkvDemuxer {
             }
             let at = block.payload_offset + (block.body_offset + frame.start) as u64;
             let data = self.pool.fill(frame.len, |buf| {
-                let got = self.reader.read_prefix_at(buf.len(), at, at + buf.len() as u64)?;
+                let got = self
+                    .reader
+                    .read_prefix_at(buf.len(), at, at + buf.len() as u64)?;
                 buf.copy_from_slice(&got);
                 Ok(got.len())
             })?;
@@ -682,19 +691,17 @@ impl Demuxer for MkvDemuxer {
             return Ok(event);
         }
         loop {
-            if self.window.is_none() {
-                if !self.load_next()? {
-                    self.eos = true;
-                    if self.cluster_damage > 0 {
-                        self.damage_total += self.cluster_damage;
-                        self.cluster_damage = 0;
-                        return Ok(DemuxEvent::Recovered {
-                            skipped: self.damage_total,
-                            reason: "unknown-track-or-oversize-blocks",
-                        });
-                    }
-                    return Ok(DemuxEvent::EndOfStream);
+            if self.window.is_none() && !self.load_next()? {
+                self.eos = true;
+                if self.cluster_damage > 0 {
+                    self.damage_total += self.cluster_damage;
+                    self.cluster_damage = 0;
+                    return Ok(DemuxEvent::Recovered {
+                        skipped: self.damage_total,
+                        reason: "unknown-track-or-oversize-blocks",
+                    });
                 }
+                return Ok(DemuxEvent::EndOfStream);
             }
             match self.next_block_packets() {
                 Ok(Some(packets)) => {
