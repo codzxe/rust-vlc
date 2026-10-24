@@ -7,9 +7,12 @@
 //! [`mp3`] is the MP3/MP2 decoder through the purity-pinned
 //! `symphonia-bundle-mp3` engine with our own ID3v2/Xing/VBRI/
 //! gapless/seek surface (card 5.A3, doc 04 §3.1 rows "MP3"/"MP2").
-//! Per-codec Cargo features arrive with the registration card
-//! (doc 01 §2.5(a)); today the three modules ship unconditionally.
+//! [`adpcm`] is the in-house MS + IMA-WAV ADPCM pair (card 5.J2a,
+//! doc 04 §3.1 rows "ADPCM MS"/"ADPCM IMA"). Per-codec Cargo features
+//! arrive with the registration card (doc 01 §2.5(a)); today the
+//! modules ship unconditionally.
 
+pub mod adpcm;
 pub mod flac;
 pub mod mp3;
 pub mod pcm;
