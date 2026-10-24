@@ -1,0 +1,145 @@
+# tests/data/vorbis_reference.txt — card 5.B2 reference data.
+#
+# Provenance (AGENTS §3.4): every value below was produced in the build
+# sandbox on 2026-10-26 with the recorded commands; ffmpeg 7.1.5
+# (Lavf61.7.103 encoder vendor string visible in the comment headers).
+#
+# Fixture generation (tests/fixtures/, 23.7 KB committed total):
+#   ffmpeg -f lavfi -i "sine=frequency=440:duration=1.5:sample_rate=44100" \
+#     -ac 2 -c:a libvorbis -q:a 4 vorbis_sine_44100_stereo.ogg
+#   ffmpeg -f lavfi -i "sine=frequency=220:duration=1.2:sample_rate=8000" \
+#     -ac 1 -c:a libvorbis -q:a 2 vorbis_sine_8000_mono.ogg
+#   ffmpeg -f lavfi -i "anullsrc=r=48000:cl=stereo:d=1.0" \
+#     -c:a libvorbis -q:a 4 vorbis_silence_48000_stereo.ogg
+#   ffmpeg -f lavfi -i "sine=frequency=330:duration=1.0:sample_rate=44100" \
+#     -ac 2 -c:a libvorbis -q:a 4 \
+#     -metadata TITLE="Lumen Vorbis Fixture" -metadata ARTIST="Agent P5-B2" \
+#     -metadata ALBUM="Phase 5" -metadata DATE="2026-10-26" \
+#     vorbis_tagged_sine.ogg
+#
+# Oracle commands per file (both digests recorded):
+#   ffmpeg -v error -i FILE -map 0:a -f md5 -                # the card's literal command
+#   ffmpeg -v error -i FILE -map 0:a -c:a pcm_f32le -f f32le - | md5sum
+#   ffmpeg -v error -i FILE -map 0:a -c:a pcm_f32le -f f32le - | wc -c
+#
+# WHY the two digests differ: `-f md5` hashes ffmpeg's decoded frames
+# in their native PLANAR float layout (fltp); `-f f32le` is the
+# interleaved layout every consumer (and this decoder) emits. The
+# comparable differential base is the f32le digest; the card's literal
+# command is recorded alongside for traceability.
+#
+# The differential window (the 5.A3 mp3 gapless-window pattern):
+# Vorbis is lossy — independent decoders differ in float rounding — so
+# the suite asserts (1) the exact ffmpeg sample count on the aligned
+# window, (2) our window's MD5 as the hard regression pin
+# (`lumen_window_md5`, over f32le bytes with -0.0 canonicalized to
+# +0.0 — the MDCT emits -0.0 on digital silence; ffmpeg emits +0.0),
+# and (3) the live-ffmpeg per-sample max delta ≤ `max_delta` when an
+# ffmpeg binary is present. `head_trim` is the ENCODER HEAD DELAY —
+# for multi-page streams it equals the decoder-measured first-stamp
+# shift (raw_emitted − granule at the first stamped page: 128 / 256);
+# the raw−final-granule distance is delay + TAIL PADDING (the 5.A3
+# gapless split — e.g. 67264 − 66150 = 1114 = delay 128 + padding
+# 986), and the window's `window_samples` length cut excludes the
+# tail. FINISHER CORRECTION 2026-10-26 (P5-B2F): the prior session
+# had recorded the raw−granule distances (1114 / 384) as head trims
+# for the two sine fixtures — mis-aligned windows whose recorded
+# `max_delta = 1e-7` was never actually measured (live delta was
+# ~9e-2). Corrected by exhaustive alignment scan (argmin of the
+# per-sample max delta vs the pinned ffmpeg 7.1.5 output),
+# cross-checked against the decoder's first-stamp shift measurement;
+# both digests below are the corrected windows'. For the two
+# single-data-page streams (silence, tagged) the only stamp is the
+# EOS page, so the pts series stays honestly Missing and the trim is
+# the scan-derived delay (832 / 128 — the tagged stream's EOS
+# measurement 636 = delay 128 + padding 508). The silence lane is
+# the true bit-exact corridor: digital silence decodes to exact zeros
+# in every conforming decoder, and our canonicalized window MD5 equals
+# ffmpeg's f32le digest byte-for-byte.
+
+[fixture.vorbis_sine_44100_stereo]
+channels = 2
+rate = 44100
+blocksize_short = 256
+blocksize_long = 2048
+packets = 67
+raw_samples = 67264
+final_granule = 66150
+head_trim = 128
+window_samples = 66150
+ffmpeg_md5_native = 1cf8c053595142580693d341b4114c20
+ffmpeg_md5_f32le = 7e36fc4df7e261a2a743f543d8d9b80b
+lumen_window_md5 = 658af0c3fc2b9302077a9f42e38e535c
+max_delta = 1e-7
+
+[fixture.vorbis_sine_8000_mono]
+channels = 1
+rate = 8000
+blocksize_short = 512
+blocksize_long = 512
+packets = 39
+raw_samples = 9984
+final_granule = 9600
+head_trim = 256
+window_samples = 9600
+ffmpeg_md5_native = c6dbc283872eb6eb056247b6f19a1e83
+ffmpeg_md5_f32le = f60a54f43807061d277655d0c163caa4
+lumen_window_md5 = 07962e4ec66fe7c291df7db43ce74c08
+max_delta = 1e-7
+
+[fixture.vorbis_silence_48000_stereo]
+channels = 2
+rate = 48000
+blocksize_short = 256
+blocksize_long = 2048
+packets = 49
+raw_samples = 48832
+final_granule = 48000
+head_trim = 832
+# ffmpeg decodes 47 872 samples here (one 128-sample final block short
+# of the 48 000 granule — its own tail-trim quirk, recorded honestly);
+# the window matches ffmpeg's length, and the values are exact zeros
+# on both sides: delta 0.0, MD5s equal after -0.0 canonicalization.
+window_samples = 47872
+ffmpeg_md5_native = 4c1f6822ef1c3ec6ff8ad1e6f73c3258
+ffmpeg_md5_f32le = 9f3a19b1740ac999088756035046c146
+lumen_window_md5 = 9f3a19b1740ac999088756035046c146
+max_delta = 0
+
+[fixture.vorbis_tagged_sine]
+channels = 2
+rate = 44100
+blocksize_short = 256
+blocksize_long = 2048
+packets = 45
+raw_samples = 44736
+final_granule = 44100
+# Single-data-page stream: the only stamp is the EOS page (its raw−
+# granule distance 636 = delay 128 + tail padding 508); the aligned
+# head trim (exhaustive scan: 128 → max delta 3e-8) is the delay.
+head_trim = 128
+window_samples = 43972
+ffmpeg_md5_native = a3b5a3d6be1282de2f8b9f960bb1b7cc
+ffmpeg_md5_f32le = 29179dc21a985b00ba9fa89bfbb0c266
+lumen_window_md5 = 546fc5d9d0d8d211a767ddca59984c02
+max_delta = 1e-7
+vendor = Lavf61.7.103
+title = Lumen Vorbis Fixture
+artist = Agent P5-B2
+album = Phase 5
+date = 2026-10-26
+
+[corpus.0085-audio-only]
+# /tmp/my-project/corpus-v4/media/0085-audio-only.ogg (8 kHz stereo,
+# 32 000-sample granule, 126 data packets through the ogg demuxer).
+channels = 2
+rate = 8000
+packets = 126
+raw_samples = 32256
+final_granule = 32000
+head_trim = 256
+window_samples = 32000
+ffmpeg_md5_native = 5481a17af5f4a75571c65e5d796f0dfd
+ffmpeg_md5_f32le = 1f117e4bc819f5db437de4e758ab9a48
+lumen_window_md5 = 1918a1ed5ec5eebc5df944434061e5a8
+max_delta = 1e-7

@@ -40,6 +40,15 @@ symphonia-bundle-mp3 = "=0.6.1"
 # already in the graph transitively — the direct edge adds NO new
 # packages, it only names the types our glue code touches).
 symphonia-core = "=0.6.1"
+# 5.B2 (Lead pre-approval, C5): the Vorbis decode engine. Purity
+# verified in docs/dependencies/records/symphonia-vorbis-0.6.1.md BEFORE
+# this edit; the identification/comment-header parsing, granule
+# arithmetic and seek surface stay ours. (The brief's assumed
+# `symphonia-bundle-vorbis` spelling does not exist on crates.io — the
+# 0.6.1 train's Vorbis crate is `symphonia-codec-vorbis`; the record's
+# R1 explains. Adds 4 lock nodes: -codec-vorbis, -common, -metadata,
+# regex-lite.)
+symphonia-codec-vorbis = "=0.6.1"
 
 [dev-dependencies]
 # The randomized-corpus vertical (ED-FIX-5; user directive 2026-10-22):
