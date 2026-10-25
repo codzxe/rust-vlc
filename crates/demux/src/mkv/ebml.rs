@@ -294,6 +294,28 @@ impl EbmlReader {
         self.stream.seek(SeekOrigin::Start(to)).map(|_| ())
     }
 
+    /// The bounded prefix extent for a read of `max` bytes at `at`:
+    /// whatever the stream actually carries in `[at, min(at+max, until))`.
+    fn prefix_len(&self, max: usize, at: u64, until: u64) -> usize {
+        let bound = until.min(self.length).min(at.saturating_add(max as u64));
+        bound.saturating_sub(at).min(max as u64) as usize
+    }
+
+    /// The bounded read loop shared by both prefix readers: fill
+    /// `out[..want]`, stopping at a clean EOF. Returns bytes filled.
+    fn read_bounded(&mut self, out: &mut [u8], want: usize) -> Result<usize, EngineError> {
+        let mut filled = 0usize;
+        while filled < want {
+            let step = (want - filled).min(READ_STEP_MAX);
+            let got = self.stream.read_into(&mut out[filled..filled + step])?;
+            if got == 0 {
+                break;
+            }
+            filled += got;
+        }
+        Ok(filled)
+    }
+
     /// Read **at most** `max` bytes at absolute position `at`, bounded
     /// additionally by `until` (the enclosing element's end): whatever
     /// bytes the stream actually carries in `[at, min(at+max, until))`.
@@ -310,22 +332,34 @@ impl EbmlReader {
         at: u64,
         until: u64,
     ) -> Result<Vec<u8>, EngineError> {
-        let bound = until.min(self.length).min(at.saturating_add(max as u64));
-        let want = bound.saturating_sub(at).min(max as u64) as usize;
+        let want = self.prefix_len(max, at, until);
         self.seek_to(at)?;
         let mut out = vec![0u8; want];
-        let mut filled = 0usize;
-        while filled < want {
-            let step = (want - filled).min(READ_STEP_MAX);
-            let got = self.stream.read_into(&mut out[filled..filled + step])?;
-            if got == 0 {
-                out.truncate(filled);
-                break;
-            }
-            filled += got;
-        }
+        let filled = self.read_bounded(&mut out, want)?;
         out.truncate(filled);
         Ok(out)
+    }
+
+    /// The zero-alloc twin of [`EbmlReader::read_prefix_at`] (5.X2b
+    /// fix #1): read **at most** `out.len()` bytes at absolute
+    /// position `at`, bounded additionally by `until`, **directly
+    /// into the caller's buffer** — the packet path hands the pool
+    /// slot itself, so no throwaway Vec and no second copy ever
+    /// happens per frame. Returns the number of bytes filled; a
+    /// short count is the caller's truncation data (same
+    /// classification rule as `read_prefix_at`).
+    ///
+    /// # Errors
+    /// Source errors propagate (stage `Open`, the access layer's own).
+    pub fn read_prefix_into_at(
+        &mut self,
+        out: &mut [u8],
+        at: u64,
+        until: u64,
+    ) -> Result<usize, EngineError> {
+        let want = self.prefix_len(out.len(), at, until);
+        self.seek_to(at)?;
+        self.read_bounded(out, want)
     }
 
     /// Read exactly `want` bytes inside `[at, until)` — the fixed-width

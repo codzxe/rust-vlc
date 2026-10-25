@@ -35,6 +35,19 @@ pub struct BlockFrame {
     pub len: usize,
 }
 
+/// Reusable per-block parse scratch (5.X2b fix #2): the frame table
+/// and the lacing size list. [`parse_block_with`] moves the frame
+/// table into the returned [`ParsedBlock`] and the demuxer hands it
+/// back after emitting — zero per-block allocations in the steady
+/// state (the capacity is recycled block over block).
+#[derive(Debug, Default)]
+pub struct BlockScratch {
+    /// The frame table (moved into `ParsedBlock::frames`).
+    pub frames: Vec<BlockFrame>,
+    /// The Xiph/EBML lacing head sizes.
+    pub sizes: Vec<usize>,
+}
+
 /// A parsed block header + its lacing plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedBlock {
@@ -144,6 +157,19 @@ pub fn parse_block(
     payload_offset: u64,
     simple: bool,
 ) -> Result<ParsedBlock, EngineError> {
+    parse_block_with(data, payload_offset, simple, &mut BlockScratch::default())
+}
+
+/// [`parse_block`] over a caller-owned [`BlockScratch`] — the
+/// demuxer's steady-state path (fix #2): the frame table rides in
+/// `scratch.frames`'s retained capacity instead of a fresh Vec per
+/// block. Identical grammar, identical errors.
+pub fn parse_block_with(
+    data: &[u8],
+    payload_offset: u64,
+    simple: bool,
+    scratch: &mut BlockScratch,
+) -> Result<ParsedBlock, EngineError> {
     let bad = |at: usize| error::bad_structure(payload_offset + at as u64);
     if data.len() < 4 {
         return Err(bad(data.len()));
@@ -180,7 +206,8 @@ pub fn parse_block(
         _ => unreachable!(),
     };
     let body = &data[after_track + 3..];
-    let frames = lace_frames(body, lacing).map_err(|at| bad(after_track + 3 + at))?;
+    lace_frames(body, lacing, scratch).map_err(|at| bad(after_track + 3 + at))?;
+    let frames = std::mem::take(&mut scratch.frames);
     Ok(ParsedBlock {
         track,
         relative,
@@ -193,27 +220,33 @@ pub fn parse_block(
     })
 }
 
-/// Split `body` into frames per the lacing coding. `Err(at)` is the
-/// in-body offset of the contradiction.
-fn lace_frames(body: &[u8], lacing: Lacing) -> Result<Vec<BlockFrame>, usize> {
+/// Split `body` into frames per the lacing coding, into
+/// `scratch.frames`. `Err(at)` is the in-body offset of the
+/// contradiction.
+fn lace_frames(body: &[u8], lacing: Lacing, scratch: &mut BlockScratch) -> Result<(), usize> {
+    let frames = &mut scratch.frames;
+    frames.clear();
     match lacing {
-        Lacing::None => Ok(vec![BlockFrame {
-            start: 0,
-            len: body.len(),
-        }]),
+        Lacing::None => {
+            frames.push(BlockFrame {
+                start: 0,
+                len: body.len(),
+            });
+            Ok(())
+        }
         Lacing::Xiph => {
-            let (frame_count, sizes, consumed) = xiph_sizes(body)?;
+            let (frame_count, consumed) = xiph_sizes(body, &mut scratch.sizes)?;
             if frame_count == 0 {
                 return Err(consumed);
             }
-            build_frames(body, consumed, &sizes, frame_count)
+            build_frames(body, consumed, &scratch.sizes, frame_count, frames)
         }
         Lacing::Ebml => {
-            let (frame_count, sizes, consumed) = ebml_sizes(body)?;
+            let (frame_count, consumed) = ebml_sizes(body, &mut scratch.sizes)?;
             if frame_count == 0 {
                 return Err(consumed);
             }
-            build_frames(body, consumed, &sizes, frame_count)
+            build_frames(body, consumed, &scratch.sizes, frame_count, frames)
         }
         Lacing::Fixed => {
             if body.is_empty() {
@@ -230,24 +263,27 @@ fn lace_frames(body: &[u8], lacing: Lacing) -> Result<Vec<BlockFrame>, usize> {
                 return Err(consumed);
             }
             let each = rest / frame_count;
-            Ok((0..frame_count)
-                .map(|i| BlockFrame {
+            for i in 0..frame_count {
+                frames.push(BlockFrame {
                     start: consumed + i * each,
                     len: each,
-                })
-                .collect())
+                });
+            }
+            Ok(())
         }
     }
 }
 
 /// Xiph lacing sizes: count byte, then `count-1` little-endian sizes
-/// in 255-continuation form. The last frame is the remainder.
-fn xiph_sizes(body: &[u8]) -> Result<(usize, Vec<usize>, usize), usize> {
+/// in 255-continuation form. The last frame is the remainder. The
+/// sizes land in `sizes` (cleared first — the recycled scratch).
+fn xiph_sizes(body: &[u8], sizes: &mut Vec<usize>) -> Result<(usize, usize), usize> {
     let Some(&count) = body.first() else {
         return Err(0);
     };
     let frame_count = count as usize;
-    let mut sizes = Vec::with_capacity(frame_count.saturating_sub(1));
+    sizes.clear();
+    sizes.reserve(frame_count.saturating_sub(1));
     let mut at = 1usize;
     for _ in 0..frame_count.saturating_sub(1) {
         let mut size = 0usize;
@@ -268,13 +304,13 @@ fn xiph_sizes(body: &[u8]) -> Result<(usize, Vec<usize>, usize), usize> {
         }
         sizes.push(size);
     }
-    Ok((frame_count, sizes, at))
+    Ok((frame_count, at))
 }
 
 /// EBML lacing sizes: count byte, then `count-1` sizes where the
 /// first is a vint of (size − 1) and the rest are vint *deltas*
-/// (signed accumulate).
-fn ebml_sizes(body: &[u8]) -> Result<(usize, Vec<usize>, usize), usize> {
+/// (signed accumulate). The sizes land in `sizes` (cleared first).
+fn ebml_sizes(body: &[u8], sizes: &mut Vec<usize>) -> Result<(usize, usize), usize> {
     let Some(&count) = body.first() else {
         return Err(0);
     };
@@ -282,7 +318,8 @@ fn ebml_sizes(body: &[u8]) -> Result<(usize, Vec<usize>, usize), usize> {
     if frame_count == 0 {
         return Err(0);
     }
-    let mut sizes: Vec<usize> = Vec::with_capacity(frame_count);
+    sizes.clear();
+    sizes.reserve(frame_count);
     let mut at = 1usize;
     // First size: vint value plus 1 (the spec's −1 offset keeps the
     // 1-byte vint usable for small frames). A single-frame lace
@@ -313,7 +350,7 @@ fn ebml_sizes(body: &[u8]) -> Result<(usize, Vec<usize>, usize), usize> {
             return Err(at);
         }
     }
-    Ok((frame_count, sizes, at))
+    Ok((frame_count, at))
 }
 
 /// Parse a size-shaped vint at `at`; `Err(at)` on grammar failure.
@@ -344,13 +381,15 @@ fn parse_vint_value(data: &[u8], at: usize) -> Result<(u64, usize), usize> {
 }
 
 /// Build the frame table from per-frame sizes + the trailing "last
-/// frame is the remainder" rule (Xiph and EBML share it).
+/// frame is the remainder" rule (Xiph and EBML share it), into
+/// `frames` (cleared first — the recycled scratch).
 fn build_frames(
     body: &[u8],
     consumed: usize,
     sizes: &[usize],
     frame_count: usize,
-) -> Result<Vec<BlockFrame>, usize> {
+    frames: &mut Vec<BlockFrame>,
+) -> Result<(), usize> {
     let declared: usize = sizes.iter().sum();
     let rest = body.len().saturating_sub(consumed);
 
@@ -360,7 +399,8 @@ fn build_frames(
         return Err(consumed);
     }
     let last = rest - declared;
-    let mut frames = Vec::with_capacity(frame_count);
+    frames.clear();
+    frames.reserve(frame_count);
     let mut at = consumed;
     for &size in sizes {
         frames.push(BlockFrame {
@@ -373,7 +413,7 @@ fn build_frames(
         start: at,
         len: last,
     });
-    Ok(frames)
+    Ok(())
 }
 
 /// The absolute presentation stamp of a block (scale ticks), with the
