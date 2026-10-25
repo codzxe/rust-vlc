@@ -110,6 +110,17 @@ pub mod dvb;
 /// reduce to [`compositing::CompositedCue`]s.
 pub mod vobsub;
 
+/// Card 5.N3 (wave 9, ADR-012 self-build): closed captions —
+/// CEA-608 in full (parity, the field/channel latch, PAC / mid-row /
+/// misc / tab control codes, the 15×32 double-buffered grids,
+/// pop-on / roll-up / paint-on) plus CEA-708 staged (DTVCC fragment
+/// reassembly, the service-block walk, the service-1→608 route;
+/// native windows recorded, not interpreted — the module's honesty
+/// table). Carriage: ATSC `cc_data()` in its GA94 SEI type-4 form
+/// (the H.264 user-data seam), the MPEG-2 picture `user_data` GA94
+/// form, and SCTE-20. Output reduces to
+/// [`compositing::CompositedCue`]s via the monospace-cell render.
+pub mod cc;
 /// Card 5.N1 (wave 9, ADR-012 self-build): PGS (HDMV, Blu-ray)
 /// subtitles — the segment grammar in both framings (`.sup`-style
 /// PTS-prefixed and Matroska `S_HDMV/PGS`-stripped), the PDS
@@ -122,14 +133,3 @@ pub mod vobsub;
 /// PCS-position anchors over the video extent. Carriage landed
 /// earlier: TS stream type `0x90` → `"pgssub"` (`demux/src/ts`).
 pub mod pgs;
-/// Card 5.N3 (wave 9, ADR-012 self-build): closed captions —
-/// CEA-608 in full (parity, the field/channel latch, PAC / mid-row /
-/// misc / tab control codes, the 15×32 double-buffered grids,
-/// pop-on / roll-up / paint-on) plus CEA-708 staged (DTVCC fragment
-/// reassembly, the service-block walk, the service-1→608 route;
-/// native windows recorded, not interpreted — the module's honesty
-/// table). Carriage: ATSC `cc_data()` in its GA94 SEI type-4 form
-/// (the H.264 user-data seam), the MPEG-2 picture `user_data` GA94
-/// form, and SCTE-20. Output reduces to
-/// [`compositing::CompositedCue`]s via the monospace-cell render.
-pub mod cc;

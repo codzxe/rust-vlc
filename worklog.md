@@ -10011,3 +10011,17 @@ Work Log:
 
 Stage Summary:
 - D-10: MEASURE? — YES: every number above was run this session in-tree on the release build, medians per the pre-declared discipline, raw rows committed. NOT measured? — ADPCM throughput, TTF per-frame events, flac/mp3/mkv seek latency (all DNF-with-evidence, blockers named), h264/hevc decode (parsers only), VLC oracle (absent). What breaks? — nothing: docs + one stdlib-only python script + raw CSVs; no src touched. Who hits it first? — R2-V (Phase-5 gate) consumes the breadth tables; the open-path wiring card consumes the TTF/seek DNF handoffs; Phase-7 admission reviews the rav1d asm policy off the 0.292x row.
+
+---
+Task ID: 5.R2-V (Lead gate)
+Agent: Lead
+Task: Phase-5 exit gate — evidence + verdict + Phase-6 launch list.
+
+Work Log:
+- Final gates: cargo test --workspace = 3213/0 (full completion); clippy -D warnings 0; fmt clean; fuzz registry diff empty; records audit zero-missing; perf snapshot committed.
+- One test-expectation fix at gate (Lead hygiene): apps/cli unsupported_path mp4 refusal message evolved with R3's registry (probe-able but no open-path wiring) — expectation updated to the honest new text.
+- docs/gates/phase5-exit.md written: PASS WITH REGISTERED CAVEATS (VLC-oracle absent; TrueHD OOM-blocked; open-path wiring next; mp2 ±1 LSB; AV1 10-bit typed; 3-OS/soak/nightly infra).
+- 47/47 parent cards resolved across 10 execution waves (~120 agent sessions, 3 sandbox rollbacks absorbed via GitHub-push recovery + redo waves).
+
+Stage Summary:
+- PHASE 5 COMPLETE AND GATED. User mandates delivered: real-corpus ffmpeg differentials on every landed format; bad algorithms found AND removed (SSE4.1 IDCT net-loss removed; MJPEG color/assemble −34% ms = 2.08–2.77x realtime; MKV 4.10→0.11 allocs/pkt). Phase 6 authorized.

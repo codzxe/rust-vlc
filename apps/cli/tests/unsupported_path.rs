@@ -92,14 +92,16 @@ fn directory_source_is_inaccessible() {
 }
 
 /// A probed-but-unsupported container (the MP4 parent): the probe
-/// names the format, the first vertical refuses it honestly (D-018).
+/// names the format (R3 registered the signature), the first vertical
+/// refuses the open path honestly (D-018 first vertical; per-container
+/// host wiring is the next card).
 #[test]
 fn mp4_container_is_refused_with_the_format_named() {
     let (_out, err, code) = run(&[&fixture("generated/valid/mp4_mjpeg_pcm.mp4")], "quit\n");
     assert_eq!(code, 65, "stderr:\n{err}");
     assert!(err.contains("error: [probe.unsupported]"), "{err}");
-    assert!(err.contains("format `mp4` has no demuxer"), "{err}");
-    assert!(err.contains("D-018"), "{err}");
+    assert!(err.contains("format `mp4` probes"), "{err}");
+    assert!(err.contains("no open-path wiring"), "{err}");
 }
 
 /// URL sources: the honest host-capability refusal (exit 69).
