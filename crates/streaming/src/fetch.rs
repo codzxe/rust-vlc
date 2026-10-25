@@ -377,6 +377,7 @@ pub trait HttpFetch: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use testkit::Must;
 
     /// The port is object-safe and shareable — pinned here because the
     /// whole layer (mock client now, ureq client in 6.A1c) hangs off it.

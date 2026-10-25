@@ -786,7 +786,8 @@ mod tests {
         assert_eq!(response.status, 200);
         assert_eq!(response.body, body);
         // The card's hop-log assertion: every hop URL was requested.
-        let paths: Vec<&str> = server.requests().iter().map(|r| r.path.as_str()).collect();
+        let logged = server.requests();
+        let paths: Vec<&str> = logged.iter().map(|r| r.path.as_str()).collect();
         assert_eq!(paths, ["/start/here", "/r1", "/r2", "/r3"]);
     }
 

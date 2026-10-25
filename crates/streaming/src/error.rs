@@ -218,7 +218,6 @@ impl Error for NetworkError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use testkit::Must;
 
     /// Every variant has a distinct, stable dotted code — the whole
     /// vocabulary, one table (mirrors `input`'s constructor table).
