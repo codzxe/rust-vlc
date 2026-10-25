@@ -63,7 +63,7 @@ use commands::{CommandError, ErrorCode, Stage};
 use media_types::error::DecodeCause;
 use media_types::ids::CodecDescriptor;
 use media_types::{EngineError, ErrorKind, Frame, GenerationId, MediaKind, Packet};
-use plugin_api::{DemuxEvent, Demuxer};
+use plugin_api::DemuxEvent;
 
 use crate::demux_host;
 use crate::exit;

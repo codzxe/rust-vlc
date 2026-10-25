@@ -162,6 +162,27 @@ impl HostDecoderProvider {
     pub fn attach_consumer(&mut self, consumer: Arc<CliFrameConsumer>) {
         self.consumer = Some(consumer);
     }
+
+    /// The config the extra_data-consuming codecs configure with: the
+    /// engine's minted config with `extra_data` seeded from the
+    /// open-path facts (the engine mints `extra_data: None` — its
+    /// `obtain_decoder` has no container knowledge; the esds ASC, the
+    /// ALAC magic cookie, the Vorbis three-header chain and the ADPCM
+    /// WAVEFORMATEX body live in the container, and the host's facts
+    /// pre-pass is the only side that harvested them — §4.3.3 of the
+    /// open-path wiring doc). A codec whose facts carry no blob
+    /// configures with the engine's `None` unchanged (the honest
+    /// `configure` refusal stays the codec's own). PCM keeps its
+    /// `with_format` facts seam below, not this one.
+    fn seeded_config(&self, track: &Track, config: &DecoderConfig) -> DecoderConfig {
+        DecoderConfig {
+            extra_data: self
+                .facts
+                .fact_for(track.id)
+                .and_then(|fact| fact.extra_data.clone()),
+            ..config.clone()
+        }
+    }
 }
 
 impl DecoderProvider for HostDecoderProvider {
@@ -198,8 +219,11 @@ impl DecoderProvider for HostDecoderProvider {
                 Ok(Box::new(decoder))
             }
             "vorbis" => {
+                // Requires the three-header chain in `extra_data`
+                // (decoder.rs:356-372) — seeded from the facts.
+                let config = self.seeded_config(track, config);
                 let mut decoder = VorbisDecoder::new();
-                decoder.configure(config)?;
+                decoder.configure(&config)?;
                 Ok(Box::new(decoder))
             }
             // The ADTS/MP4 descriptor family for the AAC-LC decoder:
@@ -208,18 +232,28 @@ impl DecoderProvider for HostDecoderProvider {
             // refuse typed below — the decoder is LC-only by card
             // 5.C2a, honestly.
             "aac" | "aac-lc" => {
+                // ASC mode needs the esds blob; ADTS mode ignores
+                // `extra_data` (in-band) — seed unconditionally.
+                let config = self.seeded_config(track, config);
                 let mut decoder = AacDecoder::new();
-                decoder.configure(config)?;
+                decoder.configure(&config)?;
                 Ok(Box::new(decoder))
             }
             "alac" => {
+                // Requires the ALAC magic cookie in `extra_data`
+                // (decoder.rs:620-626) — seeded from the facts.
+                let config = self.seeded_config(track, config);
                 let mut decoder = AlacDecoder::new();
-                decoder.configure(config)?;
+                decoder.configure(&config)?;
                 Ok(Box::new(decoder))
             }
             codec if codec.starts_with("adpcm_") => {
+                // Parses its WAVEFORMAT (tag/channels/rate/block_align)
+                // from `extra_data` (mod.rs:346-358) — seeded from
+                // the facts (the WAV `fmt` chunk body).
+                let config = self.seeded_config(track, config);
                 let mut decoder = AdpcmDecoder::new();
-                decoder.configure(config)?;
+                decoder.configure(&config)?;
                 Ok(Box::new(decoder))
             }
             "av1" | "av01" => {
