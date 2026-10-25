@@ -1,6 +1,6 @@
 # ADR-012: Bitmap + closed-caption subtitle strategy (N-wave unlock)
 
-- **Status:** DRAFT — PENDING-LEAD-SIGNATURE (2026-10-24; upon acceptance it
+- **Status:** ACCEPTED — Lead signature 2026-10-24 (wave-9 N-cards authorized; the original draft framing
   unblocks the `[CONDITIONAL — bitmap/CC decision]` gate on doc 13 wave 5.N
   cards 5.N1–5.N3)
 - **Owner:** Lead decision. Drafted by P5-NADR (card 5.N-ADR, D-10,
