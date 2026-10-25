@@ -10025,3 +10025,34 @@ Work Log:
 
 Stage Summary:
 - PHASE 5 COMPLETE AND GATED. User mandates delivered: real-corpus ffmpeg differentials on every landed format; bad algorithms found AND removed (SSE4.1 IDCT net-loss removed; MJPEG color/assemble −34% ms = 2.08–2.77x realtime; MKV 4.10→0.11 allocs/pkt). Phase 6 authorized.
+
+---
+Task ID: 6.WAVE-PLAN
+Agent: Lead
+Task: Phase-6 launch per user directive — wave program of subagents (user: "start next phase with waves of subagents of 200 agents in waves"; same standing rules as Phase 5: small work per agent, restart failed agents, real-corpus/testing honesty, no workarounds).
+
+Work Log:
+- Environment re-verified this session (sandbox reset #4 absorbed): rustup 1.99.1 pin reinstalled, cargo fetch green, corpus-v4 alive at /tmp/my-project/corpus-v4 (143 media files + harness TSVs), ffmpeg/ffprobe 7.1.5 present. Full fresh re-run of all Phase-5 differential suites: ~1,550 tests / 0 failures (per-format table delivered to user this session).
+- Phase-6 scope = doc 13 §9 (17 cards: 6.A1-A3, 6.B1-B3, 6.C1-C2, 6.D1-D2, 6.E1-E2, 6.F1-F2, 6.G1-I, 6.H1, 6.I1-V) + phase5-exit.md §5 launch list (open-path wiring, validate-then-admit wave: ruopus/oxideav-mpeg4video/oxideav-ac3/rusty_vp9/filmcraft-dnx, ASF self-build split, AC-3/DTS IEC 61937 passthrough, ADPCM bench + MP3 corpus re-print).
+- Decomposition into ~200 small agent units across 20 waves (dependency-ordered; wave-internal units R1-disjoint). Convergence honest: Phase 5 landed ~120 sessions for 47 cards; Phase 6 will dispatch until the 6.I1-V gate passes, wave budget 20.
+- Wave table (W# = execution wave; each line = one small agent unit):
+  W1: 6.A1a streaming scaffold+mock-testkit | 6.A1b ureq VTA spike+record | 6.OPW-0 open-path seam investigation | 6.VTA-ruopus | 6.ADPCM-bench | 6.MP3-reprint | 6.VTA-oxideav-ac3 | 6.VTA-rusty-vp9 | 6.VTA-mpeg4video | 6.VTA-dnxhd
+  W2: 6.A1c HTTP client range+deadlines+redirects | 6.A2a ranged seekable resource | 6.OPW-registry | 6.OPW-mp4 | 6.OPW-mkv | 6.OPW-ogg | 6.OPW-wav | 6.OPW-aiff | 6.OPW-ts | 6.OPW-adts-es-ivf
+  W3: 6.A2b no-range fallback | 6.A3 scheme registry+records | 6.B1a HLS media playlist | 6.ASF-I investigation | 6.OPW-cli-conformance | 6.OPW-ttf-seek-remeasure | 6.A1 completers | 6.OPW fixups
+  W4: 6.B1b HLS live window+discontinuity | 6.B2a master variants | 6.ASF-a header tree | 6.C1a MPD parser core | 6.OPW residual fixes
+  W5: 6.B3 HLS records+conformance | 6.C1b MPD templates/lists | 6.ASF-b data packets | 6.B2b variant switch A/V sync
+  W6: 6.C1c MPD fuzz | 6.D1a buffer model | 6.ASF-c index seeking | 6.C2a ABR policy
+  W7: 6.D1b stall prediction+traces | 6.E1a HTTP basic auth | 6.C2b segment timelines | 6.ASF-d differential vs ffmpeg fixtures
+  W8: 6.E1b digest+redaction tests | 6.D2a reconnect backoff | 6.ASF records | 6.G1-I RTSP investigation
+  W9: 6.D2b resume-from-offset | 6.E2 remote playlists | 6.F1a HLS fuzz seeds | mid-gate 6.M1
+  W10: 6.F1b MPD/HTTP fuzz | 6.IEC61937-a passthrough investigation | 6.VTA admission M-waves (ruopus/oxideav wiring) | completers
+  W11-12: admission M-waves continued (ac3/vp9/mpeg4/dnxhd decode crates + corpus differentials) | 6.F2a synthetic proxy
+  W13-14: 6.F2b interrupted-network scenarios | open-path + admission integrations | fix cards
+  W15-16: 6.H1 security review (SSRF/redirect/TLS/traversal/header-injection) | fix cards
+  W17-18: records completeness + matrix backfill (P6 rows) | fuzz 10-min clean runs
+  W19: gate prep: full workspace test + clippy + fmt + registry checks
+  W20: 6.I1-V Phase-6 exit gate + ledger + Phase-7 launch list + push
+- Dispatch discipline (Phase-5 proven recipe, unchanged): single-dispatch windows (~8-10 min tool deadline), time-discipline briefing, worktree isolation (worktrees/p6-<id>, branch wip/p6-<id>), completer agents for cut-off work, Lead merges --no-ff + resolves worklog (append-only both sides) + runs crate gates + pushes every wave. Failed agents restarted on the same unit — wave decision never overridden. Env notes for all briefings: export PATH="$HOME/.cargo/bin:$PATH"; do NOT set LUMEN_CORPUS (defaults resolve to /tmp/my-project/corpus-v4[/media]); gates run foreground only (background procs get killed); commit early and often.
+
+Stage Summary:
+- Phase 6 formally launched. Critical path: 6.A1a (streaming scaffold) first — everything streaming depends on it. Highest user-visible value in parallel: 6.OPW open-path wiring (makes the 29 verified formats actually play). Wave 1 dispatch begins now.
