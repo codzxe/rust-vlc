@@ -26,9 +26,16 @@ publish = false
 workspace = true
 
 [dependencies]
-ureq = { version = "3.5.0", default-features = false, features = ["rustls", "rustls-webpki-roots"] }
-# Intentionally empty: std only (card 6.A1a scope). The ureq admission
-# (6.A1b) is the first card allowed to propose a dependency here.
+# ureq 3.5.0 — admitted by card 6.A1b (validate-then-admit; record at
+# docs/dependencies/records/ureq-3.5.0.md). Exact pin (house admission
+# style): a bump re-triggers the record per doc 11 §3.7. Minimal
+# feature set: rustls TLS with the compiled-in Mozilla root bundle —
+# NO native-tls, NO socks-proxy, NO gzip/brotli (raw bytes preserve
+# range/Content-Length semantics), NO cookies/charset/json/multipart.
+# Sync by design (doc 01 §4.2). Known deviation, Lead-ADR ask: the
+# rustls crypto provider is ring 0.17.14 (C + asm compiled by cc) —
+# there is no production pure-Rust TLS provider; see record R1/R10.
+ureq = { version = "=3.5.0", default-features = false, features = ["rustls", "rustls-webpki-roots"] }
 
 [dev-dependencies]
 # testkit is dev-only by contract (MP §3.7): the lint-legal `Must`
