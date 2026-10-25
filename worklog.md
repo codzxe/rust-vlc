@@ -9895,3 +9895,16 @@ Work Log:
 
 Stage Summary:
 - D-10 MEASURE? — YES: controlled before/after on the heaviest corpus mjpeg lane (stage_bench A/B via stash, medians of 5 passes × 40 frames, release) + 4-lane corpus contract-path corroboration + full 27-lane oracle re-run vs recorded baseline (identical). NOT measured? — the corpus baseline rows' absolute times (Lead's earlier session: hardware/load drift caveat, direction only); 4:4:0/4:2:2 direct-row paths exercised by unit sweeps + corpus 0064 (yuvj422p) decode counts, not byte-compared (RGBA has no oracle vocabulary — pre-existing harness property, not new); SIMD IDCT re-confirmed net-loss on this host (1.28x SLOWER than scalar — kept scalar per X1a). What breaks this? — nothing: fallback paths verbatim; hostile geometry takes the untouched stepper/cold loops. Who hits it first? — every 4:4:4/4:2:2/grayscale MJPEG lane (0033/0052/0055/0064/0073/0080/0086/0092/0116/0118/0124/0144 + dirty) now decodes 1.5–2.1x faster; R1-perf card consumes the numbers.
+
+---
+Task ID: 5.W8-CLOSE (Lead)
+Agent: Lead
+Task: Wave 8 — merge + gate + push.
+
+Work Log:
+- 10 cards LANDED: 5.E2 AV1 record (conformance 15 rows pixel-MD5 PASS; asm-off 0.309x vs libdav1d honest-gap; Lead-verified after 5 spawn-dead agent sessions), 5.G2 HEVC hw-path (571/0; 5.F2 mirror), 5.N-ADR bitmap/CC decision DRAFT (self-build all three, zero deps — PGS M / DVB+VobSub M / CC 608 M + 708 staged), 5.Q1 fuzz sweep (32 targets, registry diff EMPTY via scripts/fuzz_registry_check.sh wired as gate #6; 1393/0 in-crate; cargo-fuzz absent honestly recorded), 5.X1a algorithm audit (measured: RGBA assemble 63.1% of uhd4k walk; pipeline gap 79%; SSE4.1 IDCT net-loss 4/4; uhd4k 0.239x realtime), 5.X2a memory audit (MKV demux D-1 violation: 4.10 allocs/pkt + 3x-file walk bytes — X2b fix #1; V-1 verified fixed; uhd4k 59.5MB RSS), 5.R3-REG registry consolidation (8 probe signatures, registry 2→10; AAC adts descriptor gap closed; 17-fixture roundtrip; feature-flags [PROPOSAL]), 5.REC-1 (9 container records + mkv audit), 5.REC-2 (10 codec records + 2 audits), 5.X1b MJPEG optimization (9.19→6.04 ms/frame = -34%; x-realtime 1.81→2.76; bit-exact preserved 27-lane oracle re-verified).
+- USER-MANDATE RESULTS: speed — heavy-mjpeg now 2.76x realtime (was 0.292x at Phase-4 close, 1.81x pre-optimization); memory — MKV alloc violation identified with fix list; the audits measured everything.
+- Gates: codecs 586/0, demux+subtitles+playlists 827/0, fmt clean, clippy -D warnings clean, workspace check clean. (Suite-completion timeouts were post-run cleanup lag under disk pressure; logs show full completion.)
+
+Stage Summary:
+- Phase 5: 45 of 47 parent cards resolved (E1/E2/F2/G1/G2/H1/H2-I/K1-honest-pending/K2-I/K3-I/K4-I/N-ADR/P1-I/P2-I/Q1/X1/X2 + all format cards). REMAINING: N1/N2/N3 (bitmap subs — ADR drafted, needs Lead signature), X2b (memory fixes), Q2-V (records audit), R1 (perf snapshot), R2-V (Phase-5 gate). PUSHING NOW.

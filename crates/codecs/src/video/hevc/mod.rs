@@ -45,8 +45,8 @@
 //! never a panic.
 
 pub mod decode;
-pub mod hw;
 pub mod fuzz;
+pub mod hw;
 pub mod parser;
 
 pub use decode::HevcDecoder;
