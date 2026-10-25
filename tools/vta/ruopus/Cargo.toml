@@ -1,0 +1,15 @@
+# Standalone VTA differential harness for card 6.VTA-ruopus.
+# NOT a workspace member (root members = crates/*, apps/*, tools/xtask) —
+# the empty [workspace] table below pins it to its own workspace root.
+[workspace]
+
+[package]
+name = "vta-ruopus"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+ruopus = { version = "0.1.2", default-features = false, features = ["std"] }
+demux = { path = "../../../crates/demux" }
+plugin-api = { path = "../../../crates/plugin-api" }
