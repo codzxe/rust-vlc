@@ -9746,3 +9746,15 @@ Work Log:
 
 Stage Summary:
 - Phase 5: 37 of 47 parent cards landed (E2 AV1-record, G2 HEVC-integration, N1-N3 bitmap subs, Q1 fuzz sweep, Q2-V audit, R1 perf, R2-V gate, X1/X2 audits remain + K1 pending-unblock). PUSHING NOW.
+
+---
+Task ID: 5.E2
+Agent: P5-E2 agent sessions (5 dispatch attempts died at spawn/gate) + Lead verification
+Task: AV1 conformance + differential + speed-honesty record.
+
+Work Log:
+- Files authored by the agent sessions; Lead ran the full verification this session: conformance matrix 15 rows ALL PASS (78.67s: resolution ladder 64x64→1920x1080, g=1/6/240, tiles 2x1/2x2, cpu-used 4/8, restoration-off, 10-bit + 4:4:4 typed-refusal rows) — pixel-MD5 vs live ffmpeg yuv420p dumps; VLC differential = pending-infra honest; av1_bench --ignored release: ours 32.8 fps = 68.10 Mpix/s (rav1d 1.1.0 asm-off, in-process) vs ffmpeg libdav1d 106.4 fps (full pipeline incl. spawn, labeled asymmetric) = 0.309x honest-gap per doc 12 §1.3.
+- Gates: fmt clean, clippy -p codecs -D warnings clean, cargo test -p codecs --all-features = 555 passed / 0 failed (incl. the new suites).
+
+Stage Summary:
+- D-10: MEASURE? — all numbers above are real runs this session. NOT tested? — official AOM vectors (offline-unavailable, matrix is the honest set); 10-bit/4:4:4 decode (typed refusals = v0 scope); cargo-fuzz/ASan lanes. What breaks? — nothing; additive tests + record. Who hits it first? — 5.R1 perf snapshot aggregates the 0.309x ratio; Phase-7 admission reviews asm-on policy.
