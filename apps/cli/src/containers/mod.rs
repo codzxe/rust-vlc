@@ -24,7 +24,7 @@ mod avi;
 use commands::{CommandError, ErrorCode, Stage};
 use plugin_api::SourceStream;
 
-use crate::demux_host::{OpenedMedia, OpenOptions};
+use crate::demux_host::{OpenOptions, OpenedMedia};
 
 /// THE dispatch: the probed format id → its wired container host.
 ///

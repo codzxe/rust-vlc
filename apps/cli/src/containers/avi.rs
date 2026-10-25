@@ -12,12 +12,12 @@
 use commands::CommandError;
 use demux::avi::AviDemuxer;
 use demux::avi::header::StreamFormat;
-use media_types::time::{Stamp, TimeSpan, Timestamp};
 use media_types::Track;
+use media_types::time::{Stamp, TimeSpan, Timestamp};
 use plugin_api::{Demuxer, SourceStream};
 
 use crate::demux_host::{
-    MediaFacts, OpenedMedia, OpenOptions, SelectDemuxer, TrackFact, wire_error,
+    MediaFacts, OpenOptions, OpenedMedia, SelectDemuxer, TrackFact, wire_error,
 };
 
 /// Open an AVI source (the doc §4.2 per-container shape): the probe

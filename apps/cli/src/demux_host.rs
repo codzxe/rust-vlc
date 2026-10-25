@@ -535,7 +535,10 @@ mod tests {
             Err(err) => unreachable!("{err}"),
         };
         assert_eq!(opened.start_position_ns, 2_000_000_000);
-        let _tracks = opened.demuxer.start().unwrap_or_else(|e| unreachable!("{e}"));
+        let _tracks = opened
+            .demuxer
+            .start()
+            .unwrap_or_else(|e| unreachable!("{e}"));
         let mut packets = 0u32;
         loop {
             match opened.demuxer.next_event() {
@@ -569,29 +572,31 @@ mod tests {
     /// as over AVI: bases come from the started demuxer's own tracks.
     #[test]
     fn select_demuxer_is_generic_over_a_non_avi_demuxer() {
-        let bytes: std::sync::Arc<[u8]> = std::fs::read(fixture("generated/valid/wav_pcm_s16le_44k1_st.wav"))
-            .unwrap_or_else(|e| unreachable!("fixture unreadable: {e}"))
-            .into();
+        let bytes: std::sync::Arc<[u8]> =
+            std::fs::read(fixture("generated/valid/wav_pcm_s16le_44k1_st.wav"))
+                .unwrap_or_else(|e| unreachable!("fixture unreadable: {e}"))
+                .into();
         let started = |skip: Option<i64>| -> (SelectDemuxer<demux::wav::WavDemuxer>, usize) {
             let stream = demux::avi::test_support::mem_stream(bytes.clone())
                 .unwrap_or_else(|e| unreachable!("{e}"));
-            let mut demuxer = demux::wav::WavDemuxer::new(stream)
-                .unwrap_or_else(|e| unreachable!("{e}"));
+            let mut demuxer =
+                demux::wav::WavDemuxer::new(stream).unwrap_or_else(|e| unreachable!("{e}"));
             let tracks = demuxer.start().unwrap_or_else(|e| unreachable!("{e}"));
             let count = tracks.len();
             let bases = tracks
                 .iter()
                 .map(|track| (track.id, track.timing.base))
                 .collect();
-            (SelectDemuxer::new(demuxer, skip, bases, false, false), count)
+            (
+                SelectDemuxer::new(demuxer, skip, bases, false, false),
+                count,
+            )
         };
         // The selection filter: --no-video keeps a video-less media's
         // audio track (filtering is by kind, not by codec).
         let (mut wrapper, track_count) = started(None);
         assert_eq!(track_count, 1, "the fixture is one audio track");
-        let visible = wrapper
-            .start()
-            .unwrap_or_else(|e| unreachable!("{e}"));
+        let visible = wrapper.start().unwrap_or_else(|e| unreachable!("{e}"));
         assert_eq!(visible.len(), 1);
         // The skip watermark: a target past the whole media drops every
         // packet — the wrapper answers the end of stream without
