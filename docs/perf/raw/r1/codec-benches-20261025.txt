@@ -1,0 +1,20 @@
+# card 5.R1 — per-codec ignored-bench suite, this session, release build
+# cmd: cargo test -p codecs --all-features --release --test <name>_bench -- --ignored --nocapture
+# env: LUMEN_CORPUS=/tmp/my-project/corpus-v4, loadavg ~0.12-0.3 idle sandbox
+flac_decode_corpus_0046: 46421260 inter-channel samples/s (median of 7; 526.3x realtime at 88200 Hz, 24-bit stereo)
+fixture cbr128.mp3: 176400 inter-channel samples, median 98926446 samples/s = 1122x realtime (2.000s of audio)
+corpus 0139-audio-only.mp3: 88200 inter-channel samples, median 71675908 samples/s = 3251x realtime (4.000s of audio)
+fixture mp2_48k.mp2: 145152 inter-channel samples, median 122633953 samples/s = 1277x realtime (1.512s of audio)
+corpus 0119-audio-only.mp2: 354816 inter-channel samples, median 105655092 samples/s = 1198x realtime (4.023s of audio)
+corpus 0005-audio-only.mp2: 64512 inter-channel samples, median 99516548 samples/s = 6220x realtime (4.032s of audio)
+THROUGHPUT corpus 0085-audio-only.ogg: 32256 inter-channel samples, 126 packets, median 24152607 samples/sec over 7 reps (all: [19898741.95, 23159602.81, 23400586.32, 24152607.10, 24218852.65, 24298982.34, 24364083.52])
+corpus 0059-audio-only.aac: 354304 inter-channel samples, median 68413446 samples/s = 776x realtime (4.017s of audio)
+corpus 0110-audio-only.aac: 385024 inter-channel samples, median 107433098 samples/s = 1119x realtime (4.011s of audio)
+fixture sine441_lc_stereo.aac: 268288 inter-channel samples, median 95459680 samples/s = 1082x realtime (3.042s of audio)
+alac_stereo24.m4a: 201600 PCM bytes (33600 frame-samples x 2 ch) in median 1.51486ms - 133.0816049007829 MB/s of decoded PCM (full pipeline incl. demux)
+alac_stereo16.m4a: 123480 PCM bytes (30870 frame-samples x 2 ch) in median 1.205112ms - 102.46350546671182 MB/s of decoded PCM (full pipeline incl. demux)
+# av1_bench (fresh run this session):
+av1 1080p (12f, 24.88 Mpix total):
+  ours   rav1d 1.1.0 asm-off, in-process demux+decode+copy-out: 33.0 fps = 68.41 Mpix/s
+  ffmpeg libdav1d (asm on), full pipeline incl. spawn: 112.9 fps
+  asm-off cost ratio (ours/ffmpeg): 0.292x - doc 12 §1.3 honest-gap record

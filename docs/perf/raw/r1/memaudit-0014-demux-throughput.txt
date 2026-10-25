@@ -1,0 +1,8 @@
+# card 5.R1 step 5 -- mkv demux throughput post-X2b (0014-muxed-av.mkv)
+# tool: tools/mem-audit release binary, fresh process per timing run,
+# median-of-5 with 1 warm-up discarded; per-walk time derived as
+# (median wall of --repeat 6 - median wall of --repeat 1) / 5
+rep1 wall med = 0.0068s  rep6 wall med = 0.0306s
+derived per-walk (demux full 0014, 255 pkts) = 4.77 ms -> 53494 packets/s, 773.2 MiB/s demux
+# MEMAUDIT line of the same session (alloc/walk accounting, matches X2b after-table):
+MEMAUDIT file=0014-muxed-av.mkv container=mkv tracks=2 limbs=v+a v_pkts=185 a_pkts=70 v_dec=0 a_dec=0 walk_alloc_B=3930502 walk_calls=28 B_per_pkt=15413.73 calls_per_pkt=0.11 rss_hwm_kB=3896

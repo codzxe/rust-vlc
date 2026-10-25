@@ -1,0 +1,17 @@
+# ffmpeg -v info -nostdin -benchmark -i FILE -f null - (single run per lane,
+# utime/stime at 1ms kernel granularity -- coarse for these 4s lanes; the
+# median-of-5 wall family is in ffmpeg-lanes.csv)
+0046-audio-only.flac: bench: utime=0.007s stime=0.001s rtime=0.005s
+0139-audio-only.mp3: bench: utime=0.004s stime=0.000s rtime=0.003s
+0005-audio-only.mp2: bench: utime=0.000s stime=0.003s rtime=0.002s
+0119-audio-only.mp2: bench: utime=0.008s stime=0.001s rtime=0.006s
+0085-audio-only.ogg: bench: utime=0.003s stime=0.001s rtime=0.003s
+0059-audio-only.aac: bench: utime=0.008s stime=0.004s rtime=0.007s
+0110-audio-only.aac: bench: utime=0.007s stime=0.004s rtime=0.006s
+0042-audio-only.wav: bench: utime=0.002s stime=0.003s rtime=0.003s
+# ALAC committed fixtures (crates/codecs/tests/fixtures/alac):
+alac_mono16.m4a: utime=0.002s stime=0.000s
+alac_mono24.m4a: utime=0.002s stime=0.000s
+alac_stereo16.m4a: utime=0.002s stime=0.000s
+alac_stereo24.m4a: utime=0.000s stime=0.003s
+alac_stereo24_noise.m4a: utime=0.001s stime=0.002s
