@@ -44,6 +44,46 @@ impl FormatId {
         FormatId("mp4".to_owned())
     }
 
+    /// The WAV container (RIFF/RF64/BW64, form `WAVE`; card 5.A2).
+    pub fn wav() -> FormatId {
+        FormatId("wav".to_owned())
+    }
+
+    /// The AIFF/AIFC container (`FORM` magic; card 5.A2).
+    pub fn aiff() -> FormatId {
+        FormatId("aiff".to_owned())
+    }
+
+    /// The Ogg container family (`OggS` capture; card 5.B1).
+    pub fn ogg() -> FormatId {
+        FormatId("ogg".to_owned())
+    }
+
+    /// The Matroska/WebM container family (EBML header; card 5.D1).
+    pub fn matroska() -> FormatId {
+        FormatId("matroska".to_owned())
+    }
+
+    /// The ADTS/ADIF raw-AAC container (card 5.C2b).
+    pub fn adts() -> FormatId {
+        FormatId("adts".to_owned())
+    }
+
+    /// The MPEG transport stream (card 5.I1).
+    pub fn mpegts() -> FormatId {
+        FormatId("mpegts".to_owned())
+    }
+
+    /// The MPEG program stream / DVD-VOB (card 5.I2).
+    pub fn mpegps() -> FormatId {
+        FormatId("mpegps".to_owned())
+    }
+
+    /// The IVF delivery container (`DKIF`; card 5.I3b).
+    pub fn ivf() -> FormatId {
+        FormatId("ivf".to_owned())
+    }
+
     /// Validate a format id string (extension path).
     ///
     /// Grammar: 1..=24 bytes of ASCII lowercase letters, digits, `-`

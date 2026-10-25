@@ -300,7 +300,10 @@ pub fn open_source(
             Stage::Probe,
             ErrorCode::Unsupported,
             format!(
-                "format `{container}` has no demuxer in this build (first vertical: AVI, D-018)"
+                "format `{container}` probes but has no open-path wiring yet \
+                 (R3 registered the signature; the CLI open path is still the \
+                 D-018 AVI first vertical — the per-container host wiring is the \
+                 next card)"
             ),
         )
         .with_detail("format", container));

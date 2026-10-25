@@ -50,6 +50,14 @@ use audio_engine::{AudioPipeline, PipelineSpec};
 use audio_output::null::{NullDevice, NullSink};
 use audio_output::{NullBackend, NullConfig, NullStream};
 use codec_api::{DecodeOutcome, Decoder, DecoderConfig, FrameSink};
+use codecs::audio::aac::AacDecoder;
+use codecs::audio::adpcm::AdpcmDecoder;
+use codecs::audio::alac::AlacDecoder;
+use codecs::audio::flac::FlacDecoder;
+use codecs::audio::mp2::Mp2Decoder;
+use codecs::audio::mp3::Mp3Decoder;
+use codecs::audio::vorbis::VorbisDecoder;
+use codecs::video::av1::Av1Decoder;
 use media_clock::MediaClock;
 use media_types::frame::{
     AudioFormat, AudioFrame, AudioLayout, ColorMatrix, ColorRange, FrameStorage, SampleFormat,
@@ -168,6 +176,57 @@ impl DecoderProvider for HostDecoderProvider {
                 decoder.configure(config)?;
                 Ok(Box::new(decoder))
             }
+            // The Phase-5 R3 registration rows (card 5.R3-REG): every
+            // decoder whose codec card landed in waves 4–7, dispatched
+            // on the track's registry descriptor — the decoder's own
+            // `configure` gate stays the honest authority (an ALAC
+            // stream mislabeled flac refuses typed there, never
+            // decodes garbage).
+            "flac" => {
+                let mut decoder = FlacDecoder::new();
+                decoder.configure(config)?;
+                Ok(Box::new(decoder))
+            }
+            "mp3" | "mp1" => {
+                let mut decoder = Mp3Decoder::new();
+                decoder.configure(config)?;
+                Ok(Box::new(decoder))
+            }
+            "mp2" => {
+                let mut decoder = Mp2Decoder::new();
+                decoder.configure(config)?;
+                Ok(Box::new(decoder))
+            }
+            "vorbis" => {
+                let mut decoder = VorbisDecoder::new();
+                decoder.configure(config)?;
+                Ok(Box::new(decoder))
+            }
+            // The ADTS/MP4 descriptor family for the AAC-LC decoder:
+            // `aac` (ISO-BMFF esds) and `aac-lc` (the ADTS profile
+            // mapping); Main/SSR/LTP descriptors stay unmatched and
+            // refuse typed below — the decoder is LC-only by card
+            // 5.C2a, honestly.
+            "aac" | "aac-lc" => {
+                let mut decoder = AacDecoder::new();
+                decoder.configure(config)?;
+                Ok(Box::new(decoder))
+            }
+            "alac" => {
+                let mut decoder = AlacDecoder::new();
+                decoder.configure(config)?;
+                Ok(Box::new(decoder))
+            }
+            codec if codec.starts_with("adpcm_") => {
+                let mut decoder = AdpcmDecoder::new();
+                decoder.configure(config)?;
+                Ok(Box::new(decoder))
+            }
+            "av1" | "av01" => {
+                let mut decoder = Av1Decoder::new();
+                decoder.configure(config)?;
+                Ok(Box::new(decoder))
+            }
             codec if codec.starts_with("pcm_") => {
                 // The strf facts the open path harvested (2.B5's
                 // with_format seam — the engine passes no extra_data).
@@ -196,7 +255,10 @@ impl DecoderProvider for HostDecoderProvider {
             other => Err(host_error(
                 PipelineStage::Decode,
                 "cli.codec_unavailable",
-                format!("no decoder for `{other}` in this build (first vertical: mjpeg + pcm)"),
+                format!(
+                    "no decoder for `{other}` in this build (landed: mjpeg, pcm, flac, \
+                     mp3, mp2, vorbis, aac-lc, alac, adpcm, av1)"
+                ),
             )),
         }
     }
