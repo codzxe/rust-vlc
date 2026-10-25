@@ -109,3 +109,16 @@ pub mod dvb;
 /// the grayscale fallback, the transparent-border crop, and the
 /// reduce to [`compositing::CompositedCue`]s.
 pub mod vobsub;
+
+/// Card 5.N1 (wave 9, ADR-012 self-build): PGS (HDMV, Blu-ray)
+/// subtitles — the segment grammar in both framings (`.sup`-style
+/// PTS-prefixed and Matroska `S_HDMV/PGS`-stripped), the PDS
+/// 16-bit YCbCrA palette → RGBA conversion (BT.601/BT.709 by video
+/// height, the reference decoder's rule), the object RLE (literal
+/// pixels + `0x00` escapes: EOL, 1–63 runs, 16-bit long runs), the
+/// epoch state machine (acquisition/epoch-start flush,
+/// multi-fragment ODS assembly, END-of-display-set composition),
+/// and the reduce to [`compositing::CompositedCue`]s with exact
+/// PCS-position anchors over the video extent. Carriage landed
+/// earlier: TS stream type `0x90` → `"pgssub"` (`demux/src/ts`).
+pub mod pgs;
