@@ -1,0 +1,35 @@
+# crates/streaming — network streaming layer (card 6.A1a; doc 13 §9).
+#
+# Registry: the `streaming` crate of doc 01 §2.4 (layer L2). v0 scope is
+# the *port* only: the sync `HttpFetch` trait + request/response types,
+# the typed network error vocabulary, and a std-only mock HTTP/1.1
+# testkit. The real HTTP client (ureq admission, 6.A1b/6.A1c), ranged
+# seekable resources (6.A2), HLS/DASH (6.B/6.C) and RTSP (6.G) land on
+# top in later cards.
+#
+# C5 discipline: std-only, zero external dependencies. Sync-only per
+# doc 01 §4.2 (engine core is threads + channels — no async runtime).
+# No unsafe, no unwrap/expect/panic (workspace lints), bounded response
+# memory (MP §12 — `HttpRequest::response_limit`).
+#
+# Membership: joined via the root `crates/*` glob (no root manifest
+# edit, per the wave conflict rule recorded there).
+
+[package]
+name = "streaming"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen network streaming layer: sync HttpFetch port, typed network errors, and a std-only mock HTTP/1.1 testkit (card 6.A1a; real client lands in 6.A1c)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# Intentionally empty: std only (card 6.A1a scope). The ureq admission
+# (6.A1b) is the first card allowed to propose a dependency here.
+
+[dev-dependencies]
+# testkit is dev-only by contract (MP §3.7): the lint-legal `Must`
+# unwrap helper for fixture contracts (tests deny unwrap/expect/panic).
+testkit = { path = "../testkit" }
