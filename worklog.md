@@ -9922,3 +9922,15 @@ Work Log:
 
 Stage Summary:
 - D-10 MEASURE? — YES: every gate number above was run in-tree this session (230/0 exact per-suite breakdown; fmt/clippy verified clean after fixes); the polish pass's brokenness was discovered by running the gates, not assumed. NOT measured? — real-stream decode fidelity (no corpus, no ffmpeg differential — encoder refuses text→bitmap; hand-crafted vectors only), libFuzzer coverage, character-coded DVB objects (typed unsupported). What breaks? — nothing merged: both commits now gate-clean; the risk carrier is ab696b4's pre-polish state, which failed clippy (expect_used) + fmt — this card's commit cures it. Who hits it first? — the Lead's merge queue / R2-V Phase-5 gate would have hit ab696b4's clippy failure; 5.N3 (CC 608/708) consumes the compositing + damage-ledger precedents set here; any real DVB/VobSub corpus lane (future demux integration) exercises the fuzz-survival-only paths.
+
+---
+Task ID: 5.RESTART-2 (Lead)
+Agent: Lead
+Task: INCIDENT #3 — sandbox rollback mid-wave-9.
+
+Work Log:
+- Partial rollback: main survived through the N2 merge (fc9ec24: all waves 1-8 + ADR-012 + 5.N2 DVB/VobSub complete) and is PUSHED. LOST: 5.N1 PGS (b1cca1c+8850f78), 5.N3 CC (01ce958), 5.X2b MKV memory fixes (0a9f6fb — 4.10→0.04 allocs/pkt), 5.Q2-V records audit (eed8cb7) — branches + worktrees + objects gone; only p5-n2 worktree/branch survived.
+- Re-dispatching the 4 cards now (wave 9 redo). N2's loss was zero (merged+pushed first).
+
+Stage Summary:
+- Phase 5: 46 of 47 parent cards resolved-and-pushed except N1/N3/X2b/Q2-V (redoing now) and R1/R2-V (never started — the final snapshot + gate).
