@@ -109,7 +109,11 @@ impl PageSegment<'_> {
     /// The region placements. A trailing partial entry (< 6 bytes)
     /// is dropped here and length-accounted by the damage ledger.
     pub fn region_refs(&self) -> impl Iterator<Item = PageRegionRef> + '_ {
-        self.regions.chunks_exact(6).map(|e| PageRegionRef {
+        // `as_chunks` yields (chunks, remainder): a trailing partial
+        // entry (< 6 bytes) is dropped here; its length is
+        // damage-accounted upstream.
+        let (entries, _rest) = self.regions.as_chunks::<6>();
+        entries.iter().map(|e| PageRegionRef {
             region_id: e[0],
             x: u16::from_be_bytes([e[2], e[3]]),
             y: u16::from_be_bytes([e[4], e[5]]),
@@ -391,6 +395,7 @@ pub(crate) fn parse_display_def(data: &[u8]) -> Option<DisplayDefSegment> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use testkit::Must;
 
     #[test]
     fn header_walk_and_truncation() {
@@ -427,12 +432,26 @@ mod tests {
             data.extend_from_slice(&y.to_be_bytes());
         }
         data.extend_from_slice(&[0x99, 0x00, 0x00]); // trailing partial entry
-        let page = parse_page(&data).unwrap();
+        let page = parse_page(&data).must();
         assert_eq!((page.timeout_s, page.version, page.state), (10, 5, 1));
         let refs: Vec<_> = page.region_refs().collect();
         assert_eq!(refs.len(), 2);
-        assert_eq!(refs[0], PageRegionRef { region_id: 1, x: 100, y: 200 });
-        assert_eq!(refs[1], PageRegionRef { region_id: 2, x: 720, y: 576 });
+        assert_eq!(
+            refs[0],
+            PageRegionRef {
+                region_id: 1,
+                x: 100,
+                y: 200
+            }
+        );
+        assert_eq!(
+            refs[1],
+            PageRegionRef {
+                region_id: 2,
+                x: 720,
+                y: 576
+            }
+        );
     }
 
     #[test]
@@ -440,10 +459,24 @@ mod tests {
         // id 1, version 2, fill 1, 16x8, depth code 1 (=> 2 bits),
         // clut 3, codes for 8/4/2-bit fills, then one 6-byte object.
         let data = [
-            0x01, 0x2A, 0x00, 0x10, 0x00, 0x08, 0b01_001_00, 0x03, 0x00, 0xF4, //
-            0x00, 0x07, 0x00, 0x02, 0x00, 0x03,
+            0x01,
+            0x2A,
+            0x00,
+            0x10,
+            0x00,
+            0x08,
+            0b0010_0100,
+            0x03,
+            0x00,
+            0xF4, //
+            0x00,
+            0x07,
+            0x00,
+            0x02,
+            0x00,
+            0x03,
         ];
-        let r = parse_region(&data).unwrap();
+        let r = parse_region(&data).must();
         assert_eq!(r.region_id, 1);
         assert_eq!(r.version, 2);
         assert!(r.fill);
@@ -464,10 +497,24 @@ mod tests {
         // header is 10 bytes (id, ver/fill, w, h, depth, clut, 8-bit
         // fill, 4/2-bit fill) before the object entries.
         let data = [
-            0x07, 0x00, 0x00, 0x08, 0x00, 0x0C, 0b01_010_00, 0x03, 0x00, 0x00, // hdr
-            0x12, 0x34, 0x0A, 0xBC, 0x01, 0x23,
+            0x07,
+            0x00,
+            0x00,
+            0x08,
+            0x00,
+            0x0C,
+            0b0010_1000,
+            0x03,
+            0x00,
+            0x00, // hdr
+            0x12,
+            0x34,
+            0x0A,
+            0xBC,
+            0x01,
+            0x23,
         ];
-        let r = parse_region(&data).unwrap();
+        let r = parse_region(&data).must();
         let objs: Vec<_> = r.object_refs().collect();
         assert_eq!(objs.len(), 1);
         assert_eq!(objs[0].object_id, 0x1234);
@@ -476,10 +523,26 @@ mod tests {
         assert_eq!(objs[0].y, 0x123);
         // Character-coded: 8 bytes, fg/bg follow.
         let data = [
-            0x07, 0x00, 0x00, 0x08, 0x00, 0x0C, 0b01_010_00, 0x03, 0x00, 0x00, // hdr
-            0x12, 0x34, 0x4A, 0xBC, 0x01, 0x23, 0x09, 0x0A,
+            0x07,
+            0x00,
+            0x00,
+            0x08,
+            0x00,
+            0x0C,
+            0b0010_1000,
+            0x03,
+            0x00,
+            0x00, // hdr
+            0x12,
+            0x34,
+            0x4A,
+            0xBC,
+            0x01,
+            0x23,
+            0x09,
+            0x0A,
         ];
-        let r = parse_region(&data).unwrap();
+        let r = parse_region(&data).must();
         let objs: Vec<_> = r.object_refs().collect();
         assert_eq!(objs.len(), 1);
         assert_eq!(objs[0].object_type, 1);
@@ -491,9 +554,18 @@ mod tests {
     fn region_invalid_depth_falls_back_to_4() {
         // depth code 0 => 1 << 0 = 1: invalid, depth() falls back.
         let data = [
-            0x01, 0x00, 0x00, 0x10, 0x00, 0x08, 0b01_000_00, 0x03, 0x00, 0x00,
+            0x01,
+            0x00,
+            0x00,
+            0x10,
+            0x00,
+            0x08,
+            0b0010_0000,
+            0x03,
+            0x00,
+            0x00,
         ];
-        let r = parse_region(&data).unwrap();
+        let r = parse_region(&data).must();
         assert_eq!(r.depth(), 4);
     }
 
@@ -501,14 +573,22 @@ mod tests {
     fn clut_entries_full_and_limited() {
         // id 7, version 1, one full-range 8-bit-bank entry (id 3).
         let full = [0x07, 0x10, 0x03, 0b0010_0001, 235, 128, 128, 0];
-        let seg = parse_clut(&full).unwrap();
+        let seg = parse_clut(&full).must();
         let es: Vec<_> = seg.entries().collect();
         assert_eq!(es.len(), 1);
         assert!(es[0].depth_8 && es[0].full_range);
         assert_eq!(es[0].y, 235);
         // One limited-range entry: 3 bytes of Y6/Cr6/Cb6/T2.
-        let lim = [0x07, 0x10, 0x03, 0b0010_0000, 0b1010_0110, 0b1101_0011, 0b0110_1001];
-        let seg = parse_clut(&lim).unwrap();
+        let lim = [
+            0x07,
+            0x10,
+            0x03,
+            0b0010_0000,
+            0b1010_0110,
+            0b1101_0011,
+            0b0110_1001,
+        ];
+        let seg = parse_clut(&lim).must();
         let es: Vec<_> = seg.entries().collect();
         assert_eq!(es.len(), 1);
         assert_eq!(es[0].y, 0b1010_0100);
@@ -517,7 +597,7 @@ mod tests {
         assert_eq!(es[0].alpha, 0b1000_0000);
         // Invalid depth-flags byte stops the walk, no panic.
         let bad = [0x07, 0x10, 0x03, 0x00, 1, 2, 3, 4];
-        assert_eq!(parse_clut(&bad).unwrap().entries().count(), 0);
+        assert_eq!(parse_clut(&bad).must().entries().count(), 0);
     }
 
     #[test]
@@ -527,14 +607,14 @@ mod tests {
         data.extend_from_slice(&3u16.to_be_bytes()); // bottom field len
         data.extend_from_slice(&[0x10, 0x00]); // top: 2-bit block, EOL
         data.extend_from_slice(&[0x11, 0x00, 0x00]); // bottom
-        let o = parse_object(&data).unwrap();
+        let o = parse_object(&data).must();
         assert_eq!(o.object_id, 9);
         assert_eq!(o.coding_method, 0);
         assert!(!o.non_modifying);
         assert_eq!(o.top_field, &[0x10, 0x00]);
         assert_eq!(o.bottom_field, &[0x11, 0x00, 0x00]);
         // Coding method 1 (characters): fields empty, typed.
-        let o = parse_object(&[0x00, 0x09, 0b0000_0100]).unwrap();
+        let o = parse_object(&[0x00, 0x09, 0b0000_0100]).must();
         assert_eq!(o.coding_method, 1);
         // Truncated field lengths -> None (typed damage upstream).
         assert!(parse_object(&[0x00, 0x09, 0x00, 0x00, 0x10]).is_none());
@@ -544,13 +624,13 @@ mod tests {
     #[test]
     fn display_def_parse() {
         let data = [0x15, 0x02, 0xCF, 0x02, 0x3F]; // v1, no window, 720x576
-        let d = parse_display_def(&data).unwrap();
+        let d = parse_display_def(&data).must();
         assert_eq!((d.width, d.height, d.x, d.y), (720, 576, 0, 0));
         assert!(!d.display_window);
         let mut data = data.to_vec();
         data.extend_from_slice(&[0, 0, 1, 0x67, 0, 0, 1, 0x50]); // window: wx=359, wy=336
         data[0] = 0x1D; // window flag set
-        let d = parse_display_def(&data).unwrap();
+        let d = parse_display_def(&data).must();
         assert!(d.display_window);
         // The window max addresses are INCLUSIVE: wx=359 -> 360,
         // wy=336 -> 337 (both +1, like the display size fields).

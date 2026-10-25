@@ -23,17 +23,11 @@ pub enum IdxDamage {
     /// A `timestamp:` line before any `id:` line.
     TimestampBeforeStream,
     /// A malformed `timestamp:` line (unparseable time or filepos).
-    BadTimestamp {
-        line: String,
-    },
+    BadTimestamp { line: String },
     /// A `palette:` line with fewer than 16 entries.
-    ShortPalette {
-        got: usize,
-    },
+    ShortPalette { got: usize },
     /// A `size:` line that is not `WxH`.
-    BadSize {
-        line: String,
-    },
+    BadSize { line: String },
 }
 
 impl std::fmt::Display for IdxDamage {
@@ -113,11 +107,11 @@ pub fn parse_idx(text: &[u8]) -> VobSubIdx {
         let line = raw_line.trim_end_matches(['\r', '\n']);
         if let Some(rest) = line.strip_prefix("size:") {
             let rest = rest.trim();
-            if let Some((w, h)) = rest.split_once('x') {
-                if let (Ok(w), Ok(h)) = (w.trim().parse::<u32>(), h.trim().parse::<u32>()) {
-                    idx.size = Some((w, h));
-                    continue;
-                }
+            if let Some((w, h)) = rest.split_once('x')
+                && let (Ok(w), Ok(h)) = (w.trim().parse::<u32>(), h.trim().parse::<u32>())
+            {
+                idx.size = Some((w, h));
+                continue;
             }
             idx.damage.push(IdxDamage::BadSize {
                 line: line.to_owned(),
@@ -167,10 +161,10 @@ pub fn parse_idx(text: &[u8]) -> VobSubIdx {
         } else if let Some(rest) = line.strip_prefix("delay:") {
             // Delays apply to the whole stream's timestamps (both
             // before and after this line).
-            if let Some(sign) = parse_delay(rest) {
-                if let Some(ci) = current {
-                    delays[ci] += sign;
-                }
+            if let Some(sign) = parse_delay(rest)
+                && let Some(ci) = current
+            {
+                delays[ci] += sign;
             }
         } else if let Some(rest) = line.strip_prefix("timestamp:") {
             let Some(ci) = current else {
@@ -287,7 +281,8 @@ mod tests {
         assert!(idx.streams.is_empty());
         assert!(idx.damage.is_empty());
         // Bad size + bad timestamp lines.
-        let idx = parse_idx(b"size: aandroidx\nid: und, index: 0\ntimestamp: xx:yy:zz:ww, filepos: 1");
+        let idx =
+            parse_idx(b"size: aandroidx\nid: und, index: 0\ntimestamp: xx:yy:zz:ww, filepos: 1");
         assert!(matches!(idx.damage[0], IdxDamage::BadSize { .. }));
         assert!(matches!(idx.damage[1], IdxDamage::BadTimestamp { .. }));
     }

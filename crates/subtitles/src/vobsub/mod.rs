@@ -48,10 +48,10 @@ use crate::compositing::layout::{
     Anchor, CueAlignment, CueLayout, HorizontalAlign, Rational, SafeMargin, VerticalAlign,
 };
 use crate::compositing::target::Rgba;
-use media_types::time::{Stamp, TimeSpan, Timestamp};
+use media_types::time::{Stamp, TimeBase, TimeSpan, Timestamp};
 
 pub use idx::{IdxDamage, IdxEntry, IdxStream, VobSubIdx, parse_idx};
-pub use spu::{SpuDecoded, SpuError, SPU_MAX_SIZE, decode_spu};
+pub use spu::{SPU_MAX_SIZE, SpuDecoded, SpuError, decode_spu};
 
 /// The pair-decode damage ledger cap.
 pub const MAX_DAMAGE_EVENTS: usize = 64;
@@ -60,21 +60,14 @@ pub const MAX_DAMAGE_EVENTS: usize = 64;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VobSubDamage {
     /// An idx `filepos` with no SPU PES in its byte span.
-    BadFilepos {
-        filepos: u64,
-    },
+    BadFilepos { filepos: u64 },
     /// The SPU at a filepos failed to decode (truncated, bad
     /// offsets, RLE overrun, HD commands…).
-    Spu {
-        filepos: u64,
-        error: SpuError,
-    },
+    Spu { filepos: u64, error: SpuError },
     /// No palette in the idx — the grayscale fallback was used.
     NoPalette,
     /// The damage ledger overflowed (count of dropped events).
-    Overflow {
-        dropped: usize,
-    },
+    Overflow { dropped: usize },
 }
 
 impl std::fmt::Display for VobSubDamage {
@@ -86,9 +79,7 @@ impl std::fmt::Display for VobSubDamage {
             VobSubDamage::Spu { filepos, error } => {
                 write!(f, "SPU at 0x{filepos:X} failed: {error}")
             }
-            VobSubDamage::NoPalette => {
-                f.write_str("idx has no palette — grayscale fallback used")
-            }
+            VobSubDamage::NoPalette => f.write_str("idx has no palette — grayscale fallback used"),
             VobSubDamage::Overflow { dropped } => {
                 write!(f, "damage ledger overflow: {dropped} events dropped")
             }
@@ -179,7 +170,12 @@ pub fn parse_vobsub(idx_text: &[u8], sub: &[u8]) -> VobSubDoc {
                 }
             }
             if acc.is_empty() {
-                record(&mut damage, VobSubDamage::BadFilepos { filepos: entry.filepos });
+                record(
+                    &mut damage,
+                    VobSubDamage::BadFilepos {
+                        filepos: entry.filepos,
+                    },
+                );
                 continue;
             }
             match decode_spu(&acc) {
@@ -194,7 +190,10 @@ pub fn parse_vobsub(idx_text: &[u8], sub: &[u8]) -> VobSubDoc {
                 }
                 Err(error) => record(
                     &mut damage,
-                    VobSubDamage::Spu { filepos: entry.filepos, error },
+                    VobSubDamage::Spu {
+                        filepos: entry.filepos,
+                        error,
+                    },
                 ),
             }
         }
@@ -250,13 +249,7 @@ fn render_cue(idx: &VobSubIdx, entry: &IdxEntry, spu: &SpuDecoded) -> Option<Vob
     }
 
     let (x, y, w, h, indices) = if spu.forced {
-        (
-            spu.x,
-            spu.y,
-            spu.width,
-            spu.height,
-            spu.indices.clone(),
-        )
+        (spu.x, spu.y, spu.width, spu.height, spu.indices.clone())
     } else {
         crop_borders(spu, transparent)?
     };
@@ -286,8 +279,18 @@ fn render_cue(idx: &VobSubIdx, entry: &IdxEntry, spu: &SpuDecoded) -> Option<Vob
 /// white-based level map over the distinct visible colors (ffmpeg
 /// `guess_palette` with `subtitle_color = 0xffffff`).
 fn guess_palette(spu: &SpuDecoded) -> [Rgba; 4] {
-    const LEVEL_MAP: [&[u8]; 4] = [&[0xFF], &[0x00, 0xFF], &[0x00, 0x80, 0xFF], &[0x00, 0x55, 0xAA, 0xFF]];
-    let mut palette = [Rgba { r: 0, g: 0, b: 0, a: 0 }; 4];
+    const LEVEL_MAP: [&[u8]; 4] = [
+        &[0xFF],
+        &[0x00, 0xFF],
+        &[0x00, 0x80, 0xFF],
+        &[0x00, 0x55, 0xAA, 0xFF],
+    ];
+    let mut palette = [Rgba {
+        r: 0,
+        g: 0,
+        b: 0,
+        a: 0,
+    }; 4];
     let mut color_used = [false; 16];
     let mut nb_opaque = 0usize;
     for i in 0..4 {
@@ -308,7 +311,12 @@ fn guess_palette(spu: &SpuDecoded) -> [Rgba; 4] {
             if color_used[cm] == 0 {
                 // The level map is already 8-bit gray (0x00..0xFF).
                 let v = levels[j.min(levels.len() - 1)];
-                palette[i] = Rgba { r: v, g: v, b: v, a: spu.alpha[i].saturating_mul(17) };
+                palette[i] = Rgba {
+                    r: v,
+                    g: v,
+                    b: v,
+                    a: spu.alpha[i].saturating_mul(17),
+                };
                 color_used[cm] = (i + 1) as u8;
                 j += 1;
             } else {
@@ -328,7 +336,10 @@ fn guess_palette(spu: &SpuDecoded) -> [Rgba; 4] {
 /// Crop fully-transparent border rows/columns (the reference's
 /// `find_smallest_bounding_rectangle` for non-menu subs). Returns
 /// `None` when everything is transparent.
-fn crop_borders(spu: &SpuDecoded, transparent: [bool; 4]) -> Option<(u16, u16, usize, usize, Vec<u8>)> {
+fn crop_borders(
+    spu: &SpuDecoded,
+    transparent: [bool; 4],
+) -> Option<(u16, u16, usize, usize, Vec<u8>)> {
     let (w, h) = (spu.width, spu.height);
     if w == 0 || h == 0 {
         return None;
@@ -388,15 +399,27 @@ pub fn vobsub_cues(doc: &VobSubDoc, z: u16) -> Result<Vec<CompositedCue>, CueErr
             margin: SafeMargin::TitleSafe,
             reference: Some(extent),
         };
+        // The 1/1e9 base, constructed directly: coprime non-zero
+        // components, so this is exactly `TimeBase::new`'s Ok value
+        // (the DVB precedent — no unreachable error path).
+        let ns_base = TimeBase {
+            num: 1,
+            den: 1_000_000_000,
+        };
         let ns = |v: Option<i64>| {
-            v.map(|ns| Stamp::Present(Timestamp::from_parts(ns, 1, 1_000_000_000).expect("ns base")))
+            v.map(|ns| Stamp::Present(Timestamp::new(ns, ns_base)))
                 .unwrap_or(Stamp::Missing)
         };
         let span = TimeSpan {
             start: ns(Some(cue.start_ns)),
             end: ns(cue.end_ns),
         };
-        cues.push(CompositedCue::new(span, bitmap, layout, z.saturating_add(i as u16))?);
+        cues.push(CompositedCue::new(
+            span,
+            bitmap,
+            layout,
+            z.saturating_add(i as u16),
+        )?);
     }
     Ok(cues)
 }
@@ -405,12 +428,23 @@ pub fn vobsub_cues(doc: &VobSubDoc, z: u16) -> Result<Vec<CompositedCue>, CueErr
 mod tests {
     use super::*;
     use crate::vobsub::spu::decode_spu;
+    use testkit::Must;
 
     /// One SPU packet from field data + commands (mirror of the
     /// spu.rs test builder, kept local for the pair tests). The two
     /// dates land in chained DCSQT headers — `0x01`/`0x02` take no
     /// arguments (the reference grammar).
-    fn build_spu(top: &[u8], bottom: &[u8], x1: u16, y1: u16, w: u16, h: u16, start_date: u16, end_date: u16) -> Vec<u8> {
+    #[allow(clippy::too_many_arguments)]
+    fn build_spu(
+        top: &[u8],
+        bottom: &[u8],
+        x1: u16,
+        y1: u16,
+        w: u16,
+        h: u16,
+        start_date: u16,
+        end_date: u16,
+    ) -> Vec<u8> {
         let x2 = x1 + w - 1;
         let y2 = y1 + h - 1;
         let mut spu = Vec::new();
@@ -532,7 +566,10 @@ mod tests {
             doc.damage[0],
             VobSubDamage::NoPalette | VobSubDamage::BadFilepos { .. }
         ));
-        assert!(doc.damage.contains(&VobSubDamage::BadFilepos { filepos: 0x200 }));
+        assert!(
+            doc.damage
+                .contains(&VobSubDamage::BadFilepos { filepos: 0x200 })
+        );
         assert!(doc.cues.is_empty());
     }
 
@@ -542,11 +579,19 @@ mod tests {
         let top = [0x60u8, 0x00, 0x00];
         let bottom = [0x60u8, 0x00, 0x00];
         let spu = build_spu(&top, &bottom, 0, 0, 2, 2, 0, 90);
-        let decoded = decode_spu(&spu).unwrap();
+        let decoded = decode_spu(&spu).must();
         let p = guess_palette(&decoded);
         // colormap [0]=3,[1]=2,[2]=1,[3]=0; alpha [0]=0,[1]=0,[2]=15,[3]=0.
         // One opaque color (index 2, colormap 1): level_map[0][0]=0xFF.
-        assert_eq!(p[2], Rgba { r: 255, g: 255, b: 255, a: 255 });
+        assert_eq!(
+            p[2],
+            Rgba {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255
+            }
+        );
         assert_eq!(p[0].a, 0);
     }
 
@@ -558,14 +603,14 @@ mod tests {
         let pes = wrap_pes(0x20, &spu);
         let idx = b"size: 720x480\npalette: 000000, 0000ff, 00ff00, ffff00, ff0000, ff00ff, ffff00, ffffff, 808080, 404040, 202020, 101010, 080808, 040404, 020202, 010101\nid: en, index: 0\ntimestamp: 00:00:02:000, filepos: 000000000\n";
         let doc = parse_vobsub(idx, &pes);
-        let cues = vobsub_cues(&doc, 7).unwrap();
+        let cues = vobsub_cues(&doc, 7).must();
         assert_eq!(cues.len(), 1);
         let cue = &cues[0];
         assert_eq!(cue.z, 7);
         assert_eq!(cue.layout.reference, Some((720, 480)));
-        assert_eq!(cue.layout.anchor.u, Rational::new(360, 720).unwrap());
-        assert_eq!(cue.layout.anchor.v, Rational::new(240, 480).unwrap());
-        assert!(cue.active_at(cue.start.unwrap()));
-        assert!(!cue.active_at(cue.end.unwrap()));
+        assert_eq!(cue.layout.anchor.u, Rational::new(360, 720).must());
+        assert_eq!(cue.layout.anchor.v, Rational::new(240, 480).must());
+        assert!(cue.active_at(cue.start.must()));
+        assert!(!cue.active_at(cue.end.must()));
     }
 }

@@ -41,7 +41,11 @@ pub fn fuzz_sub_vobsub(idx_data: &[u8], sub_data: &[u8]) {
     // Exercise the render path over whatever survived.
     let _ = vobsub_cues(&doc, 0);
     // Truncation sweeps over both halves.
-    for cut in [sub_data.len() / 4, sub_data.len() / 2, sub_data.len().saturating_sub(3)] {
+    for cut in [
+        sub_data.len() / 4,
+        sub_data.len() / 2,
+        sub_data.len().saturating_sub(3),
+    ] {
         let _ = parse_vobsub(idx_data, &sub_data[..cut]);
     }
     for cut in [idx_data.len() / 3, idx_data.len() / 2] {

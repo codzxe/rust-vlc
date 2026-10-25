@@ -79,7 +79,7 @@ impl<'a> BitReader<'a> {
 
     /// Discard the remaining bits of the current byte (byte-align).
     pub(crate) fn align(&mut self) {
-        self.pos = (self.pos + 7) / 8 * 8;
+        self.pos = self.pos.div_ceil(8) * 8;
     }
 
     pub(crate) fn bit_len(&self) -> usize {
@@ -308,12 +308,16 @@ pub(crate) fn decode_line_8bit(
 
 /// Clip `run` pixels of `v` into `row` at `x` (EN 300 743: pixels
 /// past the region edge are dropped, not wrapped). `non_mod`
-/// suppresses writes of value 1 (the non-modifying color).
+/// suppresses writes of value 1 (the non-modifying color). `x` may
+/// already be past the row end (single-pixel codes advance it
+/// unclipped so the EOL search stays bit-accurate) — the slice is
+/// clamped at both ends, never panicking (the fuzz-survival pin).
 #[inline]
 fn fill(row: &mut [u8], x: usize, run: u32, v: u8, non_mod: bool) -> usize {
+    let start = x.min(row.len());
     let end = (x + run as usize).min(row.len());
     if !(non_mod && v == 1) {
-        for slot in &mut row[x..end] {
+        for slot in &mut row[start..end] {
             *slot = v;
         }
     }
@@ -343,7 +347,12 @@ mod tests {
     fn two_bit_switch_runs_and_eol() {
         // 001 000 01 = run 3 of 1; then 0001 = one 0; then EOL
         // (the padding/zero bits read as the all-zero EOL code).
-        check_2bit(&[0b00100001, 0b0001_0000], 8, &[1, 1, 1, 0], LineStop::EndOfLine);
+        check_2bit(
+            &[0b00100001, 0b0001_0000],
+            8,
+            &[1, 1, 1, 0],
+            LineStop::EndOfLine,
+        );
     }
 
     #[test]
@@ -351,7 +360,12 @@ mod tests {
         // 000010 0001 11 = 12+1=13 px of 3 (fills the row of 13;
         // the trailing padding zeros then read as EOL — clipped, no
         // writes past the row).
-        check_2bit(&[0b00001000, 0b0111_0000], 13, &[3; 13], LineStop::EndOfLine);
+        check_2bit(
+            &[0b00001000, 0b0111_0000],
+            13,
+            &[3; 13],
+            LineStop::EndOfLine,
+        );
         // 000011 00000010 10 = 29+2=31 px of 2 (row exactly full).
         let mut row = vec![0xAA; 31];
         let (_, _, stop) = decode_line_2bit(
@@ -370,7 +384,8 @@ mod tests {
         // 001 011 10 -> run 6 of code 2 -> mapped to 0x88 via map2to8.
         let map = [0x00u8, 0x77, 0x88, 0xff];
         let mut row = vec![0xAA; 6];
-        let (used, _x, stop) = decode_line_2bit(&[0b00101110, 0b0000_0000], &mut row, 0, Some(&map), false);
+        let (used, _x, stop) =
+            decode_line_2bit(&[0b00101110, 0b0000_0000], &mut row, 0, Some(&map), false);
         assert_eq!(row, vec![0x88u8; 6]);
         // EOL is in the second byte (bits 9-14): 2 bytes consumed.
         assert_eq!(stop, LineStop::EndOfLine);
@@ -381,8 +396,23 @@ mod tests {
     fn two_bit_run_clipped_at_row_end() {
         // 000011 11111111 01 = 284 px of 1 in a 5-wide row: clipped.
         let mut row = vec![0xAA; 5];
-        let (_, _, stop) = decode_line_2bit(&[0b00001111, 0b1111_1101, 0], &mut row, 0, None, false);
+        let (_, _, stop) =
+            decode_line_2bit(&[0b00001111, 0b1111_1101, 0], &mut row, 0, None, false);
         assert_eq!(row, vec![1u8; 5]);
+        assert_eq!(stop, LineStop::EndOfLine);
+    }
+
+    #[test]
+    fn two_bit_run_after_x_passed_row_end_is_clipped_not_panicking() {
+        // Singles 3,1,2 fill the 3-wide row, then one more single
+        // pushes x to 4 (past the end — no write), then a 6-px run
+        // of 2 lands entirely past the row: clipped no-op, no
+        // slice-panic (the fuzz-survival pin). Bits:
+        // 11 01 10 01 001 011 10 000000 -> 0xD9 0x2E 0x00.
+        let mut row = vec![0xAA; 3];
+        let (_, _, stop) =
+            decode_line_2bit(&[0b1101_1001, 0b0010_1110, 0x00], &mut row, 0, None, false);
+        assert_eq!(row, vec![3u8, 1, 2]);
         assert_eq!(stop, LineStop::EndOfLine);
     }
 
@@ -432,7 +462,12 @@ mod tests {
     fn eight_bit_codes() {
         // 05 = one px 5; 00 82 07 = 2 px of 7; 00 03 = 3 px of 0; 00 00 EOL.
         let mut row = vec![0xAA; 6];
-        let (used, _x, stop) = decode_line_8bit(&[0x05, 0x00, 0x82, 0x07, 0x00, 0x03, 0x00, 0x00], &mut row, 0, false);
+        let (used, _x, stop) = decode_line_8bit(
+            &[0x05, 0x00, 0x82, 0x07, 0x00, 0x03, 0x00, 0x00],
+            &mut row,
+            0,
+            false,
+        );
         assert_eq!(row, vec![5, 7, 7, 0, 0, 0]);
         assert_eq!(stop, LineStop::EndOfLine);
         assert_eq!(used, 8);

@@ -70,7 +70,7 @@ use crate::compositing::bitmap::{CompositedCue, CueBitmap, CueError};
 use crate::compositing::layout::{
     Anchor, CueAlignment, CueLayout, HorizontalAlign, Rational, SafeMargin, VerticalAlign,
 };
-use media_types::time::{Stamp, TimeSpan, Timestamp};
+use media_types::time::{Stamp, TimeBase, TimeSpan, Timestamp};
 
 /// Damage ledger cap (the SRT 256-event precedent, sized for one
 /// display set).
@@ -98,30 +98,17 @@ pub enum DvbDamage {
     /// `segment_length` overran the PES payload — the walk stopped.
     LengthOverrun,
     /// An unknown segment type byte (skipped).
-    UnknownSegment {
-        type_byte: u8,
-    },
+    UnknownSegment { type_byte: u8 },
     /// A region referenced a CLUT id never defined — the default
     /// banks were used (the reference fallback).
-    BadClutId {
-        clut_id: u8,
-        region_id: u8,
-    },
+    BadClutId { clut_id: u8, region_id: u8 },
     /// A pixel run or line crossed the region edge and was clipped.
-    RleOverrun {
-        region_id: u8,
-        object_id: u16,
-    },
+    RleOverrun { region_id: u8, object_id: u16 },
     /// An object data segment arrived for an object no region
     /// composition ever placed (page-before-region damage).
-    ObjectWithoutRegion {
-        object_id: u16,
-    },
+    ObjectWithoutRegion { object_id: u16 },
     /// An object placement fell outside its region — dropped.
-    ObjectOutsideRegion {
-        object_id: u16,
-        region_id: u8,
-    },
+    ObjectOutsideRegion { object_id: u16, region_id: u8 },
     /// Region dimensions over the cap or zero — region disabled.
     RegionSizeInvalid {
         region_id: u8,
@@ -129,25 +116,14 @@ pub enum DvbDamage {
         height: u16,
     },
     /// `region_depth` code outside 1..=3 — fell back to 4-bit.
-    RegionDepthInvalid {
-        region_id: u8,
-        depth_code: u8,
-    },
+    RegionDepthInvalid { region_id: u8, depth_code: u8 },
     /// Object coding method 1 (characters), 2 (progressive) or 3 —
     /// unsupported by the render path (typed, EN 300 743 allows).
-    ObjectCodingUnsupported {
-        object_id: u16,
-        coding: u8,
-    },
+    ObjectCodingUnsupported { object_id: u16, coding: u8 },
     /// A pixel-data sub-block with an unknown data-type byte.
-    UnknownPixelBlock {
-        byte: u8,
-        object_id: u16,
-    },
+    UnknownPixelBlock { byte: u8, object_id: u16 },
     /// The damage ledger overflowed (count of dropped events).
-    DamageOverflow {
-        dropped: usize,
-    },
+    DamageOverflow { dropped: usize },
 }
 
 impl std::fmt::Display for DvbDamage {
@@ -167,27 +143,49 @@ impl std::fmt::Display for DvbDamage {
                 f,
                 "region {region_id} references undefined CLUT {clut_id} (default banks used)"
             ),
-            DvbDamage::RleOverrun { region_id, object_id } => write!(
+            DvbDamage::RleOverrun {
+                region_id,
+                object_id,
+            } => write!(
                 f,
                 "object {object_id} RLE crossed region {region_id} edge (clipped)"
             ),
             DvbDamage::ObjectWithoutRegion { object_id } => {
                 write!(f, "object {object_id} has no region placement")
             }
-            DvbDamage::ObjectOutsideRegion { object_id, region_id } => {
+            DvbDamage::ObjectOutsideRegion {
+                object_id,
+                region_id,
+            } => {
                 write!(f, "object {object_id} placed outside region {region_id}")
             }
-            DvbDamage::RegionSizeInvalid { region_id, width, height } => {
-                write!(f, "region {region_id} size {width}x{height} invalid/over cap")
+            DvbDamage::RegionSizeInvalid {
+                region_id,
+                width,
+                height,
+            } => {
+                write!(
+                    f,
+                    "region {region_id} size {width}x{height} invalid/over cap"
+                )
             }
-            DvbDamage::RegionDepthInvalid { region_id, depth_code } => {
-                write!(f, "region {region_id} depth code {depth_code} invalid (4-bit used)")
+            DvbDamage::RegionDepthInvalid {
+                region_id,
+                depth_code,
+            } => {
+                write!(
+                    f,
+                    "region {region_id} depth code {depth_code} invalid (4-bit used)"
+                )
             }
             DvbDamage::ObjectCodingUnsupported { object_id, coding } => {
                 write!(f, "object {object_id} coding method {coding} unsupported")
             }
             DvbDamage::UnknownPixelBlock { byte, object_id } => {
-                write!(f, "unknown pixel-data sub-block 0x{byte:02X} in object {object_id}")
+                write!(
+                    f,
+                    "unknown pixel-data sub-block 0x{byte:02X} in object {object_id}"
+                )
             }
             DvbDamage::DamageOverflow { dropped } => {
                 write!(f, "damage ledger overflow: {dropped} events dropped")
@@ -500,14 +498,14 @@ impl DvbDecoder {
                 x: o.x,
                 y: o.y,
             };
-            if let Some(r) = self.regions.get(&region.region_id) {
-                if u32::from(placement.x) >= r.width || u32::from(placement.y) >= r.height {
-                    self.damage(DvbDamage::ObjectOutsideRegion {
-                        object_id: o.object_id,
-                        region_id: region.region_id,
-                    });
-                    continue;
-                }
+            if let Some(r) = self.regions.get(&region.region_id)
+                && (u32::from(placement.x) >= r.width || u32::from(placement.y) >= r.height)
+            {
+                self.damage(DvbDamage::ObjectOutsideRegion {
+                    object_id: o.object_id,
+                    region_id: region.region_id,
+                });
+                continue;
             }
             self.objects.entry(o.object_id).or_default().push(placement);
         }
@@ -523,10 +521,10 @@ impl DvbDecoder {
             return;
         };
         // Versioned: skip an unchanged CLUT (§7.2.4.2).
-        if let Some(existing) = self.cluts.get(&clut_seg.clut_id) {
-            if existing.version == clut_seg.version {
-                return;
-            }
+        if let Some(existing) = self.cluts.get(&clut_seg.clut_id)
+            && existing.version == clut_seg.version
+        {
+            return;
         }
         let entries: Vec<_> = clut_seg.entries().collect();
         self.cluts.insert(
@@ -586,7 +584,13 @@ impl DvbDecoder {
             return;
         }
         for placement in placements {
-            if !self.paint_field(object.object_id, &placement, 0, object.top_field, object.non_modifying) {
+            if !self.paint_field(
+                object.object_id,
+                &placement,
+                0,
+                object.top_field,
+                object.non_modifying,
+            ) {
                 break;
             }
             // Empty bottom field: the reference reuses the top data
@@ -596,7 +600,13 @@ impl DvbDecoder {
             } else {
                 object.bottom_field
             };
-            self.paint_field(object.object_id, &placement, 1, bottom, object.non_modifying);
+            self.paint_field(
+                object.object_id,
+                &placement,
+                1,
+                bottom,
+                object.non_modifying,
+            );
         }
     }
 
@@ -645,33 +655,50 @@ impl DvbDecoder {
             match byte {
                 0x10 => {
                     let map = match depth {
-                        8 => Some(&map2to8),
-                        4 => Some(&map2to4),
+                        8 => Some(map2to8),
+                        4 => Some(map2to4),
                         _ => None,
                     };
-                    let (used, x_end) =
-                        self.paint_line(placement.region_id, x, y, &data[i..], Rle::Two, map.map(|m| m as &[u8]), non_mod);
+                    let (used, x_end) = self.paint_line(
+                        placement.region_id,
+                        x,
+                        y,
+                        &data[i..],
+                        Rle::Two(map),
+                        non_mod,
+                    );
                     x = x_end;
                     i += used;
                 }
                 0x11 => {
                     if depth < 4 {
-                        self.damage(DvbDamage::UnknownPixelBlock { byte: 0x11, object_id });
+                        self.damage(DvbDamage::UnknownPixelBlock {
+                            byte: 0x11,
+                            object_id,
+                        });
                         return true;
                     }
-                    let map = (depth == 8).then_some(&map4to8);
-                    let (used, x_end) =
-                        self.paint_line(placement.region_id, x, y, &data[i..], Rle::Four, map.map(|m| m as &[u8]), non_mod);
+                    let (used, x_end) = self.paint_line(
+                        placement.region_id,
+                        x,
+                        y,
+                        &data[i..],
+                        Rle::Four((depth == 8).then_some(map4to8)),
+                        non_mod,
+                    );
                     x = x_end;
                     i += used;
                 }
                 0x12 => {
                     if depth < 8 {
-                        self.damage(DvbDamage::UnknownPixelBlock { byte: 0x12, object_id });
+                        self.damage(DvbDamage::UnknownPixelBlock {
+                            byte: 0x12,
+                            object_id,
+                        });
                         return true;
                     }
                     let (used, x_end) =
-                        self.paint_line(placement.region_id, x, y, &data[i..], Rle::Eight, None, non_mod);
+                        self.paint_line(placement.region_id, x, y, &data[i..], Rle::Eight, non_mod);
                     x = x_end;
                     i += used;
                 }
@@ -679,7 +706,12 @@ impl DvbDecoder {
                     if data.len() - i < 2 {
                         return true;
                     }
-                    map2to4 = [data[i] >> 4, data[i] & 0xF, data[i + 1] >> 4, data[i + 1] & 0xF];
+                    map2to4 = [
+                        data[i] >> 4,
+                        data[i] & 0xF,
+                        data[i + 1] >> 4,
+                        data[i + 1] & 0xF,
+                    ];
                     i += 2;
                 }
                 0x21 => {
@@ -722,7 +754,6 @@ impl DvbDecoder {
         y: usize,
         data: &[u8],
         rle: Rle,
-        map: Option<&[u8]>,
         non_mod: bool,
     ) -> (usize, usize) {
         let Some(region) = self.regions.get_mut(&region_id) else {
@@ -735,14 +766,12 @@ impl DvbDecoder {
         let row_start = y * region.width as usize;
         let row = &mut region.pbuf[row_start..row_start + region.width as usize];
         match rle {
-            Rle::Two => {
-                let m = map.and_then(|m| <&[u8; 4]>::try_from(m).ok());
-                let (used, x_end, _stop) = rle::decode_line_2bit(data, row, x, m, non_mod);
+            Rle::Two(m) => {
+                let (used, x_end, _stop) = rle::decode_line_2bit(data, row, x, m.as_ref(), non_mod);
                 (used, x_end)
             }
-            Rle::Four => {
-                let m = map.and_then(|m| <&[u8; 16]>::try_from(m).ok());
-                let (used, x_end, _stop) = rle::decode_line_4bit(data, row, x, m, non_mod);
+            Rle::Four(m) => {
+                let (used, x_end, _stop) = rle::decode_line_4bit(data, row, x, m.as_ref(), non_mod);
                 (used, x_end)
             }
             Rle::Eight => {
@@ -810,11 +839,12 @@ impl DvbDecoder {
     }
 }
 
-/// Which RLE table a pixel-data sub-block uses.
+/// Which RLE table a pixel-data sub-block uses, carrying its map
+/// table (the cross-depth translation) where one applies.
 #[derive(Debug, Clone, Copy)]
 enum Rle {
-    Two,
-    Four,
+    Two(Option<[u8; 4]>),
+    Four(Option<[u8; 16]>),
     Eight,
 }
 
@@ -855,6 +885,20 @@ impl DvbCueBuilder {
             (Some(next), Some(start)) if next > start => Some(next - 1),
             _ => start.map(|s| s.saturating_add(i64::from(update.timeout_s) * 1_000_000_000)),
         };
+        // The 1/1e9 nanosecond base: `num`/`den` are coprime and
+        // non-zero, so this literal is exactly `TimeBase::new(1,
+        // 1_000_000_000)`'s Ok value (its gcd reduction is a no-op)
+        // — constructed directly, no unreachable error path.
+        let ns_base = TimeBase {
+            num: 1,
+            den: 1_000_000_000,
+        };
+        let ns = |v: Option<i64>| -> Stamp {
+            match v {
+                Some(ns) => Stamp::Present(Timestamp::new(ns, ns_base)),
+                None => Stamp::Missing,
+            }
+        };
         for (i, region) in update.regions.iter().enumerate() {
             if region.width == 0 || region.height == 0 {
                 continue;
@@ -865,10 +909,6 @@ impl DvbCueBuilder {
                 region.height,
                 region.rgba.clone(),
             )?;
-            let ns = |v: Option<i64>| {
-                v.map(|ns| Stamp::Present(Timestamp::from_parts(ns, 1, 1_000_000_000).expect("ns base")))
-                    .unwrap_or(Stamp::Missing)
-            };
             let span = TimeSpan {
                 start: ns(start),
                 end: ns(end),
@@ -909,6 +949,7 @@ impl DvbCueBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use testkit::Must;
 
     /// Segment header + payload.
     fn seg(kind: u8, page: u16, data: &[u8]) -> Vec<u8> {
@@ -930,6 +971,7 @@ mod tests {
         seg(0x10, 1, &d)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn region_seg(
         id: u8,
         w: u16,
@@ -947,7 +989,7 @@ mod tests {
             w as u8,
             (h >> 8) as u8,
             h as u8,
-            0b01_000_00 | (depth_code << 2),
+            0b0010_0000 | (depth_code << 2),
             clut,
             0,
             fill_color,
@@ -1000,7 +1042,10 @@ mod tests {
         let up = dec.decode_pes(&payload, None);
         assert!(matches!(
             up.damage.first(),
-            Some(DvbDamage::TruncatedPayload { kind: "object-data", .. })
+            Some(DvbDamage::TruncatedPayload {
+                kind: "object-data",
+                ..
+            })
         ));
     }
 
@@ -1043,7 +1088,10 @@ mod tests {
         assert_eq!(&r.rgba[12..16], &[0, 0, 255, 255]);
         // Bottom row (2-bit codes 3,3 at cols 1..3): index 3 = blue
         // (two pixels: cols 1 and 2 of row 1).
-        assert_eq!(&r.rgba[(4 + 1) * 4..(4 + 3) * 4], &[0, 0, 255, 255, 0, 0, 255, 255]);
+        assert_eq!(
+            &r.rgba[(4 + 1) * 4..(4 + 3) * 4],
+            &[0, 0, 255, 255, 0, 0, 255, 255]
+        );
 
         // Display set 2 (normal case): new object data repaints.
         let top2 = [0x10u8, 0b11_01_00_00, 0xF0];
@@ -1101,7 +1149,10 @@ mod tests {
         let up = dec.decode_pes(&payload, None);
         assert!(matches!(
             up.damage.first(),
-            Some(DvbDamage::BadClutId { clut_id: 42, region_id: 7 })
+            Some(DvbDamage::BadClutId {
+                clut_id: 42,
+                region_id: 7
+            })
         ));
         // Default 2-bit bank index 1 = opaque white.
         assert_eq!(up.regions.len(), 1);
@@ -1161,7 +1212,10 @@ mod tests {
         let up = dec.decode_pes(&payload, None);
         assert!(matches!(
             up.damage.first(),
-            Some(DvbDamage::UnknownPixelBlock { byte: 0x99, object_id: 1 })
+            Some(DvbDamage::UnknownPixelBlock {
+                byte: 0x99,
+                object_id: 1
+            })
         ));
     }
 
@@ -1177,7 +1231,7 @@ mod tests {
         let up = dec.decode_pes(&payload, Some(90_000));
         let builder = DvbCueBuilder::new(up.display_extent);
         // The next update's PTS in NANOSECONDS: 180_000 ticks = 2 s.
-        let cues = builder.cues(&up, Some(2_000_000_000), 0).unwrap();
+        let cues = builder.cues(&up, Some(2_000_000_000), 0).must();
         assert_eq!(cues.len(), 1);
         let cue = &cues[0];
         assert_eq!(cue.start, Some(1_000_000_000));
@@ -1185,8 +1239,8 @@ mod tests {
         assert_eq!(cue.end, Some(2_000_000_000 - 1));
         assert_eq!(cue.bitmap.width, 2);
         // Anchor: exact page position (360/720, 288/576) = (1/2, 1/2).
-        assert_eq!(cue.layout.anchor.u, Rational::new(1, 2).unwrap());
-        assert_eq!(cue.layout.anchor.v, Rational::new(1, 2).unwrap());
+        assert_eq!(cue.layout.anchor.u, Rational::new(1, 2).must());
+        assert_eq!(cue.layout.anchor.v, Rational::new(1, 2).must());
         assert_eq!(cue.layout.reference, Some((720, 576)));
         assert!(cue.active_at(1_000_000_000));
         assert!(!cue.active_at(2_000_000_000 - 1));
@@ -1204,7 +1258,7 @@ mod tests {
         let up = dec.decode_pes(&payload, Some(90_000));
         let builder = DvbCueBuilder::new(up.display_extent);
         // No next update: the 2s page timeout bounds the span.
-        let cues = builder.cues(&up, None, 0).unwrap();
+        let cues = builder.cues(&up, None, 0).must();
         assert_eq!(cues.len(), 1);
         assert_eq!(cues[0].end, Some(1_000_000_000 + 2_000_000_000));
     }

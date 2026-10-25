@@ -45,39 +45,24 @@ use crate::dvb::rle::BitReader;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SpuError {
     /// Fewer than 10 bytes — not an SPU header.
-    TooSmall {
-        got: usize,
-    },
+    TooSmall { got: usize },
     /// `cmd_pos` points past the declared size — the packet is
     /// garbage (the reference discards it).
-    InvalidCommandOffset {
-        cmd_pos: usize,
-        size: usize,
-    },
+    InvalidCommandOffset { cmd_pos: usize, size: usize },
     /// `cmd_pos` is past the data received so far but within the
     /// declared size — feed more PES fragments.
-    NeedMoreData {
-        have: usize,
-        need: usize,
-    },
+    NeedMoreData { have: usize, need: usize },
     /// A command sequence overran the packet.
     CommandOverrun,
     /// A required command (0x05 coords / 0x06 offsets) never came.
     MissingCommands,
     /// A run crossed the line end — the bitmap decode failed.
-    RleOverrun {
-        x: usize,
-        width: usize,
-    },
+    RleOverrun { x: usize, width: usize },
     /// The HD-DVD command set (0x83..0x86) — unsupported, typed.
-    HdUnsupported {
-        command: u8,
-    },
+    HdUnsupported { command: u8 },
     /// The declared size exceeds the accumulation cap (128 KiB, the
     /// reference's reconstruction buffer).
-    SizeOverCap {
-        size: usize,
-    },
+    SizeOverCap { size: usize },
 }
 
 impl std::fmt::Display for SpuError {
@@ -85,10 +70,16 @@ impl std::fmt::Display for SpuError {
         match self {
             SpuError::TooSmall { got } => write!(f, "SPU packet too small: {got} bytes"),
             SpuError::InvalidCommandOffset { cmd_pos, size } => {
-                write!(f, "SPU command offset {cmd_pos} past size {size} — discarded")
+                write!(
+                    f,
+                    "SPU command offset {cmd_pos} past size {size} — discarded"
+                )
             }
             SpuError::NeedMoreData { have, need } => {
-                write!(f, "SPU packet incomplete: {have} of {need} bytes — feed more PES")
+                write!(
+                    f,
+                    "SPU packet incomplete: {have} of {need} bytes — feed more PES"
+                )
             }
             SpuError::CommandOverrun => f.write_str("SPU command sequence overruns the packet"),
             SpuError::MissingCommands => f.write_str("SPU missing coords (0x05) or offsets (0x06)"),
@@ -272,8 +263,15 @@ pub fn decode_spu(data: &[u8]) -> Result<SpuDecoded, SpuError> {
     // (even rows), offset2 = bottom (odd rows).
     let mut indices = vec![0u8; w * h];
     let mut used_color = [false; 4];
-    decode_field(&mut indices, data, offset1, w, (h + 1) / 2, &mut used_color)
-        .map_err(|x| SpuError::RleOverrun { x, width: w })?;
+    decode_field(
+        &mut indices,
+        data,
+        offset1,
+        w,
+        h.div_ceil(2),
+        &mut used_color,
+    )
+    .map_err(|x| SpuError::RleOverrun { x, width: w })?;
     decode_field(&mut indices[w..], data, offset2, w, h / 2, &mut used_color)
         .map_err(|x| SpuError::RleOverrun { x, width: w })?;
 
@@ -320,7 +318,7 @@ fn decode_field(
         let take = len.min(room);
         let row = y * 2 * w;
         for slot in &mut dest[row + x..row + x + take] {
-            *slot = color as u8;
+            *slot = color;
         }
         used_color[usize::from(color.min(3))] = true;
         x += take;
@@ -449,6 +447,7 @@ fn decode_pts(b: &[u8]) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use testkit::Must;
 
     /// One SPU packet from field data + commands. Two chained
     /// DCSQTs carry the dates — `0x01`/`0x02` take no arguments;
@@ -532,7 +531,7 @@ mod tests {
         let top = [0x50u8, 0x00, 0x20];
         let bottom = [0x50u8, 0x00, 0x20];
         let spu = build_spu(&top, &bottom, 100, 200, 4, 2);
-        let d = decode_spu(&spu).unwrap();
+        let d = decode_spu(&spu).must();
         assert_eq!((d.x, d.y, d.width, d.height), (100, 200, 4, 2));
         // Row 0 (top field): c1 then 3x c2.
         assert_eq!(&d.indices[0..4], &[1, 2, 2, 2]);
@@ -553,7 +552,7 @@ mod tests {
         let top = [0x50u8, 0x00, 0x20, 0x00, 0x00]; // c1 + fill c2; fill c0
         let bottom = [0x70u8, 0x00, 0x10, 0x00, 0x00]; // c3 + fill c1; fill c0
         let spu = build_spu(&top, &bottom, 0, 0, 2, 4);
-        let d = decode_spu(&spu).unwrap();
+        let d = decode_spu(&spu).must();
         assert_eq!(d.height, 4);
         assert_eq!(&d.indices[0..2], &[1, 2], "row0 = top line 1");
         assert_eq!(&d.indices[2..4], &[3, 1], "row1 = bottom line 1");
@@ -567,19 +566,28 @@ mod tests {
         // 2-wide row — the run crosses the line end, typed error.
         let top = [0x02, 0xF0];
         let spu = build_spu(&top, &top, 0, 0, 2, 2);
-        assert!(matches!(decode_spu(&spu), Err(SpuError::RleOverrun { x: 0, width: 2 })));
+        assert!(matches!(
+            decode_spu(&spu),
+            Err(SpuError::RleOverrun { x: 0, width: 2 })
+        ));
     }
 
     #[test]
     fn truncated_and_invalid_are_typed() {
-        assert!(matches!(decode_spu(&[0, 5]), Err(SpuError::TooSmall { got: 2 })));
+        assert!(matches!(
+            decode_spu(&[0, 5]),
+            Err(SpuError::TooSmall { got: 2 })
+        ));
         // cmd_pos > size -> discarded.
         let mut spu = vec![0u8; 12];
         spu[0..2].copy_from_slice(&10u16.to_be_bytes()); // size 10
         spu[2..4].copy_from_slice(&500u16.to_be_bytes()); // cmd offset 500
         assert!(matches!(
             decode_spu(&spu),
-            Err(SpuError::InvalidCommandOffset { cmd_pos: 500, size: 10 })
+            Err(SpuError::InvalidCommandOffset {
+                cmd_pos: 500,
+                size: 10
+            })
         ));
         // cmd_pos inside size but past data -> NeedMoreData.
         let mut spu = vec![0u8; 12];
@@ -587,7 +595,10 @@ mod tests {
         spu[2..4].copy_from_slice(&500u16.to_be_bytes());
         assert!(matches!(
             decode_spu(&spu),
-            Err(SpuError::NeedMoreData { have: 12, need: 504 })
+            Err(SpuError::NeedMoreData {
+                have: 12,
+                need: 504
+            })
         ));
     }
 

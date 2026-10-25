@@ -65,16 +65,41 @@ impl Clut {
 
     fn with_default_banks(version: u8) -> Clut {
         let mut bank4 = [Rgba::BLACK; 4];
-        bank4[0] = Rgba { r: 0, g: 0, b: 0, a: 0 };
-        bank4[1] = Rgba { r: 255, g: 255, b: 255, a: 255 };
-        bank4[2] = Rgba { r: 0, g: 0, b: 0, a: 255 };
-        bank4[3] = Rgba { r: 127, g: 127, b: 127, a: 255 };
+        bank4[0] = Rgba {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 0,
+        };
+        bank4[1] = Rgba {
+            r: 255,
+            g: 255,
+            b: 255,
+            a: 255,
+        };
+        bank4[2] = Rgba {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 255,
+        };
+        bank4[3] = Rgba {
+            r: 127,
+            g: 127,
+            b: 127,
+            a: 255,
+        };
 
         let mut bank16 = [Rgba::BLACK; 16];
-        bank16[0] = Rgba { r: 0, g: 0, b: 0, a: 0 };
-        for i in 1..16 {
+        bank16[0] = Rgba {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 0,
+        };
+        for (i, slot) in bank16.iter_mut().enumerate().skip(1) {
             let level = if i < 8 { 255 } else { 127 };
-            bank16[i] = Rgba {
+            *slot = Rgba {
                 r: if i & 1 != 0 { level } else { 0 },
                 g: if i & 2 != 0 { level } else { 0 },
                 b: if i & 4 != 0 { level } else { 0 },
@@ -83,7 +108,12 @@ impl Clut {
         }
 
         let mut bank256 = [Rgba::BLACK; 256];
-        bank256[0] = Rgba { r: 0, g: 0, b: 0, a: 0 };
+        bank256[0] = Rgba {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 0,
+        };
         for i in 1..256 {
             let i = i as u8;
             bank256[i as usize] = if i < 8 {
@@ -108,9 +138,15 @@ impl Clut {
                         a: 127,
                     },
                     0x80 => Rgba {
-                        r: 127 + if i & 1 != 0 { 43 } else { 0 } + if i & 0x10 != 0 { 85 } else { 0 },
-                        g: 127 + if i & 2 != 0 { 43 } else { 0 } + if i & 0x20 != 0 { 85 } else { 0 },
-                        b: 127 + if i & 4 != 0 { 43 } else { 0 } + if i & 0x40 != 0 { 85 } else { 0 },
+                        r: 127
+                            + if i & 1 != 0 { 43 } else { 0 }
+                            + if i & 0x10 != 0 { 85 } else { 0 },
+                        g: 127
+                            + if i & 2 != 0 { 43 } else { 0 }
+                            + if i & 0x20 != 0 { 85 } else { 0 },
+                        b: 127
+                            + if i & 4 != 0 { 43 } else { 0 }
+                            + if i & 0x40 != 0 { 85 } else { 0 },
                         a: 255,
                     },
                     _ => Rgba {
@@ -245,7 +281,12 @@ mod tests {
             alpha: 0,
         };
         let clut = Clut::from_entries(0, std::iter::once(e2));
-        let blue = Rgba { r: 0, g: 0, b: 255, a: 255 };
+        let blue = Rgba {
+            r: 0,
+            g: 0,
+            b: 255,
+            a: 255,
+        };
         assert_eq!(clut.bank4[1], blue, "2-bit flagged entry hits bank4");
         assert_ne!(clut.bank16[1], blue, "4-bit bank untouched");
         assert_ne!(clut.bank256[1], blue, "8-bit bank untouched");
@@ -286,10 +327,42 @@ mod tests {
     #[test]
     fn default_banks_match_reference_shape() {
         let d = Clut::default_banks();
-        assert_eq!(d.bank4[1], Rgba { r: 255, g: 255, b: 255, a: 255 });
-        assert_eq!(d.bank16[7], Rgba { r: 255, g: 255, b: 255, a: 255 });
-        assert_eq!(d.bank16[8], Rgba { r: 0, g: 0, b: 0, a: 255 });
-        assert_eq!(d.bank256[1], Rgba { r: 255, g: 0, b: 0, a: 63 });
+        assert_eq!(
+            d.bank4[1],
+            Rgba {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255
+            }
+        );
+        assert_eq!(
+            d.bank16[7],
+            Rgba {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255
+            }
+        );
+        assert_eq!(
+            d.bank16[8],
+            Rgba {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 255
+            }
+        );
+        assert_eq!(
+            d.bank256[1],
+            Rgba {
+                r: 255,
+                g: 0,
+                b: 0,
+                a: 63
+            }
+        );
         assert_eq!(d.bank256[0].a, 0);
     }
 
