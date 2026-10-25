@@ -41,15 +41,45 @@ Records-consolidation entry (card 5.REC-2; engine evidence from cards
 
 ## Evidence (Tasks 5.A3 + 5.J3b)
 
-- **MP3 corpus differential:** run live at card time (finisher report);
-  the per-file PCM-MD5 **table was lost to a tool deadline** —
-  `[VERIFY-P2]` the table must be re-printed from the test-run logs by
-  the Q2-V audit (Lead-recorded in the 5.A3 entry). What is pinned
-  in-tree today: `tests/mp3_corpus_differential.rs` re-derives every
-  row against live ffmpeg 7.1.5 and FAILS on md5 drift from the
-  recorded corpus reference; `tests/data/mp3_bitexact_reference.txt`
-  records the fixture digests incl. the Layer II `max_sample_delta=1`
-  row. Tests at merge: 251/0 (MP3 added ~43).
+- **MP3 corpus differential (re-printed 2026-10-25, card
+  6.MP3-reprint — closes Q2-V gap G-3):** fresh run of
+  `cargo test -p codecs --test mp3_corpus_differential -- --nocapture`
+  vs live ffmpeg 7.1.5, same gapless window on both sides (ffmpeg
+  `-map 0:a -c:a pcm_s16le -f s16le -`; Lumen's +529-shifted trim —
+  window contract in the test header). The table that was lost to
+  the 5.A3 tool deadline, now with this session's measurements
+  (samples are per-channel; MD5s are over the s16le window;
+  diff% = samples differing out of all inter-channel samples):
+
+  | lane | file | profile | rate/ch | samples/ch | differing (%, maxΔ) | Lumen s16le MD5 | ffmpeg s16le MD5 |
+  |------|------|---------|---------|------------|---------------------|-----------------|------------------|
+  | 1 | corpus media/0139-audio-only.mp3 | MPEG-2.5 LSF Layer III 64 kb/s | 11025/2 | 44100 | 176 (0.1995%, ±1) | `7620224ff543fd30ad982ec5d5ac1fca` | `87ffd7a83802f439d60fad3a91783515` |
+  | 2 | corpus media/0145-cover-audio.mp3 | MPEG-2 LSF Layer III 160 kb/s | 24000/2 | 2304 | 12 (0.2604%, ±1) | `149a47c47e39c7636f763c1f0af1a9f5` | `98454c6c428e916f1f80db77073a4ab0` |
+  | 3 | fixture cbr128.mp3 | MPEG-1 Layer III CBR 128 kb/s | 44100/2 | 88200 | 154 (0.0873%, ±1) | `52d32e3c30972087dadbd97998a0d3cd` | `253c926ff193cfe2db3a5b092acba2f4` |
+  | 4 | fixture vbr_q4.mp3 | MPEG-1 Layer III LAME VBR q4 (Xing) | 44100/2 | 88200 | 254 (0.1440%, ±1) | `988161d1c81b5723c44ebab84fa2afb9` | `aa132c33436a959052f262e82d5d1e86` |
+  | 5 | fixture mono48.mp3 | MPEG-1 Layer III mono | 48000/1 | 72000 | 114 (0.1583%, ±1) | `95e0c8a02a5a2cce9c6175165fdbaaa6` | `204e24ea83aee0b18df7b041dc898b16` |
+  | 6 | fixture mpeg2_24k.mp3 | MPEG-2 LSF Layer III stereo | 24000/2 | 36000 | 58 (0.0806%, ±1) | `c808aa5c0f0af3eba1ab9401840bd0fa` | `bba85e8d4e9c1d0b6eb3f0dae13a37c9` |
+  | 7 | fixture mp2_48k.mp2 | MPEG-1 Layer II stereo | 48000/2 | 72576 | 35526 (24.475%, ±1) | `6db7b51bbe177897a71e213bf1f3a8f2` | `bf3bee58ca7e7c34d791abeffb6f9bfb` |
+  | 8 | fixture tagged_art.mp3 | lane 3's essence behind ID3v2.3 + art | 44100/2 | 88200 | 154 (0.0873%, ±1) | `52d32e3c30972087dadbd97998a0d3cd` | `253c926ff193cfe2db3a5b092acba2f4` |
+
+  **Verdict: 8/8 lanes inside the ±1-LSB lossy tolerance** (max
+  sample delta exactly 1 on every row — two independent lossy
+  syntheses; Layer III rows differ on ≤0.26% of samples, the Layer II
+  row on 24.5%, matching the MP2 record below). ffmpeg MD5s were
+  re-derived independently this session (`ffmpeg -v error -i F -map
+  0:a -c:a pcm_s16le -f s16le - | md5sum`) — byte-identical to the
+  test's oracle output and to the recorded corpus reference. The
+  corpus root's session-artifact `ref_*.raw`/`mine_*.raw` pairs
+  (cbr128, mono48, vbr_q4, tagged_art, mp2_48k, mpeg2_24k) are NOT
+  consumed by any in-tree test (rg over `crates/` finds no reader);
+  cross-verified this session: every `ref_*.raw` MD5 equals the fresh
+  ffmpeg MD5 and every `mine_*.raw` equals the fresh Lumen MD5 above
+  (both sides byte-stable since 5.A3). What is pinned in-tree:
+  `tests/mp3_corpus_differential.rs` re-derives every row against
+  live ffmpeg 7.1.5 and FAILS on md5 drift from the recorded corpus
+  reference; `tests/data/mp3_bitexact_reference.txt` records the
+  fixture digests incl. the Layer II `max_sample_delta=1` row.
+  Tests at merge: 251/0 (MP3 added ~43).
 - **MP2 differential (measured, live ffmpeg 7.1.5):** 4 rows — corpus
   0005 (V2 LSF L2 80k 16k mono), corpus 0119 (V1 L2 384k 44.1k
   stereo), fixtures mp2_48k + mp2_lsf_22k. **Honest verdict: NOT
@@ -71,7 +101,8 @@ Records-consolidation entry (card 5.REC-2; engine evidence from cards
 
 - **VLC oracle: PENDING-INFRA** for both layers (no binary in sandbox;
   ffmpeg is the always-on oracle).
-- **MP3 corpus MD5 table:** `[VERIFY-P2]` re-print owed (above).
+- **MP3 corpus MD5 table:** re-printed 2026-10-25 (card 6.MP3-reprint,
+  Evidence above) — Q2-V gap G-3 closed.
 - **Layer II joint stereo:** no ffmpeg encoder emits it —
   mode-extension/intensity-bound semantics unit-pinned on synthetic
   headers only, not differentially.
@@ -83,6 +114,7 @@ Records-consolidation entry (card 5.REC-2; engine evidence from cards
 ## Next steps
 
 1. R3 registry rows (snippets in the 5.A3/5.J3b worklog entries).
-2. Q2-V audit re-prints the MP3 corpus table ([VERIFY-P2]).
+2. ~~Q2-V audit re-prints the MP3 corpus table~~ DONE 2026-10-25
+   (card 6.MP3-reprint, G-3 closed — see the Evidence table).
 3. VLC differential when the oracle exists (±1-LSB tolerance class
    for the lossy layers, matching the ffmpeg posture).
