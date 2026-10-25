@@ -55,6 +55,20 @@ Front-matter keys per doc 04 §6:
 
 ## Evidence
 
+- **Differential table (from the 5.H1 worklog entry; live ffprobe
+  7.1.5, the build that authored every fixture):** 10/10 PASS, 0
+  FAIL — mpeg2-main-ipb.m2v (Main@8, I+P+B census),
+  mpeg2-422.m2v (escaped 4:2:2 0x85), mpeg2-interlaced-ntsc.m2v
+  (ILACE, 30000/1001), mpeg1-ipb.m1v, mpeg2-in-ts.ts (our TsDemuxer
+  + PES seam), ps-mp2-video-audio.mpg + ps-vob-ac3.vob (our
+  PsDemuxer, 720×480), corpus 0065-avi-video.avi, corpus
+  0128-param-midchange.mp4 (`sequence_changes=true`, 4 seqs), corpus
+  0130-avi-video.avi.
+- **Tests at card gate:** 380 lib + 43 integration suites, 0 FAILED
+  (incl. mpeg12_corpus 3/3 tests, 10/10 rows); fmt + clippy clean.
+- **Fuzz-lite:** 8k rounds random+mutated+truncated, scan total,
+  counters monotone.
+
 - Feasibility video-codecs.md §1 row 9 + §5 "MPEG-1/2" (2026-10-19,
   `[RV]` tags; crates.io API + static.crates.io tarball scans):
   the two candidates above, the libmpeg2-is-C fact, hw map below.

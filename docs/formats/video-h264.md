@@ -87,6 +87,29 @@ missing SPS/PPS context, legacy data partitions) is skipped,
 skipped}` — the decoder stays usable (bounded `MAX_PENDING_UNITS`
 accumulator; MP §12).
 
+## Evidence (audit amendment, card 5.REC-2 — numbers from the worklog)
+
+- **Parser (5.F1a/5.F1b):** corpus differential 19/19 lanes PASS vs
+  live ffprobe (0019 raw Annex-B High@L1.3 64×48 + 18 mkv h264 tracks
+  via real avcC CodecPrivate: profiles Baseline→High 4:4:4 Predictive,
+  levels 10–32, 420/422/444/mono); slice/SEI differential vs
+  `trace_headers`: 0019 = 26 slices (P5×8/B6×16/I7×2, == ffprobe
+  nb_read_frames), 0014-muxed-av.mkv = 185/185 slices, I4/P46/B135.
+  Real ffmpeg-writer bug found+fixed at 5.F1a: avcc PPS count byte
+  is the bare count (reserved bits clear) — masked 5-bit read,
+  documented deviation vs ISO 14496-15.
+- **Decode-path (5.F2):** fake-adapter end-to-end on real corpus
+  bytes — 0019: 26/26 VCL→AU accounting, session config
+  (1,1,(64,48)) exact, pts mapping pinned; 16-test suite incl.
+  typed-fallback codes asserted by string, damage = counted
+  recovery, hw failure mapping ×3, +FB fuzz-lite ×2 (5k packets +
+  2k extradata blobs, absence-of-panic contract).
+- **Tests at gates:** 5.F1a 273/0; 5.F1b 266/0; 5.F2 473/0 (16 new
+  h264_hw_path tests; h264_parser_corpus untouched & green).
+- Parser fuzz: 3 000-round xorshift mutations (nal.rs) + 2 000-round
+  real-stream mutations + every-prefix truncation sweep of a real
+  0019 slice — Ok-or-typed only, zero panics.
+
 ## Known limitations (recorded, not hidden)
 
 - `delta_pic_order_always_zero_flag` is not retained by the LANDED
