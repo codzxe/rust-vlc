@@ -134,9 +134,9 @@ priority = "P0"
 phase_target = 5
 vlc_modules = ["mkv"]
 inventory_ref = "inventory/formats.json#matroska-webm"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "EBML parse self-build; extras (attachments/editions/tags) 5.D2; WebM payload set minus VP9 recorded (5.D1). Oracle probed mkv h264/flac + av1/opus + webm vp9/opus."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "crates/demux/src/mkv/** (cards 5.D1 core + 5.D2a attachments/chapters + 5.D2b editions/tags; record docs/formats/container-matroska.md incl. 5.REC-1 audit addendum: 34-lane differential); Linux-only evidence"
+notes = "EBML parse self-build; extras (attachments/editions/tags) 5.D2; WebM payload set minus VP9 recorded (5.D1). Oracle probed mkv h264/flac + av1/opus + webm vp9/opus. 5.Q2-V backfill: partial per record 'in progress' — open() wiring seam OPEN (mkv/mod.rs skips Tags/Attachments/Chapters; positional-scan getters are the public seam), TrackUID (0x73C5) not retained."
 
 [[feature]]
 id = "container-mp4-mov-3gp"
@@ -147,9 +147,9 @@ priority = "P0"
 phase_target = 5
 vlc_modules = ["mp4"]
 inventory_ref = "inventory/formats.json#mp4-mov-3gp"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "[Phase-2 variant-B decision CLOSED by D-018 (2026-10-21): AVI+MJPEG+PCM selected as the first vertical, zero new deps; 2.B3 closed not-selected — MP4 deferred to Phase 5 via the audited mp4parse path per D-001.] No MP4 demuxer code exists; the MP4 box walker in crates/codecs/tests/common/mod.rs is TEST-SIDE fixture-extraction tooling for the parent-fixture oracle cross-checks, not shipped demux code. Full fMP4 (moof/trun) + chapters via 5.C1 with the 11-class corpus plan (feasibility subsystems §1.2)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/demux/src/mp4/** (card 5.C1; record docs/formats/container-mp4.md, 5.REC-1: 30-lane corpus_mp4 table); Linux-only evidence"
+notes = "[Phase-2 variant-B decision CLOSED by D-018 (2026-10-21): AVI+MJPEG+PCM selected as the first vertical, zero new deps; 2.B3 closed not-selected — MP4 deferred to Phase 5 via the audited mp4parse path per D-001.] No MP4 demuxer code exists; the MP4 box walker in crates/codecs/tests/common/mod.rs is TEST-SIDE fixture-extraction tooling for the parent-fixture oracle cross-checks, not shipped demux code. Full fMP4 (moof/trun) + chapters via 5.C1 with the 11-class corpus plan (feasibility subsystems §1.2). 5.Q2-V backfill: implemented-demux (5.REC-1); 3GP quirk breadth [VERIFY]."
 
 [[feature]]
 id = "container-ogg"
@@ -160,9 +160,9 @@ priority = "P0"
 phase_target = 5
 vlc_modules = ["ogg"]
 inventory_ref = "inventory/formats.json#ogg"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "5.B1 polish; carries Vorbis/Opus/Theora/Kate/Speex/FLAC-in-Ogg mappings."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/demux/src/ogg/** (card 5.B1; record docs/formats/container-ogg.md, 5.REC-1: chain header-stash 28v31 divergence recorded); Linux-only evidence"
+notes = "5.B1 polish; carries Vorbis/Opus/Theora/Kate/Speex/FLAC-in-Ogg mappings. 5.Q2-V backfill: implemented-demux (5.REC-1); cross-chain seek untested; Kate mapping note stale (5.P2b-I flag)."
 
 [[feature]]
 id = "container-mpegts"
@@ -173,9 +173,9 @@ priority = "P0"
 phase_target = 5
 vlc_modules = ["ts"]
 inventory_ref = "inventory/formats.json#mpegts"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "5.I1; mpeg2ts-reader candidate or self-build; corrupted-TS corpus; teletext cues split to subtitle-teletext (blocked)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/demux/src/ts/** (cards 5.I1a+5.I1b; record docs/formats/container-mpegts.md, 5.REC-1: 5 ts corpus lanes); Linux-only evidence"
+notes = "5.I1; mpeg2ts-reader candidate or self-build; corrupted-TS corpus; teletext cues split to subtitle-teletext (blocked). 5.Q2-V backfill: implemented-demux (5.REC-1); multi-program TS = synthetic-only (corpus single-program)."
 
 [[feature]]
 id = "container-mpegps"
@@ -186,9 +186,9 @@ priority = "P1"
 phase_target = 5
 vlc_modules = ["ps"]
 inventory_ref = "inventory/formats.json#mpegps"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "mpeg-ps 0.6.0 crate (published 2026-10-17) covers pack/system-header/PSM/PES; private-stream substream split = self-build S; nav-pack skip; MPEG-1 open question (feasibility subsystems §1.3). Decode of exposed substreams pending 5.K4-I."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/demux/src/ps/** (card 5.I2; record docs/formats/container-mpegps.md, 5.REC-1); fixture-only evidence — ZERO ps/vob corpus lanes"
+notes = "mpeg-ps 0.6.0 crate (published 2026-10-17) covers pack/system-header/PSM/PES; private-stream substream split = self-build S; nav-pack skip; MPEG-1 open question (feasibility subsystems §1.3). Decode of exposed substreams pending 5.K4-I. 5.Q2-V backfill: implemented-demux (5.REC-1); PS nav/span-interpolation ffmpeg divergences recorded not smoothed."
 
 [[feature]]
 id = "container-avi"
@@ -225,9 +225,9 @@ priority = "P0"
 phase_target = 5
 vlc_modules = ["wav"]
 inventory_ref = "inventory/formats.json#wav"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "5.A2; truncated-header error paths tested; PCM delivery for the audio-first verticals."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/demux/src/wav/** (card 5.A2 demux; record docs/formats/container-wav.md, 5.REC-1: differential tables cited to 5.A2); Linux-only evidence, CI 3-OS pending"
+notes = "5.A2; truncated-header error paths tested; PCM delivery for the audio-first verticals. 5.Q2-V backfill: record-consolidation status implemented-demux (5.REC-1); RF64 >4 GB untested [VERIFY]."
 
 [[feature]]
 id = "container-flac-native"
@@ -251,9 +251,9 @@ priority = "P1"
 phase_target = 5
 vlc_modules = ["aiff"]
 inventory_ref = "inventory/formats.json#aiff"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "5.A2 sibling."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/demux/src/aiff/** (card 5.A2; record docs/formats/container-aiff.md, 5.REC-1); fixture-only evidence — ZERO aiff corpus lanes (census 5.REC-1)"
+notes = "5.A2 sibling. 5.Q2-V backfill: implemented-demux (5.REC-1); uLaw breadth [VERIFY]."
 
 [[feature]]
 id = "container-au"
@@ -277,9 +277,9 @@ priority = "P0"
 phase_target = 5
 vlc_modules = ["es", "mpeg4audio"]
 inventory_ref = "inventory/formats.json#adts-aac"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Oracle: 'es' demuxer (audio-es) + mpeg4audio packetizer; ADTS parse ships inside symphonia-codec-aac (5.C2/5.I3)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/demux/src/adts/** (card 5.C2b; record docs/formats/container-adts.md, 5.REC-1: 0059/0110 lanes PASS, dirty-lane 350-vs-351 divergence recorded); Linux-only evidence"
+notes = "Oracle: 'es' demuxer (audio-es) + mpeg4audio packetizer; ADTS parse ships inside symphonia-codec-aac (5.C2/5.I3). 5.Q2-V backfill: implemented-demux (5.REC-1)."
 
 [[feature]]
 id = "container-mp3-raw"
@@ -290,9 +290,9 @@ priority = "P0"
 phase_target = 5
 vlc_modules = ["es", "mpegaudio"]
 inventory_ref = "inventory/formats.json#mp3-raw"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "5.A3 metadata + gapless; raw-ES wrappers 5.I3."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/demux/src/es/** (card 5.I3a; record docs/formats/container-es.md, 5.REC-1); Linux-only evidence"
+notes = "5.A3 metadata + gapless; raw-ES wrappers 5.I3. 5.Q2-V backfill: implemented-demux (5.REC-1); keyframe-IDR-only + 0145 attached-pic divergences recorded."
 
 [[feature]]
 id = "container-mpeg-es-video"
@@ -316,9 +316,9 @@ priority = "P0"
 phase_target = 5
 vlc_modules = ["h26x", "h264"]
 inventory_ref = "inventory/formats.json#h264-annexb"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "5.I3; bitstream parser 5.F1 is unconditional self-build regardless of decode path."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/demux/src/es/** (cards 5.F1a parser + 5.I3a wrapper; record docs/formats/container-es.md, 5.REC-1); Linux-only evidence"
+notes = "5.I3; bitstream parser 5.F1 is unconditional self-build regardless of decode path. 5.Q2-V backfill: implemented-demux (5.REC-1)."
 
 [[feature]]
 id = "container-hevc-annexb"
@@ -329,9 +329,9 @@ priority = "P1"
 phase_target = 5
 vlc_modules = ["h26x", "hevc"]
 inventory_ref = "inventory/formats.json#hevc-annexb"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "5.I3; parser 5.G1; HVCC unsupported in young candidates [VERIFY]."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/demux/src/es/** (cards 5.G1 parser + 5.I3a wrapper; record docs/formats/container-es.md, 5.REC-1); Linux-only evidence"
+notes = "5.I3; parser 5.G1; HVCC unsupported in young candidates [VERIFY]. 5.Q2-V backfill: implemented-demux (5.REC-1)."
 
 [[feature]]
 id = "container-ivf"
@@ -341,9 +341,9 @@ description = "Demux IVF elementary AV1 streams (test/delivery format for AV1)"
 priority = "P2"
 phase_target = 5
 inventory_ref = "inventory/formats.json#av1"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Named by doc 13 card 5.I3 (IVF delivery plumbing for the rav1d path); not a probed oracle family — census-level row [VERIFY]."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/demux/src/ivf/** (card 5.I3b; record docs/formats/container-ivf.md, 5.REC-1); fixture-only evidence — ZERO ivf corpus lanes; VP8 typed v0 refusal"
+notes = "Named by doc 13 card 5.I3 (IVF delivery plumbing for the rav1d path); not a probed oracle family — census-level row [VERIFY]. 5.Q2-V backfill: implemented-demux (5.REC-1); 5 malformed-shape ffmpeg divergences recorded."
 
 [[feature]]
 id = "container-realmedia"
@@ -411,9 +411,9 @@ priority = "P0"
 phase_target = 5
 vlc_modules = ["avcodec"]
 inventory_ref = "inventory/formats.json#h264"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "ADR-001 (pending) primary: strongest in-box story on Windows (MFT Win7+, profiles ≤ High); decode-path integration 5.F2; adapters plug at 7.B1–7.B3; parser self-build 5.F1 feeds probe/track-info/hw. Software track = separate row."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "crates/codecs/src/video/h264/** (cards 5.F1a/5.F1b clean-room parser corpus-verified 19/19 + 5.F2 hw decode-path seam; record docs/formats/video-h264.md: 0019 26/26 + 0014 185/185 slices vs trace_headers)"
+notes = "ADR-001 (pending) primary: strongest in-box story on Windows (MFT Win7+, profiles ≤ High); decode-path integration 5.F2; adapters plug at 7.B1–7.B3; parser self-build 5.F1 feeds probe/track-info/hw. Software track = separate row. 5.Q2-V backfill: partial per record — hw decode-path seam delivered, playback hw-only pending Phase-7 adapters; NO software decoder exists (doc 04 §4.2 stands)."
 
 [[feature]]
 id = "codec-video-h264-software"
@@ -438,9 +438,9 @@ priority = "P1"
 phase_target = 5
 vlc_modules = ["avcodec"]
 inventory_ref = "inventory/formats.json#hevc"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Windows Store 'HEVC Video Extensions' USD 0.99 wrinkle (old deep-link id dead, HTTP 410); VA-API covers 8/10/12-bit + 4:2:2/4:4:4 on Intel; parser 5.G1; adapters 7.B (conditional on the H.264 hw path landing)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "crates/codecs/src/video/hevc/** (cards 5.G1 parser 3/3 corpus lanes byte-verified + 5.G2 hw decode-path seam 571/0; record docs/formats/video-hevc.md)"
+notes = "Windows Store 'HEVC Video Extensions' USD 0.99 wrinkle (old deep-link id dead, HTTP 410); VA-API covers 8/10/12-bit + 4:2:2/4:4:4 on Intel; parser 5.G1; adapters 7.B (conditional on the H.264 hw path landing). 5.Q2-V backfill: partial per record — hw seam delivered (5.G2), software decode absent; Main-10/4:4:4 corpus absence recorded."
 
 [[feature]]
 id = "codec-video-hevc-software"
@@ -465,9 +465,9 @@ priority = "P0"
 phase_target = 5
 vlc_modules = ["dav1d"]
 inventory_ref = "inventory/formats.json#av1"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Oracle chose dav1d (score 10000) — direct analog for rav1d integration; asm-off config = default-features=false + bitdepth_8+bitdepth_16 (feasibility video-codecs §3); no-asm speed cost measured per doc 12; rav1d-safe (AGPL) rejected; Phase-5 proof plan P5.1–P5.7."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/codecs/src/video/av1/** + rav1d =1.1.0 asm-off (cards 5.E1+5.E2; record docs/formats/video-av1.md, 5.REC-2/5.E2: conformance 15 rows pixel-MD5 PASS, 8-bit bit-exact x3, 10-bit typed x5)"
+notes = "Oracle chose dav1d (score 10000) — direct analog for rav1d integration; asm-off config = default-features=false + bitdepth_8+bitdepth_16 (feasibility video-codecs §3); no-asm speed cost measured per doc 12; rav1d-safe (AGPL) rejected; Phase-5 proof plan P5.1–P5.7. 5.Q2-V backfill: implemented per record — 8-bit 4:2:0; 10/12-bit typed-unsupported [VERIFY-P1]; asm-off 0.309x vs libdav1d honest gap."
 
 [[feature]]
 id = "codec-video-vp9"
@@ -478,9 +478,10 @@ priority = "P0"
 phase_target = 5
 vlc_modules = ["avcodec"]
 inventory_ref = "inventory/formats.json#vp9"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
 evidence = ""
-notes = "Decision card 5.P1-I; rusty_vp9 0.1.3 claims bit-exact on all 315 libvpx vectors (unproven at scale); hw: MF VP9 extension preinstalled Win10 1709+, VA-API all 3 vendor classes, WebCodecs vp09 broad."
+notes = "Decision card 5.P1-I; rusty_vp9 0.1.3 claims bit-exact on all 315 libvpx vectors (unproven at scale); hw: MF VP9 extension preinstalled Win10 1709+, VA-API all 3 vendor classes, WebCodecs vp09 broad. 5.Q2-V backfill: blocked (candidate named, validation pending) per record (5.P1-I)."
+blocked_reason = "No validated pure-Rust VP9 engine (card 5.P1-I; record docs/formats/video-vp8-vp9.md): candidate named, validation spike pending — Phase-6 admission entry gate."
 
 [[feature]]
 id = "codec-video-vp8"
@@ -491,9 +492,10 @@ priority = "P1"
 phase_target = 8
 vlc_modules = ["avcodec"]
 inventory_ref = "inventory/formats.json#vp8"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
 evidence = ""
-notes = "No pure decoder (candidates are scaffolds: oxideav-vp8 0.2.7, zvidlib-vp8 0.5.0 too young); hw: Linux Intel-class + NVIDIA shim, WebCodecs vp8; macOS VT exposure unclear [VERIFY]. Effectively blocked-later; kept not_started pending 5.P1-I verdict."
+notes = "No pure decoder (candidates are scaffolds: oxideav-vp8 0.2.7, zvidlib-vp8 0.5.0 too young); hw: Linux Intel-class + NVIDIA shim, WebCodecs vp8; macOS VT exposure unclear [VERIFY]. Effectively blocked-later; kept not_started pending 5.P1-I verdict. 5.Q2-V backfill: blocked (no validated engine) per record (5.P1-I)."
+blocked_reason = "No validated pure-Rust VP8 engine (card 5.P1-I; record docs/formats/video-vp8-vp9.md); IVF VP8 already typed v0 refusal at the container seam."
 
 [[feature]]
 id = "codec-video-theora"
@@ -518,9 +520,10 @@ priority = "P1"
 phase_target = 5
 vlc_modules = ["avcodec"]
 inventory_ref = "inventory/formats.json#mpeg1-2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
 evidence = ""
-notes = "5.H1: oxideav-mpeg12video 0.0.13 candidate (124 .rs, 0 C/asm, no build.rs — verify-then-adopt); hw: MF MPEG-2 extension, VA-API Intel/AMD/NVIDIA."
+notes = "5.H1: oxideav-mpeg12video 0.0.13 candidate (124 .rs, 0 C/asm, no build.rs — verify-then-adopt); hw: MF MPEG-2 extension, VA-API Intel/AMD/NVIDIA. 5.Q2-V backfill: blocked per record (5.H1) — sequence-layer facts land, decode typed-refused."
+blocked_reason = "No production pure-Rust MPEG-1/2 decoder (card 5.H1 verdict; record docs/formats/video-mpeg12.md): sequence-layer parser + typed refusal LANDED (10/10 differential, 380/43 gates, 8k fuzz rounds) but software decode blocked; Phase-6 gated admission (feasibility video-codecs §4 F-5); no-egress honesty flag preserved."
 
 [[feature]]
 id = "codec-video-mpeg4-asp"
@@ -531,9 +534,10 @@ priority = "P1"
 phase_target = 5
 vlc_modules = ["avcodec"]
 inventory_ref = "inventory/formats.json#mpeg4-asp"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
 evidence = ""
-notes = "Decision card 5.H2-I; in-box MF on Windows only; NO VA-API driver class exposes ASP; oxideav-mpeg4video 0.1.8 candidate. Patent note in decision."
+notes = "Decision card 5.H2-I; in-box MF on Windows only; NO VA-API driver class exposes ASP; oxideav-mpeg4video 0.1.8 candidate. Patent note in decision. 5.Q2-V backfill: blocked for v1 decode per record (5.H2-I)."
+blocked_reason = "v1 decode typed refusal (card 5.H2-I decision; record docs/formats/video-mpeg4asp.md): no pure-Rust ASP decoder; L-class self-build deferred; Phase-6 admission path recorded in-file."
 
 [[feature]]
 id = "codec-video-mjpeg"
@@ -642,9 +646,9 @@ priority = "P0"
 phase_target = 5
 vlc_modules = ["mpg123", "mad"]
 inventory_ref = "inventory/formats.json#mp3"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "symphonia-bundle-mp3 0.6.1 (gapless); minimp3 = C bindings, forbidden; ID3v2/VBRI/Xing + gapless 5.A3; free-format edge cases only measurable on our differential corpus."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/codecs/src/audio/mp3/** (card 5.A3 symphonia + in-house glue; record docs/formats/audio-mp3-mp2.md, 5.REC-2); Linux-only evidence"
+notes = "symphonia-bundle-mp3 0.6.1 (gapless); minimp3 = C bindings, forbidden; ID3v2/VBRI/Xing + gapless 5.A3; free-format edge cases only measurable on our differential corpus. 5.Q2-V backfill: implemented per record (5.REC-2); MP3 corpus PCM-MD5 table [VERIFY-P2] lost to a deadline — re-print owed (audit gap G-3)."
 
 [[feature]]
 id = "codec-audio-mp2"
@@ -655,9 +659,9 @@ priority = "P1"
 phase_target = 5
 vlc_modules = ["mpg123", "mad"]
 inventory_ref = "inventory/formats.json#mp2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Same symphonia bundle (upstream 'Great'); broadcast corruption tolerance = Phase 5 differential work (5.J3)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/codecs/src/audio/mp2/** (card 5.J3b; record docs/formats/audio-mp3-mp2.md, 5.REC-2: honest ±1-LSB verdict on 4 rows — NOT MD5-bit-exact, two independent lossy syntheses)"
+notes = "Same symphonia bundle (upstream 'Great'); broadcast corruption tolerance = Phase 5 differential work (5.J3). 5.Q2-V backfill: implemented per record (5.REC-2); ±1 LSB is the recorded honest ceiling."
 
 [[feature]]
 id = "codec-audio-aac-lc"
@@ -668,9 +672,9 @@ priority = "P0"
 phase_target = 5
 vlc_modules = ["faad"]
 inventory_ref = "inventory/formats.json#aac-lc"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "symphonia-codec-aac 0.6.1 + AdtsReader ships in-crate; ASC-in-esds demux glue = S (5.C2); HE-AAC is a separate blocked row."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/codecs/src/audio/aac/** (cards 5.C2a+5.C2b; record docs/formats/audio-aac.md, 5.REC-2: 6-row 1-LSB table, 0094 6ch typed partial, dirty-lane 350-vs-351 divergence)"
+notes = "symphonia-codec-aac 0.6.1 + AdtsReader ships in-crate; ASC-in-esds demux glue = S (5.C2); HE-AAC is a separate blocked row. 5.Q2-V backfill: implemented for AAC-LC (5.REC-2); HE-AAC is the separate blocked row."
 
 [[feature]]
 id = "codec-audio-he-aac"
@@ -695,9 +699,9 @@ priority = "P0"
 phase_target = 5
 vlc_modules = ["flac"]
 inventory_ref = "inventory/formats.json#flac"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "5.A1: symphonia-bundle-flac (claxon 0.4.3 as oracle); SEEKTABLE seeking + binary-search fallback; bit-exact + differential vs VLC; encode later via flacenc 0.5.1."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/codecs/src/audio/flac/** + claxon =0.4.3 (card 5.A1; record docs/formats/audio-flac.md, 5.REC-2: 4 fixtures byte-exact + STREAMINFO MD5, corpus 0046, 539x realtime)"
+notes = "5.A1: symphonia-bundle-flac (claxon 0.4.3 as oracle); SEEKTABLE seeking + binary-search fallback; bit-exact + differential vs VLC; encode later via flacenc 0.5.1. 5.Q2-V backfill: implemented per record (5.REC-2)."
 
 [[feature]]
 id = "codec-audio-alac"
@@ -708,9 +712,9 @@ priority = "P1"
 phase_target = 5
 vlc_modules = ["avcodec"]
 inventory_ref = "inventory/formats.json#alac"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "symphonia-codec-alac 0.6.1; legacy alac 0.5.0 kept as oracle; lossless differential (5.J3)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/codecs/src/audio/alac/** (card 5.J3a; record docs/formats/audio-alac.md, 5.REC-2: 5/5 bit-exact incl. noise stressor)"
+notes = "symphonia-codec-alac 0.6.1; legacy alac 0.5.0 kept as oracle; lossless differential (5.J3). 5.Q2-V backfill: implemented per record (5.REC-2); 32-bit row impossible with this ffmpeg."
 
 [[feature]]
 id = "codec-audio-vorbis"
@@ -721,9 +725,9 @@ priority = "P0"
 phase_target = 5
 vlc_modules = ["vorbis"]
 inventory_ref = "inventory/formats.json#vorbis"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "5.B2: symphonia-codec-vorbis 0.6.1; lewton 0.10.2 demoted to oracle per doc 04."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/codecs/src/audio/vorbis/** (card 5.B2; record docs/formats/audio-vorbis.md, 5.REC-2: 5-row differential, silence lane BIT-EXACT, others <=6e-8)"
+notes = "5.B2: symphonia-codec-vorbis 0.6.1; lewton 0.10.2 demoted to oracle per doc 04. 5.Q2-V backfill: implemented per record (5.REC-2)."
 
 [[feature]]
 id = "codec-audio-opus"
@@ -776,9 +780,10 @@ priority = "P2"
 phase_target = 6
 vlc_modules = ["mlp", "avcodec"]
 inventory_ref = "inventory/formats.json#truehd-mlp"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
 evidence = ""
-notes = "truehdd 0.6.2 (2026-09-15) exists but is research-grade: Phase 6 hardening MANDATORY (5.K1) — conformance vs reference streams, concealment counters, honest downmix policy."
+notes = "truehdd 0.6.2 (2026-09-15) exists but is research-grade: Phase 6 hardening MANDATORY (5.K1) — conformance vs reference streams, concealment counters, honest downmix policy. 5.Q2-V backfill: blocked (pending-unblock) per record (5.K1) — blocked WITH a proven unblock path."
+blocked_reason = "Decode typed-unsupported in v1 (card 5.K1; record docs/formats/audio-truehd.md): bitstream-io 4.10.0 ToBits macro OOM root-caused; scratch differential 4/4 bit-exact (4,065,640 samples) proves the decoder; unblock = upstream fix or ~60-line vendor patch — decision at R-10/R-43 gates; no-silent-downmix policy."
 
 [[feature]]
 id = "codec-audio-adpcm"
@@ -789,9 +794,9 @@ priority = "P1"
 phase_target = 5
 vlc_modules = ["adpcm", "avcodec"]
 inventory_ref = "inventory/formats.json#adpcm"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "symphonia-codec-adpcm 0.6.1 (upstream 'Good'); breadth card 5.J2; exotic variants audited per record."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/codecs/src/audio/adpcm/** (cards 5.J2a+5.J2b+5.J2-MERGE; record docs/formats/audio-adpcm.md, 5.REC-2: 7 descriptors, corpus 0042/0102 + 8/8 breadth bit-exact)"
+notes = "symphonia-codec-adpcm 0.6.1 (upstream 'Good'); breadth card 5.J2; exotic variants audited per record. 5.Q2-V backfill: implemented for 7 descriptors (5.REC-2); lettered adpcm_oki typed-Unsupported (NO ffmpeg 7.1.5 reference at all)."
 
 [[feature]]
 id = "codec-audio-wma"
@@ -888,9 +893,9 @@ priority = "P0"
 phase_target = 5
 vlc_modules = ["subtitle", "subsdec"]
 inventory_ref = "inventory/formats.json#srt"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "5.M1 self-build S (stale crates kept as reference only); UTF-16/charset detection; fuzz_sub_srt; two-pass sidecar load per oracle evidence (sub_* probes)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/subtitles/src/srt/** (card 5.M1; record docs/formats/sub-srt.md, 5.Q2-V: 6/6 ffmpeg 7.1.5 differential incl. UTF-16 both endians, 105/0 at card, 230/0 current tree)"
+notes = "5.M1 self-build S (stale crates kept as reference only); UTF-16/charset detection; fuzz_sub_srt; two-pass sidecar load per oracle evidence (sub_* probes). 5.Q2-V backfill: implemented per NEW record (5.M1 evidence)."
 
 [[feature]]
 id = "subtitle-ass-ssa"
@@ -901,9 +906,9 @@ priority = "P0"
 phase_target = 5
 vlc_modules = ["subtitle", "libass"]
 inventory_ref = "inventory/formats.json#ass"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "The R-09 gap: tag-coverage matrix (render/degrade/drop) + unsupported-tag counters per doc 06 §7.8; libass-output-as-oracle [PROPOSAL]; plain-text subset may land Phase 2 with styling subset in Phase 5 (feasibility subtitles §1 row 2); karaoke/positioning degrade honestly."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "crates/subtitles/src/ass/** (cards 5.M2a parser + 5.M2b render; record docs/formats/sub-ass-ssa.md, 5.Q2-V: 3/3 real-ffmpeg ASS docs exact, 9/9 alignment-grid pixel-exact, 2000+2048 fuzz-lite runs clean)"
+notes = "The R-09 gap: tag-coverage matrix (render/degrade/drop) + unsupported-tag counters per doc 06 §7.8; libass-output-as-oracle [PROPOSAL]; plain-text subset may land Phase 2 with styling subset in Phase 5 (feasibility subtitles §1 row 2); karaoke/positioning degrade honestly. 5.Q2-V backfill: partial per NEW record — plain-text subset ONLY; ALL override-tag styling deferred (the R-09 gap); libass oracle impossible (C, forbidden)."
 
 [[feature]]
 id = "subtitle-vtt"
@@ -914,9 +919,9 @@ priority = "P1"
 phase_target = 5
 vlc_modules = ["webvtt"]
 inventory_ref = "inventory/formats.json#vtt"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "5.M3; webvtt-parser 1.2.0 candidate; cue settings map to our position model; <v>/<c> tags degrade to plain runs."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/subtitles/src/vtt/** (card 5.M3; record docs/formats/sub-vtt.md, 5.Q2-V: 3 real ffmpeg -c:s webvtt fixtures + settings_heavy handcrafted, 7003 fuzz inputs zero panics, 92/0 at card)"
+notes = "5.M3; webvtt-parser 1.2.0 candidate; cue settings map to our position model; <v>/<c> tags degrade to plain runs. 5.Q2-V backfill: implemented per NEW record (5.M3 evidence)."
 
 [[feature]]
 id = "subtitle-microdvd"
@@ -992,9 +997,9 @@ priority = "P2"
 phase_target = 6
 vlc_modules = ["dvbsub"]
 inventory_ref = "inventory/formats.json#dvb-subs-teletext"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Conditional 5.N2; pairs with TS work 5.I1."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/subtitles/src/dvb/** (card 5.N2, commits ab696b4+93a53ec: EN 300 743 segment/CLUT/RLE/page machine -> CompositedCue; 230/0 subtitles gates incl. dvb_vobsub_fuzz_survival); NO docs/formats record yet — audit gap G-1"
+notes = "Conditional 5.N2; pairs with TS work 5.I1. 5.Q2-V backfill: implemented (5.N2) — honest gap: NO reference-encoder differential (ffmpeg 7.1.5 refuses text->bitmap; bit tables cross-checked line-by-line vs ffmpeg RLE semantics), no corpus lane, record owed."
 
 [[feature]]
 id = "subtitle-teletext"
@@ -1031,9 +1036,9 @@ priority = "P2"
 phase_target = 8
 vlc_modules = ["spudec", "svcdsub", "cvdsub"]
 inventory_ref = "inventory/formats.json#subtitle-census-tail"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "vobsub 0.2.3 crate (CC0) path verified; palette/idx-sync hardening; DVD-Video navigation itself blocked separately (platform-disc-dvd). Priority per feasibility subtitles §1 row 11."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/subtitles/src/vobsub/** (card 5.N2, commits ab696b4+93a53ec: idx/spu parse, 128 KiB cap, grayscale fallback, damage ledger; 230/0 gates); NO docs/formats record yet — audit gap G-1"
+notes = "vobsub 0.2.3 crate (CC0) path verified; palette/idx-sync hardening; DVD-Video navigation itself blocked separately (platform-disc-dvd). Priority per feasibility subtitles §1 row 11. 5.Q2-V backfill: implemented (5.N2) — same no-differential honesty as DVB; record owed."
 
 [[feature]]
 id = "subtitle-kate"
@@ -1080,9 +1085,9 @@ description = "Charset/encoding detection for text subtitles incl. UTF-16 BOMs"
 priority = "P1"
 phase_target = 5
 inventory_ref = "inventory/options-linux.json#subsdec-encoding"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "From 5.M1 AC (encoding detection incl. UTF-16); subsdec-encoding option in inventory; priority reasoned."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "crates/subtitles/src/srt/encoding.rs (card 5.M1: BOM matrix UTF-8/UTF-16LE/UTF-16BE + BOM-less UTF-8 lossy fallback + damage)"
+notes = "From 5.M1 AC (encoding detection incl. UTF-16); subsdec-encoding option in inventory; priority reasoned. 5.Q2-V backfill: partial — BOM-class detection landed (5.M1); BOM-less UTF-16 deliberately NOT sniffed; full subsdec-class charset heuristics not started."
 
 [[feature]]
 id = "subtitle-census-tail"
@@ -1111,9 +1116,9 @@ priority = "P0"
 phase_target = 5
 vlc_modules = ["freetype", "tdummy"]
 inventory_ref = "inventory/modules-summary.md#s5"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "freetype is C — forbidden (the single biggest parity-visible substitution with libass); crate choice [VERIFY-P0]; libass-output-as-oracle [PROPOSAL] (feasibility subtitles §2.4 font-stack flag)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "crates/subtitles/src/compositing/** + model (cards 5.L1+5.L2: CueBitmap/CueLayout/place_cue pixel-exact math, 176-cue x 9-alignment roundtrip matrix, timing edges; 5.M2b placeholder glyph metrics: monospace-widest-char, integer ratios, no floats)"
+notes = "freetype is C — forbidden (the single biggest parity-visible substitution with libass); crate choice [VERIFY-P0]; libass-output-as-oracle [PROPOSAL] (feasibility subtitles §2.4 font-stack flag). 5.Q2-V backfill: partial — bitmap compositing + placeholder block glyphs landed; the REAL font stack (freetype replacement) is NOT started — crate choice [VERIFY-P0] stands; every text cue currently renders as placeholder blocks."
 
 [[feature]]
 id = "textrender-osd"
@@ -1154,9 +1159,9 @@ priority = "P0"
 phase_target = 4
 vlc_modules = ["playlist"]
 inventory_ref = "inventory/formats.json#m3u-m3u8"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "v0 ships 4.D1 (Phase 4); attribute/M3U8 polish 5.O1; self-build S (2017-frozen m3u crate unsuitable); HLS media-playlist parse shares the grammar (network-hls)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "crates/playlists/src/m3u.rs (cards 4.D1 M3U + 5.O1a HLS #EXT-X-* media-playlist v1 subset: 3 ffmpeg-generated fixtures byte-identical, EXTINF sums vs ffprobe 9.046543/9.046539, RFC 3986 join 23+19 pinned, 10k fuzz runs; 38/0)"
+notes = "v0 ships 4.D1 (Phase 4); attribute/M3U8 polish 5.O1; self-build S (2017-frozen m3u crate unsuitable); HLS media-playlist parse shares the grammar (network-hls). 5.Q2-V backfill: partial — M3U + HLS MEDIA playlist landed; master playlists (EXT-X-STREAM-INF) Phase 6; KEY/MAP recorded-not-resolved."
 
 [[feature]]
 id = "plfmt-pls"
@@ -1167,9 +1172,9 @@ priority = "P0"
 phase_target = 5
 vlc_modules = ["playlist"]
 inventory_ref = "inventory/formats.json#pls"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "5.O1; self-build S for uniform errors + fuzz; pls 0.2.3 crate as cross-check oracle."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/playlists/src/pls.rs (card 5.O1b: golden truth-sets handcrafted basic/sparse/dirty, exact warning-sequence asserts, fuzz-lite no-panic; 46/0 playlists gates)"
+notes = "5.O1; self-build S for uniform errors + fuzz; pls 0.2.3 crate as cross-check oracle. 5.Q2-V backfill: implemented (5.O1b); PLS<->M3U bridge roundtrip lossless."
 
 [[feature]]
 id = "plfmt-xspf"
@@ -1180,9 +1185,9 @@ priority = "P0"
 phase_target = 5
 vlc_modules = ["playlist", "export"]
 inventory_ref = "inventory/formats.json#xspf"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "5.O1; xspf 0.4.2 crate as cross-check oracle; also an export target (plfeat-save-load)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/playlists/src/xspf.rs (card 5.O1b: hand-rolled XML-subset pull parser, zero new deps, CDATA + entities, depth guard 64; 46/0 playlists gates)"
+notes = "5.O1; xspf 0.4.2 crate as cross-check oracle; also an export target (plfeat-save-load). 5.Q2-V backfill: implemented (5.O1b); creator/annotation M3U-bridge asymmetry documented."
 
 [[feature]]
 id = "plfmt-asx"
@@ -1218,9 +1223,9 @@ description = "Parse CUE sheets (REM/INDEX/gaps) with album-oriented gapless han
 priority = "P2"
 phase_target = 5
 inventory_ref = "inventory/formats.json#cue"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "5.O2 self-build S — cue crate = libcue C bindings (fails E-test); oracle = negative probe (no module claimed cue); scope decision V10 to 0.D3."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/playlists/src/cue.rs (card 5.O2: 3 handcrafted AC sheets vs hand-computed frame->ns truth, zero-gap joins pinned exactly, 13 typed warnings, 4600-track stress; playlists gates green at card)"
+notes = "5.O2 self-build S — cue crate = libcue C bindings (fails E-test); oracle = negative probe (no module claimed cue); scope decision V10 to 0.D3. 5.Q2-V backfill: implemented (5.O2); pregap excluded from duration, exposed separately."
 
 [[feature]]
 id = "plfmt-census-tail"
