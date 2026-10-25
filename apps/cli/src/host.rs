@@ -698,7 +698,7 @@ impl CliHost {
         let provider = Arc::new(provider);
         let mut config = SessionConfig::new(
             opened.uri,
-            Box::new(opened.demuxer),
+            opened.demuxer,
             provider,
             Arc::clone(&consumer) as Arc<dyn playback_engine::FrameConsumer>,
             Arc::clone(&clock),

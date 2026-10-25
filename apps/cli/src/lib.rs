@@ -33,6 +33,9 @@
 //! - [`bench`]     — `decode-bench`: the ffmpeg speed-parity runner
 //!   (W4-R2) — open path + demux + decode-to-null over the real
 //!   crates, one machine-parseable BENCH line.
+//! - [`containers`] — THE container-host registry (6.OPW-PREP): the
+//!   post-probe format dispatch — one `containers/<fmt>.rs` per wired
+//!   family (avi today), the honest typed refusal for the rest.
 //! - [`host`]     — the [`host::CliHost`]: owns the `Engine`, pumps it
 //!   (the host's poll IS the session thread, 2.C2's invariant S1),
 //!   correlates receipts to requests, records events and state
@@ -63,6 +66,7 @@
 //!   ARCH-5 rationale.
 
 pub mod bench;
+pub mod containers;
 pub mod demux_host;
 pub mod dispatch;
 pub mod exit;

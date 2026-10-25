@@ -1,7 +1,9 @@
-//! The open path and the demuxer host wrapper (card 2.D2): file URI →
-//! `input` access → `media-probe` → the AVI demuxer (D-018 first
-//! vertical), plus the seek/start-time skip wrapper and the track
-//! pre-pass that feeds the decoder provider and `media.get-info`.
+//! The open path and the demuxer host wrapper (card 2.D2; generalized
+//! by 6.OPW-PREP per `docs/plans/open-path-wiring.md` §4.3): file URI
+//! → `input` access → `media-probe` → **the container-host registry**
+//! (`crate::containers` — one wired family per entry), plus the
+//! generic seek/start-time skip wrapper and the track-facts pre-pass
+//! shape that feeds the decoder provider and `media.get-info`.
 //!
 //! # The open path (doc 03 §4.2 — probe between access and demux)
 //!
@@ -11,17 +13,20 @@
 //! 2. `FileAccess::open` (the 2.A1 access stack) → seekable stream.
 //! 3. `probe_stream` (2.A2) over the builtin signature registry — the
 //!    bounded, non-consuming window read. A miss is the honest typed
-//!    `unsupported` (stage `probe`); a hit naming anything but AVI is
-//!    refused: the first vertical carries exactly one demuxer (D-018).
-//! 4. `AviDemuxer::new` + a **host pre-pass `start()`**: the CLI is the
+//!    `unsupported` (stage `probe`); a hit is handed to
+//!    [`crate::containers::open`], the single registry: a wired
+//!    family constructs its demuxer + runs its facts pre-pass, an
+//!    unwired one lands in the registry's typed refusal (the
+//!    D-018-era message shape, format named).
+//! 4. Per-container host (e.g. [`crate::containers::avi`]): the
+//!    demuxer `new` + a **host pre-pass `start()`** — the CLI is the
 //!    composition root, so it reads the demuxed track list and the
-//!    `strf` stream formats (`AviDemuxer::stream_format` — the
-//!    documented decoder-config seam for 2.B4/2.B5) BEFORE the demuxer
-//!    moves into the engine. The engine's own `start()` call then
-//!    returns the cached tracks (the demuxer's idempotent re-start).
+//!    container's codec-facts accessors BEFORE the demuxer moves into
+//!    the engine. The engine's own `start()` call then returns the
+//!    cached tracks (the demuxer's idempotent re-start).
 //! 5. `--start-time`: the demuxer's `seek` is a **pure query** by
 //!    contract (it does not move the read position — the engine owns
-//!    acting on it) and [`AviHostDemuxer`] drops packets that
+//!    acting on it) and [`SelectDemuxer`] drops packets that
 //!    predate the target as the (linear, bounded-by-file) rewalk
 //!    proceeds. In-session position jumps are the engine's native
 //!    seek flow (card 3.A1, wired by W1-06): the wrapper forwards
@@ -41,9 +46,8 @@
 use std::path::{Path, PathBuf};
 
 use commands::{CommandError, ErrorCode, Stage};
-use demux::avi::AviDemuxer;
-use demux::avi::header::StreamFormat;
 use media_types::ids::SourceUri;
+use media_types::packet::SharedBytes;
 use media_types::time::{Stamp, TimeBase, TimeSpan, Timestamp};
 use media_types::{EngineError, MediaKind, Track, TrackId};
 use playback_engine::{QueuePlan, wire_error_code, wire_stage};
@@ -143,6 +147,15 @@ pub struct TrackFact {
     pub span_end_ticks: Option<i64>,
     /// PCM channels + rate, when the track is PCM.
     pub pcm: Option<(u32, u32)>,
+    /// Out-of-band codec initialization bytes (the esds ASC, the
+    /// ALAC magic cookie, the Vorbis three-header chain, the
+    /// ADPCM WAVEFORMATEX body) when the container separates them
+    /// from the stream — `None` for AVI (its `strf` pair above is
+    /// the PCM truth; MJPEG is self-describing per frame). The host
+    /// provider seeds the decoder config from this (the engine
+    /// mints `extra_data: None`); the exact blob is each container
+    /// harvest's own truth.
+    pub extra_data: Option<SharedBytes>,
     /// Video frame duration in ns (from the track base), when known.
     pub frame_ns: Option<u64>,
     /// Coded dimensions (video), when the container declares them.
@@ -187,12 +200,32 @@ impl MediaFacts {
     }
 }
 
+/// The open options every container host receives (today's
+/// `open_source` arguments, resolved): the start time, the track
+/// selection flags, and the source URI the [`OpenedMedia`] owes the
+/// engine's `SessionConfig` (the container modules never see the
+/// `SourceSpec` — the resolved URI is host truth).
+#[derive(Debug, Clone)]
+pub struct OpenOptions {
+    /// The resolved source URI (the engine's `SessionConfig.source`).
+    pub uri: SourceUri,
+    /// `--start-time` (µs), when given.
+    pub start_time_us: Option<i64>,
+    /// `--no-video`.
+    pub no_video: bool,
+    /// `--no-audio`.
+    pub no_audio: bool,
+}
+
 /// What [`open_source`] produced: the wrapped demuxer ready for the
 /// engine's [`SessionConfig`](playback_engine::SessionConfig), plus
 /// the harvested facts.
 pub struct OpenedMedia {
-    /// The AVI demuxer behind the skip/selection wrapper.
-    pub demuxer: AviHostDemuxer,
+    /// The container demuxer behind the skip/selection wrapper
+    /// (the engine consumes it as `dyn Demuxer` — the box is the
+    /// seam's whole point: no container type crosses into the
+    /// engine).
+    pub demuxer: Box<dyn Demuxer>,
     /// The harvested facts.
     pub facts: MediaFacts,
     /// The position the session anchors at (ns; `start_time` or 0).
@@ -295,117 +328,24 @@ pub fn open_source(
     let report = media_probe::probe_stream(&registry, &mut *stream, &config)
         .map_err(|err| wire_error(&err))?;
     let container = report.format.as_str().to_string();
-    if container != "avi" {
-        return Err(CommandError::new(
-            Stage::Probe,
-            ErrorCode::Unsupported,
-            format!(
-                "format `{container}` probes but has no open-path wiring yet \
-                 (R3 registered the signature; the CLI open path is still the \
-                 D-018 AVI first vertical — the per-container host wiring is the \
-                 next card)"
-            ),
-        )
-        .with_detail("format", container));
-    }
-    // 3. Demuxer + the host pre-pass (track list + strf facts).
-    let mut demuxer = AviDemuxer::new(stream).map_err(|err| wire_error(&err))?;
-    let tracks = demuxer.start().map_err(|err| wire_error(&err))?;
-    let facts = harvest_facts(&demuxer, &tracks);
-    let duration_us = facts.duration_us().unwrap_or(i64::MAX / 4);
-    // 4. Clamp the start position (doc 05 §2.4: clamping is truth).
-    let start_us = start_time_us.unwrap_or(0).clamp(0, duration_us);
-    let mut skip_until_ns = None;
-    if start_us > 0 {
-        // The pure seek query validates the target against the seek
-        // table (and the no-index scan) before the session exists.
-        // The target is nanosecond-based (the engine clock's base).
-        let target = TimeSpan {
-            start: Stamp::Present(Timestamp::new(
-                start_us.saturating_mul(1000),
-                media_clock::NANO_BASE,
-            )),
-            end: Stamp::Missing,
-        };
-        demuxer.seek(target).map_err(|err| wire_error(&err))?;
-        skip_until_ns = Some(start_us.saturating_mul(1000));
-    }
-    let wrapper = AviHostDemuxer {
-        inner: demuxer,
-        skip_until_ns,
-        bases: facts
-            .facts
-            .iter()
-            .map(|fact| (fact.id, fact.base))
-            .collect(),
-        disable_video: no_video,
-        disable_audio: no_audio,
-    };
-    Ok(OpenedMedia {
-        demuxer: wrapper,
-        facts,
-        start_position_ns: start_us.saturating_mul(1000),
+    // 3. The container-host registry (§4.4): the single dispatch — a
+    //    wired family constructs + pre-passes + wraps its demuxer;
+    //    anything else is the honest typed refusal (format named).
+    let opts = OpenOptions {
         uri,
-    })
+        start_time_us,
+        no_video,
+        no_audio,
+    };
+    crate::containers::open(&container, stream, &opts)
 }
 
-/// Harvest the per-track facts from a started demuxer.
-fn harvest_facts(demuxer: &AviDemuxer, tracks: &[Track]) -> MediaFacts {
-    let mut facts = Vec::with_capacity(tracks.len());
-    for track in tracks {
-        let (codec, pcm, frame_ns, dimensions) = match demuxer.stream_format(track.id) {
-            Some(StreamFormat::MotionJpeg { width, height }) => {
-                // One tick of the video base is one frame (AVI scale=1).
-                let frame_ns = (u64::from(track.timing.base.num)).saturating_mul(1_000_000_000)
-                    / u64::from(track.timing.base.den);
-                (
-                    "mjpeg".to_string(),
-                    None,
-                    Some(frame_ns),
-                    Some((width, height)),
-                )
-            }
-            Some(
-                stream_format @ StreamFormat::Pcm {
-                    channels,
-                    samples_per_sec,
-                    ..
-                },
-            ) => {
-                // The registry descriptor the strf declares — the
-                // demuxer's own single mapping (header.rs), not a
-                // local copy of the tag/bits table.
-                let codec = stream_format.codec_descriptor().to_string();
-                (
-                    codec,
-                    Some((u32::from(channels), samples_per_sec)),
-                    None,
-                    None,
-                )
-            }
-            None => ("unknown".to_string(), None, None, None),
-        };
-        let span_end_ticks = track.timing.span.end.timestamp().ok().map(|ts| ts.ticks);
-        facts.push(TrackFact {
-            id: track.id,
-            kind: track.kind,
-            codec,
-            base: track.timing.base,
-            span_end_ticks,
-            pcm,
-            frame_ns,
-            dimensions,
-        });
-    }
-    MediaFacts {
-        tracks: tracks.to_vec(),
-        facts,
-        container: "avi".to_string(),
-    }
-}
-
-/// The AVI demuxer behind the CLI's open options: track selection
+/// A demuxer behind the CLI's open options: track selection
 /// (`--no-video`/`--no-audio`) and the start-position skip filter.
+/// Generic over the inner demuxer (§4.3.1 — the skip/selection/filter
+/// logic was never AVI-specific; the wrapper is the shared half of
+/// every per-container wiring unit, and the engine consumes the
+/// result as `dyn Demuxer`).
 ///
 /// `start()` answers the track list minus disabled kinds (the engine
 /// wires limbs only for what it sees — an all-disabled media lands in
@@ -415,15 +355,34 @@ fn harvest_facts(demuxer: &AviDemuxer, tracks: &[Track]) -> MediaFacts {
 /// subtitle/data tracks. Packets that predate [`Self::skip_until_ns`]
 /// (converted per-track through the harvested bases) are dropped here
 /// — they are the pre-landing rewalk the seek query described.
-pub struct AviHostDemuxer {
-    inner: AviDemuxer,
+pub struct SelectDemuxer<D: Demuxer> {
+    inner: D,
     skip_until_ns: Option<i64>,
     bases: Vec<(TrackId, TimeBase)>,
     disable_video: bool,
     disable_audio: bool,
 }
 
-impl AviHostDemuxer {
+impl<D: Demuxer> SelectDemuxer<D> {
+    /// Wrap a started demuxer with the harvested track bases, the
+    /// open-time skip watermark (ns; `None` when no `--start-time`)
+    /// and the selection flags.
+    pub(crate) fn new(
+        inner: D,
+        skip_until_ns: Option<i64>,
+        bases: Vec<(TrackId, TimeBase)>,
+        disable_video: bool,
+        disable_audio: bool,
+    ) -> SelectDemuxer<D> {
+        SelectDemuxer {
+            inner,
+            skip_until_ns,
+            bases,
+            disable_video,
+            disable_audio,
+        }
+    }
+
     /// Whether the packet's presentation stamp predates the skip
     /// watermark. Unjudgeable stamps (missing pts, unknown base,
     /// unconvertible) are passed through — never dropped on a guess.
@@ -444,7 +403,7 @@ impl AviHostDemuxer {
     }
 }
 
-impl Demuxer for AviHostDemuxer {
+impl<D: Demuxer> Demuxer for SelectDemuxer<D> {
     fn start(&mut self) -> Result<Vec<Track>, EngineError> {
         let tracks = self.inner.start()?;
         Ok(tracks
@@ -477,11 +436,11 @@ impl Demuxer for AviHostDemuxer {
 
     fn seekability(&self) -> SeekSupport {
         // The engine's seek-flow step 1 asks the demuxer (doc 03 §6):
-        // the wrapper adds no capability the inner AVI demuxer does
-        // not have (idx1 → `Fast { indexed }`, no index → the bounded
-        // slow scan, broken → the honest `None`). The trait default
-        // would answer `None` and refuse every native seek typed —
-        // forwarded, not invented.
+        // the wrapper adds no capability the inner demuxer does not
+        // have (e.g. AVI's idx1 → `Fast { indexed }`, no index → the
+        // bounded slow scan, broken → the honest `None`). The trait
+        // default would answer `None` and refuse every native seek
+        // typed — forwarded, not invented.
         self.inner.seekability()
     }
 
@@ -556,10 +515,15 @@ mod tests {
     }
 
     /// A start-time past the duration clamps (doc 05 §2.4), and the
-    /// seek query validates the target against the real index.
+    /// seek query validates the target against the real index. The
+    /// skip watermark is asserted behaviorally (through the trait
+    /// object — the wrapper is a `dyn Demuxer` from here on): every
+    /// packet that survives the wrapper lands at/after the clamped
+    /// target, and a target clamped to the duration admits no packet
+    /// before the end.
     #[test]
     fn start_time_clamps_to_duration() {
-        let opened = match open_source(
+        let mut opened = match open_source(
             &commands::catalog::types::SourceSpec::File {
                 path: fixture("generated/valid/avi_mjpeg_pcm.avi"),
             },
@@ -571,7 +535,79 @@ mod tests {
             Err(err) => unreachable!("{err}"),
         };
         assert_eq!(opened.start_position_ns, 2_000_000_000);
-        assert_eq!(opened.demuxer.skip_until_ns, Some(2_000_000_000));
+        let _tracks = opened.demuxer.start().unwrap_or_else(|e| unreachable!("{e}"));
+        let mut packets = 0u32;
+        loop {
+            match opened.demuxer.next_event() {
+                Ok(DemuxEvent::Packet(packet)) => {
+                    packets += 1;
+                    if let Stamp::Present(pts) = packet.pts {
+                        let ns = pts
+                            .convert(&media_clock::NANO_BASE)
+                            .unwrap_or_else(|e| unreachable!("{e:?}"));
+                        assert!(
+                            ns.ticks >= 2_000_000_000,
+                            "packet before the clamped start survived: {}",
+                            ns.ticks
+                        );
+                    }
+                }
+                Ok(DemuxEvent::EndOfStream) => break,
+                Ok(_) => {}
+                Err(err) => unreachable!("{err}"),
+            }
+        }
+        // The whole media predates a target clamped to its end.
+        assert_eq!(packets, 0);
+    }
+
+    /// The wrapper's generalization is real, not cosmetic (§4.3.1):
+    /// `SelectDemuxer` instantiates over a NON-AVI demuxer — the WAV
+    /// demuxer over the shared WAV fixture — without touching the
+    /// registry (wiring `wav` is the 6.OPW-wav unit's file, not this
+    /// card's). The kind filter and the skip watermark behave exactly
+    /// as over AVI: bases come from the started demuxer's own tracks.
+    #[test]
+    fn select_demuxer_is_generic_over_a_non_avi_demuxer() {
+        let bytes: std::sync::Arc<[u8]> = std::fs::read(fixture("generated/valid/wav_pcm_s16le_44k1_st.wav"))
+            .unwrap_or_else(|e| unreachable!("fixture unreadable: {e}"))
+            .into();
+        let started = |skip: Option<i64>| -> (SelectDemuxer<demux::wav::WavDemuxer>, usize) {
+            let stream = demux::avi::test_support::mem_stream(bytes.clone())
+                .unwrap_or_else(|e| unreachable!("{e}"));
+            let mut demuxer = demux::wav::WavDemuxer::new(stream)
+                .unwrap_or_else(|e| unreachable!("{e}"));
+            let tracks = demuxer.start().unwrap_or_else(|e| unreachable!("{e}"));
+            let count = tracks.len();
+            let bases = tracks
+                .iter()
+                .map(|track| (track.id, track.timing.base))
+                .collect();
+            (SelectDemuxer::new(demuxer, skip, bases, false, false), count)
+        };
+        // The selection filter: --no-video keeps a video-less media's
+        // audio track (filtering is by kind, not by codec).
+        let (mut wrapper, track_count) = started(None);
+        assert_eq!(track_count, 1, "the fixture is one audio track");
+        let visible = wrapper
+            .start()
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        assert_eq!(visible.len(), 1);
+        // The skip watermark: a target past the whole media drops every
+        // packet — the wrapper answers the end of stream without
+        // emitting one.
+        let (mut skipping, _) = started(Some(i64::MAX / 2));
+        let _ = skipping.start().unwrap_or_else(|e| unreachable!("{e}"));
+        let mut packets = 0u32;
+        loop {
+            match skipping.next_event() {
+                Ok(DemuxEvent::Packet(_)) => packets += 1,
+                Ok(DemuxEvent::EndOfStream) => break,
+                Ok(_) => {}
+                Err(err) => unreachable!("{err}"),
+            }
+        }
+        assert_eq!(packets, 0, "every WAV packet predates the watermark");
     }
 
     /// Pure garbage: the probe's honest typed unknown (stage probe,
