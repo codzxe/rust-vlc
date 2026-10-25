@@ -90,3 +90,22 @@ pub mod srt;
 /// ledger that never panics. The only fatal is a missing `WEBVTT`
 /// header. Future 5.M1 unification: the `SubtitleParser` seam.
 pub mod vtt;
+
+/// Card 5.N2 (wave 9, ADR-012 self-build): DVB subtitles (ETSI EN
+/// 300 743) — the segment grammar, the 2/4/8-bit pixel RLE, CLUT
+/// banks with the BT.601-headroom YCbCr→RGBA conversion, and the
+/// page state machine (acquisition/mode-change resets, region
+/// composition, display-set assembly) reducing to
+/// [`compositing::CompositedCue`]s. Carriage landed earlier: TS
+/// stream type `0x06` → private PES (`demux/src/ts`), the demuxer
+/// hands the decoder the payload after the PES header.
+pub mod dvb;
+
+/// Card 5.N2 (wave 9, ADR-012 self-build): VobSub (IDX/SUB) — the
+/// idx text parse (palette, sizes, timestamp/filepos entries), the
+/// `.sub` MPEG-PS PES walk for the `0x20..=0x3F` SPU substreams
+/// (the same payloads the PS demuxer routes as `"dvd_subtitle"`),
+/// the SPU command-sequence + nibble-RLE decode, palette→RGBA with
+/// the grayscale fallback, the transparent-border crop, and the
+/// reduce to [`compositing::CompositedCue`]s.
+pub mod vobsub;
