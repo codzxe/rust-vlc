@@ -9,7 +9,7 @@
 //! # The MEMAUDIT line
 //!
 //! ```text
-//! MEMAUDIT file=<path> class=<c> rep=<i> verdict=<decoded|refused|fatal> size=<B> container=<c> tracks=<n> limbs=<v+a|v|a|none> v_pkts=<n> a_pkts=<n> v_dec=<n> a_dec=<n> v_conc=<n> a_conc=<n> dmx_rec=<n> open_alloc_B=<n> open_calls=<n> open_peak_B=<n> open_base_B=<n> walk_alloc_B=<n> walk_calls=<n> walk_peak_B=<n> walk_base_B=<n> peak_B=<n> B_per_pkt=<f> calls_per_pkt=<f> [stage=<s>] [error=<verbatim to end of line>]
+//! MEMAUDIT file=<path> class=<c> rep=<i> verdict=<decoded|refused|fatal> size=<B> container=<c> tracks=<n> limbs=<v+a|v|a|none> v_pkts=<n> a_pkts=<n> v_dec=<n> a_dec=<n> v_conc=<n> a_conc=<n> dmx_rec=<n> open_alloc_B=<n> open_calls=<n> open_peak_B=<n> open_base_B=<n> walk_alloc_B=<n> walk_calls=<n> walk_peak_B=<n> walk_base_B=<n> peak_B=<n> B_per_pkt=<f> calls_per_pkt=<f> rss_hwm_kB=<n|-> rss_base_kB=<n|-> [stage=<s>] [error=<verbatim to end of line>]
 //! ```
 //!
 //! - `peak_B` = max(open peak, walk peak) — the union property of
@@ -20,6 +20,13 @@
 //!   calls divided by packets FED to decoders (the D-1 detector:
 //!   anything above zero in the steady state is a per-frame
 //!   allocation site). `-` when no packet was fed.
+//! - `rss_hwm_kB` / `rss_base_kB` = the process's peak/current RSS
+//!   (VmHWM/VmRSS from `/proc/self/status`, kB) for THIS file's run
+//!   (watermark reset via `/proc/self/clear_refs` before the open
+//!   window, card 5.X2a); `-` when `/proc` is unavailable. RSS is
+//!   the system's resident-page truth — allocator-requested bytes
+//!   (the `*_B` fields) are the engine's own accounting; both are
+//!   reported, never conflated.
 //! - `error=` is always the LAST field (it may contain spaces).
 
 use crate::walk::WalkReport;
@@ -104,11 +111,18 @@ pub fn memaudit_line(report: &WalkReport, class: &str, rep: u32, path: &str) -> 
         }
     };
     let peak = report.open.peak_live.max(report.walk.peak_live);
+    let rss = |value: &Option<u64>| -> String {
+        match value {
+            Some(kb) => format!("{kb}"),
+            None => "-".to_string(),
+        }
+    };
     let mut line = format!(
         "MEMAUDIT file={path} class={class} rep={rep} verdict={} size={} container={} \
 tracks={} limbs={} v_pkts={} a_pkts={} v_dec={} a_dec={} v_conc={} a_conc={} dmx_rec={} \
 open_alloc_B={} open_calls={} open_peak_B={} open_base_B={} \
-walk_alloc_B={} walk_calls={} walk_peak_B={} walk_base_B={} peak_B={} B_per_pkt={} calls_per_pkt={}",
+walk_alloc_B={} walk_calls={} walk_peak_B={} walk_base_B={} peak_B={} B_per_pkt={} calls_per_pkt={} \
+rss_hwm_kB={} rss_base_kB={}",
         verdict_name(report.verdict),
         report.size,
         report.container,
@@ -132,6 +146,8 @@ walk_alloc_B={} walk_calls={} walk_peak_B={} walk_base_B={} peak_B={} B_per_pkt=
         peak,
         per_pkt(report.walk.alloc_bytes),
         per_pkt(report.walk.alloc_calls),
+        rss(&report.rss_hwm_kb),
+        rss(&report.rss_base_kb),
     );
     if let Some(stage) = &report.stage {
         line.push_str(&format!(" stage={stage}"));
