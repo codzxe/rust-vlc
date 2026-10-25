@@ -22,14 +22,19 @@
 //! (typed `Unsupported` at the decode seam, never a silent skip at
 //! demux). VP9 decode is out of this card's scope by assignment.
 //!
-//! # Memory model (5.X2 notes)
+//! # Memory model (5.X2 notes; 5.X2b fix landed)
 //!
 //! Cluster payloads are walked in bounded windows
 //! ([`MAX_CLUSTER_WINDOW`]); packet bytes land in a 2-slot
 //! [`PayloadSlots`] pool ([`MAX_PACKET_BYTES`] ceiling per slot,
 //! larger payloads spill unpooled but stay block-bounded by
-//! [`MAX_BLOCK_BYTES`]). Per-packet steady-state allocations are
-//! zero for the common case.
+//! [`MAX_BLOCK_BYTES`]). The 5.X2b steady state is zero-alloc per
+//! packet: the pool slot is the read destination
+//! ([`ebml::EbmlReader::read_prefix_into_at`]), the block payload is
+//! borrowed from the window (never copied out), and the per-block
+//! parse/packet buffers ([`cluster::BlockScratch`] frames + sizes,
+//! the packet Vec) are demuxer-owned scratch recycled block over
+//! block.
 
 pub mod attachments;
 pub mod chapters;
@@ -125,6 +130,13 @@ pub struct MkvDemuxer {
     cluster_damage: u64,
     damage_total: u64,
     pool: PayloadSlots,
+    /// Recycled per-block parse scratch (5.X2b fix #2): the lacing
+    /// frame table + size list.
+    block_scratch: cluster::BlockScratch,
+    /// Recycled per-block packet buffer (5.X2b fix #2): taken by
+    /// [`MkvDemuxer::emit_block`], drained into `pending` by
+    /// `next_event`, handed back — the capacity rides for the walk.
+    pkt_scratch: Vec<Packet>,
 }
 
 impl MkvDemuxer {
@@ -155,6 +167,8 @@ impl MkvDemuxer {
             cluster_damage: 0,
             damage_total: 0,
             pool: PayloadSlots::new(2, MAX_PACKET_BYTES),
+            block_scratch: cluster::BlockScratch::default(),
+            pkt_scratch: Vec::new(),
         })
     }
 
@@ -462,11 +476,19 @@ impl MkvDemuxer {
             let rel = offset + hdr_len;
             let payload_end = rel + size as usize;
             let timecode = window.timecode;
-            let payload = window.data[rel..payload_end].to_vec();
-            let packets = self.packets_from_element(id, &payload, data_start, timecode)?;
+            // Borrow the block payload from the window (5.X2b: no
+            // per-block copy out — the window outlives the parse and
+            // emit_block re-reads frame bytes positionally into the
+            // pool slot).
+            let payload = &window.data[rel..payload_end];
+            let packets = self.packets_from_element(id, payload, data_start, timecode)?;
             window.cursor = data_end;
             if let Some(packets) = packets {
                 if packets.is_empty() {
+                    // Recycle the (bigger) packet buffer back.
+                    if packets.capacity() > self.pkt_scratch.capacity() {
+                        self.pkt_scratch = packets;
+                    }
                     continue;
                 }
                 break Ok(Some(packets));
@@ -489,13 +511,22 @@ impl MkvDemuxer {
     ) -> Result<Option<Vec<Packet>>, EngineError> {
         match id {
             ebml::ID_SIMPLE_BLOCK => {
-                let block = cluster::parse_block(payload, payload_offset, true)?;
-                Ok(Some(self.emit_block(&block, payload, cluster_timecode)?))
+                let mut block = cluster::parse_block_with(
+                    payload,
+                    payload_offset,
+                    true,
+                    &mut self.block_scratch,
+                )?;
+                let emitted = self.emit_block(&block, payload, cluster_timecode);
+                // Hand the frame table back for the next block (the
+                // recycled capacity — 5.X2b fix #2).
+                self.block_scratch.frames = std::mem::take(&mut block.frames);
+                Ok(Some(emitted?))
             }
             ebml::ID_BLOCK_GROUP => {
                 // Walk BlockGroup children: Block (+ flags from
                 // ReferenceBlock presence), BlockDuration.
-                let mut packets = Vec::new();
+                let mut packets: Option<Vec<Packet>> = None;
                 let mut at = 0usize;
                 while at < payload.len() {
                     let Some((cid, csize, chdr_len, cunknown)) = parse_header_mem(&payload[at..])
@@ -514,20 +545,23 @@ impl MkvDemuxer {
                         ));
                     }
                     if cid == ebml::ID_BLOCK {
-                        let block = cluster::parse_block(
+                        let mut block = cluster::parse_block_with(
                             &payload[cstart..cend],
                             payload_offset + cstart as u64,
                             false,
+                            &mut self.block_scratch,
                         )?;
-                        packets =
-                            self.emit_block(&block, &payload[cstart..cend], cluster_timecode)?;
+                        let emitted =
+                            self.emit_block(&block, &payload[cstart..cend], cluster_timecode);
+                        self.block_scratch.frames = std::mem::take(&mut block.frames);
+                        packets = Some(emitted?);
                     }
                     // BlockDuration/ReferenceBlock: the keyframe
                     // derivation is ReferenceBlock-absence; duration
                     // rides DefaultDuration.
                     at = cend;
                 }
-                Ok(Some(packets))
+                Ok(packets)
             }
             _ => Ok(None), // Timecode (parsed already) / unknown: skip.
         }
@@ -540,11 +574,16 @@ impl MkvDemuxer {
         payload: &[u8],
         cluster_timecode: i64,
     ) -> Result<Vec<Packet>, EngineError> {
+        // The recycled packet buffer (5.X2b fix #2): the caller hands
+        // it back after the events queue drains it, so the capacity
+        // rides for the whole walk instead of a fresh Vec per block.
+        let mut packets = std::mem::take(&mut self.pkt_scratch);
+        packets.clear();
         let Some(&ordinal) = self.by_number.get(&block.track) else {
             // Unknown track number: damage-skip the whole block
             // (never a fabricated track).
             self.cluster_damage += block.payload_len as u64;
-            return Ok(Vec::new());
+            return Ok(packets);
         };
         let entry = &self.entries[ordinal as usize];
         let absolute =
@@ -567,7 +606,6 @@ impl MkvDemuxer {
             .private
             .default_duration_ns
             .map(|ns| Duration::Known(Nanoseconds(ns)));
-        let mut packets = Vec::with_capacity(block.frames.len());
         for (i, frame) in block.frames.iter().enumerate() {
             if frame.len > MAX_PACKET_BYTES * 4 {
                 // Beyond every sane ceiling: contained refusal.
@@ -575,12 +613,11 @@ impl MkvDemuxer {
                 continue;
             }
             let at = block.payload_offset + (block.body_offset + frame.start) as u64;
+            // 5.X2b fix #1: read straight into the pool slot — no
+            // throwaway Vec, no zero-fill, no second copy per frame.
             let data = self.pool.fill(frame.len, |buf| {
-                let got = self
-                    .reader
-                    .read_prefix_at(buf.len(), at, at + buf.len() as u64)?;
-                buf.copy_from_slice(&got);
-                Ok(got.len())
+                self.reader
+                    .read_prefix_into_at(buf, at, at + buf.len() as u64)
             })?;
             // BlockGroup keyframes: no ReferenceBlock (derive at the
             // group level; SimpleBlock carries the flag bit).
@@ -709,12 +746,18 @@ impl Demuxer for MkvDemuxer {
                 return Ok(DemuxEvent::EndOfStream);
             }
             match self.next_block_packets() {
-                Ok(Some(packets)) => {
+                Ok(Some(mut packets)) => {
                     if packets.is_empty() {
+                        if packets.capacity() > self.pkt_scratch.capacity() {
+                            self.pkt_scratch = packets;
+                        }
                         continue;
                     }
                     self.pending
-                        .extend(packets.into_iter().map(DemuxEvent::Packet));
+                        .extend(packets.drain(..).map(DemuxEvent::Packet));
+                    // `drain` keeps the capacity: hand the buffer
+                    // back for the next block (5.X2b fix #2).
+                    self.pkt_scratch = packets;
                     return Ok(self.pending.pop_front().unwrap_or(DemuxEvent::EndOfStream));
                 }
                 Ok(None) => {

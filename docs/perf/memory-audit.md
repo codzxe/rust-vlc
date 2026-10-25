@@ -152,6 +152,30 @@ only lever that moves this number.
 | 3 | **MJPEG frame-buffer pooling / `SharedBytes` range output handoff** (3.B3) | `codecs/src/video/mjpeg/decoder.rs` (`take_output`/`resize`), `mod.rs` FrameStorage | −~25-33 MB peak RSS at 4K (≈ one frame buffer), −~1 call/frame; 1080p −~4-6 MB | Medium — decoder output ownership is pinned by `zero_alloc_decode.rs` at exactly 2 events; contract change, needs codec-api review |
 | 4 | *(watch, no action)* DHT re-emitting streams (uhd4k 1.32 vs heavy 0.22 calls/pkt) — rebuilds are **required for correctness**; in-place table reuse only if profiling ever justifies it | `codecs/.../mjpeg/huffman.rs` | marginal | correctness-sensitive |
 
+### After-table (5.X2b, same day — fixes #1 + #2 landed)
+
+Fix #1 (`ebml.rs` `read_prefix_into_at` reads straight into the pool
+slot; `mod.rs` `emit_block` closure hands the slot to the reader) +
+fix #2 (`BlockScratch` frames/sizes + the per-block packet Vec are
+demuxer-owned recycled scratch; the block payload is **borrowed**
+from the cluster window, never copied out). Re-measured on the same
+lanes, same one-process-per-file discipline:
+
+| lane | calls/pkt before → after | walk bytes before → after | RSS kB (base) before → after | peak_B before → after |
+|---|---|---|---|---|
+| h264-mkv 0014 (255 pkt) | **4.10 → 0.11** (1,046 → 28 calls) | 11,685,217 → **3,930,502** (3.02× → **1.02×** file) | 3,916 (1,204) → **3,816** (1,200) | 1,475,024 → 1,403,934 |
+| av1-mkv 0034 (101 pkt) | **4.10 → 0.12** (414 → 12 calls) | — → 110,348 | — → 2,732 (1,192) | — → 193,262 |
+| audio-mkv 0002 (84 pkt) | **4.13 → 0.15** (347 → 13 calls) | — → 73,536 | — → 2,872 (1,188) | — → 199,147 |
+
+The remaining 28 calls on 0014 are the per-cluster-window reads (~4 MB
+windows, one Vec each) + first-touch pool arena growth — the mp4
+control's 0.05-0.07/pkt class. `--repeat 2` stability holds: walk
+totals byte-identical across reps (3,930,502 B / 28 calls both),
+peaks within 528 B. Oracle: `cargo test -p demux --all-features`
+green incl. the live-ffprobe `mkv_corpus` differential (the 3
+`adts_corpus` failures are pre-existing on the base commit — corpus
+layout mismatch, `.aac` lane absent — verified by stash).
+
 ## 7. Gates
 
 `cargo fmt -p lumen-mem-audit` clean; `cargo clippy -p lumen-mem-audit
