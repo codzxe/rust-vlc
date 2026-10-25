@@ -47,6 +47,13 @@ const SUBFORMAT_IEEE_FLOAT_GUID: [u8; 16] = [
 pub struct AviSignature;
 
 impl ProbePlugin for AviSignature {
+    fn extensions(&self) -> &'static [&'static str] {
+        // Mirrors the AVI family's claimed extensions (no `EXTENSIONS`
+        // const exists on the demuxer side; `avi` is the family's
+        // own spelling — the first vertical's fixture spelling).
+        &["avi"]
+    }
+
     fn probe(&self, prefix: &[u8], _meta: &SourceMeta) -> Option<ProbeHit> {
         // Anchor: RIFF magic + AVI form. Short windows that cannot
         // even carry the form do not anchor.

@@ -10,7 +10,12 @@
 //!   counting allocator's windows bracketing the open and walk
 //!   phases; one `MEMAUDIT` line is printed per file per repeat
 //!   (the D-1 detector: `calls_per_pkt` above zero in the steady
-//!   state is a per-frame allocation site).
+//!   state is a per-frame allocation site). Since card 5.X2a the
+//!   walk drives every landed demux family (AVI full decode; mkv/
+//!   mp4/ogg demux drilldowns; wav + PCM decode) and every line
+//!   carries the per-file peak-RSS pair `rss_hwm_kB`/`rss_base_kB`
+//!   (`/proc/self/status` VmHWM/VmRSS, watermark reset via
+//!   `/proc/self/clear_refs`).
 //! - `CLASS=FILE` overrides the path classifier (class labels are
 //!   `[a-z0-9_-]+`; see `report::classify` for the auto rules).
 //! - `--repeat N` walks every file N times consecutively (the

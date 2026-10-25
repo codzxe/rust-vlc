@@ -584,7 +584,7 @@ fn the_ladder_rungs_are_what_the_matrix_assumes() {
     // deliberately brittle, per AGENTS.md rule 5.
     assert_eq!(
         media_probe::signature::ProbeRegistry::with_builtins().len(),
-        2
+        10
     );
     assert!(Confidence::from_score(95).must().meets(60));
     assert!(!Confidence::from_score(50).must().meets(60));

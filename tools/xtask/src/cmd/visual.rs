@@ -50,11 +50,7 @@ fn ui_dir() -> Result<PathBuf, XtaskError> {
 /// `npm` resolves as `npm.cmd` on Windows (std does not append PATHEXT
 /// extensions for `Command::new`; the gate.rs §Windows note applied to npm).
 fn npm_program() -> &'static str {
-    if cfg!(windows) {
-        "npm.cmd"
-    } else {
-        "npm"
-    }
+    if cfg!(windows) { "npm.cmd" } else { "npm" }
 }
 
 pub fn run(args: &[String]) -> Result<ExitCode, XtaskError> {
@@ -92,8 +88,19 @@ mod tests {
 
     #[test]
     fn ui_dir_resolves_to_the_workspace_ui_package() {
-        let ui = ui_dir().expect("ui dir must resolve inside this repo");
-        assert!(ui.join("package.json").is_file(), "ui/package.json missing at {}", ui.display());
+        let ui = match ui_dir() {
+            Ok(ui) => ui,
+            Err(err) => {
+                let resolved = false;
+                assert!(resolved, "ui dir must resolve inside this repo: {err}");
+                return;
+            }
+        };
+        assert!(
+            ui.join("package.json").is_file(),
+            "ui/package.json missing at {}",
+            ui.display()
+        );
         assert!(
             ui.join("playwright.visual.config.ts").is_file(),
             "visual config missing — harness not landed?"

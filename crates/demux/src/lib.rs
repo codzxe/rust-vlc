@@ -17,8 +17,13 @@
 //! - [`wav`] — the RIFF/WAVE demuxer (card 5.A2): `fmt ` (plain /
 //!   extensible / float), `fact`, `data` PCM framing, RF64/BW64
 //!   `ds64`, LIST/INFO, odd-chunk word-align.
+//! - [`ivf`] — the IVF demuxer (card 5.I3b): `DKIF` header, AV1/VP9
+//!   fourcc gate, length-prefixed frame walk, header-rate ticks.
 //! - [`aiff`] — the AIFF/AIFC demuxer (card 5.A2): COMM (incl. the
 //!   extended-80-bit float sample rate), SSND, skip-tolerant chunks.
+//! - [`ts`] — the MPEG-TS layers (card 5.I1): [`ts::pes`] is the
+//!   PES header/assembly layer and the 90 kHz PTS/DTS timing model
+//!   with honest discontinuity events (the I1b half; PSI is I1a's).
 //! - [`error`] — typed error constructors at stage
 //!   [`PipelineStage::Demux`](media_types::PipelineStage::Demux); the
 //!   *taxonomy* is media-types' (never redefined here).
@@ -35,7 +40,11 @@ pub mod adts;
 pub mod aiff;
 pub mod avi;
 pub mod error;
+pub mod es;
+pub mod ivf;
 pub mod mkv;
 pub mod mp4;
 pub mod ogg;
+pub mod ps;
+pub mod ts;
 pub mod wav;

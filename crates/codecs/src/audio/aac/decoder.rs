@@ -379,9 +379,13 @@ impl AacDecoder {
         AacDecoder::default()
     }
 
-    /// The codec descriptors this decoder accepts.
+    /// The codec descriptors this decoder accepts: `aac` (the
+    /// ISO-BMFF esds spelling) and `aac-lc` (the ADTS demuxer's
+    /// profile-honest mapping, card 5.C2b — ADTS cannot prove
+    /// HE-AAC, and LC is the profile this decoder decodes; the
+    /// Main/SSR/LTP spellings stay typed refusals at configure).
     fn accepts(descriptor: &str) -> bool {
-        descriptor == "aac"
+        matches!(descriptor, "aac" | "aac-lc")
     }
 }
 
@@ -391,7 +395,7 @@ impl Decoder for AacDecoder {
         if !Self::accepts(descriptor) {
             return Err(unsupported(
                 "aac.codec_descriptor",
-                format!("codec descriptor `{descriptor}` is not aac"),
+                format!("codec descriptor `{descriptor}` is not aac/aac-lc"),
             )
             .into_engine_error());
         }
@@ -607,6 +611,9 @@ mod tests {
     #[test]
     fn descriptor_gate_accepts_aac_only() {
         assert!(AacDecoder::accepts("aac"));
+        assert!(AacDecoder::accepts("aac-lc"));
+        assert!(!AacDecoder::accepts("aac-main"));
+        assert!(!AacDecoder::accepts("aac-ssr"));
         assert!(!AacDecoder::accepts("flac"));
         assert!(!AacDecoder::accepts("mp3"));
         assert!(!AacDecoder::accepts("AAC"));

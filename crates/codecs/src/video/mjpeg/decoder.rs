@@ -87,6 +87,7 @@
 //! memory: at most [`FRAME_SLOTS`] · current-frame-bytes (empty on
 //! the one-shot stateless path, which keeps its own `Vec`).
 
+use super::FieldPolarity;
 use super::bitreader::{BitReader, ReaderStop};
 use super::color::{ComponentGeom, PlaneView, RgbComposer};
 use super::error::MjpegError;
@@ -142,6 +143,9 @@ pub(crate) struct DecodedImage {
     pub concealed: bool,
     /// The damage class when `concealed`.
     pub cause: Option<ConcealCause>,
+    /// AVI1 APP0 field polarity, when the frame carried the marker
+    /// (card 5.H3; see `mod.rs` module docs for the handling).
+    pub field_polarity: Option<FieldPolarity>,
 }
 
 /// The frame metadata of a context decode: the pixel bytes stay in
@@ -155,6 +159,9 @@ pub(crate) struct DecodedMeta {
     pub format: OutputFormat,
     pub concealed: bool,
     pub cause: Option<ConcealCause>,
+    /// AVI1 APP0 field polarity, when the frame carried the marker
+    /// (card 5.H3).
+    pub field_polarity: Option<FieldPolarity>,
 }
 
 /// One padded per-component sample plane.
@@ -431,7 +438,13 @@ impl DecodeContext {
     pub(crate) fn decode(&mut self, data: &[u8]) -> Result<DecodedMeta, MjpegError> {
         let meta = self.decode_scan(data)?;
         let total = self.frame_len()?;
-        self.out.clear();
+        // 5.X1b: the same-length buffer is reused WITHOUT the zero
+        // fill — both assembly paths provably overwrite every byte
+        // (pinned by `pooled_slot_refill_is_bit_exact_and_stale_byte_safe`),
+        // so `clear + resize(total, 0)` was a full-frame memset per
+        // frame (measured ~20% of the heavy-lane full-decode time on
+        // its own). `resize` still zeroes any grown tail; shrinking
+        // truncates.
         self.out.resize(total, 0);
         let Self {
             headers,
@@ -659,6 +672,7 @@ impl DecodeContext {
             format: choose_format(info, h_max, v_max),
             concealed,
             cause,
+            field_polarity: info.field_polarity,
         })
     }
 
@@ -1023,6 +1037,7 @@ pub(crate) fn decode(data: &[u8]) -> Result<DecodedImage, MjpegError> {
         data: context.take_output(),
         concealed: meta.concealed,
         cause: meta.cause,
+        field_polarity: meta.field_polarity,
     })
 }
 
@@ -1064,6 +1079,25 @@ fn i420_total(w: usize, h: usize) -> Result<usize, MjpegError> {
 /// for — luma and chroma `valid` extents always cover their output
 /// regions there).
 fn crop_plane_into(dst: &mut [u8], plane: &Plane, out_w: usize) {
+    // 5.X1b fast path: tightly packed rows (stride == out_w) with the
+    // valid region covering the whole destination — one bulk copy
+    // instead of one `copy_from_slice` per row. Byte-identical to the
+    // per-row loop by construction (same source span, contiguous).
+    let rows = dst.len() / out_w;
+    if plane.valid_w >= out_w
+        && plane.stride == out_w
+        && plane.valid_h >= rows
+        && out_w > 0
+        && rows > 0
+    {
+        let end = out_w
+            .checked_mul(rows)
+            .and_then(|len| plane.data.get(..len).map(|_| len));
+        if let Some(len) = end {
+            dst.copy_from_slice(&plane.data[..len]);
+            return;
+        }
+    }
     for (y, dst_row) in dst.chunks_exact_mut(out_w).enumerate() {
         if y >= plane.valid_h {
             dst_row.fill(128);
@@ -1778,5 +1812,137 @@ mod tests {
             Err(e) => unreachable!("stateless reference: {e:?}"),
         };
         assert_eq!(exact, reference.data);
+    }
+
+    /// Insert an AVI1 APP0 (payload `AVI1\0` + polarity byte) right
+    /// after the SOI of a `tiny_jpeg` frame.
+    fn with_avi1(jpeg: &[u8], polarity: u8) -> Vec<u8> {
+        let mut out = Vec::with_capacity(jpeg.len() + 10);
+        out.extend_from_slice(&jpeg[..2]);
+        out.extend_from_slice(&[0xff, 0xe0, 0x00, 0x08]);
+        out.extend_from_slice(b"AVI1\0");
+        out.push(polarity);
+        out.extend_from_slice(&jpeg[2..]);
+        out
+    }
+
+    #[test]
+    fn avi1_interleaved_frame_is_metadata_only_bit_exact() {
+        // Polarity 2 (both fields, lines interleaved — the form
+        // interlaced content takes): the marker classifies the frame,
+        // it changes no sample. The pixel bytes must equal the
+        // marker-free decode, and the polarity must surface on the
+        // metadata (card 5.H3's order-preserving guarantee: stream
+        // row order IS field order, so a top-field-first source stays
+        // top-field-first in the output).
+        let plain = tiny_jpeg(16, 16, &[(1, 0x22, 0), (2, 0x11, 0), (3, 0x11, 0)], &[0x00]);
+        let marked = with_avi1(&plain, 2);
+        let a = match decode(&plain) {
+            Ok(image) => image,
+            Err(e) => unreachable!("plain decode: {e:?}"),
+        };
+        let b = match decode(&marked) {
+            Ok(image) => image,
+            Err(e) => unreachable!("AVI1 decode: {e:?}"),
+        };
+        assert_eq!(a.field_polarity, None, "plain frame is progressive");
+        assert_eq!(b.field_polarity, Some(FieldPolarity::Interleaved));
+        assert_eq!(b.data, a.data, "the AVI1 marker is metadata only");
+        assert_eq!((b.width, b.height), (a.width, a.height));
+        assert!(!b.concealed, "a well-formed interleaved field frame");
+    }
+
+    #[test]
+    fn avi1_single_field_decodes_at_field_height() {
+        // Polarity 0 (first field only): the SOF height IS the field
+        // height — the picture decodes at its own (half-frame)
+        // dimensions, flagged with its polarity for the presentation
+        // layer (module docs: weaving is compositing, not decoding).
+        let field_jpeg = tiny_jpeg(16, 8, &[(1, 0x11, 0)], &[0x00]);
+        let marked = with_avi1(&field_jpeg, 0);
+        let image = match decode(&marked) {
+            Ok(image) => image,
+            Err(e) => unreachable!("AVI1 field decode: {e:?}"),
+        };
+        assert_eq!((image.width, image.height), (16, 8));
+        assert_eq!(image.field_polarity, Some(FieldPolarity::FirstField));
+        assert!(!image.concealed);
+        // And polarity 1 (second field) is the same shape of picture.
+        let marked = with_avi1(&field_jpeg, 1);
+        let image = match decode(&marked) {
+            Ok(image) => image,
+            Err(e) => unreachable!("AVI1 field decode: {e:?}"),
+        };
+        assert_eq!((image.width, image.height), (16, 8));
+        assert_eq!(image.field_polarity, Some(FieldPolarity::SecondField));
+    }
+
+    #[test]
+    fn restart_boundaries_crossing_mcu_rows_decode_bit_exact() {
+        // Card 5.H3 edge: restart intervals whose boundaries land
+        // mid-MCU-row. 24x16 grayscale = a 3x2 MCU grid; DRI=2 puts
+        // restarts before MCU 2 (a row boundary) and MCU 4 (mid-row)
+        // — both crossing classes in one stream. Each MCU carries one
+        // 0x00 entropy byte (2 real bits + byte padding), then the
+        // RST marker; the decode must equal the restart-free stream
+        // bit-for-bit.
+        let plain = tiny_jpeg(24, 16, &[(1, 0x11, 0)], &[0x00]);
+        // Rebuild with DRI and interleaved RST markers: headers up to
+        // (not including) SOS, then DRI (tables may precede SOS
+        // anywhere per §B.2), then SOS, then the restart-interleaved
+        // entropy tail instead of the plain zero run.
+        let entropy_len = 24 * 16 / 32 + 16;
+        let sos_start = plain.len() - entropy_len - 2 - 10; // minus EOI + SOS seg
+        assert_eq!(&plain[sos_start..sos_start + 2], &[0xff, 0xda]);
+        let mut jpeg = Vec::with_capacity(plain.len() + 16);
+        jpeg.extend_from_slice(&plain[..sos_start]);
+        jpeg.extend_from_slice(&[0xff, 0xdd, 0x00, 0x04, 0x00, 0x02]);
+        jpeg.extend_from_slice(&plain[sos_start..sos_start + 10]);
+        // Entropy: MCU0, MCU1 | RST0 | MCU2, MCU3 | RST1 | MCU4, MCU5.
+        jpeg.extend_from_slice(&[0x00, 0x00, 0xff, 0xd0]);
+        jpeg.extend_from_slice(&[0x00, 0x00, 0xff, 0xd1]);
+        jpeg.extend_from_slice(&[0x00, 0x00, 0xff, 0xd9]);
+        let restarted = match decode(&jpeg) {
+            Ok(image) => image,
+            Err(e) => unreachable!("restart decode: {e:?}"),
+        };
+        let reference = match decode(&plain) {
+            Ok(image) => image,
+            Err(e) => unreachable!("plain decode: {e:?}"),
+        };
+        assert!(!restarted.concealed, "all restarts present and numbered");
+        assert_eq!(restarted.data, reference.data);
+        assert_eq!(restarted.format, reference.format);
+    }
+
+    #[test]
+    fn odd_geometry_420_decodes_without_panic_or_padding_leak() {
+        // Card 5.H3 edge: odd width AND height under 4:2:0 (87x63 —
+        // chroma 44x32). The I420 output must be exactly w*h +
+        // 2*ceil(w/2)*ceil(h/2) bytes with no padding columns or rows
+        // leaking from the padded planes (the crop path's contract).
+        let jpeg = tiny_jpeg(87, 63, &[(1, 0x22, 0), (2, 0x11, 0), (3, 0x11, 0)], &[0x00]);
+        let image = match decode(&jpeg) {
+            Ok(image) => image,
+            Err(e) => unreachable!("odd 420 decode: {e:?}"),
+        };
+        assert_eq!((image.width, image.height), (87, 63));
+        assert_eq!(image.format, OutputFormat::I420);
+        let cw = 87usize.div_ceil(2);
+        let ch = 63usize.div_ceil(2);
+        assert_eq!(image.data.len(), 87 * 63 + 2 * cw * ch);
+        // Flat mid-gray everywhere (zero-entropy stream): any leaked
+        // plane padding would still be 0 from the fresh allocation —
+        // so also decode a second frame through the SAME context
+        // after a different-geometry frame, proving the reuse path
+        // crops stale bytes away (write a big block first).
+        let big = tiny_jpeg(96, 64, &[(1, 0x22, 0), (2, 0x11, 0), (3, 0x11, 0)], &[0x00]);
+        let mut ctx = DecodeContext::new();
+        ctx.decode(&big).unwrap_or_else(|e| unreachable!("{e:?}"));
+        let meta = ctx.decode(&jpeg).unwrap_or_else(|e| unreachable!("{e:?}"));
+        assert_eq!(meta.format, OutputFormat::I420);
+        let out = ctx.output();
+        assert_eq!(out.len(), 87 * 63 + 2 * cw * ch);
+        assert!(out.iter().all(|&b| b == 128), "flat gray, no stale bytes");
     }
 }

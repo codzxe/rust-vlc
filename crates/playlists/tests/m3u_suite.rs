@@ -5,8 +5,8 @@
 //! runtime (the 10 MB case is the heaviest and completes in milliseconds).
 
 use playlists::{
-    Entry, MAX_LINE_BYTES, ParseError, ParseWarning, Playlist, parse, parse_bytes, parse_detailed,
-    write,
+    Entry, HlsSegment, MAX_LINE_BYTES, ParseError, ParseWarning, Playlist, parse, parse_bytes,
+    parse_detailed, write,
 };
 
 const BASIC: &str = include_str!("fixtures/basic_extended.m3u");
@@ -46,6 +46,7 @@ fn golden_basic_extended() {
             duration: Some(123.0),
             title: Some("Sample Artist - Sample Title".into()),
             directives: vec![],
+            hls: HlsSegment::default(),
         }
     );
     // Windows path kept verbatim (separators un-normalized).
@@ -138,6 +139,7 @@ fn bom_and_crlf_tolerance() {
             duration: Some(5.5),
             title: Some("Title".into()),
             directives: vec![],
+            hls: HlsSegment::default(),
         }
     );
     assert_eq!(d.playlist.entries[1].duration, Some(4.0));
@@ -322,20 +324,24 @@ fn write_canonical_golden_pin() {
                 duration: Some(123.5),
                 title: Some("Artist - T".into()),
                 directives: vec![("EXTVLCOPT".to_string(), "http-user-agent=Lumen".into())],
+                hls: HlsSegment::default(),
             },
             Entry {
                 location: "b.flac".into(),
                 duration: Some(123.0),
                 title: None,
                 directives: vec![],
+                hls: HlsSegment::default(),
             },
             Entry {
                 location: "c.ogg".into(),
                 duration: None,
                 title: None,
                 directives: vec![],
+                hls: HlsSegment::default(),
             },
         ],
+        end_list: false,
     };
     assert_eq!(
         write(&pl),

@@ -39,6 +39,14 @@ use crate::report::{FormatId, ProbeHit, SourceMeta, TrackHint};
 pub struct Mp4Signature;
 
 impl ProbePlugin for Mp4Signature {
+    fn extensions(&self) -> &'static [&'static str] {
+        // Mirror of `demux::mp4::EXTENSIONS` (no crate edge by
+        // layering; the round-trip suite pins the mirror).
+        &[
+            "mp4", "m4v", "m4a", "mov", "qt", "3gp", "3g2", "3ga", "3gpp",
+        ]
+    }
+
     fn probe(&self, prefix: &[u8], _meta: &SourceMeta) -> Option<ProbeHit> {
         // Anchor: a well-formed `ftyp` box at the window start —
         // size + type + major brand + version need 16 bytes minimum.

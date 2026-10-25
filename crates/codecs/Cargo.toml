@@ -55,6 +55,22 @@ symphonia-codec-vorbis = "=0.6.1"
 # brief's `symphonia-bundle-aac` spelling does not exist on crates.io —
 # the record's reality check.)
 symphonia-codec-aac = "=0.6.1"
+# 5.J3a (Lead pre-approval, C5): the ALAC decode engine. Purity
+# verified in docs/dependencies/records/symphonia-alac-0.6.1.md BEFORE
+# this edit; the ALACSpecificConfig parse + error taxonomy stay ours.
+# Adds exactly 1 lock node (log/common/core all shared with the
+# siblings — the record's R2).
+symphonia-codec-alac = "=0.6.1"
+# 5.E1 (Lead pre-approval, C5): the AV1 decode engine — rav1d, the
+# Rust port of dav1d. Purity verified in
+# docs/dependencies/records/rav1d-1.1.0.md BEFORE this edit; the
+# record's whole point: `asm` is DEFAULT-ON (cc/nasm-rs compile the
+# shipped .S/.asm), so this admission pins
+# `default-features = false` + the two pure-Rust bitdepth features.
+# The record's R3 sabotage build (CC=/nonexistent-cc) proves build.rs
+# is inert with asm off. The OBU temporal-unit framing, error
+# taxonomy and codec-api contract surface stay ours.
+rav1d = { version = "=1.1.0", default-features = false, features = ["bitdepth_8", "bitdepth_16"] }
 
 [dev-dependencies]
 # The randomized-corpus vertical (ED-FIX-5; user directive 2026-10-22):

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xspf:playlist xmlns:xspf="http://xspf.org/ns/0/" version="1">
+  <!-- a comment -->
+  <xspf:title>Namespaced</xspf:title>
+  <xspf:extension application="http://example.com/app">
+    <app:something xmlns:app="http://example.com/app">ignored</app:something>
+  </xspf:extension>
+  <xspf:trackList>
+    <xspf:track>
+      <xspf:location>first-location.mp3</xspf:location>
+      <xspf:location>second-location.mp3</xspf:location>
+      <xspf:title>First wins</xspf:title>
+      <xspf:album>Ignored Album</xspf:album>
+      <xspf:duration>10000</xspf:duration>
+    </xspf:track>
+    <xspf:track>
+      <xspf:title><![CDATA[CDATA <title> & raw & stuff]]></xspf:title>
+      <xspf:creator><![CDATA[The <b>Creator</b>]]></xspf:creator>
+      <xspf:annotation>text with
+multiple lines
+      </xspf:annotation>
+      <xspf:location>multi.wav</xspf:location>
+      <xspf:meta rel="http://example.com/">meta text</xspf:meta>
+    </xspf:track>
+    <xspf:track/>
+  </xspf:trackList>
+</xspf:playlist>

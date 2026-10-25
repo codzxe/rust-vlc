@@ -19,7 +19,11 @@
 //!   (doc 03 §4.2's trait) and the
 //!   [`ProbeRegistry`](signature::ProbeRegistry) that scores
 //!   signatures and applies the selection rules; the builtin AVI and
-//!   MP4 signatures with their documented scoring ladders.
+//!   MP4 signatures with their documented scoring ladders, plus the
+//!   Phase-5 R3 consolidation rows (card 5.R3-REG): WAV, AIFF, Ogg,
+//!   Matroska/WebM, ADTS/ADIF, MPEG-TS, MPEG-PS and IVF — every
+//!   landed container, magic-anchored, mirror-pinned to its
+//!   demuxer's own probe gate by the round-trip suite.
 //! - [`contract`] — the instrumented [`CountingSource`] and the
 //!   executable probe-side contract (depth bound, position restore)
 //!   for this crate's tests, the engine wiring tests and the doc 06
@@ -406,8 +410,8 @@ mod tests {
         for window in [
             &vec![0u8; 4096][..],
             &b"just some text, not a container"[..],
-            &b"\x1a\x45\xdf\xa3\x93B\x86\x81\x01"[..], // matroska magic: no signature yet
-            &b"RIFF....WAVEfmt "[..],                  // RIFF, wrong form
+            &b"\x1a\x45\xdf\xa4\x93B\x86\x81\x01"[..], // EBML-ish, magic off by one
+            &b"RIFX....WAVEfmt "[..],                  // RIFF family, wrong magic
             &b"\0\0\0\x18ft9p\x00\x00\x00\x00"[..],    // broken ftyp type
         ] {
             let err = match registry.probe(window, &meta, &config) {

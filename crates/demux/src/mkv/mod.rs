@@ -38,6 +38,7 @@ pub mod cues;
 pub mod ebml;
 pub mod editions;
 pub mod error;
+pub mod fuzz;
 pub mod header;
 pub mod tags;
 

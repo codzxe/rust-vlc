@@ -39,5 +39,12 @@ else
   echo "fixtures: FAILED"; tail -5 /tmp/fixtures.log; fail=1
 fi
 
+echo "=== 6. fuzz-registry (doc 04 §8.5 — registry-vs-implementation diff) ==="
+if bash scripts/fuzz_registry_check.sh > /tmp/fuzzreg.log 2>&1; then
+  tail -1 /tmp/fuzzreg.log; echo "fuzz-registry: PASS"
+else
+  echo "fuzz-registry: FAILED"; cat /tmp/fuzzreg.log; fail=1
+fi
+
 echo "=== GATE RESULT: $([ $fail -eq 0 ] && echo PASS || echo FAIL) ==="
 exit $fail

@@ -82,6 +82,15 @@ mod decoder;
 #[allow(dead_code)]
 #[path = "../src/video/mjpeg/error.rs"]
 mod error;
+/// `FieldPolarity` lives in its own file (not `mod.rs`, which this
+/// example cannot include) precisely so `super::FieldPolarity` in the
+/// decoder/parser resolves on both trees; the root-level re-import
+/// makes it visible to those child modules here.
+#[allow(dead_code)]
+#[path = "../src/video/mjpeg/field.rs"]
+mod field;
+#[allow(unused_imports)]
+use field::FieldPolarity;
 #[allow(dead_code)]
 #[path = "../src/video/mjpeg/huffman.rs"]
 mod huffman;

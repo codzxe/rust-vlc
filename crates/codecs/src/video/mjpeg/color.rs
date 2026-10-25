@@ -40,6 +40,32 @@
 //! output is bit-identical to the previous implementation (pinned by
 //! `compose_row_matches_the_per_pixel_reference` and by the committed
 //! decode-reference digests).
+//!
+//! # 5.X1b: direct-row fast paths + chroma-offset LUT
+//!
+//! The W8 profiling (heavy 4K 4:4:4 lane, `stage_bench`) attributed
+//! 63.5% of full decode to this stage. Two measured changes, both
+//! bit-exact by construction:
+//!
+//! - **Direct-row specialization.** For the two horizontal sampling
+//!   shapes every real stream uses — 1:1 (4:4:4, 4:4:0) and 2:1
+//!   chroma (4:2:2) — the incremental stepper is provably the
+//!   identity (`src_x = x`) resp. `src_x = x >> 1`, and the
+//!   decoder-built planes satisfy `valid_w ≥ width` (1:1) resp.
+//!   `valid_w ≥ ⌈width/2⌉` (2:1). When both the sampling shape and
+//!   the row-bounds proof hold, the row composes by direct slice
+//!   indexing — no per-pixel stepper carries, no `.min` clamps.
+//!   Anything else (hostile geometry, hand-built planes) keeps the
+//!   Bresenham stepper loop verbatim.
+//!
+//! - **Branchless rounding.** `shr16_round_b` computes the same
+//!   round-half-away-from-zero as [`shr16_round`] without the sign
+//!   branch (the identity `q − [v<0 && v&0xffff == 0x8000]`, proven
+//!   below) — the two sign branches per pixel were the autovector
+//!   blockers and mispredict sources of the old loop. A 128 KiB
+//!   (Cb,Cr)→Δg table was measured and **rejected** on this host
+//!   (memory-bound under the shared-sandbox load; the ALU loop is
+//!   contention-robust).
 
 /// Full-range BT.601 integer constants, Q16 (rounded at authoring
 /// time; the classic JFIF equations).
@@ -70,6 +96,36 @@ fn shr16_round(value: i32) -> i32 {
     } else {
         -((-value + (1i32 << 15)) >> 16)
     }
+}
+
+/// `shr16_round` without the sign branch: for `v = −65536·m − r`,
+/// `0 ≤ r < 65536`, the two agree everywhere except `r == 0x8000`
+/// (the negative tie), where the shift form is one too high —
+/// corrected by the `[v < 0 && v & 0xffff == 0x8000]` term. Exact
+/// for every `v` with `v + 0x8000` inside i32 (the Q16 products here
+/// peak near ±1.5·10⁷); equality is pinned by the boundary sweep in
+/// the tests below.
+#[inline]
+fn shr16_round_b(value: i32) -> i32 {
+    let q = (value + 0x8000) >> 16;
+    q - ((value >> 31) & i32::from(value & 0xffff == 0x8000))
+}
+
+/// YCbCr → RGB with the branchless round (bit-identical to
+/// [`ycc_to_rgb`]; the hot-path form).
+#[inline]
+fn ycc_to_rgb_fast(y: u8, cb: u8, cr: u8) -> [u8; 3] {
+    let y = i32::from(y);
+    let cb = i32::from(cb) - 128;
+    let cr = i32::from(cr) - 128;
+    let r = y + shr16_round_b(CR_R * cr);
+    let g = y + shr16_round_b(CB_G * cb + CR_G * cr);
+    let b = y + shr16_round_b(CB_B * cb);
+    [
+        r.clamp(0, 255) as u8,
+        g.clamp(0, 255) as u8,
+        b.clamp(0, 255) as u8,
+    ]
 }
 
 /// A decoded component plane (padded to full 8×8 blocks; `stride` is
@@ -154,6 +210,76 @@ impl<'a> RowSampler<'a> {
             self.src_x += 1;
         }
     }
+
+    /// The row as a directly indexable 1:1 slice: horizontal sampling
+    /// is identity (`h == h_max`, so `src_x == x`) and the row plus
+    /// the valid width cover all `width` output columns (the
+    /// decoder-built shape; anything else keeps the stepper).
+    #[inline]
+    fn identity_row(&self, width: usize) -> Option<&'a [u8]> {
+        if self.h == self.h_max && self.row.len() >= width && self.clamp + 1 >= width {
+            Some(self.row)
+        } else {
+            None
+        }
+    }
+
+    /// The row as a 2:1-subsampled slice (`h == 1, h_max == 2`, so
+    /// `src_x == x >> 1`) whose row and valid width cover every
+    /// needed source column `⌊x/2⌋ ≤ (width−1)>>1`.
+    #[inline]
+    fn half_row(&self, width: usize) -> Option<&'a [u8]> {
+        let last = width.saturating_sub(1) >> 1;
+        if self.h == 1 && self.h_max == 2 && self.row.len() > last && self.clamp >= last {
+            Some(self.row)
+        } else {
+            None
+        }
+    }
+}
+
+/// 1:1-sampling color row (4:4:4, 4:4:0): every plane column maps to
+/// its output column directly — slice indexing only, branchless
+/// fixed-point color math.
+fn compose_rows_1to1(yrow: &[u8], cbrow: &[u8], crrow: &[u8], width: usize, out: &mut [u8]) {
+    for ((yv, (&cbv, &crv)), px) in yrow[..width]
+        .iter()
+        .zip(cbrow[..width].iter().zip(crrow[..width].iter()))
+        .zip(out.as_chunks_mut::<4>().0)
+    {
+        let [r, g, b] = ycc_to_rgb_fast(*yv, cbv, crv);
+        px[0] = r;
+        px[1] = g;
+        px[2] = b;
+        px[3] = 255;
+    }
+}
+
+/// 2:1 chroma color row (4:2:2): chroma column `x >> 1`, luma column
+/// `x` — slice indexing only, branchless fixed-point color math.
+fn compose_rows_2to1(yrow: &[u8], cbrow: &[u8], crrow: &[u8], width: usize, out: &mut [u8]) {
+    for (x, px) in out
+        .as_chunks_mut::<4>()
+        .0
+        .iter_mut()
+        .take(width)
+        .enumerate()
+    {
+        let [r, g, b] = ycc_to_rgb_fast(yrow[x], cbrow[x >> 1], crrow[x >> 1]);
+        px[0] = r;
+        px[1] = g;
+        px[2] = b;
+        px[3] = 255;
+    }
+}
+
+/// 1:1 grayscale row: one luma byte fans out to `[y, y, y, 255]` —
+/// packed word writes (a quarter of the scalar stores).
+fn compose_gray_direct(yrow: &[u8], width: usize, out: &mut [u8]) {
+    for (yv, px) in yrow[..width].iter().zip(out.as_chunks_mut::<4>().0) {
+        let word = u32::from_le_bytes([*yv, *yv, *yv, 255]);
+        px.copy_from_slice(&word.to_le_bytes());
+    }
 }
 
 /// Row composer: upsampled YCbCr → RGBA for one full-resolution row.
@@ -237,6 +363,11 @@ impl<'a> RgbComposer<'a> {
 
     /// The hot color path: all rows proven, direct indexing, zero
     /// divisions, zero per-sample branches beyond the step carries.
+    ///
+    /// The two real-stream sampling shapes (all-1:1 = 4:4:4/4:4:0,
+    /// luma-1:1 + chroma-2:1 = 4:2:2) take the specialized
+    /// direct-row loops first (5.X1b); the Bresenham stepper loop
+    /// stays for every other geometry, verbatim.
     fn compose_color_row(
         &self,
         mut luma: RowSampler<'_>,
@@ -245,11 +376,27 @@ impl<'a> RgbComposer<'a> {
         width: usize,
         out: &mut [u8],
     ) {
+        if let (Some(yrow), Some(cbrow), Some(crrow)) = (
+            luma.identity_row(width),
+            cb.identity_row(width),
+            cr.identity_row(width),
+        ) {
+            compose_rows_1to1(yrow, cbrow, crrow, width, out);
+            return;
+        }
+        if let (Some(yrow), Some(cbrow), Some(crrow)) = (
+            luma.identity_row(width),
+            cb.half_row(width),
+            cr.half_row(width),
+        ) {
+            compose_rows_2to1(yrow, cbrow, crrow, width, out);
+            return;
+        }
         for x in 0..width {
             let y = luma.sample();
             let cbv = cb.sample();
             let crv = cr.sample();
-            let [r, g, b] = ycc_to_rgb(y, cbv, crv);
+            let [r, g, b] = ycc_to_rgb_fast(y, cbv, crv);
             let base = x * 4;
             out[base] = r;
             out[base + 1] = g;
@@ -263,6 +410,10 @@ impl<'a> RgbComposer<'a> {
 
     /// The hot grayscale path (neutral chroma folds to R=G=B=Y).
     fn compose_gray_row(&self, mut luma: RowSampler<'_>, width: usize, out: &mut [u8]) {
+        if let Some(yrow) = luma.identity_row(width) {
+            compose_gray_direct(yrow, width, out);
+            return;
+        }
         for x in 0..width {
             let y = luma.sample();
             let base = x * 4;
@@ -335,6 +486,60 @@ mod tests {
         PlaneView {
             data: bytes,
             stride,
+        }
+    }
+
+    #[test]
+    fn branchless_round_matches_the_reference_everywhere() {
+        // `shr16_round_b` vs `shr16_round`: the only inputs where the
+        // shift form can differ are the negative ties `v & 0xffff ==
+        // 0x8000` (proven in the doc comment) — sweep every such v in
+        // the Q16 product domain ±1.5·10⁷ (plus its ±1 neighbors and
+        // a dense low-magnitude window covering every low-16 pattern
+        // at several magnitudes).
+        for magnitude in [0i32, 65536, 65536 * 7, 65536 * 227] {
+            for low in 0i32..65536 {
+                for v in [magnitude + low - 65536 * 16, -magnitude - low - 65536 * 16] {
+                    let v = v.clamp(-15_000_000, 15_000_000);
+                    assert_eq!(shr16_round_b(v), shr16_round(v), "v={v}");
+                }
+            }
+        }
+        for v in -300_000i32..300_000 {
+            assert_eq!(shr16_round_b(v), shr16_round(v), "v={v}");
+        }
+    }
+
+    #[test]
+    fn fast_conversion_matches_the_reference_everywhere() {
+        // Every (Cb, Cr) pair × the y values at each clamp boundary
+        // of the three channel offsets (where clamping could differ)
+        // plus a dense sweep — `ycc_to_rgb_fast` must equal the
+        // reference `ycc_to_rgb` triple-for-triple.
+        for cb in 0..=255u8 {
+            for cr in 0..=255u8 {
+                let cbv = i32::from(cb) - 128;
+                let crv = i32::from(cr) - 128;
+                let mut ys: Vec<u8> = vec![0, 1, 64, 127, 128, 191, 254, 255];
+                for d in [
+                    shr16_round(CR_R * crv),
+                    shr16_round(CB_B * cbv),
+                    shr16_round(CB_G * cbv + CR_G * crv),
+                ] {
+                    for cand in [-d - 1, -d, -d + 1, 255 - d - 1, 255 - d, 255 - d + 1] {
+                        if (0..=255).contains(&cand) {
+                            ys.push(cand as u8);
+                        }
+                    }
+                }
+                for y in ys {
+                    assert_eq!(
+                        ycc_to_rgb_fast(y, cb, cr),
+                        ycc_to_rgb(y, cb, cr),
+                        "y={y} cb={cb} cr={cr}"
+                    );
+                }
+            }
         }
     }
 
