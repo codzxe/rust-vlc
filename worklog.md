@@ -10076,3 +10076,17 @@ Stage Summary:
 - MEASURED (this session, in worktree, foreground): cargo test -p streaming = 27 passed / 0 failed / 0 ignored (0.13s); cargo clippy -p streaming --all-targets -- -D warnings = zero warnings (2 fix iterations: collapsible let-chain, type_complexity → ResponseHead struct); cargo fmt -p streaming --check = clean. Zero external dependencies added ([dependencies] empty; Cargo.lock delta = the new package row only).
 - NOT measured / honest gaps: no DnsFailure/TlsFailure/WriteTimeout live-socket tests (need a resolver/TLS peer — kinds are table-tested; TLS in the mock would need a TLS stack which is 6.A1b's ureq admission); InvalidContentRange minted by the vocabulary but not triggered by any mock config (server always emits valid Content-Range — a bad-content-range config flag is a 6.A2 nicety); RedirectPolicy.cross_host carried but not enforced (documented as 6.A1c/6.H1 scope); body reads are one bounded Vec (whole-body port per card — incremental streaming is 6.A2); Url v0 rejects IPv6/userinfo/suffix-relative Location (typed rejections, recorded for later cards). Sandbox had no toolchain at session start (reinstalled 1.99.1, see env note) — that cost ~4 min of wall time.
 - What breaks / who consumes this next: 6.A1b (ureq VTA spike) targets this port for its admission record; 6.A1c implements the real client against HttpFetch + maps NetworkError into media-types EngineError/NetworkCause (stage Open); 6.A2 ranged seekable resource builds on ByteRange + the 206/416/ignore-range mock shapes (all three configs already testable); 6.A3 scheme registry reuses Url/UnsupportedScheme; 6.F fuzz can drive MockConfig shapes. Nothing existing breaks: new crate only, joined via crates/* glob, no root manifest edit, no API changes elsewhere.
+
+---
+Task ID: 6.A1b-RATIFY
+Agent: Lead
+Task: Lead ratification of the 6.A1b ureq admission decision (the conditional verdict).
+
+Work Log:
+- Read the record (docs/dependencies/records/ureq-3.5.0.md), the OSV table (6 advisories, all fixed in locked versions), and the ring deviation evidence (135 C/asm files, 230 unsafe tokens, F1/F2/F4/F7 flags).
+- Decision: RATIFIED. ring 0.17.14 enters as an ADR-001-class recorded exception (same posture as rav1d's asm): a leaf crypto primitive from a reputable upstream, unreachable pure-Rust alternative for production TLS, no Lumen code of our own in the unsafe surface. The alternative — no HTTPS — fails the Phase-6 gate outright (HTTP(S)/HLS/DASH all require TLS). The disable_verification hatch upstream ships is pinned shut by our single tls_config() construction site + the tls_verification_is_always_on test; 6.H1 security review re-audits both.
+- deny.toml license classes (ISC, BSD-3-Clause, CDLA-Permissive-2.0) ratified. cargo-deny authoritative pass stays CI-owned (G3/G4) — agent honestly measured it absent.
+- Merged wip/p6-a1b into main; gates re-run on main below before push.
+
+Stage Summary:
+- ureq 3.5.0 + ring exception = the streaming layer's HTTP(S) foundation. [VERIFY-P1] items (crates.io publisher metadata, unfetched 2026 OSV IDs) ride with the record for the CI lane to settle.
