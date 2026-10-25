@@ -26,6 +26,7 @@ publish = false
 workspace = true
 
 [dependencies]
+ureq = { version = "3.5.0", default-features = false, features = ["rustls", "rustls-webpki-roots"] }
 # Intentionally empty: std only (card 6.A1a scope). The ureq admission
 # (6.A1b) is the first card allowed to propose a dependency here.
 
