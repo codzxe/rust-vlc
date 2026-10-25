@@ -10186,3 +10186,16 @@ Stage Summary:
 - MEASURED: 8/8 differential lanes inside the ±1-LSB lossy tolerance (maxΔ=1 on every lane; Layer III differing 0.08–0.26% of samples, Layer II 24.48%) — table with all 16 MD5s re-printed into the record doc from THIS session's run; ffmpeg oracle + recorded reference + 5.A3-era ref/mine raw pairs all byte-consistent (zero drift anywhere).
 - NOT measured: no new decode paths, no VLC oracle (still PENDING-INFRA), no changes to decoder code — re-print only.
 - Closes: Q2-V gap G-3.
+
+---
+Task ID: 6.W1-STATUS
+Agent: Lead
+Task: Wave-1 progress checkpoint (6 of 10 units landed and pushed).
+
+Work Log:
+- Landed this wave so far: 6.A1a streaming scaffold (27/0, zero deps, mock testkit); 6.A1b ureq 3.5.0 ADMITTED (37/0, live https fetch measured, ring exception Lead-ratified ADR-001-class); 6.OPW-0 seam investigation (docs/plans/open-path-wiring.md, registry = apps/cli/src/containers/mod.rs); 6.OPW-PREP (SelectDemuxer<D> generalization, TrackFact.extra_data, registry live with avi + honest refusal, lumen-cli 107/0, workspace check clean); 6.VTA-ruopus ADMITTED (std-only pin, 6-lane float-class differential all ≤1 s16-LSB except one 0.028% CBR lane, hostile clean, zero-dep); 6.MP3-reprint (8-lane table ±1-LSB, G-3 closed, ref/mine pairs byte-stable since 5.A3).
+- All merged to main and pushed; merged worktrees/branches removed (a1a, a1b, opw0, opwp, vta-ruopus, mp3re).
+- Remaining Wave-1 units: 6.VTA-oxideav-ac3, 6.VTA-rusty-vp9, 6.VTA-oxideav-mpeg4video, 6.VTA-filmcraft-dnx, 6.ADPCM-bench — dispatching next session window.
+
+Stage Summary:
+- Phase 6 running: critical path (streaming core) and the open-path track are both unblocked; two admissions banked (ureq, ruopus).
