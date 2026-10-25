@@ -165,9 +165,11 @@ impl Url {
                 detail: "URL contains spaces or control bytes",
             });
         }
-        let (scheme, rest) = text.split_once("://").ok_or(NetworkError::ProtocolViolation {
-            detail: "URL is not absolute (missing '://')",
-        })?;
+        let (scheme, rest) = text
+            .split_once("://")
+            .ok_or(NetworkError::ProtocolViolation {
+                detail: "URL is not absolute (missing '://')",
+            })?;
         let scheme = scheme.to_ascii_lowercase();
         if scheme != "http" && scheme != "https" {
             return Err(NetworkError::UnsupportedScheme { scheme });
@@ -188,9 +190,11 @@ impl Url {
         }
         let (host, port) = match authority.rsplit_once(':') {
             Some((host, port)) => {
-                let port = port.parse::<u16>().map_err(|_| {
-                    NetworkError::ProtocolViolation { detail: "invalid port" }
-                })?;
+                let port = port
+                    .parse::<u16>()
+                    .map_err(|_| NetworkError::ProtocolViolation {
+                        detail: "invalid port",
+                    })?;
                 (host, port)
             }
             None => (authority, if scheme == "https" { 443 } else { 80 }),
@@ -419,7 +423,10 @@ mod tests {
         assert_eq!(plain.port, 80);
         assert_eq!(plain.path_and_query, "/media/song.flac?x=1");
         assert_eq!(plain.authority(), "example.com:80");
-        assert_eq!(plain.to_string(), "http://example.com:80/media/song.flac?x=1");
+        assert_eq!(
+            plain.to_string(),
+            "http://example.com:80/media/song.flac?x=1"
+        );
 
         let tls = Url::parse("https://cdn.example.org:8443/seg001.ts").must();
         assert_eq!(tls.port, 8443);
@@ -470,7 +477,10 @@ mod tests {
 
         for bad_ref in ["seg001.ts", "#frag", ""] {
             assert!(
-                matches!(base.join(bad_ref), Err(NetworkError::ProtocolViolation { .. })),
+                matches!(
+                    base.join(bad_ref),
+                    Err(NetworkError::ProtocolViolation { .. })
+                ),
                 "{bad_ref:?} must be rejected typed"
             );
         }

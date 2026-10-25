@@ -36,7 +36,7 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 use crate::error::NetworkError;
-use crate::fetch::{HttpRequest, HttpResponse, HttpFetch, Url};
+use crate::fetch::{HttpFetch, HttpRequest, HttpResponse, Url};
 
 /// How long a handler thread waits for a request head before giving up
 /// (keeps dropped-test threads bounded).
@@ -334,7 +334,9 @@ fn write_response(
 
 /// The `302` hop response (relative `Location`, no body).
 fn redirect_head(location: &str) -> String {
-    format!("HTTP/1.1 302 Found\r\nLocation: {location}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+    format!(
+        "HTTP/1.1 302 Found\r\nLocation: {location}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+    )
 }
 
 /// Serve the body, honoring or ignoring `Range:` per config.
@@ -344,26 +346,26 @@ fn serve_body(
     request: &LoggedRequest,
 ) -> std::io::Result<()> {
     let range = request.header("range").and_then(parse_range_spec);
-    if config.honor_range {
-        if let Some((start, end_inclusive)) = range {
-            let len = config.body.len() as u64;
-            if len == 0 || start >= len {
-                write!(
-                    stream,
-                    "HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */{len}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
-                )?;
-                return stream.flush();
-            }
-            let last = end_inclusive.map_or(len - 1, |end| end.min(len - 1));
-            let slice = &config.body[start as usize..=last as usize];
+    if config.honor_range
+        && let Some((start, end_inclusive)) = range
+    {
+        let len = config.body.len() as u64;
+        if len == 0 || start >= len {
             write!(
                 stream,
-                "HTTP/1.1 206 Partial Content\r\nContent-Range: bytes {start}-{last}/{len}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-                slice.len()
+                "HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */{len}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
             )?;
-            stream.write_all(slice)?;
             return stream.flush();
         }
+        let last = end_inclusive.map_or(len - 1, |end| end.min(len - 1));
+        let slice = &config.body[start as usize..=last as usize];
+        write!(
+            stream,
+            "HTTP/1.1 206 Partial Content\r\nContent-Range: bytes {start}-{last}/{len}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            slice.len()
+        )?;
+        stream.write_all(slice)?;
+        return stream.flush();
     }
     write!(
         stream,
@@ -408,16 +410,18 @@ impl MockClient {
     fn exchange(&self, url: &Url, request: &HttpRequest) -> Result<HttpResponse, NetworkError> {
         let mut stream = self.connect(url, request)?;
         self.send_request(&mut stream, url, request)?;
-        let (status, reason, headers, rest) = read_response_head(&mut stream)?;
-        let content_length = content_length(&headers);
+        let head = read_response_head(&mut stream)?;
+        let content_length = content_length(&head.headers);
         let body = match content_length {
-            Some(len) => read_bounded_body(&mut stream, &rest, len, request.response_limit)?,
-            None => read_eof_body(&mut stream, &rest, request.response_limit)?,
+            Some(len) => {
+                read_bounded_body(&mut stream, &head.body_prefix, len, request.response_limit)?
+            }
+            None => read_eof_body(&mut stream, &head.body_prefix, request.response_limit)?,
         };
         Ok(HttpResponse {
-            status,
-            reason,
-            headers,
+            status: head.status,
+            reason: head.reason,
+            headers: head.headers,
             body,
         })
     }
@@ -440,9 +444,7 @@ impl MockClient {
                 }
                 Err(e) => {
                     last = Some(match e.kind() {
-                        ErrorKind::TimedOut | ErrorKind::WouldBlock => {
-                            NetworkError::ConnectTimeout
-                        }
+                        ErrorKind::TimedOut | ErrorKind::WouldBlock => NetworkError::ConnectTimeout,
                         ErrorKind::ConnectionRefused => NetworkError::ConnectRefused,
                         _ => NetworkError::Io { source: e },
                     });
@@ -546,13 +548,19 @@ fn is_redirect(status: u16) -> bool {
     matches!(status, 301 | 302 | 303 | 307 | 308)
 }
 
+/// A parsed response head plus the body bytes that arrived with it.
+struct ResponseHead {
+    status: u16,
+    reason: String,
+    headers: Vec<(String, String)>,
+    body_prefix: Vec<u8>,
+}
+
 /// Read and parse a response head, keeping any body bytes that arrived
 /// in the same segments. Every malformation is a typed
 /// [`NetworkError::ProtocolViolation`]; a head-phase deadline expiry
 /// is [`NetworkError::ReadTimeout`].
-fn read_response_head(
-    stream: &mut TcpStream,
-) -> Result<(u16, String, Vec<(String, String)>, Vec<u8>), NetworkError> {
+fn read_response_head(stream: &mut TcpStream) -> Result<ResponseHead, NetworkError> {
     let head = match read_head(stream) {
         HeadOutcome::Head(head, rest) => (head, rest),
         HeadOutcome::Timeout => return Err(NetworkError::ReadTimeout),
@@ -572,17 +580,24 @@ fn read_response_head(
             detail: "malformed status line",
         });
     }
-    let code = parts.next().unwrap_or_default().parse::<u16>().map_err(|_| {
-        NetworkError::ProtocolViolation {
+    let code = parts
+        .next()
+        .unwrap_or_default()
+        .parse::<u16>()
+        .map_err(|_| NetworkError::ProtocolViolation {
             detail: "malformed status line",
-        }
-    })?;
+        })?;
     let reason = parts.next().unwrap_or_default().to_string();
     let headers = lines
         .filter_map(|line| line.split_once(':'))
         .map(|(name, value)| (name.trim().to_string(), value.trim().to_string()))
         .collect();
-    Ok((code, reason, headers, rest))
+    Ok(ResponseHead {
+        status: code,
+        reason,
+        headers,
+        body_prefix: rest,
+    })
 }
 
 fn content_length(headers: &[(String, String)]) -> Option<u64> {
@@ -665,10 +680,9 @@ fn read_eof_body(stream: &mut TcpStream, rest: &[u8], limit: u64) -> Result<Vec<
 fn map_body_read_error(e: std::io::Error, expected: u64, received: u64) -> NetworkError {
     match e.kind() {
         ErrorKind::WouldBlock | ErrorKind::TimedOut => NetworkError::ReadTimeout,
-        ErrorKind::ConnectionReset | ErrorKind::ConnectionAborted => NetworkError::BodyTruncated {
-            expected,
-            received,
-        },
+        ErrorKind::ConnectionReset | ErrorKind::ConnectionAborted => {
+            NetworkError::BodyTruncated { expected, received }
+        }
         _ => NetworkError::Io { source: e },
     }
 }
@@ -732,8 +746,7 @@ mod tests {
     fn open_ended_range_reads_to_end() {
         let body = body_1000();
         let server = spawn(MockConfig::body(body.clone()));
-        let request =
-            HttpRequest::get(server.url("f")).with_range(ByteRange::From { start: 990 });
+        let request = HttpRequest::get(server.url("f")).with_range(ByteRange::From { start: 990 });
         let response = fetcher().fetch(request).must();
         assert_eq!(response.status, 206);
         assert_eq!(response.header("content-range"), Some("bytes 990-999/1000"));
@@ -798,12 +811,11 @@ mod tests {
             ..MockConfig::body(body_1000())
         };
         let server = spawn(config);
-        let request = HttpRequest::get(server.url("start")).with_redirects(
-            crate::fetch::RedirectPolicy {
+        let request =
+            HttpRequest::get(server.url("start")).with_redirects(crate::fetch::RedirectPolicy {
                 max_redirects: 2,
                 cross_host: true,
-            },
-        );
+            });
         let err = match fetcher().fetch(request) {
             Err(e) => e,
             Ok(response) => unreachable!("bounded policy must fire, got {}", response.status),
@@ -948,8 +960,8 @@ mod tests {
     #[test]
     fn header_injection_is_rejected_typed() {
         let server = spawn(MockConfig::body(body_1000()));
-        let request = HttpRequest::get(server.url("x"))
-            .with_header("X-Evil", "value\r\nHost: evil.example");
+        let request =
+            HttpRequest::get(server.url("x")).with_header("X-Evil", "value\r\nHost: evil.example");
         let err = match fetcher().fetch(request) {
             Err(e) => e,
             Ok(response) => unreachable!("injection must be typed, got {}", response.status),
