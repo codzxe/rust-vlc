@@ -25,6 +25,7 @@
 //! instead of allocating. Incremental/streaming bodies are 6.A2's
 //! card.
 
+pub mod client;
 pub mod error;
 pub mod fetch;
 pub mod mockhttp;

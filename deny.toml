@@ -65,6 +65,20 @@ allow = [
     "Apache-2.0",
     "Unicode-3.0",
     "Unlicense",
+    # ---- added by card 6.A1b (ureq 3.5.0 admission, 2026-10-30) --------
+    # Measured license classes of ureq's minimal-feature tree that the
+    # minimal set above did not cover (evidence: cargo metadata license
+    # fields, recorded in docs/dependencies/records/ureq-3.5.0.md R7):
+    #   ISC               — ring 0.17.14 "Apache-2.0 AND ISC",
+    #                       rustls-webpki 0.103.16, untrusted 0.9.0
+    #   BSD-3-Clause      — subtle 2.6.1
+    #   CDLA-Permissive-2.0 — webpki-roots 1.0.11 (the Mozilla root
+    #                       bundle's distribution license)
+    # Lead ratifies with the merge (deny.toml is Lead-owned; the card
+    # authorized the entry so the CI license gate can pass).
+    "ISC",
+    "BSD-3-Clause",
+    "CDLA-Permissive-2.0",
 ]
 
 [licenses.private]

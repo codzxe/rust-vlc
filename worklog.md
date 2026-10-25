@@ -55,7 +55,6 @@ Stage Summary:
 - docs/04-codec-format-roadmap.md delivered (6,075 words, 8 required sections, fuzz target per parser, all crate claims verified 2026-10-19 via API + tarball inspection with inline repo URLs).
 - Biggest open decisions for Lead/Phase 0: ADR-001 hw-first for H.264/HEVC (+ WebCodecs-as-OS-decoder for wasm32), rav1d asm-off adoption, Opus strategy (contribute to Symphonia vs self-build), Phase 2 first-vertical pair confirmation.
 
-
 ---
 Task ID: 1.A3
 Agent: Sub-agent (general-purpose), planning wave A
@@ -86,7 +85,6 @@ Work Log:
 Stage Summary:
 - docs/05-command-layer.md delivered: the single typed command/event contract for all four hosts, fully traced to MASTER-PROMPT; all inventions marked [PROPOSAL].
 - Lead decisions requested (doc §9): set-position vs seek; UI-action dual namespace; control transport + read-only mode; token distribution; event `origin` as contract; secondary-audio semantics; numeric defaults (volume ceiling, tick rate, budgets); web Blob param variants.
-
 
 ---
 Task ID: 1.B8
@@ -135,7 +133,6 @@ Stage Summary:
 - Key [PROPOSAL]s needing Lead decision: admin override per-OS mechanisms + lock semantics; session-scope key set; D1 default_ref heuristic; diagnostic message format; v1 option budget ~250–350; rebrand fast/nightly tiers; config/ directory role; en-US reference-catalog completeness rule.
 - Open questions Q1–Q9 logged (incl. design-package 13-vs-14 settings-area count [VERIFY] for doc 08, keymap path mismatch vs doc 05 §8.1, doc 06 plugin-manifest reconciliation).
 
-
 ---
 Task ID: 1.B9
 Agent: Sub-agent (general-purpose), Wave B
@@ -152,7 +149,6 @@ Work Log:
 Stage Summary:
 - docs/09-web-wasm-target.md delivered (~5,215 prose words / 6,333 total, 335 lines, §1–§12), fully traced to MASTER-PROMPT §10/§2/§3.5/§12/§16 with live-verified browser/target facts.
 - Lead decisions requested (doc §12): wasm-bindgen adoption; capability-report home in doc 05 catalog (EngineInfo extension vs system.get-host-capabilities); playback.gesture-required event; worker-crash event; size-budget numbers; WebCodecs ADR (web analog of ADR-001); OffscreenCanvas render worker; COOP/COEP off-by-default embedding policy; WebGL2-only tier semantics in the matrix.
-
 
 ---
 Task ID: 1.B6
@@ -682,7 +678,6 @@ Stage Summary:
 - 1.A1 COMPLETE. Workspace skeleton landed: root manifest (glob membership + verbatim doc 10 §3.1 lints), toolchain pin 1.99.1 (+fmt/clippy components), `.editorconfig`, member template crate with lint inheritance + canary, `Cargo.lock` (committed posture). Mandated gate chain green; canary proves rust+clippy tables inherited with no CLI deny flags.
 - [PROPOSAL, Lead ratification requested] Deviations forced by cargo (evidence F1–F4 above): (1) template is a workspace member, not excluded; (2) package name `template`, not `TEMPLATE`; (3) template-only `build.rs` registering the canary cfg. Membership-glob plan intact: later agents add `crates/<name>/` without touching root `Cargo.toml`; 1.A3 pre-announced to append `tools/xtask`.
 - Nothing blocked. Follow-up for 1.E1: supersede the canary with the metadata-based `check-architecture` step 0 (doc 10 §3.2) once it lands.
-
 
 ---
 Task ID: 1.A2
@@ -8570,7 +8565,6 @@ Stage Summary:
 - R3 registration (Lead merges into the format registry): WAV row → probe: `demux::wav::probe(header)` accepts 12-byte head where magic ∈ {RIFF, RF64, BW64} and form == WAVE; extensions: `["wav","wave","rf64","bw64"]` (`demux::wav::EXTENSIONS`); constructs `WavDemuxer::new(Box<dyn SourceStream>)`; capabilities: audio-only, codecs pcm_s8..s64/u8/f32/f64 (LE), adpcm_ms (0x0002), adpcm_ima_wav (0x0011), flac-in-WAV (0xFFFE+FLAC GUID — frames() None, no packet stamps, [PROPOSAL] frame alignment belongs to 5.A1); seek: `Fast { indexed: false }`; metadata: LIST/INFO via `info()`. AIFF row → probe: `demux::aiff::probe(header)` accepts `FORM <sz> AIFF|AIFC`; extensions: `["aiff","aif","aifc"]` (`demux::aiff::EXTENSIONS`); constructs `AiffDemuxer::new(Box<dyn SourceStream>)`; capabilities: audio-only, pcm_s8/16/24/32 (BE), aifc `NONE`/`sowt` (u8/LE-pass-through), COMM rate = 80-bit extended float (non-normalizable rates → typed structural refusal); seek: `Fast { indexed: false }`; MARK/INST parsed skip-tolerantly (advisory).
 - Zero-copy notes for 5.X2: both demuxers frame PCM by arithmetic (no per-packet parse); payload lives in a 2-slot `PayloadSlots` pool of `MAX_PACKET_BYTES` = 64 KiB (pool_bytes() reports live footprint) — per-packet steady-state allocations are zero (mirrors the AVI zero-alloc suite; a wav/aiff row in tests/zero_alloc_read_chain.rs is the natural 5.X2 extension). SSND `offset` skip is a single seek, not a read-and-discard.
 
-
 ---
 Task ID: 5.A3 (Lead-recorded)
 Agent: P5-A3 core session + P5-A3-R finisher (both cut by tool deadlines before worklog append)
@@ -10090,3 +10084,26 @@ Work Log:
 
 Stage Summary:
 - ureq 3.5.0 + ring exception = the streaming layer's HTTP(S) foundation. [VERIFY-P1] items (crates.io publisher metadata, unfetched 2026 OSV IDs) ride with the record for the CI lane to settle.
+---
+Task ID: 6.A1b
+Agent: P6-A1B
+Task: ureq validate-then-admit spike — purity/supply-chain scan, UreqClient adapter behind HttpFetch, admission record (Phase 6 W1).
+
+Work Log:
+- Worktree worktrees/p6-a1b, branch wip/p6-a1b; record skeleton committed first (claim discipline).
+- Read 6.A1a surface (fetch.rs/error.rs/mockhttp.rs), claxon+rav1d records for the exact house format, deny.toml, doc 11 head, worklog tail.
+- MEASURED candidate resolution: cargo add --dry-run → ureq 3.5.0 (newest; builds on pinned 1.99.1 — MSRV 1.85, tree max 1.85). Chose minimal pin: default-features=false, features=["rustls","rustls-webpki-roots"] — NO gzip (would corrupt range/CL semantics), NO native-tls/socks/cookies/charset/json/multipart. Exact pin =3.5.0 in Cargo.toml.
+- MEASURED tree (cargo tree -e normal,build): 23 normal crates + cc/find-msvc-tools/shlex build edges. Full paste in the record R2.
+- MEASURED licenses (cargo metadata): ureq MIT/Apache-2.0; NEW classes needed vs deny.toml minimal set: ISC (ring/webpki/untrusted), BSD-3-Clause (subtle), CDLA-Permissive-2.0 (webpki-roots) → deny.toml licenses.allow extended (card-authorized; Lead ratifies).
+- MEASURED purity: ureq itself 0 native files / 5 unsafe tokens / no build.rs. THE DEVIATION: rustls crypto provider ring 0.17.14 — 135 C/asm files, 230 unsafe tokens, cc build (F1/F2/F4/F7 YES for ring). Unavoidable: no production pure-Rust TLS provider exists; native-tls banned by card. Recorded as E2/ADR-001-class exception ask, rav1d-asm posture.
+- MEASURED TLS hatch: ureq 3.5.0 DOES ship TlsConfig::disable_verification (src/tls/rustls.rs:166; test-only uses lib.rs:906/1313, pool.rs:623; socks.rs off-feature). Our adapter has ONE TlsConfig construction site (rustls + WebPki roots, verification never disabled), pinned by test tls_verification_is_always_on.
+- src/client.rs: UreqClient implements HttpFetch — port-URL validation first, per-request Agent (spike; pooling 6.A1c), connect→timeout_connect, read→timeout_per_call (NO timeout_write knob in ureq 3.5 — honest gap, GETs carry no body), max_redirects+will_error, full ureq::Error→NetworkError mapping (416→Range, 3xx-budget→TooManyRedirects{limit,followed=limit} — ureq reports no count; HostNotFound→Dns; Timeout(Connect/PerRead/PerWrite/…)→Connect/Read/Write; Rustls/Tls/Pem→Tls; Protocol→ProtocolViolation; LargeResponseHeader→ResponseTooLarge), CL pre-check + take(limit+1) bounded body read (ResponseTooLarge before/after, BodyTruncated on short read).
+- Tests (in-module, testkit Must/assert_err): 200 roundtrip, 206 Range honored (wire form + Content-Range + server log), 416 typed, 3-hop redirect chain (path log [start,/r1,/r2,/r3]), too-many-redirects (5-hop, budget 2), read-timeout (400ms delay vs 150ms budget, real socket), garbage-first-line→ProtocolViolation, over-budget→ResponseTooLarge{10,100}, ftp scheme typed, TLS-always-on assertion. LIVE test #[ignore]d: live_example_com_returns_200 — run ONCE via --ignored: PASSED (200, real rustls+webpki-roots handshake; example.com sends lowercase charset=utf-8).
+- OSV querybatch (22 pkgs): matched IDs on 9; detail-fetched 6 security-relevant ones — ALL FIXED in locked versions (ring-AES 0.17.12<0.17.14, rustls-TLS1.3 0.23.45<0.23.46, webpki-roots-emSign 1.0.10<1.0.11, bytes-reserve 1.11.1<1.12.1, webpki-CRL 0.103.10<0.103.16, ring-unmaintained <0.17). Remaining = OSV range noise (2017-2019-era IDs vs modern versions) + unfetched 2026 IDs → [VERIFY-P1] CI cargo-deny pass. cargo-deny NOT installed here (measured; not installing heavy tooling per card).
+- crates.io REST API unreachable from sandbox (curl empty) → publish date/publisher = [VERIFY-P1]. Cargo.lock checksum recorded: cde93ff05758a36a851a398a772b0b79a82fbe3c186a46f2696baaeaf84c966b.
+- Record: docs/dependencies/records/ureq-3.5.0.md in claxon/rav1d house format, verdict ADMITTED conditional on Lead accepting the ring deviation (Lead merge = actual admission).
+
+Stage Summary:
+- MEASURED: cargo test -p streaming = 37 passed / 0 failed / 1 ignored (0.2s; live test green when run: 1 passed via --ignored); cargo clippy -p streaming --all-targets -- -D warnings = zero (fixes: unused_mut, E0716 borrow, unwrap_used→assert_err, 2 collapsible-ifs); cargo fmt -p streaming --check = clean. Tree 23 normal + 3 build crates; unsafe tokens: ureq 5, rustls 6, ring 230+135 native files; MSRV max 1.85 ≤ 1.99.1; licenses + 3 new allow classes; OSV: 6/6 detail-checked advisories fixed in locked versions.
+- NOT measured / honest gaps: cargo-deny not run (not installed — CI G3/G4 owns it); OSV matches not fully adjudicated (ancient-range noise + unfetched 2026 IDs → VERIFY-P1); ureq publish date/publisher not measured (crates.io API unreachable); write-deadline not wired (no ureq knob — measured gap, 6.A1c); redirect followed-count approximated as limit (ureq reports no count); RedirectLoop/cross_host enforcement not in adapter (6.A1c/6.H1); no connection pooling (spike; 6.A1c); wasm32 build not run (standing VERIFY-P1); DnsFailure/TlsFailure not exercised on live sockets (TLS exercised live once via example.com; DNS-failure path is mapping-only).
+- Who consumes next: 6.A1c (real-client hardening: pooling, write deadline, cross-host/SSRF enforcement, EngineError bridge) builds directly on src/client.rs; 6.A2 (ranged seekable resource) uses the adapter + ByteRange/206/416 paths already test-covered; 6.E1 (auth) grows HttpMethod POST against the same port; 6.H1 (security review) re-audits the disable_verification hatch sites + redirect policy. Lead: merge decision on the ring ADR question + deny.toml ratification.
