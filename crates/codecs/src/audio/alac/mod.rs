@@ -49,6 +49,7 @@
 pub(crate) mod decoder;
 pub(crate) mod error;
 
+pub mod fuzz;
 pub use decoder::{
     AlacConfig, AlacDecoder, DecodedAlac, decode_frame, output_format, parse_alac_config,
 };

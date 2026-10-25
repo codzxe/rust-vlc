@@ -70,6 +70,7 @@ use crate::avi::header::DamageLog;
 use crate::avi::riff::SourceReader;
 use crate::ts::psi::{EsEntry, MAX_SECTION_BYTES, PsiSection, TID_CAT, parse_section};
 
+pub mod fuzz;
 pub mod psi;
 pub mod test_support;
 

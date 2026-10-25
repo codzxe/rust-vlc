@@ -98,6 +98,8 @@ pub use cue::{
 // the media-magic table note.
 pub mod probe;
 
+pub mod fuzz;
+
 pub use probe::{
     DEFAULT_MAX_DEPTH, DEFAULT_MAX_ENTRIES, DirEntryKind, DirSource, ListedEntry,
     PROBE_PREFIX_BYTES, PlaylistFormat, ProbedKind, WalkConfig, WalkError, WalkResult,

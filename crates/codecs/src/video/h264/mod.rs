@@ -42,6 +42,7 @@
 //! never a panic.
 
 pub mod decode;
+pub mod fuzz;
 pub mod hw;
 pub mod parser;
 

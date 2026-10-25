@@ -72,6 +72,8 @@ use crate::model::time::CueInterval;
 mod damage;
 mod settings;
 mod text;
+
+pub mod fuzz;
 mod timestamp;
 
 pub use damage::{DamageEvent, DamageKind};

@@ -92,6 +92,7 @@
 //! state at `configure` (a generation boundary), matching the
 //! reference decoder's fresh-context behavior.
 
+pub mod fuzz;
 pub(crate) mod ima;
 pub(crate) mod misc;
 pub(crate) mod ms;
