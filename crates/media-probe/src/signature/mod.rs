@@ -20,6 +20,7 @@
 //! sniffed bytes, the source hints. Never a guess presented as fact.
 
 mod avi;
+mod es;
 mod mp4;
 mod phase5;
 
@@ -27,6 +28,7 @@ use media_types::EngineError;
 use plugin_api::manifest::DEFAULT_PRIORITY_BUILTIN;
 
 pub use avi::AviSignature;
+pub use es::{AnnexbSignature, FlacSignature, Mp2Signature, Mp3Signature};
 pub use mp4::Mp4Signature;
 pub use phase5::{
     AdtsSignature, AiffSignature, IvfSignature, MkvSignature, OggSignature, PsSignature,
@@ -121,7 +123,10 @@ impl ProbeRegistry {
     /// decision-independent sibling (2.A3) — plus the Phase-5 R3
     /// consolidation rows (card 5.R3-REG): WAV, AIFF, Ogg,
     /// Matroska/WebM, ADTS/ADIF, MPEG-TS, MPEG-PS and IVF, every
-    /// container whose demuxer card landed in waves 4–7.
+    /// container whose demuxer card landed in waves 4–7, plus the
+    /// raw elementary-stream family (card 6.OPW-es): MPEG audio in
+    /// both probeable layers (MP3 Layer III, MP2 Layer II),
+    /// Annex-B H.264/HEVC and native FLAC.
     pub fn with_builtins() -> ProbeRegistry {
         let mut registry = ProbeRegistry::empty();
         registry.register(Box::new(AviSignature), DEFAULT_PRIORITY_BUILTIN);
@@ -134,6 +139,10 @@ impl ProbeRegistry {
         registry.register(Box::new(TsSignature), DEFAULT_PRIORITY_BUILTIN);
         registry.register(Box::new(PsSignature), DEFAULT_PRIORITY_BUILTIN);
         registry.register(Box::new(IvfSignature), DEFAULT_PRIORITY_BUILTIN);
+        registry.register(Box::new(Mp3Signature), DEFAULT_PRIORITY_BUILTIN);
+        registry.register(Box::new(Mp2Signature), DEFAULT_PRIORITY_BUILTIN);
+        registry.register(Box::new(AnnexbSignature), DEFAULT_PRIORITY_BUILTIN);
+        registry.register(Box::new(FlacSignature), DEFAULT_PRIORITY_BUILTIN);
         registry
     }
 
@@ -453,8 +462,9 @@ mod tests {
         let r = ProbeRegistry::with_builtins();
         // 2.A2's first-vertical pair + the eight Phase-5 R3 rows
         // (card 5.R3-REG): wav, aiff, ogg, matroska, adts, mpegts,
-        // mpegps, ivf.
-        assert_eq!(r.len(), 10);
+        // mpegps, ivf + the four raw-ES rows (card 6.OPW-es): mp3,
+        // mp2, annexb, flac.
+        assert_eq!(r.len(), 14);
     }
 
     #[test]

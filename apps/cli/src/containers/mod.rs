@@ -24,6 +24,7 @@ mod aiff;
 mod avi;
 mod ivf;
 mod mkv;
+mod es;
 mod mp4;
 mod ogg;
 mod ts;
@@ -53,6 +54,15 @@ pub(crate) fn open(
         "ivf" => ivf::open(stream, opts),
         // The `matroska` id covers mkv/mka/webm (6.OPW-mkv).
         "matroska" => mkv::open(stream, opts),
+        // The raw-ES family (6.OPW-es): one module, five probe ids
+        // (the probe's layer/NAL-set discrimination named the lane;
+        // the `annexb` family id never reaches the registry — the
+        // probe mints it sub-threshold for ambiguous NAL shapes).
+        "flac" => es::open_flac(stream, opts),
+        "hevc" => es::open_annexb(demux::es::annexb::AnnexbCodec::Hevc, stream, opts),
+        "h264" => es::open_annexb(demux::es::annexb::AnnexbCodec::H264, stream, opts),
+        "mp2" => es::open_mpeg_audio(stream, opts, format),
+        "mp3" => es::open_mpeg_audio(stream, opts, format),
         "mp4" => mp4::open(stream, opts),
         "ogg" => ogg::open(stream, opts),
         "mpegts" => ts::open(stream, opts),

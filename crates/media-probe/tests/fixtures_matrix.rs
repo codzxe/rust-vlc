@@ -581,10 +581,12 @@ fn the_ladder_rungs_are_what_the_matrix_assumes() {
     // The matrix's 70/90/95 are the signature module's published rungs
     // (magic-anchor / primary-header / track-hints). If a future rung
     // changes, this fails and the matrix above must be re-derived —
-    // deliberately brittle, per AGENTS.md rule 5.
+    // deliberately brittle, per AGENTS.md rule 5. The registry count:
+    // the 2.A2 pair + the eight Phase-5 R3 rows + the four raw-ES
+    // rows (6.OPW-es: mp3, mp2, annexb, flac).
     assert_eq!(
         media_probe::signature::ProbeRegistry::with_builtins().len(),
-        10
+        14
     );
     assert!(Confidence::from_score(95).must().meets(60));
     assert!(!Confidence::from_score(50).must().meets(60));
