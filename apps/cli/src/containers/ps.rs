@@ -737,10 +737,7 @@ mod tests {
         // and 90 000 — a past-the-clock target lands on the last).
         assert_eq!(opened.demuxer.seekability(), SeekSupport::SlowLinear);
         let asked = TimeSpan {
-            start: Stamp::Present(Timestamp::new(
-                2_000_000_000,
-                media_clock::NANO_BASE,
-            )),
+            start: Stamp::Present(Timestamp::new(2_000_000_000, media_clock::NANO_BASE)),
             end: Stamp::Missing,
         };
         match opened.demuxer.seek(asked) {
@@ -768,14 +765,25 @@ mod tests {
         let mut opened = open(fixture("ps-mp2-video-audio.mpg"), None);
         assert_eq!(opened.facts.container, "mpegps");
         assert_eq!(opened.facts.tracks.len(), 2);
-        let (video, audio) = (opened.facts.tracks[0].clone(), opened.facts.tracks[1].clone());
+        let (video, audio) = (
+            opened.facts.tracks[0].clone(),
+            opened.facts.tracks[1].clone(),
+        );
         assert_eq!(video.kind, MediaKind::Video);
         assert_eq!(video.codec.as_str(), "mpeg2video");
         assert_eq!(audio.kind, MediaKind::Audio);
         assert_eq!(audio.codec.as_str(), "mp2");
         let (video_fact, audio_fact) = (&opened.facts.facts[0], &opened.facts.facts[1]);
-        assert_eq!(video_fact.span_end_ticks, Some(135_000), "the demux suite's pin");
-        assert_eq!(audio_fact.span_end_ticks, Some(118_149), "the last STAMPED PES");
+        assert_eq!(
+            video_fact.span_end_ticks,
+            Some(135_000),
+            "the demux suite's pin"
+        );
+        assert_eq!(
+            audio_fact.span_end_ticks,
+            Some(118_149),
+            "the last STAMPED PES"
+        );
         for fact in &[video_fact, audio_fact] {
             assert_eq!(fact.base.as_parts(), (1, 90_000));
             assert!(fact.pcm.is_none() && fact.extra_data.is_none());
@@ -793,7 +801,9 @@ mod tests {
                 Ok(DemuxEvent::Packet(packet)) => {
                     let at = if packet.track == video.id { 0 } else { 1 };
                     per_track[at] += 1;
-                    if at == 1 && let Stamp::Present(stamp) = packet.pts {
+                    if at == 1
+                        && let Stamp::Present(stamp) = packet.pts
+                    {
                         audio_stamps.push(stamp.ticks);
                     }
                 }
@@ -947,7 +957,10 @@ mod tests {
             }
             assert_eq!(per_track[0], 4, "{file}: nav PES (container truth)");
             assert_eq!(per_track[1], 68, "{file}: video PES");
-            assert_eq!(per_track[2], audio_packets, "{file}: audio PES (whole — no decoder)");
+            assert_eq!(
+                per_track[2], audio_packets,
+                "{file}: audio PES (whole — no decoder)"
+            );
             assert_eq!(notes, 3, "{file}: the three padding notes");
             // The span pins (the pre-scan's own truth).
             assert_eq!(
@@ -980,7 +993,9 @@ mod tests {
                         },
                         "{file}: {err}"
                     ),
-                    Ok(_) => unreachable!("{file}: no {} decoder exists in this build", track.codec),
+                    Ok(_) => {
+                        unreachable!("{file}: no {} decoder exists in this build", track.codec)
+                    }
                 }
             }
         }
@@ -1014,11 +1029,7 @@ mod tests {
                     if let Stamp::Present(stamp) = packet.pts {
                         // The watermark: every judged stamp is at or
                         // after the 0.6 s target (54 000 ticks).
-                        assert!(
-                            stamp.ticks >= 54_000,
-                            "early packet: {} ticks",
-                            stamp.ticks
-                        );
+                        assert!(stamp.ticks >= 54_000, "early packet: {} ticks", stamp.ticks);
                         if first_seen[at].is_none() {
                             first_seen[at] = Some(stamp.ticks);
                         }

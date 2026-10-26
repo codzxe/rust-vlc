@@ -125,7 +125,10 @@ mod tests {
             Err(err) => {
                 assert_eq!(err.stage, Stage::Probe, "{err}");
                 assert_eq!(err.code, ErrorCode::Unsupported, "{err}");
-                assert!(err.message.contains("format `mpegps-dv-extended` probes"), "{err}");
+                assert!(
+                    err.message.contains("format `mpegps-dv-extended` probes"),
+                    "{err}"
+                );
                 assert!(err.message.contains("no open-path wiring"), "{err}");
                 assert_eq!(
                     err.details.get("format").map(String::as_str),

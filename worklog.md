@@ -10665,3 +10665,18 @@ Stage Summary:
 - ASF plan landed (docs/plans/asf-selfbuild.md): zero ASF corpus, 11 verified fixture generations, ASF-a/b/c/d split, ~2,250-3,450 LOC estimate.
 - Honest gaps recorded: mp3 end-padding trim through container lanes (mp3 card); aac-in-TS opens limb-less; PCR doesn't cross the seam; 4:4:4/10-bit vp9 emit-seam boundaries; ivf seek is SlowLinear (doc fixed); A3's CLI dispatch deferred (recorded).
 - Next wave (W4 dispatch): 6.B1a HLS media playlist, 6.OPW-ps (the last container), 6.OPW-cli-conformance, 6.OPW-ttf-seek-remeasure, 6.ASF-a header tree.
+
+---
+Task ID: 6.OPW-ps
+Agent: 6.OPW-ps (Lead gates + fmt; the agent's commit landed clean)
+Task: MPEG-PS/VOB wired — the FINAL §5 container family; the refusal tests re-pinned (all 15 real probe ids now wired).
+
+Work Log:
+- containers/ps.rs: PsDemuxer through the open path, PES-native (no bridge seam — the demuxer's own event surface). The MPEG-audio STREAMING frame assembler (mp1/mp2/mp3): the muxer cuts audio PES without frame alignment — measured on the fixture, 4 of 39 mp2 frames SPAN PES boundaries, so per-PES splitting is impossible; leftover bytes carry across PES, stamps = anchor + round(samples_before × 90000/rate), last AU 136,957 == ffprobe exactly; bounded resync/drain/tail damage notes.
+- Lanes: mp2 decodes the full 44,928 sample frames == ffmpeg (89,856 s16le bytes); mpeg2video/ac3/dts/lpcm refuse typed (cli.codec_unavailable naming the codec).
+- Seek: SlowLinear (the plan's prediction) — the --start-time lane asserts the bounded-budget skip; seekability forwarded typed.
+- The re-pin: unwired_format_is_refused_with_the_format_named (lib) + the binary-level mpegps test both re-targeted to the documented hypothetical id (every REAL probe id is wired as of this unit; the default arm guards future signatures).
+- Gates (worktree-local target, Lead-run): lumen-cli 124/0 lib + 14 integration suites green; clippy -D warnings CLEAN; fmt CLEAN (Lead applied the agent's drift).
+
+Stage Summary:
+- The container registry is COMPLETE: 15/15 real probe ids wired (avi, wav, aiff, ogg, matroska, adts, mpegts, mpegps, ivf, mp4, flac, h264, hevc, mp3, mp2). PS joins with mp2 decode + typed refusals for the hw-path codecs.
