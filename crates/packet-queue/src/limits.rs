@@ -204,19 +204,22 @@ impl QueueLimits {
     /// violate right now — `None` when the item fits.
     ///
     /// **Single-item admission (the livelock invariant, 6.FIX-pcm):**
-    /// an empty queue always admits one item, whatever its weight.
-    /// The caps bound *accumulation* — how much may pile up behind
-    /// residents — never the admission of a lone item: a producer
-    /// whose every item is heavier than a cap (measured: the wav
-    /// demuxer's 64 KiB PCM packets carry 2.73 s at 8 kHz against the
-    /// audio lane's 1 s duration cap) would otherwise be refused
+    /// a queue with nothing resident always admits one item, whatever
+    /// its weight. The caps bound *accumulation* — how much may pile
+    /// up behind residents — never the admission of a lone item: a
+    /// producer whose every item is heavier than a cap (measured: the
+    /// wav demuxer's 64 KiB PCM packets carry 2.73 s at 8 kHz against
+    /// the audio lane's 1 s duration cap) would otherwise be refused
     /// *into the empty queue* forever — a livelock that stalls the
     /// session at its anchor with the held packet blocking the drain
     /// signal. Admitting alone keeps the queue bounded (usage ≤ cap +
     /// one item's weight — the item is beyond-cap by construction, and
     /// the consumer drains it) and preserves every accumulation
-    /// refusal: with any resident present the axes answer exactly as
-    /// before.
+    /// refusal: with any resident weight present the axes answer
+    /// exactly as before. (The emptiness test is the all-zero usage —
+    /// on real states `packets == 0` implies zero bytes and duration,
+    /// and synthetic part-filled usages keep exercising the axis
+    /// arithmetic below.)
     ///
     /// The byte and duration sums are computed in `u128` so the
     /// *check* can never overflow even for adversarial weights; only a
@@ -231,7 +234,7 @@ impl QueueLimits {
         // The livelock invariant: a queue with nothing resident admits
         // one item unconditionally (see the method docs — the caps
         // bound accumulation, never a lone producer's admission).
-        if resident.packets == 0 {
+        if resident == QueueUsage::EMPTY {
             return None;
         }
         let packets = (resident.packets + add_packets) as u128;

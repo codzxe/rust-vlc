@@ -52,15 +52,18 @@
 //! identification, or OpusHead), so ADTS/AAC and MKA/FLAC-ALAC
 //! lanes open limb-less and refuse on the first audio frame; h264
 //! is not dispatched by this host's decoder providers. The
-//! in-session seek classes: AVI/AIFF land; WAV lands on some lanes
-//! (the sr-chaos corpus lane and the 44.1 kHz fixture land exactly)
-//! but the 11.025 kHz corpus lane 0026 answers every below-end
-//! target with a landing deep past the request (the recorded
-//! wrong-landing anomaly — the pure `--start-time` seek on the same
-//! file lands exactly, so the defect is the in-session seam, not
-//! the demuxer's byte math), and the s24le/u8 lanes accept the
-//! seek, rebuffer in-pipeline, and never report a terminal (the
-//! recorded accepted-then-silent gap); MP4/MOV/M4A refuse typed at
+//! in-session seek classes: AVI/AIFF land; the WAV lanes land in the
+//! requested neighborhood — including every sub-44.1 kHz lane since
+//! 6.FIX-pcm closed the recorded reanchor defects (pre-fix the
+//! 11.025 kHz corpus lane 0026 answered every below-end target with a
+//! landing deep past the request — measured 3 486 078 µs for the
+//! 2 000 000 µs half, exactly one dropped 64 KiB packet past the
+//! target: the queue's duration-cap livelock refused the first
+//! post-reanchor packet, the pending-slot overwrite dropped it, and
+//! the completion anchored on the SECOND packet; the s24le/u8 lanes
+//! accepted the seek, rebuffered in-pipeline, and never reported a
+//! terminal — the same livelock with every post-reanchor packet
+//! unadmittable, wedging the bounded wait); MP4/MOV/M4A refuse typed at
 //! demux reanchor (the recorded 6.OPW-mp4 gap); OGG refuses typed
 //! at decode (the reanchor does not replay the codec headers); raw
 //! ES mp3/mp2 are unseekable.
@@ -198,11 +201,6 @@ enum SeekClass {
     /// The seek lands in-pipeline: one terminal at the keyframe-safe
     /// actual, no reopen.
     Lands,
-    /// A terminal arrives, but NOT in the requested neighborhood —
-    /// the recorded wav 0026 anomaly (every below-end target answers
-    /// a landing deep past the request; the pure seek on the same
-    /// file lands exactly).
-    LandsWrong,
     /// Accepted, then the typed demux refusal (the mp4 family's
     /// trait-default reanchor — the recorded 6.OPW-mp4 gap).
     DemuxReanchor,
@@ -212,10 +210,6 @@ enum SeekClass {
     /// The source is unseekable (raw ES mpeg audio) / the target
     /// unresolvable (no duration): the typed control refusal.
     NotSeekable,
-    /// Accepted, the rebuffer episode runs, and NO terminal ever
-    /// arrives (the host's bounded wait expires) — the recorded
-    /// wav s24le/u8 gap.
-    SilentWedge,
 }
 
 /// One measurement lane: a family key, its representative media, and
@@ -255,14 +249,34 @@ fn lanes(media: &Path) -> Vec<Lane> {
             path: corpus("0026-audio-only.wav"),
             plays: true,
             refusal: None,
-            seek: SeekClass::LandsWrong,
+            // 6.FIX-pcm's reanchor pin: pre-fix this lane answered
+            // every below-end target one dropped 64 KiB packet deep
+            // past the request (measured 3 486 078 µs for the 2 s
+            // half); the queue's single-item admission + the demux
+            // pending-slot fix land it at the target exactly.
+            seek: SeekClass::Lands,
         },
         Lane {
             family: "wav/s24le",
             path: corpus("0004-audio-only.wav"),
             plays: true,
             refusal: None,
-            seek: SeekClass::SilentWedge,
+            // 6.FIX-pcm's terminal pin: pre-fix this lane accepted
+            // the seek and never reported a terminal (every
+            // post-reanchor packet carried >1 s against the audio
+            // queue's 1 s duration cap — the admission livelock
+            // wedged the bounded wait).
+            seek: SeekClass::Lands,
+        },
+        Lane {
+            family: "wav/u8",
+            path: corpus("0135-audio-only.wav"),
+            plays: true,
+            refusal: None,
+            // The s24le lane's recorded twin (the W4 ledger's second
+            // accepted-then-silent lane; 22.05 kHz — its 64 KiB
+            // packets carried 1.486 s, over the same cap).
+            seek: SeekClass::Lands,
         },
         Lane {
             family: "aiff",
@@ -446,10 +460,7 @@ fn ttf_first_output_per_family_through_the_binary() {
 ///   whole transcript — the D-4/D-7 shape);
 /// - **DemuxReanchor / DecodeHeaders / NotSeekable**: the typed
 ///   `TimingSeekFailed` naming the refusing stage, no terminal
-///   fabricated;
-/// - **SilentWedge**: no terminal on stdout ever, and the host's
-///   bounded-wait expiry on stderr (the recorded wav s24le gap — the
-///   seek neither completes nor fails, honestly).
+///   fabricated.
 ///
 /// Latency (first `Buffering → Playing` → terminal line) prints on
 /// stderr per lane.
@@ -526,48 +537,6 @@ fn in_session_seek_per_family_class_through_the_binary() {
                     terminal - anchor
                 ));
             }
-            SeekClass::LandsWrong => {
-                let terminal = completed.must_or("the wrong landing still carries a terminal");
-                let position_us = timed
-                    .first_int_after("TimingSeekCompleted", "position: Timestamp(")
-                    .must_or("the terminal carries its position payload");
-                let duration_us = timed
-                    .first_int_after("duration: Known", "time: Timestamp(")
-                    .must_or("the media duration must be known for a landing lane");
-                let half = duration_us as f64 / 2.0;
-                assert!(
-                    position_us as f64 >= half * 1.1,
-                    "{}: the recorded wrong-landing anomaly must stay OUTSIDE the ±10% \
-                     half-neighborhood (it is the pinned honest shape, not a flake) \
-                     — landed {position_us} µs of {duration_us} µs:\n{}",
-                    lane.family,
-                    transcript(&timed)
-                );
-                assert!(
-                    position_us <= duration_us,
-                    "{}: even the wrong landing stays in-media:\n{}",
-                    lane.family,
-                    transcript(&timed)
-                );
-                assert_eq!(
-                    timed
-                        .lines
-                        .iter()
-                        .filter(|(line, _)| line.contains("state-changed Idle → Opening"))
-                        .count(),
-                    1,
-                    "{}: one open only — the seek must not reopen:\n{}",
-                    lane.family,
-                    transcript(&timed)
-                );
-                rows.push(format!(
-                    "{:<15} seek LANDS WRONG at {position_us} µs (target 50% of {duration_us} µs — \
-                     the recorded 11 kHz reanchor anomaly; the pure seek lands exactly); \
-                     latency first-output→terminal {:>8.1} ms",
-                    lane.family,
-                    terminal - anchor
-                ));
-            }
             SeekClass::DemuxReanchor => {
                 let terminal = failed.must_or("the reanchor refusal must carry a terminal");
                 assert!(
@@ -626,42 +595,6 @@ fn in_session_seek_per_family_class_through_the_binary() {
                     terminal - anchor
                 ));
             }
-            SeekClass::SilentWedge => {
-                assert!(
-                    completed.is_none() && failed.is_none(),
-                    "{}: the wedge fabricates no terminal:\n{}",
-                    lane.family,
-                    transcript(&timed)
-                );
-                assert!(
-                    timed.stderr.contains("never reported the seek terminal"),
-                    "{}: the bounded-wait expiry must be the honest stderr answer:\n{}\
-                     stderr:\n{}",
-                    lane.family,
-                    transcript(&timed),
-                    timed.stderr
-                );
-                // The rebuffer episode still ran in-pipeline (the
-                // seek was accepted and minted); no reopen either.
-                assert_eq!(
-                    timed
-                        .lines
-                        .iter()
-                        .filter(|(line, _)| line.contains("state-changed Idle → Opening"))
-                        .count(),
-                    1,
-                    "{}: one open only — the seek must not reopen:\n{}",
-                    lane.family,
-                    transcript(&timed)
-                );
-                let exit_ms = timed.lines.last().map(|(_, ms)| *ms).unwrap_or_default();
-                rows.push(format!(
-                    "{:<15} seek ACCEPTED-THEN-SILENT (no terminal; bounded wait expired — \
-                     the recorded wav gap); envelope first-output→exit {:>8.1} ms",
-                    lane.family,
-                    exit_ms - anchor
-                ));
-            }
         }
     }
     eprintln!("--- ttf-seek: in-session seek classes (DEV profile, this session) ---");
@@ -677,11 +610,12 @@ fn in_session_seek_per_family_class_through_the_binary() {
 /// One `--start-time` lane: the open path's own seek (the pure
 /// query + skip wrapper — the surface that works where in-session
 /// reanchor is absent), measured as the open-receipt watermark.
-const START_TIME_LANES: [(&str, &str, &str); 9] = [
+const START_TIME_LANES: [(&str, &str, &str); 10] = [
     // (family, corpus-relative-or-fixture path, target)
     ("avi", "corpus:0076-avi-av.avi", "1s"),
     ("wav/11k", "corpus:0026-audio-only.wav", "2s"),
     ("wav/s24le", "corpus:0004-audio-only.wav", "1s"),
+    ("wav/u8", "corpus:0135-audio-only.wav", "1s"),
     (
         "aiff",
         "fixture:generated/valid/aiff_pcm_s16be_44k1_st.aiff",

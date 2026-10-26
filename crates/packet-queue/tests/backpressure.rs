@@ -183,27 +183,45 @@ fn duration_cap_refuses_pushes() {
     assert_eq!(queue.usage().duration, Nanoseconds(900));
 }
 
-/// An item heavier than the whole byte budget can never fit, even in
-/// an empty queue — the caps are absolute (Q1). Sizing the queue for
-/// the format's largest packet is the caller's configuration duty.
+/// An item heavier than the whole byte budget is admitted **alone**
+/// into the empty queue, and the caps bound accumulation behind it:
+/// a second oversized item is refused while the first is resident,
+/// and the drain re-opens admission (the livelock invariant,
+/// 6.FIX-pcm — the old absolute refusal stalled real lanes: the wav
+/// 64 KiB packetizer's >1 s packets against the audio lane's 1 s
+/// duration cap never admitted, freezing the session at its anchor).
 #[test]
-fn oversized_item_never_fits() {
+fn oversized_item_admits_alone_and_bounds_accumulation() {
     let queue = BoundedQueue::<Blob>::with_default_watermarks(limits(8, 100, 1_000));
-    let huge = Stamped::new(
-        GenerationId::FIRST,
-        Blob {
-            id: 0,
-            size: 101,
-            dur_ns: 0,
-        },
-    );
-    for _ in 0..3 {
-        match queue.try_push(huge) {
-            PushOutcome::Full { binding, .. } => assert_eq!(binding, LimitAxis::Bytes),
-            other => unreachable!("expected Full, got {other:?}"),
+    let huge = |id: u64| {
+        Stamped::new(
+            GenerationId::FIRST,
+            Blob {
+                id,
+                size: 101,
+                dur_ns: 0,
+            },
+        )
+    };
+    // The empty queue admits the oversized item unconditionally.
+    assert_eq!(queue.try_push(huge(0)), PushOutcome::Pushed);
+    assert_eq!(queue.usage().bytes, 101);
+    // While it is resident, accumulation is refused on the binding
+    // axis — the caps still bound what piles up behind it.
+    match queue.try_push(huge(1)) {
+        PushOutcome::Full { item, binding } => {
+            assert_eq!(binding, LimitAxis::Bytes);
+            assert_eq!(item.value.id, 1);
         }
+        other => unreachable!("expected Full, got {other:?}"),
     }
-    assert_eq!(queue.usage(), QueueUsage::EMPTY);
+    // The drain frees the queue; the next oversized item admits again.
+    match queue.try_pop() {
+        PopOutcome::Item(item) => assert_eq!(item.value.id, 0),
+        other => unreachable!("expected Item, got {other:?}"),
+    }
+    assert_eq!(queue.try_push(huge(2)), PushOutcome::Pushed);
+    assert_eq!(queue.usage().packets, 1);
 }
 
 /// A parked producer wakes when the consumer drains space (Q3: parks,
