@@ -91,8 +91,8 @@ use playlists::MediaPlaylist;
 use plugin_api::{SeekOrigin, SourcePosition, SourceStream};
 
 use super::media::{
-    DEFAULT_RETAINED_BYTES, MAX_READ_BYTES, MAX_RETAINED_BYTES, SegmentBoundary, fetch_playlist_model,
-    map_fetch_err, mint, refuse, resolve_seek_origin,
+    DEFAULT_RETAINED_BYTES, MAX_READ_BYTES, MAX_RETAINED_BYTES, SegmentBoundary,
+    fetch_playlist_model, map_fetch_err, mint, refuse, resolve_seek_origin,
 };
 use crate::error::NetworkError;
 use crate::fetch::{DEFAULT_RESPONSE_LIMIT, HttpFetch, HttpRequest};
@@ -385,11 +385,8 @@ impl HlsLiveStream {
     /// reload model): map by absolute sequence, count what slid out,
     /// append what is new, and account stall budget.
     fn reload(&mut self) -> Result<(), EngineError> {
-        let (model, playlist_bytes) = fetch_playlist_model(
-            &self.fetch,
-            &self.url,
-            self.config.playlist_response_limit,
-        )?;
+        let (model, playlist_bytes) =
+            fetch_playlist_model(&self.fetch, &self.url, self.config.playlist_response_limit)?;
         self.stats.requests += 1;
         self.stats.playlist_reloads += 1;
         self.stats.bytes_fetched += playlist_bytes;
@@ -653,7 +650,10 @@ mod tests {
         fn new(playlist_bodies: &[&str], statics: &[(&str, &[u8])]) -> Arc<LiveRouter> {
             Arc::new(LiveRouter {
                 playlist_path: "/pl.m3u8".to_owned(),
-                bodies: playlist_bodies.iter().map(|b| b.as_bytes().to_vec()).collect(),
+                bodies: playlist_bodies
+                    .iter()
+                    .map(|b| b.as_bytes().to_vec())
+                    .collect(),
                 next: Mutex::new(0),
                 statics: statics
                     .iter()
@@ -752,12 +752,14 @@ mod tests {
     fn live_open_joins_back_from_the_edge() {
         let w1 = "#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-MEDIA-SEQUENCE:0\n\
               #EXTINF:1.0,\nseg0\n#EXTINF:1.0,\nseg1\n#EXTINF:1.0,\nseg2\n";
-        let fetch = LiveRouter::new(&[w1], &[("/seg0", b"AAAA"), ("/seg1", b"BBBB"), ("/seg2", b"CC")]);
-        let mut stream =
-            match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
-                Ok(s) => s,
-                Err(e) => unreachable!("live must open: {e}"),
-            };
+        let fetch = LiveRouter::new(
+            &[w1],
+            &[("/seg0", b"AAAA"), ("/seg1", b"BBBB"), ("/seg2", b"CC")],
+        );
+        let mut stream = match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
+            Ok(s) => s,
+            Err(e) => unreachable!("live must open: {e}"),
+        };
         assert_eq!(stream.size(), None, "a live session has no knowable total");
         assert!(stream.supports_seek());
         let all = match read_exactly(&mut stream, 6) {
@@ -795,11 +797,10 @@ mod tests {
                 ("/seg4", b"EE"),
             ],
         );
-        let mut stream =
-            match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
-                Ok(s) => s,
-                Err(e) => unreachable!("open: {e}"),
-            };
+        let mut stream = match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
+            Ok(s) => s,
+            Err(e) => unreachable!("open: {e}"),
+        };
         let all = match read_exactly(&mut stream, 12) {
             Ok(b) => b,
             Err(e) => unreachable!("read across two slides: {e}"),
@@ -807,7 +808,11 @@ mod tests {
         // back=2: seg1, seg2 | slide appends seg3 | slide appends seg4.
         assert_eq!(all, b"BBBBCCDDDDEE", "seamless across two slides");
         assert_eq!(stream.stats().segments_fetched, 4, "seg1..seg4");
-        assert_eq!(stream.stats().playlist_reloads, 2, "one reload per dry window");
+        assert_eq!(
+            stream.stats().playlist_reloads,
+            2,
+            "one reload per dry window"
+        );
         assert_eq!(stream.stats().segments_lost_window, 0);
         assert_eq!(stream.media_sequence(), 2, "the window slid to base 2");
         // The stall budget resets on progress (2 reloads, both
@@ -827,17 +832,12 @@ mod tests {
               #EXTINF:1.0,\nseg1\n#EXTINF:1.0,\nseg2\n#EXTINF:1.0,\nseg3\n#EXT-X-ENDLIST\n";
         let fetch = LiveRouter::new(
             &[w1, w2],
-            &[
-                ("/seg1", b"BBBB"),
-                ("/seg2", b"CC"),
-                ("/seg3", b"DDDD"),
-            ],
+            &[("/seg1", b"BBBB"), ("/seg2", b"CC"), ("/seg3", b"DDDD")],
         );
-        let mut stream =
-            match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
-                Ok(s) => s,
-                Err(e) => unreachable!("open: {e}"),
-            };
+        let mut stream = match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
+            Ok(s) => s,
+            Err(e) => unreachable!("open: {e}"),
+        };
         let all = match drain(&mut stream) {
             Ok(b) => b,
             Err(e) => unreachable!("drain: {e}"),
@@ -859,11 +859,10 @@ mod tests {
         let w1 = "#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-MEDIA-SEQUENCE:0\n\
               #EXTINF:1.0,\nseg0\n#EXTINF:1.0,\nseg1\n#EXTINF:1.0,\nseg2\n";
         let fetch = LiveRouter::new(&[w1], &[("/seg1", b"BBBB"), ("/seg2", b"CC")]);
-        let mut stream =
-            match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
-                Ok(s) => s,
-                Err(e) => unreachable!("open: {e}"),
-            };
+        let mut stream = match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
+            Ok(s) => s,
+            Err(e) => unreachable!("open: {e}"),
+        };
         let all = match read_exactly(&mut stream, 6) {
             Ok(b) => b,
             Err(e) => unreachable!("read the window to the edge: {e}"),
@@ -908,11 +907,10 @@ mod tests {
                 ("/seg5", b"EE"),
             ],
         );
-        let mut stream =
-            match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
-                Ok(s) => s,
-                Err(e) => unreachable!("open: {e}"),
-            };
+        let mut stream = match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
+            Ok(s) => s,
+            Err(e) => unreachable!("open: {e}"),
+        };
         let all = match read_exactly(&mut stream, 6) {
             Ok(b) => b,
             Err(e) => unreachable!("read the fetched prefix: {e}"),
@@ -947,11 +945,10 @@ mod tests {
             &[w1, w2],
             &[("/seg6", b"BB"), ("/seg7", b"CC"), ("/seg5", b"AA")],
         );
-        let mut stream =
-            match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
-                Ok(s) => s,
-                Err(e) => unreachable!("open: {e}"),
-            };
+        let mut stream = match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
+            Ok(s) => s,
+            Err(e) => unreachable!("open: {e}"),
+        };
         let all = match read_exactly(&mut stream, 4) {
             Ok(b) => b,
             Err(e) => unreachable!("read the window: {e}"),
@@ -981,17 +978,12 @@ mod tests {
               #EXT-X-DISCONTINUITY\n#EXTINF:2.0,\nseg3\n#EXT-X-ENDLIST\n";
         let fetch = LiveRouter::new(
             &[w1, w2],
-            &[
-                ("/seg1", b"BBBB"),
-                ("/seg2", b"CC"),
-                ("/seg3", b"DDDD"),
-            ],
+            &[("/seg1", b"BBBB"), ("/seg2", b"CC"), ("/seg3", b"DDDD")],
         );
-        let mut stream =
-            match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
-                Ok(s) => s,
-                Err(e) => unreachable!("open: {e}"),
-            };
+        let mut stream = match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
+            Ok(s) => s,
+            Err(e) => unreachable!("open: {e}"),
+        };
         let all = match drain(&mut stream) {
             Ok(b) => b,
             Err(e) => unreachable!("drain: {e}"),
@@ -1060,11 +1052,10 @@ mod tests {
             &[w1, w2],
             &[("/seg1", b"BBBB"), ("/seg2", b"CC"), ("/seg3", b"DDDD")],
         );
-        let mut stream =
-            match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
-                Ok(s) => s,
-                Err(e) => unreachable!("open: {e}"),
-            };
+        let mut stream = match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
+            Ok(s) => s,
+            Err(e) => unreachable!("open: {e}"),
+        };
         let all = match read_exactly(&mut stream, 6) {
             Ok(b) => b,
             Err(e) => unreachable!("read the pre-encryption prefix: {e}"),
@@ -1085,11 +1076,10 @@ mod tests {
         let w1 = "#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-MEDIA-SEQUENCE:0\n\
               #EXTINF:1.0,\nseg0\n#EXTINF:1.0,\nseg1\n#EXTINF:1.0,\nseg2\n";
         let fetch = LiveRouter::new(&[w1], &[("/seg1", b"BBBB"), ("/seg2", b"CC")]);
-        let mut stream =
-            match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
-                Ok(s) => s,
-                Err(e) => unreachable!("open: {e}"),
-            };
+        let mut stream = match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
+            Ok(s) => s,
+            Err(e) => unreachable!("open: {e}"),
+        };
         let head = match stream.read(4) {
             Ok(c) => c,
             Err(e) => unreachable!("read: {e}"),

@@ -371,10 +371,7 @@ impl HlsVodStream {
 /// math; `i128` so a negative `Current` cannot overflow). The VOD and
 /// live sessions both refuse before-start/overflow typed with the
 /// same codes.
-pub(super) fn resolve_seek_origin(
-    pos: u64,
-    origin: SeekOrigin,
-) -> Result<u64, EngineError> {
+pub(super) fn resolve_seek_origin(pos: u64, origin: SeekOrigin) -> Result<u64, EngineError> {
     match origin {
         SeekOrigin::Start(to) => Ok(to),
         SeekOrigin::Current(delta) => {
@@ -526,11 +523,7 @@ pub fn open_vod(
     if model.segments.iter().any(|s| s.map.is_some()) {
         return Err(refuse("streaming.hls.init-segment"));
     }
-    let discontinuities = model
-        .segments
-        .iter()
-        .filter(|s| s.discontinuity)
-        .count() as u64;
+    let discontinuities = model.segments.iter().filter(|s| s.discontinuity).count() as u64;
 
     let segments: Vec<String> = model.segments.iter().map(|s| s.uri.clone()).collect();
     // ---- The known-length probes (the module-docs contract) ----
@@ -716,8 +709,8 @@ pub(super) fn fetch_playlist_model(
         Err(err) => return Err(map_fetch_err(err)),
     };
     let bytes = body.len() as u64;
-    let text =
-        std::str::from_utf8(&body).map_err(|_| playlist_corrupt("streaming.hls.playlist-not-utf8"))?;
+    let text = std::str::from_utf8(&body)
+        .map_err(|_| playlist_corrupt("streaming.hls.playlist-not-utf8"))?;
     let (model, _warnings) = parse_media_playlist_typed(url, text)?;
     Ok((model, bytes))
 }

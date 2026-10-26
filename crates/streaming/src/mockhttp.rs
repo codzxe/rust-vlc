@@ -1134,12 +1134,7 @@ mod tests {
             ..MockConfig::default()
         });
         let fetch = fetcher();
-        let body = |path: &str| {
-            fetch
-                .fetch(HttpRequest::get(server.url(path)))
-                .must()
-                .body
-        };
+        let body = |path: &str| fetch.fetch(HttpRequest::get(server.url(path))).must().body;
         assert_eq!(body("pl.m3u8"), b"first", "fetch 1 serves the first body");
         assert_eq!(body("pl.m3u8"), b"second", "fetch 2 advances");
         assert_eq!(body("pl.m3u8"), b"second", "script exhausted: last repeats");
