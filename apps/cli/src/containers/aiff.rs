@@ -220,7 +220,7 @@ mod tests {
         assert!(fact.extra_data.is_none(), "PCM carries no blob");
         let span_end = opened.facts.tracks[0].timing.span.end.timestamp();
         assert!(
-            span_end.is_ok_and(|ts| ts.ticks == 8_820),
+            span_end.as_ref().is_ok_and(|ts| ts.ticks == 8_820),
             "declared extent: {span_end:?}"
         );
         assert_eq!(opened.start_position_ns, 0);
@@ -283,8 +283,17 @@ mod tests {
             assert_eq!(opened.facts.tracks.len(), 1, "{}", truth.file);
             let fact = &opened.facts.facts[0];
             assert_eq!(fact.codec, truth.codec, "{}", truth.file);
-            assert_eq!(fact.pcm, Some((truth.channels, truth.rate)), "{}", truth.file);
-            assert!(fact.extra_data.is_none(), "{}: PCM carries no blob", truth.file);
+            assert_eq!(
+                fact.pcm,
+                Some((truth.channels, truth.rate)),
+                "{}",
+                truth.file
+            );
+            assert!(
+                fact.extra_data.is_none(),
+                "{}: PCM carries no blob",
+                truth.file
+            );
             let frames = decode_frames(&mut opened)
                 .unwrap_or_else(|err| unreachable!("{}: {err}", truth.file));
             table.push(format!(
@@ -316,12 +325,10 @@ mod tests {
         comm.extend_from_slice(&2u16.to_be_bytes()); // channels
         comm.extend_from_slice(&4u32.to_be_bytes()); // numSampleFrames
         comm.extend_from_slice(&16u16.to_be_bytes()); // sampleSize
-        comm.extend_from_slice(
-            &match demux::aiff::test_support::extended80(44_100.0) {
-                Ok(ext) => ext,
-                Err(err) => unreachable!("rate: {err}"),
-            },
-        );
+        comm.extend_from_slice(&match demux::aiff::test_support::extended80(44_100.0) {
+            Ok(ext) => ext,
+            Err(err) => unreachable!("rate: {err}"),
+        });
         comm.extend_from_slice(b"ima4"); // compressionType
         comm.push(0); // pstring: zero-length name
         let mut aifc = Vec::new();
