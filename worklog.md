@@ -10535,3 +10535,18 @@ Stage Summary:
 - MEASURED: codecs 440/0 + differential 2/2; lumen-cli (worktree base, pre-mp4) 79+45/0; clippy -D warnings zero on both crates; fmt clean.
 - NOT measured: opus-in-mp4/webm end-to-end lanes (none in corpus; dOps blob shape unit-pinned only); throughput bench; wasm32.
 - OGG/OPUS NOW PLAYS END-TO-END. Who consumes next: HLS opus lanes (6.B), feature-matrix row update (Lead), vp9/dnx M-wires.
+
+---
+Task ID: 6.W2-STATUS-2
+Agent: Lead
+Task: Wave-2 continued — session tally 21 agent units; OPW-mp4 + M-opus landed and reconciled.
+
+Work Log:
+- OPW-mp4 (146/0): 31/31 corpus lanes — aac-2ch (6) + mjpeg (4) + pcm-in-mov decode-exact; h264/hevc/mpeg4 open+demux packet-exact with typed codec refusals (hw-path); aac-6ch = the recorded engine mono/stereo boundary (never a silent downmix); mp3-in-mov 576-tail divergence recorded; frag lanes via moof-scan; binary-level positive open test landed. StartedMp4 second-start adapter bridged (recorded for the demuxer owner).
+- M-opus (Lead-completed after the agent's tool-deadline cutoff — its 3 commits were functionally complete; Lead cured 11 clippy -D errors + fmt drift + the semantic test inversion): ruopus =0.1.2 wired; corpus differential 0047/0077 max|Δ| 1.378e-6/4.381e-6, 0 > 1 s16-LSB (admission numbers reproduced lane-for-lane); ogg opus lanes DECODE through the real open path (192,000 valid samples on 0047). OGG+OPUS PLAYS END-TO-END.
+- Cross-branch reconciliation (Lead): ogg unit's opus-refusal tests inverted to decode assertions; mp4 module doc updated; full lumen-cli 146/0 on merged main; codecs differential 2/2 re-verified.
+- Dispatch incident log: 1 tool-deadline cutoff this wave (M-opus) — recovered by Lead-completion per the Phase-5 completer recipe; agent worktrees inspected before any restart decision.
+
+Stage Summary:
+- Playing end-to-end now: AVI/MJPEG+PCM, WAV (pcm/adpcm), AIFF (pcm), ADTS/AAC-LC, OGG/Vorbis, OGG/OPUS, MP4/MOV/M4A (aac/mjpeg/pcm lanes). Opus decoder banked; format families at 30/80 with opus + vp9 + dnx admissions pending their remaining wiring (vp9 needs M-wave + mkv lanes; dnx needs M-wave).
+- Remaining queue: OPW-mkv (34 lanes), OPW-ts, OPW-es, OPW-ivf, A3 scheme registry, M-vp9, M-dnx, ASF investigation, then W3+ HLS/DASH/buffering.
