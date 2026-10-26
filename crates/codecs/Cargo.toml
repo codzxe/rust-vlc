@@ -83,6 +83,14 @@ rav1d = { version = "=1.1.0", default-features = false, features = ["bitdepth_8"
 # parse/validation, pre-skip/end-trim granule arithmetic and error
 # taxonomy stay ours.
 ruopus = { version = "=0.1.2", default-features = false, features = ["std"] }
+# 6.M-vp9 (Lead admission, docs/dependencies/records/rusty_vp9-0.1.3.md):
+# the VP9 decode engine. Purity verified in the record BEFORE this
+# edit (pure Rust, AVX2/SSE-kernel unsafe only, no build.rs, no FFI,
+# ZERO dependencies — default features are an empty set, the
+# `prometheus-telemetry` feature stays OFF). Exact pin per the
+# record's R8 (0.x API-churn risk — a bump re-triggers the record).
+# The error taxonomy and codec-api contract surface stay ours.
+rusty_vp9 = "=0.1.3"
 
 [dev-dependencies]
 # The randomized-corpus vertical (ED-FIX-5; user directive 2026-10-22):

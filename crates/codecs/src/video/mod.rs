@@ -13,3 +13,4 @@ pub mod h264;
 pub mod hevc;
 pub mod mjpeg;
 pub mod mpeg12;
+pub mod vp9;
