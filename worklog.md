@@ -10665,3 +10665,70 @@ Stage Summary:
 - ASF plan landed (docs/plans/asf-selfbuild.md): zero ASF corpus, 11 verified fixture generations, ASF-a/b/c/d split, ~2,250-3,450 LOC estimate.
 - Honest gaps recorded: mp3 end-padding trim through container lanes (mp3 card); aac-in-TS opens limb-less; PCR doesn't cross the seam; 4:4:4/10-bit vp9 emit-seam boundaries; ivf seek is SlowLinear (doc fixed); A3's CLI dispatch deferred (recorded).
 - Next wave (W4 dispatch): 6.B1a HLS media playlist, 6.OPW-ps (the last container), 6.OPW-cli-conformance, 6.OPW-ttf-seek-remeasure, 6.ASF-a header tree.
+
+---
+Task ID: 6.OPW-ttf-seek
+Agent: 6.OPW-ttf-seek-remeasure
+Task: The W3 measurement card — time-to-first-output + in-session seek per container family through the REAL binary; the ivf unit's flagged seek re-measure ("in-session native seek not exercised through a playing session"); honest numbers recorded, structural assertions green.
+
+Work Log:
+- Worktree worktrees/p6-ttf on wip/p6-ttf from main (9972476). Read native_seek.rs (the landed seek surface), bench_decode.rs (the timing convention), session_script.rs (the verb surface), containers/mod.rs (the registry). VERB ANSWER: the binary HAS the full seek surface — session-script `seek 50%|<dur>|chapter N`, `--start-time`, machine-mode playback.seek — no verb gap to report; the re-measure measures the real thing.
+- Harness: apps/cli/tests/ttf_seek.rs (additive, 3 suites, 15 lanes). Spawns the real binary per lane with piped stdio, timestamps EVERY stdout line (Instant offsets from just-before-spawn; Rust stdout is line-buffered piped, so receipts are readable at print time), drives the open→settle→seek→quit session through the buffered stdin script. Numbers RECORDED via eprintln (bench_decode convention), never asserted — the pins are structural (first output arrives or the typed refusal names why; the seek lands in the ±10% half-neighborhood or refuses typed per class; no reopen; --start-time lands near target). Profile named honestly: DEV (debug, unoptimized) — the numbers are COMPARATIVE across families in that profile, not absolute claims. Corpus-gated the house way (LUMEN_CORPUS or /tmp/my-project/corpus-v4, absent → eprintln no-op).
+- THE MEASURED TABLE (a) time-to-first-output = spawn → first `state-changed Buffering → Playing` (this host's first-output watermark; the settle pumps run to the engine's Primed signal). One focused --nocapture run, this session, 2 cores, DEV profile:
+  | family/lane | spawn→accepted | accepted→first-output | spawn→first-output |
+  |---|---|---|---|
+  | avi 0076 (mjpeg+pcm_s16le) | 40.6 ms | 447.9 ms | 488.5 ms |
+  | wav 0013 sr-chaos (pcm_s16le) | 6.8 ms | 0.2 ms | 6.9 ms |
+  | wav 0026 11 kHz (pcm_s16le) | 11.7 ms | 0.2 ms | 11.9 ms |
+  | wav 0004 (pcm_s24le) | 29.3 ms | 0.2 ms | 29.5 ms |
+  | aiff fixture (pcm_s16be) | 5.9 ms | 3.5 ms | 9.4 ms |
+  | ogg 0047 (opus) | 5.6 ms | 616.5 ms | 622.1 ms |
+  | mp4 0115 (mjpeg) | 14.4 ms | 254.6 ms | 269.0 ms |
+  | mov 0079 (mjpeg) | 4.7 ms | 246.8 ms | 251.4 ms |
+  | m4a 0029 (aac) | 18.5 ms | 56.6 ms | 75.1 ms |
+  | es 0139 (mp3) | 20.7 ms | 92.3 ms | 113.0 ms |
+  | es 0005 (mp2) | 6.9 ms | 52.4 ms | 59.4 ms |
+  | adts 0059 (aac) | REFUSED at 7.6 ms | — | cli.audio_limb_absent |
+  | mpegts 0018 (h264) | open refused (exit 65) | — | cli.codec_unavailable |
+  | ivf vp9 fixture 640x480 | accepted 8.1 ms | REFUSED at 180.9 ms | cli.i420_color_unsupported |
+  | matroska 0075 (vp9) | accepted 4.6 ms | REFUSED at 18.3 ms | cli.i420_color_unsupported |
+  Video lanes dominate ttf (mjpeg decode-ahead to the watermark); PCM/geometry-bearing audio lanes answer in sub-ms after accept.
+- THE MEASURED TABLE (b) in-session seek (`seek 50%` from Playing; latency = first Playing line → the seek's terminal line):
+  | family/lane | class | landing / refusal | latency |
+  |---|---|---|---|
+  | avi 0076 | Lands | 1,002,667 µs of 2,090,000 (keyframe-safe) | 293.3 ms |
+  | wav 0013 | Lands | 671,021 µs of 1,342,041 (exact half) | 1.7 ms |
+  | wav 0026 11 kHz | LANDS WRONG (finding) | 3,486,078 µs for a 2,000,000 target | 2.8 ms |
+  | wav 0004 s24le | ACCEPTED-THEN-SILENT (finding) | no terminal; bounded wait expired; position stays 0 | envelope 0.8 ms |
+  | aiff | Lands | 100,000 µs of 200,000 (exact) | 3.3 ms |
+  | ogg 0047 | Refuses typed (decode) | opus.head.missing on reanchor (vorbis twin: vorbis.headers.missing) | 0.2 ms |
+  | mp4 0115 / mov 0079 / m4a 0029 | Refuses typed (demux) | plugin.demux.reanchor.unsupported (the recorded 6.OPW-mp4 gap, now measured) | 0.1–0.2 ms |
+  | es mp3 0139 / mp2 0005 | Refuses typed (control) | target unresolvable (no duration) / source cannot seek | 0.2 ms |
+  | adts / mpegts / ivf / matroska | UNREACHABLE | no Playing state through this host (see refusals above) | — |
+- THE MEASURED TABLE (c) --start-time pure-seek open-path watermarks (the surface that works where in-session reanchor is absent; Δ = with-seek open receipt − bare open receipt):
+  | lane | target | landing | Δ |
+  |---|---|---|---|
+  | avi 0076 | 1s | 1.000000s | −19.1 ms (noise) |
+  | wav 0026 | 2s | 2.000000s EXACT | +3.2 ms |
+  | wav 0004 s24le | 1s | 1.000000s EXACT | +26.5 ms |
+  | aiff | 50ms | 0.050000s EXACT | +5.4 ms |
+  | mp4 0115 | 1s | 1.215785s (1.086741s in the pre-run — run-to-run spread, see findings) | −2.2 ms |
+  | mov 0079 | 1s | 1.268781s (1.101477s pre-run) | +5.5 ms |
+  | adts 0059 | 1s | 1.007690s | −1.8 ms |
+  | ivf vp9 | 500ms | 0.768546s (0.598610s pre-run) | +1.7 ms |
+  | matroska 0075 | 500ms | 0.501995s | −6.8 ms |
+  | mpegts 0018 | 1s | REFUSED typed demux.ts.seek.unsupported, exit 65 | — |
+  The pure-seek watermark is at noise level (|Δ| ≤ ~27 ms, both signs) on every lane — open-time seeking costs nothing measurable in DEV.
+- FINDINGS (through-the-binary honest landscape, all measured this session):
+  1. The W3-close "11 families playing" claim is PIPELINE-layer truth, not binary truth: the CLI host's present limb converts exactly BT.601 full-range i420 (the MJPEG case, pipeline_host convert_i420_to_rgba) — every vp9/av1 lane DECODES but refuses at the renderer (cli.i420_color_unsupported; ivf fixture lanes land --start-time fine then refuse present). The audio limb requires a geometry-bearing harvest (PCM pair / Vorbis ident / OpusHead — TrackFact::audio_geometry): ADTS/AAC (in-band config, no blob) and MKA/FLAC-ALAC lanes open LIMB-LESS and refuse on the first audio frame. h264 is not dispatched by this host's providers (cli.codec_unavailable; ts AND raw-ES h264 refuse at open, exit 65). Net playable-through-binary: avi, wav, aiff, ogg, mp4/mov/m4a, es-mp3/mp2 (the exact lane set the tables above measure).
+  2. WAV IN-SESSION REANCHOR, two real defects recorded: (a) 0026 (11.025 kHz): EVERY below-end target (25% → 3.972155s, 1s → 3.972155s, 50% → 3.486078s) lands deep past the request while a 3.9s target lands right (3.900046s) and the pure --start-time 2s lands EXACTLY — the demuxer's byte math is right, the in-session reanchor/clock seam is wrong (mechanism un-investigated; the wav host seam owns the fix); (b) 0004 s24le + 0135 u8: seek accepted → rebuffer episode runs in-pipeline (Playing→Buffering→Playing) → NO terminal ever (the host's bounded wait expires, control.internal) and the position stays at the old one — neither completed nor failed typed. The 44.1 kHz fixture and the 0013 sr-chaos lane land exactly; the anomaly is lane-dependent, not family-wide.
+  3. MP4/MOV/M4A in-session seek = the recorded 6.OPW-mp4 gap measured through the binary: accepted, minted, then the typed demux refusal (plugin.demux.reanchor.unsupported) at 0.1–0.2 ms; the pure seek powers --start-time exactly.
+  4. OGG in-session seek refuses typed at DECODE on both codecs (opus.head.missing / vorbis.headers.missing): the reanchor lands but does not replay the codec headers to reconfigure the decoder — the ogg host seam's gap.
+  5. Run-to-run landing spread on the mp4/ivf --start-time lanes (mp4 1.087↔1.216s, ivf 0.599↔0.768s across two runs; the ivf lane also reports "recovered 15 damaged unit(s) while resynchronizing") — the pure-seek landing is NOT deterministic through the process; recorded, assertion window sized for it (target −50 ms … +1 s, structural "near target, never zero").
+  6. mpegts seekability is None end-to-end: --start-time refuses the OPEN typed (demux.ts.seek.unsupported, exit 65). mpegps is unwired in the registry (the 6.OPW-ps W4 card owns it) — out of this table. No corpus .ivf lanes exist (the recorded ivf gap; codec-fixture lanes used). No corpus .aiff lane (repo fixture used).
+- Gates (foreground, this session): cargo test -p lumen-cli = 181 passed / 0 failed / 2 ignored (baseline 178/0/2 + my 3, zero regressions); cargo clippy -p lumen-cli --all-targets --all-features -- -D warnings CLEAN (one cure: lanes(&PathBuf)→lanes(&Path) ptr_arg + fmt pass); cargo fmt -p lumen-cli -- --check CLEAN.
+
+Stage Summary:
+- Deliverable landed: tests/ttf_seek.rs — 15 lanes × 3 suites (first-output watermarks, per-family in-session seek classes, --start-time pure-seek watermarks), every number measured through the REAL binary in the DEV profile this session and recorded above; the assertions pin structure only (first output or typed refusal; landing neighborhood or typed refusal per class; no reopen; pure-seek near-target).
+- The seek re-measure the ivf unit flagged: DONE for every family that reaches Playing through the binary; ivf itself cannot (renderer i420 gate) — its SlowLinear reanchor is exercised through the --start-time pure-seek watermark instead (lands, +1.7 ms), honestly recorded as the substitute surface.
+- Honest gaps for the Lead: the wav 0026 wrong-landing + 0004/0135 silent-wedge defects (in-session seam, not demux math — fix belongs to the wav host seam owner); the ogg reanchor header-replay gap; the mp4 family reanchor gap (known); the renderer's BT.601-full-i420-only gate narrowing the playable set (the color-conversion card owns the general case); mp4/ivf --start-time landing non-determinism; all numbers DEV-profile comparative only.
