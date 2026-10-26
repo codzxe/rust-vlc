@@ -50,11 +50,12 @@
 //!
 //! # Output gain
 //!
-//! OpusHead's Q7.8 output gain is applied as a linear multiplication
-//! (`sample × gain/256`) on the copy path (RFC 7845 §4.2). Every
-//! corpus lane measures gain = 0 (unity) — the multiplication is a
-//! no-op there, and the gain≠0 reading is recorded as an untested
-//! honest gap in the worklog.
+//! OpusHead's Q7.8 **dB** output gain is applied as a linear
+//! multiplication (`sample × 10^(q/5120)`) on the copy path (RFC
+//! 7845 §4.2; the engine's own ogg helper applies the same formula).
+//! Every corpus lane measures gain = 0 (unity) — the multiplication
+//! is a no-op there, and the gain≠0 reading is recorded as an
+//! untested honest gap in the worklog.
 //!
 //! # Output format (codec-native F32)
 //!
@@ -191,7 +192,9 @@ pub struct OpusDecoder {
     /// The output-channel permutation (Vorbis → house order;
     /// `None` = identity / discrete passthrough).
     permutation: Option<Vec<u8>>,
-    /// The output gain multiplier (OpusHead Q7.8; 1.0 = unity).
+    /// The output gain multiplier (OpusHead Q7.8 dB → linear;
+    /// 1.0 = unity — the ruopus ogg helper's own formula,
+    /// `10^(q/(20·256))`).
     gain: f32,
     /// Pooled output slots, each sized to the stream maximum.
     sample_pool: Vec<SharedBytes>,
@@ -280,7 +283,10 @@ impl Decoder for OpusDecoder {
         self.slot_next = 0;
         self.raw_next = 0;
         self.packet_index = 0;
-        self.gain = f32::from(head.output_gain) / 256.0;
+        // Q7.8 dB → linear: 10^(q/(20*256)); q = 0 is exactly unity
+        // (every corpus lane measures 0 — the multiply is a no-op
+        // there; the reading is the engine's own, cross-checked).
+        self.gain = 10.0f32.powf(f32::from(head.output_gain) / 5120.0);
         self.permutation = permutation;
         self.head = Some(head);
         self.engine = Some(engine);
