@@ -10665,3 +10665,20 @@ Stage Summary:
 - ASF plan landed (docs/plans/asf-selfbuild.md): zero ASF corpus, 11 verified fixture generations, ASF-a/b/c/d split, ~2,250-3,450 LOC estimate.
 - Honest gaps recorded: mp3 end-padding trim through container lanes (mp3 card); aac-in-TS opens limb-less; PCR doesn't cross the seam; 4:4:4/10-bit vp9 emit-seam boundaries; ivf seek is SlowLinear (doc fixed); A3's CLI dispatch deferred (recorded).
 - Next wave (W4 dispatch): 6.B1a HLS media playlist, 6.OPW-ps (the last container), 6.OPW-cli-conformance, 6.OPW-ttf-seek-remeasure, 6.ASF-a header tree.
+
+---
+Task ID: 6.ASF-a (Lead completion)
+Agent: Lead (agent cutoff recovery)
+Task: ASF header tree landed — the GUID object walk, File/Stream Properties, WAVEFORMATEX/VIDEOINFO facts, Codec List + metadata, Data Object location, AsfSignature probe, 25 tests.
+
+Work Log:
+- Agent died pre-commit with 3,071 lines; Lead checkpointed, then completed under a WORKTREE-LOCAL target after discovering the shared-target aliasing hazard (below).
+- Cures: 3-byte `b"vc1"` fourcc arm (→ `b"vc1 "`), generic `mem_stream(impl Into<Arc<[u8]>>)` inference failures (→ concrete `Arc<[u8]>` param), 5 missing `mut`s, missing `use std::sync::Arc` in fuzz.rs, the 2-bytes-short hand-written PCM16_WFX constant (avg field truncated — shifted align/bits; also the doctest's inline copy + the 11_000/11_025 rate assertions), the A/V fixture test indexing streams[0] as audio (A/V files carry video SP first — measured wmv_wmv2_wma_av: streams[0] tsd 55 = VIDEOINFOHEADER, streams[1] wfx (0x161, 1, 8000, 16, cb 10)), and the msmpeg4v3 sha re-pin (regeneration deterministic at 66201b9205f26a90, verified twice; the investigation-session value was stale — plan doc §4.4 corrected).
+- Clippy cures: as_chunks::<N>, useless conversion, needless ref, then_some, err_of helper replacing 5 unwrap_err sites.
+- **OPS FINDING (wave-discipline change): the .cargo/config.toml shared-target redirect ALIASES same-name rlibs across main and worktrees (metadata-hash filenames, last-writer-wins) — the worktree's earlier "green" runs executed MAIN's stale test binaries (414 count was the tell) and the doc-test linked main's demux (no asf). All worktree verification MUST set CARGO_TARGET_DIR=<worktree>/target (or gate on merged main only).**
+- Gates (worktree-local target, this session): demux 439/0 lib (main 414 + 25 asf) + all integration suites + doc 8/0; clippy -D warnings CLEAN; fmt CLEAN.
+- The 11 ffmpeg fixtures regenerate deterministically (sha-pinned, one re-pinned above); ffprobe cross-checks per fixture (stream count + codec names exact).
+
+Stage Summary:
+- ASF-a landed: the header walk is real (object tree, facts, typed refusals — not-asf/truncated/bad-object-size/header-too-large/no-streams/broadcast-unsupported/encrypted-stream/bad-waveformatex/bad-video-info/packets-not-implemented/not-started), Data Object located (packets = ASF-b), seekability None until ASF-c. The [VERIFY-P0] spec hunt stays open (format knowledge labeled in-source per the plan's risk register).
+- Next: ASF-b data packets (the ~800-1,200 LOC unit + ffprobe -show_packets differential).

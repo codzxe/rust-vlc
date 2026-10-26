@@ -120,8 +120,8 @@ pub fn probe(prefix: &[u8]) -> bool {
 /// # }
 /// # fn asf_demo_bytes() -> std::sync::Arc<[u8]> {
 /// #   demux::asf::test_support::minimal_asf_audio(&[
-/// #       0x01, 0x00, 0x01, 0x00, 0x11, 0x2b, 0x00, 0x00, 0x00, 0x00,
-/// #       0x02, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00,
+/// #       0x01, 0x00, 0x01, 0x00, 0x11, 0x2b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+/// #       0x02, 0x00, 0x10, 0x00, 0x00, 0x00,
 /// #   ])
 /// # }
 /// ```
@@ -223,7 +223,7 @@ impl AsfDemuxer {
             .codec
             .as_str()
             .starts_with("pcm_")
-            .then(|| (wfx.channels, wfx.samples_per_sec))
+            .then_some((wfx.channels, wfx.samples_per_sec))
     }
 
     /// Build the L0 track table from the walk's stream records.
@@ -239,9 +239,7 @@ impl AsfDemuxer {
             // video (plan §2.4). The span stays unknown until the
             // stamps exist.
             let base = if record.kind == media_types::ids::MediaKind::Audio {
-                let rate = record
-                    .wave_format
-                    .map_or(0, |wfx| wfx.samples_per_sec);
+                let rate = record.wave_format.map_or(0, |wfx| wfx.samples_per_sec);
                 TimeBase::new(1, rate).map_err(|_| error::bad_waveformatex(0))?
             } else {
                 TimeBase::new(1, 1000).map_err(|_| error::bad_object_size(0))?

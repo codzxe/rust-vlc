@@ -16,9 +16,7 @@ use plugin_api::SourceStream;
 /// # Errors
 /// Propagates [`crate::avi::test_support::BytesStream::new`]'s
 /// (never-failing) URI parse.
-pub fn mem_stream(
-    bytes: impl Into<Arc<[u8]>>,
-) -> Result<Box<dyn SourceStream>, media_types::EngineError> {
+pub fn mem_stream(bytes: Arc<[u8]>) -> Result<Box<dyn SourceStream>, media_types::EngineError> {
     crate::avi::test_support::mem_stream(bytes)
 }
 

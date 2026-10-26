@@ -63,8 +63,8 @@ use crate::avi::riff::SourceReader;
 
 use super::error;
 use super::guid::{
-    self, Guid, CODEC_LIST, DATA, EXTENDED_CONTENT_DESCRIPTION, EXTENDED_STREAM_PROPERTIES,
-    FILE_PROPERTIES, HEADER, HEADER_EXTENSION, STREAM_PROPERTIES, STREAM_TYPE_AUDIO,
+    self, CODEC_LIST, DATA, EXTENDED_CONTENT_DESCRIPTION, EXTENDED_STREAM_PROPERTIES,
+    FILE_PROPERTIES, Guid, HEADER, HEADER_EXTENSION, STREAM_PROPERTIES, STREAM_TYPE_AUDIO,
     STREAM_TYPE_COMMAND, STREAM_TYPE_VIDEO,
 };
 
@@ -360,8 +360,10 @@ pub struct AsfHeader {
 /// `"wmv2\0"` at 5 units).
 fn utf16_lossy(bytes: &[u8]) -> String {
     let units: Vec<u16> = bytes
-        .chunks_exact(2)
-        .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| u16::from_le_bytes(*pair))
         .collect();
     let mut text = String::from_utf16_lossy(&units);
     while text.ends_with('\0') {
@@ -376,7 +378,11 @@ fn utf16_lossy(bytes: &[u8]) -> String {
 /// raw (lowercased fourcc / tag-hex) for the typed
 /// codec-unavailable refusal downstream — never a silent guess (the
 /// mkv unknown-codec precedent).
-fn codec_descriptor(stream_type: Guid, wfx: Option<&WaveFormatEx>, video: Option<&VideoInfo>) -> String {
+fn codec_descriptor(
+    stream_type: Guid,
+    wfx: Option<&WaveFormatEx>,
+    video: Option<&VideoInfo>,
+) -> String {
     match stream_type {
         STREAM_TYPE_AUDIO => {
             let Some(wfx) = wfx else {
@@ -421,7 +427,7 @@ fn codec_descriptor(stream_type: Guid, wfx: Option<&WaveFormatEx>, video: Option
                 b"MP42" => "msmpeg4v2".to_string(),
                 // `[FORMAT KNOWLEDGE]` rows of the plan's §4.5 table,
                 // unexercised by the ffmpeg fixtures.
-                b"WMVA" | b"WMVP" | b"WVP2" | b"VC1\0" | b"vc1" => "vc1".to_string(),
+                b"WMVA" | b"WMVP" | b"WVP2" | b"VC1\0" | b"vc1 " => "vc1".to_string(),
                 fourcc => {
                     let name: String = fourcc
                         .iter()
@@ -524,7 +530,10 @@ impl AsfHeader {
         let want = header_size as usize;
         let bytes = reader.read_prefix_at(want, header_offset)?;
         if (bytes.len() as u64) < header_size {
-            return Err(error::truncated(header_end, header_offset + bytes.len() as u64));
+            return Err(error::truncated(
+                header_end,
+                header_offset + bytes.len() as u64,
+            ));
         }
 
         let mut properties: Option<FileProperties> = None;
@@ -586,10 +595,7 @@ impl AsfHeader {
                         };
                         damage.note(size, reason);
                         skipped.push((stream_type, size));
-                    } else if streams
-                        .iter()
-                        .any(|s| s.stream_number == stream_number)
-                    {
+                    } else if streams.iter().any(|s| s.stream_number == stream_number) {
                         // Duplicates: damage-noted, first wins (the
                         // wav duplicate-fmt rule).
                         damage.note(size, "duplicate-stream-properties");
@@ -636,7 +642,7 @@ impl AsfHeader {
             // damage-noted, the walk's authority was the sizes.
             damage.note(header_size - off as u64, "header-trailing-fragment");
         }
-        if u32::from(declared_children) != walked as u32 && declared_children != 0 {
+        if declared_children != walked as u32 && declared_children != 0 {
             damage.note(0, "declared-child-count-mismatch");
         }
 
@@ -660,7 +666,8 @@ impl AsfHeader {
             let declared_tag = guid::u16le(&entry.info, 0);
             let agrees = match entry.codec_type {
                 1 => streams.iter().any(|s| {
-                    s.video_info.is_some_and(|v| &v.compression[..] == declared_fourcc)
+                    s.video_info
+                        .is_some_and(|v| &v.compression[..] == declared_fourcc)
                 }),
                 2 => streams
                     .iter()
@@ -674,8 +681,7 @@ impl AsfHeader {
 
         // --- Top-level walk: locate the Data Object (and map any
         // trailing objects, sizes only).
-        let (data, top_objects) =
-            Self::walk_top_level(reader, header_end, stream_len, damage)?;
+        let (data, top_objects) = Self::walk_top_level(reader, header_end, stream_len, damage)?;
 
         Ok(AsfHeader {
             header_offset,
@@ -895,9 +901,7 @@ impl AsfHeader {
             }
             let info_len = guid::u16le(payload, off) as usize;
             off += 2;
-            let info_len = info_len
-                .min(MAX_CODEC_FIELD_BYTES)
-                .min(payload.len() - off);
+            let info_len = info_len.min(MAX_CODEC_FIELD_BYTES).min(payload.len() - off);
             let info = payload[off..off + info_len].to_vec();
             off += info_len;
             entries.push(CodecEntry {
@@ -937,7 +941,9 @@ impl AsfHeader {
             }
             let name_len = guid::u16le(payload, off) as usize;
             off += 2;
-            let name_len = name_len.min(MAX_METADATA_FIELD_BYTES).min(payload.len().saturating_sub(off));
+            let name_len = name_len
+                .min(MAX_METADATA_FIELD_BYTES)
+                .min(payload.len().saturating_sub(off));
             let name = utf16_lossy(&payload[off..off + name_len]);
             off += name_len;
             if off + 4 > payload.len() {
@@ -947,7 +953,9 @@ impl AsfHeader {
             off += 2;
             let value_len = guid::u16le(payload, off) as usize;
             off += 2;
-            let value_len = value_len.min(MAX_METADATA_FIELD_BYTES).min(payload.len().saturating_sub(off));
+            let value_len = value_len
+                .min(MAX_METADATA_FIELD_BYTES)
+                .min(payload.len().saturating_sub(off));
             let value_bytes = &payload[off..off + value_len];
             off += value_len;
             if data_type == 0 {
@@ -1040,7 +1048,7 @@ impl AsfHeader {
                     offset: pos,
                     size,
                     packet_count: guid::u64le(&body, 16),
-                    reserved_matches: &body[24..26] == [0x01, 0x01],
+                    reserved_matches: body[24..26] == [0x01, 0x01],
                 });
             }
             if pos.checked_add(size).is_none_or(|end| end > stream_len) {

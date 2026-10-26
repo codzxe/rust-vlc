@@ -216,7 +216,10 @@ mod tests {
             (not_asf(b"RIFT\x00\x00\x00\x00"), "demux.asf.not-asf"),
             (truncated(757, 12), "demux.asf.truncated"),
             (bad_object_size(1_024), "demux.asf.bad-object-size"),
-            (header_too_large(1 << 20, 1 << 30), "demux.asf.header-too-large"),
+            (
+                header_too_large(1 << 20, 1 << 30),
+                "demux.asf.header-too-large",
+            ),
             (no_streams(), "demux.asf.no-streams"),
             (broadcast_unsupported(), "demux.asf.broadcast-unsupported"),
             (encrypted_stream(2), "demux.asf.encrypted-stream"),

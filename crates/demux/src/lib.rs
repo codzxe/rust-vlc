@@ -41,8 +41,8 @@
 //! trusted into an allocation.
 
 pub mod adts;
-pub mod asf;
 pub mod aiff;
+pub mod asf;
 pub mod avi;
 pub mod error;
 pub mod es;

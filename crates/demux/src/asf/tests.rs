@@ -57,9 +57,17 @@ fn code_of(err: &media_types::EngineError) -> &str {
 // ---------------------------------------------------------------------------
 
 const PCM16_WFX: &[u8] = &[
-    0x01, 0x00, 0x01, 0x00, 0x11, 0x2b, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x10, 0x00, 0x00,
-    0x00, 0x00, 0x00,
+    0x01, 0x00, 0x01, 0x00, 0x11, 0x2b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x10, 0x00,
+    0x00, 0x00,
 ];
+
+/// Expect-Err without `unwrap_err` (the house no-unwrap rule).
+fn err_of<T>(r: Result<T, media_types::EngineError>) -> media_types::EngineError {
+    match r {
+        Ok(_) => unreachable!("expected Err"),
+        Err(e) => e,
+    }
+}
 
 #[test]
 fn probe_anchors_on_the_header_guid_only() {
@@ -77,7 +85,7 @@ fn probe_anchors_on_the_header_guid_only() {
 
 #[test]
 fn minimal_audio_file_walks_to_one_pcm_track() {
-    let asf = started(minimal_asf_audio(PCM16_WFX));
+    let mut asf = started(minimal_asf_audio(PCM16_WFX));
     let tracks = ok(asf.start());
     assert_eq!(tracks.len(), 1);
     assert_eq!(tracks[0].codec.as_str(), "pcm_s16le");
@@ -95,7 +103,7 @@ fn minimal_audio_file_walks_to_one_pcm_track() {
     let wfx = record.wave_format.unwrap_or_else(|| unreachable!("wfx"));
     assert_eq!(wfx.tag, 1);
     assert_eq!(wfx.channels, 1);
-    assert_eq!(wfx.samples_per_sec, 11_000);
+    assert_eq!(wfx.samples_per_sec, 11_025);
     assert_eq!(wfx.bits_per_sample, 16);
     assert_eq!(wfx.cb_size, 0);
     // The verbatim TSD is the decoder-config seam.
@@ -105,14 +113,16 @@ fn minimal_audio_file_walks_to_one_pcm_track() {
     assert_eq!(data.packet_count, 0);
     assert!(data.reserved_matches);
     // The PCM host fact (the wav-lane seam).
-    assert_eq!(asf.pcm_fact(tracks[0].id), Some((1, 11_000)));
+    assert_eq!(asf.pcm_fact(tracks[0].id), Some((1, 11_025)));
 }
 
 #[test]
 fn not_asf_bytes_refuse_typed() {
-    let mut asf =
-        AsfDemuxer::new(mem_stream(b"RIFF\x00\x00\x00\x00WAVEjunk").unwrap_or_else(|e| unreachable!("{e}")))
-            .unwrap_or_else(|e| unreachable!("new: {e}"));
+    let mut asf = AsfDemuxer::new(
+        mem_stream(Arc::from(&b"RIFF\x00\x00\x00\x00WAVEjunk"[..]))
+            .unwrap_or_else(|e| unreachable!("{e}")),
+    )
+    .unwrap_or_else(|e| unreachable!("new: {e}"));
     let err = match asf.start() {
         Ok(_) => unreachable!("must refuse"),
         Err(e) => e,
@@ -127,8 +137,10 @@ fn truncated_head_is_truncation_not_not_asf() {
     let mut cut = Vec::new();
     cut.extend_from_slice(guid::HEADER.as_bytes());
     cut.extend_from_slice(&[0x00, 0x00]);
-    let mut asf = AsfDemuxer::new(mem_stream(Arc::from(cut)).unwrap_or_else(|e| unreachable!("{e}")))
-        .unwrap_or_else(|e| unreachable!("new: {e}"));
+    let mut asf = AsfDemuxer::new(
+        mem_stream(Arc::from(cut.as_slice())).unwrap_or_else(|e| unreachable!("{e}")),
+    )
+    .unwrap_or_else(|e| unreachable!("new: {e}"));
     let err = match asf.start() {
         Ok(_) => unreachable!("must refuse"),
         Err(e) => e,
@@ -143,8 +155,10 @@ fn header_size_below_floor_and_overrun_refuse_bad_object_size() {
     let bytes = minimal_asf_audio(PCM16_WFX);
     let mut patched = bytes.to_vec();
     patched[16..24].copy_from_slice(&28u64.to_le_bytes());
-    let mut asf = AsfDemuxer::new(mem_stream(Arc::from(patched)).unwrap_or_else(|e| unreachable!("{e}")))
-        .unwrap_or_else(|e| unreachable!("new: {e}"));
+    let mut asf = AsfDemuxer::new(
+        mem_stream(Arc::from(patched.as_slice())).unwrap_or_else(|e| unreachable!("{e}")),
+    )
+    .unwrap_or_else(|e| unreachable!("new: {e}"));
     let err = match asf.start() {
         Ok(_) => unreachable!("must refuse"),
         Err(e) => e,
@@ -155,8 +169,10 @@ fn header_size_below_floor_and_overrun_refuse_bad_object_size() {
     let bytes = minimal_asf_audio(PCM16_WFX);
     let mut patched = bytes.to_vec();
     patched[16..24].copy_from_slice(&9_999u64.to_le_bytes());
-    let mut asf = AsfDemuxer::new(mem_stream(Arc::from(patched)).unwrap_or_else(|e| unreachable!("{e}")))
-        .unwrap_or_else(|e| unreachable!("new: {e}"));
+    let mut asf = AsfDemuxer::new(
+        mem_stream(Arc::from(patched.as_slice())).unwrap_or_else(|e| unreachable!("{e}")),
+    )
+    .unwrap_or_else(|e| unreachable!("new: {e}"));
     let err = match asf.start() {
         Ok(_) => unreachable!("must refuse"),
         Err(e) => e,
@@ -169,8 +185,10 @@ fn header_above_memory_ceiling_refuses_typed() {
     let bytes = minimal_asf_audio(PCM16_WFX);
     let mut patched = bytes.to_vec();
     patched[16..24].copy_from_slice(&(MAX_HEADER_BYTES + 1).to_le_bytes());
-    let mut asf = AsfDemuxer::new(mem_stream(Arc::from(patched)).unwrap_or_else(|e| unreachable!("{e}")))
-        .unwrap_or_else(|e| unreachable!("new: {e}"));
+    let mut asf = AsfDemuxer::new(
+        mem_stream(Arc::from(patched.as_slice())).unwrap_or_else(|e| unreachable!("{e}")),
+    )
+    .unwrap_or_else(|e| unreachable!("new: {e}"));
     let err = match asf.start() {
         Ok(_) => unreachable!("must refuse"),
         Err(e) => e,
@@ -186,8 +204,10 @@ fn broadcast_flags_refuse_typed() {
     let mut patched = bytes.to_vec();
     let fpo_flags_at = 30 + 24 + 64;
     patched[fpo_flags_at..fpo_flags_at + 4].copy_from_slice(&3u32.to_le_bytes());
-    let mut asf = AsfDemuxer::new(mem_stream(Arc::from(patched)).unwrap_or_else(|e| unreachable!("{e}")))
-        .unwrap_or_else(|e| unreachable!("new: {e}"));
+    let mut asf = AsfDemuxer::new(
+        mem_stream(Arc::from(patched.as_slice())).unwrap_or_else(|e| unreachable!("{e}")),
+    )
+    .unwrap_or_else(|e| unreachable!("new: {e}"));
     let err = match asf.start() {
         Ok(_) => unreachable!("must refuse"),
         Err(e) => e,
@@ -199,8 +219,10 @@ fn broadcast_flags_refuse_typed() {
 fn zero_channel_waveformatex_refuses_typed() {
     let mut wfx = PCM16_WFX.to_vec();
     wfx[2..4].copy_from_slice(&0u16.to_le_bytes()); // channels = 0
-    let mut asf = AsfDemuxer::new(mem_stream(minimal_asf_audio(&wfx)).unwrap_or_else(|e| unreachable!("{e}")))
-        .unwrap_or_else(|e| unreachable!("new: {e}"));
+    let mut asf = AsfDemuxer::new(
+        mem_stream(minimal_asf_audio(&wfx)).unwrap_or_else(|e| unreachable!("{e}")),
+    )
+    .unwrap_or_else(|e| unreachable!("new: {e}"));
     let err = match asf.start() {
         Ok(_) => unreachable!("must refuse"),
         Err(e) => e,
@@ -210,8 +232,10 @@ fn zero_channel_waveformatex_refuses_typed() {
     // cbSize overrunning the TSD is the same typed refusal.
     let mut wfx = PCM16_WFX.to_vec();
     wfx[16..18].copy_from_slice(&4u16.to_le_bytes()); // cbSize 4, no tail
-    let mut asf = AsfDemuxer::new(mem_stream(minimal_asf_audio(&wfx)).unwrap_or_else(|e| unreachable!("{e}")))
-        .unwrap_or_else(|e| unreachable!("new: {e}"));
+    let mut asf = AsfDemuxer::new(
+        mem_stream(minimal_asf_audio(&wfx)).unwrap_or_else(|e| unreachable!("{e}")),
+    )
+    .unwrap_or_else(|e| unreachable!("new: {e}"));
     let err = match asf.start() {
         Ok(_) => unreachable!("must refuse"),
         Err(e) => e,
@@ -225,7 +249,7 @@ fn unknown_waveformatex_tags_pass_through_raw() {
     // passthrough — the descriptor names the raw signal, the codec
     // layer refuses typed downstream.
     let wfx = waveformatex(0x7100, 2, 48_000, 4, 16);
-    let asf = started(minimal_asf_audio(&wfx));
+    let mut asf = started(minimal_asf_audio(&wfx));
     let tracks = ok(asf.start());
     assert_eq!(tracks[0].codec.as_str(), "asf-audio-tag-7100");
     assert!(asf.pcm_fact(tracks[0].id).is_none());
@@ -233,19 +257,24 @@ fn unknown_waveformatex_tags_pass_through_raw() {
 
 #[test]
 fn pcm_descriptor_maps_by_bits() {
-    for (bits, name) in [(8u16, "pcm_u8"), (16, "pcm_s16le"), (24, "pcm_s24le"), (32, "pcm_s32le")] {
+    for (bits, name) in [
+        (8u16, "pcm_u8"),
+        (16, "pcm_s16le"),
+        (24, "pcm_s24le"),
+        (32, "pcm_s32le"),
+    ] {
         let wfx = waveformatex(1, 1, 8_000, bits / 8, bits);
-        let asf = started(minimal_asf_audio(&wfx));
+        let mut asf = started(minimal_asf_audio(&wfx));
         let tracks = ok(asf.start());
         assert_eq!(tracks[0].codec.as_str(), name, "{bits} bits");
     }
     // Integer PCM at a width the registry does not carry: raw
     // passthrough, never a silent nearest-guess.
     let wfx = waveformatex(1, 1, 8_000, 3, 24);
-    let asf = started(minimal_asf_audio(&wfx));
+    let mut asf = started(minimal_asf_audio(&wfx));
     assert_eq!(ok(asf.start())[0].codec.as_str(), "pcm_s24le");
     let wfx = waveformatex(1, 1, 8_000, 6, 48);
-    let asf = started(minimal_asf_audio(&wfx));
+    let mut asf = started(minimal_asf_audio(&wfx));
     assert_eq!(ok(asf.start())[0].codec.as_str(), "pcm_s48le");
 }
 
@@ -255,11 +284,17 @@ fn declared_child_count_mismatch_is_damage_not_failure() {
     let bytes = minimal_asf_audio(PCM16_WFX);
     let mut patched = bytes.to_vec();
     patched[24..28].copy_from_slice(&9u32.to_le_bytes()); // declared 9, walked 2
-    let asf = started(Arc::from(patched));
+    let asf = started(Arc::from(patched.as_slice()));
     let header = asf.header().unwrap_or_else(|| unreachable!("header"));
     assert_eq!(header.declared_children, 9);
     assert_eq!(header.walked_children, 2);
-    assert!(header.damage.events.iter().any(|(_, r)| *r == "declared-child-count-mismatch"));
+    assert!(
+        header
+            .damage
+            .events
+            .iter()
+            .any(|(_, r)| *r == "declared-child-count-mismatch")
+    );
 }
 
 #[test]
@@ -270,9 +305,12 @@ fn non_audio_video_stream_types_skip_with_notes() {
     let bytes = minimal_asf_audio(PCM16_WFX);
     let mut patched = bytes.to_vec();
     let sp_payload_at = 30 + 104 + 24; // FPO child frame, then the SP object frame
-    patched[sp_payload_at..sp_payload_at + 16].copy_from_slice(guid::STREAM_TYPE_COMMAND.as_bytes());
-    let mut asf = AsfDemuxer::new(mem_stream(Arc::from(patched)).unwrap_or_else(|e| unreachable!("{e}")))
-        .unwrap_or_else(|e| unreachable!("new: {e}"));
+    patched[sp_payload_at..sp_payload_at + 16]
+        .copy_from_slice(guid::STREAM_TYPE_COMMAND.as_bytes());
+    let mut asf = AsfDemuxer::new(
+        mem_stream(Arc::from(patched.as_slice())).unwrap_or_else(|e| unreachable!("{e}")),
+    )
+    .unwrap_or_else(|e| unreachable!("new: {e}"));
     let err = match asf.start() {
         Ok(_) => unreachable!("must refuse"),
         Err(e) => e,
@@ -284,7 +322,7 @@ fn non_audio_video_stream_types_skip_with_notes() {
 fn unknown_header_children_skip_by_size() {
     // Splice an unknown-GUID child (48 bytes) between FPO and SP: the
     // walk must skip it by size and still find the stream.
-    let mut bytes = minimal_asf_audio(PCM16_WFX).to_vec();
+    let bytes = minimal_asf_audio(PCM16_WFX).to_vec();
     let mut unknown = Vec::new();
     unknown.extend_from_slice(&[0xEE; 16]);
     unknown.extend_from_slice(&48u64.to_le_bytes());
@@ -306,16 +344,27 @@ fn unknown_header_children_skip_by_size() {
         header.skipped_objects.first().map(|(g, _)| g.render()),
         Some("EEEEEEEE-EEEE-EEEE-EEEE-EEEEEEEEEEEE".to_string())
     );
-    assert!(header.damage.events.iter().any(|(_, r)| *r == "skipped-unknown-header-object"));
+    assert!(
+        header
+            .damage
+            .events
+            .iter()
+            .any(|(_, r)| *r == "skipped-unknown-header-object")
+    );
 }
 
 #[test]
 fn trait_order_and_next_unit_refusals_are_exact() {
     // Before start: the operational refusals.
-    let mut asf = AsfDemuxer::new(mem_stream(minimal_asf_audio(PCM16_WFX)).unwrap_or_else(|e| unreachable!("{e}")))
-        .unwrap_or_else(|e| unreachable!("new: {e}"));
-    assert_eq!(code_of(&asf.next_event().unwrap_err()), "demux.asf.not-started");
-    assert_eq!(code_of(&asf.seek(TimeSpan::UNKNOWN).unwrap_err()), "demux.asf.not-started");
+    let mut asf = AsfDemuxer::new(
+        mem_stream(minimal_asf_audio(PCM16_WFX)).unwrap_or_else(|e| unreachable!("{e}")),
+    )
+    .unwrap_or_else(|e| unreachable!("new: {e}"));
+    assert_eq!(code_of(&err_of(asf.next_event())), "demux.asf.not-started");
+    assert_eq!(
+        code_of(&err_of(asf.seek(TimeSpan::UNKNOWN))),
+        "demux.asf.not-started"
+    );
     assert_eq!(asf.seekability(), SeekSupport::None);
 
     let tracks = ok(asf.start());
@@ -324,12 +373,12 @@ fn trait_order_and_next_unit_refusals_are_exact() {
     // stable across repeated calls (a refusal, not a state).
     for _ in 0..3 {
         assert_eq!(
-            code_of(&asf.next_event().unwrap_err()),
+            code_of(&err_of(asf.next_event())),
             "demux.asf.packets-not-implemented"
         );
     }
     assert_eq!(
-        code_of(&asf.seek(TimeSpan::UNKNOWN).unwrap_err()),
+        code_of(&err_of(asf.seek(TimeSpan::UNKNOWN))),
         "demux.asf.seek.unsupported"
     );
     // start is idempotent.
@@ -345,7 +394,10 @@ fn error_constructors_table() {
         (error::bad_object_size(3), "demux.asf.bad-object-size"),
         (error::header_too_large(1, 2), "demux.asf.header-too-large"),
         (error::no_streams(), "demux.asf.no-streams"),
-        (error::broadcast_unsupported(), "demux.asf.broadcast-unsupported"),
+        (
+            error::broadcast_unsupported(),
+            "demux.asf.broadcast-unsupported",
+        ),
         (error::encrypted_stream(2), "demux.asf.encrypted-stream"),
         (error::bad_waveformatex(1), "demux.asf.bad-waveformatex"),
         (error::bad_video_info(1), "demux.asf.bad-video-info"),
@@ -477,7 +529,10 @@ const FIXTURES: &[FixtureTruth] = &[
         generate: "-f lavfi -i testsrc=size=64x48:rate=10:duration=1 -f lavfi -i sine=frequency=440:duration=1:sample_rate=8000 -ac 1 -c:v wmv2 -b:v 100k -c:a wmav2 -b:a 32k",
         header_size: 757,
         children: 6,
-        tracks: &[(MediaKind::Video, "wmv2", 1), (MediaKind::Audio, "wmav2", 2)],
+        tracks: &[
+            (MediaKind::Video, "wmv2", 1),
+            (MediaKind::Audio, "wmav2", 2),
+        ],
         fpo: (10_499, 3, 3_100, 3_200),
         data: (757, 9_650, 3),
         simple_index: Some((10_407, 92)),
@@ -490,7 +545,10 @@ const FIXTURES: &[FixtureTruth] = &[
         generate: "-f lavfi -i testsrc=size=64x48:rate=10:duration=1 -f lavfi -i sine=frequency=440:duration=1:sample_rate=8000 -ac 1 -c:v wmv2 -b:v 100k -c:a wmav2 -b:a 32k -packet_size 8000",
         header_size: 757,
         children: 6,
-        tracks: &[(MediaKind::Video, "wmv2", 1), (MediaKind::Audio, "wmav2", 2)],
+        tracks: &[
+            (MediaKind::Video, "wmv2", 1),
+            (MediaKind::Audio, "wmav2", 2),
+        ],
         fpo: (16_899, 2, 3_100, 8_000),
         data: (757, 16_050, 2),
         simple_index: Some((16_807, 92)),
@@ -560,7 +618,8 @@ fn generate(dir: &std::path::Path, truth: &FixtureTruth) -> std::path::PathBuf {
 }
 
 fn read_file(path: &std::path::Path) -> Arc<[u8]> {
-    let bytes = std::fs::read(path).unwrap_or_else(|e| unreachable!("read {}: {e}", path.display()));
+    let bytes =
+        std::fs::read(path).unwrap_or_else(|e| unreachable!("read {}: {e}", path.display()));
     Arc::from(bytes)
 }
 
@@ -588,9 +647,18 @@ fn fixture_family_walks_match_the_measured_truth() {
         // Object tree.
         assert_eq!(header.header_size, truth.header_size, "{}", truth.file);
         assert_eq!(header.declared_children, truth.children, "{}", truth.file);
-        assert_eq!(header.walked_children as u32, truth.children, "{}", truth.file);
+        assert_eq!(
+            header.walked_children as u32, truth.children,
+            "{}",
+            truth.file
+        );
         let data = asf.data_object().unwrap_or_else(|| unreachable!("data"));
-        assert_eq!((data.offset, data.size, data.packet_count), truth.data, "{}", truth.file);
+        assert_eq!(
+            (data.offset, data.size, data.packet_count),
+            truth.data,
+            "{}",
+            truth.file
+        );
         assert!(data.reserved_matches, "{}", truth.file);
         match truth.simple_index {
             Some((offset, size)) => assert!(
@@ -603,7 +671,10 @@ fn fixture_family_walks_match_the_measured_truth() {
                 header.top_objects
             ),
             None => assert!(
-                !header.top_objects.iter().any(|o| o.guid == guid::SIMPLE_INDEX),
+                !header
+                    .top_objects
+                    .iter()
+                    .any(|o| o.guid == guid::SIMPLE_INDEX),
                 "{}: audio-only file must carry no Simple Index",
                 truth.file
             ),
@@ -614,7 +685,11 @@ fn fixture_family_walks_match_the_measured_truth() {
         for (index, (kind, codec, number)) in truth.tracks.iter().enumerate() {
             assert_eq!(tracks[index].kind, *kind, "{}", truth.file);
             assert_eq!(tracks[index].codec.as_str(), *codec, "{}", truth.file);
-            assert_eq!(header.streams[index].stream_number, *number, "{}", truth.file);
+            assert_eq!(
+                header.streams[index].stream_number, *number,
+                "{}",
+                truth.file
+            );
         }
 
         // FPO facts (the flagged decision: durations advisory, never
@@ -642,8 +717,15 @@ fn fixture_family_walks_match_the_measured_truth() {
             assert_eq!(wfx.bits_per_sample, bits, "{}", truth.file);
             assert_eq!(wfx.cb_size, cb, "{}", truth.file);
             // The verbatim TSD blob is the ADPCM decoder-config seam
-            // (18 + cb_size bytes of WAVEFORMATEX).
-            let record = &header.streams[0];
+            // (18 + cb_size bytes of WAVEFORMATEX) — on the SAME
+            // audio record the wfx came from (A/V files carry the
+            // video SP first: streams[0] is VIDEO there, measured
+            // wmv_wmv2_wma_av: streams[0] tsd 55 = VIDEOINFOHEADER).
+            let record = header
+                .streams
+                .iter()
+                .find(|s| s.wave_format.is_some())
+                .unwrap_or_else(|| unreachable!("{}: audio stream", truth.file));
             assert_eq!(record.tsd_bytes.len(), 18 + cb as usize, "{}", truth.file);
         }
         if let Some((width, height, fourcc, bit_count, size_image, extradata)) = truth.video {
@@ -667,11 +749,15 @@ fn fixture_family_walks_match_the_measured_truth() {
 
         // The ffmpeg-fixture walk is damage-free (advisory objects
         // agree; nothing skipped in these clean files).
-        assert_eq!(header.damage.total, 0, "{}: {:?}", truth.file, header.damage.events);
+        assert_eq!(
+            header.damage.total, 0,
+            "{}: {:?}",
+            truth.file, header.damage.events
+        );
 
         // ASF-b's not-yet holds on real files too.
         assert_eq!(
-            code_of(&asf.next_event().unwrap_err()),
+            code_of(&err_of(asf.next_event())),
             "demux.asf.packets-not-implemented",
             "{}",
             truth.file
@@ -691,7 +777,14 @@ fn fixture_family_cross_checks_against_live_ffprobe() {
     for truth in FIXTURES {
         let path = generate(&dir, truth);
         let out = Command::new("ffprobe")
-            .args(["-v", "error", "-show_entries", "stream=codec_name", "-of", "csv=p=0"])
+            .args([
+                "-v",
+                "error",
+                "-show_entries",
+                "stream=codec_name",
+                "-of",
+                "csv=p=0",
+            ])
             .arg(&path)
             .output()
             .unwrap_or_else(|e| unreachable!("ffprobe spawn: {e}"));
@@ -706,7 +799,12 @@ fn fixture_family_cross_checks_against_live_ffprobe() {
         probed.retain(|l| !l.is_empty());
         // csv=p=0 prints `codec_name` per stream; ours must match
         // ffprobe's stream count AND codec identity exactly.
-        assert_eq!(probed.len(), truth.ffprobe_codecs.len(), "{}: {probed:?}", truth.file);
+        assert_eq!(
+            probed.len(),
+            truth.ffprobe_codecs.len(),
+            "{}: {probed:?}",
+            truth.file
+        );
         for (probed, expected) in probed.iter().zip(truth.ffprobe_codecs) {
             assert_eq!(*probed, *expected, "{}", truth.file);
         }
@@ -740,7 +838,11 @@ fn broadcast_fixture_refuses_typed_where_ffprobe_refuses() {
             .arg(&path)
             .output()
             .unwrap_or_else(|e| unreachable!("ffmpeg spawn: {e}"));
-        assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
     }
     let bytes = read_file(&path);
 
@@ -759,7 +861,7 @@ fn broadcast_fixture_refuses_typed_where_ffprobe_refuses() {
 
     // The content probe misses (the 12-byte MMS prefix) — honest
     // probe-miss, never a false anchor.
-    assert!(!probe::probe(&bytes[..16]));
+    assert!(!super::probe(&bytes[..16]));
 
     // Our walk recognizes the prefix shape, parses far enough to read
     // the FPO flags, and refuses the broadcast bit typed — the
@@ -780,7 +882,7 @@ fn expected_sha(file: &str) -> &'static str {
         "wma_wmav1_st44k.wma" => "40e3e4b6eb3e707b",
         "wmv_wmv2_64x48.wmv" => "f1803712b502c41a",
         "wmv_wmv1_64x48.wmv" => "3cfac4e86fee00fc",
-        "asf_msmpeg4v3.asf" => "66201b920f26a907",
+        "asf_msmpeg4v3.asf" => "66201b9205f26a90",
         "asf_mjpeg.asf" => "1454c0a3a62b640e",
         "wmv_wmv2_wma_av.wmv" => "5bd8c76fa14e31aa",
         "asf_pkt8000.wmv" => "e9ef0bc063ccc02f",
@@ -819,10 +921,10 @@ fn sha256_16(bytes: &[u8]) -> String {
         msg.push(0);
     }
     msg.extend_from_slice(&bit_len.to_be_bytes());
-    for block in msg.chunks_exact(64) {
+    for block in msg.as_chunks::<64>().0 {
         let mut w = [0u32; 64];
-        for (i, word) in block.chunks_exact(4).enumerate() {
-            w[i] = u32::from_be_bytes([word[0], word[1], word[2], word[3]]);
+        for (i, word) in block.as_chunks::<4>().0.iter().enumerate() {
+            w[i] = u32::from_be_bytes(*word);
         }
         for i in 16..64 {
             let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);

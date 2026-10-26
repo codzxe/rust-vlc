@@ -452,7 +452,7 @@ corpus-v4 lane additions.
 | wma_wmav1_st44k.wma | 10,102 | 40e3e4b6eb3e707b | wmav1 variant |
 | wmv_wmv2_64x48.wmv | 7,123 | f1803712b502c41a | video-only + SI |
 | wmv_wmv1_64x48.wmv | 7,119 | 3cfac4e86fee00fc | wmv1 variant |
-| asf_msmpeg4v3.asf | 7,129 | 66201b920f26a907 | legacy fourcc |
+| asf_msmpeg4v3.asf | 7,129 | 66201b9205f26a90 | legacy fourcc (Lead re-pin 6.W4: regeneration deterministic, verified twice; investigation value was stale) |
 | asf_mjpeg.asf | 26,321 | 1454c0a3a62b640e | **decodable video** |
 | wmv_wmv2_wma_av.wmv | 10,499 | 5bd8c76fa14e31aa | A/V multi-payload |
 | asf_pkt8000.wmv | 16,899 | e9ef0bc063ccc02f | packet-size variant |

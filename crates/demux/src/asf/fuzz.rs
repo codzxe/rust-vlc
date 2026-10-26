@@ -25,6 +25,7 @@
 use plugin_api::Demuxer;
 
 use super::{AsfDemuxer, probe};
+use std::sync::Arc;
 
 /// Drive the full untrusted pass over `data`. Never panics; see the
 /// module docs.
@@ -33,7 +34,7 @@ pub fn fuzz_demux_asf(data: &[u8]) {
     // prefix the media-probe signature scores).
     let _ = probe(data);
 
-    let stream = match crate::asf::test_support::mem_stream(data.to_vec()) {
+    let stream = match crate::asf::test_support::mem_stream(Arc::from(data)) {
         Ok(stream) => stream,
         Err(_) => return,
     };
