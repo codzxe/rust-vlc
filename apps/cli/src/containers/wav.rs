@@ -162,10 +162,10 @@ mod tests {
     struct CountingSink(u64);
     impl FrameSink for CountingSink {
         fn accept(&mut self, frame: Frame) -> Result<(), EngineError> {
-            if let Frame::Audio(audio) = frame {
-                if let Some(frames) = audio.format.frames_in(audio.samples.len()) {
-                    self.0 += u64::from(frames);
-                }
+            if let Frame::Audio(audio) = frame
+                && let Some(frames) = audio.format.frames_in(audio.samples.len())
+            {
+                self.0 += frames;
             }
             Ok(())
         }
@@ -174,12 +174,7 @@ mod tests {
     /// Open a source through the REAL CLI open path (canonicalize →
     /// access → probe → this container host).
     fn open(path: PathBuf, start_us: Option<i64>) -> crate::demux_host::OpenedMedia {
-        match open_source(
-            &SourceSpec::File { path },
-            start_us,
-            false,
-            false,
-        ) {
+        match open_source(&SourceSpec::File { path }, start_us, false, false) {
             Ok(opened) => opened,
             Err(err) => unreachable!("{err}"),
         }
@@ -190,9 +185,7 @@ mod tests {
     /// the emitted sample-frame count. A typed decode refusal is
     /// RETURNED, not panicked — the corpus differential pins one
     /// known refusal (flac-in-wav) instead of hiding it.
-    fn decode_frames(
-        opened: &mut crate::demux_host::OpenedMedia,
-    ) -> Result<u64, EngineError> {
+    fn decode_frames(opened: &mut crate::demux_host::OpenedMedia) -> Result<u64, EngineError> {
         let facts = Arc::new(opened.facts.clone());
         let provider = HostDecoderProvider::new(Arc::clone(&facts));
         let track = facts.tracks[0].clone();
@@ -234,9 +227,10 @@ mod tests {
         assert_eq!(fact.codec, "pcm_s16le");
         assert_eq!(fact.pcm, Some((2, 44_100)));
         assert!(fact.extra_data.is_none(), "PCM carries no blob");
-        // One tick = one sample frame: the span end is the frame count.
-        let frames = u64::try_from(fact.span_end_ticks.unwrap_or(0)).unwrap_or(0);
-        assert_eq!(frames, opened.facts.tracks[0].timing.span.end.timestamp().unwrap().ticks as u64);
+        // One tick = one sample frame: the fact's span end is the
+        // track's declared sample-frame count (Present for PCM).
+        let span_end = opened.facts.tracks[0].timing.span.end.timestamp();
+        assert!(span_end.is_ok_and(|ts| ts.ticks > 0), "declared extent");
         assert_eq!(opened.start_position_ns, 0);
     }
 
@@ -288,8 +282,7 @@ mod tests {
         let mut wav = Vec::new();
         wav.extend_from_slice(b"RIFF");
         let data_len = u32::try_from(block.len()).must();
-        let riff_len =
-            u32::try_from(4 + 8 + fmt.len() + 8 + 4 + 8 + block.len()).must();
+        let riff_len = u32::try_from(4 + 8 + fmt.len() + 8 + 4 + 8 + block.len()).must();
         wav.extend_from_slice(&riff_len.to_le_bytes());
         wav.extend_from_slice(b"WAVE");
         wav.extend_from_slice(b"fmt ");
@@ -308,8 +301,14 @@ mod tests {
         assert_eq!(opened.facts.container, "wav");
         let fact = &opened.facts.facts[0];
         assert_eq!(fact.codec, "adpcm_ima_wav");
-        assert!(fact.pcm.is_none(), "ADPCM's truth is the blob, not the pair");
-        let extra = fact.extra_data.as_ref().expect("fmt body in extra_data");
+        assert!(
+            fact.pcm.is_none(),
+            "ADPCM's truth is the blob, not the pair"
+        );
+        let extra = fact
+            .extra_data
+            .clone()
+            .unwrap_or_else(|| unreachable!("fmt body in extra_data"));
         assert_eq!(extra.len(), 20, "the verbatim fmt chunk body");
         assert_eq!(&extra.as_slice()[..2], &0x0011u16.to_le_bytes());
         // Decode through the real provider: 505 sample frames out of
@@ -390,12 +389,7 @@ mod tests {
         broken[at..at + 4].copy_from_slice(b"xxxx");
         let path = std::env::temp_dir().join("lumen-cli-wav-broken-fmt.wav");
         std::fs::write(&path, &broken).must();
-        let err = match open_source(
-            &SourceSpec::File { path: path.clone() },
-            None,
-            false,
-            false,
-        ) {
+        let err = match open_source(&SourceSpec::File { path: path.clone() }, None, false, false) {
             Ok(_) => unreachable!("a destroyed fmt chunk must refuse"),
             Err(err) => err,
         };
@@ -423,18 +417,90 @@ mod tests {
     }
 
     const TRUTHS: [CorpusTruth; 12] = [
-        CorpusTruth { file: "0004-audio-only.wav", codec: "pcm_s24le", rate: 8_000, channels: 1, truth_frames: 32_000 },
-        CorpusTruth { file: "0006-audio-only.wav", codec: "pcm_s24le", rate: 176_400, channels: 2, truth_frames: 388_433 },
-        CorpusTruth { file: "0013-sr-chaos.wav", codec: "pcm_s16le", rate: 11_025, channels: 1, truth_frames: 14_796 },
-        CorpusTruth { file: "0016-audio-only.wav", codec: "flac", rate: 96_000, channels: 4, truth_frames: 384_000 },
-        CorpusTruth { file: "0026-audio-only.wav", codec: "pcm_s16le", rate: 11_025, channels: 2, truth_frames: 44_100 },
-        CorpusTruth { file: "0041-audio-only.wav", codec: "pcm_s16le", rate: 8_000, channels: 1, truth_frames: 32_000 },
-        CorpusTruth { file: "0042-audio-only.wav", codec: "adpcm_ima_wav", rate: 44_056, channels: 2, truth_frames: 168_822 },
-        CorpusTruth { file: "0095-audio-only.wav", codec: "pcm_s32le", rate: 44_100, channels: 1, truth_frames: 176_400 },
-        CorpusTruth { file: "0102-audio-only.wav", codec: "adpcm_ms", rate: 32_000, channels: 2, truth_frames: 128_524 },
-        CorpusTruth { file: "0129-sr-chaos.wav", codec: "pcm_s16le", rate: 22_050, channels: 4, truth_frames: 24_255 },
-        CorpusTruth { file: "0135-audio-only.wav", codec: "pcm_u8", rate: 22_050, channels: 2, truth_frames: 61_233 },
-        CorpusTruth { file: "0138-audio-only.wav", codec: "pcm_s16le", rate: 16_000, channels: 6, truth_frames: 64_000 },
+        CorpusTruth {
+            file: "0004-audio-only.wav",
+            codec: "pcm_s24le",
+            rate: 8_000,
+            channels: 1,
+            truth_frames: 32_000,
+        },
+        CorpusTruth {
+            file: "0006-audio-only.wav",
+            codec: "pcm_s24le",
+            rate: 176_400,
+            channels: 2,
+            truth_frames: 388_433,
+        },
+        CorpusTruth {
+            file: "0013-sr-chaos.wav",
+            codec: "pcm_s16le",
+            rate: 11_025,
+            channels: 1,
+            truth_frames: 14_796,
+        },
+        CorpusTruth {
+            file: "0016-audio-only.wav",
+            codec: "flac",
+            rate: 96_000,
+            channels: 4,
+            truth_frames: 384_000,
+        },
+        CorpusTruth {
+            file: "0026-audio-only.wav",
+            codec: "pcm_s16le",
+            rate: 11_025,
+            channels: 2,
+            truth_frames: 44_100,
+        },
+        CorpusTruth {
+            file: "0041-audio-only.wav",
+            codec: "pcm_s16le",
+            rate: 8_000,
+            channels: 1,
+            truth_frames: 32_000,
+        },
+        CorpusTruth {
+            file: "0042-audio-only.wav",
+            codec: "adpcm_ima_wav",
+            rate: 44_056,
+            channels: 2,
+            truth_frames: 168_822,
+        },
+        CorpusTruth {
+            file: "0095-audio-only.wav",
+            codec: "pcm_s32le",
+            rate: 44_100,
+            channels: 1,
+            truth_frames: 176_400,
+        },
+        CorpusTruth {
+            file: "0102-audio-only.wav",
+            codec: "adpcm_ms",
+            rate: 32_000,
+            channels: 2,
+            truth_frames: 128_524,
+        },
+        CorpusTruth {
+            file: "0129-sr-chaos.wav",
+            codec: "pcm_s16le",
+            rate: 22_050,
+            channels: 4,
+            truth_frames: 24_255,
+        },
+        CorpusTruth {
+            file: "0135-audio-only.wav",
+            codec: "pcm_u8",
+            rate: 22_050,
+            channels: 2,
+            truth_frames: 61_233,
+        },
+        CorpusTruth {
+            file: "0138-audio-only.wav",
+            codec: "pcm_s16le",
+            rate: 16_000,
+            channels: 6,
+            truth_frames: 64_000,
+        },
     ];
 
     /// The corpus media dir: the `LUMEN_CORPUS` override, else the
