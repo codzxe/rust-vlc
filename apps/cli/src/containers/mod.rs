@@ -22,9 +22,9 @@
 mod adts;
 mod aiff;
 mod avi;
+mod es;
 mod ivf;
 mod mkv;
-mod es;
 mod mp4;
 mod ogg;
 mod ts;

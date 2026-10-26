@@ -210,7 +210,7 @@ fn packet(chunk: &[u8]) -> Packet {
 /// `unreachable!`s on a non-divisible file — the lanes are exact
 /// CBR multiples by construction (the record's §D).
 pub fn cbr_chunks(data: &[u8], frames: usize) -> Vec<&[u8]> {
-    if frames == 0 || data.len() % frames != 0 {
+    if frames == 0 || !data.len().is_multiple_of(frames) {
         unreachable!(
             "lane must be an exact CBR multiple: {} bytes / {frames}",
             data.len()
@@ -425,7 +425,8 @@ pub fn split_yuv422p10le(reference: &[u8], width: usize, height: usize) -> [Vec<
 pub fn assert_lane_md5(path: &Path, expected: &str) {
     let md5 = ffmpeg_decode_md5(path);
     assert_eq!(
-        md5, expected,
+        md5,
+        expected,
         "lane {} must reproduce the admission record's bytes",
         path.display()
     );

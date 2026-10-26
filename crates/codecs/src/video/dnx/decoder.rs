@@ -80,13 +80,13 @@
 
 use codec_api::prelude::*;
 use media_types::frame::{
-    ColorDescription, ColorPrimaries, ColorMatrix, ColorRange, FrameStorage, PixelFormat,
+    ColorDescription, ColorMatrix, ColorPrimaries, ColorRange, FrameStorage, PixelFormat,
     TransferCharacteristics, VideoFrame,
 };
 use media_types::packet::SharedBytes;
 use media_types::{EngineError, Frame, Packet};
 
-use super::error::{corrupt, engine_error, unsupported, DnxError};
+use super::error::{DnxError, corrupt, engine_error, unsupported};
 
 /// The engine options this wrapper pins (the admission record's
 /// shape): single-threaded (the `threads` feature is compiled out;
@@ -306,36 +306,36 @@ impl DnxDecoder {
 fn decode_picture_ungated(data: &[u8]) -> Result<DnxPicture, EngineError> {
     // The CBR concealment gate (module docs): refuse short-of-
     // declared-size packets BEFORE the engine can conceal them.
-    if let Ok(header) = filmcraft_dnx::probe(data) {
-        if let Some(unit) = header.coding_unit_size() {
-            let units: u64 = if header.interlaced && !header.frame_encoding {
-                2
-            } else {
-                1
-            };
-            // A u32 unit × 2 cannot overflow u64, and the result is
-            // a byte count the packet length (also u64-widened)
-            // compares against without any narrowing.
-            let expected = u64::from(unit) * u64::from(units);
-            if (data.len() as u64) < expected {
-                return Err(corrupt(
-                    "codecs.dnx.frame.short",
-                    media_types::error::CorruptDetail::Truncated {
-                        expected,
-                        found: data.len() as u64,
-                    },
-                    format!(
-                        "CBR coding unit declares {} bytes (CID {}, {} coding unit{}) \
-                         but the packet holds {}",
-                        expected,
-                        header.cid,
-                        units,
-                        if units == 1 { "" } else { "s" },
-                        data.len()
-                    ),
-                )
-                .into_engine_error());
-            }
+    if let Ok(header) = filmcraft_dnx::probe(data)
+        && let Some(unit) = header.coding_unit_size()
+    {
+        let units: u64 = if header.interlaced && !header.frame_encoding {
+            2
+        } else {
+            1
+        };
+        // A u32 unit × 2 cannot overflow u64, and the result is
+        // a byte count the packet length (also u64-widened)
+        // compares against without any narrowing.
+        let expected = u64::from(unit) * units;
+        if (data.len() as u64) < expected {
+            return Err(corrupt(
+                "codecs.dnx.frame.short",
+                media_types::error::CorruptDetail::Truncated {
+                    expected,
+                    found: data.len() as u64,
+                },
+                format!(
+                    "CBR coding unit declares {} bytes (CID {}, {} coding unit{}) \
+                     but the packet holds {}",
+                    expected,
+                    header.cid,
+                    units,
+                    if units == 1 { "" } else { "s" },
+                    data.len()
+                ),
+            )
+            .into_engine_error());
         }
     }
     let frame = filmcraft_dnx::decode_frame_with(data, &ENGINE_OPTIONS)
@@ -448,7 +448,7 @@ fn packed_output(picture: &DnxPicture) -> Result<PackedOutput, DnxError> {
     let luma = picture.y.len();
     match picture.chroma {
         DnxChroma::Yuv422 => {
-            if picture.width % 2 != 0 {
+            if !picture.width.is_multiple_of(2) {
                 return Err(unsupported(
                     "codecs.dnx.output.odd_width",
                     "odd 4:2:2 width cannot map onto whole YUYV macropixels without \
@@ -456,9 +456,7 @@ fn packed_output(picture: &DnxPicture) -> Result<PackedOutput, DnxError> {
                 ));
             }
             // Y0 Cb Y1 Cr: 2 bytes per luma sample.
-            let len = luma
-                .checked_mul(2)
-                .ok_or_else(|| limit_error(luma, 2))?;
+            let len = luma.checked_mul(2).ok_or_else(|| limit_error(luma, 2))?;
             validate_planes(picture)?;
             Ok(PackedOutput {
                 format: PixelFormat::Yuyv422,
@@ -732,7 +730,8 @@ mod tests {
     fn configure_refuses_foreign_descriptors() {
         let mut decoder = DnxDecoder::new();
         let err = match decoder.configure(&DecoderConfig::new(
-            media_types::ids::CodecDescriptor::new("h264").unwrap_or_else(|e| unreachable!("{e:?}")),
+            media_types::ids::CodecDescriptor::new("h264")
+                .unwrap_or_else(|e| unreachable!("{e:?}")),
             GenerationId::FIRST,
             ThreadBudget::default(),
             None,
@@ -742,7 +741,10 @@ mod tests {
             Err(err) => err,
         };
         assert_eq!(err.context.code, "codecs.dnx.codec_descriptor");
-        assert!(matches!(err.kind, media_types::ErrorKind::Unsupported { .. }));
+        assert!(matches!(
+            err.kind,
+            media_types::ErrorKind::Unsupported { .. }
+        ));
     }
 
     #[test]
@@ -768,7 +770,8 @@ mod tests {
             .next()
             .unwrap_or_else(|e| unreachable!("{e:?}"));
         match decoder.configure(&DecoderConfig::new(
-            media_types::ids::CodecDescriptor::new("dnxhd").unwrap_or_else(|e| unreachable!("{e:?}")),
+            media_types::ids::CodecDescriptor::new("dnxhd")
+                .unwrap_or_else(|e| unreachable!("{e:?}")),
             current,
             ThreadBudget::default(),
             None,

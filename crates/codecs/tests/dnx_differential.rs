@@ -38,13 +38,14 @@ mod dnx;
 use codec_api::prelude::*;
 use codecs::video::dnx::{DnxChroma, DnxDecoder};
 use dnx::{
-    assert_lane_md5, cbr_chunks, compare_plane, decode_lane, decode_lane_full_depth,
-    ffmpeg_available, ffmpeg_rawvideo, generate_lane, lane_facts, split_yuv422p,
-    split_yuv422p10le, unpack_yuyv, PlaneStats,
+    PlaneStats, assert_lane_md5, cbr_chunks, compare_plane, decode_lane, decode_lane_full_depth,
+    ffmpeg_available, ffmpeg_rawvideo, generate_lane, lane_facts, split_yuv422p, split_yuv422p10le,
+    unpack_yuyv,
 };
 use media_types::packet::SharedBytes;
 
 /// One 8-bit lane's full assertion set through the trait path.
+#[allow(clippy::too_many_arguments)] // the house test-helper precedent (contract_suite, run.rs)
 fn assert_8bit_lane(
     lane: &str,
     source: &str,
@@ -89,9 +90,20 @@ fn assert_8bit_lane(
     );
     let mut whole = PlaneStats::default();
     for (index, (format, raster, bytes)) in run.sink.frames.iter().enumerate() {
-        assert_eq!(format, "Yuyv422", "{lane} frame {index}: lossless 4:2:2 repack");
-        assert_eq!(*raster, (width as u32, height as u32), "{lane} frame {index}: raster");
-        assert_eq!(bytes.len(), frame_bytes, "{lane} frame {index}: packed byte count");
+        assert_eq!(
+            format, "Yuyv422",
+            "{lane} frame {index}: lossless 4:2:2 repack"
+        );
+        assert_eq!(
+            *raster,
+            (width as u32, height as u32),
+            "{lane} frame {index}: raster"
+        );
+        assert_eq!(
+            bytes.len(),
+            frame_bytes,
+            "{lane} frame {index}: packed byte count"
+        );
         let ref_slice = &reference[index * ref_frame_bytes..(index + 1) * ref_frame_bytes];
         let ours = unpack_yuyv(bytes, width, height);
         let theirs = split_yuv422p(ref_slice, width, height);
@@ -110,7 +122,11 @@ fn assert_8bit_lane(
     }
     // (2) Whole-lane byte parity.
     assert_eq!(
-        run.sink.frames.iter().map(|(_, _, b)| b.len()).sum::<usize>(),
+        run.sink
+            .frames
+            .iter()
+            .map(|(_, _, b)| b.len())
+            .sum::<usize>(),
         reference.len(),
         "{lane}: byte-count parity vs ffmpeg rawvideo"
     );
@@ -284,7 +300,14 @@ fn truncated_real_frame_refuses_typed() {
         eprintln!("SKIP truncation gate: no ffmpeg binary");
         return;
     }
-    let path = generate_lane("L1_1080p_175M", "testsrc2", "1920x1080", "175M", "yuv422p", 3);
+    let path = generate_lane(
+        "L1_1080p_175M",
+        "testsrc2",
+        "1920x1080",
+        "175M",
+        "yuv422p",
+        3,
+    );
     let data =
         std::fs::read(&path).unwrap_or_else(|e| unreachable!("read {}: {e}", path.display()));
     let frame = cbr_chunks(&data, 3)[0];

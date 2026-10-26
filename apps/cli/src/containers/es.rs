@@ -325,9 +325,7 @@ mod tests {
 
     /// Drain the demuxer: packet count + keyframe count + a
     /// terminal-error probe.
-    fn walk(
-        opened: &mut crate::demux_host::OpenedMedia,
-    ) -> (u64, Vec<media_types::Packet>) {
+    fn walk(opened: &mut crate::demux_host::OpenedMedia) -> (u64, Vec<media_types::Packet>) {
         let mut packets = Vec::new();
         loop {
             match opened.demuxer.next_event() {
@@ -447,7 +445,11 @@ mod tests {
         );
         let (count, packets) = walk(&mut opened);
         assert_eq!(count, 26, "ffprobe -show_packets: 26 packets");
-        assert!(packets.iter().all(|p| p.pts == media_types::time::Stamp::Missing));
+        assert!(
+            packets
+                .iter()
+                .all(|p| p.pts == media_types::time::Stamp::Missing)
+        );
         assert_eq!(packets[1].data.len(), 196, "packet 2 size vs ffprobe");
         // The typed decode refusal (the lane's honest value).
         let err = decode_refusal(&opened);
@@ -473,7 +475,11 @@ mod tests {
         assert_eq!(opened.facts.facts[0].codec, "hevc");
         let (count, packets) = walk(&mut opened);
         assert_eq!(count, 56, "ffprobe -show_packets: 56 packets");
-        assert!(packets.iter().all(|p| p.pts == media_types::time::Stamp::Missing));
+        assert!(
+            packets
+                .iter()
+                .all(|p| p.pts == media_types::time::Stamp::Missing)
+        );
         let total: u64 = packets.iter().map(|p| p.data.len() as u64).sum();
         assert_eq!(total, file_len, "contiguous coverage of the whole file");
         let err = decode_refusal(&opened);
@@ -498,7 +504,10 @@ mod tests {
             let err = open_refused(path);
             assert_eq!(err.stage, Stage::Probe, "{name}: {err}");
             assert_eq!(err.code, ErrorCode::Unsupported, "{name}: {err}");
-            assert!(err.message.contains("format `flac` probes"), "{name}: {err}");
+            assert!(
+                err.message.contains("format `flac` probes"),
+                "{name}: {err}"
+            );
             assert!(err.message.contains("raw-FLAC"), "{name}: {err}");
             assert!(
                 err.details.get("format").map(String::as_str) == Some("flac"),
@@ -554,7 +563,14 @@ mod tests {
         // mp3 gapless card's job — the OPW-mp4 recorded precedent
         // (mp3-in-mov 576-tail divergence), same divergence class.
         for (name, format, packets, channels, decoded, ffmpeg_frames) in [
-            ("0139-audio-only.mp3", "mp3", 79u64, 2u32, 44_975u64, 44_100u64),
+            (
+                "0139-audio-only.mp3",
+                "mp3",
+                79u64,
+                2u32,
+                44_975u64,
+                44_100u64,
+            ),
             ("0145-cover-audio.mp3", "mp3", 6, 2, 2_927, 2_304),
             ("0005-audio-only.mp2", "mp2", 56, 1, 64_512, 64_512),
             ("0119-audio-only.mp2", "mp2", 154, 2, 177_408, 177_408),
@@ -656,9 +672,7 @@ mod tests {
 
     /// The shared decode driver: provider lookup + full-walk decode
     /// through the REAL dispatch (errors returned, never panicked).
-    fn decode_sink(
-        opened: &mut crate::demux_host::OpenedMedia,
-    ) -> Result<(u64, u32), EngineError> {
+    fn decode_sink(opened: &mut crate::demux_host::OpenedMedia) -> Result<(u64, u32), EngineError> {
         let facts = Arc::new(opened.facts.clone());
         let provider = HostDecoderProvider::new(Arc::clone(&facts));
         let track = facts.tracks[0].clone();

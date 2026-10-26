@@ -117,8 +117,8 @@
 //!   decoders own their priming/delay accounting.
 
 use commands::CommandError;
-use demux::mkv::header::TrackPrivate;
 use demux::mkv::MkvDemuxer;
+use demux::mkv::header::TrackPrivate;
 use media_types::packet::SharedBytes;
 use media_types::time::{Stamp, TimeSpan, Timestamp};
 use media_types::{MediaKind, Track};
@@ -324,8 +324,8 @@ fn flac_streaminfo(private: &[u8]) -> Option<SharedBytes> {
         return None;
     }
     let block_type = private[4] & 0x7F;
-    let declared = (usize::from(private[5]) << 16) | (usize::from(private[6]) << 8)
-        | usize::from(private[7]);
+    let declared =
+        (usize::from(private[5]) << 16) | (usize::from(private[6]) << 8) | usize::from(private[7]);
     if block_type != 0 || declared != 34 {
         return None; // not a STREAMINFO block: never a guess
     }
@@ -538,9 +538,11 @@ mod tests {
             .start()
             .unwrap_or_else(|err| unreachable!("wrapper start: {err}"));
         assert_eq!(engine_tracks.len(), 3, "the subtitle kind deselects");
-        assert!(engine_tracks
-            .iter()
-            .all(|track| track.kind != MediaKind::Subtitle));
+        assert!(
+            engine_tracks
+                .iter()
+                .all(|track| track.kind != MediaKind::Subtitle)
+        );
         // The walk: 20 h264 + 88 aac + 20 flac + 2 subrip packets
         // (ffprobe's counts — the subtitle packets flow through the
         // demuxer; the ENGINE would not wire a limb for them).
@@ -583,8 +585,8 @@ mod tests {
             .unwrap_or_else(|| unreachable!("OpusHead harvested"));
         assert!(head.as_slice().starts_with(b"OpusHead"));
         assert_eq!(opened.facts.facts[1].audio_geometry(), Some((1, 48_000)));
-        let mut decoder = decoder_for(&opened, audio)
-            .unwrap_or_else(|err| unreachable!("opus decodes: {err}"));
+        let mut decoder =
+            decoder_for(&opened, audio).unwrap_or_else(|err| unreachable!("opus decodes: {err}"));
         let mut sink = CountingSink(0, 0);
         let mut packets = 0u64;
         loop {
@@ -784,7 +786,13 @@ mod tests {
         // mp3 card records). The vorbis lane has its own test below.
         Lane {
             file: "0003-multi-av.mkv",
-            streams: &[("h264", 6), ("mp3", 47), ("vorbis", 38), ("ass", 0), ("ass", 0)],
+            streams: &[
+                ("h264", 6),
+                ("mp3", 47),
+                ("vorbis", 38),
+                ("ass", 0),
+                ("ass", 0),
+            ],
             audio_frames: Some(26_543),
             video_frames: None,
             seek_fast: true,
@@ -1206,15 +1214,23 @@ mod tests {
         let chain = chain.as_slice();
         assert!(chain.starts_with(&[0x01, b'v', b'o', b'r', b'b', b'i', b's']));
         assert!(
-            chain.windows(7).any(|w| w == [0x03, b'v', b'o', b'r', b'b', b'i', b's']),
+            chain
+                .windows(7)
+                .any(|w| w == [0x03, b'v', b'o', b'r', b'b', b'i', b's']),
             "the comment header is in the chain"
         );
         assert!(
-            chain.windows(7).any(|w| w == [0x05, b'v', b'o', b'r', b'b', b'i', b's']),
+            chain
+                .windows(7)
+                .any(|w| w == [0x05, b'v', b'o', b'r', b'b', b'i', b's']),
             "the setup header is in the chain"
         );
         assert!(chain.len() > 3_000, "the codebooks ride the setup header");
-        assert_eq!(fact.audio_geometry(), Some((2, 32_000)), "the id-header sniff");
+        assert_eq!(
+            fact.audio_geometry(),
+            Some((2, 32_000)),
+            "the id-header sniff"
+        );
         let track = opened.facts.tracks[2].clone();
         let mut decoder = decoder_for(&opened, &track)
             .unwrap_or_else(|err| unreachable!("vorbis decodes: {err}"));
@@ -1222,7 +1238,7 @@ mod tests {
         let mut packets = 0u64;
         loop {
             match opened.demuxer.next_event() {
-                Ok(DemuxEvent::Packet(p) ) => {
+                Ok(DemuxEvent::Packet(p)) => {
                     if p.track == track.id {
                         packets += 1;
                         let _ = decoder

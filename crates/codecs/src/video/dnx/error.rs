@@ -257,8 +257,7 @@ mod tests {
             unknown_cid.kind,
             ErrorKind::Unsupported { format: _ }
         ));
-        let truncated =
-            engine_error(filmcraft_dnx::Error::Truncated, 10).into_engine_error();
+        let truncated = engine_error(filmcraft_dnx::Error::Truncated, 10).into_engine_error();
         assert!(matches!(
             truncated.kind,
             ErrorKind::Corrupt {
