@@ -24,6 +24,7 @@ mod aiff;
 mod avi;
 mod mp4;
 mod ogg;
+mod ts;
 mod wav;
 
 use commands::{CommandError, ErrorCode, Stage};
@@ -49,6 +50,7 @@ pub(crate) fn open(
         "avi" => avi::open(stream, opts),
         "mp4" => mp4::open(stream, opts),
         "ogg" => ogg::open(stream, opts),
+        "mpegts" => ts::open(stream, opts),
         "wav" => wav::open(stream, opts),
         other => Err(unwired_refusal(other)),
     }
