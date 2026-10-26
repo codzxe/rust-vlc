@@ -37,7 +37,15 @@ use opus::{
 const ONE_S16_LSB: f32 = 1.0 / 32_768.0;
 
 /// One corpus lane's full assertion set.
-fn assert_lane(lane: &str, file: &str, channels: u32, packets: usize, raw: u64, granule: i64, valid: u64) {
+fn assert_lane(
+    lane: &str,
+    file: &str,
+    channels: u32,
+    packets: usize,
+    raw: u64,
+    granule: i64,
+    valid: u64,
+) {
     let Some(root) = corpus_dir() else {
         eprintln!("SKIP {lane}: no corpus directory (LUMEN_CORPUS unset, /tmp default absent)");
         return;
@@ -54,7 +62,10 @@ fn assert_lane(lane: &str, file: &str, channels: u32, packets: usize, raw: u64, 
     assert_eq!(run.format.rate, 48_000, "{lane}: decode rate");
     assert_eq!(run.packets, packets, "{lane}: data packet count");
     assert_eq!(run.pre_skip, 312, "{lane}: pre-skip (the recorded 312)");
-    assert_eq!(run.decoded_raw, raw, "{lane}: raw decode count (pre-skip included)");
+    assert_eq!(
+        run.decoded_raw, raw,
+        "{lane}: raw decode count (pre-skip included)"
+    );
     // The granule counts from the RAW stream head (pre-skip
     // included, RFC 7845 §4): valid = granule − pre-skip.
     assert_eq!(
@@ -75,7 +86,10 @@ fn assert_lane(lane: &str, file: &str, channels: u32, packets: usize, raw: u64, 
         .first()
         .copied()
         .unwrap_or_else(|| unreachable!("{lane}: at least one emitted frame"));
-    assert_eq!(first_pts, 0, "{lane}: first frame pts on the valid timeline");
+    assert_eq!(
+        first_pts, 0,
+        "{lane}: first frame pts on the valid timeline"
+    );
 
     // (2) The live differential (when the oracle is present).
     if !ffmpeg_available() {
@@ -86,8 +100,7 @@ fn assert_lane(lane: &str, file: &str, channels: u32, packets: usize, raw: u64, 
     let ours = opus::concatenated(&run.sink);
     let ref_samples = reference.len() / (channels as usize * 4);
     assert_eq!(
-        ref_samples,
-        valid as usize,
+        ref_samples, valid as usize,
         "{lane}: ffmpeg's own sample count (the window exactness cross-check)"
     );
     let max_delta = f32_max_delta(&ours, &reference);

@@ -61,8 +61,8 @@ mod tests {
     #[test]
     fn permutations_are_total_bijections() {
         for channels in 1u8..=8 {
-            let perm = vorbis_to_house(channels)
-                .unwrap_or_else(|| unreachable!("1..=8 must have a row"));
+            let perm =
+                vorbis_to_house(channels).unwrap_or_else(|| unreachable!("1..=8 must have a row"));
             assert_eq!(perm.len(), usize::from(channels));
             let mut seen = vec![false; usize::from(channels)];
             for &slot in perm {

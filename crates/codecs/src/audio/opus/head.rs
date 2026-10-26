@@ -29,7 +29,7 @@
 //! Only then does [`super::decoder`] construct the engine — the
 //! constructor's panic sites are unreachable through this wrapper.
 
-use super::error::{unsupported, OpusError};
+use super::error::{OpusError, unsupported};
 
 /// The exact decode rate the wrapper uses (RFC 7845 §4.2).
 pub(crate) const DECODE_RATE: u32 = 48_000;
@@ -151,9 +151,7 @@ pub(crate) fn parse_head(blob: &[u8]) -> Result<OpusHead, OpusError> {
     if coupled > streams {
         return Err(unsupported(
             "opus.head.coupled_over_streams",
-            format!(
-                "coupled stream count {coupled} exceeds the stream count {streams}"
-            ),
+            format!("coupled stream count {coupled} exceeds the stream count {streams}"),
         ));
     }
     // Total decoded slots: each uncoupled stream is mono, each coupled
@@ -251,59 +249,50 @@ mod tests {
         }
     }
 
+    /// The rejection helper (`clippy::unwrap_err` is denied under the
+    /// house `-D warnings` gate — this is the must-reject form).
+    fn rejected(bytes: &[u8]) -> OpusError {
+        match parse_head(bytes) {
+            Err(err) => err,
+            Ok(_) => unreachable!("head must reject: {bytes:?}"),
+        }
+    }
+
     #[test]
     fn rejects_the_constructor_panic_windows_typed() {
         // Family 0 with 3 channels: the `OpusDecoder::new` panic
         // window — refused HERE, before any engine exists.
         assert_eq!(
-            code_of(parse_head(&head_v0(3, 0)).unwrap_err()),
+            code_of(rejected(&head_v0(3, 0))),
             "opus.head.family0_channels"
         );
         // Zero channels.
-        assert_eq!(
-            code_of(parse_head(&head_v0(0, 0)).unwrap_err()),
-            "opus.head.channels.zero"
-        );
+        assert_eq!(code_of(rejected(&head_v0(0, 0))), "opus.head.channels.zero");
         // Bad magic.
         let mut bad = head_v0(1, 0);
         bad[..8].copy_from_slice(b"OpusTail");
-        assert_eq!(code_of(parse_head(&bad).unwrap_err()), "opus.head.magic");
+        assert_eq!(code_of(rejected(&bad)), "opus.head.magic");
         // Short chain.
-        assert_eq!(
-            code_of(parse_head(b"OpusH").unwrap_err()),
-            "opus.head.truncated"
-        );
+        assert_eq!(code_of(rejected(b"OpusH")), "opus.head.truncated");
         // Version 2.
         let mut v2 = head_v0(1, 0);
         v2[8] = 2;
-        assert_eq!(code_of(parse_head(&v2).unwrap_err()), "opus.head.version");
+        assert_eq!(code_of(rejected(&v2)), "opus.head.version");
     }
 
     #[test]
     fn rejects_broken_multistream_arithmetic() {
         let mut v = head_v1_51();
         v[19] = 3; // streams 3 + coupled 2 = 5 ≠ 6 channels
-        assert_eq!(
-            code_of(parse_head(&v).unwrap_err()),
-            "opus.head.slot_arithmetic"
-        );
+        assert_eq!(code_of(rejected(&v)), "opus.head.slot_arithmetic");
         let mut v = head_v1_51();
         v[20] = 5; // coupled > streams
-        assert_eq!(
-            code_of(parse_head(&v).unwrap_err()),
-            "opus.head.coupled_over_streams"
-        );
+        assert_eq!(code_of(rejected(&v)), "opus.head.coupled_over_streams");
         let mut v = head_v1_51();
         v[21] = 6; // mapping entry 6 targets a nonexistent slot
-        assert_eq!(
-            code_of(parse_head(&v).unwrap_err()),
-            "opus.head.mapping_range"
-        );
+        assert_eq!(code_of(rejected(&v)), "opus.head.mapping_range");
         let mut v = head_v0(6, 0);
         v[18] = 1; // family 1, but the multistream tail is missing
-        assert_eq!(
-            code_of(parse_head(&v).unwrap_err()),
-            "opus.head.multistream_truncated"
-        );
+        assert_eq!(code_of(rejected(&v)), "opus.head.multistream_truncated");
     }
 }

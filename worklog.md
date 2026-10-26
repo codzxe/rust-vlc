@@ -10494,3 +10494,20 @@ Work Log:
 
 Stage Summary:
 - Remaining Wave-2 queue: OPW-ivf, OPW-mp4 (24+5+2 lanes), OPW-mkv (34 lanes), OPW-ts, OPW-es, A3 scheme registry, M-opus wiring (ruopus), M-vp9 wiring (rusty_vp9), M-dnx wiring (filmcraft-dnx), ASF investigation. Then W3+: HLS/DASH/buffering waves.
+
+---
+Task ID: 6.M-opus
+Agent: P6-M-OPUS (completed by Lead after tool-dedeadline cutoff — agent's commits 667fe5f+0bbcb52+67fb21c were functionally complete; Lead closed fmt drift, 11 clippy -D errors (large_enum_variant ×2 boxed engines, unwrap_err ×9 → rejected() helper), and the ogg-test inversion)
+Task: Wire ADMITTED ruopus into codecs as the Opus decoder + dispatch arm + corpus differential.
+
+Work Log:
+- crates/codecs/src/audio/opus/{decoder,head,order,error,mod}.rs: OpusDecoder — OpusHead gate BEFORE any engine construction (the admission's binding condition 2: constructor panic windows closed typed), mapping-family engine select (Mono/Multistream, both boxed), pre-skip discard (312 on corpus lanes), granule end-trim, RFC-7845→house channel-order map (order.rs permutation tables 1..=8ch), typed damage ledger, 48 kHz decode base.
+- ruopus pinned EXACTLY per admission record: =0.1.2, default-features=false, features=["std"] (zero-dep shape verified — cargo tree single node).
+- pipeline_host.rs "opus" arm wired (seeded config from the ogg-harvested OpusHead‖OpusTags blob).
+- Tests: codecs lib 440/0 (12 new opus unit tests); opus_corpus_differential 2/2 (0047 mono: 201 packets, pre-skip 312, 192,312 raw / 192,000 valid, first-pts 0, ffmpeg PCM max|Δ| 1.378e-6, 0 samples > 1 s16-LSB; 0077 5.1: 201 packets, 192,000 valid ×6ch, max|Δ| 4.381e-6 direct-native-order, 0 > 1 LSB) — matching the admission record's numbers lane-for-lane.
+- Lead reconciliation: ogg unit's two opus-refusal assertions INVERTED by the decoder's arrival (the honest new shape) — opus_fixture_opens_and_decodes (renamed) now decodes the 21-packet fixture; corpus 0047 asserts the 192,000-sample decode through the REAL open path.
+
+Stage Summary:
+- MEASURED: codecs 440/0 + differential 2/2; lumen-cli (worktree base, pre-mp4) 79+45/0; clippy -D warnings zero on both crates; fmt clean.
+- NOT measured: opus-in-mp4/webm end-to-end lanes (none in corpus; dOps blob shape unit-pinned only); throughput bench; wasm32.
+- OGG/OPUS NOW PLAYS END-TO-END. Who consumes next: HLS opus lanes (6.B), feature-matrix row update (Lead), vp9/dnx M-wires.

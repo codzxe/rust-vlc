@@ -97,9 +97,11 @@ const MAX_PACKET_SAMPLES: usize = 5760;
 /// at configure).
 enum Engine {
     /// Mapping family 0 (1–2 channels, unmapped).
-    Mono(RuopusMono),
+    Mono(Box<RuopusMono>),
     /// Mapping family ≥ 1 (streams + coupled + mapping, validated).
-    Multi(RuopusMultistream),
+    /// Both engines are ~10 KiB — boxed for `clippy::large_enum_variant`
+    /// (a house `-D warnings` gate).
+    Multi(Box<RuopusMultistream>),
 }
 
 impl Engine {
@@ -120,20 +122,20 @@ fn build_engine(head: &OpusHead) -> Result<Engine, OpusError> {
     if head.mapping_family == 0 {
         // channels ∈ {1,2} is proven by parse_head; the rate is the
         // DECODE_RATE constant (48 kHz — in the accepted set).
-        Ok(Engine::Mono(RuopusMono::with_rate(
+        Ok(Engine::Mono(Box::new(RuopusMono::with_rate(
             DECODE_RATE,
             usize::from(head.channels),
-        )))
+        ))))
     } else {
         // streams ≥ 1, coupled ≤ streams, streams+coupled = channels
         // ≤ 255, mapping entries in-slot-or-silent: all proven by
         // parse_head before this call.
-        Ok(Engine::Multi(RuopusMultistream::with_rate(
+        Ok(Engine::Multi(Box::new(RuopusMultistream::with_rate(
             DECODE_RATE,
             usize::from(head.streams),
             usize::from(head.coupled),
             &head.mapping,
-        )))
+        ))))
     }
 }
 
@@ -312,7 +314,8 @@ impl Decoder for OpusDecoder {
             None => return Err(OpusError::BadState.into_engine_error()),
         };
         let base = TimeBase::new(1, DECODE_RATE).map_err(|_| {
-            unsupported("opus.rate.zero", "the 48 kHz decode base is a constant").into_engine_error()
+            unsupported("opus.rate.zero", "the 48 kHz decode base is a constant")
+                .into_engine_error()
         })?;
         // The container stamp, in the granule domain, on the packets
         // that complete an Ogg page (the demuxer's granule-ownership
@@ -355,7 +358,9 @@ impl Decoder for OpusDecoder {
         // granule) and monotonic against every stamp (dropped-damage
         // healing — the counter never lags the container).
         let mut raw_before = self.raw_next;
-        if packet.discontinuity && let Some(end) = granule {
+        if packet.discontinuity
+            && let Some(end) = granule
+        {
             raw_before = (u64::try_from(end).unwrap_or(0)).saturating_sub(packet_samples as u64);
         }
         let raw_after = raw_before + packet_samples as u64;
@@ -430,8 +435,10 @@ impl Decoder for OpusDecoder {
             samples: bytes.slice(0..exact),
             pts: Stamp::Present(pts),
             duration: Some(Duration::Known(Nanoseconds(
-                u64::try_from(u128::from(window as u64) * 1_000_000_000u128 / u128::from(DECODE_RATE))
-                    .unwrap_or(u64::MAX),
+                u64::try_from(
+                    u128::from(window as u64) * 1_000_000_000u128 / u128::from(DECODE_RATE),
+                )
+                .unwrap_or(u64::MAX),
             ))),
             generation: packet.generation,
         });
@@ -560,7 +567,9 @@ mod tests {
         decoder
             .configure(&config(Some(extra_v0())))
             .unwrap_or_else(|e| unreachable!("{e}"));
-        let format = decoder.output_format().unwrap_or_else(|| unreachable!("configured"));
+        let format = decoder
+            .output_format()
+            .unwrap_or_else(|| unreachable!("configured"));
         assert_eq!(format.channels, 2);
         assert_eq!(format.rate, 48_000);
         assert_eq!(format.sample, SampleFormat::F32);
