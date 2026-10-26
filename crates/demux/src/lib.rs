@@ -24,6 +24,10 @@
 //! - [`ts`] — the MPEG-TS layers (card 5.I1): [`ts::pes`] is the
 //!   PES header/assembly layer and the 90 kHz PTS/DTS timing model
 //!   with honest discontinuity events (the I1b half; PSI is I1a's).
+//! - [`asf`] — the ASF/WMV/WMA header tree (card 6.ASF-a): the
+//!   GUID+size object walk, File/Stream Properties,
+//!   WAVEFORMATEX/VIDEOINFO facts, Codec List + metadata, Data
+//!   Object location (packets are 6.ASF-b's).
 //! - [`error`] — typed error constructors at stage
 //!   [`PipelineStage::Demux`](media_types::PipelineStage::Demux); the
 //!   *taxonomy* is media-types' (never redefined here).
@@ -38,6 +42,7 @@
 
 pub mod adts;
 pub mod aiff;
+pub mod asf;
 pub mod avi;
 pub mod error;
 pub mod es;
