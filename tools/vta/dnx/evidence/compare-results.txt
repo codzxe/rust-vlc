@@ -1,0 +1,80 @@
+L1_1080p_175M: 3 frames
+ frame 0:
+  md5 differs (243a0a9a47a9)
+  Y: maxΔ=2 differing=26038/2073600 (1.256%)
+  Cb: maxΔ=1 differing=13641/1036800 (1.316%)
+  Cr: maxΔ=1 differing=14579/1036800 (1.406%)
+ frame 1:
+  md5 differs (216744b4bde6)
+  Y: maxΔ=2 differing=26506/2073600 (1.278%)
+  Cb: maxΔ=1 differing=13929/1036800 (1.343%)
+  Cr: maxΔ=1 differing=14789/1036800 (1.426%)
+ frame 2:
+  md5 differs (d9592197a4ef)
+  Y: maxΔ=2 differing=26656/2073600 (1.285%)
+  Cb: maxΔ=1 differing=14090/1036800 (1.359%)
+  Cr: maxΔ=2 differing=14697/1036800 (1.418%)
+L2_1080p_36M: 3 frames
+ frame 0:
+  md5 differs (a0f09fa72731)
+  Y: maxΔ=1 differing=825/2073600 (0.040%)
+  Cb: maxΔ=1 differing=1513/1036800 (0.146%)
+  Cr: maxΔ=1 differing=2126/1036800 (0.205%)
+ frame 1:
+  md5 differs (a0f09fa72731)
+  Y: maxΔ=1 differing=825/2073600 (0.040%)
+  Cb: maxΔ=1 differing=1513/1036800 (0.146%)
+  Cr: maxΔ=1 differing=2126/1036800 (0.205%)
+ frame 2:
+  md5 differs (a0f09fa72731)
+  Y: maxΔ=1 differing=825/2073600 (0.040%)
+  Cb: maxΔ=1 differing=1513/1036800 (0.146%)
+  Cr: maxΔ=1 differing=2126/1036800 (0.205%)
+L3_1080p_145M: 3 frames
+ frame 0:
+  md5 differs (20b65c988221)
+  Y: maxΔ=2 differing=102808/2073600 (4.958%)
+  Cb: maxΔ=2 differing=58353/1036800 (5.628%)
+  Cr: maxΔ=1 differing=66778/1036800 (6.441%)
+ frame 1:
+  md5 differs (f390b69e02af)
+  Y: maxΔ=2 differing=103306/2073600 (4.982%)
+  Cb: maxΔ=2 differing=58443/1036800 (5.637%)
+  Cr: maxΔ=2 differing=68531/1036800 (6.610%)
+ frame 2:
+  md5 differs (c8472c9d417f)
+  Y: maxΔ=2 differing=103822/2073600 (5.007%)
+  Cb: maxΔ=2 differing=59063/1036800 (5.697%)
+  Cr: maxΔ=2 differing=68016/1036800 (6.560%)
+L4_720p_90M: 3 frames
+ frame 0:
+  md5 differs (746fd47192f1)
+  Y: maxΔ=1 differing=13463/921600 (1.461%)
+  Cb: maxΔ=1 differing=7425/460800 (1.611%)
+  Cr: maxΔ=1 differing=7935/460800 (1.722%)
+ frame 1:
+  md5 differs (3153992d6e52)
+  Y: maxΔ=2 differing=13375/921600 (1.451%)
+  Cb: maxΔ=1 differing=7458/460800 (1.618%)
+  Cr: maxΔ=1 differing=8095/460800 (1.757%)
+ frame 2:
+  md5 differs (ff7b66e4caea)
+  Y: maxΔ=2 differing=13729/921600 (1.490%)
+  Cb: maxΔ=1 differing=7745/460800 (1.681%)
+  Cr: maxΔ=2 differing=8321/460800 (1.806%)
+L5_1080p10_185M: 3 frames
+ frame 0:
+  md5 differs (0f14e898ae79)
+  Y: maxΔ=2 differing=23974/2073600 (1.156%)
+  Cb: maxΔ=1 differing=12507/1036800 (1.206%)
+  Cr: maxΔ=1 differing=14097/1036800 (1.360%)
+ frame 1:
+  md5 differs (728a987bcee7)
+  Y: maxΔ=1 differing=24378/2073600 (1.176%)
+  Cb: maxΔ=1 differing=12845/1036800 (1.239%)
+  Cr: maxΔ=2 differing=14255/1036800 (1.375%)
+ frame 2:
+  md5 differs (0f1294ef7d51)
+  Y: maxΔ=1 differing=24691/2073600 (1.191%)
+  Cb: maxΔ=1 differing=13028/1036800 (1.257%)
+  Cr: maxΔ=1 differing=14709/1036800 (1.419%)
