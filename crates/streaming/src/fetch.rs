@@ -88,7 +88,9 @@ impl ByteRange {
 /// Three independent budgets: a connect deadline that bounds
 /// `TcpStream::connect`, a read deadline that bounds each response
 /// read, and a write deadline that bounds each request write.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// `Hash` so the real client can pool ureq agents per deadline
+/// config (6.A1c).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TimeoutConfig {
     /// Deadline for establishing the connection.
     pub connect: Duration,
@@ -108,21 +110,40 @@ impl Default for TimeoutConfig {
     }
 }
 
+/// How the transport treats redirect responses (3xx with `Location`).
+///
+/// `Follow` chases the chain under [`RedirectPolicy`]; `Manual` hands
+/// the 3xx response back to the caller — the HLS master-playlist and
+/// auth flows (6.B1/6.E1) resolve `Location` themselves.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RedirectMode {
+    /// Follow redirect chains under the policy budget (the default).
+    #[default]
+    Follow,
+    /// Do not follow: the 3xx response (with its `Location` header)
+    /// surfaces to the caller as `Ok`.
+    Manual,
+}
+
 /// Redirect-following policy.
 ///
 /// `max_redirects` bounds the chain; `cross_host` records whether
-/// cross-host hops are allowed — v0 carries the flag (the port must be
-/// able to express it for the SSRF review of 6.H1) while the mock
-/// testkit's client honors the bound and the loop detector. The
-/// same-host/cross-host *enforcement* is 6.A1c scope.
+/// cross-host hops are allowed (enforced by the real client, 6.A1c —
+/// the SSRF review of 6.H1 owns the origin/scheme widening);
+/// `mode` selects following vs manual surfacing. The mock testkit's
+/// client honors the bound and the loop detector.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RedirectPolicy {
     /// Maximum redirects to follow before
     /// [`NetworkError::TooManyRedirects`].
     pub max_redirects: u32,
-    /// Whether redirects to a different host are permitted (recorded
-    /// for 6.A1c/6.H1; the v0 mock client does not enforce it).
+    /// Whether redirects to a different host are permitted. When
+    /// `false`, a cross-host hop fails with
+    /// [`NetworkError::CrossHostRedirect`] instead of following.
     pub cross_host: bool,
+    /// Whether redirect chains are followed or surfaced to the
+    /// caller (6.B1 HLS / 6.E1 auth resolve `Location` themselves).
+    pub mode: RedirectMode,
 }
 
 impl Default for RedirectPolicy {
@@ -130,6 +151,7 @@ impl Default for RedirectPolicy {
         RedirectPolicy {
             max_redirects: DEFAULT_MAX_REDIRECTS,
             cross_host: true,
+            mode: RedirectMode::Follow,
         }
     }
 }
@@ -320,6 +342,13 @@ impl HttpRequest {
         self
     }
 
+    /// Set only the redirect mode (builder style) — the budget and
+    /// cross-host flag keep their current values.
+    pub fn with_redirect_mode(mut self, mode: RedirectMode) -> Self {
+        self.redirects.mode = mode;
+        self
+    }
+
     /// Set the per-response memory budget (builder style).
     pub fn with_response_limit(mut self, limit: u64) -> Self {
         self.response_limit = limit;
@@ -495,6 +524,11 @@ mod tests {
         assert_eq!(req.timeouts.read, Duration::from_secs(5));
         assert_eq!(req.redirects.max_redirects, DEFAULT_MAX_REDIRECTS);
         assert!(req.redirects.cross_host);
+        assert_eq!(req.redirects.mode, RedirectMode::Follow);
+        let manual =
+            HttpRequest::get("http://example.com/a").with_redirect_mode(RedirectMode::Manual);
+        assert_eq!(manual.redirects.mode, RedirectMode::Manual);
+        assert_eq!(manual.redirects.max_redirects, DEFAULT_MAX_REDIRECTS);
         assert_eq!(req.response_limit, DEFAULT_RESPONSE_LIMIT);
         assert!(req.headers.is_empty());
         assert!(req.range.is_none());

@@ -1,5 +1,5 @@
 //! ureq adapter — the real HTTP(S) transport behind [`HttpFetch`]
-//! (card 6.A1b: validate-then-admit spike; hardening is 6.A1c).
+//! (card 6.A1b admission; hardened by 6.A1c).
 //!
 //! [`UreqClient`] is a thin, sync, rustls-backed implementation of the
 //! 6.A1a port. ureq 3.5.0 is the measured admission candidate
@@ -8,33 +8,76 @@
 //! on, bounded redirects, whole-body reads under the port's
 //! `response_limit` budget (MP §12).
 //!
-//! # Spike scope (honest limits, 6.A1c owns the hardening)
+//! # Redirect following is the adapter's, not ureq's (6.A1c)
 //!
-//! * One `ureq::Agent` is built **per fetch** — no connection pooling
-//!   yet (ureq pools per-agent; per-request agents re-connect every
-//!   time, which the ranged resource of 6.A2 will feel and 6.A1c fixes
-//!   by caching agents keyed by config).
-//! * `TimeoutConfig::write` has no ureq 3.5 knob (measured: ureq
-//!   exposes `timeout_connect`/`timeout_global`/`timeout_per_call`
-//!   only). GET requests carry no body, so the write deadline is
-//!   carried but not armed; wiring it (or upstream adding
-//!   `timeout_write`) is 6.A1c scope.
-//! * Redirect-loop *detection* is not observable from ureq (it reports
-//!   only `Error::TooManyRedirects`); the port's
-//!   [`NetworkError::RedirectLoop`] stays the mock client's vocabulary.
-//!   `RedirectPolicy::cross_host` is likewise carried but not enforced
-//!   here (6.A1c/6.H1 SSRF review).
+//! The agent is configured with `max_redirects(0)` +
+//! `http_status_as_error(false)` (measured in ureq 3.5.0: with a zero
+//! redirect budget ureq never follows — `run.rs` errors on excess
+//! redirects only when `max_redirects > 0 && max_redirects_will_error`
+//! — and with status-as-error off, every status surfaces as a
+//! response), so each 3xx lands **here** and this adapter follows it
+//! hop by hop. That buys what ureq's follower cannot express:
+//!
+//! * [`RedirectPolicy::cross_host`] enforced — a cross-host hop under
+//!   a same-host policy fails typed
+//!   ([`NetworkError::CrossHostRedirect`]), never followed.
+//! * loop detection over a bounded visited-set of canonical URLs
+//!   ([`NetworkError::RedirectLoop`]), distinct from budget exhaustion.
+//! * an **exact** followed count ([`NetworkError::TooManyRedirects`]):
+//!   the adapter issued every hop, so it knows the number (ureq 3.5.0
+//!   exposes no `redirects()` count accessor — measured; its
+//!   `ResponseExt::get_redirect_history` needs `save_redirect_history`
+//!   and is unused because the loop is ours).
+//! * [`RedirectMode::Manual`] — the 3xx response (with its `Location`
+//!   header) returns to the caller un-followed (6.B1 HLS master
+//!   playlists, 6.E1 auth).
+//!
+//! `Authorization` headers are never re-sent on a followed hop — the
+//! parity of ureq's `RedirectAuthHeaders::Never` default (measured);
+//! 6.E1 owns any finer same-host policy.
+//!
+//! # Agents are pooled per deadline config (6.A1c)
+//!
+//! A process-wide cache keyed by [`TimeoutConfig`] hands out
+//! `Arc<Agent>`s (ureq pools connections per agent), so repeat fetches
+//! with the same deadlines reuse connections when the server allows
+//! keep-alive. The mock testkit's dialect is `Connection: close`, so
+//! the suite exercises the reconnect path; keep-alive reuse rides on
+//! ureq's own pool.
+//!
+//! # Honest limits (measured, recorded)
+//!
+//! * `TimeoutConfig::write` has no ureq 3.5.0 knob — only
+//!   `timeout_connect` / `timeout_global` / `timeout_per_call` exist
+//!   (measured builder surface). The per-call budget — armed with
+//!   `timeouts.read` — covers "DNS lookup, connection setup, sending
+//!   the request, and receiving the response headers and body"
+//!   (measured doc text), so a stalled request write cannot outlive
+//!   it; a timeout ureq attributes to a write phase
+//!   (`SendRequest`/`SendBody`/`PerWrite`) maps to
+//!   [`NetworkError::WriteTimeout`]. A dedicated write deadline waits
+//!   on an upstream knob.
 //! * The response reason phrase is `http::StatusCode::canonical_reason`
 //!   — ureq/`http` do not preserve non-canonical wire reasons. The
 //!   port tolerates an empty reason; this is the recorded divergence.
+//! * `Location` resolution is the port's typed `Url::join`: absolute
+//!   and root-relative references only (v0). ureq's own follower
+//!   resolves more shapes; the port's typed refusal is the contract.
+//! * Same-host scheme/port changes (e.g. an https→http hop) are
+//!   followed — `cross_host` compares hosts, not origins. Widening
+//!   that to origin equality is the 6.H1 SSRF review's call.
+//! * 1xx final responses and non-`Location` 3xx (300, 304) surface as
+//!   `Ok` for the caller to judge — mock-client parity.
 
+use std::collections::{HashMap, HashSet};
 use std::io::Read;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use ureq::tls::{RootCerts, TlsConfig, TlsProvider};
 use ureq::{Agent, Timeout};
 
 use crate::error::NetworkError;
-use crate::fetch::{HttpFetch, HttpRequest, HttpResponse, RedirectPolicy, TimeoutConfig, Url};
+use crate::fetch::{HttpFetch, HttpRequest, HttpResponse, RedirectMode, TimeoutConfig, Url};
 
 /// The one TLS configuration [`UreqClient`] ever builds.
 ///
@@ -51,25 +94,25 @@ pub(crate) fn tls_config() -> TlsConfig {
         .build()
 }
 
-/// Translate a port request's deadlines and redirect budget into a
-/// ureq [`ureq::config::Config`].
+/// Translate a port request's deadlines into a ureq
+/// [`ureq::config::Config`].
 ///
 /// Wiring (measured against ureq 3.5.0's builder surface):
 /// `timeouts.connect` → `timeout_connect`, `timeouts.read` →
-/// `timeout_per_call` (bounds one full exchange, reset per redirect
-/// hop). `timeouts.write` has no ureq knob — see the module docs.
-/// Redirects follow up to `redirects.max_redirects` hops and error on
-/// excess (`max_redirects_will_error`), matching the port's
-/// [`NetworkError::TooManyRedirects`] contract.
-pub(crate) fn agent_config(
-    timeouts: TimeoutConfig,
-    redirects: RedirectPolicy,
-) -> ureq::config::Config {
+/// `timeout_per_call` (bounds one full exchange, reset per hop the
+/// adapter follows). `timeouts.write` has no ureq knob — see the
+/// module docs for the recorded decision. Redirects are **never**
+/// followed by ureq here (`max_redirects(0)`, measured: a zero budget
+/// returns the 3xx response instead of erroring), and statuses are
+/// never converted to errors (`http_status_as_error(false)`) — the
+/// adapter classifies both itself so the port's
+/// [`RedirectPolicy`] is enforced hop by hop.
+pub(crate) fn agent_config(timeouts: TimeoutConfig) -> ureq::config::Config {
     ureq::config::Config::builder()
         .timeout_connect(Some(timeouts.connect))
         .timeout_per_call(Some(timeouts.read))
-        .max_redirects(redirects.max_redirects)
-        .max_redirects_will_error(true)
+        .max_redirects(0)
+        .http_status_as_error(false)
         .tls_config(tls_config())
         .build()
 }
@@ -89,12 +132,19 @@ fn map_io_error(source: std::io::Error) -> NetworkError {
 }
 
 /// Map a [`ureq::Error`] into the typed [`NetworkError`] vocabulary.
+///
+/// Defense in depth: with `http_status_as_error(false)` and
+/// `max_redirects(0)` (this adapter's configuration), the
+/// `StatusCode` / `TooManyRedirects` / `RedirectFailed` arms are
+/// unreachable — they stay mapped so a config regression degrades to
+/// typed errors, never to the fallback.
+#[allow(clippy::too_many_lines)]
 fn map_ureq_error(error: ureq::Error, redirect_limit: u32) -> NetworkError {
     match error {
         ureq::Error::StatusCode(416) => NetworkError::RangeNotSatisfiable,
         ureq::Error::StatusCode(code) => NetworkError::http_status(code),
-        // ureq reports no followed-count; the budget it spent is the
-        // limit it was given (recorded divergence, see module docs).
+        // Unreachable while ureq never follows (the adapter is the
+        // follower and reports the count it measured itself).
         ureq::Error::TooManyRedirects => NetworkError::TooManyRedirects {
             limit: redirect_limit,
             followed: redirect_limit,
@@ -127,13 +177,9 @@ fn map_ureq_error(error: ureq::Error, redirect_limit: u32) -> NetworkError {
             limit: max as u64,
             actual: actual as u64,
         },
-        // Unreachable for GET-without-body (ureq refuses to replay
-        // bodies across 307/308); typed rather than guessed.
         ureq::Error::RedirectFailed => NetworkError::ProtocolViolation {
             detail: "redirect could not be followed",
         },
-        // ureq's no-reason connection fallback; the kind is the honest
-        // approximation (recorded in the admission record).
         ureq::Error::ConnectionFailed => NetworkError::Io {
             source: std::io::Error::new(
                 std::io::ErrorKind::ConnectionAborted,
@@ -149,11 +195,125 @@ fn map_ureq_error(error: ureq::Error, redirect_limit: u32) -> NetworkError {
     }
 }
 
-/// The ureq-backed real HTTP(S) client (card 6.A1b).
+/// The redirect statuses this adapter follows — the mock testkit's
+/// dialect, exactly (301/302/303/307/308; 300 and 304 are not
+/// `Location`-carrying redirects and surface to the caller).
+fn is_redirect(status: u16) -> bool {
+    matches!(status, 301 | 302 | 303 | 307 | 308)
+}
+
+/// Single-hop status classification (mock-client parity): 2xx is
+/// `Ok`, 416 is the typed range rejection, other 4xx/5xx carry the
+/// class flags, and everything else (1xx, non-`Location` 3xx)
+/// surfaces as-is for the caller to judge.
+fn classify(response: HttpResponse) -> Result<HttpResponse, NetworkError> {
+    if (200..=299).contains(&response.status) {
+        return Ok(response);
+    }
+    if response.status == 416 {
+        return Err(NetworkError::RangeNotSatisfiable);
+    }
+    if (400..=599).contains(&response.status) {
+        return Err(NetworkError::http_status(response.status));
+    }
+    Ok(response)
+}
+
+/// Issue exactly one request (ureq never follows) and read the whole
+/// body under the response budget.
 ///
-/// Stateless and cheap to construct; implements the 6.A1a
-/// [`HttpFetch`] port synchronously. See the module docs for the
-/// spike-scope limits (pooling, write deadline, loop detection).
+/// `drop_authorization` implements ureq's `RedirectAuthHeaders::Never`
+/// parity: a followed hop never re-sends `Authorization` (6.E1 owns
+/// any finer same-host policy).
+fn single_hop(
+    agent: &Agent,
+    url: &Url,
+    request: &HttpRequest,
+    drop_authorization: bool,
+) -> Result<HttpResponse, NetworkError> {
+    let mut builder = agent.get(url.to_string());
+    for (name, value) in &request.headers {
+        if drop_authorization && name.eq_ignore_ascii_case("authorization") {
+            continue;
+        }
+        builder = builder.header(name.as_str(), value.as_str());
+    }
+    if let Some(range) = request.range {
+        builder = builder.header("Range", range.to_header_value());
+    }
+
+    let response = builder
+        .call()
+        .map_err(|e| map_ureq_error(e, request.redirects.max_redirects))?;
+
+    let status = response.status();
+    let headers: Vec<(String, String)> = response
+        .headers()
+        .iter()
+        .map(|(name, value)| {
+            (
+                name.as_str().to_string(),
+                String::from_utf8_lossy(value.as_bytes()).into_owned(),
+            )
+        })
+        .collect();
+
+    // Advertised size first: a hostile Content-Length never
+    // allocates (MP §12).
+    let content_length = response
+        .headers()
+        .get("content-length")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.trim().parse::<u64>().ok());
+    if let Some(advertised) = content_length
+        && advertised > request.response_limit
+    {
+        return Err(NetworkError::ResponseTooLarge {
+            limit: request.response_limit,
+            actual: advertised,
+        });
+    }
+
+    // Whole-body read under the budget: read at most limit+1 bytes
+    // so an over-budget body is detected, never allocated.
+    let limit = request.response_limit;
+    let mut body = Vec::new();
+    let reader = response.into_body().into_reader();
+    reader
+        .take(limit.saturating_add(1))
+        .read_to_end(&mut body)
+        .map_err(map_io_error)?;
+    let received = u64::try_from(body.len()).unwrap_or(u64::MAX);
+    if received > limit {
+        return Err(NetworkError::ResponseTooLarge {
+            limit,
+            actual: received,
+        });
+    }
+    if let Some(advertised) = content_length
+        && received < advertised
+    {
+        // Never a silent EOF (MP §8): the body ended early.
+        return Err(NetworkError::BodyTruncated {
+            expected: advertised,
+            received,
+        });
+    }
+
+    Ok(HttpResponse {
+        status: status.as_u16(),
+        reason: status.canonical_reason().unwrap_or_default().to_string(),
+        headers,
+        body,
+    })
+}
+
+/// The ureq-backed real HTTP(S) client (card 6.A1b; hardened 6.A1c).
+///
+/// Cheap to construct (a `Copy` handle over a process-wide agent
+/// pool); implements the 6.A1a [`HttpFetch`] port synchronously. See
+/// the module docs for the redirect architecture and the recorded
+/// honest limits.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct UreqClient;
 
@@ -162,95 +322,93 @@ impl UreqClient {
     pub fn new() -> UreqClient {
         UreqClient
     }
+
+    /// The process-wide agent pool, keyed by deadline config (ureq
+    /// pools connections per agent, so same-deadline fetches reuse
+    /// sockets when the server allows keep-alive).
+    fn shared_agent(timeouts: TimeoutConfig) -> Arc<Agent> {
+        static CACHE: OnceLock<Mutex<HashMap<TimeoutConfig, Arc<Agent>>>> = OnceLock::new();
+        let mut guard = CACHE
+            .get_or_init(|| Mutex::new(HashMap::new()))
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        guard
+            .entry(timeouts)
+            .or_insert_with(|| Arc::new(Agent::new_with_config(agent_config(timeouts))))
+            .clone()
+    }
 }
 
 impl HttpFetch for UreqClient {
     fn fetch(&self, request: HttpRequest) -> Result<HttpResponse, NetworkError> {
         // Validate the URL through the port's typed surface first —
         // scheme and structure violations never reach the transport.
-        let url = Url::parse(&request.url)?;
+        let mut url = Url::parse(&request.url)?;
+        let agent = Self::shared_agent(request.timeouts);
 
-        let agent = Agent::new_with_config(agent_config(request.timeouts, request.redirects));
+        // Visited canonical URLs, bounded by max_redirects + 1 entries
+        // (the loop exits at the budget first) — bounded-memory loop
+        // detection (6.A1c).
+        let mut visited: HashSet<String> = HashSet::new();
+        visited.insert(url.to_string());
+        let mut followed: u32 = 0;
+        let mut drop_authorization = false;
 
-        let mut builder = agent.get(url.to_string());
-        for (name, value) in &request.headers {
-            builder = builder.header(name.as_str(), value.as_str());
+        loop {
+            let response = single_hop(&agent, &url, &request, drop_authorization)?;
+
+            if !is_redirect(response.status) {
+                return classify(response);
+            }
+
+            // Manual mode: the 3xx (with its Location header) is the
+            // answer — 6.B1 HLS / 6.E1 auth resolve it themselves.
+            if request.redirects.mode == RedirectMode::Manual {
+                return Ok(response);
+            }
+
+            let Some(location) = response.header("location").map(str::to_string) else {
+                return Err(NetworkError::ProtocolViolation {
+                    detail: "redirect status without a Location header",
+                });
+            };
+            if followed >= request.redirects.max_redirects {
+                // `followed` is exact: this adapter issued every hop.
+                return Err(NetworkError::TooManyRedirects {
+                    limit: request.redirects.max_redirects,
+                    followed,
+                });
+            }
+            let next = url.join(&location)?;
+
+            // Cross-host enforcement (RedirectPolicy::cross_host):
+            // hosts compare case-insensitively; scheme/port changes
+            // on the same host are followed (6.H1 owns origin
+            // widening).
+            let cross_host = !next.host.eq_ignore_ascii_case(&url.host);
+            if cross_host && !request.redirects.cross_host {
+                return Err(NetworkError::CrossHostRedirect { hops: followed + 1 });
+            }
+
+            // Loop detection: a canonical URL about to be revisited.
+            let canonical = next.to_string();
+            if visited.contains(&canonical) {
+                return Err(NetworkError::RedirectLoop {
+                    hops: visited.len() as u32,
+                });
+            }
+            visited.insert(canonical);
+            followed += 1;
+            drop_authorization = true;
+            url = next;
         }
-        if let Some(range) = request.range {
-            builder = builder.header("Range", range.to_header_value());
-        }
-
-        let response = builder
-            .call()
-            .map_err(|e| map_ureq_error(e, request.redirects.max_redirects))?;
-
-        let status = response.status();
-        let headers: Vec<(String, String)> = response
-            .headers()
-            .iter()
-            .map(|(name, value)| {
-                (
-                    name.as_str().to_string(),
-                    String::from_utf8_lossy(value.as_bytes()).into_owned(),
-                )
-            })
-            .collect();
-
-        // Advertised size first: a hostile Content-Length never
-        // allocates (MP §12).
-        let content_length = response
-            .headers()
-            .get("content-length")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.trim().parse::<u64>().ok());
-        if let Some(advertised) = content_length
-            && advertised > request.response_limit
-        {
-            return Err(NetworkError::ResponseTooLarge {
-                limit: request.response_limit,
-                actual: advertised,
-            });
-        }
-
-        // Whole-body read under the budget: read at most limit+1 bytes
-        // so an over-budget body is detected, never allocated.
-        let limit = request.response_limit;
-        let mut body = Vec::new();
-        let reader = response.into_body().into_reader();
-        reader
-            .take(limit.saturating_add(1))
-            .read_to_end(&mut body)
-            .map_err(map_io_error)?;
-        let received = u64::try_from(body.len()).unwrap_or(u64::MAX);
-        if received > limit {
-            return Err(NetworkError::ResponseTooLarge {
-                limit,
-                actual: received,
-            });
-        }
-        if let Some(advertised) = content_length
-            && received < advertised
-        {
-            // Never a silent EOF (MP §8): the body ended early.
-            return Err(NetworkError::BodyTruncated {
-                expected: advertised,
-                received,
-            });
-        }
-
-        Ok(HttpResponse {
-            status: status.as_u16(),
-            reason: status.canonical_reason().unwrap_or_default().to_string(),
-            headers,
-            body,
-        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fetch::ByteRange;
+    use crate::fetch::{ByteRange, RedirectPolicy};
     use crate::mockhttp::{MockConfig, MockServer};
     use std::time::Duration;
     use testkit::{Must, assert_err};
@@ -264,6 +422,14 @@ mod tests {
             connect: Duration::from_secs(2),
             read,
             write: Duration::from_secs(2),
+        }
+    }
+
+    fn follow_policy(max_redirects: u32, cross_host: bool) -> RedirectPolicy {
+        RedirectPolicy {
+            max_redirects,
+            cross_host,
+            mode: RedirectMode::Follow,
         }
     }
 
@@ -323,8 +489,38 @@ mod tests {
         assert_eq!(error.code(), "streaming.net.range-not-satisfiable");
     }
 
+    /// 4xx and 5xx map to the http-status kind with the class flags
+    /// computed (is_client_error / is_server_error).
+    #[test]
+    fn status_class_flags_are_mapped() {
+        for (code, client_error, server_error) in [(404, true, false), (503, false, true)] {
+            let mut config = MockConfig::body(b"no such thing".to_vec());
+            config.force_status = Some(code);
+            let server = spawn(config);
+            let error = assert_err(
+                UreqClient::new().fetch(HttpRequest::get(server.url("/missing"))),
+                "error statuses must be typed",
+            );
+            match error {
+                NetworkError::HttpStatus {
+                    code: c,
+                    is_client_error,
+                    is_server_error,
+                } => {
+                    assert_eq!(c, code);
+                    assert_eq!(is_client_error, client_error);
+                    assert_eq!(is_server_error, server_error);
+                }
+                other => unreachable!("wrong variant: {other:?}"),
+            }
+            assert_eq!(error.code(), "streaming.net.http-status");
+            assert_eq!(error.status_code(), Some(code));
+            assert!(!error.is_timeout());
+        }
+    }
+
     /// A 3-hop redirect chain lands on the final body, and the server
-    /// log records every hop.
+    /// log records every hop (the adapter — not ureq — followed them).
     #[test]
     fn redirect_chain_of_3_lands_on_final_body() {
         let mut config = MockConfig::body(b"after three hops".to_vec());
@@ -340,17 +536,15 @@ mod tests {
         assert_eq!(paths, vec!["/start", "/r1", "/r2", "/r3"]);
     }
 
-    /// The redirect budget is enforced: 5-hop chain, budget 2 → the
-    /// typed too-many-redirects error carrying the configured limit.
+    /// The redirect budget is enforced with an exact followed count:
+    /// 5-hop chain, budget 2 → the typed error carrying the two hops
+    /// this adapter actually issued.
     #[test]
     fn too_many_redirects_when_bound_exceeded() {
         let mut config = MockConfig::body(b"never reached".to_vec());
         config.redirects = 5;
         let server = spawn(config);
-        let request = HttpRequest::get(server.url("/start")).with_redirects(RedirectPolicy {
-            max_redirects: 2,
-            cross_host: true,
-        });
+        let request = HttpRequest::get(server.url("/start")).with_redirects(follow_policy(2, true));
         let error = assert_err(
             UreqClient::new().fetch(request),
             "redirect budget must be enforced",
@@ -358,11 +552,159 @@ mod tests {
         match error {
             NetworkError::TooManyRedirects { limit, followed } => {
                 assert_eq!(limit, 2);
-                assert_eq!(followed, 2);
+                assert_eq!(followed, 2, "the count is exact, not approximated");
             }
             other => unreachable!("wrong variant: {other:?}"),
         }
+        // Exactly the budget's worth of hops hit the wire.
+        assert_eq!(server.requests().len(), 3);
         assert_eq!(error.code(), "streaming.net.too-many-redirects");
+    }
+
+    /// Cross-host refusal: a redirect from 127.0.0.1 to localhost (a
+    /// different host string, same machine) is refused under a
+    /// same-host policy, and the second server is never contacted.
+    #[test]
+    fn cross_host_redirect_refused_when_policy_forbids() {
+        let target = spawn(MockConfig::body(b"across hosts".to_vec()));
+        // Same socket, different host string — exactly the shape a
+        // cross-host policy must refuse.
+        let cross_host_url = target
+            .url("/media/other.flac")
+            .replace("127.0.0.1", "localhost");
+        let mut origin = MockConfig::body(Vec::new());
+        origin.absolute_redirect = Some(cross_host_url);
+        let origin = spawn(origin);
+
+        let request =
+            HttpRequest::get(origin.url("/start")).with_redirects(follow_policy(5, false));
+        let error = assert_err(
+            UreqClient::new().fetch(request),
+            "cross-host hop must be refused under a same-host policy",
+        );
+        match error {
+            NetworkError::CrossHostRedirect { hops } => assert_eq!(hops, 1),
+            other => unreachable!("wrong variant: {other:?}"),
+        }
+        assert_eq!(error.code(), "streaming.net.cross-host-redirect");
+        assert_eq!(
+            origin.requests().len(),
+            1,
+            "the origin answered exactly once"
+        );
+        assert!(
+            target.requests().is_empty(),
+            "the cross-host target must never be contacted"
+        );
+    }
+
+    /// Cross-host allowed: the same topology follows to the target's
+    /// body when the policy permits cross-host hops.
+    #[test]
+    fn cross_host_redirect_followed_when_policy_allows() {
+        let target = spawn(MockConfig::body(b"across hosts".to_vec()));
+        let cross_host_url = target
+            .url("/media/other.flac")
+            .replace("127.0.0.1", "localhost");
+        let mut origin = MockConfig::body(Vec::new());
+        origin.absolute_redirect = Some(cross_host_url);
+        let origin = spawn(origin);
+
+        let request = HttpRequest::get(origin.url("/start")).with_redirects(follow_policy(5, true));
+        let response = UreqClient::new().fetch(request).must();
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body, b"across hosts");
+        assert_eq!(origin.requests().len(), 1);
+        assert_eq!(target.requests().len(), 1);
+    }
+
+    /// A cross-host hop into a self-looping second server is a loop,
+    /// not a budget exhaustion: the revisit is detected after two
+    /// issued requests, one per server. (A pure A→B→A alternation
+    /// needs mutual spawn-time URL references the one-shot
+    /// `MockConfig` cannot express; the visited-set semantics
+    /// exercised here are identical.)
+    #[test]
+    fn cross_host_chain_into_loop_is_detected_as_redirect_loop() {
+        let mut b_config = MockConfig::body(b"never reached".to_vec());
+        b_config.self_loop = true;
+        let server_b = spawn(b_config);
+
+        let mut a_config = MockConfig::body(Vec::new());
+        a_config.absolute_redirect = Some(server_b.url("/b"));
+        let server_a = spawn(a_config);
+
+        let error = assert_err(
+            UreqClient::new().fetch(HttpRequest::get(server_a.url("/start"))),
+            "the loop must be typed, not chased to the budget",
+        );
+        match error {
+            NetworkError::RedirectLoop { hops } => assert_eq!(hops, 2),
+            other => unreachable!("wrong variant: {other:?}"),
+        }
+        assert_eq!(error.code(), "streaming.net.redirect-loop");
+        assert_eq!(server_a.requests().len(), 1);
+        assert_eq!(server_b.requests().len(), 1);
+    }
+
+    /// A self-redirect (302 to the same URL) is a loop detected
+    /// before the second request.
+    #[test]
+    fn self_loop_is_detected_as_redirect_loop() {
+        let mut config = MockConfig::body(b"never".to_vec());
+        config.self_loop = true;
+        let server = spawn(config);
+        let error = assert_err(
+            UreqClient::new().fetch(HttpRequest::get(server.url("/loop"))),
+            "self-loop must be typed",
+        );
+        match error {
+            NetworkError::RedirectLoop { hops } => assert_eq!(hops, 1),
+            other => unreachable!("wrong variant: {other:?}"),
+        }
+        assert_eq!(server.requests().len(), 1);
+        assert_eq!(error.code(), "streaming.net.redirect-loop");
+    }
+
+    /// Manual mode: the 302 surfaces to the caller with its Location
+    /// header, and nothing is followed.
+    #[test]
+    fn manual_mode_surfaces_the_redirect_response() {
+        let mut config = MockConfig::body(b"after hops".to_vec());
+        config.redirects = 2;
+        let server = spawn(config);
+        let request =
+            HttpRequest::get(server.url("/start")).with_redirect_mode(RedirectMode::Manual);
+        let response = UreqClient::new().fetch(request).must();
+        assert_eq!(response.status, 302);
+        assert_eq!(response.header("Location"), Some("/r1"));
+        let logged = server.requests();
+        assert_eq!(logged.len(), 1, "manual mode must not follow");
+        assert_eq!(logged[0].path, "/start");
+    }
+
+    /// Authorization is never re-sent on a followed hop (ureq's
+    /// `RedirectAuthHeaders::Never` parity) — the second request the
+    /// server logs must not carry it.
+    #[test]
+    fn authorization_is_dropped_on_followed_hops() {
+        let mut config = MockConfig::body(b"body".to_vec());
+        config.redirects = 1;
+        let server = spawn(config);
+        let request = HttpRequest::get(server.url("/start"))
+            .with_header("Authorization", "Bearer secret-token");
+        let response = UreqClient::new().fetch(request).must();
+        assert_eq!(response.status, 200);
+        let logged = server.requests();
+        assert_eq!(logged.len(), 2);
+        assert_eq!(
+            logged[0].header("Authorization"),
+            Some("Bearer secret-token")
+        );
+        assert!(
+            logged[1].header("Authorization").is_none(),
+            "followed hops must not re-send credentials"
+        );
     }
 
     /// Read deadline: a 400 ms delayed response against a 150 ms read
@@ -431,28 +773,44 @@ mod tests {
         ));
     }
 
-    /// TLS verification is ALWAYS ON: the single TlsConfig construction
-    /// site never flips ureq's `disable_verification` hatch (measured
-    /// present upstream in ureq 3.5.0 — this pins our side shut), the
-    /// provider is rustls, and the redirect budget is what we passed.
+    /// The transport safety pins: TLS verification is ALWAYS ON (the
+    /// single TlsConfig construction site never flips ureq's
+    /// `disable_verification` hatch), ureq itself never follows
+    /// redirects (the adapter does, to enforce the port's policy),
+    /// and statuses surface for the adapter's own classification.
     #[test]
-    fn tls_verification_is_always_on() {
+    fn agent_config_pins_transport_safety() {
         let tls = tls_config();
         assert!(
             !tls.disable_verification(),
             "the only TLS config path must keep verification on"
         );
-        let config = agent_config(
-            TimeoutConfig::default(),
-            RedirectPolicy {
-                max_redirects: 3,
-                cross_host: true,
-            },
+        let config = agent_config(TimeoutConfig::default());
+        assert_eq!(
+            config.max_redirects(),
+            0,
+            "ureq must never follow — the adapter owns the hops"
         );
-        assert_eq!(config.max_redirects(), 3);
         assert!(
-            config.max_redirects_will_error(),
-            "excess redirects must error, not silently return the 30x"
+            !config.http_status_as_error(),
+            "statuses classify in the adapter, not as ureq errors"
+        );
+    }
+
+    /// The agent pool hands out the same agent for the same deadline
+    /// config (connection reuse rides on ureq's per-agent pool).
+    #[test]
+    fn shared_agent_is_cached_per_deadline_config() {
+        let one = UreqClient::shared_agent(TimeoutConfig::default());
+        let two = UreqClient::shared_agent(TimeoutConfig::default());
+        assert!(
+            Arc::ptr_eq(&one, &two),
+            "same deadlines must share one agent"
+        );
+        let other = UreqClient::shared_agent(fast_timeouts(Duration::from_secs(1)));
+        assert!(
+            !Arc::ptr_eq(&one, &other),
+            "different deadlines get their own agent"
         );
     }
 
@@ -482,5 +840,18 @@ mod tests {
             .unwrap_or_default()
             .to_ascii_lowercase();
         assert_eq!(content_type, "text/html; charset=utf-8");
+    }
+
+    /// LIVE-network redirect follow — **ignored by default**, same
+    /// run command. Measures the adapter's own follower against a
+    /// public chain: httpbin answers 302 → 302 → 200.
+    #[test]
+    #[ignore = "live network required: run with --ignored"]
+    fn live_httpbin_redirect_chain_lands_on_200() {
+        let response = UreqClient::new()
+            .fetch(HttpRequest::get("https://httpbin.org/redirect/2"))
+            .must();
+        assert_eq!(response.status, 200, "two hops must land on the final body");
+        assert!(!response.body.is_empty());
     }
 }
