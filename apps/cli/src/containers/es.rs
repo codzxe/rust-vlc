@@ -387,18 +387,20 @@ mod tests {
 
     /// The mpeg-audio fixtures demux AND decode the full stream
     /// through the real open path + provider: packet counts are
-    /// ffprobe's own `show_packets` counts and the decoded sample
-    /// frames are the exact `packets × samples_per_frame`
-    /// arithmetic (whole-frame decode — ffmpeg's gapless-trimmed
-    /// windows are smaller: mono48 72,000 vs our 73,728; the mp3
-    /// card owns the trim, the mp4 unit's recorded precedent; the
-    /// mp2 counts are sample-exact against ffmpeg's decoded
-    /// bytes: mp2_48k 145,152 / mp2_lsf 71,424).
+    /// ffprobe's own `show_packets` counts. The mp3 decoded counts
+    /// are the MEASURED open-path window — whole-frame arithmetic
+    /// MINUS the LAME start delay (529 samples, honored from the
+    /// Xing/LAME tag); the end padding is not trimmed through the
+    /// container lane yet (the codec crate's ratified full-trim
+    /// reference for mono48 is 72,000 == ffmpeg; the trim
+    /// unification is the mp3 gapless card's job — the OPW-mp4
+    /// recorded precedent). The mp2 counts are sample-exact against
+    /// ffmpeg's decoded bytes: mp2_48k 145,152 / mp2_lsf 71,424.
     #[test]
     fn mpeg_audio_fixtures_decode_the_full_stream() {
         // (file, format, packets, channels, decoded_frames)
         for (name, format, packets, channels, decoded) in [
-            ("mono48.mp3", "mp3", 64u64, 1u32, 73_728u64),
+            ("mono48.mp3", "mp3", 64u64, 1u32, 73_199u64),
             ("mp2_48k.mp2", "mp2", 63, 2, 72_576),
             ("mp2_lsf_22k.mp2", "mp2", 31, 2, 35_712),
         ] {
@@ -543,9 +545,17 @@ mod tests {
             return;
         };
         // (name, format, packets, channels, decoded, ffmpeg_frames)
+        // The mp3 `decoded` numbers are the MEASURED open-path window:
+        // whole-frame arithmetic MINUS the LAME start delay (529
+        // samples, honored from the Xing/LAME tag) — the end padding
+        // is not yet trimmed through the container lane (the codec
+        // crate's ratified full-trim references are smaller: mono48
+        // 72,000 == ffmpeg; 0139 44,100). The trim unification is the
+        // mp3 gapless card's job — the OPW-mp4 recorded precedent
+        // (mp3-in-mov 576-tail divergence), same divergence class.
         for (name, format, packets, channels, decoded, ffmpeg_frames) in [
-            ("0139-audio-only.mp3", "mp3", 79u64, 2u32, 45_504u64, 44_100u64),
-            ("0145-cover-audio.mp3", "mp3", 6, 2, 3_456, 2_304),
+            ("0139-audio-only.mp3", "mp3", 79u64, 2u32, 44_975u64, 44_100u64),
+            ("0145-cover-audio.mp3", "mp3", 6, 2, 2_927, 2_304),
             ("0005-audio-only.mp2", "mp2", 56, 1, 64_512, 64_512),
             ("0119-audio-only.mp2", "mp2", 154, 2, 177_408, 177_408),
         ] {

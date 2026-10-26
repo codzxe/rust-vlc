@@ -91,26 +91,25 @@ fn directory_source_is_inaccessible() {
     assert!(err.contains("error: [input.inaccessible]"), "{err}");
 }
 
-/// A probed-but-unsupported container (the MPEG-TS parent — the
-/// `mpegts` probe id covers ts/m2t/mts): the probe names the
+/// A probed-but-unsupported container (the MPEG-PS parent — the
+/// `mpegps` probe id covers ps/mpg/vob): the probe names the
 /// format (R3 registered the signature), the registry refuses the
 /// open path honestly (the per-container host wiring is a later
-/// card; 6.OPW-mkv re-targeted this pin from `matroska`, which now
-/// opens). The bytes are the two `0x47` sync bytes at the 188-byte
-/// stride — the probe's own anchored signature, so a 189-byte file
-/// is a truthful MPEG-TS probe.
+/// card; 6.OPW-ts wired the ts family, so this pin re-targets from
+/// `mpegts` to `mpegps` — the LAST unwired family in the §5 order;
+/// the 6.OPW-ps unit re-pins it when it lands). The bytes are the
+/// MPEG-PS pack start code (0x000001BA) — the probe's own anchored
+/// signature, so a 4-byte file is a truthful MPEG-PS probe.
 #[test]
-fn mpegts_container_is_refused_with_the_format_named() {
-    let mut ts = vec![0u8; 189];
-    ts[0] = 0x47;
-    ts[188] = 0x47;
-    let ts_path = std::env::temp_dir().join("lumen-cli-unwired-ts.ts");
-    std::fs::write(&ts_path, ts).must();
-    let (_out, err, code) = run(&[ts_path.to_str().must()], "quit\n");
-    std::fs::remove_file(&ts_path).ok();
+fn mpegps_container_is_refused_with_the_format_named() {
+    let ps = [0x00u8, 0x00, 0x01, 0xBA];
+    let ps_path = std::env::temp_dir().join("lumen-cli-unwired-ps.mpg");
+    std::fs::write(&ps_path, ps).must();
+    let (_out, err, code) = run(&[ps_path.to_str().must()], "quit\n");
+    std::fs::remove_file(&ps_path).ok();
     assert_eq!(code, 65, "stderr:\n{err}");
     assert!(err.contains("error: [probe.unsupported]"), "{err}");
-    assert!(err.contains("format `mpegts` probes"), "{err}");
+    assert!(err.contains("format `mpegps` probes"), "{err}");
     assert!(err.contains("no open-path wiring"), "{err}");
 }
 

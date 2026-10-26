@@ -97,12 +97,14 @@ mod tests {
     /// through the registry is the typed probe-stage refusal naming
     /// the format — the same message shape the D-018 gate answered
     /// with. The stream is never read: the refusal precedes any
-    /// container construction. (6.OPW-mkv re-targeted this pin from
-    /// `mkv` to the still-unwired `mpegts` — a REAL probe id, the
-    /// ts family's, whose wiring unit is next in the §5 order.)
+    /// container construction. (6.OPW-ts wired the ts family, so
+    /// 6.OPW-es re-targets this pin from `mpegts` to the
+    /// still-unwired `mpegps` — a REAL probe id, the ps/vob
+    /// family's, the LAST family in the §5 wiring order; the
+    /// 6.OPW-ps unit re-pins it when it lands.)
     #[test]
     fn unwired_format_is_refused_with_the_format_named() {
-        let uri = SourceUri::parse("file:///tmp/any.ts").must();
+        let uri = SourceUri::parse("file:///tmp/any.mpg").must();
         let opts = OpenOptions {
             uri,
             start_time_us: None,
@@ -110,19 +112,19 @@ mod tests {
             no_audio: false,
         };
         let stream = demux::avi::test_support::mem_stream(*b"never read").must();
-        match open("mpegts", stream, &opts) {
+        match open("mpegps", stream, &opts) {
             Err(err) => {
                 assert_eq!(err.stage, Stage::Probe, "{err}");
                 assert_eq!(err.code, ErrorCode::Unsupported, "{err}");
-                assert!(err.message.contains("format `mpegts` probes"), "{err}");
+                assert!(err.message.contains("format `mpegps` probes"), "{err}");
                 assert!(err.message.contains("no open-path wiring"), "{err}");
                 assert_eq!(
                     err.details.get("format").map(String::as_str),
-                    Some("mpegts"),
+                    Some("mpegps"),
                     "{err}"
                 );
             }
-            Ok(_) => unreachable!("mpegts has no wiring unit yet"),
+            Ok(_) => unreachable!("mpegps has no wiring unit yet"),
         }
     }
 }
