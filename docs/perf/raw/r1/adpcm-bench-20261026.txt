@@ -1,0 +1,39 @@
+# 6.ADPCM-bench closeout evidence (2026-10-26) — the two ADPCM lanes
+# the 5.R1 snapshot recorded as DNF ("no ignored-bench harness exists").
+#
+# Ours: cargo test -p codecs --all-features --release --test adpcm_bench
+#       -- --ignored --nocapture   (worktree wip/p6-adpcmb @ 65a7f1a,
+#       REPS=7 median, same contract path as adpcm_corpus_differential:
+#       input FileAccess open -> WavDemuxer -> configure from fmt chunk
+#       -> packet-per-block decode -> counting sink; wav demux included,
+#       so decode-only throughput is strictly higher)
+corpus 0042-audio-only.wav (adpcm_ima_wav, 44.056 kHz 2 ch, wav demux incl.):
+  337644 inter-channel samples, median 153767893 samples/s = 1745x realtime (3.832s of audio)
+corpus 0102-audio-only.wav (adpcm_ms, 32.000 kHz 2 ch, wav demux incl.):
+  257048 inter-channel samples, median 137700868 samples/s = 2152x realtime (4.016s of audio)
+test result: ok. 1 passed; 0 failed (frame-count asserts: 168822 / 128524 —
+the differential's pinned data-derived windows)
+
+# ffmpeg reference (7.1.5-0+deb13u1): the R1 method —
+# ffmpeg -v info -nostdin -benchmark -i FILE -f null -
+# child CPU = utime+stime at 1ms kernel granularity (coarse: 3-4s lanes),
+# run0 warm-up discarded, median of runs 1-5:
+#   0042: utime+stime = 6,5,5,5,5 ms -> median 5 ms -> 337644/0.005 = ~67.5 M/s
+#         (5.R1's single run recorded ~67.1 M/s — same class)
+#   0102: utime+stime = 4,5,4,4,3 ms -> median 4 ms -> 257048/0.004 = ~64.3 M/s
+# lumen/ffmpeg (coarse): 0042 ~2.3x, 0102 ~2.1x — the self-built-decoder
+# family band (MP3/MP2/AAC sit at 2.3-4.6x in the 5.R1 table).
+0042-audio-only.wav runs:
+  bench: utime=0.001s stime=0.004s rtime=0.003s   (warm-up, discarded)
+  bench: utime=0.004s stime=0.002s rtime=0.004s
+  bench: utime=0.003s stime=0.002s rtime=0.003s
+  bench: utime=0.005s stime=0.000s rtime=0.003s
+  bench: utime=0.003s stime=0.002s rtime=0.003s
+  bench: utime=0.003s stime=0.002s rtime=0.004s
+0102-audio-only.wav runs:
+  bench: utime=0.003s stime=0.002s rtime=0.003s   (warm-up, discarded)
+  bench: utime=0.002s stime=0.002s rtime=0.002s
+  bench: utime=0.002s stime=0.003s rtime=0.003s
+  bench: utime=0.003s stime=0.001s rtime=0.003s
+  bench: utime=0.002s stime=0.002s rtime=0.002s
+  bench: utime=0.002s stime=0.001s rtime=0.002s

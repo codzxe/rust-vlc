@@ -55,7 +55,17 @@ coarseness; ratios are labeled coarse where utime rounds to 0.
 | AAC-LC 0059 (88.2 kHz mono) | 68 413 446 | 776× | ~29.5 M/s | 2.3× |
 | AAC-LC 0110 (96 kHz mono) | 107 433 098 | 1 119× | ~35.0 M/s | 3.1× |
 | ALAC stereo-24 fixture (48 kHz st., mp4 demux incl.) | 133.1 MB/s decoded PCM (1.515 ms/file median; 33 600 frame-samples) | 503× | utime 0.000–0.003 s — below clock | DNF (below 1 ms resolution, both sides fast) |
-| ADPCM-IMA 0042 (44.056 kHz stereo, in wav) | **DNF — no ignored-bench harness exists for ADPCM** (decode itself is covered green by `adpcm_corpus_differential`); ffmpeg reference: ~67.1 M/s | — | ~67.1 M/s | — |
+| ADPCM-IMA 0042 (44.056 kHz stereo, in wav) | 153 767 893 | 1 745× | ~67.5 M/s | ~2.3× (coarse) |
+| ADPCM-MS 0102 (32 kHz stereo, in wav) | 137 700 868 | 2 152× | ~64.3 M/s | ~2.1× (coarse) |
+
+*ADPCM rows added 2026-10-26, closed by 6.ADPCM-bench* — this table's
+Phase-5 DNF row ("no ignored-bench harness exists for ADPCM") is
+closed: the new ignored `adpcm_bench.rs` measures the same contract
+path `adpcm_corpus_differential` drives (wav demux included, so
+decode-only is strictly higher; median-of-7 in-process), and the
+ffmpeg column is the same `-benchmark` child-CPU method re-measured
+that session (median-of-5, the same 1 ms coarseness — ratios labeled
+coarse). Raw transcript: `docs/perf/raw/r1/adpcm-bench-20261026.txt`.
 
 Honest reading: every landed audio decoder is comfortably faster
 than realtime (526×–6 220×); the self-built lossy decoders (MP3/MP2/
@@ -168,7 +178,8 @@ is 0.29× because rav1d runs asm-OFF by dependency policy while
 libdav1d runs full asm — a policy gap, not an engineering one
 (Phase-7 admission reviews it). **At parity**: claxon-FLAC vs
 ffmpeg FLAC (~0.9–1.05×). **Not measurable on this build** (the
-card's own honesty ledger): ADPCM throughput (no bench harness),
+card's own honesty ledger): ADPCM throughput (no bench harness at
+5.R1 time — closed 2026-10-26 by 6.ADPCM-bench, see §2),
 TTF per-frame events (v1 catalog gap), seek on flac/mp3/mkv (open
 path), h264/hevc decode (parsers only), ALAC ratio (fixture below
 ffmpeg's 1 ms CPU clock). **Sandbox limits**: VLC 3.0.23 absent →
@@ -182,7 +193,7 @@ hosts (doc 12 §1.5 host-measured caveat).
 export CARGO_TARGET_DIR=<worktree>/target
 cargo build --release -p lumen-cli && cp $CARGO_TARGET_DIR/release/lumen /tmp/r1-lumen
 export LUMEN_CORPUS=/tmp/my-project/corpus-v4
-for t in flac_bench mp3_bench mp2_bench vorbis_bench aac_bench alac_bench av1_bench; do
+for t in flac_bench mp3_bench mp2_bench vorbis_bench aac_bench alac_bench av1_bench adpcm_bench; do
   cargo test -p codecs --all-features --release --test $t -- --ignored --nocapture
 done
 # mjpeg end-to-end + ffmpeg lanes (median-of-5 each):

@@ -109,11 +109,12 @@ impl FrameSink for CountingSink {
 /// shape): open → demux → configure → decode every packet → sink.
 /// Returns the sink's inter-channel sample count.
 fn decode_pass(lane: &Lane, path: &Path) -> u64 {
-    let stream =
-        open_via_input(path).unwrap_or_else(|e| unreachable!("{}: open: {e}", lane.name));
+    let stream = open_via_input(path).unwrap_or_else(|e| unreachable!("{}: open: {e}", lane.name));
     let mut wav =
         WavDemuxer::new(stream).unwrap_or_else(|e| unreachable!("{}: new: {e}", lane.name));
-    let tracks = wav.start().unwrap_or_else(|e| unreachable!("{}: start: {e}", lane.name));
+    let tracks = wav
+        .start()
+        .unwrap_or_else(|e| unreachable!("{}: start: {e}", lane.name));
     assert_eq!(tracks.len(), 1, "{}: one audio track", lane.name);
     assert_eq!(
         tracks[0].codec.as_str(),
@@ -196,7 +197,11 @@ fn adpcm_decode_throughput_corpus_lanes() {
             let start = Instant::now();
             let got = decode_pass(&lane, &path);
             let elapsed = start.elapsed().as_secs_f64();
-            assert_eq!(got, expected, "{}: every rep decodes the same window", lane.name);
+            assert_eq!(
+                got, expected,
+                "{}: every rep decodes the same window",
+                lane.name
+            );
             per_sec.push(expected as f64 / elapsed);
         }
         per_sec.sort_by(|a, b| a.total_cmp(b));
