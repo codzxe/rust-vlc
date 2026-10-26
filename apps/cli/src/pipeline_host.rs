@@ -56,6 +56,7 @@ use codecs::audio::alac::AlacDecoder;
 use codecs::audio::flac::FlacDecoder;
 use codecs::audio::mp2::Mp2Decoder;
 use codecs::audio::mp3::Mp3Decoder;
+use codecs::audio::opus::OpusDecoder;
 use codecs::audio::vorbis::VorbisDecoder;
 use codecs::video::av1::Av1Decoder;
 use media_clock::MediaClock;
@@ -232,6 +233,16 @@ impl DecoderProvider for HostDecoderProvider {
                 decoder.configure(&config)?;
                 Ok(Box::new(decoder))
             }
+            "opus" => {
+                // Requires the OpusHead ‖ OpusTags chain in
+                // `extra_data` (the Ogg host's verbatim join; the
+                // decoder's head gate refuses to guess the channel
+                // geometry) — seeded from the facts.
+                let config = self.seeded_config(track, config);
+                let mut decoder = OpusDecoder::new();
+                decoder.configure(&config)?;
+                Ok(Box::new(decoder))
+            }
             // The ADTS/MP4 descriptor family for the AAC-LC decoder:
             // `aac` (ISO-BMFF esds) and `aac-lc` (the ADTS profile
             // mapping); Main/SSR/LTP descriptors stay unmatched and
@@ -297,7 +308,7 @@ impl DecoderProvider for HostDecoderProvider {
                 "cli.codec_unavailable",
                 format!(
                     "no decoder for `{other}` in this build (landed: mjpeg, pcm, flac, \
-                     mp3, mp2, vorbis, aac-lc, alac, adpcm, av1)"
+                     mp3, mp2, vorbis, opus, aac-lc, alac, adpcm, av1)"
                 ),
             )),
         }

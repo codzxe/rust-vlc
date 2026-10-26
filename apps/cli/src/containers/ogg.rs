@@ -483,17 +483,14 @@ mod tests {
         assert_eq!(seen, 66);
     }
 
-    /// The Opus fixture opens + demuxes honestly and decode refuses
-    /// TYPED at the codec stage (no Opus decoder in this build —
-    /// the correct shape today; the blob and geometry are the
-    /// forward-honest config).
+    /// The Opus fixture opens + demuxes + DECODES (6.M-opus landed —
+    /// the refusal shape inverted when the decoder arrived; the
+    /// blob/geometry harvest feeds it end-to-end).
     #[test]
-    fn opus_fixture_opens_and_refuses_typed() {
-        let mut opened = open(
-            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../../tests/fixtures/generated/valid/ogg_opus_48k_mono.opus"),
-            None,
-        );
+    fn opus_fixture_opens_and_decodes() {
+        let opus_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/generated/valid/ogg_opus_48k_mono.opus");
+        let mut opened = open(opus_path.clone(), None);
         assert_eq!(opened.facts.container, "ogg");
         let fact = &opened.facts.facts[0];
         assert_eq!(fact.codec, "opus");
@@ -512,13 +509,45 @@ mod tests {
         });
         assert!(blob.as_slice().starts_with(b"OpusHead"));
         assert_eq!(count_packets(&mut opened), 21, "ffprobe nb_read_packets");
-        match decoder_for(&opened) {
-            Err(err) => {
-                assert_eq!(err.context.code.as_str(), "cli.codec_unavailable", "{err}");
-                assert_eq!(err.stage, media_types::PipelineStage::Decode, "{err}");
+        // 6.M-opus landed: the opus decoder now EXISTS — the fixture
+        // must decode, not refuse. Fresh open: the walk above consumed
+        // the single-shot demuxer.
+        let mut opened = open(opus_path, None);
+        let facts = Arc::new(opened.facts.clone());
+        let provider = HostDecoderProvider::new(Arc::clone(&facts));
+        let track = facts.tracks[0].clone();
+        let config = DecoderConfig::new(
+            track.codec.clone(),
+            GenerationId::FIRST,
+            ThreadBudget::default(),
+            None,
+            None,
+        );
+        let mut decoder = provider
+            .decoder_for(&track, &config)
+            .unwrap_or_else(|err| unreachable!("opus decoder_for: {err}"));
+        let mut sink = CountingSink(0, 0);
+        loop {
+            match opened.demuxer.next_event() {
+                Ok(DemuxEvent::Packet(packet)) => {
+                    let _ = decoder
+                        .decode(packet, &mut sink)
+                        .unwrap_or_else(|err| unreachable!("opus fixture decode: {err}"));
+                }
+                Ok(DemuxEvent::Recovered { .. }) | Ok(DemuxEvent::Discontinuity) => {}
+                Ok(DemuxEvent::EndOfStream) => break,
+                Err(err) => unreachable!("demux: {err}"),
             }
-            Ok(_) => unreachable!("no opus decoder exists in this build"),
         }
+        let _ = decoder
+            .flush(&mut sink)
+            .unwrap_or_else(|err| unreachable!("opus fixture flush: {err}"));
+        assert!(
+            sink.0 > 0,
+            "the opus fixture must decode PCM (got {})",
+            sink.0
+        );
+        assert_eq!(sink.1, 1, "mono output");
     }
 
     /// The corpus differential (the user's standing mandate): every
@@ -580,15 +609,49 @@ mod tests {
         assert_eq!(sink.0, 32_256, "the 0085 reference raw_samples pin");
         assert_eq!(sink.1, 2);
         drop(decoder);
-        // 0047 opus mono: 201 packets, typed codec refusal.
+        // 0047 opus mono: 201 packets; 6.M-opus landed — full decode
+        // (granule 192,312 − pre-skip 312 = 192,000 valid samples).
+        // Fresh open for the decode pass (single-shot walk).
         let mut lane = open(dir.join("0047-audio-only.ogg"), None);
         assert_eq!(lane.facts.facts[0].codec, "opus");
         assert_eq!(lane.facts.facts[0].audio_geometry(), Some((1, 48_000)));
         assert_eq!(count_packets(&mut lane), 201, "ffprobe nb_read_packets");
-        match decoder_for(&lane) {
-            Err(err) => assert_eq!(err.context.code.as_str(), "cli.codec_unavailable", "{err}"),
-            Ok(_) => unreachable!("no opus decoder exists in this build"),
+        // Fresh open for the decode pass (single-shot walk).
+        let mut lane = open(dir.join("0047-audio-only.ogg"), None);
+        let facts = Arc::new(lane.facts.clone());
+        let provider = HostDecoderProvider::new(Arc::clone(&facts));
+        let track = facts.tracks[0].clone();
+        let config = DecoderConfig::new(
+            track.codec.clone(),
+            GenerationId::FIRST,
+            ThreadBudget::default(),
+            None,
+            None,
+        );
+        let mut decoder = provider
+            .decoder_for(&track, &config)
+            .unwrap_or_else(|err| unreachable!("0047 opus decoder_for: {err}"));
+        let mut sink = CountingSink(0, 0);
+        loop {
+            match lane.demuxer.next_event() {
+                Ok(DemuxEvent::Packet(packet)) => {
+                    let _ = decoder
+                        .decode(packet, &mut sink)
+                        .unwrap_or_else(|err| unreachable!("0047 opus decode: {err}"));
+                }
+                Ok(DemuxEvent::Recovered { .. }) | Ok(DemuxEvent::Discontinuity) => {}
+                Ok(DemuxEvent::EndOfStream) => break,
+                Err(err) => unreachable!("demux: {err}"),
+            }
         }
+        let _ = decoder
+            .flush(&mut sink)
+            .unwrap_or_else(|err| unreachable!("0047 opus flush: {err}"));
+        assert_eq!(
+            sink.0, 192_000,
+            "the 0047 valid-sample pin (granule − pre-skip)"
+        );
+        assert_eq!(sink.1, 1, "mono output");
         // 0077 opus 5.1: 201 packets, the 6-channel geometry.
         let mut lane = open(dir.join("0077-audio-only.ogg"), None);
         assert_eq!(lane.facts.facts[0].codec, "opus");
