@@ -1,0 +1,26 @@
+hostile zero-length              -> Err(Truncated)
+hostile truncated-frame(1/2)     -> Ok(1920x1080 cid 1238 depth 8)
+hostile truncated-frame(64B)     -> Err(Truncated)
+hostile garbage-0xAA             -> Err(Invalid("unknown header version"))
+hostile garbage-random           -> Err(Invalid("unknown header version"))
+hostile hdr-ok-payload-zero      -> Err(Row(0))
+sweep: 256 sampled truncation points (step 5376), 0 panics, 208 Ok-frames, 48 typed Err
+TOTAL PANICS: 0
+=== L4 ===
+hostile zero-length              -> Err(Truncated)
+hostile truncated-frame(1/2)     -> Ok(1280x720 cid 1251 depth 8)
+hostile truncated-frame(64B)     -> Err(Truncated)
+hostile garbage-0xAA             -> Err(Invalid("unknown header version"))
+hostile garbage-random           -> Err(Invalid("unknown header version"))
+hostile hdr-ok-payload-zero      -> Err(Row(0))
+sweep: 256 sampled truncation points (step 2688), 0 panics, 201 Ok-frames, 55 typed Err
+TOTAL PANICS: 0
+=== L5 ===
+hostile zero-length              -> Err(Truncated)
+hostile truncated-frame(1/2)     -> Ok(1920x1080 cid 1235 depth 10)
+hostile truncated-frame(64B)     -> Err(Truncated)
+hostile garbage-0xAA             -> Err(Invalid("unknown header version"))
+hostile garbage-random           -> Err(Invalid("unknown header version"))
+hostile hdr-ok-payload-zero      -> Err(Row(0))
+sweep: 256 sampled truncation points (step 5376), 0 panics, 206 Ok-frames, 50 typed Err
+TOTAL PANICS: 0

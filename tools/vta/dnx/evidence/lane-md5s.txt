@@ -1,0 +1,11 @@
+# per-lane whole-stream MD5s (ref vs mine) — 2026-10-26, ffmpeg 7.1.5 vs filmcraft-dnx 0.9.0
+f555a591a0bc733e18ba7937c212e543 L1_1080p_175M.ref.raw
+f4e1f9b9a00817e5c20a854b9a97892f L1_1080p_175M.mine.raw
+ee4523751e6d7ca98bfdd9d19d0b9975 L2_1080p_36M.ref.raw
+2a57a43a1539c2dea2ce4d2161ba4b3f L2_1080p_36M.mine.raw
+8e924a4f2a22f31cda1821254ed0ef2f L3_1080p_145M.ref.raw
+c1a12388dcdd92713f8a7e382c881224 L3_1080p_145M.mine.raw
+f6d1e56c6bce6f1d2856cfef1ee6f7c5 L4_720p_90M.ref.raw
+c4cafa29f76f438160321ce54e585dc9 L4_720p_90M.mine.raw
+76cb5352e80f969ac3254a2aaa4faee9 L5_1080p10_185M.ref.raw
+c182b14df098eab64675412f086f71c1 L5_1080p10_185M.mine.raw

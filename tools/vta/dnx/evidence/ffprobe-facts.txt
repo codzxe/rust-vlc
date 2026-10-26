@@ -1,0 +1,45 @@
+=== L1_1080p_175M.dnxhd ===
+codec_name=dnxhd
+profile=DNXHD
+width=1920
+height=1080
+pix_fmt=yuv422p
+r_frame_rate=25/1
+bit_rate=N/A
+nb_frames=N/A
+=== L2_1080p_36M.dnxhd ===
+codec_name=dnxhd
+profile=DNXHD
+width=1920
+height=1080
+pix_fmt=yuv422p
+r_frame_rate=25/1
+bit_rate=N/A
+nb_frames=N/A
+=== L3_1080p_145M.dnxhd ===
+codec_name=dnxhd
+profile=DNXHD
+width=1920
+height=1080
+pix_fmt=yuv422p
+r_frame_rate=25/1
+bit_rate=N/A
+nb_frames=N/A
+=== L4_720p_90M.dnxhd ===
+codec_name=dnxhd
+profile=DNXHD
+width=1280
+height=720
+pix_fmt=yuv422p
+r_frame_rate=25/1
+bit_rate=N/A
+nb_frames=N/A
+=== L5_1080p10_185M.dnxhd ===
+codec_name=dnxhd
+profile=DNXHD
+width=1920
+height=1080
+pix_fmt=yuv422p10le
+r_frame_rate=25/1
+bit_rate=N/A
+nb_frames=N/A
