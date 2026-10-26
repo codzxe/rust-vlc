@@ -91,26 +91,46 @@ fn directory_source_is_inaccessible() {
     assert!(err.contains("error: [input.inaccessible]"), "{err}");
 }
 
-/// A probed-but-unsupported container (the MPEG-PS parent — the
-/// `mpegps` probe id covers ps/mpg/vob): the probe names the
-/// format (R3 registered the signature), the registry refuses the
-/// open path honestly (the per-container host wiring is a later
-/// card; 6.OPW-ts wired the ts family, so this pin re-targets from
-/// `mpegts` to `mpegps` — the LAST unwired family in the §5 order;
-/// the 6.OPW-ps unit re-pins it when it lands). The bytes are the
-/// MPEG-PS pack start code (0x000001BA) — the probe's own anchored
-/// signature, so a 4-byte file is a truthful MPEG-PS probe.
+/// The MPEG-PS parent family is now WIRED (card 6.OPW-ps — the
+/// FINAL §5 unit: all 15 registered probe signature ids have
+/// registry arms), so the registry's default refusal is no longer
+/// reachable with real bytes — every signature the probe can emit
+/// resolves to a container host. This pin re-targets from "the
+/// registry refuses mpegps" (the pre-wiring truth) to the wired
+/// family's own honest answer for a 4-byte stub: the pack start
+/// code probes `mpegps`, the registry dispatches to the PS host, and
+/// the DEMUXER refuses the truncated pack header typed (stage
+/// `demux`, code `demux.ps.bad-pack`, exit 65) — proof the arm
+/// answers. The default arm's coverage (a hypothetical future
+/// signature id, e.g. `mpegps-dv-extended`) is pinned in the lib
+/// test `unwired_format_is_refused_with_the_format_named` — no real
+/// file can reach the default arm while every registered signature
+/// is wired.
 #[test]
-fn mpegps_container_is_refused_with_the_format_named() {
+fn mpegps_stub_is_refused_typed_by_the_wired_demuxer() {
     let ps = [0x00u8, 0x00, 0x01, 0xBA];
-    let ps_path = std::env::temp_dir().join("lumen-cli-unwired-ps.mpg");
+    let ps_path = std::env::temp_dir().join("lumen-cli-wired-ps.mpg");
     std::fs::write(&ps_path, ps).must();
     let (_out, err, code) = run(&[ps_path.to_str().must()], "quit\n");
     std::fs::remove_file(&ps_path).ok();
     assert_eq!(code, 65, "stderr:\n{err}");
-    assert!(err.contains("error: [probe.unsupported]"), "{err}");
-    assert!(err.contains("format `mpegps` probes"), "{err}");
-    assert!(err.contains("no open-path wiring"), "{err}");
+    assert!(err.contains("error: [demux.corrupt]"), "{err}");
+    assert!(err.contains("demux.ps.bad-pack"), "{err}");
+}
+
+/// The wired MPEG-PS family through the REAL binary (the family's
+/// first end-to-end lane): the committed demux fixture (mpeg2video +
+/// mp2) opens; with `--no-video` the mp2 limb decodes (the streaming
+/// AU-split: 39 frames from 5 PES) and the session accepts.
+#[test]
+fn mpegps_container_opens_and_accepts_the_session() {
+    let path = format!(
+        "{}/../../crates/demux/fixtures/ps/ps-mp2-video-audio.mpg",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let (out, err, code) = run(&["open", &path, "--no-video"], "quit\n");
+    assert_eq!(code, 0, "stdout:\n{out}\nstderr:\n{err}");
+    assert!(out.contains("ok: accepted session=1"), "{out}");
 }
 
 /// The Matroska parent fixture now OPENS end-to-end (card

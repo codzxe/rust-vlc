@@ -27,6 +27,7 @@ mod ivf;
 mod mkv;
 mod mp4;
 mod ogg;
+mod ps;
 mod ts;
 mod wav;
 
@@ -65,6 +66,9 @@ pub(crate) fn open(
         "mp3" => es::open_mpeg_audio(stream, opts, format),
         "mp4" => mp4::open(stream, opts),
         "ogg" => ogg::open(stream, opts),
+        // The `mpegps` id covers ps/mpg/vob/mpeg (6.OPW-ps — the
+        // FINAL §5 unit: every registered probe id now has an arm).
+        "mpegps" => ps::open(stream, opts),
         "mpegts" => ts::open(stream, opts),
         "wav" => wav::open(stream, opts),
         other => Err(unwired_refusal(other)),
@@ -93,15 +97,20 @@ mod tests {
     use media_types::ids::SourceUri;
     use testkit::Must;
 
-    /// The default arm's honest refusal (§4.6): an unwired format
-    /// through the registry is the typed probe-stage refusal naming
-    /// the format — the same message shape the D-018 gate answered
-    /// with. The stream is never read: the refusal precedes any
-    /// container construction. (6.OPW-ts wired the ts family, so
-    /// 6.OPW-es re-targets this pin from `mpegts` to the
-    /// still-unwired `mpegps` — a REAL probe id, the ps/vob
-    /// family's, the LAST family in the §5 wiring order; the
-    /// 6.OPW-ps unit re-pins it when it lands.)
+    /// The default arm's honest refusal (§4.6): a format id
+    /// without a wiring arm through the registry is the typed
+    /// probe-stage refusal naming the format — the same message
+    /// shape the D-018 gate answered with. The stream is never
+    /// read: the refusal precedes any container construction.
+    /// 6.OPW-ps wired the LAST real probe family, so **all 15
+    /// registered signature ids** (`adts aiff avi flac h264 hevc
+    /// ivf matroska mp2 mp3 mp4 ogg mpegps mpegts wav`) now have
+    /// arms — this pin re-targets from the real `mpegps` id to a
+    /// clearly HYPOTHETICAL one: `mpegps-dv-extended` names no
+    /// signature any probe emits today; it stands for the NEXT
+    /// registered signature (a future R3 row), which must land in
+    /// this default arm until its own wiring unit adds the match
+    /// line. The arm guards future ids — exactly what it says.
     #[test]
     fn unwired_format_is_refused_with_the_format_named() {
         let uri = SourceUri::parse("file:///tmp/any.mpg").must();
@@ -112,19 +121,19 @@ mod tests {
             no_audio: false,
         };
         let stream = demux::avi::test_support::mem_stream(*b"never read").must();
-        match open("mpegps", stream, &opts) {
+        match open("mpegps-dv-extended", stream, &opts) {
             Err(err) => {
                 assert_eq!(err.stage, Stage::Probe, "{err}");
                 assert_eq!(err.code, ErrorCode::Unsupported, "{err}");
-                assert!(err.message.contains("format `mpegps` probes"), "{err}");
+                assert!(err.message.contains("format `mpegps-dv-extended` probes"), "{err}");
                 assert!(err.message.contains("no open-path wiring"), "{err}");
                 assert_eq!(
                     err.details.get("format").map(String::as_str),
-                    Some("mpegps"),
+                    Some("mpegps-dv-extended"),
                     "{err}"
                 );
             }
-            Ok(_) => unreachable!("mpegps has no wiring unit yet"),
+            Ok(_) => unreachable!("the hypothetical id has no wiring arm"),
         }
     }
 }
