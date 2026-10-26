@@ -31,7 +31,7 @@ use demux::wav::WavDemuxer;
 use plugin_api::{Access, DemuxEvent, Demuxer, SourceStream};
 use streaming::fetch::HttpFetch;
 use streaming::mockhttp::{MockConfig, MockServer};
-use streaming::ranged::{RangedConfig, RangedResource};
+use streaming::ranged::{NoRangePolicy, RangedConfig, RangedResource};
 use testkit::Must;
 
 /// The fixture under test (an ffmpeg product; truth measured in the
@@ -91,9 +91,13 @@ fn wav_over_http_demuxes_to_the_on_disk_truth() {
     let fetch: Arc<dyn HttpFetch> = Arc::new(server.client());
 
     // 1 KiB chunks over a ~46 KiB file: dozens of range requests.
+    // The policy is RequireRange to keep this 6.A2a proof's shape
+    // exactly as pinned (the server honors Range; the policy never
+    // fires — the fallback lane is the test below).
     let config = RangedConfig {
         window_bytes: 4096,
         chunk_bytes: 1024,
+        no_range: NoRangePolicy::RequireRange,
     };
     let stream = RangedResource::open(fetch, &server.url("media.wav"), config)
         .unwrap_or_else(|e| unreachable!("open: {e}"));
@@ -140,6 +144,76 @@ fn wav_over_http_demuxes_to_the_on_disk_truth() {
         assert!(
             range.starts_with("bytes="),
             "every request is a ranged request: {range}"
+        );
+    }
+}
+
+/// The 6.A2b end-to-end proof: the SAME fixture over a **no-range**
+/// server (`honor_range: false`) — the linear-scan fallback — still
+/// demuxes to the on-disk truth. Network-fallback ≡ file, again.
+#[test]
+fn wav_over_no_range_http_demuxes_to_the_on_disk_truth() {
+    let bytes = testkit::fixture_bytes(FIXTURE).must();
+    let server = MockServer::spawn(MockConfig {
+        honor_range: false,
+        body: bytes.clone(),
+        ..MockConfig::default()
+    })
+    .unwrap_or_else(|e| unreachable!("spawn: {e}"));
+    let fetch: Arc<dyn HttpFetch> = Arc::new(server.client());
+
+    // 1 KiB chunks keep the probe's shape identical to the ranged
+    // e2e; the 64 KiB window admits the whole ~35 KiB body for the
+    // scan (a no-range body over the window is the typed refusal).
+    let config = RangedConfig {
+        window_bytes: 64 * 1024,
+        chunk_bytes: 1024,
+        no_range: NoRangePolicy::FallbackToScan,
+    };
+    let stream = RangedResource::open(fetch, &server.url("media.wav"), config)
+        .unwrap_or_else(|e| unreachable!("open: {e}"));
+    assert_eq!(stream.size(), Some(bytes.len() as u64));
+    let mut wav = WavDemuxer::new(Box::new(stream)).unwrap_or_else(|e| unreachable!("{e}"));
+    let tracks = wav.start().unwrap_or_else(|e| unreachable!("{e}"));
+    assert_eq!(tracks.len(), 1);
+    assert_eq!(tracks[0].codec.as_str(), "pcm_s16le");
+    let net_payload = drain(&mut wav);
+
+    // The same three-way truth as the ranged e2e.
+    assert_eq!(
+        net_payload,
+        wav_data_chunk(&bytes),
+        "no-range-demuxed payload == the on-disk data chunk"
+    );
+    assert_eq!(md5_hex(&net_payload), FFMPEG_MD5);
+    let path = testkit::fixture_path(FIXTURE).must();
+    let uri =
+        media_types::ids::SourceUri::parse(&format!("file://{}", path.to_str().must())).must();
+    let file_stream = input::FileAccess::new().open(&uri).must();
+    let mut file_wav = WavDemuxer::new(file_stream).unwrap_or_else(|e| unreachable!("{e}"));
+    file_wav.start().unwrap_or_else(|e| unreachable!("{e}"));
+    let file_payload = drain(&mut file_wav);
+    assert_eq!(net_payload, file_payload, "fallback and file paths agree");
+
+    // The request log proves the fallback really did the work: the
+    // probe is ranged (refused over-budget by the transport), every
+    // scan fetch after it is a rangeless GET from byte 0.
+    let requests = server.requests();
+    assert!(
+        requests.len() >= 2,
+        "probe + at least one scan fetch (got {})",
+        requests.len()
+    );
+    assert_eq!(
+        requests[0].header("range"),
+        Some("bytes=0-1023"),
+        "the probe is unchanged: it still asks for the first chunk"
+    );
+    for (i, req) in requests.iter().enumerate().skip(1) {
+        assert!(
+            req.header("range").is_none(),
+            "scan fetch #{i} must be rangeless (got {:?})",
+            req.header("range")
         );
     }
 }

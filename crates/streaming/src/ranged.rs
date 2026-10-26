@@ -44,6 +44,53 @@
 //! the read-ahead knob, and a larger chunk trades memory for fewer
 //! round-trips. An incremental-body port extension would remove the
 //! per-chunk buffering but not the request count.
+//!
+//! # Linear-scan fallback for no-range servers (card 6.A2b)
+//!
+//! Some servers ignore `Range:` and answer every request with `200`
+//! plus the whole body (the `honor_range: false` shape). A player has
+//! to play those (VLC does), so the default policy is
+//! [`NoRangePolicy::FallbackToScan`]: the resource switches to
+//! **linear scan** mode —
+//!
+//! - **Whole-body, rangeless fetches.** One plain `GET` (no `Range:`
+//!   header — the server ignores it, and asking would only invite a
+//!   206 we would have to refuse) under the **window budget** as the
+//!   transport `response_limit`. A body larger than `window_bytes`
+//!   fails `streaming.ranged.response-over-budget` typed: the port
+//!   returns whole bodies, so a no-range resource that does not fit
+//!   the window cannot be scanned without unbounded allocation (the
+//!   honest refusal — an incremental-body port extension lifts it).
+//! - **Forward-only reads.** The scan buffer is `[pos, len)` — the
+//!   prefix before the read cursor is consumed and discarded (never
+//!   re-served), so retained memory only ever shrinks after a fetch.
+//!   A seek **forward** into the retained span is free; a seek
+//!   **before the read cursor** re-fetches the whole body from byte
+//!   0 and skips forward to the target, discarding (and counting in
+//!   [`RangedStats::skipped_bytes`]) the skipped bytes — the honest
+//!   linear cost of a no-range server, accounted in
+//!   [`RangedStats::refetches`] rather than hidden.
+//! - **Length from the `200`.** `Content-Length` (cross-checked
+//!   against the delivered body; a disagreement is a protocol
+//!   violation) fixes `size()` — a scan-mode resource always has a
+//!   known length, where the ranged mode also admits unknown-length
+//!   (`bytes a-b/*`) streams.
+//! - **Mid-stream flips recover.** A later ranged request suddenly
+//!   answered `200` (server changed behavior / CDN edge) resyncs the
+//!   resource into scan mode under the fallback policy and the
+//!   pending read completes from the new body (counted in
+//!   [`RangedStats::resyncs`]); under [`NoRangePolicy::RequireRange`]
+//!   the same answer is the typed `streaming.ranged.no-range-support`
+//!   refusal, both at open and mid-stream.
+//!
+//! The open-time probe is one `Range: bytes=0-(chunk-1)` fetch with
+//! the chunk as its transport budget (6.A2a behavior, unchanged). A
+//! no-range server whose body exceeds that budget fails the probe
+//! with `ResponseTooLarge` — under the fallback policy a **rangeless
+//! re-probe** under the window budget follows, which either yields
+//! the full body (scan mode, one extra request) or the typed
+//! over-budget refusal. A range-honoring server never triggers the
+//! re-probe: honest `206` bodies fit the chunk budget.
 
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -132,9 +179,10 @@ fn truncated(expected: u64, found: u64) -> EngineError {
     )
 }
 
-/// The server ignored `Range:` — a ranged resource cannot serve seeks
-/// over it. The linear-scan fallback is card 6.A2b's scope; refusing
-/// typed here is the honest v0 behavior.
+/// The server ignored `Range:` — under [`NoRangePolicy::RequireRange`]
+/// this is the typed refusal (at open and mid-stream). Under the
+/// default [`NoRangePolicy::FallbackToScan`] the resource instead
+/// resyncs into linear-scan mode (card 6.A2b; see the module docs).
 fn no_range_support() -> EngineError {
     mint(
         ErrorKind::Unsupported { format: None },
@@ -229,11 +277,35 @@ impl Window {
     }
 }
 
-/// Tuning of a [`RangedResource`]: the memory contract in two knobs.
+/// What to do when the server ignores `Range:` (a `200` full body
+/// where a range was asked — the no-range server).
+///
+/// The default is [`FallbackToScan`]: a player has to play no-range
+/// servers (VLC does), so the resource falls back to the bounded
+/// linear-scan mode of card 6.A2b (module docs). [`RequireRange`]
+/// keeps 6.A2a's typed refusal for callers that need seek-quality
+/// guarantees (e.g. a moov-at-end container on a strict budget).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum NoRangePolicy {
+    /// Refuse typed (`streaming.ranged.no-range-support`) when the
+    /// server answers `200` to a ranged request — at open and
+    /// mid-stream alike.
+    RequireRange,
+    /// Fall back to linear scan: whole-body rangeless fetches under
+    /// the window budget, forward-only reads, seek-before-cursor
+    /// re-fetches (the default).
+    #[default]
+    FallbackToScan,
+}
+
+/// Tuning of a [`RangedResource`]: the memory contract in two knobs
+/// plus the no-range policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RangedConfig {
     /// Window-cache budget: the maximum bytes held across all cached
-    /// windows (LRU eviction above it). Mirrors
+    /// windows (LRU eviction above it) — and, in linear-scan mode,
+    /// the transport budget on the whole-body fetch (a larger body is
+    /// the typed over-budget refusal). Mirrors
     /// `limits.cache_network_mib` (default 64 MiB, ceiling
     /// [`MAX_WINDOW_BYTES`]).
     pub window_bytes: usize,
@@ -242,6 +314,9 @@ pub struct RangedConfig {
     /// fetch — a hostile longer body fails typed instead of
     /// allocating).
     pub chunk_bytes: usize,
+    /// Policy when the server ignores `Range:` (see
+    /// [`NoRangePolicy`]). Default: fall back to linear scan.
+    pub no_range: NoRangePolicy,
 }
 
 impl Default for RangedConfig {
@@ -249,6 +324,7 @@ impl Default for RangedConfig {
         RangedConfig {
             window_bytes: DEFAULT_WINDOW_BYTES,
             chunk_bytes: DEFAULT_CHUNK_BYTES,
+            no_range: NoRangePolicy::FallbackToScan,
         }
     }
 }
@@ -304,6 +380,57 @@ pub struct RangedStats {
     pub cache_hits: u64,
     /// Windows evicted to stay inside the budget.
     pub cache_evictions: u64,
+    /// Linear-scan re-fetches from byte 0 (a read at a position before
+    /// the scan frontier — the honest linear cost, counted rather
+    /// than hidden).
+    pub refetches: u64,
+    /// Bytes consumed and discarded by linear-scan skips: the `[0,
+    /// target)` prefix dropped while re-positioning after a
+    /// before-frontier re-fetch.
+    pub skipped_bytes: u64,
+    /// Mid-stream resyncs into linear scan (a ranged fetch suddenly
+    /// answered `200` under the fallback policy).
+    pub resyncs: u64,
+}
+
+/// The resource's fetch strategy. Fixed by the probe / first flip;
+/// only a mid-stream `200` under the fallback policy migrates
+/// `Ranged -> Scan`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Mode {
+    /// Ranged fetches (the server honors `Range:`).
+    Ranged,
+    /// Linear scan (card 6.A2b): the server ignores `Range:`;
+    /// whole-body rangeless fetches, forward-only reads.
+    Scan,
+}
+
+/// The linear-scan forward buffer: the retained span `[base,
+/// base + data.len())`. The prefix before the read cursor is drained
+/// as reads advance (consume-and-discard), so the span only ever
+/// shrinks between fetches; memory is bounded by the fetch's
+/// `response_limit == window_bytes`.
+struct ScanBuffer {
+    /// Resource offset of `data[0]`.
+    base: u64,
+    data: Vec<u8>,
+}
+
+impl ScanBuffer {
+    /// Whether the buffer serves the byte at `pos`.
+    fn covers(&self, pos: u64) -> bool {
+        pos >= self.base && (pos - self.base) < self.data.len() as u64
+    }
+}
+
+/// What a fetched response validated into (the shared `absorb`
+/// result across the probe and every window fetch).
+enum Absorbed {
+    /// A `206` body for the requested `start` (ranged mode).
+    Ranged(Vec<u8>),
+    /// A `200` full body: the resource entered linear-scan mode (the
+    /// fallback policy); the scan buffer holds the body.
+    Scan,
 }
 
 /// A seekable, bounded-memory byte stream over an HTTP resource
@@ -318,13 +445,20 @@ pub struct RangedResource {
     url: String,
     uri: media_types::ids::SourceUri,
     config: RangedConfig,
+    /// The fetch strategy: ranged windows, or the linear-scan fallback
+    /// (a no-range server under [`NoRangePolicy::FallbackToScan`]).
+    mode: Mode,
     /// The open-time length when the server revealed it; `None` for
-    /// unknown-length streams (`bytes a-b/*`).
+    /// unknown-length streams (`bytes a-b/*`). Linear-scan mode always
+    /// fixes a length from the `200`'s `Content-Length`.
     len: Option<u64>,
     pos: u64,
     /// The bounded window cache, insertion-ordered (front = LRU).
+    /// Empty in scan mode (reads consult the scan buffer only).
     windows: VecDeque<Window>,
     cached: usize,
+    /// The linear-scan forward buffer (scan mode only).
+    scan: Option<ScanBuffer>,
     stats: RangedStats,
 }
 
@@ -333,13 +467,20 @@ impl RangedResource {
     /// the probe (`Range: bytes=0-(chunk-1)`, budgeted to the chunk),
     /// and seed the window cache with its body.
     ///
+    /// A `200` answer enters linear-scan mode under the default
+    /// [`NoRangePolicy::FallbackToScan`] (a body larger than the chunk
+    /// budget triggers one rangeless re-probe under the window budget
+    /// — see the module docs); under [`NoRangePolicy::RequireRange`]
+    /// it is the typed `streaming.ranged.no-range-support` refusal.
+    ///
     /// # Errors
     /// [`EngineError`] (stage `Open`) — config/URL validation, the
     /// transport's typed failures, `streaming.ranged.no-range-support`
-    /// when the server answers `200` to a ranged request (the linear
-    /// fallback is 6.A2b), or `streaming.ranged.protocol-violation`
-    /// for a malformed/disagreeing `Content-Range`. A `416` to the
-    /// probe is honored as an empty resource (`size() == Some(0)`).
+    /// when the server answers `200` to a ranged request under
+    /// [`NoRangePolicy::RequireRange`], or
+    /// `streaming.ranged.protocol-violation` for a malformed/
+    /// disagreeing `Content-Range`. A `416` to the probe is honored as
+    /// an empty resource (`size() == Some(0)`).
     pub fn open(
         fetch: Arc<dyn HttpFetch>,
         url: &str,
@@ -356,28 +497,55 @@ impl RangedResource {
             url: url.to_string(),
             uri,
             config,
+            mode: Mode::Ranged,
             len: None,
             pos: 0,
             windows: VecDeque::new(),
             cached: 0,
+            scan: None,
             stats: RangedStats::default(),
         };
         // The probe: a bounded first-chunk fetch. `absorb` validates
         // it: a 206 fixes the length from `Content-Range` (its body
-        // becomes the first cached window), a 200 is the no-range
-        // refusal, anything else is a protocol violation.
+        // becomes the first cached window), a 200 enters the
+        // linear-scan fallback (or refuses typed under RequireRange),
+        // anything else is a protocol violation.
         match resource.fetch.fetch(resource.probe_request()) {
             Ok(resp) => {
-                let body = resource.absorb(&resp, 0)?;
-                resource.insert_window(Window {
-                    start: 0,
-                    data: body,
-                });
+                match resource.absorb(resp, 0, false)? {
+                    Absorbed::Ranged(body) => resource.insert_window(Window {
+                        start: 0,
+                        data: body,
+                    }),
+                    Absorbed::Scan => {
+                        // Scan mode entered; the scan buffer was
+                        // installed by `absorb`.
+                    }
+                }
             }
             Err(NetworkError::RangeNotSatisfiable) => {
                 // `bytes=0-(chunk-1)` unsatisfiable: nothing exists at
-                // offset 0 — the empty-resource shape.
+                // offset 0 — the empty-resource shape. The probe did go
+                // out on the wire; count it.
+                resource.stats.requests += 1;
                 resource.len = Some(0);
+            }
+            // The probe's chunk-budgeted transport refused a body
+            // larger than one chunk: either the no-range shape (a
+            // full body where a chunk was asked) or a hostile
+            // over-long 206. Under the fallback policy a rangeless
+            // re-probe under the WINDOW budget settles it: a 200 full
+            // body enters scan mode, anything else surfaces typed.
+            // A range-honoring server never lands here (honest 206s
+            // fit the chunk budget). The refused probe still went out
+            // on the wire — counted, with zero body bytes (the
+            // transport refused before buffering).
+            Err(NetworkError::ResponseTooLarge { .. })
+                if resource.config.no_range == NoRangePolicy::FallbackToScan =>
+            {
+                resource.stats.requests += 1;
+                let resp = resource.scan_get()?;
+                resource.enter_scan(resp)?;
             }
             Err(err) => return Err(map_fetch_err(err)),
         }
@@ -395,14 +563,18 @@ impl RangedResource {
     }
 
     /// Validate a fetched response for `start` and return its body
-    /// (shared by the probe and every window fetch). Only a `206` with
-    /// an agreeing `Content-Range` validates; a `200` is the no-range
-    /// refusal, anything else is a protocol violation.
+    /// (shared by the probe and every window fetch). A `206` with an
+    /// agreeing `Content-Range` validates in ranged mode; a `200`
+    /// either refuses typed ([`NoRangePolicy::RequireRange`]) or
+    /// resyncs into linear-scan mode with the full body (the fallback
+    /// policy — `resync` counts a mid-stream transition); anything
+    /// else is a protocol violation.
     fn absorb(
         &mut self,
-        resp: &crate::fetch::HttpResponse,
+        resp: crate::fetch::HttpResponse,
         start: u64,
-    ) -> Result<Vec<u8>, EngineError> {
+        resync: bool,
+    ) -> Result<Absorbed, EngineError> {
         self.stats.requests += 1;
         self.stats.bytes_fetched += resp.body.len() as u64;
         if resp.status == 206 {
@@ -420,13 +592,134 @@ impl RangedResource {
                     _ => self.len = Some(total),
                 }
             }
-            Ok(resp.body.clone())
+            Ok(Absorbed::Ranged(resp.body))
         } else if resp.status == 200 {
-            // A no-range answer mid-stream: the body starts at 0, not
-            // at `start` — serving it would corrupt position math.
-            Err(no_range_support())
+            if self.config.no_range == NoRangePolicy::RequireRange {
+                return Err(no_range_support());
+            }
+            if resync {
+                self.stats.resyncs += 1;
+            }
+            self.enter_scan(resp)?;
+            Ok(Absorbed::Scan)
         } else {
             Err(protocol_violation())
+        }
+    }
+
+    /// Issue one linear-scan fetch: a plain rangeless `GET` under the
+    /// window budget (the whole body IS the unit of scan-mode I/O —
+    /// a larger body is the transport's typed over-budget refusal,
+    /// never an unbounded allocation), counted in the stats.
+    fn scan_get(&mut self) -> Result<crate::fetch::HttpResponse, EngineError> {
+        let request =
+            HttpRequest::get(self.url.clone()).with_response_limit(self.config.window_bytes as u64);
+        let resp = self.fetch.fetch(request).map_err(map_fetch_err)?;
+        self.stats.requests += 1;
+        self.stats.bytes_fetched += resp.body.len() as u64;
+        Ok(resp)
+    }
+
+    /// Validate a `200` full-body response and install linear-scan
+    /// mode with it. The length comes from `Content-Length`
+    /// (cross-checked against the delivered body — a disagreement is
+    /// a protocol violation; an absent header falls back to the
+    /// observed body length, the EOF-terminated transport shape). A
+    /// body below the known length is the typed truncation; growth
+    /// updates the length (mirroring the ranged path). The ranged
+    /// window cache is released: scan-mode reads never consult it.
+    fn enter_scan(&mut self, resp: crate::fetch::HttpResponse) -> Result<(), EngineError> {
+        if resp.status != 200 {
+            // A rangeless GET answered with anything but 200 — e.g. a
+            // 206 without a Range request — refuses typed; no guess.
+            return Err(protocol_violation());
+        }
+        let body_len = resp.body.len() as u64;
+        let declared = resp
+            .header("Content-Length")
+            .and_then(|value| value.trim().parse::<u64>().ok());
+        match declared {
+            Some(declared) if declared != body_len => {
+                return Err(protocol_violation());
+            }
+            _ => {}
+        }
+        let new_len = declared.unwrap_or(body_len);
+        if let Some(known) = self.len
+            && new_len < known
+        {
+            // The resource shrank below its established length.
+            return Err(truncated(known, new_len));
+        }
+        self.len = Some(new_len);
+        self.windows.clear();
+        self.cached = 0;
+        self.mode = Mode::Scan;
+        self.scan = Some(ScanBuffer {
+            base: 0,
+            data: resp.body,
+        });
+        Ok(())
+    }
+
+    /// The honest linear cost (scan mode): a read at a position before
+    /// the scan frontier — the only miss kind, the buffer runs through
+    /// the resource end — re-fetches the whole body from byte 0 and
+    /// skips forward to the position, consuming and discarding the
+    /// `[0, pos)` prefix (bounded memory: the body is bounded by the
+    /// window budget; the skip is counted in `skipped_bytes`).
+    fn scan_refetch(&mut self) -> Result<(), EngineError> {
+        let resp = self.scan_get()?;
+        self.stats.refetches += 1;
+        self.enter_scan(resp)?;
+        if let Some(buf) = &mut self.scan {
+            let skip = (self.pos.min(buf.data.len() as u64)) as usize;
+            self.stats.skipped_bytes += skip as u64;
+            buf.data.drain(..skip);
+            buf.base = skip as u64;
+        }
+        Ok(())
+    }
+
+    /// Serve one read step in scan mode from the buffer at `pos`,
+    /// re-fetching first when the buffer does not cover `pos`. The
+    /// buffer's prefix is drained to the advanced cursor
+    /// (consume-and-discard: bytes before the cursor are never
+    /// re-served in scan mode).
+    fn scan_fill(&mut self, pos: u64, out: &mut [u8]) -> Result<usize, EngineError> {
+        if !self.scan.as_ref().is_some_and(|buf| buf.covers(pos)) {
+            self.scan_refetch()?;
+        }
+        let (off, n) = match self.scan.as_ref() {
+            // After a (re)fetch the buffer covers `pos` whenever the
+            // loop's length check admitted it; the arm below is the
+            // defensive EOF verdict for a position the freshest body
+            // does not reach.
+            Some(buf) if buf.covers(pos) => {
+                let off = (pos - buf.base) as usize;
+                (off, out.len().min(buf.data.len() - off))
+            }
+            _ => return Ok(0),
+        };
+        if let Some(buf) = &mut self.scan {
+            out[..n].copy_from_slice(&buf.data[off..off + n]);
+        }
+        self.pos += n as u64;
+        self.scan_trim();
+        Ok(n)
+    }
+
+    /// Drain the scan buffer's prefix up to the read cursor (the
+    /// forward-only retention: after the trim the buffer is exactly
+    /// `[pos, end)`).
+    fn scan_trim(&mut self) {
+        let Some(buf) = &mut self.scan else {
+            return;
+        };
+        if self.pos > buf.base {
+            let drop = ((self.pos - buf.base) as usize).min(buf.data.len());
+            buf.data.drain(..drop);
+            buf.base += drop as u64;
         }
     }
 
@@ -448,12 +741,18 @@ impl RangedResource {
             })
             .with_response_limit(self.config.chunk_bytes as u64);
         match self.fetch.fetch(request) {
-            Ok(resp) => {
-                let body = self.absorb(&resp, start)?;
-                let got = body.len();
-                self.insert_window(Window { start, data: body });
-                Ok(got)
-            }
+            Ok(resp) => match self.absorb(resp, start, true)? {
+                Absorbed::Ranged(body) => {
+                    let got = body.len();
+                    self.insert_window(Window { start, data: body });
+                    Ok(got)
+                }
+                // A mid-stream `200` resynced the resource into scan
+                // mode (enter_scan installed the buffer and released
+                // the window cache); the read loop re-dispatches on
+                // the mode and serves the pending read from it.
+                Absorbed::Scan => Ok(0),
+            },
             // A 416 mid-read on a known-length resource: it shrank
             // underneath us — typed truncation (unknown-length: the
             // store is the judge, a clean EOF).
@@ -514,10 +813,11 @@ impl RangedResource {
         n
     }
 
-    /// Bytes currently held in the window cache (bounded by
-    /// `config.window_bytes` — the memory-bound proof's live accessor).
+    /// Bytes currently held (window cache plus the linear-scan forward
+    /// buffer — bounded by `config.window_bytes`, the memory-bound
+    /// proof's live accessor).
     pub fn cached_bytes(&self) -> usize {
-        self.cached
+        self.cached + self.scan.as_ref().map_or(0, |buf| buf.data.len())
     }
 
     /// Counters for tests and telemetry (see [`RangedStats`]).
@@ -577,25 +877,45 @@ impl SourceStream for RangedResource {
             {
                 break; // clean, sticky EOF at the known length
             }
-            // Cache-first: a hit serves without touching the wire.
-            let hit = self.copy_hit(pos, &mut out[filled..]);
-            if hit > 0 {
-                self.stats.cache_hits += 1;
-                self.pos += hit as u64;
-                filled += hit;
-                continue;
+            match self.mode {
+                Mode::Scan => {
+                    let n = self.scan_fill(pos, &mut out[filled..])?;
+                    if n == 0 {
+                        break;
+                    }
+                    filled += n;
+                }
+                Mode::Ranged => {
+                    // Cache-first: a hit serves without touching the
+                    // wire.
+                    let hit = self.copy_hit(pos, &mut out[filled..]);
+                    if hit > 0 {
+                        self.stats.cache_hits += 1;
+                        self.pos += hit as u64;
+                        filled += hit;
+                        continue;
+                    }
+                    // Miss: fetch a chunk at the position and serve
+                    // from it.
+                    let got = self.fetch_window(pos)?;
+                    if self.mode == Mode::Scan {
+                        // A mid-stream 200 resynced into scan mode;
+                        // the installed buffer serves the pending
+                        // read on the next iteration.
+                        continue;
+                    }
+                    if got == 0 {
+                        // Unknown-length store judged EOF, or a clean
+                        // short-of-chunk end (known-length shortfalls
+                        // surface as typed truncation inside
+                        // fetch_window).
+                        break;
+                    }
+                    let hit = self.copy_hit(pos, &mut out[filled..]);
+                    self.pos += hit as u64;
+                    filled += hit;
+                }
             }
-            // Miss: fetch a chunk at the position and serve from it.
-            let got = self.fetch_window(pos)?;
-            if got == 0 {
-                // Unknown-length store judged EOF, or a clean
-                // short-of-chunk end (known-length shortfalls surface
-                // as typed truncation inside fetch_window).
-                break;
-            }
-            let hit = self.copy_hit(pos, &mut out[filled..]);
-            self.pos += hit as u64;
-            filled += hit;
         }
         Ok(filled)
     }
@@ -663,17 +983,46 @@ mod tests {
     }
 
     /// A small-footprint config: 4 KiB window of 1 KiB chunks, so
-    /// multi-request behavior shows up at fixture sizes.
+    /// multi-request behavior shows up at fixture sizes. The policy is
+    /// `RequireRange` — this helper serves 6.A2a's ranged-behavior
+    /// suite (the no-range refusal test included); the scan-fallback
+    /// tests below use their own configs.
     fn tight() -> RangedConfig {
         RangedConfig {
             window_bytes: 4096,
             chunk_bytes: 1024,
+            no_range: NoRangePolicy::RequireRange,
+        }
+    }
+
+    /// A scan-fallback config: 1 KiB chunks (so a body larger than one
+    /// chunk exercises the re-probe) under a 16 KiB window (so bodies
+    /// up to 16 KiB scan in one fetch).
+    fn scan() -> RangedConfig {
+        RangedConfig {
+            window_bytes: 16_384,
+            chunk_bytes: 1024,
+            no_range: NoRangePolicy::FallbackToScan,
         }
     }
 
     fn served(body: Vec<u8>) -> (MockServer, Arc<dyn HttpFetch>, Vec<u8>) {
         let server = MockServer::spawn(MockConfig::body(body.clone()))
             .unwrap_or_else(|e| unreachable!("spawn: {e}"));
+        let fetch: Arc<dyn HttpFetch> = Arc::new(server.client());
+        (server, fetch, body)
+    }
+
+    /// A no-range server (`honor_range: false` — every request gets
+    /// `200` + the full body regardless of `Range:`), the 6.A2b test
+    /// vehicle 6.A2a pinned.
+    fn served_no_range(body: Vec<u8>) -> (MockServer, Arc<dyn HttpFetch>, Vec<u8>) {
+        let server = MockServer::spawn(MockConfig {
+            honor_range: false,
+            body: body.clone(),
+            ..MockConfig::default()
+        })
+        .unwrap_or_else(|e| unreachable!("spawn: {e}"));
         let fetch: Arc<dyn HttpFetch> = Arc::new(server.client());
         (server, fetch, body)
     }
@@ -936,6 +1285,7 @@ mod tests {
             RangedConfig {
                 window_bytes: 64 * 1024,
                 chunk_bytes: 64 * 1024,
+                no_range: NoRangePolicy::RequireRange,
             },
         );
         assert_eq!(r.size(), Some(300));
@@ -946,9 +1296,10 @@ mod tests {
     }
 
     /// A no-range server (`honor_range: false`, the 200-full shape)
-    /// is refused typed at open: the linear-scan fallback is 6.A2b's
-    /// card, and guessing position math off a full-body 200 would
-    /// corrupt reads.
+    /// is refused typed at open under the `RequireRange` policy — and
+    /// since 6.A2b that policy is a choice: the default falls back to
+    /// linear scan (the tests below). Guessing position math off a
+    /// full-body 200 would corrupt reads either way.
     #[test]
     fn no_range_server_is_refused_typed_at_open() {
         let server = MockServer::spawn(MockConfig {
@@ -1053,6 +1404,7 @@ mod tests {
             RangedConfig {
                 window_bytes: 0,
                 chunk_bytes: 1024,
+                ..tight()
             }
             .validate(),
             "zero window",
@@ -1062,6 +1414,7 @@ mod tests {
             RangedConfig {
                 window_bytes: MAX_WINDOW_BYTES + 1,
                 chunk_bytes: 1024,
+                ..tight()
             }
             .validate(),
             "over-ceiling window",
@@ -1071,6 +1424,7 @@ mod tests {
             RangedConfig {
                 window_bytes: 4096,
                 chunk_bytes: 8192,
+                ..tight()
             }
             .validate(),
             "chunk over window",
@@ -1135,5 +1489,389 @@ mod tests {
                 r.cached_bytes()
             );
         }
+    }
+
+    // -----------------------------------------------------------------
+    // 6.A2b: the linear-scan fallback for no-range servers.
+    // -----------------------------------------------------------------
+
+    /// The default policy falls back to scan (a player has to play
+    /// no-range servers); the two knobs keep their 6.A2a defaults.
+    #[test]
+    fn default_policy_is_the_scan_fallback() {
+        let config = RangedConfig::default();
+        assert_eq!(config.no_range, NoRangePolicy::FallbackToScan);
+        assert_eq!(config.window_bytes, DEFAULT_WINDOW_BYTES);
+        assert_eq!(config.chunk_bytes, DEFAULT_CHUNK_BYTES);
+    }
+
+    /// A no-range server under the fallback policy: open succeeds, the
+    /// length comes from the 200's `Content-Length`, and sequential
+    /// reads reconstruct the full body byte-exact with a clean sticky
+    /// EOF. The probe's chunk-budgeted transport refuses the
+    /// full-body 200 (`ResponseTooLarge`), so the rangeless re-probe
+    /// under the window budget is the fetch that lands — two requests
+    /// total, both counted, and the memory bound holds throughout.
+    #[test]
+    fn scan_fallback_reads_the_full_body() {
+        let data = pattern(10_000);
+        let (server, fetch, _) = served_no_range(data.clone());
+        let mut r = open(fetch, &server.url("media.bin"), scan());
+        assert_eq!(r.size(), Some(10_000), "the 200's Content-Length");
+        let mut got = Vec::new();
+        let mut peak = 0usize;
+        loop {
+            let piece = r.read(700).unwrap_or_else(|e| unreachable!("{e}"));
+            if piece.is_empty() {
+                break;
+            }
+            got.extend_from_slice(&piece);
+            peak = peak.max(r.cached_bytes());
+        }
+        assert_eq!(got, data, "byte-exact through the scan buffer");
+        assert_eq!(r.position(), SourcePosition(10_000));
+        assert!(
+            r.read(16)
+                .unwrap_or_else(|e| unreachable!("{e}"))
+                .is_empty()
+        );
+        assert!(peak <= 16_384, "scan retention peaked at {peak} > window");
+        let stats = r.stats();
+        assert_eq!(stats.requests, 2, "probe (refused over-budget) + re-probe");
+        assert_eq!(
+            stats.bytes_fetched, 10_000,
+            "one whole body: the refused probe buffered nothing"
+        );
+        assert_eq!(stats.refetches, 0, "no backward seek happened");
+        assert_eq!(stats.resyncs, 0, "the scan mode was fixed at open");
+        let logged = server.requests();
+        assert_eq!(logged.len(), 2);
+        assert_eq!(
+            logged[0].header("range"),
+            Some("bytes=0-1023"),
+            "the probe is still a ranged request"
+        );
+        assert!(
+            logged[1].header("range").is_none(),
+            "the re-probe is rangeless: the server ignores Range"
+        );
+    }
+
+    /// A seek forward into the retained scan span serves from the
+    /// buffer with zero new requests (forward-only reads are the scan
+    /// mode's cheap direction).
+    #[test]
+    fn scan_seek_forward_within_the_buffer_is_free() {
+        let data = pattern(6000);
+        let (server, fetch, _) = served_no_range(data.clone());
+        let mut r = open(fetch, &server.url("media.bin"), scan());
+        let first = r.read(500).unwrap_or_else(|e| unreachable!("{e}"));
+        assert_eq!(first, &data[..500]);
+        assert_eq!(r.cached_bytes(), 6000 - 500, "consumed prefix discarded");
+        let before = server.requests().len();
+
+        r.seek(SeekOrigin::Start(4000))
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        let piece = r.read(300).unwrap_or_else(|e| unreachable!("{e}"));
+        assert_eq!(piece, &data[4000..4300]);
+        assert_eq!(
+            server.requests().len(),
+            before,
+            "forward seek inside [pos, end): no request"
+        );
+        assert_eq!(r.stats().refetches, 0);
+        assert_eq!(r.cached_bytes(), 6000 - 4300, "retention is [pos, end)");
+    }
+
+    /// A seek backward (before the read cursor) is the honest linear
+    /// cost: EXACTLY one re-fetch — a rangeless GET, i.e. from byte 0
+    /// — whose [0, target) prefix is skipped (consumed, discarded,
+    /// and counted), pinned from the request log.
+    #[test]
+    fn scan_seek_backward_refetches_once_from_byte_zero() {
+        let data = pattern(8000);
+        let (server, fetch, _) = served_no_range(data.clone());
+        let mut r = open(fetch, &server.url("media.bin"), scan());
+        let _ = r.read(2000).unwrap_or_else(|e| unreachable!("{e}"));
+        let before = server.requests().len();
+
+        r.seek(SeekOrigin::Start(512))
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        let piece = r.read(100).unwrap_or_else(|e| unreachable!("{e}"));
+        assert_eq!(piece, &data[512..612]);
+
+        let new_reqs = &server.requests()[before..];
+        assert_eq!(new_reqs.len(), 1, "exactly one re-fetch");
+        assert!(
+            new_reqs[0].header("range").is_none(),
+            "the re-fetch is a rangeless GET (from byte 0)"
+        );
+        let stats = r.stats();
+        assert_eq!(stats.refetches, 1);
+        assert_eq!(stats.skipped_bytes, 512, "the [0, 512) skip is counted");
+        assert_eq!(stats.bytes_fetched, 16_000, "two whole bodies total");
+        assert_eq!(r.cached_bytes(), 8000 - 612, "retention is [pos, end)");
+    }
+
+    /// Repeated backward seeks re-fetch every time (the linear cost
+    /// is per-seek, not amortized), the accounting stays exact, and a
+    /// rewind to byte 0 after EOF skips nothing (the skip is [0, 0)).
+    #[test]
+    fn scan_refetch_accounting_is_exact_across_rewinds() {
+        let data = pattern(5000);
+        let (server, fetch, _) = served_no_range(data.clone());
+        let mut r = open(fetch, &server.url("media.bin"), scan());
+        // Drain to EOF.
+        loop {
+            if r.read(1000)
+                .unwrap_or_else(|e| unreachable!("{e}"))
+                .is_empty()
+            {
+                break;
+            }
+        }
+        assert_eq!(r.stats().refetches, 0);
+
+        // Rewind to 0 and read: one re-fetch, an empty skip.
+        r.seek(SeekOrigin::Start(0))
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        let head = r.read(50).unwrap_or_else(|e| unreachable!("{e}"));
+        assert_eq!(head, &data[..50]);
+        assert_eq!(r.stats().refetches, 1);
+        assert_eq!(r.stats().skipped_bytes, 0);
+
+        // A second backward seek — below the frontier at 50, into
+        // discarded territory — refetches again and skips [0, 10).
+        r.seek(SeekOrigin::Start(10))
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        let piece = r.read(60).unwrap_or_else(|e| unreachable!("{e}"));
+        assert_eq!(piece, &data[10..70]);
+        let stats = r.stats();
+        assert_eq!(stats.refetches, 2);
+        assert_eq!(stats.skipped_bytes, 10);
+        // failed probe + re-probe + two re-fetches.
+        assert_eq!(stats.requests as usize, server.requests().len());
+        assert_eq!(stats.requests, 4);
+    }
+
+    /// A no-range body larger than the window budget cannot be
+    /// scanned without unbounded allocation (the port returns whole
+    /// bodies): the rangeless re-probe refuses typed, never clamps.
+    #[test]
+    fn scan_body_over_the_window_budget_is_refused_typed() {
+        let data = pattern(5000);
+        let (server, fetch, _) = served_no_range(data);
+        let config = RangedConfig {
+            window_bytes: 4096,
+            chunk_bytes: 1024,
+            no_range: NoRangePolicy::FallbackToScan,
+        };
+        let err = testkit::assert_err(
+            RangedResource::open(fetch, &server.url("big.bin"), config),
+            "over-budget scan body",
+        );
+        assert_eq!(err.context.code, "streaming.ranged.response-over-budget");
+        let media_types::ErrorKind::ResourceLimit {
+            limit: LimitKind::Memory,
+            budget,
+            attempted,
+        } = err.kind
+        else {
+            unreachable!("the refusal is a memory ResourceLimit");
+        };
+        assert_eq!((budget, attempted), (4096, 5000));
+        assert_eq!(
+            server.requests().len(),
+            2,
+            "probe + one rangeless re-probe, then the typed refusal"
+        );
+    }
+
+    /// Tiny-file edge: a no-range body smaller than one chunk fits the
+    /// probe's own transport budget, so the probe's 200 enters scan
+    /// mode directly — one request serves the whole resource.
+    #[test]
+    fn scan_tiny_file_is_served_by_the_probe_alone() {
+        let data = pattern(300);
+        let (server, fetch, _) = served_no_range(data.clone());
+        let mut r = open(fetch, &server.url("tiny.bin"), scan());
+        assert_eq!(r.size(), Some(300));
+        let all = r.read(1000).unwrap_or_else(|e| unreachable!("{e}"));
+        assert_eq!(all, data);
+        assert!(r.read(4).unwrap_or_else(|e| unreachable!("{e}")).is_empty());
+        assert_eq!(r.stats().requests, 1, "the probe was the only request");
+        assert_eq!(r.stats().refetches, 0);
+    }
+
+    /// A server that honors `Range:` for the first `flip_after`
+    /// requests, then answers everything with `200` + the full body
+    /// (a mid-stream behavior flip — CDN edge, config change). Records
+    /// whether each request carried a `Range:` header.
+    struct FlipServer {
+        body: Vec<u8>,
+        flip_after: usize,
+        /// Requests served so far, and whether each request was
+        /// ranged (the log under test).
+        state: std::sync::Mutex<(usize, Vec<bool>)>,
+    }
+
+    impl FlipServer {
+        /// Whether request `n` (0-based) carried a `Range:` header.
+        fn ranged_log(&self) -> Vec<bool> {
+            match self.state.lock() {
+                Ok(guard) => guard.1.clone(),
+                Err(poisoned) => poisoned.into_inner().1.clone(),
+            }
+        }
+    }
+
+    impl HttpFetch for FlipServer {
+        fn fetch(&self, request: HttpRequest) -> Result<HttpResponse, NetworkError> {
+            let mut state = match self.state.lock() {
+                Ok(guard) => guard,
+                Err(poisoned) => poisoned.into_inner(),
+            };
+            let ranged = request.range.is_some();
+            state.1.push(ranged);
+            let n = state.0;
+            state.0 += 1;
+            drop(state);
+            if ranged && n < self.flip_after {
+                let Some(crate::fetch::ByteRange::Bounded {
+                    start,
+                    end_exclusive,
+                }) = request.range
+                else {
+                    return Err(NetworkError::ProtocolViolation {
+                        detail: "bounded requests only in this test",
+                    });
+                };
+                let end = end_exclusive.min(self.body.len() as u64);
+                if start >= end {
+                    return Err(NetworkError::RangeNotSatisfiable);
+                }
+                return Ok(HttpResponse {
+                    status: 206,
+                    reason: "Partial Content".to_string(),
+                    headers: vec![
+                        (
+                            "Content-Range".to_string(),
+                            format!("bytes {start}-{}/{}", end - 1, self.body.len()),
+                        ),
+                        ("Content-Length".to_string(), format!("{}", end - start)),
+                    ],
+                    body: self.body[start as usize..end as usize].to_vec(),
+                });
+            }
+            Ok(HttpResponse {
+                status: 200,
+                reason: "OK".to_string(),
+                headers: vec![("Content-Length".to_string(), format!("{}", self.body.len()))],
+                body: self.body.clone(),
+            })
+        }
+    }
+
+    /// Mid-stream flip, fallback policy: a later ranged request
+    /// suddenly answered `200` resyncs the resource into scan mode
+    /// and the pending read completes from the new body — the bytes
+    /// stay exact, the resync is counted, and every subsequent
+    /// request is rangeless (the scan dialect).
+    #[test]
+    fn mid_stream_200_resyncs_into_scan_and_recovers() {
+        let data = pattern(4096);
+        // Flip after: probe (request 0) + window fetches at 1024 and
+        // 2048 (requests 1, 2) — the window fetch at 3072 (request 3,
+        // still ranged) meets the 200. Body 4096 <= window 8192, so
+        // the flip body fits the scan budget.
+        let server = Arc::new(FlipServer {
+            body: data.clone(),
+            flip_after: 3,
+            state: std::sync::Mutex::new((0, Vec::new())),
+        });
+        let fetch: Arc<dyn HttpFetch> = server.clone();
+        let config = RangedConfig {
+            window_bytes: 8192,
+            chunk_bytes: 1024,
+            no_range: NoRangePolicy::FallbackToScan,
+        };
+        let mut r = open(fetch, "http://flip.example.org/live", config);
+        assert_eq!(r.size(), Some(4096), "the ranged probe fixed the length");
+        let got = r.read(4000).unwrap_or_else(|e| unreachable!("{e}"));
+        assert_eq!(got, &data[..4000], "the flip did not corrupt a byte");
+        let stats = r.stats();
+        assert_eq!(stats.resyncs, 1, "exactly one mid-stream resync");
+
+        // Post-flip behavior is scan mode: a backward seek re-fetches
+        // rangelessly.
+        r.seek(SeekOrigin::Start(100))
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        let piece = r.read(64).unwrap_or_else(|e| unreachable!("{e}"));
+        assert_eq!(piece, &data[100..164]);
+        assert_eq!(r.stats().refetches, 1);
+
+        let log = server.ranged_log();
+        assert_eq!(
+            log,
+            vec![true, true, true, true, false],
+            "probe + 3 windows ranged (the third meets the 200); the \
+             post-flip re-fetch is rangeless"
+        );
+    }
+
+    /// Mid-stream flip under `RequireRange`: the same 200 is the
+    /// typed no-range refusal — the policy is enforced mid-stream,
+    /// not only at open.
+    #[test]
+    fn mid_stream_200_under_require_range_is_typed() {
+        let data = pattern(4096);
+        let server = FlipServer {
+            body: data,
+            flip_after: 1,
+            state: std::sync::Mutex::new((0, Vec::new())),
+        };
+        let fetch: Arc<dyn HttpFetch> = Arc::new(server);
+        let config = RangedConfig {
+            window_bytes: 8192,
+            chunk_bytes: 1024,
+            no_range: NoRangePolicy::RequireRange,
+        };
+        let mut r = open(fetch, "http://flip.example.org/live", config);
+        assert_eq!(r.size(), Some(4096));
+        let first = r.read(1024).unwrap_or_else(|e| unreachable!("{e}"));
+        assert_eq!(first.len(), 1024, "the probe window served the first read");
+        let err = testkit::assert_err(r.read(1024), "the flip mid-read");
+        assert_eq!(err.context.code, "streaming.ranged.no-range-support");
+    }
+
+    /// A 200 whose `Content-Length` disagrees with the delivered body
+    /// is a protocol violation, never a guessed length (the honest
+    /// transports already refuse this shape; the resource re-checks —
+    /// defense in depth, pinned through a scripted fetch because the
+    /// socket-level transports type it first).
+    #[test]
+    fn scan_content_length_disagreement_is_a_protocol_violation() {
+        struct Liar {
+            body: Vec<u8>,
+        }
+        impl HttpFetch for Liar {
+            fn fetch(&self, _request: HttpRequest) -> Result<HttpResponse, NetworkError> {
+                Ok(HttpResponse {
+                    status: 200,
+                    reason: "OK".to_string(),
+                    headers: vec![(
+                        "Content-Length".to_string(),
+                        format!("{}", self.body.len() + 499),
+                    )],
+                    body: self.body.clone(),
+                })
+            }
+        }
+        let fetch: Arc<dyn HttpFetch> = Arc::new(Liar { body: pattern(500) });
+        let err = testkit::assert_err(
+            RangedResource::open(fetch, "http://liar.example.org/x", scan()),
+            "lying Content-Length",
+        );
+        assert_eq!(err.context.code, "streaming.ranged.protocol-violation");
     }
 }
