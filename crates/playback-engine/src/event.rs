@@ -436,7 +436,10 @@ impl EngineEventKind {
             EngineEventKind::Fatal { error } => Some(EventKind::PlaybackError {
                 stage: wire_stage(error.stage),
                 code: wire_error_code(&error.kind),
-                message: error.to_string(),
+                // The message WITHOUT `Display`'s `[stage]` prefix —
+                // this event line prints `[stage.code]` itself (the
+                // F4 fix: no doubled bracket).
+                message: error.message_summary(),
                 details: fatal_details(error),
                 fatal: true,
             }),

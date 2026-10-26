@@ -1403,7 +1403,8 @@ fn engine_permanent_network_interruption_is_the_typed_fatal() {
     let fatal_wire = EventKind::PlaybackError {
         stage: Stage::Input,
         code: ErrorCode::Network,
-        message: error.to_string(),
+        // The F4 fix: the wire message drops Display's [stage] prefix.
+        message: error.message_summary(),
         details: {
             let mut details = std::collections::BTreeMap::new();
             details.insert("context".to_string(), error.context.code.clone());

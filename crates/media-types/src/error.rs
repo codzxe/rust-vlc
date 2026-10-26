@@ -296,6 +296,17 @@ impl std::fmt::Display for EngineError {
     }
 }
 
+impl EngineError {
+    /// The message WITHOUT the `[stage]` prefix — for embedders that
+    /// already carry the stage themselves (the wire `PlaybackError`
+    /// event prints `[stage.code]` on its own line; embedding
+    /// `Display` there doubled the bracket, 6.W4's F4 finding).
+    #[must_use]
+    pub fn message_summary(&self) -> String {
+        format!("{} ({})", kind_summary(&self.kind), self.context.code)
+    }
+}
+
 /// Render an [`ErrorKind`] for `Display` — structured data only, with
 /// sniffed bytes capped at 16 (content hints, never secrets, never a
 /// firehose).
