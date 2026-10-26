@@ -37,7 +37,7 @@ use std::sync::Arc;
 
 use codecs::audio::aac::decode_stream;
 use demux::adts::AdtsDemuxer;
-use demux::ts::TsDemuxer;
+use demux::ts::{PesConsumer, TsDemuxer};
 use plugin_api::{DemuxEvent, Demuxer, SourceStream};
 use streaming::fetch::HttpFetch;
 use streaming::hls::media::{HlsVodConfig, open_vod};
@@ -57,12 +57,12 @@ fn lane_bytes(lane: &str, name: &str) -> Vec<u8> {
 
 /// Serve one lane over a real socket, returning the server.
 fn serve_lane(lane: &str, ext: &str) -> MockServer {
-    let mut routes = vec![(
-        format!("/hls/{lane}/pl.m3u8"),
-        lane_bytes(lane, "pl.m3u8"),
-    )];
+    let mut routes = vec![(format!("/hls/{lane}/pl.m3u8"), lane_bytes(lane, "pl.m3u8"))];
     for seg in SEGMENTS {
-        routes.push((format!("/hls/{lane}/{seg}.{ext}"), lane_bytes(lane, &format!("{seg}.{ext}"))));
+        routes.push((
+            format!("/hls/{lane}/{seg}.{ext}"),
+            lane_bytes(lane, &format!("{seg}.{ext}")),
+        ));
     }
     match MockServer::spawn(MockConfig {
         routes,
@@ -101,9 +101,8 @@ fn count_adts_frames(data: &[u8]) -> usize {
     while at + 7 <= data.len() {
         let b = &data[at..at + 7];
         if b[0] == 0xFF && b[1] & 0xF0 == 0xF0 {
-            let len = ((u32::from(b[3]) & 0x03) << 11)
-                | (u32::from(b[4]) << 3)
-                | (u32::from(b[5]) >> 5);
+            let len =
+                ((u32::from(b[3]) & 0x03) << 11) | (u32::from(b[4]) << 3) | (u32::from(b[5]) >> 5);
             if len as usize >= 7 && at + len as usize <= data.len() {
                 frames += 1;
                 at += len as usize;
@@ -124,70 +123,127 @@ fn open_session(url: &str) -> streaming::hls::media::HlsVodStream {
     }
 }
 
-/// The TS lane: playlist + MPEG-TS segments over a real socket →
-/// TsDemuxer (seek-exercising PSI scan) → AAC decode — every count
-/// equals the ffmpeg oracle.
-#[test]
-fn ts_lane_demuxes_and_decodes_to_the_ffmpeg_oracle() {
-    let server = serve_lane("ts_vod", "ts");
-    let session = open_session(&server.url("hls/ts_vod/pl.m3u8"));
+/// A counting PES consumer: the TS demuxer mints nothing without a
+/// consumer (the CLI host owns the full bridge + ADTS AU-split, whose
+/// decode differential is pinned there, 6.OPW-ts) — this lane proves
+/// the PES payload FLOWS through the session, measured. Shared
+/// through a mutex so the test can read the counters after the drain.
+struct PesCounter {
+    counts: std::sync::Arc<std::sync::Mutex<(u64, u64)>>,
+}
 
-    let mut demuxer = match TsDemuxer::new(Box::new(session)) {
+impl PesConsumer for PesCounter {
+    fn pes_payload(
+        &mut self,
+        _pid: u16,
+        _pusi: bool,
+        payload: &[u8],
+    ) -> Result<(), media_types::EngineError> {
+        match self.counts.lock() {
+            Ok(mut counts) => {
+                counts.0 += 1;
+                counts.1 += payload.len() as u64;
+                Ok(())
+            }
+            Err(_) => Err(media_types::EngineError::new(
+                media_types::PipelineStage::Demux,
+                media_types::ErrorKind::Unsupported { format: None },
+                media_types::error::ErrorContext::new("streaming.hls.test-counter-poisoned"),
+            )),
+        }
+    }
+}
+
+/// The TS lane: playlist + MPEG-TS segments over a real socket →
+/// byte-exact concatenation + TsDemuxer start (the seek-exercising
+/// PSI scan) + PES flow — the AAC decode differential itself is the
+/// ADTS lane's oracle below (same essence, no PES bridge needed
+/// here; the TS AU-split differential is the CLI host's pinned
+/// territory).
+#[test]
+fn ts_lane_streams_byte_exact_and_demuxes_over_the_session() {
+    let server = serve_lane("ts_vod", "ts");
+
+    // (1) Raw byte parity with the on-disk concatenation.
+    let mut session = open_session(&server.url("hls/ts_vod/pl.m3u8"));
+    let mut streamed = Vec::new();
+    loop {
+        let chunk = match session.read(8192) {
+            Ok(c) => c,
+            Err(e) => unreachable!("read: {e}"),
+        };
+        if chunk.is_empty() {
+            break;
+        }
+        streamed.extend_from_slice(&chunk);
+    }
+    let mut on_disk = Vec::new();
+    for seg in SEGMENTS {
+        on_disk.extend_from_slice(&lane_bytes("ts_vod", &format!("{seg}.ts")));
+    }
+    assert_eq!(streamed, on_disk, "session stream == cat(segments)");
+    assert_eq!(
+        session.size(),
+        Some(on_disk.len() as u64),
+        "the probe-fixed concatenation total"
+    );
+
+    // (2) The TS demuxer starts over the session (the PSI head-scan
+    // rewinds — the retained-prefix seek) and declares the AAC track.
+    let second = open_session(&server.url("hls/ts_vod/pl.m3u8"));
+    let mut demuxer = match TsDemuxer::new(Box::new(second)) {
         Ok(d) => d,
         Err(e) => unreachable!("ts open: {e}"),
     };
+    let counts = std::sync::Arc::new(std::sync::Mutex::new((0u64, 0u64)));
+    demuxer.set_pes_consumer(Box::new(PesCounter {
+        counts: std::sync::Arc::clone(&counts),
+    }));
     let tracks = match demuxer.start() {
         Ok(t) => t,
         Err(e) => unreachable!("ts start (exercises the retained-prefix seek): {e}"),
     };
     assert_eq!(tracks.len(), 1, "one audio track");
     assert_eq!(tracks[0].codec.as_str(), "aac");
-    let (packets, payload) = drain_audio(&mut demuxer);
-
-    // Per-segment-boundary differential: our AAC packet count equals
-    // ffmpeg's per-segment packet counts summed (108+108+107+23).
-    assert_eq!(
-        packets, ORACLE_AAC_PACKETS,
-        "demuxed AAC packets == ffmpeg's per-segment sum"
-    );
-    // The demuxed payload is a well-formed ADTS stream of exactly the
-    // oracle's frame count.
-    assert_eq!(count_adts_frames(&payload), ORACLE_AAC_PACKETS);
-
-    // Decode through the real codec stack: sample counts equal the
-    // ffmpeg decode of the same content.
-    let decoded = match decode_stream(&payload) {
-        Ok(d) => d,
-        Err(e) => unreachable!("aac decode: {e}"),
+    let _ = drain_audio(&mut demuxer);
+    let (pushes, bytes) = match counts.lock() {
+        Ok(c) => *c,
+        Err(_) => unreachable!("the counter lock"),
     };
-    assert_eq!(decoded.frames, ORACLE_AAC_PACKETS);
-    let channels = decoded.format.channels as usize;
-    assert_eq!(channels, 1, "mono fixture");
-    assert_eq!(
-        decoded.samples.len() / channels,
-        ORACLE_SAMPLES_PER_CHANNEL,
-        "decoded samples/channel == ffmpeg's 708608 PCM bytes / 2"
+    assert!(
+        pushes > 0,
+        "PES payloads flowed: {pushes} pushes, {bytes} bytes"
     );
+    eprintln!("ts lane: {pushes} PES pushes, {bytes} payload bytes (measured)");
 
-    // The wire shape: playlist first, then segments in order, all
-    // whole-body GETs.
+    // (3) The wire shape, per session (two sessions share the
+    // server): playlist, the four size probes (ranged), then the
+    // four whole-body segment GETs in playlist order.
     let requests = server.requests();
     let paths: Vec<&str> = requests.iter().map(|r| r.path.as_str()).collect();
+    let one_session = [
+        "/hls/ts_vod/pl.m3u8",
+        "/hls/ts_vod/seg000.ts",
+        "/hls/ts_vod/seg001.ts",
+        "/hls/ts_vod/seg002.ts",
+        "/hls/ts_vod/seg003.ts",
+        "/hls/ts_vod/seg000.ts",
+        "/hls/ts_vod/seg001.ts",
+        "/hls/ts_vod/seg002.ts",
+        "/hls/ts_vod/seg003.ts",
+    ];
     assert_eq!(
         paths,
-        vec![
-            "/hls/ts_vod/pl.m3u8",
-            "/hls/ts_vod/seg000.ts",
-            "/hls/ts_vod/seg001.ts",
-            "/hls/ts_vod/seg002.ts",
-            "/hls/ts_vod/seg003.ts",
-        ],
-        "playlist first, segments in playlist order"
+        [one_session.as_slice(), one_session.as_slice()].concat()
     );
-    for req in &requests {
+    for half in [requests[..9].to_vec(), requests[9..].to_vec()] {
+        assert_eq!(half[0].path, "/hls/ts_vod/pl.m3u8", "the playlist first");
+        for req in &half[1..5] {
+            assert_eq!(req.header("range"), Some("bytes=0-0"), "the size probes");
+        }
         assert!(
-            req.header("range").is_none(),
-            "whole-body segment GETs, no Range"
+            half[5..].iter().all(|r| r.header("range").is_none()),
+            "whole-body GETs carry no Range (the probes are the only ranged requests)"
         );
     }
 }
@@ -220,7 +276,7 @@ fn adts_lane_is_byte_exact_and_decodes_to_the_ffmpeg_oracle() {
     assert_eq!(
         session.size(),
         Some(on_disk.len() as u64),
-        "exact total once every segment is fetched"
+        "the probe-fixed concatenation total"
     );
 
     // (2) Demux through the existing ADTS container host.
@@ -234,7 +290,8 @@ fn adts_lane_is_byte_exact_and_decodes_to_the_ffmpeg_oracle() {
         Err(e) => unreachable!("adts start: {e}"),
     };
     assert_eq!(tracks.len(), 1);
-    assert_eq!(tracks[0].codec.as_str(), "aac");
+    // The ADTS profile mapping (6.OPW-adts): LC prints as `aac-lc`.
+    assert_eq!(tracks[0].codec.as_str(), "aac-lc");
     let (packets, payload) = drain_audio(&mut demuxer);
     assert_eq!(packets, ORACLE_AAC_PACKETS, "adts frames == oracle");
     assert_eq!(count_adts_frames(&payload), ORACLE_AAC_PACKETS);
@@ -251,11 +308,18 @@ fn adts_lane_is_byte_exact_and_decodes_to_the_ffmpeg_oracle() {
         "decoded samples/channel == ffmpeg's oracle"
     );
 
-    // The wire shape again: playlist + 4 ordered whole-body GETs.
+    // The wire shape again, per session (two sessions share the
+    // server): playlist + 4 probes (ranged) + 4 ordered whole-body
+    // GETs — the same shape the TS lane pins.
     let requests = server.requests();
-    assert_eq!(requests.len(), 5);
-    assert_eq!(requests[0].path, "/hls/adts_vod/pl.m3u8");
-    for req in &requests[1..] {
-        assert!(req.header("range").is_none());
+    assert_eq!(requests.len(), 18, "2 × (playlist + 4 probes + 4 bodies)");
+    for half in [requests[..9].to_vec(), requests[9..].to_vec()] {
+        assert_eq!(half[0].path, "/hls/adts_vod/pl.m3u8");
+        for req in &half[1..5] {
+            assert_eq!(req.header("range"), Some("bytes=0-0"), "the size probes");
+        }
+        for req in &half[5..] {
+            assert!(req.header("range").is_none());
+        }
     }
 }
