@@ -6,9 +6,16 @@
 //!   segment concatenation as one continuous
 //!   [`SourceStream`](plugin_api::SourceStream) so the existing
 //!   container/probe/decode machinery is reused, not duplicated.
+//!   Since 6.B1b it also records `#EXT-X-DISCONTINUITY` seams
+//!   instead of refusing them (typed boundaries + stats).
+//! * `live` (card 6.B1b) — **live media playlists** (no
+//!   `#EXT-X-ENDLIST`): the sliding-window session — live-edge join,
+//!   demand-driven reload under a stalled-request budget, `ENDLIST`
+//!   termination, typed live-timeout / lost-window refusals, and the
+//!   same recorded-discontinuity contract.
 //!
-//! Later cards land here on top: live windows + discontinuity
-//! (6.B1b), master playlists/variant selection (6.B2a), records +
-//! conformance (6.B3).
+//! Later cards land here on top: master playlists/variant selection
+//! (6.B2a), records + conformance (6.B3).
 
+pub mod live;
 pub mod media;

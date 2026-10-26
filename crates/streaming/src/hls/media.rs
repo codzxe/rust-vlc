@@ -19,16 +19,14 @@
 //!
 //! A media playlist is playable here when it is a **VOD** playlist:
 //! `#EXT-X-ENDLIST` present, every segment whole-body (no
-//! `#EXT-X-BYTERANGE`), no `#EXT-X-MAP` init section, no
-//! `#EXT-X-KEY` (keys are *recorded* by the parser, never decrypted —
-//! that is a later card), no `#EXT-X-DISCONTINUITY`. Each violation
-//! refuses typed with a stable `streaming.hls.*` code naming the
-//! follow-up card:
+//! `#EXT-X-BYTERANGE`), no `#EXT-X-MAP` init section, no `#EXT-X-KEY`
+//! (keys are *recorded* by the parser, never decrypted — that is a
+//! later card). Each violation refuses typed with a stable
+//! `streaming.hls.*` code naming the follow-up card:
 //!
 //! | shape | typed code | follow-up |
 //! |---|---|---|
-//! | live (no `ENDLIST`) | `streaming.hls.live-playlist` | 6.B1b |
-//! | discontinuity | `streaming.hls.discontinuity` | 6.B1b |
+//! | live (no `ENDLIST`) | `streaming.hls.live-playlist` | 6.B1b — now [`crate::hls::live`] |
 //! | `EXT-X-KEY` in effect | `streaming.hls.encrypted` | later card |
 //! | `EXT-X-BYTERANGE` | `streaming.hls.byterange-segments` | later card |
 //! | `EXT-X-MAP` init section | `streaming.hls.init-segment` | fMP4 lane |
@@ -36,6 +34,21 @@
 //! | master playlist | `streaming.hls.master-playlist` | 6.B2a |
 //! | no `#EXTM3U` | `streaming.hls.not-hls` | — |
 //! | bad numeric tag | `streaming.hls.bad-tag-value` | — |
+//!
+//! # What B1b added: discontinuities are recorded, not refused
+//!
+//! A `#EXT-X-DISCONTINUITY` marker no longer refuses the open (that
+//! was B1a's honest refusal; this card moves it to support): the
+//! concatenation continues byte-exact across the seam, and the
+//! session **records** it — [`HlsVodStream::segment_boundaries`]
+//! carries the full segment map (offset, absolute media sequence,
+//! EXTINF duration, discontinuity flag) and
+//! [`HlsVodStats::discontinuities`] counts the seams. The v0 stream
+//! surface stays byte-concatenation: the demuxer consuming it gets
+//! the honest answer at the container seam (a discontinuity is an
+//! encoding-boundary statement — timestamps and codec parameters
+//! may reset), never a silent decode across one. Live-window
+//! sessions (no `ENDLIST`) are the sibling module [`crate::hls::live`].
 //!
 //! # Seekability (the honest shape)
 //!
@@ -106,12 +119,12 @@ fn hls_format() -> Option<FormatInfo> {
 }
 
 /// Mint a stage-`Open` error with a stable dotted code.
-fn mint(kind: ErrorKind, code: &'static str) -> EngineError {
+pub(super) fn mint(kind: ErrorKind, code: &'static str) -> EngineError {
     EngineError::new(STAGE, kind, ErrorContext::new(code))
 }
 
 /// An `Unsupported` refusal with the HLS format attached.
-fn refuse(code: &'static str) -> EngineError {
+pub(super) fn refuse(code: &'static str) -> EngineError {
     mint(
         ErrorKind::Unsupported {
             format: hls_format(),
@@ -186,6 +199,33 @@ pub struct HlsVodStats {
     pub bytes_fetched: u64,
     /// Size probes issued at open (the known-length contract).
     pub size_probes: u64,
+    /// `#EXT-X-DISCONTINUITY` seams in the playlist (B1b: recorded,
+    /// not refused — the per-segment map is
+    /// [`HlsVodStream::segment_boundaries`]).
+    pub discontinuities: u64,
+}
+
+/// One media segment's boundary in the served concatenation (card
+/// 6.B1b's discontinuity contract): where the segment's bytes start,
+/// which absolute `MEDIA-SEQUENCE` number it is, its advisory EXTINF
+/// duration, and whether `#EXT-X-DISCONTINUITY` preceded it.
+///
+/// This is the **recorded** surface — the stream itself stays
+/// byte-concatenation; a consumer that cannot span a discontinuity
+/// seam gets its honest answer at the container boundary, and
+/// nothing is silently decoded across a seam without this record.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SegmentBoundary {
+    /// Concatenation offset where this segment's bytes start.
+    pub offset: u64,
+    /// Absolute segment number (`MEDIA-SEQUENCE` base + playlist
+    /// index) — the identity a live window slides by.
+    pub media_sequence: u64,
+    /// The segment's `#EXTINF` duration, when the playlist carried a
+    /// finite one.
+    pub duration: Option<f64>,
+    /// `#EXT-X-DISCONTINUITY` appeared before this segment.
+    pub discontinuity: bool,
 }
 
 /// One open VOD media-playlist session: the segment queue plus the
@@ -216,6 +256,9 @@ pub struct HlsVodStream {
     /// server answers a 1-byte probe with `200` + the full body):
     /// segment `i`'s paid-for bytes, consumed by [`Self::fetch_segment`].
     probe_cache: Vec<Option<Vec<u8>>>,
+    /// The full segment map, fixed at open by the probe totals (the
+    /// discontinuity record of card 6.B1b).
+    boundaries: Vec<SegmentBoundary>,
 }
 
 impl HlsVodStream {
@@ -230,6 +273,16 @@ impl HlsVodStream {
     #[must_use]
     pub fn stats(&self) -> HlsVodStats {
         self.stats
+    }
+
+    /// The full segment map of the concatenation (offset, absolute
+    /// media sequence, EXTINF duration, discontinuity flag) — fixed
+    /// at open by the probe totals, so the whole map is available
+    /// before the first read. The discontinuity seams live here,
+    /// recorded (never silently decoded across).
+    #[must_use]
+    pub fn segment_boundaries(&self) -> &[SegmentBoundary] {
+        &self.boundaries
     }
 
     /// Fetch segment `i` and absorb its body into the buffer state.
@@ -308,29 +361,40 @@ impl HlsVodStream {
 
     /// Seek target resolved against the current position (the input
     /// contract's shared math; `i128` so a negative `Current` cannot
-    /// overflow).
+    /// overflow) — shared with the live session (6.B1b).
     fn resolve_origin(&self, origin: SeekOrigin) -> Result<u64, EngineError> {
-        match origin {
-            SeekOrigin::Start(to) => Ok(to),
-            SeekOrigin::Current(delta) => {
-                let target = i128::from(self.pos) + i128::from(delta);
-                if target < 0 {
-                    Err(mint(
-                        ErrorKind::Inaccessible {
-                            reason: AccessDenied::NotFound,
-                        },
-                        "streaming.hls.seek-before-start",
-                    ))
-                } else if target > i128::from(u64::MAX) {
-                    Err(mint(
-                        ErrorKind::Inaccessible {
-                            reason: AccessDenied::NotFound,
-                        },
-                        "streaming.hls.seek-overflow",
-                    ))
-                } else {
-                    Ok(target as u64)
-                }
+        resolve_seek_origin(self.pos, origin)
+    }
+}
+
+/// Resolve a seek origin against `pos` (the input contract's shared
+/// math; `i128` so a negative `Current` cannot overflow). The VOD and
+/// live sessions both refuse before-start/overflow typed with the
+/// same codes.
+pub(super) fn resolve_seek_origin(
+    pos: u64,
+    origin: SeekOrigin,
+) -> Result<u64, EngineError> {
+    match origin {
+        SeekOrigin::Start(to) => Ok(to),
+        SeekOrigin::Current(delta) => {
+            let target = i128::from(pos) + i128::from(delta);
+            if target < 0 {
+                Err(mint(
+                    ErrorKind::Inaccessible {
+                        reason: AccessDenied::NotFound,
+                    },
+                    "streaming.hls.seek-before-start",
+                ))
+            } else if target > i128::from(u64::MAX) {
+                Err(mint(
+                    ErrorKind::Inaccessible {
+                        reason: AccessDenied::NotFound,
+                    },
+                    "streaming.hls.seek-overflow",
+                ))
+            } else {
+                Ok(target as u64)
             }
         }
     }
@@ -444,6 +508,9 @@ pub fn open_vod(
     let (model, _warnings) = parse_media_playlist_typed(url, text)?;
 
     // ---- B1a playability (the module-docs refusal table) ----
+    // B1b note: a discontinuity no longer refuses — it is recorded
+    // in the segment map and surfaced via stats (see the module
+    // docs' "recorded, not refused" section).
     if !model.end_list {
         return Err(refuse("streaming.hls.live-playlist"));
     }
@@ -459,9 +526,11 @@ pub fn open_vod(
     if model.segments.iter().any(|s| s.map.is_some()) {
         return Err(refuse("streaming.hls.init-segment"));
     }
-    if model.segments.iter().any(|s| s.discontinuity) {
-        return Err(refuse("streaming.hls.discontinuity"));
-    }
+    let discontinuities = model
+        .segments
+        .iter()
+        .filter(|s| s.discontinuity)
+        .count() as u64;
 
     let segments: Vec<String> = model.segments.iter().map(|s| s.uri.clone()).collect();
     // ---- The known-length probes (the module-docs contract) ----
@@ -473,11 +542,15 @@ pub fn open_vod(
     // delivers the whole body — paid for, so it is cached as that
     // segment's content. Anything else is the typed
     // `streaming.hls.unknown-segment-size` refusal — never a guess.
+    //
+    // The probe totals also fix the full segment map (the B1b
+    // discontinuity record) before the first read.
     let mut probe_cache: Vec<Option<Vec<u8>>> = Vec::with_capacity(segments.len());
+    let mut boundaries: Vec<SegmentBoundary> = Vec::with_capacity(segments.len());
     let mut total: u64 = 0;
     let mut probes = 0u64;
     let mut probe_bytes = 0u64;
-    for url in &segments {
+    for (i, url) in segments.iter().enumerate() {
         let request = HttpRequest::get(url.clone())
             .with_range(ByteRange::Bounded {
                 start: 0,
@@ -498,6 +571,13 @@ pub fn open_vod(
         };
         probes += 1;
         probe_bytes += resp.body.len() as u64;
+        let segment = &model.segments[i];
+        boundaries.push(SegmentBoundary {
+            offset: total,
+            media_sequence: model.media_sequence + i as u64,
+            duration: segment.duration,
+            discontinuity: segment.discontinuity,
+        });
         if resp.status == 206 {
             let Some(len) = content_range_total(resp.header("content-range")) else {
                 return Err(refuse("streaming.hls.unknown-segment-size"));
@@ -523,11 +603,13 @@ pub fn open_vod(
         config,
         total_len: Some(total),
         probe_cache,
+        boundaries,
         // The playlist fetch above is request #1; the probes follow.
         stats: HlsVodStats {
             requests: 1 + probes,
             size_probes: probes,
             bytes_fetched: probe_bytes,
+            discontinuities,
             ..HlsVodStats::default()
         },
     })
@@ -548,7 +630,7 @@ fn content_range_total(value: Option<&str>) -> Option<u64> {
 /// Map the playlists crate's typed refusals into the engine taxonomy
 /// (each cause keeps its own dotted code so tests and UI copy can
 /// match on vocabulary, not Display text).
-fn parse_media_playlist_typed(
+pub(super) fn parse_media_playlist_typed(
     base: &str,
     text: &str,
 ) -> Result<(MediaPlaylist, Vec<playlists::ParseWarning>), EngineError> {
@@ -565,7 +647,7 @@ fn parse_media_playlist_typed(
 
 /// A malformed playlist body (not UTF-8): typed `Corrupt`, never a
 /// guess at an encoding.
-fn playlist_corrupt(code: &'static str) -> EngineError {
+pub(super) fn playlist_corrupt(code: &'static str) -> EngineError {
     mint(
         ErrorKind::Corrupt {
             detail: CorruptDetail::InvalidStructure { offset: None },
@@ -576,7 +658,7 @@ fn playlist_corrupt(code: &'static str) -> EngineError {
 
 /// Fold a transport [`NetworkError`] into the engine taxonomy, HLS
 /// session flavor (the ranged resource's mapping shape, `hls` codes).
-fn map_fetch_err(err: NetworkError) -> EngineError {
+pub(super) fn map_fetch_err(err: NetworkError) -> EngineError {
     let cause = match &err {
         NetworkError::DnsFailure => NetworkCause::Dns,
         NetworkError::ConnectTimeout | NetworkError::ReadTimeout | NetworkError::WriteTimeout => {
@@ -608,6 +690,36 @@ fn map_fetch_err(err: NetworkError) -> EngineError {
         NetworkError::Io { .. } => NetworkCause::ConnectionLost,
     };
     mint(ErrorKind::Network { cause }, "streaming.hls.fetch-failed")
+}
+
+/// Fetch and type one media playlist (shared by the VOD and live
+/// sessions, 6.B1b's extraction of the identical open/reload
+/// prelude): one budgeted GET, the success check, the UTF-8 check,
+/// and the typed model. Returns the model plus the response body's
+/// byte count — the caller folds both into its own stats accounting.
+pub(super) fn fetch_playlist_model(
+    fetch: &Arc<dyn HttpFetch>,
+    url: &str,
+    response_limit: u64,
+) -> Result<(MediaPlaylist, u64), EngineError> {
+    let request = HttpRequest::get(url.to_owned()).with_response_limit(response_limit);
+    let body = match fetch.fetch(request) {
+        Ok(resp) if resp.is_success() => resp.body,
+        Ok(resp) => {
+            let code = resp.status;
+            return Err(map_fetch_err(NetworkError::HttpStatus {
+                code,
+                is_client_error: (400..=499).contains(&code),
+                is_server_error: (500..=599).contains(&code),
+            }));
+        }
+        Err(err) => return Err(map_fetch_err(err)),
+    };
+    let bytes = body.len() as u64;
+    let text =
+        std::str::from_utf8(&body).map_err(|_| playlist_corrupt("streaming.hls.playlist-not-utf8"))?;
+    let (model, _warnings) = parse_media_playlist_typed(url, text)?;
+    Ok((model, bytes))
 }
 
 #[cfg(test)]
@@ -721,7 +833,9 @@ mod tests {
         assert_eq!(stream.stats().bytes_fetched, 10);
     }
 
-    /// The refusal table: each B1b+ shape refuses with its own code.
+    /// The refusal table: each still-refused shape refuses with its
+    /// own code. (The discontinuity row moved to SUPPORT in 6.B1b —
+    /// see `vod_discontinuity_is_recorded_not_refused` below.)
     #[test]
     fn b1b_shapes_refuse_typed_with_their_codes() {
         fn code_for(playlist: &str) -> String {
@@ -754,12 +868,6 @@ mod tests {
             "streaming.hls.init-segment"
         );
         assert_eq!(
-            code_for(
-                "#EXTM3U\n#EXTINF:1.0,\ns.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:1.0,\ns.ts\n#EXT-X-ENDLIST\n"
-            ),
-            "streaming.hls.discontinuity"
-        );
-        assert_eq!(
             code_for("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nv.m3u8\n"),
             "streaming.hls.master-playlist"
         );
@@ -768,6 +876,62 @@ mod tests {
             "streaming.hls.bad-tag-value"
         );
         assert_eq!(code_for("s.ts\n"), "streaming.hls.not-hls");
+    }
+
+    /// The B1b discontinuity contract, VOD side: a marked playlist
+    /// OPENS, the concatenation stays byte-exact across the seam, and
+    /// the seam is recorded — the full segment map is fixed at open
+    /// (the probe totals know every offset before the first read).
+    #[test]
+    fn vod_discontinuity_is_recorded_not_refused() {
+        let playlist = "#EXTM3U\n\
+            #EXT-X-VERSION:3\n\
+            #EXT-X-TARGETDURATION:2\n\
+            #EXT-X-MEDIA-SEQUENCE:7\n\
+            #EXT-X-PLAYLIST-TYPE:VOD\n\
+            #EXTINF:1.0,\n\
+            seg0.ts\n\
+            #EXT-X-DISCONTINUITY\n\
+            #EXTINF:2.5,\n\
+            seg1.ts\n\
+            #EXT-X-ENDLIST\n";
+        let fetch = router(&[
+            ("/pl.m3u8", playlist.as_bytes()),
+            ("/seg0.ts", b"AAAA"),
+            ("/seg1.ts", b"BBBBBB"),
+        ]);
+        let mut stream = match open_vod(fetch, "http://unit.test/pl.m3u8", HlsVodConfig::default())
+        {
+            Ok(s) => s,
+            Err(e) => unreachable!("a discontinuity VOD must open (B1b): {e}"),
+        };
+        // The whole map is known at open (probe-fixed offsets), with
+        // the seam flagged on the segment that follows it.
+        let boundaries = stream.segment_boundaries();
+        assert_eq!(boundaries.len(), 2, "one boundary per segment");
+        assert_eq!(boundaries[0].offset, 0);
+        assert_eq!(boundaries[0].media_sequence, 7, "absolute sequence");
+        assert_eq!(boundaries[0].duration, Some(1.0));
+        assert!(!boundaries[0].discontinuity);
+        assert_eq!(boundaries[1].offset, 4, "seg1 starts after seg0's 4 bytes");
+        assert_eq!(boundaries[1].media_sequence, 8);
+        assert_eq!(boundaries[1].duration, Some(2.5));
+        assert!(boundaries[1].discontinuity, "the seam is recorded");
+        assert_eq!(stream.stats().discontinuities, 1);
+        // The stream surface stays byte-concatenation across the seam.
+        let mut all = Vec::new();
+        loop {
+            let chunk = match stream.read(64) {
+                Ok(c) => c,
+                Err(e) => unreachable!("read: {e}"),
+            };
+            if chunk.is_empty() {
+                break;
+            }
+            all.extend_from_slice(&chunk);
+        }
+        assert_eq!(all, b"AAAABBBBBB", "concatenation is seamless bytes");
+        assert_eq!(stream.size(), Some(10));
     }
 
     /// Segment-fetch failures surface typed (404 → engine Network) —
