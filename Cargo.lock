@@ -119,6 +119,7 @@ dependencies = [
  "claxon",
  "codec-api",
  "demux",
+ "filmcraft-dnx",
  "input",
  "media-types",
  "plugin-api",
@@ -175,6 +176,22 @@ name = "equivalent"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "00d174d5400e5e8fd687ad1049e2f578285fa914201b1af7e8b112a4546bd826"
+
+[[package]]
+name = "filmcraft-bitstream"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08f8be9fae696d78e233591b4d57871c39f15ac0ac7445168356cda705efa499"
+
+[[package]]
+name = "filmcraft-dnx"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a3a59d559caf74b9281578f06015702bd402192198f71f5d41e7c6a9ec3592ab"
+dependencies = [
+ "filmcraft-bitstream",
+ "thiserror",
+]
 
 [[package]]
 name = "find-msvc-tools"
