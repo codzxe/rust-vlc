@@ -1,0 +1,19 @@
+# Standalone VTA differential harness for card 6.VTA-oxideav-mpeg4video.
+# NOT a workspace member (root members = crates/*, apps/*, tools/xtask) —
+# the empty [workspace] table below pins it to its own workspace root.
+[workspace]
+
+[package]
+name = "vta-mpeg4"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+oxideav-mpeg4video = "=0.1.8"
+demux = { path = "../../../crates/demux" }
+plugin-api = { path = "../../../crates/plugin-api" }
+media-types = { path = "../../../crates/media-types" }
+
+[profile.dev]
+opt-level = 1
