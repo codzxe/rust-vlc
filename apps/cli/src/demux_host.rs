@@ -171,6 +171,46 @@ impl TrackFact {
         let nanos = stamp.convert(&media_clock::NANO_BASE).ok()?;
         Some(nanos.ticks / 1000)
     }
+
+    /// The output geometry (channels + rate in Hz) for ANY
+    /// audio-kind track the harvest can name — the generic
+    /// audio-limb truth (card 6.OPW-ogg's seam fix: the open path
+    /// previously built the limb only from `pcm`, leaving every
+    /// non-PCM audio session limb-less on the wall clock).
+    ///
+    /// PCM tracks answer the `pcm` pair verbatim. Non-PCM tracks
+    /// answer from the `extra_data` blob's own leading
+    /// identification header — the Vorbis chain through the codec
+    /// crate's own published parser
+    /// ([`parse_identification`](codecs::audio::vorbis::parse_identification),
+    /// no local grammar copy), OpusHead per RFC 7845 (channel
+    /// count at byte 9; the decoder output rate is ALWAYS 48 kHz —
+    /// the demuxer's own granule-clock precedent). `None` for
+    /// video tracks, for audio without a geometry-bearing blob
+    /// (ADTS: the config rides in-band and the demuxer exposes no
+    /// blob — that family stays honestly limb-less until its
+    /// harvest grows one), or for a blob that does not parse: the
+    /// session then opens limb-less, never a guess.
+    #[must_use]
+    pub fn audio_geometry(&self) -> Option<(u32, u32)> {
+        if self.kind != MediaKind::Audio {
+            return None;
+        }
+        if let Some(pair) = self.pcm {
+            return Some(pair);
+        }
+        let data = self.extra_data.as_ref()?.as_slice();
+        if let Ok(ident) = codecs::audio::vorbis::parse_identification(data) {
+            return Some((u32::from(ident.channels), ident.sample_rate));
+        }
+        if data.starts_with(b"OpusHead") && data.len() >= 19 {
+            // RFC 7845 §5.1: channels at byte 9 of the 19-byte
+            // fixed identification header; the output rate is
+            // always 48 kHz (§4.2).
+            return Some((u32::from(data[9]), 48_000));
+        }
+        None
+    }
 }
 
 /// The harvested media description (the `media.get-info` backbone).

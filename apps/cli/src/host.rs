@@ -526,14 +526,15 @@ impl CliHost {
     }
 
     /// The audio limb's channel count (render-buffer sizing; the
-    /// harvested PCM facts, stereo default).
+    /// harvested track geometry — any audio codec, stereo default).
     fn audio_channels(&self) -> usize {
-        match self
-            .facts
-            .as_ref()
-            .and_then(|facts| facts.facts.iter().find(|fact| fact.pcm.is_some()))
-            .and_then(|fact| fact.pcm)
-        {
+        match self.facts.as_ref().and_then(|facts| {
+            facts
+                .facts
+                .iter()
+                .find(|fact| fact.kind == MediaKind::Audio)
+                .and_then(|fact| fact.audio_geometry())
+        }) {
             Some((channels, _rate)) => channels as usize,
             None => 2,
         }
@@ -662,12 +663,17 @@ impl CliHost {
         let facts = Arc::new(opened.facts);
         let anchor_ns = opened.start_position_ns;
         // The audio half (and with it the session clock) exists only
-        // when an audio track survived selection.
+        // when an audio track survived selection — through the
+        // GENERIC geometry lookup (card 6.OPW-ogg's seam fix: any
+        // audio-kind track whose harvest names channels + rate —
+        // the PCM strf pair, the Vorbis ID chain, OpusHead — not
+        // just the PCM pair; a non-PCM session without geometry
+        // opens limb-less on the wall clock, never a guess).
         let audio_facts: Option<(u32, u32)> = facts
             .facts
             .iter()
-            .find(|fact| fact.kind == MediaKind::Audio && fact.pcm.is_some())
-            .and_then(|fact| fact.pcm);
+            .find(|fact| fact.kind == MediaKind::Audio)
+            .and_then(|fact| fact.audio_geometry());
         let (audio_limb, device, clock) = match audio_facts {
             Some((channels, rate)) => {
                 let AudioSession {
@@ -1183,7 +1189,7 @@ fn enrich_track_info(
             hdr: false,
         });
     }
-    if let Some((channels, rate)) = fact.pcm {
+    if let Some((channels, rate)) = fact.audio_geometry() {
         info.audio = Some(commands::catalog::types::AudioTrackInfo {
             channels: channels.min(u16::MAX as u32) as u16,
             sample_rate: Some(rate),
@@ -1402,4 +1408,86 @@ pub fn command_listings() -> Vec<CommandListing> {
             requires: Vec::new(),
         })
         .collect()
+}
+
+#[cfg(test)]
+mod audio_limb_seam_tests {
+    //! Card 6.OPW-ogg's shared-seam fix, proven end to end through
+    //! the REAL `open_session`: the audio limb (device + clock) is
+    //! built from the TRACK DESCRIPTOR's geometry, not the
+    //! PCM-scoped pair — a non-PCM Vorbis session opens WITH a limb
+    //! sized from the Vorbis ID header, the PCM lane keeps its limb
+    //! (no regression), and an audio track with no geometry-bearing
+    //! truth (ADTS's in-band config) stays honestly limb-less.
+
+    use super::*;
+    use std::path::PathBuf;
+
+    fn fixture(root: &str, name: &str) -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join(root)
+            .join(name)
+    }
+
+    /// A mono Vorbis-in-Ogg session opens WITH an audio limb — and
+    /// the limb is sized 1-channel from the track geometry (the
+    /// stereo default would answer 2, so the channel count proves
+    /// the geometry flowed, not the fallback).
+    #[test]
+    fn vorbis_session_opens_with_an_audio_limb() {
+        let mut host = CliHost::new();
+        let path = fixture(
+            "../../crates/codecs/tests/fixtures",
+            "vorbis_sine_8000_mono.ogg",
+        );
+        let outcome = host.open_session(
+            commands::catalog::types::SourceSpec::File { path },
+            None,
+            false,
+            false,
+        );
+        assert!(outcome.is_ok(), "{outcome:?}");
+        assert!(host.device.is_some(), "the audio limb + device exist");
+        assert_eq!(host.audio_channels(), 1, "the Vorbis ID geometry (mono)");
+        assert!(host.clock.is_some(), "the session clock is the audio clock");
+    }
+
+    /// The PCM lane keeps its limb through the generic lookup (the
+    /// wav regression): the committed stereo fixture answers the
+    /// same geometry from its `pcm` pair.
+    #[test]
+    fn pcm_session_keeps_its_audio_limb() {
+        let mut host = CliHost::new();
+        let path = fixture(
+            "../../tests/fixtures/generated/valid",
+            "wav_pcm_s16le_44k1_st.wav",
+        );
+        let outcome = host.open_session(
+            commands::catalog::types::SourceSpec::File { path },
+            None,
+            false,
+            false,
+        );
+        assert!(outcome.is_ok(), "{outcome:?}");
+        assert!(host.device.is_some(), "the PCM limb is unchanged");
+        assert_eq!(host.audio_channels(), 2);
+    }
+
+    /// An audio session with no geometry-bearing truth stays
+    /// honestly limb-less (the ADTS family: the config rides
+    /// in-band, the demuxer exposes no blob — the wall clock is the
+    /// honest fallback, recorded as the family's open gap).
+    #[test]
+    fn in_band_config_audio_stays_limb_less() {
+        let mut host = CliHost::new();
+        let path = fixture("../../crates/codecs/tests/fixtures", "sine48_lc_mono.aac");
+        let outcome = host.open_session(
+            commands::catalog::types::SourceSpec::File { path },
+            None,
+            false,
+            false,
+        );
+        assert!(outcome.is_ok(), "{outcome:?}");
+        assert!(host.device.is_none(), "no geometry source — no limb");
+    }
 }
