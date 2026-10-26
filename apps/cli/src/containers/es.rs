@@ -282,7 +282,6 @@ mod tests {
     use plugin_api::DemuxEvent;
     use std::path::{Path, PathBuf};
     use std::sync::Arc;
-    use testkit::Must;
 
     /// The committed codec-crate fixture home (the adts.rs
     /// precedent — real ffmpeg-authored bytes, the
@@ -466,6 +465,7 @@ mod tests {
             eprintln!("SKIP es corpus: 0044-raw-video.265 absent");
             return;
         }
+        let file_len = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
         let mut opened = open(path, None);
         assert_eq!(opened.facts.container, "hevc");
         assert_eq!(opened.facts.facts[0].codec, "hevc");
@@ -473,7 +473,6 @@ mod tests {
         assert_eq!(count, 56, "ffprobe -show_packets: 56 packets");
         assert!(packets.iter().all(|p| p.pts == media_types::time::Stamp::Missing));
         let total: u64 = packets.iter().map(|p| p.data.len() as u64).sum();
-        let file_len = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
         assert_eq!(total, file_len, "contiguous coverage of the whole file");
         let err = decode_refusal(&opened);
         assert_eq!(err.context.code, "cli.codec_unavailable", "{err}");
