@@ -66,9 +66,10 @@
 //!   `extra_data` unconsumed) — measured: `0034` decodes all 101
 //!   frames through the plain dispatch with zero seeding.
 //! * **vp8/vp9/ffv1 carry no blob** (vp8/vp9 privates are empty in
-//!   this corpus; ffv1's is the VFW BITMAPINFOHEADER) — vp9 refuses
-//!   typed now and the parallel M-vp9 unit owns the decode wiring;
-//!   ffv1's raw fourcc descriptor refuses typed (no decoder).
+//!   this corpus; ffv1's is the VFW BITMAPINFOHEADER) — vp9 DECODES
+//!   (card 6.M-vp9 landed; the Lead-reconciled plain dispatch,
+//!   in-band headers — the webm lane's inversion precedent); vp8 and
+//!   ffv1's raw fourcc descriptors refuse typed (no decoder).
 //! * **PCM**: the geometry pair below is the decode route; note the
 //!   honest vocabulary gap — the demuxer maps `A_PCM/INT/LIT` to
 //!   `pcm_s16le` ONLY when the Audio master declares `BitDepth`, and
@@ -558,13 +559,16 @@ mod tests {
         assert_eq!(counts, [20, 88, 20, 2]);
     }
 
-    /// The WebM branch (the same probe id): vp9 refuses typed at the
-    /// provider (the parallel M-vp9 unit owns the decode), the opus
-    /// track decodes the full stream through the private's OpusHead
-    /// (101 packets → 96 648 sample frames at 48 kHz mono, ffmpeg's
-    /// own extent for the fixture).
+    /// The WebM branch (the same probe id), RECONCILED after 6.M-vp9
+    /// (the Lead inversion — the ogg/opus precedent): the vp9 track
+    /// decodes the full stream through the plain dispatch (20
+    /// packets → 20 frames at 160×120, ffprobe's own count — VP9
+    /// carries no codec_private blob, in-band headers only), and
+    /// the opus track decodes the full stream through the private's
+    /// OpusHead (101 packets → 96 648 sample frames at 48 kHz mono,
+    /// ffmpeg's own extent for the fixture).
     #[test]
-    fn webm_vp9_refuses_and_opus_decodes_from_the_private_head() {
+    fn webm_vp9_and_opus_decode_from_the_private_head() {
         let mut opened = open(fixture("generated/valid/webm_vp9_opus.webm"), None);
         assert_eq!(opened.facts.container, "matroska");
         let [video, audio] = &opened.facts.tracks[..] else {
@@ -572,11 +576,12 @@ mod tests {
         };
         assert_eq!(video.codec.as_str(), "vp9");
         assert_eq!(audio.codec.as_str(), "opus");
-        let err = match decoder_for(&opened, video) {
-            Ok(_) => unreachable!("no vp9 decoder is dispatched in this build"),
-            Err(err) => err,
-        };
-        assert_eq!(err.context.code, "cli.codec_unavailable", "{err}");
+        // The vp9 half (the inverted assertion): the full stream
+        // through the real provider — 20 frames at the declared size.
+        let mut video_decoder =
+            decoder_for(&opened, video).unwrap_or_else(|err| unreachable!("vp9 decodes: {err}"));
+        let mut video_sink = CountingSink(0, 0);
+        let mut video_packets = 0u64;
         // The head: the 19-byte RFC 7845 identification header the
         // private carries verbatim, and the geometry it answers.
         let head = opened.facts.facts[1]
@@ -592,7 +597,12 @@ mod tests {
         loop {
             match opened.demuxer.next_event() {
                 Ok(DemuxEvent::Packet(packet)) => {
-                    if packet.track == audio.id {
+                    if packet.track == video.id {
+                        video_packets += 1;
+                        let _ = video_decoder
+                            .decode(packet, &mut video_sink)
+                            .unwrap_or_else(|err| unreachable!("vp9 decode: {err}"));
+                    } else {
                         packets += 1;
                         let _ = decoder
                             .decode(packet, &mut sink)
@@ -604,6 +614,11 @@ mod tests {
                 Err(err) => unreachable!("demux: {err}"),
             }
         }
+        let _ = video_decoder
+            .flush(&mut video_sink)
+            .unwrap_or_else(|err| unreachable!("vp9 flush: {err}"));
+        assert_eq!(video_packets, 20, "ffprobe's vp9 packet count");
+        assert_eq!(video_sink.0, 20, "vp9: 20 packets → 20 frames");
         let _ = decoder
             .flush(&mut sink)
             .unwrap_or_else(|err| unreachable!("flush: {err}"));
@@ -859,9 +874,12 @@ mod tests {
             video_frames: None,
             seek_fast: true,
         },
-        // 0024: three tracks — h264 + vp9 (both refuse typed; vp9
-        // decode arrives with the parallel M-vp9 unit) + 6-channel
-        // aac (the engine gate).
+        // 0024: three tracks — h264 (hw-path refusal) + vp9 Profile 1
+        // yuv444p (the M-vp9 decoder dispatches, but every frame
+        // refuses the recorded `vp9.layout` emit-seam boundary —
+        // 4:4:4 has no v0 PixelFormat vocabulary; the lane stays
+        // video_frames: None, honestly) + 6-channel aac (the engine
+        // gate).
         Lane {
             file: "0024-multivideo-av.mkv",
             streams: &[("h264", 95), ("vp9", 119), ("aac", 126)],
@@ -927,12 +945,14 @@ mod tests {
             video_frames: None,
             seek_fast: true,
         },
-        // 0075: vp9-only (the M-vp9 unit's lane).
+        // 0075: vp9-only (the M-vp9 unit's lane) — Profile 0
+        // yuv420p: DECODES through the Lead-reconciled plain
+        // dispatch (76 packets → 76 frames, ffprobe's own count).
         Lane {
             file: "0075-mkv-video.mkv",
             streams: &[("vp9", 76)],
             audio_frames: None,
-            video_frames: None,
+            video_frames: Some(76),
             seek_fast: true,
         },
         // 0078: vfr vp9 + opus — the opus decodes from the private
@@ -1039,7 +1059,7 @@ mod tests {
             file: "0141-mkv-video.mkv",
             streams: &[("vp9", 52)],
             audio_frames: None,
-            video_frames: None,
+            video_frames: Some(52),
             seek_fast: true,
         },
         Lane {
@@ -1151,11 +1171,31 @@ mod tests {
                             let _ = decoder
                                 .decode(p, &mut audio_sink)
                                 .unwrap_or_else(|e| unreachable!("{name}: audio decode: {e}"));
-                        } else if let Some((_, decoder)) = video.as_mut().filter(|(i, _)| *i == idx)
+                        } else if video.as_ref().is_some_and(|(i, _)| *i == idx)
+                            && let Some((vi, mut decoder)) = video.take()
                         {
-                            let _ = decoder
-                                .decode(p, &mut video_sink)
-                                .unwrap_or_else(|e| unreachable!("{name}: video decode: {e}"));
+                            match decoder.decode(p, &mut video_sink) {
+                                // The happy path keeps the decoder for
+                                // the next packet of the same track.
+                                Ok(_) => video = Some((vi, decoder)),
+                                // The vp9 module's recorded emit-seam
+                                // boundaries (the v0 PixelFormat
+                                // vocabulary: 4:4:4 layouts, 10-bit
+                                // depth): a track whose FIRST packet
+                                // refuses there is not a decodable
+                                // track — drop the decoder and let the
+                                // lane's `video_frames: None` truth
+                                // stand (never a fabricated frame,
+                                // never a wrong-layout decode; the
+                                // av1 tenbit refusal precedent).
+                                Err(err)
+                                    if video_sink.0 == 0
+                                        && matches!(
+                                            err.context.code.as_str(),
+                                            "vp9.layout" | "vp9.bitdepth"
+                                        ) => {}
+                                Err(err) => unreachable!("{name}: video decode: {err}"),
+                            }
                         }
                     }
                     Ok(DemuxEvent::EndOfStream) => break,

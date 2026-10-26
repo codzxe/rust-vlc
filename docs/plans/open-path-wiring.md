@@ -124,7 +124,7 @@ L0 `Track` lists and `Packet`s. One exception: `es/annexb` takes an extra codec 
 | es h264/hevc | `es/annexb.rs:363` — **`new(codec: AnnexbCodec, stream)`** | `es/annexb.rs:477` | codec known from construction (`AnnexbCodec`, h264 or hevc); raw ES ⇒ `Stamp::Missing` pts (`es/mod.rs:26-29`) | annexb: seek refuses typed (no timing, `es/annexb.rs:340` doc) |
 | es mp3 | `es/mp3.rs:292` | `es/mp3.rs:626` | sample-rate from first frame header (in-band) | exact sample arithmetic (`es/mod.rs:28-29`) |
 | es aac | reuses `crate::adts` verbatim (`es/mod.rs:17-18`) | — | — | — |
-| ivf (`ivf`) | `ivf/mod.rs:325` | `ivf/mod.rs:553` | `stream_info() -> Option<IvfStreamInfo>` (`ivf/mod.rs:353`; struct :247-262: codec `av1`/`vp9`, width/height, rate/scale) | `ivf/mod.rs:665` (frame-index Fast) |
+| ivf (`ivf`) | `ivf/mod.rs:325` | `ivf/mod.rs:553` | `stream_info() -> Option<IvfStreamInfo>` (`ivf/mod.rs:353`; struct :247-262: codec `av1`/`vp9`, width/height, rate/scale) | `ivf/mod.rs:665` (frame-index — measured SlowLinear through the wrapper, 6.OPW-ivf) |
 
 Per-module test suites (the per-container regression backbone):
 `crates/demux/tests/{corpus_mp4,mkv_corpus,mkv_fixtures,mkv_attachments_chapters,mkv_editions_tags,

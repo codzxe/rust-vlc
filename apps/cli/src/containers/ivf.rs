@@ -17,10 +17,10 @@
 //!   local copy; every other fourcc already refused typed at
 //!   `start`). AV1 **decodes** (the rav1d-backed `Av1Decoder`, the
 //!   provider's existing `av1`/`av01` arm — mp4's av1C blob is NOT
-//!   needed here, see below). VP9 **refuses the decoder typed**
-//!   (`cli.codec_unavailable` — no VP9 decoder is dispatched in this
-//!   build; card 6.M-vp9 wires it, and the Lead reconciles this
-//!   host's vp9 decode lane after that merge).
+//!   needed here, see below). VP9 **decodes** too (the rusty_vp9-
+//!   backed `Vp9Decoder`, card 6.M-vp9 landed and the Lead
+//!   reconciled this host's vp9 lane — the ogg/opus inversion
+//!   precedent; in-band uncompressed frame headers, no seeding).
 //! * **No `extra_data`**: IVF separates no config from the stream —
 //!   the AV1 sequence header is the first in-band OBU of the first
 //!   keyframe and VP9's frame header is the per-frame uncompressed
@@ -477,18 +477,14 @@ mod tests {
         assert_eq!(size, (64, 48), "av1_64x48: the declared coded size");
     }
 
-    /// The VP9 lane (card 6.M-vp9 pending): the container wiring is
-    /// REAL — the file opens, the facts are true (fourcc-honest
-    /// `vp9` descriptor, dims, tick base), the packets flow — and
-    /// the decoder provider refuses it typed at decode
-    /// (`cli.codec_unavailable`, the landed-set listing). This is
-    /// the honest INITIAL state, not a gap in this wiring: the
-    /// parallel unit 6.M-vp9 wires the VP9 decoder, and the Lead
-    /// reconciles THIS lane's decode assertion after that merge
-    /// (the ogg/opus precedent — the refusal test inverts to a
-    /// decode assertion when the decoder lands).
+    /// The VP9 lane RECONCILED (card 6.M-vp9 landed — the Lead
+    /// inversion per the ogg/opus precedent): the file opens, the
+    /// facts are true (fourcc-honest `vp9` descriptor, dims, tick
+    /// base), the packets flow — and rusty_vp9 decodes the full
+    /// stream 1:1 through the real provider (no seeding: in-band
+    /// uncompressed frame headers).
     #[test]
-    fn vp9_lane_opens_but_refuses_the_decoder() {
+    fn vp9_lane_decodes_the_full_stream() {
         let path = generated_fixture("vp9_64x48_25fps.ivf");
         let mut opened = open(path, None);
         assert_eq!(opened.facts.container, "ivf");
@@ -506,32 +502,14 @@ mod tests {
         }
         assert_eq!(packets, 25, "vp9: ffprobe frame count");
 
-        // The decode half: the typed provider refusal.
-        let opened = open(generated_fixture("vp9_64x48_25fps.ivf"), None);
-        let facts = Arc::new(opened.facts.clone());
-        let provider = HostDecoderProvider::new(Arc::clone(&facts));
-        let track = facts.tracks[0].clone();
-        let config = DecoderConfig::new(
-            track.codec.clone(),
-            GenerationId::FIRST,
-            ThreadBudget::default(),
-            None,
-            None,
-        );
-        let err = match provider.decoder_for(&track, &config) {
-            Ok(_) => unreachable!("vp9 must refuse until 6.M-vp9 wires the decoder"),
-            Err(err) => err,
-        };
-        assert_eq!(err.context.code, "cli.codec_unavailable", "{err}");
-        // The refusal's one-sentence root names the codec (the host
-        // error's source chain — Display alone is the stage/kind/code
-        // prefix, the mp4 refusal-lane convention plus the name pin).
-        let named = err
-            .source
-            .as_ref()
-            .map(|root| root.to_string())
-            .unwrap_or_default();
-        assert!(named.contains("`vp9`"), "{err} / source: {named}");
+        // The decode half (the inverted assertion): the full stream
+        // through the real provider — 25 packets → 25 frames at the
+        // declared coded size.
+        let mut opened = open(generated_fixture("vp9_64x48_25fps.ivf"), None);
+        let (frames, size) =
+            decode_all(&mut opened).unwrap_or_else(|err| unreachable!("vp9 decode: {err}"));
+        assert_eq!(frames, 25, "vp9: 25 packets → 25 frames");
+        assert_eq!(size, (64, 48), "vp9: the declared coded size");
     }
 
     /// `--start-time` through the pure seek query (SlowLinear): an

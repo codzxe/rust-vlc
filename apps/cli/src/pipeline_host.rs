@@ -59,6 +59,8 @@ use codecs::audio::mp3::Mp3Decoder;
 use codecs::audio::opus::OpusDecoder;
 use codecs::audio::vorbis::VorbisDecoder;
 use codecs::video::av1::Av1Decoder;
+use codecs::video::dnx::DnxDecoder;
+use codecs::video::vp9::Vp9Decoder;
 use media_clock::MediaClock;
 use media_types::frame::{
     AudioFormat, AudioFrame, AudioLayout, ColorMatrix, ColorRange, FrameStorage, SampleFormat,
@@ -275,6 +277,28 @@ impl DecoderProvider for HostDecoderProvider {
             }
             "av1" | "av01" => {
                 let mut decoder = Av1Decoder::new();
+                decoder.configure(config)?;
+                Ok(Box::new(decoder))
+            }
+            // VP9 (card 6.M-vp9, rusty_vp9 =0.1.3 — the admission
+            // record's exact pin): in-band uncompressed frame
+            // headers, no `extra_data` seeding (the ivf/webm lanes;
+            // the ogg/opus seeding precedent does not apply).
+            "vp9" => {
+                let mut decoder = Vp9Decoder::new();
+                decoder.configure(config)?;
+                Ok(Box::new(decoder))
+            }
+            // DNxHD/DNxHR (card 6.M-dnx, filmcraft-dnx =0.9.0
+            // default-features OFF — the record's rayon-free pin):
+            // raw VC-3 ES decodes statelessly. No container lane
+            // mints the `dnxhd` descriptor yet (the mkv V_MS/FOURCC
+            // and ASF futures own that) — the codecs-crate
+            // differential is the lane; the decoder's `configure`
+            // gate is the honest authority (the only accepted
+            // descriptor, `dnxhd`).
+            "dnxhd" => {
+                let mut decoder = DnxDecoder::new();
                 decoder.configure(config)?;
                 Ok(Box::new(decoder))
             }

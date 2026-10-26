@@ -32,9 +32,11 @@ version = 1
 
 [rules]
 # Doc 01 §1.4 invariant (1): whitelisted same-layer dependency pairs,
-# written "from->to". Current pair: plugin-api consumes the codec
-# contract (doc 01 §2.2 places both in L1; card 1.D2 added the edge).
-same_layer_pairs = ["plugin-api->codec-api"]
+# written "from->to". plugin-api consumes the codec contract (doc 01
+# §2.2 places both in L1; card 1.D2 added the edge). desktop wraps
+# lumen-cli as its composition root (both L6 apps; the 6.W3 Lead
+# registration backfill — the wrapper edge the skeleton always had).
+same_layer_pairs = ["plugin-api->codec-api", "desktop->lumen-cli"]
 # MP §3.7 / ARCH-7 (doc 01 §1.3, §2.8): these crates may appear ONLY in
 # [dev-dependencies] tables — never in [dependencies] or
 # [build-dependencies] of any workspace member.
@@ -112,17 +114,9 @@ external_dev_allowlist = []
 # "format-specific parsing belongs to demux/codecs/subtitles" note).
 # Std-only, no deps: pure data + pure functions (cue intervals,
 # positioning/alignment, style-token subset, stable wire roundtrip).
-# SCAFFOLD NOTE (Lead-ratification required): the parallel wave-5 card
-# 5.L1 (SRT/WebVTT text-format parsers) creates the same crate in its
-# own worktree with the same minimal registration — Lead unifies the
-# two scaffolds at wave close; this worktree (wip/p5-l2) owns
-# crates/subtitles/src/model/**, 5.L1 owns its parser modules.
-[crates.subtitles]
-layer = 1
-internal_deps = []
-dev_deps = []
-external_allowlist = []
-external_dev_allowlist = []
+# (The 5.L2 scaffold note is history: the unified crate's real
+# registration is the L2 entry below — the duplicate stale L1 block
+# was removed by the Lead when check-architecture flagged it.)
 
 # L1 — the one command layer (doc 01 §2.3, cards 1.D3 + 1.D4). Std-only
 # in 1.D3; card 1.D4 adds the serde/schemars wire-form family (doc 05
@@ -181,6 +175,32 @@ layer = 2
 internal_deps = ["media-types", "plugin-api"]
 dev_deps = ["testkit", "input"]
 external_allowlist = []
+external_dev_allowlist = []
+
+# L2 — network streaming (cards 6.A1a/A1b/A1c/A2a/A2b/A3): the sync
+# HttpFetch port + ranged seekable resource + scheme registry.
+# `ureq =3.5.0` (rustls, webpki roots) is the 6.A1b Lead-ratified
+# admission (record docs/dependencies/records/ureq-3.5.0.md; ring's
+# C/asm the ADR-001-class exception). `demux`/`input` are DEV edges
+# (the e2e lanes demux wav-over-http through the real access stack).
+[crates.streaming]
+layer = 2
+internal_deps = ["media-types", "plugin-api"]
+dev_deps = ["testkit", "demux", "input"]
+external_allowlist = ["ureq"]
+external_dev_allowlist = []
+
+# L2 — playlist persistence (card 4.D1): extended/plain M3U parse +
+# canonical write, dirty-world tolerant, std + thiserror only (the
+# settings-schema/localization dependency family). No internal deps
+# yet — the queue semantics that consume it land with 4.C2's panel
+# work (the crate's own manifest note; the 6.W3 Lead registration
+# backfill of the manifest the checker flagged).
+[crates.playlists]
+layer = 2
+internal_deps = []
+dev_deps = []
+external_allowlist = ["thiserror"]
 external_dev_allowlist = []
 
 # L2 — bounded format detection (doc 01 §2.2 registry row, card 2.A2;
@@ -242,15 +262,22 @@ external_dev_allowlist = []
 # registry row also lists plugin-api for the register()/manifest surface
 # (doc 01 §2.5(b)); that edge joins when the plugin registry card lands —
 # this card's decoder needs codec-api + media-types only (the manifest is
-# an allowlist, video-engine precedent). Std-only by C5: the 2.B4
-# dependency decision is an in-house decoder (zero externals; the
-# jpeg-decoder/zune-jpeg options were not audited — a future adoption
-# owes the full Lead-ratified dependency review; worklog 2.B4).
+# an allowlist, video-engine precedent). Std-only by C5 baseline; the
+# decode-engine externals below are the Lead-ratified admissions
+# (each with its record; mjpeg stays in-house — 2.B4's decision).
 [crates.codecs]
 layer = 3
 internal_deps = ["codec-api", "media-types"]
 dev_deps = ["testkit", "input", "demux", "plugin-api"]
-external_allowlist = []
+# The Lead-ratified decode-engine admissions (every one with its
+# validate-then-admit record in docs/dependencies/records/ — the
+# 6.W3 Lead backfill of the registration debt the checker flagged):
+# claxon (FLAC), the symphonia codec family (mp3/vorbis/aac/alac —
+# bundle-mp3 + core are the family's own transitive surface), rav1d
+# (AV1, asm exception ADR-001-class), ruopus (Opus, 6.VTA/6.M-opus),
+# rusty_vp9 (VP9, 6.VTA/6.M-vp9), filmcraft-dnx (DNxHD/DNxHR,
+# 6.VTA/6.M-dnx, default-features OFF — rayon-free pin).
+external_allowlist = ["claxon", "symphonia-bundle-mp3", "symphonia-core", "symphonia-codec-vorbis", "symphonia-codec-aac", "symphonia-codec-alac", "rav1d", "ruopus", "rusty_vp9", "filmcraft-dnx"]
 external_dev_allowlist = []
 
 # L3 — video presentation scheduling (doc 01 §2.2 registry row, card
@@ -281,7 +308,7 @@ external_dev_allowlist = []
 # edges when the cards that need them land. Std-only by C5.
 [crates.audio-engine]
 layer = 3
-internal_deps = ["media-types"]
+internal_deps = ["media-types", "media-clock"]
 dev_deps = ["testkit"]
 external_allowlist = []
 external_dev_allowlist = []
@@ -383,7 +410,7 @@ external_dev_allowlist = []
 # ARCH-7).
 [crates.desktop]
 layer = 6
-internal_deps = ["commands", "media-types", "renderer-wgpu", "video-engine"]
+internal_deps = ["commands", "lumen-cli", "media-types", "renderer-wgpu", "video-engine"]
 dev_deps = ["testkit", "media-clock"]
 external_allowlist = []
 external_dev_allowlist = []
@@ -421,9 +448,22 @@ external_dev_allowlist = []
 # Dev-tool position: NOTHING may depend on it. unsafe note: the counting
 # GlobalAlloc is the instrument's purpose (unsafe impl GlobalAlloc +
 # #[global_allocator], safety-commented in-source; ADR ratification is
-# the card's recorded handoff).
+# the card's recorded handoff). The internal edges are the instrument's
+# measurement surface (it links the whole decode stack to count its
+# allocations — the 6.W3 Lead registration backfill).
 [crates.lumen-mem-audit]
-internal_deps = []
+internal_deps = ["codec-api", "codecs", "demux", "input", "media-probe", "media-types", "plugin-api"]
+dev_deps = []
+external_allowlist = []
+external_dev_allowlist = []
+
+# tools/sweep (package lumen-sweep): the target-dir sweep tool — the
+# same dev-tool position as lumen-mem-audit (NOTHING may depend on
+# it); it walks the workspace manifests to classify build artifacts,
+# hence the same internal-edge surface (the 6.W3 Lead registration
+# backfill; the checker flagged the missing manifest).
+[crates.lumen-sweep]
+internal_deps = ["codec-api", "codecs", "demux", "input", "media-probe", "media-types", "plugin-api"]
 dev_deps = []
 external_allowlist = []
 external_dev_allowlist = []
