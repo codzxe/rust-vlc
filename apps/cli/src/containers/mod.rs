@@ -20,6 +20,7 @@
 //! fallback.
 
 mod avi;
+mod wav;
 
 use commands::{CommandError, ErrorCode, Stage};
 use plugin_api::SourceStream;
@@ -40,6 +41,7 @@ pub(crate) fn open(
     match format {
         // The entry shape: `"<probe-id>" => <mod>::open(stream, opts),`
         "avi" => avi::open(stream, opts),
+        "wav" => wav::open(stream, opts),
         other => Err(unwired_refusal(other)),
     }
 }
