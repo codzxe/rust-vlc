@@ -304,8 +304,8 @@ mod tests {
             // Pass 2 — the full decode through the real provider on a
             // fresh open (the walk is single-shot).
             let mut opened = open(path, None);
-            let (frames, decoded_channels) = decode_frames(&mut opened)
-                .unwrap_or_else(|err| unreachable!("{name}: {err}"));
+            let (frames, decoded_channels) =
+                decode_frames(&mut opened).unwrap_or_else(|err| unreachable!("{name}: {err}"));
             assert_eq!(
                 frames,
                 packets * SAMPLES_PER_BLOCK,
@@ -370,11 +370,10 @@ mod tests {
         let bytes = demux::adts::test_support::adts_frame(1, 15, 2, 1, 100, None);
         let path = std::env::temp_dir().join("lumen-cli-adts-bad-index.aac");
         std::fs::write(&path, &bytes).must();
-        let err =
-            match open_source(&SourceSpec::File { path: path.clone() }, None, false, false) {
-                Ok(_) => unreachable!("a reserved sampling index must refuse"),
-                Err(err) => err,
-            };
+        let err = match open_source(&SourceSpec::File { path: path.clone() }, None, false, false) {
+            Ok(_) => unreachable!("a reserved sampling index must refuse"),
+            Err(err) => err,
+        };
         std::fs::remove_file(&path).ok();
         assert_eq!(err.stage, commands::Stage::Demux, "{err}");
         assert_eq!(
@@ -488,7 +487,12 @@ mod tests {
             let mut opened = open(path, None);
             assert_eq!(opened.facts.container, "adts", "{}", truth.file);
             assert_eq!(opened.facts.tracks.len(), 1, "{}", truth.file);
-            assert_eq!(opened.facts.tracks[0].kind, MediaKind::Audio, "{}", truth.file);
+            assert_eq!(
+                opened.facts.tracks[0].kind,
+                MediaKind::Audio,
+                "{}",
+                truth.file
+            );
             assert_eq!(opened.facts.facts[0].codec, truth.codec, "{}", truth.file);
             assert_eq!(
                 opened.facts.tracks[0].timing.base.as_parts(),
@@ -624,8 +628,7 @@ mod tests {
             }
         }
         assert_eq!(
-            sink.0,
-            TRUTHS[0].truth_frames,
+            sink.0, TRUTHS[0].truth_frames,
             "the real audio decodes to the clean-lane count before the damage"
         );
         assert!(
