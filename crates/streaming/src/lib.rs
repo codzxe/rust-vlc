@@ -5,8 +5,8 @@
 //! ([`error::NetworkError`]), and a std-only mock HTTP/1.1 testkit
 //! ([`mockhttp`]). Everything else network — the real HTTP client
 //! (ureq admission 6.A1b, implementation 6.A1c), ranged seekable
-//! resources (6.A2), the scheme registry (6.A3), HLS (6.B), DASH
-//! (6.C), reconnect/buffering policy (6.D), auth (6.E), fuzzing
+//! resources (6.A2), the scheme registry (6.A3 — landed), HLS (6.B),
+//! DASH (6.C), reconnect/buffering policy (6.D), auth (6.E), fuzzing
 //! (6.F), and RTSP (6.G) — lands in later cards on top of this port.
 //!
 //! # Sync by architecture
@@ -30,3 +30,4 @@ pub mod error;
 pub mod fetch;
 pub mod mockhttp;
 pub mod ranged;
+pub mod schemes;
