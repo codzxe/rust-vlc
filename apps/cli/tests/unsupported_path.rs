@@ -116,12 +116,26 @@ fn mpegts_container_is_refused_with_the_format_named() {
 
 /// The Matroska parent fixture now OPENS end-to-end (card
 /// 6.OPW-mkv wired the family — the refusal this test used to pin
-/// is the re-targeted one above): the real binary opens the
-/// h264+aac fixture, refuses the h264 track typed at codec
-/// dispatch and accepts the session on the aac limb.
+/// is the re-targeted one above): the real binary demuxes the
+/// h264+aac fixture, and the h264 track's codec refusal surfaces
+/// typed and named (the engine's honest open answer for a session
+/// whose video limb cannot decode — exit 65). With `--no-video`
+/// the deselected session accepts on the aac limb (exit 0).
 #[test]
-fn matroska_container_opens_and_accepts_the_session() {
+fn matroska_container_opens_and_the_h264_refusal_is_typed() {
     let (out, err, code) = run(&[&fixture("generated/valid/mkv_h264_aac.mkv")], "quit\n");
+    assert_eq!(code, 65, "stdout:\n{out}\nstderr:\n{err}");
+    assert!(out.contains("event: error [decode.unsupported]"), "{out}");
+    assert!(err.contains("no decoder for `h264`"), "{err}");
+    assert!(err.contains("cli.codec_unavailable"), "{err}");
+    let (out, err, code) = run(
+        &[
+            "open",
+            &fixture("generated/valid/mkv_h264_aac.mkv"),
+            "--no-video",
+        ],
+        "quit\n",
+    );
     assert_eq!(code, 0, "stdout:\n{out}\nstderr:\n{err}");
     assert!(out.contains("ok: accepted session=1"), "{out}");
 }
