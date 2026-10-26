@@ -19,6 +19,7 @@
 //! a probing-but-unwired container is an honest no, never a silent
 //! fallback.
 
+mod aiff;
 mod avi;
 mod wav;
 
@@ -40,6 +41,7 @@ pub(crate) fn open(
 ) -> Result<OpenedMedia, CommandError> {
     match format {
         // The entry shape: `"<probe-id>" => <mod>::open(stream, opts),`
+        "aiff" => aiff::open(stream, opts),
         "avi" => avi::open(stream, opts),
         "wav" => wav::open(stream, opts),
         other => Err(unwired_refusal(other)),
