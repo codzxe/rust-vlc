@@ -10285,3 +10285,18 @@ Stage Summary:
 - MEASURED: 5 lanes / 15 frames vs ffmpeg 7.1.5 (byte parity 5/5, maxDelta 2, 0.04-6.6% samples, balanced histogram); purity: 0 unsafe tokens both crates, forbid lint, build=false, 0 native files, sha256==index cksum, OSV clean, graph = dnx + bitstream(leaf) + thiserror family; hostile 0 panics (3 lanes x 6 cases + 256-point sweeps).
 - NOT measured / honest gaps: DNxHR (RI profile CIDs 1270-1274), 12-bit, 4:4:4/RGB, 4:2:0, interlaced/MACF, alpha, VBR, low-delay; no MOV/MKF container path through OUR demuxers (raw ES only; AVdn/AVdh mapping is M-wave); no real-world Avid/camera sample (all lanes ffmpeg-generated); wasm32 unmeasured; no throughput bench; full (unsampled) truncation sweep not run; 3-day-old first release with 9 downloads and no public repo — youngest crate measured, pin + re-trigger mitigates, publisher cross-check left as VERIFY-P1.
 - Who consumes next: Lead (doc 11 §3.1 allowlist row + explicit ±2 LSB tolerance ratification — the one open decision); then admission M-wave unit (codecs wiring, live-oracle differential test with maxDelta<=2 gate, fuzz_codec_dnx, demux AVdn/AVdh sample-entry mapping).
+
+---
+Task ID: 6.VTA-DNX-RATIFY + 6.VP9-CORPUS-NOTE
+Agent: Lead
+Task: Lead ratification of the filmcraft-dnx ±2-LSB tolerance + Lead census correction for VP9 corpus lanes.
+
+Work Log:
+- DNxHD tolerance RATIFIED: maxΔ≤2 LSB (10-bit: 2/1023) with the sign-balance gate, consistent with the Phase-5 MP2 ±1-LSB precedent (phase5-exit caveat 4). Root cause measured by the spike: exact orthonormal f32 IDCT (SMPTE eq. 8.3) vs ffmpeg's integer IDCT — bit-exactness unreachable in principle for this decoder class. Recording posture: per-row tolerance class, never claimed bit-exact. The M-wave differential gate = maxΔ≤2 + sign-balance + byte-count parity.
+- filmcraft-dnx 0.9.0 allowlist row added to the Lead's admission queue (unsafe_code=forbid, zero-dep leaf graph, =0.9.0 default-features=false pin dropping rayon).
+- VP9 CORPUS CORRECTION: the 6.VTA-rusty-vp9 spike reported "corpus holds ZERO VP9" — wrong; Lead census (ffprobe v:0 sweep) found 3 VP9 MKV lanes: 0075-mkv-video.mkv, 0078-vfr-av.mkv, 0141-mkv-video.mkv. The spike's differential stands (431/431 bit-exact on its lanes), but the M-wave wiring unit MUST run these 3 real-corpus lanes through our MKV demuxer before the vp9 row leaves partial.
+- MPEG-4 BLOCKED verdict UPHELD (N-VOP duplicate-frames correctness bug + tolerance class; unblock = upstream N-VOP fix or demuxer-side unpack policy, re-measured on 0117, plus a Lead tolerance-envelope decision if that day comes). AC-3 BLOCKED verdict UPHELD (316-431 LSB divergence class on low-bitrate broadband lanes).
+- Wave-1 admission scoreboard: ADMITTED = ruopus (opus), rusty_vp9 (vp9, bit-exact), filmcraft-dnx (dnxhd) — 3 new codecs banked for M-wave wiring. BLOCKED = oxideav-ac3, oxideav-mpeg4video — honest, evidence-backed, unblock paths recorded.
+
+Stage Summary:
+- Three admission M-wave queues now ready: opus/vp9/dnxhd. Two honest blocks recorded. Format scoreboard when M-waves land: 29 → 32 families implemented.
