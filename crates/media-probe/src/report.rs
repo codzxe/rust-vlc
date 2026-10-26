@@ -84,6 +84,45 @@ impl FormatId {
         FormatId("ivf".to_owned())
     }
 
+    /// The raw MPEG-audio Layer III elementary stream (`mp3`; card
+    /// 6.OPW-es — the layer-01 half of the MPEG-audio syncword
+    /// discrimination, disjoint from ADTS's layer-00).
+    pub fn mp3() -> FormatId {
+        FormatId("mp3".to_owned())
+    }
+
+    /// The raw MPEG-audio Layer II elementary stream (`mp2`; card
+    /// 6.OPW-es — the layer-10 half of the same discrimination).
+    pub fn mp2() -> FormatId {
+        FormatId("mp2".to_owned())
+    }
+
+    /// The Annex-B raw video family (`.264`/`.265`; card 6.OPW-es —
+    /// a **sub-threshold family id**: minted only when the window's
+    /// NAL shapes fit both codec hypotheses and never selected by
+    /// the registry's default minimum; it names the family in the
+    /// refusal, never a codec guess).
+    pub fn annexb() -> FormatId {
+        FormatId("annexb".to_owned())
+    }
+
+    /// The raw H.264 Annex-B elementary stream (card 6.OPW-es —
+    /// decisive when the window's NAL headers are HEVC-impossible).
+    pub fn h264() -> FormatId {
+        FormatId("h264".to_owned())
+    }
+
+    /// The raw HEVC Annex-B elementary stream (card 6.OPW-es —
+    /// decisive when the window's NAL headers are H.264-impossible).
+    pub fn hevc() -> FormatId {
+        FormatId("hevc".to_owned())
+    }
+
+    /// The native FLAC stream (`fLaC` marker; card 6.OPW-es).
+    pub fn flac() -> FormatId {
+        FormatId("flac".to_owned())
+    }
+
     /// Validate a format id string (extension path).
     ///
     /// Grammar: 1..=24 bytes of ASCII lowercase letters, digits, `-`

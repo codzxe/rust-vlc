@@ -18,8 +18,9 @@
 //! negatives: garbage and near-miss magics stay `probe.no-demuxer`.
 
 use media_probe::signature::{
-    AdtsSignature, AiffSignature, AviSignature, IvfSignature, MkvSignature, Mp4Signature,
-    OggSignature, ProbePlugin, PsSignature, TsSignature, WavSignature,
+    AdtsSignature, AiffSignature, AnnexbSignature, AviSignature, FlacSignature, IvfSignature,
+    MkvSignature, Mp2Signature, Mp3Signature, Mp4Signature, OggSignature, ProbePlugin, PsSignature,
+    TsSignature, WavSignature,
 };
 use media_probe::{ProbeConfig, ProbeRegistry, SourceMeta};
 use media_types::PipelineStage;
@@ -160,6 +161,50 @@ fn every_landed_container_probes_to_its_format_id() {
             expected: "ivf",
             extension: "ivf",
         },
+        // 6.OPW-es: the raw elementary-stream family. The MPEG-audio
+        // rows ride the codecs card's committed fixtures (the
+        // ID3-prefixed `mpeg2_24k.mp3` proves the tag-skip anchor;
+        // `mp2_48k.mp2` the layer-10 discrimination); the Annex-B
+        // rows are this card's own committed ffmpeg-authored
+        // fixtures (SPS-led H.264, VPS-led HEVC — the decisive
+        // parameter-set shapes); the FLAC row is the codecs card's
+        // committed native-FLAC fixture.
+        Row {
+            fixture: None,
+            crate_fixture: Some("../codecs/tests/fixtures/mpeg2_24k.mp3"),
+            expected: "mp3",
+            extension: "mp3",
+        },
+        Row {
+            fixture: None,
+            crate_fixture: Some("../codecs/tests/fixtures/mono48.mp3"),
+            expected: "mp3",
+            extension: "mp3",
+        },
+        Row {
+            fixture: None,
+            crate_fixture: Some("../codecs/tests/fixtures/mp2_48k.mp2"),
+            expected: "mp2",
+            extension: "mp2",
+        },
+        Row {
+            fixture: None,
+            crate_fixture: Some("fixtures/annexb_probe_h264.264"),
+            expected: "h264",
+            extension: "264",
+        },
+        Row {
+            fixture: None,
+            crate_fixture: Some("fixtures/annexb_probe_hevc.265"),
+            expected: "hevc",
+            extension: "265",
+        },
+        Row {
+            fixture: None,
+            crate_fixture: Some("../codecs/tests/fixtures/flac_mono_s16_44100.flac"),
+            expected: "flac",
+            extension: "flac",
+        },
     ];
     let registry = ProbeRegistry::with_builtins();
     let config = ProbeConfig::new(4096, 60).must();
@@ -195,7 +240,7 @@ fn every_landed_container_probes_to_its_format_id() {
 /// bug, not a hint).
 #[test]
 fn extension_lists_cover_their_fixtures() {
-    let rows: [(Box<dyn ProbePlugin>, &[&str]); 10] = [
+    let rows: [(Box<dyn ProbePlugin>, &[&str]); 14] = [
         (Box::new(AviSignature), &["avi"]),
         (Box::new(Mp4Signature), &["mp4", "mov"]),
         (Box::new(WavSignature), &["wav"]),
@@ -206,6 +251,10 @@ fn extension_lists_cover_their_fixtures() {
         (Box::new(TsSignature), &["ts"]),
         (Box::new(PsSignature), &["vob", "mpg"]),
         (Box::new(IvfSignature), &["ivf"]),
+        (Box::new(Mp3Signature), &["mp3"]),
+        (Box::new(Mp2Signature), &["mp2"]),
+        (Box::new(AnnexbSignature), &["264", "265"]),
+        (Box::new(FlacSignature), &["flac"]),
     ];
     for (signature, claimed_by_fixtures) in rows {
         let extensions = signature.extensions();
@@ -218,19 +267,18 @@ fn extension_lists_cover_their_fixtures() {
     }
 }
 
-/// Honest negatives: near-miss magics and MPEG-audio syncwords must
-/// NOT be stolen by the ADTS signature (the 12-bit sync + zero
-/// layer refinement), and garbage stays a typed no-hit.
+/// Honest negatives: near-miss magics must NOT be stolen by the
+/// ADTS signature (the 12-bit sync + zero layer refinement), and
+/// garbage stays a typed no-hit. The MPEG-1 Layer III frame header
+/// that used to sit in the negative list (an ADTS near-miss) now
+/// probes **`mp3`** — 6.OPW-es landed that signature — so the
+/// non-collision is pinned from the positive side below.
 #[test]
 fn near_misses_and_garbage_stay_unprobed() {
     let registry = ProbeRegistry::with_builtins();
     let config = ProbeConfig::new(4096, 60).must();
     let meta = SourceMeta::new(Some(4096), Some("bin"));
-    // An MPEG-1 Layer III frame header (0xFF 0xFB: 11-bit sync,
-    // Layer III bits 01) — raw MP3, not ADTS.
-    let mp3_frame = [0xFF_u8, 0xFB, 0x90, 0x00];
     for case in [
-        &mp3_frame[..],
         &b"OggT\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00"[..],
         &b"FORM\x00\x00\x00\x10AIFX"[..],
         // TS: sync byte present but no second sync at the 188-byte
@@ -247,4 +295,14 @@ fn near_misses_and_garbage_stay_unprobed() {
             }
         }
     }
+    // The ADTS/MPEG-audio boundary, pinned positively from both
+    // sides: the Layer III header probes `mp3` (NOT `adts`), and a
+    // layer-00 frame probes `adts` (NOT `mp3`) — the layer-bit
+    // disjointness is the two signatures' shared contract.
+    let mp3_frame = [0xFF_u8, 0xFB, 0x90, 0x00];
+    let report = registry.probe(&mp3_frame, &meta, &config).must();
+    assert_eq!(report.format.as_str(), "mp3");
+    let adts_frame = [0xFF_u8, 0xF1, 0x50, 0x80, 0x00, 0x00];
+    let report = registry.probe(&adts_frame, &meta, &config).must();
+    assert_eq!(report.format.as_str(), "adts");
 }
