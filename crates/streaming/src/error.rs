@@ -52,6 +52,13 @@ pub enum NetworkError {
         /// Requests issued before the revisit was detected.
         hops: u32,
     },
+    /// A redirect pointed at a different host while the policy
+    /// forbids cross-host hops (`cross-host-redirect`) — the SSRF
+    /// posture of 6.H1 leans on this refusal.
+    CrossHostRedirect {
+        /// Redirects followed before the refused hop.
+        hops: u32,
+    },
     /// A non-success HTTP status surfaced as an error (`http-status`).
     HttpStatus {
         /// The status code (e.g. 404).
@@ -115,6 +122,7 @@ impl NetworkError {
             NetworkError::TlsFailure => "streaming.net.tls-failure",
             NetworkError::TooManyRedirects { .. } => "streaming.net.too-many-redirects",
             NetworkError::RedirectLoop { .. } => "streaming.net.redirect-loop",
+            NetworkError::CrossHostRedirect { .. } => "streaming.net.cross-host-redirect",
             NetworkError::HttpStatus { .. } => "streaming.net.http-status",
             NetworkError::RangeNotSatisfiable => "streaming.net.range-not-satisfiable",
             NetworkError::BodyTruncated { .. } => "streaming.net.body-truncated",
@@ -169,6 +177,9 @@ impl fmt::Display for NetworkError {
             }
             NetworkError::RedirectLoop { hops } => {
                 format!("redirect loop detected after {hops} requests")
+            }
+            NetworkError::CrossHostRedirect { hops } => {
+                format!("cross-host redirect refused by policy after {hops} hops")
             }
             NetworkError::HttpStatus {
                 code,
@@ -235,6 +246,7 @@ mod tests {
                 followed: 10,
             },
             NetworkError::RedirectLoop { hops: 4 },
+            NetworkError::CrossHostRedirect { hops: 1 },
             NetworkError::http_status(404),
             NetworkError::RangeNotSatisfiable,
             NetworkError::BodyTruncated {

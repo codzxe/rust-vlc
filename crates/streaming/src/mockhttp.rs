@@ -88,8 +88,16 @@ pub struct MockConfig {
     /// Every response is `302` to the *same* path — a deliberate
     /// redirect loop for the loop-detector test.
     pub self_loop: bool,
+    /// Every response is `302` to this **absolute** URL — cross-host
+    /// redirect tests (and A→B→A ping-pong loops) point this at a
+    /// second server. Takes precedence over `self_loop` and the
+    /// `redirects` chain.
+    pub absolute_redirect: Option<String>,
     /// Delay before each response is written (read-deadline tests).
     pub delay: Option<Duration>,
+    /// Serve the body with this status instead of `200` (the plain,
+    /// non-Range path) — error-class mapping tests (404/503).
+    pub force_status: Option<u16>,
     /// Advertise `Content-Length: body.len()` but send only the first
     /// `truncate_body_at` body bytes, then tear the connection down —
     /// mid-body truncation (`body-truncated`).
@@ -106,7 +114,9 @@ impl Default for MockConfig {
             honor_range: true,
             redirects: 0,
             self_loop: false,
+            absolute_redirect: None,
             delay: None,
+            force_status: None,
             truncate_body_at: None,
             garbage_first_line: false,
         }
@@ -303,6 +313,9 @@ fn write_response(
     if config.garbage_first_line {
         return stream.write_all(b"THIS IS NOT HTTP/1.1 AT ALL\r\n\r\n");
     }
+    if let Some(target) = &config.absolute_redirect {
+        return stream.write_all(redirect_head(target).as_bytes());
+    }
     if config.self_loop {
         return stream.write_all(redirect_head(&request.path).as_bytes());
     }
@@ -367,13 +380,31 @@ fn serve_body(
         stream.write_all(slice)?;
         return stream.flush();
     }
+    let (code, reason) = match config.force_status {
+        Some(code) => (code, reason_phrase(code)),
+        None => (200, "OK"),
+    };
     write!(
         stream,
-        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 {} {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        code,
+        reason,
         config.body.len()
     )?;
     stream.write_all(&config.body)?;
     stream.flush()
+}
+
+/// The reason phrase the mock writes for a forced status (test-only
+/// best effort; the clients under test never parse it further).
+fn reason_phrase(code: u16) -> &'static str {
+    match code {
+        200 => "OK",
+        404 => "Not Found",
+        500 => "Internal Server Error",
+        503 => "Service Unavailable",
+        _ => "Status",
+    }
 }
 
 /// Parse a `Range:` value of the forms `bytes=a-b` / `bytes=a-`.
@@ -815,6 +846,7 @@ mod tests {
             HttpRequest::get(server.url("start")).with_redirects(crate::fetch::RedirectPolicy {
                 max_redirects: 2,
                 cross_host: true,
+                mode: crate::fetch::RedirectMode::Follow,
             });
         let err = match fetcher().fetch(request) {
             Err(e) => e,
