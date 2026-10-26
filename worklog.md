@@ -10199,3 +10199,25 @@ Work Log:
 
 Stage Summary:
 - Phase 6 running: critical path (streaming core) and the open-path track are both unblocked; two admissions banked (ureq, ruopus).
+
+---
+Task ID: 6.VTA-rusty-vp9
+Agent: P6-VTA-VP9
+Task: Validate-then-admit SPIKE for VP9 decode via rusty_vp9 0.1.3 — differential + purity + hostile evidence, verdict ADMITTED (conditional pin).
+
+Work Log:
+- Worktree worktrees/p6-vta-vp9 on wip/p6-vta-vp9 from main (e86a743); skeleton committed first (a9a0881), then each green step.
+- Corpus probed: ZERO VP9 lanes — the single .webm (0126-webm-video.webm, 480x360 yuv420p 25fps 1.64s) is VP8 (libvpx). Recorded; lane D built as an honest VP8→VP9 re-encode of it.
+- Crate found: rusty_vp9 (underscore) 0.1.3, published 2026-10-17, MSRV 1.85, Apache-2.0, repo Remade-With-Rust/remade_ffmpeg_rs, publisher "Mata Network"; 4 releases 2026-07-29→2026-10-17, 3784 downloads, not yanked; OSV query clean.
+- Purity: ZERO dependencies (cargo tree leaf — adds no lockfile nodes), NO build.rs (build=false), 38 .rs files, 0 C/asm/blobs, 0 extern "C"; 98 unsafe tokens, all core::arch::x86_64 AVX2/SSE intrinsics (decode-path 76 / encoder-path 22) with cfg(not(x86_64)) safe fallbacks; one opt-in feature prometheus-telemetry (OFF); tarball sha256 9bf32821... == index cksum (recomputed).
+- Harness tools/vta/vp9 (standalone bin, path deps on OUR crates/demux + plugin-api): IvfDemuxer over mem_stream -> packets -> Vp9Decoder push/next_frame -> tight I420 (u16LE for bd>8). Two harness bugs caught and fixed honestly by the external md5sum cross-check: a hand-rolled in-harness MD5 was wrong (removed — digests computed externally), and the 10-bit path paired bytes wrong (fixed, re-measured).
+- Differential vs ffmpeg 7.1.5 -c:v libvpx-vp9, 6 lanes, all via OUR ivf demuxer: A testsrc2 320x240 5s 125/125 frames byte-identical; B 640x480 -g 30 90/90; C odd-dims (asked 127x95, libvpx coded 126x94) 75/75; D corpus-reenc 480x360 41/41; E VP9 webm remuxed -c copy (ES byte-preserving, proven by output match) 50/50; F profile-2 10-bit yuv420p10le 50/50. Total 431/431 frames BIT-EXACT (whole-stream MD5s equal on every lane). Classification: bit-exact, not tolerance-class.
+- Hostile battery (A+D+F): garbage/zerolen/hdr-corrupt/mid-corrupt all typed Err; off-by-one truncation sweep 0/125+0/41+0/50 panics; garbage-then-real recovers. Zero panics. Note: truncated keyframe packet decodes a full frame (libvpx-style concealment class) — flagged for the M-wave differential.
+- Toolchain note: the shared ~/.rustup 1.99.1 install was broken (rust-std component missing, rename race with sibling agent); an isolated RUSTUP_HOME/CARGO_HOME under /tmp restored a working pinned 1.99.1 — numbers above all measured on it.
+- docs/dependencies/records/rusty_vp9-0.1.3.md written in the rav1d house format (R1-R10 + pin + D/H/G sections); harness committed under tools/vta/vp9/ with README.
+
+Stage Summary:
+- VERDICT: ADMITTED (conditional) — pure-Rust zero-dep VP9 decoder, 6/6 differential lanes BIT-EXACT vs ffmpeg libvpx-vp9 including 10-bit profile 2, hostile panic-free; conditions: Lead allowlist row with =0.1.3 default-features pin, M-wave differential test wiring, fuzz_codec_vp9 before wider claims, record re-triggers on any bump/feature change.
+- MEASURED: 431/431 frames byte-identical (A 125/125, B 90/90, C 75/75, D 41/41, E 50/50, F 50/50 bd10); purity: 0 deps, 0 build.rs, 0 extern "C", 0 native files, 98 unsafe (all x86_64 intrinsics), sha256-verified provenance, OSV clean.
+- NOT measured / honest gaps: no real-corpus VP9 bitstream (corpus holds none — 0126 is VP8; D lane is a re-encode); profile 3 12-bit, profile 1 4:4:4, lossless, SVC/superframe, mid-stream resolution change untested; webm not run through OUR mkv demuxer end-to-end (V_VP9 mapping verified in source only; ivf-remux lane used instead); no throughput benchmark; upstream's 315-vector claim taken as upstream's, not ours; young 0.1.x crate (pin mitigates).
+- Who consumes next: admission M-wave unit (codecs wiring + live-oracle differential test of the §D shape + fuzz_codec_vp9), Lead for the doc 11 §3.1 allowlist row.
