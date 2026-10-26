@@ -28,6 +28,7 @@
 pub mod client;
 pub mod error;
 pub mod fetch;
+pub mod hls;
 pub mod mockhttp;
 pub mod ranged;
 pub mod schemes;

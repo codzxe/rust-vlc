@@ -33,6 +33,13 @@ workspace = true
 # must serve so demuxers consume it without knowing it is network).
 media-types = { path = "../media-types" }
 plugin-api = { path = "../plugin-api" }
+# playlists: workspace-internal (card 6.B1a) — the HLS session types
+# the playlist through the 4.D1/5.O1a M3U parser's HLS model instead
+# of forking a second M3U parser (the wave plan's REUSE rule). Pure
+# text-in/text-out, no I/O, no new externals. NOTE: boundaries.toml
+# [crates.streaming] internal_deps registration is Lead-owned at wave
+# close (same posture as the A3 manifest note).
+playlists = { path = "../playlists" }
 # ureq 3.5.0 — admitted by card 6.A1b (validate-then-admit; record at
 # docs/dependencies/records/ureq-3.5.0.md). Exact pin (house admission
 # style): a bump re-triggers the record per doc 11 §3.7. Minimal
@@ -58,3 +65,10 @@ demux = { path = "../demux" }
 # network path (production streaming never depends on input — the
 # open-path card owns that composition).
 input = { path = "../input" }
+# codecs is dev-only for card 6.B1a's decode differential: the HLS
+# e2e decodes the SAME segment bytes through the real AAC decoder and
+# counts samples against the ffmpeg oracle (production streaming never
+# links a codec — the engine composes them at the open-path card;
+# boundaries.toml dev_deps registration is Lead-owned, same note as
+# the playlists dep above).
+codecs = { path = "../codecs" }

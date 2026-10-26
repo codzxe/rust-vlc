@@ -10781,3 +10781,19 @@ Work Log:
 
 Stage Summary:
 - The container registry is COMPLETE: 15/15 real probe ids wired (avi, wav, aiff, ogg, matroska, adts, mpegts, mpegps, ivf, mp4, flac, h264, hevc, mp3, mp2). PS joins with mp2 decode + typed refusals for the hw-path codecs.
+---
+Task ID: 6.B1a (Lead completion)
+Agent: Lead (agent cutoff recovery)
+Task: HLS VOD media-playlist session landed — typed playlist model (playlists crate), open_vod session (streaming crate) with the known-length probe contract, real-socket e2e against the ffmpeg oracle.
+
+Work Log:
+- Agent cutoff left 2 green commits + a 625-line half-refactored media.rs that broke its own tests (open-time fetch on a missing segment, 2 socket hangs); the e2e test + fixtures were untracked. Lead reverted the dirty refactor to the committed base (its intent — the probe-based known length — was recovered and reimplemented surgically) and landed the e2e.
+- The known-length contract (the design the dead revision was reaching for): the container layer refuses unknown-length sources (demux.source.unknown-length), so open_vod issues one 1-byte Range probe per segment at open — a 206's Content-Range total fixes the size (1 byte paid); a 200 (no-range server, the 6.A2b shape) delivers the whole body, which is cached as that segment's content (paid for, never re-fetched); anything else is the typed streaming.hls.unknown-segment-size refusal. size() = the exact concatenation total from open.
+- Unit tests updated to the new contract (the dead revision's versions were inverted): byte-exact ordered concatenation with size known at open; missing segment fails typed AT OPEN (the probe); over-budget fails AT OPEN; the probe wire shape pinned on the socket mock (playlist, probes bytes=0-0, then whole-body GETs).
+- e2e (real socket, MockServer): ts lane — session byte-exact vs cat(segments), TsDemuxer starts over the session (the PSI head-scan rewinds = the retained-prefix seek exercised), PES flows measured (375 pushes, 67,437 payload bytes; the full AU-split decode differential stays the CLI host's pinned territory, 6.OPW-ts); adts lane — byte-exact + AdtsDemuxer (aac-lc descriptor) + 346 AAC frames + decode_stream → 354,304 samples/channel == the ffmpeg oracle (708,608 s16le bytes measured this session).
+- Fixtures committed: tests/fixtures/hls/{ts_vod,adts_vod} (8 s 44.1 kHz mono AAC-LC sine, 2.5 s segments, ffmpeg -f segment; generation commands in the e2e header).
+- Gates (worktree-local target): streaming 90/0/2 lib + e2e 2/0 + suites; playlists 25/0 + suites (121 total); clippy -D warnings CLEAN; fmt CLEAN.
+
+Stage Summary:
+- HLS VOD PLAYS: a served m3u8 opens through the fetch stack and demuxes+decodes to the ffmpeg oracle. B1b (live window/discontinuity) and B2a (master variants) own the recorded next steps; the refusal table (live/encrypted/byterange/map/discontinuity/empty) is typed and tested.
+- Wire shape recorded: playlist → per-segment 1-byte probes (ranged) → whole-body segment GETs, per session.

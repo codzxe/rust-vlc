@@ -105,6 +105,15 @@ pub struct MockConfig {
     /// Answer with a raw garbage first line instead of a status line —
     /// framing-error shape (`protocol-violation`).
     pub garbage_first_line: bool,
+    /// Per-path body routing (card 6.B1a, additive): when non-empty,
+    /// the request path (query stripped) selects the served body by
+    /// exact match; an unmatched path gets a `404`. Every other
+    /// behavior (`honor_range`, `force_status`, truncation) then
+    /// operates on the *selected* body. Empty (the default) keeps the
+    /// single-body behavior — one scripted body for every request.
+    /// HLS sessions fetch a playlist plus several segment resources
+    /// from one origin, which is exactly this shape.
+    pub routes: Vec<(String, Vec<u8>)>,
 }
 
 impl Default for MockConfig {
@@ -119,6 +128,7 @@ impl Default for MockConfig {
             force_status: None,
             truncate_body_at: None,
             garbage_first_line: false,
+            routes: Vec::new(),
         }
     }
 }
@@ -332,17 +342,35 @@ fn write_response(
             _ => return stream.write_all(redirect_head("/r1").as_bytes()),
         }
     }
+    // Per-path routing (6.B1a): the request path (query stripped)
+    // selects the body; an unmatched routed path is a 404. With no
+    // routes configured the single-body behavior is unchanged.
+    let body: &[u8] = if config.routes.is_empty() {
+        &config.body
+    } else {
+        let path_only = request.path.split('?').next().unwrap_or("");
+        match config.routes.iter().find(|(route, _)| route == path_only) {
+            Some((_, routed)) => routed,
+            None => {
+                write!(
+                    stream,
+                    "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                )?;
+                return stream.flush();
+            }
+        }
+    };
     if let Some(cut) = config.truncate_body_at {
-        let cut = cut.min(config.body.len());
+        let cut = cut.min(body.len());
         write!(
             stream,
             "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-            config.body.len()
+            body.len()
         )?;
-        stream.write_all(&config.body[..cut])?;
+        stream.write_all(&body[..cut])?;
         return stream.flush();
     }
-    serve_body(stream, config, request)
+    serve_body(stream, config, request, body)
 }
 
 /// The `302` hop response (relative `Location`, no body).
@@ -357,12 +385,13 @@ fn serve_body(
     stream: &mut TcpStream,
     config: &MockConfig,
     request: &LoggedRequest,
+    body: &[u8],
 ) -> std::io::Result<()> {
     let range = request.header("range").and_then(parse_range_spec);
     if config.honor_range
         && let Some((start, end_inclusive)) = range
     {
-        let len = config.body.len() as u64;
+        let len = body.len() as u64;
         if len == 0 || start >= len {
             write!(
                 stream,
@@ -371,7 +400,7 @@ fn serve_body(
             return stream.flush();
         }
         let last = end_inclusive.map_or(len - 1, |end| end.min(len - 1));
-        let slice = &config.body[start as usize..=last as usize];
+        let slice = &body[start as usize..=last as usize];
         write!(
             stream,
             "HTTP/1.1 206 Partial Content\r\nContent-Range: bytes {start}-{last}/{len}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
@@ -389,9 +418,9 @@ fn serve_body(
         "HTTP/1.1 {} {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
         code,
         reason,
-        config.body.len()
+        body.len()
     )?;
-    stream.write_all(&config.body)?;
+    stream.write_all(body)?;
     stream.flush()
 }
 
