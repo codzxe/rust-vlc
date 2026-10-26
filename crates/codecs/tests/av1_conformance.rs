@@ -441,12 +441,24 @@ fn ffmpeg_dump_md5(path: &PathBuf) -> String {
 fn run_row(row: &Row, dir: &std::path::Path) -> String {
     let path = dir.join(format!("{}.ivf", row.name));
     let started = Instant::now();
-    let status = Command::new("ffmpeg")
-        .args(encode_args(row))
-        .current_dir(path.parent().must())
-        .status()
-        .must();
-    assert!(status.success(), "{}: ffmpeg generation failed", row.name);
+    // Content-stable cache: `encode_args` is a pure function of the
+    // row (deterministic testsrc2 + libaom-av1 CRF, `-y`), so an
+    // existing non-empty file IS this row's bytes. The oracle stays
+    // live either way: ffprobe facts + the ffmpeg dump MD5 are
+    // recomputed from the file on EVERY run — the cache only skips
+    // the (slow, deterministic) encode, never the comparison.
+    let cached = path.is_file()
+        && std::fs::metadata(&path)
+            .map(|m| m.len() > 0)
+            .unwrap_or(false);
+    if !cached {
+        let status = Command::new("ffmpeg")
+            .args(encode_args(row))
+            .current_dir(path.parent().must())
+            .status()
+            .must();
+        assert!(status.success(), "{}: ffmpeg generation failed", row.name);
+    }
     let (codec, w, h, nb_frames, pix_fmt) = ffprobe_facts(&path);
     assert_eq!(codec, "av1", "{}: codec", row.name);
     assert_eq!(pix_fmt, row.pix_fmt, "{}: pix_fmt", row.name);
@@ -536,7 +548,7 @@ fn conformance_matrix_vs_ffmpeg_generated_set() {
         );
         return;
     }
-    let dir = std::env::temp_dir().join(format!("lumen-av1-conf-{}", std::process::id()));
+    let dir = std::env::temp_dir().join("lumen-av1-conf-cache");
     std::fs::create_dir_all(&dir).must();
     let mut summary = Vec::new();
     for row in ROWS {
@@ -544,7 +556,10 @@ fn conformance_matrix_vs_ffmpeg_generated_set() {
         eprintln!("  {line}");
         summary.push(line);
     }
-    std::fs::remove_dir_all(&dir).must();
+    // The cache dir SURVIVES the run (row-keyed, content-stable —
+    // see run_row): repeat gates skip the ~10 min of libaom encodes
+    // and re-verify decode + the live-ffmpeg oracle on the same
+    // bytes. Delete the dir to force regeneration.
     eprintln!("av1 conformance matrix: {} rows", summary.len());
     for line in &summary {
         eprintln!("  {line}");
