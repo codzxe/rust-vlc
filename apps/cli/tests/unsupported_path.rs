@@ -91,17 +91,39 @@ fn directory_source_is_inaccessible() {
     assert!(err.contains("error: [input.inaccessible]"), "{err}");
 }
 
-/// A probed-but-unsupported container (the MP4 parent): the probe
-/// names the format (R3 registered the signature), the first vertical
-/// refuses the open path honestly (D-018 first vertical; per-container
-/// host wiring is the next card).
+/// A probed-but-unsupported container (the Matroska parent — the
+/// `matroska` probe id covers mkv/mka/webm): the probe names the
+/// format (R3 registered the signature), the registry refuses the
+/// open path honestly (the per-container host wiring is a later
+/// card; 6.OPW-mp4 re-targeted this pin from `mp4`, which now
+/// opens). The bytes are the EBML header magic `0x1A45DFA3` — the
+/// probe's own anchored signature, so a 12-byte file is a truthful
+/// Matroska probe.
 #[test]
-fn mp4_container_is_refused_with_the_format_named() {
-    let (_out, err, code) = run(&[&fixture("generated/valid/mp4_mjpeg_pcm.mp4")], "quit\n");
+fn matroska_container_is_refused_with_the_format_named() {
+    let mkv = std::env::temp_dir().join("lumen-cli-unwired-mkv.mkv");
+    std::fs::write(
+        &mkv,
+        [0x1Au8, 0x45, 0xDF, 0xA3, 0x93, 0x42, 0x86, 0x81, 0x01].repeat(2),
+    )
+    .must();
+    let (_out, err, code) = run(&[mkv.to_str().must()], "quit\n");
+    std::fs::remove_file(&mkv).ok();
     assert_eq!(code, 65, "stderr:\n{err}");
     assert!(err.contains("error: [probe.unsupported]"), "{err}");
-    assert!(err.contains("format `mp4` probes"), "{err}");
+    assert!(err.contains("format `matroska` probes"), "{err}");
     assert!(err.contains("no open-path wiring"), "{err}");
+}
+
+/// The MP4 parent fixture now OPENS end-to-end (card 6.OPW-mp4
+/// wired the family — the refusal this test used to pin is the
+/// re-targeted one above): the real binary opens the mjpeg+PCM
+/// fixture and accepts the session.
+#[test]
+fn mp4_container_opens_and_accepts_the_session() {
+    let (out, err, code) = run(&[&fixture("generated/valid/mp4_mjpeg_pcm.mp4")], "quit\n");
+    assert_eq!(code, 0, "stdout:\n{out}\nstderr:\n{err}");
+    assert!(out.contains("ok: accepted session=1"), "{out}");
 }
 
 /// URL sources: the honest host-capability refusal (exit 69).
