@@ -204,8 +204,14 @@ impl DecoderProvider for HostDecoderProvider {
             // stream mislabeled flac refuses typed there, never
             // decodes garbage).
             "flac" => {
+                // Requires the container's 34-byte STREAMINFO in
+                // `extra_data` (decoder.rs configure refuses to guess
+                // geometry without it) — seeded from the facts (the
+                // WAV wiring unit's flac-in-wav harvest; the doc §4.3.3
+                // one-time seeding rule, applied to the flac row).
+                let config = self.seeded_config(track, config);
                 let mut decoder = FlacDecoder::new();
-                decoder.configure(config)?;
+                decoder.configure(&config)?;
                 Ok(Box::new(decoder))
             }
             "mp3" | "mp1" => {
