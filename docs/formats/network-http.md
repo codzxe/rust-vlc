@@ -138,11 +138,18 @@ recorded.
 
 ## Gates (6.A3, exact)
 
-Recorded in the 6.A3 worklog entry (this record's sibling): `cargo
-test -p streaming`, `cargo clippy -p streaming --all-targets
---all-features -- -D warnings`, `cargo fmt -p streaming -- --check`;
-live-net tests stay `--ignored` by default (the 6.A1b/6.A1c
-precedent — network-up runs recorded there when performed).
+Run this session in `worktrees/p6-a3` (branch `wip/p6-a3`):
+
+- `cargo test -p streaming` — **83 unit + 3 e2e passed / 0 failed /
+  2 ignored** (the 2 are the pre-existing `--ignored` live-net tests;
+  both re-run green once this session via `cargo test -p streaming
+  live_ -- --ignored`: example.com 200 + the httpbin redirect chain,
+  1.26 s — the 6.A1c precedent, no new live test added by 6.A3).
+- `cargo clippy -p streaming --all-targets --all-features --
+  -D warnings` — **zero**.
+- `cargo fmt -p streaming -- --check` — **clean**.
+- CLI untouched (no `apps/cli` diff): lumen-cli baseline 146/0 stands
+  on main; no re-run claimed.
 
 ## Honest gaps (6.A3)
 
@@ -166,6 +173,7 @@ precedent — network-up runs recorded there when performed).
   evidence; amendment recorded in-file for the Lead (the 5.REC-1
   convention; agents do not edit the matrix).
 - Live-network evidence: the two `--ignored` live tests (example.com,
-  httpbin redirect chain) were last run green by 6.A1c; 6.A3 added no
-  new live test (the registry's dispatch surface is fully mock- and
-  table-driven — the composition card's e2e will re-exercise the wire).
+  httpbin redirect chain) were re-run green once by 6.A3 (1.26 s,
+  above); 6.A3 added no new live test — the registry's dispatch
+  surface is fully mock- and table-driven, and the composition card's
+  e2e will re-exercise the wire.

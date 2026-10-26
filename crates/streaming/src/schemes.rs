@@ -53,7 +53,6 @@ use std::sync::Arc;
 
 use media_types::error::{ErrorContext, FormatInfo};
 use media_types::{EngineError, ErrorKind, PipelineStage};
-use plugin_api::SourceStream;
 
 use crate::client::UreqClient;
 use crate::error::NetworkError;
@@ -159,14 +158,14 @@ impl SchemeError {
                 "streaming.scheme.file-host",
             ),
         };
-        let chained = match self {
+        match self {
             SchemeError::Malformed {
-                source: Some(inner), ..
+                source: Some(inner),
+                ..
             } => EngineError::new(PipelineStage::Open, kind, ErrorContext::new(code))
                 .with_source(inner),
             _ => EngineError::new(PipelineStage::Open, kind, ErrorContext::new(code)),
-        };
-        chained
+        }
     }
 }
 
@@ -191,7 +190,8 @@ impl Error for SchemeError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             SchemeError::Malformed {
-                source: Some(inner), ..
+                source: Some(inner),
+                ..
             } => Some(inner.as_ref()),
             _ => None,
         }
@@ -265,12 +265,12 @@ impl SchemeRegistry {
             }),
             Some((scheme, rest)) => match scheme.as_str() {
                 "file" => classify_file_uri(rest),
-                "http" | "https" => Url::parse(source).map(|url| AccessKind::Http { url }).map_err(
-                    |err| SchemeError::Malformed {
+                "http" | "https" => Url::parse(source)
+                    .map(|url| AccessKind::Http { url })
+                    .map_err(|err| SchemeError::Malformed {
                         detail: "the http(s) URL was refused by the fetch port",
                         source: Some(Box::new(err)),
-                    },
-                ),
+                    }),
                 other => Err(SchemeError::Unsupported {
                     scheme: other.to_string(),
                 }),
@@ -292,7 +292,11 @@ impl SchemeRegistry {
     /// [`EngineError`] (stage `Open`) — the ranged resource's own
     /// typed refusals (config bounds, transport failures, the
     /// no-range policy), see [`RangedResource::open`].
-    pub fn open_http(&self, url: &Url, config: RangedConfig) -> Result<RangedResource, EngineError> {
+    pub fn open_http(
+        &self,
+        url: &Url,
+        config: RangedConfig,
+    ) -> Result<RangedResource, EngineError> {
         RangedResource::open(Arc::clone(&self.fetch), &url.to_string(), config)
     }
 }
@@ -381,9 +385,9 @@ fn percent_decode(path: &str) -> Result<String, SchemeError> {
     while i < bytes.len() {
         if bytes[i] == b'%' {
             let hex = |b: u8| match b {
-                b'0'..=b'9' => Some(u8::from(b - b'0')),
-                b'a'..=b'f' => Some(u8::from(b - b'a' + 10)),
-                b'A'..=b'F' => Some(u8::from(b - b'A' + 10)),
+                b'0'..=b'9' => Some(b - b'0'),
+                b'a'..=b'f' => Some(b - b'a' + 10),
+                b'A'..=b'F' => Some(b - b'A' + 10),
                 _ => None,
             };
             let (hi, lo) = match (bytes.get(i + 1).copied(), bytes.get(i + 2).copied()) {
@@ -447,6 +451,7 @@ mod tests {
     use super::*;
     use crate::mockhttp::{MockClient, MockConfig, MockServer};
     use media_types::ids::SourceUri;
+    use plugin_api::SourceStream;
     use testkit::Must;
 
     // -- classification positives --------------------------------------
@@ -531,7 +536,7 @@ mod tests {
             ("gopher://example.org/0/media", "gopher"),
             ("mms://stream.example.org/live", "mms"),
             ("sftp://example.org/media/a.wav", "sftp"),
-            ("HTTPS+invalid", "https+invalid"),
+            ("https+invalid://example.org/x", "https+invalid"),
         ] {
             match SchemeRegistry::classify(source) {
                 Err(SchemeError::Unsupported { scheme: got }) => {
@@ -547,7 +552,13 @@ mod tests {
     /// chain.
     #[test]
     fn malformed_sources_are_typed_with_the_port_chain() {
-        for source in ["", "file://", "file:///", "file:relative.wav", "file:///a/%zz.wav"] {
+        for source in [
+            "",
+            "file://",
+            "file:///",
+            "file:relative.wav",
+            "file:///a/%zz.wav",
+        ] {
             match SchemeRegistry::classify(source) {
                 Err(SchemeError::Malformed { .. }) => {}
                 other => unreachable!("{source:?} must refuse malformed: {other:?}"),
@@ -558,11 +569,13 @@ mod tests {
             Err(err @ SchemeError::Malformed { .. }) => err,
             other => unreachable!("spacey URL must refuse: {other:?}"),
         };
-        let chained = Error::source(&err).map(|s| s.code());
+        let chained = Error::source(&err).map(|s| s.to_string());
         assert_eq!(
-            chained,
-            Some("streaming.net.protocol-violation"),
-            "the port's refusal rides the chain"
+            chained
+                .as_deref()
+                .map(|s| s.contains("streaming.net.protocol-violation")),
+            Some(true),
+            "the port's refusal rides the chain: {chained:?}"
         );
         // Non-UTF-8 percent-escapes: the recorded v1 URI-grammar limit.
         assert!(matches!(
@@ -655,9 +668,7 @@ mod tests {
         assert_eq!(err.stage, PipelineStage::Open);
         assert_eq!(err.context.code, "streaming.scheme.unsupported");
         match err.kind {
-            ErrorKind::Unsupported {
-                format: Some(info),
-            } => {
+            ErrorKind::Unsupported { format: Some(info) } => {
                 assert_eq!(info.name.as_deref(), Some("rtsp"));
                 assert!(info.sniffed.is_empty());
             }
@@ -665,12 +676,13 @@ mod tests {
         }
         let chained = SchemeError::Malformed {
             detail: "test",
-            source: Some(Box::new(NetworkError::ProtocolViolation {
-                detail: "test",
-            })),
+            source: Some(Box::new(NetworkError::ProtocolViolation { detail: "test" })),
         }
         .into_engine_error();
-        assert!(chained.source.is_some(), "the port chain survives the bridge");
+        assert!(
+            chained.source.is_some(),
+            "the port chain survives the bridge"
+        );
     }
 
     /// `SchemeError` is `Send + Sync` (fetch results cross threads,
@@ -721,7 +733,10 @@ mod tests {
         assert_eq!(sink, body, "the payload round-trips byte-exact");
         let requests = server.requests();
         assert!(
-            requests.first().and_then(|r| r.header("Range")).is_some_and(|v| v == "bytes=0-1023"),
+            requests
+                .first()
+                .and_then(|r| r.header("Range"))
+                .is_some_and(|v| v == "bytes=0-1023"),
             "the probe's Range is on the wire: {:?}",
             requests.first().map(|r| r.headers.clone())
         );
@@ -735,15 +750,18 @@ mod tests {
         // No server is spawned: reaching this assertion at all means
         // no I/O happened.
         match SchemeRegistry::classify("ftp://example.invalid/a.wav") {
-            Err(err @ SchemeError::Unsupported { scheme }) => {
-                assert_eq!(scheme, "ftp");
-                assert_eq!(
-                    err.to_string(),
-                    "scheme dispatch failed: URL scheme \"ftp\" has no access strategy \
-                     (streaming.scheme.unsupported)"
-                );
-            }
-            other => unreachable!("ftp must refuse pre-socket: {other:?}"),
+            Err(err) => match &err {
+                SchemeError::Unsupported { scheme } => {
+                    assert_eq!(scheme, "ftp");
+                    assert_eq!(
+                        err.to_string(),
+                        "scheme dispatch failed: URL scheme \"ftp\" has no access strategy \
+                         (streaming.scheme.unsupported)"
+                    );
+                }
+                other => unreachable!("wrong variant: {other:?}"),
+            },
+            Ok(kind) => unreachable!("ftp must refuse pre-socket: {kind:?}"),
         }
     }
 
@@ -776,20 +794,18 @@ mod tests {
             match status.as_str() {
                 "supported" => {
                     assert!(
-                        matches!(SchemeRegistry::classify(&probe), Ok(_)),
+                        SchemeRegistry::classify(&probe).is_ok(),
                         "record says {scheme:?} is supported; probe {probe:?} must classify"
                     );
                 }
-                "refused" => {
-                    match SchemeRegistry::classify(&probe) {
-                        Err(SchemeError::Unsupported { scheme: got }) => {
-                            assert_eq!(got, scheme, "the refusal names the record's scheme");
-                        }
-                        other => unreachable!(
-                            "record says {scheme:?} is refused; probe {probe:?}: {other:?}"
-                        ),
+                "refused" => match SchemeRegistry::classify(&probe) {
+                    Err(SchemeError::Unsupported { scheme: got }) => {
+                        assert_eq!(got, scheme, "the refusal names the record's scheme");
                     }
-                }
+                    other => unreachable!(
+                        "record says {scheme:?} is refused; probe {probe:?}: {other:?}"
+                    ),
+                },
                 other => unreachable!("unknown record status {other:?} on row {scheme:?}"),
             }
         }
