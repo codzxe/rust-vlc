@@ -10767,3 +10767,17 @@ Stage Summary:
 - Deliverable landed: tests/ttf_seek.rs — 15 lanes × 3 suites (first-output watermarks, per-family in-session seek classes, --start-time pure-seek watermarks), every number measured through the REAL binary in the DEV profile this session and recorded above; the assertions pin structure only (first output or typed refusal; landing neighborhood or typed refusal per class; no reopen; pure-seek near-target).
 - The seek re-measure the ivf unit flagged: DONE for every family that reaches Playing through the binary; ivf itself cannot (renderer i420 gate) — its SlowLinear reanchor is exercised through the --start-time pure-seek watermark instead (lands, +1.7 ms), honestly recorded as the substitute surface.
 - Honest gaps for the Lead: the wav 0026 wrong-landing + 0004/0135 silent-wedge defects (in-session seam, not demux math — fix belongs to the wav host seam owner); the ogg reanchor header-replay gap; the mp4 family reanchor gap (known); the renderer's BT.601-full-i420-only gate narrowing the playable set (the color-conversion card owns the general case); mp4/ivf --start-time landing non-determinism; all numbers DEV-profile comparative only.
+---
+Task ID: 6.OPW-ps
+Agent: 6.OPW-ps (Lead gates + fmt; the agent's commit landed clean)
+Task: MPEG-PS/VOB wired — the FINAL §5 container family; the refusal tests re-pinned (all 15 real probe ids now wired).
+
+Work Log:
+- containers/ps.rs: PsDemuxer through the open path, PES-native (no bridge seam — the demuxer's own event surface). The MPEG-audio STREAMING frame assembler (mp1/mp2/mp3): the muxer cuts audio PES without frame alignment — measured on the fixture, 4 of 39 mp2 frames SPAN PES boundaries, so per-PES splitting is impossible; leftover bytes carry across PES, stamps = anchor + round(samples_before × 90000/rate), last AU 136,957 == ffprobe exactly; bounded resync/drain/tail damage notes.
+- Lanes: mp2 decodes the full 44,928 sample frames == ffmpeg (89,856 s16le bytes); mpeg2video/ac3/dts/lpcm refuse typed (cli.codec_unavailable naming the codec).
+- Seek: SlowLinear (the plan's prediction) — the --start-time lane asserts the bounded-budget skip; seekability forwarded typed.
+- The re-pin: unwired_format_is_refused_with_the_format_named (lib) + the binary-level mpegps test both re-targeted to the documented hypothetical id (every REAL probe id is wired as of this unit; the default arm guards future signatures).
+- Gates (worktree-local target, Lead-run): lumen-cli 124/0 lib + 14 integration suites green; clippy -D warnings CLEAN; fmt CLEAN (Lead applied the agent's drift).
+
+Stage Summary:
+- The container registry is COMPLETE: 15/15 real probe ids wired (avi, wav, aiff, ogg, matroska, adts, mpegts, mpegps, ivf, mp4, flac, h264, hevc, mp3, mp2). PS joins with mp2 decode + typed refusals for the hw-path codecs.
