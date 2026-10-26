@@ -91,28 +91,39 @@ fn directory_source_is_inaccessible() {
     assert!(err.contains("error: [input.inaccessible]"), "{err}");
 }
 
-/// A probed-but-unsupported container (the Matroska parent — the
-/// `matroska` probe id covers mkv/mka/webm): the probe names the
+/// A probed-but-unsupported container (the MPEG-TS parent — the
+/// `mpegts` probe id covers ts/m2t/mts): the probe names the
 /// format (R3 registered the signature), the registry refuses the
 /// open path honestly (the per-container host wiring is a later
-/// card; 6.OPW-mp4 re-targeted this pin from `mp4`, which now
-/// opens). The bytes are the EBML header magic `0x1A45DFA3` — the
-/// probe's own anchored signature, so a 12-byte file is a truthful
-/// Matroska probe.
+/// card; 6.OPW-mkv re-targeted this pin from `matroska`, which now
+/// opens). The bytes are the two `0x47` sync bytes at the 188-byte
+/// stride — the probe's own anchored signature, so a 189-byte file
+/// is a truthful MPEG-TS probe.
 #[test]
-fn matroska_container_is_refused_with_the_format_named() {
-    let mkv = std::env::temp_dir().join("lumen-cli-unwired-mkv.mkv");
-    std::fs::write(
-        &mkv,
-        [0x1Au8, 0x45, 0xDF, 0xA3, 0x93, 0x42, 0x86, 0x81, 0x01].repeat(2),
-    )
-    .must();
-    let (_out, err, code) = run(&[mkv.to_str().must()], "quit\n");
-    std::fs::remove_file(&mkv).ok();
+fn mpegts_container_is_refused_with_the_format_named() {
+    let mut ts = vec![0u8; 189];
+    ts[0] = 0x47;
+    ts[188] = 0x47;
+    let ts_path = std::env::temp_dir().join("lumen-cli-unwired-ts.ts");
+    std::fs::write(&ts_path, ts).must();
+    let (_out, err, code) = run(&[ts_path.to_str().must()], "quit\n");
+    std::fs::remove_file(&ts_path).ok();
     assert_eq!(code, 65, "stderr:\n{err}");
     assert!(err.contains("error: [probe.unsupported]"), "{err}");
-    assert!(err.contains("format `matroska` probes"), "{err}");
+    assert!(err.contains("format `mpegts` probes"), "{err}");
     assert!(err.contains("no open-path wiring"), "{err}");
+}
+
+/// The Matroska parent fixture now OPENS end-to-end (card
+/// 6.OPW-mkv wired the family — the refusal this test used to pin
+/// is the re-targeted one above): the real binary opens the
+/// h264+aac fixture, refuses the h264 track typed at codec
+/// dispatch and accepts the session on the aac limb.
+#[test]
+fn matroska_container_opens_and_accepts_the_session() {
+    let (out, err, code) = run(&[&fixture("generated/valid/mkv_h264_aac.mkv")], "quit\n");
+    assert_eq!(code, 0, "stdout:\n{out}\nstderr:\n{err}");
+    assert!(out.contains("ok: accepted session=1"), "{out}");
 }
 
 /// The MP4 parent fixture now OPENS end-to-end (card 6.OPW-mp4

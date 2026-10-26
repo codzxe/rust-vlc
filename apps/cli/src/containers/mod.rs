@@ -22,6 +22,7 @@
 mod adts;
 mod aiff;
 mod avi;
+mod mkv;
 mod mp4;
 mod ogg;
 mod wav;
@@ -47,6 +48,8 @@ pub(crate) fn open(
         "adts" => adts::open(stream, opts),
         "aiff" => aiff::open(stream, opts),
         "avi" => avi::open(stream, opts),
+        // The `matroska` id covers mkv/mka/webm (6.OPW-mkv).
+        "matroska" => mkv::open(stream, opts),
         "mp4" => mp4::open(stream, opts),
         "ogg" => ogg::open(stream, opts),
         "wav" => wav::open(stream, opts),
@@ -80,10 +83,12 @@ mod tests {
     /// through the registry is the typed probe-stage refusal naming
     /// the format — the same message shape the D-018 gate answered
     /// with. The stream is never read: the refusal precedes any
-    /// container construction.
+    /// container construction. (6.OPW-mkv re-targeted this pin from
+    /// `mkv` to the still-unwired `mpegts` — a REAL probe id, the
+    /// ts family's, whose wiring unit is next in the §5 order.)
     #[test]
     fn unwired_format_is_refused_with_the_format_named() {
-        let uri = SourceUri::parse("file:///tmp/any.mkv").must();
+        let uri = SourceUri::parse("file:///tmp/any.ts").must();
         let opts = OpenOptions {
             uri,
             start_time_us: None,
@@ -91,19 +96,19 @@ mod tests {
             no_audio: false,
         };
         let stream = demux::avi::test_support::mem_stream(*b"never read").must();
-        match open("mkv", stream, &opts) {
+        match open("mpegts", stream, &opts) {
             Err(err) => {
                 assert_eq!(err.stage, Stage::Probe, "{err}");
                 assert_eq!(err.code, ErrorCode::Unsupported, "{err}");
-                assert!(err.message.contains("format `mkv` probes"), "{err}");
+                assert!(err.message.contains("format `mpegts` probes"), "{err}");
                 assert!(err.message.contains("no open-path wiring"), "{err}");
                 assert_eq!(
                     err.details.get("format").map(String::as_str),
-                    Some("mkv"),
+                    Some("mpegts"),
                     "{err}"
                 );
             }
-            Ok(_) => unreachable!("mkv has no wiring unit yet"),
+            Ok(_) => unreachable!("mpegts has no wiring unit yet"),
         }
     }
 }
