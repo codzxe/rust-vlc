@@ -152,7 +152,10 @@ mod tests {
     fn taxonomy_maps_each_variant_to_its_public_kind() {
         let cases: [(Vp9Error, &str, &str); 3] = [
             (
-                unsupported("vp9.codec_descriptor", "codec descriptor `h264` is not `vp9`"),
+                unsupported(
+                    "vp9.codec_descriptor",
+                    "codec descriptor `h264` is not `vp9`",
+                ),
                 "[decode] unsupported in vp9 (vp9.codec_descriptor)",
                 "codec descriptor `h264` is not `vp9`",
             ),

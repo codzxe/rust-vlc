@@ -39,8 +39,8 @@ use std::sync::OnceLock;
 use codec_api::prelude::*;
 use codecs::video::vp9::Vp9Decoder;
 use common::md5_hex;
-use demux::ivf::test_support::mem_stream;
 use demux::ivf::IvfDemuxer;
+use demux::ivf::test_support::mem_stream;
 use media_types::frame::Frame;
 use media_types::ids::CodecDescriptor;
 use media_types::{GenerationId, Packet};
@@ -181,11 +181,14 @@ fn video_bytes(frame: &Frame) -> (u32, u32, Vec<u8>) {
     (v.size.0, v.size.1, bytes)
 }
 
+/// One lane's decoded run: the emitted frames, any typed error
+/// codes, and the demuxed packets.
+type LaneRun = (Vec<Frame>, Vec<String>, Vec<Packet>);
+
 /// Decode a lane once per process (the debug-build decode is the
 /// expensive part; the assertions all share one run).
-fn cached_run(name: &'static str) -> &'static (Vec<Frame>, Vec<String>, Vec<Packet>) {
-    static RUNS: OnceLock<HashMap<&'static str, (Vec<Frame>, Vec<String>, Vec<Packet>)>> =
-        OnceLock::new();
+fn cached_run(name: &'static str) -> &'static LaneRun {
+    static RUNS: OnceLock<HashMap<&'static str, LaneRun>> = OnceLock::new();
     RUNS.get_or_init(|| {
         let mut map = HashMap::new();
         let mut stage = |name: &'static str| {
@@ -217,7 +220,15 @@ fn ffmpeg_available() -> bool {
 /// oracle command family that produced the pinned constants).
 fn ffmpeg_decode_yuv420p(name: &str) -> Vec<u8> {
     let out = std::process::Command::new("ffmpeg")
-        .args(["-hide_banner", "-loglevel", "error", "-y", "-c:v", "libvpx-vp9", "-i"])
+        .args([
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-c:v",
+            "libvpx-vp9",
+            "-i",
+        ])
         .arg(fixture_path(name))
         .args(["-f", "rawvideo", "-pix_fmt", "yuv420p"])
         .arg("-")
@@ -300,8 +311,7 @@ fn differential_lanes_vs_ffmpeg_libvpx_vp9() {
         if live {
             let ref_frames = reference.len() / fsz;
             assert_eq!(
-                ref_frames,
-                lane.frames as usize,
+                ref_frames, lane.frames as usize,
                 "{}: ffmpeg's own frame count (window exactness cross-check)",
                 lane.name
             );
@@ -312,19 +322,14 @@ fn differential_lanes_vs_ffmpeg_libvpx_vp9() {
                 })
                 .count();
             assert_eq!(
-                identical,
-                lane.frames as usize,
+                identical, lane.frames as usize,
                 "{}: every frame byte-identical (bit-exact class)",
                 lane.name
             );
         }
         eprintln!(
             "{}: {} frames {}x{}, stream MD5 {ours} == record, {identical}/{} frames identical",
-            lane.name,
-            lane.frames,
-            lane.size.0,
-            lane.size.1,
-            lane.frames,
+            lane.name, lane.frames, lane.size.0, lane.size.1, lane.frames,
         );
     }
 }

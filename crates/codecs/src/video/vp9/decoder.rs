@@ -71,7 +71,7 @@ use media_types::frame::{ColorDescription, Frame, FrameStorage, VideoFrame};
 use media_types::packet::SharedBytes;
 use media_types::{EngineError, GenerationId, PixelFormat, Stamp, TimeBase, Timestamp};
 
-use super::error::{corrupt, unsupported, Vp9Error};
+use super::error::{Vp9Error, corrupt, unsupported};
 
 /// Pooled output slots (the MJPEG/av1 `FRAME_SLOTS` posture): enough
 /// for a renderer holding a few frames while late frames chase an
@@ -499,7 +499,10 @@ mod tests {
             None,
             None,
         ));
-        let err = refused.unwrap_err();
+        let err = match refused {
+            Err(err) => err,
+            Ok(()) => unreachable!("a wrong descriptor must refuse"),
+        };
         assert_eq!(err.context.code, "vp9.codec_descriptor");
         assert_eq!(err.stage, media_types::PipelineStage::Decode);
     }
@@ -511,11 +514,15 @@ mod tests {
             .next()
             .unwrap_or_else(|e| unreachable!("{e}"));
         let mut sink = Sink::default();
-        let err = decoder
-            .decode(packet(generation, vec![0x82]), &mut sink)
-            .unwrap_err();
+        let err = match decoder.decode(packet(generation, vec![0x82]), &mut sink) {
+            Err(err) => err,
+            Ok(outcome) => unreachable!("unconfigured decode must refuse, got {outcome:?}"),
+        };
         assert_eq!(err.context.code, "vp9.not_configured");
-        let err = decoder.flush(&mut sink).unwrap_err();
+        let err = match decoder.flush(&mut sink) {
+            Err(err) => err,
+            Ok(outcome) => unreachable!("unconfigured flush must refuse, got {outcome:?}"),
+        };
         assert_eq!(err.context.code, "vp9.not_configured");
     }
 
