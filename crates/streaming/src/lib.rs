@@ -29,3 +29,4 @@ pub mod client;
 pub mod error;
 pub mod fetch;
 pub mod mockhttp;
+pub mod ranged;
