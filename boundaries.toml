@@ -36,7 +36,9 @@ version = 1
 # §2.2 places both in L1; card 1.D2 added the edge). desktop wraps
 # lumen-cli as its composition root (both L6 apps; the 6.W3 Lead
 # registration backfill — the wrapper edge the skeleton always had).
-same_layer_pairs = ["plugin-api->codec-api", "desktop->lumen-cli"]
+# streaming->playlists (6.B1a): both L2 app-support; the HLS session
+# consumes the playlist model — the composition edge, Lead-ratified.
+same_layer_pairs = ["plugin-api->codec-api", "desktop->lumen-cli", "streaming->playlists"]
 # MP §3.7 / ARCH-7 (doc 01 §1.3, §2.8): these crates may appear ONLY in
 # [dev-dependencies] tables — never in [dependencies] or
 # [build-dependencies] of any workspace member.
@@ -177,16 +179,19 @@ dev_deps = ["testkit", "input"]
 external_allowlist = []
 external_dev_allowlist = []
 
-# L2 — network streaming (cards 6.A1a/A1b/A1c/A2a/A2b/A3): the sync
-# HttpFetch port + ranged seekable resource + scheme registry.
-# `ureq =3.5.0` (rustls, webpki roots) is the 6.A1b Lead-ratified
-# admission (record docs/dependencies/records/ureq-3.5.0.md; ring's
-# C/asm the ADR-001-class exception). `demux`/`input` are DEV edges
-# (the e2e lanes demux wav-over-http through the real access stack).
+# L2 — network streaming (cards 6.A1a/A1b/A1c/A2a/A2b/A3/B1a): the
+# sync HttpFetch port + ranged seekable resource + scheme registry +
+# the HLS VOD session. `ureq =3.5.0` (rustls, webpki roots) is the
+# 6.A1b Lead-ratified admission (record
+# docs/dependencies/records/ureq-3.5.0.md; ring's C/asm the
+# ADR-001-class exception). `playlists` is the B1a HLS model edge
+# (the m3u8 parse lives there — one parser, no fork). `demux`/
+# `input`/`codecs` are DEV edges (the e2e lanes demux and decode
+# through the real stacks).
 [crates.streaming]
 layer = 2
-internal_deps = ["media-types", "plugin-api"]
-dev_deps = ["testkit", "demux", "input"]
+internal_deps = ["media-types", "plugin-api", "playlists"]
+dev_deps = ["testkit", "demux", "input", "codecs"]
 external_allowlist = ["ureq"]
 external_dev_allowlist = []
 
