@@ -67,12 +67,16 @@
 //!   M3U one.
 
 mod error;
+mod hls;
 mod m3u;
 mod pls;
 mod types;
 mod xspf;
 
 pub use error::{ParseError, ParseWarning};
+pub use hls::{
+    HlsPlaylistError, MediaPlaylist, MediaSegment, media_playlist_from_parsed, parse_media_playlist,
+};
 pub use m3u::{MAX_LINE_BYTES, Parsed, parse, parse_bytes, parse_detailed, resolve_uri, write};
 pub use pls::{
     PlsError, PlsParsed, PlsWarning, parse as parse_pls, parse_bytes as parse_pls_bytes,
