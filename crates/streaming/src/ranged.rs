@@ -493,9 +493,7 @@ impl RangedResource {
     /// (most-recently-used), with its slice offset.
     fn take_hit(&mut self, pos: u64) -> Option<(usize, usize)> {
         let idx = self.windows.iter().position(|w| w.covers(pos))?;
-        let Some(window) = self.windows.remove(idx) else {
-            return None;
-        };
+        let window = self.windows.remove(idx)?;
         let off = (pos - window.start) as usize;
         let len = window.len();
         self.windows.push_back(window);

@@ -53,3 +53,8 @@ testkit = { path = "../testkit" }
 # RangedResource as the source stream (production streaming never links
 # a demuxer; the engine composes them at the open-path card).
 demux = { path = "../demux" }
+# input is dev-only here too: the e2e proof demuxes the SAME fixture
+# through the file access stack and asserts byte parity with the
+# network path (production streaming never depends on input — the
+# open-path card owns that composition).
+input = { path = "../input" }
