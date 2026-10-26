@@ -91,6 +91,20 @@ ruopus = { version = "=0.1.2", default-features = false, features = ["std"] }
 # record's R8 (0.x API-churn risk — a bump re-triggers the record).
 # The error taxonomy and codec-api contract surface stay ours.
 rusty_vp9 = "=0.1.3"
+# 6.M-dnx (Lead admission, docs/dependencies/records/
+# filmcraft-dnx-0.9.0.md + the 6.VTA-DNX-RATIFY tolerance): the
+# DNxHD/DNxHR (SMPTE ST 2019-1 VC-3) decode engine. Purity verified
+# in the record BEFORE this edit (pure safe Rust,
+# `unsafe_code = "forbid"`, zero unsafe tokens in the whole measured
+# graph, no build.rs, no FFI). Binding condition (the record's pin,
+# verbatim): default features are OFF — the one default feature
+# `threads` adds `rayon`, and the admission shape keeps the lockfile
+# rayon-free; the wrapper decodes with `DecodeOptions { threads:
+# false }` semantics either way (single-threaded measured path). Any
+# feature change (esp. enabling `threads`) re-triggers the record
+# (doc 11 §3.7). The CBR truncation gate, output-format mapping and
+# error taxonomy stay ours.
+filmcraft-dnx = { version = "=0.9.0", default-features = false }
 
 [dev-dependencies]
 # The randomized-corpus vertical (ED-FIX-5; user directive 2026-10-22):
