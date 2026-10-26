@@ -428,6 +428,14 @@ pub struct OggDemuxer {
     granule_discontinuities: u64,
     /// Next page position (absolute).
     walk: u64,
+    /// The reanchor's packet mark: the first DATA packet after a
+    /// reanchor carries `discontinuity: true` (the codec-api
+    /// `Packet` contract — "demuxer-marked discontinuity (splice,
+    /// seek, stream switch)"; the PS demuxer's own `next_discontinuity`
+    /// precedent). Header packets never consume it: a landing on a
+    /// header page (the small-fixture shape) keeps the mark armed
+    /// for the first data packet that follows.
+    next_discontinuity: bool,
     /// The tail probe's last granule per serial (durations at start).
     tail_granules: HashMap<u32, i64>,
     pool: PayloadSlots,
@@ -456,6 +464,7 @@ impl OggDemuxer {
             damage: DamageLog::default(),
             granule_discontinuities: 0,
             walk: 0,
+            next_discontinuity: false,
             tail_granules: HashMap::new(),
             pool: PayloadSlots::new(2, MAX_PACKET_BYTES as usize),
         })
@@ -1050,9 +1059,12 @@ impl OggDemuxer {
             duration: None,
             data,
             keyframe: first_of_stream || theora_key,
-            discontinuity: false,
+            // The reanchor's landing mark, consumed here (data
+            // packets only — see the field's doc).
+            discontinuity: self.next_discontinuity,
             generation: GenerationId::FIRST,
         };
+        self.next_discontinuity = false;
         self.pending.push_back(DemuxEvent::Packet(packet));
         Ok(())
     }
@@ -1333,6 +1345,12 @@ impl Demuxer for OggDemuxer {
         }
         self.eos = false;
         self.pending.push_back(DemuxEvent::Discontinuity);
+        // The landing mark: the first data packet of the new position
+        // tells the decoders the timeline jumped (the codec-api
+        // `Packet::discontinuity` contract — without it a seek over a
+        // granule-domain codec leaves the decoder re-anchoring on a
+        // counter that no longer matches the stream).
+        self.next_discontinuity = true;
         Ok(landing.0)
     }
 }

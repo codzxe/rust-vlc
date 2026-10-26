@@ -524,6 +524,23 @@ fn seek_and_reanchor_land_on_the_last_page_before_the_target() {
             .any(|e| matches!(e, DemuxEvent::Discontinuity))
     );
     assert_eq!(packets(&events).len(), 5, "pages at granule 1024..=2048");
+    // 6.FIX-ogg-reanchor: the first data packet of the new position
+    // carries the demuxer-marked discontinuity (the codec-api
+    // `Packet` contract; the PS demuxer's own precedent) — the seek
+    // consumers (the Opus/Vorbis re-anchor paths) key on it — and
+    // only the first (the landing mark is one packet wide).
+    let marks: Vec<bool> = events
+        .iter()
+        .filter_map(|e| match e {
+            DemuxEvent::Packet(p) => Some(p.discontinuity),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        marks,
+        vec![true, false, false, false, false],
+        "exactly the landing's first packet is marked"
+    );
 }
 
 #[test]

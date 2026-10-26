@@ -66,6 +66,7 @@ use media_types::frame::{
     AudioFormat, AudioFrame, AudioLayout, ColorMatrix, ColorRange, FrameStorage, SampleFormat,
     VideoFrame,
 };
+use media_types::packet::SharedBytes;
 use media_types::time::Timestamp;
 use media_types::{
     EngineError, ErrorKind, Frame, GenerationId, Packet, PipelineStage, Rate, Track, TrackId,
@@ -186,6 +187,28 @@ impl HostDecoderProvider {
             ..config.clone()
         }
     }
+
+    /// Build, seed, configure and wrap one `extra_data`-consuming
+    /// decoder (the seeded-lane shape every such row below shares):
+    /// the `configure` gate stays the codec's own honest authority —
+    /// a fact-less lane refuses typed at open — and the
+    /// [`ReseedingDecoder`] wrapper carries the blob across the
+    /// engine's generation reconfigures (the seek/switch path that
+    /// mints `extra_data: None`; the 6.FIX-ogg-reanchor seam).
+    fn seeded<D: Decoder + 'static>(
+        &self,
+        track: &Track,
+        config: &DecoderConfig,
+        build: impl FnOnce() -> D,
+    ) -> Result<Box<dyn Decoder>, EngineError> {
+        let seeded = self.seeded_config(track, config);
+        let mut decoder = build();
+        decoder.configure(&seeded)?;
+        Ok(Box::new(ReseedingDecoder::new(
+            Box::new(decoder),
+            seeded.extra_data,
+        )))
+    }
 }
 
 impl DecoderProvider for HostDecoderProvider {
@@ -212,10 +235,7 @@ impl DecoderProvider for HostDecoderProvider {
                 // geometry without it) — seeded from the facts (the
                 // WAV wiring unit's flac-in-wav harvest; the doc §4.3.3
                 // one-time seeding rule, applied to the flac row).
-                let config = self.seeded_config(track, config);
-                let mut decoder = FlacDecoder::new();
-                decoder.configure(&config)?;
-                Ok(Box::new(decoder))
+                self.seeded(track, config, FlacDecoder::new)
             }
             "mp3" | "mp1" => {
                 let mut decoder = Mp3Decoder::new();
@@ -230,20 +250,14 @@ impl DecoderProvider for HostDecoderProvider {
             "vorbis" => {
                 // Requires the three-header chain in `extra_data`
                 // (decoder.rs:356-372) — seeded from the facts.
-                let config = self.seeded_config(track, config);
-                let mut decoder = VorbisDecoder::new();
-                decoder.configure(&config)?;
-                Ok(Box::new(decoder))
+                self.seeded(track, config, VorbisDecoder::new)
             }
             "opus" => {
                 // Requires the OpusHead ‖ OpusTags chain in
                 // `extra_data` (the Ogg host's verbatim join; the
                 // decoder's head gate refuses to guess the channel
                 // geometry) — seeded from the facts.
-                let config = self.seeded_config(track, config);
-                let mut decoder = OpusDecoder::new();
-                decoder.configure(&config)?;
-                Ok(Box::new(decoder))
+                self.seeded(track, config, OpusDecoder::new)
             }
             // The ADTS/MP4 descriptor family for the AAC-LC decoder:
             // `aac` (ISO-BMFF esds) and `aac-lc` (the ADTS profile
@@ -253,27 +267,18 @@ impl DecoderProvider for HostDecoderProvider {
             "aac" | "aac-lc" => {
                 // ASC mode needs the esds blob; ADTS mode ignores
                 // `extra_data` (in-band) — seed unconditionally.
-                let config = self.seeded_config(track, config);
-                let mut decoder = AacDecoder::new();
-                decoder.configure(&config)?;
-                Ok(Box::new(decoder))
+                self.seeded(track, config, AacDecoder::new)
             }
             "alac" => {
                 // Requires the ALAC magic cookie in `extra_data`
                 // (decoder.rs:620-626) — seeded from the facts.
-                let config = self.seeded_config(track, config);
-                let mut decoder = AlacDecoder::new();
-                decoder.configure(&config)?;
-                Ok(Box::new(decoder))
+                self.seeded(track, config, AlacDecoder::new)
             }
             codec if codec.starts_with("adpcm_") => {
                 // Parses its WAVEFORMAT (tag/channels/rate/block_align)
                 // from `extra_data` (mod.rs:346-358) — seeded from
                 // the facts (the WAV `fmt` chunk body).
-                let config = self.seeded_config(track, config);
-                let mut decoder = AdpcmDecoder::new();
-                decoder.configure(&config)?;
-                Ok(Box::new(decoder))
+                self.seeded(track, config, AdpcmDecoder::new)
             }
             "av1" | "av01" => {
                 let mut decoder = Av1Decoder::new();
@@ -336,6 +341,84 @@ impl DecoderProvider for HostDecoderProvider {
                 ),
             )),
         }
+    }
+}
+
+/// A decoder that carries its open-path `extra_data` seeding across
+/// the engine's generation reconfigures (the 6.FIX-ogg-reanchor
+/// seam).
+///
+/// The codec-api contract calls [`Decoder::configure`] "again, on a
+/// fresh generation, after seeks" — and the engine honors it by
+/// minting a fresh [`DecoderConfig`] at every such reconfigure
+/// (`Pipeline::seek_flush`, the decoder-cache recycle in
+/// `obtain_decoder`). But the engine has **no container
+/// knowledge**: the config it mints carries `extra_data: None` (the
+/// documented design — the esds ASC, the Vorbis three-header chain,
+/// the OpusHead ‖ OpusTags join and the ALAC/ADPCM cookies live in
+/// the container, and the host's facts pre-pass is the only side
+/// that harvested them; §4.3.3 of the open-path wiring doc).
+/// Unwrapped, the in-session seek reconfigures an already-seeded
+/// decoder into a header-less generation and the codec's honest
+/// `configure` gate refuses typed — the measured Wave-4 defect: ogg
+/// 0047 reanchor, 0.2 ms to `opus.head.missing` (vorbis twin:
+/// `vorbis.headers.missing`), while the `--start-time` open path
+/// (which builds its decoder through the provider, seeded) lands.
+///
+/// The wrapper retains exactly the blob the open path used — the
+/// [`TrackFact`](crate::demux_host::TrackFact) harvest, which
+/// survives the seek (the facts are the session's own, not the
+/// demuxer cursor's) — and re-seeds it into every `configure` that
+/// arrives without one. Precedence: an incoming config that carries
+/// its own blob wins (the caller's seeding is more specific than the
+/// retained default); a fact-less lane retains `None` and stays a
+/// pure passthrough (the codec's own open-time refusal is the
+/// honest gate, unchanged).
+struct ReseedingDecoder {
+    inner: Box<dyn Decoder>,
+    /// The open-path seeding (the fact's `extra_data`, verbatim).
+    extra: Option<SharedBytes>,
+}
+
+impl ReseedingDecoder {
+    /// Wrap `inner`, retaining `extra` as its generation-reconfigure
+    /// seeding.
+    fn new(inner: Box<dyn Decoder>, extra: Option<SharedBytes>) -> ReseedingDecoder {
+        ReseedingDecoder { inner, extra }
+    }
+
+    /// The config a reconfigure actually sees: the incoming one,
+    /// with the retained open-path blob re-seeded when the caller
+    /// minted it header-less.
+    fn effective(&self, cfg: &DecoderConfig) -> DecoderConfig {
+        match (&cfg.extra_data, &self.extra) {
+            (None, Some(blob)) => DecoderConfig {
+                extra_data: Some(blob.clone()),
+                ..cfg.clone()
+            },
+            _ => cfg.clone(),
+        }
+    }
+}
+
+impl Decoder for ReseedingDecoder {
+    fn configure(&mut self, cfg: &DecoderConfig) -> Result<(), EngineError> {
+        // The engine's generation bump arrives header-less; the
+        // retained open-path blob is the same seeding the open used.
+        let config = self.effective(cfg);
+        self.inner.configure(&config)
+    }
+
+    fn decode(
+        &mut self,
+        packet: Packet,
+        out: &mut dyn FrameSink,
+    ) -> Result<DecodeOutcome, EngineError> {
+        self.inner.decode(packet, out)
+    }
+
+    fn flush(&mut self, out: &mut dyn FrameSink) -> Result<DecodeOutcome, EngineError> {
+        self.inner.flush(out)
     }
 }
 
@@ -1308,5 +1391,126 @@ mod tests {
             discontinuity: false,
             generation: GenerationId::FIRST,
         };
+    }
+
+    /// A recording stand-in decoder: every `configure` call's
+    /// `extra_data` is captured, in order, into a shared log (the
+    /// re-seeding wrapper's observation point — the wrapper owns the
+    /// decoder, so the log must outlive it).
+    struct RecordingDecoder {
+        seen: Arc<Mutex<Vec<Option<SharedBytes>>>>,
+    }
+
+    impl Decoder for RecordingDecoder {
+        fn configure(&mut self, cfg: &DecoderConfig) -> Result<(), EngineError> {
+            match self.seen.lock() {
+                Ok(mut log) => log.push(cfg.extra_data.clone()),
+                // Recording never panics, so poison is unreachable;
+                // recovering the inner log is the honest answer.
+                Err(poisoned) => poisoned.into_inner().push(cfg.extra_data.clone()),
+            }
+            Ok(())
+        }
+        fn decode(
+            &mut self,
+            _packet: Packet,
+            _out: &mut dyn FrameSink,
+        ) -> Result<DecodeOutcome, EngineError> {
+            Ok(DecodeOutcome::NeedMoreInput)
+        }
+        fn flush(&mut self, _out: &mut dyn FrameSink) -> Result<DecodeOutcome, EngineError> {
+            Ok(DecodeOutcome::Drained)
+        }
+    }
+
+    /// `lock` without `unwrap`: poison recovers the inner log
+    /// (recording never panics — the arm is provably dead, kept
+    /// honest rather than unreachable!-bridged).
+    fn recorded(log: &Arc<Mutex<Vec<Option<SharedBytes>>>>) -> Vec<Option<SharedBytes>> {
+        match log.lock() {
+            Ok(guard) => guard.clone(),
+            Err(poisoned) => poisoned.into_inner().clone(),
+        }
+    }
+
+    fn test_config(generation: GenerationId, extra: Option<SharedBytes>) -> DecoderConfig {
+        DecoderConfig::new(
+            media_types::ids::CodecDescriptor::new("vorbis")
+                .unwrap_or_else(|e| unreachable!("{e}")),
+            generation,
+            codec_api::ThreadBudget::default(),
+            None,
+            extra,
+        )
+    }
+
+    /// The 6.FIX-ogg-reanchor seam, pinned at the unit: a header-less
+    /// generation reconfigure (the engine's `seek_flush` mint —
+    /// `extra_data: None`, measured as `opus.head.missing` /
+    /// `vorbis.headers.missing` through the binary before the fix)
+    /// arrives at the inner decoder carrying the SAME blob the open
+    /// path seeded. An explicit incoming blob wins; a fact-less
+    /// wrapper stays a pure passthrough.
+    #[test]
+    fn reseeded_generation_reconfigure_replays_the_open_path_blob() {
+        let blob = SharedBytes::from_vec(vec![7u8; 16]);
+        let log: Arc<Mutex<Vec<Option<SharedBytes>>>> = Arc::new(Mutex::new(Vec::new()));
+        let mut wrapper = ReseedingDecoder::new(
+            Box::new(RecordingDecoder {
+                seen: Arc::clone(&log),
+            }),
+            Some(blob),
+        );
+        // The open configure (the provider's seeded config)…
+        wrapper
+            .configure(&test_config(GenerationId::FIRST, Some(SharedBytes::from_vec(vec![7u8; 16]))))
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        // …then the engine's generation bump, minted header-less.
+        let second = GenerationId::FIRST
+            .next()
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        wrapper
+            .configure(&test_config(second, None))
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        // Both configs reached the inner decoder carrying the blob:
+        // the second was re-seeded from the retained open-path one.
+        let seen = recorded(&log);
+        assert_eq!(seen.len(), 2, "one configure per call, forwarded once");
+        assert!(
+            seen.iter()
+                .all(|extra| extra.as_ref().is_some_and(|bytes| bytes.as_slice() == [7u8; 16])),
+            "the header-less generation bump was re-seeded: {seen:?}"
+        );
+
+        // Precedence: an explicit incoming blob wins over the retained
+        // default (the caller's seeding is more specific).
+        wrapper
+            .configure(&test_config(second, Some(SharedBytes::from_vec(vec![9u8; 4]))))
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        let seen = recorded(&log);
+        assert!(
+            seen.last()
+                .and_then(|extra| extra.as_ref())
+                .is_some_and(|bytes| bytes.as_slice() == [9u8; 4]),
+            "the explicit incoming blob wins: {seen:?}"
+        );
+
+        // A fact-less wrapper (an in-band codec lane) is a pure
+        // passthrough: the header-less mint stays header-less and the
+        // codec's own configure gate stays the honest authority.
+        let bare_log: Arc<Mutex<Vec<Option<SharedBytes>>>> = Arc::new(Mutex::new(Vec::new()));
+        let mut bare = ReseedingDecoder::new(
+            Box::new(RecordingDecoder {
+                seen: Arc::clone(&bare_log),
+            }),
+            None,
+        );
+        bare.configure(&test_config(second, None))
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        let seen = recorded(&bare_log);
+        assert!(
+            seen.len() == 1 && seen[0].is_none(),
+            "nothing is invented for a fact-less lane: {seen:?}"
+        );
     }
 }

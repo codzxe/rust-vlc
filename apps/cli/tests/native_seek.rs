@@ -451,3 +451,103 @@ fn rapid_repeated_seeks_compose_in_pipeline() {
     assert_eq!(accounting.scheduler_dropped_stale, 16, "{accounting:?}");
     assert_eq!(accounting.scheduler_dropped_late, 0, "{accounting:?}");
 }
+
+// ---------------------------------------------------------------------------
+// The OGG reanchor regression (6.FIX-ogg-reanchor, the Wave-4 defect
+// ledger): the in-session seek over a granule-domain codec refused
+// typed at decode — `opus.head.missing` / `vorbis.headers.missing` —
+// because the engine's generation reconfigure mints a header-less
+// `DecoderConfig` (it has no container knowledge) and the open path's
+// `extra_data` seeding never replayed. The host's re-seeding wrapper
+// carries the open-path blob across every reconfigure; the demuxer's
+// landing mark re-anchors the decoder's granule counter. Both codec
+// lanes seek, land, and play out through the REAL open path.
+// ---------------------------------------------------------------------------
+
+/// An OGG fixture opened and settled through the real open path
+/// (probe → container registry → facts pre-pass → provider).
+fn ogg_opened(relative: &str) -> CliHost {
+    let mut host = CliHost::new();
+    dispatch(
+        &mut host,
+        1,
+        Command::SessionOpen {
+            source: SourceSpec::File {
+                path: format!("{}/../../tests/fixtures/{relative}", env!("CARGO_MANIFEST_DIR"))
+                    .into(),
+            },
+            options: OpenOptions::default(),
+        },
+    );
+    host.settle();
+    host
+}
+
+/// The Opus lane (the demuxer stamps only each page's
+/// last-completing packet, so the landing page's unstamped prefix
+/// answers `Missing` until the page granule re-anchors — the clock
+/// takes the demuxer's landing). The fixture's single data page ends
+/// at the 19,512-sample granule, past every sub-half target, so the
+/// page-granular landing for a 50% seek is the stream head — the
+/// honest SlowLinear truth, and the decode CONTINUES from it: the
+/// whole media still plays out to its exact end.
+#[test]
+fn ogg_opus_in_session_seek_replays_the_codec_headers_and_plays_out() {
+    let mut host = ogg_opened("generated/valid/ogg_opus_48k_mono.opus");
+    assert_eq!(host.state(), PlaybackState::Playing);
+    seek(&mut host, 2, SeekTarget::Percent { fraction: 0.5 });
+    // The regression: the terminal is a COMPLETION (before the fix
+    // this was the typed decode refusal `opus.head.missing`).
+    assert_eq!(
+        seek_completed_position(&host),
+        Some(Timestamp(0)),
+        "the page-granular landing (the single data page ends past the half)"
+    );
+    assert_eq!(host.state(), PlaybackState::Playing);
+    assert_eq!(teardown_edges(&host), 0, "{:?}", host.state_history());
+    assert_eq!(open_edges(&host), 1, "{:?}", host.state_history());
+    // Decode continued through the boundary: the remainder plays out
+    // to the exact duration (the opus end-trim closes at the last
+    // granule).
+    host.advance(lumen_cli::host::RUN_PUMPS as u32);
+    assert_eq!(host.state(), PlaybackState::Ended, "decoding continued");
+    assert_eq!(host.position_us(), 406_500, "the tail play-out closes");
+    let accounting = host.headless_accounting().must();
+    assert_eq!(accounting.frames_refused, 0, "{accounting:?}");
+}
+
+/// The Vorbis twin (the three-header chain in `extra_data` — the
+/// same re-seeding seam): a 1.2 s absolute target lands at the
+/// demuxer's page-safe actual (the first data page's granule
+/// 44,608 @ 44.1 kHz — measured 1,011,520 µs at the first stamped
+/// frame), and the remainder plays out to the exact 1.5 s end.
+#[test]
+fn ogg_vorbis_in_session_seek_replays_the_codec_headers_and_lands() {
+    let mut host = ogg_opened("../../crates/codecs/tests/fixtures/vorbis_sine_44100_stereo.ogg");
+    assert_eq!(host.state(), PlaybackState::Playing);
+    seek(
+        &mut host,
+        2,
+        SeekTarget::Absolute {
+            time: Timestamp(1_200_000),
+        },
+    );
+    // The regression: the terminal is a COMPLETION (before the fix
+    // this was the typed decode refusal `vorbis.headers.missing`).
+    // The landing is the page-safe actual: 1,011,520 µs, the first
+    // stamped frame's own position at the page-2 granule.
+    assert_eq!(
+        seek_completed_position(&host),
+        Some(Timestamp(1_011_520)),
+        "the page-granular landing at the first stamped frame"
+    );
+    assert_eq!(host.state(), PlaybackState::Playing);
+    assert_eq!(teardown_edges(&host), 0, "{:?}", host.state_history());
+    assert_eq!(open_edges(&host), 1, "{:?}", host.state_history());
+    // Decode continued: the remainder plays out to the exact end.
+    host.advance(lumen_cli::host::RUN_PUMPS as u32);
+    assert_eq!(host.state(), PlaybackState::Ended, "decoding continued");
+    assert_eq!(host.position_us(), 1_500_000, "the tail play-out closes");
+    let accounting = host.headless_accounting().must();
+    assert_eq!(accounting.frames_refused, 0, "{accounting:?}");
+}
