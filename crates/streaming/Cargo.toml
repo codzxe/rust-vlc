@@ -26,6 +26,13 @@ publish = false
 workspace = true
 
 [dependencies]
+# plugin-api + media-types: workspace-internal, std-only path deps
+# (C5 note: the "zero external dependencies" discipline is about crates.io
+# — ureq stays the only external dep; these two carry the engine's
+# SourceStream/EngineError contracts that card 6.A2a's ranged resource
+# must serve so demuxers consume it without knowing it is network).
+media-types = { path = "../media-types" }
+plugin-api = { path = "../plugin-api" }
 # ureq 3.5.0 — admitted by card 6.A1b (validate-then-admit; record at
 # docs/dependencies/records/ureq-3.5.0.md). Exact pin (house admission
 # style): a bump re-triggers the record per doc 11 §3.7. Minimal
@@ -41,3 +48,13 @@ ureq = { version = "=3.5.0", default-features = false, features = ["rustls", "ru
 # testkit is dev-only by contract (MP §3.7): the lint-legal `Must`
 # unwrap helper for fixture contracts (tests deny unwrap/expect/panic).
 testkit = { path = "../testkit" }
+# demux is dev-only here: the 6.A2a end-to-end proof serves a real WAV
+# fixture over mock HTTP and demuxes it through the wav demuxer with
+# RangedResource as the source stream (production streaming never links
+# a demuxer; the engine composes them at the open-path card).
+demux = { path = "../demux" }
+# input is dev-only here too: the e2e proof demuxes the SAME fixture
+# through the file access stack and asserts byte parity with the
+# network path (production streaming never depends on input — the
+# open-path card owns that composition).
+input = { path = "../input" }
