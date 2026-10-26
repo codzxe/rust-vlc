@@ -22,6 +22,7 @@
 mod adts;
 mod aiff;
 mod avi;
+mod ivf;
 mod mp4;
 mod ogg;
 mod wav;
@@ -47,6 +48,7 @@ pub(crate) fn open(
         "adts" => adts::open(stream, opts),
         "aiff" => aiff::open(stream, opts),
         "avi" => avi::open(stream, opts),
+        "ivf" => ivf::open(stream, opts),
         "mp4" => mp4::open(stream, opts),
         "ogg" => ogg::open(stream, opts),
         "wav" => wav::open(stream, opts),
