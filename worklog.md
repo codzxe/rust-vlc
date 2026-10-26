@@ -10300,3 +10300,21 @@ Work Log:
 
 Stage Summary:
 - Three admission M-wave queues now ready: opus/vp9/dnxhd. Two honest blocks recorded. Format scoreboard when M-waves land: 29 → 32 families implemented.
+
+---
+Task ID: 6.ADPCM-bench
+Agent: P6-ADPCMB
+Task: Build the missing ADPCM decode-throughput bench harness and close the 5.R1 breadth-snapshot DNF row.
+
+Work Log:
+- Worktree worktrees/p6-adpcmb on wip/p6-adpcmb from main (cf0a996); harness committed FIRST on green compile (65a7f1a); sibling bench patterns read first (flac_bench/mp2_bench/alac_bench: #[ignore]d, REPS median, samples/s + realtime print) and adpcm_corpus_differential read for the exact contract path (input FileAccess open -> WavDemuxer -> configure from fmt chunk -> packet-per-block decode -> sink, data-derived fact-chunk windows).
+- Created crates/codecs/tests/adpcm_bench.rs: house pattern, REPS=7 median-of-N, per-lane eprintln in the mp2_bench shape ("N inter-channel samples, median X samples/s = Yx realtime (Zs of audio)"), wav demux included (ALAC-bench honesty: decode-only strictly higher), frame-count asserts pinning the differential's exact windows (168 822 / 128 524) every rep, flac-style honest floor (release 1 M/s, debug 50 k/s), loud corpus SKIP when absent (LUMEN_CORPUS honored under both sibling conventions).
+- Measured (release, this sandbox, single session): 0042 adpcm_ima_wav 44.056 kHz stereo -> median 153 767 893 inter-channel samples/s = 1745x realtime (3.832 s audio); 0102 adpcm_ms 32 kHz stereo -> median 137 700 868 samples/s = 2152x realtime (4.016 s audio).
+- ffmpeg reference re-measured the R1 way (ffmpeg 7.1.5 -v info -nostdin -benchmark -i lane -f null -, child CPU = utime+stime, 1 ms granularity labeled coarse, warm-up discarded, median-of-5): 0042 median 5 ms -> ~67.5 M/s (5.R1 single-run had ~67.1 M/s — same class); 0102 median 4 ms -> ~64.3 M/s. lumen/ffmpeg coarse: ~2.3x / ~2.1x — inside the self-built-decoder family band (MP3/MP2/AAC 2.3-4.6x in the 5.R1 table).
+- docs/perf/breadth.md: DNF row replaced by the two measured ADPCM rows + dated note "closed by 6.ADPCM-bench (2026-10-26)" citing method + raw transcript; §7 honesty ledger amended (no longer claims no harness); §8 reproduce loop gains adpcm_bench. Raw evidence committed: docs/perf/raw/r1/adpcm-bench-20261026.txt (bench transcript + all ffmpeg runs + derivations).
+- Gates: adpcm_corpus_differential 2/2 green (bit-exact still pinned); adpcm_bench ignored/0-run compiles; cargo fmt -p codecs --check clean (one rustfmt reflow applied); cargo clippy -p codecs --all-targets -- -D warnings clean.
+
+Stage Summary:
+- MEASURED: ADPCM-IMA 0042 = 153.8 M inter-channel samples/s (1745x realtime, wav demux incl.) vs ffmpeg ~67.5 M/s (~2.3x coarse); ADPCM-MS 0102 = 137.7 M samples/s (2152x realtime) vs ffmpeg ~64.3 M/s (~2.1x coarse). ffmpeg side is 1 ms-granularity child CPU, median-of-5.
+- NOT measured: decode-only kernel (demux rides along, labeled); mono ADPCM lanes through the bench (the differential's mono fixtures cover correctness; bench lanes are the two real corpus files); TTF/seek (unchanged 5.R1 gaps, not this card).
+- Closes: the 5.R1 breadth.md ADPCM DNF row ("no ignored-bench harness exists") — replaced with measured numbers, dated 2026-10-26.
