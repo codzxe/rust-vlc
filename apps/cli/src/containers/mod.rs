@@ -22,6 +22,7 @@
 mod adts;
 mod aiff;
 mod avi;
+mod ogg;
 mod wav;
 
 use commands::{CommandError, ErrorCode, Stage};
@@ -45,6 +46,7 @@ pub(crate) fn open(
         "adts" => adts::open(stream, opts),
         "aiff" => aiff::open(stream, opts),
         "avi" => avi::open(stream, opts),
+        "ogg" => ogg::open(stream, opts),
         "wav" => wav::open(stream, opts),
         other => Err(unwired_refusal(other)),
     }
