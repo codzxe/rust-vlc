@@ -10813,3 +10813,24 @@ Work Log:
 Stage Summary:
 - ASF-a landed: the header walk is real (object tree, facts, typed refusals — not-asf/truncated/bad-object-size/header-too-large/no-streams/broadcast-unsupported/encrypted-stream/bad-waveformatex/bad-video-info/packets-not-implemented/not-started), Data Object located (packets = ASF-b), seekability None until ASF-c. The [VERIFY-P0] spec hunt stays open (format knowledge labeled in-source per the plan's risk register).
 - Next: ASF-b data packets (the ~800-1,200 LOC unit + ffprobe -show_packets differential).
+
+---
+Task ID: 6.W4-STATUS (Lead)
+Agent: Lead
+Task: Wave-4 close — 5 units landed (B1a HLS VOD, OPW-ps, OPW-cli-conformance, OPW-ttf-seek, ASF-a), the F4 fix, boundaries backfill; all gates green, pushed.
+
+Work Log:
+- Dispatch window: 5 units; 2 returned complete (conformance 195/0 with findings F1-F6; ttf-seek 181/0/2 with the measured tables), 3 hit the deadline with substantial worktrees — Lead-completed all three (the Phase-5 recipe): B1a (reverted the dead 625-line half-refactor, surgically reimplemented its intent — the probe-based known-length contract — and landed the e2e), ASF-a (13 compile cures + the malformed WFX constant + the A/V stream-indexing fix + the sha re-pin; 439/0), PS (gates + fmt + worklog; the agent's commit was clean).
+- THE OPS FINDING (changes wave discipline): the shared-target redirect (.cargo/config.toml) ALIASES same-name rlibs across main and worktrees (metadata-hash filenames, last-writer-wins) — worktree "green" runs can execute MAIN's stale binaries (the ASF worktree's 414-count was the tell; doc-tests linked main's demux). All worktree verification now runs with CARGO_TARGET_DIR=<worktree>/target.
+- 6.OPW-ps: the container registry is COMPLETE — 15/15 real probe ids wired. PS lands with the MPEG-audio streaming frame assembler (4 of 39 mp2 frames SPAN PES boundaries — measured; leftover bytes carry across PES) and mp2 decoding 44,928 frames == ffmpeg.
+- 6.B1a: HLS VOD PLAYS — open_vod with the known-length probes (1-byte Range per segment; 206 Content-Range total / 200 whole-body cached / typed unknown-segment-size), e2e vs the ffmpeg oracle over a real socket (adts lane: 346 frames → 354,304 samples/channel == ffmpeg's 708,608 s16le bytes; ts lane: byte-exact + TsDemuxer start + 375 PES pushes / 67,437 bytes measured).
+- 6.OPW-cli-conformance: the 17-lane binary matrix. Findings (fix cards filed): F1 sub-44.1kHz PCM clock stall (8k/11.025k/32k lanes never advance); F2 raw .flac ES is the recorded stub refusal (W3-STATUS's "flac" row overstated — corrected here); F3 post-seek landing jitter ±60-200µs (adts/ivf-av1/mkv); F4 the doubled [stage] bracket in wire PlaybackError messages — FIXED this wave (EngineError::message_summary; the recovery_env pin updated); F5 mp4 0115 eom at 2.8% (fps-extremes); F6 m4a 6ch@12kHz typed aac-too-complex (honest, pinned).
+- 6.OPW-ttf-seek: the measured tables (DEV profile, comparative): ttf 6.9ms (wav) to 622ms (ogg-opus); in-session seek 0.1-293ms by family class; --start-time lands near target everywhere. REAL DEFECTS recorded: wav 0026 (11 kHz) in-session reanchor lands deep past target while pure seek lands exact; wav 0004 s24le accepts-then-silent; ogg reanchor doesn't replay codec headers (opus.head.missing on both opus+vorbis); mp4/ivf --start-time nondeterminism.
+- 6.ASF-a: the ASF header tree (439/0; 25 tests; the 11 ffmpeg fixtures regenerate deterministically, sha-pinned — one re-pinned after double-verification).
+- Boundaries backfill: streaming->playlists + codecs dev-edge + the same-layer pair (5/5 PASS again).
+- Gates on merged main (all measured, foreground): lumen-cli 124/0 lib + 14 integration suites (incl. the 17-lane conformance matrix + the ttf/seek suites) 0 failures; demux 439/0 + suites; streaming 90/0/2 + hls e2e 2/0; playlists + media-probe suites green; clippy -D warnings CLEAN on all touched crates; fmt CLEAN; check-architecture 5/5 PASS.
+
+Stage Summary:
+- Playing end-to-end: 15/15 probe families open (11 with decode lanes); HLS VOD joins as the first NETWORK-PROTOCOL playback path (m3u8 over http → demux+decode == ffmpeg oracle). ASF build started (header tree real; packets next).
+- Honest defect ledger (Wave-5 fix cards): F1 PCM sub-44.1k stall; wav in-session reanchor (0026/0004); ogg reanchor header replay; F3/F5 minor measurement follow-ups.
+- Next wave (W5 dispatch): 6.FIX-pcm-stall, 6.FIX-ogg-reanchor, 6.B1b (HLS live window+discontinuity), 6.ASF-b (data packets), 6.C1a (MPD parser core).
