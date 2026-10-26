@@ -1,0 +1,13 @@
+[workspace]
+
+[package]
+name = "vta-ac3"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+oxideav-ac3 = "0.0.11"
+# already in oxideav-ac3's graph — declared directly for the Packet/Frame
+# types the Decoder trait exchanges (no additional packages fetched)
+oxideav-core = "0.1"
