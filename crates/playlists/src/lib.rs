@@ -69,6 +69,7 @@
 mod error;
 mod hls;
 mod m3u;
+mod mpd;
 mod pls;
 mod types;
 mod xspf;
@@ -78,6 +79,11 @@ pub use hls::{
     HlsPlaylistError, MediaPlaylist, MediaSegment, media_playlist_from_parsed, parse_media_playlist,
 };
 pub use m3u::{MAX_LINE_BYTES, Parsed, parse, parse_bytes, parse_detailed, resolve_uri, write};
+pub use mpd::{
+    AdaptationSet, ContentProtection, Descriptor, MAX_MPD_BYTES, MAX_MPD_DEPTH, Mpd, MpdError,
+    MpdParsed, MpdType, MpdWarning, Period, Representation, SegmentBase, SegmentList,
+    SegmentTemplate, SegmentTimeline, SegmentTimelineEntry, SegmentUrl, parse_mpd, parse_mpd_bytes,
+};
 pub use pls::{
     PlsError, PlsParsed, PlsWarning, parse as parse_pls, parse_bytes as parse_pls_bytes,
     parse_detailed as parse_pls_detailed,
