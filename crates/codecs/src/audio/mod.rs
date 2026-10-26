@@ -36,5 +36,11 @@ pub mod flac;
 /// error surface (card 5.J3 — the J3b half; doc 04 §3.1 row "MP2").
 pub mod mp2;
 pub mod mp3;
+/// [`opus`] is the Opus decoder through the admitted `ruopus` engine
+/// (card 6.M-opus, doc 04 §3.1 row "Opus") with our own OpusHead
+/// validation (the pre-constructor panic gate), pre-skip/end-trim
+/// granule arithmetic and RFC 7845 → house channel-order mapping
+/// (the admission record's two binding conditions).
+pub mod opus;
 pub mod pcm;
 pub mod vorbis;

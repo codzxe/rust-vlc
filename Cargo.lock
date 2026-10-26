@@ -123,6 +123,7 @@ dependencies = [
  "media-types",
  "plugin-api",
  "rav1d",
+ "ruopus",
  "symphonia-bundle-mp3",
  "symphonia-codec-aac",
  "symphonia-codec-alac",
@@ -625,6 +626,12 @@ dependencies = [
  "untrusted",
  "windows-sys",
 ]
+
+[[package]]
+name = "ruopus"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcfcd963c83fc1ada2180ccdac7f1568d87fb0f2ad7236b266fdc9fb9122fbfd"
 
 [[package]]
 name = "rustls"
