@@ -33,8 +33,8 @@
 //! * **opus `extra_data` = OpusHead synthesized from `dOps`** (the
 //!   RFC 7845 19-byte identification header — dOps' big-endian
 //!   fields re-packed little-endian, ffmpeg's `ff_mov_rewrite_dops`
-//!   mapping). No opus decoder is dispatched in this build — same
-//!   typed-refusal honesty.
+//!   mapping). The opus decoder IS dispatched since 6.M-opus — the
+//!   synthesized head configures it end-to-end.
 //! * **mjpeg/PCM carry no blob**: MJPEG is self-describing per
 //!   frame (the avi precedent); PCM's truth is the geometry pair
 //!   below.
