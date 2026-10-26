@@ -68,8 +68,8 @@ fn demux_lane(path: &str) -> Result<Lane, String> {
 fn frame_to_i420(f: &oxideav_mpeg4video::framestore::DecodedFrame, dw: usize, dh: usize) -> Vec<u8> {
     let (pw, ph) = (f.width(), f.height());
     assert!(dw <= pw && dh <= ph, "display {dw}x{dh} > padded {pw}x{ph}");
-    let cw = dw / 2;
-    let ch = dh / 2;
+    let cw = (dw + 1) / 2;
+    let ch = (dh + 1) / 2;
     let mut out = Vec::with_capacity(dw * dh + 2 * cw * ch);
     for y in 0..dh {
         out.extend_from_slice(&f.luma_samples()[y * pw..y * pw + dw]);
@@ -83,7 +83,7 @@ fn frame_to_i420(f: &oxideav_mpeg4video::framestore::DecodedFrame, dw: usize, dh
     out
 }
 
-fn run(path: &str, ecosystem: bool, out_path: Option<&str>) -> Result<(), String> {
+fn run(path: &str, ecosystem: bool, out_path: Option<&str>, extradata: Option<&[u8]>) -> Result<(), String> {
     let lane = demux_lane(path)?;
     println!(
         "packets {} total_bytes {} keyframes {}",
@@ -97,6 +97,12 @@ fn run(path: &str, ecosystem: bool, out_path: Option<&str>) -> Result<(), String
     } else {
         Mpeg4VideoDecoder::new()
     };
+    if let Some(x) = extradata {
+        if !x.is_empty() {
+            dec.decode(x)
+                .map_err(|e| format!("extradata priming: {e}"))?;
+        }
+    }
     let mut frames_out = 0usize;
     let mut errors = 0usize;
     let mut monotone_pts = true;
@@ -175,9 +181,14 @@ fn run(path: &str, ecosystem: bool, out_path: Option<&str>) -> Result<(), String
     Ok(())
 }
 
-fn run_case(name: &str, seq: Vec<Vec<u8>>, cases: &mut usize, panics: &mut usize) {
+fn run_case(name: &str, seq: Vec<Vec<u8>>, cases: &mut usize, panics: &mut usize, extradata: Option<&[u8]>) {
     *cases += 1;
     let mut dec = Mpeg4VideoDecoder::new();
+    if let Some(x) = extradata {
+        if !x.is_empty() {
+            let _ = dec.decode(x);
+        }
+    }
     let mut frames = 0usize;
     let mut errs = 0usize;
     let r = catch_unwind(AssertUnwindSafe(|| {
@@ -200,7 +211,7 @@ fn run_case(name: &str, seq: Vec<Vec<u8>>, cases: &mut usize, panics: &mut usize
 
 /// Hostile battery on a warm decoder: every case must be a typed Err or
 /// an Ok frame count — never a panic (catch_unwind + exit code).
-fn hostile(lane: &Lane) {
+fn hostile(lane: &Lane, extradata: Option<&[u8]>) {
     let mut cases = 0usize;
     let mut panics = 0usize;
 
@@ -212,6 +223,11 @@ fn hostile(lane: &Lane) {
     // 1. truncated first keyframe (every prefix length 0..len).
     {
         let mut dec = Mpeg4VideoDecoder::new();
+        if let Some(x) = extradata {
+            if !x.is_empty() {
+                let _ = dec.decode(x);
+            }
+        }
         let mut p = 0usize;
         for n in 0..pkt0.len() {
             let r = catch_unwind(AssertUnwindSafe(|| {
@@ -228,10 +244,10 @@ fn hostile(lane: &Lane) {
         println!("hostile truncate-sweep k0: {}/{} prefixes panicked", p, pkt0.len());
     }
     // 2. zero-length packet.
-    run_case("zero-length", vec![Vec::new()], &mut cases, &mut panics);
+    run_case("zero-length", vec![Vec::new()], &mut cases, &mut panics, extradata);
     // 3. garbage 64B.
     let garbage: Vec<u8> = (0..64u32).map(|i| (i * 7 + 0xEE) as u8).collect();
-    run_case("garbage-64B", vec![garbage.clone()], &mut cases, &mut panics);
+    run_case("garbage-64B", vec![garbage.clone()], &mut cases, &mut panics, extradata);
     // 4. corrupted VOP header: first keyframe with the byte after the
     //    first start code flipped.
     let mut corrupt = pkt0.clone();
@@ -243,11 +259,11 @@ fn hostile(lane: &Lane) {
     if pos < corrupt.len() {
         corrupt[pos] ^= 0xFF;
     }
-    run_case("vop-header-corrupt", vec![corrupt], &mut cases, &mut panics);
+    run_case("vop-header-corrupt", vec![corrupt], &mut cases, &mut panics, extradata);
     // 5. garbage then real packets (recovery).
     let mut seq = vec![garbage];
     seq.extend(lane.packets.iter().take(6).cloned());
-    run_case("garbage-then-real", seq, &mut cases, &mut panics);
+    run_case("garbage-then-real", seq, &mut cases, &mut panics, extradata);
     // 6. truncated mid-stream: real first half, then a cut packet.
     let mut seq: Vec<Vec<u8>> = lane.packets.iter().take(4).cloned().collect();
     if lane.packets.len() > 4 {
@@ -255,7 +271,7 @@ fn hostile(lane: &Lane) {
         let n = cut.len() / 2;
         seq.push(cut[..n].to_vec());
     }
-    run_case("truncated-midstream", seq, &mut cases, &mut panics);
+    run_case("truncated-midstream", seq, &mut cases, &mut panics, extradata);
     println!("hostile-summary cases {cases} panics {panics}");
 }
 
@@ -263,7 +279,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
         eprintln!(
-            "usage: vta-mpeg4 <in.avi|in.mp4> [--out F.raw] [--ecosystem] [--hostile]"
+            "usage: vta-mpeg4 <in.mp4> [--out F.raw] [--extradata hex.txt] [--ecosystem] [--hostile]"
         );
         std::process::exit(2);
     }
@@ -275,15 +291,41 @@ fn main() {
         .cloned();
     let ecosystem = args.iter().any(|a| a == "--ecosystem");
     let hostile_mode = args.iter().any(|a| a == "--hostile");
+    let extradata = args
+        .iter()
+        .position(|a| a == "--extradata")
+        .and_then(|i| args.get(i + 1))
+        .map(|p| {
+            let hex = std::fs::read_to_string(p).map_err(|e| format!("read {p}: {e}"))?;
+            let clean: String = hex
+                .chars()
+                .filter(|c| c.is_ascii_hexdigit() || *c == ' ' || *c == '\n')
+                .collect::<String>()
+                .replace([' ', '\n'], "");
+            let clean = clean.trim_start_matches("0x").to_string();
+            if clean.len() % 2 != 0 {
+                return Err(format!("odd hex length in {p}"));
+            }
+            (0..clean.len())
+                .step_by(2)
+                .map(|i| u8::from_str_radix(&clean[i..i + 2], 16))
+                .collect::<Result<Vec<u8>, _>>()
+                .map_err(|e| e.to_string())
+        })
+        .transpose()
+        .unwrap_or_else(|e| {
+            eprintln!("EXTRADATA-ERROR: {e}");
+            std::process::exit(1);
+        });
     if hostile_mode {
         let lane = demux_lane(&path).unwrap_or_else(|e| {
             eprintln!("DEMUX-ERROR: {e}");
             std::process::exit(1);
         });
-        hostile(&lane);
+        hostile(&lane, extradata.as_deref());
         return;
     }
-    run(&path, ecosystem, out.as_deref()).unwrap_or_else(|e| {
+    run(&path, ecosystem, out.as_deref(), extradata.as_deref()).unwrap_or_else(|e| {
         eprintln!("ERROR: {e}");
         std::process::exit(1);
     });
