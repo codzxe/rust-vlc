@@ -628,6 +628,50 @@ mod tests {
         );
     }
 
+    /// A non-unit `scale` (the NTSC-shaped 30000/1001 pair no committed
+    /// fixture carries — every real lane is scale 1): the host passes
+    /// the container's own ratio through as the tick base, unscaled
+    /// and unrenumbered (ffprobe reads this header back as
+    /// `time_base = 1001/30000`), and the declared cadence is the
+    /// tick's nanoseconds. The ramp payload is not decodable AV1 —
+    /// this lane pins the FACTS only, never a decode.
+    #[test]
+    fn non_unit_scale_timebase_is_the_containers_own_ratio() {
+        let mut bytes = demux::ivf::test_support::ivf_header(b"AV01", 64, 48, 30_000, 1001, 1);
+        bytes.extend_from_slice(&demux::ivf::test_support::ivf_frame(0, 8));
+        let path = std::env::temp_dir().join("lumen-cli-ivf-ntsc.ivf");
+        std::fs::write(&path, &bytes).must();
+        let mut opened = open(path.clone(), None);
+        std::fs::remove_file(&path).ok();
+        assert_eq!(opened.facts.container, "ivf");
+        let fact = &opened.facts.facts[0];
+        assert_eq!(fact.codec, "av1");
+        assert_eq!(
+            fact.base.as_parts(),
+            (1001, 30_000),
+            "the header's scale/rate pair, verbatim"
+        );
+        assert_eq!(fact.dimensions, Some((64, 48)));
+        assert_eq!(
+            fact.frame_ns,
+            Some(33_366_666),
+            "one tick in ns (1001e9/30000, floored)"
+        );
+        // The packet's pts is the container's own integer in that base.
+        match opened.demuxer.next_event() {
+            Ok(DemuxEvent::Packet(packet)) => {
+                let Stamp::Present(pts) = packet.pts else {
+                    unreachable!("pts is present");
+                };
+                assert_eq!(pts.ticks, 0);
+                assert_eq!(pts.base.as_parts(), (1001, 30_000));
+            }
+            Ok(DemuxEvent::EndOfStream) => unreachable!("the crafted frame must emit"),
+            Ok(_) => unreachable!("the crafted lane is packet-then-end"),
+            Err(err) => unreachable!("{err}"),
+        }
+    }
+
     /// Decode every packet of an opened media through the REAL
     /// decoder provider and return the emitted frame count plus the
     /// last frame's coded size. A typed refusal is RETURNED, never

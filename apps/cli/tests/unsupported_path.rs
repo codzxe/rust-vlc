@@ -126,6 +126,17 @@ fn mp4_container_opens_and_accepts_the_session() {
     assert!(out.contains("ok: accepted session=1"), "{out}");
 }
 
+/// The AV1-in-IVF lane OPENS end-to-end (card 6.OPW-ivf wired the
+/// family): the real binary opens the demux crate's committed AV1
+/// fixture (a decodable track — the provider's rav1d-backed arm) and
+/// accepts the session.
+#[test]
+fn ivf_container_opens_and_accepts_the_session() {
+    let (out, err, code) = run(&[&fixture("generated/ivf/av1_64x48_30fps.ivf")], "quit\n");
+    assert_eq!(code, 0, "stdout:\n{out}\nstderr:\n{err}");
+    assert!(out.contains("ok: accepted session=1"), "{out}");
+}
+
 /// URL sources: the honest host-capability refusal (exit 69).
 #[test]
 fn url_source_is_unsupported_for_host() {
