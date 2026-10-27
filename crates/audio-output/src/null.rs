@@ -140,10 +140,22 @@ impl NullSink {
     /// suites use; the same whole-frames/backpressure contract as
     /// [`AudioSink::write`]).
     ///
-    /// Zero heap traffic (D-1/D-8: this runs on the pump's write
-    /// path): the bytes are reinterpreted as f32 LE samples through a
-    /// fixed stack chunk — no per-quantum `Vec<f32>` materialization,
-    /// the ring receives byte-identical samples in the same order.
+    /// Zero heap traffic on the real paths (D-1/D-8: this runs on
+    /// the pump's write path): the bytes are reinterpreted as f32 LE
+    /// samples through a fixed stack chunk — no per-quantum `Vec<f32>`
+    /// materialization, the ring receives byte-identical samples in
+    /// the same order.
+    ///
+    /// The refill step is **frame-aligned** (6.FIX-pcm): a whole
+    /// number of sample-frames per chunk, not the fixed 256 samples —
+    /// 256 % channels ≠ 0 for any channel count that does not divide
+    /// 256 (measured: the 6-channel lanes, 256 % 6 = 4, made every
+    /// chunk push refuse as unaligned, so nothing ever reached the
+    /// ring and the whole-buffer refusal misreported as
+    /// `audio.ring_full`). A frame wider than the 256-sample stack
+    /// chunk (channels > 256 — no container parses that wide) takes
+    /// the one-frame heap scratch: the cold absurd-geometry path,
+    /// correctness over stack discipline.
     ///
     /// # Errors
     /// As [`AudioSink::write`] (`audio.partial_frame`,
@@ -164,18 +176,18 @@ impl NullSink {
                 frames,
             ));
         }
-        // Fixed stack chunk: 256 f32 LE samples (1 KiB), refilled from
-        // the byte view and pushed segment-wise. Same values, same
-        // order as the old whole-buffer Vec — the ring cannot tell
-        // the difference (byte-identity pinned by the capture ACs).
-        let mut chunk = [0f32; 256];
-        let mut pushed_total = 0usize;
-        for part in interleaved.as_chunks::<4>().0.chunks(chunk.len()) {
-            for (dst, bytes) in chunk.iter_mut().zip(part) {
-                *dst = f32::from_le_bytes(*bytes);
-            }
-            pushed_total += self.shared.ring.push(&chunk[..part.len()]);
-        }
+        // The frame-aligned refill step: the largest whole number of
+        // frames that fits the 256-sample stack chunk (one frame
+        // minimum), so every `ring.push` sees a whole-frame slice.
+        let frame_samples = frame_bytes / 4; // f32 slots per frame
+        let step = (256 / frame_samples).max(1) * frame_samples;
+        let pushed_total = if step <= 256 {
+            let mut chunk = [0f32; 256];
+            Self::push_aligned(&self.shared.ring, interleaved, &mut chunk, step)
+        } else {
+            let mut chunk = vec![0f32; step];
+            Self::push_aligned(&self.shared.ring, interleaved, &mut chunk, step)
+        };
         if pushed_total as u64 != frames {
             // Cannot happen under the free-check above (single
             // producer); if it ever does, refuse honestly rather
@@ -186,6 +198,21 @@ impl NullSink {
             ));
         }
         Ok(())
+    }
+
+    /// Refill `chunk` from the byte view `step` samples at a time and
+    /// push each whole-frame slice — the shared body of
+    /// [`NullSink::write_bytes`]'s stack and heap chunk paths. Returns
+    /// the frames pushed.
+    fn push_aligned(ring: &SpscRing, interleaved: &[u8], chunk: &mut [f32], step: usize) -> usize {
+        let mut pushed_total = 0usize;
+        for part in interleaved.as_chunks::<4>().0.chunks(step) {
+            for (dst, bytes) in chunk.iter_mut().zip(part) {
+                *dst = f32::from_le_bytes(*bytes);
+            }
+            pushed_total += ring.push(&chunk[..part.len()]);
+        }
+        pushed_total
     }
 }
 

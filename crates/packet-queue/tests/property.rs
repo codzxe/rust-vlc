@@ -287,9 +287,14 @@ fn run(seed: u64, cap_packets: usize, ops: &[Op]) -> Result<(), String> {
                 };
                 model.next_id += 1;
                 let item = Stamped::new(stamp, blob);
-                let fits = (model.residents.len() + 1) <= limits.max_packets.get()
-                    && model.bytes() + size <= limits.max_bytes.get()
-                    && model.duration() + dur_ns <= limits.max_duration.0;
+                // The admission oracle (6.FIX-pcm): a queue with
+                // nothing resident admits one item unconditionally —
+                // the caps bound accumulation behind residents, never
+                // a lone item's admission (the livelock invariant).
+                let fits = model.residents.is_empty()
+                    || ((model.residents.len() + 1) <= limits.max_packets.get()
+                        && model.bytes() + size <= limits.max_bytes.get()
+                        && model.duration() + dur_ns <= limits.max_duration.0);
                 match queue.try_push(item) {
                     PushOutcome::Pushed => {
                         if stamp.counter() < model.published || !fits || model.closed {
@@ -381,9 +386,12 @@ fn run(seed: u64, cap_packets: usize, ops: &[Op]) -> Result<(), String> {
                     dur_ns,
                 };
                 model.next_id += 1;
-                let fits = (model.residents.len() + 1) <= limits.max_packets.get()
-                    && model.bytes() + size <= limits.max_bytes.get()
-                    && model.duration() + dur_ns <= limits.max_duration.0;
+                // Same admission oracle as TryPush (6.FIX-pcm): the
+                // empty queue admits one item unconditionally.
+                let fits = model.residents.is_empty()
+                    || ((model.residents.len() + 1) <= limits.max_packets.get()
+                        && model.bytes() + size <= limits.max_bytes.get()
+                        && model.duration() + dur_ns <= limits.max_duration.0);
                 match queue.push_wait(Stamped::new(stamp, blob), Some(Instant::now())) {
                     Ok(()) => {
                         if !fits || model.closed {

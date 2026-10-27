@@ -2028,6 +2028,16 @@ impl Pipeline {
         }
         if let Some(packet) = self.pending.take() {
             self.push_packet(packet);
+            if self.pending.is_some() {
+                // The re-offer was refused (6.FIX-pcm): the queue is
+                // full and FIFO forbids offering anything newer this
+                // slice — end it. Continuing used to be a silent data
+                // loss: the next packet's Full push overwrote the
+                // single pending slot, dropping the re-offered packet
+                // on the floor (measured on the 11.025 kHz wav lane:
+                // pts 0 vanished between ticks, never re-pushed).
+                return;
+            }
         }
         if self.eof {
             // The demuxer is exhausted; nothing new can arrive. The

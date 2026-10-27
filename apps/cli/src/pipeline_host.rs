@@ -385,12 +385,31 @@ impl Decoder for DrainGatedDecoder {
 
     fn flush(&mut self, out: &mut dyn FrameSink) -> Result<DecodeOutcome, EngineError> {
         match self.inner.flush(out)? {
-            DecodeOutcome::Drained if self.audio_backlog() > 0 => {
+            DecodeOutcome::Drained if self.audio_backlog() >= RENDER_QUANTUM => {
                 // Everything is decoded and sitting in the device
                 // ring: not drained until the device has played it.
                 // `NeedMoreInput` keeps the limb's flush loop polling
-                // (bounded per tick); the pump's renders drain the
-                // ring and the next flush answers `Drained`.
+                // (bounded per tick); the pump's whole-quantum renders
+                // drain the ring down and the next flush answers
+                // `Drained`.
+                //
+                // The sub-quantum residue is the end-tail play-out's,
+                // not the render loop's (6.FIX-pcm): a ring holding
+                // fewer than [`RENDER_QUANTUM`] frames can never be
+                // drained by `advance`'s `>= quantum` render gate, so
+                // demanding `backlog == 0` here deadlocks every media
+                // whose frame count is not a multiple of the quantum
+                // (measured: 32 000 frames at 8 kHz stranded 1 130 —
+                // no terminal, position frozen at 96.5%). Releasing
+                // the gate below one quantum lets `Ended` fire, and
+                // the host's end-tail play-out (gated on `Ended`)
+                // renders the residue to the exact media end — the
+                // two halves of the handshake the gate was splitting.
+                // Mid-media the question never arises: the engine
+                // only calls `flush` at end-of-stream (and across a
+                // seek's residue purge, where the answer changes
+                // nothing — the generation check drops the residue
+                // either way).
                 Ok(DecodeOutcome::NeedMoreInput)
             }
             outcome => Ok(outcome),

@@ -332,10 +332,14 @@ fn mp4_family_lane() {
 
 /// MOV row (corpus 0051, vfr mjpeg + pcm_s16le 32 kHz 6ch): the open
 /// surface is fully green (both flags accept, the seek lands at a
-/// third of the 2.322 s media) — but the play script NEVER moves the
-/// clock: the sub-44.1 kHz PCM stall finding, pinned honestly
-/// (position frozen at the anchor under any advance count; the
-/// ≥44.1 kHz lanes all advance — see the worklog finding).
+/// third of the 2.322 s media), and — since 6.FIX-pcm closed the
+/// sub-44.1 kHz stall (the 6-channel ring-alignment half; the
+/// measured face: every `write_bytes` chunk push refused, 256 % 6 = 4,
+/// misreported as `audio.ring_full`) — the play script runs the
+/// media to its end: eom at the audio-master clock's end (2.976 s of
+/// the container's 3.005 s video-led extent — 99.0%, the honest
+/// audio-master answer; pre-fix the position was frozen at the
+/// anchor under any advance count).
 #[test]
 fn mov_family_lane() {
     let Some(file) = corpus_file("0051-vfr-av.mov") else {
@@ -345,9 +349,14 @@ fn mov_family_lane() {
     let (out, err, code) = run(&["open", &file], "advance 4096\ntime\nquit\n");
     assert_accepted(&out, code, "mov");
     assert!(err.is_empty(), "lane mov stderr:\n{err}");
+    assert!(out.contains("event: end-of-media"), "{out}");
     assert!(
-        out.contains("ok: time 0.000000s (0.0%)"),
-        "the sub-44.1 kHz PCM clock stall, pinned:\n{out}"
+        out.contains("ok: time 2.976000s (99.0%)"),
+        "the sub-44.1 kHz 6-channel lane must run to its audio-master end:\n{out}"
+    );
+    assert!(
+        !out.contains("audio.ring_full"),
+        "the 6-channel ring alignment must not refuse writes:\n{out}"
     );
 
     let (out, _err, code) = run(&["open", &file, "--no-video"], "quit\n");
