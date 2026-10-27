@@ -80,3 +80,4 @@ tool-results/
 # Wave-1 corpora (regenerable via recorded seeds; too big for git)
 /corpus-big/
 /target
+corpus-v4/
