@@ -36,8 +36,11 @@
 //!    completes an Ogg page (the demuxer stamps only page-completing
 //!    packets), which is exactly the RFC 7845 §4 end-trim seam. A
 //!    `discontinuity` (seek landing) re-anchors the counter from the
-//!    landing stamp; stamped positions also heal counter drift after
-//!    dropped-damage packets (monotonic max).
+//!    landing stamp; an UNSTAMPED discontinuity (the landing page's
+//!    prefix — Ogg stamps only page-completing packets) honestly
+//!    un-anchors it, the frames `Missing` until the page's granule
+//!    re-anchors (6.FIX-ogg-reanchor); stamped positions also heal
+//!    counter drift after dropped-damage packets (monotonic max).
 //!
 //! # Channel order (the output seam)
 //!
@@ -151,9 +154,11 @@ fn max_output_len(head: &OpusHead) -> usize {
 /// `configure` installs the OpusHead (via `extra_data`, the Ogg
 /// host's `OpusHead ‖ OpusTags` verbatim join), `decode` turns one
 /// audio packet into one [`Frame::Audio`] whose pts is the
-/// valid-timeline sample index (pre-skip-trimmed, granule-clamped),
-/// `flush` is immediately drained (each packet is independently
-/// coded — the valid tail was trimmed by the last granule).
+/// valid-timeline sample index (pre-skip-trimmed, granule-clamped;
+/// `Missing` between an unstamped seek landing and its page's
+/// granule), `flush` is immediately drained (each packet is
+/// independently coded — the valid tail was trimmed by the last
+/// granule).
 ///
 /// # Example
 ///
@@ -208,6 +213,16 @@ pub struct OpusDecoder {
     raw_next: u64,
     /// Packets decoded since configure (diagnostics).
     packet_index: u64,
+    /// Whether the raw counter is anchored on the valid timeline:
+    /// `true` from configure (the open path — the stream head IS raw
+    /// zero, the pre-skip trims it) and at every container stamp;
+    /// `false` after an unstamped discontinuity packet (a seek
+    /// landing or damage gap — the counter was reset at the
+    /// generation reconfigure and no longer matches the stream, so
+    /// positions are honestly `Missing` until the next granule
+    /// re-anchors). The vorbis decoder's `measure_shift` design,
+    /// mirrored for Opus's granule domain (6.FIX-ogg-reanchor).
+    anchored: bool,
 }
 
 impl OpusDecoder {
@@ -285,6 +300,7 @@ impl Decoder for OpusDecoder {
         self.slot_next = 0;
         self.raw_next = 0;
         self.packet_index = 0;
+        self.anchored = true;
         // Q7.8 dB → linear: 10^(q/(20*256)); q = 0 is exactly unity
         // (every corpus lane measures 0 — the multiply is a no-op
         // there; the reading is the engine's own, cross-checked).
@@ -356,12 +372,29 @@ impl Decoder for OpusDecoder {
         // 2. Positioning: the raw counter, re-anchored at a seek
         // landing (a stamped discontinuity packet ends at its
         // granule) and monotonic against every stamp (dropped-damage
-        // healing — the counter never lags the container).
+        // healing — the counter never lags the container). An
+        // UNSTAMPED discontinuity packet (the landing page's prefix —
+        // Ogg stamps only each page's last-completing packet) breaks
+        // the counter's anchor: the post-reconfigure counter counts
+        // from zero, not from the landing, so the frames it would
+        // position are `Missing` until the page's granule arrives
+        // and pulls the counter up (the honest-unknown rule).
         let mut raw_before = self.raw_next;
-        if packet.discontinuity
-            && let Some(end) = granule
-        {
-            raw_before = (u64::try_from(end).unwrap_or(0)).saturating_sub(packet_samples as u64);
+        if let Some(end) = granule {
+            let stamp_start = (u64::try_from(end).unwrap_or(0)).saturating_sub(packet_samples as u64);
+            raw_before = if packet.discontinuity {
+                // The landing stamp is authoritative (a backward seek
+                // or a granule regression re-anchors, never clings).
+                stamp_start
+            } else {
+                raw_before.max(stamp_start)
+            };
+            // This packet ends at a known granule: the counter is
+            // anchored from here (also the anchor's restoration
+            // after a landing prefix).
+            self.anchored = true;
+        } else if packet.discontinuity {
+            self.anchored = false;
         }
         let raw_after = raw_before + packet_samples as u64;
         // 3. The valid-timeline window: head-trim at pre-skip,
@@ -421,10 +454,17 @@ impl Decoder for OpusDecoder {
         let PooledWindow { bytes } =
             pooled_sample_slot(&mut self.sample_pool, &mut self.slot_next, slot_len, fill)?;
         let exact = window * channels * 4;
-        let pts = Timestamp::new(
-            i64::try_from(start - u64::from(head.pre_skip)).unwrap_or(i64::MAX),
-            base,
-        );
+        let pts_stamp = if self.anchored {
+            Stamp::Present(Timestamp::new(
+                i64::try_from(start.saturating_sub(u64::from(head.pre_skip))).unwrap_or(i64::MAX),
+                base,
+            ))
+        } else {
+            // The landing prefix before the page's granule: the
+            // position is honestly unknown (the counter counts from
+            // the reconfigure, not from the stream).
+            Stamp::Missing
+        };
         let frame = Frame::Audio(media_types::frame::AudioFrame {
             format: AudioFormat {
                 sample: SampleFormat::F32,
@@ -433,7 +473,7 @@ impl Decoder for OpusDecoder {
                 rate: DECODE_RATE,
             },
             samples: bytes.slice(0..exact),
-            pts: Stamp::Present(pts),
+            pts: pts_stamp,
             duration: Some(Duration::Known(Nanoseconds(
                 u64::try_from(
                     u128::from(window as u64) * 1_000_000_000u128 / u128::from(DECODE_RATE),
@@ -544,6 +584,131 @@ mod tests {
         assert!(!OpusDecoder::accepts("Opus"));
         assert!(!OpusDecoder::accepts("vorbis"));
         assert!(!OpusDecoder::accepts(""));
+    }
+
+    /// One recorded frame: its pts stamp and per-channel sample
+    /// window (the anchor assertions' observables).
+    struct Seen {
+        pts: Stamp,
+        window: usize,
+    }
+
+    struct Capture {
+        seen: Vec<Seen>,
+    }
+
+    impl FrameSink for Capture {
+        fn accept(&mut self, frame: Frame) -> Result<(), EngineError> {
+            let Frame::Audio(audio) = frame else {
+                unreachable!("the Opus decoder only emits audio frames: {frame:?}");
+            };
+            self.seen.push(Seen {
+                pts: audio.pts,
+                window: audio.samples.len() / (audio.format.channels as usize * 4),
+            });
+            Ok(())
+        }
+    }
+
+    /// The committed opus fixture's first data packet (95 bytes, a
+    /// 20 ms hybrid frame — `tests/fixtures/generated/valid/
+    /// ogg_opus_48k_mono.opus`, page 3 run 1; verbatim so the unit
+    /// needs no filesystem).
+    const FIXTURE_PACKET: &[u8] = &[
+        0x78, 0x81, 0xa7, 0x5d, 0x6c, 0x9e, 0x99, 0xac, 0x00, 0x00, 0x08, 0x0a, 0xe0, 0x5a,
+        0xd5, 0x11, 0x9c, 0x44, 0x31, 0x15, 0x05, 0x7b, 0x3d, 0xe6, 0x7e, 0x1c, 0xb8, 0xf9,
+        0x0d, 0x59, 0x59, 0x5f, 0x21, 0xd0, 0xba, 0x3a, 0xa5, 0x8e, 0x75, 0x38, 0x3c, 0x1a,
+        0x18, 0x1f, 0xb9, 0xfa, 0xf1, 0x6a, 0xd9, 0xf5, 0xd5, 0x70, 0x91, 0x4f, 0x0b, 0x38,
+        0x1a, 0xfe, 0x98, 0x43, 0xb0, 0xb5, 0x43, 0xaa, 0xf0, 0x59, 0x6b, 0xe2, 0xf4, 0x35,
+        0x0e, 0x0d, 0x00, 0x65, 0xc4, 0x0d, 0x12, 0xe1, 0xe1, 0x72, 0x6c, 0x41, 0x8d, 0x32,
+        0x91, 0x38, 0xb2, 0xc8, 0x48, 0x94, 0x80, 0xe5, 0xa5, 0xea, 0x04,
+    ];
+
+    /// One fixture packet with the given stamp and discontinuity.
+    fn packet(pts: Stamp, discontinuity: bool) -> Packet {
+        Packet {
+            track: media_types::TrackId::new(0),
+            pts,
+            dts: Stamp::Missing,
+            duration: None,
+            data: media_types::packet::SharedBytes::from_vec(FIXTURE_PACKET.to_vec()),
+            keyframe: true,
+            discontinuity,
+            generation: match GenerationId::FIRST.next() {
+                Ok(g) => g,
+                Err(e) => unreachable!("{e:?}"),
+            },
+        }
+    }
+
+    /// The 6.FIX-ogg-reanchor anchor rule, pinned at the unit. The
+    /// open path mints pts from the raw counter (the stream head IS
+    /// raw zero — the differential's `first_pts == 0` pin); a
+    /// generation reconfigure followed by an UNSTAMPED discontinuity
+    /// packet (the seek landing's page prefix — Ogg stamps only each
+    /// page's last-completing packet) honestly answers `Missing`
+    /// until the page's granule re-anchors the counter, and the
+    /// stamped packet positions at `granule − packet − pre_skip`.
+    #[test]
+    fn seek_landing_is_missing_until_the_granule_reanchors() {
+        let mut decoder = OpusDecoder::new();
+        decoder
+            .configure(&config(Some(extra_v0())))
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        // The open path: an unstamped head packet mints the
+        // valid-timeline zero (the pre-skip consumed the head).
+        let mut sink = Capture { seen: Vec::new() };
+        let _ = decoder
+            .decode(packet(Stamp::Missing, false), &mut sink)
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        let head = sink.seen.last().unwrap_or_else(|| unreachable!("emitted"));
+        assert_eq!(
+            head.pts,
+            Stamp::Present(Timestamp::new(0, TimeBase::new(1, 48_000).unwrap_or_else(|e| unreachable!("{e:?}")))),
+            "the open path's head frame sits at the valid zero"
+        );
+        // The seek: the engine's generation reconfigure (minted
+        // header-less; the host's re-seeding wrapper supplied the
+        // head again) resets the counter, then the landing page's
+        // unstamped prefix arrives marked discontinuous — its
+        // position is honestly unknown.
+        decoder
+            .configure(&config(Some(extra_v0())))
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        let mut sink = Capture { seen: Vec::new() };
+        let _ = decoder
+            .decode(packet(Stamp::Missing, true), &mut sink)
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        let prefix = sink.seen.last().unwrap_or_else(|| unreachable!("emitted"));
+        assert_eq!(prefix.pts, Stamp::Missing, "the landing prefix is unstamped");
+        // The rest of the landing page's prefix (plain, unstamped):
+        // still unknown — nothing has re-anchored the counter.
+        let _ = decoder
+            .decode(packet(Stamp::Missing, false), &mut sink)
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        let still = sink.seen.last().unwrap_or_else(|| unreachable!("emitted"));
+        assert_eq!(still.pts, Stamp::Missing, "no stamp, no anchor");
+        // The page's granule-bearing packet re-anchors: it ends at
+        // the granule, so its window starts at
+        // `granule − window` on the raw timeline and
+        // `granule − window − pre_skip` on the valid one.
+        let base = TimeBase::new(1, 48_000).unwrap_or_else(|e| unreachable!("{e:?}"));
+        let granule = 96_000i64;
+        let _ = decoder
+            .decode(packet(Stamp::Present(Timestamp::new(granule, base)), false), &mut sink)
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        let anchored = sink.seen.last().unwrap_or_else(|| unreachable!("emitted"));
+        match anchored.pts {
+            Stamp::Present(ts) => {
+                assert_eq!(
+                    ts.ticks,
+                    granule - i64::try_from(anchored.window).unwrap_or(i64::MAX) - 312,
+                    "the stamped landing packet positions at granule − window − pre_skip"
+                );
+                assert_eq!(ts.base, base);
+            }
+            Stamp::Missing => unreachable!("the granule re-anchored the counter"),
+        }
     }
 
     #[test]
