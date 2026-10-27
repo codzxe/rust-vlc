@@ -436,7 +436,6 @@ impl Decoder for VorbisDecoder {
         let PooledBlock { emitted, bytes } =
             pooled_sample_slot(sample_pool, slot_next, slot_len, fill)
                 .map_err(VorbisError::into_engine_error)?;
-        let exact = emitted * usize::from(ident.channels) * 4;
         // The granule clock: pts is this block's first sample on the
         // VALID timeline (`raw_first − shift`); before the first
         // container stamp the position is honestly unknown, and the
@@ -445,12 +444,46 @@ impl Decoder for VorbisDecoder {
         let base = TimeBase::new(1, ident.sample_rate).map_err(|_| {
             unsupported("vorbis.ident.rate", "configured facts carry rate 0").into_engine_error()
         })?;
+        // THE GRANULE TAIL CLAMP (the seek module's documented trim,
+        // applied): a stamped packet's valid END is its granule (the
+        // page granule is one past the last valid sample of the last
+        // packet completing on the page — RFC 3533 §6). The raw
+        // emission may run PAST the stamp — the encoder's tail
+        // padding, the final page's grown shift being the signal —
+        // and those samples are trimmed, never played (mid-stream the
+        // emission accounting meets the stamp exactly, so the clamp
+        // only bites at the stream's tail; measured before the trim:
+        // a 1.5 s fixture playing 1,525,260 µs, the ring carrying
+        // 1,114 frames past the last granule).
+        let valid_len = match (shift_now, &packet.pts) {
+            (Some(shift), media_types::time::Stamp::Present(ts)) if ts.base == base => {
+                let valid_start = i64::try_from(raw_first)
+                    .unwrap_or(i64::MAX)
+                    .saturating_sub(shift);
+                usize::try_from(ts.ticks.saturating_sub(valid_start)).unwrap_or(usize::MAX)
+            }
+            _ => emitted,
+        }
+        .min(emitted);
+        let exact = valid_len * usize::from(ident.channels) * 4;
         let pts = shift_now.map(|shift| {
             Stamp::Present(Timestamp::new(
                 i64::try_from(raw_first).unwrap_or(i64::MAX) - shift,
                 base,
             ))
         });
+        if valid_len == 0 {
+            // The whole block sat past the granule (the pure-padding
+            // tail): consumed, nothing valid to emit. The raw counter
+            // still advances by the full emission — the shift
+            // measurement below reads it.
+            self.raw_next = raw_first.saturating_add(emitted as u64);
+            if let Some(fresh) = measure_shift(self.raw_next, packet.pts, &base) {
+                self.shift = Some(fresh);
+            }
+            self.packet_index += 1;
+            return Ok(DecodeOutcome::Emitted { frames: 0 });
+        }
         let frame = Frame::Audio(media_types::frame::AudioFrame {
             format: AudioFormat {
                 sample: SampleFormat::F32,
@@ -462,7 +495,8 @@ impl Decoder for VorbisDecoder {
             pts: pts.unwrap_or(Stamp::Missing),
             duration: Some(Duration::Known(Nanoseconds(
                 u64::try_from(
-                    u128::from(emitted as u64) * 1_000_000_000u128 / u128::from(ident.sample_rate),
+                    u128::from(valid_len as u64) * 1_000_000_000u128
+                        / u128::from(ident.sample_rate),
                 )
                 .unwrap_or(u64::MAX),
             ))),

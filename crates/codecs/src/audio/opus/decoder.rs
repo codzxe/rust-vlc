@@ -381,7 +381,8 @@ impl Decoder for OpusDecoder {
         // and pulls the counter up (the honest-unknown rule).
         let mut raw_before = self.raw_next;
         if let Some(end) = granule {
-            let stamp_start = (u64::try_from(end).unwrap_or(0)).saturating_sub(packet_samples as u64);
+            let stamp_start =
+                (u64::try_from(end).unwrap_or(0)).saturating_sub(packet_samples as u64);
             raw_before = if packet.discontinuity {
                 // The landing stamp is authoritative (a backward seek
                 // or a granule regression re-anchors, never clings).
@@ -615,13 +616,13 @@ mod tests {
     /// ogg_opus_48k_mono.opus`, page 3 run 1; verbatim so the unit
     /// needs no filesystem).
     const FIXTURE_PACKET: &[u8] = &[
-        0x78, 0x81, 0xa7, 0x5d, 0x6c, 0x9e, 0x99, 0xac, 0x00, 0x00, 0x08, 0x0a, 0xe0, 0x5a,
-        0xd5, 0x11, 0x9c, 0x44, 0x31, 0x15, 0x05, 0x7b, 0x3d, 0xe6, 0x7e, 0x1c, 0xb8, 0xf9,
-        0x0d, 0x59, 0x59, 0x5f, 0x21, 0xd0, 0xba, 0x3a, 0xa5, 0x8e, 0x75, 0x38, 0x3c, 0x1a,
-        0x18, 0x1f, 0xb9, 0xfa, 0xf1, 0x6a, 0xd9, 0xf5, 0xd5, 0x70, 0x91, 0x4f, 0x0b, 0x38,
-        0x1a, 0xfe, 0x98, 0x43, 0xb0, 0xb5, 0x43, 0xaa, 0xf0, 0x59, 0x6b, 0xe2, 0xf4, 0x35,
-        0x0e, 0x0d, 0x00, 0x65, 0xc4, 0x0d, 0x12, 0xe1, 0xe1, 0x72, 0x6c, 0x41, 0x8d, 0x32,
-        0x91, 0x38, 0xb2, 0xc8, 0x48, 0x94, 0x80, 0xe5, 0xa5, 0xea, 0x04,
+        0x78, 0x81, 0xa7, 0x5d, 0x6c, 0x9e, 0x99, 0xac, 0x00, 0x00, 0x08, 0x0a, 0xe0, 0x5a, 0xd5,
+        0x11, 0x9c, 0x44, 0x31, 0x15, 0x05, 0x7b, 0x3d, 0xe6, 0x7e, 0x1c, 0xb8, 0xf9, 0x0d, 0x59,
+        0x59, 0x5f, 0x21, 0xd0, 0xba, 0x3a, 0xa5, 0x8e, 0x75, 0x38, 0x3c, 0x1a, 0x18, 0x1f, 0xb9,
+        0xfa, 0xf1, 0x6a, 0xd9, 0xf5, 0xd5, 0x70, 0x91, 0x4f, 0x0b, 0x38, 0x1a, 0xfe, 0x98, 0x43,
+        0xb0, 0xb5, 0x43, 0xaa, 0xf0, 0x59, 0x6b, 0xe2, 0xf4, 0x35, 0x0e, 0x0d, 0x00, 0x65, 0xc4,
+        0x0d, 0x12, 0xe1, 0xe1, 0x72, 0x6c, 0x41, 0x8d, 0x32, 0x91, 0x38, 0xb2, 0xc8, 0x48, 0x94,
+        0x80, 0xe5, 0xa5, 0xea, 0x04,
     ];
 
     /// One fixture packet with the given stamp and discontinuity.
@@ -664,7 +665,10 @@ mod tests {
         let head = sink.seen.last().unwrap_or_else(|| unreachable!("emitted"));
         assert_eq!(
             head.pts,
-            Stamp::Present(Timestamp::new(0, TimeBase::new(1, 48_000).unwrap_or_else(|e| unreachable!("{e:?}")))),
+            Stamp::Present(Timestamp::new(
+                0,
+                TimeBase::new(1, 48_000).unwrap_or_else(|e| unreachable!("{e:?}"))
+            )),
             "the open path's head frame sits at the valid zero"
         );
         // The seek: the engine's generation reconfigure (minted
@@ -680,7 +684,11 @@ mod tests {
             .decode(packet(Stamp::Missing, true), &mut sink)
             .unwrap_or_else(|e| unreachable!("{e}"));
         let prefix = sink.seen.last().unwrap_or_else(|| unreachable!("emitted"));
-        assert_eq!(prefix.pts, Stamp::Missing, "the landing prefix is unstamped");
+        assert_eq!(
+            prefix.pts,
+            Stamp::Missing,
+            "the landing prefix is unstamped"
+        );
         // The rest of the landing page's prefix (plain, unstamped):
         // still unknown — nothing has re-anchored the counter.
         let _ = decoder
@@ -695,7 +703,10 @@ mod tests {
         let base = TimeBase::new(1, 48_000).unwrap_or_else(|e| unreachable!("{e:?}"));
         let granule = 96_000i64;
         let _ = decoder
-            .decode(packet(Stamp::Present(Timestamp::new(granule, base)), false), &mut sink)
+            .decode(
+                packet(Stamp::Present(Timestamp::new(granule, base)), false),
+                &mut sink,
+            )
             .unwrap_or_else(|e| unreachable!("{e}"));
         let anchored = sink.seen.last().unwrap_or_else(|| unreachable!("emitted"));
         match anchored.pts {

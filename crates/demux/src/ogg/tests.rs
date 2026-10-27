@@ -509,7 +509,13 @@ fn seek_and_reanchor_land_on_the_last_page_before_the_target() {
     };
     let span = ogg.seek(target).unwrap_or_else(|e| unreachable!("{e}"));
     match span.start {
-        media_types::time::Stamp::Present(t) => assert_eq!(t.ticks, 1024),
+        // The landing page (granule 1024) is where the WALK restarts,
+        // but the audio it delivers BEGINS at the page's start stamp —
+        // the previous page's granule 768 (the packet completing at
+        // 1024 spans 768..1024). Reporting the page's END (the old
+        // pin, 1024) claimed a position the stream then played past
+        // (the 6.FIX-ogg-reanchor landing-report fix).
+        media_types::time::Stamp::Present(t) => assert_eq!(t.ticks, 768),
         media_types::time::Stamp::Missing => unreachable!("the landing is known"),
     }
     let landed = ogg.reanchor(target).unwrap_or_else(|e| unreachable!("{e}"));

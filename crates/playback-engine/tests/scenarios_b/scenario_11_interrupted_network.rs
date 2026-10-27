@@ -254,11 +254,23 @@ fn reset_midstream_source_fails_typed_within_deadline() {
         "the typed fatal: {fatal:?}"
     );
     // The fatal error event is ordered BEFORE the state change to
-    // Error (doc 05 §3.3) — the state trail ends with → Error.
+    // Error (doc 05 §3.3) — the state trail ends with → Error. The
+    // from-state is the buffering phase the reset happened to land
+    // in (the 6.FIX-pcm queue-admission change shifted the episode
+    // timing: the resumed session sits in a rebuffer when the failed
+    // read hits — `Buffering → Error`; a reset landing mid-play
+    // answers `Playing → Error`. Both are the D-4 typed fatal; the
+    // contract is the terminal, not the phase it interrupted).
     let trail = host.state_history();
-    assert_eq!(
-        trail.last().copied(),
-        Some((PlaybackState::Playing, PlaybackState::Error)),
+    let last = trail.last().copied();
+    assert!(
+        matches!(
+            last,
+            Some((
+                PlaybackState::Playing | PlaybackState::Buffering,
+                PlaybackState::Error
+            ))
+        ),
         "the trail: {trail:?}"
     );
     // The host recovers: a close settles the dead session and the

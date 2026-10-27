@@ -62,6 +62,12 @@ struct Shared {
     counter: Arc<SampleCounter>,
     underruns: AtomicU64,
     paused: AtomicBool,
+    /// Cumulative frames pushed into the ring (monotonic; the
+    /// write-side twin of the counter's consumed count — the seek
+    /// boundary's exact-prefix arithmetic reads the difference,
+    /// 6.FIX-ogg-reanchor). Relaxed: the counter is only read for
+    /// bookkeeping outside the RT path, never for ordering.
+    written: AtomicU64,
 }
 
 impl Shared {
@@ -80,6 +86,7 @@ impl Shared {
             counter: Arc::new(SampleCounter::new(format.rate)?),
             underruns: AtomicU64::new(0),
             paused: AtomicBool::new(false),
+            written: AtomicU64::new(0),
         })
     }
 }
@@ -134,6 +141,18 @@ impl NullSink {
     /// the device has actually played everything written.
     pub fn buffered_frames(&self) -> usize {
         self.shared.ring.available_frames()
+    }
+
+    /// Cumulative frames pushed into the ring (monotonic; includes
+    /// frames already rendered — the consumed twin is the device
+    /// counter's `sample_count`). The seek boundary's exact-prefix
+    /// flush reads this (6.FIX-ogg-reanchor): `written − consumed`
+    /// is the ring's live content, and a generation change-point
+    /// captured against this counter names the old-generation
+    /// prefix exactly, where a submit-time snapshot misses the
+    /// accept window's in-flight staging.
+    pub fn written_frames(&self) -> u64 {
+        self.shared.written.load(Ordering::Relaxed)
     }
 
     /// Write raw interleaved f32 **bytes** (the convenience the AC
@@ -197,6 +216,12 @@ impl NullSink {
                 frames,
             ));
         }
+        // The write-side bookkeeping (after the honest-refusal gate so
+        // a refused write never counts): the seek boundary's exact
+        // prefix arithmetic reads this counter (written_frames).
+        self.shared
+            .written
+            .fetch_add(pushed_total as u64, Ordering::Relaxed);
         Ok(())
     }
 

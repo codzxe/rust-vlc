@@ -528,6 +528,14 @@ impl AudioLimb {
         self.sink.buffered_frames()
     }
 
+    /// Cumulative frames pushed into the ring (the write-side twin of
+    /// the device counter's consumed count — the seek boundary's
+    /// exact-prefix arithmetic, 6.FIX-ogg-reanchor).
+    #[must_use]
+    pub fn written_frames(&self) -> u64 {
+        self.sink.written_frames()
+    }
+
     /// One per-quantum drift observation (card 3.B1's loop closure —
     /// W1-18 §7 step 8): sample the sink's measured latency, stamp it
     /// with the device counter's nanoseconds, and feed the armed
@@ -791,6 +799,21 @@ pub struct ConsumerState {
     pub frames_accepted: u64,
     /// Frames the scheduler refused (window full / unschedulable pts).
     pub frames_refused: u64,
+    /// The last audio frame generation staged into the ring (the
+    /// change-point bookkeeping for the boundary's exact flush).
+    audio_seen_gen: GenerationId,
+    /// The ring's cumulative written-frame counter at the last audio
+    /// generation change (the first new-generation frame's write
+    /// position — the old-prefix length in write order).
+    audio_written_at_change: u64,
+    /// The audio generation floor (armed at each accepted seek's
+    /// boundary): frames older than the mint are accept-window
+    /// stragglers — dropped and counted, never staged.
+    audio_floor: GenerationId,
+    /// Audio frames dropped by the floor gate (observable honesty —
+    /// the boundary's own semantics, like the scheduler's stale
+    /// drops; never an error).
+    pub audio_stale_dropped: u64,
 }
 
 impl ConsumerState {
@@ -886,6 +909,14 @@ impl ConsumerState {
     /// and the decoder reorder buffers in the same poll that accepted
     /// the seek; this completes the boundary on the presentation
     /// side. Cold path — once per accepted seek, never per tick.
+    ///
+    /// The audio twin (6.FIX-ogg-reanchor): arming the audio
+    /// generation floor — frames older than the mint arriving after
+    /// the boundary are stragglers from the accept window's in-flight
+    /// decode, dropped and counted, never staged into the ring (the
+    /// same contract the presentation queue's publish enforces on
+    /// the video side; the ring's own exact-prefix flush is computed
+    /// by [`Self::audio_stale_prefix`] before this runs).
     pub fn seek_boundary(&mut self, generation: GenerationId) {
         self.video_hold
             .retain(|frame| frame.generation >= generation);
@@ -898,6 +929,45 @@ impl ConsumerState {
         // bump). The correction drops to zero with the measurement.
         if let Some(audio) = self.audio.as_mut() {
             audio.reset_drift();
+        }
+        self.audio_floor = generation;
+    }
+
+    /// The ring's exact old-generation prefix, in frames — the count
+    /// the seek boundary's flush must discard (6.FIX-ogg-reanchor).
+    ///
+    /// The arithmetic (write-order truth, never a submit-time
+    /// snapshot): `consumed` is the device counter's frames (every
+    /// render + every prior discard — all old-generation, the ring
+    /// being FIFO and the flush not yet run); the old-prefix length
+    /// in WRITE order is the ring's cumulative `written` count at the
+    /// first new-generation frame's arrival when the landing's own
+    /// decode has already staged (the fast-completion accept), or the
+    /// whole cumulative `written` when it has not (everything
+    /// resident is old). The difference is the ring's live
+    /// old-generation content exactly — including the frames the
+    /// accept window's in-flight decode staged between the seek's
+    /// submission and its accept, which a submit-time snapshot
+    /// misses (the measured overrun: a vorbis lane's 1.2 s seek
+    /// landing left ~1.0 s of pre-seek audio playing out past the
+    /// media end, the clock at 2.54 s of a 1.5 s file).
+    #[must_use]
+    pub fn audio_stale_prefix(&self, mint: GenerationId, consumed: u64) -> u64 {
+        match self.audio.as_ref() {
+            Some(audio) => {
+                let written_old = if self.audio_seen_gen >= mint {
+                    // The landing's own frames already staged: the
+                    // change-point counter is the exact old-prefix
+                    // write position.
+                    self.audio_written_at_change
+                } else {
+                    // Nothing new staged yet: everything written is
+                    // the old generation's.
+                    audio.written_frames()
+                };
+                written_old.saturating_sub(consumed)
+            }
+            None => 0,
         }
     }
 }
@@ -930,6 +1000,10 @@ impl CliFrameConsumer {
                 video_error: None,
                 frames_accepted: 0,
                 frames_refused: 0,
+                audio_seen_gen: GenerationId::FIRST,
+                audio_written_at_change: 0,
+                audio_floor: GenerationId::FIRST,
+                audio_stale_dropped: 0,
             }),
             facts,
             clock,
@@ -980,6 +1054,25 @@ fn accept_audio(state: &mut ConsumerState, frame: &AudioFrame) -> Result<(), Eng
             "an audio frame arrived with no audio limb wired",
         ));
     };
+    // The boundary's straggler gate (6.FIX-ogg-reanchor): a frame
+    // older than the armed floor is an accept-window in-flight
+    // decode completing after the flush — dropped and counted, never
+    // staged (it would land BEHIND the discarded prefix and play as
+    // old-position audio past the landing). Checked before the
+    // change-point bookkeeping so a straggler cannot move it.
+    if frame.generation < state.audio_floor {
+        state.audio_stale_dropped = state.audio_stale_dropped.saturating_add(1);
+        return Ok(());
+    }
+    if frame.generation != state.audio_seen_gen {
+        // The generation changed: record the ring's cumulative write
+        // position at the change (BEFORE staging this frame — the
+        // first new-generation frame's own writes belong to the new
+        // prefix). The boundary's exact flush reads this as the
+        // old-prefix length in write order.
+        state.audio_seen_gen = frame.generation;
+        state.audio_written_at_change = audio.written_frames();
+    }
     audio.stage(frame)
 }
 
@@ -1482,7 +1575,10 @@ mod tests {
         );
         // The open configure (the provider's seeded config)…
         wrapper
-            .configure(&test_config(GenerationId::FIRST, Some(SharedBytes::from_vec(vec![7u8; 16]))))
+            .configure(&test_config(
+                GenerationId::FIRST,
+                Some(SharedBytes::from_vec(vec![7u8; 16])),
+            ))
             .unwrap_or_else(|e| unreachable!("{e}"));
         // …then the engine's generation bump, minted header-less.
         let second = GenerationId::FIRST
@@ -1496,15 +1592,19 @@ mod tests {
         let seen = recorded(&log);
         assert_eq!(seen.len(), 2, "one configure per call, forwarded once");
         assert!(
-            seen.iter()
-                .all(|extra| extra.as_ref().is_some_and(|bytes| bytes.as_slice() == [7u8; 16])),
+            seen.iter().all(|extra| extra
+                .as_ref()
+                .is_some_and(|bytes| bytes.as_slice() == [7u8; 16])),
             "the header-less generation bump was re-seeded: {seen:?}"
         );
 
         // Precedence: an explicit incoming blob wins over the retained
         // default (the caller's seeding is more specific).
         wrapper
-            .configure(&test_config(second, Some(SharedBytes::from_vec(vec![9u8; 4]))))
+            .configure(&test_config(
+                second,
+                Some(SharedBytes::from_vec(vec![9u8; 4])),
+            ))
             .unwrap_or_else(|e| unreachable!("{e}"));
         let seen = recorded(&log);
         assert!(

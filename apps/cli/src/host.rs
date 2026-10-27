@@ -303,6 +303,23 @@ impl CliHost {
         self.engine.stats()
     }
 
+    /// The consumer's delivery counters for AUDIO-ONLY lanes (the
+    /// lanes `headless_accounting` cannot answer — it requires a
+    /// video limb): frames that reached `accept`, frames the
+    /// scheduler refused, and frames the seek boundary's audio floor
+    /// dropped as stale stragglers (6.FIX-ogg-reanchor's observable
+    /// honesty). `None` before a session wired a consumer.
+    #[must_use]
+    pub fn audio_lane_counters(&self) -> Option<(u64, u64, u64)> {
+        let consumer = self.consumer.as_ref()?;
+        let guard = consumer.lock();
+        Some((
+            guard.frames_accepted,
+            guard.frames_refused,
+            guard.audio_stale_dropped,
+        ))
+    }
+
     /// The headless pipeline accounting (the AC's frame evidence):
     /// the consumer's delivery counts plus the video limb's scheduler
     /// and staging measurements. `None` before a session wired a
@@ -954,8 +971,24 @@ impl CliHost {
         generation: Generation,
         stale_ring_frames: usize,
     ) -> Result<(), CommandError> {
+        // The EXACT old-generation prefix (6.FIX-ogg-reanchor): the
+        // consumer's write-order bookkeeping — the ring's cumulative
+        // written count at the first new-generation frame's arrival
+        // (or the whole cumulative written when the landing has not
+        // staged yet), minus the device counter's consumed frames —
+        // NOT the submit-time snapshot, which misses the frames the
+        // accept window's in-flight decode staged between submission
+        // and accept (measured overrun: ~1.0 s of pre-seek audio
+        // surviving a vorbis seek, the clock at 2.54 s of a 1.5 s
+        // file). The snapshot stays only as the no-consumer fallback.
+        let mint = media_types::GenerationId::new(generation.0);
+        let consumed = self.device.as_ref().map_or(0, NullDevice::sample_count);
+        let stale_frames = match self.consumer.as_ref() {
+            Some(consumer) => consumer.lock().audio_stale_prefix(mint, consumed) as usize,
+            None => stale_ring_frames,
+        };
         let landed_ns = self.clock.as_ref().map(|clock| clock.now());
-        let discarded = self.discard_ring_prefix(stale_ring_frames);
+        let discarded = self.discard_ring_prefix(stale_frames);
         if discarded > 0
             && let (Some(clock), Some(landed)) = (self.clock.as_ref(), landed_ns)
         {

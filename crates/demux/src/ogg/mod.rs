@@ -1196,6 +1196,19 @@ impl OggDemuxer {
         let target_granule = clock.granule_of_nanos(target_nanos);
         let len = self.reader.length();
         let mut at = 0u64;
+        // The reference timeline at each candidate landing page's
+        // START: the previous reference page's granule (the last
+        // completed position before the page's own packets begin).
+        // The landing REPORT is this start — where delivery resumes —
+        // never the landing page's END granule: the walk restarts at
+        // the page's own bytes, so the first delivered packet's audio
+        // begins at the previous stamp. Reporting the end claimed a
+        // position the stream then played PAST (the measured defect:
+        // a vorbis 1.2 s seek landing on the first data page reported
+        // the page's 44,608-sample end while delivering from sample
+        // 0 — the clock anchored 1,011,520 µs, the audio ran the
+        // whole 1.5 s media behind it, ending at 2.54 s).
+        let mut prev_granule: i64 = 0;
         let mut landing: Option<(i64, u64)> = None;
         let mut pages = 0u64;
         while at + page::HEADER_BYTES as u64 <= len {
@@ -1212,8 +1225,17 @@ impl OggDemuxer {
             if pages > MAX_SEEK_SCAN_PAGES {
                 return Err(error::seek_out_of_range());
             }
-            if hdr.serial == serial && hdr.granule >= 0 && hdr.granule <= target_granule {
-                landing = Some((hdr.granule, at));
+            if hdr.serial == serial && hdr.granule >= 0 {
+                if hdr.granule <= target_granule {
+                    // The landing page: the START stamp (the previous
+                    // reference page's granule — see the field's doc)
+                    // with the page's own offset for the walk.
+                    landing = Some((prev_granule, at));
+                }
+                // The page's packets END at its granule — the next
+                // page's start stamp (updated after the landing
+                // consideration: a page can be its own landing).
+                prev_granule = hdr.granule;
             }
             at = hdr.end();
         }

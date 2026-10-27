@@ -204,9 +204,11 @@ enum SeekClass {
     /// Accepted, then the typed demux refusal (the mp4 family's
     /// trait-default reanchor — the recorded 6.OPW-mp4 gap).
     DemuxReanchor,
-    /// Accepted, then the typed decode refusal (the ogg reanchor
-    /// does not replay the codec headers).
-    DecodeHeaders,
+    /// The seek lands in-pipeline at the PAGE-GRANULAR actual (the
+    /// ogg family: pages are ~1 s on the corpus fixture, so the
+    /// landing is the last page-start at-or-before the target — a
+    /// coarse window, not the ±10% keyframe-dense containers answer).
+    PageGranular,
     /// The source is unseekable (raw ES mpeg audio) / the target
     /// unresolvable (no duration): the typed control refusal.
     NotSeekable,
@@ -290,7 +292,15 @@ fn lanes(media: &Path) -> Vec<Lane> {
             path: corpus("0047-audio-only.ogg"),
             plays: true,
             refusal: None,
-            seek: SeekClass::DecodeHeaders,
+            // 6.FIX-ogg-reanchor's pin: pre-fix this lane answered
+            // the typed decode refusal `opus.head.missing` (the
+            // engine's generation reconfigure minted a header-less
+            // config); the host's re-seeding wrapper carries the
+            // open-path OpusHead‖OpusTags blob across every
+            // reconfigure and the demuxer's landing mark re-anchors
+            // the granule counter — the seek now lands and plays out
+            // (page-granular: the fixture's pages are ~1 s).
+            seek: SeekClass::PageGranular,
         },
         Lane {
             family: "mp4/mjpeg",
@@ -537,6 +547,51 @@ fn in_session_seek_per_family_class_through_the_binary() {
                     terminal - anchor
                 ));
             }
+            SeekClass::PageGranular => {
+                let terminal = completed.must_or("the seek must land with a terminal");
+                let position_us = timed
+                    .first_int_after("TimingSeekCompleted", "position: Timestamp(")
+                    .must_or("the terminal carries its position payload");
+                let duration_us = timed
+                    .first_int_after("duration: Known", "time: Timestamp(")
+                    .must_or("the media duration must be known for a landing lane");
+                let half = duration_us as f64 / 2.0;
+                // The page-granular truth: the landing is the last
+                // page-START at-or-before the target (the 6.FIX-ogg
+                // landing-report semantics — delivery resumes at the
+                // page's own bytes). One page of this fixture ≈ 1 s,
+                // so the honest window is (target − 1.2 s, target].
+                assert!(
+                    (position_us as f64) <= half && position_us as f64 > half - 1_200_000.0,
+                    "{}: the page-granular landing {position_us} µs must sit at-or-before \
+                     the half-media {half} µs and within one page of it:\n{}",
+                    lane.family,
+                    transcript(&timed)
+                );
+                assert!(
+                    failed.is_none(),
+                    "{}: a landing seek fabricates no failure:\n{}",
+                    lane.family,
+                    transcript(&timed)
+                );
+                assert_eq!(
+                    timed
+                        .lines
+                        .iter()
+                        .filter(|(line, _)| line.contains("state-changed Idle → Opening"))
+                        .count(),
+                    1,
+                    "{}: one open only — the seek must not reopen:\n{}",
+                    lane.family,
+                    transcript(&timed)
+                );
+                rows.push(format!(
+                    "{:<15} seek LANDS page-granular at {position_us} µs (target 50% of \
+                     {duration_us} µs); latency first-output→terminal {:>8.1} ms",
+                    lane.family,
+                    terminal - anchor
+                ));
+            }
             SeekClass::DemuxReanchor => {
                 let terminal = failed.must_or("the reanchor refusal must carry a terminal");
                 assert!(
@@ -554,27 +609,6 @@ fn in_session_seek_per_family_class_through_the_binary() {
                 rows.push(format!(
                     "{:<15} seek REFUSES typed (demux reanchor unsupported — the recorded \
                      6.OPW-mp4 gap); latency first-output→terminal {:>8.1} ms",
-                    lane.family,
-                    terminal - anchor
-                ));
-            }
-            SeekClass::DecodeHeaders => {
-                let terminal = failed.must_or("the decode refusal must carry a terminal");
-                assert!(
-                    timed.contains("stage: Decode"),
-                    "{}: the decode-stage refusal must be named:\n{}",
-                    lane.family,
-                    transcript(&timed)
-                );
-                assert!(
-                    completed.is_none(),
-                    "{}: no completion fabricated:\n{}",
-                    lane.family,
-                    transcript(&timed)
-                );
-                rows.push(format!(
-                    "{:<15} seek REFUSES typed (decode: codec headers not replayed on \
-                     reanchor); latency first-output→terminal {:>8.1} ms",
                     lane.family,
                     terminal - anchor
                 ));

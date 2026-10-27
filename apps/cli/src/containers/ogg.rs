@@ -396,7 +396,12 @@ mod tests {
         let _ = decoder
             .flush(&mut sink)
             .unwrap_or_else(|err| unreachable!("flush: {err}"));
-        assert_eq!(sink.0, 67_264, "the reference raw_samples pin");
+        // The granule tail clamp's pin (6.FIX-ogg-reanchor): the
+        // delivered count is the 128-frame head emission excess +
+        // the 66,150-sample valid timeline — the encoder's 986
+        // padding samples past the final granule are trimmed, never
+        // played (the old pin, 67,264, counted them).
+        assert_eq!(sink.0, 66_278, "the reference raw_samples pin");
         assert_eq!(sink.1, 2, "the negotiated channel count");
     }
 

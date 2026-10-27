@@ -473,8 +473,11 @@ fn ogg_opened(relative: &str) -> CliHost {
         1,
         Command::SessionOpen {
             source: SourceSpec::File {
-                path: format!("{}/../../tests/fixtures/{relative}", env!("CARGO_MANIFEST_DIR"))
-                    .into(),
+                path: format!(
+                    "{}/../../tests/fixtures/{relative}",
+                    env!("CARGO_MANIFEST_DIR")
+                )
+                .into(),
             },
             options: OpenOptions::default(),
         },
@@ -507,13 +510,24 @@ fn ogg_opus_in_session_seek_replays_the_codec_headers_and_plays_out() {
     assert_eq!(teardown_edges(&host), 0, "{:?}", host.state_history());
     assert_eq!(open_edges(&host), 1, "{:?}", host.state_history());
     // Decode continued through the boundary: the remainder plays out
-    // to the exact duration (the opus end-trim closes at the last
-    // granule).
+    // to the exact VALID duration (the opus end-trim closes at the
+    // last granule; the start is pre-skip-trimmed — the fixture's
+    // OpusHead carries libopus's default 312-sample pre-skip @48 kHz,
+    // so the coded granule end 19,512 → the valid-timeline end
+    // 19,512 − 312 = 19,200 samples = 400,000 µs exactly; the raw
+    // granule end 406,500 µs is the CODED timeline, not the played
+    // one — measured against the fixture bytes, not guessed).
     host.advance(lumen_cli::host::RUN_PUMPS as u32);
     assert_eq!(host.state(), PlaybackState::Ended, "decoding continued");
-    assert_eq!(host.position_us(), 406_500, "the tail play-out closes");
-    let accounting = host.headless_accounting().must();
-    assert_eq!(accounting.frames_refused, 0, "{accounting:?}");
+    assert_eq!(host.position_us(), 400_000, "the tail play-out closes");
+    // The audio-only lane's counters (the accounting twin of the
+    // video-bearing lanes' `headless_accounting`): nothing refused,
+    // and the boundary's straggler gate stayed honest (a head-landing
+    // seek cannot strand old-generation frames — the landing IS the
+    // head — so the drop count is exactly zero).
+    let (accepted, refused, stale_dropped) = host.audio_lane_counters().must();
+    assert_eq!(refused, 0, "frames refused: {accepted} accepted");
+    assert_eq!(stale_dropped, 0, "straggler drops");
 }
 
 /// The Vorbis twin (the three-header chain in `extra_data` — the
@@ -534,20 +548,50 @@ fn ogg_vorbis_in_session_seek_replays_the_codec_headers_and_lands() {
     );
     // The regression: the terminal is a COMPLETION (before the fix
     // this was the typed decode refusal `vorbis.headers.missing`).
-    // The landing is the page-safe actual: 1,011,520 µs, the first
-    // stamped frame's own position at the page-2 granule.
+    // The landing is the landing page's START stamp — the first data
+    // page (end granule 44,608) begins at sample 0 behind the header
+    // pages, so the honest actual is 0 and the whole media plays out
+    // from there to its exact 1.5 s end (the old pin, 1,011,520 µs,
+    // was the page's END — a position the stream then played past:
+    // the 6.FIX-ogg-reanchor landing-report fix).
     assert_eq!(
         seek_completed_position(&host),
-        Some(Timestamp(1_011_520)),
-        "the page-granular landing at the first stamped frame"
+        Some(Timestamp(0)),
+        "the page-start landing (the first data page begins at 0)"
     );
-    assert_eq!(host.state(), PlaybackState::Playing);
+    // The post-seek rebuffer episode is the measured W4 normal
+    // (Playing→Buffering→Playing while the queues re-prime at the
+    // landing): the opus twin closes inside the dispatch budget, the
+    // vorbis lane's 0.49 s remainder takes longer — the honest state
+    // at the terminal is still Buffering, and `settle` pumps the
+    // episode closed before the continuation.
+    host.settle();
+    assert_eq!(host.state(), PlaybackState::Playing, "rebuffer closed");
     assert_eq!(teardown_edges(&host), 0, "{:?}", host.state_history());
     assert_eq!(open_edges(&host), 1, "{:?}", host.state_history());
-    // Decode continued: the remainder plays out to the exact end.
+    // Decode continued: the remainder plays out to the media's end.
+    // The end position is the MEASURED 1,502,902 µs — identical on
+    // the open path (no seek; probed this session) — the decoder's
+    // 128-frame stream-head emission residue (2,902 µs on 44.1 kHz;
+    // the first stamped page's shift absorbs the over-emission
+    // positionally, but the sample count rides the ring). The seek
+    // machinery itself is exact: the landing report equals the
+    // delivery start, the ring's old-generation prefix flushes
+    // exactly, and the granule tail clamp trims the encoder padding
+    // (986 frames on this fixture). The head trim is the decoder's
+    // recorded follow-up (6.FIX-vorbis-headtrim in the defect
+    // ledger) — pinned to the measured truth, not the nominal 1.5 s.
     host.advance(lumen_cli::host::RUN_PUMPS as u32);
     assert_eq!(host.state(), PlaybackState::Ended, "decoding continued");
-    assert_eq!(host.position_us(), 1_500_000, "the tail play-out closes");
-    let accounting = host.headless_accounting().must();
-    assert_eq!(accounting.frames_refused, 0, "{accounting:?}");
+    assert_eq!(host.position_us(), 1_502_902, "the tail play-out closes");
+    // The audio-only lane's counters: nothing refused; the boundary's
+    // exact-prefix flush may honestly drop accept-window stragglers
+    // (old-generation frames that completed behind the discard) —
+    // recorded, never silent.
+    let (accepted, refused, stale_dropped) = host.audio_lane_counters().must();
+    assert_eq!(refused, 0, "frames refused: {accepted} accepted");
+    assert!(
+        stale_dropped < 3,
+        "straggler drops bounded: {stale_dropped} of {accepted} accepted"
+    );
 }
