@@ -66,6 +66,64 @@ impl LoggedRequest {
     }
 }
 
+/// A route whose served body advances per fetch (card 6.B1b,
+/// additive testkit extension for live-window simulation): fetch `i`
+/// of the route serves `bodies[i]`, and once the script is exhausted
+/// the **last body repeats** — the "server never publishes more
+/// segments" shape a stalled live source presents.
+///
+/// The state is shared behind the handle (`Clone` clones the share,
+/// not the script), so the same value installed in a
+/// [`MockConfig`] keeps living in the test: the test scripts the
+/// playlist evolution, the session under test drives the fetching.
+#[derive(Debug, Clone, Default)]
+pub struct ScriptedRoute {
+    state: Arc<Mutex<ScriptedRouteState>>,
+}
+
+/// The advancing cursor over the scripted bodies.
+#[derive(Debug, Default)]
+struct ScriptedRouteState {
+    bodies: Vec<Vec<u8>>,
+    next: usize,
+}
+
+impl ScriptedRoute {
+    /// A route serving `bodies` in order, the last repeating forever.
+    /// An empty script serves empty bodies (the 404 shape belongs to
+    /// route *matching*, not to script exhaustion).
+    #[must_use]
+    pub fn new(bodies: Vec<Vec<u8>>) -> ScriptedRoute {
+        ScriptedRoute {
+            state: Arc::new(Mutex::new(ScriptedRouteState { bodies, next: 0 })),
+        }
+    }
+
+    /// Serve the next body and advance (last repeats). Lock poisoning
+    /// (impossible without a panicking test thread) degrades to
+    /// serving the current entry without advancing — never a panic.
+    fn take(&self) -> Vec<u8> {
+        let mut state = match self.state.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        if state.bodies.is_empty() {
+            return Vec::new();
+        }
+        let idx = state.next.min(state.bodies.len() - 1);
+        state.next += 1;
+        state.bodies[idx].clone()
+    }
+
+    /// How many times this route has been fetched (test assertions).
+    pub fn fetches(&self) -> usize {
+        match self.state.lock() {
+            Ok(guard) => guard.next,
+            Err(poisoned) => poisoned.into_inner().next,
+        }
+    }
+}
+
 /// One mock server's behavior (card 6.A1a scope).
 ///
 /// A server serves **one** scripted behavior for every request — tests
@@ -114,6 +172,15 @@ pub struct MockConfig {
     /// HLS sessions fetch a playlist plus several segment resources
     /// from one origin, which is exactly this shape.
     pub routes: Vec<(String, Vec<u8>)>,
+    /// Per-fetch **scripted** routes (card 6.B1b, additive): a path
+    /// matching a [`ScriptedRoute`] here is served that route's next
+    /// body — the reload-mutable state a live window needs (the
+    /// playlist changes between fetches; the segments stay static in
+    /// `routes`). Scripted routes take precedence over `routes`;
+    /// everything else (Range honoring, forced status, truncation)
+    /// operates on the selected body exactly as with `routes`.
+    /// Empty (the default) changes nothing.
+    pub scripted_routes: Vec<(String, ScriptedRoute)>,
 }
 
 impl Default for MockConfig {
@@ -129,6 +196,7 @@ impl Default for MockConfig {
             truncate_body_at: None,
             garbage_first_line: false,
             routes: Vec::new(),
+            scripted_routes: Vec::new(),
         }
     }
 }
@@ -342,24 +410,38 @@ fn write_response(
             _ => return stream.write_all(redirect_head("/r1").as_bytes()),
         }
     }
-    // Per-path routing (6.B1a): the request path (query stripped)
-    // selects the body; an unmatched routed path is a 404. With no
-    // routes configured the single-body behavior is unchanged.
-    let body: &[u8] = if config.routes.is_empty() {
-        &config.body
-    } else {
-        let path_only = request.path.split('?').next().unwrap_or("");
-        match config.routes.iter().find(|(route, _)| route == path_only) {
-            Some((_, routed)) => routed,
+    // Body selection (query stripped from the path): a scripted
+    // (per-fetch) route wins, then the static per-path routes, then
+    // the single body. An unmatched path in either routed mode is a
+    // 404; with no routes configured at all the single-body behavior
+    // is unchanged (6.A1a's contract).
+    let path_only = request.path.split('?').next().unwrap_or("");
+    let body: Vec<u8> = {
+        let scripted = config
+            .scripted_routes
+            .iter()
+            .find(|(route, _)| route == path_only)
+            .map(|(_, scripted)| scripted.take());
+        match scripted {
+            Some(body) => body,
             None => {
-                write!(
-                    stream,
-                    "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
-                )?;
-                return stream.flush();
+                if config.routes.is_empty() {
+                    config.body.clone()
+                } else if let Some((_, routed)) =
+                    config.routes.iter().find(|(route, _)| route == path_only)
+                {
+                    routed.clone()
+                } else {
+                    write!(
+                        stream,
+                        "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                    )?;
+                    return stream.flush();
+                }
             }
         }
     };
+    let body: &[u8] = &body;
     if let Some(cut) = config.truncate_body_at {
         let cut = cut.min(body.len());
         write!(
@@ -1037,5 +1119,33 @@ mod tests {
         assert_eq!(parse_range_spec("bytes=5-2"), None);
         assert_eq!(parse_range_spec("chunks=0-1"), None);
         assert_eq!(parse_range_spec("bytes=a-b"), None);
+    }
+
+    /// The 6.B1b scripted route: bodies advance per fetch, the last
+    /// repeats, static `routes` keep working alongside, and unmatched
+    /// paths stay 404 — the live-window server shape.
+    #[test]
+    fn scripted_route_advances_and_repeats_last() {
+        let scripted = ScriptedRoute::new(vec![b"first".to_vec(), b"second".to_vec()]);
+        let shared = scripted.clone(); // the test's view of the same state
+        let server = spawn(MockConfig {
+            routes: vec![("/seg.ts".to_owned(), b"SEG".to_vec())],
+            scripted_routes: vec![("/pl.m3u8".to_owned(), scripted)],
+            ..MockConfig::default()
+        });
+        let fetch = fetcher();
+        let body = |path: &str| fetch.fetch(HttpRequest::get(server.url(path))).must().body;
+        assert_eq!(body("pl.m3u8"), b"first", "fetch 1 serves the first body");
+        assert_eq!(body("pl.m3u8"), b"second", "fetch 2 advances");
+        assert_eq!(body("pl.m3u8"), b"second", "script exhausted: last repeats");
+        assert_eq!(shared.fetches(), 3, "the handle counts fetches");
+        assert_eq!(body("seg.ts"), b"SEG", "static routes coexist");
+        // The mock client's contract maps 4xx to a typed HttpStatus
+        // error — an unmatched path never serves a silent body.
+        let err = match fetch.fetch(HttpRequest::get(server.url("nope"))) {
+            Err(e) => e,
+            Ok(response) => unreachable!("unmatched path is a 404, got {}", response.status),
+        };
+        assert!(matches!(err, NetworkError::HttpStatus { code: 404, .. }));
     }
 }
