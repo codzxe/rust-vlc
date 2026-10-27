@@ -86,6 +86,24 @@ trigger: user demand + a validate-then-admit card in the 6.A1b shape.
 - Bare paths pass through verbatim; canonicalization stays with the
   composition site (the existing CLI open path's job).
 
+## DASH transport (card 6.C1a record)
+
+MPEG-DASH is **http(s)-only by this registry's policy**: MPD
+manifests, `BaseURL`-derived segment URLs, and every template/list
+resolution the C1b session will mint dispatch through the `http`/
+`https` strategies above — DASH introduces **no new scheme** and no
+second transport stack. The parse core itself is transport-free and
+landed in `playlists::mpd` (card 6.C1a, the B1a precedent: the m3u8
+parse in `playlists::hls`, the session in this crate); URLs stay
+**verbatim** in the model (`BaseURL` elements and unresolved
+`$RepresentationID$`/`$Number$` template strings — resolution is
+C1b's). A `file:` URL naming a local `.mpd` is ordinary local-file
+open-path territory, not a DASH transport; every other scheme on a
+DASH source refuses `streaming.scheme.unsupported` as the registry
+table already pins. `ContentProtection` (DRM) is recorded by the
+parser and will surface as the session's typed encrypted refusal —
+never as a scheme or transport decision.
+
 ## Normalization (6.A3 "URL parsing/normalization")
 
 - Schemes are matched ASCII case-insensitively, stored lowercase
