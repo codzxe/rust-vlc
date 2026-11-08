@@ -12,12 +12,17 @@
  *   1. bundled type (Nunito variable, OFL — see assets/fonts/)
  *   2. the sunset backdrop (body pseudo-elements; the body background-color
  *      floor from a11y/page.css is untouched — axe contrast resolution and
- *      the paint guarantee both keep working)
+ *      the paint guarantee both keep working) — THREE tiers (v2 brief §1):
+ *        default   player chrome: moderate veil
+ *        "vivid"   stage moments (onboarding, 404): full-strength sunset
+ *        "calm"    working screens (settings, playlist, …): heavy veil,
+ *                  the sunset is a warm memory behind anchored cards
  *   3. surfaces: .solstice-note (sticky note), .solstice-glass (translucent
- *      warm panel), .solstice-tape (washi strip)
+ *      warm panel), .solstice-tape (washi strip), .solstice-scrim (dialog)
  *   4. chips: .solstice-key (keycap), .solstice-chip (pill)
  *   5. ornaments: .solstice-sun (sun disc), .solstice-hr (torn divider)
  *   6. motion: .solstice-rise / .solstice-fade (reduced-motion aware)
+ *   7. craft utilities: focus ring, safe-area keycap strip (v2 §2)
  */
 
 /* ------------------------------------------------------------------ */
@@ -62,10 +67,16 @@ h4 {
 /*
  * body::before paints the sunset; body::after lays a mode-tinted veil over
  * it so the default app chrome reads as a *remembered* sunset, calm enough
- * to sit behind dense screens. html[data-backdrop="vivid"] drops the veil
- * (onboarding hero); html[data-backdrop="none"] removes the gradient.
+ * to sit behind dense screens. Three tiers (solstice-v2 brief §1):
+ *   html[data-backdrop="vivid"]  stage moments — veil off, full sunset.
+ *   html[data-backdrop="calm"]   working screens — heavy veil (~0.9), the
+ *                                gradient reduced to a warm tint so cards
+ *                                anchor (fixes "boxes on a screensaver").
+ *   (no attribute)               player chrome — moderate veil (0.52).
+ * html[data-backdrop="none"] removes the gradient entirely.
  * Screens keep painting their own surfaces on top; transparent screens let
- * the stage glow through.
+ * the stage glow through. Screens set/clear the attribute in mount effects
+ * (see OnboardingScreen) and MUST clean up on unmount.
  */
 
 body::before {
@@ -105,6 +116,28 @@ html[data-theme="light"] body::after {
 
 html[data-backdrop="vivid"] body::after {
   opacity: 0;
+}
+
+/* App tier: the sunset becomes a quiet warm wash. Cards on calm screens
+ * must feel anchored, not floating on a wallpaper. */
+html[data-backdrop="calm"] body::after {
+  opacity: 0.9;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-surface) 96%, var(--color-sunset-2)) 0%,
+    var(--color-surface) 38%,
+    color-mix(in srgb, var(--color-surface) 97%, var(--color-sunset-4)) 100%
+  );
+}
+
+html[data-theme="light"][data-backdrop="calm"] body::after {
+  opacity: 0.92;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-surface) 97%, var(--color-sunset-2)) 0%,
+    var(--color-surface) 40%,
+    color-mix(in srgb, var(--color-surface) 98%, var(--color-sunset-5)) 100%
+  );
 }
 
 html[data-backdrop="none"] body::before,
@@ -198,6 +231,33 @@ html[data-backdrop="none"] body::after {
   border-radius: var(--radius-card);
   backdrop-filter: blur(var(--blur-backdrop-small));
   box-shadow: var(--shadow-card);
+}
+
+/* Dialog scrim — every modal sits on this (v2 §4.4). Paints a dark warm
+ * veil over the app so the dialog reads as a layer above the app, not a
+ * box on the wallpaper. The dialog surface itself stays owned by the
+ * screen CSS. */
+.solstice-scrim {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-inset-lg, 24px);
+  background:
+    radial-gradient(
+      ellipse at 50% 38%,
+      rgb(20 14 8 / 0.18) 0%,
+      rgb(16 11 6 / 0.44) 62%,
+      rgb(10 7 4 / 0.62) 100%
+    );
+  backdrop-filter: blur(2px);
+  animation: solstice-fade var(--motion-duration-fast) ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .solstice-scrim {
+    animation: none;
+  }
 }
 
 /* ------------------------------------------------------------------ */

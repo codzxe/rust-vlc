@@ -54,7 +54,7 @@ describe("PlayerScreen — ARIA landmarks + honest placeholders (doc 08 §4.5)",
     expect(container.querySelector("video")).toBeNull();
     expect(container.querySelector("canvas")).toBeNull();
     // screen-reader note records the engine-wiring handoff (Solstice copy)
-    expect(canvas.textContent).toContain("Video output connects here once the engine wires it up.");
+    expect(canvas.textContent).toContain("Video appears here during playback");
   });
 
   it("renders the top bar (banner) with the screen title and the real control bar (4.C2)", () => {

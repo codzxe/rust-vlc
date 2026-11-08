@@ -48,6 +48,10 @@ export function OpenMediaDialog({
   // (the demo transport does; real hosts will surface their own history).
   const recent = isDemoTransport(client) ? client.recentOpenings : [];
 
+  // v2 §4.1 — single click OPENS the clip. The selection state only exists
+  // so keyboard users can focus an item and confirm with the Open button;
+  // pointer users never need to know it exists. Enter/Space on a focused
+  // list item button opens it (native button semantics).
   const openSource = (source: SourceSpec): void => {
     setOpening(true);
     nextRequestId.current += 1;
@@ -87,8 +91,7 @@ export function OpenMediaDialog({
                     selected !== null &&
                     sourceLocation(selected) === sourceLocation(clip.source)
                   }
-                  onClick={() => setSelected(clip.source)}
-                  onDoubleClick={() => openSource(clip.source)}
+                  onClick={() => openSource(clip.source)}
                 >
                   <span className="open-media__thumb solstice-sun" aria-hidden="true" />
                   <span className="open-media__item-title">{m(clip.titleKey)}</span>
@@ -116,8 +119,7 @@ export function OpenMediaDialog({
                       selected !== null &&
                       sourceLocation(selected) === sourceLocation(entry.source)
                     }
-                    onClick={() => setSelected(entry.source)}
-                    onDoubleClick={() => openSource(entry.source)}
+                    onClick={() => openSource(entry.source)}
                   >
                     <span className="open-media__thumb solstice-sun" aria-hidden="true" />
                     <span className="open-media__item-title">

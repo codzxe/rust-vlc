@@ -608,7 +608,7 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "tokens.accent": "Accent",
   // --- player screen shell (card 4.C1) ---
   "player.canvas.label": "Video canvas",
-  "player.canvas.placeholder": "Video output connects here once the engine wires it up.",
+  "player.canvas.placeholder": "Video appears here during playback — the render surface arrives with the desktop build.",
   "player.region.title-bar": "Player title bar",
   "player.region.controls-bar": "Playback controls",
   "player.region.library": "Library",
@@ -642,7 +642,7 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "playlist.panel.empty-title": "Nothing in the queue",
   "playlist.panel.empty-body": "Files you open are listed here in order.",
   "playlist.panel.not-exposed": "Playlist commands are not exposed by this build — showing seeded data only.",
-  "playlist.panel.load-handoff": "Opening playlist files (.m3u) is wired by the app shell (card 4.H1).",
+  "playlist.panel.load-handoff": "Pick a file or drop it anywhere — playlists arrive with the desktop build.",
   // --- media info screen (card 4.D2) ---
   "screen.media-info": "Media information",
   "media-info.panel.title": "Media information",
