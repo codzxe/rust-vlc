@@ -1,0 +1,115 @@
+/* Open-media dialog (Solstice): the dialog surface is the shared lumen-dialog
+ * chrome; the inner column floats demo clips + recent openings as sun-dot
+ * rows. Semantic tokens only (raw px appears solely for the thumbnail size —
+ * a structural dimension with no token). */
+
+.open-media {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-inset) * 1.5);
+  min-width: 420px;
+  max-width: 560px;
+  font-family: var(--font-family-sans);
+  color: var(--color-content-primary);
+}
+
+.open-media__title {
+  margin: 0;
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-extrabold);
+}
+
+.open-media__subtitle {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-content-secondary);
+}
+
+.open-media__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+}
+
+.open-media__section-title {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-content-tertiary);
+}
+
+.open-media__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.open-media__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-inset);
+  padding: var(--space-grid) var(--space-inset);
+  text-align: start;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body);
+  color: var(--color-content-primary);
+  background: color-mix(in srgb, var(--color-surface-raised) 35%, transparent);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+
+.open-media__item:hover {
+  background: var(--color-surface-hover);
+}
+
+.open-media__item[aria-pressed="true"] {
+  background: var(--color-surface-selected);
+  border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
+}
+
+.open-media__thumb {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+
+.open-media__item-title {
+  font-weight: var(--font-weight-semibold);
+}
+
+.open-media__item-source {
+  margin-left: auto;
+  font-family: var(--font-family-time);
+  font-size: var(--font-size-caption);
+  color: var(--color-content-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 45%;
+}
+
+.open-media__empty {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-content-tertiary);
+}
+
+.open-media__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-grid);
+  border-top: 1px solid var(--color-stroke-border);
+  padding-top: var(--space-inset);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .open-media__item {
+    transition: background-color var(--motion-duration-fast) ease-out;
+  }
+}

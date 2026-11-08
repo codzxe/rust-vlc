@@ -5,7 +5,7 @@
 // query), i18n keys only (no raw JSX literals), and engine-truth data only —
 // no fabricated progress, success, or format info (doc 05 §1 C1–C8).
 
-import { Button } from "../../../components";
+import { Button, Icon } from "../../../components";
 import { useMsg, type MessageKey } from "../../../i18n/messages";
 import type { CommandError } from "../../../generated/commands";
 import {
@@ -15,19 +15,35 @@ import {
   type UnsupportedDetailKey,
 } from "./error-display";
 
+/** The shell-wide open-media contract (Solstice redesign): the app-shell
+ * file dialog (another workstream) listens for exactly this event name on
+ * `window`. The `onOpenMedia` prop remains as the composition seam for
+ * hosts/tests — both fire, the event first. */
+const OPEN_MEDIA_EVENT = "lumen:open-media";
+
+function dispatchOpenMedia(onOpenMedia?: () => void): void {
+  window.dispatchEvent(new CustomEvent(OPEN_MEDIA_EVENT));
+  onOpenMedia?.();
+}
+
 /** Shared overlay chrome: sits on the canvas region, one visible at a time.
  * Transient states (loading/buffering) are polite live regions; failure
  * surfaces (error/unsupported) are assertive alerts (doc 08 §5.4 “errors are
- * events”); first-run empty is static content. */
+ * events”); first-run empty is static content. Solstice restyle: failure
+ * surfaces float on a washi-taped sticky note (`note`), transient states stay
+ * bare (spinner + label over the warm scrim). */
 function OverlayShell({
   kind,
   busy = false,
   role = "status",
+  note = false,
   children,
 }: {
   kind: string;
   busy?: boolean;
   role?: "status" | "alert" | "presentation";
+  /** Solstice: render the card as a taped sticky note (failure surfaces). */
+  note?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -37,7 +53,12 @@ function OverlayShell({
       aria-busy={busy || undefined}
       role={role}
     >
-      <div className="lumen-state-overlay__card">{children}</div>
+      <div
+        className={note ? "lumen-state-overlay__card solstice-note" : "lumen-state-overlay__card"}
+        data-tape={note ? "" : undefined}
+      >
+        {children}
+      </div>
     </div>
   );
 }
@@ -65,7 +86,7 @@ function ProgressIndicator({
       aria-valuemax={determinate ? 100 : undefined}
       aria-valuenow={percent ?? undefined}
     >
-      <span className="lumen-state-overlay__spinner" aria-hidden="true" />
+      <span className="lumen-state-overlay__spinner solstice-sun" aria-hidden="true" />
       {determinate ? (
         <span className="lumen-state-overlay__bar" aria-hidden="true">
           <span className="lumen-state-overlay__fill" style={{ width: `${percent}%` }} />
@@ -107,8 +128,9 @@ export function UnsupportedOverlay({
   onOpenMedia,
 }: {
   error: CommandError;
-  /** Re-issue the open flow (open a different file). Absent → disabled
-   * honest stub (card 4.C2 wires the real ui-action). */
+  /** Re-issue the open flow (open a different file). Composition seam — the
+   * button always opens the shell-wide file dialog via `lumen:open-media`
+   * (see dispatchOpenMedia); a provided prop additionally fires. */
   onOpenMedia?: () => void;
 }) {
   const m = useMsg();
@@ -119,7 +141,8 @@ export function UnsupportedOverlay({
   };
   const hasInfo = Object.keys(info).length > 0;
   return (
-    <OverlayShell kind="unsupported" role="alert">
+    <OverlayShell kind="unsupported" role="alert" note>
+      <Icon name="about" size={24} className="lumen-state-overlay__icon" />
       <h2 className="lumen-state-overlay__title">{m("player.state.unsupported.title")}</h2>
       <p className="lumen-state-overlay__body">{m("player.state.unsupported.body")}</p>
       {hasInfo ? (
@@ -137,10 +160,11 @@ export function UnsupportedOverlay({
         <p className="lumen-state-overlay__body">{m("player.state.unsupported.no-format")}</p>
       )}
       <Button
-        // Honest stub: no fabricated open; enabled only when wired.
-        disabled={onOpenMedia === undefined}
-        data-wiring-stub={onOpenMedia === undefined ? "session.open — card 4.C2" : undefined}
-        onClick={onOpenMedia}
+        // Real affordance: opens the file dialog via the shell-wide
+        // lumen:open-media event (see dispatchOpenMedia); the prop stays as
+        // the composition seam. Never a fabricated open.
+        variant="primary"
+        onClick={() => dispatchOpenMedia(onOpenMedia)}
       >
         {m("player.empty.open")}
       </Button>
@@ -166,7 +190,8 @@ export function ErrorOverlay({
   const stageKey = error === null ? null : STAGE_MESSAGE_KEYS[error.stage];
   const actionKey = error === null ? null : ERROR_ACTION_MESSAGE_KEYS[error.code];
   return (
-    <OverlayShell kind="error" role="alert">
+    <OverlayShell kind="error" role="alert" note>
+      <Icon name="about" size={24} className="lumen-state-overlay__icon" />
       <h2 className="lumen-state-overlay__title">{m("player.state.error.title")}</h2>
       <p className="lumen-state-overlay__stagetag">
         <span className="lumen-state-overlay__stagetag-label">
@@ -200,22 +225,22 @@ export function ErrorOverlay({
 }
 
 /** Empty / first-run — no media open (`idle`). Migrated from the 4.C1 shell
- * markup (same i18n keys, same honest disabled open affordance — card 4.C2
- * wires session.open + the file-dialog ui-action). */
+ * markup (same i18n keys). Solstice restyle: a glowing sun disc above a
+ * washi-taped sticky note; the gold primary button opens media through the
+ * shell-wide `lumen:open-media` event (the app-shell dialog listens for
+ * exactly that name) — a real affordance, enabled from the start. */
 export function EmptyOverlay({ onOpenMedia }: { onOpenMedia?: () => void }) {
   const m = useMsg();
   return (
     <div className="lumen-player__empty" data-empty-state="first-run" data-overlay="empty">
-      <h2 className="lumen-player__empty-title">{m("player.empty.title")}</h2>
-      <p className="lumen-player__empty-body">{m("player.empty.body")}</p>
-      <Button
-        // Honest stub: no fabricated open; enabled only when wired.
-        disabled={onOpenMedia === undefined}
-        data-wiring-stub={onOpenMedia === undefined ? "session.open — card 4.C2" : undefined}
-        onClick={onOpenMedia}
-      >
-        {m("player.empty.open")}
-      </Button>
+      <span className="solstice-sun lumen-player__empty-sun" aria-hidden="true" />
+      <div className="solstice-note lumen-player__empty-card solstice-rise" data-tape>
+        <h2 className="lumen-player__empty-title">{m("player.empty.title")}</h2>
+        <p className="lumen-player__empty-body">{m("player.empty.body")}</p>
+        <Button variant="primary" onClick={() => dispatchOpenMedia(onOpenMedia)}>
+          {m("player.empty.open")}
+        </Button>
+      </div>
     </div>
   );
 }

@@ -503,7 +503,91 @@ export type MessageKey =
   | "onboarding.action.skip"
   | "onboarding.action.get-started"
   | "onboarding.progress.label"
-  | "onboarding.progress.of";
+  | "onboarding.progress.of"
+  // --- Solstice app shell + navigation (2026-11-08 redesign) ---
+  | "nav.title"
+  | "nav.player"
+  | "nav.playlist"
+  | "nav.media-info"
+  | "nav.shortcuts"
+  | "nav.settings"
+  | "nav.open-menu"
+  | "menu.file"
+  | "menu.file.open-media"
+  | "menu.file.open-network-stream"
+  | "menu.file.exit"
+  | "menu.playback"
+  | "menu.playback.play-pause"
+  | "menu.playback.stop"
+  | "menu.playback.next"
+  | "menu.playback.previous"
+  | "menu.playback.shuffle"
+  | "menu.playback.repeat"
+  | "menu.view"
+  | "menu.view.player"
+  | "menu.view.music-mode"
+  | "menu.view.miniplayer"
+  | "menu.view.playlist"
+  | "menu.view.media-info"
+  | "menu.view.shortcuts"
+  | "menu.view.settings"
+  | "menu.tools"
+  | "menu.tools.customize"
+  | "menu.tools.media-info"
+  | "menu.tools.preferences"
+  | "menu.help"
+  | "menu.help.about"
+  | "menu.help.keyboard-shortcuts"
+  | "demo.badge"
+  | "demo.notice.title"
+  | "demo.notice.body"
+  // --- open media dialog ---
+  | "open.title"
+  | "open.subtitle"
+  | "open.recent"
+  | "open.recent.empty"
+  | "open.demo-clips"
+  | "open.clip.bunny"
+  | "open.clip.ambient"
+  | "open.clip.live"
+  | "open.clip.radio"
+  | "open.action"
+  | "open.cancel"
+  // --- open network stream screen ---
+  | "stream.title"
+  | "stream.subtitle"
+  | "stream.url.label"
+  | "stream.url.placeholder"
+  | "stream.recent"
+  | "stream.recent.empty"
+  | "stream.open"
+  | "stream.invalid"
+  // --- keyboard shortcuts screen ---
+  | "shortcuts.title"
+  | "shortcuts.subtitle"
+  | "shortcuts.search.label"
+  | "shortcuts.search.placeholder"
+  | "shortcuts.search.empty"
+  | "shortcuts.group.playback"
+  | "shortcuts.group.navigation"
+  | "shortcuts.group.volume"
+  | "shortcuts.group.variants"
+  | "shortcuts.edit.hint"
+  // --- not found ---
+  | "not-found.title"
+  | "not-found.body"
+  | "not-found.action"
+  // --- onboarding extras (Solstice) ---
+  | "onboarding.shortcuts.hint-volume"
+  | "onboarding.shortcuts.hint-mute"
+  | "onboarding.shortcuts.hint-playlist"
+  | "onboarding.keys.enter"
+  | "onboarding.keys.left"
+  | "onboarding.keys.right"
+  // --- player extras (Solstice) ---
+  | "player.keys.strip.label"
+  | "player.demo.playing"
+  | "player.open.recent";
 
 // The en-US reference catalog (doc 07 §6.3) — exported for the pseudo
 // generator, tests, and l10n tooling.
@@ -524,7 +608,7 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "tokens.accent": "Accent",
   // --- player screen shell (card 4.C1) ---
   "player.canvas.label": "Video canvas",
-  "player.canvas.placeholder": "Placeholder: video output is not connected yet — engine wiring lands with card 4.H1.",
+  "player.canvas.placeholder": "Video output connects here once the engine wires it up.",
   "player.region.title-bar": "Player title bar",
   "player.region.controls-bar": "Playback controls",
   "player.region.library": "Library",
@@ -541,7 +625,7 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "player.variant.miniplayer.expand": "Expand to full player",
   "player.variant.miniplayer.close": "Close miniplayer",
   "player.art.label": "Album art",
-  "player.art.placeholder": "Album art placeholder — artwork renders once the engine reports it.",
+  "player.art.placeholder": "Album art appears once the engine reports it.",
   "player.music.waveform-placeholder":
     "Waveform seek appears when the engine reports audio levels; the standard seekbar is shown meanwhile.",
   "player.controls.play": "Play",
@@ -1003,6 +1087,83 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "onboarding.action.get-started": "Get started",
   "onboarding.progress.label": "Onboarding step",
   "onboarding.progress.of": "of",
+  "nav.title": "Primary navigation",
+  "nav.player": "Player",
+  "nav.playlist": "Playlist",
+  "nav.media-info": "Media info",
+  "nav.shortcuts": "Shortcuts",
+  "nav.settings": "Settings",
+  "nav.open-menu": "Open menu",
+  "menu.file": "File",
+  "menu.file.open-media": "Open media…",
+  "menu.file.open-network-stream": "Open network stream…",
+  "menu.file.exit": "Exit",
+  "menu.playback": "Playback",
+  "menu.playback.play-pause": "Play / pause",
+  "menu.playback.stop": "Stop",
+  "menu.playback.next": "Next",
+  "menu.playback.previous": "Previous",
+  "menu.playback.shuffle": "Shuffle",
+  "menu.playback.repeat": "Repeat",
+  "menu.view": "View",
+  "menu.view.player": "Player",
+  "menu.view.music-mode": "Music mode",
+  "menu.view.miniplayer": "Miniplayer",
+  "menu.view.playlist": "Playlist",
+  "menu.view.media-info": "Media info",
+  "menu.view.shortcuts": "Keyboard shortcuts",
+  "menu.view.settings": "Settings",
+  "menu.tools": "Tools",
+  "menu.tools.customize": "Customize player…",
+  "menu.tools.media-info": "Media information",
+  "menu.tools.preferences": "Preferences",
+  "menu.help": "Help",
+  "menu.help.about": "About",
+  "menu.help.keyboard-shortcuts": "Keyboard shortcuts",
+  "demo.badge": "Demo",
+  "demo.notice.title": "Demo mode",
+  "demo.notice.body": "Playback is simulated in the browser shell. The desktop build drives the real engine.",
+  "open.title": "Open media",
+  "open.subtitle": "Pick a demo clip, a recent file, or paste a path.",
+  "open.recent": "Recent",
+  "open.recent.empty": "Nothing opened yet",
+  "open.demo-clips": "Demo clips",
+  "open.clip.bunny": "Big Buck Bunny (1080p, 10 min)",
+  "open.clip.ambient": "Ambient loop (music, 3 min)",
+  "open.clip.live": "Live edge (HLS stream)",
+  "open.clip.radio": "Night radio (audio stream)",
+  "open.action": "Open",
+  "open.cancel": "Cancel",
+  "stream.title": "Open network stream",
+  "stream.subtitle": "Paste an HTTP, HLS or DASH address.",
+  "stream.url.label": "Network URL",
+  "stream.url.placeholder": "https://example.com/stream.m3u8",
+  "stream.recent": "Recent streams",
+  "stream.recent.empty": "No recent streams",
+  "stream.open": "Open stream",
+  "stream.invalid": "Enter a valid http:// or https:// URL",
+  "shortcuts.title": "Keyboard shortcuts",
+  "shortcuts.subtitle": "Every key the player understands. Edit overrides in Settings.",
+  "shortcuts.search.label": "Search shortcuts",
+  "shortcuts.search.placeholder": "Filter by action or key…",
+  "shortcuts.search.empty": "No shortcuts match your search.",
+  "shortcuts.group.playback": "Playback",
+  "shortcuts.group.navigation": "Navigation",
+  "shortcuts.group.volume": "Volume",
+  "shortcuts.group.variants": "Player variants",
+  "shortcuts.edit.hint": "Customize these in Settings \u2192 Hotkeys",
+  "not-found.title": "Lost the thread",
+  "not-found.body": "That page slipped off the reel. The player is still rolling.",
+  "not-found.action": "Back to the player",
+  "onboarding.shortcuts.hint-volume": "Volume wheel: turn it up, turn it down",
+  "onboarding.shortcuts.hint-mute": "Mute in one tap",
+  "onboarding.shortcuts.hint-playlist": "Jump to the playlist anytime",
+  "onboarding.keys.enter": "Enter",
+  "onboarding.keys.left": "Left",
+  "onboarding.keys.right": "Right",
+  "player.keys.strip.label": "Player keys",
+  "player.demo.playing": "Simulated playback",
+  "player.open.recent": "Recent",
 };
 
 export type Msg = (key: MessageKey) => string;

@@ -1,11 +1,24 @@
-/* Card 4.D1 — playlist panel (doc 08 §1.6: 377px translucent panel over
- * video; §1.5 option.svg 48h rows; §4.5 listbox semantics). Semantic tokens
- * only (§3.2); raw px solely for structural dimensions with no token. */
+/* Playlist panel + /playlist page — Solstice restyle (2026-11-08).
+ *
+ * Two contexts share this sheet: the player shell's `playlist` side region
+ * (surface-panel backdrop, 377px) and the /playlist route, where the page
+ * root stays transparent so the veiled sunset glows through and the queue
+ * floats on ONE large flat sticky note — composed from the note tokens,
+ * never tilted (data must sit level) — with a washi-tape strip pinned over
+ * its top edge.
+ *
+ * Contracts kept (PlaylistPanel.test.tsx / e2e): the VirtualList 48px row
+ * pitch, `.lumen-plrow--current` + data-current, the sr-only "Now playing"
+ * text, drag-reorder handlers on `.lumen-plrow`, the exact empty-state copy.
+ * Semantic tokens only (doc 08 §3.2); raw px solely for structural
+ * dimensions with no token (grip dots, sun-dot, tape geometry). */
+
+/* ------------------------------------------------------------- panel -- */
 
 .lumen-playlist {
   display: flex;
   flex-direction: column;
-  gap: var(--space-grid);
+  gap: calc(var(--space-grid) * 2);
   min-height: 0;
   flex: 1;
 }
@@ -14,23 +27,27 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-grid);
+  gap: var(--space-grid) var(--space-inset);
   padding: 0 var(--space-inset);
 }
 
 .lumen-playlist__title {
   margin: 0;
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-bold);
   color: var(--color-content-primary);
 }
 
+/* Count badge — a quiet pill; the numeral sits in the time face. The
+ * page's single gold emphasis stays reserved for the current row. */
 .lumen-playlist__count {
-  font-size: var(--font-size-micro);
-  /* 4.F4 a11y fix: tertiary micro-text on the page surface was 3.29:1
-   * (wcag 1.4.3 fail, caught by the axe suite). */
-  color: var(--color-content-secondary);
+  flex: none;
+}
+
+.lumen-playlist__count-num {
+  font-family: var(--font-family-time);
+  font-weight: var(--font-weight-bold);
 }
 
 .lumen-playlist__controls {
@@ -39,38 +56,78 @@
   margin-left: auto;
 }
 
-.lumen-playlist__note,
-.lumen-playlist__footer {
-  margin: 0;
-  padding: 0 var(--space-inset);
-  font-size: var(--font-size-micro);
-  /* 4.F4 a11y fix: tertiary micro-text on the panel was 3.6:1 (wcag 1.4.3). */
+/* Engine-reported "on" toggles lean gold — active states may use accent. */
+.lumen-playlist__controls [aria-pressed="true"] {
+  color: var(--color-accent-icon);
+}
+
+/* The honest "not exposed" line — a compact chip, not a paragraph. The
+ * utility pill fixes its height at 26px; long honesty copy must wrap. */
+.lumen-playlist .lumen-playlist__note {
+  height: auto;
+  min-height: 26px;
+  margin: 0 var(--space-inset);
+  align-self: flex-start;
+  white-space: normal;
   color: var(--color-content-secondary);
 }
 
+.lumen-playlist__footer {
+  margin: 0;
+  padding: 0 var(--space-inset);
+  font-size: var(--font-size-caption);
+  /* secondary (not tertiary): micro/caption text on the panel stays AA
+   * (4.F4 a11y precedent — the old tertiary-on-panel was 3.6:1). */
+  color: var(--color-content-secondary);
+}
+
+/* Empty state — a small recessed note tray with the sun-disc ornament.
+ * --color-surface-deep reads as an inset both on the page's sticky note
+ * and on the player's surface-panel side region, in both theme modes. */
 .lumen-playlist__empty {
+  position: relative;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: var(--space-grid);
-  padding: var(--space-inset);
+  margin: var(--space-grid) var(--space-inset) 0;
+  padding: calc(var(--space-inset) * 3) var(--space-inset);
+  text-align: center;
+  background: var(--color-surface-deep);
+  border: 1px solid var(--color-note-edge);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.lumen-playlist__sun {
+  width: 28px;
+  height: 28px;
+  margin-bottom: var(--space-grid);
 }
 
 .lumen-playlist__empty-title {
   margin: 0;
   font-size: var(--font-size-body);
+  font-weight: var(--font-weight-bold);
   color: var(--color-content-primary);
 }
 
 .lumen-playlist__empty-body {
   margin: 0;
-  font-size: var(--font-size-micro);
-  /* 4.F4 a11y fix: tertiary micro-text on the panel was 3.6:1 (wcag 1.4.3). */
+  font-size: var(--font-size-caption);
   color: var(--color-content-secondary);
 }
 
 .lumen-playlist__list {
   flex: 1;
   min-height: 0;
+}
+
+/* The vrow's square-cornered hover is retired here — the row paints its
+ * own rounded warm fill, so edges stay tidy inside the note. */
+.lumen-playlist__list .lumen-vrow:hover {
+  background: transparent;
 }
 
 .lumen-playlist__sr {
@@ -82,7 +139,10 @@
   white-space: nowrap;
 }
 
-/* 48h rows (option.svg): marker | title+location | duration | actions. */
+/* -------------------------------------------------------------- rows -- */
+/* 48h pitch (option.svg): grip | index | marker | title+location | duration
+ * | actions. The VirtualList sets the vrow height; `.lumen-plrow` fills it. */
+
 .lumen-plrow {
   position: absolute;
   inset: 0 auto auto 0;
@@ -95,21 +155,77 @@
   color: var(--color-content-primary);
   background: transparent;
   border-radius: var(--radius-panel);
+  cursor: grab;
+  transition: background-color var(--motion-duration-fast) ease-out;
 }
 
-.lumen-plrow:hover {
+.lumen-plrow:active {
+  cursor: grabbing;
+}
+
+.lumen-plrow:hover,
+.lumen-plrow:focus-within {
   background: var(--color-surface-hover);
 }
 
+/* Current row — the view's one gold emphasis: warm selected fill, a gold
+ * left edge and a small sun-dot in the marker column. */
 .lumen-plrow--current {
   color: var(--color-content-bright);
   background: var(--color-surface-selected);
+  box-shadow: inset 3px 0 0 var(--color-accent);
+}
+
+/* Drag-reorder handle — a low-contrast dot matrix that sharpens on
+ * hover/focus. Decorative (aria-hidden); the whole row stays draggable. */
+.lumen-plrow__grip {
+  flex: none;
+  width: 8px;
+  height: 20px;
+  background-image: radial-gradient(circle, var(--color-content-secondary) 1.2px, transparent 1.7px);
+  background-size: 4px 5px;
+  background-position: center;
+  opacity: var(--opacity-muted);
+}
+
+.lumen-plrow:hover .lumen-plrow__grip,
+.lumen-plrow:focus-within .lumen-plrow__grip {
+  opacity: var(--opacity-emphasis);
+}
+
+/* Index — muted, right-aligned, in the time face. */
+.lumen-plrow__index {
+  flex: none;
+  min-width: 2ch;
+  font-family: var(--font-family-time);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  text-align: end;
+  color: var(--color-content-secondary);
 }
 
 .lumen-plrow__marker {
+  flex: none;
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 14px;
+  height: 14px;
   color: var(--color-content-bright);
+}
+
+/* The small sun-dot — a miniature of the .solstice-sun disc in accent gold. */
+.lumen-plrow__sundot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 35% 30%,
+    var(--color-accent-bright) 0%,
+    var(--color-accent) 60%,
+    var(--color-accent-strong) 100%
+  );
+  box-shadow: 0 0 6px color-mix(in srgb, var(--color-accent) 55%, transparent);
 }
 
 .lumen-plrow__main {
@@ -126,10 +242,24 @@
   white-space: nowrap;
 }
 
-.lumen-plrow__location,
+.lumen-plrow--current .lumen-plrow__title {
+  font-weight: var(--font-weight-semibold);
+}
+
+.lumen-plrow__location {
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Timecodes ride in the time face. */
 .lumen-plrow__duration {
-  font-size: var(--font-size-micro);
-  color: var(--color-content-tertiary);
+  flex: none;
+  font-family: var(--font-family-time);
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -145,28 +275,74 @@
   display: inline-flex;
 }
 
-/* /playlist route page shell. 4.F4 a11y fix: the page previously painted
- * NO background — the dark theme rendered on the browser default white,
- * dropping every heading below 4.5:1. Mirrors the settings framework
- * (same surface/content tokens, tokens only). */
+/* ------------------------------------------------------ /playlist page */
+
 .lumen-playlist-page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-grid);
+  gap: calc(var(--space-grid) * 3);
   min-height: 100vh;
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: calc(var(--space-grid) * 6) calc(var(--space-grid) * 4) calc(var(--space-grid) * 6);
+  box-sizing: border-box;
   color: var(--color-content-primary);
-  background: var(--color-surface);
+  /* transparent on purpose — the veiled sunset (solstice.css backdrop)
+     keeps glowing around the floating note */
+  background: transparent;
 }
 
 .lumen-playlist-page__title {
   margin: 0;
+  padding-inline: calc(var(--space-inset) * 3);
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-title);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-content-primary);
+  font-size: var(--font-size-display);
+  font-weight: var(--font-weight-extrabold);
+  letter-spacing: -0.01em;
+  color: var(--color-content-bright);
 }
 
+/* The queue as one large sticky note — flat variant (the data area never
+ * tilts), washi tape pinned over the top edge. Composed from the note
+ * tokens so the panel keeps its own layout math. */
 .lumen-playlist-page__panel {
+  position: relative;
   flex: 1;
   min-height: 0;
+  padding: calc(var(--space-inset) * 2);
+  background: var(--color-note);
+  color: var(--color-note-ink);
+  border: 1px solid var(--color-note-edge);
+  border-radius: var(--radius-card-lg);
+  box-shadow: var(--shadow-note);
+}
+
+.lumen-playlist-page__panel::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--space-inset) * -1 - 2px);
+  left: 50%;
+  width: 110px;
+  height: 22px;
+  transform: translateX(-50%) rotate(-2deg);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-tape) 78%, white) 0%,
+    var(--color-tape) 45%,
+    var(--color-tape-edge) 100%
+  );
+  opacity: 0.92;
+  border-radius: 2px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.22);
+  /* torn ends */
+  clip-path: polygon(
+    0% 12%, 3% 0%, 6% 10%, 94% 6%, 97% 0%, 100% 14%,
+    99% 88%, 96% 100%, 93% 90%, 7% 96%, 4% 100%, 1% 86%
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lumen-plrow {
+    transition: none;
+  }
 }

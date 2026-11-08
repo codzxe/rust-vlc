@@ -159,7 +159,7 @@ describe("music variant", () => {
     expect(art).toHaveAttribute("data-region-id", "album-art");
     expect(art).toHaveAttribute("data-placeholder", "artwork-engine-data-unwired");
     expect(art.querySelector("img")).toBeNull();
-    expect(art.textContent).toContain("Album art placeholder");
+    expect(art.textContent).toContain("Album art appears once the engine reports it.");
     expect(screen.queryByRole("region", { name: "Video canvas" })).toBeNull();
   });
 

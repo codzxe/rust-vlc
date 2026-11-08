@@ -32,7 +32,9 @@ export function ControlBar({ className = "" }: ControlBarProps) {
   const { state } = usePlayerControls();
   return (
     <div
-      className={["lumen-controls", className].filter(Boolean).join(" ")}
+      // solstice-glass: the floating translucent warm bar (restyle) — the
+      // shell footer provides the float margins; this is the card itself.
+      className={["lumen-controls", "solstice-glass", className].filter(Boolean).join(" ")}
       data-playback-state={state.playbackState}
       data-engine-reported={state.engineReported}
     >
@@ -74,7 +76,8 @@ function TransportCluster() {
         disabled={mapped.play.disabled}
         onClick={actions.togglePlayPause}
       >
-        <Icon name={mapped.play.glyph} />
+        {/* Solstice: the gold primary-action circle — glyph reads at 20px. */}
+        <Icon name={mapped.play.glyph} size={20} />
       </IconButton>
       <IconButton
         data-control="stop"
@@ -158,6 +161,9 @@ function VolumeCluster() {
         value={volume ?? 0}
         disabled={volume === null}
         onCommit={actions.setVolume}
+        /* Solstice: horizontal, grouped right — replaces the vertical flyout
+         * geometry for the floating bar (styling in controls.css). */
+        className="lumen-controls__volume-slider"
       />
     </div>
   );
@@ -227,7 +233,9 @@ function TrackMenuCluster() {
   );
 }
 
-/** Typed-error surface (doc 08 §5.4): stage-named, dismissible, honest. */
+/** Typed-error surface (doc 08 §5.4): stage-named, dismissible, honest.
+ * Solstice restyle: a compact note chip (icon + short message + Dismiss)
+ * floating above the bar's right edge — never a wide strip. */
 function ErrorSurface() {
   const { state, actions } = usePlayerControls();
   const m = useMsg();
@@ -235,8 +243,9 @@ function ErrorSurface() {
   const error = state.lastError;
   return (
     <div className="lumen-controls__error" role="status" data-error-code={error.code}>
-      <span className="lumen-controls__error-title">{m("player.error.title")}</span>
+      <Icon name="about" className="lumen-controls__error-icon" />
       <span className="lumen-controls__error-detail">
+        <span className="lumen-controls__error-title">{m("player.error.title")}</span>
         {`${error.stage}: ${error.message} (${error.code})`}
       </span>
       <Button data-control="dismiss-error" size="sm" onClick={actions.dismissError}>

@@ -47,7 +47,10 @@ export function MiniPlayer({
 
   return (
     <section
-      className="lumen-mini"
+      // Solstice restyle: the compact card floats as a flat sticky note
+      // (solstice-note --flat: a tilted video thumbnail would read as a bug,
+      // not a pin). Structure, labels and affordances stay as built.
+      className="lumen-mini solstice-note solstice-note--flat"
       data-variant="miniplayer"
       role="region"
       aria-label={m("player.variant.miniplayer.label")}
@@ -78,7 +81,9 @@ export function MiniPlayer({
           disabled={mapped.play.disabled}
           onClick={actions.togglePlayPause}
         >
-          <Icon name={mapped.play.glyph} />
+          {/* Solstice: compact gold circle — same primary-action language as
+             the full bar, scaled to the mini geometry. */}
+          <Icon name={mapped.play.glyph} size={18} />
         </IconButton>
         <Seekbar
           data-control="seekbar"

@@ -1,0 +1,122 @@
+/* /keyboard-shortcuts (Solstice): the keycap reference — transparent root,
+ * header on the sunset, groups as flat sticky notes, keycap chips per row.
+ * Semantic tokens only. */
+
+.shortcuts {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-inset) * 2);
+  width: min(880px, 100%);
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: calc(var(--space-inset) * 2.5);
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.shortcuts__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+}
+
+.shortcuts__title {
+  margin: 0;
+  font-size: var(--font-size-display);
+  line-height: 1.1;
+  font-weight: var(--font-weight-extrabold);
+}
+
+.shortcuts__subtitle {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-content-secondary);
+}
+
+.shortcuts__search {
+  max-width: 380px;
+  margin-top: var(--space-grid);
+}
+
+.shortcuts__groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: calc(var(--space-inset) * 1.5);
+  align-items: start;
+}
+
+.shortcuts__group {
+  padding: calc(var(--space-inset) * 1.5);
+}
+
+.shortcuts__group-title {
+  margin: 0 0 var(--space-inset);
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-bold);
+}
+
+.shortcuts__rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shortcuts__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-inset);
+  padding: var(--space-grid) 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-note-edge) 70%, transparent);
+}
+
+.shortcuts__row:last-child {
+  border-bottom: none;
+}
+
+.shortcuts__action {
+  font-size: var(--font-size-body);
+  color: var(--color-note-ink);
+}
+
+.shortcuts__keys {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-grid);
+  flex: none;
+}
+
+.shortcuts__empty {
+  margin: 0;
+  padding: calc(var(--space-inset) * 2);
+  font-size: var(--font-size-body);
+  color: var(--color-content-tertiary);
+  text-align: center;
+}
+
+.shortcuts__footer {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-inset);
+  flex-wrap: wrap;
+  padding-top: var(--space-grid);
+}
+
+.shortcuts__hint {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-tertiary);
+}
+
+.shortcuts__edit-link {
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-accent);
+}
+
+.shortcuts__edit-link:hover {
+  color: var(--color-accent-bright);
+}

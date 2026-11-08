@@ -46,8 +46,9 @@ export function PlaylistPanel({ className = "" }: { className?: string }) {
     <section className={`lumen-playlist ${className}`.trim()} data-chrome-part="">
       <header className="lumen-playlist__header">
         <h2 className="lumen-playlist__title">{m("playlist.panel.title")}</h2>
-        <span className="lumen-playlist__count">
-          {String(playlist.entries.length)} {m("playlist.panel.count-suffix")}
+        <span className="lumen-playlist__count solstice-chip">
+          <span className="lumen-playlist__count-num">{String(playlist.entries.length)}</span>
+          {m("playlist.panel.count-suffix")}
         </span>
         <div className="lumen-playlist__controls">
           <IconButton label={m("playlist.controls.prev")} size="sm" onClick={() => playlist.prev()}>
@@ -80,10 +81,12 @@ export function PlaylistPanel({ className = "" }: { className?: string }) {
         </div>
       </header>
 
-      {playlist.notExposed ? <p className="lumen-playlist__note">{m("playlist.panel.not-exposed")}</p> : null}
+      {/* Honesty line as a compact chip (Solstice) — never a fake-known state. */}
+      {playlist.notExposed ? <p className="lumen-playlist__note solstice-chip">{m("playlist.panel.not-exposed")}</p> : null}
 
       {playlist.entries.length === 0 ? (
         <div className="lumen-playlist__empty">
+          <span className="lumen-playlist__sun solstice-sun" aria-hidden="true" />
           <p className="lumen-playlist__empty-title">{m("playlist.panel.empty-title")}</p>
           <p className="lumen-playlist__empty-body">{m("playlist.panel.empty-body")}</p>
         </div>
@@ -149,10 +152,14 @@ function PlaylistRow({
       onDragOver={(e) => e.preventDefault()}
       onDrop={onDrop}
     >
-      <span className="lumen-plrow__marker" aria-hidden="true">
-        {isCurrent ? <Icon name="play" size={10} /> : null}
+      <span className="lumen-plrow__grip" aria-hidden="true" />
+      <span className="lumen-plrow__index" aria-hidden="true">
+        {String(index + 1).padStart(2, "0")}
       </span>
       {isCurrent ? <span className="lumen-playlist__sr">{m("playlist.entry.current")}</span> : null}
+      <span className="lumen-plrow__marker" aria-hidden="true">
+        {isCurrent ? <span className="lumen-plrow__sundot" /> : null}
+      </span>
       <span className="lumen-plrow__main">
         <span className="lumen-plrow__title">{entry.title ?? m("playlist.entry.unknown-title")}</span>
         {location !== null ? <span className="lumen-plrow__location">{location}</span> : null}

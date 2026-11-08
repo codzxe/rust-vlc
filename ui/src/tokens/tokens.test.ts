@@ -22,7 +22,9 @@ const cssRaw = TOKENS_CSS;
 
 // Update ONLY together with `cargo xtask tokens` + `npm run tokens:generate`
 // in the same commit — schema drift must never slip in silently.
-const PINNED_SHA256 = "832da9d0a9cb1595f572023ddd3dd65c137adbb59521c3b1d78983f622679745";
+// (Solstice redesign, 2026-11-08: warm neutrals, yellow default accent,
+// sunset/note/tape/keycap/motion groups.)
+const PINNED_SHA256 = "4f6045e209a2d2a89aa8512c3f15839d68d760e4ec8db5168c7cad42d8f12c38";
 
 async function sha256(text: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
@@ -52,13 +54,14 @@ describe("generated token snapshot (doc 08 §3)", () => {
         "gray",
       ]),
     );
-    // dark + orange are the DEFAULTS: their values live in plain :root, so
-    // no [data-theme="dark"] / [data-accent="orange"] selector exists.
+    // dark + yellow are the DEFAULTS (Solstice, 2026-11-08): their values
+    // live in plain :root, so no [data-theme="dark"] / [data-accent="yellow"]
+    // selector exists.
     expect(cssRaw).toContain(':root[data-theme="light"]');
     expect(cssRaw).not.toMatch(/:root\[data-theme="dark"\]/);
-    expect(cssRaw).not.toMatch(/:root\[data-accent="orange"\]/);
+    expect(cssRaw).not.toMatch(/:root\[data-accent="yellow"\]/);
     // every non-default accent has a dark block AND a light combo block
-    for (const accent of ACCENTS.filter((a) => a !== "orange")) {
+    for (const accent of ACCENTS.filter((a) => a !== "yellow")) {
       expect(cssRaw).toMatch(new RegExp(`:root\\[data-accent="${accent}"\\]`));
       expect(cssRaw).toMatch(
         new RegExp(`:root\\[data-theme="light"\\]\\[data-accent="${accent}"\\]`),
@@ -69,9 +72,9 @@ describe("generated token snapshot (doc 08 §3)", () => {
   it("every accent block re-points the core accent tokens (doc 08 §3.2 roles)", () => {
     const rootBlock = cssRaw.match(/:root\s*\{([^}]*)\}/)?.[1] ?? "";
     for (const accent of ACCENTS) {
-      // orange (the default) re-points the roles inside plain :root.
+      // yellow (the default) re-points the roles inside plain :root.
       const block =
-        accent === "orange"
+        accent === "yellow"
           ? rootBlock
           : (cssRaw.match(new RegExp(`:root\\[data-accent="${accent}"\\]\\s*\\{([^}]*)\\}`))?.[1] ?? "");
       expect(block.length, `accent block for ${accent}`).toBeGreaterThan(0);
@@ -90,7 +93,7 @@ describe("generated token snapshot (doc 08 §3)", () => {
     const rootBlock = cssRaw.match(/:root\s*\{([^}]*)\}/)?.[1] ?? "";
     const cssNames = [...rootBlock.matchAll(/--[A-Za-z0-9-]+(?=\s*:)/g)].map((m) => m[0]);
     expect(new Set(cssNames)).toEqual(new Set(SEMANTIC_TOKEN_NAMES));
-    expect(SEMANTIC_TOKEN_NAMES).toHaveLength(70);
+    expect(SEMANTIC_TOKEN_NAMES).toHaveLength(94);
     expect(tokenVar("--color-surface-raised")).toBe("var(--color-surface-raised)");
   });
 

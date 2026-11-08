@@ -4,17 +4,24 @@
  * in fullscreen, [PROPOSAL] timing), §4.5 (reduced-motion disables fades;
  * focus order topbar → canvas → controls → panels = DOM order),
  * "Player - hide UI.svg" (chrome-hidden target state).
+ *
+ * SOLSTICE RESTYLE (2026-11-08): the shell is a transparent stage — a
+ * translucent deep wash lets the app-wide veiled sunset glow through; the
+ * video canvas floats as a framed card (hairline warm border + inset shadow,
+ * --radius-card-lg); chrome floats on glass instead of edge-to-edge strips.
  * Semantic tokens only (§3.2); raw px appears solely for structural
- * dimensions with no token (panel width 377px per doc 08 §4.3, fade
- * duration — no motion token exists yet, 160ms matches the 4.B4 sheet
- * animation precedent; both recorded in ui/NEXT-STEPS.md). */
+ * dimensions with no token (panel width 377px per doc 08 §4.3, fade duration
+ * 160ms matches the 4.B4 sheet animation precedent; both recorded in
+ * ui/NEXT-STEPS.md). */
 
 .lumen-player {
   display: flex;
   box-sizing: border-box;
   height: 100vh;
   overflow: hidden;
-  background: var(--color-surface-deep);
+  /* Translucent deep wash — the app-wide (veiled) sunset glows through the
+   * stage in both modes; the video canvas re-deepens itself below. */
+  background: color-mix(in srgb, var(--color-surface-deep) 55%, transparent);
   color: var(--color-content-primary);
   font-family: var(--font-family-sans);
   font-size: var(--font-size-body);
@@ -38,6 +45,12 @@
   visibility: hidden;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .lumen-player [data-chrome-part] {
+    transition: none;
+  }
+}
+
 .lumen-player__main {
   display: flex;
   flex-direction: column;
@@ -45,49 +58,82 @@
   min-width: 0;
 }
 
+/* Top bar — floats on the stage (no strip); a small sun mark + the title. */
 .lumen-player__topbar {
   display: flex;
   align-items: center;
-  padding: var(--space-grid) var(--space-inset);
-  background: var(--color-surface-chrome);
+  gap: var(--space-grid);
+  padding: calc(var(--space-inset) * 1.5) calc(var(--space-inset) * 2);
+  background: transparent;
   color: var(--color-content-secondary);
+}
+
+.lumen-player__mark {
+  flex: none;
+  width: 20px;
+  height: 20px;
 }
 
 .lumen-player__title {
   margin: 0;
   font-size: var(--font-size-title);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-bold);
   color: var(--color-content-bright);
 }
 
+/* The video canvas — the framed stage card: hairline warm border, inset
+ * shadow, --radius-card-lg. Stays engine-owned (card 4.H1); the wash beneath
+ * keeps it deep enough for honest video letterboxing in both modes. */
 .lumen-player__canvas {
   position: relative;
   display: flex;
   flex: 1;
   min-height: 0;
-  background: var(--color-surface-deep);
+  margin: 0 calc(var(--space-inset) * 2) calc(var(--space-inset) * 2);
+  overflow: hidden;
+  border-radius: var(--radius-card-lg);
+  border: 1px solid color-mix(in srgb, var(--color-tape) 30%, transparent);
+  background: color-mix(in srgb, var(--color-surface-deep) 82%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--color-surface-deep) 60%, transparent),
+    inset 0 calc(var(--space-grid) * 2) calc(var(--space-inset) * 4)
+      color-mix(in srgb, var(--color-surface-deep) 80%, transparent);
 }
 
+/* Controls region — a plain floating frame; the .lumen-controls bar itself
+ * carries the solstice-glass treatment (controls/controls.css). */
 .lumen-player__controls {
-  padding: var(--space-grid) var(--space-inset);
-  background: var(--color-surface-chrome);
+  padding: 0 calc(var(--space-inset) * 2) calc(var(--space-inset) * 2);
+  background: transparent;
 }
 
-/* Side-panel containers (doc 08 §4.3: PlaylistPanel is 377px wide). */
+/* Side-panel containers (doc 08 §4.3: PlaylistPanel is 377px wide) —
+ * floating warm panels on the stage: translucent surface-panel + blur,
+ * hairline warm border, rounded, inset from the screen edges. */
 .lumen-player__panel {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
   width: 377px;
   flex-shrink: 0;
-  padding: var(--space-grid);
-  background: var(--color-surface-panel);
-  border-left: 1px solid var(--color-stroke-border);
-  border-right: 1px solid var(--color-stroke-border);
+  margin: var(--space-inset) var(--space-grid);
+  padding: var(--space-inset);
   overflow: auto;
+  background: color-mix(in srgb, var(--color-surface-panel) 92%, transparent);
+  backdrop-filter: blur(var(--blur-backdrop-small));
+  border: 1px solid color-mix(in srgb, var(--color-stroke-border) 85%, transparent);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-card);
 }
 
-/* First-run empty state, centered on the canvas (doc 08 §5.3). */
+/* Music-mode playlist emphasis (4.F2): a washi-tape accent along the top
+ * edge — the pinned-note reading of the prominent playlist. */
+.lumen-player__panel[data-emphasized] {
+  border-top: 3px solid var(--color-tape);
+}
+
+/* First-run empty state, centered on the canvas (doc 08 §5.3): a glowing
+ * sun disc above a washi-taped sticky note. */
 .lumen-player__empty {
   position: absolute;
   inset: 0;
@@ -95,20 +141,66 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-inset);
+  gap: calc(var(--space-inset) * 3);
+  padding: var(--space-inset);
   text-align: center;
+}
+
+.lumen-player__empty-sun {
+  flex: none;
+  width: 96px;
+  height: 96px;
+}
+
+.lumen-player__empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-inset);
+  max-width: 380px;
+  padding: calc(var(--space-inset) * 3) calc(var(--space-inset) * 4);
 }
 
 .lumen-player__empty-title {
   margin: 0;
-  font-size: var(--font-size-display);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-content-bright);
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-extrabold);
+  color: var(--color-note-ink);
 }
 
 .lumen-player__empty-body {
   margin: 0;
+  color: var(--color-note-ink-muted);
+}
+
+/* Keycap hint strip (KeyHintStrip.tsx): bottom-centered chrome above the
+ * control bar — translucent keycap-warm chip rail. */
+.lumen-player__keyhints {
+  position: absolute;
+  bottom: var(--space-grid);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space-inset) * 1.5);
+  padding: var(--space-grid) var(--space-inset);
+  border-radius: var(--radius-ring);
+  background: color-mix(in srgb, var(--color-surface-deep) 55%, transparent);
+  backdrop-filter: blur(var(--blur-backdrop-small));
+}
+
+.lumen-player__keyhint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-grid);
+}
+
+.lumen-player__keyhint-label {
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
   color: var(--color-content-secondary);
+  white-space: nowrap;
 }
 
 /* Screen-reader-only honest placeholder notes (pattern from 4.B4 surface). */

@@ -1,11 +1,14 @@
 /* Card 4.C3 — playback UX-state overlays (doc 08 §5.3/§5.4).
- * Semantic tokens only for color/type/radius (§3.2); raw px appears solely
- * for structural dimensions with no token (gaps/padding/indicator sizes —
- * the spacing-scale token doesn't exist yet, recorded in ui/NEXT-STEPS.md,
- * same precedent as the 4.C1 shell's structural px). Motion (spinner, fill
- * transition) lives inside a prefers-reduced-motion: no-preference block so
- * reduced-motion users get a static indicator (doc 08 §4.5) — the honest
- * state is still fully conveyed by text + aria. */
+ *
+ * SOLSTICE RESTYLE (2026-11-08): overlays sit on the framed stage as warm
+ * translucent scrims (the sunset glow stays visible); failure surfaces
+ * (error/unsupported) float on washi-taped sticky notes; loading/buffering
+ * spin a sun disc with a rotating ray ring. Semantic tokens only for
+ * color/type/radius (§3.2); raw px appears solely for structural dimensions
+ * with no token (gaps/indicator sizes — same precedent as the 4.C1 shell's
+ * structural px). Motion (ray ring, fill transition) lives inside a
+ * prefers-reduced-motion: no-preference block so reduced-motion users get a
+ * static sun + honest text + aria (doc 08 §4.5). */
 
 /* The 4.C1 canvas region hosts the overlays (states sit ON the labeled
  * region; the canvas itself remains engine-owned, card 4.H1). */
@@ -16,12 +19,16 @@
 .lumen-state-overlay {
   position: absolute;
   inset: 0;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  padding: 24px;
-  background: var(--color-surface-deep);
+  padding: calc(var(--space-inset) * 3);
+  /* Warm translucent scrim — the stage (and the sunset behind it) glows
+   * through instead of a hard opaque cut. */
+  background: color-mix(in srgb, var(--color-surface-deep) 62%, transparent);
+  backdrop-filter: blur(calc(var(--blur-backdrop-small) / 2));
   color: var(--color-content-primary);
   font-family: var(--font-family-sans);
   font-size: var(--font-size-body);
@@ -31,16 +38,27 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: calc(var(--space-inset) + 4px); /* 12px: 4px grid */
   max-width: 480px;
   text-align: center;
 }
 
+/* Failure surfaces: the taped sticky note (solstice-note supplies surface,
+ * border, shadow, rotation; note ink inherits to children). */
+.lumen-state-overlay__card.solstice-note {
+  padding: calc(var(--space-inset) * 3);
+  color: var(--color-note-ink);
+}
+
+.lumen-state-overlay__icon {
+  color: var(--color-accent-icon);
+}
+
 .lumen-state-overlay__title {
   margin: 0;
-  color: var(--color-content-bright);
-  font-size: var(--font-size-label);
-  font-weight: 600;
+  color: inherit;
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-bold);
 }
 
 .lumen-state-overlay__label,
@@ -48,6 +66,16 @@
 .lumen-state-overlay__action {
   margin: 0;
   color: var(--color-content-secondary);
+}
+
+/* Inside a note card the body/action ink follows the note. */
+.solstice-note .lumen-state-overlay__body,
+.solstice-note .lumen-state-overlay__label {
+  color: var(--color-note-ink-muted);
+}
+
+.solstice-note .lumen-state-overlay__action {
+  color: var(--color-note-ink);
 }
 
 .lumen-state-overlay__action {
@@ -58,21 +86,22 @@
 .lumen-state-overlay__stagetag {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-grid);
   margin: 0;
-  padding: 2px 8px;
-  border: 1px solid var(--color-stroke-border);
+  padding: 2px var(--space-inset);
+  border: 1px solid var(--color-note-edge);
   border-radius: var(--radius-menu);
-  background: var(--color-surface-panel);
+  background: color-mix(in srgb, var(--color-note) 55%, transparent);
   font-size: var(--font-size-caption);
 }
 
 .lumen-state-overlay__stagetag-label {
-  color: var(--color-content-tertiary);
+  color: var(--color-note-ink-muted);
 }
 
 .lumen-state-overlay__stagetag-value {
-  color: var(--color-content-primary);
+  color: var(--color-note-ink);
+  font-family: var(--font-family-time);
 }
 
 /* Format facts (Unsupported surface): definition list of engine-reported
@@ -80,51 +109,59 @@
 .lumen-state-overlay__facts {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-grid);
   margin: 0;
 }
 
 .lumen-state-overlay__fact {
   display: flex;
-  gap: 8px;
+  gap: var(--space-inset);
   justify-content: center;
 }
 
 .lumen-state-overlay__fact-label {
-  color: var(--color-content-tertiary);
+  color: var(--color-note-ink-muted);
 }
 
 .lumen-state-overlay__fact-value {
   margin: 0;
-  color: var(--color-content-primary);
+  color: var(--color-note-ink);
   font-family: var(--font-family-time);
 }
 
-/* Progress indicator: spinner (always) + bar fill (determinate only). */
+/* Progress indicator: sun-disc spinner (always) + bar fill (determinate
+ * only). The disc reuses .solstice-sun (composed in StageOverlays.tsx);
+ * the ray ring is the only motion, guarded below. */
 .lumen-state-overlay__progress {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-inset);
 }
 
 .lumen-state-overlay__spinner {
+  position: relative;
   box-sizing: border-box;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 2px solid var(--color-surface-muted);
-  border-top-color: var(--color-accent);
+  width: 64px; /* structural ornament size — no token */
+  height: 64px;
+}
+
+.lumen-state-overlay__spinner::after {
+  content: "";
+  position: absolute;
+  inset: calc(var(--space-inset) * -1);
+  border-radius: 50%; /* functional circle, not a design radius */
+  border: 2px dashed color-mix(in srgb, var(--color-accent) 55%, transparent);
 }
 
 .lumen-state-overlay__bar {
   box-sizing: border-box;
   display: block;
-  width: 160px;
-  height: 4px;
+  width: 180px; /* structural indicator width — no token */
+  height: 6px; /* structural indicator height — no token */
   overflow: hidden;
-  border-radius: var(--radius-panel);
-  background: var(--color-surface-muted);
+  border-radius: var(--radius-ring);
+  background: color-mix(in srgb, var(--color-surface-muted) 60%, transparent);
 }
 
 .lumen-state-overlay__fill {
@@ -134,8 +171,8 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .lumen-state-overlay__spinner {
-    animation: lumen-state-spin 1s linear infinite;
+  .lumen-state-overlay__spinner::after {
+    animation: lumen-state-spin 2.4s linear infinite;
   }
 
   .lumen-state-overlay__fill {

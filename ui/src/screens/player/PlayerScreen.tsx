@@ -19,11 +19,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMsg } from "../../i18n/messages";
+import { useClient } from "../../client/ClientProvider";
 import { MediaInfoPanel, MediaInfoProvider } from "../media-info";
 import { PlaylistPanel, PlaylistProvider } from "../playlist";
+import { PlayerKeyHintStrip } from "./KeyHintStrip";
 import { PlayerControlsProvider, usePlayerControls } from "./context";
 import { ControlBar, controlCommandOf } from "./controls";
 import { CustomizePanels } from "./customize";
+import { usePlayerEngineView } from "./states/context-bridge";
 import {
   matchBindings,
   shellActionFor,
@@ -34,7 +37,7 @@ import {
   type LayoutConditionContext,
   type LayoutRegion,
 } from "./layout";
-import { EmptyOverlay, StateRouter, type PlayerEngineView } from "./states";
+import { StateRouter, type PlayerEngineView } from "./states";
 import {
   MiniPlayer,
   MusicMode,
@@ -139,7 +142,42 @@ function PlayerScreenInner({
   const rootRef = useRef<HTMLDivElement>(null);
   const fullscreen = useFullscreen(rootRef);
   const { isFullscreen, toggle: toggleFullscreen, exit: exitFullscreen } = fullscreen;
-  const hasMedia = media !== null;
+
+  // Solstice app-shell derivation (2026-11-08): hosts MAY inject explicit
+  // `media` / `engineState` props, but the default composition (browser
+  // shell, /player route) owns no such objects — the screen then derives
+  // BOTH from the live seams it already mounts: the 4.C3 bridge view (pure
+  // engine events) for the overlays, and the controls state (tracks) for
+  // media presence. Nothing is fabricated: idle stays idle until the
+  // engine's session.state-changed events say otherwise.
+  const client = useClient();
+  const bridgeView = usePlayerEngineView(client);
+  const controls = usePlayerControls();
+  const effectiveEngineState: PlayerEngineView = engineState ?? bridgeView;
+  const derivedMedia: PlayerMediaContext | null =
+    media !== null
+      ? media
+      : effectiveEngineState.state === "idle"
+        ? null
+        : {
+            // Track kinds are engine truth (tracks.list / tracks.list-ready).
+            hasVideo: controls.state.tracks.some((track) => track.kind === "video"),
+            // The seam carries no chapter truth — conservative false; hosts
+            // that need it pass the full PlayerMediaContext.
+            hasChapters: false,
+          };
+  const hasMedia = derivedMedia !== null;
+
+  // Solstice stage: the player is the transparent surface that lets the
+  // app-wide (veiled) sunset glow through. Clear any backdrop mode a previous
+  // screen left behind so the default veil applies, and leave it cleared on
+  // unmount (no cleanup debt for the next screen).
+  useEffect(() => {
+    delete document.documentElement.dataset.backdrop;
+    return () => {
+      delete document.documentElement.dataset.backdrop;
+    };
+  }, []);
 
   // Doc 08 §4.3 [PROPOSAL]: auto-hide on idle in fullscreen; empty state and
   // any open panel/menu lock the chrome visible (§4.5, §5.3).
@@ -281,7 +319,9 @@ function PlayerScreenInner({
             className="lumen-player__topbar"
           >
             {/* Screen title (window title template is product-config's job;
-                the top-bar composition itself is later work). */}
+                the top-bar composition itself is later work). The sun mark is
+                the Solstice ornament — decorative, aria-hidden. */}
+            <span className="solstice-sun lumen-player__mark" aria-hidden="true" />
             <h1 className="lumen-player__title">{m("screen.player")}</h1>
           </header>
         ))}
@@ -304,14 +344,23 @@ function PlayerScreenInner({
             <p className="lumen-player__sr-note">{m("player.canvas.placeholder")}</p>
 
             {/* Card 4.C3 playback UX states: exactly zero or one overlay on
-                the canvas region, driven by the engine view. No engine view
-                provided (scaffold/tests) → honest fallback: first-run Empty
-                when no media, nothing otherwise — never a fabricated state. */}
-            {engineState !== undefined ? (
-              <StateRouter view={engineState} onRetry={onRetry} onOpenMedia={onOpenMedia} />
-            ) : hasMedia ? null : (
-              <EmptyOverlay onOpenMedia={onOpenMedia} />
+                the canvas region, driven by the engine view. The first-run
+                Empty surface only ever appears when NO media is present —
+                a host-injected `media` context (or a live session) suppresses
+                it, while engine-truth overlays (loading/buffering/error)
+                always render. Never a fabricated state. */}
+            {effectiveEngineState.state === "idle" && hasMedia ? null : (
+              <StateRouter
+                view={effectiveEngineState}
+                onRetry={onRetry}
+                onOpenMedia={onOpenMedia}
+              />
             )}
+
+            {/* Solstice keycap hint strip (chrome part): real keymap data,
+                bottom-centered above the control bar. Renders only when idle
+                or paused; fades with the chrome otherwise. */}
+            <PlayerKeyHintStrip hasMedia={hasMedia} />
           </div>
         )}
 

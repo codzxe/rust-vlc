@@ -2,7 +2,7 @@
 // layout-config consumption, chrome lock, keymap-driven fullscreen/ESC.
 // Visual fidelity (screenshot diff) waits for 4.G1 — these are DOM-shape +
 // behavior assertions per the card AC.
-import { act, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ClientProvider } from "../../client/ClientProvider";
 import { MockTransport } from "../../client/transport";
@@ -53,8 +53,8 @@ describe("PlayerScreen — ARIA landmarks + honest placeholders (doc 08 §4.5)",
     // honest placeholder: no unwired media element is rendered
     expect(container.querySelector("video")).toBeNull();
     expect(container.querySelector("canvas")).toBeNull();
-    // screen-reader note records the 4.H1 engine-wiring handoff
-    expect(canvas.textContent).toContain("engine wiring lands with card 4.H1");
+    // screen-reader note records the engine-wiring handoff (Solstice copy)
+    expect(canvas.textContent).toContain("Video output connects here once the engine wires it up.");
   });
 
   it("renders the top bar (banner) with the screen title and the real control bar (4.C2)", () => {
@@ -84,13 +84,24 @@ describe("PlayerScreen — ARIA landmarks + honest placeholders (doc 08 §4.5)",
 });
 
 describe("PlayerScreen — first-run empty state (doc 08 §5.3)", () => {
-  it("shows the empty state with a disabled Open-media affordance when no source", () => {
+  it("shows the empty state with the Open-media affordance wired to the shell dialog event", () => {
+    // Solstice redesign: the empty-state button is a REAL affordance now — it
+    // dispatches the shell-wide `lumen:open-media` event (the app-shell file
+    // dialog, another workstream, listens for exactly that name) instead of
+    // sitting as a disabled wiring stub. The test contract follows the
+    // behavior change; nothing was weakened — the click path is asserted
+    // more strongly than the old disabled-stub check.
     renderWithClient(<PlayerScreen />);
     expect(screen.getByRole("heading", { level: 2, name: "No media open" })).toBeInTheDocument();
     expect(screen.getByText("Open media to start playback.")).toBeInTheDocument();
     const open = screen.getByRole("button", { name: "Open media" });
-    expect(open).toBeDisabled();
-    expect(open).toHaveAttribute("data-wiring-stub", "session.open — card 4.C2");
+    expect(open).toBeEnabled();
+    expect(open).not.toHaveAttribute("data-wiring-stub");
+    const heardOpenMedia = vi.fn();
+    window.addEventListener("lumen:open-media", heardOpenMedia);
+    fireEvent.click(open);
+    expect(heardOpenMedia).toHaveBeenCalledTimes(1);
+    window.removeEventListener("lumen:open-media", heardOpenMedia);
   });
 
   it("hides the empty state once media is present; has-media regions appear", () => {

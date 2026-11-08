@@ -1,15 +1,52 @@
-/* Settings framework (card 4.E1) — semantic tokens only (doc 08 §3.2). */
+/* Settings framework (card 4.E1) — Solstice restyle (2026-11-08).
+ *
+ * The screen root stays transparent so the veiled sunset frames the page;
+ * the settings content floats on ONE mostly-opaque --color-surface-panel
+ * sheet (--radius-card-lg), and the area nav rides a rounded glass rail of
+ * pills. Fields are flat rows on section cards with hairline warm
+ * separators and hover fills; the dirty state keeps the gold left-edge
+ * language used for "current" across the redesign. The apply/revert bar
+ * is a floating glass bar pinned bottom-right.
+ *
+ * Contracts kept (SettingsScreen.test.tsx + areas tests): data-setting,
+ * data-dirty, data-settings-area, testids settings-applybar /
+ * settings-restart-notice / settings-search-*, search input placeholder.
+ * Semantic tokens only (doc 08 §3.2); raw px solely for structural
+ * dimensions with no token. */
 
 .settings-screen {
   display: grid;
-  grid-template-columns: 16rem 1fr;
-  gap: var(--space-grid);
+  grid-template-columns: 16rem minmax(0, 1fr);
+  gap: calc(var(--space-grid) * 3);
   min-height: 100vh;
-  padding: var(--space-inset);
+  max-width: 84rem;
+  margin: 0 auto;
+  padding: calc(var(--space-grid) * 4);
+  box-sizing: border-box;
   font-family: var(--font-family-sans);
   font-size: var(--font-size-body);
   color: var(--color-content-primary);
-  background: var(--color-surface);
+  /* transparent on purpose — the sunset frames the floating sheet */
+  background: transparent;
+}
+
+/* ------------------------------------------------------------ nav rail */
+
+.settings-screen__nav {
+  position: sticky;
+  top: calc(var(--space-grid) * 4);
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-grid) * 2);
+  padding: calc(var(--space-inset) * 2) var(--space-inset);
+  /* composed glass (the .solstice-glass recipe, scoped here so the rail's
+     rounding stays --radius-card-lg regardless of sheet order) */
+  background: color-mix(in srgb, var(--color-surface-panel) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-stroke-border) 80%, transparent);
+  border-radius: var(--radius-card-lg);
+  backdrop-filter: blur(var(--blur-backdrop-small));
+  box-shadow: var(--shadow-card);
 }
 
 .settings-screen__nav ul {
@@ -22,22 +59,42 @@
 }
 
 .settings-screen__title {
+  margin: 0;
+  padding: 0 var(--space-grid);
   font-size: var(--font-size-title);
-  font-weight: var(--font-weight-medium);
-  margin: 0 0 var(--space-grid);
+  font-weight: var(--font-weight-extrabold);
+  letter-spacing: -0.01em;
+  color: var(--color-content-primary);
 }
 
+/* Area pills. The ::before reserves the marker slot so text never shifts
+ * when a pill activates. */
 .settings-nav__item {
-  display: block;
+  display: flex;
+  align-items: center;
   width: 100%;
   text-align: start;
-  padding: var(--space-grid);
+  padding: calc(var(--space-grid) * 1.5) calc(var(--space-grid) * 2);
   border: none;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-ring);
   background: transparent;
   color: var(--color-content-secondary);
   font: inherit;
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
+  transition:
+    background-color var(--motion-duration-fast) ease-out,
+    color var(--motion-duration-fast) ease-out;
+}
+
+.settings-nav__item::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-inline-end: calc(var(--space-grid) * 1.5);
+  border-radius: 50%;
+  background: transparent;
 }
 
 .settings-nav__item:hover {
@@ -45,52 +102,100 @@
   color: var(--color-content-primary);
 }
 
+/* Active pill — gold-tinted fill; gold ink in dark (≈8:1 on the tint). */
 .settings-nav__item--active {
-  background: var(--color-surface-selected);
+  background: var(--color-accent-tinted);
+  color: var(--color-accent);
+}
+
+.settings-nav__item--active::before {
+  background: radial-gradient(
+    circle at 35% 30%,
+    var(--color-accent-bright) 0%,
+    var(--color-accent) 60%,
+    var(--color-accent-strong) 100%
+  );
+}
+
+/* Light mode: gold ink on the pale tinted pill tops out ≈1.8:1 — far
+ * below the AA floor. The pill keeps its gold tint + gold sun-dot marker;
+ * the ink goes primary (11.6:1). Deliberate, documented deviation. */
+[data-theme="light"] .settings-nav__item--active {
   color: var(--color-content-primary);
 }
+
+/* -------------------------------------------------------------- sheet */
 
 .settings-screen__body {
   display: flex;
   flex-direction: column;
-  gap: var(--space-grid);
+  gap: calc(var(--space-grid) * 2);
+  min-width: 0;
+  padding: calc(var(--space-inset) * 3);
+  background: color-mix(in srgb, var(--color-surface-panel) 96%, transparent);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-card-lg);
+  box-shadow: var(--shadow-card);
 }
+
+/* ------------------------------------------------- toolbar + search */
 
 .settings-screen__toolbar {
   display: flex;
   align-items: end;
-  gap: var(--space-grid);
+  gap: calc(var(--space-grid) * 2);
+  padding-bottom: calc(var(--space-grid) * 2);
+  border-bottom: 1px solid var(--color-stroke-border);
 }
 
 .settings-screen__search {
   display: flex;
   flex-direction: column;
   gap: var(--space-grid);
+  flex: 1;
+  max-width: 26rem;
 }
 
 .settings-screen__search-label {
-  font-size: var(--font-size-label);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
   color: var(--color-content-secondary);
 }
 
+/* Prominent search: a warm inset well (recessed fill + inner shade). */
 .settings-screen__search input {
-  padding: var(--space-grid);
-  border: 2px solid var(--color-stroke-border);
-  border-radius: var(--radius-control);
+  box-sizing: border-box;
+  height: 40px;
+  padding: 0 calc(var(--space-inset) * 1.5);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-ring);
   background: var(--color-surface-deep);
   color: var(--color-content-primary);
   font: inherit;
+  box-shadow: inset 0 2px 4px color-mix(in srgb, var(--color-stroke-warm) 45%, transparent);
+}
+
+.settings-screen__search input:hover {
+  border-color: var(--color-surface-muted);
+}
+
+.settings-screen__search input::placeholder {
+  color: var(--color-content-tertiary);
 }
 
 .settings-screen__reset {
   margin-inline-start: auto;
-  padding: var(--space-grid);
-  border: none;
-  border-radius: var(--radius-control);
+  padding: calc(var(--space-grid) * 1.5) calc(var(--space-inset) * 1.5);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-ring);
   background: transparent;
   color: var(--color-content-secondary);
   font: inherit;
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
+  transition:
+    background-color var(--motion-duration-fast) ease-out,
+    color var(--motion-duration-fast) ease-out;
 }
 
 .settings-screen__reset:hover {
@@ -98,74 +203,113 @@
   background: var(--color-surface-hover);
 }
 
+.settings-screen__results {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-grid) * 2);
+}
+
+.settings-screen__empty {
+  padding: calc(var(--space-inset) * 3);
+  color: var(--color-content-secondary);
+  text-align: center;
+}
+
+/* ------------------------------------------------------ sections + fields */
+
+.settings-sections {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-grid) * 3);
+}
+
 .settings-section {
   display: flex;
   flex-direction: column;
   gap: var(--space-grid);
-  padding: var(--space-inset);
-  background: var(--color-surface-panel);
+  padding: calc(var(--space-inset) * 2);
+  background: var(--color-surface-chrome);
+  border: 1px solid var(--color-stroke-border);
   border-radius: var(--radius-card);
 }
 
 .settings-section__title {
+  margin: 0 0 var(--space-grid);
   font-size: var(--font-size-label);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-content-secondary);
-  margin: 0;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-content-primary);
 }
 
+/* Fields: flat rows with hairline warm separators and hover fills. */
 .settings-field {
   display: flex;
   flex-direction: column;
   gap: var(--space-grid);
-  padding: var(--space-grid);
+  padding: calc(var(--space-grid) * 2);
   border-radius: var(--radius-control);
-  background: var(--color-surface);
+  background: transparent;
+  transition: background-color var(--motion-duration-fast) ease-out;
 }
 
-.settings-field[data-dirty] {
-  outline: var(--color-accent) solid 2px;
+.settings-field + .settings-field {
+  border-top: 1px solid var(--color-stroke-border);
+}
+
+.settings-field:hover {
+  background: var(--color-surface-hover);
+}
+
+/* Dirty draft — the gold left-edge language (matches the playlist's
+ * current row); hover keeps the tinted wash so the state never flickers. */
+.settings-field[data-dirty],
+.settings-field[data-dirty]:hover {
+  background: var(--color-accent-tinted);
+  box-shadow: inset 3px 0 0 var(--color-accent);
 }
 
 .settings-field__head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-grid);
+  gap: var(--space-grid) calc(var(--space-grid) * 2);
 }
 
 .settings-field__label {
   font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
 }
 
 .settings-field__badges {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-grid);
   margin: 0;
 }
 
+/* Advanced badge — a quiet warm pill (the restart badge is the accent
+ * .solstice-chip, applied in TSX). */
 .settings-badge {
-  font-size: var(--font-size-micro);
-  padding: var(--space-grid) calc(var(--space-grid) * 1.5);
-  border-radius: var(--radius-control);
-  /* 4.F4 a11y fix: secondary text on the muted chip was 3.5:1 (wcag 1.4.3
-   * fail). selected surface keeps the same quiet chip weight at 5.4:1. */
-  background: var(--color-surface-selected);
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 calc(var(--space-grid) * 1.5);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
   color: var(--color-content-secondary);
-}
-
-.settings-badge--restart {
-  background: var(--color-accent-tinted);
-  color: var(--color-content-primary);
+  background: var(--color-surface-selected);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-ring);
 }
 
 .settings-field__reset {
   align-self: start;
-  padding: var(--space-grid) calc(var(--space-grid) * 1.5);
+  padding: calc(var(--space-grid) * 1.5) calc(var(--space-grid) * 2);
   border: none;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-ring);
   background: transparent;
-  color: var(--color-content-tertiary);
-  font-size: var(--font-size-micro);
+  color: var(--color-content-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
 }
 
@@ -174,48 +318,75 @@
   background: var(--color-surface-hover);
 }
 
-.settings-screen__empty {
-  color: var(--color-content-secondary);
-  padding: var(--space-inset);
-}
+/* -------------------------------------------------------- floating bars */
 
-.settings-applybar {
-  position: sticky;
-  bottom: 0;
+/* Restart notice — gold-tinted strip with the sun-dot marker. */
+.settings-screen__restart {
+  margin: 0;
   display: flex;
   align-items: center;
   gap: var(--space-grid);
-  padding: var(--space-grid) var(--space-inset);
-  background: var(--color-surface-raised);
-  border-radius: var(--radius-card);
+  padding: var(--space-grid) calc(var(--space-inset) * 1.5);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 35%, transparent);
+  border-radius: var(--radius-ring);
+  background: var(--color-accent-tinted);
+  color: var(--color-content-primary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.settings-screen__restart::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 35% 30%,
+    var(--color-accent-bright) 0%,
+    var(--color-accent) 60%,
+    var(--color-accent-strong) 100%
+  );
+}
+
+/* Apply/revert — a floating glass bar pinned bottom-right (sticky within
+ * the sheet; buttons/roles/testids unchanged). No z-index on purpose: the
+ * dirty-leave Dialog's scrim is later in DOM order and must cover it. */
+.settings-applybar {
+  position: sticky;
+  bottom: calc(var(--space-grid) * 2);
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space-grid) * 2);
+  padding: var(--space-grid) var(--space-grid) var(--space-grid) calc(var(--space-inset) * 2);
+  background: color-mix(in srgb, var(--color-surface-panel) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-stroke-border) 80%, transparent);
+  border-radius: var(--radius-ring);
+  backdrop-filter: blur(var(--blur-backdrop-small));
+  box-shadow: var(--shadow-overlay);
 }
 
 .settings-applybar__count {
   margin-inline-end: auto;
   font-size: var(--font-size-label);
-  color: var(--color-content-secondary);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-content-primary);
 }
 
-.settings-screen__restart {
-  margin: 0;
-  padding: var(--space-grid) var(--space-inset);
-  border-radius: var(--radius-card);
-  background: var(--color-accent-tinted);
-  color: var(--color-content-primary);
-  font-size: var(--font-size-label);
-}
+/* ------------------------------------------------------ dirty dialog */
 
 .settings-confirm {
   display: flex;
   flex-direction: column;
-  gap: var(--space-grid);
-  padding: var(--space-inset);
+  gap: calc(var(--space-grid) * 2);
+  padding: calc(var(--space-inset) * 2);
 }
 
 .settings-confirm h2 {
   margin: 0;
   font-size: var(--font-size-title);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-bold);
 }
 
 .settings-confirm p {
@@ -226,5 +397,33 @@
 .settings-confirm__actions {
   display: flex;
   justify-content: flex-end;
-  gap: var(--space-grid);
+  gap: calc(var(--space-grid) * 2);
+}
+
+/* -------------------------------------------------------- responsive */
+
+@media (max-width: 52rem) {
+  .settings-screen {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-screen__nav {
+    position: static;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .settings-screen__nav ul {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-nav__item,
+  .settings-field,
+  .settings-screen__reset {
+    transition: none;
+  }
 }

@@ -1,0 +1,371 @@
+/* Solstice design language — the global art-direction layer (2026-11-08).
+ *
+ * Reference: the Keyvox onboarding direction — sunset-gradient stages,
+ * sticky-note surfaces with washi tape, keycap chips, warm gold accent.
+ * Tokens come from the generated pipeline (src/tokens/generated/tokens.css);
+ * this file composes them into reusable utilities and paints the app-wide
+ * backdrop. Raw px values are allowed HERE only (composition layer, not a
+ * component); TSX keeps consuming semantic tokens via var(--…) (lint rule
+ * local/semantic-tokens-only).
+ *
+ * Layers:
+ *   1. bundled type (Nunito variable, OFL — see assets/fonts/)
+ *   2. the sunset backdrop (body pseudo-elements; the body background-color
+ *      floor from a11y/page.css is untouched — axe contrast resolution and
+ *      the paint guarantee both keep working)
+ *   3. surfaces: .solstice-note (sticky note), .solstice-glass (translucent
+ *      warm panel), .solstice-tape (washi strip)
+ *   4. chips: .solstice-key (keycap), .solstice-chip (pill)
+ *   5. ornaments: .solstice-sun (sun disc), .solstice-hr (torn divider)
+ *   6. motion: .solstice-rise / .solstice-fade (reduced-motion aware)
+ */
+
+/* ------------------------------------------------------------------ */
+/* 1. Bundled type                                                     */
+/* ------------------------------------------------------------------ */
+
+@font-face {
+  font-family: "Nunito";
+  font-style: normal;
+  font-weight: 200 1000;
+  font-display: swap;
+  src: url("../assets/fonts/nunito-latin-var.woff2") format("woff2");
+  /* Nunito by Vernon Adams et al., SIL OFL 1.1 — license: assets/fonts/nunito-OFL.txt */
+}
+
+html {
+  font-family: var(--font-family-sans);
+  /* Native controls, scrollbars and form widgets follow the mode. */
+  color-scheme: dark;
+}
+html[data-theme="light"] {
+  color-scheme: light;
+}
+
+body {
+  font-family: var(--font-family-sans);
+  letter-spacing: 0.01em;
+}
+
+/* Headings lean into the rounded face. */
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-family-sans);
+  letter-spacing: -0.01em;
+}
+
+/* ------------------------------------------------------------------ */
+/* 2. The sunset backdrop                                              */
+/* ------------------------------------------------------------------ */
+/*
+ * body::before paints the sunset; body::after lays a mode-tinted veil over
+ * it so the default app chrome reads as a *remembered* sunset, calm enough
+ * to sit behind dense screens. html[data-backdrop="vivid"] drops the veil
+ * (onboarding hero); html[data-backdrop="none"] removes the gradient.
+ * Screens keep painting their own surfaces on top; transparent screens let
+ * the stage glow through.
+ */
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    var(--color-surface-deep) 0%,
+    var(--color-sunset-1) 14%,
+    var(--color-sunset-2) 32%,
+    var(--color-sunset-3) 46%,
+    var(--color-sunset-4) 57%,
+    var(--color-sunset-5) 67%,
+    var(--color-sunset-6) 75%,
+    var(--color-sunset-7) 85%,
+    var(--color-surface-deep) 100%
+  );
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--color-surface);
+  opacity: 0.52;
+}
+
+html[data-theme="light"] body::after {
+  background: var(--color-surface);
+  opacity: 0.55;
+}
+
+html[data-backdrop="vivid"] body::after {
+  opacity: 0;
+}
+
+html[data-backdrop="none"] body::before,
+html[data-backdrop="none"] body::after {
+  display: none;
+}
+
+/* Warm thin scrollbars (screens may refine). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-surface-muted) transparent;
+}
+
+/* ------------------------------------------------------------------ */
+/* 3. Surfaces                                                          */
+/* ------------------------------------------------------------------ */
+
+/* Sticky note — the signature surface. Slightly askew, torn tape on top. */
+.solstice-note {
+  position: relative;
+  background: var(--color-note);
+  color: var(--color-note-ink);
+  border: 1px solid var(--color-note-edge);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-note);
+  padding: calc(var(--space-inset) * 3);
+  rotate: -0.4deg;
+  transition:
+    rotate var(--motion-duration-fast) ease-out,
+    box-shadow var(--motion-duration-fast) ease-out,
+    translate var(--motion-duration-fast) ease-out;
+}
+
+.solstice-note--flat {
+  rotate: 0deg;
+}
+
+.solstice-note--tilt-r {
+  rotate: 0.5deg;
+}
+
+.solstice-note:hover {
+  rotate: 0deg;
+  translate: 0 -2px;
+}
+
+/* The washi-tape strip STRADDLING the top edge — half above, half on the
+ * note, torn ends, translucent enough to read as tape. */
+.solstice-note[data-tape]::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--space-inset) * -1.5);
+  left: 50%;
+  width: 96px;
+  height: 26px;
+  transform: translateX(-50%) rotate(-2.2deg);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-tape) 68%, white) 0%,
+      var(--color-tape) 42%,
+      var(--color-tape-edge) 100%
+    );
+  opacity: 0.92;
+  border-radius: 2px;
+  box-shadow:
+    0 2px 4px rgb(0 0 0 / 0.28),
+    inset 0 1px 0 color-mix(in srgb, white 35%, transparent);
+  /* torn ends */
+  clip-path: polygon(
+    0% 12%, 3% 0%, 6% 10%, 94% 6%, 97% 0%, 100% 14%,
+    99% 88%, 96% 100%, 93% 90%, 7% 96%, 4% 100%, 1% 86%
+  );
+}
+
+.solstice-note[data-tape="left"]::before {
+  left: 28%;
+  transform: rotate(-4deg);
+}
+
+.solstice-note[data-tape="right"]::before {
+  left: 72%;
+  transform: rotate(3deg);
+}
+
+/* Translucent warm panel — control bars, rails, floating chrome. */
+.solstice-glass {
+  background: color-mix(in srgb, var(--color-surface-panel) 82%, transparent);
+  color: var(--color-content-primary);
+  border: 1px solid color-mix(in srgb, var(--color-stroke-border) 80%, transparent);
+  border-radius: var(--radius-card);
+  backdrop-filter: blur(var(--blur-backdrop-small));
+  box-shadow: var(--shadow-card);
+}
+
+/* ------------------------------------------------------------------ */
+/* 4. Chips                                                             */
+/* ------------------------------------------------------------------ */
+
+/* Keycap — the keyboard-hint chip from the reference bottom bar. */
+.solstice-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 var(--space-inset);
+  font-family: var(--font-family-time);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  color: var(--color-keycap-ink);
+  background: var(--color-keycap);
+  border: 1px solid var(--color-keycap-edge);
+  border-bottom-width: 3px;
+  border-bottom-color: var(--color-keycap-shadow);
+  border-radius: var(--radius-inset);
+  user-select: none;
+}
+
+.solstice-key--active {
+  color: var(--color-content-on-accent);
+  background: var(--color-accent);
+  border-color: var(--color-accent-strong);
+  border-bottom-color: var(--color-accent-strong);
+}
+
+.solstice-key--sm {
+  min-width: 24px;
+  height: 24px;
+  font-size: var(--font-size-micro);
+  padding: 0 6px;
+}
+
+/* Pill chip — counts, filters, meta. */
+.solstice-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 calc(var(--space-inset) + 2px);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-content-primary);
+  background: color-mix(in srgb, var(--color-surface-raised) 55%, transparent);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-ring);
+}
+
+.solstice-chip--accent {
+  color: var(--color-content-on-accent);
+  background: var(--color-accent);
+  border-color: var(--color-accent-strong);
+}
+
+/* ------------------------------------------------------------------ */
+/* 5. Ornaments                                                         */
+/* ------------------------------------------------------------------ */
+
+/* Sun disc — logo mark / empty-state art. */
+.solstice-sun {
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 34% 30%,
+    var(--color-sunset-6) 0%,
+    var(--color-sunset-5) 55%,
+    var(--color-sunset-7) 100%
+  );
+  box-shadow:
+    0 0 calc(var(--space-inset) * 6) color-mix(in srgb, var(--color-sunset-6) 55%, transparent),
+    inset 0 calc(var(--space-inset) * -1) calc(var(--space-inset) * 2) color-mix(in srgb, var(--color-sunset-7) 70%, transparent);
+}
+
+/* Torn-paper divider. */
+.solstice-hr {
+  border: none;
+  height: 2px;
+  margin: var(--space-inset) 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--color-tape) 65%, transparent) 18%,
+    color-mix(in srgb, var(--color-tape) 45%, transparent) 82%,
+    transparent
+  );
+  opacity: 0.7;
+}
+
+/* ------------------------------------------------------------------ */
+/* 6. Motion                                                            */
+/* ------------------------------------------------------------------ */
+
+/* Gold primary buttons get the sun's dimensionality: a soft top highlight
+ * and a pressed-in lower edge, matching the .solstice-sun treatment.
+ * Specificity note: (0,2,0) at rest — button.css hover/active rules (same
+ * specificity, later in the cascade) still own the interactive states. */
+.lumen-button--primary:not(:disabled) {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-accent) 82%, white) 0%,
+    var(--color-accent) 52%,
+    color-mix(in srgb, var(--color-accent) 82%, var(--color-accent-strong)) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 42%, transparent),
+    inset 0 -2px 0 color-mix(in srgb, var(--color-accent-strong) 45%, transparent),
+    var(--shadow-card);
+}
+
+@keyframes solstice-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes solstice-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes solstice-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 calc(var(--space-inset) * 4) color-mix(in srgb, var(--color-accent) 40%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 calc(var(--space-inset) * 7) color-mix(in srgb, var(--color-accent) 62%, transparent);
+  }
+}
+
+.solstice-rise {
+  animation: solstice-rise var(--motion-duration-step) ease-out both;
+}
+
+.solstice-fade {
+  animation: solstice-fade var(--motion-duration-step) ease-out both;
+}
+
+.solstice-glow {
+  animation: solstice-glow calc(var(--motion-duration-slow) * 2) ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .solstice-rise,
+  .solstice-fade,
+  .solstice-glow {
+    animation: none;
+  }
+  .solstice-note,
+  .solstice-note:hover {
+    rotate: 0deg;
+    translate: none;
+    transition: none;
+  }
+}

@@ -5,6 +5,12 @@
  * idempotent; the committed copy is diff-tested by
  * crates/theme-tokens/tests/diff.rs.
  *
+ * Solstice design language (2026-11-08): warm neutrals, Keyvox-gold default
+ * accent (yellow), sunset/note/tape/keycap semantic groups, Nunito face.
+ * NOTE: this revision of the bridge was hand-maintained in an environment
+ * without cargo (documented in the redesign worklog); `cargo xtask tokens`
+ * must reproduce it when the Rust toolchain returns — diff.rs will verify.
+ *
  * Components consume SEMANTIC tokens only, via `var(--<name>)`
  * (doc 08 §3.2). The primitive and alias layers are never emitted
  * here; they exist for re-derivation from the Figma variables.
@@ -12,7 +18,7 @@
  * Block layout (doc 08 §3.3 — attributes on the root element):
  *   :root                                 mode-independent values,
  *                                        the default mode (dark) and
- *                                        the default accent (orange)
+ *                                        the default accent (yellow)
  *   :root[data-theme="<mode>"]            per-mode values
  *   :root[data-accent="<id>"]             alternate-accent values,
  *                                        default mode
@@ -20,38 +26,55 @@
  *                                        ...and their per-mode values
  *
  * Modes (2): dark (default), light.
- * Accents (9): orange (default), red, yellow, green, cyan, blue, violet, pink, gray.
- * Tokens: 92 primitive / 70 alias / 70 semantic (source:
+ * Accents (9): yellow (default), orange, red, green, cyan, blue, violet, pink, gray.
+ * Tokens: 125 primitive / 91 alias / 91 semantic (source:
  * themes/tokens.json).
  */
 
 :root {
   --blur-backdrop: 25px;
   --blur-backdrop-small: 13.75px;
-  --color-accent: #d37918;
-  --color-accent-bright: #d37918;
-  --color-accent-icon: #d37918;
-  --color-accent-strong: #ab6314;
-  --color-accent-tinted: #371f06;
-  --color-content-bright: #eaeaea;
-  --color-content-on-accent: #161616;
-  --color-content-primary: #8f8f8f;
-  --color-content-secondary: #969696;
-  --color-content-tertiary: #6b6b6b;
+  --color-accent: #f2c41d;
+  --color-accent-bright: #f2c41d;
+  --color-accent-icon: #f2c41d;
+  --color-accent-strong: #c89a10;
+  --color-accent-tinted: #3b2f08;
+  --color-content-bright: #f5eedc;
+  --color-content-on-accent: #201a10;
+  --color-content-primary: #cbbda1;
+  --color-content-secondary: #b7a98d;
+  --color-content-tertiary: #8c7c60;
+  --color-keycap: #2a2417;
+  --color-keycap-edge: #4a3e28;
+  --color-keycap-ink: #f2e9d5;
+  --color-keycap-shadow: #14100a;
+  --color-note: #262019;
+  --color-note-edge: #3b3122;
+  --color-note-ink: #f2e9d5;
+  --color-note-ink-muted: #b9ab8f;
   --color-record: #ff0000;
-  --color-stroke-border: #1b1b1b;
-  --color-stroke-icon: #8f8f8f;
-  --color-stroke-warm: #1a1611;
-  --color-surface: #191919;
-  --color-surface-chrome: #1b1b1b;
-  --color-surface-deep: #090909;
-  --color-surface-hover: #1f1f1f;
-  --color-surface-muted: #404040;
-  --color-surface-panel: #0e0e0e;
-  --color-surface-raised: #303030;
-  --color-surface-selected: #222222;
-  --font-family-sans: "Inter", system-ui, sans-serif;
-  --font-family-time: "Inter", system-ui, sans-serif;
+  --color-stroke-border: #352c1d;
+  --color-stroke-icon: #cbbda1;
+  --color-stroke-warm: #241c11;
+  --color-sunset-1: #191631;
+  --color-sunset-2: #2e3e80;
+  --color-sunset-3: #6c69ba;
+  --color-sunset-4: #a479ad;
+  --color-sunset-5: #e68373;
+  --color-sunset-6: #ef9b4c;
+  --color-sunset-7: #7a3b1e;
+  --color-surface: #241d13;
+  --color-surface-chrome: #282013;
+  --color-surface-deep: #12100b;
+  --color-surface-hover: #2f2617;
+  --color-surface-muted: #5f5036;
+  --color-surface-panel: #1a150e;
+  --color-surface-raised: #4c3f28;
+  --color-surface-selected: #382d1b;
+  --color-tape: #dfc27f;
+  --color-tape-edge: #c6a968;
+  --font-family-sans: "Nunito", "Inter", system-ui, sans-serif;
+  --font-family-time: ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo, Consolas, monospace;
   --font-size-body: 14px;
   --font-size-caption: 11px;
   --font-size-display: 32px;
@@ -59,12 +82,18 @@
   --font-size-micro: 6px;
   --font-size-time: 15px;
   --font-size-title: 18px;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
   --font-weight-medium: 500;
   --font-weight-regular: 400;
-  --gradient-visualizer-1: #ff3737;
-  --gradient-visualizer-2: #d37918;
-  --gradient-visualizer-3: #b2a918;
-  --gradient-visualizer-4: #95d318;
+  --font-weight-semibold: 600;
+  --gradient-visualizer-1: #ff5e5b;
+  --gradient-visualizer-2: #f2c41d;
+  --gradient-visualizer-3: #ff9e4a;
+  --gradient-visualizer-4: #6c69ba;
+  --motion-duration-fast: 120ms;
+  --motion-duration-slow: 480ms;
+  --motion-duration-step: 280ms;
   --opacity-chrome: 1;
   --opacity-disabled: 0.5;
   --opacity-emphasis: 0.7;
@@ -75,18 +104,19 @@
   --opacity-scrim-subtle: 0.14;
   --opacity-swatch-rest: 0.7;
   --radius-app: 19px;
-  --radius-card: 12px;
+  --radius-card: 16px;
   --radius-card-lg: 30px;
-  --radius-control: 6px;
+  --radius-control: 10px;
   --radius-hairline: 1px;
-  --radius-inset: 4px;
-  --radius-menu: 10px;
-  --radius-panel: 2px;
+  --radius-inset: 6px;
+  --radius-menu: 12px;
+  --radius-panel: 12px;
   --radius-ring: 21px;
-  --radius-thumbnail: 6px;
-  --radius-window: 14px;
-  --shadow-card: 0px 4.76px 4.76px 0px rgba(0, 0, 0, 0.38);
-  --shadow-overlay: 0px 4.76px 5.9px 0px rgba(0, 0, 0, 0.7);
+  --radius-thumbnail: 8px;
+  --radius-window: 16px;
+  --shadow-card: 0px 5px 16px 0px rgba(20, 13, 5, 0.38);
+  --shadow-note: 0px 14px 36px 0px rgba(12, 8, 3, 0.5);
+  --shadow-overlay: 0px 12px 36px 0px rgba(12, 8, 3, 0.6);
   --space-grid: 4px;
   --space-inset: 8px;
   --space-item-pitch: 48px;
@@ -99,24 +129,54 @@
 }
 
 :root[data-theme="light"] {
+  --color-accent-bright: #ffd84d;
+  --color-accent-icon: #d9a912;
+  --color-accent-tinted: #e8d39a;
+  --color-content-bright: #1f1b14;
+  --color-content-primary: #4a3e2a;
+  --color-content-secondary: #3e3320;
+  --color-keycap: #fffdf4;
+  --color-keycap-edge: #d9cca8;
+  --color-keycap-ink: #1f1b16;
+  --color-keycap-shadow: #c9bb98;
+  --color-note: #efe6d2;
+  --color-note-edge: #e0d2b0;
+  --color-note-ink: #1f1b16;
+  --color-note-ink-muted: #6e6250;
+  --color-stroke-border: #ddd0b2;
+  --color-stroke-icon: #4a3e2a;
+  --color-sunset-1: #fbf3e2;
+  --color-sunset-2: #f9d9a0;
+  --color-sunset-3: #f4b183;
+  --color-sunset-4: #e58f87;
+  --color-sunset-5: #c8739e;
+  --color-sunset-6: #8e6fb5;
+  --color-sunset-7: #5d5a9c;
+  --color-surface: #efe3c6;
+  --color-surface-chrome: #f3ead2;
+  --color-surface-deep: #f6efdd;
+  --color-surface-hover: #e5d8b8;
+  --color-surface-muted: #c9b98f;
+  --color-surface-panel: #f8f1e0;
+  --color-surface-raised: #e8dbbd;
+  --color-surface-selected: #e0d0a8;
+  --opacity-chrome: 0.75;
+  --opacity-panel: 0.8;
+}
+
+:root[data-accent="orange"] {
+  --color-accent: #d37918;
+  --color-accent-bright: #d37918;
+  --color-accent-icon: #d37918;
+  --color-accent-strong: #ab6314;
+  --color-accent-tinted: #371f06;
+  --color-content-on-accent: #161616;
+}
+
+:root[data-theme="light"][data-accent="orange"] {
   --color-accent-bright: #e8851a;
   --color-accent-icon: #c2711a;
   --color-accent-tinted: #d8ba9a;
-  --color-content-bright: #161616;
-  --color-content-primary: #2e2e2e;
-  --color-content-secondary: #303030;
-  --color-stroke-border: #d5d5d5;
-  --color-stroke-icon: #2e2e2e;
-  --color-surface: #d5d5d5;
-  --color-surface-chrome: #d5d5d5;
-  --color-surface-deep: #dedede;
-  --color-surface-hover: #cfcfcf;
-  --color-surface-muted: #acacac;
-  --color-surface-panel: #e7e7e7;
-  --color-surface-raised: #bebebe;
-  --color-surface-selected: #c6c6c6;
-  --opacity-chrome: 0.75;
-  --opacity-panel: 0.8;
 }
 
 :root[data-accent="red"] {
@@ -132,21 +192,6 @@
   --color-accent-bright: #e66044;
   --color-accent-icon: #db4728;
   --color-accent-tinted: #d6a69c;
-}
-
-:root[data-accent="yellow"] {
-  --color-accent: #c49e23;
-  --color-accent-bright: #c49e23;
-  --color-accent-icon: #c49e23;
-  --color-accent-strong: #9d7f1c;
-  --color-accent-tinted: #342a09;
-  --color-content-on-accent: #161616;
-}
-
-:root[data-theme="light"][data-accent="yellow"] {
-  --color-accent-bright: #daaf24;
-  --color-accent-icon: #b49224;
-  --color-accent-tinted: #d4c79e;
 }
 
 :root[data-accent="green"] {
@@ -225,16 +270,16 @@
 }
 
 :root[data-accent="gray"] {
-  --color-accent: #afafaf;
-  --color-accent-bright: #afafaf;
-  --color-accent-icon: #afafaf;
-  --color-accent-strong: #989898;
-  --color-accent-tinted: #1e1e1e;
+  --color-accent: #a99c82;
+  --color-accent-bright: #a99c82;
+  --color-accent-icon: #a99c82;
+  --color-accent-strong: #8f8268;
+  --color-accent-tinted: #241f14;
   --color-content-on-accent: #161616;
 }
 
 :root[data-theme="light"][data-accent="gray"] {
-  --color-accent-bright: #bababa;
-  --color-accent-icon: #a7a7a7;
-  --color-accent-tinted: #b9b9b9;
+  --color-accent-bright: #b5aa90;
+  --color-accent-icon: #9c9077;
+  --color-accent-tinted: #c4ba9f;
 }

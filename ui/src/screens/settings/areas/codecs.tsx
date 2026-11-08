@@ -61,9 +61,9 @@ export function HwDecodePolicyControl(): ReactElement {
       />
       {disabled ? (
         <p className="settings-field__badges" role="note" data-gate-reason={entry.featureGate}>
-          <span className="settings-badge settings-badge--restart">
-            {m("settings.codecs.hw-decode-unavailable")}
-          </span>
+          {/* gate note (not a restart badge) — the quiet warm pill; the
+              gold accent chip is reserved for restart-required states */}
+          <span className="settings-badge">{m("settings.codecs.hw-decode-unavailable")}</span>
         </p>
       ) : null}
     </div>

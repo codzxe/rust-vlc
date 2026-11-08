@@ -220,11 +220,26 @@ export function PlayerControlsProvider({
       try {
         const response = await wire.send(request);
         if ("error" in response.result) {
-          patch({ lastError: response.result.error });
+          // "No media open" is a STATE, not a playback failure: the
+          // mount-time media.get-info probe on an idle session answers
+          // `not-found`, and the stage already renders the honest empty
+          // state for it. The error chip stays reserved for real failures
+          // (Solstice, 2026-11-08 — demo shell + engine parity).
+          const isEmptyProbe =
+            request.cmd === "media.get-info" && response.result.error.code === "not-found";
+          if (!isEmptyProbe) {
+            patch({ lastError: response.result.error });
+          }
           return;
         }
         if ("completed" in response.result) {
           applyCompleted(response.result.completed);
+        }
+        // A successfully opened session resets the stale error surface
+        // (the previous media's failure no longer applies). session.open
+        // answers `accepted` — the opening events follow.
+        if (request.cmd === "session.open") {
+          patch({ lastError: null });
         }
         // "accepted" — the request_id stays outstanding; pending resolves on
         // the matching engine event (doc 08 §5.1).

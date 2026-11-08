@@ -1,11 +1,22 @@
-/* Card 4.D2 — media info panel (doc 08 §4.3: styling borrowed from the
- * settings language — the design has no dedicated frame [VERIFY-DESIGN]).
- * Semantic tokens only (doc 08 §3.2). */
+/* Media info panel + /media-info route — Solstice restyle (2026-11-08).
+ *
+ * Sections stack as flat sticky notes (.solstice-note--flat — the DATA
+ * never tilts; only the section headers carry a slight alternating lean,
+ * and the washi tapes alternate left/center/right). Fields flow a
+ * two-column grid (label muted / value strong); honest "Unknown" values
+ * render muted via [data-unknown]; every track wears a chip heading.
+ *
+ * Contexts: the player shell's `media-info` side region and the route page
+ * (transparent root — the veiled sunset glows around the note stack).
+ * Contracts kept (MediaInfoPanel.test.tsx): data-field, data-mi-section,
+ * data-mi-stream, data-track-id, data-state, heading names.
+ * Semantic tokens only (doc 08 §3.2); raw px solely for structural
+ * dimensions with no token. */
 
 .lumen-mi {
   display: flex;
   flex-direction: column;
-  gap: var(--space-grid);
+  gap: calc(var(--space-grid) * 3); /* tapes pinned at -10px breathe between cards */
   min-height: 0;
   flex: 1;
   overflow-y: auto;
@@ -15,104 +26,223 @@
   margin: 0;
   padding: 0 var(--space-inset);
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-bold);
   color: var(--color-content-primary);
 }
 
-.lumen-mi__section {
+/* --------------------------------------------------- sections as notes */
+/* Boosted (descendant) selectors so the composition wins over the
+ * .solstice-note utilities regardless of sheet order. */
+
+.lumen-mi .lumen-mi__section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-grid);
-  padding: 0 var(--space-inset);
+  gap: calc(var(--space-grid) * 2);
+  padding: calc(var(--space-inset) * 2) calc(var(--space-inset) * 2) calc(var(--space-inset) * 1.5);
 }
 
-.lumen-mi__section-title {
-  margin: 0;
-  font-size: var(--font-size-micro);
-  font-weight: var(--font-weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-content-tertiary);
+/* Data cards never lift — the note's hover levity is retired here. */
+.lumen-mi .lumen-mi__section:hover {
+  translate: none;
 }
+
+/* Section headers: a hand-highlighted tape label with a slight lean.
+ * Data below stays level — headers alternate the lean for warmth. */
+.lumen-mi__section-title {
+  display: inline-block;
+  align-self: flex-start;
+  margin: 0;
+  padding: 0 calc(var(--space-grid) * 1.5) calc(var(--space-grid) * 0.5);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.01em;
+  color: var(--color-note-ink);
+  border-radius: var(--radius-inset);
+  rotate: -0.35deg;
+  /* 35% tape keeps note-ink on the highlight ≥ 4.5:1 in both modes */
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-tape) 35%, transparent),
+    color-mix(in srgb, var(--color-tape) 12%, transparent) 82%,
+    transparent
+  );
+}
+
+.lumen-mi > section:nth-of-type(even) .lumen-mi__section-title {
+  rotate: 0.35deg;
+}
+
+/* Staggered entrance (the .solstice-rise utility is reduced-motion safe). */
+.lumen-mi > .lumen-mi__section:nth-of-type(2) {
+  animation-delay: calc(var(--motion-duration-fast) * 0.5);
+}
+
+.lumen-mi > .lumen-mi__section:nth-of-type(3) {
+  animation-delay: var(--motion-duration-fast);
+}
+
+.lumen-mi > .lumen-mi__section:nth-of-type(4) {
+  animation-delay: calc(var(--motion-duration-fast) * 1.5);
+}
+
+.lumen-mi > .lumen-mi__section:nth-of-type(5) {
+  animation-delay: calc(var(--motion-duration-fast) * 2);
+}
+
+/* --------------------------------------------------------- field grid */
 
 .lumen-mi__rows {
   margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-grid);
+  display: grid;
+  /* two columns of label|value pairs on the page, one inside the 377px
+     player side panel — no media query needed */
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--space-grid) calc(var(--space-inset) * 2);
 }
 
 .lumen-mi__row {
   display: grid;
-  grid-template-columns: minmax(7rem, 40%) 1fr;
+  grid-template-columns: minmax(6rem, 40%) 1fr;
   gap: var(--space-grid);
   align-items: baseline;
+  padding: calc(var(--space-grid) * 1.5);
+  border-radius: var(--radius-inset);
 }
 
 .lumen-mi__term {
   font-size: var(--font-size-caption);
-  color: var(--color-content-secondary);
+  color: var(--color-note-ink-muted);
 }
 
 .lumen-mi__value {
   margin: 0;
-  font-size: var(--font-size-caption);
-  color: var(--color-content-primary);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-note-ink);
   overflow-wrap: anywhere;
 }
+
+/* The honest unknown — muted and leaning, so an absent value never reads
+ * as a reported one. */
+.lumen-mi__row[data-unknown] .lumen-mi__value {
+  color: var(--color-note-ink-muted);
+  font-style: italic;
+  font-weight: var(--font-weight-regular);
+}
+
+.lumen-mi__row[data-unknown] .lumen-mi__value-chip {
+  color: var(--color-note-ink-muted);
+  font-style: italic;
+  background: transparent;
+}
+
+/* ---------------------------------------------------------- track list */
 
 .lumen-mi__stream {
   display: flex;
   flex-direction: column;
-  gap: var(--space-grid);
-  padding: var(--space-grid) 0;
-  border-top: var(--border-width-hairline) solid var(--color-stroke-subtle);
+  gap: calc(var(--space-grid) * 1.5);
+  padding: calc(var(--space-grid) * 2) 0 0;
+  border-top: 1px solid var(--color-note-edge);
+}
+
+.lumen-mi__stream + .lumen-mi__stream {
+  margin-top: calc(var(--space-grid) * 1.5);
 }
 
 .lumen-mi__stream-title {
   margin: 0;
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-content-secondary);
+  display: flex;
+  align-items: center;
 }
 
-.lumen-mi__note,
-.lumen-mi__empty-title,
-.lumen-mi__empty-body {
+/* ------------------------------------------------------- honest states */
+
+/* Inside a note card (metadata "none reported"). */
+.lumen-mi__note {
   margin: 0;
   padding: 0 var(--space-inset);
   font-size: var(--font-size-caption);
+  color: var(--color-note-ink-muted);
+}
+
+/* The not-exposed line on the page/panel bg — a compact chip; long honesty
+ * copy must wrap (the utility pill fixes height at 26px). */
+.lumen-mi > .lumen-mi__note {
+  height: auto;
+  min-height: 26px;
+  margin: 0;
+  padding: 0 var(--space-inset);
+  align-self: flex-start;
+  white-space: normal;
   color: var(--color-content-secondary);
 }
 
-.lumen-mi__empty-title {
-  color: var(--color-content-primary);
-  font-weight: var(--font-weight-semibold);
+/* Empty state — a small recessed note tray with the sun-disc ornament
+ * (--color-surface-deep insets against both the transparent page and the
+ * player's surface-panel side region, in both theme modes). */
+.lumen-mi__empty {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-grid);
+  margin: var(--space-grid) 0 0;
+  padding: calc(var(--space-inset) * 3) var(--space-inset);
+  text-align: center;
+  background: var(--color-surface-deep);
+  border: 1px solid var(--color-note-edge);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
 }
 
-/* --- /media-info route body --- */
+.lumen-mi__sun {
+  width: 28px;
+  height: 28px;
+  margin-bottom: var(--space-grid);
+}
+
+.lumen-mi__empty-title {
+  margin: 0;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-content-primary);
+}
+
+.lumen-mi__empty-body {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+}
+
+/* --------------------------------------------------- /media-info route */
 
 .lumen-mi-screen {
   display: flex;
   flex-direction: column;
-  gap: var(--space-grid);
+  gap: calc(var(--space-grid) * 3);
   max-width: 48rem;
   margin: 0 auto;
-  padding: var(--space-inset);
+  padding: calc(var(--space-grid) * 6) calc(var(--space-grid) * 4);
   min-height: 100%;
+  box-sizing: border-box;
+  /* transparent on purpose — the veiled sunset glows around the notes */
+  background: transparent;
 }
 
 .lumen-mi-screen__title {
   margin: 0;
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-heading);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-content-primary);
+  font-size: var(--font-size-display);
+  font-weight: var(--font-weight-extrabold);
+  letter-spacing: -0.01em;
+  color: var(--color-content-bright);
 }
 
+/* The section notes carry the surface — no boxed panel on the page. */
 .lumen-mi-screen__panel {
-  border: var(--border-width-hairline) solid var(--color-stroke-subtle);
-  border-radius: var(--radius-md);
-  padding: var(--space-grid) 0;
+  flex: 1;
+  min-height: 0;
 }

@@ -1,6 +1,10 @@
 // Card 4.D2 — media information panel (doc 08 §4.3 "Media information"
 // row: MediaInfoPanel via `media.get-info`; design has no dedicated frame
 // [VERIFY-DESIGN] → styling from the settings language per the doc).
+// Solstice restyle (2026-11-08): sections stack as flat sticky notes
+// (data never tilts — only the section headers carry a slight alternating
+// lean, via CSS), fields flow a two-column grid, honest "Unknown" values
+// render muted (data-unknown), tracks wear chip headings.
 //
 // Rendered both inside the player shell's `media-info` region (PlayerScreen
 // wiring) and as the /media-info route body (MediaInfoScreen).
@@ -24,15 +28,28 @@ function Row({
   field,
   label,
   value,
+  unknown = null,
+  chip = false,
 }: {
   field: string;
   label: string;
   value: string;
+  /** The honest-unknown sentinel — when `value` equals it the row flags
+   * itself `data-unknown` so CSS renders it muted, never invented. */
+  unknown?: string | null;
+  /** Tag-like values (languages) render as pill chips. */
+  chip?: boolean;
 }) {
   return (
-    <div className="lumen-mi__row" data-field={field}>
+    <div
+      className="lumen-mi__row"
+      data-field={field}
+      data-unknown={(unknown !== null && value === unknown) || undefined}
+    >
       <dt className="lumen-mi__term">{label}</dt>
-      <dd className="lumen-mi__value">{value}</dd>
+      <dd className="lumen-mi__value">
+        {chip ? <span className="lumen-mi__value-chip solstice-chip">{value}</span> : value}
+      </dd>
     </div>
   );
 }
@@ -48,7 +65,7 @@ export function MediaInfoPanel({ className = "" }: { className?: string }) {
     return (
       <section className={`lumen-mi ${className}`.trim()} data-screen-part="media-info" data-state="not-exposed">
         <h2 className="lumen-mi__title">{m("media-info.panel.title")}</h2>
-        <p className="lumen-mi__note">{m("media-info.panel.not-exposed")}</p>
+        <p className="lumen-mi__note solstice-chip">{m("media-info.panel.not-exposed")}</p>
       </section>
     );
   }
@@ -58,8 +75,11 @@ export function MediaInfoPanel({ className = "" }: { className?: string }) {
     return (
       <section className={`lumen-mi ${className}`.trim()} data-screen-part="media-info" data-state="empty">
         <h2 className="lumen-mi__title">{m("media-info.panel.title")}</h2>
-        <p className="lumen-mi__empty-title">{m("media-info.empty.title")}</p>
-        <p className="lumen-mi__empty-body">{m("media-info.empty.body")}</p>
+        <div className="lumen-mi__empty">
+          <span className="lumen-mi__sun solstice-sun" aria-hidden="true" />
+          <p className="lumen-mi__empty-title">{m("media-info.empty.title")}</p>
+          <p className="lumen-mi__empty-body">{m("media-info.empty.body")}</p>
+        </div>
       </section>
     );
   }
@@ -92,31 +112,42 @@ function MediaInfoSections({
       <h2 className="lumen-mi__title">{m("media-info.panel.title")}</h2>
 
       {/* --- General --- */}
-      <section className="lumen-mi__section" data-mi-section="general" aria-labelledby="lumen-mi-general">
+      <section
+        className="lumen-mi__section solstice-note solstice-note--flat solstice-rise"
+        data-tape
+        data-mi-section="general"
+        aria-labelledby="lumen-mi-general"
+      >
         <h3 className="lumen-mi__section-title" id="lumen-mi-general">
           {m("media-info.section.general")}
         </h3>
         <dl className="lumen-mi__rows">
-          <Row field="title" label={m("media-info.field.title")} value={text(info.title)} />
-          <Row field="source" label={m("media-info.field.source")} value={sourceLocation(info.source)} />
-          <Row field="container" label={m("media-info.field.container")} value={text(info.container)} />
+          <Row field="title" label={m("media-info.field.title")} value={text(info.title)} unknown={unknown} />
+          <Row field="source" label={m("media-info.field.source")} value={sourceLocation(info.source)} unknown={unknown} />
+          <Row field="container" label={m("media-info.field.container")} value={text(info.container)} unknown={unknown} />
           <Row
             field="duration"
             label={m("media-info.field.duration")}
             value={formatDuration(info.duration, m("media-info.duration.infinite")) ?? unknown}
+            unknown={unknown}
           />
           {/* CATALOG GAP: size/bitrate are not in the MediaInfo wire type yet —
               honest "Unknown", never invented (ui/NEXT-STEPS.md handoff). */}
-          <Row field="size" label={m("media-info.field.size")} value={unknown} />
-          <Row field="bitrate" label={m("media-info.field.bitrate")} value={unknown} />
-          <Row field="live" label={m("media-info.field.live")} value={bool(info.isLive)} />
-          <Row field="seekable" label={m("media-info.field.seekable")} value={bool(info.seekable)} />
-          <Row field="chapters" label={m("media-info.field.chapters")} value={String(info.chapters.length)} />
+          <Row field="size" label={m("media-info.field.size")} value={unknown} unknown={unknown} />
+          <Row field="bitrate" label={m("media-info.field.bitrate")} value={unknown} unknown={unknown} />
+          <Row field="live" label={m("media-info.field.live")} value={bool(info.isLive)} unknown={unknown} />
+          <Row field="seekable" label={m("media-info.field.seekable")} value={bool(info.seekable)} unknown={unknown} />
+          <Row field="chapters" label={m("media-info.field.chapters")} value={String(info.chapters.length)} unknown={unknown} />
         </dl>
       </section>
 
       {/* --- Video streams --- */}
-      <section className="lumen-mi__section" data-mi-section="video" aria-labelledby="lumen-mi-video">
+      <section
+        className="lumen-mi__section solstice-note solstice-note--flat solstice-rise"
+        data-tape="left"
+        data-mi-section="video"
+        aria-labelledby="lumen-mi-video"
+      >
         <h3 className="lumen-mi__section-title" id="lumen-mi-video">
           {m("media-info.section.video")}
         </h3>
@@ -126,7 +157,12 @@ function MediaInfoSections({
       </section>
 
       {/* --- Audio streams --- */}
-      <section className="lumen-mi__section" data-mi-section="audio" aria-labelledby="lumen-mi-audio">
+      <section
+        className="lumen-mi__section solstice-note solstice-note--flat solstice-rise"
+        data-tape="right"
+        data-mi-section="audio"
+        aria-labelledby="lumen-mi-audio"
+      >
         <h3 className="lumen-mi__section-title" id="lumen-mi-audio">
           {m("media-info.section.audio")}
         </h3>
@@ -136,7 +172,12 @@ function MediaInfoSections({
       </section>
 
       {/* --- Subtitles --- */}
-      <section className="lumen-mi__section" data-mi-section="subtitle" aria-labelledby="lumen-mi-subtitle">
+      <section
+        className="lumen-mi__section solstice-note solstice-note--flat solstice-rise"
+        data-tape="left"
+        data-mi-section="subtitle"
+        aria-labelledby="lumen-mi-subtitle"
+      >
         <h3 className="lumen-mi__section-title" id="lumen-mi-subtitle">
           {m("media-info.section.subtitle")}
         </h3>
@@ -146,7 +187,12 @@ function MediaInfoSections({
       </section>
 
       {/* --- Metadata tags --- */}
-      <section className="lumen-mi__section" data-mi-section="metadata" aria-labelledby="lumen-mi-metadata">
+      <section
+        className="lumen-mi__section solstice-note solstice-note--flat solstice-rise"
+        data-tape="right"
+        data-mi-section="metadata"
+        aria-labelledby="lumen-mi-metadata"
+      >
         <h3 className="lumen-mi__section-title" id="lumen-mi-metadata">
           {m("media-info.section.metadata")}
         </h3>
@@ -155,7 +201,7 @@ function MediaInfoSections({
         ) : (
           <dl className="lumen-mi__rows">
             {metadataEntries.map(([key, value]) => (
-              <Row key={key} field={`metadata.${key}`} label={key} value={text(value)} />
+              <Row key={key} field={`metadata.${key}`} label={key} value={text(value)} unknown={unknown} />
             ))}
           </dl>
         )}
@@ -181,21 +227,24 @@ function VideoStream({
   const v = track.video ?? null;
   return (
     <article className="lumen-mi__stream" data-mi-stream="video" data-track-id={track.id}>
-      <h4 className="lumen-mi__stream-title">{streamHeading(m("media-info.stream.video"), index)}</h4>
+      <h4 className="lumen-mi__stream-title">
+        <span className="solstice-chip">{streamHeading(m("media-info.stream.video"), index)}</span>
+      </h4>
       <dl className="lumen-mi__rows">
-        <Row field="codec" label={m("media-info.field.codec")} value={codecLabel(track.codec) ?? unknown} />
-        <Row field="profile" label={m("media-info.field.profile")} value={textOrNull(track.codec?.profile, unknown)} />
-        <Row field="level" label={m("media-info.field.level")} value={textOrNull(track.codec?.level, unknown)} />
+        <Row field="codec" label={m("media-info.field.codec")} value={codecLabel(track.codec) ?? unknown} unknown={unknown} />
+        <Row field="profile" label={m("media-info.field.profile")} value={textOrNull(track.codec?.profile, unknown)} unknown={unknown} />
+        <Row field="level" label={m("media-info.field.level")} value={textOrNull(track.codec?.level, unknown)} unknown={unknown} />
         <Row
           field="dimensions"
           label={m("media-info.field.dimensions")}
           value={v === null ? unknown : `${String(v.width)} × ${String(v.height)}`}
+          unknown={unknown}
         />
-        <Row field="frame-rate" label={m("media-info.field.frame-rate")} value={numOrNull(v?.frameRate, (n) => `${String(n)} fps`, unknown)} />
-        <Row field="bit-depth" label={m("media-info.field.bit-depth")} value={numOrNull(v?.bitDepth, (n) => `${String(n)}-bit`, unknown)} />
-        <Row field="hdr" label={m("media-info.field.hdr")} value={v === null ? unknown : v.hdr ? m("media-info.value.yes") : m("media-info.value.no")} />
-        <Row field="language" label={m("media-info.field.language")} value={textOrNull(track.language, unknown)} />
-        <Row field="name" label={m("media-info.field.name")} value={textOrNull(track.name, unknown)} />
+        <Row field="frame-rate" label={m("media-info.field.frame-rate")} value={numOrNull(v?.frameRate, (n) => `${String(n)} fps`, unknown)} unknown={unknown} />
+        <Row field="bit-depth" label={m("media-info.field.bit-depth")} value={numOrNull(v?.bitDepth, (n) => `${String(n)}-bit`, unknown)} unknown={unknown} />
+        <Row field="hdr" label={m("media-info.field.hdr")} value={v === null ? unknown : v.hdr ? m("media-info.value.yes") : m("media-info.value.no")} unknown={unknown} />
+        <Row field="language" label={m("media-info.field.language")} value={textOrNull(track.language, unknown)} unknown={unknown} chip />
+        <Row field="name" label={m("media-info.field.name")} value={textOrNull(track.name, unknown)} unknown={unknown} />
       </dl>
     </article>
   );
@@ -214,15 +263,17 @@ function AudioStream({
   const a = track.audio ?? null;
   return (
     <article className="lumen-mi__stream" data-mi-stream="audio" data-track-id={track.id}>
-      <h4 className="lumen-mi__stream-title">{streamHeading(m("media-info.stream.audio"), index)}</h4>
+      <h4 className="lumen-mi__stream-title">
+        <span className="solstice-chip">{streamHeading(m("media-info.stream.audio"), index)}</span>
+      </h4>
       <dl className="lumen-mi__rows">
-        <Row field="codec" label={m("media-info.field.codec")} value={codecLabel(track.codec) ?? unknown} />
-        <Row field="channels" label={m("media-info.field.channels")} value={a === null ? unknown : String(a.channels)} />
-        <Row field="sample-rate" label={m("media-info.field.sample-rate")} value={numOrNull(a?.sampleRate, (n) => `${String(n)} Hz`, unknown)} />
-        <Row field="bit-depth" label={m("media-info.field.bit-depth")} value={numOrNull(a?.bitDepth, (n) => `${String(n)}-bit`, unknown)} />
-        <Row field="codec-params" label={m("media-info.field.codec-params")} value={textOrNull(a?.codecParams, unknown)} />
-        <Row field="language" label={m("media-info.field.language")} value={textOrNull(track.language, unknown)} />
-        <Row field="name" label={m("media-info.field.name")} value={textOrNull(track.name, unknown)} />
+        <Row field="codec" label={m("media-info.field.codec")} value={codecLabel(track.codec) ?? unknown} unknown={unknown} />
+        <Row field="channels" label={m("media-info.field.channels")} value={a === null ? unknown : String(a.channels)} unknown={unknown} />
+        <Row field="sample-rate" label={m("media-info.field.sample-rate")} value={numOrNull(a?.sampleRate, (n) => `${String(n)} Hz`, unknown)} unknown={unknown} />
+        <Row field="bit-depth" label={m("media-info.field.bit-depth")} value={numOrNull(a?.bitDepth, (n) => `${String(n)}-bit`, unknown)} unknown={unknown} />
+        <Row field="codec-params" label={m("media-info.field.codec-params")} value={textOrNull(a?.codecParams, unknown)} unknown={unknown} />
+        <Row field="language" label={m("media-info.field.language")} value={textOrNull(track.language, unknown)} unknown={unknown} chip />
+        <Row field="name" label={m("media-info.field.name")} value={textOrNull(track.name, unknown)} unknown={unknown} />
       </dl>
     </article>
   );
@@ -240,15 +291,18 @@ function SubtitleStream({
   const m = useMsg();
   return (
     <article className="lumen-mi__stream" data-mi-stream="subtitle" data-track-id={track.id}>
-      <h4 className="lumen-mi__stream-title">{streamHeading(m("media-info.stream.subtitle"), index)}</h4>
+      <h4 className="lumen-mi__stream-title">
+        <span className="solstice-chip">{streamHeading(m("media-info.stream.subtitle"), index)}</span>
+      </h4>
       <dl className="lumen-mi__rows">
-        <Row field="codec" label={m("media-info.field.codec")} value={codecLabel(track.codec) ?? unknown} />
-        <Row field="language" label={m("media-info.field.language")} value={textOrNull(track.language, unknown)} />
-        <Row field="name" label={m("media-info.field.name")} value={textOrNull(track.name, unknown)} />
+        <Row field="codec" label={m("media-info.field.codec")} value={codecLabel(track.codec) ?? unknown} unknown={unknown} />
+        <Row field="language" label={m("media-info.field.language")} value={textOrNull(track.language, unknown)} unknown={unknown} chip />
+        <Row field="name" label={m("media-info.field.name")} value={textOrNull(track.name, unknown)} unknown={unknown} />
         <Row
           field="origin"
           label={m("media-info.field.origin")}
           value={track.origin === "external-subtitle" ? m("media-info.origin.external") : m("media-info.origin.stream")}
+          unknown={unknown}
         />
       </dl>
     </article>

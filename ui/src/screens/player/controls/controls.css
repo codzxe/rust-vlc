@@ -1,64 +1,209 @@
 /* Card 4.C2 — control bar composition (doc 08 §1.6 bottom bar, §4.3
- * unobtrusive controls, §5 truthful states). Semantic tokens only (§3.2);
- * raw px only for structural dimensions with no token (gaps, min widths). */
+ * unobtrusive controls, §5 truthful states).
+ *
+ * SOLSTICE RESTYLE (2026-11-08): the bar floats as a .solstice-glass card
+ * (class composed in ControlBar.tsx — translucent warm panel + blur +
+ * --radius-card rounding, no longer edge-to-edge; the shell footer provides
+ * the float margins). Spacing sits on the 4px grid; the play toggle is the
+ * ONE gold primary action (40px accent circle); the seekbar reads gold on a
+ * warm track; track-selector dropdowns get min-widths so labels never
+ * truncate ("Unknown" renders whole); the volume slider is horizontal and
+ * grouped right; the error surface is a compact note chip above the bar.
+ *
+ * Semantic tokens only (§3.2); raw px appears solely for structural
+ * dimensions with no token (the 40px primary circle, dropdown min-widths). */
 
 .lumen-controls {
+  position: relative; /* anchors the floating error chip */
   display: flex;
+  flex-wrap: wrap; /* narrow windows wrap clusters, never overflow the card */
   align-items: center;
-  gap: 16px;
+  gap: var(--space-inset);
   width: 100%;
   box-sizing: border-box;
-  padding: 8px 16px;
+  padding: var(--space-grid) calc(var(--space-inset) + 2px);
   color: var(--color-content-primary);
   font-family: var(--font-family-sans);
   font-size: var(--font-size-label);
 }
 
 .lumen-controls__transport,
-.lumen-controls__volume,
 .lumen-controls__tracks {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-grid);
+  flex: none;
+}
+
+/* Volume cluster — grouped on the right behind a hairline warm divider. */
+.lumen-controls__volume {
+  display: flex;
+  align-items: center;
+  gap: var(--space-grid);
+  flex: none;
+  padding-left: var(--space-inset);
+  border-left: 1px solid color-mix(in srgb, var(--color-stroke-border) 70%, transparent);
 }
 
 .lumen-controls__seek {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: calc(var(--space-inset) + 2px);
   flex: 1;
   min-width: 0;
 }
 
 .lumen-controls__time {
   font-family: var(--font-family-time);
-  font-size: var(--font-size-caption);
+  font-size: var(--font-size-time);
   color: var(--color-content-secondary);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-/* Truthful buffering hint (doc 08 §5.3): transport inert but visible. */
-.lumen-controls[data-playback-state="buffering"] .lumen-controls__transport {
-  opacity: 0.7;
+/* The play toggle — the gold primary action: 40px accent circle, on-accent
+ * glyph, hover lift (structural 40px: no token; recorded like the 4.B1
+ * 28/32/48 control heights). Disabled keeps the token opacity floor. */
+.lumen-controls__transport .lumen-icon-button[data-control="play-pause"] {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%; /* functional circle, not a design radius */
+  color: var(--color-content-on-accent);
+  background: var(--color-accent);
+  box-shadow: 0 var(--space-grid) calc(var(--space-inset) * 2)
+    color-mix(in srgb, var(--color-accent) 32%, transparent);
+  transition: background-color 120ms ease, translate 120ms ease, box-shadow 120ms ease;
 }
 
+.lumen-controls__transport .lumen-icon-button[data-control="play-pause"]:hover {
+  color: var(--color-content-on-accent);
+  background: var(--color-accent-strong);
+  translate: 0 -2px;
+  box-shadow: 0 calc(var(--space-inset)) calc(var(--space-inset) * 2.5)
+    color-mix(in srgb, var(--color-accent) 42%, transparent);
+}
+
+.lumen-controls__transport .lumen-icon-button[data-control="play-pause"]:active {
+  color: var(--color-content-on-accent);
+  background: var(--color-accent-strong);
+  translate: 0 0;
+}
+
+/* Truthful buffering hint (doc 08 §5.3): transport inert but visible. */
+.lumen-controls[data-playback-state="buffering"] .lumen-controls__transport {
+  opacity: var(--opacity-emphasis);
+}
+
+/* Seekbar — gold fill + warm translucent track; the honest buffer overlay
+ * (.lumen-seekbar__buffer, engine data) reads as the warm band ahead.
+ * The track must stay VISIBLE on the glass bar (surface-deep vanished on
+ * it — Solstice polish pass, 2026-11-08). */
+.lumen-controls__seek .lumen-slider__track {
+  background: color-mix(in srgb, var(--color-surface-muted) 62%, transparent);
+}
+
+.lumen-controls__seek .lumen-slider__fill,
+.lumen-controls__seek .lumen-slider__thumb {
+  background: var(--color-accent);
+}
+
+.lumen-controls__seek .lumen-seekbar__buffer {
+  background: color-mix(in srgb, var(--color-surface-muted) 82%, transparent);
+}
+
+/* Volume — horizontal stroke slider grouped with the mute toggle (the
+ * .lumen-volume vertical flyout geometry is replaced via the className
+ * seam in ControlBar.tsx; base Slider anatomy stays). */
+.lumen-controls__volume-slider {
+  width: 96px;
+  height: 16px;
+}
+
+.lumen-controls__volume-slider .lumen-slider__track {
+  background: color-mix(in srgb, var(--color-surface-muted) 62%, transparent);
+  border-radius: var(--radius-ring);
+}
+
+.lumen-controls__volume-slider .lumen-slider__fill {
+  background: var(--color-accent);
+  border-radius: var(--radius-ring);
+}
+
+/* Track selectors — compact warm triggers with a min-width so labels render
+ * whole ("Unknown", "English 5.1"…): the trigger never collapses below the
+ * comfortable label width; longer names ellipsize honestly instead of
+ * clipping mid-word. */
+.lumen-controls__tracks .lumen-dropdown {
+  flex: none;
+  min-width: 148px; /* structural: honest-label floor, no token exists */
+}
+
+.lumen-controls__tracks .lumen-dropdown__trigger {
+  height: 36px; /* compact trigger inside the glass bar (structural) */
+  background: color-mix(in srgb, var(--color-surface-deep) 60%, transparent);
+}
+
+/* Re-establish the component's hover/expanded states above the compact
+ * base override (equal specificity, later sheet — kept explicit). */
+.lumen-controls__tracks .lumen-dropdown__trigger:hover {
+  background: var(--color-surface-hover);
+}
+
+.lumen-controls__tracks .lumen-dropdown__trigger[aria-expanded="true"] {
+  background: var(--color-surface-selected);
+}
+
+.lumen-controls__tracks .lumen-dropdown__trigger > span {
+  height: 30px; /* inner surface (structural, 2px padding like doc 08 §116) */
+  padding-right: var(--space-grid);
+}
+
+/* Error surface — compact note chip floating above the bar's right edge:
+ * icon + short message + Dismiss. Stage/code detail stays in the DOM
+ * (single line, honest); the chip never grows into a wide strip. */
 .lumen-controls__error {
+  position: absolute;
+  bottom: calc(100% + var(--space-grid));
+  right: var(--space-inset);
+  z-index: 3;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 12px;
-  border-radius: 4px;
-  /* 4.F4 a11y fix: raised surface put the title/detail text at 4.08/4.46:1
-   * (wcag 1.4.3 fail). chrome surface keeps both text tokens compliant. */
-  background: var(--color-surface-chrome);
-  color: var(--color-content-primary);
+  gap: var(--space-grid);
+  max-width: min(480px, 100%);
+  box-sizing: border-box;
+  padding: var(--space-grid) var(--space-inset);
+  border: 1px solid color-mix(in srgb, var(--color-tape) 40%, transparent);
+  border-radius: var(--radius-ring);
+  background: var(--color-note);
+  color: var(--color-note-ink);
+  box-shadow: var(--shadow-card);
+}
+
+.lumen-controls__error-icon {
+  flex: none;
+  color: var(--color-accent-icon);
 }
 
 .lumen-controls__error-title {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
+}
+
+.lumen-controls__error-title::after {
+  content: " — ";
+  color: var(--color-note-ink-muted);
 }
 
 .lumen-controls__error-detail {
-  color: var(--color-content-secondary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-note-ink-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lumen-controls__transport .lumen-icon-button[data-control="play-pause"] {
+    transition: none;
+    translate: none;
+  }
 }

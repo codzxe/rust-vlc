@@ -9,7 +9,7 @@
 // Persistence and the settings-schema integration ("Accent color" setting,
 // doc 07 / doc 08 §3.3) land with the settings cards — this provider is the
 // rendering-side seam only, honestly defaulting to the product defaults
-// (dark + orange).
+// (dark + yellow, the Solstice Keyvox gold).
 
 import {
   createContext,
@@ -50,7 +50,7 @@ function systemPrefersLight(): boolean {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [modeSetting, setModeSettingState] = useState<ThemeModeSetting>("dark");
-  const [accent, setAccentState] = useState<AccentId>("orange");
+  const [accent, setAccentState] = useState<AccentId>("yellow");
   const [systemLight, setSystemLight] = useState<boolean>(systemPrefersLight);
 
   // Track the OS preference only while the user is in "auto".

@@ -1,0 +1,103 @@
+/* /open-network-stream (Solstice): the sunset glows through — the screen
+ * root is transparent and the form floats on a sticky-note card; recents
+ * sit on a quieter glass panel. Semantic tokens only. */
+
+.network-stream {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--space-inset) * 3);
+  flex: 1;
+  padding: calc(var(--space-inset) * 3);
+  min-height: 0;
+  overflow: auto;
+}
+
+.network-stream__card {
+  width: min(560px, 100%);
+  box-sizing: border-box;
+}
+
+.network-stream__title {
+  margin: 0 0 var(--space-grid);
+  font-size: var(--font-size-display);
+  line-height: 1.1;
+  font-weight: var(--font-weight-extrabold);
+}
+
+.network-stream__subtitle {
+  margin: 0 0 calc(var(--space-inset) * 1.5);
+  font-size: var(--font-size-body);
+  color: var(--color-note-ink-muted);
+}
+
+.network-stream__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-inset);
+  align-items: stretch;
+}
+
+.network-stream__form .lumen-field__control {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.network-stream__recents {
+  width: min(560px, 100%);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+  padding: var(--space-inset);
+  border-radius: var(--radius-panel);
+}
+
+.network-stream__recents-title {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-content-tertiary);
+}
+
+.network-stream__recents-empty {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-content-tertiary);
+}
+
+.network-stream__recents-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.network-stream__recent {
+  padding: var(--space-grid) var(--space-inset);
+  font-family: var(--font-family-time);
+  font-size: var(--font-size-caption);
+  text-align: start;
+  color: var(--color-content-secondary);
+  background: color-mix(in srgb, var(--color-surface-raised) 30%, transparent);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.network-stream__recent:hover {
+  color: var(--color-content-primary);
+  background: var(--color-surface-hover);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .network-stream__recent {
+    transition: background-color var(--motion-duration-fast) ease-out;
+  }
+}

@@ -201,13 +201,22 @@ describe("Error surface — stage-tagged, actionable, honest (doc 08 §5.4, doc 
 // ------------------------------------------------------------ empty ---
 
 describe("Empty surface — first-run (doc 08 §5.3)", () => {
-  it("shows title, body, and a disabled Open-media affordance when unwired", () => {
+  it("shows title, body, and the Open-media affordance wired to the shell dialog event", () => {
+    // Solstice redesign contract change: the button dispatches the shell-wide
+    // `lumen:open-media` window event (the app-shell file dialog listens for
+    // exactly that name) instead of rendering as a disabled wiring stub —
+    // the assertion now pins the real dispatch path.
     renderRouter(view({ state: "idle" }));
     expect(screen.getByRole("heading", { name: "No media open" })).toBeInTheDocument();
     expect(screen.getByText("Open media to start playback.")).toBeInTheDocument();
     const open = screen.getByRole("button", { name: "Open media" });
-    expect(open).toBeDisabled();
-    expect(open).toHaveAttribute("data-wiring-stub", "session.open — card 4.C2");
+    expect(open).toBeEnabled();
+    expect(open).not.toHaveAttribute("data-wiring-stub");
+    const heardOpenMedia = vi.fn();
+    window.addEventListener("lumen:open-media", heardOpenMedia);
+    open.click();
+    expect(heardOpenMedia).toHaveBeenCalledTimes(1);
+    window.removeEventListener("lumen:open-media", heardOpenMedia);
   });
 
   it("open-media fires when wired (C2 command dispatch)", () => {

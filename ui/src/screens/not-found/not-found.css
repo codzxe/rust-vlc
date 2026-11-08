@@ -1,0 +1,41 @@
+/* 404 (Solstice): sun disc high on the sunset, note card below. Semantic
+ * tokens only; the sun size is a structural dimension without a token. */
+
+.not-found {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--space-inset) * 3);
+  flex: 1;
+  padding: calc(var(--space-inset) * 3);
+  min-height: 0;
+  overflow: auto;
+}
+
+.not-found__sun {
+  width: 72px;
+  height: 72px;
+  flex: none;
+}
+
+.not-found__card {
+  width: min(420px, 100%);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-inset) * 1.5);
+  align-items: flex-start;
+}
+
+.not-found__title {
+  margin: 0;
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-extrabold);
+}
+
+.not-found__body {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-note-ink-muted);
+}

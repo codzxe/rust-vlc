@@ -80,10 +80,10 @@ afterEach(() => {
 });
 
 describe("ThemeProvider (doc 08 §3.3)", () => {
-  it("defaults to dark + orange (the product defaults)", () => {
+  it("defaults to dark + yellow (the product defaults, Solstice)", () => {
     renderProbe();
     expect(root().dataset.theme).toBe("dark");
-    expect(root().dataset.accent).toBe("orange");
+    expect(root().dataset.accent).toBe("yellow");
     expect(screen.getByTestId("resolved-mode").textContent).toBe("dark");
   });
 
@@ -113,7 +113,7 @@ describe("ThemeProvider (doc 08 §3.3)", () => {
     expect(() =>
       capturedContext?.setAccent("magenta" as unknown as AccentId),
     ).toThrow(/unknown accent "magenta"/);
-    expect(root().dataset.accent).toBe("orange");
+    expect(root().dataset.accent).toBe("yellow");
   });
 
   it("auto mode follows the OS preference and reacts to changes", () => {

@@ -10,7 +10,12 @@ export function PlaylistScreen() {
   const m = useMsg();
   return (
     <main className="lumen-playlist-page">
-      <h1 className="lumen-playlist-page__title">{m("screen.playlist")}</h1>
+      {/* Solstice: the page stays transparent so the veiled sunset glows
+          through; the queue itself floats on a large flat sticky note
+          (see .lumen-playlist-page__panel). Heading copy comes from the
+          pre-seeded nav.* key — screen.playlist still carries scaffold
+          "(placeholder)" copy. */}
+      <h1 className="lumen-playlist-page__title">{m("nav.playlist")}</h1>
       {/* Seed entries stay empty here — real M3U data arrives through the
           app shell's `playlist.load` wiring (handoff: card 4.H1). */}
       <PlaylistProvider>

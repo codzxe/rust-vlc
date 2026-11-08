@@ -1,55 +1,109 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes, useNavigate } from "react-router-dom";
+import { AppShell } from "./components/appshell/AppShell";
 import { PlayerScreen } from "./screens/player";
+import type { PlayerVariant } from "./screens/player";
 import { PlaylistScreen } from "./screens/playlist";
-import { ScreenPlaceholder } from "./screens/ScreenPlaceholder";
-import { SettingsScreen } from "./screens/settings/SettingsScreen";
 // Card 4.F1 first-run gate: /onboarding is the landing until the wizard is
 // finished or skipped; after that, normal routing.
 import { OnboardingEntry, RequireOnboarding } from "./screens/onboarding/OnboardingScreen";
 import { MediaInfoScreen } from "./screens/media-info";
+import { SettingsScreen } from "./screens/settings/SettingsScreen";
+// Solstice app-shell workstream (2026-11-08): real screens for the former
+// placeholder routes + persistent navigation (AppShell).
+import { OPEN_MEDIA_EVENT } from "./screens/open-media";
+import { NetworkStreamScreen } from "./screens/network-stream/NetworkStreamScreen";
+import { ShortcutsScreen } from "./screens/shortcuts/ShortcutsScreen";
+import { NotFoundScreen } from "./screens/not-found/NotFoundScreen";
 import { TokenSandbox } from "./tokens/TokenSandbox";
 
-// Routing skeleton for the doc 08 §1.6 screen inventory. Route names are the
-// doc's [PROPOSAL] names. The player route is the real 4.C1 screen shell;
-// the settings routes render the real schema-generated framework (card 4.E1);
-// every other screen renders an honest placeholder until its card lands.
+// Doc 08 §1.6 screen inventory, now fully real:
+//   * /player + /player/music + /miniplayer — the real player screen shell,
+//     with the route preselected variant (data-variant) and the open-media
+//     CTA wired to the AppShell dialog via the shared CustomEvent contract.
+//   * /playlist, /media-info, /settings/:area — unchanged real screens.
+//   * /keyboard-shortcuts, /open-network-stream, * — real screens (this
+//     workstream); ScreenPlaceholder is gone.
+
+/**
+ * True for the browser dev shell: main.tsx injects DemoTransport there (a
+ * simulated engine, badged "Demo" by the AppShell). Hardcoded here because
+ * the transport choice is a main.tsx-level decision — the desktop host
+ * renders the same tree with its real transport and no badge.
+ */
+const DEMO_SHELL = true;
+
+/** Route path for a player variant (the URL is the variant's source of truth). */
+function playerVariantPath(variant: PlayerVariant): string {
+  if (variant === "miniplayer") return "/miniplayer";
+  if (variant === "music") return "/player/music";
+  return "/player";
+}
+
+/** The open-media trigger contract: the AppShell listens and opens the dialog. */
+function dispatchOpenMedia(): void {
+  window.dispatchEvent(new CustomEvent(OPEN_MEDIA_EVENT));
+}
+
+/**
+ * Player routes. The variant is CONTROLLED by the route (persisted-variant
+ * state stays for host-owned free-floating windows); keymap toggles and the
+ * miniplayer expand/close affordances call onVariantChange, which routes.
+ */
+function PlayerRoute({ variant }: { variant: PlayerVariant }) {
+  const navigate = useNavigate();
+  return (
+    <RequireOnboarding>
+      <PlayerScreen
+        variant={variant}
+        onOpenMedia={dispatchOpenMedia}
+        onVariantChange={(next) => navigate(playerVariantPath(next))}
+      />
+    </RequireOnboarding>
+  );
+}
 
 export function App() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/player" replace />} />
-      <Route
-        path="/player"
-        element={
-          <RequireOnboarding>
-            <PlayerScreen />
-          </RequireOnboarding>
-        }
-      />
-      <Route
-        path="/player/music"
-        element={<ScreenPlaceholder routeKey="screen.player.music" />}
-      />
-      <Route path="/miniplayer" element={<ScreenPlaceholder routeKey="screen.miniplayer" />} />
-      {/* Card 4.D1: real playlist panel + queue semantics. */}
-      <Route path="/playlist" element={<PlaylistScreen />} />
-      {/* Card 4.D2: real media information screen (media.get-info). */}
-      <Route path="/media-info" element={<MediaInfoScreen />} />
-      <Route path="/settings" element={<Navigate to="/settings/global" replace />} />
-      <Route path="/settings/:area" element={<SettingsScreen />} />
+
+      {/* Full-bleed routes (no app chrome): the onboarding hero and the
+          token dev fixture. */}
       <Route path="/onboarding" element={<OnboardingEntry />} />
-      <Route
-        path="/keyboard-shortcuts"
-        element={<ScreenPlaceholder routeKey="screen.keyboard-shortcuts" />}
-      />
-      <Route
-        path="/open-network-stream"
-        element={<ScreenPlaceholder routeKey="screen.open-network-stream" />}
-      />
-      {/* Card 4.A2 dev fixture: token-pipeline proof (NOT a product screen;
-          real screens land with wave 4.B+ per doc 08 §1.6). */}
       <Route path="/dev/tokens" element={<TokenSandbox />} />
-      <Route path="*" element={<ScreenPlaceholder routeKey="screen.not-found" />} />
+
+      {/* AppShell routes whose screens do NOT render their own <main> —
+          the shell provides the single main landmark. */}
+      <Route
+        element={
+          <AppShell demo={DEMO_SHELL}>
+            <Outlet />
+          </AppShell>
+        }
+      >
+        <Route path="/player" element={<PlayerRoute variant="full" />} />
+        <Route path="/player/music" element={<PlayerRoute variant="music" />} />
+        <Route path="/miniplayer" element={<PlayerRoute variant="miniplayer" />} />
+        <Route path="/keyboard-shortcuts" element={<ShortcutsScreen />} />
+        <Route path="/open-network-stream" element={<NetworkStreamScreen />} />
+        <Route path="*" element={<NotFoundScreen />} />
+      </Route>
+
+      {/* AppShell routes whose screens render their own <main> (playlist,
+          settings, media-info) — provideMain=false keeps exactly one main
+          landmark per page; a nested <main> would be invalid HTML. */}
+      <Route
+        element={
+          <AppShell demo={DEMO_SHELL} provideMain={false}>
+            <Outlet />
+          </AppShell>
+        }
+      >
+        <Route path="/playlist" element={<PlaylistScreen />} />
+        <Route path="/media-info" element={<MediaInfoScreen />} />
+        <Route path="/settings" element={<Navigate to="/settings/global" replace />} />
+        <Route path="/settings/:area" element={<SettingsScreen />} />
+      </Route>
     </Routes>
   );
 }

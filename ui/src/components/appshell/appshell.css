@@ -1,0 +1,116 @@
+/* AppShell (Solstice) — the persistent chrome: menubar banner row, glass
+ * icon rail, routed main. Landmarks: banner / nav / main (see AppShell.tsx).
+ * Semantic tokens only; raw px appears solely for structural dimensions
+ * with no token (rail width, link hit size) per the composition-layer rule. */
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 0;
+}
+
+/* ---- banner row ------------------------------------------------------- */
+
+.app-shell__banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-inset);
+  flex: none;
+  padding: 0 var(--space-inset) 0 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-stroke-border) 65%, transparent);
+  background: color-mix(in srgb, var(--color-surface-panel) 55%, transparent);
+  backdrop-filter: blur(var(--blur-backdrop-small));
+}
+
+.app-shell__demo-badge {
+  flex: none;
+}
+
+/* ---- frame: rail + main ----------------------------------------------- */
+
+.app-shell__frame {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.app-shell__rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+  flex: none;
+  width: 56px;
+  box-sizing: border-box;
+  margin: var(--space-inset);
+  padding: var(--space-inset) 0;
+  border-radius: var(--radius-panel);
+}
+
+.app-shell__logo {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 0 auto var(--space-grid);
+}
+
+.app-shell__rail-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-shell__rail-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-control);
+  color: var(--color-content-tertiary);
+  transition: color var(--motion-duration-fast) ease-out,
+    background-color var(--motion-duration-fast) ease-out;
+}
+
+.app-shell__rail-link:hover {
+  color: var(--color-content-primary);
+  background: var(--color-surface-hover);
+}
+
+/* Active rail stop: the one gold accent moment of the chrome. */
+.app-shell__rail-link--active {
+  color: var(--color-accent);
+  background: var(--color-surface-selected);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 45%, transparent);
+}
+
+.app-shell__rail-link--active:hover {
+  color: var(--color-accent-bright);
+}
+
+/* ---- main region ------------------------------------------------------- */
+
+.app-shell__main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* The player screen owns a 100vh stage; inside the shell it fills the
+ * provided main region instead of overflowing past the controls. */
+.app-shell__main > .lumen-player {
+  height: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell__rail-link {
+    transition: none;
+  }
+}

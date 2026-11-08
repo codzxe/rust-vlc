@@ -108,7 +108,9 @@ export function SettingField({ entry }: { entry: SettingEntry }) {
         <div className="settings-field__head">
           <span className="settings-field__label">{m(labelOf(entry))}</span>
           {entry.advanced ? <span className="settings-badge">{m("settings.advanced-badge")}</span> : null}
-          {restartBadge ? <span className="settings-badge settings-badge--restart">{m("settings.restart-required")}</span> : null}
+          {restartBadge ? (
+            <span className="settings-badge--restart solstice-chip solstice-chip--accent">{m("settings.restart-required")}</span>
+          ) : null}
         </div>
       ) : null}
       {control}
@@ -116,7 +118,7 @@ export function SettingField({ entry }: { entry: SettingEntry }) {
         <p className="settings-field__badges">
           {entry.advanced ? <span className="settings-badge">{m("settings.advanced-badge")}</span> : null}
           {restartBadge ? (
-            <span className="settings-badge settings-badge--restart">{m("settings.restart-required")}</span>
+            <span className="settings-badge--restart solstice-chip solstice-chip--accent">{m("settings.restart-required")}</span>
           ) : null}
         </p>
       ) : null}

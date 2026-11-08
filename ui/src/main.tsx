@@ -3,12 +3,24 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
 import { ClientProvider } from "./client/ClientProvider";
-import { MockTransport } from "./client/transport";
+// Browser dev shell: the DEMO transport — a friendly simulated engine that
+// speaks the real 1.D4 wire protocol so every screen comes alive (open
+// media, playback clock, playlist, tracks). It is a simulation, badged in
+// the UI via the AppShell "Demo" chip; no audio actually plays. The
+// desktop host (apps/desktop) injects TauriTransport here instead — that
+// wiring is tracked as a separate GitHub issue. MockTransport stays
+// exported from ./client/transport for tests that want the honest
+// feature-not-exposed envelope.
+import { DemoTransport } from "./client/demo-transport";
 import { setActiveLocale } from "./i18n/messages";
 import { ThemeProvider } from "./theme/ThemeProvider";
 // Generated semantic tokens (card 4.A2): the CSS custom-property cascade the
 // whole UI consumes. Import stays inside ui/src (boundary-imports rule).
 import "./tokens/generated/tokens.css";
+// Solstice art-direction layer (2026-11-08): bundled Nunito face, sunset
+// backdrop, sticky-note/keycap utilities, motion. Composes the semantic
+// tokens — never overrides them.
+import "./theme/solstice.css";
 // Card 4.F4: global token-driven :focus-visible floor for focusables that
 // live outside the B1 primitives (which carry their own identical rule),
 // and the body-level surface paint floor (never raw browser white).
@@ -30,12 +42,13 @@ if (requestedLocale !== null) {
   setActiveLocale(requestedLocale);
 }
 
-// Scaffold wiring: the browser dev shell uses the mock transport. The real
-// hosts (apps/desktop, apps/web) inject their own CommandTransport here.
+// Browser dev shell wiring: the demo simulation drives the UI (see the
+// DemoTransport import note above); real hosts inject their own
+// CommandTransport at this exact seam.
 createRoot(rootElement).render(
   <StrictMode>
     <ThemeProvider>
-      <ClientProvider transport={new MockTransport()}>
+      <ClientProvider transport={new DemoTransport()}>
         <BrowserRouter>
           <App />
         </BrowserRouter>
