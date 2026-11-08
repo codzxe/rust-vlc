@@ -1,9 +1,17 @@
-// Onboarding wizard (card 4.F1) — Solstice redesign (2026-11-08): the Keyvox
-// golden-hour scene. While mounted the screen flips the app backdrop to
-// full-strength sunset (`html[data-backdrop="vivid"]`, removed on unmount),
-// the step indicator and a decorative keycap strip sit directly ON the
-// gradient, and every step's content floats on a single washi-taped
-// sticky-note card (.solstice-note) that rises in on each step change.
+// Onboarding wizard (card 4.F1) — Solstice v2 stage (2026-11-09): the
+// Keyvox golden-hour scene, recomposed per the v2 craft audit. While mounted
+// the screen flips the app backdrop to full-strength sunset
+// (`html[data-backdrop="vivid"]`, removed on unmount). The composition is a
+// three-row stage grid over a painted horizon: a keycap step indicator
+// top-left, the washi-taped sticky-note card (.solstice-note) at the OPTICAL
+// center (~45% height — the extra bottom padding in .onboarding__note-wrap
+// lifts it above the row's true middle), and an ambient keycap strip resting
+// on the warm afterglow ground that anchors the bottom with a ≥24px safe
+// padding. The sun is a scene ornament pinned in the upper sky BEHIND the
+// card (z-index below it) — it never straddles the card on top of content
+// (brief §2.2). The lower sky is dressed with .onboarding__horizon (the same
+// setting-sun ground language as the 404) so the band under the card reads
+// as evening light the keys rest on, not dead haze.
 // The shortcut tour is built from the REAL player keymap (keymaps/default.toml
 // via the generated bindings module) — keycaps are data, not hand-typed copy.
 //
@@ -197,9 +205,21 @@ export function OnboardingScreen(): ReactElement {
 
   return (
     <main className="onboarding" data-testid="onboarding-root">
-      {/* Step indicator sits ON the gradient, top-left. The visible caption
-       * is aria-hidden because the progress list below already carries the
-       * exact same words as its accessible name (announced once, not twice). */}
+      {/* Scene ornaments (all z 0, below every content row): the sun lives
+       * in the upper sky for every step and sits BELOW the card in z-order —
+       * at narrow widths it tucks behind the opaque note instead of
+       * overlapping it (craft rule §2.2). The horizon paints the lower sky
+       * as a warm afterglow ground for the keycap strip — pure scene
+       * dressing for what the audit read as dead brown haze. */}
+      <span className="onboarding__sun solstice-sun" aria-hidden="true" />
+      <span className="onboarding__horizon" aria-hidden="true" />
+
+      {/* Step indicator sits ON the gradient, top-left: a caption plus a row
+       * of numbered keycap chips (done = gold rim, current = solid accent
+       * keycap). The visible caption is aria-hidden because the progress
+       * list below already carries the exact same words as its accessible
+       * name (announced once, not twice); the chip numbers are decorative
+       * emphasis of that same count. */}
       <div className="onboarding__stage-meta">
         <p className="onboarding__stepcount" aria-hidden="true">
           {stepLabel}
@@ -213,14 +233,18 @@ export function OnboardingScreen(): ReactElement {
             <li
               key={id}
               className={[
-                "onboarding__progress-bar",
-                index < stepIndex && "onboarding__progress-bar--done",
-                index === stepIndex && "onboarding__progress-bar--current",
+                "onboarding__progress-cap",
+                index < stepIndex && "onboarding__progress-cap--done",
+                index === stepIndex && "onboarding__progress-cap--current",
               ]
                 .filter(Boolean)
                 .join(" ")}
               aria-current={index === stepIndex ? "step" : undefined}
-            />
+            >
+              <span className="onboarding__progress-num" aria-hidden="true">
+                {index + 1}
+              </span>
+            </li>
           ))}
         </ol>
       </div>
@@ -246,9 +270,9 @@ export function OnboardingScreen(): ReactElement {
               .join(" ")}
             data-testid={`onboarding-step-${step}`}
           >
-            {step === "welcome" && (
-              <span className="onboarding__sun solstice-sun" aria-hidden="true" />
-            )}
+            {/* The sun is a sky ornament rendered at scene level (see
+             * .onboarding__sun above) — never inside the taped card, where
+             * it fought the washi tape for the top edge. */}
 
             <h1 className="onboarding__title" id="onboarding-title">
               {msg(STEP_TITLES[step])}
@@ -334,7 +358,7 @@ export function OnboardingScreen(): ReactElement {
                           .map((id) => BINDING_BY_ID.get(id))
                           .filter((binding): binding is HotkeyBinding => binding !== undefined)
                           .map((binding) => (
-                            <kbd className="solstice-key solstice-key--sm" key={binding.id}>
+                            <kbd className="solstice-key" key={binding.id}>
                               {keycapText(binding)}
                             </kbd>
                           ))}
@@ -350,6 +374,10 @@ export function OnboardingScreen(): ReactElement {
 
           <hr className="solstice-hr onboarding__rule" />
 
+          {/* Footer actions share ONE row geometry: Back and Skip are quiet
+           * ghost chips at the primary pill's height, so the mixed row is
+           * baseline-aligned by construction (brief §2.4) and no button
+           * carries its own rotation — the small tilt lives on the CARD. */}
           <footer className="onboarding__footer">
             <Button
               onClick={back}
@@ -393,11 +421,12 @@ export function OnboardingScreen(): ReactElement {
       </div>
 
       {/* Ambient keycap strip on the gradient — pure scene-setting (the
-       * shortcuts step teaches these keys accessibly), so it is decorative. */}
+       * shortcuts step teaches these keys accessibly), so it is decorative.
+       * It anchors the bottom of the stage with ≥24px of safe padding. */}
       <div className="onboarding__keys" aria-hidden="true">
         {stripBindings.map((binding) => (
           <span className="onboarding__keys-group" key={binding.id}>
-            <span className="solstice-key solstice-key--sm">{keycapText(binding)}</span>
+            <span className="solstice-key">{keycapText(binding)}</span>
             <span className="onboarding__keys-label">{msg(binding.labelMsgid as MessageKey)}</span>
           </span>
         ))}

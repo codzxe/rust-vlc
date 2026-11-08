@@ -173,6 +173,22 @@ describe("music variant", () => {
     expect(footer).not.toBeNull();
     expect(footer?.getAttribute("data-variant")).toBe("music");
   });
+
+  it("v2 audit — the emphasized playlist column carries the panel's Open-media CTA", () => {
+    // The prominent music-mode playlist is never a dead box: the playlist
+    // panel's own empty-state CTA (card 4.D1, screens/playlist) dispatches
+    // the shell-wide `lumen:open-media` event — the composition assertion
+    // here pins that the emphasized music-mode panel actually exposes it.
+    renderWithClient(<PlayerScreen variant="music" />);
+    const playlist = screen.getByRole("complementary", { name: "Playlist" });
+    const cta = within(playlist).getByRole("button", { name: "Open media" });
+    expect(cta).toBeInTheDocument();
+    const heardOpenMedia = vi.fn();
+    window.addEventListener("lumen:open-media", heardOpenMedia);
+    fireEvent.click(cta);
+    expect(heardOpenMedia).toHaveBeenCalledTimes(1);
+    window.removeEventListener("lumen:open-media", heardOpenMedia);
+  });
 });
 
 describe("keymap-driven switching (variantKeymap seam)", () => {

@@ -190,10 +190,13 @@ html[data-backdrop="none"] body::after {
   content: "";
   position: absolute;
   top: calc(var(--space-inset) * -1.5);
-  left: 50%;
+  /* Slightly off-axis (v2 audit: a dead-center, barely-rotated strip read
+   * as a UI pill, not tape — offset + steeper tilt sells the hand-stuck
+   * note). */
+  left: 47%;
   width: 96px;
   height: 26px;
-  transform: translateX(-50%) rotate(-2.2deg);
+  transform: translateX(-50%) rotate(-3.5deg);
   background:
     linear-gradient(
       180deg,

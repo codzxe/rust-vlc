@@ -553,11 +553,16 @@ export type MessageKey =
   | "open.clip.radio"
   | "open.action"
   | "open.cancel"
+  | "open.close"
+  | "open.path.label"
+  | "open.path.placeholder"
+  | "open.path.invalid"
   // --- open network stream screen ---
   | "stream.title"
   | "stream.subtitle"
   | "stream.url.label"
   | "stream.url.placeholder"
+  | "stream.back"
   | "stream.recent"
   | "stream.recent.empty"
   | "stream.open"
@@ -1134,12 +1139,17 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "open.clip.radio": "Night radio (audio stream)",
   "open.action": "Open",
   "open.cancel": "Cancel",
+  "open.close": "Close",
+  "open.path.label": "File path or URL",
+  "open.path.placeholder": "/media/demo/big-buck-bunny.mkv or https://…",
+  "open.path.invalid": "Enter a file path or an http(s) URL",
   "stream.title": "Open network stream",
   "stream.subtitle": "Paste an HTTP, HLS or DASH address.",
   "stream.url.label": "Network URL",
   "stream.url.placeholder": "https://example.com/stream.m3u8",
   "stream.recent": "Recent streams",
   "stream.recent.empty": "No recent streams",
+  "stream.back": "Back to player",
   "stream.open": "Open stream",
   "stream.invalid": "Enter a valid http:// or https:// URL",
   "shortcuts.title": "Keyboard shortcuts",

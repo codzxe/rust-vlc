@@ -1,12 +1,15 @@
-/* Settings framework (card 4.E1) — Solstice restyle (2026-11-08).
+/* Settings framework (card 4.E1) — Solstice v2 (2026-11-09).
  *
- * The screen root stays transparent so the veiled sunset frames the page;
- * the settings content floats on ONE mostly-opaque --color-surface-panel
- * sheet (--radius-card-lg), and the area nav rides a rounded glass rail of
- * pills. Fields are flat rows on section cards with hairline warm
- * separators and hover fills; the dirty state keeps the gold left-edge
- * language used for "current" across the redesign. The apply/revert bar
- * is a floating glass bar pinned bottom-right.
+ * APP-tier work surface (brief §1): the screen veils the sunset to "calm"
+ * and anchors to the shared max-width column (min(1200px, 92vw)). The nav
+ * rail and the content panel are EQUAL-HEIGHT grid tracks sharing top AND
+ * bottom edges (v2 audit: staggered bottoms looked broken); both scroll
+ * INTERNALLY when their content is long, and the apply/revert bar sticks to
+ * the visible bottom of the content panel. The content column opens with
+ * the area heading so the panel reads as a filled work surface, not a
+ * toolbar floating over a void. Fields are flat rows on section cards with
+ * hairline warm separators and hover fills; the dirty state keeps the gold
+ * left-edge language used for "current" across the redesign.
  *
  * Contracts kept (SettingsScreen.test.tsx + areas tests): data-setting,
  * data-dirty, data-settings-area, testids settings-applybar /
@@ -18,24 +21,27 @@
   display: grid;
   grid-template-columns: 16rem minmax(0, 1fr);
   gap: calc(var(--space-grid) * 3);
-  min-height: 100vh;
-  max-width: 84rem;
+  width: min(1200px, 92vw);
   margin: 0 auto;
-  padding: calc(var(--space-grid) * 4);
+  padding: calc(var(--space-grid) * 5) 0 calc(var(--space-grid) * 6);
   box-sizing: border-box;
+  flex: 1;
+  min-height: 0;
   font-family: var(--font-family-sans);
   font-size: var(--font-size-body);
   color: var(--color-content-primary);
-  /* transparent on purpose — the sunset frames the floating sheet */
+  /* transparent on purpose — the calm backdrop frames the anchored panels */
   background: transparent;
 }
 
 /* ------------------------------------------------------------ nav rail */
 
+/* Equal-height track (grid stretch): shares the content panel's top AND
+ * bottom edges; scrolls internally when the area list outgrows the
+ * viewport (v2 §4.7). */
 .settings-screen__nav {
-  position: sticky;
-  top: calc(var(--space-grid) * 4);
-  align-self: start;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: calc(var(--space-grid) * 2);
@@ -102,6 +108,11 @@
   color: var(--color-content-primary);
 }
 
+.settings-nav__item:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
 /* Active pill — gold-tinted fill; gold ink in dark (≈8:1 on the tint). */
 .settings-nav__item--active {
   background: var(--color-accent-tinted);
@@ -126,16 +137,31 @@
 
 /* -------------------------------------------------------------- sheet */
 
+/* Equal-height track: internal scroll keeps the shared bottom edge when
+ * the fields run long (v2 §4.7). The sticky apply bar anchors to the
+ * visible bottom of THIS container. */
 .settings-screen__body {
   display: flex;
   flex-direction: column;
   gap: calc(var(--space-grid) * 2);
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
   padding: calc(var(--space-inset) * 3);
   background: color-mix(in srgb, var(--color-surface-panel) 96%, transparent);
   border: 1px solid var(--color-stroke-border);
   border-radius: var(--radius-card-lg);
   box-shadow: var(--shadow-card);
+}
+
+/* Area heading — the column's anchor line: the content panel opens with
+ * the area's name on the same grid the nav rail tops out on. */
+.settings-screen__area-title {
+  margin: 0;
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-extrabold);
+  letter-spacing: -0.01em;
+  color: var(--color-content-bright);
 }
 
 /* ------------------------------------------------- toolbar + search */
@@ -179,12 +205,19 @@
   border-color: var(--color-surface-muted);
 }
 
+.settings-screen__search input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
 .settings-screen__search input::placeholder {
   color: var(--color-content-tertiary);
 }
 
 .settings-screen__reset {
-  margin-inline-start: auto;
+  /* Adjacent to the search field (one toolbar cluster) — the earlier
+   * margin-auto split left a 300px+ dead gap that read as accidental. */
+  margin-inline-start: calc(var(--space-grid) * 2);
   padding: calc(var(--space-grid) * 1.5) calc(var(--space-inset) * 1.5);
   border: 1px solid var(--color-stroke-border);
   border-radius: var(--radius-ring);
@@ -203,6 +236,11 @@
   background: var(--color-surface-hover);
 }
 
+.settings-screen__reset:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
 .settings-screen__results {
   display: flex;
   flex-direction: column;
@@ -210,7 +248,7 @@
 }
 
 .settings-screen__empty {
-  padding: calc(var(--space-inset) * 3);
+  padding: calc(var(--space-inset) * 4);
   color: var(--color-content-secondary);
   text-align: center;
 }
@@ -318,6 +356,93 @@
   background: var(--color-surface-hover);
 }
 
+.settings-field__reset:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Special widgets (card 4.E2 pickers) — REAL selectable choice cards, not
+ * inert-looking rows (v2 audit: the Language selector read as a disabled
+ * mockup). Options fill the column in a card grid; the native radio stays
+ * visible and focusable, the card paints the hover/checked/focus states. */
+.settings-field__special {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+}
+
+.settings-field__special .lumen-radiogroup__options {
+  display: grid;
+  /* Capped at 20rem so a LONE option (e.g. the single locale in Global)
+   * keeps intrinsic width instead of stretching full-bleed. */
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 20rem));
+  gap: var(--space-grid);
+}
+
+.settings-field__special .lumen-choice {
+  align-items: center;
+  padding: calc(var(--space-grid) * 2) calc(var(--space-inset) * 1.5);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-deep);
+  transition:
+    background-color var(--motion-duration-fast) ease-out,
+    border-color var(--motion-duration-fast) ease-out,
+    color var(--motion-duration-fast) ease-out;
+}
+
+.settings-field__special .lumen-choice:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-surface-muted);
+}
+
+.settings-field__special .lumen-choice:focus-within {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Selected card — warm tinted fill + gold inset edge (the radio dot stays
+ * visible inside; the card state is the at-a-glance signal). */
+.settings-field__special .lumen-choice:has(.lumen-choice__input:checked) {
+  background: var(--color-accent-tinted);
+  border-color: color-mix(in srgb, var(--color-accent) 45%, transparent);
+  box-shadow: inset 3px 0 0 var(--color-accent);
+  color: var(--color-content-bright);
+}
+
+.settings-field__hint {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+}
+
+/* About panel rows (updates-about) — label/value pairs on the same grid
+ * language as media-info's term/value rows. */
+.settings-about__row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 40%) 1fr;
+  gap: var(--space-grid);
+  align-items: baseline;
+  padding: calc(var(--space-grid) * 1.5) 0;
+}
+
+.settings-about__row + .settings-about__row {
+  border-top: 1px solid var(--color-stroke-border);
+}
+
+.settings-about__row dt {
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+}
+
+.settings-about__row dd {
+  margin: 0;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-content-primary);
+  overflow-wrap: anywhere;
+}
+
 /* -------------------------------------------------------- floating bars */
 
 /* Restart notice — gold-tinted strip with the sun-dot marker. */
@@ -349,9 +474,10 @@
   );
 }
 
-/* Apply/revert — a floating glass bar pinned bottom-right (sticky within
- * the sheet; buttons/roles/testids unchanged). No z-index on purpose: the
- * dirty-leave Dialog's scrim is later in DOM order and must cover it. */
+/* Apply/revert — a floating glass bar pinned to the visible bottom of the
+ * internally-scrolling content panel (sticky within the sheet; buttons/
+ * roles/testids unchanged). No z-index on purpose: the dirty-leave
+ * Dialog's scrim is later in DOM order and must cover it. */
 .settings-applybar {
   position: sticky;
   bottom: calc(var(--space-grid) * 2);
@@ -405,10 +531,11 @@
 @media (max-width: 52rem) {
   .settings-screen {
     grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .settings-screen__nav {
-    position: static;
+    overflow: visible;
     flex-direction: row;
     align-items: center;
     flex-wrap: wrap;
@@ -423,7 +550,8 @@
 @media (prefers-reduced-motion: reduce) {
   .settings-nav__item,
   .settings-field,
-  .settings-screen__reset {
+  .settings-screen__reset,
+  .settings-field__special .lumen-choice {
     transition: none;
   }
 }

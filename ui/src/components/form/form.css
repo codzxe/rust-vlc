@@ -176,6 +176,13 @@
   flex-direction: column;
   gap: var(--space-grid);
   font-family: var(--font-family-sans);
+  /* The group renders as a native <fieldset>: reset the browser-default
+   * groove border + margins — the v2 audit read the leftover chrome as a
+   * stray debug outline around the choice grid. */
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-inline-size: 0;
 }
 
 .lumen-radiogroup__label {

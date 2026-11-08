@@ -30,6 +30,18 @@ describe("SettingsScreen shell (card 4.E1)", () => {
     expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
   });
 
+  it("veils the backdrop to calm while mounted and cleans up on unmount (v2 §1)", () => {
+    const { unmount } = renderAt("/settings/interface");
+    expect(document.documentElement.dataset.backdrop).toBe("calm");
+    unmount();
+    expect(document.documentElement.dataset.backdrop).toBeUndefined();
+  });
+
+  it("anchors the content column with the area heading (v2 §2.5)", () => {
+    renderAt("/settings/interface");
+    expect(screen.getByRole("heading", { name: "Interface" })).toBeInTheDocument();
+  });
+
   it("redirects an unknown area to the first schema area", async () => {
     renderAt("/settings/nope");
     await waitFor(() =>

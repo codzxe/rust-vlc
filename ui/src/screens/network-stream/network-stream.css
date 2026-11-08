@@ -1,22 +1,50 @@
-/* /open-network-stream (Solstice): the sunset glows through — the screen
- * root is transparent and the form floats on a sticky-note card; recents
- * sit on a quieter glass panel. Semantic tokens only. */
+/* /open-network-stream — Solstice v2 (2026-11-09): an APP-tier screen on the
+ * calm backdrop (brief §1/§2.5/§2.6):
+ *   * a centered anchored column (~560px — a form, not a poster), optically
+ *     centered vertically via one auto-margin group (symmetric breathing
+ *     room; the group stays fully reachable when it outgrows the viewport);
+ *   * the form card is a structured opaque-ish panel (no note tilt, no tape
+ *     straddling the top edge — v2 audit defect);
+ *   * the Open action is a STANDARD primary button in a right-aligned
+ *     action row (never a full-width slab out of proportion);
+ *   * the recent list rides a quiet glass panel; its heading and empty
+ *     state use SECONDARY ink (AA ≥ 4.5:1 on the dark surface — the old
+ *     tertiary-on-gradient pair measured ≈3:1, a v2 audit defect).
+ * Semantic tokens only. */
 
 .network-stream {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: calc(var(--space-inset) * 3);
   flex: 1;
-  padding: calc(var(--space-inset) * 3);
   min-height: 0;
-  overflow: auto;
+  overflow-y: auto;
+  padding: calc(var(--space-grid) * 6) calc(var(--space-grid) * 4);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-tape-edge) transparent;
+}
+
+/* The centered composition group (v2 §2.5): auto block margins center it
+ * vertically on tall viewports AND keep the top reachable when it grows
+ * past the viewport (auto margins collapse to 0 before overflow clips —
+ * safer than justify-content: center in a scroll container). */
+.network-stream__group {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-inset) * 3);
+  width: min(560px, 100%);
+  box-sizing: border-box;
+  margin-block: auto;
 }
 
 .network-stream__card {
-  width: min(560px, 100%);
+  width: 100%;
   box-sizing: border-box;
+  padding: calc(var(--space-inset) * 3);
+  background: color-mix(in srgb, var(--color-surface-panel) 96%, transparent);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-card-lg);
+  box-shadow: var(--shadow-card);
 }
 
 .network-stream__title {
@@ -24,12 +52,13 @@
   font-size: var(--font-size-display);
   line-height: 1.1;
   font-weight: var(--font-weight-extrabold);
+  color: var(--color-content-bright);
 }
 
 .network-stream__subtitle {
-  margin: 0 0 calc(var(--space-inset) * 1.5);
+  margin: 0 0 calc(var(--space-inset) * 2);
   font-size: var(--font-size-body);
-  color: var(--color-note-ink-muted);
+  color: var(--color-content-secondary);
 }
 
 .network-stream__form {
@@ -44,14 +73,27 @@
   box-sizing: border-box;
 }
 
+/* Standard-size action row: the primary Open + the secondary Back sit
+ * end-aligned (baseline rhythm, one button language — v2 §2.6). */
+.network-stream__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-grid);
+  flex-wrap: wrap;
+}
+
 .network-stream__recents {
-  width: min(560px, 100%);
+  width: 100%;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: var(--space-grid);
-  padding: var(--space-inset);
-  border-radius: var(--radius-panel);
+  padding: calc(var(--space-inset) * 1.5);
+  background: color-mix(in srgb, var(--color-surface-panel) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-stroke-border) 80%, transparent);
+  border-radius: var(--radius-card);
+  backdrop-filter: blur(var(--blur-backdrop-small));
+  box-shadow: var(--shadow-card);
 }
 
 .network-stream__recents-title {
@@ -60,13 +102,14 @@
   font-weight: var(--font-weight-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--color-content-tertiary);
+  /* secondary ink — AA on the panel (the old tertiary pair was ≈3:1) */
+  color: var(--color-content-secondary);
 }
 
 .network-stream__recents-empty {
   margin: 0;
   font-size: var(--font-size-body);
-  color: var(--color-content-tertiary);
+  color: var(--color-content-secondary);
 }
 
 .network-stream__recents-list {
@@ -94,6 +137,17 @@
 .network-stream__recent:hover {
   color: var(--color-content-primary);
   background: var(--color-surface-hover);
+}
+
+.network-stream__recent:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .network-stream__recent {
+    transition: none;
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {

@@ -10904,3 +10904,42 @@ Work Log:
 
 Stage Summary:
 - OGG IN-SESSION SEEK WORKS: both codec lanes seek, land (page-granular, honestly reported at the delivery start), replay their headers through the re-seeding seam, and play out with the ring's old generation flushed exactly. HONEST REMAINDER (the defect ledger's new card 6.FIX-vorbis-headtrim): the vorbis decoder's 128-frame stream-head emission excess (2,902µs @44.1kHz; identical on the open path — the reference's own head_trim=128 documents it) rides the host's ring un-trimmed; the decoder-side head trim is the follow-up.
+
+---
+Task ID: SOLSTICE-V2 (Lead + implementation agents A/B/C)
+Agent: Lead (integration) — see design/solstice-v2-brief.md
+Task: Solstice v2 craft & flow redesign — repair the 2026-11-08 first pass
+(audit: one-metaphor-one-volume backdrop behind working screens, clipped
+keycap strips, sun/tape z-fights, 60-90% dead space, dev jargon in user
+copy, double-click-only open flow, "Disabled" track triggers, lexical
+bookmark sort, illegible keycaps on dense screens).
+
+Work Log:
+- Lead: two-tier backdrop system (vivid stage / calm app / default player
+  veil) + .solstice-scrim dialog layer in solstice.css; de-jargonized user
+  copy (playlist load-handoff, canvas placeholder); single-click open in the
+  open-media dialog; 5 new i18n keys wired centrally (open.close,
+  open.path.label/placeholder/invalid, stream.back).
+- Agent A (onboarding, 404): tape/content clearance, hero-step centering,
+  404 sun-occlusion horizon + tape-anchored fragment; VLM-verified clean.
+- Agent B (playlist, settings, shortcuts, network-stream, media-info):
+  data-backdrop=calm on all five, anchored full-height panels with internal
+  scrollers, AA contrast fixes (hotkeys mode column 4.4→7.8:1), numeric
+  bookmark sort + live search filter with regression tests, network form
+  flow verified end-to-end into the demo transport.
+- Agent C (player chrome, appshell, open-media): "—" track triggers when
+  no media, seekbar-dominant transport proportions, scrim z-index 20 above
+  stage ornaments (elementFromPoint-proven), music-mode stage recomposed
+  (sun upper third, waveform on horizon), menubar/rail craft pass, path
+  input + close affordance in the open-media dialog.
+- Flow verified in-browser (1440x900 + 1024x768): /player → Open media →
+  single-click Big Buck Bunny → dialog closes → playing, data-has-media
+  true, position ticks, pause/seek/volume/track menus live.
+
+Stage Summary:
+- Gates: tsc clean; vitest 66 files / 602 tests green (44 new tests incl.
+  scrim z-index source contract, numeric sort, search filter); eslint 0
+  errors; tokens/settings/hotkeys/l10n checks all OK (554 keys, 0 drift).
+- Honest remainder: visual baselines (136, 2026-10-24) predate the redesign
+  and need re-capture (issue #28 tracks the re-pin); desktop Tauri
+  transport injection remains the 4.H1 handoff (issue #3).

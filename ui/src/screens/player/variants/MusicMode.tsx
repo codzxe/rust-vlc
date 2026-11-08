@@ -14,6 +14,12 @@
 // C4), with the standard C2 seekbar still driving transport and an honest
 // sr-only note. Playlist emphasis is layout-driven (the music layout's
 // playlist region renders prominently — shell side).
+//
+// SOLSTICE v2 (2026-11-09, audit pass): the stage composes top-to-bottom
+// with intent instead of centering one cluster in a void — the sun sits at a
+// deliberate size in the UPPER THIRD, the caption (title/artist slot) follows
+// it, and the waveform anchors the lower area above the transport. The sun
+// is smaller than the old 30vmin blob and aligned with the caption block.
 
 import { useMsg } from "../../../i18n/messages";
 import type { LayoutRegion } from "../layout";

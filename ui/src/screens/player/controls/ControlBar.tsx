@@ -105,6 +105,11 @@ function SeekbarCluster() {
       </span>
       <Seekbar
         data-control="seekbar"
+        /* v2 audit: a duration-less seekbar is an unplayed track — data-empty
+         * lets the CSS hide the phantom zero-position thumb (calm track). */
+        data-empty={
+          state.durationSeconds === null || state.durationSeconds <= 0 ? "" : undefined
+        }
         aria-busy={mapped.seek.busy || undefined}
         aria-label={
           reason !== null
@@ -174,6 +179,13 @@ function TrackMenuCluster() {
   const { state, actions } = usePlayerControls();
   const m = useMsg();
 
+  // v2 brief §4.3 — the honest no-media trigger. "Disabled" read like debug
+  // scaffolding in the audit; with no media open (or while the engine is
+  // still opening / has reported nothing) the trigger shows the track kind
+  // plus an em-dash and carries the no-media reason in its accessible name.
+  // The honest menu options (Automatic / Disabled-off / real track ids)
+  // exist only once media is open — tracks are NEVER fabricated.
+
   const menus: ReadonlyArray<{
     readonly kind: "video" | "audio" | "subtitle";
     readonly labelKey: "player.track.video" | "player.track.audio" | "player.track.subtitle";
@@ -192,41 +204,53 @@ function TrackMenuCluster() {
       {menus.map(({ kind, labelKey }) => {
         const tracks = tracksOfKind(state.tracks, kind);
         const selected = selectedTrackId(state.tracks, state.selections, kind);
-        // Disabled while opening (doc §5.5 TrackMenu disabled-while-loading)
-        // or when no track list has been reported (honest, never fake).
-        // Unreported = no track list and no successful engine query at all:
-        // render an honest Unknown, not a fabricated "Disabled".
+        // No honest track data to show: no media open, still opening, or the
+        // engine has not reported any track list at all (doc §5.5
+        // disabled-while-loading — never a fabricated list, never "Disabled"
+        // as the trigger's face).
         const unreported = !state.engineReported && tracks.length === 0;
-        const disabled = state.playbackState === "opening" || unreported;
-        const options: DropdownOption[] = [
-          { value: "auto", labelKey: m("player.track.auto") },
-          { value: "none", labelKey: m("player.track.disable") },
-          ...tracks.map((track, index) => ({
-            value: `id:${track.id}`,
-            labelKey: trackDisplayName(track, m("player.track.unknown"), index),
-          })),
-        ];
-        if (unreported) {
-          options.push({ value: "unknown", labelKey: m("player.track.unknown") });
-        }
-        const value = unreported ? "unknown" : selected === null ? "none" : `id:${selected}`;
+        const noMedia =
+          state.playbackState === "idle" || state.playbackState === "opening" || unreported;
+        const options: DropdownOption[] = noMedia
+          ? // Visible face carries the kind ("Video track —") so three
+            // triggers never read as anonymous dashes; the aria-label adds
+            // the honest reason. The menu never opens while disabled.
+            [{ value: "unavailable", labelKey: `${m(labelKey)} —` }]
+          : [
+              { value: "auto", labelKey: m("player.track.auto") },
+              { value: "none", labelKey: m("player.track.disable") },
+              ...tracks.map((track, index) => ({
+                value: `id:${track.id}`,
+                labelKey: trackDisplayName(track, m("player.track.unknown"), index),
+              })),
+            ];
+        const value = noMedia ? "unavailable" : selected === null ? "none" : `id:${selected}`;
         return (
-          <Dropdown
+          <div
             key={kind}
-            label={m(labelKey)}
-            options={options}
-            value={value}
-            disabled={disabled}
-            onChange={(next: string) => {
-              if (next === "auto") {
-                actions.selectTrack(kind, { kind: "auto" });
-              } else if (next === "none") {
-                actions.selectTrack(kind, { kind: "none" });
-              } else if (next.startsWith("id:")) {
-                actions.selectTrack(kind, { kind: "id", id: Number(next.slice(3)) });
+            className="lumen-controls__track"
+            data-empty={noMedia ? "" : undefined}
+          >
+            <Dropdown
+              label={
+                noMedia
+                  ? `${m(labelKey)} — ${m("player.controls.reason.no-media")}`
+                  : m(labelKey)
               }
-            }}
-          />
+              options={options}
+              value={value}
+              disabled={noMedia}
+              onChange={(next: string) => {
+                if (next === "auto") {
+                  actions.selectTrack(kind, { kind: "auto" });
+                } else if (next === "none") {
+                  actions.selectTrack(kind, { kind: "none" });
+                } else if (next.startsWith("id:")) {
+                  actions.selectTrack(kind, { kind: "id", id: Number(next.slice(3)) });
+                }
+              }}
+            />
+          </div>
         );
       })}
     </div>

@@ -9,10 +9,23 @@
 // The dialog offers the DemoTransport clip catalog plus the transport's
 // remembered openings ("Recent"), and opens the picked SourceSpec through
 // the ClientProvider transport (`session.open`), then routes to /player.
+//
+// SOLSTICE v2 (2026-11-09, audit pass): the subtitle's "or paste a path" is
+// now REAL — a path/URL input opens anything the demo transport accepts
+// (a file path or an http(s) URL, parsed into the same SourceSpec shape the
+// clips use). The dialog centers at the viewport's OPTICAL center (45%) on
+// the shared .solstice-scrim veil, carries a visible quiet Close affordance
+// (plus Escape and click-outside), and shows every source location IN FULL
+// (two-line rows, wrap-anywhere mono, title attribute) instead of
+// truncating the paths behind ellipses.
 
 import { useId, useRef, useState } from "react";
+import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../../components/button/Button";
+import { IconButton } from "../../components/button/IconButton";
+import { Icon } from "../../components/icon/Icon";
+import { TextField } from "../../components/form/TextField";
 import { Dialog } from "../../components/surface/Surface";
 import { useClient } from "../../client/ClientProvider";
 import { DEMO_CLIPS, isDemoTransport } from "../../client/demo-transport";
@@ -23,9 +36,25 @@ import "./open-media.css";
 /** The cross-agent CustomEvent name (see module header — never rename). */
 export const OPEN_MEDIA_EVENT = "lumen:open-media";
 
+// i18n keys wired centrally (messages.ts): open.close, open.path.label,
+// open.path.placeholder, open.path.invalid.
+
 /** Human location string for a source spec (data, not UI copy). */
 const sourceLocation = (source: SourceSpec): string =>
   source.kind === "file" ? source.path : source.url;
+
+/**
+ * Parse a raw path/URL line into the SourceSpec the transport accepts.
+ * Anything with a URL scheme (http://, https://, …) opens as a url source;
+ * everything else is treated as a file path — the demo transport synthesizes
+ * honest info for both (see client/demo-transport.ts infoForSource).
+ */
+export function parseSourceInput(raw: string): SourceSpec | null {
+  const value = raw.trim();
+  if (value.length === 0) return null;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) return { kind: "url", url: value };
+  return { kind: "file", path: value };
+}
 
 export function OpenMediaDialog({
   open,
@@ -39,10 +68,13 @@ export function OpenMediaDialog({
   const navigate = useNavigate();
   const [selected, setSelected] = useState<SourceSpec | null>(null);
   const [opening, setOpening] = useState(false);
+  const [pathValue, setPathValue] = useState("");
+  const [pathInvalid, setPathInvalid] = useState(false);
   const nextRequestId = useRef(0);
   const titleId = useId();
   const clipsHeadingId = useId();
   const recentHeadingId = useId();
+  const pathFieldId = useId();
 
   // The "Recent" section exists only when the transport remembers openings
   // (the demo transport does; real hosts will surface their own history).
@@ -64,18 +96,74 @@ export function OpenMediaDialog({
       .finally(() => {
         setOpening(false);
         setSelected(null);
+        setPathValue("");
+        setPathInvalid(false);
         onClose();
         navigate("/player");
       });
   };
 
+  // The subtitle's promise, made real: paste a path or URL → open it.
+  const onPathSubmit = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+    const source = parseSourceInput(pathValue);
+    if (source === null) {
+      setPathInvalid(true);
+      return;
+    }
+    openSource(source);
+  };
+
   return (
-    <Dialog open={open} onClose={onClose} labelledBy={titleId} className="open-media__surface">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      labelledBy={titleId}
+      className="open-media__surface"
+      closeOnOutsideClick
+    >
       <div className="open-media">
-        <h2 id={titleId} className="open-media__title">
-          {m("open.title")}
-        </h2>
+        <div className="open-media__header">
+          <h2 id={titleId} className="open-media__title">
+            {m("open.title")}
+          </h2>
+          {/* v2 §4.4: every dialog carries a visible quiet close affordance
+              (Escape and click-outside also close — the Dialog owns both). */}
+          <IconButton
+            className="open-media__close"
+            label={m("open.close")}
+            title={m("open.close")}
+            size="sm"
+            onClick={() => {
+              setSelected(null);
+              setPathValue("");
+              setPathInvalid(false);
+              onClose();
+            }}
+          >
+            <Icon name="quit" size={16} />
+          </IconButton>
+        </div>
         <p className="open-media__subtitle">{m("open.subtitle")}</p>
+
+        <form className="open-media__path" onSubmit={onPathSubmit}>
+          <TextField
+            id={pathFieldId}
+            label={m("open.path.label")}
+            placeholder={m("open.path.placeholder")}
+            value={pathValue}
+            error={pathInvalid ? m("open.path.invalid") : undefined}
+            spellCheck={false}
+            autoComplete="off"
+            onChange={(event) => {
+              setPathValue(event.target.value);
+              if (pathInvalid) setPathInvalid(false);
+            }}
+          />
+          <Button type="submit" disabled={opening} className="open-media__path-open">
+            {m("open.action")}
+          </Button>
+        </form>
 
         <section className="open-media__section" aria-labelledby={clipsHeadingId}>
           <h3 id={clipsHeadingId} className="open-media__section-title">
@@ -94,8 +182,15 @@ export function OpenMediaDialog({
                   onClick={() => openSource(clip.source)}
                 >
                   <span className="open-media__thumb solstice-sun" aria-hidden="true" />
-                  <span className="open-media__item-title">{m(clip.titleKey)}</span>
-                  <span className="open-media__item-source">{sourceLocation(clip.source)}</span>
+                  <span className="open-media__item-text">
+                    <span className="open-media__item-title">{m(clip.titleKey)}</span>
+                    <span
+                      className="open-media__item-source"
+                      title={sourceLocation(clip.source)}
+                    >
+                      {sourceLocation(clip.source)}
+                    </span>
+                  </span>
                 </button>
               </li>
             ))}
@@ -122,10 +217,17 @@ export function OpenMediaDialog({
                     onClick={() => openSource(entry.source)}
                   >
                     <span className="open-media__thumb solstice-sun" aria-hidden="true" />
-                    <span className="open-media__item-title">
-                      {entry.title ?? sourceLocation(entry.source)}
+                    <span className="open-media__item-text">
+                      <span className="open-media__item-title">
+                        {entry.title ?? sourceLocation(entry.source)}
+                      </span>
+                      <span
+                        className="open-media__item-source"
+                        title={sourceLocation(entry.source)}
+                      >
+                        {sourceLocation(entry.source)}
+                      </span>
                     </span>
-                    <span className="open-media__item-source">{sourceLocation(entry.source)}</span>
                   </button>
                 </li>
               ))}
@@ -147,6 +249,8 @@ export function OpenMediaDialog({
           <Button
             onClick={() => {
               setSelected(null);
+              setPathValue("");
+              setPathInvalid(false);
               onClose();
             }}
           >

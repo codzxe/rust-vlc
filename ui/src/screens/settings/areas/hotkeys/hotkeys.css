@@ -48,17 +48,20 @@
 .hotkeys-row__conflict {
   margin: var(--space-inset) 0 0;
   color: var(--color-accent-strong);
-  font-size: var(--font-size-micro);
+  /* caption (11px), never micro — v2 §2.9: no text below 11px */
+  font-size: var(--font-size-caption);
 }
 
 .hotkeys-row__command {
-  font-size: var(--font-size-micro);
+  font-size: var(--font-size-caption);
   color: var(--color-content-secondary);
 }
 
 .hotkeys-row__mode {
-  color: var(--color-content-tertiary);
-  font-size: var(--font-size-micro);
+  /* secondary, not tertiary (v2 §2.3): tertiary on the settings panel
+   * measured ≈4.4:1 — under the AA floor for caption-size text. */
+  color: var(--color-content-secondary);
+  font-size: var(--font-size-caption);
 }
 
 .hotkeys-row__reset {

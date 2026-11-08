@@ -7,8 +7,17 @@
  * the float margins). Spacing sits on the 4px grid; the play toggle is the
  * ONE gold primary action (40px accent circle); the seekbar reads gold on a
  * warm track; track-selector dropdowns get min-widths so labels never
- * truncate ("Unknown" renders whole); the volume slider is horizontal and
- * grouped right; the error surface is a compact note chip above the bar.
+ * truncate; the volume slider is horizontal and grouped right; the error
+ * surface is a compact note chip above the bar.
+ *
+ * SOLSTICE v2 (2026-11-09, audit pass): the seekbar DOMINATES the bar
+ * (flex-grow with a wide basis; the volume slider is a fixed ~120px accent,
+ * never a peer of the seek row); the empty seekbar is a calm unplayed track
+ * (no phantom zero-position thumb — hidden via [data-empty] from
+ * ControlBar.tsx); the time displays share the seek row's baseline grid
+ * (fixed track-height line box + tabular figures); a DISABLED play toggle
+ * steps back to a quiet surface so the gold accent reads as "active"
+ * exactly when playback is possible.
  *
  * Semantic tokens only (§3.2); raw px appears solely for structural
  * dimensions with no token (the 40px primary circle, dropdown min-widths). */
@@ -49,11 +58,21 @@
   display: flex;
   align-items: center;
   gap: calc(var(--space-inset) + 2px);
-  flex: 1;
+  /* v2: the seek row dominates the bar — it takes all the free width and
+   * never collapses below a usable scrub track (wraps below that instead). */
+  flex: 1 1 280px;
   min-width: 0;
 }
 
+/* Time displays — a shared baseline grid with the 28px seek track: fixed
+ * line box + tabular figures, so 0:00 / --:-- / 1:23:45 keep their columns
+ * and vertically center on the track the seekbar paints. */
 .lumen-controls__time {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 4.5ch; /* "--:--" column floor (structural, mono tabular) */
+  height: 28px; /* the seek track height (§1.4) */
   font-family: var(--font-family-time);
   font-size: var(--font-size-time);
   color: var(--color-content-secondary);
@@ -63,7 +82,10 @@
 
 /* The play toggle — the gold primary action: 40px accent circle, on-accent
  * glyph, hover lift (structural 40px: no token; recorded like the 4.B1
- * 28/32/48 control heights). Disabled keeps the token opacity floor. */
+ * 28/32/48 control heights). v2: a DISABLED toggle (idle/buffering) steps
+ * back to the quiet control surface — the accent stays reserved for
+ * "playback possible" so it never reads as a dark-olive blob that is
+ * somehow both lit and inert. Disabled keeps the token opacity floor. */
 .lumen-controls__transport .lumen-icon-button[data-control="play-pause"] {
   width: 40px;
   height: 40px;
@@ -89,6 +111,14 @@
   translate: 0 0;
 }
 
+/* Disabled play toggle: quiet surface, warm-border ring, muted glyph — the
+ * gold circle appears exactly when the command behind it can run. */
+.lumen-controls__transport .lumen-icon-button[data-control="play-pause"]:disabled {
+  color: var(--color-content-secondary);
+  background: color-mix(in srgb, var(--color-surface-deep) 72%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-stroke-border) 90%, transparent);
+}
+
 /* Truthful buffering hint (doc 08 §5.3): transport inert but visible. */
 .lumen-controls[data-playback-state="buffering"] .lumen-controls__transport {
   opacity: var(--opacity-emphasis);
@@ -111,12 +141,22 @@
   background: color-mix(in srgb, var(--color-surface-muted) 82%, transparent);
 }
 
+/* v2 audit — the calm unplayed track: with no duration to map a position
+ * onto (data-empty from ControlBar.tsx), the accent thumb and fill vanish;
+ * the warm track alone reads as "nothing played yet". No phantom tick. */
+.lumen-controls__seek .lumen-seekbar[data-empty] .lumen-slider__thumb,
+.lumen-controls__seek .lumen-seekbar[data-empty] .lumen-slider__fill {
+  opacity: 0;
+}
+
 /* Volume — horizontal stroke slider grouped with the mute toggle (the
  * .lumen-volume vertical flyout geometry is replaced via the className
- * seam in ControlBar.tsx; base Slider anatomy stays). */
+ * seam in ControlBar.tsx; base Slider anatomy stays). v2: fixed ~120px —
+ * a quiet satellite of the seek row, never its peer. */
 .lumen-controls__volume-slider {
-  width: 96px;
+  width: 120px;
   height: 16px;
+  flex: none;
 }
 
 .lumen-controls__volume-slider .lumen-slider__track {
@@ -130,30 +170,42 @@
 }
 
 /* Track selectors — compact warm triggers with a min-width so labels render
- * whole ("Unknown", "English 5.1"…): the trigger never collapses below the
+ * whole ("Automatic", "English 5.1"…): the trigger never collapses below the
  * comfortable label width; longer names ellipsize honestly instead of
- * clipping mid-word. */
-.lumen-controls__tracks .lumen-dropdown {
+ * clipping mid-word. v2: the no-media "—" trigger narrows to a chip — an
+ * honest unknown does not need the full label column (kind label stays in
+ * the accessible name). */
+.lumen-controls__track {
   flex: none;
   min-width: 148px; /* structural: honest-label floor, no token exists */
 }
 
-.lumen-controls__tracks .lumen-dropdown__trigger {
+.lumen-controls__track[data-empty] {
+  /* v2 §4.3: the empty face is "Kind —" (visible), not a bare dash — it
+   * needs the same floor as a real label so it never ellipsizes. */
+  min-width: 160px;
+}
+
+.lumen-controls__track .lumen-dropdown {
+  display: flex;
+}
+
+.lumen-controls__track .lumen-dropdown__trigger {
   height: 36px; /* compact trigger inside the glass bar (structural) */
   background: color-mix(in srgb, var(--color-surface-deep) 60%, transparent);
 }
 
 /* Re-establish the component's hover/expanded states above the compact
  * base override (equal specificity, later sheet — kept explicit). */
-.lumen-controls__tracks .lumen-dropdown__trigger:hover {
+.lumen-controls__track .lumen-dropdown__trigger:hover {
   background: var(--color-surface-hover);
 }
 
-.lumen-controls__tracks .lumen-dropdown__trigger[aria-expanded="true"] {
+.lumen-controls__track .lumen-dropdown__trigger[aria-expanded="true"] {
   background: var(--color-surface-selected);
 }
 
-.lumen-controls__tracks .lumen-dropdown__trigger > span {
+.lumen-controls__track .lumen-dropdown__trigger > span {
   height: 30px; /* inner surface (structural, 2px padding like doc 08 §116) */
   padding-right: var(--space-grid);
 }

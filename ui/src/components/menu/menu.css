@@ -187,6 +187,23 @@
   border-radius: var(--radius-inset); /* inner rx4 */
 }
 
+/* Space distribution: the VALUE owns all free width (ellipsis when truly
+ * out of room); the arrow keeps its natural glyph width. v2 audit: both
+ * spans flex-shrank EQUALLY under width:100%, so the chevron consumed
+ * half the trigger and every label ellipsized early ("Video trac…").
+ * width:auto on both: flex-basis:auto must resolve to CONTENT width,
+ * not the inherited 100%. */
+.lumen-dropdown__trigger > span.lumen-dropdown__value {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+
+.lumen-dropdown__trigger > span.lumen-dropdown__arrow {
+  flex: 0 0 auto;
+  width: auto;
+}
+
 .lumen-dropdown__trigger:hover {
   background: var(--color-surface-hover);
 }

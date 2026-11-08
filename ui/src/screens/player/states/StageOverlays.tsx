@@ -225,21 +225,26 @@ export function ErrorOverlay({
 }
 
 /** Empty / first-run — no media open (`idle`). Migrated from the 4.C1 shell
- * markup (same i18n keys). Solstice restyle: a glowing sun disc above a
- * washi-taped sticky note; the gold primary button opens media through the
- * shell-wide `lumen:open-media` event (the app-shell dialog listens for
- * exactly that name) — a real affordance, enabled from the start. */
+ * markup (same i18n keys). Solstice v2 restage: the app's own Keyvox moment —
+ * the sun sits fully BEHIND the washi-taped sticky note (z-discipline, brief
+ * §2.2: the card occludes its lower arc, the tape straddles the card's top
+ * edge above both), the group reads at the stage's optical center, and the
+ * gold primary button opens media through the shell-wide `lumen:open-media`
+ * event (the app-shell dialog listens for exactly that name) — a real
+ * affordance, enabled from the start. */
 export function EmptyOverlay({ onOpenMedia }: { onOpenMedia?: () => void }) {
   const m = useMsg();
   return (
     <div className="lumen-player__empty" data-empty-state="first-run" data-overlay="empty">
-      <span className="solstice-sun lumen-player__empty-sun" aria-hidden="true" />
-      <div className="solstice-note lumen-player__empty-card solstice-rise" data-tape>
-        <h2 className="lumen-player__empty-title">{m("player.empty.title")}</h2>
-        <p className="lumen-player__empty-body">{m("player.empty.body")}</p>
-        <Button variant="primary" onClick={() => dispatchOpenMedia(onOpenMedia)}>
-          {m("player.empty.open")}
-        </Button>
+      <div className="lumen-player__empty-stage">
+        <span className="solstice-sun lumen-player__empty-sun" aria-hidden="true" />
+        <div className="solstice-note lumen-player__empty-card solstice-rise" data-tape>
+          <h2 className="lumen-player__empty-title">{m("player.empty.title")}</h2>
+          <p className="lumen-player__empty-body">{m("player.empty.body")}</p>
+          <Button variant="primary" onClick={() => dispatchOpenMedia(onOpenMedia)}>
+            {m("player.empty.open")}
+          </Button>
+        </div>
       </div>
     </div>
   );

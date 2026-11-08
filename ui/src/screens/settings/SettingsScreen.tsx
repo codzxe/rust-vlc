@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { Button } from "../../components/button/Button";
 import { Dialog } from "../../components/surface/Surface";
@@ -37,6 +37,17 @@ function SettingsShell() {
   useSettingsThemeSync();
   const [query, setQuery] = useState("");
   const [pendingArea, setPendingArea] = useState<SettingsAreaId | null>(null);
+
+  // Solstice v2 (brief §1): settings is an APP-tier working screen — the
+  // sunset is veiled to a calm warm wash while mounted (cleaned up on
+  // unmount) so the anchored panels read as work surfaces, not islands.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.backdrop = "calm";
+    return () => {
+      delete root.dataset.backdrop;
+    };
+  }, []);
 
   if (!isAreaId(area)) return <Navigate to={`/settings/${SETTINGS_AREA_IDS[0]}`} replace />;
 
@@ -78,6 +89,10 @@ function SettingsShell() {
           </ul>
         </aside>
         <div className="settings-screen__body">
+          {/* Area heading — anchors the content column (v2 audit: the body
+              read as a floating toolbar over a void; the heading + shared
+              grid give the panel a top edge to align with the nav rail). */}
+          <h2 className="settings-screen__area-title">{m(SETTINGS_AREA_TITLES[area])}</h2>
           <div className="settings-screen__toolbar">
             <label className="settings-screen__search">
               <span className="settings-screen__search-label">{m("settings.search.label")}</span>

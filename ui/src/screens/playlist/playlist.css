@@ -1,17 +1,20 @@
-/* Playlist panel + /playlist page — Solstice restyle (2026-11-08).
+/* Playlist panel + /playlist page — Solstice v2 (2026-11-09).
  *
  * Two contexts share this sheet: the player shell's `playlist` side region
- * (surface-panel backdrop, 377px) and the /playlist route, where the page
- * root stays transparent so the veiled sunset glows through and the queue
- * floats on ONE large flat sticky note — composed from the note tokens,
- * never tilted (data must sit level) — with a washi-tape strip pinned over
- * its top edge.
+ * (surface-panel backdrop, 377px) and the /playlist route. The route is an
+ * APP-tier work surface (brief §1): the page anchors to the shared column
+ * (min(1200px, 92vw)) on the calm backdrop, the heading and the queue card
+ * share ONE left edge, and the card fills the remaining viewport height so
+ * the VirtualList owns the vertical space — the page never clips at the
+ * viewport bottom. The queue is DENSE DATA: a structured opaque-ish panel,
+ * not a sticky note; the empty state keeps the sun-disc personality moment.
+ * No washi tape on the card (tape is for notes; v2 audit defect).
  *
  * Contracts kept (PlaylistPanel.test.tsx / e2e): the VirtualList 48px row
  * pitch, `.lumen-plrow--current` + data-current, the sr-only "Now playing"
- * text, drag-reorder handlers on `.lumen-plrow`, the exact empty-state copy.
- * Semantic tokens only (doc 08 §3.2); raw px solely for structural
- * dimensions with no token (grip dots, sun-dot, tape geometry). */
+ * text, drag-reorder handlers on `.lumen-plrow`, the exact empty-state copy,
+ * the queue control aria-labels. Semantic tokens only (doc 08 §3.2); raw px
+ * solely for structural dimensions with no token (grip dots, sun-dot). */
 
 /* ------------------------------------------------------------- panel -- */
 
@@ -74,7 +77,8 @@
 
 .lumen-playlist__footer {
   margin: 0;
-  padding: 0 var(--space-inset);
+  padding: var(--space-grid) var(--space-inset) 0;
+  border-top: 1px solid color-mix(in srgb, var(--color-stroke-border) 65%, transparent);
   font-size: var(--font-size-caption);
   /* secondary (not tertiary): micro/caption text on the panel stays AA
    * (4.F4 a11y precedent — the old tertiary-on-panel was 3.6:1). */
@@ -82,17 +86,21 @@
 }
 
 /* Empty state — a small recessed note tray with the sun-disc ornament.
- * --color-surface-deep reads as an inset both on the page's sticky note
- * and on the player's surface-panel side region, in both theme modes. */
+ * --color-surface-deep reads as an inset both on the page's anchored card
+ * and on the player's surface-panel side region, in both theme modes.
+ * v2 §2.5 (dead space): on the full-height page card the tray CLAIMS the
+ * remaining queue space (flex: 1 + centered) — an empty queue reads as a
+ * centered teaching moment, not a card that ends abruptly. */
 .lumen-playlist__empty {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  flex: 1;
   gap: var(--space-grid);
-  margin: var(--space-grid) var(--space-inset) 0;
-  padding: calc(var(--space-inset) * 3) var(--space-inset);
+  margin: var(--space-grid) var(--space-inset) var(--space-inset);
+  padding: calc(var(--space-inset) * 4) var(--space-inset) calc(var(--space-inset) * 3);
   text-align: center;
   background: var(--color-surface-deep);
   border: 1px solid var(--color-note-edge);
@@ -119,13 +127,19 @@
   color: var(--color-content-secondary);
 }
 
+/* The teaching CTA — the one gold primary on the empty surface (the same
+ * open-media dialog contract the player's empty state uses). */
+.lumen-playlist__empty-cta {
+  margin-top: calc(var(--space-grid) * 2);
+}
+
 .lumen-playlist__list {
   flex: 1;
   min-height: 0;
 }
 
 /* The vrow's square-cornered hover is retired here — the row paints its
- * own rounded warm fill, so edges stay tidy inside the note. */
+ * own rounded warm fill, so edges stay tidy inside the panel. */
 .lumen-playlist__list .lumen-vrow:hover {
   background: transparent;
 }
@@ -277,24 +291,26 @@
 
 /* ------------------------------------------------------ /playlist page */
 
+/* APP-tier anchored column (brief §1/§2.5): the shared max-width column,
+ * heading and card on ONE left edge, the card fills the remaining height
+ * (the shell's main region is the scroll parent only if the viewport is
+ * very short — the queue itself scrolls inside the card). */
 .lumen-playlist-page {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--space-grid) * 3);
-  min-height: 100vh;
-  max-width: 60rem;
+  gap: calc(var(--space-grid) * 4);
+  width: min(1200px, 92vw);
   margin: 0 auto;
-  padding: calc(var(--space-grid) * 6) calc(var(--space-grid) * 4) calc(var(--space-grid) * 6);
+  padding: calc(var(--space-grid) * 5) 0 calc(var(--space-grid) * 6);
   box-sizing: border-box;
+  flex: 1;
+  min-height: 0;
   color: var(--color-content-primary);
-  /* transparent on purpose — the veiled sunset (solstice.css backdrop)
-     keeps glowing around the floating note */
   background: transparent;
 }
 
 .lumen-playlist-page__title {
   margin: 0;
-  padding-inline: calc(var(--space-inset) * 3);
   font-family: var(--font-family-sans);
   font-size: var(--font-size-display);
   font-weight: var(--font-weight-extrabold);
@@ -302,43 +318,17 @@
   color: var(--color-content-bright);
 }
 
-/* The queue as one large sticky note — flat variant (the data area never
- * tilts), washi tape pinned over the top edge. Composed from the note
- * tokens so the panel keeps its own layout math. */
+/* The queue card — a structured opaque-ish work surface (dense data, so no
+ * note tilt and no tape). It stretches to the column's remaining height;
+ * the VirtualList owns the vertical space and scrolls inside. */
 .lumen-playlist-page__panel {
-  position: relative;
   flex: 1;
   min-height: 0;
   padding: calc(var(--space-inset) * 2);
-  background: var(--color-note);
-  color: var(--color-note-ink);
-  border: 1px solid var(--color-note-edge);
+  background: color-mix(in srgb, var(--color-surface-panel) 96%, transparent);
+  border: 1px solid var(--color-stroke-border);
   border-radius: var(--radius-card-lg);
-  box-shadow: var(--shadow-note);
-}
-
-.lumen-playlist-page__panel::before {
-  content: "";
-  position: absolute;
-  top: calc(var(--space-inset) * -1 - 2px);
-  left: 50%;
-  width: 110px;
-  height: 22px;
-  transform: translateX(-50%) rotate(-2deg);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--color-tape) 78%, white) 0%,
-    var(--color-tape) 45%,
-    var(--color-tape-edge) 100%
-  );
-  opacity: 0.92;
-  border-radius: 2px;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.22);
-  /* torn ends */
-  clip-path: polygon(
-    0% 12%, 3% 0%, 6% 10%, 94% 6%, 97% 0%, 100% 14%,
-    99% 88%, 96% 100%, 93% 90%, 7% 96%, 4% 100%, 1% 86%
-  );
+  box-shadow: var(--shadow-card);
 }
 
 @media (prefers-reduced-motion: reduce) {

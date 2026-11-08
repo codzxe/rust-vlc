@@ -1,19 +1,43 @@
-/* Onboarding wizard (card 4.F1) — Solstice redesign (2026-11-08): the Keyvox
- * golden-hour scene. The screen is a transparent stage over the FULL-STRENGTH
- * sunset (html[data-backdrop="vivid"] is set by the component while mounted):
- * the step indicator and an ambient keycap strip sit directly on the gradient,
- * and the step content floats on a single washi-taped sticky note
- * (.solstice-note). Colors/radii/spacing strictly via semantic tokens;
- * mode-conditional paints (white-on-sunset vs ink-on-dawn) are composed with
- * color-mix, never raw hex. Compound selectors (.x.y) deliberately outrank
- * the global solstice utilities regardless of stylesheet order. */
+/* Onboarding wizard (card 4.F1) — Solstice v2 stage (2026-11-09).
+ * The screen is a transparent stage over the FULL-STRENGTH sunset
+ * (html[data-backdrop="vivid"] is set by the component while mounted),
+ * composed as a three-row grid over a painted horizon so the scene
+ * survives 1440×900 AND 1024×768 with nothing clipped:
+ *   row 1  keycap step indicator, top-left, ON the gradient
+ *   row 2  the washi-taped sticky note (.solstice-note) at the OPTICAL
+ *          center (~45% stage height — the wrap's extra bottom padding
+ *          lifts it above the row's true middle; the bottom sky belongs
+ *          to the afterglow ground and the keycap strip, not dead haze)
+ *   row 3  ambient keycap strip resting on the afterglow ground,
+ *          ≥24px safe padding below it
+ * The sun is an absolutely-positioned sky ornament at z-index 0; every
+ * content row sits at z-index 1, so at narrow widths the sun tucks BEHIND
+ * the opaque card instead of straddling it (brief §2.2).
+ * Colors/radii/spacing strictly via semantic tokens; mode-conditional
+ * paints are composed with color-mix, never raw hex. Raw px appears only
+ * for the legibility floors the token set lacks (brief §2.9: caps ≥13px
+ * on this reference screen, chip labels ≥12px). */
 
 .onboarding {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  min-height: 100dvh;
-  padding: 0 var(--space-inset) calc(var(--space-grid) * 8);
+  box-sizing: border-box;
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  /* Fits the FIRST PAINT exactly: the app-wide 8px body margins (no global
+   * reset exists yet) sit outside this box, so a bare 100vh stage always
+   * spilled 16px into a phantom scroll that crowded the bottom strip
+   * (v2 audit defect 1). Subtracting them keeps the whole scene — indicator,
+   * note, keycap strip — inside the fold at 1440×900 AND 1024×768; if the
+   * body margins ever disappear, the stage simply sits 16px high on a sky
+   * that paints to the viewport edges regardless. Longer content (pseudo
+   * locale) still grows the grid and scrolls honestly (§2.7). */
+  min-height: calc(100vh - 16px);
+  min-height: calc(100dvh - 16px);
+  /* Safe padding: ≥24px below the keycap strip so no label ever touches
+   * the viewport edge, whatever the window height (36px also absorbs the
+   * app-wide 8px body margins that currently inset the whole stage). */
+  padding: calc(var(--space-grid) * 5) calc(var(--space-grid) * 6)
+    calc(var(--space-grid) * 9);
   font-family: var(--font-family-sans);
   font-size: var(--font-size-body);
   color: var(--color-content-primary);
@@ -22,56 +46,119 @@
 }
 
 /* ------------------------------------------------------------------ */
-/* Step indicator — on the gradient, top-left                          */
+/* The sun — sky ornament, always BEHIND the content rows              */
+/* ------------------------------------------------------------------ */
+
+.onboarding__sun {
+  position: absolute;
+  top: 9vh;
+  right: 10%;
+  width: calc(var(--space-grid) * 34);
+  height: calc(var(--space-grid) * 34);
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* The horizon — the lower sky's warm afterglow ground (v2 audit defect 3:
+ * the bottom third read as dead brown haze). Pure scene dressing at z 0,
+ * behind every content row: a soft amber bloom swelling from the bottom
+ * edge plus a gentle dusk falloff, so the keycap strip rests on evening
+ * light instead of floating on a void. Same setting-sun language as the
+ * 404's ground band — the two stage screens share one sky. */
+.onboarding__horizon {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 34%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      120% 90% at 50% 100%,
+      color-mix(in srgb, var(--color-sunset-6) 16%, transparent) 0%,
+      transparent 62%
+    ),
+    linear-gradient(
+      180deg,
+      transparent 0%,
+      color-mix(in srgb, var(--color-surface-deep) 46%, transparent) 80%,
+      color-mix(in srgb, var(--color-surface-deep) 72%, transparent) 100%
+    );
+}
+
+/* ------------------------------------------------------------------ */
+/* Step indicator — caption + numbered keycap chips, top-left          */
 /* ------------------------------------------------------------------ */
 
 .onboarding__stage-meta {
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: calc(var(--space-grid) * 1.5);
-  align-self: flex-start;
-  padding: calc(var(--space-grid) * 6) calc(var(--space-grid) * 5)
-    calc(var(--space-grid) * 2);
+  justify-self: start;
+  padding-bottom: calc(var(--space-grid) * 1);
   /* note-ink flips with the mode: cream on the dark sunset, ink on the dawn. */
   color: var(--color-note-ink);
 }
 
 .onboarding__stepcount {
   margin: 0;
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: 0.06em;
+  /* 12px label floor (brief §2.9) — the caption token (11px) is a notch
+   * small for the reference screen's indicator. */
+  font-size: 12px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.08em;
 }
 
-/* Segmented progress: done/current painted gold, rest translucent glass. */
 .onboarding__progress {
   display: flex;
-  gap: var(--space-grid);
-  list-style: none;
+  align-items: center;
+  gap: calc(var(--space-grid) * 1.5);
   margin: 0;
   padding: 0;
+  list-style: none;
+  /* Scrapbook tilt — the same craft cue as the note card itself. */
+  rotate: -1.2deg;
 }
 
-.onboarding__progress-bar {
-  width: calc(var(--space-grid) * 7);
-  height: calc(var(--space-grid) * 1.5);
-  border-radius: var(--radius-ring);
-  background: color-mix(in srgb, white 30%, transparent);
+/* Keycap step chips: translucent glass at rest, gold rim once done, and a
+ * solid accent keycap (slightly larger, on-accent ink) for the current
+ * step — clear emphasis without any looping motion. Ink stays note-ink in
+ * both modes so the chips read on the dawn AND the dusk sky (AA: ≥7:1). */
+.onboarding__progress-cap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  border: 1px solid color-mix(in srgb, var(--color-note-ink) 34%, transparent);
+  border-bottom-width: 3px;
+  border-radius: var(--radius-inset);
+  background: color-mix(in srgb, var(--color-note-ink) 10%, transparent);
+  color: var(--color-note-ink);
+  font-family: var(--font-family-sans);
+  font-size: 13px;
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
 }
 
-/* The dawn gradient is light at the top — white segments would vanish. */
-html[data-theme="light"] .onboarding__progress-bar {
-  background: color-mix(in srgb, black 20%, transparent);
+.onboarding__progress-cap--done {
+  border-color: color-mix(in srgb, var(--color-accent) 60%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 26%, transparent);
 }
 
-.onboarding__progress-bar--done,
-.onboarding__progress-bar--current {
+.onboarding__progress-cap--current {
+  width: 32px;
+  height: 32px;
+  border-color: var(--color-accent-strong);
   background: var(--color-accent);
-}
-
-.onboarding__progress-bar--current {
-  box-shadow: 0 0 calc(var(--space-inset) * 1.5)
-    color-mix(in srgb, var(--color-accent) 55%, transparent);
+  color: var(--color-content-on-accent);
+  box-shadow:
+    0 3px 0 color-mix(in srgb, var(--color-accent-strong) 70%, transparent),
+    0 0 calc(var(--space-inset) * 2.5)
+      color-mix(in srgb, var(--color-accent) 45%, transparent);
 }
 
 /* ------------------------------------------------------------------ */
@@ -79,23 +166,34 @@ html[data-theme="light"] .onboarding__progress-bar {
 /* ------------------------------------------------------------------ */
 
 .onboarding__note-wrap {
-  flex: 1;
+  position: relative;
+  z-index: 1; /* above the sky sun — overlaps read as behind the card */
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
-  padding: calc(var(--space-grid) * 3) 0;
+  min-height: 0;
+  /* Optical center (~45% of the stage): the extra bottom padding lifts the
+   * card above the row's true middle, rebalancing the scene away from the
+   * top-heavy v1 composition. */
+  padding-block: 0 clamp(24px, 7vh, 80px);
 }
 
 /* Compound selector: must outrank .solstice-note's own padding whatever
- * the stylesheet evaluation order turns out to be. */
+ * the stylesheet evaluation order turns out to be. Asymmetric padding — a
+ * taller top than sides/bottom — keeps the step content clear of the washi
+ * tape, which straddles the note's top edge and dips ~16px into it at the
+ * tape's deepest torn corner (rotation + clip-path): 48px top padding buys
+ * ≥32px of clearance between tape and the first line of step content (v2
+ * audit defect 6). */
 .onboarding__note.solstice-note {
   box-sizing: border-box;
   width: min(520px, 100%);
   display: flex;
   flex-direction: column;
   gap: calc(var(--space-grid) * 2);
-  padding: calc(var(--space-inset) * 4);
+  padding: calc(var(--space-inset) * 6) calc(var(--space-inset) * 4)
+    calc(var(--space-inset) * 4);
 }
 
 .onboarding__step {
@@ -104,22 +202,19 @@ html[data-theme="light"] .onboarding__progress-bar {
   flex-direction: column;
   gap: calc(var(--space-grid) * 2);
   /* Keeps card geometry stable across the lighter hero steps — sized so
-   * the full scene (meta + note + keycap strip) fits a 720px-tall window
-   * without clipping the strip's labels. */
-  min-height: calc(var(--space-grid) * 44);
+   * the full scene (indicator + note + keycap strip) fits a 1024×768
+   * window without scrolling. */
+  min-height: calc(var(--space-grid) * 46);
 }
 
 .onboarding__step--center {
   align-items: center;
   text-align: center;
-}
-
-.onboarding__sun {
-  display: block;
-  width: calc(var(--space-grid) * 18);
-  height: calc(var(--space-grid) * 18);
-  margin: 0 auto calc(var(--space-grid) * 3);
-  flex: none;
+  /* Hero steps carry little content, so the step's stable min-height leaves
+   * a tall gap between the copy block and the footer rule. Centering the
+   * block on the cross of the step turns that gap into symmetric breathing
+   * room above AND below — a hung note, not a void pooling at the divider. */
+  justify-content: center;
 }
 
 .onboarding__title {
@@ -351,6 +446,15 @@ html[data-theme="light"] .onboarding__progress-bar {
   gap: var(--space-grid);
 }
 
+/* Reference-screen keycaps: ≥13px caps (brief §2.9) — sized here rather
+ * than via .solstice-key--sm, whose micro token (6px) sits far below the
+ * legibility floor. */
+.onboarding__shortcut-keys .solstice-key {
+  min-width: 28px;
+  height: 28px;
+  font-size: 13px;
+}
+
 .onboarding__shortcut-more {
   margin: calc(var(--space-grid) * -1) 0 0;
   font-size: var(--font-size-caption);
@@ -359,7 +463,8 @@ html[data-theme="light"] .onboarding__progress-bar {
 }
 
 /* ------------------------------------------------------------------ */
-/* Footer actions — Back (ghost) · Skip (quiet link) · Next (gold)     */
+/* Footer actions — Back (ghost) · Skip (ghost) · Next/Get started     */
+/* (gold pill). One row, one height, one baseline — no lone rotations.  */
 /* ------------------------------------------------------------------ */
 
 .onboarding__note .onboarding__rule {
@@ -376,7 +481,7 @@ html[data-theme="light"] .onboarding__progress-bar {
 .onboarding__footer-group {
   display: flex;
   align-items: center;
-  gap: var(--space-grid);
+  gap: calc(var(--space-grid) * 1.5);
 }
 
 /* Back = ghost on the note (compound scope beats .lumen-button). */
@@ -390,23 +495,28 @@ html[data-theme="light"] .onboarding__progress-bar {
   color: var(--color-note-ink);
 }
 
-/* Skip = quiet text link — still clearly legible on the note. */
+/* Skip = quiet ghost chip at the primary pill's height and type size, so
+ * the Skip/Next pair is baseline-aligned by construction (brief §2.4).
+ * Muted note ink holds ≥4.5:1 on the note in both modes. */
 .onboarding__skip {
-  padding: var(--space-inset);
-  border: none;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 var(--space-inset);
+  border: 1px solid color-mix(in srgb, var(--color-note-edge) 90%, transparent);
+  border-radius: var(--radius-control);
   background: transparent;
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-note-ink);
-  opacity: 0.82;
-  text-decoration: underline dotted;
-  text-underline-offset: 3px;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-note-ink-muted);
   cursor: pointer;
 }
 
 .onboarding__skip:hover {
-  opacity: 1;
+  background: color-mix(in srgb, var(--color-note-edge) 35%, transparent);
+  color: var(--color-note-ink);
 }
 
 .onboarding__hidden {
@@ -418,10 +528,12 @@ html[data-theme="light"] .onboarding__progress-bar {
 /* ------------------------------------------------------------------ */
 
 .onboarding__keys {
+  z-index: 1;
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  gap: calc(var(--space-grid) * 4);
+  gap: calc(var(--space-grid) * 6);
+  padding-top: calc(var(--space-grid) * 4);
   /* Subtle by scale and placement, not by transparency: opacity on gradient
    * zones would risk the AA contrast floor for the tiny labels. */
 }
@@ -430,13 +542,59 @@ html[data-theme="light"] .onboarding__progress-bar {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-grid);
+  gap: calc(var(--space-grid) * 1.5);
+}
+
+/* Reference-screen keycaps (brief §2.9): 13px caps on 34px keys. */
+.onboarding__keys .solstice-key {
+  min-width: 34px;
+  height: 34px;
+  font-size: 13px;
 }
 
 .onboarding__keys-label {
-  font-size: var(--font-size-caption);
+  font-size: 12px; /* §2.9 label floor */
   font-weight: var(--font-weight-semibold);
   color: var(--color-note-ink);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ */
+/* Short viewports (≤ 800px tall, e.g. 1024×768)                        */
+/* ------------------------------------------------------------------ */
+
+/* The shortcuts tour is the tallest step; at 768px of stage height its six
+ * rows pushed the keycap strip past the fold (v2 audit defect 1: labels
+ * clipped at the bottom edge). Everything tightens JUST enough to fit the
+ * whole scene inside the first paint — caps stay ≥13px and labels ≥12px
+ * (§2.9 floors hold), the strip keeps its ≥24px safe padding, and taller
+ * windows keep the airy 1440×900 spacing untouched. */
+@media (max-height: 800px) {
+  .onboarding__note-wrap {
+    padding-block: 0 clamp(24px, 4vh, 48px);
+  }
+
+  .onboarding__step {
+    min-height: calc(var(--space-grid) * 40);
+  }
+
+  .onboarding__shortcut-row {
+    padding: var(--space-grid) 0;
+  }
+
+  .onboarding__shortcut-keys .solstice-key {
+    min-width: 26px;
+    height: 26px;
+  }
+
+  .onboarding__keys {
+    padding-top: calc(var(--space-grid) * 2);
+  }
+
+  .onboarding__keys .solstice-key {
+    min-width: 32px;
+    height: 32px;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -444,13 +602,25 @@ html[data-theme="light"] .onboarding__progress-bar {
 /* ------------------------------------------------------------------ */
 
 @media (max-width: 600px) {
+  .onboarding {
+    padding: calc(var(--space-grid) * 5) calc(var(--space-grid) * 4)
+      calc(var(--space-grid) * 7);
+  }
+
+  .onboarding__sun {
+    right: 4%;
+  }
+
   .onboarding__note.solstice-note {
-    padding: calc(var(--space-inset) * 3);
+    /* Asymmetric here too: keep the tape clear of step content (§2 defect 6)
+     * while reclaiming width on narrow stages. The top stays one inset
+     * taller than the sides for the tape's ~16px dip. */
+    padding: calc(var(--space-inset) * 5) calc(var(--space-inset) * 3);
   }
 
   .onboarding__keys {
     flex-wrap: wrap;
-    gap: calc(var(--space-grid) * 2);
+    gap: calc(var(--space-grid) * 3);
   }
 
   .onboarding__theme-cards {
@@ -461,8 +631,13 @@ html[data-theme="light"] .onboarding__progress-bar {
 /* Motion: only the ambient polish is animated, behind the guard. The
  * .solstice-rise entrance and note tilt are already reduced-motion safe. */
 @media (prefers-reduced-motion: no-preference) {
-  .onboarding__progress-bar {
-    transition: background-color var(--motion-duration-fast) ease;
+  .onboarding__progress-cap {
+    transition:
+      background-color var(--motion-duration-fast) ease-out,
+      border-color var(--motion-duration-fast) ease-out,
+      box-shadow var(--motion-duration-fast) ease-out,
+      width var(--motion-duration-fast) ease-out,
+      height var(--motion-duration-fast) ease-out;
   }
 
   .onboarding__theme-swatch {
@@ -475,5 +650,11 @@ html[data-theme="light"] .onboarding__progress-bar {
     transition:
       background-color var(--motion-duration-fast) ease-out,
       box-shadow var(--motion-duration-fast) ease-out;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding__progress {
+    rotate: none; /* the tilt is a motion cue for the inner ear, drop it */
   }
 }

@@ -365,7 +365,11 @@ export function AppShell({
       </header>
 
       <div className="app-shell__frame">
-        <nav className="app-shell__rail solstice-glass" aria-label={m("nav.title")}>
+        {/* The rail's warm-glass treatment is fully self-contained in
+         * appshell.css (.app-shell__rail) — composing .solstice-glass here
+         * let the shared class override the rail gradient (cascade-order
+         * audit; see the note in that sheet). */}
+        <nav className="app-shell__rail" aria-label={m("nav.title")}>
           <span className="app-shell__logo solstice-sun" aria-hidden="true" />
           <ul className="app-shell__rail-list">
             {RAIL_ITEMS.map((item) => (
@@ -373,6 +377,9 @@ export function AppShell({
                 <NavLink
                   to={item.to}
                   aria-label={m(item.labelKey)}
+                  /* v2 audit (§4 icon-only controls): hover affordance — the
+                   * visible tooltip mirrors the accessible name. */
+                  title={m(item.labelKey)}
                   className={({ isActive }) =>
                     ["app-shell__rail-link", isActive ? "app-shell__rail-link--active" : ""]
                       .filter(Boolean)

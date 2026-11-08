@@ -1,7 +1,57 @@
-/* Open-media dialog (Solstice): the dialog surface is the shared lumen-dialog
- * chrome; the inner column floats demo clips + recent openings as sun-dot
- * rows. Semantic tokens only (raw px appears solely for the thumbnail size —
- * a structural dimension with no token). */
+/* Open-media dialog (Solstice): the dialog surface composes on the shared
+ * lumen-dialog chrome from components/surface (not owned here) — the sheet
+ * below retargets THIS dialog's scrim + surface without touching the shared
+ * primitive:
+ *   * the scrim gets the .solstice-scrim treatment (v2 §4.4: every modal
+ *     sits on that warm veil — dark radial + soft blur) via :has(), and
+ *     centers the card at the viewport's OPTICAL center (~45% height)
+ *     instead of dead center, which left a void below the card (audit).
+ *   * the surface is the 560px warm glass card (translucent panel, hairline
+ *     warm border, window radius).
+ *   * list rows are TWO lines — the source location renders IN FULL (mono,
+ *     wrap-anywhere, title attribute for the untruncated string) instead of
+ *     hiding behind ellipses at 45% width.
+ * Semantic tokens only (raw px appears solely for structural dimensions
+ * with no token: card width, thumb size). */
+
+/* The scrim that hosts THIS dialog only (.lumen-scrim is the shared
+ * primitive; :has() scopes the solstice treatment to our surface).
+ *
+ * MODAL LAYER (v2 audit 2, elementFromPoint-verified): the shared
+ * .lumen-scrim paints at z-index auto, but the player stage underneath
+ * carries z-indexed chrome in the SAME (root) stacking context — the
+ * empty-state note card (z-index 1), the keycap strip (z-index 2), the
+ * transport error chip (z-index 3). Without a z-index of its own the scrim
+ * lost that paint race: the note card rendered ABOVE the veil, occluded the
+ * clip rows and — worse — won the hit test (elementFromPoint over the card
+ * returned the card, not the dialog), stealing pointer events from the
+ * modal. 20 sits above the menubar popup layer (menu.css uses 10) so the
+ * modal covers menus too; structural, no token (same precedent). */
+.lumen-scrim:has(> .open-media__surface) {
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  /* Optical center (brief §4.4: 45%) — the extra bottom padding lifts the
+   * card so it does not sit high with a dead void below. */
+  padding-bottom: 10vh;
+  background: radial-gradient(
+    ellipse at 50% 38%,
+    rgb(20 14 8 / 0.18) 0%,
+    rgb(16 11 6 / 0.44) 62%,
+    rgb(10 7 4 / 0.62) 100%
+  );
+  backdrop-filter: blur(2px);
+}
+
+/* The card itself — warm glass, one generous column. */
+.open-media__surface {
+  max-width: min(92vw, 560px);
+  padding: calc(var(--space-inset) * 2.5);
+  background: color-mix(in srgb, var(--color-surface-panel) 94%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-tape) 30%, transparent);
+  border-radius: var(--radius-window);
+  box-shadow: var(--shadow-overlay);
+}
 
 .open-media {
   display: flex;
@@ -13,16 +63,49 @@
   color: var(--color-content-primary);
 }
 
+/* Header row — title + the quiet close affordance (v2 §4.4). */
+.open-media__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-inset);
+}
+
 .open-media__title {
   margin: 0;
   font-size: var(--font-size-title);
   font-weight: var(--font-weight-extrabold);
 }
 
+.open-media__close {
+  flex: none;
+}
+
 .open-media__subtitle {
   margin: 0;
   font-size: var(--font-size-body);
   color: var(--color-content-secondary);
+}
+
+/* The paste-a-path form — the subtitle's promise, made real. The label is
+ * visible (a11y floor: inputs carry visible labels on reference screens). */
+.open-media__path {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-inset);
+}
+
+.open-media__path .lumen-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.open-media__path .lumen-field__control {
+  font-family: var(--font-family-time);
+}
+
+.open-media__path-open {
+  flex: none;
 }
 
 .open-media__section {
@@ -37,7 +120,10 @@
   font-weight: var(--font-weight-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--color-content-tertiary);
+  /* v2 audit: content-tertiary measured 4.46:1 on the panel (AA floor is
+   * 4.5 for text this size) — the label keeps its quiet role via
+   * case/tracking, at the AA-safe secondary ink. */
+  color: var(--color-content-secondary);
 }
 
 .open-media__list {
@@ -49,9 +135,11 @@
   list-style: none;
 }
 
+/* Two-line rows: title + the FULL source location (audit: ellipses hid the
+ * one piece of data that distinguishes entries). */
 .open-media__item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-inset);
   padding: var(--space-grid) var(--space-inset);
   text-align: start;
@@ -77,27 +165,35 @@
   flex: none;
   width: 18px;
   height: 18px;
+  margin-top: calc(var(--space-grid) + 2px); /* aligns with the title line */
+}
+
+.open-media__item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .open-media__item-title {
   font-weight: var(--font-weight-semibold);
 }
 
+/* The source line — room to breathe and nowhere to hide: full string, mono
+ * face, wrapping anywhere a path demands. Secondary ink (AA-safe) — these
+ * are data lines, not decoration. */
 .open-media__item-source {
-  margin-left: auto;
   font-family: var(--font-family-time);
   font-size: var(--font-size-caption);
-  color: var(--color-content-tertiary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 45%;
+  color: var(--color-content-secondary);
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .open-media__empty {
   margin: 0;
   font-size: var(--font-size-body);
-  color: var(--color-content-tertiary);
+  color: var(--color-content-secondary);
 }
 
 .open-media__actions {

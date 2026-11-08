@@ -1,13 +1,16 @@
-/* Media info panel + /media-info route — Solstice restyle (2026-11-08).
+/* Media info panel + /media-info route — Solstice v2 (2026-11-09).
  *
- * Sections stack as flat sticky notes (.solstice-note--flat — the DATA
- * never tilts; only the section headers carry a slight alternating lean,
- * and the washi tapes alternate left/center/right). Fields flow a
- * two-column grid (label muted / value strong); honest "Unknown" values
- * render muted via [data-unknown]; every track wears a chip heading.
+ * APP-tier work surface (brief §1): the route anchors to the shared column
+ * (min(1200px, 92vw)) on the calm backdrop; the sections are STRUCTURED
+ * opaque-ish cards (dense data — the sticky-note/tape treatment is reserved
+ * for personality moments like the empty state). Section headers keep a
+ * small hand-highlighted label (level text, slight alternating lean —
+ * warmth without tilting data). Fields flow a two-column grid (label muted /
+ * value strong); honest "Unknown" values render muted via [data-unknown];
+ * every track wears a chip heading.
  *
  * Contexts: the player shell's `media-info` side region and the route page
- * (transparent root — the veiled sunset glows around the note stack).
+ * (transparent root — the calm backdrop frames the card stack).
  * Contracts kept (MediaInfoPanel.test.tsx): data-field, data-mi-section,
  * data-mi-stream, data-track-id, data-state, heading names.
  * Semantic tokens only (doc 08 §3.2); raw px solely for structural
@@ -16,10 +19,12 @@
 .lumen-mi {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--space-grid) * 3); /* tapes pinned at -10px breathe between cards */
+  gap: calc(var(--space-grid) * 3);
   min-height: 0;
   flex: 1;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-tape-edge) transparent;
 }
 
 .lumen-mi__title {
@@ -31,20 +36,17 @@
   color: var(--color-content-primary);
 }
 
-/* --------------------------------------------------- sections as notes */
-/* Boosted (descendant) selectors so the composition wins over the
- * .solstice-note utilities regardless of sheet order. */
+/* -------------------------------------------------- sections as cards */
 
 .lumen-mi .lumen-mi__section {
   display: flex;
   flex-direction: column;
   gap: calc(var(--space-grid) * 2);
   padding: calc(var(--space-inset) * 2) calc(var(--space-inset) * 2) calc(var(--space-inset) * 1.5);
-}
-
-/* Data cards never lift — the note's hover levity is retired here. */
-.lumen-mi .lumen-mi__section:hover {
-  translate: none;
+  background: color-mix(in srgb, var(--color-surface-panel) 96%, transparent);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
 }
 
 /* Section headers: a hand-highlighted tape label with a slight lean.
@@ -57,10 +59,10 @@
   font-size: var(--font-size-label);
   font-weight: var(--font-weight-bold);
   letter-spacing: 0.01em;
-  color: var(--color-note-ink);
+  color: var(--color-content-primary);
   border-radius: var(--radius-inset);
   rotate: -0.35deg;
-  /* 35% tape keeps note-ink on the highlight ≥ 4.5:1 in both modes */
+  /* 35% tape keeps primary ink on the highlight ≥ 4.5:1 in both modes */
   background: linear-gradient(
     90deg,
     color-mix(in srgb, var(--color-tape) 35%, transparent),
@@ -110,29 +112,33 @@
   border-radius: var(--radius-inset);
 }
 
+.lumen-mi__row:hover {
+  background: var(--color-surface-hover);
+}
+
 .lumen-mi__term {
   font-size: var(--font-size-caption);
-  color: var(--color-note-ink-muted);
+  color: var(--color-content-secondary);
 }
 
 .lumen-mi__value {
   margin: 0;
   font-size: var(--font-size-body);
   font-weight: var(--font-weight-semibold);
-  color: var(--color-note-ink);
+  color: var(--color-content-primary);
   overflow-wrap: anywhere;
 }
 
 /* The honest unknown — muted and leaning, so an absent value never reads
  * as a reported one. */
 .lumen-mi__row[data-unknown] .lumen-mi__value {
-  color: var(--color-note-ink-muted);
+  color: var(--color-content-secondary);
   font-style: italic;
   font-weight: var(--font-weight-regular);
 }
 
 .lumen-mi__row[data-unknown] .lumen-mi__value-chip {
-  color: var(--color-note-ink-muted);
+  color: var(--color-content-secondary);
   font-style: italic;
   background: transparent;
 }
@@ -144,7 +150,7 @@
   flex-direction: column;
   gap: calc(var(--space-grid) * 1.5);
   padding: calc(var(--space-grid) * 2) 0 0;
-  border-top: 1px solid var(--color-note-edge);
+  border-top: 1px solid var(--color-stroke-border);
 }
 
 .lumen-mi__stream + .lumen-mi__stream {
@@ -159,12 +165,12 @@
 
 /* ------------------------------------------------------- honest states */
 
-/* Inside a note card (metadata "none reported"). */
+/* Inside a card (metadata "none reported"). */
 .lumen-mi__note {
   margin: 0;
   padding: 0 var(--space-inset);
   font-size: var(--font-size-caption);
-  color: var(--color-note-ink-muted);
+  color: var(--color-content-secondary);
 }
 
 /* The not-exposed line on the page/panel bg — a compact chip; long honesty
@@ -180,17 +186,21 @@
 }
 
 /* Empty state — a small recessed note tray with the sun-disc ornament
- * (--color-surface-deep insets against both the transparent page and the
- * player's surface-panel side region, in both theme modes). */
+ * (--color-surface-deep insets against both the calm page backdrop and the
+ * player's surface-panel side region, in both theme modes). v2 §2.5: on the
+ * full-height route the tray CLAIMS the remaining column (flex: 1 +
+ * centered) so an absent report reads as a centered honest moment, not a
+ * card that stops while the column keeps going. */
 .lumen-mi__empty {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  flex: 1;
   gap: var(--space-grid);
-  margin: var(--space-grid) 0 0;
-  padding: calc(var(--space-inset) * 3) var(--space-inset);
+  margin: var(--space-grid) 0 var(--space-grid);
+  padding: calc(var(--space-inset) * 4) var(--space-inset);
   text-align: center;
   background: var(--color-surface-deep);
   border: 1px solid var(--color-note-edge);
@@ -219,16 +229,20 @@
 
 /* --------------------------------------------------- /media-info route */
 
+/* APP-tier anchored column (brief §1/§2.5): the shared max-width column;
+ * the card stack fills the height and scrolls INSIDE when the report is
+ * long (visible warm scrollbar), never cropping mid-row. */
 .lumen-mi-screen {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--space-grid) * 3);
-  max-width: 48rem;
+  gap: calc(var(--space-grid) * 4);
+  width: min(1200px, 92vw);
   margin: 0 auto;
-  padding: calc(var(--space-grid) * 6) calc(var(--space-grid) * 4);
-  min-height: 100%;
+  padding: calc(var(--space-grid) * 5) 0 calc(var(--space-grid) * 6);
+  flex: 1;
+  min-height: 0;
   box-sizing: border-box;
-  /* transparent on purpose — the veiled sunset glows around the notes */
+  /* transparent on purpose — the calm backdrop frames the card stack */
   background: transparent;
 }
 
@@ -241,7 +255,7 @@
   color: var(--color-content-bright);
 }
 
-/* The section notes carry the surface — no boxed panel on the page. */
+/* The section cards carry the surface — no boxed panel wrapper on the page. */
 .lumen-mi-screen__panel {
   flex: 1;
   min-height: 0;

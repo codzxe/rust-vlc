@@ -376,6 +376,38 @@ describe("track menus — real ids, real labels, honest unknowns", () => {
     return fake;
   };
 
+  it("v2 §4.3 — no media open: triggers read 'Kind —' (never 'Disabled'), disabled, aria carries the no-media reason", async () => {
+    // Solstice v2 audit defect: with no media the three triggers rendered
+    // the "Disabled" OPTION label as their face — reading like debug
+    // scaffolding. The honest no-media trigger shows the track kind plus an
+    // em-dash with the reason in the accessible name, disabled, and NO
+    // fabricated options.
+    const fake = new FakeTransport();
+    fake.respond = () => snapshotResult("idle");
+    renderBar(fake);
+    await flush();
+    for (const name of ["Video track", "Audio track", "Subtitle track"]) {
+      const trigger = screen.getByRole("button", {
+        name: new RegExp(`^${name} — no media open$`),
+      });
+      expect(trigger).toBeDisabled();
+      expect(trigger.textContent).not.toContain("Disabled");
+      expect(trigger.querySelector(".lumen-dropdown__value")?.textContent).toBe(`${name} —`);
+    }
+  });
+
+  it("v2 §4.3 — with media open the honest menu options return (auto/none/real ids)", async () => {
+    const fake = tracksSetup();
+    renderBar(fake);
+    await flush();
+    const trigger = screen.getByRole("button", { name: "Audio track" });
+    expect(trigger).toBeEnabled();
+    expect(trigger.textContent).not.toContain("—");
+    click(trigger);
+    const list = screen.getByRole("listbox", { name: "Audio track" });
+    expect(within(list).getAllByRole("option")).toHaveLength(5); // auto + disable + 3 audio
+  });
+
   it("lists real tracks per kind from the tracks.list result", async () => {
     renderBar(tracksSetup());
     await flush();

@@ -77,6 +77,9 @@ export function MiniPlayer({
           data-control="play-pause"
           data-glyph={mapped.play.glyph}
           label={playLabel}
+          /* v2 §4 icon-only controls: hover affordance mirrors the accessible
+           * name (same treatment as the app-shell rail stops). */
+          title={playLabel}
           loading={mapped.play.pending}
           disabled={mapped.play.disabled}
           onClick={actions.togglePlayPause}
@@ -88,6 +91,11 @@ export function MiniPlayer({
         <Seekbar
           data-control="seekbar"
           data-variant="mini"
+          /* v2 audit: same calm-unplayed-track rule as the full bar — no
+           * phantom zero thumb while there is no duration to map onto. */
+          data-empty={
+            state.durationSeconds === null || state.durationSeconds <= 0 ? "" : undefined
+          }
           aria-busy={mapped.seek.busy || undefined}
           aria-label={
             reason !== null
@@ -104,6 +112,7 @@ export function MiniPlayer({
         <IconButton
           data-control="expand"
           label={m("player.variant.miniplayer.expand")}
+          title={m("player.variant.miniplayer.expand")}
           onClick={onExpand}
         >
           <Icon name="zoom" />
@@ -112,6 +121,7 @@ export function MiniPlayer({
           <IconButton
             data-control="close"
             label={m("player.variant.miniplayer.close")}
+            title={m("player.variant.miniplayer.close")}
             onClick={onClose}
           >
             <Icon name="quit" />

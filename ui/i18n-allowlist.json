@@ -23,5 +23,10 @@
     "text": ")",
     "reason": "Punctuation around the numeric dirty-change count in the settings apply bar — the count is data, not copy",
     "owner": "4.E1"
+  },
+  {
+    "text": "404",
+    "reason": "Solstice v2 404 stage (brief §4.8) — the route-status page number scribbled large on the lost note; decorative aria-hidden numeral (the h1 carries the accessible title), not translatable copy",
+    "owner": "A"
   }
 ]

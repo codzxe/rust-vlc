@@ -57,7 +57,8 @@ describe("OnboardingScreen (card 4.F1)", () => {
     expect(screen.getByRole("heading", { name: "Welcome to Lumen" })).toBeInTheDocument();
     const progress = screen.getByTestId("onboarding-progress");
     expect(progress).toHaveAttribute("aria-label", "Onboarding step 1 of 5");
-    expect(progress.querySelector('[aria-current="step"]')).toBeInTheDocument();
+    // v2 keycap indicator: the current chip also wears its step number.
+    expect(progress.querySelector('[aria-current="step"]')).toHaveTextContent("1");
   });
 
   it("fresh run: every privacy choice is OFF and none pre-checked", () => {
@@ -149,10 +150,9 @@ describe("OnboardingScreen (card 4.F1)", () => {
   it("Back/Next walk the steps and update the progress label", () => {
     renderWizard();
     goToPrivacy();
-    expect(screen.getByTestId("onboarding-progress")).toHaveAttribute(
-      "aria-label",
-      "Onboarding step 2 of 5",
-    );
+    const progress = screen.getByTestId("onboarding-progress");
+    expect(progress).toHaveAttribute("aria-label", "Onboarding step 2 of 5");
+    expect(progress.querySelector('[aria-current="step"]')).toHaveTextContent("2");
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Welcome to Lumen" })).toBeInTheDocument();
   });

@@ -11,7 +11,13 @@
  * for the design's structural dimensions with no token (C1 player.css
  * precedent — recorded in ui/NEXT-STEPS.md). The miniplayer card is a
  * fixed-size compact surface [PROPOSAL: window-level always-on-top is
- * host-owned; the DOM renders the compact frame inside the player root]. */
+ * host-owned; the DOM renders the compact frame inside the player root].
+ *
+ * SOLSTICE v2 (2026-11-09, audit pass): music mode composes top-to-bottom
+ * (sun upper third at a deliberate size, caption slot beneath it, waveform
+ * anchored low above the transport) instead of centering one cluster in a
+ * ~80% void; the miniplayer seek row flexes so the compact seekbar gets
+ * the free width (and loses its phantom zero thumb while empty). */
 
 .lumen-mini {
   display: flex;
@@ -20,9 +26,11 @@
   box-sizing: border-box;
   width: 391px;
   height: 339px;
-  padding: calc(var(--space-inset) * 1.5);
   margin: auto; /* centered compact card while window-level placement is host-owned */
-  border-radius: var(--radius-window); /* design rx14 */
+  /* Padding + radius belong to the .solstice-note surface (24px / note
+   * radius) — same-specificity overrides here would lose the cascade to
+   * theme/solstice.css, which loads after screen sheets in the dev-server
+   * graph (see the cascade note in appshell.css). */
   box-shadow: var(--shadow-note);
 }
 
@@ -45,8 +53,35 @@
   flex-shrink: 0;
 }
 
+/* v2 audit (measured in-browser): the bar's row was over-subscribed — every
+ * flex item shrank, squashing the 28px play circle into a 21×28 ELLIPSE and
+ * the expand/close stops into 24×32 slabs. The compact seek is the only
+ * flexible item (the dominance rule); the buttons keep their fixed circles. */
+.lumen-mini__bar .lumen-icon-button {
+  flex: none;
+}
+
+/* v2: the compact seek takes the free width — same dominance language as
+ * the full bar, scaled to the mini geometry. */
+.lumen-mini__bar .lumen-seekbar {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* v2: calm unplayed track — no phantom zero thumb while empty (the
+ * data-empty hook mirrors the full bar's). */
+.lumen-mini__bar .lumen-seekbar[data-empty] .lumen-slider__thumb,
+.lumen-mini__bar .lumen-seekbar[data-empty] .lumen-slider__fill {
+  opacity: 0;
+}
+
 /* Solstice: the compact gold play circle — the same primary-action language
- * as the full bar, scaled to the mini geometry. */
+ * as the full bar, scaled to the mini geometry. v2 audit 2 (VLM crop): with
+ * no media (idle) the button rendered DISABLED-but-gold at the primitive's
+ * 0.5 opacity — an olive blob with a barely-visible glyph (the same defect
+ * the full bar's :disabled override fixed in controls.css). The quiet-
+ * surface-when-inert rule is mirrored here: gold reads as "playback
+ * possible" exactly when the command behind it can run. */
 .lumen-mini__bar .lumen-icon-button[data-control="play-pause"] {
   width: 28px;
   height: 28px;
@@ -60,8 +95,19 @@
   background: var(--color-accent-strong);
 }
 
+.lumen-mini__bar .lumen-icon-button[data-control="play-pause"]:disabled {
+  color: var(--color-content-secondary);
+  background: color-mix(in srgb, var(--color-surface-deep) 72%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-stroke-border) 90%, transparent);
+}
+
 /* Music mode: sun-disc art placeholder + caption + waveform (honest — no
- * fabricated art, static bars until engine audio-level data exists). */
+ * fabricated art, static bars until engine audio-level data exists).
+ * v2 pass 2 → audit 2 (in-browser + VLM): the stage column composes as
+ * THREE weighted bands — the art block claims the free height and anchors
+ * its sun+caption group in the UPPER THIRD (see .lumen-music__stage), the
+ * waveform anchors directly above the compact transport (one seek area,
+ * grouped — no hollow core between them). */
 .lumen-music__art {
   position: relative;
   display: flex;
@@ -69,10 +115,10 @@
   min-height: 0;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: calc(var(--space-inset) * 3);
-  margin: auto;
-  padding: var(--space-inset);
+  box-sizing: border-box;
+  padding: calc(var(--space-inset) * 4) var(--space-inset) calc(var(--space-inset) * 2.5);
   width: 100%;
 }
 
@@ -80,6 +126,16 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  /* v2 audit 2 (task composition contract): the sun+caption group anchors
+   * in the UPPER THIRD of the art band (padding pushes it past the exact
+   * top; centering left it hovering mid-band) — against the transparent
+   * stage the sun then sits in the actual sky band of the app-wide sunset
+   * gradient while the waveform rides the horizon glow. The breathing
+   * room lives between caption and waveform (brief §2.5 stage-tier
+   * symmetry is preserved: the gap reads as sky, not void). */
+  justify-content: flex-start;
+  padding-top: calc(var(--space-inset) * 10);
+  flex: 1; /* the art band claims the free height */
   gap: calc(var(--space-inset) * 2.5);
   margin: 0;
   max-width: 520px;
@@ -87,7 +143,9 @@
 
 .lumen-music__sun {
   flex: none;
-  width: clamp(180px, 30vmin, 280px); /* structural art size — no token */
+  /* Deliberate art size (v2 audit): stage presence without a blob —
+     structural, no token. */
+  width: clamp(200px, 26vmin, 300px);
   aspect-ratio: 1 / 1;
 }
 
@@ -95,17 +153,21 @@
   margin: 0;
   max-width: 480px;
   text-align: center;
+  font-size: var(--font-size-label);
   color: var(--color-content-secondary);
 }
 
 /* Waveform placeholder — sunset visualizer gradient tokens, rotating
- * through the bar row. Static by design (no fake audio activity). */
+ * through the bar row. Static by design (no fake audio activity). v2 pass
+ * 2: grouped tight against the transport (one seek area) — the gap to the
+ * art band above is the breathing room, not a hollow core. */
 .lumen-music__waveform {
   display: flex;
   align-items: flex-end;
   gap: var(--space-grid);
-  width: min(420px, 80%);
-  height: 48px; /* structural placeholder height — no token */
+  flex: none;
+  width: min(520px, 88%);
+  height: 56px; /* structural placeholder height — no token */
   opacity: var(--opacity-emphasis);
 }
 
@@ -136,4 +198,10 @@
  * data-variant="music" hook. */
 .lumen-player[data-variant="music"] .lumen-controls__time {
   color: var(--color-content-secondary);
+}
+
+/* v2 pass 2 (VLM audit): the top-bar sun mark is redundant beside the big
+ * art-stage sun — one sun per stage. The mark stays in the full variant. */
+.lumen-player[data-variant="music"] .lumen-player__mark {
+  display: none;
 }

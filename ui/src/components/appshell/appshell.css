@@ -1,7 +1,36 @@
 /* AppShell (Solstice) — the persistent chrome: menubar banner row, glass
  * icon rail, routed main. Landmarks: banner / nav / main (see AppShell.tsx).
  * Semantic tokens only; raw px appears solely for structural dimensions
- * with no token (rail width, link hit size) per the composition-layer rule. */
+ * with no token (rail width, link hit size) per the composition-layer rule.
+ *
+ * SOLSTICE v2 (2026-11-09, audit pass): the rail gets a consistent vertical
+ * rhythm (one item pitch — logo block, divider and stops share the same
+ * 10px step; every stop is the same 40px square), the active stop is a
+ * filled ACCENT CHIP (the one gold moment of the chrome — consistent across
+ * all items), and the glass warms up (translucent sunset-tinted panel +
+ * soft tape border) so the rail belongs to the stage instead of a near-black
+ * strip that ends abruptly. Icon ink rises to content-secondary for AA on
+ * the translucent panel.
+ *
+ * CASCADE NOTE (v2 audit, verified in-browser): the rail must NOT compose
+ * `.solstice-glass` — main.tsx's import order puts App.tsx (and this sheet)
+ * BEFORE theme/solstice.css, so the shared `.solstice-glass` background
+ * overrode this rail's warm gradient and tape border entirely (the
+ * "near-black strip" the audit flagged). The rail is therefore fully
+ * SELF-CONTAINED here (blur, border, radius, shadow, gradient); AppShell.tsx
+ * mounts the plain `app-shell__rail` class only.
+ *
+ * BODY-MARGIN RESET (v2 audit defect: docScrollH 916 vs 900 — a 16px
+ * overflow on EVERY shell screen): no sheet in the global chain
+ * (tokens/solstice/focus/page) zeroes the browser default `body { margin:
+ * 8px }`, and the shell is height:100vh — 100vh + 16px scrolls. The reset
+ * lives here because the shell is what assumes a full-viewport body; the
+ * Lead may want it hoisted into a11y/page.css for the full-bleed routes
+ * (onboarding/404) that never mount this sheet's component. */
+
+body {
+  margin: 0; /* shell owns the full viewport (see note above) */
+}
 
 .app-shell {
   display: flex;
@@ -16,7 +45,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-inset);
+  gap: calc(var(--space-inset) * 1.5);
   flex: none;
   padding: 0 var(--space-inset) 0 0;
   border-bottom: 1px solid color-mix(in srgb, var(--color-stroke-border) 65%, transparent);
@@ -26,6 +55,7 @@
 
 .app-shell__demo-badge {
   flex: none;
+  margin-right: calc(var(--space-inset) * 0.5);
 }
 
 /* ---- frame: rail + main ----------------------------------------------- */
@@ -39,26 +69,45 @@
 .app-shell__rail {
   display: flex;
   flex-direction: column;
-  gap: var(--space-grid);
+  gap: calc(var(--space-inset) + 2px); /* the ONE rhythm step (structural) */
   flex: none;
   width: 56px;
   box-sizing: border-box;
   margin: var(--space-inset);
-  padding: var(--space-inset) 0;
+  padding: calc(var(--space-inset) + 2px) 0;
+  color: var(--color-content-primary);
+  border: 1px solid color-mix(in srgb, var(--color-tape) 26%, transparent);
   border-radius: var(--radius-panel);
+  /* v2: warm glass — the rail reads as part of the sunset scene, not a
+   * near-black strip. Translucent panel with a sunset-tinted top edge.
+   * Self-contained (see the CASCADE NOTE in the header) so import order
+   * can never flatten it back to a plain dark panel. */
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-surface-panel) 58%, var(--color-sunset-7) 14%) 0%,
+    color-mix(in srgb, var(--color-surface-panel) 86%, transparent) 34%,
+    color-mix(in srgb, var(--color-surface-panel) 86%, transparent) 100%
+  );
+  backdrop-filter: blur(var(--blur-backdrop-small));
+  box-shadow:
+    var(--shadow-card),
+    inset 0 1px 0 color-mix(in srgb, white 7%, transparent);
 }
 
 .app-shell__logo {
   flex: none;
   width: 20px;
   height: 20px;
-  margin: 0 auto var(--space-grid);
+  margin: 0 auto;
+  /* The rhythm divider under the mark — same step as the list gap. */
+  padding-bottom: calc(var(--space-inset) + 2px);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-stroke-border) 60%, transparent);
 }
 
 .app-shell__rail-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-grid);
+  gap: calc(var(--space-inset) + 2px); /* identical to the rail step */
   margin: 0;
   padding: 0;
   list-style: none;
@@ -69,27 +118,31 @@
   align-items: center;
   justify-content: center;
   width: 40px;
-  height: 40px;
+  height: 40px; /* one consistent stop size (structural) */
   border-radius: var(--radius-control);
-  color: var(--color-content-tertiary);
+  color: var(--color-content-secondary); /* AA on the translucent panel */
   transition: color var(--motion-duration-fast) ease-out,
-    background-color var(--motion-duration-fast) ease-out;
+    background-color var(--motion-duration-fast) ease-out,
+    box-shadow var(--motion-duration-fast) ease-out;
 }
 
 .app-shell__rail-link:hover {
-  color: var(--color-content-primary);
+  color: var(--color-content-bright);
   background: var(--color-surface-hover);
 }
 
-/* Active rail stop: the one gold accent moment of the chrome. */
+/* Active rail stop (v2): the accent CHIP — a filled gold square with
+ * on-accent ink, identical geometry for every item (no inset-ring illusions
+ * that made the highlight read as a different size). */
 .app-shell__rail-link--active {
-  color: var(--color-accent);
-  background: var(--color-surface-selected);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 45%, transparent);
+  color: var(--color-content-on-accent);
+  background: var(--color-accent);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--color-accent) 38%, transparent);
 }
 
 .app-shell__rail-link--active:hover {
-  color: var(--color-accent-bright);
+  color: var(--color-content-on-accent);
+  background: var(--color-accent-strong);
 }
 
 /* ---- main region ------------------------------------------------------- */

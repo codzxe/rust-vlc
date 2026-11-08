@@ -389,7 +389,11 @@ function PlayerScreenInner({
   );
 }
 
-/** An empty, honestly-labelled side-panel container from layout config. */
+/** An empty, honestly-labelled side-panel container from layout config.
+ * Music-mode emphasis (4.F2) is the styling hook (washi strip on the top
+ * edge, see player.css); the playlist panel's own empty-state Open-media CTA
+ * (card 4.D1, screens/playlist) dispatches the shell-wide `lumen:open-media`
+ * event from inside the panel — no duplicate CTA is pinned here. */
 function PanelRegion({
   region,
   side,
@@ -411,9 +415,9 @@ function PanelRegion({
       className={`lumen-player__panel lumen-player__panel--${side}`}
     >
       {/* Playlist region content landed with card 4.D1 (panel + queue
-          semantics); media-info region content landed with card 4.D2;
-          customize panels landed with 4.F3 (capability-gated fields);
-          library remains an honest placeholder. */}
+          semantics, empty-state Open-media CTA); media-info region content
+          landed with card 4.D2; customize panels landed with 4.F3
+          (capability-gated fields); library remains an honest placeholder. */}
       {region.id === "playlist" ? (
         <PlaylistProvider>
           <PlaylistPanel />

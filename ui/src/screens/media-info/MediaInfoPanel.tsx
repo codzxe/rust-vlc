@@ -1,10 +1,12 @@
 // Card 4.D2 — media information panel (doc 08 §4.3 "Media information"
 // row: MediaInfoPanel via `media.get-info`; design has no dedicated frame
 // [VERIFY-DESIGN] → styling from the settings language per the doc).
-// Solstice restyle (2026-11-08): sections stack as flat sticky notes
-// (data never tilts — only the section headers carry a slight alternating
-// lean, via CSS), fields flow a two-column grid, honest "Unknown" values
-// render muted (data-unknown), tracks wear chip headings.
+// Solstice v2 craft pass (2026-11-09): APP-tier work surface — the sections
+// are structured opaque-ish cards on the calm backdrop (dense data — the
+// sticky-note/tape treatment is reserved for personality moments), fields
+// flow a two-column grid, honest "Unknown" values render muted
+// (data-unknown), tracks wear chip headings. Section headers keep a small
+// hand-highlighted label for warmth (level text, data never tilts).
 //
 // Rendered both inside the player shell's `media-info` region (PlayerScreen
 // wiring) and as the /media-info route body (MediaInfoScreen).
@@ -113,8 +115,7 @@ function MediaInfoSections({
 
       {/* --- General --- */}
       <section
-        className="lumen-mi__section solstice-note solstice-note--flat solstice-rise"
-        data-tape
+        className="lumen-mi__section solstice-rise"
         data-mi-section="general"
         aria-labelledby="lumen-mi-general"
       >
@@ -143,8 +144,7 @@ function MediaInfoSections({
 
       {/* --- Video streams --- */}
       <section
-        className="lumen-mi__section solstice-note solstice-note--flat solstice-rise"
-        data-tape="left"
+        className="lumen-mi__section solstice-rise"
         data-mi-section="video"
         aria-labelledby="lumen-mi-video"
       >
@@ -158,8 +158,7 @@ function MediaInfoSections({
 
       {/* --- Audio streams --- */}
       <section
-        className="lumen-mi__section solstice-note solstice-note--flat solstice-rise"
-        data-tape="right"
+        className="lumen-mi__section solstice-rise"
         data-mi-section="audio"
         aria-labelledby="lumen-mi-audio"
       >
@@ -173,8 +172,7 @@ function MediaInfoSections({
 
       {/* --- Subtitles --- */}
       <section
-        className="lumen-mi__section solstice-note solstice-note--flat solstice-rise"
-        data-tape="left"
+        className="lumen-mi__section solstice-rise"
         data-mi-section="subtitle"
         aria-labelledby="lumen-mi-subtitle"
       >
@@ -188,8 +186,7 @@ function MediaInfoSections({
 
       {/* --- Metadata tags --- */}
       <section
-        className="lumen-mi__section solstice-note solstice-note--flat solstice-rise"
-        data-tape="right"
+        className="lumen-mi__section solstice-rise"
         data-mi-section="metadata"
         aria-labelledby="lumen-mi-metadata"
       >

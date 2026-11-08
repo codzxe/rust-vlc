@@ -3,6 +3,13 @@
 // Rendered both inside the player shell's `playlist` region (PlayerScreen
 // wiring) and as the /playlist route body (PlaylistScreen).
 //
+// Solstice v2 craft pass (2026-11-09): the queue toolbar's icon buttons use
+// the 32px hit size with 20px glyphs (visible affordance, not 14px specks —
+// audit floor: ≥20px), every control keeps its aria-label from i18n, and the
+// empty state teaches: a primary "Open media" CTA dispatches the shell-wide
+// `lumen:open-media` CustomEvent (the AppShell opens the dialog — the same
+// contract the player's empty state uses).
+//
 // HONESTY: current marker, shuffle and repeat reflect ENGINE-reported state
 // only (playlist.changed / snapshot). `null` (not yet reported) renders as
 // the unpressed control — commented at each site; never a faked "known off".
@@ -12,6 +19,7 @@ import { useMsg } from "../../i18n/messages";
 import { IconButton, Button } from "../../components/button";
 import { Icon } from "../../components/icon";
 import { VirtualList } from "../../components/list";
+import { OPEN_MEDIA_EVENT } from "../open-media";
 import { usePlaylist, type PlaylistEntry } from "./PlaylistProvider";
 import { cycleRepeat, dragToMoveIndex, formatDuration, sourceLocation } from "./queue";
 import "./playlist.css";
@@ -19,7 +27,24 @@ import "./playlist.css";
 /** doc 08 §1.5 (option.svg): 48px rows. */
 const ROW_HEIGHT = 48;
 
-export function PlaylistPanel({ className = "" }: { className?: string }) {
+/** Queue toolbar glyphs (v2 audit floor: ≥20px to read as controls; 32px hit). */
+const TOOLBAR_ICON_SIZE = 20;
+
+/** Open the app-shell media dialog (cross-screen contract, never renamed). */
+const openMediaDialog = (): void => {
+  window.dispatchEvent(new CustomEvent(OPEN_MEDIA_EVENT));
+};
+
+export function PlaylistPanel({
+  className = "",
+  /** Page mode: the /playlist route renders its own h1, so the panel's h2
+   * would stack a duplicate heading — hide it there, keep it in the player's
+   * side region. The count chip + toolbar always render. */
+  headingless = false,
+}: {
+  className?: string;
+  headingless?: boolean;
+}) {
   const m = useMsg();
   const playlist = usePlaylist();
   const [dragFrom, setDragFrom] = useState<number | null>(null);
@@ -43,40 +68,42 @@ export function PlaylistPanel({ className = "" }: { className?: string }) {
   };
 
   return (
-    <section className={`lumen-playlist ${className}`.trim()} data-chrome-part="">
+    <section
+      className={`lumen-playlist ${className}`.trim()}
+      data-chrome-part=""
+      aria-label={headingless ? m("playlist.panel.title") : undefined}
+    >
       <header className="lumen-playlist__header">
-        <h2 className="lumen-playlist__title">{m("playlist.panel.title")}</h2>
+        {headingless ? null : <h2 className="lumen-playlist__title">{m("playlist.panel.title")}</h2>}
         <span className="lumen-playlist__count solstice-chip">
           <span className="lumen-playlist__count-num">{String(playlist.entries.length)}</span>
           {m("playlist.panel.count-suffix")}
         </span>
         <div className="lumen-playlist__controls">
-          <IconButton label={m("playlist.controls.prev")} size="sm" onClick={() => playlist.prev()}>
-            <Icon name="skip-back-15" size={14} />
+          <IconButton label={m("playlist.controls.prev")} onClick={() => playlist.prev()}>
+            <Icon name="skip-back-15" size={TOOLBAR_ICON_SIZE} />
           </IconButton>
-          <IconButton label={m("playlist.controls.next")} size="sm" onClick={() => playlist.next()}>
-            <Icon name="skip-forward-15" size={14} />
+          <IconButton label={m("playlist.controls.next")} onClick={() => playlist.next()}>
+            <Icon name="skip-forward-15" size={TOOLBAR_ICON_SIZE} />
           </IconButton>
           {/* aria-pressed only claims "on" when the engine reported it;
               unknown (null) renders unpressed — never a faked known-off. */}
           <IconButton
             label={m("playlist.controls.shuffle")}
-            size="sm"
             aria-pressed={playlist.shuffle === true}
             onClick={() => playlist.setShuffle(!(playlist.shuffle === true))}
           >
-            <Icon name="shuffle" size={14} />
+            <Icon name="shuffle" size={TOOLBAR_ICON_SIZE} />
           </IconButton>
           <IconButton
             label={repeatLabel}
-            size="sm"
             data-mode={repeatMode}
             onClick={() => playlist.setRepeat(cycleRepeat(repeatMode))}
           >
-            <Icon name="repeat" size={14} />
+            <Icon name="repeat" size={TOOLBAR_ICON_SIZE} />
           </IconButton>
-          <IconButton label={m("playlist.controls.clear")} size="sm" onClick={() => playlist.clear()}>
-            <Icon name="stop" size={14} />
+          <IconButton label={m("playlist.controls.clear")} onClick={() => playlist.clear()}>
+            <Icon name="stop" size={TOOLBAR_ICON_SIZE} />
           </IconButton>
         </div>
       </header>
@@ -89,6 +116,16 @@ export function PlaylistPanel({ className = "" }: { className?: string }) {
           <span className="lumen-playlist__sun solstice-sun" aria-hidden="true" />
           <p className="lumen-playlist__empty-title">{m("playlist.panel.empty-title")}</p>
           <p className="lumen-playlist__empty-body">{m("playlist.panel.empty-body")}</p>
+          {/* The empty state teaches: same dialog the player's empty state
+              opens (AppShell owns the single listener for this event). */}
+          <Button
+            variant="primary"
+            className="lumen-playlist__empty-cta"
+            onClick={openMediaDialog}
+            data-testid="playlist-empty-open-media"
+          >
+            {m("player.empty.open")}
+          </Button>
         </div>
       ) : (
         <VirtualList
