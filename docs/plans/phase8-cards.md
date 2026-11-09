@@ -2,10 +2,10 @@
 
 | Field | Value |
 |---|---|
-| Purpose | Convert doc 13 §11 (Phase 8, waves 8.A–8.H, 16 tasks) into issue-ready work items so the Lead can open trackable issues and close umbrella issue #23 |
+| Purpose | Convert doc 13 §11 (Phase 8, waves 8.A–8.H, 16 tasks) into issue-ready work items — now tracked as GitHub issues #52–#59 (created 2026-11-09, one per item, in order); close umbrella issue #23 at the Phase 8 gate (P8-8 / #59) |
 | Source of truth | `docs/13-agent-wave-program.md` §11, lines 784–845 — read in full; **all card scope/AC text below is from that section, nothing invented** |
 | Gate context | MP §16 gate: compatibility, security, soak, perf-vs-VLC, packaging, honest parity report. Detail docs: 11 §7/§9 (security, SBOM), 12 §9 (final perf), 10 §7–§8 (evidence, regression protocol), MP §17 (done definition). Parallelism 2–4 |
-| Rule for the Lead | One issue per item below; keep card IDs in the issue body; close the item only on its stated AC |
+| Rule for the Lead | One issue per item below (done: issues #52–#59 created 2026-11-09); keep card IDs in the issue body; close the item only on its stated AC |
 
 ## 0. Deltas since the wave program was written (fold into issue bodies, do NOT re-scope)
 
@@ -27,58 +27,58 @@ These are already-merged facts that make parts of the Phase 8 cards partially do
 
 Agents proceed on everything not blocked; when a blocker bites, mark the issue `blocked` per MP §17 (reason + next step), do not silently descope.
 
-## 2. Work items (8 issues covering all 16 cards)
+## 2. Work items (issues #52–#59 covering all 16 cards)
 
-### Item P8-1 — Security sweeps: parsers, platform/network, supply chain + SBOM
+### Item P8-1 (issue #52) — Security sweeps: parsers, platform/network, supply chain + SBOM
 * **Cards:** 8.A1, 8.A2, 8.A3 · **Deps:** none (consumes 7.L1-V, 1.E5 outputs, already in tree) · **Size:** L
 
 **Proposed title:** `P8: Security sweeps — parsers fuzz/triage, plugins+control+network, supply chain + SBOM (8.A1–8.A3)`
 
 **Body draft:** Three verification tracks per doc 11 §7. (a) Parsers (8.A1): expand the landed netfuzz codec corpus (issue #14 — targets already in `fuzz/fuzz_targets/`), triage **all** accumulated findings, probe/demux/decode hardening review; own `docs/security/sweep-parsers.md` + fix cards. (b) Platform/network (8.A2): sandbox-escape review, permission-model audit, loopback/token review, secret-redaction verification; own `docs/security/sweep-platform.md`; **first triage item is the open 6.H1 Medium (same-host https→http downgrade) + 3 Low** (issue #15, sketches in `docs/investigations/network-security-review.md`). (c) Supply chain (8.A3): cargo-deny/vet clean, SBOM regeneration per doc 11 §9, license-compliance final (incl. design-asset residual R-07 font check), provenance record; own `docs/security/sweep-supplychain.md`. **AC (per card):** every finding fixed or risk-registered with owner + next step; audit jobs green; SBOMs attached to artifacts.
 
-### Item P8-2 — Full-corpus compatibility matrix × 3 OS + web, gap triage and status flips
+### Item P8-2 (issue #53) — Full-corpus compatibility matrix × 3 OS + web, gap triage and status flips
 * **Cards:** 8.B1, 8.B2 · **Deps:** P8-1 · **Size:** L
 
 **Proposed title:** `P8: Full-corpus compatibility matrix (every format × 3 OS + web) + honest gap triage (8.B1–8.B2)`
 
 **Body draft:** Run the full-corpus matrix (8.B1): every supported format × Windows/macOS/Linux + web, evidence per doc 10 §7 with mock-vs-real runs labeled; the VLC 3.0.23 differential oracle (issue #19: 29/35 bit-exact, 6/35 f32 deviation path, `docs/corpus/vlc-diff-report-20261023.md`) is the reference for claimed-supported cells. Then gap triage (8.B2): every gap either fixed (bounded fix) or status honestly `partial`/`blocked` with reason and next step per the MP §17 blocked definition; the parity tool applies all transitions. **AC:** complete matrix with no empty claimed-supported cells; zero unexplained gaps. **Blocked-by-external:** 3-OS runners (user).
 
-### Item P8-3 — Soak/stress completion
+### Item P8-3 (issue #54) — Soak/stress completion
 * **Cards:** 8.C1 · **Deps:** P8-2 · **Size:** M
 
 **Proposed title:** `P8: Soak & stress completion — full suite, reopen stress, memory slopes, quarantine (8.C1)`
 
 **Body draft:** Complete the soak/stress program per doc 10 §8: full soak suite (4 h × scenarios), reopen-cycle stress, memory slopes vs target, LSAN nightly clean, flaky-test quarantine resolved or removed, regression-guard audit. **Already in flight:** the soak nightly workflow exists and runs (issue #18, `.github/workflows/soak-nightly.yml`) — extend it rather than building new CI. Own `tests/soak/**` reports. **AC:** soak reports committed; quarantine empty or scheduled.
 
-### Item P8-4 — Final perf-vs-VLC benchmarks + bounded fixes
+### Item P8-4 (issue #55) — Final perf-vs-VLC benchmarks + bounded fixes
 * **Cards:** 8.D1, 8.D2 · **Deps:** P8-3 · **Size:** L
 
 **Proposed title:** `P8: Perf-vs-VLC final report + top-regression bounded fixes (8.D1–8.D2)`
 
 **Body draft:** Final benchmarks per doc 12 §9 (8.D1): all metrics × all codecs × 3 OS on reference hardware, honest comparisons **including pure-Rust-slower cases**; the VLC 3.0.23 differential report (issue #19) anchors like-for-like comparisons. Then bounded fixes (8.D2): top-3 regressions vs baseline fixed with **no correctness trades**; report finalized on post-fix numbers. Own `docs/perf/final.md` + benches. **AC:** numbers + manifests committed; no silent re-runs; fixes regression-tested. **Blocked-by-external:** 3-OS reference hardware (user).
 
-### Item P8-5 — Packaging per platform + SBOM
+### Item P8-5 (issue #56) — Packaging per platform + SBOM
 * **Cards:** 8.E1, 8.E2, 8.E3 · **Deps:** P8-4 · **Size:** L
 
 **Proposed title:** `P8: Packaging — Windows MSI/signing, macOS dmg/notarization (R-35), Linux AppImage/deb/rpm + SBOM (8.E1–8.E3)`
 
 **Body draft:** Three packaging tracks. Windows (8.E1): MSI/WiX installer (`[VERIFY]` toolchain purity), code signing (`[VERIFY]` certificate availability — escalate if absent), launch test, upgrade path. macOS (8.E2): .dmg, codesign + notarization — **externally blocked on the Apple Developer account R-35 (user)** — universal-binary decision, launch test. Linux + SBOM (8.E3): AppImage/deb/rpm (`[VERIFY]` toolchain), final SBOM + checksums per doc 11 §9 across all platforms; **AC:** packages launch-tested per platform; SBOMs + checksums attached to artifacts. 8.E3 formally depends on 8.E1+8.E2; if R-35 stays open, ship Linux+Windows SBOMs and track macOS as blocked per MP §17.
 
-### Item P8-6 — Parity tool finalization + honest parity statement + known limits
+### Item P8-6 (issue #57) — Parity tool finalization + honest parity statement + known limits
 * **Cards:** 8.F1, 8.F2 · **Deps:** P8-2 (8.F1 needs the matrix/gap outputs from 8.B2) · **Size:** M
 
 **Proposed title:** `P8: Parity-report tool lockdown + honest parity statement + known-limits doc (8.F1–8.F2)`
 
 **Body draft:** Finalize the parity-report tool per doc 10 §7 + MP §17 (8.F1): status transitions strictly from the evidence outbox; matrix-vs-claims diff; **no self-verification path exists in code** — AC: attempting a manual status flip fails. Then the user-facing statement (8.F2): verified/partial/unsupported/blocked with evidence links, plus the known-limits doc final (Lua extensions, DVD/BD, DVB, patent notes per MP §14); AC: every sentence traceable to evidence. Own `tools/parity-report/**`, `docs/parity-statement.md`, `docs/known-limits.md`.
 
-### Item P8-7 — Docs completeness sweep + release checklist + RC smoke
+### Item P8-7 (issue #58) — Docs completeness sweep + release checklist + RC smoke
 * **Cards:** 8.G1, 8.G2 · **Deps:** P8-5, P8-6 · **Size:** L
 
 **Proposed title:** `P8: Docs completeness sweep + release checklist + RC smoke on 3 OS + web (8.G1–8.G2)`
 
 **Body draft:** Docs sweep (8.G1): format records complete, ADR register current, user docs + troubleshooting, README claims audited — **no "all formats" claims anywhere**; AC: audit checklist all green (own `docs/**` audit report). Release checklist + RC smoke (8.G2): version stamping from product.toml, RC builds on 3 OS + web, launch/play/install/uninstall tests, update-URL wiring; AC: checklist executable end-to-end on the RC (own `docs/release-checklist.md` + RC pipeline). **Blocked-by-external:** 3-OS machines + CI billing (user).
 
-### Item P8-8 — [LEAD] Phase 8 gate + program exit
+### Item P8-8 (issue #59) — [LEAD] Phase 8 gate + program exit
 * **Cards:** 8.H1-V · **Deps:** P8-7 · **Size:** S
 
 **Proposed title:** `P8: [LEAD] Program exit — MP §17 done-definition review + final evidence record (8.H1-V)`
@@ -86,6 +86,8 @@ Agents proceed on everything not blocked; when a blocker bites, mark the issue `
 **Body draft:** Lead-run verification (not agent-claimed): review vs the MP §17 done definition — language audit passed; product.toml + schemas drive the product with a passing rebrand test; UI within Figma tolerance; plugins load and sandbox correctly; web + desktop both play real media through the same command layer; CI merge-blocking on all platforms; parity report states exactly what is verified, partial, unsupported, blocked. **AC:** final evidence record in `docs/gates/phase8-exit.md` + worklog; program closed or follow-up program drafted.
 
 ## 3. Card coverage check (all 16 accounted for)
+
+Item → issue: P8-1=#52, P8-2=#53, P8-3=#54, P8-4=#55, P8-5=#56, P8-6=#57, P8-7=#58, P8-8=#59.
 
 | Card | Item | Card | Item |
 |---|---|---|---|

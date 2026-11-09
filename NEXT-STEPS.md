@@ -22,8 +22,9 @@ completed/stale items were dropped in the consolidation (audit in issue
 (Tauri desktop packaging — INFRA-BLOCKED;
   close package with the done/blocked split and the unblock recipe:
   `apps/desktop/tauri/INFRA-BLOCKED.md`, per-OS verdicts PENDING in
-  `docs/adr/ADR-004-os-webview.md`), #22 (Phase 7 program), #23
-(Phase 8 program), #38 (ogg fix in flight), #39 (TLS activation follow-up).
+  `docs/adr/ADR-004-os-webview.md`), #22 (Phase 7 program — breakdown now
+tracked as issues #40–#51), #23 (Phase 8 program — breakdown now tracked as
+issues #52–#59), #38 (ogg fix in flight), #39 (TLS activation follow-up).
 
 ### Moved out of the queue this pass (were Now/Next/Blocked items)
 
@@ -108,6 +109,11 @@ just before this ledger's consolidation.)
 
 ## Next — queued, waiting on a card / owner / config landing
 
+- [ ] [#22/#23] Phase 7/8 program tracker: the card breakdowns are now
+  tracked as issues #40–#59 (created 2026-11-09; #40–#51 = Phase 7 items
+  1–12, #52–#59 = Phase 8 items P8-1–P8-8, in table order) — assignment and
+  sequencing live there; the plan docs `docs/plans/phase7-cards.md` and
+  `docs/plans/phase8-cards.md` remain the scope/AC source of truth.
 - [ ] [4.C1] Keymap loader: load the whole `keymaps/default.toml` (`when`
   conditions, modifier combos, mode gating beyond player-focused) —
   `ui/src/screens/player/keymap.ts` still carries a verbatim excerpt
