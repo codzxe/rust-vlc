@@ -210,12 +210,7 @@ pub fn asf_with_packets(
             0xA1, 0xDC, 0xAB, 0x8C, 0x47, 0xA9, 0xCF, 0x11, 0x8E, 0xE4, 0x00, 0xC0, 0x0C, 0x20,
             0x53, 0x65,
         ],
-        &file_properties_payload(
-            0x2,
-            preroll_ms,
-            packet_size,
-            packets.len() as u64,
-        ),
+        &file_properties_payload(0x2, preroll_ms, packet_size, packets.len() as u64),
     );
     children.extend(child(
         [
@@ -263,8 +258,8 @@ pub fn asf_with_packets(
         push_guid(
             &mut out,
             [
-                0x90, 0x08, 0x00, 0x33, 0xB1, 0xE5, 0xCF, 0x11, 0x89, 0xF4, 0x00, 0xA0, 0xC9,
-                0x03, 0x49, 0xCB,
+                0x90, 0x08, 0x00, 0x33, 0xB1, 0xE5, 0xCF, 0x11, 0x89, 0xF4, 0x00, 0xA0, 0xC9, 0x03,
+                0x49, 0xCB,
             ],
         );
         push_qword(&mut out, 0); // Size (patched below)
@@ -277,8 +272,7 @@ pub fn asf_with_packets(
             push_word(&mut out, *count);
         }
         let index_size = out.len() - index_start;
-        out[index_start + 16..index_start + 24]
-            .copy_from_slice(&(index_size as u64).to_le_bytes());
+        out[index_start + 16..index_start + 24].copy_from_slice(&(index_size as u64).to_le_bytes());
     }
 
     // Patch the FPO's File Size to the real total.

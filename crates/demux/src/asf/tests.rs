@@ -31,14 +31,14 @@ use std::sync::Arc;
 
 use media_types::ids::MediaKind;
 use media_types::time::{Stamp, TimeBase, TimeSpan, Timestamp};
-use plugin_api::{Demuxer, DemuxEvent, SeekSupport};
+use plugin_api::{DemuxEvent, Demuxer, SeekSupport};
 
 use super::data;
 use super::error;
 use super::guid;
 use super::header::MAX_HEADER_BYTES;
 use super::test_support::{
-    asf_with_packets, mem_stream, minimal_asf_audio, waveformatex, SimpleIndexSpec,
+    SimpleIndexSpec, asf_with_packets, mem_stream, minimal_asf_audio, waveformatex,
 };
 use super::{AsfDemuxer, EXTENSIONS, probe};
 
@@ -460,9 +460,7 @@ struct P {
 /// length word).
 fn payload_bytes(p: &P) -> Vec<u8> {
     let mut b = Vec::new();
-    b.push(
-        (if p.keyframe { 0x80 } else { 0x00 }) | u8::try_from(p.stream).unwrap_or(0x7F),
-    );
+    b.push((if p.keyframe { 0x80 } else { 0x00 }) | u8::try_from(p.stream).unwrap_or(0x7F));
     b.push(p.mo);
     b.extend_from_slice(&p.offset.to_le_bytes());
     match p.replicated {
@@ -544,7 +542,10 @@ fn packet_fields_parse_and_close_exactly() {
     assert_eq!(payload.offset_into_object, 0);
     assert_eq!(payload.replicated, Some((4, 1234)));
     assert_eq!(payload.length, 4);
-    assert_eq!(&bytes[payload.data_range.0..payload.data_range.1], &[0xAA; 4]);
+    assert_eq!(
+        &bytes[payload.data_range.0..payload.data_range.1],
+        &[0xAA; 4]
+    );
     // The padding closed the packet: header + payload + padding.
     assert_eq!(parsed.padding, 48 - payload.data_range.1 as u32);
 }
@@ -565,7 +566,10 @@ fn multi_payload_packets_parse_in_order() {
     assert_eq!(parsed.payloads[1].stream, 2);
     assert!(!parsed.payloads[1].keyframe);
     assert_eq!(parsed.payloads[1].media_object, 9);
-    assert_eq!(&bytes[parsed.payloads[1].data_range.0..parsed.payloads[1].data_range.1], &[0x02; 6]);
+    assert_eq!(
+        &bytes[parsed.payloads[1].data_range.0..parsed.payloads[1].data_range.1],
+        &[0x02; 6]
+    );
 }
 
 #[test]
@@ -618,19 +622,26 @@ fn fragments_reassemble_into_whole_objects() {
     };
     assert_eq!(pts, 999);
     assert!(keyframe);
-    assert_eq!(buffer, [[0x11; 4].as_slice(), [0x22; 6].as_slice()].concat());
+    assert_eq!(
+        buffer,
+        [[0x11; 4].as_slice(), [0x22; 6].as_slice()].concat()
+    );
 
     // A new media-object number abandons the incomplete predecessor
     // (the container declares the gap by moving on).
     let mut assembler = data::ObjectAssembler::new(1);
-    assert!(match assembler.feed(0, 1, 1, 0, Some((8, 5)), true, &[0x33; 2]) {
-        Ok(done) => done.is_none(),
-        Err(e) => unreachable!("{e}"),
-    });
-    assert!(match assembler.feed(0, 1, 2, 0, Some((2, 7)), false, &[0x44; 2]) {
-        Ok(done) => done.is_none(),
-        Err(e) => unreachable!("{e}"),
-    });
+    assert!(
+        match assembler.feed(0, 1, 1, 0, Some((8, 5)), true, &[0x33; 2]) {
+            Ok(done) => done.is_none(),
+            Err(e) => unreachable!("{e}"),
+        }
+    );
+    assert!(
+        match assembler.feed(0, 1, 2, 0, Some((2, 7)), false, &[0x44; 2]) {
+            Ok(done) => done.is_none(),
+            Err(e) => unreachable!("{e}"),
+        }
+    );
     let done = match assembler.feed(0, 1, 2, 2, None, false, &[]) {
         Ok(done) => done,
         Err(e) => unreachable!("{e}"),
@@ -642,30 +653,45 @@ fn fragments_reassemble_into_whole_objects() {
 fn assembler_refusals_are_typed() {
     // Continuation landing at the wrong offset.
     let mut assembler = data::ObjectAssembler::new(1);
-    assert!(matches!(assembler.feed(0, 1, 5, 0, Some((8, 1)), true, &[0x11; 4]), Ok(None)));
+    assert!(matches!(
+        assembler.feed(0, 1, 5, 0, Some((8, 1)), true, &[0x11; 4]),
+        Ok(None)
+    ));
     assert_eq!(
-        code_of(&err_of(assembler.feed(0, 1, 5, 3, None, true, &[0x22; 4]).map(|_| ()))),
+        code_of(&err_of(
+            assembler
+                .feed(0, 1, 5, 3, None, true, &[0x22; 4])
+                .map(|_| ())
+        )),
         "demux.asf.packet.bad-length"
     );
     // A first fragment larger than the declared object.
     let mut assembler = data::ObjectAssembler::new(1);
     assert_eq!(
-        code_of(&err_of(assembler.feed(0, 1, 9, 0, Some((2, 1)), true, &[0xAA; 3]).map(|_| ()))),
+        code_of(&err_of(
+            assembler
+                .feed(0, 1, 9, 0, Some((2, 1)), true, &[0xAA; 3])
+                .map(|_| ())
+        )),
         "demux.asf.packet.bad-length"
     );
     // An object above the memory ceiling (MP §12): the size field is
     // container input, never a promise to allocate.
     let mut assembler = data::ObjectAssembler::new(1);
     assert_eq!(
-        code_of(
-            &err_of(assembler.feed(0, 1, 1, 0, Some((u32::MAX, 1)), true, &[0]).map(|_| ()))
-        ),
+        code_of(&err_of(
+            assembler
+                .feed(0, 1, 1, 0, Some((u32::MAX, 1)), true, &[0])
+                .map(|_| ())
+        )),
         "demux.asf.payload.oversized"
     );
     // A first fragment without the 8-byte replication.
     let mut assembler = data::ObjectAssembler::new(1);
     assert_eq!(
-        code_of(&err_of(assembler.feed(0, 1, 1, 0, None, true, &[0u8]).map(|_| ()))),
+        code_of(&err_of(
+            assembler.feed(0, 1, 1, 0, None, true, &[0u8]).map(|_| ())
+        )),
         "demux.asf.payload.bad-replication"
     );
 }
@@ -715,7 +741,10 @@ fn walk_emits_whole_objects_with_preroll_subtracted_stamps() {
         other => unreachable!("{other:?}"),
     };
     assert!(!second.keyframe);
-    assert_eq!(&second.data[..], &[[0xBB; 4].as_slice(), [0xCC; 6].as_slice()].concat());
+    assert_eq!(
+        &second.data[..],
+        &[[0xBB; 4].as_slice(), [0xCC; 6].as_slice()].concat()
+    );
     assert!(matches!(&second.pts, Stamp::Present(ts) if ts.ticks == 150)); // 250 - 100
 
     assert!(matches!(ok(asf.next_event()), DemuxEvent::EndOfStream));
@@ -757,7 +786,14 @@ fn simple_index_seek_reanchors_the_walk() {
     // Four one-second-spaced objects; the index lands bucket 1 at
     // packet 2.
     let packets: Vec<Vec<u8>> = (0..4)
-        .map(|i| data_packet(i * 1000, 1000, &[object(1, true, (i + 1) as u8, i * 1000, &[0xAA; 4])], 48))
+        .map(|i| {
+            data_packet(
+                i * 1000,
+                1000,
+                &[object(1, true, (i + 1) as u8, i * 1000, &[0xAA; 4])],
+                48,
+            )
+        })
         .collect();
     let index = SimpleIndexSpec {
         interval_100ns: 10_000_000, // 1 s (the ffmpeg constant)
@@ -784,14 +820,23 @@ fn simple_index_seek_reanchors_the_walk() {
     // extent bounds us, never a fabricated position).
     let landed = ok(asf.seek(span_at(999_999)));
     assert!(matches!(&landed.start, Stamp::Present(ts) if ts.ticks == 1000));
-    assert!(matches!(ok(asf.next_event()), DemuxEvent::Packet(p) if matches!(&p.pts, Stamp::Present(ts) if ts.ticks == 2000)));
+    assert!(
+        matches!(ok(asf.next_event()), DemuxEvent::Packet(p) if matches!(&p.pts, Stamp::Present(ts) if ts.ticks == 2000))
+    );
 }
 
 #[test]
 fn indexless_files_seek_by_bounded_linear_scan() {
     let wfx = waveformatex(1, 1, 1000, 2, 16);
     let packets: Vec<Vec<u8>> = (0..3)
-        .map(|i| data_packet(i * 500, 500, &[object(1, true, (i + 1) as u8, i * 500, &[0xAA; 4])], 48))
+        .map(|i| {
+            data_packet(
+                i * 500,
+                500,
+                &[object(1, true, (i + 1) as u8, i * 500, &[0xAA; 4])],
+                48,
+            )
+        })
         .collect();
     let mut asf = started(asf_with_packets(&wfx, 0, 48, &packets, None));
     assert_eq!(ok(asf.start()).len(), 1);
@@ -800,13 +845,17 @@ fn indexless_files_seek_by_bounded_linear_scan() {
     // 600 ms: the first packet whose send time reaches it is #2.
     let landed = ok(asf.seek(span_at(600)));
     assert!(matches!(&landed.start, Stamp::Present(ts) if ts.ticks == 1000));
-    assert!(matches!(ok(asf.next_event()), DemuxEvent::Packet(p) if matches!(&p.pts, Stamp::Present(ts) if ts.ticks == 1000)));
+    assert!(
+        matches!(ok(asf.next_event()), DemuxEvent::Packet(p) if matches!(&p.pts, Stamp::Present(ts) if ts.ticks == 1000))
+    );
     assert!(matches!(ok(asf.next_event()), DemuxEvent::EndOfStream));
 
     // Rewind to zero lands at packet 0.
     let landed = ok(asf.seek(span_at(0)));
     assert!(matches!(&landed.start, Stamp::Present(ts) if ts.ticks == 0));
-    assert!(matches!(ok(asf.next_event()), DemuxEvent::Packet(p) if matches!(&p.pts, Stamp::Present(ts) if ts.ticks == 0)));
+    assert!(
+        matches!(ok(asf.next_event()), DemuxEvent::Packet(p) if matches!(&p.pts, Stamp::Present(ts) if ts.ticks == 0))
+    );
 }
 
 #[test]
@@ -814,7 +863,14 @@ fn indexless_seeks_past_the_scan_budget_refuse_typed() {
     let wfx = waveformatex(1, 1, 1000, 2, 16);
     // 5000 minimal packets: past the 4096-packet linear budget.
     let packets: Vec<Vec<u8>> = (0..5000)
-        .map(|i| data_packet(i * 10, 10, &[object(1, true, (i % 255 + 1) as u8, i * 10, &[0xAA; 4])], 48))
+        .map(|i| {
+            data_packet(
+                i * 10,
+                10,
+                &[object(1, true, (i % 255 + 1) as u8, i * 10, &[0xAA; 4])],
+                48,
+            )
+        })
         .collect();
     let mut asf = started(asf_with_packets(&wfx, 0, 48, &packets, None));
     assert_eq!(ok(asf.start()).len(), 1);
@@ -853,12 +909,18 @@ struct FixtureTruth {
     video: Option<(u32, u32, &'static str, u16, u32, usize)>,
     /// ffprobe codec names per stream (the cross-check oracle).
     ffprobe_codecs: &'static [&'static str],
+    /// Measured first pts per track, on the track's own base (the
+    /// oracle: `ffprobe -show_packets`, preroll subtracted — the A/V
+    /// fixtures' video rides a 64 ms-offset packet grid; every other
+    /// stream starts at zero).
+    first_pts: &'static [i64],
 }
 
 const FIXTURES: &[FixtureTruth] = &[
     FixtureTruth {
         file: "wma_wmav2_mono8k.wma",
         generate: "-f lavfi -i sine=frequency=440:duration=1:sample_rate=8000 -ac 1 -c:a wmav2 -b:a 32k",
+        first_pts: &[0],
         header_size: 492,
         children: 5,
         tracks: &[(MediaKind::Audio, "wmav2", 1)],
@@ -872,6 +934,7 @@ const FIXTURES: &[FixtureTruth] = &[
     FixtureTruth {
         file: "wma_wmav1_st44k.wma",
         generate: "-f lavfi -i sine=frequency=440:duration=2:sample_rate=44100 -ac 2 -c:a wmav1 -b:a 32k",
+        first_pts: &[0],
         header_size: 452,
         children: 5,
         tracks: &[(MediaKind::Audio, "wmav1", 1)],
@@ -885,6 +948,7 @@ const FIXTURES: &[FixtureTruth] = &[
     FixtureTruth {
         file: "wmv_wmv2_64x48.wmv",
         generate: "-f lavfi -i testsrc=size=64x48:rate=10:duration=1 -c:v wmv2 -b:v 100k",
+        first_pts: &[0],
         header_size: 587,
         children: 5,
         tracks: &[(MediaKind::Video, "wmv2", 1)],
@@ -898,6 +962,7 @@ const FIXTURES: &[FixtureTruth] = &[
     FixtureTruth {
         file: "wmv_wmv1_64x48.wmv",
         generate: "-f lavfi -i testsrc=size=64x48:rate=10:duration=1 -c:v wmv1 -b:v 100k",
+        first_pts: &[0],
         header_size: 583,
         children: 5,
         tracks: &[(MediaKind::Video, "wmv1", 1)],
@@ -911,6 +976,7 @@ const FIXTURES: &[FixtureTruth] = &[
     FixtureTruth {
         file: "asf_msmpeg4v3.asf",
         generate: "-f lavfi -i testsrc=size=64x48:rate=10:duration=1 -c:v msmpeg4v3 -b:v 100k",
+        first_pts: &[0],
         header_size: 593,
         children: 5,
         tracks: &[(MediaKind::Video, "msmpeg4v3", 1)],
@@ -924,6 +990,7 @@ const FIXTURES: &[FixtureTruth] = &[
     FixtureTruth {
         file: "asf_mjpeg.asf",
         generate: "-f lavfi -i testsrc=size=64x48:rate=10:duration=1 -c:v mjpeg -b:v 200k",
+        first_pts: &[0],
         header_size: 585,
         children: 5,
         tracks: &[(MediaKind::Video, "mjpeg", 1)],
@@ -937,6 +1004,7 @@ const FIXTURES: &[FixtureTruth] = &[
     FixtureTruth {
         file: "wmv_wmv2_wma_av.wmv",
         generate: "-f lavfi -i testsrc=size=64x48:rate=10:duration=1 -f lavfi -i sine=frequency=440:duration=1:sample_rate=8000 -ac 1 -c:v wmv2 -b:v 100k -c:a wmav2 -b:a 32k",
+        first_pts: &[64, 0],
         header_size: 757,
         children: 6,
         tracks: &[
@@ -953,6 +1021,7 @@ const FIXTURES: &[FixtureTruth] = &[
     FixtureTruth {
         file: "asf_pkt8000.wmv",
         generate: "-f lavfi -i testsrc=size=64x48:rate=10:duration=1 -f lavfi -i sine=frequency=440:duration=1:sample_rate=8000 -ac 1 -c:v wmv2 -b:v 100k -c:a wmav2 -b:a 32k -packet_size 8000",
+        first_pts: &[64, 0],
         header_size: 757,
         children: 6,
         tracks: &[
@@ -969,6 +1038,7 @@ const FIXTURES: &[FixtureTruth] = &[
     FixtureTruth {
         file: "asf_pcm_s16le.wma",
         generate: "-f lavfi -i sine=frequency=440:duration=1:sample_rate=8000 -ac 1 -c:a pcm_s16le",
+        first_pts: &[0],
         header_size: 456,
         children: 5,
         tracks: &[(MediaKind::Audio, "pcm_s16le", 1)],
@@ -982,6 +1052,7 @@ const FIXTURES: &[FixtureTruth] = &[
     FixtureTruth {
         file: "asf_adpcm_ms.wma",
         generate: "-f lavfi -i sine=frequency=440:duration=1:sample_rate=8000 -ac 1 -c:a adpcm_ms -b:a 32k",
+        first_pts: &[0],
         header_size: 486,
         children: 5,
         tracks: &[(MediaKind::Audio, "adpcm_ms", 1)],
@@ -1166,8 +1237,9 @@ fn fixture_family_walks_match_the_measured_truth() {
         );
 
         // ASF-b on real muxer output: drain every event. Per track:
-        // something emitted, the first stamp zero-based (ffprobe's
-        // own arithmetic — preroll subtracted), stamps monotonic,
+        // something emitted, the first stamp the measured per-fixture
+        // truth (ffprobe's own arithmetic — preroll subtracted; the
+        // A/V video grid starts 64 ms in), stamps monotonic,
         // and the flush endpoint exactly at the end.
         let mut seen = vec![0u64; tracks.len()];
         let mut first_pts = vec![i64::MAX; tracks.len()];
@@ -1200,7 +1272,7 @@ fn fixture_family_walks_match_the_measured_truth() {
         for (slot, count) in seen.iter().enumerate() {
             assert!(*count > 0, "{}: track {slot} emitted nothing", truth.file);
             assert_eq!(
-                first_pts[slot], 0,
+                first_pts[slot], truth.first_pts[slot],
                 "{}: track {slot} first pts",
                 truth.file
             );

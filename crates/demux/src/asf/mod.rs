@@ -206,7 +206,8 @@ impl SimpleIndex {
         if bytes.len() < 56 || (bytes.len() - 56) % 6 != 0 {
             return Err(error::bad_object_size(offset));
         }
-        let count = u32::from(bytes[52]) | (u32::from(bytes[53]) << 8)
+        let count = u32::from(bytes[52])
+            | (u32::from(bytes[53]) << 8)
             | (u32::from(bytes[54]) << 16)
             | (u32::from(bytes[55]) << 24);
         if usize::try_from(count).unwrap_or(usize::MAX) != (bytes.len() - 56) / 6 {
@@ -414,10 +415,7 @@ impl AsfDemuxer {
     }
     /// Build the ASF-b packet walk from the parsed header (the
     /// fixed-packet-size and stream-join facts the walk rides).
-    fn build_walk(
-        parsed: &header::AsfHeader,
-        tracks: &[Track],
-    ) -> Result<PacketWalk, EngineError> {
+    fn build_walk(parsed: &header::AsfHeader, tracks: &[Track]) -> Result<PacketWalk, EngineError> {
         let properties = &parsed.properties;
         if properties.min_packet_size != properties.max_packet_size
             || properties.max_packet_size == 0
@@ -527,6 +525,46 @@ impl AsfDemuxer {
         Ok(())
     }
 
+    /// The walk-end half of the assembler's hold-and-flush contract:
+    /// objects a first fragment completed stay held for the stream's
+    /// next fragment (the proof the container moved on); when the
+    /// walk ends without one, they release here instead of
+    /// stranding — queued before the `EndOfStream`.
+    fn drain_held(&mut self) {
+        let Some(walk) = self.walk.as_mut() else {
+            return;
+        };
+        let preroll_ms = walk.preroll_ms;
+        for slot in 0..walk.bases.len() {
+            let Some(base) = walk.bases.get(slot).copied() else {
+                continue;
+            };
+            let Some(track) = self.tracks.as_ref().and_then(|t| t.get(slot)) else {
+                continue;
+            };
+            let Some((presentation_time_ms, keyframe, buffer)) =
+                walk.assembler.take_completed(slot)
+            else {
+                continue;
+            };
+            // Preroll subtraction (same arithmetic as the walk —
+            // ffprobe's zero-based pts is the check).
+            let preroll = u32::try_from(preroll_ms).unwrap_or(u32::MAX);
+            let pts_ms = presentation_time_ms.saturating_sub(preroll);
+            let ticks = Self::ticks_for(track, base, pts_ms);
+            walk.queue.push_back(Packet {
+                track: track.id,
+                pts: Stamp::Present(Timestamp::new(ticks, base)),
+                dts: Stamp::Missing,
+                duration: None,
+                data: SharedBytes::from_vec(buffer),
+                keyframe,
+                discontinuity: false,
+                generation: GenerationId::FIRST,
+            });
+        }
+    }
+
     /// Convert a preroll-subtracted millisecond stamp onto `track`'s
     /// own base (audio rides sample ticks, video the ms clock — the
     /// ASF-a timing decision).
@@ -577,7 +615,10 @@ impl AsfDemuxer {
             };
             self.simple_index = Some(parsed);
         }
-        Ok(self.simple_index.as_ref().and_then(|cached| cached.as_ref()))
+        Ok(self
+            .simple_index
+            .as_ref()
+            .and_then(|cached| cached.as_ref()))
     }
 
     /// Re-anchor the packet walk at `packet` (the seek commit: drop
@@ -591,7 +632,6 @@ impl AsfDemuxer {
             walk.eos = false;
         }
     }
-
 }
 
 impl Demuxer for AsfDemuxer {
@@ -624,28 +664,32 @@ impl Demuxer for AsfDemuxer {
                 )
             };
             if queued.is_some() {
-                let packet = self
-                    .walk
-                    .as_mut()
-                    .and_then(|w| w.queue.pop_front());
+                let packet = self.walk.as_mut().and_then(|w| w.queue.pop_front());
                 if let Some(packet) = packet {
                     return Ok(DemuxEvent::Packet(packet));
                 }
                 continue;
             }
             if exhausted {
-                if let Some(walk) = self.walk.as_mut() {
-                    if walk.eos {
+                let flush_now = {
+                    let Some(walk) = self.walk.as_mut() else {
                         return Ok(DemuxEvent::EndOfStream);
-                    }
+                    };
+                    let first_end = !walk.eos;
                     walk.eos = true;
+                    first_end
+                };
+                if flush_now {
+                    // EOS drain (hold-and-flush): release objects a
+                    // first fragment completed whose follow-up never
+                    // came, then re-run the loop so the queue empties
+                    // before the EndOfStream.
+                    self.drain_held();
+                    continue;
                 }
                 return Ok(DemuxEvent::EndOfStream);
             }
-            let index = self
-                .walk
-                .as_ref()
-                .map_or(0, |w| w.next_packet);
+            let index = self.walk.as_ref().map_or(0, |w| w.next_packet);
             self.walk_one_packet(index)?;
             if let Some(walk) = self.walk.as_mut() {
                 walk.next_packet += 1;
@@ -668,10 +712,7 @@ impl Demuxer for AsfDemuxer {
                 .map_err(|_| error::seek_out_of_range())?,
             Stamp::Missing => 0,
         };
-        let preroll = self
-            .walk
-            .as_ref()
-            .map_or(0, |w| w.preroll_ms);
+        let preroll = self.walk.as_ref().map_or(0, |w| w.preroll_ms);
         if let Some(index) = self.load_simple_index()? {
             // The indexed landing: bucket → entry packet number →
             // re-anchor. Targets beyond the last bucket clamp to it
@@ -679,12 +720,7 @@ impl Demuxer for AsfDemuxer {
             // us, never a fabricated position).
             let bucket = index.bucket_of(target_ms as u64, preroll);
             let interval_ms = (index.interval_100ns / 10_000).max(1);
-            let packet = u64::from(
-                index
-                    .entries
-                    .get(bucket)
-                    .map_or(0, |e| e.packet_number),
-            );
+            let packet = u64::from(index.entries.get(bucket).map_or(0, |e| e.packet_number));
             self.reanchor(packet);
             let landing_ms = (bucket as u64 * interval_ms).saturating_sub(preroll);
             return Ok(TimeSpan {
@@ -695,10 +731,8 @@ impl Demuxer for AsfDemuxer {
         // No index: the bounded linear scan (header-only reads, send
         // times compared on the preroll-offset clock). Past the
         // budget the honest refusal — never an unbounded walk.
-        let (packets_total, packet_size, payload_offset) = self
-            .walk
-            .as_ref()
-            .map_or((0, 0, 0), |w| {
+        let (packets_total, packet_size, payload_offset) =
+            self.walk.as_ref().map_or((0, 0, 0), |w| {
                 (w.packets_total, w.packet_size, w.payload_offset)
             });
         if packets_total > MAX_LINEAR_SEEK_PACKETS {
@@ -734,11 +768,10 @@ impl Demuxer for AsfDemuxer {
         // §4.3 policy: a located Simple Index is a real seek table →
         // Fast{indexed}; indexless files (audio-only, broadcast
         // survivors) ride the bounded linear lane → SlowLinear.
-        let indexed = self.header.as_ref().is_some_and(|h| {
-            h.top_objects
-                .iter()
-                .any(|o| o.guid == guid::SIMPLE_INDEX)
-        });
+        let indexed = self
+            .header
+            .as_ref()
+            .is_some_and(|h| h.top_objects.iter().any(|o| o.guid == guid::SIMPLE_INDEX));
         if indexed {
             SeekSupport::Fast { indexed: true }
         } else {

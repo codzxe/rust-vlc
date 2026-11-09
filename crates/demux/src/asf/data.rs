@@ -176,7 +176,8 @@ pub fn parse_packet(bytes: &[u8]) -> Result<ParsedPacket, EngineError> {
     } else {
         type_width(offset_code).ok_or_else(|| error::packet_bad_flags(pos as u64))?
     };
-    let mo_width = type_width((f2 >> 4) & 0x03).ok_or_else(|| error::packet_bad_flags(pos as u64))?;
+    let mo_width =
+        type_width((f2 >> 4) & 0x03).ok_or_else(|| error::packet_bad_flags(pos as u64))?;
     // The payload-length type table is its own — not the shared
     // length-type codes: 00 = absent (final payload only), 01 = word,
     // the doc'd ffmpeg-verified form; any other code is an unverified
@@ -262,7 +263,9 @@ pub fn parse_packet(bytes: &[u8]) -> Result<ParsedPacket, EngineError> {
             len
         };
         let start = pos;
-        let end = pos.checked_add(length as usize).ok_or_else(|| error::packet_bad_length(pos as u64))?;
+        let end = pos
+            .checked_add(length as usize)
+            .ok_or_else(|| error::packet_bad_length(pos as u64))?;
         if end > bytes.len().saturating_sub(padding as usize) {
             return Err(error::packet_bad_length(pos as u64));
         }
@@ -342,14 +345,21 @@ impl ObjectAssembler {
         }
     }
 
-    /// Feed one payload's bytes; `Some(bytes)` comes back when the
-    /// object completed — the exact replicated-data size worth of
-    /// concatenated fragments, in offset order.
+    /// Feed one payload's bytes under the hold-and-flush contract:
+    /// a first fragment that fills its object returns `None` (held —
+    /// the release proof is the stream's *next* fragment), a
+    /// continuation that closes the object (even a 0-byte one at the
+    /// exact end) returns `Some`, and a held object flushes when the
+    /// stream's next fragment lands — so one `feed` yields at most
+    /// one object, in offset order, never inventing overlap.
     ///
     /// A new media-object number abandons any incomplete predecessor
     /// on that stream (a gap the container declares by moving on —
     /// counted by the demuxer's damage observability, never invented
-    /// into the stream).
+    /// into the stream). A fragment whose head was never seen
+    /// (offset != 0 with no matching open object — a seek re-anchor
+    /// landing mid-object) is an orphan: skipped, never fatal; the
+    /// next first fragment re-synchronizes the stream.
     ///
     /// # Errors
     /// Typed refusals: `payload.oversized` when the object exceeds
@@ -383,20 +393,41 @@ impl ObjectAssembler {
                     return Err(error::payload_oversized(MAX_OBJECT_BYTES, new_len));
                 }
                 pending.buffer.extend_from_slice(data);
+                // A continuation that closes the object — including a
+                // 0-byte one landing exactly at the end — releases it
+                // now: the container provably moved on.
+                if pending.buffer.len() as u64 == u64::from(pending.size) {
+                    // Statically Some (just checked); `take` moves it out.
+                    if let Some(p) = slot.take() {
+                        return Ok(Some((p.presentation_time_ms, p.keyframe, p.buffer)));
+                    }
+                }
+                Ok(None)
             }
             _ => {
                 // First fragment (or a new object replacing a gap).
+                if offset != 0 {
+                    // Orphaned continuation: the walk re-anchored
+                    // mid-object (seek) or a damaged stream dropped
+                    // the head. No object to attach to — skip; the
+                    // next first fragment re-synchronizes.
+                    return Ok(None);
+                }
                 let (size, time) = replicated
                     .ok_or_else(|| error::payload_bad_replication(media_object as u64))?;
                 if u64::from(size) > MAX_OBJECT_BYTES {
                     return Err(error::payload_oversized(MAX_OBJECT_BYTES, u64::from(size)));
                 }
-                if offset != 0 {
-                    return Err(error::packet_bad_length(offset as u64));
-                }
                 if data.len() as u64 > u64::from(size) {
                     return Err(error::packet_bad_length(offset as u64));
                 }
+                // Validated: a held-complete predecessor flushes now
+                // (this fragment proves its container moved on); an
+                // incomplete one is the declared gap and is dropped.
+                let held = slot
+                    .take()
+                    .filter(|p| p.buffer.len() as u64 == u64::from(p.size))
+                    .map(|p| (p.presentation_time_ms, p.keyframe, p.buffer));
                 *slot = Some(PendingObject {
                     number: media_object,
                     size,
@@ -404,17 +435,30 @@ impl ObjectAssembler {
                     keyframe,
                     buffer: data.to_vec(),
                 });
+                // A first fragment that fills its object is held, not
+                // emitted — the return is the flushed predecessor (if
+                // any); the EOS drain releases the rest.
+                Ok(held)
             }
         }
-        let complete = slot
+    }
+
+    /// Take the slot's object when it sits complete-but-held (the
+    /// end-of-stream drain: the follow-up fragment that would have
+    /// released it never came — single-object tails).
+    ///
+    /// This is the walk-end half of the hold-and-flush contract
+    /// documented on [`Self::feed`].
+    pub fn take_completed(&mut self, slot: usize) -> Option<(u32, bool, Vec<u8>)> {
+        if !self
+            .slots
+            .get(slot)?
             .as_ref()
-            .is_some_and(|p| p.buffer.len() as u64 == u64::from(p.size));
-        if complete {
-            // Statically Some (just checked); `take` moves it out.
-            if let Some(p) = slot.take() {
-                return Ok(Some((p.presentation_time_ms, p.keyframe, p.buffer)));
-            }
+            .is_some_and(|p| p.buffer.len() as u64 == u64::from(p.size))
+        {
+            return None;
         }
-        Ok(None)
+        let p = self.slots.get_mut(slot)?.take()?;
+        Some((p.presentation_time_ms, p.keyframe, p.buffer))
     }
 }

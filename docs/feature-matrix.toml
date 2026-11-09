@@ -213,7 +213,7 @@ phase_target = 5
 vlc_modules = ["asf"]
 inventory_ref = "inventory/formats.json#asf-wmv"
 status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
-evidence = "crates/demux/src/asf/** (cards 6.ASF-a header tree + 6.ASF-b Data Object packets/fragment reassembly + 6.ASF-c Simple-Index seeking with bounded linear fallback, issue #9; record docs/formats/container-asf.md; ffmpeg 7.1.5 sha256-pinned fixture differential incl. live ffprobe codec + -count_packets cross-check); Linux-only evidence, CI 3-OS pending"
+evidence = "crates/demux/src/asf/** (cards 6.ASF-a header tree + 6.ASF-b Data Object packets/fragment reassembly hold-and-flush + 6.ASF-c Simple-Index seeking with bounded linear fallback, issue #9; record docs/formats/container-asf.md; 36-test asf unit suite in the 454-test demux crate; ffmpeg 7.1.5 sha256-pinned fixture differential incl. live ffprobe codec + -count_packets cross-check); Linux-only evidence, CI 3-OS pending"
 notes = "Decision card 5.K3-I self-build executed clean-room (spec text unavailable in sandbox — every layout byte-verified against muxer output, [VERIFY-P0] spec pin recorded in the record). WMA audio decode blocked codec-side (see codec-audio-wma) — container emits WAVEFORMATEX-described objects regardless; broadcast files refuse typed (ffprobe agrees, measured); variable packet size + compressed replication refuse typed as unverified shapes."
 
 [[feature]]

@@ -25,7 +25,14 @@ demuxer, its verification basis, and the honest gaps.
    error-correction flags, packet/property flags, padding, send time,
    duration, multi-payload packets, 8-byte replicated data (object
    size + preroll-offset presentation time), per-stream fragment
-   reassembly under a 32 MiB object ceiling; the demuxer emits one
+   reassembly under a 32 MiB object ceiling — the **hold-and-flush
+   contract**: a first fragment that fills its object is held, a
+   continuation (even 0-byte at the exact end) releases it, a held
+   object flushes on the stream's next fragment, and the walk-end
+   drain releases the rest before `EndOfStream`; a fragment whose
+   head was never seen (seek re-anchor landing mid-object, offset ≠ 0
+   with no open object) is an orphan — skipped, never fatal; the
+   demuxer emits one
    `Packet` per completed media object with preroll-subtracted stamps
    on the track's own base (sample ticks for audio, the verified
    millisecond clock for video). Unverified shapes (variable packet
@@ -63,7 +70,10 @@ variable-size packet files (`demux.asf.packet.variable-size-unsupported`).
   walked end-to-end, and cross-checked live: stream/codec identity
   vs `ffprobe -show_entries stream=codec_name`, and per-track
   media-object counts vs `ffprobe -count_packets` (exact equality).
-  Stamps asserted zero-based and monotonic per track; indexed
+  Stamps asserted against per-fixture measured first pts (ffprobe's
+  own arithmetic — preroll subtracted; measured: the A/V fixtures'
+  video grid starts 64 ms in, every other stream at zero) and
+  monotonic per track; indexed
   fixtures seek mid-file and resume. Skips loudly when ffmpeg is
   absent.
 - **crates.io (2026-10-24):** no adoptable crate (`wmvkit` 0.1.0
@@ -89,7 +99,9 @@ recorded here).
 
 Implemented: Simple Index Object (1 s interval buckets on the
 preroll-offset clock) → packet-number landing with walk re-anchor
-(half-delivered fragments dropped, flush endpoint re-armed); targets
+(half-delivered fragments dropped, flush endpoint re-armed; the
+re-anchored walk skips orphaned continuations until the next first
+fragment re-synchronizes each stream); targets
 beyond the last bucket clamp to it. No index → bounded linear scan on
 packet send times; past 4096 packets → `demux.asf.seek.too-slow`
 (the mkv SlowLinear precedent).
