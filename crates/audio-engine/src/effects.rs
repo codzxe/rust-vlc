@@ -43,6 +43,10 @@ use media_types::EngineError;
 use crate::error;
 use crate::volume::Volume;
 
+pub mod eq;
+
+pub use eq::{BiquadCoeffs, BiquadFilter, Eq3Band};
+
 /// The chain's hard bound (D-2 bounded memory): more stages than this
 /// is a configuration bug, not a runtime growth path.
 pub const MAX_EFFECTS: usize = 8;
