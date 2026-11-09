@@ -1025,6 +1025,19 @@ fn read_response_head(stream: &mut TcpStream) -> Result<ResponseHead, NetworkErr
         }
     };
     let (head_text, rest) = head;
+    let mut parsed = parse_response_head_text(&head_text)?;
+    parsed.body_prefix = rest;
+    Ok(parsed)
+}
+
+/// Parse an already-delivered response head *text* (the lines before
+/// the blank line) into status/reason/headers — the pure parsing half
+/// of [`read_response_head`], split out additively (issue #14 M2, the
+/// ownership note's "minimal mockhttp additive extension") so the
+/// HTTP-header fuzz harness can drive hostile head bytes straight
+/// through the same grammar. Socket behavior is unchanged: the same
+/// verdicts, the same lossy decode upstream.
+fn parse_response_head_text(head_text: &str) -> Result<ResponseHead, NetworkError> {
     let mut lines = head_text.split("\r\n");
     let status_line = lines.next().unwrap_or_default();
     let mut parts = status_line.splitn(3, ' ');
@@ -1050,8 +1063,35 @@ fn read_response_head(stream: &mut TcpStream) -> Result<ResponseHead, NetworkErr
         status: code,
         reason,
         headers,
-        body_prefix: rest,
+        body_prefix: Vec::new(),
     })
+}
+
+/// The HTTP-header fuzz entry (issue #14 M2, card 6.F3): one hostile
+/// response-head byte slice → one **bounded, typed** parse through
+/// the mock's response-head grammar (status line + `Name: value`
+/// lines). `pub` for the crate-external fuzz harness
+/// (`crates/streaming/tests/netfuzz/fuzz.rs`, `#[path]`-included by
+/// `fuzz/fuzz_targets/fuzz_http_header.rs`); test-support only — no
+/// production path calls it.
+///
+/// Bounds: input is capped at [`HEAD_LIMIT`] (64 KiB, the socket
+/// path's own head budget) — over-limit answers the same typed
+/// [`NetworkError::ProtocolViolation`] the wire path does, never an
+/// unbounded parse.
+pub fn fuzz_response_head(
+    data: &[u8],
+) -> Result<(u16, String, Vec<(String, String)>), NetworkError> {
+    if data.len() > HEAD_LIMIT {
+        return Err(NetworkError::ProtocolViolation {
+            detail: "response head over limit",
+        });
+    }
+    // The same lossy decode read_head feeds the parser: hostile bytes
+    // become U+FFFD, they never panic the grammar.
+    let text = String::from_utf8_lossy(data).into_owned();
+    let head = parse_response_head_text(&text)?;
+    Ok((head.status, head.reason, head.headers))
 }
 
 fn content_length(headers: &[(String, String)]) -> Option<u64> {
