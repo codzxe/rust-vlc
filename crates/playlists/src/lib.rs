@@ -76,7 +76,9 @@ mod xspf;
 
 pub use error::{ParseError, ParseWarning};
 pub use hls::{
-    HlsPlaylistError, MediaPlaylist, MediaSegment, media_playlist_from_parsed, parse_media_playlist,
+    HlsPlaylistError, MasterPlaylist, MasterWarning, MasterWarningKind, MediaPlaylist,
+    MediaSegment, Rendition, RenditionType, Resolution, Variant, media_playlist_from_parsed,
+    parse_master_playlist, parse_media_playlist,
 };
 pub use m3u::{MAX_LINE_BYTES, Parsed, parse, parse_bytes, parse_detailed, resolve_uri, write};
 pub use mpd::{
