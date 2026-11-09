@@ -23,7 +23,8 @@
     "settings:check": "node scripts/gen-settings-screens.mjs --check",
     "hotkeys:generate": "node scripts/gen-hotkeys-data.mjs",
     "hotkeys:check": "node scripts/gen-hotkeys-data.mjs --check",
-    "l10n:check": "node scripts/l10n-check.mjs"
+    "l10n:check": "node scripts/l10n-check.mjs",
+    "l10n:pseudo-probe": "node scripts/l10n-pseudo-probe.mjs"
   },
   "dependencies": {
     "react": "19.3.1",

@@ -11,7 +11,7 @@
 
 import { useMsg } from "../i18n/messages";
 import { useTheme } from "../theme/useTheme";
-import type { ThemeModeSetting } from "../theme/ThemeProvider";
+import type { ThemeModeSetting } from "../theme/context";
 import { ACCENTS } from "./generated/tokens";
 import "./TokenSandbox.css";
 
