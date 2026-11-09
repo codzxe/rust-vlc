@@ -36,4 +36,5 @@ pub mod hls;
 pub mod mockhttp;
 pub mod ranged;
 pub mod reconnect;
+pub mod remote_playlist;
 pub mod schemes;
