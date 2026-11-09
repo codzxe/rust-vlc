@@ -327,3 +327,82 @@ fn mid_stream_corruption_is_typed_and_recovery_scoped() {
         "corruption verdict: 1 typed refusal at packet 20, {emitted} blocks emitted after/around it"
     );
 }
+
+/// 6.FIX-vorbis-headtrim regression (the defect ledger's follow-up to
+/// 6.FIX-ogg-reanchor): the stream-head encoder delay (128 samples @
+/// 44.1 kHz — 2,902 µs) rode the ring UN-TRIMMED because the head
+/// block was emitted before the first container stamp could measure
+/// it. The decoder now WITHHOLDS the head until the first stamped
+/// page resolves the trim, then releases it minus the delay. The
+/// multi-page emission therefore IS the granule timeline.
+#[test]
+fn stream_head_encoder_delay_is_trimmed_decoder_side() {
+    // (a) Multi-page fixtures: the first data page is stamped
+    // mid-stream, the hold resolves, the trim is applied.
+    for name in ["vorbis_sine_44100_stereo.ogg", "vorbis_sine_8000_mono.ogg"] {
+        let section = format!("fixture.{}", name.trim_end_matches(".ogg"));
+        let reference = reference_section(&section);
+        let run = decode_through_ogg(&fixture_bytes(name));
+        let granule = usiz(reference, "final_granule") as i64;
+        let delay = usiz(reference, "head_trim") as i64;
+        let channels = run.headers.identification.channels as usize;
+        let total: i64 = run
+            .sink
+            .buffers
+            .iter()
+            .map(|b| b.len() / (channels * 4))
+            .sum::<usize>() as i64;
+        // The emission is EXACTLY the valid timeline: the head delay
+        // is gone. (Pre-fix: `granule + delay` — 66 278 / 9 856.)
+        assert_eq!(total, granule, "{name}: head-trimmed emission length");
+        // The valid timeline starts at pts 0. (Pre-fix: the first
+        // Present frame landed at `raw − delay`, i.e. late by the
+        // delay — the measured 2,902 µs position defect.)
+        let first_present = run.sink.pts.iter().find(|t| **t != i64::MIN).copied();
+        assert_eq!(first_present, Some(0), "{name}: first Present pts");
+        // Every Present frame lies on [0, granule]: none of the
+        // withheld head (the delay samples) and none past the EOS
+        // granule survives into the emission.
+        for (index, &ticks) in run.sink.pts.iter().enumerate() {
+            if ticks == i64::MIN {
+                continue;
+            }
+            assert!(ticks >= 0, "{name}: frame {index} pts {ticks} < 0");
+            let len = run.sink.buffers[index].len() / (channels * 4);
+            assert!(
+                ticks + len as i64 <= granule,
+                "{name}: frame {index} ends at {} past granule {granule}",
+                ticks + len as i64
+            );
+        }
+        eprintln!(
+            "HEADTRIM {name}: emission {total} == granule (delay {delay} trimmed decoder-side)"
+        );
+    }
+    // (b) Single-data-page fixtures: the only stamp is the EOS page,
+    // which cannot separate delay from tail padding — the flush
+    // releases the hold UN-TRIMMED (the pinned honest shape: an
+    // all-Missing pts series, emission == the raw pin). The fix must
+    // not drop or invent anything there.
+    for name in ["vorbis_silence_48000_stereo.ogg", "vorbis_tagged_sine.ogg"] {
+        let section = format!("fixture.{}", name.trim_end_matches(".ogg"));
+        let reference = reference_section(&section);
+        let run = decode_through_ogg(&fixture_bytes(name));
+        let channels = run.headers.identification.channels as usize;
+        assert!(
+            run.sink.pts.iter().all(|t| *t == i64::MIN),
+            "{name}: single-data-page pts must stay Missing"
+        );
+        let total: usize = run
+            .sink
+            .buffers
+            .iter()
+            .map(|b| b.len() / (channels * 4))
+            .sum();
+        assert_eq!(
+            total,
+            usiz(reference, "raw_samples"),
+            "{name}: un-trimmed flush release (the pinned pre-fix shape)"
+        );
+    }
+}

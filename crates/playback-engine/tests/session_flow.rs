@@ -27,6 +27,7 @@
 //!   frame.
 
 use std::collections::VecDeque;
+use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex};
 
 use codec_api::{DecodeOutcome, Decoder, DecoderConfig, FrameSink};
@@ -52,9 +53,10 @@ use testkit::Must;
 mod common;
 
 use common::{
-    Collector, FakeDecoder, FakeDemuxer, FakeProvider, Fixture, at_micros, config_with, frames_of,
-    frozen_throttle, inaccessible, open_audio, open_stalled_audio, open_with, packet, poll_until,
-    receipt_for, shallow_clone, take_events, tiny_budget, tiny_queues, track, virtual_clock,
+    Collector, FakeDecoder, FakeDemuxer, FakeProvider, Fixture, SharedNow, at_micros, base,
+    config_with, frames_of, frozen_throttle, inaccessible, open_audio, open_stalled_audio,
+    open_with, packet, poll_until, receipt_for, shallow_clone, take_events, tiny_budget,
+    tiny_queues, track, virtual_clock,
 };
 
 // ---------------------------------------------------------------------------
@@ -1453,7 +1455,12 @@ fn corrupt_frame_error(offset: u64) -> EngineError {
 }
 
 /// A video-only session over `count` indexed packets.
-fn open_video(count: u64, provider: VideoProvider) -> Fixture {
+///
+/// F5 (issue #16): the session's clock is a hand-advanced virtual
+/// source (returned alongside the fixture) — a video-only session's
+/// end-of-media waits for the clock to present the last frame, so
+/// the drain polls must move the clock, not just the pipeline.
+fn open_video(count: u64, provider: VideoProvider) -> (Fixture, Arc<SharedNow>) {
     let mut script: Vec<DemuxEvent> = (0..count)
         .map(|index| DemuxEvent::Packet(video_packet(TrackId::new(1), index)))
         .collect();
@@ -1461,6 +1468,15 @@ fn open_video(count: u64, provider: VideoProvider) -> Fixture {
     let script = Arc::new(Mutex::new(VecDeque::from(script)));
     let stall = Arc::new(Mutex::new(false));
     let collector = Arc::new(Collector::default());
+    let now = Arc::new(SharedNow(AtomicU64::new(0)));
+    let clock = Arc::new(
+        media_clock::MediaClock::system_monotonic(
+            Arc::clone(&now) as Arc<dyn media_clock::MonotonicSource>,
+            media_types::Timestamp::new(0, base()),
+            media_types::Rate::ONE,
+        )
+        .must(),
+    );
     let mut config = SessionConfig::new(
         SourceUri::parse("file:///tmp/lumen-fake-video.media").must(),
         Box::new(FakeDemuxer {
@@ -1471,21 +1487,48 @@ fn open_video(count: u64, provider: VideoProvider) -> Fixture {
         }),
         Arc::new(provider),
         Arc::clone(&collector) as Arc<dyn FrameConsumer>,
-        virtual_clock(),
+        clock,
     );
     config.queues = tiny_queues();
     config.budget = tiny_budget();
     config.throttle = frozen_throttle();
     let mut engine = Engine::new();
     let handle = engine.open(config).must();
-    Fixture {
+    let fixture = Fixture {
         engine,
         handle,
         collector,
-        clock: virtual_clock(),
+        clock: media_clock_virtual(),
         script,
         stall,
+    };
+    (fixture, now)
+}
+
+/// The parked fixture clock placeholder (the real session clock is
+/// the hand-advanced source returned by [`open_video`]).
+fn media_clock_virtual() -> Arc<media_clock::MediaClock> {
+    virtual_clock()
+}
+
+/// Poll to `Ended` while presenting the media (F5, issue #16): each
+/// poll also advances the virtual clock — the play-out gate holds
+/// `Drained` until the clock has covered the last decoded frame.
+fn poll_until_ended_presenting(fixture: &mut Fixture, now: &SharedNow, limit: usize, context: &str) {
+    for _ in 0..limit {
+        if fixture.engine.state() == SessionState::Ended {
+            return;
+        }
+        fixture.engine.poll();
+        // One 25 fps frame's worth of wall per poll.
+        now.0.fetch_add(40_000_000, std::sync::atomic::Ordering::Relaxed);
     }
+    assert_eq!(
+        fixture.engine.state(),
+        SessionState::Ended,
+        "{context}: state is {} after {limit} polls",
+        fixture.engine.state()
+    );
 }
 
 /// The collector's frames, copied out.
@@ -1505,19 +1548,14 @@ fn one_corrupt_video_frame_is_concealed_and_playback_runs_to_end() {
     // 03 §4.5(d) — the PCM sibling's `Recovered` policy shape) must
     // instead play to EOS with exactly one damage event, 23 decoded
     // frames presented and one concealment (the repeated frame).
-    let mut fixture = open_video(
+    let (mut fixture, now) = open_video(
         24,
         VideoProvider {
             corrupt: vec![10],
             fail_all: None,
         },
     );
-    poll_until(
-        &mut fixture,
-        |s| s == SessionState::Ended,
-        200,
-        "drain to EOS",
-    );
+    poll_until_ended_presenting(&mut fixture, &now, 200, "drain to EOS");
     let stats = fixture.engine.stats();
     assert_eq!(
         stats.frames_delivered, 23,
@@ -1633,19 +1671,14 @@ fn a_corrupt_first_video_frame_holds_and_playback_continues() {
     // so there is nothing to repeat — the slot holds (nothing is
     // presented, nothing fabricated), the damage is observable, and
     // the stream continues to EOS with the remaining frames.
-    let mut fixture = open_video(
+    let (mut fixture, now) = open_video(
         12,
         VideoProvider {
             corrupt: vec![0],
             fail_all: None,
         },
     );
-    poll_until(
-        &mut fixture,
-        |s| s == SessionState::Ended,
-        200,
-        "drain to EOS",
-    );
+    poll_until_ended_presenting(&mut fixture, &now, 200, "drain to EOS");
     let stats = fixture.engine.stats();
     assert_eq!(
         stats.frames_delivered, 11,
@@ -1703,7 +1736,7 @@ fn all_corrupt_video_reaches_the_typed_terminal_within_the_budget() {
     // terminal: ResourceLimit/RecoveryAttempts with the budget and
     // the attempt count, landing the session in Error.
     let budget = u64::from(playback_engine::VIDEO_CONCEALMENT_BUDGET);
-    let mut fixture = open_video(
+    let (mut fixture, _now) = open_video(
         budget + 1,
         VideoProvider {
             corrupt: Vec::new(),
@@ -1788,7 +1821,7 @@ fn non_damage_video_decode_errors_stay_fatal() {
         },
         media_types::error::ErrorContext::new("mjpeg.unsupported"),
     );
-    let mut fixture = open_video(
+    let (mut fixture, _now) = open_video(
         8,
         VideoProvider {
             corrupt: Vec::new(),

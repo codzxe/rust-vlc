@@ -2567,7 +2567,7 @@ impl Session {
         // self row from becoming an event storm).
         let signal = if report.fatal.is_some() {
             Some(PipelineSignal::Fatal)
-        } else if report.drained {
+        } else if report.drained && self.video_played_out() {
             Some(PipelineSignal::Drained)
         } else if report.eof_reached {
             Some(PipelineSignal::EofReached)
@@ -2681,6 +2681,30 @@ impl Session {
         ));
         if let Some(pipeline) = self.pipeline.as_mut() {
             pipeline.end_switch(kind);
+        }
+    }
+
+    /// F5 (issue #16) — the end-of-media play-out gate: a session
+    /// with **no audio limb** has no render-driven clock, so the
+    /// pipeline's drain condition (demux EOF + queues empty +
+    /// decoders flushed) can complete long before the clock has
+    /// presented the decoded frames — the measured defect (mp4
+    /// fps-extremes, corpus 0115: end-of-media at 0.111043 s of a
+    /// 4.0 s media, 2.8%). The `Drained` signal translates only
+    /// once the clock has reached the greatest delivered video
+    /// pts. Sessions with an audio limb are exempt: their clock is
+    /// render-driven and their device-ring drain gate already
+    /// paces end-of-media honestly (the CLI host's
+    /// `DrainGatedDecoder` seam); a session that delivered no
+    /// video frame yet has nothing withheld — the gate stays open.
+    fn video_played_out(&self) -> bool {
+        match self.pipeline.as_ref() {
+            None => true,
+            Some(pipeline) if pipeline.has_audio_limb() => true,
+            Some(pipeline) => match pipeline.last_video_end_ns() {
+                None => true,
+                Some(end) => clock_position_ns(&self.runtime.clock) >= end,
+            },
         }
     }
 

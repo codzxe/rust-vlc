@@ -583,6 +583,18 @@ pub(crate) struct Limb {
     /// (the staleness check at concealment time is the discard rule,
     /// so seek mints need no extra invalidation).
     last_frame: Option<Frame>,
+    /// The highest video-frame pts this limb has delivered, in
+    /// nanoseconds (F5, issue #16): the play-out gate for a
+    /// video-only session's end-of-media. A limb with no audio
+    /// sibling has no render-driven clock, so the drain condition
+    /// (EOF + queues empty + decoder flushed) can complete long
+    /// before the clock has presented the final frames — the eom
+    /// position would be a wall-time artifact, not a media fact
+    /// (measured: 0.111043 s of a 4.0 s fps-extremes media, 2.8%).
+    /// The session compares this against the clock before
+    /// translating the `Drained` signal. Reset per generation (the
+    /// limb is rebuilt at every seek/switch mint).
+    last_video_end_ns: Option<i64>,
     /// Consecutive per-frame damage failures on this limb — the video
     /// concealment run or the audio skip run (3.C2 G3), whichever
     /// lane this limb is. Reset by any `Ok` decode outcome; the run
@@ -1092,6 +1104,7 @@ impl Pipeline {
             generation,
             first_frame_pending: false,
             last_frame: None,
+            last_video_end_ns: None,
             conceal_failures: 0,
         }
     }
@@ -1125,6 +1138,25 @@ impl Pipeline {
         self.limbs.clear();
         self.decoder_cache.clear();
         self.pending = None;
+    }
+
+    /// Whether any wired limb is audio (the render-driven-clock
+    /// family — F5's play-out gate never applies to them: the audio
+    /// renders and the device-ring drain gate already pace their
+    /// end-of-media honestly).
+    pub(crate) fn has_audio_limb(&self) -> bool {
+        self.limbs.iter().any(|limb| limb.track.kind == MediaKind::Audio)
+    }
+
+    /// The greatest video-frame pts any limb has delivered, in
+    /// nanoseconds — the play-out bound the F5 gate compares against
+    /// the clock. `None` when no video frame has delivered yet (the
+    /// gate stays open — nothing has been withheld).
+    pub(crate) fn last_video_end_ns(&self) -> Option<i64> {
+        self.limbs
+            .iter()
+            .filter_map(|limb| limb.last_video_end_ns)
+            .max()
     }
 
     /// The demuxer's declared seek capability (doc 03 §6 step 1,
@@ -1224,6 +1256,7 @@ impl Pipeline {
                 // repeated (M9).
                 hold: None,
                 last: None,
+                last_end: None,
                 concealed: 0,
             };
             for _ in 0..flush_budget {
@@ -1268,6 +1301,7 @@ impl Pipeline {
                 // check, never captured, never repeated (M10/M9).
                 hold: None,
                 last: None,
+                last_end: None,
                 concealed: 0,
             };
             for _ in 0..flush_budget {
@@ -1737,6 +1771,7 @@ impl Pipeline {
                 // check, never captured, never repeated (M10/M9).
                 hold: None,
                 last: None,
+                last_end: None,
                 concealed: 0,
             };
             for _ in 0..flush_budget {
@@ -2196,6 +2231,7 @@ impl Pipeline {
             let sink_stale: u32;
             let sink_concealed: u32;
             let sink_last: Option<Frame>;
+            let mut sink_last_end: Option<i64>;
             {
                 // M10: while a seek is in flight, the sink routes the
                 // slice's frames into the per-track hold — they reach
@@ -2216,6 +2252,7 @@ impl Pipeline {
                     // seeded from the limb, written back after the
                     // slice.
                     last: limb.last_frame.clone(),
+                    last_end: limb.last_video_end_ns,
                     concealed: 0,
                     hold: self.window.as_mut().and_then(|w| w.hold_slot(track_id)),
                 };
@@ -2349,6 +2386,7 @@ impl Pipeline {
                 sink_stale = sink.stale_dropped;
                 sink_concealed = sink.concealed;
                 sink_last = sink.last;
+                sink_last_end = sink.last_end;
             }
             if let Some(error) = fatal {
                 report.fatal = Some(error);
@@ -2368,6 +2406,10 @@ impl Pipeline {
             // The concealment cache follows the slice back into the
             // limb (the sink's latch or the frame it still holds).
             limb.last_frame = sink_last;
+            // F5: the play-out high-water follows the slice back too
+            // (held frames present at the seek terminal, so their
+            // pts counts the moment they are decoded).
+            limb.last_video_end_ns = sink_last_end;
             // The re-prime exemption (card 3.A3 step 5) ends when the
             // limb's queue has **recovered to its low watermark** —
             // not at the first delivered frame: the queue is still
@@ -2437,12 +2479,30 @@ struct LimbSink<'a> {
     /// into the hold is not presented yet, so it never latches here;
     /// the release path latches it at the terminal instead).
     last: Option<Frame>,
+    /// F5 (issue #16): the slice-local play-out high-water — the
+    /// greatest video-frame pts (nanoseconds) accepted this slice,
+    /// held or delivered alike (a held frame presents at the seek
+    /// terminal; its pts is still media the clock must cover before
+    /// end-of-media). Seeded from the limb, written back after the
+    /// slice.
+    last_end: Option<i64>,
     /// Concealment presentations this slice (repeated frames —
     /// labeled, never counted as decoded output).
     concealed: u32,
 }
 
 impl LimbSink<'_> {
+    /// F5: fold one video frame's pts into the play-out high-water
+    /// (nanoseconds; a missing stamp contributes nothing — absence is
+    /// never a guess presented as truth).
+    fn observe_video_end(&mut self, pts: Stamp) {
+        let Some(end) = pts.map_timestamp(|ts| ts.as_nanos().ok().map(|ns| ns.0 as i64)) else {
+            return;
+        };
+        let Some(end) = end else { return };
+        self.last_end = Some(self.last_end.map_or(end, |prev| prev.max(end)));
+    }
+
     /// Conceal one per-frame-damaged video slot (doc 03 §4.5(d),
     /// audit M9): re-present the latched last-good frame at `pts` —
     /// the **same pixels again**, never new content. Counts
@@ -2526,6 +2586,11 @@ impl FrameSink for LimbSink<'_> {
             // consumer call, counted (doc 03 §5 point 5).
             self.stale_dropped = self.stale_dropped.saturating_add(1);
             return Ok(());
+        }
+        // F5: every live video frame — held or delivered — extends
+        // the play-out bound end-of-media waits on.
+        if matches!(frame, Frame::Video(_)) {
+            self.observe_video_end(pts);
         }
         if let Some(hold) = self.hold.as_mut() {
             // M10: capture, do not deliver. A refusal here is the

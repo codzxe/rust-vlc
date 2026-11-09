@@ -121,6 +121,35 @@ pub(crate) fn sniff_asc_object_type(asc: &[u8]) -> AscObjectType {
     }
 }
 
+/// The channel count an ASC channel-configuration index stands for
+/// (ISO 14496-3: 0 = PCE in band, 1 = mono … 6 = 5.1, 7 = 7.1).
+/// `None` for the reserved indices 8-15 — the engine's own parse
+/// reports those, so the gate stays out of their way.
+fn asc_channel_count(channel_config: u8) -> Option<u8> {
+    match channel_config {
+        0 => Some(0),
+        1..=6 => Some(channel_config),
+        7 => Some(8),
+        _ => None,
+    }
+}
+
+/// Sniff the channel configuration out of an ASC: the 4 bits after
+/// the audio object type (5 bits) and the sampling-frequency field
+/// (4 bits, or 4 + 24 explicit bits when the index escapes to 0xF).
+/// `None` when the ASC is too short to carry the field (the engine's
+/// own parse then reports the truncation).
+fn sniff_asc_channel_config(asc: &[u8]) -> Option<u8> {
+    let freq_index = ((asc.first()? & 0x07) << 1) | (asc.get(1)? >> 7);
+    if freq_index == 0x0F {
+        // Escaped sampling frequency: 24 explicit rate bits sit
+        // between the index and the channel configuration.
+        Some((asc.get(4)? >> 3) & 0x0F)
+    } else {
+        Some((asc.get(1)? >> 3) & 0x0F)
+    }
+}
+
 /// Refuse the honestly-absent profiles with the exact typed code
 /// (shared by both configure paths).
 fn gate_object_type(otype: AscObjectType) -> Result<(), AacError> {
@@ -414,6 +443,17 @@ impl Decoder for AacDecoder {
                     .into_engine_error());
                 }
                 gate_object_type(sniff_asc_object_type(asc))?;
+                // F6 (issue #16): the ASC path must clear the SAME
+                // channel gate the ADTS path applies — a legal
+                // 6ch@12kHz 5.1 geometry (corpus 0094) is inside the
+                // engine's recorded stereo cap and refuses typed
+                // `aac.channel_count`, never surfacing the engine's
+                // opaque "aac too complex" as `aac.engine.init`.
+                if let Some(chcfg) = sniff_asc_channel_config(asc)
+                    && let Some(channels) = asc_channel_count(chcfg)
+                {
+                    gate_channels(chcfg, channels)?;
+                }
                 params.extra_data = Some(asc.to_vec().into_boxed_slice());
                 true
             }
@@ -631,6 +671,114 @@ mod tests {
         assert_eq!(sniff_asc_object_type(&asc(29)), AscObjectType::Ps);
         assert_eq!(sniff_asc_object_type(&asc(6)), AscObjectType::Other(6));
         assert_eq!(sniff_asc_object_type(&[0x00]), AscObjectType::Other(0));
+    }
+
+    /// Build an ASC bit-string MSB-first: AOT (5) + frequency index
+    /// (4, optionally escaped with 24 explicit rate bits) + channel
+    /// configuration (4) + the GASpecificConfig filler (3 zero bits —
+    /// 1024 samples, no core dependency, no extension).
+    fn asc_bytes(aot: u8, freq_index: u8, escape_rate: Option<u32>, chcfg: u8) -> Vec<u8> {
+        let mut bits = String::new();
+        bits.push_str(&format!("{aot:05b}"));
+        bits.push_str(&format!("{freq_index:04b}"));
+        if let Some(rate) = escape_rate {
+            bits.push_str(&format!("{rate:024b}"));
+        }
+        bits.push_str(&format!("{chcfg:04b}"));
+        bits.push_str("000");
+        bits.as_bytes()
+            .chunks(8)
+            .map(|chunk| {
+                let mut byte = 0u8;
+                for &bit in chunk {
+                    byte = (byte << 1) | u8::from(bit == b'1');
+                }
+                byte << (8 - chunk.len())
+            })
+            .collect()
+    }
+
+    #[test]
+    fn asc_channel_config_sniffing_handles_index_and_escape() {
+        // 6ch@12kHz: AOT 2, frequency index 9 (12 kHz), config 6 (5.1).
+        assert_eq!(sniff_asc_channel_config(&asc_bytes(2, 9, None, 6)), Some(6));
+        // Stereo@12kHz (the 0029 cover geometry) sniffs to 2.
+        assert_eq!(sniff_asc_channel_config(&asc_bytes(2, 9, None, 2)), Some(2));
+        // PCE-in-band (config 0).
+        assert_eq!(sniff_asc_channel_config(&asc_bytes(2, 9, None, 0)), Some(0));
+        // Escaped rate (index 0xF + 24 explicit bits) — the channel
+        // config still lands in the right bit window.
+        assert_eq!(
+            sniff_asc_channel_config(&asc_bytes(2, 0x0F, Some(12_345), 6)),
+            Some(6)
+        );
+        // 7.1 (config 7) counts 8 channels; reserved 8-15 stay None.
+        assert_eq!(asc_channel_count(7), Some(8));
+        assert_eq!(asc_channel_count(8), None);
+        assert_eq!(asc_channel_count(15), None);
+        // A 1-byte ASC cannot carry the channel field.
+        assert_eq!(sniff_asc_channel_config(&[0x14]), None);
+    }
+
+    /// F6 (issue #16): a legal 6ch@12kHz 5.1 ASC (the corpus 0094
+    /// geometry) must refuse with the documented typed partial
+    /// `aac.channel_count` — the ADTS path's verdict — instead of
+    /// surfacing the engine's opaque "aac too complex" wrapped in
+    /// `aac.engine.init`. The 12 kHz rate itself is NOT the trigger:
+    /// the stereo@12kHz ASC (the 0029 geometry) configures cleanly.
+    #[test]
+    fn six_channel_asc_refuses_typed_not_engine_opaque() {
+        let mut decoder = AacDecoder::new();
+        let generation = match GenerationId::FIRST.next() {
+            Ok(g) => g,
+            Err(e) => unreachable!("{e:?}"),
+        };
+        let mut try_configure = |extra: Vec<u8>| {
+            decoder.configure(&DecoderConfig::new(
+                match media_types::ids::CodecDescriptor::new("aac") {
+                    Ok(d) => d,
+                    Err(e) => unreachable!("{e:?}"),
+                },
+                generation,
+                ThreadBudget::default(),
+                None,
+                Some(SharedBytes::from_vec(extra)),
+            ))
+        };
+        // 6ch@12kHz 5.1: the typed channel-count partial, NOT
+        // `aac.engine.init` / "aac too complex".
+        let e = match try_configure(asc_bytes(2, 9, None, 6)) {
+            Err(e) => e,
+            Ok(()) => unreachable!("6-channel AAC must be refused typedly"),
+        };
+        assert_eq!(e.context.code, "aac.channel_count");
+        assert!(matches!(e.kind, media_types::ErrorKind::Unsupported { .. }));
+        // 7.1 (config 7 = 8 channels): the same typed partial.
+        let e = match try_configure(asc_bytes(2, 9, None, 7)) {
+            Err(e) => e,
+            Ok(()) => unreachable!("7.1 AAC must be refused typedly"),
+        };
+        assert_eq!(e.context.code, "aac.channel_count");
+        // An escaped-rate 5.1 ASC sniffs through the 24-bit window.
+        let e = match try_configure(asc_bytes(2, 0x0F, Some(12_345), 6)) {
+            Err(e) => e,
+            Ok(()) => unreachable!("escaped-rate 5.1 must be refused typedly"),
+        };
+        assert_eq!(e.context.code, "aac.channel_count");
+        // Channel configuration 0 (PCE in band): the ASC-path twin of
+        // the ADTS gate's typed refusal.
+        let e = match try_configure(asc_bytes(2, 9, None, 0)) {
+            Err(e) => e,
+            Ok(()) => unreachable!("PCE-in-band must be refused typedly"),
+        };
+        assert_eq!(e.context.code, "aac.channel_config_pce");
+        // Stereo@12kHz (the 0029 cover geometry) configures cleanly —
+        // the rate was never the problem.
+        try_configure(asc_bytes(2, 9, None, 2))
+            .unwrap_or_else(|e| unreachable!("stereo@12kHz must configure: {e}"));
+        // Mono@44.1kHz (frequency index 4) configures cleanly too.
+        try_configure(asc_bytes(2, 4, None, 1))
+            .unwrap_or_else(|e| unreachable!("mono@44.1kHz must configure: {e}"));
     }
 
     #[test]
