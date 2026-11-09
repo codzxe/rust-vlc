@@ -5,7 +5,7 @@
 // CustomizePanels capability gate.
 import { afterEach, describe, expect, it } from "vitest";
 import { DemoTransport } from "./demo-transport";
-import type { CommandResponse } from "./transport";
+import type { CommandResponse, CommandResult } from "./transport";
 
 const transport = new DemoTransport();
 
@@ -13,7 +13,16 @@ afterEach(() => {
   transport.dispose();
 });
 
-const completed = (response: CommandResponse): CommandResponse["result"] =>
+// Narrow the wire envelope to the completed payload (tests below only
+// assert on completed results; the two refusal tests use `raw`).
+const completed = (response: CommandResponse): CommandResult => {
+  const result = response.result;
+  if (!("completed" in result)) throw new Error("expected a completed result");
+  return result.completed;
+};
+
+// The un-narrowed envelope — for the typed-refusal tests.
+const raw = (response: CommandResponse): CommandResponse["result"] =>
   response.result;
 
 describe("DemoTransport — media.*-bookmark commands (issue #32)", () => {
@@ -68,7 +77,7 @@ describe("DemoTransport — media.*-bookmark commands (issue #32)", () => {
   });
 
   it("removing an unknown id is a typed not-found refusal", async () => {
-    const result = completed(
+    const result = raw(
       await transport.send({
         args: { id: 99 },
         cmd: "media.remove-bookmark",
@@ -80,7 +89,7 @@ describe("DemoTransport — media.*-bookmark commands (issue #32)", () => {
   });
 
   it("a negative position is refused invalid-argument", async () => {
-    const result = completed(
+    const result = raw(
       await transport.send({
         args: { time: -1, label: null },
         cmd: "media.add-bookmark",
