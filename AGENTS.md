@@ -63,7 +63,9 @@ with actual results, limitations, open issues).
 
 ## 4. Worklog protocol (mandatory)
 
-Single shared log: `/home/z/my-project/worklog.md` (append-only).
+Single shared log: `worklog.md` at the **repository root** (append-only).
+Prior entries are archived under `docs/worklog/` (see `docs/worklog/README.md`);
+the live log at the repo root remains the one append-only file agents write.
 
 - **Before starting**: read it to understand prior work.
 - **After finishing** your Task ID: append a section using exactly this format:
@@ -82,7 +84,9 @@ Stage Summary:
 - <key results / decisions / artifacts>
 ```
 
-Never overwrite or edit another agent's entries. Never create separate log files.
+Never overwrite or edit another agent's entries. Never create separate log
+files (the `docs/worklog/` archive is Lead-maintained bookkeeping, not an
+agent log — agents append to the root `worklog.md` only).
 
 ## 5. Task ID scheme
 

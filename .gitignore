@@ -20,6 +20,7 @@ apps/web/pkg/
 # Env & secrets
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 secrets/
