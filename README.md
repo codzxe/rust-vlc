@@ -13,11 +13,31 @@ Working name "Lumen" is a placeholder only — the product is fully rebrandable 
 
 ## Status
 
-**Phase 6 — Network & streaming (in progress).** Phases 0–5 are complete
-(Phase 5: PASS WITH REGISTERED CAVEATS, Lead sign-off 2026-10-24,
-[`docs/gates/phase5-exit.md`](docs/gates/phase5-exit.md)); the streaming
-core, HLS, and DASH-parser work is landing now — see the Status block in
-[`docs/ROADMAP.md`](docs/ROADMAP.md). The authoritative project brief is
+**Phase 6 — Network & streaming: substantially complete (2026-11-09).**
+Phases 0–5 are complete (Phase 5: PASS WITH REGISTERED CAVEATS, Lead
+sign-off 2026-10-24, [`docs/gates/phase5-exit.md`](docs/gates/phase5-exit.md));
+the Phase-6 exit-gate ledger is drafted with verdict **PENDING LEAD
+DECISION** ([`docs/gates/phase6-exit.md`](docs/gates/phase6-exit.md)).
+On 2026-11-09, 27 of 34 tracker issues were resolved across 11 waves
+(merge evidence: `git log --oneline --grep="issue #"`): streaming landed
+TLS decision record + typed https seam (#8), buffering/reconnect (#6),
+auth (#13), HLS master + conformance (#10/#11), DASH + ABR + MPD fuzz
+(#12), netfuzz + interrupted-network scenarios (#14), and the RTSP DEFER
+verdict + network security review (#15); alongside playback ops (#32),
+A/V effects (#33), MKV extras (#34), subtitles (#17), ASF (#9), the
+defect ledger (#16), the VLC 3.0.23 oracle corpus differentials — 29/35
+inputs bit-exact (#19) — codec-admission records (#7), the cpal
+audio-output spike (#1), H.264/HEVC decoder audits + ADR-013 draft (#2),
+ADR-010 patent-policy draft (#24), desktop wiring (#3), icon glyphs
+(#35), lint hardening (#36), and visual baselines + e2e fully green
+(#37). Per-lane test evidence from the merge records: demux 587/0 (#34),
+streaming 201/0 (#8), codecs 643 tests (#7), ui vitest 634 tests (#7)
+plus the e2e/a11y lane green (#37); the last full-workspace gate count
+is 3213/0 at the Phase-5 exit. Still open: #4 (Tauri packaging,
+INFRA-BLOCKED), #22/#23 (Phase 7/8 programs), #38 (ogg fix in flight),
+#39 (TLS activation follow-up). See the Status block in
+[`docs/ROADMAP.md`](docs/ROADMAP.md) and the ledger in
+[`NEXT-STEPS.md`](NEXT-STEPS.md). The authoritative project brief is
 [`docs/MASTER-PROMPT.md`](docs/MASTER-PROMPT.md). Nothing is claimed implemented or verified
 until `docs/feature-matrix.toml` records automated evidence for it (statuses:
 `not_started`, `in_progress`, `implemented`, `verified`, `blocked`).
@@ -61,11 +81,14 @@ fuzz/  benches/  docs/  design/  .github/workflows/
   UI↔engine contract; truthful UI (accepted ≠ completed); config-driven; no
   native dynamic plugin loading; unsafe code denied in application/core crates.
 - Every defect gets a regression test. Tests are never weakened to pass.
-- Merge-blocking CI, honestly stated: **live today as one lean Linux job per
-  workflow** (`.github/workflows/ci.yml` replicates the local gate;
-  `ui.yml` covers the UI lane); the full Windows/Linux/macOS matrix is
-  designed but parked under `.github/workflows-disabled/` pending Lead
-  reconciliation.
+- Merge-blocking CI, honestly stated: **the full 3-OS matrix is live**
+  (issue #5 — `.github/workflows/ci.yml` carries the merge-blocking
+  matrix with `ci-full.yml` alongside; `ui.yml` covers the UI lane;
+  `soak-nightly.yml` the 4 h nightly tier), **but it is currently red**:
+  the lint job fails on rustfmt drift accumulated across the day's wave
+  merges — fix in flight on branch `w17/ci-green` (commit `621fa20`,
+  "ci: fix rustfmt drift across 47 files from wave merges (lint job #1)").
+  Local gates remain the evidence of record until it goes green.
 
 ## Licensing notes
 

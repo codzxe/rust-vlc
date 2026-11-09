@@ -47,6 +47,21 @@ after the docs refresh pass:
 
 No exposure scores changed; no new rows; no retirements.
 
+## 0.2 Refresh — 2026-11-09 wave closeout (agent W17-HH)
+
+No exposure scores changed and no rows are closed (Lead-only per §1);
+this block records the day's risk-relevant deltas from the 11-wave
+closeout (27 of 34 tracker issues resolved; merge evidence:
+`git log --oneline --grep="issue #"`):
+
+| ID | Delta (status/score unchanged unless stated) | One-line justification |
+|----|----------------------------------------------|------------------------|
+| R-01 | still mitigating; evidence advanced | H.264 software-decoder admission audits complete (issue #2, merges `62453fb`/`619ee3d`): `docs/dependencies/records/h264-software-decoder-audits.md` recommends rust_h264 0.6.1 [PROPOSAL]; VA-API hw lane drafted as `docs/adr/ADR-013-va-api-hw-decoder.md`; **admission pending Lead** (row already carries this; recorded here for the closeout). |
+| R-02 | still mitigating; evidence advanced | HEVC covered by the ADR-013 VA-API draft (8/10/12-bit) + the shared conformance-gate framework; **HEVC software-candidate audit still owed; admission pending Lead** (issue #2, merge `62453fb`). |
+| R-03 | still open; mitigation drafted | ADR-010 codec-patent & redistribution policy **drafted, pending counsel sign-off** (issue #24, merge `e5e660e`; `docs/adr/ADR-010-codec-patent-shipping.md`: per-codec evidence matrix, options a–d, recommended posture (a) patent-clean default tier [PROPOSAL], 24-item counsel ledger open). Hard trigger unchanged: no public binary before Phase-8 packaging. |
+| R-10 | still mitigating-eligible; decision drafted | TrueHD admission unblock decision drafted as **[PROPOSAL — Lead]** (issue #7, merge `55a14f9`; `docs/dependencies/records/truehd-bitstream-io-unblock.md`): truehd 0.7.2 blocked on a bitstream-io 4.10.0 macro OOM (root cause isolated at finding R11 of the parent record `truehd-0.7.2.md` — note: the wave dispatch labeled this "R-11"; in *this* register R-11 is the timestamp/desync risk, so the delta is recorded against R-10, the DTS/TrueHD/AC-3/WMA row). Decode quality already bit-exact in scratch (4-stream ffmpeg differential). |
+| 6.H1 security findings (feeds R-20-class process tracking + Phase-6 gate) | new evidence, no row change | Network security review landed (issue #15, commit `9399960`; `docs/investigations/network-security-review.md`): **1 Medium** (same-host HTTPS→HTTP scheme downgrade followed) + 3 Low (redirects/SSRF/traversal/header-injection class), fix sketches recorded; the Phase-6 exit ledger recommends scheduling the Medium fix before gate sign-off (`docs/gates/phase6-exit.md` §3). |
+
 ## 1. Register format
 
 Each risk is one row with twelve fields. Because twelve columns are unreadable in one table, the register is rendered as **two synchronized views**: §2.1 (master table: identity, scores, ownership, status, cadence) and §2.2–§2.6 (detail tables: indicators, mitigations, contingency). Together they are the complete row; both views are sorted identically and carry the same IDs.
