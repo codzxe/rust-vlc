@@ -1659,9 +1659,9 @@ description = "Master volume, mute, gain, step sizes"
 priority = "P0"
 phase_target = 2
 inventory_ref = "inventory/options-linux.json#volume-step"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "2.C3 audio path v0 (volume, channel map, straight mix); Ctrl+↑/↓/m design overrides (C-02); --volume-step/--gain options."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "crates/audio-engine/src/effects.rs (EffectChain v0 + Gain/Mute AudioEffect stages, commit 8bd13ed; ui settings area volume slider + mute switch live via audio.set-volume/audio.set-mute + audio.get-volume hydrate, commit 0a8e70d; effects tests 86/0 in crate)"
+notes = "2.C3 audio path v0 (volume, channel map, straight mix); Ctrl+↑/↓/m design overrides (C-02); --volume-step/--gain options. Partial: engine Gain/Mute stages + live settings controls shipped; --gain/--volume-step CLI options and per-track gain still pending."
 
 [[feature]]
 id = "afeat-equalizer"
@@ -1672,9 +1672,9 @@ priority = "P1"
 phase_target = 4
 vlc_modules = ["equalizer"]
 inventory_ref = "inventory/options-summary.md#s5"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Design panels exist (Audio - Equalizer.svg, EQ presets.svg); self-build biquad S, zero new deps; VLC defaults binary-corroborated; [doc 13 FILTER CARD GAP — no engine filter-implementation card, escalated feasibility subsystems §4.1]."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "crates/audio-engine/src/effects/eq.rs (Eq3Band: RBJ-cookbook low shelf 250 Hz + mid peak 1 kHz + high shelf 4 kHz + preamp as an AudioEffect; bit-exact 0 dB identity; known-signal tests incl. analytic |H| shelf/peak gains, commit 70b4276; 86/0 crate tests; ui pending sliders awaiting audio.set-eq)"
+notes = "Design panels exist (Audio - Equalizer.svg, EQ presets.svg); self-build biquad S, zero new deps; VLC defaults binary-corroborated; [doc 13 FILTER CARD GAP — no engine filter-implementation card, escalated feasibility subsystems §4.1]. Partial: engine core is 3-band fixed-corner, NOT VLC's 10-band — band-count/corner generalization, 18 presets, 2-pass, and the audio.set-eq catalog command (D-012) pending; UI sliders render inert-with-reason until that command lands."
 
 [[feature]]
 id = "afeat-compressor"
@@ -1841,9 +1841,9 @@ priority = "P1"
 phase_target = 4
 vlc_modules = ["adjust"]
 inventory_ref = "inventory/options-summary.md#s5"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Video - Essential.svg panel; shader-uniform implementation [PROPOSAL] (one pipeline, zero extra copies, doc 03 §2.3 rule 3)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "crates/video-engine/src/adjust.rs (AdjustParams brightness/contrast/saturation/hue/gamma with range+finite validation, byte-exact neutral identity, CPU reference apply_rgba8; commit 50a7ba6; 48/0 crate tests at that commit; ui pending sliders awaiting video.set-adjust)"
+notes = "Video - Essential.svg panel; shader-uniform implementation [PROPOSAL] (one pipeline, zero extra copies, doc 03 §2.3 rule 3). Partial: parameter model + CPU reference only — GPU/shader-uniform wiring [PROPOSAL] and the video.set-adjust catalog command (D-012) pending; gamma upper range 10.0 [VERIFY exact VLC range]; UI sliders render inert-with-reason until the command lands."
 
 [[feature]]
 id = "vfeat-sharpen-gradfun"
@@ -2774,9 +2774,9 @@ description = "EQ/Compressor/Spatializer/StereoWiden + Essential/Crop/Colors/HDR
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "4.F3: fields present only when the engine supports them — no dead controls; engine halves are the afeat-*/vfeat-* rows [FILTER CARD GAP escalation]."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "ui/src/screens/settings/areas/effects.tsx (Effects & Tools settings area, commits 0a8e70d + EQ follow-up: volume/mute live via audio.set-volume/set-mute; balance + 3-band EQ + video-adjust sliders inert-with-reason pending audio.set-balance/audio.set-eq/video.set-adjust; effects.test.tsx incl. pending-command markers)"
+notes = "4.F3: fields present only when the engine supports them — no dead controls; engine halves are the afeat-*/vfeat-* rows [FILTER CARD GAP escalation]. Partial: settings-area surface only — the full Ctrl+E-style A/V effects dialog (compressor/spatializer/stereo-widen, crop, HDR, EQ presets) not started; every engine-backed field ships disabled-with-reason until its D-012 command card lands."
 
 [[feature]]
 id = "ui-screen-theme"

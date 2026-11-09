@@ -13,6 +13,7 @@ import { PlaylistServicesArea } from "./playlist-services";
 import { NetworkArea } from "./privacy-network";
 import { AboutArea } from "./updates-about";
 import { AdvancedArea } from "./advanced";
+import { EffectsArea } from "./effects";
 
 // Settings AREAS layer (card 4.E2) — the content/extension half of the 4.E1
 // framework. MECHANISM (recorded per the card): the generator only emits what
@@ -45,6 +46,10 @@ function AboutAreaScreen(): ReactElement {
 function AdvancedAreaScreen(): ReactElement {
   return <AdvancedArea />;
 }
+/** Issue #33 / D-012 — effects & tools area (see ./effects header). */
+function EffectsAreaScreen(): ReactElement {
+  return <EffectsArea />;
+}
 
 export type SettingsAreaId =
   | (typeof GENERATED_AREA_IDS)[number]
@@ -53,7 +58,8 @@ export type SettingsAreaId =
   | "library"
   | "network"
   | "about"
-  | "advanced";
+  | "advanced"
+  | "effects";
 
 export const SETTINGS_AREA_IDS: readonly SettingsAreaId[] = [
   ...GENERATED_AREA_IDS,
@@ -63,6 +69,7 @@ export const SETTINGS_AREA_IDS: readonly SettingsAreaId[] = [
   "network",
   "about",
   "advanced",
+  "effects",
 ];
 
 export const SETTINGS_AREA_TITLES: Record<SettingsAreaId, MessageKey> = {
@@ -73,6 +80,7 @@ export const SETTINGS_AREA_TITLES: Record<SettingsAreaId, MessageKey> = {
   network: "settings.area.network",
   about: "settings.area.about",
   advanced: "settings.area.advanced",
+  effects: "settings.area.effects",
 };
 
 export const SETTINGS_SCREENS: Record<SettingsAreaId, () => ReactElement> = {
@@ -83,6 +91,7 @@ export const SETTINGS_SCREENS: Record<SettingsAreaId, () => ReactElement> = {
   network: NetworkAreaScreen,
   about: AboutAreaScreen,
   advanced: AdvancedAreaScreen,
+  effects: EffectsAreaScreen,
 };
 
 /**
