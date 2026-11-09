@@ -358,7 +358,7 @@ fn parse_tag_colour(arg: &str) -> Option<(Color, bool)> {
             // bits (the RGB-only domain).
             trimmed
                 .parse::<i64>()
-                .is_none_or(|v| !(0..=0xFF_FFFF).contains(&v))
+                .map_or(true, |v| !(0..=0xFF_FFFF).contains(&v))
         }
     };
     Some((color, alpha_explicit))
@@ -590,9 +590,11 @@ mod tests {
             .with_font_size_milli(Some(16_000))
             .with_font_name(Some("Arial"));
         let (cue, _, _) = run("{\\fs32.5}big{\\fnComic Sans}fonty{\\fn}reset", seed);
-        let CueText::Styled(segs) = cue else {
-            panic!("styled");
+        let segs = match cue {
+            CueText::Styled(segs) => segs,
+            CueText::Plain(_) => Vec::new(),
         };
+        assert_eq!(segs.len(), 3);
         assert_eq!(segs[0].style.font_size_milli, Some(32_500));
         assert_eq!(segs[0].style.font_name.as_deref(), Some("Arial"));
         assert_eq!(segs[1].style.font_name.as_deref(), Some("Comic Sans"));
@@ -619,13 +621,21 @@ mod tests {
         );
         // 6-digit \c keeps a previously set alpha.
         let (cue, _, _) = run("{\\alpha&H80&}{\\c&H0000FF&}red", seed.clone());
-        let CueText::Styled(s) = cue else { panic!("styled") };
+        let s = match cue {
+            CueText::Styled(s) => s,
+            CueText::Plain(_) => Vec::new(),
+        };
+        assert_eq!(s.len(), 1);
         // &H80 = 128 inverted → straight 127.
         assert_eq!(s[0].style.color, Some(Color::new(255, 0, 0, 127)));
         // An 8-digit \c carries its own (inverted) alpha: &H80 alpha
         // byte → straight 127.
         let (cue, _, _) = run("{\\c&H800000FF&}red", seed);
-        let CueText::Styled(s) = cue else { panic!("styled") };
+        let s = match cue {
+            CueText::Styled(s) => s,
+            CueText::Plain(_) => Vec::new(),
+        };
+        assert_eq!(s.len(), 1);
         assert_eq!(s[0].style.color, Some(Color::new(255, 0, 0, 127)));
         // Malformed colour: dropped + ignored.
         let (_, _, stats) = run("{\\c&Hzz&}x", TextStyle::PLAIN);
