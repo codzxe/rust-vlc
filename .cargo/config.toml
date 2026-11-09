@@ -1,2 +1,15 @@
-[build]
-target-dir = "/home/z/my-project/target"
+# Repo-level cargo configuration (Lead-owned).
+#
+# [alias] xtask — canonical entry point for the workspace task runner
+# (tools/xtask): `cargo xtask <cmd>`. This alias was the file's only
+# original content (worklog 1.A3) but was dropped when 3116aec overwrote
+# the file; restored so fresh checkouts work without CI's expanded
+# `cargo run -p xtask --locked -- <cmd>` workaround (ci.yml note 1).
+#
+# Deliberately NO [build] target-dir: 3116aec hard-coded the Lead-sandbox
+# path /home/z/my-project/target, which broke fresh checkouts and hosted
+# runners (permission denied creating /home/z). Repo-relative `target/`
+# is the correct default; override via CARGO_TARGET_DIR instead.
+
+[alias]
+xtask = "run -p xtask --locked --"
