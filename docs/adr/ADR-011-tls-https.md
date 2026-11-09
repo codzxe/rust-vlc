@@ -1,11 +1,17 @@
-# ADR-011: TLS / HTTPS Strategy — decision record refreshed (ratify the recorded ureq+rustls(ring) deviation)
+# ADR-011: TLS / HTTPS Strategy — accepted (ureq+rustls(ring) ratified as the E2-class exception)
 
-- **Status:** **proposed** (drafted 2026-10-19, deferred past its own
-  deadline; **decision record refreshed 2026-11-09** with a fresh
-  standalone rustls audit — issue #8). **RECOMMENDED pending Lead
-  admission (2026-11-09).** This file does NOT decide: the admission
-  flip is Lead-gated; everything below is the decision-ready record
-  (evidence, options, one recommended posture).
+- **Status:** **accepted (2026-11-09).** The Lead ratified this ADR's
+  recommended posture (decision ratified by the orchestrator,
+  2026-11-09, activating issue #39): the ureq 3.5.0 +
+  rustls(ring 0.17.14) deviation is admitted as the **E2/ADR-001-class
+  exception** per this ADR's own audit (§"The audit" — rustls 0.23.46
+  via ureq 3.5.0, the ring provider's 135 C/asm files documented as
+  the recorded E2 deviation) — record `ureq-3.5.0.md` R10's
+  conditional admission ("ADMITTED — conditionally, on the Lead
+  accepting the recorded ring deviation") stands, its condition now
+  discharged by this acceptance. Drafted 2026-10-19; decision record
+  refreshed 2026-11-09 with the fresh rustls audit (issue #8);
+  accepted 2026-11-09 (issue #39).
 - **Owner:** Lead decision (it touches the §9 language policy and a
   recorded dependency deviation); user-informed.
 - **Evidence:** fresh rustls 0.23 audit executed 2026-11-09 in this
@@ -23,8 +29,8 @@
   merges") — superseded *as a fact* by card 6.A1b/6.A1c (merged, wave
   6): ureq 3.5.0 with `features = ["rustls", "rustls-webpki-roots"]`
   is in the tree, the adapter is live, and a real HTTPS roundtrip was
-  measured (record R10). What remains open is only the Lead's
-  ratification of the recorded crypto-provider deviation.
+  measured (record R10). The Lead's ratification of the recorded
+  crypto-provider deviation is now given (2026-11-09, above).
 
 ## Context
 
@@ -131,21 +137,33 @@ https-dominated reality the old brief itself acknowledged, and is now
 a *regression* of admitted, tested, evidence-recorded capability.
 Last resort, same as the old brief ranked it.
 
-## Decision [PROPOSAL — pending Lead admission]
+## Decision [ACCEPTED — Lead ratification 2026-11-09]
 
 **Option (a): ratify the recorded ureq 3.5.0 + rustls(ring 0.17.14)
 deviation as the E2/ADR-001-class exception** — audited native crypto
 core, exact-pin discipline, record re-triggered on any version/feature
 change (doc 11 §3.7), native-tls and verification-off remain hard-banned
-(the record's standing rules). RECOMMENDED pending Lead admission
-(2026-11-09). On acceptance: flip this ADR to **accepted**, remove the
-seam below, and close SEC-07's admission-pending note. On rejection:
-revert per record R10's fallback (https out, doc-04 TLS chapter
-revisit) — the seam below makes that revert a one-point, typed change.
+(the record's standing rules). **Ratified by the Lead 2026-11-09**
+(decision ratified by the orchestrator; activating issue #39), on the
+basis of this ADR's 2026-11-09 audit: rustls 0.23.46 via ureq 3.5.0,
+both providers C/asm, ring 0.17.14 (135 C/asm files, cc-only build,
+230 unsafe tokens, all inside the crypto core) the smaller recorded
+deviation — the E2/ADR-001-class posture the rav1d asm admission set.
+Acceptance actions executed in the same change (2026-11-09): this ADR
+flipped to **accepted**; the seam below **deleted** from
+`crates/streaming/src/schemes.rs` (the `HTTPS_ADR011_ADMITTED` const,
+the guarded arm, the refusal arm, and the `SchemeError::HttpsNotAdmitted`
+vocabulary, per the TODO(admitted-impl) instruction); SEC-07's
+admission-pending note closed (doc 11) and the proposed-admission
+register row marked ratified. The rejection fallback (revert per record
+R10: https out, doc-04 TLS chapter revisit) is retired with the seam —
+any future removal is a fresh decision against this accepted record.
 
-## The seam (lands with this refresh — `crates/streaming/src/schemes.rs`)
+## The seam (deleted by the 2026-11-09 acceptance — `crates/streaming/src/schemes.rs`)
 
-Until the Lead rules, the https dispatch carries the ADR-011 marker as
+Historical record of the pre-ratification state (landed with the
+2026-11-09 refresh, deleted the same day by the Lead's acceptance):
+until the Lead ruled, the https dispatch carried the ADR-011 marker as
 code, in the house typed-refusal style:
 
 - `SchemeError::HttpsNotAdmitted` (`streaming.scheme.https-not-admitted`)
@@ -174,9 +192,13 @@ ratification*, not a fake absence.
   ring 0.17.14 activated).
 - ROADMAP §6 ADR-011 index line: "decision record refreshed
   2026-11-09, pending Lead admission".
-- `docs/feature-matrix.toml` tls/https row: `partial` (seam +
-  conditionally-admitted transport evidence; flips to done on
-  acceptance, blocked-with-reason on rejection).
+- `docs/feature-matrix.toml` tls/https row: `partial` at refresh time
+  (seam + conditionally-admitted transport evidence); **flipped on
+  acceptance (2026-11-09)** to implemented on desktop targets with the
+  honest split — routing + composition + TLS config pinned in-tree, the
+  networked TLS round-trip lane [VERIFY: needs a networked CI lane]
+  (mock testkit is plaintext; the out-of-band measured round-trip is
+  record `ureq-3.5.0.md` R10).
 - The old interim rule "Phase 6 cards that need HTTPS carry a
   `[DECISION-PENDING ADR-011]` marker" is discharged: the marker now
   lives in code (the seam) and this file, not in per-card text.
