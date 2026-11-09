@@ -223,6 +223,10 @@ describe("detectTauriBackend / createTauriTransport", () => {
         return 5;
       },
     };
+    // TS cannot see that transformCallback ran before the emit below, so
+    // the closure assignment stays invisible to narrowing — read the
+    // handler back through the same indirection at the call site.
+    const registeredHandler = (): ((frame: unknown) => void) | null => handler;
     const saved = (globalThis as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
     (globalThis as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = internals;
     try {
@@ -243,7 +247,7 @@ describe("detectTauriBackend / createTauriTransport", () => {
       });
 
       // The shell emits: the frame crosses transformCallback → handler.
-      handler?.({ event: LUMEN_EVENT_CHANNEL, id: 31, payload: STATE_EVENT });
+      registeredHandler()?.({ event: LUMEN_EVENT_CHANNEL, id: 31, payload: STATE_EVENT });
       expect(seen).toEqual([STATE_EVENT]);
 
       unsubscribe();
