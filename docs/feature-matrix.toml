@@ -1294,7 +1294,7 @@ phase_target = 6
 vlc_modules = ["udp"]
 inventory_ref = "inventory/formats.json#udp"
 status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "unsupported" }
-evidence = ""
+evidence = "crates/streaming/src/schemes.rs:557-577 typed-refusal table (udp row :563) + classify default arm :294-305; investigation docs/investigations/rtsp-rtp-feasibility.md (issue #15, 6.G1-I)"
 blocked_reason = "6.G1-I blocked-protocol registry: raw-socket playback whose payload is hw-only codecs (H.264/HEVC); web: no raw UDP sockets in browsers (MP §10)."
 notes = "Revisit with the RTSP-family trigger: ADR-001 on all three OS + demand."
 
@@ -1308,7 +1308,7 @@ phase_target = 6
 vlc_modules = ["rtp"]
 inventory_ref = "inventory/formats.json#rtp"
 status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "unsupported" }
-evidence = ""
+evidence = "crates/streaming/src/schemes.rs:557-577 typed-refusal table (rtp row :562) + classify default arm :294-305; investigation docs/investigations/rtsp-rtp-feasibility.md (issue #15, 6.G1-I)"
 blocked_reason = "6.G1-I registry: same raw-socket + hw-only-codec chain as UDP; web: no raw sockets (MP §10)."
 notes = "Feeds RTSP (blocked) and SAP (blocked SD) families."
 
@@ -1322,7 +1322,7 @@ phase_target = 6
 vlc_modules = ["access_realrtsp", "satip"]
 inventory_ref = "inventory/formats.json#rtsp"
 status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "unsupported" }
-evidence = ""
+evidence = "crates/streaming/src/schemes.rs:561 + :677-682 (userinfo-bearing rtsp refuses, no secret in Display) + classify default arm :294-305; investigation docs/investigations/rtsp-rtp-feasibility.md (issue #15, 6.G1-I): DEFER verdict"
 blocked_reason = "Blocked v1 with three named blockers (feasibility subsystems §2.3): (1) payload = H.264/HEVC = the ADR-001 risk chain; (2) async boundary (retina is tokio-based; async confined to streaming edge per doc 01 §4.2); (3) unbounded camera-quirk hardening tail (why VLC ships access_realrtsp). Crates exist and are pure (retina 0.4.21). Revisit: ADR-001 landed on 3 OS + user demand. Web: no raw RTSP/RTP sockets (MP §10)."
 notes = "6.G1-I registry row."
 
@@ -1335,7 +1335,7 @@ priority = "P2"
 phase_target = 8
 inventory_ref = "inventory/formats.json#smb"
 status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
-evidence = ""
+evidence = "crates/streaming/src/schemes.rs:294-305 classify default arm (uniform typed refusal; no dedicated smb test row — refused as 'every other scheme' per :20-24)"
 blocked_reason = "samba = C libraries, no pure path; absent even from the pinned census (vlc-plugin-samba was an excluded headless package). No v1/v-next card."
 notes = "Revisit only if a pure SMB client ecosystem emerges."
 
@@ -1349,7 +1349,7 @@ phase_target = 8
 vlc_modules = ["nfs"]
 inventory_ref = "inventory/formats.json#nfs"
 status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
-evidence = ""
+evidence = "crates/streaming/src/schemes.rs:294-305 classify default arm (uniform typed refusal; no dedicated nfs test row — refused as 'every other scheme' per :20-24)"
 blocked_reason = "No pure-Rust NFS client assessed as viable; P3 niche (formats.json rationale); no card."
 
 [[feature]]
@@ -1362,7 +1362,7 @@ phase_target = 8
 vlc_modules = ["ftp", "sftp"]
 inventory_ref = "inventory/formats.json#ftp-sftp"
 status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
-evidence = ""
+evidence = "crates/streaming/src/schemes.rs:557-577 typed-refusal table (ftp row :560, sftp row :567) + :636-665 ftp error-display tests (no secret in Display)"
 blocked_reason = "[PROPOSAL blocked v1] per doc 13 card 6.A3 (ftp decision); no pure-path assessment on record; P3."
 
 [[feature]]
@@ -1375,7 +1375,7 @@ phase_target = 8
 vlc_modules = ["access_mms"]
 inventory_ref = "inventory/formats.json#mmsh-mms"
 status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
-evidence = ""
+evidence = "crates/streaming/src/schemes.rs:557-577 typed-refusal table (mms row :566) + classify default arm :294-305 (mmsh variant refused by the same default)"
 blocked_reason = "Legacy Microsoft streaming; no v1 card; no pure crate assessed; P2/P3 boundary recorded in formats.json."
 
 [[feature]]
