@@ -234,7 +234,8 @@ fn map_fetch_err(err: NetworkError) -> EngineError {
         NetworkError::UnsupportedScheme { .. }
         | NetworkError::ProtocolViolation { .. }
         | NetworkError::InvalidContentRange
-        | NetworkError::RangeNotSatisfiable => {
+        | NetworkError::RangeNotSatisfiable
+        | NetworkError::AuthFailed { .. } => {
             return mint(
                 ErrorKind::Unsupported { format: None },
                 "streaming.ranged.fetch-refused",
