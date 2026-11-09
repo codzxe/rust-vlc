@@ -984,9 +984,9 @@ priority = "P2"
 phase_target = 6
 vlc_modules = ["avcodec"]
 inventory_ref = "inventory/formats.json#pgs"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Conditional 5.N1 on the compositing contract; OverlayLayer refinement of doc 03 §4.11; YCbCr palette [VERIFY]; full bitmap parity possible (no styling gap)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/subtitles/src/pgs/** (card 5.N1, ADR-012 self-build, zero deps, in tree by the 5.R2-V Phase-5 exit 3116aec: PCS/WDS/PDS/ODS/END segments in BOTH framings (.sup PTS-prefixed + Matroska-stripped), epoch state machine, multi-fragment ODS assembly, RLE 0x00 escapes, BT.601-vs-BT.709-by-height palette -> CompositedCue; 32 unit tests + fuzz_sub_pgs survival harness, all green in this tree 2026-10-26)"
+notes = "Conditional 5.N1 on the compositing contract; OverlayLayer refinement of doc 03 §4.11; YCbCr palette implemented (BT.601/709 by video height, the reference rule — the old [VERIFY] is resolved); full bitmap parity possible (no styling gap). Row was STALE not_started x4 with empty evidence while 5.N1 shipped — flipped 2026-10-26 as a RECORDS CORRECTION only (no new code this session); docs/formats record owed (G-1 class gap)."
 
 [[feature]]
 id = "subtitle-dvb-subs"
@@ -1023,9 +1023,9 @@ priority = "P1"
 phase_target = 6
 vlc_modules = ["cc", "zvbi"]
 inventory_ref = "inventory/formats.json#cc-608-708"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Conditional 5.N3: extraction from VBI/user-data/SEI (feeds off the 5.F1 H.264 parser); cea608 crate = builder not decoder; 608 Phase 6, 708 M–L behind it — staged partial."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/subtitles/src/cc/** (card 5.N3, ADR-012 option-1 staged self-build, in tree by the 5.R2-V Phase-5 exit 3116aec: FULL EIA-608 channel machine — parity, field/channel latch, PAC/mid-row/tab, 15x32 double-buffered grids, pop-on/roll-up/paint-on; STAGED CEA-708 — DTVCC fragment reassembly, service-block layer, service-1 608-compat route; carriage grammars GA94 SEI type-4 + MPEG-2 picture-user_data + SCTE-20; render to CompositedCue over the 704x480 NTSC reference; 26 unit + 11 cc_acceptance tests, all green in this tree 2026-10-26)"
+notes = "Conditional 5.N3: extraction carriage grammars live in the subtitles crate; the codecs-side SEI/user-data FEED wiring (H.264 5.F1 consume seam) and the 708 ADVANCED window model remain open (staged partial, per the module honesty table); cea608 crate = builder not decoder (unchanged). Row was STALE not_started x4 with empty evidence while 5.N3 shipped — flipped 2026-10-26 as a RECORDS CORRECTION only (no new code this session); docs/formats record owed (G-1 class gap)."
 
 [[feature]]
 id = "subtitle-vobsub"
