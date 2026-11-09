@@ -22,15 +22,24 @@ blocked.
 - **Phase 5 — COMPLETE** — **PASS WITH REGISTERED CAVEATS**, Lead sign-off
   2026-10-24 (`docs/gates/phase5-exit.md`; 47/47 parent cards resolved;
   "Phase 5 is closed. The Lead authorizes Phase 6.").
-- **Phase 6 — Network & streaming — IN PROGRESS** (worklog 6.* through
-  6.W4-STATUS, 6.FIX-pcm-stall, 6.FIX-ogg-reanchor; `crates/streaming`
-  landed — HTTP(S) client via ureq 3.5.0 + ring exception per 6.A1b-RATIFY,
-  ranged seekable resource, scheme registry, HLS VOD + live window, DASH MPD
-  parser core, open-path container wiring; buffering/reconnect and the
-  6.D/6.E–6.I tails remain).
+- **Phase 6 — Network & streaming — SUBSTANTIALLY COMPLETE (2026-11-09)** —
+  11 orchestrated waves landed the streaming program today (27 of 34
+  tracker issues resolved; merge evidence: `git log --oneline --grep="issue
+  #"`): HTTP(S)+TLS decision record (issue #8, ADR-011 refreshed), buffering/
+  reconnect core (#6), auth (#13), HLS master+conformance (#10/#11), DASH
+  template resolution + MPD fuzz + ABR (#12), netfuzz + interrupted-network
+  scenarios (#14), RTSP DEFER verdict + network security review + blocked-
+  protocol registry (#15), ASF (#9), subtitles (#17), defect ledger (#16),
+  VLC-oracle corpus differentials (#19), plus the matrix/tooling backfill
+  (#20). The exit-gate ledger is drafted at `docs/gates/phase6-exit.md` —
+  verdict **PENDING LEAD DECISION** (gate-line runs, strict verified-only
+  parity 0/252, and the 6.H1 Medium security finding remain owed at gate
+  time). Open tails: #38 (ogg fix in flight), #39 (TLS activation
+  follow-up).
 - **Phases 7–8 — NOT STARTED** (no worklog task IDs, no gate records).
 
-Header last refreshed: 2026-11-09 (issue #21).
+Header last refreshed: 2026-11-09 (issue #21; same-day wave-closeout refresh —
+final governance pass, agent W17-HH).
 
 ## 1. Phase gates (MASTER-PROMPT §16)
 
@@ -46,7 +55,7 @@ from `docs/13-agent-wave-program.md` (200 cards / 77 waves).
 | 3 — Reliable engine | Clocks, queues, generations, seeking, source replacement, A/V sync, recovery | 3.A–3.F | 19 | All 16 integration scenarios (doc 10 §6) green incl. error paths; property suites green; soak 8h no-growth; differential-vs-VLC harness v1 reporting — **gate record: `docs/gates/phase3-exit.md` (2026-10-24, card 3.F2-V); verdict line reads PENDING LEAD SIGNATURE (see Status block above)** | 03, 10, 12 |
 | 4 — Desktop product | Figma-exact UI, layouts from config, themes, localization, playlists, settings, plugins, rebrand test | 4.A–4.I | 25 | Screenshot diffs within tolerance vs design exports at defined sizes/DPI; all 13 settings areas driven by settings-schema; i18n lint zero violations; conformance suite green on Tauri host — **gate record: `docs/gates/phase4-exit.md` (2026-10-24, card 4.I1-V); verdict line reads PENDING LEAD SIGNATURE (see Status block above)** | 07, 08, 05 |
 | 5 — Breadth | Containers, audio+video codecs, subtitles, filters — one verified increment at a time | 5.A–5.R | 45 | Per-format records complete for every shipped format; conformance kit + fuzz target per parser plugin; corpus coverage; feature-matrix statuses updated by evidence only — **PASS WITH REGISTERED CAVEATS, Lead sign-off 2026-10-24 (`docs/gates/phase5-exit.md`; 47/47 parent cards incl. delta cards 5.X1/5.X2; caveats honestly registered there §4)** | 04, 06, 10 |
-| 6 — Network & streaming | HTTP(S), HLS, DASH, RTSP-where-possible, buffering, reconnect, auth, fuzzing | 6.A–6.I | 17 | Network scenarios (interrupted/redirect/auth) green; protocol fuzzers in CI; blocked items (raw UDP/RTSP etc.) recorded with reasons — **IN PROGRESS (2026-11-09, see Status block)** | 03, 04, 11 |
+| 6 — Network & streaming | HTTP(S), HLS, DASH, RTSP-where-possible, buffering, reconnect, auth, fuzzing | 6.A–6.I | 17 | Network scenarios (interrupted/redirect/auth) green; protocol fuzzers in CI; blocked items (raw UDP/RTSP etc.) recorded with reasons — **SUBSTANTIALLY COMPLETE 2026-11-09: gate ledger drafted** (`docs/gates/phase6-exit.md`, verdict PENDING LEAD DECISION; see Status block) | 03, 04, 11 |
 | 7 — Platform & advanced | Devices, hw decode (per ADR-001), recording, conversion, stream output, WASM extensions, web parity | 7.A–7.L | 24 | Hw-decode active-decoder truthfulness test green per OS; WASM sandbox conformance + crash isolation green; web build plays real media via same command layer on Chrome/Firefox/Safari (recorded matrix) | 09, 06, 03, 11 |
 | 8 — Hardening & release | Compatibility, security, soak, perf vs VLC, packaging, honest parity report | 8.A–8.H | 16 | Language-policy audit pass; SBOM + advisories clean; final perf report vs VLC 3.0.23 on reference hardware; installers signed/launch-tested; `parity-report` states verified/partial/unsupported/blocked per §17 | 11, 12, 10, 15 |
 

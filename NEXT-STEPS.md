@@ -15,6 +15,72 @@ completed/stale items were dropped in the consolidation (audit in issue
 `[4.B*]`/`[4.C*]`/… = ui cards, `[7-g]`/`[7-h]` = soak/bench tasks,
 `[ui]` = the old ui do-next list, `[sweep]` = tools/sweep notes.
 
+## Landed 2026-11-09 — wave closeout
+
+27 of the 34 tracker issues resolved today via 11 orchestrated waves
+(merge evidence: `git log --oneline --grep="issue #"`). Still open: #4
+(Tauri desktop packaging — INFRA-BLOCKED,
+`apps/desktop/tauri/INFRA-BLOCKED.md`), #22 (Phase 7 program), #23
+(Phase 8 program), #38 (ogg fix in flight), #39 (TLS activation follow-up).
+
+### Moved out of the queue this pass (were Now/Next/Blocked items)
+
+- [x] [4.B4] Icon glyphs mined from the Figma exports — AND the emphasis
+  stroke variants (stroke 2/3) — issue #35, merge `145b265` (wave 3).
+- [x] [ui] ESLint rules v2: tested local plugin package + stylelint token
+  discipline for plain `.css` (both former `[ui]` lint items) — issue #36,
+  merge `b480049` (wave 3; warnings 31→24).
+- [x] [4.E1] App-layer settings persistence: real `config.set-setting`
+  write path over the client bridge — issue #3, merge `8a56f0b` (wave 3;
+  `ui/src/client/config-settings.ts`; `SettingsScreen.tsx:214,243` uses it
+  whenever a client is present — `persistence.ts` localStorage remains as
+  the hostless-dev fallback, by design).
+- [x] [4.F4] a11y rescan over the Solstice v2 variants — issue #37, merge
+  `0070945` (wave 6): e2e fully green, incl. `ui/e2e/a11y.spec.ts` (axe
+  wcag2a/2aa + tab-order over every routable screen).
+- [x] [7-g] (the workflow half) Soak→nightly: `.github/workflows/
+  soak-nightly.yml` wired (cron `0 3 * * *` UTC + dispatch,
+  `SOAK_MINUTES=240`, leak ceiling parameterized) — issue #18, merge
+  `30e26f2` (wave 13). The remaining first-run-artifact handoff stays in
+  Blocked below.
+
+### Issue-tracked wave work landed today (not previously ledger items)
+
+| Issue | Scope (merge-commit subject) | Merge |
+|-------|------------------------------|-------|
+| #1 | audio-output cpal admission spike + PCM pipeline proof behind the seam | `1533458` |
+| #2 | H.264/HEVC software-decoder admission audits + ADR-013 VA-API draft | `62453fb` |
+| #3 | desktop app-layer wiring (also cleared the 4.E1 ledger item above) | `8a56f0b` |
+| #5 | CI matrix live — 3-OS merge-blocking, actionlint-validated | `9085fb4`, `3fb94f4` |
+| #6 | buffering model + reconnect core (watermarks, stall prediction, bounded retry/resume) | `c6a401e` |
+| #7 | codec admission addenda + row flips + TrueHD unblock decision | `55a14f9`, `96ee17d` |
+| #8 | TLS/HTTPS decision record ADR-011 + typed https seam | `a409f64` |
+| #9 | ASF data packets + Simple-Index seeking + records | `73819cb` |
+| #10 | HLS master playlists + variant switching with ABR hysteresis | `b045721` |
+| #11 | HLS conformance corpus + X-TIMESTAMP-MAP + records | `372d9e1` |
+| #12 | DASH template resolution + MPD fuzz + ABR scheduling | `27b17e1` |
+| #13 | streaming auth (basic + RFC 7616 digest) + remote M3U/XSPF | `2834c5b` |
+| #14 | netfuzz targets + interrupted-network scenarios | `1c320e3` |
+| #15 | RTSP defer verdict + network security review + Phase-6 gate ledger | `7dd8b16` |
+| #16 | defect ledger F1–F6 (deterministic start-time, clock un-wedge, vorbis/aac/mp4 fixes) | `87a90c5`, `521d604` |
+| #17 | subtitle completeness (font-stack seam, ASS overrides, PGS/CC, DVB+VobSub records) | `3be5205` |
+| #18 | soak nightly workflow (also cleared the 7-g ledger item above) | `30e26f2` |
+| #19 | VLC 3.0.23 oracle differentials — 29/35 bit-exact prefix, f32 path documented | `d2e6aab` |
+| #20 | feature-audit/config-validator/parity-report tools + matrix backfill | `ed24e7d` |
+| #21 | governance docs refresh | `9380e60` |
+| #24 | ADR-010 codec-patent shipping matrix drafted, pending counsel | `e5e660e` |
+| #25 | NEXT-STEPS consolidation (this file's morning restructure) | `dc162cb` |
+| #26/#27 | hygiene sweep (.env untracked, agent briefs removed, worklog archived) | `e75c69c` |
+| #32 | playback operations (frame-step, chapter nav, Go-to-Time, bookmarks, snapshot seam) | `93ae720` |
+| #33 | A/V effects program (audio DSP chain + EQ, video adjust, Effects & Tools panel) | `8b9c486` |
+| #34 | MKV Tags/Attachments/Chapters wiring + 9-vector corpus | `2d0941e` |
+| #35 | icon glyphs (ledger item above) | `145b265` |
+| #36 | UI lint hardening (ledger item above) | `b480049` |
+| #37 | visual baselines re-pinned for Solstice v2 + e2e fully green | `0070945` |
+
+(Solstice v2 itself, issues #28–#31, landed 2026-11-08 — `1e8351c` —
+just before this ledger's consolidation.)
+
 ## Now — actionable without waiting on another owner
 
 - [ ] [4.C3] Reconcile the states bridge: delete
@@ -26,23 +92,10 @@ completed/stale items were dropped in the consolidation (audit in issue
 - [ ] [4.B3] Popup rgba token: menu popups need a translucent surface token
   for doc 08 §115 ("#191919 @ 0.95") — currently solid `--color-surface`
   (known-gap note in `ui/src/components/menu/menu.css` + states.md).
-- [ ] [4.B4] Icon glyphs are provisional geometry (TODO [VERIFY-DESIGN] in
-  `ui/src/components/icon/icons.tsx`): mine real paths from
-  `design/figma/Icon.svg` / `Controls.svg` (318 stroke-width-1.5 elements)
-  or get named exports from design.
-- [ ] [4.B4] Icon emphasis variants (stroke 2/3) are unimplemented.
-- [ ] [4.E1] App-layer settings persistence: replace the localStorage MOCK
-  seam (`ui/src/screens/settings/persistence.ts`) with the real write path
-  — `config.set-setting` over the client bridge (doc 05 §2.11);
-  `SettingsPersistence` interface is ready, overrides-only store shape
-  matches layer-4 user config.
 - [ ] [4.F1] Onboarding persistence: translate wizard choices to real
   config writes over the client bridge (`choices.telemetry` →
   `privacy.telemetry`, `choices.updateChecks` → `privacy.update-checks`),
   then delete the onboarding store row.
-- [ ] [4.F4] a11y rescan: player/music + miniplayer were placeholder-trivial
-  at the 4.F4 pass; Solstice v2 landed real variants — re-run the axe +
-  tab-order suite over them.
 - [ ] [7-h] Handoff to the 3.E3 owner: re-bless the W5-14 expectation
   update in `tools/bench-vs-vlc`
   (`filtered_video_stream_does_not_touch_the_audio_digest` now expects 1
@@ -100,13 +153,6 @@ completed/stale items were dropped in the consolidation (audit in issue
   and the codecs area; `privacy.update-checks` on both the privacy screen
   and Updates & About — schema owner should consolidate, then the
   hand-authored areas become pure presentation.
-- [ ] [ui] ESLint rules v2: promote the three inline rules in
-  `ui/eslint.config.js` into a proper local plugin (e.g.
-  `tools/eslint-plugin-lumen/`) with real schema + tests;
-  template-literal coverage for `local/semantic-tokens-only` (currently
-  regex-grade on quasis only).
-- [ ] [ui] Stylelint for plain `.css` files (doc 08 §3.4) —
-  TokenSandbox.css is var()-only by construction, not by enforcement.
 - [ ] [ui] Command client growth: add a `useCommand` hook (requestId
   allocation, pending map, event dispatch, stale-generation handling
   already landed in `ui/src/client/transport.ts`).
@@ -229,19 +275,19 @@ completed/stale items were dropped in the consolidation (audit in issue
 
 ## Blocked — needs an external unblock
 
-- [ ] [7-g] 4 h soak baseline: the CI nightly host now EXISTS — issue #18
-  wired `.github/workflows/soak-nightly.yml` (cron `0 3 * * *` UTC +
-  dispatch; `SOAK_MINUTES=240 SOAK_LEAK_MB_PER_H=5 SOAK_REPORT=
-  soak-report.md cargo test -p playback-engine --test soak --release --
-  --nocapture`; design + the real 2-min smoke profile:
-  `docs/perf/soak-nightly-20261109.md`). This sandbox still cannot run
-  it (reaps background procs — the w7-h record — and 10-min tool
-  timeout < 240 min; chunked restarts invalid: one slope, one window).
-  Remaining: first scheduled run's artifact (`evidence-soak-nightly-…`)
-  → copy report → `docs/perf/soak-4h-YYYYMMDD.md`, raw log →
-  `docs/perf/raw/`, commit, worklog entry with the D-10 block, and let
-  that measurement bless or renegotiate the 5 MB/h `[PROPOSAL]`
-  ceiling (generous default stays 50 MB/h, `SOAK_LEAK_MB_PER_H`).
+- [ ] [7-g] Soak 4 h first-run artifact: the nightly host landed (see
+  Landed above — `.github/workflows/soak-nightly.yml`, issue #18; cron
+  `0 3 * * *` UTC + dispatch, `SOAK_MINUTES=240`, leak ceiling
+  parameterized; design + the real 2-min smoke profile:
+  `docs/perf/soak-nightly-20261109.md`); this sandbox still cannot run
+  the 4 h tier (reaps background procs — the w7-h record — and 10-min
+  tool timeout < 240 min; chunked restarts invalid: one slope, one
+  window). Remaining: first scheduled run's artifact
+  (`evidence-soak-nightly-…`) → copy report →
+  `docs/perf/soak-4h-YYYYMMDD.md`, raw log → `docs/perf/raw/`, commit,
+  worklog entry with the D-10 block, and let that measurement bless or
+  renegotiate the 5 MB/h `[PROPOSAL]` ceiling (generous default stays
+  50 MB/h, `SOAK_LEAK_MB_PER_H`).
 - [ ] [4.C3] Error copy-details affordance (doc 08 §5.4): blocked on an
   error-id field in the catalog envelope — `CommandError` has no id today;
   adding one is a `crates/commands` change, not UI.
