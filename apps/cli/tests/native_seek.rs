@@ -570,20 +570,25 @@ fn ogg_vorbis_in_session_seek_replays_the_codec_headers_and_lands() {
     assert_eq!(teardown_edges(&host), 0, "{:?}", host.state_history());
     assert_eq!(open_edges(&host), 1, "{:?}", host.state_history());
     // Decode continued: the remainder plays out to the media's end.
-    // The end position is the MEASURED 1,502,902 µs — identical on
-    // the open path (no seek; probed this session) — the decoder's
-    // 128-frame stream-head emission residue (2,902 µs on 44.1 kHz;
-    // the first stamped page's shift absorbs the over-emission
-    // positionally, but the sample count rides the ring). The seek
-    // machinery itself is exact: the landing report equals the
-    // delivery start, the ring's old-generation prefix flushes
-    // exactly, and the granule tail clamp trims the encoder padding
-    // (986 frames on this fixture). The head trim is the decoder's
-    // recorded follow-up (6.FIX-vorbis-headtrim in the defect
-    // ledger) — pinned to the measured truth, not the nominal 1.5 s.
+    // The end position is the exact 1.5 s valid timeline: 66,150
+    // samples @ 44.1 kHz = 1,500,000 µs on the nose. Derivation: the
+    // oracle `crates/codecs/tests/data/vorbis_reference.txt` re-pins
+    // this fixture (post-e075cea head-trim) at
+    // `window_samples = 66150 = final_granule` — the decoder trims
+    // the 128-sample encoder delay head-side and the granule tail
+    // clamp trims the 986-sample padding, so the sample-counter
+    // clock's 66,150 rendered samples are exactly 1.5 s. (The old
+    // pin, 1,502,902 µs, was the pre-head-trim measured truth:
+    // 66,278 = 66,150 + 128 samples riding the ring un-trimmed.)
+    // The seek machinery itself is exact: the landing report equals
+    // the delivery start, the ring's old-generation prefix flushes
+    // exactly, and the amortized head-hold release (issue #38 — the
+    // one-call 44-frame burst used to overflow the seek pre-roll
+    // hold's hard cap and drop 29,248 samples of the tail) now
+    // plays every withheld chunk.
     host.advance(lumen_cli::host::RUN_PUMPS as u32);
     assert_eq!(host.state(), PlaybackState::Ended, "decoding continued");
-    assert_eq!(host.position_us(), 1_502_902, "the tail play-out closes");
+    assert_eq!(host.position_us(), 1_500_000, "the tail play-out closes");
     // The audio-only lane's counters: nothing refused; the boundary's
     // exact-prefix flush may honestly drop accept-window stragglers
     // (old-generation frames that completed behind the discard) —
