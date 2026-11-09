@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import type { Event } from "../../client/transport";
 import type { SettingValue } from "./generated/schema";
 import { SettingsProvider } from "./SettingsProvider";
 import { useSettings } from "./SettingsProvider";
@@ -115,5 +116,85 @@ describe("SettingsProvider (card 4.E1 framework state)", () => {
     act(() => result.current.setValue("privacy.telemetry", true));
     act(() => result.current.apply());
     expect(result.current.restartPending).toEqual([]);
+  });
+});
+
+describe("SettingsProvider — the live engine feed (issue #3, 4.H1 handoff d)", () => {
+  /** A subscribable engine feed: captures the listener, spys the release. */
+  const setupWithFeed = () => {
+    const persistence = makePersistence();
+    let listener: ((event: Event) => void) | null = null;
+    const unsubscribe = vi.fn();
+    const subscribe = (next: (event: Event) => void): (() => void) => {
+      listener = next;
+      return unsubscribe;
+    };
+    const hook = renderHook(() => useSettings(), {
+      wrapper: ({ children }) => (
+        <SettingsProvider persistence={persistence} subscribe={subscribe}>
+          {children}
+        </SettingsProvider>
+      ),
+    });
+    return { persistence, hook, unsubscribe, emit: (event: Event) => act(() => listener?.(event)) };
+  };
+
+  it("a config.setting-changed event moves the persisted value and the clean draft", () => {
+    const { hook, emit } = setupWithFeed();
+    expect(hook.result.current.value("interface.theme")).toBe("dark");
+
+    emit({
+      seq: 1,
+      kind: "config.setting-changed",
+      area: "interface",
+      key: "theme",
+      layer: "cli-flag",
+      value: "light",
+    } satisfies Event);
+
+    expect(hook.result.current.value("interface.theme")).toBe("light");
+    expect(hook.result.current.persisted["interface.theme"]).toBe("light");
+    expect(hook.result.current.dirtyCount).toBe(0);
+  });
+
+  it("a dirty draft wins: the engine's move does not clobber the user's edit", () => {
+    const { hook, emit } = setupWithFeed();
+    act(() => hook.result.current.setValue("interface.theme", "solarized"));
+
+    emit({
+      seq: 2,
+      kind: "config.setting-changed",
+      area: "interface",
+      key: "theme",
+      layer: "engine",
+      value: "light",
+    } satisfies Event);
+
+    expect(hook.result.current.value("interface.theme")).toBe("solarized");
+    expect(hook.result.current.isDirty("interface.theme")).toBe(true);
+  });
+
+  it("unknown keys and unrelated events are ignored (config-never-invents)", () => {
+    const { hook, emit } = setupWithFeed();
+    emit({
+      seq: 3,
+      kind: "config.setting-changed",
+      area: "no-such",
+      key: "key",
+      layer: "engine",
+      value: true,
+    } satisfies Event);
+    emit({ seq: 4, kind: "playback.end-of-media" } satisfies Event);
+    expect(hook.result.current.dirtyCount).toBe(0);
+    // The persisted store is seeded with every schema default — the proof
+    // of "ignored" is that nothing MOVED off them.
+    expect(hook.result.current.persisted["interface.theme"]).toBe("dark");
+    expect(hook.result.current.value("interface.theme")).toBe("dark");
+  });
+
+  it("unmount releases the engine feed", () => {
+    const { hook, unsubscribe } = setupWithFeed();
+    hook.unmount();
+    expect(unsubscribe).toHaveBeenCalled();
   });
 });

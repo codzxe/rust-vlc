@@ -28,6 +28,10 @@ export const PLAYLIST_FILE_EXTENSIONS: readonly string[] = [
 export function isPlaylistPath(path: string): boolean {
   const dot = path.lastIndexOf(".");
   if (dot < 0 || dot === path.length - 1) return false;
+  // Dotfiles (".m3u") carry no extension — mirroring Rust's
+  // `Path::extension`, so this rule and files.rs's stay one rule.
+  const nameStart = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1;
+  if (dot <= nameStart) return false;
   const extension = path.slice(dot + 1).toLowerCase();
   return PLAYLIST_FILE_EXTENSIONS.includes(extension);
 }

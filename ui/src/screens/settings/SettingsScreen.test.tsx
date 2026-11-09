@@ -1,18 +1,26 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it } from "vitest";
+import { ClientProvider } from "../../client/ClientProvider";
+import { MockTransport } from "../../client/transport";
 import { SettingsScreen } from "./SettingsScreen";
 
 const STORAGE_KEY = "lumen.settings.overrides.v1";
 
-// SettingsScreen reads :area via useParams — mount it through a real route.
+// SettingsScreen reads :area via useParams — mount it through a real
+// route. Issue #3 wiring: the screen now consumes the client context
+// (the desktop config seam), so every mount supplies one — the honest
+// MockTransport (config.* answers feature-not-exposed, exactly the
+// browser-fallback behavior these jsdom tests exercise).
 const renderAt = (path: string) =>
   render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path="/settings/:area" element={<SettingsScreen />} />
-      </Routes>
-    </MemoryRouter>,
+    <ClientProvider transport={new MockTransport()}>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="/settings/:area" element={<SettingsScreen />} />
+        </Routes>
+      </MemoryRouter>
+    </ClientProvider>,
   );
 
 const field = (key: string): HTMLElement | null => document.querySelector(`[data-setting="${key}"]`);

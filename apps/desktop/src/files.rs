@@ -215,6 +215,7 @@ mod tests {
         assert!(!is_playlist_path(&PathBuf::from("/tmp/x.m3u.bak")));
         assert!(!is_playlist_path(&PathBuf::from("/tmp/movie.avi")));
         assert!(!is_playlist_path(&PathBuf::from("/tmp/noext")));
+        assert!(!is_playlist_path(&PathBuf::from("/tmp/.m3u")));
         assert!(is_openable_path(&PathBuf::from("/tmp/movie.avi")));
         assert!(is_openable_path(&PathBuf::from("/tmp/queue.pls")));
         assert!(!is_openable_path(&PathBuf::from("/tmp/README.md")));

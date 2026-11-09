@@ -36,7 +36,9 @@ import type { SettingsPersistence } from "../screens/settings/persistence";
 type WireSettingValue = boolean | number | string | string[];
 
 const toWireValue = (value: SettingValue): WireSettingValue =>
-  Array.isArray(value) ? [...value] : value;
+  typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+    ? value
+    : [...value];
 
 /** Split a dotted schema key ("interface.theme") into the catalog's area+key. */
 export function splitSettingKey(

@@ -28,6 +28,7 @@ import { Icon } from "../../components/icon/Icon";
 import { TextField } from "../../components/form/TextField";
 import { Dialog } from "../../components/surface/Surface";
 import { useClient } from "../../client/ClientProvider";
+import { isDesktopShell } from "../../client/app-transport";
 import { openPathRequest, openPathRoute } from "../../client/open-path";
 import { DEMO_CLIPS, isDemoTransport } from "../../client/demo-transport";
 import type { SourceSpec } from "../../client/transport";
@@ -170,37 +171,43 @@ export function OpenMediaDialog({
           </Button>
         </form>
 
-        <section className="open-media__section" aria-labelledby={clipsHeadingId}>
-          <h3 id={clipsHeadingId} className="open-media__section-title">
-            {m("open.demo-clips")}
-          </h3>
-          <ul className="open-media__list">
-            {DEMO_CLIPS.map((clip) => (
-              <li key={clip.id}>
-                <button
-                  type="button"
-                  className="open-media__item"
-                  aria-pressed={
-                    selected !== null &&
-                    sourceLocation(selected) === sourceLocation(clip.source)
-                  }
-                  onClick={() => openSource(clip.source)}
-                >
-                  <span className="open-media__thumb solstice-sun" aria-hidden="true" />
-                  <span className="open-media__item-text">
-                    <span className="open-media__item-title">{m(clip.titleKey)}</span>
-                    <span
-                      className="open-media__item-source"
-                      title={sourceLocation(clip.source)}
-                    >
-                      {sourceLocation(clip.source)}
+        {/* Issue #3: the demo clips are simulation-only fixtures (fake
+            /media/demo paths) — they render in the browser dev shell, where
+            the DemoTransport answers them, and stay hidden in the desktop
+            shell, where the real engine would only answer typed errors. */}
+        {!isDesktopShell() && (
+          <section className="open-media__section" aria-labelledby={clipsHeadingId}>
+            <h3 id={clipsHeadingId} className="open-media__section-title">
+              {m("open.demo-clips")}
+            </h3>
+            <ul className="open-media__list">
+              {DEMO_CLIPS.map((clip) => (
+                <li key={clip.id}>
+                  <button
+                    type="button"
+                    className="open-media__item"
+                    aria-pressed={
+                      selected !== null &&
+                      sourceLocation(selected) === sourceLocation(clip.source)
+                    }
+                    onClick={() => openSource(clip.source)}
+                  >
+                    <span className="open-media__thumb solstice-sun" aria-hidden="true" />
+                    <span className="open-media__item-text">
+                      <span className="open-media__item-title">{m(clip.titleKey)}</span>
+                      <span
+                        className="open-media__item-source"
+                        title={sourceLocation(clip.source)}
+                      >
+                        {sourceLocation(clip.source)}
+                      </span>
                     </span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <section className="open-media__section" aria-labelledby={recentHeadingId}>
           <h3 id={recentHeadingId} className="open-media__section-title">
