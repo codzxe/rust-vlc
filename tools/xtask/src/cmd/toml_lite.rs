@@ -62,13 +62,6 @@ impl Value {
         }
     }
 
-    pub fn as_bool(&self) -> Option<bool> {
-        match self {
-            Value::Bool(b) => Some(*b),
-            _ => None,
-        }
-    }
-
     pub fn as_table(&self) -> Option<&[(String, Value)]> {
         match self {
             Value::Table(t) => Some(t),
