@@ -578,8 +578,15 @@ impl MkvDemuxer {
         Ok(el.data_pos)
     }
 
-    /// Parse one in-memory element header. `None` = not enough bytes
-    /// or bad grammar (the caller decides which).
+    /// Parse the next block element in the loaded window into
+    /// packets. `Ok(None)` = the window (cluster) is exhausted.
+    ///
+    /// The window is restored on **every** exit, errors included: the
+    /// `next_event` recovery arm reads `window.end`/`window.cursor` to
+    /// skip the damaged remainder of the cluster — a leaked `None`
+    /// window there would leave `self.walk` on the same cluster and
+    /// re-load it forever (one `Recovered` per attempt, never EOS:
+    /// the mid-cluster-damage livelock this fix closed).
     fn next_block_packets(&mut self) -> Result<Option<Vec<Packet>>, EngineError> {
         // Take the window (owned) so pool fills and reader seeks below
         // do not fight the borrow; every exit path restores it.
@@ -593,7 +600,11 @@ impl MkvDemuxer {
             {
                 let from = window.cursor;
                 let to = window.end.min(from + MAX_CLUSTER_WINDOW);
-                let data = self.reader.read_prefix_at((to - from) as usize, from, to)?;
+                let data =
+                    match self.reader.read_prefix_at((to - from) as usize, from, to) {
+                        Ok(data) => data,
+                        Err(e) => break Err(e),
+                    };
                 window = ClusterWindow {
                     data,
                     base: from,
@@ -639,7 +650,11 @@ impl MkvDemuxer {
                 // so the block's head is at the window start.
                 let from = window.cursor;
                 let to = window.end.min(from + MAX_CLUSTER_WINDOW);
-                let data = self.reader.read_prefix_at((to - from) as usize, from, to)?;
+                let data =
+                    match self.reader.read_prefix_at((to - from) as usize, from, to) {
+                        Ok(data) => data,
+                        Err(e) => break Err(e),
+                    };
                 window = ClusterWindow {
                     data,
                     base: from,
@@ -657,7 +672,11 @@ impl MkvDemuxer {
             // emit_block re-reads frame bytes positionally into the
             // pool slot).
             let payload = &window.data[rel..payload_end];
-            let packets = self.packets_from_element(id, payload, data_start, timecode)?;
+            let packets =
+                match self.packets_from_element(id, payload, data_start, timecode) {
+                    Ok(packets) => packets,
+                    Err(e) => break Err(e),
+                };
             window.cursor = data_end;
             if let Some(packets) = packets {
                 if packets.is_empty() {
