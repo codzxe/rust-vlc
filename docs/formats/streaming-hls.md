@@ -80,3 +80,49 @@ ran green in the suite below.
 - No differential vs VLC: the sandbox has no VLC HLS lane; the
   oracles are ffmpeg's own encoder output (byte-exact concatenation
   + decoded-sample counts), which is the honest available reference.
+
+## Network scenarios (issue #14 netfuzz M2/M3, 2026-11-09)
+
+The interrupted-network lane: hostile bytes and scripted wire faults
+against the HLS stack, over the real-socket mockhttp transport. Two
+fuzz targets + three scenario proofs, all deterministic (seeded
+mutations, the M1 `FaultProxy`/`FakeClock` support).
+
+### Fuzz targets (registry rows 34–35; stable sweeps as the runner)
+
+| Target | Surface | Harness | Recorded 60 s clean run (this card, stable 1.99.1) |
+| ------ | ------- | ------- | -------------------------------------------------- |
+| `fuzz_hls_playlist` | M3U8 bytes → media/master models, ABR pick, `X-TIMESTAMP-MAP` conversions | `playlists::fuzz::fuzz_playlist_m3u` + `netfuzz::fuzz_hls_playlist` (`#[path]` from `crates/streaming/tests/netfuzz/fuzz.rs`) | `netfuzz_sweep_hls_playlist_60s`: **112 981 iterations in 60.000285029 s**, 0 panics |
+| `fuzz_http_headers` | response bytes → the transport's response-head grammar + `Range:` value formatting | `streaming::mockhttp::fuzz_response_head` + `netfuzz::fuzz_http_headers` (same module) | `netfuzz_sweep_http_headers_60s`: **160 120 iterations in 60.000324337 s**, 0 panics |
+
+- Seeds: the real HLS playlists of
+  `crates/playlists/tests/fixtures/hls/` (master `multi`/`single`/
+  `malformed`, `ts_vod`/`fmp4` media playlists) + authored response
+  heads; committed under `fuzz/corpus/<target>/`.
+- Mutations (deterministic xorshift64\*): truncations, 1–64 seeded
+  bit flips, tag/head soup splices, head+tail splices, pure random,
+  and an over-64-KiB arm exercising the head budget's typed
+  `ProtocolViolation` refusal.
+- **Recorded finding** (kept honest, src outside this wave's
+  ownership): `TimestampMap::pts_for_wallclock_ms` overflows its i64
+  intermediate when the wall value sits > ~10^14 ms from the tag's
+  anchor — a panic under `overflow-checks`, a silent wrap without.
+  The mapping is contracted for values near anchors; the harness
+  clamps its probe to ±(i64::MAX / 2·90 000) ms of the anchor and
+  documents the boundary for the follow-up card.
+- The libFuzzer campaign itself still awaits the Lead's nightly
+  wiring (fuzz/README's LEAD-DECISION); `cargo check` in `fuzz/`
+  compiles all 35 targets on stable (verified this card).
+
+### Interrupted-network scenarios (`tests/net_interrupted.rs`)
+
+| Scenario | Scripted wire | Proven outcome |
+| -------- | ------------- | -------------- |
+| Mid-segment drop | `DropAfter{at:300}` on a ranged segment GET (then `TruncateAt` on a plain GET) | `RetryFetch` re-issues the identical request; resumed body **byte-exact** (`body[250..]` / full 1000 B); 1 fault fired, 2 wire fetches, ≤1 backoff sleep under the 500 ms first ceiling, zero real wait |
+| Manifest reset | `ResetAfter` ×64 (persistent outage) at the manifest | typed `streaming.hls.fetch-failed` refusal (network cause); 4 retries + 1 exhausted + 5 bitten fetches; every virtual sleep under its exponential ceiling (500→4000 ms), total under the 7.5 s ladder sum; whole ladder < 5 s real time |
+| Live edge under delay | `Delay{900}` + `Delay{400}` at live join (back=2) | joins at the edge, streams **byte-exact** vs the on-disk oracle (100 204 B, cat(s01,s02,t00,t01)); 0 segments lost to the sliding window; sleeps exactly `[900, 400]` virtual ms, zero real wait |
+
+Evidence run (this card): `cargo test -p streaming` — lib 201/0/2 +
+all e2e green, including `net_interrupted` 3/3 and `netfuzz_sweep`
+2/2 (+ the two `--ignored` 60 s lanes above, run with
+`-- --ignored --nocapture`).

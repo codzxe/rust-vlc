@@ -1,0 +1,4 @@
+HTTP/1.1 206 Partial Content
+Content-Range: bytes 250-999/1000
+Content-Length: 750
+
