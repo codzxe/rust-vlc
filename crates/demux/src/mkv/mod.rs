@@ -600,11 +600,10 @@ impl MkvDemuxer {
             {
                 let from = window.cursor;
                 let to = window.end.min(from + MAX_CLUSTER_WINDOW);
-                let data =
-                    match self.reader.read_prefix_at((to - from) as usize, from, to) {
-                        Ok(data) => data,
-                        Err(e) => break Err(e),
-                    };
+                let data = match self.reader.read_prefix_at((to - from) as usize, from, to) {
+                    Ok(data) => data,
+                    Err(e) => break Err(e),
+                };
                 window = ClusterWindow {
                     data,
                     base: from,
@@ -650,11 +649,10 @@ impl MkvDemuxer {
                 // so the block's head is at the window start.
                 let from = window.cursor;
                 let to = window.end.min(from + MAX_CLUSTER_WINDOW);
-                let data =
-                    match self.reader.read_prefix_at((to - from) as usize, from, to) {
-                        Ok(data) => data,
-                        Err(e) => break Err(e),
-                    };
+                let data = match self.reader.read_prefix_at((to - from) as usize, from, to) {
+                    Ok(data) => data,
+                    Err(e) => break Err(e),
+                };
                 window = ClusterWindow {
                     data,
                     base: from,
@@ -672,11 +670,10 @@ impl MkvDemuxer {
             // emit_block re-reads frame bytes positionally into the
             // pool slot).
             let payload = &window.data[rel..payload_end];
-            let packets =
-                match self.packets_from_element(id, payload, data_start, timecode) {
-                    Ok(packets) => packets,
-                    Err(e) => break Err(e),
-                };
+            let packets = match self.packets_from_element(id, payload, data_start, timecode) {
+                Ok(packets) => packets,
+                Err(e) => break Err(e),
+            };
             window.cursor = data_end;
             if let Some(packets) = packets {
                 if packets.is_empty() {

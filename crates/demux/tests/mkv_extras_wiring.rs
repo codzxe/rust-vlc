@@ -22,13 +22,13 @@ mod common;
 
 use common::open_via_input;
 use demux::avi::test_support::mem_stream;
+use demux::mkv::MkvDemuxer;
 use demux::mkv::attachments::{self, FileData};
 use demux::mkv::chapters::{self, ChapterTarget};
 use demux::mkv::ebml;
 use demux::mkv::tags;
-use demux::mkv::MkvDemuxer;
-use media_types::time::Stamp;
 use media_types::TrackId;
+use media_types::time::Stamp;
 use plugin_api::{DemuxEvent, Demuxer};
 use testkit::Must;
 
@@ -103,9 +103,8 @@ fn ebml_header() -> Vec<u8> {
 /// big-endian bytes (the `mkv_fixtures.rs` block-body convention:
 /// track byte, tc_hi, tc_lo, flags).
 fn simple_block(track: u64, rel_tc: i64, payload: &[u8]) -> Vec<u8> {
-    let tc = i16::try_from(rel_tc).unwrap_or_else(|_| {
-        unreachable!("fixture contract: rel_tc {rel_tc} fits i16")
-    });
+    let tc = i16::try_from(rel_tc)
+        .unwrap_or_else(|_| unreachable!("fixture contract: rel_tc {rel_tc} fits i16"));
     let mut body = vec![0x80 | (track as u8)];
     body.extend_from_slice(&tc.to_be_bytes());
     body.push(0x80);
@@ -246,10 +245,7 @@ fn tags_attachments_chapters_wire_through_start_retained() {
             el(
                 tags::ID_TAG,
                 &cat(&[
-                    el(
-                        tags::ID_TARGETS,
-                        &el_uint(tags::ID_TAG_TRACK_UID, 77),
-                    ),
+                    el(tags::ID_TARGETS, &el_uint(tags::ID_TAG_TRACK_UID, 77)),
                     el(tags::ID_SIMPLE_TAG, &scoped_pair),
                 ]),
             ),
@@ -260,7 +256,10 @@ fn tags_attachments_chapters_wire_through_start_retained() {
         attachments::ID_ATTACHED_FILE,
         &cat(&[
             el_str(attachments::ID_FILE_NAME, "FixtureFont.ttf"),
-            el_str(attachments::ID_FILE_MIME_TYPE, "application/x-truetype-font"),
+            el_str(
+                attachments::ID_FILE_MIME_TYPE,
+                "application/x-truetype-font",
+            ),
             el_uint(attachments::ID_FILE_UID, 9),
             el(attachments::ID_FILE_DATA, b"ttf-payload-bytes"),
         ]),
@@ -274,10 +273,7 @@ fn tags_attachments_chapters_wire_through_start_retained() {
             el(attachments::ID_FILE_DATA, b"JFIF-cover-bytes"),
         ]),
     );
-    let attachments_element = el(
-        attachments::ID_ATTACHMENTS,
-        &cat(&[font, cover]),
-    );
+    let attachments_element = el(attachments::ID_ATTACHMENTS, &cat(&[font, cover]));
     // Chapters: one default edition, two titled atoms with ns times.
     let display = |title: &str| {
         el(
@@ -310,10 +306,7 @@ fn tags_attachments_chapters_wire_through_start_retained() {
 
     // -- the segment order: Info, Tracks, Cues, clusters, THEN extras --
     let info_element = info(Some(4.0), Some("Info Title"));
-    let tracks_element = el(
-        ebml::ID_TRACKS,
-        &track_entry(1, Some(77)),
-    );
+    let tracks_element = el(ebml::ID_TRACKS, &track_entry(1, Some(77)));
     let cluster1 = cluster(0, &[simple_block(1, 0, b"pkt-one")]);
     let cluster2 = cluster(1000, &[simple_block(1, 500, b"pkt-two")]);
     // Cue cluster positions are relative to the Segment payload start;
@@ -509,9 +502,7 @@ fn track_uids_are_stable_across_reopens() {
         let mut demuxer = MkvDemuxer::new(mem_stream(bytes.clone()).must()).must();
         let tracks = demuxer.start().must();
         assert_eq!(tracks.len(), 2);
-        let table: Vec<Option<u64>> = (0..2)
-            .map(|i| demuxer.track_uid(TrackId::new(i)))
-            .collect();
+        let table: Vec<Option<u64>> = (0..2).map(|i| demuxer.track_uid(TrackId::new(i))).collect();
         // The model and the accessor agree.
         assert_eq!(
             table,
@@ -688,10 +679,7 @@ fn unknown_size_tags_master_parses_and_playback_reaches_eos() {
         el_str(tags::ID_TAG_NAME, "ENCODER"),
         el_str(tags::ID_TAG_STRING, "streaming form"),
     ]);
-    let tag_payload = el(
-        tags::ID_TAG,
-        &el(tags::ID_SIMPLE_TAG, &pair),
-    );
+    let tag_payload = el(tags::ID_TAG, &el(tags::ID_SIMPLE_TAG, &pair));
     // The unknown-size master: id + 0xFF marker + payload (no size).
     let mut tags_element = id_bytes(tags::ID_TAGS);
     tags_element.push(0xFF);
@@ -727,7 +715,10 @@ fn damaged_block_recovers_once_and_still_reaches_eos() {
         el_str(tags::ID_TAG_NAME, "AFTER"),
         el_str(tags::ID_TAG_STRING, "trailing the damage"),
     ]);
-    let tags_element = el(tags::ID_TAGS, &el(tags::ID_TAG, &el(tags::ID_SIMPLE_TAG, &pair)));
+    let tags_element = el(
+        tags::ID_TAGS,
+        &el(tags::ID_TAG, &el(tags::ID_SIMPLE_TAG, &pair)),
+    );
     let bytes = mkv_file(&[
         info(None, None),
         el(ebml::ID_TRACKS, &track_entry(1, None)),
@@ -855,7 +846,14 @@ fn generated_lane_wires_title_font_cover_and_chapters() {
             .args(["-i"])
             .arg(meta.to_str().unwrap_or("chapters.ffmeta"))
             .args(["-map", "0:v", "-map", "1:a", "-map_chapters", "2"])
-            .args(["-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p"])
+            .args([
+                "-c:v",
+                "libx264",
+                "-preset",
+                "ultrafast",
+                "-pix_fmt",
+                "yuv420p",
+            ])
             .args(["-c:a", "aac"])
             .args(["-metadata", "title=W3I Wiring Probe"])
             .args(["-attach"])
@@ -869,15 +867,19 @@ fn generated_lane_wires_title_font_cover_and_chapters() {
             .arg(out.to_str().unwrap_or("out.mkv"))
             .status()
             .must();
-        assert!(
-            status.success(),
-            "ffmpeg wiring-lane generation failed"
-        );
+        assert!(status.success(), "ffmpeg wiring-lane generation failed");
     }
 
     // ffprobe truth for the title.
     let probe = Command::new("ffprobe")
-        .args(["-v", "error", "-show_entries", "format_tags=title", "-of", "csv"])
+        .args([
+            "-v",
+            "error",
+            "-show_entries",
+            "format_tags=title",
+            "-of",
+            "csv",
+        ])
         .arg(&out)
         .output()
         .must();

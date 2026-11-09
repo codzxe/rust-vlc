@@ -134,9 +134,9 @@ priority = "P0"
 phase_target = 5
 vlc_modules = ["mkv"]
 inventory_ref = "inventory/formats.json#matroska-webm"
-status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
-evidence = "crates/demux/src/mkv/** (cards 5.D1 core + 5.D2a attachments/chapters + 5.D2b editions/tags; record docs/formats/container-matroska.md incl. 5.REC-1 audit addendum: 34-lane differential); Linux-only evidence"
-notes = "EBML parse self-build; extras (attachments/editions/tags) 5.D2; WebM payload set minus VP9 recorded (5.D1). Oracle probed mkv h264/flac + av1/opus + webm vp9/opus. 5.Q2-V backfill: partial per record 'in progress' — open() wiring seam OPEN (mkv/mod.rs skips Tags/Attachments/Chapters; positional-scan getters are the public seam), TrackUID (0x73C5) not retained."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/demux/src/mkv/** (cards 5.D1 core + 5.D2a attachments/chapters + 5.D2b editions/tags + issue #34 open() wiring/TrackUID/Title retention; record docs/formats/container-matroska.md incl. 5.REC-1 audit addendum + issue-#34 addendum: 9-vector wiring suite + live ffmpeg title/font/cover/chapters differential lane); Linux-only evidence"
+notes = "EBML parse self-build; extras (attachments/editions/tags) 5.D2, wired through open() by issue #34 (Tags/Attachments/Chapters retained, Info.Title + TrackUID retained, chapter seek targets exposed — the chapter-nav command layer stays phase 4, matrix playback-chapter-title). WebM payload set minus VP9 decode recorded (5.D1, codec-side). Oracle probed mkv h264/flac + av1/opus + webm vp9/opus. Mid-cluster-damage livelock fixed with the wiring (#34)."
 
 [[feature]]
 id = "container-mp4-mov-3gp"
