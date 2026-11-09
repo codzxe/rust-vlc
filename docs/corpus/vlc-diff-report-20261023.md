@@ -1,9 +1,9 @@
-# Differential-vs-VLC 3.0.23 — PENDING-VLC (no oracle in this environment)
+# Differential-vs-VLC 3.0.23 — oracle run 2026-11-09 (29/35 bit-exact prefix; 6/35 f32 on the §6.6 deviation path)
 
-> **PENDING-VLC** — no VLC binary exists in this environment (install attempt recorded in the run metadata). Oracle cells below carry the exact to-run command instead of a digest. Nothing is mocked: no oracle digest of any kind appears in this report.
+> **2026-11-09 update (issue #19)** — VLC 3.0.23 was obtained in /tmp (apt download of Debian trixie's 3.0.23-0+deb13u1, extracted without install) and the 35 to-run commands were executed; see §"Oracle run 2026-11-09" below for the differential table and findings. The 2026-10-23 table below is kept as the historical record; 19/35 of its inputs are lost (runtime-random lavfi sources) and were re-based — same-input verdicts are in the new section. Nothing is mocked.
 
-- Oracle: PENDING-VLC (no oracle binary in this environment — nothing mocked)
-- Version assertion: PENDING-VLC (no version to assert)
+- Oracle: VLC 3.0.23 Vetinari (3.0.23-2-0-g79128878dd), Debian trixie build via apt download — run record in §Oracle run 2026-11-09
+- Version assertion (2026-11-09 run): `VLC version 3.0.23 Vetinari (3.0.23-2-0-g79128878dd)`
 - Lumen side: bench-vs-vlc/lumen-pcm-digests/1 (real decode via the workspace crates)
 - Host endianness: little (comparability requires little)
 - Generated: 2026-10-23T08:09:43+0000
@@ -314,3 +314,78 @@ Rows appear here when the Lumen walk concealed decoder damage, skipped container
 - Independent verification of THIS run's Lumen rows: all 60 clean ok-rows (every comparable row included) re-verified by an independent Python RIFF walk (first auds strl ordinal -> NNwb payload concatenation, hashlib.md5): md5 + byte count + packet count + track ordinal agree on 60/60. The single differing ok-row is dirty/dup-range-063-0307-multivideo-av.avi — a corrupted duplicate-range file, excluded from comparison; on damaged input the two walks legitimately disagree about which duplicated bytes are payload.
 - Mock-mode plumbing validation (NOT part of this report's data): a [MOCK]-labeled CLI run with the echo hook fed the RIFF-walk ground-truth PCM of avi_mjpeg_pcm.avi and produced MATCH [MOCK] there + MISMATCH [MOCK] on the 2pcm fixture (output kept at /tmp/w5-09/mock-report.md, not committed); 30 python unit tests + 12 cargo tests cover mock end-to-end, digest logic on synthetic PCM, classification, and the mock/real separation invariants.
 
+## Oracle run 2026-11-09 (issue #19 — VLC 3.0.23 obtained and executed)
+
+\* = input re-based on a fresh realization of the recorded argvs (see below); every Lumen-vs-VLC verdict in this table is same-input.
+
+### Oracle acquisition (all in /tmp; nothing vendored, no repo change)
+
+- `apt-cache policy vlc`: Candidate **3.0.24**-0+deb13u1 (trixie-security) — a different version, NOT substituted; **3.0.23-0+deb13u1 is available from deb.debian.org/debian trixie/main** and is the pinned version used.
+- `apt-get download vlc=3.0.23-0+deb13u1 vlc-bin=… libvlc-bin=… libvlc5=… libvlccore9=… vlc-plugin-base=… vlc-plugin-video-output=3.0.23-0+deb13u1` (download-only, no root, no install), then `dpkg-deb -x` of all 7 debs into `/tmp/w16ff-vlc/root/`, executed via `LD_LIBRARY_PATH=/tmp/w16ff-vlc/root/usr/lib/x86_64-linux-gnu` + `VLC_PLUGIN_PATH=…/vlc/plugins`.
+- Version assertion (doc 10 §6.6 pin): `VLC version 3.0.23 Vetinari (3.0.23-2-0-g79128878dd)` — Compiled by Debian buildd for trixie-security, Jan 7 2026.
+- flatpak/snap: absent (`which flatpak snap` → no output); not needed.
+
+### Input corpus (the 2026-10-23 corpus-big no longer exists on this machine)
+
+- `/home/z/my-project/corpus-big` is absent (checked 2026-11-09). The 35 fixtures were regenerated from the argvs recorded per-file in the committed `corpus-big-manifest-20261022.json` with the pinned ffmpeg 7.1.5-0+deb13u1.
+- 16/35 regenerate **sha256-identical** to the committed manifest (deterministic lavfi sources only).
+- 19/35 embed runtime-random lavfi sources (`anoisesrc` without a seed, `life`) — proven by a double-run of one recorded argv yielding two different sha256 (`6b7a4f3a…` vs `aee4767e…`) — so the 2026-10-23 bytes are unrecoverable; those rows (marked \*) were re-based on fresh realizations of the same argvs, with Lumen re-decoded on the same fresh files in this run.
+- On 20/35 rows the fresh Lumen digest equals the committed 2026-10-23 Lumen digest (the 16 byte-identical files + 4 rows whose random source touches video only); on 15 rows the audio payload itself differs (fresh noise realization) — the committed Lumen cells for those rows remain tied to the lost 2026-10-23 inputs.
+
+### Run-book command status
+
+- The 35 to-run commands were executed verbatim except the input path (`/home/z/my-project/corpus-big/media/…` → `/tmp/w16ff-corpus/media/…`; original tree absent). Raw dumps written under `/tmp/bench-vs-vlc/`, MD5'd, then deleted per-row.
+- Lumen half re-validated this run: `cargo test --test lumen_pcm -- --ignored` driven via `LUMEN_DIFF_FIXTURES`/`LUMEN_DIFF_OUT` over the 35 rows — 35/35 decode ok; fresh Lumen digest == ffmpeg 7.1.5 decode (md5 + byte count) on 35/35, re-proving Lumen/ffmpeg parity on the same inputs.
+- The README's first-real-oracle gate ("confirm dump byte-counts equal Lumen `pcm_bytes` on a known-good fixture before any MATCH is trusted") is **answered: it does not hold as stated** — 35/35 VLC dumps are shorter. Cause analysis in Findings.
+
+### Results — decoded-PCM differential (this run, same inputs both sides)
+
+| fixture | audio | ch | rate | Lumen MD5 (this run) | Lumen B | VLC MD5 | VLC B | verdict |
+|---|---|---|---|---|---|---|---|---|
+| media/0022-avi-av.avi | pcm_f32le | 1 | 22050 | c5f5a2856f4d1ee42a999fd9b4ace0dd | 557336 | 78df10d1a4cbbd79da51c7f024da8f63 | 556976 | NOT-BIT-EXACT (float path): RMS 0.0125 / peak 0.0250 — §6.6 deviation path |
+| media/0040-avi-av.avi * | pcm_u8 | 4 | 16000 | 87be0fb5b8e4582584c42c80198f14b7 | 350976 | 84690c1a8635bd4ae49d6486b66271b6 | 350400 | MATCH-prefix (bit-exact; tail 576 B unflushed) |
+| media/0041-avi-av.avi * | pcm_u8 | 2 | 96000 | 094340d045306c8ea23fb43e523c26fc | 2112384 | e69260d694dda534d3f3801bc94eaf01 | 2112000 | MATCH-prefix (bit-exact; tail 384 B unflushed) |
+| media/0096-multivideo-av.avi | pcm_s16le | 2 | 11025 | 44cec9ebf7e457140edb971c3e962c96 | 94208 | a9e08d88b494a601d5d83dd97997be06 | 93712 | MATCH-prefix (bit-exact; tail 496 B unflushed) |
+| media/0116-avi-av.avi * | pcm_u8 | 2 | 8000 | d3da0ad8060de10204959d9b3f612b3d | 51728 | fe17982880a51bdc53e4f6d20790bfcf | 51600 | MATCH-prefix (bit-exact; tail 128 B unflushed) |
+| media/0121-multivideo-av.avi | pcm_s16le | 1 | 48000 | 36355267afc2774cddb8f81535afd281 | 216096 | 910fe36f8723e5ada5cf850f2078db9d | 216000 | MATCH-prefix (bit-exact; tail 96 B unflushed) |
+| media/0134-avi-av.avi * | pcm_u8 | 2 | 16000 | 9d62cb4522aeb10247308e0d6dd97c24 | 178176 | 2d22ce916d4ff72d5fa6ec20a13df819 | 177600 | MATCH-prefix (bit-exact; tail 576 B unflushed) |
+| media/0155-avi-av.avi | pcm_u8 | 6 | 22050 | e6bb46494f3c1d3678571324a22f7a55 | 1175880 | da214c472362d68b75e1ee4bb8d4cbf6 | 1174158 | MATCH-prefix (bit-exact; tail 1722 B unflushed) |
+| media/0156-avi-av.avi | pcm_u8 | 4 | 8000 | 66958319ced9c6cdb9eb0c8130559bff | 261984 | a3c8e3633e1fe17d4453bbb7f1353bd5 | 261600 | MATCH-prefix (bit-exact; tail 384 B unflushed) |
+| media/0161-multivideo-av.avi | pcm_s16le | 2 | 96000 | 7d7ad50a3f50e59a1fab63eb4a175f87 | 3022848 | b96286a26cb1ae55956888176fe7766a | 3018752 | MATCH-prefix (bit-exact; tail 4096 B unflushed) |
+| media/0177-multivideo-av.avi * | pcm_s16le | 4 | 11025 | e9764dea64e89e8e6730de7208088d46 | 340808 | 35ecb9bc606f0a06a7d51818d20d9d78 | 339568 | MATCH-prefix (bit-exact; tail 1240 B unflushed) |
+| media/0180-multivideo-av.avi * | pcm_s16le | 1 | 48000 | 89a1a90ca55e84bfd19a8814d94f20e6 | 331776 | 1f16348f09100deb72bbedcb3262cd70 | 331200 | MATCH-prefix (bit-exact; tail 576 B unflushed) |
+| media/0187-avi-av.avi | pcm_u8 | 8 | 11025 | 34bcf94ce5308bc76b02f751d3fcad4a | 547720 | bc76bdf18701de20fc6a729e8ff463b9 | 546840 | MATCH-prefix (bit-exact; tail 880 B unflushed) |
+| media/0194-multivideo-av.avi * | pcm_s16le | 8 | 44100 | fbf9a9b3a9861350fc1007194e629d3d | 2998272 | 838928ee4447bb5eeecd8842e8dbfbed | 2981888 | MATCH-prefix (bit-exact; tail 16384 B unflushed) |
+| media/0201-multivideo-av.avi * | pcm_s16le | 2 | 96000 | 9a2d0119de231d475d4ef4481902ddaf | 1970176 | 0babcb9330a2d5e217bdae7326a87d42 | 1968000 | MATCH-prefix (bit-exact; tail 2176 B unflushed) |
+| media/0214-avi-av.avi * | pcm_s16le | 1 | 88200 | f54afc5510fc828db4883f610531f515 | 1144306 | c6a99a39c62286b6a1978be79f6a7f7f | 1142784 | MATCH-prefix (bit-exact; tail 1522 B unflushed) |
+| media/0227-avi-av.avi * | pcm_s16le | 1 | 48000 | b48163da74a73d446389986dd31d3b7a | 472032 | d93f66cfe531153842b2fb2e2d2ea841 | 471040 | MATCH-prefix (bit-exact; tail 992 B unflushed) |
+| media/0233-multivideo-av.avi | pcm_s16le | 1 | 88200 | 649d0232dba068c25d89617e9ef3fba1 | 870400 | c8db9843ba6a5326b6f98b08980978f3 | 868770 | MATCH-prefix (bit-exact; tail 1630 B unflushed) |
+| media/0236-multivideo-av.avi | pcm_s16le | 1 | 11025 | 2fa047d2f34c9029f056237ca8079f5f | 137216 | d96aab94f910dbafb8978d0a72052c09 | 136710 | MATCH-prefix (bit-exact; tail 506 B unflushed) |
+| media/0247-avi-av.avi * | pcm_f32le | 1 | 48000 | 2e8a354f4d58e3c5a452f9a35a055ded | 745728 | 57087e90270983d6966542dd1d8cd0d4 | 745392 | NOT-BIT-EXACT (float path): RMS 0.0123 / peak 0.0461 — §6.6 deviation path |
+| media/0278-avi-av.avi | pcm_s16le | 1 | 88200 | 28a9e2652675dccd5cee316150fe0d46 | 356858 | 9763ff8dcdb59ff2c34ced3f83dfccbe | 356352 | MATCH-prefix (bit-exact; tail 506 B unflushed) |
+| media/0280-avi-av.avi * | pcm_f32le | 2 | 22050 | a21a95e1e7dfd7ad43dda987f3a6c7f6 | 935976 | 364bec8187b1a692751cd0a91379d618 | 934760 | NOT-BIT-EXACT (float path): RMS 0.0087 / peak 0.0340 — §6.6 deviation path |
+| media/0297-avi-av.avi | pcm_f32le | 8 | 11025 | 0f368aaa880d22f7c48caf67db304276 | 3520224 | 1796324a7db6a7aa3d5b9ef3895360c0 | 3518528 | NOT-BIT-EXACT (float path): RMS 0.0001 / peak 0.0463 — §6.6 deviation path |
+| media/0305-avi-av.avi * | pcm_f32le | 1 | 22050 | 02f69412eb50f59b5ad8edecf388cc10 | 885440 | c6b3e08bcc3cbec3355857da06a6b31b | 884656 | NOT-BIT-EXACT (float path): RMS 0.1188 / peak 0.4617 — §6.6 deviation path |
+| media/0307-multivideo-av.avi | pcm_s16le | 2 | 32000 | e2bce5d5744e374d59ffd1dbb565314c | 450560 | d785c2f3859818577337295a8e94594e | 448000 | MATCH-prefix (bit-exact; tail 2560 B unflushed) |
+| media/0308-avi-av.avi | pcm_s16le | 4 | 96000 | 01269e9f433bd2f4496054180b3b9639 | 4096000 | a436890a0b7bbe418b1c630d997c8167 | 4089600 | MATCH-prefix (bit-exact; tail 6400 B unflushed) |
+| media/0318-avi-av.avi * | pcm_s16le | 2 | 96000 | 48718b7749195fdd2020f71e36cbcc37 | 1331712 | 2620b150f73bf91cdaa907a9c4024489 | 1331200 | MATCH-prefix (bit-exact; tail 512 B unflushed) |
+| media/0324-avi-av.avi | pcm_u8 | 4 | 44100 | 1767da988df20a761eea5b3be593b233 | 822908 | 2c669806afcb5e5f15ad4d4e81dd621c | 820260 | MATCH-prefix (bit-exact; tail 2648 B unflushed) |
+| media/0330-avi-av.avi | pcm_f32le | 1 | 96000 | bb76a78b3c77421b3e41c0155dc8d8d1 | 410880 | c0e894718e500b5ec3b1c496c4559beb | 409520 | NOT-BIT-EXACT (float path): RMS 0.0000 / peak 0.0012 — §6.6 deviation path |
+| media/0335-multivideo-av.avi * | pcm_s16le | 1 | 16000 | 4fd79102bcb2c878d8a5eb197be5755c | 97216 | daac1d6a101167bbdc031a1c58fa978c | 96800 | MATCH-prefix (bit-exact; tail 416 B unflushed) |
+| media/0336-multivideo-av.avi * | pcm_s16le | 1 | 32000 | ca97c302d2e1d6ec0e27063076b56dd9 | 425984 | c06837c134cdadf0e7ae88eec959cca7 | 425600 | MATCH-prefix (bit-exact; tail 384 B unflushed) |
+| media/0342-avi-av.avi * | pcm_s16le | 3 | 32000 | 0d1d39cbb0401e1e9303081446c2652b | 1846464 | ce235467c545e6a815373b0377208363 | 1843200 | MATCH-prefix (bit-exact; tail 3264 B unflushed) |
+| media/0367-multivideo-av.avi * | pcm_s16le | 6 | 48000 | a92ecd89b89a133a8068337d84971a08 | 4030464 | cdb1d60f5a13eab036127b1c72dcc6e6 | 4018176 | MATCH-prefix (bit-exact; tail 12288 B unflushed) |
+| media/0386-avi-av.avi | pcm_s16le | 1 | 22050 | 37e3ad34ab0d716cc5da69a2317c3305 | 187292 | 6cfd15ca4347f470ada1509b8fee5cef | 186368 | MATCH-prefix (bit-exact; tail 924 B unflushed) |
+| media/0394-avi-av.avi * | pcm_s16le | 6 | 32000 | e79410cbf8e8cbf49d2f94aa95662ee4 | 1092096 | db0b17e061a9b7009608736d195605b6 | 1084800 | MATCH-prefix (bit-exact; tail 7296 B unflushed) |
+
+### Findings
+
+1. **29/35 rows — every `pcm_u8` and `pcm_s16le` row: VLC's dump is a bit-exact PREFIX of the payload** (head drop 0 B on all 29); the entire shortfall is a **tail of 96–16384 B left unflushed** by the `afile` output at `--play-and-exit` end-of-stream. VLC's decode itself is bit-exact on these rows; the byte-count gate fails only because of the unflushed tail.
+2. **6/35 rows — every `pcm_f32le` row: the dump is not a sub-window of the payload** — every aligned sample differs slightly (0022: RMS 0.0125 / peak 0.0250; 0247: 0.0123/0.0461; 0280: 0.0087/0.0340; 0297: 0.0001/0.0463; 0305: 0.1188/0.4617; 0330: 0.0000/0.0012), consistent with VLC's float `aout` chain (resampler/filter delay) rather than passthrough. Per doc 10 §6.6 these fall to the sample-wise RMS/peak deviation path (thresholds = doc 02 M2, open) — **Lead decision required**; they are NOT recorded as decoder mismatches.
+3. Net parity statement: on all 29 lossless-comparable u8/s16 rows Lumen and VLC agree bit-exactly over the entire delivered window; the afile tail-unflush is a dump-method artifact, not a decode difference.
+
+### Deviations from the pinned protocol (Lead decisions)
+
+- Oracle binary is Debian trixie's build of the pinned 3.0.23 (apt download), not a videolan.org tarball — version pin asserted identically (`3.0.23 Vetinari`).
+- Input path substitution + 19/35 re-based inputs (above).
+- No threshold was invented for the f32 deviation path; no MATCH is claimed there.
