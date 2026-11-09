@@ -21,6 +21,9 @@
 //! | `cmd::rebrand`           | `rebrand`            | 1.E4 (implemented) |
 //! | `cmd::fixtures`          | `fixtures`           | 2.A3 |
 //! | `cmd::visual`            | `visual`             | 4.G1 (implemented — screenshot-diff harness driver, doc 08 §6; registered under card 4.G1's granted ownership of the registry, same precedent as check-panics/7-e) |
+//! | `cmd::feature_audit`     | `feature-audit`      | #20 / card 8.F1 (implemented — feature-matrix auditor; registered under issue #20's granted ownership of tools/xtask/src/**, same precedent as check-panics/7-e and visual/4.G1) |
+//! | `cmd::config_validator`  | `config-validator`   | #20 / card 8.F1 (implemented — product.toml vs product.schema.json + cross-file refs; same granted-registry precedent) |
+//! | `cmd::parity_report`     | `parity-report`      | #20 / card 8.F1 (implemented — derived parity table from the matrix; same granted-registry precedent) |
 
 use std::process::ExitCode;
 
@@ -29,11 +32,15 @@ use crate::XtaskError;
 pub mod check_architecture;
 pub mod check_panics;
 pub mod codegen;
+pub mod config_validator;
+pub mod feature_audit;
 pub mod fixtures;
 pub mod gate;
+pub mod parity_report;
 pub mod rebrand;
 pub mod schema_gen;
 pub mod tokens;
+pub mod toml_lite;
 pub mod visual;
 
 /// One registered subcommand: name, owning card, help text and entry point.
@@ -115,6 +122,27 @@ pub const SUBCOMMANDS: &[Subcommand] = &[
         summary: "Screenshot-diff fidelity harness (doc 08 §6; PR-lite + nightly modes)",
         implemented: true,
         run: visual::run,
+    },
+    Subcommand {
+        name: "feature-audit",
+        card: "8.F1 (#20)",
+        summary: "Feature-matrix audit: structure, evidence presence + resolution, counts",
+        implemented: true,
+        run: feature_audit::run,
+    },
+    Subcommand {
+        name: "config-validator",
+        card: "8.F1 (#20)",
+        summary: "product.toml vs product.schema.json + cross-file reference checks",
+        implemented: true,
+        run: config_validator::run,
+    },
+    Subcommand {
+        name: "parity-report",
+        card: "8.F1 (#20)",
+        summary: "Derived parity table (implemented+verified share) from feature-matrix.toml",
+        implemented: true,
+        run: parity_report::run,
     },
 ];
 
