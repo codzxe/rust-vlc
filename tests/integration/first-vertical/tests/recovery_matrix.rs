@@ -20,7 +20,12 @@
 //! | avi flip4 | clean `Ended` | ≥1 non-fatal RecoveredDamage (the flip hit a chunk field; the clamp+resync recovered) |
 //! | avi flip16 | typed open refusal: `probe.unsupported` with the sniffed bytes named | — |
 //! | avi noidx0 / negheight0 / absidx1 | clean `Ended`, full accounting (linear walk / V1 height-abs / V4 idx-base autodetect) | zero wire-visible damage |
-//! | mp4 ×10 (incl. stszlie0) | typed open refusal: `probe.unsupported` naming `mp4` | — (G4: no MP4 demuxer exists — probe-surface only, honest scoping) |
+//! | mp4 trunc0 (empty) / trunc1 (64 B) | typed open refusal: `demux.corrupt` (`demux.mp4.no-moov` / `demux.mp4.truncated`) | — |
+//! | mp4 trunc2/3/4 (mdat cuts) | open accepted, then `Error` via FATAL `demux.mp4.truncated` | — (no terminal flush: the fatal precedes any resync) |
+//! | mp4 garbage0 (4 KiB appended) | clean `Ended`, garbage never parsed | ZERO damage |
+//! | mp4 flip1/flip4 | typed open refusal: `demux.corrupt` (`demux.mp4.box-overruns-parent`) | — |
+//! | mp4 flip16 | typed open refusal: `probe.unsupported` with the sniffed bytes named | — |
+//! | mp4 stszlie0 | clean `Ended` (the stsz lie recovered by resync) | ≥1 non-fatal RecoveredDamage |
 //! | parent + all-tracks-disabled | typed open refusal: `control.unsupported` naming `avi` | — (G1: known-format info end-to-end) |
 //!
 //! # Never-terms asserted on every row
@@ -80,6 +85,11 @@ enum Outcome {
     /// FATAL `playback.error` (the message substring) — plus the
     /// terminal's non-fatal damage flush.
     ErrorAfterOpen { message_part: &'static str },
+    /// The open is accepted; the settle then lands in `Error` via one
+    /// FATAL `playback.error` — with NO terminal damage flush (the mp4
+    /// truncation shape: the box walker's fatal refusal precedes any
+    /// resynchronization, so there is nothing recovered to flush).
+    ErrorAfterOpenNoFlush { message_part: &'static str },
     /// The media plays through to a clean `Ended`.
     CleanEnded {
         damage: Damage,
@@ -327,6 +337,40 @@ fn drive(row: Row) -> Vec<Check> {
                 &format!("{what}: the terminal damage flush is non-fatal and present"),
                 non_fatal.len() == 1,
                 &format!("non-fatal count {}", non_fatal.len()),
+            ));
+        }
+        Outcome::ErrorAfterOpenNoFlush { message_part } => {
+            checks.push(Check::is(
+                &format!("{what}: the open is accepted (the header prefix parses)"),
+                matches!(&open.result, Ok(CommandOutcome::Accepted { .. })),
+                "the open refused",
+            ));
+            checks.push(Check::same(
+                &format!("{what}: the settle lands in Error"),
+                &format!("{settled:?}"),
+                "Error",
+            ));
+            checks.push(Check::int(
+                &format!("{what}: exactly one FATAL playback.error"),
+                fatal_errors.len() as i64,
+                1,
+            ));
+            if let Some(error) = fatal_errors.first() {
+                checks.push(Check::is(
+                    &format!("{what}: the fatal names the truncation"),
+                    error.message.contains(message_part),
+                    &format!("message {:?} lacks {message_part:?}", error.message),
+                ));
+                checks.push(Check::is(
+                    &format!("{what}: the fatal is demux-stage"),
+                    error.stage == "demux",
+                    &format!("stage {:?}", error.stage),
+                ));
+            }
+            checks.push(Check::int(
+                &format!("{what}: zero non-fatal damage (the fatal precedes any resync)"),
+                non_fatal.len() as i64,
+                0,
             ));
         }
         Outcome::CleanEnded {
@@ -638,37 +682,155 @@ fn matrix_avi_absidx1_clean_ended_full_payout() {
 }
 
 // ---------------------------------------------------------------------------
-// The MP4 rows (G4: probe-surface only — no MP4 demuxer exists)
+// The MP4 rows (6.OPW-mp4 wired the container host: demux-stage truth)
 // ---------------------------------------------------------------------------
 
-/// Every MP4 class-B derivative refuses at the probe naming `mp4` —
-/// the honest scoping (G4): the corpus's MP4 half pins the
-/// probe-stage behavior only; the MP4 demux card (5.x) owns the rest.
+/// Every MP4 class-B derivative now goes through the WIRED mp4
+/// container host (6.OPW-mp4): these rows pin the demux-stage behavior
+/// that replaced G4's pre-wiring probe-surface scoping. The stale
+/// blanket `probe.unsupported` expectation (written when "no MP4
+/// demuxer exists" was true) is what W18-KK's local CI verification
+/// caught — the billing-blocked workflow had never run the suite
+/// since the wiring landed.
 #[test]
-fn matrix_mp4_rows_refuse_at_probe_naming_the_format() {
-    let mp4_fixtures = [
-        "generated/malformed/mp4_mjpeg_pcm__trunc0.mp4",
-        "generated/malformed/mp4_mjpeg_pcm__trunc1.mp4",
-        "generated/malformed/mp4_mjpeg_pcm__trunc2.mp4",
-        "generated/malformed/mp4_mjpeg_pcm__trunc3.mp4",
-        "generated/malformed/mp4_mjpeg_pcm__trunc4.mp4",
-        "generated/malformed/mp4_mjpeg_pcm__garbage0.mp4",
-        "generated/malformed/mp4_mjpeg_pcm__flip1.mp4",
-        "generated/malformed/mp4_mjpeg_pcm__flip4.mp4",
-        "generated/malformed/mp4_mjpeg_pcm__flip16.mp4",
-        "generated/malformed/mp4_mjpeg_pcm__stszlie0.mp4",
-    ];
-    for fixture in mp4_fixtures {
-        let checks = drive(Row {
-            fixture,
-            outcome: Outcome::Refused {
-                stage: Stage::Probe,
-                code: ErrorCode::Unsupported,
-                message_part: "mp4",
-            },
-        });
-        assert_row(fixture, &checks);
-    }
+fn matrix_mp4_trunc0_refuses_typed_at_demux() {
+    // trunc0 is the 0-byte cut: no `moov` box survives — the refusal
+    // names it (the probe still identifies mp4 by content/extension
+    // hints, the wired host then refuses at the demux stage).
+    let checks = drive(Row {
+        fixture: "generated/malformed/mp4_mjpeg_pcm__trunc0.mp4",
+        outcome: Outcome::Refused {
+            stage: Stage::Demux,
+            code: ErrorCode::Corrupt,
+            message_part: "demux.mp4.no-moov",
+        },
+    });
+    assert_row("trunc0", &checks);
+}
+
+#[test]
+fn matrix_mp4_trunc1_refuses_typed_at_demux() {
+    let checks = drive(Row {
+        fixture: "generated/malformed/mp4_mjpeg_pcm__trunc1.mp4",
+        outcome: Outcome::Refused {
+            stage: Stage::Demux,
+            code: ErrorCode::Corrupt,
+            message_part: "demux.mp4.truncated",
+        },
+    });
+    assert_row("trunc1", &checks);
+}
+
+#[test]
+fn matrix_mp4_trunc2_opens_then_lands_in_error_typed() {
+    let checks = drive(Row {
+        fixture: "generated/malformed/mp4_mjpeg_pcm__trunc2.mp4",
+        outcome: Outcome::ErrorAfterOpenNoFlush {
+            message_part: "demux.mp4.truncated",
+        },
+    });
+    assert_row("trunc2", &checks);
+}
+
+#[test]
+fn matrix_mp4_trunc3_opens_then_lands_in_error_typed() {
+    let checks = drive(Row {
+        fixture: "generated/malformed/mp4_mjpeg_pcm__trunc3.mp4",
+        outcome: Outcome::ErrorAfterOpenNoFlush {
+            message_part: "demux.mp4.truncated",
+        },
+    });
+    assert_row("trunc3", &checks);
+}
+
+#[test]
+fn matrix_mp4_trunc4_opens_then_lands_in_error_typed() {
+    // The 1-byte cut (the AVI trunc4 boundary-pin's mp4 counterpart):
+    // unlike the AVI walker's clamp, the mp4 box walker treats the
+    // missing final byte as fatal — open accepted, play-out runs to the
+    // cut, then the typed `demux.mp4.truncated` refusal.
+    let checks = drive(Row {
+        fixture: "generated/malformed/mp4_mjpeg_pcm__trunc4.mp4",
+        outcome: Outcome::ErrorAfterOpenNoFlush {
+            message_part: "demux.mp4.truncated",
+        },
+    });
+    assert_row("trunc4", &checks);
+}
+
+#[test]
+fn matrix_mp4_garbage0_clean_ended_zero_damage() {
+    let checks = drive(Row {
+        fixture: "generated/malformed/mp4_mjpeg_pcm__garbage0.mp4",
+        outcome: Outcome::CleanEnded {
+            damage: Damage::Zero,
+            frames: 120,
+            position_us: DECLARED_DURATION_US,
+            fraction_below: None,
+        },
+    });
+    assert_row("garbage0", &checks);
+}
+
+#[test]
+fn matrix_mp4_flip1_refuses_typed_at_demux() {
+    // The seeded flip lands in a box-size field: the walker's
+    // box-overrun guard refuses the open naming the overrun.
+    let checks = drive(Row {
+        fixture: "generated/malformed/mp4_mjpeg_pcm__flip1.mp4",
+        outcome: Outcome::Refused {
+            stage: Stage::Demux,
+            code: ErrorCode::Corrupt,
+            message_part: "demux.mp4.box-overruns-parent",
+        },
+    });
+    assert_row("flip1", &checks);
+}
+
+#[test]
+fn matrix_mp4_flip4_refuses_typed_at_demux() {
+    let checks = drive(Row {
+        fixture: "generated/malformed/mp4_mjpeg_pcm__flip4.mp4",
+        outcome: Outcome::Refused {
+            stage: Stage::Demux,
+            code: ErrorCode::Corrupt,
+            message_part: "demux.mp4.box-overruns-parent",
+        },
+    });
+    assert_row("flip4", &checks);
+}
+
+#[test]
+fn matrix_mp4_flip16_refuses_typed_at_probe() {
+    // Sixteen header-extent flips smash the signature past the probe's
+    // recognition: the refusal names the sniffed bytes (the
+    // known-format hint) — content truth, not extension truth.
+    let checks = drive(Row {
+        fixture: "generated/malformed/mp4_mjpeg_pcm__flip16.mp4",
+        outcome: Outcome::Refused {
+            stage: Stage::Probe,
+            code: ErrorCode::Unsupported,
+            message_part: "sniffed",
+        },
+    });
+    assert_row("flip16", &checks);
+}
+
+#[test]
+fn matrix_mp4_stszlie0_clean_ended_with_damage() {
+    // The `stsz` sample-size lie: the demuxer resynchronizes and
+    // delivers the full play-out, reporting the recovered damage
+    // non-fatally (the huge unit count is the lie's magnitude).
+    let checks = drive(Row {
+        fixture: "generated/malformed/mp4_mjpeg_pcm__stszlie0.mp4",
+        outcome: Outcome::CleanEnded {
+            damage: Damage::AtLeastOne,
+            frames: 120,
+            position_us: DECLARED_DURATION_US,
+            fraction_below: None,
+        },
+    });
+    assert_row("stszlie0", &checks);
 }
 
 // ---------------------------------------------------------------------------
