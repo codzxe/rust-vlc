@@ -214,6 +214,13 @@ fn map_fetch_err(err: NetworkError) -> EngineError {
         | NetworkError::RedirectLoop { .. }
         | NetworkError::CrossHostRedirect { .. }
         | NetworkError::HttpStatus { .. } => NetworkCause::ConnectionLost,
+        // A superseded fetch (6.D2 generation bump): the read was
+        // abandoned by the world moving on, not by the wire — but the
+        // kind vocabulary has no "superseded" cause, and mapping it as
+        // lost-connection weather is the composition that works: the
+        // engine's retry guard re-issues the read, the re-issue runs
+        // under the fresh generation.
+        NetworkError::Cancelled { .. } => NetworkCause::ConnectionLost,
         NetworkError::ResponseTooLarge { limit, actual } => {
             return mint(
                 ErrorKind::ResourceLimit {

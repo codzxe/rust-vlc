@@ -96,6 +96,14 @@ pub enum NetworkError {
         /// The advertised or observed size in bytes.
         actual: u64,
     },
+    /// The fetch completed, but the session's generation moved
+    /// while it was in flight — the late response is discarded,
+    /// never delivered as fresh data (generation-safe cancellation,
+    /// card 6.D2).
+    Cancelled {
+        /// The generation the abandoned fetch was issued under.
+        generation: u64,
+    },
     /// The peer spoke something that is not HTTP/1.x framing — a
     /// malformed status line, header, or `Location` reference.
     ProtocolViolation {
@@ -129,6 +137,7 @@ impl NetworkError {
             NetworkError::InvalidContentRange => "streaming.net.invalid-content-range",
             NetworkError::UnsupportedScheme { .. } => "streaming.net.unsupported-scheme",
             NetworkError::ResponseTooLarge { .. } => "streaming.net.response-too-large",
+            NetworkError::Cancelled { .. } => "streaming.net.cancelled",
             NetworkError::ProtocolViolation { .. } => "streaming.net.protocol-violation",
             NetworkError::Io { .. } => "streaming.net.io-failure",
         }
@@ -150,6 +159,53 @@ impl NetworkError {
             self,
             NetworkError::ConnectTimeout | NetworkError::ReadTimeout | NetworkError::WriteTimeout
         )
+    }
+
+    /// Whether a bounded-retry layer (card 6.D2's [`RetryFetch`])
+    /// should re-issue the request after this failure — the retryable
+    /// weather table:
+    ///
+    /// - **Yes**: timeouts (all three), DNS, connection refused, raw
+    ///   socket I/O (resets, aborts), mid-body truncation (the
+    ///   connection died mid-delivery), and the retryable status
+    ///   classes 408 (request timeout), 429 (too many requests — what
+    ///   backoff exists for) and 500/502/503/504 (transient server
+    ///   weather). GET is idempotent, which is what makes re-issue
+    ///   correct at all (the port carries no other method, v0).
+    /// - **No**: TLS verification (retried on a weaker path it would
+    ///   be a downgrade — the vocabulary's own rule), redirect
+    ///   budget/loop/policy (deterministic configuration), 416 and
+    ///   `Content-Range` framing (deterministic), every other 4xx
+    ///   (the server's answer will not change), unsupported scheme,
+    ///   response-over-budget (a budget, not weather), protocol
+    ///   violations, and [`Cancelled`](NetworkError::Cancelled) — a
+    ///   superseded fetch is never retried under its own stale
+    ///   generation; the fresh generation's owner re-issues.
+    ///
+    /// [`RetryFetch`]: crate::reconnect::RetryFetch
+    pub fn is_retryable(&self) -> bool {
+        match self {
+            NetworkError::DnsFailure
+            | NetworkError::ConnectTimeout
+            | NetworkError::ReadTimeout
+            | NetworkError::WriteTimeout
+            | NetworkError::ConnectRefused
+            | NetworkError::BodyTruncated { .. }
+            | NetworkError::Io { .. } => true,
+            NetworkError::HttpStatus { code, .. } => {
+                matches!(code, 408 | 429 | 500 | 502 | 503 | 504)
+            }
+            NetworkError::TlsFailure
+            | NetworkError::TooManyRedirects { .. }
+            | NetworkError::RedirectLoop { .. }
+            | NetworkError::CrossHostRedirect { .. }
+            | NetworkError::RangeNotSatisfiable
+            | NetworkError::InvalidContentRange
+            | NetworkError::UnsupportedScheme { .. }
+            | NetworkError::ResponseTooLarge { .. }
+            | NetworkError::Cancelled { .. }
+            | NetworkError::ProtocolViolation { .. } => false,
+        }
     }
 
     /// The HTTP status code when this error carries one (416 folds into
@@ -208,6 +264,9 @@ impl fmt::Display for NetworkError {
             NetworkError::ResponseTooLarge { limit, actual } => format!(
                 "response exceeds the memory budget (limit {limit} bytes, advertised {actual})"
             ),
+            NetworkError::Cancelled { generation } => {
+                format!("fetch superseded: generation {generation} was invalidated")
+            }
             NetworkError::ProtocolViolation { detail } => {
                 format!("protocol violation: {detail}")
             }
@@ -261,6 +320,7 @@ mod tests {
                 limit: 8,
                 actual: 64,
             },
+            NetworkError::Cancelled { generation: 7 },
             NetworkError::ProtocolViolation {
                 detail: "malformed status line",
             },

@@ -503,14 +503,21 @@ mod tests {
     #[test]
     fn watermark_validation_rejects_degenerate_bands() {
         BufferWatermarks::default().validate().must();
-        let mut bad = BufferWatermarks::default();
-        bad.drain_media_ns = bad.fill_media_ns;
+        let defaults = BufferWatermarks::default();
+        let bad = BufferWatermarks {
+            drain_media_ns: defaults.fill_media_ns,
+            ..defaults
+        };
         assert!(bad.validate().is_err(), "no hysteresis band (media)");
-        let mut zero = BufferWatermarks::default();
-        zero.fill_bytes = 0;
+        let zero = BufferWatermarks {
+            fill_bytes: 0,
+            ..BufferWatermarks::default()
+        };
         assert!(zero.validate().is_err(), "zero threshold");
-        let mut inverted = BufferWatermarks::default();
-        inverted.drain_bytes = inverted.fill_bytes + 1;
+        let inverted = BufferWatermarks {
+            drain_bytes: defaults.fill_bytes + 1,
+            ..defaults
+        };
         assert!(inverted.validate().is_err(), "inverted byte band");
     }
 
@@ -520,7 +527,10 @@ mod tests {
     fn watermarks_fill_on_both_drain_on_either() {
         let mut m = model();
         // Both axes at fill: Filled.
-        assert_eq!(m.observe(obs(1_000, 1_000, 10_000, 0)), BufferSignal::Filled);
+        assert_eq!(
+            m.observe(obs(1_000, 1_000, 10_000, 0)),
+            BufferSignal::Filled
+        );
         assert_eq!(m.snapshot().level, BufferLevel::High);
         // Inside the band (between drain and fill on both axes):
         // steady — hysteresis holds High.
@@ -531,10 +541,16 @@ mod tests {
         assert_eq!(m.snapshot().level, BufferLevel::Low);
         // Refill, then the duration axis below drain (bytes fine):
         // Drained — either axis trips.
-        assert_eq!(m.observe(obs(4_000, 1_000, 10_000, 0)), BufferSignal::Filled);
+        assert_eq!(
+            m.observe(obs(4_000, 1_000, 10_000, 0)),
+            BufferSignal::Filled
+        );
         assert_eq!(m.observe(obs(5_000, 900, 1_999, 0)), BufferSignal::Drained);
         // Refill on both axes: Filled again (a rebuffer episode).
-        assert_eq!(m.observe(obs(20_000, 1_000, 10_000, 0)), BufferSignal::Filled);
+        assert_eq!(
+            m.observe(obs(20_000, 1_000, 10_000, 0)),
+            BufferSignal::Filled
+        );
     }
 
     /// Fill requires BOTH axes: byte-rich but duration-poor stays
@@ -554,7 +570,10 @@ mod tests {
             BufferLevel::Low,
             "byte axis short: no fill"
         );
-        assert_eq!(m.observe(obs(3_000, 1_000, 10_000, 0)), BufferSignal::Filled);
+        assert_eq!(
+            m.observe(obs(3_000, 1_000, 10_000, 0)),
+            BufferSignal::Filled
+        );
     }
 
     /// Episode accounting: initial fill separated from rebuffers;
@@ -627,7 +646,10 @@ mod tests {
             let runway = (10 - t + 2) * 1_000_000_000; // 9 s at t=3 … 2 s at t=10
             match m.observe(obs(now, 1_000, runway, 1_000_000_000)) {
                 BufferSignal::StallPredicted { eta_ns } => {
-                    assert!(eta_ns > 0 && eta_ns <= 5_000_000_000, "eta {eta_ns} in (0, 5s]");
+                    assert!(
+                        eta_ns > 0 && eta_ns <= 5_000_000_000,
+                        "eta {eta_ns} in (0, 5s]"
+                    );
                     predicted_at = Some(t);
                     break;
                 }
@@ -652,7 +674,10 @@ mod tests {
         // Arrival 2x consumption: buffered grows each step.
         m.observe(obs(1_000_000_000, 300, 3_000_000_000, 1_000_000_000));
         m.observe(obs(2_000_000_000, 500, 5_000_000_000, 1_000_000_000));
-        assert_eq!(m.observe(obs(3_000_000_000, 700, 7_000_000_000, 1_000_000_000)), BufferSignal::Steady);
+        assert_eq!(
+            m.observe(obs(3_000_000_000, 700, 7_000_000_000, 1_000_000_000)),
+            BufferSignal::Steady
+        );
         assert_eq!(m.snapshot().stall_eta_ns, None);
     }
 
@@ -718,12 +743,12 @@ mod tests {
     fn synthetic_3g_trace_reacts_truthfully() {
         let mut m = BufferModel::new(
             BufferWatermarks {
-                fill_media_ns: 3_000_000_000,   // 3 s fill
-                drain_media_ns: 500_000_000,    // 500 ms drain
-                fill_bytes: 64 * 1024,          // bytes axis loose
-                drain_bytes: 16 * 1024,         // (3G audio-scale)
+                fill_media_ns: 3_000_000_000, // 3 s fill
+                drain_media_ns: 500_000_000,  // 500 ms drain
+                fill_bytes: 64 * 1024,        // bytes axis loose
+                drain_bytes: 16 * 1024,       // (3G audio-scale)
             },
-            2_000_000_000,                     // 2 s horizon
+            2_000_000_000, // 2 s horizon
         )
         .must();
         // Consumption: 1x realtime (media == wall). Arrival: 2x for
@@ -765,14 +790,21 @@ mod tests {
                 _ => {}
             }
         }
-        assert_eq!(drain_at, Some(27), "the outage drains the buffer at 2.7 s in");
+        assert_eq!(
+            drain_at,
+            Some(27),
+            "the outage drains the buffer at 2.7 s in"
+        );
         assert_eq!(
             predicted_at,
             Some(13),
             "the predictor fires ~1.4 s before the drain on this trace"
         );
         let snap = m.snapshot();
-        assert_eq!(snap.metrics.rebuffer_count, 0, "episode still open until refill");
+        assert_eq!(
+            snap.metrics.rebuffer_count, 0,
+            "episode still open until refill"
+        );
         // Recovery: 3x arrival refills.
         for _ in 0..30 {
             now_ns += 100_000_000;
@@ -784,7 +816,10 @@ mod tests {
             }
         }
         let snap = m.snapshot();
-        assert_eq!(snap.metrics.rebuffer_count, 1, "the episode closed on refill");
+        assert_eq!(
+            snap.metrics.rebuffer_count, 1,
+            "the episode closed on refill"
+        );
         // The episode ran from the drain (t = 5.7 s: 2.7 s into the
         // 4 s outage) to the recovery refill (t = 8.5 s).
         assert_eq!(snap.metrics.rebuffer_longest_ns, 2_800_000_000);
