@@ -3,10 +3,34 @@
 Authority chain: `docs/MASTER-PROMPT.md` (the brief) → this roadmap (program-level
 plan & decisions) → domain docs 01–15 (detail). Conflicts resolve upward.
 Statuses per MASTER-PROMPT §17: not_started, in_progress, implemented, verified,
-blocked. **Current status: Phase 2 COMPLETE — 2.E2-V gate verdict PASS
-(local-evidence), 2026-10-21 (report: docs/gates/phase2-exit.md); Phase 3
-IN PROGRESS — wave 3.A first pair in flight (3.A1 seek, 3.B4 events; see
-§8).**
+blocked.
+
+**Status — phase states** (supersedes the §8 historical snapshot):
+
+- **Phase 0 — COMPLETE** (`docs/gates/phase0-exit-report.md`).
+- **Phase 1 — COMPLETE** — PASS 2026-10-20, local-evidence; 3-OS CI green-run
+  links PENDING first push (`docs/gates/phase1-exit.md`).
+- **Phase 2 — COMPLETE** — PASS 2026-10-21, local-evidence
+  (`docs/gates/phase2-exit.md`).
+- **Phase 3 — complete in conduct** — gate evidence record
+  `docs/gates/phase3-exit.md` (2026-10-24, card 3.F2-V); its verdict line
+  still reads **PENDING LEAD SIGNATURE** while Phases 4–6 proceeded on its
+  evidence — the signature line is owed a Lead square-up, not a re-run.
+- **Phase 4 — complete in conduct** — same shape:
+  `docs/gates/phase4-exit.md` (2026-10-24, card 4.I1-V), verdict line
+  PENDING LEAD SIGNATURE.
+- **Phase 5 — COMPLETE** — **PASS WITH REGISTERED CAVEATS**, Lead sign-off
+  2026-10-24 (`docs/gates/phase5-exit.md`; 47/47 parent cards resolved;
+  "Phase 5 is closed. The Lead authorizes Phase 6.").
+- **Phase 6 — Network & streaming — IN PROGRESS** (worklog 6.* through
+  6.W4-STATUS, 6.FIX-pcm-stall, 6.FIX-ogg-reanchor; `crates/streaming`
+  landed — HTTP(S) client via ureq 3.5.0 + ring exception per 6.A1b-RATIFY,
+  ranged seekable resource, scheme registry, HLS VOD + live window, DASH MPD
+  parser core, open-path container wiring; buffering/reconnect and the
+  6.D/6.E–6.I tails remain).
+- **Phases 7–8 — NOT STARTED** (no worklog task IDs, no gate records).
+
+Header last refreshed: 2026-11-09 (issue #21).
 
 ## 1. Phase gates (MASTER-PROMPT §16)
 
@@ -19,10 +43,10 @@ from `docs/13-agent-wave-program.md` (200 cards / 77 waves).
 | 0 — Audit | Pin VLC 3.0.23, full feature inventory, feasibility report, ADR-001/002/003 decided | 0.A–0.D | 17 | `docs/baseline/` pinning records; `docs/feature-matrix.toml` populated with schema frozen; `docs/feasibility-report.md`; ADR-001/002/003 status=accepted; [VERIFY-P0] ledger cleared or converted to risks | 02, 04, 11, 14 |
 | 1 — Foundation | Workspace, config system, schemas, lints, CI, command layer, plugin API, settings generator, token pipeline | 1.A–1.F | 20 | **PASS 2026-10-20 — local-evidence; 3-OS CI PENDING (workflows-disabled, PAT repo-scope only; phase1-exit.md:6-8)**: local gate green (exact commands, doc 10 §2; 529/0/3); CI merge-blocking jobs written + locally validated, first push owed; rebrand acceptance test passes; boundary check active; `cargo xtask gate` exists | 01, 05, 06, 07, 10, 15 |
 | 2 — First vertical | One real file open→decode→audio+video on screen via command layer, from CLI and UI; video-in-webview prototype; Figma token proof | 2.A–2.E | 17 | **PASS 2026-10-21 — local-evidence; 3-OS CI PENDING (same PAT cause; phase2-exit.md §4.1)**: demo fixture plays end-to-end through the command layer, CLI-hosted, with byte-stable mock-labeled evidence (real-hardware tier + per-OS runs pending); webview prototype delivered — variant-B protocol core proven at virtual-time level, PROVISIONAL-B, per-OS matrix pending desktop runtimes; token pipeline renders Player screen from tokens (landed 1.B4) | 03, 04, 05, 08 |
-| 3 — Reliable engine | Clocks, queues, generations, seeking, source replacement, A/V sync, recovery | 3.A–3.F | 19 | All 16 integration scenarios (doc 10 §6) green incl. error paths; property suites green; soak 8h no-growth; differential-vs-VLC harness v1 reporting | 03, 10, 12 |
-| 4 — Desktop product | Figma-exact UI, layouts from config, themes, localization, playlists, settings, plugins, rebrand test | 4.A–4.I | 25 | Screenshot diffs within tolerance vs design exports at defined sizes/DPI; all 13 settings areas driven by settings-schema; i18n lint zero violations; conformance suite green on Tauri host | 07, 08, 05 |
-| 5 — Breadth | Containers, audio+video codecs, subtitles, filters — one verified increment at a time | 5.A–5.R | 45 | Per-format records complete for every shipped format; conformance kit + fuzz target per parser plugin; corpus coverage; feature-matrix statuses updated by evidence only | 04, 06, 10 |
-| 6 — Network & streaming | HTTP(S), HLS, DASH, RTSP-where-possible, buffering, reconnect, auth, fuzzing | 6.A–6.I | 17 | Network scenarios (interrupted/redirect/auth) green; protocol fuzzers in CI; blocked items (raw UDP/RTSP etc.) recorded with reasons | 03, 04, 11 |
+| 3 — Reliable engine | Clocks, queues, generations, seeking, source replacement, A/V sync, recovery | 3.A–3.F | 19 | All 16 integration scenarios (doc 10 §6) green incl. error paths; property suites green; soak 8h no-growth; differential-vs-VLC harness v1 reporting — **gate record: `docs/gates/phase3-exit.md` (2026-10-24, card 3.F2-V); verdict line reads PENDING LEAD SIGNATURE (see Status block above)** | 03, 10, 12 |
+| 4 — Desktop product | Figma-exact UI, layouts from config, themes, localization, playlists, settings, plugins, rebrand test | 4.A–4.I | 25 | Screenshot diffs within tolerance vs design exports at defined sizes/DPI; all 13 settings areas driven by settings-schema; i18n lint zero violations; conformance suite green on Tauri host — **gate record: `docs/gates/phase4-exit.md` (2026-10-24, card 4.I1-V); verdict line reads PENDING LEAD SIGNATURE (see Status block above)** | 07, 08, 05 |
+| 5 — Breadth | Containers, audio+video codecs, subtitles, filters — one verified increment at a time | 5.A–5.R | 45 | Per-format records complete for every shipped format; conformance kit + fuzz target per parser plugin; corpus coverage; feature-matrix statuses updated by evidence only — **PASS WITH REGISTERED CAVEATS, Lead sign-off 2026-10-24 (`docs/gates/phase5-exit.md`; 47/47 parent cards incl. delta cards 5.X1/5.X2; caveats honestly registered there §4)** | 04, 06, 10 |
+| 6 — Network & streaming | HTTP(S), HLS, DASH, RTSP-where-possible, buffering, reconnect, auth, fuzzing | 6.A–6.I | 17 | Network scenarios (interrupted/redirect/auth) green; protocol fuzzers in CI; blocked items (raw UDP/RTSP etc.) recorded with reasons — **IN PROGRESS (2026-11-09, see Status block)** | 03, 04, 11 |
 | 7 — Platform & advanced | Devices, hw decode (per ADR-001), recording, conversion, stream output, WASM extensions, web parity | 7.A–7.L | 24 | Hw-decode active-decoder truthfulness test green per OS; WASM sandbox conformance + crash isolation green; web build plays real media via same command layer on Chrome/Firefox/Safari (recorded matrix) | 09, 06, 03, 11 |
 | 8 — Hardening & release | Compatibility, security, soak, perf vs VLC, packaging, honest parity report | 8.A–8.H | 16 | Language-policy audit pass; SBOM + advisories clean; final perf report vs VLC 3.0.23 on reference hardware; installers signed/launch-tested; `parity-report` states verified/partial/unsupported/blocked per §17 | 11, 12, 10, 15 |
 
@@ -47,7 +71,7 @@ from `docs/13-agent-wave-program.md` (200 cards / 77 waves).
 | D-008 | **ADR timing: ADR-001 (hw decode), ADR-002 (WASM runtime), ADR-003 (video-in-webview) all decided inside Phase 0** per §16; ADR-004 (OS webview) accepted-by-brief, **file formalized 2026-10-22: accepted with per-OS verdicts PENDING** (`docs/adr/ADR-004-os-webview.md`; seam implemented in 2.D3); ADR-005 (audio backend) promised at Phase 1 wave 1.C, **file formalized 2026-10-22 from the 2.C3 draft: adapter-seam accepted, real-backend admission PENDING** (`docs/adr/ADR-005-audio-output.md`); ADR-006 (repo license) **decided 2026-10-19: MIT — see D-009** | Follows MASTER-PROMPT §16 Phase 0 gate. The ADR-005 delay (1.C → 2.C3 draft → 3.DOC-1 file) is honestly recorded: the seam was decided-by-implementation in 2.C3 and carried the 2.E2-V gate as "ADR-005 draft". | doc 01 §7 ADR register. |
 | D-009 | **Repository license = MIT** (user decision 2026-10-19; `LICENSE`; `docs/adr/ADR-006-license-mit.md`; closes risk R-05) | Maximal permissiveness, GPL-compatible ecosystem fit, matches the permissive-only dependency rule already enforced. Trade-off noted: no explicit patent grant (Apache-2.0 alternative considered); revisit only if patent exposure grows (ADR-010). | doc 11 §3 (allowlist license column now MIT-compat), §8.2; doc 14 R-05. |
 | D-010 | **R-07 closed: design package cleared per user attestation 2026-10-19** — open-source Figma Community design, no terms restriction | User statement; `design/figma/` remains the pinned visual source of truth for the fidelity program. Residuals: font identities remain [VERIFY] (exports are outlined); trademark wording rules (R-38-class) still govern shipped strings. | doc 14 R-07 closure log; doc 08 §2; `design/README.md`. |
-| D-011 | **ADR-011 (TLS/HTTPS) opened as proposed** — no production pure-Rust HTTPS stack exists (rustls→aws-lc/ring = C; native-tls = OpenSSL); decision due ≤ Phase 5 gate; no HTTPS dependency merges until decided | Phase 0 blind-spot found by 0.C3-I; affects Phase 6+ only. Options + interim posture in the ADR brief. | `docs/adr/ADR-011-tls-https.md`; doc 11 §6 (SEC-07); risk register R-44-class. |
+| D-011 | **ADR-011 (TLS/HTTPS) opened as proposed** — no production pure-Rust HTTPS stack exists (rustls→aws-lc/ring = C; native-tls = OpenSSL); decision due ≤ Phase 5 gate; no HTTPS dependency merges until decided. **Update (Phase 6, 6.A1b-RATIFY): decision EXECUTED** — ureq 3.5.0 admitted with ring 0.17.14 as an ADR-001-class recorded exception = the streaming layer's HTTP(S) foundation (worklog 6.A1b-RATIFY); the `docs/adr/ADR-011-tls-https.md` status line still reads "proposed" — file refresh owed | Phase 0 blind-spot found by 0.C3-I; affects Phase 6+ only. Options + interim posture in the ADR brief. | `docs/adr/ADR-011-tls-https.md`; doc 11 §6 (SEC-07); risk register R-44-class. |
 | D-012 | **doc 13 amendment due before Phase 5: add filter-implementation cards** (EQ/compressor/spatializer/stereowiden audio panels + colors/crop/essential video panels — all self-build S/M) | Gap found by 0.C3-I: doc 13 §7 Phase-5 waves contain no filter cards despite the design package requiring the panels. | doc 13 §7; doc 03 §4 filters; feasibility/sections/subsystems.md §4. |
 | D-013 | **doc 04 §4 "no pure-Rust H.264/HEVC decoder" is superseded by 0.C1-I finding** — a young 2026 wave exists (rusty_h264-decoder 0.16.1, rust_h264 0.4.0, rusty_h265, rusty_vp9; tarball-scanned pure, all self-validated) | Feeds ADR-001's conformance-gated software-adoption track; no status upgrade without passing our corpus+fuzz+differential kit. | `docs/feasibility/sections/video-codecs.md`; `docs/adr/ADR-001-hardware-decode.md` §2. |
 | D-014 | **ADR-001/002/003 accepted at Phase 0 gate** (hw-first H.264/HEVC + gated software track; wasmi WASM runtime; per-OS video-in-webview strategy) + Lead ratifications R-1..R-5 (Debian baseline package; expired-key GPG accepted as pin-sufficient; hardware-run owners assigned) | Per MASTER-PROMPT §16 Phase 0 mandate; evidence packs cited in each ADR. | `docs/adr/ADR-{001,002,003}*.md`; `docs/gates/phase0-exit-report.md`. |
@@ -96,11 +120,25 @@ decode (even self-written or OS-mediated) has patent considerations separate
 ADR-001 hw decode — **accepted 2026-10-19** (`docs/adr/ADR-001-hardware-decode.md`; hw-first H.264/HEVC + conformance-gated software track) · ADR-002 WASM runtime — **accepted: wasmi** (`docs/adr/ADR-002-wasm-runtime-wasmi.md`) ·
 ADR-003 video-in-webview — **accepted: per-OS strategy** (`docs/adr/ADR-003-video-in-webview.md`; prototype gates 2.D3/2.E2-V — PROVISIONAL-B, per-OS matrix pending desktop runtimes) · ADR-004 OS webview — **accepted 2026-10-22** (`docs/adr/ADR-004-os-webview.md`; seam landed 2.D3; per-OS verdicts + Phase-4 security review PENDING) ·
 ADR-005 audio output backend — **accepted 2026-10-22 for the adapter seam** (`docs/adr/ADR-005-audio-output.md`; real-backend admission PENDING, cpal NOT admitted) · ADR-006 repo license — **accepted: MIT,
-2026-10-19** (`docs/adr/ADR-006-license-mit.md`) · ADR-007
-first-vertical formats (decided: D-001) · ADR-008 WebCodecs-as-hw-analog on web
-(Phase 7, feeds ADR-001) · ADR-009 DVD/Blu-ray per-title decisions (post-v1) ·
-ADR-010 patent shipping matrix (user + counsel) · ADR-011 TLS/HTTPS —
-**proposed** (`docs/adr/ADR-011-tls-https.md`; decision ≤ Phase 5 gate).
+2026-10-19** (`docs/adr/ADR-006-license-mit.md`) · ADR-007 **VLC 3.0.23 as
+external test oracle [PROPOSAL]** (identity per doc 01 §7, the register
+authority — Lead decision 3.DOC-1; the former ROADMAP text "first-vertical
+formats" was the error, reconciled 2026-11-09 issue #21; **no ADR-007 file
+exists in `docs/adr/` yet**) · ADR-008 **optical disc support scope
+[PROPOSAL]** (DVD/Blu-ray menus and copy protection, each decided by ADR;
+per doc 01 §7 — the former ROADMAP identities "WebCodecs-as-hw-analog" /
+"DVD/Blu-ray per-title" were unregistered; the WebCodecs proposal is
+tracked un-numbered at doc 09 §10/§12 Q6) · ADR-009 **WASM threading &
+COOP/COEP [PROPOSAL]** (per doc 01 §7) · ADR-010 **codec patent &
+redistribution policy [PROPOSAL]** (user + counsel; the shipping matrix) ·
+ADR-011 TLS/HTTPS — **decision EXECUTED in Phase 6** (6.A1b-RATIFY: ureq
+3.5.0 + ring 0.17.14 as an ADR-001-class exception, the streaming layer's
+HTTP(S) foundation; `docs/adr/ADR-011-tls-https.md` status line still reads
+"proposed" — file refresh owed) · ADR-012 bitmap + closed-caption subtitle
+strategy — **accepted 2026-10-24** (Lead signature;
+`docs/adr/ADR-012-bitmap-subtitles.md`; self-build on the 5.L1 CueBitmap
+compositor contract; wave-9 N-cards 5.N1–5.N3 executed per phase5-exit.md
+§2).
 
 ## 7. Document index
 
@@ -123,9 +161,16 @@ ADR-010 patent shipping matrix (user + counsel) · ADR-011 TLS/HTTPS —
 | 14 | Risk register (44 risks) | committed (Wave C) |
 | 15 | Git workflow | committed (Wave C) |
 | — | design/ (102 pinned SVG exports + inventory) | committed |
-| — | worklog.md (17 agent records) | live |
+| — | worklog.md — live log at the **repository root** (append-only); prior entries archived under `docs/worklog/` (see `docs/worklog/README.md`) | live |
 
-## 8. Current state (2026-10-22)
+## 8. Current state (2026-10-22) — HISTORICAL SNAPSHOT
+
+> **[HISTORICAL SNAPSHOT — do not update in place.]** The block below is the
+> program-state snapshot written 2026-10-22 (card 3.DOC-1), kept verbatim for
+> the record. Its "Phase 3 IN PROGRESS" state is **superseded by the Status
+> block in the header** (refreshed 2026-11-09, issue #21): Phases 3–5 have
+> since closed out (gate records cited there; the phase-3/4 verdict lines
+> still await Lead signature) and Phase 6 is in progress.
 
 **Phase 1 COMPLETE** (all six waves 1.A–1.F; gate report
 `docs/gates/phase1-exit.md`, 2026-10-20 — PASS, 529/0/3, CI green-run links
