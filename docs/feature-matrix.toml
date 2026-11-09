@@ -413,7 +413,7 @@ vlc_modules = ["avcodec"]
 inventory_ref = "inventory/formats.json#h264"
 status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
 evidence = "crates/codecs/src/video/h264/** (cards 5.F1a/5.F1b clean-room parser corpus-verified 19/19 + 5.F2 hw decode-path seam; record docs/formats/video-h264.md: 0019 26/26 + 0014 185/185 slices vs trace_headers)"
-notes = "ADR-001 (pending) primary: strongest in-box story on Windows (MFT Win7+, profiles ≤ High); decode-path integration 5.F2; adapters plug at 7.B1–7.B3; parser self-build 5.F1 feeds probe/track-info/hw. Software track = separate row. 5.Q2-V backfill: partial per record — hw decode-path seam delivered, playback hw-only pending Phase-7 adapters; NO software decoder exists (doc 04 §4.2 stands)."
+notes = "ADR-001 (pending) primary: strongest in-box story on Windows (MFT Win7+, profiles ≤ High); decode-path integration 5.F2; adapters plug at 7.B1–7.B3; parser self-build 5.F1 feeds probe/track-info/hw. Software track = separate row. 5.Q2-V backfill: partial per record — hw decode-path seam delivered, playback hw-only pending Phase-7 adapters; NO software decoder exists (doc 04 §4.2 stands). 2026-11-09 (issue #2): software-decoder admission audits complete (docs/dependencies/records/h264-software-decoder-audits.md — rust_h264 0.6.1 [PROPOSAL, Lead-gated], conformance-gated admission plan); Linux VA-API hw lane drafted as ADR-013 [proposed]."
 
 [[feature]]
 id = "codec-video-h264-software"
@@ -426,8 +426,8 @@ vlc_modules = ["avcodec"]
 inventory_ref = "inventory/formats.json#h264"
 status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
 evidence = ""
-blocked_reason = "No proven compliant pure-Rust decoder: 2026 candidates (rusty_h264-decoder 0.16.1, rust_h264 0.4.0) are young/self-validated — conformance-gated candidate track pending ADR-001 (feasibility video-codecs §2.4/§2.5); openh264 crate = C source build, forbidden. Next step: ADR-001 + our-corpus gate before any adoption claim."
-notes = "Phase 5 = track decision (5.F2 conditional); hw row carries the v1 path."
+blocked_reason = "Audits complete 2026-11-09 (issue #2, docs/dependencies/records/h264-software-decoder-audits.md): recommended candidate rust_h264 0.6.1 [PROPOSAL — Lead-gated admission] — zero-dep pure Rust, upstream-claimed JVT 199/204 at FFmpeg parity (Hi10P/4:2:2/MBAFF), but self-validated: our-corpus conformance gate required first (JVT vectors in CI + differential vs FFmpeg oracle + profile-coverage report per ADR-001's track); rusty_h264 0.17.2 = audited fallback (8-bit 4:2:0, MBAFF refused); openh264 = vendored C++ build, forbidden (MP §9). Row stays blocked until Lead admission + conformance gate pass; ADR-010 Q1 gates distribution."
+notes = "Phase 5 = track decision (5.F2 conditional); hw row carries the v1 path. 2026-11-09: audits complete, admission pending Lead (R-01 detail row, doc 14 §2.2)."
 
 [[feature]]
 id = "codec-video-hevc"
@@ -440,7 +440,7 @@ vlc_modules = ["avcodec"]
 inventory_ref = "inventory/formats.json#hevc"
 status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
 evidence = "crates/codecs/src/video/hevc/** (cards 5.G1 parser 3/3 corpus lanes byte-verified + 5.G2 hw decode-path seam 571/0; record docs/formats/video-hevc.md)"
-notes = "Windows Store 'HEVC Video Extensions' USD 0.99 wrinkle (old deep-link id dead, HTTP 410); VA-API covers 8/10/12-bit + 4:2:2/4:4:4 on Intel; parser 5.G1; adapters 7.B (conditional on the H.264 hw path landing). 5.Q2-V backfill: partial per record — hw seam delivered (5.G2), software decode absent; Main-10/4:4:4 corpus absence recorded."
+notes = "Windows Store 'HEVC Video Extensions' USD 0.99 wrinkle (old deep-link id dead, HTTP 410); VA-API covers 8/10/12-bit + 4:2:2/4:4:4 on Intel; parser 5.G1; adapters 7.B (conditional on the H.264 hw path landing). 5.Q2-V backfill: partial per record — hw seam delivered (5.G2), software decode absent; Main-10/4:4:4 corpus absence recorded. 2026-11-09 (issue #2): Linux VA-API hw lane drafted as ADR-013 [proposed] (covers 8/10/12-bit + 4:2:2/4:4:4); software-decoder audit framework established by docs/dependencies/records/h264-software-decoder-audits.md — HEVC candidates (rust_h265/rust_h265) to be run through it next."
 
 [[feature]]
 id = "codec-video-hevc-software"
@@ -453,8 +453,8 @@ vlc_modules = ["avcodec"]
 inventory_ref = "inventory/formats.json#hevc"
 status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
 evidence = ""
-blocked_reason = "Same gate as codec-video-h264-software: rusty_h265 0.6.2 / rust_h265 0.1.0 are young/unproven (feasibility video-codecs §2); distribution legality additionally unresolved until ADR-010."
-notes = "Phase 5 = track decision (5.G2 conditional)."
+blocked_reason = "Same conformance-gated track as codec-video-h264-software (framework defined 2026-11-09 in docs/dependencies/records/h264-software-decoder-audits.md): HEVC candidates rusty_h265 0.6.2 / rust_h265 0.1.0 still unaudited — young/unproven (feasibility video-codecs §2); running the H.264 audit framework over them is the recorded next step (R-02, doc 14 §2.2). Distribution legality additionally unresolved until ADR-010."
+notes = "Phase 5 = track decision (5.G2 conditional). 2026-11-09: hw lane drafted (ADR-013 VA-API [proposed]); software-candidate audit still owed."
 
 [[feature]]
 id = "codec-video-av1"
@@ -2422,7 +2422,7 @@ vlc_modules = ["avcodec", "dxva2", "vaapi", "vdpau_avcodec"]
 inventory_ref = "inventory/platform-synthesis.md"
 status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
 evidence = ""
-notes = "Census: avcodec ffmpeghw score 10001 (highest in dump) — hardware preferred by default, corroborating MP §2/ADR-001 hw-first. Win module identity [VERIFY V4]; VT identity [VERIFY V5]; VA-API E2 classification = open Lead question (SV-28). Adapters 7.B1–7.B3."
+notes = "Census: avcodec ffmpeghw score 10001 (highest in dump) — hardware preferred by default, corroborating MP §2/ADR-001 hw-first. Win module identity [VERIFY V4]; VT identity [VERIFY V5]; VA-API E2 classification = open Lead question (SV-28). Adapters 7.B1–7.B3. 2026-11-09 (issue #2): Linux lane designed — ADR-013 [proposed] (VA-API = E2 OS-service exception, adapter-gated; audited access paths libva 0.1.5 / libva-sys 0.1.2, none admitted; substrate + unsafe-boundary + CI-conformance plan pending Lead)."
 
 [[feature]]
 id = "platform-hwdecode-hevc"
@@ -2435,7 +2435,7 @@ vlc_modules = ["avcodec", "dxva2", "vaapi"]
 inventory_ref = "inventory/platform-synthesis.md"
 status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
 evidence = ""
-notes = "Windows Store paywall wrinkle (see codec-video-hevc); conditional on the H.264 hw path landing (5.G2)."
+notes = "Windows Store paywall wrinkle (see codec-video-hevc); conditional on the H.264 hw path landing (5.G2). 2026-11-09 (issue #2): Linux lane designed — ADR-013 [proposed] covers HEVC 8/10/12-bit + 4:2:2/4:4:4 via VA-API; driver-variance ledger (R-15, Intel/AMD) named as an adapter-card deliverable."
 
 [[feature]]
 id = "platform-hwdecode-vp9"
