@@ -5,7 +5,8 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AccentId } from "../tokens/generated/tokens";
-import { ThemeProvider, useTheme } from "./ThemeProvider";
+import { ThemeProvider } from "./ThemeProvider";
+import { useTheme } from "./useTheme";
 
 // jsdom has no matchMedia — install a controllable stub.
 function installMatchMedia(prefersLight: boolean) {

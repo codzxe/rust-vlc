@@ -31,15 +31,18 @@
   z-index: 20;
   display: grid;
   place-items: center;
+
   /* Optical center (brief §4.4: 45%) — the extra bottom padding lifts the
    * card so it does not sit high with a dead void below. */
   padding-bottom: 10vh;
+  /* stylelint-disable function-disallowed-list -- art-direction: the veil's warm ink is a hand-tuned three-stop radial (mirrors theme/solstice.css); a semantic veil-ink token is [PROPOSAL] in stylelint.config.js */
   background: radial-gradient(
     ellipse at 50% 38%,
-    rgb(20 14 8 / 0.18) 0%,
-    rgb(16 11 6 / 0.44) 62%,
-    rgb(10 7 4 / 0.62) 100%
+    rgb(20 14 8 / 18%) 0%,
+    rgb(16 11 6 / 44%) 62%,
+    rgb(10 7 4 / 62%) 100%
   );
+  /* stylelint-enable function-disallowed-list */
   backdrop-filter: blur(2px);
 }
 
@@ -120,6 +123,7 @@
   font-weight: var(--font-weight-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
+
   /* v2 audit: content-tertiary measured 4.46:1 on the panel (AA floor is
    * 4.5 for text this size) — the label keeps its quiet role via
    * case/tracking, at the AA-safe secondary ink. */

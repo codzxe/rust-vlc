@@ -14,7 +14,6 @@
 import {
   createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useState,
@@ -97,11 +96,5 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
-/** Access the theme selections (card 4.A2). Throws outside ThemeProvider. */
-export function useTheme(): ThemeContextValue {
-  const ctx = useContext(ThemeContext);
-  if (ctx === null) {
-    throw new Error("useTheme must be used inside <ThemeProvider>");
-  }
-  return ctx;
-}
+// useTheme lives in ./useTheme.ts (issue #36): keeping the hook out of this
+// file lets it export only the component (react-refresh/only-export-components).

@@ -31,6 +31,7 @@
   font-weight: var(--font-weight-medium);
 }
 
+/* stylelint-disable-next-line no-descending-specificity -- the changed-row highlight is documented before the input base styles (row state before anatomy); [data-changed] wins by specificity regardless of order */
 .hotkeys-row__input {
   color: var(--color-content-primary);
   background: var(--color-surface);
@@ -40,6 +41,7 @@
   min-width: 10ch;
 }
 
+/* stylelint-disable-next-line no-descending-specificity -- disabled variant listed after its base rule; the changed/conflict row rules outrank it by specificity either way */
 .hotkeys-row__input:disabled {
   color: var(--color-content-tertiary);
   background: var(--color-surface-muted);
@@ -48,6 +50,7 @@
 .hotkeys-row__conflict {
   margin: var(--space-inset) 0 0;
   color: var(--color-accent-strong);
+
   /* caption (11px), never micro — v2 §2.9: no text below 11px */
   font-size: var(--font-size-caption);
 }
@@ -73,6 +76,6 @@
   width: 1px;
   height: 1px;
   overflow: hidden;
-  clip: rect(0 0 0 0);
+  clip-path: inset(50%); /* deprecated clip: rect() replaced by its modern equivalent (issue #36 stylelint pass) */
   white-space: nowrap;
 }

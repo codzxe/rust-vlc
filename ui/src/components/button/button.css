@@ -90,7 +90,7 @@
   width: 14px;
   height: 14px;
   border-radius: 50%; /* functional circle, not a design radius */
-  border: 2px solid currentColor;
+  border: 2px solid currentcolor;
   border-top-color: transparent;
   animation: lumen-button-spin 800ms linear infinite;
 }
@@ -218,6 +218,7 @@
 
 .lumen-toggle__label--off {
   flex: 1;
+
   /* 4.F4 a11y fix: tertiary on the deep track was 3.73:1 (wcag 1.4.3).
    * secondary clears 4.5:1 on both theme tracks. */
   color: var(--color-content-secondary);

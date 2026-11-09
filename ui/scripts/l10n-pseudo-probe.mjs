@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
@@ -6,7 +7,10 @@ import { chromium } from "@playwright/test";
 // The UI workspace this probe drives — resolved from THIS file (issue #36:
 // was a hardcoded absolute worktree path), so the probe behaves identically
 // no matter which worktree/checkout it runs from or what cwd npm gives it.
+// Screenshots land in ui/pseudo-probe/ (gitignored) for the same reason.
 const UI = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const PROBE_DIR = resolve(UI, "pseudo-probe");
+mkdirSync(PROBE_DIR, { recursive: true });
 const server = spawn("npm", ["run", "dev", "--", "--port", "5199", "--strictPort"], {
   cwd: UI, stdio: "ignore", detached: true,
 });
@@ -33,7 +37,7 @@ for (const route of routes) {
     }
     return { pageOverflowX, ellipsizedCount: clipped.length, samples: clipped.slice(0, 4), bracketed: document.body.textContent.includes("[") };
   });
-  await page.screenshot({ path: `/home/z/pseudo-probe/pseudo-${route.replaceAll("/", "-") || "root"}.png` });
+  await page.screenshot({ path: resolve(PROBE_DIR, `pseudo-${route.replaceAll("/", "-") || "root"}.png`) });
   report.push({ route, ...findings });
 }
 console.log(JSON.stringify(report, null, 2));

@@ -78,6 +78,7 @@ body {
   color: var(--color-content-primary);
   border: 1px solid color-mix(in srgb, var(--color-tape) 26%, transparent);
   border-radius: var(--radius-panel);
+
   /* v2: warm glass — the rail reads as part of the sunset scene, not a
    * near-black strip. Translucent panel with a sunset-tinted top edge.
    * Self-contained (see the CASCADE NOTE in the header) so import order
@@ -89,9 +90,11 @@ body {
     color-mix(in srgb, var(--color-surface-panel) 86%, transparent) 100%
   );
   backdrop-filter: blur(var(--blur-backdrop-small));
+  /* stylelint-disable color-named -- art-direction: the chrome's top sheen highlight; no semantic highlight token yet [PROPOSAL in stylelint.config.js] */
   box-shadow:
     var(--shadow-card),
     inset 0 1px 0 color-mix(in srgb, white 7%, transparent);
+  /* stylelint-enable color-named */
 }
 
 .app-shell__logo {
@@ -99,6 +102,7 @@ body {
   width: 20px;
   height: 20px;
   margin: 0 auto;
+
   /* The rhythm divider under the mark — same step as the list gap. */
   padding-bottom: calc(var(--space-inset) + 2px);
   border-bottom: 1px solid color-mix(in srgb, var(--color-stroke-border) 60%, transparent);

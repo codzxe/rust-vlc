@@ -2,14 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, ReactElement } from "react";
 import { MenuItem } from "./MenuItem";
 import type { MenuEntry, ResolveLabel } from "./types";
-
-/**
- * Submenu hover-intent delays. Doc 08 pins no values — these are the
- * [PROPOSAL] defaults recorded in states.md (WAI-ARIA APG guidance:
- * open on hover after a short delay, never instantly).
- */
-export const SUBMENU_OPEN_DELAY_MS = 150;
-export const SUBMENU_CLOSE_DELAY_MS = 100;
+import { SUBMENU_CLOSE_DELAY_MS, SUBMENU_OPEN_DELAY_MS } from "./timings";
 
 /**
  * Shared `role="menu"` popup: roving tabindex, ArrowUp/Down/Home/End

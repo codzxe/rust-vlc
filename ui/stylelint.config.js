@@ -30,6 +30,7 @@
 // directory, not ours.
 
 import { createRequire } from "node:module";
+import process from "node:process";
 
 const require = createRequire(import.meta.url);
 
@@ -58,6 +59,25 @@ export default {
       "color",
     ],
     "color-named": "never",
+    // --- calibration to the codebase's real conventions ---------------------
+    // config-standard's default selector-class-pattern is plain kebab-case,
+    // which rejects every BEM class in this codebase (.lumen-menu__item,
+    // .lumen-tabs__tab--selected, …). The UI primitive library has used
+    // block__element--modifier naming since its first cards, so the
+    // enforceable-today rule is "kebab-case segments, BEM joints", not
+    // "no BEM": lowercase kebab blocks, optional __element and --modifier
+    // segments (each itself kebab). This still rejects camelCase, snake_case,
+    // uppercase and leading-digit segments. [PROPOSAL] tighten to strict BEM
+    // (at most one __ and one -- per selector) once the last multi-joint
+    // outliers are gone.
+    "selector-class-pattern": [
+      "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:__[a-z0-9]+(?:-[a-z0-9]+)*)*(?:--[a-z0-9]+(?:-[a-z0-9]+)*)*$",
+      {
+        resolveNestedSelectors: true,
+        message:
+          "Class names must be kebab-case BEM: block__element--modifier, all segments lowercase kebab (the primitive-library convention).",
+      },
+    ],
   },
   overrides: [
     {
@@ -68,14 +88,21 @@ export default {
       // an inline stylelint-disable into it would break the drift guard, so
       // the scoped exemption lives HERE instead — this override is the
       // config-level equivalent of the blanket `/* eslint-disable */` the
-      // generators emit for ESLint, scoped to the color discipline only:
-      // tokens.css is the one file ALLOWED to spell raw colors, because
-      // defining them is its entire job.
+      // generators emit for ESLint, scoped to the rules the emitter's output
+      // shape trips today: tokens.css is the one file ALLOWED to spell raw
+      // colors (that is its entire job), in legacy rgba()/long-hex notation,
+      // with mixed-case font stacks. If the pipeline output changes shape,
+      // stylelint flags it here and this list is updated consciously.
       files: ["src/tokens/generated/tokens.css"],
       rules: {
         "color-no-hex": null,
         "function-disallowed-list": null,
         "color-named": null,
+        "alpha-value-notation": null,
+        "color-function-alias-notation": null,
+        "color-function-notation": null,
+        "color-hex-length": null,
+        "value-keyword-case": null,
       },
     },
   ],

@@ -25,6 +25,7 @@
   justify-content: center;
   box-sizing: border-box;
   padding: calc(var(--space-inset) * 3);
+
   /* Warm translucent scrim — the stage (and the sunset behind it) glows
    * through instead of a hard opaque cut. */
   background: color-mix(in srgb, var(--color-surface-deep) 62%, transparent);
@@ -78,6 +79,7 @@
   color: var(--color-note-ink);
 }
 
+/* stylelint-disable-next-line no-descending-specificity -- the note-ink variant is read before the fallback base; it wins by specificity either way */
 .lumen-state-overlay__action {
   color: var(--color-content-primary);
 }

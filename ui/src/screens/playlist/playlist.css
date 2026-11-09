@@ -80,6 +80,7 @@
   padding: var(--space-grid) var(--space-inset) 0;
   border-top: 1px solid color-mix(in srgb, var(--color-stroke-border) 65%, transparent);
   font-size: var(--font-size-caption);
+
   /* secondary (not tertiary): micro/caption text on the panel stays AA
    * (4.F4 a11y precedent — the old tertiary-on-panel was 3.6:1). */
   color: var(--color-content-secondary);
@@ -154,6 +155,7 @@
 }
 
 /* -------------------------------------------------------------- rows -- */
+
 /* 48h pitch (option.svg): grip | index | marker | title+location | duration
  * | actions. The VirtualList sets the vrow height; `.lumen-plrow` fills it. */
 
