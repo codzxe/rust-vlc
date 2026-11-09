@@ -555,11 +555,10 @@ impl HlsAdaptiveStream {
     fn fetch_next_segment(&mut self) -> Result<(), EngineError> {
         // The boundary decision: a switch replaces the plan before
         // the fetch (the new variant's NEXT segment is what serves
-        // this boundary — never half a segment).
-        if self.next > 0 {
-            if let Some(target) = self.abr.decide(&self.master.variants) {
-                self.switch_variant(target)?;
-            }
+        // this boundary — never half a segment). The first segment
+        // of the open never switches (there is no history yet).
+        if self.next > 0 && let Some(target) = self.abr.decide(&self.master.variants) {
+            self.switch_variant(target)?;
         }
         let seg = self.plan[self.next].clone();
         let request = HttpRequest::get(seg.uri.clone())
