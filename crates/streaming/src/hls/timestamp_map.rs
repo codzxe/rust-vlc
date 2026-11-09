@@ -119,9 +119,20 @@ impl TimestampMap {
     /// The inverse of [`TimestampMap::wallclock_ms_for_pts`]: map a
     /// wall-clock Unix-epoch millisecond value to the PTS tick it
     /// corresponds to, wrapping into `0..2^33`.
+    ///
+    /// The ms-scaled intermediate `(wallclock - local) * 90 000`
+    /// overflows its i64 once the wall value sits more than
+    /// `i64::MAX / 90 000` ms (≈ 3 253 years) from the anchor — the
+    /// netfuzz-recorded far-from-anchor finding. No real timeline
+    /// reaches that far, so the tick delta **saturates** at the
+    /// signed bounds instead of panicking (debug) or wrapping
+    /// silently (release); within the representable horizon — which
+    /// superset-covers the mapping's contracted ±13.25 h window —
+    /// the arithmetic is unchanged and exact.
     #[must_use]
     pub fn pts_for_wallclock_ms(&self, wallclock_ms: i64) -> u64 {
-        let delta_ticks = (wallclock_ms - self.local_ms) * PTS_HZ as i64 / 1000;
+        let delta_ms = wallclock_ms.saturating_sub(self.local_ms);
+        let delta_ticks = delta_ms.saturating_mul(PTS_HZ as i64) / 1000;
         self.mpegts.wrapping_add(delta_ticks as u64) % PTS_MODULUS
     }
 }
@@ -277,6 +288,45 @@ mod tests {
         assert_eq!(map2.wallclock_ms_for_pts(PTS_MODULUS - 45_000), -1_000);
         // Round-trip across the wrap.
         assert_eq!(map.pts_for_wallclock_ms(6_000), 45_000);
+    }
+
+    /// The netfuzz-recorded finding (docs/formats/streaming-hls.md,
+    /// network scenarios): the ms-scaled i64 intermediate
+    /// `(wallclock - local) * 90 000` overflows once the wall value
+    /// sits more than `i64::MAX / 90 000` ms (≈ 3 253 years) from
+    /// the anchor — a panic under `overflow-checks`, a silent wrap
+    /// without. The conversion stays total: the delta **saturates**
+    /// at the signed timeline bounds instead.
+    #[test]
+    fn far_from_anchor_wallclock_saturates_instead_of_overflowing() {
+        let bom = TimestampMap {
+            mpegts: 0,
+            local_ms: 0,
+        };
+        // Inside the representable horizon the arithmetic is
+        // unchanged: 10^12 ms (≈ 31.7 years) is exact.
+        assert_eq!(bom.pts_for_wallclock_ms(1_000_000_000_000), 3_255_279_616);
+        // Beyond the horizon (`i64::MAX / 1000` ms, the recorded
+        // probe): no panic, no silent wrap — every such value
+        // collapses onto the saturated tick delta `i64::MAX / 1000`
+        // (7 078 106 103 ticks past the anchor).
+        assert_eq!(bom.pts_for_wallclock_ms(i64::MAX / 1000), 7_078_106_103);
+        assert_eq!(bom.pts_for_wallclock_ms(i64::MAX), 7_078_106_103);
+        // Symmetrically below the anchor: i64::MIN.
+        assert_eq!(bom.pts_for_wallclock_ms(i64::MIN), 1_511_828_489);
+        // The subtraction itself can overflow (anchor and probe at
+        // opposite i64 extremes); saturating there too, then the
+        // multiply — same collapsed images around a shifted anchor.
+        let hi_anchor = TimestampMap {
+            mpegts: 45_000,
+            local_ms: i64::MIN,
+        };
+        assert_eq!(hi_anchor.pts_for_wallclock_ms(i64::MAX), 7_078_151_103);
+        let lo_anchor = TimestampMap {
+            mpegts: 45_000,
+            local_ms: i64::MAX,
+        };
+        assert_eq!(lo_anchor.pts_for_wallclock_ms(i64::MIN), 45_000 + 1_511_828_489);
     }
 
     /// A playlist's LAST tag governs (an encoder restart republishes
