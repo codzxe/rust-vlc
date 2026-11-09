@@ -18,17 +18,21 @@
 //!   the same stream with old segments dropped — already-fetched bytes
 //!   are never refetched, and a slide never disturbs the concatenation
 //!   the consumer is reading.
-//! * **Demand-driven reload, request-budgeted.** The playlist is
-//!   re-fetched exactly when the fetchable window runs dry — a
-//!   pull-driven consumer has no reason to poll ahead of its buffer.
-//!   A reload that yields no new segment and no `ENDLIST` is a
-//!   *stalled* reload; [`HlsLiveConfig::max_stalled_reloads`]
+//! * **Demand-driven reload, request-budgeted, optionally paced.**
+//!   The playlist is re-fetched exactly when the fetchable window
+//!   runs dry — a pull-driven consumer has no reason to poll ahead of
+//!   its buffer. A reload that yields no new segment and no `ENDLIST`
+//!   is a *stalled* reload; [`HlsLiveConfig::max_stalled_reloads`]
 //!   consecutive stalled reloads fail typed
 //!   (`streaming.hls.live-timeout`, a `ResourceLimit` on recovery
-//!   attempts). **No wall-clock pacing lives here**: sleeping between
-//!   reloads and the target-duration cadence of a buffered player are
-//!   the buffer model's card (6.D1); v0's budget is requests, which
-//!   keeps tests deterministic and the failure typed.
+//!   attempts). **Wall-clock pacing is opt-in** (card 6.D1):
+//!   [`HlsLiveConfig::pacing_clock`] injects the wall-clock port and
+//!   each reload then waits out the RFC 8216 §6.3.4 cadence — a full
+//!   target duration after a productive window, half after a stalled
+//!   one — through the injected clock (a `FakeClock` in tests makes
+//!   the cadence an assertion, never a wait). Without a clock (the
+//!   default) v0's unpaced request budget stands unchanged, keeping
+//!   the pacing-free tests deterministic.
 //! * **`ENDLIST` termination.** A reload that carries
 //!   `#EXT-X-ENDLIST` ends the session: the remaining window drains,
 //!   reads then return empty (`EndOfStream`), and `size()` becomes
@@ -94,6 +98,7 @@ use super::media::{
     DEFAULT_RETAINED_BYTES, MAX_READ_BYTES, MAX_RETAINED_BYTES, SegmentBoundary,
     fetch_playlist_model, map_fetch_err, mint, refuse, resolve_seek_origin,
 };
+use crate::clock::WallClock;
 use crate::error::NetworkError;
 use crate::fetch::{DEFAULT_RESPONSE_LIMIT, HttpFetch, HttpRequest};
 
@@ -103,14 +108,14 @@ use crate::fetch::{DEFAULT_RESPONSE_LIMIT, HttpFetch, HttpRequest};
 pub const DEFAULT_LIVE_EDGE_BACK: u32 = 3;
 
 /// Default stalled-reload budget: 4 consecutive unproductive reloads
-/// tolerated before the typed `streaming.hls.live-timeout` (the
-/// wall-clock pacing that would make a live source wait out a slow
-/// publisher is 6.D1's buffer model; v0's budget is requests).
+/// tolerated before the typed `streaming.hls.live-timeout` (with
+/// `pacing_clock` injected the same budget bounds the paced waits —
+/// pacing changes the cadence, never the tolerance).
 pub const DEFAULT_MAX_STALLED_RELOADS: u32 = 4;
 
 /// Live-session configuration (all budgets explicit; see the module
 /// docs for what each knob bounds).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct HlsLiveConfig {
     /// Per-response memory budget for each playlist fetch (open +
     /// every reload).
@@ -127,6 +132,19 @@ pub struct HlsLiveConfig {
     /// Consecutive unproductive reloads tolerated before
     /// `streaming.hls.live-timeout`.
     pub max_stalled_reloads: u32,
+    /// Opt-in wall-clock reload pacing (card 6.D1): when `Some`, each
+    /// reload first waits out the RFC 8216 §6.3.4 cadence since the
+    /// last playlist fetch — a full target duration after a
+    /// productive window, half after a stalled one — through this
+    /// clock (production passes
+    /// [`SystemClock::shared`](crate::clock::SystemClock::shared);
+    /// tests inject [`FakeClock`](crate::clock::FakeClock), whose
+    /// sleep advances virtual time instantly, so the cadence is
+    /// asserted, never waited). `None` (the default) keeps v0's
+    /// unpaced demand-driven reloads: the budget stays requests.
+    /// The stall budget applies either way — pacing changes *when*
+    /// a reload happens, never how many are tolerated.
+    pub pacing_clock: Option<Arc<dyn WallClock>>,
 }
 
 impl Default for HlsLiveConfig {
@@ -137,7 +155,24 @@ impl Default for HlsLiveConfig {
             max_retained_bytes: DEFAULT_RETAINED_BYTES,
             live_edge_back: DEFAULT_LIVE_EDGE_BACK,
             max_stalled_reloads: DEFAULT_MAX_STALLED_RELOADS,
+            pacing_clock: None,
         }
+    }
+}
+
+/// The clock handle is not `Debug` (the port is behavior, not data);
+/// the config's debug surface says whether pacing is armed, which is
+/// the honest summary.
+impl std::fmt::Debug for HlsLiveConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HlsLiveConfig")
+            .field("playlist_response_limit", &self.playlist_response_limit)
+            .field("segment_response_limit", &self.segment_response_limit)
+            .field("max_retained_bytes", &self.max_retained_bytes)
+            .field("live_edge_back", &self.live_edge_back)
+            .field("max_stalled_reloads", &self.max_stalled_reloads)
+            .field("pacing_clock", &self.pacing_clock.is_some())
+            .finish()
     }
 }
 
@@ -182,6 +217,9 @@ pub struct HlsLiveStats {
     pub playlist_reloads: u64,
     /// Reloads that produced neither a new segment nor `ENDLIST`.
     pub stalled_reloads: u64,
+    /// Reloads that waited out the RFC 8216 cadence first (the
+    /// pacing-clock surface: 0 without a clock injected).
+    pub paced_reloads: u64,
     /// Segment bodies fetched.
     pub segments_fetched: u64,
     /// Segments that slid out of the server window before this
@@ -236,6 +274,11 @@ pub struct HlsLiveStream {
     gap_pending: bool,
     /// Consecutive unproductive reloads so far.
     stalled: u32,
+    /// When the last playlist fetch completed, in the pacing clock's
+    /// monotonic milliseconds (the cadence's anchor; `None` only
+    /// between construction and the first paced decision — open
+    /// always records it when a clock is injected).
+    last_playlist_ms: Option<u64>,
     config: HlsLiveConfig,
     stats: HlsLiveStats,
     // The byte-serving state (same shape as the VOD session):
@@ -381,15 +424,62 @@ impl HlsLiveStream {
         Ok(out)
     }
 
+    /// The RFC 8216 §6.3.4 reload cadence in milliseconds: one target
+    /// duration after the last productive window, half that after a
+    /// stalled one. `TARGETDURATION` is required in a media playlist;
+    /// a degenerate window without one falls to its largest `EXTINF`
+    /// (rounded up), then to 1 s — never a zero wait, which would
+    /// degenerate the pacing into a reload busy-loop.
+    fn reload_wait_ms(&self) -> u64 {
+        let seconds = self
+            .window
+            .target_duration
+            .unwrap_or_else(|| {
+                self.pending
+                    .iter()
+                    .filter_map(|segment| segment.duration)
+                    .fold(0u64, |acc, duration| acc.max(duration.ceil() as u64))
+                    .max(1)
+            })
+            .max(1);
+        let full_ms = seconds.saturating_mul(1000);
+        if self.stalled > 0 {
+            full_ms / 2
+        } else {
+            full_ms
+        }
+    }
+
     /// Re-fetch the playlist and slide the window (the module docs'
     /// reload model): map by absolute sequence, count what slid out,
     /// append what is new, and account stall budget.
     fn reload(&mut self) -> Result<(), EngineError> {
+        // Pacing first (card 6.D1, opt-in): with a clock injected, a
+        // reload happens no sooner than the RFC 8216 cadence since
+        // the last playlist fetch. The clock handle is cloned out of
+        // the config so the wait and the bookkeeping below never
+        // fight over `self`.
+        let pacing = self.config.pacing_clock.clone();
+        if let Some(clock) = pacing {
+            let wait_ms = self.reload_wait_ms();
+            let last = self.last_playlist_ms.unwrap_or_else(|| clock.now_ms());
+            let elapsed = clock.now_ms().saturating_sub(last);
+            if elapsed < wait_ms {
+                clock.sleep_ms(wait_ms - elapsed);
+                self.stats.paced_reloads += 1;
+            }
+        }
         let (model, playlist_bytes) =
             fetch_playlist_model(&self.fetch, &self.url, self.config.playlist_response_limit)?;
         self.stats.requests += 1;
         self.stats.playlist_reloads += 1;
         self.stats.bytes_fetched += playlist_bytes;
+        // The cadence re-anchors on THIS fetch's completion (the
+        // clock's reading after the wait, so a paced session's next
+        // wait measures from the new window's arrival).
+        if let Some(clock) = self.config.pacing_clock.as_ref() {
+            self.last_playlist_ms = Some(clock.now_ms());
+        }
 
         // The still-refused shapes can arrive mid-live (an encryption
         // key turned on, a byterange segment, an init section): a
@@ -603,6 +693,9 @@ pub fn open_live(
         .collect();
     // Discontinuity seams are counted when CROSSED (fetched) — a
     // live session cannot honestly count seams it has not reached.
+    // The pacing anchor: the opening fetch is the cadence's epoch
+    // when a clock is injected.
+    let last_playlist_ms = config.pacing_clock.as_ref().map(|clock| clock.now_ms());
     Ok(HlsLiveStream {
         fetch,
         uri,
@@ -615,6 +708,7 @@ pub fn open_live(
         ended: false,
         gap_pending: false,
         stalled: 0,
+        last_playlist_ms,
         config,
         stats,
         retained: Vec::new(),
@@ -628,6 +722,7 @@ pub fn open_live(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::clock::FakeClock;
     use crate::fetch::HttpResponse;
     use crate::fetch::Url;
     use std::sync::Mutex;
@@ -885,6 +980,89 @@ mod tests {
         assert_eq!(stream.stats().stalled_reloads, 3, "measured: 3 stalls");
         assert_eq!(stream.stats().playlist_reloads, 3);
         assert_eq!(fetch.playlist_fetches(), 4, "open + 3 reloads");
+        assert_eq!(stream.stats().paced_reloads, 0, "no clock: no pacing");
+    }
+
+    /// The 6.D1 pacing proof (deterministic): with a `FakeClock`
+    /// injected, a stalled dry window waits the RFC 8216 §6.3.4
+    /// cadence before each reload — a full target duration after the
+    /// productive open, half after each stalled reload — and the
+    /// stall budget still bounds the sequence (the waits advance
+    /// virtual time instantly; the schedule is *asserted*).
+    #[test]
+    fn paced_reloads_wait_the_rfc8216_cadence() {
+        // TARGETDURATION:2 → full cadence 2000 ms, stalled half 1000.
+        let w1 = "#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:0\n\
+              #EXTINF:2.0,\nseg0\n#EXTINF:2.0,\nseg1\n#EXTINF:2.0,\nseg2\n";
+        let fetch = LiveRouter::new(&[w1], &[("/seg1", b"BBBB"), ("/seg2", b"CC")]);
+        let clock = FakeClock::new();
+        let config = HlsLiveConfig {
+            live_edge_back: 2,
+            max_stalled_reloads: 2,
+            pacing_clock: Some(Arc::new(clock.clone())),
+            ..HlsLiveConfig::default()
+        };
+        let mut stream = match open_live(fetch.clone(), "http://unit.test/pl.m3u8", config) {
+            Ok(s) => s,
+            Err(e) => unreachable!("open: {e}"),
+        };
+        let all = match read_exactly(&mut stream, 6) {
+            Ok(b) => b,
+            Err(e) => unreachable!("read the window to the edge: {e}"),
+        };
+        assert_eq!(all, b"BBBBCC", "the window itself plays");
+        // At the edge the reloads stall (budget 2 → the 3rd fails).
+        let err = match stream.read(1) {
+            Ok(_) => unreachable!("a stalled live source must refuse, not EOF"),
+            Err(e) => e,
+        };
+        assert_eq!(err.context.code, "streaming.hls.live-timeout");
+        // The cadence: open anchored at t=0; reload 1 (stalled == 0
+        // before it) waits the full 2000; reloads 2 and 3 (stalled
+        // after each) wait half (1000) — each wait re-anchored on the
+        // fetch that followed it, so every wait is the whole cadence
+        // step, never a partial remainder.
+        assert_eq!(clock.sleeps(), vec![2000, 1000, 1000]);
+        assert_eq!(clock.now_ms(), 4000, "virtual time advanced by the waits");
+        assert_eq!(stream.stats().paced_reloads, 3);
+        assert_eq!(stream.stats().stalled_reloads, 3, "the budget is unchanged");
+        assert_eq!(fetch.playlist_fetches(), 4, "open + 3 paced reloads");
+    }
+
+    /// A productive reload under pacing waits the full target
+    /// duration since the last fetch — the demand-driven model only
+    /// reloads when dry, and the cadence measures from the fetch
+    /// that satisfied the previous demand.
+    #[test]
+    fn paced_productive_reload_waits_the_full_cadence() {
+        // TARGETDURATION:1 → full cadence 1000 ms.
+        let w1 = "#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-MEDIA-SEQUENCE:0\n\
+              #EXTINF:1.0,\nseg0\n#EXTINF:1.0,\nseg1\n";
+        let w2 = "#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-MEDIA-SEQUENCE:1\n\
+              #EXTINF:1.0,\nseg1\n#EXTINF:1.0,\nseg2\n#EXT-X-ENDLIST\n";
+        let fetch = LiveRouter::new(&[w1, w2], &[("/seg1", b"BBBB"), ("/seg2", b"CC")]);
+        let clock = FakeClock::new();
+        let config = HlsLiveConfig {
+            live_edge_back: 1,
+            pacing_clock: Some(Arc::new(clock.clone())),
+            ..HlsLiveConfig::default()
+        };
+        let mut stream = match open_live(fetch.clone(), "http://unit.test/pl.m3u8", config) {
+            Ok(s) => s,
+            Err(e) => unreachable!("open: {e}"),
+        };
+        let all = match drain(&mut stream) {
+            Ok(b) => b,
+            Err(e) => unreachable!("drain to the ENDLIST: {e}"),
+        };
+        assert_eq!(all, b"BBBBCC");
+        assert_eq!(stream.size(), Some(6), "ended and drained");
+        // One reload (dry at the edge): stalled == 0 before it, so
+        // the full 1000 ms — the productive cadence.
+        assert_eq!(clock.sleeps(), vec![1000]);
+        assert_eq!(stream.stats().paced_reloads, 1);
+        assert_eq!(stream.stats().stalled_reloads, 0);
+        assert_eq!(stream.stats().playlist_reloads, 1);
     }
 
     /// A window that slides PAST the fetch cursor (segments vanished

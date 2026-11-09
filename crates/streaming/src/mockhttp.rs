@@ -479,16 +479,15 @@ fn write_response(
         .scripted_status
         .iter()
         .find(|(route, _)| route == path_only)
+        && let Some(code) = scripted.take()
     {
-        if let Some(code) = scripted.take() {
-            write!(
-                stream,
-                "HTTP/1.1 {} {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
-                code,
-                reason_phrase(code)
-            )?;
-            return stream.flush();
-        }
+        write!(
+            stream,
+            "HTTP/1.1 {} {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            code,
+            reason_phrase(code)
+        )?;
+        return stream.flush();
     }
     // Body selection (query stripped from the path): a scripted
     // (per-fetch) route wins, then the static per-path routes, then
@@ -1246,8 +1245,14 @@ mod tests {
             Ok(response) => unreachable!("scripted weather, got {}", response.status),
             Err(e) => e,
         };
-        assert!(matches!(err("media.bin"), NetworkError::HttpStatus { code: 503, .. }));
-        assert!(matches!(err("media.bin"), NetworkError::HttpStatus { code: 500, .. }));
+        assert!(matches!(
+            err("media.bin"),
+            NetworkError::HttpStatus { code: 503, .. }
+        ));
+        assert!(matches!(
+            err("media.bin"),
+            NetworkError::HttpStatus { code: 500, .. }
+        ));
         assert_eq!(shared.served(), 2, "the handle counts the weathers");
         // Script exhausted: the route's normal behavior answers.
         let response = fetch
@@ -1257,7 +1262,10 @@ mod tests {
         assert_eq!(response.body, b"BODY");
         // Other paths are untouched by the script.
         assert_eq!(
-            fetch.fetch(HttpRequest::get(server.url("other"))).must().body,
+            fetch
+                .fetch(HttpRequest::get(server.url("other")))
+                .must()
+                .body,
             b"BODY"
         );
     }

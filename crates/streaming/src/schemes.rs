@@ -477,7 +477,8 @@ pub const FUZZ_INPUT_LIMIT: usize = 64 * 1024;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mockhttp::{MockClient, MockConfig, MockServer};
+    use crate::clock::FakeClock;
+    use crate::mockhttp::{MockClient, MockConfig, MockServer, ScriptedStatus};
     use media_types::ids::SourceUri;
     use plugin_api::SourceStream;
     use testkit::Must;
@@ -791,6 +792,115 @@ mod tests {
             },
             Ok(kind) => unreachable!("ftp must refuse pre-socket: {kind:?}"),
         }
+    }
+
+    // -- the 6.D2 adoption point ------------------------------------------
+
+    /// The reconnect layer composed into the registry's fetch path,
+    /// end-to-end over the deterministic mock testkit: a source whose
+    /// first two fetches are scripted retry weather (503, then 500)
+    /// still opens and round-trips byte-exact — the ranged resource
+    /// and every window fetch above the transport are unchanged, and
+    /// the bounded backoff is paced by the injected clock (the sleeps
+    /// advance virtual time instantly, so the schedule is asserted,
+    /// never waited).
+    #[test]
+    fn retrying_registry_opens_through_scripted_weather() {
+        let body: Vec<u8> = (0..2048u32).map(|i| (i % 249) as u8).collect();
+        let weather = ScriptedStatus::new(vec![503, 500]);
+        let server = MockServer::spawn(MockConfig {
+            body: body.clone(),
+            scripted_status: vec![("/media/sine.wav".to_owned(), weather.clone())],
+            ..MockConfig::default()
+        })
+        .must();
+        let clock = FakeClock::new();
+        let policy = RetryPolicy {
+            max_retries: 3,
+            initial_ms: 25,
+            max_ms: 100,
+        };
+        let registry = SchemeRegistry::with_retrying_fetch(
+            Arc::new(MockClient),
+            policy,
+            Arc::new(clock.clone()),
+        )
+        .must();
+        let url = match SchemeRegistry::classify(&server.url("media/sine.wav")) {
+            Ok(AccessKind::Http { url }) => url,
+            other => unreachable!("mock http URL must classify: {other:?}"),
+        };
+        let mut resource = registry.open_http(&url, RangedConfig::default()).must();
+        assert_eq!(resource.size(), Some(body.len() as u64));
+        let mut sink = Vec::new();
+        loop {
+            let chunk = resource.read(512).must();
+            if chunk.is_empty() {
+                break;
+            }
+            sink.extend_from_slice(&chunk);
+        }
+        assert_eq!(sink, body, "the payload round-trips through the weather");
+        assert_eq!(weather.served(), 2, "both weathers answered, then recovery");
+        // Full jitter can draw a zero (an instant retry, honestly a
+        // no-op sleep): the boundedness is what is provable — at
+        // most one sleep per weather, every sleep under the policy
+        // ceiling.
+        assert!(
+            clock.sleeps().len() <= 2,
+            "at most one backoff sleep per weather: {:?}",
+            clock.sleeps()
+        );
+        assert!(
+            clock.sleeps().iter().all(|ms| *ms <= 100),
+            "every sleep under the policy ceiling: {:?}",
+            clock.sleeps()
+        );
+        assert!(
+            server.requests().len() >= 3,
+            "probe + retries on the wire: {} requests",
+            server.requests().len()
+        );
+    }
+
+    /// The fail-fast boundary of the same composition: a zero-retry
+    /// policy propagates the weather typed instead of absorbing it —
+    /// the adoption point never *hides* a refusal, it only bounds the
+    /// recovery attempts.
+    #[test]
+    fn zero_retry_policy_propagates_the_weather_typed() {
+        let weather = ScriptedStatus::new(vec![503]);
+        let server = MockServer::spawn(MockConfig {
+            body: b"BODY".to_vec(),
+            scripted_status: vec![("/media/sine.wav".to_owned(), weather.clone())],
+            ..MockConfig::default()
+        })
+        .must();
+        let clock = FakeClock::new();
+        let registry = SchemeRegistry::with_retrying_fetch(
+            Arc::new(MockClient),
+            RetryPolicy {
+                max_retries: 0,
+                initial_ms: 25,
+                max_ms: 100,
+            },
+            Arc::new(clock.clone()),
+        )
+        .must();
+        let url = match SchemeRegistry::classify(&server.url("media/sine.wav")) {
+            Ok(AccessKind::Http { url }) => url,
+            other => unreachable!("mock http URL must classify: {other:?}"),
+        };
+        let err = match registry.open_http(&url, RangedConfig::default()) {
+            Ok(_) => unreachable!("fail-fast must refuse through the weather"),
+            Err(e) => e,
+        };
+        assert_eq!(err.context.code, "streaming.ranged.fetch-failed");
+        assert_eq!(weather.served(), 1, "the single weather was answered");
+        assert!(
+            clock.sleeps().is_empty(),
+            "no retries means no backoff sleeps"
+        );
     }
 
     // -- the record cross-check ------------------------------------------
