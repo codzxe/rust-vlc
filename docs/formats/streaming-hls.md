@@ -103,13 +103,18 @@ mutations, the M1 `FaultProxy`/`FakeClock` support).
   bit flips, tag/head soup splices, head+tail splices, pure random,
   and an over-64-KiB arm exercising the head budget's typed
   `ProtocolViolation` refusal.
-- **Recorded finding** (kept honest, src outside this wave's
-  ownership): `TimestampMap::pts_for_wallclock_ms` overflows its i64
-  intermediate when the wall value sits > ~10^14 ms from the tag's
+- **Recorded finding — RESOLVED** (fix `01e8ee19`, wave 19):
+  `TimestampMap::pts_for_wallclock_ms` overflowed its i64
+  intermediate when the wall value sat > ~10^14 ms from the tag's
   anchor — a panic under `overflow-checks`, a silent wrap without.
-  The mapping is contracted for values near anchors; the harness
-  clamps its probe to ±(i64::MAX / 2·90 000) ms of the anchor and
-  documents the boundary for the follow-up card.
+  The tick delta now **saturates** at the signed bounds (no real
+  timeline reaches `i64::MAX / 90 000` ms ≈ 3 253 years); the
+  near-anchor arithmetic — the mapping's contracted window, and the
+  harness's ±(i64::MAX / 2·90 000) ms probe range — is unchanged
+  and exact. Regression test:
+  `far_from_anchor_wallclock_saturates_instead_of_overflowing`
+  (probes `i64::MAX`, `i64::MIN`, and anchor/probe at opposite i64
+  extremes).
 - The libFuzzer campaign itself still awaits the Lead's nightly
   wiring (fuzz/README's LEAD-DECISION); `cargo check` in `fuzz/`
   compiles all 35 targets on stable (verified this card).
