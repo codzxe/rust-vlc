@@ -1,38 +1,48 @@
-# Lumen UI CI — PROPOSAL from card 4.A1 (agent P4-A1, relaunch 2).
-#
-# ⚠️ LEAD-OWNED FILE: this workflow is PROPOSED in branch wip/p4-a1 for the
-# Lead to review and wire at merge (card 4.A1 AC: "CI job is proposed, Lead
-# wires it"). It has NOT run in GitHub Actions from this branch — verify the
-# action pins + node version against your conventions before merging.
+# Lumen UI CI — live (proposed by card 4.A1; reconciled + visual lanes added
+# by issue #5, 2026-11-09: the UI lane is NOT forked into ci.yml — it lives
+# here alone).
 #
 # Parity target: the ui/ portion of the doc 10 §2 gate parity table that
 # ci.yml explicitly defers ("the UI/tauri/wasm steps... land with their
-# owning cards" — .github/workflows/ci.yml:24). Local equivalents proven
-# green in the 4.A1 closure session (2026-10-23): typecheck, lint (0 errors,
-# 1 accepted react-refresh warning), vitest 9/9, Playwright smoke 1/1 on
-# chromium 156.0.8078.4.
+# owning cards"). Local equivalents proven green in the 4.A1 closure
+# session (2026-10-23): typecheck, lint (0 errors, 1 accepted
+# react-refresh warning), vitest 9/9, Playwright smoke 1/1 on chromium
+# 156.0.8078.4.
 #
 # Design notes (mirrors ci.yml conventions where they apply):
-#   * ONE lean ubuntu job — no OS matrix yet (doc 08 §9.3 matrix comes with
-#     real screens); 15-min timeout.
-#   * `if: always()` keep-going aggregation on the four gate steps, exactly
-#     like ci.yml's full_gate.sh replication — one failing step never hides
-#     the state of the others.
+#   * ONE lean ubuntu job per lane — no OS matrix for the compare lane
+#     (doc 08 §9.3): visual baselines are per-OS (font rasterization
+#     differs) and only the Linux set is committed; macOS/Windows get the
+#     non-blocking BASELINE SEED job below.
+#   * `if: always()` keep-going aggregation on the ui gate steps, exactly
+#     like ci.yml's full_gate.sh replication — one failing step never
+#     hides the state of the others.
 #   * node 24 (matches the local dev node 24.21.0 recorded in ui/README);
 #     npm cache via setup-node, keyed on ui/package-lock.json.
-#   * Playwright browsers cached via actions/cache keyed on the lockfile —
+#   * Playwright browsers cached via actions/cache keyed on the lockfile
+#     (the 4.A1 header promised this; issue #5 implements it) —
 #     `npx playwright install --with-deps chromium` is a fast no-op on hit
-#     and self-installs system deps on miss. `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD`
-#     is NOT set on the `npm ci` step, so browsers download once, into the
-#     cache-restored dir, then e2e reuses them.
-#   * HTML report always uploaded (name: playwright-report-ui) so red runs
-#     are debuggable from the run page.
+#     and self-installs system deps on miss.
+#   * HTML reports always uploaded so red runs are debuggable from the
+#     run page.
+#   * VISUAL LANES (issue #5): `visual` = PR-lite lane (1280x720 @1x,
+#     dark+light, 8 cases; committed Linux baselines; proven green
+#     2026-10-23: 8 passed 14.2s — card 4.G1). `visual-nightly` = full
+#     matrix (136 cases, doc 08 §6.3), schedule/dispatch only.
+#     `visual-baseline-seed` = [BLOCKED on first real macOS/Windows run]:
+#     macos/windows baselines CANNOT be captured from the Linux sandbox
+#     this repo lives in — the job exists, is non-blocking
+#     (continue-on-error), runs --update-snapshots to CAPTURE the per-OS
+#     baseline set, and uploads it for human review + commit. Until those
+#     baselines are committed, any compare-mode run on that OS fails by
+#     design (missing baselines) — that is honest, not fake green.
 #
-# Action pins (resolved via `git ls-remote` on 2026-10-23, 4.A1 closure):
-#   actions/checkout        v7.0.1  3d3c42e5aac5ba805825da76410c181273ba90b1  (same as ci.yml)
+# Action pins (re-resolved via `git ls-remote` on 2026-11-09, issue #5;
+# no drift vs the 4.A1 table):
+#   actions/checkout        v7.0.1  3d3c42e5aac5ba805825da76410c181273ba90b1
 #   actions/setup-node      v6.0.0  2028fbc5c25fe9cf00d9f06a71cc4710d4507903
 #   actions/cache           v4.3.0  0057852bfaa89a56745cba8c7296529d2fc39830
-#   actions/upload-artifact v6.0.0  b7c566a772e6b6bfb58ed0dc250532a479d7789f
+#   actions/upload-artifact v7.0.2  cf430e030ddbb5b0abf93d22962f4752f3646cd9
 
 name: UI
 
@@ -41,6 +51,10 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    # Nightly 03:41 UTC (off-the-hour; feeds visual-nightly + seed lanes).
+    - cron: "41 3 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -57,7 +71,7 @@ concurrency:
 
 jobs:
   ui:
-    name: ui (typecheck / lint / vitest / playwright)
+    name: ui (typecheck / lint / l10n / vitest / playwright)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -68,6 +82,12 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: ui/package-lock.json
+
+      - name: Cache Playwright browsers (chromium)
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('ui/package-lock.json') }}
 
       - run: npm ci
 
@@ -82,7 +102,7 @@ jobs:
 
       # Added by card 4.H3 (agent P4-H3): l10n catalog gate — en-US 100%
       # key coverage, no duplicates, doc 07 §6.1 key grammar + §6.2
-      # placeholder grammar, allowlist shape. Lead reviews at merge.
+      # placeholder grammar, allowlist shape.
       - name: "3. l10n catalog check"
         if: always()
         run: npm run l10n:check
@@ -99,8 +119,141 @@ jobs:
 
       - name: Upload Playwright report
         if: always() # upload even (especially) when e2e failed
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-report-ui
           path: ui/playwright-report/
           retention-days: 7
+
+  # ------------------------------------------------------------------------
+  # Visual screenshot-diff, PR-lite lane (card 4.G1/G2, doc 08 §6.3):
+  # 1280x720 @1x, dark + light — 8 cases against the committed Linux
+  # baselines (e2e/visual/baselines/linux/). Proven green 2026-10-23:
+  # 8 passed (14.2s). Runs on every push/PR; ubuntu-only because only the
+  # Linux baseline set is committed (per-OS sets are the doc 08 §6.3
+  # reality; the seed job below grows the others).
+  # ------------------------------------------------------------------------
+  visual:
+    name: visual (PR-lite lane — 8 cases vs pinned Linux baselines)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Cache Playwright browsers (chromium)
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('ui/package-lock.json') }}
+
+      - run: npm ci
+
+      - name: Install chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: "visual: PR-lite lane (compare vs committed baselines)"
+        run: node scripts/visual-run.mjs --mode=pr
+
+      - name: Upload visual report
+        if: always() # upload even (especially) when the diff failed
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report-visual
+          path: ui/playwright-report/visual/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # ------------------------------------------------------------------------
+  # Visual screenshot-diff, full matrix (doc 08 §6.3 "full matrix nightly"):
+  # 136 cases (15 routes x viewports/DPI/modes + accent sampling, card
+  # 4.G2). Schedule/dispatch only — the PR lane above is the per-PR signal.
+  # ------------------------------------------------------------------------
+  visual-nightly:
+    name: visual (full matrix — 136 cases, nightly)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Cache Playwright browsers (chromium)
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('ui/package-lock.json') }}
+
+      - run: npm ci
+
+      - name: Install chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: "visual: full matrix (compare vs committed baselines)"
+        run: node scripts/visual-run.mjs --mode=nightly
+
+      - name: Upload visual report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report-visual-nightly
+          path: ui/playwright-report/visual/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # ------------------------------------------------------------------------
+  # [BLOCKED on first real macOS/Windows run] BASELINE SEED (issue #5):
+  # macOS/Windows visual baselines CANNOT be captured from this repo's
+  # Linux sandbox — font rasterization is per-OS (doc 08 §6.3). This job
+  # runs --update-snapshots on the FULL nightly matrix to CAPTURE the
+  # per-OS baseline set and uploads it as an artifact; a human then
+  # reviews + commits e2e/visual/baselines/<platform>/. It is NON-BLOCKING
+  # (continue-on-error + never a required check) and runs only on schedule
+  # /dispatch. Until the baselines are committed, a compare-mode run on
+  # these OSes fails by design (missing baselines) — no fake green.
+  # ------------------------------------------------------------------------
+  visual-baseline-seed:
+    name: "[BLOCKED on first real run] visual baseline seed (${{ matrix.os }})"
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - run: npm ci
+
+      - name: Install chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: "SEED: capture ${{ matrix.os }} baselines (--update-snapshots, full nightly matrix)"
+        run: node scripts/visual-run.mjs --mode=nightly --update
+
+      - name: Upload captured baselines for human review + commit
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: visual-baselines-${{ matrix.os }}
+          path: ui/e2e/visual/baselines/
+          retention-days: 30
+          if-no-files-found: warn
