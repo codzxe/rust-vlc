@@ -5,7 +5,10 @@
   merged, and carried the 2.E2-V gate). **Real-backend admission (cpal or the
   direct-API alternative): PENDING** — no OS audio library is imported, on any
   target; the admission trigger and its obligations are recorded under
-  "Revisit triggers" below.
+  "Revisit triggers" below. The wave-14 admission spike (issue #1,
+  `docs/dependencies/records/audio-output-cpal.md`) refreshed the evidence:
+  the verdict remains **conditional-E2, not admitted** — the recommended
+  path is recorded under "Admission-spike outcome" below.
 - **Deciders:** Lead (draft authored by the 2.C3 continuation agent, worklog
   entry "2.C3" §"ADR-005 DRAFT"; formalization dispatched by 3.HARD-AUDIT
   decision D-c)
@@ -120,3 +123,71 @@ implemented architecture this ADR now accepts.
   per-target amendment, not a new ADR.
 - Device-loss behavior (doc 03 §4.9 d) is re-scored when the policy
    configuration lands (decision 5).
+
+## Admission-spike outcome (wave 14, issue #1 — 2026-11-09)
+
+The wave-14 admission spike produced a second, independent evidence
+base (`docs/dependencies/records/audio-output-cpal.md`): real `cargo
+tree` output for all three desktop targets from a throwaway /tmp project
+(cpal 0.15.3 per the assignment pin; latest 0.18.2 stays the admission
+target), plus license/MSRV/unsafe counts from the extracted sources and a
+reproduced sandbox build failure (alsa-sys pkg-config probe, exit 101).
+
+- **Graph (real):** Linux `cpal → alsa 0.9.1 → alsa-sys 0.3.1
+  [links="alsa"] → pkg-config build dep` (+ dasp_sample, libc, bitflags,
+  cfg-if); macOS `cpal → coreaudio-rs 0.11.3 → coreaudio-sys 0.2.18`
+  with an **unconditional bindgen build chain** (clang-sys, libloading,
+  regex, nom…); Windows `cpal → windows 0.54.0` (metadata-based, no
+  bindgen). Licenses all inside the allow set; cpal MSRV 1.70.
+- **C-FFI exposure (E-class evidence):** unsafe is structural in every
+  host (cpal wasapi/device.rs 28 occurrences, coreaudio 11+, alsa 8;
+  alsa pcm.rs 49; alsa-sys generated.rs = **1,301 `extern "C"`
+  functions**). Confirms: cpal may only ever sit behind an approved L5
+  platform adapter — never in an L0–L4 crate (AGENTS §3.3).
+- **Alternatives (surveyed, real crate data):** `alsa`/alsa-rs is the
+  same E2 class and cpal's own substrate (the direct-API candidate);
+  `libpulse-binding` binds a userspace sound *server's* C client (weaker
+  fit, daemon dependency); `rodio` is not a backend — it depends on cpal
+  itself. No pure-Rust path to OS audio exists on any desktop target;
+  the E2 exception is inherent to audio output, and the L4 seam stays
+  the only pure-Rust layer.
+
+**Recommended path `[PROPOSAL — Lead sign-off]` (Linux-first):** admit
+cpal at the latest version as the `platform-linux` (L5) substrate
+implementing the existing `AudioBackend` trait, default features only
+(ALSA host; no jack/pulse/pipewire features), unsafe confined to the
+adapter with documented invariants (the ADR-003/004 exception pattern).
+Preconditions: a CI image carrying `libasound2-dev` (the recorded
+sandbox blocker) and the 0.18.2 record's `[VERIFY-P1]` refresh
+(lockfile graph, RustSec, publisher pins). macOS/Windows follow as
+separate per-target admissions (decision 4): macOS weighs cpal's
+coreaudio-sys bindgen build chain against metadata-generated bindings;
+Windows is the cleanest (windows-crate path, no bindgen).
+
+**Conformance plan for post-admission** (what the platform adapter must
+prove against this ADR before any real-device claim):
+
+1. **PCM format matrix**: interleaved f32 is the seam's v0 contract
+   (`error::format_unsupported` otherwise); the adapter's device-open
+   negotiation must be swept across the corpus rates (8/16/22.05/32/
+   44.1/48/96 kHz), channel counts (1/2/6), and the s16→f32 pinned
+   conversion, asserting the ring receives byte-identical samples for
+   every accepted shape and a typed refusal for every rejected one —
+   the sine-hash suite's oracle generalized to device-negotiated
+   formats.
+2. **Latency / callback discipline**: the adapter installs
+   `render_into` as the cpal callback unchanged (the no-blocking
+   contract is structural: borrows only, ≤1 ring read + ≤1 silence
+   fill + 1 counter advance per call); conformance = the
+   `RenderStats`-ledger budget measured on the real device (segments
+   ≤ 2, zero allocation/growth across a soak), the `SampleCounter`
+   remaining the clock's only truth source (cpal exposes no position
+   API on all hosts — recorded), underruns counted per short callback,
+   and pause/resume freezing the counter without a rewind. The
+   fault-injecting allocator hook stays `[PROPOSAL: tooling]` testkit
+   work.
+3. **Bounded queue / drop policy**: the `PcmPump` pacing proof
+   (wave 14: `audio_output::pump` + `audio_output::pattern`) must hold
+   on-device — in-flight frames ≤ high-water at every step, the
+   configured drop/backpressure policy's accounting exact, and the
+   whole-session capture hash equal to the decoded input prefix.

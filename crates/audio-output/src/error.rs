@@ -50,6 +50,22 @@ pub fn ring_full(budget: u64, attempted: u64) -> EngineError {
     )
 }
 
+/// The PCM pump's pacing refusal — the device is more than the
+/// configured high-water mark behind (bounded-queue backpressure,
+/// MP §8; the wave-14 `PcmPump`). The whole buffer is refused; the
+/// caller waits for the playback clock to advance and retries.
+pub fn pump_backpressure(high_water: u64, attempted: u64) -> EngineError {
+    EngineError::new(
+        STAGE,
+        ErrorKind::ResourceLimit {
+            limit: media_types::error::LimitKind::QueueSize,
+            budget: high_water,
+            attempted,
+        },
+        ErrorContext::new("audio.pump_backpressure"),
+    )
+}
+
 /// A payload that is not a whole number of frames.
 pub fn partial_frame(expected: u64, found: u64) -> EngineError {
     EngineError::new(
