@@ -1,10 +1,10 @@
-import { createContext } from "react";
-import { useContext, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { SETTINGS_ENTRIES } from "./generated/schema";
 import type { SettingEntry, SettingValue } from "./generated/schema";
 import { localStorageSettingsPersistence } from "./persistence";
 import type { SettingsPersistence } from "./persistence";
+import type { Event } from "../../client/transport";
 
 // SettingsProvider — card 4.E1 framework state (doc 07 §5):
 //   persisted  = schema defaults + user overrides from the persistence seam
@@ -48,9 +48,14 @@ const defaultsFor = (): Record<string, SettingValue> => {
 export function SettingsProvider({
   children,
   persistence = localStorageSettingsPersistence,
+  subscribe,
 }: {
   children: ReactNode;
   persistence?: SettingsPersistence;
+  /** Optional engine event feed (issue #3): routes `config.setting-changed`
+   * into persisted (and clean drafts) so engine-side config changes stay
+   * live in the UI. Absent = no engine feed (browser dev shell). */
+  subscribe?: (listener: (event: Event) => void) => () => void;
 }) {
   // Lazy state: defaults overlaid with persisted overrides (unknown keys
   // dropped — config-never-invents, doc 05 §6.4).
@@ -65,6 +70,25 @@ export function SettingsProvider({
   });
   const [draft, setDraft] = useState<Record<string, SettingValue>>(() => ({ ...persisted }));
   const [restartPending, setRestartPending] = useState<string[]>([]);
+
+  // Live engine feed (issue #3, 4.H1 handoff d): `config.setting-changed`
+  // keeps the persisted store current when the engine's config moves
+  // outside this window (CLI flags, another window, the onboarding
+  // wizard). Drafts stay untouched while dirty — the user's edit wins.
+  useEffect(() => {
+    if (subscribe === undefined) return;
+    return subscribe((event) => {
+      if (event.kind !== "config.setting-changed") return;
+      const full = `${event.area}.${event.key}`;
+      if (!SETTINGS_ENTRIES.some((entry) => entry.key === full)) return;
+      setPersisted((prev) =>
+        full in prev ? { ...prev, [full]: event.value } : prev,
+      );
+      setDraft((prev) =>
+        prev[full] === persisted[full] ? { ...prev, [full]: event.value } : prev,
+      );
+    });
+  }, [subscribe, persisted]);
 
   const value = useMemo<SettingsContextValue>(() => {
     const dirtyKeys = SETTINGS_ENTRIES.filter((e) => draft[e.key] !== persisted[e.key]).map((e) => e.key);

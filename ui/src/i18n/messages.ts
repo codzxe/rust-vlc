@@ -226,6 +226,7 @@ export type MessageKey =
   | "settings.nav.title"
   | "settings.search.label"
   | "settings.search.no-results"
+  | "settings.loading"
   | "settings.apply"
   | "settings.revert"
   | "settings.unsaved-changes"
@@ -807,6 +808,7 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "settings.nav.title": "Settings",
   "settings.search.label": "Search settings",
   "settings.search.no-results": "No settings match your search",
+  "settings.loading": "Reading settings from the engine…",
   "settings.apply": "Apply",
   "settings.revert": "Revert",
   "settings.unsaved-changes": "Unsaved changes",

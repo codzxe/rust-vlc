@@ -5,17 +5,21 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { ClientProvider } from "../../../client/ClientProvider";
+import { MockTransport } from "../../../client/transport";
 import { SettingsScreen } from "../SettingsScreen";
 import { NetworkArea } from "./privacy-network";
 import { SETTING_PRIVACY_CRASH_REPORTS, SETTING_PRIVACY_TELEMETRY } from "../generated/schema";
 
 const renderRouted = (area: string) =>
   render(
-    <MemoryRouter initialEntries={[`/settings/${area}`]}>
-      <Routes>
-        <Route path="/settings/:area" element={<SettingsScreen />} />
-      </Routes>
-    </MemoryRouter>,
+    <ClientProvider transport={new MockTransport()}>
+      <MemoryRouter initialEntries={[`/settings/${area}`]}>
+        <Routes>
+          <Route path="/settings/:area" element={<SettingsScreen />} />
+        </Routes>
+      </MemoryRouter>
+    </ClientProvider>,
   );
 
 describe("NetworkArea — honest empty surface (proxies are schema-absent)", () => {

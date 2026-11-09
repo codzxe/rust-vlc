@@ -26,7 +26,7 @@
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::dispatch::open_file_request;
+use crate::dispatch::open_path_request;
 use crate::error::HostError;
 use commands::WireRequest;
 use commands::envelope::RequestId;
@@ -45,15 +45,34 @@ pub fn is_media_path(path: &Path) -> bool {
         .is_some_and(|ext| MEDIA_SUFFIXES.contains(&ext.to_ascii_lowercase().as_str()))
 }
 
+/// Playlist-file suffixes (the engine-side playlists crate's reader
+/// surface: M3U/M3U8, PLS, XSPF, CUE). A playlist file does not open
+/// a session — it loads the list (`playlist.load`; 4.D1's handoff,
+/// parse engine-side). Mirrors ui/src/client/open-path.ts exactly.
+#[must_use = "pure reporter"]
+pub fn is_playlist_path(path: &Path) -> bool {
+    const PLAYLIST_SUFFIXES: &[&str] = &["m3u", "m3u8", "pls", "xspf", "cue"];
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| PLAYLIST_SUFFIXES.contains(&ext.to_ascii_lowercase().as_str()))
+}
+
+/// Anything the shell can turn into an open command (media OR
+/// playlist) — the drop pre-filter's honest surface.
+#[must_use = "pure reporter"]
+pub fn is_openable_path(path: &Path) -> bool {
+    is_media_path(path) || is_playlist_path(path)
+}
+
 /// The drag-and-drop seam: OS-dropped paths → the open request.
 pub trait DragDropHandler {
     /// Translate one drop event's paths into the command(s) to
-    /// dispatch. Multi-file drops answer the first media file and
-    /// ignore the rest (playlist enqueue is a Phase-4 card; the
-    /// honest v1 surface is one session).
+    /// dispatch. Multi-file drops answer the first OPENABLE file
+    /// (media or playlist) and ignore the rest (multi-enqueue is a
+    /// later card; the honest v1 surface is one command per drop).
     ///
     /// # Errors
-    /// The shell seam's [`HostError`] (a drop with no media file is
+    /// The shell seam's [`HostError`] (a drop with no openable file is
     /// a no-op answer, not an error — `Ok(None)`).
     fn on_files_dropped(
         &mut self,
@@ -73,7 +92,10 @@ pub trait NativeFileDialog {
 }
 
 /// The production drag-drop half — path logic only, no webview
-/// needed: this compiles and is exact in any build.
+/// needed: this compiles and is exact in any build. The path-kind
+/// rule (media → `session.open`, playlist → `playlist.load`) is
+/// [`crate::dispatch::open_path_request`], the shared funnel — this
+/// half only acquires the path.
 #[derive(Debug, Default)]
 pub struct PathDragDrop;
 
@@ -83,10 +105,10 @@ impl DragDropHandler for PathDragDrop {
         paths: &[PathBuf],
         request_id: RequestId,
     ) -> Result<Option<WireRequest>, HostError> {
-        let Some(first) = paths.iter().find(|path| is_media_path(path)) else {
+        let Some(first) = paths.iter().find(|path| is_openable_path(path)) else {
             return Ok(None);
         };
-        Ok(Some(open_file_request(request_id, first.as_path())))
+        Ok(open_path_request(request_id, first.as_path()))
     }
 }
 
@@ -146,6 +168,57 @@ mod tests {
             .on_files_dropped(&[PathBuf::from("/tmp/Song.MP3")], RequestId(7))
             .unwrap_or_else(|err| unreachable!("one media file: {err}"));
         assert!(answer.is_some());
+    }
+
+    /// Issue #3 (4.D1's handoff to 4.H1): a dropped PLAYLIST file
+    /// loads the list — `playlist.load {path, append: false}`, the
+    /// engine parses; the drop never opens a session for it.
+    #[test]
+    fn playlist_drops_load_the_list_not_a_session() {
+        let mut dnd = PathDragDrop;
+        for (index, path) in [
+            PathBuf::from("/tmp/queue.m3u"),
+            PathBuf::from("/tmp/Queue.M3U8"),
+            PathBuf::from("/tmp/radio.pls"),
+            PathBuf::from("/tmp/library.xspf"),
+            PathBuf::from("/tmp/album.cue"),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            assert!(is_playlist_path(&path), "{path:?} is a playlist");
+            let request = match dnd
+                .on_files_dropped(std::slice::from_ref(&path), RequestId(20 + index as u64))
+            {
+                Ok(Some(request)) => request,
+                Ok(None) => unreachable!("a playlist file was dropped: {path:?}"),
+                Err(err) => unreachable!("drop translation is pure logic: {err}"),
+            };
+            match request.command {
+                Command::PlaylistLoad {
+                    path: loaded,
+                    append,
+                } => {
+                    assert_eq!(loaded, path);
+                    assert!(!append, "a drop replaces the queue (append: false)");
+                }
+                other => unreachable!("a playlist drop must load the list: {other:?}"),
+            }
+        }
+    }
+
+    /// The classifier's negative space: media suffixes stay sessions,
+    /// unknown suffixes stay no-ops (never a guessed kind).
+    #[test]
+    fn path_classification_is_exact() {
+        assert!(is_playlist_path(&PathBuf::from("/tmp/x.m3u")));
+        assert!(!is_playlist_path(&PathBuf::from("/tmp/x.m3u.bak")));
+        assert!(!is_playlist_path(&PathBuf::from("/tmp/movie.avi")));
+        assert!(!is_playlist_path(&PathBuf::from("/tmp/noext")));
+        assert!(!is_playlist_path(&PathBuf::from("/tmp/.m3u")));
+        assert!(is_openable_path(&PathBuf::from("/tmp/movie.avi")));
+        assert!(is_openable_path(&PathBuf::from("/tmp/queue.pls")));
+        assert!(!is_openable_path(&PathBuf::from("/tmp/README.md")));
     }
 
     /// The dialog seam in this build answers the typed pending

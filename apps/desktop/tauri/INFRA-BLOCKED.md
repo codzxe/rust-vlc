@@ -35,10 +35,20 @@ root; system packages are out of scope for the workspace).
 
 - **Proven in-sandbox:** `apps/desktop/src/dispatch.rs` (ShellHost + the
   single `lumen_dispatch` routing body + EventSink ordered exactly-once
-  drain), `window_config.rs`, `files.rs`, and the UI half
-  `ui/src/client/tauri-transport.ts` (invoke seam mockable, unit-tested).
-  `cargo test -p desktop --lib` = 38/0, including a real-engine
-  open→settle→events run; ui typecheck + vitest green.
+  drain), `shell.rs` (issue #3: `ShellRuntime` — the composed app-layer
+  runtime the wrapper's per-invoke body delegates to: dispatch + §4.2
+  event filter + the bounded drop-oldest egress queue),
+  `window_config.rs` (parsed AND consumed as a `WindowBuildSpec` at
+  startup), `files.rs` (dialog/drop seams + the path-kind funnel), and
+  the UI halves `ui/src/client/tauri-transport.ts` (invoke seam mockable,
+  unit-tested), `ui/src/client/app-transport.ts` (the host probe that
+  selects TauriTransport vs the browser demo fallback),
+  `ui/src/client/open-path.ts` + `ui/src/client/config-settings.ts`
+  (the UI-side file-open funnel and the engine-backed settings write
+  path). `cargo test -p desktop` = 63/0 (lib 52/0, incl. a real-engine
+  open→settle→events-in-order run, the config set→get round-trip, and
+  the bounded-queue drop-oldest conservation proof); ui typecheck +
+  vitest 634/0 green.
 - **Blocked here (the launch/3-OS AC):** the `#[tauri::command]` wrapper +
   `tauri::Builder` run loop, `cargo build`/`tauri dev`/`tauri build`, and
   any window actually opening on Linux/Windows/macOS. The doc 05 §7.4
@@ -56,9 +66,13 @@ root; system packages are out of scope for the workspace).
    `docs/dependencies/audit-method.md` §4 and record it in
    `docs/dependencies/records/tauri-wry-2.x.md` (R1/R2 are [VERIFY-P1]).
 3. Write the wrapper per the `src/dispatch.rs` module-doc signature
-   (State-managed `ShellHost`, ONE registered command), add the §7.4
-   architecture test, and verify `plugin:event|listen` payload details
-   marked [VERIFY] in `ui/src/client/tauri-transport.ts`.
+   (State-managed `ShellHost`, ONE registered command) delegating to
+   `ShellRuntime` (`src/shell.rs` — dispatch, event pump,
+   `take_pending_events` → `app_handle.emit("lumen://event", …)`;
+   `pick_and_open`/`on_files_dropped` for the dialog/drop acquisitions;
+   `WindowBuildSpec` from `window_config.rs` at window build), add the
+   §7.4 architecture test, and verify the `plugin:event|listen` payload
+   details marked [VERIFY] in `ui/src/client/tauri-transport.ts`.
 4. Build + run on all three OSes (CI matrix per doc 10).
 
 ## Scaffold notes (deliberate, minimal)

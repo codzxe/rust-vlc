@@ -4,6 +4,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { ClientProvider } from "../../../client/ClientProvider";
+import { MockTransport } from "../../../client/transport";
 import { SettingsScreen } from "../SettingsScreen";
 import { PlaylistServicesArea } from "./playlist-services";
 
@@ -26,11 +28,13 @@ describe("PlaylistServicesArea — honest empty surface", () => {
 describe("PlaylistServicesArea — routing", () => {
   it("is routed at /settings/library via the areas registry", () => {
     render(
-      <MemoryRouter initialEntries={["/settings/library"]}>
-        <Routes>
-          <Route path="/settings/:area" element={<SettingsScreen />} />
-        </Routes>
-      </MemoryRouter>,
+      <ClientProvider transport={new MockTransport()}>
+        <MemoryRouter initialEntries={["/settings/library"]}>
+          <Routes>
+            <Route path="/settings/:area" element={<SettingsScreen />} />
+          </Routes>
+        </MemoryRouter>
+      </ClientProvider>,
     );
     expect(document.querySelector('[data-settings-area="library"]')).not.toBeNull();
   });

@@ -14,6 +14,7 @@
 use std::process::ExitCode;
 
 use desktop::{DesktopHost, TargetOs, WebviewHostKind};
+use desktop::{WindowTitle, parse_window_table};
 
 /// The documented exit code for "the webview host layer is not
 /// compiled into this build" (ADR-004 pending).
@@ -21,6 +22,40 @@ pub const WEBVIEW_PENDING: u8 = 86;
 
 fn main() -> ExitCode {
     println!("lumen-desktop (skeleton, card 2.D3)");
+    println!();
+    // Issue #3 (4.H1 handoff c): the [window] table is CONSUMED at
+    // startup — the build spec the ADR-004 wrapper applies verbatim at
+    // window build (inner/min sizes, maximized, geometry policy, idle
+    // title key). A parse failure is loud (the honest-parse rule:
+    // config drift never invents a window).
+    match parse_window_table(include_str!("../../../product.toml")) {
+        Ok(config) => {
+            let spec = config.build_spec();
+            println!(
+                "window build spec (product.toml [window]): {}x{} (min {}x{}){} — title {}",
+                spec.inner_size.0,
+                spec.inner_size.1,
+                spec.min_inner_size.0,
+                spec.min_inner_size.1,
+                if spec.maximized { ", maximized" } else { "" },
+                match &spec.title {
+                    WindowTitle::Idle { key } => format!("idle key {key}"),
+                    WindowTitle::Media { rendered } => {
+                        format!("media {rendered:?}")
+                    }
+                },
+            );
+            if spec.remember_geometry {
+                println!(
+                    "window geometry: remembered across runs (the persisted-geometry store joins with the settings-backed persistence card)"
+                );
+            }
+        }
+        Err(error) => {
+            eprintln!("window config: {error}");
+            return ExitCode::from(WEBVIEW_PENDING);
+        }
+    }
     println!();
     println!(
         "presentation path: {}",

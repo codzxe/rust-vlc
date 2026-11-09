@@ -6,6 +6,8 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { UI_PACKAGE_NAME, UI_PACKAGE_VERSION } from "../../../build-info";
+import { ClientProvider } from "../../../client/ClientProvider";
+import { MockTransport } from "../../../client/transport";
 import { SettingsScreen } from "../SettingsScreen";
 import { SettingsProvider } from "../SettingsProvider";
 import { AboutArea } from "./updates-about";
@@ -18,11 +20,13 @@ import { SETTING_PRIVACY_UPDATE_CHECKS } from "../generated/schema";
 
 const renderRouted = (area: string) =>
   render(
-    <MemoryRouter initialEntries={[`/settings/${area}`]}>
-      <Routes>
-        <Route path="/settings/:area" element={<SettingsScreen />} />
-      </Routes>
-    </MemoryRouter>,
+    <ClientProvider transport={new MockTransport()}>
+      <MemoryRouter initialEntries={[`/settings/${area}`]}>
+        <Routes>
+          <Route path="/settings/:area" element={<SettingsScreen />} />
+        </Routes>
+      </MemoryRouter>
+    </ClientProvider>,
   );
 
 describe("AboutArea — About panel shows real package data", () => {
