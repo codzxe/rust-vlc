@@ -122,6 +122,15 @@ pub enum SchemeError {
         /// The non-local authority as written (host or host:port).
         host: String,
     },
+    /// An `https:` source was refused because the ADR-011 crypto
+    /// provider deviation is not admitted
+    /// (`streaming.scheme.https-not-admitted`): rustls has no
+    /// production pure-Rust provider — the transport's ring 0.17.14
+    /// core (135 C/asm files, cc build) is the recorded §9 deviation
+    /// awaiting Lead ratification (`docs/adr/ADR-011-tls-https.md`;
+    /// `docs/dependencies/records/ureq-3.5.0.md` R10). No fields by
+    /// design: the refusal is a policy state, never caller data.
+    HttpsNotAdmitted,
 }
 
 impl SchemeError {
@@ -131,6 +140,7 @@ impl SchemeError {
             SchemeError::Unsupported { .. } => "streaming.scheme.unsupported",
             SchemeError::Malformed { .. } => "streaming.scheme.malformed",
             SchemeError::RemoteFileHost { .. } => "streaming.scheme.file-host",
+            SchemeError::HttpsNotAdmitted => "streaming.scheme.https-not-admitted",
         }
     }
 
@@ -159,6 +169,10 @@ impl SchemeError {
                 ErrorKind::Unsupported { format: None },
                 "streaming.scheme.file-host",
             ),
+            SchemeError::HttpsNotAdmitted => (
+                ErrorKind::Unsupported { format: None },
+                "streaming.scheme.https-not-admitted",
+            ),
         };
         match self {
             SchemeError::Malformed {
@@ -183,6 +197,12 @@ impl fmt::Display for SchemeError {
             SchemeError::RemoteFileHost { host } => {
                 format!("file URI names a non-local authority {host:?}")
             }
+            SchemeError::HttpsNotAdmitted => {
+                "https access is not admitted: the ADR-011 TLS provider \
+                 deviation (rustls → ring 0.17.14) is pending Lead \
+                 ratification"
+                    .to_string()
+            }
         };
         write!(f, "scheme dispatch failed: {text} ({})", self.code())
     }
@@ -199,6 +219,27 @@ impl Error for SchemeError {
         }
     }
 }
+
+/// The ADR-011 seam — the single flip point for the TLS decision
+/// (`docs/adr/ADR-011-tls-https.md`, status: proposed / RECOMMENDED
+/// pending Lead admission, 2026-11-09).
+///
+/// `true` is the *conditionally admitted* state the tree has carried
+/// since card 6.A1b (record `ureq-3.5.0.md` R10: "ADMITTED —
+/// conditionally, on the Lead accepting the recorded ring
+/// deviation"): https classifies to [`AccessKind::Http`] exactly like
+/// http and rides the ureq transport. This is deliberately NOT the
+/// always-refusing stub pattern (ADR-004 `WebviewPending`, ADR-005
+/// `audio.os_backend_pending` mark *unimplemented* capability; https
+/// is implemented, admitted, and live — MP §5 forbids claiming a
+/// working implementation doesn't exist). The dormant arm below is
+/// the Lead's rejection lever: flip to `false` and every `https://`
+/// source fails typed with [`SchemeError::HttpsNotAdmitted`].
+///
+/// TODO(admitted-impl): Lead ratification of ADR-011 deletes this
+/// const, the guarded match arm, the refusal arm, and the
+/// [`SchemeError::HttpsNotAdmitted`] vocabulary in the same change.
+const HTTPS_ADR011_ADMITTED: bool = true;
 
 /// The scheme dispatch registry (card 6.A3): the single point mapping
 /// scheme → access strategy, plus the HTTP(S) access-plugin
@@ -271,7 +312,10 @@ impl SchemeRegistry {
     /// [`SchemeError::Unsupported`] for every scheme that is neither
     /// `file` nor `http`/`https`; [`SchemeError::Malformed`] for
     /// structurally invalid references; [`SchemeError::RemoteFileHost`]
-    /// for `file:` URIs naming a non-local authority.
+    /// for `file:` URIs naming a non-local authority; and — while
+    /// [`HTTPS_ADR011_ADMITTED`] is `false` —
+    /// [`SchemeError::HttpsNotAdmitted`] for `https:` sources (the
+    /// ADR-011 rejection lever; see the const's docs).
     pub fn classify(source: &str) -> Result<AccessKind, SchemeError> {
         if source.is_empty() {
             return Err(SchemeError::Malformed {
@@ -293,12 +337,23 @@ impl SchemeRegistry {
             }),
             Some((scheme, rest)) => match scheme.as_str() {
                 "file" => classify_file_uri(rest),
-                "http" | "https" => Url::parse(source)
+                "http" => Url::parse(source)
                     .map(|url| AccessKind::Http { url })
                     .map_err(|err| SchemeError::Malformed {
                         detail: "the http(s) URL was refused by the fetch port",
                         source: Some(Box::new(err)),
                     }),
+                // ADR-011 seam (see `HTTPS_ADR011_ADMITTED`): the
+                // admitted arm mirrors `http` while the recorded ring
+                // deviation stands; the dormant arm is the typed
+                // refusal the Lead's rejection flips to.
+                "https" if HTTPS_ADR011_ADMITTED => Url::parse(source)
+                    .map(|url| AccessKind::Http { url })
+                    .map_err(|err| SchemeError::Malformed {
+                        detail: "the http(s) URL was refused by the fetch port",
+                        source: Some(Box::new(err)),
+                    }),
+                "https" => Err(SchemeError::HttpsNotAdmitted),
                 other => Err(SchemeError::Unsupported {
                     scheme: other.to_string(),
                 }),
@@ -548,6 +603,34 @@ mod tests {
             }
             other => unreachable!("https URL must classify: {other:?}"),
         }
+    }
+
+    /// The ADR-011 seam, pinned from both sides: the *admitted* arm
+    /// (the conditional admission of record ureq-3.5.0.md R10) must
+    /// keep classifying exactly like http — only the Lead's flip, not
+    /// drift, changes that — and the *refusal* vocabulary must exist
+    /// with its stable code and credential-free `Display` so the
+    /// rejection lands typed, never as a string or a silent skip.
+    #[test]
+    fn https_adr011_seam_is_typed_and_pinned() {
+        match SchemeRegistry::classify("https://cdn.example.org/live/master.m3u8") {
+            Ok(AccessKind::Http { url }) => {
+                assert_eq!(url.scheme, "https");
+                assert_eq!(url.port, 443, "the scheme default port is explicit");
+                assert_eq!(url.path_and_query, "/live/master.m3u8");
+            }
+            other => unreachable!("admitted https must classify: {other:?}"),
+        }
+        let refusal = SchemeError::HttpsNotAdmitted;
+        assert_eq!(refusal.code(), "streaming.scheme.https-not-admitted");
+        let text = refusal.to_string();
+        assert!(text.contains("https access is not admitted"), "{text}");
+        assert!(text.contains("ADR-011"), "{text}");
+        assert!(text.contains("ring 0.17.14"), "{text}");
+        let bridged = SchemeError::HttpsNotAdmitted.into_engine_error();
+        assert_eq!(bridged.stage, PipelineStage::Open);
+        assert_eq!(bridged.context.code, "streaming.scheme.https-not-admitted");
+        assert!(bridged.source.is_none(), "no caller data rides the refusal");
     }
 
     // -- typed refusals -------------------------------------------------
