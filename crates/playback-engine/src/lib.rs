@@ -95,6 +95,7 @@ pub mod pipeline;
 pub mod recovery;
 pub mod seek;
 pub mod session;
+pub mod snapshot;
 pub mod state;
 pub mod tracks;
 

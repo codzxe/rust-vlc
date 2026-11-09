@@ -1582,9 +1582,9 @@ description = "Named time positions: create/delete/clear, set+play slots 1–10"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/options-linux.json#bookmarks"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Ctrl+B dialog + 20 hotkeys (Ctrl+F1–F10 / F1–F10)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "partial" }
+evidence = "crates/playback-engine/src/bookmarks.rs (BookmarkList add/remove/seek_target/clear + tests); commands catalog media.get-bookmarks/media.add-bookmark/media.remove-bookmark (class S, wire round-trip pinned in command.rs tests + catalog_shape.rs); ui BookmarksDialog.tsx (ui-dialog-bookmarks) + BookmarksDialog.test.tsx; demo-transport bookmark handlers + demo-bookmarks.test.ts; keymap Ctrl+B (DIALOG_KEYMAP seed + keymap.test.ts)"
+notes = "Ctrl+B dialog + 20 hotkeys (Ctrl+F1–F10 / F1–F10). Dialog + engine list semantics landed (create/jump/delete, per-media reset, no id reuse); the set-bookmark-N/play-bookmark-N slot hotkeys (1–10) are the open remainder — they need the keymap row family, not just the dialog."
 
 [[feature]]
 id = "playback-snapshot"
@@ -1594,9 +1594,9 @@ description = "Capture current frame to PNG (path/prefix/format configurable)"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/options-linux.json#snapshot-path"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Shift+S; Snapshot subsection (7 options) maps to recording.dir/format analog; no dialog (immediate)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "partial" }
+evidence = "crates/playback-engine/src/snapshot.rs (SnapshotFormat/SnapshotConfig::plan + tests — snapshot-path/prefix/format family, VLC vlcsnap- prefix, 6-digit counter naming [PROPOSAL: counter over modern wall-clock filename]); commands catalog video.take-screenshot (class A, pre-existed)"
+notes = "Shift+S; Snapshot subsection (7 options) maps to recording.dir/format analog; no dialog (immediate). [PROPOSAL] structural gap, honest: the video-engine sink hands frames to the platform surface with no pixel-readback seam — capture wiring is renderer/video-engine-owned work; the pure planning seam (path derivation + format validation + typed refusals) landed so the readback lands onto a tested plan; wire v1 encodes PNG only (jpg/tiff parse, refused typed)."
 
 [[feature]]
 id = "playback-fullscreen"
