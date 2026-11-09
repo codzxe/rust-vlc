@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MPD xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns="urn:mpeg:dash:schema:mpd:2011"
+	xmlns:xlink="http://www.w3.org/1999/xlink"
+	xsi:schemaLocation="urn:mpeg:DASH:schema:MPD:2011 http://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/DASH-MPD.xsd"
+	profiles="urn:mpeg:dash:profile:isoff-live:2011"
+	type="static"
+	mediaPresentationDuration="PT6.0S"
+	maxSegmentDuration="PT5.0S"
+	minBufferTime="PT12.0S">
+	<ProgramInformation>
+	</ProgramInformation>
+	<ServiceDescription id="0">
+	</ServiceDescription>
+	<Period id="0" start="PT0.0S">
+		<AdaptationSet id="0" contentType="video" startWithSAP="1" segmentAlignment="true" bitstreamSwitching="true" frameRate="10/1" maxWidth="320" maxHeight="240" par="4:3">
+			<Representation id="0" mimeType="video/mp4" codecs="avc1.42c014" bandwidth="500000" width="320" height="240" sar="1:1">
+				<SegmentList timescale="1000000" duration="5000000" startNumber="1">
+					<Initialization sourceURL="init-stream0.m4s" />
+					<SegmentURL media="chunk-stream0-00001.m4s" />
+				</SegmentList>
+			</Representation>
+			<Representation id="1" mimeType="video/mp4" codecs="avc1.42c00d" bandwidth="200000" width="160" height="120" sar="1:1">
+				<SegmentList timescale="1000000" duration="5000000" startNumber="1">
+					<Initialization sourceURL="init-stream1.m4s" />
+					<SegmentURL media="chunk-stream1-00001.m4s" />
+				</SegmentList>
+			</Representation>
+		</AdaptationSet>
+		<AdaptationSet id="1" contentType="audio" startWithSAP="1" segmentAlignment="true" bitstreamSwitching="true">
+			<Representation id="2" mimeType="audio/mp4" codecs="mp4a.40.2" bandwidth="64000" audioSamplingRate="44100">
+				<AudioChannelConfiguration schemeIdUri="urn:mpeg:dash:23003:3:audio_channel_configuration:2011" value="1" />
+				<SegmentList timescale="1000000" duration="5000000" startNumber="1">
+					<Initialization sourceURL="init-stream2.m4s" />
+					<SegmentURL media="chunk-stream2-00001.m4s" />
+					<SegmentURL media="chunk-stream2-00002.m4s" />
+				</SegmentList>
+			</Representation>
+		</AdaptationSet>
+	</Period>
+</MPD>

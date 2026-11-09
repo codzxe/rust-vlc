@@ -101,6 +101,7 @@ use super::media::{
 use crate::clock::WallClock;
 use crate::error::NetworkError;
 use crate::fetch::{DEFAULT_RESPONSE_LIMIT, HttpFetch, HttpRequest};
+use crate::hls::timestamp_map::TimestampMap;
 
 /// Default join point: 3 segments behind the live edge (the classic
 /// recommendation — enough runway to absorb one late segment without
@@ -279,6 +280,12 @@ pub struct HlsLiveStream {
     /// between construction and the first paced decision — open
     /// always records it when a clock is injected).
     last_playlist_ms: Option<u64>,
+    /// The `#EXT-X-TIMESTAMP-MAP` of the latest window (6.B3):
+    /// `None` when the playlist carries none. Refreshed on every
+    /// reload — a later tag supersedes an earlier one, so an
+    /// encoder restart that republishes the pair is picked up at
+    /// the next window.
+    timestamp_map: Option<TimestampMap>,
     config: HlsLiveConfig,
     stats: HlsLiveStats,
     // The byte-serving state (same shape as the VOD session):
@@ -311,6 +318,42 @@ impl HlsLiveStream {
     #[must_use]
     pub fn stats(&self) -> HlsLiveStats {
         self.stats
+    }
+
+    /// The `#EXT-X-TIMESTAMP-MAP` carried by the latest window
+    /// (card 6.B3): the PTS↔wallclock anchor, refreshed on every
+    /// reload. `None` when the playlist carries no parseable tag.
+    /// The mapping itself (exact across 33-bit PTS wraparound) is
+    /// [`TimestampMap::wallclock_ms_for_pts`] — the surface the
+    /// WebVTT-in-TS subtitle lane syncs against.
+    #[must_use]
+    pub fn timestamp_map(&self) -> Option<TimestampMap> {
+        self.timestamp_map
+    }
+
+    /// The wall-clock time (Unix-epoch ms) of the **live edge** —
+    /// the end of the newest segment in the current window —
+    /// derived from the window's `#EXT-X-TIMESTAMP-MAP` (card 6.B3):
+    /// `LOCAL` advanced by the window's total `EXTINF` duration.
+    ///
+    /// The derivation anchors the tag's `MPEGTS`/`LOCAL` pair at
+    /// the media position of the first segment that follows it in
+    /// the playlist — how encoders publish the tag in practice;
+    /// the spec does not guarantee the anchor, so the record marks
+    /// this `[VERIFY]` against a real-world corpus. `None` when the
+    /// window carries no parseable tag (the honest answer, never a
+    /// guess from the pacing clock).
+    #[must_use]
+    pub fn live_edge_wallclock_ms(&self) -> Option<i64> {
+        let map = self.timestamp_map?;
+        let window_ms: u64 = self
+            .window
+            .segments
+            .iter()
+            .filter_map(|segment| segment.duration)
+            .map(|duration| (duration * 1000.0).round() as u64)
+            .sum();
+        Some(map.local_ms + window_ms as i64)
     }
 
     /// The segment map of everything fetched so far (offset, absolute
@@ -469,8 +512,9 @@ impl HlsLiveStream {
                 self.stats.paced_reloads += 1;
             }
         }
-        let (model, playlist_bytes) =
+        let (model, timestamp_map, playlist_bytes) =
             fetch_playlist_model(&self.fetch, &self.url, self.config.playlist_response_limit)?;
+        self.timestamp_map = timestamp_map;
         self.stats.requests += 1;
         self.stats.playlist_reloads += 1;
         self.stats.bytes_fetched += playlist_bytes;
@@ -645,7 +689,7 @@ pub fn open_live(
     crate::fetch::Url::parse(url).map_err(map_fetch_err)?;
     let uri = SourceUri::parse(url)?;
 
-    let (model, playlist_bytes) =
+    let (model, timestamp_map, playlist_bytes) =
         fetch_playlist_model(&fetch, url, config.playlist_response_limit)?;
     let stats = HlsLiveStats {
         requests: 1,
@@ -709,6 +753,7 @@ pub fn open_live(
         gap_pending: false,
         stalled: 0,
         last_playlist_ms,
+        timestamp_map,
         config,
         stats,
         retained: Vec::new(),
@@ -1328,5 +1373,84 @@ mod tests {
             unreachable!("over-ceiling retention must refuse");
         };
         assert_eq!(err.context.code, "streaming.hls.config");
+    }
+
+    /// 6.B3 — the `#EXT-X-TIMESTAMP-MAP` surfaces: parsed at open,
+    /// applied to the live-edge wallclock derivation, and superseded
+    /// by the tag a reload carries (the encoder-restart shape).
+    #[test]
+    fn timestamp_map_parses_applies_and_supersedes_per_reload() {
+        // 2020-01-01T00:00:00Z = 1_577_836_800_000 ms.
+        let w1 = "#EXTM3U\n\
+              #EXT-X-TARGETDURATION:1\n#EXT-X-MEDIA-SEQUENCE:0\n\
+              #EXT-X-TIMESTAMP-MAP:MPEGTS=900000,LOCAL=2020-01-01T00:00:00Z\n\
+              #EXTINF:1.0,\nseg0\n#EXTINF:1.0,\nseg1\n#EXTINF:1.0,\nseg2\n";
+        // The reload: the window slid by one (seq 0→1), AND the
+        // encoder restarted — a fresh anchor pair (PTS reset to 0,
+        // LOCAL jumped an hour ahead).
+        let w2 = "#EXTM3U\n\
+              #EXT-X-TARGETDURATION:1\n#EXT-X-MEDIA-SEQUENCE:1\n\
+              #EXT-X-TIMESTAMP-MAP:MPEGTS=0,LOCAL=2020-01-01T01:00:00Z\n\
+              #EXTINF:1.0,\nseg1\n#EXTINF:1.0,\nseg2\n#EXTINF:1.0,\nseg3\n";
+        let fetch = LiveRouter::new(
+            &[w1, w2],
+            &[
+                ("/seg0", b"AAAA"),
+                ("/seg1", b"BBBB"),
+                ("/seg2", b"CC"),
+                ("/seg3", b"DDD"),
+            ],
+        );
+        let mut stream =
+            match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
+                Ok(s) => s,
+                Err(e) => unreachable!("live must open: {e}"),
+            };
+        // (1) The opening window's map: parsed, and driving the
+        // live-edge wallclock = LOCAL + the window's EXTINF total
+        // (3 × 1.0 s here — the join is 2 back; the EDGE is the
+        // newest segment's end, the whole window).
+        let map = stream.timestamp_map().expect("W1 carries a map");
+        assert_eq!(map.mpegts, 900_000);
+        assert_eq!(map.local_ms, 1_577_836_800_000);
+        assert_eq!(stream.live_edge_wallclock_ms(), Some(1_577_836_803_000));
+        // (2) Drain the join (seg1, seg2), then demand one more
+        // byte — the dry read that spends the reload.
+        let bytes = match read_exactly(&mut stream, 6) {
+            Ok(b) => b,
+            Err(e) => unreachable!("drain the join: {e}"),
+        };
+        assert_eq!(bytes, b"BBBBCC");
+        let more = match read_exactly(&mut stream, 3) {
+            Ok(b) => b,
+            Err(e) => unreachable!("read across the reload: {e}"),
+        };
+        assert_eq!(more, b"DDD", "seg3 arrives through the W2 window");
+        assert!(fetch.playlist_fetches() >= 2, "the reload happened");
+        // (3) The reloaded window's map superseded the first: PTS
+        // reset + LOCAL jump are both visible, and the live edge
+        // now derives from the NEW anchor (3 × 1.0 s window).
+        let map2 = stream.timestamp_map().expect("W2 carries a map");
+        assert_eq!(map2.mpegts, 0);
+        assert_eq!(map2.local_ms, 1_577_840_400_000); // 2020-01-01T01:00:00Z
+        assert_eq!(stream.live_edge_wallclock_ms(), Some(1_577_840_403_000));
+        // (4) The stream itself is unaffected: the mapping is a
+        // timing surface, never a byte-stream input.
+        assert_eq!(stream.stats().discontinuities, 0);
+    }
+
+    /// 6.B3 — a window without a tag answers `None` honestly on
+    /// both surfaces (never a guess from the pacing clock).
+    #[test]
+    fn timestamp_map_absent_is_none_not_a_guess() {
+        let w1 = "#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-MEDIA-SEQUENCE:0\n\
+              #EXTINF:1.0,\nseg0\n#EXTINF:1.0,\nseg1\n";
+        let fetch = LiveRouter::new(&[w1], &[("/seg0", b"AAAA"), ("/seg1", b"BB")]);
+        let stream = match open_live(fetch, "http://unit.test/pl.m3u8", fast_config()) {
+            Ok(s) => s,
+            Err(e) => unreachable!("live must open: {e}"),
+        };
+        assert_eq!(stream.timestamp_map(), None);
+        assert_eq!(stream.live_edge_wallclock_ms(), None);
     }
 }
