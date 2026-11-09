@@ -713,12 +713,12 @@ pub fn plan_representation(
 
 /// The Period's end tick (relative to the period start) under a
 /// timescale: `Period@duration` when present, else
-/// `MPD@mediaPresentationDuration − Period@start`, else `None`.
+/// `MPD@mediaPresentationDuration − Period@start` (a missing `@start`
+/// is the MPD's beginning — spec §5.3.2.1), else `None`.
 fn period_duration_ticks(mpd: &Mpd, period: &Period, timescale: u64) -> Option<u64> {
     let seconds = period.duration.or_else(|| {
         mpd.media_presentation_duration
-            .zip(period.start)
-            .map(|(total, start)| total - start)
+            .map(|total| total - period.start.unwrap_or(0.0))
     })?;
     let ticks_f = seconds * timescale as f64;
     if ticks_f.is_finite() && (0.0..=u64::MAX as f64).contains(&ticks_f) {

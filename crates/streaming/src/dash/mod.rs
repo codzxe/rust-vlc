@@ -22,6 +22,7 @@
 //!   arithmetic (ISO 8601 availabilityStartTime + Period start +
 //!   presentation-time offset → live edge).
 
+pub mod fuzz;
 pub mod resolve;
 
 pub use resolve::{DashResolveError, RepresentationPlan, SegmentPlan, plan_representation};
