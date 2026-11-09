@@ -4,26 +4,37 @@ import { expect, test } from "@playwright/test";
 // element attributes (doc 08 §3.3) and the generated token CSS must actually
 // cascade in a real browser — asserted through computed styles on the
 // /dev/tokens sandbox (card 4.A2 dev fixture, not a product screen).
+//
+// Issue #37 (2026-11-09): expectations re-aligned to the design-authoritative
+// default, dark + YELLOW — the "Solstice Keyvox gold" (#f2c41d). The v2 brief
+// (design/solstice-v2-brief.md) is silent on the accent default and keeps the
+// token pipeline (§0), whose every artifact pins yellow: themes/tokens.json
+// `default-accent`, gen-tokens.mjs DEFAULT_ACCENT, tokens.css `:root`,
+// ThemeProvider initial state, tokens.test.ts. The previous orange values
+// (#d37918 default, yellow #c49e23 / gray #afafaf ramps, light
+// surface-raised #bebebe) were stale pre-Solstice card-4.A2 numbers. [VERIFY]
+// with design if a future brief re-pins the default accent.
 
-test("default theme lands on <html> as dark + orange", async ({ page }) => {
+test("default theme lands on <html> as dark + yellow", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await expect(page.locator("html")).toHaveAttribute("data-accent", "orange");
+  await expect(page.locator("html")).toHaveAttribute("data-accent", "yellow");
 });
 
 test("switching mode + accent swaps the CSS variable cascade", async ({ page }) => {
   await page.goto("/dev/tokens");
   const swatch = page.getByTestId("swatch-accent");
 
-  // dark + orange default: accent resolves to the product default #d37918.
-  await expect(swatch).toHaveCSS("background-color", "rgb(211, 121, 24)");
+  // dark + yellow default: accent resolves to the product default #f2c41d
+  // (Solstice Keyvox gold — the :root value; no [data-accent="yellow"] block).
+  await expect(swatch).toHaveCSS("background-color", "rgb(242, 196, 29)");
 
   // light mode: surface + accent-bright re-point (doc 08 §3.3).
   await page.getByRole("button", { name: "light", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await expect(page.getByTestId("swatch-surface-raised")).toHaveCSS(
     "background-color",
-    "rgb(190, 190, 190)",
+    "rgb(232, 219, 189)",
   );
 
   // violet accent: the accent role re-points to #8e42ff.
@@ -59,13 +70,13 @@ test("auto mode follows the emulated OS color scheme", async ({ page }) => {
 const ACCENT_MATRIX = [
   ["orange", "#d37918", "#d37918", "#e8851a"],
   ["red", "#e15032", "#e15032", "#e66044"],
-  ["yellow", "#c49e23", "#c49e23", "#daaf24"],
+  ["yellow", "#f2c41d", "#f2c41d", "#ffd84d"],
   ["green", "#19a234", "#19a234", "#1ab839"],
   ["cyan", "#18aad3", "#18aad3", "#1abbe8"],
   ["blue", "#185dd3", "#185dd3", "#1a66e8"],
   ["violet", "#8e42ff", "#8e42ff", "#9c59ff"],
   ["pink", "#f052b3", "#f052b3", "#f365bd"],
-  ["gray", "#afafaf", "#afafaf", "#bababa"],
+  ["gray", "#a99c82", "#a99c82", "#b5aa90"],
 ] as const;
 
 function hexToRgb(hex: string): string {

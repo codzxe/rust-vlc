@@ -80,19 +80,29 @@ fn ffmpeg_unicode_and_tag_stripping() {
         (5_000_000, 5_100_000, "Tick"),
         (600_000_000, 603_200_000, "Far future"),
     ];
-    for (i, (start, end, text)) in expected.iter().enumerate() {
+    for (i, (start, end, _)) in expected.iter().enumerate() {
         assert_eq!(doc.cues[i].interval.start_us(), *start, "cue {i} start");
         assert_eq!(doc.cues[i].interval.end_us(), *end, "cue {i} end");
-        assert_eq!(
-            doc.cues[i].text,
-            CueText::Plain((*text).to_owned()),
-            "cue {i} text"
-        );
+        // Plain payload for the tag-free cues.
+        if i != 1 {
+            assert_eq!(
+                doc.cues[i].text,
+                CueText::Plain(expected[i].2.to_owned()),
+                "cue {i} text"
+            );
+        }
     }
-    // ffmpeg passed the SRT's literal `{\b1}…{\b0}` through; the
-    // plain-text subset strips them and counts the tags.
+    // ffmpeg passed the SRT's literal `Bold {\b1}html{\b0} &
+    // ampersand` through; the G-2 override-tag engine (issue #17)
+    // styles just the `html` run now: plain / bold / plain.
+    assert!(matches!(&doc.cues[1].text, CueText::Styled(segs)
+        if segs.len() == 3
+            && segs[0].text == "Bold " && !segs[0].style.bold
+            && segs[1].text == "html" && segs[1].style.bold
+            && segs[2].text == " & ampersand" && !segs[2].style.bold));
     assert_eq!(doc.stats.stripped_override_blocks, 2);
-    assert_eq!(doc.stats.dropped_tags.get("b"), Some(&2));
+    assert_eq!(doc.stats.applied_override_tags, 2);
+    assert_eq!(doc.stats.dropped_tags.get("b"), None);
     assert!(doc.damage.is_empty(), "{:?}", doc.damage);
 }
 

@@ -682,7 +682,8 @@ pub(super) fn map_fetch_err(err: NetworkError) -> EngineError {
         NetworkError::UnsupportedScheme { .. }
         | NetworkError::ProtocolViolation { .. }
         | NetworkError::InvalidContentRange
-        | NetworkError::RangeNotSatisfiable => {
+        | NetworkError::RangeNotSatisfiable
+        | NetworkError::AuthFailed { .. } => {
             return refuse("streaming.hls.fetch-refused");
         }
         NetworkError::Io { .. } => NetworkCause::ConnectionLost,

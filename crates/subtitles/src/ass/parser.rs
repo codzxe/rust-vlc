@@ -12,14 +12,20 @@
 //! legacy SSA base+flags 1–11); `[Events]` `Format`+`Dialogue`
 //! lines in ANY field order (the `Text` field absorbs commas).
 //!
-//! Deferred (recorded, not interpreted): every override tag —
-//! stripped, counted per tag name into [`AssStats::dropped_tags`];
-//! Layer z-order, Name/Effect metadata and margin overrides are
-//! counted into [`AssStats`] as unmapped. The cue's
-//! [`Positioning`] carries ONLY the referenced style's alignment
-//! (feasibility §5 §2.2: "degrade — bottom-center default, `Style`
-//! alignment respected"); margins/`\pos` need PlayRes-aware math
-//! that belongs to the styling card.
+//! Deferred (recorded, not interpreted): the override tags OUTSIDE
+//! the G-2 minimum (issue #17) — karaoke, rotation, animation,
+//! fades, drawing — stripped, counted per tag name into
+//! [`AssStats::dropped_tags`]; the secondary/outline/shadow colour
+//! slots are parsed and counted into [`AssStats::unmapped_colour_tags`]
+//! (the model's single-colour subset). The G-2 minimum — `\b \i \u
+//! \s \fs \fn \c \1c \alpha \1a \pos \move` — is interpreted
+//! natively by [`super::tags`] into styled runs plus a position
+//! override. Layer z-order, Name/Effect metadata and margin overrides
+//! are counted into [`AssStats`] as unmapped. The cue's
+//! [`Positioning`] carries the referenced style's alignment (and the
+//! `\pos`/`\move` override, as integer percents of the script
+//! resolution); margins still need PlayRes-aware math beyond this
+//! parser's scope.
 //!
 //! # Times
 //!
@@ -46,8 +52,13 @@
 
 use std::collections::BTreeMap;
 
-use crate::model::cue::{Cue, CueId, CueText};
-use crate::model::position::{Alignment, HorizontalAlign, Positioning, VerticalAlign};
+use crate::ass::tags::{self, PositionOverride};
+use crate::model::cue::{Cue, CueId};
+#[cfg(test)]
+use crate::model::cue::CueText;
+use crate::model::position::{
+    Alignment, HorizontalAlign, LinePlacement, Percent, Positioning, VerticalAlign,
+};
 use crate::model::style::{Color, TextStyle};
 use crate::model::time::CueInterval;
 
@@ -190,8 +201,26 @@ pub struct AssStats {
     pub skipped_sections: Vec<String>,
     /// Override blocks `{\...}` stripped from cue text.
     pub stripped_override_blocks: u64,
-    /// Dropped override tags by name (`"b"`, `"pos"`, `"1c"`, …).
+    /// Override tags APPLIED by the G-2 minimum (`\b \i \u \s \fs
+    /// `\fn \c \1c \alpha \1a \pos \move`) — issue #17.
+    pub applied_override_tags: u64,
+    /// Secondary/outline/shadow colour tags (`\2c \3c \4c \2a
+    /// `\3a \4a`) — parsed and validated, but the model's
+    /// single-colour subset cannot hold them (unmapped, not dropped).
+    pub unmapped_colour_tags: u64,
+    /// Dropped override tags by name (`"k"`, `"frz"`, `"t"`, … —
+    /// everything outside the G-2 minimum, plus malformed arguments).
     pub dropped_tags: BTreeMap<String, u64>,
+    /// `\move` tags: the motion is not interpolated (static cue
+    /// model) — the anchor froze at the start point.
+    pub move_tags_frozen: u64,
+    /// `\pos`/`\move` overrides successfully applied to a cue's
+    /// [`Positioning`] as integer percents of the script resolution.
+    pub position_overrides_applied: u64,
+    /// `\pos`/`\move` overrides the model could not hold (coordinates
+    /// outside `0..=100 %` of the script resolution) — counted, not
+    /// clamped.
+    pub position_overrides_unmappable: u64,
     /// `\N` hard newlines folded into `'\n'`.
     pub hard_newlines: u64,
     /// `\n` soft newlines folded into `'\n'`.
@@ -211,7 +240,9 @@ pub struct AssStats {
 }
 
 impl AssStats {
-    fn count_tag(&mut self, name: &str) {
+    /// Count a tag into [`AssStats::dropped_tags`] (the honest-degrade
+    /// bucket). `pub(super)` — the G-2 engine in `ass::tags` shares it.
+    pub(super) fn count_tag(&mut self, name: &str) {
         *self.dropped_tags.entry(name.to_owned()).or_insert(0) += 1;
     }
 }
@@ -486,6 +517,9 @@ fn parse_style_line(
             "Underline" => {
                 style.text_style.underline = parse_bool_field(raw, line_no, "Underline", doc);
             }
+            "StrikeOut" => {
+                style.text_style.strikeout = parse_bool_field(raw, line_no, "StrikeOut", doc);
+            }
             "Alignment" => match raw.parse::<i64>() {
                 Ok(v) => {
                     style.raw_alignment = v;
@@ -505,9 +539,9 @@ fn parse_style_line(
             "MarginL" => style.margin_l = parse_int_field(raw, line_no, "MarginL", doc),
             "MarginR" => style.margin_r = parse_int_field(raw, line_no, "MarginR", doc),
             "MarginV" => style.margin_v = parse_int_field(raw, line_no, "MarginV", doc),
-            // SecondaryColour/OutlineColour/BackColour, StrikeOut,
-            // ScaleX/Y, Spacing, Angle, BorderStyle, Outline,
-            // Shadow, Encoding: full styling — deferred (§2.2).
+            // SecondaryColour/OutlineColour/BackColour, ScaleX/Y,
+            // Spacing, Angle, BorderStyle, Outline, Shadow, Encoding:
+            // full styling — deferred (§2.2).
             _ => {}
         }
     }
@@ -593,20 +627,38 @@ fn parse_event_line(line: &str, line_no: usize, format: Names<'_>, doc: &mut Ass
         return;
     };
 
-    // --- style → positioning (alignment only in v1) ---
+    // --- style → positioning + the G-2 style seed ---
     let style_name = get("Style")
         .filter(|s| !s.is_empty())
         .unwrap_or("Default")
         .to_owned();
-    let positioning = match doc.style(&style_name) {
-        Some(s) => Positioning::new(s.alignment, None, None),
+    let (found_style, positioning) = match doc.style(&style_name).cloned() {
+        Some(s) => (
+            Some(s.clone()),
+            Positioning::new(s.alignment, None, None),
+        ),
         None => {
             doc.damage.push(AssDamage::UnknownStyle {
                 line_no,
                 name: style_name,
             });
-            Positioning::default()
+            (None, Positioning::default())
         }
+    };
+    // The override-tag engine's seed: the referenced style's token
+    // projection (bold/italic/underline/strikeout/colour) plus its
+    // font name/size — tags mutate this state mid-text (G-2).
+    let seed = match &found_style {
+        Some(s) => TextStyle {
+            bold: s.text_style.bold,
+            italic: s.text_style.italic,
+            underline: s.text_style.underline,
+            strikeout: s.text_style.strikeout,
+            color: s.primary_colour,
+            font_size_milli: (s.font_size_milli > 0).then_some(s.font_size_milli),
+            font_name: (!s.font_name.is_empty()).then(|| s.font_name.as_str().into()),
+        },
+        None => TextStyle::PLAIN,
     };
 
     // --- tolerated / counted-then-dropped metadata ---
@@ -626,12 +678,69 @@ fn parse_event_line(line: &str, line_no: usize, format: Names<'_>, doc: &mut Ass
         doc.stats.effect_fields_ignored += 1;
     }
 
-    // --- text: the plain-text subset ---
-    let plain = plain_text(&text, &mut doc.stats);
+    // --- text: the G-2 override-tag engine (styled runs + pos) ---
+    let (cue_text, pos_override) = tags::styled_event_text(&text, seed, &mut doc.stats);
+    let positioning = match pos_override {
+        Some(p) => apply_position_override(positioning, p, play_res(doc), &mut doc.stats),
+        None => positioning,
+    };
 
     let id = CueId::new(doc.cues.len() as u64 + 1);
-    doc.cues
-        .push(Cue::new(id, interval, CueText::Plain(plain), positioning));
+    doc.cues.push(Cue::new(id, interval, cue_text, positioning));
+}
+
+/// The effective script resolution: `PlayResX`/`PlayResY` when
+/// present and nonzero, else the 384×288 VSFilter-heritage default
+/// (`layout::DEFAULT_PLAY_RES`, the libass behaviour).
+fn play_res(doc: &AssDocument) -> (i64, i64) {
+    let read = |key: &str, default: i64| {
+        doc.info(key)
+            .and_then(|v| v.trim().parse::<i64>().ok())
+            .filter(|v| *v > 0)
+            .unwrap_or(default)
+    };
+    (read("PlayResX", 384), read("PlayResY", 288))
+}
+
+/// Apply a `\pos`/`\move` override to a cue's [`Positioning`]: the
+/// script coordinates become integer percents of the script
+/// resolution (round-half-up — the model's lossy percent vocabulary,
+/// `model::position` docs). Coordinates outside `0..=100 %` are
+/// unmappable in that vocabulary: counted into
+/// [`AssStats::position_overrides_unmappable`], never clamped (a
+/// clamp would move the cue silently; MP §8 prefers honest data).
+fn apply_position_override(
+    mut positioning: Positioning,
+    p: PositionOverride,
+    play_res: (i64, i64),
+    stats: &mut AssStats,
+) -> Positioning {
+    // percent = milli / (extent × 1000) × 100, round-half-up.
+    let to_percent = |milli: i64, extent: i64| -> Option<i32> {
+        let num = milli.checked_mul(100)?;
+        let den = extent.checked_mul(1000)?;
+        if den == 0 {
+            return None;
+        }
+        let q = (num + den / 2) / den;
+        i32::try_from(q).ok().filter(|v| (0..=100).contains(v))
+    };
+    match (
+        to_percent(p.x_milli, play_res.0),
+        to_percent(p.y_milli, play_res.1),
+    ) {
+        (Some(px), Some(py)) => match (Percent::new(px), Percent::new(py)) {
+            (Ok(x), Ok(y)) => {
+                positioning.position = Some(x);
+                positioning.line = Some(LinePlacement::Percent(y));
+                stats.position_overrides_applied += 1;
+            }
+            // Unreachable (pre-validated 0..=100); kept total (MP §8).
+            _ => stats.position_overrides_unmappable += 1,
+        },
+        _ => stats.position_overrides_unmappable += 1,
+    }
+    positioning
 }
 
 /// Split a post-`Style:` field list on commas, trimming each field
@@ -764,7 +873,7 @@ fn map_alignment(v: i64, flavour: StyleFlavour) -> Option<Alignment> {
 /// the field is 32-bit in both conventions). ASS alpha is inverted
 /// (`00` opaque) and lands as straight alpha (`255` opaque).
 /// `&H` with no digits is malformed (`None`).
-fn parse_ass_colour(raw: &str) -> Option<Color> {
+pub(super) fn parse_ass_colour(raw: &str) -> Option<Color> {
     let raw = raw.trim();
     let hex_tail = raw
         .strip_prefix("&H")
@@ -789,7 +898,7 @@ fn parse_ass_colour(raw: &str) -> Option<Color> {
 
 /// An exact decimal → thousandths (`16` → 16 000, `20.5` →
 /// 20 500). No floats (MP §8). Optional sign, 0–3 fraction digits.
-fn parse_decimal_milli(raw: &str) -> Option<i64> {
+pub(super) fn parse_decimal_milli(raw: &str) -> Option<i64> {
     let raw = raw.trim();
     let (neg, body) = match raw.strip_prefix('-') {
         Some(rest) => (true, rest),
@@ -821,121 +930,20 @@ fn parse_decimal_milli(raw: &str) -> Option<i64> {
     Some(if neg { -milli } else { milli })
 }
 
-/// Reduce ASS event text to the plain-text subset, counting every
-/// dropped thing into `stats`.
+/// Reduce ASS event text to plain string form — a thin test-only
+/// wrapper over the G-2 engine (`ass::tags`) asserting the text-level
+/// quirks independently of run styling.
+#[cfg(test)]
 fn plain_text(text: &str, stats: &mut AssStats) -> String {
-    let mut out = String::with_capacity(text.len());
-    let bytes = text.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'{' => {
-                // The exact empty pair `{}` is preserved (VSFilter
-                // quirk); any other `{...}` with a closing brace is
-                // an override block (stripped, tags counted); an
-                // unterminated `{` is literal (libass behavior).
-                if bytes.get(i + 1) == Some(&b'}') {
-                    out.push_str("{}");
-                    i += 2;
-                    continue;
-                }
-                let Some(close) = bytes[i + 1..].iter().position(|&b| b == b'}') else {
-                    out.push('{');
-                    i += 1;
-                    continue;
-                };
-                count_tags(&text[i + 1..i + 1 + close], stats);
-                stats.stripped_override_blocks += 1;
-                i += close + 2;
-            }
-            b'\\' => match bytes.get(i + 1) {
-                Some(b'N') => {
-                    out.push('\n');
-                    stats.hard_newlines += 1;
-                    i += 2;
-                }
-                Some(b'n') => {
-                    out.push('\n');
-                    stats.soft_newlines += 1;
-                    i += 2;
-                }
-                Some(b'h') => {
-                    out.push(' ');
-                    stats.hard_spaces += 1;
-                    i += 2;
-                }
-                _ => {
-                    out.push('\\');
-                    i += 1;
-                }
-            },
-            _ => {
-                // Copy one UTF-8 scalar — never split a code point.
-                let len = utf8_len(bytes[i]);
-                let end = (i + len).min(bytes.len());
-                out.push_str(&text[i..end]);
-                i = end;
-            }
-        }
-    }
-    out
-}
-
-/// Scan an override block's interior for `\tagname` tokens and
-/// count each by name (the letters/digits after the backslash —
-/// `pos`, `1c`, `frz`, `t`, …). A parenthesized argument list is
-/// skipped so `\pos(1,2)` counts once.
-fn count_tags(block: &str, stats: &mut AssStats) {
-    let bytes = block.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'\\' {
-            let mut j = i + 1;
-            // Tag names: a leading digit is part of the name (the
-            // `\1c`/`\2a`… colour/alpha family — consume
-            // alphanumerics); a leading letter ends at the first
-            // non-letter (the `1` of `\i1` is an argument).
-            if j < bytes.len() && bytes[j].is_ascii_digit() {
-                while j < bytes.len() && bytes[j].is_ascii_alphanumeric() {
-                    j += 1;
-                }
-            } else {
-                while j < bytes.len() && bytes[j].is_ascii_alphabetic() {
-                    j += 1;
-                }
-            }
-            if j > i + 1 {
-                stats.count_tag(&block[i + 1..j]);
-            }
-            if bytes.get(j) == Some(&b'(')
-                && let Some(close) = bytes[j..].iter().position(|&b| b == b')')
-            {
-                i = j + close + 1;
-                continue;
-            }
-            i = j;
-        } else {
-            i += 1;
-        }
+    match tags::styled_event_text(text, TextStyle::PLAIN, stats).0 {
+        CueText::Plain(s) => s,
+        CueText::Styled(segs) => segs.iter().map(|s| s.text.as_str()).collect(),
     }
 }
-
-/// Byte length of the UTF-8 scalar starting at `first` (callers
-/// only land on scalar boundaries: braces, backslashes and text
-/// are walked scalar-wise).
-const fn utf8_len(first: u8) -> usize {
-    match first {
-        0x00..=0x7F => 1,
-        0xC0..=0xDF => 2,
-        0xE0..=0xEF => 3,
-        _ => 4,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::cue::CueText;
+    use crate::model::cue::{CueText, StyledSegment};
     use crate::model::position::{HorizontalAlign, VerticalAlign};
 
     const FFMPEG_LIKE: &str = "\
@@ -1173,7 +1181,9 @@ Dialogue: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,legacy
             "Bold plain"
         );
         assert_eq!(stats.stripped_override_blocks, 2);
-        assert_eq!(stats.dropped_tags.get("b"), Some(&2));
+        // G-2: \b is applied now, not dropped.
+        assert_eq!(stats.applied_override_tags, 2);
+        assert_eq!(stats.dropped_tags.get("b"), None);
         assert_eq!(plain_text("{}", &mut stats), "{}"); // preserved quirk
         assert_eq!(plain_text("a { b", &mut stats), "a { b"); // unterminated
         assert_eq!(plain_text("{ not a tag", &mut stats), "{ not a tag");
@@ -1186,14 +1196,16 @@ Dialogue: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,legacy
         assert_eq!(stats.hard_spaces, 1);
         assert_eq!(plain_text("slash\\d keeps", &mut stats), "slash\\d keeps");
         assert_eq!(plain_text("trailing\\", &mut stats), "trailing\\");
-        // Karaoke + positioning tags counted by name.
+        // Karaoke stays dropped; \pos is applied by G-2 (and needs
+        // PlayRes context to land in a Positioning — the plain-text
+        // wrapper only checks the text here).
         let mut s2 = AssStats::default();
         assert_eq!(
             plain_text("{\\k20}ka{\\k40}ra{\\pos(10,20)}oke", &mut s2),
             "karaoke"
         );
         assert_eq!(s2.dropped_tags.get("k"), Some(&2));
-        assert_eq!(s2.dropped_tags.get("pos"), Some(&1));
+        assert_eq!(s2.applied_override_tags, 1); // the \pos
         // UTF-8 walks scalars, never splits a code point.
         let mut s3 = AssStats::default();
         assert_eq!(plain_text("日本語\\Nテスト", &mut s3), "日本語\nテスト");
@@ -1270,8 +1282,18 @@ Dialogue: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,legacy
         assert_eq!(doc.stats.name_fields_ignored, 1);
         assert_eq!(doc.stats.effect_fields_ignored, 1);
         assert_eq!(doc.stats.comment_events, 1);
-        assert_eq!(doc.cues[0].text, CueText::Plain("styled".into()));
-        assert_eq!(doc.stats.dropped_tags.get("i"), Some(&2));
+        // G-2: {\\i1} styled the run instead of being dropped.
+        assert_eq!(
+            doc.cues[0].text,
+            CueText::Styled(vec![StyledSegment {
+                text: "styled".into(),
+                style: TextStyle::new(false, true, false, Some(Color::WHITE))
+                    .with_font_name(Some("Arial"))
+                    .with_font_size_milli(Some(16_000)),
+            }])
+        );
+        assert_eq!(doc.stats.applied_override_tags, 2);
+        assert_eq!(doc.stats.dropped_tags.get("i"), None);
     }
 
     #[test]
@@ -1387,7 +1409,10 @@ Dialogue: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,legacy
             for (i, cue) in doc.cues.iter().enumerate() {
                 assert_eq!(cue.id.get(), i as u64 + 1);
                 assert!(cue.interval.start_us() <= cue.interval.end_us());
-                assert!(cue.text.is_plain());
+                // G-2: mutated junk can legitimately style a run now
+                // ({\b1} in the alphabet) — the invariant is a valid
+                // payload, not plainness.
+                assert!(cue.text.total_len() < 200_000);
             }
             for d in &doc.damage {
                 let line = match d {

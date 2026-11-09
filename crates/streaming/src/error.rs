@@ -68,6 +68,14 @@ pub enum NetworkError {
         /// `code` is in 500..=599.
         is_server_error: bool,
     },
+    /// The server rejected the presented credentials after the auth
+    /// layer answered its challenge — the typed wrong-password shape
+    /// (`auth-failed`, card 6.E1).
+    AuthFailed {
+        /// The scheme that was rejected (static vocabulary, never
+        /// server-controlled text — MP §12).
+        scheme: AuthSchemeKind,
+    },
     /// The server rejected the requested byte range — HTTP 416
     /// (`range-not-satisfiable`).
     RangeNotSatisfiable,
@@ -118,6 +126,27 @@ pub enum NetworkError {
     },
 }
 
+/// The authentication scheme vocabulary [`NetworkError::AuthFailed`]
+/// carries — static strings only (never server-controlled text,
+/// MP §12).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthSchemeKind {
+    /// RFC 7617 `Basic`.
+    Basic,
+    /// RFC 7616 `Digest` (MD5).
+    Digest,
+}
+
+impl AuthSchemeKind {
+    /// The scheme token as it appears in a challenge.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AuthSchemeKind::Basic => "basic",
+            AuthSchemeKind::Digest => "digest",
+        }
+    }
+}
+
 impl NetworkError {
     /// The stable dotted context code for this error.
     pub fn code(&self) -> &'static str {
@@ -132,6 +161,7 @@ impl NetworkError {
             NetworkError::RedirectLoop { .. } => "streaming.net.redirect-loop",
             NetworkError::CrossHostRedirect { .. } => "streaming.net.cross-host-redirect",
             NetworkError::HttpStatus { .. } => "streaming.net.http-status",
+            NetworkError::AuthFailed { .. } => "streaming.net.auth-failed",
             NetworkError::RangeNotSatisfiable => "streaming.net.range-not-satisfiable",
             NetworkError::BodyTruncated { .. } => "streaming.net.body-truncated",
             NetworkError::InvalidContentRange => "streaming.net.invalid-content-range",
@@ -195,6 +225,7 @@ impl NetworkError {
             NetworkError::HttpStatus { code, .. } => {
                 matches!(code, 408 | 429 | 500 | 502 | 503 | 504)
             }
+            NetworkError::AuthFailed { .. } => false,
             NetworkError::TlsFailure
             | NetworkError::TooManyRedirects { .. }
             | NetworkError::RedirectLoop { .. }
@@ -250,6 +281,9 @@ impl fmt::Display for NetworkError {
                     "unexpected status"
                 };
                 format!("HTTP status {code} ({class})")
+            }
+            NetworkError::AuthFailed { scheme } => {
+                format!("server rejected the presented {} credentials (401)", scheme.as_str())
             }
             NetworkError::RangeNotSatisfiable => {
                 "server rejected the requested byte range (416)".to_string()
@@ -307,6 +341,9 @@ mod tests {
             NetworkError::RedirectLoop { hops: 4 },
             NetworkError::CrossHostRedirect { hops: 1 },
             NetworkError::http_status(404),
+            NetworkError::AuthFailed {
+                scheme: AuthSchemeKind::Basic,
+            },
             NetworkError::RangeNotSatisfiable,
             NetworkError::BodyTruncated {
                 expected: 100,

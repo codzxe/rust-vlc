@@ -1,29 +1,39 @@
 //! Byte-to-text decoding for SRT (card 5.M1): BOM detection over the
 //! three real-world encodings (UTF-8, UTF-16LE, UTF-16BE), UTF-8
-//! fallback, and line-ending normalization — all std-only (C5), all
-//! damage-tolerant, never panicking.
+//! validity with a Windows-1252 8-bit fallback, and line-ending
+//! normalization — all std-only (C5), all damage-tolerant, never
+//! panicking.
 //!
 //! ## Detection policy
 //!
 //! * `EF BB BF` → UTF-8 with BOM (BOM stripped);
 //! * `FF FE` → UTF-16LE (BOM stripped);
 //! * `FE FF` → UTF-16BE (BOM stripped);
-//! * no BOM → UTF-8 (the overwhelming modern default). Invalid
-//!   sequences degrade to U+FFFD via the lossy conversion with one
-//!   [`SrtDamageKind::InvalidUtf8`] event — the parse continues.
+//! * no BOM, VALID UTF-8 → UTF-8 (lossless — the overwhelming modern
+//!   default, and the only no-BOM path that needs no heuristic);
+//! * no BOM, INVALID UTF-8 → **Windows-1252** (the common 8-bit
+//!   fallback for legacy SRTs — ffmpeg's `sub_charenc` behaviour).
+//!   One [`SrtDamageKind::Windows1252Fallback`] event records the
+//!   heuristic decision; the five undefined bytes (0x81/0x8D/0x8F/
+//!   0x90/0x9D) degrade to U+FFFD with
+//!   [`SrtDamageKind::UndefinedWindows1252Byte`] events. 
+//!   `[VERIFY]` against a chardet-grade corpus once one is licensed
+//!   in — the heuristic is single-shot, no confidence scoring.
 //!
 //! BOM-less UTF-16 is deliberately NOT sniffed heuristically: the
 //! NUL-interleaved garbage it produces in a UTF-8 read degrades into
 //! garbage-block damage events instead of a mis-detected document
 //! (the honest failure), and every real UTF-16 SRT in the wild —
 //! every Windows-era tool that emitted UTF-16 — carries the BOM.
+//! (Windows-1252 never produces NUL bytes, so the two policies never
+//! collide.)
 
 use crate::srt::damage::{DamageSink, SrtDamageKind};
 
 /// The encoding a source was decoded as.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SourceEncoding {
-    /// UTF-8, no BOM (the fallback when no BOM is present).
+    /// UTF-8, no BOM (the fallback when the bytes are valid UTF-8).
     Utf8,
     /// UTF-8 with a BOM (BOM detected and stripped).
     Utf8Bom,
@@ -31,6 +41,9 @@ pub enum SourceEncoding {
     Utf16Le,
     /// UTF-16 big-endian (BOM detected and stripped).
     Utf16Be,
+    /// Windows-1252 — the 8-bit fallback when no BOM is present and
+    /// the bytes are not valid UTF-8 (legacy SRTs).
+    Windows1252,
 }
 
 impl SourceEncoding {
@@ -42,6 +55,7 @@ impl SourceEncoding {
             Self::Utf8Bom => "utf-8-bom",
             Self::Utf16Le => "utf-16le",
             Self::Utf16Be => "utf-16be",
+            Self::Windows1252 => "windows-1252",
         }
     }
 }
@@ -70,7 +84,7 @@ pub fn detect_bom(bytes: &[u8]) -> Option<SourceEncoding> {
     }
 }
 
-/// Decode `bytes` per the BOM policy above, recording damage.
+/// Decode `bytes` per the detection policy above, recording damage.
 #[must_use]
 pub fn decode(bytes: &[u8], damage: &mut DamageSink) -> DecodedSource {
     match detect_bom(bytes) {
@@ -86,12 +100,21 @@ pub fn decode(bytes: &[u8], damage: &mut DamageSink) -> DecodedSource {
             text: decode_utf16(&bytes[2..], false, damage),
             encoding: SourceEncoding::Utf16Be,
         },
-        // No BOM (a `Some` for the other arms is exhaustive above; a
-        // `None` and a hypothetical future variant both fall back).
-        _ => DecodedSource {
+        // No BOM: valid UTF-8 wins losslessly; only an invalid byte
+        // stream falls to the Windows-1252 heuristic.
+        _ if std::str::from_utf8(bytes).is_ok() => DecodedSource {
+            // Reuse the lossy path purely for its stray-BOM strip
+            // (the validation above guarantees no replacement).
             text: decode_utf8(bytes, damage),
             encoding: SourceEncoding::Utf8,
         },
+        _ => {
+            damage.record(SrtDamageKind::Windows1252Fallback, 0);
+            DecodedSource {
+                text: decode_windows1252(bytes, damage),
+                encoding: SourceEncoding::Windows1252,
+            }
+        }
     }
 }
 
@@ -107,6 +130,45 @@ fn decode_utf8(bytes: &[u8], damage: &mut DamageSink) -> String {
         text.replace_range(0..'\u{FEFF}'.len_utf8(), "");
     }
     text
+}
+
+/// The Windows-1252 high-half table, `0x80..=0x9F` (32 entries;
+/// `None` = the five undefined bytes). `0x00..=0x7F` is ASCII and
+/// `0xA0..=0xFF` is Latin-1 — both handled inline, table-free.
+const CP1252_HIGH: [Option<char>; 32] = [
+    Some('\u{20AC}'), None, Some('\u{201A}'), Some('\u{0192}'),
+    Some('\u{201E}'), Some('\u{2026}'), Some('\u{2020}'), Some('\u{2021}'),
+    Some('\u{02C6}'), Some('\u{2030}'), Some('\u{0160}'), Some('\u{2039}'),
+    Some('\u{0152}'), None, Some('\u{017D}'), None,
+    None, Some('\u{2018}'), Some('\u{2019}'), Some('\u{201C}'),
+    Some('\u{201D}'), Some('\u{2022}'), Some('\u{2013}'), Some('\u{2014}'),
+    Some('\u{02DC}'), Some('\u{2122}'), Some('\u{0161}'), Some('\u{203A}'),
+    Some('\u{0153}'), None, Some('\u{017E}'), Some('\u{0178}'),
+];
+
+/// Windows-1252 decode: ASCII and Latin-1 ranges pass through, the
+/// high half maps through [`CP1252_HIGH`], undefined bytes degrade
+/// to U+FFFD with damage. One pass, one output allocation.
+fn decode_windows1252(bytes: &[u8], damage: &mut DamageSink) -> String {
+    let mut out = String::with_capacity(bytes.len());
+    for &b in bytes {
+        match b {
+            0x80..=0x9F => match CP1252_HIGH[usize::from(b - 0x80)] {
+                Some(c) => out.push(c),
+                None => {
+                    damage.record(SrtDamageKind::UndefinedWindows1252Byte, 0);
+                    out.push('\u{FFFD}');
+                }
+            },
+            // Every other byte maps to the same char as Latin-1
+            // (ASCII included — no table needed).
+            _ => out.push(char::from(b)),
+        }
+    }
+    if out.starts_with('\u{FEFF}') {
+        out.replace_range(0..'\u{FEFF}'.len_utf8(), "");
+    }
+    out
 }
 
 /// UTF-16 decode: surrogate pairs joined, unpaired surrogates and the
@@ -251,10 +313,46 @@ mod tests {
     }
 
     #[test]
-    fn invalid_utf8_falls_back_lossily() {
-        let (d, dmg) = decode_parts(b"1\n\xff\xfe bad\n");
+    fn invalid_utf8_falls_back_to_windows1252() {
+        // No BOM, invalid UTF-8, but clean CP1252: 0xE9 = é, 0x93 = “.
+        let (d, dmg) = decode_parts(b"1\ncaf\xe9 \x93quoted\x94\n");
+        assert_eq!(d.encoding, SourceEncoding::Windows1252);
+        assert_eq!(d.text, "1\ncaf\u{e9} \u{201C}quoted\u{201D}\n");
+        assert_eq!(dmg, vec![SrtDamageKind::Windows1252Fallback]);
+    }
+
+    #[test]
+    fn windows1252_undefined_bytes_degrade() {
+        // 0x81 is one of the five holes.
+        let (d, dmg) = decode_parts(b"a\x81b\x8dc");
+        assert_eq!(d.encoding, SourceEncoding::Windows1252);
+        assert_eq!(d.text, "a\u{FFFD}b\u{FFFD}c");
+        assert_eq!(
+            dmg,
+            vec![
+                SrtDamageKind::Windows1252Fallback,
+                SrtDamageKind::UndefinedWindows1252Byte,
+                SrtDamageKind::UndefinedWindows1252Byte
+            ]
+        );
+    }
+
+    #[test]
+    fn valid_multibyte_utf8_stays_utf8() {
+        // Valid UTF-8 multibyte must NOT be misread as CP1252.
+        let (d, dmg) = decode_parts("1\ncaf\u{e9} \u{201C}q\u{201D}\n".as_bytes());
         assert_eq!(d.encoding, SourceEncoding::Utf8);
-        assert_eq!(d.text, "1\n\u{FFFD}\u{FFFD} bad\n");
+        assert_eq!(d.text, "1\ncaf\u{e9} \u{201C}q\u{201D}\n");
+        assert!(dmg.is_empty());
+    }
+
+    #[test]
+    fn bomd_utf8_invalid_payload_stays_lossy_utf8() {
+        // A UTF-8 BOM commits to UTF-8: an invalid payload degrades
+        // lossily, it does not switch to CP1252.
+        let (d, dmg) = decode_parts(&[0xEF, 0xBB, 0xBF, b'a', 0xE9, b'b']);
+        assert_eq!(d.encoding, SourceEncoding::Utf8Bom);
+        assert_eq!(d.text, "a\u{FFFD}b");
         assert_eq!(dmg, vec![SrtDamageKind::InvalidUtf8]);
     }
 

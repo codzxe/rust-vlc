@@ -35,8 +35,9 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
+use crate::auth::{base64_decode, digest_response, parse_auth_params};
 use crate::error::NetworkError;
-use crate::fetch::{HttpFetch, HttpRequest, HttpResponse, Url};
+use crate::fetch::{HttpFetch, HttpRequest, HttpResponse, RedirectMode, Url};
 
 /// How long a handler thread waits for a request head before giving up
 /// (keeps dropped-test threads bounded).
@@ -176,6 +177,168 @@ impl ScriptedStatus {
     }
 }
 
+/// Required credentials + challenge scheme (card 6.E1, additive
+/// testkit extension): when a [`MockConfig`] carries one, every
+/// request without a valid `Authorization` header is answered `401`
+/// with the scheme's `WWW-Authenticate` challenge (fixed realm and
+/// nonce — deterministic digest vectors); a valid header is served
+/// the route's normal behavior. Basic headers are verified by
+/// decode-and-compare; Digest headers are verified by recomputing
+/// the response over the stored secret and the client's own
+/// `nc`/`cnonce`/`qop` — a real verifier, not a string match.
+#[derive(Clone)]
+pub struct MockAuth {
+    /// The challenge scheme the server offers.
+    pub scheme: MockAuthScheme,
+    /// The required username.
+    pub username: String,
+    /// The required password.
+    pub password: String,
+    /// The challenge realm.
+    pub realm: String,
+    /// The fixed digest nonce (deterministic known-vector tests).
+    pub nonce: String,
+    /// The digest opaque token, echoed in challenges when present.
+    pub opaque: Option<String>,
+    /// Whether the digest challenge advertises `qop="auth"`.
+    pub qop_auth: bool,
+}
+
+/// The challenge scheme a [`MockAuth`] server offers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MockAuthScheme {
+    /// `WWW-Authenticate: Basic realm="…"` (RFC 7617).
+    Basic,
+    /// `WWW-Authenticate: Digest …` (RFC 7616, MD5).
+    Digest,
+}
+
+impl MockAuth {
+    /// A Basic-auth server for `username`/`password` in `realm`.
+    #[must_use]
+    pub fn basic(username: &str, password: &str, realm: &str) -> MockAuth {
+        MockAuth {
+            scheme: MockAuthScheme::Basic,
+            username: username.to_string(),
+            password: password.to_string(),
+            realm: realm.to_string(),
+            nonce: String::new(),
+            opaque: None,
+            qop_auth: false,
+        }
+    }
+
+    /// A Digest-auth server for `username`/`password` in `realm`,
+    /// offering the fixed `nonce` (and `qop="auth"`).
+    #[must_use]
+    pub fn digest(username: &str, password: &str, realm: &str, nonce: &str) -> MockAuth {
+        MockAuth {
+            scheme: MockAuthScheme::Digest,
+            username: username.to_string(),
+            password: password.to_string(),
+            realm: realm.to_string(),
+            nonce: nonce.to_string(),
+            opaque: Some("5ccc069c403ebaf9f0171e9517f40e41".to_string()),
+            qop_auth: true,
+        }
+    }
+
+    /// The `WWW-Authenticate` challenge value for a rejected request.
+    fn challenge_value(&self) -> String {
+        match self.scheme {
+            MockAuthScheme::Basic => format!("Basic realm=\"{}\"", self.realm),
+            MockAuthScheme::Digest => {
+                let mut challenge = format!(
+                    "Digest realm=\"{}\", nonce=\"{}\"",
+                    self.realm, self.nonce
+                );
+                if self.qop_auth {
+                    challenge.push_str(", qop=\"auth\"");
+                }
+                if let Some(opaque) = &self.opaque {
+                    challenge.push_str(&format!(", opaque=\"{opaque}\""));
+                }
+                challenge
+            }
+        }
+    }
+
+    /// Whether the request's `Authorization` header satisfies this
+    /// server (the 6.E1 verifier: real digest recomputation, never
+    /// a string match against a fixture).
+    fn authorize(&self, request: &LoggedRequest) -> bool {
+        let Some(value) = request.header("authorization") else {
+            return false;
+        };
+        let Some((scheme, rest)) = value.split_once(' ') else {
+            return false;
+        };
+        if scheme.eq_ignore_ascii_case("basic") {
+            let Some(decoded) = base64_decode(rest.trim()) else {
+                return false;
+            };
+            let Ok(text) = String::from_utf8(decoded) else {
+                return false;
+            };
+            return text == format!("{}:{}", self.username, self.password);
+        }
+        if scheme.eq_ignore_ascii_case("digest") {
+            let params = parse_auth_params(rest);
+            let get = |name: &str| {
+                params
+                    .iter()
+                    .find(|(n, _)| n == name)
+                    .map(|(_, v)| v.clone())
+            };
+            let (username, nonce, uri, response) = match (
+                get("username"),
+                get("nonce"),
+                get("uri"),
+                get("response"),
+            ) {
+                (Some(username), Some(nonce), Some(uri), Some(response)) => {
+                    (username, nonce, uri, response)
+                }
+                _ => return false,
+            };
+            if username != self.username || nonce != self.nonce || uri != request.path {
+                return false;
+            }
+            let nc = get("nc").unwrap_or_default();
+            let cnonce = get("cnonce").unwrap_or_default();
+            let qop = get("qop");
+            let expected = digest_response(&crate::auth::DigestInputs {
+                username: &self.username,
+                password: &self.password,
+                realm: &self.realm,
+                method: &request.method,
+                uri: &uri,
+                nonce: &nonce,
+                nc: &nc,
+                cnonce: &cnonce,
+                qop: qop.as_deref(),
+            });
+            return expected == response;
+        }
+        false
+    }
+}
+
+/// Redacted by construction: the mock's `Debug` (it rides inside
+/// [`MockConfig`], which test output formats) never prints the
+/// password — same redaction discipline as the production side.
+impl std::fmt::Debug for MockAuth {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MockAuth")
+            .field("scheme", &self.scheme)
+            .field("username", &self.username)
+            .field("password", &"[redacted]")
+            .field("realm", &self.realm)
+            .field("nonce", &self.nonce)
+            .finish()
+    }
+}
+
 /// One mock server's behavior (card 6.A1a scope).
 ///
 /// A server serves **one** scripted behavior for every request — tests
@@ -241,6 +404,12 @@ pub struct MockConfig {
     /// the redirect/garbage behaviors. Empty (the default) changes
     /// nothing.
     pub scripted_status: Vec<(String, ScriptedStatus)>,
+    /// Required credentials (card 6.E1, additive): when present,
+    /// requests without a valid `Authorization` header are answered
+    /// `401` + the scheme's `WWW-Authenticate` challenge before any
+    /// other body-serving behavior; valid requests are served
+    /// normally. `None` (the default) never challenges.
+    pub auth: Option<MockAuth>,
 }
 
 impl Default for MockConfig {
@@ -258,6 +427,7 @@ impl Default for MockConfig {
             routes: Vec::new(),
             scripted_routes: Vec::new(),
             scripted_status: Vec::new(),
+            auth: None,
         }
     }
 }
@@ -471,6 +641,19 @@ fn write_response(
             _ => return stream.write_all(redirect_head("/r1").as_bytes()),
         }
     }
+    // Authentication gate (card 6.E1): an invalid or missing
+    // Authorization header is a 401 carrying the challenge — before
+    // any body-serving behavior, so every route is protectable.
+    if let Some(auth) = &config.auth
+        && !auth.authorize(request)
+    {
+        write!(
+            stream,
+            "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            auth.challenge_value()
+        )?;
+        return stream.flush();
+    }
     // Retry weather first (card 6.D2's scripted statuses): a script
     // that still has codes answers with the next one and an empty
     // body; an exhausted script falls through to normal behavior.
@@ -589,6 +772,7 @@ fn serve_body(
 fn reason_phrase(code: u16) -> &'static str {
     match code {
         200 => "OK",
+        401 => "Unauthorized",
         404 => "Not Found",
         500 => "Internal Server Error",
         503 => "Service Unavailable",
@@ -713,12 +897,48 @@ impl MockClient {
 
 impl HttpFetch for MockClient {
     fn fetch(&self, request: HttpRequest) -> Result<HttpResponse, NetworkError> {
+        self.fetch_inner(request, false)
+    }
+
+    /// Challenge surfacing (card 6.E1): the 401 (with its
+    /// `WWW-Authenticate`) is handed back as `Ok` so the auth layer
+    /// can answer it.
+    fn fetch_with_challenge(&self, request: HttpRequest) -> Result<HttpResponse, NetworkError> {
+        self.fetch_inner(request, true)
+    }
+}
+
+impl MockClient {
+    /// The shared fetch loop: redirect following under the request's
+    /// policy, revisit detection, and (challenge mode) 401 surfacing.
+    /// A followed hop never re-sends `Authorization` — parity with
+    /// the real client's `RedirectAuthHeaders::Never` (client.rs,
+    /// 6.A1c; credential-leak posture of 6.H1).
+    fn fetch_inner(
+        &self,
+        request: HttpRequest,
+        surface_challenge: bool,
+    ) -> Result<HttpResponse, NetworkError> {
         let mut url = Url::parse(&request.url)?;
         let mut visited: Vec<String> = vec![url.to_string()];
         let mut followed: u32 = 0;
+        let mut drop_authorization = false;
         loop {
-            let response = self.exchange(&url, &request)?;
+            let hop_request;
+            let request_ref = if drop_authorization {
+                hop_request = strip_authorization(&request);
+                &hop_request
+            } else {
+                &request
+            };
+            let response = self.exchange(&url, request_ref)?;
             if is_redirect(response.status) {
+                // Manual mode: the 3xx (with its Location header) is
+                // the answer — the port's documented contract
+                // (remote playlists 6.E2 resolve it themselves).
+                if request.redirects.mode == RedirectMode::Manual {
+                    return Ok(response);
+                }
                 let Some(location) = response.header("location").map(str::to_string) else {
                     return Err(NetworkError::ProtocolViolation {
                         detail: "redirect status without a Location header",
@@ -740,11 +960,25 @@ impl HttpFetch for MockClient {
                 visited.push(canonical);
                 url = next;
                 followed += 1;
+                drop_authorization = true;
                 continue;
+            }
+            if surface_challenge && response.status == 401 {
+                return Ok(response);
             }
             return classify(response, &request);
         }
     }
+}
+
+/// A copy of `request` with every `Authorization` header removed
+/// (followed-hop credential hygiene).
+fn strip_authorization(request: &HttpRequest) -> HttpRequest {
+    let mut stripped = request.clone();
+    stripped
+        .headers
+        .retain(|(name, _)| !name.eq_ignore_ascii_case("authorization"));
+    stripped
 }
 
 /// The mock's simplified status policy (documented in the module docs;

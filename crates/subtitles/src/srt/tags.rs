@@ -46,7 +46,7 @@ pub fn parse_markup(text: &str, damage: &mut DamageSink, line_no: u32) -> CueTex
         if tail.as_bytes().first() == Some(&b'<') {
             match tail.find('>') {
                 Some(gt) => {
-                    let before = style;
+                    let before = style.clone();
                     apply_tag(&tail[1..gt], &mut style, damage, line_no);
                     if style != before && !current.is_empty() {
                         segments.push(StyledSegment {

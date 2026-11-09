@@ -1,20 +1,15 @@
-//! ASS/SSA parsing — the plain-text subset (card 5.M2a, half of 5.M2).
+//! ASS/SSA parsing and rendering (cards 5.M2a + 5.M2b).
 //!
-//! Scope decision (doc 04 §5, refined by feasibility §5 §2.2's tag
-//! coverage matrix): v1 parses the ASS/SSA **syntax** faithfully —
-//! sections, style lines, dialogue events with `H:MM:SS.CC` times —
-//! and reduces every event's text to the model's **plain-text**
-//! payload ([`crate::model::CueText::Plain`]). Override-tag blocks
-//! `{\...}` are stripped and *counted* per tag name (the §2.2
-//! `drop (counted)` disposition), never a parse failure; `\N`/`\n`
-//! become newlines and `\h` a hard space. **Full styling is
-//! DEFERRED to the Phase-5 styling-subset card** — fonts, colors
-//! beyond the primary, karaoke, `\pos`/`\move` placement, rotation,
-//! border/shadow, fades and vector drawing are recorded as dropped
-//! tags here, not interpreted (R-09, tracked).
-//!
-//! The companion half of 5.M2 (parallel agent, file-disjoint) owns
-//! the render path; this module is the parser core only.
+//! Scope (doc 04 §5, feasibility §5 §2.2's tag coverage matrix): v1
+//! parses the ASS/SSA **syntax** faithfully — sections, style lines,
+//! dialogue events with `H:MM:SS.CC` times — and interprets the
+//! **G-2 override-tag minimum** natively (issue #17: `\b \i \u \s
+//! `\fs \fn \c \1c \alpha \1a \pos \move` → styled runs + a
+//! position override; see [`tags`]). Everything beyond that minimum
+//! — karaoke, rotation, animation, fades, vector drawing — is
+//! stripped and *counted* per tag name (the §2.2 `drop (counted)`
+//! disposition), never a parse failure; `\N`/`\n` become newlines
+//! and `\h` a hard space.
 //!
 //! # Damage model
 //!
@@ -25,8 +20,10 @@
 //! panics on any input).
 
 pub mod parser;
+pub mod tags;
 
 pub use parser::{AssDamage, AssDocument, AssStats, AssStyle, StyleFlavour, parse};
+pub use tags::PositionOverride;
 // ASS (Advanced SubStation Alpha) support — split across two
 // file-disjoint cards (wave 6):
 //
