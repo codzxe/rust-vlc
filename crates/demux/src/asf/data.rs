@@ -10,11 +10,15 @@
 //!   an EC-type block of `(byte & 0x0F)` bytes follows (ffmpeg writes
 //!   `82` + 2 zero bytes); a clear high bit means that many EC data
 //!   bytes. Either way the walk skips `1 + (byte & 0x0F)` bytes.
-//! - **Packet flags** (`f1`): bit `0x10` = a 2-byte *padding length*
-//!   field follows the property flags; bits 1-0 are the observed
-//!   constant `01` on every fixture (packet extent comes from the
-//!   File Properties min/max packet size, not an in-packet length
-//!   field) — any other value is refused typed, never guessed.
+//! - **Packet flags** (`f1`): bits 1-0 are the observed constant
+//!   `01` on every fixture (packet extent comes from the File
+//!   Properties min/max packet size, not an in-packet length field)
+//!   — any other value is refused typed, never guessed. The padding
+//!   length field: bit `0x10` = a 2-byte field follows the property
+//!   flags (ffmpeg writes `11`), bit `0x08` = a 1-byte field (ffmpeg
+//!   writes `09` — measured on the same corpus; every packet closes
+//!   exactly under this reading), both clear = no padding; both set
+//!   is an unobserved shape, refused.
 //! - **Property flags** (`f2`): pairs of length-type bits for the
 //!   per-payload fields — bits 1-0 replicated-data length (01=byte),
 //!   bits 3-2 offset-into-media-object (11=dword, 00=absent),
@@ -142,7 +146,28 @@ pub fn parse_packet(bytes: &[u8]) -> Result<ParsedPacket, EngineError> {
     if f1 & 0x03 != 0x01 {
         return Err(error::packet_bad_flags(pos as u64));
     }
-    let padding_present = f1 & 0x10 != 0;
+    // The padding-length field: 2-byte (0x10), 1-byte (0x08), or
+    // absent — both forms measured on the corpus; both set at once
+    // is an unobserved shape, refused.
+    let padding = match f1 & 0x18 {
+        0x00 => 0,
+        0x08 => {
+            let Some(&p) = bytes.get(pos) else {
+                return Err(error::truncated(bytes.len() as u64 + 1, bytes.len() as u64));
+            };
+            pos += 1;
+            u32::from(p)
+        }
+        0x10 => {
+            if bytes.len() < pos + 2 {
+                return Err(error::truncated(bytes.len() as u64 + 1, bytes.len() as u64));
+            }
+            let p = u32::from(u16le(bytes, pos));
+            pos += 2;
+            p
+        }
+        _ => return Err(error::packet_bad_flags(pos as u64)),
+    };
 
     let repl_width = type_width(f2 & 0x03).ok_or_else(|| error::packet_bad_flags(pos as u64))?;
     let offset_code = (f2 >> 2) & 0x03;
@@ -157,19 +182,6 @@ pub fn parse_packet(bytes: &[u8]) -> Result<ParsedPacket, EngineError> {
         0
     } else {
         type_width(plen_code).ok_or_else(|| error::packet_bad_flags(pos as u64))?
-    };
-
-    // Padding length (2 bytes when the packet-flags bit is set —
-    // the measured form).
-    let padding = if padding_present {
-        if bytes.len() < pos + 2 {
-            return Err(error::truncated(bytes.len() as u64 + 1, bytes.len() as u64));
-        }
-        let p = u32::from(u16le(bytes, pos));
-        pos += 2;
-        p
-    } else {
-        0
     };
 
     // Send time (DWORD, ms) + duration (WORD, ms).

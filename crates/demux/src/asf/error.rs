@@ -299,6 +299,22 @@ pub fn seek_too_slow() -> EngineError {
     )
 }
 
+/// The Simple Index Object's declared size exceeds the demuxer's
+/// memory ceiling (MP §12): the index is read into bounded memory; a
+/// size above
+/// [`crate::asf::MAX_INDEX_BYTES`](super::MAX_INDEX_BYTES) is
+/// corruption or a hostile file, never a promise to allocate.
+pub fn index_too_large(budget: u64, attempted: u64) -> EngineError {
+    mint(
+        ErrorKind::ResourceLimit {
+            limit: LimitKind::Memory,
+            budget,
+            attempted,
+        },
+        "demux.asf.index-too-large",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

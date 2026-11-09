@@ -1,20 +1,22 @@
-//! # demux::asf — the ASF/WMV/WMA header tree (card 6.ASF-a)
+//! # demux::asf — the ASF/WMV/WMA demuxer (cards 6.ASF-a/b/c)
 //!
 //! The Advanced Systems Format family (`.asf`/`.wmv`/`.wma`): a
 //! GUID+size object tree whose Header Object carries the whole track
-//! table. This unit lands the header walk — File Properties, Stream
+//! table. ASF-a landed the header walk — File Properties, Stream
 //! Properties (WAVEFORMATEX / short-VIDEOINFOHEADER facts), Codec
 //! List, Extended Content Description, a bounded Header Extension
-//! child walk — behind [`AsfDemuxer`], plus the [`probe`] gate and
-//! the media-probe signature. **Data Object packets are landed (card
-//! 6.ASF-b)**: `next_event`
-//! walks the packet grammar (EC flags, padding, send time, duration,
-//! multi-payload headers, replicated data, fragment reassembly) and
-//! yields real [`DemuxEvent::Packet`]s — one per completed media
-//! object, preroll-subtracted stamps on the track's own base. Seeking
-//! is card 6.ASF-c's scope: the Simple Index is located (see
-//! `top_objects`) and `seek` still answers the typed
-//! `demux.asf.seek.unsupported` refusal until that unit lands.
+//! child walk — plus the [`probe`] gate and the media-probe
+//! signature. **ASF-b landed the Data Object packet walk**:
+//! `next_event` walks the packet grammar (EC flags, padding, send
+//! time, duration, multi-payload headers, replicated data, fragment
+//! reassembly) and yields real [`DemuxEvent::Packet`]s — one per
+//! completed media object, preroll-subtracted stamps on the track's
+//! own base. **ASF-c landed seeking**: the Simple Index Object is
+//! parsed on first seek (the ffmpeg-measured layout — see
+//! [`data`]'s module docs on the [VERIFY-P0] gate) and maps time →
+//! packet; indexless files get the bounded linear scan
+//! ([`MAX_LINEAR_SEEK_PACKETS`]) with the honest `seek.too-slow`
+//! refusal past the budget.
 //!
 //! ## What is verified where (the honest field map)
 //!
@@ -46,9 +48,13 @@
 //! `demux.asf.broadcast-unsupported`; a header without any audio/
 //! video stream is `demux.asf.no-streams`; a broken WAVEFORMATEX /
 //! video TSD is `demux.asf.bad-waveformatex` / `bad-video-info`;
-//! trait-order violations are `demux.asf.not-started`; the two
-//! next-unit refusals are `demux.asf.packets-not-implemented` (ASF-b)
-//! and `demux.asf.seek.unsupported` (ASF-c).
+//! trait-order violations are `demux.asf.not-started`; packet
+//! grammar refusals are `demux.asf.packet.bad-flags` /
+//! `packet.bad-length` / `payload.bad-replication` /
+//! `payload.oversized` / `packet.variable-size-unsupported`; seek
+//! refusals are `demux.asf.seek.out-of-range` / `seek.too-slow` /
+//! `index-too-large` (the `seek.unsupported` code stays minted for
+//! the error-table history — no site mints it anymore).
 
 use std::collections::VecDeque;
 
@@ -121,9 +127,9 @@ pub fn probe(prefix: &[u8]) -> bool {
 /// let tracks = asf.start()?;
 /// assert_eq!(tracks.len(), 1);
 /// assert_eq!(tracks[0].codec.as_str(), "pcm_s16le");
-/// // The honest ASF-b-not-yet: packets refuse typed, exactly.
-/// let err = asf.next_event().unwrap_err();
-/// assert_eq!(err.context.code, "demux.asf.packets-not-implemented");
+/// // The Data Object carries no packets here: the walk ends at
+/// // once, honestly (never a fake empty-stream shape).
+/// assert_eq!(asf.next_event()?, DemuxEvent::EndOfStream);
 /// # Ok(())
 /// # }
 /// # fn asf_demo_bytes() -> std::sync::Arc<[u8]> {
@@ -143,6 +149,110 @@ pub struct AsfDemuxer {
     /// cursor, the per-stream fragment assembler and the completed
     /// objects waiting to be emitted.
     walk: Option<PacketWalk>,
+    /// The parsed Simple Index (ASF-c), loaded lazily on first seek.
+    simple_index: Option<Option<SimpleIndex>>,
+}
+
+/// The bounded linear-seek scan budget (indexless files): the
+/// maximum data packets a no-index seek will walk header-by-header
+/// before refusing `seek.too-slow` (the mkv precedent — the engine's
+/// SlowLinear contract, MP §12 discipline applied to scan time).
+pub const MAX_LINEAR_SEEK_PACKETS: u64 = 4096;
+
+/// The largest Simple Index Object trusted into memory (MP §12):
+/// 1 MiB is 174 762 one-second buckets — two full days of index.
+pub const MAX_INDEX_BYTES: u64 = 1 << 20;
+
+/// One Simple Index Object entry: the packet number its interval
+/// bucket lands at (the ffmpeg-measured 6-byte entry form — DWORD
+/// packet number, WORD count; the number is non-decreasing across
+/// every measured file, the count is carried but unused by the
+/// landing rule).
+#[derive(Debug, Clone, Copy)]
+struct IndexEntry {
+    packet_number: u32,
+    #[allow(dead_code)]
+    packet_count: u16,
+}
+
+/// The parsed Simple Index Object (card 6.ASF-c).
+///
+/// Layout as measured against ffmpeg 7.1.5 muxer output (the
+/// [VERIFY-P0] spec gate never opened — same discipline as the rest
+/// of this crate): GUID(16) + size(8) + file id(16) + interval
+/// QWORD (100 ns; ffmpeg writes 10 000 000 = 1 s) + one measured
+/// DWORD (0 or 1 across the corpus, semantics unpinned — carried
+/// raw) + entry count DWORD + `count` entries of (DWORD packet
+/// number, WORD packet count). The object must close exactly: size
+/// == 56 + 6 × count.
+#[derive(Debug)]
+struct SimpleIndex {
+    /// The per-entry interval in 100 ns units (≥ 1 enforced).
+    interval_100ns: u64,
+    /// The entries, bucket order.
+    entries: Vec<IndexEntry>,
+}
+
+impl SimpleIndex {
+    /// Parse from the object's own bytes (GUID+size already included
+    /// in `bytes`; the object was extent-validated by the header
+    /// walk's top-object map).
+    ///
+    /// # Errors
+    /// `demux.asf.bad-object-size` for a non-closing shape or a zero
+    /// interval; `demux.asf.index-too-large` above the memory
+    /// ceiling.
+    fn parse(bytes: &[u8], offset: u64) -> Result<SimpleIndex, EngineError> {
+        if bytes.len() < 56 || (bytes.len() - 56) % 6 != 0 {
+            return Err(error::bad_object_size(offset));
+        }
+        let count = u32::from(bytes[52]) | (u32::from(bytes[53]) << 8)
+            | (u32::from(bytes[54]) << 16)
+            | (u32::from(bytes[55]) << 24);
+        if usize::try_from(count).unwrap_or(usize::MAX) != (bytes.len() - 56) / 6 {
+            return Err(error::bad_object_size(offset));
+        }
+        let interval_100ns = u64::from(bytes[40])
+            | (u64::from(bytes[41]) << 8)
+            | (u64::from(bytes[42]) << 16)
+            | (u64::from(bytes[43]) << 24)
+            | (u64::from(bytes[44]) << 32)
+            | (u64::from(bytes[45]) << 40)
+            | (u64::from(bytes[46]) << 48)
+            | (u64::from(bytes[47]) << 56);
+        if interval_100ns == 0 {
+            return Err(error::bad_object_size(offset));
+        }
+        let mut entries = Vec::with_capacity((bytes.len() - 56) / 6);
+        let mut at = 56;
+        while at + 6 <= bytes.len() {
+            let number = u32::from(bytes[at])
+                | (u32::from(bytes[at + 1]) << 8)
+                | (u32::from(bytes[at + 2]) << 16)
+                | (u32::from(bytes[at + 3]) << 24);
+            let count = u16::from(bytes[at + 4]) | (u16::from(bytes[at + 5]) << 8);
+            entries.push(IndexEntry {
+                packet_number: number,
+                packet_count: count,
+            });
+            at += 6;
+        }
+        Ok(SimpleIndex {
+            interval_100ns,
+            entries,
+        })
+    }
+
+    /// The landing bucket for a zero-based target (the buckets ride
+    /// the preroll-offset clock — measured: a 7 s file with 3.1 s
+    /// preroll carries 11 one-second buckets, 7 + 3.1 rounded up).
+    fn bucket_of(&self, target_ms: u64, preroll_ms: u64) -> usize {
+        let interval_ms = self.interval_100ns / 10_000;
+        let interval_ms = interval_ms.max(1);
+        let index_ms = target_ms.saturating_add(preroll_ms);
+        let bucket = (index_ms / interval_ms) as usize;
+        bucket.min(self.entries.len().saturating_sub(1))
+    }
 }
 
 /// The ASF-b packet-walk state (built once by `start`).
@@ -189,6 +299,7 @@ impl AsfDemuxer {
             header: None,
             tracks: None,
             walk: None,
+            simple_index: None,
         })
     }
 
@@ -436,6 +547,51 @@ impl AsfDemuxer {
         }
     }
 
+    /// Locate + read + parse the Simple Index Object (once; cached as
+    /// `None` for indexless files so audio-only seeks take the linear
+    /// lane without re-scanning the top-object map).
+    ///
+    /// # Errors
+    /// Propagates the reader's truncation and [`SimpleIndex::parse`]'s
+    /// typed refusals; `demux.asf.index-too-large` above the ceiling.
+    fn load_simple_index(&mut self) -> Result<Option<&SimpleIndex>, EngineError> {
+        if self.simple_index.is_none() {
+            let located = self.header.as_ref().and_then(|h| {
+                h.top_objects
+                    .iter()
+                    .find(|o| o.guid == guid::SIMPLE_INDEX)
+                    .map(|o| (o.offset, o.size))
+            });
+            let parsed = match located {
+                Some((offset, size)) => {
+                    if size > MAX_INDEX_BYTES {
+                        return Err(error::index_too_large(MAX_INDEX_BYTES, size));
+                    }
+                    let len = usize::try_from(size).unwrap_or(usize::MAX);
+                    let Some(bytes) = self.reader.read_exact_or_end_at(len, offset)? else {
+                        return Err(error::truncated(offset + size, offset));
+                    };
+                    Some(SimpleIndex::parse(&bytes, offset)?)
+                }
+                None => None,
+            };
+            self.simple_index = Some(parsed);
+        }
+        Ok(self.simple_index.as_ref().and_then(|cached| cached.as_ref()))
+    }
+
+    /// Re-anchor the packet walk at `packet` (the seek commit: drop
+    /// half-delivered fragments and queued objects, restart the
+    /// cursor, re-arm the flush endpoint).
+    fn reanchor(&mut self, packet: u64) {
+        if let Some(walk) = self.walk.as_mut() {
+            walk.next_packet = packet.min(walk.packets_total);
+            walk.assembler.clear();
+            walk.queue.clear();
+            walk.eos = false;
+        }
+    }
+
 }
 
 impl Demuxer for AsfDemuxer {
@@ -497,19 +653,96 @@ impl Demuxer for AsfDemuxer {
         }
     }
 
-    fn seek(&mut self, _target: TimeSpan) -> Result<TimeSpan, EngineError> {
+    fn seek(&mut self, target: TimeSpan) -> Result<TimeSpan, EngineError> {
         if !self.started {
             return Err(error::not_started());
         }
-        // ASF-c's row: the Simple Index is located (see
-        // `top_objects`), the seek table is not landed.
-        Err(error::seek_unsupported())
+        // The target clock: any base converts onto the millisecond
+        // demux-clock (the index's own clock); a missing start is the
+        // honest rewind-to-zero (the mkv `target_ticks` rule).
+        let ms_base = TimeBase::new(1, 1000).map_err(|_| error::bad_object_size(0))?;
+        let target_ms = match &target.start {
+            Stamp::Present(ts) => ts
+                .convert(&ms_base)
+                .map(|t| t.ticks.max(0))
+                .map_err(|_| error::seek_out_of_range())?,
+            Stamp::Missing => 0,
+        };
+        let preroll = self
+            .walk
+            .as_ref()
+            .map_or(0, |w| w.preroll_ms);
+        if let Some(index) = self.load_simple_index()? {
+            // The indexed landing: bucket → entry packet number →
+            // re-anchor. Targets beyond the last bucket clamp to it
+            // (the ffmpeg/VLC contract — the walk's own extent bounds
+            // us, never a fabricated position).
+            let bucket = index.bucket_of(target_ms as u64, preroll);
+            let interval_ms = (index.interval_100ns / 10_000).max(1);
+            let packet = u64::from(
+                index
+                    .entries
+                    .get(bucket)
+                    .map_or(0, |e| e.packet_number),
+            );
+            self.reanchor(packet);
+            let landing_ms = (bucket as u64 * interval_ms).saturating_sub(preroll);
+            return Ok(TimeSpan {
+                start: Stamp::Present(Timestamp::new(landing_ms as i64, ms_base)),
+                end: target.end,
+            });
+        }
+        // No index: the bounded linear scan (header-only reads, send
+        // times compared on the preroll-offset clock). Past the
+        // budget the honest refusal — never an unbounded walk.
+        let (packets_total, packet_size, payload_offset) = self
+            .walk
+            .as_ref()
+            .map_or((0, 0, 0), |w| {
+                (w.packets_total, w.packet_size, w.payload_offset)
+            });
+        if packets_total > MAX_LINEAR_SEEK_PACKETS {
+            return Err(error::seek_too_slow());
+        }
+        let mut landing_packet = packets_total;
+        let mut landing_ms = 0_u64;
+        for index in 0..packets_total {
+            let at = payload_offset + index * packet_size;
+            let bytes = self
+                .reader
+                .read_exact_or_end_at(packet_size as usize, at)?
+                .ok_or_else(|| error::truncated(at + packet_size, at))?;
+            let parsed = data::parse_packet(&bytes)?;
+            if u64::from(parsed.send_time_ms) >= target_ms as u64 + preroll {
+                landing_packet = index;
+                landing_ms = u64::from(parsed.send_time_ms).saturating_sub(preroll);
+                break;
+            }
+            landing_ms = u64::from(parsed.send_time_ms).saturating_sub(preroll);
+        }
+        self.reanchor(landing_packet);
+        Ok(TimeSpan {
+            start: Stamp::Present(Timestamp::new(landing_ms as i64, ms_base)),
+            end: target.end,
+        })
     }
 
     fn seekability(&self) -> SeekSupport {
-        // ASF-c owns the §4.3 policy (index → Fast{indexed}, no
-        // index → SlowLinear); until then the honest default — the
-        // typed refusals above, never fake successes.
-        SeekSupport::None
+        if !self.started {
+            return SeekSupport::None;
+        }
+        // §4.3 policy: a located Simple Index is a real seek table →
+        // Fast{indexed}; indexless files (audio-only, broadcast
+        // survivors) ride the bounded linear lane → SlowLinear.
+        let indexed = self.header.as_ref().is_some_and(|h| {
+            h.top_objects
+                .iter()
+                .any(|o| o.guid == guid::SIMPLE_INDEX)
+        });
+        if indexed {
+            SeekSupport::Fast { indexed: true }
+        } else {
+            SeekSupport::SlowLinear
+        }
     }
 }
