@@ -271,7 +271,9 @@ fn validate_mode_pair(tokens: &TokenSet) -> Result<(), TokenError> {
 fn css_value(value: &ResolvedValue) -> Result<String, TokenError> {
     match value {
         ResolvedValue::Color(c) => Ok(c.to_hex()),
-        ResolvedValue::Dimension(px) => Ok(format!("{}px", css_num(*px))),
+        ResolvedValue::Dimension { value, unit } => {
+            Ok(format!("{}{}", css_num(*value), unit.as_css()))
+        }
         ResolvedValue::Number(n) => Ok(css_num(*n)),
         ResolvedValue::Shadow(s) => Ok(format!(
             "{}px {}px {}px {}px {}",
@@ -511,7 +513,7 @@ fn rust_document(tokens: &TokenSet) -> Result<String, TokenError> {
 fn rust_const(value: &ResolvedValue) -> Result<(&'static str, String), TokenError> {
     match value {
         ResolvedValue::Color(c) => Ok(("Rgb8", rgb_expr(*c))),
-        ResolvedValue::Dimension(px) => Ok(("f32", rust_f32(*px))),
+        ResolvedValue::Dimension { value, .. } => Ok(("f32", rust_f32(*value))),
         ResolvedValue::Number(n) => Ok(("f32", rust_f32(*n))),
         ResolvedValue::Family(names) => {
             if names.is_empty() {
