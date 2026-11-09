@@ -130,6 +130,45 @@ const MAX_MAPPED_CHANNELS: u8 = 8;
 /// always fits an empty ring in one decode call.
 const HEAD_HOLD_MAX_SAMPLES: u64 = 120_000;
 
+/// The head-hold release's per-`decode`-call frame budget (issue
+/// #38). The release of a first-page head is a BURST in the old
+/// shape — one call emitting every withheld chunk at once (the
+/// 44.1 kHz reference fixture's landing releases 44 frames in the
+/// single call after the page stamp) — and the engine's seek
+/// pre-roll hold (M10, D-1) hard-caps the frames it captures at the
+/// pipeline's per-limb packet budget (`hold_cap`; the product
+/// default is 16): a call whose pushes cross the cap has the excess
+/// dropped-and-counted at the hold, never staged — the measured
+/// tail defect, 29,248 samples (28×1024 + 576) short of the
+/// 66,150-sample play-out. Amortizing bounds the burst: the hold
+/// fills only BETWEEN calls (the slice's `hold_is_full` check
+/// backpressures the next packet), so a budget that DIVIDES the cap
+/// can never cross it mid-call. 4 divides the default 16 (and every
+/// 4-aligned budget), keeps the drain ahead of the one-frame-per-
+/// packet steady state (the queue still empties within the
+/// remaining packets — the corruption-recovery suite's emission
+/// count depends on it), and `flush` finishes a started drain in one
+/// uncapped call (the live sink holds no pre-roll cap; the ring fits
+/// the bounded residue).
+const RELEASE_FRAMES_PER_CALL: usize = 4;
+
+/// A block decoded behind a still-draining head hold (issue #38):
+/// the head's own chunks leave first, in raw order, so the block
+/// waits in this queue with its already-measured valid window and
+/// pts — both frozen at decode time (the shift can grow at the final
+/// page's stamp, and a later drain must not re-stamp earlier raw
+/// positions with it) — only the delivery is deferred.
+struct PendingBlock {
+    /// The block's pts on the VALID timeline (`raw_first − shift`,
+    /// measured at decode time).
+    pts_ticks: i64,
+    /// The block's valid (granule-clamped) sample count.
+    valid_len: usize,
+    /// The block's interleaved F32 bytes (a pooled-slot reference
+    /// bump — the pool reclaims the slot once this drains).
+    bytes: SharedBytes,
+}
+
 /// The withheld stream-head emission (see the module docs'
 /// "stream-head hold" section): `data` is interleaved F32LE bytes —
 /// exactly what the held blocks would have emitted — and `samples`
@@ -149,6 +188,21 @@ struct HeadHold {
     /// raw emission samples): the raw index the valid timeline
     /// starts at.
     trim_from: Option<u64>,
+    /// The shift basis the trimmed release stamps against (issue #38:
+    /// frozen at trim resolution — the final page's stamp grows the
+    /// shift by the tail padding, and the still-draining head must
+    /// not be re-stamped with it).
+    release_shift: Option<i64>,
+    /// The raw cursor of the next `data` sample to leave (issue #38:
+    /// the release is amortized one [`RELEASE_FRAMES_PER_CALL`]
+    /// frame per call, so the drain's progress survives between
+    /// calls; `0` until the release starts).
+    released: u64,
+    /// The head bytes' shared view, minted at the first drain call
+    /// (`data` is empty from then on — the slices bump refcounts).
+    shared: Option<SharedBytes>,
+    /// Blocks decoded behind the draining head, FIFO (issue #38).
+    pending: Vec<PendingBlock>,
 }
 
 /// One decoded Vorbis block, format-independent form (the free
@@ -460,6 +514,134 @@ impl VorbisDecoder {
         Ok(frames)
     }
 
+    /// Amortize the trimmed head-hold release (issue #38): emit at
+    /// most `budget` frames per call — first the withheld head's own
+    /// slot-sized chunks from `[max(trim, released), samples)`, then
+    /// the blocks that decoded behind the drain, FIFO — and keep the
+    /// remainder hold-side for the later calls (the pre-roll hold
+    /// drop documented on [`RELEASE_FRAMES_PER_CALL`]). The hold dies
+    /// exactly when its last frame leaves. Returns the frame count.
+    ///
+    /// # Errors
+    /// The sink's typed [`EngineError`] (the propagation contract's
+    /// fatal — exactly as `release_head_hold`).
+    fn drain_head_hold(
+        &mut self,
+        out: &mut dyn FrameSink,
+        generation: GenerationId,
+        budget: usize,
+    ) -> Result<usize, EngineError> {
+        let Some(mut hold) = self.head_hold.take() else {
+            return Ok(0);
+        };
+        let Some(headers) = self.headers.as_ref() else {
+            self.head_hold = Some(hold);
+            return Err(VorbisError::BadState.into_engine_error());
+        };
+        let ident = headers.identification;
+        let channels = usize::from(ident.channels);
+        let frame_bytes = channels * 4;
+        let base = match TimeBase::new(1, ident.sample_rate) {
+            Ok(base) => base,
+            Err(_) => {
+                self.head_hold = Some(hold);
+                return Err(unsupported(
+                    "vorbis.ident.rate",
+                    "configured facts carry rate 0",
+                )
+                .into_engine_error());
+            }
+        };
+        let shift = hold.release_shift;
+        let trim = hold.trim_from.unwrap_or(0).min(hold.samples);
+        // The release window's live start: the trim once, then the
+        // drain's own cursor. The bytes move into the shared view on
+        // the first drain call and stay there (`slice` bumps a
+        // refcount, never copies).
+        let start = hold.released.max(trim);
+        let bytes = hold
+            .shared
+            .take()
+            .unwrap_or_else(|| SharedBytes::from_vec(std::mem::take(&mut hold.data)));
+        let slot_frames = slot_samples(&ident);
+        let mut frames = 0usize;
+        let mut cursor = start;
+        while frames < budget && cursor < hold.samples {
+            let len = (hold.samples - cursor).min(slot_frames);
+            let byte_start =
+                usize::try_from(cursor * frame_bytes as u64).unwrap_or(usize::MAX);
+            let byte_len = usize::try_from(len * frame_bytes as u64).unwrap_or(usize::MAX);
+            let pts = shift.map(|shift| {
+                Stamp::Present(Timestamp::new(
+                    i64::try_from(cursor).unwrap_or(i64::MAX).saturating_sub(shift),
+                    base,
+                ))
+            });
+            let frame = Frame::Audio(media_types::frame::AudioFrame {
+                format: AudioFormat {
+                    sample: SampleFormat::F32,
+                    channels: u32::from(ident.channels),
+                    layout: AudioLayout::Interleaved,
+                    rate: ident.sample_rate,
+                },
+                samples: bytes.slice(byte_start..byte_start + byte_len),
+                pts: pts.unwrap_or(Stamp::Missing),
+                duration: Some(Duration::Known(Nanoseconds(
+                    u64::try_from(u128::from(len) * 1_000_000_000u128
+                        / u128::from(ident.sample_rate))
+                    .unwrap_or(u64::MAX),
+                ))),
+                generation,
+            });
+            out.accept(frame)?;
+            frames += 1;
+            cursor += len;
+        }
+        hold.released = cursor;
+        // The blocks that decoded behind the drain, in raw order:
+        // their valid window and pts were measured at decode time —
+        // the delivery is the only thing deferred.
+        let mut pending_at = 0usize;
+        while frames < budget && pending_at < hold.pending.len() {
+            let block = &hold.pending[pending_at];
+            let exact = block.valid_len * frame_bytes;
+            let pts = if shift.is_some() {
+                Stamp::Present(Timestamp::new(block.pts_ticks, base))
+            } else {
+                Stamp::Missing
+            };
+            let frame = Frame::Audio(media_types::frame::AudioFrame {
+                format: AudioFormat {
+                    sample: SampleFormat::F32,
+                    channels: u32::from(ident.channels),
+                    layout: AudioLayout::Interleaved,
+                    rate: ident.sample_rate,
+                },
+                samples: block.bytes.slice(0..exact),
+                pts,
+                duration: Some(Duration::Known(Nanoseconds(
+                    u64::try_from(
+                        u128::from(block.valid_len as u64) * 1_000_000_000u128
+                            / u128::from(ident.sample_rate),
+                    )
+                    .unwrap_or(u64::MAX),
+                ))),
+                generation,
+            });
+            out.accept(frame)?;
+            frames += 1;
+            pending_at += 1;
+        }
+        hold.pending.drain(..pending_at);
+        if cursor < hold.samples || !hold.pending.is_empty() {
+            // The drain continues on later calls: keep the shared view
+            // (the Vec form is gone for good — `data` stays empty).
+            hold.shared = Some(bytes);
+            self.head_hold = Some(hold);
+        }
+        Ok(frames)
+    }
+
     /// The codec descriptors this decoder accepts (`vorbis`; the
     /// registry vocabulary of doc 04 §3.1).
     fn accepts(descriptor: &str) -> bool {
@@ -581,17 +763,22 @@ impl Decoder for VorbisDecoder {
         {
             engine.reset();
         }
-        // The deferred head-hold release (6.FIX-vorbis-headtrim): the
-        // previous packet's stamp resolved the trim, so the withheld
-        // head leaves NOW — ahead of this packet's own block, in raw
-        // order — trimmed by the resolved `max(shift, 0)`.
-        let mut released = 0usize;
-        if let Some(trim) = self
+        // The deferred head-hold release (6.FIX-vorbis-headtrim),
+        // AMORTIZED (issue #38): the previous packet's stamp resolved
+        // the trim, so the withheld head starts leaving NOW — ahead of
+        // this packet's own block, in raw order, trimmed by the
+        // resolved `max(shift, 0)` — but ONE frame per call
+        // ([`RELEASE_FRAMES_PER_CALL`]): a single-call burst past the
+        // engine seek pre-roll hold's hard cap is dropped-and-counted
+        // there, never staged (the measured tail truncation).
+        let mut drained_frames = 0usize;
+        if self
             .head_hold
             .as_ref()
-            .and_then(|hold| hold.trim_from)
+            .is_some_and(|hold| hold.trim_from.is_some())
         {
-            released = self.release_head_hold(out, packet.generation, Some(trim))?;
+            drained_frames =
+                self.drain_head_hold(out, packet.generation, RELEASE_FRAMES_PER_CALL)?;
         }
         let slot_len = max_output_len(&ident);
         let raw_first = self.raw_next;
@@ -647,11 +834,31 @@ impl Decoder for VorbisDecoder {
         // 2,902 µs late on every 44.1 kHz position).
         if self.head_hold.is_some() {
             let frame_bytes = usize::from(ident.channels) * 4;
-            let raw_bytes = (emitted * frame_bytes).min(bytes.len());
             let mut resolved: Option<u64> = None;
-            if let Some(hold) = self.head_hold.as_mut() {
-                hold.data.extend_from_slice(&bytes.as_slice()[..raw_bytes]);
-                hold.samples = hold.samples.saturating_add(emitted as u64);
+            if shift_now.is_none() {
+                // The stamp is still outstanding: the block rides the
+                // hold's byte vec, raw (the trim it will resolve is
+                // already in these bytes).
+                let raw_bytes = (emitted * frame_bytes).min(bytes.len());
+                if let Some(hold) = self.head_hold.as_mut() {
+                    hold.data.extend_from_slice(&bytes.as_slice()[..raw_bytes]);
+                    hold.samples = hold.samples.saturating_add(emitted as u64);
+                }
+            } else if valid_len > 0 && self.head_hold.is_some() {
+                // The trim already resolved and the drain is still
+                // running (issue #38): the block queues BEHIND the
+                // head, its valid window and pts frozen at decode
+                // time — exactly the steady-state frame it would have
+                // been, delivery deferred behind the draining head.
+                let block = PendingBlock {
+                    pts_ticks: i64::try_from(raw_first).unwrap_or(i64::MAX)
+                        - shift_now.unwrap_or(0),
+                    valid_len,
+                    bytes: bytes.clone(),
+                };
+                if let Some(hold) = self.head_hold.as_mut() {
+                    hold.pending.push(block);
+                }
             }
             self.raw_next = raw_first.saturating_add(emitted as u64);
             if let Some(fresh) = measure_shift(self.raw_next, packet.pts, &base) {
@@ -671,22 +878,30 @@ impl Decoder for VorbisDecoder {
             if let Some(trim) = resolved {
                 if let Some(hold) = self.head_hold.as_mut() {
                     hold.trim_from = Some(trim);
+                    hold.release_shift = self.shift;
                 }
-            } else if self
-                .head_hold
-                .as_ref()
-                .is_some_and(|hold| hold.samples >= HEAD_HOLD_MAX_SAMPLES)
+            } else if shift_now.is_none()
+                && self
+                    .head_hold
+                    .as_ref()
+                    .is_some_and(|hold| hold.samples >= HEAD_HOLD_MAX_SAMPLES)
             {
                 // A stamp-less head past the bound: give up honestly —
                 // release un-trimmed (the pre-fix emission) and let any
-                // later stamp position only what follows it.
+                // later stamp position only what follows it. (The
+                // `shift_now.is_none()` guard keeps a resolved,
+                // still-draining hold out of the give-up: its byte vec
+                // is frozen at resolution, so the bound can only have
+                // been crossed before the stamp — and the trimmed
+                // release owns that head now.)
                 let gave_up = self.release_head_hold(out, packet.generation, None)?;
                 self.packet_index += 1;
-                let frames = u32::try_from(released + gave_up).unwrap_or(u32::MAX);
+                let frames = u32::try_from(drained_frames + gave_up).unwrap_or(u32::MAX);
                 return Ok(DecodeOutcome::Emitted { frames });
             }
             self.packet_index += 1;
-            return Ok(DecodeOutcome::Emitted { frames: 0 });
+            let frames = u32::try_from(drained_frames).unwrap_or(u32::MAX);
+            return Ok(DecodeOutcome::Emitted { frames });
         }
         let exact = valid_len * usize::from(ident.channels) * 4;
         let pts = shift_now.map(|shift| {
@@ -705,7 +920,7 @@ impl Decoder for VorbisDecoder {
                 self.shift = Some(fresh);
             }
             self.packet_index += 1;
-            let frames = u32::try_from(released).unwrap_or(u32::MAX);
+            let frames = u32::try_from(drained_frames).unwrap_or(u32::MAX);
             return Ok(DecodeOutcome::Emitted { frames });
         }
         let frame = Frame::Audio(media_types::frame::AudioFrame {
@@ -732,7 +947,7 @@ impl Decoder for VorbisDecoder {
             self.shift = Some(fresh);
         }
         self.packet_index += 1;
-        let frames = u32::try_from(released + 1).unwrap_or(u32::MAX);
+        let frames = u32::try_from(drained_frames + 1).unwrap_or(u32::MAX);
         Ok(DecodeOutcome::Emitted { frames })
     }
 
@@ -740,17 +955,33 @@ impl Decoder for VorbisDecoder {
         if self.generation.is_none() || self.engine.is_none() {
             return Err(VorbisError::BadState.into_engine_error());
         }
-        // The stream ended with the head hold still armed — a
-        // single-data-page encode whose only stamp is the EOS page
-        // cannot separate the encoder delay from the tail padding —
-        // so the withheld head leaves UN-TRIMMED (the pinned pre-fix
-        // emission, `Missing` pts and all). It is never dropped.
+        // The stream ended with the head hold still armed. Two shapes:
+        //
+        // * A hold whose release never started — a single-data-page
+        //   encode whose only stamp is the EOS page cannot separate
+        //   the encoder delay from the tail padding — leaves
+        //   UN-TRIMMED (the pinned pre-fix emission, `Missing` pts
+        //   and all). It is never dropped.
+        // * A hold whose amortized release started (issue #38) and
+        //   ran out of packets: the remainder leaves in one uncapped
+        //   call, trimmed and stamped on the frozen release basis —
+        //   the flush sink holds no pre-roll cap, and the residue is
+        //   bounded by the hold's own ceiling. Splitting the flush
+        //   the other way (un-trimmed) would replay the already-
+        //   trimmed head's delay samples a second time.
         if self.head_hold.is_some() {
             let generation = match self.generation {
                 Some(g) => g,
                 None => return Err(VorbisError::BadState.into_engine_error()),
             };
-            self.release_head_hold(out, generation, None)?;
+            let started = self.head_hold.as_ref().is_some_and(|hold| {
+                hold.released > 0 || !hold.pending.is_empty()
+            });
+            if started {
+                self.drain_head_hold(out, generation, usize::MAX)?;
+            } else {
+                self.release_head_hold(out, generation, None)?;
+            }
         }
         // The overlap tail was already emitted with the last block
         // (each packet emits its own half); nothing is buffered.
