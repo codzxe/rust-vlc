@@ -35,7 +35,7 @@
 schema_version = 1                 # frozen 2026-10-19; bump = Lead change-control
 schema_frozen = "2026-10-19"
 baseline = "VLC 3.0.23 Vetinari (3.0.23-2-0-g79128878dd)"
-last_updated = "2026-10-22"
+last_updated = "2026-11-09"
 populated_by = "0.D2 (Phase 0 synthesis)"
 change_control = "Lead-only per doc 02 §4.7"
 
@@ -1498,9 +1498,9 @@ description = "Transport state machine: play/pause toggle, stop, session epochs"
 priority = "P0"
 phase_target = 2
 inventory_ref = "inventory/options-linux.json#play-and-pause"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "2.C2 state machine (Idle→Opening→Buffering→Playing→Paused→Ended→Stopped + errors); CLI session 2.D2; core hotkeys Space/S + media keys."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/playback-engine/src/state.rs (SessionState machine: Playing/Paused/Stopped + errors, epoch discipline) + crates/playback-engine/src/session.rs (pub play/pause/stop, lines ~333–349); UI consumption ui/src/screens/player/PlayerScreen.tsx control-bar actions"
+notes = "2.C2 state machine (Idle→Opening→Buffering→Playing→Paused→Ended→Stopped + errors); CLI session 2.D2; core hotkeys Space/S + media keys. Backfill (issue #20): engine transport + session API live (Linux-only evidence, CI 3-OS pending — house convention)."
 
 [[feature]]
 id = "playback-seek"
@@ -1510,9 +1510,9 @@ description = "Arbitrary seek, Go-to-Time, 4 jump magnitudes (extrashort/short/m
 priority = "P0"
 phase_target = 3
 inventory_ref = "inventory/options-linux.json#key-jump-extrashort"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "3.A seek-and-cancellation; jump-size scalars seeded 3/10/60/300 s (keymaps/default.toml); Ctrl+T dialog; seek-step options family."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/playback-engine/src/seek.rs (SeekTarget + seek planning) + crates/playback-engine/src/session.rs (pub seek); jump scalars seeded in keymaps/default.toml (3/10/60/300 s); Ctrl+T dialog ui/src/screens/player/dialogs/GotoTimeDialog.tsx"
+notes = "3.A seek-and-cancellation; jump-size scalars seeded 3/10/60/300 s (keymaps/default.toml); Ctrl+T dialog; seek-step options family. Backfill (issue #20): engine seek + Go-to-Time dialog live (Linux-only evidence, CI 3-OS pending)."
 
 [[feature]]
 id = "playback-rate"
@@ -1522,9 +1522,9 @@ description = "Faster/slower/normal/fine rate steps"
 priority = "P0"
 phase_target = 3
 inventory_ref = "inventory/options-linux.json#rate"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "+/−/=/]/[ hotkeys; rate-step semantics [VERIFY V-08] before recipe implementation; clock-rate interplay 3.B."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "commands catalog playback.set-rate (crates/commands/src/catalog/ids.rs) + typed OpenOptions.rate (crates/commands/src/catalog/types.rs); seed bindings keymaps/default.toml; demo wiring ui/src/client/demo-transport.ts"
+notes = "+/−/=/]/[ hotkeys; rate-step semantics [VERIFY V-08] before recipe implementation; clock-rate interplay 3.B. Backfill (issue #20) partial: typed command surface + seed live; engine clock-rate deliberately NOT in crates/playback-engine/src/lib.rs yet (Phase 3+)."
 
 [[feature]]
 id = "playback-frame-step"
@@ -1546,9 +1546,9 @@ description = "Audio/video/subtitle track select, cycle, reverse-cycle, disable"
 priority = "P0"
 phase_target = 3
 inventory_ref = "inventory/options-linux.json#audio-track"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "tracks.set-*/list commands; b/v/Alt+v/Shift+v hotkeys; dynamic menus from real track lists."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/playback-engine/src/tracks.rs (track model + switch semantics); cycles seeded in keymaps/default.toml (b/v/Alt+V recipes over tracks.list → tracks.set-*)"
+notes = "tracks.set-*/list commands; b/v/Alt+v/Shift+v hotkeys; dynamic menus from real track lists. Backfill (issue #20): engine track model live; dynamic Audio/Subtitle menus still absent (menu-audio/menu-subtitle rows)."
 
 [[feature]]
 id = "playback-av-sync"
@@ -1558,9 +1558,9 @@ description = "Audio/subtitle delay offsets, subtitle sync mark/apply/reset"
 priority = "P0"
 phase_target = 3
 inventory_ref = "inventory/options-linux.json#audio-desync"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "3.B sync and queues; j/k/g/h + Shift+H/J/K + Ctrl+Shift+K hotkeys; --audio-desync option; subtitle-speed factor."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "commands catalog audio.set-delay / video.set-delay / subtitle.set-sync (crates/commands/src/catalog/ids.rs); seed bindings keymaps/default.toml (audio-delay J/K, subtitle-delay G/H, subsync Shift+H/J/K + Ctrl+Shift+K)"
+notes = "3.B sync and queues; j/k/g/h + Shift+H/J/K + Ctrl+Shift+K hotkeys; --audio-desync option; subtitle-speed factor. Backfill (issue #20) partial: typed command surface + seed live; engine A/V sync + queues (3.B) deliberately NOT in crates/playback-engine/src/lib.rs yet."
 
 [[feature]]
 id = "playback-chapter-title"
@@ -1606,9 +1606,9 @@ description = "Enter/leave fullscreen; controller auto-hide"
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/options-linux.json#key-toggle-fullscreen"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "f/Esc; design ⌘F mac variant [VERIFY V-05]; 'i' shows controller (key-intf-show); DirectX-wallpaper mode (w) not-adopted (Windows-only novelty)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "ui/src/screens/player/useFullscreen.ts (card 4.C1 — shell-target handling, web Fullscreen API seam, state synced only from fullscreenchange events) + commands catalog video.set-fullscreen (crates/commands/src/catalog/ids.rs); F binding seeded in keymaps/default.toml"
+notes = "f/Esc; design ⌘F mac variant [VERIFY V-05]; 'i' shows controller (key-intf-show); DirectX-wallpaper mode (w) not-adopted (Windows-only novelty). Backfill (issue #20) partial: UI hook + command id live; desktop Tauri window fullscreen + controller auto-hide wiring open."
 
 [[feature]]
 id = "playback-start-options"
@@ -1618,9 +1618,9 @@ description = "start-time, stop-time, run-time, start-paused input options"
 priority = "P2"
 phase_target = 4
 inventory_ref = "inventory/options-linux.json#start-time"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Playback-control subsection of the options inventory (doc 02 §3.3); maps to session.open params; priority reasoned."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "typed OpenOptions { start_time, start_paused, rate } (crates/commands/src/catalog/types.rs — the session.open param surface)"
+notes = "Playback-control subsection of the options inventory (doc 02 §3.3); maps to session.open params; priority reasoned. Backfill (issue #20) partial: typed command surface live; stop-time/run-time fields + session-side consumption open (crates/playlists/src/mpd.rs is the only start_time consumer today)."
 
 [[feature]]
 id = "playback-record"
@@ -1642,9 +1642,9 @@ description = "Signature scoring over a bounded probe window: format id, confide
 priority = "P0"
 phase_target = 2
 inventory_ref = "docs/13-agent-wave-program.md#2.A2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "2.A2 media-probe crate; probe fixtures (both container variants + garbage + truncated); every demux/codec row depends on this; VLC analog = the score-ranked module probe system (census scores, e.g. ffmpeghw 10001)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/media-probe/src/lib.rs + report.rs + contract.rs (+ config.rs/error.rs — 2.A2 signature scoring over a bounded probe window; probe fixtures incl. garbage + truncated)"
+notes = "2.A2 media-probe crate; probe fixtures (both container variants + garbage + truncated); every demux/codec row depends on this; VLC analog = the score-ranked module probe system (census scores, e.g. ffmpeghw 10001). Backfill (issue #20): probe crate live (Linux-only evidence, CI 3-OS pending)."
 
 # =============================================================================
 # category: audio-feature — 11 rows
