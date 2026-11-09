@@ -68,7 +68,22 @@ export const ROUTES: readonly string[] = [
   "/dev/tokens",
 ] as const;
 
-/** The default accent (doc 08 §3.3 product default). */
+/**
+ * GRID_ANCHOR_ACCENT — the accent pinned across the full route × viewport ×
+ * DPI × mode grid (doc 08 §6.1 "default accent at 1×").
+ *
+ * HONESTY NOTE (issue #37, 2026-11-09): this is `orange`, which is NOT the
+ * product default — the product default is dark + yellow ("Solstice Keyvox
+ * gold": ThemeProvider initial state, tokens.css `:root`, and the
+ * tokens.test.ts pin all agree; only the stale TS header comment in
+ * src/tokens/generated/tokens.ts and the red e2e/theme.spec.ts say
+ * "orange"). The 136 baselines re-pinned by 61cb47a were captured with the
+ * grid anchored on orange, so the anchor stays `orange` until a deliberate
+ * re-anchor (rename: yellow samples → unsuffixed grid files, orange grid
+ * files → suffixed samples + full re-capture). All 9 accents remain covered
+ * either way: orange via the grid, the other 8 via ACCENT_SAMPLES (which
+ * includes the product-default yellow on both sampling routes).
+ */
 export const DEFAULT_ACCENT = "orange";
 
 /**

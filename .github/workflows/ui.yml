@@ -25,9 +25,12 @@
 #     and self-installs system deps on miss.
 #   * HTML reports always uploaded so red runs are debuggable from the
 #     run page.
-#   * VISUAL LANES (issue #5): `visual` = PR-lite lane (1280x720 @1x,
-#     dark+light, 8 cases; committed Linux baselines; proven green
-#     2026-10-23: 8 passed 14.2s — card 4.G1). `visual-nightly` = full
+#   * VISUAL LANES (issue #5; counts updated by issue #37, 2026-11-09):
+#     `visual` = PR-lite lane (1280x720 @1x, dark+light — 15 routes × 2
+#     modes = 30 cases; committed Linux baselines re-pinned for Solstice
+#     v2 + wave-3 by issue #37, proven green 2026-11-09: 30 passed 57.8s
+#     — card 4.G1, provenance in e2e/visual/MATRIX-20261109.md).
+#     `visual-nightly` = full
 #     matrix (136 cases, doc 08 §6.3), schedule/dispatch only.
 #     `visual-baseline-seed` = [BLOCKED on first real macOS/Windows run]:
 #     macos/windows baselines CANNOT be captured from the Linux sandbox
@@ -127,14 +130,16 @@ jobs:
 
   # ------------------------------------------------------------------------
   # Visual screenshot-diff, PR-lite lane (card 4.G1/G2, doc 08 §6.3):
-  # 1280x720 @1x, dark + light — 8 cases against the committed Linux
-  # baselines (e2e/visual/baselines/linux/). Proven green 2026-10-23:
-  # 8 passed (14.2s). Runs on every push/PR; ubuntu-only because only the
-  # Linux baseline set is committed (per-OS sets are the doc 08 §6.3
-  # reality; the seed job below grows the others).
+  # 1280x720 @1x, dark + light — 15 routes × 2 modes = 30 cases against the
+  # committed Linux baselines (e2e/visual/baselines/linux/), re-pinned for
+  # Solstice v2 + wave-3 by issue #37 (proven green 2026-11-09: 30 passed
+  # 57.8s; provenance in e2e/visual/MATRIX-20261109.md). Runs on every
+  # push/PR; ubuntu-only because only the Linux baseline set is committed
+  # (per-OS sets are the doc 08 §6.3 reality; the seed job below grows the
+  # others).
   # ------------------------------------------------------------------------
   visual:
-    name: visual (PR-lite lane — 8 cases vs pinned Linux baselines)
+    name: visual (PR-lite lane — 30 cases vs pinned Linux baselines)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
