@@ -221,10 +221,10 @@ pub fn parse(text: &str) -> Result<Document, ParseError> {
                 message: format!("expected `key = value` or a header, got `{trimmed}`"),
             });
         };
-        let key = if trimmed.starts_with('"') {
+        let key = if let Some(stripped) = trimmed.strip_prefix('"') {
             // Quoted key (e.g. `"product.description" = "..."` in the
             // locale catalogs): one literal segment, dots included.
-            let end = trimmed[1..]
+            let end = stripped
                 .find('"')
                 .map(|p| p + 1)
                 .ok_or_else(|| ParseError {
@@ -498,6 +498,32 @@ fn split_top_level(text: &str, sep: char) -> Vec<&str> {
 mod tests {
     use super::*;
 
+    trait Must {
+        type Value;
+        #[track_caller]
+        fn must(self) -> Self::Value;
+    }
+    impl<T, E: std::fmt::Display> Must for Result<T, E> {
+        type Value = T;
+        #[track_caller]
+        fn must(self) -> T {
+            match self {
+                Ok(v) => v,
+                Err(e) => unreachable!("test must(): {e}"),
+            }
+        }
+    }
+    impl<T> Must for Option<T> {
+        type Value = T;
+        #[track_caller]
+        fn must(self) -> T {
+            match self {
+                Some(v) => v,
+                None => unreachable!("test must(): None"),
+            }
+        }
+    }
+
     #[test]
     fn parses_matrix_shaped_document() {
         let text = r#"
@@ -515,23 +541,19 @@ status = { windows = "implemented", linux = "not_started", macos = "web-placehol
 evidence = "crates/demux/src/x.rs (card 5.D1); docs/formats/x.md # see also"
 notes = "trailing comment # inside string stays"
 "#;
-        let doc = parse(text).expect("parses");
+        let doc = parse(text).must();
         assert_eq!(doc.get("meta.schema_version"), Some(&Value::Int(1)));
         let rows = doc.array_rows("feature");
         assert_eq!(rows.len(), 1);
-        let id = rows[0].entries.iter().find(|(k, _)| k == "id").unwrap();
+        let id = rows[0].entries.iter().find(|(k, _)| k == "id").must();
         assert_eq!(id.1, Value::Str("container-x".into()));
-        let status = rows[0].entries.iter().find(|(k, _)| k == "status").unwrap();
+        let status = rows[0].entries.iter().find(|(k, _)| k == "status").must();
         let Value::Table(t) = &status.1 else {
-            panic!("status table")
+            unreachable!("status table")
         };
         assert_eq!(t.len(), 4);
         assert_eq!(t[0].1.as_str(), Some("implemented"));
-        let evidence = rows[0]
-            .entries
-            .iter()
-            .find(|(k, _)| k == "evidence")
-            .unwrap();
+        let evidence = rows[0].entries.iter().find(|(k, _)| k == "evidence").must();
         assert_eq!(
             evidence.1.as_str(),
             Some("crates/demux/src/x.rs (card 5.D1); docs/formats/x.md # see also")
@@ -541,10 +563,10 @@ notes = "trailing comment # inside string stays"
     #[test]
     fn parses_multiline_array_and_nested_tables() {
         let text = "[a.b]\nknown = [\n    \"x\", \"y\",\n    \"z\",\n]\nflag = true\n";
-        let doc = parse(text).expect("parses");
-        let known = doc.get("a.b.known").expect("known");
+        let doc = parse(text).must();
+        let known = doc.get("a.b.known").must();
         let Value::Array(items) = known else {
-            panic!("array")
+            unreachable!("array")
         };
         assert_eq!(items.len(), 3);
         assert_eq!(doc.get("a.b.flag"), Some(&Value::Bool(true)));
@@ -553,7 +575,7 @@ notes = "trailing comment # inside string stays"
     #[test]
     fn comment_after_hash_outside_string_is_stripped() {
         let text = "[t]\nv = 42 # the answer\n";
-        let doc = parse(text).expect("parses");
+        let doc = parse(text).must();
         assert_eq!(doc.get("t.v"), Some(&Value::Int(42)));
     }
 
@@ -568,9 +590,9 @@ notes = "trailing comment # inside string stays"
     #[test]
     fn inline_table_multiline_continuation() {
         let text = "[t]\nv = {\n  a = \"1\",\n  b = \"2\",\n}\n";
-        let doc = parse(text).expect("parses");
-        let Value::Table(t) = doc.get("t.v").unwrap() else {
-            panic!()
+        let doc = parse(text).must();
+        let Value::Table(t) = doc.get("t.v").must() else {
+            unreachable!()
         };
         assert_eq!(t.len(), 2);
     }
@@ -578,11 +600,11 @@ notes = "trailing comment # inside string stays"
     #[test]
     fn array_rows_keep_source_order() {
         let text = "[[r]]\nk = 1\n[[r]]\nk = 2\n[[r]]\nk = 3\n";
-        let doc = parse(text).expect("parses");
+        let doc = parse(text).must();
         let ks: Vec<i64> = doc
             .array_rows("r")
             .iter()
-            .map(|r| r.entries[0].1.as_int().unwrap())
+            .map(|r| r.entries[0].1.as_int().must())
             .collect();
         assert_eq!(ks, vec![1, 2, 3]);
     }

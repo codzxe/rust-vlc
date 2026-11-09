@@ -228,9 +228,7 @@ fn lookup<'a>(obj: &'a [(String, json::Json)], key: &str) -> Option<&'a json::Js
 
 fn resolve_ref<'a>(schema: &'a json::Json, r#ref: &str) -> Option<&'a json::Json> {
     // Only internal refs: "#/$defs/name".
-    let Some(suffix) = r#ref.strip_prefix("#/") else {
-        return None;
-    };
+    let suffix = r#ref.strip_prefix("#/")?;
     let mut current = schema;
     for segment in suffix.split('/') {
         let json::Json::Obj(obj) = current else {
@@ -252,13 +250,12 @@ fn walk(
     // $ref indirection.
     let resolved;
     let mut schema_obj = schema_obj;
-    if let Some(json::Json::Str(r#ref)) = lookup(schema_obj, "$ref") {
-        if let Some(target) = resolve_ref(root_schema, r#ref) {
-            if let json::Json::Obj(t) = target {
-                resolved = t;
-                schema_obj = resolved;
-            }
-        }
+    if let Some(json::Json::Str(r#ref)) = lookup(schema_obj, "$ref")
+        && let Some(target) = resolve_ref(root_schema, r#ref)
+        && let json::Json::Obj(t) = target
+    {
+        resolved = t;
+        schema_obj = resolved;
     }
     let at = if path.is_empty() {
         "<root>".to_string()
@@ -269,15 +266,15 @@ fn walk(
     // type
     if let Some(json::Json::Str(want)) = lookup(schema_obj, "type") {
         let got = value.type_name();
-        let ok = match (want.as_str(), value) {
-            ("string", TValue::Str(_)) => true,
-            ("integer", TValue::Int(_)) => true,
-            ("number", TValue::Int(_) | TValue::Float(_)) => true,
-            ("boolean", TValue::Bool(_)) => true,
-            ("array", TValue::Array(_)) => true,
-            ("object", TValue::Table(_)) => true,
-            _ => false,
-        };
+        let ok = matches!(
+            (want.as_str(), value),
+            ("string", TValue::Str(_))
+                | ("integer", TValue::Int(_))
+                | ("number", TValue::Int(_) | TValue::Float(_))
+                | ("boolean", TValue::Bool(_))
+                | ("array", TValue::Array(_))
+                | ("object", TValue::Table(_))
+        );
         if !ok {
             violations.push(format!(
                 "{at}: type mismatch — schema wants {want}, product.toml has {got}"
@@ -287,76 +284,76 @@ fn walk(
     }
     match value {
         TValue::Str(s) => {
-            if let Some(json::Json::Arr(items)) = lookup(schema_obj, "enum") {
-                if !items.is_empty() && !items.iter().any(|j| j.as_str() == Some(s.as_str())) {
-                    let allowed: Vec<String> = items
-                        .iter()
-                        .filter_map(|j| j.as_str().map(|s| format!("{s:?}")))
-                        .collect();
-                    violations.push(format!(
-                        "{at}: {s:?} not in enum [{alloweds}]",
-                        alloweds = allowed.join(", ")
-                    ));
-                }
+            if let Some(json::Json::Arr(items)) = lookup(schema_obj, "enum")
+                && !items.is_empty()
+                && !items.iter().any(|j| j.as_str() == Some(s.as_str()))
+            {
+                let allowed: Vec<String> = items
+                    .iter()
+                    .filter_map(|j| j.as_str().map(|s| format!("{s:?}")))
+                    .collect();
+                violations.push(format!(
+                    "{at}: {s:?} not in enum [{alloweds}]",
+                    alloweds = allowed.join(", ")
+                ));
             }
-            if let Some(json::Json::Obj(not)) = lookup(schema_obj, "not") {
-                if let Some(json::Json::Arr(banned)) = lookup(not, "enum") {
-                    if banned.iter().any(|j| j.as_str() == Some(s.as_str())) {
-                        violations.push(format!("{at}: {s:?} is a reserved/banned value"));
-                    }
-                }
+            if let Some(json::Json::Obj(not)) = lookup(schema_obj, "not")
+                && let Some(json::Json::Arr(banned)) = lookup(not, "enum")
+                && banned.iter().any(|j| j.as_str() == Some(s.as_str()))
+            {
+                violations.push(format!("{at}: {s:?} is a reserved/banned value"));
             }
-            if let Some(json::Json::Num(n)) = lookup(schema_obj, "minLength") {
-                if (s.chars().count() as f64) < *n {
-                    violations.push(format!(
-                        "{at}: length {} < minLength {n}",
-                        s.chars().count()
-                    ));
-                }
+            if let Some(json::Json::Num(n)) = lookup(schema_obj, "minLength")
+                && (s.chars().count() as f64) < *n
+            {
+                violations.push(format!(
+                    "{at}: length {} < minLength {n}",
+                    s.chars().count()
+                ));
             }
-            if let Some(json::Json::Num(n)) = lookup(schema_obj, "maxLength") {
-                if (s.chars().count() as f64) > *n {
-                    violations.push(format!(
-                        "{at}: length {} > maxLength {n}",
-                        s.chars().count()
-                    ));
-                }
+            if let Some(json::Json::Num(n)) = lookup(schema_obj, "maxLength")
+                && (s.chars().count() as f64) > *n
+            {
+                violations.push(format!(
+                    "{at}: length {} > maxLength {n}",
+                    s.chars().count()
+                ));
             }
         }
         TValue::Int(i) => {
-            if let Some(json::Json::Num(n)) = lookup(schema_obj, "minimum") {
-                if (*i as f64) < *n {
-                    violations.push(format!("{at}: {i} < minimum {n}"));
-                }
+            if let Some(json::Json::Num(n)) = lookup(schema_obj, "minimum")
+                && (*i as f64) < *n
+            {
+                violations.push(format!("{at}: {i} < minimum {n}"));
             }
-            if let Some(json::Json::Num(n)) = lookup(schema_obj, "maximum") {
-                if (*i as f64) > *n {
-                    violations.push(format!("{at}: {i} > maximum {n}"));
-                }
+            if let Some(json::Json::Num(n)) = lookup(schema_obj, "maximum")
+                && (*i as f64) > *n
+            {
+                violations.push(format!("{at}: {i} > maximum {n}"));
             }
         }
         TValue::Float(f) => {
-            if let Some(json::Json::Num(n)) = lookup(schema_obj, "minimum") {
-                if f < n {
-                    violations.push(format!("{at}: {f} < minimum {n}"));
-                }
+            if let Some(json::Json::Num(n)) = lookup(schema_obj, "minimum")
+                && f < n
+            {
+                violations.push(format!("{at}: {f} < minimum {n}"));
             }
-            if let Some(json::Json::Num(n)) = lookup(schema_obj, "maximum") {
-                if f > n {
-                    violations.push(format!("{at}: {f} > maximum {n}"));
-                }
+            if let Some(json::Json::Num(n)) = lookup(schema_obj, "maximum")
+                && f > n
+            {
+                violations.push(format!("{at}: {f} > maximum {n}"));
             }
         }
         TValue::Array(items) => {
-            if let Some(json::Json::Num(n)) = lookup(schema_obj, "minItems") {
-                if (items.len() as f64) < *n {
-                    violations.push(format!("{at}: {} items < minItems {n}", items.len()));
-                }
+            if let Some(json::Json::Num(n)) = lookup(schema_obj, "minItems")
+                && (items.len() as f64) < *n
+            {
+                violations.push(format!("{at}: {} items < minItems {n}", items.len()));
             }
-            if let Some(json::Json::Num(n)) = lookup(schema_obj, "maxItems") {
-                if (items.len() as f64) > *n {
-                    violations.push(format!("{at}: {} items > maxItems {n}", items.len()));
-                }
+            if let Some(json::Json::Num(n)) = lookup(schema_obj, "maxItems")
+                && (items.len() as f64) > *n
+            {
+                violations.push(format!("{at}: {} items > maxItems {n}", items.len()));
             }
             if let Some(item_schema) = lookup(schema_obj, "items").and_then(|j| j.as_obj()) {
                 for (idx, item) in items.iter().enumerate() {
@@ -446,12 +443,12 @@ fn cross_file(
         "brand.icon_png_512",
         "brand.logo_svg",
     ] {
-        if let Some(p) = get_str(key) {
-            if !root.join(p).exists() {
-                violations.push(format!(
-                    "{key}: asset path `{p}` does not exist under the root"
-                ));
-            }
+        if let Some(p) = get_str(key)
+            && !root.join(p).exists()
+        {
+            violations.push(format!(
+                "{key}: asset path `{p}` does not exist under the root"
+            ));
         }
     }
 
@@ -549,10 +546,12 @@ fn cross_file(
             if from >= to {
                 violations.push(format!("migrations.entries: from {from} !< to {to}"));
             }
-            if let Some(prev) = prev_to {
-                if to != prev + 1 {
-                    violations.push(format!("migrations.entries: to {to} does not continue ascending from {prev} (no gaps)"));
-                }
+            if let Some(prev) = prev_to
+                && to != prev + 1
+            {
+                violations.push(format!(
+                    "migrations.entries: to {to} does not continue ascending from {prev} (no gaps)"
+                ));
             }
             prev_to = Some(to);
             max_to = Some(max_to.map_or(to, |m| m.max(to)));
@@ -576,12 +575,12 @@ fn cross_file(
             "identity.ids.linux.appstream_id",
             "identity.ids.web.app_id",
         ] {
-            if let Some(id) = get_str(key) {
-                if id != expected {
-                    violations.push(format!(
-                        "{key}: {id:?} != reverse_dns + \".\" + PascalCase(name) ({expected:?})"
-                    ));
-                }
+            if let Some(id) = get_str(key)
+                && id != expected
+            {
+                violations.push(format!(
+                    "{key}: {id:?} != reverse_dns + \".\" + PascalCase(name) ({expected:?})"
+                ));
             }
         }
     }
@@ -593,10 +592,10 @@ fn list_toml_ids(dir: &Path) -> Option<Vec<String>> {
     let mut ids = Vec::new();
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.extension().is_some_and(|e| e == "toml") {
-            if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                ids.push(stem.to_string());
-            }
+        if path.extension().is_some_and(|e| e == "toml")
+            && let Some(stem) = path.file_stem().and_then(|s| s.to_str())
+        {
+            ids.push(stem.to_string());
         }
     }
     ids.sort();
@@ -945,17 +944,45 @@ mod json {
     mod tests {
         use super::*;
 
+        trait Must {
+            type Value;
+            #[track_caller]
+            fn must(self) -> Self::Value;
+        }
+        impl<T, E: std::fmt::Display> Must for Result<T, E> {
+            type Value = T;
+            #[track_caller]
+            fn must(self) -> T {
+                match self {
+                    Ok(v) => v,
+                    Err(e) => unreachable!("test must(): {e}"),
+                }
+            }
+        }
+        impl<T> Must for Option<T> {
+            type Value = T;
+            #[track_caller]
+            fn must(self) -> T {
+                match self {
+                    Some(v) => v,
+                    None => unreachable!("test must(): None"),
+                }
+            }
+        }
+
         #[test]
         fn parses_the_schema_shapes() {
-            let v = parse(r#"{"a": [1, -2.5, true, null], "b": {"c": "x\ny"}}"#).expect("parses");
-            let Json::Obj(obj) = &v else { panic!("obj") };
+            let v = parse(r#"{"a": [1, -2.5, true, null], "b": {"c": "x\ny"}}"#).must();
+            let Json::Obj(obj) = &v else {
+                unreachable!("obj")
+            };
             assert_eq!(obj[0].0, "a");
             let Json::Arr(items) = &obj[0].1 else {
-                panic!("arr")
+                unreachable!("arr")
             };
             assert_eq!(items.len(), 4);
             assert_eq!(items[1], Json::Num(-2.5));
-            assert_eq!(obj[1].1.as_obj().unwrap()[0].1.as_str(), Some("x\ny"));
+            assert_eq!(obj[1].1.as_obj().must()[0].1.as_str(), Some("x\ny"));
         }
 
         #[test]

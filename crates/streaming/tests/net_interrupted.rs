@@ -135,9 +135,7 @@ fn mid_segment_drop_resumes_byte_exact() {
     let script = FaultScript::once(Fault::TruncateAt { at: 300 });
     let proxy = proxied(script.clone(), clock.clone());
     let retry = RetryFetch::new(Arc::new(proxy), clock.clone()).must();
-    let response = retry
-        .fetch(HttpRequest::get(server.url("/body")))
-        .must();
+    let response = retry.fetch(HttpRequest::get(server.url("/body"))).must();
     assert_eq!(response.body, body(1000), "the whole body, byte-exact");
     assert_eq!(script.fired(), 1);
     assert_eq!(script.fetched(), 2);

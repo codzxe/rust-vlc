@@ -12,7 +12,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-
 /// Lint-legal expect for fixture setup (testkit is not an xtask
 /// dev-dep — boundaries.toml dev_deps are Lead-owned): a broken
 /// fixture means a broken test, never a product bug.

@@ -236,7 +236,10 @@ fn backpressure_is_typed_and_clears_as_the_clock_advances() {
 #[test]
 fn the_cpal_seam_refuses_with_the_typed_marker() {
     const {
-        assert!(!AUDIO_ADR005_ADMITTED, "the ADR-005 gate is recorded closed")
+        assert!(
+            !AUDIO_ADR005_ADMITTED,
+            "the ADR-005 gate is recorded closed"
+        )
     };
     let marker: BackendNotAdmitted = cpal::cpal_backend().err().must();
     assert_eq!(marker, BackendNotAdmitted::CPAL);

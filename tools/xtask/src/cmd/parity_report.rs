@@ -239,6 +239,32 @@ fn find_root() -> Result<PathBuf, XtaskError> {
 mod tests {
     use super::*;
 
+    trait Must {
+        type Value;
+        #[track_caller]
+        fn must(self) -> Self::Value;
+    }
+    impl<T, E: std::fmt::Display> Must for Result<T, E> {
+        type Value = T;
+        #[track_caller]
+        fn must(self) -> T {
+            match self {
+                Ok(v) => v,
+                Err(e) => unreachable!("test must(): {e}"),
+            }
+        }
+    }
+    impl<T> Must for Option<T> {
+        type Value = T;
+        #[track_caller]
+        fn must(self) -> T {
+            match self {
+                Some(v) => v,
+                None => unreachable!("test must(): None"),
+            }
+        }
+    }
+
     #[test]
     fn cell_formats_share() {
         assert_eq!(cell(1, 4), "1/4 (25.0%)");
@@ -264,7 +290,7 @@ mod tests {
              status = { windows = \"verified\", linux = \"verified\", macos = \"verified\", web = \"verified\" }\n\
              evidence = \"y\"\n",
         )
-        .expect("fixture parses");
+        .must();
         let table = compute_table(&doc);
         // alpha: windows 1/2, linux 2/2, macos 1/2, web 0/2.
         assert!(

@@ -131,8 +131,7 @@ fn hls_seeds() -> Vec<Vec<u8>> {
     .iter()
     .map(|rel| {
         let path = root.join(rel);
-        std::fs::read(&path)
-            .must()
+        std::fs::read(&path).must()
     })
     .collect()
 }

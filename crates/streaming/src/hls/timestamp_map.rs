@@ -218,10 +218,8 @@ mod tests {
     /// The anchor pair from the tag grammar, both attribute orders.
     #[test]
     fn parses_the_tag_in_either_attribute_order() {
-        let a = TimestampMap::parse_tag_value("MPEGTS=900000,LOCAL=1970-01-01T00:00:00Z")
-            .must();
-        let b = TimestampMap::parse_tag_value("LOCAL=1970-01-01T00:00:00Z,MPEGTS=900000")
-            .must();
+        let a = TimestampMap::parse_tag_value("MPEGTS=900000,LOCAL=1970-01-01T00:00:00Z").must();
+        let b = TimestampMap::parse_tag_value("LOCAL=1970-01-01T00:00:00Z,MPEGTS=900000").must();
         assert_eq!(a, b);
         assert_eq!(a.mpegts, 900_000);
         assert_eq!(a.local_ms, 0);
@@ -232,8 +230,7 @@ mod tests {
     /// 1 s`), and fractional-second LOCAL values carry through.
     #[test]
     fn bom_mapping_converts_pts_to_epoch_milliseconds() {
-        let bom = TimestampMap::parse_tag_value("MPEGTS=0,LOCAL=1970-01-01T00:00:00Z")
-            .must();
+        let bom = TimestampMap::parse_tag_value("MPEGTS=0,LOCAL=1970-01-01T00:00:00Z").must();
         assert_eq!(bom.wallclock_ms_for_pts(0), 0);
         assert_eq!(bom.wallclock_ms_for_pts(90_000), 1_000);
         assert_eq!(bom.wallclock_ms_for_pts(45_000), 500);
@@ -246,8 +243,8 @@ mod tests {
     #[test]
     fn non_zero_anchor_maps_affinely() {
         // 2000-02-29T12:34:56.789Z (a leap day, fractional ms).
-        let map = TimestampMap::parse_tag_value("MPEGTS=900000,LOCAL=2000-02-29T12:34:56.789Z")
-            .must();
+        let map =
+            TimestampMap::parse_tag_value("MPEGTS=900000,LOCAL=2000-02-29T12:34:56.789Z").must();
         // 2000-02-29T12:34:56Z = 951 827 696 s since epoch.
         assert_eq!(map.local_ms, 951_827_696_000 + 789);
         assert_eq!(map.wallclock_ms_for_pts(900_000), map.local_ms);

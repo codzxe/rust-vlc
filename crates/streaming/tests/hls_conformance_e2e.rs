@@ -301,10 +301,7 @@ fn discontinuity_seam_with_continuing_timestamps() {
     assert_eq!(stream.stats().discontinuities, 1);
     let seam_offset = fixture("s00.ts").len() + fixture("s01.ts").len();
     let boundaries = stream.segment_boundaries();
-    let seam = boundaries
-        .iter()
-        .find(|b| b.discontinuity)
-        .must();
+    let seam = boundaries.iter().find(|b| b.discontinuity).must();
     assert_eq!(seam.offset as usize, seam_offset, "seam sits at t00");
     // One map for the whole playlist: the mapping before/after the
     // seam is the SAME anchor — continuing timestamps. 60 s of
@@ -383,9 +380,7 @@ fn discontinuity_seam_with_encoder_timestamp_reset() {
     // and `LOCAL` jumped an hour, the documented shape of an
     // encoder restart. The last tag in the playlist wins, per the
     // tag's forward-application rule.
-    let map = stream
-        .timestamp_map()
-        .must();
+    let map = stream.timestamp_map().must();
     assert_eq!(
         map.mpegts, 8_589_034_592,
         "the reset PTS anchor (2^33 - 900000)"

@@ -247,7 +247,7 @@ pub fn run(args: &[String]) -> Result<ExitCode, XtaskError> {
                 row.line_hint
             ));
         }
-        if values.iter().any(|v| *v == "partial") && !row.has_notes {
+        if values.contains(&"partial") && !row.has_notes {
             violations.push(format!("{}: partial without notes (R6)", row.line_hint));
         }
         // C: evidence path resolution.
@@ -528,6 +528,32 @@ fn find_root() -> Result<PathBuf, XtaskError> {
 mod tests {
     use super::*;
 
+    trait Must {
+        type Value;
+        #[track_caller]
+        fn must(self) -> Self::Value;
+    }
+    impl<T, E: std::fmt::Display> Must for Result<T, E> {
+        type Value = T;
+        #[track_caller]
+        fn must(self) -> T {
+            match self {
+                Ok(v) => v,
+                Err(e) => unreachable!("test must(): {e}"),
+            }
+        }
+    }
+    impl<T> Must for Option<T> {
+        type Value = T;
+        #[track_caller]
+        fn must(self) -> T {
+            match self {
+                Some(v) => v,
+                None => unreachable!("test must(): None"),
+            }
+        }
+    }
+
     #[test]
     fn id_regex_matches_matrix_conventions() {
         assert!(valid_id("container-matroska-webm"));
@@ -542,8 +568,8 @@ mod tests {
     #[test]
     fn unresolved_paths_ignores_prose_and_urls() {
         let tmp = std::env::temp_dir().join(format!("xtask-fa-{}", std::process::id()));
-        std::fs::create_dir_all(tmp.join("crates/demo")).expect("mkdir");
-        std::fs::write(tmp.join("crates/demo/lib.rs"), "").expect("write");
+        std::fs::create_dir_all(tmp.join("crates/demo")).must();
+        std::fs::write(tmp.join("crates/demo/lib.rs"), "").must();
         let evidence =
             "Matroska/WebM; 3/10/60/300 s; https://example.org/x; see issue #34 and MP §17";
         assert!(unresolved_paths(&tmp, evidence).is_empty());
@@ -552,9 +578,9 @@ mod tests {
     #[test]
     fn unresolved_paths_flags_missing_files_and_accepts_existing() {
         let tmp = std::env::temp_dir().join(format!("xtask-fa2-{}", std::process::id()));
-        std::fs::create_dir_all(tmp.join("crates/demo")).expect("mkdir");
-        std::fs::write(tmp.join("crates/demo/lib.rs"), "").expect("write");
-        std::fs::create_dir_all(tmp.join("docs")).expect("mkdir");
+        std::fs::create_dir_all(tmp.join("crates/demo")).must();
+        std::fs::write(tmp.join("crates/demo/lib.rs"), "").must();
+        std::fs::create_dir_all(tmp.join("docs")).must();
         let evidence =
             "crates/demo/lib.rs (card 5.D1); crates/demo/missing.rs; crates/demo/** works";
         let missing = unresolved_paths(&tmp, evidence);
@@ -564,8 +590,8 @@ mod tests {
     #[test]
     fn unresolved_paths_maps_inventory_shorthand() {
         let tmp = std::env::temp_dir().join(format!("xtask-fa3-{}", std::process::id()));
-        std::fs::create_dir_all(tmp.join("docs/inventory")).expect("mkdir");
-        std::fs::write(tmp.join("docs/inventory/formats.json"), "{}").expect("write");
+        std::fs::create_dir_all(tmp.join("docs/inventory")).must();
+        std::fs::write(tmp.join("docs/inventory/formats.json"), "{}").must();
         assert!(unresolved_paths(&tmp, "inventory/formats.json#matroska-webm").is_empty());
         assert_eq!(
             unresolved_paths(&tmp, "inventory/options-linux.json#rate"),

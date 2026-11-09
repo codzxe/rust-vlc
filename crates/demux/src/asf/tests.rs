@@ -659,9 +659,7 @@ fn assembler_refusals_are_typed() {
     ));
     assert_eq!(
         code_of(&err_of(
-            assembler
-                .feed(0, 5, 3, None, true, &[0x22; 4])
-                .map(|_| ())
+            assembler.feed(0, 5, 3, None, true, &[0x22; 4]).map(|_| ())
         )),
         "demux.asf.packet.bad-length"
     );

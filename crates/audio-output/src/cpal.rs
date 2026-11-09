@@ -117,7 +117,10 @@ mod tests {
         // admission change breaks the compile-time gate (and this
         // test) — the same-change rule, enforced.
         const {
-            assert!(!AUDIO_ADR005_ADMITTED, "the ADR-005 gate is recorded closed")
+            assert!(
+                !AUDIO_ADR005_ADMITTED,
+                "the ADR-005 gate is recorded closed"
+            )
         };
     }
 

@@ -10,7 +10,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-
 /// Lint-legal expect for fixture setup (testkit is not an xtask
 /// dev-dep — boundaries.toml dev_deps are Lead-owned): a broken
 /// fixture means a broken test, never a product bug.
@@ -368,7 +367,10 @@ fn missing_msgid_fails() {
     fx.add_brand_assets();
     fx.add_theme();
     // Catalog present but unparseable -> honest note, not a violation.
-    must(fs::write(fx.root.join("locales/en-US.toml"), "%%% not toml ["));
+    must(fs::write(
+        fx.root.join("locales/en-US.toml"),
+        "%%% not toml [",
+    ));
     let out = run_validator(&fx.root);
     assert_eq!(
         out.code,

@@ -767,11 +767,11 @@ pub fn open_live(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use testkit::Must;
     use crate::clock::FakeClock;
     use crate::fetch::HttpResponse;
     use crate::fetch::Url;
     use std::sync::Mutex;
+    use testkit::Must;
 
     /// An in-test transport with a RELOAD-MUTABLE playlist route (the
     /// RouterFetch pattern from the VOD tests, plus the scripted

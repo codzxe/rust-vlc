@@ -772,10 +772,10 @@ pub fn open_master(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use testkit::Must;
     use crate::buffer::BufferSignal;
     use crate::fetch::HttpFetch;
     use crate::fetch::HttpResponse;
+    use testkit::Must;
 
     /// An in-test transport routing by URL path through the real
     /// `HttpFetch` port (the same surface the media session's tests
@@ -871,8 +871,7 @@ mod tests {
     /// playlist order, and an all-over-cap master refuses typed.
     #[test]
     fn selection_is_highest_under_cap() {
-        let (master, _) =
-            playlists::parse_master_playlist(None, &master_text()).must();
+        let (master, _) = playlists::parse_master_playlist(None, &master_text()).must();
         assert_eq!(select_variant_index(&master, 25_000_000), Some(0), "hi");
         assert_eq!(select_variant_index(&master, 1_000_000), Some(1), "mid");
         assert_eq!(
@@ -894,8 +893,7 @@ mod tests {
     /// up-steps.
     #[test]
     fn abr_hysteresis_holds_inside_the_band() {
-        let (master, _) =
-            playlists::parse_master_playlist(None, &master_text()).must();
+        let (master, _) = playlists::parse_master_playlist(None, &master_text()).must();
         let mut abr = AbrController::new(1, AbrConfig::default()); // on mid (800k)
 
         // Deep inside the band (throughput ~1 Mbps: above 0.8x mid,
@@ -940,8 +938,7 @@ mod tests {
     /// boundary (bypassing dwell); `StallCleared` re-enables up.
     #[test]
     fn abr_stall_prediction_forces_down() {
-        let (master, _) =
-            playlists::parse_master_playlist(None, &master_text()).must();
+        let (master, _) = playlists::parse_master_playlist(None, &master_text()).must();
         let mut abr = AbrController::new(0, AbrConfig::default()); // on hi
         abr.observe_throughput(375_000, 1_000_000_000); // 3 Mbps: healthy
         assert_eq!(abr.decide(&master.variants), None, "healthy holds");
@@ -962,8 +959,7 @@ mod tests {
     /// never exceeds the cap (the counters are integers, not memory).
     #[test]
     fn abr_history_is_bounded() {
-        let (master, _) =
-            playlists::parse_master_playlist(None, &master_text()).must();
+        let (master, _) = playlists::parse_master_playlist(None, &master_text()).must();
         let mut abr = AbrController::new(0, AbrConfig::default());
         for k in 0..(SWITCH_HISTORY_CAP * 3) as u64 {
             abr.observe_throughput(1_000, 1_000_000); // healthy 8 Mbps
@@ -1083,8 +1079,12 @@ mod tests {
         let media = "#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXTINF:1.0,\ns.ts\n#EXT-X-ENDLIST\n";
         let fetch = router(&[("/pl.m3u8", media.as_bytes().to_vec())]);
         let err = testkit::assert_err(
-            open_master(fetch, "http://unit.test/pl.m3u8", HlsMasterConfig::default())
-                .map(|_| ()),
+            open_master(
+                fetch,
+                "http://unit.test/pl.m3u8",
+                HlsMasterConfig::default(),
+            )
+            .map(|_| ()),
             "media playlist is not a master",
         );
         assert_eq!(err.context.code, "streaming.hls.media-playlist");
