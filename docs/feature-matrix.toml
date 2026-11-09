@@ -1445,9 +1445,9 @@ priority = "P1"
 phase_target = 6
 vlc_modules = ["adaptive"]
 inventory_ref = "inventory/formats.json#adaptive-hls-dash"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "6.C1–6.C2; dash-mpd-core 0.1.0 as parse candidate-oracle; fMP4 corpus classes 8–10 prerequisite (feasibility §1.2); DASH-IF vectors (R-37)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "crates/streaming/src/dash/** (resolve/fuzz/abr/sched) + crates/playlists/src/mpd.rs (cards 6.C1a MPD model; 6.C1b SegmentTemplate $Identifier$ substitution incl. printf format tags, SegmentTimeline t+n×d expansion incl. negative @r, SegmentList/SegmentBase, BaseURL folding, typed plan budgets; 6.C1c fuzz_demux_mpd cargo-fuzz target + in-crate deterministic mutation sweep; 6.C2 buffer-based ABR — EWMA throughput, up/down margin bands, dwell, stall-forced down-steps over representation ladders — plus segment scheduling and ISO 8601 availabilityStartTime live-edge join); streaming 191 lib tests (2 ignored) incl. 27 dash"
+notes = "6.C1–6.C2; dash-mpd-core 0.1.0 as parse candidate-oracle; fMP4 corpus classes 8–10 prerequisite (feasibility §1.2); DASH-IF vectors (R-37). Partial per 6.C2 flip: MPD parse, template/list resolution, MPD fuzz, ABR selection, static+dynamic scheduling with live availability join landed; MPD reload loop (minimumUpdatePeriod), timeShiftBufferDepth trimming, multi-Period stitching, CENC decrypt, mockhttp socket e2e + DASH-IF vectors pending. [PROPOSAL] ABR algorithm class (hls-proven watermark/hysteresis vs BBA/BOLA-class rate model) is a Lead decision."
 
 [[feature]]
 id = "network-reconnect-buffering"
