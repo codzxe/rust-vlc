@@ -631,6 +631,9 @@ pub(super) fn parse_media_playlist_typed(
         let code = match &err {
             HlsPlaylistError::NotHls => "streaming.hls.not-hls",
             HlsPlaylistError::MasterPlaylist => "streaming.hls.master-playlist",
+            // Unreachable from the media parser (it never emits this
+            // variant) but mapped honestly for exhaustiveness.
+            HlsPlaylistError::MediaPlaylist => "streaming.hls.media-playlist",
             HlsPlaylistError::BadTagValue { .. } => "streaming.hls.bad-tag-value",
             HlsPlaylistError::Parse { .. } => "streaming.hls.parse-failed",
         };
