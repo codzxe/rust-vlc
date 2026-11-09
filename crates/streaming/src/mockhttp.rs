@@ -1061,6 +1061,11 @@ fn parse_response_head_text(head_text: &str) -> Result<ResponseHead, NetworkErro
     })
 }
 
+/// The fuzz entry's parsed head — `(status, reason, headers)` — kept
+/// behind an alias so the signature stays readable ([`ResponseHead`]
+/// itself is crate-private).
+pub type FuzzResponseHead = (u16, String, Vec<(String, String)>);
+
 /// The HTTP-header fuzz entry (issue #14 M2, card 6.F3): one hostile
 /// response-head byte slice → one **bounded, typed** parse through
 /// the mock's response-head grammar (status line + `Name: value`
@@ -1073,9 +1078,7 @@ fn parse_response_head_text(head_text: &str) -> Result<ResponseHead, NetworkErro
 /// path's own head budget) — over-limit answers the same typed
 /// [`NetworkError::ProtocolViolation`] the wire path does, never an
 /// unbounded parse.
-pub fn fuzz_response_head(
-    data: &[u8],
-) -> Result<(u16, String, Vec<(String, String)>), NetworkError> {
+pub fn fuzz_response_head(data: &[u8]) -> Result<FuzzResponseHead, NetworkError> {
     if data.len() > HEAD_LIMIT {
         return Err(NetworkError::ProtocolViolation {
             detail: "response head over limit",

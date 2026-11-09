@@ -304,14 +304,14 @@ fn discontinuity_seam_with_continuing_timestamps() {
     let seam = boundaries
         .iter()
         .find(|b| b.discontinuity)
-        .unwrap_or_else(|| panic!("the t00 boundary carries the seam flag"));
+        .must();
     assert_eq!(seam.offset as usize, seam_offset, "seam sits at t00");
     // One map for the whole playlist: the mapping before/after the
     // seam is the SAME anchor — continuing timestamps. 60 s of
     // media past the anchor (5_400_000 ticks) converts exactly (a
     // whole number of milliseconds, so the inverse round-trips
     // bit-exactly).
-    let map = stream.timestamp_map().expect("the playlist carries a map");
+    let map = stream.timestamp_map().must();
     assert_eq!(
         map.wallclock_ms_for_pts(900_000 + 5_400_000),
         1_577_836_800_000 + 60_000
@@ -385,7 +385,7 @@ fn discontinuity_seam_with_encoder_timestamp_reset() {
     // tag's forward-application rule.
     let map = stream
         .timestamp_map()
-        .expect("the reloaded window carries a map");
+        .must();
     assert_eq!(
         map.mpegts, 8_589_034_592,
         "the reset PTS anchor (2^33 - 900000)"

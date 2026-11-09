@@ -193,12 +193,6 @@ impl FaultProxy {
             clock,
         }
     }
-
-    /// The script handle (assertions: `fired()`, `fetched()`).
-    #[must_use]
-    pub fn script(&self) -> FaultScript {
-        self.script.clone()
-    }
 }
 
 impl HttpFetch for FaultProxy {

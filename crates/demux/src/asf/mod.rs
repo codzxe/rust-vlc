@@ -203,7 +203,7 @@ impl SimpleIndex {
     /// interval; `demux.asf.index-too-large` above the memory
     /// ceiling.
     fn parse(bytes: &[u8], offset: u64) -> Result<SimpleIndex, EngineError> {
-        if bytes.len() < 56 || (bytes.len() - 56) % 6 != 0 {
+        if bytes.len() < 56 || !(bytes.len() - 56).is_multiple_of(6) {
             return Err(error::bad_object_size(offset));
         }
         let count = u32::from(bytes[52])
@@ -484,7 +484,6 @@ impl AsfDemuxer {
                 w.assembler
                     .feed(
                         slot,
-                        payload.stream,
                         payload.media_object,
                         payload.offset_into_object,
                         payload.replicated,

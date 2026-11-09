@@ -425,24 +425,24 @@ impl DashScheduler {
         }
         // Availability gating (dynamic): the next segment must be
         // complete before it is fetched.
-        if self.dynamic {
-            if let (Some(now), Some(ast)) = (now_epoch, self.ast_epoch) {
-                let rung = &self.plans[self.abr.current()];
-                let seg = &rung.segments[self.next];
-                let avail = segment_availability_epoch(
-                    ast,
-                    self.period_start_s,
-                    seg.time,
-                    seg.duration,
-                    rung.presentation_time_offset,
-                    rung.timescale,
-                );
-                let ready_at = avail + self.safe_behind_live_edge_s;
-                if (now as f64) < ready_at {
-                    return Ok(NextStep::Wait {
-                        available_in_s: ready_at - now as f64,
-                    });
-                }
+        if self.dynamic
+            && let (Some(now), Some(ast)) = (now_epoch, self.ast_epoch)
+        {
+            let rung = &self.plans[self.abr.current()];
+            let seg = &rung.segments[self.next];
+            let avail = segment_availability_epoch(
+                ast,
+                self.period_start_s,
+                seg.time,
+                seg.duration,
+                rung.presentation_time_offset,
+                rung.timescale,
+            );
+            let ready_at = avail + self.safe_behind_live_edge_s;
+            if (now as f64) < ready_at {
+                return Ok(NextStep::Wait {
+                    available_in_s: ready_at - now as f64,
+                });
             }
         }
         let rung = &self.plans[self.abr.current()];

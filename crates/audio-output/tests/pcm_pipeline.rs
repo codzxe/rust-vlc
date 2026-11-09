@@ -64,8 +64,10 @@ fn buffer(format: AudioFormat, samples: &[f32]) -> AudioBuffer {
 /// Captured LE bytes → f32 samples (the capture side of the oracle).
 fn as_f32s(bytes: &[u8]) -> Vec<f32> {
     bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|b| f32::from_le_bytes(*b))
         .collect()
 }
 
@@ -233,10 +235,9 @@ fn backpressure_is_typed_and_clears_as_the_clock_advances() {
 
 #[test]
 fn the_cpal_seam_refuses_with_the_typed_marker() {
-    assert!(
-        !AUDIO_ADR005_ADMITTED,
-        "the ADR-005 gate is recorded closed"
-    );
+    const {
+        assert!(!AUDIO_ADR005_ADMITTED, "the ADR-005 gate is recorded closed")
+    };
     let marker: BackendNotAdmitted = cpal::cpal_backend().err().must();
     assert_eq!(marker, BackendNotAdmitted::CPAL);
     assert!(marker.to_string().contains("ADR-005"));

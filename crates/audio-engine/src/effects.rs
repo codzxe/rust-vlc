@@ -270,6 +270,7 @@ impl AudioEffect for Balance {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use testkit::Must;
 
     /// A one-channel sine of `n` samples at amplitude `a` (integer
     /// periods keep the peak measurable by max-abs, not by phase luck).
@@ -287,10 +288,10 @@ mod tests {
     fn gain_scales_sine_amplitude() {
         // Known signal in → known signal out: sine amplitude 0.5
         // through gain −6.02 dB (linear ≈ 0.5) halves the amplitude.
-        let mut gain = Gain::new(Volume::from_db(-6.0206).unwrap());
+        let mut gain = Gain::new(Volume::from_db(-6.0206).must());
         let mut planes = vec![sine(48, 0.5)];
-        gain.process(&mut planes).unwrap();
-        let expected = 0.5 * Volume::from_db(-6.0206).unwrap().linear();
+        gain.process(&mut planes).must();
+        let expected = 0.5 * Volume::from_db(-6.0206).must().linear();
         assert!(
             (peak(&planes[0]) - expected).abs() < 1e-3,
             "peak {} vs expected {}",
@@ -304,25 +305,25 @@ mod tests {
         let mut gain = Gain::new(Volume::UNITY);
         let original = sine(48, 0.75);
         let mut planes = vec![original.clone()];
-        gain.process(&mut planes).unwrap();
+        gain.process(&mut planes).must();
         assert_eq!(planes[0], original, "unity gain must be bit-preserving");
     }
 
     #[test]
     fn mute_zeroes_everything() {
         let mut planes = vec![sine(48, 0.9), sine(48, 0.9)];
-        Mute.process(&mut planes).unwrap();
+        Mute.process(&mut planes).must();
         assert!(planes.iter().all(|p| p.iter().all(|s| *s == 0.0)));
     }
 
     #[test]
     fn balance_center_is_minus_3db_constant_power() {
-        let b = Balance::new(0.0).unwrap();
+        let b = Balance::new(0.0).must();
         let (l, r) = b.gains();
         assert!((l - Balance::UNITY_GAIN).abs() < 1e-6);
         assert!((r - Balance::UNITY_GAIN).abs() < 1e-6);
         // Constant power: L² + R² = 1 at every position on the law.
-        let (l2, r2) = Balance::new(0.37).unwrap().gains();
+        let (l2, r2) = Balance::new(0.37).must().gains();
         assert!((l2 * l2 + r2 * r2 - 1.0).abs() < 1e-6);
     }
 
@@ -330,10 +331,10 @@ mod tests {
     fn balance_hard_stops_are_pinned() {
         // f32 trig: cos(π/2) = −4.37e-8, not 0 — the law's extremes
         // are pinned to 1e-7, the honest tolerance.
-        let (l, r) = Balance::new(-1.0).unwrap().gains();
+        let (l, r) = Balance::new(-1.0).must().gains();
         assert!((l - Balance::LEFT_GAIN.0).abs() < 1e-7);
         assert!((r - Balance::LEFT_GAIN.1).abs() < 1e-7);
-        let (l, r) = Balance::new(1.0).unwrap().gains();
+        let (l, r) = Balance::new(1.0).must().gains();
         assert!((l - Balance::RIGHT_GAIN.0).abs() < 1e-7);
         assert!((r - Balance::RIGHT_GAIN.1).abs() < 1e-7);
     }
@@ -342,7 +343,7 @@ mod tests {
     fn balance_scales_each_channel_by_its_law_gain() {
         // Sine L=0.8, R=0.2 through hard-left: L unchanged, R zero.
         let mut planes = vec![sine(48, 0.8), sine(48, 0.2)];
-        Balance::new(-1.0).unwrap().process(&mut planes).unwrap();
+        Balance::new(-1.0).must().process(&mut planes).must();
         assert!((peak(&planes[0]) - 0.8).abs() < 1e-6);
         assert!(peak(&planes[1]) < 1e-7);
     }
@@ -353,12 +354,12 @@ mod tests {
         assert!(Balance::new(f32::NAN).is_err());
         assert!(
             Balance::new(0.0)
-                .unwrap()
-                .process(&mut vec![sine(8, 0.1)])
+                .must()
+                .process(&mut [sine(8, 0.1)])
                 .is_err()
         );
         let mut mono = vec![sine(8, 0.1)];
-        assert!(Balance::new(0.0).unwrap().process(&mut mono).is_err());
+        assert!(Balance::new(0.0).must().process(&mut mono).is_err());
     }
 
     #[test]
@@ -370,11 +371,11 @@ mod tests {
         // itself: 0.4·0.5 on R with L fully attenuated).
         let mut chain = EffectChain::new();
         chain
-            .push(Box::new(Gain::new(Volume::from_linear(0.5).unwrap())))
-            .unwrap();
-        chain.push(Box::new(Balance::new(1.0).unwrap())).unwrap();
+            .push(Box::new(Gain::new(Volume::from_linear(0.5).must())))
+            .must();
+        chain.push(Box::new(Balance::new(1.0).must())).must();
         let mut planes = vec![sine(48, 0.4), sine(48, 0.4)];
-        chain.process(&mut planes).unwrap();
+        chain.process(&mut planes).must();
         assert!(peak(&planes[0]) < 1e-7, "hard-right kills L");
         assert!((peak(&planes[1]) - 0.2).abs() < 1e-6);
     }
@@ -384,7 +385,7 @@ mod tests {
         let mut chain = EffectChain::new();
         let original = sine(16, 0.3);
         let mut planes = vec![original.clone()];
-        chain.process(&mut planes).unwrap();
+        chain.process(&mut planes).must();
         assert_eq!(planes[0], original);
     }
 
@@ -392,7 +393,7 @@ mod tests {
     fn chain_bound_is_a_wall() {
         let mut chain = EffectChain::new();
         for _ in 0..MAX_EFFECTS {
-            chain.push(Box::new(Mute)).unwrap();
+            chain.push(Box::new(Mute)).must();
         }
         assert_eq!(chain.len(), MAX_EFFECTS);
         assert!(chain.push(Box::new(Mute)).is_err());
@@ -404,11 +405,11 @@ mod tests {
     fn gain_mute_compose_to_silence() {
         let mut chain = EffectChain::new();
         chain
-            .push(Box::new(Gain::new(Volume::from_linear(2.0).unwrap())))
-            .unwrap();
-        chain.push(Box::new(Mute)).unwrap();
+            .push(Box::new(Gain::new(Volume::from_linear(2.0).must())))
+            .must();
+        chain.push(Box::new(Mute)).must();
         let mut planes = vec![sine(48, 0.5)];
-        chain.process(&mut planes).unwrap();
+        chain.process(&mut planes).must();
         assert!(planes[0].iter().all(|s| *s == 0.0));
     }
 }

@@ -767,6 +767,7 @@ pub fn open_live(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use testkit::Must;
     use crate::clock::FakeClock;
     use crate::fetch::HttpResponse;
     use crate::fetch::Url;
@@ -1409,7 +1410,7 @@ mod tests {
         // live-edge wallclock = LOCAL + the window's EXTINF total
         // (3 × 1.0 s here — the join is 2 back; the EDGE is the
         // newest segment's end, the whole window).
-        let map = stream.timestamp_map().expect("W1 carries a map");
+        let map = stream.timestamp_map().must();
         assert_eq!(map.mpegts, 900_000);
         assert_eq!(map.local_ms, 1_577_836_800_000);
         assert_eq!(stream.live_edge_wallclock_ms(), Some(1_577_836_803_000));
@@ -1429,7 +1430,7 @@ mod tests {
         // (3) The reloaded window's map superseded the first: PTS
         // reset + LOCAL jump are both visible, and the live edge
         // now derives from the NEW anchor (3 × 1.0 s window).
-        let map2 = stream.timestamp_map().expect("W2 carries a map");
+        let map2 = stream.timestamp_map().must();
         assert_eq!(map2.mpegts, 0);
         assert_eq!(map2.local_ms, 1_577_840_400_000); // 2020-01-01T01:00:00Z
         assert_eq!(stream.live_edge_wallclock_ms(), Some(1_577_840_403_000));

@@ -82,13 +82,13 @@ fn mid_segment_drop_resumes_byte_exact() {
     let clock = Arc::new(FakeClock::new());
     let script = FaultScript::once(Fault::DropAfter { at: 300 });
     let proxy = proxied(script.clone(), clock.clone());
-    let retry = RetryFetch::new(Arc::new(proxy), clock.clone()).expect("default policy is valid");
+    let retry = RetryFetch::new(Arc::new(proxy), clock.clone()).must();
 
     // The ranged segment request (the ranged resource's resume unit):
     // bytes 250.. to the end.
     let request = HttpRequest::get(server.url("/body")).with_range(ByteRange::From { start: 250 });
 
-    let response = retry.fetch(request).expect("resumed ranged fetch");
+    let response = retry.fetch(request).must();
     // Byte-exact resume: the healed re-issue answered the SAME slice.
     assert_eq!(
         response.body,
@@ -134,10 +134,10 @@ fn mid_segment_drop_resumes_byte_exact() {
     let clock = Arc::new(FakeClock::new());
     let script = FaultScript::once(Fault::TruncateAt { at: 300 });
     let proxy = proxied(script.clone(), clock.clone());
-    let retry = RetryFetch::new(Arc::new(proxy), clock.clone()).expect("default policy is valid");
+    let retry = RetryFetch::new(Arc::new(proxy), clock.clone()).must();
     let response = retry
         .fetch(HttpRequest::get(server.url("/body")))
-        .expect("resumed plain fetch");
+        .must();
     assert_eq!(response.body, body(1000), "the whole body, byte-exact");
     assert_eq!(script.fired(), 1);
     assert_eq!(script.fetched(), 2);
@@ -181,7 +181,7 @@ fn manifest_reset_fails_typed_with_bounded_backoff() {
     // 64 scripted resets: more than any retry budget, still finite.
     let script = FaultScript::forever(Fault::ResetAfter { at: 10 });
     let proxy = proxied(script.clone(), clock.clone());
-    let retry = Arc::new(RetryFetch::new(Arc::new(proxy), clock.clone()).expect("policy"));
+    let retry = Arc::new(RetryFetch::new(Arc::new(proxy), clock.clone()).must());
 
     let started = Instant::now();
     let transport: Arc<dyn HttpFetch> = retry.clone();

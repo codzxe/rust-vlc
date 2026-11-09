@@ -170,6 +170,7 @@ impl SnapshotConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use testkit::Must;
 
     #[test]
     fn format_parses_the_inventory_enum_and_refuses_the_rest() {
@@ -191,7 +192,7 @@ mod tests {
             format: SnapshotFormat::Png,
             counter: 1,
         };
-        let plan = config.plan(None).unwrap();
+        let plan = config.plan(None).must();
         assert_eq!(
             plan.output_path,
             PathBuf::from("/tmp/snaps/vlcsnap-000001.png")
@@ -202,14 +203,14 @@ mod tests {
     #[test]
     fn explicit_path_wins_and_its_extension_selects_the_format() {
         let config = SnapshotConfig::default();
-        let plan = config.plan(Some(Path::new("/home/me/frame.png"))).unwrap();
+        let plan = config.plan(Some(Path::new("/home/me/frame.png"))).must();
         assert_eq!(plan.output_path, PathBuf::from("/home/me/frame.png"));
         assert_eq!(plan.format, SnapshotFormat::Png);
         // A different extension overrides the configured format.
-        let plan = config.plan(Some(Path::new("/home/me/frame.jpg"))).unwrap();
+        let plan = config.plan(Some(Path::new("/home/me/frame.jpg"))).must();
         assert_eq!(plan.format, SnapshotFormat::Jpg);
         // No extension falls back to the configured format.
-        let plan = config.plan(Some(Path::new("/home/me/frame"))).unwrap();
+        let plan = config.plan(Some(Path::new("/home/me/frame"))).must();
         assert_eq!(plan.format, SnapshotFormat::Png);
     }
 
@@ -236,16 +237,16 @@ mod tests {
             counter: 42,
             ..SnapshotConfig::default()
         };
-        let plan = config.plan(None).unwrap();
+        let plan = config.plan(None).must();
         assert_eq!(plan.output_path, PathBuf::from("vlcsnap-000042.png"));
     }
 
     #[test]
     fn counter_advances_names_monotonically() {
         let mut config = SnapshotConfig::default();
-        let first = config.plan(None).unwrap();
+        let first = config.plan(None).must();
         config.counter += 1;
-        let second = config.plan(None).unwrap();
+        let second = config.plan(None).must();
         assert_eq!(first.output_path, PathBuf::from("vlcsnap-000000.png"));
         assert_eq!(second.output_path, PathBuf::from("vlcsnap-000001.png"));
     }

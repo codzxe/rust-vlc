@@ -68,6 +68,7 @@ use std::time::{Duration, Instant};
 mod netfuzz;
 
 use netfuzz::{fuzz_hls_playlist, fuzz_http_headers};
+use testkit::Must;
 
 // ---------------------------------------------------------------------------
 // The generator (twin of the demux/codecs sweeps — see module docs)
@@ -131,7 +132,7 @@ fn hls_seeds() -> Vec<Vec<u8>> {
     .map(|rel| {
         let path = root.join(rel);
         std::fs::read(&path)
-            .unwrap_or_else(|e| panic!("netfuzz seed {rel}: {e} (committed fixture)"))
+            .must()
     })
     .collect()
 }
@@ -152,7 +153,7 @@ fn header_seeds() -> Vec<Vec<u8>> {
     .collect();
     // The cross-format seed: a real media playlist's bytes as a head.
     let mut cross = hls_seeds();
-    let cross_seed = cross.pop().expect("single_file playlist seed");
+    let cross_seed = cross.pop().must();
     let mut seeds = authored;
     seeds.push(cross_seed);
     seeds

@@ -772,6 +772,7 @@ pub fn open_master(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use testkit::Must;
     use crate::buffer::BufferSignal;
     use crate::fetch::HttpFetch;
     use crate::fetch::HttpResponse;
@@ -871,7 +872,7 @@ mod tests {
     #[test]
     fn selection_is_highest_under_cap() {
         let (master, _) =
-            playlists::parse_master_playlist(None, &master_text()).expect("master types");
+            playlists::parse_master_playlist(None, &master_text()).must();
         assert_eq!(select_variant_index(&master, 25_000_000), Some(0), "hi");
         assert_eq!(select_variant_index(&master, 1_000_000), Some(1), "mid");
         assert_eq!(
@@ -894,7 +895,7 @@ mod tests {
     #[test]
     fn abr_hysteresis_holds_inside_the_band() {
         let (master, _) =
-            playlists::parse_master_playlist(None, &master_text()).expect("master types");
+            playlists::parse_master_playlist(None, &master_text()).must();
         let mut abr = AbrController::new(1, AbrConfig::default()); // on mid (800k)
 
         // Deep inside the band (throughput ~1 Mbps: above 0.8x mid,
@@ -940,7 +941,7 @@ mod tests {
     #[test]
     fn abr_stall_prediction_forces_down() {
         let (master, _) =
-            playlists::parse_master_playlist(None, &master_text()).expect("master types");
+            playlists::parse_master_playlist(None, &master_text()).must();
         let mut abr = AbrController::new(0, AbrConfig::default()); // on hi
         abr.observe_throughput(375_000, 1_000_000_000); // 3 Mbps: healthy
         assert_eq!(abr.decide(&master.variants), None, "healthy holds");
@@ -962,7 +963,7 @@ mod tests {
     #[test]
     fn abr_history_is_bounded() {
         let (master, _) =
-            playlists::parse_master_playlist(None, &master_text()).expect("master types");
+            playlists::parse_master_playlist(None, &master_text()).must();
         let mut abr = AbrController::new(0, AbrConfig::default());
         for k in 0..(SWITCH_HISTORY_CAP * 3) as u64 {
             abr.observe_throughput(1_000, 1_000_000); // healthy 8 Mbps
@@ -995,21 +996,21 @@ mod tests {
             "http://unit.test/master.m3u8",
             HlsMasterConfig::default(),
         )
-        .expect("adaptive session opens");
+        .must();
         assert_eq!(stream.abr_snapshot().current, 0, "starts on hi");
         assert_eq!(stream.stats().playlists_fetched, 1, "master + hi playlist");
         assert_eq!(stream.stats().requests, 2);
         let mut all = Vec::new();
 
         // Two healthy segments on hi (the dwell), then the crash.
-        all.extend_from_slice(&stream.read(500).expect("read hi/seg0"));
-        all.extend_from_slice(&stream.read(500).expect("read hi/seg1"));
+        all.extend_from_slice(&stream.read(500).must());
+        all.extend_from_slice(&stream.read(500).must());
         stream.note_throughput(500, 2_000_000); // 2 Mbps (in-band on hi)
 
         // The drop: 0.1 Mbps << 0.8 x 2M → down-steps at the next
         // boundary (one rung at a time: hi → mid first).
         stream.note_throughput(5_000, 400_000_000);
-        let c = stream.read(500).expect("read switches at the boundary");
+        let c = stream.read(500).must();
         assert!(c.starts_with(&[b'M'; 4]), "down-stepped off hi onto mid");
         all.extend_from_slice(&c);
         assert!(stream.abr_snapshot().current >= 1);
@@ -1018,7 +1019,7 @@ mod tests {
         let mut guard = 0;
         while stream.abr_snapshot().current != 2 && guard < 6 {
             stream.note_throughput(5_000, 400_000_000);
-            all.extend_from_slice(&stream.read(200).expect("read"));
+            all.extend_from_slice(&stream.read(200).must());
             stream.note_throughput(5_000, 400_000_000);
             guard += 1;
         }
@@ -1028,7 +1029,7 @@ mod tests {
         // boundary, no overshoot flapping).
         for _ in 0..3 {
             stream.note_throughput(625_000, 1_000_000_000); // 5 Mbps
-            all.extend_from_slice(&stream.read(60).expect("read"));
+            all.extend_from_slice(&stream.read(60).must());
             stream.note_throughput(625_000, 1_000_000_000);
         }
         assert!(
@@ -1039,7 +1040,7 @@ mod tests {
 
         // Drain the rest.
         loop {
-            let chunk = stream.read(128).expect("read");
+            let chunk = stream.read(128).must();
             if chunk.is_empty() {
                 break;
             }
@@ -1073,20 +1074,19 @@ mod tests {
         let fetch = router(&owned_routes(2));
         let mut tight = HlsMasterConfig::default();
         tight.abr.max_bandwidth_bps = 1;
-        let err = open_master(fetch.clone(), "http://unit.test/master.m3u8", tight)
-            .map(|_| ())
-            .expect_err("nothing under a 1-bps cap");
+        let err = testkit::assert_err(
+            open_master(fetch.clone(), "http://unit.test/master.m3u8", tight).map(|_| ()),
+            "nothing under a 1-bps cap",
+        );
         assert_eq!(err.context.code, "streaming.hls.no-variant");
 
         let media = "#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXTINF:1.0,\ns.ts\n#EXT-X-ENDLIST\n";
         let fetch = router(&[("/pl.m3u8", media.as_bytes().to_vec())]);
-        let err = open_master(
-            fetch,
-            "http://unit.test/pl.m3u8",
-            HlsMasterConfig::default(),
-        )
-        .map(|_| ())
-        .expect_err("media playlist is not a master");
+        let err = testkit::assert_err(
+            open_master(fetch, "http://unit.test/pl.m3u8", HlsMasterConfig::default())
+                .map(|_| ()),
+            "media playlist is not a master",
+        );
         assert_eq!(err.context.code, "streaming.hls.media-playlist");
     }
 
@@ -1113,7 +1113,7 @@ mod tests {
             "http://unit.test/master.m3u8",
             HlsMasterConfig::default(),
         )
-        .expect("opens on hi");
+        .must();
         let _ = stream.read(500);
         let _ = stream.read(500);
         stream.note_throughput(500, 2_000_000);
@@ -1124,7 +1124,7 @@ mod tests {
         for _ in 0..6 {
             stream.note_throughput(5_000, 400_000_000);
         }
-        let err = stream.read(500).expect_err("misaligned lo refuses");
+        let err = testkit::assert_err(stream.read(500), "misaligned lo refuses");
         assert_eq!(err.context.code, "streaming.hls.variant-sequence-missing");
     }
 
@@ -1159,10 +1159,10 @@ mod tests {
             "http://unit.test/master.m3u8",
             HlsMasterConfig::default(),
         )
-        .expect("single-variant session opens");
+        .must();
         let mut total = 0;
         loop {
-            let chunk = stream.read(128).expect("read");
+            let chunk = stream.read(128).must();
             if chunk.is_empty() {
                 break;
             }

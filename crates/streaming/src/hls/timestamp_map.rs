@@ -213,14 +213,15 @@ fn days_from_civil(y: i64, m: u32, d: u32) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use testkit::Must;
 
     /// The anchor pair from the tag grammar, both attribute orders.
     #[test]
     fn parses_the_tag_in_either_attribute_order() {
         let a = TimestampMap::parse_tag_value("MPEGTS=900000,LOCAL=1970-01-01T00:00:00Z")
-            .expect("canonical order parses");
+            .must();
         let b = TimestampMap::parse_tag_value("LOCAL=1970-01-01T00:00:00Z,MPEGTS=900000")
-            .expect("swapped order parses");
+            .must();
         assert_eq!(a, b);
         assert_eq!(a.mpegts, 900_000);
         assert_eq!(a.local_ms, 0);
@@ -232,7 +233,7 @@ mod tests {
     #[test]
     fn bom_mapping_converts_pts_to_epoch_milliseconds() {
         let bom = TimestampMap::parse_tag_value("MPEGTS=0,LOCAL=1970-01-01T00:00:00Z")
-            .expect("BOM mapping parses");
+            .must();
         assert_eq!(bom.wallclock_ms_for_pts(0), 0);
         assert_eq!(bom.wallclock_ms_for_pts(90_000), 1_000);
         assert_eq!(bom.wallclock_ms_for_pts(45_000), 500);
@@ -246,7 +247,7 @@ mod tests {
     fn non_zero_anchor_maps_affinely() {
         // 2000-02-29T12:34:56.789Z (a leap day, fractional ms).
         let map = TimestampMap::parse_tag_value("MPEGTS=900000,LOCAL=2000-02-29T12:34:56.789Z")
-            .expect("leap-day LOCAL parses");
+            .must();
         // 2000-02-29T12:34:56Z = 951 827 696 s since epoch.
         assert_eq!(map.local_ms, 951_827_696_000 + 789);
         assert_eq!(map.wallclock_ms_for_pts(900_000), map.local_ms);
@@ -292,7 +293,7 @@ mod tests {
             #EXTINF:2.0,\na.ts\n\
             #EXT-X-TIMESTAMP-MAP:MPEGTS=9000000,LOCAL=2015-11-09T19:44:00.500Z\n\
             #EXTINF:2.0,\nb.ts\n";
-        let map = TimestampMap::from_playlist_text(text).expect("playlist carries a parseable tag");
+        let map = TimestampMap::from_playlist_text(text).must();
         assert_eq!(map.mpegts, 9_000_000);
         assert_eq!(map.local_ms, 1_447_098_240_500); // 2015-11-09T19:44:00.5Z
         // A second occurrence that is garbage does not undo the last
@@ -300,7 +301,7 @@ mod tests {
         let dirty = "#EXTM3U\n\
             #EXT-X-TIMESTAMP-MAP:MPEGTS=45000,LOCAL=2020-01-01T00:00:00Z\n\
             #EXT-X-TIMESTAMP-MAP:MPEGTS=oops,LOCAL=2020-01-01T00:00:00Z\n";
-        let map2 = TimestampMap::from_playlist_text(dirty).expect("the good occurrence survives");
+        let map2 = TimestampMap::from_playlist_text(dirty).must();
         assert_eq!(map2.mpegts, 45_000);
         // No tag at all.
         assert_eq!(

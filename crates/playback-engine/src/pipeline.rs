@@ -2233,7 +2233,7 @@ impl Pipeline {
             let sink_stale: u32;
             let sink_concealed: u32;
             let sink_last: Option<Frame>;
-            let mut sink_last_end: Option<i64>;
+            let sink_last_end: Option<i64>;
             {
                 // M10: while a seek is in flight, the sink routes the
                 // slice's frames into the per-track hold — they reach

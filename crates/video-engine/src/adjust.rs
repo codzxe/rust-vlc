@@ -87,24 +87,13 @@ impl Default for AdjustParams {
     }
 }
 
-/// Field bounds as `(min, max)` pairs — the one place ranges live, so
-/// docs, validation and tests cannot drift apart.
-fn bounds(field: &str) -> Option<(f32, f32)> {
-    match field {
-        "brightness" => Some((0.0, 2.0)),
-        "contrast" => Some((0.0, 2.0)),
-        "saturation" => Some((0.0, 3.0)),
-        "hue" => Some((-180.0, 180.0)),
-        "gamma" => Some((0.1, 10.0)),
-        _ => None,
-    }
-}
-
-fn check(field: &'static str, value: f32) -> Result<f32, AdjustError> {
+/// Validate one field against its documented `(min, max)` range —
+/// ranges live only at the [`AdjustParams::new`] call sites, so docs,
+/// validation and tests cannot drift apart.
+fn check(field: &'static str, value: f32, min: f32, max: f32) -> Result<f32, AdjustError> {
     if !value.is_finite() {
         return Err(AdjustError::NotFinite { field });
     }
-    let (min, max) = bounds(field).expect("known field");
     if !(min..=max).contains(&value) {
         return Err(AdjustError::OutOfRange { field });
     }
@@ -135,11 +124,11 @@ impl AdjustParams {
         gamma: f32,
     ) -> Result<AdjustParams, AdjustError> {
         Ok(AdjustParams {
-            brightness: check("brightness", brightness)?,
-            contrast: check("contrast", contrast)?,
-            saturation: check("saturation", saturation)?,
-            hue: check("hue", hue)?,
-            gamma: check("gamma", gamma)?,
+            brightness: check("brightness", brightness, 0.0, 2.0)?,
+            contrast: check("contrast", contrast, 0.0, 2.0)?,
+            saturation: check("saturation", saturation, 0.0, 3.0)?,
+            hue: check("hue", hue, -180.0, 180.0)?,
+            gamma: check("gamma", gamma, 0.1, 10.0)?,
         })
     }
 
@@ -155,7 +144,7 @@ impl AdjustParams {
     /// [`AdjustError::OutOfRange`] with field `"pixels"` if the buffer
     /// is not a whole number of RGBA8 pixels.
     pub fn apply_rgba8(&self, pixels: &mut [u8]) -> Result<(), AdjustError> {
-        if pixels.len() % 4 != 0 {
+        if !pixels.len().is_multiple_of(4) {
             return Err(AdjustError::OutOfRange { field: "pixels" });
         }
         if self.is_neutral() {
@@ -169,7 +158,7 @@ impl AdjustParams {
             let rad = self.hue.to_radians();
             (rad.sin(), rad.cos())
         };
-        for px in pixels.chunks_exact_mut(4) {
+        for px in pixels.as_chunks_mut::<4>().0 {
             let r = f32::from(px[0]) / 255.0;
             let g = f32::from(px[1]) / 255.0;
             let b = f32::from(px[2]) / 255.0;
@@ -207,12 +196,13 @@ impl AdjustParams {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use testkit::Must;
 
     #[test]
     fn neutral_params_leave_pixels_bit_unchanged() {
         let original: Vec<u8> = (0u8..=63).map(|i| i.wrapping_mul(7)).collect();
         let mut pixels = original.clone();
-        AdjustParams::NEUTRAL.apply_rgba8(&mut pixels).unwrap();
+        AdjustParams::NEUTRAL.apply_rgba8(&mut pixels).must();
         assert_eq!(pixels, original, "identity must be byte-exact");
     }
 
@@ -276,15 +266,15 @@ mod tests {
         let gray = [128u8, 128, 128, 255];
         let mut px = gray;
         AdjustParams::new(2.0, 1.0, 1.0, 0.0, 1.0)
-            .unwrap()
+            .must()
             .apply_rgba8(&mut px)
-            .unwrap();
+            .must();
         assert_eq!(&px[..3], &[255, 255, 255]);
         let mut px = gray;
         AdjustParams::new(0.0, 1.0, 1.0, 0.0, 1.0)
-            .unwrap()
+            .must()
             .apply_rgba8(&mut px)
-            .unwrap();
+            .must();
         assert_eq!(&px[..3], &[0, 0, 0]);
     }
 
@@ -293,9 +283,9 @@ mod tests {
         // A saturated red desaturates to its Rec.601 luma; alpha stays.
         let mut px = [240u8, 20, 20, 199];
         AdjustParams::new(1.0, 1.0, 0.0, 0.0, 1.0)
-            .unwrap()
+            .must()
             .apply_rgba8(&mut px)
-            .unwrap();
+            .must();
         let luma: f32 = 0.299 * (240.0 / 255.0) + 0.587 * (20.0 / 255.0) + 0.114 * (20.0 / 255.0);
         let expected = (luma * 255.0).round() as u8;
         assert_eq!(px[0], expected);
@@ -310,28 +300,28 @@ mod tests {
         // noted: 128 → 129) and clamps beyond range to black/white.
         let mut px = [128u8, 128, 128, 255];
         AdjustParams::new(1.0, 2.0, 1.0, 0.0, 1.0)
-            .unwrap()
+            .must()
             .apply_rgba8(&mut px)
-            .unwrap();
+            .must();
         assert_eq!(&px[..3], &[129, 129, 129]);
         let mut px = [200u8, 200, 200, 255];
         AdjustParams::new(1.0, 2.0, 1.0, 0.0, 1.0)
-            .unwrap()
+            .must()
             .apply_rgba8(&mut px)
-            .unwrap();
+            .must();
         assert_eq!(&px[..3], &[255, 255, 255]);
         let mut px = [55u8, 55, 55, 255];
         AdjustParams::new(1.0, 2.0, 1.0, 0.0, 1.0)
-            .unwrap()
+            .must()
             .apply_rgba8(&mut px)
-            .unwrap();
+            .must();
         assert_eq!(&px[..3], &[0, 0, 0]);
         // Contrast 0 collapses everything to mid-gray.
         let mut px = [240u8, 10, 200, 255];
         AdjustParams::new(1.0, 0.0, 1.0, 0.0, 1.0)
-            .unwrap()
+            .must()
             .apply_rgba8(&mut px)
-            .unwrap();
+            .must();
         assert_eq!(&px[..3], &[128, 128, 128]);
     }
 
@@ -341,9 +331,9 @@ mod tests {
         // dominant channel becomes B-ish (R's chroma goes negative).
         let mut px = [255u8, 0, 0, 255];
         AdjustParams::new(1.0, 1.0, 1.0, 180.0, 1.0)
-            .unwrap()
+            .must()
             .apply_rgba8(&mut px)
-            .unwrap();
+            .must();
         assert!(px[2] > px[0], "180° hue turns red toward blue: {px:?}");
         assert!(px[2] > px[1], "and not toward green: {px:?}");
     }

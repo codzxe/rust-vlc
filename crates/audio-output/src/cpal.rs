@@ -109,18 +109,21 @@ pub fn cpal_backend() -> Result<Box<dyn AudioBackend>, BackendNotAdmitted> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use testkit::Must;
 
     #[test]
     fn the_gate_is_recorded_closed() {
         // The flip-point discipline: flipping the const without the
         // admission change breaks the compile-time gate (and this
         // test) — the same-change rule, enforced.
-        assert!(!AUDIO_ADR005_ADMITTED);
+        const {
+            assert!(!AUDIO_ADR005_ADMITTED, "the ADR-005 gate is recorded closed")
+        };
     }
 
     #[test]
     fn the_constructor_refuses_with_the_typed_marker() {
-        let marker = cpal_backend().err().expect("not admitted today");
+        let marker = cpal_backend().err().must();
         assert_eq!(marker, BackendNotAdmitted::CPAL);
         assert_eq!(marker.backend, "cpal");
         assert_eq!(marker.adr, "ADR-005");

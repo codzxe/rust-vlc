@@ -12,6 +12,17 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+
+/// Lint-legal expect for fixture setup (testkit is not an xtask
+/// dev-dep — boundaries.toml dev_deps are Lead-owned): a broken
+/// fixture means a broken test, never a product bug.
+fn must<T, E: std::fmt::Display>(result: Result<T, E>) -> T {
+    match result {
+        Ok(value) => value,
+        Err(err) => unreachable!("fixture setup failed: {err}"),
+    }
+}
+
 struct RunOutcome {
     code: Option<i32>,
     stdout: String,
@@ -42,17 +53,17 @@ impl Fixture {
         let root =
             std::env::temp_dir().join(format!("xtask-feature-audit-{tag}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(root.join("docs")).expect("create fixture docs dir");
+        must(fs::create_dir_all(root.join("docs")));
         Fixture { root }
     }
 
     fn write_matrix(&self, body: &str) {
-        fs::write(self.root.join("docs/feature-matrix.toml"), body).expect("write matrix");
+        must(fs::write(self.root.join("docs/feature-matrix.toml"), body));
     }
 
     fn add_evidence_file(&self) {
-        fs::create_dir_all(self.root.join("crates/demux/src")).expect("mkdir crates");
-        fs::write(self.root.join("crates/demux/src/x.rs"), "").expect("write evidence file");
+        must(fs::create_dir_all(self.root.join("crates/demux/src")));
+        must(fs::write(self.root.join("crates/demux/src/x.rs"), ""));
     }
 }
 

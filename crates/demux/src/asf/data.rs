@@ -273,8 +273,8 @@ pub fn parse_packet(bytes: &[u8]) -> Result<ParsedPacket, EngineError> {
         payloads.push(ParsedPayload {
             stream,
             keyframe,
-            media_object: mo as u32,
-            offset_into_object: offset as u32,
+            media_object: mo,
+            offset_into_object: offset,
             replicated,
             length,
             data_range: (start, end),
@@ -368,7 +368,6 @@ impl ObjectAssembler {
     pub fn feed(
         &mut self,
         slot: usize,
-        stream: u16,
         media_object: u32,
         offset: u32,
         replicated: Option<(u32, u32)>,
@@ -378,7 +377,6 @@ impl ObjectAssembler {
         let Some(slot) = self.slots.get_mut(slot) else {
             // Unknown stream: the demuxer skips the payload before
             // this point; a bad index here is a caller bug, refused.
-            let _ = stream;
             return Ok(None);
         };
         match slot {
