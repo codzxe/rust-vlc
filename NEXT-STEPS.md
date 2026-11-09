@@ -229,18 +229,19 @@ completed/stale items were dropped in the consolidation (audit in issue
 
 ## Blocked — needs an external unblock
 
-- [ ] [7-g] 4 h soak baseline: this sandbox reaps every background process
-  when the spawning tool call ends (setsid/nohup/orphan-reparenting do not
-  save it; no at/cron/systemd; bash timeout 10 min < 240 min) — and
-  chunked restarts are INVALID for this metric (the harness fits one
-  least-squares slope over a single window after in-run warmup). Needs a
-  real scheduled host (CI nightly job) — Lead/handoff item per
-  `crates/playback-engine/tests/soak/main.rs:19-20` and
-  `docs/gates/phase3-exit.md` §1/§4/§9. Invocation when unblocked:
-  `SOAK_MINUTES=240 SOAK_REPORT=<path> cargo test -p playback-engine
-  --test soak --release`; then copy the report →
-  `docs/perf/soak-4h-YYYYMMDD.md`, raw log → `docs/perf/raw/`, commit,
-  worklog entry with the D-10 block.
+- [ ] [7-g] 4 h soak baseline: the CI nightly host now EXISTS — issue #18
+  wired `.github/workflows/soak-nightly.yml` (cron `0 3 * * *` UTC +
+  dispatch; `SOAK_MINUTES=240 SOAK_LEAK_MB_PER_H=5 SOAK_REPORT=
+  soak-report.md cargo test -p playback-engine --test soak --release --
+  --nocapture`; design + the real 2-min smoke profile:
+  `docs/perf/soak-nightly-20261109.md`). This sandbox still cannot run
+  it (reaps background procs — the w7-h record — and 10-min tool
+  timeout < 240 min; chunked restarts invalid: one slope, one window).
+  Remaining: first scheduled run's artifact (`evidence-soak-nightly-…`)
+  → copy report → `docs/perf/soak-4h-YYYYMMDD.md`, raw log →
+  `docs/perf/raw/`, commit, worklog entry with the D-10 block, and let
+  that measurement bless or renegotiate the 5 MB/h `[PROPOSAL]`
+  ceiling (generous default stays 50 MB/h, `SOAK_LEAK_MB_PER_H`).
 - [ ] [4.C3] Error copy-details affordance (doc 08 §5.4): blocked on an
   error-id field in the catalog envelope — `CommandError` has no id today;
   adding one is a `crates/commands` change, not UI.
