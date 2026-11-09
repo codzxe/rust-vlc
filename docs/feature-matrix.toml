@@ -473,15 +473,14 @@ notes = "Oracle chose dav1d (score 10000) — direct analog for rav1d integratio
 id = "codec-video-vp9"
 category = "video-codec"
 vlc_name = "VP9 decode"
-description = "Decode VP9: hardware-first; software = conformance-gated candidate track"
+description = "Decode VP9: software via rusty_vp9 (admitted) + hardware where present; UI states active backend"
 priority = "P0"
 phase_target = 5
 vlc_modules = ["avcodec"]
 inventory_ref = "inventory/formats.json#vp9"
-status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
-evidence = ""
-notes = "Decision card 5.P1-I; rusty_vp9 0.1.3 claims bit-exact on all 315 libvpx vectors (unproven at scale); hw: MF VP9 extension preinstalled Win10 1709+, VA-API all 3 vendor classes, WebCodecs vp09 broad. 5.Q2-V backfill: blocked (candidate named, validation pending) per record (5.P1-I)."
-blocked_reason = "No validated pure-Rust VP9 engine (card 5.P1-I; record docs/formats/video-vp8-vp9.md): candidate named, validation spike pending — Phase-6 admission entry gate."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/codecs/src/video/vp9/** + rusty_vp9 =0.1.3 (card 6.M-vp9; record docs/dependencies/records/rusty_vp9-0.1.3.md + its 2026-11-09 admission addendum, issue #7): vp9_differential 4/4 pass in the codecs suite (643 tests / 624 pass / 0 fail, lib + all 51 integration targets)"
+notes = "Decision card 5.P1-I; rusty_vp9 0.1.3 claims bit-exact on all 315 libvpx vectors — our independent evidence is the record's six differential lanes (s16-exact class) + the in-tree vp9_differential 4/4. hw: MF VP9 extension preinstalled Win10 1709+, VA-API all 3 vendor classes, WebCodecs vp09 broad. 5.Q2-V backfill: blocked (candidate named, validation pending) per record (5.P1-I) — SUPERSEDED by the 6.M-vp9 admission; issue #7 flip (W16-EE, 2026-11-09): implemented (decode, software; hw-path selection rides ADR-013). Honest subset: profile 0/2 lanes measured; profile 3 (12-bit), 4:4:4, SVC unexercised (record §G); wasm32 not measured → web not_started."
 
 [[feature]]
 id = "codec-video-vp8"
@@ -588,9 +587,9 @@ priority = "P3"
 phase_target = 8
 vlc_modules = ["avcodec"]
 inventory_ref = "inventory/formats.json#video-census-tail"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Candidates named for the future record: oxideav-prores 0.1.1, veloster-prores, soundkit-dnx 0.13.3 (feasibility video-codecs §5); ProRes VT decode built into macOS."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "crates/codecs/src/video/dnx/** + filmcraft-dnx =0.9.0 (cards 6.M-dnx + 6.VTA-DNX-RATIFY; record docs/dependencies/records/filmcraft-dnx-0.9.0.md + its 2026-11-09 admission addendum, issue #7): dnx_differential 6/6 pass in the codecs suite (643 tests / 624 pass / 0 fail)"
+notes = "Working subset (issue #7 flip, W16-EE, 2026-11-09): DNxHD/DNxHR (VC-3) decode implemented via filmcraft-dnx under the Lead-ratified ±2-LSB tolerance; ProRes NOT implemented — no prores code under crates/codecs (repo grep, 2026-11-09) and no ProRes record exists; candidates oxideav-prores 0.1.1, veloster-prores, soundkit-dnx 0.13.3 (feasibility video-codecs §5) remain unmeasured. ProRes VT decode built into macOS. Honest DNxHD gaps per record §G: no Avid/camera-produced sample; DNxHR variants/12-bit/4:4:4/interlaced unexercised; MOV/MXF sample-entry plumbing is later-wave work."
 
 [[feature]]
 id = "codec-video-ffv1"
@@ -738,10 +737,9 @@ priority = "P0"
 phase_target = 5
 vlc_modules = ["opus"]
 inventory_ref = "inventory/formats.json#opus"
-status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
-evidence = ""
-blocked_reason = "No published pure-Rust decoder: symphonia-codec-opus does not exist on crates.io and upstream main holds a 1-byte placeholder lib.rs (feasibility audio-codecs §2.3); opus/audiopus crates = libopus C bindings, forbidden. Decision 5.K2-I: contribute-upstream vs self-build L–XL vs blocked+typed-error; web-only WebCodecs-analog option rides ADR-008."
-notes = "WebM/YouTube-class audio gap — the R-06 headline; Phase 5/6 self-build gate."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/codecs/src/audio/opus/** + ruopus =0.1.2 (card 6.M-opus; record docs/dependencies/records/ruopus-0.1.2.md + its 2026-11-09 admission addendum, issue #7): opus_corpus_differential 2/2 pass in the codecs suite (643 tests / 624 pass / 0 fail, lib + all 51 integration targets)"
+notes = "WebM/YouTube-class audio gap — the R-06 headline; Phase 5/6 self-build gate. 5.K2-I decision (contribute-upstream vs self-build vs blocked+typed-error) resolved by the ruopus admission (card 6.M-opus): pure-Rust decoder admitted under the exact pin default-features=false, features=[\"std\"] (zero-dep graph; the spectrograms/pyo3 default-feature trap is avoided by the pin). Issue #7 flip (W16-EE, 2026-11-09): implemented — OpusHead validation + pre-skip + granulepos end-trim in the wrapper; honest per-record gaps: s16-LSB-equivalence class (not f32-bit-exact, two float decoders), gain≠0 streams unmeasured, wasm32 not measured → web not_started."
 
 [[feature]]
 id = "codec-audio-ac3-eac3"

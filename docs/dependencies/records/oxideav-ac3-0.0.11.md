@@ -177,3 +177,41 @@ wasm32 not measured; single-author 0.0.x line (API churn risk);
 f32 output unavailable (s16-only, truncating pack — any consumer
 wanting float must accept the crate's quantisation); root cause of
 the divergent class not definitively isolated (see §D).
+
+---
+
+## Addendum (2026-11-09) — wave assessment: remains BLOCKED; conformance-gated unblock plan (issue #7, W16-EE)
+
+Assessed in the issue #7 admissions wave alongside the four admitted
+codecs. Outcome: **BLOCKED stands — no admission, no Cargo.toml edit,
+no `crates/codecs` wiring.** Nothing in this session changes §D: the
+record's own differential numbers (ffmpeg 7.1.5 reference) fail the
+house bar on 3 of 8 lanes, including the corpus lane —
+**202–431 LSB max deviation with 77.2–97.2 % of samples differing**
+(vs the ±1-LSB mp3/symphonia precedent and the ruopus ≤1.2e-05 float
+class); five lanes sit in a ±5-LSB tolerance class that no Lead
+policy row currently ratifies for AC-3.
+
+**Conformance-gated unblock plan [PROPOSAL — Lead] (admission stays
+Lead-gated per the wave rules):**
+
+1. **Root-cause gate (hard):** isolate the ≥200-LSB class on
+   low-bitrate coupled broadband lanes — dither-PRNG freedom
+   (A/52 §7.3.4) vs coupling-path (§7.4.3) recomposition rounding —
+   using the crate's own ffmpeg-differential suite as the starting
+   point (§Verdict condition 1). No re-evaluation before this lands.
+2. **Ratification gate:** if (and only if) root cause is
+   spec-permitted freedom, the Lead ratifies a dither-blind AC-3
+   admission metric (e.g. spectral-difference envelope) as a doc-11
+   §3.x policy row; a re-measured differential in this record's
+   format is the evidence artifact (§Verdict condition 2).
+3. **Pin gate on any future admission:** `oxideav-ac3 = "=0.0.11"` +
+   transitive `oxideav-core` (graph MSRV 1.95 ≤ our pin), re-verified
+   on every bump (§Verdict condition 3).
+4. **Cost note for planning:** supply chain is heavier than the
+   admitted-codec precedent (11 packages incl. a serde_json/syn chain
+   unused on the decode path, §R2) — worth weighing if gate 2 passes.
+
+Re-trigger rule: none — nothing was admitted; a new oxideav-ac3
+release re-opens the record per doc 11 §3.7 only if the Lead asks
+for a re-evaluation.

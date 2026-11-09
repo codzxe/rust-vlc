@@ -192,3 +192,36 @@ dependency line exactly `ruopus = { version = "0.1.2",
 default-features = false, features = ["std"] }` + the allowlist row
 (Lead-owned). Playback channel-order mapping belongs at the audio
 output seam, not the decoder.
+
+---
+
+## Addendum (2026-11-09) — admission status: ADMITTED IN-TREE (issue #7, W16-EE)
+
+The spike verdict above ("ADMITTED, two binding conditions") is now
+ratified by in-tree evidence; this addendum closes the spike-era gap
+in this record (issue #7, admissions-wave follow-up):
+
+- **Cargo.toml pin (Lead admission):** `ruopus = { version = "=0.1.2",
+  default-features = false, features = ["std"] }` —
+  `crates/codecs/Cargo.toml` (card 6.M-opus; the exact condition-1
+  shape from §Verdict above, zero-dependency under `cargo tree`).
+- **ADR-010:** the "Software decoders implemented" table carries the
+  Opus row — `crates/codecs/src/audio/opus/**` + `ruopus =0.1.2`
+  (card 6.M-opus; this record).
+- **Binding-condition closure:** the 6.M-opus wrapper implemented
+  OpusHead validation, pre-skip discard and granulepos end-trim
+  (condition 2); channel-order mapping sits at the audio-output seam
+  per the wiring plan above.
+- **In-tree differential evidence (this session, 2026-11-09, branch
+  w15/07-codec-admissions at main 62453fb):** `cargo test -p codecs`
+  → 643 test cases across the lib + all 51 integration targets:
+  **624 pass, 18 ignored (bench/throughput-class, each ignored test
+  names its `--release -- --ignored` re-run command), 0 fail.**
+  Opus-specific: `opus_corpus_differential` — **2/2 pass** (corpus
+  lanes through our ogg demuxer against the ffmpeg reference).
+- **Matrix:** the `codec-audio-opus` row in `docs/feature-matrix.toml`
+  is flipped `blocked → implemented` in this same commit (was stale
+  since the Phase-5 exit gate 5.R2-V, commit 3116aec — ADR-010
+  "matrix drift" note).
+- Per doc 11 §3.7: any version bump or feature change re-triggers
+  this record.

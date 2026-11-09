@@ -230,3 +230,30 @@ tarball download + sha256 recomputation, source scans of
 the R3 sabotage build, and 31 per-version OSV queries. No decode
 claim is made without our own ffmpeg-authored differential run
 behind it (the test files record their own commands).*
+
+---
+
+## Addendum (2026-11-09) — admission status: ADMITTED IN-TREE, current (issue #7, W16-EE)
+
+Admission addendum for completeness with the issue #7 wave (the other
+three 6.M-era records above got theirs in the same pass): the verdict
+above ("conditional PASS … Admitted by card 5.E1 under the Lead's C5
+pre-approval") is confirmed current by in-tree evidence —
+
+- **Cargo.toml pin:** `rav1d = { version = "=1.1.0",
+  default-features = false, features = ["bitdepth_8", "bitdepth_16"] }`
+  — `crates/codecs/Cargo.toml` (asm-off, the exact R3-sabotage-proven
+  shape; condition (a) of the verdict, the allowlist row carrying the
+  feature list, is what this pin encodes).
+- **ADR-010:** the "Software decoders implemented" table carries the
+  AV1 row — `crates/codecs/src/video/av1/**` + `rav1d =1.1.0` asm-off
+  (card 5.E1; this record) on our OBU framing.
+- **In-tree differential evidence (this session, 2026-11-09, branch
+  w15/07-codec-admissions at main 62453fb):** `cargo test -p codecs`
+  → 643 test cases across the lib + all 51 integration targets:
+  **624 pass, 18 ignored (bench/throughput-class), 0 fail.**
+  AV1-specific: `av1_differential` — **6/6 pass** (13.69 s);
+  `av1_conformance` — **1/1 pass** (80.36 s; the 5.E2 conformance
+  vector set).
+- Per doc 11 §3.7: a version bump, feature change, or upstream
+  re-tuning of `default` re-triggers this record.
