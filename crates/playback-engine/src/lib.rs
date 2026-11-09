@@ -84,10 +84,12 @@
 //! or a typed rejection. Inventions beyond the docs are
 //! `[PROPOSAL]`-tagged at their site.
 
+pub mod chapters;
 pub mod epoch;
 pub mod error;
 pub mod event;
 pub mod events;
+pub mod frame_step;
 pub mod pipeline;
 pub mod recovery;
 pub mod seek;
@@ -95,6 +97,9 @@ pub mod session;
 pub mod state;
 pub mod tracks;
 
+pub use chapters::{
+    CHAPTER_RESTART_THRESHOLD_NS, chapter_at, chapter_target, next_chapter, previous_chapter,
+};
 pub use epoch::{CancelToken, GenerationPair, PipelineGeneration, SessionEpoch, TokenMinter};
 pub use error::{NoDecodableKnown, SessionConfigError, SessionError, config_error};
 pub use event::{
@@ -105,6 +110,7 @@ pub use events::{
     BUFFERING_WINDOW_MS, DAMAGE_WINDOW_MS, DamageCoalescer, DrainStaleness, EventPolicy,
     ProgressWindow, StalenessStamp, TIME_TICK_DEFAULT_MS, TIME_TICK_FLOOR_MS, TimeTickPolicy,
 };
+pub use frame_step::{FALLBACK_FRAME_PERIOD_NS, FrameStepDirection, FrameStepPlan, plan_frame_step};
 pub use pipeline::{
     DEFAULT_STARVE_DEBOUNCE_TICKS, DecoderProvider, FrameConsumer, QUEUE_PACKETS_AUDIO_CEILING,
     QUEUE_PACKETS_FLOOR, QUEUE_PACKETS_VIDEO_CEILING, QueuePlan, QueuePlanError, QueuePlanKind,
