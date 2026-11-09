@@ -15,6 +15,7 @@ import { NetworkStreamScreen } from "./screens/network-stream/NetworkStreamScree
 import { ShortcutsScreen } from "./screens/shortcuts/ShortcutsScreen";
 import { NotFoundScreen } from "./screens/not-found/NotFoundScreen";
 import { TokenSandbox } from "./tokens/TokenSandbox";
+import { isDesktopShell } from "./client/app-transport";
 
 // Doc 08 §1.6 screen inventory, now fully real:
 //   * /player + /player/music + /miniplayer — the real player screen shell,
@@ -25,12 +26,12 @@ import { TokenSandbox } from "./tokens/TokenSandbox";
 //     workstream); ScreenPlaceholder is gone.
 
 /**
- * True for the browser dev shell: main.tsx injects DemoTransport there (a
- * simulated engine, badged "Demo" by the AppShell). Hardcoded here because
- * the transport choice is a main.tsx-level decision — the desktop host
- * renders the same tree with its real transport and no badge.
+ * True for the browser dev shell: the app-layer transport probe
+ * (client/app-transport.ts — the same one main.tsx uses) selected the
+ * DemoTransport simulation there, badged "Demo" by the AppShell. The
+ * desktop shell runs the real TauriTransport and renders no badge.
  */
-const DEMO_SHELL = true;
+const DEMO_SHELL = !isDesktopShell();
 
 /** Route path for a player variant (the URL is the variant's source of truth). */
 function playerVariantPath(variant: PlayerVariant): string {

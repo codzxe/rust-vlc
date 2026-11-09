@@ -2,13 +2,16 @@ import { useEffect, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { Button } from "../../components/button/Button";
 import { Dialog } from "../../components/surface/Surface";
+import { useClient } from "../../client/ClientProvider";
+import { createConfigSettingsPersistence, isDesktopShell } from "../../client/config-settings";
 import { useMsg } from "../../i18n/messages";
 import type { MessageKey } from "../../i18n/messages";
 import { SETTINGS_AREA_IDS } from "./areas";
 import { SETTINGS_AREA_TITLES } from "./areas";
 import { SETTINGS_SCREENS } from "./areas";
 import type { SettingsAreaId } from "./areas";
-import { SETTINGS_AREAS } from "./generated/schema";
+import { SETTINGS_AREAS, SETTINGS_ENTRIES } from "./generated/schema";
+import { localStorageSettingsPersistence } from "./persistence";
 import { SettingsProvider } from "./SettingsProvider";
 import { useSettings } from "./SettingsProvider";
 import { useSettingsThemeSync } from "../../theme/settingsThemeSync";
@@ -196,8 +199,49 @@ interface SettingsSearchContextValueLike {
 
 /** Route element: /settings/:area */
 export function SettingsScreen() {
+  // App-layer wiring (issue #3 — the 4.H1 handoff d): in the desktop
+  // shell, Apply round-trips the REAL engine config over the client
+  // bridge (config.set-setting / config.reset-setting; hydration via
+  // config.get-setting) and `config.setting-changed` events keep the
+  // store live. The browser dev shell keeps the localStorage seam —
+  // the demo transport honestly answers feature-not-exposed for
+  // config.*.
+  const m = useMsg();
+  const client = useClient();
+  const [config] = useState(() =>
+    isDesktopShell()
+      ? createConfigSettingsPersistence(client, SETTINGS_ENTRIES)
+      : null,
+  );
+  const [hydrated, setHydrated] = useState(config === null);
+  useEffect(() => {
+    if (config === null) return;
+    let cancelled = false;
+    void config.hydrate().finally(() => {
+      if (!cancelled) setHydrated(true);
+    });
+    return () => {
+      cancelled = true;
+      config.dispose();
+    };
+  }, [config]);
+
+  if (config !== null && !hydrated) {
+    // Hydration gate: never render schema defaults over engine values
+    // that have not been read yet (one honest loading pass).
+    return (
+      <main className="settings-screen" data-screen="settings">
+        <p className="settings-screen__empty" data-testid="settings-hydrating">
+          {m("settings.loading")}
+        </p>
+      </main>
+    );
+  }
   return (
-    <SettingsProvider>
+    <SettingsProvider
+      persistence={config ?? localStorageSettingsPersistence}
+      subscribe={(listener) => client.subscribe(listener)}
+    >
       <SettingsShell />
     </SettingsProvider>
   );

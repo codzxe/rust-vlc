@@ -28,6 +28,7 @@ import { Icon } from "../../components/icon/Icon";
 import { TextField } from "../../components/form/TextField";
 import { Dialog } from "../../components/surface/Surface";
 import { useClient } from "../../client/ClientProvider";
+import { openPathRequest, openPathRoute } from "../../client/open-path";
 import { DEMO_CLIPS, isDemoTransport } from "../../client/demo-transport";
 import type { SourceSpec } from "../../client/transport";
 import { useMsg } from "../../i18n/messages";
@@ -84,11 +85,15 @@ export function OpenMediaDialog({
   // so keyboard users can focus an item and confirm with the Open button;
   // pointer users never need to know it exists. Enter/Space on a focused
   // list item button opens it (native button semantics).
+  //
+  // Issue #3 (4.H1 handoff b/d): every open goes through the ONE funnel
+  // (client/open-path.ts) — media files `session.open`, playlist files
+  // `playlist.load` (parse is engine-side); routing follows the kind.
   const openSource = (source: SourceSpec): void => {
     setOpening(true);
     nextRequestId.current += 1;
     void client
-      .send({ cmd: "session.open", requestId: nextRequestId.current, args: { source } })
+      .send(openPathRequest(source, nextRequestId.current))
       .catch(() => {
         // Transport unreachable — the player screens surface their own
         // honest typed errors; the dialog still closes and routes.
@@ -99,7 +104,7 @@ export function OpenMediaDialog({
         setPathValue("");
         setPathInvalid(false);
         onClose();
-        navigate("/player");
+        navigate(openPathRoute(source));
       });
   };
 

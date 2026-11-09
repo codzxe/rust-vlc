@@ -54,6 +54,8 @@
 //! (and the future same-`tokio::mpsc` ordering rule lands at that
 //! wrapper, not here, so this half stays webview-free).
 
+use std::collections::VecDeque;
+use std::num::NonZeroUsize;
 use std::path::Path;
 
 use commands::envelope::RequestId;
@@ -115,6 +117,91 @@ pub trait EventSink {
     fn forward(&mut self, event: &WireEvent);
 }
 
+/// Observable accounting for [`BoundedEventSink`] (the mailbox
+/// pattern's conservation discipline, applied to engine events).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct EventQueueStats {
+    /// Kept events that entered the queue (post §4.2 filter).
+    pub offered: u64,
+    /// Events handed to the webview emitter ([`BoundedEventSink::take`]).
+    pub taken: u64,
+    /// Events dropped because the queue was full (drop-oldest,
+    /// counted — order of the survivors is never violated).
+    pub dropped_overflow: u64,
+    /// Events refused by the §4.2 staleness filter (never queued).
+    pub dropped_stale: u64,
+}
+
+impl EventQueueStats {
+    /// Conservation identity: every offered event is taken or
+    /// overflow-dropped, exactly once (stale refusals never offer).
+    #[must_use = "pure arithmetic"]
+    pub fn conserves(&self) -> bool {
+        self.offered == self.taken + self.dropped_overflow
+    }
+}
+
+/// The bounded engine-event queue between the drain and the webview
+/// emitter (issue #3 — the mailbox pattern applied to the command
+/// layer's event half): the wrapper cannot always `emit` the instant
+/// [`ShellHost::forward_new_events`] drains, so up to `capacity`
+/// events wait here. Bounded by construction; when full the OLDEST
+/// event is dropped and counted (never a block, never a reorder);
+/// [`EventQueueStats`] keeps the drops honest arithmetic.
+#[derive(Debug)]
+pub struct BoundedEventSink {
+    capacity: usize,
+    queue: VecDeque<WireEvent>,
+    stats: EventQueueStats,
+}
+
+impl BoundedEventSink {
+    /// Build a bounded sink (capacity ≥ 1 by type).
+    #[must_use = "pure constructor"]
+    pub fn with_capacity(capacity: NonZeroUsize) -> BoundedEventSink {
+        BoundedEventSink {
+            capacity: capacity.get(),
+            queue: VecDeque::with_capacity(capacity.get()),
+            stats: EventQueueStats::default(),
+        }
+    }
+
+    /// Take every queued event, in order (the emitter half: each one
+    /// becomes one `lumen://event` emit).
+    pub fn take(&mut self) -> Vec<WireEvent> {
+        let drained = self.queue.len() as u64;
+        self.stats.taken += drained;
+        self.queue.drain(..).collect()
+    }
+
+    /// The observable accounting (the compatibility matrix's cells).
+    #[must_use = "observable evidence"]
+    pub fn stats(&self) -> &EventQueueStats {
+        &self.stats
+    }
+
+    /// Record one §4.2 stale refusal (the filter runs before the
+    /// queue; the count lives here so one stats object tells the
+    /// whole egress story).
+    pub fn note_stale(&mut self) {
+        self.stats.dropped_stale += 1;
+    }
+
+    fn offer(&mut self, event: &WireEvent) {
+        if self.queue.len() == self.capacity && self.queue.pop_front().is_some() {
+            self.stats.dropped_overflow += 1;
+        }
+        self.queue.push_back(event.clone());
+        self.stats.offered += 1;
+    }
+}
+
+impl EventSink for BoundedEventSink {
+    fn forward(&mut self, event: &WireEvent) {
+        self.offer(event);
+    }
+}
+
 /// **The** dispatch entry (doc 05 §5.1's desktop shape; the webview
 /// wrapper is a thin lock-and-delegate — see the module docs).
 ///
@@ -141,6 +228,36 @@ pub fn open_file_request(request_id: RequestId, path: &Path) -> WireRequest {
         request_id,
         command,
     }
+}
+
+/// Build the `playlist.load` request for one playlist file (4.D1's
+/// handoff: parse lives engine-side in crates/playlists; the shell
+/// only translates the path into the command — `append: false`, an
+/// open replaces the queue).
+#[must_use = "builds the wire request; the caller dispatches it"]
+pub fn playlist_load_request(request_id: RequestId, path: &Path) -> WireRequest {
+    WireRequest {
+        request_id,
+        command: Command::PlaylistLoad {
+            path: path.to_path_buf(),
+            append: false,
+        },
+    }
+}
+
+/// The path-kind rule both acquisition sides share (files.rs's
+/// classifier is the twin): a media file opens a session, a playlist
+/// file loads the list, anything else is not openable at all (the
+/// honest `None` — a dropped README is a no-op, not an error).
+#[must_use = "pure classifier"]
+pub fn open_path_request(request_id: RequestId, path: &Path) -> Option<WireRequest> {
+    if crate::files::is_playlist_path(path) {
+        return Some(playlist_load_request(request_id, path));
+    }
+    if crate::files::is_media_path(path) {
+        return Some(open_file_request(request_id, path));
+    }
+    None
 }
 
 #[cfg(test)]
@@ -253,5 +370,30 @@ mod tests {
             },
             other => unreachable!("file open must open a session: {other:?}"),
         }
+    }
+
+    /// The path-kind funnel (issue #3 — 4.D1's handoff): media →
+    /// `session.open`, playlist → `playlist.load` (append: false),
+    /// neither → the honest `None`. One rule, both acquisition sides.
+    #[test]
+    fn open_path_request_classifies_by_kind() {
+        match open_path_request(RequestId(7), &PathBuf::from("/tmp/movie.mkv")) {
+            Some(request) => match request.command {
+                Command::SessionOpen { .. } => assert_eq!(request.request_id, RequestId(7)),
+                other => unreachable!("media opens a session: {other:?}"),
+            },
+            None => unreachable!("a media file is openable"),
+        }
+        match open_path_request(RequestId(8), &PathBuf::from("/tmp/queue.m3u")) {
+            Some(request) => match request.command {
+                Command::PlaylistLoad { path, append } => {
+                    assert_eq!(path, PathBuf::from("/tmp/queue.m3u"));
+                    assert!(!append, "an open replaces the queue");
+                }
+                other => unreachable!("a playlist file loads the list: {other:?}"),
+            },
+            None => unreachable!("a playlist file is openable"),
+        }
+        assert!(open_path_request(RequestId(9), &PathBuf::from("/tmp/notes.txt")).is_none());
     }
 }
