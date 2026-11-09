@@ -69,6 +69,23 @@ the OS-ABI surface, not forbidden third-party engines. Proposal: a
 recorded once with an audit, rather than per-use ADRs. Lead decision
 requested (§10 Q4).
 
+**Proposed-admission register — rustls TLS crypto provider `[PROPOSAL —
+pending Lead admission, ADR-011]`:** the streaming transport's crypto core
+(ureq 3.5.0 + rustls; record `deps/records/ureq-3.5.0.md` R10 — *admitted
+conditionally on the Lead accepting the recorded ring deviation*). Fresh
+audit 2026-11-09, real cargo data (ADR-011 §"The audit"): `rustls =
+"0.23"` resolves **rustls 0.23.46, 35 packages locked, 19-crate build
+graph**; the **default provider is aws-lc-rs 1.19.0** → aws-lc-sys 0.47.0
+(a C/C++ build chain: cc 1.11.1, cmake 0.1.58, pkg-config 0.3.34,
+fs_extra, dunce), while the alternate — **activated in our tree via ureq's
+`rustls` feature — is ring 0.17.14**: 135 C/asm files, cc-only build, 230
+unsafe tokens, all inside the crypto core (record R1/R8). No production
+pure-Rust provider exists; native-tls is platform linkage (E-ineligible
+and card-banned). Proposal: register ring as the **E2-class
+audited-native-crypto-core exception** (the rav1d-asm posture, §2.4); the
+Lead decides in ADR-011 — acceptance deletes the seam, rejection flips
+`HTTPS_ADR011_ADMITTED` to the typed refusal.
+
 ### 1.3 The intake procedure (what an agent does)
 
 1. Check the crate against F1–F7 using the §4.1 method *before* proposing it.
@@ -469,7 +486,7 @@ merged]`.
 | SEC-04 | **Safe integer conversions** — `[PROPOSAL: try_from discipline]`: `u32::try_from`, checked arithmetic in all parser/codec crates; no numeric `as` casts in `demux/ codecs/ media-probe/ subtitles/ playlists/` (clippy `cast_possible_truncation` denied there, audited by grep elsewhere) | lint G5 + review checklist; property tests on time-base math (doc 03 §7) |
 | SEC-05 | **Deadlines + cancellation on all I/O**: every source/track/hw call carries a deadline; seek/stop/track-switch cancel stale work via generation IDs (MP §8, §12; doc 05 §4.2) | interrupted-network suite, stale-generation races (doc 10 G11) |
 | SEC-06 | **Safe path handling**: no traversal from playlists/subtitles — canonicalize + sandbox-prefix check; relative refs resolve only within the playlist's directory tree (or a user-granted root); UNC/file-URL/network paths require explicit opt-in `[PROPOSAL]`; subtitle sidecar lookup restricted to the media file's directory | `sec_path_traversal` vector suite (§9.1) |
-| SEC-07 | **TLS verification always on** for `https` sources: no disable option in product config. Dev-only override via `LUMEN_DEV_INSECURE_TLS=1`, refused in release builds (`debug_assertions`-gated compile-out) `[PROPOSAL]`; rustls + webpki roots `[VERIFY: crate choice Phase 0]` | `sec_tls_*`: expired/self-signed/wrong-host rejected in release; env override no-ops in release |
+| SEC-07 | **TLS verification always on** for `https` sources: no disable option in product config. Dev-only override via `LUMEN_DEV_INSECURE_TLS=1`, refused in release builds (`debug_assertions`-gated compile-out) `[PROPOSAL]`; rustls + webpki roots — crate choice landed in-tree: ureq 3.5.0 + rustls, ring 0.17.14 provider, **conditionally admitted** (record `deps/records/ureq-3.5.0.md` R10; verification never off — `crates/streaming/src/client.rs::tls_config`); **ADR-011 refreshed 2026-11-09** with the fresh provider audit, RECOMMENDED pending Lead admission, and the typed seam `streaming.scheme.https-not-admitted` at scheme dispatch (`crates/streaming/src/schemes.rs`) | `sec_tls_*`: expired/self-signed/wrong-host rejected in release; env override no-ops in release |
 | SEC-08 | **Explicit redirect + credential policy**: max 10 redirects (no loops); `Authorization`/`Cookie`/basic-auth **never re-sent cross-origin** (scheme+host+port equality); credentials in URLs never logged (→ SEC-09) | `sec_redirect_creds`: MITM-style fixture redirects assert header dropped |
 | SEC-09 | **Secret redaction at the source trait**: credentials live in a `SecretString`/redacting URL type whose `Display`/`Debug` redact; log macro layer double-checks; tokens (control server) never logged (doc 05 §5.4) | `sec_redaction`: seeded URLs with userinfo → grep log sink, zero leaks |
 | SEC-10 | **No default telemetry / no unexplained egress**: engine network activity = user-initiated media fetches only; update checks off by default (MP §5) | `sec_no_egress`: sandboxed run, assert zero connections beyond the test server |
