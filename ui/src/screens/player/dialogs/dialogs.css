@@ -1,0 +1,123 @@
+/* Player dialogs (issue #32): Go-to-Time + Bookmarks surfaces, composed on
+ * the shared lumen-dialog chrome from components/surface (not owned here).
+ * Mirrors the open-media dialog's Solstice treatment (screens/open-media/
+ * open-media.css — the pattern this copies): the scrim gets the warm veil
+ * via :has() and centers the card at the OPTICAL center; the card is the
+ * warm glass panel. Semantic tokens only (raw px appears solely for
+ * structural dimensions with no token: card width). */
+
+/* The scrim hosting a player dialog only (see open-media.css for the
+ * MODAL LAYER note: 20 sits above the player stage's z-indexed chrome and
+ * the menubar popup layer at 10). */
+.lumen-scrim:has(> .player-dialog__surface) {
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  /* Optical center (v2 §4.4: 45%). */
+  padding-bottom: 10vh;
+  /* stylelint-disable function-disallowed-list -- art-direction: the veil's warm ink is a hand-tuned three-stop radial (mirrors open-media.css); a semantic veil-ink token is [PROPOSAL] in stylelint.config.js */
+  background: radial-gradient(
+    ellipse at 50% 38%,
+    rgb(20 14 8 / 18%) 0%,
+    rgb(16 11 6 / 44%) 62%,
+    rgb(10 7 4 / 62%) 100%
+  );
+  /* stylelint-enable function-disallowed-list */
+  backdrop-filter: blur(2px);
+}
+
+.player-dialog__surface {
+  max-width: min(92vw, 480px);
+  padding: calc(var(--space-inset) * 2.5);
+  background: color-mix(in srgb, var(--color-surface-panel) 94%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-tape) 30%, transparent);
+  border-radius: var(--radius-window);
+  box-shadow: var(--shadow-overlay);
+}
+
+.player-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-inset) * 1.5);
+  min-width: 360px;
+  font-family: var(--font-family-sans);
+  color: var(--color-content-primary);
+}
+
+.player-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-inset);
+}
+
+.player-dialog__title {
+  margin: 0;
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-extrabold);
+}
+
+.player-dialog__close {
+  flex: none;
+}
+
+.player-dialog__subtitle {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-content-secondary);
+}
+
+.player-dialog__form .lumen-field__control {
+  font-family: var(--font-family-time);
+}
+
+/* Engine-reported context line — the honest position/duration pair. */
+.player-dialog__hint {
+  margin: 0;
+  font-family: var(--font-family-time);
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+}
+
+.player-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-inset);
+}
+
+/* Bookmarks list (issue #32): compact two-column rows — time (mono) +
+ * label, with jump as the row's primary action and delete per row. */
+.player-dialog__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.player-dialog__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-inset);
+  padding: var(--space-grid);
+  background: color-mix(in srgb, var(--color-surface-sunken, var(--color-surface-panel)) 70%, transparent);
+  border-radius: var(--radius-window);
+}
+
+.player-dialog__row-time {
+  flex: none;
+  font-family: var(--font-family-time);
+}
+
+.player-dialog__row-label {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.player-dialog__empty {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-content-secondary);
+}

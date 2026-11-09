@@ -245,3 +245,49 @@ describe("PlayerScreen — keymap-driven fullscreen + ESC (doc 05 §8.1 data)", 
     expect(root).toHaveAttribute("data-chrome", "visible");
   });
 });
+
+describe("PlayerScreen — Go-to-Time dialog wiring (issue #32, keymaps/default.toml jump-to-time)", () => {
+  const pressCtrlT = (): void => {
+    act(() => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "t", ctrlKey: true }),
+      );
+    });
+  };
+
+  it("Ctrl+T with media opens the Go-to-Time dialog (prefilled position)", () => {
+    renderWithClient(<PlayerScreen media={{ hasVideo: false, hasChapters: false }} />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    pressCtrlT();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Go to time" })).toBeInTheDocument();
+    // Prefill is the engine-reported position (0 → "0:00", VLC parity).
+    expect(screen.getByLabelText("Time")).toHaveValue("0:00");
+  });
+
+  it("the when = \"has-media\" gate is honest: an idle session ignores Ctrl+T", () => {
+    renderWithClient(<PlayerScreen />);
+    pressCtrlT();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("Ctrl+Shift+T is NOT the combo — no dialog (exact-modifier matching)", () => {
+    renderWithClient(<PlayerScreen media={{ hasVideo: false, hasChapters: false }} />);
+    act(() => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "t", ctrlKey: true, shiftKey: true }),
+      );
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("Escape in the open dialog closes it (the Dialog focus trap owns the key)", () => {
+    renderWithClient(<PlayerScreen media={{ hasVideo: false, hasChapters: false }} />);
+    pressCtrlT();
+    const dialog = screen.getByRole("dialog");
+    act(() => {
+      fireEvent.keyDown(dialog, { key: "Escape" });
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});

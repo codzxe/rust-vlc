@@ -26,9 +26,12 @@ import { PlayerKeyHintStrip } from "./KeyHintStrip";
 import { PlayerControlsProvider, usePlayerControls } from "./context";
 import { ControlBar, controlCommandOf } from "./controls";
 import { CustomizePanels } from "./customize";
+import { GotoTimeDialog } from "./dialogs/GotoTimeDialog";
 import { usePlayerEngineView } from "./states/context-bridge";
 import {
+  DIALOG_KEYMAP,
   matchBindings,
+  matchModifierBindings,
   shellActionFor,
   type KeyBinding,
 } from "./keymap";
@@ -143,6 +146,11 @@ function PlayerScreenInner({
   const fullscreen = useFullscreen(rootRef);
   const { isFullscreen, toggle: toggleFullscreen, exit: exitFullscreen } = fullscreen;
 
+  // Issue #32 — player dialogs (Go-to-Time; Bookmarks next). Each dialog is
+  // mounted per-open so its form state starts fresh (the goto input prefills
+  // with the position at open time).
+  const [gotoOpen, setGotoOpen] = useState(false);
+
   // Solstice app-shell derivation (2026-11-08): hosts MAY inject explicit
   // `media` / `engineState` props, but the default composition (browser
   // shell, /player route) owns no such objects — the screen then derives
@@ -196,6 +204,16 @@ function PlayerScreenInner({
   // to the 4.C2 seam. Native ESC exit is handled by the browser.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      // Dialog-opening modifier combos (issue #32): the DIALOG_KEYMAP seed
+      // (verbatim keymaps/default.toml rows). `when` clauses are evaluated
+      // here against the screen's honest media truth — jump-to-time is
+      // has-media-gated, so an idle session ignores the combo entirely.
+      for (const binding of matchModifierBindings(DIALOG_KEYMAP, event)) {
+        if (binding.uiAction === "goto-time" && hasMedia) {
+          event.preventDefault();
+          setGotoOpen(true);
+        }
+      }
       for (const binding of matchBindings(PLAYER_SHELL_KEYMAP, event)) {
         const action = shellActionFor(binding);
         switch (action.kind) {
@@ -237,7 +255,7 @@ function PlayerScreenInner({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [toggleFullscreen, exitFullscreen, chrome, onBinding, actions, setVariant, variant]);
+  }, [toggleFullscreen, exitFullscreen, chrome, onBinding, actions, setVariant, variant, hasMedia]);
 
   const conditionCtx: LayoutConditionContext = {
     hasMedia,
@@ -292,6 +310,9 @@ function PlayerScreenInner({
             }}
           />
         )}
+        {gotoOpen ? (
+          <GotoTimeDialog open onClose={() => setGotoOpen(false)} />
+        ) : null}
       </div>
     );
   }
@@ -385,6 +406,10 @@ function PlayerScreenInner({
       {rightRegions.map((region) => (
         <PanelRegion key={region.id} region={region} side="right" emphasized={variant === "music"} />
       ))}
+
+      {gotoOpen ? (
+        <GotoTimeDialog open onClose={() => setGotoOpen(false)} />
+      ) : null}
     </div>
   );
 }
