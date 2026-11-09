@@ -28,5 +28,15 @@
     "text": "404",
     "reason": "Solstice v2 404 stage (brief §4.8) — the route-status page number scribbled large on the lost note; decorative aria-hidden numeral (the h1 carries the accessible title), not translatable copy",
     "owner": "A"
+  },
+  {
+    "text": "/",
+    "reason": "Position/duration separator in the Go-to-Time engine-truth hint (wave-8, doc 08 §5) — punctuation between two preformatted times (formatSeekTime output), data not copy",
+    "owner": "W18-LL"
+  },
+  {
+    "text": "%",
+    "reason": "Percent unit suffix on the numeric master-volume badge in Effects & Tools (wave-8, issue #33) — the number is engine data (audio.get-volume), the glyph is a unit not copy",
+    "owner": "W18-LL"
   }
 ]
