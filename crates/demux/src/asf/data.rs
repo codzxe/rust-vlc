@@ -127,6 +127,7 @@ fn u32le(bytes: &[u8], at: usize) -> u32 {
 /// close, `payload.bad-replication` for the unexercised compressed
 /// form.
 pub fn parse_packet(bytes: &[u8]) -> Result<ParsedPacket, EngineError> {
+    eprintln!("TRACE parse_packet enter len={}", bytes.len());
     // Error-correction field: 1 flags byte + (flags & 0x0F) bytes.
     let mut pos = 0_usize;
     let Some(&ec) = bytes.first() else {
@@ -169,6 +170,7 @@ pub fn parse_packet(bytes: &[u8]) -> Result<ParsedPacket, EngineError> {
         _ => return Err(error::packet_bad_flags(pos as u64)),
     };
 
+    eprintln!("TRACE f1={f1:02x} f2={f2:02x} pos={pos} padding={padding}");
     let repl_width = type_width(f2 & 0x03).ok_or_else(|| error::packet_bad_flags(pos as u64))?;
     let offset_code = (f2 >> 2) & 0x03;
     let offset_width = if offset_code == 0 {
@@ -203,11 +205,12 @@ pub fn parse_packet(bytes: &[u8]) -> Result<ParsedPacket, EngineError> {
     }
     let payload_count = count_byte & 0x3F;
 
+    eprintln!("TRACE hdr end pos={pos} send={send_time_ms} dur={duration_ms} count={payload_count}");
     let mut payloads = Vec::with_capacity(payload_count as usize);
     for _ in 0..payload_count {
         // Stream number + keyframe bit.
         let Some(&stream_byte) = bytes.get(pos) else {
-            return Err(error::packet_bad_length(pos as u64));
+            return Err({ let e = error::packet_bad_length(pos as u64); eprintln!("TRACE bad-length pos={pos}"); e });
         };
         pos += 1;
         let stream = u16::from(stream_byte & 0x7F);
@@ -215,22 +218,22 @@ pub fn parse_packet(bytes: &[u8]) -> Result<ParsedPacket, EngineError> {
 
         // Media object number.
         let Some(mo) = read_field(bytes, &mut pos, mo_width) else {
-            return Err(error::packet_bad_length(pos as u64));
+            return Err({ let e = error::packet_bad_length(pos as u64); eprintln!("TRACE bad-length pos={pos}"); e });
         };
         // Offset into media object.
         let Some(offset) = read_field(bytes, &mut pos, offset_width) else {
-            return Err(error::packet_bad_length(pos as u64));
+            return Err({ let e = error::packet_bad_length(pos as u64); eprintln!("TRACE bad-length pos={pos}"); e });
         };
         // Replicated-data length.
         let Some(repl_len) = read_field(bytes, &mut pos, repl_width) else {
-            return Err(error::packet_bad_length(pos as u64));
+            return Err({ let e = error::packet_bad_length(pos as u64); eprintln!("TRACE bad-length pos={pos}"); e });
         };
         // Replicated data: 8 bytes = (object size, presentation time).
         let mut replicated = None;
         let repl_len = repl_len as usize;
         if repl_len == 8 {
             if bytes.len() < pos + 8 {
-                return Err(error::packet_bad_length(pos as u64));
+                return Err({ let e = error::packet_bad_length(pos as u64); eprintln!("TRACE bad-length pos={pos}"); e });
             }
             replicated = Some((u32le(bytes, pos), u32le(bytes, pos + 4)));
             pos += 8;
@@ -242,26 +245,27 @@ pub fn parse_packet(bytes: &[u8]) -> Result<ParsedPacket, EngineError> {
             // Non-8 replication blocks are legal containers for
             // stream-extension data we do not interpret; skip them.
             if bytes.len() < pos + repl_len {
-                return Err(error::packet_bad_length(pos as u64));
+                return Err({ let e = error::packet_bad_length(pos as u64); eprintln!("TRACE bad-length pos={pos}"); e });
             }
             pos += repl_len;
         }
 
         // Payload length (absent for the final payload only when the
         // property flags say so; ffmpeg always writes the word).
+        eprintln!("TRACE payload parsed stream={stream} mo={mo} offset={offset} repl_len_r={repl_len} pos={pos}");
         let length = if plen_width == 0 {
             let rest = bytes.len().saturating_sub(pos + padding as usize);
             u32::try_from(rest).unwrap_or(u32::MAX)
         } else {
             let Some(len) = read_field(bytes, &mut pos, plen_width) else {
-                return Err(error::packet_bad_length(pos as u64));
+                return Err({ let e = error::packet_bad_length(pos as u64); eprintln!("TRACE bad-length pos={pos}"); e });
             };
             len
         };
         let start = pos;
         let end = pos.checked_add(length as usize).ok_or_else(|| error::packet_bad_length(pos as u64))?;
         if end > bytes.len().saturating_sub(padding as usize) {
-            return Err(error::packet_bad_length(pos as u64));
+            return Err({ let e = error::packet_bad_length(pos as u64); eprintln!("TRACE bad-length pos={pos}"); e });
         }
         pos = end;
         payloads.push(ParsedPayload {
@@ -277,7 +281,7 @@ pub fn parse_packet(bytes: &[u8]) -> Result<ParsedPacket, EngineError> {
 
     // The packet must close exactly: payloads + padding = slice.
     if pos + padding as usize != bytes.len() {
-        return Err(error::packet_bad_length(pos as u64));
+        return Err({ let e = error::packet_bad_length(pos as u64); eprintln!("TRACE bad-length pos={pos}"); e });
     }
 
     Ok(ParsedPacket {
