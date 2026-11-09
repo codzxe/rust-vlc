@@ -204,7 +204,7 @@ mod tests {
         assert!(styled.underline);
         // The G-2 extension fields default to inherit, and the
         // builders chain onto the original constructor.
-        assert_eq!(styled.strikeout, false);
+        assert!(!styled.strikeout);
         assert_eq!(styled.font_size_milli, None);
         assert_eq!(styled.font_name, None);
         let g2 = styled

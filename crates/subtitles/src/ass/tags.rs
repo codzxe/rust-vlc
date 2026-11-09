@@ -188,7 +188,7 @@ fn apply_block(block: &str, state: &mut WorkState, stats: &mut AssStats, pos: &m
 /// The argument span after a tag name: parenthesized tags read to
 /// the first `)` (commas live inside); everything else reads to the
 /// next `\\` or block end — NEVER past a following tag.
-fn read_arg<'a>(block: &'a str, at: usize) -> (&'a str, usize) {
+fn read_arg(block: &str, at: usize) -> (&str, usize) {
     let bytes = block.as_bytes();
     if bytes.get(at) == Some(&b'(') {
         match block[at + 1..].find(')') {
@@ -356,7 +356,9 @@ fn parse_tag_colour(arg: &str) -> Option<(Color, bool)> {
         None => {
             // Decimal form: alpha explicit when it does not fit 24
             // bits (the RGB-only domain).
-            trimmed.parse::<i64>().ok().map_or(true, |v| !(0..=0xFF_FFFF).contains(&v))
+            trimmed
+                .parse::<i64>()
+                .is_none_or(|v| !(0..=0xFF_FFFF).contains(&v))
         }
     };
     Some((color, alpha_explicit))
@@ -617,13 +619,13 @@ mod tests {
         );
         // 6-digit \c keeps a previously set alpha.
         let (cue, _, _) = run("{\\alpha&H80&}{\\c&H0000FF&}red", seed.clone());
-        let CueText::Styled(s) = cue else { panic!() };
+        let CueText::Styled(s) = cue else { panic!("styled") };
         // &H80 = 128 inverted → straight 127.
         assert_eq!(s[0].style.color, Some(Color::new(255, 0, 0, 127)));
         // An 8-digit \c carries its own (inverted) alpha: &H80 alpha
         // byte → straight 127.
         let (cue, _, _) = run("{\\c&H800000FF&}red", seed);
-        let CueText::Styled(s) = cue else { panic!() };
+        let CueText::Styled(s) = cue else { panic!("styled") };
         assert_eq!(s[0].style.color, Some(Color::new(255, 0, 0, 127)));
         // Malformed colour: dropped + ignored.
         let (_, _, stats) = run("{\\c&Hzz&}x", TextStyle::PLAIN);
