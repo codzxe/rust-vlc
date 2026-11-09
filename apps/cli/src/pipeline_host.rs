@@ -718,6 +718,18 @@ impl VideoLimb {
         self.scheduler.stats()
     }
 
+    /// The last presented frame's slot, in nanoseconds — the
+    /// deterministic position latch for an audio-less session
+    /// (F3, issue #16). `None` when the scheduler has not presented
+    /// under the **live** generation yet (nothing ever presented, or
+    /// a seek just landed and the pre-seek latch is stale — the
+    /// anchor is the truth until the next frame presents).
+    #[must_use]
+    pub fn last_presented_ns(&self) -> Option<i64> {
+        let request = self.scheduler.last_presented()?;
+        (request.generation == self.scheduler.current_generation()).then_some(request.when.ticks)
+    }
+
     /// The renderer's staging measurements (frames, bytes, copies).
     #[must_use]
     pub fn staging_stats(&self) -> renderer_wgpu::staging::StagingStats {
@@ -1024,6 +1036,17 @@ impl CliFrameConsumer {
     #[must_use]
     pub fn take_video_error(&self) -> Option<EngineError> {
         self.lock().video_error.take()
+    }
+
+    /// The presentation latch (F3, issue #16): the last frame the
+    /// video scheduler presented under the live generation, in
+    /// nanoseconds — `None` while nothing has presented. The
+    /// deterministic position truth for audio-less sessions (their
+    /// clock is the system monotonic; `now()` there is wall-elapsed,
+    /// never a media fact).
+    #[must_use]
+    pub fn last_presented_ns(&self) -> Option<i64> {
+        self.lock().video.as_ref().and_then(VideoLimb::last_presented_ns)
     }
 }
 
