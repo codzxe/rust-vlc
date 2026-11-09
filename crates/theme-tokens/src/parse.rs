@@ -22,7 +22,7 @@ use serde_json::Value;
 
 use crate::TokenError;
 use crate::color::{self, AccentRamp, Rgb8, Shadow};
-use crate::model::{LayerToken, ModeValues, ResolvedValue, SemanticToken, TokenSet};
+use crate::model::{DimensionUnit, LayerToken, ModeValues, ResolvedValue, SemanticToken, TokenSet};
 
 /// A token as found in the file, before reference resolution.
 struct RawToken {
@@ -113,10 +113,20 @@ fn walk_group(
                 })?;
             let raw = classify_value(value, &child_path, &meta.modes)?;
             out.push(RawToken {
-                path: child_path,
+                path: child_path.clone(),
                 token_type,
                 raw,
             });
+            // Lumen extension: a node may carry BOTH a `$value` and nested
+            // token children (e.g. `primitive.shadow.card` keeps the legacy
+            // value while `…card.solstice` refines it) — the node is a token
+            // AND a group, so descend as well.
+            if child
+                .as_object()
+                .is_some_and(|o| o.keys().any(|k| !k.starts_with('$')))
+            {
+                walk_group(child, &child_path, own_type.as_deref(), meta, out)?;
+            }
         } else {
             walk_group(child, &child_path, own_type.as_deref(), meta, out)?;
         }
@@ -373,7 +383,8 @@ fn parse_typed_value(v: &Value, token_type: &str, path: &str) -> Result<Resolved
             let s = v
                 .as_str()
                 .ok_or_else(|| err("dimension value must be a string".into()))?;
-            Ok(ResolvedValue::Dimension(parse_px(s).map_err(err)?))
+            let (value, unit) = parse_dimension(s).map_err(err)?;
+            Ok(ResolvedValue::Dimension { value, unit })
         }
         "number" | "fontWeight" => {
             let n = v
@@ -401,6 +412,29 @@ fn parse_typed_value(v: &Value, token_type: &str, path: &str) -> Result<Resolved
     }
 }
 
+/// A dimension value: px lengths or ms motion durations (doc 08 §3.1).
+fn parse_dimension(s: &str) -> Result<(f64, DimensionUnit), String> {
+    let (num, unit) = if let Some(num) = s.strip_suffix("px") {
+        (num, DimensionUnit::Px)
+    } else if let Some(num) = s.strip_suffix("ms") {
+        (num, DimensionUnit::Ms)
+    } else {
+        return Err(format!("dimension must end in `px` or `ms`, got `{s}`"));
+    };
+    num.parse::<f64>()
+        .map_err(|e| format!("bad dimension `{s}`: {e}"))
+        .and_then(|v| {
+            if v.is_finite() && v >= 0.0 {
+                Ok((v, unit))
+            } else {
+                Err(format!(
+                    "dimension must be finite and non-negative, got `{s}`"
+                ))
+            }
+        })
+}
+
+/// A px length (shadow geometry fields).
 fn parse_px(s: &str) -> Result<f64, String> {
     let Some(num) = s.strip_suffix("px") else {
         return Err(format!("dimension must end in `px`, got `{s}`"));
@@ -418,7 +452,14 @@ fn parse_px(s: &str) -> Result<f64, String> {
         })
 }
 
+/// Shadow values: the structured object form (`offsetX`/`offsetY`/`blur`/
+/// `spread`/`color`) or the CSS shorthand string
+/// `Xpx Ypx Bpx Spx <color>` (the Solstice source uses the shorthand for
+/// its refined shadows).
 fn parse_shadow(v: &Value) -> Result<ResolvedValue, String> {
+    if let Value::String(s) = v {
+        return parse_shadow_shorthand(s);
+    }
     let obj = v.as_object().ok_or("shadow value must be an object")?;
     let field = |name: &str| -> Result<f64, String> {
         let raw = obj
@@ -437,6 +478,39 @@ fn parse_shadow(v: &Value) -> Result<ResolvedValue, String> {
         offset_y: field("offsetY")? as f32,
         blur: field("blur")? as f32,
         spread: field("spread")? as f32,
+        color,
+        alpha,
+    }))
+}
+
+/// The shorthand string form: `Xpx Ypx Bpx Spx #rrggbb|rgba(…)` — the
+/// color component may itself contain spaces, so it is the remainder of
+/// the string after the four geometry fields.
+fn parse_shadow_shorthand(s: &str) -> Result<ResolvedValue, String> {
+    let mut rest = s.trim();
+    let mut field = |name: &str| -> Result<f64, String> {
+        let Some(end) = rest.find(char::is_whitespace) else {
+            return Err(format!("shadow shorthand `{s}` is missing `{name}`"));
+        };
+        let (raw, tail) = rest.split_at(end);
+        rest = tail.trim_start();
+        parse_px(raw).map_err(|e| format!("shadow shorthand `{s}`: {e}"))
+    };
+    let offset_x = field("offsetX")?;
+    let offset_y = field("offsetY")?;
+    let blur = field("blur")?;
+    let spread = field("spread")?;
+    let color_raw = rest;
+    if color_raw.is_empty() {
+        return Err(format!("shadow shorthand `{s}` is missing `color`"));
+    }
+    let (color, alpha) =
+        parse_shadow_color(color_raw).map_err(|e| format!("shadow shorthand `{s}`: {e}"))?;
+    Ok(ResolvedValue::Shadow(Shadow {
+        offset_x: offset_x as f32,
+        offset_y: offset_y as f32,
+        blur: blur as f32,
+        spread: spread as f32,
         color,
         alpha,
     }))
@@ -649,6 +723,7 @@ fn rust_category_prefix(category: &str, path: &str) -> Result<&'static str, Toke
         "shadow" => "SHADOW",
         "blur" => "BLUR",
         "opacity" => "OPACITY",
+        "motion" => "MOTION",
         _ => {
             return Err(TokenError::parse(
                 path,

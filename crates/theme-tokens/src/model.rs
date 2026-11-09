@@ -5,13 +5,33 @@
 
 use crate::color::{Rgb8, Shadow};
 
+/// The unit of a `$type: dimension` token: lengths in `px`, motion
+/// durations in `ms` (doc 08 §3.1 — the Solstice design uses both).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DimensionUnit {
+    /// A length (`…px`).
+    Px,
+    /// A duration (`…ms`).
+    Ms,
+}
+
+impl DimensionUnit {
+    /// The CSS unit suffix.
+    pub fn as_css(self) -> &'static str {
+        match self {
+            DimensionUnit::Px => "px",
+            DimensionUnit::Ms => "ms",
+        }
+    }
+}
+
 /// A fully resolved token value.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ResolvedValue {
     /// A color (`$type: color`).
     Color(Rgb8),
-    /// A px dimension (`$type: dimension`).
-    Dimension(f64),
+    /// A dimension (`$type: dimension`): px length or ms duration.
+    Dimension { value: f64, unit: DimensionUnit },
     /// A bare number (`$type: number` / `fontWeight`).
     Number(f64),
     /// A drop shadow (`$type: shadow`).
@@ -32,7 +52,7 @@ impl ResolvedValue {
     /// The numeric value, if this token is a dimension/number.
     pub fn as_f64(&self) -> Option<f64> {
         match self {
-            ResolvedValue::Dimension(v) | ResolvedValue::Number(v) => Some(*v),
+            ResolvedValue::Dimension { value, .. } | ResolvedValue::Number(value) => Some(*value),
             _ => None,
         }
     }
