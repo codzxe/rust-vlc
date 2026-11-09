@@ -226,3 +226,33 @@ the exact concealment-equivalence class.
   number; our independent evidence is the six lanes above.
 - Maintenance lens: 0.1.x, single publisher org, 3,784 downloads —
   young; the `=0.1.3` pin + re-trigger rule is the mitigation.
+
+---
+
+## Addendum (2026-11-09) — admission status: ADMITTED IN-TREE (issue #7, W16-EE)
+
+The spike evidence above is now backed by an in-tree admission; this
+addendum closes the spike-era gap in this record (issue #7,
+admissions-wave follow-up):
+
+- **Cargo.toml pin (Lead admission):** `rusty_vp9 = "=0.1.3"` —
+  `crates/codecs/Cargo.toml` (card 6.M-vp9; the spike's exact-pin +
+  re-trigger mitigation).
+- **ADR-010:** the "Software decoders implemented" table carries the
+  VP9 row — `crates/codecs/src/video/vp9/**` + `rusty_vp9 =0.1.3`
+  (card 6.M-vp9; this record) on our contract surface.
+- **In-tree differential evidence (this session, 2026-11-09, branch
+  w15/07-codec-admissions at main 62453fb):** `cargo test -p codecs`
+  → 643 test cases across the lib + all 51 integration targets:
+  **624 pass, 18 ignored (bench/throughput-class), 0 fail.**
+  VP9-specific: `vp9_differential` — **4/4 pass** (21.98 s; ffmpeg
+  reference lanes incl. the re-encoded corpus VP8 lane of §D).
+- **Matrix:** the `codec-video-vp9` row in `docs/feature-matrix.toml`
+  is flipped `blocked → implemented` in this same commit (was stale
+  since 5.R2-V / 3116aec — ADR-010 "matrix drift" note; the old
+  `blocked_reason` text named the "validation spike pending", which
+  this record + the in-tree differential supersede).
+- Honest gap carried forward: profile 3 (12-bit), 4:4:4, SVC and
+  mkv-direct lanes remain unexercised (§G above) — the admission is
+  for the measured lane class, not the whole VP9 surface.
+- Per doc 11 §3.7: any version bump re-triggers this record.

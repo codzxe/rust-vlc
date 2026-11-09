@@ -258,3 +258,38 @@ anywhere — 3 lanes × (6 cases + 256 sweep points).**
 - Maintenance lens: 3-day-old first release, 9 downloads, no public
   repo — youngest crate we have measured; pin + re-trigger rule is the
   mitigation, and R9's publisher cross-check stands.
+
+---
+
+## Addendum (2026-11-09) — admission status: ADMITTED IN-TREE (issue #7, W16-EE)
+
+The spike evidence above is now backed by an in-tree admission; this
+addendum closes the spike-era gap in this record (issue #7,
+admissions-wave follow-up):
+
+- **Cargo.toml pin (Lead admission):** `filmcraft-dnx = { version =
+  "=0.9.0", default-features = false }` — `crates/codecs/Cargo.toml`
+  (cards 6.M-dnx + 6.VTA-DNX-RATIFY; the Lead-ratified ±2-LSB
+  tolerance class of §Verdict above).
+- **ADR-010:** the "Software decoders implemented" table carries the
+  DNxHD/DNxHR (VC-3) row — `crates/codecs/src/video/dnx/**` +
+  `filmcraft-dnx =0.9.0` (cards 6.M-dnx + 6.VTA-DNX-RATIFY; this
+  record).
+- **In-tree differential evidence (this session, 2026-11-09, branch
+  w15/07-codec-admissions at main 62453fb):** `cargo test -p codecs`
+  → 643 test cases across the lib + all 51 integration targets:
+  **624 pass, 18 ignored (bench/throughput-class), 0 fail.**
+  DNxHD-specific: `dnx_differential` — **6/6 pass** (9.39 s; the
+  tolerance-class lanes of §D).
+- **Matrix:** the `codec-video-prores-dnxhd` row in
+  `docs/feature-matrix.toml` is flipped `not_started → partial` in
+  this same commit: **DNxHD/HR decode is implemented** (evidence
+  above); **ProRes is NOT** — a repo-wide grep for prores code under
+  `crates/codecs` returns nothing, and no ProRes decoder or record
+  exists (the §Notes candidates oxideav-prores 0.1.1 / veloster-prores
+  remain unmeasured). The row's honest state is DNxHD implemented /
+  ProRes not started.
+- Honest gaps carried forward (§G above): no Avid/camera-produced
+  sample, DNxHR/12-bit/4:4:4/interlaced unexercised, MOV/MXF
+  sample-entry plumbing is later-wave work.
+- Per doc 11 §3.7: any version bump re-triggers this record.
