@@ -341,6 +341,25 @@ impl UreqClient {
 
 impl HttpFetch for UreqClient {
     fn fetch(&self, request: HttpRequest) -> Result<HttpResponse, NetworkError> {
+        self.fetch_inner(request, false)
+    }
+
+    /// Challenge surfacing (card 6.E1): a final 401 is `Ok` with
+    /// its `WWW-Authenticate` header intact, so the auth layer
+    /// (`crate::auth`) can answer the challenge.
+    fn fetch_with_challenge(&self, request: HttpRequest) -> Result<HttpResponse, NetworkError> {
+        self.fetch_inner(request, true)
+    }
+}
+
+impl UreqClient {
+    /// The shared fetch loop; `surface_challenge` turns the final
+    /// 401 into an `Ok` response (see `fetch_with_challenge`).
+    fn fetch_inner(
+        &self,
+        request: HttpRequest,
+        surface_challenge: bool,
+    ) -> Result<HttpResponse, NetworkError> {
         // Validate the URL through the port's typed surface first —
         // scheme and structure violations never reach the transport.
         let mut url = Url::parse(&request.url)?;
@@ -358,6 +377,9 @@ impl HttpFetch for UreqClient {
             let response = single_hop(&agent, &url, &request, drop_authorization)?;
 
             if !is_redirect(response.status) {
+                if surface_challenge && response.status == 401 {
+                    return Ok(response);
+                }
                 return classify(response);
             }
 

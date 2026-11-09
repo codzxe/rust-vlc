@@ -26,6 +26,7 @@
 //! instead of allocating. Incremental/streaming bodies are 6.A2's
 //! card.
 
+pub mod auth;
 pub mod buffer;
 pub mod client;
 pub mod clock;
