@@ -23,6 +23,13 @@
 //! comment naming the measured run-to-run jitter (see the worklog
 //! findings: aac/av1/vp9 post-seek decode recovery is not
 //! byte-deterministic, unlike the AVI parent's pinned determinism).
+//! F3 (issue #16) closed the audio-less half of that jitter: an
+//! audio-less session's position is the presentation latch (last
+//! presented slot, else the anchor) — never wall-elapsed — so its
+//! `--start-time` lanes pin exactly and run-to-run identically
+//! (`audio_less_start_time_is_deterministic_across_runs`); the
+//! audio-limb lanes' recovery jitter (mkv/webm) keeps its prefix
+//! pins.
 
 use std::io::Write;
 use std::path::PathBuf;
@@ -208,9 +215,10 @@ fn aiff_family_lane() {
 
 /// ADTS row (corpus 0059, 4.083 s aac): accepts with the honest
 /// `cli.audio_limb_absent` event, `--no-audio` refuses typed,
-/// `--start-time 1s` accepts and lands at the anchor (prefix pin:
-/// the post-seek aac recovery measured 1.004017 s vs 1.004071 s
-/// across identical runs — the jitter finding).
+/// `--start-time 1s` lands exactly at the anchor (F3, issue #16:
+/// the limb-less session's position is the anchor until a frame
+/// presents — pre-fix the read wall-elapsed past the landing, the
+/// measured 1.004017 s vs 1.004071 s across identical runs).
 #[test]
 fn adts_aac_family_lane() {
     let Some(file) = corpus_file("0059-audio-only.aac") else {
@@ -236,8 +244,8 @@ fn adts_aac_family_lane() {
     assert_accepted(&out, code, "adts --start-time");
     assert!(err.is_empty(), "lane adts --start-time stderr:\n{err}");
     assert!(
-        out.contains("ok: time 1.00"),
-        "the anchor lands past 1 s (jitter tail):\n{out}"
+        out.contains("ok: time 1.000000s"),
+        "the limb-less landing is the anchor, exactly (F3):\n{out}"
     );
 }
 
@@ -548,8 +556,37 @@ fn ivf_row(file: &str, lane: &str) {
     assert_accepted(&out, code, &format!("{lane} --start-time"));
     assert!(err.is_empty(), "lane {lane} --start-time stderr:\n{err}");
     assert!(
-        out.contains("ok: time 0.20"),
-        "the anchor lands past 200 ms (jitter tail):\n{out}"
+        out.contains("ok: time 0.200000s"),
+        "the audio-less landing is the anchor, exactly (F3):\n{out}"
+    );
+}
+
+/// F3 (issue #16): an audio-less session's `--start-time` answer is
+/// deterministic — the same input run twice answers byte-identical
+/// output. Pre-fix the position read wall-elapsed past the anchor
+/// (measured ±60-200 µs across identical runs on the limb-less
+/// lanes); the cure is the CLI clock policy: report the presentation
+/// latch (last presented slot, else the anchor), never wall-elapsed.
+/// The committed av1 fixture is the always-running audio-less lane
+/// (video-only media, no audio limb to master the clock).
+#[test]
+fn audio_less_start_time_is_deterministic_across_runs() {
+    let file = fixture("generated/ivf/av1_64x48_30fps.ivf");
+    let args = ["open", &file, "--start-time", "200ms"];
+    let (first, first_err, first_code) = run(&args, "time\nquit\n");
+    assert_accepted(&first, first_code, "ivf determinism run 1");
+    assert!(first_err.is_empty(), "run 1 stderr:\n{first_err}");
+    let (second, second_err, second_code) = run(&args, "time\nquit\n");
+    assert_accepted(&second, second_code, "ivf determinism run 2");
+    assert!(second_err.is_empty(), "run 2 stderr:\n{second_err}");
+    assert_eq!(
+        first, second,
+        "identical inputs must answer byte-identical output (F3 \
+         wall-elapsed position read):\nrun 1:\n{first}\nrun 2:\n{second}"
+    );
+    assert!(
+        first.contains("ok: time 0.200000s"),
+        "the landing is the anchor, exactly:\n{first}"
     );
 }
 
