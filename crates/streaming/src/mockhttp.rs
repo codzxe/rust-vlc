@@ -124,6 +124,58 @@ impl ScriptedRoute {
     }
 }
 
+/// A per-fetch **status** script (card 6.D2, additive testkit
+/// extension for retry determinism): fetch `i` of the route is
+/// answered with `codes[i]` and an empty body; once the script is
+/// exhausted the route's normal behavior applies — the
+/// "server has a bad moment, then recovers" shape a bounded-retry
+/// wrapper needs, over a real socket. Like [`ScriptedRoute`] the
+/// state is shared behind the handle.
+#[derive(Debug, Clone, Default)]
+pub struct ScriptedStatus {
+    state: Arc<Mutex<ScriptedStatusState>>,
+}
+
+/// The advancing cursor over the scripted codes.
+#[derive(Debug, Default)]
+struct ScriptedStatusState {
+    codes: Vec<u16>,
+    next: usize,
+}
+
+impl ScriptedStatus {
+    /// A script answering `codes` in order, then behaving normally.
+    #[must_use]
+    pub fn new(codes: Vec<u16>) -> ScriptedStatus {
+        ScriptedStatus {
+            state: Arc::new(Mutex::new(ScriptedStatusState { codes, next: 0 })),
+        }
+    }
+
+    /// Take the next scripted code, if the script still has one.
+    /// Lock poisoning degrades to "script exhausted" — never a panic.
+    fn take(&self) -> Option<u16> {
+        let mut state = match self.state.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        let code = state.codes.get(state.next).copied();
+        if code.is_some() {
+            state.next += 1;
+        }
+        code
+    }
+
+    /// How many scripted answers this route has served (test
+    /// assertions).
+    pub fn served(&self) -> usize {
+        match self.state.lock() {
+            Ok(guard) => guard.next,
+            Err(poisoned) => poisoned.into_inner().next,
+        }
+    }
+}
+
 /// One mock server's behavior (card 6.A1a scope).
 ///
 /// A server serves **one** scripted behavior for every request — tests
@@ -181,6 +233,14 @@ pub struct MockConfig {
     /// operates on the selected body exactly as with `routes`.
     /// Empty (the default) changes nothing.
     pub scripted_routes: Vec<(String, ScriptedRoute)>,
+    /// Per-fetch **scripted statuses** (card 6.D2, additive): a path
+    /// matching a [`ScriptedStatus`] here is answered with that
+    /// script's next code and an empty body (the retry-weather shape
+    /// — 503, 500, …), then the route's normal behavior once the
+    /// script is exhausted. Takes precedence over everything except
+    /// the redirect/garbage behaviors. Empty (the default) changes
+    /// nothing.
+    pub scripted_status: Vec<(String, ScriptedStatus)>,
 }
 
 impl Default for MockConfig {
@@ -197,6 +257,7 @@ impl Default for MockConfig {
             garbage_first_line: false,
             routes: Vec::new(),
             scripted_routes: Vec::new(),
+            scripted_status: Vec::new(),
         }
     }
 }
@@ -410,12 +471,30 @@ fn write_response(
             _ => return stream.write_all(redirect_head("/r1").as_bytes()),
         }
     }
+    // Retry weather first (card 6.D2's scripted statuses): a script
+    // that still has codes answers with the next one and an empty
+    // body; an exhausted script falls through to normal behavior.
+    let path_only = request.path.split('?').next().unwrap_or("");
+    if let Some((_, scripted)) = config
+        .scripted_status
+        .iter()
+        .find(|(route, _)| route == path_only)
+    {
+        if let Some(code) = scripted.take() {
+            write!(
+                stream,
+                "HTTP/1.1 {} {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                code,
+                reason_phrase(code)
+            )?;
+            return stream.flush();
+        }
+    }
     // Body selection (query stripped from the path): a scripted
     // (per-fetch) route wins, then the static per-path routes, then
     // the single body. An unmatched path in either routed mode is a
     // 404; with no routes configured at all the single-body behavior
     // is unchanged (6.A1a's contract).
-    let path_only = request.path.split('?').next().unwrap_or("");
     let body: Vec<u8> = {
         let scripted = config
             .scripted_routes
@@ -1147,5 +1226,39 @@ mod tests {
             Ok(response) => unreachable!("unmatched path is a 404, got {}", response.status),
         };
         assert!(matches!(err, NetworkError::HttpStatus { code: 404, .. }));
+    }
+
+    /// The 6.D2 scripted status: codes answer per fetch with empty
+    /// bodies, the script exhausts into normal behavior, and the
+    /// handle counts the served weathers — the retry-proof server
+    /// shape.
+    #[test]
+    fn scripted_status_answers_then_recovers() {
+        let scripted = ScriptedStatus::new(vec![503, 500]);
+        let shared = scripted.clone();
+        let server = spawn(MockConfig {
+            body: b"BODY".to_vec(),
+            scripted_status: vec![("/media.bin".to_owned(), scripted)],
+            ..MockConfig::default()
+        });
+        let fetch = fetcher();
+        let err = |path: &str| match fetch.fetch(HttpRequest::get(server.url(path))) {
+            Ok(response) => unreachable!("scripted weather, got {}", response.status),
+            Err(e) => e,
+        };
+        assert!(matches!(err("media.bin"), NetworkError::HttpStatus { code: 503, .. }));
+        assert!(matches!(err("media.bin"), NetworkError::HttpStatus { code: 500, .. }));
+        assert_eq!(shared.served(), 2, "the handle counts the weathers");
+        // Script exhausted: the route's normal behavior answers.
+        let response = fetch
+            .fetch(HttpRequest::get(server.url("media.bin")))
+            .must();
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body, b"BODY");
+        // Other paths are untouched by the script.
+        assert_eq!(
+            fetch.fetch(HttpRequest::get(server.url("other"))).must().body,
+            b"BODY"
+        );
     }
 }

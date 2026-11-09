@@ -55,9 +55,11 @@ use media_types::error::{ErrorContext, FormatInfo};
 use media_types::{EngineError, ErrorKind, PipelineStage};
 
 use crate::client::UreqClient;
+use crate::clock::WallClock;
 use crate::error::NetworkError;
 use crate::fetch::{HttpFetch, Url};
 use crate::ranged::{RangedConfig, RangedResource};
+use crate::reconnect::{RetryFetch, RetryPolicy};
 
 /// The access strategy a source reference dispatches to (card 6.A3).
 ///
@@ -235,6 +237,32 @@ impl SchemeRegistry {
     /// client, or an alternative stack behind the same port.
     pub fn with_fetch(fetch: Arc<dyn HttpFetch>) -> SchemeRegistry {
         SchemeRegistry { fetch }
+    }
+
+    /// A registry over an injected transport **wrapped in the bounded
+    /// reconnect layer** (card 6.D2): every `open_http` fetch — the
+    /// probe, the window fetches, the linear-scan bodies — retries
+    /// retryable transport weather under `policy`'s bounded backoff,
+    /// paced by `clock` (tests inject `FakeClock`; production passes
+    /// `SystemClock::shared`). The composition is the 6.D2 adoption
+    /// point: the ranged resource and everything above it adopt
+    /// retry by receiving this registry's transport, unchanged.
+    ///
+    /// Hosts that need the generation handle (seek/reopen
+    /// invalidation) construct the [`RetryFetch`] themselves and pass
+    /// it to [`SchemeRegistry::with_fetch`] — the handle is the
+    /// wrapper's to give ([`RetryFetch::generation`]).
+    ///
+    /// # Errors
+    /// [`RetryPolicy::validate`]'s verdict, verbatim.
+    pub fn with_retrying_fetch(
+        fetch: Arc<dyn HttpFetch>,
+        policy: RetryPolicy,
+        clock: Arc<dyn WallClock>,
+    ) -> Result<SchemeRegistry, &'static str> {
+        Ok(SchemeRegistry {
+            fetch: Arc::new(RetryFetch::new_checked(fetch, policy, clock)?),
+        })
     }
 
     /// The single scheme-dispatch point (pure, total, no I/O).
