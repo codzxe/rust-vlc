@@ -1,0 +1,93 @@
+{
+ "schema": "corpus/vlc-f32-tolerance/1",
+ "issue": 19,
+ "decision": {
+  "ratified": "2026-11-09 (Lead decision, ratified by the orchestrator)",
+  "policy": "f32 parity is tolerance-based, not bit-based: PASS iff per-row RMS deviation <= 1e-4 (-80 dB) AND peak deviation <= 1e-3 (-60 dB)",
+  "rationale": "thresholds derived from f32 rounding at VLC's float pipeline scale (doc 10 \u00a76.6 deviation path)"
+ },
+ "rows": [
+  {
+   "rel": "media/0022-avi-av.avi",
+   "payload_md5": "c5f5a2856f4d1ee42a999fd9b4ace0dd",
+   "lumen_digest_assert": true,
+   "samples_compared": 139244,
+   "lumen_bytes": 557336,
+   "vlc_bytes": 556976,
+   "rms_dev": 0.01252049830383012,
+   "peak_dev": 0.024954646825790405,
+   "rms_max": 0.0001,
+   "peak_max": 0.001,
+   "verdict": "FAIL"
+  },
+  {
+   "rel": "media/0247-avi-av.avi",
+   "payload_md5": "ec15ff840682735273f005df2d19955b",
+   "lumen_digest_assert": true,
+   "samples_compared": 186348,
+   "lumen_bytes": 745728,
+   "vlc_bytes": 745392,
+   "rms_dev": 0.012375570509731083,
+   "peak_dev": 0.050894387532025576,
+   "rms_max": 0.0001,
+   "peak_max": 0.001,
+   "verdict": "FAIL"
+  },
+  {
+   "rel": "media/0280-avi-av.avi",
+   "payload_md5": "96aab610a981502846774aeffd045dee",
+   "lumen_digest_assert": true,
+   "samples_compared": 233690,
+   "lumen_bytes": 935976,
+   "vlc_bytes": 934760,
+   "rms_dev": 0.008760793973868431,
+   "peak_dev": 0.03280745632946491,
+   "rms_max": 0.0001,
+   "peak_max": 0.001,
+   "verdict": "FAIL"
+  },
+  {
+   "rel": "media/0297-avi-av.avi",
+   "payload_md5": "0f368aaa880d22f7c48caf67db304276",
+   "lumen_digest_assert": true,
+   "samples_compared": 879632,
+   "lumen_bytes": 3520224,
+   "vlc_bytes": 3518528,
+   "rms_dev": 8.215050255268216e-05,
+   "peak_dev": 0.04626615718007088,
+   "rms_max": 0.0001,
+   "peak_max": 0.001,
+   "verdict": "FAIL"
+  },
+  {
+   "rel": "media/0305-avi-av.avi",
+   "payload_md5": "13f48f5053a40980fe05a0a589665169",
+   "lumen_digest_assert": true,
+   "samples_compared": 221164,
+   "lumen_bytes": 885440,
+   "vlc_bytes": 884656,
+   "rms_dev": 0.1209369799206826,
+   "peak_dev": 0.5424160254187882,
+   "rms_max": 0.0001,
+   "peak_max": 0.001,
+   "verdict": "FAIL"
+  },
+  {
+   "rel": "media/0330-avi-av.avi",
+   "payload_md5": "bb76a78b3c77421b3e41c0155dc8d8d1",
+   "lumen_digest_assert": true,
+   "samples_compared": 102380,
+   "lumen_bytes": 410880,
+   "vlc_bytes": 409520,
+   "rms_dev": 6.425152069055904e-06,
+   "peak_dev": 0.0011998071568086743,
+   "rms_max": 0.0001,
+   "peak_max": 0.001,
+   "verdict": "FAIL"
+  }
+ ],
+ "summary": {
+  "pass": 0,
+  "fail": 6
+ }
+}

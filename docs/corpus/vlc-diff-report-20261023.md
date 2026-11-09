@@ -1,4 +1,4 @@
-# Differential-vs-VLC 3.0.23 — oracle run 2026-11-09 (29/35 bit-exact prefix; 6/35 f32 on the §6.6 deviation path)
+# Differential-vs-VLC 3.0.23 — oracle run 2026-11-09 (29/35 parity: 29 bit-exact prefix + 0/6 f32 tolerance-pass; §6.6 decision applied)
 
 > **2026-11-09 update (issue #19)** — VLC 3.0.23 was obtained in /tmp (apt download of Debian trixie's 3.0.23-0+deb13u1, extracted without install) and the 35 to-run commands were executed; see §"Oracle run 2026-11-09" below for the differential table and findings. The 2026-10-23 table below is kept as the historical record; 19/35 of its inputs are lost (runtime-random lavfi sources) and were re-based — same-input verdicts are in the new section. Nothing is mocked.
 
@@ -342,7 +342,7 @@ Rows appear here when the Lumen walk concealed decoder damage, skipped container
 
 | fixture | audio | ch | rate | Lumen MD5 (this run) | Lumen B | VLC MD5 | VLC B | verdict |
 |---|---|---|---|---|---|---|---|---|
-| media/0022-avi-av.avi | pcm_f32le | 1 | 22050 | c5f5a2856f4d1ee42a999fd9b4ace0dd | 557336 | 78df10d1a4cbbd79da51c7f024da8f63 | 556976 | NOT-BIT-EXACT (float path): RMS 0.0125 / peak 0.0250 — §6.6 deviation path |
+| media/0022-avi-av.avi | pcm_f32le | 1 | 22050 | c5f5a2856f4d1ee42a999fd9b4ace0dd | 557336 | 78df10d1a4cbbd79da51c7f024da8f63 | 556976 | TOLERANCE-FAIL (float path): RMS 1.25e-2 / peak 2.50e-2 — §6.6 decision below |
 | media/0040-avi-av.avi * | pcm_u8 | 4 | 16000 | 87be0fb5b8e4582584c42c80198f14b7 | 350976 | 84690c1a8635bd4ae49d6486b66271b6 | 350400 | MATCH-prefix (bit-exact; tail 576 B unflushed) |
 | media/0041-avi-av.avi * | pcm_u8 | 2 | 96000 | 094340d045306c8ea23fb43e523c26fc | 2112384 | e69260d694dda534d3f3801bc94eaf01 | 2112000 | MATCH-prefix (bit-exact; tail 384 B unflushed) |
 | media/0096-multivideo-av.avi | pcm_s16le | 2 | 11025 | 44cec9ebf7e457140edb971c3e962c96 | 94208 | a9e08d88b494a601d5d83dd97997be06 | 93712 | MATCH-prefix (bit-exact; tail 496 B unflushed) |
@@ -361,16 +361,16 @@ Rows appear here when the Lumen walk concealed decoder damage, skipped container
 | media/0227-avi-av.avi * | pcm_s16le | 1 | 48000 | b48163da74a73d446389986dd31d3b7a | 472032 | d93f66cfe531153842b2fb2e2d2ea841 | 471040 | MATCH-prefix (bit-exact; tail 992 B unflushed) |
 | media/0233-multivideo-av.avi | pcm_s16le | 1 | 88200 | 649d0232dba068c25d89617e9ef3fba1 | 870400 | c8db9843ba6a5326b6f98b08980978f3 | 868770 | MATCH-prefix (bit-exact; tail 1630 B unflushed) |
 | media/0236-multivideo-av.avi | pcm_s16le | 1 | 11025 | 2fa047d2f34c9029f056237ca8079f5f | 137216 | d96aab94f910dbafb8978d0a72052c09 | 136710 | MATCH-prefix (bit-exact; tail 506 B unflushed) |
-| media/0247-avi-av.avi * | pcm_f32le | 1 | 48000 | 2e8a354f4d58e3c5a452f9a35a055ded | 745728 | 57087e90270983d6966542dd1d8cd0d4 | 745392 | NOT-BIT-EXACT (float path): RMS 0.0123 / peak 0.0461 — §6.6 deviation path |
+| media/0247-avi-av.avi * | pcm_f32le | 1 | 48000 | 2e8a354f4d58e3c5a452f9a35a055ded | 745728 | 57087e90270983d6966542dd1d8cd0d4 | 745392 | TOLERANCE-FAIL (float path): RMS 1.23e-2 / peak 4.61e-2 — §6.6 decision below |
 | media/0278-avi-av.avi | pcm_s16le | 1 | 88200 | 28a9e2652675dccd5cee316150fe0d46 | 356858 | 9763ff8dcdb59ff2c34ced3f83dfccbe | 356352 | MATCH-prefix (bit-exact; tail 506 B unflushed) |
-| media/0280-avi-av.avi * | pcm_f32le | 2 | 22050 | a21a95e1e7dfd7ad43dda987f3a6c7f6 | 935976 | 364bec8187b1a692751cd0a91379d618 | 934760 | NOT-BIT-EXACT (float path): RMS 0.0087 / peak 0.0340 — §6.6 deviation path |
-| media/0297-avi-av.avi | pcm_f32le | 8 | 11025 | 0f368aaa880d22f7c48caf67db304276 | 3520224 | 1796324a7db6a7aa3d5b9ef3895360c0 | 3518528 | NOT-BIT-EXACT (float path): RMS 0.0001 / peak 0.0463 — §6.6 deviation path |
-| media/0305-avi-av.avi * | pcm_f32le | 1 | 22050 | 02f69412eb50f59b5ad8edecf388cc10 | 885440 | c6b3e08bcc3cbec3355857da06a6b31b | 884656 | NOT-BIT-EXACT (float path): RMS 0.1188 / peak 0.4617 — §6.6 deviation path |
+| media/0280-avi-av.avi * | pcm_f32le | 2 | 22050 | a21a95e1e7dfd7ad43dda987f3a6c7f6 | 935976 | 364bec8187b1a692751cd0a91379d618 | 934760 | TOLERANCE-FAIL (float path): RMS 8.75e-3 / peak 3.40e-2 — §6.6 decision below |
+| media/0297-avi-av.avi | pcm_f32le | 8 | 11025 | 0f368aaa880d22f7c48caf67db304276 | 3520224 | 1796324a7db6a7aa3d5b9ef3895360c0 | 3518528 | TOLERANCE-FAIL (float path): RMS 8.22e-5 ≤ 1e-4 but peak 4.63e-2 — §6.6 decision below |
+| media/0305-avi-av.avi * | pcm_f32le | 1 | 22050 | 02f69412eb50f59b5ad8edecf388cc10 | 885440 | c6b3e08bcc3cbec3355857da06a6b31b | 884656 | TOLERANCE-FAIL (float path): RMS 1.19e-1 / peak 4.62e-1 — §6.6 decision below |
 | media/0307-multivideo-av.avi | pcm_s16le | 2 | 32000 | e2bce5d5744e374d59ffd1dbb565314c | 450560 | d785c2f3859818577337295a8e94594e | 448000 | MATCH-prefix (bit-exact; tail 2560 B unflushed) |
 | media/0308-avi-av.avi | pcm_s16le | 4 | 96000 | 01269e9f433bd2f4496054180b3b9639 | 4096000 | a436890a0b7bbe418b1c630d997c8167 | 4089600 | MATCH-prefix (bit-exact; tail 6400 B unflushed) |
 | media/0318-avi-av.avi * | pcm_s16le | 2 | 96000 | 48718b7749195fdd2020f71e36cbcc37 | 1331712 | 2620b150f73bf91cdaa907a9c4024489 | 1331200 | MATCH-prefix (bit-exact; tail 512 B unflushed) |
 | media/0324-avi-av.avi | pcm_u8 | 4 | 44100 | 1767da988df20a761eea5b3be593b233 | 822908 | 2c669806afcb5e5f15ad4d4e81dd621c | 820260 | MATCH-prefix (bit-exact; tail 2648 B unflushed) |
-| media/0330-avi-av.avi | pcm_f32le | 1 | 96000 | bb76a78b3c77421b3e41c0155dc8d8d1 | 410880 | c0e894718e500b5ec3b1c496c4559beb | 409520 | NOT-BIT-EXACT (float path): RMS 0.0000 / peak 0.0012 — §6.6 deviation path |
+| media/0330-avi-av.avi | pcm_f32le | 1 | 96000 | bb76a78b3c77421b3e41c0155dc8d8d1 | 410880 | c0e894718e500b5ec3b1c496c4559beb | 409520 | TOLERANCE-FAIL (float path): RMS 6.43e-6 ≤ 1e-4 but peak 1.200e-3 — §6.6 decision below |
 | media/0335-multivideo-av.avi * | pcm_s16le | 1 | 16000 | 4fd79102bcb2c878d8a5eb197be5755c | 97216 | daac1d6a101167bbdc031a1c58fa978c | 96800 | MATCH-prefix (bit-exact; tail 416 B unflushed) |
 | media/0336-multivideo-av.avi * | pcm_s16le | 1 | 32000 | ca97c302d2e1d6ec0e27063076b56dd9 | 425984 | c06837c134cdadf0e7ae88eec959cca7 | 425600 | MATCH-prefix (bit-exact; tail 384 B unflushed) |
 | media/0342-avi-av.avi * | pcm_s16le | 3 | 32000 | 0d1d39cbb0401e1e9303081446c2652b | 1846464 | ce235467c545e6a815373b0377208363 | 1843200 | MATCH-prefix (bit-exact; tail 3264 B unflushed) |
@@ -381,11 +381,40 @@ Rows appear here when the Lumen walk concealed decoder damage, skipped container
 ### Findings
 
 1. **29/35 rows — every `pcm_u8` and `pcm_s16le` row: VLC's dump is a bit-exact PREFIX of the payload** (head drop 0 B on all 29); the entire shortfall is a **tail of 96–16384 B left unflushed** by the `afile` output at `--play-and-exit` end-of-stream. VLC's decode itself is bit-exact on these rows; the byte-count gate fails only because of the unflushed tail.
-2. **6/35 rows — every `pcm_f32le` row: the dump is not a sub-window of the payload** — every aligned sample differs slightly (0022: RMS 0.0125 / peak 0.0250; 0247: 0.0123/0.0461; 0280: 0.0087/0.0340; 0297: 0.0001/0.0463; 0305: 0.1188/0.4617; 0330: 0.0000/0.0012), consistent with VLC's float `aout` chain (resampler/filter delay) rather than passthrough. Per doc 10 §6.6 these fall to the sample-wise RMS/peak deviation path (thresholds = doc 02 M2, open) — **Lead decision required**; they are NOT recorded as decoder mismatches.
-3. Net parity statement: on all 29 lossless-comparable u8/s16 rows Lumen and VLC agree bit-exactly over the entire delivered window; the afile tail-unflush is a dump-method artifact, not a decode difference.
+2. **6/35 rows — every `pcm_f32le` row: the dump is not a sub-window of the payload** — every aligned sample differs slightly, consistent with VLC's float `aout` chain (resampler/filter delay) rather than passthrough. Per doc 10 §6.6 these fell to the sample-wise RMS/peak deviation path; the Lead decision has since landed (§6.6 decision below) and **all 6 rows FAIL the ratified tolerances** — recorded as genuine parity gaps with follow-up, NOT hidden.
+3. Net parity statement: on all 29 lossless-comparable u8/s16 rows Lumen and VLC agree bit-exactly over the entire delivered window; the afile tail-unflush is a dump-method artifact, not a decode difference. On the 6 f32 rows the ratified tolerance policy (RMS ≤ 1e-4 AND peak ≤ 1e-3) passes **0/6** — **overall parity: 29 bit-exact + 0 tolerance-pass = 29/35** (see the §6.6 decision record for the measured values).
+
+### §6.6 decision record — f32 tolerance policy applied (2026-11-09)
+
+**The decision (Lead decision, ratified by the orchestrator 2026-11-09):** f32 parity is **tolerance-based, not bit-based**. A `pcm_f32le` row PASSES iff
+
+- per-row RMS deviation ≤ **1e-4** (−80 dB), AND
+- per-row peak deviation ≤ **1e-3** (−60 dB).
+
+Rationale: thresholds derived from f32 rounding at VLC's float pipeline scale (doc 10 §6.6 deviation path) — deviations at or below these bounds are attributable to float-chain rounding, not decode differences. The measured values are recorded per row so the thresholds stay auditable.
+
+**Measurement basis:** the 2026-11-09 run's per-row RMS/peak (preserved in `docs/corpus/vlc-oracle-run-20261109.json`; computed from the actual PCM on both sides — the Lumen payload vs the VLC `afile` float32 dump, head-aligned over the VLC-delivered window). **Re-verification (this card, same day):** VLC 3.0.23 was re-acquired (apt download, version re-asserted `3.0.23 Vetinari (3.0.23-2-0-g79128878dd)`), the fixtures regenerated from the manifest argvs, both sides re-decoded, and the deviations recomputed with `scripts/vlc_f32_deviation.py` (evidence: `docs/corpus/vlc-f32-tolerance-20261109.json`, schema `corpus/vlc-f32-tolerance/1`). The 3 deterministic fixtures (0022, 0297, 0330) regenerate sha256-identical and their deviations **reproduce exactly**; the 3 runtime-random fixtures (0247, 0280, 0305 — `anoisesrc` without a seed) cannot regenerate the 2026-11-09 bytes, and their fresh realizations measure the same magnitudes. The RIFF-walk payload MD5s were asserted equal to the Lumen harness digests of the same files (6/6) before use.
+
+| fixture | RMS (11-09 run) | peak (11-09 run) | RMS ≤ 1e-4 | peak ≤ 1e-3 | verdict | re-verified this card |
+|---|---|---|---|---|---|---|
+| media/0022-avi-av.avi | 1.2520e-2 | 2.4955e-2 | ✗ (125×) | ✗ (25×) | **FAIL** | reproduced exactly (deterministic input) |
+| media/0247-avi-av.avi * | 1.2335e-2 | 4.6088e-2 | ✗ (123×) | ✗ (46×) | **FAIL** | fresh realization: RMS 1.2376e-2 / peak 5.0894e-2 — same magnitude |
+| media/0280-avi-av.avi * | 8.7467e-3 | 3.3996e-2 | ✗ (87×) | ✗ (34×) | **FAIL** | fresh realization: RMS 8.7608e-3 / peak 3.2807e-2 — same magnitude |
+| media/0297-avi-av.avi | 8.2151e-5 | 4.6266e-2 | ✓ | ✗ (46×) | **FAIL** | reproduced exactly (deterministic input) |
+| media/0305-avi-av.avi * | 1.1884e-1 | 4.6165e-1 | ✗ (1188×) | ✗ (462×) | **FAIL** | fresh realization: RMS 1.2094e-1 / peak 5.4242e-1 — same magnitude |
+| media/0330-avi-av.avi | 6.4252e-6 | 1.1998e-3 | ✓ | ✗ (1.20×) | **FAIL** | reproduced exactly (deterministic input) |
+
+**Outcome: 0/6 f32 rows PASS the ratified tolerances.** No row is close on both axes: 0297 and 0330 clear the RMS bound but miss the peak bound by 46× and 1.20× respectively; the other four miss both. The overall parity statement is therefore **29 bit-exact + 0 tolerance-pass = 29/35**.
+
+**These are genuine parity gaps under the ratified policy and are NOT hidden.** Two facts bound the interpretation honestly:
+
+- The Lumen side is not the suspect: on all 35 rows (these 6 included) the fresh Lumen digest equals the ffmpeg 7.1.5 decode (md5 + byte count), and the RIFF-walk payload MD5 re-asserts it here (6/6).
+- The deviation pattern tracks VLC's float `aout` chain, not decode: the failing magnitudes cluster by fixture profile (0305's violet-noise row is worst at RMS ≈ 0.12; the near-threshold 0330 runs at 96 kHz). The gap is between VLC's `afile` float32 output and the decoded wire PCM — VLC does not pass f32 through bit- or tolerance-exactly at these settings.
+
+**Follow-up (open):** characterize VLC 3.0.23's float `aout` chain on these fixture profiles (gain/dither/resampler behavior at 22050/11025/96000 Hz, mono vs 8-ch) to attribute the deviation precisely, and re-evaluate whether a decode-level comparison channel exists for f32 (the u8/s16 rows' bit-exactness suggests the integer paths bypass whatever the float chain applies). Until then the 6 f32 rows stand as tolerance-FAIL parity gaps, not decoder mismatches.
 
 ### Deviations from the pinned protocol (Lead decisions)
 
 - Oracle binary is Debian trixie's build of the pinned 3.0.23 (apt download), not a videolan.org tarball — version pin asserted identically (`3.0.23 Vetinari`).
 - Input path substitution + 19/35 re-based inputs (above).
-- No threshold was invented for the f32 deviation path; no MATCH is claimed there.
+- No threshold was invented at run time for the f32 deviation path; no MATCH was claimed there. The thresholds were subsequently set by the Lead decision (ratified 2026-11-09) and applied in the §6.6 decision record above — the verdicts are data, not a re-run invention.
