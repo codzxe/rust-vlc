@@ -11,8 +11,9 @@ surface, playlist URI resolution, and header construction. **1 Medium, 3
 Low, plus 3 verified-good properties.** The redirect core is solid:
 bounded budget with exact hop counts, typed cross-host refusal, loop
 detection, and Authorization stripping on every hop. The Medium finding
-is same-host scheme downgrade (https→http) being followed by design;
-the Lows are no private-range filtering (SSRF posture), verbatim absolute
+is same-host scheme downgrade (https→http) being followed by design
+(F1 — resolved wave 19, see its Status bullet); the Lows are no
+private-range filtering (SSRF posture), verbatim absolute
 references in remote playlists, and missing port-side CRLF validation on
 builder headers.
 
@@ -35,6 +36,25 @@ builder headers.
   cross-host check at client.rs:410-413 with a typed
   `NetworkError::CrossSchemeRedirect`; record the decision in the
   network-http record.
+* **Status:** **RESOLVED (wave 19, `w19/sec-medium`)** — enforced as
+  an unconditional typed refusal: `NetworkError::CrossSchemeRedirect`
+  (`streaming.net.cross-scheme-redirect`), checked in client.rs
+  *before* the cross-host gate, so an https→http hop is never
+  followed, same host or not. The wave-19 brief made the review's
+  default posture absolute: no `cross_scheme` opt-in knob was added
+  — no caller has a legitimate reason to weaken its own transport
+  (`RedirectPolicy`/fetch.rs stayed untouched); upgrades
+  (http→https) remain followable. The mockhttp testkit's parity
+  loop carries the same refusal so the wire-level regression test
+  can pin it end-to-end (the testkit is a plaintext socket — the
+  same in-tree TLS limit `https_activation.rs` records). Fix
+  commit: `4bdae49`; regression tests:
+  `client::tests::https_to_http_redirect_downgrade_is_refused_not_followed`
+  (red pre-fix: the downgrade was followed to a 200) and
+  `client::tests::scheme_downgrade_gate_pins_transport_safety`.
+  **Residual:** the auth layer's manual-follow loop (auth.rs:550-554)
+  enforces cross-host but not the scheme gate — flagged to 6.E1's
+  owner for the same one-line refusal.
 
 ### F2 — No private/loopback address filtering (Low, desktop posture)
 
