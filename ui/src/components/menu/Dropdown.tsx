@@ -2,10 +2,8 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactElement, Ref } from "react";
 import { identityResolveLabel } from "./types";
 import type { ResolveLabel } from "./types";
+import { TYPEAHEAD_RESET_MS } from "./timings";
 import "./menu.css";
-
-/** Typeahead buffer lifetime before the search resets [PROPOSAL — states.md]. */
-export const TYPEAHEAD_RESET_MS = 500;
 
 /**
  * Dropdown / Select (doc 08 §116: trigger 364×48 rx6, open list rx6,

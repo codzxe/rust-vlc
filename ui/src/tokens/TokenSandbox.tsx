@@ -10,7 +10,8 @@
 // useMsg() like everywhere else.
 
 import { useMsg } from "../i18n/messages";
-import { useTheme, type ThemeModeSetting } from "../theme/ThemeProvider";
+import { useTheme } from "../theme/useTheme";
+import type { ThemeModeSetting } from "../theme/context";
 import { ACCENTS } from "./generated/tokens";
 import "./TokenSandbox.css";
 

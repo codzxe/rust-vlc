@@ -30,6 +30,7 @@
   font-family: var(--font-family-sans);
   font-size: var(--font-size-body);
   color: var(--color-content-primary);
+
   /* transparent on purpose — the calm backdrop frames the anchored panels */
   background: transparent;
 }
@@ -46,6 +47,7 @@
   flex-direction: column;
   gap: calc(var(--space-grid) * 2);
   padding: calc(var(--space-inset) * 2) var(--space-inset);
+
   /* composed glass (the .solstice-glass recipe, scoped here so the rail's
      rounding stays --radius-card-lg regardless of sheet order) */
   background: color-mix(in srgb, var(--color-surface-panel) 82%, transparent);
@@ -373,6 +375,7 @@
 
 .settings-field__special .lumen-radiogroup__options {
   display: grid;
+
   /* Capped at 20rem so a LONE option (e.g. the single locale in Global)
    * keeps intrinsic width instead of stretching full-bleed. */
   grid-template-columns: repeat(auto-fill, minmax(13rem, 20rem));
@@ -528,7 +531,7 @@
 
 /* -------------------------------------------------------- responsive */
 
-@media (max-width: 52rem) {
+@media (width <= 52rem) {
   .settings-screen {
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(0, 1fr);
@@ -536,14 +539,12 @@
 
   .settings-screen__nav {
     overflow: visible;
-    flex-direction: row;
+    flex-flow: row wrap;
     align-items: center;
-    flex-wrap: wrap;
   }
 
   .settings-screen__nav ul {
-    flex-direction: row;
-    flex-wrap: wrap;
+    flex-flow: row wrap;
   }
 }
 

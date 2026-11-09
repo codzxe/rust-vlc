@@ -12,34 +12,26 @@
 // (dark + yellow, the Solstice Keyvox gold).
 
 import {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
 import { ACCENTS, type AccentId, type TokenMode } from "../tokens/generated/tokens";
+import {
+  ThemeContext,
+  type ThemeContextValue,
+  type ThemeModeSetting,
+} from "./context";
 
-/** What the user picks: a fixed mode, or follow the OS. */
-export type ThemeModeSetting = TokenMode | "auto";
-
-export interface ThemeContextValue {
-  /** The user's selection ("auto" follows the OS). */
-  readonly modeSetting: ThemeModeSetting;
-  /** What actually renders (auto resolved against the OS preference). */
-  readonly resolvedMode: TokenMode;
-  /** The active accent (one of the 9, doc 08 §3.3). */
-  readonly accent: AccentId;
-  setModeSetting(setting: ThemeModeSetting): void;
-  setAccent(accent: AccentId): void;
-}
-
-// Exported for the settings-consumption seam (card 4.E2): the sync hook
-// reads the context optionally so settings screens render (inert) even
-// without a ThemeProvider host (tests, embeds).
-export const ThemeContext = createContext<ThemeContextValue | null>(null);
+// Compatibility re-exports (issue #36): the context, its value type and the
+// mode-setting type moved to ./context.ts so this file exports only the
+// component (react-refresh/only-export-components). Importers that still
+// address them here — e.g. the guarded screens/ — keep working unchanged;
+// new code imports from ./context directly.
+export { ThemeContext } from "./context";
+export type { ThemeContextValue, ThemeModeSetting } from "./context";
 
 function systemPrefersLight(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
@@ -97,11 +89,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
-/** Access the theme selections (card 4.A2). Throws outside ThemeProvider. */
-export function useTheme(): ThemeContextValue {
-  const ctx = useContext(ThemeContext);
-  if (ctx === null) {
-    throw new Error("useTheme must be used inside <ThemeProvider>");
-  }
-  return ctx;
-}
+// useTheme lives in ./useTheme.ts and the context in ./context.ts (issue
+// #36): this file exports only the component
+// (react-refresh/only-export-components).

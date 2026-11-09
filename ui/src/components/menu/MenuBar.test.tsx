@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MenuBar } from "./MenuBar";
-import { SUBMENU_OPEN_DELAY_MS } from "./MenuPopup";
+import { SUBMENU_OPEN_DELAY_MS } from "./timings";
 import type { MenuBarMenu } from "./MenuBar";
 
 /**

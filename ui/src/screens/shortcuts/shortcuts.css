@@ -22,6 +22,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+
   /* visible warm scrollbar (v2 §2.7) — the tape tone reads on both modes */
   scrollbar-width: thin;
   scrollbar-color: var(--color-tape-edge) transparent;

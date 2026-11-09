@@ -28,6 +28,7 @@
   justify-content: center;
   flex: 1;
   min-height: 0;
+
   /* Optical center (~46%): bottom padding 6× the top, lifting the card
    * out of the geometric middle so the lower sky can hold the setting sun. */
   padding: calc(var(--space-grid) * 6) calc(var(--space-grid) * 8)
@@ -47,6 +48,7 @@
 .not-found__tape {
   position: absolute;
   top: 30%;
+
   /* Card's left edge from this padding box = 32px side padding +
    * (width − 64px − card width) / 2, with card width = min(440px, content
    * width); the tape starts 40px left of that edge. */
@@ -56,12 +58,14 @@
   transform: rotate(-7deg);
   z-index: 0;
   pointer-events: none;
+  /* stylelint-disable color-named -- art-direction: the washi-tape gradient blends toward white; no semantic blend-anchor token exists yet [PROPOSAL in stylelint.config.js] */
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--color-tape) 72%, white) 0%,
     var(--color-tape) 46%,
     var(--color-tape-edge) 100%
   );
+  /* stylelint-enable color-named */
   opacity: 0.72;
   border-radius: 2px;
   box-shadow: var(--shadow-card);
@@ -182,6 +186,7 @@
  * read as annotated scrapbook art, not typeset text. */
 .not-found__code {
   position: relative;
+
   /* Positive bottom margin keeps the marker swipe clear of the title's
    * cap line — annotated, not colliding. */
   margin: 0 0 var(--space-grid);
@@ -230,6 +235,7 @@
   .not-found__code {
     rotate: none; /* the scribble tilt is a motion cue, drop it */
   }
+
   .not-found__code::after {
     rotate: none;
   }

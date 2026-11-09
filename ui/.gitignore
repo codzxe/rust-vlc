@@ -4,3 +4,5 @@ coverage/
 playwright-report/
 test-results/
 e2e/visual/visual.spec.ts-snapshots/
+# l10n pseudo-locale probe output (scripts/l10n-pseudo-probe.mjs, issue #36)
+pseudo-probe/

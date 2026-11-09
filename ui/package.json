@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "lint": "eslint .",
+    "lint:css": "npx -p stylelint@18.0.0 -p stylelint-config-standard@41.0.0 stylelint 'src/**/*.css'",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
@@ -22,7 +23,8 @@
     "settings:check": "node scripts/gen-settings-screens.mjs --check",
     "hotkeys:generate": "node scripts/gen-hotkeys-data.mjs",
     "hotkeys:check": "node scripts/gen-hotkeys-data.mjs --check",
-    "l10n:check": "node scripts/l10n-check.mjs"
+    "l10n:check": "node scripts/l10n-check.mjs",
+    "l10n:pseudo-probe": "node scripts/l10n-pseudo-probe.mjs"
   },
   "dependencies": {
     "react": "19.3.1",
@@ -44,6 +46,8 @@
     "eslint-plugin-react-hooks": "7.1.1",
     "eslint-plugin-react-refresh": "0.5.7",
     "jsdom": "30.1.3",
+    "stylelint": "^18.0.0",
+    "stylelint-config-standard": "41.0.0",
     "typescript": "6.0.3",
     "typescript-eslint": "8.72.0",
     "vite": "8.3.5",

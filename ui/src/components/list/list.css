@@ -71,6 +71,7 @@
 }
 
 /* Thin-scrollbar spec (doc 08 §4): token-colored hairline scrollbars. */
+/* stylelint-disable-next-line no-descending-specificity -- the scrollbar group sits with the scroll-area section; :focus-visible (higher specificity) owns the outline regardless of order */
 .lumen-scrollarea,
 .lumen-vlist,
 .lumen-vtable__body {

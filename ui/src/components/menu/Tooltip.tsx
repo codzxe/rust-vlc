@@ -1,14 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { ReactElement } from "react";
+import { TOOLTIP_HIDE_DELAY_MS, TOOLTIP_SHOW_DELAY_MS } from "./timings";
 import "./menu.css";
-
-/**
- * Tooltip show/hide hover-intent delays. Doc 08 pins no values —
- * [PROPOSAL] defaults recorded in states.md. Keyboard focus shows
- * immediately (WAI-ARIA APG: never delay for keyboard users).
- */
-export const TOOLTIP_SHOW_DELAY_MS = 500;
-export const TOOLTIP_HIDE_DELAY_MS = 150;
 
 export interface TooltipProps {
   /** Tooltip text — caller resolves via useMsg() (i18n seam). */

@@ -18,6 +18,11 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
-    include: ["src/**/*.test.{ts,tsx}"],
+    // src/**: component + logic tests; tools/eslint-plugin-local/**: unit
+    // tests for the promoted local ESLint rules (issue #36).
+    include: [
+      "src/**/*.test.{ts,tsx}",
+      "tools/eslint-plugin-local/**/*.test.js",
+    ],
   },
 });
