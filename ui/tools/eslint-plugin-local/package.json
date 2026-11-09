@@ -1,0 +1,13 @@
+{
+  "name": "eslint-plugin-local",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Scaffold-local ESLint rules for the Lumen UI workspace (issue #36) — promoted verbatim from the former inline definitions in ui/eslint.config.js. Rule names and semantics are unchanged; the consuming config registers this package under the 'local' plugin key.",
+  "exports": {
+    ".": "./index.js"
+  },
+  "engines": {
+    "node": "^22.0.0 || ^24.0.0 || >=26.0.0"
+  }
+}
