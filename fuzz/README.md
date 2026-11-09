@@ -7,7 +7,11 @@ Lumen registers one coverage-guided fuzz target per **landed** parser
 playlist parsers earned in Phase 5). Card 5.Q1 swept the registry to
 32 targets covering every Phase-5 parser; card 6.C1c added the DASH
 MPD target the wave program's 6.C1 `+FB` criterion names —
-**33 targets**; the registry-vs-implementation diff is pinned empty
+**33 targets**; issue #14's netfuzz milestone (M2) added the two
+network-facing targets — `fuzz_hls_playlist` (the HLS
+interpretation stack) and `fuzz_http_headers` (the transport's
+response-head grammar) — **35 targets**; the
+registry-vs-implementation diff is pinned empty
 by `scripts/fuzz_registry_check.sh` (see "The registry gate" below).
 
 ## Status: SCAFFOLDED, NOT WIRED — one Lead decision outstanding
@@ -32,11 +36,13 @@ DEP:    libfuzzer-sys = "0.4.13" (crates.io sparse-index verified
 UNTIL:  the decision lands, nothing in the local gate or CI builds
         this directory *in campaign mode*. What DOES run today on
         stable: `cargo check` in fuzz/ (all 33 targets compile —
-        verified 2026-10-24, card 5.Q1) and the in-crate harness
+        verified 2026-10-24, card 5.Q1; re-verified with all 35
+        targets 2026-11-09, issue #14 M2) and the in-crate harness
         sweeps (see "The stable-runnable equivalence").
 ```
 
-## Targets (the registry — 33, one per landed parser)
+## Targets (the registry — 35, one per landed parser or network
+surface)
 
 Every target is a thin `libfuzzer_sys::fuzz_target!` shim; the loop
 body, bounds and docs live in the in-crate `fuzz` module named in the
@@ -80,6 +86,8 @@ typed error, a concealed prefix/frame, or a skipped packet (D-3/D-9).
 | `fuzz_playlist_xspf`   | `playlists::fuzz::fuzz_playlist_xspf`          | XSPF (5.O) |
 | `fuzz_playlist_cue`    | `playlists::fuzz::fuzz_playlist_cue`           | CUE sheet (5.O3) |
 | `fuzz_demux_mpd`       | `streaming::dash::fuzz::fuzz_demux_mpd`        | DASH MPD (6.C1) |
+| `fuzz_hls_playlist`    | `playlists::fuzz::fuzz_playlist_m3u` + `netfuzz::fuzz_hls_playlist` (`#[path]` from `crates/streaming/tests/netfuzz/fuzz.rs`) | HLS interpretation stack (issue #14 M2 / 6.F3) |
+| `fuzz_http_headers`    | `streaming::mockhttp::fuzz_response_head` + `netfuzz::fuzz_http_headers` (`#[path]` from `crates/streaming/tests/netfuzz/fuzz.rs`) | HTTP response head (issue #14 M2 / 6.F3) |
 
 Not yet registered (no landed parser — doc 04's tables stay the
 contract): ASF, RealMedia, m4v, tx3g, CAF demuxers; Opus/AC-3/DTS/
@@ -90,7 +98,7 @@ lands (the registry gate below fails the build otherwise).
 
 ## Seed corpora (committed — doc 04 §8.5 "seed corpus committed")
 
-`fuzz/corpus/<target>/` holds 1–5 small seeds per target (86 files,
+`fuzz/corpus/<target>/` holds 1–6 small seeds per target (97 files,
 1.4 MB total, **every file < 50 KB**): copied from the committed
 CC0 fixtures (`tests/fixtures/CORPUS.md` + the crate test fixtures),
 deliberate truncations of over-size parents, cross-format seeds
@@ -137,7 +145,7 @@ cargo +nightly install cargo-fuzz
 # from the repository root (cargo-fuzz discovers ./fuzz)
 cargo +nightly fuzz run fuzz_demux_mkv    -s none   # no sanitizer
 cargo +nightly fuzz run fuzz_codec_av1    -s none
-cargo +nightly fuzz run fuzz_codec_flac   -s none   # … all 33
+cargo +nightly fuzz run fuzz_codec_flac   -s none   # … all 35
 
 # hardened variants (slower, catches more):
 cargo +nightly fuzz run fuzz_codec_flac -s address -O   # ASan + release
@@ -181,6 +189,8 @@ What actually ran on stable 1.99.1 for card 5.Q1 (timestamped
 - `cargo check` in `fuzz/` — **all 33 targets compile** (the
   libfuzzer-sys dep resolves and builds its build script on stable;
   the `-Zsanitizer` flags are cargo-fuzz's, not the manifest's).
+  Re-verified with **all 35 targets** on 2026-11-09 (issue #14 M2,
+  this worktree).
 - `cargo test -p demux -p codecs -p subtitles -p playlists --lib` —
   the in-crate harness sweeps (29 new deterministic hostile-input
   tests: empty/marker/all-0x00/all-0xFF/sync-flood inputs per
