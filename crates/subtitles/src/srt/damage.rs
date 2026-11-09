@@ -24,8 +24,15 @@ pub const MAX_DAMAGE_EVENTS: usize = 256;
 #[non_exhaustive]
 pub enum SrtDamageKind {
     /// The byte stream was not valid UTF-8; lossy replacement was
-    /// substituted (encoding fallback path).
+    /// substituted (the UTF-8-BOM decode path).
     InvalidUtf8,
+    /// No BOM and invalid UTF-8: the byte stream was decoded as
+    /// Windows-1252 (the common 8-bit fallback, ffmpeg's `sub_charenc`
+    /// behaviour for legacy SRTs); one event per file.
+    Windows1252Fallback,
+    /// A Windows-1252 payload hit one of the five undefined code
+    /// points (0x81/0x8D/0x8F/0x90/0x9D); U+FFFD was substituted.
+    UndefinedWindows1252Byte,
     /// A UTF-16 payload had an odd trailing byte (half a code unit).
     OddTrailingUtf16Byte,
     /// A UTF-16 payload had an unpaired surrogate; U+FFFD replaced it.
@@ -78,6 +85,8 @@ impl SrtDamageKind {
     pub const fn describe(self) -> &'static str {
         match self {
             Self::InvalidUtf8 => "invalid UTF-8 replaced lossily",
+            Self::Windows1252Fallback => "no BOM, invalid UTF-8: decoded as Windows-1252",
+            Self::UndefinedWindows1252Byte => "undefined Windows-1252 byte replaced",
             Self::OddTrailingUtf16Byte => "odd trailing UTF-16 byte dropped",
             Self::UnpairedUtf16Surrogate => "unpaired UTF-16 surrogate replaced",
             Self::GarbageBlock => "block without a timing line skipped",
@@ -176,6 +185,8 @@ mod tests {
         // Exhaustive at the time of writing; new kinds must extend it.
         let kinds = [
             SrtDamageKind::InvalidUtf8,
+            SrtDamageKind::Windows1252Fallback,
+            SrtDamageKind::UndefinedWindows1252Byte,
             SrtDamageKind::OddTrailingUtf16Byte,
             SrtDamageKind::UnpairedUtf16Surrogate,
             SrtDamageKind::GarbageBlock,
