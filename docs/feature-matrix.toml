@@ -2678,9 +2678,9 @@ description = "Main player screen: video canvas, chrome show/auto-hide, empty st
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s3.4"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "4.C1–4.C3; state matrix per doc 08 §5 (no fabricated success); fullscreen controller 'i'."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/player/PlayerScreen.tsx (+ PlayerScreen.test.tsx, states/, controls/, KeyHintStrip.tsx, useChromeAutoHide.ts, layout.ts, keymap.ts — card 4.C1–4.C3 surface incl. empty/loading/error states per doc 08 §5); ui/src/screens/player/useFullscreen.ts (4.C1)"
+notes = "4.C1–4.C3; state matrix per doc 08 §5 (no fabricated success); fullscreen controller 'i'. Backfill (issue #20): screen + state matrix + chrome auto-hide live; keymap dispatch rides the 4.C2 onBinding seam (see hotkey rows)."
 
 [[feature]]
 id = "ui-screen-playlist-library"
@@ -2690,9 +2690,9 @@ description = "Playlist panel (VLC Ctrl+L docked) → library sidebar + file bro
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "4.D1; sorting/view options; drag reorder; design L-key Show/Hide File Browser."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/playlist/PlaylistScreen.tsx + PlaylistPanel.tsx + PlaylistProvider.tsx (+ .test.tsx each); engine-reported shuffle/repeat consumed by the menubar checkboxes (ui/src/components/appshell/AppShell.tsx)"
+notes = "4.D1; sorting/view options; drag reorder; design L-key Show/Hide File Browser. Backfill (issue #20): screen/panel/provider trio live."
 
 [[feature]]
 id = "ui-screen-settings"
@@ -2702,9 +2702,9 @@ description = "Settings framework: 13 generated area screens, search, dirty-stat
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "4.E1–4.E4; VLC Simple/All modes → search + advanced folding; generated-screen snapshot test detects schema drift."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/settings/SettingsScreen.tsx + SettingsProvider.tsx + search.ts + persistence.ts + SettingField.tsx (+ .test.tsx/.ts); generated registry ui/src/screens/settings/generated/Screens.tsx; area merge layer ui/src/screens/settings/areas/index.tsx"
+notes = "4.E1–4.E4; VLC Simple/All modes → search + advanced folding; generated-screen snapshot test detects schema drift. Backfill (issue #20): framework + generated screens + search + mock persistence live; real config.set-setting write path is the open handoff (ui/NEXT-STEPS.md)."
 
 [[feature]]
 id = "ui-screen-media-info"
@@ -2714,9 +2714,9 @@ description = "Media Information (Ctrl+I) + Codec Information (Ctrl+J) merged su
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "4.D2; merged surface [VERIFY-DESIGN]; unknowns render 'Unknown', never invented."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/media-info/MediaInfoScreen.tsx + MediaInfoPanel.tsx + MediaInfoProvider.tsx (+ .test.tsx each, fixtures.ts, format.ts)"
+notes = "4.D2; merged surface [VERIFY-DESIGN]; unknowns render 'Unknown', never invented. Backfill (issue #20): merged Ctrl+I/Ctrl+J surface live."
 
 [[feature]]
 id = "ui-screen-onboarding"
@@ -2726,9 +2726,9 @@ description = "First-run flow: privacy defaults opt-in-off, skippable, persisted
 priority = "P1"
 phase_target = 4
 inventory_ref = "docs/13-agent-wave-program.md#4.F1"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Design-new (Onboarding-1..10.svg); no VLC equivalent."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/onboarding/OnboardingScreen.tsx + onboardingState.ts (+ OnboardingScreen.test.tsx)"
+notes = "Design-new (Onboarding-1..10.svg); no VLC equivalent. Backfill (issue #20): first-run flow live, privacy defaults opt-in-off."
 
 [[feature]]
 id = "ui-screen-miniplayer-music"
@@ -2738,9 +2738,9 @@ description = "Player variants: Miniplayer, Music mode, Light theme"
 priority = "P2"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s3.4"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "4.F2; design-new; VLC macOS Controller window is the loose analog [stale doc]."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/player/variants/MiniPlayer.tsx + MusicMode.tsx + variantKeymap.ts + variantLayout.ts (+ variants.test.tsx)"
+notes = "4.F2; design-new; VLC macOS Controller window is the loose analog [stale doc]. Backfill (issue #20): Miniplayer + Music mode variants live with their own keymap/layout; Light theme rides ui-screen-theme."
 
 [[feature]]
 id = "ui-screen-keyboard-shortcuts"
@@ -2750,9 +2750,9 @@ description = "Dedicated shortcut browser/editor with search + Global column"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s6"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Design-new surface (VLC 3.0.23 has no dedicated dialog — hotkeys in Preferences); see config-hotkey-editor."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/shortcuts/ShortcutsScreen.tsx (+ ShortcutsScreen.test.tsx)"
+notes = "Design-new surface (VLC 3.0.23 has no dedicated dialog — hotkeys in Preferences); see config-hotkey-editor. Backfill (issue #20): shortcut browser live over the seed + editor data."
 
 [[feature]]
 id = "ui-screen-customize"
@@ -2762,9 +2762,9 @@ description = "Per-button/panel customization (buttons, display toggles)"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "4.F*; design's richer model (customize -1..8) replaces VLC's toolbar editor; doc 08 §1.6 data model."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/player/customize/CustomizePanels.tsx + panels.ts + capabilities.ts (+ CustomizePanels.test.tsx)"
+notes = "4.F*; design's richer model (customize -1..8) replaces VLC's toolbar editor; doc 08 §1.6 data model. Backfill (issue #20): panel data + capabilities model live."
 
 [[feature]]
 id = "ui-screen-av-tools"
@@ -2786,9 +2786,9 @@ description = "Light/dark + 9 accents, token-driven"
 priority = "P1"
 phase_target = 4
 inventory_ref = "docs/13-agent-wave-program.md#4.A2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Design-new; 4.A2 token pipeline; semantic tokens lint-enforced."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/settings/areas/appearance/ThemeModePicker.tsx (interface.theme special widget, schema-enum driven) + ui/src/theme/settingsThemeSync.ts (live data-theme on html); token pipeline themes/tokens.json + tools/xtask/src/cmd/tokens.rs"
+notes = "Design-new; 4.A2 token pipeline; semantic tokens lint-enforced. Backfill (issue #20): mode picker + settings-to-ThemeProvider seam live; accent ramps in themes/tokens.json [VERIFY-DESIGN per doc 08 §1]."
 
 [[feature]]
 id = "ui-screen-skins2"
@@ -2817,9 +2817,9 @@ description = "Media open flows: file picker, folder picker, clipboard MRL, drag
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s1.1"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Ctrl+O/Ctrl+F/Ctrl+V; native dialogs via shell (4.H1); design Onboarding folder step."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/open-media/OpenMediaDialog.tsx (+ OpenMediaDialog.test.tsx; AppShell-owned lumen:open-media listener mounts it, opens picked/pasted sources via session.open through ClientProvider — Solstice app-shell workstream 2026-11-08, v2 audit pass 2026-11-09)"
+notes = "Ctrl+O/Ctrl+F/Ctrl+V; native dialogs via shell (4.H1); design Onboarding folder step. Backfill (issue #20): open-media dialog live (clip catalog + Recent + path/URL input); NATIVE file/folder pickers (4.H1) and clipboard-MRL flow still open — path input is the current substitute."
 
 [[feature]]
 id = "ui-dialog-open-network"
@@ -2829,9 +2829,9 @@ description = "Network URL dialog; design adds playlist-title + multi-URL"
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Ctrl+N; adapted per crosswalk (playlist.enqueue-many + playlist.save)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/network-stream/NetworkStreamScreen.tsx (+ NetworkStreamScreen.test.tsx)"
+notes = "Ctrl+N; adapted per crosswalk (playlist.enqueue-many + playlist.save). Backfill (issue #20): network URL dialog live; design playlist-title + multi-URL extras still open."
 
 [[feature]]
 id = "ui-dialog-open-multiple"
@@ -2877,9 +2877,9 @@ description = "Jump to specific time (hh:mm:ss)"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Ctrl+T; design Current Time.svg click-state adaptation."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/player/dialogs/GotoTimeDialog.tsx + parseTimeInput.ts (+ .test.tsx/.ts each); Ctrl+T via DIALOG_KEYMAP in ui/src/screens/player/keymap.ts"
+notes = "Ctrl+T; design Current Time.svg click-state adaptation. Backfill (issue #20): hh:mm:ss jump dialog live, wired to the seek command layer."
 
 [[feature]]
 id = "ui-dialog-bookmarks"
@@ -2889,9 +2889,9 @@ description = "Bookmark create/list/delete/clear dialog"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Ctrl+B; [Extract VERIFY]; 10 slots; design Bookmarks display toggle."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/player/dialogs/BookmarksDialog.tsx (+ BookmarksDialog.test.tsx); engine list crates/playback-engine/src/bookmarks.rs; Ctrl+B via DIALOG_KEYMAP (ui/src/screens/player/keymap.ts + keymap.test.ts)"
+notes = "Ctrl+B; [Extract VERIFY]; 10 slots; design Bookmarks display toggle. Backfill (issue #20): create/jump/delete dialog live over the engine BookmarkList (see playback-bookmarks for the slot-hotkey remainder)."
 
 [[feature]]
 id = "ui-dialog-subtitle-add"
@@ -3003,9 +3003,9 @@ description = "Open File/Folder/Disc/Network/Capture/Clipboard + Recent (11 leaf
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s1.1"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Ctrl+O/F/D/N/C/V accelerators; disc/capture items render disabled-from-data while blocked (F1/F2 rules); menus-as-data per doc 05 §8.3."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "ui/src/components/appshell/AppShell.tsx File menu (menu.file.open-media → ui/src/screens/open-media/OpenMediaDialog.tsx; menu.file.open-network-stream → ui/src/screens/network-stream/NetworkStreamScreen.tsx) over ui/src/components/menu/MenuBar.tsx"
+notes = "Ctrl+O/F/D/N/C/V accelerators; disc/capture items render disabled-from-data while blocked (F1/F2 rules); menus-as-data per doc 05 §8.3. Backfill (issue #20) partial: Open Media + Open Network Stream + accelerators live; disc/capture/clipboard-MRL items and the Recent submenu absent (open-disc/capture bindings seed-only, disabled-from-data)."
 
 [[feature]]
 id = "menu-media-convert-quit"
@@ -3015,9 +3015,9 @@ description = "Convert/Save…, Stream…, Quit"
 priority = "P2"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s1.1"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Quit Ctrl+Q adopted; Convert gated to 7.E3 targets; Stream wizard not-adopted-v1."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "ui/src/components/appshell/AppShell.tsx File menu menu.file.exit (quit wired); Convert/Stream items absent — convert binding seed-only (keymaps/default.toml, disposition not-adopted-v1)"
+notes = "Quit Ctrl+Q adopted; Convert gated to 7.E3 targets; Stream wizard not-adopted-v1. Backfill (issue #20) partial: Quit live in the menubar; Convert/Stream… items not rendered."
 
 [[feature]]
 id = "menu-playback-transport"
@@ -3027,9 +3027,9 @@ description = "Play/Pause, Stop, Previous, Next, Speed ▸ (faster/slower/normal
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s1.2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Space/S/P/N + +/−/=/]/[; design Speed panel adaptation (Values.svg steppers)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "ui/src/components/appshell/AppShell.tsx Playback menu (menu.playback.play-pause/stop/previous/next/shuffle + repeat off/all/one submenu; engine-reported shuffle/repeat checkboxes)"
+notes = "Space/S/P/N + +/−/=/]/[; design Speed panel adaptation (Values.svg steppers). Backfill (issue #20) partial: play/pause/stop/prev/next/shuffle/repeat live; the Speed ▸ submenu (faster/slower/normal/fine) absent — rate rides the hotkey rows + playback-rate only."
 
 [[feature]]
 id = "menu-playback-navigation"
@@ -3123,9 +3123,9 @@ description = "Effects and Filters, Track Synchronization, Media/Codec Informati
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s1.6"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Ctrl+E/I/J/M/P; VLM unsupported-by-design; Program Guide DVB-gated."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "ui/src/components/appshell/AppShell.tsx Tools menu (menu.tools.customize → ui/src/screens/player/customize/, menu.tools.media-info, menu.tools.preferences)"
+notes = "Ctrl+E/I/J/M/P; VLM unsupported-by-design; Program Guide DVB-gated. Backfill (issue #20) partial: Customize/Media info/Preferences items live; Effects and Filters (Ctrl+E), Track Synchronization, Messages (Ctrl+M), Plugins items absent."
 
 [[feature]]
 id = "menu-view"
@@ -3135,9 +3135,9 @@ description = "Playlist, Docked Playlist, Advanced Controls, Status Bar, Minimal
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s1.7"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Ctrl+L/U/A/H; minimal-view vs design hide-UI (Ctrl+\\) fold decision open (C-05); Advanced Controls concept replaced by per-button customization."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "ui/src/components/appshell/AppShell.tsx View menu (menu.view.player/music-mode/miniplayer/playlist/media-info/shortcuts/settings — variant + screen navigation)"
+notes = "Ctrl+L/U/A/H; minimal-view vs design hide-UI (Ctrl+\\) fold decision open (C-05); Advanced Controls concept replaced by per-button customization. Backfill (issue #20) partial: player/Music-mode/Miniplayer/Playlist/Media info/Shortcuts/Settings items live; Docked Playlist, Advanced Controls, Status Bar, Minimal View items absent (hide-ui binding seed-only)."
 
 [[feature]]
 id = "menu-help"
@@ -3147,9 +3147,9 @@ description = "Help, About, ReadMe/Update"
 priority = "P2"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s1.8"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "About = product.toml data; accelerator set [VERIFY]."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "ui/src/components/appshell/AppShell.tsx Help menu (menu.help.about, menu.help.keyboard-shortcuts → ui/src/screens/shortcuts/)"
+notes = "About = product.toml data; accelerator set [VERIFY]. Backfill (issue #20) partial: About + Keyboard Shortcuts items live; Help and ReadMe/Update items absent."
 
 [[feature]]
 id = "menu-context-surface"
