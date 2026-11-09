@@ -36,6 +36,20 @@
   color: var(--color-content-bright);
 }
 
+/* Emphasis stroke variants (issue #35, doc 08 §1.4 "stroke-width 1.5; 2 and 3
+ * for emphasis"; §1.5 active-state glyphs redraw at 2). Icon.tsx also sets the
+ * matching numeric attribute (1.5/2/3) so the SVG is self-describing; the CSS
+ * rule wins over presentation attributes and keeps the width token-driven
+ * (--stroke-icon-strong / --stroke-icon-max). Default variant carries no
+ * class — pre-issue-#35 behaviour is unchanged. */
+.lumen-icon--strong {
+  stroke-width: var(--stroke-icon-strong);
+}
+
+.lumen-icon--max {
+  stroke-width: var(--stroke-icon-max);
+}
+
 .lumen-icon-host--disabled .lumen-icon,
 .lumen-icon--disabled {
   color: var(--color-stroke-icon);
