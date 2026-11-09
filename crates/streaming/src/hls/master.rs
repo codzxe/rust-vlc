@@ -1093,4 +1093,56 @@ mod tests {
         let err = stream.read(500).expect_err("misaligned lo refuses");
         assert_eq!(err.context.code, "streaming.hls.variant-sequence-missing");
     }
+
+    /// 6.B2b: an `EXT-X-DISCONTINUITY` inside a variant's own
+    /// playlist is carried through the adaptive session (recorded in
+    /// the segment map, counted in the stats) — the flag is not only
+    /// the switch seam's. No host throughput samples are fed, so the
+    /// controller holds and the run stays on one variant (the
+    /// recording is the playlist's, not a seam's).
+    #[test]
+    fn in_playlist_discontinuity_is_recorded_without_switching() {
+        let master = "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=200000\nlo.m3u8\n";
+        let playlist = "#EXTM3U\n#EXT-X-TARGETDURATION:2\n\
+            #EXT-X-MEDIA-SEQUENCE:100\n#EXT-X-PLAYLIST-TYPE:VOD\n\
+            #EXTINF:2.0,\nlo/seg0.ts\n#EXTINF:2.0,\nlo/seg1.ts\n\
+            #EXT-X-DISCONTINUITY\n\
+            #EXTINF:2.0,\nlo/seg2.ts\n#EXTINF:2.0,\nlo/seg3.ts\n\
+            #EXT-X-ENDLIST\n";
+        let mut routes: Vec<(&str, Vec<u8>)> = vec![
+            ("/master.m3u8", master.as_bytes().to_vec()),
+            ("/lo.m3u8", playlist.as_bytes().to_vec()),
+        ];
+        for i in 0..4 {
+            routes.push((
+                Box::leak(format!("/lo/seg{i}.ts").into_boxed_str()) as &str,
+                vec![b'L'; 50],
+            ));
+        }
+        let fetch = router(&routes);
+        let mut stream =
+            open_master(fetch, "http://unit.test/master.m3u8", HlsMasterConfig::default())
+                .expect("single-variant session opens");
+        let mut total = 0;
+        loop {
+            let chunk = stream.read(128).expect("read");
+            if chunk.is_empty() {
+                break;
+            }
+            total += chunk.len();
+        }
+        assert_eq!(total, 4 * 50, "every segment served");
+        assert_eq!(stream.stats().variant_switches, 0, "no samples, no switches");
+        let bounds = stream.segment_boundaries();
+        assert_eq!(bounds.len(), 4);
+        for w in bounds.windows(2) {
+            assert_eq!(w[1].media_sequence, w[0].media_sequence + 1, "continuous");
+        }
+        assert!(!bounds[0].discontinuity);
+        assert!(!bounds[1].discontinuity);
+        assert!(bounds[2].discontinuity, "the playlist's own tag recorded");
+        assert!(!bounds[3].discontinuity);
+        assert_eq!(stream.stats().discontinuities, 1);
+        assert_eq!(stream.size(), Some(total as u64));
+    }
 }

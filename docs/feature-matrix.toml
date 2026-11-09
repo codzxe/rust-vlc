@@ -1432,9 +1432,9 @@ priority = "P1"
 phase_target = 6
 vlc_modules = ["adaptive"]
 inventory_ref = "inventory/formats.json#adaptive-hls-dash"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "6.B1–6.B3 (M+M+S); m3u8-rs 6.0.1 as cross-check; hls-runtime is low-latency niche [VERIFY-P0]; Apple/IETF vectors per 6.B3."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "crates/streaming/src/hls/** (media/live/master) + crates/playlists/src/hls.rs (cards 6.B1a VOD session ffmpeg-oracle e2e, 6.B1b live window + recorded discontinuities, 6.B2a master parse EXT-X-STREAM-INF/EXT-X-MEDIA + highest-BW-under-cap selection, 6.B2b boundary variant switching + absolute-sequence alignment + ABR hysteresis band/dwell); e2e hls_vod_e2e/hls_live_e2e/hls_master_e2e over the mockhttp real socket; streaming 164/0 lib tests"
+notes = "6.B1–6.B3 (M+M+S); m3u8-rs 6.0.1 as cross-check; hls-runtime is low-latency niche [VERIFY-P0]; Apple/IETF vectors per 6.B3. Partial per 6.B2 flip: VOD + live + master/variant switching landed; alternate renditions (EXT-X-MEDIA) parsed+recorded but not selected; KEY/BYTERANGE/MAP + fMP4 lanes refuse typed (streaming.hls.*); live-window variant switching and 6.B3 conformance vectors pending."
 
 [[feature]]
 id = "network-dash"
