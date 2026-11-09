@@ -41,15 +41,13 @@
 //!   `DURATION` values with a trailing `\0`); the value ends at the
 //!   first NUL, matching ffmpeg's reader exactly.
 //!
-//! # Seam (recorded honestly)
+//! # Seam (wired, issue #34)
 //!
-//! The demuxer's `open` walk currently *skips* `Tags` (5.D1's
-//! parse-and-skip tolerance). This module is the parse layer; wiring
-//! it into `MkvDemuxer` (a `tags()` accessor) is a `mod.rs` change
-//! the Lead merge performs together with D2a's chapters/attachments
-//! — the parallel agent owns the same file's walk. Until then the
-//! public `parse_tags` is the library seam (the integration tests
-//! drive it over the real corpus).
+//! The demuxer's `open()` walk parses every `Tags` element and
+//! retains the merged list on the struct
+//! ([`MkvDemuxer::tags`](crate::mkv::MkvDemuxer::tags)); the 5.D1
+//! parse-and-skip tolerance and the 5.D2b library-only seam are
+//! closed. The public `parse_tags` remains the unit-test surface.
 
 use media_types::error::{ErrorContext, LimitKind};
 use media_types::{EngineError, ErrorKind, PipelineStage};
@@ -273,6 +271,24 @@ pub struct TagList {
 }
 
 impl TagList {
+    /// The first global (segment-wide) text pair whose name matches
+    /// `name` case-insensitively — the Matroska convention is
+    /// uppercase names (`TITLE`, `ARTIST`), but files in the wild
+    /// carry mixed case (issue #34: the media-title fallback lookup).
+    #[must_use]
+    pub fn global_text(&self, name: &str) -> Option<&str> {
+        self.tags
+            .iter()
+            .filter(|tag| tag.targets.is_global())
+            .flat_map(|tag| tag.simple_tags.iter())
+            .find_map(|simple| {
+                simple
+                    .value
+                    .as_text()
+                    .filter(|_| simple.name.eq_ignore_ascii_case(name))
+            })
+    }
+
     /// The global (segment-wide) pairs as `(name, value)` — top-level
     /// simple tags of global `Tag` records, text values only. The
     /// ffprobe `format_tags` shape.
@@ -633,6 +649,59 @@ mod tests {
     #[test]
     fn default_targets_are_track_level() {
         assert_eq!(TagTargets::default().target_type_value, 50);
+    }
+
+    #[test]
+    fn global_text_finds_names_case_insensitively() {
+        // The issue #34 media-title fallback: mkvtoolnix writes the
+        // container title as a global TITLE pair (ffmpeg uses
+        // Info.Title instead); mixed-case files must still match.
+        let mut list = TagList::default();
+        assert_eq!(list.global_text("TITLE"), None);
+        list.tags.push(Tag {
+            targets: TagTargets::default(),
+            simple_tags: vec![
+                SimpleTag {
+                    name: "ARTIST".to_string(),
+                    language: "und".to_string(),
+                    language_ietf: None,
+                    default: true,
+                    value: TagValue::Text("someone".to_string()),
+                    children: Vec::new(),
+                },
+                SimpleTag {
+                    name: "Title".to_string(),
+                    language: "und".to_string(),
+                    language_ietf: None,
+                    default: true,
+                    value: TagValue::Text("Tag-Scope Title".to_string()),
+                    children: Vec::new(),
+                },
+            ],
+        });
+        assert_eq!(list.global_text("TITLE"), Some("Tag-Scope Title"));
+        assert_eq!(list.global_text("artist"), Some("someone"));
+        // Binary values and non-global scopes never match.
+        list.tags.push(Tag {
+            targets: {
+                let mut scoped = TagTargets::default();
+                scoped.track_uids.push(7);
+                scoped
+            },
+            simple_tags: vec![SimpleTag {
+                name: "TITLE".to_string(),
+                language: "und".to_string(),
+                language_ietf: None,
+                default: true,
+                value: TagValue::Text("track-scope".to_string()),
+                children: Vec::new(),
+            }],
+        });
+        assert_eq!(
+            list.global_text("TITLE"),
+            Some("Tag-Scope Title"),
+            "the track-scoped pair is not global"
+        );
     }
 
     #[test]

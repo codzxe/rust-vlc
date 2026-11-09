@@ -27,18 +27,14 @@
 //!
 //! # Exposure seam (the card's "info/attachment surface")
 //!
-//! [`MkvDemuxer::attachments`] is the typed getter. The 5.D1 struct
-//! has no attachments field (this card's mod.rs grant is two
-//! `pub mod` lines only, file-disjoint with the parallel 5.D2b
-//! agent), so the getter parses on demand: a positional top-level
-//! scan ([`scan_segment_for`]) over the demuxer's own reader and
-//! segment bounds. Every read is positional, so the demuxer's packet
-//! walk is untouched — call once after `start()` and keep the result;
-//! repeated calls re-read.
+//! [`MkvDemuxer::attachments`] is the typed getter over the list the
+//! demuxer **retains at `start`** (issue #34 wired the `open()` seam:
+//! the 5.D2a card's on-demand positional re-scan is gone — the files
+//! are parsed once during the walk and held on the struct, so the
+//! packet path never re-reads them and the getters are `&self`).
 
 use media_types::EngineError;
 
-use crate::mkv::MkvDemuxer;
 use crate::mkv::ebml::{self, EbmlReader, ElementHeader};
 use crate::mkv::error;
 use crate::mkv::header::MAX_TEXT_FIELD;
@@ -117,6 +113,29 @@ pub struct AttachmentList {
     pub files: Vec<AttachedFile>,
     /// Damage rows (bytes skipped, reason).
     pub damage: AttachmentDamage,
+}
+
+impl AttachmentList {
+    /// The cover-art file (issue #34: the title/artwork metadata
+    /// seam): the first attachment whose MIME type is an image type
+    /// (`image/…`, case-insensitive) or whose name follows the
+    /// `cover.*`/`front.*` convention (mkvtoolnix writes either).
+    /// Fonts do not qualify (they are the ASS stack's input, issue
+    /// #17). `None` when the file carries no artwork.
+    #[must_use]
+    pub fn cover_art(&self) -> Option<&AttachedFile> {
+        self.files.iter().find(|file| {
+            let image_mime = file
+                .mime_type
+                .as_deref()
+                .is_some_and(|m| m.to_ascii_lowercase().starts_with("image/"));
+            let cover_name = file.name.as_deref().is_some_and(|n| {
+                let lower = n.to_ascii_lowercase();
+                lower.starts_with("cover.") || lower.starts_with("front.")
+            });
+            image_mime || cover_name
+        })
+    }
 }
 
 /// The `Attachments` parse. An unknown-size `Attachments` clamps to
@@ -256,81 +275,6 @@ fn parse_attached_file(
         uid,
         data,
     }))
-}
-
-/// Scan a segment's top-level children for every element with `want`'s
-/// id, header reads only (positional — safe against the demuxer's
-/// packet walk). Unknown-size children end the scan: only the target
-/// master itself may legally carry the unknown size in this scope, and
-/// it extends to the segment end by definition (the landed `open()`
-/// walk's policy, shared with the chapters getter and reusable by the
-/// editions/tags card).
-///
-/// # Errors
-/// Typed per the ebml layer (bad vint / truncation at a header).
-pub(crate) fn scan_segment_for(
-    reader: &mut EbmlReader,
-    start: u64,
-    end: u64,
-    want: u32,
-) -> Result<Vec<ElementHeader>, EngineError> {
-    let mut found = Vec::new();
-    let mut pos = start;
-    while pos < end {
-        let Some(el) = ebml::parse_header_at(reader, pos, end)? else {
-            break;
-        };
-        let element_end = match el.declared_end() {
-            Some(element_end) => element_end.min(end),
-            None => {
-                // Unknown size: the target master extends to the
-                // segment end (nothing can follow it); anything else
-                // cannot be skipped past — the scan ends here.
-                if el.id == want {
-                    found.push(el);
-                }
-                break;
-            }
-        };
-        if el.id == want {
-            found.push(el);
-        }
-        pos = element_end;
-    }
-    Ok(found)
-}
-
-impl MkvDemuxer {
-    /// The segment's attached files (cover art, fonts, companions):
-    /// the typed getter over the `Attachments` element.
-    ///
-    /// Parses on demand — a positional top-level scan over this
-    /// demuxer's own reader and segment bounds (the 5.D1 struct has
-    /// no attachments field; this card's mod.rs grant is the two
-    /// module lines). Every read is positional, so the packet walk is
-    /// untouched; keep the result rather than re-calling on a hot
-    /// path.
-    ///
-    /// # Errors
-    /// [`error::not_started`] before `start`; typed per
-    /// [`parse_attachments`] afterwards.
-    pub fn attachments(&mut self) -> Result<AttachmentList, EngineError> {
-        if !self.started {
-            return Err(error::not_started());
-        }
-        let mut list = AttachmentList::default();
-        for el in scan_segment_for(
-            &mut self.reader,
-            self.segment_data_start,
-            self.segment_end,
-            ID_ATTACHMENTS,
-        )? {
-            let parsed = parse_attachments(&mut self.reader, &el, self.segment_end)?;
-            list.files.extend(parsed.files);
-            list.damage.extend(parsed.damage);
-        }
-        Ok(list)
-    }
 }
 
 #[cfg(test)]
@@ -520,6 +464,49 @@ mod tests {
         assert_eq!(list.files.len(), 1);
         assert_eq!(list.files[0].name, None);
         assert_eq!(list.files[0].data, FileData::Inline(b"payload".to_vec()));
+    }
+
+    #[test]
+    fn cover_art_picks_the_image_attachment_not_the_font() {
+        // The issue #34 artwork seam: an image MIME (or the cover/front
+        // name convention) is artwork; a font — the ASS stack's input,
+        // issue #17 — is not.
+        let font = el(
+            ID_ATTACHED_FILE,
+            &[
+                el(ID_FILE_NAME, b"MyFont.ttf"),
+                el(ID_FILE_MIME_TYPE, b"application/x-truetype-font"),
+                el(ID_FILE_DATA, b"ttf-bytes"),
+            ]
+            .concat(),
+        );
+        let cover = el(
+            ID_ATTACHED_FILE,
+            &[
+                el(ID_FILE_NAME, b"cover.jpg"),
+                el(ID_FILE_MIME_TYPE, b"image/jpeg"),
+                el(ID_FILE_DATA, b"JFIF"),
+            ]
+            .concat(),
+        );
+        let bytes = attachments_element(&[font.clone(), cover].concat());
+        let list = parse(&bytes, bytes.len() as u64).must();
+        assert_eq!(list.files.len(), 2);
+        let art = list.cover_art().must();
+        assert_eq!(art.name.as_deref(), Some("cover.jpg"));
+        // The name convention alone qualifies too (mkvtoolnix's
+        // spelling; MIME absent).
+        let name_only = el(
+            ID_ATTACHED_FILE,
+            &[el(ID_FILE_NAME, b"Front.png"), el(ID_FILE_DATA, b"png")].concat(),
+        );
+        let name_bytes = attachments_element(&name_only);
+        let list = parse(&name_bytes, name_bytes.len() as u64).must();
+        assert_eq!(list.cover_art().must().name.as_deref(), Some("Front.png"));
+        // Fonts are not artwork (the ASS stack's input, issue #17).
+        let fonts_only = attachments_element(&font);
+        let list = parse(&fonts_only, fonts_only.len() as u64).must();
+        assert!(list.cover_art().is_none(), "a font is not cover art");
     }
 
     #[test]

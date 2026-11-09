@@ -1,11 +1,12 @@
 # Container record — Matroska / WebM (MKV)
 
-Status: **in progress** (feature-matrix row `container-matroska-webm`,
+Status: **implemented** (feature-matrix row `container-matroska-webm`,
 Phase 5). This record is the container's honest coverage ledger after
-cards 5.D1 (core) and 5.D2b (editions + tags). Card 5.D2a
-(attachments + chapter atoms) **landed at wave-4 close — see the
-audit addendum at the bottom (5.REC-1); its "in flight" markers in
-the table below are superseded**.
+cards 5.D1 (core), 5.D2a (attachments + chapter atoms), 5.D2b
+(editions + tags) and issue #34 (the open() wiring + TrackUID/
+Title retention — see the issue-#34 addendum at the bottom). Card
+5.D2a landed at wave-4 close — see the audit addendum (5.REC-1);
+its "in flight" markers in the table below are superseded.
 
 - Layer: L2 demux (`crates/demux/src/mkv/`), C5 std-only, zero
   external dependencies, no `unsafe`.
@@ -20,14 +21,14 @@ the table below are superseded**.
 | `EBML` header (0x1A45DFA3), vints, unknown-size | full parse + typed refusal (`unknown-doctype`, `ebml-limits`) | 5.D1 |
 | `Segment` (0x18538067) walk, SeekHead (0x114D9B74) | walk + skip | 5.D1 |
 | `Info` (0x1549A966): `TimestampScale`, `Duration` | full parse | 5.D1 |
-| `Info` `Title` (0x7BA9) | **not retained** (gap, see below) | — |
-| `Tracks`/`TrackEntry`: number/type/codec/language/name/flags | full parse; `TrackUID` (0x73C5) **not retained** (gap, see below) | 5.D1 |
+| `Info` `Title` (0x7BA9) | **retained** (issue #34: `SegmentInfo.title` + `MkvDemuxer::title()`, the fallback to the global `TITLE` tag pair included) | #34 |
+| `Tracks`/`TrackEntry`: number/type/codec/language/name/flags | full parse; `TrackUID` (0x73C5) **retained** (issue #34: `TrackEntry.uid` + `MkvDemuxer::track_uid()`) | 5.D1, #34 |
 | `Cluster`/`SimpleBlock`/`BlockGroup` + Xiph/EBML/fixed lacing | full parse, bit-exact vs ffmpeg | 5.D1 |
 | `Cues` seek index, keyframe-safe reanchor | full parse (65 536-entry ceiling) | 5.D1 |
-| `Tags` (0x1254C367) → `Tag`/`Targets`/`SimpleTag` | **full parse** (this card, 5.D2b) | 5.D2b |
-| `Chapters` (0x1043A770) → `EditionEntry` flags/UID | **full parse** (5.D2b) | 5.D2b |
-| `ChapterAtom` (0xB6) times/displays/titles | **in flight** (5.D2a owns); 5.D2b records the UID links only | 5.D2a |
-| `Attachments` (0x1941A469) | **in flight** (5.D2a owns) | 5.D2a |
+| `Tags` (0x1254C367) → `Tag`/`Targets`/`SimpleTag` | **full parse, wired through `open()`** (issue #34: retained on the demuxer, `tags()`) | 5.D2b, #34 |
+| `Chapters` (0x1043A770) → `EditionEntry` flags/UID | **full parse, wired through `open()`** (issue #34: retained, `chapters()`, seek targets via `chapter_targets()`) | 5.D2b, #34 |
+| `ChapterAtom` (0xB6) times/displays/titles | **full parse, wired** (issue #34) | 5.D2a, #34 |
+| `Attachments` (0x1941A469) | **full parse, wired through `open()`** (issue #34: retained, `attachments()`) | 5.D2a, #34 |
 
 ### Tags semantics implemented (5.D2b)
 
@@ -100,34 +101,31 @@ Differential shape: my parsed global tag pairs vs ffprobe
 
 ### Recorded gaps (honest exclusions in the differential)
 
-1. `title` on the format scope: ffmpeg's muxer writes the container
-   title into `Info.Title` (0x7BA9) — a 5.D1 element `SegmentInfo`
-   does not retain (pinned by the generated lane).
+1. `title` on the format scope: **CLOSED by issue #34** —
+   `SegmentInfo.title` now retains `Info.Title` (0x7BA9) and
+   `MkvDemuxer::title()` surfaces it (pinned by the generated lane:
+   ffmpeg `-metadata title=` → `Info.Title` → `title()`).
 2. `title` on the stream scope: per-stream titles live in
    `TrackEntry.Name` (0x536E) — parsed by 5.D1 into
    `TrackEntry.title` but not surfaced as stream *metadata* to the
    differential's consumer here.
 3. `language` on the stream scope: `TrackEntry.Language` (5.D1
    surface, not a `Tags` product).
-4. `TrackUID` (0x73C5) is not retained by 5.D1's track table — the
-   differential extracts it raw from `Tracks` (the seam any
-   tags→track UI join needs; wiring it into `TrackEntry` is a merge
-   follow-up).
+4. `TrackUID` (0x73C5): **CLOSED by issue #34** — `TrackEntry.uid`
+   retained, `MkvDemuxer::track_uid(TrackId)` the accessor; the
+   tags→track join (`track_text_pairs(uid)`) runs through it.
 
 ## Known gaps / next actions
 
-- **Demuxer wiring seam**: `MkvDemuxer::open` still skips `Tags` and
-  `Chapters` (5.D1's tolerance). The parse layer is public
-  (`demux::mkv::tags::parse_tags`, `demux::mkv::editions::parse_editions`);
-  wiring them into the walk with `tags()`/`editions()` accessors is
-  the Lead merge step shared with 5.D2a (mod.rs is the two cards'
-  only common file — this card's wiring was append-only 2 lines by
-  mandate).
-- **ChapterAtom structure** (times, displays, titles): 5.D2a's
-  owned parse; when it lands, `editions.rs`' `collect_atom_uids` walk
-  is the recorded integration point (replace with the structured
-  parse, keep `Edition.chapter_uids` as the link seam).
-- **Attachments**: 5.D2a (in flight).
+- **Demuxer wiring seam**: **CLOSED by issue #34** (see the addendum
+  below) — `open()` parses and retains `Tags`/`Attachments`/
+  `Chapters`; `tags()`/`attachments()`/`chapters()` are the retained
+  accessors; the positional-scan getters remain for the 5.D2 suites.
+- **ChapterAtom structure** (times, displays, titles): landed (5.D2a)
+  and wired (#34); `editions.rs`' `collect_atom_uids` walk remains
+  the link seam.
+- **Attachments**: landed (5.D2a) and wired (#34) — name/MIME/bytes
+  on the model; the ASS font *consumer* is issue #17's surface.
 - Ordered-edition **playback semantics** (playing an edition as an
   ordered part sequence) is engine-level work, not demux; the flags
   and links are exposed for it.
@@ -187,3 +185,82 @@ close). Verified in-tree this session:
 - Matrix row `container-matroska-webm` still reads `not_started` /
   empty evidence (Lead-owned backfill; same amendment shape as the
   9 records written by this card).
+
+---
+
+## Issue #34 addendum (2026-11-09, W5-I resuming the dead W4-I runs — finish MKV/WebM)
+
+The Lead merge follow-up the two addenda above waited on, landed in
+three milestones (3e82379 wiring, 2e7472b the wiring suite +
+livelock fix, this commit's record/matrix flip):
+
+- **Wiring seam CLOSED**: `open()`'s segment walk now runs to the
+  segment end (the 5.D1 early break at the first cluster lost the
+  trailing metadata masters ffmpeg's layout puts after the
+  clusters), parsing and retaining every `Tags`/`Attachments`/
+  `Chapters` element (masters may repeat; lists merge in file
+  order). `tags()`/`attachments()`/`chapters()` are `&self`
+  retained-data accessors. Unknown-size `Tags`/`Attachments`/
+  `Chapters` masters (the streaming form) parse at `open()` AND
+  the mid-playback skip in `load_next` runs to the segment end
+  (the former typed refusal is gone). Cluster-walk regression
+  fixed on the way: a block that fails mid-cluster now restores
+  the window on the error path, so the recovery arm advances the
+  walk — the leaked-window form re-loaded the same cluster forever
+  (`Recovered` loop, never EOS).
+- **Title seam** (gap 1 closed): `Info.Title` (0x7BA9) retained on
+  `SegmentInfo`, surfaced by `MkvDemuxer::title()` with fallback to
+  the global `TITLE` tag pair (the mkvtoolnix spelling,
+  case-insensitive).
+- **TrackUID retention** (gap 4 closed): `TrackEntry.uid`
+  (0x73C5) parsed; `MkvDemuxer::track_uid(TrackId)` is the stable
+  identity (nonzero-UID join against `TagTrackUID` via
+  `track_text_pairs(uid)`); `None` = out-of-table handle, `Some(0)`
+  = the file declared none.
+- **Chapter seek targets**: `chapter_targets()` — the default
+  edition's (flagged → first visible → first) visible atoms,
+  depth-first, ns times converted onto the segment clock (scale
+  ticks), hidden atoms retained on the model but not offered.
+  `[PROPOSAL: the chapter-navigation command layer — matrix
+  `playback-chapter-title`, phase 4 — does not exist yet: the
+  commands catalog carries `media.get-chapters`/`media.set-chapter`
+  (commands/src/catalog/command.rs:363-368) but the engine has no
+  chapter source (playback-engine/src/seek.rs:297 refuses
+  `SeekTarget::Chapter` typed; events carry `chapters:
+  Vec::new()`), so nothing downstream consumes the targets; the
+  data is retained, no untested plumbing wired]`.
+
+### Corpus vectors (the wiring evidence, this tree)
+
+`crates/demux/tests/mkv_extras_wiring.rs` — 9 tests, the
+record-corpus convention (hand-built spec vectors + a live
+ffmpeg-generated differential lane), all run this session:
+
+| Vector | Covers | Pinned assertions |
+|---|---|---|
+| `tags_attachments_chapters_wire_through_start_retained` | the namesake: Tags (simple + nested + track-scoped) + Attachments (font + image) + Chapters (single edition, 2 atoms), Cues before clusters, extras trailing (ffmpeg's layout) | 2 tag records, nested `SimpleTag` structure, `track_text_pairs(77)` joins the retained UID, font/cover name+MIME+UID+bytes byte-exact, edition flags + ns times + titles, `chapter_targets()` ns→ticks (1500/3900 at the 1 ms scale), drain 2 packets, 0 damage |
+| `title_falls_back_to_the_global_title_tag` | Tags simple (global `TITLE` pair) | `title()` = Info.Title → else global tag → else `None` |
+| `track_uids_are_stable_across_reopens` | TrackUID retention | 2 tracks × 2 fresh opens agree; model/accessor agree; out-of-range = `None` |
+| `multi_edition_chapters_retain_all_and_target_the_default` | Chapters multi-edition (hidden + default + plain) | 3 editions retained, targets = default edition's visible atoms only (hidden atom excluded), whole-model flatten = 5 |
+| `chapter_targets_seek_lands_at_or_before` | chapters as seek targets | `seek(target.span)` lands on the cue-indexed cluster at-or-before the chapter start (1000 ≤ 1500), chapter 0 lands at 0 |
+| `unknown_size_tags_master_parses_and_playback_reaches_eos` | streaming shape | unknown-size `Tags` parsed at `open()`, playback still reaches EOS past it |
+| `damaged_block_recovers_once_and_still_reaches_eos` | the livelock regression | one `Recovered`, walk advances, EOS reached, trailing Tags still retained |
+| `degenerate_attachment_damage_folds_into_the_counter` | damage folding | attachment without `FileData` → list damage row + honesty counter, survivor retained |
+| `generated_lane_wires_title_font_cover_and_chapters` | **ffmpeg 7.1.5 differential** (`-metadata title=`, `-attach` TTF + JPEG, ffmetadata chapters) | ffprobe title matches `title()`; real TTF + JPEG attachment bytes byte-exact on the model; `cover_art()` picks the JPEG; distinct nonzero TrackUIDs join per-stream `ENCODER` pairs; 2 chapter targets at 0/250 ms; drain > 0 |
+
+Honest exclusions: corpus-v4 is absent in this session's sandbox, so
+the 31-lane corpus differential (mkv_corpus.rs) and the 5.D2b tags
+sweep (mkv_editions_tags.rs) skip loudly — their recorded results
+stand as recorded, not re-run here. Gaps 2/3 (stream-scope title via
+`TrackEntry.Name`, stream language) remain 5.D1 surfaces, unchanged.
+
+Gates, re-verified at the final flip commit (worktree `wt/w3i` @
+the issue-#34 commits):
+`cargo test -p demux` **587 passed / 0 failed / 4 ignored** (28
+suites; the 9-test wiring suite included, the 4 ignores are the
+absent-corpus skips); `cargo clippy -p demux --all-targets
+-- -D warnings` exit 0; `cargo fmt --check --all` clean. (Note:
+the shared `CARGO_TARGET_DIR` raced once with a sibling
+worktree's artifacts — a stale-rlib clippy failure that a
+fingerprint refresh cleared; the record's worktree-local-target
+advice stands.)

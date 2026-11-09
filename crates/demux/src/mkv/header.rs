@@ -31,9 +31,9 @@ use crate::mkv::ebml::{
     ID_CODEC_ID, ID_CODEC_PRIVATE, ID_DEFAULT_DURATION, ID_DOCTYPE, ID_DOCTYPE_READ_VERSION,
     ID_DOCTYPE_VERSION, ID_DURATION, ID_EBML_HEADER, ID_EBML_MAX_ID_LENGTH,
     ID_EBML_MAX_SIZE_LENGTH, ID_EBML_READ_VERSION, ID_EBML_VERSION, ID_FLAG_DEFAULT,
-    ID_FLAG_FORCED, ID_FLAG_LACING, ID_LANGUAGE, ID_LANGUAGE_IETF, ID_NAME, ID_PIXEL_HEIGHT,
-    ID_PIXEL_WIDTH, ID_SAMPLING_FREQUENCY, ID_SEEK_PREROLL, ID_TIMESTAMP_SCALE, ID_TRACK_ENTRY,
-    ID_TRACK_NUMBER, ID_TRACK_TYPE, ID_VIDEO,
+    ID_FLAG_FORCED, ID_FLAG_LACING, ID_INFO_TITLE, ID_LANGUAGE, ID_LANGUAGE_IETF, ID_NAME,
+    ID_PIXEL_HEIGHT, ID_PIXEL_WIDTH, ID_SAMPLING_FREQUENCY, ID_SEEK_PREROLL, ID_TIMESTAMP_SCALE,
+    ID_TRACK_ENTRY, ID_TRACK_NUMBER, ID_TRACK_TYPE, ID_TRACK_UID, ID_VIDEO,
 };
 use crate::mkv::error;
 
@@ -75,8 +75,10 @@ pub struct EbmlHeader {
     pub max_size_length: u64,
 }
 
-/// The parsed `Info`: the segment's timing facts.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// The parsed `Info`: the segment's timing facts (plus its title —
+/// issue #34: the `Title` element, the container-title seam the
+/// record's gap 1 pinned).
+#[derive(Debug, Clone, PartialEq)]
 pub struct SegmentInfo {
     /// `TimestampScale` — nanoseconds per timestamp tick. The default
     /// (element absent) is 1_000_000.
@@ -84,6 +86,11 @@ pub struct SegmentInfo {
     /// `Duration` — the segment duration in *seconds* (the spec's own
     /// unit for this float element), when declared and finite.
     pub duration_secs: Option<f64>,
+    /// `Title` — the segment's own title, when declared, valid UTF-8
+    /// and under the text ceiling (advisory display text: an
+    /// over-ceiling or invalid value is absent, never fatal and
+    /// never fabricated).
+    pub title: Option<String>,
     /// The absolute position of the `Info` element (error context).
     pub offset: u64,
 }
@@ -93,6 +100,7 @@ impl Default for SegmentInfo {
         SegmentInfo {
             timestamp_scale: 1_000_000,
             duration_secs: None,
+            title: None,
             offset: 0,
         }
     }
@@ -184,6 +192,11 @@ pub struct TrackEntry {
     pub ordinal: u32,
     /// The Matroska track number blocks carry.
     pub number: u64,
+    /// `TrackUID` — the track's stable unique id (0 when absent, the
+    /// spec's default). The join key `TagTrackUID` targets and the
+    /// identity that survives playlist reloads and track-table
+    /// re-orderings (issue #34: retained, no longer dropped).
+    pub uid: u64,
     /// What the track carries.
     pub kind: MediaKind,
     /// The codec facts (raw id + private bytes + cadence).
@@ -364,8 +377,8 @@ pub fn parse_ebml_header(
     Ok((facts, header_end))
 }
 
-/// The `Info` parse: timing facts only (muxing app, title, chapter
-/// translate and friends are skipped by declared size).
+/// The `Info` parse: timing facts plus the `Title` element (muxing
+/// app, chapter translate and friends are skipped by declared size).
 ///
 /// An unknown-size `Info` clamps to `bound` (the segment end).
 ///
@@ -403,6 +416,15 @@ pub fn parse_info(
                         parsed.timestamp_scale = scale as u32;
                     }
                     _ => return Err(error::bad_structure(child.data_pos)),
+                }
+            }
+            ID_INFO_TITLE => {
+                // Advisory display text: tolerant both ways (over the
+                // text ceiling or invalid UTF-8 → absent, never fatal —
+                // the same doctrine as `TrackEntry`'s `Name`).
+                if len <= MAX_TEXT_FIELD as usize {
+                    let bytes = reader.read_prefix_at(len, child.data_pos, child_end)?;
+                    parsed.title = ebml::utf8_from(&bytes);
                 }
             }
             ID_DURATION => {
@@ -476,6 +498,7 @@ fn parse_track_entry(
     end: u64,
 ) -> Result<Option<TrackEntry>, EngineError> {
     let mut number: Option<u64> = None;
+    let mut uid = 0u64;
     let mut track_type: Option<u64> = None;
     let mut codec_id: Option<String> = None;
     let mut codec_private: Vec<u8> = Vec::new();
@@ -510,6 +533,15 @@ fn parse_track_entry(
                 }
                 number =
                     ebml::uint_from_be(&reader.read_exact_at(len, child.data_pos, child_end)?);
+            }
+            ID_TRACK_UID => {
+                if len > 8 {
+                    return Err(error::bad_structure(child.data_pos));
+                }
+                // 0 when absent (the spec's default for a mandatory
+                // element muxers commonly omit).
+                uid = ebml::uint_from_be(&reader.read_exact_at(len, child.data_pos, child_end)?)
+                    .unwrap_or(0);
             }
             ID_TRACK_TYPE => {
                 if len > 8 {
@@ -644,6 +676,7 @@ fn parse_track_entry(
     Ok(Some(TrackEntry {
         ordinal: 0, // assigned by the caller (table position)
         number,
+        uid,
         kind,
         private: TrackPrivate {
             codec_id: codec_id.clone(),
@@ -823,6 +856,41 @@ pub fn codec_descriptor_for(
 mod tests {
     use super::*;
 
+    /// The on-disk id vint (marker bits intact, minimal width).
+    fn id_bytes(id: u32) -> Vec<u8> {
+        let width = 4 - id.leading_zeros() / 8;
+        id.to_be_bytes()[4 - width as usize..].to_vec()
+    }
+
+    /// The minimal size vint for `len`.
+    fn size_bytes(len: usize) -> Vec<u8> {
+        if len < 0x80 {
+            vec![0x80 | len as u8]
+        } else if len < 0x4000 {
+            vec![0x40 | (len >> 8) as u8, (len & 0xFF) as u8]
+        } else {
+            let bytes = (len as u64).to_be_bytes();
+            let mut out = vec![0x01];
+            out.extend_from_slice(&bytes[1..]);
+            out
+        }
+    }
+
+    /// One element: id vint + size vint + payload.
+    fn el(id: u32, payload: &[u8]) -> Vec<u8> {
+        let mut out = id_bytes(id);
+        out.extend(size_bytes(payload.len()));
+        out.extend_from_slice(payload);
+        out
+    }
+
+    /// The minimal-width big-endian bytes of `v` (a uint payload).
+    fn uint_payload(v: u64) -> Vec<u8> {
+        let be = v.to_be_bytes();
+        let first = be.iter().position(|&b| b != 0).unwrap_or(7);
+        be[first..].to_vec()
+    }
+
     #[test]
     fn track_type_maps_to_the_l0_vocabulary() {
         assert_eq!(media_kind_from_track_type(1), Some(MediaKind::Video));
@@ -856,6 +924,52 @@ mod tests {
             ..SegmentInfo::default()
         };
         assert_eq!(nan.duration_ticks(), None);
+        // The title field defaults absent (no Copy — issue #34 grew a
+        // String onto the timing record).
+        assert_eq!(SegmentInfo::default().title, None);
+    }
+
+    #[test]
+    fn info_title_and_track_uid_parse_into_the_models() {
+        use crate::avi::test_support::mem_stream;
+        use testkit::Must;
+        // One `Info` master: scale + Title (+ an unknown child).
+        let mut info_payload = el(ID_TIMESTAMP_SCALE, &uint_payload(1_000_000));
+        info_payload.extend(el(ID_INFO_TITLE, b"Container Title"));
+        info_payload.extend(el(0x7BA7, b"skipped")); // unknown child
+        let info = el(0x1549_A966, &info_payload);
+        let mut reader = EbmlReader::new(mem_stream(info).must()).must();
+        let bound = reader.length();
+        let header = ebml::parse_header_at(&mut reader, 0, bound).must().must();
+        let parsed = parse_info(&mut reader, &header, bound).must();
+        assert_eq!(parsed.title.as_deref(), Some("Container Title"));
+        assert_eq!(parsed.timestamp_scale, 1_000_000);
+
+        // One `TrackEntry`: number + TrackUID (+ an absent-UID twin).
+        let build_entry = |uid: Option<u64>| {
+            let mut entry = el(ID_TRACK_NUMBER, &[1]);
+            if let Some(uid) = uid {
+                entry.extend(el(ID_TRACK_UID, &uint_payload(uid)));
+            }
+            entry.extend(el(ID_TRACK_TYPE, &[2])); // audio
+            entry.extend(el(ID_CODEC_ID, b"A_OPUS"));
+            el(ID_TRACK_ENTRY, &entry)
+        };
+        let tracks = el(
+            0x1654_AE6B,
+            &[build_entry(Some(0xDEAD_BEEF)), build_entry(None)].concat(),
+        );
+        let mut reader = EbmlReader::new(mem_stream(tracks).must()).must();
+        let bound = reader.length();
+        let header = ebml::parse_header_at(&mut reader, 0, bound).must().must();
+        let (entries, damage) = parse_tracks(&mut reader, &header, bound).must();
+        assert!(damage.is_empty());
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].uid, 0xDEAD_BEEF);
+        assert_eq!(entries[1].uid, 0, "absent TrackUID reads the spec default");
+        assert_eq!(entries[0].number, 1);
+        assert_eq!(entries[0].ordinal, 0);
+        assert_eq!(entries[1].ordinal, 1);
     }
 
     #[test]

@@ -36,13 +36,15 @@
 //!
 //! # Exposure seam (the card's "chapter list for the UI layer")
 //!
-//! [`MkvDemuxer::chapters`] is the typed getter (on-demand parse —
-//! see the attachments module's note on the two-line mod.rs grant).
+//! [`MkvDemuxer::chapters`] is the typed getter over the list the
+//! demuxer **retains at `start`** (issue #34 wired the `open()` seam:
+//! the on-demand positional re-scan of the 5.D2a card is gone — the
+//! list is parsed once during the walk and held on the struct).
 
 use media_types::error::{ErrorContext, LimitKind};
+use media_types::time::TimeSpan;
 use media_types::{EngineError, ErrorKind, PipelineStage};
 
-use crate::mkv::MkvDemuxer;
 use crate::mkv::ebml::{self, EbmlReader, ElementHeader};
 use crate::mkv::error;
 use crate::mkv::header::MAX_TEXT_FIELD;
@@ -175,6 +177,11 @@ pub struct EditionEntry {
     pub uid: u64,
     /// `EditionFlagHidden`.
     pub hidden: bool,
+    /// `EditionFlagDefault` — the edition a player opens with (issue
+    /// #34: parsed for the seek-target selection below; the twin
+    /// flag lives in `editions::Edition` — that module's link-list
+    /// parse is the tags-zone seam, this one carries the structure).
+    pub default: bool,
     /// `EditionFlagOrdered`.
     pub ordered: bool,
     /// The top-level atoms, declared order.
@@ -208,6 +215,44 @@ impl ChapterList {
         }
         out
     }
+
+    /// The edition a player opens with: the `FlagDefault` one, else
+    /// the first non-hidden, else the first (the spec's own selection
+    /// guidance — the same rule `editions::EditionList` applies to its
+    /// link-list twin; recorded honestly: a file with no default flag
+    /// still chapters, the choice falls back).
+    #[must_use]
+    pub fn default_edition(&self) -> Option<&EditionEntry> {
+        self.editions
+            .iter()
+            .find(|e| e.default)
+            .or_else(|| self.editions.iter().find(|e| !e.hidden))
+            .or_else(|| self.editions.first())
+    }
+
+    /// Flag every atom whose nanosecond times extend past
+    /// `duration_ns` — the tolerant note (kept, never dropped),
+    /// applied by the demuxer's `open()` to the retained list.
+    /// Returns the flagged count.
+    pub fn flag_beyond_duration(&mut self, duration_ns: u64) -> usize {
+        self.beyond_duration = flag_beyond_duration(&mut self.editions, duration_ns);
+        self.beyond_duration
+    }
+}
+
+/// One chapter expressed as a **seek target** on the segment's clock
+/// (issue #34: the surface a chapter-navigation command consumes —
+/// `MkvDemuxer::seek(target.span)` plus `title`/`uid` for the UI).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChapterTarget {
+    /// The atom's `ChapterUID` (0 when the file declares none).
+    pub uid: u64,
+    /// The first display's title (the UI default).
+    pub title: Option<String>,
+    /// The chapter's span: `start` present (scale ticks on the
+    /// segment's clock), `end` when the file declares one that fits
+    /// the clock (else `Stamp::Missing` — the honest open end).
+    pub span: TimeSpan,
 }
 
 /// Chapter damage rows: (bytes, reason).
@@ -288,6 +333,9 @@ fn parse_edition(
             }
             ID_EDITION_FLAG_HIDDEN => {
                 parsed.hidden = read_flag(reader, &child, len, child_end)?;
+            }
+            ID_EDITION_FLAG_DEFAULT => {
+                parsed.default = read_flag(reader, &child, len, child_end)?;
             }
             ID_EDITION_FLAG_ORDERED => {
                 parsed.ordered = read_flag(reader, &child, len, child_end)?;
@@ -546,55 +594,6 @@ fn flag_atom(atom: &mut ChapterAtom, duration_ns: u64) -> usize {
     flagged
 }
 
-impl MkvDemuxer {
-    /// The segment's chapter list (editions, atoms, displays): the
-    /// typed getter over the `Chapters` element for the UI layer.
-    ///
-    /// Parses on demand — a positional top-level scan over this
-    /// demuxer's own reader and segment bounds (the 5.D1 struct has
-    /// no chapters field; this card's mod.rs grant is the two module
-    /// lines). Chapter times are nanoseconds by spec — no
-    /// `TimestampScale` math here (the format's own quirk); the getter
-    /// flags atoms whose times extend past the declared `Duration`
-    /// ([`ChapterList::beyond_duration`], the tolerant note — kept,
-    /// never dropped). Every read is positional, so the packet walk
-    /// is untouched; keep the result rather than re-calling on a hot
-    /// path.
-    ///
-    /// # Errors
-    /// [`error::not_started`] before `start`; typed per
-    /// [`parse_chapters`] afterwards.
-    pub fn chapters(&mut self) -> Result<ChapterList, EngineError> {
-        if !self.started {
-            return Err(error::not_started());
-        }
-        let mut list = ChapterList::default();
-        for el in crate::mkv::attachments::scan_segment_for(
-            &mut self.reader,
-            self.segment_data_start,
-            self.segment_end,
-            ID_CHAPTERS,
-        )? {
-            let parsed = parse_chapters(&mut self.reader, &el, self.segment_end)?;
-            list.editions.extend(parsed.editions);
-            list.damage.extend(parsed.damage);
-        }
-        // The tolerant note: only against a declared, finite,
-        // non-negative duration (an absent Duration flags nothing —
-        // the honest absence, not a fabricated bound).
-        if let Some(secs) = self.info.duration_secs
-            && secs.is_finite()
-            && secs >= 0.0
-        {
-            let duration_ns = secs * 1_000_000_000.0;
-            if duration_ns.is_finite() && duration_ns <= u64::MAX as f64 {
-                list.beyond_duration = flag_beyond_duration(&mut list.editions, duration_ns as u64);
-            }
-        }
-        Ok(list)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -671,6 +670,7 @@ mod tests {
         );
         let mut edition = el(ID_EDITION_UID, &[5]);
         edition.extend(el(ID_EDITION_FLAG_ORDERED, &[1]));
+        edition.extend(el(ID_EDITION_FLAG_DEFAULT, &[1]));
         edition.extend(first);
         edition.extend(second);
         let bytes = chapters_element(&el(ID_EDITION_ENTRY, &edition));
@@ -679,6 +679,7 @@ mod tests {
         let got = &list.editions[0];
         assert_eq!(got.uid, 5);
         assert!(got.ordered);
+        assert!(got.default, "the EditionFlagDefault parse (issue #34)");
         assert!(!got.hidden);
         assert_eq!(got.atoms.len(), 2);
         assert_eq!(got.atoms[0].start_ns, 0);
@@ -698,6 +699,34 @@ mod tests {
         assert!(list.damage.is_empty());
         // The flatten shape (ffprobe's chapter-list order).
         assert_eq!(list.atoms_flattened().len(), 2);
+    }
+
+    #[test]
+    fn default_edition_selects_flag_then_first_visible_then_first() {
+        // The selection rule the seek-target surface uses (issue #34):
+        // FlagDefault → first non-hidden → first — the spec's own
+        // guidance, the `editions::EditionList` twin's rule.
+        let mut list = ChapterList::default();
+        assert_eq!(list.default_edition(), None);
+        list.editions.push(EditionEntry {
+            uid: 9,
+            hidden: true,
+            ..EditionEntry::default()
+        });
+        list.editions.push(EditionEntry {
+            uid: 1,
+            default: true,
+            ..EditionEntry::default()
+        });
+        list.editions.push(EditionEntry {
+            uid: 2,
+            ..EditionEntry::default()
+        });
+        assert_eq!(list.default_edition().must().uid, 1);
+        list.editions.remove(1);
+        assert_eq!(list.default_edition().must().uid, 2, "first visible");
+        list.editions.retain(|e| e.hidden);
+        assert_eq!(list.default_edition().must().uid, 9, "first, all hidden");
     }
 
     #[test]
@@ -799,9 +828,12 @@ mod tests {
         let mut list = parse(&chapters_element(&el(ID_EDITION_ENTRY, &edition))).must();
         // Chapter times are raw nanoseconds (no TimestampScale
         // math): against a 5 µs duration the 0..500 ns atom sits
-        // inside; the 2..9 µs atom extends past it.
-        let flagged = flag_beyond_duration(&mut list.editions, 5_000);
+        // inside; the 2..9 µs atom extends past it. The method is
+        // the demuxer's `open()` seam (issue #34) — it records the
+        // count on the list itself.
+        let flagged = list.flag_beyond_duration(5_000);
         assert_eq!(flagged, 1);
+        assert_eq!(list.beyond_duration, 1);
         assert!(!list.editions[0].atoms[0].past_duration);
         assert!(list.editions[0].atoms[1].past_duration);
     }
@@ -813,8 +845,9 @@ mod tests {
         // The raw ns value parses as-is (no scale multiplication to
         // overflow): kept, flagged against any finite duration —
         // never an error.
-        let flagged = flag_beyond_duration(&mut list.editions, u64::MAX - 1);
+        let flagged = list.flag_beyond_duration(u64::MAX - 1);
         assert_eq!(flagged, 1);
+        assert_eq!(list.beyond_duration, 1);
         assert!(list.editions[0].atoms[0].past_duration);
         assert_eq!(list.editions[0].atoms[0].start_ns, u64::MAX);
     }
