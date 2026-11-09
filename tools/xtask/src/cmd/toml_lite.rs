@@ -263,7 +263,12 @@ pub fn parse(text: &str) -> Result<Document, ParseError> {
 
 /// Attach a parsed entry to the current table, the last array row, or the
 /// document's bare root entries.
-fn attach(doc: &mut Document, current: &mut Option<(Vec<String>, usize)>, key: String, value: Value) {
+fn attach(
+    doc: &mut Document,
+    current: &mut Option<(Vec<String>, usize)>,
+    key: String,
+    value: Value,
+) {
     if let Some((_, idx)) = *current {
         doc.tables[idx].entries.push((key, value));
     } else if let Some(row) = doc.arrays.last_mut() {
@@ -357,7 +362,10 @@ fn join_until_closed(
 fn parse_value(text: &str, line: usize) -> Result<Value, ParseError> {
     let t = text.trim();
     if t.is_empty() {
-        return Err(ParseError { line, message: "empty value".into() });
+        return Err(ParseError {
+            line,
+            message: "empty value".into(),
+        });
     }
     if t.starts_with('"') {
         return parse_string(t, line).map(Value::Str);
@@ -419,14 +427,21 @@ fn parse_value(text: &str, line: usize) -> Result<Value, ParseError> {
     if let Ok(float) = t.parse::<f64>() {
         return Ok(Value::Float(float));
     }
-    Err(ParseError { line, message: format!("unsupported value `{t}`") })
+    Err(ParseError {
+        line,
+        message: format!("unsupported value `{t}`"),
+    })
 }
 
 /// Parse a double-quoted string with the standard escapes.
 fn parse_string(t: &str, line: usize) -> Result<String, ParseError> {
-    let body = t.strip_prefix('"').and_then(|s| s.strip_suffix('"')).ok_or_else(|| {
-        ParseError { line, message: format!("bad string literal `{t}`") }
-    })?;
+    let body = t
+        .strip_prefix('"')
+        .and_then(|s| s.strip_suffix('"'))
+        .ok_or_else(|| ParseError {
+            line,
+            message: format!("bad string literal `{t}`"),
+        })?;
     let mut out = String::new();
     let mut chars = body.chars();
     while let Some(c) = chars.next() {
@@ -446,7 +461,7 @@ fn parse_string(t: &str, line: usize) -> Result<String, ParseError> {
                 return Err(ParseError {
                     line,
                     message: format!("unsupported escape `\\{other:?}`"),
-                })
+                });
             }
         }
     }
@@ -507,10 +522,16 @@ notes = "trailing comment # inside string stays"
         let id = rows[0].entries.iter().find(|(k, _)| k == "id").unwrap();
         assert_eq!(id.1, Value::Str("container-x".into()));
         let status = rows[0].entries.iter().find(|(k, _)| k == "status").unwrap();
-        let Value::Table(t) = &status.1 else { panic!("status table") };
+        let Value::Table(t) = &status.1 else {
+            panic!("status table")
+        };
         assert_eq!(t.len(), 4);
         assert_eq!(t[0].1.as_str(), Some("implemented"));
-        let evidence = rows[0].entries.iter().find(|(k, _)| k == "evidence").unwrap();
+        let evidence = rows[0]
+            .entries
+            .iter()
+            .find(|(k, _)| k == "evidence")
+            .unwrap();
         assert_eq!(
             evidence.1.as_str(),
             Some("crates/demux/src/x.rs (card 5.D1); docs/formats/x.md # see also")
@@ -522,7 +543,9 @@ notes = "trailing comment # inside string stays"
         let text = "[a.b]\nknown = [\n    \"x\", \"y\",\n    \"z\",\n]\nflag = true\n";
         let doc = parse(text).expect("parses");
         let known = doc.get("a.b.known").expect("known");
-        let Value::Array(items) = known else { panic!("array") };
+        let Value::Array(items) = known else {
+            panic!("array")
+        };
         assert_eq!(items.len(), 3);
         assert_eq!(doc.get("a.b.flag"), Some(&Value::Bool(true)));
     }
@@ -546,7 +569,9 @@ notes = "trailing comment # inside string stays"
     fn inline_table_multiline_continuation() {
         let text = "[t]\nv = {\n  a = \"1\",\n  b = \"2\",\n}\n";
         let doc = parse(text).expect("parses");
-        let Value::Table(t) = doc.get("t.v").unwrap() else { panic!() };
+        let Value::Table(t) = doc.get("t.v").unwrap() else {
+            panic!()
+        };
         assert_eq!(t.len(), 2);
     }
 

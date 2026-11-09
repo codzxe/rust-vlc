@@ -351,7 +351,12 @@ mod tests {
     fn balance_rejects_out_of_range_and_non_stereo() {
         assert!(Balance::new(1.01).is_err());
         assert!(Balance::new(f32::NAN).is_err());
-        assert!(Balance::new(0.0).unwrap().process(&mut vec![sine(8, 0.1)]).is_err());
+        assert!(
+            Balance::new(0.0)
+                .unwrap()
+                .process(&mut vec![sine(8, 0.1)])
+                .is_err()
+        );
         let mut mono = vec![sine(8, 0.1)];
         assert!(Balance::new(0.0).unwrap().process(&mut mono).is_err());
     }
@@ -364,7 +369,9 @@ mod tests {
         // *not* distinguishable, so this pins the composition value
         // itself: 0.4·0.5 on R with L fully attenuated).
         let mut chain = EffectChain::new();
-        chain.push(Box::new(Gain::new(Volume::from_linear(0.5).unwrap()))).unwrap();
+        chain
+            .push(Box::new(Gain::new(Volume::from_linear(0.5).unwrap())))
+            .unwrap();
         chain.push(Box::new(Balance::new(1.0).unwrap())).unwrap();
         let mut planes = vec![sine(48, 0.4), sine(48, 0.4)];
         chain.process(&mut planes).unwrap();
@@ -396,7 +403,9 @@ mod tests {
     #[test]
     fn gain_mute_compose_to_silence() {
         let mut chain = EffectChain::new();
-        chain.push(Box::new(Gain::new(Volume::from_linear(2.0).unwrap()))).unwrap();
+        chain
+            .push(Box::new(Gain::new(Volume::from_linear(2.0).unwrap())))
+            .unwrap();
         chain.push(Box::new(Mute)).unwrap();
         let mut planes = vec![sine(48, 0.5)];
         chain.process(&mut planes).unwrap();

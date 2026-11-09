@@ -39,10 +39,8 @@ struct Fixture {
 
 impl Fixture {
     fn new(tag: &str) -> Fixture {
-        let root = std::env::temp_dir().join(format!(
-            "xtask-feature-audit-{tag}-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("xtask-feature-audit-{tag}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(root.join("docs")).expect("create fixture docs dir");
         Fixture { root }
@@ -92,7 +90,12 @@ fn good_matrix_passes() {
     fx.write_matrix(GOOD_MATRIX);
     fx.add_evidence_file();
     let out = run_audit(&fx.root);
-    assert_eq!(out.code, Some(0), "clean fixture must pass:\n{}", out.stdout);
+    assert_eq!(
+        out.code,
+        Some(0),
+        "clean fixture must pass:\n{}",
+        out.stdout
+    );
     assert!(out.stdout.contains("result: PASS"), "{}", out.stdout);
 }
 
@@ -105,7 +108,11 @@ fn good_matrix_reports_derived_counts() {
     assert!(out.stdout.contains("rows: 2"), "{}", out.stdout);
     assert!(out.stdout.contains("container=1"), "{}", out.stdout);
     assert!(out.stdout.contains("ui-screen=1"), "{}", out.stdout);
-    assert!(out.stdout.contains("5=1"), "per-phase count missing:\n{}", out.stdout);
+    assert!(
+        out.stdout.contains("5=1"),
+        "per-phase count missing:\n{}",
+        out.stdout
+    );
 }
 
 #[test]
@@ -116,7 +123,12 @@ fn implemented_without_evidence_fails() {
         "evidence = \"\"",
     ));
     let out = run_audit(&fx.root);
-    assert_eq!(out.code, Some(1), "implemented row without evidence must fail:\n{}", out.stdout);
+    assert_eq!(
+        out.code,
+        Some(1),
+        "implemented row without evidence must fail:\n{}",
+        out.stdout
+    );
     assert!(out.stdout.contains("without evidence"), "{}", out.stdout);
 }
 
@@ -126,7 +138,12 @@ fn evidence_citing_missing_file_fails() {
     fx.write_matrix(GOOD_MATRIX);
     // No crates/ tree in this fixture: the evidence path cannot resolve.
     let out = run_audit(&fx.root);
-    assert_eq!(out.code, Some(1), "dangling evidence path must fail:\n{}", out.stdout);
+    assert_eq!(
+        out.code,
+        Some(1),
+        "dangling evidence path must fail:\n{}",
+        out.stdout
+    );
     assert!(
         out.stdout.contains("missing path `crates/demux/src/x.rs`"),
         "violation should name the path:\n{}",
@@ -140,20 +157,31 @@ fn invalid_status_value_fails() {
     fx.write_matrix(&GOOD_MATRIX.replace(r#"macos = "implemented""#, r#"macos = "done""#));
     fx.add_evidence_file();
     let out = run_audit(&fx.root);
-    assert_eq!(out.code, Some(1), "status outside the vocabulary must fail:\n{}", out.stdout);
-    assert!(out.stdout.contains("not in the vocabulary"), "{}", out.stdout);
+    assert_eq!(
+        out.code,
+        Some(1),
+        "status outside the vocabulary must fail:\n{}",
+        out.stdout
+    );
+    assert!(
+        out.stdout.contains("not in the vocabulary"),
+        "{}",
+        out.stdout
+    );
 }
 
 #[test]
 fn missing_platform_column_fails() {
     let fx = Fixture::new("bad-columns");
-    fx.write_matrix(&GOOD_MATRIX.replace(
-        r#", web = "not_started" }"#,
-        r#" }"#,
-    ));
+    fx.write_matrix(&GOOD_MATRIX.replace(r#", web = "not_started" }"#, r#" }"#));
     fx.add_evidence_file();
     let out = run_audit(&fx.root);
-    assert_eq!(out.code, Some(1), "missing platform column must fail:\n{}", out.stdout);
+    assert_eq!(
+        out.code,
+        Some(1),
+        "missing platform column must fail:\n{}",
+        out.stdout
+    );
     assert!(out.stdout.contains("!= exactly"), "{}", out.stdout);
 }
 
@@ -162,7 +190,12 @@ fn unparseable_matrix_fails_with_exit_one() {
     let fx = Fixture::new("bad-toml");
     fx.write_matrix("[meta\nschema_version = 1\n");
     let out = run_audit(&fx.root);
-    assert_eq!(out.code, Some(1), "parse failure is a failed audit:\n{}", out.stdout);
+    assert_eq!(
+        out.code,
+        Some(1),
+        "parse failure is a failed audit:\n{}",
+        out.stdout
+    );
     assert!(out.stdout.contains("parse:"), "{}", out.stdout);
 }
 
@@ -170,5 +203,10 @@ fn unparseable_matrix_fails_with_exit_one() {
 fn missing_matrix_is_xtask_error() {
     let fx = Fixture::new("no-matrix");
     let out = run_audit(&fx.root);
-    assert_eq!(out.code, Some(2), "unreadable matrix is an xtask error:\n{}", out.stdout);
+    assert_eq!(
+        out.code,
+        Some(2),
+        "unreadable matrix is an xtask error:\n{}",
+        out.stdout
+    );
 }

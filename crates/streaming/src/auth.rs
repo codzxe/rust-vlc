@@ -480,7 +480,9 @@ impl AuthFetch {
             .push(("Authorization".to_string(), authorization));
         match self.inner.fetch(authorized) {
             Ok(response) => Ok(response),
-            Err(NetworkError::HttpStatus { code: 401, .. }) => Err(NetworkError::AuthFailed { scheme }),
+            Err(NetworkError::HttpStatus { code: 401, .. }) => {
+                Err(NetworkError::AuthFailed { scheme })
+            }
             Err(err) => Err(err),
         }
     }
@@ -579,7 +581,11 @@ impl HttpFetch for AuthFetch {
         let credentials = userinfo
             .map(Credentials::from)
             .or_else(|| self.credentials.clone())
-            .or_else(|| self.store.as_ref().and_then(|store| store.lookup(&original_url)));
+            .or_else(|| {
+                self.store
+                    .as_ref()
+                    .and_then(|store| store.lookup(&original_url))
+            });
 
         // Challenge-first probe: credentials withheld until the
         // server asks for them, redirects followed manually so the
@@ -624,14 +630,14 @@ impl HttpFetch for AuthFetch {
                             None => {
                                 return Err(NetworkError::ProtocolViolation {
                                     detail: "digest challenge names an unsupported algorithm",
-                                })
+                                });
                             }
                         }
                     }
                     None => {
                         return Err(NetworkError::ProtocolViolation {
                             detail: "unsupported or unparseable WWW-Authenticate challenge",
-                        })
+                        });
                     }
                 };
                 // The authenticated retry: the chain is re-followed
@@ -758,23 +764,21 @@ pub(crate) fn base64_decode(text: &str) -> Option<Vec<u8>> {
 
 /// Per-round shift amounts (RFC 1321 §3.4).
 const MD5_SHIFTS: [u32; 64] = [
-    7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5, 9, 14, 20, 5,
-    9, 14, 20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 6, 10,
-    15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21,
+    7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9,
+    14, 20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 6, 10, 15,
+    21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21,
 ];
 
 /// Sine-derived constants (RFC 1321 §3.4): `floor(abs(sin(i+1)) · 2^32)`.
 const MD5_K: [u32; 64] = [
-    0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee, 0xf57c0faf, 0x4787c62a, 0xa8304613,
-    0xfd469501, 0x698098d8, 0x8b44f7af, 0xffff5bb1, 0x895cd7be, 0x6b901122, 0xfd987193,
-    0xa679438e, 0x49b40821, 0xf61e2562, 0xc040b340, 0x265e5a51, 0xe9b6c7aa, 0xd62f105d,
-    0x02441453, 0xd8a1e681, 0xe7d3fbc8, 0x21e1cde6, 0xc33707d6, 0xf4d50d87, 0x455a14ed,
-    0xa9e3e905, 0xfcefa3f8, 0x676f02d9, 0x8d2a4c8a, 0xfffa3942, 0x8771f681, 0x6d9d6122,
-    0xfde5380c, 0xa4beea44, 0x4bdecfa9, 0xf6bb4b60, 0xbebfbc70, 0x289b7ec6, 0xeaa127fa,
-    0xd4ef3085, 0x04881d05, 0xd9d4d039, 0xe6db99e5, 0x1fa27cf8, 0xc4ac5665, 0xf4292244,
-    0x432aff97, 0xab9423a7, 0xfc93a039, 0x655b59c3, 0x8f0ccc92, 0xffeff47d, 0x85845dd1,
-    0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1, 0xf7537e82, 0xbd3af235, 0x2ad7d2bb,
-    0xeb86d391,
+    0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee, 0xf57c0faf, 0x4787c62a, 0xa8304613, 0xfd469501,
+    0x698098d8, 0x8b44f7af, 0xffff5bb1, 0x895cd7be, 0x6b901122, 0xfd987193, 0xa679438e, 0x49b40821,
+    0xf61e2562, 0xc040b340, 0x265e5a51, 0xe9b6c7aa, 0xd62f105d, 0x02441453, 0xd8a1e681, 0xe7d3fbc8,
+    0x21e1cde6, 0xc33707d6, 0xf4d50d87, 0x455a14ed, 0xa9e3e905, 0xfcefa3f8, 0x676f02d9, 0x8d2a4c8a,
+    0xfffa3942, 0x8771f681, 0x6d9d6122, 0xfde5380c, 0xa4beea44, 0x4bdecfa9, 0xf6bb4b60, 0xbebfbc70,
+    0x289b7ec6, 0xeaa127fa, 0xd4ef3085, 0x04881d05, 0xd9d4d039, 0xe6db99e5, 0x1fa27cf8, 0xc4ac5665,
+    0xf4292244, 0x432aff97, 0xab9423a7, 0xfc93a039, 0x655b59c3, 0x8f0ccc92, 0xffeff47d, 0x85845dd1,
+    0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1, 0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391,
 ];
 
 /// MD5 (RFC 1321) — clean-room, no deps. Used only inside the Digest
@@ -787,7 +791,9 @@ pub(crate) fn md5(input: &[u8]) -> [u8; 16] {
     let mut d0: u32 = 0x1032_5476;
 
     // Padding: 0x80, zeros to 56 mod 64, then the LE bit length.
-    let bit_length = u64::try_from(input.len()).unwrap_or(u64::MAX).wrapping_mul(8);
+    let bit_length = u64::try_from(input.len())
+        .unwrap_or(u64::MAX)
+        .wrapping_mul(8);
     let mut message = input.to_vec();
     message.push(0x80);
     while message.len() % 64 != 56 {
@@ -878,7 +884,13 @@ mod tests {
         assert_eq!(base64_encode(b"foob"), "Zm9vYg==");
         assert_eq!(base64_encode(b"fooba"), "Zm9vYmE=");
         assert_eq!(base64_encode(b"foobar"), "Zm9vYmFy");
-        for raw in [&b""[..], b"f", b"fo", b"foo", b"auth vector longer than twenty"] {
+        for raw in [
+            &b""[..],
+            b"f",
+            b"fo",
+            b"foo",
+            b"auth vector longer than twenty",
+        ] {
             let encoded = base64_encode(raw);
             assert_eq!(base64_decode(&encoded).as_deref(), Some(raw));
         }
@@ -953,10 +965,7 @@ mod tests {
         );
         assert_eq!(parse_www_authenticate("Negotiate"), None);
         // Digest without a nonce: typed refusal, not a guess.
-        assert_eq!(
-            parse_www_authenticate("Digest realm=\"x\""),
-            None
-        );
+        assert_eq!(parse_www_authenticate("Digest realm=\"x\""), None);
     }
 
     /// The digest header built for the RFC 2617 vector carries the
@@ -1017,8 +1026,8 @@ mod tests {
         assert!(!store_debug.contains("hunter2-super-secret"));
         assert!(!store_debug.contains("alice"), "usernames stay out too");
 
-        let wrapper = AuthFetch::new(NoopFetch)
-            .with_credentials(Credentials::new("bob", "another-secret"));
+        let wrapper =
+            AuthFetch::new(NoopFetch).with_credentials(Credentials::new("bob", "another-secret"));
         let wrapper_debug = format!("{wrapper:?}");
         assert!(!wrapper_debug.contains("another-secret"));
 
@@ -1069,8 +1078,7 @@ mod tests {
                 Err(poisoned) => poisoned.into_inner().push(request.clone()),
             }
             let authorized = request.headers.iter().any(|(name, value)| {
-                name.eq_ignore_ascii_case("authorization")
-                    && value.as_str() == "Basic dXNlcjpwYXNz"
+                name.eq_ignore_ascii_case("authorization") && value.as_str() == "Basic dXNlcjpwYXNz"
             });
             if authorized {
                 Ok(HttpResponse {
@@ -1090,8 +1098,8 @@ mod tests {
         let server = BasicOnlyServer {
             requests: Arc::new(Mutex::new(Vec::new())),
         };
-        let auth = AuthFetch::new(server.clone())
-            .with_credentials(Credentials::new("user", "pass"));
+        let auth =
+            AuthFetch::new(server.clone()).with_credentials(Credentials::new("user", "pass"));
         let response = auth.fetch(HttpRequest::get("http://example.com/x")).must();
         assert_eq!(response.body, b"payload");
         let logged = match server.requests.lock() {

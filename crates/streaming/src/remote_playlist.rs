@@ -175,8 +175,7 @@ pub fn open_remote_playlist(
             )
         }
         RemotePlaylistFormat::Xspf => {
-            let parsed =
-                playlists::parse_xspf_bytes(&response.body).map_err(|_| PARSE_REFUSED)?;
+            let parsed = playlists::parse_xspf_bytes(&response.body).map_err(|_| PARSE_REFUSED)?;
             (
                 parsed
                     .playlist
@@ -347,7 +346,13 @@ mod tests {
             .err()
             .must();
         assert!(
-            matches!(error, NetworkError::TooManyRedirects { limit: 5, followed: 5 }),
+            matches!(
+                error,
+                NetworkError::TooManyRedirects {
+                    limit: 5,
+                    followed: 5
+                }
+            ),
             "the 6.E2 budget is five, got {error}"
         );
     }
@@ -382,10 +387,7 @@ mod tests {
         assert_eq!(error.status_code(), Some(404));
 
         let garbage = MockServer::spawn(MockConfig {
-            routes: vec![(
-                "/pl.m3u".to_string(),
-                vec![0xFF, 0xFE, 0x00, 0x01, 0x02],
-            )],
+            routes: vec![("/pl.m3u".to_string(), vec![0xFF, 0xFE, 0x00, 0x01, 0x02])],
             ..MockConfig::default()
         })
         .must();

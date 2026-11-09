@@ -31,9 +31,7 @@ use audio_output::cpal::{self, AUDIO_ADR005_ADMITTED, BackendNotAdmitted};
 use audio_output::null::{NullBackend, NullConfig};
 use audio_output::pattern::SinePattern;
 use audio_output::pump::{DropPolicy, PcmPump};
-use media_clock::{
-    ClockMaster, MediaClock, NANO_BASE, PlaybackClock, SampleCounterSource,
-};
+use media_clock::{ClockMaster, MediaClock, NANO_BASE, PlaybackClock, SampleCounterSource};
 use media_types::frame::{AudioFormat, AudioLayout, SampleFormat};
 use media_types::packet::SharedBytes;
 use media_types::time::{Rate, Stamp, Timestamp};
@@ -76,10 +74,8 @@ fn clock_synced_pump_delivers_the_exact_sine_stream() {
     let format = stereo_f32();
     const CHUNK: usize = 1_470; // 30 ticks = exactly 1.000 s
     const HIGH_WATER: u64 = 2_048; // ≥ CHUNK: one buffer always fits
-    let stream = NullBackend::open_stream(&format, HIGH_WATER as usize, NullConfig {
-        capture: true,
-    })
-    .must();
+    let stream =
+        NullBackend::open_stream(&format, HIGH_WATER as usize, NullConfig { capture: true }).must();
 
     // The playback-clock integration: the pump paces on exactly the
     // counter the media clock reads.
@@ -145,10 +141,8 @@ fn clock_synced_pump_delivers_the_exact_sine_stream() {
 fn drop_policy_bounds_memory_and_keeps_the_prefix() {
     let format = stereo_f32();
     const CAPACITY: u64 = 1_024;
-    let stream = NullBackend::open_stream(&format, CAPACITY as usize, NullConfig {
-        capture: true,
-    })
-    .must();
+    let stream =
+        NullBackend::open_stream(&format, CAPACITY as usize, NullConfig { capture: true }).must();
     // No clock attached, no renders: the device consumes nothing —
     // the starved-path worst case.
     let mut pump = PcmPump::new(stream.sink, DropPolicy::Drop, CAPACITY).must();
@@ -170,7 +164,10 @@ fn drop_policy_bounds_memory_and_keeps_the_prefix() {
         // Bounded, proven live: neither the pacing budget nor the
         // ring ever grows past the capacity, however much is pushed.
         assert!(pump.in_flight() <= CAPACITY, "tick {tick}");
-        assert!(pump.sink().buffered_frames() <= CAPACITY as usize, "tick {tick}");
+        assert!(
+            pump.sink().buffered_frames() <= CAPACITY as usize,
+            "tick {tick}"
+        );
     }
     assert_eq!(pump.written_frames(), CAPACITY);
     assert_eq!(pump.dropped_frames(), 2 * CHUNK);
@@ -194,10 +191,7 @@ fn drop_policy_bounds_memory_and_keeps_the_prefix() {
 #[test]
 fn backpressure_is_typed_and_clears_as_the_clock_advances() {
     let format = stereo_f32();
-    let stream = NullBackend::open_stream(&format, 2_048, NullConfig {
-        capture: false,
-    })
-    .must();
+    let stream = NullBackend::open_stream(&format, 2_048, NullConfig { capture: false }).must();
     let clock: Arc<dyn SampleCounterSource> = stream.sink.clock_source();
     const HIGH_WATER: u64 = 512;
     let mut pump = PcmPump::new(stream.sink, DropPolicy::Backpressure, HIGH_WATER).must();
@@ -239,7 +233,10 @@ fn backpressure_is_typed_and_clears_as_the_clock_advances() {
 
 #[test]
 fn the_cpal_seam_refuses_with_the_typed_marker() {
-    assert!(!AUDIO_ADR005_ADMITTED, "the ADR-005 gate is recorded closed");
+    assert!(
+        !AUDIO_ADR005_ADMITTED,
+        "the ADR-005 gate is recorded closed"
+    );
     let marker: BackendNotAdmitted = cpal::cpal_backend().err().must();
     assert_eq!(marker, BackendNotAdmitted::CPAL);
     assert!(marker.to_string().contains("ADR-005"));

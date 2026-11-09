@@ -150,7 +150,12 @@ impl SnapshotConfig {
         // No directory configured: the plan stays relative — the host
         // resolves its default location at write time (its platform
         // truth, not ours).
-        let file_name = format!("{}{:06}.{}", self.prefix, self.counter, self.format.as_str());
+        let file_name = format!(
+            "{}{:06}.{}",
+            self.prefix,
+            self.counter,
+            self.format.as_str()
+        );
         let output_path = match &self.directory {
             Some(dir) => dir.join(file_name),
             None => PathBuf::from(file_name),
@@ -187,7 +192,10 @@ mod tests {
             counter: 1,
         };
         let plan = config.plan(None).unwrap();
-        assert_eq!(plan.output_path, PathBuf::from("/tmp/snaps/vlcsnap-000001.png"));
+        assert_eq!(
+            plan.output_path,
+            PathBuf::from("/tmp/snaps/vlcsnap-000001.png")
+        );
         assert_eq!(plan.format, SnapshotFormat::Png);
     }
 

@@ -118,8 +118,7 @@ impl Rng {
 /// The real HLS playlist fixtures (issue #14's named seed directory),
 /// read cross-crate read-only — see the module docs.
 fn hls_seeds() -> Vec<Vec<u8>> {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../playlists/tests/fixtures/hls");
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../playlists/tests/fixtures/hls");
     [
         "master/multi.m3u8",
         "master/single.m3u8",

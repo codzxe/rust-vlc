@@ -1401,11 +1401,10 @@ mod tests {
                 ("/seg3", b"DDD"),
             ],
         );
-        let mut stream =
-            match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
-                Ok(s) => s,
-                Err(e) => unreachable!("live must open: {e}"),
-            };
+        let mut stream = match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
+            Ok(s) => s,
+            Err(e) => unreachable!("live must open: {e}"),
+        };
         // (1) The opening window's map: parsed, and driving the
         // live-edge wallclock = LOCAL + the window's EXTINF total
         // (3 × 1.0 s here — the join is 2 back; the EDGE is the

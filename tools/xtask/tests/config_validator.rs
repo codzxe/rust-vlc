@@ -189,7 +189,11 @@ const SCHEMA: &str = r##"{
 fn assert_fails(fx: &Fixture, needle: &str, label: &str) {
     let out = run_validator(&fx.root);
     assert_eq!(out.code, Some(1), "{label} must fail:\n{}", out.stdout);
-    assert!(out.stdout.contains(needle), "{label} should mention `{needle}`:\n{}", out.stdout);
+    assert!(
+        out.stdout.contains(needle),
+        "{label} should mention `{needle}`:\n{}",
+        out.stdout
+    );
 }
 
 #[test]
@@ -201,7 +205,12 @@ fn good_product_passes() {
     fx.add_catalog();
     fx.add_theme();
     let out = run_validator(&fx.root);
-    assert_eq!(out.code, Some(0), "clean fixture must pass:\n{}", out.stdout);
+    assert_eq!(
+        out.code,
+        Some(0),
+        "clean fixture must pass:\n{}",
+        out.stdout
+    );
     assert!(out.stdout.contains("result: PASS"), "{}", out.stdout);
 }
 
@@ -324,8 +333,17 @@ fn theme_outside_directory_listing_fails() {
     fx.add_catalog();
     // themes/ exists but is empty -> injection skipped (note, not violation).
     let out = run_validator(&fx.root);
-    assert_eq!(out.code, Some(0), "empty themes/ listing is a note, not a violation:\n{}", out.stdout);
-    assert!(out.stdout.contains("enum injection skipped"), "{}", out.stdout);
+    assert_eq!(
+        out.code,
+        Some(0),
+        "empty themes/ listing is a note, not a violation:\n{}",
+        out.stdout
+    );
+    assert!(
+        out.stdout.contains("enum injection skipped"),
+        "{}",
+        out.stdout
+    );
     // With a theme present, a wrong id IS a violation.
     fx.add_theme();
     fx.write_product(&GOOD_PRODUCT.replace("theme = \"dark\"", "theme = \"neon\""));
@@ -342,7 +360,12 @@ fn missing_msgid_fails() {
     // Catalog present but unparseable -> honest note, not a violation.
     fs::write(fx.root.join("locales/en-US.toml"), "%%% not toml [").expect("write broken catalog");
     let out = run_validator(&fx.root);
-    assert_eq!(out.code, Some(0), "unreadable catalog is a note:\n{}", out.stdout);
+    assert_eq!(
+        out.code,
+        Some(0),
+        "unreadable catalog is a note:\n{}",
+        out.stdout
+    );
     assert!(out.stdout.contains("unreadable"), "{}", out.stdout);
     // Catalog present but missing the key.
     fx.add_catalog();
@@ -399,7 +422,12 @@ fn wrong_app_id_fails() {
 fn missing_files_are_xtask_errors() {
     let fx = Fixture::new("missing");
     let out = run_validator(&fx.root);
-    assert_eq!(out.code, Some(2), "unreadable product/schema is an xtask error:\n{}", out.stdout);
+    assert_eq!(
+        out.code,
+        Some(2),
+        "unreadable product/schema is an xtask error:\n{}",
+        out.stdout
+    );
 }
 
 #[test]
@@ -408,6 +436,11 @@ fn unparseable_product_toml_fails_with_exit_one() {
     fx.write_schema();
     fx.write_product("[identity\nname = \"Lumen\"\n");
     let out = run_validator(&fx.root);
-    assert_eq!(out.code, Some(1), "parse failure is a failed validation:\n{}", out.stdout);
+    assert_eq!(
+        out.code,
+        Some(1),
+        "parse failure is a failed validation:\n{}",
+        out.stdout
+    );
     assert!(out.stdout.contains("parse:"), "{}", out.stdout);
 }

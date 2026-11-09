@@ -117,12 +117,9 @@ impl WorkState {
 /// `\c`).
 const KNOWN_TAGS: [&str; 52] = [
     // 5
-    "alpha", "iclip", "xbord", "ybord", "xshad", "yshad",
-    // 4
-    "clip", "fscx", "fscy", "bord", "shad", "blur", "move", "fade",
-    // 3
-    "pos", "fsp", "frz", "frx", "fry", "fax", "fay", "org", "fad", "rnd", "pbo",
-    // 2
+    "alpha", "iclip", "xbord", "ybord", "xshad", "yshad", // 4
+    "clip", "fscx", "fscy", "bord", "shad", "blur", "move", "fade", // 3
+    "pos", "fsp", "frz", "frx", "fry", "fax", "fay", "org", "fad", "rnd", "pbo", // 2
     "fs", "fn", "fe", "be", "an", "kf", "ko", "1c", "2c", "3c", "4c", "1a", "2a", "3a", "4a",
     // 1
     "b", "i", "u", "s", "c", "k", "K", "t", "r", "q", "a", "p",
@@ -130,7 +127,12 @@ const KNOWN_TAGS: [&str; 52] = [
 
 /// Interpret one override block's interior, mutating `state` and
 /// recording every tag into `stats` (applied, unmapped or dropped).
-fn apply_block(block: &str, state: &mut WorkState, stats: &mut AssStats, pos: &mut Option<PositionOverride>) {
+fn apply_block(
+    block: &str,
+    state: &mut WorkState,
+    stats: &mut AssStats,
+    pos: &mut Option<PositionOverride>,
+) {
     let bytes = block.as_bytes();
     let mut i = 0usize;
     while i < bytes.len() {
@@ -197,9 +199,7 @@ fn read_arg(block: &str, at: usize) -> (&str, usize) {
             None => (&block[at + 1..], bytes.len()),
         }
     } else {
-        let end = block[at..]
-            .find('\\')
-            .map_or(bytes.len(), |p| at + p);
+        let end = block[at..].find('\\').map_or(bytes.len(), |p| at + p);
         (&block[at..end], end)
     }
 }
@@ -239,18 +239,16 @@ fn apply_tag(
                 }
             }
         }
-        "fs" => {
-            match parse_decimal_milli(arg) {
-                Some(m) if m > 0 => {
-                    state.style.font_size_milli = Some(m);
-                    true
-                }
-                _ => {
-                    stats.count_tag("fs");
-                    return;
-                }
+        "fs" => match parse_decimal_milli(arg) {
+            Some(m) if m > 0 => {
+                state.style.font_size_milli = Some(m);
+                true
             }
-        }
+            _ => {
+                stats.count_tag("fs");
+                return;
+            }
+        },
         "fn" => {
             // Empty argument: reset to inherit (the style's font).
             if arg.is_empty() {
@@ -260,33 +258,29 @@ fn apply_tag(
             }
             true
         }
-        "c" | "1c" => {
-            match parse_tag_colour(arg) {
-                Some((c, alpha_explicit)) => {
-                    state.style.color = Some(match (state.style.color, alpha_explicit) {
-                        (Some(cur), false) => Color::new(c.r, c.g, c.b, cur.a),
-                        _ => c,
-                    });
-                    true
-                }
-                None => {
-                    stats.count_tag(name);
-                    return;
-                }
+        "c" | "1c" => match parse_tag_colour(arg) {
+            Some((c, alpha_explicit)) => {
+                state.style.color = Some(match (state.style.color, alpha_explicit) {
+                    (Some(cur), false) => Color::new(c.r, c.g, c.b, cur.a),
+                    _ => c,
+                });
+                true
             }
-        }
-        "alpha" | "1a" => {
-            match parse_tag_alpha(arg) {
-                Some(a) => {
-                    state.alpha = Some(a);
-                    true
-                }
-                None => {
-                    stats.count_tag(name);
-                    return;
-                }
+            None => {
+                stats.count_tag(name);
+                return;
             }
-        }
+        },
+        "alpha" | "1a" => match parse_tag_alpha(arg) {
+            Some(a) => {
+                state.alpha = Some(a);
+                true
+            }
+            None => {
+                stats.count_tag(name);
+                return;
+            }
+        },
         // Understood but not representable in the single-colour
         // subset — counted separately from the dropped zoo.
         "2c" | "3c" | "4c" | "2a" | "3a" | "4a" => {
@@ -300,39 +294,35 @@ fn apply_tag(
             }
             return;
         }
-        "pos" => {
-            match parse_coords(arg) {
-                Some((x, y)) => {
-                    *pos = Some(PositionOverride {
-                        x_milli: x,
-                        y_milli: y,
-                        from_move: false,
-                    });
-                    true
-                }
-                None => {
-                    stats.count_tag("pos");
-                    return;
-                }
+        "pos" => match parse_coords(arg) {
+            Some((x, y)) => {
+                *pos = Some(PositionOverride {
+                    x_milli: x,
+                    y_milli: y,
+                    from_move: false,
+                });
+                true
             }
-        }
-        "move" => {
-            match parse_move_args(arg) {
-                Some((x1, y1)) => {
-                    *pos = Some(PositionOverride {
-                        x_milli: x1,
-                        y_milli: y1,
-                        from_move: true,
-                    });
-                    stats.move_tags_frozen += 1;
-                    true
-                }
-                None => {
-                    stats.count_tag("move");
-                    return;
-                }
+            None => {
+                stats.count_tag("pos");
+                return;
             }
-        }
+        },
+        "move" => match parse_move_args(arg) {
+            Some((x1, y1)) => {
+                *pos = Some(PositionOverride {
+                    x_milli: x1,
+                    y_milli: y1,
+                    from_move: true,
+                });
+                stats.move_tags_frozen += 1;
+                true
+            }
+            None => {
+                stats.count_tag("move");
+                return;
+            }
+        },
         _ => {
             // Not in the G-2 minimum: the Phase-5 honest-degrade
             // bucket, counted by name.
@@ -351,7 +341,10 @@ fn apply_tag(
 fn parse_tag_colour(arg: &str) -> Option<(Color, bool)> {
     let trimmed = arg.trim();
     let color = parse_ass_colour(trimmed)?;
-    let alpha_explicit = match trimmed.strip_prefix("&H").or_else(|| trimmed.strip_prefix("&h")) {
+    let alpha_explicit = match trimmed
+        .strip_prefix("&H")
+        .or_else(|| trimmed.strip_prefix("&h"))
+    {
         Some(hex) => hex.trim_end_matches('&').len() > 6,
         None => {
             // Decimal form: alpha explicit when it does not fit 24
@@ -378,7 +371,10 @@ fn parse_tag_alpha(arg: &str) -> Option<u8> {
         }
         u8::from_str_radix(hex, 16).ok()?
     } else {
-        trimmed.parse::<i64>().ok().and_then(|v| u8::try_from(v).ok())?
+        trimmed
+            .parse::<i64>()
+            .ok()
+            .and_then(|v| u8::try_from(v).ok())?
     };
     Some(255 - ass_alpha)
 }
@@ -530,7 +526,10 @@ mod tests {
     }
 
     fn seg(text: &str, style: TextStyle) -> crate::model::cue::StyledSegment {
-        crate::model::cue::StyledSegment { text: text.into(), style }
+        crate::model::cue::StyledSegment {
+            text: text.into(),
+            style,
+        }
     }
 
     #[test]
@@ -701,7 +700,10 @@ mod tests {
 
     #[test]
     fn unsupported_tags_stay_dropped_and_counted() {
-        let (cue, _, stats) = run("{\\k20}ka{\\frz30}ra{\\t(0,100,\\fs20)}oke", TextStyle::PLAIN);
+        let (cue, _, stats) = run(
+            "{\\k20}ka{\\frz30}ra{\\t(0,100,\\fs20)}oke",
+            TextStyle::PLAIN,
+        );
         assert_eq!(cue, CueText::Plain("karaoke".into()));
         assert_eq!(stats.dropped_tags.get("k"), Some(&1));
         assert_eq!(stats.dropped_tags.get("frz"), Some(&1));
@@ -726,9 +728,12 @@ mod tests {
             cue,
             CueText::Styled(vec![
                 seg("on", seed),
-                seg("off", TextStyle::new(false, false, false, Some(Color::WHITE))
-                    .with_font_name(Some("Arial"))
-                    .with_font_size_milli(Some(16_000))),
+                seg(
+                    "off",
+                    TextStyle::new(false, false, false, Some(Color::WHITE))
+                        .with_font_name(Some("Arial"))
+                        .with_font_size_milli(Some(16_000))
+                ),
             ])
         );
     }

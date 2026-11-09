@@ -112,11 +112,10 @@ fn live_edge_join_clamps_to_first_segment_of_a_short_window() {
         max_stalled_reloads: 1,
         ..HlsLiveConfig::default()
     };
-    let mut stream =
-        match open_live(fetch, &server.url("hls/ts_live/pl.m3u8"), config) {
-            Ok(s) => s,
-            Err(e) => unreachable!("short-window live must open: {e}"),
-        };
+    let mut stream = match open_live(fetch, &server.url("hls/ts_live/pl.m3u8"), config) {
+        Ok(s) => s,
+        Err(e) => unreachable!("short-window live must open: {e}"),
+    };
     // The join clamped at s00: both segments are in the plan.
     let oracle = cat(&["s00.ts", "s01.ts"]);
     let streamed = match read_exactly(&mut stream, oracle.len()) {
@@ -161,12 +160,7 @@ fn window_slide_never_refetches_or_disturbs_the_stream() {
         #EXTINF:2.484533,\ns02.ts\n\
         #EXTINF:2.507767,\nt00.ts\n\
         #EXT-X-ENDLIST\n";
-    let server = serve(
-        [w1, w2, w3]
-            .iter()
-            .map(|w| w.as_bytes().to_vec())
-            .collect(),
-    );
+    let server = serve([w1, w2, w3].iter().map(|w| w.as_bytes().to_vec()).collect());
     let fetch: Arc<dyn HttpFetch> = Arc::new(MockClient::new());
     let config = HlsLiveConfig {
         live_edge_back: 2,
@@ -227,11 +221,10 @@ fn reload_cadence_at_the_exact_target_duration_boundary() {
             pacing_clock: Some(Arc::new(clock.clone())),
             ..HlsLiveConfig::default()
         };
-        let mut stream =
-            match open_live(fetch, &server.url("hls/ts_live/pl.m3u8"), config) {
-                Ok(s) => s,
-                Err(e) => unreachable!("{probe}: live must open: {e}"),
-            };
+        let mut stream = match open_live(fetch, &server.url("hls/ts_live/pl.m3u8"), config) {
+            Ok(s) => s,
+            Err(e) => unreachable!("{probe}: live must open: {e}"),
+        };
         // Join back=1 on a 2-segment window: s01 is the first
         // segment served. Drain it, then advance virtual time to
         // the boundary and demand the reload.
@@ -254,7 +247,10 @@ fn reload_cadence_at_the_exact_target_duration_boundary() {
             stream.read(64).unwrap_or_default().is_empty(),
             "{probe}: ended"
         );
-        (stream.stats().paced_reloads, stream.stats().playlist_reloads)
+        (
+            stream.stats().paced_reloads,
+            stream.stats().playlist_reloads,
+        )
     };
     // At the exact boundary (2 s elapsed, wait 2 s): no sleep.
     let (paced, reloads) = open_at_boundary(2_000, "boundary");
@@ -360,9 +356,7 @@ fn discontinuity_seam_with_encoder_timestamp_reset() {
         #EXTINF:2.507767,\nt00.ts\n\
         #EXTINF:2.507767,\nt01.ts\n\
         #EXT-X-ENDLIST\n";
-    let server = serve(
-        [w1, w2].iter().map(|w| w.as_bytes().to_vec()).collect(),
-    );
+    let server = serve([w1, w2].iter().map(|w| w.as_bytes().to_vec()).collect());
     let fetch: Arc<dyn HttpFetch> = Arc::new(MockClient::new());
     let config = HlsLiveConfig {
         live_edge_back: 2,
@@ -374,7 +368,10 @@ fn discontinuity_seam_with_encoder_timestamp_reset() {
         Err(e) => unreachable!("encoder-reset playlist must open: {e}"),
     };
     // Before the reload: the ORIGINAL anchor governs.
-    assert_eq!(stream.timestamp_map().map(|m| m.local_ms), Some(1_577_836_800_000));
+    assert_eq!(
+        stream.timestamp_map().map(|m| m.local_ms),
+        Some(1_577_836_800_000)
+    );
     let oracle = cat(&["s00.ts", "s01.ts", "t00.ts", "t01.ts"]);
     let streamed = match read_exactly(&mut stream, oracle.len()) {
         Ok(b) => b,
@@ -386,8 +383,13 @@ fn discontinuity_seam_with_encoder_timestamp_reset() {
     // and `LOCAL` jumped an hour, the documented shape of an
     // encoder restart. The last tag in the playlist wins, per the
     // tag's forward-application rule.
-    let map = stream.timestamp_map().expect("the reloaded window carries a map");
-    assert_eq!(map.mpegts, 8_589_034_592, "the reset PTS anchor (2^33 - 900000)");
+    let map = stream
+        .timestamp_map()
+        .expect("the reloaded window carries a map");
+    assert_eq!(
+        map.mpegts, 8_589_034_592,
+        "the reset PTS anchor (2^33 - 900000)"
+    );
     assert_eq!(map.local_ms, 1_577_840_400_000, "LOCAL jumped an hour");
     // The wrap-adjacent anchor still converts exactly (rollover
     // arithmetic; every delta below is a whole number of ms):

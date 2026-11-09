@@ -176,7 +176,10 @@ fn fault_script_sequence_fires_in_order_then_heals() {
     // 2: the truncation.
     assert!(matches!(
         proxy.fetch(get(&server)),
-        Err(NetworkError::BodyTruncated { expected: 1000, received: 10 })
+        Err(NetworkError::BodyTruncated {
+            expected: 1000,
+            received: 10
+        })
     ));
     // 3: the drop.
     assert!(matches!(

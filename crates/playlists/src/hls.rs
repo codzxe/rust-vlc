@@ -541,8 +541,7 @@ fn variant_from_attrs(
         .find(|(n, _)| n == "BANDWIDTH")
         .and_then(|(_, v)| v.trim().parse::<u64>().ok())?;
     let find = |name: &str| attrs.iter().find(|(n, _)| n == name).map(|(_, v)| v);
-    let average_bandwidth =
-        find("AVERAGE-BANDWIDTH").and_then(|v| v.trim().parse::<u64>().ok());
+    let average_bandwidth = find("AVERAGE-BANDWIDTH").and_then(|v| v.trim().parse::<u64>().ok());
     let program_id = find("PROGRAM-ID").and_then(|v| v.trim().parse::<u64>().ok());
     let codecs = find("CODECS").cloned();
     let resolution = find("RESOLUTION").and_then(|v| {
@@ -939,7 +938,11 @@ mod tests {
         assert_eq!(master.variants.len(), 1, "only the clean row survives");
         assert_eq!(master.variants[0].uri, "good.m3u8");
         assert_eq!(warnings.len(), 4);
-        assert!(warnings.iter().all(|w| w.kind == MasterWarningKind::VariantWithoutBandwidth));
+        assert!(
+            warnings
+                .iter()
+                .all(|w| w.kind == MasterWarningKind::VariantWithoutBandwidth)
+        );
     }
 
     /// The mirror refusals: a media playlist where a master was

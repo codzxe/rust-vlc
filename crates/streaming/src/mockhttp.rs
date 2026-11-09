@@ -248,10 +248,8 @@ impl MockAuth {
         match self.scheme {
             MockAuthScheme::Basic => format!("Basic realm=\"{}\"", self.realm),
             MockAuthScheme::Digest => {
-                let mut challenge = format!(
-                    "Digest realm=\"{}\", nonce=\"{}\"",
-                    self.realm, self.nonce
-                );
+                let mut challenge =
+                    format!("Digest realm=\"{}\", nonce=\"{}\"", self.realm, self.nonce);
                 if self.qop_auth {
                     challenge.push_str(", qop=\"auth\"");
                 }
@@ -290,17 +288,13 @@ impl MockAuth {
                     .find(|(n, _)| n == name)
                     .map(|(_, v)| v.clone())
             };
-            let (username, nonce, uri, response) = match (
-                get("username"),
-                get("nonce"),
-                get("uri"),
-                get("response"),
-            ) {
-                (Some(username), Some(nonce), Some(uri), Some(response)) => {
-                    (username, nonce, uri, response)
-                }
-                _ => return false,
-            };
+            let (username, nonce, uri, response) =
+                match (get("username"), get("nonce"), get("uri"), get("response")) {
+                    (Some(username), Some(nonce), Some(uri), Some(response)) => {
+                        (username, nonce, uri, response)
+                    }
+                    _ => return false,
+                };
             if username != self.username || nonce != self.nonce || uri != request.path {
                 return false;
             }

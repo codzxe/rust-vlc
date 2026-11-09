@@ -226,11 +226,15 @@ mod tests {
     fn out_of_range_fields_are_rejected_by_name() {
         assert_eq!(
             AdjustParams::new(2.5, 1.0, 1.0, 0.0, 1.0),
-            Err(AdjustError::OutOfRange { field: "brightness" })
+            Err(AdjustError::OutOfRange {
+                field: "brightness"
+            })
         );
         assert_eq!(
             AdjustParams::new(1.0, 1.0, 3.5, 0.0, 1.0),
-            Err(AdjustError::OutOfRange { field: "saturation" })
+            Err(AdjustError::OutOfRange {
+                field: "saturation"
+            })
         );
         assert_eq!(
             AdjustParams::new(1.0, 1.0, 1.0, 181.0, 1.0),
@@ -250,7 +254,9 @@ mod tests {
     fn non_finite_fields_are_rejected() {
         assert_eq!(
             AdjustParams::new(f32::NAN, 1.0, 1.0, 0.0, 1.0),
-            Err(AdjustError::NotFinite { field: "brightness" })
+            Err(AdjustError::NotFinite {
+                field: "brightness"
+            })
         );
         assert_eq!(
             AdjustParams::new(1.0, f32::INFINITY, 1.0, 0.0, 1.0),

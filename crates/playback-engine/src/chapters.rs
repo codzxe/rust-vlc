@@ -123,9 +123,7 @@ fn chapter_contains(chapter: &Chapter, position_us: i64) -> bool {
         return false;
     }
     match chapter.duration {
-        commands::catalog::types::Duration::Known { time }
-            if (time.0) > 0 =>
-        {
+        commands::catalog::types::Duration::Known { time } if (time.0) > 0 => {
             position_us < start + (time.0)
         }
         _ => true,

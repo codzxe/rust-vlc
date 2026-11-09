@@ -577,9 +577,8 @@ pub fn render_styled_cue(
 #[cfg(test)]
 mod tests {
     use super::{
-        AssRenderCue, AssRenderError, AssRenderRun, AssRenderStyle, GlyphMetrics,
-        MAX_BITMAP_BYTES, ass_colour_to_model, render_plain_text_cue, render_styled_cue,
-        split_lines,
+        AssRenderCue, AssRenderError, AssRenderRun, AssRenderStyle, GlyphMetrics, MAX_BITMAP_BYTES,
+        ass_colour_to_model, render_plain_text_cue, render_styled_cue, split_lines,
     };
     use crate::ass::layout::{AssAlignment, AssMargins, DEFAULT_PLAY_RES};
     use crate::compositing::SubtitleCompositor;
@@ -1052,7 +1051,12 @@ mod tests {
         ];
         let rendered = render_styled_cue(&c, (384, 288)).must();
         let b = &rendered.bitmap;
-        let transparent = Rgba { r: 0, g: 0, b: 0, a: 0 };
+        let transparent = Rgba {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 0,
+        };
         // 20 px → advance 12, ascent 19, line 24; 10 px → 6/10/12.
         // Width: 3×12 + 5×6 = 66; height: the max line height 24;
         // baseline: 0 lines above + max ascent 19.
@@ -1079,7 +1083,12 @@ mod tests {
         }];
         let r2 = render_styled_cue(&c2, (384, 288)).must();
         assert_eq!((r2.bitmap.width, r2.bitmap.height), (12, 48));
-        let transparent = Rgba { r: 0, g: 0, b: 0, a: 0 };
+        let transparent = Rgba {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 0,
+        };
         assert_eq!(r2.bitmap.baseline, 24 + 19);
         assert_eq!(r2.bitmap.pixel(0, 0), Rgba::WHITE);
         assert_eq!(r2.bitmap.pixel(0, 24), Rgba::WHITE);

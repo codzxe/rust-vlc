@@ -120,7 +120,7 @@ pub mod volume;
 
 pub use buffer::{AudioBuffer, AudioSink};
 pub use channel_map::ChannelMap;
-pub use effects::{AudioEffect, Balance, EffectChain, Gain, Mute, MAX_EFFECTS};
+pub use effects::{AudioEffect, Balance, EffectChain, Gain, MAX_EFFECTS, Mute};
 pub use governor::{DriftGovernor, DriftStats};
 pub use mix::Mixer;
 pub use pipeline::{AudioPipeline, PipelineSpec};

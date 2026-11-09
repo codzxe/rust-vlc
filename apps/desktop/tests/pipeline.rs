@@ -323,9 +323,7 @@ fn stub_binary_reports_pending_state() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     // Issue #3 (4.H1 handoff c): the startup report CONSUMES the
     // product.toml [window] table — the build spec line is the proof.
-    assert!(stdout.contains(
-        "window build spec (product.toml [window]): 1280x720 (min 480x320)"
-    ));
+    assert!(stdout.contains("window build spec (product.toml [window]): 1280x720 (min 480x320)"));
     assert!(stdout.contains("window geometry: remembered across runs"));
     assert!(stdout.contains("A (native wgpu surface)"));
     assert!(stdout.contains("B (canvas frame streaming)"));

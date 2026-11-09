@@ -1145,7 +1145,9 @@ impl Pipeline {
     /// renders and the device-ring drain gate already pace their
     /// end-of-media honestly).
     pub(crate) fn has_audio_limb(&self) -> bool {
-        self.limbs.iter().any(|limb| limb.track.kind == MediaKind::Audio)
+        self.limbs
+            .iter()
+            .any(|limb| limb.track.kind == MediaKind::Audio)
     }
 
     /// The greatest video-frame pts any limb has delivered, in

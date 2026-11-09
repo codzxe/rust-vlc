@@ -63,26 +63,34 @@ pub fn run(args: &[String]) -> Result<ExitCode, XtaskError> {
             "--root" => {
                 i += 1;
                 let Some(dir) = args.get(i) else {
-                    return Err(XtaskError::Usage(format!("--root requires a directory\n{USAGE}")));
+                    return Err(XtaskError::Usage(format!(
+                        "--root requires a directory\n{USAGE}"
+                    )));
                 };
                 root_override = Some(PathBuf::from(dir));
             }
             "--product" => {
                 i += 1;
                 let Some(p) = args.get(i) else {
-                    return Err(XtaskError::Usage(format!("--product requires a path\n{USAGE}")));
+                    return Err(XtaskError::Usage(format!(
+                        "--product requires a path\n{USAGE}"
+                    )));
                 };
                 product_path = Some(PathBuf::from(p));
             }
             "--schema" => {
                 i += 1;
                 let Some(p) = args.get(i) else {
-                    return Err(XtaskError::Usage(format!("--schema requires a path\n{USAGE}")));
+                    return Err(XtaskError::Usage(format!(
+                        "--schema requires a path\n{USAGE}"
+                    )));
                 };
                 schema_path = Some(PathBuf::from(p));
             }
             other => {
-                return Err(XtaskError::Usage(format!("unexpected argument `{other}`\n{USAGE}")));
+                return Err(XtaskError::Usage(format!(
+                    "unexpected argument `{other}`\n{USAGE}"
+                )));
             }
         }
         i += 1;
@@ -172,7 +180,9 @@ fn build_tree(doc: &toml_lite::Document) -> TValue {
 }
 
 fn insert_table(into: &mut Vec<(String, TValue)>, path: &[String], entries: &[(String, TValue)]) {
-    let Some((head, rest)) = path.split_first() else { return };
+    let Some((head, rest)) = path.split_first() else {
+        return;
+    };
     let existing_idx = into.iter().position(|(k, _)| k == head);
     match existing_idx {
         Some(idx) if matches!(into[idx].1, TValue::Table(_)) && rest.is_empty() => {
@@ -223,7 +233,9 @@ fn resolve_ref<'a>(schema: &'a json::Json, r#ref: &str) -> Option<&'a json::Json
     };
     let mut current = schema;
     for segment in suffix.split('/') {
-        let json::Json::Obj(obj) = current else { return None };
+        let json::Json::Obj(obj) = current else {
+            return None;
+        };
         current = lookup(obj, segment)?;
     }
     Some(current)
@@ -248,7 +260,11 @@ fn walk(
             }
         }
     }
-    let at = if path.is_empty() { "<root>".to_string() } else { path.to_string() };
+    let at = if path.is_empty() {
+        "<root>".to_string()
+    } else {
+        path.to_string()
+    };
 
     // type
     if let Some(json::Json::Str(want)) = lookup(schema_obj, "type") {
@@ -263,7 +279,9 @@ fn walk(
             _ => false,
         };
         if !ok {
-            violations.push(format!("{at}: type mismatch — schema wants {want}, product.toml has {got}"));
+            violations.push(format!(
+                "{at}: type mismatch — schema wants {want}, product.toml has {got}"
+            ));
             return; // further constraints are meaningless on the wrong type
         }
     }
@@ -275,7 +293,10 @@ fn walk(
                         .iter()
                         .filter_map(|j| j.as_str().map(|s| format!("{s:?}")))
                         .collect();
-                    violations.push(format!("{at}: {s:?} not in enum [{alloweds}]", alloweds = allowed.join(", ")));
+                    violations.push(format!(
+                        "{at}: {s:?} not in enum [{alloweds}]",
+                        alloweds = allowed.join(", ")
+                    ));
                 }
             }
             if let Some(json::Json::Obj(not)) = lookup(schema_obj, "not") {
@@ -287,12 +308,18 @@ fn walk(
             }
             if let Some(json::Json::Num(n)) = lookup(schema_obj, "minLength") {
                 if (s.chars().count() as f64) < *n {
-                    violations.push(format!("{at}: length {} < minLength {n}", s.chars().count()));
+                    violations.push(format!(
+                        "{at}: length {} < minLength {n}",
+                        s.chars().count()
+                    ));
                 }
             }
             if let Some(json::Json::Num(n)) = lookup(schema_obj, "maxLength") {
                 if (s.chars().count() as f64) > *n {
-                    violations.push(format!("{at}: length {} > maxLength {n}", s.chars().count()));
+                    violations.push(format!(
+                        "{at}: length {} > maxLength {n}",
+                        s.chars().count()
+                    ));
                 }
             }
         }
@@ -333,7 +360,13 @@ fn walk(
             }
             if let Some(item_schema) = lookup(schema_obj, "items").and_then(|j| j.as_obj()) {
                 for (idx, item) in items.iter().enumerate() {
-                    walk(item_schema, item, &format!("{at}[{idx}]"), root_schema, violations);
+                    walk(
+                        item_schema,
+                        item,
+                        &format!("{at}[{idx}]"),
+                        root_schema,
+                        violations,
+                    );
                 }
             }
         }
@@ -351,7 +384,9 @@ fn walk(
                     for (k, _) in obj {
                         let known = properties.is_some_and(|props| lookup(props, k).is_some());
                         if !known {
-                            violations.push(format!("{at}: unknown key `{k}` (additionalProperties: false)"));
+                            violations.push(format!(
+                                "{at}: unknown key `{k}` (additionalProperties: false)"
+                            ));
                         }
                     }
                 }
@@ -361,7 +396,13 @@ fn walk(
                     for (k, v) in obj {
                         let known = properties.is_some_and(|props| lookup(props, k).is_some());
                         if !known {
-                            walk(extra_schema, v, &format!("{at}.{k}"), root_schema, violations);
+                            walk(
+                                extra_schema,
+                                v,
+                                &format!("{at}.{k}"),
+                                root_schema,
+                                violations,
+                            );
                         }
                     }
                 }
@@ -371,7 +412,13 @@ fn walk(
                 for (k, v) in obj {
                     if let Some(prop_schema) = lookup(props, k) {
                         let prop_schema = prop_schema.as_obj().unwrap_or(&[]);
-                        walk(prop_schema, v, &format!("{at}.{k}"), root_schema, violations);
+                        walk(
+                            prop_schema,
+                            v,
+                            &format!("{at}.{k}"),
+                            root_schema,
+                            violations,
+                        );
                     }
                 }
             }
@@ -384,14 +431,26 @@ fn walk(
 // Cross-file checks (X)
 // ---------------------------------------------------------------------------
 
-fn cross_file(root: &Path, doc: &toml_lite::Document, violations: &mut Vec<String>, notes: &mut Vec<String>) {
+fn cross_file(
+    root: &Path,
+    doc: &toml_lite::Document,
+    violations: &mut Vec<String>,
+    notes: &mut Vec<String>,
+) {
     let get_str = |dotted: &str| doc.get(dotted).and_then(TValue::as_str);
 
     // Brand assets must exist (doc 07 §2.3/§3.3).
-    for key in ["brand.icon_ico", "brand.icon_icns", "brand.icon_png_512", "brand.logo_svg"] {
+    for key in [
+        "brand.icon_ico",
+        "brand.icon_icns",
+        "brand.icon_png_512",
+        "brand.logo_svg",
+    ] {
         if let Some(p) = get_str(key) {
             if !root.join(p).exists() {
-                violations.push(format!("{key}: asset path `{p}` does not exist under the root"));
+                violations.push(format!(
+                    "{key}: asset path `{p}` does not exist under the root"
+                ));
             }
         }
     }
@@ -399,9 +458,14 @@ fn cross_file(root: &Path, doc: &toml_lite::Document, violations: &mut Vec<Strin
     // defaults joins (doc 07 §3.2 injected enums).
     let locale = get_str("defaults.locale").unwrap_or("");
     if !locale.is_empty() && !root.join(format!("locales/{locale}.toml")).exists() {
-        violations.push(format!("defaults.locale: locales/{locale}.toml does not exist"));
+        violations.push(format!(
+            "defaults.locale: locales/{locale}.toml does not exist"
+        ));
     }
-    for (key, dir) in [("defaults.theme", "themes"), ("defaults.profile", "profiles")] {
+    for (key, dir) in [
+        ("defaults.theme", "themes"),
+        ("defaults.profile", "profiles"),
+    ] {
         if let Some(value) = get_str(key) {
             let candidates = list_toml_ids(&root.join(dir));
             match candidates {
@@ -439,7 +503,9 @@ fn cross_file(root: &Path, doc: &toml_lite::Document, violations: &mut Vec<Strin
     if let Some(template) = get_str("window.title_template") {
         let mut rest: &str = template;
         while let Some(open) = rest.find('{') {
-            let Some(close_rel) = rest[open..].find('}') else { break };
+            let Some(close_rel) = rest[open..].find('}') else {
+                break;
+            };
             let variable = &rest[open + 1..open + close_rel];
             if variable != "product_name" && variable != "media_title" {
                 violations.push(format!(
@@ -451,8 +517,11 @@ fn cross_file(root: &Path, doc: &toml_lite::Document, violations: &mut Vec<Strin
     }
 
     // telemetry.enabled = true requires urls.privacy (doc 07 §3.3 cross-field).
-    if doc.get("telemetry.enabled") == Some(&TValue::Bool(true)) && doc.get("urls.privacy").is_none() {
-        violations.push("telemetry.enabled = true but urls.privacy is absent (doc 07 §3.3)".to_string());
+    if doc.get("telemetry.enabled") == Some(&TValue::Bool(true))
+        && doc.get("urls.privacy").is_none()
+    {
+        violations
+            .push("telemetry.enabled = true but urls.privacy is absent (doc 07 §3.3)".to_string());
     }
 
     // schema_version == max(migrations.entries[].to), or 1 when empty.
@@ -468,7 +537,10 @@ fn cross_file(root: &Path, doc: &toml_lite::Document, violations: &mut Vec<Strin
         let mut prev_to: Option<i64> = None;
         for entry in &entries {
             let get = |k: &str| -> Option<i64> {
-                entry.as_table().and_then(|t| t.iter().find(|(kk, _)| kk == k)).and_then(|(_, v)| v.as_int())
+                entry
+                    .as_table()
+                    .and_then(|t| t.iter().find(|(kk, _)| kk == k))
+                    .and_then(|(_, v)| v.as_int())
             };
             let (Some(from), Some(to)) = (get("from"), get("to")) else {
                 violations.push("migrations.entries: row missing from/to".to_string());
@@ -487,7 +559,9 @@ fn cross_file(root: &Path, doc: &toml_lite::Document, violations: &mut Vec<Strin
         }
         let expected = max_to.unwrap_or(1);
         if *version != expected {
-            violations.push(format!("schema_version {version} != {expected} (max migrations to, or 1 when empty)"));
+            violations.push(format!(
+                "schema_version {version} != {expected} (max migrations to, or 1 when empty)"
+            ));
         }
     }
 
@@ -504,7 +578,9 @@ fn cross_file(root: &Path, doc: &toml_lite::Document, violations: &mut Vec<Strin
         ] {
             if let Some(id) = get_str(key) {
                 if id != expected {
-                    violations.push(format!("{key}: {id:?} != reverse_dns + \".\" + PascalCase(name) ({expected:?})"));
+                    violations.push(format!(
+                        "{key}: {id:?} != reverse_dns + \".\" + PascalCase(name) ({expected:?})"
+                    ));
                 }
             }
         }
@@ -552,8 +628,8 @@ fn pascal_case(name: &str) -> String {
 // ---------------------------------------------------------------------------
 
 fn find_root() -> Result<PathBuf, XtaskError> {
-    let cwd = std::env::current_dir()
-        .map_err(|e| XtaskError::io("determining current directory", e))?;
+    let cwd =
+        std::env::current_dir().map_err(|e| XtaskError::io("determining current directory", e))?;
     let mut dir: &Path = &cwd;
     loop {
         if dir.join("product.toml").is_file() {
@@ -564,7 +640,7 @@ fn find_root() -> Result<PathBuf, XtaskError> {
             None => {
                 return Err(XtaskError::internal(
                     "workspace root not found — run inside the Lumen workspace or pass --root",
-                ))
+                ));
             }
         }
     }
@@ -825,8 +901,12 @@ mod json {
         fn hex4(&mut self) -> Result<u32, ParseError> {
             let mut value = 0u32;
             for _ in 0..4 {
-                let Some(b) = self.peek() else { return Err(self.err("truncated \\u escape")) };
-                let digit = (b as char).to_digit(16).ok_or_else(|| self.err("bad hex digit"))?;
+                let Some(b) = self.peek() else {
+                    return Err(self.err("truncated \\u escape"));
+                };
+                let digit = (b as char)
+                    .to_digit(16)
+                    .ok_or_else(|| self.err("bad hex digit"))?;
                 value = value * 16 + digit;
                 self.pos += 1;
             }
@@ -838,7 +918,10 @@ mod json {
             if self.peek() == Some(b'-') {
                 self.pos += 1;
             }
-            while matches!(self.peek(), Some(b'0'..=b'9' | b'.' | b'e' | b'E' | b'+' | b'-')) {
+            while matches!(
+                self.peek(),
+                Some(b'0'..=b'9' | b'.' | b'e' | b'E' | b'+' | b'-')
+            ) {
                 self.pos += 1;
             }
             let text = std::str::from_utf8(&self.bytes[start..self.pos])
@@ -864,13 +947,12 @@ mod json {
 
         #[test]
         fn parses_the_schema_shapes() {
-            let v = parse(
-                r#"{"a": [1, -2.5, true, null], "b": {"c": "x\ny"}}"#,
-            )
-            .expect("parses");
+            let v = parse(r#"{"a": [1, -2.5, true, null], "b": {"c": "x\ny"}}"#).expect("parses");
             let Json::Obj(obj) = &v else { panic!("obj") };
             assert_eq!(obj[0].0, "a");
-            let Json::Arr(items) = &obj[0].1 else { panic!("arr") };
+            let Json::Arr(items) = &obj[0].1 else {
+                panic!("arr")
+            };
             assert_eq!(items.len(), 4);
             assert_eq!(items[1], Json::Num(-2.5));
             assert_eq!(obj[1].1.as_obj().unwrap()[0].1.as_str(), Some("x\ny"));

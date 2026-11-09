@@ -28,13 +28,12 @@ pub mod resolve;
 pub mod sched;
 
 pub use abr::{
-    DashAbr, DashAbrConfig, DashAbrError, DashAbrSnapshot, DEFAULT_DOWN_MARGIN_PERCENT,
-    DEFAULT_HIGH_WATERMARK_S, DEFAULT_LOW_WATERMARK_S, DEFAULT_MAX_BANDWIDTH_BPS,
-    DEFAULT_MIN_DWELL_SEGMENTS, DEFAULT_UP_MARGIN_PERCENT, SWITCH_HISTORY_CAP,
-    select_representation_index,
+    DEFAULT_DOWN_MARGIN_PERCENT, DEFAULT_HIGH_WATERMARK_S, DEFAULT_LOW_WATERMARK_S,
+    DEFAULT_MAX_BANDWIDTH_BPS, DEFAULT_MIN_DWELL_SEGMENTS, DEFAULT_UP_MARGIN_PERCENT, DashAbr,
+    DashAbrConfig, DashAbrError, DashAbrSnapshot, SWITCH_HISTORY_CAP, select_representation_index,
 };
 pub use resolve::{DashResolveError, RepresentationPlan, SegmentPlan, plan_representation};
 pub use sched::{
-    DashScheduler, DashSchedError, FetchStep, NextStep, SAFE_BEHIND_LIVE_EDGE_S,
+    DashSchedError, DashScheduler, FetchStep, NextStep, SAFE_BEHIND_LIVE_EDGE_S,
     live_edge_presentation_seconds, parse_iso8601_epoch_seconds, segment_availability_epoch,
 };

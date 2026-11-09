@@ -31,8 +31,8 @@ use std::time::{Duration, Instant};
 use plugin_api::access::SourceStream;
 use streaming::clock::{FakeClock, WallClock};
 use streaming::fetch::{ByteRange, HttpFetch, HttpRequest};
-use streaming::hls::live::{open_live, HlsLiveConfig};
-use streaming::hls::media::{open_vod, HlsVodConfig};
+use streaming::hls::live::{HlsLiveConfig, open_live};
+use streaming::hls::media::{HlsVodConfig, open_vod};
 use streaming::mockhttp::{MockClient, MockConfig, MockServer, ScriptedRoute};
 use streaming::reconnect::RetryFetch;
 
@@ -86,8 +86,7 @@ fn mid_segment_drop_resumes_byte_exact() {
 
     // The ranged segment request (the ranged resource's resume unit):
     // bytes 250.. to the end.
-    let request =
-        HttpRequest::get(server.url("/body")).with_range(ByteRange::From { start: 250 });
+    let request = HttpRequest::get(server.url("/body")).with_range(ByteRange::From { start: 250 });
 
     let response = retry.fetch(request).expect("resumed ranged fetch");
     // Byte-exact resume: the healed re-issue answered the SAME slice.
@@ -144,7 +143,10 @@ fn mid_segment_drop_resumes_byte_exact() {
     assert_eq!(script.fetched(), 2);
     let stats = retry.stats();
     assert_eq!((stats.retries, stats.recovered, stats.exhausted), (1, 1, 0));
-    assert!(clock.sleeps().len() <= 1, "one bounded backoff sleep at most");
+    assert!(
+        clock.sleeps().len() <= 1,
+        "one bounded backoff sleep at most"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -345,11 +347,10 @@ fn live_window_edge_survives_wire_delay() {
         ..HlsLiveConfig::default()
     };
     let started = Instant::now();
-    let mut stream =
-        match open_live(Arc::new(proxy), &server.url("hls/ts_live/pl.m3u8"), config) {
-            Ok(s) => s,
-            Err(e) => unreachable!("live session must open through the delay: {e}"),
-        };
+    let mut stream = match open_live(Arc::new(proxy), &server.url("hls/ts_live/pl.m3u8"), config) {
+        Ok(s) => s,
+        Err(e) => unreachable!("live session must open through the delay: {e}"),
+    };
 
     // Byte-exact against cat(s01, s02, t00, t01) — the edge join
     // (back=2 on W1) held despite the delayed wire.
@@ -362,7 +363,10 @@ fn live_window_edge_survives_wire_delay() {
         on_disk.extend_from_slice(&fixture(name));
     }
     assert_eq!(streamed.len(), ORACLE_BYTES as usize);
-    assert_eq!(streamed, on_disk, "delayed-wire session == cat(played window)");
+    assert_eq!(
+        streamed, on_disk,
+        "delayed-wire session == cat(played window)"
+    );
 
     // The edge held: nothing slid out of the server window unfetched.
     let stats = stream.stats();

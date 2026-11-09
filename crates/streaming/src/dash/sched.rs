@@ -29,8 +29,8 @@
 
 use playlists::{AdaptationSet, Mpd};
 
-use super::abr::{select_representation_index, DashAbr, DashAbrConfig, DashAbrError};
-use super::resolve::{plan_representation, DashResolveError, RepresentationPlan};
+use super::abr::{DashAbr, DashAbrConfig, DashAbrError, select_representation_index};
+use super::resolve::{DashResolveError, RepresentationPlan, plan_representation};
 
 /// Default safe distance behind the live edge for dynamic joins
 /// (seconds) — small enough to be live, large enough that the
@@ -295,7 +295,10 @@ impl DashScheduler {
         }
         let mut plans = Vec::with_capacity(set.representations.len());
         for rep in &set.representations {
-            plans.push(plan_representation(mpd, period, set, rep, manifest_url).map_err(DashSchedError::Resolve)?);
+            plans.push(
+                plan_representation(mpd, period, set, rep, manifest_url)
+                    .map_err(DashSchedError::Resolve)?,
+            );
         }
         let start = select_representation_index(set, config.max_bandwidth_bps)?;
         let ast_epoch = mpd
@@ -348,7 +351,11 @@ impl DashScheduler {
         // Boundary decision (between fetches — never mid-segment);
         // `decide` commits internally, `current` moves at once.
         if self.next > 0 {
-            let ladder: Vec<u64> = self.plans.iter().map(|p| p.bandwidth.unwrap_or(0)).collect();
+            let ladder: Vec<u64> = self
+                .plans
+                .iter()
+                .map(|p| p.bandwidth.unwrap_or(0))
+                .collect();
             let _ = self.abr.decide(&ladder);
         }
         let rung = match self.plans.get(self.abr.current()) {
@@ -372,7 +379,11 @@ impl DashScheduler {
         if self.dynamic && !self.joined {
             let now = match now_epoch {
                 Some(now) => now,
-                None => return Ok(NextStep::Wait { available_in_s: 0.0 }),
+                None => {
+                    return Ok(NextStep::Wait {
+                        available_in_s: 0.0,
+                    });
+                }
             };
             let ast = match self.ast_epoch {
                 Some(ast) => ast,
@@ -499,7 +510,10 @@ mod tests {
         assert_eq!(parse_iso8601_epoch_seconds("not a date"), None);
         assert_eq!(parse_iso8601_epoch_seconds("1970-13-01T00:00:00Z"), None);
         assert_eq!(parse_iso8601_epoch_seconds("1970-01-01T25:00:00Z"), None);
-        assert_eq!(parse_iso8601_epoch_seconds("1970-01-01T00:00:60Z"), Some(59));
+        assert_eq!(
+            parse_iso8601_epoch_seconds("1970-01-01T00:00:60Z"),
+            Some(59)
+        );
         assert_eq!(parse_iso8601_epoch_seconds(""), None);
     }
 
@@ -569,7 +583,10 @@ mod tests {
                 Ok(NextStep::Done) => break,
                 other => unreachable!("static never waits: {other:?}"),
             };
-            assert_eq!(step.url, format!("http://unit.test/vod/hi-{}.m4s", urls.len() + 1));
+            assert_eq!(
+                step.url,
+                format!("http://unit.test/vod/hi-{}.m4s", urls.len() + 1)
+            );
             urls.push(step.url);
             sched.observe_throughput(8_000_000, 8_000_000); // healthy
             sched.note_buffer_level(30.0);

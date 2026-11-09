@@ -55,7 +55,12 @@ impl BiquadCoeffs {
     /// # Errors
     /// `audio.effects_eq_params` for non-finite inputs or a corner
     /// frequency outside `(0, rate/2)`.
-    pub fn low_shelf(rate: u32, freq: f32, gain_db: f32, q: f32) -> Result<BiquadCoeffs, EngineError> {
+    pub fn low_shelf(
+        rate: u32,
+        freq: f32,
+        gain_db: f32,
+        q: f32,
+    ) -> Result<BiquadCoeffs, EngineError> {
         check_params(rate, freq, gain_db, q)?;
         let (a, cw, alpha) = precompute(rate, freq, gain_db, q);
         let sqrt_a = a.sqrt();
@@ -73,7 +78,12 @@ impl BiquadCoeffs {
     ///
     /// # Errors
     /// Same as [`low_shelf`](BiquadCoeffs::low_shelf).
-    pub fn high_shelf(rate: u32, freq: f32, gain_db: f32, q: f32) -> Result<BiquadCoeffs, EngineError> {
+    pub fn high_shelf(
+        rate: u32,
+        freq: f32,
+        gain_db: f32,
+        q: f32,
+    ) -> Result<BiquadCoeffs, EngineError> {
         check_params(rate, freq, gain_db, q)?;
         let (a, cw, alpha) = precompute(rate, freq, gain_db, q);
         let sqrt_a = a.sqrt();
@@ -92,7 +102,12 @@ impl BiquadCoeffs {
     ///
     /// # Errors
     /// Same as [`low_shelf`](BiquadCoeffs::low_shelf).
-    pub fn peaking(rate: u32, freq: f32, gain_db: f32, q: f32) -> Result<BiquadCoeffs, EngineError> {
+    pub fn peaking(
+        rate: u32,
+        freq: f32,
+        gain_db: f32,
+        q: f32,
+    ) -> Result<BiquadCoeffs, EngineError> {
         check_params(rate, freq, gain_db, q)?;
         let (a, cw, alpha) = precompute(rate, freq, gain_db, q);
         Ok(BiquadCoeffs::normalize(
@@ -191,7 +206,13 @@ impl Eq3Band {
     /// # Errors
     /// `audio.effects_eq_params` for bad band parameters (see the
     /// biquad constructors).
-    pub fn new(rate: u32, low_db: f32, mid_db: f32, high_db: f32, preamp: Volume) -> Result<Eq3Band, EngineError> {
+    pub fn new(
+        rate: u32,
+        low_db: f32,
+        mid_db: f32,
+        high_db: f32,
+        preamp: Volume,
+    ) -> Result<Eq3Band, EngineError> {
         Ok(Eq3Band {
             preamp,
             low: BiquadFilter::new(BiquadCoeffs::low_shelf(rate, 250.0, low_db, 0.707)?),
@@ -361,9 +382,7 @@ mod tests {
     fn eq_plugs_into_the_effect_chain() {
         use crate::EffectChain;
         let mut chain = EffectChain::new();
-        chain
-            .push(Box::new(Eq3Band::flat(RATE).unwrap()))
-            .unwrap();
+        chain.push(Box::new(Eq3Band::flat(RATE).unwrap())).unwrap();
         let original = sine(600, 440.0, 0.3);
         let mut planes = vec![original.clone()];
         chain.process(&mut planes).unwrap();

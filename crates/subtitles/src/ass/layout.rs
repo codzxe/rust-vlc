@@ -377,7 +377,10 @@ pub fn cue_layout_at(
             Rational::new(pos.0, play_res.0)?,
             Rational::new(pos.1, play_res.1)?,
         )?,
-        alignment: CueAlignment { horizontal, vertical },
+        alignment: CueAlignment {
+            horizontal,
+            vertical,
+        },
         margin: SafeMargin::TitleSafe,
         reference: Some(play_res),
     })
@@ -511,7 +514,11 @@ mod tests {
         // not (the documented override).
         let with_margins = cue_layout(
             AssAlignment::BOTTOM_CENTER,
-            AssMargins { left: 50, right: 50, vertical: 60 },
+            AssMargins {
+                left: 50,
+                right: 50,
+                vertical: 60,
+            },
             (384, 288),
         )
         .must();

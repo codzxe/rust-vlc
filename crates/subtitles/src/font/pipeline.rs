@@ -283,7 +283,11 @@ impl GlyphPipeline for MonospaceCellPipeline {
         let advance = metrics.advance_px;
         let ascent = metrics.ascent_px;
         let is_space = ch == ' ';
-        let bold_extra = if deco.bold { Self::bold_extra(advance) } else { 0 };
+        let bold_extra = if deco.bold {
+            Self::bold_extra(advance)
+        } else {
+            0
+        };
         let shear = if deco.italic { Self::shear(advance) } else { 0 };
         let strip_h = Self::strip_height(ascent);
         let underline_rows = if deco.underline { strip_h } else { 0 };
@@ -346,8 +350,8 @@ impl GlyphPipeline for MonospaceCellPipeline {
 #[cfg(test)]
 mod tests {
     use super::{
-        GlyphDecorations, GlyphMask, GlyphMaskError, GlyphMetrics, GlyphPipeline,
-        MAX_FONT_SIZE_PX, MetricsError, MonospaceCellPipeline,
+        GlyphDecorations, GlyphMask, GlyphMaskError, GlyphMetrics, GlyphPipeline, MAX_FONT_SIZE_PX,
+        MetricsError, MonospaceCellPipeline,
     };
     use testkit::Must;
 

@@ -59,7 +59,14 @@ const STATUSES: [&str; 7] = [
 ];
 const PLATFORMS: [&str; 4] = ["windows", "linux", "macos", "web"];
 const PRIORITIES: [&str; 4] = ["P0", "P1", "P2", "P3"];
-const ROW_REQUIRED: [&str; 6] = ["id", "category", "priority", "phase_target", "status", "evidence"];
+const ROW_REQUIRED: [&str; 6] = [
+    "id",
+    "category",
+    "priority",
+    "phase_target",
+    "status",
+    "evidence",
+];
 
 /// One matrix row, minimally typed for the audit.
 struct Row {
@@ -90,19 +97,25 @@ pub fn run(args: &[String]) -> Result<ExitCode, XtaskError> {
             "--root" => {
                 i += 1;
                 let Some(dir) = args.get(i) else {
-                    return Err(XtaskError::Usage(format!("--root requires a directory\n{USAGE}")));
+                    return Err(XtaskError::Usage(format!(
+                        "--root requires a directory\n{USAGE}"
+                    )));
                 };
                 root_override = Some(PathBuf::from(dir));
             }
             "--matrix" => {
                 i += 1;
                 let Some(p) = args.get(i) else {
-                    return Err(XtaskError::Usage(format!("--matrix requires a path\n{USAGE}")));
+                    return Err(XtaskError::Usage(format!(
+                        "--matrix requires a path\n{USAGE}"
+                    )));
                 };
                 matrix_rel = p.clone();
             }
             other => {
-                return Err(XtaskError::Usage(format!("unexpected argument `{other}`\n{USAGE}")));
+                return Err(XtaskError::Usage(format!(
+                    "unexpected argument `{other}`\n{USAGE}"
+                )));
             }
         }
         i += 1;
@@ -215,15 +228,24 @@ pub fn run(args: &[String]) -> Result<ExitCode, XtaskError> {
         }
         let values: Vec<&str> = row.statuses.iter().map(|(_, v)| v.as_str()).collect();
         // R4/R5/R6 conditionals + the B check (implemented needs evidence too).
-        let claims_work = values.iter().any(|v| *v == "implemented" || *v == "verified");
+        let claims_work = values
+            .iter()
+            .any(|v| *v == "implemented" || *v == "verified");
         if claims_work && row.evidence.trim().is_empty() {
             violations.push(format!(
                 "{}: implemented/verified without evidence (R4 — implemented-with-evidence is the backfill rule)",
                 row.line_hint
             ));
         }
-        if values.iter().any(|v| *v == "blocked" || *v == "unsupported") && !row.has_blocked_reason {
-            violations.push(format!("{}: blocked/unsupported without blocked_reason (R5)", row.line_hint));
+        if values
+            .iter()
+            .any(|v| *v == "blocked" || *v == "unsupported")
+            && !row.has_blocked_reason
+        {
+            violations.push(format!(
+                "{}: blocked/unsupported without blocked_reason (R5)",
+                row.line_hint
+            ));
         }
         if values.iter().any(|v| *v == "partial") && !row.has_notes {
             violations.push(format!("{}: partial without notes (R6)", row.line_hint));
@@ -244,7 +266,12 @@ pub fn run(args: &[String]) -> Result<ExitCode, XtaskError> {
 }
 
 /// Print the report and derive the exit code.
-fn finish(root: &Path, matrix_rel: &str, rows: &[Row], violations: &[String]) -> Result<ExitCode, XtaskError> {
+fn finish(
+    root: &Path,
+    matrix_rel: &str,
+    rows: &[Row],
+    violations: &[String],
+) -> Result<ExitCode, XtaskError> {
     println!("=== LUMEN FEATURE-AUDIT REPORT ===");
     println!("matrix: {} (root {})", matrix_rel, root.display());
     println!("rows: {}", rows.len());
@@ -279,7 +306,10 @@ fn finish(root: &Path, matrix_rel: &str, rows: &[Row], violations: &[String]) ->
 }
 
 fn fmt_counts<K: std::fmt::Display>(map: &BTreeMap<K, usize>) -> String {
-    map.iter().map(|(k, n)| format!("{k}={n}")).collect::<Vec<_>>().join(" ")
+    map.iter()
+        .map(|(k, n)| format!("{k}={n}"))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn sorted_platforms() -> Vec<&'static str> {
@@ -303,10 +333,18 @@ fn parse_row(src: &toml_lite::ArrayRow, index: usize) -> Result<Row, String> {
         }
     }
     let id = get("id").and_then(Value::as_str).unwrap_or("?").to_string();
-    let category = get("category").and_then(Value::as_str).unwrap_or("?").to_string();
+    let category = get("category")
+        .and_then(Value::as_str)
+        .unwrap_or("?")
+        .to_string();
     let phase = get("phase_target").and_then(Value::as_int);
-    let evidence = get("evidence").and_then(Value::as_str).unwrap_or("").to_string();
-    let has_notes = get("notes").and_then(Value::as_str).is_some_and(|s| !s.trim().is_empty());
+    let evidence = get("evidence")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let has_notes = get("notes")
+        .and_then(Value::as_str)
+        .is_some_and(|s| !s.trim().is_empty());
     let has_blocked_reason = get("blocked_reason")
         .and_then(Value::as_str)
         .is_some_and(|s| !s.trim().is_empty());
@@ -334,12 +372,18 @@ fn parse_row(src: &toml_lite::ArrayRow, index: usize) -> Result<Row, String> {
 
 fn valid_id(id: &str) -> bool {
     let mut segments = id.split('-');
-    let first_ok = segments.next().is_some_and(|s| !s.is_empty() && s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()));
+    let first_ok = segments.next().is_some_and(|s| {
+        !s.is_empty()
+            && s.chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+    });
     if !first_ok {
         return false;
     }
     let rest_ok = segments.all(|s| {
-        !s.is_empty() && s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+        !s.is_empty()
+            && s.chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
     });
     rest_ok && id.contains('-')
 }
@@ -397,8 +441,15 @@ const ROOT_DIRS: [&str; 14] = [
     "scripts", "tests", "themes", "tools", "ui",
 ];
 const ROOT_FILES: [&str; 9] = [
-    "product.toml", "product.schema.json", "README.md", "worklog.md", "AGENTS.md", "deny.toml",
-    "boundaries.toml", "rust-toolchain.toml", "Cargo.toml",
+    "product.toml",
+    "product.schema.json",
+    "README.md",
+    "worklog.md",
+    "AGENTS.md",
+    "deny.toml",
+    "boundaries.toml",
+    "rust-toolchain.toml",
+    "Cargo.toml",
 ];
 
 /// Validate one token; `None` = fine (or not path-like), `Some(bad)` = the
@@ -455,8 +506,8 @@ fn check_token(root: &Path, token: &str) -> Option<String> {
 // ---------------------------------------------------------------------------
 
 fn find_root() -> Result<PathBuf, XtaskError> {
-    let cwd = std::env::current_dir()
-        .map_err(|e| XtaskError::io("determining current directory", e))?;
+    let cwd =
+        std::env::current_dir().map_err(|e| XtaskError::io("determining current directory", e))?;
     let mut dir: &Path = &cwd;
     loop {
         if dir.join("Cargo.toml").is_file() && dir.join("docs").is_dir() {
@@ -467,7 +518,7 @@ fn find_root() -> Result<PathBuf, XtaskError> {
             None => {
                 return Err(XtaskError::internal(
                     "workspace root not found — run inside the Lumen workspace or pass --root",
-                ))
+                ));
             }
         }
     }
@@ -493,7 +544,8 @@ mod tests {
         let tmp = std::env::temp_dir().join(format!("xtask-fa-{}", std::process::id()));
         std::fs::create_dir_all(tmp.join("crates/demo")).expect("mkdir");
         std::fs::write(tmp.join("crates/demo/lib.rs"), "").expect("write");
-        let evidence = "Matroska/WebM; 3/10/60/300 s; https://example.org/x; see issue #34 and MP §17";
+        let evidence =
+            "Matroska/WebM; 3/10/60/300 s; https://example.org/x; see issue #34 and MP §17";
         assert!(unresolved_paths(&tmp, evidence).is_empty());
     }
 
@@ -503,7 +555,8 @@ mod tests {
         std::fs::create_dir_all(tmp.join("crates/demo")).expect("mkdir");
         std::fs::write(tmp.join("crates/demo/lib.rs"), "").expect("write");
         std::fs::create_dir_all(tmp.join("docs")).expect("mkdir");
-        let evidence = "crates/demo/lib.rs (card 5.D1); crates/demo/missing.rs; crates/demo/** works";
+        let evidence =
+            "crates/demo/lib.rs (card 5.D1); crates/demo/missing.rs; crates/demo/** works";
         let missing = unresolved_paths(&tmp, evidence);
         assert_eq!(missing, vec!["crates/demo/missing.rs".to_string()]);
     }

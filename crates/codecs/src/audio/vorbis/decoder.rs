@@ -409,11 +409,10 @@ impl VorbisDecoder {
         let base = match TimeBase::new(1, ident.sample_rate) {
             Ok(base) => base,
             Err(_) => {
-                return Err(unsupported(
-                    "vorbis.ident.rate",
-                    "configured facts carry rate 0",
-                )
-                .into_engine_error())
+                return Err(
+                    unsupported("vorbis.ident.rate", "configured facts carry rate 0")
+                        .into_engine_error(),
+                );
             }
         };
         // The release window in raw samples: [trim_from, held) for a
@@ -432,7 +431,9 @@ impl VorbisDecoder {
             let byte_len = usize::try_from(len * frame_bytes as u64).unwrap_or(usize::MAX);
             let pts = match (trim_from, shift) {
                 (Some(_), Some(shift)) => Stamp::Present(Timestamp::new(
-                    i64::try_from(cursor).unwrap_or(i64::MAX).saturating_sub(shift),
+                    i64::try_from(cursor)
+                        .unwrap_or(i64::MAX)
+                        .saturating_sub(shift),
                     base,
                 )),
                 _ => Stamp::Missing,
@@ -447,9 +448,10 @@ impl VorbisDecoder {
                 samples: bytes.slice(byte_start..byte_start + byte_len),
                 pts,
                 duration: Some(Duration::Known(Nanoseconds(
-                    u64::try_from(u128::from(len) * 1_000_000_000u128
-                        / u128::from(ident.sample_rate))
-                        .unwrap_or(u64::MAX),
+                    u64::try_from(
+                        u128::from(len) * 1_000_000_000u128 / u128::from(ident.sample_rate),
+                    )
+                    .unwrap_or(u64::MAX),
                 ))),
                 generation,
             });
@@ -586,11 +588,7 @@ impl Decoder for VorbisDecoder {
         // head leaves NOW — ahead of this packet's own block, in raw
         // order — trimmed by the resolved `max(shift, 0)`.
         let mut released = 0usize;
-        if let Some(trim) = self
-            .head_hold
-            .as_ref()
-            .and_then(|hold| hold.trim_from)
-        {
+        if let Some(trim) = self.head_hold.as_ref().and_then(|hold| hold.trim_from) {
             released = self.release_head_hold(out, packet.generation, Some(trim))?;
         }
         let slot_len = max_output_len(&ident);

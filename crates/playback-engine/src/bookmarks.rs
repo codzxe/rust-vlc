@@ -159,7 +159,10 @@ mod tests {
         list.add(us(30), None).unwrap();
         assert!(list.remove(2));
         assert!(!list.remove(2), "second remove of the same id is false");
-        assert_eq!(list.entries().iter().map(|b| b.id).collect::<Vec<_>>(), [1, 3]);
+        assert_eq!(
+            list.entries().iter().map(|b| b.id).collect::<Vec<_>>(),
+            [1, 3]
+        );
         // The next add does NOT reuse the freed id.
         let next = list.add(us(40), None).unwrap();
         assert_eq!(next.id, 4);
