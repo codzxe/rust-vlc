@@ -23,7 +23,10 @@ keys per doc 04 §6:
 ## Scope landed (5.M1)
 
 - **Encoding** (`encoding.rs`): BOM matrix UTF-8 / UTF-16LE /
-  UTF-16BE; BOM-less UTF-8 fallback with lossy + damage;
+  UTF-16BE; BOM-less VALID UTF-8 wins losslessly; BOM-less INVALID
+  UTF-8 falls back to Windows-1252 (issue #17: legacy-SRT 8-bit
+  fallback, ffmpeg `sub_charenc` behaviour) with typed damage —
+  one fallback event + U+FFFD for the five undefined bytes;
   unpaired-surrogate + odd-trailing-byte degradation; CRLF/CR/LF
   normalization. BOM-less UTF-16 is deliberately NOT sniffed
   (documented honesty: degrades to garbage-block damage, never
