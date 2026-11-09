@@ -673,6 +673,7 @@ pub(super) fn map_fetch_err(err: NetworkError) -> EngineError {
         | NetworkError::TooManyRedirects { .. }
         | NetworkError::RedirectLoop { .. }
         | NetworkError::CrossHostRedirect { .. }
+        | NetworkError::CrossSchemeRedirect { .. }
         | NetworkError::HttpStatus { .. } => NetworkCause::ConnectionLost,
         // A superseded fetch (6.D2 generation bump): mapped as
         // lost-connection weather so the caller's retry policy
