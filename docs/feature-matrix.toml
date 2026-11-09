@@ -907,7 +907,7 @@ phase_target = 5
 vlc_modules = ["subtitle", "libass"]
 inventory_ref = "inventory/formats.json#ass"
 status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
-evidence = "crates/subtitles/src/ass/** (cards 5.M2a parser + 5.M2b render + issue #17 G-2 override-tag engine in ass/tags.rs, commit ba3dd0f; record docs/formats/sub-ass-ssa.md, 5.Q2-V: 3/3 real-ffmpeg ASS docs exact, 9/9 alignment-grid pixel-exact, 2000+2048 fuzz-lite runs clean; G-2: 264/0 lib tests incl. per-tag suites)"
+evidence = "crates/subtitles/src/ass/** (cards 5.M2a parser + 5.M2b render + issue #17 G-2 override-tag engine in ass/tags.rs, commit ba3dd0f; record docs/formats/sub-ass-ssa.md, 5.Q2-V: 3/3 real-ffmpeg ASS docs exact, 9/9 alignment-grid pixel-exact, 2000+2048 fuzz-lite runs clean; G-2: 267/0 lib tests incl. per-tag suites (1bd5519))"
 notes = "The R-09 gap: tag-coverage matrix (render/degrade/drop) + unsupported-tag counters per doc 06 §7.8; libass-output-as-oracle [PROPOSAL]; plain-text subset may land Phase 2 with styling subset in Phase 5 (feasibility subtitles §1 row 2); karaoke/positioning degrade honestly. 5.Q2-V backfill: partial per NEW record. G-2 (issue #17, commit ba3dd0f): override-tag MINIMUM now native — \b \i \u \s \fs \fn \c \1c \alpha \1a \pos \move -> styled runs + position override + per-run render; beyond-minimum tags still degrade honestly (dropped/unmapped counters); libass oracle impossible (C, forbidden)."
 
 [[feature]]
