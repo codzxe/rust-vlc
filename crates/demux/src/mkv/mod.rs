@@ -56,10 +56,13 @@ use media_types::{EngineError, Packet, Track};
 use plugin_api::demux::{DemuxEvent, Demuxer, SeekSupport};
 
 use crate::avi::riff::PayloadSlots;
+use crate::mkv::attachments::AttachmentList;
+use crate::mkv::chapters::ChapterList;
 use crate::mkv::cluster::ParsedBlock;
 use crate::mkv::cues::CueIndex;
 use crate::mkv::ebml::{EbmlReader, ElementHeader};
 use crate::mkv::header::{SegmentInfo, TrackEntry};
+use crate::mkv::tags::TagList;
 
 /// File extensions this demuxer claims (the R3 registry row).
 pub const EXTENSIONS: &[&str] = &["mkv", "mka", "mk3d", "webm"];
@@ -117,6 +120,17 @@ pub struct MkvDemuxer {
     /// Matroska track number → stream ordinal.
     by_number: HashMap<u64, u32>,
     cues: Option<CueIndex>,
+    /// The segment's `Tags` records, parsed and retained at `start`
+    /// (issue #34: the open()-wiring seam — every `Tags` element the
+    /// walk meets, merged in file order).
+    tags: TagList,
+    /// The segment's attached files, retained at `start` (issue #34:
+    /// cover art / fonts / companions, name+mime+bytes on the model;
+    /// the ASS font *consumer* is issue #17's, not this seam).
+    attachments: AttachmentList,
+    /// The segment's editions/chapters, retained at `start` (issue
+    /// #34: timestamps + UIDs on the model, seek targets derived).
+    chapters: ChapterList,
     /// Absolute position of the `Segment` payload (cue offsets are
     /// relative to it).
     segment_data_start: u64,
@@ -159,6 +173,9 @@ impl MkvDemuxer {
             entries: Vec::new(),
             by_number: HashMap::new(),
             cues: None,
+            tags: TagList::default(),
+            attachments: AttachmentList::default(),
+            chapters: ChapterList::default(),
             segment_data_start: 0,
             segment_end: 0,
             walk: 0,
@@ -197,6 +214,104 @@ impl MkvDemuxer {
         self.cues.as_ref()
     }
 
+    /// The segment's `Tags` records, parsed and retained at `start`
+    /// (issue #34): the global (format-scope) and UID-scoped (stream/
+    /// edition/chapter/attachment) metadata, with the differential
+    /// accessors on [`TagList`].
+    #[must_use]
+    pub fn tags(&self) -> &TagList {
+        &self.tags
+    }
+
+    /// The segment's attached files, parsed and retained at `start`
+    /// (issue #34): cover art, fonts, companions — name + MIME + bytes
+    /// on the model. The ASS font *consumer* (the render stack) is
+    /// issue #17's surface; this seam only makes the bytes available.
+    #[must_use]
+    pub fn attachments(&self) -> &AttachmentList {
+        &self.attachments
+    }
+
+    /// The segment's editions and chapter atoms, parsed and retained
+    /// at `start` (issue #34): nanosecond timestamps + UIDs on the
+    /// model (chapter times are ns by spec — they do NOT scale with
+    /// `TimestampScale`), plus the tolerant `beyond_duration` note.
+    #[must_use]
+    pub fn chapters(&self) -> &ChapterList {
+        &self.chapters
+    }
+
+    /// The media title (the title/artwork metadata seam, issue #34):
+    /// the `Info` `Title` element — where ffmpeg's muxer writes
+    /// `-metadata title=` — else the global `TITLE` tag pair (the
+    /// mkvtoolnix spelling). `None` when the file declares neither.
+    #[must_use]
+    pub fn title(&self) -> Option<&str> {
+        self.info
+            .title
+            .as_deref()
+            .or_else(|| self.tags.global_text("TITLE"))
+    }
+
+    /// The `TrackUID` of one track (issue #34: the stable identity
+    /// across playlist reloads and track-table re-orderings — the
+    /// join key `TagTrackUID` targets). `None` when `track` is out
+    /// of table range; 0 when the file declares no UID (the spec's
+    /// default).
+    #[must_use]
+    pub fn track_uid(&self, track: TrackId) -> Option<u64> {
+        self.entries.get(track.handle() as usize).map(|e| e.uid)
+    }
+
+    /// The chapter seek targets of the edition a player opens with
+    /// (the `EditionFlagDefault` one, else the first non-hidden, else
+    /// the first): every user-visible atom flattened depth-first, its
+    /// nanosecond times converted onto the segment's clock (scale
+    /// ticks). `[PROPOSAL: the chapter-navigation command
+    /// (feature-matrix `playback-chapter-title`, phase 4) consumes
+    /// this surface — `seek(target.span)` + `title` for the UI; the
+    /// command layer does not exist yet, so nothing downstream reads
+    /// it today]`.
+    #[must_use]
+    pub fn chapter_targets(&self) -> Vec<chapters::ChapterTarget> {
+        let scale = u64::from(self.info.timestamp_scale);
+        let mut out = Vec::new();
+        let Some(edition) = self.chapters.default_edition() else {
+            return out;
+        };
+        let mut atoms = Vec::new();
+        for atom in &edition.atoms {
+            atom.flatten_into(&mut atoms);
+        }
+        for atom in atoms {
+            // Hidden chapters are not user selections (spec) — kept on
+            // the model, not offered as targets.
+            if atom.hidden {
+                continue;
+            }
+            // ns → scale ticks. A start that does not fit the segment
+            // clock (scale 1 + >292 years) cannot be a seek target —
+            // skipped, never clamped (clamping would fabricate a
+            // position); an end that does not fit reads open-ended.
+            let Some(start_ticks) = i64::try_from(atom.start_ns / scale).ok() else {
+                continue;
+            };
+            let end = atom
+                .end_ns
+                .and_then(|ns| i64::try_from(ns / scale).ok())
+                .map(|ticks| Stamp::Present(Timestamp::new(ticks, self.base)));
+            out.push(chapters::ChapterTarget {
+                uid: atom.uid,
+                title: atom.title().map(str::to_string),
+                span: TimeSpan {
+                    start: Stamp::Present(Timestamp::new(start_ticks, self.base)),
+                    end: end.unwrap_or(Stamp::Missing),
+                },
+            });
+        }
+        out
+    }
+
     /// Total damage bytes skipped by recovery (honesty counter).
     #[must_use]
     pub fn damage_bytes(&self) -> u64 {
@@ -211,8 +326,17 @@ impl MkvDemuxer {
 
     /// `start`'s top-level walk: parse the EBML header, find the
     /// `Segment`, walk its children (headers only — payload reads
-    /// happen in the targeted parsers), collect Info/Tracks/Cues and
+    /// happen in the targeted parsers), collect
+    /// Info/Tracks/Cues/**Tags/Attachments/Chapters** (issue #34: the
+    /// extras are parsed and retained here, no longer skipped) and
     /// the first cluster position.
+    ///
+    /// The walk runs to the segment end: the metadata masters
+    /// commonly sit **after** the clusters (ffmpeg's layout), so the
+    /// 5.D1 early break ("stop once Cues and a cluster are known")
+    /// would miss them. Cluster children cost one bounded 12-byte
+    /// header read each — the same walk the on-demand getters of the
+    /// 5.D2 cards already performed, now paid once at `start`.
     fn open(&mut self) -> Result<(), EngineError> {
         let length = self.reader.length();
         let (ebml_header, header_end) = header::parse_ebml_header(&mut self.reader, length)?;
@@ -259,11 +383,22 @@ impl MkvDemuxer {
                 Some(end) => end.min(self.segment_end),
                 None => {
                     // Unknown-size child inside the Segment: the
-                    // streaming form — only a Cluster may legally
-                    // carry it in this scope; treat it as extending
-                    // to the segment end.
-                    if child.id == ebml::ID_CLUSTER && first_cluster.is_none() {
-                        first_cluster = Some(child_pos);
+                    // streaming form. A Cluster carrying it is the
+                    // walk's cluster anchor; the metadata masters
+                    // tolerate it too (their parsers clamp to the
+                    // bound); anything else cannot be skipped past —
+                    // by definition it extends to the segment end, so
+                    // the walk ends there either way.
+                    match child.id {
+                        ebml::ID_CLUSTER => {
+                            if first_cluster.is_none() {
+                                first_cluster = Some(child_pos);
+                            }
+                        }
+                        tags::ID_TAGS => self.collect_tags(&child)?,
+                        attachments::ID_ATTACHMENTS => self.collect_attachments(&child)?,
+                        chapters::ID_CHAPTERS => self.collect_chapters(&child)?,
+                        _ => {}
                     }
                     break;
                 }
@@ -285,19 +420,14 @@ impl MkvDemuxer {
                         self.segment_end,
                     )?);
                 }
-                ebml::ID_CLUSTER => {
-                    if first_cluster.is_none() {
-                        first_cluster = Some(child_pos);
-                    }
-                    // Optimization: keep walking top-level headers
-                    // only until Cues is found (it usually trails the
-                    // clusters); once both it and a cluster are known
-                    // the walk can stop.
-                    if self.cues.is_some() {
-                        break;
-                    }
+                tags::ID_TAGS => self.collect_tags(&child)?,
+                attachments::ID_ATTACHMENTS => self.collect_attachments(&child)?,
+                chapters::ID_CHAPTERS => self.collect_chapters(&child)?,
+                ebml::ID_CLUSTER if first_cluster.is_none() => {
+                    first_cluster = Some(child_pos);
                 }
-                _ => {} // SeekHead/Tags/Attachments/Chapters: skip.
+                ebml::ID_CLUSTER => {}
+                _ => {} // SeekHead/unknown: skip.
             }
             child_pos = child_end;
         }
@@ -318,7 +448,49 @@ impl MkvDemuxer {
             .iter()
             .map(|e| e.track(self.base))
             .collect::<Result<Vec<_>, _>>()?;
+        // The tolerant chapter note, applied to the retained list: only
+        // against a declared, finite, non-negative duration (an absent
+        // Duration flags nothing — the honest absence, not a
+        // fabricated bound).
+        if let Some(secs) = self.info.duration_secs
+            && secs.is_finite()
+            && secs >= 0.0
+        {
+            let duration_ns = secs * 1_000_000_000.0;
+            if duration_ns.is_finite() && duration_ns <= u64::MAX as f64 {
+                self.chapters.flag_beyond_duration(duration_ns as u64);
+            }
+        }
         self.walk = first_cluster;
+        Ok(())
+    }
+
+    /// Parse one `Tags` element into the retained list (the walk's
+    /// per-element seam — the master may repeat; the lists merge in
+    /// file order).
+    fn collect_tags(&mut self, child: &ElementHeader) -> Result<(), EngineError> {
+        let more = tags::parse_tags(&mut self.reader, child, self.segment_end)?;
+        self.tags.tags.extend(more.tags);
+        Ok(())
+    }
+
+    /// Parse one `Attachments` element into the retained list (damage
+    /// rows fold into the demuxer's honesty counter, the tracks'
+    /// pattern).
+    fn collect_attachments(&mut self, child: &ElementHeader) -> Result<(), EngineError> {
+        let more = attachments::parse_attachments(&mut self.reader, child, self.segment_end)?;
+        self.damage_total += more.damage.iter().map(|(n, _)| *n).sum::<u64>();
+        self.attachments.files.extend(more.files);
+        self.attachments.damage.extend(more.damage);
+        Ok(())
+    }
+
+    /// Parse one `Chapters` element into the retained list.
+    fn collect_chapters(&mut self, child: &ElementHeader) -> Result<(), EngineError> {
+        let more = chapters::parse_chapters(&mut self.reader, child, self.segment_end)?;
+        self.damage_total += more.damage.iter().map(|(n, _)| *n).sum::<u64>();
+        self.chapters.editions.extend(more.editions);
+        self.chapters.damage.extend(more.damage);
         Ok(())
     }
 
@@ -362,10 +534,14 @@ impl MkvDemuxer {
                 }
                 _ => {
                     // A non-cluster top-level element (Cues trailing
-                    // clusters, Tags, Attachments…): skip it.
+                    // clusters, Tags, Attachments…): skip it. The
+                    // unknown-size form of a master legally extends to
+                    // the segment end (the streaming shape; its bytes
+                    // were parsed at `start`) — skip to the end, not a
+                    // typed refusal mid-playback.
                     let end = el
                         .declared_end()
-                        .ok_or_else(|| error::bad_structure(el.data_pos))?
+                        .unwrap_or(self.segment_end)
                         .min(self.segment_end);
                     self.walk = end;
                 }
