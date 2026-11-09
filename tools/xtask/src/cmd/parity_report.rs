@@ -66,19 +66,25 @@ pub fn run(args: &[String]) -> Result<ExitCode, XtaskError> {
             "--root" => {
                 i += 1;
                 let Some(dir) = args.get(i) else {
-                    return Err(XtaskError::Usage(format!("--root requires a directory\n{USAGE}")));
+                    return Err(XtaskError::Usage(format!(
+                        "--root requires a directory\n{USAGE}"
+                    )));
                 };
                 root_override = Some(PathBuf::from(dir));
             }
             "--matrix" => {
                 i += 1;
                 let Some(p) = args.get(i) else {
-                    return Err(XtaskError::Usage(format!("--matrix requires a path\n{USAGE}")));
+                    return Err(XtaskError::Usage(format!(
+                        "--matrix requires a path\n{USAGE}"
+                    )));
                 };
                 matrix_rel = p.clone();
             }
             other => {
-                return Err(XtaskError::Usage(format!("unexpected argument `{other}`\n{USAGE}")));
+                return Err(XtaskError::Usage(format!(
+                    "unexpected argument `{other}`\n{USAGE}"
+                )));
             }
         }
         i += 1;
@@ -118,8 +124,11 @@ pub fn compute_table(doc: &toml_lite::Document) -> String {
             .to_string();
         let stats = categories.entry(category).or_default();
         stats.rows += 1;
-        let Some(Value::Table(status)) =
-            row.entries.iter().find(|(k, _)| k == "status").map(|(_, v)| v)
+        let Some(Value::Table(status)) = row
+            .entries
+            .iter()
+            .find(|(k, _)| k == "status")
+            .map(|(_, v)| v)
         else {
             continue;
         };
@@ -171,7 +180,8 @@ pub fn compute_table(doc: &toml_lite::Document) -> String {
     out.push_str(&line);
 
     out.push_str("\nverified-only (MP §1 strict definition — automated evidence):\n\n");
-    let mut line = String::from("| Scope | windows | linux | macos | web |\n|---|---|---|---|---|\n");
+    let mut line =
+        String::from("| Scope | windows | linux | macos | web |\n|---|---|---|---|---|\n");
     for (label, stats) in categories
         .iter()
         .map(|(c, s)| (c.clone(), s))
@@ -189,10 +199,7 @@ pub fn compute_table(doc: &toml_lite::Document) -> String {
     let mut machine = String::from("parity: rows=");
     machine.push_str(&total.rows.to_string());
     for (i, platform) in PLATFORMS.iter().enumerate() {
-        machine.push_str(&format!(
-            " {platform}={}/{}",
-            total.imp_ver[i], total.rows
-        ));
+        machine.push_str(&format!(" {platform}={}/{}", total.imp_ver[i], total.rows));
     }
     out.push('\n');
     out.push_str(&machine);
@@ -210,8 +217,8 @@ fn cell(n: usize, total: usize) -> String {
 }
 
 fn find_root() -> Result<PathBuf, XtaskError> {
-    let cwd = std::env::current_dir()
-        .map_err(|e| XtaskError::io("determining current directory", e))?;
+    let cwd =
+        std::env::current_dir().map_err(|e| XtaskError::io("determining current directory", e))?;
     let mut dir: &std::path::Path = &cwd;
     loop {
         if dir.join("Cargo.toml").is_file() && dir.join("docs").is_dir() {
@@ -222,7 +229,7 @@ fn find_root() -> Result<PathBuf, XtaskError> {
             None => {
                 return Err(XtaskError::internal(
                     "workspace root not found — run inside the Lumen workspace or pass --root",
-                ))
+                ));
             }
         }
     }
@@ -231,6 +238,32 @@ fn find_root() -> Result<PathBuf, XtaskError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    trait Must {
+        type Value;
+        #[track_caller]
+        fn must(self) -> Self::Value;
+    }
+    impl<T, E: std::fmt::Display> Must for Result<T, E> {
+        type Value = T;
+        #[track_caller]
+        fn must(self) -> T {
+            match self {
+                Ok(v) => v,
+                Err(e) => unreachable!("test must(): {e}"),
+            }
+        }
+    }
+    impl<T> Must for Option<T> {
+        type Value = T;
+        #[track_caller]
+        fn must(self) -> T {
+            match self {
+                Some(v) => v,
+                None => unreachable!("test must(): None"),
+            }
+        }
+    }
 
     #[test]
     fn cell_formats_share() {
@@ -257,20 +290,36 @@ mod tests {
              status = { windows = \"verified\", linux = \"verified\", macos = \"verified\", web = \"verified\" }\n\
              evidence = \"y\"\n",
         )
-        .expect("fixture parses");
+        .must();
         let table = compute_table(&doc);
         // alpha: windows 1/2, linux 2/2, macos 1/2, web 0/2.
-        assert!(table.contains("| alpha | 2 | 1/2 (50.0%) | 2/2 (100.0%) | 1/2 (50.0%) | 0/2 (0.0%) |"), "{table}");
+        assert!(
+            table.contains("| alpha | 2 | 1/2 (50.0%) | 2/2 (100.0%) | 1/2 (50.0%) | 0/2 (0.0%) |"),
+            "{table}"
+        );
         // beta: all platforms 1/1.
-        assert!(table.contains("| beta | 1 | 1/1 (100.0%) | 1/1 (100.0%) | 1/1 (100.0%) | 1/1 (100.0%) |"), "{table}");
+        assert!(
+            table.contains(
+                "| beta | 1 | 1/1 (100.0%) | 1/1 (100.0%) | 1/1 (100.0%) | 1/1 (100.0%) |"
+            ),
+            "{table}"
+        );
         // totals: windows 2/3, linux 3/3, macos 2/3, web 1/3.
         assert!(
-            table.contains("| **TOTAL** | 3 | 2/3 (66.7%) | 3/3 (100.0%) | 2/3 (66.7%) | 1/3 (33.3%) |"),
+            table.contains(
+                "| **TOTAL** | 3 | 2/3 (66.7%) | 3/3 (100.0%) | 2/3 (66.7%) | 1/3 (33.3%) |"
+            ),
             "{table}"
         );
         // verified-only: windows 1/3, linux 2/3, macos 1/3, web 1/3.
-        assert!(table.contains("| TOTAL | 1/3 (33.3%) | 2/3 (66.7%) | 1/3 (33.3%) | 1/3 (33.3%) |"), "{table}");
+        assert!(
+            table.contains("| TOTAL | 1/3 (33.3%) | 2/3 (66.7%) | 1/3 (33.3%) | 1/3 (33.3%) |"),
+            "{table}"
+        );
         // machine line.
-        assert!(table.contains("parity: rows=3 windows=2/3 linux=3/3 macos=2/3 web=1/3"), "{table}");
+        assert!(
+            table.contains("parity: rows=3 windows=2/3 linux=3/3 macos=2/3 web=1/3"),
+            "{table}"
+        );
     }
 }

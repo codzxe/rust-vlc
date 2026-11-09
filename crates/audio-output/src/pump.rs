@@ -262,7 +262,9 @@ mod tests {
     fn frames_buf(format: AudioFormat, frames: usize) -> AudioBuffer {
         AudioBuffer {
             format,
-            data: SharedBytes::from_vec(vec![0.25f32.to_le_bytes(); frames * format.channels as usize].concat()),
+            data: SharedBytes::from_vec(
+                vec![0.25f32.to_le_bytes(); frames * format.channels as usize].concat(),
+            ),
             pts: Stamp::Missing,
         }
     }

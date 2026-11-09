@@ -202,7 +202,10 @@ impl Url {
 
     /// Shared parser: `accept_userinfo` selects between the v0
     /// strict surface and the auth layer's userinfo-accepting one.
-    fn parse_options(text: &str, accept_userinfo: bool) -> Result<(Url, Option<Userinfo>), NetworkError> {
+    fn parse_options(
+        text: &str,
+        accept_userinfo: bool,
+    ) -> Result<(Url, Option<Userinfo>), NetworkError> {
         if text.chars().any(|c| c.is_ascii_control() || c == ' ') {
             return Err(NetworkError::ProtocolViolation {
                 detail: "URL contains spaces or control bytes",
@@ -492,10 +495,7 @@ pub trait HttpFetch: Send + Sync {
     /// Transport-level failures only (DNS, deadlines, TLS, framing,
     /// redirect budget); any complete response — 401 included — is
     /// `Ok`.
-    fn fetch_with_challenge(
-        &self,
-        request: HttpRequest,
-    ) -> Result<HttpResponse, NetworkError> {
+    fn fetch_with_challenge(&self, request: HttpRequest) -> Result<HttpResponse, NetworkError> {
         self.fetch(request)
     }
 }

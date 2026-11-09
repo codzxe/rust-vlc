@@ -1145,7 +1145,9 @@ impl Pipeline {
     /// renders and the device-ring drain gate already pace their
     /// end-of-media honestly).
     pub(crate) fn has_audio_limb(&self) -> bool {
-        self.limbs.iter().any(|limb| limb.track.kind == MediaKind::Audio)
+        self.limbs
+            .iter()
+            .any(|limb| limb.track.kind == MediaKind::Audio)
     }
 
     /// The greatest video-frame pts any limb has delivered, in
@@ -2231,7 +2233,7 @@ impl Pipeline {
             let sink_stale: u32;
             let sink_concealed: u32;
             let sink_last: Option<Frame>;
-            let mut sink_last_end: Option<i64>;
+            let sink_last_end: Option<i64>;
             {
                 // M10: while a seek is in flight, the sink routes the
                 // slice's frames into the per-track hold — they reach

@@ -1263,7 +1263,7 @@ fn audio_deselect_lets_video_run_to_ended() {
         .filter(|(id, _)| id == &TrackId::new(1))
         .filter_map(|(_, frame)| stamp_ns(&frame.pts()))
         .max()
-        .expect("video frames were delivered");
+        .must();
     let played_out_ns = match media_clock::PlaybackClock::now(&*fixture.clock).as_nanos() {
         Ok(Nanoseconds(ns)) => ns as i64,
         Err(_) => 0,

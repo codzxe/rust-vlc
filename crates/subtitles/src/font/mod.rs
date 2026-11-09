@@ -61,8 +61,10 @@
 
 pub mod pipeline;
 
-pub use pipeline::{GlyphDecorations, GlyphMask, GlyphMetrics, GlyphPipeline, MetricsError,
-                   MonospaceCellPipeline, MAX_FONT_SIZE_PX};
+pub use pipeline::{
+    GlyphDecorations, GlyphMask, GlyphMetrics, GlyphPipeline, MAX_FONT_SIZE_PX, MetricsError,
+    MonospaceCellPipeline,
+};
 
 /// The container format sniffed from a font file's leading bytes.
 ///
@@ -386,9 +388,15 @@ impl FontResolution {
     /// or nothing at all).
     #[must_use]
     pub fn family_matched(&self) -> bool {
-        self.chain
-            .iter()
-            .any(|s| matches!(s, ProviderStep::Supplied { family_matched: true, .. }))
+        self.chain.iter().any(|s| {
+            matches!(
+                s,
+                ProviderStep::Supplied {
+                    family_matched: true,
+                    ..
+                }
+            )
+        })
     }
 }
 
@@ -484,8 +492,8 @@ impl FontStack {
 #[cfg(test)]
 mod tests {
     use super::{
-        FontFace, FontFaceError, FontFormat, FontProvider, FontRequest, FontStack,
-        GlyphSynthesis, MemoryFontProvider, ProviderStep,
+        FontFace, FontFaceError, FontFormat, FontProvider, FontRequest, FontStack, GlyphSynthesis,
+        MemoryFontProvider, ProviderStep,
     };
     use testkit::Must;
 
@@ -550,12 +558,16 @@ mod tests {
             assert!(hit.is_some(), "family {asked} must match");
         }
         // Non-ASCII folds do NOT apply (byte-exact comparison).
-        assert!(provider
-            .lookup(&FontRequest::new("Ârial", false, false))
-            .is_none());
-        assert!(provider
-            .lookup(&FontRequest::new("DejaVu Sans", false, false))
-            .is_none());
+        assert!(
+            provider
+                .lookup(&FontRequest::new("Ârial", false, false))
+                .is_none()
+        );
+        assert!(
+            provider
+                .lookup(&FontRequest::new("DejaVu Sans", false, false))
+                .is_none()
+        );
     }
 
     #[test]

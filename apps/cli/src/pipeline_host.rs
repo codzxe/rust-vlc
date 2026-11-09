@@ -655,7 +655,10 @@ struct LatchingPresenter<'a> {
 }
 
 impl Presenter for LatchingPresenter<'_> {
-    fn present(&mut self, request: &PresentRequest) -> Result<video_engine::sink::PresentInfo, EngineError> {
+    fn present(
+        &mut self,
+        request: &PresentRequest,
+    ) -> Result<video_engine::sink::PresentInfo, EngineError> {
         let info = self.renderer.present(request)?;
         *self.latch = Some((request.generation, request.when.ticks));
         Ok(info)
@@ -702,10 +705,7 @@ impl VideoLimb {
             &mut self.last_presented,
             &mut self.queue,
         );
-        let delivered = match queue.drain_to(&mut LatchingPresenter {
-            renderer,
-            latch,
-        }) {
+        let delivered = match queue.drain_to(&mut LatchingPresenter { renderer, latch }) {
             Ok(count) => count,
             Err(error) => {
                 // The delivered-before-failure count is the queue's own
@@ -1085,7 +1085,10 @@ impl CliFrameConsumer {
     /// never a media fact).
     #[must_use]
     pub fn last_presented_ns(&self) -> Option<i64> {
-        self.lock().video.as_ref().and_then(VideoLimb::last_presented_ns)
+        self.lock()
+            .video
+            .as_ref()
+            .and_then(VideoLimb::last_presented_ns)
     }
 }
 

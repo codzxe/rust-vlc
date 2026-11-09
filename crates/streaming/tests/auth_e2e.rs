@@ -8,7 +8,7 @@
 
 use streaming::auth::{AuthFetch, CredentialStore, Credentials, InMemoryCredentialStore};
 use streaming::error::NetworkError;
-use streaming::fetch::{HttpRequest, HttpFetch, Url};
+use streaming::fetch::{HttpFetch, HttpRequest, Url};
 use streaming::mockhttp::{MockAuth, MockConfig, MockServer};
 use testkit::Must;
 
@@ -25,16 +25,12 @@ const RFC2617_NONCE: &str = "dcd98b7102dd2f0e8b11d0f600bfb0c093";
 fn basic_challenge_round_trip() {
     let server = MockServer::spawn(MockConfig {
         auth: Some(MockAuth::basic("user", "pass", "Lumen Test")),
-        routes: vec![(
-            "/media/song.flac".to_string(),
-            b"fake-flac-bytes".to_vec(),
-        )],
+        routes: vec![("/media/song.flac".to_string(), b"fake-flac-bytes".to_vec())],
         ..MockConfig::default()
     })
     .must();
 
-    let auth = AuthFetch::new(server.client())
-        .with_credentials(Credentials::new("user", "pass"));
+    let auth = AuthFetch::new(server.client()).with_credentials(Credentials::new("user", "pass"));
     let response = auth
         .fetch(HttpRequest::get(server.url("/media/song.flac")))
         .must();
@@ -68,10 +64,7 @@ fn basic_wrong_password_is_typed_auth_failure() {
 
     let auth = AuthFetch::new(server.client())
         .with_credentials(Credentials::new("user", "wrong-password"));
-    let error = auth
-        .fetch(HttpRequest::get(server.url("/x")))
-        .err()
-        .must();
+    let error = auth.fetch(HttpRequest::get(server.url("/x"))).err().must();
 
     assert!(
         matches!(error, NetworkError::AuthFailed { scheme } if scheme.as_str() == "basic"),
@@ -94,8 +87,7 @@ fn unchallenged_server_never_receives_credentials() {
     })
     .must();
 
-    let auth = AuthFetch::new(server.client())
-        .with_credentials(Credentials::new("user", "pass"));
+    let auth = AuthFetch::new(server.client()).with_credentials(Credentials::new("user", "pass"));
     let response = auth.fetch(HttpRequest::get(server.url("/open"))).must();
     assert_eq!(response.body, b"public");
 
@@ -176,10 +168,8 @@ fn digest_challenge_round_trip() {
     })
     .must();
 
-    let auth = AuthFetch::new(server.client()).with_credentials(Credentials::new(
-        "Mufasa",
-        "Circle Of Life",
-    ));
+    let auth = AuthFetch::new(server.client())
+        .with_credentials(Credentials::new("Mufasa", "Circle Of Life"));
     let response = auth
         .fetch(HttpRequest::get(server.url("/dir/index.html")))
         .must();
@@ -244,8 +234,7 @@ fn auth_across_redirect_chain_answers_at_final_hop() {
     })
     .must();
 
-    let auth = AuthFetch::new(server.client())
-        .with_credentials(Credentials::new("user", "pass"));
+    let auth = AuthFetch::new(server.client()).with_credentials(Credentials::new("user", "pass"));
     let response = auth.fetch(HttpRequest::get(server.url("/entry"))).must();
     assert_eq!(response.body, b"protected");
 
@@ -264,9 +253,15 @@ fn auth_across_redirect_chain_answers_at_final_hop() {
     // Retry: every same-origin hop carries the Basic header; r2
     // (the challenger) accepts it.
     assert_eq!(logged[3].path, "/entry");
-    assert_eq!(logged[3].header("authorization"), Some("Basic dXNlcjpwYXNz"));
+    assert_eq!(
+        logged[3].header("authorization"),
+        Some("Basic dXNlcjpwYXNz")
+    );
     assert_eq!(logged[4].path, "/r1");
-    assert_eq!(logged[4].header("authorization"), Some("Basic dXNlcjpwYXNz"));
+    assert_eq!(
+        logged[4].header("authorization"),
+        Some("Basic dXNlcjpwYXNz")
+    );
     assert_eq!(logged[5].path, "/r2");
     assert_eq!(
         logged[5].header("authorization"),

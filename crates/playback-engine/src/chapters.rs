@@ -86,8 +86,7 @@ pub fn previous_chapter(chapters: &[Chapter], position_ns: i64) -> Option<u32> {
     // started before it (position between chapters/skip gaps).
     let current = chapters
         .iter()
-        .filter(|chapter| (chapter.time_start.0) <= position_us)
-        .next_back()?;
+        .rfind(|chapter| (chapter.time_start.0) <= position_us)?;
     let elapsed_ns = (position_us - current.time_start.0) * US_TO_NS;
     if elapsed_ns > CHAPTER_RESTART_THRESHOLD_NS {
         return Some(current.index);
@@ -123,9 +122,7 @@ fn chapter_contains(chapter: &Chapter, position_us: i64) -> bool {
         return false;
     }
     match chapter.duration {
-        commands::catalog::types::Duration::Known { time }
-            if (time.0) > 0 =>
-        {
+        commands::catalog::types::Duration::Known { time } if (time.0) > 0 => {
             position_us < start + (time.0)
         }
         _ => true,
@@ -233,7 +230,7 @@ mod tests {
             duration: Duration::Unknown,
             title: None,
         };
-        assert_eq!(chapter_at(&[open.clone()], secs(6)), Some(0));
-        assert_eq!(chapter_at(&[open], secs(4)), None);
+        assert_eq!(chapter_at(std::slice::from_ref(&open), secs(6)), Some(0));
+        assert_eq!(chapter_at(std::slice::from_ref(&open), secs(4)), None);
     }
 }

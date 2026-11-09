@@ -57,8 +57,10 @@ fn master_text() -> Vec<u8> {
 
 /// A VOD variant playlist: `SEGMENTS` segments, sequence base 100.
 fn variant_playlist(prefix: &str) -> Vec<u8> {
-    let mut s = String::from("#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:2\n\
-        #EXT-X-MEDIA-SEQUENCE:100\n#EXT-X-PLAYLIST-TYPE:VOD\n");
+    let mut s = String::from(
+        "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:2\n\
+        #EXT-X-MEDIA-SEQUENCE:100\n#EXT-X-PLAYLIST-TYPE:VOD\n",
+    );
     for i in 0..SEGMENTS {
         s.push_str("#EXTINF:2.0,\n");
         s.push_str(&format!("/{prefix}/seg{i}.ts\n"));
@@ -97,13 +99,7 @@ fn segment_fetches(server: &MockServer) -> Vec<String> {
         .requests()
         .iter()
         .filter(|r| r.path.contains("/seg"))
-        .map(|r| {
-            r.path
-                .split('/')
-                .nth(1)
-                .unwrap_or("?")
-                .to_owned()
-        })
+        .map(|r| r.path.split('/').nth(1).unwrap_or("?").to_owned())
         .collect()
 }
 
@@ -125,8 +121,7 @@ fn config() -> HlsMasterConfig {
 fn master_selects_highest_variant_under_cap() {
     let server = serve_ladder();
     let fetch: Arc<dyn HttpFetch> = Arc::new(server.client());
-    let mut stream =
-        open_master(fetch, &server.url("/master.m3u8"), config()).must();
+    let mut stream = open_master(fetch, &server.url("/master.m3u8"), config()).must();
     assert_eq!(stream.abr_snapshot().current, 0, "hi selected");
     assert_eq!(stream.stats().current_bandwidth_bps, Some(HI_BW));
 
@@ -152,8 +147,7 @@ fn master_selects_highest_variant_under_cap() {
 fn scripted_drop_and_rise_fetch_the_right_variants() {
     let server = serve_ladder();
     let fetch: Arc<dyn HttpFetch> = Arc::new(server.client());
-    let mut stream =
-        open_master(fetch, &server.url("/master.m3u8"), config()).must();
+    let mut stream = open_master(fetch, &server.url("/master.m3u8"), config()).must();
 
     // Healthy hi (2 Mbps, in-band), then the crash (0.1 Mbps).
     let mut all = Vec::new();
@@ -162,7 +156,10 @@ fn scripted_drop_and_rise_fetch_the_right_variants() {
     stream.note_throughput(500, 2_000_000);
     stream.note_throughput(5_000, 400_000_000);
     all.extend_from_slice(&stream.read(500).must());
-    assert!(segment_fetches(&server).contains(&"mid".to_owned()), "down to mid");
+    assert!(
+        segment_fetches(&server).contains(&"mid".to_owned()),
+        "down to mid"
+    );
 
     // Starve to the bottom rung.
     let mut guard = 0;
@@ -181,10 +178,7 @@ fn scripted_drop_and_rise_fetch_the_right_variants() {
         all.extend_from_slice(&stream.read(60).must());
         stream.note_throughput(625_000, 1_000_000_000);
     }
-    assert!(
-        stream.abr_snapshot().current >= 1,
-        "recovered off lo"
-    );
+    assert!(stream.abr_snapshot().current >= 1, "recovered off lo");
 
     // Drain and audit the whole timeline.
     loop {
@@ -232,8 +226,7 @@ fn scripted_drop_and_rise_fetch_the_right_variants() {
 fn in_band_oscillation_never_switches_again() {
     let server = serve_ladder();
     let fetch: Arc<dyn HttpFetch> = Arc::new(server.client());
-    let mut stream =
-        open_master(fetch, &server.url("/master.m3u8"), config()).must();
+    let mut stream = open_master(fetch, &server.url("/master.m3u8"), config()).must();
 
     // Crash to lo (as above: two starve samples per boundary so the
     // EWMA — whose memory is part of the anti-flap design — crosses
@@ -264,7 +257,8 @@ fn in_band_oscillation_never_switches_again() {
         all.extend_from_slice(&stream.read(200).must());
     }
     assert_eq!(
-        stream.stats().variant_switches, before,
+        stream.stats().variant_switches,
+        before,
         "no further switches inside the band"
     );
     let after = segment_fetches(&server);

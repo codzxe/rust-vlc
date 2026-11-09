@@ -10,6 +10,16 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// Lint-legal expect for fixture setup (testkit is not an xtask
+/// dev-dep — boundaries.toml dev_deps are Lead-owned): a broken
+/// fixture means a broken test, never a product bug.
+fn must<T, E: std::fmt::Display>(result: Result<T, E>) -> T {
+    match result {
+        Ok(value) => value,
+        Err(err) => unreachable!("fixture setup failed: {err}"),
+    }
+}
+
 struct RunOutcome {
     code: Option<i32>,
     stdout: String,
@@ -41,14 +51,14 @@ impl Fixture {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(root.join("assets/brand")).expect("mkdir brand");
-        fs::create_dir_all(root.join("locales")).expect("mkdir locales");
-        fs::create_dir_all(root.join("themes")).expect("mkdir themes");
+        must(fs::create_dir_all(root.join("assets/brand")));
+        must(fs::create_dir_all(root.join("locales")));
+        must(fs::create_dir_all(root.join("themes")));
         Fixture { root }
     }
 
     fn write_product(&self, body: &str) {
-        fs::write(self.root.join("product.toml"), body).expect("write product.toml");
+        must(fs::write(self.root.join("product.toml"), body));
     }
 
     fn write_good_product(&self) {
@@ -56,25 +66,24 @@ impl Fixture {
     }
 
     fn write_schema(&self) {
-        fs::write(self.root.join("product.schema.json"), SCHEMA).expect("write schema");
+        must(fs::write(self.root.join("product.schema.json"), SCHEMA));
     }
 
     fn add_brand_assets(&self) {
         for name in ["icon.ico", "icon.icns", "icon-512.png", "logo.svg"] {
-            fs::write(self.root.join("assets/brand").join(name), b"x").expect("write asset");
+            must(fs::write(self.root.join("assets/brand").join(name), b"x"));
         }
     }
 
     fn add_catalog(&self) {
-        fs::write(
+        must(fs::write(
             self.root.join("locales/en-US.toml"),
             "\"product.description\" = \"A player.\"\n\"window.title.idle\" = \"{product_name}\"\n",
-        )
-        .expect("write catalog");
+        ));
     }
 
     fn add_theme(&self) {
-        fs::write(self.root.join("themes/dark.toml"), "[theme]\n").expect("write theme");
+        must(fs::write(self.root.join("themes/dark.toml"), "[theme]\n"));
     }
 }
 
@@ -189,7 +198,11 @@ const SCHEMA: &str = r##"{
 fn assert_fails(fx: &Fixture, needle: &str, label: &str) {
     let out = run_validator(&fx.root);
     assert_eq!(out.code, Some(1), "{label} must fail:\n{}", out.stdout);
-    assert!(out.stdout.contains(needle), "{label} should mention `{needle}`:\n{}", out.stdout);
+    assert!(
+        out.stdout.contains(needle),
+        "{label} should mention `{needle}`:\n{}",
+        out.stdout
+    );
 }
 
 #[test]
@@ -201,7 +214,12 @@ fn good_product_passes() {
     fx.add_catalog();
     fx.add_theme();
     let out = run_validator(&fx.root);
-    assert_eq!(out.code, Some(0), "clean fixture must pass:\n{}", out.stdout);
+    assert_eq!(
+        out.code,
+        Some(0),
+        "clean fixture must pass:\n{}",
+        out.stdout
+    );
     assert!(out.stdout.contains("result: PASS"), "{}", out.stdout);
 }
 
@@ -324,8 +342,17 @@ fn theme_outside_directory_listing_fails() {
     fx.add_catalog();
     // themes/ exists but is empty -> injection skipped (note, not violation).
     let out = run_validator(&fx.root);
-    assert_eq!(out.code, Some(0), "empty themes/ listing is a note, not a violation:\n{}", out.stdout);
-    assert!(out.stdout.contains("enum injection skipped"), "{}", out.stdout);
+    assert_eq!(
+        out.code,
+        Some(0),
+        "empty themes/ listing is a note, not a violation:\n{}",
+        out.stdout
+    );
+    assert!(
+        out.stdout.contains("enum injection skipped"),
+        "{}",
+        out.stdout
+    );
     // With a theme present, a wrong id IS a violation.
     fx.add_theme();
     fx.write_product(&GOOD_PRODUCT.replace("theme = \"dark\"", "theme = \"neon\""));
@@ -340,9 +367,17 @@ fn missing_msgid_fails() {
     fx.add_brand_assets();
     fx.add_theme();
     // Catalog present but unparseable -> honest note, not a violation.
-    fs::write(fx.root.join("locales/en-US.toml"), "%%% not toml [").expect("write broken catalog");
+    must(fs::write(
+        fx.root.join("locales/en-US.toml"),
+        "%%% not toml [",
+    ));
     let out = run_validator(&fx.root);
-    assert_eq!(out.code, Some(0), "unreadable catalog is a note:\n{}", out.stdout);
+    assert_eq!(
+        out.code,
+        Some(0),
+        "unreadable catalog is a note:\n{}",
+        out.stdout
+    );
     assert!(out.stdout.contains("unreadable"), "{}", out.stdout);
     // Catalog present but missing the key.
     fx.add_catalog();
@@ -399,7 +434,12 @@ fn wrong_app_id_fails() {
 fn missing_files_are_xtask_errors() {
     let fx = Fixture::new("missing");
     let out = run_validator(&fx.root);
-    assert_eq!(out.code, Some(2), "unreadable product/schema is an xtask error:\n{}", out.stdout);
+    assert_eq!(
+        out.code,
+        Some(2),
+        "unreadable product/schema is an xtask error:\n{}",
+        out.stdout
+    );
 }
 
 #[test]
@@ -408,6 +448,11 @@ fn unparseable_product_toml_fails_with_exit_one() {
     fx.write_schema();
     fx.write_product("[identity\nname = \"Lumen\"\n");
     let out = run_validator(&fx.root);
-    assert_eq!(out.code, Some(1), "parse failure is a failed validation:\n{}", out.stdout);
+    assert_eq!(
+        out.code,
+        Some(1),
+        "parse failure is a failed validation:\n{}",
+        out.stdout
+    );
     assert!(out.stdout.contains("parse:"), "{}", out.stdout);
 }

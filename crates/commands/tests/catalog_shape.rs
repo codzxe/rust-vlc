@@ -91,7 +91,11 @@ fn schema_has_the_doc_05_structure_and_counts() -> Result<(), Box<dyn Error>> {
     }
     // Doc 05 §2.1 lists 61 command entries; issue #32 adds the three
     // media.*-bookmark commands (64); §3.2 lists 23 events.
-    assert_eq!(schema_command_tags(&schema).len(), 64, "§2.1 count (+3 bookmarks, issue #32)");
+    assert_eq!(
+        schema_command_tags(&schema).len(),
+        64,
+        "§2.1 count (+3 bookmarks, issue #32)"
+    );
     assert_eq!(schema_event_tags(&schema).len(), 23, "§3.2 count");
     // The §2.3–§2.12 tables classify 19 commands A and 42 S; issue #32's
     // bookmark trio is class S (64 total).
@@ -103,7 +107,11 @@ fn schema_has_the_doc_05_structure_and_counts() -> Result<(), Box<dyn Error>> {
         .iter()
         .filter(|spec| spec.class.as_str() == "s")
         .count();
-    assert_eq!((a, s), (19, 45), "§1.5 classification counts (+3 S bookmarks, issue #32)");
+    assert_eq!(
+        (a, s),
+        (19, 45),
+        "§1.5 classification counts (+3 S bookmarks, issue #32)"
+    );
     // §3.2's "gen" column: exactly the 13 pipeline-scoped events.
     let scoped = event_catalog_data()
         .iter()
@@ -156,7 +164,11 @@ fn every_id_parses_and_follows_the_grammar() -> Result<(), Box<dyn Error>> {
         assert_eq!((*id).parse::<EventId>().ok(), Some(*variant), "{id} parse");
         check_grammar(id);
     }
-    assert_eq!(CommandId::ALL.len(), 64, "§2.1: 61 commands + issue #32 bookmark trio");
+    assert_eq!(
+        CommandId::ALL.len(),
+        64,
+        "§2.1: 61 commands + issue #32 bookmark trio"
+    );
     assert_eq!(EventId::ALL.len(), 23, "§3.2: 23 events");
     Ok(())
 }

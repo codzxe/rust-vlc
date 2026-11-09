@@ -1514,14 +1514,20 @@ fn media_clock_virtual() -> Arc<media_clock::MediaClock> {
 /// Poll to `Ended` while presenting the media (F5, issue #16): each
 /// poll also advances the virtual clock — the play-out gate holds
 /// `Drained` until the clock has covered the last decoded frame.
-fn poll_until_ended_presenting(fixture: &mut Fixture, now: &SharedNow, limit: usize, context: &str) {
+fn poll_until_ended_presenting(
+    fixture: &mut Fixture,
+    now: &SharedNow,
+    limit: usize,
+    context: &str,
+) {
     for _ in 0..limit {
         if fixture.engine.state() == SessionState::Ended {
             return;
         }
         fixture.engine.poll();
         // One 25 fps frame's worth of wall per poll.
-        now.0.fetch_add(40_000_000, std::sync::atomic::Ordering::Relaxed);
+        now.0
+            .fetch_add(40_000_000, std::sync::atomic::Ordering::Relaxed);
     }
     assert_eq!(
         fixture.engine.state(),

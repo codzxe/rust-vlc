@@ -675,6 +675,18 @@ pub struct CommandListing {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Lint-legal unwrap for serde round-trip fixtures: the crate has
+    /// no testkit dev-dep (boundaries.toml dev_deps are Lead-owned),
+    /// so this local helper mirrors the file's own `match`+`unreachable`
+    /// convention for the same fixture contract.
+    fn round_trip<T, E: std::fmt::Display>(result: Result<T, E>) -> T {
+        match result {
+            Ok(value) => value,
+            Err(err) => unreachable!("serde round-trip failed: {err}"),
+        }
+    }
+
     use crate::catalog::types::AudioTrackInfo;
     use crate::catalog::types::VideoTrackInfo;
     use crate::envelope::CommandRequest;
@@ -711,7 +723,7 @@ mod tests {
                 label: Some("Intro rewatch".to_string()),
             },
         };
-        let json = serde_json::to_string(&request).unwrap();
+        let json = round_trip(serde_json::to_string(&request));
         assert_eq!(
             json,
             r#"{"requestId":42,"cmd":"media.add-bookmark","args":{"time":1234567,"label":"Intro rewatch"}}"#
@@ -728,12 +740,12 @@ mod tests {
                 label: None,
             },
         };
-        let json = serde_json::to_string(&bare).unwrap();
+        let json = round_trip(serde_json::to_string(&bare));
         assert_eq!(
             json,
             r#"{"requestId":43,"cmd":"media.add-bookmark","args":{"time":0,"label":null}}"#
         );
-        let back: CommandRequest<Command> = serde_json::from_str(&json).unwrap();
+        let back: CommandRequest<Command> = round_trip(serde_json::from_str(&json));
         assert_eq!(back, bare);
 
         let result = CommandResult::Bookmarks {
@@ -743,12 +755,12 @@ mod tests {
                 label: Some("Intro rewatch".to_string()),
             }],
         };
-        let json = serde_json::to_string(&result).unwrap();
+        let json = round_trip(serde_json::to_string(&result));
         assert_eq!(
             json,
             r#"{"kind":"bookmarks","bookmarks":[{"id":1,"time":1234567,"label":"Intro rewatch"}]}"#
         );
-        let back: CommandResult = serde_json::from_str(&json).unwrap();
+        let back: CommandResult = round_trip(serde_json::from_str(&json));
         assert_eq!(back, result);
     }
 

@@ -32,6 +32,7 @@ use streaming::mockhttp::{MockClient, MockConfig, MockServer};
 mod netfault;
 
 use netfault::{Fault, FaultProxy, FaultScript};
+use testkit::Must;
 
 /// A body with a recognizable byte pattern (offset drift is visible).
 fn body(len: usize) -> Vec<u8> {
@@ -74,10 +75,10 @@ fn truncate_at_offset_fires_exactly_once() {
         Err(NetworkError::BodyTruncated { expected, received }) => {
             assert_eq!((expected, received), (1000, 300));
         }
-        other => panic!("truncate: wrong outcome {other:?}"),
+        other => unreachable!("truncate: wrong outcome {other:?}"),
     }
     // The network healed: script exhausted, full body again.
-    let second = proxy.fetch(get(&server)).expect("second fetch");
+    let second = proxy.fetch(get(&server)).must();
     assert_eq!(second.body, body(1000));
     // Exactly as scripted: one fault bit, two fetches seen.
     assert_eq!(script.fired(), 1);
@@ -99,9 +100,9 @@ fn reset_after_offset_fires_exactly_once() {
                 "reset fault must be connection-reset flavored"
             );
         }
-        other => panic!("reset: wrong outcome {other:?}"),
+        other => unreachable!("reset: wrong outcome {other:?}"),
     }
-    let second = proxy.fetch(get(&server)).expect("healed fetch");
+    let second = proxy.fetch(get(&server)).must();
     assert_eq!(second.body.len(), 1000);
     assert_eq!(script.fired(), 1);
     assert_eq!(script.fetched(), 2);
@@ -118,7 +119,7 @@ fn drop_after_offset_fires_exactly_once() {
         Err(err @ NetworkError::ReadTimeout) => {
             assert!(err.is_timeout(), "ReadTimeout must self-report as timeout");
         }
-        other => panic!("drop: wrong outcome {other:?}"),
+        other => unreachable!("drop: wrong outcome {other:?}"),
     }
     assert!(proxy.fetch(get(&server)).is_ok());
     assert_eq!(script.fired(), 1);
@@ -134,7 +135,7 @@ fn offset_past_body_end_never_fires() {
 
     // The cut was scripted past the body's end: the fetch completed
     // before the fault could bite — full body, zero faults fired.
-    let resp = proxy.fetch(get(&server)).expect("body shorter than offset");
+    let resp = proxy.fetch(get(&server)).must();
     assert_eq!(resp.body, body(1000));
     assert_eq!(script.fired(), 0);
     assert_eq!(script.fetched(), 1);
@@ -146,17 +147,18 @@ fn delay_paced_by_injectable_clock() {
     let clock = Arc::new(FakeClock::new());
     let script = FaultScript::once(Fault::Delay { ms: 900 });
     let proxy = proxied(script.clone(), clock.clone());
-    // The proxy's own script handle reports the same counters.
-    assert_eq!(proxy.script().fetched(), 0, "nothing fetched yet");
+    // The shared script handle sees the proxy's counters (the clone
+    // FaultProxy::new stored is the same script — asserted below).
+    assert_eq!(script.fetched(), 0, "nothing fetched yet");
 
-    let resp = proxy.fetch(get(&server)).expect("delayed but successful");
+    let resp = proxy.fetch(get(&server)).must();
     assert_eq!(resp.body.len(), 100);
     // The delay was paid in VIRTUAL time, exactly once, exactly as
     // scripted — zero real wall-clock cost, full observability.
     assert_eq!(clock.sleeps(), vec![900]);
     assert_eq!(script.fired(), 1);
     // And the healed fetch after it needs no sleep at all.
-    proxy.fetch(get(&server)).expect("healed fetch");
+    proxy.fetch(get(&server)).must();
     assert_eq!(clock.sleeps(), vec![900], "no extra sleeps after heal");
 }
 
@@ -176,7 +178,10 @@ fn fault_script_sequence_fires_in_order_then_heals() {
     // 2: the truncation.
     assert!(matches!(
         proxy.fetch(get(&server)),
-        Err(NetworkError::BodyTruncated { expected: 1000, received: 10 })
+        Err(NetworkError::BodyTruncated {
+            expected: 1000,
+            received: 10
+        })
     ));
     // 3: the drop.
     assert!(matches!(
@@ -184,7 +189,7 @@ fn fault_script_sequence_fires_in_order_then_heals() {
         Err(NetworkError::ReadTimeout)
     ));
     // 4: script exhausted — the healthy network is back.
-    let healed = proxy.fetch(get(&server)).expect("script exhausted");
+    let healed = proxy.fetch(get(&server)).must();
     assert_eq!(healed.body, body(1000));
 
     assert_eq!(script.fired(), 3);

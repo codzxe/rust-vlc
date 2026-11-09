@@ -283,7 +283,10 @@ impl fmt::Display for NetworkError {
                 format!("HTTP status {code} ({class})")
             }
             NetworkError::AuthFailed { scheme } => {
-                format!("server rejected the presented {} credentials (401)", scheme.as_str())
+                format!(
+                    "server rejected the presented {} credentials (401)",
+                    scheme.as_str()
+                )
             }
             NetworkError::RangeNotSatisfiable => {
                 "server rejected the requested byte range (416)".to_string()

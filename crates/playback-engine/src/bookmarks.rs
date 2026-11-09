@@ -73,10 +73,10 @@ impl BookmarkList {
             time: commands::catalog::types::Timestamp(time_us),
             label,
         };
-        self.next_id = self
-            .next_id
-            .checked_add(1)
-            .expect("bookmark id space exhausted (u32)");
+        // Id-space exhaustion is the typed refusal (never-invent
+        // discipline: no panic, no id reuse) — the caller learns via
+        // `None` exactly as for a negative position.
+        self.next_id = self.next_id.checked_add(1)?;
         self.entries.push(bookmark.clone());
         Some(bookmark)
     }
@@ -113,6 +113,7 @@ impl BookmarkList {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use testkit::Must;
 
     fn us(secs: i64) -> i64 {
         secs * 1_000_000
@@ -121,8 +122,8 @@ mod tests {
     #[test]
     fn add_assigns_creation_ordered_ids_from_one() {
         let mut list = BookmarkList::new();
-        let a = list.add(us(10), Some("Intro".to_string())).unwrap();
-        let b = list.add(us(65), None).unwrap();
+        let a = list.add(us(10), Some("Intro".to_string())).must();
+        let b = list.add(us(65), None).must();
         assert_eq!(a.id, 1);
         assert_eq!(b.id, 2);
         assert_eq!(
@@ -154,21 +155,24 @@ mod tests {
     #[test]
     fn remove_deletes_without_renumbering() {
         let mut list = BookmarkList::new();
-        list.add(us(10), None).unwrap();
-        list.add(us(20), None).unwrap();
-        list.add(us(30), None).unwrap();
+        list.add(us(10), None).must();
+        list.add(us(20), None).must();
+        list.add(us(30), None).must();
         assert!(list.remove(2));
         assert!(!list.remove(2), "second remove of the same id is false");
-        assert_eq!(list.entries().iter().map(|b| b.id).collect::<Vec<_>>(), [1, 3]);
+        assert_eq!(
+            list.entries().iter().map(|b| b.id).collect::<Vec<_>>(),
+            [1, 3]
+        );
         // The next add does NOT reuse the freed id.
-        let next = list.add(us(40), None).unwrap();
+        let next = list.add(us(40), None).must();
         assert_eq!(next.id, 4);
     }
 
     #[test]
     fn seek_target_resolves_us_to_ns_absolute() {
         let mut list = BookmarkList::new();
-        list.add(us(90), Some("Chorus".to_string())).unwrap();
+        list.add(us(90), Some("Chorus".to_string())).must();
         assert_eq!(
             list.seek_target(1),
             Some(SeekTarget::Absolute {
@@ -181,19 +185,19 @@ mod tests {
     #[test]
     fn clear_resets_list_and_numbering() {
         let mut list = BookmarkList::new();
-        list.add(us(10), None).unwrap();
-        list.add(us(20), None).unwrap();
+        list.add(us(10), None).must();
+        list.add(us(20), None).must();
         list.clear();
         assert!(list.entries().is_empty());
-        let next = list.add(us(5), None).unwrap();
+        let next = list.add(us(5), None).must();
         assert_eq!(next.id, 1, "numbering restarts for the new media");
     }
 
     #[test]
     fn duplicate_positions_are_distinct_bookmarks() {
         let mut list = BookmarkList::new();
-        let a = list.add(us(10), Some("A".to_string())).unwrap();
-        let b = list.add(us(10), Some("B".to_string())).unwrap();
+        let a = list.add(us(10), Some("A".to_string())).must();
+        let b = list.add(us(10), Some("B".to_string())).must();
         assert_ne!(a.id, b.id);
         assert_eq!(list.entries().len(), 2);
     }

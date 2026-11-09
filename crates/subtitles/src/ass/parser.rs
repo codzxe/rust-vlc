@@ -53,9 +53,9 @@
 use std::collections::BTreeMap;
 
 use crate::ass::tags::{self, PositionOverride};
-use crate::model::cue::{Cue, CueId};
 #[cfg(test)]
 use crate::model::cue::CueText;
+use crate::model::cue::{Cue, CueId};
 use crate::model::position::{
     Alignment, HorizontalAlign, LinePlacement, Percent, Positioning, VerticalAlign,
 };
@@ -633,10 +633,7 @@ fn parse_event_line(line: &str, line_no: usize, format: Names<'_>, doc: &mut Ass
         .unwrap_or("Default")
         .to_owned();
     let (found_style, positioning) = match doc.style(&style_name).cloned() {
-        Some(s) => (
-            Some(s.clone()),
-            Positioning::new(s.alignment, None, None),
-        ),
+        Some(s) => (Some(s.clone()), Positioning::new(s.alignment, None, None)),
         None => {
             doc.damage.push(AssDamage::UnknownStyle {
                 line_no,

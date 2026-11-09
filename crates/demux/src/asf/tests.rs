@@ -608,12 +608,12 @@ fn malformed_packets_refuse_typed_never_guess() {
 fn fragments_reassemble_into_whole_objects() {
     let mut assembler = data::ObjectAssembler::new(1);
     // Object 5 spans two packets: 4 bytes then 6 at offset 4.
-    let first = match assembler.feed(0, 1, 5, 0, Some((10, 999)), true, &[0x11; 4]) {
+    let first = match assembler.feed(0, 5, 0, Some((10, 999)), true, &[0x11; 4]) {
         Ok(done) => done,
         Err(e) => unreachable!("{e}"),
     };
     assert!(first.is_none());
-    let second = match assembler.feed(0, 1, 5, 4, None, true, &[0x22; 6]) {
+    let second = match assembler.feed(0, 5, 4, None, true, &[0x22; 6]) {
         Ok(done) => done,
         Err(e) => unreachable!("{e}"),
     };
@@ -631,18 +631,18 @@ fn fragments_reassemble_into_whole_objects() {
     // (the container declares the gap by moving on).
     let mut assembler = data::ObjectAssembler::new(1);
     assert!(
-        match assembler.feed(0, 1, 1, 0, Some((8, 5)), true, &[0x33; 2]) {
+        match assembler.feed(0, 1, 0, Some((8, 5)), true, &[0x33; 2]) {
             Ok(done) => done.is_none(),
             Err(e) => unreachable!("{e}"),
         }
     );
     assert!(
-        match assembler.feed(0, 1, 2, 0, Some((2, 7)), false, &[0x44; 2]) {
+        match assembler.feed(0, 2, 0, Some((2, 7)), false, &[0x44; 2]) {
             Ok(done) => done.is_none(),
             Err(e) => unreachable!("{e}"),
         }
     );
-    let done = match assembler.feed(0, 1, 2, 2, None, false, &[]) {
+    let done = match assembler.feed(0, 2, 2, None, false, &[]) {
         Ok(done) => done,
         Err(e) => unreachable!("{e}"),
     };
@@ -654,14 +654,12 @@ fn assembler_refusals_are_typed() {
     // Continuation landing at the wrong offset.
     let mut assembler = data::ObjectAssembler::new(1);
     assert!(matches!(
-        assembler.feed(0, 1, 5, 0, Some((8, 1)), true, &[0x11; 4]),
+        assembler.feed(0, 5, 0, Some((8, 1)), true, &[0x11; 4]),
         Ok(None)
     ));
     assert_eq!(
         code_of(&err_of(
-            assembler
-                .feed(0, 1, 5, 3, None, true, &[0x22; 4])
-                .map(|_| ())
+            assembler.feed(0, 5, 3, None, true, &[0x22; 4]).map(|_| ())
         )),
         "demux.asf.packet.bad-length"
     );
@@ -670,7 +668,7 @@ fn assembler_refusals_are_typed() {
     assert_eq!(
         code_of(&err_of(
             assembler
-                .feed(0, 1, 9, 0, Some((2, 1)), true, &[0xAA; 3])
+                .feed(0, 9, 0, Some((2, 1)), true, &[0xAA; 3])
                 .map(|_| ())
         )),
         "demux.asf.packet.bad-length"
@@ -681,7 +679,7 @@ fn assembler_refusals_are_typed() {
     assert_eq!(
         code_of(&err_of(
             assembler
-                .feed(0, 1, 1, 0, Some((u32::MAX, 1)), true, &[0])
+                .feed(0, 1, 0, Some((u32::MAX, 1)), true, &[0])
                 .map(|_| ())
         )),
         "demux.asf.payload.oversized"
@@ -690,7 +688,7 @@ fn assembler_refusals_are_typed() {
     let mut assembler = data::ObjectAssembler::new(1);
     assert_eq!(
         code_of(&err_of(
-            assembler.feed(0, 1, 1, 0, None, true, &[0u8]).map(|_| ())
+            assembler.feed(0, 1, 0, None, true, &[0u8]).map(|_| ())
         )),
         "demux.asf.payload.bad-replication"
     );

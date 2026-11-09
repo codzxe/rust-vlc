@@ -55,7 +55,12 @@ impl BiquadCoeffs {
     /// # Errors
     /// `audio.effects_eq_params` for non-finite inputs or a corner
     /// frequency outside `(0, rate/2)`.
-    pub fn low_shelf(rate: u32, freq: f32, gain_db: f32, q: f32) -> Result<BiquadCoeffs, EngineError> {
+    pub fn low_shelf(
+        rate: u32,
+        freq: f32,
+        gain_db: f32,
+        q: f32,
+    ) -> Result<BiquadCoeffs, EngineError> {
         check_params(rate, freq, gain_db, q)?;
         let (a, cw, alpha) = precompute(rate, freq, gain_db, q);
         let sqrt_a = a.sqrt();
@@ -73,7 +78,12 @@ impl BiquadCoeffs {
     ///
     /// # Errors
     /// Same as [`low_shelf`](BiquadCoeffs::low_shelf).
-    pub fn high_shelf(rate: u32, freq: f32, gain_db: f32, q: f32) -> Result<BiquadCoeffs, EngineError> {
+    pub fn high_shelf(
+        rate: u32,
+        freq: f32,
+        gain_db: f32,
+        q: f32,
+    ) -> Result<BiquadCoeffs, EngineError> {
         check_params(rate, freq, gain_db, q)?;
         let (a, cw, alpha) = precompute(rate, freq, gain_db, q);
         let sqrt_a = a.sqrt();
@@ -92,7 +102,12 @@ impl BiquadCoeffs {
     ///
     /// # Errors
     /// Same as [`low_shelf`](BiquadCoeffs::low_shelf).
-    pub fn peaking(rate: u32, freq: f32, gain_db: f32, q: f32) -> Result<BiquadCoeffs, EngineError> {
+    pub fn peaking(
+        rate: u32,
+        freq: f32,
+        gain_db: f32,
+        q: f32,
+    ) -> Result<BiquadCoeffs, EngineError> {
         check_params(rate, freq, gain_db, q)?;
         let (a, cw, alpha) = precompute(rate, freq, gain_db, q);
         Ok(BiquadCoeffs::normalize(
@@ -191,7 +206,13 @@ impl Eq3Band {
     /// # Errors
     /// `audio.effects_eq_params` for bad band parameters (see the
     /// biquad constructors).
-    pub fn new(rate: u32, low_db: f32, mid_db: f32, high_db: f32, preamp: Volume) -> Result<Eq3Band, EngineError> {
+    pub fn new(
+        rate: u32,
+        low_db: f32,
+        mid_db: f32,
+        high_db: f32,
+        preamp: Volume,
+    ) -> Result<Eq3Band, EngineError> {
         Ok(Eq3Band {
             preamp,
             low: BiquadFilter::new(BiquadCoeffs::low_shelf(rate, 250.0, low_db, 0.707)?),
@@ -235,6 +256,7 @@ impl AudioEffect for Eq3Band {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use testkit::Must;
 
     const RATE: u32 = 48_000;
 
@@ -260,10 +282,10 @@ mod tests {
 
     #[test]
     fn flat_eq_is_bit_exact_identity() {
-        let mut eq = Eq3Band::flat(RATE).unwrap();
+        let mut eq = Eq3Band::flat(RATE).must();
         let original = sine(4800, 997.0, 0.6); // 997 Hz: prime, hits all bands
         let mut planes = vec![original.clone()];
-        eq.process(&mut planes).unwrap();
+        eq.process(&mut planes).must();
         assert_eq!(planes[0], original, "0 dB shelves must be bit-exact");
     }
 
@@ -277,9 +299,9 @@ mod tests {
     fn low_shelf_boosts_bass_by_the_asked_db() {
         // +6 dB low shelf, corner 250 Hz: a 40 Hz sine (well below the
         // corner) settles at ×10^(6/20) ≈ 1.995.
-        let mut eq = Eq3Band::new(RATE, 6.0, 0.0, 0.0, Volume::UNITY).unwrap();
+        let mut eq = Eq3Band::new(RATE, 6.0, 0.0, 0.0, Volume::UNITY).must();
         let mut planes = vec![sine(24_000, 40.0, 0.5)];
-        eq.process(&mut planes).unwrap();
+        eq.process(&mut planes).must();
         let measured = settled_peak(&planes[0]);
         let expected = 0.5 * 10.0_f32.powf(6.0 / 20.0);
         assert!(
@@ -297,9 +319,9 @@ mod tests {
         // the amplitude is measured as settled RMS over the tail's
         // integer periods (24_000 samples = exact 3-sample periods;
         // phase-independent by construction).
-        let mut eq = Eq3Band::new(RATE, 0.0, 0.0, -6.0, Volume::UNITY).unwrap();
+        let mut eq = Eq3Band::new(RATE, 0.0, 0.0, -6.0, Volume::UNITY).must();
         let mut planes = vec![sine(24_000, 16_000.0, 0.5)];
-        eq.process(&mut planes).unwrap();
+        eq.process(&mut planes).must();
         let input_rms = 0.5 / std::f32::consts::SQRT_2;
         let measured = settled_rms(&planes[0]) / input_rms;
         let expected = 10.0_f32.powf(-6.0 / 20.0);
@@ -313,9 +335,9 @@ mod tests {
     fn mid_peak_gains_at_center_frequency() {
         // +6 dB peaking at 1 kHz: a 1 kHz sine settles at ≈ ×1.995
         // (the peaking filter's |H| at w0 is A by construction).
-        let mut eq = Eq3Band::new(RATE, 0.0, 6.0, 0.0, Volume::UNITY).unwrap();
+        let mut eq = Eq3Band::new(RATE, 0.0, 6.0, 0.0, Volume::UNITY).must();
         let mut planes = vec![sine(24_000, 1000.0, 0.4)];
-        eq.process(&mut planes).unwrap();
+        eq.process(&mut planes).must();
         let measured = settled_peak(&planes[0]);
         let expected = 0.4 * 10.0_f32.powf(6.0 / 20.0);
         assert!(
@@ -327,9 +349,9 @@ mod tests {
     #[test]
     fn preamp_scales_before_the_bands() {
         // Flat bands + preamp −6 dB ≈ ×0.5 on the settled sine.
-        let mut eq = Eq3Band::new(RATE, 0.0, 0.0, 0.0, Volume::from_db(-6.0).unwrap()).unwrap();
+        let mut eq = Eq3Band::new(RATE, 0.0, 0.0, 0.0, Volume::from_db(-6.0).must()).must();
         let mut planes = vec![sine(24_000, 997.0, 0.8)];
-        eq.process(&mut planes).unwrap();
+        eq.process(&mut planes).must();
         let measured = settled_peak(&planes[0]);
         assert!(
             (measured - 0.4).abs() / 0.4 < 0.05,
@@ -340,11 +362,11 @@ mod tests {
     #[test]
     fn per_channel_state_is_independent() {
         // Same filter, different signals per channel: no cross-talk.
-        let mut eq = Eq3Band::new(RATE, 6.0, 0.0, 0.0, Volume::UNITY).unwrap();
+        let mut eq = Eq3Band::new(RATE, 6.0, 0.0, 0.0, Volume::UNITY).must();
         let left = sine(24_000, 40.0, 0.5);
         let right = vec![0.0_f32; 24_000];
         let mut planes = vec![left, right];
-        eq.process(&mut planes).unwrap();
+        eq.process(&mut planes).must();
         assert!(planes[1].iter().all(|s| *s == 0.0), "silence stays silent");
         assert!(settled_peak(&planes[0]) > 0.9, "left still boosts");
     }
@@ -361,12 +383,10 @@ mod tests {
     fn eq_plugs_into_the_effect_chain() {
         use crate::EffectChain;
         let mut chain = EffectChain::new();
-        chain
-            .push(Box::new(Eq3Band::flat(RATE).unwrap()))
-            .unwrap();
+        chain.push(Box::new(Eq3Band::flat(RATE).must())).must();
         let original = sine(600, 440.0, 0.3);
         let mut planes = vec![original.clone()];
-        chain.process(&mut planes).unwrap();
+        chain.process(&mut planes).must();
         assert_eq!(planes[0], original);
     }
 }

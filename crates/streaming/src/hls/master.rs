@@ -77,8 +77,8 @@ use playlists::{MasterPlaylist, Variant};
 use plugin_api::{SeekOrigin, SourcePosition, SourceStream};
 
 use super::media::{
-    DEFAULT_RETAINED_BYTES, MAX_READ_BYTES, MAX_RETAINED_BYTES, SegmentBoundary, fetch_playlist_model,
-    map_fetch_err, mint, refuse, resolve_seek_origin,
+    DEFAULT_RETAINED_BYTES, MAX_READ_BYTES, MAX_RETAINED_BYTES, SegmentBoundary,
+    fetch_playlist_model, map_fetch_err, mint, refuse, resolve_seek_origin,
 };
 use crate::buffer::BufferSignal;
 use crate::error::NetworkError;
@@ -557,7 +557,9 @@ impl HlsAdaptiveStream {
         // the fetch (the new variant's NEXT segment is what serves
         // this boundary — never half a segment). The first segment
         // of the open never switches (there is no history yet).
-        if self.next > 0 && let Some(target) = self.abr.decide(&self.master.variants) {
+        if self.next > 0
+            && let Some(target) = self.abr.decide(&self.master.variants)
+        {
             self.switch_variant(target)?;
         }
         let seg = self.plan[self.next].clone();
@@ -771,8 +773,9 @@ pub fn open_master(
 mod tests {
     use super::*;
     use crate::buffer::BufferSignal;
-    use crate::fetch::HttpResponse;
     use crate::fetch::HttpFetch;
+    use crate::fetch::HttpResponse;
+    use testkit::Must;
 
     /// An in-test transport routing by URL path through the real
     /// `HttpFetch` port (the same surface the media session's tests
@@ -821,8 +824,10 @@ mod tests {
 
     /// A VOD variant playlist: `count` segments, media sequence 100.
     fn variant_playlist(prefix: &str, count: usize) -> String {
-        let mut s = String::from("#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:2\n\
-            #EXT-X-MEDIA-SEQUENCE:100\n#EXT-X-PLAYLIST-TYPE:VOD\n");
+        let mut s = String::from(
+            "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:2\n\
+            #EXT-X-MEDIA-SEQUENCE:100\n#EXT-X-PLAYLIST-TYPE:VOD\n",
+        );
         for i in 0..count {
             s.push_str("#EXTINF:2.0,\n");
             s.push_str(&format!("{prefix}{i}.ts\n"));
@@ -834,9 +839,18 @@ mod tests {
     fn routes_for(count: usize) -> Vec<(String, Vec<u8>)> {
         let mut routes = vec![
             ("/master.m3u8".to_owned(), master_text().into_bytes()),
-            ("/hi.m3u8".to_owned(), variant_playlist("hi/seg", count).into_bytes()),
-            ("/mid.m3u8".to_owned(), variant_playlist("mid/seg", count).into_bytes()),
-            ("/lo.m3u8".to_owned(), variant_playlist("lo/seg", count).into_bytes()),
+            (
+                "/hi.m3u8".to_owned(),
+                variant_playlist("hi/seg", count).into_bytes(),
+            ),
+            (
+                "/mid.m3u8".to_owned(),
+                variant_playlist("mid/seg", count).into_bytes(),
+            ),
+            (
+                "/lo.m3u8".to_owned(),
+                variant_playlist("lo/seg", count).into_bytes(),
+            ),
         ];
         for i in 0..count {
             routes.push((format!("/hi/seg{i}.ts"), vec![b'H'; 500]));
@@ -857,13 +871,20 @@ mod tests {
     /// playlist order, and an all-over-cap master refuses typed.
     #[test]
     fn selection_is_highest_under_cap() {
-        let (master, _) =
-            playlists::parse_master_playlist(None, &master_text()).expect("master types");
+        let (master, _) = playlists::parse_master_playlist(None, &master_text()).must();
         assert_eq!(select_variant_index(&master, 25_000_000), Some(0), "hi");
         assert_eq!(select_variant_index(&master, 1_000_000), Some(1), "mid");
-        assert_eq!(select_variant_index(&master, 800_000), Some(1), "mid at cap");
+        assert_eq!(
+            select_variant_index(&master, 800_000),
+            Some(1),
+            "mid at cap"
+        );
         assert_eq!(select_variant_index(&master, 200_000), Some(2), "lo");
-        assert_eq!(select_variant_index(&master, 199_999), None, "nothing under cap");
+        assert_eq!(
+            select_variant_index(&master, 199_999),
+            None,
+            "nothing under cap"
+        );
     }
 
     /// 6.B2b hysteresis: a throughput oscillating inside the band
@@ -872,8 +893,7 @@ mod tests {
     /// up-steps.
     #[test]
     fn abr_hysteresis_holds_inside_the_band() {
-        let (master, _) =
-            playlists::parse_master_playlist(None, &master_text()).expect("master types");
+        let (master, _) = playlists::parse_master_playlist(None, &master_text()).must();
         let mut abr = AbrController::new(1, AbrConfig::default()); // on mid (800k)
 
         // Deep inside the band (throughput ~1 Mbps: above 0.8x mid,
@@ -918,8 +938,7 @@ mod tests {
     /// boundary (bypassing dwell); `StallCleared` re-enables up.
     #[test]
     fn abr_stall_prediction_forces_down() {
-        let (master, _) =
-            playlists::parse_master_playlist(None, &master_text()).expect("master types");
+        let (master, _) = playlists::parse_master_playlist(None, &master_text()).must();
         let mut abr = AbrController::new(0, AbrConfig::default()); // on hi
         abr.observe_throughput(375_000, 1_000_000_000); // 3 Mbps: healthy
         assert_eq!(abr.decide(&master.variants), None, "healthy holds");
@@ -940,8 +959,7 @@ mod tests {
     /// never exceeds the cap (the counters are integers, not memory).
     #[test]
     fn abr_history_is_bounded() {
-        let (master, _) =
-            playlists::parse_master_playlist(None, &master_text()).expect("master types");
+        let (master, _) = playlists::parse_master_playlist(None, &master_text()).must();
         let mut abr = AbrController::new(0, AbrConfig::default());
         for k in 0..(SWITCH_HISTORY_CAP * 3) as u64 {
             abr.observe_throughput(1_000, 1_000_000); // healthy 8 Mbps
@@ -969,23 +987,26 @@ mod tests {
     #[test]
     fn adaptive_session_switches_on_scripted_bandwidth() {
         let fetch = router(&owned_routes(12));
-        let mut stream =
-            open_master(fetch, "http://unit.test/master.m3u8", HlsMasterConfig::default())
-                .expect("adaptive session opens");
+        let mut stream = open_master(
+            fetch,
+            "http://unit.test/master.m3u8",
+            HlsMasterConfig::default(),
+        )
+        .must();
         assert_eq!(stream.abr_snapshot().current, 0, "starts on hi");
         assert_eq!(stream.stats().playlists_fetched, 1, "master + hi playlist");
         assert_eq!(stream.stats().requests, 2);
         let mut all = Vec::new();
 
         // Two healthy segments on hi (the dwell), then the crash.
-        all.extend_from_slice(&stream.read(500).expect("read hi/seg0"));
-        all.extend_from_slice(&stream.read(500).expect("read hi/seg1"));
+        all.extend_from_slice(&stream.read(500).must());
+        all.extend_from_slice(&stream.read(500).must());
         stream.note_throughput(500, 2_000_000); // 2 Mbps (in-band on hi)
 
         // The drop: 0.1 Mbps << 0.8 x 2M → down-steps at the next
         // boundary (one rung at a time: hi → mid first).
         stream.note_throughput(5_000, 400_000_000);
-        let c = stream.read(500).expect("read switches at the boundary");
+        let c = stream.read(500).must();
         assert!(c.starts_with(&[b'M'; 4]), "down-stepped off hi onto mid");
         all.extend_from_slice(&c);
         assert!(stream.abr_snapshot().current >= 1);
@@ -994,7 +1015,7 @@ mod tests {
         let mut guard = 0;
         while stream.abr_snapshot().current != 2 && guard < 6 {
             stream.note_throughput(5_000, 400_000_000);
-            all.extend_from_slice(&stream.read(200).expect("read"));
+            all.extend_from_slice(&stream.read(200).must());
             stream.note_throughput(5_000, 400_000_000);
             guard += 1;
         }
@@ -1004,7 +1025,7 @@ mod tests {
         // boundary, no overshoot flapping).
         for _ in 0..3 {
             stream.note_throughput(625_000, 1_000_000_000); // 5 Mbps
-            all.extend_from_slice(&stream.read(60).expect("read"));
+            all.extend_from_slice(&stream.read(60).must());
             stream.note_throughput(625_000, 1_000_000_000);
         }
         assert!(
@@ -1015,7 +1036,7 @@ mod tests {
 
         // Drain the rest.
         loop {
-            let chunk = stream.read(128).expect("read");
+            let chunk = stream.read(128).must();
             if chunk.is_empty() {
                 break;
             }
@@ -1035,7 +1056,11 @@ mod tests {
         );
         assert_eq!(stream.stats().segments_fetched, 12);
         assert!(stream.stats().variant_switches >= 2);
-        assert_eq!(stream.size(), Some(all.len() as u64), "exact total once drained");
+        assert_eq!(
+            stream.size(),
+            Some(all.len() as u64),
+            "exact total once drained"
+        );
     }
 
     /// The refusals: an all-over-cap master, and a media playlist
@@ -1045,16 +1070,23 @@ mod tests {
         let fetch = router(&owned_routes(2));
         let mut tight = HlsMasterConfig::default();
         tight.abr.max_bandwidth_bps = 1;
-        let err = open_master(fetch.clone(), "http://unit.test/master.m3u8", tight)
-            .map(|_| ())
-            .expect_err("nothing under a 1-bps cap");
+        let err = testkit::assert_err(
+            open_master(fetch.clone(), "http://unit.test/master.m3u8", tight).map(|_| ()),
+            "nothing under a 1-bps cap",
+        );
         assert_eq!(err.context.code, "streaming.hls.no-variant");
 
         let media = "#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXTINF:1.0,\ns.ts\n#EXT-X-ENDLIST\n";
         let fetch = router(&[("/pl.m3u8", media.as_bytes().to_vec())]);
-        let err = open_master(fetch, "http://unit.test/pl.m3u8", HlsMasterConfig::default())
-            .map(|_| ())
-            .expect_err("media playlist is not a master");
+        let err = testkit::assert_err(
+            open_master(
+                fetch,
+                "http://unit.test/pl.m3u8",
+                HlsMasterConfig::default(),
+            )
+            .map(|_| ()),
+            "media playlist is not a master",
+        );
         assert_eq!(err.context.code, "streaming.hls.media-playlist");
     }
 
@@ -1070,16 +1102,18 @@ mod tests {
         let mut routes = owned_routes(8);
         for (p, b) in routes.iter_mut() {
             if *p == "/lo.m3u8" {
-                *b = variant_playlist("lo/seg", 4).replace(
-                    "#EXT-X-MEDIA-SEQUENCE:100",
-                    "#EXT-X-MEDIA-SEQUENCE:106",
-                ).into_bytes();
+                *b = variant_playlist("lo/seg", 4)
+                    .replace("#EXT-X-MEDIA-SEQUENCE:100", "#EXT-X-MEDIA-SEQUENCE:106")
+                    .into_bytes();
             }
         }
         let fetch = router(&routes);
-        let mut stream =
-            open_master(fetch, "http://unit.test/master.m3u8", HlsMasterConfig::default())
-                .expect("opens on hi");
+        let mut stream = open_master(
+            fetch,
+            "http://unit.test/master.m3u8",
+            HlsMasterConfig::default(),
+        )
+        .must();
         let _ = stream.read(500);
         let _ = stream.read(500);
         stream.note_throughput(500, 2_000_000);
@@ -1090,7 +1124,7 @@ mod tests {
         for _ in 0..6 {
             stream.note_throughput(5_000, 400_000_000);
         }
-        let err = stream.read(500).expect_err("misaligned lo refuses");
+        let err = testkit::assert_err(stream.read(500), "misaligned lo refuses");
         assert_eq!(err.context.code, "streaming.hls.variant-sequence-missing");
     }
 
@@ -1120,19 +1154,26 @@ mod tests {
             ));
         }
         let fetch = router(&routes);
-        let mut stream =
-            open_master(fetch, "http://unit.test/master.m3u8", HlsMasterConfig::default())
-                .expect("single-variant session opens");
+        let mut stream = open_master(
+            fetch,
+            "http://unit.test/master.m3u8",
+            HlsMasterConfig::default(),
+        )
+        .must();
         let mut total = 0;
         loop {
-            let chunk = stream.read(128).expect("read");
+            let chunk = stream.read(128).must();
             if chunk.is_empty() {
                 break;
             }
             total += chunk.len();
         }
         assert_eq!(total, 4 * 50, "every segment served");
-        assert_eq!(stream.stats().variant_switches, 0, "no samples, no switches");
+        assert_eq!(
+            stream.stats().variant_switches,
+            0,
+            "no samples, no switches"
+        );
         let bounds = stream.segment_boundaries();
         assert_eq!(bounds.len(), 4);
         for w in bounds.windows(2) {

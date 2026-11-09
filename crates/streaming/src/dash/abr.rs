@@ -76,7 +76,10 @@ impl std::fmt::Display for DashAbrError {
                 "streaming.dash.no-representation: no representation selectable under the policy"
             ),
             DashAbrError::BadRepresentation => {
-                write!(f, "streaming.dash.bad-representation: index outside the ladder")
+                write!(
+                    f,
+                    "streaming.dash.bad-representation: index outside the ladder"
+                )
             }
         }
     }
@@ -340,9 +343,7 @@ mod tests {
              <Period><AdaptationSet contentType=\"video\">",
         );
         for (id, bw) in [("hi", 800_000u64), ("mid", 400_000), ("lo", 150_000)] {
-            s.push_str(&format!(
-                "<Representation id=\"{id}\" bandwidth=\"{bw}\"/>"
-            ));
+            s.push_str(&format!("<Representation id=\"{id}\" bandwidth=\"{bw}\"/>"));
         }
         s.push_str("</AdaptationSet></Period></MPD>");
         s
@@ -471,8 +472,14 @@ mod tests {
         let mut abr = DashAbr::new(0, DashAbrConfig::default());
         abr.observe_throughput(1000, 1_000_000); // 8 Mbps, healthy
         abr.note_buffer_level(30.0);
-        abr.on_buffer_signal(BufferSignal::StallPredicted { eta_ns: 500_000_000 });
-        assert_eq!(abr.decide(&ladder), Some(1), "stall forces down despite health");
+        abr.on_buffer_signal(BufferSignal::StallPredicted {
+            eta_ns: 500_000_000,
+        });
+        assert_eq!(
+            abr.decide(&ladder),
+            Some(1),
+            "stall forces down despite health"
+        );
         abr.on_buffer_signal(BufferSignal::StallCleared);
         assert_eq!(abr.decide(&ladder), None, "cleared, holds");
     }
