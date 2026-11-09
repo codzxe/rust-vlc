@@ -13,9 +13,12 @@ Working name "Lumen" is a placeholder only — the product is fully rebrandable 
 
 ## Status
 
-**Phase 1 — Foundation planning (in progress).** The authoritative project brief is
-[`docs/MASTER-PROMPT.md`](docs/MASTER-PROMPT.md). Phase plans live in
-[`docs/ROADMAP.md`](docs/ROADMAP.md). Nothing is claimed implemented or verified
+**Phase 6 — Network & streaming (in progress).** Phases 0–5 are complete
+(Phase 5: PASS WITH REGISTERED CAVEATS, Lead sign-off 2026-10-24,
+[`docs/gates/phase5-exit.md`](docs/gates/phase5-exit.md)); the streaming
+core, HLS, and DASH-parser work is landing now — see the Status block in
+[`docs/ROADMAP.md`](docs/ROADMAP.md). The authoritative project brief is
+[`docs/MASTER-PROMPT.md`](docs/MASTER-PROMPT.md). Nothing is claimed implemented or verified
 until `docs/feature-matrix.toml` records automated evidence for it (statuses:
 `not_started`, `in_progress`, `implemented`, `verified`, `blocked`).
 
@@ -58,12 +61,17 @@ fuzz/  benches/  docs/  design/  .github/workflows/
   UI↔engine contract; truthful UI (accepted ≠ completed); config-driven; no
   native dynamic plugin loading; unsafe code denied in application/core crates.
 - Every defect gets a regression test. Tests are never weakened to pass.
-- Merge-blocking CI on Windows, Linux, macOS.
+- Merge-blocking CI, honestly stated: **live today as one lean Linux job per
+  workflow** (`.github/workflows/ci.yml` replicates the local gate;
+  `ui.yml` covers the UI lane); the full Windows/Linux/macOS matrix is
+  designed but parked under `.github/workflows-disabled/` pending Lead
+  reconciliation.
 
 ## Licensing notes
 
-- This repository's own code: TBD via ADR (GPL-compatible or permissive — decided
-  in Phase 0 with legal review, recorded in `docs/11-dependency-security-compliance.md`).
+- This repository's own code: **MIT** (decided 2026-10-19; [`LICENSE`](LICENSE);
+  `docs/adr/ADR-006-license-mit.md`; decision D-009; closes risk R-05).
 - The design package in `design/figma/` originates from a Figma Community file;
-  its license terms must be verified before commercial use (tracked as risk
-  R-07 in `docs/14-risk-register.md`).
+  its license terms were cleared by user attestation 2026-10-19 (risk R-07
+  closed, decision D-010; residuals: font identities [VERIFY], trademark
+  wording rules on shipped strings per `docs/14-risk-register.md`).
