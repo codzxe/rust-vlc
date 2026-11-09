@@ -75,6 +75,23 @@ show-controls-fullscreen = { key = "I", ui_action = "show-controls-fullscreen", 
 /** The parsed seed (module-load; a bad seed is a programmer error). */
 export const DEFAULT_KEYMAP: ReadonlyMap<string, KeyBinding> = parseKeymap(DEFAULT_KEYMAP_TOML);
 
+/**
+ * [PROPOSAL] Dialog-opening seed — modifier-combo rows this screen
+ * implements as dialogs, copied VERBATIM (key/ui_action/mode/when) from
+ * keymaps/default.toml (provenance annotations live in that file). The full
+ * keymap arrives with the loader (see DEFAULT_KEYMAP_TOML's header note);
+ * these rows move into it unchanged when it lands.
+ */
+export const DIALOG_KEYMAP_TOML = `# [PROPOSAL] excerpt of keymaps/default.toml dialog rows (issue #32).
+[player-dialogs]
+jump-to-time = { key = "Ctrl+T", ui_action = "goto-time", mode = "player-focused", when = "has-media" }
+bookmarks-dialog = { key = "Ctrl+B", ui_action = "bookmarks", mode = "player-focused" }
+`;
+
+/** The parsed dialog seed (module-load; a bad seed is a programmer error). */
+export const DIALOG_KEYMAP: ReadonlyMap<string, KeyBinding> =
+  parseKeymap(DIALOG_KEYMAP_TOML);
+
 /** A normalized key spec: lowercased DOM key + claimed modifiers. */
 export interface NormalizedKey {
   readonly key: string;
@@ -143,6 +160,55 @@ export function matchBindings(
     if (normalized === null || normalized.modifiers.length > 0) continue;
     if (normalized.key !== event.key.toLowerCase()) continue;
     if (anyModifier) continue; // a plain-key binding never fires on combos
+    hits.push(binding);
+  }
+  return hits;
+}
+
+/** The modifiers a DOM event holds, in normalizeBindingKey's spelling. */
+function pressedModifiers(event: MatchableKeyboardEvent): readonly string[] {
+  const pressed: string[] = [];
+  if (event.metaKey) pressed.push("meta");
+  if (event.ctrlKey) pressed.push("control");
+  if (event.altKey) pressed.push("alt");
+  if (event.shiftKey) pressed.push("shift");
+  return pressed;
+}
+
+/** Same-modifier test (order-insensitive; spellings are unique per key). */
+function sameModifiers(
+  claimed: readonly string[],
+  pressed: readonly string[],
+): boolean {
+  if (claimed.length !== pressed.length) return false;
+  const rest = [...pressed];
+  for (const modifier of claimed) {
+    const index = rest.indexOf(modifier);
+    if (index === -1) return false;
+    rest.splice(index, 1);
+  }
+  return true;
+}
+
+/**
+ * The modifier-combo twin of [`matchBindings`] (issue #32): matches ONLY
+ * bindings whose key spec carries modifiers, and only when the event's
+ * modifier set matches EXACTLY — "Ctrl+T" fires on Ctrl+T alone, never on
+ * Ctrl+Shift+T or a bare "t". `when` gating (e.g. "has-media") is the
+ * caller's truth to evaluate — the matcher has no media state.
+ */
+export function matchModifierBindings(
+  bindings: ReadonlyMap<string, KeyBinding>,
+  event: MatchableKeyboardEvent,
+): readonly KeyBinding[] {
+  const hits: KeyBinding[] = [];
+  const pressed = pressedModifiers(event);
+  for (const binding of bindings.values()) {
+    if (binding.mode !== undefined && binding.mode !== "player-focused") continue;
+    const normalized = normalizeBindingKey(binding.key);
+    if (normalized === null || normalized.modifiers.length === 0) continue;
+    if (normalized.key !== event.key.toLowerCase()) continue;
+    if (!sameModifiers(normalized.modifiers, pressed)) continue;
     hits.push(binding);
   }
   return hits;

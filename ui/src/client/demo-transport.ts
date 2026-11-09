@@ -30,6 +30,7 @@
 import type { MessageKey } from "../i18n/messages";
 import { fullMediaInfo, liveAudioMediaInfo } from "../screens/media-info/fixtures";
 import type {
+  Bookmark,
   CommandListing,
   CommandRequest,
   CommandResponse,
@@ -217,6 +218,9 @@ const LISTED_COMMANDS: readonly string[] = [
   "media.get-duration",
   "media.get-chapters",
   "media.set-chapter",
+  "media.get-bookmarks",
+  "media.add-bookmark",
+  "media.remove-bookmark",
   "playlist.enqueue",
   "playlist.enqueue-many",
   "playlist.play-item",
@@ -301,6 +305,12 @@ export class DemoTransport implements CommandTransport {
   private shuffle = false;
   private repeat: RepeatMode = "off";
   private nextPlaylistId = 1;
+
+  // Bookmark state (issue #32) — the engine-side BookmarkList semantics
+  // mirrored in the simulation: creation-ordered ids from 1, per-media
+  // reset on open, no id reuse after delete.
+  private bookmarks: Bookmark[] = [];
+  private nextBookmarkId = 1;
 
   // Open-media history
   private recent: DemoRecentEntry[] = [];
@@ -554,6 +564,50 @@ export class DemoTransport implements CommandTransport {
         this.seek({ kind: "absolute", time: chapter.timeStart / 1000 });
         return respond({ completed: { kind: "unit" } });
       }
+      case "media.get-bookmarks":
+        return respond({
+          completed: { kind: "bookmarks", bookmarks: [...this.bookmarks] },
+        });
+      case "media.add-bookmark": {
+        // Wire `time` is µs; the demo speaks seconds everywhere (see the
+        // TIMING UNITS note in the module header).
+        const seconds = request.args.time / 1000;
+        if (seconds < 0) {
+          return respond({
+            error: {
+              code: "invalid-argument",
+              details: { time: String(request.args.time) },
+              message: "demo transport: bookmark position must be >= 0",
+              stage: "input",
+            },
+          });
+        }
+        const bookmark: Bookmark = {
+          id: this.nextBookmarkId,
+          time: request.args.time,
+          label: request.args.label ?? null,
+        };
+        this.nextBookmarkId += 1;
+        this.bookmarks.push(bookmark);
+        return respond({ completed: { kind: "bookmark-added", bookmark } });
+      }
+      case "media.remove-bookmark": {
+        const before = this.bookmarks.length;
+        this.bookmarks = this.bookmarks.filter((b) => b.id !== request.args.id);
+        if (this.bookmarks.length === before) {
+          return respond({
+            error: {
+              code: "not-found",
+              details: { id: String(request.args.id) },
+              message: "demo transport: no such bookmark",
+              stage: "input",
+            },
+          });
+        }
+        return respond({
+          completed: { kind: "bookmarks", bookmarks: [...this.bookmarks] },
+        });
+      }
 
       // --- honestly not simulated ---------------------------------------
       default:
@@ -643,6 +697,10 @@ export class DemoTransport implements CommandTransport {
     this.selections = {};
     this.session = 1;
     this.rememberOpening(source);
+    // Per-media reset (issue #32): the engine-side BookmarkList.clear()
+    // semantics — a new media empties the list and restarts numbering.
+    this.bookmarks = [];
+    this.nextBookmarkId = 1;
 
     // Opening choreography (fixed timings, no jitter): the accepted response
     // returns first; the state machine then walks
