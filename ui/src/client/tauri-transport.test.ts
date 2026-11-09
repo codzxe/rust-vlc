@@ -202,4 +202,59 @@ describe("detectTauriBackend / createTauriTransport", () => {
       }
     }
   });
+
+  // The internals binding (what @tauri-apps/api wraps — the surface the
+  // ADR-004 admission build runs on). The frame shape and "Any" default
+  // target stay [VERIFY at the admission build] (no webview here), but
+  // the binding's OWN contract — listen via plugin:event|listen +
+  // transformCallback, unlisten with the returned event id — is pinned
+  // so drift is loud before that build runs.
+  it("binds to the injected internals: listen via plugin:event|listen, unlisten with the event id (issue #3)", async () => {
+    const invokes: Array<{ command: string; payload?: unknown }> = [];
+    let handler: ((frame: unknown) => void) | null = null;
+    const internals = {
+      invoke(command: string, payload?: unknown): Promise<unknown> {
+        invokes.push({ command, payload });
+        if (command === "plugin:event|listen") return Promise.resolve(31);
+        return Promise.resolve(null);
+      },
+      transformCallback(callback: (response: unknown) => void): number {
+        handler = callback;
+        return 5;
+      },
+    };
+    const saved = (globalThis as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+    (globalThis as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = internals;
+    try {
+      const backend = detectTauriBackend();
+      expect(backend).not.toBeNull();
+
+      const seen: Event[] = [];
+      const unsubscribe = await backend!.listen(LUMEN_EVENT_CHANNEL, (frame) => {
+        seen.push(frame.payload as Event);
+      });
+
+      const listen = invokes.find((call) => call.command === "plugin:event|listen");
+      expect(listen?.payload).toMatchObject({
+        event: LUMEN_EVENT_CHANNEL,
+        // The handler is registered through transformCallback — the id
+        // rides the payload, the callback itself stays behind the seam.
+        handler: 5,
+      });
+
+      // The shell emits: the frame crosses transformCallback → handler.
+      handler?.({ event: LUMEN_EVENT_CHANNEL, id: 31, payload: STATE_EVENT });
+      expect(seen).toEqual([STATE_EVENT]);
+
+      unsubscribe();
+      const unlisten = invokes.find((call) => call.command === "plugin:event|unlisten");
+      expect(unlisten?.payload).toEqual({ event: LUMEN_EVENT_CHANNEL, eventId: 31 });
+    } finally {
+      if (saved === undefined) {
+        delete (globalThis as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+      } else {
+        (globalThis as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = saved;
+      }
+    }
+  });
 });
