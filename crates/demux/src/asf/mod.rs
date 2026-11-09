@@ -6,11 +6,15 @@
 //! Properties (WAVEFORMATEX / short-VIDEOINFOHEADER facts), Codec
 //! List, Extended Content Description, a bounded Header Extension
 //! child walk — behind [`AsfDemuxer`], plus the [`probe`] gate and
-//! the media-probe signature. **Data Object packets are ASF-b's
-//! scope**: the object is located (offset, size, packet count) but
-//! not parsed, and [`Demuxer::next_event`] answers the honest typed
-//! `demux.asf.packets-not-implemented` refusal until that unit lands
-//! — never an empty-stream shape that would read as "no packets".
+//! the media-probe signature. **Data Object packets are landed (card
+//! 6.ASF-b)**: `next_event`
+//! walks the packet grammar (EC flags, padding, send time, duration,
+//! multi-payload headers, replicated data, fragment reassembly) and
+//! yields real [`DemuxEvent::Packet`]s — one per completed media
+//! object, preroll-subtracted stamps on the track's own base. Seeking
+//! is card 6.ASF-c's scope: the Simple Index is located (see
+//! `top_objects`) and `seek` still answers the typed
+//! `demux.asf.seek.unsupported` refusal until that unit lands.
 //!
 //! ## What is verified where (the honest field map)
 //!
@@ -46,13 +50,17 @@
 //! next-unit refusals are `demux.asf.packets-not-implemented` (ASF-b)
 //! and `demux.asf.seek.unsupported` (ASF-c).
 
-use media_types::ids::{StreamId, TrackFlags, TrackId};
-use media_types::time::{TimeBase, TimeSpan, TrackTiming};
-use media_types::{EngineError, Track};
+use std::collections::VecDeque;
+
+use media_types::ids::{GenerationId, StreamId, TrackFlags, TrackId};
+use media_types::packet::SharedBytes;
+use media_types::time::{Stamp, TimeBase, TimeSpan, Timestamp, TrackTiming};
+use media_types::{EngineError, Packet, Track};
 use plugin_api::{DemuxEvent, Demuxer, SeekSupport};
 
 use crate::avi::riff::SourceReader;
 
+pub mod data;
 pub mod error;
 pub mod fuzz;
 pub mod guid;
@@ -130,6 +138,37 @@ pub struct AsfDemuxer {
     started: bool,
     header: Option<header::AsfHeader>,
     tracks: Option<Vec<Track>>,
+    /// The packet walk (ASF-b): stream-number → track-slot join,
+    /// fixed packet size, Data Object payload-area origin, the walk
+    /// cursor, the per-stream fragment assembler and the completed
+    /// objects waiting to be emitted.
+    walk: Option<PacketWalk>,
+}
+
+/// The ASF-b packet-walk state (built once by `start`).
+struct PacketWalk {
+    /// Stream number (from each Stream Properties record) → track
+    /// index; payload stream numbers join through it.
+    slots: Vec<(u16, usize)>,
+    /// Per-track stamp bases (audio: 1/sample-rate; video: 1/1000).
+    bases: Vec<TimeBase>,
+    /// The FPO's fixed packet size (min == max, enforced at start).
+    packet_size: u64,
+    /// Absolute offset of the first data packet (Data Object + 50).
+    payload_offset: u64,
+    /// Total packets (the Data Object's declared count, bounded by
+    /// the object's own extent — never trusted past its bytes).
+    packets_total: u64,
+    /// The next packet index to read.
+    next_packet: u64,
+    /// The FPO preroll in ms (payload stamps are preroll-offset).
+    preroll_ms: u64,
+    /// Fragment reassembly (one bounded slot per stream).
+    assembler: data::ObjectAssembler,
+    /// Completed media objects pending emission.
+    queue: VecDeque<Packet>,
+    /// Nothing more will come (flush endpoint armed).
+    eos: bool,
 }
 
 impl AsfDemuxer {
@@ -149,6 +188,7 @@ impl AsfDemuxer {
             started: false,
             header: None,
             tracks: None,
+            walk: None,
         })
     }
 
@@ -261,6 +301,141 @@ impl AsfDemuxer {
         }
         Ok(tracks)
     }
+    /// Build the ASF-b packet walk from the parsed header (the
+    /// fixed-packet-size and stream-join facts the walk rides).
+    fn build_walk(
+        parsed: &header::AsfHeader,
+        tracks: &[Track],
+    ) -> Result<PacketWalk, EngineError> {
+        let properties = &parsed.properties;
+        if properties.min_packet_size != properties.max_packet_size
+            || properties.max_packet_size == 0
+        {
+            // The verified grammar has no per-packet length field;
+            // variable-size files are an unverified shape.
+            return Err(error::packet_variable_size());
+        }
+        let data = parsed.data;
+        let payload_offset = data.offset + 50;
+        let by_extent = if properties.max_packet_size > 0 {
+            (data.size.saturating_sub(50)) / u64::from(properties.max_packet_size)
+        } else {
+            0
+        };
+        // The declared count, bounded by the object's own extent.
+        let packets_total = data.packet_count.min(by_extent);
+        let slots = parsed
+            .streams
+            .iter()
+            .enumerate()
+            .map(|(index, record)| (record.stream_number, index))
+            .collect::<Vec<_>>();
+        let bases = tracks.iter().map(|t| t.timing.base).collect::<Vec<_>>();
+        Ok(PacketWalk {
+            slots,
+            bases,
+            packet_size: u64::from(properties.max_packet_size),
+            payload_offset,
+            packets_total,
+            next_packet: 0,
+            preroll_ms: properties.preroll_ms,
+            assembler: data::ObjectAssembler::new(parsed.streams.len()),
+            queue: VecDeque::new(),
+            eos: false,
+        })
+    }
+
+    /// Read and parse packet `index`, feeding every payload through
+    /// reassembly; completed objects queue up as `Packet`s.
+    fn walk_one_packet(&mut self, index: u64) -> Result<(), EngineError> {
+        let (packet_size, payload_offset) = self
+            .walk
+            .as_ref()
+            .map_or((0, 0), |w| (w.packet_size, w.payload_offset));
+        let at = payload_offset + index * packet_size;
+        let bytes = self
+            .reader
+            .read_exact_or_end_at(packet_size as usize, at)?
+            .ok_or_else(|| error::truncated(at + packet_size, at))?;
+        let parsed_packet = data::parse_packet(&bytes)?;
+        for payload in &parsed_packet.payloads {
+            let slot = self.walk.as_ref().and_then(|w| {
+                w.slots
+                    .iter()
+                    .position(|(number, _)| *number == payload.stream)
+                    .map(|slot| (slot, w.bases.get(slot).copied()))
+            });
+            let Some((slot, base)) = slot else {
+                // A payload for a stream the header never declared:
+                // skipped, never fatal (the demux recovery seam).
+                continue;
+            };
+            let data_bytes = &bytes[payload.data_range.0..payload.data_range.1];
+            let finished = self.walk.as_mut().and_then(|w| {
+                w.assembler
+                    .feed(
+                        slot,
+                        payload.stream,
+                        payload.media_object,
+                        payload.offset_into_object,
+                        payload.replicated,
+                        payload.keyframe,
+                        data_bytes,
+                    )
+                    .transpose()
+                    .map(|r| r.map(|done| (done, w.preroll_ms)))
+            });
+            let Some(finished) = finished else {
+                continue;
+            };
+            let ((presentation_time_ms, keyframe, buffer), preroll) = finished?;
+            let Some(base) = base else {
+                continue;
+            };
+            let Some(track) = self.tracks.as_ref().and_then(|t| t.get(slot)) else {
+                continue;
+            };
+            // Preroll subtraction (measured: stamps ride preroll-offset
+            // ms; ffprobe's zero-based pts is the arithmetic check).
+            let preroll = u32::try_from(preroll).unwrap_or(u32::MAX);
+            let pts_ms = presentation_time_ms.saturating_sub(preroll);
+            let ticks = Self::ticks_for(track, base, pts_ms);
+            if let Some(walk) = self.walk.as_mut() {
+                walk.queue.push_back(Packet {
+                    track: track.id,
+                    pts: Stamp::Present(Timestamp::new(ticks, base)),
+                    dts: Stamp::Missing,
+                    duration: None,
+                    data: SharedBytes::from_vec(buffer),
+                    keyframe,
+                    discontinuity: false,
+                    generation: GenerationId::FIRST,
+                });
+            }
+        }
+        Ok(())
+    }
+
+    /// Convert a preroll-subtracted millisecond stamp onto `track`'s
+    /// own base (audio rides sample ticks, video the ms clock — the
+    /// ASF-a timing decision).
+    fn ticks_for(track: &Track, base: TimeBase, pts_ms: u32) -> i64 {
+        let _ = track;
+        let ms = i64::from(pts_ms);
+        let (num, den) = base.as_parts();
+        if den == 1000 && num == 1 {
+            // The millisecond clock is the base.
+            ms
+        } else {
+            // Sample ticks: ms × rate / 1000 (checked; a base too
+            // large for i64 clamps to the honest maximum).
+            let rate = i64::from(den) / i64::from(num.max(1));
+            ms.checked_mul(rate)
+                .and_then(|t| t.checked_div(1000))
+                .unwrap_or(i64::MAX)
+        }
+    }
+
 }
 
 impl Demuxer for AsfDemuxer {
@@ -270,8 +445,10 @@ impl Demuxer for AsfDemuxer {
         }
         let parsed = header::AsfHeader::parse(&mut self.reader)?;
         let tracks = Self::build_tracks(&parsed.streams)?;
+        let walk = Self::build_walk(&parsed, &tracks)?;
         self.header = Some(parsed);
         self.tracks = Some(tracks.clone());
+        self.walk = Some(walk);
         self.started = true;
         Ok(tracks)
     }
@@ -280,11 +457,44 @@ impl Demuxer for AsfDemuxer {
         if !self.started {
             return Err(error::not_started());
         }
-        // ASF-b's row: the Data Object is located and counted, the
-        // packet/payload grammar is not landed. The typed refusal —
-        // never EndOfStream (that would claim the file has no
-        // packets), never a stub packet.
-        Err(error::packets_not_implemented())
+        loop {
+            let (queued, exhausted) = {
+                let Some(walk) = self.walk.as_ref() else {
+                    return Err(error::not_started());
+                };
+                (
+                    walk.queue.front().map(|p| p.track),
+                    walk.next_packet >= walk.packets_total,
+                )
+            };
+            if queued.is_some() {
+                let packet = self
+                    .walk
+                    .as_mut()
+                    .and_then(|w| w.queue.pop_front());
+                if let Some(packet) = packet {
+                    return Ok(DemuxEvent::Packet(packet));
+                }
+                continue;
+            }
+            if exhausted {
+                if let Some(walk) = self.walk.as_mut() {
+                    if walk.eos {
+                        return Ok(DemuxEvent::EndOfStream);
+                    }
+                    walk.eos = true;
+                }
+                return Ok(DemuxEvent::EndOfStream);
+            }
+            let index = self
+                .walk
+                .as_ref()
+                .map_or(0, |w| w.next_packet);
+            self.walk_one_packet(index)?;
+            if let Some(walk) = self.walk.as_mut() {
+                walk.next_packet += 1;
+            }
+        }
     }
 
     fn seek(&mut self, _target: TimeSpan) -> Result<TimeSpan, EngineError> {
