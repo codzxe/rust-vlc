@@ -58,11 +58,26 @@ runner and forwards the exit code verbatim (verified: 0).
   `--update` — Linux canonical set (per-OS sets pending CI runners; the
   `<platform>` baseline dir is the extension seam, doc 08 §6.3).
 
+## What issue #37 delivered (2026-11-09)
+
+- Full **Solstice v2 + wave-3 re-pin** of the Linux canonical set: all 136
+  baselines re-captured (`--mode=nightly --update`, 136 passed 7.7 m) and
+  verified green without `--update` (nightly 136/136, PR lane 30/30).
+  Environment provenance (playwright 1.64.1 / chromium 156.0.8078.4 build
+  v1248 / node 24.22.2) and the deliberate-change justification:
+  [`MATRIX-20261109.md`](MATRIX-20261109.md).
+- Closed the 4.H1 snapshotDir trap in `playwright.config.ts`
+  (`testIgnore: "**/visual/**"`): plain `npm run test:e2e` no longer runs
+  visual cases against Playwright's default snapshot dir.
+
 ## What remains
 
-- Wire CI: per-OS jobs (Linux canonical), PR lane on every PR, full matrix
-  nightly (doc 08 §6.3). macOS/Windows baseline sets get pinned by one
-  `--update` run per OS once runners exist.
+- ~~Wire CI~~ (done, issue #5): Linux PR lane per push/PR, nightly full
+  matrix + non-blocking macOS/Windows BASELINE SEED jobs in
+  `.github/workflows/ui.yml`.
+- macOS/Windows baseline sets: still CI-blocked on a first real seed run
+  (the seed job captures + uploads them for human commit; Linux stays
+  canonical).
 - Grow `ROUTES` as doc 08 §1.6's unrouted compositions land (player
   customize/hide-ui, miniplayer states, context menus, audio/video tools,
   playlist/subtitles flow).
