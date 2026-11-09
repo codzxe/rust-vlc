@@ -377,16 +377,21 @@ license = "MIT"
 ## 3. Registry and selection
 
 > **[LEAD-ATTENTION] — §3 and §4 are unowned spec (recorded 2026-10-22, card
-> 3.DOC-1; audit source: 3.HARD-AUDIT AUDIT-2).** Nothing in this section or
+> 3.DOC-1; audit source: 3.HARD-AUDIT AUDIT-2; re-dated 2026-11-09, issue
+> #21).** Nothing in this section or
 > §4 is implemented, and **no card in doc 13's wave program owns either**:
 > plugin-api (1.D2) delivered §1–2 only — kinds, manifests, host traits —
-> and the Phase-2/3 cards consume the engine without a registry. Proposal:
-> add one S/M card to doc 13 (wave 3 tail or the Phase-5 head, Lead's
-> scheduling call): *"plugin registry + builtin registration v0"* —
+> and the Phase-2..6 cards consume the engine without a registry
+> (re-verified 2026-11-09: no `PluginRegistry` type exists in
+> `crates/plugin-api` — only the doc comment at `crates/input/src/lib.rs:53`
+> awaiting it; `plugins/builtin/` does not exist). The original proposal
+> windows (wave-3 tail, Phase-5 head) have passed unexecuted. Updated
+> proposal: add one S/M card to doc 13 (a Phase-6-tail or Phase-7-head slot,
+> Lead's scheduling call): *"plugin registry + builtin registration v0"* —
 > `PluginRegistry` built from manifests, capability+priority selection
 > (§3.2), per-domain `register()` composition (§4.1), config
 > enable/disable/reorder (§3.4) — sized against its first real consumers
-> (playback-engine sink wiring, apps composition roots, 4.A-era UI plugin
+> (playback-engine sink wiring, apps composition roots, UI plugin
 > browsing). Existing doc 13 cards are NOT renumbered; this blockquote is
 > the proposal, awaiting Lead dispatch.
 
@@ -573,6 +578,15 @@ A CI check (`tools/feature-audit`) asserts **bijection**: every
 `plugins/builtin/*.toml` matches exactly one `#[cfg(feature = …)]`
 registration, and vice versa — no orphan manifests, no unregistered features
 `[PROPOSAL: tool scope]`.
+
+> **Status note (2026-11-09, issue #21):** `tools/feature-audit` is **not
+> built** — the `[PROPOSAL]` above stands, and the bijection check has no
+> runner today (nothing to check yet: `plugins/builtin/` does not exist; the
+> pattern lands with the §3 registry card). The registry-vs-implementation
+> drift check that *does* run today is the fuzz-target analog
+> `scripts/fuzz_registry_check.sh` (card 5.Q1, gate #6 of
+> `scripts/full_gate.sh`), plus `cargo xtask check-architecture` for the
+> crate graph.
 
 ### 4.2 Why all core codecs and demuxers start builtin
 
