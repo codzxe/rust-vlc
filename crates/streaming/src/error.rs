@@ -59,6 +59,14 @@ pub enum NetworkError {
         /// Redirects followed before the refused hop.
         hops: u32,
     },
+    /// A redirect tried to weaken the transport — an `https` hop
+    /// pointing at `http` (`cross-scheme-redirect`), same host or
+    /// not. Refused unconditionally: a TLS downgrade is the classic
+    /// MITM vector (security review 6.H1 F1, wave 19 fix).
+    CrossSchemeRedirect {
+        /// Redirects followed before the refused hop.
+        hops: u32,
+    },
     /// A non-success HTTP status surfaced as an error (`http-status`).
     HttpStatus {
         /// The status code (e.g. 404).
@@ -160,6 +168,7 @@ impl NetworkError {
             NetworkError::TooManyRedirects { .. } => "streaming.net.too-many-redirects",
             NetworkError::RedirectLoop { .. } => "streaming.net.redirect-loop",
             NetworkError::CrossHostRedirect { .. } => "streaming.net.cross-host-redirect",
+            NetworkError::CrossSchemeRedirect { .. } => "streaming.net.cross-scheme-redirect",
             NetworkError::HttpStatus { .. } => "streaming.net.http-status",
             NetworkError::AuthFailed { .. } => "streaming.net.auth-failed",
             NetworkError::RangeNotSatisfiable => "streaming.net.range-not-satisfiable",
@@ -230,6 +239,7 @@ impl NetworkError {
             | NetworkError::TooManyRedirects { .. }
             | NetworkError::RedirectLoop { .. }
             | NetworkError::CrossHostRedirect { .. }
+            | NetworkError::CrossSchemeRedirect { .. }
             | NetworkError::RangeNotSatisfiable
             | NetworkError::InvalidContentRange
             | NetworkError::UnsupportedScheme { .. }
@@ -267,6 +277,9 @@ impl fmt::Display for NetworkError {
             }
             NetworkError::CrossHostRedirect { hops } => {
                 format!("cross-host redirect refused by policy after {hops} hops")
+            }
+            NetworkError::CrossSchemeRedirect { hops } => {
+                format!("https-to-http redirect refused after {hops} hops (transport downgrade)")
             }
             NetworkError::HttpStatus {
                 code,
@@ -343,6 +356,7 @@ mod tests {
             },
             NetworkError::RedirectLoop { hops: 4 },
             NetworkError::CrossHostRedirect { hops: 1 },
+            NetworkError::CrossSchemeRedirect { hops: 1 },
             NetworkError::http_status(404),
             NetworkError::AuthFailed {
                 scheme: AuthSchemeKind::Basic,

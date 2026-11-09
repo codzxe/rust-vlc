@@ -213,6 +213,7 @@ fn map_fetch_err(err: NetworkError) -> EngineError {
         | NetworkError::TooManyRedirects { .. }
         | NetworkError::RedirectLoop { .. }
         | NetworkError::CrossHostRedirect { .. }
+        | NetworkError::CrossSchemeRedirect { .. }
         | NetworkError::HttpStatus { .. } => NetworkCause::ConnectionLost,
         // A superseded fetch (6.D2 generation bump): the read was
         // abandoned by the world moving on, not by the wire — but the

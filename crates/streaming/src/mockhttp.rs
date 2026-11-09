@@ -945,6 +945,13 @@ impl MockClient {
                     });
                 }
                 let next = url.join(&location)?;
+                // Scheme-downgrade refusal — parity with the real
+                // client's gate (security review 6.H1 F1, wave 19):
+                // an https hop never follows a redirect down to
+                // http, same host or not.
+                if url.scheme == "https" && next.scheme == "http" {
+                    return Err(NetworkError::CrossSchemeRedirect { hops: followed + 1 });
+                }
                 let canonical = next.to_string();
                 if visited.contains(&canonical) {
                     return Err(NetworkError::RedirectLoop {
