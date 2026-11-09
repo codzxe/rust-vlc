@@ -1484,14 +1484,3 @@ fn sha256_16(bytes: &[u8]) -> String {
     }
     hex[..16].to_string()
 }
-
-#[test]
-fn zzz_scratch_debug_w12r() {
-    let payload = object(1, true, 7, 1234, &[0xAA; 4]);
-    let bytes = data_packet(555, 77, &[payload], 48);
-    eprintln!("BYTES: {bytes:02x?}");
-    match data::parse_packet(&bytes) {
-        Ok(p) => eprintln!("OK: {p:?}"),
-        Err(e) => eprintln!("ERR: {e}"),
-    }
-}
