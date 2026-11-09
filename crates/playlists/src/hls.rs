@@ -124,6 +124,10 @@ pub enum HlsPlaylistError {
     /// (`playlists.hls.master-playlist`). Master playlists are card
     /// 6.B2a (variant selection); the refusal is typed, not silent.
     MasterPlaylist,
+    /// A media-playlist shape (`#EXTINF` segment rows, no variant
+    /// rows at all) appeared where a master playlist was expected
+    /// (`playlists.hls.media-playlist`) — the mirror refusal, typed.
+    MediaPlaylist,
     /// A promoted playlist-level tag carried a value that is not a
     /// decimal integer (`playlists.hls.bad-tag-value`) — a wrong
     /// number would be a lie, so the model refuses rather than
@@ -147,6 +151,7 @@ impl HlsPlaylistError {
         match self {
             HlsPlaylistError::NotHls => "playlists.hls.not-hls",
             HlsPlaylistError::MasterPlaylist => "playlists.hls.master-playlist",
+            HlsPlaylistError::MediaPlaylist => "playlists.hls.media-playlist",
             HlsPlaylistError::BadTagValue { .. } => "playlists.hls.bad-tag-value",
             HlsPlaylistError::Parse { .. } => "playlists.hls.parse-failed",
         }
@@ -165,6 +170,11 @@ impl fmt::Display for HlsPlaylistError {
                 f,
                 "playlists: HLS master playlist where a media playlist was expected ({}); \
                  variant selection is a later card",
+                self.code()
+            ),
+            HlsPlaylistError::MediaPlaylist => write!(
+                f,
+                "playlists: HLS media playlist where a master playlist was expected ({})",
                 self.code()
             ),
             HlsPlaylistError::BadTagValue { tag } => write!(
@@ -316,6 +326,306 @@ fn parse_tag_uint(tag: &'static str, value: &str) -> Result<u64, HlsPlaylistErro
         .trim()
         .parse::<u64>()
         .map_err(|_| HlsPlaylistError::BadTagValue { tag })
+}
+
+// ======================================================= 6.B2a: master playlists
+
+/// A typed HLS **master playlist** (card 6.B2a): the variant rows
+/// (`#EXT-X-STREAM-INF` + URI) and alternate-rendition rows
+/// (`#EXT-X-MEDIA`) of RFC 8216 §4.3.4, parsed by
+/// [`parse_master_playlist`].
+///
+/// The model **records**; the streaming crate's `hls::master` module
+/// owns the selection/switching policy (bandwidth cap, hysteresis).
+/// Variants keep playlist order (the producer's own ladder order);
+/// selection sorts by its own policy, never by mutation here.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct MasterPlaylist {
+    /// Variant streams in playlist order (rows with a parseable
+    /// `BANDWIDTH`; damaged rows are skipped with a
+    /// [`MasterWarning`], never guessed at).
+    pub variants: Vec<Variant>,
+    /// Alternate renditions (`#EXT-X-MEDIA`), playlist order.
+    pub renditions: Vec<Rendition>,
+}
+
+/// One `#EXT-X-STREAM-INF` variant row.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Variant {
+    /// The variant's media-playlist URI, resolved against the base
+    /// when one was given.
+    pub uri: String,
+    /// `BANDWIDTH` (bits per second) — REQUIRED by RFC 8216
+    /// §4.3.4.2; a row without a parseable value is skipped with a
+    /// warning rather than assigned a fabricated `0`.
+    pub bandwidth: u64,
+    /// `AVERAGE-BANDWIDTH`, when present and parseable.
+    pub average_bandwidth: Option<u64>,
+    /// `PROGRAM-ID` (the legacy Apple attribute, deprecated by the
+    /// IETF spec but still emitted by real packagers), when present.
+    pub program_id: Option<u64>,
+    /// `CODECS` (quoted string), verbatim, when present.
+    pub codecs: Option<String>,
+    /// `RESOLUTION` (`WxH`), when present and well-formed.
+    pub resolution: Option<Resolution>,
+}
+
+/// A `RESOLUTION=WxH` pair.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Resolution {
+    /// Width in pixels.
+    pub width: u64,
+    /// Height in pixels.
+    pub height: u64,
+}
+
+/// One `#EXT-X-MEDIA` alternate-rendition row.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Rendition {
+    /// `TYPE` — the spec's enumerated set, with unknown values kept
+    /// verbatim (`Other`) rather than refused: a future/typo'd TYPE is
+    /// recorded data, not a lie about the ones we know.
+    pub kind: RenditionType,
+    /// `GROUP-ID` (quoted), when present.
+    pub group_id: Option<String>,
+    /// `NAME` (quoted), when present.
+    pub name: Option<String>,
+    /// `LANGUAGE` (quoted), when present.
+    pub language: Option<String>,
+    /// `DEFAULT=YES`.
+    pub is_default: bool,
+    /// `AUTOSELECT=YES`.
+    pub autoselect: bool,
+    /// `URI` (quoted), resolved against the base — absent for e.g.
+    /// in-stream `CLOSED-CAPTIONS` renditions.
+    pub uri: Option<String>,
+}
+
+/// The `TYPE` of an [`Rendition`] (RFC 8216 §4.3.4.1).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RenditionType {
+    /// `TYPE=AUDIO`.
+    Audio,
+    /// `TYPE=VIDEO`.
+    Video,
+    /// `TYPE=SUBTITLES`.
+    Subtitles,
+    /// `TYPE=CLOSED-CAPTIONS`.
+    ClosedCaptions,
+    /// Any other token, verbatim.
+    Other(String),
+}
+
+/// A dirty-world finding while typing a master playlist (never fatal:
+/// the damaged *row* is skipped, the rest of the master survives —
+/// same posture as the M3U parser's warnings).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MasterWarning {
+    /// 1-based line number of the damaged row.
+    pub line: usize,
+    /// What was wrong.
+    pub kind: MasterWarningKind,
+}
+
+/// What a [`MasterWarning`] names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MasterWarningKind {
+    /// A `#EXT-X-STREAM-INF` row without a parseable `BANDWIDTH`
+    /// (missing, non-numeric, or a damaged attribute list): skipped,
+    /// never assigned a fabricated value.
+    VariantWithoutBandwidth,
+    /// A well-formed attribute value this model does not type (e.g.
+    /// a non-`WxH` `RESOLUTION`): the attribute is dropped, the row
+    /// survives.
+    BadAttributeValue,
+    /// A `#EXT-X-MEDIA` row with a damaged attribute list: skipped.
+    BadRendition,
+}
+
+/// Parse `text` as an HLS **master playlist** (the mirror of
+/// [`parse_media_playlist`]): variant rows and rendition rows typed,
+/// variant URIs resolved against `base` when given.
+///
+/// # Errors
+/// [`HlsPlaylistError`] — `NotHls` (no `#EXTM3U` anywhere),
+/// `MediaPlaylist` (segment lines/`#EXTINF` where variant rows were
+/// expected), `Parse` (line-cap violation). Damaged rows are
+/// warnings, not errors (dirty-world posture).
+pub fn parse_master_playlist(
+    base: Option<&str>,
+    text: &str,
+) -> Result<(MasterPlaylist, Vec<MasterWarning>), HlsPlaylistError> {
+    let saw_extm3u = text.lines().any(|line| line.trim() == "#EXTM3U");
+    if !saw_extm3u {
+        return Err(HlsPlaylistError::NotHls);
+    }
+    let mut master = MasterPlaylist::default();
+    let mut warnings: Vec<MasterWarning> = Vec::new();
+    // A STREAM-INF line is pending until the URI line under it.
+    let mut pending_stream_inf: Option<(usize, Vec<(String, String)>)> = None;
+    let mut saw_media_shape = false;
+
+    for (idx, raw) in text.lines().enumerate() {
+        let line_no = idx + 1;
+        let line = raw.strip_suffix('\r').unwrap_or(raw).trim();
+        if line.is_empty() || line == "#EXTM3U" {
+            continue;
+        }
+        if let Some(attrs) = line.strip_prefix("#EXT-X-STREAM-INF:") {
+            match split_attr_list(attrs) {
+                Some(list) => pending_stream_inf = Some((line_no, list)),
+                None => warnings.push(MasterWarning {
+                    line: line_no,
+                    kind: MasterWarningKind::VariantWithoutBandwidth,
+                }),
+            }
+            continue;
+        }
+        if let Some(attrs) = line.strip_prefix("#EXT-X-MEDIA:") {
+            match split_attr_list(attrs) {
+                Some(list) => {
+                    if let Some(r) = rendition_from_attrs(&list, base) {
+                        master.renditions.push(r);
+                    } else {
+                        warnings.push(MasterWarning {
+                            line: line_no,
+                            kind: MasterWarningKind::BadRendition,
+                        });
+                    }
+                }
+                None => warnings.push(MasterWarning {
+                    line: line_no,
+                    kind: MasterWarningKind::BadRendition,
+                }),
+            }
+            continue;
+        }
+        if line.starts_with('#') {
+            // Media-playlist-only tags are decisive for the refusal
+            // below; everything else is a comment/unknown tag.
+            if line.starts_with("#EXTINF") || line.starts_with("#EXT-X-TARGETDURATION") {
+                saw_media_shape = true;
+            }
+            continue;
+        }
+        // A bare URI line: the variant row's payload.
+        if let Some((line_no, attrs)) = pending_stream_inf.take() {
+            match variant_from_attrs(&attrs, line, base) {
+                Some(v) => master.variants.push(v),
+                None => warnings.push(MasterWarning {
+                    line: line_no,
+                    kind: MasterWarningKind::VariantWithoutBandwidth,
+                }),
+            }
+        }
+        // A URI with no pending STREAM-INF is damage the row-skip
+        // posture tolerates silently only when variants exist; with
+        // none at all the media-shape refusal below stays decisive.
+    }
+
+    if master.variants.is_empty() && master.renditions.is_empty() && saw_media_shape {
+        return Err(HlsPlaylistError::MediaPlaylist);
+    }
+    Ok((master, warnings))
+}
+
+/// Type one variant row from its attribute list + URI line.
+/// `None` = the row must be skipped (no parseable `BANDWIDTH`).
+fn variant_from_attrs(
+    attrs: &[(String, String)],
+    uri: &str,
+    base: Option<&str>,
+) -> Option<Variant> {
+    let bandwidth = attrs
+        .iter()
+        .find(|(n, _)| n == "BANDWIDTH")
+        .and_then(|(_, v)| v.trim().parse::<u64>().ok())?;
+    let find = |name: &str| attrs.iter().find(|(n, _)| n == name).map(|(_, v)| v);
+    let average_bandwidth =
+        find("AVERAGE-BANDWIDTH").and_then(|v| v.trim().parse::<u64>().ok());
+    let program_id = find("PROGRAM-ID").and_then(|v| v.trim().parse::<u64>().ok());
+    let codecs = find("CODECS").cloned();
+    let resolution = find("RESOLUTION").and_then(|v| {
+        let (w, h) = v.split_once('x')?;
+        Some(Resolution {
+            width: w.trim().parse().ok()?,
+            height: h.trim().parse().ok()?,
+        })
+    });
+    let uri = match base {
+        Some(base) => resolve_uri(base, uri),
+        None => uri.to_owned(),
+    };
+    Some(Variant {
+        uri,
+        bandwidth,
+        average_bandwidth,
+        program_id,
+        codecs,
+        resolution,
+    })
+}
+
+/// Type one `#EXT-X-MEDIA` row. `None` = skip the row (only a
+/// missing `TYPE` is that fatal here — the spec marks it REQUIRED).
+fn rendition_from_attrs(attrs: &[(String, String)], base: Option<&str>) -> Option<Rendition> {
+    let find = |name: &str| attrs.iter().find(|(n, _)| n == name).map(|(_, v)| v);
+    let kind = match find("TYPE").map(|v| v.to_owned())? {
+        t if t == "AUDIO" => RenditionType::Audio,
+        t if t == "VIDEO" => RenditionType::Video,
+        t if t == "SUBTITLES" => RenditionType::Subtitles,
+        t if t == "CLOSED-CAPTIONS" => RenditionType::ClosedCaptions,
+        t => RenditionType::Other(t),
+    };
+    let yes = |name: &str| find(name).is_some_and(|v| v.trim() == "YES");
+    let uri = find("URI").map(|u| match base {
+        Some(base) => resolve_uri(base, u),
+        None => u.to_owned(),
+    });
+    Some(Rendition {
+        kind,
+        group_id: find("GROUP-ID").cloned(),
+        name: find("NAME").cloned(),
+        language: find("LANGUAGE").cloned(),
+        is_default: yes("DEFAULT"),
+        autoselect: yes("AUTOSELECT"),
+        uri,
+    })
+}
+
+/// Split an HLS attribute list into `(name, value)` pairs (RFC 8216
+/// §4.2: comma-separated; commas inside quoted strings do not split;
+/// each attribute appears at most once). `None` on structural damage
+/// (missing `=`, unterminated quote, trailing comma, duplicate name).
+fn split_attr_list(input: &str) -> Option<Vec<(String, String)>> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    let mut rest = input;
+    while !rest.is_empty() {
+        let eq = rest.find('=')?;
+        let name = &rest[..eq];
+        if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+            return None;
+        }
+        if out.iter().any(|(n, _)| n == name) {
+            return None; // spec: each attribute appears at most once
+        }
+        let after_eq = &rest[eq + 1..];
+        let (value, after) = if let Some(q) = after_eq.strip_prefix('"') {
+            let close = q.find('"')?;
+            (q[..close].to_owned(), &q[close + 1..])
+        } else {
+            let end = after_eq.find(',').unwrap_or(after_eq.len());
+            (after_eq[..end].to_owned(), &after_eq[end..])
+        };
+        out.push((name.to_owned(), value));
+        rest = match after.strip_prefix(',') {
+            Some("") => return None, // trailing comma
+            Some(next) => next,
+            None if after.is_empty() => break,
+            None => return None, // junk after a closing quote
+        };
+    }
+    Some(out)
 }
 
 #[cfg(test)]
@@ -533,5 +843,146 @@ mod tests {
             model.segments[4].uri,
             "http://cdn.example/hls/ts_vod/pl4.ts"
         );
+    }
+
+    // ------------------------------------------------ 6.B2a master playlists
+
+    const MULTI: &str = "#EXTM3U\n\
+        #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aud\",NAME=\"English\",LANGUAGE=\"en\",DEFAULT=YES,AUTOSELECT=YES,URI=\"audio/en.m3u8\"\n\
+        #EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"sub\",NAME=\"Swedish\",LANGUAGE=\"sv\",URI=\"sub/sv.m3u8\"\n\
+        #EXT-X-STREAM-INF:BANDWIDTH=2000000,AVERAGE-BANDWIDTH=1950000,PROGRAM-ID=1,CODECS=\"avc1.640028,mp4a.40.2\",RESOLUTION=1280x720\n\
+        hi.m3u8\n\
+        #EXT-X-STREAM-INF:BANDWIDTH=800000,CODECS=\"avc1.42e01e,mp4a.40.2\",RESOLUTION=640x360\n\
+        mid.m3u8\n\
+        #EXT-X-STREAM-INF:BANDWIDTH=200000\n\
+        lo.m3u8\n";
+
+    /// The multi-variant fixture: variants and renditions type, URIs
+    /// resolve against the base, playlist order is kept.
+    #[test]
+    fn master_types_variants_and_renditions() {
+        let (master, warnings) =
+            match parse_master_playlist(Some("http://cdn.example/v/master.m3u8"), MULTI) {
+                Ok(pair) => pair,
+                Err(e) => unreachable!("multi-variant fixture must type: {e}"),
+            };
+        assert!(warnings.is_empty());
+        assert_eq!(master.variants.len(), 3);
+        assert_eq!(master.variants[0].uri, "http://cdn.example/v/hi.m3u8");
+        assert_eq!(master.variants[0].bandwidth, 2_000_000);
+        assert_eq!(master.variants[0].average_bandwidth, Some(1_950_000));
+        assert_eq!(master.variants[0].program_id, Some(1));
+        assert_eq!(
+            master.variants[0].codecs.as_deref(),
+            Some("avc1.640028,mp4a.40.2")
+        );
+        assert_eq!(
+            master.variants[0].resolution,
+            Some(Resolution {
+                width: 1280,
+                height: 720
+            })
+        );
+        assert_eq!(master.variants[2].resolution, None);
+        assert_eq!(master.renditions.len(), 2);
+        assert_eq!(master.renditions[0].kind, RenditionType::Audio);
+        assert!(master.renditions[0].is_default && master.renditions[0].autoselect);
+        assert_eq!(master.renditions[0].language.as_deref(), Some("en"));
+        assert_eq!(
+            master.renditions[0].uri.as_deref(),
+            Some("http://cdn.example/v/audio/en.m3u8")
+        );
+        assert_eq!(master.renditions[1].kind, RenditionType::Subtitles);
+        assert!(!master.renditions[1].is_default);
+    }
+
+    /// A single-variant master is a master (selection just has one
+    /// rung); a CLOSED-CAPTIONS rendition with no URI records `None`.
+    #[test]
+    fn master_single_variant_and_uri_less_rendition() {
+        let single = "#EXTM3U\n\
+            #EXT-X-MEDIA:TYPE=CLOSED-CAPTIONS,GROUP-ID=\"cc\",NAME=\"CEA-608\",INSTREAM-ID=\"CC1\"\n\
+            #EXT-X-STREAM-INF:BANDWIDTH=550000,CODECS=\"avc1.4d401f\"\n\
+            only.m3u8\n";
+        let (master, _) = match parse_master_playlist(None, single) {
+            Ok(pair) => pair,
+            Err(e) => unreachable!("single-variant master must type: {e}"),
+        };
+        assert_eq!(master.variants.len(), 1);
+        assert_eq!(master.variants[0].bandwidth, 550_000);
+        assert_eq!(master.variants[0].uri, "only.m3u8");
+        assert_eq!(master.renditions.len(), 1);
+        assert_eq!(master.renditions[0].kind, RenditionType::ClosedCaptions);
+        assert_eq!(master.renditions[0].uri, None);
+    }
+
+    /// Malformed rows skip with warnings, never fabricated values:
+    /// missing BANDWIDTH, unparseable BANDWIDTH, damaged attribute
+    /// lists (unterminated quote, trailing comma).
+    #[test]
+    fn master_malformed_rows_skip_with_warnings() {
+        let malformed = "#EXTM3U\n\
+            #EXT-X-STREAM-INF:BANDWIDTH=1000000\n\
+            good.m3u8\n\
+            #EXT-X-STREAM-INF:RESOLUTION=640x360\n\
+            no-bw.m3u8\n\
+            #EXT-X-STREAM-INF:BANDWIDTH=big\n\
+            bad-bw.m3u8\n\
+            #EXT-X-STREAM-INF:BANDWIDTH=900000,CODECS=\"unterminated\n\
+            broken-quote.m3u8\n\
+            #EXT-X-STREAM-INF:BANDWIDTH=900000,\n\
+            trailing-comma.m3u8\n";
+        let (master, warnings) = match parse_master_playlist(None, malformed) {
+            Ok(pair) => pair,
+            Err(e) => unreachable!("malformed master types with warnings: {e}"),
+        };
+        assert_eq!(master.variants.len(), 1, "only the clean row survives");
+        assert_eq!(master.variants[0].uri, "good.m3u8");
+        assert_eq!(warnings.len(), 4);
+        assert!(warnings.iter().all(|w| w.kind == MasterWarningKind::VariantWithoutBandwidth));
+    }
+
+    /// The mirror refusals: a media playlist where a master was
+    /// expected, and no `#EXTM3U` at all.
+    #[test]
+    fn master_refuses_media_shape_and_non_hls() {
+        let Err(err) = parse_master_playlist(None, VOD) else {
+            unreachable!("media playlist must refuse");
+        };
+        assert!(matches!(err, HlsPlaylistError::MediaPlaylist));
+        assert_eq!(err.code(), "playlists.hls.media-playlist");
+        let Err(err) = parse_master_playlist(None, "hi.m3u8\n") else {
+            unreachable!("no magic must refuse");
+        };
+        assert!(matches!(err, HlsPlaylistError::NotHls));
+    }
+
+    /// The committed master fixtures (card 6.B2a) type cleanly.
+    #[test]
+    fn master_fixture_files_type() {
+        let multi = include_str!("../tests/fixtures/hls/master/multi.m3u8");
+        let (master, warnings) =
+            match parse_master_playlist(Some("http://cdn.example/master/multi.m3u8"), multi) {
+                Ok(pair) => pair,
+                Err(e) => unreachable!("fixture must type: {e}"),
+            };
+        assert!(warnings.is_empty());
+        assert_eq!(master.variants.len(), 3);
+        assert_eq!(master.renditions.len(), 2);
+
+        let single = include_str!("../tests/fixtures/hls/master/single.m3u8");
+        let (master, _) = match parse_master_playlist(None, single) {
+            Ok(pair) => pair,
+            Err(e) => unreachable!("fixture must type: {e}"),
+        };
+        assert_eq!(master.variants.len(), 1);
+
+        let malformed = include_str!("../tests/fixtures/hls/master/malformed.m3u8");
+        let (master, warnings) = match parse_master_playlist(None, malformed) {
+            Ok(pair) => pair,
+            Err(e) => unreachable!("fixture must type: {e}"),
+        };
+        assert_eq!(master.variants.len(), 1);
+        assert!(!warnings.is_empty());
     }
 }

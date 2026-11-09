@@ -33,6 +33,7 @@ use serde::Serialize;
 use crate::catalog::spec::CompletionClass;
 use crate::catalog::types::AspectRatioSpec;
 use crate::catalog::types::AudioDevice;
+use crate::catalog::types::Bookmark;
 use crate::catalog::types::Chapter;
 use crate::catalog::types::ConfigAreaInfo;
 use crate::catalog::types::CropSpec;
@@ -369,6 +370,25 @@ pub enum Command {
         /// Chapter index.
         index: u32,
     },
+    /// `media.get-bookmarks` — the session's bookmark list (class S,
+    /// issue #32).
+    #[serde(rename = "media.get-bookmarks")]
+    MediaGetBookmarks,
+    /// `media.add-bookmark` — bookmark a position (class S, issue #32;
+    /// no pipeline invalidation — not gen-bumping).
+    #[serde(rename = "media.add-bookmark")]
+    MediaAddBookmark {
+        /// Position (µs from media start).
+        time: Timestamp,
+        /// Optional label (untrusted text, V7).
+        label: Option<String>,
+    },
+    /// `media.remove-bookmark` — delete one bookmark (class S, issue #32).
+    #[serde(rename = "media.remove-bookmark")]
+    MediaRemoveBookmark {
+        /// Which bookmark.
+        id: u32,
+    },
 
     // ---- configuration (§2.11) ----
     /// `config.get-setting` — one setting's value + schema meta (S).
@@ -565,6 +585,17 @@ pub enum CommandResult {
         /// Every chapter.
         chapters: Vec<Chapter>,
     },
+    /// `media.get-bookmarks` / `media.remove-bookmark` — the bookmark
+    /// list (issue #32; remove answers with the updated list).
+    Bookmarks {
+        /// Every bookmark, insertion order.
+        bookmarks: Vec<Bookmark>,
+    },
+    /// `media.add-bookmark` — the created bookmark, id assigned (issue #32).
+    BookmarkAdded {
+        /// The new bookmark.
+        bookmark: Bookmark,
+    },
     /// `config.get-setting` — value + schema metadata.
     /// `[VERIFY]` — `schema_meta` is a free-form string map until the
     /// settings-schema crate defines its wire projection.
@@ -668,6 +699,57 @@ mod tests {
             Ok(back) => assert_eq!(back, request),
             Err(err) => unreachable!("round-trip failed: {err}"),
         }
+    }
+
+    #[test]
+    fn bookmark_commands_round_trip_the_wire() {
+        // issue #32: the bookmark trio's wire shapes, pinned.
+        let request = CommandRequest {
+            request_id: RequestId(42),
+            command: Command::MediaAddBookmark {
+                time: Timestamp(1_234_567),
+                label: Some("Intro rewatch".to_string()),
+            },
+        };
+        let json = serde_json::to_string(&request).unwrap();
+        assert_eq!(
+            json,
+            r#"{"requestId":42,"cmd":"media.add-bookmark","args":{"time":1234567,"label":"Intro rewatch"}}"#
+        );
+        match serde_json::from_str::<CommandRequest<Command>>(&json) {
+            Ok(back) => assert_eq!(back, request),
+            Err(err) => unreachable!("round-trip failed: {err}"),
+        }
+        // A null label round-trips as an explicit null (Option<String>).
+        let bare = CommandRequest {
+            request_id: RequestId(43),
+            command: Command::MediaAddBookmark {
+                time: Timestamp(0),
+                label: None,
+            },
+        };
+        let json = serde_json::to_string(&bare).unwrap();
+        assert_eq!(
+            json,
+            r#"{"requestId":43,"cmd":"media.add-bookmark","args":{"time":0,"label":null}}"#
+        );
+        let back: CommandRequest<Command> = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, bare);
+
+        let result = CommandResult::Bookmarks {
+            bookmarks: vec![Bookmark {
+                id: 1,
+                time: Timestamp(1_234_567),
+                label: Some("Intro rewatch".to_string()),
+            }],
+        };
+        let json = serde_json::to_string(&result).unwrap();
+        assert_eq!(
+            json,
+            r#"{"kind":"bookmarks","bookmarks":[{"id":1,"time":1234567,"label":"Intro rewatch"}]}"#
+        );
+        let back: CommandResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, result);
     }
 
     #[test]

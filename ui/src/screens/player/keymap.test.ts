@@ -2,11 +2,14 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_KEYMAP,
+  DIALOG_KEYMAP,
   matchBindings,
+  matchModifierBindings,
   normalizeBindingKey,
   parseKeymap,
   shellActionFor,
 } from "./keymap";
+import { PLAYER_SHELL_KEYMAP } from "./variants";
 
 describe("parseKeymap", () => {
   it("parses the default seed excerpt (keymaps/default.toml lines 154-156)", () => {
@@ -123,5 +126,82 @@ describe("shellActionFor (doc 05 §2.7 shell-target recipes)", () => {
       kind: "forward",
       binding: { id: "x", key: "Q", command: "playback.stop" },
     });
+  });
+});
+
+describe("DIALOG_KEYMAP seed (issue #32 — verbatim keymaps/default.toml rows)", () => {
+  it("carries jump-to-time and bookmarks-dialog exactly as the keymap file spells them", () => {
+    expect(DIALOG_KEYMAP.get("jump-to-time")).toMatchObject({
+      key: "Ctrl+T",
+      uiAction: "goto-time",
+      mode: "player-focused",
+      when: "has-media",
+    });
+    expect(DIALOG_KEYMAP.get("bookmarks-dialog")).toMatchObject({
+      key: "Ctrl+B",
+      uiAction: "bookmarks",
+      mode: "player-focused",
+    });
+  });
+
+  it("stays disjoint from the shell keymap (no silently shadowed ids)", () => {
+    for (const id of DIALOG_KEYMAP.keys()) {
+      expect(DEFAULT_KEYMAP.has(id)).toBe(false);
+      expect(PLAYER_SHELL_KEYMAP.has(id)).toBe(false);
+    }
+  });
+});
+
+describe("matchModifierBindings (issue #32 — exact-combo matching)", () => {
+  const ctrl = (key: string) => ({
+    key,
+    metaKey: false,
+    ctrlKey: true,
+    altKey: false,
+    shiftKey: false,
+  });
+
+  it("matches the exact combo: Ctrl+T fires jump-to-time", () => {
+    const hits = matchModifierBindings(DIALOG_KEYMAP, ctrl("t"));
+    expect(hits.map((b) => b.id)).toEqual(["jump-to-time"]);
+  });
+
+  it("never fires on extra modifiers (Ctrl+Shift+T is not Ctrl+T)", () => {
+    expect(
+      matchModifierBindings(DIALOG_KEYMAP, { ...ctrl("t"), shiftKey: true }),
+    ).toEqual([]);
+  });
+
+  it("never fires on the bare key or wrong modifier (Meta+T); Ctrl+B now opens bookmarks", () => {
+    expect(
+      matchModifierBindings(DIALOG_KEYMAP, {
+        key: "t",
+        metaKey: false,
+        ctrlKey: false,
+        altKey: false,
+        shiftKey: false,
+      }),
+    ).toEqual([]);
+    expect(
+      matchModifierBindings(DIALOG_KEYMAP, { ...ctrl("t"), metaKey: true, ctrlKey: false }),
+    ).toEqual([]);
+    expect(matchModifierBindings(DIALOG_KEYMAP, ctrl("b")).map((b) => b.id)).toEqual([
+      "bookmarks-dialog",
+    ]);
+  });
+
+  it("ignores plain-key bindings and non-player-focused modes", () => {
+    // A plain binding in the same map is not a combo candidate…
+    const mixed = parseKeymap(
+      `[x]
+combo = { key = "Ctrl+K", ui_action = "k", mode = "player-focused" }
+plain = { key = "k", ui_action = "k2", mode = "player-focused" }
+other = { key = "Ctrl+J", ui_action = "j", mode = "always" }
+`,
+    );
+    const plainHit = matchModifierBindings(mixed, ctrl("k"));
+    expect(plainHit.map((b) => b.id)).toEqual(["combo"]);
+    const modeHit = matchModifierBindings(mixed, ctrl("j"));
+    expect(modeHit).toEqual([]);
   });
 });

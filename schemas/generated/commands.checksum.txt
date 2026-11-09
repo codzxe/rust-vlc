@@ -1,7 +1,7 @@
 # Lumen command-catalog checksums (card 1.D4, doc 05 §2-§3) — @generated, never hand-edit.
 # Regenerate with `cargo xtask codegen`. fnv1a64 over the canonical catalog text
 # and over the generated output bytes.
-catalog-fnv1a64: 42775d3f5c7b5b91
-schema-fnv1a64: 91a956a3365743e6
-typescript-fnv1a64: 578409552ecf31cd
-counts: 61 commands / 23 events
+catalog-fnv1a64: 19c6ab0abf4cc032
+schema-fnv1a64: 1bb38e993f10988a
+typescript-fnv1a64: 8a2958a15a5a3bee
+counts: 64 commands / 23 events

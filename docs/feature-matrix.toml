@@ -1432,9 +1432,9 @@ priority = "P1"
 phase_target = 6
 vlc_modules = ["adaptive"]
 inventory_ref = "inventory/formats.json#adaptive-hls-dash"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "6.B1–6.B3 (M+M+S); m3u8-rs 6.0.1 as cross-check; hls-runtime is low-latency niche [VERIFY-P0]; Apple/IETF vectors per 6.B3."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "crates/streaming/src/hls/** (media/live/master) + crates/playlists/src/hls.rs (cards 6.B1a VOD session ffmpeg-oracle e2e, 6.B1b live window + recorded discontinuities, 6.B2a master parse EXT-X-STREAM-INF/EXT-X-MEDIA + highest-BW-under-cap selection, 6.B2b boundary variant switching + absolute-sequence alignment + ABR hysteresis band/dwell); e2e hls_vod_e2e/hls_live_e2e/hls_master_e2e over the mockhttp real socket; streaming 164/0 lib tests"
+notes = "6.B1–6.B3 (M+M+S); m3u8-rs 6.0.1 as cross-check; hls-runtime is low-latency niche [VERIFY-P0]; Apple/IETF vectors per 6.B3. Partial per 6.B2 flip: VOD + live + master/variant switching landed; alternate renditions (EXT-X-MEDIA) parsed+recorded but not selected; KEY/BYTERANGE/MAP + fMP4 lanes refuse typed (streaming.hls.*); live-window variant switching and 6.B3 conformance vectors pending."
 
 [[feature]]
 id = "network-dash"
@@ -1534,9 +1534,9 @@ description = "Next-frame (VLC e) plus design-new previous-frame (, / .)"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s5.2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "C-08: design adds frame-prev = parity GAIN vs VLC; doc 05 §2.4 models Previous."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "partial" }
+evidence = "crates/playback-engine/src/frame_step.rs (FrameStepPlan/plan_frame_step + tests); commands catalog playback.step-frame (next/previous) pre-existed; keymaps/default.toml frame-next '.'/frame-prev ',' pre-existed; ui demo-transport step-frame handler pre-existed"
+notes = "C-08: design adds frame-prev = parity GAIN vs VLC; doc 05 §2.4 models Previous. Engine seam landed: auto-pause flag + signed one-frame Relative SeekTarget, 24 fps fallback [PROPOSAL] until Track carries a frame rate; decode-exact landing (keyframe-safe reanchor) is the honest v0 limit."
 
 [[feature]]
 id = "playback-track-switch"
@@ -1570,9 +1570,9 @@ description = "Chapter next/prev (containers); title/program-SID navigation (dis
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/options-linux.json#key-chapter-next"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Chapters in v1 (MKV/MP4 chapter refs 5.C1/5.D2); titles/program SIDs feature-gated (ui-inventory Q6: no v1 commands)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "partial" }
+evidence = "crates/playback-engine/src/chapters.rs (chapter_at/next_chapter/previous_chapter/chapter_target + tests); catalog media.get-chapters/media.set-chapter + MKV ChapterList (crates/demux/src/mkv/chapters.rs, wave-5 merge 2d0941e) + demo-transport handlers pre-existed"
+notes = "Chapters in v1 (MKV/MP4 chapter refs 5.C1/5.D2); titles/program SIDs feature-gated (ui-inventory Q6: no v1 commands). Engine resolution helpers landed (restart-then-rewind prev [PROPOSAL] 10 s threshold); session-side chapter source + UI chapter display still open."
 
 [[feature]]
 id = "playback-bookmarks"
@@ -1582,9 +1582,9 @@ description = "Named time positions: create/delete/clear, set+play slots 1–10"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/options-linux.json#bookmarks"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Ctrl+B dialog + 20 hotkeys (Ctrl+F1–F10 / F1–F10)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "partial" }
+evidence = "crates/playback-engine/src/bookmarks.rs (BookmarkList add/remove/seek_target/clear + tests); commands catalog media.get-bookmarks/media.add-bookmark/media.remove-bookmark (class S, wire round-trip pinned in command.rs tests + catalog_shape.rs); ui BookmarksDialog.tsx (ui-dialog-bookmarks) + BookmarksDialog.test.tsx; demo-transport bookmark handlers + demo-bookmarks.test.ts; keymap Ctrl+B (DIALOG_KEYMAP seed + keymap.test.ts)"
+notes = "Ctrl+B dialog + 20 hotkeys (Ctrl+F1–F10 / F1–F10). Dialog + engine list semantics landed (create/jump/delete, per-media reset, no id reuse); the set-bookmark-N/play-bookmark-N slot hotkeys (1–10) are the open remainder — they need the keymap row family, not just the dialog."
 
 [[feature]]
 id = "playback-snapshot"
@@ -1594,9 +1594,9 @@ description = "Capture current frame to PNG (path/prefix/format configurable)"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/options-linux.json#snapshot-path"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Shift+S; Snapshot subsection (7 options) maps to recording.dir/format analog; no dialog (immediate)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "partial" }
+evidence = "crates/playback-engine/src/snapshot.rs (SnapshotFormat/SnapshotConfig::plan + tests — snapshot-path/prefix/format family, VLC vlcsnap- prefix, 6-digit counter naming [PROPOSAL: counter over modern wall-clock filename]); commands catalog video.take-screenshot (class A, pre-existed)"
+notes = "Shift+S; Snapshot subsection (7 options) maps to recording.dir/format analog; no dialog (immediate). [PROPOSAL] structural gap, honest: the video-engine sink hands frames to the platform surface with no pixel-readback seam — capture wiring is renderer/video-engine-owned work; the pure planning seam (path derivation + format validation + typed refusals) landed so the readback lands onto a tested plan; wire v1 encodes PNG only (jpg/tiff parse, refused typed)."
 
 [[feature]]
 id = "playback-fullscreen"
@@ -1659,9 +1659,9 @@ description = "Master volume, mute, gain, step sizes"
 priority = "P0"
 phase_target = 2
 inventory_ref = "inventory/options-linux.json#volume-step"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "2.C3 audio path v0 (volume, channel map, straight mix); Ctrl+↑/↓/m design overrides (C-02); --volume-step/--gain options."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "crates/audio-engine/src/effects.rs (EffectChain v0 + Gain/Mute AudioEffect stages, commit 8bd13ed; ui settings area volume slider + mute switch live via audio.set-volume/audio.set-mute + audio.get-volume hydrate, commit 0a8e70d; effects tests 86/0 in crate)"
+notes = "2.C3 audio path v0 (volume, channel map, straight mix); Ctrl+↑/↓/m design overrides (C-02); --volume-step/--gain options. Partial: engine Gain/Mute stages + live settings controls shipped; --gain/--volume-step CLI options and per-track gain still pending."
 
 [[feature]]
 id = "afeat-equalizer"
@@ -1672,9 +1672,9 @@ priority = "P1"
 phase_target = 4
 vlc_modules = ["equalizer"]
 inventory_ref = "inventory/options-summary.md#s5"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Design panels exist (Audio - Equalizer.svg, EQ presets.svg); self-build biquad S, zero new deps; VLC defaults binary-corroborated; [doc 13 FILTER CARD GAP — no engine filter-implementation card, escalated feasibility subsystems §4.1]."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "crates/audio-engine/src/effects/eq.rs (Eq3Band: RBJ-cookbook low shelf 250 Hz + mid peak 1 kHz + high shelf 4 kHz + preamp as an AudioEffect; bit-exact 0 dB identity; known-signal tests incl. analytic |H| shelf/peak gains, commit 70b4276; 86/0 crate tests; ui pending sliders awaiting audio.set-eq)"
+notes = "Design panels exist (Audio - Equalizer.svg, EQ presets.svg); self-build biquad S, zero new deps; VLC defaults binary-corroborated; [doc 13 FILTER CARD GAP — no engine filter-implementation card, escalated feasibility subsystems §4.1]. Partial: engine core is 3-band fixed-corner, NOT VLC's 10-band — band-count/corner generalization, 18 presets, 2-pass, and the audio.set-eq catalog command (D-012) pending; UI sliders render inert-with-reason until that command lands."
 
 [[feature]]
 id = "afeat-compressor"
@@ -1841,9 +1841,9 @@ priority = "P1"
 phase_target = 4
 vlc_modules = ["adjust"]
 inventory_ref = "inventory/options-summary.md#s5"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Video - Essential.svg panel; shader-uniform implementation [PROPOSAL] (one pipeline, zero extra copies, doc 03 §2.3 rule 3)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "crates/video-engine/src/adjust.rs (AdjustParams brightness/contrast/saturation/hue/gamma with range+finite validation, byte-exact neutral identity, CPU reference apply_rgba8; commit 50a7ba6; 48/0 crate tests at that commit; ui pending sliders awaiting video.set-adjust)"
+notes = "Video - Essential.svg panel; shader-uniform implementation [PROPOSAL] (one pipeline, zero extra copies, doc 03 §2.3 rule 3). Partial: parameter model + CPU reference only — GPU/shader-uniform wiring [PROPOSAL] and the video.set-adjust catalog command (D-012) pending; gamma upper range 10.0 [VERIFY exact VLC range]; UI sliders render inert-with-reason until the command lands."
 
 [[feature]]
 id = "vfeat-sharpen-gradfun"
@@ -2774,9 +2774,9 @@ description = "EQ/Compressor/Spatializer/StereoWiden + Essential/Crop/Colors/HDR
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "4.F3: fields present only when the engine supports them — no dead controls; engine halves are the afeat-*/vfeat-* rows [FILTER CARD GAP escalation]."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "ui/src/screens/settings/areas/effects.tsx (Effects & Tools settings area, commits 0a8e70d + EQ follow-up: volume/mute live via audio.set-volume/set-mute; balance + 3-band EQ + video-adjust sliders inert-with-reason pending audio.set-balance/audio.set-eq/video.set-adjust; effects.test.tsx incl. pending-command markers)"
+notes = "4.F3: fields present only when the engine supports them — no dead controls; engine halves are the afeat-*/vfeat-* rows [FILTER CARD GAP escalation]. Partial: settings-area surface only — the full Ctrl+E-style A/V effects dialog (compressor/spatializer/stereo-widen, crop, HDR, EQ presets) not started; every engine-backed field ships disabled-with-reason until its D-012 command card lands."
 
 [[feature]]
 id = "ui-screen-theme"
