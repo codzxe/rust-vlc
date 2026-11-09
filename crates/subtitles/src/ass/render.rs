@@ -60,15 +60,16 @@
 
 use crate::ass::layout::{self, AssAlignment, AssMargins};
 use crate::compositing::bitmap::{CompositedCue, CueBitmap, CueError};
+use crate::font::MetricsError;
 use crate::model::style::{Color as ModelColor, TextStyle};
 use crate::model::{CueId, ModelError};
 use media_types::time::{Stamp, TimeError, TimeSpan, Timestamp};
 
-/// The largest accepted `FontSize`, script px. Any sane script
-/// resolution (PlayRes ≤ 4096) fits; beyond this the metric arithmetic
-/// could overflow `u32` line heights, so it is typed-refused instead of
-/// wrapped (MP §8: no silent truncation).
-pub const MAX_FONT_SIZE_PX: u32 = 8192;
+// The glyph-metrics guard + type moved to the font-stack seam
+// (issue #17 G-5, `crate::font::pipeline`) — re-exported here so the
+// historical `ass::render::GlyphMetrics` path (and its tests) keep
+// resolving; the render path is now a CONSUMER of the seam.
+pub use crate::font::{GlyphMetrics, MAX_FONT_SIZE_PX};
 
 /// The bitmap byte guard: `width × height × 4` beyond this is
 /// typed-refused. 64 MiB covers a full 4K-frame-sized cue with room to
@@ -198,6 +199,17 @@ impl From<TimeError> for AssRenderError {
     }
 }
 
+impl From<MetricsError> for AssRenderError {
+    fn from(err: MetricsError) -> AssRenderError {
+        match err {
+            MetricsError::ZeroFontSize => AssRenderError::ZeroFontSize,
+            MetricsError::FontSizeTooLarge { size_px, max } => {
+                AssRenderError::FontSizeTooLarge { size_px, max }
+            }
+        }
+    }
+}
+
 /// The style inputs the plain-text render path needs (card step 3's
 /// default-style mapping). Structural and small by design — the 5.M2a
 /// parser seam projects ASS `[V4+ Styles]` fields onto this.
@@ -273,48 +285,6 @@ pub const fn ass_colour_to_model(value: u32) -> ModelColor {
     let b = ((value >> 16) & 0xFF) as u8;
     let ass_alpha = ((value >> 24) & 0xFF) as u8; // 00 = opaque
     ModelColor::new(r, g, b, 255 - ass_alpha)
-}
-
-/// The monospace-widest-char glyph metrics (see the module docs for
-/// the honest estimation policy). All exact integer ratios, rounded
-/// half-up — no floats near a pixel.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct GlyphMetrics {
-    /// One cell advance: `3/5 em` (0.6 em, the widest-glyph advance of
-    /// the common monospace faces).
-    pub advance_px: u32,
-    /// The line box: `6/5 em` (1.2 em).
-    pub line_height_px: u32,
-    /// The ascent portion of the line box: 80 % — the glyph block
-    /// height, and the baseline offset within a line.
-    pub ascent_px: u32,
-}
-
-impl GlyphMetrics {
-    /// Derive the metrics from a font size, script px.
-    ///
-    /// # Errors
-    /// [`AssRenderError::ZeroFontSize`] / [`AssRenderError::FontSizeTooLarge`].
-    pub fn from_font_size(size_px: u32) -> Result<Self, AssRenderError> {
-        if size_px == 0 {
-            return Err(AssRenderError::ZeroFontSize);
-        }
-        if size_px > MAX_FONT_SIZE_PX {
-            return Err(AssRenderError::FontSizeTooLarge {
-                size_px,
-                max: MAX_FONT_SIZE_PX,
-            });
-        }
-        let advance = (u64::from(size_px) * 3 + 2) / 5; // 0.6 em, ties up
-        let line_height = (u64::from(size_px) * 12 + 5) / 10; // 1.2 em
-        let ascent = (line_height * 8 + 5) / 10; // 80 % of the line box
-        // Bounded by MAX_FONT_SIZE_PX: 1.2 x 8192 < 2^14 — both fit.
-        Ok(Self {
-            advance_px: advance as u32,
-            line_height_px: line_height as u32,
-            ascent_px: ascent as u32,
-        })
-    }
 }
 
 /// Split cue text into display lines.
@@ -524,11 +494,11 @@ mod tests {
         let m = GlyphMetrics::from_font_size(25).must();
         assert_eq!((m.advance_px, m.line_height_px, m.ascent_px), (15, 30, 24));
         assert_eq!(
-            GlyphMetrics::from_font_size(0),
+            GlyphMetrics::from_font_size(0).map_err(AssRenderError::from),
             Err(AssRenderError::ZeroFontSize)
         );
         assert_eq!(
-            GlyphMetrics::from_font_size(8193),
+            GlyphMetrics::from_font_size(8193).map_err(AssRenderError::from),
             Err(AssRenderError::FontSizeTooLarge {
                 size_px: 8193,
                 max: 8192
