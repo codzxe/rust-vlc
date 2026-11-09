@@ -955,7 +955,9 @@ mod tests {
         assert!(out.contains("video.software-compositor"), "{out}");
         let (out, _err, code) = run_lines("commands", "");
         assert_eq!(code, 0);
-        assert!(out.contains("ok: 61 command(s)"), "{out}");
+        // 64 since main's wave 8 minted the playback-operations
+        // verbs (frame-step, chapter nav, Go-to-Time, bookmarks).
+        assert!(out.contains("ok: 64 command(s)"), "{out}");
         assert!(out.contains("session.open [a]"), "{out}");
         assert!(out.contains("config.set-setting [s]"), "{out}");
     }
