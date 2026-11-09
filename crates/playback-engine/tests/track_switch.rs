@@ -435,6 +435,13 @@ struct Fixture {
     handle: SessionHandle,
     collector: Arc<Collector>,
     clock: Arc<media_clock::MediaClock>,
+    /// The clock's monotonic source (F5, issue #16): a hand-advanced
+    /// virtual clock. A session whose audio limbs are all retired
+    /// (deselect) is video-only from that point, so its end-of-media
+    /// is play-out gated — the drain polls must move the clock, not
+    /// just the pipeline (the same doctrine session_flow's video-only
+    /// drains follow).
+    now: Arc<SharedNow>,
     media: Arc<Mutex<Media>>,
     provider: Arc<CountingProvider>,
 }
@@ -473,9 +480,10 @@ fn open_multi_track(extra_tracks: Vec<Track>, seekable: bool) -> Fixture {
 fn open(tracks: Vec<Track>, packets: Vec<Packet>, seekable: bool) -> Fixture {
     let media = Arc::new(Mutex::new(Media { packets, cursor: 0 }));
     let collector = Arc::new(Collector::default());
+    let now = Arc::new(SharedNow(AtomicU64::new(0)));
     let clock = Arc::new(
         media_clock::MediaClock::system_monotonic(
-            Arc::new(SharedNow(AtomicU64::new(0))),
+            Arc::clone(&now) as Arc<dyn MonotonicSource>,
             Timestamp::new(0, base()),
             media_types::Rate::ONE,
         )
@@ -508,6 +516,7 @@ fn open(tracks: Vec<Track>, packets: Vec<Packet>, seekable: bool) -> Fixture {
         handle,
         collector,
         clock,
+        now,
         media,
         provider,
     }
@@ -1134,6 +1143,14 @@ fn subtitle_swap_delivers_frames_without_av_interruption() {
 /// runs on to `Ended` (the empty-limb relaxation); no
 /// `end-of-track` fires for the retired limb (a retired limb is not
 /// "newly drained").
+///
+/// F5 (issue #16): the deselect leaves the session video-only, so
+/// from the switch terminal onward its end-of-media is play-out
+/// gated — the clock must present the last delivered video frame
+/// before `Drained` translates. The drain polls therefore advance
+/// the fixture's virtual clock (the same doctrine session_flow's
+/// video-only drains follow), and the test pins both halves of the
+/// contract: no `Ended` at drain wall-time, `Ended` after play-out.
 #[test]
 fn audio_deselect_lets_video_run_to_ended() {
     let mut fixture = open_multi_track(vec![], true);
@@ -1159,9 +1176,59 @@ fn audio_deselect_lets_video_run_to_ended() {
         "the deselect terminal fires for the empty selection"
     );
 
-    // Video runs on to Ended; audio stays silent past the boundary.
-    poll_until(&mut fixture, |s| s == SessionState::Ended, 400, "drain");
-    let outputs = fixture.engine.take_outputs();
+    // Drain the pipeline with the clock still frozen: the script,
+    // queues and decoders all exhaust, yet the session must NOT end —
+    // the deselected (video-only) session ends at play-out, not at
+    // drain-completion wall time (the F5 shape was the defect).
+    let total_packets = fixture
+        .media
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .packets
+        .len();
+    for _ in 0..200 {
+        fixture.engine.poll();
+    }
+    assert_eq!(
+        media_cursor(&fixture),
+        total_packets,
+        "the frozen-clock window exhausted the script (drain really ran)"
+    );
+    assert_eq!(
+        fixture.engine.state(),
+        SessionState::Playing,
+        "F5 regression: the video-only session ended at drain wall-time, \
+         before the clock presented the last frame"
+    );
+    let mut outputs = fixture.engine.take_outputs();
+    assert!(
+        !outputs.iter().any(|output| matches!(
+            output,
+            EngineOutput::Event(EngineEvent {
+                kind: EngineEventKind::EndOfMedia,
+                ..
+            })
+        )),
+        "no end-of-media before play-out"
+    );
+
+    // Video runs on to Ended while the clock presents it.
+    for _ in 0..400 {
+        if fixture.engine.state() == SessionState::Ended {
+            break;
+        }
+        fixture.engine.poll();
+        // One 10 ms video-cadence frame's worth of wall per poll
+        // (the fixture's video packets sit at 10 ms spacing).
+        fixture.now.0.fetch_add(10_000_000, Ordering::Relaxed);
+    }
+    assert_eq!(
+        fixture.engine.state(),
+        SessionState::Ended,
+        "drain: state is {} after 400 polls",
+        fixture.engine.state()
+    );
+    outputs.extend(fixture.engine.take_outputs());
     assert!(
         !outputs.iter().any(|output| matches!(
             output,
@@ -1189,6 +1256,23 @@ fn audio_deselect_lets_video_run_to_ended() {
         .filter(|(id, _)| id == &TrackId::new(1))
         .count();
     assert!(video > 0, "video kept playing to the end");
+    // Ended lands only after play-out: the clock covered the last
+    // delivered video frame's pts (the F5 gate, held honestly).
+    let last_video_pts_ns = frames
+        .iter()
+        .filter(|(id, _)| id == &TrackId::new(1))
+        .filter_map(|(_, frame)| stamp_ns(&frame.pts()))
+        .max()
+        .expect("video frames were delivered");
+    let played_out_ns = match media_clock::PlaybackClock::now(&*fixture.clock).as_nanos() {
+        Ok(Nanoseconds(ns)) => ns as i64,
+        Err(_) => 0,
+    };
+    assert!(
+        played_out_ns >= last_video_pts_ns,
+        "end-of-media must not precede play-out (clock {played_out_ns} ns \
+         < last video pts {last_video_pts_ns} ns)"
+    );
 }
 
 fn terms0(outputs: &[EngineOutput]) -> Generation {

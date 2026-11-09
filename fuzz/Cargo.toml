@@ -49,6 +49,9 @@ codecs = { path = "../crates/codecs" }
 demux = { path = "../crates/demux" }
 subtitles = { path = "../crates/subtitles" }
 playlists = { path = "../crates/playlists" }
+# streaming (card 6.C1c): the DASH MPD target's in-crate harness
+# lives at streaming::dash::fuzz (parse + bounded 6.C1b resolution).
+streaming = { path = "../crates/streaming" }
 
 # Release-mode fuzzing keeps overflow checks: integer overflow in a
 # decoder walking attacker bytes is a finding, not noise. (cargo-fuzz
@@ -282,6 +285,13 @@ bench = false
 [[bin]]
 name = "fuzz_playlist_cue"
 path = "fuzz_targets/fuzz_playlist_cue.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_demux_mpd"
+path = "fuzz_targets/fuzz_demux_mpd.rs"
 test = false
 doc = false
 bench = false

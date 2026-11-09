@@ -274,12 +274,33 @@ impl CliHost {
         &self.state_history
     }
 
-    /// The current position (µs) — the audio-master clock's view
-    /// (nanosecond base → µs).
+    /// The current position (µs). Audio-master sessions read the
+    /// sample-counter clock (nanosecond base → µs) — deterministic
+    /// headless, since the null device only moves on `advance`.
+    ///
+    /// Audio-less sessions (no audio limb — video-only media, or the
+    /// limb-less geometry gap) are F3 (issue #16): their clock is the
+    /// system monotonic, so `now()` extrapolates **wall elapsed**
+    /// since the anchor — measured ±60-200 µs across identical
+    /// `--start-time` runs (adts 1.004017 s vs 1.004071 s). The
+    /// deterministic truth is what the session has actually
+    /// presented: the last frame the video scheduler delivered under
+    /// the live generation (its slot time), or — before anything
+    /// presents, the exact `--start-time`/post-seek case — the
+    /// clock's anchor, the landing the engine itself re-anchored on.
+    /// Wall-elapsed is never reported.
     #[must_use]
     pub fn position_us(&self) -> i64 {
         match self.clock.as_ref() {
-            Some(clock) => clock.now().ticks / 1000,
+            Some(clock) if self.device.is_some() => clock.now().ticks / 1000,
+            Some(clock) => {
+                let latched_ns = self
+                    .consumer
+                    .as_ref()
+                    .and_then(|consumer| consumer.last_presented_ns())
+                    .unwrap_or_else(|| clock.anchor().media.ticks);
+                latched_ns / 1000
+            }
             None => 0,
         }
     }

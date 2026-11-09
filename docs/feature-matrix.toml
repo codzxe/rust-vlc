@@ -35,7 +35,7 @@
 schema_version = 1                 # frozen 2026-10-19; bump = Lead change-control
 schema_frozen = "2026-10-19"
 baseline = "VLC 3.0.23 Vetinari (3.0.23-2-0-g79128878dd)"
-last_updated = "2026-10-22"
+last_updated = "2026-11-09"
 populated_by = "0.D2 (Phase 0 synthesis)"
 change_control = "Lead-only per doc 02 §4.7"
 
@@ -908,7 +908,7 @@ vlc_modules = ["subtitle", "libass"]
 inventory_ref = "inventory/formats.json#ass"
 status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
 evidence = "crates/subtitles/src/ass/** (cards 5.M2a parser + 5.M2b render + issue #17 G-2 override-tag engine in ass/tags.rs, commit ba3dd0f; record docs/formats/sub-ass-ssa.md, 5.Q2-V: 3/3 real-ffmpeg ASS docs exact, 9/9 alignment-grid pixel-exact, 2000+2048 fuzz-lite runs clean; G-2: 267/0 lib tests incl. per-tag suites (1bd5519))"
-notes = "The R-09 gap: tag-coverage matrix (render/degrade/drop) + unsupported-tag counters per doc 06 §7.8; libass-output-as-oracle [PROPOSAL]; plain-text subset may land Phase 2 with styling subset in Phase 5 (feasibility subtitles §1 row 2); karaoke/positioning degrade honestly. 5.Q2-V backfill: partial per NEW record. G-2 (issue #17, commit ba3dd0f): override-tag MINIMUM now native — \b \i \u \s \fs \fn \c \1c \alpha \1a \pos \move -> styled runs + position override + per-run render; beyond-minimum tags still degrade honestly (dropped/unmapped counters); libass oracle impossible (C, forbidden)."
+notes = "The R-09 gap: tag-coverage matrix (render/degrade/drop) + unsupported-tag counters per doc 06 §7.8; libass-output-as-oracle [PROPOSAL]; plain-text subset may land Phase 2 with styling subset in Phase 5 (feasibility subtitles §1 row 2); karaoke/positioning degrade honestly. 5.Q2-V backfill: partial per NEW record. G-2 (issue #17, commit ba3dd0f): override-tag MINIMUM now native — \\b \\i \\u \\s \\fs \\fn \\c \\1c \\alpha \\1a \\pos \\move -> styled runs + position override + per-run render; beyond-minimum tags still degrade honestly (dropped/unmapped counters); libass oracle impossible (C, forbidden)."
 
 [[feature]]
 id = "subtitle-vtt"
@@ -1433,8 +1433,8 @@ phase_target = 6
 vlc_modules = ["adaptive"]
 inventory_ref = "inventory/formats.json#adaptive-hls-dash"
 status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
-evidence = "crates/streaming/src/hls/** (media/live/master) + crates/playlists/src/hls.rs (cards 6.B1a VOD session ffmpeg-oracle e2e, 6.B1b live window + recorded discontinuities, 6.B2a master parse EXT-X-STREAM-INF/EXT-X-MEDIA + highest-BW-under-cap selection, 6.B2b boundary variant switching + absolute-sequence alignment + ABR hysteresis band/dwell); e2e hls_vod_e2e/hls_live_e2e/hls_master_e2e over the mockhttp real socket; streaming 164/0 lib tests"
-notes = "6.B1–6.B3 (M+M+S); m3u8-rs 6.0.1 as cross-check; hls-runtime is low-latency niche [VERIFY-P0]; Apple/IETF vectors per 6.B3. Partial per 6.B2 flip: VOD + live + master/variant switching landed; alternate renditions (EXT-X-MEDIA) parsed+recorded but not selected; KEY/BYTERANGE/MAP + fMP4 lanes refuse typed (streaming.hls.*); live-window variant switching and 6.B3 conformance vectors pending."
+evidence = "crates/streaming/src/hls/** (media/live/master/timestamp_map) + crates/playlists/src/hls.rs (cards 6.B1a VOD session ffmpeg-oracle e2e, 6.B1b live window + recorded discontinuities, 6.B2a master parse EXT-X-STREAM-INF/EXT-X-MEDIA + highest-BW-under-cap selection, 6.B2b boundary variant switching + absolute-sequence alignment + ABR hysteresis band/dwell, 6.B3 X-TIMESTAMP-MAP parse + live-edge wallclock + clean-room conformance corpus L1/L2/L3/D1/D2/G1); e2e hls_vod_e2e/hls_live_e2e/hls_master_e2e/hls_conformance_e2e over the mockhttp real socket; streaming 173/0 lib tests; record docs/formats/streaming-hls.md"
+notes = "6.B1–6.B3 (M+M+S) complete incl. 6.B3 record; m3u8-rs 6.0.1 evaluated as cross-check, self-build kept; hls-runtime is low-latency niche [VERIFY-P0]. Partial per evidence-Linux-only: alternate renditions (EXT-X-MEDIA) parsed+recorded but not selected; KEY/BYTERANGE/MAP + fMP4 lanes refuse typed (streaming.hls.*); EXT-X-GAP tolerated (RFC 8216 4.1 ignore) with no gap semantics yet; live-window variant switching pending; X-TIMESTAMP-MAP anchoring [VERIFY] vs real-world corpus."
 
 [[feature]]
 id = "network-dash"
@@ -1445,9 +1445,9 @@ priority = "P1"
 phase_target = 6
 vlc_modules = ["adaptive"]
 inventory_ref = "inventory/formats.json#adaptive-hls-dash"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "6.C1–6.C2; dash-mpd-core 0.1.0 as parse candidate-oracle; fMP4 corpus classes 8–10 prerequisite (feasibility §1.2); DASH-IF vectors (R-37)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "crates/streaming/src/dash/** (resolve/fuzz/abr/sched) + crates/playlists/src/mpd.rs (cards 6.C1a MPD model; 6.C1b SegmentTemplate $Identifier$ substitution incl. printf format tags, SegmentTimeline t+n×d expansion incl. negative @r, SegmentList/SegmentBase, BaseURL folding, typed plan budgets; 6.C1c fuzz_demux_mpd cargo-fuzz target + in-crate deterministic mutation sweep; 6.C2 buffer-based ABR — EWMA throughput, up/down margin bands, dwell, stall-forced down-steps over representation ladders — plus segment scheduling and ISO 8601 availabilityStartTime live-edge join); streaming 191 lib tests (2 ignored) incl. 27 dash"
+notes = "6.C1–6.C2; dash-mpd-core 0.1.0 as parse candidate-oracle; fMP4 corpus classes 8–10 prerequisite (feasibility §1.2); DASH-IF vectors (R-37). Partial per 6.C2 flip: MPD parse, template/list resolution, MPD fuzz, ABR selection, static+dynamic scheduling with live availability join landed; MPD reload loop (minimumUpdatePeriod), timeShiftBufferDepth trimming, multi-Period stitching, CENC decrypt, mockhttp socket e2e + DASH-IF vectors pending. [PROPOSAL] ABR algorithm class (hls-proven watermark/hysteresis vs BBA/BOLA-class rate model) is a Lead decision."
 
 [[feature]]
 id = "network-reconnect-buffering"
@@ -1498,9 +1498,9 @@ description = "Transport state machine: play/pause toggle, stop, session epochs"
 priority = "P0"
 phase_target = 2
 inventory_ref = "inventory/options-linux.json#play-and-pause"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "2.C2 state machine (Idle→Opening→Buffering→Playing→Paused→Ended→Stopped + errors); CLI session 2.D2; core hotkeys Space/S + media keys."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/playback-engine/src/state.rs (SessionState machine: Playing/Paused/Stopped + errors, epoch discipline) + crates/playback-engine/src/session.rs (pub play/pause/stop, lines ~333–349); UI consumption ui/src/screens/player/PlayerScreen.tsx control-bar actions"
+notes = "2.C2 state machine (Idle→Opening→Buffering→Playing→Paused→Ended→Stopped + errors); CLI session 2.D2; core hotkeys Space/S + media keys. Backfill (issue #20): engine transport + session API live (Linux-only evidence, CI 3-OS pending — house convention)."
 
 [[feature]]
 id = "playback-seek"
@@ -1510,9 +1510,9 @@ description = "Arbitrary seek, Go-to-Time, 4 jump magnitudes (extrashort/short/m
 priority = "P0"
 phase_target = 3
 inventory_ref = "inventory/options-linux.json#key-jump-extrashort"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "3.A seek-and-cancellation; jump-size scalars seeded 3/10/60/300 s (keymaps/default.toml); Ctrl+T dialog; seek-step options family."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/playback-engine/src/seek.rs (SeekTarget + seek planning) + crates/playback-engine/src/session.rs (pub seek); jump scalars seeded in keymaps/default.toml (3/10/60/300 s); Ctrl+T dialog ui/src/screens/player/dialogs/GotoTimeDialog.tsx"
+notes = "3.A seek-and-cancellation; jump-size scalars seeded 3/10/60/300 s (keymaps/default.toml); Ctrl+T dialog; seek-step options family. Backfill (issue #20): engine seek + Go-to-Time dialog live (Linux-only evidence, CI 3-OS pending)."
 
 [[feature]]
 id = "playback-rate"
@@ -1522,9 +1522,9 @@ description = "Faster/slower/normal/fine rate steps"
 priority = "P0"
 phase_target = 3
 inventory_ref = "inventory/options-linux.json#rate"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "+/−/=/]/[ hotkeys; rate-step semantics [VERIFY V-08] before recipe implementation; clock-rate interplay 3.B."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "commands catalog playback.set-rate (crates/commands/src/catalog/ids.rs) + typed OpenOptions.rate (crates/commands/src/catalog/types.rs); seed bindings keymaps/default.toml; demo wiring ui/src/client/demo-transport.ts"
+notes = "+/−/=/]/[ hotkeys; rate-step semantics [VERIFY V-08] before recipe implementation; clock-rate interplay 3.B. Backfill (issue #20) partial: typed command surface + seed live; engine clock-rate deliberately NOT in crates/playback-engine/src/lib.rs yet (Phase 3+)."
 
 [[feature]]
 id = "playback-frame-step"
@@ -1546,9 +1546,9 @@ description = "Audio/video/subtitle track select, cycle, reverse-cycle, disable"
 priority = "P0"
 phase_target = 3
 inventory_ref = "inventory/options-linux.json#audio-track"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "tracks.set-*/list commands; b/v/Alt+v/Shift+v hotkeys; dynamic menus from real track lists."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/playback-engine/src/tracks.rs (track model + switch semantics); cycles seeded in keymaps/default.toml (b/v/Alt+V recipes over tracks.list → tracks.set-*)"
+notes = "tracks.set-*/list commands; b/v/Alt+v/Shift+v hotkeys; dynamic menus from real track lists. Backfill (issue #20): engine track model live; dynamic Audio/Subtitle menus still absent (menu-audio/menu-subtitle rows)."
 
 [[feature]]
 id = "playback-av-sync"
@@ -1558,9 +1558,9 @@ description = "Audio/subtitle delay offsets, subtitle sync mark/apply/reset"
 priority = "P0"
 phase_target = 3
 inventory_ref = "inventory/options-linux.json#audio-desync"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "3.B sync and queues; j/k/g/h + Shift+H/J/K + Ctrl+Shift+K hotkeys; --audio-desync option; subtitle-speed factor."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "commands catalog audio.set-delay / video.set-delay / subtitle.set-sync (crates/commands/src/catalog/ids.rs); seed bindings keymaps/default.toml (audio-delay J/K, subtitle-delay G/H, subsync Shift+H/J/K + Ctrl+Shift+K)"
+notes = "3.B sync and queues; j/k/g/h + Shift+H/J/K + Ctrl+Shift+K hotkeys; --audio-desync option; subtitle-speed factor. Backfill (issue #20) partial: typed command surface + seed live; engine A/V sync + queues (3.B) deliberately NOT in crates/playback-engine/src/lib.rs yet."
 
 [[feature]]
 id = "playback-chapter-title"
@@ -1606,9 +1606,9 @@ description = "Enter/leave fullscreen; controller auto-hide"
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/options-linux.json#key-toggle-fullscreen"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "f/Esc; design ⌘F mac variant [VERIFY V-05]; 'i' shows controller (key-intf-show); DirectX-wallpaper mode (w) not-adopted (Windows-only novelty)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "ui/src/screens/player/useFullscreen.ts (card 4.C1 — shell-target handling, web Fullscreen API seam, state synced only from fullscreenchange events) + commands catalog video.set-fullscreen (crates/commands/src/catalog/ids.rs); F binding seeded in keymaps/default.toml"
+notes = "f/Esc; design ⌘F mac variant [VERIFY V-05]; 'i' shows controller (key-intf-show); DirectX-wallpaper mode (w) not-adopted (Windows-only novelty). Backfill (issue #20) partial: UI hook + command id live; desktop Tauri window fullscreen + controller auto-hide wiring open."
 
 [[feature]]
 id = "playback-start-options"
@@ -1618,9 +1618,9 @@ description = "start-time, stop-time, run-time, start-paused input options"
 priority = "P2"
 phase_target = 4
 inventory_ref = "inventory/options-linux.json#start-time"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Playback-control subsection of the options inventory (doc 02 §3.3); maps to session.open params; priority reasoned."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "typed OpenOptions { start_time, start_paused, rate } (crates/commands/src/catalog/types.rs — the session.open param surface)"
+notes = "Playback-control subsection of the options inventory (doc 02 §3.3); maps to session.open params; priority reasoned. Backfill (issue #20) partial: typed command surface live; stop-time/run-time fields + session-side consumption open (crates/playlists/src/mpd.rs is the only start_time consumer today)."
 
 [[feature]]
 id = "playback-record"
@@ -1642,9 +1642,9 @@ description = "Signature scoring over a bounded probe window: format id, confide
 priority = "P0"
 phase_target = 2
 inventory_ref = "docs/13-agent-wave-program.md#2.A2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "2.A2 media-probe crate; probe fixtures (both container variants + garbage + truncated); every demux/codec row depends on this; VLC analog = the score-ranked module probe system (census scores, e.g. ffmpeghw 10001)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/media-probe/src/lib.rs + report.rs + contract.rs (+ config.rs/error.rs — 2.A2 signature scoring over a bounded probe window; probe fixtures incl. garbage + truncated)"
+notes = "2.A2 media-probe crate; probe fixtures (both container variants + garbage + truncated); every demux/codec row depends on this; VLC analog = the score-ranked module probe system (census scores, e.g. ffmpeghw 10001). Backfill (issue #20): probe crate live (Linux-only evidence, CI 3-OS pending)."
 
 # =============================================================================
 # category: audio-feature — 11 rows
@@ -2051,9 +2051,9 @@ description = "Global/session settings area (language, verbosity-adjacent, app i
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/options-summary.md#s5"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/settings/generated/Screens.tsx (GENERATED_AREA_IDS includes global; language/appearance sections) + LocalePicker special widget ui/src/screens/settings/areas/language/LocalePicker.tsx (global.language, registered in ui/src/screens/settings/areas/index.tsx)"
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1). Backfill (issue #20): generated global area screen live."
 
 [[feature]]
 id = "config-area-interface"
@@ -2063,9 +2063,9 @@ description = "Interface settings area (shell behavior, window config)"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/options-summary.md#s5"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/settings/generated/Screens.tsx (GENERATED_AREA_IDS includes interface; appearance/window sections) + ThemeModePicker special widget ui/src/screens/settings/areas/appearance/ThemeModePicker.tsx (interface.theme, registered in ui/src/screens/settings/areas/index.tsx)"
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1). Backfill (issue #20): generated interface area screen live."
 
 [[feature]]
 id = "config-area-privacy"
@@ -2075,9 +2075,9 @@ description = "Privacy settings area (usage stats opt-in-off, metadata-network-a
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/options-summary.md#s5"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/settings/generated/Screens.tsx (GENERATED_AREA_IDS includes privacy; data section) + privacy-network area components ui/src/screens/settings/areas/privacy-network.tsx"
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1). Backfill (issue #20): generated privacy area screen live (usage-stats opt-in-off persisted by onboarding, ui-screen-onboarding)."
 
 [[feature]]
 id = "config-area-playback"
@@ -2087,9 +2087,9 @@ description = "Playback settings area (preferred languages, track settings, star
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/options-summary.md#s5"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/settings/generated/Screens.tsx (GENERATED_AREA_IDS includes playback; tracks/playback sections)"
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1). Backfill (issue #20): generated playback area screen live."
 
 [[feature]]
 id = "config-area-video"
@@ -2099,9 +2099,9 @@ description = "Video settings area (display, deinterlace default, snapshot)"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/options-summary.md#s5"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "ui/src/screens/settings/areas/video.tsx (+ video.test.tsx) — component exists but is NOT registered in SETTINGS_AREA_IDS/SETTINGS_SCREENS (ui/src/screens/settings/areas/index.tsx)"
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1). Backfill (issue #20) partial: video settings area component written + tested but unregistered — unreachable from the settings shell until the registry merge lands."
 
 [[feature]]
 id = "config-area-audio"
@@ -2111,9 +2111,9 @@ description = "Audio settings area (device, exclusivity, volume steps)"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/options-summary.md#s5"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "ui/src/screens/settings/areas/audio.tsx (+ audio.test.tsx, audio-fixtures.ts) — component exists but is NOT registered in SETTINGS_AREA_IDS/SETTINGS_SCREENS (ui/src/screens/settings/areas/index.tsx)"
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1). Backfill (issue #20) partial: audio settings area component written + tested but unregistered (live audio fields currently ship via the effects area — ui-screen-av-tools)."
 
 [[feature]]
 id = "config-area-subtitles"
@@ -2123,9 +2123,9 @@ description = "Subtitles/OSD settings area (font, scale, sync, color)"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/options-summary.md#s5"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "ui/src/screens/settings/areas/subtitles.tsx (+ subtitles.test.tsx) — component exists but is NOT registered in SETTINGS_AREA_IDS/SETTINGS_SCREENS (ui/src/screens/settings/areas/index.tsx)"
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1). Backfill (issue #20) partial: subtitles settings area component written + tested but unregistered."
 
 [[feature]]
 id = "config-area-controls"
@@ -2147,9 +2147,9 @@ description = "Library settings area (watch folders, scan, ignore types)"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/options-summary.md#s5"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/settings/areas/playlist-services.tsx (+ playlist-services.test.tsx) registered as the 'library' area in ui/src/screens/settings/areas/index.tsx (SETTINGS_AREA_IDS/SETTINGS_SCREENS)"
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1). Backfill (issue #20): library area live under the playlist-services component."
 
 [[feature]]
 id = "config-area-network"
@@ -2159,9 +2159,9 @@ description = "Network settings area (proxy, caching, timeouts)"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/options-summary.md#s5"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/settings/areas/privacy-network.tsx NetworkArea (+ privacy-network.test.tsx) registered as the 'network' area in ui/src/screens/settings/areas/index.tsx (SETTINGS_AREA_IDS/SETTINGS_SCREENS)"
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1). Backfill (issue #20): network area live (proxy/caching cluster subset per schema)."
 
 [[feature]]
 id = "config-area-performance"
@@ -2171,9 +2171,9 @@ description = "Performance settings area (caching cluster, hw-decode toggle per 
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/options-summary.md#s5"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/settings/generated/Screens.tsx (GENERATED_AREA_IDS includes performance; resources section incl. hw-decode toggle per ADR-001)"
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1). Backfill (issue #20): generated performance area screen live."
 
 [[feature]]
 id = "config-area-recording"
@@ -2207,9 +2207,9 @@ description = "Nova-fixture rebrand: window title, installer identity, About, CL
 priority = "P0"
 phase_target = 4
 inventory_ref = "docs/07-config-driven-system.md#s8"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "4.H2 automated assertions — the MP §5 proof that nothing is hardcoded; product.toml driven."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "tools/xtask/src/cmd/rebrand.rs (xtask rebrand command — product.toml-driven identity assertions); product schema product.toml + product.schema.json validated by tools/xtask/src/cmd/config_validator.rs"
+notes = "4.H2 automated assertions — the MP §5 proof that nothing is hardcoded; product.toml driven. Backfill (issue #20): rebrand command + product.toml/config-validator toolchain live; per-surface acceptance assertions (installer/About/CLI/logs) fold into the 4.H2 pass."
 
 [[feature]]
 id = "config-profiles"
@@ -2231,9 +2231,9 @@ description = "Dedicated shortcuts dialog: rebinding, conflict detection, Global
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s6"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Design-new surface (VLC 3.0.23 has none — hotkeys live in Preferences→Hotkeys); edits the keymap user layer; 4.E2."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/settings/areas/hotkeys/HotkeysEditor.tsx (+ HotkeysEditor.test.tsx, conflicts.ts conflict detection, overrides.ts user layer, generated/bindings.ts from keymaps/default.toml); browser surface ui/src/screens/shortcuts/ShortcutsScreen.tsx"
+notes = "Design-new surface (VLC 3.0.23 has none — hotkeys live in Preferences→Hotkeys); edits the keymap user layer; 4.E2. Backfill (issue #20): dedicated editor live — rebinding + conflict detection over the seed; Global column + search ride hotkey-global."
 
 [[feature]]
 id = "config-keymap-layers"
@@ -2243,9 +2243,9 @@ description = "Default keymap (141 bindings) + user layer + platform overrides (
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s5"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "keymaps/default.toml from 0.B3; D-003 precedence (design wins over VLC); every entry carries source provenance; Q1 seed-format reconciliation open."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "keymaps/default.toml (141-binding seed, per-entry provenance, [platform_overrides.macos] block); user layer ui/src/screens/settings/areas/hotkeys/overrides.ts (+ HotkeysEditor writes); generated projection ui/src/screens/settings/areas/hotkeys/generated/bindings.ts; persistence seam ui/src/screens/settings/persistence.ts (localStorage MOCK — real config.set-setting bridge open)"
+notes = "keymaps/default.toml from 0.B3; D-003 precedence (design wins over VLC); every entry carries source provenance; Q1 seed-format reconciliation open. Backfill (issue #20) partial: seed + macOS overrides + user layer + editor live; persistence is mock (localStorage), not the config.set-setting command path."
 
 [[feature]]
 id = "config-localization"
@@ -2255,9 +2255,9 @@ description = "en-US 100% key coverage, pseudo-locale proof, generated docs/CLI 
 priority = "P1"
 phase_target = 4
 inventory_ref = "docs/13-agent-wave-program.md#4.H3"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "4.H3; no hardcoded strings (lint); placeholder validation."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/i18n/messages.ts (+ messages.test.ts, en-US key coverage) + pseudo.ts pseudo-locale proof (+ pseudo.render.test.tsx); consumers throughout ui/src (useMsg)"
+notes = "4.H3; no hardcoded strings (lint); placeholder validation. Backfill (issue #20): message catalog + pseudo-locale render proof live."
 
 [[feature]]
 id = "config-advanced-folding"
@@ -2267,9 +2267,9 @@ description = "advanced flag folds rare options behind an expert mode"
 priority = "P2"
 phase_target = 4
 inventory_ref = "inventory/options-summary.md#s1"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "58.3% of VLC's option surface is advanced-folded (861/1476) — schema `advanced` field (doc 07 §5.2) reproduces a dominant VLC UX pattern."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "schemas/settings.toml (advanced = true flags on the rare-option set) + AdvancedArea registered as the 'advanced' area in ui/src/screens/settings/areas/index.tsx (ui/src/screens/settings/areas/advanced.tsx + advanced.test.tsx)"
+notes = "58.3% of VLC's option surface is advanced-folded (861/1476) — schema `advanced` field (doc 07 §5.2) reproduces a dominant VLC UX pattern. Backfill (issue #20): advanced flag + expert-mode area screen live."
 
 [[feature]]
 id = "config-defaults-source"
@@ -2678,9 +2678,9 @@ description = "Main player screen: video canvas, chrome show/auto-hide, empty st
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s3.4"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "4.C1–4.C3; state matrix per doc 08 §5 (no fabricated success); fullscreen controller 'i'."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/player/PlayerScreen.tsx (+ PlayerScreen.test.tsx, states/, controls/, KeyHintStrip.tsx, useChromeAutoHide.ts, layout.ts, keymap.ts — card 4.C1–4.C3 surface incl. empty/loading/error states per doc 08 §5); ui/src/screens/player/useFullscreen.ts (4.C1)"
+notes = "4.C1–4.C3; state matrix per doc 08 §5 (no fabricated success); fullscreen controller 'i'. Backfill (issue #20): screen + state matrix + chrome auto-hide live; keymap dispatch rides the 4.C2 onBinding seam (see hotkey rows)."
 
 [[feature]]
 id = "ui-screen-playlist-library"
@@ -2690,9 +2690,9 @@ description = "Playlist panel (VLC Ctrl+L docked) → library sidebar + file bro
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "4.D1; sorting/view options; drag reorder; design L-key Show/Hide File Browser."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/playlist/PlaylistScreen.tsx + PlaylistPanel.tsx + PlaylistProvider.tsx (+ .test.tsx each); engine-reported shuffle/repeat consumed by the menubar checkboxes (ui/src/components/appshell/AppShell.tsx)"
+notes = "4.D1; sorting/view options; drag reorder; design L-key Show/Hide File Browser. Backfill (issue #20): screen/panel/provider trio live."
 
 [[feature]]
 id = "ui-screen-settings"
@@ -2702,9 +2702,9 @@ description = "Settings framework: 13 generated area screens, search, dirty-stat
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "4.E1–4.E4; VLC Simple/All modes → search + advanced folding; generated-screen snapshot test detects schema drift."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/settings/SettingsScreen.tsx + SettingsProvider.tsx + search.ts + persistence.ts + SettingField.tsx (+ .test.tsx/.ts); generated registry ui/src/screens/settings/generated/Screens.tsx; area merge layer ui/src/screens/settings/areas/index.tsx"
+notes = "4.E1–4.E4; VLC Simple/All modes → search + advanced folding; generated-screen snapshot test detects schema drift. Backfill (issue #20): framework + generated screens + search + mock persistence live; real config.set-setting write path is the open handoff (ui/NEXT-STEPS.md)."
 
 [[feature]]
 id = "ui-screen-media-info"
@@ -2714,9 +2714,9 @@ description = "Media Information (Ctrl+I) + Codec Information (Ctrl+J) merged su
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "4.D2; merged surface [VERIFY-DESIGN]; unknowns render 'Unknown', never invented."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/media-info/MediaInfoScreen.tsx + MediaInfoPanel.tsx + MediaInfoProvider.tsx (+ .test.tsx each, fixtures.ts, format.ts)"
+notes = "4.D2; merged surface [VERIFY-DESIGN]; unknowns render 'Unknown', never invented. Backfill (issue #20): merged Ctrl+I/Ctrl+J surface live."
 
 [[feature]]
 id = "ui-screen-onboarding"
@@ -2726,9 +2726,9 @@ description = "First-run flow: privacy defaults opt-in-off, skippable, persisted
 priority = "P1"
 phase_target = 4
 inventory_ref = "docs/13-agent-wave-program.md#4.F1"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Design-new (Onboarding-1..10.svg); no VLC equivalent."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/onboarding/OnboardingScreen.tsx + onboardingState.ts (+ OnboardingScreen.test.tsx)"
+notes = "Design-new (Onboarding-1..10.svg); no VLC equivalent. Backfill (issue #20): first-run flow live, privacy defaults opt-in-off."
 
 [[feature]]
 id = "ui-screen-miniplayer-music"
@@ -2738,9 +2738,9 @@ description = "Player variants: Miniplayer, Music mode, Light theme"
 priority = "P2"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s3.4"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "4.F2; design-new; VLC macOS Controller window is the loose analog [stale doc]."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/player/variants/MiniPlayer.tsx + MusicMode.tsx + variantKeymap.ts + variantLayout.ts (+ variants.test.tsx)"
+notes = "4.F2; design-new; VLC macOS Controller window is the loose analog [stale doc]. Backfill (issue #20): Miniplayer + Music mode variants live with their own keymap/layout; Light theme rides ui-screen-theme."
 
 [[feature]]
 id = "ui-screen-keyboard-shortcuts"
@@ -2750,9 +2750,9 @@ description = "Dedicated shortcut browser/editor with search + Global column"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s6"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Design-new surface (VLC 3.0.23 has no dedicated dialog — hotkeys in Preferences); see config-hotkey-editor."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/shortcuts/ShortcutsScreen.tsx (+ ShortcutsScreen.test.tsx)"
+notes = "Design-new surface (VLC 3.0.23 has no dedicated dialog — hotkeys in Preferences); see config-hotkey-editor. Backfill (issue #20): shortcut browser live over the seed + editor data."
 
 [[feature]]
 id = "ui-screen-customize"
@@ -2762,9 +2762,9 @@ description = "Per-button/panel customization (buttons, display toggles)"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "4.F*; design's richer model (customize -1..8) replaces VLC's toolbar editor; doc 08 §1.6 data model."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/player/customize/CustomizePanels.tsx + panels.ts + capabilities.ts (+ CustomizePanels.test.tsx)"
+notes = "4.F*; design's richer model (customize -1..8) replaces VLC's toolbar editor; doc 08 §1.6 data model. Backfill (issue #20): panel data + capabilities model live."
 
 [[feature]]
 id = "ui-screen-av-tools"
@@ -2786,9 +2786,9 @@ description = "Light/dark + 9 accents, token-driven"
 priority = "P1"
 phase_target = 4
 inventory_ref = "docs/13-agent-wave-program.md#4.A2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Design-new; 4.A2 token pipeline; semantic tokens lint-enforced."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/settings/areas/appearance/ThemeModePicker.tsx (interface.theme special widget, schema-enum driven) + ui/src/theme/settingsThemeSync.ts (live data-theme on html); token pipeline themes/tokens.json + tools/xtask/src/cmd/tokens.rs"
+notes = "Design-new; 4.A2 token pipeline; semantic tokens lint-enforced. Backfill (issue #20): mode picker + settings-to-ThemeProvider seam live; accent ramps in themes/tokens.json [VERIFY-DESIGN per doc 08 §1]."
 
 [[feature]]
 id = "ui-screen-skins2"
@@ -2817,9 +2817,9 @@ description = "Media open flows: file picker, folder picker, clipboard MRL, drag
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s1.1"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Ctrl+O/Ctrl+F/Ctrl+V; native dialogs via shell (4.H1); design Onboarding folder step."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/open-media/OpenMediaDialog.tsx (+ OpenMediaDialog.test.tsx; AppShell-owned lumen:open-media listener mounts it, opens picked/pasted sources via session.open through ClientProvider — Solstice app-shell workstream 2026-11-08, v2 audit pass 2026-11-09)"
+notes = "Ctrl+O/Ctrl+F/Ctrl+V; native dialogs via shell (4.H1); design Onboarding folder step. Backfill (issue #20): open-media dialog live (clip catalog + Recent + path/URL input); NATIVE file/folder pickers (4.H1) and clipboard-MRL flow still open — path input is the current substitute."
 
 [[feature]]
 id = "ui-dialog-open-network"
@@ -2829,9 +2829,9 @@ description = "Network URL dialog; design adds playlist-title + multi-URL"
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Ctrl+N; adapted per crosswalk (playlist.enqueue-many + playlist.save)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/network-stream/NetworkStreamScreen.tsx (+ NetworkStreamScreen.test.tsx)"
+notes = "Ctrl+N; adapted per crosswalk (playlist.enqueue-many + playlist.save). Backfill (issue #20): network URL dialog live; design playlist-title + multi-URL extras still open."
 
 [[feature]]
 id = "ui-dialog-open-multiple"
@@ -2877,9 +2877,9 @@ description = "Jump to specific time (hh:mm:ss)"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Ctrl+T; design Current Time.svg click-state adaptation."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/player/dialogs/GotoTimeDialog.tsx + parseTimeInput.ts (+ .test.tsx/.ts each); Ctrl+T via DIALOG_KEYMAP in ui/src/screens/player/keymap.ts"
+notes = "Ctrl+T; design Current Time.svg click-state adaptation. Backfill (issue #20): hh:mm:ss jump dialog live, wired to the seek command layer."
 
 [[feature]]
 id = "ui-dialog-bookmarks"
@@ -2889,9 +2889,9 @@ description = "Bookmark create/list/delete/clear dialog"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Ctrl+B; [Extract VERIFY]; 10 slots; design Bookmarks display toggle."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/player/dialogs/BookmarksDialog.tsx (+ BookmarksDialog.test.tsx); engine list crates/playback-engine/src/bookmarks.rs; Ctrl+B via DIALOG_KEYMAP (ui/src/screens/player/keymap.ts + keymap.test.ts)"
+notes = "Ctrl+B; [Extract VERIFY]; 10 slots; design Bookmarks display toggle. Backfill (issue #20): create/jump/delete dialog live over the engine BookmarkList (see playback-bookmarks for the slot-hotkey remainder)."
 
 [[feature]]
 id = "ui-dialog-subtitle-add"
@@ -3003,9 +3003,9 @@ description = "Open File/Folder/Disc/Network/Capture/Clipboard + Recent (11 leaf
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s1.1"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Ctrl+O/F/D/N/C/V accelerators; disc/capture items render disabled-from-data while blocked (F1/F2 rules); menus-as-data per doc 05 §8.3."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "ui/src/components/appshell/AppShell.tsx File menu (menu.file.open-media → ui/src/screens/open-media/OpenMediaDialog.tsx; menu.file.open-network-stream → ui/src/screens/network-stream/NetworkStreamScreen.tsx) over ui/src/components/menu/MenuBar.tsx"
+notes = "Ctrl+O/F/D/N/C/V accelerators; disc/capture items render disabled-from-data while blocked (F1/F2 rules); menus-as-data per doc 05 §8.3. Backfill (issue #20) partial: Open Media + Open Network Stream + accelerators live; disc/capture/clipboard-MRL items and the Recent submenu absent (open-disc/capture bindings seed-only, disabled-from-data)."
 
 [[feature]]
 id = "menu-media-convert-quit"
@@ -3015,9 +3015,9 @@ description = "Convert/Save…, Stream…, Quit"
 priority = "P2"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s1.1"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Quit Ctrl+Q adopted; Convert gated to 7.E3 targets; Stream wizard not-adopted-v1."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "ui/src/components/appshell/AppShell.tsx File menu menu.file.exit (quit wired); Convert/Stream items absent — convert binding seed-only (keymaps/default.toml, disposition not-adopted-v1)"
+notes = "Quit Ctrl+Q adopted; Convert gated to 7.E3 targets; Stream wizard not-adopted-v1. Backfill (issue #20) partial: Quit live in the menubar; Convert/Stream… items not rendered."
 
 [[feature]]
 id = "menu-playback-transport"
@@ -3027,9 +3027,9 @@ description = "Play/Pause, Stop, Previous, Next, Speed ▸ (faster/slower/normal
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s1.2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Space/S/P/N + +/−/=/]/[; design Speed panel adaptation (Values.svg steppers)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "ui/src/components/appshell/AppShell.tsx Playback menu (menu.playback.play-pause/stop/previous/next/shuffle + repeat off/all/one submenu; engine-reported shuffle/repeat checkboxes)"
+notes = "Space/S/P/N + +/−/=/]/[; design Speed panel adaptation (Values.svg steppers). Backfill (issue #20) partial: play/pause/stop/prev/next/shuffle/repeat live; the Speed ▸ submenu (faster/slower/normal/fine) absent — rate rides the hotkey rows + playback-rate only."
 
 [[feature]]
 id = "menu-playback-navigation"
@@ -3123,9 +3123,9 @@ description = "Effects and Filters, Track Synchronization, Media/Codec Informati
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s1.6"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Ctrl+E/I/J/M/P; VLM unsupported-by-design; Program Guide DVB-gated."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "ui/src/components/appshell/AppShell.tsx Tools menu (menu.tools.customize → ui/src/screens/player/customize/, menu.tools.media-info, menu.tools.preferences)"
+notes = "Ctrl+E/I/J/M/P; VLM unsupported-by-design; Program Guide DVB-gated. Backfill (issue #20) partial: Customize/Media info/Preferences items live; Effects and Filters (Ctrl+E), Track Synchronization, Messages (Ctrl+M), Plugins items absent."
 
 [[feature]]
 id = "menu-view"
@@ -3135,9 +3135,9 @@ description = "Playlist, Docked Playlist, Advanced Controls, Status Bar, Minimal
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s1.7"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Ctrl+L/U/A/H; minimal-view vs design hide-UI (Ctrl+\\) fold decision open (C-05); Advanced Controls concept replaced by per-button customization."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "ui/src/components/appshell/AppShell.tsx View menu (menu.view.player/music-mode/miniplayer/playlist/media-info/shortcuts/settings — variant + screen navigation)"
+notes = "Ctrl+L/U/A/H; minimal-view vs design hide-UI (Ctrl+\\) fold decision open (C-05); Advanced Controls concept replaced by per-button customization. Backfill (issue #20) partial: player/Music-mode/Miniplayer/Playlist/Media info/Shortcuts/Settings items live; Docked Playlist, Advanced Controls, Status Bar, Minimal View items absent (hide-ui binding seed-only)."
 
 [[feature]]
 id = "menu-help"
@@ -3147,9 +3147,9 @@ description = "Help, About, ReadMe/Update"
 priority = "P2"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s1.8"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "About = product.toml data; accelerator set [VERIFY]."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "ui/src/components/appshell/AppShell.tsx Help menu (menu.help.about, menu.help.keyboard-shortcuts → ui/src/screens/shortcuts/)"
+notes = "About = product.toml data; accelerator set [VERIFY]. Backfill (issue #20) partial: About + Keyboard Shortcuts items live; Help and ReadMe/Update items absent."
 
 [[feature]]
 id = "menu-context-surface"
@@ -3200,9 +3200,9 @@ description = "play-pause (Space), stop (S), prev (P), next (N), pause-only, pla
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s5.2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Group row for 6 of the 111 binary-observed actions; media-key bindings (Media Play/Pause etc.) included."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "keymaps/default.toml (playback.play/pause/stop/toggle-play-pause + playlist.prev/next + media keys); browser/editor ui/src/screens/shortcuts/ShortcutsScreen.tsx + ui/src/screens/settings/areas/hotkeys/HotkeysEditor.tsx; dispatch ui/src/screens/player/keymap.ts → PlayerScreen.tsx onBinding seam (control-bar subset wired: playback.play/pause/toggle-play-pause)"
+notes = "Group row for 6 of the 111 binary-observed actions; media-key bindings (Media Play/Pause etc.) included. Backfill (issue #20) partial: seed + shortcuts browser + editor live; the 4.C2 command dispatch is seam-only beyond the control-bar subset."
 
 [[feature]]
 id = "hotkey-seek"
@@ -3212,9 +3212,9 @@ description = "jump extrashort/short/medium/long ± (Shift/Ctrl/Ctrl+Alt+arrows)
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s5.2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "3/10/60/300 s jump-size scalars in keymap seed; design arrows = seek (C-01)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "keymaps/default.toml (playback.seek command, jump-magnitude args 3/10/60/300 s); engine crates/playback-engine/src/seek.rs + session seek(); browser/editor ui/src/screens/shortcuts/ShortcutsScreen.tsx + ui/src/screens/settings/areas/hotkeys/HotkeysEditor.tsx; dispatch seam ui/src/screens/player/keymap.ts"
+notes = "3/10/60/300 s jump-size scalars in keymap seed; design arrows = seek (C-01). Backfill (issue #20) partial: seed + editor live, engine seek implemented (playback-seek); full key→command dispatch rides the 4.C2 seam."
 
 [[feature]]
 id = "hotkey-rate"
@@ -3224,9 +3224,9 @@ description = "faster (+), slower (−), normal (=), faster-fine (]), slower-fin
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s5.2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Rate-step semantics [VERIFY V-08]."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "keymaps/default.toml (playback.set-rate command entries); commands catalog playback.set-rate (crates/commands/src/catalog/ids.rs); browser/editor ui/src/screens/shortcuts/ShortcutsScreen.tsx + ui/src/screens/settings/areas/hotkeys/HotkeysEditor.tsx; dispatch seam ui/src/screens/player/keymap.ts"
+notes = "Rate-step semantics [VERIFY V-08]. Backfill (issue #20) partial: seed + catalog command + editor live; engine clock-rate interplay (3.B) not implemented (crates/playback-engine/src/lib.rs 'deliberately NOT here')."
 
 [[feature]]
 id = "hotkey-volume"
@@ -3236,9 +3236,9 @@ description = "vol-up/down/mute (Ctrl+↑/↓ in VLC; design uses bare ↑/↓ p
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s5.2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "m mute; volume-down/up media keys."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "keymaps/default.toml (volume-up/down Up/Down + mute M recipes → audio.set-volume); browser/editor ui/src/screens/shortcuts/ShortcutsScreen.tsx + ui/src/screens/settings/areas/hotkeys/HotkeysEditor.tsx; dispatch seam ui/src/screens/player/keymap.ts"
+notes = "m mute; volume-down/up media keys. Backfill (issue #20) partial: seed + editor live; recipe dispatch (audio.set-volume steps) rides the 4.C2 seam (volume/mute live in the effects area via audio.set-volume/set-mute — see ui-screen-av-tools)."
 
 [[feature]]
 id = "hotkey-frame-step"
@@ -3248,8 +3248,9 @@ description = "frame-next (e in VLC; design , / . adds frame-prev — C-08 parit
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s5.2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "keymaps/default.toml frame-next '.'/frame-prev ',' → playback.step-frame (design adds frame-prev, C-08); engine crates/playback-engine/src/frame_step.rs; ui demo-transport step-frame handler; browser/editor ui/src/screens/shortcuts/ShortcutsScreen.tsx + ui/src/screens/settings/areas/hotkeys/HotkeysEditor.tsx"
+notes = "Backfill (issue #20) partial: seed + editor + engine plan + demo handler live; decode-exact landing is the honest v0 limit (see playback-frame-step)."
 
 [[feature]]
 id = "hotkey-track"
@@ -3259,9 +3260,9 @@ description = "audio-track (b), subtitle-track (v), subtitle-revtrack (Alt+v), s
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s5.2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Program-SID cycling (x/Shift+x) sits in hotkey-navigation; audio-device cycle (Shift+A) in afeat-audio-device-switch — the 111 actions partition exactly across groups (see matrix-seed-notes §3.4)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "keymaps/default.toml (audio-track-cycle B / subtitle-track-cycle V / -reverse Alt+V recipes over tracks.list → tracks.set-*); engine crates/playback-engine/src/tracks.rs; browser/editor ui/src/screens/shortcuts/ShortcutsScreen.tsx + ui/src/screens/settings/areas/hotkeys/HotkeysEditor.tsx"
+notes = "Program-SID cycling (x/Shift+x) sits in hotkey-navigation; audio-device cycle (Shift+A) in afeat-audio-device-switch — the 111 actions partition exactly across groups (see matrix-seed-notes §3.4). Backfill (issue #20) partial: seed + editor + engine track model live; recipe dispatch rides the 4.C2 seam."
 
 [[feature]]
 id = "hotkey-sync"
@@ -3271,9 +3272,9 @@ description = "audiodelay up/down (j/k), subdelay up/down (g/h), subsync markaud
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s5.2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "macOS F/G/H/J variant set [VERIFY V-05/V-08 step sizes]; Q8 platform-mode gating."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "keymaps/default.toml (audio-delay J/K, subtitle-delay G/H, subsync-mark-audio/mark-sub/apply/reset Shift+H/J/K + Ctrl+Shift+K; [platform_overrides.macos] F/G/H/J [VERIFY] variants); commands audio.set-delay/video.set-delay/subtitle.set-sync (crates/commands/src/catalog/ids.rs); browser/editor ui/src/screens/shortcuts/ShortcutsScreen.tsx + ui/src/screens/settings/areas/hotkeys/HotkeysEditor.tsx"
+notes = "macOS F/G/H/J variant set [VERIFY V-05/V-08 step sizes]; Q8 platform-mode gating. Backfill (issue #20) partial: seed (+macOS overrides) + catalog commands + editor live; engine sync (3.B) not implemented."
 
 [[feature]]
 id = "hotkey-video-display"
@@ -3283,9 +3284,9 @@ description = "fullscreen (f), leave-fullscreen (Esc), aspect (a), crop (c) + 4 
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s5.2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Deinterlace d/Shift+d bound but engine-blocked (vfeat-deinterlace) — renders disabled-from-data."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "keymaps/default.toml (fullscreen F, aspect A, crop C + 4 px-crops, zoom Z + Alt+1–4 presets, deinterlace D/Shift+D); ui/src/screens/player/useFullscreen.ts (4.C1); browser/editor ui/src/screens/shortcuts/ShortcutsScreen.tsx + ui/src/screens/settings/areas/hotkeys/HotkeysEditor.tsx"
+notes = "Deinterlace d/Shift+d bound but engine-blocked (vfeat-deinterlace) — renders disabled-from-data. Backfill (issue #20) partial: seed + editor + fullscreen hook live; aspect/crop/zoom/deinterlace recipes ride the 4.C2 seam (engine vfeat rows own the effects)."
 
 [[feature]]
 id = "hotkey-subtitle-scale"
@@ -3295,9 +3296,9 @@ description = "text-scale up/down/normal (Ctrl+wheel/Ctrl+0) + subpos up/down (u
 priority = "P2"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s5.2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Help-string swap for scale-up/-down recorded (name is authoritative)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "keymaps/default.toml (subtitle.set-scale command entries, Ctrl+wheel/Ctrl+0 family; subpos unbound as in VLC); browser/editor ui/src/screens/shortcuts/ShortcutsScreen.tsx + ui/src/screens/settings/areas/hotkeys/HotkeysEditor.tsx"
+notes = "Help-string swap for scale-up/-down recorded (name is authoritative). Backfill (issue #20) partial: seed + editor live; recipe dispatch rides the 4.C2 seam."
 
 [[feature]]
 id = "hotkey-playlist"
@@ -3307,9 +3308,9 @@ description = "random (r), loop (l), clear-playlist (Ctrl+w)"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s5.2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "C-04: l repurposed to File Browser by design; repeat-cycle left unbound (button instead)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "keymaps/default.toml (playlist.clear Ctrl+W, playlist.set-shuffle, playlist.prev/next); engine-reported shuffle/repeat checkboxes consumed by ui/src/components/appshell/AppShell.tsx; browser/editor ui/src/screens/shortcuts/ShortcutsScreen.tsx + ui/src/screens/settings/areas/hotkeys/HotkeysEditor.tsx"
+notes = "C-04: l repurposed to File Browser by design; repeat-cycle left unbound (button instead). Backfill (issue #20) partial: seed + editor + shuffle/repeat state live; loop hotkey unbound by design, clear rides the 4.C2 seam."
 
 [[feature]]
 id = "hotkey-bookmarks"
@@ -3319,8 +3320,9 @@ description = "set-bookmark1..10 (Ctrl+F1–F10) + play-bookmark1..10 (F1–F10)
 priority = "P2"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s5.2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "keymaps/default.toml (set-bookmark-1..10 Ctrl+F1–F10 + play-bookmark-1..10 F1–F10 ui_actions); engine crates/playback-engine/src/bookmarks.rs; browser/editor ui/src/screens/shortcuts/ShortcutsScreen.tsx + ui/src/screens/settings/areas/hotkeys/HotkeysEditor.tsx"
+notes = "Backfill (issue #20) partial: all 20 seed bindings + editor live; slot-command dispatch (set/play-bookmark-N beyond the dialog) rides the 4.C2 seam — same remainder as playback-bookmarks."
 
 [[feature]]
 id = "hotkey-navigation"
@@ -3330,9 +3332,9 @@ description = "chapter-next/prev (Shift+n/Shift+p), title-next/prev (Shift+b/Shi
 priority = "P2"
 phase_target = 7
 inventory_ref = "inventory/ui-inventory.md#s5.2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Chapters work in-container; title/disc-menu entries disc-gated; merged with track row's program actions where duplicated there."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "keymaps/default.toml (chapter-prev/next Shift+P/N recipes over playback.seek, title-prev/next Shift+O/B flagged Q6); engine crates/playback-engine/src/chapters.rs; browser/editor ui/src/screens/shortcuts/ShortcutsScreen.tsx + ui/src/screens/settings/areas/hotkeys/HotkeysEditor.tsx"
+notes = "Chapters work in-container; title/disc-menu entries disc-gated; merged with track row's program actions where duplicated there. Backfill (issue #20) partial: seed + editor + engine chapter helpers live; recipe dispatch + session-side chapter source open (see playback-chapter-title)."
 
 [[feature]]
 id = "hotkey-nav-disc"
@@ -3354,9 +3356,9 @@ description = "snapshot (Shift+s), record (Shift+r)"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s5.2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "D-1 resolved: Shift+R (Onboarding-2 and VLC agree; context-menu R is simplified display); record gated to 7.E2 capability."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "keymaps/default.toml (snapshot Shift+S → video.take-screenshot command; record Shift+R → ui_action record-toggle, feature-gated v1); engine plan crates/playback-engine/src/snapshot.rs; browser/editor ui/src/screens/shortcuts/ShortcutsScreen.tsx + ui/src/screens/settings/areas/hotkeys/HotkeysEditor.tsx"
+notes = "D-1 resolved: Shift+R (Onboarding-2 and VLC agree; context-menu R is simplified display); record gated to 7.E2 capability. Backfill (issue #20) partial: both seed bindings + editor live; snapshot readback seam and record capability are the open remainders (playback-snapshot / playback-record)."
 
 [[feature]]
 id = "hotkey-interface"
@@ -3366,9 +3368,9 @@ description = "quit (Ctrl+q), intf-show (i), intf-popup-menu (Menu), intf-boss (
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s5.2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Boss key unbound in VLC; wallpaper (w) moved to hotkey-wallpaper-360."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "keymaps/default.toml (quit Ctrl+Q, hide-ui, show-controls-fullscreen, toggle-position-display; intf-boss unbound as in VLC); browser/editor ui/src/screens/shortcuts/ShortcutsScreen.tsx + ui/src/screens/settings/areas/hotkeys/HotkeysEditor.tsx; quit wired in ui/src/components/appshell/AppShell.tsx"
+notes = "Boss key unbound in VLC; wallpaper (w) moved to hotkey-wallpaper-360. Backfill (issue #20) partial: seed + editor + quit live; hide-ui/show-controls dispatch rides the 4.C2 seam."
 
 [[feature]]
 id = "hotkey-global"

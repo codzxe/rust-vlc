@@ -86,13 +86,15 @@ fn version_prints_the_crate_version() {
     );
 }
 
-/// The catalog introspection: all 61 ids with their classes; every
+/// The catalog introspection: all 64 ids with their classes; every
 /// id the dispatch table serves is present.
 #[test]
 fn commands_lists_the_whole_catalog() {
     let (out, err, code) = run(&["commands"], "");
     assert_eq!(code, 0, "stderr:\n{err}");
-    assert!(out.contains("ok: 61 command(s)"), "{out}");
+    // 64 since main's wave 8 minted the playback-operations verbs
+    // (frame-step, chapter nav, Go-to-Time, bookmarks).
+    assert!(out.contains("ok: 64 command(s)"), "{out}");
     for id in [
         "session.open",
         "session.close",

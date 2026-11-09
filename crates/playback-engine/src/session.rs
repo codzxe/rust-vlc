@@ -2112,8 +2112,18 @@ impl Session {
             return;
         };
         // S2.3f — the audio switch freezes the clock at the old
-        // position now (the video switch does not touch it).
-        if kind == WiredKind::Audio {
+        // position now (the video switch does not touch it), so the
+        // completion's re-anchor lands on the new track's first-frame
+        // truth instead of a position extrapolated across the switch
+        // window. A **deselect** never re-anchors — no limb is coming,
+        // so `complete_switch` only publishes the generation — and it
+        // must not freeze either: retiring the last audio limb leaves
+        // a video-only session whose end-of-media is play-out gated
+        // on the clock (F5, issue #16), and a clock frozen here would
+        // wedge that gate shut forever (the audio-deselect drain
+        // regression: state stuck Playing with the script, queues and
+        // decoders long exhausted).
+        if kind == WiredKind::Audio && !matches!(resolved, ResolvedSelection::Deselect) {
             self.runtime.clock.pause();
         }
         let generation = self.pair().pipeline.as_queue_generation();

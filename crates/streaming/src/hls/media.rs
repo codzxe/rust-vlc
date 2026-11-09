@@ -88,6 +88,7 @@ use plugin_api::{SeekOrigin, SourcePosition, SourceStream};
 
 use crate::error::NetworkError;
 use crate::fetch::{ByteRange, DEFAULT_RESPONSE_LIMIT, HttpFetch, HttpRequest};
+use crate::hls::timestamp_map::TimestampMap;
 
 /// Default retention budget for the seekable prefix: 64 MiB,
 /// mirroring the ranged resource's window default
@@ -620,6 +621,12 @@ fn content_range_total(value: Option<&str>) -> Option<u64> {
     total.parse::<u64>().ok()
 }
 
+/// The `#EXT-X-TIMESTAMP-MAP:` tag prefix (card 6.B3): parsed from
+/// the raw playlist body by [`crate::hls::timestamp_map`] — the
+/// shared grammar tolerates it as an unknown tag, so the live
+/// session's mapping is extracted from the text it already holds.
+pub(super) const TAG_TIMESTAMP_MAP: &str = "#EXT-X-TIMESTAMP-MAP:";
+
 /// Map the playlists crate's typed refusals into the engine taxonomy
 /// (each cause keeps its own dotted code so tests and UI copy can
 /// match on vocabulary, not Display text).
@@ -697,13 +704,15 @@ pub(super) fn map_fetch_err(err: NetworkError) -> EngineError {
 /// Fetch and type one media playlist (shared by the VOD and live
 /// sessions, 6.B1b's extraction of the identical open/reload
 /// prelude): one budgeted GET, the success check, the UTF-8 check,
-/// and the typed model. Returns the model plus the response body's
-/// byte count — the caller folds both into its own stats accounting.
+/// and the typed model. Returns the model, the `X-TIMESTAMP-MAP`
+/// carried by this playlist body (6.B3; `None` when absent or
+/// unparseable — never fatal), and the response body's byte count —
+/// the caller folds all into its own stats accounting.
 pub(super) fn fetch_playlist_model(
     fetch: &Arc<dyn HttpFetch>,
     url: &str,
     response_limit: u64,
-) -> Result<(MediaPlaylist, u64), EngineError> {
+) -> Result<(MediaPlaylist, Option<TimestampMap>, u64), EngineError> {
     let request = HttpRequest::get(url.to_owned()).with_response_limit(response_limit);
     let body = match fetch.fetch(request) {
         Ok(resp) if resp.is_success() => resp.body,
@@ -721,7 +730,8 @@ pub(super) fn fetch_playlist_model(
     let text = std::str::from_utf8(&body)
         .map_err(|_| playlist_corrupt("streaming.hls.playlist-not-utf8"))?;
     let (model, _warnings) = parse_media_playlist_typed(url, text)?;
-    Ok((model, bytes))
+    let timestamp_map = TimestampMap::from_playlist_text(text);
+    Ok((model, timestamp_map, bytes))
 }
 
 #[cfg(test)]
