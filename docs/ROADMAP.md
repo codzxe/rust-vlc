@@ -130,7 +130,13 @@ per doc 01 §7 — the former ROADMAP identities "WebCodecs-as-hw-analog" /
 "DVD/Blu-ray per-title" were unregistered; the WebCodecs proposal is
 tracked un-numbered at doc 09 §10/§12 Q6) · ADR-009 **WASM threading &
 COOP/COEP [PROPOSAL]** (per doc 01 §7) · ADR-010 **codec patent &
-redistribution policy [PROPOSAL]** (user + counsel; the shipping matrix) ·
+redistribution policy — drafted, pending counsel sign-off (2026-11-09,
+issue #24)** (`docs/adr/ADR-010-codec-patent-shipping.md`; decision record
+complete: per-codec evidence matrix, options a–d, recommended posture (a)
+default-build = patent-clean tier + optional/plugin encumbered builds
+[PROPOSAL]; 24-item counsel ledger Q1–Q24 open; status *proposed* — user +
+counsel decide; hard trigger = Phase-8 packaging 8.E1–8.E3, no public binary
+before it per R-03) ·
 ADR-011 TLS/HTTPS — **decision EXECUTED in Phase 6** (6.A1b-RATIFY: ureq
 3.5.0 + ring 0.17.14 as an ADR-001-class exception, the streaming layer's
 HTTP(S) foundation; `docs/adr/ADR-011-tls-https.md` status line still reads

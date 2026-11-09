@@ -585,31 +585,48 @@ extension-boundary reading, patent-clause preference, fork/rebrand policy.
 
 ### 8.3 Codec patent risk register (ADR-010 input, MP §14)
 
+> **ADR-010 status (2026-11-09, issue #24):** the decision record is now
+> drafted — `docs/adr/ADR-010-codec-patent-shipping.md` — with the full
+> implementation inventory, the per-codec posture table below re-based on
+> current code, four shipping options, a recommended posture **[PROPOSAL]**
+> and a 24-item counsel question ledger. **Decisions remain PENDING COUNSEL**
+> (its Q1–Q24); the ADR stays *proposed* until the user+counsel sign-off gate
+> passes, and R-03's rule stands: no public binary distribution of any build
+> before that. This register remains the input layer; the ADR is the
+> decision layer.
+
 Source licenses ≠ patent licenses. A permissively licensed decoder can
 still embody patented techniques; distributing a decoder can trigger pool
 licensing. Register (best-effort facts — **every pool/status line is
 `[VERIFY: current pool membership, rates, and jurisdiction reading with
-counsel]`; this is a flag-for-legal-review, not a legal opinion**):
+counsel]`; this is a flag-for-legal-review, not a legal opinion**).
+Exposure column refreshed 2026-11-09 to the implementation reality
+(ADR-010 §1 is the file-evidence authority):
 
-| Family | Patent posture (to verify) | Lumen exposure | Mitigation options |
+| Family | Patent posture (to verify) | Lumen exposure (2026-11-09) | Mitigation options |
 |---|---|---|---|
-| H.264/AVC | multiple pools (Via LA successor to MPEG LA's AVC pool; Access Advance; individual holders) cover *implementers/distributors* of decoders | direct if we ship a software decoder (none exists yet — doc 04 §4.2); using OS decoders (Apple/Microsoft license their stacks) may shift exposure to the OS vendor, but distributor liability is jurisdiction-dependent | ADR-010 shipping matrix: hw-only builds, regional builds, source-build path |
-| HEVC | notoriously fragmented (3+ pools + individual licensors) | worse than AVC; same hw-only reality (doc 04 §4.3) | same |
-| MPEG-2 / MPEG-4 ASP | MPEG-2 pool largely expired (2019+) `[VERIFY]`; ASP pool status varies | future self-build phases (6+) | re-verify at build time |
-| AAC | active pools (Via Licensing AAC) covering decoders | Symphonia AAC-LC ships in Phase 2 — **flag before first public binary release** | ADR-010 gate: audio-codec feature split |
-| MP3 | principal patents expired (~2017) `[VERIFY: tail patents]` | low | none expected |
-| Opus | royalty-free: IETF RFC 6716; contributors granted royalty-free licenses; Cisco/MS patent commitments `[VERIFY]` | none expected | none |
-| VP8/VP9 | Google's irrevocable royalty-free patent pledge `[VERIFY: scope]` | none expected | none |
-| AV1 | AOMedia member royalty-free grant with defensive-termination clause `[VERIFY]` | rav1d no-asm path | none |
-| FLAC / Vorbis | no known patent claims (Xiph's stated position) `[VERIFY]` | none expected | none |
-| AC-3/E-AC-3, DTS, TrueHD | Dolby/DTS licensing regimes `[VERIFY]` | decoders are `missing` today (doc 04 §3.1) | register before any self-build lands |
+| H.264/AVC | multiple pools (Via LA successor to MPEG LA's AVC pool; Access Advance; individual holders) cover *implementers/distributors* of decoders | software decoder still absent (parser + hw seam only — `crates/codecs/src/video/h264/**`, doc 04 §4.2); using OS decoders (Apple/Microsoft license their stacks) may shift exposure to the OS vendor, but distributor liability is jurisdiction-dependent (ADR-010 Q3) | ADR-010 shipping matrix: hw-only builds, regional builds, source-build path |
+| HEVC | notoriously fragmented (3+ pools + individual licensors) | worse than AVC; same hw-only reality (doc 04 §4.3; `crates/codecs/src/video/hevc/**` — parser + hw seam, no software decode; ADR-010 Q2) | same |
+| MPEG-2 / MPEG-4 ASP | MPEG-2 pool largely expired (2019+) `[VERIFY]`; ASP pool status varies | no decoders: MPEG-2 is parser/facts-only (5.H1), ASP candidate oxideav-mpeg4video BLOCKED at the differential gate (ADR-010 Q4/Q5) | re-verify at build time |
+| AAC | active pools (Via Licensing AAC) covering decoders | **AAC-LC decoder implemented** (`crates/codecs/src/audio/aac/**`, card 5.C2a, symphonia-codec-aac =0.6.1) — the one implemented Tier-B codec; **flag before first public binary release stands** (ADR-010 Q6) | ADR-010 gate: audio-codec feature split |
+| MP3 | principal patents expired (~2017) `[VERIFY: tail patents]` | MP3/MP2 decoders implemented (cards 5.A3/5.J3b) — proposed default-build included (ADR-010 Q7) | none expected |
+| Opus | royalty-free: IETF RFC 6716; contributors granted royalty-free licenses; Cisco/MS patent commitments `[VERIFY]` | decoder implemented (card 6.M-opus, ruopus =0.1.2) — proposed default-build included (ADR-010 Q8) | none |
+| VP8/VP9 | Google's irrevocable royalty-free patent pledge `[VERIFY: scope]` | VP9 decoder implemented (card 6.M-vp9, rusty_vp9 =0.1.3; matrix row drift noted in ADR-010 §1) — proposed default-build included (ADR-010 Q9) | none |
+| AV1 | AOMedia member royalty-free grant with defensive-termination clause `[VERIFY]` | rav1d no-asm decoder implemented (card 5.E1) — proposed default-build included (ADR-010 Q10) | none |
+| FLAC / Vorbis | no known patent claims (Xiph's stated position) `[VERIFY]` | decoders implemented (cards 5.A1/5.B2) — proposed default-build included (ADR-010 Q11) | none |
+| AC-3/E-AC-3, DTS, TrueHD | Dolby/DTS licensing regimes `[VERIFY]` | decoders still unadmitted: oxideav-ac3 and truehd both BLOCKED at their admission gates, DTS has no candidate (ADR-010 Q12–Q14) | register before any self-build/admission lands (precondition already written into the records) |
+| DNxHD/HR (VC-3) | **repo silent — ADR-010 Q15** `[VERIFY: counsel]` | decoder implemented (card 6.M-dnx, filmcraft-dnx =0.9.0 — record covers license/purity only) | tier decision pending counsel |
+| MJPEG, ADPCM, ALAC, PCM | repo silent on patents — ADR-010 Q16–Q19 `[VERIFY: counsel]` | all implemented in-house (2.B4/5.J2/5.J3a/2.B5) | tier decision pending counsel |
 | Fonts/subtitle rendering | not codec patents, but font licenses (OFL…) when bundling | doc 08 interim-font decision | ledger row required |
 
 **Jurisdiction variance:** patent exhaustion, offering-for-sale doctrines
 (e.g. Germany) and utility-model regimes differ; a "safe in the US" read is
 not a global read. ADR-010 outputs a **shipping matrix**: which codecs are
 compiled into which distributed binaries, with regional variance recorded
-and the honest-parity rule applied (blocked where undistributable).
+and the honest-parity rule applied (blocked where undistributable). The
+drafted ADR (above) proposes option (a) — default build = patent-clean tier,
+encumbered codecs behind optional/plugin builds per doc 06 §4.1 — **pending
+user+counsel sign-off**; the jurisdiction question itself is its Q22.
 
 ### 8.4 Third-party asset licensing
 
@@ -685,6 +702,11 @@ postinstall-script packages without review `[PROPOSAL]`).
   oxisynth LGPL case and the cargo-deny license allowlist.
 - **Q2 (ADR-010):** codec patent shipping matrix posture (§8.3) — hw-only
   distributed builds? regional binaries? source-only for encumbered codecs?
+  **Status: decision record drafted 2026-11-09
+  (`docs/adr/ADR-010-codec-patent-shipping.md`; issue #24) — evidence
+  complete, options a–d, recommendation (a) `[PROPOSAL]`; awaiting user +
+  counsel on its Q1–Q24 ledger. Decision still pending; no binary
+  distribution until it passes (R-03).**
 - **Q3:** fixture-license allowlist (§8.4) — confirm CC-BY-SA exclusion and
   the four allowed classes.
 - **Q4:** platform-ABI crate class (§1.2 note): pre-approve `libc`/`rustix`
