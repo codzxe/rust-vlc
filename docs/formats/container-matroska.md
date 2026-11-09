@@ -188,7 +188,7 @@ close). Verified in-tree this session:
 
 ---
 
-## Issue #34 addendum (2026-11-09, W4-I — finish MKV/WebM)
+## Issue #34 addendum (2026-11-09, W5-I resuming the dead W4-I runs — finish MKV/WebM)
 
 The Lead merge follow-up the two addenda above waited on, landed in
 three milestones (3e82379 wiring, 2e7472b the wiring suite +
@@ -254,7 +254,8 @@ sweep (mkv_editions_tags.rs) skip loudly — their recorded results
 stand as recorded, not re-run here. Gaps 2/3 (stream-scope title via
 `TrackEntry.Name`, stream language) remain 5.D1 surfaces, unchanged.
 
-Gates this session (worktree `wt/w3i` @ the issue-#34 commits):
+Gates, re-verified at the final flip commit (worktree `wt/w3i` @
+the issue-#34 commits):
 `cargo test -p demux` **587 passed / 0 failed / 4 ignored** (28
 suites; the 9-test wiring suite included, the 4 ignores are the
 absent-corpus skips); `cargo clippy -p demux --all-targets
