@@ -489,7 +489,7 @@ impl HlsAdaptiveStream {
     /// Fetch and type the variant playlist at `url`, refusing the
     /// B1a-unplayable shapes with the media session's codes.
     fn load_variant_plan(&mut self, url: &str) -> Result<Vec<PlannedSegment>, EngineError> {
-        let (model, _bytes) =
+        let (model, _timestamp_map, _bytes) =
             fetch_playlist_model(&self.fetch, url, self.config.playlist_response_limit)?;
         self.stats.requests += 1;
         self.stats.playlists_fetched += 1;
