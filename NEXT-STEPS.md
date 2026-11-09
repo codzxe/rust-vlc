@@ -19,8 +19,10 @@ completed/stale items were dropped in the consolidation (audit in issue
 
 27 of the 34 tracker issues resolved today via 11 orchestrated waves
 (merge evidence: `git log --oneline --grep="issue #"`). Still open: #4
-(Tauri desktop packaging — INFRA-BLOCKED,
-`apps/desktop/tauri/INFRA-BLOCKED.md`), #22 (Phase 7 program), #23
+(Tauri desktop packaging — INFRA-BLOCKED;
+  close package with the done/blocked split and the unblock recipe:
+  `apps/desktop/tauri/INFRA-BLOCKED.md`, per-OS verdicts PENDING in
+  `docs/adr/ADR-004-os-webview.md`), #22 (Phase 7 program), #23
 (Phase 8 program), #38 (ogg fix in flight), #39 (TLS activation follow-up).
 
 ### Moved out of the queue this pass (were Now/Next/Blocked items)
