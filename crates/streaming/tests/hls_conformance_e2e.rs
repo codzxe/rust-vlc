@@ -215,12 +215,10 @@ fn reload_cadence_at_the_exact_target_duration_boundary() {
         #EXT-X-MEDIA-SEQUENCE:0\n\
         #EXTINF:1.0,\ns00.ts\n\
         #EXTINF:1.0,\ns01.ts\n\
+        #EXTINF:1.0,\nt00.ts\n\
         #EXT-X-ENDLIST\n";
     let open_at_boundary = |advance: u64, probe: &str| {
-        let server = serve(vec![
-            w1.as_bytes().to_vec(),
-            w2.as_bytes().to_vec(),
-        ]);
+        let server = serve(vec![w1.as_bytes().to_vec(), w2.as_bytes().to_vec()]);
         let clock = FakeClock::new();
         let fetch: Arc<dyn HttpFetch> = Arc::new(MockClient::new());
         let config = HlsLiveConfig {
@@ -234,8 +232,9 @@ fn reload_cadence_at_the_exact_target_duration_boundary() {
                 Ok(s) => s,
                 Err(e) => unreachable!("{probe}: live must open: {e}"),
             };
-        // Join back=1: fetch s01 (1 segment), then advance virtual
-        // time to the boundary and demand the reload.
+        // Join back=1 on a 2-segment window: s01 is the first
+        // segment served. Drain it, then advance virtual time to
+        // the boundary and demand the reload.
         let one = fixture("s01.ts").len();
         let played = match read_exactly(&mut stream, one) {
             Ok(b) => b,
@@ -243,13 +242,18 @@ fn reload_cadence_at_the_exact_target_duration_boundary() {
         };
         assert_eq!(played.len(), one);
         clock.advance_ms(advance);
-        let oracle = cat(&["s01.ts", "s00.ts"]);
-        let _ = oracle;
+        // The reload delivers t00 + ENDLIST: the stream ends at
+        // cat(s01, t00) — s00 is behind the join cursor and is
+        // never served (a live join never rewinds).
         let drained = match read_exactly(&mut stream, usize::MAX / 2) {
             Ok(b) => b,
             Err(e) => unreachable!("{probe}: read to the end: {e}"),
         };
-        assert_eq!(drained, cat(&["s01.ts", "s00.ts"]), "{probe}: bytes");
+        assert_eq!(drained, fixture("t00.ts"), "{probe}: bytes");
+        assert!(
+            stream.read(64).unwrap_or_default().is_empty(),
+            "{probe}: ended"
+        );
         (stream.stats().paced_reloads, stream.stats().playlist_reloads)
     };
     // At the exact boundary (2 s elapsed, wait 2 s): no sleep.
@@ -279,8 +283,7 @@ fn discontinuity_seam_with_continuing_timestamps() {
         #EXTINF:2.507756,\ns00.ts\n\
         #EXTINF:2.507756,\ns01.ts\n\
         #EXT-X-DISCONTINUITY\n\
-        #EXTINF:2.507767,\nt00.ts\n\
-        #EXT-X-ENDLIST\n";
+        #EXTINF:2.507767,\nt00.ts\n";
     let server = serve(vec![body.as_bytes().to_vec()]);
     let fetch: Arc<dyn HttpFetch> = Arc::new(MockClient::new());
     let config = HlsLiveConfig {
@@ -308,14 +311,24 @@ fn discontinuity_seam_with_continuing_timestamps() {
         .unwrap_or_else(|| panic!("the t00 boundary carries the seam flag"));
     assert_eq!(seam.offset as usize, seam_offset, "seam sits at t00");
     // One map for the whole playlist: the mapping before/after the
-    // seam is the SAME anchor — continuing timestamps.
+    // seam is the SAME anchor — continuing timestamps. 60 s of
+    // media past the anchor (5_400_000 ticks) converts exactly (a
+    // whole number of milliseconds, so the inverse round-trips
+    // bit-exactly).
     let map = stream.timestamp_map().expect("the playlist carries a map");
-    let after_seam_pts = map.pts_for_wallclock_ms(map.wallclock_ms_for_pts(900_000 + 2_507_756 + 2_507_756));
-    assert_eq!(after_seam_pts, 900_000 + 5_015_512);
+    assert_eq!(
+        map.wallclock_ms_for_pts(900_000 + 5_400_000),
+        1_577_836_800_000 + 60_000
+    );
+    assert_eq!(
+        map.pts_for_wallclock_ms(1_577_836_860_000),
+        900_000 + 5_400_000,
+        "the inverse round-trips across the seam's mapping"
+    );
     assert_eq!(
         stream.live_edge_wallclock_ms(),
-        Some(1_577_836_800_000 + 7_523),
-        "edge = anchor + all three EXTINF"
+        Some(1_577_836_800_000 + 7_524),
+        "edge = anchor + all three EXTINF (each rounded to ms)"
     );
 }
 
@@ -343,7 +356,7 @@ fn discontinuity_seam_with_encoder_timestamp_reset() {
         #EXTINF:2.507756,\ns00.ts\n\
         #EXTINF:2.507756,\ns01.ts\n\
         #EXT-X-DISCONTINUITY\n\
-        #EXT-X-TIMESTAMP-MAP:MPEGTS=8589844592,LOCAL=2020-01-01T01:00:00Z\n\
+        #EXT-X-TIMESTAMP-MAP:MPEGTS=8589034592,LOCAL=2020-01-01T01:00:00Z\n\
         #EXTINF:2.507767,\nt00.ts\n\
         #EXTINF:2.507767,\nt01.ts\n\
         #EXT-X-ENDLIST\n";
@@ -368,17 +381,22 @@ fn discontinuity_seam_with_encoder_timestamp_reset() {
         Err(e) => unreachable!("read across the reset seam: {e}"),
     };
     assert_eq!(streamed, oracle, "bytes undisturbed by the reset");
-    // After the reload: the SUPERSEDING map governs (PTS reset to
-    // just before the 33-bit wrap, LOCAL jumped an hour) — the
-    // last tag in the playlist wins, per the tag's
-    // forward-application rule.
+    // After the reload: the SUPERSEDING map governs — the MPEG-2
+    // counter reset to 10 s BEFORE the 33-bit wrap (2^33 − 900000)
+    // and `LOCAL` jumped an hour, the documented shape of an
+    // encoder restart. The last tag in the playlist wins, per the
+    // tag's forward-application rule.
     let map = stream.timestamp_map().expect("the reloaded window carries a map");
-    assert_eq!(map.mpegts, 8_589_844_592, "the reset PTS anchor (2^33 - 900000)");
+    assert_eq!(map.mpegts, 8_589_034_592, "the reset PTS anchor (2^33 - 900000)");
     assert_eq!(map.local_ms, 1_577_840_400_000, "LOCAL jumped an hour");
     // The wrap-adjacent anchor still converts exactly (rollover
-    // arithmetic): PTS 900000 (1 s past the wrap) is +10 s of media.
-    assert_eq!(map.wallclock_ms_for_pts(900_000), 1_577_840_410_000);
-    assert_eq!(map.wallclock_ms_for_pts(PTS_MODULUS - 900_000), 1_577_840_400_000);
+    // arithmetic; every delta below is a whole number of ms):
+    // the anchor itself, the wrap point 10 s later, one second
+    // past the wrap, and the inverse back across it.
+    assert_eq!(map.wallclock_ms_for_pts(8_589_034_592), 1_577_840_400_000);
+    assert_eq!(map.wallclock_ms_for_pts(PTS_MODULUS), 1_577_840_410_000);
+    assert_eq!(map.wallclock_ms_for_pts(90_000), 1_577_840_411_000);
+    assert_eq!(map.pts_for_wallclock_ms(1_577_840_411_000), 90_000);
     // The seam itself was recorded on t00's boundary.
     assert_eq!(stream.stats().discontinuities, 1);
     let seam_offset = fixture("s00.ts").len() + fixture("s01.ts").len();
@@ -405,8 +423,7 @@ fn gap_tag_is_tolerated_no_gap_semantics_yet() {
         #EXT-X-MEDIA-SEQUENCE:0\n\
         #EXTINF:2.507756,\ns00.ts\n\
         #EXT-X-GAP\n\
-        #EXTINF:2.507756,\ns01.ts\n\
-        #EXT-X-ENDLIST\n";
+        #EXTINF:2.507756,\ns01.ts\n";
     let server = serve(vec![body.as_bytes().to_vec()]);
     let fetch: Arc<dyn HttpFetch> = Arc::new(MockClient::new());
     let config = HlsLiveConfig {
