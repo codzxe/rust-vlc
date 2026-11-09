@@ -2353,9 +2353,9 @@ priority = "P0"
 phase_target = 2
 vlc_modules = ["alsa", "pulse", "adummy", "afile", "amem"]
 inventory_ref = "inventory/platform-synthesis.md"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "ADR-005 recommendation [PROPOSAL]: cpal conditional-E2 + pre-authorized direct adapters; first vertical runs dummy/null aout in CI, real sinks labeled; Linux purity hole: only pulseaudio-protocol is pure (R-29)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "crates/audio-output/** (ADR-005 seam: AudioBackend trait + NullBackend + typed UnsupportedBackend stubs, AC suites sine_sink_hash/callback_budget/clock_truth); crates/audio-output/src/cpal.rs (AUDIO_ADR005_ADMITTED flip point + typed BackendNotAdmitted marker, the streaming TLS seam pattern); crates/audio-output/src/{pump,pattern}.rs + tests/pcm_pipeline.rs (wave-14 PCM pipeline proof: clock-synced bounded-queue pump, exact sine oracle, drop/backpressure policy); docs/dependencies/records/{cpal-0.18.2.md,audio-output-cpal.md}; docs/adr/ADR-005-audio-output.md (admission-spike outcome)"
+notes = "ADR-005 recommendation [PROPOSAL]: cpal conditional-E2 + pre-authorized direct adapters; first vertical runs dummy/null aout in CI, real sinks labeled; Linux purity hole: only pulseaudio-protocol is pure (R-29). Refreshed wave 14 (issue #1): status is partial-seam, not done — the L4 seam + null backend + PCM pipeline (pump/pattern/clock) are implemented and tested, cpal admission spike audited with real cargo-tree data (Linux alsa-sys, macOS coreaudio-sys+bindgen chain, Windows windows-0.54 graph; C-FFI unsafe counts; sandbox build failure exit 101), verdict UNCHANGED: cpal conditional-E2, NOT admitted (Lead-gated). Flips on the Lead's ADR-005 admission; no real-device evidence exists (typed marker refuses on every platform)."
 
 [[feature]]
 id = "platform-aout-wasapi"

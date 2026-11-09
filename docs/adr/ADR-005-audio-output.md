@@ -124,7 +124,7 @@ implemented architecture this ADR now accepts.
 - Device-loss behavior (doc 03 §4.9 d) is re-scored when the policy
    configuration lands (decision 5).
 
-## Admission-spike outcome (wave 14, issue #1 — 2026-10-22)
+## Admission-spike outcome (wave 14, issue #1 — 2026-11-09)
 
 The wave-14 admission spike produced a second, independent evidence
 base (`docs/dependencies/records/audio-output-cpal.md`): real `cargo

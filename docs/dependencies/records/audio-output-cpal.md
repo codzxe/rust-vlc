@@ -5,7 +5,7 @@
 > (resolved **0.15.3**; the newer **0.18.2** already carries the card-2.C3
 > P0 record, `records/cpal-0.18.2.md` — cross-referenced throughout).
 > Every graph/license/MSRV/unsafe statement below is **real cargo output**
-> gathered 2026-10-22 in a throwaway `/tmp/cpal-spike` project (never this
+> gathered 2026-11-09 in a throwaway `/tmp/cpal-spike` project (never this
 > workspace — **cpal is not admitted and not a workspace dependency**; the
 > 1.E5-R negative-fixture convention). Toolchain: cargo 1.99.1
 > (5f94df478 2026-08-27).
@@ -183,7 +183,7 @@ sha256 + publisher pins at admission — the 0.18.2 record's R9 procedure.]`
 - **`rodio`:** *"Audio playback and recording library"* (0.23.0,
   2026-10-11) — **not a backend alternative**: its normal dependencies
   include **`cpal ^0.18.2`** (crates.io dependencies API, fetched
-  2026-10-22). It is a higher-level convenience layer on top of the same
+  2026-11-09). It is a higher-level convenience layer on top of the same
   substrate.
 - **Pure-Rust conclusion:** no pure-Rust path to OS audio output exists
   on any desktop target — every OS exposes audio through C ABIs (ALSA C
@@ -220,6 +220,6 @@ decision 3:
 
 *Evidence posture (AGENTS §3.4): every graph, license, MSRV, unsafe
 count and build failure above was produced by real cargo/crates.io API
-runs in the build sandbox on 2026-10-22 (`/tmp/cpal-spike`, exit codes
+runs in the build sandbox on 2026-11-09 (`/tmp/cpal-spike`, exit codes
 recorded un-piped where they matter: build = 101). Nothing ran against a
 real audio device; nothing here asserts device behavior.*
