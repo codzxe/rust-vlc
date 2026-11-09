@@ -109,6 +109,9 @@ pub struct ArrayRow {
 pub struct Document {
     pub tables: Vec<Table>,
     pub arrays: Vec<ArrayRow>,
+    /// Bare top-level `key = value` entries before any `[table]` header
+    /// (the locale catalogs use quoted dotted keys this way).
+    pub root_entries: Vec<(String, Value)>,
 }
 
 impl Document {
@@ -125,11 +128,16 @@ impl Document {
         self.arrays.iter().filter(|r| r.name == name).collect()
     }
 
-    /// Scalar lookup by dotted path `table.sub.key` (any table depth).
+    /// Scalar lookup by dotted path: `key` (bare root entry) or
+    /// `table.sub.key` (any table depth).
     pub fn get(&self, dotted: &str) -> Option<&Value> {
         let segments: Vec<&str> = dotted.split('.').collect();
-        if segments.len() < 2 {
-            return None;
+        if segments.len() == 1 {
+            return self
+                .root_entries
+                .iter()
+                .find(|(k, _)| k == segments[0])
+                .map(|(_, v)| v);
         }
         let (key, table_path) = segments.split_last()?;
         self.tables
@@ -142,6 +150,12 @@ impl Document {
             .iter()
             .find(|(k, _)| k == key)
             .map(|(_, v)| v)
+    }
+
+    /// Whether a bare top-level key exists (quoted catalog keys like
+    /// `"product.description"`).
+    pub fn has_root_key(&self, key: &str) -> bool {
+        self.root_entries.iter().any(|(k, _)| k == key)
     }
 }
 
@@ -214,8 +228,21 @@ pub fn parse(text: &str) -> Result<Document, ParseError> {
                 message: format!("expected `key = value` or a header, got `{trimmed}`"),
             });
         };
-        let key = trimmed[..eq].trim().to_string();
-        if key.is_empty() || key.contains('.') {
+        let key = if trimmed.starts_with('"') {
+            // Quoted key (e.g. `"product.description" = "..."` in the
+            // locale catalogs): one literal segment, dots included.
+            let end = trimmed[1..]
+                .find('"')
+                .map(|p| p + 1)
+                .ok_or_else(|| ParseError {
+                    line: lineno,
+                    message: format!("unterminated quoted key in `{trimmed}`"),
+                })?;
+            parse_string(&trimmed[..=end], lineno)?
+        } else {
+            trimmed[..eq].trim().to_string()
+        };
+        if key.is_empty() || (!trimmed.starts_with('"') && key.contains('.')) {
             return Err(ParseError {
                 line: lineno,
                 message: format!("unsupported key `{key}` (dotted keys are not in the subset)"),
@@ -241,17 +268,16 @@ pub fn parse(text: &str) -> Result<Document, ParseError> {
     Ok(doc)
 }
 
-/// Attach a parsed entry to the current table or the last array row.
+/// Attach a parsed entry to the current table, the last array row, or the
+/// document's bare root entries.
 fn attach(doc: &mut Document, current: &mut Option<(Vec<String>, usize)>, key: String, value: Value) {
     if let Some((_, idx)) = *current {
         doc.tables[idx].entries.push((key, value));
     } else if let Some(row) = doc.arrays.last_mut() {
         row.entries.push((key, value));
+    } else {
+        doc.root_entries.push((key, value));
     }
-    // Neither a table nor an array row is open: the file starts with bare
-    // key-value pairs. None of the audited files do this; drop loudly is
-    // not possible here (parse already succeeded), so ignore — callers
-    // validate required keys anyway.
 }
 
 /// Strip a `#` comment, respecting double-quoted strings on the line.
