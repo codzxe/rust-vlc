@@ -1,8 +1,12 @@
 //! The style-token subset \[PROPOSAL\] (card 5.L2): bold, italic,
-//! underline, color — deliberately the SRT-trivial run set (doc 04 §5
-//! row 1) plus WebVTT's `color`. Karaoke, fonts, size and the rest of
-//! the tag zoo are NOT modeled yet; 5.L1's parsers degrade them
-//! honestly per doc 06 §7.8 instead of silently dropping them here.
+//! underline, strikeout, color, font size and font name. The SRT-
+//! trivial run set (doc 04 §5 row 1) plus WebVTT's `color`; the ASS
+//! override-tag minimum (issue #17 G-2: `\b \i \u \s \fs \fn
+//! \c \alpha`) extends the same token with `strikeout`, exact
+//! fixed-point font size and the font family name. Karaoke, rotation
+//! and the rest of the tag zoo are NOT modeled yet; those parsers
+//! degrade honestly per doc 06 §7.8 instead of silently dropping
+//! them here.
 
 use crate::model::error::ModelError;
 
@@ -89,8 +93,10 @@ fn hex_val(b: u8) -> Option<u8> {
 }
 
 /// The style-token subset \[PROPOSAL\]: bold / italic / underline /
-/// optional RGBA color. Copy + `Eq` — a span table is an array of these.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+/// strikeout / optional RGBA color / optional exact font size and
+/// family. Clone + `Eq` — `Option<Box<str>>` for the name keeps a run
+/// 40 bytes on 64-bit without a `String` header.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct TextStyle {
     /// Bold.
     pub bold: bool,
@@ -98,28 +104,64 @@ pub struct TextStyle {
     pub italic: bool,
     /// Underline.
     pub underline: bool,
+    /// Strikeout (ASS `\s`, issue #17 G-2).
+    pub strikeout: bool,
     /// Text color; `None` = inherit the track style.
     pub color: Option<Color>,
+    /// Font size in thousandths of a unit (`16` → `16_000`), exact
+    /// fixed point — no float near layout (MP §8); `None` = inherit.
+    /// (ASS `\fs`, issue #17 G-2.)
+    pub font_size_milli: Option<i64>,
+    /// Font family name; `None` = inherit the track style. (ASS
+    /// `\fn`, issue #17 G-2.)
+    pub font_name: Option<Box<str>>,
 }
 
 impl TextStyle {
-    /// Construct from flags.
+    /// Construct from the four original subset flags (bold / italic /
+    /// underline / color); strikeout and the font fields default to
+    /// inherit — call the `with_*` builders to set them.
     pub const fn new(bold: bool, italic: bool, underline: bool, color: Option<Color>) -> Self {
         Self {
             bold,
             italic,
             underline,
+            strikeout: false,
             color,
+            font_size_milli: None,
+            font_name: None,
         }
     }
 
-    /// All flags off, no color override.
+    /// All flags off, no color, no font overrides.
     pub const PLAIN: Self = Self {
         bold: false,
         italic: false,
         underline: false,
+        strikeout: false,
         color: None,
+        font_size_milli: None,
+        font_name: None,
     };
+
+    /// Builder: set the strikeout flag (ASS `\s`).
+    pub const fn with_strikeout(mut self, strikeout: bool) -> Self {
+        self.strikeout = strikeout;
+        self
+    }
+
+    /// Builder: set the exact font size in thousandths (ASS `\fs`).
+    pub const fn with_font_size_milli(mut self, milli: Option<i64>) -> Self {
+        self.font_size_milli = milli;
+        self
+    }
+
+    /// Builder: set the font family name (ASS `\fn`); `None`
+    /// inherits the track style.
+    pub fn with_font_name(mut self, name: Option<&str>) -> Self {
+        self.font_name = name.map(|n| n.into());
+        self
+    }
 }
 
 #[cfg(test)]
@@ -160,5 +202,18 @@ mod tests {
         assert!(styled.bold);
         assert!(!styled.italic);
         assert!(styled.underline);
+        // The G-2 extension fields default to inherit, and the
+        // builders chain onto the original constructor.
+        assert_eq!(styled.strikeout, false);
+        assert_eq!(styled.font_size_milli, None);
+        assert_eq!(styled.font_name, None);
+        let g2 = styled
+            .with_strikeout(true)
+            .with_font_size_milli(Some(32_500))
+            .with_font_name(Some("Comic Sans"));
+        assert!(g2.strikeout);
+        assert_eq!(g2.font_size_milli, Some(32_500));
+        assert_eq!(g2.font_name.as_deref(), Some("Comic Sans"));
+        assert_eq!(g2.color, None);
     }
 }

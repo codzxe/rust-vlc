@@ -251,6 +251,21 @@ impl AssRenderStyle {
     }
 }
 
+/// One styled run for the G-2 override-tag render path (issue #17):
+/// the run's text (ASS line breaks `\N`/`\n` still literal inside,
+/// split like the plain path), its resolved primary colour and font
+/// size. The plain-text fields on [`AssRenderCue`] remain the
+/// fallback when `runs` is empty.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct AssRenderRun {
+    /// The run's text (may span `\N` line breaks).
+    pub text: String,
+    /// Resolved primary colour (style primary ⊕ `\c`/`\1c`/`\alpha`).
+    pub color: ModelColor,
+    /// Resolved font size in script (PlayRes) px (style size ⊕ `\fs`).
+    pub font_size_px: u32,
+}
+
 /// One plain-text ASS cue, ready to render (the entry type — see the
 /// module docs for the parser seam).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -265,6 +280,14 @@ pub struct AssRenderCue {
     /// upstream); the forced line break `\N` survives into this path
     /// and forces a new line (see [`split_lines`]).
     pub text: String,
+    /// Styled runs (G-2). Empty → the plain-text fields render the
+    /// cue; non-empty → [`render_styled_cue`] rasters each run with
+    /// its own colour and font size.
+    pub runs: Vec<AssRenderRun>,
+    /// Explicit `\pos`/`\move` anchor in script px (G-2; the last
+    /// tag wins, `\move` frozen at its start point). `None` → the
+    /// margins/alignment layout.
+    pub pos: Option<(u32, u32)>,
     /// Style inputs (alignment, margins, colour, font size).
     pub style: AssRenderStyle,
     /// Z-order (the ASS `Layer` field; higher draws on top).
@@ -400,9 +423,141 @@ pub fn render_plain_text_cue(
     }
 
     let bitmap = CueBitmap::from_rgba(width, height, baseline as u32, rgba)?;
-    let cue_layout = layout::cue_layout(cue.style.alignment, cue.style.margins, play_res)?;
+    let cue_layout = match cue.pos {
+        Some(pos) => layout::cue_layout_at(cue.style.alignment, play_res, pos)?,
+        None => layout::cue_layout(cue.style.alignment, cue.style.margins, play_res)?,
+    };
     // The 1/1e6 base is compile-time valid; the map_err keeps the
     // no-panic rule total against future edits (Timebase, above).
+    let start =
+        Timestamp::from_parts(cue.start_us, 1, 1_000_000).map_err(|_| AssRenderError::Timebase)?;
+    let end =
+        Timestamp::from_parts(cue.end_us, 1, 1_000_000).map_err(|_| AssRenderError::Timebase)?;
+    CompositedCue::new(
+        TimeSpan {
+            start: Stamp::Present(start),
+            end: Stamp::Present(end),
+        },
+        bitmap,
+        cue_layout,
+        cue.z,
+    )
+    .map_err(AssRenderError::from)
+}
+
+/// Render one G-2 styled ASS cue (override-tag runs) to the
+/// compositing contract. Each run rasters with its own colour and
+/// font size: per-run cell advance/ascent from the run's
+/// [`GlyphMetrics`], line height from the largest run on the cue, so
+/// mixed-size lines stack without clipping the taller runs (the
+/// placeholder-glyph policy of the plain path applies per run).
+///
+/// `cue.runs` empty → delegates to [`render_plain_text_cue`]
+/// (back-compat: the plain majority pays nothing).
+///
+/// # Errors
+/// [`AssRenderError`] — the plain path's variants, plus a per-run
+/// font-size guard; no input panics.
+pub fn render_styled_cue(
+    cue: &AssRenderCue,
+    play_res: (u32, u32),
+) -> Result<CompositedCue, AssRenderError> {
+    if cue.runs.is_empty() {
+        return render_plain_text_cue(cue, play_res);
+    }
+    if cue.end_us < cue.start_us {
+        return Err(AssRenderError::EndBeforeStart {
+            start_us: cue.start_us,
+            end_us: cue.end_us,
+        });
+    }
+    // Per-run metrics; each run validates its own font size.
+    let metrics: Vec<GlyphMetrics> = cue
+        .runs
+        .iter()
+        .map(|r| GlyphMetrics::from_font_size(r.font_size_px))
+        .collect::<Result<_, _>>()?;
+    let line_height = metrics.iter().map(|m| m.line_height_px).max().unwrap_or(0);
+    let max_ascent = metrics.iter().map(|m| m.ascent_px).max().unwrap_or(0);
+    // Per-run line fragments (`\N` splits inside a run like the
+    // plain path; a run with fewer fragments just ends its line
+    // early).
+    let frags: Vec<Vec<&str>> = cue.runs.iter().map(|r| split_lines(&r.text)).collect();
+    let n_lines = frags.iter().map(|f| f.len()).max().unwrap_or(0);
+    if n_lines == 0 {
+        return Err(AssRenderError::EmptyText);
+    }
+    // Width per line: the sum of per-run advances on that line.
+    let mut widths = vec![0u64; n_lines];
+    let mut any_char = false;
+    for (ri, run_frags) in frags.iter().enumerate() {
+        for (li, line) in run_frags.iter().enumerate() {
+            widths[li] += u64::try_from(line.chars().count()).unwrap_or(u64::MAX)
+                * u64::from(metrics[ri].advance_px);
+            if !line.is_empty() {
+                any_char = true;
+            }
+        }
+    }
+    if !any_char {
+        return Err(AssRenderError::EmptyText);
+    }
+    let width = widths.iter().copied().max().unwrap_or(0);
+    let height = u64::from(line_height) * u64::try_from(n_lines).unwrap_or(u64::MAX);
+    let (width, height) = {
+        let w = u32::try_from(width);
+        let h = u32::try_from(height);
+        match (w, h) {
+            (Ok(w), Ok(h)) => (w, h),
+            _ => {
+                return Err(AssRenderError::TooLarge {
+                    width: u32::MAX,
+                    height: u32::MAX,
+                });
+            }
+        }
+    };
+    let total_bytes = u64::from(width) * u64::from(height) * 4;
+    if total_bytes > MAX_BITMAP_BYTES {
+        return Err(AssRenderError::TooLarge { width, height });
+    }
+    // The LAST line's baseline is the cue baseline (plain-path rule),
+    // measured with the cue-wide metrics.
+    let baseline = u64::from(line_height) * (n_lines as u64 - 1) + u64::from(max_ascent);
+
+    // Rasterize: per-run colour/size, one solid cell block per
+    // non-space codepoint.
+    let mut rgba = vec![0u8; total_bytes as usize];
+    for li in 0..n_lines {
+        let top = li as u64 * u64::from(line_height);
+        let mut x = 0u64;
+        for (ri, run) in cue.runs.iter().enumerate() {
+            let Some(line) = frags[ri].get(li) else {
+                continue;
+            };
+            let m = metrics[ri];
+            for ch in line.chars() {
+                if ch != ' ' {
+                    for y in top..top + u64::from(m.ascent_px) {
+                        for px in x..x + u64::from(m.advance_px) {
+                            let off = ((y * u64::from(width) + px) * 4) as usize;
+                            rgba[off] = run.color.r;
+                            rgba[off + 1] = run.color.g;
+                            rgba[off + 2] = run.color.b;
+                            rgba[off + 3] = run.color.a;
+                        }
+                    }
+                }
+                x += u64::from(m.advance_px);
+            }
+        }
+    }
+
+    let bitmap = CueBitmap::from_rgba(width, height, baseline as u32, rgba)?;
+    let cue_layout = match cue.pos {
+        Some(pos) => layout::cue_layout_at(cue.style.alignment, play_res, pos)?,
+        None => layout::cue_layout(cue.style.alignment, cue.style.margins, play_res)?,
+    };
     let start =
         Timestamp::from_parts(cue.start_us, 1, 1_000_000).map_err(|_| AssRenderError::Timebase)?;
     let end =
@@ -422,8 +577,9 @@ pub fn render_plain_text_cue(
 #[cfg(test)]
 mod tests {
     use super::{
-        AssRenderCue, AssRenderError, AssRenderStyle, GlyphMetrics, MAX_BITMAP_BYTES,
-        ass_colour_to_model, render_plain_text_cue, split_lines,
+        AssRenderCue, AssRenderError, AssRenderRun, AssRenderStyle, GlyphMetrics,
+        MAX_BITMAP_BYTES, ass_colour_to_model, render_plain_text_cue, render_styled_cue,
+        split_lines,
     };
     use crate::ass::layout::{AssAlignment, AssMargins, DEFAULT_PLAY_RES};
     use crate::compositing::SubtitleCompositor;
@@ -446,6 +602,8 @@ mod tests {
             start_us: 0,
             end_us: 1_000_000,
             text: text.into(),
+            runs: Vec::new(),
+            pos: None,
             style: AssRenderStyle {
                 alignment,
                 margins: AssMargins {
@@ -847,6 +1005,8 @@ mod tests {
                 start_us: start,
                 end_us: end,
                 text,
+                runs: Vec::new(),
+                pos: None,
                 style: AssRenderStyle {
                     alignment,
                     margins,
@@ -871,5 +1031,109 @@ mod tests {
         // The sweep must actually exercise both arms.
         assert!(oks > 200, "oks = {oks}");
         assert!(errs > 200, "errs = {errs}");
+    }
+
+    /// G-2 (issue #17): a styled cue renders per-run colour and font
+    /// size — mixed-size runs stack on one line with per-run advances.
+    #[test]
+    fn styled_cue_rasters_per_run_colour_and_size() {
+        let mut c = cue("", AssAlignment::BOTTOM_CENTER);
+        c.runs = vec![
+            AssRenderRun {
+                text: "BIG".into(),
+                color: ModelColor::new(255, 0, 0, 255),
+                font_size_px: 20,
+            },
+            AssRenderRun {
+                text: "small".into(),
+                color: ModelColor::new(0, 0, 255, 255),
+                font_size_px: 10,
+            },
+        ];
+        let rendered = render_styled_cue(&c, (384, 288)).must();
+        let b = &rendered.bitmap;
+        let transparent = Rgba { r: 0, g: 0, b: 0, a: 0 };
+        // 20 px → advance 12, ascent 19, line 24; 10 px → 6/10/12.
+        // Width: 3×12 + 5×6 = 66; height: the max line height 24;
+        // baseline: 0 lines above + max ascent 19.
+        assert_eq!((b.width, b.height, b.baseline), (66, 24, 19));
+        // First cell (x 0..12, y 0..19) is RED.
+        assert_eq!(b.pixel(0, 0), Rgba::RED);
+        assert_eq!(b.pixel(11, 18), Rgba::RED);
+        // The small run starts at x = 36 (3 red cells) and is BLUE,
+        // filling only its own 10 px ascent (y 0..10).
+        assert_eq!(b.pixel(36, 0), Rgba::BLUE);
+        assert_eq!(b.pixel(65, 9), Rgba::BLUE);
+        // Below the small run's ascent (y >= 10) but inside the big
+        // line box: transparent, not blue.
+        assert_eq!(b.pixel(36, 10), transparent);
+        assert_eq!(b.pixel(36, 23), transparent);
+
+        // A `\N` inside a run splits lines; the SECOND line's run
+        // starts at x = 0 again, and the baseline drops a line box.
+        let mut c2 = cue("", AssAlignment::BOTTOM_CENTER);
+        c2.runs = vec![AssRenderRun {
+            text: "a\\Nb".into(),
+            color: ModelColor::WHITE,
+            font_size_px: 20,
+        }];
+        let r2 = render_styled_cue(&c2, (384, 288)).must();
+        assert_eq!((r2.bitmap.width, r2.bitmap.height), (12, 48));
+        let transparent = Rgba { r: 0, g: 0, b: 0, a: 0 };
+        assert_eq!(r2.bitmap.baseline, 24 + 19);
+        assert_eq!(r2.bitmap.pixel(0, 0), Rgba::WHITE);
+        assert_eq!(r2.bitmap.pixel(0, 24), Rgba::WHITE);
+        assert_eq!(r2.bitmap.pixel(0, 23), transparent);
+    }
+
+    /// G-2: empty runs delegate to the plain path (back-compat), and
+    /// an all-spaces run set is the typed EmptyText.
+    #[test]
+    fn styled_cue_edge_inputs() {
+        let plain = cue("plain", AssAlignment::BOTTOM_CENTER);
+        let via_styled = render_styled_cue(&plain, (384, 288)).must();
+        let via_plain = render_plain_text_cue(&plain, (384, 288)).must();
+        assert_eq!(via_styled.bitmap.width, via_plain.bitmap.width);
+        let mut c = cue("", AssAlignment::BOTTOM_CENTER);
+        c.runs = vec![AssRenderRun {
+            text: "  ".into(),
+            color: ModelColor::WHITE,
+            font_size_px: 20,
+        }];
+        // Spaces-only: cells exist → renders blank (plain-path rule).
+        let r = render_styled_cue(&c, (384, 288)).must();
+        assert_eq!(r.bitmap.width, 24);
+        c.runs[0].font_size_px = 0;
+        assert_eq!(
+            render_styled_cue(&c, (384, 288)),
+            Err(AssRenderError::ZeroFontSize)
+        );
+        c.runs[0].font_size_px = 20;
+        c.runs[0].text = String::new();
+        assert_eq!(
+            render_styled_cue(&c, (384, 288)),
+            Err(AssRenderError::EmptyText)
+        );
+    }
+
+    /// G-2: `\pos` reaches the layout — the composited anchor is the
+    /// exact script-coordinate fraction, margins ignored.
+    #[test]
+    fn pos_overrides_the_plain_layout_anchor() {
+        let mut c = cue("Hi", AssAlignment::BOTTOM_CENTER);
+        let without = render_plain_text_cue(&c, (384, 288)).must();
+        c.pos = Some((192, 144));
+        let with = render_plain_text_cue(&c, (384, 288)).must();
+        assert_ne!(with.layout.anchor, without.layout.anchor);
+        assert_eq!((with.layout.anchor.u.num, with.layout.anchor.u.den), (1, 2));
+        assert_eq!((with.layout.anchor.v.num, with.layout.anchor.v.den), (1, 2));
+        // The styled path honors pos identically.
+        c.runs = vec![AssRenderRun {
+            text: "Hi".into(),
+            color: ModelColor::WHITE,
+            font_size_px: 20,
+        }];
+        let styled = render_styled_cue(&c, (384, 288)).must();
+        assert_eq!(styled.layout.anchor, with.layout.anchor);
     }
 }
