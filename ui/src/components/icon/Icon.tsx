@@ -8,14 +8,31 @@ import type { IconName } from "./icons";
  * Wrapper.svg). Stroke is `currentColor` so hosts tint via tokens; state
  * variants (hover/active/disabled) are CSS classes in icon.css (§4.4).
  *
+ * Emphasis strokes (issue #35, doc 08 §1.4 "2 and 3 for emphasis"; tokens
+ * --stroke-icon-strong 2px / --stroke-icon-max 3px): the design's active-state
+ * glyphs redraw at stroke-width 2 (e.g. Icon.svg "preferences, state=active"),
+ * so `variant` picks the stroke weight. Colour stays host-driven via the
+ * existing CSS state classes — variant only changes the stroke width.
+ *
  * Decorative by default (`aria-hidden`); pass `title` for a named icon.
  */
+
+/** Stroke-weight variants, mapped 1:1 to the §1.4 stroke tokens. */
+export type IconVariant = "default" | "strong" | "max";
+
+const STROKE_WIDTHS: Record<IconVariant, number> = {
+  default: 1.5, // --stroke-icon
+  strong: 2, // --stroke-icon-strong
+  max: 3, // --stroke-icon-max
+};
+
 export function Icon({
   name,
   size = 16,
   title,
   className = "",
   disabled = false,
+  variant = "default",
 }: {
   name: IconName;
   /** Width/height in px (logical, DPI-independent — doc 08 §1.6). @default 16 */
@@ -25,8 +42,11 @@ export function Icon({
   className?: string;
   /** Non-interactive disabled state (§4.4: 0.5 opacity + no pointer). */
   disabled?: boolean;
+  /** Stroke-weight variant (§1.4 emphasis strokes). @default "default" */
+  variant?: IconVariant;
 }) {
   const glyph = getIconGlyph(name);
+  const variantClass = variant === "default" ? "" : ` lumen-icon--${variant}`;
   return (
     <svg
       viewBox="0 0 24 24"
@@ -34,13 +54,13 @@ export function Icon({
       height={size}
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={STROKE_WIDTHS[variant]}
       strokeLinecap="round"
       strokeLinejoin="round"
       role={title ? "img" : undefined}
       aria-label={title}
       aria-hidden={title ? undefined : true}
-      className={`lumen-icon${disabled ? " lumen-icon--disabled" : ""} ${className}`.trim()}
+      className={`lumen-icon${disabled ? " lumen-icon--disabled" : ""}${variantClass} ${className}`.trim()}
     >
       {title ? <title>{title}</title> : null}
       {glyph}
