@@ -413,7 +413,7 @@ vlc_modules = ["avcodec"]
 inventory_ref = "inventory/formats.json#h264"
 status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
 evidence = "crates/codecs/src/video/h264/** (cards 5.F1a/5.F1b clean-room parser corpus-verified 19/19 + 5.F2 hw decode-path seam; record docs/formats/video-h264.md: 0019 26/26 + 0014 185/185 slices vs trace_headers)"
-notes = "ADR-001 (pending) primary: strongest in-box story on Windows (MFT Win7+, profiles ≤ High); decode-path integration 5.F2; adapters plug at 7.B1–7.B3; parser self-build 5.F1 feeds probe/track-info/hw. Software track = separate row. 5.Q2-V backfill: partial per record — hw decode-path seam delivered, playback hw-only pending Phase-7 adapters; NO software decoder exists (doc 04 §4.2 stands)."
+notes = "ADR-001 (pending) primary: strongest in-box story on Windows (MFT Win7+, profiles ≤ High); decode-path integration 5.F2; adapters plug at 7.B1–7.B3; parser self-build 5.F1 feeds probe/track-info/hw. Software track = separate row. 5.Q2-V backfill: partial per record — hw decode-path seam delivered, playback hw-only pending Phase-7 adapters; NO software decoder exists (doc 04 §4.2 stands). 2026-11-09 (issue #2): software-decoder admission audits complete (docs/dependencies/records/h264-software-decoder-audits.md — rust_h264 0.6.1 [PROPOSAL, Lead-gated], conformance-gated admission plan); Linux VA-API hw lane drafted as ADR-013 [proposed]."
 
 [[feature]]
 id = "codec-video-h264-software"
@@ -426,8 +426,8 @@ vlc_modules = ["avcodec"]
 inventory_ref = "inventory/formats.json#h264"
 status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
 evidence = ""
-blocked_reason = "No proven compliant pure-Rust decoder: 2026 candidates (rusty_h264-decoder 0.16.1, rust_h264 0.4.0) are young/self-validated — conformance-gated candidate track pending ADR-001 (feasibility video-codecs §2.4/§2.5); openh264 crate = C source build, forbidden. Next step: ADR-001 + our-corpus gate before any adoption claim."
-notes = "Phase 5 = track decision (5.F2 conditional); hw row carries the v1 path."
+blocked_reason = "Audits complete 2026-11-09 (issue #2, docs/dependencies/records/h264-software-decoder-audits.md): recommended candidate rust_h264 0.6.1 [PROPOSAL — Lead-gated admission] — zero-dep pure Rust, upstream-claimed JVT 199/204 at FFmpeg parity (Hi10P/4:2:2/MBAFF), but self-validated: our-corpus conformance gate required first (JVT vectors in CI + differential vs FFmpeg oracle + profile-coverage report per ADR-001's track); rusty_h264 0.17.2 = audited fallback (8-bit 4:2:0, MBAFF refused); openh264 = vendored C++ build, forbidden (MP §9). Row stays blocked until Lead admission + conformance gate pass; ADR-010 Q1 gates distribution."
+notes = "Phase 5 = track decision (5.F2 conditional); hw row carries the v1 path. 2026-11-09: audits complete, admission pending Lead (R-01 detail row, doc 14 §2.2)."
 
 [[feature]]
 id = "codec-video-hevc"
@@ -440,7 +440,7 @@ vlc_modules = ["avcodec"]
 inventory_ref = "inventory/formats.json#hevc"
 status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
 evidence = "crates/codecs/src/video/hevc/** (cards 5.G1 parser 3/3 corpus lanes byte-verified + 5.G2 hw decode-path seam 571/0; record docs/formats/video-hevc.md)"
-notes = "Windows Store 'HEVC Video Extensions' USD 0.99 wrinkle (old deep-link id dead, HTTP 410); VA-API covers 8/10/12-bit + 4:2:2/4:4:4 on Intel; parser 5.G1; adapters 7.B (conditional on the H.264 hw path landing). 5.Q2-V backfill: partial per record — hw seam delivered (5.G2), software decode absent; Main-10/4:4:4 corpus absence recorded."
+notes = "Windows Store 'HEVC Video Extensions' USD 0.99 wrinkle (old deep-link id dead, HTTP 410); VA-API covers 8/10/12-bit + 4:2:2/4:4:4 on Intel; parser 5.G1; adapters 7.B (conditional on the H.264 hw path landing). 5.Q2-V backfill: partial per record — hw seam delivered (5.G2), software decode absent; Main-10/4:4:4 corpus absence recorded. 2026-11-09 (issue #2): Linux VA-API hw lane drafted as ADR-013 [proposed] (covers 8/10/12-bit + 4:2:2/4:4:4); software-decoder audit framework established by docs/dependencies/records/h264-software-decoder-audits.md — HEVC candidates (rust_h265/rust_h265) to be run through it next."
 
 [[feature]]
 id = "codec-video-hevc-software"
@@ -453,8 +453,8 @@ vlc_modules = ["avcodec"]
 inventory_ref = "inventory/formats.json#hevc"
 status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
 evidence = ""
-blocked_reason = "Same gate as codec-video-h264-software: rusty_h265 0.6.2 / rust_h265 0.1.0 are young/unproven (feasibility video-codecs §2); distribution legality additionally unresolved until ADR-010."
-notes = "Phase 5 = track decision (5.G2 conditional)."
+blocked_reason = "Same conformance-gated track as codec-video-h264-software (framework defined 2026-11-09 in docs/dependencies/records/h264-software-decoder-audits.md): HEVC candidates rusty_h265 0.6.2 / rust_h265 0.1.0 still unaudited — young/unproven (feasibility video-codecs §2); running the H.264 audit framework over them is the recorded next step (R-02, doc 14 §2.2). Distribution legality additionally unresolved until ADR-010."
+notes = "Phase 5 = track decision (5.G2 conditional). 2026-11-09: hw lane drafted (ADR-013 VA-API [proposed]); software-candidate audit still owed."
 
 [[feature]]
 id = "codec-video-av1"
@@ -1294,7 +1294,7 @@ phase_target = 6
 vlc_modules = ["udp"]
 inventory_ref = "inventory/formats.json#udp"
 status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "unsupported" }
-evidence = ""
+evidence = "crates/streaming/src/schemes.rs:557-577 typed-refusal table (udp row :563) + classify default arm :294-305; investigation docs/investigations/rtsp-rtp-feasibility.md (issue #15, 6.G1-I)"
 blocked_reason = "6.G1-I blocked-protocol registry: raw-socket playback whose payload is hw-only codecs (H.264/HEVC); web: no raw UDP sockets in browsers (MP §10)."
 notes = "Revisit with the RTSP-family trigger: ADR-001 on all three OS + demand."
 
@@ -1308,7 +1308,7 @@ phase_target = 6
 vlc_modules = ["rtp"]
 inventory_ref = "inventory/formats.json#rtp"
 status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "unsupported" }
-evidence = ""
+evidence = "crates/streaming/src/schemes.rs:557-577 typed-refusal table (rtp row :562) + classify default arm :294-305; investigation docs/investigations/rtsp-rtp-feasibility.md (issue #15, 6.G1-I)"
 blocked_reason = "6.G1-I registry: same raw-socket + hw-only-codec chain as UDP; web: no raw sockets (MP §10)."
 notes = "Feeds RTSP (blocked) and SAP (blocked SD) families."
 
@@ -1322,7 +1322,7 @@ phase_target = 6
 vlc_modules = ["access_realrtsp", "satip"]
 inventory_ref = "inventory/formats.json#rtsp"
 status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "unsupported" }
-evidence = ""
+evidence = "crates/streaming/src/schemes.rs:561 + :677-682 (userinfo-bearing rtsp refuses, no secret in Display) + classify default arm :294-305; investigation docs/investigations/rtsp-rtp-feasibility.md (issue #15, 6.G1-I): DEFER verdict"
 blocked_reason = "Blocked v1 with three named blockers (feasibility subsystems §2.3): (1) payload = H.264/HEVC = the ADR-001 risk chain; (2) async boundary (retina is tokio-based; async confined to streaming edge per doc 01 §4.2); (3) unbounded camera-quirk hardening tail (why VLC ships access_realrtsp). Crates exist and are pure (retina 0.4.21). Revisit: ADR-001 landed on 3 OS + user demand. Web: no raw RTSP/RTP sockets (MP §10)."
 notes = "6.G1-I registry row."
 
@@ -1335,7 +1335,7 @@ priority = "P2"
 phase_target = 8
 inventory_ref = "inventory/formats.json#smb"
 status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
-evidence = ""
+evidence = "crates/streaming/src/schemes.rs:294-305 classify default arm (uniform typed refusal; no dedicated smb test row — refused as 'every other scheme' per :20-24)"
 blocked_reason = "samba = C libraries, no pure path; absent even from the pinned census (vlc-plugin-samba was an excluded headless package). No v1/v-next card."
 notes = "Revisit only if a pure SMB client ecosystem emerges."
 
@@ -1349,7 +1349,7 @@ phase_target = 8
 vlc_modules = ["nfs"]
 inventory_ref = "inventory/formats.json#nfs"
 status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
-evidence = ""
+evidence = "crates/streaming/src/schemes.rs:294-305 classify default arm (uniform typed refusal; no dedicated nfs test row — refused as 'every other scheme' per :20-24)"
 blocked_reason = "No pure-Rust NFS client assessed as viable; P3 niche (formats.json rationale); no card."
 
 [[feature]]
@@ -1362,7 +1362,7 @@ phase_target = 8
 vlc_modules = ["ftp", "sftp"]
 inventory_ref = "inventory/formats.json#ftp-sftp"
 status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
-evidence = ""
+evidence = "crates/streaming/src/schemes.rs:557-577 typed-refusal table (ftp row :560, sftp row :567) + :636-665 ftp error-display tests (no secret in Display)"
 blocked_reason = "[PROPOSAL blocked v1] per doc 13 card 6.A3 (ftp decision); no pure-path assessment on record; P3."
 
 [[feature]]
@@ -1375,7 +1375,7 @@ phase_target = 8
 vlc_modules = ["access_mms"]
 inventory_ref = "inventory/formats.json#mmsh-mms"
 status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
-evidence = ""
+evidence = "crates/streaming/src/schemes.rs:557-577 typed-refusal table (mms row :566) + classify default arm :294-305 (mmsh variant refused by the same default)"
 blocked_reason = "Legacy Microsoft streaming; no v1 card; no pure crate assessed; P2/P3 boundary recorded in formats.json."
 
 [[feature]]
@@ -1419,9 +1419,9 @@ priority = "P0"
 phase_target = 6
 vlc_modules = ["gnutls"]
 inventory_ref = "inventory/modules-summary.md#s5"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Honest hole found 2026-10-19 (feasibility subsystems §2.1): rustls default aws-lc-rs = C+prebuilt nasm; ring has unconditional cc build-dep; native-tls = OpenSSL; rustls-rustcrypto = alpha. ADR-011 [PROPOSAL] owns the ladder; no purity fabricated here."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "crates/streaming/src/schemes.rs: ADR-011 seam (HTTPS_ADR011_ADMITTED flip point + SchemeError::HttpsNotAdmitted, test https_adr011_seam_is_typed_and_pinned); crates/streaming/src/client.rs tls_config (rustls, webpki-roots, verification always on); docs/dependencies/records/ureq-3.5.0.md R10 (conditionally admitted on the ring deviation)"
+notes = "Honest hole found 2026-10-19 (feasibility subsystems §2.1): rustls default aws-lc-rs = C+prebuilt nasm; ring has unconditional cc build-dep; native-tls = OpenSSL; rustls-rustcrypto = alpha. ADR-011 [PROPOSAL] owns the ladder; no purity fabricated here. Refreshed 2026-11-09: fresh audit (rustls 0.23.46, 35 locked/19-graph, aws-lc-rs default vs ring 0.17.14 activated via ureq) — RECOMMENDED pending Lead admission; status is partial-seam (typed refusal vocabulary + conditionally-admitted transport), not done: flips on the Lead's ADR-011 verdict."
 
 [[feature]]
 id = "network-hls"
@@ -2353,9 +2353,9 @@ priority = "P0"
 phase_target = 2
 vlc_modules = ["alsa", "pulse", "adummy", "afile", "amem"]
 inventory_ref = "inventory/platform-synthesis.md"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "ADR-005 recommendation [PROPOSAL]: cpal conditional-E2 + pre-authorized direct adapters; first vertical runs dummy/null aout in CI, real sinks labeled; Linux purity hole: only pulseaudio-protocol is pure (R-29)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "crates/audio-output/** (ADR-005 seam: AudioBackend trait + NullBackend + typed UnsupportedBackend stubs, AC suites sine_sink_hash/callback_budget/clock_truth); crates/audio-output/src/cpal.rs (AUDIO_ADR005_ADMITTED flip point + typed BackendNotAdmitted marker, the streaming TLS seam pattern); crates/audio-output/src/{pump,pattern}.rs + tests/pcm_pipeline.rs (wave-14 PCM pipeline proof: clock-synced bounded-queue pump, exact sine oracle, drop/backpressure policy); docs/dependencies/records/{cpal-0.18.2.md,audio-output-cpal.md}; docs/adr/ADR-005-audio-output.md (admission-spike outcome)"
+notes = "ADR-005 recommendation [PROPOSAL]: cpal conditional-E2 + pre-authorized direct adapters; first vertical runs dummy/null aout in CI, real sinks labeled; Linux purity hole: only pulseaudio-protocol is pure (R-29). Refreshed wave 14 (issue #1): status is partial-seam, not done — the L4 seam + null backend + PCM pipeline (pump/pattern/clock) are implemented and tested, cpal admission spike audited with real cargo-tree data (Linux alsa-sys, macOS coreaudio-sys+bindgen chain, Windows windows-0.54 graph; C-FFI unsafe counts; sandbox build failure exit 101), verdict UNCHANGED: cpal conditional-E2, NOT admitted (Lead-gated). Flips on the Lead's ADR-005 admission; no real-device evidence exists (typed marker refuses on every platform)."
 
 [[feature]]
 id = "platform-aout-wasapi"
@@ -2422,7 +2422,7 @@ vlc_modules = ["avcodec", "dxva2", "vaapi", "vdpau_avcodec"]
 inventory_ref = "inventory/platform-synthesis.md"
 status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
 evidence = ""
-notes = "Census: avcodec ffmpeghw score 10001 (highest in dump) — hardware preferred by default, corroborating MP §2/ADR-001 hw-first. Win module identity [VERIFY V4]; VT identity [VERIFY V5]; VA-API E2 classification = open Lead question (SV-28). Adapters 7.B1–7.B3."
+notes = "Census: avcodec ffmpeghw score 10001 (highest in dump) — hardware preferred by default, corroborating MP §2/ADR-001 hw-first. Win module identity [VERIFY V4]; VT identity [VERIFY V5]; VA-API E2 classification = open Lead question (SV-28). Adapters 7.B1–7.B3. 2026-11-09 (issue #2): Linux lane designed — ADR-013 [proposed] (VA-API = E2 OS-service exception, adapter-gated; audited access paths libva 0.1.5 / libva-sys 0.1.2, none admitted; substrate + unsafe-boundary + CI-conformance plan pending Lead)."
 
 [[feature]]
 id = "platform-hwdecode-hevc"
@@ -2435,7 +2435,7 @@ vlc_modules = ["avcodec", "dxva2", "vaapi"]
 inventory_ref = "inventory/platform-synthesis.md"
 status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
 evidence = ""
-notes = "Windows Store paywall wrinkle (see codec-video-hevc); conditional on the H.264 hw path landing (5.G2)."
+notes = "Windows Store paywall wrinkle (see codec-video-hevc); conditional on the H.264 hw path landing (5.G2). 2026-11-09 (issue #2): Linux lane designed — ADR-013 [proposed] covers HEVC 8/10/12-bit + 4:2:2/4:4:4 via VA-API; driver-variance ledger (R-15, Intel/AMD) named as an adapter-card deliverable."
 
 [[feature]]
 id = "platform-hwdecode-vp9"

@@ -37,6 +37,19 @@
 //! typed not-supported errors; when ADR-005 decides cpal-vs-direct,
 //! implementations land in `platform-*` against this trait layer.
 //!
+//! The wave-14 admission spike (issue #1) refreshed that evidence
+//! (`docs/dependencies/records/audio-output-cpal.md`: real
+//! `cargo tree` graphs, the C-FFI unsafe counts, the alternatives
+//! survey — verdict unchanged, **not admitted**) and added this
+//! crate's flip point: [`cpal_backend`], the typed
+//! [`BackendNotAdmitted`] constructor marker behind the
+//! [`AUDIO_ADR005_ADMITTED`] gate (the streaming TLS seam's
+//! pattern). The same wave shipped the PCM pipeline proof behind the
+//! seam: [`SinePattern`] (the exact test-pattern generator) and
+//! [`PcmPump`] (decoded frames → bounded queue → sink, paced by the
+//! playback clock — the `MediaClock::audio_master` integration),
+//! proven in `tests/pcm_pipeline.rs`.
+//!
 //! # The no-blocking contract (doc 03 §4.9 c, binding)
 //!
 //! Inside the callback only: ring index reads (wait-free atomics),
@@ -109,16 +122,22 @@
 //! ```
 
 pub mod counter;
+pub mod cpal;
 pub mod device;
 pub mod error;
 pub mod null;
+pub mod pattern;
+pub mod pump;
 pub mod render;
 pub mod ring;
 pub mod stub;
 
 pub use counter::SampleCounter;
+pub use cpal::{AUDIO_ADR005_ADMITTED, BackendNotAdmitted, cpal_backend};
 pub use device::{AudioBackend, DeviceDesc, DeviceId, SinkEvent};
 pub use null::{NullBackend, NullConfig, NullStream};
+pub use pattern::SinePattern;
+pub use pump::{DropPolicy, PcmPump, PushOutcome};
 pub use render::{RenderCallback, RenderStats, RingRenderer, render_into};
 pub use ring::{RingRead, SpscRing};
 pub use stub::UnsupportedBackend;
