@@ -35,7 +35,7 @@ describe("areas layer — extension registry", () => {
     // after hotkeys — the same areas/index.tsx mechanism, no generator change.
     expect(SETTINGS_AREA_IDS).toEqual([
       "global", "interface", "privacy", "playback", "performance",
-      "hotkeys", "codecs", "library", "network", "about", "advanced",
+      "hotkeys", "codecs", "library", "network", "about", "advanced", "effects",
     ]);
     expect(SETTINGS_SCREENS.hotkeys).toBeTruthy();
     expect(useMsg()(SETTINGS_AREA_TITLES.hotkeys)).toBe("Hotkeys");

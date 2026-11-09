@@ -462,6 +462,18 @@ export type MessageKey =
   | "settings.advanced.fold-show"
   | "settings.advanced.fold-hide"
   | "settings.advanced.intro"
+  // Effects & Tools area (issue #33 / D-012 — audio DSP + video adjust).
+  | "settings.area.effects"
+  | "settings.section.effects.audio"
+  | "settings.section.effects.video"
+  | "settings.effects.volume"
+  | "settings.effects.mute"
+  | "settings.effects.balance"
+  | "settings.effects.brightness"
+  | "settings.effects.contrast"
+  | "settings.effects.saturation"
+  | "settings.effects.hue"
+  | "settings.effects.pending-command"
   // --- onboarding wizard (card 4.F1; privacy copy is an honest
   // [PROPOSAL] placeholder — the design package has no privacy artboard,
   // wording follows doc 07 §2.6/§5.4) ---
@@ -1044,6 +1056,18 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "settings.advanced.fold-show": "Show advanced settings",
   "settings.advanced.fold-hide": "Hide advanced settings",
   "settings.advanced.intro": "Advanced options from every screen, folded by default.",
+  // Effects & Tools area (issue #33 / D-012).
+  "settings.area.effects": "Effects & Tools",
+  "settings.section.effects.audio": "Audio effects",
+  "settings.section.effects.video": "Video adjust",
+  "settings.effects.volume": "Master volume",
+  "settings.effects.mute": "Mute",
+  "settings.effects.balance": "Balance",
+  "settings.effects.brightness": "Brightness",
+  "settings.effects.contrast": "Contrast",
+  "settings.effects.saturation": "Saturation",
+  "settings.effects.hue": "Hue",
+  "settings.effects.pending-command": "Engine stage ready — control activates with the effects command card",
   // Onboarding wizard (card 4.F1).
   "onboarding.welcome.title": "Welcome to Lumen",
   "onboarding.welcome.body":
