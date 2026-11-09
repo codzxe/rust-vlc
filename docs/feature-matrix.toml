@@ -1419,9 +1419,9 @@ priority = "P0"
 phase_target = 6
 vlc_modules = ["gnutls"]
 inventory_ref = "inventory/modules-summary.md#s5"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Honest hole found 2026-10-19 (feasibility subsystems §2.1): rustls default aws-lc-rs = C+prebuilt nasm; ring has unconditional cc build-dep; native-tls = OpenSSL; rustls-rustcrypto = alpha. ADR-011 [PROPOSAL] owns the ladder; no purity fabricated here."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "crates/streaming/src/schemes.rs: ADR-011 seam (HTTPS_ADR011_ADMITTED flip point + SchemeError::HttpsNotAdmitted, test https_adr011_seam_is_typed_and_pinned); crates/streaming/src/client.rs tls_config (rustls, webpki-roots, verification always on); docs/dependencies/records/ureq-3.5.0.md R10 (conditionally admitted on the ring deviation)"
+notes = "Honest hole found 2026-10-19 (feasibility subsystems §2.1): rustls default aws-lc-rs = C+prebuilt nasm; ring has unconditional cc build-dep; native-tls = OpenSSL; rustls-rustcrypto = alpha. ADR-011 [PROPOSAL] owns the ladder; no purity fabricated here. Refreshed 2026-11-09: fresh audit (rustls 0.23.46, 35 locked/19-graph, aws-lc-rs default vs ring 0.17.14 activated via ureq) — RECOMMENDED pending Lead admission; status is partial-seam (typed refusal vocabulary + conditionally-admitted transport), not done: flips on the Lead's ADR-011 verdict."
 
 [[feature]]
 id = "network-hls"
