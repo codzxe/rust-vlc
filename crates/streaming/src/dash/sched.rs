@@ -12,8 +12,9 @@
 //!   of its own — the host calls [`DashScheduler::next_fetch`] with
 //!   the wall time it observed and performs the fetch itself
 //!   (the same posture as 6.D1's `BufferModel` and the hls
-//!   sessions). The mockhttp e2e suite drives it over the real
-//!   fetch port.
+//!   sessions). The scripted-bandwidth tests below drive it
+//!   directly; a mockhttp socket e2e lane is future work (recorded
+//!   in the feature matrix, not claimed here).
 //! * Rungs of one AdaptationSet are **aligned** (the
 //!   `@segmentAlignment` assumption): segment index `i` means the
 //!   same media time on every rung; a switch happens only between
@@ -136,7 +137,8 @@ pub fn parse_iso8601_epoch_seconds(text: &str) -> Option<i64> {
     let doy = (153 * mp + 2) / 5 + day - 1;
     let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
     let days = era * 146_097 + doe - 719_468;
-    Some(days * 86_400 + hour * 3_600 + minute * 60 + second + offset_s)
+    // The offset is the zone's displacement from UTC: local − offset = UTC.
+    Some(days * 86_400 + hour * 3_600 + minute * 60 + second - offset_s)
 }
 
 /// Split the `".frac"` and `Z|±hh:mm` tail into (validated,
@@ -193,7 +195,8 @@ pub fn segment_availability_epoch(
 ) -> f64 {
     let presented = segment_time_ticks.saturating_add(duration_ticks);
     let rel_s = ticks_to_seconds(presented.saturating_sub(pto_ticks), timescale);
-    f64::from(ast_epoch) + period_start_s + rel_s
+    // `as f64` is lossless for wall-clock seconds (< 2^53).
+    ast_epoch as f64 + period_start_s + rel_s
 }
 
 /// The live edge in **presentation seconds** (the media time "now"
@@ -207,7 +210,7 @@ pub fn live_edge_presentation_seconds(
     pto_ticks: u64,
     timescale: u64,
 ) -> f64 {
-    f64::from(now_epoch - ast_epoch) - period_start_s + ticks_to_seconds(pto_ticks, timescale)
+    (now_epoch - ast_epoch) as f64 - period_start_s + ticks_to_seconds(pto_ticks, timescale)
 }
 
 /// Ticks → seconds (timescale 0 treated as 1 — the parser's
@@ -360,7 +363,12 @@ impl DashScheduler {
             return Ok(NextStep::Done);
         }
         // Live join: on the first fetch of a dynamic manifest, skip
-        // to the newest segment already safely available.
+        // to the newest segment already safely available — advance
+        // while the NEXT segment is also ready. When nothing is
+        // ready yet the walk stays un-joined, so the availability
+        // gate below answers Wait and a later call re-joins at the
+        // newer edge (a dynamic plan is never "drained" by
+        // skipping — availability is a clock fact, not a plan fact).
         if self.dynamic && !self.joined {
             let now = match now_epoch {
                 Some(now) => now,
@@ -370,25 +378,38 @@ impl DashScheduler {
                 Some(ast) => ast,
                 None => return Err(DashSchedError::BadAvailabilityTime),
             };
-            self.joined = true;
-            while self.next < total {
+            while self.next + 1 < total {
                 let rung = &self.plans[self.abr.current()];
-                let seg = &rung.segments[self.next];
+                let upcoming = &rung.segments[self.next + 1];
                 let avail = segment_availability_epoch(
                     ast,
                     self.period_start_s,
-                    seg.time,
-                    seg.duration,
+                    upcoming.time,
+                    upcoming.duration,
                     rung.presentation_time_offset,
                     rung.timescale,
                 );
-                if f64::from(now) >= avail + self.safe_behind_live_edge_s {
+                if now as f64 >= avail + self.safe_behind_live_edge_s {
+                    self.next += 1;
+                } else {
                     break;
                 }
-                self.next += 1;
             }
-            if self.next >= total {
-                return Ok(NextStep::Done);
+            // The join completes only once the positioned segment is
+            // itself ready; until then the gate below answers Wait
+            // and a later call re-runs the skip at the newer edge.
+            let rung = &self.plans[self.abr.current()];
+            let seg = &rung.segments[self.next];
+            let avail = segment_availability_epoch(
+                ast,
+                self.period_start_s,
+                seg.time,
+                seg.duration,
+                rung.presentation_time_offset,
+                rung.timescale,
+            );
+            if now as f64 >= avail + self.safe_behind_live_edge_s {
+                self.joined = true;
             }
         }
         // Availability gating (dynamic): the next segment must be
@@ -406,9 +427,9 @@ impl DashScheduler {
                     rung.timescale,
                 );
                 let ready_at = avail + self.safe_behind_live_edge_s;
-                if f64::from(now) < ready_at {
+                if (now as f64) < ready_at {
                     return Ok(NextStep::Wait {
-                        available_in_s: ready_at - f64::from(now),
+                        available_in_s: ready_at - now as f64,
                     });
                 }
             }
@@ -633,17 +654,17 @@ mod tests {
             }
             other => unreachable!("expected Fetch at now=10: {other:?}"),
         }
-        // After serving it, #4 is not yet safe (available 10s,
-        // ready 13s): wait.
+        // After serving it, #4 (t=6, d=2 → available at 8s, ready
+        // at 11s) is not yet safe at now=10: wait 1s.
         sched.segment_served();
         match sched.next_fetch(Some(10)) {
-            Ok(NextStep::Wait { available_in_s }) => assert!((available_in_s - 3.0).abs() < 1e-9),
+            Ok(NextStep::Wait { available_in_s }) => assert!((available_in_s - 1.0).abs() < 1e-9),
             other => unreachable!("expected Wait for #4: {other:?}"),
         }
-        // At now=13 segment #4 is ready.
-        match sched.next_fetch(Some(13)) {
+        // At now=11 segment #4 is ready.
+        match sched.next_fetch(Some(11)) {
             Ok(NextStep::Fetch(step)) => assert_eq!(step.url, "http://unit.test/vod/live-4.m4s"),
-            other => unreachable!("expected Fetch at now=13: {other:?}"),
+            other => unreachable!("expected Fetch at now=11: {other:?}"),
         }
     }
 
@@ -653,7 +674,7 @@ mod tests {
             "<?xml version=\"1.0\"?><MPD type=\"static\"><Period><AdaptationSet contentType=\"video\">\
              </AdaptationSet></Period></MPD>",
         );
-        assert_eq!(
+        assert!(matches!(
             DashScheduler::new(
                 &mpd,
                 &mpd.periods[0],
@@ -662,6 +683,6 @@ mod tests {
                 DashAbrConfig::default()
             ),
             Err(DashSchedError::BadLadder)
-        );
+        ));
     }
 }

@@ -260,7 +260,7 @@ impl DashAbr {
         // buffer (emergencies bypass the dwell).
         let current_bw = ladder_bandwidths[self.current];
         let starved = u128::from(throughput) * 100
-            < u128::from(current_bw) * u64::from(self.config.down_margin_percent);
+            < u128::from(current_bw) * u128::from(self.config.down_margin_percent);
         let drained = self
             .buffer_s
             .is_some_and(|b| b < self.config.low_watermark_s);
@@ -274,7 +274,7 @@ impl DashAbr {
             let next = ladder[pos + 1];
             let next_bw = ladder_bandwidths[next];
             let headroom = u128::from(throughput) * 100
-                >= u128::from(next_bw) * u64::from(100 + self.config.up_margin_percent);
+                >= u128::from(next_bw) * u128::from(100 + self.config.up_margin_percent);
             let filled = self
                 .buffer_s
                 .is_none_or(|b| b >= self.config.high_watermark_s);
@@ -324,7 +324,7 @@ pub struct DashAbrSnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use playlists::mpd::parse_mpd_bytes;
+    use playlists::parse_mpd_bytes;
 
     fn set_from(mpd_text: &str) -> AdaptationSet {
         let parsed = match parse_mpd_bytes(mpd_text.as_bytes()) {
@@ -418,11 +418,11 @@ mod tests {
         for _ in 0..10 {
             abr.observe_throughput(250, 1_000_000);
             abr.segment_served();
-            abr.decide(&ladder);
+            let _ = abr.decide(&ladder);
         }
         assert!(
-            abr.snapshot().current >= 1,
-            "recovered off lo, current={}",
+            abr.snapshot().current <= 1,
+            "recovered off lo (doc order hi,mid,lo), current={}",
             abr.snapshot().current
         );
         assert!(abr.snapshot().switch_count >= 2);
