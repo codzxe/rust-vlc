@@ -87,8 +87,9 @@ macro_rules! stable_id_enum {
 }
 
 stable_id_enum! {
-    /// One v1 catalog command (doc 05 §2.1 — 61 entries; the §2.3–2.12
-    /// tables define each entry's payload, class and errors).
+    /// One v1 catalog command (doc 05 §2.1 — 61 entries + the issue #32
+    /// bookmark trio; the §2.3–2.12 tables define each entry's payload,
+    /// class and errors).
     ///
     /// The enum is metadata: [`crate::catalog::command::Command`] is the
     /// payload-carrying twin whose variants serialize under these ids.
@@ -151,6 +152,9 @@ stable_id_enum! {
         MediaGetDuration => "media.get-duration",
         MediaGetChapters => "media.get-chapters",
         MediaSetChapter => "media.set-chapter",
+        MediaGetBookmarks => "media.get-bookmarks",
+        MediaAddBookmark => "media.add-bookmark",
+        MediaRemoveBookmark => "media.remove-bookmark",
         // configuration (§2.11)
         ConfigGetSetting => "config.get-setting",
         ConfigSetSetting => "config.set-setting",
@@ -259,8 +263,9 @@ mod tests {
 
     #[test]
     fn catalog_sizes_match_doc_05() {
-        // Doc 05 §2.1 lists 61 command entries; §3.2 lists 23 events.
-        assert_eq!(CommandId::ALL.len(), 61);
+        // Doc 05 §2.1 lists 61 command entries (§3.2: 23 events); issue
+        // #32 adds the media.*-bookmark trio (64 total).
+        assert_eq!(CommandId::ALL.len(), 64);
         assert_eq!(EventId::ALL.len(), 23);
     }
 

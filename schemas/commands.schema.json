@@ -135,6 +135,34 @@
         "channels"
       ]
     },
+    "Bookmark": {
+      "description": "One user bookmark (issue #32 `media.*-bookmark` commands).",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Stable bookmark id — creation-ordered from 1, unique within the\nsession (never reused after a delete; matches the keymap's\n1-based bookmark slots, keymaps/default.toml `set-bookmark-N`).",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "label": {
+          "description": "Bookmark label (untrusted text, V7).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "time": {
+          "description": "Bookmark position (µs from media start).",
+          "$ref": "#/$defs/Timestamp"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "time"
+      ]
+    },
     "Chapter": {
       "description": "One chapter marker (§2.10 `media.get-chapters`).",
       "type": "object",
@@ -1504,6 +1532,80 @@
           ]
         },
         {
+          "description": "`media.get-bookmarks` — the session's bookmark list (class S,\nissue #32).",
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "const": "media.get-bookmarks"
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        },
+        {
+          "description": "`media.add-bookmark` — bookmark a position (class S, issue #32;\nno pipeline invalidation — not gen-bumping).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "description": "Optional label (untrusted text, V7).",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "time": {
+                  "description": "Position (µs from media start).",
+                  "$ref": "#/$defs/Timestamp"
+                }
+              },
+              "required": [
+                "time"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "media.add-bookmark"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`media.remove-bookmark` — delete one bookmark (class S, issue #32).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "description": "Which bookmark.",
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "id"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "media.remove-bookmark"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
           "description": "`config.get-setting` — one setting's value + schema meta (S).",
           "type": "object",
           "properties": {
@@ -2191,6 +2293,45 @@
           "required": [
             "kind",
             "chapters"
+          ]
+        },
+        {
+          "description": "`media.get-bookmarks` / `media.remove-bookmark` — the bookmark\nlist (issue #32; remove answers with the updated list).",
+          "type": "object",
+          "properties": {
+            "bookmarks": {
+              "description": "Every bookmark, insertion order.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Bookmark"
+              }
+            },
+            "kind": {
+              "type": "string",
+              "const": "bookmarks"
+            }
+          },
+          "required": [
+            "kind",
+            "bookmarks"
+          ]
+        },
+        {
+          "description": "`media.add-bookmark` — the created bookmark, id assigned (issue #32).",
+          "type": "object",
+          "properties": {
+            "bookmark": {
+              "description": "The new bookmark.",
+              "$ref": "#/$defs/Bookmark"
+            },
+            "kind": {
+              "type": "string",
+              "const": "bookmark-added"
+            }
+          },
+          "required": [
+            "kind",
+            "bookmark"
           ]
         },
         {

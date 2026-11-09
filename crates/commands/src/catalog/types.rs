@@ -338,6 +338,20 @@ pub struct Chapter {
     pub title: Option<String>,
 }
 
+/// One user bookmark (issue #32 `media.*-bookmark` commands).
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct Bookmark {
+    /// Stable bookmark id — creation-ordered from 1, unique within the
+    /// session (never reused after a delete; matches the keymap's
+    /// 1-based bookmark slots, keymaps/default.toml `set-bookmark-N`).
+    pub id: u32,
+    /// Bookmark position (µs from media start).
+    pub time: Timestamp,
+    /// Bookmark label (untrusted text, V7).
+    pub label: Option<String>,
+}
+
 /// A media's metadata snapshot (§2.10 `media.get-info`). All strings
 /// are untrusted (V7). Not `Eq`/`Hash` (contains [`TrackInfo`]).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

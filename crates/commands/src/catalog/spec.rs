@@ -4,7 +4,8 @@
 //!
 //! [`catalog_data()`] is the single table the generators and
 //! `system.list-commands` consume: one [`CommandSpec`] per §2.1 id (61
-//! rows), one [`EventSpec`] per §3.2 id (23 rows). The rows carry the
+//! rows + the issue #32 bookmark trio), one [`EventSpec`] per §3.2 id
+//! (23 rows). The rows carry the
 //! metadata the payload types cannot express — completion class
 //! (§1.5), target (§1.1.3: engine vs shell), the gen-bumping flag
 //! (§4.2's closed list) and compact arg/result shape descriptors.
@@ -157,7 +158,8 @@ pub struct EventSpec {
     pub rate: &'static str,
 }
 
-/// The full command table, in doc 05 §2.1 order (61 rows).
+/// The full command table, in doc 05 §2.1 order (61 rows + the issue #32
+/// bookmark trio).
 pub const fn catalog_data() -> &'static [CommandSpec] {
     &[
         // ---- session (§2.3) ----
@@ -568,6 +570,30 @@ pub const fn catalog_data() -> &'static [CommandSpec] {
             args: PayloadDesc::Type("index: u32"),
             result: PayloadDesc::Type("accepted"),
         },
+        CommandSpec {
+            id: CommandId::MediaGetBookmarks,
+            class: CompletionClass::S,
+            target: CommandTarget::Engine,
+            gen_bumping: false,
+            args: PayloadDesc::None,
+            result: PayloadDesc::Type("Bookmarks"),
+        },
+        CommandSpec {
+            id: CommandId::MediaAddBookmark,
+            class: CompletionClass::S,
+            target: CommandTarget::Engine,
+            gen_bumping: false,
+            args: PayloadDesc::Type("time: Timestamp, label: Option<String>"),
+            result: PayloadDesc::Type("BookmarkAdded"),
+        },
+        CommandSpec {
+            id: CommandId::MediaRemoveBookmark,
+            class: CompletionClass::S,
+            target: CommandTarget::Engine,
+            gen_bumping: false,
+            args: PayloadDesc::Type("id: u32"),
+            result: PayloadDesc::Type("Bookmarks"),
+        },
         // ---- configuration (§2.11) ----
         CommandSpec {
             id: CommandId::ConfigGetSetting,
@@ -962,7 +988,8 @@ mod tests {
     }
 
     /// §1.5's classification policy consequences, as counts: the doc's
-    /// tables classify 19 commands A and 42 S.
+    /// tables classify 19 commands A and 42 S; issue #32 adds the three
+    /// class-S bookmark commands (19 A / 45 S / 64 total).
     #[test]
     fn class_counts_match_the_doc_05_tables() {
         let a = catalog_data()
@@ -974,8 +1001,8 @@ mod tests {
             .filter(|spec| spec.class == CompletionClass::S)
             .count();
         assert_eq!(a, 19, "class-A count");
-        assert_eq!(s, 42, "class-S count");
-        assert_eq!(a + s, 61);
+        assert_eq!(s, 45, "class-S count");
+        assert_eq!(a + s, 64);
     }
 
     /// §3.2's "gen" column: exactly the 13 pipeline-scoped events.

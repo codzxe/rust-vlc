@@ -85,6 +85,7 @@ export const DEFAULT_KEYMAP: ReadonlyMap<string, KeyBinding> = parseKeymap(DEFAU
 export const DIALOG_KEYMAP_TOML = `# [PROPOSAL] excerpt of keymaps/default.toml dialog rows (issue #32).
 [player-dialogs]
 jump-to-time = { key = "Ctrl+T", ui_action = "goto-time", mode = "player-focused", when = "has-media" }
+bookmarks-dialog = { key = "Ctrl+B", ui_action = "bookmarks", mode = "player-focused" }
 `;
 
 /** The parsed dialog seed (module-load; a bad seed is a programmer error). */

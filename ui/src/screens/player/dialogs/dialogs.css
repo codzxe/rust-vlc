@@ -121,3 +121,31 @@
   font-size: var(--font-size-body);
   color: var(--color-content-secondary);
 }
+
+/* Bookmarks form: label field + the Add button in one row. */
+.player-dialog--bookmarks .player-dialog__form {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-inset);
+}
+
+.player-dialog__form .lumen-field {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The row's primary action — a full-width quiet button (jump). */
+.player-dialog__row-main {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-inset);
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}

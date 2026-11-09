@@ -130,12 +130,17 @@ describe("shellActionFor (doc 05 §2.7 shell-target recipes)", () => {
 });
 
 describe("DIALOG_KEYMAP seed (issue #32 — verbatim keymaps/default.toml rows)", () => {
-  it("carries jump-to-time exactly as the keymap file spells it", () => {
+  it("carries jump-to-time and bookmarks-dialog exactly as the keymap file spells them", () => {
     expect(DIALOG_KEYMAP.get("jump-to-time")).toMatchObject({
       key: "Ctrl+T",
       uiAction: "goto-time",
       mode: "player-focused",
       when: "has-media",
+    });
+    expect(DIALOG_KEYMAP.get("bookmarks-dialog")).toMatchObject({
+      key: "Ctrl+B",
+      uiAction: "bookmarks",
+      mode: "player-focused",
     });
   });
 
@@ -167,7 +172,7 @@ describe("matchModifierBindings (issue #32 — exact-combo matching)", () => {
     ).toEqual([]);
   });
 
-  it("never fires on the bare key or wrong modifier (Meta+T, Ctrl+B unbound)", () => {
+  it("never fires on the bare key or wrong modifier (Meta+T); Ctrl+B now opens bookmarks", () => {
     expect(
       matchModifierBindings(DIALOG_KEYMAP, {
         key: "t",
@@ -180,7 +185,9 @@ describe("matchModifierBindings (issue #32 — exact-combo matching)", () => {
     expect(
       matchModifierBindings(DIALOG_KEYMAP, { ...ctrl("t"), metaKey: true, ctrlKey: false }),
     ).toEqual([]);
-    expect(matchModifierBindings(DIALOG_KEYMAP, ctrl("b"))).toEqual([]);
+    expect(matchModifierBindings(DIALOG_KEYMAP, ctrl("b")).map((b) => b.id)).toEqual([
+      "bookmarks-dialog",
+    ]);
   });
 
   it("ignores plain-key bindings and non-player-focused modes", () => {

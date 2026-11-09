@@ -84,6 +84,7 @@
 //! or a typed rejection. Inventions beyond the docs are
 //! `[PROPOSAL]`-tagged at their site.
 
+pub mod bookmarks;
 pub mod chapters;
 pub mod epoch;
 pub mod error;
