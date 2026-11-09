@@ -547,11 +547,10 @@ impl VorbisDecoder {
             Ok(base) => base,
             Err(_) => {
                 self.head_hold = Some(hold);
-                return Err(unsupported(
-                    "vorbis.ident.rate",
-                    "configured facts carry rate 0",
-                )
-                .into_engine_error());
+                return Err(
+                    unsupported("vorbis.ident.rate", "configured facts carry rate 0")
+                        .into_engine_error(),
+                );
             }
         };
         let shift = hold.release_shift;
@@ -570,12 +569,13 @@ impl VorbisDecoder {
         let mut cursor = start;
         while frames < budget && cursor < hold.samples {
             let len = (hold.samples - cursor).min(slot_frames);
-            let byte_start =
-                usize::try_from(cursor * frame_bytes as u64).unwrap_or(usize::MAX);
+            let byte_start = usize::try_from(cursor * frame_bytes as u64).unwrap_or(usize::MAX);
             let byte_len = usize::try_from(len * frame_bytes as u64).unwrap_or(usize::MAX);
             let pts = shift.map(|shift| {
                 Stamp::Present(Timestamp::new(
-                    i64::try_from(cursor).unwrap_or(i64::MAX).saturating_sub(shift),
+                    i64::try_from(cursor)
+                        .unwrap_or(i64::MAX)
+                        .saturating_sub(shift),
                     base,
                 ))
             });
@@ -589,8 +589,9 @@ impl VorbisDecoder {
                 samples: bytes.slice(byte_start..byte_start + byte_len),
                 pts: pts.unwrap_or(Stamp::Missing),
                 duration: Some(Duration::Known(Nanoseconds(
-                    u64::try_from(u128::from(len) * 1_000_000_000u128
-                        / u128::from(ident.sample_rate))
+                    u64::try_from(
+                        u128::from(len) * 1_000_000_000u128 / u128::from(ident.sample_rate),
+                    )
                     .unwrap_or(u64::MAX),
                 ))),
                 generation,
@@ -976,9 +977,10 @@ impl Decoder for VorbisDecoder {
                 Some(g) => g,
                 None => return Err(VorbisError::BadState.into_engine_error()),
             };
-            let started = self.head_hold.as_ref().is_some_and(|hold| {
-                hold.released > 0 || !hold.pending.is_empty()
-            });
+            let started = self
+                .head_hold
+                .as_ref()
+                .is_some_and(|hold| hold.released > 0 || !hold.pending.is_empty());
             if started {
                 self.drain_head_hold(out, generation, usize::MAX)?;
             } else {
