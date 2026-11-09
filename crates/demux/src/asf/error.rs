@@ -199,10 +199,119 @@ pub fn packets_not_implemented() -> EngineError {
 
 /// `seek` before ASF-c: the Simple Index is located but the seek
 /// table and re-anchor flow are that unit's scope (plan §4.3).
+///
+/// Vocabulary without a minting site once ASF-c lands: kept for the
+/// error-table history; seek now answers `seek.out-of-range` /
+/// `seek.too-slow` or succeeds.
 pub fn seek_unsupported() -> EngineError {
     mint(
         ErrorKind::Unsupported { format: None },
         "demux.asf.seek.unsupported",
+    )
+}
+
+/// A data packet's flag bytes carry a shape outside the
+/// ffmpeg-verified subset (packet-flags bits 1-0 ≠ 01, an unknown
+/// property-flags length-type code, or a payload-count byte without
+/// its high bit) at `offset`. Refused typed, never guessed.
+pub fn packet_bad_flags(offset: u64) -> EngineError {
+    mint(
+        ErrorKind::Corrupt {
+            detail: CorruptDetail::InvalidStructure {
+                offset: Some(offset),
+            },
+        },
+        "demux.asf.packet.bad-flags",
+    )
+}
+
+/// A data packet's lengths do not close: a payload overruns the
+/// packet slice, fragments land at the wrong offset, or payloads +
+/// padding do not sum to the packet size (plan §4.2 vocabulary).
+pub fn packet_bad_length(offset: u64) -> EngineError {
+    mint(
+        ErrorKind::Corrupt {
+            detail: CorruptDetail::InvalidStructure {
+                offset: Some(offset),
+            },
+        },
+        "demux.asf.packet.bad-length",
+    )
+}
+
+/// A payload's replicated data is the compressed 1-byte form (no
+/// fixture exercises it — ffmpeg never writes it), or a first
+/// fragment arrives without the 8-byte size/time replication.
+pub fn payload_bad_replication(offset: u64) -> EngineError {
+    mint(
+        ErrorKind::Corrupt {
+            detail: CorruptDetail::InvalidStructure {
+                offset: Some(offset),
+            },
+        },
+        "demux.asf.payload.bad-replication",
+    )
+}
+
+/// A media object under reassembly would exceed the demuxer's memory
+/// ceiling (MP §12): the replicated-data size field is container
+/// input, never a promise to allocate.
+pub fn payload_oversized(budget: u64, attempted: u64) -> EngineError {
+    mint(
+        ErrorKind::ResourceLimit {
+            limit: LimitKind::Memory,
+            budget,
+            attempted,
+        },
+        "demux.asf.payload.oversized",
+    )
+}
+
+/// The File Properties declares a non-fixed packet size (min ≠ max):
+/// the verified packet grammar carries no per-packet length field —
+/// its extent rides the FPO size — so variable-size files are an
+/// unverified shape, refused typed rather than guessed.
+pub fn packet_variable_size() -> EngineError {
+    mint(
+        ErrorKind::Unsupported { format: None },
+        "demux.asf.packet.variable-size-unsupported",
+    )
+}
+
+/// A seek target beyond the container's declared play extent (past
+/// the last index entry's interval or the Data Object's packets).
+pub fn seek_out_of_range() -> EngineError {
+    mint(
+        ErrorKind::Corrupt {
+            detail: CorruptDetail::InvalidStructure { offset: None },
+        },
+        "demux.asf.seek.out-of-range",
+    )
+}
+
+/// The no-index linear seek would scan past the bounded scan budget
+/// (the mkv `seek.too-slow` precedent — the engine's SlowLinear
+/// contract, refused honestly when the walk cannot stay bounded).
+pub fn seek_too_slow() -> EngineError {
+    mint(
+        ErrorKind::Unsupported { format: None },
+        "demux.asf.seek.too-slow",
+    )
+}
+
+/// The Simple Index Object's declared size exceeds the demuxer's
+/// memory ceiling (MP §12): the index is read into bounded memory; a
+/// size above
+/// [`crate::asf::MAX_INDEX_BYTES`](super::MAX_INDEX_BYTES) is
+/// corruption or a hostile file, never a promise to allocate.
+pub fn index_too_large(budget: u64, attempted: u64) -> EngineError {
+    mint(
+        ErrorKind::ResourceLimit {
+            limit: LimitKind::Memory,
+            budget,
+            attempted,
+        },
+        "demux.asf.index-too-large",
     )
 }
 

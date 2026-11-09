@@ -207,14 +207,14 @@ notes = "First vertical per D-001/D-018 (AVI+MJPEG+PCM, zero new deps, 2.B2 merg
 id = "container-asf-wmv"
 category = "container"
 vlc_name = "ASF / WMV"
-description = "Demux ASF container (Advanced Systems Format) incl. WMV payloads"
+description = "Demux ASF container (Advanced Systems Format) incl. WMV payloads: header tree, Data Object packet walk, Simple-Index seeking"
 priority = "P2"
 phase_target = 5
 vlc_modules = ["asf"]
 inventory_ref = "inventory/formats.json#asf-wmv"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Decision card 5.K3-I; WMA audio decode blocked (see codec-audio-wma) — video-only or blocked outcome recorded honestly."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "crates/demux/src/asf/** (cards 6.ASF-a header tree + 6.ASF-b Data Object packets/fragment reassembly hold-and-flush + 6.ASF-c Simple-Index seeking with bounded linear fallback, issue #9; record docs/formats/container-asf.md; 36-test asf unit suite in the 454-test demux crate; ffmpeg 7.1.5 sha256-pinned fixture differential incl. live ffprobe codec + -count_packets cross-check); Linux-only evidence, CI 3-OS pending"
+notes = "Decision card 5.K3-I self-build executed clean-room (spec text unavailable in sandbox — every layout byte-verified against muxer output, [VERIFY-P0] spec pin recorded in the record). WMA audio decode blocked codec-side (see codec-audio-wma) — container emits WAVEFORMATEX-described objects regardless; broadcast files refuse typed (ffprobe agrees, measured); variable packet size + compressed replication refuse typed as unverified shapes."
 
 [[feature]]
 id = "container-wav"

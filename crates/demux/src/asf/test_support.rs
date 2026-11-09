@@ -42,18 +42,18 @@ fn push_word(out: &mut Vec<u8>, value: u16) {
 
 /// The File Properties Object payload (the 80-byte layout this unit
 /// pinned — see `header`'s module docs).
-fn file_properties_payload(flags: u32) -> Vec<u8> {
+fn file_properties_payload(flags: u32, preroll_ms: u64, packet_size: u32, packets: u64) -> Vec<u8> {
     let mut p = Vec::with_capacity(80);
     p.extend_from_slice(&[0u8; 16]); // File ID (zeros — ffmpeg's own)
     push_qword(&mut p, 1_024); // File Size (patched by the builder)
     push_qword(&mut p, 116_444_736_000_000_000); // Creation Date constant
-    push_qword(&mut p, 1); // Data Packets Count
+    push_qword(&mut p, packets); // Data Packets Count
     push_qword(&mut p, 1_000_000); // Play Duration (100 ns)
     push_qword(&mut p, 1_000_000); // Send Duration
-    push_qword(&mut p, 0); // Preroll
+    push_qword(&mut p, preroll_ms); // Preroll
     push_dword(&mut p, flags); // Flags
-    push_dword(&mut p, 3200); // Min packet size
-    push_dword(&mut p, 3200); // Max packet size
+    push_dword(&mut p, packet_size); // Min packet size
+    push_dword(&mut p, packet_size); // Max packet size
     push_dword(&mut p, 64_000); // Max bitrate
     p
 }
@@ -108,7 +108,7 @@ pub fn minimal_asf_audio(wfx: &[u8]) -> Arc<[u8]> {
             0xA1, 0xDC, 0xAB, 0x8C, 0x47, 0xA9, 0xCF, 0x11, 0x8E, 0xE4, 0x00, 0xC0, 0x0C, 0x20,
             0x53, 0x65,
         ],
-        &file_properties_payload(0x2),
+        &file_properties_payload(0x2, 0, 3200, 1),
     );
     children.extend(child(
         [
@@ -170,4 +170,114 @@ pub fn waveformatex(tag: u16, channels: u16, rate: u32, align: u16, bits: u16) -
     push_word(&mut wfx, bits);
     push_word(&mut wfx, 0); // cbSize
     wfx
+}
+
+/// One Simple Index Object entry spec for [`asf_with_packets`]:
+/// `(packet number, packet count)` — the ffmpeg-measured 6-byte
+/// entry form (DWORD packet number, WORD count; the number is
+/// non-decreasing across every measured file — the seek fact).
+pub type IndexEntry = (u32, u16);
+
+/// The Simple Index Object spec for [`asf_with_packets`]: the
+/// interval (100 ns units; ffmpeg writes 10,000,000 = 1 s) and the
+/// entries. The object is appended after the Data Object exactly
+/// where the ffmpeg muxer puts it, in the measured layout:
+/// GUID + size + file id (16) + interval QWORD + the measured
+/// DWORD (0/1 observed, carried raw) + entry count + 6-byte entries.
+pub struct SimpleIndexSpec {
+    /// The per-entry interval in 100 ns units.
+    pub interval_100ns: u64,
+    /// `(packet number, packet count)` per interval bucket.
+    pub entries: Vec<IndexEntry>,
+}
+
+/// The ASF-b/c end-to-end builder: the minimal header (one audio
+/// stream carrying `wfx`, FPO with `preroll_ms` and the fixed
+/// `packet_size`) + a Data Object holding `packets` verbatim + an
+/// optional trailing Simple Index Object. Every size field (FPO
+/// packet count, Data Object size/count, Simple Index size/count) is
+/// patched to the real totals — the shape the walk must accept.
+#[must_use]
+pub fn asf_with_packets(
+    wfx: &[u8],
+    preroll_ms: u64,
+    packet_size: u32,
+    packets: &[Vec<u8>],
+    simple_index: Option<&SimpleIndexSpec>,
+) -> Arc<[u8]> {
+    let mut children = child(
+        [
+            0xA1, 0xDC, 0xAB, 0x8C, 0x47, 0xA9, 0xCF, 0x11, 0x8E, 0xE4, 0x00, 0xC0, 0x0C, 0x20,
+            0x53, 0x65,
+        ],
+        &file_properties_payload(0x2, preroll_ms, packet_size, packets.len() as u64),
+    );
+    children.extend(child(
+        [
+            0x91, 0x07, 0xDC, 0xB7, 0xB7, 0xA9, 0xCF, 0x11, 0x8E, 0xE6, 0x00, 0xC0, 0x0C, 0x20,
+            0x53, 0x65,
+        ],
+        &audio_stream_properties_payload(1, wfx),
+    ));
+
+    let mut out = Vec::new();
+    push_guid(
+        &mut out,
+        [
+            0x30, 0x26, 0xB2, 0x75, 0x8E, 0x66, 0xCF, 0x11, 0xA6, 0xD9, 0x00, 0xAA, 0x00, 0x62,
+            0xCE, 0x6C,
+        ],
+    );
+    push_qword(&mut out, 30 + children.len() as u64);
+    push_dword(&mut out, 2); // Declared child count
+    out.extend_from_slice(&[0x01, 0x02]); // Reserved
+    out.extend_from_slice(&children);
+
+    // Data Object with the packets verbatim (size/count patched).
+    let data_start = out.len();
+    push_guid(
+        &mut out,
+        [
+            0x36, 0x26, 0xB2, 0x75, 0x8E, 0x66, 0xCF, 0x11, 0xA6, 0xD9, 0x00, 0xAA, 0x00, 0x62,
+            0xCE, 0x6C,
+        ],
+    );
+    push_qword(&mut out, 50); // Size (patched below)
+    out.extend_from_slice(&[0u8; 16]); // File ID
+    push_qword(&mut out, packets.len() as u64); // Total data packets
+    out.extend_from_slice(&[0x01, 0x01]); // Reserved
+    for packet in packets {
+        out.extend_from_slice(packet);
+    }
+    let data_size = out.len() - data_start;
+    out[data_start + 16..data_start + 24].copy_from_slice(&(data_size as u64).to_le_bytes());
+
+    // Optional trailing Simple Index Object (the measured layout).
+    if let Some(spec) = simple_index {
+        let index_start = out.len();
+        push_guid(
+            &mut out,
+            [
+                0x90, 0x08, 0x00, 0x33, 0xB1, 0xE5, 0xCF, 0x11, 0x89, 0xF4, 0x00, 0xA0, 0xC9, 0x03,
+                0x49, 0xCB,
+            ],
+        );
+        push_qword(&mut out, 0); // Size (patched below)
+        out.extend_from_slice(&[0u8; 16]); // File ID
+        push_qword(&mut out, spec.interval_100ns);
+        push_dword(&mut out, 0); // The measured DWORD (0/1 observed)
+        push_dword(&mut out, spec.entries.len() as u32);
+        for (number, count) in &spec.entries {
+            push_dword(&mut out, *number);
+            push_word(&mut out, *count);
+        }
+        let index_size = out.len() - index_start;
+        out[index_start + 16..index_start + 24].copy_from_slice(&(index_size as u64).to_le_bytes());
+    }
+
+    // Patch the FPO's File Size to the real total.
+    let fpo_payload_at = 30 + 24;
+    let total = out.len() as u64;
+    out[fpo_payload_at + 16..fpo_payload_at + 24].copy_from_slice(&total.to_le_bytes());
+    Arc::from(out)
 }
