@@ -94,6 +94,24 @@ describe("EffectsArea — pending controls are inert WITH REASON", () => {
     }
   });
 
+  it("renders the 3-band EQ sliders disabled (audio.set-eq, engine Eq3Band)", async () => {
+    const transport = makeFixtureTransport((request) =>
+      request.cmd === "audio.get-volume" ? volumeResult(1.0) : { completed: { kind: "unit" } },
+    );
+    renderWith(transport);
+    for (const name of [
+      "Equalizer: bass (250 Hz)",
+      "Equalizer: mid (1 kHz)",
+      "Equalizer: treble (4 kHz)",
+    ]) {
+      const slider = await screen.findByRole("slider", { name });
+      expect(slider).toBeDisabled();
+      expect(
+        slider.closest("[data-pending-command]")?.getAttribute("data-pending-command"),
+      ).toBe("audio.set-eq");
+    }
+  });
+
   it("pending controls never send anything", async () => {
     const transport = makeFixtureTransport((request) =>
       request.cmd === "audio.get-volume" ? volumeResult(1.0) : { completed: { kind: "unit" } },

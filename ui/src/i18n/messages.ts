@@ -469,6 +469,9 @@ export type MessageKey =
   | "settings.effects.volume"
   | "settings.effects.mute"
   | "settings.effects.balance"
+  | "settings.effects.eq.low"
+  | "settings.effects.eq.mid"
+  | "settings.effects.eq.high"
   | "settings.effects.brightness"
   | "settings.effects.contrast"
   | "settings.effects.saturation"
@@ -1063,6 +1066,9 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "settings.effects.volume": "Master volume",
   "settings.effects.mute": "Mute",
   "settings.effects.balance": "Balance",
+  "settings.effects.eq.low": "Equalizer: bass (250 Hz)",
+  "settings.effects.eq.mid": "Equalizer: mid (1 kHz)",
+  "settings.effects.eq.high": "Equalizer: treble (4 kHz)",
   "settings.effects.brightness": "Brightness",
   "settings.effects.contrast": "Contrast",
   "settings.effects.saturation": "Saturation",

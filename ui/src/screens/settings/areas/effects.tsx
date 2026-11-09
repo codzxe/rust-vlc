@@ -7,12 +7,14 @@
 //     mute (`audio.set-mute`, engine `Volume::MUTE`). They hydrate from
 //     `audio.get-volume` and send on change.
 //   • PENDING controls are the engine stages that exist WITHOUT a catalog
-//     command yet: stereo balance (audio-engine `Balance`, constant-power)
-//     and the video adjust family (video-engine `AdjustParams`). They
-//     render DISABLED with the honest reason and a data-pending-command
-//     marker naming the command they await — visible, inert, never a dead
-//     control that looks alive. They light up when the D-012 command-layer
-//     follow-up lands (`audio.set-balance`, `video.set-adjust`).
+//     command yet: stereo balance (audio-engine `Balance`, constant-power),
+//     the 3-band equalizer (audio-engine `Eq3Band` — RBJ low shelf 250 Hz /
+//     mid peak 1 kHz / high shelf 4 kHz + preamp), and the video adjust
+//     family (video-engine `AdjustParams`). They render DISABLED with the
+//     honest reason and a data-pending-command marker naming the command
+//     they await — visible, inert, never a dead control that looks alive.
+//     They light up when the D-012 command-layer follow-up lands
+//     (`audio.set-balance`, `audio.set-eq`, `video.set-adjust`).
 //   • No schemas/settings.toml entries exist for effects yet — when the
 //     schema owner seeds them, this area's schema-backed fields move to the
 //     generator (same migration note as audio.tsx).
@@ -167,6 +169,29 @@ export function EffectsArea(): ReactElement {
           max={1}
           step={0.05}
           pendingCommand="audio.set-balance"
+        />
+        {/* 3-band EQ (engine `Eq3Band`): ±20 dB band gains, VLC's slider
+            span; corners fixed by the engine stage's design. */}
+        <PendingSlider
+          label="settings.effects.eq.low"
+          min={-20}
+          max={20}
+          step={1}
+          pendingCommand="audio.set-eq"
+        />
+        <PendingSlider
+          label="settings.effects.eq.mid"
+          min={-20}
+          max={20}
+          step={1}
+          pendingCommand="audio.set-eq"
+        />
+        <PendingSlider
+          label="settings.effects.eq.high"
+          min={-20}
+          max={20}
+          step={1}
+          pendingCommand="audio.set-eq"
         />
       </section>
       <section className="settings-section" data-section="video">
