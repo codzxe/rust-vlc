@@ -162,6 +162,30 @@ describe("Icon mined glyph geometry (issue #35, design/figma/Icon.svg)", () => {
     expect(sw2.length).toBe(2); // stem + dot
     unmount();
   });
+
+  it("pins mined sheet geometry — regression guard against provisional paths (issue #35)", () => {
+    // Fingerprints of the translated design/figma/Icon.svg path data (bbox
+    // centred on (12,12)). If these change, geometry was re-drawn by hand
+    // instead of mined — re-derive from the sheet, don't edit the constants.
+    const d = (name: IconName, index: number): string => {
+      const { unmount } = render(<Icon name={name} />);
+      const paths = [...document.querySelectorAll("svg.lumen-icon path")].map((p) => p.getAttribute("d") ?? "");
+      unmount();
+      return paths[index] ?? "";
+    };
+    // play: Icon.svg Vector 16_4 (424→7.75, 80.9554→16.955 after centring)
+    expect(d("play", 0).startsWith("M7.75 16.955V7.045C7.75 6.213 8.707 5.744")).toBe(true);
+    // settings: Vector 75 gear outline + Ellipse 10 centre hole
+    expect(d("settings", 0).startsWith("M12.504 21H11.597")).toBe(true);
+    expect(d("settings", 1).startsWith("M14.25 12C14.25 13.243")).toBe(true);
+    // volume-mute: misnamed "close, value=none" group — speaker + X cross
+    expect(d("volume-mute", 1)).toBe("M16 10L18 12M18 12L20 14M18 12L20 10M18 12L16 14");
+    // skip-back-10: backward-10-sec arrow (reverse-curled) + outlined "10"
+    expect(d("skip-back-10", 0).startsWith("M21 10.44C20.571 8.44")).toBe(true);
+    expect(d("skip-back-10", 1).startsWith("M11.459 12.167V19.44")).toBe(true);
+    // open-file: page mask with 4-radius TL corner (Rectangle 1 in menu.svg row)
+    expect(d("open-file", 0).startsWith("M3 8C3 4.686 5.686 2 9 2")).toBe(true);
+  });
 });
 
 describe("Icon emphasis variants (issue #35, doc 08 §1.4 emphasis strokes)", () => {
