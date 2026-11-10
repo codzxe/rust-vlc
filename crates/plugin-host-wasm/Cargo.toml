@@ -73,3 +73,11 @@ testkit = { path = "../testkit" }
 [[bin]]
 name = "lumenext"
 path = "src/bin/lumenext.rs"
+
+# Card 7.G1 (issue #46): the example-extension module generator —
+# emits the committed plugins/extensions/*/plugin.wasm deterministically
+# from the same public-spec emitter pattern (no wat/wasm-tools
+# dependency); `--check` makes committed-blob drift a loud failure.
+[[bin]]
+name = "lumenext-examples"
+path = "src/bin/lumenext-examples.rs"
