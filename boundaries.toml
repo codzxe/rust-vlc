@@ -542,14 +542,23 @@ external_dev_allowlist = []
 # L6 — the sandboxed WASM extension host (doc 01 §2.8 registry row
 # `plugin-host-wasm`; cards 7.F1–7.F3 / issue #45, doc 06 §5, ADR-002).
 # Composition-root position: nothing depends on it but the apps that
-# embed it. v1 consumes exactly ONE internal edge — plugin-api (the
-# manifest/permission contract, Lead-owned shared interface). doc 01's
-# registry row also names media-types + commands as forward-looking
-# edges (the ui-surface command-layer protocol and the packet
-# vocabulary of future media-extension kinds); neither is wired yet,
-# so neither is listed — the manifest mirrors the Cargo.toml (the
+# embed it. v1 consumed exactly ONE internal edge — plugin-api (the
+# manifest/permission contract, Lead-owned shared interface). Card
+# 7.F4 (issue #46) adds the SECOND internal edge: settings-schema (L1,
+# downward) — the crash backoff/`Disabled` policy is config-driven
+# through the settings layer (`extensions.crash-*`, schemas/settings.toml
+# embedded at compile time), never re-stated in code; the toml external
+# joins for the set-setting seam's value type (preaudit-foundation
+# family, same version settings-schema/localization/plugin-api use).
+# doc 01's registry row also names media-types + commands as
+# forward-looking edges (the ui-surface command-layer protocol and the
+# packet vocabulary of future media-extension kinds); neither is wired
+# yet, so neither is listed — the manifest mirrors the Cargo.toml (the
 # checker's source of truth), and the edges join here in the same
-# change that first uses them. The single external is wasmi 2.0.0
+# change that first uses them. The 7.F4 playback-unaffected proof is a
+# TEST-ONLY edge on playback-engine (the scenario-harness pattern, dev
+# edges exempt from layer ordering by this manifest's own rules).
+# The single production external remains wasmi 2.0.0
 # (ADR-002 accepted; record docs/dependencies/records/wasmi.md),
 # pinned default-features=false + ["std", "validate"] — the audited
 # closure; the `wat` dev-feature dev-dependency the initial skeleton
@@ -561,9 +570,21 @@ external_dev_allowlist = []
 # reader (.lumenext) — public-spec math, no crates.
 [crates.plugin-host-wasm]
 layer = 6
-internal_deps = ["plugin-api"]
-dev_deps = []
-external_allowlist = ["wasmi"]
+internal_deps = ["plugin-api", "settings-schema"]
+# Card 7.F4 (issue #46) test-only edges: the §9.5 playback-unaffected
+# proof (tests/plugin_crash_isolation.rs) composes the REAL playback
+# engine with the faulting extension in one process — the
+# scenario-harness pattern from crates/playback-engine/tests/common
+# (SharedNow/FakeDemuxer/FakeProvider/poll-driven Engine), so the
+# proof drives the real pipeline, never a mock of it. codec-api,
+# media-clock, media-types and packet-queue are that harness's own
+# seams (the same set playback-engine's suite composes); testkit is
+# the dev-only Must/fixture kit (MP §3.7). Dev edges are exempt from
+# layer ordering by this manifest's own rules; the production
+# closure is unchanged (the audited wasmi + plugin-api +
+# settings-schema + toml graph).
+dev_deps = ["codec-api", "media-clock", "media-types", "packet-queue", "playback-engine", "testkit"]
+external_allowlist = ["wasmi", "toml"]
 # L6 — apps/web (doc 01 §2.7 registry row "apps/web — the wasm host
 # page/worker bootstrap"; card 7.H1, issue #47): the engine-in-Worker
 # wasm composition root. Drives the SAME std-only engine core the CLI

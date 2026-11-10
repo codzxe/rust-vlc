@@ -1,0 +1,27 @@
+# plugins/extensions/ui-panel/manifest.toml — the ui-panel example
+# extension (card 7.G1, issue #46; doc 06 §2.3 (d) shape, ui-surface
+# capability through `lumen:v1.ui::ui_register_panel`, §5.8).
+#
+# The `[provenance] hash` ships the doc 06 §2.3 placeholder form;
+# `lumenext package` stamps the real digest of the plugin.wasm it
+# packs this manifest with (stamp_manifest_hash, src/package.rs) —
+# a placeholder is required here, and any diverging full digest is
+# the tamper refusal.
+
+id = "ext.example.panel"
+kind = "ui-panel"
+version = "0.1.0"
+api_version = 1
+origin = "extension"
+
+[capabilities]
+surfaces = ["side-panel"]
+
+[permissions]
+ui-surface = true
+
+[provenance]
+publisher = "Example Extensions"
+source = "https://example.com/ext.example.panel-0.1.0.lumenext"
+hash = "sha256:…(64 hex)"
+license = "MIT"

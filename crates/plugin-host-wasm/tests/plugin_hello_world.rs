@@ -103,6 +103,55 @@ fn hello_world_extension_runs_and_reports_manifest() {
         vec![0],
         "second dispatch works — nothing faulted"
     );
+
+    // The host→guest buffer direction (doc 06 §5.2 no-host-pointers
+    // model): a request payload written into the guest's own memory
+    // through the bounds-checked path, read back verbatim; an
+    // out-of-bounds write is the typed §9.4 denial, never UB.
+    ok(instance.write_guest_memory(128, b"request-payload"));
+    assert_eq!(
+        ok(instance.read_guest_memory(128, 15)),
+        b"request-payload".to_vec()
+    );
+    // A guest-visible round trip: the payload the host wrote is
+    // inside the sandbox — the guest logs it through its own import.
+    // (128 is beyond the fixture's data segments, so only the host
+    // write put those bytes there.)
+    let echo = {
+        let mut w = common::Wasm::new();
+        let log_write = w.import("lumen:v1.log", "log_write", &[I32, I32, I32], &[I32]);
+        let f = w.func(
+            &[],
+            &[I32],
+            &[],
+            &code(&[&i32c(2), &i32c(128), &i32c(15), &call(log_write)]),
+        );
+        w.export_func("echo", f);
+        w.finish()
+    };
+    let mut echoer = ok(spawn_with_limits(
+        &echo,
+        manifest(&manifest_toml(&echo, "")),
+        HostServices::empty(),
+        hello_limits(),
+    ));
+    ok(echoer.write_guest_memory(128, b"request-payload"));
+    assert_eq!(ok(echoer.invoke("echo", &[])), vec![0]);
+    assert_eq!(
+        echoer.log_records(),
+        vec![(2u8, "request-payload".to_string())]
+    );
+
+    // Out-of-bounds host writes are typed denials (the 1 MiB tiny
+    // cap; ptr+len past it), never silent corruption.
+    let err = instance
+        .write_guest_memory(1024 * 1024 - 4, b"12345678")
+        .err()
+        .unwrap_or_else(|| unreachable!("a write past the memory cap must be refused"));
+    assert!(
+        matches!(err, HostError::GuestMemoryOob { ptr, len, .. } if ptr == 1024 * 1024 - 4 && len == 8),
+        "typed OOB denial, got: {err}"
+    );
 }
 
 #[test]

@@ -623,7 +623,15 @@ dependencies = [
 name = "plugin-host-wasm"
 version = "0.1.0"
 dependencies = [
+ "codec-api",
+ "media-clock",
+ "media-types",
+ "packet-queue",
+ "playback-engine",
  "plugin-api",
+ "settings-schema",
+ "testkit",
+ "toml",
  "wasmi",
 ]
 

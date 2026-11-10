@@ -339,6 +339,71 @@ pub fn module_digest(wasm: &[u8]) -> String {
     format!("sha256:{}", sha256_hex(wasm))
 }
 
+/// Stamp the manifest's single `[provenance] hash` line with the
+/// real module digest — the developer flow of doc 06 §2.3: a source
+/// manifest ships the placeholder form (`sha256:…(64 hex)`), and
+/// packaging writes the true value. `digest` is [`module_digest`]'s
+/// full `sha256:<hex>` form (the same string install compares
+/// against, doc 06 §5.7 step 3); card 7.G1's `lumenext package` and
+/// the conformance kit's example runner both go through here — one
+/// implementation.
+///
+/// The hash line must exist exactly once. A full digest that already
+/// matches passes through unchanged; a **different** full digest is
+/// the tamper condition install rejects (doc 06 §5.7 step 3), so it
+/// is refused here too — the manifest and module disagree.
+///
+/// # Errors
+/// [`PackageError::Malformed`] when there is no hash line, more than
+/// one, or a full digest that disagrees with the module.
+pub fn stamp_manifest_hash(manifest: &str, digest: &str) -> Result<String, PackageError> {
+    let expected = format!("hash = \"{digest}\"");
+    let malformed = |detail: String| PackageError::Malformed { detail };
+    let mut found = 0;
+    let mut out = String::with_capacity(manifest.len());
+    for line in manifest.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("hash") && trimmed.contains('=') && trimmed.contains("\"sha256:") {
+            found += 1;
+            if found > 1 {
+                return Err(malformed(
+                    "more than one `hash = \"sha256:…\"` line — refusing to guess which to stamp"
+                        .to_string(),
+                ));
+            }
+            if trimmed.trim() == expected {
+                out.push_str(&expected);
+            } else {
+                let value = trimmed
+                    .split_once('"')
+                    .and_then(|(_, rest)| rest.split_once('"'))
+                    .map(|(value, _)| value)
+                    .unwrap_or("");
+                let is_placeholder = value.contains('…') && value.contains("(64 hex)");
+                if !is_placeholder {
+                    return Err(malformed(format!(
+                        "provenance hash `{value}` disagrees with the module's digest — \
+                         set manifest.toml's [provenance] hash to the doc 06 §2.3 \
+                         placeholder form before packaging"
+                    )));
+                }
+                out.push_str(&expected);
+            }
+        } else {
+            out.push_str(line);
+        }
+        out.push('\n');
+    }
+    if found == 0 {
+        return Err(malformed(
+            "no `hash = \"sha256:…\"` line under [provenance] — extensions must carry \
+             provenance (doc 06 §2.2)"
+                .to_string(),
+        ));
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -400,5 +465,61 @@ mod tests {
             digest,
             "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         );
+    }
+
+    /// A manifest skeleton with the given hash value (the doc 06
+    /// §2.3 shape around it).
+    fn manifest_with_hash(value: &str) -> String {
+        format!(
+            "id = \"ext.acme.x\"\nkind = \"metadata-provider\"\nversion = \"1.0.0\"\n\
+             api_version = 1\norigin = \"extension\"\n\n[provenance]\npublisher = \"Acme\"\n\
+             hash = \"{value}\"\n"
+        )
+    }
+
+    #[test]
+    fn stamp_writes_the_real_digest_over_the_placeholder() {
+        let digest = module_digest(b"module-bytes");
+        let stamped = ok(stamp_manifest_hash(
+            &manifest_with_hash("sha256:9f2c…(64 hex)"),
+            &digest,
+        ));
+        // The placeholder became the real digest, exactly once, in
+        // place — and the result is what install's equality check
+        // (doc 06 §5.7 step 3) expects.
+        assert!(stamped.contains(&format!("hash = \"{digest}\"")));
+        assert!(!stamped.contains('…'));
+        assert_eq!(stamped.matches("hash =").count(), 1);
+        // Round-trip: stamping the already-stamped manifest is a no-op.
+        assert_eq!(ok(stamp_manifest_hash(&stamped, &digest)), stamped);
+    }
+
+    #[test]
+    fn stamp_refuses_tampered_and_missing_hash_lines() {
+        let digest = module_digest(b"module-bytes");
+        // A DIFFERENT full digest is the install-time tamper refusal.
+        let err = stamp_manifest_hash(
+            &manifest_with_hash(
+                "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            ),
+            &digest,
+        )
+        .err()
+        .unwrap_or_else(|| unreachable!("a diverging digest must be refused"));
+        assert!(
+            matches!(err, PackageError::Malformed { ref detail } if detail.contains("disagrees")),
+            "got: {err}"
+        );
+        // No hash line at all: extensions must carry provenance.
+        let no_hash = "id = \"ext.acme.x\"\nkind = \"metadata-provider\"\nversion = \"1.0.0\"\n\
+                       api_version = 1\norigin = \"extension\"\n\n[provenance]\npublisher = \"Acme\"\n";
+        assert!(stamp_manifest_hash(no_hash, &digest).is_err());
+        // Two hash lines: refuse to guess.
+        let twice = format!(
+            "{}{}",
+            manifest_with_hash("sha256:9f2c…(64 hex)"),
+            "hash = \"sha256:9f2c…(64 hex)\"\n"
+        );
+        assert!(stamp_manifest_hash(&twice, &digest).is_err());
     }
 }

@@ -1,0 +1,27 @@
+# plugins/extensions/metadata-provider/manifest.toml — the
+# metadata-provider example extension (card 7.G1, issue #46; doc 06
+# §2.3 (c) shape, command-layer protocol §5.2).
+#
+# The `[provenance] hash` ships the doc 06 §2.3 placeholder form;
+# `lumenext package` stamps the real digest of the plugin.wasm it
+# packs this manifest with (stamp_manifest_hash, src/package.rs) —
+# a placeholder is required here, and any diverging full digest is
+# the tamper refusal.
+
+id = "ext.example.metadata"
+kind = "metadata-provider"
+version = "0.1.0"
+api_version = 1
+origin = "extension"
+
+[capabilities]
+provides = ["tags"]
+
+[permissions]
+fs-sandboxed-read = true
+
+[provenance]
+publisher = "Example Extensions"
+source = "https://example.com/ext.example.metadata-0.1.0.lumenext"
+hash = "sha256:…(64 hex)"
+license = "MIT"

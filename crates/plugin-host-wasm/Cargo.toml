@@ -30,6 +30,13 @@
 # emitter (tests/common) — no `wat`/`wast` dev-dependency, so nothing
 # outside the audited production closure is ever resolved by this
 # crate's builds.
+#
+# 7.F4 (issue #46) adds ONE internal edge — settings-schema (L1, the
+# settings layer): the crash backoff/`Disabled` policy is config-driven
+# (schemas/settings.toml `extensions.crash-*`), read through the
+# embedded-schema runtime plane; the toml external joins only for the
+# `config.set-setting`-shaped value type of that seam (same preaudit-
+# foundation version the rest of the config family uses).
 
 [package]
 name = "plugin-host-wasm"
@@ -43,5 +50,34 @@ workspace = true
 
 [dependencies]
 plugin-api = { path = "../plugin-api" }
+settings-schema = { path = "../settings-schema" }
+
+toml = "1"
 
 wasmi = { version = "2.0.0", default-features = false, features = ["std", "validate", "auto-dispatch"] }
+
+[dev-dependencies]
+# The 7.F4 playback-unaffected proof composes the REAL playback engine
+# with the faulting extension in one process (doc 06 §9.5
+# `plugin_crash_isolation`, the scenario-harness pattern from
+# crates/playback-engine/tests/common). Test-only edges: dev edges are
+# exempt from layer ordering by boundaries.toml's own rules; nothing
+# here leaks into the production closure.
+playback-engine = { path = "../playback-engine" }
+media-types = { path = "../media-types" }
+codec-api = { path = "../codec-api" }
+media-clock = { path = "../media-clock" }
+packet-queue = { path = "../packet-queue" }
+testkit = { path = "../testkit" }
+
+[[bin]]
+name = "lumenext"
+path = "src/bin/lumenext.rs"
+
+# Card 7.G1 (issue #46): the example-extension module generator —
+# emits the committed plugins/extensions/*/plugin.wasm deterministically
+# from the same public-spec emitter pattern (no wat/wasm-tools
+# dependency); `--check` makes committed-blob drift a loud failure.
+[[bin]]
+name = "lumenext-examples"
+path = "src/bin/lumenext-examples.rs"

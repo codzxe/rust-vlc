@@ -12,6 +12,7 @@ Usage:
 
 Areas:
   engine         6 options  (engine-internal: ui = false)
+  extensions     5 options  (engine-internal: ui = false)
   global         1 option
   interface      7 options
   performance    3 options
@@ -38,6 +39,24 @@ engine (engine-internal: ui = false)
   --engine-queue-packets-video <64..4096>  [advanced] [restart required]
       settings.engine.queue-packets-video
       default: -> product.toml limits.queue_packets_video
+
+extensions (engine-internal: ui = false)
+  crash-isolation
+  --extensions-crash-backoff-initial-ms <0..600000 ms>  [advanced]
+      settings.extensions.crash-backoff-initial-ms
+      default: 5000
+  --extensions-crash-backoff-multiplier <1..100>  [advanced]
+      settings.extensions.crash-backoff-multiplier
+      default: 6
+  --extensions-crash-backoff-max-ms <5000..3600000 ms>  [advanced]
+      settings.extensions.crash-backoff-max-ms
+      default: 300000
+  --extensions-crash-restart-limit <1..10>  [advanced]
+      settings.extensions.crash-restart-limit
+      default: 3
+  --extensions-crash-disabled-reenable-ms <0..86400000 ms>  [advanced]
+      settings.extensions.crash-disabled-reenable-ms
+      default: 900000
 
 global
   language

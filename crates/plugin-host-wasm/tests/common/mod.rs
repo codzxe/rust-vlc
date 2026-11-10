@@ -635,3 +635,133 @@ impl HttpTransport for OkTransport {
         })
     }
 }
+
+// ---------------------------------------------------------------------------
+// Crash-injection fixtures (card 7.F4 / doc 06 §7.5, §9.5) — the
+// trap-happy extension shapes the conformance kit and the crash
+// isolation suite drive through the supervisor. All test-only wasm,
+// built with the same in-test emitter as the §9.4 fixtures.
+// ---------------------------------------------------------------------------
+
+/// Traps on entry: EVERY exported entry point is `unreachable` — the
+/// maximally hostile extension (doc 06 §7.5 case 1).
+pub fn crash_trap_on_entry_wasm() -> Vec<u8> {
+    let mut w = Wasm::new();
+    let init = w.func(&[], &[I32], &[], &code(&[&unreachablev()]));
+    let work = w.func(&[], &[I32], &[], &code(&[&unreachablev()]));
+    w.export_func("init", init);
+    w.export_func("work", work);
+    w.finish()
+}
+
+/// Traps mid-call: one honest import call, then `unreachable` (doc 06
+/// §7.5 case 2 — the trap fires with host state touched).
+pub fn crash_trap_mid_call_wasm() -> Vec<u8> {
+    let mut w = Wasm::new();
+    let log_write = w.import("lumen:v1.log", "log_write", &[I32, I32, I32], &[I32]);
+    w.data(0, b"about to trap");
+    let work = w.func(
+        &[],
+        &[I32],
+        &[],
+        &code(&[
+            &i32c(2),
+            &i32c(0),
+            &i32c(13),
+            &call(log_write),
+            &dropv(),
+            &unreachablev(),
+        ]),
+    );
+    w.export_func("work", work);
+    w.finish()
+}
+
+/// Escalates to the host fault from INSIDE an import callback (doc 06
+/// §7.5 case 3): three allowlist-violating fetches — the third trips
+/// the session threshold and the host faults the instance mid-import.
+/// (The trailing `i32.const 0` only satisfies the validator: the third
+/// fault stops execution before it.)
+pub fn crash_escalate_wasm() -> Vec<u8> {
+    let mut w = Wasm::new();
+    let http_get = w.import(
+        "lumen:v1.http",
+        "http_get",
+        &[I32, I32, I32, I32, I32],
+        &[I32],
+    );
+    w.data(0, b"https://evil.test/x");
+    let mut body = Vec::new();
+    for _ in 0..3 {
+        body.extend_from_slice(&i32c(0));
+        body.extend_from_slice(&i32c(20));
+        body.extend_from_slice(&i32c(1024));
+        body.extend_from_slice(&i32c(32));
+        body.extend_from_slice(&i32c(960));
+        body.extend_from_slice(&call(http_get));
+        body.extend_from_slice(&dropv());
+    }
+    body.extend_from_slice(&i32c(0));
+    let work = w.func(&[], &[I32], &[], &code(&[&body]));
+    w.export_func("work", work);
+    w.finish()
+}
+
+/// The fuel burner: `loop { br 0 }` — an infinite loop the per-call
+/// fuel budget must kill (doc 06 §7.5 trap loop / §9.4
+/// `plugin_trap_loop` shape). The trailing `i32.const 0` satisfies
+/// the validator; the fuel kill makes it unreachable.
+pub fn crash_fuel_burner_wasm() -> Vec<u8> {
+    let mut w = Wasm::new();
+    let spin = w.func(
+        &[],
+        &[I32],
+        &[],
+        &code(&[&loopv(), &brv(0), &endv(), &i32c(0)]),
+    );
+    w.export_func("work", spin);
+    w.finish()
+}
+
+/// The memory hog: grows one page at a time until the store limiter
+/// traps (doc 06 §7.5 memory-exhaustion loop). Module max is 100
+/// pages — ABOVE the tiny-limit 1 MiB host cap — so the denial
+/// provably comes from the host limiter.
+pub fn crash_oom_wasm() -> Vec<u8> {
+    let mut w = Wasm::new();
+    w.memory(1, 100);
+    let grow = w.func(
+        &[],
+        &[I32],
+        &[(1, I32)],
+        &code(&[
+            &loopv(),
+            &i32c(1),
+            &mem_grow(),
+            &ltee(0),
+            &i32c(-1),
+            &nev(),
+            &br_if(0),
+            &endv(),
+            &lget(0),
+        ]),
+    );
+    w.export_func("work", grow);
+    w.finish()
+}
+
+/// The healthy survivor: one log record, no fault — proves the host
+/// (and any other instance) keeps serving after a contained crash.
+pub fn crash_survivor_wasm() -> Vec<u8> {
+    let mut w = Wasm::new();
+    let log_write = w.import("lumen:v1.log", "log_write", &[I32, I32, I32], &[I32]);
+    w.data(0, b"survivor-still-alive");
+    let hello = w.func(
+        &[],
+        &[I32],
+        &[],
+        &code(&[&i32c(2), &i32c(0), &i32c(20), &call(log_write)]),
+    );
+    w.export_func("hello", hello);
+    w.finish()
+}
