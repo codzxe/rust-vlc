@@ -82,3 +82,7 @@ tool-results/
 /corpus-big/
 /target
 corpus-v4/
+
+# stray build dir committed in 67d567d - never again
+target-w23e/
+target-w*/
