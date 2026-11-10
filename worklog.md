@@ -792,3 +792,19 @@ Work Log:
 
 Stage Summary:
 - Issue #53 cards 8.B1–8.B2 delivered on w24/d (9 commits, 25 files +14,485/−15): the honest evidence engine, its first real run, and the closed transitions loop (runner → outbox → rule-checked apply → feature-audit). Verification, per W24-L's r2 audit re-run on a fresh worktree: matrix counts cross-checked md↔json↔jsonl — all green; the dev's three smoke re-runs (committed-config linux, windows-config, CI-derived linux) reproduce the 166 raw rows with zero non-timing differences, and the CI-derived re-run with refreshed claims emits 0 transitions (the loop closes); 10/10 xtask compat-matrix tests; cargo fmt clean (both workspaces); clippy --all-targets clean under the mirrored deny lints; lint-literals PASS (0 violations). Residuals the audit flagged (P2: in-row refusal surfacing, wasm-cell derivation; P3: unit-test coverage, wording/labeling) are being fixed by W24-P on w24/p.
+
+---
+Task ID: W24-R10
+Agent: W24-R10 (wave 24 review scout, round 10 — audit of the compat-fix lane W24-P)
+Task: Read-only audit of lane P's fixes for W24-L's findings on the compat-matrix lane (w24/d, issue #53) — findings doc docs/reviews/w24-p-fixes-findings.md.
+
+Work Log:
+- Branch state: `origin/w24/p` does NOT exist (fetch fails; lane unpushed at audit time) — audited the LOCAL ref `w24/p` @ 022d679 (3 commits on origin/w24/d: a776c24 worklog/P1-1, 16d64b0 refusals/P2-1, 022d679 wasm cells/P2-2) via a fresh worktree wt/w24r10 (branch w24/r10); never entered lane P's live worktree wt/w24p (snapshot audit of the committed state only).
+- P1-1 VERIFIED FIXED: the appended W24-D worklog entry matches AGENTS.md §4 exactly, is append-only, discloses the W24-P reconstruction, and is truthful — all 9 commit hashes/descriptions match git log, and every cited verification result matches W24-L's green list item-by-item.
+- P2-1 VERIFIED FIXED: mixed native rows now render valid/(valid+refused) denominators + a typed-refusal clause (41/43 avi, 8/10 wav — string-identical to the new renderer, re-derived from the raw rows); §6.2's "all decoded (43 files)" corrected to 41/43 + 8/10 with all four files (0257/0146/0370/0241) named and attributed (facts cross-checked against the regen manifest, §6.3 and crates/demux/src/wav/format.rs); JSON cells + editorial note aligned; unit test mixed_row_surfaces_its_refusals genuinely exercises the path (read it, ran it).
+- P2-2 VERIFIED FIXED: Steps-lane cells derive from the recorded StepRecords via steps_cell/lane_steps (failure/timeout → steps-failed quoting the step; pass → byte-identical old text, asserted); reachability confirmed (run_bounded records nonzero/timeout outcomes as Ok); tests cover failed/timeout/pass/no-records for both row kinds.
+- No regressions: raw .jsonl blob identical (469f246…); JSON counts + md headline + §3 table byte-identical (166 rows; 84/22/6/0/54; oracle 29/6) — reporting-only confirmed; tests additions-only (11/11 pass, 0 ignored, no deleted asserts); clippy --all-targets 0 warnings under the mirrored deny lints; fmt clean; scope = 4 findings-named files + worklog.
+- Scout findings on the fix lane: 1×P2 (IN-8 aac-lc evidence double-append not addressed at this tip + no fixed-vs-deferred accounting anywhere on the branch; the W24-D entry's "P3 … are being fixed" sentence now overstates the tip) and 2×P3 (P3-2 oracle vectors still the sharpest gap; steps_cell failure detail hard-codes wasm prose). Snapshot caveat recorded: lane P may still be running.
+
+Stage Summary:
+- docs/reviews/w24-p-fixes-findings.md committed on w24/r10 and pushed: verdict 0 P0 / 0 P1 / 1 P2 / 2 P3 on the fix lane; per-L-finding table: P1-1 FIXED, P2-1 FIXED, P2-2 FIXED, P3-3 half-fixed, P3-10 fixed beyond the ask, P3-1/2/4/5/6/7/8/9 + IN-8 not addressed at 022d679; matrix counts unchanged (PASS). Lead action before wave close: confirm with lane P the IN-8 dedupe + applier idempotence guard and an explicit deferred list, then re-audit the final pushed tip.
