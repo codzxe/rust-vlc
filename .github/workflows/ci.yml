@@ -393,8 +393,10 @@ jobs:
 
   # ------------------------------------------------------------------------
   # Config propagation (doc 07 §9 C1-C5; MP §5 "config propagation test").
-  # Folded from the parked file unchanged (card 1.E2): C3 localization
-  # audit + C2 rebrand reverse-control no-op; C1/C4/C5 ledgers below.
+  # Folded from the parked file (card 1.E2) + extended by card 7.w21a:
+  # C3 localization audit, C2 rebrand reverse-control no-op, and the
+  # C1/C2 literal + identity scanners (xtask lint-literals /
+  # check-identity); C4/C5 ledgers below.
   # ------------------------------------------------------------------------
   config-propagation:
     name: config-propagation (doc 07 §9 C1-C5 — identity + l10n propagation)
@@ -441,14 +443,18 @@ jobs:
             cmp "${surface}" "${dest}/${surface}" \
               || { echo "::error::no-op rebrand modified ${surface} - rewriter regression"; exit 1; }
           done
+      - name: C1 — lint-literals over crates/apps sources (doc 07 §9; card 7.w21a)
+        run: cargo run -p xtask --locked -- lint-literals
+      - name: C2 — check-identity over crates/apps sources (doc 07 §9; card 7.w21a)
+        run: cargo run -p xtask --locked -- check-identity
       - name: Honest skip ledger — C-conditions with no enforceable artifact yet (doc 07 §9)
         run: |
           echo "COVERED C2 (partial): rebrand reverse-control no-op above; generated-artifact drift via schema-gen --check in schema-validation."
           echo "COVERED C3 (partial): cargo test -p localization above (shipped-tree audit; the l10n-audit xtask subcommand itself does not exist)."
           echo "COVERED C4: schema-validation job (this workflow) owns product.toml / settings / feature-matrix validation."
           echo "COVERED C5: boundary-check (gate job step 4, card 1.E1, doc 01 §5) owns crate boundaries."
-          echo "SKIP C1 lint-literals: no cargo xtask lint-literals subcommand (frozen registry); the ESLint half now runs in ui.yml (npm run lint) - the engine-side literal linter lands with its card; doc 07 §9 C1."
-          echo "SKIP C2 check-identity: no check-identity subcommand yet - the no-op above is the doc 07 §8.3 step-6 stand-in, not a full no-hardcoded-identity scan."
+          echo "COVERED C1 lint-literals: cargo run -p xtask lint-literals above (card 7.w21a) - the config-plane literal scan (identity/URL/abs-path/hex-color, audited inline markers); the ESLint half runs in ui.yml (npm run lint); doc 07 §9 C1."
+          echo "COVERED C2 check-identity: cargo run -p xtask check-identity above (card 7.w21a) - the full no-hardcoded-identity scan (brand trio + technical ids + accent), alongside the rebrand no-op stand-in."
           echo "SKIP C2 packaging regen check: no packaging plane yet (no MSI/plist metadata); doc 07 §9 C2."
 
   # ------------------------------------------------------------------------
