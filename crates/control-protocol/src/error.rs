@@ -19,6 +19,9 @@ use commands::error::Stage;
 pub enum CloseCode {
     /// 1000 — normal, deliberate close.
     Normal,
+    /// 1001 — the server's bounded wait expired (idle or stalled peer);
+    /// no session can wedge the single-connection server forever.
+    GoingAway,
     /// 1002 — protocol error (malformed frame, bad handshake).
     ProtocolError,
     /// 1007 — text payload was not valid UTF-8.
@@ -39,6 +42,7 @@ impl CloseCode {
     pub const fn as_u16(self) -> u16 {
         match self {
             CloseCode::Normal => 1000,
+            CloseCode::GoingAway => 1001,
             CloseCode::ProtocolError => 1002,
             CloseCode::InvalidUtf8 => 1007,
             CloseCode::TooBig => 1009,
@@ -126,6 +130,13 @@ pub enum ProtocolError {
         /// Redaction-safe detail (serde message, capped).
         detail: String,
     },
+    /// A socket read/write deadline expired (the bounded-wait
+    /// guarantee: an idle or stalled peer closes the session with
+    /// 1001 instead of wedging the single-connection server forever).
+    TimedOut {
+        /// What was being attempted.
+        what: &'static str,
+    },
     /// The connection closed (peer close frame or EOF).
     Closed,
 }
@@ -137,6 +148,7 @@ impl ProtocolError {
             ProtocolError::NonLoopbackBind { .. }
             | ProtocolError::Io { .. }
             | ProtocolError::Closed => CloseCode::Normal,
+            ProtocolError::TimedOut { .. } => CloseCode::GoingAway,
             ProtocolError::HttpUpgrade { .. } => CloseCode::ProtocolError,
             ProtocolError::Frame { code, .. } => *code,
             ProtocolError::MessageTooLarge { .. } => CloseCode::TooBig,
@@ -162,6 +174,7 @@ impl ProtocolError {
         let code = match self {
             ProtocolError::NonLoopbackBind { .. } => ErrorCode::InvalidArgument,
             ProtocolError::Io { .. } => ErrorCode::Io,
+            ProtocolError::TimedOut { .. } => ErrorCode::Network,
             ProtocolError::HttpUpgrade { .. } | ProtocolError::Frame { .. } => {
                 ErrorCode::InvalidArgument
             }
@@ -187,6 +200,12 @@ impl std::fmt::Display for ProtocolError {
                 "non-loopback bind refused: {requested} (control server binds 127.0.0.1/::1 only)"
             ),
             ProtocolError::Io { what, source } => write!(f, "{what}: {source}"),
+            ProtocolError::TimedOut { what } => {
+                write!(
+                    f,
+                    "socket deadline expired while {what} (idle or stalled peer)"
+                )
+            }
             ProtocolError::HttpUpgrade { reason } => {
                 write!(f, "websocket upgrade rejected: {reason}")
             }
@@ -243,6 +262,7 @@ mod tests {
     #[test]
     fn close_codes_are_the_documented_values() {
         assert_eq!(CloseCode::Normal.as_u16(), 1000);
+        assert_eq!(CloseCode::GoingAway.as_u16(), 1001);
         assert_eq!(CloseCode::ProtocolError.as_u16(), 1002);
         assert_eq!(CloseCode::InvalidUtf8.as_u16(), 1007);
         assert_eq!(CloseCode::TooBig.as_u16(), 1009);
@@ -279,6 +299,17 @@ mod tests {
         };
         assert_eq!(err.close_code(), CloseCode::VersionMismatch);
         assert!(err.to_string().contains("mutually supported major"));
+    }
+
+    #[test]
+    fn timeouts_map_to_going_away_and_network() {
+        let err = ProtocolError::TimedOut {
+            what: "reading a frame",
+        };
+        assert_eq!(err.close_code(), CloseCode::GoingAway);
+        assert_eq!(err.close_code().as_u16(), 1001);
+        assert_eq!(err.to_command_error().code, ErrorCode::Network);
+        assert!(err.to_string().contains("deadline"));
     }
 
     #[test]

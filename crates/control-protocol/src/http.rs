@@ -124,6 +124,14 @@ fn read_head<R: Read>(stream: &mut R) -> Result<Option<String>, ProtocolError> {
                 }
             }
             Err(err) => {
+                if matches!(
+                    err.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) {
+                    return Err(ProtocolError::TimedOut {
+                        what: "reading the upgrade request",
+                    });
+                }
                 return if is_disconnect(&err) && buf.is_empty() {
                     Ok(None)
                 } else {

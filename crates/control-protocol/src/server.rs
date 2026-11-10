@@ -127,6 +127,35 @@ impl Default for AuthLimits {
     }
 }
 
+/// Socket read/write deadlines (the bounded-wait guarantee): an idle
+/// or stalled peer ends the session with a typed 1001 close instead of
+/// wedging the single-connection server forever. `None` disables a
+/// deadline (tests that drive byte-at-a-time frames may want that).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Timeouts {
+    /// Read deadline per socket operation (idle peer bound).
+    pub read: Option<Duration>,
+    /// Write deadline per socket operation (stalled peer bound).
+    pub write: Option<Duration>,
+}
+
+impl Timeouts {
+    /// The documented defaults: 60 s read (a control client may idle
+    /// between requests, but not forever), 10 s write.
+    pub const fn documented() -> Timeouts {
+        Timeouts {
+            read: Some(Duration::from_secs(60)),
+            write: Some(Duration::from_secs(10)),
+        }
+    }
+}
+
+impl Default for Timeouts {
+    fn default() -> Self {
+        Timeouts::documented()
+    }
+}
+
 /// The failure/backoff book (doc 05 §5.4). Private to the server; the
 /// lockout state is observable only through typed errors and
 /// [`SessionSummary`].
@@ -184,6 +213,8 @@ pub struct ServerConfig {
     pub token: TokenSource,
     /// Frame/message caps.
     pub limits: Limits,
+    /// Socket read/write deadlines.
+    pub timeouts: Timeouts,
     /// Auth failure/lockout policy.
     pub auth_limits: AuthLimits,
     /// The `engineInfo` block this host advertises in `welcome`.
@@ -201,6 +232,7 @@ impl ServerConfig {
             policy: ServerPolicy::deny_all_sensitive(),
             token: TokenSource::Generated,
             limits: Limits::documented(),
+            timeouts: Timeouts::documented(),
             auth_limits: AuthLimits::documented(),
             engine_info,
         }
@@ -410,6 +442,21 @@ impl ControlServer {
             what: "accepting a control connection",
             source,
         })?;
+        // Bounded waits on both directions BEFORE any session work: a
+        // silent peer can never wedge the (single-connection) server.
+        let timeouts = self.config.timeouts;
+        stream
+            .set_read_timeout(timeouts.read)
+            .map_err(|source| ProtocolError::Io {
+                what: "setting the read deadline",
+                source,
+            })?;
+        stream
+            .set_write_timeout(timeouts.write)
+            .map_err(|source| ProtocolError::Io {
+                what: "setting the write deadline",
+                source,
+            })?;
         let mut session = Session::new(&self.config, &self.token, remote.to_string());
         let end = session.run(&mut stream, dispatch, &mut self.failures);
         Ok(SessionSummary {
@@ -722,16 +769,16 @@ impl Session {
         // Anti-replay: strictly increasing requestId per connection
         // (doc 05 §4.1/§5.4) — a breach is a protocol close.
         let id = request.request_id.0;
-        if let Some(last) = self.last_request_id {
-            if id <= last {
-                self.protocol_errors = self.protocol_errors.saturating_add(1);
-                let error = self.error_frame(
-                    ProtocolErrorCode::NonMonotonicRequestId,
-                    "requestId must be strictly increasing within a connection",
-                );
-                let _ = self.send_json(stream, &error);
-                return Flow::End(self.close_with(stream, CloseCode::AppProtocolError));
-            }
+        if let Some(last) = self.last_request_id
+            && id <= last
+        {
+            self.protocol_errors = self.protocol_errors.saturating_add(1);
+            let error = self.error_frame(
+                ProtocolErrorCode::NonMonotonicRequestId,
+                "requestId must be strictly increasing within a connection",
+            );
+            let _ = self.send_json(stream, &error);
+            return Flow::End(self.close_with(stream, CloseCode::AppProtocolError));
         }
         self.last_request_id = Some(id);
         // Deny-by-default sensitive ops (the connection survives; only
@@ -811,6 +858,7 @@ impl Session {
             ProtocolError::UnknownProtocol { .. } => ProtocolErrorCode::UnknownProtocol,
             ProtocolError::NotHello => ProtocolErrorCode::NotHello,
             ProtocolError::HelloTwice => ProtocolErrorCode::HelloTwice,
+            ProtocolError::TimedOut { .. } => ProtocolErrorCode::Internal,
             _ => ProtocolErrorCode::BadFrame,
         };
         let frame = self.error_frame(code, &err.to_string());
@@ -831,6 +879,7 @@ impl Session {
 fn err_reason(code: CloseCode) -> String {
     match code {
         CloseCode::Normal => "session complete".to_owned(),
+        CloseCode::GoingAway => "socket deadline expired (idle or stalled peer)".to_owned(),
         CloseCode::ProtocolError => "websocket protocol violation".to_owned(),
         CloseCode::InvalidUtf8 => "text payload is not valid UTF-8".to_owned(),
         CloseCode::TooBig => "payload exceeded the configured cap".to_owned(),

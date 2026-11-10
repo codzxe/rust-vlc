@@ -75,6 +75,7 @@ pub use protocol::{
     SUPPORTED_VERSIONS, ServerFrame, Welcome, capabilities_current,
 };
 pub use server::{
-    AuthLimits, ControlServer, Dispatch, Limits, ServerConfig, SessionSummary, TokenSource,
+    AuthLimits, ControlServer, Dispatch, Limits, ServerConfig, SessionSummary, Timeouts,
+    TokenSource,
 };
 pub use token::{constant_time_eq, generate_token};

@@ -103,8 +103,8 @@ impl Sha1 {
     /// The RFC 3174 §6.1.2 block function over one 64-byte block.
     fn compress(&mut self, block: &[u8; 64]) {
         let mut w = [0u32; 80];
-        for (i, chunk) in block.chunks_exact(4).enumerate() {
-            w[i] = u32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+        for (i, word) in block.as_chunks::<4>().0.iter().enumerate() {
+            w[i] = u32::from_be_bytes([word[0], word[1], word[2], word[3]]);
         }
         for i in 16..80 {
             w[i] = (w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16]).rotate_left(1);

@@ -106,18 +106,18 @@ fn read_exact<R: Read>(stream: &mut R, n: usize) -> Result<Option<Vec<u8>>, Prot
             Err(err)
                 if matches!(
                     err.kind(),
-                    std::io::ErrorKind::Interrupted
-                        | std::io::ErrorKind::WouldBlock
-                        | std::io::ErrorKind::TimedOut
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
                 ) =>
             {
-                if err.kind() == std::io::ErrorKind::Interrupted {
-                    continue;
-                }
-                return Err(ProtocolError::Io {
-                    what: "reading frame",
-                    source: err,
+                // A set read deadline expired (or would block past it):
+                // the bounded-wait guarantee — a typed close, never an
+                // eternal block on a silent peer.
+                return Err(ProtocolError::TimedOut {
+                    what: "reading a frame",
                 });
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::Interrupted => {
+                continue;
             }
             Err(err) => {
                 return if is_disconnect(&err) && filled == 0 {
@@ -332,9 +332,20 @@ pub fn write_frame<W: Write>(
     stream
         .write_all(&head)
         .and_then(|()| stream.write_all(payload))
-        .map_err(|source| ProtocolError::Io {
-            what: "writing frame",
-            source,
+        .map_err(|source| {
+            if matches!(
+                source.kind(),
+                std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+            ) {
+                ProtocolError::TimedOut {
+                    what: "writing a frame",
+                }
+            } else {
+                ProtocolError::Io {
+                    what: "writing frame",
+                    source,
+                }
+            }
         })
 }
 

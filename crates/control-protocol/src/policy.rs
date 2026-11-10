@@ -162,21 +162,12 @@ pub struct PolicySection {
 }
 
 /// The resolved, server-side policy (deny-by-default).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ServerPolicy {
     /// Granted sensitive commands (explicit config opt-in only).
     grants: BTreeSet<CommandId>,
     /// Read-only mode: unauthenticated sessions get [`READ_ONLY_SAFE`].
     read_only: bool,
-}
-
-impl Default for ServerPolicy {
-    fn default() -> Self {
-        ServerPolicy {
-            grants: BTreeSet::new(),
-            read_only: false,
-        }
-    }
 }
 
 impl ServerPolicy {

@@ -16,12 +16,19 @@
 
 use std::io::Read;
 use std::net::TcpStream;
+use std::time::Duration;
 
 use crate::error::ProtocolError;
 use crate::frame::Opcode;
 use crate::frame::write_masked_frame;
 use crate::http;
 use crate::protocol::ServerFrame;
+
+/// The per-operation socket deadline every test client runs under: a
+/// broken server must FAIL a test with a typed
+/// [`ProtocolError::TimedOut`], never hang the suite (the lesson of
+/// the conformance-suite hang this crate's own history records).
+pub const TEST_CLIENT_DEADLINE: Duration = Duration::from_secs(10);
 
 /// A loopback conformance client.
 pub struct TestClient {
@@ -33,16 +40,31 @@ pub struct TestClient {
 
 impl TestClient {
     /// Connect to `addr` and perform the RFC 6455 opening handshake.
+    /// Both socket directions run under [`TEST_CLIENT_DEADLINE`] — a
+    /// wedged server fails the test loudly instead of hanging it.
     ///
     /// # Errors
     /// [`ProtocolError::Io`] on connect trouble;
     /// [`ProtocolError::HttpUpgrade`] when the server's 101/accept is
-    /// not exactly what the RFC demands for our nonce.
+    /// not exactly what the RFC demands for our nonce;
+    /// [`ProtocolError::TimedOut`] when the deadline expires.
     pub fn connect(addr: &str) -> Result<TestClient, ProtocolError> {
         let mut stream = TcpStream::connect(addr).map_err(|source| ProtocolError::Io {
             what: "connecting the test client",
             source,
         })?;
+        stream
+            .set_read_timeout(Some(TEST_CLIENT_DEADLINE))
+            .map_err(|source| ProtocolError::Io {
+                what: "setting the test client's read deadline",
+                source,
+            })?;
+        stream
+            .set_write_timeout(Some(TEST_CLIENT_DEADLINE))
+            .map_err(|source| ProtocolError::Io {
+                what: "setting the test client's write deadline",
+                source,
+            })?;
         // A locally-generated nonce (this is a TEST client; the value
         // only needs to be 16 varied bytes — the accept check pins the
         // derivation).

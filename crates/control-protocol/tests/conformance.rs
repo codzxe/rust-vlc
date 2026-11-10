@@ -529,7 +529,7 @@ fn garbage_masked_payload_is_a_recoverable_json_error() {
     let mut client = connect(&harness.addr());
     // Valid masked TEXT frame whose payload is not JSON.
     let garbage: [u8; 8] = [0x00, 0xff, 0x10, 0x01, 0xde, 0xad, 0xbe, 0xef];
-    send(&mut client, &String::from_utf8_lossy(&garbage).into_owned());
+    send(&mut client, &String::from_utf8_lossy(&garbage));
     match next_frame(&mut client) {
         ServerFrame::ProtocolError { code, .. } => {
             assert_eq!(code, ProtocolErrorCode::BadJson);
@@ -968,4 +968,47 @@ fn binary_application_frames_are_rejected_but_survive() {
     let summaries = harness.join();
     assert_eq!(summaries[0].requests_served, 1);
     assert_eq!(summaries[0].protocol_errors, 1);
+}
+
+// ---------------------------------------------------------------------------
+// Bounded waits (the hang lesson, made structural)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn idle_session_is_closed_by_the_read_deadline_1001() {
+    // The server runs a tight read deadline; a client that goes silent
+    // mid-session (established, authenticated, then nothing) must get a
+    // typed close 1001 — never an eternal block holding the
+    // single-connection server hostage.
+    let mut config = ServerConfig::strict(test_engine_info());
+    config.token = TokenSource::Fixed(TOKEN.to_owned());
+    config.timeouts = control_protocol::server::Timeouts {
+        read: Some(std::time::Duration::from_millis(150)),
+        write: Some(std::time::Duration::from_millis(150)),
+    };
+    let harness = Harness::spawn_config(config, 1);
+    let mut client = connect(&harness.addr());
+    send(&mut client, &hello_text(Some(TOKEN), &[1]));
+    let _ = next_frame(&mut client); // welcome
+    // Now go SILENT: no close frame, no data. The server's read
+    // deadline is the only way out: a typed protocol-error (the
+    // deadline is a server-side condition), then close 1001.
+    match next_frame(&mut client) {
+        ServerFrame::ProtocolError { code, message } => {
+            assert_eq!(code, ProtocolErrorCode::Internal);
+            assert!(message.contains("deadline"), "{message}");
+        }
+        other => unreachable!("idle close: {other:?}"),
+    }
+    match client.expect_close() {
+        Ok(Some(1001)) => {}
+        other => unreachable!("expected close 1001, got {other:?}"),
+    }
+    let summaries = harness.join();
+    assert_eq!(
+        summaries[0].close,
+        SessionEnd::ServerClosed(CloseCode::GoingAway),
+        "the summary records the bounded-wait close"
+    );
+    assert!(summaries[0].authenticated);
 }
