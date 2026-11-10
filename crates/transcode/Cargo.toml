@@ -1,0 +1,66 @@
+# crates/transcode — the transcode graph core (card 7.E1, issue #43;
+# doc 01 §2.5 registry row `transcode`: layer L3, "recording,
+# conversion, stream output" — the Phase-7 surface of MP §16).
+#
+# What this crate owns: the decode→filter→encode pipeline MODEL, the
+# job lifecycle (progress/cancel), bounded resources, and the v1 sinks
+# — WAV PCM encode (real RIFF/WAVE writing) and the stream-copy paths
+# (WAV-from-PCM remux, raw elementary-stream file sink). Honest
+# capability: NO other encoder and NO other muxer ships in v1 (MP4
+# remux is the later 7.E2 card); every unsupported conversion is a
+# typed `ErrorKind::Unsupported`.
+#
+# Dependency decisions (recorded for review):
+# * Production edges all point downward (L3 → L2/L1/L0):
+#   - `media-types` (L0): the Packet/Frame/Track/EngineError vocabulary.
+#   - `plugin-api` (L1): the `Demuxer`/`DemuxEvent` contract the source
+#     stage consumes (doc 01 Q3 trait placement).
+#   - `codec-api` (L1): the `Decoder`/`FrameSink` contracts — the
+#     decode stage runs any host-provided `Decoder` through a
+#     `DecoderFactory` seam. The WAV PCM writer is a container
+#     serializer, NOT a codec-api `Encoder` (WAV PCM is not a
+#     bitstream compression; the encoder seam joins with card 7.E3,
+#     recorded as the ES-sink [PROPOSAL] in src/runner.rs).
+#   - `demux` (L2): the concrete demultiplexers + the WAV `fmt `-facts
+#     seam (`PcmSample`, `WaveFormat`) the stream-copy path reads.
+#     Doc 01 §2.5's own transcode responsibility statement says the
+#     pipeline "reuses probe/demux/decode/encode"; the registry row's
+#     Consumes list names media-probe, which joins with the
+#     profile-driven probe card — this card needs demux instead.
+# * `codecs` is a DEV-ONLY edge (the playback-engine 3.A3 precedent):
+#   the library speaks codec-api's `Decoder` trait; the concrete
+#   decoders are wired by the host (the plugin registry) and by this
+#   crate's fixture tests. A same-layer L3→L3 production edge would
+#   violate layer ordering (boundaries.toml [rules]) — and the plugin
+#   architecture's own answer is the trait seam.
+# * `input` is a DEV-ONLY edge: the e2e suites open the committed
+#   fixtures through the real file access stack (the demux crate's own
+#   dev-edge precedent).
+#
+# C5 discipline: std-only, zero external dependencies. No unsafe, no
+# unwrap/expect/panic/todo (workspace lints). Bounded memory (MP §12):
+# the stage queue, event hub, write buffers and track table all carry
+# explicit, documented ceilings.
+
+[package]
+name = "transcode"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen transcode graph core: decode-to-WAV pipeline model, job lifecycle with progress/cancel, bounded resources, WAV PCM encode + stream-copy sinks (card 7.E1, issue #43)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+codec-api = { path = "../codec-api" }
+demux = { path = "../demux" }
+media-types = { path = "../media-types" }
+plugin-api = { path = "../plugin-api" }
+
+[dev-dependencies]
+# The real decoders for the round-trip ACs (dev-only — see above).
+codecs = { path = "../codecs" }
+# The real file access stack for the fixture e2e suites (dev-only).
+input = { path = "../input" }
+testkit = { path = "../testkit" }

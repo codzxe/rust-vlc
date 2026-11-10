@@ -561,3 +561,17 @@ Work Log:
 Stage Summary:
 - D-10: MEASURE — 60/60 host tests, 3 foreign-target checks clean, 3 gates PASS. NOT TESTED — real Windows/macOS hardware and a live PulseAudio server ([VERIFY] registers in each crate's docs). WHAT BREAKS — the mirrored seam vocabulary across the three crates duplicates until the Lead's L5 unification [PROPOSAL]. WHO HITS IT FIRST — issues #41 (codec hw decode) / #42 (device-discovery) joining these edges.
 - Open: xdg-desktop-portal FileChooser D-Bus client is the recorded [PROPOSAL] follow-up (zenity/kdialog chain is the working path); pulse client-name + thread names are config-edge candidates once platform crates gain a product-config edge.
+Task ID: 7.w22c
+Agent: w22-c (transcode final relaunch)
+
+Task: Card 7.E1 / issue #43 close-out — verify, repair, and gate the transcode graph core left by the killed prior sessions; land it green.
+
+Work Log:
+- Recovered the killed prior session's uncommitted tail (12 files, +206/-173): rustfmt pass, clippy -D warnings fixes (`as_chunks` over `chunks_exact`, `Option::inspect` in queue `take`, `u64::is_multiple_of` in the WAV frame check), and the `[crates.transcode]` boundaries.toml entry (L3; internal media-types/plugin-api/codec-api/demux, all downward; dev testkit/codecs/input; zero externals). Verified before committing: check clean, 55/55 tests.
+- 8c98a39: that recovery committed as-is (state was sound — no repairs needed).
+- 1761d34: residual fmt drift in `build_plan`'s WavCopyPcm match arm.
+- Gates ACTUAL (all rerun after the last code change): `cargo check -p transcode` clean; `cargo test -p transcode` 55/55 (43 unit + 6 lifecycle e2e + 5 round-trip + 1 doctest); `cargo fmt -p transcode --check` clean; `cargo clippy -p transcode --all-targets -- -D warnings` zero; `check-architecture` PASS 5/5 (31 members, transcode registered); `lint-literals` PASS 0 violations/340 allowlisted; `check-identity` PASS 0 violations/341 allowlisted (no transcode annotations needed — WAV magic bytes are format vocabulary).
+- Requirement audit vs the card: (a) typed graph source→decode→[filters]→sink with `validate()` order pinned by tests; (b) queued→running→progress→terminal with first-set-wins OnceLock, bounded drop-and-count event hub, cooperative cancel checked at every stage boundary, saturating byte/sample accounting; (c) two-axis stage queue (64 slots/1 MiB default, 1024/16 MiB ceilings) with parking backpressure + queue high-water stats; (d) RIFF/WAVE writer for u8/s16/s24/s32/f32/f64, identity + lossless widening only, 4-fixture bit-exact round-trip through our own WavDemuxer/PcmDecoder; (e) copy paths WAV-from-PCM (LE unpacked only, BE typed-refused) + raw ES dump, no MP4-remux claim (7.E2); (f) lifecycle/cancel/progress + fill-queue→park proofs + fixture round-trips — no new media binaries committed (fixtures pre-existing; e2e PCM synthesized programmatically).
+
+Stage Summary:
+- Card 7.E1 landed green on w21/c at 1761d34: 11 src files + 2 e2e suites (5834 lines), 55/55 tests, all five local gates PASS. Honest capability surface: WAV PCM encode + the two stream-copy paths only; filters modeled-and-refused, codec encoders deferred to 7.E3 via the recorded `[PROPOSAL]` ES-sink seam, MP4 remux to 7.E2. No new deps, no unsafe, no workspace-wide test run (disk-tight).
