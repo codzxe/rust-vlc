@@ -1,0 +1,803 @@
+{
+ "schema": "compat-matrix/config/1",
+ "corpus": {
+  "committed_roots": [
+   "tests/fixtures/generated/valid",
+   "tests/fixtures/generated/ivf",
+   "tests/fixtures/hls",
+   "tests/fixtures/mjpeg_h3"
+  ],
+  "malformed_root": "tests/fixtures/generated/malformed",
+  "media_extensions": [
+   "avi",
+   "mkv",
+   "webm",
+   "mka",
+   "m4a",
+   "mp4",
+   "mov",
+   "3gp",
+   "ogg",
+   "oga",
+   "ogv",
+   "wav",
+   "flac",
+   "aiff",
+   "aif",
+   "aifc",
+   "au",
+   "mp3",
+   "mp2",
+   "aac",
+   "ac3",
+   "ts",
+   "m2ts",
+   "mpg",
+   "mpeg",
+   "vob",
+   "asf",
+   "wmv",
+   "wma",
+   "ivf",
+   "h264",
+   "264",
+   "hevc",
+   "265",
+   "h265"
+  ],
+  "exclude_suffixes": [
+   ".md",
+   ".toml",
+   ".json",
+   ".m3u8",
+   ".tsv",
+   ".txt",
+   ".rs",
+   ".py"
+  ],
+  "regen": {
+   "manifest": "tests/compat/regen-corpus-manifest.json",
+   "cache_dir": "tests/compat/.regen-cache",
+   "ffmpeg": "ffmpeg"
+  }
+ },
+ "oracle": {
+  "record": "docs/corpus/vlc-oracle-run-20261109.json",
+  "f32_record": "docs/corpus/vlc-f32-tolerance-20261109.json",
+  "f32_tolerance": {
+   "rms_max": 0.0001,
+   "peak_max": 0.001
+  },
+  "vlc": {
+   "bin": "/tmp/vlc-3.0.23/usr/bin/vlc",
+   "env": [
+    [
+     "LD_LIBRARY_PATH",
+     "/tmp/vlc-3.0.23/usr/lib/x86_64-linux-gnu"
+    ],
+    [
+     "VLC_PLUGIN_PATH",
+     "/tmp/vlc-3.0.23/usr/lib/x86_64-linux-gnu/vlc/plugins"
+    ]
+   ],
+   "version_line": "VLC version 3.0.23 Vetinari (3.0.23-2-0-g79128878dd)"
+  },
+  "comparable_rels": [
+   "tests/compat/.regen-cache/0022-avi-av.avi",
+   "tests/compat/.regen-cache/0040-avi-av.avi",
+   "tests/compat/.regen-cache/0041-avi-av.avi",
+   "tests/compat/.regen-cache/0096-multivideo-av.avi",
+   "tests/compat/.regen-cache/0116-avi-av.avi",
+   "tests/compat/.regen-cache/0121-multivideo-av.avi",
+   "tests/compat/.regen-cache/0134-avi-av.avi",
+   "tests/compat/.regen-cache/0155-avi-av.avi",
+   "tests/compat/.regen-cache/0156-avi-av.avi",
+   "tests/compat/.regen-cache/0161-multivideo-av.avi",
+   "tests/compat/.regen-cache/0177-multivideo-av.avi",
+   "tests/compat/.regen-cache/0180-multivideo-av.avi",
+   "tests/compat/.regen-cache/0187-avi-av.avi",
+   "tests/compat/.regen-cache/0194-multivideo-av.avi",
+   "tests/compat/.regen-cache/0201-multivideo-av.avi",
+   "tests/compat/.regen-cache/0214-avi-av.avi",
+   "tests/compat/.regen-cache/0227-avi-av.avi",
+   "tests/compat/.regen-cache/0233-multivideo-av.avi",
+   "tests/compat/.regen-cache/0236-multivideo-av.avi",
+   "tests/compat/.regen-cache/0247-avi-av.avi",
+   "tests/compat/.regen-cache/0278-avi-av.avi",
+   "tests/compat/.regen-cache/0280-avi-av.avi",
+   "tests/compat/.regen-cache/0297-avi-av.avi",
+   "tests/compat/.regen-cache/0305-avi-av.avi",
+   "tests/compat/.regen-cache/0307-multivideo-av.avi",
+   "tests/compat/.regen-cache/0308-avi-av.avi",
+   "tests/compat/.regen-cache/0318-avi-av.avi",
+   "tests/compat/.regen-cache/0324-avi-av.avi",
+   "tests/compat/.regen-cache/0330-avi-av.avi",
+   "tests/compat/.regen-cache/0335-multivideo-av.avi",
+   "tests/compat/.regen-cache/0336-multivideo-av.avi",
+   "tests/compat/.regen-cache/0342-avi-av.avi",
+   "tests/compat/.regen-cache/0367-multivideo-av.avi",
+   "tests/compat/.regen-cache/0386-avi-av.avi",
+   "tests/compat/.regen-cache/0394-avi-av.avi"
+  ]
+ },
+ "lanes": [
+  {
+   "id": "linux-native",
+   "kind": {
+    "type": "native-decode"
+   },
+   "label": "Linux native decode (this host \u2014 the lane that actually ran)"
+  },
+  {
+   "id": "web-wasm",
+   "kind": {
+    "type": "steps",
+    "steps": [
+     {
+      "purpose": "the wasm32 engine-core module builds for real (probe -> demux -> engine; codecs edge target-gated off \u2014 apps/web/Cargo.toml)",
+      "argv": [
+       "cargo",
+       "build",
+       "-p",
+       "lumen-web",
+       "--target",
+       "wasm32-unknown-unknown"
+      ],
+      "cwd": "",
+      "artifacts": [],
+      "timeout_s": 2400
+     },
+     {
+      "purpose": "the web crate's host-side lane proof: capability snapshot + first-vertical MJPEG/PCM decode with the real decoders linked natively (the wasm module reports the decoder split honestly)",
+      "argv": [
+       "cargo",
+       "test",
+       "-p",
+       "lumen-web"
+      ],
+      "cwd": "",
+      "artifacts": [],
+      "timeout_s": 2400
+     }
+    ]
+   },
+   "label": "Web/wasm (recorded build + lane-proof steps; the wasm module ships decoder-less)"
+  },
+  {
+   "id": "windows",
+   "kind": {
+    "type": "blocked",
+    "reason": "3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned",
+    "reason_ref": "docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line",
+    "next_step": "user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones",
+    "tracking": "issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)"
+   },
+   "label": "Windows (blocked-by-external \u2014 no result inferred)"
+  },
+  {
+   "id": "macos",
+   "kind": {
+    "type": "blocked",
+    "reason": "3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned",
+    "reason_ref": "docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line",
+    "next_step": "user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones",
+    "tracking": "issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)"
+   },
+   "label": "macOS (blocked-by-external \u2014 no result inferred)"
+  }
+ ],
+ "formats": [
+  {
+   "probe_format": "avi",
+   "matrix_rows": [
+    "container-avi"
+   ],
+   "vlc_name": "AVI (incl. OpenDML)",
+   "extensions": [
+    "avi"
+   ]
+  },
+  {
+   "probe_format": "matroska",
+   "matrix_rows": [
+    "container-matroska-webm"
+   ],
+   "vlc_name": "Matroska / WebM / MKA",
+   "extensions": [
+    "mkv",
+    "webm",
+    "mka"
+   ]
+  },
+  {
+   "probe_format": "mp4",
+   "matrix_rows": [
+    "container-mp4-mov-3gp"
+   ],
+   "vlc_name": "MP4 / MOV / 3GP / M4A (ISO-BMFF)",
+   "extensions": [
+    "mp4",
+    "mov",
+    "m4a",
+    "3gp"
+   ]
+  },
+  {
+   "probe_format": "ogg",
+   "matrix_rows": [
+    "container-ogg"
+   ],
+   "vlc_name": "Ogg (incl. Ogv)",
+   "extensions": [
+    "ogg",
+    "oga",
+    "ogv"
+   ]
+  },
+  {
+   "probe_format": "mpegts",
+   "matrix_rows": [
+    "container-mpegts"
+   ],
+   "vlc_name": "MPEG transport stream",
+   "extensions": [
+    "ts",
+    "m2ts"
+   ]
+  },
+  {
+   "probe_format": "mpegps",
+   "matrix_rows": [
+    "container-mpegps"
+   ],
+   "vlc_name": "MPEG program stream / VOB",
+   "extensions": [
+    "mpg",
+    "mpeg",
+    "vob"
+   ]
+  },
+  {
+   "probe_format": "asf",
+   "matrix_rows": [
+    "container-asf-wmv"
+   ],
+   "vlc_name": "ASF / WMV / WMA",
+   "extensions": [
+    "asf",
+    "wmv",
+    "wma"
+   ]
+  },
+  {
+   "probe_format": "wav",
+   "matrix_rows": [
+    "container-wav"
+   ],
+   "vlc_name": "WAV (RIFF/WAVE)",
+   "extensions": [
+    "wav"
+   ]
+  },
+  {
+   "probe_format": "flac",
+   "matrix_rows": [
+    "container-flac-native"
+   ],
+   "vlc_name": "FLAC native stream",
+   "extensions": [
+    "flac"
+   ]
+  },
+  {
+   "probe_format": "aiff",
+   "matrix_rows": [
+    "container-aiff"
+   ],
+   "vlc_name": "AIFF (COMM/SSND)",
+   "extensions": [
+    "aiff",
+    "aif",
+    "aifc"
+   ]
+  },
+  {
+   "probe_format": "adts",
+   "matrix_rows": [
+    "container-adts-aac"
+   ],
+   "vlc_name": "ADTS / raw AAC stream",
+   "extensions": [
+    "aac"
+   ]
+  },
+  {
+   "probe_format": "mp3",
+   "matrix_rows": [
+    "container-mp3-raw"
+   ],
+   "vlc_name": "Raw MP3 stream",
+   "extensions": [
+    "mp3"
+   ]
+  },
+  {
+   "probe_format": "mp2",
+   "matrix_rows": [
+    "container-mp3-raw"
+   ],
+   "vlc_name": "Raw MP2 stream (MPEG audio ES)",
+   "extensions": [
+    "mp2"
+   ]
+  },
+  {
+   "probe_format": "h264",
+   "matrix_rows": [
+    "container-h264-annexb"
+   ],
+   "vlc_name": "Raw H.264 (Annex B)",
+   "extensions": [
+    "h264",
+    "264"
+   ]
+  },
+  {
+   "probe_format": "hevc",
+   "matrix_rows": [
+    "container-hevc-annexb"
+   ],
+   "vlc_name": "Raw HEVC (Annex B)",
+   "extensions": [
+    "hevc",
+    "265",
+    "h265"
+   ]
+  },
+  {
+   "probe_format": "ivf",
+   "matrix_rows": [
+    "container-ivf"
+   ],
+   "vlc_name": "IVF (AV1/VP9 raw container)",
+   "extensions": [
+    "ivf"
+   ]
+  }
+ ],
+ "codecs": [
+  {
+   "codec": "pcm_",
+   "prefix_match": true,
+   "matrix_rows": [
+    "codec-audio-pcm"
+   ],
+   "kind": "audio"
+  },
+  {
+   "codec": "mjpeg",
+   "prefix_match": false,
+   "matrix_rows": [
+    "codec-video-mjpeg"
+   ],
+   "kind": "video"
+  },
+  {
+   "codec": "flac",
+   "prefix_match": false,
+   "matrix_rows": [
+    "codec-audio-flac"
+   ],
+   "kind": "audio"
+  },
+  {
+   "codec": "mp3",
+   "prefix_match": false,
+   "matrix_rows": [
+    "codec-audio-mp3"
+   ],
+   "kind": "audio"
+  },
+  {
+   "codec": "mp2",
+   "prefix_match": false,
+   "matrix_rows": [
+    "codec-audio-mp2"
+   ],
+   "kind": "audio"
+  },
+  {
+   "codec": "vorbis",
+   "prefix_match": false,
+   "matrix_rows": [
+    "codec-audio-vorbis"
+   ],
+   "kind": "audio"
+  },
+  {
+   "codec": "opus",
+   "prefix_match": false,
+   "matrix_rows": [
+    "codec-audio-opus"
+   ],
+   "kind": "audio"
+  },
+  {
+   "codec": "aac",
+   "prefix_match": false,
+   "matrix_rows": [
+    "codec-audio-aac-lc"
+   ],
+   "kind": "audio"
+  },
+  {
+   "codec": "aac-lc",
+   "prefix_match": false,
+   "matrix_rows": [
+    "codec-audio-aac-lc"
+   ],
+   "kind": "audio"
+  },
+  {
+   "codec": "alac",
+   "prefix_match": false,
+   "matrix_rows": [
+    "codec-audio-alac"
+   ],
+   "kind": "audio"
+  },
+  {
+   "codec": "adpcm_",
+   "prefix_match": true,
+   "matrix_rows": [
+    "codec-audio-adpcm"
+   ],
+   "kind": "audio"
+  },
+  {
+   "codec": "av1",
+   "prefix_match": false,
+   "matrix_rows": [
+    "codec-video-av1"
+   ],
+   "kind": "video"
+  },
+  {
+   "codec": "av01",
+   "prefix_match": false,
+   "matrix_rows": [
+    "codec-video-av1"
+   ],
+   "kind": "video"
+  },
+  {
+   "codec": "vp9",
+   "prefix_match": false,
+   "matrix_rows": [
+    "codec-video-vp9"
+   ],
+   "kind": "video"
+  },
+  {
+   "codec": "dnxhd",
+   "prefix_match": false,
+   "matrix_rows": [
+    "codec-video-prores-dnxhd"
+   ],
+   "kind": "video"
+  },
+  {
+   "codec": "h264",
+   "prefix_match": false,
+   "matrix_rows": [
+    "codec-video-h264"
+   ],
+   "kind": "video"
+  },
+  {
+   "codec": "hevc",
+   "prefix_match": false,
+   "matrix_rows": [
+    "codec-video-hevc"
+   ],
+   "kind": "video"
+  },
+  {
+   "codec": "mpeg4",
+   "prefix_match": false,
+   "matrix_rows": [
+    "codec-video-mpeg4-asp"
+   ],
+   "kind": "video"
+  },
+  {
+   "codec": "mpeg2video",
+   "prefix_match": false,
+   "matrix_rows": [
+    "codec-video-mpeg1-2"
+   ],
+   "kind": "video"
+  },
+  {
+   "codec": "wmv2",
+   "prefix_match": false,
+   "matrix_rows": [
+    "codec-video-wmv-vc1"
+   ],
+   "kind": "video"
+  },
+  {
+   "codec": "vp8",
+   "prefix_match": false,
+   "matrix_rows": [
+    "codec-video-vp8"
+   ],
+   "kind": "video"
+  },
+  {
+   "codec": "theora",
+   "prefix_match": false,
+   "matrix_rows": [
+    "codec-video-theora"
+   ],
+   "kind": "video"
+  }
+ ],
+ "reports": {
+  "markdown": "docs/corpus/compat-matrix-20261110.md",
+  "json": "docs/corpus/compat-matrix-20261110.json",
+  "raw_rows": "docs/corpus/compat-matrix-20261110.raw-rows.jsonl",
+  "transitions": "docs/corpus/compat-matrix-transitions-20261110.json"
+ },
+ "claims": [
+  {
+   "row": "codec-audio-aac-lc",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "codec-audio-adpcm",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "codec-audio-alac",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "codec-audio-flac",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "codec-audio-mp2",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "codec-audio-mp3",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "codec-audio-opus",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "codec-audio-pcm",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "codec-audio-vorbis",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "codec-video-av1",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "codec-video-h264",
+   "windows": "partial",
+   "linux": "partial",
+   "macos": "partial",
+   "web": "not_started"
+  },
+  {
+   "row": "codec-video-hevc",
+   "windows": "partial",
+   "linux": "partial",
+   "macos": "partial",
+   "web": "not_started"
+  },
+  {
+   "row": "codec-video-mjpeg",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "codec-video-mpeg1-2",
+   "windows": "blocked",
+   "linux": "blocked",
+   "macos": "blocked",
+   "web": "blocked"
+  },
+  {
+   "row": "codec-video-mpeg4-asp",
+   "windows": "blocked",
+   "linux": "blocked",
+   "macos": "blocked",
+   "web": "blocked"
+  },
+  {
+   "row": "codec-video-prores-dnxhd",
+   "windows": "partial",
+   "linux": "partial",
+   "macos": "partial",
+   "web": "not_started"
+  },
+  {
+   "row": "codec-video-theora",
+   "windows": "blocked",
+   "linux": "blocked",
+   "macos": "blocked",
+   "web": "blocked"
+  },
+  {
+   "row": "codec-video-vp8",
+   "windows": "blocked",
+   "linux": "blocked",
+   "macos": "blocked",
+   "web": "blocked"
+  },
+  {
+   "row": "codec-video-vp9",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "codec-video-wmv-vc1",
+   "windows": "not_started",
+   "linux": "not_started",
+   "macos": "blocked",
+   "web": "unsupported"
+  },
+  {
+   "row": "container-adts-aac",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "container-aiff",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "container-asf-wmv",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "container-avi",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "container-flac-native",
+   "windows": "not_started",
+   "linux": "not_started",
+   "macos": "not_started",
+   "web": "not_started"
+  },
+  {
+   "row": "container-h264-annexb",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "container-hevc-annexb",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "container-ivf",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "container-matroska-webm",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "container-mp3-raw",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "container-mp4-mov-3gp",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "container-mpegps",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "container-mpegts",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "container-ogg",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  },
+  {
+   "row": "container-wav",
+   "windows": "implemented",
+   "linux": "implemented",
+   "macos": "implemented",
+   "web": "not_started"
+  }
+ ],
+ "budgets": {
+  "regen_s": 180,
+  "vlc_s": 90
+ }
+}

@@ -35,6 +35,12 @@ pub struct Config {
     pub codecs: Vec<CodecRow>,
     /// Where the reports land.
     pub reports: Reports,
+    /// The feature-matrix claim SNAPSHOT this run diffs against
+    /// (the runner's view; `xtask compat-matrix apply-transitions`
+    /// re-checks every `from` against the live file — a stale
+    /// snapshot can only produce rejected proposals, never a bad
+    /// write).
+    pub claims: Vec<MatrixClaim>,
     /// Subprocess budgets (seconds) for regen/oracle/lane steps.
     pub budgets: Budgets,
 }
@@ -102,7 +108,7 @@ pub struct F32Tolerance {
 }
 
 /// A live VLC invocation (the pinned 3.0.23, extracted locally).
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct VlcInvocation {
     /// The vlc binary path (absolute or workspace-relative).
@@ -175,6 +181,12 @@ pub struct FormatRow {
     pub matrix_rows: Vec<String>,
     /// VLC's name for the family (report prose).
     pub vlc_name: String,
+    /// File extensions whose valid-class corpus files belong to this
+    /// row even when the probe refuses them outright (no signature):
+    /// the honest attribution for claimed families the open path
+    /// cannot even name (asf/wmv/wma today). Files that DO probe are
+    /// matched by `probe_format` and never by extension.
+    pub extensions: Vec<String>,
 }
 
 /// One codec row of the matrix.
@@ -190,6 +202,24 @@ pub struct CodecRow {
     pub matrix_rows: Vec<String>,
     /// The limb kind this family decodes on.
     pub kind: String,
+}
+
+/// One feature-matrix row's claimed statuses (the snapshot the
+/// runner diffs against; all four platform columns recorded for
+/// honesty, the gap rules act on the lane that ran — linux).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MatrixClaim {
+    /// The feature-matrix row id.
+    pub row: String,
+    /// The claimed windows status.
+    pub windows: String,
+    /// The claimed linux status.
+    pub linux: String,
+    /// The claimed macos status.
+    pub macos: String,
+    /// The claimed web status.
+    pub web: String,
 }
 
 /// Report destinations.
@@ -235,6 +265,27 @@ pub fn load(path: &Path) -> Result<Config, ToolError> {
     }
     if config.formats.is_empty() || config.codecs.is_empty() {
         return Err(ToolError::config("formats/codecs mapping is empty"));
+    }
+    if config.lanes.is_empty() {
+        return Err(ToolError::config("lanes is empty"));
+    }
+    let native = config
+        .lanes
+        .iter()
+        .filter(|lane| matches!(lane.kind, LaneKind::NativeDecode))
+        .count();
+    if native != 1 {
+        return Err(ToolError::config(format!(
+            "exactly one native-decode lane is required (found {native}) — the runner decodes \
+             on exactly one host per run"
+        )));
+    }
+    let mut lane_ids: Vec<&str> = config.lanes.iter().map(|lane| lane.id.as_str()).collect();
+    lane_ids.sort_unstable();
+    let before = lane_ids.len();
+    lane_ids.dedup();
+    if lane_ids.len() != before {
+        return Err(ToolError::config("duplicate lane ids"));
     }
     config.root = crate::find_workspace_root()?;
     Ok(config)

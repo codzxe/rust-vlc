@@ -8,10 +8,10 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::ToolError;
 use crate::config::Config;
 use crate::proc;
 use crate::sha256;
-use crate::ToolError;
 
 /// The committed regen manifest (schema `compat-matrix/corpus-manifest/1`).
 #[derive(Debug, Deserialize)]
@@ -31,7 +31,8 @@ pub struct RegenManifest {
 pub struct RegenEntry {
     /// Path inside the cache dir.
     pub rel: String,
-    /// ffmpeg argvs (element lists; `__OUT__` = the output file).
+    /// ffmpeg argvs WITHOUT the binary (element 0 of each argv is
+    /// the first ffmpeg argument; `__OUT__` = the output file).
     pub argvs: Vec<Vec<String>>,
     /// The committed sha256 for deterministic inputs; `null` for
     /// runtime-random sources (fresh realization each regen).
@@ -45,6 +46,10 @@ pub struct RegenEntry {
     /// VLC `afile` format for oracle runs (`u8`/`s16`/`float32`);
     /// `null` = not oracle-comparable.
     pub audiofile_format: Option<String>,
+    /// The committed oracle record's key for this row
+    /// (`media/0022-avi-av.avi` — the record's rel namespace), when
+    /// the row is one of the lossless-comparable family.
+    pub oracle_rel: Option<String>,
     /// Whether the runner retains the decoded PCM for comparison.
     pub dump_pcm: bool,
 }
@@ -80,13 +85,13 @@ pub enum CorpusClass {
 pub enum RegenOutcome {
     /// Already present + sha256 verified (deterministic row).
     PresentVerified,
-    /// Already present (random row; fresh sha256 recorded).
+    /// Already present (random row; the realization's sha256 recorded).
     PresentRandom { sha256: String },
     /// Regenerated now; sha256 matches the manifest.
     RegeneratedVerified,
     /// Regenerated now (random source; fresh realization).
     RegeneratedRandom { sha256: String },
-    /// Regeneration failed (the error is the record).
+    /// Regeneration failed (the ffmpeg step's outcome is the record).
     Failed { error: String },
 }
 
@@ -98,12 +103,7 @@ pub fn collect_committed(config: &Config) -> Result<Vec<CorpusFile>, ToolError> 
         walk_root(config, &root, CorpusClass::Committed, &mut files)?;
     }
     let malformed_root = config.rel(&config.corpus.malformed_root);
-    walk_root(
-        config,
-        &malformed_root,
-        CorpusClass::Malformed,
-        &mut files,
-    )?;
+    walk_root(config, &malformed_root, CorpusClass::Malformed, &mut files)?;
     Ok(files.into_values().collect())
 }
 
@@ -124,8 +124,7 @@ fn walk_root(
         }
     };
     for entry in entries {
-        let entry =
-            entry.map_err(|e| ToolError::io(format!("iterating {}", root.display()), e))?;
+        let entry = entry.map_err(|e| ToolError::io(format!("iterating {}", root.display()), e))?;
         let path = entry.path();
         let file_type = entry
             .file_type()
@@ -175,11 +174,9 @@ fn walk_root(
     Ok(())
 }
 
-/// Ensure the regen corpus exists (regenerate missing files), answer
-/// the ready corpus files + per-entry outcomes.
-pub fn ensure_regen_corpus(
-    config: &Config,
-) -> Result<(Vec<CorpusFile>, Vec<(String, RegenOutcome)>), ToolError> {
+/// Read + schema-check the regen manifest (shared by the corpus
+/// assembly and the report's comparable-row lookups).
+pub fn read_manifest(config: &Config) -> Result<RegenManifest, ToolError> {
     let manifest_path = config.rel(&config.corpus.regen.manifest);
     let text = std::fs::read_to_string(&manifest_path)
         .map_err(|e| ToolError::io(format!("reading {}", manifest_path.display()), e))?;
@@ -191,6 +188,16 @@ pub fn ensure_regen_corpus(
             manifest.schema
         )));
     }
+    Ok(manifest)
+}
+
+/// Per-entry regeneration outcomes (rel → outcome), in manifest order.
+pub type RegenOutcomes = Vec<(String, RegenOutcome)>;
+
+/// Ensure the regen corpus exists (regenerate missing files), answer
+/// the ready corpus files + per-entry outcomes.
+pub fn ensure_regen_corpus(config: &Config) -> Result<(Vec<CorpusFile>, RegenOutcomes), ToolError> {
+    let manifest = read_manifest(config)?;
     let cache = config.rel(&config.corpus.regen.cache_dir);
     std::fs::create_dir_all(&cache)
         .map_err(|e| ToolError::io(format!("creating {}", cache.display()), e))?;
@@ -203,70 +210,49 @@ pub fn ensure_regen_corpus(
             std::fs::create_dir_all(parent)
                 .map_err(|e| ToolError::io(format!("creating {}", parent.display()), e))?;
         }
-        let existing = std::fs::read(&target).ok();
-        let (bytes, outcome) = match existing {
-            Some(bytes) => {
+        let outcome = match std::fs::read(&target) {
+            Ok(bytes) => {
                 let fresh = sha256::hex_digest(&bytes);
                 match (&entry.sha256, entry.deterministic) {
-                    (Some(expected), true) if &fresh == expected => {
-                        (bytes, RegenOutcome::PresentVerified)
-                    }
-                    (expected, true) => {
-                        // A deterministic row whose bytes drifted:
-                        // refuse to use them silently — regenerate.
-                        let regenerated = regenerate(config, entry, &target)?;
-                        match regenerated {
-                            Some(fresh_bytes) => {
-                                let fresh2 = sha256::hex_digest(&fresh_bytes);
-                                if Some(&fresh2) == expected.as_ref() {
-                                    (fresh_bytes, RegenOutcome::RegeneratedVerified)
-                                } else {
-                                    let error = format!(
-                                        "regenerated sha256 {} != manifest {} — the ffmpeg \
-                                         or source changed; re-pin the manifest",
-                                        fresh2,
-                                        expected.as_deref().unwrap_or("?")
-                                    );
-                                    outcomes.push((entry.rel.clone(), RegenOutcome::Failed { error }));
-                                    continue;
-                                }
-                            }
-                            None => continue,
-                        }
-                    }
-                    _ => (bytes, RegenOutcome::PresentRandom { sha256: fresh }),
+                    // A deterministic row whose bytes match the pin.
+                    (Some(expected), true) if &fresh == expected => RegenOutcome::PresentVerified,
+                    // A deterministic row whose bytes drifted: never
+                    // use them silently — regenerate and re-verify.
+                    (expected, true) => match regenerate(config, entry, &target)? {
+                        Some(bytes) => match verified(&bytes, expected.as_deref()) {
+                            Ok(()) => RegenOutcome::RegeneratedVerified,
+                            Err(error) => RegenOutcome::Failed { error },
+                        },
+                        None => regen_failed(entry),
+                    },
+                    // A random row already on disk: a prior fresh
+                    // realization — a real file; its sha256 recorded.
+                    _ => RegenOutcome::PresentRandom { sha256: fresh },
                 }
             }
-            None => {
-                let regenerated = regenerate(config, entry, &target)?;
-                match regenerated {
-                    Some(bytes) => {
-                        let fresh = sha256::hex_digest(&bytes);
-                        if entry.deterministic {
-                            match &entry.sha256 {
-                                Some(expected) if expected == &fresh => {
-                                    (bytes, RegenOutcome::RegeneratedVerified)
-                                }
-                                other => {
-                                    let error = format!(
-                                        "regenerated sha256 {fresh} != manifest {} — the \
-                                         ffmpeg or source changed; re-pin the manifest",
-                                        other.as_deref().unwrap_or("(none)")
-                                    );
-                                    outcomes.push((entry.rel.clone(), RegenOutcome::Failed { error }));
-                                    continue;
-                                }
-                            }
-                        } else {
-                            (bytes, RegenOutcome::RegeneratedRandom { sha256: fresh })
+            Err(_) => match regenerate(config, entry, &target)? {
+                Some(bytes) => {
+                    let fresh = sha256::hex_digest(&bytes);
+                    if entry.deterministic {
+                        match verified(&bytes, entry.sha256.as_deref()) {
+                            Ok(()) => RegenOutcome::RegeneratedVerified,
+                            Err(error) => RegenOutcome::Failed { error },
                         }
+                    } else {
+                        RegenOutcome::RegeneratedRandom { sha256: fresh }
                     }
-                    None => continue,
                 }
-            }
+                None => regen_failed(entry),
+            },
         };
-        let _ = bytes.len();
+        let failed = matches!(outcome, RegenOutcome::Failed { .. });
         outcomes.push((entry.rel.clone(), outcome));
+        if failed {
+            // A failed regeneration is a recorded fact; the row is
+            // NOT offered to the decode sweep (its bytes are absent
+            // or unverified — the report counts it honestly).
+            continue;
+        }
         files.push(CorpusFile {
             rel: format!("{}/{}", config.corpus.regen.cache_dir, entry.rel),
             path: target,
@@ -277,8 +263,35 @@ pub fn ensure_regen_corpus(
     Ok((files, outcomes))
 }
 
-/// Regenerate one entry (run its argvs in order). `None` = the step
-/// failed (already recorded in the outcomes the caller holds).
+/// The typed failure record for a regeneration whose ffmpeg step
+/// itself failed (nonzero exit / timeout — the step's outcome is the
+/// honest record; stderr head is folded in by the caller's budget).
+fn regen_failed(entry: &RegenEntry) -> RegenOutcome {
+    RegenOutcome::Failed {
+        error: format!(
+            "ffmpeg step failed for {} (argvs: {} recorded in the manifest; \
+             the run's raw-rows file carries the step record)",
+            entry.rel,
+            entry.argvs.len()
+        ),
+    }
+}
+
+/// Verify regenerated bytes against the manifest pin.
+fn verified(bytes: &[u8], expected: Option<&str>) -> Result<(), String> {
+    let fresh = sha256::hex_digest(bytes);
+    match expected {
+        Some(expected) if expected == fresh => Ok(()),
+        Some(expected) => Err(format!(
+            "regenerated sha256 {fresh} != manifest {expected} — the ffmpeg \
+             or source changed; re-pin the manifest"
+        )),
+        None => Err("deterministic row carries no manifest sha256 to verify against".to_string()),
+    }
+}
+
+/// Regenerate one entry (run its argvs in order). `None` = a step
+/// failed (the caller records the typed failure).
 fn regenerate(
     config: &Config,
     entry: &RegenEntry,
@@ -287,9 +300,7 @@ fn regenerate(
     let ffmpeg = &config.corpus.regen.ffmpeg;
     let target_text = target
         .to_str()
-        .ok_or_else(|| {
-            ToolError::config(format!("cache path is not UTF-8: {}", target.display()))
-        })?
+        .ok_or_else(|| ToolError::config(format!("cache path is not UTF-8: {}", target.display())))?
         .to_string();
     for argv in &entry.argvs {
         let mut full = vec![ffmpeg.clone()];

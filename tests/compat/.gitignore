@@ -1,0 +1,5 @@
+# tests/compat — the regenerable-corpus cache (config-pinned in
+# compat-matrix.json, `corpus.regen.cache_dir`): the committed truth
+# is the manifest (argvs + sha256 pins); the bytes regenerate on
+# demand and never enter git.
+.regen-cache/

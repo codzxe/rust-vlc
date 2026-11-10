@@ -17,14 +17,15 @@
 //! When no live VLC is configured the cells cite the committed
 //! 2026-11-09 record — labeled `committed-record`, never inferred.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
+use crate::ToolError;
 use crate::config::{Config, VlcInvocation};
 use crate::decode::DecodeDump;
 use crate::proc::{self, ProcRecord};
-use crate::ToolError;
 
 /// One oracle comparison row.
 #[derive(Debug, Clone, Serialize)]
@@ -37,6 +38,8 @@ pub struct OracleRow {
     pub lumen_bytes: u64,
     /// Lumen's PCM MD5 (lowercase hex).
     pub lumen_md5: String,
+    /// Lumen's emitted sample format (`u8`/`s16`/`f32`).
+    pub lumen_sample: String,
     /// VLC's dump bytes (live run) — the committed record's value when
     /// the live oracle is off.
     pub vlc_bytes: u64,
@@ -99,19 +102,24 @@ pub enum OracleVerdict {
 
 /// The committed oracle record's row shape (subset read).
 #[derive(Debug, Deserialize)]
-struct CommittedRow {
-    rel: String,
-    #[serde(default)]
-    fmt: Option<String>,
+pub struct CommittedRow {
+    /// The record's rel key (`media/0022-avi-av.avi`).
+    pub rel: String,
     #[serde(default)]
     lumen_fresh_md5: Option<String>,
-    #[serde(default)]
-    lumen_fresh_bytes: Option<u64>,
     vlc_md5: String,
     vlc_bytes: u64,
+    /// f32 rows: the measured RMS deviation (the 2026-11-09 run
+    /// computed it from the actual PCM on both sides).
+    #[serde(default)]
+    rms_dev: Option<f64>,
+    /// f32 rows: the measured peak deviation.
+    #[serde(default)]
+    peak_dev: Option<f64>,
+    /// f32 rows: the sample instants compared.
+    #[serde(default)]
+    samples_compared: Option<u64>,
 }
-
-use serde::Deserialize;
 
 /// The live-oracle handle: an asserted VLC invocation.
 pub struct LiveOracle {
@@ -119,6 +127,17 @@ pub struct LiveOracle {
     bin: PathBuf,
     /// The version assertion's record (run once, lazily).
     version_record: Option<ProcRecord>,
+}
+
+/// One VLC `afile` dump attempt's outcome: the usable dump, or the
+/// recorded reason the oracle could not produce one (a row-level
+/// fact, never a tool failure).
+#[derive(Debug, Clone)]
+pub enum VlcDump {
+    /// The dump's bytes + its MD5 (lowercase hex).
+    Ok { bytes: Vec<u8>, md5: String },
+    /// VLC ran but produced no usable dump (reason verbatim).
+    Failed { reason: String },
 }
 
 impl LiveOracle {
@@ -151,14 +170,16 @@ impl LiveOracle {
     }
 
     /// Dump one file's first audio track with VLC (`afile`), answer
-    /// the raw dump's bytes + md5.
+    /// the raw dump's bytes + md5. The inner `Result` distinguishes
+    /// "VLC ran but the dump is unusable" (recorded as a row) from
+    /// tool-level failures.
     pub fn dump(
         &self,
         input: &Path,
         format: &str,
         out: &Path,
         timeout_s: u64,
-    ) -> Result<Result<(Vec<u8>, String, u64), String>, ToolError> {
+    ) -> Result<VlcDump, ToolError> {
         let argv = vec![
             self.bin.display().to_string(),
             "-I".to_string(),
@@ -177,18 +198,22 @@ impl LiveOracle {
         ];
         let record = proc::run_bounded(&argv, None, &self.invocation.env, timeout_s)?;
         if !record.outcome.starts_with("exit 0") {
-            return Ok(Err(format!(
-                "vlc {}: {}",
-                record.outcome,
-                record.stderr_tail.chars().take(400).collect::<String>()
-            )));
+            return Ok(VlcDump::Failed {
+                reason: format!(
+                    "vlc {}: {}",
+                    record.outcome,
+                    record.stderr_tail.chars().take(400).collect::<String>()
+                ),
+            });
         }
         let bytes = std::fs::read(out)
             .map_err(|e| ToolError::io(format!("reading vlc dump {}", out.display()), e))?;
-        let size = bytes.len() as u64;
         let mut md5 = bench_vs_vlc::md5::Md5::new();
         md5.update(&bytes);
-        Ok(Ok((bytes, md5.finalize_hex(), size)))
+        Ok(VlcDump::Ok {
+            bytes,
+            md5: md5.finalize_hex(),
+        })
     }
 }
 
@@ -241,7 +266,11 @@ pub fn f32_verdict(
         peak = peak.max(delta.abs());
         count += 1;
     }
-    let rms = if count > 0 { (sum_sq / count as f64).sqrt() } else { 0.0 };
+    let rms = if count > 0 {
+        (sum_sq / count as f64).sqrt()
+    } else {
+        0.0
+    };
     let deviation = Deviation {
         samples: count,
         rms,
@@ -257,19 +286,21 @@ pub fn f32_verdict(
     (verdict, deviation)
 }
 
-/// Compare one row (Lumen payload + VLC payload, both in memory).
-pub fn compare_row(
+/// Compare one row LIVE (Lumen payload + the VLC dump's bytes, both in
+/// memory): integer PCM via the MD5-prefix method, f32 via the
+/// ratified tolerance path computed fresh.
+pub fn compare_row_live(
     rel: &str,
     audiofile_format: &str,
     dump: &DecodeDump,
     vlc_bytes: &[u8],
     vlc_md5: &str,
-    vlc_source: VlcSource,
     tolerance: &crate::config::F32Tolerance,
 ) -> OracleRow {
     let lumen_bytes = dump.pcm.len() as u64;
     let (verdict, deviation) = if audiofile_format == "float32" {
-        let (verdict, deviation) = f32_verdict(&dump.pcm, vlc_bytes, tolerance.rms_max, tolerance.peak_max);
+        let (verdict, deviation) =
+            f32_verdict(&dump.pcm, vlc_bytes, tolerance.rms_max, tolerance.peak_max);
         (verdict, Some(deviation))
     } else {
         (
@@ -282,9 +313,64 @@ pub fn compare_row(
         audiofile_format: audiofile_format.to_string(),
         lumen_bytes,
         lumen_md5: dump.md5_hex.clone(),
+        lumen_sample: dump.sample.to_string(),
         vlc_bytes: vlc_bytes.len() as u64,
         vlc_md5: vlc_md5.to_string(),
-        vlc_source,
+        vlc_source: VlcSource::LiveRun,
+        verdict,
+        deviation,
+    }
+}
+
+/// Compare one row against the COMMITTED 2026-11-09 record (no live
+/// VLC): integer PCM via the MD5-prefix method over the record's
+/// (vlc_md5, vlc_bytes) pair — the prefix truncation needs only the
+/// length, not the bytes; f32 via the record's own measured RMS/peak
+/// (the record documents they were computed from the actual PCM on
+/// both sides), echoed against the config's thresholds. Applicable
+/// only when the fresh realization demonstrably equals the record's
+/// (the caller checked `lumen_fresh_md5`).
+pub fn compare_row_committed(
+    rel: &str,
+    audiofile_format: &str,
+    dump: &DecodeDump,
+    parts: &CommittedParts,
+    tolerance: &crate::config::F32Tolerance,
+) -> OracleRow {
+    let (verdict, deviation) = if audiofile_format == "float32" {
+        match (parts.rms_dev, parts.peak_dev) {
+            (Some(rms), Some(peak)) => {
+                let dev = Deviation {
+                    samples: parts.samples_compared.unwrap_or(0),
+                    rms,
+                    peak,
+                    rms_max: tolerance.rms_max,
+                    peak_max: tolerance.peak_max,
+                };
+                let verdict = if rms <= tolerance.rms_max && peak <= tolerance.peak_max {
+                    OracleVerdict::TolerancePass
+                } else {
+                    OracleVerdict::ToleranceFail
+                };
+                (verdict, Some(dev))
+            }
+            _ => (OracleVerdict::NoComparison, None),
+        }
+    } else {
+        (
+            prefix_verdict(&dump.pcm, &parts.vlc_md5, parts.vlc_bytes),
+            None,
+        )
+    };
+    OracleRow {
+        rel: rel.to_string(),
+        audiofile_format: audiofile_format.to_string(),
+        lumen_bytes: dump.pcm.len() as u64,
+        lumen_md5: dump.md5_hex.clone(),
+        lumen_sample: dump.sample.to_string(),
+        vlc_bytes: parts.vlc_bytes,
+        vlc_md5: parts.vlc_md5.clone(),
+        vlc_source: VlcSource::CommittedRecord,
         verdict,
         deviation,
     }
@@ -297,7 +383,7 @@ pub fn committed_rows(config: &Config) -> Result<BTreeMapOrHashMap, ToolError> {
         .map_err(|e| ToolError::io(format!("reading {}", path.display()), e))?;
     let value: serde_json::Value = serde_json::from_str(&text)
         .map_err(|e| ToolError::config(format!("parsing {}: {e}", path.display())))?;
-    let mut map = std::collections::BTreeMap::new();
+    let mut map = BTreeMap::new();
     let Some(rows) = value.get("rows").and_then(|rows| rows.as_array()) else {
         return Err(ToolError::config(format!(
             "{}: no rows array",
@@ -313,15 +399,36 @@ pub fn committed_rows(config: &Config) -> Result<BTreeMapOrHashMap, ToolError> {
 }
 
 /// The public alias for the committed rows map.
-pub type BTreeMapOrHashMap = std::collections::BTreeMap<String, CommittedRow>;
+pub type BTreeMapOrHashMap = BTreeMap<String, CommittedRow>;
+
+/// The committed record's comparable fields, when the row exists.
+#[derive(Debug, Clone)]
+pub struct CommittedParts {
+    /// VLC's dump MD5 (the 2026-11-09 realization's bytes).
+    pub vlc_md5: String,
+    /// VLC's dump bytes.
+    pub vlc_bytes: u64,
+    /// Lumen's decode MD5 of the same realization (cross-check:
+    /// equal iff the fresh bytes match the recorded ones).
+    pub lumen_fresh_md5: Option<String>,
+    /// f32 rows: the recorded RMS deviation of that realization.
+    pub rms_dev: Option<f64>,
+    /// f32 rows: the recorded peak deviation.
+    pub peak_dev: Option<f64>,
+    /// f32 rows: the recorded compared-sample count.
+    pub samples_compared: Option<u64>,
+}
 
 /// Expose the committed row's fields (the private type's read API).
-pub fn committed_parts(
-    map: &BTreeMapOrHashMap,
-    rel: &str,
-) -> Option<(String, String, u64)> {
-    map.get(rel)
-        .map(|row| (row.fmt.clone().unwrap_or_default(), row.vlc_md5.clone(), row.vlc_bytes))
+pub fn committed_parts(map: &BTreeMapOrHashMap, rel: &str) -> Option<CommittedParts> {
+    map.get(rel).map(|row| CommittedParts {
+        vlc_md5: row.vlc_md5.clone(),
+        vlc_bytes: row.vlc_bytes,
+        lumen_fresh_md5: row.lumen_fresh_md5.clone(),
+        rms_dev: row.rms_dev,
+        peak_dev: row.peak_dev,
+        samples_compared: row.samples_compared,
+    })
 }
 
 /// The `compare-pcm` CLI (one-off, both files on disk).

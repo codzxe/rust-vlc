@@ -82,7 +82,10 @@ enum ToolError {
     /// Bad command line.
     Usage(String),
     /// An I/O failure with context.
-    Io { context: String, source: std::io::Error },
+    Io {
+        context: String,
+        source: std::io::Error,
+    },
     /// A config/schema problem.
     Config(String),
     /// A subprocess that could not produce a usable result.
@@ -182,8 +185,8 @@ fn load_config_from(args: &[String]) -> Result<Config, ToolError> {
 /// rule xtask uses, so relative corpus/report paths in the config
 /// resolve identically no matter where the tool is invoked from.
 pub(crate) fn find_workspace_root() -> Result<PathBuf, ToolError> {
-    let cwd = std::env::current_dir()
-        .map_err(|e| ToolError::io("determining current directory", e))?;
+    let cwd =
+        std::env::current_dir().map_err(|e| ToolError::io("determining current directory", e))?;
     let mut dir: &Path = &cwd;
     loop {
         if dir.join("Cargo.toml").is_file() && dir.join("docs").is_dir() {

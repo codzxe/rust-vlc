@@ -33,7 +33,8 @@ use lumen_cli::pipeline_host::HostDecoderProvider;
 use media_types::error::DecodeCause;
 use media_types::frame::SampleFormat;
 use media_types::{EngineError, ErrorKind, Frame, GenerationId, MediaKind, Packet, TrackId};
-use plugin_api::{DemuxEvent, Demuxer};
+use playback_engine::DecoderProvider;
+use plugin_api::DemuxEvent;
 use serde::Serialize;
 
 /// The concealment budget — mirrors the engine's
@@ -48,9 +49,10 @@ pub const CONCEALMENT_BUDGET: u32 = 1000;
 fn per_frame_damage(error: &EngineError) -> bool {
     matches!(
         &error.kind,
-        ErrorKind::Corrupt { .. } | ErrorKind::Decoder {
-            cause: DecodeCause::Bitstream
-        }
+        ErrorKind::Corrupt { .. }
+            | ErrorKind::Decoder {
+                cause: DecodeCause::Bitstream
+            }
     )
 }
 
@@ -200,6 +202,11 @@ pub struct FileRecord {
     pub demux_recovered: u64,
     /// Bytes the demuxer skipped while recovering.
     pub demux_skip_bytes: u64,
+    /// Facts tracks that are not Audio/Video (subtitles, chapters,
+    /// data) — skipped by design: the engine's wired-limb set is the
+    /// wrapper's `start()` answer (audio/video only), so these are
+    /// not decode gaps.
+    pub skipped_non_av_tracks: u32,
     /// Wall-clock decode seconds.
     pub decode_s: f64,
 }
@@ -238,8 +245,6 @@ pub struct DecodeDump {
 struct Limb {
     /// The demuxed track this limb consumes.
     track: TrackId,
-    /// The limb's media kind (which sink pair it uses).
-    kind: MediaKind,
     /// The real decoder behind the contract.
     decoder: Box<dyn Decoder>,
     /// Packets fed.
@@ -347,15 +352,22 @@ pub fn decode_file(
     };
     let container = opened.facts.container.clone();
 
-    // 2. Limbs: EVERY track gets its decoder attempt through the
-    //    player's real provider (the matrix wants per-track truth,
-    //    not first-of-kind only).
+    // 2. Limbs: every AUDIO/VIDEO track gets its decoder attempt
+    //    through the player's real provider (the matrix wants
+    //    per-track truth, not first-of-kind only). Subtitle/data
+    //    facts tracks are skipped by design — the engine's wired-limb
+    //    set is the wrapper's `start()` answer (audio/video only).
     let facts = Arc::new(opened.facts.clone());
     let provider = HostDecoderProvider::new(facts.clone());
     let mut limbs: Vec<Limb> = Vec::new();
     let mut refused: Vec<TrackOutcome> = Vec::new();
     let mut first_audio_seen = false;
+    let mut skipped_non_av_tracks: u32 = 0;
     for track in &facts.tracks {
+        if !matches!(track.kind, MediaKind::Audio | MediaKind::Video) {
+            skipped_non_av_tracks = skipped_non_av_tracks.saturating_add(1);
+            continue;
+        }
         let config = DecoderConfig::new(
             track.codec.clone(),
             GenerationId::FIRST,
@@ -371,7 +383,6 @@ pub fn decode_file(
                 }
                 limbs.push(Limb {
                     track: track.id,
-                    kind: track.kind,
                     decoder,
                     packets: 0,
                     frames: 0,
@@ -405,10 +416,10 @@ pub fn decode_file(
         match opened.demuxer.next_event() {
             Ok(DemuxEvent::Packet(packet)) => {
                 let track = packet.track;
-                if let Some(limb) = limbs.iter_mut().find(|limb| limb.track == track) {
-                    if limb.fatal.is_none() {
-                        limb.feed(packet);
-                    }
+                if let Some(limb) = limbs.iter_mut().find(|limb| limb.track == track)
+                    && limb.fatal.is_none()
+                {
+                    limb.feed(packet);
                 }
                 // Packets of refused/unwired tracks are dropped (the
                 // NoDecoder rows already named them).
@@ -444,20 +455,23 @@ pub fn decode_file(
             concealed: limb.concealed,
             pcm_md5: limb.audio.as_ref().map(AudioDigestSink::digest_hex),
             pcm_bytes: limb.audio.as_ref().map(|sink| sink.bytes),
-            sample: limb.audio.as_ref().and_then(|sink| sink.sample).map(String::from),
-            format_changes: limb
+            sample: limb
                 .audio
                 .as_ref()
-                .map_or(0, |sink| sink.format_changes),
+                .and_then(|sink| sink.sample)
+                .map(String::from),
+            format_changes: limb.audio.as_ref().map_or(0, |sink| sink.format_changes),
         };
-        if let Some(audio) = limb.audio {
-            if limb.first_audio && audio.bytes > 0 {
-                dump = Some(DecodeDump {
-                    pcm: audio.payload.unwrap_or_default(),
-                    md5_hex: audio.digest_hex(),
-                    sample: audio.sample.unwrap_or(""),
-                });
-            }
+        if let Some(audio) = limb.audio
+            && limb.first_audio
+            && audio.bytes > 0
+        {
+            let md5_hex = audio.digest_hex();
+            dump = Some(DecodeDump {
+                pcm: audio.payload.unwrap_or_default(),
+                md5_hex,
+                sample: audio.sample.unwrap_or(""),
+            });
         }
         if let Some(message) = fatal {
             // A decode-stage fatal on an otherwise-open file: record
@@ -475,7 +489,11 @@ pub fn decode_file(
     let outcome = match demux_fatal {
         Some(message) => FileOutcome::DemuxFatal { message },
         None => {
-            if all_decoded && tracks.iter().all(|t| matches!(t, TrackOutcome::Decoded { .. })) {
+            if all_decoded
+                && tracks
+                    .iter()
+                    .all(|t| matches!(t, TrackOutcome::Decoded { .. }))
+            {
                 FileOutcome::Decoded
             } else {
                 FileOutcome::DecodedPartial
@@ -492,6 +510,7 @@ pub fn decode_file(
             tracks,
             demux_recovered,
             demux_skip_bytes,
+            skipped_non_av_tracks,
             decode_s: started.elapsed().as_secs_f64(),
         },
         dump,
@@ -535,6 +554,7 @@ fn refused_record(
         tracks: Vec::new(),
         demux_recovered: 0,
         demux_skip_bytes: 0,
+        skipped_non_av_tracks: 0,
         decode_s: started.elapsed().as_secs_f64(),
     }
 }
