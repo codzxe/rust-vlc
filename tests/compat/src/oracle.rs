@@ -63,8 +63,18 @@ pub enum VlcSource {
     /// This run executed the pinned VLC (the subprocess record rides
     /// the run metadata).
     LiveRun,
-    /// The committed 2026-11-09 record (no live VLC configured).
+    /// The committed 2026-11-09 record's values were APPLIED to this
+    /// row — the prefix method over its (vlc_md5, vlc_bytes), or its
+    /// own measured f32 deviations echoed against the config's
+    /// thresholds (no live VLC configured).
     CommittedRecord,
+    /// Neither side: no comparison happened, so nothing from any VLC
+    /// side is cited — Lumen refused the row, or no live oracle ran
+    /// and the committed record was inapplicable (a fresh
+    /// realization) or absent (review finding P3-5: these rows used
+    /// to say `committed-record` with empty vlc_md5/vlc_bytes, though
+    /// no VLC side had been consulted).
+    None,
 }
 
 /// The measured f32 deviation.

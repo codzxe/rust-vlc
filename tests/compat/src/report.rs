@@ -354,7 +354,9 @@ pub fn full_run(config: &Config) -> Result<(), ToolError> {
                 lumen_sample: String::new(),
                 vlc_bytes: 0,
                 vlc_md5: String::new(),
-                vlc_source: VlcSource::CommittedRecord,
+                // No VLC side was consulted — the decode never
+                // happened, so no source is cited (P3-5).
+                vlc_source: VlcSource::None,
                 verdict: OracleVerdict::LumenRefused { reason },
                 deviation: None,
             });
@@ -444,7 +446,11 @@ pub fn full_run(config: &Config) -> Result<(), ToolError> {
                         lumen_sample: dump.sample.to_string(),
                         vlc_bytes: 0,
                         vlc_md5: String::new(),
-                        vlc_source: VlcSource::CommittedRecord,
+                        // The record was consulted for the cross-check
+                        // but its values were NOT applied (fresh
+                        // realization, or no entry) — no source is
+                        // cited (P3-5).
+                        vlc_source: VlcSource::None,
                         verdict: OracleVerdict::NoComparison,
                         deviation: None,
                     });
@@ -1773,6 +1779,7 @@ fn render_markdown(config: &Config, report: &RunReport) -> String {
             match row.vlc_source {
                 VlcSource::LiveRun => "live run",
                 VlcSource::CommittedRecord => "committed record",
+                VlcSource::None => "none",
             },
             verdict
         ));
