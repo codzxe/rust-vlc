@@ -1,0 +1,12 @@
+   Compiling first-vertical v0.1.0 (/home/z/my-project/wt/w24f/tests/integration/first-vertical)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.38s
+     Running tests/evidence.rs (/home/z/my-project/rust-vlc/target/debug/deps/evidence-2a22fc243c498b87)
+
+running 4 tests
+test final_frame_is_current ... ok
+test ledger_matches_the_artifacts ... ok
+test regen ... ignored, rewrites the committed evidence artifacts
+test committed_transcripts_match_fresh_runs ... ok
+
+test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 11.57s
+

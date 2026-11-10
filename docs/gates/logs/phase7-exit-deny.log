@@ -1,0 +1,1011 @@
+# Phase-7 exit gate — cargo-deny (G3/G4: licenses/sources/bans/advisories)
+# Worktree: /home/z/my-project/wt/w24f (branch w24/f @ a4e35e7)
+# Date: 2026-11-10T16:57:54Z
+# Binary: cargo-deny 0.20.2 (pinned tarball, SHA-256 verified == ci.yml pin)
+cargo-deny 0.20.2
+# Cmd: cargo deny --workspace check licenses sources bans advisories
+warning[wildcard]: found 3 wildcard dependencies for crate 'audio-engine'
+   ┌─ /home/z/my-project/wt/w24f/crates/audio-engine/Cargo.toml:26:15
+   │
+26 │ media-types = { path = "../media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+33 │ media-clock = { path = "../media-clock" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+38 │ testkit = { path = "../testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ audio-engine v0.1.0
+     ├── audio-output v0.1.0
+     │   ├── lumen-cli v0.1.0
+     │   │   ├── desktop v0.1.0
+     │   │   └── first-vertical v0.1.0
+     │   ├── lumen-web v0.1.0
+     │   ├── platform-linux v0.1.0
+     │   ├── platform-macos v0.1.0
+     │   └── platform-windows v0.1.0
+     ├── lumen-cli v0.1.0 (*)
+     └── lumen-web v0.1.0 (*)
+
+warning[wildcard]: found 4 wildcard dependencies for crate 'audio-output'
+   ┌─ /home/z/my-project/wt/w24f/crates/audio-output/Cargo.toml:33:16
+   │
+33 │ audio-engine = { path = "../audio-engine" }
+   │                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+34 │ media-clock = { path = "../media-clock" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+35 │ media-types = { path = "../media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+41 │ testkit = { path = "../testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ audio-output v0.1.0
+     ├── lumen-cli v0.1.0
+     │   ├── desktop v0.1.0
+     │   └── first-vertical v0.1.0
+     ├── lumen-web v0.1.0
+     ├── platform-linux v0.1.0
+     ├── platform-macos v0.1.0
+     └── platform-windows v0.1.0
+
+warning[wildcard]: found 1 wildcard dependency for crate 'codec-api'
+   ┌─ /home/z/my-project/wt/w24f/crates/codec-api/Cargo.toml:23:15
+   │
+23 │ media-types = { path = "../media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ codec-api v0.1.0
+     ├── codecs v0.1.0
+     │   ├── lumen-cli v0.1.0
+     │   │   ├── desktop v0.1.0
+     │   │   └── first-vertical v0.1.0
+     │   ├── lumen-mem-audit v0.1.0
+     │   ├── lumen-sweep v0.1.0
+     │   ├── lumen-web v0.1.0
+     │   ├── (dev) playback-engine v0.1.0
+     │   │   ├── lumen-cli v0.1.0 (*)
+     │   │   ├── lumen-web v0.1.0 (*)
+     │   │   └── (dev) plugin-host-wasm v0.1.0
+     │   ├── (dev) streaming v0.1.0
+     │   └── (dev) transcode v0.1.0
+     ├── lumen-cli v0.1.0 (*)
+     ├── lumen-mem-audit v0.1.0 (*)
+     ├── lumen-sweep v0.1.0 (*)
+     ├── lumen-web v0.1.0 (*)
+     ├── playback-engine v0.1.0 (*)
+     ├── plugin-api v0.1.0
+     │   ├── (dev) codecs v0.1.0 (*)
+     │   ├── demux v0.1.0
+     │   │   ├── (dev) codecs v0.1.0 (*)
+     │   │   ├── lumen-cli v0.1.0 (*)
+     │   │   ├── lumen-mem-audit v0.1.0 (*)
+     │   │   ├── lumen-sweep v0.1.0 (*)
+     │   │   ├── lumen-web v0.1.0 (*)
+     │   │   ├── (dev) playback-engine v0.1.0 (*)
+     │   │   ├── (dev) streaming v0.1.0 (*)
+     │   │   └── transcode v0.1.0 (*)
+     │   ├── device-discovery v0.1.0
+     │   ├── input v0.1.0
+     │   │   ├── (dev) codecs v0.1.0 (*)
+     │   │   ├── (dev) demux v0.1.0 (*)
+     │   │   ├── lumen-cli v0.1.0 (*)
+     │   │   ├── lumen-mem-audit v0.1.0 (*)
+     │   │   ├── lumen-sweep v0.1.0 (*)
+     │   │   ├── (dev) media-probe v0.1.0
+     │   │   │   ├── lumen-cli v0.1.0 (*)
+     │   │   │   ├── lumen-mem-audit v0.1.0 (*)
+     │   │   │   ├── lumen-sweep v0.1.0 (*)
+     │   │   │   └── lumen-web v0.1.0 (*)
+     │   │   ├── (dev) playback-engine v0.1.0 (*)
+     │   │   ├── (dev) streaming v0.1.0 (*)
+     │   │   └── (dev) transcode v0.1.0 (*)
+     │   ├── lumen-cli v0.1.0 (*)
+     │   ├── lumen-mem-audit v0.1.0 (*)
+     │   ├── lumen-sweep v0.1.0 (*)
+     │   ├── lumen-web v0.1.0 (*)
+     │   ├── media-probe v0.1.0 (*)
+     │   ├── playback-engine v0.1.0 (*)
+     │   ├── plugin-host-wasm v0.1.0 (*)
+     │   ├── streaming v0.1.0 (*)
+     │   └── transcode v0.1.0 (*)
+     ├── (dev) plugin-host-wasm v0.1.0 (*)
+     └── transcode v0.1.0 (*)
+
+warning[wildcard]: found 6 wildcard dependencies for crate 'codecs'
+    ┌─ /home/z/my-project/wt/w24f/crates/codecs/Cargo.toml:32:13
+    │
+ 32 │ codec-api = { path = "../codec-api" }
+    │             ━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+ 33 │ media-types = { path = "../media-types" }
+    │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+    ·
+115 │ input = { path = "../input" }
+    │         ━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+116 │ demux = { path = "../demux" }
+    │         ━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+117 │ plugin-api = { path = "../plugin-api" }
+    │              ━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+118 │ testkit = { path = "../testkit" }
+    │           ━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+    │
+    ├ codecs v0.1.0
+      ├── lumen-cli v0.1.0
+      │   ├── desktop v0.1.0
+      │   └── first-vertical v0.1.0
+      ├── lumen-mem-audit v0.1.0
+      ├── lumen-sweep v0.1.0
+      ├── lumen-web v0.1.0
+      ├── (dev) playback-engine v0.1.0
+      │   ├── lumen-cli v0.1.0 (*)
+      │   ├── lumen-web v0.1.0 (*)
+      │   └── (dev) plugin-host-wasm v0.1.0
+      ├── (dev) streaming v0.1.0
+      └── (dev) transcode v0.1.0
+
+warning[wildcard]: found 1 wildcard dependency for crate 'control-protocol'
+   ┌─ /home/z/my-project/wt/w24f/crates/control-protocol/Cargo.toml:32:12
+   │
+32 │ commands = { path = "../commands" }
+   │            ━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ control-protocol v0.1.0
+     └── control-server v0.1.0
+
+warning[wildcard]: found 3 wildcard dependencies for crate 'control-server'
+   ┌─ /home/z/my-project/wt/w24f/apps/control-server/Cargo.toml:41:12
+   │
+41 │ commands = { path = "../../crates/commands" }
+   │            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+42 │ control-protocol = { path = "../../crates/control-protocol" }
+   │                    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+43 │ product-config = { path = "../../crates/product-config" }
+   │                  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ control-server v0.1.0
+
+warning[wildcard]: found 4 wildcard dependencies for crate 'demux'
+   ┌─ /home/z/my-project/wt/w24f/crates/demux/Cargo.toml:29:15
+   │
+29 │ media-types = { path = "../media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+30 │ plugin-api = { path = "../plugin-api" }
+   │              ━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+35 │ testkit = { path = "../testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+39 │ input = { path = "../input" }
+   │         ━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ demux v0.1.0
+     ├── (dev) codecs v0.1.0
+     │   ├── lumen-cli v0.1.0
+     │   │   ├── desktop v0.1.0
+     │   │   └── first-vertical v0.1.0
+     │   ├── lumen-mem-audit v0.1.0
+     │   ├── lumen-sweep v0.1.0
+     │   ├── lumen-web v0.1.0
+     │   ├── (dev) playback-engine v0.1.0
+     │   │   ├── lumen-cli v0.1.0 (*)
+     │   │   ├── lumen-web v0.1.0 (*)
+     │   │   └── (dev) plugin-host-wasm v0.1.0
+     │   ├── (dev) streaming v0.1.0
+     │   └── (dev) transcode v0.1.0
+     ├── lumen-cli v0.1.0 (*)
+     ├── lumen-mem-audit v0.1.0 (*)
+     ├── lumen-sweep v0.1.0 (*)
+     ├── lumen-web v0.1.0 (*)
+     ├── (dev) playback-engine v0.1.0 (*)
+     ├── (dev) streaming v0.1.0 (*)
+     └── transcode v0.1.0 (*)
+
+warning[wildcard]: found 7 wildcard dependencies for crate 'desktop'
+   ┌─ /home/z/my-project/wt/w24f/apps/desktop/Cargo.toml:33:12
+   │
+33 │ commands = { path = "../../crates/commands" }
+   │            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+40 │ lumen-cli = { path = "../cli" }
+   │             ━━━━━━━━━━━━━━━━━━━ wildcard dependency
+41 │ media-types = { path = "../../crates/media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+42 │ renderer-wgpu = { path = "../../crates/renderer-wgpu" }
+   │                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+43 │ video-engine = { path = "../../crates/video-engine" }
+   │                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+48 │ testkit = { path = "../../crates/testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+54 │ media-clock = { path = "../../crates/media-clock" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ desktop v0.1.0
+
+warning[wildcard]: found 3 wildcard dependencies for crate 'device-discovery'
+   ┌─ /home/z/my-project/wt/w24f/crates/device-discovery/Cargo.toml:46:15
+   │
+46 │ media-types = { path = "../media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+51 │ plugin-api = { path = "../plugin-api" }
+   │              ━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+56 │ testkit = { path = "../testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ device-discovery v0.1.0
+
+warning[wildcard]: found 3 wildcard dependencies for crate 'first-vertical'
+   ┌─ /home/z/my-project/wt/w24f/tests/integration/first-vertical/Cargo.toml:36:12
+   │
+36 │ commands = { path = "../../../crates/commands" }
+   │            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+37 │ lumen-cli = { path = "../../../apps/cli" }
+   │             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+40 │ testkit = { path = "../../../crates/testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ first-vertical v0.1.0
+
+warning[duplicate]: found 2 duplicate entries for crate 'getrandom'
+   ┌─ /home/z/my-project/wt/w24f/Cargo.lock:28:1
+   │  
+28 │ ╭ getrandom 0.2.17 registry+https://github.com/rust-lang/crates.io-index
+29 │ │ getrandom 0.4.3 registry+https://github.com/rust-lang/crates.io-index
+   │ ╰─────────────────────────────────────────────────────────────────────┘ lock entries
+   │  
+   ├ getrandom v0.2.17
+     └── ring v0.17.14
+         ├── rustls v0.23.46
+         │   └── ureq v3.5.0
+         │       └── streaming v0.1.0
+         └── rustls-webpki v0.103.16
+             └── rustls v0.23.46 (*)
+   ├ getrandom v0.4.3
+     └── jobserver v0.1.35
+         └── nasm-rs v0.3.2
+             └── (build) rav1d v1.1.0
+                 └── codecs v0.1.0
+                     ├── lumen-cli v0.1.0
+                     │   ├── desktop v0.1.0
+                     │   └── first-vertical v0.1.0
+                     ├── lumen-mem-audit v0.1.0
+                     ├── lumen-sweep v0.1.0
+                     ├── lumen-web v0.1.0
+                     ├── (dev) playback-engine v0.1.0
+                     │   ├── lumen-cli v0.1.0 (*)
+                     │   ├── lumen-web v0.1.0 (*)
+                     │   └── (dev) plugin-host-wasm v0.1.0
+                     ├── (dev) streaming v0.1.0
+                     └── (dev) transcode v0.1.0
+
+warning[wildcard]: found 3 wildcard dependencies for crate 'input'
+   ┌─ /home/z/my-project/wt/w24f/crates/input/Cargo.toml:33:15
+   │
+33 │ media-types = { path = "../media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+34 │ plugin-api = { path = "../plugin-api" }
+   │              ━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+38 │ testkit = { path = "../testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ input v0.1.0
+     ├── (dev) codecs v0.1.0
+     │   ├── lumen-cli v0.1.0
+     │   │   ├── desktop v0.1.0
+     │   │   └── first-vertical v0.1.0
+     │   ├── lumen-mem-audit v0.1.0
+     │   ├── lumen-sweep v0.1.0
+     │   ├── lumen-web v0.1.0
+     │   ├── (dev) playback-engine v0.1.0
+     │   │   ├── lumen-cli v0.1.0 (*)
+     │   │   ├── lumen-web v0.1.0 (*)
+     │   │   └── (dev) plugin-host-wasm v0.1.0
+     │   ├── (dev) streaming v0.1.0
+     │   └── (dev) transcode v0.1.0
+     ├── (dev) demux v0.1.0
+     │   ├── (dev) codecs v0.1.0 (*)
+     │   ├── lumen-cli v0.1.0 (*)
+     │   ├── lumen-mem-audit v0.1.0 (*)
+     │   ├── lumen-sweep v0.1.0 (*)
+     │   ├── lumen-web v0.1.0 (*)
+     │   ├── (dev) playback-engine v0.1.0 (*)
+     │   ├── (dev) streaming v0.1.0 (*)
+     │   └── transcode v0.1.0 (*)
+     ├── lumen-cli v0.1.0 (*)
+     ├── lumen-mem-audit v0.1.0 (*)
+     ├── lumen-sweep v0.1.0 (*)
+     ├── (dev) media-probe v0.1.0
+     │   ├── lumen-cli v0.1.0 (*)
+     │   ├── lumen-mem-audit v0.1.0 (*)
+     │   ├── lumen-sweep v0.1.0 (*)
+     │   └── lumen-web v0.1.0 (*)
+     ├── (dev) playback-engine v0.1.0 (*)
+     ├── (dev) streaming v0.1.0 (*)
+     └── (dev) transcode v0.1.0 (*)
+
+warning[wildcard]: found 16 wildcard dependencies for crate 'lumen-cli'
+   ┌─ /home/z/my-project/wt/w24f/apps/cli/Cargo.toml:48:16
+   │
+48 │ audio-engine = { path = "../../crates/audio-engine" }
+   │                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+49 │ audio-output = { path = "../../crates/audio-output" }
+   │                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+50 │ codec-api = { path = "../../crates/codec-api" }
+   │             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+51 │ codecs = { path = "../../crates/codecs" }
+   │          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+52 │ commands = { path = "../../crates/commands" }
+   │            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+53 │ demux = { path = "../../crates/demux" }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+54 │ input = { path = "../../crates/input" }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+55 │ media-clock = { path = "../../crates/media-clock" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+56 │ media-probe = { path = "../../crates/media-probe" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+57 │ media-types = { path = "../../crates/media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+58 │ playback-engine = { path = "../../crates/playback-engine" }
+   │                   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+59 │ plugin-api = { path = "../../crates/plugin-api" }
+   │              ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+60 │ renderer-wgpu = { path = "../../crates/renderer-wgpu" }
+   │                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+61 │ settings-schema = { path = "../../crates/settings-schema" }
+   │                   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+62 │ video-engine = { path = "../../crates/video-engine" }
+   │                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+67 │ testkit = { path = "../../crates/testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ lumen-cli v0.1.0
+     ├── desktop v0.1.0
+     └── first-vertical v0.1.0
+
+warning[wildcard]: found 7 wildcard dependencies for crate 'lumen-mem-audit'
+   ┌─ /home/z/my-project/wt/w24f/tools/mem-audit/Cargo.toml:47:13
+   │
+47 │ codec-api = { path = "../../crates/codec-api" }
+   │             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+48 │ codecs = { path = "../../crates/codecs" }
+   │          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+49 │ demux = { path = "../../crates/demux" }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+50 │ input = { path = "../../crates/input" }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+51 │ media-probe = { path = "../../crates/media-probe" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+52 │ media-types = { path = "../../crates/media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+53 │ plugin-api = { path = "../../crates/plugin-api" }
+   │              ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ lumen-mem-audit v0.1.0
+
+warning[wildcard]: found 7 wildcard dependencies for crate 'lumen-sweep'
+   ┌─ /home/z/my-project/wt/w24f/tools/sweep/Cargo.toml:44:13
+   │
+44 │ codec-api = { path = "../../crates/codec-api" }
+   │             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+45 │ codecs = { path = "../../crates/codecs" }
+   │          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+46 │ demux = { path = "../../crates/demux" }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+47 │ input = { path = "../../crates/input" }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+48 │ media-probe = { path = "../../crates/media-probe" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+49 │ media-types = { path = "../../crates/media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+50 │ plugin-api = { path = "../../crates/plugin-api" }
+   │              ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ lumen-sweep v0.1.0
+
+warning[wildcard]: found 12 wildcard dependencies for crate 'lumen-web'
+   ┌─ /home/z/my-project/wt/w24f/apps/web/Cargo.toml:47:12
+   │
+47 │ commands = { path = "../../crates/commands" }
+   │            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+53 │ media-types = { path = "../../crates/media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+54 │ plugin-api = { path = "../../crates/plugin-api" }
+   │              ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+55 │ codec-api = { path = "../../crates/codec-api" }
+   │             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+56 │ media-probe = { path = "../../crates/media-probe" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+57 │ demux = { path = "../../crates/demux" }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+58 │ media-clock = { path = "../../crates/media-clock" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+59 │ playback-engine = { path = "../../crates/playback-engine" }
+   │                   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+60 │ audio-engine = { path = "../../crates/audio-engine" }
+   │                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+61 │ audio-output = { path = "../../crates/audio-output" }
+   │                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+71 │ codecs = { path = "../../crates/codecs" }
+   │          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+76 │ testkit = { path = "../../crates/testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ lumen-web v0.1.0
+
+warning[wildcard]: found 2 wildcard dependencies for crate 'media-clock'
+   ┌─ /home/z/my-project/wt/w24f/crates/media-clock/Cargo.toml:20:15
+   │
+20 │ media-types = { path = "../media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+26 │ testkit = { path = "../testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ media-clock v0.1.0
+     ├── audio-engine v0.1.0
+     │   ├── audio-output v0.1.0
+     │   │   ├── lumen-cli v0.1.0
+     │   │   │   ├── desktop v0.1.0
+     │   │   │   └── first-vertical v0.1.0
+     │   │   ├── lumen-web v0.1.0
+     │   │   ├── platform-linux v0.1.0
+     │   │   ├── platform-macos v0.1.0
+     │   │   └── platform-windows v0.1.0
+     │   ├── lumen-cli v0.1.0 (*)
+     │   └── lumen-web v0.1.0 (*)
+     ├── audio-output v0.1.0 (*)
+     ├── (dev) desktop v0.1.0 (*)
+     ├── lumen-cli v0.1.0 (*)
+     ├── lumen-web v0.1.0 (*)
+     ├── playback-engine v0.1.0
+     │   ├── lumen-cli v0.1.0 (*)
+     │   ├── lumen-web v0.1.0 (*)
+     │   └── (dev) plugin-host-wasm v0.1.0
+     ├── (dev) plugin-host-wasm v0.1.0 (*)
+     ├── (dev) renderer-wgpu v0.1.0
+     │   ├── desktop v0.1.0 (*)
+     │   └── lumen-cli v0.1.0 (*)
+     ├── (dev) subtitles v0.1.0
+     └── video-engine v0.1.0
+         ├── desktop v0.1.0 (*)
+         ├── lumen-cli v0.1.0 (*)
+         └── renderer-wgpu v0.1.0 (*)
+
+warning[wildcard]: found 4 wildcard dependencies for crate 'media-probe'
+   ┌─ /home/z/my-project/wt/w24f/crates/media-probe/Cargo.toml:39:15
+   │
+39 │ media-types = { path = "../media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+40 │ plugin-api = { path = "../plugin-api" }
+   │              ━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+45 │ testkit = { path = "../testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+49 │ input = { path = "../input" }
+   │         ━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ media-probe v0.1.0
+     ├── lumen-cli v0.1.0
+     │   ├── desktop v0.1.0
+     │   └── first-vertical v0.1.0
+     ├── lumen-mem-audit v0.1.0
+     ├── lumen-sweep v0.1.0
+     └── lumen-web v0.1.0
+
+warning[wildcard]: found 1 wildcard dependency for crate 'media-types'
+   ┌─ /home/z/my-project/wt/w24f/crates/media-types/Cargo.toml:29:11
+   │
+29 │ testkit = { path = "../testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ media-types v0.1.0
+     ├── audio-engine v0.1.0
+     │   ├── audio-output v0.1.0
+     │   │   ├── lumen-cli v0.1.0
+     │   │   │   ├── desktop v0.1.0
+     │   │   │   └── first-vertical v0.1.0
+     │   │   ├── lumen-web v0.1.0
+     │   │   ├── platform-linux v0.1.0
+     │   │   ├── platform-macos v0.1.0
+     │   │   └── platform-windows v0.1.0
+     │   ├── lumen-cli v0.1.0 (*)
+     │   └── lumen-web v0.1.0 (*)
+     ├── audio-output v0.1.0 (*)
+     ├── codec-api v0.1.0
+     │   ├── codecs v0.1.0
+     │   │   ├── lumen-cli v0.1.0 (*)
+     │   │   ├── lumen-mem-audit v0.1.0
+     │   │   ├── lumen-sweep v0.1.0
+     │   │   ├── lumen-web v0.1.0 (*)
+     │   │   ├── (dev) playback-engine v0.1.0
+     │   │   │   ├── lumen-cli v0.1.0 (*)
+     │   │   │   ├── lumen-web v0.1.0 (*)
+     │   │   │   └── (dev) plugin-host-wasm v0.1.0
+     │   │   ├── (dev) streaming v0.1.0
+     │   │   └── (dev) transcode v0.1.0
+     │   ├── lumen-cli v0.1.0 (*)
+     │   ├── lumen-mem-audit v0.1.0 (*)
+     │   ├── lumen-sweep v0.1.0 (*)
+     │   ├── lumen-web v0.1.0 (*)
+     │   ├── playback-engine v0.1.0 (*)
+     │   ├── plugin-api v0.1.0
+     │   │   ├── (dev) codecs v0.1.0 (*)
+     │   │   ├── demux v0.1.0
+     │   │   │   ├── (dev) codecs v0.1.0 (*)
+     │   │   │   ├── lumen-cli v0.1.0 (*)
+     │   │   │   ├── lumen-mem-audit v0.1.0 (*)
+     │   │   │   ├── lumen-sweep v0.1.0 (*)
+     │   │   │   ├── lumen-web v0.1.0 (*)
+     │   │   │   ├── (dev) playback-engine v0.1.0 (*)
+     │   │   │   ├── (dev) streaming v0.1.0 (*)
+     │   │   │   └── transcode v0.1.0 (*)
+     │   │   ├── device-discovery v0.1.0
+     │   │   ├── input v0.1.0
+     │   │   │   ├── (dev) codecs v0.1.0 (*)
+     │   │   │   ├── (dev) demux v0.1.0 (*)
+     │   │   │   ├── lumen-cli v0.1.0 (*)
+     │   │   │   ├── lumen-mem-audit v0.1.0 (*)
+     │   │   │   ├── lumen-sweep v0.1.0 (*)
+     │   │   │   ├── (dev) media-probe v0.1.0
+     │   │   │   │   ├── lumen-cli v0.1.0 (*)
+     │   │   │   │   ├── lumen-mem-audit v0.1.0 (*)
+     │   │   │   │   ├── lumen-sweep v0.1.0 (*)
+     │   │   │   │   └── lumen-web v0.1.0 (*)
+     │   │   │   ├── (dev) playback-engine v0.1.0 (*)
+     │   │   │   ├── (dev) streaming v0.1.0 (*)
+     │   │   │   └── (dev) transcode v0.1.0 (*)
+     │   │   ├── lumen-cli v0.1.0 (*)
+     │   │   ├── lumen-mem-audit v0.1.0 (*)
+     │   │   ├── lumen-sweep v0.1.0 (*)
+     │   │   ├── lumen-web v0.1.0 (*)
+     │   │   ├── media-probe v0.1.0 (*)
+     │   │   ├── playback-engine v0.1.0 (*)
+     │   │   ├── plugin-host-wasm v0.1.0 (*)
+     │   │   ├── streaming v0.1.0 (*)
+     │   │   └── transcode v0.1.0 (*)
+     │   ├── (dev) plugin-host-wasm v0.1.0 (*)
+     │   └── transcode v0.1.0 (*)
+     ├── codecs v0.1.0 (*)
+     ├── demux v0.1.0 (*)
+     ├── desktop v0.1.0 (*)
+     ├── device-discovery v0.1.0 (*)
+     ├── input v0.1.0 (*)
+     ├── lumen-cli v0.1.0 (*)
+     ├── lumen-mem-audit v0.1.0 (*)
+     ├── lumen-sweep v0.1.0 (*)
+     ├── lumen-web v0.1.0 (*)
+     ├── media-clock v0.1.0
+     │   ├── audio-engine v0.1.0 (*)
+     │   ├── audio-output v0.1.0 (*)
+     │   ├── (dev) desktop v0.1.0 (*)
+     │   ├── lumen-cli v0.1.0 (*)
+     │   ├── lumen-web v0.1.0 (*)
+     │   ├── playback-engine v0.1.0 (*)
+     │   ├── (dev) plugin-host-wasm v0.1.0 (*)
+     │   ├── (dev) renderer-wgpu v0.1.0
+     │   │   ├── desktop v0.1.0 (*)
+     │   │   └── lumen-cli v0.1.0 (*)
+     │   ├── (dev) subtitles v0.1.0
+     │   └── video-engine v0.1.0
+     │       ├── desktop v0.1.0 (*)
+     │       ├── lumen-cli v0.1.0 (*)
+     │       └── renderer-wgpu v0.1.0 (*)
+     ├── media-probe v0.1.0 (*)
+     ├── packet-queue v0.1.0
+     │   ├── playback-engine v0.1.0 (*)
+     │   └── (dev) plugin-host-wasm v0.1.0 (*)
+     ├── platform-linux v0.1.0 (*)
+     ├── platform-macos v0.1.0 (*)
+     ├── platform-windows v0.1.0 (*)
+     ├── playback-engine v0.1.0 (*)
+     ├── plugin-api v0.1.0 (*)
+     ├── (dev) plugin-host-wasm v0.1.0 (*)
+     ├── renderer-wgpu v0.1.0 (*)
+     ├── streaming v0.1.0 (*)
+     ├── subtitles v0.1.0 (*)
+     ├── transcode v0.1.0 (*)
+     └── video-engine v0.1.0 (*)
+
+warning[wildcard]: found 2 wildcard dependencies for crate 'packet-queue'
+   ┌─ /home/z/my-project/wt/w24f/crates/packet-queue/Cargo.toml:28:15
+   │
+28 │ media-types = { path = "../media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+31 │ testkit = { path = "../testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ packet-queue v0.1.0
+     ├── playback-engine v0.1.0
+     │   ├── lumen-cli v0.1.0
+     │   │   ├── desktop v0.1.0
+     │   │   └── first-vertical v0.1.0
+     │   ├── lumen-web v0.1.0
+     │   └── (dev) plugin-host-wasm v0.1.0
+     └── (dev) plugin-host-wasm v0.1.0 (*)
+
+warning[wildcard]: found 3 wildcard dependencies for crate 'platform-linux'
+   ┌─ /home/z/my-project/wt/w24f/crates/platform-linux/Cargo.toml:40:16
+   │
+40 │ audio-output = { path = "../audio-output" }
+   │                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+41 │ media-types = { path = "../media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+46 │ testkit = { path = "../testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ platform-linux v0.1.0
+
+warning[wildcard]: found 3 wildcard dependencies for crate 'platform-macos'
+   ┌─ /home/z/my-project/wt/w24f/crates/platform-macos/Cargo.toml:40:16
+   │
+40 │ audio-output = { path = "../audio-output" }
+   │                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+41 │ media-types = { path = "../media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+46 │ testkit = { path = "../testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ platform-macos v0.1.0
+
+warning[wildcard]: found 3 wildcard dependencies for crate 'platform-windows'
+   ┌─ /home/z/my-project/wt/w24f/crates/platform-windows/Cargo.toml:37:16
+   │
+37 │ audio-output = { path = "../audio-output" }
+   │                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+38 │ media-types = { path = "../media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+43 │ testkit = { path = "../testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ platform-windows v0.1.0
+
+warning[wildcard]: found 10 wildcard dependencies for crate 'playback-engine'
+   ┌─ /home/z/my-project/wt/w24f/crates/playback-engine/Cargo.toml:35:13
+   │
+35 │ codec-api = { path = "../codec-api" }
+   │             ━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+36 │ commands = { path = "../commands" }
+   │            ━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+37 │ media-clock = { path = "../media-clock" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+38 │ media-types = { path = "../media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+39 │ packet-queue = { path = "../packet-queue" }
+   │                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+40 │ plugin-api = { path = "../plugin-api" }
+   │              ━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+45 │ testkit = { path = "../testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+54 │ demux = { path = "../demux" }
+   │         ━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+55 │ codecs = { path = "../codecs" }
+   │          ━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+56 │ input = { path = "../input" }
+   │         ━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ playback-engine v0.1.0
+     ├── lumen-cli v0.1.0
+     │   ├── desktop v0.1.0
+     │   └── first-vertical v0.1.0
+     ├── lumen-web v0.1.0
+     └── (dev) plugin-host-wasm v0.1.0
+
+warning[wildcard]: found 3 wildcard dependencies for crate 'plugin-api'
+   ┌─ /home/z/my-project/wt/w24f/crates/plugin-api/Cargo.toml:24:15
+   │
+24 │ media-types = { path = "../media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+25 │ codec-api = { path = "../codec-api" }
+   │             ━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+33 │ testkit = { path = "../testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ plugin-api v0.1.0
+     ├── (dev) codecs v0.1.0
+     │   ├── lumen-cli v0.1.0
+     │   │   ├── desktop v0.1.0
+     │   │   └── first-vertical v0.1.0
+     │   ├── lumen-mem-audit v0.1.0
+     │   ├── lumen-sweep v0.1.0
+     │   ├── lumen-web v0.1.0
+     │   ├── (dev) playback-engine v0.1.0
+     │   │   ├── lumen-cli v0.1.0 (*)
+     │   │   ├── lumen-web v0.1.0 (*)
+     │   │   └── (dev) plugin-host-wasm v0.1.0
+     │   ├── (dev) streaming v0.1.0
+     │   └── (dev) transcode v0.1.0
+     ├── demux v0.1.0
+     │   ├── (dev) codecs v0.1.0 (*)
+     │   ├── lumen-cli v0.1.0 (*)
+     │   ├── lumen-mem-audit v0.1.0 (*)
+     │   ├── lumen-sweep v0.1.0 (*)
+     │   ├── lumen-web v0.1.0 (*)
+     │   ├── (dev) playback-engine v0.1.0 (*)
+     │   ├── (dev) streaming v0.1.0 (*)
+     │   └── transcode v0.1.0 (*)
+     ├── device-discovery v0.1.0
+     ├── input v0.1.0
+     │   ├── (dev) codecs v0.1.0 (*)
+     │   ├── (dev) demux v0.1.0 (*)
+     │   ├── lumen-cli v0.1.0 (*)
+     │   ├── lumen-mem-audit v0.1.0 (*)
+     │   ├── lumen-sweep v0.1.0 (*)
+     │   ├── (dev) media-probe v0.1.0
+     │   │   ├── lumen-cli v0.1.0 (*)
+     │   │   ├── lumen-mem-audit v0.1.0 (*)
+     │   │   ├── lumen-sweep v0.1.0 (*)
+     │   │   └── lumen-web v0.1.0 (*)
+     │   ├── (dev) playback-engine v0.1.0 (*)
+     │   ├── (dev) streaming v0.1.0 (*)
+     │   └── (dev) transcode v0.1.0 (*)
+     ├── lumen-cli v0.1.0 (*)
+     ├── lumen-mem-audit v0.1.0 (*)
+     ├── lumen-sweep v0.1.0 (*)
+     ├── lumen-web v0.1.0 (*)
+     ├── media-probe v0.1.0 (*)
+     ├── playback-engine v0.1.0 (*)
+     ├── plugin-host-wasm v0.1.0 (*)
+     ├── streaming v0.1.0 (*)
+     └── transcode v0.1.0 (*)
+
+warning[wildcard]: found 8 wildcard dependencies for crate 'plugin-host-wasm'
+   ┌─ /home/z/my-project/wt/w24f/crates/plugin-host-wasm/Cargo.toml:52:14
+   │
+52 │ plugin-api = { path = "../plugin-api" }
+   │              ━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+53 │ settings-schema = { path = "../settings-schema" }
+   │                   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+66 │ playback-engine = { path = "../playback-engine" }
+   │                   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+67 │ media-types = { path = "../media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+68 │ codec-api = { path = "../codec-api" }
+   │             ━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+69 │ media-clock = { path = "../media-clock" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+70 │ packet-queue = { path = "../packet-queue" }
+   │                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+71 │ testkit = { path = "../testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ plugin-host-wasm v0.1.0
+
+warning[wildcard]: found 4 wildcard dependencies for crate 'renderer-wgpu'
+   ┌─ /home/z/my-project/wt/w24f/crates/renderer-wgpu/Cargo.toml:28:15
+   │
+28 │ media-types = { path = "../media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+29 │ video-engine = { path = "../video-engine" }
+   │                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+34 │ testkit = { path = "../testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+41 │ media-clock = { path = "../media-clock" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ renderer-wgpu v0.1.0
+     ├── desktop v0.1.0
+     └── lumen-cli v0.1.0
+         ├── desktop v0.1.0 (*)
+         └── first-vertical v0.1.0
+
+warning[wildcard]: found 7 wildcard dependencies for crate 'streaming'
+   ┌─ /home/z/my-project/wt/w24f/crates/streaming/Cargo.toml:34:15
+   │
+34 │ media-types = { path = "../media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+35 │ plugin-api = { path = "../plugin-api" }
+   │              ━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+42 │ playlists = { path = "../playlists" }
+   │             ━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+57 │ testkit = { path = "../testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+62 │ demux = { path = "../demux" }
+   │         ━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+67 │ input = { path = "../input" }
+   │         ━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+74 │ codecs = { path = "../codecs" }
+   │          ━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ streaming v0.1.0
+
+warning[wildcard]: found 3 wildcard dependencies for crate 'subtitles'
+   ┌─ /home/z/my-project/wt/w24f/crates/subtitles/Cargo.toml:44:15
+   │
+44 │ media-types = { path = "../media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+49 │ testkit = { path = "../testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+53 │ media-clock = { path = "../media-clock" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ subtitles v0.1.0
+
+warning[duplicate]: found 2 duplicate entries for crate 'syn'
+    ┌─ /home/z/my-project/wt/w24f/Cargo.lock:109:1
+    │  
+109 │ ╭ syn 2.0.119 registry+https://github.com/rust-lang/crates.io-index
+110 │ │ syn 3.0.9 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰───────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ syn v2.0.119
+      ├── atomig-macro v0.4.0
+      │   └── atomig v0.4.3
+      │       └── rav1d v1.1.0
+      │           └── codecs v0.1.0
+      │               ├── lumen-cli v0.1.0
+      │               │   ├── desktop v0.1.0
+      │               │   └── first-vertical v0.1.0
+      │               ├── lumen-mem-audit v0.1.0
+      │               ├── lumen-sweep v0.1.0
+      │               ├── lumen-web v0.1.0
+      │               ├── (dev) playback-engine v0.1.0
+      │               │   ├── lumen-cli v0.1.0 (*)
+      │               │   ├── lumen-web v0.1.0 (*)
+      │               │   └── (dev) plugin-host-wasm v0.1.0
+      │               ├── (dev) streaming v0.1.0
+      │               └── (dev) transcode v0.1.0
+      ├── strum_macros v0.26.4
+      │   └── strum v0.26.3
+      │       └── rav1d v1.1.0 (*)
+      └── zerocopy-derive v0.7.35
+          └── zerocopy v0.7.35
+              └── rav1d v1.1.0 (*)
+    ├ syn v3.0.9
+      ├── ref-cast-impl v1.0.27
+      │   └── ref-cast v1.0.27
+      │       └── schemars v1.2.3
+      │           └── commands v0.1.0
+      │               ├── control-protocol v0.1.0
+      │               │   └── control-server v0.1.0
+      │               ├── control-server v0.1.0 (*)
+      │               ├── desktop v0.1.0
+      │               ├── first-vertical v0.1.0
+      │               ├── lumen-cli v0.1.0
+      │               │   ├── desktop v0.1.0 (*)
+      │               │   └── first-vertical v0.1.0 (*)
+      │               ├── lumen-web v0.1.0
+      │               └── playback-engine v0.1.0
+      │                   ├── lumen-cli v0.1.0 (*)
+      │                   ├── lumen-web v0.1.0 (*)
+      │                   └── (dev) plugin-host-wasm v0.1.0
+      ├── schemars_derive v1.2.3
+      │   └── schemars v1.2.3 (*)
+      ├── serde_derive v1.0.229
+      │   └── serde v1.0.229
+      │       ├── commands v0.1.0 (*)
+      │       ├── control-protocol v0.1.0 (*)
+      │       ├── lumen-web v0.1.0 (*)
+      │       ├── plugin-api v0.1.0
+      │       │   ├── (dev) codecs v0.1.0
+      │       │   │   ├── lumen-cli v0.1.0 (*)
+      │       │   │   ├── lumen-mem-audit v0.1.0
+      │       │   │   ├── lumen-sweep v0.1.0
+      │       │   │   ├── lumen-web v0.1.0 (*)
+      │       │   │   ├── (dev) playback-engine v0.1.0 (*)
+      │       │   │   ├── (dev) streaming v0.1.0
+      │       │   │   └── (dev) transcode v0.1.0
+      │       │   ├── demux v0.1.0
+      │       │   │   ├── (dev) codecs v0.1.0 (*)
+      │       │   │   ├── lumen-cli v0.1.0 (*)
+      │       │   │   ├── lumen-mem-audit v0.1.0 (*)
+      │       │   │   ├── lumen-sweep v0.1.0 (*)
+      │       │   │   ├── lumen-web v0.1.0 (*)
+      │       │   │   ├── (dev) playback-engine v0.1.0 (*)
+      │       │   │   ├── (dev) streaming v0.1.0 (*)
+      │       │   │   └── transcode v0.1.0 (*)
+      │       │   ├── device-discovery v0.1.0
+      │       │   ├── input v0.1.0
+      │       │   │   ├── (dev) codecs v0.1.0 (*)
+      │       │   │   ├── (dev) demux v0.1.0 (*)
+      │       │   │   ├── lumen-cli v0.1.0 (*)
+      │       │   │   ├── lumen-mem-audit v0.1.0 (*)
+      │       │   │   ├── lumen-sweep v0.1.0 (*)
+      │       │   │   ├── (dev) media-probe v0.1.0
+      │       │   │   │   ├── lumen-cli v0.1.0 (*)
+      │       │   │   │   ├── lumen-mem-audit v0.1.0 (*)
+      │       │   │   │   ├── lumen-sweep v0.1.0 (*)
+      │       │   │   │   └── lumen-web v0.1.0 (*)
+      │       │   │   ├── (dev) playback-engine v0.1.0 (*)
+      │       │   │   ├── (dev) streaming v0.1.0 (*)
+      │       │   │   └── (dev) transcode v0.1.0 (*)
+      │       │   ├── lumen-cli v0.1.0 (*)
+      │       │   ├── lumen-mem-audit v0.1.0 (*)
+      │       │   ├── lumen-sweep v0.1.0 (*)
+      │       │   ├── lumen-web v0.1.0 (*)
+      │       │   ├── media-probe v0.1.0 (*)
+      │       │   ├── playback-engine v0.1.0 (*)
+      │       │   ├── plugin-host-wasm v0.1.0 (*)
+      │       │   ├── streaming v0.1.0 (*)
+      │       │   └── transcode v0.1.0 (*)
+      │       ├── product-config v0.1.0
+      │       │   └── control-server v0.1.0 (*)
+      │       ├── schemars v1.2.3 (*)
+      │       └── settings-schema v0.1.0
+      │           ├── lumen-cli v0.1.0 (*)
+      │           └── plugin-host-wasm v0.1.0 (*)
+      ├── serde_derive_internals v0.30.0
+      │   └── schemars_derive v1.2.3 (*)
+      └── thiserror-impl v2.0.21
+          └── thiserror v2.0.21
+              ├── filmcraft-dnx v0.9.0
+              │   └── codecs v0.1.0 (*)
+              ├── localization v0.1.0
+              ├── playlists v0.1.0
+              │   └── streaming v0.1.0 (*)
+              ├── plugin-api v0.1.0 (*)
+              ├── product-config v0.1.0 (*)
+              └── settings-schema v0.1.0 (*)
+
+warning[wildcard]: found 7 wildcard dependencies for crate 'transcode'
+   ┌─ /home/z/my-project/wt/w24f/crates/transcode/Cargo.toml:56:13
+   │
+56 │ codec-api = { path = "../codec-api" }
+   │             ━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+57 │ demux = { path = "../demux" }
+   │         ━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+58 │ media-types = { path = "../media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+59 │ plugin-api = { path = "../plugin-api" }
+   │              ━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+63 │ codecs = { path = "../codecs" }
+   │          ━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+64 │ # The real file access stack for the fixture e2e suites (dev-only).
+65 │ input = { path = "../input" }
+   │         ━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+66 │ testkit = { path = "../testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ transcode v0.1.0
+
+warning[wildcard]: found 3 wildcard dependencies for crate 'video-engine'
+   ┌─ /home/z/my-project/wt/w24f/crates/video-engine/Cargo.toml:25:15
+   │
+25 │ media-types = { path = "../media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+26 │ media-clock = { path = "../media-clock" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+32 │ testkit = { path = "../testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ video-engine v0.1.0
+     ├── desktop v0.1.0
+     ├── lumen-cli v0.1.0
+     │   ├── desktop v0.1.0 (*)
+     │   └── first-vertical v0.1.0
+     └── renderer-wgpu v0.1.0
+         ├── desktop v0.1.0 (*)
+         └── lumen-cli v0.1.0 (*)
+
+advisories ok, bans ok, licenses ok, sources ok
+DENY_EXIT=0
