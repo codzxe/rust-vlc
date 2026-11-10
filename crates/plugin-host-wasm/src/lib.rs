@@ -29,15 +29,19 @@
 //!   (recorded, honestly **unverified** until a Lead-approved crypto
 //!   ADR), user-initiated install/remove with consent, no
 //!   auto-execution.
+//! - **F4 — crash-isolation supervision** ([`supervisor`], card
+//!   7.F4 / issue #46): the config-driven restart/backoff/`Disabled`
+//!   policy that runs after wasmi has contained a trap, plus the
+//!   doc 05 §3 `plugins.crashed` event shapes.
 //!
 //! # Crash isolation (issue #46 boundary)
 //!
 //! Trap containment comes free with wasmi: a trap destroys only that
 //! instance's `Store`; the host process and every other instance are
 //! untouched (typed [`error::HostError`] + `Faulted` status). The
-//! restart/backoff/`Disabled` scheduler is card #46 — only the
-//! escalation-threshold disable (doc 06 §5.3) is wired here because
-//! it falls out of the import dispatch naturally.
+//! restart/backoff/`Disabled` scheduler is
+//! [`supervisor::ExtensionSupervisor`] — policy values come from the
+//! settings layer (`extensions.crash-*`), never re-stated in code.
 //!
 //! # No-unsafe, bounded, typed
 //!
@@ -64,6 +68,8 @@
 //!   wasm-magic fence) + the signature-suite block.
 //! - [`state`]    — per-instance `Store` data: handle table, security
 //!   ledger, bounded log, panels.
+//! - [`supervisor`] — the crash backoff/`Disabled` policy and host
+//!   events (card 7.F4; settings-driven).
 //! - [`crc32`]    — std-only CRC-32 (ZIP check value).
 //! - [`sha256`]   — std-only SHA-256 (FIPS 180-4), for
 //!   `provenance.hash`.
@@ -80,6 +86,7 @@ pub mod limits;
 pub mod package;
 pub mod sha256;
 pub mod state;
+pub mod supervisor;
 
 // Headline re-exports: the surface an embedding app touches.
 pub use api::{ENGINE_PLUGIN_API_MIN, Grants, Permission};
@@ -91,6 +98,7 @@ pub use instance::{InstanceStatus, WasmInstance, engine};
 pub use limits::ResourceLimits;
 pub use package::{LumenextPackage, SignatureStatus, read_package};
 pub use state::{HostServices, SecurityEvent, SecurityLedger};
+pub use supervisor::{ActionTaken, BackoffPolicy, ExtensionSupervisor, RunState, SupervisorEvent};
 
 #[cfg(test)]
 mod tests {

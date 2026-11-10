@@ -384,3 +384,73 @@ cli = { flag = "--engine-queue-packets-video", short = "" }
 feature_gate = ""
 since = "0.1.0"
 advanced = true
+
+# --- extensions (crash-isolation policy, doc 06 §5.6 [PROPOSAL: backoff
+# sequence]; card 7.F4 / issue #46) -----------------------------------------
+# The host consumes these through the embedded schema
+# (plugin-host-wasm supervisor) — the values are never re-stated in code.
+
+[[setting]]
+key = "extensions.crash-backoff-initial-ms"
+type = "duration-ms"
+range = { min = 0, max = 600000 }
+default = 5000            # doc 06 §5.6: retry 1 immediate, retry 2 after 5 s
+description = "settings.extensions.crash-backoff-initial-ms"
+restart_required = false
+placement = { screen = "extensions", section = "crash-isolation", order = 10, ui = false }
+cli = { flag = "--extensions-crash-backoff-initial-ms", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true
+
+[[setting]]
+key = "extensions.crash-backoff-multiplier"
+type = "int"
+range = { min = 1, max = 100 }
+default = 6               # 5 s -> 30 s -> 5 min (capped), doc 06 §5.6
+description = "settings.extensions.crash-backoff-multiplier"
+restart_required = false
+placement = { screen = "extensions", section = "crash-isolation", order = 20, ui = false }
+cli = { flag = "--extensions-crash-backoff-multiplier", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true
+
+[[setting]]
+key = "extensions.crash-backoff-max-ms"
+type = "duration-ms"
+range = { min = 5000, max = 3600000 }
+default = 300000          # the 5 min backoff cap, doc 06 §5.6
+description = "settings.extensions.crash-backoff-max-ms"
+restart_required = false
+placement = { screen = "extensions", section = "crash-isolation", order = 30, ui = false }
+cli = { flag = "--extensions-crash-backoff-max-ms", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true
+
+[[setting]]
+key = "extensions.crash-restart-limit"
+type = "int"
+range = { min = 1, max = 10 }
+default = 3               # 3 supervised restarts; the 4th crash in the window disables
+description = "settings.extensions.crash-restart-limit"
+restart_required = false
+placement = { screen = "extensions", section = "crash-isolation", order = 40, ui = false }
+cli = { flag = "--extensions-crash-restart-limit", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true
+
+[[setting]]
+key = "extensions.crash-disabled-reenable-ms"
+type = "duration-ms"
+range = { min = 0, max = 86400000 }
+default = 900000          # policy timer: 15 min; 0 = user-action re-enable only
+description = "settings.extensions.crash-disabled-reenable-ms"
+restart_required = false
+placement = { screen = "extensions", section = "crash-isolation", order = 50, ui = false }
+cli = { flag = "--extensions-crash-disabled-reenable-ms", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true

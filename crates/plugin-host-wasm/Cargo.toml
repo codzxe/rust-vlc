@@ -30,6 +30,13 @@
 # emitter (tests/common) — no `wat`/`wast` dev-dependency, so nothing
 # outside the audited production closure is ever resolved by this
 # crate's builds.
+#
+# 7.F4 (issue #46) adds ONE internal edge — settings-schema (L1, the
+# settings layer): the crash backoff/`Disabled` policy is config-driven
+# (schemas/settings.toml `extensions.crash-*`), read through the
+# embedded-schema runtime plane; the toml external joins only for the
+# `config.set-setting`-shaped value type of that seam (same preaudit-
+# foundation version the rest of the config family uses).
 
 [package]
 name = "plugin-host-wasm"
@@ -43,5 +50,8 @@ workspace = true
 
 [dependencies]
 plugin-api = { path = "../plugin-api" }
+settings-schema = { path = "../settings-schema" }
+
+toml = "1"
 
 wasmi = { version = "2.0.0", default-features = false, features = ["std", "validate", "auto-dispatch"] }

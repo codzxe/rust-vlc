@@ -125,6 +125,11 @@ pub enum HostError {
     /// Install/remove was attempted without explicit user consent
     /// (doc 06 §5.7 step 1, MP §6: install is user-initiated).
     ConsentRequired,
+    /// A supervisor policy value could not be read or applied through
+    /// the settings layer (card 7.F4: the backoff policy is
+    /// config-driven — schema drift, range violations and unknown
+    /// keys surface here, never as silently hard-coded numbers).
+    Settings(String),
 }
 
 /// `.lumenext` package-format failures (doc 06 §5.7; F3).
@@ -284,6 +289,9 @@ impl fmt::Display for HostError {
                  no code path installs or executes an extension without \
                  it (doc 06 §5.7, MP §6)",
             ),
+            HostError::Settings(detail) => {
+                write!(f, "settings-layer policy failure: {detail}")
+            }
         }
     }
 }
