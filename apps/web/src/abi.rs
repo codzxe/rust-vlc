@@ -105,7 +105,8 @@ pub const STATUS_PARSE_ERROR: u32 = 1;
 pub const STATUS_OVERFLOW: u32 = 2;
 
 /// The worker behind the exports: the host plus the two staging
-/// halves of the wire (input words in, output JSON out).
+/// halves of the wire (input words in, output JSON out) and the
+/// raw frame lane's staging (the present's RGBA bytes).
 pub struct AbiWorker {
     host: WebHost,
     input: Vec<u8>,
@@ -116,6 +117,11 @@ pub struct AbiWorker {
     /// SAME bytes (the documented invariant — `take_outbound` is
     /// destructive, so a re-stage would silently answer `[]`).
     staged: bool,
+    /// The raw frame lane's staging: the RGBA bytes of the last
+    /// dispatch's `PresentFrame` (empty when that dispatch staged
+    /// none). Valid until the next dispatch — the same invariant
+    /// the output JSON staging answers (card 7.H2).
+    frame: Vec<u8>,
 }
 
 impl AbiWorker {
@@ -128,6 +134,7 @@ impl AbiWorker {
             input_overflowed: false,
             output: String::new(),
             staged: false,
+            frame: Vec::new(),
         }
     }
 
@@ -197,6 +204,7 @@ impl AbiWorker {
                 }
             }
         };
+        self.stage_frame();
         // New outbound may exist: the next read re-stages.
         self.staged = false;
         status
@@ -219,9 +227,22 @@ impl AbiWorker {
                 STATUS_PARSE_ERROR
             }
         };
+        self.stage_frame();
         // New outbound may exist: the next read re-stages.
         self.staged = false;
         status
+    }
+
+    /// Stage the frame lane: pull the host's pending present (if
+    /// this dispatch produced one) into the stable byte buffer. A
+    /// dispatch with no present CLEARS the lane — the bytes are
+    /// valid until the next dispatch, exactly like the output JSON
+    /// staging (the glue reads both before any further call).
+    fn stage_frame(&mut self) {
+        self.frame.clear();
+        if let Some(upload) = self.host.take_pending_frame() {
+            self.frame.extend_from_slice(&upload.rgba);
+        }
     }
 
     /// Stage the outbound queue as one JSON array (the output
@@ -267,6 +288,31 @@ impl AbiWorker {
     pub fn output_json(&mut self) -> String {
         self.stage_output();
         self.output.clone()
+    }
+
+    /// The staged frame's address in linear memory (the raw frame
+    /// lane; 0 when the last dispatch staged no present).
+    #[must_use]
+    pub fn frame_addr(&self) -> u32 {
+        if self.frame.is_empty() {
+            return 0;
+        }
+        self.frame.as_ptr() as u32
+    }
+
+    /// The staged frame's byte length (pair with [`frame_addr`]).
+    #[must_use]
+    pub fn frame_len(&self) -> u32 {
+        u32::try_from(self.frame.len()).unwrap_or(u32::MAX)
+    }
+
+    /// The staged frame bytes themselves (the native test lane —
+    /// the JS glue reads the same bytes through `memory.buffer` at
+    /// `frame_addr`/`frame_len`; no re-staging, no copy at the
+    /// boundary).
+    #[must_use]
+    pub fn frame_bytes(&self) -> &[u8] {
+        &self.frame
     }
 }
 
@@ -335,6 +381,26 @@ pub extern "C" fn lumen_web_output_len() -> u32 {
     worker.output_len()
 }
 
+/// The raw frame lane's address in the exported linear memory: the
+/// RGBA bytes of the last dispatch's `PresentFrame` (card 7.H2's
+/// upload path — the pixels never ride the JSON). `0` when that
+/// dispatch staged no present. Valid until the next
+/// `lumen_web_dispatch`; the glue reads it (via `memory.buffer`)
+/// before any further call, then transfers the bytes to the page.
+#[unsafe(no_mangle)]
+pub extern "C" fn lumen_web_frame_addr() -> u32 {
+    let worker = lock_worker();
+    worker.frame_addr()
+}
+
+/// The raw frame lane's byte length (pair with
+/// [`lumen_web_frame_addr`]).
+#[unsafe(no_mangle)]
+pub extern "C" fn lumen_web_frame_len() -> u32 {
+    let worker = lock_worker();
+    worker.frame_len()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -381,6 +447,12 @@ mod tests {
             };
             (status, messages)
         }
+
+        /// The staged frame bytes (the raw frame lane's native
+        /// read — the same bytes the JS glue transfers to the page).
+        fn frame_bytes(&self) -> &[u8] {
+            self.worker.frame_bytes()
+        }
     }
 
     /// The lane proof, end to end through the ABI's dispatch core:
@@ -395,7 +467,7 @@ mod tests {
         // 1. Boot: the handshake answers EngineInfo + the honest
         //    capability snapshot (threading: single, the typed
         //    blocked rows).
-        let replies = port.post(&HostToWorker::Boot);
+        let replies = port.post(&HostToWorker::Boot { renderer: None });
         match replies.first() {
             Some(WorkerToHost::Booted {
                 engine_info,
@@ -528,6 +600,95 @@ mod tests {
         );
     }
 
+    /// The raw frame lane (card 7.H2): a page-probed boot (WebGL2
+    /// floor) → open → pump slices — every dispatch that answers a
+    /// `presentFrame` message stages EXACTLY `width × height × 4`
+    /// RGBA bytes in the frame lane, and a dispatch with no present
+    /// leaves the lane EMPTY (the valid-until-next-dispatch
+    /// contract). The pixels never ride the JSON.
+    #[test]
+    fn the_frame_lane_stages_the_present_bytes() {
+        let mut port = PortDouble::new();
+        let replies = port.post(&HostToWorker::Boot {
+            renderer: Some(crate::render::RendererCaps {
+                webgpu_api: false,
+                webgpu_adapter: false,
+                webgl2_context: true,
+            }),
+        });
+        assert!(matches!(replies.first(), Some(WorkerToHost::Booted { .. })));
+        let bytes = fixture_bytes("generated/valid/avi_mjpeg_pcm.avi").must();
+        port.post(&HostToWorker::LoadBlob {
+            name: "first-vertical".to_string(),
+            bytes,
+        });
+        port.post(&HostToWorker::Command(commands::WireRequest {
+            request_id: RequestId(1),
+            command: Command::SessionOpen {
+                source: commands::catalog::types::SourceSpec::Url {
+                    url: "blob:first-vertical".to_string(),
+                },
+                options: Default::default(),
+            },
+        }));
+        let mut presented = 0_u64;
+        for _ in 0..64 {
+            let replies = port.post(&HostToWorker::Pump { ticks: 4 });
+            let present = replies.iter().find_map(|reply| match reply {
+                WorkerToHost::PresentFrame {
+                    width,
+                    height,
+                    pts_ns,
+                } => Some((*width, *height, *pts_ns)),
+                _ => None,
+            });
+            match present {
+                Some((width, height, pts_ns)) => {
+                    presented += 1;
+                    let expected = (u64::from(width) * u64::from(height) * 4) as usize;
+                    let staged = port.frame_bytes();
+                    assert_eq!(
+                        staged.len(),
+                        expected,
+                        "{width}×{height} RGBA8 = {expected} bytes"
+                    );
+                    // Not all-transparent: the MJPEG fixture's first
+                    // plane byte is its own luma fill (the conversion
+                    // ran — this is a frame, not a zeroed buffer).
+                    assert!(
+                        staged.iter().any(|&byte| byte != 0),
+                        "the staged bytes carry converted pixels"
+                    );
+                    assert!(pts_ns.is_some(), "the pts rides the metadata");
+                }
+                None => {
+                    // A dispatch without a present stages nothing:
+                    // the lane is empty, not stale.
+                    assert!(
+                        port.frame_bytes().is_empty(),
+                        "no present in the batch ⇒ no staged bytes"
+                    );
+                }
+            }
+            let done = replies.iter().any(|reply| {
+                matches!(
+                    reply,
+                    WorkerToHost::Pumped {
+                        report: PumpReport {
+                            state: commands::PlaybackState::Ended,
+                            busy: false,
+                            ..
+                        }
+                    }
+                )
+            });
+            if done {
+                break;
+            }
+        }
+        assert!(presented > 0, "the fixture presented through the lane");
+    }
+
     /// The word lane round-trips messages exactly as the JS glue
     /// pushes them (four bytes per call, space-padded tail) — the
     /// handshake first, then the pump.
@@ -551,7 +712,10 @@ mod tests {
             worker.dispatch()
         };
         // The handshake (the not-booted lane refuses everything else).
-        assert_eq!(send_words(&mut by_words, &HostToWorker::Boot), STATUS_OK);
+        assert_eq!(
+            send_words(&mut by_words, &HostToWorker::Boot { renderer: None }),
+            STATUS_OK
+        );
         let boot_replies: Vec<WorkerToHost> = serde_json::from_str(&by_words.output_json()).must();
         assert!(
             boot_replies
@@ -588,7 +752,7 @@ mod tests {
             other => unreachable!("parse errors answer typed: {other:?}"),
         }
         // The worker still boots.
-        let replies = port.post(&HostToWorker::Boot);
+        let replies = port.post(&HostToWorker::Boot { renderer: None });
         assert!(
             replies
                 .iter()
@@ -628,7 +792,7 @@ mod tests {
     #[test]
     fn output_addr_and_len_describe_the_staged_bytes() {
         let mut worker = AbiWorker::new();
-        worker.dispatch_json(&serde_json::to_string(&HostToWorker::Boot).must());
+        worker.dispatch_json(&serde_json::to_string(&HostToWorker::Boot { renderer: None }).must());
         let addr = worker.output_addr() as usize;
         let len = worker.output_len() as usize;
         assert!(len > 2, "the boot staged a reply");

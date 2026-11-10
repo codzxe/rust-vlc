@@ -223,6 +223,7 @@ mod tests {
     /// The probe request every test issues (the staged source's own
     /// probe shape: `Range: bytes=0-(chunk-1)`).
     fn probe() -> FetchRequest {
+        // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
         FetchRequest::new(1, "https://media.example/a.avi").with_range(RangeRequest {
             start: 0,
             end_exclusive: 256 * 1024,
@@ -238,6 +239,7 @@ mod tests {
                 .map(|(n, v)| ((*n).to_string(), (*v).to_string()))
                 .collect(),
             body: body.to_vec(),
+            // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
             final_url: "https://media.example/a.avi".to_string(),
             redirected: false,
         }
@@ -432,6 +434,7 @@ mod tests {
     /// (the transport answered a question nobody asked).
     #[test]
     fn rangeless_request_with_206_refuses_typed() {
+        // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
         let request = FetchRequest::new(1, "https://media.example/a.avi");
         let err = assert_err(
             detect_seekability(

@@ -99,9 +99,12 @@ use playback_engine::{
     TimeTickPolicy,
 };
 
+use crate::audio::autoplay::{AutoplayGate, GateChange};
 use crate::capabilities::{self, HostCapabilities, TargetProfile};
 use crate::open::{self, MediaFacts, TrackFact, WebOpenOptions};
 use crate::protocol::{HostToWorker, PumpReport, WorkerToHost};
+use crate::render::backend::{RenderBackend, RenderLane};
+use crate::render::present::{PresentMailbox, PresentStats, UploadFrame};
 use crate::source::BlobRegistry;
 
 /// The audio render quantum (frames per device render) — the CLI
@@ -263,6 +266,9 @@ pub struct ConsumerCounters {
 struct ConsumerState {
     /// The audio lane, when the session has one.
     lane: Option<AudioLane>,
+    /// The latest-wins present mailbox (card 7.H2: decoded video
+    /// frames stage here; the pump drains ONE per pump message).
+    mailbox: PresentMailbox,
     counters: ConsumerCounters,
 }
 
@@ -283,6 +289,7 @@ impl WebFrameConsumer {
         WebFrameConsumer {
             state: Mutex::new(ConsumerState {
                 lane,
+                mailbox: PresentMailbox::new(),
                 counters: ConsumerCounters::default(),
             }),
         }
@@ -301,6 +308,26 @@ impl WebFrameConsumer {
             .lane
             .as_ref()
             .map_or(0, AudioLane::buffered_frames)
+    }
+
+    /// Take the mailbox's staged frame as a converted RGBA upload
+    /// (the latest-wins drain — ONE per pump message, card 7.H2).
+    #[must_use]
+    pub fn take_present(&self) -> Option<UploadFrame> {
+        lock_or_clone(&self.state).mailbox.take()
+    }
+
+    /// Whether the mailbox holds a not-yet-presented frame.
+    #[must_use]
+    pub fn present_pending(&self) -> bool {
+        lock_or_clone(&self.state).mailbox.is_pending()
+    }
+
+    /// The mailbox's observables (the honest present evidence:
+    /// stored / displaced / converted / refused).
+    #[must_use]
+    pub fn present_stats(&self) -> PresentStats {
+        lock_or_clone(&self.state).mailbox.stats()
     }
 }
 
@@ -364,6 +391,14 @@ impl FrameConsumer for WebFrameConsumer {
                     .pts
                     .map_timestamp(|stamp| stamp.convert(&NANO_BASE).ok().map(|ns| ns.ticks))
                     .flatten();
+                // Card 7.H2's frame-upload path: stage the frame in
+                // the latest-wins mailbox (a refcounted clone — the
+                // RGBA conversion runs at take time, so a displaced
+                // frame never pays for pixels). A typed upload
+                // refusal (oversize / unsupported format) counts in
+                // the mailbox's own stats — presentation bounds
+                // never fail decode.
+                let _ = guard.mailbox.store(&video);
                 Ok(())
             }
             Frame::Subtitle(_) => {
@@ -642,6 +677,17 @@ pub struct WebHost {
     event_backlog: Vec<WireEvent>,
     /// The outbound message queue (the ABI drains it per dispatch).
     outbound: std::collections::VecDeque<WorkerToHost>,
+    /// The render lane (card 7.H2): the negotiated backend + the
+    /// runtime loss state. Unprobed until the handshake reports
+    /// facts.
+    render_lane: RenderLane,
+    /// The present the pump drained but the ABI has not staged yet
+    /// (ONE in flight — the latest-wins drain; the ABI's frame lane
+    /// takes it per dispatch).
+    pending_present: Option<UploadFrame>,
+    /// The autoplay gate (card 7.H3): parked playback freezes the
+    /// audio lane — a suspended context pulls nothing.
+    autoplay: AutoplayGate,
     /// The state-transition trail (tests + the lane evidence).
     state_history: Vec<(PlaybackState, PlaybackState)>,
     last_fatal: Option<CommandError>,
@@ -675,6 +721,9 @@ impl WebHost {
             pending_receipts: Vec::new(),
             event_backlog: Vec::new(),
             outbound: std::collections::VecDeque::new(),
+            render_lane: RenderLane::new(),
+            pending_present: None,
+            autoplay: AutoplayGate::new(),
             state_history: Vec::new(),
             last_fatal: None,
             booted: false,
@@ -764,6 +813,50 @@ impl WebHost {
         self.outbound.drain(..).collect()
     }
 
+    /// Take the pump's staged present (the ABI's frame-lane pull:
+    /// ONE upload in flight, valid until the next dispatch — the
+    /// same contract the output JSON staging answers).
+    pub fn take_pending_frame(&mut self) -> Option<UploadFrame> {
+        self.pending_present.take()
+    }
+
+    /// The boot report's capability snapshot: the base report with
+    /// the render lane's own truth patched in (card 7.H2: the
+    /// ACTIVE backend — or the honest unprobed/unavailable
+    /// sentence — never a guess, never an aspiration).
+    #[must_use]
+    pub fn booted_capabilities(&self) -> HostCapabilities {
+        let mut snapshot = self.capabilities.clone();
+        snapshot.renderer = match self.render_lane.lane_string() {
+            Some(active) => active,
+            None => "unprobed (the page did not report renderer facts)".to_string(),
+        };
+        snapshot
+    }
+
+    /// The render lane's current negotiation-shaped snapshot
+    /// (tests + diagnostics; `None` before the handshake reported
+    /// facts).
+    #[must_use]
+    pub fn render_snapshot(&self) -> Option<crate::render::RendererNegotiation> {
+        self.render_lane.snapshot()
+    }
+
+    /// The active render backend, if the lane presents.
+    #[must_use]
+    pub fn render_backend(&self) -> Option<RenderBackend> {
+        self.render_lane.active()
+    }
+
+    /// The present mailbox's observables (the honest present
+    /// evidence: stored / displaced / converted / refused).
+    #[must_use]
+    pub fn present_stats(&self) -> PresentStats {
+        self.consumer
+            .as_deref()
+            .map_or_else(PresentStats::default, WebFrameConsumer::present_stats)
+    }
+
     /// Handle one downstream message (the Worker's whole dispatch).
     pub fn handle(&mut self, message: HostToWorker) {
         // The outbound bound (MP §11): a caller that never drains
@@ -783,7 +876,7 @@ impl WebHost {
             });
             return;
         }
-        if !self.booted && !matches!(message, HostToWorker::Boot) {
+        if !self.booted && !matches!(message, HostToWorker::Boot { .. }) {
             self.outbound.push_back(WorkerToHost::ControlError {
                 code: "web.worker.not_booted".to_string(),
                 message: "the worker answers nothing before the boot handshake (send \
@@ -793,11 +886,18 @@ impl WebHost {
             return;
         }
         match message {
-            HostToWorker::Boot => {
+            HostToWorker::Boot { renderer } => {
                 self.booted = true;
+                // Card 7.H2 (doc 09 §4.4): the page's probe facts
+                // walk the ladder BEFORE the boot report — the
+                // ACTIVE backend is what the snapshot reports, never
+                // a guess. No facts = the honest unprobed state.
+                if let Some(caps) = renderer {
+                    self.render_lane.boot(caps);
+                }
                 self.outbound.push_back(WorkerToHost::Booted {
                     engine_info: engine_info(self.profile),
-                    capabilities: capabilities::capabilities(self.profile),
+                    capabilities: self.booted_capabilities(),
                 });
             }
             HostToWorker::LoadBlob { name, bytes } => match self.registry.load(&name, bytes) {
@@ -819,6 +919,26 @@ impl WebHost {
             HostToWorker::Pump { ticks } => {
                 let report = self.pump(ticks);
                 self.outbound.push_back(WorkerToHost::Pumped { report });
+            }
+            HostToWorker::SurfaceLost { backend, reason } => {
+                // The glue's `webglcontextlost` / `device.lost`
+                // report (doc 09 §4.4): fall one step down the
+                // ladder, surface the explicit transition — a stale
+                // report for a backend the lane is not presenting is
+                // ignored (answers nothing).
+                if let Some(transition) = self.render_lane.surface_lost(backend, reason) {
+                    self.outbound
+                        .push_back(WorkerToHost::RenderDegraded { transition });
+                }
+            }
+            HostToWorker::AudioContext { running } => {
+                // Card 7.H3 (doc 09 §5.3): apply the page's
+                // context-state report. The gate's surfacing runs in
+                // the pump's observation (both arrival orders fire
+                // exactly one event); the resume needs no message —
+                // the page drove the gesture, and the freeze-thaw
+                // is observable through the position reports.
+                let _change = self.autoplay.report(running);
             }
             HostToWorker::Shutdown => {
                 self.shutdown();
@@ -869,7 +989,11 @@ impl WebHost {
     /// roles in priority order (audio fill → engine poll batch →
     /// event flush), every role bounded by [`SliceBudgets`]. The
     /// tick count is capped — one message can never hog the Worker
-    /// loop — and the report answers the re-arm truth.
+    /// loop — and the report answers the re-arm truth. After the
+    /// ticks, ONE present drains (card 7.H2: the latest-wins
+    /// mailbox → one `PresentFrame` per pump message) and the
+    /// autoplay gate observes (card 7.H3: parked-while-playing
+    /// surfaces the typed event exactly once).
     pub fn pump(&mut self, ticks: u32) -> PumpReport {
         let ticks = ticks.min(self.budgets.max_ticks_per_pump);
         let mut events_flushed = 0_u32;
@@ -880,12 +1004,64 @@ impl WebHost {
             }
             events_flushed += self.flush_events();
         }
+        self.present_one();
+        self.observe_autoplay();
         PumpReport {
             state: self.state(),
             position_us: self.position_us(),
             busy: self.busy(),
             events_flushed,
         }
+    }
+
+    /// The present role (card 7.H2): drain ONE frame from the
+    /// mailbox — only while the render lane presents (the
+    /// audio-only degrade stops presenting; decode and counting
+    /// continue). The RGBA bytes stage for the ABI's frame lane;
+    /// the message carries the metadata.
+    fn present_one(&mut self) {
+        if self.render_lane.active().is_none() {
+            return;
+        }
+        let Some(consumer) = self.consumer.as_ref() else {
+            return;
+        };
+        if let Some(upload) = consumer.take_present() {
+            let message = WorkerToHost::PresentFrame {
+                width: upload.width,
+                height: upload.height,
+                pts_ns: upload.pts_ns,
+            };
+            // One in flight: an untaken staged present (the port
+            // contract violated — the caller did not drain) is
+            // displaced by the newer frame (latest-wins, counted by
+            // the mailbox's own stats as displaced at store time;
+            // this edge is the caller's bug, not a silent drop).
+            self.pending_present = Some(upload);
+            self.outbound.push_back(message);
+        }
+    }
+
+    /// The autoplay observation (card 7.H3): parked + playback
+    /// wanting audio + not yet surfaced ⇒ the typed event, exactly
+    /// once per parking cycle.
+    fn observe_autoplay(&mut self) {
+        let wants_audio = self.wants_audio();
+        if let GateChange::Parked = self.autoplay.observe(wants_audio) {
+            self.outbound.push_back(WorkerToHost::GestureRequired);
+        }
+    }
+
+    /// Whether playback currently wants audio to flow (the autoplay
+    /// gate's join condition): a live session in a playing or
+    /// transient state with an audio lane wired.
+    fn wants_audio(&self) -> bool {
+        self.handle.is_some()
+            && self.lane_exists()
+            && matches!(
+                self.state(),
+                PlaybackState::Opening | PlaybackState::Buffering | PlaybackState::Playing
+            )
     }
 
     /// The audio-fill role (first by priority, doc 09 §3.2): render
@@ -902,6 +1078,16 @@ impl WebHost {
             return;
         }
         if self.clock.as_ref().is_some_and(|clock| clock.is_paused()) {
+            return;
+        }
+        // The autoplay park (card 7.H3): a suspended context pulls
+        // nothing — the audio lane freezes exactly like pause (the
+        // sample-counter clock stops advancing; media time does not
+        // move while the surfaced condition says paused-pending-
+        // gesture — never a fake playing state). Video-only lanes
+        // keep the silence clock (doc 09 §5.3: a video-only media
+        // may present frames).
+        if self.autoplay.is_parked() && self.lane_exists() {
             return;
         }
         // Snapshot every read the loop needs BEFORE the mutable
@@ -1049,11 +1235,21 @@ impl WebHost {
     /// outputs remain.
     #[must_use]
     pub fn busy(&self) -> bool {
-        match self.state() {
+        let engine_busy = match self.state() {
             PlaybackState::Opening | PlaybackState::Buffering | PlaybackState::Playing => true,
             PlaybackState::Ended => self.ring_backlog() > 0 || !self.event_backlog.is_empty(),
             _ => !self.event_backlog.is_empty() || !self.pending_receipts.is_empty(),
-        }
+        };
+        engine_busy || (self.render_lane.active().is_some() && self.present_pending())
+    }
+
+    /// Whether the mailbox holds a not-yet-presented frame (the
+    /// busy tail that keeps the pump alive until the frame ships).
+    #[must_use]
+    pub fn present_pending(&self) -> bool {
+        self.consumer
+            .as_deref()
+            .is_some_and(WebFrameConsumer::present_pending)
     }
 
     /// Frames the device ring still holds.
@@ -1254,6 +1450,7 @@ impl WebHost {
         self.source = None;
         self.tracks.clear();
         self.pending_receipts.clear();
+        self.pending_present = None;
     }
 
     /// A settled Close: drop the session-scoped halves.
@@ -1646,12 +1843,30 @@ mod tests {
         }
     }
 
+    /// The WebGL2-floor probe facts (the every-browser report —
+    /// BCD-verified 2026-10-19 per doc 09 §4.1).
+    const WEBGL2_CAPS: crate::render::RendererCaps = crate::render::RendererCaps {
+        webgpu_api: false,
+        webgpu_adapter: false,
+        webgl2_context: true,
+    };
+
+    /// The both-backends probe facts (WebGPU preferred, the floor
+    /// probed — the fallback-capable lane).
+    const BOTH_CAPS: crate::render::RendererCaps = crate::render::RendererCaps {
+        webgpu_api: true,
+        webgpu_adapter: true,
+        webgl2_context: true,
+    };
+
     /// Open the first-vertical fixture through the REAL open path
-    /// (blob registry → probe → AVI wiring → engine).
-    fn open_fixture(host: &mut WebHost) {
+    /// (blob registry → probe → AVI wiring → engine), booting with
+    /// `renderer` probe facts (the page-probed handshake — card
+    /// 7.H2's order: probe, then boot).
+    fn open_fixture_with(host: &mut WebHost, renderer: Option<crate::render::RendererCaps>) {
         // The handshake first (the not-booted lane refuses everything
         // else — the same order the port contract pins).
-        host.handle(HostToWorker::Boot);
+        host.handle(HostToWorker::Boot { renderer });
         let bytes = fixture_bytes("generated/valid/avi_mjpeg_pcm.avi").must();
         host.handle(HostToWorker::LoadBlob {
             name: "fixture".to_string(),
@@ -1667,6 +1882,11 @@ mod tests {
             Ok(CommandOutcome::Accepted { .. }) => {}
             other => unreachable!("open must accept: {other:?}"),
         }
+    }
+
+    /// The unprobed-boot open (the legacy/old-glue lane).
+    fn open_fixture(host: &mut WebHost) {
+        open_fixture_with(host, None);
     }
 
     /// The lane proof's core: open → pump slices → the engine plays
@@ -1925,7 +2145,7 @@ mod tests {
     #[test]
     fn shutdown_closes_and_acknowledges() {
         let mut host = WebHost::new(TargetProfile::Native);
-        host.handle(HostToWorker::Boot);
+        host.handle(HostToWorker::Boot { renderer: None });
         let _ = host.take_outbound();
         open_fixture(&mut host);
         let _ = host.take_outbound();
@@ -1964,5 +2184,333 @@ mod tests {
         assert_eq!(frames_to_ns(44_100, 44_100), 1_000_000_000);
         assert_eq!(frames_to_ns(0, 44_100), 0);
         assert_eq!(frames_to_ns(u64::MAX, 1), u64::MAX);
+    }
+
+    // -- card 7.H2: the render lane (negotiation + present + loss) ---
+
+    /// The boot report's snapshot carries the ACTIVE backend from
+    /// the page's probe facts — `webgpu` / `webgl2` / the honest
+    /// `unavailable (…)`, or `unprobed (…)` when the page reported
+    /// nothing (doc 09 §4.4: never a guess, never an aspiration).
+    #[test]
+    fn the_boot_snapshot_reports_the_active_backend() {
+        let mut host = WebHost::new(TargetProfile::Native);
+        host.handle(HostToWorker::Boot {
+            renderer: Some(BOTH_CAPS),
+        });
+        let booted = host
+            .take_outbound()
+            .into_iter()
+            .find_map(|message| match message {
+                WorkerToHost::Booted { capabilities, .. } => Some(capabilities),
+                _ => None,
+            })
+            .must();
+        assert_eq!(booted.renderer, "webgpu");
+        assert_eq!(
+            host.render_backend(),
+            Some(crate::render::RenderBackend::WebGpu)
+        );
+
+        let mut host = WebHost::new(TargetProfile::Native);
+        host.handle(HostToWorker::Boot {
+            renderer: Some(WEBGL2_CAPS),
+        });
+        let booted = host
+            .take_outbound()
+            .into_iter()
+            .find_map(|message| match message {
+                WorkerToHost::Booted { capabilities, .. } => Some(capabilities),
+                _ => None,
+            })
+            .must();
+        assert_eq!(booted.renderer, "webgl2");
+
+        let mut host = WebHost::new(TargetProfile::Native);
+        host.handle(HostToWorker::Boot {
+            renderer: Some(crate::render::RendererCaps::NONE),
+        });
+        let booted = host
+            .take_outbound()
+            .into_iter()
+            .find_map(|message| match message {
+                WorkerToHost::Booted { capabilities, .. } => Some(capabilities),
+                _ => None,
+            })
+            .must();
+        assert!(
+            booted.renderer.starts_with("unavailable ("),
+            "{}",
+            booted.renderer
+        );
+
+        let mut host = WebHost::new(TargetProfile::Native);
+        host.handle(HostToWorker::Boot { renderer: None });
+        let booted = host
+            .take_outbound()
+            .into_iter()
+            .find_map(|message| match message {
+                WorkerToHost::Booted { capabilities, .. } => Some(capabilities),
+                _ => None,
+            })
+            .must();
+        assert!(
+            booted.renderer.starts_with("unprobed ("),
+            "{}",
+            booted.renderer
+        );
+    }
+
+    /// The frame-upload path over the REAL fixture (headless-native,
+    /// the same message paths the JS glue drives): decoded frames
+    /// stage in the latest-wins mailbox and the pump ships ONE
+    /// `PresentFrame` per pump message — the metadata matches the
+    /// container's declared dimensions, the pts rides along, and an
+    /// unprobed lane (old glue) ships nothing (the honest no-present
+    /// state, not a crash).
+    #[test]
+    fn the_present_path_ships_one_frame_per_pump() {
+        let mut host = WebHost::new(TargetProfile::Native);
+        open_fixture_with(&mut host, Some(WEBGL2_CAPS));
+        let dims = host
+            .facts
+            .as_ref()
+            .must()
+            .facts
+            .iter()
+            .find(|fact| fact.kind == MediaKind::Video)
+            .and_then(|fact| fact.dimensions)
+            .must();
+        let mut presents = 0_u64;
+        for _ in 0..64 {
+            host.pump(4);
+            let batch = host.take_outbound();
+            let per_pump = batch
+                .iter()
+                .filter(|message| matches!(message, WorkerToHost::PresentFrame { .. }))
+                .count();
+            assert!(per_pump <= 1, "ONE frame per pump message, saw {per_pump}");
+            for message in batch {
+                if let WorkerToHost::PresentFrame {
+                    width,
+                    height,
+                    pts_ns,
+                } = message
+                {
+                    assert_eq!((width, height), dims, "the container's own dimensions");
+                    assert!(pts_ns.is_some(), "the fixture carries a pts");
+                    presents += 1;
+                }
+            }
+            if host.state() == PlaybackState::Ended && !host.busy() {
+                break;
+            }
+        }
+        assert!(presents > 0, "the fixture's frames presented");
+        let stats = host.present_stats();
+        assert!(stats.converted >= presents);
+        assert_eq!(stats.refused, 0, "no upload refusals on the fixture");
+
+        // The unprobed lane (old glue): everything else works, no
+        // frame ever ships — the render lane is absent, not broken.
+        let mut host = WebHost::new(TargetProfile::Native);
+        open_fixture(&mut host);
+        for _ in 0..16 {
+            host.pump(4);
+        }
+        let presents = host
+            .take_outbound()
+            .into_iter()
+            .filter(|message| matches!(message, WorkerToHost::PresentFrame { .. }))
+            .count();
+        assert_eq!(presents, 0, "unprobed lanes present nothing");
+    }
+
+    /// The runtime loss ladder end to end (doc 09 §4.4): a WebGPU
+    /// loss falls to the WebGL2 floor with the explicit
+    /// `RenderDegraded` transition and presents CONTINUE; the floor's
+    /// loss is the audio-only degrade — no further presents, playback
+    /// (the clock, the counters) continues, and a stale loss report
+    /// is ignored (no duplicate transition).
+    #[test]
+    fn surface_loss_falls_then_degrades_to_audio_only() {
+        let mut host = WebHost::new(TargetProfile::Native);
+        open_fixture_with(&mut host, Some(BOTH_CAPS));
+        let _ = host.take_outbound();
+        assert_eq!(
+            host.render_backend(),
+            Some(crate::render::RenderBackend::WebGpu)
+        );
+        // The WebGPU device dies EARLY — before the first present
+        // (doc 09 §4.4's runtime loss): the explicit step-down to the
+        // WebGL2 floor. (Loss late in a ~2 s fixture would leave no
+        // media to present on the fallback — the ladder is exercised
+        // from the start.)
+        host.handle(HostToWorker::SurfaceLost {
+            backend: crate::render::RenderBackend::WebGpu,
+            reason: crate::render::backend::LossReason::DeviceLost,
+        });
+        let transitions: Vec<_> = host
+            .take_outbound()
+            .into_iter()
+            .filter_map(|message| match message {
+                WorkerToHost::RenderDegraded { transition } => Some(transition),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(transitions.len(), 1, "one explicit transition");
+        assert_eq!(
+            transitions[0].to,
+            Some(crate::render::RenderBackend::WebGl2)
+        );
+        assert!(!transitions[0].is_audio_only());
+        assert_eq!(
+            host.render_backend(),
+            Some(crate::render::RenderBackend::WebGl2)
+        );
+        // The fallback lane keeps presenting: pump until the first
+        // frame ships on the WebGL2 floor (bounded — decode-ahead
+        // starts with the session).
+        let mut presents = 0_usize;
+        for _ in 0..32 {
+            host.pump(2);
+            presents += host
+                .take_outbound()
+                .into_iter()
+                .filter(|message| matches!(message, WorkerToHost::PresentFrame { .. }))
+                .count();
+            if presents > 0 {
+                break;
+            }
+        }
+        assert!(presents > 0, "the WebGL2 floor presents");
+        // A stale WebGPU loss (already consumed) is ignored.
+        host.handle(HostToWorker::SurfaceLost {
+            backend: crate::render::RenderBackend::WebGpu,
+            reason: crate::render::backend::LossReason::DeviceLost,
+        });
+        assert!(
+            host.take_outbound()
+                .into_iter()
+                .all(|message| !matches!(message, WorkerToHost::RenderDegraded { .. }))
+        );
+        // The floor dies: the audio-only degrade — mid-playback, so
+        // the continue-past-the-loss observables have media to move.
+        host.handle(HostToWorker::SurfaceLost {
+            backend: crate::render::RenderBackend::WebGl2,
+            reason: crate::render::backend::LossReason::ContextLost,
+        });
+        let transitions: Vec<_> = host
+            .take_outbound()
+            .into_iter()
+            .filter_map(|message| match message {
+                WorkerToHost::RenderDegraded { transition } => Some(transition),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(transitions.len(), 1);
+        assert!(transitions[0].is_audio_only());
+        assert_eq!(host.render_backend(), None);
+        // Audio-only: playback continues (the clock advances), no
+        // frame ever ships again, the video counters keep counting
+        // (decode is not bounded by presentation).
+        let position_before = host.position_us();
+        let mut frames_before = 0;
+        if let Some(consumer) = host.consumer.as_ref() {
+            frames_before = consumer.counters().video_frames;
+        }
+        let mut presents_after_loss = 0;
+        for _ in 0..64 {
+            host.pump(4);
+            presents_after_loss += host
+                .take_outbound()
+                .into_iter()
+                .filter(|message| matches!(message, WorkerToHost::PresentFrame { .. }))
+                .count();
+            if host.state() == PlaybackState::Ended && !host.busy() {
+                break;
+            }
+        }
+        assert_eq!(presents_after_loss, 0, "no presents after the total loss");
+        assert!(
+            host.position_us() > position_before,
+            "audio-only playback continues"
+        );
+        if let Some(consumer) = host.consumer.as_ref() {
+            assert!(
+                consumer.counters().video_frames >= frames_before,
+                "decode continues (counting, not presenting)"
+            );
+        }
+    }
+
+    // -- card 7.H3: the autoplay gate ------------------------------
+
+    /// The autoplay park, end to end over the message paths (doc 09
+    /// §5.3): the suspended-context report while playing surfaces the
+    /// typed `GestureRequired` event exactly once and FREEZES media
+    /// time (a suspended context pulls nothing — the clock stops,
+    /// never a fake playing state); the gesture-satisfied report
+    /// resumes the flow. Video-only lanes keep the silence clock.
+    #[test]
+    fn the_autoplay_gate_parks_freezes_and_resumes() {
+        let mut host = WebHost::new(TargetProfile::Native);
+        open_fixture_with(&mut host, Some(WEBGL2_CAPS));
+        let _ = host.take_outbound();
+        // The page's play attempt left the context suspended BEFORE
+        // any audio flowed (doc 09 §5.3: `playback.play` is accepted,
+        // the engine walks its normal pre-play path — the park is the
+        // audio lane's, not the engine's). Parking from the start is
+        // also what keeps the freeze observable: a ~2 s fixture
+        // pumped to its end freezes nothing.
+        host.handle(HostToWorker::AudioContext { running: false });
+        // The engine plays while the audio lane is parked: the typed
+        // event surfaces exactly once and media time NEVER advanced
+        // (a suspended context pulls nothing — the clock never moved,
+        // never a fake playing state).
+        let mut events = 0;
+        let mut reached_playing = false;
+        for _ in 0..32 {
+            host.pump(2);
+            let batch = host.take_outbound();
+            events += batch
+                .iter()
+                .filter(|message| matches!(message, WorkerToHost::GestureRequired))
+                .count();
+            if host.state() == PlaybackState::Playing {
+                reached_playing = true;
+            }
+            if reached_playing && events > 0 {
+                break;
+            }
+        }
+        assert!(reached_playing, "the engine's own state machine plays");
+        assert_eq!(events, 1, "the typed event, exactly once");
+        let frozen = host.position_us();
+        assert_eq!(frozen, 0, "parked media time never advanced");
+        // More pumps + a duplicate suspended report: still frozen, no
+        // re-fire (the once-per-cycle latch holds).
+        host.handle(HostToWorker::AudioContext { running: false });
+        for _ in 0..8 {
+            host.pump(2);
+        }
+        assert_eq!(host.position_us(), frozen, "parked media time freezes");
+        let events = host
+            .take_outbound()
+            .into_iter()
+            .filter(|message| matches!(message, WorkerToHost::GestureRequired))
+            .count();
+        assert_eq!(events, 0, "duplicate reports never re-fire the event");
+        // The gesture: the context resumes, playback truly flows.
+        host.handle(HostToWorker::AudioContext { running: true });
+        let mut advanced = false;
+        for _ in 0..32 {
+            host.pump(4);
+            if host.position_us() > frozen {
+                advanced = true;
+                break;
+            }
+        }
+        assert!(advanced, "resumed playback advances media time");
     }
 }

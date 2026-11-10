@@ -446,6 +446,7 @@ mod tests {
         )]);
         let probe = request(
             1,
+            // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
             "https://media.example/a.bin",
             Some(RangeRequest {
                 start: 0,
@@ -479,6 +480,7 @@ mod tests {
         )]);
         let probe = request(
             2,
+            // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
             "https://media.example/b.bin",
             Some(RangeRequest {
                 start: 0,
@@ -507,6 +509,7 @@ mod tests {
         )]);
         let probe = request(
             3,
+            // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
             "https://media.example/c.bin",
             Some(RangeRequest {
                 start: 0,
@@ -546,6 +549,7 @@ mod tests {
         ]);
         let probe = request(
             4,
+            // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
             "https://media.example/hop",
             Some(RangeRequest {
                 start: 0,
@@ -559,6 +563,7 @@ mod tests {
         );
         assert_eq!(response.body, b"fina");
         assert!(response.redirected, "the observables say a hop happened");
+        // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
         assert_eq!(response.final_url, "https://media.example/final.bin");
         // Both hops were logged, in order.
         let log = transport.log();
@@ -579,6 +584,7 @@ mod tests {
             ("/b", RouteBehavior::RedirectsTo("/a"), b"".as_slice()),
         ]);
         let err = assert_err(
+            // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
             looped.fetch(&request(5, "https://media.example/a", None)),
             "the loop must terminate",
         );
@@ -592,11 +598,13 @@ mod tests {
         let transport =
             MockFetch::with_routes(vec![("/gone", RouteBehavior::Status(503), b"".as_slice())]);
         let response = transport
+            // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
             .fetch(&request(6, "https://media.example/gone", None))
             .must();
         assert_eq!(response.status, 503);
         assert_eq!(
             assert_err(
+                // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
                 detect_seekability(&request(6, "https://media.example/gone", None), &response),
                 "uninterpreted status"
             ),
@@ -614,6 +622,7 @@ mod tests {
             b"".as_slice(),
         )]);
         let err = assert_err(
+            // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
             transport.fetch(&request(7, "https://media.example/dead", None)),
             "network failure",
         );
@@ -631,6 +640,7 @@ mod tests {
     fn unmatched_path_answers_404() {
         let transport = MockFetch::new();
         let response = transport
+            // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
             .fetch(&request(8, "https://media.example/nothing", None))
             .must();
         assert_eq!(response.status, 404);
@@ -649,6 +659,7 @@ mod tests {
         )]);
         let over = request(
             9,
+            // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
             "https://media.example/small.bin",
             Some(RangeRequest {
                 start: 4,
@@ -660,6 +671,7 @@ mod tests {
         assert_eq!(response.body, b"4567");
         let past = request(
             10,
+            // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
             "https://media.example/small.bin",
             Some(RangeRequest {
                 start: 8,
@@ -677,6 +689,7 @@ mod tests {
         )]);
         let probe = request(
             11,
+            // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
             "https://media.example/empty.bin",
             Some(RangeRequest {
                 start: 0,
@@ -724,6 +737,7 @@ mod tests {
         )]);
         let probe = FetchRequest {
             id: 13,
+            // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
             url: "https://media.example/lying.bin".to_string(),
             range: Some(RangeRequest {
                 start: 0,
@@ -748,6 +762,7 @@ mod tests {
         let response = port
             .fetch(&request(
                 14,
+                // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
                 "https://media.example/port.bin",
                 Some(RangeRequest {
                     start: 2,

@@ -277,6 +277,7 @@ pub trait FetchPort {
 /// early refusal.
 pub fn validate_http_url(url: &str) -> Result<SourceUri, EngineError> {
     let lower = url.to_ascii_lowercase();
+    // lumen-allow-literal: wire-protocol scheme prefix — transport vocabulary, not a shipped endpoint
     if !lower.starts_with("http://") && !lower.starts_with("https://") {
         return Err(mint(
             media_types::ErrorKind::Unsupported { format: None },
@@ -310,6 +311,7 @@ mod tests {
     #[test]
     fn range_header_is_inclusive_wire_form() {
         let request =
+            // lumen-allow-literal: reserved example host — typed-validation test vector, never a shipped endpoint
             FetchRequest::new(7, "https://media.example/a.avi").with_range(RangeRequest {
                 start: 0,
                 end_exclusive: 256 * 1024,
@@ -328,13 +330,16 @@ mod tests {
     fn url_validation_is_early_and_typed() {
         // lumen-allow-literal: reserved example host — typed-validation test vector, never a shipped endpoint
         validate_http_url("https://media.example/a.avi").must();
+        // lumen-allow-literal: reserved example host — typed-validation test vector, never a shipped endpoint
         validate_http_url("http://media.example:8080/a.avi?x=1").must();
+        // lumen-allow-literal: reserved example host — typed-validation test vector, never a shipped endpoint
         for bad in ["ftp://media.example/a.avi", "https://", "https://a b/x"] {
             let err = assert_err(validate_http_url(bad), bad);
             assert_eq!(err.stage, STAGE, "{bad}");
         }
         // The parsed URI keeps its scheme (the L0 grammar, not a
         // closed enum).
+        // lumen-allow-literal: reserved example host — typed-validation test vector, never a shipped endpoint
         let uri = validate_http_url("http://media.example/a.avi").must();
         assert_eq!(uri.scheme().as_str(), "http");
     }
@@ -348,6 +353,7 @@ mod tests {
             status: 206,
             headers: vec![("Content-Range".to_string(), "bytes 0-9/100".to_string())],
             body: vec![0; 10],
+            // lumen-allow-literal: reserved example host — typed-validation test vector, never a shipped endpoint
             final_url: "https://media.example/a.avi".to_string(),
             redirected: false,
         };

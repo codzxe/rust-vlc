@@ -898,6 +898,7 @@ mod tests {
     #[test]
     fn no_range_server_scans_forward_only() {
         let (mut source, probe) = StagedSource::open(
+            // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
             "https://media.example/norange.bin",
             StagedConfig {
                 window_bytes: 64,
@@ -1009,6 +1010,7 @@ mod tests {
                 status: 206,
                 headers: vec![("Content-Range".to_string(), "bytes 4-7/12".to_string())],
                 body: b"4567".to_vec(),
+                // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
                 final_url: "https://media.example/tiny.bin".to_string(),
                 redirected: false,
             }),
@@ -1047,6 +1049,7 @@ mod tests {
             status: 200,
             headers: vec![("Content-Length".to_string(), "12".to_string())],
             body: b"0123456789AB".to_vec(),
+            // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
             final_url: "https://media.example/tiny.bin".to_string(),
             redirected: false,
         };
@@ -1064,6 +1067,7 @@ mod tests {
         // (a) Mid-resource truncation: the typed refusal — never a
         // silent EOF.
         let (mut source, _probe) = StagedSource::open(
+            // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
             "https://media.example/trunc.bin",
             StagedConfig {
                 window_bytes: 64,
@@ -1090,6 +1094,7 @@ mod tests {
         // (b) The wire-end shape: an 8-byte resource under a 16-byte
         // chunk gets one 8-byte 206 — honest, length fixed.
         let (mut source, probe) = StagedSource::open(
+            // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
             "https://media.example/wireend.bin",
             StagedConfig {
                 window_bytes: 64,
@@ -1118,6 +1123,7 @@ mod tests {
             chunk_bytes: 4,
         };
         let err = assert_err(
+            // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
             StagedSource::open("https://media.example/x", zero),
             "zero window",
         );
@@ -1127,6 +1133,7 @@ mod tests {
             chunk_bytes: 8,
         };
         let err = assert_err(
+            // lumen-allow-literal: reserved example host — mock-transport test vector, never a shipped endpoint
             StagedSource::open("https://media.example/x", over),
             "chunk over",
         );

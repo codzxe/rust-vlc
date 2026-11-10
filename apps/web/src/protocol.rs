@@ -47,14 +47,23 @@ use commands::{WireEvent, WireRequest, WireResponse};
 use serde::{Deserialize, Serialize};
 
 use crate::capabilities::HostCapabilities;
+use crate::render::backend::{LaneTransition, LossReason, RenderBackend, RendererCaps};
 
 /// One host → worker message (the downstream port direction).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum HostToWorker {
     /// The boot handshake: construct the engine host, answer
-    /// `Booted` with `EngineInfo` + the capability snapshot.
-    Boot,
+    /// `Booted` with `EngineInfo` + the capability snapshot. The
+    /// page's renderer probe facts ride along (doc 09 §4.4: the
+    /// probe runs BEFORE the boot report — the active backend is
+    /// what the snapshot reports, never a guess); `None` is the
+    /// honest "the page did not probe" (old glue, tests).
+    Boot {
+        /// The page's raw renderer probe facts, when it probed.
+        #[serde(default)]
+        renderer: Option<RendererCaps>,
+    },
     /// Pre-stage one blob's bytes (doc 09 §6.1's File/Blob no-upload
     /// path — the file never leaves the page).
     LoadBlob {
@@ -72,6 +81,29 @@ pub enum HostToWorker {
     /// is never blocked; the host re-arms while the report says
     /// busy).
     Pump { ticks: u32 },
+    /// A live render surface died (the glue's `webglcontextlost` /
+    /// `device.lost` report — doc 09 §4.4): the lane walks its
+    /// fallback ladder and answers [`WorkerToHost::RenderDegraded`]
+    /// with the transition (a stale report for a backend the lane is
+    /// not presenting is ignored).
+    SurfaceLost {
+        /// Which backend's surface died.
+        backend: RenderBackend,
+        /// Why.
+        reason: LossReason,
+    },
+    /// The page's `AudioContext` state report (card 7.H3, doc 09
+    /// §5.3's autoplay lane): the page created the context on its
+    /// play attempt and observed `context.state` — `running: false`
+    /// is the suspended-and-not-gesture-authorized report (the host
+    /// parks the audio lane and surfaces the typed
+    /// [`WorkerToHost::GestureRequired`] event); `running: true` is
+    /// the gesture-satisfied report (the gate clears and playback
+    /// truly flows — the truth rule: never fake playing).
+    AudioContext {
+        /// Whether `context.state === "running"`.
+        running: bool,
+    },
     /// `system.shutdown`'s transport twin (graceful: closes the
     /// session, flushes events, answers `ShutdownComplete`).
     Shutdown,
@@ -82,10 +114,12 @@ impl HostToWorker {
     #[must_use]
     pub fn type_tag(&self) -> &'static str {
         match self {
-            HostToWorker::Boot => "boot",
+            HostToWorker::Boot { .. } => "boot",
             HostToWorker::LoadBlob { .. } => "loadBlob",
             HostToWorker::Command(_) => "command",
             HostToWorker::Pump { .. } => "pump",
+            HostToWorker::SurfaceLost { .. } => "surfaceLost",
+            HostToWorker::AudioContext { .. } => "audioContext",
             HostToWorker::Shutdown => "shutdown",
         }
     }
@@ -126,6 +160,36 @@ pub enum WorkerToHost {
         /// The report.
         report: PumpReport,
     },
+    /// The pump slice's present: ONE frame per pump message (the
+    /// latest-wins mailbox's drain — the LEAN message; the RGBA
+    /// bytes stage RAW in linear memory through the ABI's frame
+    /// lane [`crate::abi`], valid until the next dispatch, never
+    /// JSON-encoded).
+    PresentFrame {
+        /// Pixels across.
+        width: u32,
+        /// Pixels down.
+        height: u32,
+        /// The frame's pts (ns), when the demuxer carried one.
+        pts_ns: Option<i64>,
+    },
+    /// The render lane's explicit degrade (doc 09 §4.4: audio-only
+    /// when `transition.to` is `None` — never a frozen last frame
+    /// pretending to play).
+    RenderDegraded {
+        /// The loss + fallback transition.
+        transition: LaneTransition,
+    },
+    /// The autoplay gate's typed event (card 7.H3, doc 09 §5.3):
+    /// the page reported the `AudioContext` suspended without a
+    /// user gesture, so audio cannot flow — the presentation parks
+    /// as *paused-pending-gesture* (an explicit substate, never a
+    /// lie). `[PROPOSAL — event shape: doc 09 §12 OQ-3; the command
+    /// layer's `playback.gesture-required` catalog row is the
+    /// Lead's additive decision (doc 05 §6). This transport-level
+    /// twin carries the same condition without editing the shared
+    /// catalog.]`
+    GestureRequired,
     /// A control-lane failure (typed, never a crash): a `loadBlob`
     /// registry refusal, an ABI decode failure, a message the
     /// worker could not apply. Command-lane errors ride `Response`
@@ -151,6 +215,9 @@ impl WorkerToHost {
             WorkerToHost::Response(_) => "response",
             WorkerToHost::Events { .. } => "events",
             WorkerToHost::Pumped { .. } => "pumped",
+            WorkerToHost::PresentFrame { .. } => "presentFrame",
+            WorkerToHost::RenderDegraded { .. } => "renderDegraded",
+            WorkerToHost::GestureRequired => "gestureRequired",
             WorkerToHost::ControlError { .. } => "controlError",
             WorkerToHost::ShutdownComplete => "shutdownComplete",
         }
@@ -187,7 +254,14 @@ mod tests {
     #[test]
     fn downstream_wire_roundtrips() {
         let messages = vec![
-            HostToWorker::Boot,
+            HostToWorker::Boot { renderer: None },
+            HostToWorker::Boot {
+                renderer: Some(RendererCaps {
+                    webgpu_api: true,
+                    webgpu_adapter: true,
+                    webgl2_context: false,
+                }),
+            },
             HostToWorker::LoadBlob {
                 name: "first-vertical".to_string(),
                 bytes: vec![0x52, 0x49, 0x46, 0x46],
@@ -197,6 +271,11 @@ mod tests {
                 command: Command::PlaybackPlay,
             }),
             HostToWorker::Pump { ticks: 1 },
+            HostToWorker::SurfaceLost {
+                backend: RenderBackend::WebGl2,
+                reason: crate::render::backend::LossReason::ContextLost,
+            },
+            HostToWorker::AudioContext { running: false },
             HostToWorker::Shutdown,
         ];
         for message in &messages {
@@ -204,6 +283,15 @@ mod tests {
             let back: HostToWorker = serde_json::from_str(&json).must();
             assert_eq!(&back, message, "wire form drifted: {json}");
         }
+    }
+
+    /// The legacy boot form — `{"type":"boot"}` with no renderer
+    /// facts — still decodes (the `#[serde(default)]` lane: old glue
+    /// and the ABI tests boot exactly this shape).
+    #[test]
+    fn boot_without_renderer_facts_decodes() {
+        let message: HostToWorker = serde_json::from_str("{\"type\":\"boot\"}").must();
+        assert_eq!(message, HostToWorker::Boot { renderer: None });
     }
 
     /// Every upstream variant round-trips through the JSON wire form.
@@ -259,6 +347,19 @@ mod tests {
                     events_flushed: 2,
                 },
             },
+            WorkerToHost::PresentFrame {
+                width: 64,
+                height: 48,
+                pts_ns: Some(1_000_000),
+            },
+            WorkerToHost::RenderDegraded {
+                transition: LaneTransition {
+                    from: RenderBackend::WebGpu,
+                    to: Some(RenderBackend::WebGl2),
+                    reason: crate::render::backend::LossReason::DeviceLost,
+                },
+            },
+            WorkerToHost::GestureRequired,
             WorkerToHost::ControlError {
                 code: "web.blob_registry".to_string(),
                 message: "blob registry full (16 entries)".to_string(),
