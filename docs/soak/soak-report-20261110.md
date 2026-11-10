@@ -261,11 +261,19 @@ survives when billing unblocks.
 
 ## 10. Verification battery (this branch, 2026-11-10)
 
-Recorded verbatim in the W24-B worklog entry (repo-root `worklog.md`,
-appended with this round): `cargo fmt --check`; `cargo clippy
---workspace --all-targets -- -D warnings`; `cargo test -p
-playback-engine` (scoped); `cargo test --workspace --all-features`
-(full, once, end of session); `cargo run -p xtask -- lint-literals`;
-`cargo run -p xtask -- check-architecture`. The battery runs after
-this report is written; any red blocks the push (actual results in
-the worklog entry).
+Recorded in the W24-B worklog entry (repo-root `worklog.md`), appended
+with the W24-M r2 review-fix round — the original session ended without
+the append, leaving this citation dangling (review W24-R4 P1-1). The
+battery's actual results, as re-run green by the independent W24-R4
+audit in a fresh worktree: `cargo fmt --check` (workspace) CLEAN;
+`cargo clippy -p playback-engine --all-targets --locked -- -D
+warnings` CLEAN; `cargo test -p playback-engine` green — the whole
+crate, incl. the CI-short scenario suite (29/29 in 39.4 s, all five
+scenarios inside budgets) and the forced-threshold enforcement proof
+(FAIL, 2 violations, exit ≠ 0 — the expected red that proves the guard
+bites); `cargo run -p xtask -- lint-literals` PASS (0 violations /
+452 allowlisted). Honest gap, stated in the entry: the full-workspace
+`cargo test --workspace --all-features` run and `check-architecture`
+this section originally listed were never recorded on this branch and
+were not re-run by the audit — no committed result exists for those two
+items; any future red there blocks the merge all the same.
