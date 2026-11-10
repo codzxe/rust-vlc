@@ -1,3 +1,12 @@
+# Phase-7 exit gate — cargo test --workspace (round 1; 306 `test result:` blocks + doctests)
+# Worktree: /home/z/my-project/wt/w24f (branch w24/f; source tree at run time identical to
+#   origin/main c339ee8 — this log was committed as a4e35e7 = c339ee8 + the 4 round-1 logs, nothing else)
+# Date: 2026-11-10, before 16:51:45Z (commit time of a4e35e7; exact capture time not recorded)
+# Cmd: cargo test --workspace (report §2 #3); the body ran past all 4 failures through all
+#   306 targets, i.e. --no-fail-fast behavior (inferred from the body; exact flag spelling not recorded)
+# Exit: TEST_EXIT=101 — recorded at end of body; 4 failing targets listed there
+# Header retroactively annotated by W24-K (fix lane, review W24-R3 P2-1): round-1 logs were
+# committed without capture-time headers; the body below was not altered in any way.
     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.37s
      Running unittests src/lib.rs (/home/z/my-project/rust-vlc/target/debug/deps/audio_engine-9fb967526eb27d41)
 

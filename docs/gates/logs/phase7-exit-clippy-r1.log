@@ -1,3 +1,12 @@
+# Phase-7 exit gate — cargo clippy, round-1 cold run of the §2 #2 battery (body only)
+# Worktree: /home/z/my-project/wt/w24f (branch w24/f; source tree at run time identical to
+#   origin/main c339ee8 — this log was committed as a4e35e7 = c339ee8 + the 4 round-1 logs, nothing else)
+# Date: 2026-11-10, before 16:51:45Z (commit time of a4e35e7; exact capture time not recorded)
+# Cmd: cargo clippy --workspace --all-targets -- -D warnings (same battery as the r2
+#   confirmation in phase7-exit-clippy.log, whose header records the command)
+# Exit: CLIPPY_EXIT=0 — recorded at end of body (cold run, "Finished" in 1m 14s)
+# Header retroactively annotated by W24-K (fix lane, review W24-R3 P2-1): round-1 logs were
+# committed without capture-time headers; the body below was not altered in any way.
  Downloading crates ...
   Downloaded assert_matches v1.5.0
   Downloaded atomig-macro v0.4.0
