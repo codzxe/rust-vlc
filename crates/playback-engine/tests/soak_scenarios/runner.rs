@@ -556,6 +556,17 @@ fn run_play_loop(
     )
 }
 
+/// Fold the just-closed session's sink payload into the scenario
+/// totals (the D-6 decode-evidence axis — the counting sink survives
+/// the close and dies at the NEXT open, so the close site is the read
+/// point; the `play_loop_cycle`/`run_count_scenario` epilogues and
+/// every seek-storm close call this).
+fn fold_sink_bytes(run: &mut ScenarioRun, host: &SoakHost) {
+    if let Some(sink) = host.sink() {
+        run.counts.decoded_bytes = run.counts.decoded_bytes.saturating_add(sink.bytes_total());
+    }
+}
+
 /// One play-loop cycle (also the playlist-cycle body: the caller owns
 /// the position bookkeeping).
 fn play_loop_cycle(
@@ -609,9 +620,7 @@ fn play_loop_cycle(
         ));
     }
     run.counts.frames_decoded += decoded;
-    if let Some(sink) = host.sink() {
-        run.counts.decoded_bytes = run.counts.decoded_bytes.saturating_add(sink.bytes_total());
-    }
+    fold_sink_bytes(run, host);
     run.counts.cycles += 1;
     host.note_cycle_complete();
     let _ = warmup; // timing owned by the driver loop; parameter kept for symmetry
@@ -708,6 +717,9 @@ fn run_seek_storm(
                     "seek-storm close (drained)",
                 )?;
                 run.counts.closes_ok += 1;
+                // The just-drained session's payload joins the totals
+                // (its sink dies at the reopen below).
+                fold_sink_bytes(&mut run, &host);
             }
             // The idle boundary is the warmup's end-of-window sighting
             // point (the play-loop loop-boundary rule).
@@ -732,6 +744,10 @@ fn run_seek_storm(
                     "seek-storm close (error lane)",
                 )?;
                 run.counts.error_closes += 1;
+                // NO sink fold here: the failed open left the PREVIOUS
+                // session's already-counted sink in place (the sink is
+                // only replaced by a successful open) — folding would
+                // double-count it. The failed session decoded nothing.
             } else {
                 let decoded = host.stats().frames_delivered.saturating_sub(frames_before);
                 run.counts.frames_decoded += decoded;
@@ -784,6 +800,9 @@ fn run_seek_storm(
                 "seek-storm close (epoch)",
             )?;
             run.counts.closes_ok += 1;
+            // The stormed session's payload joins the totals (the
+            // reopen on the next iteration replaces its sink).
+            fold_sink_bytes(&mut run, &host);
             seeks_this_epoch = 0;
             warmup.maybe_end_warmup(&mut host);
         }
@@ -795,6 +814,7 @@ fn run_seek_storm(
             "seek-storm final close",
         )?;
         run.counts.closes_ok += 1;
+        fold_sink_bytes(&mut run, &host);
     }
 
     // ---- the seek-storm liveness assertions ----
@@ -933,8 +953,12 @@ fn run_count_scenario(
             ));
         }
         run.counts.frames_decoded += decoded;
-        if let Some(sink) = host.sink() {
-            run.counts.decoded_bytes = run.counts.decoded_bytes.saturating_add(sink.bytes_total());
+        if !error_lane {
+            // Only a successful session's sink joins the totals: a
+            // failed open leaves the PREVIOUS session's already-folded
+            // sink in place (the sink is replaced only by a successful
+            // open) — folding on the error lane would double-count it.
+            fold_sink_bytes(&mut run, &host);
         }
         // The bounded cadence: sample at every `stride` completed
         // cycles and at the configured end, each sample tagged with
