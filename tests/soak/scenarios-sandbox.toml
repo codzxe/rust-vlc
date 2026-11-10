@@ -1,0 +1,77 @@
+# The BOUNDED SANDBOX soak profile — card 8.C1, issue #54 (P8-3).
+#
+# The real, in-sandbox run of the scenario suite: ~35 minutes of real
+# engine playback across the five scenarios (24 min of duration-driven
+# playback + the two count-driven scenarios targeting their 5-min wall
+# caps after the 2026-11-10 recalibration, below), every duration and
+# cycle count set HERE (the config-override path proven end-to-end — the
+# runner code is identical to the CI-short and nightly tiers; only
+# this file differs). Selected by:
+#
+#   SOAK_SCENARIOS=tests/soak/scenarios-sandbox.toml \
+#   SOAK_SCENARIOS_REPORT=<path> \
+#   cargo test -p playback-engine --test soak_scenarios --release -- --nocapture
+#
+# (scripts/soak-scenarios.sh wraps exactly this.)
+#
+# The asserted ceiling stays the generous 50 MB/h (this run MEASURES
+# the slopes; the 5 MB/h target is reported with a freeze-or-revise
+# verdict in docs/soak/soak-report-20261110.md rather than asserted
+# from a 34-minute window — extrapolation honesty).
+
+schema = 1
+
+[defaults]
+sample_ms = 1000
+warmup_fraction = 0.15
+min_cycles = 3
+max_skip_rate = 0.25
+leak_ceiling_mb_per_h = 50.0
+target_mb_per_h = 5.0
+assert_target = false
+rss_growth_budget_mb = 8.0
+fd_growth_budget = 4
+live_growth_budget_bytes = 524288
+
+[[scenario]]
+id = "play-loop"
+kind = "play-loop"
+duration_min = 8.0
+fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/valid/avi_mjpeg_2pcm.avi", "generated/malformed/avi_mjpeg_pcm__trunc3.avi"]
+
+[[scenario]]
+id = "seek-storm"
+kind = "seek-storm"
+duration_min = 8.0
+advance_polls = 1
+fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/valid/avi_mjpeg_2pcm.avi"]
+
+[[scenario]]
+id = "playlist-cycle"
+kind = "playlist-cycle"
+duration_min = 8.0
+fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/valid/avi_mjpeg_2pcm.avi", "generated/malformed/avi_mjpeg_pcm__noidx0.avi"]
+
+[[scenario]]
+id = "open-close-churn"
+kind = "open-close-churn"
+# Calibrated 2026-11-10 from the first sandbox measurement (4000 cycles
+# completed in 0.6 s ≈ 6.7k cycles/s on this host, numbers recorded
+# here — that first calibration ran report-to-stdout only): 2.0M cycles
+# ≈ the 5-min wall cap. The first calibration (4000) completed in
+# under a second — too thin for a handle-growth signal; this is the
+# config axis doing its job.
+cycles = 2000000
+duration_min = 5.0
+fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/malformed/avi_mjpeg_pcm__trunc3.avi"]
+
+[[scenario]]
+id = "reopen-stress"
+kind = "reopen-stress"
+# Calibrated 2026-11-10 from the first sandbox measurement
+# (docs/soak/raw/scenarios-sandbox__reopen-stress__calibration.md:
+# 1500 cycles in 3.0 s ≈ 500 cycles/s): 150k full open→play→decode→close
+# cycles ≈ the 5-min wall cap.
+cycles = 150000
+duration_min = 5.0
+fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/valid/avi_mjpeg_2pcm.avi"]
