@@ -74,7 +74,11 @@ use std::sync::{Arc, Mutex};
 use audio_engine::{AudioPipeline, PipelineSpec};
 use audio_output::null::{NullDevice, NullSink};
 use audio_output::{NullBackend, NullConfig, NullStream};
-use codec_api::{DecodeOutcome, Decoder, DecoderConfig, FrameSink};
+use codec_api::{Decoder, DecoderConfig};
+// The drain-gate's trait surface (native only, with its sole
+// constructor — see DrainGatedDecoder's cfg note).
+#[cfg(not(target_arch = "wasm32"))]
+use codec_api::{DecodeOutcome, FrameSink};
 use commands::catalog::command::{CommandListing, CommandResult};
 use commands::catalog::types::{
     Chapter, DecoderInfo, Duration, EngineInfo, MediaInfo, TimeRange, Timestamp,
@@ -437,11 +441,17 @@ impl DecoderProvider for WebDecoderProvider {
 /// end-tail play-out (gated on `Ended`) renders it to the exact
 /// media end; demanding `backlog == 0` would strand every media
 /// whose frame count is not a multiple of the quantum.
+///
+/// Native only (the same gate as [`native_decoder_for`], its sole
+/// constructor): the wasm32 build wires no builtin decoders — the
+/// typed refusal — so the wrapper would be dead code there.
+#[cfg(not(target_arch = "wasm32"))]
 struct DrainGatedDecoder {
     inner: Box<dyn Decoder>,
     probe: Option<Arc<WebFrameConsumer>>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl DrainGatedDecoder {
     fn audio_backlog(&self) -> usize {
         self.probe
@@ -450,6 +460,7 @@ impl DrainGatedDecoder {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl Decoder for DrainGatedDecoder {
     fn configure(&mut self, config: &DecoderConfig) -> Result<(), EngineError> {
         self.inner.configure(config)
