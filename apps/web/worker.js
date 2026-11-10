@@ -35,7 +35,11 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
 let wasm = null;
-let ready = null;
+// Messages that arrived before the module was instantiated are
+// QUEUED, never dropped (the port contract has no "not ready"
+// answer — the host page may send `boot` while the fetch is still
+// in flight; a silent drop would hang it forever).
+const pending = [];
 
 /** Push one JSON-encoded message through the word lane. */
 function send(json) {
@@ -79,6 +83,7 @@ function pumpOutputs() {
 
 self.onmessage = (event) => {
   if (!wasm) {
+    pending.push(event.data);
     return;
   }
   send(JSON.stringify(event.data));
@@ -90,7 +95,7 @@ self.onmessage = (event) => {
 // CONTINUES a busy loop).
 
 /** Instantiate the module relative to this script's own URL. */
-ready = (async () => {
+(async () => {
   const url = new URL("lumen_web.wasm", import.meta.url);
   const fetched = await fetch(url);
   if (!fetched.ok) {
@@ -104,21 +109,25 @@ ready = (async () => {
   // instantiateStreaming when the MIME is right; the array-buffer
   // fallback keeps a misconfigured server degraded-but-honest
   // instead of dead.
+  let instance;
   if (
     typeof WebAssembly.instantiateStreaming === "function" &&
     (fetched.headers.get("content-type") || "").includes("application/wasm")
   ) {
-    wasm = await WebAssembly.instantiateStreaming(fetched, {});
+    instance = await WebAssembly.instantiateStreaming(fetched, {});
   } else {
     const bytes = await fetched.arrayBuffer();
-    wasm = await WebAssembly.instantiate(bytes, {});
+    instance = await WebAssembly.instantiate(bytes, {});
   }
-  wasm = wasm.instance ? wasm.instance : wasm;
-})();
-
-// Module-script workers have no error event for top-level awaits;
-// surface instantiation failures as the typed control error.
-ready.catch((error) => {
+  wasm = instance.instance ? instance.instance : instance;
+  // Drain everything that arrived while the module was loading, in
+  // arrival order (typically just the `boot` handshake).
+  while (pending.length > 0) {
+    send(JSON.stringify(pending.shift()));
+  }
+})().catch((error) => {
+  // Module-script workers have no error event for top-level awaits;
+  // surface instantiation failures as the typed control error.
   self.postMessage({
     type: "controlError",
     code: "web.worker.module_instantiate",
