@@ -48,7 +48,7 @@ read it. Two tracks, both verified on this tree:
 | # | Row | Command / evidence | Status |
 |---|---|---|---|
 | 1.1 | Tree clean, on the release commit | `git status` → clean; note the SHA in the RC report | [verified locally] |
-| 1.2 | Syntax: all release scripts | `bash -n scripts/rc-smoke.sh scripts/release/*.sh`; `node --check scripts/rc-smoke-web.mjs`; `python3 -m py_compile scripts/release/product-env.py scripts/release/gen-icon.py` | **[verified locally]** all OK (8 sh + 1 mjs + 2 py) |
+| 1.2 | Syntax: all release scripts | `for f in scripts/rc-smoke.sh scripts/release/*.sh; do bash -n "$f" || exit 1; done` — a loop is **required**: `bash -n` syntax-checks only its first file argument, the rest become positional parameters and are silently unchecked (W24-R2 finding P2-3); rc-smoke.sh + the 7 `scripts/release/*.sh` = 8 sh. `node --check scripts/rc-smoke-web.mjs`; `python3 -m py_compile scripts/release/product-env.py scripts/release/gen-icon.py` | **[verified locally]** all OK (8 sh + 1 mjs + 2 py — loop re-run post-review, per-script output in `docs/audit/docs-sweep-20261110.md` §7) |
 | 1.3 | Workflow YAML parses | `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml'))"` | **[verified locally]** jobs: windows, macos-arm64, macos-x64, linux-x64, linux-arm64, release |
 | 1.4 | Config-driven identity gates | `cargo run -p xtask --locked -- lint-literals` (0 violations, 452 allowlisted) and `check-identity` (0 violations, 453 allowlisted) | **[verified locally]** both PASS |
 | 1.5 | SBOM in sync | `cargo run -p xtask --locked -- sbom --check` | **[verified locally]** no drift (157 components) |
@@ -118,8 +118,12 @@ build-targz / build-zip, sign-windows / sign-macos, stage-linux-payload,
 verify-linux-artifacts, test-msi-upgrade.ps1, gate wiring; evidence in
 `docs/packaging/evidence/linux-lane-20261110.log` — real .deb + real
 executable AppImage, packaged-binary launch tests, SBOMs, checksum
-manifest). **`origin/w24/c` was not pushed at authoring time** →
-these rows **execute at wave merge**:
+manifest). ~~**`origin/w24/c` was not pushed at authoring time**~~ —
+**since pushed**: `git ls-remote origin w24/c` → `fb97822`, the
+evidence log and every named `scripts/packaging/*` driver verified on
+the remote branch (strike per §8, 2026-11-10 post-review, W24-R2
+P3-8; the branch remains **unmerged into `main`**) → these rows still
+**execute at wave merge**:
 
 | Row (at wave merge) | Command (post-merge paths) |
 |---|---|
@@ -215,7 +219,7 @@ reduces today to "no dead update surface ships" — which is true.
 | Windows code-signing certificate | §3.2 signing row | user | escalate per card 8.E1 (`[VERIFY]` — escalate if absent) |
 | ADR-010 codec-patent decision (still `proposed`) | **any binary distribution** | user + counsel | sign-off before the first public release (ADR register row; hard trigger = 8.E1–8.E3) |
 | Missing brand assets (`assets/brand/*`) | §1.6 config-validator red | Lead/design | land assets or record the waiver (RELEASE.md known-limit 5) |
-| Wave-24 merge (lane A fixes unmerged; lane C drivers unpushed) | §2 checks 7–8, §3.2 rows, §6.1 | Lead | merge wave 24; then re-run rc-smoke (the harness's failure note already points at F-1/F-2) |
+| Wave-24 merge (lane A fixes unmerged, `origin/w24/a` absent; lane C drivers pushed as `origin/w24/c` @ `fb97822` but unmerged) | §2 checks 7–8, §3.2 rows, §6.1 | Lead | merge wave 24; then re-run rc-smoke (the harness's failure note already points at F-1/F-2) |
 | Sandbox disk (100% during authoring) | §1.7 full local gate re-run | this lane, re-run | re-run `scripts/full_gate.sh` on the RC commit |
 
 ## 8. Ownership + maintenance

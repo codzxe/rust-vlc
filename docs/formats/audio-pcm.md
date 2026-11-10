@@ -54,8 +54,10 @@ Shared-target worktree `wt/w24e` @ `c339ee8`, 2-core Linux sandbox:
   0 failed** (the module's own unit suite; the broader `pcm::`
   filter also sweeps the ADPCM suites that share the substring).
 - The release-binary headless decode of the parent AVI (whose audio
-  track is PCM s16le) is exercised by the RC smoke row 3 —
-  `docs/audit/rc-smoke-2026-11-10.md`.
+  track is PCM s16le) is exercised by the RC smoke harness's check 4
+  (headless-decode) — green on this fixture, 60/60 audio frames
+  (run recorded in the `ff001e5` commit message; harness and check
+  numbering in `docs/release-checklist.md` §2).
 
 ## Known gaps / honest limits
 

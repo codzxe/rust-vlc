@@ -37,7 +37,7 @@ authored by this lane to close the sweep's own findings are marked ★:
 | Category | Claimed rows | Records |
 |---|---|---|
 | container (14) | matroska-webm, mp4-mov-3gp, ogg, mpegts, mpegps, wav, aiff, adts-aac, asf-wmv, avi ★, mp3-raw, h264-annexb, hevc-annexb, ivf | container-matroska, container-mp4, container-ogg, container-mpegts, container-mpegps, container-wav, container-aiff, container-adts, container-asf, container-avi ★ (`d915188`), container-es (×3 rows), container-ivf |
-| video-codec (6) | mjpeg, av1, h264, hevc, prores-dnxhd, h264-software ★ | video-mjpeg, video-av1, video-h264, video-hevc, video-prores-dnxhd, video-h264-software ★ (`3a7fd06`) |
+| video-codec (6) | mjpeg, av1, h264, hevc, prores-dnxhd, vp9 | video-mjpeg, video-av1, video-h264, video-hevc, video-prores-dnxhd, video-vp8-vp9 (dual-row record: VP8 + VP9 decision state) |
 | audio-codec (9) | pcm ★, mp3, mp2, aac-lc, flac, vorbis, opus, alac, adpcm | audio-pcm ★ (`d915188`), audio-mp3-mp2, audio-aac, audio-flac, audio-vorbis, audio-opus, audio-alac, audio-adpcm |
 | subtitle-format (8) | srt, ass-ssa, vtt, dvb-subs, vobsub, pgs ★, cc-608-708 ★, encoding-detection ★ | sub-srt (declared dual-row record, encoding cross-link added `3a7fd06`), sub-ass-ssa, sub-vtt, sub-dvb, sub-vobsub, sub-pgs ★ (`d915188`), sub-cc ★ (`3a7fd06`) |
 
@@ -56,6 +56,7 @@ F-5's closure network-dash (partial) → `streaming-dash.md` ★ (`bc97962`).
 | codec-audio-census-tail, subtitle-census-tail, plfmt-census-tail | not_started | Census-tail group rows — long-tail inventory families with no work started. |
 | subtitle-microdvd, -subviewer, -sami, -ttml, -forced, -autoload | not_started | Phase 5–8 tails (phase5 audit §1.4), still untouched. |
 | codec-video-hevc-software | blocked | Covered inside `video-hevc.md` ("no software HEVC decode, and none is scheduled…" — verified lines 11–14). |
+| codec-video-h264-software | blocked | `video-h264-software.md` ★ (authored this lane, `3a7fd06`) is the gap/decision record — it records the blocked ×4 state and the pending Lead admission; as a blocked row it is not a claimed row and owes no evidence record. |
 | codec-video-legacy-blocked | blocked | `video-screen-codecs.md` is its umbrella record (Cinepak/Hap/Dirac/MS Video 1-class, verified §"legacy"). |
 | subtitle-teletext | blocked | zvbi is C (forbidden) — matrix `blocked_reason`; the demux-side split is recorded in `container-mpegts.md` line 109; no decode will land to record. |
 | subtitle-kate | blocked | `subtitle-kate.md` is the decision record (5.P2b-I part B). |
@@ -107,7 +108,7 @@ then re-verified for this audit:
 | Guide | Source of truth | Verification (command / evidence) |
 |---|---|---|
 | `docs/guides/getting-started.md` | the CLI surface + fixture | `lumen --help` command list (rendered from the settings schema + command catalog, `apps/cli/src/help.rs`); the documented `decode-bench` output shape matches `scripts/rc-smoke.sh` check 4's `BENCH` parser (same `v_frames/v_decoded/...` fields); §3's 37/73/0 numbers recomputed today from the matrix (§5.2); the version paragraph matches the real two-track mechanism (`--version` = crate version, `apps/cli/Cargo.toml`; product version `0.1.0-dev` lives in `product.toml` and drives packaging — verified in `help.rs` + `scripts/release/product-env.py`) |
-| `docs/guides/settings.md` | `schemas/settings.toml` (32 `[[setting]]` entries, counted this sweep) + `schemas/generated/` | Every documented key spot-checked against the schema; the extension-host crash-isolation paragraph lists the **five** `extensions.crash-*` keys that exist (`crash-backoff-initial-ms`, `-multiplier`, `-max-ms`, `crash-restart-limit`, `crash-disabled-reenable-ms` — `rg 'key = "extensions\.crash'` = 5 hits); fixed in-sweep from a wrong "trio" (`9cd090f`, F-4) |
+| `docs/guides/settings.md` | `schemas/settings.toml` (32 `[[setting]]` entries — `rg -c '^\[\[setting\]\]'` → 32, anchored to exclude the schema's explanatory comment on line 13) + `schemas/generated/` | Every documented key spot-checked against the schema; the extension-host crash-isolation paragraph lists the **five** `extensions.crash-*` keys that exist (`crash-backoff-initial-ms`, `-multiplier`, `-max-ms`, `crash-restart-limit`, `crash-disabled-reenable-ms` — `rg 'key = "extensions\.crash'` = 5 hits); fixed in-sweep from a wrong "trio" (`9cd090f`, F-4) |
 | `docs/guides/shortcuts.md` | `keymaps/default.toml` | 150 bindings counted (`rg -c '= \{ key = '` = 150 — the guide's number); the `/keyboard-shortcuts` route exists (`ui/src/App.tsx`); the generated data module `ui/src/screens/settings/areas/hotkeys/generated/bindings.ts` exists and is drift-gated (`npm run hotkeys:check` in `ui/package.json`) |
 | `docs/guides/troubleshooting.md` | real failure modes | Rows for F-1 (`ui/src/App.tsx` committed merge markers — reproduction: `npm run build` in `ui/` fails) and F-2 (stale generated settings screen — fix: `npm run settings:generate`) reference this audit; the Playwright chromium-drift row documents the real sandbox pin mismatch and the `RC_SMOKE_CHROMIUM` override actually implemented by `scripts/rc-smoke.sh` |
 | `docs/guides/README.md` | index | Lists exactly the four guides + their sources of truth. |
@@ -193,10 +194,10 @@ exact (guide tweak in `bc97962`).
 
 - `rg -c '= \{ key = ' keymaps/default.toml` → **150**
 - `rg 'key = "extensions\.crash' schemas/settings.toml` → **5** crash-isolation keys
-- `rg -c '\[\[setting\]\]' schemas/settings.toml` → **32**
+- `rg -c '^\[\[setting\]\]' schemas/settings.toml` → **32** (post-review correction, W24-R2 P3-4: the sweep originally recorded the unanchored `rg -c '\[\[setting\]\]'` → 32, but that pattern prints **33** — line 13 of the schema is a comment containing the literal `[[setting]]`; the anchored pattern isolates the 32 real entries and is what §3 quotes)
 - `rg -c '#\[test\]' crates/streaming/src/dash/*.rs` → 12+4+4+7 = **27** (matrix's "incl. 27 dash")
 - `bash -n scripts/rc-smoke.sh` + `node --check scripts/rc-smoke-web.mjs` → **OK**
-- `bash -n scripts/release/*.sh` (8 scripts) + `python3 -m py_compile scripts/release/{product-env,gen-icon}.py` → **OK**
+- `for f in scripts/rc-smoke.sh scripts/release/*.sh; do bash -n "$f" || exit 1; done` → **OK — all 8 sh scripts pass individually** (rc-smoke.sh + the 7 `scripts/release/*.sh`: gen-wxs, make-app, make-appimage, make-dmg, package-deb, package-windows, release-notes). Post-review correction (W24-R2 P2-3): the sweep originally recorded the one-shot `bash -n scripts/release/*.sh` "(8 scripts)", which only syntax-checks the **first** file argument (the rest become positional parameters) and miscounted the glob as 8 — the corrected loop was re-run 2026-11-10 by W24-I with every script passing. `python3 -m py_compile scripts/release/{product-env,gen-icon}.py` → **OK** at sweep time; the post-review re-run used the ENOSPC-safe equivalent `python3 -c "import ast; ast.parse(open(f).read())"` on both files (sandbox disk hit 100% — `py_compile`'s `__pycache__` write fails), both parse clean
 - `python3 scripts/release/product-env.py --print --cli-package lumen-cli --desktop-package desktop` → `PRODUCT_VERSION=0.1.0-dev`, `PRODUCT_VERSION_CODE=1`, `MSI_VERSION=0.1.0`, `BIN_CLI=lumen`, `BIN_DESKTOP=lumen-desktop`, exit 0
 - `PRODUCT_NAME=Lumen PRODUCT_VERSION=0.1.0-dev sh scripts/release/release-notes.sh /tmp/rc-notes-preview.md` → wrote the dispatch-mode dry-run notes (20-commit range, exit 0)
 - `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml'))"` → parses; jobs = windows, macos-arm64, macos-x64, linux-x64, linux-arm64, release
