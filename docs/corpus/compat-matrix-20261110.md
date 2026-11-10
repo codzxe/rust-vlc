@@ -209,25 +209,36 @@ Committed-record cross-checks (2026-11-09 run):
 - tests/compat/.regen-cache/0386-avi-av.avi: fresh decode md5 == committed 2026-11-09 lumen_fresh_md5 (same realization) — the record's vlc_md5 is applicable
 - tests/compat/.regen-cache/0394-avi-av.avi: fresh realization (random source or encoder drift) — the committed record's md5s do not apply to these bytes
 
-## 6. Gap triage (8.B2) — the transitions outbox
+## 6. Gap triage (8.B2) — every claimed-supported row dispositioned
 
-5 transition proposals (applied by `cargo xtask compat-matrix apply-transitions --outbox docs/corpus/compat-matrix-transitions-20261110.json` — the parity tool re-checks each `from` status against the live matrix before writing):
+**6 transitions APPLIED** through the parity tool (`cargo xtask compat-matrix apply-transitions`, `tools/xtask/src/cmd/compat_matrix.rs` — the writer the 8.F1 readers left open; statuses are never hand-edited): 5 emitted by this run's automatic gap rules (outbox `docs/corpus/compat-matrix-transitions-20261110.json`) + 1 triage-authored addendum (`docs/corpus/compat-matrix-transitions-20261110.gap-triage.json` — the f32 oracle-tolerance family, which the decode-level gap rules do not cover). The tool re-checked each `from` status against the live matrix, rejected nothing, and appended the machine-written ledger `docs/corpus/compat-matrix-transitions-applied.jsonl` (6 lines). Post-apply `cargo xtask feature-audit`: PASS — 252 rows, status cells implemented 192→187 / partial 142→147 (the five linux cells; windows/macos/web untouched — no inference for platforms that did not run).
 
-- **container-asf-wmv** (linux): `implemented` → `partial` — compat-matrix run (linux-native lane): the open path REFUSES the corpus files of probe format `asf` — unsupported (sniffed 30 26 b2 75 8e 66 cf 11 a6 d9 00 aa 00 62 ce 6c) (probe.no-demuxer): probe hints: extension=wmv, size=10329. The container claim cannot be exercised end-to-end through the player's open path.
-  - next step: wire the missing probe signature / container-registry arm for `asf` (the ivf/mpegps open-path wiring precedent), then re-run the matrix
-  - evidence: docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows)
-- **codec-audio-aac-lc** (linux): `implemented` → `partial` — compat-matrix run (linux-native lane): 142 concealed (damaged) packets on VALID corpus files of codec `aac` — the decode is not clean
-  - next step: triage the concealment (bounded fix, no correctness trade); add the corpus file as a regression fixture; re-run
-  - evidence: docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows)
-- **codec-audio-aac-lc** (linux): `implemented` → `partial` — compat-matrix run (linux-native lane): 1 corpus tracks of codec `aac-lc` REFUSED (no decoder in this build) vs 4 decoded
-  - next step: land the missing decoder lane (bounded fix) or split the row's claimed descriptor set; re-run the matrix
-  - evidence: docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows)
-- **codec-audio-alac** (linux): `implemented` → `partial` — compat-matrix run (linux-native lane): 1 corpus tracks of codec `alac` REFUSED (no decoder in this build) vs 1 decoded
-  - next step: land the missing decoder lane (bounded fix) or split the row's claimed descriptor set; re-run the matrix
-  - evidence: docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows)
-- **codec-video-vp9** (linux): `implemented` → `partial` — compat-matrix run (linux-native lane): 1 corpus tracks of codec `vp9` REFUSED (no decoder in this build) vs 2 decoded
-  - next step: land the missing decoder lane (bounded fix) or split the row's claimed descriptor set; re-run the matrix
-  - evidence: docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows)
+### 6.1 Flipped `implemented` → `partial` (linux — the lane that ran; reason + next step)
+
+| row | finding (this run) | next step |
+|---|---|---|
+| `container-asf-wmv` | the open path REFUSES the corpus files of probe format `asf` — unsupported (sniffed `30 26 b2 75 8e 66 cf 11 a6 d9 00 aa 00 62 ce 6c`) (probe.no-demuxer): probe hints: extension=wmv, size=10329 — the demuxer exists (crates/demux/src/asf) but neither the probe signature nor a container-registry arm is wired, so the claim cannot be exercised end-to-end through the player's open path | wire the ASF probe signature + the `containers/asf.rs` wiring unit (the open-path-wiring.md per-family unit; the ivf/mpegps precedent), then re-run the matrix |
+| `codec-audio-aac-lc` | two findings: (a) 142 concealed (damaged) packets on VALID corpus files of codec `aac` — the decode is not clean; (b) 1 corpus track of descriptor `aac-lc` REFUSED (no decoder in this build) vs 4 decoded — the row's claimed descriptor set out-runs the linked decoders | (a) triage the concealment (bounded fix, no correctness trade) + add the corpus file as a regression fixture; (b) land the missing descriptor lane or split the row; re-run |
+| `codec-audio-alac` | 1 corpus track of codec `alac` REFUSED (no decoder in this build) vs 1 decoded | land the missing descriptor lane (bounded fix) or split the row's claimed descriptor set; re-run the matrix |
+| `codec-video-vp9` | 1 corpus track of codec `vp9` REFUSED (no decoder in this build) vs 2 decoded | land the missing descriptor lane (bounded fix) or split the row's claimed descriptor set; re-run the matrix |
+| `codec-audio-pcm` | all 6 `pcm_f32le` corpus rows FAIL the ratified f32 tolerance (RMS ≤ 1e-4 AND peak ≤ 1e-3) vs the pinned VLC 3.0.23 — worst row `0305-avi-av.avi` rms 1.22e-1 / peak 4.94e-1 — while all 29 integer-PCM rows (u8/s16) are bit-exact (MD5-prefix); the row's claimed descriptor set includes f32 and that lane is out of policy on every measured file (addendum outbox: the run's decode-level rules don't cover oracle-tolerance gaps) | triage the float chain (the open VLC-float-chain follow-up, docs/PERF-VS-VLC.md): attribute the deviation (lumen's integer→float conversion vs VLC's float output path), then bounded fix with no correctness trade, or split the f32 descriptor into its own row; re-run |
+
+None of the five was **fixed** in this round: each fix is card-sized work (a wiring unit, a concealment triage, a descriptor split, a float-chain attribution), recorded as the row's next step — the honest disposition the card allows ("fixed (bounded fix) or status honestly partial with reason and next step").
+
+### 6.2 Claimed-supported, no gap (run evidence supports the claim — still not `verified`: CI billing blocked)
+
+- Containers, all decoded through the real open path with typed error-contracts on every malformed variant (zero crashes): `container-avi` (43 files), `container-matroska-webm` (11), `container-mp4-mov-3gp` (14), `container-ogg` (6), `container-mpegts` (10), `container-mpegps` (1), `container-wav` (10), `container-aiff` (4), `container-adts-aac` (5), `container-mp3-raw` (2), `container-h264-annexb` (1), `container-hevc-annexb` (1), `container-ivf` (2).
+- Codecs, clean decode (0 concealed packets): `codec-video-mjpeg` (33 tracks), `codec-audio-flac` (3, bit-exact family), `codec-audio-mp3` (1), `codec-audio-mp2` (1), `codec-audio-vorbis` (4), `codec-audio-opus` (4), `codec-audio-adpcm` (2), `codec-video-av1` (2) — plus `codec-audio-pcm`'s integer lanes (29/29 oracle bit-exact; the f32 lane is §6.1's flip).
+
+### 6.3 Partial / blocked claims — outcomes consistent with the claim, nothing to flip
+
+- `codec-video-h264` (claimed partial): 12 corpus tracks no-decoder — consistent (software decode is the audit-framework-gated track; docs/dependencies/records/h264-software-decoder-audits.md); the run adds the corpus evidence.
+- `codec-video-hevc` (claimed partial): 2 tracks no-decoder — same conformance-gated track.
+- `codec-video-prores-dnxhd` (claimed partial): 0 corpus files — the claim rests on the record's differential lanes; next step: land a dnxhd corpus fixture in the regen manifest so the next run measures it.
+- Blocked rows (`codec-video-mpeg1-2`, `codec-video-mpeg4-asp`, `codec-video-vp8`, `codec-video-theora`, `codec-audio-wma`, …): the no-decoder outcomes confirm the blocked claims (blocked_reason cites the record/ADR in each row).
+- `container-flac-native` (claimed `not_started` on all four platforms): the raw-FLAC ES demuxer has not landed — an honestly **unclaimed** row, not a claimed-supported gap; the landing card harvests STREAMINFO as extra_data for the already-wired FLAC decoder and flips it.
+
+**AC check: zero unexplained gaps.** Every claimed-supported row with a gap is in §6.1 (flipped, reason + next step); §6.2/§6.3 account for the rest. Nothing self-verifies: no transition proposed or applied `verified` (the tool rejects that outright; CI billing is blocked, MP §15).
 
 ## 7. Regenerable-corpus outcomes
 
@@ -304,5 +315,5 @@ Committed-record cross-checks (2026-11-09 run):
 - The native-decode lane (`linux-native`) is the only lane that decoded media in this run. Windows/macOS cells are blocked-lane citations (3-OS runner machines + CI billing are user-owned blockers — docs/plans/phase8-cards.md §1); NO result is inferred for platforms that did not run.
 - The web/wasm lane evidence is the recorded build/test steps: the wasm32 module is real (engine core: probe → demux → engine), but it ships DECODER-LESS on wasm32 — the codecs crate does not build for the target (rav1d 1.1.0 asm-gated, measured 2026-11-10; apps/web/Cargo.toml target gate; apps/web/src/capabilities.rs reports the split honestly). No decode is claimed or exercised on the web lane.
 - Oracle comparisons cover the lossless-comparable family only (PCM-in-AVI, the documented first vertical): integer PCM via the MD5-prefix method (VLC's afile dump is a bit-exact prefix; the shortfall is the unflushed tail), pcm_f32le via the ratified RMS ≤ 1e-4 / peak ≤ 1e-3 tolerance path (docs/corpus/vlc-f32-tolerance-20261109.json). Lossy codecs are not byte-compared — decoder implementations legitimately differ; their rows carry decode-count evidence only.
-- Transitions are PROPOSALS in the outbox (5); only `cargo xtask compat-matrix apply-transitions` writes the matrix, after re-checking each `from` status against the live file. Nothing here self-verifies: no transition proposes `verified` (CI billing is blocked; MP §15).
+- Transitions WERE proposals in the outbox (5 from this run + 1 triage addendum); they are now APPLIED — `cargo xtask compat-matrix apply-transitions` wrote the matrix after re-checking each `from` status against the live file (ledger: `docs/corpus/compat-matrix-transitions-applied.jsonl`, 6 machine-written lines). Nothing here self-verifies: no transition proposed or applied `verified` — the tool rejects `to = "verified"` outright (CI billing is blocked; MP §15).
 

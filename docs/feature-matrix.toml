@@ -212,9 +212,9 @@ priority = "P2"
 phase_target = 5
 vlc_modules = ["asf"]
 inventory_ref = "inventory/formats.json#asf-wmv"
-status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
-evidence = "crates/demux/src/asf/** (cards 6.ASF-a header tree + 6.ASF-b Data Object packets/fragment reassembly hold-and-flush + 6.ASF-c Simple-Index seeking with bounded linear fallback, issue #9; record docs/formats/container-asf.md; 36-test asf unit suite in the 454-test demux crate; ffmpeg 7.1.5 sha256-pinned fixture differential incl. live ffprobe codec + -count_packets cross-check); Linux-only evidence, CI 3-OS pending"
-notes = "Decision card 5.K3-I self-build executed clean-room (spec text unavailable in sandbox — every layout byte-verified against muxer output, [VERIFY-P0] spec pin recorded in the record). WMA audio decode blocked codec-side (see codec-audio-wma) — container emits WAVEFORMATEX-described objects regardless; broadcast files refuse typed (ffprobe agrees, measured); variable packet size + compressed replication refuse typed as unverified shapes."
+status = { windows = "implemented", linux = "partial", macos = "implemented", web = "not_started" }
+evidence = "crates/demux/src/asf/** (cards 6.ASF-a header tree + 6.ASF-b Data Object packets/fragment reassembly hold-and-flush + 6.ASF-c Simple-Index seeking with bounded linear fallback, issue #9; record docs/formats/container-asf.md; 36-test asf unit suite in the 454-test demux crate; ffmpeg 7.1.5 sha256-pinned fixture differential incl. live ffprobe codec + -count_packets cross-check); Linux-only evidence, CI 3-OS pending; docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows)"
+notes = "Decision card 5.K3-I self-build executed clean-room (spec text unavailable in sandbox — every layout byte-verified against muxer output, [VERIFY-P0] spec pin recorded in the record). WMA audio decode blocked codec-side (see codec-audio-wma) — container emits WAVEFORMATEX-described objects regardless; broadcast files refuse typed (ffprobe agrees, measured); variable packet size + compressed replication refuse typed as unverified shapes. 2026-11-10T20:07:51Z compat-matrix gap triage (issue #53, card 8.B2; applied by cargo xtask compat-matrix apply-transitions): linux implemented->partial — compat-matrix run (linux-native lane): the open path REFUSES the corpus files of probe format `asf` — unsupported (sniffed 30 26 b2 75 8e 66 cf 11 a6 d9 00 aa 00 62 ce 6c) (probe.no-demuxer): probe hints: extension=wmv, size=10329. The container claim cannot be exercised end-to-end through the player's open path. Next step: wire the missing probe signature / container-registry arm for `asf` (the ivf/mpegps open-path wiring precedent), then re-run the matrix"
 
 [[feature]]
 id = "container-wav"
@@ -478,9 +478,9 @@ priority = "P0"
 phase_target = 5
 vlc_modules = ["avcodec"]
 inventory_ref = "inventory/formats.json#vp9"
-status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
-evidence = "crates/codecs/src/video/vp9/** + rusty_vp9 =0.1.3 (card 6.M-vp9; record docs/dependencies/records/rusty_vp9-0.1.3.md + its 2026-11-09 admission addendum, issue #7): vp9_differential 4/4 pass in the codecs suite (643 tests / 624 pass / 0 fail, lib + all 51 integration targets)"
-notes = "Decision card 5.P1-I; rusty_vp9 0.1.3 claims bit-exact on all 315 libvpx vectors — our independent evidence is the record's six differential lanes (s16-exact class) + the in-tree vp9_differential 4/4. hw: MF VP9 extension preinstalled Win10 1709+, VA-API all 3 vendor classes, WebCodecs vp09 broad. 5.Q2-V backfill: blocked (candidate named, validation pending) per record (5.P1-I) — SUPERSEDED by the 6.M-vp9 admission; issue #7 flip (W16-EE, 2026-11-09): implemented (decode, software; hw-path selection rides ADR-013). Honest subset: profile 0/2 lanes measured; profile 3 (12-bit), 4:4:4, SVC unexercised (record §G); wasm32 not measured → web not_started."
+status = { windows = "implemented", linux = "partial", macos = "implemented", web = "not_started" }
+evidence = "crates/codecs/src/video/vp9/** + rusty_vp9 =0.1.3 (card 6.M-vp9; record docs/dependencies/records/rusty_vp9-0.1.3.md + its 2026-11-09 admission addendum, issue #7): vp9_differential 4/4 pass in the codecs suite (643 tests / 624 pass / 0 fail, lib + all 51 integration targets); docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows)"
+notes = "Decision card 5.P1-I; rusty_vp9 0.1.3 claims bit-exact on all 315 libvpx vectors — our independent evidence is the record's six differential lanes (s16-exact class) + the in-tree vp9_differential 4/4. hw: MF VP9 extension preinstalled Win10 1709+, VA-API all 3 vendor classes, WebCodecs vp09 broad. 5.Q2-V backfill: blocked (candidate named, validation pending) per record (5.P1-I) — SUPERSEDED by the 6.M-vp9 admission; issue #7 flip (W16-EE, 2026-11-09): implemented (decode, software; hw-path selection rides ADR-013). Honest subset: profile 0/2 lanes measured; profile 3 (12-bit), 4:4:4, SVC unexercised (record §G); wasm32 not measured → web not_started. 2026-11-10T20:07:51Z compat-matrix gap triage (issue #53, card 8.B2; applied by cargo xtask compat-matrix apply-transitions): linux implemented->partial — compat-matrix run (linux-native lane): 1 corpus tracks of codec `vp9` REFUSED (no decoder in this build) vs 2 decoded Next step: land the missing decoder lane (bounded fix) or split the row's claimed descriptor set; re-run the matrix"
 
 [[feature]]
 id = "codec-video-vp8"
@@ -632,9 +632,9 @@ priority = "P0"
 phase_target = 2
 vlc_modules = ["araw", "lpcm"]
 inventory_ref = "inventory/formats.json#pcm-family"
-status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
-evidence = "crates/codecs/src/audio/pcm/** (in-house per D-018 — NOT symphonia-codec-pcm; card 2.B5: full format matrix, bit-exact AC, [audio_probe] closed loop); tests/integration/first-vertical/evidence/ledger.json (2.E1, mock-labeled)"
-notes = "First vertical per D-001/D-018 (2.B5, merged). Implemented = pure-Rust platform-independent code complete; ALL evidence to date is Linux-only, mock-labeled, CI 3-OS PENDING (phase2-exit.md §4.1). WASM endianness + rare channel orders are per-record tests at the web target (Phase 7); lpcm/aes3 framing separate."
+status = { windows = "implemented", linux = "partial", macos = "implemented", web = "not_started" }
+evidence = "crates/codecs/src/audio/pcm/** (in-house per D-018 — NOT symphonia-codec-pcm; card 2.B5: full format matrix, bit-exact AC, [audio_probe] closed loop); tests/integration/first-vertical/evidence/ledger.json (2.E1, mock-labeled); docs/corpus/compat-matrix-20261110.md (run §5, the 6 f32 tolerance-FAIL rows + the 29 bit-exact integer rows); docs/corpus/vlc-f32-tolerance-20261109.json (the ratified thresholds + the 2026-11-09 measurements)"
+notes = "First vertical per D-001/D-018 (2.B5, merged). Implemented = pure-Rust platform-independent code complete; ALL evidence to date is Linux-only, mock-labeled, CI 3-OS PENDING (phase2-exit.md §4.1). WASM endianness + rare channel orders are per-record tests at the web target (Phase 7); lpcm/aes3 framing separate. 2026-11-10T20:08:26Z compat-matrix gap triage (issue #53, card 8.B2; applied by cargo xtask compat-matrix apply-transitions): linux implemented->partial — compat-matrix run (linux-native lane, oracle differential §5): ALL 6 pcm_f32le corpus rows FAIL the ratified f32 tolerance (RMS <= 1e-4 AND peak <= 1e-3, docs/corpus/vlc-f32-tolerance-20261109.json) against the pinned VLC 3.0.23 — worst row 0305-avi-av.avi measures rms 1.22e-1 / peak 4.94e-1 — while every integer-PCM row (u8/s16, 29 rows) is bit-exact (MD5-prefix). The row's claimed descriptor set includes f32; that lane is out of policy on every measured corpus file. Next step: triage the float chain (the open VLC-float-chain follow-up, docs/PERF-VS-VLC.md): attribute the deviation (lumen's integer->float conversion vs VLC's float output path), then bounded fix with no correctness trade, or split the f32 descriptor into its own row; re-run the matrix"
 
 [[feature]]
 id = "codec-audio-mp3"
@@ -671,9 +671,9 @@ priority = "P0"
 phase_target = 5
 vlc_modules = ["faad"]
 inventory_ref = "inventory/formats.json#aac-lc"
-status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
-evidence = "crates/codecs/src/audio/aac/** (cards 5.C2a+5.C2b; record docs/formats/audio-aac.md, 5.REC-2: 6-row 1-LSB table, 0094 6ch typed partial, dirty-lane 350-vs-351 divergence)"
-notes = "symphonia-codec-aac 0.6.1 + AdtsReader ships in-crate; ASC-in-esds demux glue = S (5.C2); HE-AAC is a separate blocked row. 5.Q2-V backfill: implemented for AAC-LC (5.REC-2); HE-AAC is the separate blocked row."
+status = { windows = "implemented", linux = "partial", macos = "implemented", web = "not_started" }
+evidence = "crates/codecs/src/audio/aac/** (cards 5.C2a+5.C2b; record docs/formats/audio-aac.md, 5.REC-2: 6-row 1-LSB table, 0094 6ch typed partial, dirty-lane 350-vs-351 divergence); docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows); docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows)"
+notes = "symphonia-codec-aac 0.6.1 + AdtsReader ships in-crate; ASC-in-esds demux glue = S (5.C2); HE-AAC is a separate blocked row. 5.Q2-V backfill: implemented for AAC-LC (5.REC-2); HE-AAC is the separate blocked row. 2026-11-10T20:07:51Z compat-matrix gap triage (issue #53, card 8.B2; applied by cargo xtask compat-matrix apply-transitions): linux implemented->partial — compat-matrix run (linux-native lane): 142 concealed (damaged) packets on VALID corpus files of codec `aac` — the decode is not clean | compat-matrix run (linux-native lane): 1 corpus tracks of codec `aac-lc` REFUSED (no decoder in this build) vs 4 decoded Next step: triage the concealment (bounded fix, no correctness trade); add the corpus file as a regression fixture; re-run | land the missing decoder lane (bounded fix) or split the row's claimed descriptor set; re-run the matrix"
 
 [[feature]]
 id = "codec-audio-he-aac"
@@ -711,9 +711,9 @@ priority = "P1"
 phase_target = 5
 vlc_modules = ["avcodec"]
 inventory_ref = "inventory/formats.json#alac"
-status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
-evidence = "crates/codecs/src/audio/alac/** (card 5.J3a; record docs/formats/audio-alac.md, 5.REC-2: 5/5 bit-exact incl. noise stressor)"
-notes = "symphonia-codec-alac 0.6.1; legacy alac 0.5.0 kept as oracle; lossless differential (5.J3). 5.Q2-V backfill: implemented per record (5.REC-2); 32-bit row impossible with this ffmpeg."
+status = { windows = "implemented", linux = "partial", macos = "implemented", web = "not_started" }
+evidence = "crates/codecs/src/audio/alac/** (card 5.J3a; record docs/formats/audio-alac.md, 5.REC-2: 5/5 bit-exact incl. noise stressor); docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows)"
+notes = "symphonia-codec-alac 0.6.1; legacy alac 0.5.0 kept as oracle; lossless differential (5.J3). 5.Q2-V backfill: implemented per record (5.REC-2); 32-bit row impossible with this ffmpeg. 2026-11-10T20:07:51Z compat-matrix gap triage (issue #53, card 8.B2; applied by cargo xtask compat-matrix apply-transitions): linux implemented->partial — compat-matrix run (linux-native lane): 1 corpus tracks of codec `alac` REFUSED (no decoder in this build) vs 1 decoded Next step: land the missing decoder lane (bounded fix) or split the row's claimed descriptor set; re-run the matrix"
 
 [[feature]]
 id = "codec-audio-vorbis"
