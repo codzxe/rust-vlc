@@ -333,7 +333,8 @@ impl FrameConsumer for WebFrameConsumer {
                     ));
                 };
                 let bytes_per_frame = u64::from(
-                    audio.format
+                    audio
+                        .format
                         .channels
                         .saturating_mul(audio.format.sample.bytes_per_sample())
                         .max(1),
@@ -801,7 +802,8 @@ impl WebHost {
             }
             HostToWorker::LoadBlob { name, bytes } => match self.registry.load(&name, bytes) {
                 Ok(size) => {
-                    self.outbound.push_back(WorkerToHost::BlobLoaded { name, size });
+                    self.outbound
+                        .push_back(WorkerToHost::BlobLoaded { name, size });
                 }
                 Err(error) => {
                     self.outbound.push_back(WorkerToHost::ControlError {
@@ -855,7 +857,7 @@ impl WebHost {
         // Flush the remaining backlog honestly (the graceful-close
         // promise — bounded by what the engine actually emitted).
         if !self.event_backlog.is_empty() {
-            let events: Vec<WireEvent> = self.event_backlog.drain(..).collect();
+            let events: Vec<WireEvent> = std::mem::take(&mut self.event_backlog);
             self.outbound.push_back(WorkerToHost::Events { events });
         }
         self.outbound.push_back(WorkerToHost::ShutdownComplete);
@@ -991,8 +993,7 @@ impl WebHost {
                 EngineOutput::Event(event) => {
                     if event.kind.is_pipeline_scoped() {
                         if let EngineEventKind::StateChanged { from, to } = &event.kind {
-                            self.state_history
-                                .push((from.as_wire(), to.as_wire()));
+                            self.state_history.push((from.as_wire(), to.as_wire()));
                         }
                         if let EngineEventKind::Fatal { error } = &event.kind {
                             self.last_fatal = Some(open::wire_error(error));
@@ -1029,7 +1030,7 @@ impl WebHost {
     fn flush_events(&mut self) -> u32 {
         let bound = self.budgets.events_per_flush as usize;
         if self.event_backlog.len() <= bound {
-            let events: Vec<WireEvent> = self.event_backlog.drain(..).collect();
+            let events: Vec<WireEvent> = std::mem::take(&mut self.event_backlog);
             let count = events.len() as u32;
             if count > 0 {
                 self.outbound.push_back(WorkerToHost::Events { events });
@@ -1050,18 +1051,14 @@ impl WebHost {
     pub fn busy(&self) -> bool {
         match self.state() {
             PlaybackState::Opening | PlaybackState::Buffering | PlaybackState::Playing => true,
-            PlaybackState::Ended => {
-                self.ring_backlog() > 0 || !self.event_backlog.is_empty()
-            }
+            PlaybackState::Ended => self.ring_backlog() > 0 || !self.event_backlog.is_empty(),
             _ => !self.event_backlog.is_empty() || !self.pending_receipts.is_empty(),
         }
     }
 
     /// Frames the device ring still holds.
     fn ring_backlog(&self) -> usize {
-        self.device
-            .as_ref()
-            .map_or(0, NullDevice::buffered_frames)
+        self.device.as_ref().map_or(0, NullDevice::buffered_frames)
     }
 
     // -- command routing ---------------------------------------------------
@@ -1083,21 +1080,14 @@ impl WebHost {
 
     /// One catalog command → its outcome (the served table + the
     /// honest typed refusals).
-    fn route(
-        &mut self,
-        command: &Command,
-    ) -> Result<CommandOutcome<CommandResult>, CommandError> {
+    fn route(&mut self, command: &Command) -> Result<CommandOutcome<CommandResult>, CommandError> {
         match command {
             Command::SessionOpen { source, options } => self.open_session(source, options),
             Command::SessionClose => self
                 .submit_and_await(SessionCommandKind::Close)
                 .inspect(|_| self.session_closed()),
-            Command::PlaybackPlay => {
-                self.submit_and_await(SessionCommandKind::Play)
-            }
-            Command::PlaybackPause => {
-                self.submit_and_await(SessionCommandKind::Pause)
-            }
+            Command::PlaybackPlay => self.submit_and_await(SessionCommandKind::Play),
+            Command::PlaybackPause => self.submit_and_await(SessionCommandKind::Pause),
             Command::PlaybackTogglePlayPause => {
                 let kind = if self.state() == PlaybackState::Playing {
                     SessionCommandKind::Pause
@@ -1106,25 +1096,23 @@ impl WebHost {
                 };
                 self.submit_and_await(kind)
             }
-            Command::PlaybackStop => {
-                self.submit_and_await(SessionCommandKind::Stop)
-            }
+            Command::PlaybackStop => self.submit_and_await(SessionCommandKind::Stop),
             Command::MediaGetInfo => Ok(CommandOutcome::Completed(self.media_info()?)),
             Command::MediaGetCurrentTime => Ok(CommandOutcome::Completed(self.current_time()?)),
             Command::MediaGetDuration => Ok(CommandOutcome::Completed(self.duration()?)),
             Command::TracksList => Ok(CommandOutcome::Completed(CommandResult::TrackList {
                 tracks: self.tracks.clone(),
             })),
-            Command::SystemGetEngineInfo => Ok(CommandOutcome::Completed(
-                CommandResult::EngineInfo {
+            Command::SystemGetEngineInfo => {
+                Ok(CommandOutcome::Completed(CommandResult::EngineInfo {
                     info: engine_info(self.profile),
-                },
-            )),
-            Command::SystemListCommands => Ok(CommandOutcome::Completed(
-                CommandResult::CommandListings {
+                }))
+            }
+            Command::SystemListCommands => {
+                Ok(CommandOutcome::Completed(CommandResult::CommandListings {
                     commands: command_listings(),
-                },
-            )),
+                }))
+            }
             other => Err(unserved(other)),
         }
     }
@@ -1553,10 +1541,7 @@ fn owner_of(id: &str) -> &'static str {
 }
 
 /// A rejection's wire form (the CLI host's mapping, mirrored).
-fn rejection_wire(
-    state: SessionState,
-    reason: playback_engine::RejectionReason,
-) -> CommandError {
+fn rejection_wire(state: SessionState, reason: playback_engine::RejectionReason) -> CommandError {
     let stage = commands::Stage::Session;
     let state_name = state.as_wire();
     match reason {
@@ -1569,9 +1554,7 @@ fn rejection_wire(
         playback_engine::RejectionReason::SettleFirst => CommandError::new(
             stage,
             commands::ErrorCode::NotReady,
-            format!(
-                "close from {state_name:?} composes through stop (the executor applies it)"
-            ),
+            format!("close from {state_name:?} composes through stop (the executor applies it)"),
         ),
         playback_engine::RejectionReason::AlreadySettled => CommandError::new(
             stage,
@@ -1623,14 +1606,12 @@ fn rejection_wire(
 /// mirrored).
 fn session_error_wire(error: &SessionError) -> CommandError {
     match error {
-        SessionError::Config(cause) => {
-            CommandError::new(
-                commands::Stage::Session,
-                commands::ErrorCode::Unsupported,
-                cause.to_string(),
-            )
-            .with_detail("code", "session.no-decodable-track")
-        }
+        SessionError::Config(cause) => CommandError::new(
+            commands::Stage::Session,
+            commands::ErrorCode::Unsupported,
+            cause.to_string(),
+        )
+        .with_detail("code", "session.no-decodable-track"),
         SessionError::GenerationExhausted(engine) => open::wire_error(engine),
         SessionError::SessionClosed => CommandError::new(
             commands::Stage::Session,
@@ -1654,9 +1635,9 @@ fn session_error_wire(error: &SessionError) -> CommandError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use commands::envelope::RequestId;
     use commands::catalog::types::SourceSpec;
-    use testkit::{assert_err, fixture_bytes, Must};
+    use commands::envelope::RequestId;
+    use testkit::{Must, assert_err, fixture_bytes};
 
     fn request(command: Command) -> WireRequest {
         WireRequest {
@@ -1769,10 +1750,9 @@ mod tests {
         // Multiply first, divide once: the clock's µs come from exact
         // sample counts, so the bound must not pre-truncate per
         // quantum (16 × 33333.33 µs is 533_333, not 16 × 33_333).
-        let bound_us = (RENDER_QUANTUM as u64)
-            * u64::from(budgets.audio_quanta_per_tick)
-            * 1_000_000
-            / u64::from(host.audio_rate);
+        let bound_us =
+            (RENDER_QUANTUM as u64) * u64::from(budgets.audio_quanta_per_tick) * 1_000_000
+                / u64::from(host.audio_rate);
         let bound_us = i64::try_from(bound_us).unwrap_or(i64::MAX);
         assert!(
             advanced_us <= bound_us,
@@ -1787,9 +1767,7 @@ mod tests {
     fn unserved_surface_refuses_typed() {
         let mut host = WebHost::new(TargetProfile::Native);
         let response = host.dispatch(&request(Command::PlaybackSeek {
-            target: commands::catalog::types::SeekTarget::Absolute {
-                time: Timestamp(0),
-            },
+            target: commands::catalog::types::SeekTarget::Absolute { time: Timestamp(0) },
         }));
         match response.result {
             Err(error) => {
@@ -1802,10 +1780,7 @@ mod tests {
                     error.details.get("command").map(String::as_str),
                     Some("playback.seek")
                 );
-                assert!(
-                    error.details.contains_key("owner"),
-                    "{error}"
-                );
+                assert!(error.details.contains_key("owner"), "{error}");
             }
             Ok(_) => unreachable!("seek must refuse typed"),
         }
@@ -1848,15 +1823,10 @@ mod tests {
         }
         match host.dispatch(&request(Command::MediaGetCurrentTime)).result {
             Ok(CommandOutcome::Completed(CommandResult::CurrentTime {
-                time,
-                position,
-                ..
+                time, position, ..
             })) => {
                 assert!(time.0 > 0, "position {time:?}");
-                assert!(
-                    (0.0..=1.0).contains(&position),
-                    "fraction {position}"
-                );
+                assert!((0.0..=1.0).contains(&position), "fraction {position}");
             }
             other => unreachable!("current-time must complete: {other:?}"),
         }
@@ -1874,10 +1844,7 @@ mod tests {
             }
             other => unreachable!("tracks must complete: {other:?}"),
         }
-        match host
-            .dispatch(&request(Command::SystemGetEngineInfo))
-            .result
-        {
+        match host.dispatch(&request(Command::SystemGetEngineInfo)).result {
             Ok(CommandOutcome::Completed(CommandResult::EngineInfo { info })) => {
                 assert_eq!(info.host, "web");
                 assert!(
@@ -1965,9 +1932,7 @@ mod tests {
         host.handle(HostToWorker::Shutdown);
         let outbound = host.take_outbound();
         assert!(
-            outbound
-                .iter()
-                .any(|message| *message == WorkerToHost::ShutdownComplete),
+            outbound.contains(&WorkerToHost::ShutdownComplete),
             "the shutdown acknowledgment is queued: {outbound:?}"
         );
         assert!(host.session_id().is_none(), "the session is closed");

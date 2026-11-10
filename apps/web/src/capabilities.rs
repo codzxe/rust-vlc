@@ -114,9 +114,7 @@ impl HostCapabilities {
     /// typed refusals cite the same rows — one source of truth).
     #[must_use]
     pub fn blocked_row(&self, capability: &str) -> Option<&BlockedCapability> {
-        self.blocked
-            .iter()
-            .find(|row| row.capability == capability)
+        self.blocked.iter().find(|row| row.capability == capability)
     }
 }
 
@@ -306,7 +304,10 @@ mod tests {
     fn blocked_row_lookup_answers_by_name() {
         let caps = capabilities(TargetProfile::Native);
         let row = caps.blocked_row("rtsp-rtp-udp-access");
-        assert_eq!(row.map(|row| row.status), Some(CapabilityStatus::Unsupported));
+        assert_eq!(
+            row.map(|row| row.status),
+            Some(CapabilityStatus::Unsupported)
+        );
         assert!(caps.blocked_row("no-such-capability").is_none());
     }
 

@@ -22,8 +22,8 @@
 
 use commands::catalog::types::SourceSpec;
 use commands::{CommandError, ErrorCode, Stage};
-use demux::avi::header::StreamFormat;
 use demux::avi::AviDemuxer;
+use demux::avi::header::StreamFormat;
 use media_clock::NANO_BASE;
 use media_probe::{ProbeConfig, ProbeRegistry};
 use media_types::ids::SourceUri;
@@ -223,13 +223,9 @@ pub fn open(
         SourceSpec::Url { url } => url.strip_prefix("blob:").unwrap_or_default().to_string(),
         SourceSpec::File { .. } => String::new(),
     };
-    let mut stream = registry.open(&name).map_err(|err| {
-        CommandError::new(
-            Stage::Input,
-            ErrorCode::Inaccessible,
-            err.to_string(),
-        )
-    })?;
+    let mut stream = registry
+        .open(&name)
+        .map_err(|err| CommandError::new(Stage::Input, ErrorCode::Inaccessible, err.to_string()))?;
     // 1. Probe (the bounded, non-consuming window).
     let registry_probes = ProbeRegistry::with_builtins();
     let config = ProbeConfig::default();
@@ -275,13 +271,20 @@ fn harvest_facts(demuxer: &AviDemuxer, tracks: &[Track]) -> MediaFacts {
                 // One tick of the video base is one frame (AVI scale=1).
                 let frame_ns = (u64::from(track.timing.base.num)).saturating_mul(1_000_000_000)
                     / u64::from(track.timing.base.den);
-                ("mjpeg".to_string(), None, Some(frame_ns), Some((width, height)))
+                (
+                    "mjpeg".to_string(),
+                    None,
+                    Some(frame_ns),
+                    Some((width, height)),
+                )
             }
-            Some(stream_format @ StreamFormat::Pcm {
-                channels,
-                samples_per_sec,
-                ..
-            }) => {
+            Some(
+                stream_format @ StreamFormat::Pcm {
+                    channels,
+                    samples_per_sec,
+                    ..
+                },
+            ) => {
                 let codec = stream_format.codec_descriptor().to_string();
                 (
                     codec,
@@ -292,13 +295,7 @@ fn harvest_facts(demuxer: &AviDemuxer, tracks: &[Track]) -> MediaFacts {
             }
             None => ("unknown".to_string(), None, None, None),
         };
-        let span_end_ticks = track
-            .timing
-            .span
-            .end
-            .timestamp()
-            .ok()
-            .map(|ts| ts.ticks);
+        let span_end_ticks = track.timing.span.end.timestamp().ok().map(|ts| ts.ticks);
         facts.push(TrackFact {
             id: track.id,
             kind: track.kind,
@@ -404,11 +401,11 @@ pub(crate) fn host_error(
 mod tests {
     use super::*;
     use crate::capabilities::capabilities;
-    use testkit::{assert_err, fixture_bytes, Must};
+    use testkit::{Must, assert_err, fixture_bytes};
 
     /// The open path over the REAL first-vertical fixture: probe
     /// names `avi`, the facts carry the MJPEG dimensions and the PCM
-     /// geometry, and the wrapper's track list is the full pair.
+    /// geometry, and the wrapper's track list is the full pair.
     #[test]
     fn open_first_vertical_fixture_harvests_facts() {
         let bytes = fixture_bytes("generated/valid/avi_mjpeg_pcm.avi").must();

@@ -339,9 +339,9 @@ pub extern "C" fn lumen_web_output_len() -> u32 {
 mod tests {
     use super::*;
     use crate::protocol::{HostToWorker, PumpReport, WorkerToHost};
-    use commands::envelope::RequestId;
     use commands::Command;
-    use testkit::{fixture_bytes, Must};
+    use commands::envelope::RequestId;
+    use testkit::{Must, fixture_bytes};
 
     /// The in-memory MessagePort double: what the JS glue does —
     /// serialize a message, run it through the ABI's dispatch core,
@@ -404,9 +404,7 @@ mod tests {
                 assert_eq!(engine_info.host, "web");
                 assert_eq!(capabilities.threading.as_str(), "single");
                 assert!(
-                    capabilities
-                        .blocked_row("rtsp-rtp-udp-access")
-                        .is_some(),
+                    capabilities.blocked_row("rtsp-rtp-udp-access").is_some(),
                     "doc 09 §10's rows are typed data"
                 );
                 // The native profile claims its real decoders.
@@ -525,7 +523,7 @@ mod tests {
         //    reusable.
         let replies = port.post(&HostToWorker::Shutdown);
         assert!(
-            replies.iter().any(|reply| *reply == WorkerToHost::ShutdownComplete),
+            replies.contains(&WorkerToHost::ShutdownComplete),
             "{replies:?}"
         );
     }
@@ -541,7 +539,7 @@ mod tests {
             // Pad with spaces to a word boundary — JSON tolerates the
             // trailing whitespace, exactly the glue's contract.
             let mut padded = text.into_bytes();
-            while padded.len() % 4 != 0 {
+            while !padded.len().is_multiple_of(4) {
                 padded.push(b' ');
             }
             for chunk in padded.chunks(4) {
@@ -606,7 +604,7 @@ mod tests {
         let mut worker = AbiWorker::new();
         let mut pushed = 0_usize;
         while pushed <= MAX_INPUT_BYTES {
-            let word = [b'a', b'b', b'c', b'd'];
+            let word = *b"abcd";
             let buffered = worker.write_word(u32::from_le_bytes(word));
             if buffered == 0 {
                 break;

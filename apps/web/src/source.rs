@@ -197,7 +197,10 @@ mod tests {
         // Positional seeks, both origins.
         assert_eq!(source.seek(SeekOrigin::Start(5)).must(), SourcePosition(5));
         assert_eq!(source.read(2).must(), b"by");
-        assert_eq!(source.seek(SeekOrigin::Current(-2)).must(), SourcePosition(5));
+        assert_eq!(
+            source.seek(SeekOrigin::Current(-2)).must(),
+            SourcePosition(5)
+        );
         // Out-of-range is the typed refusal.
         let err = testkit::assert_err(source.seek(SeekOrigin::Start(99)), "seek past end");
         assert_eq!(err.stage, PipelineStage::Open);
