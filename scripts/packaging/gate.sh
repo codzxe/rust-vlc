@@ -69,11 +69,12 @@ done
 [ $fail -eq 0 ] && step "   all $(ls scripts/packaging/*.sh | wc -l | tr -d ' ') scripts parse clean"
 
 # --- 3. python syntax ----------------------------------------------------------
-step "3. packaging python tools py_compile"
+step "3. packaging python tools parse (ast.parse — no bytecode written)"
 for f in scripts/packaging/*.py; do
-    out=$(python3 -m py_compile "$f" 2>&1) || bad "py_compile $f: $out"
+    out=$(python3 -c 'import ast, sys; ast.parse(open(sys.argv[1], encoding="utf-8").read(), filename=sys.argv[1])' "$f" 2>&1) ||
+        bad "ast.parse $f: $out"
 done
-[ $fail -eq 0 ] && step "   python tools compile"
+[ $fail -eq 0 ] && step "   python tools parse"
 
 # --- 4. PowerShell structural sanity (honest: NOT a real parse) ---------------
 step "4. scripts/packaging/*.ps1 structural check (no pwsh in this sandbox)"

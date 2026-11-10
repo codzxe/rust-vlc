@@ -10,33 +10,35 @@
 # inputs are the release binaries and the pinned AppImage tools.
 #
 # Steps:
-#   1. scripts/packaging/build-deb.sh       — REAL .deb (native dpkg-deb)
-#                                            from the shared FHS payload
-#                                            (config-driven: dirs, docs,
-#                                            desktop entry, section)
-#   2. scripts/packaging/build-appimage.sh  — REAL .AppImage (pinned
-#                                            appimagetool + type2 runtime
-#                                            via APPIMAGETOOL/RUNTIME_FILE,
-#                                            shared desktop entry)
-#   3. build-rpm.sh --spec-only            — generated + structurally
-#                                            validated .spec (the binary
-#                                            rpm build is the CI step)
-#   4. deb launch tests (dpkg-deb -x, no root needed):
+#   1. build-targz.sh    — the flat archive (both binaries + the
+#                         [shipped] docs list) — content cross-checked.
+#   2. build-deb.sh       — REAL .deb (native dpkg-deb) from the shared
+#                         FHS payload (config-driven: dirs, docs,
+#                         desktop entry, section).
+#   3. build-appimage.sh  — REAL .AppImage (pinned appimagetool + type2
+#                         runtime via APPIMAGETOOL/RUNTIME_FILE,
+#                         shared desktop entry).
+#   4. rpm lane           — with rpmbuild (CI): REAL binary .rpm +
+#                         header/payload assertions vs config; without
+#                         (this Debian-family sandbox): spec generation
+#                         + structural validation, honestly labeled.
+#   5. deb launch tests (dpkg-deb -x, no root needed):
 #        <bindir>/<cli> --version          exit 0
 #        <bindir>/<cli> decode-bench <fx>  exit 0 + one BENCH line
 #        <bindir>/<desktop>                exit = the documented
 #                                            skeleton code (config)
 #        dpkg-deb -f Package/Version/Architecture == config values
 #        shipped docs present per packaging.toml [shipped] docs
-#   5. AppImage launch test: APPIMAGE_EXTRACT_AND_RUN=1 <image> exits
+#   6. AppImage launch test: APPIMAGE_EXTRACT_AND_RUN=1 <image> exits
 #      with the desktop skeleton code (no FUSE needed — same mechanism
 #      as the build step).
-#   6. Per-artifact-set SBOM: cargo run -p xtask --locked -- sbom
+#   7. tar.gz member check against the same [shipped] list.
+#   8. Per-artifact-set SBOM: cargo run -p xtask --locked -- sbom
 #      --out dist/<base>.<suffix> (CycloneDX 1.5, lockfile-derived —
 #      content identical per set, generated per artifact so each
 #      download is self-contained).
-#   7. Checksum manifest: dist/<manifest> over every artifact, with
-#      the algorithm from packaging.toml [checksum].
+#   9. Checksum manifest: dist/<manifest> over every artifact (+ each
+#      SBOM), with the algorithm from packaging.toml [checksum].
 #
 # Usage: verify-linux-artifacts.sh   (env from packaging-env.py +
 #        APPIMAGETOOL + RUNTIME_FILE + built release binaries)
@@ -81,21 +83,50 @@ mkdir -p "$DIST_DIR"
 dist_abs=$(cd "$DIST_DIR" && pwd)
 base="${PRODUCT_LOWER}-${PRODUCT_VERSION}-${ARCH_ID}-${OS_ID}"
 
-echo "=== 1. build .deb (native dpkg-deb; config-driven payload) ==="
+echo "=== 1. build .tar.gz (plain archive lane) ==="
+scripts/packaging/build-targz.sh
+
+echo "=== 2. build .deb (native dpkg-deb; config-driven payload) ==="
 scripts/packaging/build-deb.sh
 
-echo "=== 2. build .AppImage (pinned appimagetool; shared desktop entry) ==="
+echo "=== 3. build .AppImage (pinned appimagetool; shared desktop entry) ==="
 scripts/packaging/build-appimage.sh
 
-echo "=== 3. generate + validate the rpm .spec ==="
-scripts/packaging/build-rpm.sh --spec-only "$dist_abs/${base}.spec"
+echo "=== 4. rpm lane ==="
+rpm_path=""
+if command -v rpmbuild >/dev/null 2>&1; then
+    # Full binary build (CI lane: the workflow installs the rpm package).
+    scripts/packaging/build-rpm.sh
+    rpm_path="$dist_abs/${base}.rpm"
+    [ -s "$rpm_path" ] || die "rpm missing after build: $rpm_path"
+    # Header assertions, no root needed: the rpm IS what config says.
+    for field in "Name:$PRODUCT_LOWER" "Version:$(printf '%s' "$PRODUCT_VERSION" | sed 's/-/~/g')" \
+        "Release:$PACKAGING_RPM_RELEASE" "Summary:$PRODUCT_DESCRIPTION" \
+        "License:$PACKAGING_RPM_LICENSE" "Architecture:$ARCH_ID"; do
+        want_field=${field%%:*}
+        want_val=${field#*:}
+        got_val=$(rpm -qp --queryformat "%{$(printf '%s' "$want_field" | tr '[:lower:]' '[:upper:]')}" "$rpm_path" 2>/dev/null) ||
+            die "rpm -qp failed on $rpm_path"
+        [ "$got_val" = "$want_val" ] ||
+            die "rpm header field $want_field is '$got_val', config says '$want_val'"
+        echo "  rpm header: $want_field=$got_val"
+    done
+else
+    # Honest local half: spec generation + structural validation only.
+    echo "  rpmbuild absent on this host -- spec-only (the binary .rpm"
+    echo "  build runs in the CI lane where rpm is installed; labeled,"
+    echo "  never faked)"
+    scripts/packaging/build-rpm.sh --spec-only "$dist_abs/${base}.spec"
+fi
 
+targz="$dist_abs/${base}.tar.gz"
 deb="$dist_abs/${base}.deb"
 appimage="$dist_abs/${base}.AppImage"
+[ -s "$targz" ] || die "tar.gz missing after build: $targz"
 [ -s "$deb" ] || die "deb missing after build: $deb"
 [ -s "$appimage" ] || die "AppImage missing after build: $appimage"
 
-echo "=== 4. deb launch tests (extraction — no root) ==="
+echo "=== 5. deb launch tests (extraction — no root) ==="
 deb_root=$(mktemp -d)
 trap 'rm -rf "$deb_root"' EXIT INT TERM
 dpkg-deb -x "$deb" "$deb_root" || die "dpkg-deb -x failed on $deb"
@@ -152,15 +183,29 @@ for doc in $PACKAGING_DOCS; do
 done
 echo "  deb payload docs: $PACKAGING_DOCS"
 
-echo "=== 5. AppImage launch test (extract-and-run; no FUSE) ==="
+echo "=== 6. AppImage launch test (extract-and-run; no FUSE) ==="
 appimage_out=$(APPIMAGE_EXTRACT_AND_RUN=1 "$appimage" 2>&1) && app_rc=0 || app_rc=$?
 [ "$app_rc" -eq "$PACKAGING_LAUNCH_DESKTOP_PENDING_EXIT" ] ||
     die "AppImage exited $app_rc (expected the documented skeleton code $PACKAGING_LAUNCH_DESKTOP_PENDING_EXIT):
 $appimage_out"
 echo "  AppImage skeleton: exit $app_rc (as documented)"
 
-echo "=== 6. per-artifact-set SBOM (xtask sbom, CycloneDX 1.5) ==="
-for artifact_base in "$base.deb" "$base.AppImage" "$base.spec"; do
+echo "=== 7. tar.gz content check (the shipped list, cross-checked) ==="
+tar_list=$(tar -tzf "$targz")
+for member in "$BIN_CLI" "$BIN_DESKTOP" $PACKAGING_DOCS; do
+    printf '%s\n' "$tar_list" | grep -qx "$member" ||
+        die "tar.gz member missing: $member (expected: binaries + packaging.toml [shipped] docs)"
+done
+echo "  tar.gz members: $(printf '%s\n' "$tar_list" | tr '\n' ' ')"
+
+echo "=== 8. per-artifact-set SBOM (xtask sbom, CycloneDX 1.5) ==="
+sbom_subjects="$base.tar.gz $base.deb $base.AppImage"
+if [ -n "$rpm_path" ]; then
+    sbom_subjects="$sbom_subjects $base.rpm"
+else
+    sbom_subjects="$sbom_subjects $base.spec"
+fi
+for artifact_base in $sbom_subjects; do
     sbom_out="$dist_abs/${artifact_base}.${PACKAGING_SBOM_ARTIFACT_SUFFIX}"
     cargo run -p xtask --locked -- sbom --out "$sbom_out" >/dev/null ||
         die "xtask sbom failed for $sbom_out"
@@ -168,20 +213,21 @@ for artifact_base in "$base.deb" "$base.AppImage" "$base.spec"; do
     echo "  SBOM: $sbom_out ($(wc -c <"$sbom_out") bytes)"
 done
 
-echo "=== 7. checksum manifest ==="
+echo "=== 9. checksum manifest ==="
 case "$PACKAGING_CHECKSUM_ALGORITHM" in
     sha256) hasher=sha256sum ;;
     *) die "no wired hasher for algorithm ${PACKAGING_CHECKSUM_ALGORITHM}" ;;
 esac
 manifest="$dist_abs/$PACKAGING_CHECKSUM_MANIFEST"
 : >"$manifest"
-for artifact in "$deb" "$appimage" "$dist_abs/${base}.spec" \
+for artifact in $targz $deb $appimage ${rpm_path:-"$dist_abs/${base}.spec"} \
+    "$dist_abs/${base}.tar.gz.${PACKAGING_SBOM_ARTIFACT_SUFFIX}" \
     "$dist_abs/${base}.deb.${PACKAGING_SBOM_ARTIFACT_SUFFIX}" \
     "$dist_abs/${base}.AppImage.${PACKAGING_SBOM_ARTIFACT_SUFFIX}" \
-    "$dist_abs/${base}.spec.${PACKAGING_SBOM_ARTIFACT_SUFFIX}"; do
+    "$dist_abs/${base}.$( [ -n "$rpm_path" ] && printf rpm || printf spec ).${PACKAGING_SBOM_ARTIFACT_SUFFIX}"; do
     "$hasher" "$artifact" >>"$manifest"
 done
 echo "  manifest: $manifest"
 cat "$manifest"
 
-echo "verify-linux-artifacts.sh: PASS — deb + AppImage built, packaged binaries launch-tested, SBOMs + checksums written"
+echo "verify-linux-artifacts.sh: PASS — tar.gz + deb + AppImage (+ rpm where rpmbuild exists) built, packaged binaries launch-tested, SBOMs + checksums written"

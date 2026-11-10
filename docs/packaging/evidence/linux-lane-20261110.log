@@ -1,0 +1,99 @@
+=== 1. build .tar.gz (plain archive lane) ===
+build-targz.sh: wrote /tmp/w24c-dist/lumen-0.1.0-dev-x86_64-linux.tar.gz
+=== 2. build .deb (native dpkg-deb; config-driven payload) ===
+gen-icon: wrote /tmp/tmp.eSBxHiy39x/root/usr/share/icons/hicolor/512x512/apps/lumen.png (512x512 RGBA, fill #4f8cff, 1819 bytes)
+dpkg-deb: building package 'lumen' in '/tmp/w24c-dist/lumen-0.1.0-dev-x86_64-linux.deb'.
+build-deb.sh: wrote /tmp/w24c-dist/lumen-0.1.0-dev-x86_64-linux.deb (arch=amd64, section=video)
+=== 3. build .AppImage (pinned appimagetool; shared desktop entry) ===
+gen-icon: wrote /tmp/tmp.HjipIBDEDT/lumen.png (512x512 RGBA, fill #4f8cff, 1819 bytes)
+appimagetool, continuous build (git version 8c8c91f), build 296 built on 2025-12-04 17:55:56 UTC
+WARNING: appstreamcli command is missing, please install it if you want to use AppStream metadata
+Using architecture x86_64
+WARNING: AppStream upstream metadata is missing, please consider creating it
+         in usr/share/metainfo/lumen.appdata.xml
+         Please see https://www.freedesktop.org/software/appstream/docs/chap-Quickstart.html#sect-Quickstart-DesktopApps
+         for more information or use the generator at
+         https://docs.appimage.org/packaging-guide/optional/appstream.html#using-the-appstream-generator
+Generating squashfs...
+Parallel mksquashfs: Using 2 processors
+Creating 4.0 filesystem on /tmp/w24c-dist/lumen-0.1.0-dev-x86_64-linux.AppImage, block size 131072.
+[=================================================================|] 10/10 100%
+
+Exportable Squashfs 4.0 filesystem, zstd compressed, data block size 131072
+	compressed data, compressed metadata, compressed fragments,
+	compressed xattrs, compressed ids
+	duplicates are removed
+Filesystem size 320.28 Kbytes (0.31 Mbytes)
+	36.01% of uncompressed filesystem size (889.45 Kbytes)
+Inode table size 149 bytes (0.15 Kbytes)
+	51.92% of uncompressed inode table size (287 bytes)
+Directory table size 116 bytes (0.11 Kbytes)
+	77.85% of uncompressed directory table size (149 bytes)
+Number of duplicate files found 0
+Number of inodes 8
+Number of files 4
+Number of fragments 1
+Number of symbolic links 1
+Number of device nodes 0
+Number of fifo nodes 0
+Number of socket nodes 0
+Number of directories 3
+Number of hard-links 0
+Number of ids (unique uids + gids) 1
+Number of uids 1
+	root (0)
+Number of gids 1
+	root (0)
+Embedding ELF...
+Marking the AppImage as executable...
+Embedding MD5 digest
+Success
+
+Please consider submitting your AppImage to AppImageHub, the crowd-sourced
+central directory of available AppImages, by opening a pull request
+at https://github.com/AppImage/appimage.github.io
+/tmp/tmp.HjipIBDEDT/AppDir should be packaged as /tmp/w24c-dist/lumen-0.1.0-dev-x86_64-linux.AppImage
+build-appimage.sh: wrote /tmp/w24c-dist/lumen-0.1.0-dev-x86_64-linux.AppImage
+=== 4. rpm lane ===
+  rpmbuild absent on this host -- spec-only (the binary .rpm
+  build runs in the CI lane where rpm is installed; labeled,
+  never faked)
+gen-icon: wrote /tmp/tmp.YehHwAtDlm/lumen-0.1.0-dev/usr/share/icons/hicolor/512x512/apps/lumen.png (512x512 RGBA, fill #4f8cff, 1819 bytes)
+build-rpm.sh: wrote + validated /tmp/w24c-dist/lumen-0.1.0-dev-x86_64-linux.spec (rpm_version=0.1.0~dev)
+build-rpm.sh: spec-only mode — binary build needs rpmbuild (CI lane; local proof covers generation + validation only)
+=== 5. deb launch tests (extraction — no root) ===
+  CLI --version: lumen 0.1.0
+  CLI smoke decode: BENCH file=tests/fixtures/generated/valid/wav_pcm_s16le_44k1_st.wav bytes=35358 v_frames=0 v_decoded=0 a_frames=1 a_decoded=1 wall_s=0.004 decode_s=0.000
+  desktop skeleton: exit 86 (as documented)
+  deb control: Package=lumen
+  deb control: Version=0.1.0-dev
+  deb control: Architecture=amd64
+  deb payload docs: LICENSE README.md
+=== 6. AppImage launch test (extract-and-run; no FUSE) ===
+  AppImage skeleton: exit 86 (as documented)
+=== 7. tar.gz content check (the shipped list, cross-checked) ===
+  tar.gz members: lumen lumen-desktop LICENSE README.md 
+=== 8. per-artifact-set SBOM (xtask sbom, CycloneDX 1.5) ===
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+     Running `target/debug/xtask sbom --out /tmp/w24c-dist/lumen-0.1.0-dev-x86_64-linux.tar.gz.sbom.cdx.json`
+  SBOM: /tmp/w24c-dist/lumen-0.1.0-dev-x86_64-linux.tar.gz.sbom.cdx.json (121900 bytes)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running `target/debug/xtask sbom --out /tmp/w24c-dist/lumen-0.1.0-dev-x86_64-linux.deb.sbom.cdx.json`
+  SBOM: /tmp/w24c-dist/lumen-0.1.0-dev-x86_64-linux.deb.sbom.cdx.json (121900 bytes)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running `target/debug/xtask sbom --out /tmp/w24c-dist/lumen-0.1.0-dev-x86_64-linux.AppImage.sbom.cdx.json`
+  SBOM: /tmp/w24c-dist/lumen-0.1.0-dev-x86_64-linux.AppImage.sbom.cdx.json (121900 bytes)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running `target/debug/xtask sbom --out /tmp/w24c-dist/lumen-0.1.0-dev-x86_64-linux.spec.sbom.cdx.json`
+  SBOM: /tmp/w24c-dist/lumen-0.1.0-dev-x86_64-linux.spec.sbom.cdx.json (121900 bytes)
+=== 9. checksum manifest ===
+  manifest: /tmp/w24c-dist/SHA256SUMS.txt
+3b5eae753466e74cf63557415b82ed82a37c430c9463186d63a365c09ed4db4d  /tmp/w24c-dist/lumen-0.1.0-dev-x86_64-linux.tar.gz
+a39dafa880395deb08428ad7fc0481b53059dac704d89f1fccf4f8c36960b4c8  /tmp/w24c-dist/lumen-0.1.0-dev-x86_64-linux.deb
+c0b86e2984b15f763f9c686721493ea3d6cde4b979f6e7a910250d062eb6fb66  /tmp/w24c-dist/lumen-0.1.0-dev-x86_64-linux.AppImage
+17bd1068c8185ffec55a04022fb2a7b00859feb20da2cfd7d272a001837971e4  /tmp/w24c-dist/lumen-0.1.0-dev-x86_64-linux.spec
+f0b22c1bc2a8705d5d1f6e330efa201e842fa70eaf84bb626580ff8af6b75ad7  /tmp/w24c-dist/lumen-0.1.0-dev-x86_64-linux.tar.gz.sbom.cdx.json
+f0b22c1bc2a8705d5d1f6e330efa201e842fa70eaf84bb626580ff8af6b75ad7  /tmp/w24c-dist/lumen-0.1.0-dev-x86_64-linux.deb.sbom.cdx.json
+f0b22c1bc2a8705d5d1f6e330efa201e842fa70eaf84bb626580ff8af6b75ad7  /tmp/w24c-dist/lumen-0.1.0-dev-x86_64-linux.AppImage.sbom.cdx.json
+f0b22c1bc2a8705d5d1f6e330efa201e842fa70eaf84bb626580ff8af6b75ad7  /tmp/w24c-dist/lumen-0.1.0-dev-x86_64-linux.spec.sbom.cdx.json
+verify-linux-artifacts.sh: PASS — tar.gz + deb + AppImage (+ rpm where rpmbuild exists) built, packaged binaries launch-tested, SBOMs + checksums written

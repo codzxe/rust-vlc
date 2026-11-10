@@ -29,6 +29,10 @@ secrets/
 *.log
 !docs/gates/logs/**
 !docs/gates/logs/*.log
+# packaging-lane evidence logs are committed too (same D-d protocol;
+# task W24-C — see docs/packaging/evidence/README.md)
+!docs/packaging/evidence/**
+!docs/packaging/evidence/*.log
 /logs/
 tmp/
 .cache/
