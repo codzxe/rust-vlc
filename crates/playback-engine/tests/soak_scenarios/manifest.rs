@@ -104,6 +104,14 @@ pub struct ScenarioSpec {
     /// Engine polls between seeks (seek-storm) or the bounded advance
     /// after play (reopen-stress).
     pub advance_polls: u64,
+    /// Seeks per reopen epoch (seek-storm): after this many seeks the
+    /// session is drained to its end lane and closed, so the reopen
+    /// path (the scenario's cycle) is exercised deterministically
+    /// instead of waiting for a mid-media seek rotation to walk itself
+    /// to the end. The storm's SHAPE knob (an op-script count, not a
+    /// duration/budget/threshold) — default 16, raised per profile for
+    /// a stormier nightly (review W24-R4 P3-5).
+    pub seeks_per_reopen: u64,
     /// Per-scenario override of the leak ceiling (MB/h).
     pub leak_ceiling_mb_per_h: Option<f64>,
 }
@@ -607,13 +615,14 @@ fn parse_defaults(raw: &HashMap<String, RawValue>, source: &str) -> Result<Defau
 /// The legal `[[scenario]]` keys (the schema's
 /// `additionalProperties: false` set — `pub` for the binary root's
 /// loader/schema drift check).
-pub const SCENARIO_KEYS: [&str; 7] = [
+pub const SCENARIO_KEYS: [&str; 8] = [
     "id",
     "kind",
     "duration_min",
     "cycles",
     "fixtures",
     "advance_polls",
+    "seeks_per_reopen",
     "leak_ceiling_mb_per_h",
 ];
 
@@ -687,6 +696,13 @@ fn parse_scenario(
             "{source}: [[scenario]] {id:?} advance_polls = {advance_polls} is outside [0, 1024]"
         ));
     }
+    let seeks_per_reopen = raw_opt_int(raw, "seeks_per_reopen", source, &section)?.unwrap_or(16);
+    if !(1..=1024).contains(&seeks_per_reopen) {
+        return Err(format!(
+            "{source}: [[scenario]] {id:?} seeks_per_reopen = {seeks_per_reopen} is outside \
+             [1, 1024]"
+        ));
+    }
     let leak_ceiling_mb_per_h = raw_opt_float(raw, "leak_ceiling_mb_per_h", source, &section)?;
     if let Some(ceiling) = leak_ceiling_mb_per_h
         && ceiling <= 0.0
@@ -716,6 +732,7 @@ fn parse_scenario(
         cycles: cycles.map(i64::unsigned_abs),
         fixtures,
         advance_polls: advance_polls.unsigned_abs(),
+        seeks_per_reopen: seeks_per_reopen.unsigned_abs(),
         leak_ceiling_mb_per_h,
     })
 }
@@ -778,6 +795,34 @@ mod tests {
         assert_eq!(scenario.kind, Kind::PlayLoop);
         assert!((scenario.duration_min.must() - 0.25).abs() < 1e-9);
         assert_eq!(scenario.advance_polls, 1, "the documented default");
+        assert_eq!(scenario.seeks_per_reopen, 16, "the documented default");
+    }
+
+    #[test]
+    fn seeks_per_reopen_overrides_and_range_checks() {
+        let _serial = serial();
+        // The shape knob overrides the default (a stormier nightly's
+        // epoch); the minimal test above proves the default is 16 when
+        // the key is absent.
+        let body = MINIMAL.replace(
+            "duration_min = 0.25",
+            "duration_min = 0.25\nseeks_per_reopen = 64",
+        );
+        let manifest = load_text("seeks-override.toml", &body).must();
+        assert_eq!(manifest.scenarios[0].seeks_per_reopen, 64);
+
+        // Out-of-range values refuse loudly, the sentence naming the key.
+        for value in ["0", "2000"] {
+            let body = MINIMAL.replace(
+                "duration_min = 0.25",
+                &format!("duration_min = 0.25\nseeks_per_reopen = {value}"),
+            );
+            let error = load_text("seeks-range.toml", &body).err().must();
+            assert!(
+                error.contains("seeks_per_reopen") && error.contains("outside"),
+                "the sentence names the key and the problem: {error}"
+            );
+        }
     }
 
     #[test]

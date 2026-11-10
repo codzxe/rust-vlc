@@ -73,13 +73,6 @@ const PLAY_TO_END_POLLS: usize = 1024;
 /// per-cycle D-6 fact; the same category of structural bound as
 /// `PLAY_TO_END_POLLS`, not a config-plane duration).
 const DECODE_EVIDENCE_POLLS: usize = 64;
-/// Seeks per reopen epoch in the seek-storm (a structural bound of the
-/// storm's SHAPE, the `PLAY_TO_END_POLLS` category — an op-script
-/// count, not a duration/budget/threshold): after this many seeks the
-/// session is drained to its end lane and closed, so the reopen path
-/// (the scenario's cycle) is exercised deterministically instead of
-/// waiting for a mid-media seek rotation to walk itself to the end.
-const SEEKS_PER_REOPEN: usize = 16;
 /// The offset keeping this suite's external request ids clear of the
 /// host's internal allocator (collision is harmless by construction —
 /// the drain matches the id it submitted — distinct is just easier to
@@ -684,8 +677,9 @@ fn run_playlist_cycle(
 }
 
 /// The seek-storm scenario: a tight seek rotation against one open
-/// session (the `SEEKS_PER_REOPEN` rotation), then a bounded drain to
-/// the end lane and close — the reopen is the scenario's cycle.
+/// session (the `seeks_per_reopen` rotation, default 16), then a
+/// bounded drain to the end lane and close — the reopen is the
+/// scenario's cycle.
 fn run_seek_storm(
     spec: &ScenarioSpec,
     defaults: &Defaults,
@@ -702,7 +696,7 @@ fn run_seek_storm(
     let mut warmup = DurationClock::new(minutes, defaults);
     let mut ids = RequestIds::new();
     let mut seek_index = 0u64;
-    let mut seeks_this_epoch = 0usize;
+    let mut seeks_this_epoch = 0u64;
     let mut reopen_index = 0u64;
 
     while warmup.running() {
@@ -788,8 +782,9 @@ fn run_seek_storm(
         run.counts.frames_decoded = host.stats().frames_delivered;
 
         // The epoch end: bounded drain to the end lane, then close —
-        // the next loop iteration reopens (the cycle).
-        if seeks_this_epoch >= SEEKS_PER_REOPEN {
+        // the next loop iteration reopens (the cycle). The epoch
+        // length is the manifest's shape knob (default 16).
+        if seeks_this_epoch >= spec.seeks_per_reopen {
             host.pump_until(
                 |state| matches!(state, SessionState::Ended | SessionState::Error),
                 PLAY_TO_END_POLLS,
