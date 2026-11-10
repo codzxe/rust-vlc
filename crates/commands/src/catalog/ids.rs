@@ -172,7 +172,10 @@ stable_id_enum! {
 }
 
 stable_id_enum! {
-    /// One v1 catalog event (doc 05 §3.2 — 23 entries).
+    /// One v1 catalog event (doc 05 §3.2 — 23 entries + the 7.C1/7.D1
+    /// additive trio of issue #42: `video.backend-changed`,
+    /// `devices.volume-added`, `devices.volume-removed` — doc 05 §6.2
+    /// additive rows, 26 total).
     ///
     /// `session.state-changed`, `timing.seek-completed`,
     /// `timing.seek-failed`, `playback.error`, `tracks.changed`,
@@ -199,8 +202,9 @@ stable_id_enum! {
         // audio (§3.2)
         AudioDeviceLost => "audio.device-lost",
         AudioDeviceChanged => "audio.device-changed",
-        // video (§3.2)
+        // video (§3.2 + 7.C1 additive)
         VideoScreenshotSaved => "video.screenshot-saved",
+        VideoBackendChanged => "video.backend-changed",
         // playlist (§3.2)
         PlaylistChanged => "playlist.changed",
         // config (§3.2)
@@ -213,6 +217,9 @@ stable_id_enum! {
         SystemLog => "system.log",
         // media (§3.2)
         MediaInfoReady => "media.info-ready",
+        // devices (7.D1 additive, issue #42 — doc 05 §6.2)
+        DevicesVolumeAdded => "devices.volume-added",
+        DevicesVolumeRemoved => "devices.volume-removed",
     }
 }
 
@@ -263,10 +270,12 @@ mod tests {
 
     #[test]
     fn catalog_sizes_match_doc_05() {
-        // Doc 05 §2.1 lists 61 command entries (§3.2: 23 events); issue
-        // #32 adds the media.*-bookmark trio (64 total).
+        // Doc 05 §2.1 lists 61 command entries; issue #32 adds the three
+        // media.*-bookmark commands (64 total). Doc 05 §3.2 lists 23
+        // events; issue #42 adds the 7.C1/7.D1 additive trio (26 total,
+        // doc 05 §6.2 additive rules).
         assert_eq!(CommandId::ALL.len(), 64);
-        assert_eq!(EventId::ALL.len(), 23);
+        assert_eq!(EventId::ALL.len(), 26);
     }
 
     #[test]

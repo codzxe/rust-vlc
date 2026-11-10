@@ -687,7 +687,9 @@ pub const fn catalog_data() -> &'static [CommandSpec] {
     ]
 }
 
-/// The full event table, in doc 05 §3.2 order (23 rows).
+/// The full event table, in doc 05 §3.2 order (23 rows + the issue
+/// #42 additive trio: `video.backend-changed` in the video group,
+/// `devices.volume-added`/`-removed` as the new devices group).
 pub const fn event_catalog_data() -> &'static [EventSpec] {
     &[
         EventSpec {
@@ -771,6 +773,11 @@ pub const fn event_catalog_data() -> &'static [EventSpec] {
             rate: "discrete",
         },
         EventSpec {
+            id: EventId::VideoBackendChanged,
+            pipeline_scoped: false,
+            rate: "discrete",
+        },
+        EventSpec {
             id: EventId::PlaylistChanged,
             pipeline_scoped: false,
             rate: "model-edits-coalesced-100ms",
@@ -804,6 +811,16 @@ pub const fn event_catalog_data() -> &'static [EventSpec] {
             id: EventId::MediaInfoReady,
             pipeline_scoped: true,
             rate: "once-per-open",
+        },
+        EventSpec {
+            id: EventId::DevicesVolumeAdded,
+            pipeline_scoped: false,
+            rate: "discrete",
+        },
+        EventSpec {
+            id: EventId::DevicesVolumeRemoved,
+            pipeline_scoped: false,
+            rate: "discrete",
         },
     ]
 }

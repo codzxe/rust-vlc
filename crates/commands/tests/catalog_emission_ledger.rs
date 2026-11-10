@@ -1,6 +1,7 @@
 //! Card 3.B4 — the catalog-side emission ledger: the machine-checked
 //! twin of `crates/playback-engine/src/events.rs`'s module-doc audit
-//! table (doc 05 §3.2 — 23 rows, D-017-frozen).
+//! table (doc 05 §3.2 — 23 rows + the issue #42 additive trio, D-017
+//! count updated per doc 05 §6.2 additive rules).
 //!
 //! Every catalog [`EventId`] is accounted for exactly once, in one of
 //! two honest buckets:
@@ -147,16 +148,29 @@ const WIRED_BY_LATER: &[Row] = &[
         id: EventId::SystemLog,
         owner: "no logging bridge; doc 05 §3.4's burst-bound drop refinement activates here",
     },
+    Row {
+        id: EventId::VideoBackendChanged,
+        owner: "7.C1 (renderer fallback chain; the engine-side translation of renderer reports lands with this card's hotplug hooks)",
+    },
+    Row {
+        id: EventId::DevicesVolumeAdded,
+        owner: "7.D1 device-discovery (crate-side emission from real mount-table diffs; the engine-side relay joins with host wiring)",
+    },
+    Row {
+        id: EventId::DevicesVolumeRemoved,
+        owner: "7.D1 device-discovery (same)",
+    },
 ];
 
-/// The ledger partitions the catalog exactly: every one of the 23
-/// `EventId`s appears in exactly one bucket, no bucket mentions an id
+/// The ledger partitions the catalog exactly: every one of the 26
+/// `EventId`s (doc 05 §3.2's 23 + the issue #42 additive trio) appears
+/// in exactly one bucket, no bucket mentions an id
 /// that is not in the catalog (typo guard), and the arithmetic is the
-/// module-doc claim (11 + 12 = 23).
+/// module-doc claim (11 + 15 = 26).
 #[test]
 fn the_ledger_partitions_the_catalog_exactly() {
     assert_eq!(EMITTED.len(), 11, "the emitted bucket's count");
-    assert_eq!(WIRED_BY_LATER.len(), 12, "the later bucket's count");
+    assert_eq!(WIRED_BY_LATER.len(), 15, "the later bucket's count");
     assert_eq!(
         EMITTED.len() + WIRED_BY_LATER.len(),
         EventId::ALL.len(),

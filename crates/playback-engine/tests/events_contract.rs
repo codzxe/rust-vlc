@@ -764,6 +764,10 @@ fn every_catalog_row_sample() -> Vec<EventKind> {
             width: 1920,
             height: 1080,
         },
+        EventKind::VideoBackendChanged {
+            backend: "software".to_owned(),
+            reason: "hardware backend unavailable".to_owned(),
+        },
         EventKind::PlaylistChanged {
             change: PlaylistChange::ItemsAdded {
                 ids: vec![PlaylistItemId(1)],
@@ -795,19 +799,28 @@ fn every_catalog_row_sample() -> Vec<EventKind> {
             message: "line".to_owned(),
         },
         EventKind::MediaInfoReady { info: media_info },
+        EventKind::DevicesVolumeAdded {
+            id: "usb-1234".to_owned(),
+            label: "USB Drive".to_owned(),
+            volume_kind: commands::catalog::types::VolumeKind::Removable,
+        },
+        EventKind::DevicesVolumeRemoved {
+            id: "usb-1234".to_owned(),
+        },
     ]
 }
 
 /// The completeness map and the id bridge are bijections over the
-/// generated catalog (the source of truth): 23 rows, D-017-frozen,
-/// every id hit exactly once by the bridge, and the emitted/later
-/// split is the map's own arithmetic (12 + 11).
+/// generated catalog (the source of truth): 26 rows (D-017's 23 +
+/// the issue #42 additive trio), every id hit exactly once by the
+/// bridge, and the emitted/later split is the map's own arithmetic
+/// (12 + 14).
 #[test]
 fn the_completeness_map_and_bridge_are_catalog_bijections() {
     let samples = every_catalog_row_sample();
     assert_eq!(samples.len(), EventId::ALL.len());
-    assert_eq!(samples.len(), 23, "D-017: the frozen count");
-    assert_eq!(CATALOG_EMISSIONS.len(), 23);
+    assert_eq!(samples.len(), 26, "D-017 23 + the issue #42 trio");
+    assert_eq!(CATALOG_EMISSIONS.len(), 26);
     // The bridge hits every id exactly once, in doc table order.
     let bridged: Vec<EventId> = samples.iter().map(wire_event_id).collect();
     for (sample_id, catalog_id) in bridged.iter().zip(EventId::ALL) {
@@ -816,16 +829,16 @@ fn the_completeness_map_and_bridge_are_catalog_bijections() {
     let mut sorted = bridged.clone();
     sorted.sort_unstable();
     sorted.dedup();
-    assert_eq!(sorted.len(), 23, "no id hit twice");
+    assert_eq!(sorted.len(), 26, "no id hit twice");
     // The map agrees with the bridge row by row, and the split is
-    // 12 emitted + 11 later.
+    // 12 emitted + 14 later.
     let emitted = CATALOG_EMISSIONS
         .iter()
         .filter(|row| row.status.is_emitted())
         .count();
     assert_eq!(emitted, ENGINE_EMITTED_ROWS);
     assert_eq!(emitted, 12);
-    assert_eq!(CATALOG_EMISSIONS.len() - emitted, 11);
+    assert_eq!(CATALOG_EMISSIONS.len() - emitted, 14);
     for (row, id) in CATALOG_EMISSIONS.iter().zip(EventId::ALL) {
         assert_eq!(row.id, *id);
         assert_eq!(emission_status(*id), Some(row.status));

@@ -664,6 +664,13 @@ pub const CATALOG_EMISSIONS: &[CatalogEmission] = &[
             owner: "renderer/host work (the sink seam never writes files)",
         },
     },
+    CatalogEmission {
+        id: EventId::VideoBackendChanged,
+        status: EmissionStatus::WiredLater {
+            owner: "7.C1 (renderer fallback chain; the engine-side translation \
+             of renderer capability reports lands with the hotplug hooks)",
+        },
+    },
     // playlist (§3.2)
     CatalogEmission {
         id: EventId::PlaylistChanged,
@@ -708,6 +715,20 @@ pub const CATALOG_EMISSIONS: &[CatalogEmission] = &[
     CatalogEmission {
         id: EventId::MediaInfoReady,
         status: EmissionStatus::Emitted,
+    },
+    // devices (7.D1 additive, issue #42)
+    CatalogEmission {
+        id: EventId::DevicesVolumeAdded,
+        status: EmissionStatus::WiredLater {
+            owner: "7.D1 device-discovery (crate-side emission from real mount-table diffs; \
+             the engine-side relay joins with host wiring)",
+        },
+    },
+    CatalogEmission {
+        id: EventId::DevicesVolumeRemoved,
+        status: EmissionStatus::WiredLater {
+            owner: "7.D1 device-discovery (same)",
+        },
     },
 ];
 
@@ -760,6 +781,9 @@ pub fn wire_event_id(kind: &EventKind) -> EventId {
         EventKind::PluginsCrashed { .. } => EventId::PluginsCrashed,
         EventKind::SystemLog { .. } => EventId::SystemLog,
         EventKind::MediaInfoReady { .. } => EventId::MediaInfoReady,
+        EventKind::VideoBackendChanged { .. } => EventId::VideoBackendChanged,
+        EventKind::DevicesVolumeAdded { .. } => EventId::DevicesVolumeAdded,
+        EventKind::DevicesVolumeRemoved { .. } => EventId::DevicesVolumeRemoved,
     }
 }
 
@@ -1855,7 +1879,8 @@ mod tests {
 
     /// The map is a bijection onto the generated catalog (the source
     /// of truth): same count, same order, every id exactly once, and
-    /// the arithmetic is the module-doc claim (12 + 11 = 23, D-017).
+    /// the arithmetic is the module-doc claim (12 + 14 = 26 — 23
+    /// D-017 rows + the issue #42 additive trio, doc 05 §6.2).
     #[test]
     fn the_completeness_map_partitions_the_catalog_exactly() {
         assert_eq!(
@@ -1863,7 +1888,7 @@ mod tests {
             EventId::ALL.len(),
             "the map must carry one row per catalog id"
         );
-        assert_eq!(EventId::ALL.len(), 23, "D-017: the frozen count");
+        assert_eq!(EventId::ALL.len(), 26, "D-017 + the issue #42 trio");
         // Table order mirrors the catalog's own order.
         for (row, id) in CATALOG_EMISSIONS.iter().zip(EventId::ALL) {
             assert_eq!(row.id, *id, "the map must mirror doc 05 §3.2 order");
@@ -1874,8 +1899,8 @@ mod tests {
             .count();
         let later = CATALOG_EMISSIONS.len() - emitted;
         assert_eq!(emitted, ENGINE_EMITTED_ROWS, "the emitted count");
-        assert_eq!(later, 11, "the honest later bucket");
-        assert_eq!(emitted + later, 23, "12 emitted + 11 later = 23");
+        assert_eq!(later, 14, "the honest later bucket");
+        assert_eq!(emitted + later, 26, "12 emitted + 14 later = 26");
         // Every later row names its owner (a trigger-less row with no
         // owner is silence, not honesty).
         for row in CATALOG_EMISSIONS {
