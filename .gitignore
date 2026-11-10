@@ -104,6 +104,6 @@ corpus-v4/
 # stray build dir committed in 67d567d - never again
 target-w23e/
 target-w*/
-# isolated xtask build dir (built with CARGO_TARGET_DIR=target-xtask to
-# avoid contending with the shared rust-vlc/target) — build output, never commit
-target-xtask/
+# NOTE: target-xtask/ is ignored once, at the top with the Rust target/ block
+# (lane d's ecc615e placement — W24-O r3 IN-9 fix: lane g's 56b59c1 added the
+# same pattern again here; duplicate dropped in the rehearsal union).
