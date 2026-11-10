@@ -253,6 +253,42 @@ fn spam_wasm() -> Vec<u8> {
     w.finish()
 }
 
+/// A wasm that opens one guest-named file in the jail (the bounded-
+/// slurp poker for the cap-boundary cases of sweep 2/4).
+fn open_name_wasm(name: &str) -> Vec<u8> {
+    let mut w = common::Wasm::new();
+    let fs_open = w.import("lumen:v1.fs", "fs_open", &[I32, I32, I32], &[I32]);
+    w.data(0, name.as_bytes());
+    let f = w.func(
+        &[],
+        &[I32],
+        &[],
+        &code(&[
+            &i32c(0),
+            &i32c(name.len() as i32),
+            &i32c(4096),
+            &call(fs_open),
+        ]),
+    );
+    w.export_func("open", f);
+    w.finish()
+}
+
+/// The device prober: `devices_list` with a 1024-byte out buffer
+/// (tiny-limit transfer cap: exactly at it).
+fn devices_wasm() -> Vec<u8> {
+    let mut w = common::Wasm::new();
+    let devices_list = w.import("lumen:v1.devices", "devices_list", &[I32, I32, I32], &[I32]);
+    let f = w.func(
+        &[],
+        &[I32],
+        &[],
+        &code(&[&i32c(0), &i32c(1024), &i32c(2048), &call(devices_list)]),
+    );
+    w.export_func("list", f);
+    w.finish()
+}
+
 /// A jail rooted at `media`, with `a.txt` inside and (unix) a
 /// symlink `escape` pointing at a sibling secret directory.
 fn media_jail(tmp: &common::TempDir) -> PathJail {
@@ -595,6 +631,150 @@ fn plugin_io_abuse() {
     assert_eq!(ok(wired.invoke("fetch_ok", &[])), vec![0]);
     let body = ok(wired.read_guest_memory(1024, 22));
     assert_eq!(body, b"payload-from-transport");
+}
+
+// ---------------------------------------------------------------------------
+// §9.4 sweep-2 regressions (issue #52, plugins sweep)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn oob_probes_trip_the_disable_threshold() {
+    // Regression (sweep 2/4): repeated out-of-bounds buffer probes
+    // are escalation attempts like any other (doc 06 §5.3) — the
+    // third faults and disables the instance instead of being
+    // answered with E_OOB forever (the pre-fix gap: the events were
+    // counted but the threshold was never enforced on this path).
+    let wasm = oob_wasm();
+    let ledger = SecurityLedger::new();
+    let mut poke = ok(spawn_with_ledger(
+        &wasm,
+        manifest(&manifest_toml(&wasm, "")),
+        HostServices::empty(),
+        ledger,
+    ));
+    assert_eq!(
+        ok(poke.invoke("poke_oob", &[])),
+        vec![4],
+        "E_OOB is still the guest-observable denial below threshold"
+    );
+    assert_eq!(ok(poke.invoke("poke_oob", &[])), vec![4]);
+    assert_eq!(poke.ledger().escalation_count(), 2);
+    let err = poke
+        .invoke("poke_oob", &[])
+        .err()
+        .unwrap_or_else(|| unreachable!("third OOB probe must fault"));
+    assert!(
+        matches!(err, HostError::ExtensionDisabled { .. }),
+        "threshold disable, got: {err}"
+    );
+    assert_eq!(poke.ledger().escalation_count(), 3);
+    assert!(matches!(poke.status(), InstanceStatus::Faulted { .. }));
+    assert!(matches!(
+        poke.invoke("poke_ok", &[]),
+        Err(HostError::InstanceFaulted { .. })
+    ));
+    // THE HOST SURVIVES: a fresh instance of the same module still
+    // runs (session-ledger disable is per spawn share; the registry
+    // wide disable is the host scheduler's concern, issue #46).
+    let mut fresh = ok(spawn(
+        &wasm,
+        manifest(&manifest_toml(&wasm, "")),
+        HostServices::empty(),
+    ));
+    assert_eq!(ok(fresh.invoke("poke_ok", &[])), vec![0]);
+}
+
+#[test]
+fn fs_open_slurp_is_bounded() {
+    // Regression (sweep 2/4): the single-transfer cap is enforced on
+    // the READ from the opened handle (at most cap+1 bytes ever
+    // cross), not on a pre-read metadata snapshot — a file swapped or
+    // grown between check and slurp cannot exhaust the host heap.
+    let tmp = common::TempDir::new("bounded");
+    let media = tmp.path().join("media");
+    ok(std::fs::create_dir_all(&media).map_err(|e| e.to_string()));
+    // Tiny limits: io_transfer_bytes = 1024.
+    ok(std::fs::write(media.join("exact.bin"), vec![b'e'; 1024]).map_err(|e| e.to_string()));
+    ok(std::fs::write(media.join("over.bin"), vec![b'o'; 1025]).map_err(|e| e.to_string()));
+    ok(std::fs::write(media.join("small.bin"), b"hi").map_err(|e| e.to_string()));
+    let jail = ok(PathJail::new([&media]));
+
+    let spawn_fs = |name: &str| {
+        let wasm = open_name_wasm(name);
+        spawn(
+            &wasm,
+            manifest(&manifest_toml(&wasm, "fs-sandboxed-read = true")),
+            HostServices {
+                jail: Some(jail.clone()),
+                ..HostServices::empty()
+            },
+        )
+    };
+
+    // Cap-exact opens; the handle is index 0.
+    let mut exact = ok(spawn_fs("exact.bin"));
+    assert_eq!(ok(exact.invoke("open", &[])), vec![0]);
+    let handle_bytes = ok(exact.read_guest_memory(4096, 4));
+    assert_eq!(
+        u32::from_le_bytes([
+            handle_bytes[0],
+            handle_bytes[1],
+            handle_bytes[2],
+            handle_bytes[3]
+        ]),
+        0
+    );
+
+    // Cap+1 is E_TOO_LARGE — and a quota refusal is NOT an escalation
+    // (only permission denials count toward the disable threshold).
+    let mut over = ok(spawn_fs("over.bin"));
+    assert_eq!(
+        ok(over.invoke("open", &[])),
+        vec![6],
+        "E_TOO_LARGE at cap+1"
+    );
+    assert!(
+        over.ledger().events().is_empty(),
+        "quota refusals are not escalations"
+    );
+    assert!(matches!(over.status(), InstanceStatus::Ready));
+
+    // The happy path is unaffected.
+    let mut small = ok(spawn_fs("small.bin"));
+    assert_eq!(ok(small.invoke("open", &[])), vec![0]);
+}
+
+#[test]
+fn devices_list_is_bucket_metered() {
+    // Regression (sweep 2/4): the device inventory is data crossing
+    // the seam at guest-chosen call frequency — it charges the I/O
+    // token bucket like `fs_read`/`http_get`. Under tiny limits
+    // (1 KiB burst) the second listing is E_QUOTA; the transfer cap
+    // alone was not a rate limit (the pre-fix gap).
+    let wasm = devices_wasm();
+    let inventory = "gpu: synthetic (v1 inventory snapshot)";
+    let mut dev = ok(spawn(
+        &wasm,
+        manifest(&manifest_toml(&wasm, "device-query = true")),
+        HostServices {
+            device_inventory: inventory.to_string(),
+            ..HostServices::empty()
+        },
+    ));
+    assert_eq!(ok(dev.invoke("list", &[])), vec![0], "first listing passes");
+    // The real bytes crossed: out_len at 2048 names the inventory.
+    let len_bytes = ok(dev.read_guest_memory(2048, 4));
+    let n = u32::from_le_bytes([len_bytes[0], len_bytes[1], len_bytes[2], len_bytes[3]]);
+    assert_eq!(n as usize, inventory.len());
+    let body = ok(dev.read_guest_memory(0, n as u64));
+    assert_eq!(body, inventory.as_bytes());
+    assert_eq!(
+        ok(dev.invoke("list", &[])),
+        vec![7],
+        "second listing is E_QUOTA (burst spent)"
+    );
+    // And the refusal is a quota, not an escalation.
+    assert!(dev.ledger().events().is_empty());
 }
 
 // ---------------------------------------------------------------------------
