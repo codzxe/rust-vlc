@@ -267,8 +267,14 @@ pub fn full_run(config: &Config) -> Result<(), ToolError> {
             .count()
     );
 
-    // 2. The live oracle (version-asserted before any use).
-    let live = oracle::LiveOracle::assert_version(config)?;
+    // 2. The live oracle (version-asserted before any use; a missing
+    //    binary on this host is a recorded absence — committed-record
+    //    rows, labeled — never an inference).
+    let oracle_state = oracle::LiveOracle::assert_version(config)?;
+    let live = match &oracle_state {
+        oracle::OracleState::Live(oracle) => Some(oracle),
+        oracle::OracleState::Absent(_) => None,
+    };
     let committed_oracle = oracle::committed_rows(config)?;
 
     // 3. The decode sweep, raw rows appended incrementally.
@@ -458,13 +464,20 @@ pub fn full_run(config: &Config) -> Result<(), ToolError> {
         }
         oracle_rows.push(row);
     }
-    let oracle_source = match &live {
-        Some(_) => format!(
+    let oracle_source = match &oracle_state {
+        oracle::OracleState::Live(_) => format!(
             "live run: the pinned VLC {} (version-asserted before use; invocation record in \
              the config + docs/corpus/vlc-diff-report-20261023.md §Oracle run 2026-11-09)",
-            config.oracle.vlc.as_ref().map(|v| v.version_line.clone()).unwrap_or_default()
+            config
+                .oracle
+                .vlc
+                .as_ref()
+                .map(|v| v.version_line.clone())
+                .unwrap_or_default()
         ),
-        None => "committed record only (no live oracle configured): docs/corpus/vlc-oracle-run-20261109.json".to_string(),
+        oracle::OracleState::Absent(reason) => {
+            format!("committed record only ({reason}): docs/corpus/vlc-oracle-run-20261109.json")
+        }
     };
     eprintln!(
         "compat-matrix: oracle comparisons: {} bit-exact, {} tolerance-pass, {} tolerance-fail, {} not-bit-exact, {} no-comparison",

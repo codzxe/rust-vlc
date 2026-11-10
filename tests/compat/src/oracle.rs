@@ -14,8 +14,11 @@
 //!
 //! The live oracle is the pinned Debian build of VLC 3.0.23, version
 //! asserted before any comparison (a mismatched oracle is refused).
-//! When no live VLC is configured the cells cite the committed
-//! 2026-11-09 record — labeled `committed-record`, never inferred.
+//! When no live VLC is available — not configured, or the configured
+//! binary absent on this host (the windows/macos CI lanes) — the cells
+//! cite the committed 2026-11-09 record, labeled `committed-record`,
+//! never inferred; a PRESENT but version-mismatched oracle stays a
+//! hard refusal.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -121,6 +124,18 @@ pub struct CommittedRow {
     samples_compared: Option<u64>,
 }
 
+/// The live-oracle state after the version assertion.
+pub enum OracleState {
+    /// The pinned VLC is present and its version line asserted.
+    Live(LiveOracle),
+    /// No live oracle: the recorded reason (cited verbatim in the
+    /// report). Rows then cite the committed 2026-11-09 record —
+    /// labeled `committed-record`, never inferred. An EXISTING but
+    /// version-mismatched oracle is still a hard refusal, never a
+    /// silent downgrade (see `assert_version`).
+    Absent(String),
+}
+
 /// The live-oracle handle: an asserted VLC invocation.
 pub struct LiveOracle {
     invocation: VlcInvocation,
@@ -141,12 +156,25 @@ pub enum VlcDump {
 }
 
 impl LiveOracle {
-    /// Assert the configured VLC's version line before first use.
-    pub fn assert_version(config: &Config) -> Result<Option<LiveOracle>, ToolError> {
+    /// Resolve the live oracle: present + version-asserted, or the
+    /// recorded reason it is absent. A configured binary that does not
+    /// exist on this host is an ABSENCE (the committed record is cited
+    /// instead, labeled) — the 3-OS CI lanes run where the pinned
+    /// Debian build is not installed. A configured binary whose
+    /// version line does not match the pin is a hard ERROR (an unpinned
+    /// oracle is refused, never silently used).
+    pub fn assert_version(config: &Config) -> Result<OracleState, ToolError> {
         let Some(invocation) = config.oracle.vlc.clone() else {
-            return Ok(None);
+            return Ok(OracleState::Absent("no live oracle configured".to_string()));
         };
         let bin = config.rel(&invocation.bin);
+        if !bin.exists() {
+            return Ok(OracleState::Absent(format!(
+                "the configured live VLC binary {} does not exist on this host — the committed \
+                 2026-11-09 record is cited instead (labeled committed-record, never inferred)",
+                bin.display()
+            )));
+        }
         let mut oracle = LiveOracle {
             invocation,
             bin,
@@ -166,7 +194,7 @@ impl LiveOracle {
             )));
         }
         oracle.version_record = Some(record);
-        Ok(Some(oracle))
+        Ok(OracleState::Live(oracle))
     }
 
     /// Dump one file's first audio track with VLC (`afile`), answer
