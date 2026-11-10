@@ -107,6 +107,7 @@ fn parse_args(argv: &[String]) -> Parsed {
 /// The usage text (also the `--help` output).
 fn usage() -> String {
     format!(
+        // lumen-allow-literal: binary/usage prose — the lumen-cli help.rs precedent: identity wiring pending (product-config joins with the rebrand-propagation card)
         "lumen-control-server — the Lumen loopback control surface (card 7.J1)\n\
          \n\
          USAGE:\n\
@@ -239,6 +240,7 @@ fn run(argv: &[String]) -> i32 {
             }
         }
     }
+    // lumen-allow-literal: lumen-control is the wire protocol name (doc 05 §5.4) — a rebrand must not rename the protocol on the wire; ws:// is the RFC 6455 URI scheme, not a network endpoint
     println!("lumen-control/{PROTOCOL_VERSION} listening on ws://{address}");
     // 4. Serve.
     let mut dispatch = CatalogDispatch::new(engine_info);

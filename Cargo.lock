@@ -160,7 +160,6 @@ dependencies = [
  "control-protocol",
  "product-config",
  "serde_json",
- "testkit",
  "toml",
 ]
 

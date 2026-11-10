@@ -44,8 +44,5 @@ product-config = { path = "../../crates/product-config" }
 serde_json = "1.0"
 toml = "1"
 
-[dev-dependencies]
-testkit = { path = "../../crates/testkit" }
-
 [lints]
 workspace = true
