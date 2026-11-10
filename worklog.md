@@ -905,3 +905,18 @@ Work Log:
 
 Stage Summary:
 - All 7 R3 findings fixed + 2 observations annotated; the gate report's NOT-PASSED verdict, findings, and evidence chain are unchanged — only accuracy/convention defects repaired. Ownership respected: docs/gates/phase7-exit.md + the three log files (header lines only) + this worklog entry (repo-root worklog.md per docs/worklog/README.md live-log convention). Verification greps: 30 wildcards, d33886e, R-16, :51-56, :303-324 all present; report remains valid markdown (table rows single-line, headers intact). Commit on w24/k, pushed origin w24/k; main untouched.
+
+---
+
+Task ID: W24-R2 (wave 24 review scout 2 — READ-ONLY docs-lane auditor)
+Agent: w24-r2
+Task: Audit origin/w24/e (issue #58 release-docs lane) for honesty and rule violations. Read-only; sole deliverable docs/reviews/w24-e-docs-findings.md on branch w24/r2.
+
+Work Log:
+- Fresh worktree wt/w24r2 @ 3596918 (w24/e tip, base c339ee8 = origin/main). 26 verification groups re-run (findings file §"What was sampled"): product-env.py --print (exact match incl. exit 0); two-track versioning confirmed in help.rs:101 + Cargo.tomls; release.yml YAML parse + 6 jobs/runners/continue-on-error/needs; all four xtask gates re-run via the cached binary — lint-literals 0/452, check-identity 0/453, sbom no-drift 157, config-validator 4 (all brand assets) — byte-for-byte matches; full_gate 9 steps (no config-validator) confirmed; matrix recompute 73/37/0 + 14/6/9/8 reproduced via tomllib; 53 format records; 8 matrix-row statuses vs records; 150 keymap bindings + 17 spot-checks; 14 areas / 21 ui / 32 settings / 5 crash keys; product.toml defaults; fixture 425516 bytes = BENCH example; CLI enum vs guide verbs; BENCH/state-changed/engine-info formats vs rc-smoke parsers; rc-smoke stub/mock audit (real, exit-gated, BLOCKED=fail, env-driven — no fakes found); F-1/F-2 probes (main 2 markers @15/100, w24/a 0 + 70ed69c/771259c exist, origin/w24/a absent); playwright 1.64.1 vs chromium-1200; overclaim greps zero live hits; 0 tags; phase6-exit PENDING; ADR register 12 files/11 rows + statuses verbatim + vaapi drift commits real; release-notes dry-run exit 0 (-20 cap; -50 first-release rule); RELEASE.md known-limit 1/2/5/6 numbering; PRODUCT_* env (no literals); proper per-file bash -n battery all green; routes/bindings.ts/npm scripts exist; no TODO markers; English throughout.
+- Findings: 0 P0, 0 P1, 3 P2 (audit §1.1 video-codec claimed-rows table lists blocked h264-software instead of implemented vp9; container-avi.md:68 + audio-pcm.md:58 cite never-committed docs/audit/rc-smoke-2026-11-10.md; release-checklist:51 bash -n multi-file command only checks the first of 8 scripts — conclusion independently re-verified true), 6 P3 (rg -c setting 33-vs-32 recording; "8 scripts" vs 7; streaming-dash 191-lib-tests stale by 13; GNU-only stat -c in rc-smoke check 6; w24/c now pushed; single consolidated worklog entry). None invalidate the lane's all-green docs verdict.
+- Not re-run: cargo-test gate rows inside format records + fresh rc-smoke execution (disk 97%/ENOSPC — matches the lane's own recorded limitation); "10 vCPU" environment claim unverifiable from this container (2 cores).
+- Output: docs/reviews/w24-e-docs-findings.md committed on w24/r2, pushed. No code touched; no other lanes modified.
+
+Stage Summary:
+- W24-E's docs are substantially honest: every load-bearing claim I could re-run reproduced exactly; the 3 P2s are accuracy defects inside the audit/checklist documents themselves (wrong row classification, dangling evidence pointer, defective verification command), each with a one-line fix, none changing the 8.G1 GREEN verdict or the 8.G2 runbook's conclusions.
