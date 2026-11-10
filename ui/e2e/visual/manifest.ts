@@ -62,6 +62,7 @@ export const ROUTES: readonly string[] = [
   "/onboarding",
   "/keyboard-shortcuts",
   "/open-network-stream",
+  "/discovery",
   // No literal /not-found route exists: navigating to an unmatched path
   // renders the catch-all `*` placeholder (App.tsx).
   "/not-found",
