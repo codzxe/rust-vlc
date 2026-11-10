@@ -143,7 +143,7 @@ $prevVersion = ($nums -join '.')
 Write-Output "upgrade test: current=$($env:MSI_VERSION) predecessor=$prevVersion (same frozen UpgradeCode $($env:PRODUCT_MSI_UPGRADE_CODE))"
 
 # --- 1. Build the predecessor MSI (same tree, lower version, unsigned) -------
-$work = Join-Path ([IO.Path]::GetTempPath()) ("lumen-upgrade-test-" + [IO.Path]::GetRandomFileName())
+$work = Join-Path ([IO.Path]::GetTempPath()) ("$($env:PRODUCT_LOWER)-upgrade-test-" + [IO.Path]::GetRandomFileName())
 New-Item -ItemType Directory -Path $work | Out-Null
 try {
     $env:DIST_DIR = $work
