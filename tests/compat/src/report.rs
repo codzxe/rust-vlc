@@ -1803,8 +1803,9 @@ fn render_markdown(config: &Config, report: &RunReport) -> String {
         ));
         for transition in &report.transitions {
             out.push_str(&format!(
-                "- **{}** (linux): `{}` → `{}` — {}\n  - next step: {}\n  - evidence: {}\n",
+                "- **{}** ({}): `{}` → `{}` — {}\n  - next step: {}\n  - evidence: {}\n",
                 transition.row,
+                transition.platform,
                 transition.from,
                 transition.to,
                 transition.reason,
