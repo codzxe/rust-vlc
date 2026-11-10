@@ -29,10 +29,19 @@ or a checksum-algorithm change touches TOML only — no script edits.
 
 ## Artifact matrix
 
-Naming: `<slug>-<version>-<arch>-<os>.<ext>` (all from config). Every
-artifact packages BOTH shipped binaries (`lumen` CLI — the real engine
-surface; `lumen-desktop` — the std-only ADR-004 skeleton that exits 86
-`WEBVIEW_PENDING`) plus the `packaging.toml [shipped]` docs list.
+Naming: `<slug>-<version>-<arch>-<os>.<ext>` (all from config).
+
+**Payload honesty** (W24-R1 P2-4 — the earlier "every artifact
+packages BOTH binaries + docs" claim was false for two artifact
+families and is replaced by this table):
+
+| Payload | Artifacts |
+|---|---|
+| BOTH shipped binaries (`lumen` CLI — the real engine surface; `lumen-desktop` — the std-only ADR-004 skeleton that exits 86 `WEBVIEW_PENDING`) **plus** the `packaging.toml [shipped]` docs list | `.tar.gz`, `.zip`, `.deb`, `.rpm`, `.msi` |
+| Desktop binary ONLY — the GUI-shell distribution channel (AppRun + desktop entry + icon; no CLI, no docs) | `.AppImage` (`build-appimage.sh`) |
+| Desktop binary + LICENSE/README in `Contents/Resources` (no CLI — GUI-shell bundle; the doc pair is hardcoded by the wave-22 `make-app.sh`, flagged as drift vs the `[shipped]` list) | macOS `.app`, `.dmg`, app-`.zip` (`make-app.sh` → `build-dmg.sh`) |
+
+The full matrix:
 
 | OS / arch | Artifact | Builder | Where it runs | Local proof |
 |---|---|---|---|---|

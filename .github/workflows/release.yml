@@ -6,8 +6,11 @@
 # real engine surface: demux/decode/playback through the ONE command
 # layer) and `lumen-desktop` (package desktop, apps/desktop — the
 # std-only ADR-004 composition-root skeleton, NOT a webview app yet).
-# Every artifact below packages BOTH binaries and says so honestly in
-# its metadata; nothing claims a GUI that does not exist.
+# Payload honesty (W24-R1 P2-4): tar.gz/zip/deb/rpm/msi package BOTH
+# binaries + the [shipped] docs list; the AppImage and the macOS
+# .app/.dmg/app-zip are DESKTOP-ONLY GUI-shell payloads (no CLI, no
+# docs) — per-artifact payload table in docs/packaging/README.md.
+# Nothing claims a GUI that does not exist.
 #
 # HONESTY NOTE — THIS WORKFLOW HAS NEVER EXECUTED (CI billing blocked):
 # every Actions run in this repository currently dies at 0 steps
