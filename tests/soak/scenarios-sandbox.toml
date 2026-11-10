@@ -1,0 +1,65 @@
+# The BOUNDED SANDBOX soak profile — card 8.C1, issue #54 (P8-3).
+#
+# The real, in-sandbox run of the scenario suite: ~34 minutes of real
+# engine playback across the five scenarios, every duration and cycle
+# count set HERE (the config-override path proven end-to-end — the
+# runner code is identical to the CI-short and nightly tiers; only
+# this file differs). Selected by:
+#
+#   SOAK_SCENARIOS=tests/soak/scenarios-sandbox.toml \
+#   SOAK_SCENARIOS_REPORT=<path> \
+#   cargo test -p playback-engine --test soak_scenarios --release -- --nocapture
+#
+# (scripts/soak-scenarios.sh wraps exactly this.)
+#
+# The asserted ceiling stays the generous 50 MB/h (this run MEASURES
+# the slopes; the 5 MB/h target is reported with a freeze-or-revise
+# verdict in docs/soak/soak-report-2026-11-10.md rather than asserted
+# from a 34-minute window — extrapolation honesty).
+
+schema = 1
+
+[defaults]
+sample_ms = 1000
+warmup_fraction = 0.15
+min_cycles = 3
+max_skip_rate = 0.25
+leak_ceiling_mb_per_h = 50.0
+target_mb_per_h = 5.0
+assert_target = false
+rss_growth_budget_mb = 8.0
+fd_growth_budget = 4
+live_growth_budget_bytes = 524288
+
+[[scenario]]
+id = "play-loop"
+kind = "play-loop"
+duration_min = 8.0
+fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/valid/avi_mjpeg_2pcm.avi", "generated/malformed/avi_mjpeg_pcm__trunc3.avi"]
+
+[[scenario]]
+id = "seek-storm"
+kind = "seek-storm"
+duration_min = 8.0
+advance_polls = 1
+fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/valid/avi_mjpeg_2pcm.avi"]
+
+[[scenario]]
+id = "playlist-cycle"
+kind = "playlist-cycle"
+duration_min = 8.0
+fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/valid/avi_mjpeg_2pcm.avi", "generated/malformed/avi_mjpeg_pcm__noidx0.avi"]
+
+[[scenario]]
+id = "open-close-churn"
+kind = "open-close-churn"
+cycles = 4000
+duration_min = 5.0
+fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/malformed/avi_mjpeg_pcm__trunc3.avi"]
+
+[[scenario]]
+id = "reopen-stress"
+kind = "reopen-stress"
+cycles = 1500
+duration_min = 5.0
+fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/valid/avi_mjpeg_2pcm.avi"]

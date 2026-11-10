@@ -1,0 +1,68 @@
+# The NIGHTLY soak scenario profile — card 8.C1, issue #54 (P8-3).
+#
+# Selected by the scheduled Soak-Nightly workflow:
+#   SOAK_SCENARIOS=tests/soak/scenarios-nightly.toml \
+#   cargo test -p playback-engine --test soak_scenarios --release -- --nocapture
+#
+# Total real wall budget: 4 h (240 min) across the five scenarios —
+# the card's "4 h × scenarios" tier, sized to the workflow's
+# 300-minute job timeout (build + run). Per-scenario minutes and cycle
+# counts are calibrated from the bounded sandbox run of 2026-11-10
+# (docs/soak/soak-report-2026-11-10.md §"cycle calibration"); the
+# first real nightly may re-balance them — that is a config edit in
+# THIS file, never a code change (the config path this suite exists to
+# prove).
+#
+# The 5 MB/h design target is ASSERTED here (assert_target = true):
+# the nightly is the tier the freeze-or-revise decision (docs/soak/)
+# is made against. A failure here is a FINDING, not noise — see the
+# workflow header for the triage posture.
+
+schema = 1
+
+[defaults]
+sample_ms = 1000
+warmup_fraction = 0.15
+min_cycles = 3
+max_skip_rate = 0.25
+# The asserted CI ceiling (generous — catches gross leaks only).
+leak_ceiling_mb_per_h = 50.0
+# The design target, asserted at this tier.
+target_mb_per_h = 5.0
+assert_target = true
+rss_growth_budget_mb = 8.0
+fd_growth_budget = 4
+live_growth_budget_bytes = 524288
+
+[[scenario]]
+id = "play-loop"
+kind = "play-loop"
+duration_min = 48.0
+fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/valid/avi_mjpeg_2pcm.avi", "generated/malformed/avi_mjpeg_pcm__trunc3.avi"]
+
+[[scenario]]
+id = "seek-storm"
+kind = "seek-storm"
+duration_min = 48.0
+advance_polls = 1
+fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/valid/avi_mjpeg_2pcm.avi"]
+
+[[scenario]]
+id = "playlist-cycle"
+kind = "playlist-cycle"
+duration_min = 48.0
+fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/valid/avi_mjpeg_2pcm.avi", "generated/malformed/avi_mjpeg_pcm__noidx0.avi"]
+
+[[scenario]]
+id = "open-close-churn"
+kind = "open-close-churn"
+cycles = 30000
+duration_min = 48.0
+fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/malformed/avi_mjpeg_pcm__trunc3.avi"]
+
+[[scenario]]
+id = "reopen-stress"
+kind = "reopen-stress"
+cycles = 12000
+duration_min = 48.0
+fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/valid/avi_mjpeg_2pcm.avi"]

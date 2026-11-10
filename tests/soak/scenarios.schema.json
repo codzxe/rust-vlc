@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lumen-player.example.org/schemas/soak-scenarios.v1.json",
+  "title": "Lumen soak scenario manifest",
+  "$comment": "tests/soak/scenarios.schema.json — the config plane of the soak scenario suite (card 8.C1, issue #54). Documents every manifest the suite loads: tests/soak/scenarios.toml (CI-short default), scenarios-nightly.toml (the 4 h tier driven by .github/workflows/soak-nightly.yml), scenarios-sandbox.toml (the bounded real-run profile), and any SOAK_SCENARIOS override. The Rust loader (crates/playback-engine/tests/soak_scenarios/manifest.rs) enforces the same contract at load time with loud refusals; this schema is the human/tool-facing statement of the shape for review and future CI wiring (see docs/soak/regression-guards.md for the wiring gap).",
+  "type": "object",
+  "required": ["schema", "defaults", "scenario"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": 1,
+      "$comment": "manifest shape version; the loader accepts only 1 (the boundaries.toml manifest-version discipline)."
+    },
+    "defaults": { "$ref": "#/$defs/defaults" },
+    "scenario": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/scenario" },
+      "$comment": "the scenario list, executed in file order; ids must be unique (loader-refused)."
+    }
+  },
+  "$defs": {
+    "defaults": {
+      "type": "object",
+      "required": ["sample_ms", "warmup_fraction", "min_cycles", "max_skip_rate",
+                   "leak_ceiling_mb_per_h", "target_mb_per_h", "assert_target",
+                   "rss_growth_budget_mb", "fd_growth_budget", "live_growth_budget_bytes"],
+      "additionalProperties": false,
+      "properties": {
+        "sample_ms": {
+          "type": "integer", "minimum": 1, "maximum": 600000,
+          "x-lumen-unit": "milliseconds",
+          "$comment": "memory-sampling cadence (RSS + live bytes), the SOAK_SAMPLE_MS discipline."
+        },
+        "warmup_fraction": {
+          "type": "number", "exclusiveMinimum": 0, "maximum": 0.5,
+          "$comment": "share of each scenario excluded from the slope fit; the loader also enforces min 1 s and at least one completed cycle."
+        },
+        "min_cycles": {
+          "type": "integer", "minimum": 1,
+          "$comment": "liveness floor: fewer completed cycles fails the scenario (D-6)."
+        },
+        "max_skip_rate": {
+          "type": "number", "exclusiveMinimum": 0, "maximum": 1,
+          "$comment": "maximum share of ops skipped for state reasons (seek-storm)."
+        },
+        "leak_ceiling_mb_per_h": {
+          "type": "number", "exclusiveMinimum": 0,
+          "x-lumen-unit": "MB/h",
+          "$comment": "the ASSERTED live-bytes slope ceiling; generous default (the tests/soak 50 MB/h precedent), tightened per profile."
+        },
+        "target_mb_per_h": {
+          "type": "number", "exclusiveMinimum": 0,
+          "x-lumen-unit": "MB/h",
+          "$comment": "the design target [PROPOSAL until the first real 4 h measurement]; reported always, asserted only where assert_target = true."
+        },
+        "assert_target": {
+          "type": "boolean",
+          "$comment": "true makes target_mb_per_h an asserted budget (the nightly tier) rather than a reported aspiration."
+        },
+        "rss_growth_budget_mb": {
+          "type": "number", "exclusiveMinimum": 0,
+          "x-lumen-unit": "MB",
+          "$comment": "count-driven scenarios: allowed VmRSS growth, post-warmup baseline → final sample."
+        },
+        "fd_growth_budget": {
+          "type": "integer", "minimum": 0,
+          "$comment": "count-driven scenarios: allowed growth in open file descriptors (/proc/self/fd; None off-Linux is reported as not-measurable)."
+        },
+        "live_growth_budget_bytes": {
+          "type": "integer", "minimum": 0,
+          "x-lumen-unit": "bytes",
+          "$comment": "count-driven scenarios: allowed counting-allocator live-bytes growth after the final close, post-warmup baseline."
+        }
+      }
+    },
+    "scenario": {
+      "type": "object",
+      "required": ["id", "kind", "fixtures"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string", "minLength": 1, "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "$comment": "stable scenario id (report keys, future quarantine references); unique across the manifest."
+        },
+        "kind": {
+          "enum": ["play-loop", "seek-storm", "playlist-cycle", "open-close-churn", "reopen-stress"],
+          "$comment": "selects the runner; the loader requires duration_min for the duration kinds and cycles for the count kinds."
+        },
+        "duration_min": {
+          "type": "number", "exclusiveMinimum": 0, "maximum": 10080,
+          "x-lumen-unit": "minutes",
+          "$comment": "REQUIRED for play-loop/seek-storm/playlist-cycle (real wall minutes, fractional legal). OPTIONAL wall-clock cap for the count kinds: the scenario stops early and reports the shortfall honestly."
+        },
+        "cycles": {
+          "type": "integer", "minimum": 1,
+          "$comment": "REQUIRED for open-close-churn/reopen-stress: the N of the N open→(play→)close cycles."
+        },
+        "fixtures": {
+          "type": "array", "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "$comment": "paths under tests/fixtures/ (rotation for play-loop/seek-storm, playlist order for playlist-cycle, rotation for the count kinds); existence-checked at load."
+        },
+        "advance_polls": {
+          "type": "integer", "minimum": 0, "maximum": 1024,
+          "default": 1,
+          "$comment": "seek-storm: engine polls between seeks (0 = seek back-to-back)."
+        },
+        "leak_ceiling_mb_per_h": {
+          "type": "number", "exclusiveMinimum": 0,
+          "x-lumen-unit": "MB/h",
+          "$comment": "optional per-scenario override of defaults.leak_ceiling_mb_per_h."
+        }
+      }
+    }
+  }
+}

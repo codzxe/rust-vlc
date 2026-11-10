@@ -1,0 +1,127 @@
+# The Lumen soak scenario manifest — card 8.C1, issue #54 (P8-3).
+#
+# This is the CONFIG PLANE of the soak suite: every duration, target,
+# budget, threshold and fixture list the scenario runners use is read
+# from this file (or an override file), never compiled in. The runner
+# is `cargo test -p playback-engine --test soak_scenarios` (the
+# `tests/soak_scenarios/` binary in the playback-engine crate); the
+# file it loads is selected by:
+#
+#   SOAK_SCENARIOS=<path>   — a workspace-relative or absolute manifest
+#                             path (the override path; the nightly and
+#                             the bounded-sandbox profiles are shipped
+#                             next to this file and selected this way).
+#                             Unset ⇒ this file.
+#   SOAK_SCENARIOS_ONLY=<id> — run only the named scenario (the sandbox
+#                             chunking knob: the dev sandbox's tool
+#                             calls are wall-capped below the bounded
+#                             profile's total, so the sandbox
+#                             measurement runs the scenarios as separate
+#                             processes, one per scenario, each a clean
+#                             allocator baseline; CI and the nightly
+#                             never set it).
+#   SOAK_SCENARIOS_REPORT=<path> — write the markdown suite report
+#                             here (always printed with --nocapture).
+#
+# Shape contract: `tests/soak/scenarios.schema.json` (JSON Schema,
+# draft 2020-12) documents the structure; the Rust loader
+# (`soak_scenarios/manifest.rs`) enforces the same contract at load
+# time — unknown keys, wrong types, out-of-range values and duplicate
+# scenario ids are loud refusals, never defaults (the SOAK_MINUTES
+# dirty-world discipline). The suite's validation test loads all three
+# shipped profiles through the loader and checks loader/schema key
+# drift.
+#
+# THIS FILE is the CI-short default: it runs as part of the plain
+# `cargo test --workspace` merge gate (ci.yml step 3), so its total
+# wall budget is bounded to ~1 minute of real playback. The 4 h tier
+# is `scenarios-nightly.toml`; the bounded sandbox profile is
+# `scenarios-sandbox.toml`.
+
+schema = 1
+
+[defaults]
+# Memory-sampling cadence (ms) — RSS + live bytes per sample.
+sample_ms = 1000
+# The warmup share of each scenario excluded from the slope fit
+# (pool sizing / allocator steady state; min 1 s, max 50 %, and at
+# least one completed cycle — the tests/soak/main.rs discipline).
+warmup_fraction = 0.15
+# Liveness (D-6): a scenario completing fewer cycles than this proves
+# nothing and fails.
+min_cycles = 3
+# Liveness (D-6): the maximum share of ops skipped for state reasons
+# (a scenario that skips its ops is a ritual, not a measurement).
+max_skip_rate = 0.25
+# The ASSERTED live-bytes slope ceiling (MB/h) — generous by default so
+# CI catches gross leaks without flaking (the tests/soak CEILING
+# precedent).
+leak_ceiling_mb_per_h = 50.0
+# The design TARGET (MB/h) [PROPOSAL until the first real 4 h
+# measurement blesses it — the freeze-or-revise decision lives in
+# docs/soak/soak-report-*.md]. Reported on every run; ASSERTED only
+# where `assert_target = true` (the nightly tier).
+target_mb_per_h = 5.0
+assert_target = false
+# Count-driven scenarios (reopen-stress, open-close-churn): the
+# allowed VmRSS growth from the post-warmup baseline to the final
+# sample (MB).
+rss_growth_budget_mb = 8.0
+# Count-driven scenarios: the allowed growth in open file descriptors
+# (/proc/self/fd on Linux; the instrument reads None elsewhere and the
+# budget is then reported as not-measurable, never silently passed).
+fd_growth_budget = 4
+# Count-driven scenarios: the allowed live-bytes (counting allocator)
+# growth from the post-warmup baseline after the final close (bytes).
+live_growth_budget_bytes = 524288
+
+# ---------------------------------------------------------------------------
+# The scenarios. `kind` selects the runner:
+#   play-loop        — duration-driven: open → play → advance to Ended →
+#                      close, cycling the fixture rotation (the playout
+#                      path).
+#   seek-storm       — duration-driven: open, then a tight rotation of
+#                      absolute/relative/percent seeks with small
+#                      advances between them; reopen when the session
+#                      leaves the playable states.
+#   playlist-cycle   — duration-driven: strict sequential playlist passes
+#                      over the fixture list (open → play to end → close
+#                      → next), wrap-around counted as passes.
+#   open-close-churn — count-driven: N rapid open → settle → close
+#                      cycles (no play-to-end), fd/RSS/live growth
+#                      detection.
+#   reopen-stress    — count-driven: N full open → play → close cycles
+#                      (the 8.C1 reopen-cycle stress), fd/RSS/live
+#                      growth detection.
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+id = "play-loop"
+kind = "play-loop"
+duration_min = 0.25
+fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/valid/avi_mjpeg_2pcm.avi", "generated/malformed/avi_mjpeg_pcm__trunc3.avi"]
+
+[[scenario]]
+id = "seek-storm"
+kind = "seek-storm"
+duration_min = 0.2
+advance_polls = 1
+fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/valid/avi_mjpeg_2pcm.avi"]
+
+[[scenario]]
+id = "playlist-cycle"
+kind = "playlist-cycle"
+duration_min = 0.2
+fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/valid/avi_mjpeg_2pcm.avi", "generated/malformed/avi_mjpeg_pcm__noidx0.avi"]
+
+[[scenario]]
+id = "open-close-churn"
+kind = "open-close-churn"
+cycles = 30
+fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/malformed/avi_mjpeg_pcm__trunc3.avi"]
+
+[[scenario]]
+id = "reopen-stress"
+kind = "reopen-stress"
+cycles = 20
+fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/valid/avi_mjpeg_2pcm.avi"]
