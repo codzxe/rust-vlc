@@ -1,0 +1,190 @@
+/* /convert (card 7.E3) — the conversion screen, Solstice v2 craft (brief
+ * §1/§2.5/§2.6): an APP-tier screen on the calm backdrop, the same centered
+ * anchored-column composition as /open-network-stream (a form, not a
+ * poster), standard-size action row, and a quiet glass queue panel with
+ * AA-contrast secondary ink. Semantic tokens only. */
+
+.convert {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: calc(var(--space-grid) * 6) calc(var(--space-grid) * 4);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-tape-edge) transparent;
+}
+
+/* The centered composition group (v2 §2.5): auto block margins center it
+ * vertically on tall viewports and keep the top reachable when it grows. */
+.convert__group {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-inset) * 3);
+  width: min(560px, 100%);
+  box-sizing: border-box;
+  margin-block: auto;
+}
+
+.convert__card {
+  width: 100%;
+  box-sizing: border-box;
+  padding: calc(var(--space-inset) * 3);
+  background: color-mix(in srgb, var(--color-surface-panel) 96%, transparent);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-card-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.convert__title {
+  margin: 0 0 var(--space-grid);
+  font-size: var(--font-size-display);
+  line-height: 1.1;
+  font-weight: var(--font-weight-extrabold);
+  color: var(--color-content-bright);
+}
+
+.convert__subtitle {
+  margin: 0 0 calc(var(--space-inset) * 2);
+  font-size: var(--font-size-body);
+  color: var(--color-content-secondary);
+}
+
+.convert__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-inset);
+  align-items: stretch;
+}
+
+.convert__form .lumen-field__control {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* The target picker: radiogroup + the selected target's honest note. */
+.convert__target {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-grid) / 2);
+}
+
+.convert__target-note {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+}
+
+/* Standard-size action row: the primary Start + the secondary Back sit
+ * end-aligned (v2 §2.6 — one button language, no full-width slabs). */
+.convert__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-grid);
+  flex-wrap: wrap;
+}
+
+/* The queue panel — the quiet glass shape of the recents panel. */
+.convert__queue {
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+  padding: calc(var(--space-inset) * 1.5);
+  background: color-mix(in srgb, var(--color-surface-panel) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-stroke-border) 80%, transparent);
+  border-radius: var(--radius-card);
+  backdrop-filter: blur(var(--blur-backdrop-small));
+  box-shadow: var(--shadow-card);
+}
+
+.convert__queue-title {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-content-secondary);
+}
+
+/* The honest unavailable banner — secondary ink, AA on the panel. */
+.convert__lane-note {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-content-secondary);
+}
+
+.convert__queue-empty {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-content-secondary);
+}
+
+.convert__queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* One job row: name + target + status (+ progress / cancel / detail). */
+.convert__job {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-grid) / 2);
+  padding: var(--space-grid) var(--space-inset);
+  background: color-mix(in srgb, var(--color-surface-raised) 30%, transparent);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-control);
+}
+
+.convert__job-name {
+  font-family: var(--font-family-time);
+  font-size: var(--font-size-caption);
+  color: var(--color-content-primary);
+  overflow-wrap: anywhere;
+}
+
+.convert__job-target {
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+}
+
+.convert__job-status {
+  align-self: flex-start;
+  padding: calc(var(--space-grid) / 4) calc(var(--space-grid) / 2);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.04em;
+  color: var(--color-content-secondary);
+  background: color-mix(in srgb, var(--color-surface-panel) 70%, transparent);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-control);
+}
+
+/* The honest partial: a cancelled running job keeps its last percent. */
+.convert__job-partial {
+  font-family: var(--font-family-time);
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+}
+
+.convert__job-progress {
+  width: 100%;
+  height: calc(var(--space-grid) / 2);
+}
+
+.convert__job-detail {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+  overflow-wrap: anywhere;
+}
+
+.convert__job-cancel {
+  align-self: flex-start;
+}
