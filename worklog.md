@@ -543,3 +543,21 @@ Work Log:
 Stage Summary:
 - D-10 four questions: MEASURE — gate counts above (328 markers, 340/341 allowlisted sites, 0 violations). NOT TESTED — per-crate test suites not re-run (disk-tight; clippy --all-targets compiled every test target; the diff is comments plus one semantically identical fuzz.rs `if let` restructure). WHAT BREAKS — a rebrand must hand-review 21 argv0/usage identity sites until the help.rs identity wiring [PROPOSAL] lands. WHO HITS IT FIRST — the next rebrand/localization card touching CLI prose.
 - Open: identity wiring for CLI argv0/usage strings stays a recorded [PROPOSAL] follow-up (config-driven lookup deferred to that card); C2 packaging-regen check still SKIP (no packaging plane).
+---
+Task ID: 7.w22b
+Agent: w22-b (platform crates final)
+Task: Land + verify the three L5 platform-adapter crates (issue #40, cards 7.A1/7.A2/7.A3) — repair the prior agents' uncommitted state, drive every gate.
+
+Work Log:
+- Reviewed the uncommitted state: 11+16+12 files across platform-windows/linux/macos + boundaries.toml rows (already present, correct: internal audio-output+media-types, dev testkit, zero external) + Cargo.lock additions. One mid-edit break: the windows Display test asserted the signed-HRESULT form while its literal was unsigned — fixed the literal to the com.rs storage form (`0x8001_0106u32 as i32 as i64`); assertion unchanged.
+- cf71390: landed the three crates (typed seams: AudioDevices/GpuAdapters/FileDialogs + PlatformReport negotiation, per-crate Unavailable* fallbacks; hand-rolled FFI only, module-scoped unsafe with per-block invariants).
+- Host ACTUAL: cargo test -p the three: 60 passed / 0 failed (linux 13 integrations + 15 seam, windows 16 seam, macos 16 seam). 2475274: fmt + clippy --all-targets -D warnings clean.
+- Cross-target (prior agent never ran them; cfg-gated code had never been typechecked): fixed 10 windows + 3 macos compile errors — spawn_sta double-Result flatten, `&'static str` thread names, PropVariantHeader Copy derive, unsafe-wrapped from_wide, explicit `'a` on client_of (watch-thread Box ownership as the invariant), mut binding for addr_of_mut, cfg-gated PlatformError imports, E_CONSOLE role filter wired into OnDefaultDeviceChanged (doc said it, code now does), msg_send_id_u64 import, and `allow(clashing_extern_declarations)` on the libobjc block with the trampoline soundness rationale. 2ca0554.
+- Cross-target ACTUAL: cargo check -p platform-windows --target x86_64-pc-windows-msvc [--all-targets] clean; -p platform-macos --target aarch64-apple-darwin and x86_64-apple-darwin [--all-targets] clean and warning-free.
+- 30612f3: reflowed 8 wrapped `lumen-allow-literal` markers to the gate's same-line/directly-above adjacency rule (wrapped reasons had left the marker 2+ lines off).
+- Gates ACTUAL: check-architecture 5/5 PASS; lint-literals PASS (0 violations, 348 allowlisted); check-identity PASS (0 violations, 349 allowlisted).
+- Runtime on this Linux host: PulseAudio dlopen probe loads libpulse but no server → typed ServiceUnavailable (the dependency-absent/absent-server honesty path, exercised for real); DRM sysfs scanner driven by fixture trees + live /sys; xdg chain driven by fake zenity/kdialog test doubles.
+
+Stage Summary:
+- D-10: MEASURE — 60/60 host tests, 3 foreign-target checks clean, 3 gates PASS. NOT TESTED — real Windows/macOS hardware and a live PulseAudio server ([VERIFY] registers in each crate's docs). WHAT BREAKS — the mirrored seam vocabulary across the three crates duplicates until the Lead's L5 unification [PROPOSAL]. WHO HITS IT FIRST — issues #41 (codec hw decode) / #42 (device-discovery) joining these edges.
+- Open: xdg-desktop-portal FileChooser D-Bus client is the recorded [PROPOSAL] follow-up (zenity/kdialog chain is the working path); pulse client-name + thread names are config-edge candidates once platform crates gain a product-config edge.
