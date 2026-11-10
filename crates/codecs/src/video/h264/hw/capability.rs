@@ -49,11 +49,13 @@ use codec_api::HwAccelerator;
 /// [`HwAccelerator::backend_id`] labels, one per per-OS adapter).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum HwBackend {
-    /// macOS VideoToolbox (`VTDecompressionSession`, lane 7.B2).
+    /// macOS VideoToolbox (`VTDecompressionSession`, lane 7.B1).
     VideoToolbox,
-    /// Windows Media Foundation (+ DXVA, lane 7.B3).
+    /// Windows Media Foundation (+ DXVA, lane 7.B2 — not yet
+    /// implemented; the label is the negotiated vocabulary's truth
+    /// either way).
     MediaFoundation,
-    /// Linux VA-API (`vaCreate*`, lane 7.B1 — activation
+    /// Linux VA-API (`vaCreate*`, lane 7.B3 — activation
     /// `[PROPOSAL]` pending ADR-013).
     VaApi,
 }

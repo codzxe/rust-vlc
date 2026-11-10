@@ -1,4 +1,4 @@
-//! The Linux hardware-decode lane: **VA-API** (card 7.B1, issue
+//! The Linux hardware-decode lane: **VA-API** (card 7.B3, issue
 //! #41; ADR-001 §5's E2 OS-service binding; ADR-013 **[PROPOSAL]**
 //! is the pending Lead decision record for this lane's activation).
 //!
@@ -158,7 +158,7 @@ impl HwAccelerator for VaApiAccelerator {
     }
 }
 
-/// The Linux lane's [`H264HwBridge`] plug (7.B1): claims exactly
+/// The Linux lane's [`H264HwBridge`] plug (7.B3): claims exactly
 /// [`VaApiAccelerator`] accelerators and mints an unopened
 /// [`VaApiSession`] bound to the accelerator's node.
 pub struct VaApiBridge;

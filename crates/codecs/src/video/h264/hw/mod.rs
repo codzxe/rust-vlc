@@ -43,13 +43,17 @@
 //! 7.B1 VideoToolbox, 7.B2 Media Foundation, 7.B3 VA-API):
 //!
 //! - **`videotoolbox`** (macOS, 7.B1): hand-rolled
-//!   `VTDecompressionSession*` FFI, compile-verified via
+//!   `VTDecompressionSession*` FFI + session, compile-verified via
 //!   `cargo check --target aarch64-apple-darwin`; runtime hardware
-//!   behavior NOT exercised — `[VERIFY]`.
-//! - **`mediafoundation`** (Windows, 7.B2): hand-rolled
-//!   `IMFTransform`/`MFTEnumEx` COM FFI, compile-verified via
-//!   `cargo check --target x86_64-pc-windows-msvc`; runtime hardware
-//!   behavior NOT exercised — `[VERIFY]`.
+//!   behavior NOT exercised — `[VERIFY]`. The lane's pure halves
+//!   (AVCC sample form, `CMTime` nanosecond round trip) are
+//!   OS-neutral and host-tested in [`feed`].
+//! - **Media Foundation** (Windows, 7.B2): **NOT IMPLEMENTED** —
+//!   no MF lane exists in this crate (the 7.B2 card is unclaimed
+//!   work; Windows builds carry the parser + seam only, and every
+//!   hardware attempt answers the typed `h264.hw.required` /
+//!   `no-bridge` truth). The bullet this one replaces claimed a
+//!   compile-verified MF FFI that does not exist — retracted.
 //! - **`vaapi`** (Linux, 7.B3): device-node discovery + runtime
 //!   `dlopen` of `libva` + typed probe. Runtime-tested here in its
 //!   **failure paths** (this sandbox has no GPU: the probe reports
@@ -85,9 +89,12 @@
 //! per §7.4.1.2.4 by [`super::decode`].
 
 pub mod capability;
+pub mod feed;
 pub mod frame_pool;
 #[cfg(target_os = "linux")]
 pub mod vaapi;
+#[cfg(target_os = "macos")]
+pub mod videotoolbox;
 
 use std::fmt;
 use std::sync::Arc;
@@ -449,6 +456,12 @@ pub fn installed_bridges() -> Vec<Arc<dyn H264HwBridge>> {
         b.push(Arc::new(vaapi::VaApiBridge));
         b
     };
+    #[cfg(target_os = "macos")]
+    let bridges = {
+        let mut b = bridges;
+        b.push(Arc::new(videotoolbox::VideoToolboxBridge));
+        b
+    };
     bridges
 }
 
@@ -487,14 +500,21 @@ pub fn negotiate_lane(policy: HwDecodePolicy) -> capability::Negotiation {
 }
 
 /// The lane label reported when no probe runs. On a target with a
-/// compiled lane that is its backend; elsewhere any label is nominal
+/// compiled lane that is its backend; elsewhere the label is nominal
 /// — the typed [`HwUnavailableReason`] carries the actual truth.
 fn nominal_lane_backend() -> capability::HwBackend {
-    // Linux's real lane label where compiled; the nominal tag
+    // The OS's lane label where one compiles; the nominal tag
     // elsewhere (every trail it appears in on those targets carries
     // `WrongOs`/`DisabledByPolicy` — the reason is the truth, not
-    // this label).
-    capability::HwBackend::VaApi
+    // this label). Windows's nominal tag is MediaFoundation: the
+    // 7.B2 lane this crate has not implemented (its builds compile
+    // no in-tree lane — see the module docs' honest status).
+    #[cfg(target_os = "linux")]
+    return capability::HwBackend::VaApi;
+    #[cfg(target_os = "macos")]
+    return capability::HwBackend::VideoToolbox;
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    return capability::HwBackend::MediaFoundation;
 }
 
 /// Probe this target's lane (never called under the OFF default).
@@ -507,9 +527,17 @@ fn discover_lane() -> (HwAvailability, Option<Arc<dyn HwAccelerator>>) {
     (availability, minted.map(|a| a as Arc<dyn HwAccelerator>))
 }
 
+/// The macOS arm of the lane probe (same contract as the Linux
+/// one above).
+#[cfg(target_os = "macos")]
+fn discover_lane() -> (HwAvailability, Option<Arc<dyn HwAccelerator>>) {
+    let (availability, minted) = videotoolbox::discover();
+    (availability, minted.map(|a| a as Arc<dyn HwAccelerator>))
+}
+
 /// The no-lane-compiled-target probe: the typed `WrongOs` truth (the
 /// nominal label is bookkeeping; see [`nominal_lane_backend`]).
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 fn discover_lane() -> (HwAvailability, Option<Arc<dyn HwAccelerator>>) {
     (
         HwAvailability::Unavailable {
@@ -533,7 +561,12 @@ mod tests {
             assert_eq!(bridges.len(), 1, "the VA-API lane only");
             assert_eq!(bridges[0].backend_id(), "hw.vaapi");
         }
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(target_os = "macos")]
+        {
+            assert_eq!(bridges.len(), 1, "the VideoToolbox lane only");
+            assert_eq!(bridges[0].backend_id(), "hw.videotoolbox");
+        }
+        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
         assert!(
             bridges.is_empty(),
             "no in-tree lane is compiled for this target"

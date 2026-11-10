@@ -140,6 +140,7 @@ mod tests {
     /// platform-linux fixture pattern; no dev-dependencies by C5).
     fn temp_root(tag: &str) -> PathBuf {
         let dir = std::env::temp_dir()
+            // lumen-allow-literal: identity — cfg(test) scratch dir prefix — test-only fixture, not a shipped surface
             .join("lumen-codecs-hw-vaapi-tests")
             .join(format!("{tag}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);

@@ -1,4 +1,4 @@
-//! The VA-API H.264 decode session (card 7.B1): the
+//! The VA-API H.264 decode session (card 7.B3): the
 //! [`H264HwDecoder`](super::H264HwDecoder) implementation for the
 //! Linux lane.
 //!
@@ -2011,6 +2011,7 @@ mod tests {
     fn probe_reports_no_device_node_on_a_dri_less_root() {
         // The sandbox reality as a fixture: no /dev/dri at all.
         let root = std::env::temp_dir()
+            // lumen-allow-literal: identity — cfg(test) scratch dir prefix — test-only fixture, not a shipped surface
             .join("lumen-codecs-hw-vaapi-probe-tests")
             .join(format!("none-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
@@ -2036,6 +2037,7 @@ mod tests {
             return; // chmod-000 denial is unprivileged-only (CI note)
         }
         let root = std::env::temp_dir()
+            // lumen-allow-literal: identity — cfg(test) scratch dir prefix — test-only fixture, not a shipped surface
             .join("lumen-codecs-hw-vaapi-probe-tests")
             .join(format!("perm-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
