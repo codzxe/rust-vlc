@@ -6,7 +6,7 @@
 | Run | `2026-11-10T19:27:42Z` on linux / x86_64 (arch recorded; the native lane decodes on exactly one host) |
 | Commit | `3dfe1c0b19c593011a5d238074fc4f67eb390882` |
 | Corpus | 46 committed + 54 malformed (error-contract) + 66 regenerable (manifest-anchored, `tests/compat/regen-corpus-manifest.json`) |
-| Oracle | live run: the pinned VLC VLC version 3.0.23 Vetinari (3.0.23-2-0-g79128878dd) (version-asserted before use; invocation record in the config + docs/corpus/vlc-diff-report-20261023.md §Oracle run 2026-11-09) |
+| Oracle | live run: the pinned VLC version 3.0.23 Vetinari (3.0.23-2-0-g79128878dd) (version-asserted before use; invocation record in the config + docs/corpus/vlc-diff-report-20261023.md §Oracle run 2026-11-09) |
 | Method | real decode through the player's open path (`lumen_cli::demux_host::open_source` → container registry → `HostDecoderProvider` → `codec_api::Decoder`); MD5-prefix + ratified f32 tolerance vs the pinned VLC 3.0.23 (see notes) |
 
 > **Provenance:** §1–§5 and §7 are the runner's machine rendering of the
@@ -16,9 +16,11 @@
 > post-run edits by the W24-P review-fix lane (branch `w24/p`, per the W24-L
 > audit `docs/reviews/w24-d-compat-findings.md`): the native cells for
 > `avi`/`wav` and §6.2 now surface the four in-row codec-level refusals
-> (finding P2-1). The machine JSON alongside and the raw rows (`.jsonl`,
-> immutable evidence) are the canonical records; the raw rows were never
-> edited.
+> (finding P2-1); the header's Oracle line lost a doubled "VLC" (P3-4 —
+> the renderer's format string, fixed in step, named VLC in front of a
+> `version_line` that already begins "VLC version …"). The machine JSON
+> alongside and the raw rows (`.jsonl`, immutable evidence) are the
+> canonical records; the raw rows were never edited.
 
 ## 1. Headline counts (the native lane)
 

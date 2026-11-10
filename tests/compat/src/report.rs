@@ -465,7 +465,7 @@ pub fn full_run(config: &Config) -> Result<(), ToolError> {
     }
     let oracle_source = match &oracle_state {
         oracle::OracleState::Live(_) => format!(
-            "live run: the pinned VLC {} (version-asserted before use; invocation record in \
+            "live run: the pinned {} (version-asserted before use; invocation record in \
              the config + docs/corpus/vlc-diff-report-20261023.md §Oracle run 2026-11-09)",
             config
                 .oracle
