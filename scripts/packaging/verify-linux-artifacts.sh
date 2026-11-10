@@ -10,10 +10,14 @@
 # inputs are the release binaries and the pinned AppImage tools.
 #
 # Steps:
-#   1. scripts/release/package-deb.sh      — REAL .deb (native dpkg-deb)
-#   2. scripts/release/make-appimage.sh    — REAL .AppImage (pinned
+#   1. scripts/packaging/build-deb.sh       — REAL .deb (native dpkg-deb)
+#                                            from the shared FHS payload
+#                                            (config-driven: dirs, docs,
+#                                            desktop entry, section)
+#   2. scripts/packaging/build-appimage.sh  — REAL .AppImage (pinned
 #                                            appimagetool + type2 runtime
-#                                            via APPIMAGETOOL/RUNTIME_FILE)
+#                                            via APPIMAGETOOL/RUNTIME_FILE,
+#                                            shared desktop entry)
 #   3. build-rpm.sh --spec-only            — generated + structurally
 #                                            validated .spec (the binary
 #                                            rpm build is the CI step)
@@ -23,6 +27,7 @@
 #        <bindir>/<desktop>                exit = the documented
 #                                            skeleton code (config)
 #        dpkg-deb -f Package/Version/Architecture == config values
+#        shipped docs present per packaging.toml [shipped] docs
 #   5. AppImage launch test: APPIMAGE_EXTRACT_AND_RUN=1 <image> exits
 #      with the desktop skeleton code (no FUSE needed — same mechanism
 #      as the build step).
@@ -47,6 +52,8 @@ set -eu
 : "${OS_ID:?verify-linux-artifacts.sh: OS_ID not set}"
 : "${ARCH_ID:?verify-linux-artifacts.sh: ARCH_ID not set}"
 : "${PACKAGING_LINUX_BINDIR:?verify-linux-artifacts.sh: PACKAGING_LINUX_BINDIR not set}"
+: "${PACKAGING_LINUX_DOCS_DIR:?verify-linux-artifacts.sh: PACKAGING_LINUX_DOCS_DIR not set}"
+: "${PACKAGING_DOCS:?verify-linux-artifacts.sh: PACKAGING_DOCS not set (packaging.toml shipped.docs)}"
 : "${PACKAGING_LAUNCH_VERSION_FLAG:?verify-linux-artifacts.sh: PACKAGING_LAUNCH_VERSION_FLAG not set}"
 : "${PACKAGING_LAUNCH_SMOKE_VERB:?verify-linux-artifacts.sh: PACKAGING_LAUNCH_SMOKE_VERB not set}"
 : "${PACKAGING_LAUNCH_SMOKE_FIXTURE:?verify-linux-artifacts.sh: PACKAGING_LAUNCH_SMOKE_FIXTURE not set}"
@@ -74,11 +81,11 @@ mkdir -p "$DIST_DIR"
 dist_abs=$(cd "$DIST_DIR" && pwd)
 base="${PRODUCT_LOWER}-${PRODUCT_VERSION}-${ARCH_ID}-${OS_ID}"
 
-echo "=== 1. build .deb (native dpkg-deb) ==="
-scripts/release/package-deb.sh
+echo "=== 1. build .deb (native dpkg-deb; config-driven payload) ==="
+scripts/packaging/build-deb.sh
 
-echo "=== 2. build .AppImage (pinned appimagetool) ==="
-scripts/release/make-appimage.sh
+echo "=== 2. build .AppImage (pinned appimagetool; shared desktop entry) ==="
+scripts/packaging/build-appimage.sh
 
 echo "=== 3. generate + validate the rpm .spec ==="
 scripts/packaging/build-rpm.sh --spec-only "$dist_abs/${base}.spec"
@@ -135,6 +142,15 @@ for field in "Package:$PRODUCT_LOWER" "Version:$PRODUCT_VERSION" "Architecture:$
         die "deb control field $want_field is '$got_val', config says '$want_val'"
     echo "  deb control: $want_field=$got_val"
 done
+
+# 4e. shipped docs present in the extracted tree, per packaging.toml
+# [shipped] docs (the same list the stager installed — cross-checked,
+# not assumed).
+for doc in $PACKAGING_DOCS; do
+    [ -f "$deb_root/$PACKAGING_LINUX_DOCS_DIR/$PRODUCT_LOWER/$doc" ] ||
+        die "shipped doc missing from the deb payload: $doc (packaging.toml shipped.docs)"
+done
+echo "  deb payload docs: $PACKAGING_DOCS"
 
 echo "=== 5. AppImage launch test (extract-and-run; no FUSE) ==="
 appimage_out=$(APPIMAGE_EXTRACT_AND_RUN=1 "$appimage" 2>&1) && app_rc=0 || app_rc=$?

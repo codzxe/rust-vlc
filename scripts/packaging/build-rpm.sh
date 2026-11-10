@@ -56,6 +56,7 @@ set -eu
 : "${PACKAGING_DESKTOP_CATEGORIES:?build-rpm.sh: PACKAGING_DESKTOP_CATEGORIES not set}"
 : "${PACKAGING_DESKTOP_TERMINAL:?build-rpm.sh: PACKAGING_DESKTOP_TERMINAL not set}"
 : "${PACKAGING_DEB_SECTION:?build-rpm.sh: PACKAGING_DEB_SECTION not set (shared staging sanity)}"
+: "${PACKAGING_DOCS:?build-rpm.sh: PACKAGING_DOCS not set (packaging.toml shipped.docs — the %files docs rows iterate it)}"
 TARGET_DIR=${TARGET_DIR:-target}
 DIST_DIR=${DIST_DIR:-dist}
 
@@ -85,66 +86,32 @@ case "$rpm_version" in
     *-*) die "internal: rpm version still contains a dash: $rpm_version" ;;
 esac
 
-# --- Stage the payload (same tree the deb ships) -----------------------------
-cli_bin="$TARGET_DIR/release/$BIN_CLI"
-desktop_bin="$TARGET_DIR/release/$BIN_DESKTOP"
-for f in "$cli_bin" "$desktop_bin" LICENSE README.md; do
-    [ -f "$f" ] || die "missing packaging input: $f (build first: cargo build --release --locked)"
-done
-
+# --- Stage the payload (the ONE shared FHS tree the deb ships) ---------------
+# stage-linux-payload.sh owns the layout: bins, shipped docs, desktop
+# entry (gen-desktop-entry.sh — the ONE writer) and icon, every path
+# from packaging.toml [linux] / [shipped] / [desktop_entry].
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT INT TERM
 payload="$stage/${PRODUCT_LOWER}-${PRODUCT_VERSION}"
-mkdir -p \
-    "$payload/$PACKAGING_LINUX_BINDIR" \
-    "$payload/$PACKAGING_LINUX_DOCS_DIR/$PRODUCT_LOWER" \
-    "$payload/$PACKAGING_LINUX_APPLICATIONS_DIR" \
-    "$payload/$PACKAGING_LINUX_ICONS_DIR"
-
-install -m 0755 "$cli_bin" "$payload/$PACKAGING_LINUX_BINDIR/$BIN_CLI"
-install -m 0755 "$desktop_bin" "$payload/$PACKAGING_LINUX_BINDIR/$BIN_DESKTOP"
-cp LICENSE README.md "$payload/$PACKAGING_LINUX_DOCS_DIR/$PRODUCT_LOWER/"
-chmod 0644 "$payload/$PACKAGING_LINUX_DOCS_DIR/$PRODUCT_LOWER/LICENSE" \
-    "$payload/$PACKAGING_LINUX_DOCS_DIR/$PRODUCT_LOWER/README.md"
-
-cat >"$payload/$PACKAGING_LINUX_APPLICATIONS_DIR/${PRODUCT_APPSTREAM_ID}.desktop" <<EOF
-[Desktop Entry]
-Type=Application
-Name=${PRODUCT_NAME}
-Comment=${PRODUCT_DESCRIPTION}
-Exec=${BIN_DESKTOP}
-Icon=${PRODUCT_LOWER}
-Terminal=${PACKAGING_DESKTOP_TERMINAL}
-Categories=${PACKAGING_DESKTOP_CATEGORIES}
-EOF
-
-# Icon: prefer the real brand asset; fall back to the documented
-# deterministic placeholder (scripts/release/gen-icon.py) until
-# assets/brand exists.
-icon_src="$payload/$PACKAGING_LINUX_ICONS_DIR/$PRODUCT_LOWER.png"
-if [ -f "$PRODUCT_ICON_PNG_512" ]; then
-    cp "$PRODUCT_ICON_PNG_512" "$icon_src"
-else
-    PY=$(command -v python3 || command -v python) ||
-        die "neither python3 nor python found on PATH (icon generation needs the stdlib)"
-    "$ROOT/scripts/release/gen-icon.py" "$icon_src" "$PRODUCT_ACCENT_COLOR"
-fi
-chmod 0644 \
-    "$payload/$PACKAGING_LINUX_APPLICATIONS_DIR/${PRODUCT_APPSTREAM_ID}.desktop" \
-    "$icon_src"
+mkdir -p "$payload"
+"$ROOT/scripts/packaging/stage-linux-payload.sh" "$payload"
 
 # The %files entries, generated BEFORE the heredoc so the spec stays
 # one clean config-driven template: leading slash = install position
-# (buildroot-relative), every path derived from the packaging config.
+# (buildroot-relative), every path derived from the packaging config;
+# the docs rows iterate the SAME packaging.toml [shipped] docs list the
+# payload stager installed (single source — they cannot drift).
 files_list=""
 for entry in "/$PACKAGING_LINUX_BINDIR/$BIN_CLI" \
     "/$PACKAGING_LINUX_BINDIR/$BIN_DESKTOP" \
-    "/$PACKAGING_LINUX_DOCS_DIR/$PRODUCT_LOWER/LICENSE" \
-    "/$PACKAGING_LINUX_DOCS_DIR/$PRODUCT_LOWER/README.md" \
     "/$PACKAGING_LINUX_APPLICATIONS_DIR/${PRODUCT_APPSTREAM_ID}.desktop" \
     "/$PACKAGING_LINUX_ICONS_DIR/$PRODUCT_LOWER.png"
 do
     files_list="$files_list$entry
+"
+done
+for doc in $PACKAGING_DOCS; do
+    files_list="$files_list/$PACKAGING_LINUX_DOCS_DIR/$PRODUCT_LOWER/$doc
 "
 done
 
