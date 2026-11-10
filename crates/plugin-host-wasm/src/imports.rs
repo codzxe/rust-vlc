@@ -28,7 +28,11 @@ use wasmi::{Caller, Engine, Extern, Linker, Memory};
 
 use plugin_api::ENGINE_PLUGIN_API_MAJOR;
 
-use crate::api::{GuestStatus, Grants};
+use crate::api::{
+    GuestStatus, Grants, MOD_DEVICES, MOD_FS, MOD_HOST, MOD_HTTP, MOD_LOG, MOD_UI,
+    IMP_DEVICES_LIST, IMP_FS_CLOSE, IMP_FS_OPEN, IMP_FS_READ, IMP_FS_SIZE,
+    IMP_HOST_REPORT_MANIFEST, IMP_HTTP_GET, IMP_LOG_WRITE, IMP_UI_REGISTER_PANEL,
+};
 use crate::error::HostError;
 use crate::limits::ESCALATION_DISABLE_THRESHOLD;
 use crate::state::{InstanceState, SecurityEvent};
@@ -246,17 +250,15 @@ pub fn check_import_policy(
 
 fn define_host(linker: &mut Linker<HostState>) -> Result<(), HostError> {
     linker
-        .func_wrap(
-            "lumen:v1.host",
-            "api_version",
-            |_caller: Caller<HostState>| -> i32 { ENGINE_PLUGIN_API_MAJOR as i32 },
-        )
+        .func_wrap(MOD_HOST, "api_version", |_caller: Caller<HostState>| -> i32 {
+            ENGINE_PLUGIN_API_MAJOR as i32
+        })
         .and_then(|l| {
             l.func_wrap(
-                "lumen:v1.host",
+                MOD_HOST,
                 "report_manifest",
                 |mut caller: Caller<HostState>, ptr: i32, len: i32| -> Result<i32, wasmi::Error> {
-                    let import = "lumen:v1.host::report_manifest";
+                    let import = IMP_HOST_REPORT_MANIFEST;
                     let caps = (
                         caller.data().limits.max_descriptor_bytes,
                         caller.data().limits.io_transfer_bytes,
@@ -327,10 +329,10 @@ fn define_host(linker: &mut Linker<HostState>) -> Result<(), HostError> {
 fn define_log(linker: &mut Linker<HostState>) -> Result<(), HostError> {
     linker
         .func_wrap(
-            "lumen:v1.log",
+            MOD_LOG,
             "log_write",
             |mut caller: Caller<HostState>, level: i32, ptr: i32, len: i32| -> i32 {
-                let import = "lumen:v1.log::log_write";
+                let import = IMP_LOG_WRITE;
                 if !(0..=4).contains(&level) {
                     caller.data_mut().trace_import(import, GuestStatus::EArg.code());
                     return GuestStatus::EArg.code();
@@ -368,10 +370,10 @@ fn define_log(linker: &mut Linker<HostState>) -> Result<(), HostError> {
 fn define_fs(linker: &mut Linker<HostState>) -> Result<(), HostError> {
     linker
         .func_wrap(
-            "lumen:v1.fs",
+            MOD_FS,
             "fs_open",
             |mut caller: Caller<HostState>, path_ptr: i32, path_len: i32, out_handle: i32| -> Result<i32, wasmi::Error> {
-                let import = "lumen:v1.fs::fs_open";
+                let import = IMP_FS_OPEN;
                 let caps = (4096, caller.data().limits.io_transfer_bytes);
                 let bytes = match read_guest(&mut caller, import, path_ptr, path_len, caps) {
                     Ok(bytes) => bytes,
@@ -463,7 +465,7 @@ fn define_fs(linker: &mut Linker<HostState>) -> Result<(), HostError> {
         )
         .and_then(|l| {
             l.func_wrap(
-                "lumen:v1.fs",
+                MOD_FS,
                 "fs_read",
                 |mut caller: Caller<HostState>,
                  handle: i32,
@@ -471,7 +473,7 @@ fn define_fs(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                  buf_cap: i32,
                  out_len: i32|
                  -> Result<i32, wasmi::Error> {
-                    let import = "lumen:v1.fs::fs_read";
+                    let import = IMP_FS_READ;
                     if handle < 0 || buf_ptr < 0 || buf_cap < 0 {
                         caller.data_mut().trace_import(import, GuestStatus::EArg.code());
                         return Ok(GuestStatus::EArg.code());
@@ -519,10 +521,10 @@ fn define_fs(linker: &mut Linker<HostState>) -> Result<(), HostError> {
         })
         .and_then(|l| {
             l.func_wrap(
-                "lumen:v1.fs",
+                MOD_FS,
                 "fs_size",
                 |mut caller: Caller<HostState>, handle: i32, out_size: i32| -> i32 {
-                    let import = "lumen:v1.fs::fs_size";
+                    let import = IMP_FS_SIZE;
                     if handle < 0 {
                         caller.data_mut().trace_import(import, GuestStatus::EArg.code());
                         return GuestStatus::EArg.code();
@@ -548,10 +550,10 @@ fn define_fs(linker: &mut Linker<HostState>) -> Result<(), HostError> {
         })
         .and_then(|l| {
             l.func_wrap(
-                "lumen:v1.fs",
+                MOD_FS,
                 "fs_close",
                 |mut caller: Caller<HostState>, handle: i32| -> i32 {
-                    let import = "lumen:v1.fs::fs_close";
+                    let import = IMP_FS_CLOSE;
                     if handle < 0 {
                         caller.data_mut().trace_import(import, GuestStatus::EArg.code());
                         return GuestStatus::EArg.code();
@@ -578,7 +580,7 @@ fn define_fs(linker: &mut Linker<HostState>) -> Result<(), HostError> {
 fn define_http(linker: &mut Linker<HostState>) -> Result<(), HostError> {
     linker
         .func_wrap(
-            "lumen:v1.http",
+            MOD_HTTP,
             "http_get",
             |mut caller: Caller<HostState>,
              url_ptr: i32,
@@ -587,7 +589,7 @@ fn define_http(linker: &mut Linker<HostState>) -> Result<(), HostError> {
              out_cap: i32,
              out_len: i32|
              -> Result<i32, wasmi::Error> {
-                let import = "lumen:v1.http::http_get";
+                let import = IMP_HTTP_GET;
                 if out_ptr < 0 || out_cap < 0 {
                     caller.data_mut().trace_import(import, GuestStatus::EArg.code());
                     return Ok(GuestStatus::EArg.code());
@@ -690,10 +692,10 @@ fn define_http(linker: &mut Linker<HostState>) -> Result<(), HostError> {
 fn define_ui(linker: &mut Linker<HostState>) -> Result<(), HostError> {
     linker
         .func_wrap(
-            "lumen:v1.ui",
+            MOD_UI,
             "ui_register_panel",
             |mut caller: Caller<HostState>, desc_ptr: i32, desc_len: i32| -> i32 {
-                let import = "lumen:v1.ui::ui_register_panel";
+                let import = IMP_UI_REGISTER_PANEL;
                 let caps = (
                     caller.data().limits.max_descriptor_bytes,
                     caller.data().limits.io_transfer_bytes,
@@ -727,10 +729,10 @@ fn define_ui(linker: &mut Linker<HostState>) -> Result<(), HostError> {
 fn define_devices(linker: &mut Linker<HostState>) -> Result<(), HostError> {
     linker
         .func_wrap(
-            "lumen:v1.devices",
+            MOD_DEVICES,
             "devices_list",
             |mut caller: Caller<HostState>, out_ptr: i32, out_cap: i32, out_len: i32| -> i32 {
-                let import = "lumen:v1.devices::devices_list";
+                let import = IMP_DEVICES_LIST;
                 if out_ptr < 0 || out_cap < 0 {
                     caller.data_mut().trace_import(import, GuestStatus::EArg.code());
                     return GuestStatus::EArg.code();

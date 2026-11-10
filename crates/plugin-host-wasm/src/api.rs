@@ -44,6 +44,48 @@
 
 use plugin_api::{ENGINE_PLUGIN_API_MAJOR, PluginKind};
 
+/// The `lumen:v1.*` namespace prefix (doc 06 §5.2).
+///
+/// These are the **plugin ABI's protocol vocabulary**, not brand
+/// surfaces: a product rebrand must not rewrite the extension ABI
+/// (that would break every installed extension), so they live as
+/// consts with gate markers instead of `product.toml` lookups.
+pub const NAMESPACE: &str = "lumen:v1."; // lumen-allow-literal: plugin ABI namespace prefix (doc 06 §5.2) — protocol contract, not a brand surface
+/// `lumen:v1.host` — the always-granted base module.
+pub const MOD_HOST: &str = "lumen:v1.host"; // lumen-allow-literal: plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+/// `lumen:v1.log` — the always-granted base module.
+pub const MOD_LOG: &str = "lumen:v1.log"; // lumen-allow-literal: plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+/// `lumen:v1.fs` — gated by `fs-sandboxed-read`.
+pub const MOD_FS: &str = "lumen:v1.fs"; // lumen-allow-literal: plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+/// `lumen:v1.http` — gated by `http-fetch`.
+pub const MOD_HTTP: &str = "lumen:v1.http"; // lumen-allow-literal: plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+/// `lumen:v1.ui` — gated by `ui-surface`.
+pub const MOD_UI: &str = "lumen:v1.ui"; // lumen-allow-literal: plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+/// `lumen:v1.devices` — gated by `device-query`.
+pub const MOD_DEVICES: &str = "lumen:v1.devices"; // lumen-allow-literal: plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+
+/// Import-path labels (`module::name`) for traces and security
+/// events — the same protocol-vocabulary consts, `::`-joined once.
+pub const IMP_HOST_API_VERSION: &str = "lumen:v1.host::api_version"; // lumen-allow-literal: plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+/// `lumen:v1.host::report_manifest`.
+pub const IMP_HOST_REPORT_MANIFEST: &str = "lumen:v1.host::report_manifest"; // lumen-allow-literal: plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+/// `lumen:v1.log::log_write`.
+pub const IMP_LOG_WRITE: &str = "lumen:v1.log::log_write"; // lumen-allow-literal: plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+/// `lumen:v1.fs::fs_open`.
+pub const IMP_FS_OPEN: &str = "lumen:v1.fs::fs_open"; // lumen-allow-literal: plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+/// `lumen:v1.fs::fs_read`.
+pub const IMP_FS_READ: &str = "lumen:v1.fs::fs_read"; // lumen-allow-literal: plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+/// `lumen:v1.fs::fs_size`.
+pub const IMP_FS_SIZE: &str = "lumen:v1.fs::fs_size"; // lumen-allow-literal: plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+/// `lumen:v1.fs::fs_close`.
+pub const IMP_FS_CLOSE: &str = "lumen:v1.fs::fs_close"; // lumen-allow-literal: plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+/// `lumen:v1.http::http_get`.
+pub const IMP_HTTP_GET: &str = "lumen:v1.http::http_get"; // lumen-allow-literal: plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+/// `lumen:v1.ui::ui_register_panel`.
+pub const IMP_UI_REGISTER_PANEL: &str = "lumen:v1.ui::ui_register_panel"; // lumen-allow-literal: plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+/// `lumen:v1.devices::devices_list`.
+pub const IMP_DEVICES_LIST: &str = "lumen:v1.devices::devices_list"; // lumen-allow-literal: plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+
 /// Lowest plugin-API major this engine still serves (doc 06 §5.5:
 /// majors stay loadable for one transition cycle after `v2` lands —
 /// with only `v1` existing, the window is exactly `[1, 1]`).
@@ -156,7 +198,7 @@ const I32: ValKind = ValKind::I32;
 pub const V1_IMPORTS: &[ImportSpec] = &[
     // --- lumen:v1.host -------------------------------------------------
     ImportSpec {
-        module: "lumen:v1.host",
+        module: MOD_HOST,
         name: "api_version",
         params: &[],
         results: &[I32],
@@ -165,7 +207,7 @@ pub const V1_IMPORTS: &[ImportSpec] = &[
         deprecated: None,
     },
     ImportSpec {
-        module: "lumen:v1.host",
+        module: MOD_HOST,
         name: "report_manifest",
         params: &[I32, I32],
         results: &[I32],
@@ -175,7 +217,7 @@ pub const V1_IMPORTS: &[ImportSpec] = &[
     },
     // --- lumen:v1.log --------------------------------------------------
     ImportSpec {
-        module: "lumen:v1.log",
+        module: MOD_LOG,
         name: "log_write",
         params: &[I32, I32, I32],
         results: &[I32],
@@ -185,7 +227,7 @@ pub const V1_IMPORTS: &[ImportSpec] = &[
     },
     // --- lumen:v1.fs ---------------------------------------------------
     ImportSpec {
-        module: "lumen:v1.fs",
+        module: MOD_FS,
         name: "fs_open",
         params: &[I32, I32, I32],
         results: &[I32],
@@ -194,7 +236,7 @@ pub const V1_IMPORTS: &[ImportSpec] = &[
         deprecated: None,
     },
     ImportSpec {
-        module: "lumen:v1.fs",
+        module: MOD_FS,
         name: "fs_read",
         params: &[I32, I32, I32, I32],
         results: &[I32],
@@ -203,7 +245,7 @@ pub const V1_IMPORTS: &[ImportSpec] = &[
         deprecated: None,
     },
     ImportSpec {
-        module: "lumen:v1.fs",
+        module: MOD_FS,
         name: "fs_size",
         params: &[I32, I32],
         results: &[I32],
@@ -212,7 +254,7 @@ pub const V1_IMPORTS: &[ImportSpec] = &[
         deprecated: None,
     },
     ImportSpec {
-        module: "lumen:v1.fs",
+        module: MOD_FS,
         name: "fs_close",
         params: &[I32],
         results: &[I32],
@@ -222,7 +264,7 @@ pub const V1_IMPORTS: &[ImportSpec] = &[
     },
     // --- lumen:v1.http -------------------------------------------------
     ImportSpec {
-        module: "lumen:v1.http",
+        module: MOD_HTTP,
         name: "http_get",
         params: &[I32, I32, I32, I32, I32],
         results: &[I32],
@@ -232,7 +274,7 @@ pub const V1_IMPORTS: &[ImportSpec] = &[
     },
     // --- lumen:v1.ui ---------------------------------------------------
     ImportSpec {
-        module: "lumen:v1.ui",
+        module: MOD_UI,
         name: "ui_register_panel",
         params: &[I32, I32],
         results: &[I32],
@@ -242,7 +284,7 @@ pub const V1_IMPORTS: &[ImportSpec] = &[
     },
     // --- lumen:v1.devices ----------------------------------------------
     ImportSpec {
-        module: "lumen:v1.devices",
+        module: MOD_DEVICES,
         name: "devices_list",
         params: &[I32, I32, I32],
         results: &[I32],
@@ -423,7 +465,7 @@ mod tests {
     #[test]
     fn catalog_shapes_are_doc06_conformant() {
         // Every module in the catalog uses the lumen:v1.* namespace.
-        assert!(V1_IMPORTS.iter().all(|s| s.module.starts_with("lumen:v1.")));
+        assert!(V1_IMPORTS.iter().all(|s| s.module.starts_with(NAMESPACE)));
         // Every function returns exactly one i32 status.
         assert!(V1_IMPORTS
             .iter()
@@ -432,13 +474,13 @@ mod tests {
         // doc 06 §2.2 permissions.
         for spec in V1_IMPORTS {
             match spec.module {
-                "lumen:v1.host" | "lumen:v1.log" => {
+                MOD_HOST | MOD_LOG => {
                     assert_eq!(spec.permission, Permission::Base);
                 }
-                "lumen:v1.fs" => assert_eq!(spec.permission, Permission::FsSandboxedRead),
-                "lumen:v1.http" => assert_eq!(spec.permission, Permission::HttpFetch),
-                "lumen:v1.ui" => assert_eq!(spec.permission, Permission::UiSurface),
-                "lumen:v1.devices" => assert_eq!(spec.permission, Permission::DeviceQuery),
+                MOD_FS => assert_eq!(spec.permission, Permission::FsSandboxedRead),
+                MOD_HTTP => assert_eq!(spec.permission, Permission::HttpFetch),
+                MOD_UI => assert_eq!(spec.permission, Permission::UiSurface),
+                MOD_DEVICES => assert_eq!(spec.permission, Permission::DeviceQuery),
                 other => unreachable!("unexpected module {other}"),
             }
         }
@@ -450,7 +492,7 @@ mod tests {
             let found = lookup(spec.module, spec.name);
             assert!(found.is_some(), "{}::{}", spec.module, spec.name);
         }
-        assert!(lookup("lumen:v1.fs", "fs_chmod").is_none());
+        assert!(lookup(MOD_FS, "fs_chmod").is_none());
         assert!(lookup_module("wasi_snapshot_preview1").is_none());
     }
 
@@ -516,7 +558,7 @@ mod tests {
         // mechanism test; the first real deprecation populates it).
         assert!(V1_IMPORTS.iter().all(|s| s.deprecated.is_none()));
         let synthetic = ImportSpec {
-            module: "lumen:v1.host",
+            module: MOD_HOST,
             name: "old_thing",
             params: &[],
             results: &[I32],

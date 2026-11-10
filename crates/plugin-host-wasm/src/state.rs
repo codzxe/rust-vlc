@@ -392,7 +392,7 @@ mod tests {
         let ledger = SecurityLedger::new();
         assert_eq!(
             ledger.record_escalation(SecurityEvent::new(
-                "lumen:v1.http::http_get",
+                crate::api::IMP_HTTP_GET,
                 "host not in allowlist",
                 "url_len=30"
             )),
@@ -400,7 +400,7 @@ mod tests {
         );
         assert_eq!(
             ledger.record_escalation(SecurityEvent::new(
-                "lumen:v1.fs::fs_open",
+                crate::api::IMP_FS_OPEN,
                 "symlink escape",
                 "path_len=12"
             )),

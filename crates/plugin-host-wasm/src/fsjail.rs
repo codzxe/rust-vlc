@@ -167,6 +167,7 @@ mod tests {
     impl TempDir {
         fn new(tag: &str) -> TempDir {
             let dir = std::env::temp_dir().join(format!(
+                // lumen-allow-literal: unique test temp-dir prefix (collision avoidance), not an identity surface
                 "lumen-pjail-{tag}-{}-{}",
                 std::process::id(),
                 std::time::SystemTime::now()
@@ -273,6 +274,7 @@ mod tests {
 
     #[test]
     fn nonexistent_root_is_a_typed_error() {
+        // lumen-allow-literal: nonexistent test jail-root path (the product word appears coincidentally), not an identity surface
         let Err(err) = PathJail::new(["/definitely/not/a/lumen/jail/root"]) else {
             unreachable!("nonexistent root must error")
         };

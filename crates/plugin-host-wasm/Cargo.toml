@@ -2,26 +2,25 @@
 # (card 7.F1–7.F3 / issue #45, doc 06 §5).
 #
 # Registry: doc 01 §2.8 (`plugin-host-wasm`, layer L6, deps per the doc's
-# crate table: plugin-api, media-types, commands — the command-layer edge
-# is forward-looking: v1 defines the ui-surface import seam only).
+# crate table: plugin-api, media-types, commands — the media-types and
+# command-layer edges are forward-looking: v1 wires the plugin-api
+# manifest/permission contract only, so only that edge is declared).
 #
 # External deps: **wasmi 2.0.0** — the ADR-002 runtime (accepted
 # 2026-10-19; full R1–R10 record at docs/dependencies/records/wasmi.md).
 # Pinned per the record's recommended posture: default-features = false,
-# features = ["std", "validate"] — the audited 8-crate closure (the
-# `validate` feature adds no crate, it only turns on wasmparser's
-# validating features; the 7.F1 decision the record reserved: we use
-# wasmi's validating `Module::new`, the only path that compiles guest
-# code). The dev-dependency adds the `wat` feature (text-module
-# fixtures for the conformance tests); those crates are inside the
-# audited default-features closure listed in the wasmi record
-# (bitflags, bumpalo, leb128fmt, libm, memchr, spin, unicode-width,
-# wasm-encoder, wast, wat) and never reach a production build of this
-# crate.
+# features = ["std", "validate"] — the audited closure (the `validate`
+# feature adds no crate, it only turns on wasmparser's validating
+# features; the 7.F1 decision the record reserved: we use wasmi's
+# validating `Module::new`, the only path that compiles guest code).
 #
 # Everything else is std-only, house style: SHA-256 (FIPS 180-4 public
 # math, same precedent as audio-output/testkit), the stored-entry ZIP
-# reader for `.lumenext` (doc 06 §5.7), semver from plugin-api.
+# reader for `.lumenext` (doc 06 §5.7), semver from plugin-api. The
+# integration suites build their wasm fixtures with an in-test binary
+# emitter (tests/common) — no `wat`/`wast` dev-dependency, so nothing
+# outside the audited production closure is ever resolved by this
+# crate's builds.
 
 [package]
 name = "plugin-host-wasm"
@@ -37,8 +36,3 @@ workspace = true
 plugin-api = { path = "../plugin-api" }
 
 wasmi = { version = "2.0.0", default-features = false, features = ["std", "validate"] }
-
-[dev-dependencies]
-# Same runtime, with the `wat` feature so tests build real .wat text
-# fixtures (doc 06 §7-style conformance modules) — dev-only closure.
-wasmi = { version = "2.0.0", default-features = false, features = ["std", "validate", "wat"] }

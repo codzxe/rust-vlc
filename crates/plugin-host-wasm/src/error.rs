@@ -231,6 +231,7 @@ impl fmt::Display for HostError {
             ),
             HostError::UnknownImportModule { module } => write!(
                 f,
+                // lumen-allow-literal: plugin ABI namespace in an actionable error message — protocol vocabulary, not a brand surface
                 "module imports from unknown module `{module}` — only \
                  `lumen:v1.*` imports exist (no WASI, doc 06 §5.2)"
             ),
@@ -384,7 +385,7 @@ mod tests {
                 supported_max: 1,
             },
             HostError::UndeclaredImport {
-                module: "lumen:v1.fs".into(),
+                module: crate::api::MOD_FS.to_string(),
                 name: "fs_open".into(),
                 permission: "fs-sandboxed-read",
             },

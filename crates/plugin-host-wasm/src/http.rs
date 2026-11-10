@@ -17,6 +17,11 @@
 
 use crate::error::HostError;
 
+/// The `https://` scheme prefix — URL-grammar constant (the policy is
+/// TLS-always-on; `http:` is refused, never downgraded). Protocol
+/// vocabulary, not a configurable endpoint.
+const HTTPS_SCHEME: &str = "https://"; // lumen-allow-literal: URL scheme grammar constant parsed from guest input — protocol, not a config endpoint
+
 /// A fetched response body (bounded by the single-transfer cap
 /// before it ever reaches guest memory).
 #[derive(Debug, Clone)]
@@ -100,13 +105,14 @@ impl ParsedUrl {
     /// refusal — the guest observes `E_PERM`/`E_ARG` statuses, never
     /// a hang.
     pub fn parse(url: &str) -> Result<ParsedUrl, HostError> {
-        let rest = match url.strip_prefix("https://") {
+        let rest = match url.strip_prefix(HTTPS_SCHEME) {
             Some(rest) => rest,
             None => {
                 return Err(HostError::PermissionDenied {
-                    detail: "URL is not https:// (TLS is always on; http is \
-                             refused, not downgraded)"
-                        .to_string(),
+                    detail: format!(
+                        "URL is not {HTTPS_SCHEME} (TLS is always on; http is \
+                         refused, not downgraded)"
+                    ),
                 });
             }
         };
@@ -181,7 +187,7 @@ impl ParsedUrl {
 
     /// The canonical URL text handed to the transport.
     pub fn url(&self) -> String {
-        format!("https://{}{}", self.host, self.path)
+        format!("{HTTPS_SCHEME}{}{}", self.host, self.path)
     }
 }
 
@@ -199,36 +205,45 @@ mod tests {
 
     #[test]
     fn https_only() {
+        // lumen-allow-literal: test-double URLs for scheme policy (non-loopback host required by the case)
         for bad in ["http://musicbrainz.org/x", "ftp://x", "musicbrainz.org"] {
             assert!(
                 matches!(ParsedUrl::parse(bad), Err(HostError::PermissionDenied { .. })),
                 "{bad} must be refused"
             );
         }
+        // lumen-allow-literal: test-double URL for scheme/case normalization
         let parsed = ok(ParsedUrl::parse("https://MusicBrainz.org/ws/2"));
         assert_eq!(parsed.host, "musicbrainz.org");
         assert_eq!(parsed.path, "/ws/2");
+        // lumen-allow-literal: expected canonical reconstruction of the test-double URL
         assert_eq!(parsed.url(), "https://musicbrainz.org/ws/2");
     }
 
     #[test]
     fn userinfo_ip_and_ports_refused() {
-        assert!(ParsedUrl::parse("https://user@host/").is_err());
-        assert!(ParsedUrl::parse("https://user:pw@host/").is_err());
-        assert!(ParsedUrl::parse("https://127.0.0.1/").is_err());
-        assert!(ParsedUrl::parse("https://[::1]/").is_err());
-        assert!(ParsedUrl::parse("https://host:8080/").is_err());
-        assert!(ParsedUrl::parse("https://host:443/").is_ok());
+        // One marker per literal line: the gate's inline suppression is
+        // line-scoped, so each test-double URL carries its own reason.
+        assert!(ParsedUrl::parse("https://user@host/").is_err()); // lumen-allow-literal: test-double URL for userinfo-refusal policy
+        assert!(ParsedUrl::parse("https://user:pw@host/").is_err()); // lumen-allow-literal: test-double URL for userinfo-refusal policy
+        assert!(ParsedUrl::parse("https://127.0.0.1/").is_err()); // lumen-allow-literal: test-double URL for IP-literal-refusal policy
+        assert!(ParsedUrl::parse("https://[::1]/").is_err()); // lumen-allow-literal: test-double URL for IP-literal-refusal policy
+        assert!(ParsedUrl::parse("https://host:8080/").is_err()); // lumen-allow-literal: test-double URL for non-443-port-refusal policy
+        assert!(ParsedUrl::parse("https://host:443/").is_ok()); // lumen-allow-literal: test-double URL for the explicit-443 exception
     }
 
     #[test]
     fn allowlist_is_exact_match() {
         let allow = vec!["musicbrainz.org".to_string()];
+        // lumen-allow-literal: test-double URL for allowlist exact-match policy
         assert!(ok(ParsedUrl::parse("https://musicbrainz.org/x")).allowed_by(&allow));
         // Subdomain, suffix and scheme-smuggling all fail.
         for bad in [
+            // lumen-allow-literal: adversarial test-double URL for allowlist policy
             "https://api.musicbrainz.org/x",
+            // lumen-allow-literal: adversarial test-double URL for allowlist policy
             "https://musicbrainz.org.evil.test/x",
+            // lumen-allow-literal: adversarial test-double URL for allowlist policy
             "https://evil.test/musicbrainz.org",
         ] {
             assert!(
@@ -236,12 +251,14 @@ mod tests {
                 "{bad} must not match the allowlist"
             );
         }
+        // lumen-allow-literal: non-allowlisted test-double host
         assert!(!ok(ParsedUrl::parse("https://other.org/")).allowed_by(&allow));
     }
 
     #[test]
     fn no_transport_is_honestly_unavailable() {
         let mut t = NoTransport;
+        // lumen-allow-literal: test-double URL for the transport-seam refusal case
         let Err(err) = t.fetch("https://musicbrainz.org/") else {
             unreachable!("NoTransport must refuse")
         };
