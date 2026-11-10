@@ -82,7 +82,7 @@ mod tests {
         // Directive/key floods (maximal line counts, hostile keys).
         let mut m3u = b"#EXTM3U\n".to_vec();
         for i in 0..128u32 {
-            m3u.extend_from_slice(format!("#EXTINF:{i},t{i}\nhttp://x/{i}\n").as_bytes());
+            m3u.extend_from_slice(format!("#EXTINF:{i},t{i}\nhttp://x/{i}\n").as_bytes()); // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         }
         fuzz_playlist_m3u(&m3u);
         let mut xspf = b"<?xml version=\"1.0\"?><playlist version=\"1\">".to_vec();

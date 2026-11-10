@@ -222,7 +222,7 @@ fn fact_and_info_metadata_are_parsed() {
     b.extend_from_slice(b"INFO");
     b.extend_from_slice(b"INAM");
     b.extend_from_slice(&13u32.to_le_bytes());
-    b.extend_from_slice(b"Lumen Player1");
+    b.extend_from_slice(b"Lumen Player1"); // lumen-allow-literal: test fixture value — round-trip data, not display identity
     b.push(0); // the odd value's pad byte
     b.extend_from_slice(b"data");
     let payload = [0u8; 28]; // 7 frames × 4 bytes

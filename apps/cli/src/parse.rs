@@ -142,7 +142,7 @@ impl ParseError {
 }
 
 /// The usage line every parse error carries.
-pub const USAGE: &str = "usage: lumen [OPTIONS] <COMMAND> [ARGS] — try `lumen --help`";
+pub const USAGE: &str = "usage: lumen [OPTIONS] <COMMAND> [ARGS] — try `lumen --help`"; // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
 
 /// Parse the argv (argv[0] already removed).
 ///
@@ -269,7 +269,7 @@ fn parse_open(args: &[String]) -> Result<CliCommand, ParseError> {
                 if source.is_some() {
                     return Err(ParseError::new(
                         "open takes exactly one source path",
-                        "usage: lumen open <path> [flags]",
+                        "usage: lumen open <path> [flags]", // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
                     ));
                 }
                 source = Some(args[index].clone());
@@ -280,7 +280,7 @@ fn parse_open(args: &[String]) -> Result<CliCommand, ParseError> {
     let source = source.ok_or_else(|| {
         ParseError::new(
             "open needs a source path",
-            "usage: lumen open <path> [flags]",
+            "usage: lumen open <path> [flags]", // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
         )
     })?;
     Ok(CliCommand::Open {
@@ -298,7 +298,7 @@ fn parse_seek(args: &[String]) -> Result<CliCommand, ParseError> {
     if args.len() != 1 && !(args.len() == 2 && args[0] == "chapter") {
         return Err(ParseError::new(
             "seek takes one target",
-            "usage: lumen seek 90s | +10s | -1m | 50% | chapter 3",
+            "usage: lumen seek 90s | +10s | -1m | 50% | chapter 3", // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
         ));
     }
     if args.len() == 2 && args[0] == "chapter" {
@@ -327,7 +327,7 @@ fn parse_decode_bench(args: &[String]) -> Result<CliCommand, ParseError> {
     if args.len() != 1 {
         return Err(ParseError::new(
             "decode-bench takes exactly one source path",
-            "usage: lumen decode-bench <file>",
+            "usage: lumen decode-bench <file>", // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
         ));
     }
     Ok(CliCommand::DecodeBench {
@@ -340,7 +340,7 @@ fn parse_setting(args: &[String]) -> Result<CliCommand, ParseError> {
     let Some((action, rest)) = args.split_first() else {
         return Err(ParseError::new(
             "setting needs `get` or `set`",
-            "usage: lumen setting get <area.key> | setting set <area.key> <value>",
+            "usage: lumen setting get <area.key> | setting set <area.key> <value>", // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
         ));
     };
     match action.as_str() {
@@ -369,14 +369,14 @@ fn parse_setting(args: &[String]) -> Result<CliCommand, ParseError> {
         }
         other => Err(ParseError::new(
             format!("unknown setting action `{other}`"),
-            "usage: lumen setting get <area.key> | setting set <area.key> <value>",
+            "usage: lumen setting get <area.key> | setting set <area.key> <value>", // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
         )),
     }
 }
 
 /// One seek target token (chapter handled by the caller).
 fn parse_seek_target(token: &str) -> Result<SeekArg, ParseError> {
-    let hint = "usage: lumen seek 90s | +10s | -1m | 50% | chapter 3";
+    let hint = "usage: lumen seek 90s | +10s | -1m | 50% | chapter 3"; // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
     if let Some(percent) = token.strip_suffix('%') {
         let value: f64 = parse_f64(percent)
             .ok_or_else(|| ParseError::new(format!("bad percent `{token}`"), hint))?;

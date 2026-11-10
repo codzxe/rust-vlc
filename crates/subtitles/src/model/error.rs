@@ -146,7 +146,7 @@ impl fmt::Display for WireError {
         match self {
             Self::MissingMagic => write!(
                 f,
-                "document does not start with the LUMEN-CUES 1 magic line"
+                "document does not start with the LUMEN-CUES 1 magic line" // lumen-allow-literal: diagnostic quoting the LUMEN-CUES wire magic — format vocabulary, not display identity
             ),
             Self::UnknownTag { line_no, tag } => {
                 write!(

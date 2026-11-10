@@ -266,7 +266,7 @@ mod tests {
         out.push(TYPE_COMMENT);
         out.extend_from_slice(MAGIC);
         out.extend_from_slice(&(5u32).to_le_bytes());
-        out.extend_from_slice(b"lumen");
+        out.extend_from_slice(b"lumen"); // lumen-allow-literal: test fixture value — round-trip data, not display identity
         out.extend_from_slice(&(2u32).to_le_bytes());
         out.extend_from_slice(&(11u32).to_le_bytes());
         out.extend_from_slice(b"TiTle=hello");
@@ -282,7 +282,7 @@ mod tests {
             Ok(parsed) => parsed,
             Err(err) => unreachable!("{err:?}"),
         };
-        assert_eq!(parsed.vendor, "lumen");
+        assert_eq!(parsed.vendor, "lumen"); // lumen-allow-literal: test fixture value — round-trip data, not display identity
         assert_eq!(parsed.title(), Some("hello"));
         assert_eq!(parsed.artists(), vec!["me"]);
         assert_eq!(parsed.album(), None);

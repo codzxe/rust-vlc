@@ -345,7 +345,7 @@ impl PluginManifest {
         match (self.id.prefix(), self.origin) {
             (Some(crate::kind::LUMEN_PREFIX), Origin::Extension) => {
                 return Err(ManifestError::Origin(format!(
-                    "id `{}` carries the reserved `lumen.` prefix but origin is `extension`",
+                    "id `{}` carries the reserved `lumen.` prefix but origin is `extension`", // lumen-allow-literal: diagnostic quoting the reserved `lumen.` plugin-id prefix — protocol vocabulary
                     self.id
                 )));
             }
@@ -357,7 +357,7 @@ impl PluginManifest {
             }
             (None, _) => {
                 return Err(ManifestError::Id(format!(
-                    "id `{}` has no v1 namespace prefix (`lumen.` or `ext.`)",
+                    "id `{}` has no v1 namespace prefix (`lumen.` or `ext.`)", // lumen-allow-literal: diagnostic quoting the reserved `lumen.` plugin-id prefix — protocol vocabulary
                     self.id
                 )));
             }
@@ -1071,8 +1071,8 @@ mod tests {
     #[test]
     fn id_grammar() {
         for good in [
-            "lumen.demux.matroska",
-            "lumen.codec.flac",
+            "lumen.demux.matroska", // lumen-allow-literal: test fixture value — round-trip data, not display identity
+            "lumen.codec.flac", // lumen-allow-literal: test fixture value — round-trip data, not display identity
             "ext.acme.lyrics-panel",
             "a.b",
             "ext.a-b.c-d",
@@ -1089,7 +1089,7 @@ mod tests {
             "a.B",     // uppercase
             "-a.b",    // leading dash
             "a b.c",   // space
-            "lumen.codec.a-very-long-kind-area-name-that-exceeds-the-sixty-four-byte-cap.x", // > 64 B
+            "lumen.codec.a-very-long-kind-area-name-that-exceeds-the-sixty-four-byte-cap.x", // > 64 B // lumen-allow-literal: test fixture value — round-trip data, not display identity
         ] {
             assert!(PluginId::parse(bad).is_err(), "{bad:?}");
         }
@@ -1101,10 +1101,10 @@ mod tests {
 
     #[test]
     fn id_prefixes_and_slugs() {
-        assert_eq!(id("lumen.demux.matroska").prefix(), Some(LUMEN_PREFIX));
+        assert_eq!(id("lumen.demux.matroska").prefix(), Some(LUMEN_PREFIX)); // lumen-allow-literal: test fixture value — round-trip data, not display identity
         assert_eq!(id("ext.acme.lyrics-panel").prefix(), Some(EXT_PREFIX));
         assert_eq!(id("ext.acme.lyrics-panel").publisher_slug(), Some("acme"));
-        assert_eq!(id("lumen.demux.matroska").publisher_slug(), None);
+        assert_eq!(id("lumen.demux.matroska").publisher_slug(), None); // lumen-allow-literal: test fixture value — round-trip data, not display identity
     }
 
     #[test]
@@ -1204,6 +1204,7 @@ mod tests {
         // from_toml's last step).
         assert!(matches!(
             PluginManifest::from_toml(
+                // lumen-allow-literal: test fixture value — round-trip data, not display identity
                 "id = \"lumen.demux.x\"\nkind = \"demuxer\"\nversion = \"1.0.0\"\napi_version = 1\n\
                  origin = \"builtin\"\n[capabilities]\nformats = [\"x\"]\n\
                  [permissions]\nhttp-fetch = true\n",
@@ -1213,6 +1214,7 @@ mod tests {
         // allowlist without http-fetch.
         assert!(matches!(
             PluginManifest::from_toml(
+                // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
                 "id = \"ext.acme.x\"\nkind = \"metadata-provider\"\nversion = \"1.0.0\"\n\
                  api_version = 1\norigin = \"extension\"\n[capabilities]\nprovides = [\"tags\"]\n\
                  [permissions]\nnetwork-host-allowlist = [\"musicbrainz.org\"]\n\
@@ -1234,6 +1236,7 @@ mod tests {
     #[test]
     fn priority_defaults_and_range() {
         let builtin = match PluginManifest::from_toml(
+            // lumen-allow-literal: test fixture value — round-trip data, not display identity
             "id = \"lumen.demux.x\"\nkind = \"demuxer\"\nversion = \"1.0.0\"\napi_version = 1\n\
              origin = \"builtin\"\n[capabilities]\nformats = [\"x\"]\n",
         ) {
@@ -1242,6 +1245,7 @@ mod tests {
         };
         assert_eq!(builtin.effective_priority(), 100);
         let ext = match PluginManifest::from_toml(
+            // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
             "id = \"ext.acme.x\"\nkind = \"metadata-provider\"\nversion = \"1.0.0\"\n\
              api_version = 1\norigin = \"extension\"\n[capabilities]\nprovides = [\"tags\"]\n\
              [provenance]\npublisher = \"A\"\nsource = \"https://a\"\nhash = \"sha256:9f2c…(64 hex)\"\n\
@@ -1254,6 +1258,7 @@ mod tests {
         assert!(
             matches!(
                 PluginManifest::from_toml(
+                    // lumen-allow-literal: test fixture value — round-trip data, not display identity
                     "id = \"lumen.demux.x\"\nkind = \"demuxer\"\nversion = \"1.0.0\"\n\
                      api_version = 1\npriority = 1001\norigin = \"builtin\"\n\
                      [capabilities]\nformats = [\"x\"]\n"
@@ -1267,15 +1272,18 @@ mod tests {
     #[test]
     fn unknown_fields_rejected() {
         // §2.1: unknown fields are rejected, not ignored.
+        // lumen-allow-literal: test fixture value — round-trip data, not display identity
         let src = "id = \"lumen.demux.x\"\nkind = \"demuxer\"\nversion = \"1.0.0\"\n\
                    api_version = 1\norigin = \"builtin\"\nfuture_field = true\n\
                    [capabilities]\nformats = [\"x\"]\n";
         assert!(PluginManifest::from_toml(src).is_err());
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let src = "id = \"ext.acme.x\"\nkind = \"metadata-provider\"\nversion = \"1.0.0\"\n\
                    api_version = 1\norigin = \"extension\"\n[capabilities]\nprovides = [\"tags\"]\n\
                    [capabilities.sneaky]\nx = 1\n[provenance]\npublisher = \"A\"\n\
                    source = \"https://a\"\nhash = \"sha256:9f2c…(64 hex)\"\nlicense = \"MIT\"\n";
         assert!(PluginManifest::from_toml(src).is_err());
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let src = "id = \"ext.acme.x\"\nkind = \"metadata-provider\"\nversion = \"1.0.0\"\n\
                    api_version = 1\norigin = \"extension\"\n[capabilities]\nprovides = [\"tags\"]\n\
                    [permissions]\nhtt-fetch = true\n[provenance]\npublisher = \"A\"\n\

@@ -1955,7 +1955,7 @@ mod tests {
             (
                 EventKind::SystemLog {
                     level: commands::catalog::types::LogLevel::Info,
-                    target: "lumen::engine".to_owned(),
+                    target: "lumen::engine".to_owned(), // lumen-allow-literal: tracing-target fixture value — the log target under test
                     message: "line".to_owned(),
                 },
                 EventId::SystemLog,

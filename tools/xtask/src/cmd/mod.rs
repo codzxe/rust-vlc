@@ -24,18 +24,22 @@
 //! | `cmd::feature_audit`     | `feature-audit`      | #20 / card 8.F1 (implemented — feature-matrix auditor; registered under issue #20's granted ownership of tools/xtask/src/**, same precedent as check-panics/7-e and visual/4.G1) |
 //! | `cmd::config_validator`  | `config-validator`   | #20 / card 8.F1 (implemented — product.toml vs product.schema.json + cross-file refs; same granted-registry precedent) |
 //! | `cmd::parity_report`     | `parity-report`      | #20 / card 8.F1 (implemented — derived parity table from the matrix; same granted-registry precedent) |
+//! | `cmd::lint_literals`     | `lint-literals`      | 7.w21a (implemented — the C1 config-plane literal gate, doc 07 §9; registered under task 7.w21a's granted ownership of tools/xtask/src/**, same precedent as check-panics/7-e) |
+//! | `cmd::check_identity`    | `check-identity`     | 7.w21a (implemented — the C2 no-hardcoded-identity gate, doc 07 §9; same granted-registry precedent) |
 
 use std::process::ExitCode;
 
 use crate::XtaskError;
 
 pub mod check_architecture;
+pub mod check_identity;
 pub mod check_panics;
 pub mod codegen;
 pub mod config_validator;
 pub mod feature_audit;
 pub mod fixtures;
 pub mod gate;
+pub mod lint_literals;
 pub mod parity_report;
 pub mod rebrand;
 pub mod schema_gen;
@@ -143,6 +147,20 @@ pub const SUBCOMMANDS: &[Subcommand] = &[
         summary: "Derived parity table (implemented+verified share) from feature-matrix.toml",
         implemented: true,
         run: parity_report::run,
+    },
+    Subcommand {
+        name: "lint-literals",
+        card: "7.w21a",
+        summary: "C1 literal gate: identity/URL/path/hex-color literals in engine+app src (doc 07 §9)",
+        implemented: true,
+        run: lint_literals::run,
+    },
+    Subcommand {
+        name: "check-identity",
+        card: "7.w21a",
+        summary: "C2 identity gate: no hard-coded identity strings outside product.toml (doc 07 §9)",
+        implemented: true,
+        run: check_identity::run,
     },
 ];
 

@@ -326,7 +326,10 @@ mod tests {
             mpegts: 45_000,
             local_ms: i64::MAX,
         };
-        assert_eq!(lo_anchor.pts_for_wallclock_ms(i64::MIN), 45_000 + 1_511_828_489);
+        assert_eq!(
+            lo_anchor.pts_for_wallclock_ms(i64::MIN),
+            45_000 + 1_511_828_489
+        );
     }
 
     /// A playlist's LAST tag governs (an encoder restart republishes

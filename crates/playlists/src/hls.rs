@@ -648,6 +648,7 @@ mod tests {
     #[test]
     fn vod_playlist_types_and_resolves() {
         let (model, warnings) =
+            // lumen-allow-literal: URL parse/redaction test vector — data under test
             match parse_media_playlist(Some("http://cdn.example/vod/pl.m3u8"), VOD) {
                 Ok(pair) => pair,
                 Err(e) => unreachable!("VOD fixture must type: {e}"),
@@ -660,8 +661,8 @@ mod tests {
         assert!(model.end_list);
         assert!(model.saw_extm3u);
         assert_eq!(model.segments.len(), 2);
-        assert_eq!(model.segments[0].uri, "http://cdn.example/vod/seg0.ts");
-        assert_eq!(model.segments[1].uri, "http://cdn.example/vod/seg1.ts");
+        assert_eq!(model.segments[0].uri, "http://cdn.example/vod/seg0.ts"); // lumen-allow-literal: URL parse/redaction test vector — data under test
+        assert_eq!(model.segments[1].uri, "http://cdn.example/vod/seg1.ts"); // lumen-allow-literal: URL parse/redaction test vector — data under test
         assert!((model.total_extinf_duration - 4.040_278).abs() < 1e-9);
         assert_eq!(model.segments[0].duration, Some(2.043_356));
         assert!(!model.segments[0].discontinuity);
@@ -681,16 +682,17 @@ mod tests {
     /// resolve_uri seam: parent dirs, absolute paths, absolute URLs).
     #[test]
     fn uri_resolution_shapes() {
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let text = "#EXTM3U\n#EXTINF:1.0,\n../a.ts\n#EXTINF:1.0,\n/b.ts\n\
             #EXTINF:1.0,\nhttp://other.example/c.ts\n#EXT-X-ENDLIST\n";
-        let (model, _) = match parse_media_playlist(Some("http://cdn.example/vod/x/pl.m3u8"), text)
+        let (model, _) = match parse_media_playlist(Some("http://cdn.example/vod/x/pl.m3u8"), text) // lumen-allow-literal: URL parse/redaction test vector — data under test
         {
             Ok(pair) => pair,
             Err(e) => unreachable!("fixture must type: {e}"),
         };
-        assert_eq!(model.segments[0].uri, "http://cdn.example/vod/a.ts");
-        assert_eq!(model.segments[1].uri, "http://cdn.example/b.ts");
-        assert_eq!(model.segments[2].uri, "http://other.example/c.ts");
+        assert_eq!(model.segments[0].uri, "http://cdn.example/vod/a.ts"); // lumen-allow-literal: URL parse/redaction test vector — data under test
+        assert_eq!(model.segments[1].uri, "http://cdn.example/b.ts"); // lumen-allow-literal: URL parse/redaction test vector — data under test
+        assert_eq!(model.segments[2].uri, "http://other.example/c.ts"); // lumen-allow-literal: URL parse/redaction test vector — data under test
     }
 
     /// No #EXTM3U anywhere: a plain M3U, refused typed.
@@ -707,6 +709,7 @@ mod tests {
     /// refused typed with the B2a follow-up named.
     #[test]
     fn master_playlist_refuses_typed() {
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let master = "#EXTM3U\n\
             #EXT-X-STREAM-INF:BANDWIDTH=1280000\n\
             http://cdn.example/v_hi.m3u8\n\
@@ -824,6 +827,7 @@ mod tests {
     fn ffmpeg_fixture_ts_vod_types_fully() {
         let text = include_str!("../tests/fixtures/hls/ts_vod/pl.m3u8");
         let (model, _) =
+            // lumen-allow-literal: URL parse/redaction test vector — data under test
             match parse_media_playlist(Some("http://cdn.example/hls/ts_vod/pl.m3u8"), text) {
                 Ok(pair) => pair,
                 Err(e) => unreachable!("ffmpeg fixture must type: {e}"),
@@ -836,11 +840,11 @@ mod tests {
         assert_eq!(model.segments.len(), 5);
         assert_eq!(
             model.segments[0].uri,
-            "http://cdn.example/hls/ts_vod/pl0.ts"
+            "http://cdn.example/hls/ts_vod/pl0.ts" // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         );
         assert_eq!(
             model.segments[4].uri,
-            "http://cdn.example/hls/ts_vod/pl4.ts"
+            "http://cdn.example/hls/ts_vod/pl4.ts" // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         );
     }
 
@@ -861,13 +865,14 @@ mod tests {
     #[test]
     fn master_types_variants_and_renditions() {
         let (master, warnings) =
+            // lumen-allow-literal: URL parse/redaction test vector — data under test
             match parse_master_playlist(Some("http://cdn.example/v/master.m3u8"), MULTI) {
                 Ok(pair) => pair,
                 Err(e) => unreachable!("multi-variant fixture must type: {e}"),
             };
         assert!(warnings.is_empty());
         assert_eq!(master.variants.len(), 3);
-        assert_eq!(master.variants[0].uri, "http://cdn.example/v/hi.m3u8");
+        assert_eq!(master.variants[0].uri, "http://cdn.example/v/hi.m3u8"); // lumen-allow-literal: URL parse/redaction test vector — data under test
         assert_eq!(master.variants[0].bandwidth, 2_000_000);
         assert_eq!(master.variants[0].average_bandwidth, Some(1_950_000));
         assert_eq!(master.variants[0].program_id, Some(1));
@@ -889,7 +894,7 @@ mod tests {
         assert_eq!(master.renditions[0].language.as_deref(), Some("en"));
         assert_eq!(
             master.renditions[0].uri.as_deref(),
-            Some("http://cdn.example/v/audio/en.m3u8")
+            Some("http://cdn.example/v/audio/en.m3u8") // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         );
         assert_eq!(master.renditions[1].kind, RenditionType::Subtitles);
         assert!(!master.renditions[1].is_default);
@@ -965,6 +970,7 @@ mod tests {
     fn master_fixture_files_type() {
         let multi = include_str!("../tests/fixtures/hls/master/multi.m3u8");
         let (master, warnings) =
+            // lumen-allow-literal: URL parse/redaction test vector — data under test
             match parse_master_playlist(Some("http://cdn.example/master/multi.m3u8"), multi) {
                 Ok(pair) => pair,
                 Err(e) => unreachable!("fixture must type: {e}"),

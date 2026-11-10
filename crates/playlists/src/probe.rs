@@ -632,7 +632,7 @@ mod tests {
 
     #[test]
     fn probe_table_playlist_formats() {
-        let m3u_ext = b"#EXTM3U\n#EXTINF:120,Title\nsong.mp3\nhttp://x/y\n";
+        let m3u_ext = b"#EXTM3U\n#EXTINF:120,Title\nsong.mp3\nhttp://x/y\n"; // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         assert_eq!(
             probe(Some("m3u"), m3u_ext),
             ProbedKind::Playlist(PlaylistFormat::M3u)
@@ -654,7 +654,7 @@ mod tests {
             ProbedKind::Playlist(PlaylistFormat::Pls)
         );
 
-        let xspf = b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<playlist version=\"1\" xmlns=\"http://xspf.org/ns/0/\">\n";
+        let xspf = b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<playlist version=\"1\" xmlns=\"http://xspf.org/ns/0/\">\n"; // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         assert_eq!(
             probe(Some("xspf"), xspf),
             ProbedKind::Playlist(PlaylistFormat::Xspf)
@@ -753,7 +753,7 @@ mod tests {
     /// present; prints a skip note otherwise (CI portability).
     #[test]
     fn classification_table_over_real_corpus() {
-        let media_dir = Path::new("/tmp/my-project/corpus-v4/media");
+        let media_dir = Path::new("/tmp/my-project/corpus-v4/media"); // lumen-allow-literal: cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
         let mut names: Vec<_> = match std::fs::read_dir(media_dir) {
             Ok(iter) => iter
                 .filter_map(|e| e.ok())
@@ -834,7 +834,7 @@ mod tests {
     /// both TS-segmented and fMP4 styles).
     #[test]
     fn real_hls_playlists_classify_as_m3u() {
-        let hls_root = Path::new("/tmp/my-project/corpus-v4/hls");
+        let hls_root = Path::new("/tmp/my-project/corpus-v4/hls"); // lumen-allow-literal: cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
         let Ok(streams) = std::fs::read_dir(hls_root) else {
             eprintln!("hls corpus not present — skipping");
             return;

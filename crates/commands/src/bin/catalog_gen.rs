@@ -32,6 +32,7 @@ use commands::catalog::codegen::OutputPaths;
 use commands::catalog::codegen::check_against;
 use commands::catalog::codegen::generate_outputs;
 
+// lumen-allow-literal: CLI usage/error prose — identity wiring pending (see apps/cli help.rs [PROPOSAL])
 const USAGE: &str = "\
 catalog-gen — regenerate the Lumen command-catalog outputs (card 1.D4, doc 05 §5.1)
 
@@ -252,6 +253,7 @@ fn find_workspace_root() -> Result<PathBuf, Failure> {
             return Err(Failure {
                 code: 2,
                 message: format!(
+                    // lumen-allow-literal: CLI usage/error prose — identity wiring pending (see apps/cli help.rs [PROPOSAL])
                     "workspace root not found (walked up from {}) — run from within the \
                      Lumen workspace, or pass --schema-out/--ts-out/--checksum-out explicitly",
                     dir.display()

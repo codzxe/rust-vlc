@@ -34,7 +34,7 @@ impl BytesStream {
     /// Never fails for the fixed `memory://` URI; the `Result` shape
     /// keeps the constructor honest about the URI parse it performs.
     pub fn new(data: Arc<[u8]>) -> Result<BytesStream, EngineError> {
-        let uri = SourceUri::parse("memory://lumen-demux-test-support")?;
+        let uri = SourceUri::parse("memory://lumen-demux-test-support")?; // lumen-allow-literal: test-support synthetic URI — test infrastructure, not product identity
         Ok(BytesStream { uri, data, pos: 0 })
     }
 
