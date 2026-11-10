@@ -73,13 +73,6 @@ const PLAY_TO_END_POLLS: usize = 1024;
 /// per-cycle D-6 fact; the same category of structural bound as
 /// `PLAY_TO_END_POLLS`, not a config-plane duration).
 const DECODE_EVIDENCE_POLLS: usize = 64;
-/// Seeks per reopen epoch in the seek-storm (a structural bound of the
-/// storm's SHAPE, the `PLAY_TO_END_POLLS` category — an op-script
-/// count, not a duration/budget/threshold): after this many seeks the
-/// session is drained to its end lane and closed, so the reopen path
-/// (the scenario's cycle) is exercised deterministically instead of
-/// waiting for a mid-media seek rotation to walk itself to the end.
-const SEEKS_PER_REOPEN: usize = 16;
 /// The offset keeping this suite's external request ids clear of the
 /// host's internal allocator (collision is harmless by construction —
 /// the drain matches the id it submitted — distinct is just easier to
@@ -503,6 +496,7 @@ fn finish_duration_scenario(
         live_baseline_bytes: None,
         live_final_bytes: None,
         live_mean_delta_per_cycle: None,
+        measured_cycles_span: None,
         wall_capped: false,
         cycles_configured: None,
         ceiling_mb_per_h: ceiling,
@@ -553,6 +547,17 @@ fn run_play_loop(
         &mut warmup,
         wall_start,
     )
+}
+
+/// Fold the just-closed session's sink payload into the scenario
+/// totals (the D-6 decode-evidence axis — the counting sink survives
+/// the close and dies at the NEXT open, so the close site is the read
+/// point; the `play_loop_cycle`/`run_count_scenario` epilogues and
+/// every seek-storm close call this).
+fn fold_sink_bytes(run: &mut ScenarioRun, host: &SoakHost) {
+    if let Some(sink) = host.sink() {
+        run.counts.decoded_bytes = run.counts.decoded_bytes.saturating_add(sink.bytes_total());
+    }
 }
 
 /// One play-loop cycle (also the playlist-cycle body: the caller owns
@@ -608,9 +613,7 @@ fn play_loop_cycle(
         ));
     }
     run.counts.frames_decoded += decoded;
-    if let Some(sink) = host.sink() {
-        run.counts.decoded_bytes = run.counts.decoded_bytes.saturating_add(sink.bytes_total());
-    }
+    fold_sink_bytes(run, host);
     run.counts.cycles += 1;
     host.note_cycle_complete();
     let _ = warmup; // timing owned by the driver loop; parameter kept for symmetry
@@ -674,8 +677,9 @@ fn run_playlist_cycle(
 }
 
 /// The seek-storm scenario: a tight seek rotation against one open
-/// session (the `SEEKS_PER_REOPEN` rotation), then a bounded drain to
-/// the end lane and close — the reopen is the scenario's cycle.
+/// session (the `seeks_per_reopen` rotation, default 16), then a
+/// bounded drain to the end lane and close — the reopen is the
+/// scenario's cycle.
 fn run_seek_storm(
     spec: &ScenarioSpec,
     defaults: &Defaults,
@@ -692,7 +696,7 @@ fn run_seek_storm(
     let mut warmup = DurationClock::new(minutes, defaults);
     let mut ids = RequestIds::new();
     let mut seek_index = 0u64;
-    let mut seeks_this_epoch = 0usize;
+    let mut seeks_this_epoch = 0u64;
     let mut reopen_index = 0u64;
 
     while warmup.running() {
@@ -707,6 +711,9 @@ fn run_seek_storm(
                     "seek-storm close (drained)",
                 )?;
                 run.counts.closes_ok += 1;
+                // The just-drained session's payload joins the totals
+                // (its sink dies at the reopen below).
+                fold_sink_bytes(&mut run, &host);
             }
             // The idle boundary is the warmup's end-of-window sighting
             // point (the play-loop loop-boundary rule).
@@ -731,6 +738,10 @@ fn run_seek_storm(
                     "seek-storm close (error lane)",
                 )?;
                 run.counts.error_closes += 1;
+                // NO sink fold here: the failed open left the PREVIOUS
+                // session's already-counted sink in place (the sink is
+                // only replaced by a successful open) — folding would
+                // double-count it. The failed session decoded nothing.
             } else {
                 let decoded = host.stats().frames_delivered.saturating_sub(frames_before);
                 run.counts.frames_decoded += decoded;
@@ -771,8 +782,9 @@ fn run_seek_storm(
         run.counts.frames_decoded = host.stats().frames_delivered;
 
         // The epoch end: bounded drain to the end lane, then close —
-        // the next loop iteration reopens (the cycle).
-        if seeks_this_epoch >= SEEKS_PER_REOPEN {
+        // the next loop iteration reopens (the cycle). The epoch
+        // length is the manifest's shape knob (default 16).
+        if seeks_this_epoch >= spec.seeks_per_reopen {
             host.pump_until(
                 |state| matches!(state, SessionState::Ended | SessionState::Error),
                 PLAY_TO_END_POLLS,
@@ -783,6 +795,9 @@ fn run_seek_storm(
                 "seek-storm close (epoch)",
             )?;
             run.counts.closes_ok += 1;
+            // The stormed session's payload joins the totals (the
+            // reopen on the next iteration replaces its sink).
+            fold_sink_bytes(&mut run, &host);
             seeks_this_epoch = 0;
             warmup.maybe_end_warmup(&mut host);
         }
@@ -794,6 +809,7 @@ fn run_seek_storm(
             "seek-storm final close",
         )?;
         run.counts.closes_ok += 1;
+        fold_sink_bytes(&mut run, &host);
     }
 
     // ---- the seek-storm liveness assertions ----
@@ -932,8 +948,12 @@ fn run_count_scenario(
             ));
         }
         run.counts.frames_decoded += decoded;
-        if let Some(sink) = host.sink() {
-            run.counts.decoded_bytes = run.counts.decoded_bytes.saturating_add(sink.bytes_total());
+        if !error_lane {
+            // Only a successful session's sink joins the totals: a
+            // failed open leaves the PREVIOUS session's already-folded
+            // sink in place (the sink is replaced only by a successful
+            // open) — folding on the error lane would double-count it.
+            fold_sink_bytes(&mut run, &host);
         }
         // The bounded cadence: sample at every `stride` completed
         // cycles and at the configured end, each sample tagged with
@@ -961,10 +981,7 @@ fn run_count_scenario(
     // ---- baselines and growth (post-warmup) ----
     // The baseline sample is the first taken at/after the warmup
     // boundary (tag >= warmup_cycles); the final is the last sample.
-    let baseline_idx = live_series
-        .iter()
-        .position(|(at, _)| *at >= warmup_cycles)
-        .unwrap_or(0);
+    let (baseline_idx, measured_cycles_span) = count_baseline_and_span(&live_series, warmup_cycles);
     let live_baseline = live_series.get(baseline_idx).map(|(_, v)| *v);
     let live_final = live_series.last().map(|(_, v)| *v);
     let rss_baseline_kb = rss_series.get(baseline_idx).and_then(|(_, v)| *v);
@@ -972,13 +989,6 @@ fn run_count_scenario(
     let fd_baseline = fd_series.get(baseline_idx).and_then(|(_, v)| *v);
     let fd_final = fd_series.last().and_then(|(_, v)| *v);
     let fd_max = fd_series.iter().filter_map(|(_, v)| *v).max();
-    // The cycles the growth numbers span (tag distance, baseline →
-    // final; the denominators of the budget sentences and the drift
-    // mean — the honest span, not the configured count).
-    let measured_cycles_span = match (live_series.get(baseline_idx), live_series.last()) {
-        (Some((base_at, _)), Some((final_at, _))) => final_at.saturating_sub(*base_at),
-        _ => 0,
-    };
 
     if let (Some(base), Some(final_)) = (live_baseline, live_final)
         && (final_ - base) as f64 > defaults.live_growth_budget_bytes as f64
@@ -1008,6 +1018,19 @@ fn run_count_scenario(
              {measured_cycles_span} cycles (budget {})",
             defaults.fd_growth_budget
         ));
+    }
+    if rss_baseline_kb.is_none() {
+        // The honest-absent note (review W24-R4 P3-4), mirroring the fd
+        // instrument's below: off-Linux there is no /proc/self/status,
+        // so the RSS-growth block above silently skipping its check
+        // would read as a measurement (the duration scenarios already
+        // print "VmRSS slope: n/a" — only the count scenarios lacked
+        // the note).
+        run.note(
+            "the VmRSS instrument is not available on this platform (/proc/self/status) — \
+             the RSS-growth budget was NOT evaluated"
+                .to_string(),
+        );
     }
     if fd_baseline.is_none() {
         // The honest-absent note (never a pass, never a fail): the fd
@@ -1070,6 +1093,7 @@ fn run_count_scenario(
         live_baseline_bytes: live_baseline,
         live_final_bytes: live_final,
         live_mean_delta_per_cycle,
+        measured_cycles_span: Some(measured_cycles_span),
         wall_capped,
         cycles_configured: Some(n),
         ceiling_mb_per_h: spec
@@ -1086,6 +1110,27 @@ fn run_count_scenario(
 fn count_warmup_cycles(n: u64, defaults: &Defaults) -> u64 {
     let raw = (n as f64 * defaults.warmup_fraction).floor() as u64;
     raw.min(n / 2).max(1).min(n.saturating_sub(1))
+}
+
+/// The post-warmup baseline index and measured span of a count-driven
+/// series: the first sample tag at/after the warmup boundary, and the
+/// baseline → final tag distance — the cycles the growth budgets and
+/// the drift mean actually cover (the honest span, not the configured
+/// count). Surfaced in the report (`Measured cycles (post-warmup
+/// baseline sample → final sample)`) since the W24-R4 P2-3 finding: a
+/// synthesis had copied the 1M forced-threshold run's span
+/// (849,815) into the 2M churn row because no report stated the
+/// number — now one always does.
+fn count_baseline_and_span(series: &[(u64, isize)], warmup_cycles: u64) -> (usize, u64) {
+    let baseline_idx = series
+        .iter()
+        .position(|(at, _)| *at >= warmup_cycles)
+        .unwrap_or(0);
+    let span = match (series.get(baseline_idx), series.last()) {
+        (Some((base_at, _)), Some((final_at, _))) => final_at.saturating_sub(*base_at),
+        _ => 0,
+    };
+    (baseline_idx, span)
 }
 
 /// The sample stride for a count-driven scenario: `ceil(n /
@@ -1295,6 +1340,59 @@ mod tests {
         let stride = count_sample_stride(huge);
         assert!(stride >= 1);
         assert!(huge / stride <= MAX_COUNT_SAMPLES);
+    }
+
+    /// The post-warmup baseline/span arithmetic (the W24-R4 P2-3
+    /// regression): recomputed from the committed raw evidence's own
+    /// shapes — the 2M churn run (stride 489, warmup boundary 300,000:
+    /// first tag at/after the boundary is 614×489 = 300,246 → span
+    /// 1,699,754, NOT the 849,815 the synthesis had copied from the
+    /// 1M forced-threshold run) and the 1M forced run (stride 245 →
+    /// span 849,815, the number its violation sentences carry).
+    #[test]
+    fn count_baseline_and_span_matches_the_measured_tags() {
+        let _serial = serial();
+        // The 2M churn series shape: tags at every 489th cycle plus
+        // the final at 2,000,000 (4,090 samples, 613 warmup-excluded
+        // — the raw report's own counts).
+        let series: Vec<(u64, isize)> = (1..=4089u64)
+            .map(|k| (489 * k, 0))
+            .chain([(2_000_000, 0)])
+            .collect();
+        assert_eq!(series.len(), 4090);
+        let (idx, span) = count_baseline_and_span(&series, 300_000);
+        assert_eq!(idx, 613, "the raw report's warmup-excluded count");
+        assert_eq!(
+            series[idx].0, 300_246,
+            "the first tag at/after the boundary"
+        );
+        assert_eq!(span, 1_699_754, "2,000,000 − 300,246 (the P2-3 fix)");
+
+        // The 150k reopen series shape (stride 37, boundary 22,500):
+        // baseline tag 609×37 = 22,533 → span 127,467.
+        let series: Vec<(u64, isize)> = (1..=4054u64)
+            .map(|k| (37 * k, 0))
+            .chain([(150_000, 0)])
+            .collect();
+        let (idx, span) = count_baseline_and_span(&series, 22_500);
+        assert_eq!(series.len(), 4055);
+        assert_eq!(idx, 608);
+        assert_eq!(span, 127_467);
+
+        // The 1M forced-threshold shape (stride 245, boundary 150,000):
+        // span 849,815 — the number the raw violation sentences carry.
+        let series: Vec<(u64, isize)> = (1..=4081u64)
+            .map(|k| (245 * k, 0))
+            .chain([(1_000_000, 0)])
+            .collect();
+        let (_, span) = count_baseline_and_span(&series, 150_000);
+        assert_eq!(span, 849_815);
+
+        // Degenerate shapes stay honest: no samples → (0, 0); a series
+        // that never crosses the boundary measures from its first tag.
+        assert_eq!(count_baseline_and_span(&[], 10), (0, 0));
+        let series: Vec<(u64, isize)> = vec![(5, 0), (9, 0)];
+        assert_eq!(count_baseline_and_span(&series, 100), (0, 4));
     }
 
     /// The expectation-path mapping (the recorded-truth layout).

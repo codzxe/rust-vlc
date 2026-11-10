@@ -12,7 +12,7 @@ number below is from a real run whose verbatim report is committed under
 | Captured | 2026-11-10, single sandbox, UTC |
 | Environment | **Linux x86_64** container (`uname -m` = `x86_64`), 2 vCPU, 4,041 MB RAM, release build, rustc 1.99.1 (the repo pin). Honest label: the wave briefing called this sandbox "aarch64" — the machine is x86_64; every report here records `linux/x86_64`. No aarch64 measurement exists (§8). |
 | Harness | `crates/playback-engine/tests/soak_scenarios/` — the config-driven scenario suite (config plane: `tests/soak/*.toml`; contract: `tests/soak/scenarios.schema.json`) |
-| Profile | `tests/soak/scenarios-sandbox.toml` — the bounded tier: 3 × 8 min duration-driven + 2 count-driven scenarios calibrated to ~5 min (§5) ≈ 29.4 min of real playback/churn |
+| Profile | `tests/soak/scenarios-sandbox.toml` — the bounded tier: 3 × 8 min duration-driven + 2 count-driven scenarios calibrated to ~5 min (§5) ≈ 30.9 min of real playback/churn (the MEASURED walls: 3 × 480.0 s + 216.4 s + 200.1 s = 1,856.5 s, from the raw reports; the manifest planned ~35, the run came in faster. The warmup-excluded fit windows sum smaller — 27.3 min — if that is the figure wanted) |
 | Invocation | `scripts/soak-scenarios.sh --only <id> --release` per scenario (the sandbox's tool-call wall caps force one process per scenario, each a clean allocator baseline — the `SOAK_SCENARIOS_ONLY` chunking knob; CI and the nightly never set it) |
 | Heritage | Supersedes the issue-#18 single-loop plumbing report (`docs/perf/soak-nightly-20261109.md`, whose only real number was the CI-short 2 min debug run) with five scenarios of measured release evidence |
 | Raw evidence | `docs/soak/raw/scenarios-sandbox__{play-loop,seek-storm,playlist-cycle,open-close-churn,reopen-stress}.md` (one verbatim suite report per scenario), `…__reopen-stress__calibration.md`, `scenarios-forced-threshold.md` |
@@ -59,13 +59,22 @@ Count scenarios (growth budgets, post-warmup baselines):
 
 | scenario | cycles measured | live bytes | VmRSS | open fds |
 |---|---|---|---|---|
-| open-close-churn | 849,815 post-warmup (of 2.0M) | 295,117 → 295,117 B (**+0.0 B/cycle**) | 1,720 → 1,972 kB (+252 kB; budget 8 MB) | 4 → 4 (max 4; budget 4) |
-| reopen-stress | 127,500 post-warmup (of 150k) | 292,783 → 292,783 B (**+0.0 B/cycle**) | 2,296 → 2,500 kB (+204 kB; budget 8 MB) | 4 → 4 (max 4; budget 4) |
+| open-close-churn | 1,699,754 post-warmup (of 2.0M) | 295,117 → 295,117 B (**+0.0 B/cycle**) | 1,720 → 1,972 kB (+252 kB; budget 8 MB) | 4 → 4 (max 4; budget 4) |
+| reopen-stress | 127,467 post-warmup (of 150k) | 292,783 → 292,783 B (**+0.0 B/cycle**) | 2,296 → 2,500 kB (+204 kB; budget 8 MB) | 4 → 4 (max 4; budget 4) |
 
-The counting allocator sees **zero net live-byte drift per cycle** at
+The "cycles measured" cells are the MEASURED post-warmup spans —
+baseline sample tag → final sample tag (stride 489: tag 300,246 →
+2,000,000 = 1,699,754; stride 37: tag 22,533 → 150,000 = 127,467;
+recomputed from the raw reports' sample/warmup counts — the
+`count_sample_stride` cadence of §5). The counting allocator sees
+**zero net live-byte drift per cycle** at
 both scales — the strongest available no-leak signal for the
 session-lifecycle path. VmRSS moves ~¼ MB per scenario (kernel-level
 arena behavior, monotone-ish but bounded), 30× under its budget.
+(The suite report now records this span itself —
+`Measured cycles (post-warmup baseline sample → final sample)` per
+count scenario — so future syntheses read it instead of re-deriving
+it; added with the W24-M review-fix round.)
 
 ## 3. Memory slopes vs the 5 MB/h target — FREEZE
 
@@ -252,11 +261,19 @@ survives when billing unblocks.
 
 ## 10. Verification battery (this branch, 2026-11-10)
 
-Recorded verbatim in the W24-B worklog entry (repo-root `worklog.md`,
-appended with this round): `cargo fmt --check`; `cargo clippy
---workspace --all-targets -- -D warnings`; `cargo test -p
-playback-engine` (scoped); `cargo test --workspace --all-features`
-(full, once, end of session); `cargo run -p xtask -- lint-literals`;
-`cargo run -p xtask -- check-architecture`. The battery runs after
-this report is written; any red blocks the push (actual results in
-the worklog entry).
+Recorded in the W24-B worklog entry (repo-root `worklog.md`), appended
+with the W24-M r2 review-fix round — the original session ended without
+the append, leaving this citation dangling (review W24-R4 P1-1). The
+battery's actual results, as re-run green by the independent W24-R4
+audit in a fresh worktree: `cargo fmt --check` (workspace) CLEAN;
+`cargo clippy -p playback-engine --all-targets --locked -- -D
+warnings` CLEAN; `cargo test -p playback-engine` green — the whole
+crate, incl. the CI-short scenario suite (29/29 in 39.4 s, all five
+scenarios inside budgets) and the forced-threshold enforcement proof
+(FAIL, 2 violations, exit ≠ 0 — the expected red that proves the guard
+bites); `cargo run -p xtask -- lint-literals` PASS (0 violations /
+452 allowlisted). Honest gap, stated in the entry: the full-workspace
+`cargo test --workspace --all-features` run and `check-architecture`
+this section originally listed were never recorded on this branch and
+were not re-run by the audit — no committed result exists for those two
+items; any future red there blocks the merge all the same.

@@ -60,6 +60,12 @@ pub struct ScenarioResult {
     /// The mean net live-bytes delta per measured cycle (the drift
     /// triage number; count-driven scenarios).
     pub live_mean_delta_per_cycle: Option<f64>,
+    /// The count-driven measured span — baseline sample tag → final
+    /// sample tag, the cycle distance the growth budgets and the
+    /// drift mean actually cover (recorded so no synthesis has to
+    /// re-derive it from sample counts; `None` for the duration
+    /// scenarios, whose axis is the measured window in seconds).
+    pub measured_cycles_span: Option<u64>,
     /// Whether the wall cap ended the run before the configured cycle
     /// count (reported, never hidden).
     pub wall_capped: bool,
@@ -142,10 +148,15 @@ pub fn suite_markdown(manifest: &Manifest, results: &[ScenarioResult]) -> String
             result.id, result.kind_label, result.wall_s, result.measured_cycles, live, rss, verdict
         );
     }
+    // The fold's identity is NEG_INFINITY (the max over an empty or
+    // all-`None` set stays -∞ → `is_finite()` false → no headline);
+    // with +INFINITY the max is +∞ for every input and the headline
+    // below is dead code (review W24-R4 P2-2 — zero committed raw
+    // report ever carried the line).
     let worst = results
         .iter()
         .filter_map(|result| result.verdict.live_mb_per_h)
-        .fold(f64::INFINITY, f64::max);
+        .fold(f64::NEG_INFINITY, f64::max);
     if worst.is_finite() {
         let _ = writeln!(
             out,
@@ -282,6 +293,14 @@ fn write_scenario(out: &mut String, result: &ScenarioResult, manifest: &Manifest
     }
 
     // The count-driven growth numbers.
+    if let Some(span) = result.measured_cycles_span {
+        let _ = writeln!(
+            out,
+            "- Measured cycles (post-warmup baseline sample → final sample): {span} of {} \
+             configured — the span the growth budgets and the drift mean cover.",
+            result.cycles_configured.unwrap_or(0)
+        );
+    }
     if result.fd_baseline.is_some() || result.fd_final.is_some() {
         let _ = writeln!(
             out,
@@ -415,6 +434,115 @@ mod tests {
     /// window are pollution).
     fn serial() -> std::sync::MutexGuard<'static, ()> {
         testkit::alloc_count::serialize_tests()
+    }
+
+    /// A minimal in-memory manifest for render tests (no file I/O —
+    /// the loader has its own tests; the renderer only reads defaults).
+    fn render_manifest() -> Manifest {
+        Manifest {
+            source: "unit://render.toml".to_string(),
+            defaults: crate::manifest::Defaults {
+                sample_ms: 1000,
+                warmup_fraction: 0.15,
+                min_cycles: 3,
+                max_skip_rate: 0.25,
+                leak_ceiling_mb_per_h: 50.0,
+                target_mb_per_h: 5.0,
+                assert_target: false,
+                rss_growth_budget_mb: 8.0,
+                fd_growth_budget: 4,
+                live_growth_budget_bytes: 524_288,
+            },
+            scenarios: Vec::new(),
+        }
+    }
+
+    /// A synthetic result with the given measured live slope (MB/h;
+    /// `None` = a growth-budgeted count scenario with no fitted line).
+    fn result_with_slope(id: &str, live_mb_per_h: Option<f64>) -> ScenarioResult {
+        ScenarioResult {
+            id: id.to_string(),
+            kind_label: "play-loop",
+            driver: "duration 0.01 min".to_string(),
+            fixtures: vec!["generated/valid/avi_mjpeg_pcm.avi".to_string()],
+            wall_s: 1.0,
+            samples_total: 2,
+            warmup_samples: 1,
+            measured_window_s: 1.0,
+            measured_cycles: 3,
+            counts: ScenarioCounts::default(),
+            live_slope_b_per_s: live_mb_per_h.map(|mb| mb * 1e6 / 3600.0),
+            rss_slope_kb_per_s: None,
+            fd_baseline: None,
+            fd_final: None,
+            fd_max: None,
+            rss_baseline_kb: None,
+            rss_final_kb: None,
+            live_baseline_bytes: None,
+            live_final_bytes: None,
+            live_mean_delta_per_cycle: None,
+            measured_cycles_span: None,
+            wall_capped: false,
+            cycles_configured: None,
+            ceiling_mb_per_h: 50.0,
+            verdict: SlopeVerdict {
+                live_mb_per_h,
+                over_ceiling: false,
+                over_target: false,
+            },
+            failures: Vec::new(),
+            notes: Vec::new(),
+        }
+    }
+
+    /// The worst-slope headline (review W24-R4 P2-2 regression): the
+    /// fold identity is `NEG_INFINITY`, so the headline must render the
+    /// largest FINITE measured slope — with the old `INFINITY`
+    /// initializer the fold was always +∞, `is_finite()` never held,
+    /// and the line was dead code for every input (no committed raw
+    /// report ever carried it).
+    #[test]
+    fn worst_slope_headline_prints_the_largest_finite_slope() {
+        let _serial = serial();
+        let manifest = render_manifest();
+
+        // Mixed signs and a slope-less count scenario: the headline
+        // names the max finite value (0.060, the seek-storm evidence
+        // figure), not -∞, not +∞, not the negative.
+        let results = [
+            result_with_slope("play-loop", Some(-0.058)),
+            result_with_slope("seek-storm", Some(0.060)),
+            result_with_slope("open-close-churn", None),
+        ];
+        let markdown = suite_markdown(&manifest, &results);
+        assert!(
+            markdown.contains("Worst measured live-bytes slope across scenarios: **0.060 MB/h**"),
+            "the headline must render the largest finite measured slope:\n{markdown}"
+        );
+
+        // All-negative slopes still render (the max of negatives is
+        // finite — memory returning everywhere is still a measurement).
+        let results = [
+            result_with_slope("play-loop", Some(-0.058)),
+            result_with_slope("seek-storm", Some(-6.951)),
+        ];
+        let markdown = suite_markdown(&manifest, &results);
+        assert!(
+            markdown.contains("Worst measured live-bytes slope across scenarios: **-0.058 MB/h**"),
+            "the max of negative slopes is finite and must render:\n{markdown}"
+        );
+
+        // No definable slope anywhere: the headline stays absent (the
+        // `is_finite` guard's purpose — never invent a number).
+        let results = [
+            result_with_slope("open-close-churn", None),
+            result_with_slope("reopen-stress", None),
+        ];
+        let markdown = suite_markdown(&manifest, &results);
+        assert!(
+            !markdown.contains("Worst measured live-bytes slope"),
+            "no defined slope ⇒ no headline:\n{markdown}"
+        );
     }
 
     /// Known dates (the algorithm is only as good as its checks):

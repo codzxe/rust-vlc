@@ -775,6 +775,29 @@ Stage Summary:
 - Limitations (honest): no licenses/authors/CPE in the SBOM (not in Cargo.lock; G3 owns policy); Rust graph only (wasm + npm UI SBOMs are separate future cards, doc 11 §3.4; per-platform finalization + cargo-auditable embedding = 8.E3); subject dependsOn = all 38 path packages (shipped-app vs dev-tool split not encoded in the lockfile, documented); serial fingerprint is non-cryptographic by design (uniqueness only).
 
 ---
+Task ID: W24-B
+Agent: W24-B (soak & stress lane — entry appended retroactively by the W24-M r2 review-fix round, see the provenance bullets)
+Task: Issue #54, cards 8.C1 / P8-3 — soak & stress completion: the bounded five-scenario measurement suite, the 5 MB/h FREEZE decision on measured numbers, the nightly 4 h tier + LSAN wiring.
+
+Work Log:
+- 8bcaf62 (17:13 UTC): the scenario suite — config plane (tests/soak/*.toml manifests + scenarios.schema.json contract), five scenario runners, markdown report generator (crates/playback-engine/tests/soak_scenarios/).
+- 8780e50 (17:44): scripts/soak-scenarios.sh sandbox wrapper + report-name fixups (the SOAK_SCENARIOS_ONLY chunking knob for wall-capped sandboxes; CI and the nightly never set it).
+- 9055384 (18:30): raw sandbox evidence, scenarios 1–3 of 5 (play-loop, seek-storm, playlist-cycle — release runs, verbatim reports committed under docs/soak/raw/).
+- 09ad85a (19:10): bounded instrument sampling — the count-scenario stride keeps each series ≤ 4,096 samples (the ~48 MB per-cycle-sampling regression found in-session, fixed, unit-pinned) + count recalibration + the 2M-cycle churn evidence.
+- e272507 (19:14): raw sandbox evidence, scenario 5 of 5 — reopen-stress 150k cycles + its calibration report.
+- 80fe6bc (19:24): the forced-threshold enforcement self-proof — pinched budgets in a 1M-cycle profile FAIL with 2 violations, exit ≠ 0 (a red that proves the guard bites).
+- 0024041 (19:27): extend .github/workflows/soak-nightly.yml — the scenario-suite 4 h tier + the LSAN job; nightly cycle counts derived from the measured rates (both billing-blocked, stated in the report's §8).
+- c7c5df7 + 0acd8c4 (19:49): clippy manual_is_multiple_of fix; the synthesis report docs/soak/soak-report-20261110.md (measured numbers, the 5 MB/h FREEZE, §6.2 regression-guard wiring gap, audits).
+- Verification battery, ACTUAL results — re-run green by the independent W24-R4 audit in a fresh worktree on 2026-11-10 (the lane's own battery runs were never recorded; the audit's re-run is the committed record): `cargo test -p playback-engine --test soak_scenarios` (CI-short default profile) 29/29 PASS in 39.4 s, all five scenarios inside budgets; forced-threshold profile re-run (`--release`) FAIL — 2 violations, exit ≠ 0, the expected enforcement proof (measured span 849,815 cycles reproduced exactly; live bytes +84 B vs the recorded +82 B — run-to-run variance, i.e. real measurement); `cargo test -p playback-engine` (whole crate) green incl. the pre-existing soak loop (12/12, 120.05 s); `cargo clippy -p playback-engine --all-targets --locked -- -D warnings` CLEAN; `cargo fmt --check` (workspace) CLEAN; `cargo run -p xtask -- lint-literals` PASS (0 violations / 452 allowlisted).
+- Honest gap: the full-workspace `cargo test --workspace --all-features` run and `check-architecture` that the report's §10 originally listed were never recorded on this branch and were not re-run by the audit — no committed result exists for those two items (§10 now states this; the scoped battery above is the committed evidence).
+- Provenance: the original W24-B session ended without appending this entry, so the synthesis report's §10 "recorded verbatim in the W24-B worklog entry" citation dangled (review W24-R4 finding P1-1). This entry was appended 2026-11-10 23:02 UTC by the W24-M r2 review-fix round from the lane's commit chain and the W24-R4 audit's recorded re-run results, labeled as such above. Nothing else about the lane's record was rewritten — the report's numbers check out against the raw evidence.
+
+Stage Summary:
+- The five-scenario bounded soak RAN for real in-sandbox (release, linux/x86_64, 30.9 min of measured walls: 3 × 480.0 s + 216.4 s + 200.1 s); the 5 MB/h design target is FROZEN on the measured numbers — worst duration-scenario live slope 0.060 MB/h (83× under), worst RSS slope 0.403 MB/h (12× under), count scenarios +0.0 B/cycle live drift. Raw evidence: seven verbatim reports under docs/soak/raw/.
+- Lane: 9 commits on w24/b (8bcaf62..0acd8c4), 19 files, +4,529/−0; nightly 4 h tier + LSAN job wired and billing-blocked (§8 of the report).
+- This entry is the record the synthesis report's §10 points at; its battery results are the W24-R4 audit's independent re-run (green), with the two never-recorded battery items named honestly.
+
+---
 Task ID: W24-C
 Agent: w24-c (rounds 1-4, issue #56 — cards 8.E1-8.E3, doc 11 §9.3; branch w24/c)
 Task: Cross-platform packaging: Windows MSI/WiX + Authenticode driver, macOS dmg + codesign/notarize driver, Linux deb/AppImage/rpm lanes, tar.gz/zip archives, per-artifact SBOMs + checksums, release.yml 3-OS matrix, packaging runbook, full_gate step 11; honest BLOCKED labels for user-owned credentials.
@@ -940,6 +963,31 @@ Work Log:
 
 Stage Summary:
 - W24-D lane verdict: SHIP-WORTHY EVIDENCE, process gap. The compat-matrix deliverable is genuine and reproducible (3× bit-identical re-runs, oracle method re-verified to the byte, transitions provably tool-applied, feature-audit PASS), but the lane skipped the mandatory worklog append (P1) and the report surface under-explains 4 in-row refusals (P2) plus a latent steps-cell honesty gap (P2). 0 P0. Full severity-ordered findings with file:line + evidence + suggested fixes in docs/reviews/w24-d-compat-findings.md; pushed w24/l for the Lead's fix lane.
+
+---
+
+Task ID: W24-M r2
+Agent: W24-M (soak-review fixer, round 2 — resumed session)
+Task: Close the remaining W24-R4 soak-lane review findings on w24/m (issue #54, card 8.C1 evidence) — the round-2 fixer session finishing docs/reviews/w24-b-soak-findings.md.
+
+Work Log:
+- Resumed with P3-1/P3-2/P3-3 already landed this session and runner.rs dirty mid-P3-4; finished from there. All nine findings are now closed on w24/m:
+- P2-2 aa04202: report.rs worst-slope fold initializer f64::INFINITY -> f64::NEG_INFINITY (the 'Worst measured live-bytes slope' headline was dead code — max(+inf, x) is always +inf) + regression test worst_slope_headline_prints_the_largest_finite_slope.
+- P2-3 3295b1b: the synthesis churn row's post-warmup span 849,815 (the 1M forced run's) -> 1,699,754 (the 2M run's); runner records the measured span; count_baseline_and_span unit-pinned against all three committed series shapes.
+- P2-4 a25a427: the schema $comment's wiring-gap reference repointed from the nonexistent docs/soak/regression-guards.md to docs/soak/soak-report-20261110.md §6.2.
+- P3-1 3aa4b62: run_seek_storm folds sink payload bytes — the D-6 line no longer reads '0 payload bytes' next to millions of frames.
+- P3-2 0b34933: the report's profile total 29.4 -> 30.9 min (the measured walls: 3 × 480.0 s + 216.4 s + 200.1 s).
+- P3-3 7f6ed4d: provenance note on the calibration report (generated by the pre-09ad85a per-cycle sampling code; the off-by-one a recomputing reviewer would hit).
+- P1-1 56d74fe: appended the missing W24-B worklog entry (the entry above) — the lane's commit chain plus the W24-R4 audit's re-run battery results, provenance labeled; soak-report §10 repointed truthfully, the never-recorded full-workspace --all-features + check-architecture items named as an honest gap instead of papered over.
+- P3-4 dde8674: the count scenarios now carry the absent-VmRSS honest-absence note, mirroring the fd instrument's (off-Linux symmetry; the duration scenarios already printed 'VmRSS slope: n/a').
+- P3-5 3fd6f5f: seeks_per_reopen promoted from a runner.rs constant to an optional [[scenario]] key (default 16, range [1, 1024], loud refusals; loader + schema + tests; behavior-identical for shipped manifests — none sets it); the schema $comment's manifest list now names scenarios-forced-threshold.toml.
+- Verification (every commit message carries its own run; the code-touching ones all re-ran the battery): cargo fmt -p playback-engine -- --check CLEAN at each code commit; cargo clippy -p playback-engine --all-targets --locked -- -D warnings CLEAN at each code commit; scoped suite cargo test -p playback-engine --test soak_scenarios green after each code change — final 32/32 PASS in 39.27 s (29 inherited + the P2-2, P2-3 and P3-5 regression tests); lint-literals PASS (0 violations / 452 allowlisted); schema JSON machine-validated (python json.load) after both schema edits.
+
+Stage Summary:
+- All 9 W24-R4 findings closed (P1=1, P2=3, P3=5): the branch's central verification citation is real (worklog entry + truthful §10), the synthesis numbers match the raw evidence, the report's headline slope line renders, and the honest-absence notes are symmetric across platforms.
+- No test weakened, no behavior change for shipped manifests; the seek epoch length is now config-plane with the old constant as its default.
+- D-10: MEASURE — the scoped battery above, re-run per commit. NOT TESTED — a non-Linux run of the suite (the P3-4 note's trigger; unreachable on this Linux sandbox, same as the fd note it mirrors) and the full-workspace --all-features run the lane never recorded (left as the named honest gap, not re-run here — out of the round's ownership). WHAT BREAKS — nothing new; a manifest setting seeks_per_reopen > the default changes only the storm's epoch shape. WHO HITS IT FIRST — the first nightly author wanting a stormier profile (the schema + loader now take the key).
+- w24/m pushed after this entry; main untouched; w24/b not modified — the fixes ride the m lane for the Lead's merge decision.
 
 ---
 
