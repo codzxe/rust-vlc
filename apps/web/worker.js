@@ -1,5 +1,7 @@
 /*
- * Lumen engine worker glue (card 7.H1, issue #47; doc 09 §3.2/§7).
+ * Lumen engine worker glue (card 7.H1, issue #47; doc 09 §3.2/§7;
+ * the frame lane + the loss/gesture reports extended by card 7.H2/7.H3,
+ * issue #48).
  *
  * The minimal hand-written bridge between the Worker MessagePort and
  * the wasm module's extern "C" ABI (apps/web/src/abi.rs — the
@@ -11,17 +13,32 @@
  *                lumen_web_write_u32, then lumen_web_dispatch()
  *   upstream    lumen_web_output_addr() + lumen_web_output_len() ->
  *                read the JSON array straight out of memory.buffer ->
- *                one postMessage per element
+ *                one postMessage per element; a `presentFrame` element
+ *                additionally carries the RGBA bytes read through
+ *                lumen_web_frame_addr() + lumen_web_frame_len() (the raw
+ *                frame lane, card 7.H2 — the pixels never ride the JSON)
+ *
+ * Page-driven facts this glue relays untouched (the wasm module has no
+ * DOM; the PAGE owns the probes and the user gesture, doc 09 §4.4/§5.3):
+ *   - `boot` may carry `renderer: {webgpuApi, webgpuAdapter, webgl2Context}`
+ *     — the page's raw probe facts; the engine walks the ladder and the
+ *     boot reply's capability snapshot reports the ACTIVE backend.
+ *   - `surfaceLost` reports a dead canvas context / WebGPU device; the
+ *     engine answers `renderDegraded` with the fallback transition.
+ *   - `audioContext` reports the page's AudioContext state; a suspended
+ *     context while playing surfaces `gestureRequired` (the
+ *     paused-pending-gesture substate — the page then drives the
+ *     gesture and reports `running: true`).
  *
  * The run loop is re-armed per doc 09 §3.2: after every pump report
  * that says `busy`, a setTimeout(0) tick sends the next pump slice —
  * the engine NEVER blocks this Worker's event loop; every slice is
  * bounded (SliceBudgets, apps/web/src/host.rs).
  *
- * Serving (doc 09 §2.3): this file and lumen_web.wasm sit in the
- * same directory; the server must answer the wasm with
- * `application/wasm` (streaming instantiation). No COOP/COEP headers
- * are required — v1 is the single-threaded cooperative lane
+ * Serving (doc 09 §2.3): this file, audio-worklet.js and
+ * lumen_web.wasm sit in the same directory; the server must answer the
+ * wasm with `application/wasm` (streaming instantiation). No COOP/COEP
+ * headers are required — v1 is the single-threaded cooperative lane
  * (`threading: "single"` in the boot handshake).
  *
  * Browser-runtime behavior is [VERIFY]: exercised only in a real
@@ -70,8 +87,25 @@ function pumpOutputs() {
   const bytes = new Uint8Array(wasm.exports.memory.buffer, addr, len);
   const text = decoder.decode(bytes);
   const messages = JSON.parse(text);
+  // The raw frame lane (card 7.H2): at most ONE presentFrame per
+  // dispatch, its RGBA bytes staged apart from the JSON. Read them
+  // BEFORE any further wasm call — the same valid-until-next-dispatch
+  // invariant — and copy them out of linear memory (.slice()): the
+  // page receives an owned buffer, transferred to avoid a second
+  // copy on the post itself.
+  let frame = null;
+  const frameAddr = wasm.exports.lumen_web_frame_addr();
+  const frameLen = wasm.exports.lumen_web_frame_len();
+  if (frameAddr !== 0 && frameLen > 0) {
+    frame = new Uint8Array(wasm.exports.memory.buffer, frameAddr, frameLen).slice();
+  }
   for (const message of messages) {
-    self.postMessage(message);
+    if (message.type === "presentFrame" && frame !== null) {
+      message.rgba = frame;
+      self.postMessage(message, [frame.buffer]);
+    } else {
+      self.postMessage(message);
+    }
   }
   // Re-arm the run loop while the engine reports work outstanding
   // (doc 09 §3.2: host timers re-arm the pump).

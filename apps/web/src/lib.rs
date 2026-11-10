@@ -59,13 +59,18 @@
 //! exists in this sandbox, and nothing here claims it was exercised.
 
 pub mod abi;
+pub mod audio;
 pub mod capabilities;
 pub mod host;
+pub mod io;
 pub mod open;
 pub mod protocol;
+pub mod render;
 pub mod source;
 
+pub use audio::{AutoplayGate, WORKLET_QUANTUM, WorkletQueue};
 pub use capabilities::{HostCapabilities, TargetProfile, capabilities};
 pub use host::{SliceBudgets, WebHost};
 pub use protocol::{HostToWorker, PumpReport, WorkerToHost};
+pub use render::{RenderBackend, RendererCaps, RendererNegotiation};
 pub use source::{BlobRegistry, BlobSource};

@@ -95,12 +95,15 @@ impl CapabilityStatus {
 pub struct HostCapabilities {
     /// `single` on this card (doc 09 §3.2's truth rule).
     pub threading: Threading,
-    /// The video output lane — none yet: the canvas surface is card
-    /// 7.H2 (v1's video path presents to the headless counting
-    /// presenter).
+    /// The video output lane — the render lane's own truth (card
+    /// 7.H2): the ACTIVE backend from the page's probe facts (e.g.
+    /// `webgpu` / `webgl2`), the honest `unavailable (…)` refusal,
+    /// or `unprobed (…)` before the handshake reported facts.
     pub renderer: String,
-    /// The audio output lane — the null device: the AudioWorklet
-    /// sink is card 7.H3.
+    /// The audio output lane — the null device (the headless
+    /// sample-counter clock); the AudioWorklet lane's browser
+    /// wiring is card 7.I1's `[VERIFY]` matrix (card 7.H3 landed
+    /// the model + processor + autoplay gate).
     pub audio_output: String,
     /// The registry descriptors this build can actually decode
     /// (empty on wasm32 — see the module docs).
@@ -205,16 +208,24 @@ pub fn capabilities(profile: TargetProfile) -> HostCapabilities {
         },
         BlockedCapability {
             capability: "canvas-render-surface".to_string(),
-            status: CapabilityStatus::NotStarted,
-            reason: "WebGPU/WebGL2 present is card 7.H2 (doc 09 §4); v1 \
-                     presents to the headless counting presenter"
+            status: CapabilityStatus::Blocked,
+            reason: "the typed render seam + negotiation ladder + CPU \
+                     RGBA upload lane landed (card 7.H2, headless-proven \
+                     — active backend reported from the page's probe \
+                     facts); the browser present itself (canvas draw, \
+                     requestVideoFrameCallback pacing, device loss \
+                     round-trip) is card 7.I1's [VERIFY] matrix"
                 .to_string(),
         },
         BlockedCapability {
             capability: "audioworklet-output".to_string(),
-            status: CapabilityStatus::NotStarted,
-            reason: "the AudioWorklet sink + sample-counter clock is card \
-                     7.H3 (doc 09 §5); v1 runs the null device"
+            status: CapabilityStatus::Blocked,
+            reason: "the AudioWorklet sink model + hand-written JS \
+                     processor + autoplay gate landed (card 7.H3, \
+                     native-cfg simulation tests); the browser wiring \
+                     (context creation, chunk routing, counter \
+                     feedback) is card 7.I1's [VERIFY] matrix — v1 runs \
+                     the null device as the headless time source"
                 .to_string(),
         },
     ];
@@ -231,8 +242,13 @@ pub fn capabilities(profile: TargetProfile) -> HostCapabilities {
     }
     HostCapabilities {
         threading: Threading::Single,
-        renderer: "none (canvas surface is card 7.H2)".to_string(),
-        audio_output: "null device (AudioWorklet sink is card 7.H3)".to_string(),
+        renderer: "unprobed (the page has not reported renderer facts \
+                   yet — the boot handshake carries the probe result)"
+            .to_string(),
+        audio_output: "null device (the headless sample-counter clock; \
+                       the AudioWorklet lane is browser [VERIFY], card \
+                       7.I1)"
+            .to_string(),
         decoders,
         blocked,
     }
