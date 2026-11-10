@@ -55,6 +55,7 @@ interface MatrixConfig {
   };
   modes: Array<{ id: string; coopCoep: boolean }>;
   pump: { ticksPerSlice: number; maxSlices: number; sliceTimeoutMs: number };
+  waits: { timeoutMs: number };
   playToEnd: { positionToleranceUs: number };
 }
 
@@ -106,6 +107,7 @@ for (const mode of matrix.modes) {
         rangeBlindPath: `/${matrix.server.rangeBlindPath}`,
       },
       pump: matrix.pump,
+      waits: matrix.waits,
       playToEnd: matrix.playToEnd,
       mode,
       fixtureBytes,

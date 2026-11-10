@@ -34,6 +34,14 @@
     "maxSlices": 4096,
     "sliceTimeoutMs": 30000
   },
+  "waits": {
+    "timeoutMs": 30000,
+    "comment": "The in-page harness's default wait budget for every waitUntil (W24-R8 P3-1): the spec threads this into the runtime config it page.evaluate's, so the page-side waits are config-driven exactly like the pump budgets — no orphan literal in harness.js."
+  },
+  "runner": {
+    "timeoutMs": 240000,
+    "comment": "The Playwright per-test timeout for the web-matrix lane (W24-R8 P3-2): playwright.web.config.ts reads it here — the runner timeout is exactly the kind of knob this file exists for. 240 s: the suite runs 17 scenarios per mode, several of which legitimately consume their full 30 s pump budget."
+  },
   "playToEnd": {
     "positionToleranceUs": 20000
   },

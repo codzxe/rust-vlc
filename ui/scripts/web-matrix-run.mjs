@@ -64,6 +64,8 @@ function validateConfigShape(subject) {
     ["pump", "ticksPerSlice"],
     ["pump", "maxSlices"],
     ["pump", "sliceTimeoutMs"],
+    ["waits", "timeoutMs"],
+    ["runner", "timeoutMs"],
     ["playToEnd", "positionToleranceUs"],
     ["serving", "coopCoepDefault"],
     ["report", "outputDir"],
@@ -102,6 +104,15 @@ function validateConfigShape(subject) {
   }
   if (typeof subject.serving.coopCoepDefault !== "boolean") {
     fail("matrix.config.json: serving.coopCoepDefault must be a boolean (the shipped-posture pin, doc 09 §9.5)");
+  }
+  for (const knob of [
+    ["pump.sliceTimeoutMs", subject.pump.sliceTimeoutMs],
+    ["waits.timeoutMs", subject.waits.timeoutMs],
+    ["runner.timeoutMs", subject.runner.timeoutMs],
+  ]) {
+    if (!Number.isInteger(knob[1]) || knob[1] <= 0) {
+      fail(`matrix.config.json: ${knob[0]} must be a positive integer (got ${JSON.stringify(knob[1])})`);
+    }
   }
 }
 validateConfigShape(config);
@@ -440,6 +451,12 @@ copyFileSync(workerPath, path.join(siteDist, "worker.js"));
 copyFileSync(workletPath, path.join(siteDist, "audio-worklet.js"));
 copyFileSync(wasmPath, path.join(siteDist, "lumen_web.wasm"));
 copyFileSync(fixturePath, path.join(siteDist, config.server.servedFixture));
+// The range-blind route needs the fixture staged under ITS name too: the
+// 2026-11-10 capture's fetch-range-blind-server fail ("expected 200, got
+// 404") was exactly this gap — the server resolved /fixture-norange.avi
+// against a file that was never copied, so it 404'd before the range-blind
+// behavior could be exercised. Same bytes, two routes, different headers.
+copyFileSync(fixturePath, path.join(siteDist, config.server.rangeBlindPath));
 
 // -- the static server (one per isolation mode) ------------------------------
 
@@ -456,6 +473,15 @@ function parseRange(header, total) {
     return null;
   }
   const spec = header.slice("bytes=".length);
+  // Multi-range requests are served as the full body (RFC 9110 §14.2: a
+  // server MAY ignore Range) — but never SILENTLY: the old shape swallowed
+  // everything after the first comma via parseInt and served a wrong single
+  // window (W24-R8 P3-4). Media fetches never issue multi-range, so this is
+  // a strictness guard; each occurrence is logged once by the driver.
+  if (spec.includes(",")) {
+    console.warn(`[web-matrix] multi-range request ignored (serving 200 full body): ${header}`);
+    return null;
+  }
   const dash = spec.indexOf("-");
   if (dash < 1) {
     return null;
@@ -619,11 +645,14 @@ const child = spawn(process.execPath, [cli, "test", "--config", playwrightConfig
 const playwrightStatus = await new Promise((resolve, reject) => {
   child.once("error", reject);
   child.once("close", (code) => resolve(code ?? 2));
+}).finally(() => {
+  // Symmetric shutdown (W24-R8 P3-3): the spawn-error path used to skip
+  // this loop when the awaited promise rejected — the servers leaked until
+  // process exit. finally closes them on EVERY exit path.
+  for (const server of servers) {
+    server.close();
+  }
 });
-
-for (const server of servers) {
-  server.close();
-}
 
 // -- merge the fragments into the machine-readable record --------------------
 

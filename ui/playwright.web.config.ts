@@ -15,13 +15,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "@playwright/test";
 
-// The chromium launch knobs (matrix.config.json → browsers.chromium):
-// the driver resolves the executable (env override → config path under
-// the Playwright browsers root → @playwright/test's own revision-pinned
-// binary) and hands it over via the configured env name; the launch
-// flags come straight from the config (the container-evidence shape:
-// --no-sandbox + --disable-dev-shm-usage — the config's comment
-// explains why every lane passes them; no literal here, doc 07 §9).
+// The chromium launch + runner knobs (matrix.config.json → browsers.chromium
+// + runner): the driver resolves the executable (env override → config path
+// under the Playwright browsers root → @playwright/test's own revision-pinned
+// binary) and hands it over via the configured env name; the launch flags and
+// the per-test timeout come straight from the config (the container-evidence
+// shape: --no-sandbox + --disable-dev-shm-usage — the config's comment
+// explains why every lane passes them; no literal here, doc 07 §9 — W24-R8
+// P3-2 moved the runner timeout under the same rule).
 interface MatrixBrowserConfig {
   browsers: {
     chromium: {
@@ -30,6 +31,9 @@ interface MatrixBrowserConfig {
       launchArgs: string[];
     };
   };
+  runner: {
+    timeoutMs: number;
+  };
 }
 const here = path.dirname(fileURLToPath(import.meta.url));
 const matrix = JSON.parse(
@@ -37,11 +41,17 @@ const matrix = JSON.parse(
 ) as MatrixBrowserConfig;
 const chromiumExecutable = process.env[matrix.browsers.chromium.executableEnv];
 const chromiumLaunchArgs = matrix.browsers.chromium.launchArgs ?? [];
+if (!Number.isInteger(matrix.runner.timeoutMs) || matrix.runner.timeoutMs <= 0) {
+  throw new Error(
+    "matrix.config.json: runner.timeoutMs must be a positive integer " +
+      `(got ${JSON.stringify(matrix.runner.timeoutMs)}) — the driver validates the same knob`,
+  );
+}
 
 export default defineConfig({
   testDir: "./e2e/web",
   testMatch: "web-matrix.spec.ts",
-  timeout: 240_000,
+  timeout: matrix.runner.timeoutMs,
   // Sequential: both isolation modes share the harness server pair
   // and the fragment output dir; parallel workers would only add
   // scheduler noise to a conformance measurement.
