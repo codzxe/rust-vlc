@@ -43,6 +43,12 @@
 # single sanctioned exception: the two Cargo package ids in the build
 # command and the packaging-env.py invocation (`lumen-cli`, `desktop`)
 # — crate names needed to address the build, not product identity.
+# A second, same-shaped exception: the `secrets.<NAME>` references in
+# the signing steps' env: blocks — GitHub's secrets context only takes
+# static keys, so the secret NAMES configured in packaging.toml
+# [signing.*] are repeated there; every mapping is guarded by a
+# fail-loud cross-check against the config (a step errors if a name
+# drifts), so the TOML stays the source of truth (W24-R1 P1-2).
 #
 # LANE MAP (per-platform jobs -> scripts/packaging/* drivers):
 #   windows: build-zip.sh (flat zip) + build-msi.sh (gen-wxs + WiX +
@@ -165,10 +171,37 @@ jobs:
       - name: Package flat zip (scripts/packaging/build-zip.sh — exes + [shipped] docs from config)
         run: scripts/packaging/build-zip.sh
       - name: Package MSI (scripts/packaging/build-msi.sh — config-driven .wxs + WiX + sign-windows.sh)
-        run: scripts/packaging/build-msi.sh
         # sign-windows.sh (called inside): real signtool signing when the
         # user-owned certificate secrets exist; explicit .UNSIGNED.txt
         # sidecar + ::warning:: when they do not (never fake signing).
+        #
+        # SECRET WIRING (W24-R1 P1-2): GitHub does NOT inject repository
+        # secrets as env vars on its own — without this env: block the
+        # runbook's "set the repository secrets" next-step changed
+        # nothing and releases stayed unsigned forever, silently. The
+        # names below are the ones configured in packaging.toml
+        # [signing.windows]; an absent secret arrives as an EMPTY string,
+        # so the honest-unsigned path is unchanged.
+        env:
+          WINDOWS_SIGNING_PFX_B64: ${{ secrets.WINDOWS_SIGNING_PFX_B64 }}
+          WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
+        run: |
+          # Fail-loud wiring guard: every secret name configured in
+          # packaging.toml [signing.windows] (bridge vars
+          # PACKAGING_SIGNING_WINDOWS_*_ENV, exported into the job env by
+          # the parse step) must be mapped in this step's env: block.
+          # An unmapped name is UNSET — how a config rename that outlived
+          # this mapping would silently disable signing — while an
+          # absent-but-mapped secret is an empty string (honest unsigned).
+          for cfg in PACKAGING_SIGNING_WINDOWS_PFX_B64_ENV \
+                     PACKAGING_SIGNING_WINDOWS_PFX_PASSWORD_ENV; do
+            name="${!cfg}"
+            if [ -z "${!name+x}" ]; then
+              echo "::error::secret wiring gap: packaging.toml names \$$name but this step's env: block does not map it — update the mapping (docs/packaging/README.md blockers table)"
+              exit 1
+            fi
+          done
+          scripts/packaging/build-msi.sh
       - name: "MSI upgrade-path test (config-gated: packaging.toml windows.upgrade_test)"
         run: |
           if [ "${PACKAGING_WINDOWS_UPGRADE_TEST:?}" != "true" ]; then
@@ -254,11 +287,41 @@ jobs:
       - name: Build (release, locked — both shipped binaries)
         run: cargo build --release --locked -p lumen-cli -p desktop
       - name: macOS lane (scripts/packaging/build-dmg.sh — bundle, codesign, dmg, notarize, staple)
-        run: scripts/packaging/build-dmg.sh
         # sign-macos.sh (called inside, twice): real codesign/notarytool/
         # stapler when the user-owned Apple credentials exist; explicit
         # .UNSIGNED.txt / .NOT-NOTARIZED.txt sidecars + ::warning:: when
         # they do not (risk R-35, owner = user — never fake signing).
+        #
+        # SECRET WIRING (W24-R1 P1-2, same contract as the windows job's
+        # MSI step): the six secret names configured in packaging.toml
+        # [signing.macos], mapped to env for sign-macos.sh. Absent
+        # secrets arrive as EMPTY strings -> honest-unsigned unchanged.
+        env:
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          MACOS_SIGNING_CERT_P12_B64: ${{ secrets.MACOS_SIGNING_CERT_P12_B64 }}
+          MACOS_SIGNING_CERT_PASSWORD: ${{ secrets.MACOS_SIGNING_CERT_PASSWORD }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_KEY_B64: ${{ secrets.APPLE_API_KEY_B64 }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          # Fail-loud wiring guard: every secret name configured in
+          # packaging.toml [signing.macos] (bridge vars
+          # PACKAGING_SIGNING_MACOS_*_ENV) must be mapped in this step's
+          # env: block — unset means wiring gap, empty means absent
+          # credential (the honest unsigned path).
+          for cfg in PACKAGING_SIGNING_MACOS_IDENTITY_ENV \
+                     PACKAGING_SIGNING_MACOS_P12_B64_ENV \
+                     PACKAGING_SIGNING_MACOS_P12_PASSWORD_ENV \
+                     PACKAGING_SIGNING_MACOS_NOTARY_KEY_ID_ENV \
+                     PACKAGING_SIGNING_MACOS_NOTARY_KEY_B64_ENV \
+                     PACKAGING_SIGNING_MACOS_NOTARY_ISSUER_ENV; do
+            name="${!cfg}"
+            if [ -z "${!name+x}" ]; then
+              echo "::error::secret wiring gap: packaging.toml names \$$name but this step's env: block does not map it — update the mapping (docs/packaging/README.md blockers table)"
+              exit 1
+            fi
+          done
+          scripts/packaging/build-dmg.sh
       - name: "Zip the .app bundle (native ditto: preserves bundle metadata)"
         run: |
           base="${PRODUCT_LOWER:?}-${PRODUCT_VERSION:?}-${ARCH_ID:?}-${OS_ID:?}"
@@ -319,8 +382,29 @@ jobs:
       - name: Build (release, locked — both shipped binaries)
         run: cargo build --release --locked -p lumen-cli -p desktop
       - name: macOS lane (scripts/packaging/build-dmg.sh — bundle, codesign, dmg, notarize, staple)
-        run: scripts/packaging/build-dmg.sh
-        # sign-macos.sh (called inside, twice): see macos-arm64.
+        # sign-macos.sh (called inside, twice): see macos-arm64. Same
+        # six-secret wiring + fail-loud guard (W24-R1 P1-2).
+        env:
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          MACOS_SIGNING_CERT_P12_B64: ${{ secrets.MACOS_SIGNING_CERT_P12_B64 }}
+          MACOS_SIGNING_CERT_PASSWORD: ${{ secrets.MACOS_SIGNING_CERT_PASSWORD }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_KEY_B64: ${{ secrets.APPLE_API_KEY_B64 }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          for cfg in PACKAGING_SIGNING_MACOS_IDENTITY_ENV \
+                     PACKAGING_SIGNING_MACOS_P12_B64_ENV \
+                     PACKAGING_SIGNING_MACOS_P12_PASSWORD_ENV \
+                     PACKAGING_SIGNING_MACOS_NOTARY_KEY_ID_ENV \
+                     PACKAGING_SIGNING_MACOS_NOTARY_KEY_B64_ENV \
+                     PACKAGING_SIGNING_MACOS_NOTARY_ISSUER_ENV; do
+            name="${!cfg}"
+            if [ -z "${!name+x}" ]; then
+              echo "::error::secret wiring gap: packaging.toml names \$$name but this step's env: block does not map it — update the mapping (docs/packaging/README.md blockers table)"
+              exit 1
+            fi
+          done
+          scripts/packaging/build-dmg.sh
       - name: "Zip the .app bundle (native ditto: preserves bundle metadata)"
         run: |
           base="${PRODUCT_LOWER:?}-${PRODUCT_VERSION:?}-${ARCH_ID:?}-${OS_ID:?}"
@@ -531,6 +615,43 @@ jobs:
         run: |
           PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
           "$PY" scripts/packaging/packaging-env.py --github-env --github-env-file "$GITHUB_ENV"
+      - name: "Signing-credentials visibility (W24-R1 P1-2 hardening: absent = warned, unmapped = failed)"
+        # Maps ALL eight configured signing names once more, here where
+        # the whole release is assembled, so "credentials provisioned
+        # but not wired" can never recur silently: an UNSET variable is a
+        # wiring gap (hard error); an EMPTY one is an absent credential
+        # (::warning:: naming the blockers-table owners).
+        env:
+          WINDOWS_SIGNING_PFX_B64: ${{ secrets.WINDOWS_SIGNING_PFX_B64 }}
+          WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          MACOS_SIGNING_CERT_P12_B64: ${{ secrets.MACOS_SIGNING_CERT_P12_B64 }}
+          MACOS_SIGNING_CERT_PASSWORD: ${{ secrets.MACOS_SIGNING_CERT_PASSWORD }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_KEY_B64: ${{ secrets.APPLE_API_KEY_B64 }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          absent=""
+          for cfg in PACKAGING_SIGNING_WINDOWS_PFX_B64_ENV \
+                     PACKAGING_SIGNING_WINDOWS_PFX_PASSWORD_ENV \
+                     PACKAGING_SIGNING_MACOS_IDENTITY_ENV \
+                     PACKAGING_SIGNING_MACOS_P12_B64_ENV \
+                     PACKAGING_SIGNING_MACOS_P12_PASSWORD_ENV \
+                     PACKAGING_SIGNING_MACOS_NOTARY_KEY_ID_ENV \
+                     PACKAGING_SIGNING_MACOS_NOTARY_KEY_B64_ENV \
+                     PACKAGING_SIGNING_MACOS_NOTARY_ISSUER_ENV; do
+            name="${!cfg}"
+            if [ -z "${!name+x}" ]; then
+              echo "::error::secret wiring gap: packaging.toml names \$$name but this step's env: block does not map it — update the mapping (docs/packaging/README.md blockers table)"
+              exit 1
+            fi
+            [ -n "${!name}" ] || absent="$absent $name"
+          done
+          if [ -n "$absent" ]; then
+            echo "::warning::signing credentials absent — this release ships labeled-unsigned artifacts + checksums (blockers 1-2, owner: user):$absent"
+          else
+            echo "all configured signing credentials are present — artifacts should be signed"
+          fi
       - name: Download all dist artifacts (flat merge)
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
