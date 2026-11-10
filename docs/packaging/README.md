@@ -27,6 +27,17 @@ there is no silent fallback anywhere in the lane.
 A rebrand (`cargo xtask rebrand`), a version bump, a docs-list change,
 or a checksum-algorithm change touches TOML only — no script edits.
 
+One deliberate constraint on the docs list (W24-R6 P4-4): doc paths in
+`[shipped]` must be **whitespace-free** (schema pattern,
+`packaging.schema.json` shipped.docs). The bridge exports the list as
+the space-separated `PACKAGING_DOCS` env var, so a path containing a
+space could not be represented — it would word-split into bogus paths
+in staging and the `.wxs` File rows. `packaging-env.py` therefore
+refuses it at validation time (the first step of every job), with an
+error naming the offending config entry — not by a confusing
+downstream staging failure. A richer list format is a deliberate
+non-goal; rename the file instead.
+
 ## Artifact matrix
 
 Naming: `<slug>-<version>-<arch>-<os>.<ext>` (all from config).
