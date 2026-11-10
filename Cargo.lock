@@ -144,6 +144,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "control-protocol"
+version = "0.1.0"
+dependencies = [
+ "commands",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "control-server"
+version = "0.1.0"
+dependencies = [
+ "commands",
+ "control-protocol",
+ "product-config",
+ "serde_json",
+ "toml",
+]
+
+[[package]]
 name = "demux"
 version = "0.1.0"
 dependencies = [
