@@ -118,8 +118,12 @@ build-targz / build-zip, sign-windows / sign-macos, stage-linux-payload,
 verify-linux-artifacts, test-msi-upgrade.ps1, gate wiring; evidence in
 `docs/packaging/evidence/linux-lane-20261110.log` — real .deb + real
 executable AppImage, packaged-binary launch tests, SBOMs, checksum
-manifest). **`origin/w24/c` was not pushed at authoring time** →
-these rows **execute at wave merge**:
+manifest). ~~**`origin/w24/c` was not pushed at authoring time**~~ —
+**since pushed**: `git ls-remote origin w24/c` → `fb97822`, the
+evidence log and every named `scripts/packaging/*` driver verified on
+the remote branch (strike per §8, 2026-11-10 post-review, W24-R2
+P3-8; the branch remains **unmerged into `main`**) → these rows still
+**execute at wave merge**:
 
 | Row (at wave merge) | Command (post-merge paths) |
 |---|---|
@@ -215,7 +219,7 @@ reduces today to "no dead update surface ships" — which is true.
 | Windows code-signing certificate | §3.2 signing row | user | escalate per card 8.E1 (`[VERIFY]` — escalate if absent) |
 | ADR-010 codec-patent decision (still `proposed`) | **any binary distribution** | user + counsel | sign-off before the first public release (ADR register row; hard trigger = 8.E1–8.E3) |
 | Missing brand assets (`assets/brand/*`) | §1.6 config-validator red | Lead/design | land assets or record the waiver (RELEASE.md known-limit 5) |
-| Wave-24 merge (lane A fixes unmerged; lane C drivers unpushed) | §2 checks 7–8, §3.2 rows, §6.1 | Lead | merge wave 24; then re-run rc-smoke (the harness's failure note already points at F-1/F-2) |
+| Wave-24 merge (lane A fixes unmerged, `origin/w24/a` absent; lane C drivers pushed as `origin/w24/c` @ `fb97822` but unmerged) | §2 checks 7–8, §3.2 rows, §6.1 | Lead | merge wave 24; then re-run rc-smoke (the harness's failure note already points at F-1/F-2) |
 | Sandbox disk (100% during authoring) | §1.7 full local gate re-run | this lane, re-run | re-run `scripts/full_gate.sh` on the RC commit |
 
 ## 8. Ownership + maintenance
