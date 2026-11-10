@@ -1,0 +1,74 @@
+# tests/compat — the full-corpus compatibility matrix runner (issue #53,
+# cards 8.B1–8.B2; docs/plans/phase8-cards.md P8-2).
+#
+# Deliberately a STANDALONE workspace (empty [workspace] table below), NOT a
+# member of the root workspace — the exact tools/bench-vs-vlc precedent
+# (card 3.E3): the root manifest's membership policy (root Cargo.toml)
+# requires Lead approval for every members-array edit, and this card's scope
+# grants tests/compat/** only. The root Cargo.toml's own header anticipates
+# this suite ("[PROPOSAL: promote to a tests/integration/* glob when the
+# second suite (contract/stress/compatibility) lands ... — Lead decision]");
+# until the Lead ratifies membership, the bench-vs-vlc standalone pattern
+# keeps the tree green without touching the frozen manifest.
+#
+# Path dependencies on the engine crates resolve their own
+# `[lints] workspace = true` inheritance against the ROOT workspace (their
+# manifest walk-up), so the engine crates build unchanged; this crate
+# mirrors the root lint policy locally so the same discipline holds on both
+# sides of the path edge (the bench-vs-vlc precedent, verbatim).
+#
+# External dependencies: `serde` + `serde_json` ONLY — the command layer's
+# own wire family, exactly as apps/cli and apps/web admit it (doc 05 §5.1;
+# the lumen-web header: "the app adds no new external of its own"). This
+# runner produces JSON reports and reads a JSON config; no other external
+# is admitted (AGENTS.md §3.2). MD5 is bench-vs-vlc's in-repo RFC 1321
+# implementation, reused via path dependency — not rebuilt here.
+
+[workspace]
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+unused_must_use = "deny"
+unused_imports = "deny"
+unused_variables = "deny"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+await_holding_lock = "deny"
+
+[package]
+name = "compat-matrix"
+version = "0.1.0"
+edition = "2024"
+description = "Full-corpus compatibility matrix runner (issue #53, cards 8.B1-8.B2): decodes the committed + regenerable corpus through the real Lumen open/decode path, diffs against the pinned VLC 3.0.23 oracle with the documented MD5-prefix method, and renders the per-format x per-platform-lane matrix."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# The real open path + the real decoder provider (the player's own
+# composition — apps/cli's public modules; the same seams bench-vs-vlc
+# and the engine drive).
+lumen-cli = { path = "../../apps/cli" }
+commands = { path = "../../crates/commands" }
+codec-api = { path = "../../crates/codec-api" }
+codecs = { path = "../../crates/codecs" }
+demux = { path = "../../crates/demux" }
+input = { path = "../../crates/input" }
+media-probe = { path = "../../crates/media-probe" }
+media-types = { path = "../../crates/media-types" }
+plugin-api = { path = "../../crates/plugin-api" }
+playback-engine = { path = "../../crates/playback-engine" }
+# The in-repo RFC 1321 MD5 (the documented digest of the parity
+# method) + the AVI PCM digest harness this runner generalizes.
+bench-vs-vlc = { path = "../../tools/bench-vs-vlc" }
+# The command layer's wire family (the admitted serde rows — see the
+# header). Config, run rows and reports are JSON.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
