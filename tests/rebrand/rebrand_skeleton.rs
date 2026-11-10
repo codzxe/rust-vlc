@@ -78,7 +78,13 @@ struct Outcome {
 }
 
 fn run_rebrand(config: &Path, dest: &Path) -> Outcome {
+    // Hermetic rooting (phase-7 gate OF-4): the tool discovers the
+    // workspace by walking up from ITS cwd, so pin the cwd to the
+    // worktree root this test file was compiled in — never the test
+    // harness's incidental cwd, never the shared target dir. Tool and
+    // test then provably operate on the same tree.
     let out = Command::new(env!("CARGO_BIN_EXE_xtask"))
+        .current_dir(repo_root())
         .args([
             "rebrand",
             "--config",
@@ -118,20 +124,22 @@ impl Drop for TempDest {
 }
 
 fn repo_root() -> PathBuf {
-    // CARGO_BIN_EXE_xtask is <root>/target/debug/xtask — walk up 2.
-    let exe = PathBuf::from(env!("CARGO_BIN_EXE_xtask"))
+    // Phase-7 exit gate OF-4 fix: derive the root from the compile-time
+    // manifest dir, NOT by walking up from CARGO_BIN_EXE_xtask. This file
+    // is compiled into the xtask package's `cli` integration test (the
+    // wiring note at the top), so CARGO_MANIFEST_DIR is
+    // <worktree>/tools/xtask and the worktree root is two levels up —
+    // baked in at compile time, always THIS worktree. Under a shared
+    // CARGO_TARGET_DIR (six parallel agent worktrees, one target dir)
+    // the binary lives in the orchestrator's target tree and the old
+    // walk-up resolved a DIFFERENT checkout, so the reverse-control
+    // proof compared its own worktree against a stale tree and failed
+    // spuriously ("README.md differs in the no-op dest copy"). The tool
+    // is a true no-op; only the test's root discovery was wrong.
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
         .canonicalize()
-        .unwrap_or_else(|e| unreachable!("{e}"));
-    let mut dir = exe.parent().map(Path::to_path_buf);
-    while let Some(d) = dir {
-        if d.join("Cargo.toml").is_file()
-            && fs::read_to_string(d.join("Cargo.toml")).is_ok_and(|t| t.contains("[workspace]"))
-        {
-            return d;
-        }
-        dir = d.parent().map(Path::to_path_buf);
-    }
-    unreachable!("workspace root not found from {:?}", exe)
+        .unwrap_or_else(|e| unreachable!("worktree root: {e}"))
 }
 
 fn read(dest: &Path, rel: &str) -> String {
