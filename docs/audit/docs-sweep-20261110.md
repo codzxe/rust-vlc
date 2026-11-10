@@ -79,10 +79,11 @@ found (F-5, network-dash) was closed inside this sweep by authoring
 ## 2. ADR register — CURRENT
 
 `docs/adr/README.md` (authored this lane, commit `492db70`) indexes all
-**12 files** in `docs/adr/` (11 ADRs + the ADR-002 evidence pack), quoting
-each `Status:` line verbatim, with dates and implementation cross-links.
-Re-verified this sweep: `ls docs/adr/*.md` = ADR-001…006, 010, 011, 012,
-013 + README + ADR-002-evidence — matches the register exactly. The
+**12 files** in `docs/adr/` (10 ADRs — 001–006, 010–013 — plus the
+ADR-002 evidence pack and the register's own README), quoting
+each ADR's `Status:` line verbatim, with dates and implementation
+cross-links. Re-verified this sweep: `ls docs/adr/` matches the
+register's 11 table rows (10 ADRs + the evidence-pack row) exactly. The
 register records (and this sweep confirms still true on `main`):
 
 - **Numbering gaps:** ADR-007/008/009 never opened; ADR-008 is cited as a
