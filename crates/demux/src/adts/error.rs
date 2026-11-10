@@ -48,6 +48,20 @@ pub fn bad_header(offset: u64) -> EngineError {
     )
 }
 
+/// The profile-derived codec descriptor string failed the registry
+/// grammar. Unreachable from parsed data (the profile bits map to
+/// static ASCII literals); the typed error is the panic-free residue
+/// of that invariant (8.A1 parser sweep — the descriptor constructors
+/// now propagate instead of `unreachable!`).
+pub fn bad_descriptor() -> EngineError {
+    mint(
+        ErrorKind::Corrupt {
+            detail: CorruptDetail::InvalidStructure { offset: None },
+        },
+        "demux.adts.bad-descriptor",
+    )
+}
+
 /// The first frame's `sampling_frequency_index` is 13–15 (outside the
 /// 13-entry MPEG-4 rate table) — the stream declares a rate this
 /// demuxer cannot resolve. Mid-stream candidates with a bad index are
@@ -203,6 +217,7 @@ mod tests {
         let cases: Vec<(EngineError, &str)> = vec![
             (not_adts(b"\xff\xe0xxxx"), "demux.adts.not-adts"),
             (bad_header(64), "demux.adts.bad-header"),
+            (bad_descriptor(), "demux.adts.bad-descriptor"),
             (bad_sampling_index(), "demux.adts.bad-sampling-index"),
             (bad_channel_config(0), "demux.adts.bad-channel-config"),
             (crc_mismatch(7), "demux.adts.crc-mismatch"),

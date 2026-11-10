@@ -162,13 +162,14 @@ impl AnnexbCodec {
     }
 
     /// The registry codec descriptor (the mkv/mp4 vocabulary).
-    #[must_use]
-    fn descriptor(self) -> CodecDescriptor {
+    fn descriptor(self) -> Result<CodecDescriptor, EngineError> {
         let name = match self {
             AnnexbCodec::H264 => "h264",
             AnnexbCodec::Hevc => "hevc",
         };
-        CodecDescriptor::new(name).unwrap_or_else(|_| unreachable!("static names are valid"))
+        // Static ASCII literal: the grammar cannot refuse it; the
+        // typed error is the panic-free residue (8.A1 sweep).
+        CodecDescriptor::new(name).map_err(|_| super::error::bad_header(0))
     }
 
     /// The format name for typed errors.
@@ -413,14 +414,17 @@ impl AnnexbVideoDemuxer {
     }
 
     /// Mint the single video track (timing honesty: the module docs).
-    fn mint_track(&mut self) -> Track {
-        let base = TimeBase::new(1, 25).unwrap_or_else(|_| unreachable!("25 > 0"));
+    fn mint_track(&mut self) -> Result<Track, EngineError> {
+        // 1/25 fps default (coprime, non-zero): exactly
+        // `TimeBase::new(1, 25)`'s Ok value, constructed directly —
+        // the DVB-builder precedent (8.A1 sweep).
+        let base = TimeBase { num: 1, den: 25 };
         let track = Track {
             id: TrackId::new(0),
             stream: StreamId::new(0),
             kind: MediaKind::Video,
             language: None,
-            codec: self.scan.codec.descriptor(),
+            codec: self.scan.codec.descriptor()?,
             title: None,
             flags: TrackFlags::NONE,
             timing: TrackTiming {
@@ -433,7 +437,7 @@ impl AnnexbVideoDemuxer {
             },
         };
         self.track = Some(track.clone());
-        track
+        Ok(track)
     }
 
     /// Emit the access unit `[from, to)` as one packet.
@@ -441,7 +445,7 @@ impl AnnexbVideoDemuxer {
         let track = self
             .track
             .clone()
-            .unwrap_or_else(|| unreachable!("start minted the track"));
+            .ok_or_else(|| self.fail(super::error::not_started()))?;
         let size = to - from;
         if size > MAX_AU_BYTES {
             return Err(self.fail(super::error::au_too_large(size)));
@@ -480,12 +484,12 @@ impl Demuxer for AnnexbVideoDemuxer {
             return Ok(vec![
                 self.track
                     .clone()
-                    .unwrap_or_else(|| unreachable!("start minted the track")),
+                    .ok_or_else(|| self.fail(super::error::not_started()))?,
             ]);
         }
         self.probe()?;
         self.started = true;
-        Ok(vec![self.mint_track()])
+        Ok(vec![self.mint_track()?])
     }
 
     fn next_event(&mut self) -> Result<DemuxEvent, EngineError> {

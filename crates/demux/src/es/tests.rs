@@ -7,6 +7,7 @@ use plugin_api::{DemuxEvent, Demuxer};
 
 use super::annexb::{AnnexbCodec, AnnexbVideoDemuxer};
 use super::mp3::RawMp3Demuxer;
+use testkit::Must;
 
 /// Boxed in-memory source (the crate's shared test seam).
 fn mem(bytes: &[u8]) -> Box<dyn plugin_api::SourceStream> {
@@ -226,7 +227,7 @@ fn mp3_walks_frames_with_exact_sample_clock() {
         .unwrap_or_else(|| unreachable!("start pinned it"));
     assert_eq!(head.sample_rate, 44_100);
     assert_eq!(head.samples_per_frame, 1152);
-    assert_eq!(super::mp3::descriptor(head.layer).as_str(), "mp3");
+    assert_eq!(super::mp3::descriptor(head.layer).must().as_str(), "mp3");
 }
 
 #[test]

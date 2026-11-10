@@ -244,14 +244,15 @@ pub fn parse_head(head: &[u8]) -> Result<FrameHead, ParseFail> {
 }
 
 /// The registry codec descriptor for a layer (the mkv vocabulary).
-#[must_use]
-pub fn descriptor(layer: Layer) -> CodecDescriptor {
+pub fn descriptor(layer: Layer) -> Result<CodecDescriptor, EngineError> {
     let name = match layer {
         Layer::L3 => "mp3",
         Layer::L1 | Layer::L2 => "mp2",
         Layer::Reserved => "mp3",
     };
-    CodecDescriptor::new(name).unwrap_or_else(|_| unreachable!("static names are valid"))
+    // Static ASCII literal: the grammar cannot refuse it; the typed
+    // error is the panic-free residue (8.A1 sweep).
+    CodecDescriptor::new(name).map_err(|_| super::error::bad_header(0))
 }
 
 /// The raw MPEG-audio demuxer.
@@ -337,10 +338,13 @@ impl RawMp3Demuxer {
     }
 
     fn sticky_err(&self) -> EngineError {
-        let (stage, kind, context) = self
-            .sticky
-            .as_ref()
-            .unwrap_or_else(|| unreachable!("checked by caller"));
+        let (stage, kind, context) = match self.sticky.as_ref() {
+            Some(parts) => parts,
+            // Callers gate on `sticky.is_some()`; the None arm is
+            // state-machine residue — the typed not-started error, not
+            // a panic (dirty-world posture, 8.A1 sweep).
+            None => return super::error::not_started(),
+        };
         EngineError::new(*stage, kind.clone(), context.clone())
     }
 
@@ -465,15 +469,21 @@ impl RawMp3Demuxer {
     }
 
     /// Mint the single audio track from the first frame header.
-    fn mint_track(&mut self, h: FrameHead) -> Track {
-        let base =
-            TimeBase::new(1, h.sample_rate).unwrap_or_else(|_| unreachable!("table rates are > 0"));
+    fn mint_track(&mut self, h: FrameHead) -> Result<Track, EngineError> {
+        // 1/sample_rate with a table-resolved rate (the parse refuses
+        // the reserved index 3 before a frame is accepted, so the rate
+        // is > 0): gcd(1, r) = 1 — exactly `TimeBase::new(1, rate)`'s
+        // Ok value, the DVB-builder precedent (8.A1 sweep).
+        let base = TimeBase {
+            num: 1,
+            den: h.sample_rate,
+        };
         let track = Track {
             id: TrackId::new(0),
             stream: StreamId::new(0),
             kind: MediaKind::Audio,
             language: None,
-            codec: descriptor(h.layer),
+            codec: descriptor(h.layer)?,
             title: None,
             flags: TrackFlags::NONE,
             timing: TrackTiming {
@@ -486,7 +496,7 @@ impl RawMp3Demuxer {
             },
         };
         self.track = Some(track.clone());
-        track
+        Ok(track)
     }
 
     /// One walk step: skip an inter-frame tag, emit one frame, resync,
@@ -545,7 +555,7 @@ impl RawMp3Demuxer {
         let track = self
             .track
             .clone()
-            .unwrap_or_else(|| unreachable!("start minted the track"));
+            .ok_or_else(|| self.fail(super::error::not_started()))?;
         let base = track.timing.base;
         let data: SharedBytes = self.pool.fill(h.frame_size as usize, |buf| {
             self.reader.read_prefix_into(buf, self.walk)
@@ -557,7 +567,7 @@ impl RawMp3Demuxer {
             .map(|n| Duration::Known(Nanoseconds(n)));
         let reference = self
             .head
-            .unwrap_or_else(|| unreachable!("start pinned the reference"));
+            .ok_or_else(|| self.fail(super::error::not_started()))?;
         let param_change =
             h.sample_rate != reference.sample_rate || h.channels != reference.channels;
         if param_change {
@@ -629,7 +639,7 @@ impl Demuxer for RawMp3Demuxer {
             return Ok(vec![
                 self.track
                     .clone()
-                    .unwrap_or_else(|| unreachable!("start minted the track")),
+                    .ok_or_else(|| self.fail(super::error::not_started()))?,
             ]);
         }
         if self.sticky.is_some() {
@@ -642,7 +652,7 @@ impl Demuxer for RawMp3Demuxer {
         let h = self.open_scan()?;
         self.started = true;
         self.head = Some(h);
-        Ok(vec![self.mint_track(h)])
+        Ok(vec![self.mint_track(h)?])
     }
 
     fn next_event(&mut self) -> Result<DemuxEvent, EngineError> {
@@ -658,9 +668,13 @@ impl Demuxer for RawMp3Demuxer {
                 return Ok(DemuxEvent::EndOfStream);
             }
         }
-        self.pending
-            .pop_front()
-            .ok_or_else(|| unreachable!("pending is non-empty"))
+        match self.pending.pop_front() {
+            Some(event) => Ok(event),
+            // The loop above breaks only with a front element pinned;
+            // the None arm is unreachable state residue — EOS, not a
+            // panic (dirty-world posture, 8.A1 sweep).
+            None => Ok(DemuxEvent::EndOfStream),
+        }
     }
 
     fn seek(

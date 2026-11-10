@@ -147,7 +147,7 @@ pub enum OggCodec {
 
 impl OggCodec {
     /// The registry codec descriptor (opaque for unknowns).
-    fn descriptor(self) -> CodecDescriptor {
+    fn descriptor(self) -> Result<CodecDescriptor, EngineError> {
         let name = match self {
             OggCodec::Vorbis => "vorbis",
             OggCodec::Opus => "opus",
@@ -156,7 +156,9 @@ impl OggCodec {
             OggCodec::Speex => "speex",
             OggCodec::Skeleton | OggCodec::Unknown => "ogg-opaque",
         };
-        CodecDescriptor::new(name).unwrap_or_else(|_| unreachable!("static names are valid"))
+        // Static ASCII literal: the grammar cannot refuse it; the
+        // typed error is the panic-free residue (8.A1 sweep).
+        CodecDescriptor::new(name).map_err(|_| error::bad_descriptor())
     }
 
     /// Whether a packet's first bytes still smell like a header
@@ -194,12 +196,20 @@ impl Clock {
     /// The track's time base (one tick = one granule-domain unit).
     fn base(self) -> TimeBase {
         match self {
-            Clock::Samples { rate } => {
-                TimeBase::new(1, rate).unwrap_or_else(|_| unreachable!("rate > 0 at parse"))
-            }
-            Clock::Opus48000 => TimeBase::new(1, 48_000).unwrap_or_else(|_| unreachable!("const")),
+            // 1/rate with rate validated > 0 at construction (the
+            // identify() guards): gcd(1, r) = 1, so the literal is
+            // exactly `TimeBase::new`'s Ok value — the DVB-builder
+            // precedent (8.A1 sweep).
+            Clock::Samples { rate } => TimeBase { num: 1, den: rate },
+            Clock::Opus48000 => TimeBase {
+                num: 1,
+                den: 48_000,
+            },
+            // fps num/den both validated > 0 at construction; new()
+            // keeps the lowest-terms reduction, and the 1/1000
+            // residue covers only the dead zero arm.
             Clock::Theora { num, den, .. } => {
-                TimeBase::new(den, num).unwrap_or_else(|_| unreachable!("fps > 0 at parse"))
+                TimeBase::new(den, num).unwrap_or(TimeBase { num: 1, den: 1_000 })
             }
         }
     }
@@ -267,11 +277,12 @@ fn identify(first_packet: &[u8]) -> (OggCodec, Option<Clock>) {
         return (OggCodec::FlacInOgg, None); // clock rides the STREAMINFO packet
     }
     if first_packet.starts_with(b"Speex   ") && first_packet.len() >= 40 {
-        let rate = u32::from_le_bytes(
-            first_packet[36..40]
-                .try_into()
-                .unwrap_or_else(|_| unreachable!("length checked above")),
-        );
+        // len >= 40 is checked above; the Err arm is unreachable
+        // slicing residue — an opaque unknown, never a panic (8.A1).
+        let rate = match first_packet[36..40].try_into() {
+            Ok(bytes) => u32::from_le_bytes(bytes),
+            Err(_) => return (OggCodec::Unknown, None),
+        };
         return (
             OggCodec::Speex,
             (rate > 0).then_some(Clock::Samples { rate }),
@@ -765,28 +776,30 @@ impl OggDemuxer {
 
         // -- sequence continuity -----------------------------------------
         {
-            let s = self
-                .streams
-                .get_mut(&header.serial)
-                .unwrap_or_else(|| unreachable!("inserted above"));
-            if s.last_seq
-                .map(|q| q.wrapping_add(1))
-                .is_some_and(|expected| expected != header.seq)
-            {
-                self.damage.note(0, "ogg: page sequence discontinuity");
-                self.granule_discontinuities += 1;
-                self.pending.push_back(DemuxEvent::Discontinuity);
+            // The stream was registered when its BOS page opened it;
+            // the map is insert-only — the None arm is unreachable
+            // state residue, skipped not panicked (8.A1 sweep).
+            if let Some(s) = self.streams.get_mut(&header.serial) {
+                if s.last_seq
+                    .map(|q| q.wrapping_add(1))
+                    .is_some_and(|expected| expected != header.seq)
+                {
+                    self.damage.note(0, "ogg: page sequence discontinuity");
+                    self.granule_discontinuities += 1;
+                    self.pending.push_back(DemuxEvent::Discontinuity);
+                }
+                s.last_seq = Some(header.seq);
             }
-            s.last_seq = Some(header.seq);
         }
 
         // -- granule bookkeeping (holes + regressions) -------------------
         if header.granule >= 0 {
-            let s = self
-                .streams
-                .get(&header.serial)
-                .unwrap_or_else(|| unreachable!("inserted above"));
-            if let Some(last) = s.last_granule {
+            // Same insert-only invariant as the sequence block above:
+            // the None arms are unreachable state residue, skipped
+            // not panicked (8.A1 sweep).
+            if let Some(s) = self.streams.get(&header.serial)
+                && let Some(last) = s.last_granule
+            {
                 if header.granule < last {
                     // The clock went backwards — honest discontinuity,
                     // never a smoothed jump.
@@ -798,23 +811,19 @@ impl OggDemuxer {
                     self.pending.push_back(DemuxEvent::Discontinuity);
                 }
             }
-            let s = self
-                .streams
-                .get_mut(&header.serial)
-                .unwrap_or_else(|| unreachable!("inserted above"));
-            s.last_granule = Some(header.granule);
-            s.in_granule_hole = false;
+            if let Some(s) = self.streams.get_mut(&header.serial) {
+                s.last_granule = Some(header.granule);
+                s.in_granule_hole = false;
+            }
         } else if self
             .streams
             .get(&header.serial)
             .is_some_and(|s| s.packets_out > 0)
         {
             // A −1 data page between known granules: a timing hole.
-            let s = self
-                .streams
-                .get_mut(&header.serial)
-                .unwrap_or_else(|| unreachable!("inserted above"));
-            if s.last_granule.is_some() {
+            if let Some(s) = self.streams.get_mut(&header.serial)
+                && s.last_granule.is_some()
+            {
                 s.in_granule_hole = true;
             }
         }
@@ -856,10 +865,12 @@ impl OggDemuxer {
             let mut completed: Option<SharedBytes> = None;
             let mut overrun: Option<u64> = None;
             {
-                let stream = self
-                    .streams
-                    .get_mut(&serial)
-                    .unwrap_or_else(|| unreachable!("inserted above"));
+                // Insert-only map invariant: the None arm is
+                // unreachable state residue — the run is skipped, not
+                // panicked (8.A1 sweep).
+                let Some(stream) = self.streams.get_mut(&serial) else {
+                    continue;
+                };
                 match stream.pending.as_mut() {
                     Some(acc) => {
                         if acc.len() + run_len > MAX_PACKET_BYTES as usize {
@@ -867,11 +878,13 @@ impl OggDemuxer {
                         } else {
                             acc.extend_from_slice(&run_view);
                             if *terminal {
-                                let whole = stream
-                                    .pending
-                                    .take()
-                                    .unwrap_or_else(|| unreachable!("checked"));
-                                completed = Some(SharedBytes::from_vec(whole));
+                                // We are inside the Some(acc) arm of
+                                // `pending.as_mut()`: take() is Some;
+                                // the None arm is unreachable residue,
+                                // skipped not panicked (8.A1 sweep).
+                                if let Some(whole) = stream.pending.take() {
+                                    completed = Some(SharedBytes::from_vec(whole));
+                                }
                             }
                         }
                     }
@@ -931,17 +944,18 @@ impl OggDemuxer {
         let mut identify_now = false;
         let mut flac_clock_now = false;
         {
-            let stream = self
-                .streams
-                .get(&serial)
-                .unwrap_or_else(|| unreachable!("caller inserted the stream"));
-            if stream.codec.is_none() {
-                identify_now = true;
-            } else if stream.codec == Some(OggCodec::FlacInOgg)
-                && stream.clock.is_none()
-                && stream.headers.len() == 1
-            {
-                flac_clock_now = true;
+            // The stream was registered when its BOS page opened it;
+            // the map is insert-only — the None arm is unreachable
+            // state residue, skipped not panicked (8.A1 sweep).
+            if let Some(stream) = self.streams.get(&serial) {
+                if stream.codec.is_none() {
+                    identify_now = true;
+                } else if stream.codec == Some(OggCodec::FlacInOgg)
+                    && stream.clock.is_none()
+                    && stream.headers.len() == 1
+                {
+                    flac_clock_now = true;
+                }
             }
         }
         if identify_now {
@@ -952,76 +966,59 @@ impl OggDemuxer {
             let (codec, clock) = identify(data.as_slice());
             let is_flac_mapping = codec == OggCodec::FlacInOgg;
             if codec != OggCodec::Unknown {
-                {
-                    let stream = self
-                        .streams
-                        .get_mut(&serial)
-                        .unwrap_or_else(|| unreachable!("checked above"));
+                if let Some(stream) = self.streams.get_mut(&serial) {
                     stream.codec = Some(codec);
                     stream.clock = clock;
                     stash_header(stream, &mut self.damage, data);
                 }
                 if !is_flac_mapping {
-                    self.mint_track(serial);
+                    self.mint_track(serial)?;
                 }
                 return Ok(());
             }
-            {
-                let stream = self
-                    .streams
-                    .get_mut(&serial)
-                    .unwrap_or_else(|| unreachable!("checked above"));
+            if let Some(stream) = self.streams.get_mut(&serial) {
                 stream.codec = Some(codec);
                 stream.clock = clock;
             }
-            self.mint_track(serial);
+            self.mint_track(serial)?;
             // Fall through: the BOS packet is this stream's first
             // data packet.
         }
         if flac_clock_now {
             if let Some(rate) = flac_streaminfo_rate(data.as_slice()) {
-                let stream = self
-                    .streams
-                    .get_mut(&serial)
-                    .unwrap_or_else(|| unreachable!("checked above"));
-                stream.clock = Some(Clock::Samples { rate });
-                stash_header(stream, &mut self.damage, data);
-                self.mint_track(serial);
+                if let Some(stream) = self.streams.get_mut(&serial) {
+                    stream.clock = Some(Clock::Samples { rate });
+                    stash_header(stream, &mut self.damage, data);
+                }
+                self.mint_track(serial)?;
             } else {
-                let stream = self
-                    .streams
-                    .get_mut(&serial)
-                    .unwrap_or_else(|| unreachable!("checked above"));
-                stash_header(stream, &mut self.damage, data);
-                self.mint_track(serial);
+                if let Some(stream) = self.streams.get_mut(&serial) {
+                    stash_header(stream, &mut self.damage, data);
+                }
+                self.mint_track(serial)?;
             }
             return Ok(());
         }
-        let (codec, clock) = {
-            let stream = self
-                .streams
-                .get(&serial)
-                .unwrap_or_else(|| unreachable!("checked above"));
-            (stream.codec.unwrap_or(OggCodec::Unknown), stream.clock)
+        let (codec, clock) = match self.streams.get(&serial) {
+            Some(stream) => (stream.codec.unwrap_or(OggCodec::Unknown), stream.clock),
+            // Insert-only map invariant: unreachable state residue —
+            // an opaque no-clock packet, never a panic (8.A1 sweep).
+            None => (OggCodec::Unknown, None),
         };
         // Header/data split: recognized codecs keep header packets
         // opaque-passthrough (decoder config, not events). Skeleton
         // streams never surface packets at all.
         if codec == OggCodec::Skeleton {
-            let stream = self
-                .streams
-                .get_mut(&serial)
-                .unwrap_or_else(|| unreachable!("checked above"));
-            stream.packets_out += 1;
-            stream.first_data_pending = false;
+            if let Some(stream) = self.streams.get_mut(&serial) {
+                stream.packets_out += 1;
+                stream.first_data_pending = false;
+            }
             return Ok(());
         }
         if codec.is_header_packet(data.as_slice()) {
-            let stream = self
-                .streams
-                .get_mut(&serial)
-                .unwrap_or_else(|| unreachable!("checked above"));
-            stash_header(stream, &mut self.damage, data);
+            if let Some(stream) = self.streams.get_mut(&serial) {
+                stash_header(stream, &mut self.damage, data);
+            }
             return Ok(());
         }
         // Data packet: only the page's last-completing packet owns
@@ -1043,10 +1040,12 @@ impl OggDemuxer {
         let track;
         let first_of_stream;
         {
-            let stream = self
-                .streams
-                .get_mut(&serial)
-                .unwrap_or_else(|| unreachable!("checked above"));
+            // Insert-only map invariant: unreachable state residue —
+            // the packet is dropped without bookkeeping, never a
+            // panic (8.A1 sweep).
+            let Some(stream) = self.streams.get_mut(&serial) else {
+                return Ok(());
+            };
             track = stream.track;
             first_of_stream = stream.first_data_pending;
             stream.first_data_pending = false;
@@ -1071,15 +1070,15 @@ impl OggDemuxer {
 
     /// Mint the track for an identified stream (once per stream;
     /// Skeleton streams mint none).
-    fn mint_track(&mut self, serial: u32) {
+    fn mint_track(&mut self, serial: u32) -> Result<(), EngineError> {
         let Some(stream) = self.streams.get(&serial) else {
-            return;
+            return Ok(());
         };
         if stream.codec == Some(OggCodec::Skeleton) {
-            return;
+            return Ok(());
         }
         if self.tracks.iter().any(|t| t.id == stream.track) {
-            return;
+            return Ok(());
         }
         let codec = stream.codec.unwrap_or(OggCodec::Unknown);
         let kind = if codec == OggCodec::Theora {
@@ -1087,10 +1086,13 @@ impl OggDemuxer {
         } else {
             MediaKind::Audio
         };
+        // 1/1000 (coprime, non-zero): exactly `TimeBase::new`'s Ok
+        // value, constructed directly — the DVB-builder precedent.
+        // The fallback covers only the dead clock-absent arm (8.A1).
         let base = stream
             .clock
             .map(|k| k.base())
-            .unwrap_or_else(|| TimeBase::new(1, 1000).unwrap_or_else(|_| unreachable!("const")));
+            .unwrap_or(TimeBase { num: 1, den: 1_000 });
         let end = self
             .tail_granules
             .get(&serial)
@@ -1102,7 +1104,7 @@ impl OggDemuxer {
             stream: stream.stream,
             kind,
             language: None,
-            codec: codec.descriptor(),
+            codec: codec.descriptor()?,
             title: None,
             flags: TrackFlags::NONE,
             timing: TrackTiming {
@@ -1115,6 +1117,7 @@ impl OggDemuxer {
             },
         };
         self.tracks.push(track);
+        Ok(())
     }
 
     /// `start`'s cheap duration probe: scan the file tail for the

@@ -238,15 +238,16 @@ impl AdtsHeader {
     /// The registry codec descriptor for the profile bits. ADTS cannot
     /// prove HE-AAC (SBR rides in-band, decode domain), so the honest
     /// vocabulary is Main/LC/SSR/LTP.
-    #[must_use]
-    pub fn descriptor(&self) -> CodecDescriptor {
+    pub fn descriptor(&self) -> Result<CodecDescriptor, EngineError> {
         let name = match self.profile {
             0 => "aac-main",
             2 => "aac-ssr",
             3 => "aac-ltp",
             _ => "aac-lc",
         };
-        CodecDescriptor::new(name).unwrap_or_else(|_| unreachable!("static names are valid"))
+        // Static ASCII literal: the grammar cannot refuse it; the
+        // typed error is the panic-free residue (8.A1 sweep).
+        CodecDescriptor::new(name).map_err(|_| error::bad_descriptor())
     }
 }
 
@@ -278,15 +279,16 @@ pub struct AdifInfo {
 
 impl AdifInfo {
     /// The registry codec descriptor (profile-honest, as ADTS).
-    #[must_use]
-    pub fn descriptor(&self) -> CodecDescriptor {
+    pub fn descriptor(&self) -> Result<CodecDescriptor, EngineError> {
         let name = match self.profile {
             0 => "aac-main",
             2 => "aac-ssr",
             3 => "aac-ltp",
             _ => "aac-lc",
         };
-        CodecDescriptor::new(name).unwrap_or_else(|_| unreachable!("static names are valid"))
+        // Static ASCII literal: the grammar cannot refuse it; the
+        // typed error is the panic-free residue (8.A1 sweep).
+        CodecDescriptor::new(name).map_err(|_| error::bad_descriptor())
     }
 
     /// The rate table entry.
@@ -617,7 +619,11 @@ impl AdtsDemuxer {
 
     /// Mint the single audio track from the parsed head.
     fn mint_track(&mut self, rate: u32, descriptor: CodecDescriptor) -> Track {
-        let base = TimeBase::new(1, rate).unwrap_or_else(|_| unreachable!("rate > 0 at parse"));
+        // 1/rate with rate = a SAMPLE_RATES table entry (> 0, index
+        // validated 0–12 at parse): gcd(1, r) = 1, so this literal is
+        // exactly `TimeBase::new(1, rate)`'s Ok value — the DVB-builder
+        // precedent (8.A1 sweep: no unreachable error path).
+        let base = TimeBase { num: 1, den: rate };
         let track = Track {
             id: TrackId::new(0),
             stream: StreamId::new(0),
@@ -755,7 +761,7 @@ impl AdtsDemuxer {
         let track = self
             .track
             .clone()
-            .unwrap_or_else(|| unreachable!("start minted the track"));
+            .ok_or_else(|| self.fail(error::not_started()))?;
         let base = track.timing.base;
         let data = self.fill_frame(raw.frame_length)?;
         let pts = Stamp::Present(Timestamp::new(self.samples_clock, base));
@@ -862,7 +868,7 @@ impl AdtsDemuxer {
         let track = self
             .track
             .clone()
-            .unwrap_or_else(|| unreachable!("start minted the track"));
+            .ok_or_else(|| self.fail(error::not_started()))?;
         let base = track.timing.base;
         let pts = Stamp::Present(Timestamp::new(self.samples_clock, base));
         let samples = SAMPLES_PER_BLOCK;
@@ -1124,7 +1130,7 @@ impl Demuxer for AdtsDemuxer {
             return Ok(vec![
                 self.track
                     .clone()
-                    .unwrap_or_else(|| unreachable!("started implies a track")),
+                    .ok_or_else(|| self.fail(error::not_started()))?,
             ]);
         }
         if let Some(shape) = &self.sticky {
@@ -1141,12 +1147,12 @@ impl Demuxer for AdtsDemuxer {
                 let info = self.open_adif(pos)?;
                 self.head = Some(RawAacFormat::Adif(info.clone()));
                 let rate = info.sample_rate();
-                return Ok(self.mint_track(rate, info.descriptor()));
+                return Ok(self.mint_track(rate, info.descriptor()?));
             }
             let raw = self.open_adts(pos)?;
             let rate = raw.sample_rate().ok_or_else(error::bad_sampling_index)?;
             self.head = Some(RawAacFormat::Adts(raw));
-            Ok(self.mint_track(rate, raw.descriptor()))
+            Ok(self.mint_track(rate, raw.descriptor()?))
         })();
         match open {
             Ok(track) => {
@@ -1198,11 +1204,15 @@ impl Demuxer for AdtsDemuxer {
         };
         self.reader.seek_to(save)?;
         let (samples, _) = result?;
+        // 1/1000 (coprime, non-zero): exactly `TimeBase::new`'s Ok
+        // value, constructed directly — the DVB-builder precedent. The
+        // fallback only exists for the dead track-absent arm (seek is
+        // `not_started`-guarded; 8.A1 sweep).
         let base = self
             .track
             .as_ref()
             .map(|t| t.timing.base)
-            .unwrap_or_else(|| TimeBase::new(1, 1000).unwrap_or_else(|_| unreachable!("const")));
+            .unwrap_or(TimeBase { num: 1, den: 1_000 });
         Ok(TimeSpan {
             start: Stamp::Present(Timestamp::new(samples, base)),
             end: Stamp::Missing,
@@ -1241,11 +1251,15 @@ impl Demuxer for AdtsDemuxer {
         self.pending.clear();
         self.eos = false;
         self.pending.push_back(DemuxEvent::Discontinuity);
+        // 1/1000 (coprime, non-zero): exactly `TimeBase::new`'s Ok
+        // value, constructed directly — the DVB-builder precedent. The
+        // fallback only exists for the dead track-absent arm (seek is
+        // `not_started`-guarded; 8.A1 sweep).
         let base = self
             .track
             .as_ref()
             .map(|t| t.timing.base)
-            .unwrap_or_else(|| TimeBase::new(1, 1000).unwrap_or_else(|_| unreachable!("const")));
+            .unwrap_or(TimeBase { num: 1, den: 1_000 });
         Ok(TimeSpan {
             start: Stamp::Present(Timestamp::new(samples, base)),
             end: Stamp::Missing,

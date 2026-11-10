@@ -473,7 +473,7 @@ impl IvfDemuxer {
         let track = self
             .track
             .clone()
-            .unwrap_or_else(|| unreachable!("start minted the track"));
+            .ok_or_else(|| self.fail(error::not_started()))?;
         let base = track.timing.base;
         let duration = self
             .head
@@ -536,13 +536,15 @@ impl IvfDemuxer {
     /// The landing span for a successful seek (start at the landing
     /// pts, end honestly absent).
     fn landing_span(&self, pts: i64) -> Result<TimeSpan, EngineError> {
+        // 1/1000 (coprime, non-zero): exactly `TimeBase::new`'s Ok
+        // value, constructed directly — the DVB-builder precedent. The
+        // fallback covers only the dead track-absent arm (every entry
+        // path is not-started-guarded; 8.A1 sweep).
         let base = self
             .track
             .as_ref()
             .map(|t| t.timing.base)
-            .unwrap_or_else(|| {
-                TimeBase::new(1, 1000).unwrap_or_else(|_| unreachable!("constant base"))
-            });
+            .unwrap_or(TimeBase { num: 1, den: 1_000 });
         Ok(TimeSpan {
             start: Stamp::Present(Timestamp::new(pts, base)),
             end: Stamp::Missing,
@@ -556,7 +558,7 @@ impl Demuxer for IvfDemuxer {
             return Ok(vec![
                 self.track
                     .clone()
-                    .unwrap_or_else(|| unreachable!("started implies a track")),
+                    .ok_or_else(|| self.fail(error::not_started()))?,
             ]);
         }
         if let Some(shape) = &self.sticky {
@@ -648,13 +650,15 @@ impl Demuxer for IvfDemuxer {
             return Err(self.fail(error::not_started()));
         }
         let save = self.reader.position();
+        // 1/1000 (coprime, non-zero): exactly `TimeBase::new`'s Ok
+        // value, constructed directly — the DVB-builder precedent. The
+        // fallback covers only the dead track-absent arm (every entry
+        // path is not-started-guarded; 8.A1 sweep).
         let base = self
             .track
             .as_ref()
             .map(|t| t.timing.base)
-            .unwrap_or_else(|| {
-                TimeBase::new(1, 1000).unwrap_or_else(|_| unreachable!("constant base"))
-            });
+            .unwrap_or(TimeBase { num: 1, den: 1_000 });
         let target_ticks = Self::target_ticks(target, base).unwrap_or(0);
         let result = self.scan_landing(target_ticks);
         self.reader.seek_to(save)?;
@@ -677,13 +681,15 @@ impl Demuxer for IvfDemuxer {
         if !self.started {
             return Err(self.fail(error::not_started()));
         }
+        // 1/1000 (coprime, non-zero): exactly `TimeBase::new`'s Ok
+        // value, constructed directly — the DVB-builder precedent. The
+        // fallback covers only the dead track-absent arm (every entry
+        // path is not-started-guarded; 8.A1 sweep).
         let base = self
             .track
             .as_ref()
             .map(|t| t.timing.base)
-            .unwrap_or_else(|| {
-                TimeBase::new(1, 1000).unwrap_or_else(|_| unreachable!("constant base"))
-            });
+            .unwrap_or(TimeBase { num: 1, den: 1_000 });
         let target_ticks = Self::target_ticks(target, base).unwrap_or(0);
         let (pts, offset) = self.scan_landing(target_ticks)?;
         // Commit (D4: every failure above left us untouched).
