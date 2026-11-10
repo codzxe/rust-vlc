@@ -65,7 +65,10 @@ Shared-target worktree `wt/w24e` @ `c339ee8`, 2-core Linux sandbox:
   **4/0**; `--test fixtures_class_b` — **11/0**.
 - `cargo build --release --locked -p lumen-cli` — exit 0 (2 m 56 s,
   warm target), then the release binary opens the parent fixture
-  headless (see `docs/audit/rc-smoke-2026-11-10.md`, smoke row 3).
+  headless — the RC smoke harness's check 4 (headless-decode) was
+  green on this same fixture, 60/60 video + 60/60 audio frames
+  (run recorded in the `ff001e5` commit message; harness and check
+  numbering in `docs/release-checklist.md` §2).
 
 ## Known gaps / honest limits
 
