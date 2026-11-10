@@ -1,0 +1,2985 @@
+{
+  "schema": "compat-matrix/report/1",
+  "generated": "2026-11-10T19:27:42Z",
+  "host": {
+    "os": "linux",
+    "arch": "x86_64"
+  },
+  "git_commit": "3dfe1c0b19c593011a5d238074fc4f67eb390882",
+  "corpus": {
+    "committed_files": 46,
+    "malformed_files": 54,
+    "regen_files": 66,
+    "regen_provenance": "The regenerable compat corpus (issue #53, cards 8.B1-8.B2). Rows 1-35: the lossless-comparable family reproducing the VLC 3.0.23 differential inputs (docs/corpus/vlc-oracle-run-20261109.json; argvs verbatim from docs/corpus/corpus-big-manifest-20261022.json, the D-11 randomized-corpus pattern — manifest committed, bytes regenerated on demand, sha256-pinned where ffmpeg 7.1.5 reproduces them; 19 of 35 are runtime-random realizations, honestly non-pinned). Rows 36-65: per-family coverage representatives selected smallest-first from the same corpus-big manifest. Rows 66-67: issue-#53 additions for the two claimed containers corpus-big lacks (mpegps, asf). ffmpeg: 7.1.5-0+deb13u1 (the 2026-11-09 oracle run's exact build).",
+    "regen_outcomes": [
+      [
+        "0022-avi-av.avi",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0040-avi-av.avi",
+        {
+          "status": "present_random",
+          "sha256": "841e7667b79bfc54289dee4f5df2e5812669d66fff3dac64b4584f2f1a85ba0d"
+        }
+      ],
+      [
+        "0041-avi-av.avi",
+        {
+          "status": "present_random",
+          "sha256": "1869bae76b4baf9afe82c647bd03536c28928700c2807df6680a3d10f04c5be1"
+        }
+      ],
+      [
+        "0096-multivideo-av.avi",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0116-avi-av.avi",
+        {
+          "status": "present_random",
+          "sha256": "15d1ff12e37e19f6bee7221277b69256d3ca1ea3d30e9635ca03e546d4385cfa"
+        }
+      ],
+      [
+        "0121-multivideo-av.avi",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0134-avi-av.avi",
+        {
+          "status": "present_random",
+          "sha256": "affc3a6a75c5d5d23302b8534d6d9b31a1ffe845bfcabe8c86f01ba92c5c06d4"
+        }
+      ],
+      [
+        "0155-avi-av.avi",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0156-avi-av.avi",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0161-multivideo-av.avi",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0177-multivideo-av.avi",
+        {
+          "status": "present_random",
+          "sha256": "8439b529da3aea8188eba59f79a998807bf0dd7c4469b5be996c54bb4260f0ef"
+        }
+      ],
+      [
+        "0180-multivideo-av.avi",
+        {
+          "status": "present_random",
+          "sha256": "64325efb33d541348c83ab8f24d015b391b1c35a14fc942a085e1f35b8d521b3"
+        }
+      ],
+      [
+        "0187-avi-av.avi",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0194-multivideo-av.avi",
+        {
+          "status": "present_random",
+          "sha256": "835a4293c0bb0339a8d356f22c0ad1bdfda3f9010784a2ed9a90cc3e533be38b"
+        }
+      ],
+      [
+        "0201-multivideo-av.avi",
+        {
+          "status": "present_random",
+          "sha256": "de8ba6781d1b02892251d923dad083bb6f07cac192e6a60c608871b468da5aa4"
+        }
+      ],
+      [
+        "0214-avi-av.avi",
+        {
+          "status": "present_random",
+          "sha256": "4dc672ec9b884111e8ecbb79a051c0ce8040c571ab7e82639ced80650ec649d2"
+        }
+      ],
+      [
+        "0227-avi-av.avi",
+        {
+          "status": "present_random",
+          "sha256": "5e73f00cc70402262d4bf48428312ca4fa2c9edada66b5bb693ac913118c4514"
+        }
+      ],
+      [
+        "0233-multivideo-av.avi",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0236-multivideo-av.avi",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0247-avi-av.avi",
+        {
+          "status": "present_random",
+          "sha256": "4dbc68cf248ec97c624aa2fe9d8002d9c8b719788932a5641df329db22781683"
+        }
+      ],
+      [
+        "0278-avi-av.avi",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0280-avi-av.avi",
+        {
+          "status": "present_random",
+          "sha256": "18c5bdf11bb05193729c25154acadc0a422e82bdc7dc24c45bdb96cc973a09dc"
+        }
+      ],
+      [
+        "0297-avi-av.avi",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0305-avi-av.avi",
+        {
+          "status": "present_random",
+          "sha256": "1ab47065185b54b8641a8ca00c25ddaf3f1436a7e89887644e2101dfc14281b0"
+        }
+      ],
+      [
+        "0307-multivideo-av.avi",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0308-avi-av.avi",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0318-avi-av.avi",
+        {
+          "status": "present_random",
+          "sha256": "d50f4ed6d8c1b3e31ab9457eb1186ad8fbaade5665bc7a289704b7c36298eee8"
+        }
+      ],
+      [
+        "0324-avi-av.avi",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0330-avi-av.avi",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0335-multivideo-av.avi",
+        {
+          "status": "present_random",
+          "sha256": "bb8b3662a683f619e647ace896b525759f564076c1e9cbd229140ce1f34d968a"
+        }
+      ],
+      [
+        "0336-multivideo-av.avi",
+        {
+          "status": "present_random",
+          "sha256": "55381045f6c416ac1b3990cbc2edff968a11a8d873aa153dc5791d56b61a9b9d"
+        }
+      ],
+      [
+        "0342-avi-av.avi",
+        {
+          "status": "present_random",
+          "sha256": "b44161d196c0e6413991783c557a89d4ed7277492a31a88a8f45898c9afa2785"
+        }
+      ],
+      [
+        "0367-multivideo-av.avi",
+        {
+          "status": "present_random",
+          "sha256": "5e2f307aa02820b46b4b6d38713af9b8da81ddbf956110890eb09764868a56e6"
+        }
+      ],
+      [
+        "0386-avi-av.avi",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0394-avi-av.avi",
+        {
+          "status": "present_random",
+          "sha256": "01d00f53602ef74e8a376aedc5194bd55a7874fe9d0e385131002a6bf6eb8bf3"
+        }
+      ],
+      [
+        "0360-audio-only.mp3",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0051-audio-only.mp2",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0313-audio-only.aac",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0371-muxed-av.ts",
+        {
+          "status": "present_random",
+          "sha256": "bf1bb72fe10b65e2e7107c4d44b0edf6aeb51a221b3408417136c76e1dd1690c"
+        }
+      ],
+      [
+        "0269-vfr-av.mkv",
+        {
+          "status": "present_random",
+          "sha256": "34a6ed2449490306461d9a74a99091f63ddc8bc57e631d5e570a12db45a55db9"
+        }
+      ],
+      [
+        "0105-mkv-video.mkv",
+        {
+          "status": "present_random",
+          "sha256": "c7bb2f9010a9b02036260a2113e62b647d0e72d129e4733d5120539be3c55e56"
+        }
+      ],
+      [
+        "0009-audio-only.mka",
+        {
+          "status": "present_random",
+          "sha256": "9999d86669d4409f9e68c68192746b9c1afca3813506a3faa658836643c13765"
+        }
+      ],
+      [
+        "0396-audio-only.mov",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0210-audio-only.ogg",
+        {
+          "status": "present_random",
+          "sha256": "311e4c9f1304234a03f1a722aac647e2dec198bdb036e19332e03734ad618b00"
+        }
+      ],
+      [
+        "0115-audio-only.ogg",
+        {
+          "status": "present_random",
+          "sha256": "ef9a74b6694dc44f8f8a03198ef39ac7097612d25a3103131c5114fe9b2b9fbc"
+        }
+      ],
+      [
+        "0220-audio-only.wav",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0331-audio-only.wav",
+        {
+          "status": "present_random",
+          "sha256": "606e00924f6eb4ae5d3bd72f92494078cda1e5f6367917555b2c0c983cb07923"
+        }
+      ],
+      [
+        "0370-audio-only.wav",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0241-audio-only.wav",
+        {
+          "status": "present_random",
+          "sha256": "dc9a82ba11d45c02a313a18ecf24e87396c21fe8bacc1cbe4bcef0e56d4aff4c"
+        }
+      ],
+      [
+        "0316-audio-only.flac",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0126-raw-video.h264",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0099-raw-video.265",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0132-meta-bomb-av.mkv",
+        {
+          "status": "present_random",
+          "sha256": "bfe4e0ae569379f7812fad68486051fedf46db2c6859681999d35ec35000d195"
+        }
+      ],
+      [
+        "0136-audio-only.mp4",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0028-audio-only.webm",
+        {
+          "status": "present_random",
+          "sha256": "b0e2dab12d183d3ac97b4838a1c7f93f318567ac5443070befc0ba086fa714fd"
+        }
+      ],
+      [
+        "0065-webm-video.webm",
+        {
+          "status": "present_random",
+          "sha256": "9b700bd16591d1188a0b951d6d80035b19b52ada69d4307f6723e85334a85997"
+        }
+      ],
+      [
+        "0089-ogv-video.ogv",
+        {
+          "status": "present_random",
+          "sha256": "96f58b808f8f4ef89263dff3d429fe9b2c155c04cfd52ea780982742103d68fe"
+        }
+      ],
+      [
+        "0385-dynres-video.mkv",
+        {
+          "status": "failed",
+          "error": "ffmpeg step failed for 0385-dynres-video.mkv (argvs: 1 recorded in the manifest; the run's raw-rows file carries the step record)"
+        }
+      ],
+      [
+        "0257-avi-video.avi",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0146-avi-video.avi",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0190-audio-only.m4a",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "0007-vfr-av.mov",
+        {
+          "status": "present_random",
+          "sha256": "073b2eb1235ab44a628ee28c9b65e939488abcaa51ceddd5bf29f676c46f88c8"
+        }
+      ],
+      [
+        "0068-fmp4-video.mp4",
+        {
+          "status": "present_random",
+          "sha256": "ec7b993321113b6b15c7f06df8524d563a0a4c187e1913bfc6b2ce1e4a46a7ce"
+        }
+      ],
+      [
+        "0267-audio-only.mkv",
+        {
+          "status": "present_random",
+          "sha256": "43979413747374ffd8ee2a7c7d505e42e5ce5a91dd19d9df196cb1cdaa9c9b12"
+        }
+      ],
+      [
+        "0344-muxed-av.mp4",
+        {
+          "status": "present_random",
+          "sha256": "b0b615b9314961a18bec2da64b396c3e532e5668b35dddb75ce4ecb58520fcca"
+        }
+      ],
+      [
+        "mpegps-dash.mpg",
+        {
+          "status": "present_verified"
+        }
+      ],
+      [
+        "asf-head.wmv",
+        {
+          "status": "present_verified"
+        }
+      ]
+    ]
+  },
+  "lanes": [
+    {
+      "id": "linux-native",
+      "label": "Linux native decode (this host — the lane that actually ran)",
+      "kind": "native-decode",
+      "steps": [],
+      "blocked": null
+    },
+    {
+      "id": "web-wasm",
+      "label": "Web/wasm (recorded build + lane-proof steps; the wasm module ships decoder-less)",
+      "kind": "steps",
+      "steps": [
+        {
+          "purpose": "the wasm32 engine-core module builds for real (probe -> demux -> engine; codecs edge target-gated off — apps/web/Cargo.toml)",
+          "argv": [
+            "cargo",
+            "build",
+            "-p",
+            "lumen-web",
+            "--target",
+            "wasm32-unknown-unknown"
+          ],
+          "outcome": "exit 0",
+          "wall_s": 19.854360167,
+          "artifacts": []
+        },
+        {
+          "purpose": "the web crate's host-side lane proof: capability snapshot + first-vertical MJPEG/PCM decode with the real decoders linked natively (the wasm module reports the decoder split honestly)",
+          "argv": [
+            "cargo",
+            "test",
+            "-p",
+            "lumen-web"
+          ],
+          "outcome": "exit 0",
+          "wall_s": 22.718382406,
+          "artifacts": []
+        }
+      ],
+      "blocked": null
+    },
+    {
+      "id": "windows",
+      "label": "Windows (blocked-by-external — no result inferred)",
+      "kind": "blocked",
+      "steps": [],
+      "blocked": {
+        "reason": "3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned",
+        "reason_ref": "docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line",
+        "next_step": "user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones",
+        "tracking": "issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)"
+      }
+    },
+    {
+      "id": "macos",
+      "label": "macOS (blocked-by-external — no result inferred)",
+      "kind": "blocked",
+      "steps": [],
+      "blocked": {
+        "reason": "3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned",
+        "reason_ref": "docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line",
+        "next_step": "user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones",
+        "tracking": "issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)"
+      }
+    }
+  ],
+  "oracle": {
+    "source": "live run: the pinned VLC VLC version 3.0.23 Vetinari (3.0.23-2-0-g79128878dd) (version-asserted before use; invocation record in the config + docs/corpus/vlc-diff-report-20261023.md §Oracle run 2026-11-09)",
+    "f32_record": "docs/corpus/vlc-f32-tolerance-20261109.json",
+    "rows": [
+      {
+        "rel": "tests/compat/.regen-cache/0022-avi-av.avi",
+        "audiofile_format": "float32",
+        "lumen_bytes": 557336,
+        "lumen_md5": "c5f5a2856f4d1ee42a999fd9b4ace0dd",
+        "lumen_sample": "f32",
+        "vlc_bytes": 556976,
+        "vlc_md5": "78df10d1a4cbbd79da51c7f024da8f63",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "tolerance_fail"
+        },
+        "deviation": {
+          "samples": 139244,
+          "rms": 0.01252049830383012,
+          "peak": 0.024954646825790405,
+          "rms_max": 0.0001,
+          "peak_max": 0.001
+        }
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0040-avi-av.avi",
+        "audiofile_format": "u8",
+        "lumen_bytes": 350976,
+        "lumen_md5": "19615789b111df11e3de03ef28c5b430",
+        "lumen_sample": "u8",
+        "vlc_bytes": 350400,
+        "vlc_md5": "d4646917919e2908babb9edf6004c4c8",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 576
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0041-avi-av.avi",
+        "audiofile_format": "u8",
+        "lumen_bytes": 2112384,
+        "lumen_md5": "a528cd0177f3e69d17f12fa29cbd24cb",
+        "lumen_sample": "u8",
+        "vlc_bytes": 2112000,
+        "vlc_md5": "ed5dafa08241cbe21e31330782514e63",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 384
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0096-multivideo-av.avi",
+        "audiofile_format": "s16",
+        "lumen_bytes": 94208,
+        "lumen_md5": "44cec9ebf7e457140edb971c3e962c96",
+        "lumen_sample": "s16",
+        "vlc_bytes": 93712,
+        "vlc_md5": "a9e08d88b494a601d5d83dd97997be06",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 496
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0116-avi-av.avi",
+        "audiofile_format": "u8",
+        "lumen_bytes": 51728,
+        "lumen_md5": "f9091177a617c3ae14a19af5385954eb",
+        "lumen_sample": "u8",
+        "vlc_bytes": 51600,
+        "vlc_md5": "7b3260357fa2077245b259258a2bb4f0",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 128
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0121-multivideo-av.avi",
+        "audiofile_format": "s16",
+        "lumen_bytes": 216096,
+        "lumen_md5": "36355267afc2774cddb8f81535afd281",
+        "lumen_sample": "s16",
+        "vlc_bytes": 216000,
+        "vlc_md5": "910fe36f8723e5ada5cf850f2078db9d",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 96
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0134-avi-av.avi",
+        "audiofile_format": "u8",
+        "lumen_bytes": 178176,
+        "lumen_md5": "9d62cb4522aeb10247308e0d6dd97c24",
+        "lumen_sample": "u8",
+        "vlc_bytes": 177600,
+        "vlc_md5": "2d22ce916d4ff72d5fa6ec20a13df819",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 576
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0155-avi-av.avi",
+        "audiofile_format": "u8",
+        "lumen_bytes": 1175880,
+        "lumen_md5": "e6bb46494f3c1d3678571324a22f7a55",
+        "lumen_sample": "u8",
+        "vlc_bytes": 1174158,
+        "vlc_md5": "da214c472362d68b75e1ee4bb8d4cbf6",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 1722
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0156-avi-av.avi",
+        "audiofile_format": "u8",
+        "lumen_bytes": 261984,
+        "lumen_md5": "66958319ced9c6cdb9eb0c8130559bff",
+        "lumen_sample": "u8",
+        "vlc_bytes": 261600,
+        "vlc_md5": "a3c8e3633e1fe17d4453bbb7f1353bd5",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 384
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0161-multivideo-av.avi",
+        "audiofile_format": "s16",
+        "lumen_bytes": 3022848,
+        "lumen_md5": "7d7ad50a3f50e59a1fab63eb4a175f87",
+        "lumen_sample": "s16",
+        "vlc_bytes": 3018752,
+        "vlc_md5": "b96286a26cb1ae55956888176fe7766a",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 4096
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0177-multivideo-av.avi",
+        "audiofile_format": "s16",
+        "lumen_bytes": 340808,
+        "lumen_md5": "6ffbb097939384bdd6e185754e509346",
+        "lumen_sample": "s16",
+        "vlc_bytes": 339568,
+        "vlc_md5": "4934d804d067c64e6ca023ebb6c966a6",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 1240
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0180-multivideo-av.avi",
+        "audiofile_format": "s16",
+        "lumen_bytes": 331776,
+        "lumen_md5": "40dd84593db9fa22e87e4932fbbcdf45",
+        "lumen_sample": "s16",
+        "vlc_bytes": 331200,
+        "vlc_md5": "9d74265e479c8824ae6b68788f0b33d9",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 576
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0187-avi-av.avi",
+        "audiofile_format": "u8",
+        "lumen_bytes": 547720,
+        "lumen_md5": "34bcf94ce5308bc76b02f751d3fcad4a",
+        "lumen_sample": "u8",
+        "vlc_bytes": 546840,
+        "vlc_md5": "bc76bdf18701de20fc6a729e8ff463b9",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 880
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0194-multivideo-av.avi",
+        "audiofile_format": "s16",
+        "lumen_bytes": 2998272,
+        "lumen_md5": "fbf9a9b3a9861350fc1007194e629d3d",
+        "lumen_sample": "s16",
+        "vlc_bytes": 2981888,
+        "vlc_md5": "838928ee4447bb5eeecd8842e8dbfbed",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 16384
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0201-multivideo-av.avi",
+        "audiofile_format": "s16",
+        "lumen_bytes": 1970176,
+        "lumen_md5": "ba0dc70bb09e167e90cb9d7b6df7fa31",
+        "lumen_sample": "s16",
+        "vlc_bytes": 1968000,
+        "vlc_md5": "1e35d870cd26ede8b5a75f649244bfeb",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 2176
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0214-avi-av.avi",
+        "audiofile_format": "s16",
+        "lumen_bytes": 1144306,
+        "lumen_md5": "e6665f8344b9038b906c2a0a1b67e3d2",
+        "lumen_sample": "s16",
+        "vlc_bytes": 1142784,
+        "vlc_md5": "f968a60eb33046143d9e73b3e847caea",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 1522
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0227-avi-av.avi",
+        "audiofile_format": "s16",
+        "lumen_bytes": 472032,
+        "lumen_md5": "79120dbdb26357ca7ce2659fcc945d8a",
+        "lumen_sample": "s16",
+        "vlc_bytes": 471040,
+        "vlc_md5": "e3dbede247a37f659053149a7c71156e",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 992
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0233-multivideo-av.avi",
+        "audiofile_format": "s16",
+        "lumen_bytes": 870400,
+        "lumen_md5": "649d0232dba068c25d89617e9ef3fba1",
+        "lumen_sample": "s16",
+        "vlc_bytes": 868770,
+        "vlc_md5": "c8db9843ba6a5326b6f98b08980978f3",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 1630
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0236-multivideo-av.avi",
+        "audiofile_format": "s16",
+        "lumen_bytes": 137216,
+        "lumen_md5": "2fa047d2f34c9029f056237ca8079f5f",
+        "lumen_sample": "s16",
+        "vlc_bytes": 136710,
+        "vlc_md5": "d96aab94f910dbafb8978d0a72052c09",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 506
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0247-avi-av.avi",
+        "audiofile_format": "float32",
+        "lumen_bytes": 745728,
+        "lumen_md5": "ab5198c688a8b3fff8ec9d1e2331f7f4",
+        "lumen_sample": "f32",
+        "vlc_bytes": 745392,
+        "vlc_md5": "5fa583f66850e504a74b39b5b5f24a7d",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "tolerance_fail"
+        },
+        "deviation": {
+          "samples": 186348,
+          "rms": 0.012341705915466829,
+          "peak": 0.04820389440283179,
+          "rms_max": 0.0001,
+          "peak_max": 0.001
+        }
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0278-avi-av.avi",
+        "audiofile_format": "s16",
+        "lumen_bytes": 356858,
+        "lumen_md5": "28a9e2652675dccd5cee316150fe0d46",
+        "lumen_sample": "s16",
+        "vlc_bytes": 356352,
+        "vlc_md5": "9763ff8dcdb59ff2c34ced3f83dfccbe",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 506
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0280-avi-av.avi",
+        "audiofile_format": "float32",
+        "lumen_bytes": 935976,
+        "lumen_md5": "18e044f04e6355895b6cdfc561d854d7",
+        "lumen_sample": "f32",
+        "vlc_bytes": 934760,
+        "vlc_md5": "598126d7a114389d663528bce82170c5",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "tolerance_fail"
+        },
+        "deviation": {
+          "samples": 233690,
+          "rms": 0.008682665976095707,
+          "peak": 0.035183381754904985,
+          "rms_max": 0.0001,
+          "peak_max": 0.001
+        }
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0297-avi-av.avi",
+        "audiofile_format": "float32",
+        "lumen_bytes": 3520224,
+        "lumen_md5": "0f368aaa880d22f7c48caf67db304276",
+        "lumen_sample": "f32",
+        "vlc_bytes": 3518528,
+        "vlc_md5": "1796324a7db6a7aa3d5b9ef3895360c0",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "tolerance_fail"
+        },
+        "deviation": {
+          "samples": 879632,
+          "rms": 0.00008215050255268216,
+          "peak": 0.04626615718007088,
+          "rms_max": 0.0001,
+          "peak_max": 0.001
+        }
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0305-avi-av.avi",
+        "audiofile_format": "float32",
+        "lumen_bytes": 885440,
+        "lumen_md5": "06a68cd135e2f0d4395f9fef591ca4a7",
+        "lumen_sample": "f32",
+        "vlc_bytes": 884656,
+        "vlc_md5": "c389e0160fc63cbb99f41f73d56fd81a",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "tolerance_fail"
+        },
+        "deviation": {
+          "samples": 221164,
+          "rms": 0.12185957452598227,
+          "peak": 0.4940288015641272,
+          "rms_max": 0.0001,
+          "peak_max": 0.001
+        }
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0307-multivideo-av.avi",
+        "audiofile_format": "s16",
+        "lumen_bytes": 450560,
+        "lumen_md5": "e2bce5d5744e374d59ffd1dbb565314c",
+        "lumen_sample": "s16",
+        "vlc_bytes": 448000,
+        "vlc_md5": "d785c2f3859818577337295a8e94594e",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 2560
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0308-avi-av.avi",
+        "audiofile_format": "s16",
+        "lumen_bytes": 4096000,
+        "lumen_md5": "01269e9f433bd2f4496054180b3b9639",
+        "lumen_sample": "s16",
+        "vlc_bytes": 4089600,
+        "vlc_md5": "a436890a0b7bbe418b1c630d997c8167",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 6400
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0318-avi-av.avi",
+        "audiofile_format": "s16",
+        "lumen_bytes": 1331712,
+        "lumen_md5": "0385e591ec22e8bab8ea8150be42abbb",
+        "lumen_sample": "s16",
+        "vlc_bytes": 1331200,
+        "vlc_md5": "fd2e674edf8427168b1ce4c0b457abce",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 512
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0324-avi-av.avi",
+        "audiofile_format": "u8",
+        "lumen_bytes": 822908,
+        "lumen_md5": "1767da988df20a761eea5b3be593b233",
+        "lumen_sample": "u8",
+        "vlc_bytes": 820260,
+        "vlc_md5": "2c669806afcb5e5f15ad4d4e81dd621c",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 2648
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0330-avi-av.avi",
+        "audiofile_format": "float32",
+        "lumen_bytes": 410880,
+        "lumen_md5": "bb76a78b3c77421b3e41c0155dc8d8d1",
+        "lumen_sample": "f32",
+        "vlc_bytes": 409520,
+        "vlc_md5": "c0e894718e500b5ec3b1c496c4559beb",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "tolerance_fail"
+        },
+        "deviation": {
+          "samples": 102380,
+          "rms": 6.425152069055904e-6,
+          "peak": 0.0011998071568086743,
+          "rms_max": 0.0001,
+          "peak_max": 0.001
+        }
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0335-multivideo-av.avi",
+        "audiofile_format": "s16",
+        "lumen_bytes": 97216,
+        "lumen_md5": "91f7a4e2888184bcbdcd5f02fda062a9",
+        "lumen_sample": "s16",
+        "vlc_bytes": 96800,
+        "vlc_md5": "8d875f66915d6e701526e18865d91317",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 416
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0336-multivideo-av.avi",
+        "audiofile_format": "s16",
+        "lumen_bytes": 425984,
+        "lumen_md5": "ca97c302d2e1d6ec0e27063076b56dd9",
+        "lumen_sample": "s16",
+        "vlc_bytes": 425600,
+        "vlc_md5": "c06837c134cdadf0e7ae88eec959cca7",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 384
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0342-avi-av.avi",
+        "audiofile_format": "s16",
+        "lumen_bytes": 1846464,
+        "lumen_md5": "0d1d39cbb0401e1e9303081446c2652b",
+        "lumen_sample": "s16",
+        "vlc_bytes": 1843200,
+        "vlc_md5": "ce235467c545e6a815373b0377208363",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 3264
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0367-multivideo-av.avi",
+        "audiofile_format": "s16",
+        "lumen_bytes": 4030464,
+        "lumen_md5": "b51e70202da7081a8fd97db8b81e26be",
+        "lumen_sample": "s16",
+        "vlc_bytes": 4018176,
+        "vlc_md5": "af367bbb69010134c4ce6d42a6228fe5",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 12288
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0386-avi-av.avi",
+        "audiofile_format": "s16",
+        "lumen_bytes": 187292,
+        "lumen_md5": "37e3ad34ab0d716cc5da69a2317c3305",
+        "lumen_sample": "s16",
+        "vlc_bytes": 186368,
+        "vlc_md5": "6cfd15ca4347f470ada1509b8fee5cef",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 924
+        },
+        "deviation": null
+      },
+      {
+        "rel": "tests/compat/.regen-cache/0394-avi-av.avi",
+        "audiofile_format": "s16",
+        "lumen_bytes": 1092096,
+        "lumen_md5": "14f6510ff52b84f8b88d652e09ab1b99",
+        "lumen_sample": "s16",
+        "vlc_bytes": 1084800,
+        "vlc_md5": "c9b442b6b5617275e775dc1a45d3b9d4",
+        "vlc_source": "live_run",
+        "verdict": {
+          "verdict": "bit_exact_prefix",
+          "unflushed_tail_bytes": 7296
+        },
+        "deviation": null
+      }
+    ],
+    "committed_cross_checks": [
+      "tests/compat/.regen-cache/0022-avi-av.avi: fresh decode md5 == committed 2026-11-09 lumen_fresh_md5 (same realization) — the record's vlc_md5 is applicable",
+      "tests/compat/.regen-cache/0040-avi-av.avi: fresh realization (random source or encoder drift) — the committed record's md5s do not apply to these bytes",
+      "tests/compat/.regen-cache/0041-avi-av.avi: fresh realization (random source or encoder drift) — the committed record's md5s do not apply to these bytes",
+      "tests/compat/.regen-cache/0096-multivideo-av.avi: fresh decode md5 == committed 2026-11-09 lumen_fresh_md5 (same realization) — the record's vlc_md5 is applicable",
+      "tests/compat/.regen-cache/0116-avi-av.avi: fresh realization (random source or encoder drift) — the committed record's md5s do not apply to these bytes",
+      "tests/compat/.regen-cache/0121-multivideo-av.avi: fresh decode md5 == committed 2026-11-09 lumen_fresh_md5 (same realization) — the record's vlc_md5 is applicable",
+      "tests/compat/.regen-cache/0134-avi-av.avi: fresh decode md5 == committed 2026-11-09 lumen_fresh_md5 (same realization) — the record's vlc_md5 is applicable",
+      "tests/compat/.regen-cache/0155-avi-av.avi: fresh decode md5 == committed 2026-11-09 lumen_fresh_md5 (same realization) — the record's vlc_md5 is applicable",
+      "tests/compat/.regen-cache/0156-avi-av.avi: fresh decode md5 == committed 2026-11-09 lumen_fresh_md5 (same realization) — the record's vlc_md5 is applicable",
+      "tests/compat/.regen-cache/0161-multivideo-av.avi: fresh decode md5 == committed 2026-11-09 lumen_fresh_md5 (same realization) — the record's vlc_md5 is applicable",
+      "tests/compat/.regen-cache/0177-multivideo-av.avi: fresh realization (random source or encoder drift) — the committed record's md5s do not apply to these bytes",
+      "tests/compat/.regen-cache/0180-multivideo-av.avi: fresh realization (random source or encoder drift) — the committed record's md5s do not apply to these bytes",
+      "tests/compat/.regen-cache/0187-avi-av.avi: fresh decode md5 == committed 2026-11-09 lumen_fresh_md5 (same realization) — the record's vlc_md5 is applicable",
+      "tests/compat/.regen-cache/0194-multivideo-av.avi: fresh decode md5 == committed 2026-11-09 lumen_fresh_md5 (same realization) — the record's vlc_md5 is applicable",
+      "tests/compat/.regen-cache/0201-multivideo-av.avi: fresh realization (random source or encoder drift) — the committed record's md5s do not apply to these bytes",
+      "tests/compat/.regen-cache/0214-avi-av.avi: fresh realization (random source or encoder drift) — the committed record's md5s do not apply to these bytes",
+      "tests/compat/.regen-cache/0227-avi-av.avi: fresh realization (random source or encoder drift) — the committed record's md5s do not apply to these bytes",
+      "tests/compat/.regen-cache/0233-multivideo-av.avi: fresh decode md5 == committed 2026-11-09 lumen_fresh_md5 (same realization) — the record's vlc_md5 is applicable",
+      "tests/compat/.regen-cache/0236-multivideo-av.avi: fresh decode md5 == committed 2026-11-09 lumen_fresh_md5 (same realization) — the record's vlc_md5 is applicable",
+      "tests/compat/.regen-cache/0247-avi-av.avi: fresh realization (random source or encoder drift) — the committed record's md5s do not apply to these bytes",
+      "tests/compat/.regen-cache/0278-avi-av.avi: fresh decode md5 == committed 2026-11-09 lumen_fresh_md5 (same realization) — the record's vlc_md5 is applicable",
+      "tests/compat/.regen-cache/0280-avi-av.avi: fresh realization (random source or encoder drift) — the committed record's md5s do not apply to these bytes",
+      "tests/compat/.regen-cache/0297-avi-av.avi: fresh decode md5 == committed 2026-11-09 lumen_fresh_md5 (same realization) — the record's vlc_md5 is applicable",
+      "tests/compat/.regen-cache/0305-avi-av.avi: fresh realization (random source or encoder drift) — the committed record's md5s do not apply to these bytes",
+      "tests/compat/.regen-cache/0307-multivideo-av.avi: fresh decode md5 == committed 2026-11-09 lumen_fresh_md5 (same realization) — the record's vlc_md5 is applicable",
+      "tests/compat/.regen-cache/0308-avi-av.avi: fresh decode md5 == committed 2026-11-09 lumen_fresh_md5 (same realization) — the record's vlc_md5 is applicable",
+      "tests/compat/.regen-cache/0318-avi-av.avi: fresh realization (random source or encoder drift) — the committed record's md5s do not apply to these bytes",
+      "tests/compat/.regen-cache/0324-avi-av.avi: fresh decode md5 == committed 2026-11-09 lumen_fresh_md5 (same realization) — the record's vlc_md5 is applicable",
+      "tests/compat/.regen-cache/0330-avi-av.avi: fresh decode md5 == committed 2026-11-09 lumen_fresh_md5 (same realization) — the record's vlc_md5 is applicable",
+      "tests/compat/.regen-cache/0335-multivideo-av.avi: fresh realization (random source or encoder drift) — the committed record's md5s do not apply to these bytes",
+      "tests/compat/.regen-cache/0336-multivideo-av.avi: fresh decode md5 == committed 2026-11-09 lumen_fresh_md5 (same realization) — the record's vlc_md5 is applicable",
+      "tests/compat/.regen-cache/0342-avi-av.avi: fresh decode md5 == committed 2026-11-09 lumen_fresh_md5 (same realization) — the record's vlc_md5 is applicable",
+      "tests/compat/.regen-cache/0367-multivideo-av.avi: fresh realization (random source or encoder drift) — the committed record's md5s do not apply to these bytes",
+      "tests/compat/.regen-cache/0386-avi-av.avi: fresh decode md5 == committed 2026-11-09 lumen_fresh_md5 (same realization) — the record's vlc_md5 is applicable",
+      "tests/compat/.regen-cache/0394-avi-av.avi: fresh realization (random source or encoder drift) — the committed record's md5s do not apply to these bytes"
+    ]
+  },
+  "formats": [
+    {
+      "probe_format": "avi",
+      "vlc_name": "AVI (incl. OpenDML)",
+      "matrix_rows": [
+        "container-avi"
+      ],
+      "claims": [
+        {
+          "row": "container-avi",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/fixtures/generated/valid/avi_mjpeg_2pcm.avi",
+        "tests/fixtures/generated/valid/avi_mjpeg_pcm.avi",
+        "tests/fixtures/mjpeg_h3/mjpeg_420_odd.avi",
+        "tests/fixtures/mjpeg_h3/mjpeg_422_odd.avi",
+        "tests/fixtures/mjpeg_h3/mjpeg_interlaced_bff.avi",
+        "tests/fixtures/mjpeg_h3/mjpeg_interlaced_tff.avi",
+        "tests/compat/.regen-cache/0022-avi-av.avi",
+        "tests/compat/.regen-cache/0040-avi-av.avi",
+        "tests/compat/.regen-cache/0041-avi-av.avi",
+        "tests/compat/.regen-cache/0096-multivideo-av.avi",
+        "tests/compat/.regen-cache/0116-avi-av.avi",
+        "tests/compat/.regen-cache/0121-multivideo-av.avi",
+        "tests/compat/.regen-cache/0134-avi-av.avi",
+        "tests/compat/.regen-cache/0155-avi-av.avi",
+        "tests/compat/.regen-cache/0156-avi-av.avi",
+        "tests/compat/.regen-cache/0161-multivideo-av.avi",
+        "tests/compat/.regen-cache/0177-multivideo-av.avi",
+        "tests/compat/.regen-cache/0180-multivideo-av.avi",
+        "tests/compat/.regen-cache/0187-avi-av.avi",
+        "tests/compat/.regen-cache/0194-multivideo-av.avi",
+        "tests/compat/.regen-cache/0201-multivideo-av.avi",
+        "tests/compat/.regen-cache/0214-avi-av.avi",
+        "tests/compat/.regen-cache/0227-avi-av.avi",
+        "tests/compat/.regen-cache/0233-multivideo-av.avi",
+        "tests/compat/.regen-cache/0236-multivideo-av.avi",
+        "tests/compat/.regen-cache/0247-avi-av.avi",
+        "tests/compat/.regen-cache/0278-avi-av.avi",
+        "tests/compat/.regen-cache/0280-avi-av.avi",
+        "tests/compat/.regen-cache/0297-avi-av.avi",
+        "tests/compat/.regen-cache/0305-avi-av.avi",
+        "tests/compat/.regen-cache/0307-multivideo-av.avi",
+        "tests/compat/.regen-cache/0308-avi-av.avi",
+        "tests/compat/.regen-cache/0318-avi-av.avi",
+        "tests/compat/.regen-cache/0324-avi-av.avi",
+        "tests/compat/.regen-cache/0330-avi-av.avi",
+        "tests/compat/.regen-cache/0335-multivideo-av.avi",
+        "tests/compat/.regen-cache/0336-multivideo-av.avi",
+        "tests/compat/.regen-cache/0342-avi-av.avi",
+        "tests/compat/.regen-cache/0367-multivideo-av.avi",
+        "tests/compat/.regen-cache/0386-avi-av.avi",
+        "tests/compat/.regen-cache/0394-avi-av.avi",
+        "tests/compat/.regen-cache/0257-avi-video.avi",
+        "tests/compat/.regen-cache/0146-avi-video.avi"
+      ],
+      "malformed_files": 9,
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "decoded",
+          "detail": "41/41 files open+demux (41 fully decoded, 0 with a codec-side NoDecoder track); error-contract: 9 malformed variants, all typed (zero crashes)"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds (see the lane's recorded steps); engine core (probe + demux of this family) compiled in; DECODE refused — the wasm32 module ships decoder-less (codecs crate does not build for wasm32; apps/web/src/capabilities.rs reports the split); no in-browser run in this matrix"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "probe_format": "matroska",
+      "vlc_name": "Matroska / WebM / MKA",
+      "matrix_rows": [
+        "container-matroska-webm"
+      ],
+      "claims": [
+        {
+          "row": "container-matroska-webm",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/fixtures/generated/valid/mkv_h264_aac.mkv",
+        "tests/fixtures/generated/valid/mkv_h264_flac.mkv",
+        "tests/fixtures/generated/valid/mkv_multitrack.mkv",
+        "tests/fixtures/generated/valid/webm_vp9_opus.webm",
+        "tests/compat/.regen-cache/0269-vfr-av.mkv",
+        "tests/compat/.regen-cache/0105-mkv-video.mkv",
+        "tests/compat/.regen-cache/0009-audio-only.mka",
+        "tests/compat/.regen-cache/0132-meta-bomb-av.mkv",
+        "tests/compat/.regen-cache/0028-audio-only.webm",
+        "tests/compat/.regen-cache/0065-webm-video.webm",
+        "tests/compat/.regen-cache/0267-audio-only.mkv"
+      ],
+      "malformed_files": 9,
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "decoded",
+          "detail": "11/11 files open+demux (5 fully decoded, 6 with a codec-side NoDecoder track); error-contract: 9 malformed variants, all typed (zero crashes)"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds (see the lane's recorded steps); engine core (probe + demux of this family) compiled in; DECODE refused — the wasm32 module ships decoder-less (codecs crate does not build for wasm32; apps/web/src/capabilities.rs reports the split); no in-browser run in this matrix"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "probe_format": "mp4",
+      "vlc_name": "MP4 / MOV / 3GP / M4A (ISO-BMFF)",
+      "matrix_rows": [
+        "container-mp4-mov-3gp"
+      ],
+      "claims": [
+        {
+          "row": "container-mp4-mov-3gp",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/fixtures/generated/valid/mp4_3gp_h263.3gp",
+        "tests/fixtures/generated/valid/mp4_chapters.mp4",
+        "tests/fixtures/generated/valid/mp4_edts.mp4",
+        "tests/fixtures/generated/valid/mp4_frag.mp4",
+        "tests/fixtures/generated/valid/mp4_frag_sidx.mp4",
+        "tests/fixtures/generated/valid/mp4_h264_aac.mp4",
+        "tests/fixtures/generated/valid/mp4_mjpeg_pcm.mp4",
+        "tests/fixtures/generated/valid/mp4_qt.mov",
+        "tests/compat/.regen-cache/0396-audio-only.mov",
+        "tests/compat/.regen-cache/0136-audio-only.mp4",
+        "tests/compat/.regen-cache/0190-audio-only.m4a",
+        "tests/compat/.regen-cache/0007-vfr-av.mov",
+        "tests/compat/.regen-cache/0068-fmp4-video.mp4",
+        "tests/compat/.regen-cache/0344-muxed-av.mp4"
+      ],
+      "malformed_files": 14,
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "decoded",
+          "detail": "14/14 files open+demux (4 fully decoded, 10 with a codec-side NoDecoder track); error-contract: 14 malformed variants, all typed (zero crashes)"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds (see the lane's recorded steps); engine core (probe + demux of this family) compiled in; DECODE refused — the wasm32 module ships decoder-less (codecs crate does not build for wasm32; apps/web/src/capabilities.rs reports the split); no in-browser run in this matrix"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "probe_format": "ogg",
+      "vlc_name": "Ogg (incl. Ogv)",
+      "matrix_rows": [
+        "container-ogg"
+      ],
+      "claims": [
+        {
+          "row": "container-ogg",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/fixtures/generated/valid/ogg_chain_two_links.ogg",
+        "tests/fixtures/generated/valid/ogg_vorbis_16k_mono.ogg",
+        "tests/fixtures/generated/valid/ogg_vorbis_8k_st.ogg",
+        "tests/compat/.regen-cache/0210-audio-only.ogg",
+        "tests/compat/.regen-cache/0115-audio-only.ogg",
+        "tests/compat/.regen-cache/0089-ogv-video.ogv"
+      ],
+      "malformed_files": 0,
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "decoded",
+          "detail": "6/6 files open+demux (5 fully decoded, 1 with a codec-side NoDecoder track)"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds (see the lane's recorded steps); engine core (probe + demux of this family) compiled in; DECODE refused — the wasm32 module ships decoder-less (codecs crate does not build for wasm32; apps/web/src/capabilities.rs reports the split); no in-browser run in this matrix"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "probe_format": "mpegts",
+      "vlc_name": "MPEG transport stream",
+      "matrix_rows": [
+        "container-mpegts"
+      ],
+      "claims": [
+        {
+          "row": "container-mpegts",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/fixtures/hls/ts_live/s00.ts",
+        "tests/fixtures/hls/ts_live/s01.ts",
+        "tests/fixtures/hls/ts_live/s02.ts",
+        "tests/fixtures/hls/ts_live/t00.ts",
+        "tests/fixtures/hls/ts_live/t01.ts",
+        "tests/fixtures/hls/ts_vod/seg000.ts",
+        "tests/fixtures/hls/ts_vod/seg001.ts",
+        "tests/fixtures/hls/ts_vod/seg002.ts",
+        "tests/fixtures/hls/ts_vod/seg003.ts",
+        "tests/compat/.regen-cache/0371-muxed-av.ts"
+      ],
+      "malformed_files": 0,
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "decoded",
+          "detail": "10/10 files open+demux (9 fully decoded, 1 with a codec-side NoDecoder track)"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds (see the lane's recorded steps); engine core (probe + demux of this family) compiled in; DECODE refused — the wasm32 module ships decoder-less (codecs crate does not build for wasm32; apps/web/src/capabilities.rs reports the split); no in-browser run in this matrix"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "probe_format": "mpegps",
+      "vlc_name": "MPEG program stream / VOB",
+      "matrix_rows": [
+        "container-mpegps"
+      ],
+      "claims": [
+        {
+          "row": "container-mpegps",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/compat/.regen-cache/mpegps-dash.mpg"
+      ],
+      "malformed_files": 0,
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "decoded",
+          "detail": "1/1 files open+demux (0 fully decoded, 1 with a codec-side NoDecoder track)"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds (see the lane's recorded steps); engine core (probe + demux of this family) compiled in; DECODE refused — the wasm32 module ships decoder-less (codecs crate does not build for wasm32; apps/web/src/capabilities.rs reports the split); no in-browser run in this matrix"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "probe_format": "asf",
+      "vlc_name": "ASF / WMV / WMA",
+      "matrix_rows": [
+        "container-asf-wmv"
+      ],
+      "claims": [
+        {
+          "row": "container-asf-wmv",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/compat/.regen-cache/asf-head.wmv"
+      ],
+      "malformed_files": 0,
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "refused",
+          "detail": "1/1 corpus files REFUSED at the open path — unsupported (sniffed 30 26 b2 75 8e 66 cf 11 a6 d9 00 aa 00 62 ce 6c) (probe.no-demuxer): probe hints: extension=wmv, size=10329"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds (see the lane's recorded steps); engine core (probe + demux of this family) compiled in; DECODE refused — the wasm32 module ships decoder-less (codecs crate does not build for wasm32; apps/web/src/capabilities.rs reports the split); no in-browser run in this matrix"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "probe_format": "wav",
+      "vlc_name": "WAV (RIFF/WAVE)",
+      "matrix_rows": [
+        "container-wav"
+      ],
+      "claims": [
+        {
+          "row": "container-wav",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/fixtures/generated/valid/wav_extensible_6ch_48k.wav",
+        "tests/fixtures/generated/valid/wav_pcm_f32le_48k_st.wav",
+        "tests/fixtures/generated/valid/wav_pcm_s16le_44k1_st.wav",
+        "tests/fixtures/generated/valid/wav_pcm_s24le_48k_st.wav",
+        "tests/fixtures/generated/valid/wav_pcm_u8_44k1_mono.wav",
+        "tests/fixtures/generated/valid/wav_rf64_44k1_st.wav",
+        "tests/compat/.regen-cache/0220-audio-only.wav",
+        "tests/compat/.regen-cache/0331-audio-only.wav",
+        "tests/compat/.regen-cache/0370-audio-only.wav",
+        "tests/compat/.regen-cache/0241-audio-only.wav"
+      ],
+      "malformed_files": 0,
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "decoded",
+          "detail": "8/8 files open+demux (8 fully decoded, 0 with a codec-side NoDecoder track)"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds (see the lane's recorded steps); engine core (probe + demux of this family) compiled in; DECODE refused — the wasm32 module ships decoder-less (codecs crate does not build for wasm32; apps/web/src/capabilities.rs reports the split); no in-browser run in this matrix"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "probe_format": "flac",
+      "vlc_name": "FLAC native stream",
+      "matrix_rows": [
+        "container-flac-native"
+      ],
+      "claims": [
+        {
+          "row": "container-flac-native",
+          "windows": "not_started",
+          "linux": "not_started",
+          "macos": "not_started",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/compat/.regen-cache/0316-audio-only.flac"
+      ],
+      "malformed_files": 0,
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "refused",
+          "detail": "1/1 corpus files REFUSED at the open path — format `flac` probes (the fLaC marker) but the raw-FLAC elementary-stream demuxer has not landed: crates/demux/src/es covers h264/hevc/mp3/aac (card 5.I3a's slice) — the landing card harvests the 34-byte STREAMINFO body as extra_data for the already-wired FLAC decoder and flips this one registry arm"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds (see the lane's recorded steps); engine core (probe + demux of this family) compiled in; DECODE refused — the wasm32 module ships decoder-less (codecs crate does not build for wasm32; apps/web/src/capabilities.rs reports the split); no in-browser run in this matrix"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "probe_format": "aiff",
+      "vlc_name": "AIFF (COMM/SSND)",
+      "matrix_rows": [
+        "container-aiff"
+      ],
+      "claims": [
+        {
+          "row": "container-aiff",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/fixtures/generated/valid/aifc_raw_u8_44k1_mono.aifc",
+        "tests/fixtures/generated/valid/aifc_sowt_s16le_44k1_st.aifc",
+        "tests/fixtures/generated/valid/aiff_pcm_s16be_44k1_st.aiff",
+        "tests/fixtures/generated/valid/aiff_pcm_s24be_48k_st.aiff"
+      ],
+      "malformed_files": 0,
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "decoded",
+          "detail": "4/4 files open+demux (4 fully decoded, 0 with a codec-side NoDecoder track)"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds (see the lane's recorded steps); engine core (probe + demux of this family) compiled in; DECODE refused — the wasm32 module ships decoder-less (codecs crate does not build for wasm32; apps/web/src/capabilities.rs reports the split); no in-browser run in this matrix"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "probe_format": "adts",
+      "vlc_name": "ADTS / raw AAC stream",
+      "matrix_rows": [
+        "container-adts-aac"
+      ],
+      "claims": [
+        {
+          "row": "container-adts-aac",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/fixtures/hls/adts_vod/seg000.aac",
+        "tests/fixtures/hls/adts_vod/seg001.aac",
+        "tests/fixtures/hls/adts_vod/seg002.aac",
+        "tests/fixtures/hls/adts_vod/seg003.aac",
+        "tests/compat/.regen-cache/0313-audio-only.aac"
+      ],
+      "malformed_files": 0,
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "decoded",
+          "detail": "5/5 files open+demux (4 fully decoded, 1 with a codec-side NoDecoder track)"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds (see the lane's recorded steps); engine core (probe + demux of this family) compiled in; DECODE refused — the wasm32 module ships decoder-less (codecs crate does not build for wasm32; apps/web/src/capabilities.rs reports the split); no in-browser run in this matrix"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "probe_format": "mp3",
+      "vlc_name": "Raw MP3 stream",
+      "matrix_rows": [
+        "container-mp3-raw"
+      ],
+      "claims": [
+        {
+          "row": "container-mp3-raw",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/compat/.regen-cache/0360-audio-only.mp3"
+      ],
+      "malformed_files": 0,
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "decoded",
+          "detail": "1/1 files open+demux (1 fully decoded, 0 with a codec-side NoDecoder track)"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds (see the lane's recorded steps); engine core (probe + demux of this family) compiled in; DECODE refused — the wasm32 module ships decoder-less (codecs crate does not build for wasm32; apps/web/src/capabilities.rs reports the split); no in-browser run in this matrix"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "probe_format": "mp2",
+      "vlc_name": "Raw MP2 stream (MPEG audio ES)",
+      "matrix_rows": [
+        "container-mp3-raw"
+      ],
+      "claims": [
+        {
+          "row": "container-mp3-raw",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/compat/.regen-cache/0051-audio-only.mp2"
+      ],
+      "malformed_files": 0,
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "decoded",
+          "detail": "1/1 files open+demux (1 fully decoded, 0 with a codec-side NoDecoder track)"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds (see the lane's recorded steps); engine core (probe + demux of this family) compiled in; DECODE refused — the wasm32 module ships decoder-less (codecs crate does not build for wasm32; apps/web/src/capabilities.rs reports the split); no in-browser run in this matrix"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "probe_format": "h264",
+      "vlc_name": "Raw H.264 (Annex B)",
+      "matrix_rows": [
+        "container-h264-annexb"
+      ],
+      "claims": [
+        {
+          "row": "container-h264-annexb",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/compat/.regen-cache/0126-raw-video.h264"
+      ],
+      "malformed_files": 0,
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "decoded",
+          "detail": "1/1 files open+demux (0 fully decoded, 1 with a codec-side NoDecoder track)"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds (see the lane's recorded steps); engine core (probe + demux of this family) compiled in; DECODE refused — the wasm32 module ships decoder-less (codecs crate does not build for wasm32; apps/web/src/capabilities.rs reports the split); no in-browser run in this matrix"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "probe_format": "hevc",
+      "vlc_name": "Raw HEVC (Annex B)",
+      "matrix_rows": [
+        "container-hevc-annexb"
+      ],
+      "claims": [
+        {
+          "row": "container-hevc-annexb",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/compat/.regen-cache/0099-raw-video.265"
+      ],
+      "malformed_files": 0,
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "decoded",
+          "detail": "1/1 files open+demux (0 fully decoded, 1 with a codec-side NoDecoder track)"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds (see the lane's recorded steps); engine core (probe + demux of this family) compiled in; DECODE refused — the wasm32 module ships decoder-less (codecs crate does not build for wasm32; apps/web/src/capabilities.rs reports the split); no in-browser run in this matrix"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "probe_format": "ivf",
+      "vlc_name": "IVF (AV1/VP9 raw container)",
+      "matrix_rows": [
+        "container-ivf"
+      ],
+      "claims": [
+        {
+          "row": "container-ivf",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/fixtures/generated/ivf/av1_64x48_30fps.ivf",
+        "tests/fixtures/generated/ivf/vp9_64x48_25fps.ivf"
+      ],
+      "malformed_files": 0,
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "decoded",
+          "detail": "2/2 files open+demux (2 fully decoded, 0 with a codec-side NoDecoder track)"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds (see the lane's recorded steps); engine core (probe + demux of this family) compiled in; DECODE refused — the wasm32 module ships decoder-less (codecs crate does not build for wasm32; apps/web/src/capabilities.rs reports the split); no in-browser run in this matrix"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    }
+  ],
+  "codecs": [
+    {
+      "codec": "pcm_",
+      "kind": "audio",
+      "matrix_rows": [
+        "codec-audio-pcm"
+      ],
+      "claims": [
+        {
+          "row": "codec-audio-pcm",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/fixtures/generated/valid/aifc_raw_u8_44k1_mono.aifc",
+        "tests/fixtures/generated/valid/aifc_sowt_s16le_44k1_st.aifc",
+        "tests/fixtures/generated/valid/aiff_pcm_s16be_44k1_st.aiff",
+        "tests/fixtures/generated/valid/aiff_pcm_s24be_48k_st.aiff",
+        "tests/fixtures/generated/valid/avi_mjpeg_2pcm.avi",
+        "tests/fixtures/generated/valid/avi_mjpeg_pcm.avi",
+        "tests/fixtures/generated/valid/mp4_mjpeg_pcm.mp4",
+        "tests/fixtures/generated/valid/wav_extensible_6ch_48k.wav",
+        "tests/fixtures/generated/valid/wav_pcm_f32le_48k_st.wav",
+        "tests/fixtures/generated/valid/wav_pcm_s16le_44k1_st.wav",
+        "tests/fixtures/generated/valid/wav_pcm_s24le_48k_st.wav",
+        "tests/fixtures/generated/valid/wav_pcm_u8_44k1_mono.wav",
+        "tests/fixtures/generated/valid/wav_rf64_44k1_st.wav",
+        "tests/compat/.regen-cache/0022-avi-av.avi",
+        "tests/compat/.regen-cache/0040-avi-av.avi",
+        "tests/compat/.regen-cache/0041-avi-av.avi",
+        "tests/compat/.regen-cache/0096-multivideo-av.avi",
+        "tests/compat/.regen-cache/0116-avi-av.avi",
+        "tests/compat/.regen-cache/0121-multivideo-av.avi",
+        "tests/compat/.regen-cache/0134-avi-av.avi",
+        "tests/compat/.regen-cache/0155-avi-av.avi",
+        "tests/compat/.regen-cache/0156-avi-av.avi",
+        "tests/compat/.regen-cache/0161-multivideo-av.avi",
+        "tests/compat/.regen-cache/0177-multivideo-av.avi",
+        "tests/compat/.regen-cache/0180-multivideo-av.avi",
+        "tests/compat/.regen-cache/0187-avi-av.avi",
+        "tests/compat/.regen-cache/0194-multivideo-av.avi",
+        "tests/compat/.regen-cache/0201-multivideo-av.avi",
+        "tests/compat/.regen-cache/0214-avi-av.avi",
+        "tests/compat/.regen-cache/0227-avi-av.avi",
+        "tests/compat/.regen-cache/0233-multivideo-av.avi",
+        "tests/compat/.regen-cache/0236-multivideo-av.avi",
+        "tests/compat/.regen-cache/0247-avi-av.avi",
+        "tests/compat/.regen-cache/0278-avi-av.avi",
+        "tests/compat/.regen-cache/0280-avi-av.avi",
+        "tests/compat/.regen-cache/0297-avi-av.avi",
+        "tests/compat/.regen-cache/0305-avi-av.avi",
+        "tests/compat/.regen-cache/0307-multivideo-av.avi",
+        "tests/compat/.regen-cache/0308-avi-av.avi",
+        "tests/compat/.regen-cache/0318-avi-av.avi",
+        "tests/compat/.regen-cache/0324-avi-av.avi",
+        "tests/compat/.regen-cache/0330-avi-av.avi",
+        "tests/compat/.regen-cache/0335-multivideo-av.avi",
+        "tests/compat/.regen-cache/0336-multivideo-av.avi",
+        "tests/compat/.regen-cache/0342-avi-av.avi",
+        "tests/compat/.regen-cache/0367-multivideo-av.avi",
+        "tests/compat/.regen-cache/0386-avi-av.avi",
+        "tests/compat/.regen-cache/0394-avi-av.avi"
+      ],
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "decoded",
+          "detail": "49 tracks decoded across 48 files (0 concealed packets); sample format u8"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less on wasm32 (apps/web/src/capabilities.rs); no decode claimed"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "codec": "mjpeg",
+      "kind": "video",
+      "matrix_rows": [
+        "codec-video-mjpeg"
+      ],
+      "claims": [
+        {
+          "row": "codec-video-mjpeg",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/fixtures/generated/valid/avi_mjpeg_2pcm.avi",
+        "tests/fixtures/generated/valid/avi_mjpeg_pcm.avi",
+        "tests/fixtures/generated/valid/mp4_mjpeg_pcm.mp4",
+        "tests/fixtures/mjpeg_h3/mjpeg_420_odd.avi",
+        "tests/fixtures/mjpeg_h3/mjpeg_422_odd.avi",
+        "tests/fixtures/mjpeg_h3/mjpeg_interlaced_bff.avi",
+        "tests/fixtures/mjpeg_h3/mjpeg_interlaced_tff.avi",
+        "tests/compat/.regen-cache/0022-avi-av.avi",
+        "tests/compat/.regen-cache/0041-avi-av.avi",
+        "tests/compat/.regen-cache/0096-multivideo-av.avi",
+        "tests/compat/.regen-cache/0116-avi-av.avi",
+        "tests/compat/.regen-cache/0121-multivideo-av.avi",
+        "tests/compat/.regen-cache/0155-avi-av.avi",
+        "tests/compat/.regen-cache/0161-multivideo-av.avi",
+        "tests/compat/.regen-cache/0177-multivideo-av.avi",
+        "tests/compat/.regen-cache/0180-multivideo-av.avi",
+        "tests/compat/.regen-cache/0194-multivideo-av.avi",
+        "tests/compat/.regen-cache/0201-multivideo-av.avi",
+        "tests/compat/.regen-cache/0214-avi-av.avi",
+        "tests/compat/.regen-cache/0233-multivideo-av.avi",
+        "tests/compat/.regen-cache/0236-multivideo-av.avi",
+        "tests/compat/.regen-cache/0247-avi-av.avi",
+        "tests/compat/.regen-cache/0278-avi-av.avi",
+        "tests/compat/.regen-cache/0280-avi-av.avi",
+        "tests/compat/.regen-cache/0297-avi-av.avi",
+        "tests/compat/.regen-cache/0305-avi-av.avi",
+        "tests/compat/.regen-cache/0307-multivideo-av.avi",
+        "tests/compat/.regen-cache/0308-avi-av.avi",
+        "tests/compat/.regen-cache/0324-avi-av.avi",
+        "tests/compat/.regen-cache/0330-avi-av.avi",
+        "tests/compat/.regen-cache/0335-multivideo-av.avi",
+        "tests/compat/.regen-cache/0336-multivideo-av.avi",
+        "tests/compat/.regen-cache/0367-multivideo-av.avi"
+      ],
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "decoded",
+          "detail": "33 tracks decoded across 33 files (0 concealed packets)"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less on wasm32 (apps/web/src/capabilities.rs); no decode claimed"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "codec": "flac",
+      "kind": "audio",
+      "matrix_rows": [
+        "codec-audio-flac"
+      ],
+      "claims": [
+        {
+          "row": "codec-audio-flac",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/fixtures/generated/valid/mkv_h264_flac.mkv",
+        "tests/fixtures/generated/valid/mkv_multitrack.mkv",
+        "tests/compat/.regen-cache/0267-audio-only.mkv"
+      ],
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "decoded",
+          "detail": "3 tracks decoded across 3 files (0 concealed packets); sample format s16"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less on wasm32 (apps/web/src/capabilities.rs); no decode claimed"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "codec": "mp3",
+      "kind": "audio",
+      "matrix_rows": [
+        "codec-audio-mp3"
+      ],
+      "claims": [
+        {
+          "row": "codec-audio-mp3",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/compat/.regen-cache/0360-audio-only.mp3"
+      ],
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "decoded",
+          "detail": "1 tracks decoded across 1 files (0 concealed packets); sample format f32"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less on wasm32 (apps/web/src/capabilities.rs); no decode claimed"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "codec": "mp2",
+      "kind": "audio",
+      "matrix_rows": [
+        "codec-audio-mp2"
+      ],
+      "claims": [
+        {
+          "row": "codec-audio-mp2",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/compat/.regen-cache/0051-audio-only.mp2"
+      ],
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "decoded",
+          "detail": "1 tracks decoded across 1 files (0 concealed packets); sample format f32"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less on wasm32 (apps/web/src/capabilities.rs); no decode claimed"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "codec": "vorbis",
+      "kind": "audio",
+      "matrix_rows": [
+        "codec-audio-vorbis"
+      ],
+      "claims": [
+        {
+          "row": "codec-audio-vorbis",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/fixtures/generated/valid/ogg_chain_two_links.ogg",
+        "tests/fixtures/generated/valid/ogg_vorbis_16k_mono.ogg",
+        "tests/fixtures/generated/valid/ogg_vorbis_8k_st.ogg",
+        "tests/compat/.regen-cache/0115-audio-only.ogg"
+      ],
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "decoded",
+          "detail": "4 tracks decoded across 4 files (0 concealed packets); sample format f32"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less on wasm32 (apps/web/src/capabilities.rs); no decode claimed"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "codec": "opus",
+      "kind": "audio",
+      "matrix_rows": [
+        "codec-audio-opus"
+      ],
+      "claims": [
+        {
+          "row": "codec-audio-opus",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/fixtures/generated/valid/webm_vp9_opus.webm",
+        "tests/compat/.regen-cache/0269-vfr-av.mkv",
+        "tests/compat/.regen-cache/0210-audio-only.ogg",
+        "tests/compat/.regen-cache/0028-audio-only.webm"
+      ],
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "decoded",
+          "detail": "4 tracks decoded across 4 files (0 concealed packets); sample format f32"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less on wasm32 (apps/web/src/capabilities.rs); no decode claimed"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "codec": "aac",
+      "kind": "audio",
+      "matrix_rows": [
+        "codec-audio-aac-lc"
+      ],
+      "claims": [
+        {
+          "row": "codec-audio-aac-lc",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/fixtures/generated/valid/mkv_h264_aac.mkv",
+        "tests/fixtures/generated/valid/mkv_multitrack.mkv",
+        "tests/fixtures/generated/valid/mp4_chapters.mp4",
+        "tests/fixtures/generated/valid/mp4_edts.mp4",
+        "tests/fixtures/generated/valid/mp4_frag.mp4",
+        "tests/fixtures/generated/valid/mp4_frag_sidx.mp4",
+        "tests/fixtures/generated/valid/mp4_h264_aac.mp4",
+        "tests/fixtures/generated/valid/mp4_qt.mov",
+        "tests/fixtures/hls/ts_live/s00.ts",
+        "tests/fixtures/hls/ts_live/s01.ts",
+        "tests/fixtures/hls/ts_live/s02.ts",
+        "tests/fixtures/hls/ts_live/t00.ts",
+        "tests/fixtures/hls/ts_live/t01.ts",
+        "tests/fixtures/hls/ts_vod/seg000.ts",
+        "tests/fixtures/hls/ts_vod/seg001.ts",
+        "tests/fixtures/hls/ts_vod/seg002.ts",
+        "tests/fixtures/hls/ts_vod/seg003.ts",
+        "tests/compat/.regen-cache/0371-muxed-av.ts",
+        "tests/compat/.regen-cache/0132-meta-bomb-av.mkv",
+        "tests/compat/.regen-cache/0136-audio-only.mp4",
+        "tests/compat/.regen-cache/0190-audio-only.m4a",
+        "tests/compat/.regen-cache/0007-vfr-av.mov",
+        "tests/compat/.regen-cache/0344-muxed-av.mp4"
+      ],
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "decoded-damaged",
+          "detail": "23 tracks decoded across 23 files (142 concealed packets); sample format f32"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less on wasm32 (apps/web/src/capabilities.rs); no decode claimed"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "codec": "aac-lc",
+      "kind": "audio",
+      "matrix_rows": [
+        "codec-audio-aac-lc"
+      ],
+      "claims": [
+        {
+          "row": "codec-audio-aac-lc",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/fixtures/hls/adts_vod/seg000.aac",
+        "tests/fixtures/hls/adts_vod/seg001.aac",
+        "tests/fixtures/hls/adts_vod/seg002.aac",
+        "tests/fixtures/hls/adts_vod/seg003.aac",
+        "tests/compat/.regen-cache/0313-audio-only.aac"
+      ],
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "no-decoder",
+          "detail": "4 tracks decoded across 5 files (0 concealed packets); sample format f32; 1 tracks REFUSED: no decoder in this build"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less on wasm32 (apps/web/src/capabilities.rs); no decode claimed"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "codec": "alac",
+      "kind": "audio",
+      "matrix_rows": [
+        "codec-audio-alac"
+      ],
+      "claims": [
+        {
+          "row": "codec-audio-alac",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/compat/.regen-cache/0009-audio-only.mka",
+        "tests/compat/.regen-cache/0396-audio-only.mov"
+      ],
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "no-decoder",
+          "detail": "1 tracks decoded across 2 files (0 concealed packets); sample format s16; 1 tracks REFUSED: no decoder in this build"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less on wasm32 (apps/web/src/capabilities.rs); no decode claimed"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "codec": "adpcm_",
+      "kind": "audio",
+      "matrix_rows": [
+        "codec-audio-adpcm"
+      ],
+      "claims": [
+        {
+          "row": "codec-audio-adpcm",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/compat/.regen-cache/0220-audio-only.wav",
+        "tests/compat/.regen-cache/0331-audio-only.wav"
+      ],
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "decoded",
+          "detail": "2 tracks decoded across 2 files (0 concealed packets); sample format s16"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less on wasm32 (apps/web/src/capabilities.rs); no decode claimed"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "codec": "av1",
+      "kind": "video",
+      "matrix_rows": [
+        "codec-video-av1"
+      ],
+      "claims": [
+        {
+          "row": "codec-video-av1",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/fixtures/generated/ivf/av1_64x48_30fps.ivf",
+        "tests/compat/.regen-cache/0105-mkv-video.mkv"
+      ],
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "decoded",
+          "detail": "2 tracks decoded across 2 files (0 concealed packets)"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less on wasm32 (apps/web/src/capabilities.rs); no decode claimed"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "codec": "av01",
+      "kind": "video",
+      "matrix_rows": [
+        "codec-video-av1"
+      ],
+      "claims": [
+        {
+          "row": "codec-video-av1",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [],
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "not-covered",
+          "detail": "no corpus track of this codec family"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less on wasm32 (apps/web/src/capabilities.rs); no decode claimed"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "codec": "vp9",
+      "kind": "video",
+      "matrix_rows": [
+        "codec-video-vp9"
+      ],
+      "claims": [
+        {
+          "row": "codec-video-vp9",
+          "windows": "implemented",
+          "linux": "implemented",
+          "macos": "implemented",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/fixtures/generated/ivf/vp9_64x48_25fps.ivf",
+        "tests/fixtures/generated/valid/webm_vp9_opus.webm",
+        "tests/compat/.regen-cache/0269-vfr-av.mkv"
+      ],
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "no-decoder",
+          "detail": "2 tracks decoded across 3 files (0 concealed packets); 1 tracks REFUSED: no decoder in this build"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less on wasm32 (apps/web/src/capabilities.rs); no decode claimed"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "codec": "dnxhd",
+      "kind": "video",
+      "matrix_rows": [
+        "codec-video-prores-dnxhd"
+      ],
+      "claims": [
+        {
+          "row": "codec-video-prores-dnxhd",
+          "windows": "partial",
+          "linux": "partial",
+          "macos": "partial",
+          "web": "not_started"
+        }
+      ],
+      "files": [],
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "not-covered",
+          "detail": "no corpus track of this codec family"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less on wasm32 (apps/web/src/capabilities.rs); no decode claimed"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "codec": "h264",
+      "kind": "video",
+      "matrix_rows": [
+        "codec-video-h264"
+      ],
+      "claims": [
+        {
+          "row": "codec-video-h264",
+          "windows": "partial",
+          "linux": "partial",
+          "macos": "partial",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/fixtures/generated/valid/mkv_h264_aac.mkv",
+        "tests/fixtures/generated/valid/mkv_h264_flac.mkv",
+        "tests/fixtures/generated/valid/mkv_multitrack.mkv",
+        "tests/fixtures/generated/valid/mp4_chapters.mp4",
+        "tests/fixtures/generated/valid/mp4_edts.mp4",
+        "tests/fixtures/generated/valid/mp4_frag.mp4",
+        "tests/fixtures/generated/valid/mp4_frag_sidx.mp4",
+        "tests/fixtures/generated/valid/mp4_h264_aac.mp4",
+        "tests/fixtures/generated/valid/mp4_qt.mov",
+        "tests/compat/.regen-cache/0371-muxed-av.ts",
+        "tests/compat/.regen-cache/0126-raw-video.h264",
+        "tests/compat/.regen-cache/0132-meta-bomb-av.mkv"
+      ],
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "no-decoder",
+          "detail": "0 tracks decoded across 12 files (0 concealed packets); 12 tracks REFUSED: no decoder in this build"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less on wasm32 (apps/web/src/capabilities.rs); no decode claimed"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "codec": "hevc",
+      "kind": "video",
+      "matrix_rows": [
+        "codec-video-hevc"
+      ],
+      "claims": [
+        {
+          "row": "codec-video-hevc",
+          "windows": "partial",
+          "linux": "partial",
+          "macos": "partial",
+          "web": "not_started"
+        }
+      ],
+      "files": [
+        "tests/compat/.regen-cache/0099-raw-video.265",
+        "tests/compat/.regen-cache/0068-fmp4-video.mp4"
+      ],
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "no-decoder",
+          "detail": "0 tracks decoded across 2 files (0 concealed packets); 2 tracks REFUSED: no decoder in this build"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less on wasm32 (apps/web/src/capabilities.rs); no decode claimed"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "codec": "mpeg4",
+      "kind": "video",
+      "matrix_rows": [
+        "codec-video-mpeg4-asp"
+      ],
+      "claims": [
+        {
+          "row": "codec-video-mpeg4-asp",
+          "windows": "blocked",
+          "linux": "blocked",
+          "macos": "blocked",
+          "web": "blocked"
+        }
+      ],
+      "files": [],
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "not-covered",
+          "detail": "no corpus track of this codec family"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less on wasm32 (apps/web/src/capabilities.rs); no decode claimed"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "codec": "mpeg2video",
+      "kind": "video",
+      "matrix_rows": [
+        "codec-video-mpeg1-2"
+      ],
+      "claims": [
+        {
+          "row": "codec-video-mpeg1-2",
+          "windows": "blocked",
+          "linux": "blocked",
+          "macos": "blocked",
+          "web": "blocked"
+        }
+      ],
+      "files": [
+        "tests/compat/.regen-cache/mpegps-dash.mpg"
+      ],
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "no-decoder",
+          "detail": "0 tracks decoded across 1 files (0 concealed packets); 1 tracks REFUSED: no decoder in this build"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less on wasm32 (apps/web/src/capabilities.rs); no decode claimed"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "codec": "wmv2",
+      "kind": "video",
+      "matrix_rows": [
+        "codec-video-wmv-vc1"
+      ],
+      "claims": [
+        {
+          "row": "codec-video-wmv-vc1",
+          "windows": "not_started",
+          "linux": "not_started",
+          "macos": "blocked",
+          "web": "unsupported"
+        }
+      ],
+      "files": [],
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "not-covered",
+          "detail": "no corpus track of this codec family"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less on wasm32 (apps/web/src/capabilities.rs); no decode claimed"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "codec": "vp8",
+      "kind": "video",
+      "matrix_rows": [
+        "codec-video-vp8"
+      ],
+      "claims": [
+        {
+          "row": "codec-video-vp8",
+          "windows": "blocked",
+          "linux": "blocked",
+          "macos": "blocked",
+          "web": "blocked"
+        }
+      ],
+      "files": [
+        "tests/compat/.regen-cache/0065-webm-video.webm"
+      ],
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "no-decoder",
+          "detail": "0 tracks decoded across 1 files (0 concealed packets); 1 tracks REFUSED: no decoder in this build"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less on wasm32 (apps/web/src/capabilities.rs); no decode claimed"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    },
+    {
+      "codec": "theora",
+      "kind": "video",
+      "matrix_rows": [
+        "codec-video-theora"
+      ],
+      "claims": [
+        {
+          "row": "codec-video-theora",
+          "windows": "blocked",
+          "linux": "blocked",
+          "macos": "blocked",
+          "web": "blocked"
+        }
+      ],
+      "files": [
+        "tests/compat/.regen-cache/0089-ogv-video.ogv"
+      ],
+      "cells": [
+        {
+          "lane": "linux-native",
+          "status": "no-decoder",
+          "detail": "0 tracks decoded across 1 files (0 concealed packets); 1 tracks REFUSED: no decoder in this build"
+        },
+        {
+          "lane": "web-wasm",
+          "status": "engine-core-only",
+          "detail": "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less on wasm32 (apps/web/src/capabilities.rs); no decode claimed"
+        },
+        {
+          "lane": "windows",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        },
+        {
+          "lane": "macos",
+          "status": "blocked",
+          "detail": "blocked-by-external: 3-OS runner machines do not exist (live CI is one lean Linux job; the 3-OS matrix is parked) and CI billing for the full matrix is not provisioned [ref: docs/plans/phase8-cards.md section 1 (blocker table, rows 3-4: 3-OS runner machines + CI billing); risk register R-20 refresh (issue #21); doc 10 section 10.4 budget line; next step: user provisions Windows/macOS runner machines and unblocks CI billing, then the compat-matrix CI job (.github/workflows/compat-matrix.yml, this wave) runs this same runner on all three OS and replaces these blocked cells with real ones; tracking: issue #53 (blocked-by-external cells); umbrella issue #23 (Phase-8 gate)]"
+        }
+      ]
+    }
+  ],
+  "counts": {
+    "files_total": 166,
+    "decoded": 84,
+    "decoded_partial": 22,
+    "refused_probe": 2,
+    "refused_demux": 4,
+    "refused_input": 0,
+    "demux_fatal": 0,
+    "malformed_typed": 54,
+    "oracle_bit_exact": 29,
+    "oracle_tolerance_pass": 0,
+    "oracle_tolerance_fail": 6,
+    "oracle_not_bit_exact": 0,
+    "oracle_no_comparison": 0,
+    "oracle_other": 0
+  },
+  "transitions": [
+    {
+      "row": "container-asf-wmv",
+      "platform": "linux",
+      "from": "implemented",
+      "to": "partial",
+      "reason": "compat-matrix run (linux-native lane): the open path REFUSES the corpus files of probe format `asf` — unsupported (sniffed 30 26 b2 75 8e 66 cf 11 a6 d9 00 aa 00 62 ce 6c) (probe.no-demuxer): probe hints: extension=wmv, size=10329. The container claim cannot be exercised end-to-end through the player's open path.",
+      "next_step": "wire the missing probe signature / container-registry arm for `asf` (the ivf/mpegps open-path wiring precedent), then re-run the matrix",
+      "evidence": "docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows)"
+    },
+    {
+      "row": "codec-audio-aac-lc",
+      "platform": "linux",
+      "from": "implemented",
+      "to": "partial",
+      "reason": "compat-matrix run (linux-native lane): 142 concealed (damaged) packets on VALID corpus files of codec `aac` — the decode is not clean",
+      "next_step": "triage the concealment (bounded fix, no correctness trade); add the corpus file as a regression fixture; re-run",
+      "evidence": "docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows)"
+    },
+    {
+      "row": "codec-audio-aac-lc",
+      "platform": "linux",
+      "from": "implemented",
+      "to": "partial",
+      "reason": "compat-matrix run (linux-native lane): 1 corpus tracks of codec `aac-lc` REFUSED (no decoder in this build) vs 4 decoded",
+      "next_step": "land the missing decoder lane (bounded fix) or split the row's claimed descriptor set; re-run the matrix",
+      "evidence": "docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows)"
+    },
+    {
+      "row": "codec-audio-alac",
+      "platform": "linux",
+      "from": "implemented",
+      "to": "partial",
+      "reason": "compat-matrix run (linux-native lane): 1 corpus tracks of codec `alac` REFUSED (no decoder in this build) vs 1 decoded",
+      "next_step": "land the missing decoder lane (bounded fix) or split the row's claimed descriptor set; re-run the matrix",
+      "evidence": "docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows)"
+    },
+    {
+      "row": "codec-video-vp9",
+      "platform": "linux",
+      "from": "implemented",
+      "to": "partial",
+      "reason": "compat-matrix run (linux-native lane): 1 corpus tracks of codec `vp9` REFUSED (no decoder in this build) vs 2 decoded",
+      "next_step": "land the missing decoder lane (bounded fix) or split the row's claimed descriptor set; re-run the matrix",
+      "evidence": "docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows)"
+    }
+  ],
+  "notes": [
+    "The native-decode lane (`linux-native`) is the only lane that decoded media in this run. Windows/macOS cells are blocked-lane citations (3-OS runner machines + CI billing are user-owned blockers — docs/plans/phase8-cards.md §1); NO result is inferred for platforms that did not run.",
+    "The web/wasm lane evidence is the recorded build/test steps: the wasm32 module is real (engine core: probe → demux → engine), but it ships DECODER-LESS on wasm32 — the codecs crate does not build for the target (rav1d 1.1.0 asm-gated, measured 2026-11-10; apps/web/Cargo.toml target gate; apps/web/src/capabilities.rs reports the split honestly). No decode is claimed or exercised on the web lane.",
+    "Oracle comparisons cover the lossless-comparable family only (PCM-in-AVI, the documented first vertical): integer PCM via the MD5-prefix method (VLC's afile dump is a bit-exact prefix; the shortfall is the unflushed tail), pcm_f32le via the ratified RMS ≤ 1e-4 / peak ≤ 1e-3 tolerance path (docs/corpus/vlc-f32-tolerance-20261109.json). Lossy codecs are not byte-compared — decoder implementations legitimately differ; their rows carry decode-count evidence only.",
+    "Transitions are PROPOSALS in the outbox (5); only `cargo xtask compat-matrix apply-transitions` writes the matrix, after re-checking each `from` status against the live file. Nothing here self-verifies: no transition proposes `verified` (CI billing is blocked; MP §15)."
+  ]
+}
