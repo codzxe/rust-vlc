@@ -14,7 +14,11 @@ export default defineConfig({
   // harness is owned by playwright.visual.config.ts and driven exclusively
   // via npm run visual / scripts/visual-run.mjs; exclude it here so the
   // plain command cannot mislead.
-  testIgnore: "**/visual/**",
+  // e2e/web/** is excluded for the same reason (card 7.I1): the browser
+  // matrix needs its own harness server (engine wasm + Range endpoints +
+  // per-mode COOP/COEP), started only by npm run webmatrix —
+  // playwright.web.config.ts owns that lane.
+  testIgnore: ["**/visual/**", "**/web/**"],
   timeout: 30_000,
   fullyParallel: true,
   // Explicit reporters: list for terminal, HTML (never auto-open) for the

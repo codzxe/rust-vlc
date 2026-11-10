@@ -1,0 +1,39 @@
+{
+  "schema": "lumen.ui.web-matrix/1",
+  "comment": "Browser-matrix harness config (card 7.I1, issue #49; doc 09 §8.2/§11). Every knob the harness needs lives here — the run script, the Playwright config and the page harness read this file, never a literal in code (doc 07 §9's config-driven rule applied to the test lane).",
+  "server": {
+    "host": "127.0.0.1",
+    "port": 5187,
+    "targetDirs": ["target"],
+    "wasmArtifact": "wasm32-unknown-unknown/release/lumen_web.wasm",
+    "wasmArtifactFallback": "wasm32-unknown-unknown/debug/lumen_web.wasm",
+    "workerGlue": "apps/web/worker.js",
+    "workletGlue": "apps/web/audio-worklet.js",
+    "fixture": "tests/fixtures/generated/valid/avi_mjpeg_pcm.avi",
+    "servedFixture": "fixture.avi",
+    "rangeSupportingPath": "fixture.avi",
+    "rangeBlindPath": "fixture-norange.avi"
+  },
+  "modes": [
+    { "id": "isolation-off", "coopCoep": false },
+    { "id": "isolation-coop-coep", "coopCoep": true }
+  ],
+  "pump": {
+    "ticksPerSlice": 4,
+    "maxSlices": 4096,
+    "sliceTimeoutMs": 30000
+  },
+  "playToEnd": {
+    "positionToleranceUs": 20000
+  },
+  "browsers": {
+    "chromium": { "evidence": "playwright-run" },
+    "firefox": { "evidence": "bcd-expectation-only" },
+    "webkit": { "evidence": "bcd-expectation-only" }
+  },
+  "report": {
+    "outputDir": "docs/web",
+    "markdownName": "browser-matrix-20261110.md",
+    "jsonName": "browser-matrix-20261110.json"
+  }
+}
