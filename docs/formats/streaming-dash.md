@@ -38,10 +38,16 @@ doc 04 §6:
 | 6.C1c | `fuzz_demux_mpd` cargo-fuzz target + in-crate deterministic mutation sweep | `fuzz/fuzz_targets/fuzz_demux_mpd.rs` + `crates/streaming/src/dash/fuzz.rs` (4 `#[test]` fns) |
 | 6.C2 | Buffer-based ABR: EWMA throughput, up/down margin bands, dwell, stall-forced down-steps over representation ladders; segment scheduling; ISO 8601 `availabilityStartTime` live-edge join (static + dynamic MPDs) | `crates/streaming/src/dash/{abr,sched}.rs` (4 + 7 `#[test]` fns) |
 
-Test count on disk at authoring: 27 dash `#[test]` fns inside the
-streaming crate's 191 lib tests (2 ignored) — the counts recorded in
-the matrix row's evidence; re-countable with
-`rg -c '#\[test\]' crates/streaming/src/dash/*.rs` (12+4+4+7).
+Test counts: **27 dash `#[test]` fns**, re-countable with
+`rg -c '#\[test\]' crates/streaming/src/dash/*.rs` (12+4+4+7 —
+re-counted 2026-11-10, unchanged since authoring). The crate-wide
+figure the matrix row records — 191 lib tests (2 ignored) — is the
+state at the 6.C2 flip commit `93b7614`, where
+`crates/streaming/src` held 193 `#[test]` fns; the crate has since
+grown with later waves: 206 `#[test]` fns as of 2026-11-10
+(post-review correction, W24-R2 P3-6 — the record originally
+prefixed 191 with "on disk at authoring", which was already stale by
+13 tests).
 
 ## Working subset (what a user can actually play)
 
