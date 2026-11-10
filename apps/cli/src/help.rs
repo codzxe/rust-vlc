@@ -338,7 +338,7 @@ mod tests {
                 .unwrap_or_default()
         }
         // The G2 emitter's own rule: sorted, deduped `placement.screen`.
-        let mut screens: Vec<&str> = entries.iter().map(|entry| screen_of(entry)).collect();
+        let mut screens: Vec<&str> = entries.iter().map(screen_of).collect();
         screens.sort_unstable();
         screens.dedup();
 

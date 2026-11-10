@@ -172,7 +172,7 @@ fn seed_shape_is_what_every_committed_artifact_self_reports() {
             .and_then(toml::Value::as_str)
             .unwrap_or_default()
     }
-    let mut screens: Vec<&str> = entries.iter().map(|entry| screen_of(entry)).collect();
+    let mut screens: Vec<&str> = entries.iter().map(screen_of).collect();
     assert_eq!(
         screens.len(),
         entries.len(),
