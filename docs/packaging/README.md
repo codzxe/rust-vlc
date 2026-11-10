@@ -72,7 +72,11 @@ curl -sSfL -o appimagetool.AppImage \
 curl -sSfL -o type2-runtime \
   https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64
 
-source /home/z/my-project/scripts/cargo-env.sh   # shared target dir (this repo's convention)
+# (build-sandbox-only helper — NOT a repo file: pins this sandbox's
+# shared CARGO_TARGET_DIR for the parallel agent worktrees. On any
+# other host skip this line; a plain build then uses the repo-relative
+# target/, which is the correct default everywhere else.)
+source /home/z/my-project/scripts/cargo-env.sh
 cargo build --release --locked -p lumen-cli -p desktop
 
 eval "$(python3 scripts/packaging/packaging-env.py \

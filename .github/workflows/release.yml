@@ -331,6 +331,15 @@ jobs:
           mkdir -p dist
           ditto -c -k --keepParent "bundle/${PRODUCT_NAME}.app" "dist/${base}.zip"
           test -s "dist/${base}.zip"
+          # The .app's unsigned sidecar must ride with the zip: the
+          # upload step takes dist/** only, and bundle/ is not uploaded
+          # — without this copy the app-zip would be the one release
+          # asset whose unsigned status is not self-describing (the dmg
+          # sidecar already ships; W24-R1 P3-4). A signed .app has no
+          # sidecar and needs none (the zip carries the signed bundle).
+          if [ -f "bundle/${PRODUCT_NAME}.app.UNSIGNED.txt" ]; then
+            cp "bundle/${PRODUCT_NAME}.app.UNSIGNED.txt" "dist/${base}.zip.UNSIGNED.txt"
+          fi
       - name: Per-artifact SBOM (gen-sboms.sh — CycloneDX, suffix + spec version from config)
         run: |
           base="${PRODUCT_LOWER:?}-${PRODUCT_VERSION:?}-${ARCH_ID:?}-${OS_ID:?}"
@@ -414,6 +423,11 @@ jobs:
           mkdir -p dist
           ditto -c -k --keepParent "bundle/${PRODUCT_NAME}.app" "dist/${base}.zip"
           test -s "dist/${base}.zip"
+          # Unsigned sidecar rides with the zip (W24-R1 P3-4) — see the
+          # macos-arm64 zip step for the rationale.
+          if [ -f "bundle/${PRODUCT_NAME}.app.UNSIGNED.txt" ]; then
+            cp "bundle/${PRODUCT_NAME}.app.UNSIGNED.txt" "dist/${base}.zip.UNSIGNED.txt"
+          fi
       - name: Per-artifact SBOM (gen-sboms.sh — CycloneDX, suffix + spec version from config)
         run: |
           base="${PRODUCT_LOWER:?}-${PRODUCT_VERSION:?}-${ARCH_ID:?}-${OS_ID:?}"

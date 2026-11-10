@@ -60,17 +60,22 @@ find_signtool() {
         command -v signtool
         return 0
     fi
-    # Windows SDK layout: <kit>\10\bin\<version>\<arch>\signtool.exe —
-    # pick the lexically newest version (monotonic 10.0.* numbering).
+    # Windows SDK layout: <kit>\10\bin\<version>\<arch>\signtool.exe.
+    # Walk ALL version dirs NEWEST-FIRST (sort -Vr): the SDK bin dir
+    # also carries non-version dirs (x86, uap10.0.*) that can sort as
+    # "newest", so probing only the lexically-last directory could give
+    # up while an older version dir still holds signtool.exe (W24-R1
+    # P3-2). The SIGNTOOL env override remains the escape hatch.
     for base in "/c/Program Files (x86)/Windows Kits/10/bin" "/c/Program Files/Windows Kits/10/bin"; do
         if [ -d "$base" ]; then
-            newest=$(ls "$base" 2>/dev/null | sort -V | tail -1)
-            for arch in x64 x86; do
-                candidate="$base/$newest/$arch/signtool.exe"
-                if [ -f "$candidate" ]; then
-                    printf '%s' "$candidate"
-                    return 0
-                fi
+            for version in $(ls "$base" 2>/dev/null | sort -Vr); do
+                for arch in x64 x86; do
+                    candidate="$base/$version/$arch/signtool.exe"
+                    if [ -f "$candidate" ]; then
+                        printf '%s' "$candidate"
+                        return 0
+                    fi
+                done
             done
         fi
     done
