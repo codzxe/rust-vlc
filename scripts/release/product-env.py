@@ -110,11 +110,12 @@ def main() -> None:
 
     mode = args.mode
     out_file = args.github_env_file
-    if mode == "github-env":
-        if not out_file:
-            die("--github-env mode requires --github-env-file")
-        if not (args.cli_package and args.desktop_package):
-            die("--github-env mode needs --cli-package and --desktop-package")
+    if mode == "github-env" and not out_file:
+        die("--github-env mode requires --github-env-file")
+    # --cli-package/--desktop-package are optional in this mode: the
+    # release-notes job runs on a bare runner without a Rust toolchain
+    # and needs only the identity fields (BIN_* come from cargo metadata
+    # and are simply omitted then).
 
     product = load_toml(REPO_ROOT / "product.toml", "product.toml")
 

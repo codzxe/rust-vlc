@@ -1,0 +1,490 @@
+# Lumen Release — tag-triggered cross-platform artifact pipeline
+# (issue #56 release-engineering half + user release requirements,
+# card 7.w22g).
+#
+# WHAT SHIPS TODAY: the `lumen` CLI (package lumen-cli, apps/cli — the
+# real engine surface: demux/decode/playback through the ONE command
+# layer) and `lumen-desktop` (package desktop, apps/desktop — the
+# std-only ADR-004 composition-root skeleton, NOT a webview app yet).
+# Every artifact below packages BOTH binaries and says so honestly in
+# its metadata; nothing claims a GUI that does not exist.
+#
+# HONESTY NOTE — THIS WORKFLOW HAS NEVER EXECUTED (CI billing blocked):
+# every Actions run in this repository currently dies at 0 steps
+# (spending limit on the private repo; worklog 7.CLOSEOUT). Correctness
+# is BY CONSTRUCTION, mirroring .github/workflows/ci.yml's proven
+# patterns, and validated locally with actionlint 1.7.12, `bash -n` +
+# `sh -n` on every called script, a YAML parse, and real dry-runs of
+# the deb/AppImage packaging logic on this Linux host (worklog 7.w22g).
+# Runtime claims that could not be exercised here are marked [VERIFY]
+# inline. When Actions billing is unblocked, run a `workflow_dispatch`
+# dry-run first: it builds and uploads all artifacts WITHOUT cutting a
+# release (the `gh release create` step is tag-ref-gated).
+#
+# CONFIG-DRIVEN IDENTITY — NO PRODUCT/VERSION LITERALS IN THIS FILE:
+# product name, version, publisher, description, per-OS identifiers,
+# MSI UpgradeCode and both bin names come from product.toml (plus the
+# locale catalog and cargo metadata) via scripts/release/
+# product-env.py, which writes them into the job environment. A rebrand
+# or version bump touches product.toml only. The single sanctioned
+# exception: the two Cargo package ids in the build command and the
+# product-env.py invocation (`lumen-cli`, `desktop`) — those are crate
+# names needed to address the build, not product identity.
+#
+# Action pins (mirror of the ci.yml pin table; the first four are the
+# exact SHAs recorded there. download-artifact resolved the same way —
+# `git ls-remote` — on 2026-11-10 for this card, since ci.yml never
+# needed it):
+#   actions/checkout          v7.0.1  3d3c42e5aac5ba805825da76410c181273ba90b1  (tag, lightweight)
+#   dtolnay/rust-toolchain    1.99.1  d124f86f28ff42855784ff3319f48ac182c248f8  (branch head)
+#   Swatinem/rust-cache       v2.9.2  6323deb102c322ba6fcbdcafc7e3dddab59af2b6  (peeled tag commit)
+#   actions/upload-artifact   v7.0.2  cf430e030ddbb5b0abf93d22962f4752f3646cd9  (tag, lightweight)
+#   actions/download-artifact v8.0.2  9000827ccba6bdab643e8b6fd33ac0654aef8333  (tag, lightweight; = main head at resolution time)
+# Non-action tools pinned below with SHA-256 verification (the ci.yml
+# cargo-deny posture — no floating tool installs):
+#   WiX v5.0.2          wix.5.0.2.nupkg from the nuget.org flat-container
+#                       (deterministic URL; contains tools/net6.0/any/wix.exe)
+#   appimagetool 1.9.1  release assets from github.com/AppImage/appimagetool
+#                       (x86_64 + aarch64)
+# `gh` and `hdiutil`/`dpkg-deb`/`ditto` are preinstalled on their
+# respective runner images [VERIFY at first live run].
+#
+# RUNNER BUDGET (same honesty as ci.yml): this workflow only runs on
+# tag pushes (a handful of times per release cycle, never per-PR). At
+# the private-repo multipliers (windows 2x, macOS 10x) a full run is
+# roughly 5 jobs x ~15-25 raw minutes ≈ 200-300 billed minutes —
+# acceptable ONLY because it is tag-gated. The optional arm64 job is
+# continue-on-error (see its own comment).
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch: # manual dry-run: builds + uploads artifacts, no release (see `release` job)
+
+permissions:
+  contents: write # `gh release create` with the built-in GITHUB_TOKEN
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_INCREMENTAL: "0" # leaner target dir + cache on 2-core runners
+  CARGO_TERM_COLOR: always
+  # Overrides the sandbox-path build.target-dir pinned in the committed
+  # .cargo/config.toml (ci.yml "CURRENT REALITY RECONCILIATIONS" #2).
+  CARGO_TARGET_DIR: target
+
+jobs:
+  # ------------------------------------------------------------------------
+  # Windows x64: zip + MSI (WiX v5, pinned nupkg).
+  # ------------------------------------------------------------------------
+  windows:
+    name: windows (x86_64 — zip + msi)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      OS_ID: windows
+      ARCH_ID: x86_64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/release.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: Parse product.toml -> job env (config-driven identity)
+        run: |
+          # python3 is the image default on all three OSes [VERIFY at
+          # first live run]; python is the git-bash fallback.
+          PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          "$PY" scripts/release/product-env.py \
+            --cli-package lumen-cli --desktop-package desktop \
+            --github-env --github-env-file "$GITHUB_ENV"
+      - name: Build (release, locked — both shipped binaries)
+        run: cargo build --release --locked -p lumen-cli -p desktop
+      - name: Install WiX v5.0.2 (pinned nupkg, SHA-256 verified)
+        run: |
+          # Deterministic URL: the nuget.org v3 flat-container address of
+          # the wix .NET tool package. The nupkg carries
+          # tools/net6.0/any/wix.exe (+ deps); wix.runtimeconfig.json
+          # sets rollForward=Major, so the .NET 8/9 runtimes on
+          # windows-latest satisfy the net6.0 target [VERIFY].
+          wix_url="https://api.nuget.org/v3-flatcontainer/wix/5.0.2/wix.5.0.2.nupkg"
+          wix_sha256="f30ef0c74e2a986126539c5780be93ac24e8136eaf723b1937b26272703ae173"
+          curl -sSfL -o /tmp/wix.5.0.2.nupkg "$wix_url"
+          echo "${wix_sha256}  /tmp/wix.5.0.2.nupkg" | sha256sum -c -
+          PY="$(command -v python3 || command -v python)"
+          "$PY" -m zipfile -e /tmp/wix.5.0.2.nupkg .tools/wix
+          test -x .tools/wix/tools/net6.0/any/wix.exe
+          echo "WIX_EXE=${PWD}/.tools/wix/tools/net6.0/any/wix.exe" >> "$GITHUB_ENV"
+      - name: Package (zip + msi via scripts/release/package-windows.sh)
+        run: scripts/release/package-windows.sh
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-windows-x86_64
+          path: dist/**
+          retention-days: 90
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------------
+  # macOS arm64 (macos-latest = arm64 hardware): .app bundle -> .dmg + zip.
+  # ------------------------------------------------------------------------
+  macos-arm64:
+    name: macos (aarch64 — dmg + app zip)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      OS_ID: macos
+      ARCH_ID: aarch64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/release.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: Parse product.toml -> job env (config-driven identity)
+        run: |
+          PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          "$PY" scripts/release/product-env.py \
+            --cli-package lumen-cli --desktop-package desktop \
+            --github-env --github-env-file "$GITHUB_ENV"
+      - name: Build (release, locked — both shipped binaries)
+        run: cargo build --release --locked -p lumen-cli -p desktop
+      - name: Bundle (.app via scripts/release/make-app.sh; unsigned — see docs/RELEASE.md)
+        run: scripts/release/make-app.sh
+        env:
+          APP_DIR: bundle
+      - name: Disk image (.dmg via scripts/release/make-dmg.sh — native hdiutil)
+        run: scripts/release/make-dmg.sh
+        env:
+          APP_DIR: bundle
+      - name: "Zip the .app bundle (native ditto: preserves bundle metadata)"
+        run: |
+          base="${PRODUCT_LOWER:?}-${PRODUCT_VERSION:?}-${ARCH_ID:?}-${OS_ID:?}"
+          mkdir -p dist
+          ditto -c -k --keepParent "bundle/${PRODUCT_NAME}.app" "dist/${base}.zip"
+          test -s "dist/${base}.zip"
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-macos-aarch64
+          path: dist/**
+          retention-days: 90
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------------
+  # macOS x64 (Intel): same artifact set.
+  #
+  # DEVIATION FROM THE CARD TEXT (documented): the card suggested
+  # macos-13, but actionlint 1.7.12's runner-label database (resolved
+  # from live GitHub metadata) no longer knows that label — the Intel
+  # images of record are the macos-*-intel family. macos-15-intel is
+  # used instead [VERIFY at first live run].
+  # ------------------------------------------------------------------------
+  macos-x64:
+    name: macos (x86_64 — dmg + app zip)
+    runs-on: macos-15-intel
+    timeout-minutes: 45
+    env:
+      OS_ID: macos
+      ARCH_ID: x86_64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/release.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: Parse product.toml -> job env (config-driven identity)
+        run: |
+          PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          "$PY" scripts/release/product-env.py \
+            --cli-package lumen-cli --desktop-package desktop \
+            --github-env --github-env-file "$GITHUB_ENV"
+      - name: Build (release, locked — both shipped binaries)
+        run: cargo build --release --locked -p lumen-cli -p desktop
+      - name: Bundle (.app via scripts/release/make-app.sh; unsigned — see docs/RELEASE.md)
+        run: scripts/release/make-app.sh
+        env:
+          APP_DIR: bundle
+      - name: Disk image (.dmg via scripts/release/make-dmg.sh — native hdiutil)
+        run: scripts/release/make-dmg.sh
+        env:
+          APP_DIR: bundle
+      - name: "Zip the .app bundle (native ditto: preserves bundle metadata)"
+        run: |
+          base="${PRODUCT_LOWER:?}-${PRODUCT_VERSION:?}-${ARCH_ID:?}-${OS_ID:?}"
+          mkdir -p dist
+          ditto -c -k --keepParent "bundle/${PRODUCT_NAME}.app" "dist/${base}.zip"
+          test -s "dist/${base}.zip"
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-macos-x86_64
+          path: dist/**
+          retention-days: 90
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------------
+  # Linux x64: tar.gz + .deb (native dpkg-deb) + .AppImage (pinned
+  # appimagetool).
+  # ------------------------------------------------------------------------
+  linux-x64:
+    name: linux (x86_64 — tar.gz + deb + AppImage)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      OS_ID: linux
+      ARCH_ID: x86_64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/release.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: Parse product.toml -> job env (config-driven identity)
+        run: |
+          PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          "$PY" scripts/release/product-env.py \
+            --cli-package lumen-cli --desktop-package desktop \
+            --github-env --github-env-file "$GITHUB_ENV"
+      - name: Build (release, locked — both shipped binaries)
+        run: cargo build --release --locked -p lumen-cli -p desktop
+      - name: Install appimagetool 1.9.1 (pinned release asset, SHA-256 verified)
+        run: |
+          # From the AppImage/appimagetool 1.9.1 GitHub release (NOT the
+          # rolling "continuous" tag — pinning policy). The tool itself is
+          # an AppImage: the packaging script runs it with
+          # APPIMAGE_EXTRACT_AND_RUN=1 because hosted runners do not
+          # guarantee a usable FUSE (ubuntu-24.04 dropped libfuse2).
+          url="https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage"
+          sha256="ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0"
+          curl -sSfL -o appimagetool.AppImage "$url"
+          echo "${sha256}  appimagetool.AppImage" | sha256sum -c -
+          chmod +x appimagetool.AppImage
+          echo "APPIMAGETOOL=${PWD}/appimagetool.AppImage" >> "$GITHUB_ENV"
+      - name: "Package .tar.gz (plain archive: both binaries + LICENSE + README)"
+        run: |
+          base="${PRODUCT_LOWER:?}-${PRODUCT_VERSION:?}-${ARCH_ID:?}-${OS_ID:?}"
+          stage="$(mktemp -d)"
+          install -m 0755 "target/release/${BIN_CLI:?}" "$stage/"
+          install -m 0755 "target/release/${BIN_DESKTOP:?}" "$stage/"
+          cp LICENSE README.md "$stage/"
+          mkdir -p dist
+          tar -czf "dist/${base}.tar.gz" -C "$stage" "$BIN_CLI" "$BIN_DESKTOP" LICENSE README.md
+          test -s "dist/${base}.tar.gz"
+          rm -rf "$stage"
+      - name: Package .deb (scripts/release/package-deb.sh — native dpkg-deb)
+        run: scripts/release/package-deb.sh
+      - name: Package .AppImage (scripts/release/make-appimage.sh — pinned appimagetool)
+        run: scripts/release/make-appimage.sh
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-linux-x86_64
+          path: dist/**
+          retention-days: 90
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------------
+  # Linux arm64 — BEST-EFFORT, deliberately non-blocking.
+  #
+  # Honest limitation: linux-arm64 hosted runners (ubuntu-24.04-arm) are
+  # a newer runner class whose availability for PRIVATE repos has varied
+  # (paid preview / regional rollout). If the job cannot start or fails
+  # for infrastructure reasons the release still ships the other five
+  # artifact sets. Do not "fix" a red-but-ignored arm64 failure without
+  # checking whether it is an infra failure — that is what this flag is
+  # for. Same artifact set as linux-x64.
+  # ------------------------------------------------------------------------
+  linux-arm64:
+    name: linux (aarch64 — tar.gz + deb + AppImage; best-effort)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 40
+    continue-on-error: true
+    env:
+      OS_ID: linux
+      ARCH_ID: aarch64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/release.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: Parse product.toml -> job env (config-driven identity)
+        run: |
+          PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          "$PY" scripts/release/product-env.py \
+            --cli-package lumen-cli --desktop-package desktop \
+            --github-env --github-env-file "$GITHUB_ENV"
+      - name: Build (release, locked — both shipped binaries)
+        run: cargo build --release --locked -p lumen-cli -p desktop
+      - name: Install appimagetool 1.9.1 (pinned release asset, SHA-256 verified)
+        run: |
+          # aarch64 build of the same pinned 1.9.1 release (see linux-x64).
+          url="https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-aarch64.AppImage"
+          sha256="f0837e7448a0c1e4e650a93bb3e85802546e60654ef287576f46c71c126a9158"
+          curl -sSfL -o appimagetool.AppImage "$url"
+          echo "${sha256}  appimagetool.AppImage" | sha256sum -c -
+          chmod +x appimagetool.AppImage
+          echo "APPIMAGETOOL=${PWD}/appimagetool.AppImage" >> "$GITHUB_ENV"
+      - name: "Package .tar.gz (plain archive: both binaries + LICENSE + README)"
+        run: |
+          base="${PRODUCT_LOWER:?}-${PRODUCT_VERSION:?}-${ARCH_ID:?}-${OS_ID:?}"
+          stage="$(mktemp -d)"
+          install -m 0755 "target/release/${BIN_CLI:?}" "$stage/"
+          install -m 0755 "target/release/${BIN_DESKTOP:?}" "$stage/"
+          cp LICENSE README.md "$stage/"
+          mkdir -p dist
+          tar -czf "dist/${base}.tar.gz" -C "$stage" "$BIN_CLI" "$BIN_DESKTOP" LICENSE README.md
+          test -s "dist/${base}.tar.gz"
+          rm -rf "$stage"
+      - name: Package .deb (scripts/release/package-deb.sh — native dpkg-deb)
+        run: scripts/release/package-deb.sh
+      - name: Package .AppImage (scripts/release/make-appimage.sh — pinned appimagetool)
+        run: scripts/release/make-appimage.sh
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-linux-aarch64
+          path: dist/**
+          retention-days: 90
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------------
+  # Release: needs all build jobs, runs on the tag (or dispatch dry-run).
+  # - downloads every dist-* artifact (merge-multiple: one flat dir)
+  # - writes SHA256SUMS.txt over all assets
+  # - generates notes (git log since last tag; docs/RELEASE.md template)
+  # - cuts the GitHub release with the PREINSTALLED gh CLI + GITHUB_TOKEN
+  #   (no third-party release action), tag refs only
+  # ------------------------------------------------------------------------
+  release:
+    name: release (SHA256SUMS + notes + gh release create)
+    needs: [windows, macos-arm64, macos-x64, linux-x64, linux-arm64]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # release-notes.sh reads full history (git log since the
+          # previous tag); the default shallow checkout truncates it.
+          fetch-depth: 0
+      - name: Parse product.toml -> job env (identity only; no toolchain needed here)
+        run: |
+          PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          "$PY" scripts/release/product-env.py --github-env --github-env-file "$GITHUB_ENV"
+      - name: Download all dist artifacts (flat merge)
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist
+      - name: Verify artifact set (non-empty, expected kinds present)
+        run: |
+          test -n "$(find dist -type f -print -quit)" || { echo "::error::no artifacts downloaded"; exit 1; }
+          # Honest expectation: the five blocking artifact sets. arm64 is
+          # best-effort and may be absent — that absence is reported, not
+          # fatal (mirrors the linux-arm64 continue-on-error decision).
+          ls -l dist/
+          for kind in windows.zip windows.msi macos.dmg macos.zip linux.tar.gz linux.deb linux.AppImage; do
+            if ls dist/*."$kind" >/dev/null 2>&1; then
+              echo "artifact kind present: ${kind}"
+            else
+              echo "::warning::artifact kind missing: ${kind} (arm64 best-effort or job failure — check the build jobs)"
+            fi
+          done
+      - name: Generate SHA256SUMS.txt
+        run: |
+          cd dist
+          # Hash every asset BEFORE adding the manifest itself.
+          sha256sum -- * > ../SHA256SUMS.txt
+          mv ../SHA256SUMS.txt ./SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: Generate release notes (git log since last tag)
+        run: scripts/release/release-notes.sh notes.md
+      - name: Cross-check tag vs product.toml version (warning only — honest, not fatal)
+        if: github.ref_type == 'tag'
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          if [ "${tag_version}" != "${PRODUCT_VERSION}" ] && [ "${tag_version}" != "${MSI_VERSION}" ]; then
+            echo "::warning::tag ${GITHUB_REF_NAME} matches neither identity.display_version (${PRODUCT_VERSION}) nor its numeric MSI form (${MSI_VERSION}) — intentional?"
+          fi
+      - name: Create the GitHub release (tag refs only; gh + GITHUB_TOKEN, no third-party action)
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # `gh` is preinstalled on GitHub-hosted runners [VERIFY at
+          # first live run]. All assets ride along; SHA256SUMS.txt is
+          # regenerated above from exactly these bytes.
+          gh release create "$GITHUB_REF_NAME" \
+            --title "${PRODUCT_NAME} ${PRODUCT_VERSION}" \
+            --notes-file notes.md \
+            dist/*
+      - name: Dry-run summary (workflow_dispatch — no release was cut)
+        if: github.ref_type != 'tag'
+        run: |
+          echo "### Release dry-run (workflow_dispatch)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Built and checksummed the full artifact set; NO GitHub release was" >> "$GITHUB_STEP_SUMMARY"
+          echo "created (that step is tag-ref-gated). Notes preview:" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          cat notes.md >> "$GITHUB_STEP_SUMMARY"

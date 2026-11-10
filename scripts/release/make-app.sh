@@ -39,6 +39,7 @@ set -eu
 : "${BIN_DESKTOP:?make-app.sh: BIN_DESKTOP not set}"
 TARGET_DIR=${TARGET_DIR:-target}
 DIST_DIR=${DIST_DIR:-dist}
+APP_DIR=${APP_DIR:-$DIST_DIR}
 
 ROOT=$(cd "$(dirname -- "$0")/../.." && pwd)
 cd "$ROOT"
@@ -49,7 +50,7 @@ bin="$TARGET_DIR/release/$BIN_DESKTOP"
 [ -f "$bin" ] || die "missing desktop binary: $bin (build first: cargo build --release --locked)"
 [ -f LICENSE ] && [ -f README.md ] || die "LICENSE/README.md not found in repo root"
 
-app_root="$DIST_DIR/${PRODUCT_NAME}.app"
+app_root="$APP_DIR/${PRODUCT_NAME}.app"
 mkdir -p "$app_root/Contents/MacOS" "$app_root/Contents/Resources"
 
 install -m 0755 "$bin" "$app_root/Contents/MacOS/$BIN_DESKTOP"
