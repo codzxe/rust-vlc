@@ -120,6 +120,7 @@
 pub mod backend;
 pub mod color;
 pub mod error;
+pub mod negotiate;
 pub mod params;
 pub mod renderer;
 pub mod screenshot;
@@ -130,6 +131,9 @@ pub mod synthetic;
 pub use backend::{Compositor, SoftwareCompositor};
 pub use color::{Rgba, SurfaceFormat};
 pub use error::{RendererError, RendererResult, RendererStage};
+pub use negotiate::{
+    BackendReport, BackendTier, CHAIN, Negotiated, Selection, TierStatus, negotiate, select,
+};
 pub use params::{AspectMode, Extent2D, Placement, Rect, RenderParams};
 pub use renderer::{Renderer, uploads_format};
 pub use staging::{StagedFrame, StagingStats, StagingUploader};
