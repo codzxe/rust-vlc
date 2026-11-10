@@ -172,12 +172,32 @@ fn seed_shape_is_what_every_committed_artifact_self_reports() {
             .and_then(toml::Value::as_str)
             .unwrap_or_default()
     }
-    let mut screens: Vec<&str> = entries.iter().map(screen_of).collect();
-    assert_eq!(
-        screens.len(),
-        entries.len(),
-        "every [[setting]] row must name a placement.screen"
-    );
+    // Validate every row's screen AT COLLECTION TIME, so a missing or
+    // unregistered screen fails HERE with a message naming the offending
+    // row — not one step later as a confusing G1-header/G2-row shape
+    // mismatch (R5-3: the previous `screens.len() == entries.len()`
+    // assert was tautological; the map above is 1:1, so a row without a
+    // screen contributed `""` and sailed through it).
+    let mut screens: Vec<&str> = Vec::with_capacity(entries.len());
+    for (index, entry) in entries.iter().enumerate() {
+        let key = entry
+            .get("key")
+            .and_then(toml::Value::as_str)
+            .unwrap_or("<row without a key>");
+        let screen = screen_of(entry);
+        assert!(
+            !screen.is_empty(),
+            "every [[setting]] row must name a placement.screen — row #{} (`{key}`) does not",
+            index + 1
+        );
+        assert!(
+            known_areas.iter().any(|area| area.as_str() == Some(screen)),
+            "placement.screen `{screen}` of `{key}` (row #{}) is not in the seed's \
+             [areas] known registry",
+            index + 1
+        );
+        screens.push(screen);
+    }
     screens.sort_unstable();
     screens.dedup();
 
