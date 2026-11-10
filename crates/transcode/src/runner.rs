@@ -164,6 +164,7 @@ pub fn submit(graph: TranscodeGraph, limits: JobLimits) -> Result<JobHandle, Eng
 
     let pump_shared = Arc::clone(&shared);
     let pump_queue = Arc::clone(&queue);
+    let pump_handoff = Arc::clone(&handoff);
     let pump = std::thread::Builder::new()
         .name("transcode-pump".to_string())
         .spawn(move || {
@@ -171,6 +172,11 @@ pub fn submit(graph: TranscodeGraph, limits: JobLimits) -> Result<JobHandle, Eng
             if result.is_err() {
                 pump_shared.terminate(JobOutcome::Failed(worker_panic()));
             }
+            // The exit layer: a worker still parked on the track
+            // hand-off (the pump failed, cancelled or panicked
+            // before selecting) must wake and resolve via the
+            // outcome cell — never park past its producer's death.
+            pump_handoff.close();
             pump_queue.close();
         })
         .map_err(|err| {
@@ -198,21 +204,35 @@ pub fn submit(graph: TranscodeGraph, limits: JobLimits) -> Result<JobHandle, Eng
         }
     };
 
-    Ok(JobHandle::new(shared, cancel, PipelineThreads { pump, worker, queue }))
+    Ok(JobHandle::new(
+        shared,
+        cancel,
+        PipelineThreads {
+            pump,
+            worker,
+            queue,
+            handoff,
+        },
+    ))
 }
 
-/// Both pipeline threads plus the queue they share (the handle's
+/// Both pipeline threads plus the shared wake surfaces (the handle's
 /// join/interrupt surface).
 pub(crate) struct PipelineThreads {
     pump: JoinHandle<()>,
     worker: JoinHandle<()>,
     queue: Arc<PacketStageQueue>,
+    /// The track hand-off — a worker parked before its track arrived
+    /// must wake on user cancel too (the token is fired; the wait
+    /// re-checks it on every notify).
+    handoff: Arc<TrackHandoff>,
 }
 
 impl PipelineThreads {
     /// Wake every parked waiter (user cancel: token + notify).
     pub(crate) fn interrupt(&self) {
         self.queue.interrupt();
+        self.handoff.wake();
     }
 
     /// Join both threads; whether any panicked (mapped by the caller
@@ -471,6 +491,18 @@ fn run_decode(
                 if shared.outcome().is_some() {
                     return;
                 }
+                // A cancel fired while the queue drained (the pump can
+                // observe EOS inside its last `next_event` after the
+                // token): the honest terminal is Cancelled — a user
+                // who asked to stop is never told Completed.
+                if shared.is_stopping() {
+                    let _ = sink.finish();
+                    return terminate_with(
+                        shared,
+                        queue,
+                        JobOutcome::Cancelled(shared.snapshot()),
+                    );
+                }
                 // True end of stream: drain the decoder (bounded).
                 let mut calls = 0u32;
                 loop {
@@ -560,6 +592,16 @@ fn run_copy_wav(
                 if shared.outcome().is_some() {
                     return;
                 }
+                // Cancel-during-drain: Cancelled, never Completed
+                // (the decode path's twin comment).
+                if shared.is_stopping() {
+                    let _ = writer.finalize();
+                    return terminate_with(
+                        shared,
+                        queue,
+                        JobOutcome::Cancelled(shared.snapshot()),
+                    );
+                }
                 if let Err(err) = writer.finalize() {
                     return terminate_with(shared, queue, JobOutcome::Failed(err));
                 }
@@ -617,6 +659,16 @@ fn run_raw_es(
             PopWait::Closed => {
                 if shared.outcome().is_some() {
                     return;
+                }
+                // Cancel-during-drain: Cancelled, never Completed
+                // (the decode path's twin comment).
+                if shared.is_stopping() {
+                    let _ = output.flush();
+                    return terminate_with(
+                        shared,
+                        queue,
+                        JobOutcome::Cancelled(shared.snapshot()),
+                    );
                 }
                 match output.flush() {
                     Ok(()) => {
@@ -792,6 +844,24 @@ impl TrackHandoff {
         let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
         state.track = Some(track);
         drop(state);
+        self.ready.notify_all();
+    }
+
+    /// Close without a track (the pump's exit layer): a parked
+    /// worker wakes and resolves through the outcome cell — the pump
+    /// that failed, cancelled or panicked before selecting must not
+    /// strand its consumer.
+    fn close(&self) {
+        let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
+        state.closed = true;
+        drop(state);
+        self.ready.notify_all();
+    }
+
+    /// Wake every parked waiter without touching the state (the
+    /// user-cancel path: the token is already fired, the wait loop
+    /// re-checks it on every wake).
+    fn wake(&self) {
         self.ready.notify_all();
     }
 
