@@ -46,6 +46,49 @@ Parity is defined against a pinned baseline, **VLC 3.0.23** (desktop), and is th
 share of inventory features verified by automated evidence. No "exactly like VLC"
 or "all formats supported" claims beyond that evidence.
 
+## Install
+
+Prebuilt binaries are published on the project's **GitHub Releases** page
+(tag-triggered pipeline: `.github/workflows/release.yml`; process and honest
+limitations: [`docs/RELEASE.md`](docs/RELEASE.md)). Two programs ship in every
+artifact: `lumen` — the CLI, the real engine surface (demux/decode/playback) —
+and `lumen-desktop` — the ADR-004 std-only composition-root skeleton (no window
+yet; it exists so packaging paths are exercised honestly).
+
+**Verify checksums first** (every release ships `SHA256SUMS.txt`):
+
+```sh
+sha256sum --check SHA256SUMS.txt        # GNU coreutils (Linux, git-bash)
+shasum -a 256 --check SHA256SUMS.txt    # macOS
+```
+
+- **Windows** (`…-x86_64-windows.zip` / `.msi`): the MSI installs both binaries
+  into Program Files (no Start-Menu entry yet — the desktop shell is a
+  skeleton). Or unzip the archive and add its folder to `PATH`. Binaries are
+  **unsigned** (no code-signing certificate yet — issue #56); SmartScreen may
+  warn ("More info" → "Run anyway").
+- **macOS** (`…-aarch64-macos.dmg` / `…-x86_64-macos.zip`): open the `.dmg`,
+  drag the app to `/Applications`. The bundle is **unsigned and not
+  notarized** (no Apple Developer account — issue #56): on first run
+  right-click the app → *Open* → *Open*, or remove the quarantine attribute:
+  `xattr -dr com.apple.quarantine /Applications/Lumen.app`.
+- **Linux**:
+  - `.deb` (x86_64, arm64): `sudo apt install ./lumen-<version>-<arch>-linux.deb`
+    (or `sudo dpkg -i`). Installs both binaries to `/usr/bin` plus a desktop
+    entry for the skeleton binary.
+  - `…-linux.tar.gz`: unpack, put the directory on `PATH`:
+    `tar -xzf …tar.gz && export PATH="$PWD:$PATH"` (add to `~/.profile` to
+    persist).
+  - `….AppImage`: `chmod +x …AppImage && ./…AppImage`. On systems without
+    FUSE, run it extracted: `APPIMAGE_EXTRACT_AND_RUN=1 ./…AppImage`.
+  - arm64 artifacts are **best-effort** (see docs/RELEASE.md).
+
+**Build from source**: clone the repo, then
+`cargo build --release --locked -p lumen-cli -p desktop` (toolchain pinned by
+`rust-toolchain.toml`); the packaging scripts under `scripts/release/` build
+every artifact above from those two binaries. Full release engineering notes:
+[`docs/RELEASE.md`](docs/RELEASE.md).
+
 ## Repository layout (target — see docs/01-architecture.md)
 
 ```
