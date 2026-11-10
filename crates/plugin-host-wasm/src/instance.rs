@@ -341,10 +341,17 @@ fn fault_to_host_error(fault: &HostFault) -> HostError {
     }
 }
 
-/// wasmi reports a store-limiter memory denial as
-/// `MemoryError::ResourceLimiterDeniedAllocation` (grow traps with
-/// our `trap_on_grow_failure` posture, doc 06 §5.4 `MemoryOom`).
+/// wasmi reports a store-limiter memory denial either as
+/// `MemoryError::ResourceLimiterDeniedAllocation` (grow returning
+/// `Err` at the API surface) or — under our `trap_on_grow_failure`
+/// posture, doc 06 §5.4 `MemoryOom` — as the trap code
+/// `GrowthOperationLimited` when the denial happens inside executing
+/// guest code (memory.grow/table.grow trap instead of returning -1).
+/// Both shapes are the same fact: the ceiling held.
 fn is_memory_denied(err: &wasmi::Error) -> bool {
+    if err.as_trap_code() == Some(TrapCode::GrowthOperationLimited) {
+        return true;
+    }
     matches!(
         err.kind(),
         wasmi::errors::ErrorKind::Memory(

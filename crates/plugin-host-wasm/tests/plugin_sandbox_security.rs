@@ -646,11 +646,15 @@ fn plugin_host_pointer_smuggling() {
     // Handle-table cap (tiny limits: 2), on a FRESH instance so the
     // slot count starts at zero: opens 0 and 1 succeed, the third is
     // E_LIMIT — a refusal, not an accommodation (doc 06 §5.4 row 7).
+    // A fresh temp root too: `media_jail` is not idempotent (its
+    // unix symlink fixture is create-once), and the point here is the
+    // fresh HANDLE TABLE, not the jail.
+    let tmp2 = common::TempDir::new("smuggle-cap");
     let mut fresh = ok(spawn(
         &wasm,
         manifest(&manifest_toml(&wasm, "fs-sandboxed-read = true")),
         HostServices {
-            jail: Some(media_jail(&tmp)),
+            jail: Some(media_jail(&tmp2)),
             ..HostServices::empty()
         },
     ));

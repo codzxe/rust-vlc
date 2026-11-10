@@ -9,10 +9,19 @@
 # External deps: **wasmi 2.0.0** — the ADR-002 runtime (accepted
 # 2026-10-19; full R1–R10 record at docs/dependencies/records/wasmi.md).
 # Pinned per the record's recommended posture: default-features = false,
-# features = ["std", "validate"] — the audited closure (the `validate`
-# feature adds no crate, it only turns on wasmparser's validating
-# features; the 7.F1 decision the record reserved: we use wasmi's
-# validating `Module::new`, the only path that compiles guest code).
+# features = ["std", "validate", "auto-dispatch"] — the audited closure
+# (the `validate` feature adds no crate, it only turns on wasmparser's
+# validating features; the 7.F1 decision the record reserved: we use
+# wasmi's validating `Module::new`, the only path that compiles guest
+# code). `auto-dispatch` is the 7.w22d repair: it is also a zero-crate
+# feature (wasmi's own default) that selects the dispatch backend —
+# without it the tail-call backend is compiled UNCONDITIONALLY, and
+# LLVM does not perform the sibling-call optimization at opt-level 0/1,
+# so every debug/test build (cargo test) stack-overflows on any guest
+# that runs more than a few thousand instructions (observed: the §9.4
+# fuel-loop fixture). With `auto-dispatch` wasmi's build.rs falls back
+# to the portable loop backend whenever tail calls are unavailable,
+# and uses them where they work — same 8-crate graph either way.
 #
 # Everything else is std-only, house style: SHA-256 (FIPS 180-4 public
 # math, same precedent as audio-output/testkit), the stored-entry ZIP
@@ -35,4 +44,4 @@ workspace = true
 [dependencies]
 plugin-api = { path = "../plugin-api" }
 
-wasmi = { version = "2.0.0", default-features = false, features = ["std", "validate"] }
+wasmi = { version = "2.0.0", default-features = false, features = ["std", "validate", "auto-dispatch"] }
