@@ -52,14 +52,19 @@ What the log proves, end to end (exit 0):
 
 Artifacts produced (kept out of the repo on purpose — the log + this
 table are the record; `/tmp` on the build host is volatile, the logs
-are committed):
+are committed). Table regenerated from the committed log's step-9
+manifest (W24-H, review W24-R1 P2-3: the r1 table carried two stale
+digests from an intermediate run — `.deb`/`.AppImage` — that
+contradicted the log it summarizes). The log records the digests and
+the SBOM byte sizes, not the four package byte sizes — no size is
+claimed for them here:
 
 | Artifact | Size | SHA-256 (prefix) |
 |---|---|---|
-| `lumen-0.1.0-dev-x86_64-linux.tar.gz` | 3,054,327 B | `3b5eae753466…` |
-| `lumen-0.1.0-dev-x86_64-linux.deb` | 2,070,916 B | `b3735fdc84d2…` |
-| `lumen-0.1.0-dev-x86_64-linux.AppImage` | 1,276,408 B | `5bd0ff0dd309…` |
-| `lumen-0.1.0-dev-x86_64-linux.spec` | 1,038 B | `17bd1068c818…` |
+| `lumen-0.1.0-dev-x86_64-linux.tar.gz` | — | `3b5eae753466…` |
+| `lumen-0.1.0-dev-x86_64-linux.deb` | — | `a39dafa88039…` |
+| `lumen-0.1.0-dev-x86_64-linux.AppImage` | — | `c0b86e2984b1…` |
+| `lumen-0.1.0-dev-x86_64-linux.spec` | — | `17bd1068c818…` |
 | 4 × `*.sbom.cdx.json` | 121,900 B each | `f0b22c1bc2a8…` (identical, by design) |
 
 Full digests are in the log (step 9 of the run).
