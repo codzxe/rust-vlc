@@ -263,6 +263,26 @@ dev_deps = ["testkit", "media-clock"]
 external_allowlist = []
 external_dev_allowlist = []
 
+# L2 — services discovery (doc 01 §2.4 registry row, card 7.D1, issue
+# #42): the ServiceDiscovery port, the local-volume/removable-media
+# watcher (bounded event queue feeding the catalog's
+# devices.volume-added/-removed rows via host wiring), and the SSDP
+# lane with its recorded [VERIFY] verdict (std-only UdpSocket; the
+# ureq https client of streaming serves description/SOAP only — never
+# SSDP, which is UDP multicast). Deps exactly the registry row:
+# media-types (SourceUri/EngineError) + plugin-api (the doc 06 §1.2
+# kind-16 host contract's vocabulary home). NO platform-* edge — the
+# OS integrations implement this crate's VolumeSource seam from L5
+# (doc 01 §2.7 lists device-discovery as a dep of all three adapters;
+# edges point downward, adapter → port). Std-only by C5; testkit
+# dev-only.
+[crates.device-discovery]
+layer = 2
+internal_deps = ["media-types", "plugin-api"]
+dev_deps = ["testkit"]
+external_allowlist = []
+external_dev_allowlist = []
+
 # L4 — the session orchestrator (doc 01 §2.6, card 2.C2; doc 03 §4.6 +
 # §5). Owns the playback state machine, mints the two-level session
 # epochs, and wires the pipeline demux→queues→decoders→sinks at the

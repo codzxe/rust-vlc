@@ -23,6 +23,7 @@ export type MessageKey =
   | "screen.onboarding"
   | "screen.keyboard-shortcuts"
   | "screen.open-network-stream"
+  | "screen.discovery"
   | "screen.not-found"
   | "screen.placeholder.body"
   | "screen.dev.tokens"
@@ -527,6 +528,7 @@ export type MessageKey =
   | "nav.media-info"
   | "nav.shortcuts"
   | "nav.settings"
+  | "nav.discovery"
   | "nav.open-menu"
   | "menu.file"
   | "menu.file.open-media"
@@ -545,6 +547,7 @@ export type MessageKey =
   | "menu.view.miniplayer"
   | "menu.view.playlist"
   | "menu.view.media-info"
+  | "menu.view.discovery"
   | "menu.view.shortcuts"
   | "menu.view.settings"
   | "menu.tools"
@@ -583,6 +586,19 @@ export type MessageKey =
   | "stream.recent.empty"
   | "stream.open"
   | "stream.invalid"
+  // --- discovery screen (card 7.D1, issue #42) ---
+  | "discovery.title"
+  | "discovery.subtitle"
+  | "discovery.volumes.title"
+  | "discovery.volumes.count-suffix"
+  | "discovery.volumes.empty"
+  | "discovery.volumes.live"
+  | "discovery.kind.fixed"
+  | "discovery.kind.removable"
+  | "discovery.kind.optical"
+  | "discovery.kind.network"
+  | "discovery.network.title"
+  | "discovery.network.status"
   // --- keyboard shortcuts screen ---
   | "shortcuts.title"
   | "shortcuts.subtitle"
@@ -621,6 +637,7 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "screen.onboarding": "Onboarding (placeholder)",
   "screen.keyboard-shortcuts": "Keyboard shortcuts (placeholder)",
   "screen.open-network-stream": "Open network stream (placeholder)",
+  "screen.discovery": "Discovery",
   "screen.not-found": "Screen not found",
   "screen.placeholder.body":
     "Route skeleton only — the Figma-exact composition lands in later Phase-4 cards (doc 08 §1.6).",
@@ -1130,6 +1147,7 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "nav.media-info": "Media info",
   "nav.shortcuts": "Shortcuts",
   "nav.settings": "Settings",
+  "nav.discovery": "Discovery",
   "nav.open-menu": "Open menu",
   "menu.file": "File",
   "menu.file.open-media": "Open media…",
@@ -1148,6 +1166,7 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "menu.view.miniplayer": "Miniplayer",
   "menu.view.playlist": "Playlist",
   "menu.view.media-info": "Media info",
+  "menu.view.discovery": "Discovery",
   "menu.view.shortcuts": "Keyboard shortcuts",
   "menu.view.settings": "Settings",
   "menu.tools": "Tools",
@@ -1184,6 +1203,18 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "stream.back": "Back to player",
   "stream.open": "Open stream",
   "stream.invalid": "Enter a valid http:// or https:// URL",
+  "discovery.title": "Discovery",
+  "discovery.subtitle": "Local volumes and network services appear here as the engine reports them.",
+  "discovery.volumes.title": "Local volumes",
+  "discovery.volumes.count-suffix": "volumes",
+  "discovery.volumes.empty": "No volumes reported yet — volume watching arrives with the platform integrations (issue #42).",
+  "discovery.volumes.live": "Volume changes",
+  "discovery.kind.fixed": "Fixed disk",
+  "discovery.kind.removable": "Removable",
+  "discovery.kind.optical": "Optical disc",
+  "discovery.kind.network": "Network mount",
+  "discovery.network.title": "Network services (UPnP)",
+  "discovery.network.status": "The engine's SSDP/UPnP search is implemented but not reachable from this panel yet — the command-catalog wiring is a follow-up (issue #42).",
   "shortcuts.title": "Keyboard shortcuts",
   "shortcuts.subtitle": "Every key the player understands. Edit overrides in Settings.",
   "shortcuts.search.label": "Search shortcuts",

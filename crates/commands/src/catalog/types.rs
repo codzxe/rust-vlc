@@ -273,6 +273,20 @@ pub struct AudioDevice {
     pub is_default: bool,
 }
 
+/// The kind of a discovered local volume (7.D1 `devices.volume-added`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub enum VolumeKind {
+    /// A filesystem on an internal fixed disk.
+    Fixed,
+    /// A removable medium (USB stick, SD card, …).
+    Removable,
+    /// An optical disc (CD/DVD/BD).
+    Optical,
+    /// A network mount (NFS/SMB/…).
+    Network,
+}
+
 /// The playback state machine (§3.3). Wire: the lowercase names.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "kebab-case")]

@@ -1,6 +1,7 @@
 //! Card 3.B4 — the catalog-side emission ledger: the machine-checked
 //! twin of `crates/playback-engine/src/events.rs`'s module-doc audit
-//! table (doc 05 §3.2 — 23 rows, D-017-frozen).
+//! table (doc 05 §3.2 — 23 rows + the issue #42 additive trio, D-017
+//! count updated per doc 05 §6.2 additive rules).
 //!
 //! Every catalog [`EventId`] is accounted for exactly once, in one of
 //! two honest buckets:
@@ -22,11 +23,21 @@
 //! suite's job; this is the ledger that keeps both sides counting the
 //! same 23 rows.
 //!
-//! Arithmetic (post-3.A1, post-3.B4): **11 emitted / 12 later**. The
-//! seek terminals (3.A1) moved one row from "later" to "emitted" and
-//! 3.B4 moved five more (time-tick, duration-known, end-of-track,
-//! media.info-ready, and the non-fatal half of playback.error — the
-//! fatal half was already emitted by 2.C2).
+//! Arithmetic (post-3.A1, post-3.B4, post-7.C1): **14 emitted / 12
+//! later**. The seek terminals (3.A1) moved one row from "later" to
+//! "emitted" and 3.B4 moved five more (time-tick, duration-known,
+//! end-of-track, media.info-ready, and the non-fatal half of
+//! playback.error — the fatal half was already emitted by 2.C2);
+//! 7.C1's hotplug hooks moved the audio device pair and the renderer
+//! backend report (their payloads are proven live by the engine's
+//! `tests/hotplug.rs`).
+//!
+//! Known divergence, recorded for the Lead: the engine-side map
+//! (`crates/playback-engine/src/events.rs`) also counts
+//! `tracks.changed` as emitted (the 3.A3 track-switch terminal),
+//! while this ledger keeps it "later" (no engine-side track-*loss*
+//! trigger). The two files disagree on that one row since 3.A3; the
+//! owning card's bookkeeping, not 7.C1's.
 
 use std::error::Error;
 
@@ -46,8 +57,8 @@ struct Row {
     owner: &'static str,
 }
 
-/// The 11 rows the engine emits today (post-3.A1 + 3.B4). Order
-/// mirrors doc 05 §3.2's table.
+/// The 14 rows the engine emits today (post-3.A1 + 3.B4 + 7.C1).
+/// Order mirrors doc 05 §3.2's table.
 const EMITTED: &[Row] = &[
     Row {
         id: EventId::SessionStateChanged,
@@ -93,6 +104,18 @@ const EMITTED: &[Row] = &[
         id: EventId::MediaInfoReady,
         owner: "3.B4",
     },
+    Row {
+        id: EventId::AudioDeviceLost,
+        owner: "7.C1 (engine hotplug hooks: suspend on loss, tests/hotplug.rs)",
+    },
+    Row {
+        id: EventId::AudioDeviceChanged,
+        owner: "7.C1 (engine hotplug hooks: resume on re-acquisition)",
+    },
+    Row {
+        id: EventId::VideoBackendChanged,
+        owner: "7.C1 (renderer backend report relayed through the engine)",
+    },
 ];
 
 /// The 12 rows honestly owned by later cards — the same notes the
@@ -110,14 +133,6 @@ const WIRED_BY_LATER: &[Row] = &[
     Row {
         id: EventId::PlaybackRateChanged,
         owner: "3.B1 (rate support; no set-rate engine input exists)",
-    },
-    Row {
-        id: EventId::AudioDeviceLost,
-        owner: "2.C3/7.C1 (device observation; the null device cannot be lost)",
-    },
-    Row {
-        id: EventId::AudioDeviceChanged,
-        owner: "2.C3/7.C1 (same)",
     },
     Row {
         id: EventId::VideoScreenshotSaved,
@@ -147,15 +162,24 @@ const WIRED_BY_LATER: &[Row] = &[
         id: EventId::SystemLog,
         owner: "no logging bridge; doc 05 §3.4's burst-bound drop refinement activates here",
     },
+    Row {
+        id: EventId::DevicesVolumeAdded,
+        owner: "7.D1 device-discovery (crate-side emission from real mount-table diffs; the engine-side relay joins with host wiring)",
+    },
+    Row {
+        id: EventId::DevicesVolumeRemoved,
+        owner: "7.D1 device-discovery (same)",
+    },
 ];
 
-/// The ledger partitions the catalog exactly: every one of the 23
-/// `EventId`s appears in exactly one bucket, no bucket mentions an id
+/// The ledger partitions the catalog exactly: every one of the 26
+/// `EventId`s (doc 05 §3.2's 23 + the issue #42 additive trio) appears
+/// in exactly one bucket, no bucket mentions an id
 /// that is not in the catalog (typo guard), and the arithmetic is the
-/// module-doc claim (11 + 12 = 23).
+/// module-doc claim (14 + 12 = 26).
 #[test]
 fn the_ledger_partitions_the_catalog_exactly() {
-    assert_eq!(EMITTED.len(), 11, "the emitted bucket's count");
+    assert_eq!(EMITTED.len(), 14, "the emitted bucket's count");
     assert_eq!(WIRED_BY_LATER.len(), 12, "the later bucket's count");
     assert_eq!(
         EMITTED.len() + WIRED_BY_LATER.len(),
@@ -331,6 +355,28 @@ fn emitted_rows_carry_the_doc_05_payload_shapes() -> Result<(), Box<dyn Error>> 
                 info: sample_info(),
             },
             vec!["info"],
+        ),
+        (
+            EventId::AudioDeviceLost,
+            EventKind::AudioDeviceLost {
+                device_id: "sink-7".to_string(),
+            },
+            vec!["deviceId"],
+        ),
+        (
+            EventId::AudioDeviceChanged,
+            EventKind::AudioDeviceChanged {
+                device_id: "sink-9".to_string(),
+            },
+            vec!["deviceId"],
+        ),
+        (
+            EventId::VideoBackendChanged,
+            EventKind::VideoBackendChanged {
+                backend: "software".to_string(),
+                reason: "hardware backend unavailable".to_string(),
+            },
+            vec!["backend", "reason"],
         ),
     ];
     assert_eq!(cases.len(), EMITTED.len(), "one shape case per emitted row");

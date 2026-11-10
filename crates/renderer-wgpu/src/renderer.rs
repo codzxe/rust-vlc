@@ -150,6 +150,16 @@ impl Renderer {
         self.compositor.name()
     }
 
+    /// Swap the linked compositor — the backend handover seam (card
+    /// 7.C1): the surface, parameters and staging state survive the
+    /// swap untouched; the next present runs on the new backend.
+    /// [`crate::negotiate::Renderer::fallback_to_software`] is the
+    /// fallback chain's policy wrapper over this (it also answers
+    /// the typed capability report).
+    pub fn swap_compositor(&mut self, compositor: Box<dyn Compositor>) {
+        self.compositor = compositor;
+    }
+
     /// The staging measurements so far (card 2.D1 "measured staging").
     #[must_use = "observable evidence"]
     pub fn staging_stats(&self) -> crate::staging::StagingStats {

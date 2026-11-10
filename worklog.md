@@ -678,3 +678,15 @@ Work Log:
 
 Stage Summary:
 - All three lanes implemented behind typed seams with honest capability negotiation; compile-verified cross-OS, host-tested fallback paths. ADR-013 remains [proposed] (VA-API activation Lead-gated). Real-hardware validation pending [VERIFY].
+Task ID: 7.w23b
+Agent: w23-b (Lead-finalized)
+Task: Device hotplug, output fallback & discovery (issue #42, cards 7.C1 + 7.D1)
+
+Work Log:
+- C1: playback-engine device-loss hooks (suspend in-pipeline, bounded reopen window, resume from remembered position); audio-output renegotiation; renderer-wgpu backend fallback chain (hw->sw auto-negotiate, typed capability reports, mid-run degradation); catalog events video.backend-changed + devices.volume-added/-removed (64 cmd / 26 events).
+- D1: crates/device-discovery — ServiceDiscovery port, bounded volume watcher, SSDP lane with honest verdict (UDP multicast: feasible natively, blocked on web); typed Unavailable { reason } where OS features absent.
+- UI: /discovery panel (React/TS, semantic tokens, l10n catalog), live devices.* event lane, honest verdicts surfaced; 8 new pinned visual baselines + manifest route.
+- Verification: fmt/clippy -D warnings clean on 4 crates; 490 engine tests + 697 UI tests (78 files) green; codegen --check no drift (64/26); lint-literals PASS; check-architecture PASS.
+
+Stage Summary:
+- Hotplug + fallback chains + discovery landed end-to-end with honest capability reporting; SSDP verdict recorded; real-hardware hotplug events [VERIFY] on OS runners.

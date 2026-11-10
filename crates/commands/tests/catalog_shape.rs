@@ -2,7 +2,9 @@
 //! the id grammar, the enum ↔ spec-table coverage and the checksum.
 //!
 //! These pin the *shape* invariants doc 05 §2–§3 define: 61 command
-//! entries (+ the issue #32 bookmark trio = 64) / 23 event entries (the
+//! entries (+ the issue #32 bookmark trio = 64) / 26 event entries (23
+//! from the §3.2 tables + the issue #42 additive trio — `video.backend-changed`,
+//! `devices.volume-added`, `devices.volume-removed`; doc 05 §6.2) (the
 //! §2.1 / §3.2 tables), ids of the form
 //! `<area>.<verb-noun>`, no orphan and no missing rows between the
 //! `CommandId`/`EventId` enums, the payload enums' wire tags and the
@@ -71,7 +73,8 @@ fn schema_event_tags(schema: &Value) -> Vec<String> {
 
 /// The committed schema is valid JSON with the §5.1 document shape and
 /// the doc 05 table counts: 61 command entries (64 with the issue #32
-/// bookmark trio) + 23 event entries.
+/// bookmark trio) + 26 event entries (23 §3.2 rows + the issue #42
+/// additive trio).
 #[test]
 fn schema_has_the_doc_05_structure_and_counts() -> Result<(), Box<dyn Error>> {
     let schema = committed_schema()?;
@@ -90,13 +93,18 @@ fn schema_has_the_doc_05_structure_and_counts() -> Result<(), Box<dyn Error>> {
         );
     }
     // Doc 05 §2.1 lists 61 command entries; issue #32 adds the three
-    // media.*-bookmark commands (64); §3.2 lists 23 events.
+    // media.*-bookmark commands (64); §3.2 lists 23 events + issue #42's
+    // additive trio (26).
     assert_eq!(
         schema_command_tags(&schema).len(),
         64,
         "§2.1 count (+3 bookmarks, issue #32)"
     );
-    assert_eq!(schema_event_tags(&schema).len(), 23, "§3.2 count");
+    assert_eq!(
+        schema_event_tags(&schema).len(),
+        26,
+        "§3.2 count + issue #42 trio"
+    );
     // The §2.3–§2.12 tables classify 19 commands A and 42 S; issue #32's
     // bookmark trio is class S (64 total).
     let a = catalog_data()
@@ -169,7 +177,7 @@ fn every_id_parses_and_follows_the_grammar() -> Result<(), Box<dyn Error>> {
         64,
         "§2.1: 61 commands + issue #32 bookmark trio"
     );
-    assert_eq!(EventId::ALL.len(), 23, "§3.2: 23 events");
+    assert_eq!(EventId::ALL.len(), 26, "§3.2: 23 events + issue #42 trio");
     Ok(())
 }
 
@@ -228,7 +236,7 @@ fn committed_checksum_recomputes() -> Result<(), Box<dyn Error>> {
          {expected_catalog}:\n{text}"
     );
     assert!(
-        text.contains("counts: 64 commands / 23 events"),
+        text.contains("counts: 64 commands / 26 events"),
         "committed checksum counts line drifted:\n{text}"
     );
     Ok(())

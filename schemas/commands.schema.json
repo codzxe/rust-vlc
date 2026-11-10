@@ -3315,6 +3315,29 @@
           ]
         },
         {
+          "description": "`video.backend-changed` — the active render backend changed:\nthe initial auto-negotiation report, a fallback after a backend\nfailure (hardware → software present, card 7.C1), or a\nuser-forced selection. Not pipeline-scoped.",
+          "type": "object",
+          "properties": {
+            "backend": {
+              "description": "The now-active backend id (redacted vocabulary, e.g.\n`\"software\"`; never a driver path).",
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "video.backend-changed"
+            },
+            "reason": {
+              "description": "Why it changed — the negotiation outcome, the fallback\ncause, or `\"user\"` (display-safe, V8).",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "backend",
+            "reason"
+          ]
+        },
+        {
           "description": "`playlist.changed` — any playlist model mutation, command- or\nengine-initiated; model edits coalesced per 100 ms\n`[PROPOSAL]`. Not pipeline-scoped.",
           "type": "object",
           "properties": {
@@ -3488,6 +3511,52 @@
           "required": [
             "kind",
             "info"
+          ]
+        },
+        {
+          "description": "`devices.volume-added` — a local volume or removable medium\nappeared (card 7.D1; the discovery crate's watcher emits it\nfrom real mount-table diffs, never fabricated). Not\npipeline-scoped.",
+          "type": "object",
+          "properties": {
+            "id": {
+              "description": "Stable volume id (opaque string; stable while mounted).",
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "devices.volume-added"
+            },
+            "label": {
+              "description": "Display label (untrusted text, V7).",
+              "type": "string"
+            },
+            "volumeKind": {
+              "description": "The volume's kind (named `volumeKind` on the wire — the\npayload's own `kind` slot is taken by the event tag, the\n`plugins.loaded` precedent).",
+              "$ref": "#/$defs/VolumeKind"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "label",
+            "volumeKind"
+          ]
+        },
+        {
+          "description": "`devices.volume-removed` — a local volume went away. Not\npipeline-scoped.",
+          "type": "object",
+          "properties": {
+            "id": {
+              "description": "The volume's id.",
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "devices.volume-removed"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
           ]
         }
       ],
@@ -4746,6 +4815,31 @@
         "width",
         "height",
         "hdr"
+      ]
+    },
+    "VolumeKind": {
+      "description": "The kind of a discovered local volume (7.D1 `devices.volume-added`).",
+      "oneOf": [
+        {
+          "description": "A filesystem on an internal fixed disk.",
+          "type": "string",
+          "const": "fixed"
+        },
+        {
+          "description": "A removable medium (USB stick, SD card, …).",
+          "type": "string",
+          "const": "removable"
+        },
+        {
+          "description": "An optical disc (CD/DVD/BD).",
+          "type": "string",
+          "const": "optical"
+        },
+        {
+          "description": "A network mount (NFS/SMB/…).",
+          "type": "string",
+          "const": "network"
+        }
       ]
     }
   }

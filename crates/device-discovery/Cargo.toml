@@ -1,0 +1,56 @@
+# crates/device-discovery — the services-discovery layer (card 7.D1,
+# issue #42; doc 01 §2.4 L2 registry row).
+#
+# Registry: doc 01 §2.4 `device-discovery` (layer L2, deps
+# media-types + plugin-api — exactly the Lead's registry row, no more).
+# Responsibility: enumerating network services and local devices into
+# Device lists for the UI to browse, plus the local-volume/removable-
+# media watcher whose bounded event queue feeds the catalog's
+# `devices.volume-added` / `devices.volume-removed` rows (the engine-
+# side relay is host wiring, per the catalog emission ledger).
+#
+# Layering (the wave-22 platform seam pattern, other direction): the
+# OS integrations for volume watching live in the L5 `platform-*`
+# crates — doc 01 §2.7's registry rows list device-discovery as a dep
+# of all three adapters ("OS impls behind plugin traits"). This crate
+# mints the port ([`volume::VolumeSource`]) the adapters will
+# implement; until those cards land every lane reports the typed
+# Unavailable verdict — honest capability reporting, never fake
+# events. A dependency from here on platform-* would point UPWARD
+# (L2→L5) and is architecturally forbidden.
+#
+# C5 discipline: std-only, zero external dependencies. SSDP needs no
+# crate — std::net::UdpSocket carries multicast (the honest [VERIFY]
+# verdict + what is provable is recorded in src/ssdp.rs). No unsafe,
+# no unwrap/expect/panic (workspace lints), bounded everything (MP
+# §12): the event queue is capacity-clamped drop-oldest, monitor
+# polls are one bounded thread, SSDP search windows are deadline +
+# response-count bounded.
+#
+# Membership: joined via the root `crates/*` glob (no root manifest
+# edit, per the wave conflict rule recorded there).
+
+[package]
+name = "device-discovery"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen services discovery: the doc 01 §2.4 ServiceDiscovery port, the local-volume/removable-media watcher with bounded events, and the SSDP/UPnP lane with its honest feasibility verdict (issue #42, card 7.D1)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# media-types: SourceUri (the Device vocabulary's uri slot) +
+# EngineError/PipelineStage (the doc 01 §2.4 trait's error currency).
+media-types = { path = "../media-types" }
+# plugin-api: the ServiceDiscovery plugin-kind contract (doc 06 §1.2
+# row 16) — its discovery.rs stages the HOST surface and names this
+# crate as the domain-trait home; the vocabulary is shared, never
+# forked.
+plugin-api = { path = "../plugin-api" }
+
+[dev-dependencies]
+# testkit is dev-only by contract (MP §3.7): the lint-legal Must
+# helper for fixture contracts (tests deny unwrap/expect/panic).
+testkit = { path = "../testkit" }

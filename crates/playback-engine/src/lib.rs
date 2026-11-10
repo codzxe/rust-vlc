@@ -16,6 +16,12 @@
 //!   reconciliation with the `commands` catalog (doc 05 §3/§4.2);
 //! - [`events`] — the throttling/coalescing policy types those
 //!   emissions obey (doc 05 §3.4, card 3.B4);
+//! - [`frame_step`] — the frame-stepping plans (card 3.B2);
+//! - [`hotplug`] — the device-hotplug hooks (card 7.C1): the
+//!   engine-side entry points a host calls when the audio device
+//!   vanishes mid-playback (suspend in-pipeline, bounded reopen,
+//!   resume from the remembered position — never a restart) and the
+//!   renderer backend report relay (`video.backend-changed`);
 //! - [`pipeline`] — the trait-level wiring **demux → packet queues →
 //!   decoders → sinks** (plugin-api `Demuxer`, packet-queue
 //!   `BoundedQueue<Packet>`, codec-api `Decoder`/`FrameSink`) driven
@@ -91,6 +97,7 @@ pub mod error;
 pub mod event;
 pub mod events;
 pub mod frame_step;
+pub mod hotplug;
 pub mod pipeline;
 pub mod recovery;
 pub mod seek;
@@ -115,10 +122,15 @@ pub use events::{
 pub use frame_step::{
     FALLBACK_FRAME_PERIOD_NS, FrameStepDirection, FrameStepPlan, plan_frame_step,
 };
+pub use hotplug::{HotplugStats, HotplugStep};
 pub use pipeline::{
     DEFAULT_STARVE_DEBOUNCE_TICKS, DecoderProvider, FrameConsumer, QUEUE_PACKETS_AUDIO_CEILING,
     QUEUE_PACKETS_FLOOR, QUEUE_PACKETS_VIDEO_CEILING, QueuePlan, QueuePlanError, QueuePlanKind,
     TickBudget, VIDEO_CONCEALMENT_BUDGET,
+};
+pub use recovery::{
+    AudioDeviceGuard, ReadOutcome, RecoveryAction, RecoveryStep, RetryWindow, SourceRetryGuard,
+    SurfaceGuard, is_retryable_network, retry_exhausted_error,
 };
 pub use seek::{SeekFailure, SeekTarget};
 pub use session::{

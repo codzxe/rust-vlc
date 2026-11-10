@@ -12,6 +12,9 @@ import { SettingsScreen } from "./screens/settings/SettingsScreen";
 // placeholder routes + persistent navigation (AppShell).
 import { OPEN_MEDIA_EVENT } from "./screens/open-media";
 import { NetworkStreamScreen } from "./screens/network-stream/NetworkStreamScreen";
+// Discovery panel (card 7.D1, issue #42): the device-discovery surface —
+// live devices.volume-* events + the honest network-lane verdict.
+import { DiscoveryScreen } from "./screens/discovery/DiscoveryScreen";
 import { ShortcutsScreen } from "./screens/shortcuts/ShortcutsScreen";
 import { NotFoundScreen } from "./screens/not-found/NotFoundScreen";
 import { TokenSandbox } from "./tokens/TokenSandbox";
@@ -87,6 +90,7 @@ export function App() {
         <Route path="/miniplayer" element={<PlayerRoute variant="miniplayer" />} />
         <Route path="/keyboard-shortcuts" element={<ShortcutsScreen />} />
         <Route path="/open-network-stream" element={<NetworkStreamScreen />} />
+        <Route path="/discovery" element={<DiscoveryScreen />} />
         <Route path="*" element={<NotFoundScreen />} />
       </Route>
 

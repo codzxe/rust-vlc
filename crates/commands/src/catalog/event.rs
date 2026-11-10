@@ -39,11 +39,15 @@ use crate::catalog::types::TrackChangeKind;
 use crate::catalog::types::TrackId;
 use crate::catalog::types::TrackInfo;
 use crate::catalog::types::TrackKind;
+use crate::catalog::types::VolumeKind;
 use crate::error::CommandError;
 use crate::error::ErrorCode;
 use crate::error::Stage;
 
-/// One engine → host event, with its payload (doc 05 §3.2 — 23 rows).
+/// One engine → host event, with its payload (doc 05 §3.2 — 23 rows +
+/// the issue #42 additive trio: `video.backend-changed`,
+/// `devices.volume-added`, `devices.volume-removed`; doc 05 §6.2
+/// additive rules).
 ///
 /// `#[non_exhaustive]`: unknown `kind` values received by older hosts
 /// degrade to a logged no-op (§2.1, §6.2). The completion-evidence
@@ -193,6 +197,19 @@ pub enum EventKind {
         /// Captured frame height.
         height: u32,
     },
+    /// `video.backend-changed` — the active render backend changed:
+    /// the initial auto-negotiation report, a fallback after a backend
+    /// failure (hardware → software present, card 7.C1), or a
+    /// user-forced selection. Not pipeline-scoped.
+    #[serde(rename = "video.backend-changed")]
+    VideoBackendChanged {
+        /// The now-active backend id (redacted vocabulary, e.g.
+        /// `"software"`; never a driver path).
+        backend: String,
+        /// Why it changed — the negotiation outcome, the fallback
+        /// cause, or `"user"` (display-safe, V8).
+        reason: String,
+    },
     /// `playlist.changed` — any playlist model mutation, command- or
     /// engine-initiated; model edits coalesced per 100 ms
     /// `[PROPOSAL]`. Not pipeline-scoped.
@@ -269,6 +286,28 @@ pub enum EventKind {
     MediaInfoReady {
         /// The snapshot (same data as `media.get-info`).
         info: MediaInfo,
+    },
+    /// `devices.volume-added` — a local volume or removable medium
+    /// appeared (card 7.D1; the discovery crate's watcher emits it
+    /// from real mount-table diffs, never fabricated). Not
+    /// pipeline-scoped.
+    #[serde(rename = "devices.volume-added")]
+    DevicesVolumeAdded {
+        /// Stable volume id (opaque string; stable while mounted).
+        id: String,
+        /// Display label (untrusted text, V7).
+        label: String,
+        /// The volume's kind (named `volumeKind` on the wire — the
+        /// payload's own `kind` slot is taken by the event tag, the
+        /// `plugins.loaded` precedent).
+        volume_kind: VolumeKind,
+    },
+    /// `devices.volume-removed` — a local volume went away. Not
+    /// pipeline-scoped.
+    #[serde(rename = "devices.volume-removed")]
+    DevicesVolumeRemoved {
+        /// The volume's id.
+        id: String,
     },
 }
 
