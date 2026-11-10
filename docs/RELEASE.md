@@ -49,14 +49,27 @@ composition-root skeleton) — plus `LICENSE` and `README.md`.
 
 ### RC checklist
 
-- [ ] `product.toml` version bumped; `cargo run -p xtask --locked --
-      config-validator` (or the gate) still passes.
+The full executable version — per-row commands, recorded results,
+blocked rows with owners — is `docs/release-checklist.md` (card 8.G2,
+issue #58); `scripts/rc-smoke.sh` is its local smoke harness. This
+section is the short form:
+
+- [ ] `product.toml` version bumped (+ the two crate versions — the
+      binary `--version` reads `apps/cli/Cargo.toml`, not product.toml;
+      see release-checklist §0) and SBOM regenerated
+      (`cargo run -p xtask --locked -- sbom`).
+- [ ] `cargo run -p xtask --locked -- config-validator`: currently
+      RED on `main` — 4 violations, all the missing `assets/brand/*`
+      files (known-limit 5 below). Land the assets or record the
+      waiver before tagging. (Note: `scripts/full_gate.sh` does not
+      run this validator — do not rely on the gate for it.)
 - [ ] Tag name matches `identity.display_version` (the release job
       cross-checks and warns on mismatch — it is a warning, not a gate:
       pre-release suffixes like `-dev` do not survive MSI
       sanitization, so `v0.1.0` ↔ `0.1.0-dev` is the expected pair).
 - [ ] `Cargo.lock` fresh; build is `--locked`.
-- [ ] Local gate green; no red lanes in the wave ledger.
+- [ ] Local gate green; `scripts/rc-smoke.sh` all 8 checks PASS on the
+      RC commit; no red lanes in the wave ledger.
 - [ ] After the run: checksum file spot-checked, one artifact per OS
       installed and executed.
 
