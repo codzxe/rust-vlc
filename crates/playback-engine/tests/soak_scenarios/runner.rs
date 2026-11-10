@@ -942,7 +942,7 @@ fn run_count_scenario(
         // mid-stride).
         run.counts.cycles += 1;
         completed += 1;
-        if completed % stride == 0 || completed == n {
+        if completed.is_multiple_of(stride) || completed == n {
             live_series.push((completed, live()));
             rss_series.push((completed, crate::memory::read_vm_rss_kb()));
             fd_series.push((completed, read_fd_count()));
