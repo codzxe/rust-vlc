@@ -86,13 +86,16 @@ chmod 0755 "$appdir/AppRun"
 "$ROOT/scripts/packaging/gen-desktop-entry.sh" "$appdir/${PRODUCT_LOWER}.desktop"
 
 # Icon: real brand asset when it exists, documented placeholder if not;
-# .DirIcon must be a file or symlink beside the entry.
+# .DirIcon must be a file or symlink beside the entry. gen-icon.py is
+# invoked THROUGH the interpreter (the wave-22 commit carries it without
+# the exec bit — direct execution dies with EACCES on a fresh checkout;
+# flagged to the Lead for a mode-only fix in scripts/release/).
 icon_src="$PRODUCT_ICON_PNG_512"
 if [ ! -f "$icon_src" ]; then
     PY=$(command -v python3 || command -v python) ||
         die "neither python3 nor python found on PATH (icon generation needs the stdlib)"
     icon_src="$stage/$PRODUCT_LOWER.png"
-    "$ROOT/scripts/release/gen-icon.py" "$icon_src" "$PRODUCT_ACCENT_COLOR"
+    "$PY" "$ROOT/scripts/release/gen-icon.py" "$icon_src" "$PRODUCT_ACCENT_COLOR"
 fi
 install -m 0644 "$icon_src" "$appdir/$PRODUCT_LOWER.png"
 ln -s "$PRODUCT_LOWER.png" "$appdir/.DirIcon"

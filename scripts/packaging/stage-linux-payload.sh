@@ -73,12 +73,16 @@ done
     "$dest/$PACKAGING_LINUX_APPLICATIONS_DIR/${PRODUCT_APPSTREAM_ID}.desktop"
 
 # Icon: real brand asset when it exists, documented placeholder if not.
+# gen-icon.py is invoked THROUGH the interpreter, not executed
+# directly: the wave-22 commit carries it as 100644 (no exec bit), so a
+# direct call dies with EACCES on a fresh checkout (reproduced here;
+# flagged to the Lead for a mode-only fix in scripts/release/).
 icon_dest="$dest/$PACKAGING_LINUX_ICONS_DIR/$PRODUCT_LOWER.png"
 if [ -f "$PRODUCT_ICON_PNG_512" ]; then
     install -m 0644 "$PRODUCT_ICON_PNG_512" "$icon_dest"
 else
     PY=$(command -v python3 || command -v python) ||
         die "neither python3 nor python found on PATH (icon generation needs the stdlib)"
-    "$ROOT/scripts/release/gen-icon.py" "$icon_dest" "$PRODUCT_ACCENT_COLOR"
+    "$PY" "$ROOT/scripts/release/gen-icon.py" "$icon_dest" "$PRODUCT_ACCENT_COLOR"
 fi
 chmod 0644 "$icon_dest"
