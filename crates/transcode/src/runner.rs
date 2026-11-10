@@ -289,9 +289,13 @@ fn build_plan(
             target,
             output,
         }),
-        (SinkSpec::WavCopyPcm { output, facts: Some(facts) }, None) => {
-            Ok(WorkerPlan::CopyWav { facts, output })
-        }
+        (
+            SinkSpec::WavCopyPcm {
+                output,
+                facts: Some(facts),
+            },
+            None,
+        ) => Ok(WorkerPlan::CopyWav { facts, output }),
         // Validation refused this shape already (facts missing).
         (SinkSpec::WavCopyPcm { facts: None, .. }, None) => Err(sink_bad_state()),
         (SinkSpec::RawEsCopy { output }, None) => Ok(WorkerPlan::RawEs { output }),
