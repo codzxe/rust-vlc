@@ -119,7 +119,8 @@ fn committed_outputs_have_no_drift() {
     // cannot go stale when the seed legitimately grows (phase-7 exit
     // gate OF-2: c71cd5a's 27→32 growth stranded a pinned literal here).
     assert!(
-        out.stdout.contains(&format!("{} entries", committed_seed_entry_count())),
+        out.stdout
+            .contains(&format!("{} entries", committed_seed_entry_count())),
         "stdout: {}",
         out.stdout
     );

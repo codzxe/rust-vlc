@@ -314,10 +314,13 @@ mod tests {
             Ok(text) => text,
             Err(err) => unreachable!("{err}"),
         };
-        let seed_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../schemas/settings.toml");
+        let seed_path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../schemas/settings.toml");
         let seed_text = std::fs::read_to_string(&seed_path).unwrap_or_else(|err| {
-            unreachable!("reading the committed seed ({}): {err}", seed_path.display())
+            unreachable!(
+                "reading the committed seed ({}): {err}",
+                seed_path.display()
+            )
         });
         let seed = toml::from_str::<toml::Table>(&seed_text)
             .unwrap_or_else(|err| unreachable!("parsing the committed seed: {err}"));
