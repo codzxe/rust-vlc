@@ -61,6 +61,9 @@ const RAIL_ITEMS: ReadonlyArray<{
   { to: "/player", labelKey: "nav.player", icon: "play" },
   { to: "/playlist", labelKey: "nav.playlist", icon: "right-sidebar" },
   { to: "/media-info", labelKey: "nav.media-info", icon: "about" },
+  // Discovery (card 7.D1, issue #42): the device-discovery panel — local
+  // volumes (live devices.* events) + the network-services verdict.
+  { to: "/discovery", labelKey: "nav.discovery", icon: "network-stream" },
   { to: "/keyboard-shortcuts", labelKey: "nav.shortcuts", icon: "keyboard-shortcuts" },
   { to: "/settings", labelKey: "nav.settings", icon: "settings" },
 ];
@@ -288,6 +291,12 @@ export function AppShell({
             labelKey: "menu.view.media-info",
             checked: isActive("/media-info"),
             onSelect: () => navigate("/media-info"),
+          },
+          {
+            id: "discovery",
+            labelKey: "menu.view.discovery",
+            checked: isActive("/discovery"),
+            onSelect: () => navigate("/discovery"),
           },
           { id: "view-sep-2", kind: "separator" },
           {
