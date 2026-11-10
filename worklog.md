@@ -941,3 +941,28 @@ Work Log:
 Stage Summary:
 - VERDICT: OF-2/OF-3/OF-4/OF-5 all FIXED PROPERLY, none weakened — SHIP w24/r5 @ 8121cbf toward wave-24 integration; re-run the phase-7 §8 battery at merge (OF-1 closes via lane A; App.tsx still carries 2 markers on main as expected).
 - D-10: MEASURE — 4/4 previously-failing tests green from provenance-verified binaries; fmt/clippy -D warnings clean on all 3 touched crates; lint-literals 0 violations; settings:check byte-exact. NOT TESTED — the UI vitest suite (node_modules symlink blocked in this sandbox; settings:check itself is the drift gate and passes); UI-side typecheck/lint (OF-1 still open on main, lane A owns). WHAT BREAKS — future seed growth without regen now fails schema-gen --check AND the new shape guard AND the derived pins coherently (cannot be stranded stale); the tautological screen-name assert (R5-3) mislabels a missing-placement.screen as a G1/G2 mismatch message. WHO HITS IT FIRST — the next seed-growing commit (extensions of the extensions pattern) and any reviewer trusting unprovenanced shared-dir test binaries (R5-1).
+
+---
+
+Task ID: W24-R7 (review scout 7 — dual-scope read-only audit)
+Agent: w24/r7
+Task: Audit origin/w24/i (W24-R2 fix lane, primary) + origin/w24/b soak-nightly.yml (secondary). Read-only; findings in docs/reviews/w24-i-fixes-findings.md.
+
+Work Log:
+- Worktree wt/w24r7 off origin/w24/i @ ca42190. Diff origin/w24/e...origin/w24/i = 7 commits (task card said 8 — description discrepancy, no lane fault), 7 files, all findings-scoped + worklog.
+- Read R2's findings doc from origin/w24/r2 for per-fix dispositions.
+- P2-1 verified by own tomllib parse of feature-matrix.toml: claimed video rows = av1/h264/hevc/mjpeg/prores-dnxhd/vp9, h264-software blocked x4; matrix recompute 73/37/0 (14/6/9/8, both counting rules); all 7 record files exist; getting-started agrees.
+- P2-2 verified: phantom rc-smoke-2026-11-10 filename → zero hits outside worklog's before-narrative; ff001e5 commit message records the 60/60+60/60 run; rc-smoke check 4 IS headless-decode on the avi_mjpeg_pcm.avi default fixture; checklist §2 numbering matches.
+- P2-3 verified: loop present in BOTH places; loop re-run → all 8 sh pass, exit 0; pitfall re-demonstrated (one-shot bash -n with bad 2nd file → exit 0). 7 release scripts confirmed.
+- P3-4/P3-5/P3-6/P3-7/P3-8 all independently re-verified (33-vs-32 anchored counts, 27/206/193 test counts @ 93b7614 via git grep, wc-vs-stat 9339==9339 + fake-wasm PASS simulation + missing-file path, ls-remote w24/c=fb97822 + ls-tree drivers + not-merged-into-main + w24/a absent).
+- P3-9 deferral matches R2's own "none required" disposition — accepted.
+- Gates re-run: lint-literals PASS 0/452 (matches worklog claim); node --check OK; literal py_compile now OK too (disk recovered to 54% — moots the ENOSPC note).
+- NEW-1 (P2): checklist row 1.2's `bash -n "$f" || exit 1` inside a GFM TABLE cell uses raw pipes → cell splits early; proven with markdown-it table render: command truncated at "$f", Status cell renders EMPTY, trailing cells dropped. Fix: escape as `\|\|` (verified renders correctly). 2-character change.
+- NEW-2 (P3, pre-existing, surfaced by verification): video-vp8-vp9.md + video-prores-dnxhd.md status front-matter stale vs the 2026-11-09 issue-#7 admission flips (vp9 implemented x3, prores partial x3) — the fixed §1.1 records cell leans on both; suggest dated addenda.
+- TARGET 2 (origin/w24/b soak-nightly.yml): yaml.safe_load valid (3 jobs) + strict duplicate-key parse clean; diff vs main = additions only (0 deleted lines — soak job untouched, no renamed/deleted steps); schedule+dispatch-only trigger shape unchanged, no continue-on-error, [PROPOSAL]/[VERIFY]/NEVER-EXECUTED/R-16 billing-blocked labels present and correct (R-16 verified); all referenced files exist on w24/b (scenarios-nightly.toml = 5x48min = 240min = 4h exactly, wrapper bash -n OK, env contract SOAK_SCENARIOS/SOAK_SCENARIOS_REPORT matches main.rs, 4 fixtures, schema json, soak report). PASS, no findings.
+- Wrote docs/reviews/w24-i-fixes-findings.md; commit + push origin w24/r7. No other writes (read-only audit).
+
+Stage Summary:
+- Target 1 verdict: all 3 P2s + 5 fixable P3s correctly fixed and independently re-verified; 1 NEW P2 (GFM pipe escaping in row 1.2 — renders truncated command + empty status) + 1 pre-existing P3 observation (stale record front-matter). P3-9 deferral accepted. No overclaims, no ownership violations, per-commit scoping verified.
+- Target 2 verdict: PASS on all four checks (YAML valid, purely additive, conditional/billing labels correct, references exist).
+- D-10: MEASURE — everything in the findings doc's verification-runs block (loop 8/8, 33/32, 27/206/193, 9339==9339, 73/37/0, 150/5, lint-literals 0/452, ls-remote/ls-tree, markdown-it renders). NOT TESTED — actionlint (not installed in sandbox; strict YAML parse + manual schema checks instead), actual rc-smoke execution, real macOS. WHO HITS NEW-1 FIRST — anyone reading the rendered release-checklist on GitHub (Lead at wave merge); fix is a 2-character edit before merge.
