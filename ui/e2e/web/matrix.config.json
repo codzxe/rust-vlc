@@ -37,6 +37,10 @@
   "playToEnd": {
     "positionToleranceUs": 20000
   },
+  "serving": {
+    "coopCoepDefault": false,
+    "comment": "The SHIPPED site posture (doc 09 §9.5 decision, 2026-11-10): the response-header COOP/COEP pair is OFF by default — the v1 wasm module is single-threaded (doc 09 §3), so cross-origin isolation buys nothing today and its embeddability cost is real. This knob records the product posture and is rendered into every browser-matrix report; it does NOT change what the harness serves — the modes list above always exercises BOTH isolation shapes on purpose (doc 09 §2.5 item 6: both capability snapshots must be self-consistent). Flipping the default is a Lead decision (lands with threading, doc 09 §3.3); the deploy-check script that would assert headers on the shipped site remains [PROPOSAL] (doc 09 §2.3)."
+  },
   "report": {
     "outputDir": "docs/web",
     "markdownName": "browser-matrix-20261110.md",
