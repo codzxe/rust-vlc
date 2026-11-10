@@ -287,6 +287,30 @@ impl WasmInstance {
             })?;
         Ok(buf)
     }
+
+    /// Write bytes into the guest's linear memory — the host→guest
+    /// direction of the same bounds-checked path (request payloads
+    /// in, results out; doc 06 §5.2's no-host-pointers model: buffers
+    /// live in the guest's own memory, the host copies both ways).
+    ///
+    /// # Errors
+    /// [`HostError::GuestMemoryOob`] for out-of-bounds ranges (typed
+    /// §9.4 denial), [`HostError::Wasm`] when the module exports no
+    /// memory.
+    pub fn write_guest_memory(&mut self, ptr: u64, data: &[u8]) -> Result<(), HostError> {
+        let memory = self
+            .instance
+            .get_export(&self.store, "memory")
+            .and_then(wasmi::Extern::into_memory)
+            .ok_or_else(|| HostError::Wasm("module exports no memory".to_string()))?;
+        memory
+            .write(&mut self.store, ptr as usize, data)
+            .map_err(|_| HostError::GuestMemoryOob {
+                ptr,
+                len: data.len() as u64,
+                size: memory.size(&self.store) * 64 * 1024,
+            })
+    }
 }
 
 /// Shared ledger handle.

@@ -15,7 +15,9 @@ use std::process::ExitCode;
 
 use plugin_api::PluginManifest;
 use plugin_host_wasm::crc32::crc32;
-use plugin_host_wasm::package::{ENTRY_MANIFEST, ENTRY_MODULE, module_digest, read_package};
+use plugin_host_wasm::package::{
+    ENTRY_MANIFEST, ENTRY_MODULE, module_digest, read_package, stamp_manifest_hash,
+};
 
 /// The action this invocation failed on (context for messages).
 enum Failure {
@@ -130,8 +132,11 @@ fn package(args: &[String]) -> Result<(), Failure> {
 
     // Stamp the provenance hash with the real digest (placeholder in,
     // full digest out — a diverging full hash is a tamper refusal).
+    // The one library implementation (package.rs) is the same one the
+    // installer's digest-equality check consumes.
     let digest = module_digest(&module);
-    let stamped = stamp_hash(&manifest_text, &digest)?;
+    let stamped = stamp_manifest_hash(&manifest_text, &digest)
+        .map_err(|e| Failure::Validation(e.to_string()))?;
     // The stamped manifest must parse as an extension manifest the
     // installer would accept (origin, provenance, full digest).
     let manifest = PluginManifest::from_toml(&stamped)
@@ -166,57 +171,6 @@ fn package(args: &[String]) -> Result<(), Failure> {
     Ok(())
 }
 
-/// Replace the single `[provenance] hash = "…"` line's value with the
-/// real digest. Accepts the doc placeholder form (doc 06 §2.3,
-/// `…(64 hex)`) or an identical full digest; a DIFFERENT full digest
-/// is refused — the manifest and module disagree, the exact condition
-/// install rejects (doc 06 §5.7 step 3).
-fn stamp_hash(manifest: &str, digest: &str) -> Result<String, Failure> {
-    let expected = format!("hash = \"sha256:{digest}\"");
-    let mut found = 0;
-    let mut out = String::with_capacity(manifest.len());
-    for line in manifest.lines() {
-        let trimmed = line.trim_start();
-        if trimmed.starts_with("hash") && trimmed.contains('=') && trimmed.contains("\"sha256:") {
-            found += 1;
-            if found > 1 {
-                return Err(Failure::Validation(
-                    "more than one hash line — refusing to guess which to stamp".to_string(),
-                ));
-            }
-            if trimmed.trim() == expected {
-                out.push_str(&expected);
-            } else {
-                let value = trimmed
-                    .split_once('"')
-                    .and_then(|(_, rest)| rest.split_once('"'))
-                    .map(|(value, _)| value)
-                    .unwrap_or("");
-                let is_placeholder = value.contains('…') && value.contains("(64 hex)");
-                if !is_placeholder {
-                    return Err(Failure::Validation(format!(
-                        "manifest hash `{value}` disagrees with the module's digest — \
-                         set manifest.toml's [provenance] hash to the doc placeholder \
-                         form before packaging"
-                    )));
-                }
-                out.push_str(&expected);
-            }
-        } else {
-            out.push_str(line);
-        }
-        out.push('\n');
-    }
-    if found == 0 {
-        return Err(Failure::Validation(
-            "no `hash = \"sha256:…\"` line under [provenance] — extensions must carry \
-             provenance (doc 06 §2.2)"
-                .to_string(),
-        ));
-    }
-    Ok(out)
-}
-
 // -- inspect -----------------------------------------------------------------
 
 fn inspect(args: &[String]) -> Result<(), Failure> {
@@ -231,15 +185,17 @@ fn inspect(args: &[String]) -> Result<(), Failure> {
         .map_err(|_| Failure::Validation("manifest.toml is not UTF-8".to_string()))?;
     let manifest = PluginManifest::from_toml(&manifest_text)
         .map_err(|e| Failure::Validation(format!("manifest.toml: {e}")))?;
-    // Digest equality (doc 06 §5.7 step 3): a full hash that matches.
+    // Digest equality (doc 06 §5.7 step 3): the manifest's full
+    // `sha256:<hex>` value must be exactly the module's digest (the
+    // same string `lumenext package` stamps and install compares).
     let digest = module_digest(&package.module_wasm);
     if manifest
         .provenance
         .as_ref()
-        .is_none_or(|p| p.hash.as_str() != format!("sha256:{digest}"))
+        .is_none_or(|p| p.hash.as_str() != digest)
     {
         return Err(Failure::Validation(format!(
-            "provenance.hash does not match the module (module digests to sha256:{digest})"
+            "provenance.hash does not match the module (module digests to {digest})"
         )));
     }
     let permissions = manifest.permissions.granted();
