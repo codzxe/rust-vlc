@@ -32,6 +32,34 @@
 # 4 h/5 MB/h configuration runs for real for the first time on the
 # first scheduled trigger.
 #
+# 8.C1 extension (issue #54, 2026-11-10) — two more jobs, same
+# schedule, same non-blocking posture:
+#
+#   * soak-scenarios — the card's "4 h × scenarios" tier: the
+#     config-driven scenario suite (crates/playback-engine/tests/
+#     soak_scenarios/, tests/soak/scenarios-nightly.toml) at the
+#     ASSERTED 5 MB/h design target (freeze-or-revise decision:
+#     docs/soak/soak-report-20261110.md). Runs via
+#     scripts/soak-scenarios.sh so the exit-code contract is the
+#     wrapper's documented one.
+#   * soak-lsan — the card's "LSAN nightly clean": parser + engine
+#     crates and the CI-short scenario profile under LeakSanitizer on
+#     a NIGHTLY toolchain (-Z sanitizer=leak is unstable-only; doc 10
+#     §6.5). See that job's header for the honesty notes.
+#
+# COST NOTE (honest): three soak-family jobs ≈ 9 runner-hours per
+# night. The single-loop `soak` job is issue #18's accepted
+# deliverable and stays until the Lead retires it; the scenario suite
+# is its intended successor (doc 10 §6.5 describes the suite shape,
+# not a single loop). When CI billing unblocks, the Lead should decide
+# which of the two 4 h tiers keeps running.
+#
+# HONESTY NOTE — NONE OF THESE JOBS HAS EVER EXECUTED: CI is
+# billing-blocked on this private repository (every Actions run dies
+# at 0 steps; docs/KNOWN-LIMITS.md R-16). Every command shape below
+# is proven locally where the sandbox allowed it — see the job
+# headers for exactly what is proven vs [VERIFY].
+#
 # Pinned actions (the ci.yml/ci-full.yml pins, verbatim):
 #   actions/checkout        v7.0.1  3d3c42e5aac5ba805825da76410c181273ba90b1
 #   dtolnay/rust-toolchain  1.99.1  d124f86f28ff42855784ff3319f48ac182c248f8  (branch head)
@@ -118,3 +146,120 @@ jobs:
           name: evidence-soak-nightly-ubuntu-latest-${{ github.run_id }}
           path: soak-report.md
           if-no-files-found: warn # a crash before the report write still uploads nothing — the log is the evidence then
+
+  # ---------------------------------------------------------------------
+  # 8.C1 (issue #54): the scenario-suite nightly tier. Same schedule,
+  # same non-blocking posture as the single-loop job above. All policy
+  # (durations, cycle counts, budgets, the ASSERTED 5 MB/h target) lives
+  # in tests/soak/scenarios-nightly.toml — this job is plumbing.
+  # PROVEN LOCALLY (2026-11-10, sandbox, release/x86_64): the exact
+  # wrapper invocation at the bounded profile
+  # (tests/soak/scenarios-sandbox.toml) ran all five scenarios green
+  # with reports committed under docs/soak/raw/; the enforcement path is
+  # proven by the forced-threshold profile (exit 101 on a pinched
+  # budget, same wrapper). NOT PROVEN: this 4 h nightly profile itself
+  # (sandbox tool-call walls cap single commands below 4 h) — first
+  # scheduled run is its first real execution [VERIFY].
+  # ---------------------------------------------------------------------
+  soak-scenarios:
+    name: soak-scenarios (4 h × 5 scenarios, 5 MB/h asserted)
+    runs-on: ubuntu-latest
+    # 4 h of scenarios + release build + cache restore; hard stop 5 h.
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/soak-nightly.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      # The wrapper (scripts/soak-scenarios.sh) is the documented
+      # entry point: honest exit-code propagation, report path, and
+      # the profile selection. --release matches the tier the 4 h
+      # numbers describe (the sandbox evidence is release).
+      - name: soak scenarios — 4 h profile, 5 MB/h asserted (issue #54 / 8.C1)
+        run: |
+          scripts/soak-scenarios.sh --profile tests/soak/scenarios-nightly.toml --release --report soak-scenarios-report.md
+
+      - name: Upload scenario-suite report (a failed suite uploads for triage too)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: evidence-soak-scenarios-nightly-ubuntu-latest-${{ github.run_id }}
+          path: soak-scenarios-report.md
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------
+  # 8.C1 (issue #54): LeakSanitizer nightly. Doc 10 §6.5 — "nightly
+  # LeakSanitizer run of parser crates on linux [PROPOSAL — needs
+  # nightly toolchain component]".
+  #
+  # HONESTY NOTES (this job has NEVER EXECUTED — CI billing-blocked,
+  # docs/KNOWN-LIMITS.md R-16):
+  #   * -Z sanitizer=leak is unstable-only, hence the NIGHTLY toolchain
+  #     here — the ONLY job in the repo deliberately off the stable pin;
+  #     that is why it does not run the toolchain-pin assert step. The
+  #     action ref stays commit-pinned (same SHA as the other jobs); a
+  #     moving `nightly` channel is accepted for this job and noted
+  #     here [VERIFY on first run].
+  #   * NOT runnable in the dev sandbox either: no nightly toolchain
+  #     installed and the shared target dir cannot fit a second,
+  #     sanitizer-flagged rebuild of the dep graph. The command SHAPES
+  #     (cargo test package selection, the scenario-suite env contract)
+  #     are the ones proven green unflagged at CI-short scale; the
+  #     flagged behavior itself is [VERIFY on first run].
+  #   * Known LSAN false-positive surface: RUSTFLAGS applies to build
+  #     scripts and proc-macros too, and a build script that exits
+  #     without freeing heap memory reports as a leak. If that bites,
+  #     add an LSAN_OPTIONS suppression file in-repo and set
+  #     LSAN_OPTIONS=suppressions=lsan-suppressions.txt here — do NOT
+  #     delete the job.
+  #   * Leak reports exit non-zero by default (LSAN exitcode 23
+  #     wrapped by cargo's 101) — a red run here is a finding for
+  #     triage within 24 h, same posture as the other soak jobs.
+  # ---------------------------------------------------------------------
+  soak-lsan:
+    name: soak-lsan (LeakSanitizer, nightly toolchain [PROPOSAL])
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      RUSTFLAGS: "-Z sanitizer=leak"
+      LSAN_OPTIONS: "detect_leaks=1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # same pinned action; nightly input below
+        with:
+          toolchain: nightly
+      - name: Report the nightly toolchain (deliberately off the stable pin — see job header)
+        run: rustc --version
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      # Step 1 — the parser + engine crates' own suites (doc 10 §6.5
+      # "parser crates"): demux, codecs, playlists, streaming,
+      # media-probe, input, then playback-engine's unit library.
+      - name: LSAN — parser + engine crate suites
+        run: cargo test -p demux -p codecs -p playlists -p streaming -p media-probe -p input -p playback-engine --lib
+
+      # Step 2 — the integrated engine stack under leak detection:
+      # the CI-short scenario profile (tests/soak/scenarios.toml, ~1
+      # min debug) drives open/play/seek/playlist/close through the
+      # real access → demux → decode → sink path.
+      - name: LSAN — soak scenario suite (CI-short profile)
+        run: |
+          SOAK_SCENARIOS=tests/soak/scenarios.toml \
+            cargo test -p playback-engine --test soak_scenarios -- --nocapture
