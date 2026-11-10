@@ -128,8 +128,10 @@ fi
 # --- 6. wasm-web-build -----------------------------------------------------
 echo "=== 6. wasm-web-build (cargo build -p lumen-web --target wasm32-unknown-unknown --locked) ==="
 if cargo build -p lumen-web --target wasm32-unknown-unknown --locked; then
-  if [ -f "$WASM" ] && [ "$(stat -c %s "$WASM" 2>/dev/null || echo 0)" -gt 1048576 ] && [ "$(od -An -tx1 -N4 "$WASM" | tr -d ' \n')" = "0061736d" ]; then
-    echo "wasm-web-build: PASS ($(stat -c %s "$WASM") bytes, \\0asm magic)"
+  # Size probe: `wc -c <` (POSIX, portable) — GNU `stat -c %s` reads 0 on
+  # macOS (BSD stat wants -f %z), which would fail this check on every Mac.
+  if [ -f "$WASM" ] && [ "$(wc -c < "$WASM" 2>/dev/null || echo 0)" -gt 1048576 ] && [ "$(od -An -tx1 -N4 "$WASM" | tr -d ' \n')" = "0061736d" ]; then
+    echo "wasm-web-build: PASS ($(wc -c < "$WASM") bytes, \\0asm magic)"
   else
     echo "wasm-web-build: FAILED (module missing, too small, or wrong magic: $WASM)"; fail=1
   fi
