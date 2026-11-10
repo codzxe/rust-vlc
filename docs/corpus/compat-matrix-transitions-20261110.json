@@ -1,0 +1,53 @@
+{
+  "schema": "compat-matrix/transitions/1",
+  "generated": "2026-11-10T19:27:42Z",
+  "report": "docs/corpus/compat-matrix-20261110.json",
+  "evidence": "docs/corpus/compat-matrix-20261110.md",
+  "transitions": [
+    {
+      "row": "container-asf-wmv",
+      "platform": "linux",
+      "from": "implemented",
+      "to": "partial",
+      "reason": "compat-matrix run (linux-native lane): the open path REFUSES the corpus files of probe format `asf` — unsupported (sniffed 30 26 b2 75 8e 66 cf 11 a6 d9 00 aa 00 62 ce 6c) (probe.no-demuxer): probe hints: extension=wmv, size=10329. The container claim cannot be exercised end-to-end through the player's open path.",
+      "next_step": "wire the missing probe signature / container-registry arm for `asf` (the ivf/mpegps open-path wiring precedent), then re-run the matrix",
+      "evidence": "docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows)"
+    },
+    {
+      "row": "codec-audio-aac-lc",
+      "platform": "linux",
+      "from": "implemented",
+      "to": "partial",
+      "reason": "compat-matrix run (linux-native lane): 142 concealed (damaged) packets on VALID corpus files of codec `aac` — the decode is not clean",
+      "next_step": "triage the concealment (bounded fix, no correctness trade); add the corpus file as a regression fixture; re-run",
+      "evidence": "docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows)"
+    },
+    {
+      "row": "codec-audio-aac-lc",
+      "platform": "linux",
+      "from": "implemented",
+      "to": "partial",
+      "reason": "compat-matrix run (linux-native lane): 1 corpus tracks of codec `aac-lc` REFUSED (no decoder in this build) vs 4 decoded",
+      "next_step": "land the missing decoder lane (bounded fix) or split the row's claimed descriptor set; re-run the matrix",
+      "evidence": "docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows)"
+    },
+    {
+      "row": "codec-audio-alac",
+      "platform": "linux",
+      "from": "implemented",
+      "to": "partial",
+      "reason": "compat-matrix run (linux-native lane): 1 corpus tracks of codec `alac` REFUSED (no decoder in this build) vs 1 decoded",
+      "next_step": "land the missing decoder lane (bounded fix) or split the row's claimed descriptor set; re-run the matrix",
+      "evidence": "docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows)"
+    },
+    {
+      "row": "codec-video-vp9",
+      "platform": "linux",
+      "from": "implemented",
+      "to": "partial",
+      "reason": "compat-matrix run (linux-native lane): 1 corpus tracks of codec `vp9` REFUSED (no decoder in this build) vs 2 decoded",
+      "next_step": "land the missing decoder lane (bounded fix) or split the row's claimed descriptor set; re-run the matrix",
+      "evidence": "docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows)"
+    }
+  ]
+}

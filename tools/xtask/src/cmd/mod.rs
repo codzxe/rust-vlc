@@ -27,6 +27,7 @@
 //! | `cmd::lint_literals`     | `lint-literals`      | 7.w21a (implemented — the C1 config-plane literal gate, doc 07 §9; registered under task 7.w21a's granted ownership of tools/xtask/src/**, same precedent as check-panics/7-e) |
 //! | `cmd::check_identity`    | `check-identity`     | 7.w21a (implemented — the C2 no-hardcoded-identity gate, doc 07 §9; same granted-registry precedent) |
 //! | `cmd::sbom`              | `sbom`               | 7.w23f (#52) (implemented — std-only CycloneDX 1.5 SBOM generator + drift gate, doc 11 §3.4; registered under task 7.w23f's granted ownership of tools/xtask/src/**, same precedent as check-panics/7-e) |
+//! | `cmd::compat_matrix`     | `compat-matrix`      | 8.B2 (#53) (implemented — the compat-matrix transitions writer: applies the evidence outbox to feature-matrix.toml, the ONLY status writer, never hand-edited; registered under issue #53's granted ownership of tools/xtask/src/** + the one dispatch line, same precedent as check-panics/7-e) |
 
 use std::process::ExitCode;
 
@@ -36,6 +37,7 @@ pub mod check_architecture;
 pub mod check_identity;
 pub mod check_panics;
 pub mod codegen;
+pub mod compat_matrix;
 pub mod config_validator;
 pub mod feature_audit;
 pub mod fixtures;
@@ -170,6 +172,14 @@ pub const SUBCOMMANDS: &[Subcommand] = &[
         summary: "CycloneDX 1.5 SBOM from Cargo.lock + product.toml (std-only; --check drift gate)",
         implemented: true,
         run: sbom::run,
+    },
+    Subcommand {
+        name: "compat-matrix",
+        card: "8.B2 (#53)",
+        summary: "Apply the compat-matrix transitions outbox to feature-matrix.toml (the only \
+         status writer; doc 10 §7.3)",
+        implemented: true,
+        run: compat_matrix::run,
     },
 ];
 

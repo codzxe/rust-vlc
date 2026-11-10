@@ -1,0 +1,18 @@
+{
+  "schema": "compat-matrix/transitions/1",
+  "generated": "2026-11-10T20:15:00Z",
+  "report": "docs/corpus/compat-matrix-20261110.json",
+  "evidence": "docs/corpus/compat-matrix-20261110.md",
+  "origin": "gap-triage addendum (issue #53, card 8.B2): NOT emitted by the runner — authored by the triage round from the same run's oracle-differential section (§5), applying the card's every-gap-fixed-or-flipped rule to the one claimed-supported gap the run's decode-level gap rules do not cover (the f32 oracle tolerance family). Applied through the same rule-enforcing writer as the run's own outbox.",
+  "transitions": [
+    {
+      "row": "codec-audio-pcm",
+      "platform": "linux",
+      "from": "implemented",
+      "to": "partial",
+      "reason": "compat-matrix run (linux-native lane, oracle differential §5): ALL 6 pcm_f32le corpus rows FAIL the ratified f32 tolerance (RMS <= 1e-4 AND peak <= 1e-3, docs/corpus/vlc-f32-tolerance-20261109.json) against the pinned VLC 3.0.23 — worst row 0305-avi-av.avi measures rms 1.22e-1 / peak 4.94e-1 — while every integer-PCM row (u8/s16, 29 rows) is bit-exact (MD5-prefix). The row's claimed descriptor set includes f32; that lane is out of policy on every measured corpus file.",
+      "next_step": "triage the float chain (the open VLC-float-chain follow-up, docs/PERF-VS-VLC.md): attribute the deviation (lumen's integer->float conversion vs VLC's float output path), then bounded fix with no correctness trade, or split the f32 descriptor into its own row; re-run the matrix",
+      "evidence": "docs/corpus/compat-matrix-20261110.md (run §5, the 6 f32 tolerance-FAIL rows + the 29 bit-exact integer rows); docs/corpus/vlc-f32-tolerance-20261109.json (the ratified thresholds + the 2026-11-09 measurements)"
+    }
+  ]
+}

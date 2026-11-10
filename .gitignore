@@ -1,5 +1,8 @@
 # Rust
 target/
+# ad-hoc CARGO_TARGET_DIR used for one-off xtask builds in worktrees
+# (the c339ee8 precedent: build dirs are never committed)
+target-xtask/
 **/*.rs.bk
 Cargo.lock.bak
 
