@@ -531,12 +531,60 @@ impl fmt::Debug for EventPolicy {
 
 impl EventPolicy {
     /// The doc-default policy over real monotonic time.
+    ///
+    /// The default throttle source is [`media_clock::InstantSource`] on
+    /// every real target. On `wasm32-unknown-unknown` std's
+    /// `Instant::now` **panics at runtime** ("time not implemented on
+    /// this platform"), and `SessionConfig::new` constructs this
+    /// default transiently even when the caller injects its own
+    /// source immediately after — the web host does exactly that (its
+    /// `PumpClock`, apps/web) — so every wasm `session.open` trapped
+    /// in the `unreachable` panic before the injection could happen.
+    /// Found live by card 7.I1's browser-matrix run (issue #49); the
+    /// wasm arm constructs the static zero counter instead, keeping
+    /// the constructor safe on every target.
+    ///
+    /// wasm32 hosts that read the DEFAULT (i.e. never inject) get a
+    /// frozen clock: every `now_ns()` reads 0, so throttle windows
+    /// never elapse. That is the honest placeholder — there is no
+    /// ambient monotonic time on that target at all; hosts inject
+    /// (the web host's media-time pump clock is the blessed pattern,
+    /// doc 03 §8's injection doctrine applied to the browser).
     #[must_use]
     pub fn default_policy() -> EventPolicy {
         EventPolicy {
             tick: TimeTickPolicy::default_policy(),
-            throttle: Arc::new(media_clock::InstantSource::new()),
+            throttle: Arc::new(default_throttle_source()),
         }
+    }
+}
+
+/// The default [`MonotonicSource`]: real `Instant` elapsed everywhere
+/// except wasm32 (see [`EventPolicy::default_policy`] — std panics
+/// there; the zero counter keeps the transient default construction
+/// trap-free while every real host injects its own source).
+#[cfg(not(target_arch = "wasm32"))]
+fn default_throttle_source() -> media_clock::InstantSource {
+    media_clock::InstantSource::new()
+}
+
+/// The wasm32 default: a static zero-reading counter (monotonic by
+/// constancy; windows against it never elapse — hosts must inject,
+/// and the only wasm host today always does).
+#[cfg(target_arch = "wasm32")]
+fn default_throttle_source() -> ZeroMonotonic {
+    ZeroMonotonic
+}
+
+/// The wasm32 default source (see [`default_throttle_source`]).
+#[cfg(target_arch = "wasm32")]
+#[derive(Debug, Default)]
+struct ZeroMonotonic;
+
+#[cfg(target_arch = "wasm32")]
+impl media_clock::MonotonicSource for ZeroMonotonic {
+    fn now_ns(&self) -> u64 {
+        0
     }
 }
 
@@ -1496,6 +1544,23 @@ impl<T> BoundedEventQueue<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_default_policy_is_constructible_and_readable() {
+        // Regression shape for the wasm32 trap (issue #49, found by
+        // card 7.I1's browser matrix): `SessionConfig::new`
+        // constructs `EventPolicy::default_policy()` transiently, so
+        // the default source must be constructible AND readable on
+        // every target this crate builds for — on wasm32 that is the
+        // zero counter, not `InstantSource` (std panics there). The
+        // browser run is the full end-to-end regression evidence
+        // (docs/web/browser-matrix-*.json); this pins the contract
+        // natively: two reads, both monotonic.
+        let policy = EventPolicy::default_policy();
+        let a = policy.throttle.now_ns();
+        let b = policy.throttle.now_ns();
+        assert!(b >= a, "the default source regressed: {a} -> {b}");
+    }
 
     #[test]
     fn the_interval_is_floored_at_50ms() {

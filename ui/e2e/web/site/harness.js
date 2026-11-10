@@ -231,8 +231,21 @@ async function drivePump(lane, config, done = () => false) {
  */
 async function runSuite(config) {
   const results = [];
+  // Per-scenario progress on the page's status element: a conformance
+  // run is minutes-long in a real browser, and a stuck scenario must
+  // be visible from the OUTSIDE (the Playwright timeout snapshot and
+  // any human watching the lane both need "which scenario is running"
+  // — the previous shape only wrote a line at the very end, so a hang
+  // was indistinguishable from silence).
+  const statusElement = document.getElementById("status");
+  const report = (text) => {
+    if (statusElement) {
+      statusElement.textContent = text;
+    }
+  };
   const record = (name, category, fn) => {
     const started = performance.now();
+    report(`running ${results.length + 1}: ${name} (${category})`);
     return Promise.resolve()
       .then(fn)
       .then((evidence) => {
@@ -268,7 +281,15 @@ async function runSuite(config) {
   await record("boot-handshake", "capability", async () => {
     const ctx = await bootLane();
     lane = ctx.lane;
-    const { engineInfo, capabilities } = ctx.booted;
+    // Wire truth (protocol.rs): the enum's `rename_all = "camelCase"`
+    // renames the VARIANT TAGS ("booted", "blobLoaded"), not the
+    // struct-variant FIELDS — the handshake reply carries
+    // `engine_info` (snake), while EngineInfo's own serde layer
+    // camelCases its contents (engineVersion, …). The earlier
+    // `engineInfo` read was a harness bug: 0 evidence rows, the
+    // property does not exist on the wire (found by the first full
+    // Chromium run, issue #49).
+    const { engine_info: engineInfo, capabilities } = ctx.booted;
     assertEq(engineInfo.host, "web", "engine info host");
     assertEq(capabilities.threading, "single", "threading truth (doc 09 §3.2)");
     assert(
@@ -518,7 +539,16 @@ async function runSuite(config) {
     cleanup();
     const ctx = await bootLane();
     lane = ctx.lane;
-    const response = await lane.request(502, "config.get-setting", { key: "audio.volume" });
+    // The catalog's args shape for `config.get-setting` is
+    // `{area, key}` (commands catalog §2.11 — the native web-host
+    // test uses area "engine", key "log-level"); the earlier
+    // key-only envelope never DECODED (controlError web.abi.parse,
+    // "missing field `area`") so the typed control refusal was
+    // never even reached. Same vector as the native test.
+    const response = await lane.request(502, "config.get-setting", {
+      area: "engine",
+      key: "log-level",
+    });
     const error = response.result.error;
     assert(error, "config must refuse");
     assertEq(error.code, "unsupported-for-host", "config refusal code");
