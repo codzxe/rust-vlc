@@ -447,6 +447,19 @@ pub struct CommittedParts {
     pub samples_compared: Option<u64>,
 }
 
+/// Whether the committed record's values apply to a fresh decode:
+/// Lumen's decode is deterministic, so the record's
+/// `lumen_fresh_md5` equals the fresh bytes' MD5 iff this is the
+/// same realization the record captured (a fresh random realization
+/// or encoder drift makes the record's VLC side inapplicable — the
+/// caller must then record `NoComparison`, never apply the record).
+pub fn committed_record_applies(parts: &CommittedParts, fresh_md5: &str) -> bool {
+    parts
+        .lumen_fresh_md5
+        .as_deref()
+        .is_some_and(|md5| md5 == fresh_md5)
+}
+
 /// Expose the committed row's fields (the private type's read API).
 pub fn committed_parts(map: &BTreeMapOrHashMap, rel: &str) -> Option<CommittedParts> {
     map.get(rel).map(|row| CommittedParts {
@@ -519,4 +532,225 @@ pub fn compare_pcm_cli(args: &[String]) -> Result<std::process::ExitCode, ToolEr
         }
     }
     Ok(std::process::ExitCode::SUCCESS)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn hex(pcm: &[u8]) -> String {
+        let mut md5 = bench_vs_vlc::md5::Md5::new();
+        md5.update(pcm);
+        md5.finalize_hex()
+    }
+
+    fn dump(pcm: Vec<u8>) -> DecodeDump {
+        DecodeDump {
+            md5_hex: hex(&pcm),
+            pcm,
+            sample: "s16",
+        }
+    }
+
+    fn f32_bytes(samples: &[f32]) -> Vec<u8> {
+        samples.iter().flat_map(|s| s.to_le_bytes()).collect()
+    }
+
+    /// P3-2: the MD5-prefix method — a matching prefix with an
+    /// unflushed tail is bit-exact; the tail is exactly the byte
+    /// shortfall.
+    #[test]
+    fn prefix_verdict_bit_exact_with_tail() {
+        let lumen: Vec<u8> = (0..100u8).collect();
+        let vlc_bytes = 60u64;
+        let verdict = prefix_verdict(&lumen, &hex(&lumen[..60]), vlc_bytes);
+        assert_eq!(
+            verdict,
+            OracleVerdict::BitExactPrefix {
+                unflushed_tail_bytes: 40
+            }
+        );
+    }
+
+    /// P3-2: equal lengths with matching md5 → zero tail.
+    #[test]
+    fn prefix_verdict_whole_payload() {
+        let lumen: Vec<u8> = (0..64u8).collect();
+        let verdict = prefix_verdict(&lumen, &hex(&lumen), lumen.len() as u64);
+        assert_eq!(
+            verdict,
+            OracleVerdict::BitExactPrefix {
+                unflushed_tail_bytes: 0
+            }
+        );
+    }
+
+    /// P3-2: a byte that disagrees inside the VLC window →
+    /// NotBitExact, never a partial pass.
+    #[test]
+    fn prefix_verdict_rejects_mismatched_bytes() {
+        let lumen: Vec<u8> = (0..100u8).collect();
+        let mut corrupted = lumen.clone();
+        corrupted[10] = corrupted[10].wrapping_add(1);
+        assert_eq!(
+            prefix_verdict(&lumen, &hex(&corrupted[..60]), 60),
+            OracleVerdict::NotBitExact
+        );
+    }
+
+    /// P3-2: an oracle window LONGER than the decode → NotBitExact
+    /// (the prefix method cannot compare bytes Lumen never produced).
+    #[test]
+    fn prefix_verdict_rejects_oracle_longer_than_decode() {
+        let lumen: Vec<u8> = (0..100u8).collect();
+        assert_eq!(
+            prefix_verdict(&lumen, &hex(&lumen), 101),
+            OracleVerdict::NotBitExact
+        );
+    }
+
+    /// P3-2: the f32 tolerance path — identical windows pass with
+    /// zero deviation; the head-aligned window is min(len) samples.
+    #[test]
+    fn f32_verdict_identical_passes() {
+        let lumen = f32_bytes(&[1.0, 0.5, -0.25, 0.0]);
+        let vlc = f32_bytes(&[1.0, 0.5, -0.25]);
+        let (verdict, dev) = f32_verdict(&lumen, &vlc, 1e-4, 1e-3);
+        assert_eq!(verdict, OracleVerdict::TolerancePass);
+        assert_eq!(dev.samples, 3); // min(4, 3) samples
+        assert_eq!(dev.rms, 0.0);
+        assert_eq!(dev.peak, 0.0);
+    }
+
+    /// P3-2: a deviation inside policy passes; the arithmetic is the
+    /// plain RMS/peak over the compared samples. The offset is 2⁻¹⁷ —
+    /// exactly representable in f32 — so every intermediate is exact:
+    /// peak 2⁻¹⁷, RMS 2⁻¹⁸ over the four samples (a decimal offset
+    /// like 1e-5 would round in f32 and break exact assertions).
+    #[test]
+    fn f32_verdict_small_deviation_passes() {
+        let offset = 2.0f32.powi(-17); // a power of two — exact in f32
+        let lumen = f32_bytes(&[1.0, 1.0, 1.0, 1.0]);
+        let vlc = f32_bytes(&[1.0, 1.0, 1.0, 1.0 + offset]);
+        let (verdict, dev) = f32_verdict(&lumen, &vlc, 1e-4, 1e-3);
+        assert_eq!(verdict, OracleVerdict::TolerancePass);
+        assert_eq!(dev.samples, 4);
+        assert_eq!(dev.rms, f64::from(offset) / 2.0, "rms {}", dev.rms);
+        assert_eq!(dev.peak, f64::from(offset), "peak {}", dev.peak);
+    }
+
+    /// P3-2: a deviation beyond policy FAILS (the genuine parity-gap
+    /// class the 2026-11-10 run recorded on all six f32 rows). The
+    /// offset 2⁻⁷ is exact in f32: peak 2⁻⁷, far beyond the 1e-3
+    /// policy; RMS 2⁻⁸, beyond the 1e-4 policy.
+    #[test]
+    fn f32_verdict_out_of_policy_fails() {
+        let offset = 2.0f32.powi(-7); // a power of two — exact in f32
+        let lumen = f32_bytes(&[1.0, 1.0, 1.0, 1.0]);
+        let vlc = f32_bytes(&[1.0, 1.0, 1.0, 1.0 + offset]);
+        let (verdict, dev) = f32_verdict(&lumen, &vlc, 1e-4, 1e-3);
+        assert_eq!(verdict, OracleVerdict::ToleranceFail);
+        assert_eq!(dev.rms, f64::from(offset) / 2.0, "rms {}", dev.rms);
+        assert_eq!(dev.peak, f64::from(offset), "peak {}", dev.peak);
+    }
+
+    /// P3-2: the committed-record applicability rule — the record's
+    /// values apply only when its `lumen_fresh_md5` equals the fresh
+    /// decode's (same realization), and only when it HAS one.
+    #[test]
+    fn committed_record_applicability() {
+        let mut parts = CommittedParts {
+            vlc_md5: "0".repeat(32),
+            vlc_bytes: 10,
+            lumen_fresh_md5: Some("abc".to_string()),
+            rms_dev: None,
+            peak_dev: None,
+            samples_compared: None,
+        };
+        assert!(committed_record_applies(&parts, "abc"));
+        assert!(!committed_record_applies(&parts, "abd"));
+        parts.lumen_fresh_md5 = None;
+        assert!(!committed_record_applies(&parts, "abc"));
+    }
+
+    /// P3-2: the committed-record comparison for an integer row —
+    /// the prefix method over the record's (vlc_md5, vlc_bytes).
+    #[test]
+    fn compare_row_committed_integer_prefix() {
+        let pcm: Vec<u8> = (0..200u8).collect();
+        let d = dump(pcm.clone());
+        let parts = CommittedParts {
+            vlc_md5: hex(&pcm[..128]),
+            vlc_bytes: 128,
+            lumen_fresh_md5: Some(d.md5_hex.clone()),
+            rms_dev: None,
+            peak_dev: None,
+            samples_compared: None,
+        };
+        let row = compare_row_committed("r.avi", "u8", &d, &parts, &tolerance());
+        assert_eq!(row.vlc_source, VlcSource::CommittedRecord);
+        assert_eq!(
+            row.verdict,
+            OracleVerdict::BitExactPrefix {
+                unflushed_tail_bytes: 72
+            }
+        );
+        // A record whose realization does not match must not be
+        // applied by the caller (the applicability rule above).
+        let wrong = CommittedParts {
+            vlc_md5: hex(&pcm[..128]),
+            vlc_bytes: 128,
+            lumen_fresh_md5: Some("different".to_string()),
+            ..parts.clone()
+        };
+        assert!(!committed_record_applies(&wrong, &d.md5_hex));
+    }
+
+    /// P3-2: the committed-record comparison for an f32 row — the
+    /// record's own measured RMS/peak echoed against the configured
+    /// thresholds; a record without them claims nothing.
+    #[test]
+    fn compare_row_committed_f32_echoes_the_record() {
+        let d = dump(f32_bytes(&[0.5, 0.25]));
+        let within = CommittedParts {
+            vlc_md5: "0".repeat(32),
+            vlc_bytes: 8,
+            lumen_fresh_md5: Some(d.md5_hex.clone()),
+            rms_dev: Some(1e-5),
+            peak_dev: Some(2e-5),
+            samples_compared: Some(2),
+        };
+        let row = compare_row_committed("r.avi", "float32", &d, &within, &tolerance());
+        assert_eq!(row.verdict, OracleVerdict::TolerancePass);
+        match row.deviation {
+            Some(dev) => {
+                assert_eq!(dev.samples, 2);
+                assert!((dev.rms - 1e-5).abs() < 1e-12, "rms {}", dev.rms);
+            }
+            None => unreachable!("the echoed record carries its deviation"),
+        }
+
+        let beyond = CommittedParts {
+            rms_dev: Some(1.0),
+            peak_dev: Some(2.0),
+            ..within.clone()
+        };
+        let row = compare_row_committed("r.avi", "float32", &d, &beyond, &tolerance());
+        assert_eq!(row.verdict, OracleVerdict::ToleranceFail);
+
+        let incomplete = CommittedParts {
+            rms_dev: None,
+            peak_dev: None,
+            ..within
+        };
+        let row = compare_row_committed("r.avi", "float32", &d, &incomplete, &tolerance());
+        assert_eq!(row.verdict, OracleVerdict::NoComparison);
+    }
+
+    fn tolerance() -> crate::config::F32Tolerance {
+        crate::config::F32Tolerance {
+            rms_max: 1e-4,
+            peak_max: 1e-3,
+        }
+    }
 }

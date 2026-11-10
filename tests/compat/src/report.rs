@@ -370,8 +370,7 @@ pub fn full_run(config: &Config) -> Result<(), ToolError> {
         // deterministic, so equal MD5 ⇒ equal input bytes.
         let committed_applicable = committed_parts
             .as_ref()
-            .and_then(|parts| parts.lumen_fresh_md5.as_ref())
-            .is_some_and(|md5| md5 == &dump.md5_hex);
+            .is_some_and(|parts| oracle::committed_record_applies(parts, &dump.md5_hex));
         if committed_parts.is_some() {
             if committed_applicable {
                 cross_checks.push(format!(

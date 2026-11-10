@@ -343,3 +343,208 @@ impl Config {
         self.root.join(path)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A minimal VALID config/2 document (every required field, no
+    /// unknown keys — `deny_unknown_fields` is part of what these
+    /// tests protect).
+    fn valid_json(schema: &str, native_platform: &str) -> String {
+        format!(
+            r#"{{
+  "schema": "{schema}",
+  "corpus": {{
+    "committed_roots": ["tests/fixtures/media"],
+    "malformed_root": "tests/fixtures/malformed",
+    "media_extensions": [".avi"],
+    "exclude_suffixes": [],
+    "regen": {{
+      "manifest": "tests/compat/regen-corpus-manifest.json",
+      "cache_dir": "tests/compat/.regen-cache",
+      "ffmpeg": "ffmpeg"
+    }}
+  }},
+  "oracle": {{
+    "record": "docs/corpus/vlc-oracle-run-20261109.json",
+    "f32_record": "docs/corpus/vlc-f32-tolerance-20261109.json",
+    "f32_tolerance": {{ "rms_max": 0.0001, "peak_max": 0.001 }},
+    "vlc": null,
+    "comparable_rels": []
+  }},
+  "lanes": [
+    {{
+      "id": "linux-native",
+      "label": "Linux native decode",
+      "kind": {{ "type": "native-decode", "platform": "{native_platform}" }}
+    }}
+  ],
+  "formats": [
+    {{
+      "probe_format": "avi",
+      "matrix_rows": ["container-avi"],
+      "vlc_name": "AVI",
+      "extensions": ["avi"]
+    }}
+  ],
+  "codecs": [
+    {{
+      "codec": "pcm_",
+      "prefix_match": true,
+      "matrix_rows": ["codec-audio-pcm"],
+      "kind": "audio"
+    }}
+  ],
+  "reports": {{
+    "markdown": "docs/corpus/out.md",
+    "json": "docs/corpus/out.json",
+    "raw_rows": "docs/corpus/out.raw-rows.jsonl",
+    "transitions": "docs/corpus/out-transitions.json"
+  }},
+  "claims": [],
+  "budgets": {{ "regen_s": 60, "vlc_s": 60 }}
+}}"#
+        )
+    }
+
+    /// A per-load unique id for the temp-file name. Process-wide on
+    /// purpose: the test harness runs these tests on parallel threads,
+    /// so a thread-local counter would hand two threads the same
+    /// first name and race them onto one temp file.
+    fn unique_id() -> u64 {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        COUNTER.fetch_add(1, Ordering::Relaxed)
+    }
+
+    /// Write a config to a unique temp file and load it.
+    fn load_json(text: &str) -> Result<Config, ToolError> {
+        let path = std::env::temp_dir().join(format!(
+            "compat-matrix-config-test-{}-{}.json",
+            std::process::id(),
+            unique_id()
+        ));
+        std::fs::write(&path, text)
+            .map_err(|e| ToolError::io("writing the test config".to_string(), e))?;
+        let result = load(&path);
+        let _ = std::fs::remove_file(&path);
+        result
+    }
+
+    /// The refusal text of a rejected load ("ok" when the config
+    /// unexpectedly LOADED — the follow-up contains-assertions then
+    /// fail with exactly that visible in their message).
+    fn err_text(result: Result<Config, ToolError>) -> String {
+        match result {
+            Ok(_) => "ok (the config unexpectedly loaded)".to_string(),
+            Err(err) => err.to_string(),
+        }
+    }
+
+    /// Insert one more lane object at the HEAD of the lanes array
+    /// (splice inside the array — inserting before a later key such
+    /// as `codecs` would land at the JSON top level and die as a
+    /// parse error before any validation under test runs).
+    fn insert_lane(text: &str, lane: &str) -> String {
+        const MARKER: &str = "\"lanes\": [";
+        let Some(index) = text.find(MARKER) else {
+            unreachable!("the {MARKER} marker is in valid_json");
+        };
+        let mut out = text.to_string();
+        out.insert_str(index + MARKER.len(), &format!("\n    {lane},"));
+        out
+    }
+
+    /// P3-2: the schema discriminator is refused loudly (an old /1
+    /// config must never be silently defaulted).
+    #[test]
+    fn wrong_schema_is_refused() {
+        let message = err_text(load_json(&valid_json("compat-matrix/config/1", "linux")));
+        assert!(message.contains("unsupported schema"), "{message}");
+        assert!(message.contains("compat-matrix/config/2"), "{message}");
+    }
+
+    /// P3-2: the native-decode platform is validated to
+    /// windows/linux/macos (`web` is the steps lane, never a native
+    /// sweep — the config/2 rule).
+    #[test]
+    fn web_native_platform_is_refused() {
+        let message = err_text(load_json(&valid_json("compat-matrix/config/2", "web")));
+        assert!(
+            message.contains("native-decode platform must be one of windows/linux/macos"),
+            "{message}"
+        );
+        assert!(message.contains("`web` is the steps lane"), "{message}");
+    }
+
+    /// P3-2: exactly one native-decode lane (the runner decodes on
+    /// exactly one host per run).
+    #[test]
+    fn two_native_lanes_are_refused() {
+        let extra = r#"{
+      "id": "mac-native",
+      "label": "macOS native decode",
+      "kind": { "type": "native-decode", "platform": "macos" }
+    }"#;
+        let text = insert_lane(&valid_json("compat-matrix/config/2", "linux"), extra);
+        let message = err_text(load_json(&text));
+        assert!(
+            message.contains("exactly one native-decode lane is required"),
+            "{message}"
+        );
+    }
+
+    /// P3-2: the structural validations — empty lanes, duplicate
+    /// lane ids, empty media extensions.
+    #[test]
+    fn structural_rejections() {
+        // Empty lanes.
+        let mut empty_lanes = valid_json("compat-matrix/config/2", "linux");
+        const LANE_OPEN: &str = "\"lanes\": [";
+        let Some(open) = empty_lanes.find(LANE_OPEN) else {
+            unreachable!("the {LANE_OPEN} marker is in valid_json");
+        };
+        let lane_start = open + LANE_OPEN.len();
+        let Some(relative) = empty_lanes[lane_start..].find(']') else {
+            unreachable!("the lanes array closes in valid_json");
+        };
+        empty_lanes.replace_range(lane_start..lane_start + relative, "");
+        let message = err_text(load_json(&empty_lanes));
+        assert!(message.contains("lanes is empty"), "{message}");
+
+        // Duplicate lane ids (a second, steps lane with the same id).
+        let extra = r#"{
+      "id": "linux-native",
+      "label": "duplicate",
+      "kind": { "type": "steps", "steps": [] }
+    }"#;
+        let dup = insert_lane(&valid_json("compat-matrix/config/2", "linux"), extra);
+        let message = err_text(load_json(&dup));
+        assert!(message.contains("duplicate lane ids"), "{message}");
+
+        // Empty media extensions.
+        let no_ext = valid_json("compat-matrix/config/2", "linux").replace(
+            "\"media_extensions\": [\".avi\"]",
+            "\"media_extensions\": []",
+        );
+        let message = err_text(load_json(&no_ext));
+        assert!(message.contains("media_extensions is empty"), "{message}");
+    }
+
+    /// P3-2 (control): the minimal valid document loads — schema/2,
+    /// one linux native lane, workspace root resolved.
+    #[test]
+    fn minimal_valid_config_loads() {
+        let config = match load_json(&valid_json("compat-matrix/config/2", "linux")) {
+            Ok(config) => config,
+            Err(err) => unreachable!("the minimal valid config must load: {err}"),
+        };
+        assert_eq!(config.schema, "compat-matrix/config/2");
+        assert_eq!(config.lanes.len(), 1);
+        assert!(
+            config.root.join("docs").is_dir(),
+            "the workspace root must have been resolved"
+        );
+    }
+}
