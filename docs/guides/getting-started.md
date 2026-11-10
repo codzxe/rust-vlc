@@ -2,8 +2,9 @@
 
 No prebuilt binaries exist yet (see the README Install section — the
 release pipeline is built but no release has been published). Everything
-below is verified on the repository's reference sandbox (aarch64 Linux,
-2026-11-10, tree at commit `3a7fd06`).
+below is verified on the repository's reference sandbox (x86_64 Linux,
+Intel Xeon, 10 vCPU — `uname -m` = `x86_64`; 2026-11-10, tree at commit
+`559b897`).
 
 ## 1. Build from source
 
@@ -78,7 +79,7 @@ Quick decode check without the REPL:
 ```sh
 $ lumen decode-bench tests/fixtures/generated/valid/avi_mjpeg_pcm.avi
 BENCH file=tests/fixtures/generated/valid/avi_mjpeg_pcm.avi bytes=425516 \
-v_frames=60 v_decoded=60 a_frames=60 a_decoded=60 wall_s=0.056 decode_s=0.051
+v_frames=60 v_decoded=60 a_frames=60 a_decoded=60 wall_s=0.008 decode_s=0.008
 ```
 
 ## 3. What plays

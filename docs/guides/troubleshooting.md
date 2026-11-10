@@ -1,8 +1,8 @@
 # Troubleshooting
 
 Causes are stated with their in-tree evidence. Every error below was
-reproduced in the reference sandbox (aarch64 Linux, 2026-11-10) unless
-marked otherwise.
+reproduced in the reference sandbox (x86_64 Linux, Intel Xeon,
+`uname -m` = `x86_64`; 2026-11-10) unless marked otherwise.
 
 ## Playback
 
