@@ -497,6 +497,33 @@ dev_deps = ["testkit", "media-clock"]
 external_allowlist = []
 external_dev_allowlist = []
 
+# L6 — the sandboxed WASM extension host (doc 01 §2.8 registry row
+# `plugin-host-wasm`; cards 7.F1–7.F3 / issue #45, doc 06 §5, ADR-002).
+# Composition-root position: nothing depends on it but the apps that
+# embed it. v1 consumes exactly ONE internal edge — plugin-api (the
+# manifest/permission contract, Lead-owned shared interface). doc 01's
+# registry row also names media-types + commands as forward-looking
+# edges (the ui-surface command-layer protocol and the packet
+# vocabulary of future media-extension kinds); neither is wired yet,
+# so neither is listed — the manifest mirrors the Cargo.toml (the
+# checker's source of truth), and the edges join here in the same
+# change that first uses them. The single external is wasmi 2.0.0
+# (ADR-002 accepted; record docs/dependencies/records/wasmi.md),
+# pinned default-features=false + ["std", "validate"] — the audited
+# closure; the `wat` dev-feature dev-dependency the initial skeleton
+# carried was dropped when the integration suites grew an in-test
+# wasm binary emitter (no new dependency, tests/ are exempt from the
+# C1/C2 scan domain, and the production closure stays the audited
+# 8-crate graph). Everything else is std-only by house style: SHA-256
+# (provenance hashes), CRC-32 (ZIP integrity), the stored-entry ZIP
+# reader (.lumenext) — public-spec math, no crates.
+[crates.plugin-host-wasm]
+layer = 6
+internal_deps = ["plugin-api"]
+dev_deps = []
+external_allowlist = ["wasmi"]
+external_dev_allowlist = []
+
 # tests/integration/first-vertical (package `first-vertical`, card
 # 2.E1): the end-to-end integration suite — a TEST-ONLY harness over
 # the ASSEMBLED vertical, so it sits outside the L0–L6 layer stack

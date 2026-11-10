@@ -1,0 +1,47 @@
+# crates/plugin-host-wasm — the sandboxed WASM extension host
+# (card 7.F1–7.F3 / issue #45, doc 06 §5).
+#
+# Registry: doc 01 §2.8 (`plugin-host-wasm`, layer L6, deps per the doc's
+# crate table: plugin-api, media-types, commands — the media-types and
+# command-layer edges are forward-looking: v1 wires the plugin-api
+# manifest/permission contract only, so only that edge is declared).
+#
+# External deps: **wasmi 2.0.0** — the ADR-002 runtime (accepted
+# 2026-10-19; full R1–R10 record at docs/dependencies/records/wasmi.md).
+# Pinned per the record's recommended posture: default-features = false,
+# features = ["std", "validate", "auto-dispatch"] — the audited closure
+# (the `validate` feature adds no crate, it only turns on wasmparser's
+# validating features; the 7.F1 decision the record reserved: we use
+# wasmi's validating `Module::new`, the only path that compiles guest
+# code). `auto-dispatch` is the 7.w22d repair: it is also a zero-crate
+# feature (wasmi's own default) that selects the dispatch backend —
+# without it the tail-call backend is compiled UNCONDITIONALLY, and
+# LLVM does not perform the sibling-call optimization at opt-level 0/1,
+# so every debug/test build (cargo test) stack-overflows on any guest
+# that runs more than a few thousand instructions (observed: the §9.4
+# fuel-loop fixture). With `auto-dispatch` wasmi's build.rs falls back
+# to the portable loop backend whenever tail calls are unavailable,
+# and uses them where they work — same 8-crate graph either way.
+#
+# Everything else is std-only, house style: SHA-256 (FIPS 180-4 public
+# math, same precedent as audio-output/testkit), the stored-entry ZIP
+# reader for `.lumenext` (doc 06 §5.7), semver from plugin-api. The
+# integration suites build their wasm fixtures with an in-test binary
+# emitter (tests/common) — no `wat`/`wast` dev-dependency, so nothing
+# outside the audited production closure is ever resolved by this
+# crate's builds.
+
+[package]
+name = "plugin-host-wasm"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen WASM extension host: wasmi runtime, lumen:v1.* import dispatch, capability/limit enforcement, and the .lumenext package format (doc 06 §5; ADR-002)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+plugin-api = { path = "../plugin-api" }
+
+wasmi = { version = "2.0.0", default-features = false, features = ["std", "validate", "auto-dispatch"] }
