@@ -60,5 +60,12 @@ else
   echo "check-identity: FAILED"; rg 'FAIL' -A 15 /tmp/chkident.log | head -20; fail=1
 fi
 
+echo "=== 9. sbom --check (issue #52 / doc 11 §3.4 — CycloneDX 1.5 SBOM drift gate) ==="
+if cargo xtask sbom --check > /tmp/sbom.log 2>&1; then
+  tail -1 /tmp/sbom.log; echo "sbom: PASS"
+else
+  echo "sbom: FAILED"; tail -5 /tmp/sbom.log; fail=1
+fi
+
 echo "=== GATE RESULT: $([ $fail -eq 0 ] && echo PASS || echo FAIL) ==="
 exit $fail

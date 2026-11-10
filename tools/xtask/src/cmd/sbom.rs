@@ -671,10 +671,7 @@ fn build_sbom(identity: &ProductIdentity, lock: &LockFile) -> Result<String, Str
     let mut sorted: Vec<LockPackage> = lock.packages.to_vec();
     sorted.sort_by(|a, b| (&a.name, &a.version).cmp(&(&b.name, &b.version)));
 
-    let refs: Vec<Refs> = sorted
-        .iter()
-        .map(package_refs)
-        .collect::<Result<_, _>>()?;
+    let refs: Vec<Refs> = sorted.iter().map(package_refs).collect::<Result<_, _>>()?;
 
     // Resolve every dependency edge up front (loud failure on gaps).
     let mut edges: Vec<Vec<usize>> = Vec::with_capacity(sorted.len());

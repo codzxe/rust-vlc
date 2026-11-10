@@ -503,6 +503,14 @@ jobs:
           cargo deny --version
       - name: cargo deny --workspace check (doc 11 §3.2/§3.5 — G3 licenses/sources/bans + G4 advisories)
         run: cargo deny --workspace check licenses sources bans advisories
+      # SBOM (issue #52, doc 11 §3.4): generate the CycloneDX 1.5 SBOM from
+      # the exact lockfile this job just audited and drift-check it against
+      # the committed docs/security/sbom/cyclonedx.json — a dependency change
+      # without a regenerated SBOM fails the merge gate. Runs AFTER the deny
+      # check so a policy failure is reported first (cheap-first, doc 11 §3.5
+      # order). Same std-only xtask generator as scripts/full_gate.sh step 9.
+      - name: SBOM — generate + drift check (issue #52, doc 11 §3.4)
+        run: cargo run -p xtask --locked -- sbom --check
 
   # ------------------------------------------------------------------------
   # WASM toolchain canary (G12, doc 10 §4.6; doc 09 §2). Folded from the
