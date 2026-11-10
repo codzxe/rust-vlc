@@ -22,6 +22,6 @@ fs-sandboxed-read = true
 
 [provenance]
 publisher = "Example Extensions"
-source = "https://example.com/lumen/ext.example.metadata-0.1.0.lumenext"
+source = "https://example.com/ext.example.metadata-0.1.0.lumenext"
 hash = "sha256:…(64 hex)"
 license = "MIT"

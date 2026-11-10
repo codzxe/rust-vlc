@@ -46,6 +46,13 @@ use std::process::ExitCode;
 /// `i32` value type byte.
 const I32: u8 = 0x7F;
 
+// The import module names the example guests import — the same
+// `lumen:v1.*` protocol contract src/api.rs serves (markers there).
+const MOD_HOST: &str = "lumen:v1.host"; // lumen-allow-literal: plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+const MOD_LOG: &str = "lumen:v1.log"; // lumen-allow-literal: plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+const MOD_FS: &str = "lumen:v1.fs"; // lumen-allow-literal: plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+const MOD_UI: &str = "lumen:v1.ui"; // lumen-allow-literal: plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+
 /// Unsigned LEB128.
 fn uleb(mut v: u64, out: &mut Vec<u8>) {
     loop {
@@ -335,11 +342,14 @@ const DESC_AT: i32 = 2048;
 /// fixture convention — the INSTALLED manifest's digest is the real
 /// one, enforced at install and every load).
 fn report_manifest(id: &str, kind: &str, capabilities: &str, perms: &str) -> String {
+    // The example provenance placeholder URL (RFC 2606 example.com) —
+    // fixture payload carried inside the guest's data segment, not a
+    // config endpoint the product ever contacts.
+    let source = format!("https://example.com/{id}-0.1.0.lumenext"); // lumen-allow-literal: doc 06 §2.3 example provenance placeholder (RFC 2606 example.com) — fixture payload, not a config endpoint
     format!(
         "id = \"{id}\"\nkind = \"{kind}\"\nversion = \"0.1.0\"\napi_version = 1\n\
          origin = \"extension\"\n\n[capabilities]\n{capabilities}\n\n{perms}\n[provenance]\n\
-         publisher = \"Example Extensions\"\nsource = \
-         \"https://example.com/lumen/{id}-0.1.0.lumenext\"\nhash = \
+         publisher = \"Example Extensions\"\nsource = \"{source}\"\nhash = \
          \"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"\n\
          license = \"MIT\"\n"
     )
@@ -367,12 +377,12 @@ fn metadata_module() -> Vec<u8> {
     );
     let msg: &[u8] = b"metadata-provider example ready";
     let mut w = Wasm::new();
-    let api_version = w.import("lumen:v1.host", "api_version", &[], &[I32]);
-    let report_manifest = w.import("lumen:v1.host", "report_manifest", &[I32, I32], &[I32]);
-    let log_write = w.import("lumen:v1.log", "log_write", &[I32, I32, I32], &[I32]);
-    let fs_open = w.import("lumen:v1.fs", "fs_open", &[I32, I32, I32], &[I32]);
-    let fs_read = w.import("lumen:v1.fs", "fs_read", &[I32, I32, I32, I32], &[I32]);
-    let fs_close = w.import("lumen:v1.fs", "fs_close", &[I32], &[I32]);
+    let api_version = w.import(MOD_HOST, "api_version", &[], &[I32]);
+    let report_manifest = w.import(MOD_HOST, "report_manifest", &[I32, I32], &[I32]);
+    let log_write = w.import(MOD_LOG, "log_write", &[I32, I32, I32], &[I32]);
+    let fs_open = w.import(MOD_FS, "fs_open", &[I32, I32, I32], &[I32]);
+    let fs_read = w.import(MOD_FS, "fs_read", &[I32, I32, I32, I32], &[I32]);
+    let fs_close = w.import(MOD_FS, "fs_close", &[I32], &[I32]);
     w.data(REPORT_AT as u32, report.as_bytes());
     w.data(MSG_AT as u32, msg);
 
@@ -457,10 +467,10 @@ fn panel_module() -> Vec<u8> {
     let msg: &[u8] = b"now-playing panel example ready";
     let descriptor: &[u8] = b"{\"panel_id\":\"main\",\"title_key\":\"panel.example.now-playing.title\",\"surface\":\"side-panel\"}";
     let mut w = Wasm::new();
-    let api_version = w.import("lumen:v1.host", "api_version", &[], &[I32]);
-    let report_manifest = w.import("lumen:v1.host", "report_manifest", &[I32, I32], &[I32]);
-    let log_write = w.import("lumen:v1.log", "log_write", &[I32, I32, I32], &[I32]);
-    let register = w.import("lumen:v1.ui", "ui_register_panel", &[I32, I32], &[I32]);
+    let api_version = w.import(MOD_HOST, "api_version", &[], &[I32]);
+    let report_manifest = w.import(MOD_HOST, "report_manifest", &[I32, I32], &[I32]);
+    let log_write = w.import(MOD_LOG, "log_write", &[I32, I32, I32], &[I32]);
+    let register = w.import(MOD_UI, "ui_register_panel", &[I32, I32], &[I32]);
     w.data(REPORT_AT as u32, report.as_bytes());
     w.data(MSG_AT as u32, msg);
     w.data(DESC_AT as u32, descriptor);
@@ -562,7 +572,8 @@ fn run(args: &[String]) -> Result<(), Failure> {
     }
     let root = root.unwrap_or_else(|| PathBuf::from("."));
     let examples = root.join("plugins").join("extensions");
-    let modules: [(&str, fn() -> Vec<u8>); 2] = [
+    type ModuleBuilder = fn() -> Vec<u8>;
+    let modules: [(&str, ModuleBuilder); 2] = [
         ("metadata-provider", metadata_module),
         ("ui-panel", panel_module),
     ];
