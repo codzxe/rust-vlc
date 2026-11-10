@@ -300,6 +300,7 @@ fn shipped_manifests_validate_against_the_schema_contract() {
         "tests/soak/scenarios.toml",
         "tests/soak/scenarios-nightly.toml",
         "tests/soak/scenarios-sandbox.toml",
+        "tests/soak/scenarios-forced-threshold.toml",
     ] {
         let path = root.join(relative);
         let loaded = manifest::load(&path).unwrap_or_else(|error| {

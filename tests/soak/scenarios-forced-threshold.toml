@@ -1,0 +1,71 @@
+# The FORCED-THRESHOLD enforcement self-proof — card 8.C1, issue #54.
+#
+# THIS PROFILE INTENTIONALLY FAILS. It exists to prove, end-to-end and
+# on the real engine, that the scenario runner's budget enforcement
+# BITES: a breached budget must produce a FAIL verdict in the report
+# and a NON-ZERO process exit — a green-only runner is a ritual, not a
+# gate (AGENTS §3.5a D-6; doc 10 §8.2).
+#
+# Never selected by CI, the nightly, or the sandbox measurement: it is
+# run on demand (and by the 8.C1 report's enforcement-proof section)
+# via:
+#
+#   SOAK_SCENARIOS=tests/soak/scenarios-forced-threshold.toml \
+#   SOAK_SCENARIOS_REPORT=<path> \
+#   cargo test -p playback-engine --test soak_scenarios --release -- --nocapture
+#
+# (scripts/soak-scenarios.sh --profile tests/soak/scenarios-forced-threshold.toml \
+#   --release --report <path> wraps exactly this; expect exit != 0.)
+#
+# The two forced thresholds, both from THIS file (config, not code):
+#
+#   * rss_growth_budget_mb = 0.01 (~10 kB): the measured open-close
+#     churn growth on this engine is ~hundreds of kB across a
+#     1M-cycle window (2M cycles measured +252 kB on 2026-11-10,
+#     docs/soak/raw/scenarios-sandbox__open-close-churn.md) — the
+#     pinched budget breaches DETERMINISTICALLY through the
+#     growth-budget assertion path.
+#   * seek-storm leak_ceiling_mb_per_h = 0.0001: far below any real
+#     measured slope, so any non-negative fitted live-bytes slope
+#     breaches through the SLOPE-ceiling assertion path. (A negative
+#     window slope passes — the slope path's arithmetic is separately
+#     pinned by the unit test slope_verdict_flags_budget_violations;
+#     the deterministic trip in this profile is the growth path.)
+#
+# Expected output: both scenarios run to completion (triage numbers
+# intact), the report records the violations, the suite asserts, and
+# cargo exits non-zero.
+
+schema = 1
+
+[defaults]
+sample_ms = 1000
+warmup_fraction = 0.15
+min_cycles = 3
+max_skip_rate = 0.25
+leak_ceiling_mb_per_h = 50.0
+target_mb_per_h = 5.0
+assert_target = false
+# The forced threshold: ~10 kB (the real growth is ~50x that).
+rss_growth_budget_mb = 0.01
+fd_growth_budget = 0
+live_growth_budget_bytes = 0
+
+[[scenario]]
+id = "open-close-churn"
+kind = "open-close-churn"
+# ~1.1 min at the measured ~9.2k cycles/s (2026-11-10) — long enough
+# for the deterministic RSS growth, short enough for an on-demand
+# self-proof.
+cycles = 1000000
+duration_min = 5.0
+fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/malformed/avi_mjpeg_pcm__trunc3.avi"]
+
+[[scenario]]
+id = "seek-storm"
+kind = "seek-storm"
+duration_min = 1.0
+advance_polls = 1
+# The forced slope ceiling: any non-negative fitted slope breaches.
+leak_ceiling_mb_per_h = 0.0001
+fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/valid/avi_mjpeg_2pcm.avi"]
