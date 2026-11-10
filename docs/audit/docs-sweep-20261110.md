@@ -37,7 +37,7 @@ authored by this lane to close the sweep's own findings are marked ★:
 | Category | Claimed rows | Records |
 |---|---|---|
 | container (14) | matroska-webm, mp4-mov-3gp, ogg, mpegts, mpegps, wav, aiff, adts-aac, asf-wmv, avi ★, mp3-raw, h264-annexb, hevc-annexb, ivf | container-matroska, container-mp4, container-ogg, container-mpegts, container-mpegps, container-wav, container-aiff, container-adts, container-asf, container-avi ★ (`d915188`), container-es (×3 rows), container-ivf |
-| video-codec (6) | mjpeg, av1, h264, hevc, prores-dnxhd, h264-software ★ | video-mjpeg, video-av1, video-h264, video-hevc, video-prores-dnxhd, video-h264-software ★ (`3a7fd06`) |
+| video-codec (6) | mjpeg, av1, h264, hevc, prores-dnxhd, vp9 | video-mjpeg, video-av1, video-h264, video-hevc, video-prores-dnxhd, video-vp8-vp9 (dual-row record: VP8 + VP9 decision state) |
 | audio-codec (9) | pcm ★, mp3, mp2, aac-lc, flac, vorbis, opus, alac, adpcm | audio-pcm ★ (`d915188`), audio-mp3-mp2, audio-aac, audio-flac, audio-vorbis, audio-opus, audio-alac, audio-adpcm |
 | subtitle-format (8) | srt, ass-ssa, vtt, dvb-subs, vobsub, pgs ★, cc-608-708 ★, encoding-detection ★ | sub-srt (declared dual-row record, encoding cross-link added `3a7fd06`), sub-ass-ssa, sub-vtt, sub-dvb, sub-vobsub, sub-pgs ★ (`d915188`), sub-cc ★ (`3a7fd06`) |
 
@@ -56,6 +56,7 @@ F-5's closure network-dash (partial) → `streaming-dash.md` ★ (`bc97962`).
 | codec-audio-census-tail, subtitle-census-tail, plfmt-census-tail | not_started | Census-tail group rows — long-tail inventory families with no work started. |
 | subtitle-microdvd, -subviewer, -sami, -ttml, -forced, -autoload | not_started | Phase 5–8 tails (phase5 audit §1.4), still untouched. |
 | codec-video-hevc-software | blocked | Covered inside `video-hevc.md` ("no software HEVC decode, and none is scheduled…" — verified lines 11–14). |
+| codec-video-h264-software | blocked | `video-h264-software.md` ★ (authored this lane, `3a7fd06`) is the gap/decision record — it records the blocked ×4 state and the pending Lead admission; as a blocked row it is not a claimed row and owes no evidence record. |
 | codec-video-legacy-blocked | blocked | `video-screen-codecs.md` is its umbrella record (Cinepak/Hap/Dirac/MS Video 1-class, verified §"legacy"). |
 | subtitle-teletext | blocked | zvbi is C (forbidden) — matrix `blocked_reason`; the demux-side split is recorded in `container-mpegts.md` line 109; no decode will land to record. |
 | subtitle-kate | blocked | `subtitle-kate.md` is the decision record (5.P2b-I part B). |
