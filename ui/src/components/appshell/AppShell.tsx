@@ -192,6 +192,16 @@ export function AppShell({
             accelerator: acceleratorOf("media.open-network-stream"),
             onSelect: () => navigate("/open-network-stream"),
           },
+          {
+            // Card 7.E3 (issue #44): the conversion screen. The hotkey data
+            // already carries media.convert (Ctrl+R) but the player keymap's
+            // SHELL_UI_ACTIONS does not route it yet — no accelerator shown
+            // (an unbound one would be a false promise); Lead owns the
+            // keymap row.
+            id: "convert",
+            labelKey: "menu.file.convert",
+            onSelect: () => navigate("/convert"),
+          },
           { id: "file-sep", kind: "separator" },
           {
             id: "exit",

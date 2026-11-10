@@ -65,7 +65,7 @@ use std::thread::JoinHandle;
 
 use codec_api::{DecodeOutcome, DecoderConfig, FrameSink, ThreadBudget};
 use media_types::frame::AudioFrame;
-use media_types::ids::MediaKind;
+use media_types::ids::{MediaKind, TrackId};
 use media_types::packet::SharedBytes;
 use media_types::{EngineError, Frame, GenerationId, Track};
 use plugin_api::{DemuxEvent, Demuxer};
@@ -74,7 +74,8 @@ use crate::cancel::CancelToken;
 use crate::convert::{convert_to_wav, identity_passthrough, resolve_target};
 use crate::error::{
     audio_track_ambiguous, audio_track_missing, copy_byte_order, copy_facts_mismatch, copy_not_pcm,
-    flush_undrained, sink_bad_state, sink_write_io, tracks_over_budget, worker_panic,
+    flush_undrained, mp4_codec_unsupported, mp4_config_track_missing, mp4_timescale_not_native,
+    mp4_track_index, sink_bad_state, sink_write_io, tracks_over_budget, worker_panic,
     worker_spawn_io,
 };
 use crate::graph::{
@@ -82,6 +83,7 @@ use crate::graph::{
 };
 use crate::job::{JobHandle, JobOutcome, JobShared, JobStats};
 use crate::limits::JobLimits;
+use crate::mp4mux::{Mp4Remuxer, Mp4TrackConfig, Mp4TrackSetup};
 use crate::queue::{PacketStageQueue, PopWait, PushWait};
 use crate::wav::WavPcmWriter;
 
@@ -153,11 +155,24 @@ pub fn submit(graph: TranscodeGraph, limits: JobLimits) -> Result<JobHandle, Eng
         filters: _,
         sink,
     } = graph;
+    // The MP4-remux sink's config list IS its track selection (the
+    // sink's docs): derive it, so the pump forwards exactly the
+    // configured tracks and nothing else.
+    let (selection, sink) = match sink {
+        SinkSpec::Mp4Remux { output, configs } => {
+            let ids = configs.iter().map(|config| config.track).collect();
+            (
+                TrackSelection::Tracks(ids),
+                SinkSpec::Mp4Remux { output, configs },
+            )
+        }
+        other => (source.selection, other),
+    };
     let plan = build_plan(sink, decode, source.extra_data)?;
 
     let pump_ctx = PumpCtx {
         demuxer: source.demuxer,
-        selection: source.selection,
+        selection,
         require_audio,
         limits,
         queue: Arc::clone(&queue),
@@ -272,6 +287,11 @@ enum WorkerPlan {
     },
     /// Copy path: any track's packets → raw elementary-stream file.
     RawEs { output: Box<dyn WriteSeek> },
+    /// Copy path (card 7.E2): H.264/AAC packets → minimal MP4.
+    Mp4Remux {
+        configs: Vec<Mp4TrackConfig>,
+        output: Box<dyn WriteSeek>,
+    },
 }
 
 /// Assemble the worker plan from the validated graph's sink half.
@@ -299,6 +319,9 @@ fn build_plan(
         // Validation refused this shape already (facts missing).
         (SinkSpec::WavCopyPcm { facts: None, .. }, None) => Err(sink_bad_state()),
         (SinkSpec::RawEsCopy { output }, None) => Ok(WorkerPlan::RawEs { output }),
+        (SinkSpec::Mp4Remux { output, configs }, None) => {
+            Ok(WorkerPlan::Mp4Remux { configs, output })
+        }
         // Copy sink with a decode stage, or WavPcm without one:
         // `validate` refuses both before we get here.
         _ => Err(sink_bad_state()),
@@ -340,11 +363,16 @@ fn pump_body(ctx: PumpCtx) {
             JobOutcome::Failed(tracks_over_budget(tracks.len(), limits.max_tracks())),
         );
     }
-    let track = match select_track(&tracks, selection, require_audio) {
-        Ok(track) => track,
+    let selected = match select_tracks(&tracks, selection, require_audio) {
+        Ok(selected) => selected,
         Err(err) => return terminate_with(&shared, &queue, JobOutcome::Failed(err)),
     };
-    handoff.deliver(track.clone());
+    // The selection filter's id set (bounded by the track budget —
+    // a linear scan per packet is the honest cost of a Vec-only,
+    // allocation-free filter; the demux layer's own track lookups
+    // walk the same order of magnitude).
+    let ids: Vec<TrackId> = selected.iter().map(|track| track.id).collect();
+    handoff.deliver(selected);
 
     loop {
         if shared.is_stopping() {
@@ -353,7 +381,7 @@ fn pump_body(ctx: PumpCtx) {
         match demuxer.next_event() {
             Err(err) => return terminate_with(&shared, &queue, JobOutcome::Failed(err)),
             Ok(DemuxEvent::Packet(packet)) => {
-                if packet.track != track.id {
+                if !ids.contains(&packet.track) {
                     shared.update_stats(&JobStats {
                         packets_skipped: 1,
                         ..JobStats::default()
@@ -408,7 +436,7 @@ struct WorkerCtx {
     shared: Arc<JobShared>,
 }
 
-/// The worker: take the selected track, run the plan's sink loop.
+/// The worker: take the selected track(s), run the plan's sink loop.
 fn worker_body(ctx: WorkerCtx) {
     let WorkerCtx {
         plan,
@@ -416,24 +444,35 @@ fn worker_body(ctx: WorkerCtx) {
         handoff,
         shared,
     } = ctx;
-    let track = match handoff.wait() {
-        Some(track) => track,
+    let tracks = match handoff.wait() {
+        Some(tracks) => tracks,
         // The pump stopped before selecting (failure or cancel):
         // the terminal already says which; only a bare cancel needs
         // an outcome minted here.
         None => return stop_or_cancel(&shared, &queue),
     };
+    // Validation guarantees the single-track sinks selected exactly
+    // one track; the impossible empty hand-off is the typed
+    // impossible-state answer.
+    let first = tracks.first().cloned().ok_or_else(sink_bad_state);
     match plan {
         WorkerPlan::Decode {
             factory,
             extra_data,
             target,
             output,
-        } => run_decode(factory, extra_data, target, output, &track, &queue, &shared),
-        WorkerPlan::CopyWav { facts, output } => {
-            run_copy_wav(facts, output, &track, &queue, &shared)
-        }
+        } => match first {
+            Ok(track) => run_decode(factory, extra_data, target, output, &track, &queue, &shared),
+            Err(err) => terminate_with(&shared, &queue, JobOutcome::Failed(err)),
+        },
+        WorkerPlan::CopyWav { facts, output } => match first {
+            Ok(track) => run_copy_wav(facts, output, &track, &queue, &shared),
+            Err(err) => terminate_with(&shared, &queue, JobOutcome::Failed(err)),
+        },
         WorkerPlan::RawEs { output } => run_raw_es(output, &queue, &shared),
+        WorkerPlan::Mp4Remux { configs, output } => {
+            run_mp4_remux(configs, output, &tracks, &queue, &shared)
+        }
     }
 }
 
@@ -669,6 +708,128 @@ fn run_raw_es(mut output: Box<dyn WriteSeek>, queue: &PacketStageQueue, shared: 
     }
 }
 
+/// The MP4-remux copy path (card 7.E2): cross-check every config
+/// against the delivered track table, stream each packet's payload
+/// into the muxer verbatim, then finalize (fresh `moov` over the
+/// `mdat` that landed). Cancellation finalizes best-effort — the
+/// partial file's tables describe exactly the samples that made it
+/// (the WAV honest-prefix contract, the MP4 shape of it).
+fn run_mp4_remux(
+    configs: Vec<Mp4TrackConfig>,
+    output: Box<dyn WriteSeek>,
+    tracks: &[Track],
+    queue: &PacketStageQueue,
+    shared: &Arc<JobShared>,
+) {
+    // The config → track cross-check: every config names a track the
+    // source exposes, its codec is inside the stream-copy set
+    // (h264/aac — never transcoded silently), and its time base is
+    // the native `1/timescale` form the muxer writes verbatim.
+    let index: Vec<(TrackId, usize)> = configs
+        .iter()
+        .enumerate()
+        .map(|(ordinal, config)| (config.track, ordinal))
+        .collect();
+    let mut setups = Vec::with_capacity(configs.len());
+    for config in configs {
+        let track = match tracks.iter().find(|track| track.id == config.track) {
+            Some(track) => track,
+            None => {
+                return terminate_with(
+                    shared,
+                    queue,
+                    JobOutcome::Failed(mp4_config_track_missing()),
+                );
+            }
+        };
+        if crate::mp4mux::sample_entry_fourcc(track.codec.as_str(), track.kind).is_none() {
+            return terminate_with(
+                shared,
+                queue,
+                JobOutcome::Failed(mp4_codec_unsupported(track.codec.as_str())),
+            );
+        }
+        let base = track.timing.base;
+        if base.num != 1 || base.den == 0 {
+            return terminate_with(
+                shared,
+                queue,
+                JobOutcome::Failed(mp4_timescale_not_native()),
+            );
+        }
+        setups.push(Mp4TrackSetup {
+            config,
+            codec: track.codec.as_str().to_owned(),
+            kind: track.kind,
+            timescale: base.den,
+        });
+    }
+    let mut muxer = match Mp4Remuxer::new(output, setups) {
+        Ok(muxer) => muxer,
+        Err(err) => return terminate_with(shared, queue, JobOutcome::Failed(err)),
+    };
+    let mut watermark = 0u64;
+    loop {
+        if shared.is_stopping() {
+            if shared.outcome().is_none() {
+                // The honest prefix: finalize what landed, never claim
+                // completion of a stream the user stopped.
+                let _ = muxer.finalize();
+                return terminate_with(shared, queue, JobOutcome::Cancelled(shared.snapshot()));
+            }
+            return;
+        }
+        match queue.pop_wait() {
+            PopWait::Item(packet) => {
+                let Some((_, ordinal)) = index.iter().find(|(id, _)| *id == packet.track) else {
+                    // The pump only forwards configured tracks; a
+                    // packet outside the set is a contract break, not
+                    // a guess to make.
+                    return terminate_with(shared, queue, JobOutcome::Failed(mp4_track_index()));
+                };
+                match muxer.add_packet(*ordinal, &packet) {
+                    Ok(written) => {
+                        shared.update_stats(&JobStats {
+                            bytes_written: written,
+                            ..JobStats::default()
+                        });
+                        emit_progress_cadence(shared, &mut watermark);
+                    }
+                    Err(err) => return terminate_with(shared, queue, JobOutcome::Failed(err)),
+                }
+            }
+            PopWait::Closed => {
+                if shared.outcome().is_some() {
+                    return;
+                }
+                // Cancel-during-drain: Cancelled, never Completed
+                // (the decode path's twin comment).
+                if shared.is_stopping() {
+                    let _ = muxer.finalize();
+                    return terminate_with(shared, queue, JobOutcome::Cancelled(shared.snapshot()));
+                }
+                match muxer.finalize() {
+                    Ok(()) => {
+                        return terminate_with(
+                            shared,
+                            queue,
+                            JobOutcome::Completed(shared.snapshot()),
+                        );
+                    }
+                    Err(err) => return terminate_with(shared, queue, JobOutcome::Failed(err)),
+                }
+            }
+            PopWait::Interrupted => {
+                if shared.outcome().is_none() {
+                    let _ = muxer.finalize();
+                    return terminate_with(shared, queue, JobOutcome::Cancelled(shared.snapshot()));
+                }
+                return;
+            }
+        }
+    }
+}
+
 /// The decode path's frame sink: converts/writes each decoded audio
 /// frame, lazily building the WAV writer from the first frame's
 /// format (channels/rate live in frames, not the L0 track).
@@ -791,9 +952,10 @@ impl FrameSink for WavEncodeSink {
     }
 }
 
-/// The one-track hand-off between the pump (which owns the demuxer)
-/// and the worker (which needs the track to open the decoder and
-/// cross-check copy facts). One slot, condvar-parked, cancel-aware.
+/// The track hand-off between the pump (which owns the demuxer)
+/// and the worker (which needs the track table to open the decoder,
+/// cross-check copy facts, or build remux setups). One slot,
+/// condvar-parked, cancel-aware.
 struct TrackHandoff {
     state: Mutex<HandoffState>,
     ready: Condvar,
@@ -801,7 +963,7 @@ struct TrackHandoff {
 }
 
 struct HandoffState {
-    track: Option<Track>,
+    tracks: Option<Vec<Track>>,
     closed: bool,
 }
 
@@ -809,7 +971,7 @@ impl TrackHandoff {
     fn new(cancel: CancelToken) -> TrackHandoff {
         TrackHandoff {
             state: Mutex::new(HandoffState {
-                track: None,
+                tracks: None,
                 closed: false,
             }),
             ready: Condvar::new(),
@@ -817,15 +979,15 @@ impl TrackHandoff {
         }
     }
 
-    /// Deliver the selected track (the pump, once).
-    fn deliver(&self, track: Track) {
+    /// Deliver the selected track table (the pump, once).
+    fn deliver(&self, tracks: Vec<Track>) {
         let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
-        state.track = Some(track);
+        state.tracks = Some(tracks);
         drop(state);
         self.ready.notify_all();
     }
 
-    /// Close without a track (the pump's exit layer): a parked
+    /// Close without tracks (the pump's exit layer): a parked
     /// worker wakes and resolves through the outcome cell — the pump
     /// that failed, cancelled or panicked before selecting must not
     /// strand its consumer.
@@ -843,13 +1005,13 @@ impl TrackHandoff {
         self.ready.notify_all();
     }
 
-    /// Park until the track arrives, the pump closes without one, or
-    /// cancellation fires (the caller resolves which).
-    fn wait(&self) -> Option<Track> {
+    /// Park until the track table arrives, the pump closes without
+    /// one, or cancellation fires (the caller resolves which).
+    fn wait(&self) -> Option<Vec<Track>> {
         let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
         loop {
-            if let Some(track) = state.track.take() {
-                return Some(track);
+            if let Some(tracks) = state.tracks.take() {
+                return Some(tracks);
             }
             if state.closed || self.cancel.is_cancelled() {
                 return None;
@@ -859,12 +1021,18 @@ impl TrackHandoff {
     }
 }
 
-/// Select the track (pure; the typed selection vocabulary).
-fn select_track(
+/// Select the track table (pure; the typed selection vocabulary).
+/// Single-track selections yield a one-element table; the multi-track
+/// selection yields the named tracks that exist, in selection order —
+/// an id the source does not expose is delivered as ABSENT (the
+/// remux worker's config cross-check refuses it typed as
+/// `mp4.config-track-missing`; the pump has no config knowledge and
+/// must not preempt that answer with a generic not-found).
+fn select_tracks(
     tracks: &[Track],
     selection: TrackSelection,
     require_audio: bool,
-) -> Result<Track, EngineError> {
+) -> Result<Vec<Track>, EngineError> {
     match selection {
         TrackSelection::DefaultAudio => {
             let audio: Vec<&Track> = tracks
@@ -873,7 +1041,7 @@ fn select_track(
                 .collect();
             match audio.len() {
                 0 => Err(audio_track_missing()),
-                1 => Ok(audio[0].clone()),
+                1 => Ok(vec![audio[0].clone()]),
                 found => Err(audio_track_ambiguous(found)),
             }
         }
@@ -885,7 +1053,19 @@ fn select_track(
             if require_audio && track.kind != MediaKind::Audio {
                 return Err(crate::error::track_not_audio());
             }
-            Ok(track.clone())
+            Ok(vec![track.clone()])
+        }
+        TrackSelection::Tracks(ids) => {
+            let mut selected = Vec::with_capacity(ids.len());
+            for id in ids {
+                if let Some(track) = tracks.iter().find(|track| track.id == id) {
+                    if require_audio && track.kind != MediaKind::Audio {
+                        return Err(crate::error::track_not_audio());
+                    }
+                    selected.push(track.clone());
+                }
+            }
+            Ok(selected)
         }
     }
 }
@@ -965,23 +1145,24 @@ mod tests {
         let audio = track(0, MediaKind::Audio, "pcm_s16le");
         let video = track(1, MediaKind::Video, "mjpeg");
         // Exactly one audio: picked, audio or not.
-        let picked = select_track(
+        let picked = select_tracks(
             &[video.clone(), audio.clone()],
             TrackSelection::DefaultAudio,
             false,
         )
         .must();
-        assert_eq!(picked.id, audio.id);
+        assert_eq!(picked.len(), 1);
+        assert_eq!(picked[0].id, audio.id);
         // Zero audio: typed missing.
         let err = assert_err(
-            select_track(&[video], TrackSelection::DefaultAudio, true),
+            select_tracks(&[video], TrackSelection::DefaultAudio, true),
             "no audio track",
         );
         assert_eq!(err.context.code, "transcode.source.audio-track-missing");
         // Several audio: typed ambiguity, the count reported.
         let stereo_of_audio = track(2, MediaKind::Audio, "pcm_s24le");
         let err = assert_err(
-            select_track(
+            select_tracks(
                 &[audio.clone(), stereo_of_audio],
                 TrackSelection::DefaultAudio,
                 true,
@@ -997,24 +1178,54 @@ mod tests {
         let video = track(1, MediaKind::Video, "mjpeg");
         let tracks = [audio.clone(), video.clone()];
         // Existing track by id.
-        let picked = select_track(&tracks, TrackSelection::Track(video.id), false).must();
-        assert_eq!(picked.id, video.id);
+        let picked = select_tracks(&tracks, TrackSelection::Track(video.id), false).must();
+        assert_eq!(picked.len(), 1);
+        assert_eq!(picked[0].id, video.id);
         // WAV sinks require audio: a video track is a typed refusal.
         let err = assert_err(
-            select_track(&tracks, TrackSelection::Track(video.id), true),
+            select_tracks(&tracks, TrackSelection::Track(video.id), true),
             "video track into a WAV sink",
         );
         assert_eq!(err.context.code, "transcode.source.track-not-audio");
         // The same track is legal for the ES dump sink.
-        select_track(&tracks, TrackSelection::Track(video.id), false).must();
+        select_tracks(&tracks, TrackSelection::Track(video.id), false).must();
         // Unknown id: typed not-found.
         let err = assert_err(
-            select_track(&tracks, TrackSelection::Track(TrackId::new(9)), false),
+            select_tracks(&tracks, TrackSelection::Track(TrackId::new(9)), false),
             "unknown track",
         );
         assert_eq!(err.context.code, "transcode.source.track-not-found");
         // Audio by id for a WAV sink: legal.
-        select_track(&tracks, TrackSelection::Track(audio.id), true).must();
+        select_tracks(&tracks, TrackSelection::Track(audio.id), true).must();
+    }
+
+    #[test]
+    fn multi_track_selection_yields_every_named_track_in_order() {
+        let audio = track(0, MediaKind::Audio, "aac");
+        let video = track(1, MediaKind::Video, "h264");
+        let subtitle = track(2, MediaKind::Subtitle, "mov_text");
+        let tracks = [audio.clone(), video.clone(), subtitle];
+        // The whole named set, in selection order (not table order).
+        let picked = select_tracks(
+            &tracks,
+            TrackSelection::Tracks(vec![video.id, audio.id]),
+            false,
+        )
+        .must();
+        assert_eq!(picked.len(), 2);
+        assert_eq!(picked[0].id, video.id);
+        assert_eq!(picked[1].id, audio.id);
+        // A name outside the table is delivered as absent — the
+        // worker's config cross-check refuses it typed (the
+        // multi-track selection is the remux sink's derived shape).
+        let picked = select_tracks(
+            &tracks,
+            TrackSelection::Tracks(vec![video.id, TrackId::new(9)]),
+            false,
+        )
+        .must();
+        assert_eq!(picked.len(), 1, "the absent id is not delivered");
+        assert_eq!(picked[0].id, video.id);
     }
 
     #[test]

@@ -24,6 +24,7 @@ export type MessageKey =
   | "screen.keyboard-shortcuts"
   | "screen.open-network-stream"
   | "screen.discovery"
+  | "screen.convert"
   | "screen.not-found"
   | "screen.placeholder.body"
   | "screen.dev.tokens"
@@ -533,6 +534,7 @@ export type MessageKey =
   | "menu.file"
   | "menu.file.open-media"
   | "menu.file.open-network-stream"
+  | "menu.file.convert"
   | "menu.file.exit"
   | "menu.playback"
   | "menu.playback.play-pause"
@@ -599,6 +601,32 @@ export type MessageKey =
   | "discovery.kind.network"
   | "discovery.network.title"
   | "discovery.network.status"
+  // --- convert screen (card 7.E3, issue #44) ---
+  | "convert.title"
+  | "convert.subtitle"
+  | "convert.source.label"
+  | "convert.source.placeholder"
+  | "convert.source.required"
+  | "convert.target.label"
+  | "convert.target.wav"
+  | "convert.target.wav.note"
+  | "convert.target.mp4"
+  | "convert.target.mp4.note"
+  | "convert.start"
+  | "convert.back"
+  | "convert.queue.title"
+  | "convert.queue.empty"
+  | "convert.queue.full"
+  | "convert.lane.unavailable"
+  | "convert.job.status.queued"
+  | "convert.job.status.running"
+  | "convert.job.status.completed"
+  | "convert.job.status.failed"
+  | "convert.job.status.cancelled"
+  | "convert.job.status.blocked"
+  | "convert.job.cancel"
+  | "convert.job.progress"
+  | "convert.job.blocked.reason"
   // --- keyboard shortcuts screen ---
   | "shortcuts.title"
   | "shortcuts.subtitle"
@@ -638,6 +666,7 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "screen.keyboard-shortcuts": "Keyboard shortcuts (placeholder)",
   "screen.open-network-stream": "Open network stream (placeholder)",
   "screen.discovery": "Discovery",
+  "screen.convert": "Convert / Save (card 7.E3)",
   "screen.not-found": "Screen not found",
   "screen.placeholder.body":
     "Route skeleton only — the Figma-exact composition lands in later Phase-4 cards (doc 08 §1.6).",
@@ -1152,6 +1181,7 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "menu.file": "File",
   "menu.file.open-media": "Open media…",
   "menu.file.open-network-stream": "Open network stream…",
+  "menu.file.convert": "Convert / Save…",
   "menu.file.exit": "Exit",
   "menu.playback": "Playback",
   "menu.playback.play-pause": "Play / pause",
@@ -1215,6 +1245,31 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "discovery.kind.network": "Network mount",
   "discovery.network.title": "Network services (UPnP)",
   "discovery.network.status": "The engine's SSDP/UPnP search is implemented but not reachable from this panel yet — the command-catalog wiring is a follow-up (issue #42).",
+  "convert.title": "Convert / Save",
+  "convert.subtitle": "Two honest conversions — nothing this engine cannot do.",
+  "convert.source.label": "Source file",
+  "convert.source.placeholder": "/media/demo/big-buck-bunny.mkv",
+  "convert.source.required": "Enter a source file path",
+  "convert.target.label": "Target",
+  "convert.target.wav": "Record to WAV",
+  "convert.target.wav.note": "Decodes the audio track and writes uncompressed PCM. Sample-format changes are lossless widenings only — never a silent quality loss.",
+  "convert.target.mp4": "Remux to MP4",
+  "convert.target.mp4.note": "Re-wraps H.264 video and AAC audio without re-encoding (stream copy). Any other codec is refused, not converted.",
+  "convert.start": "Convert",
+  "convert.back": "Back to player",
+  "convert.queue.title": "Conversion queue",
+  "convert.queue.empty": "No conversions queued",
+  "convert.queue.full": "The conversion queue is full (8 jobs) — wait for one to finish.",
+  "convert.lane.unavailable": "This build exposes no conversion commands: the engine’s conversion lane is not wired into its command catalog yet. Queued jobs report this honestly instead of pretending to run.",
+  "convert.job.status.queued": "Queued",
+  "convert.job.status.running": "Converting…",
+  "convert.job.status.completed": "Completed",
+  "convert.job.status.failed": "Failed",
+  "convert.job.status.cancelled": "Cancelled",
+  "convert.job.status.blocked": "Unavailable in this build",
+  "convert.job.cancel": "Cancel",
+  "convert.job.progress": "Conversion progress",
+  "convert.job.blocked.reason": "Conversion is not exposed by this build (engine command catalog has no convert commands).",
   "shortcuts.title": "Keyboard shortcuts",
   "shortcuts.subtitle": "Every key the player understands. Edit overrides in Settings.",
   "shortcuts.search.label": "Search shortcuts",

@@ -18,15 +18,16 @@
 //!   [`DecoderFactory`]) and the decoded frames are written as RIFF/
 //!   WAVE PCM (16/24/32-bit integer, f32/f64 float — identity or
 //!   lossless widening only, never a silent quantization).
-//! * **copy path** — [`SinkSpec::WavCopyPcm`] and
-//!   [`SinkSpec::RawEsCopy`]: demuxed packets flow to the sink
+//! * **copy path** — [`SinkSpec::WavCopyPcm`], [`SinkSpec::RawEsCopy`]
+//!   and [`SinkSpec::Mp4Remux`]: demuxed packets flow to the sink
 //!   verbatim, no decoder. WAV-from-PCM is legal only for tracks the
 //!   registry vocabulary calls unpacked little-endian PCM
 //!   (`pcm_u8` … `pcm_f64le`) with host-supplied `fmt `-level facts;
-//!   the raw elementary-stream sink accepts any track. **No other
-//!   remux exists in v1** — MP4-remux is card 7.E2, and every
-//!   conversion outside the two families above is a typed
-//!   `ErrorKind::Unsupported`, never a degraded output.
+//!   the raw elementary-stream sink accepts any track; the MP4-remux
+//!   sink (card 7.E2) accepts H.264/AAC tracks only, with
+//!   host-harvested sample-entry bytes per track. **No other remux
+//!   exists in v1** — every conversion outside the families above is
+//!   a typed `ErrorKind::Unsupported`, never a degraded output.
 //!
 //! [`FilterStage`] exists in the model (the graph *carries* filter
 //! stages) and validation refuses every one of them — the honest
@@ -37,7 +38,9 @@
 //! 1. filter rows over the [`JobLimits`] budget, then any filter row
 //!    at all (v1 implements none);
 //! 2. sink shape: WAV-PCM needs a decode stage; copy sinks reject
-//!    one;
+//!    one; the MP4-remux sink additionally needs a non-empty,
+//!    duplicate-free, budget-bounded config list with in-budget
+//!    sample entries;
 //! 3. WAV-from-PCM copy needs explicit PCM facts (the generic
 //!    `Demuxer` contract carries no `fmt ` parameters — the host that
 //!    opened a WAV source knows them, the runner cannot invent them).
@@ -58,9 +61,11 @@ use plugin_api::Demuxer;
 
 use crate::error::{
     filter_stages_over_budget, filter_unimplemented, graph_copy_facts_missing,
-    graph_decode_forbidden, graph_decode_required,
+    graph_decode_forbidden, graph_decode_required, graph_selection_tracks_mismatch,
+    mp4_sample_entry_over_budget, mp4_track_duplicate, mp4_tracks_empty, tracks_over_budget,
 };
 use crate::limits::JobLimits;
+use crate::mp4mux::{MAX_SAMPLE_ENTRY_BYTES, Mp4TrackConfig};
 
 /// A sink the writers stream into and finalize (patch RIFF sizes) on.
 ///
@@ -72,8 +77,8 @@ use crate::limits::JobLimits;
 pub trait WriteSeek: Write + Seek + Send {}
 impl<T: Write + Seek + Send> WriteSeek for T {}
 
-/// Which track of the source the job consumes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Which track(s) of the source the job consumes.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TrackSelection {
     /// The default audio pick: the source must carry exactly one
     /// audio track (zero or several are typed failures — the host
@@ -81,6 +86,12 @@ pub enum TrackSelection {
     DefaultAudio,
     /// A specific track by its engine handle.
     Track(TrackId),
+    /// Several tracks by their engine handles (the MP4-remux sink's
+    /// shape: a remux copies every configured track). Each id must
+    /// exist in the source's track table; duplicates are refused at
+    /// graph validation (the sink's config list is the de-duplicated
+    /// authority — `submit` derives this selection from it).
+    Tracks(Vec<TrackId>),
 }
 
 /// Builds the decode stage's decoder for the selected track.
@@ -203,6 +214,25 @@ pub enum SinkSpec {
         /// The streaming writer target.
         output: Box<dyn WriteSeek>,
     },
+    /// Copy path (card 7.E2): H.264/AAC packets → a minimal
+    /// progressive MP4 container, sample payloads byte-verbatim
+    /// under fresh sample tables (see [`crate::mp4mux`]).
+    ///
+    /// The **config list is the track selection**: `submit` derives
+    /// the pump's [`TrackSelection::Tracks`] from it (a host that
+    /// wants fewer tracks configures fewer), so the graph's
+    /// `source.selection` is not consulted for this sink — assemble
+    /// through [`Remuxer`](crate::record::Remuxer) to keep that
+    /// single-sourced. Each config names the source track and
+    /// carries its verbatim `stsd` entry payload (the host that
+    /// opened the source harvests it — the runner never invents
+    /// codec config bytes).
+    Mp4Remux {
+        /// The streaming, size-patching writer target.
+        output: Box<dyn WriteSeek>,
+        /// One entry per remuxed track, in output track order.
+        configs: Vec<Mp4TrackConfig>,
+    },
 }
 
 impl std::fmt::Debug for SinkSpec {
@@ -214,6 +244,9 @@ impl std::fmt::Debug for SinkSpec {
             SinkSpec::WavPcm { target, .. } => f.debug_tuple("WavPcm").field(target).finish(),
             SinkSpec::WavCopyPcm { facts, .. } => f.debug_tuple("WavCopyPcm").field(facts).finish(),
             SinkSpec::RawEsCopy { .. } => f.write_str("RawEsCopy"),
+            SinkSpec::Mp4Remux { configs, .. } => {
+                f.debug_tuple("Mp4Remux").field(&configs.len()).finish()
+            }
         }
     }
 }
@@ -310,6 +343,37 @@ impl TranscodeGraph {
                     return Err(graph_decode_forbidden());
                 }
             }
+            SinkSpec::Mp4Remux { configs, .. } => {
+                if self.decode.is_some() {
+                    return Err(graph_decode_forbidden());
+                }
+                if configs.is_empty() {
+                    return Err(mp4_tracks_empty());
+                }
+                if configs.len() > limits.max_tracks() {
+                    return Err(tracks_over_budget(configs.len(), limits.max_tracks()));
+                }
+                let mut seen = std::collections::HashSet::new();
+                for config in configs {
+                    if !seen.insert(config.track) {
+                        return Err(mp4_track_duplicate());
+                    }
+                    if config.sample_entry.len() > MAX_SAMPLE_ENTRY_BYTES {
+                        return Err(mp4_sample_entry_over_budget(
+                            config.sample_entry.len(),
+                            MAX_SAMPLE_ENTRY_BYTES,
+                        ));
+                    }
+                }
+            }
+        }
+        // A multi-track selection feeds the MP4-remux sink (whose
+        // configs derive it); every other sink consumes exactly one
+        // track and must not silently drop the rest.
+        if matches!(self.source.selection, TrackSelection::Tracks(_))
+            && !matches!(self.sink, SinkSpec::Mp4Remux { .. })
+        {
+            return Err(graph_selection_tracks_mismatch());
         }
         Ok(())
     }
@@ -492,5 +556,112 @@ mod tests {
             }),
         };
         graph(None, wav_copy).validate(&JobLimits::default()).must();
+        // The MP4-remux copy path: one config is the legal shape.
+        graph(None, mp4_sink())
+            .validate(&JobLimits::default())
+            .must();
+    }
+
+    /// An MP4-remux sink with one h264-shaped config (track handle +
+    /// a minimal sample-entry payload).
+    fn mp4_sink() -> SinkSpec {
+        SinkSpec::Mp4Remux {
+            output: Box::new(SeekableSink),
+            configs: vec![Mp4TrackConfig {
+                track: TrackId::new(0),
+                sample_entry: SharedBytes::from_vec(vec![0u8; 86]),
+            }],
+        }
+    }
+
+    #[test]
+    fn mp4_remux_rejects_decode_empty_duplicate_and_over_budget_configs() {
+        // A decode stage on the remux sink: copy path, refused.
+        let err = assert_err(
+            graph(Some(DecodeStage::new(Box::new(NopFactory))), mp4_sink())
+                .validate(&JobLimits::default()),
+            "remux with decode",
+        );
+        assert_eq!(err.context.code, "transcode.graph.decode-forbidden");
+        // No configs at all: nothing to remux.
+        let empty = SinkSpec::Mp4Remux {
+            output: Box::new(SeekableSink),
+            configs: Vec::new(),
+        };
+        let err = assert_err(
+            graph(None, empty).validate(&JobLimits::default()),
+            "remux without configs",
+        );
+        assert_eq!(err.context.code, "transcode.mp4.tracks-empty");
+        // The same track twice: one output track per source track.
+        let twice = SinkSpec::Mp4Remux {
+            output: Box::new(SeekableSink),
+            configs: vec![
+                Mp4TrackConfig {
+                    track: TrackId::new(0),
+                    sample_entry: SharedBytes::from_vec(vec![0u8; 8]),
+                },
+                Mp4TrackConfig {
+                    track: TrackId::new(0),
+                    sample_entry: SharedBytes::from_vec(vec![0u8; 8]),
+                },
+            ],
+        };
+        let err = assert_err(
+            graph(None, twice).validate(&JobLimits::default()),
+            "duplicate remux track",
+        );
+        assert_eq!(err.context.code, "transcode.mp4.track-duplicate");
+        // A config list over the track budget (default 64): the budget
+        // rule fires before the per-config entry-size walk
+        // (validation order).
+        let many = SinkSpec::Mp4Remux {
+            output: Box::new(SeekableSink),
+            configs: (0..65)
+                .map(|i| Mp4TrackConfig {
+                    track: TrackId::new(i),
+                    sample_entry: SharedBytes::from_vec(vec![0u8; 8]),
+                })
+                .collect(),
+        };
+        let err = assert_err(
+            graph(None, many).validate(&JobLimits::default()),
+            "config list over the track budget",
+        );
+        assert_eq!(err.context.code, "transcode.source.tracks-over-budget");
+        // One config with an over-budget sample entry: the config's
+        // own ceiling.
+        let huge = SinkSpec::Mp4Remux {
+            output: Box::new(SeekableSink),
+            configs: vec![Mp4TrackConfig {
+                track: TrackId::new(0),
+                sample_entry: SharedBytes::from_vec(vec![0u8; MAX_SAMPLE_ENTRY_BYTES + 1]),
+            }],
+        };
+        let err = assert_err(
+            graph(None, huge).validate(&JobLimits::default()),
+            "oversized sample entry",
+        );
+        assert_eq!(err.context.code, "transcode.mp4.sample-entry-over-budget");
+    }
+
+    #[test]
+    fn multi_track_selection_is_remux_only() {
+        // A Tracks selection on a single-track sink is refused — the
+        // sink would have to drop tracks silently, and it must not.
+        let mut g = graph(None, sink());
+        g.source.selection = TrackSelection::Tracks(vec![TrackId::new(0), TrackId::new(1)]);
+        let err = assert_err(
+            g.validate(&JobLimits::default()),
+            "Tracks selection on the raw-ES sink",
+        );
+        assert_eq!(
+            err.context.code,
+            "transcode.graph.selection-tracks-mismatch"
+        );
+        // The MP4-remux sink consumes the whole selection.
+        let mut g = graph(None, mp4_sink());
+        g.source.selection = TrackSelection::Tracks(vec![TrackId::new(0)]);
+        g.validate(&JobLimits::default()).must();
     }
 }
