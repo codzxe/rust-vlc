@@ -467,9 +467,11 @@ mod tests {
         // Every module in the catalog uses the lumen:v1.* namespace.
         assert!(V1_IMPORTS.iter().all(|s| s.module.starts_with(NAMESPACE)));
         // Every function returns exactly one i32 status.
-        assert!(V1_IMPORTS
-            .iter()
-            .all(|s| s.results.len() == 1 && s.results[0] == ValKind::I32));
+        assert!(
+            V1_IMPORTS
+                .iter()
+                .all(|s| s.results.len() == 1 && s.results[0] == ValKind::I32)
+        );
         // Base modules are host and log; gated modules are the four
         // doc 06 §2.2 permissions.
         for spec in V1_IMPORTS {

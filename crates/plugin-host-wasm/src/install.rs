@@ -35,14 +35,14 @@
 
 use std::path::{Path, PathBuf};
 
+use plugin_api::PluginManifest;
 use plugin_api::manifest::Origin;
 use plugin_api::semver::Semver;
-use plugin_api::PluginManifest;
 
 use crate::api::{self, Grants};
 use crate::error::{HostError, PackageError};
 use crate::package::{
-    read_package, LumenextPackage, SignatureStatus, ENTRY_MANIFEST, ENTRY_MODULE, ENTRY_SIGNATURE,
+    ENTRY_MANIFEST, ENTRY_MODULE, ENTRY_SIGNATURE, LumenextPackage, SignatureStatus, read_package,
 };
 
 /// User consent for an install or remove (doc 06 §5.7 step 1).
@@ -224,9 +224,8 @@ impl ExtensionStore {
                 )));
             }
         } else {
-            std::fs::create_dir_all(&dir).map_err(|e| {
-                HostError::Io(format!("cannot create {}: {e}", dir.display()))
-            })?;
+            std::fs::create_dir_all(&dir)
+                .map_err(|e| HostError::Io(format!("cannot create {}: {e}", dir.display())))?;
         }
         std::fs::write(dir.join(ENTRY_MANIFEST), &package.manifest_toml)
             .map_err(|e| HostError::Io(format!("write manifest: {e}")))?;
@@ -271,13 +270,10 @@ impl ExtensionStore {
             None => self.extension_dir(id)?,
         };
         if !target.exists() {
-            return Err(HostError::NotInstalled {
-                id: id.to_string(),
-            });
+            return Err(HostError::NotInstalled { id: id.to_string() });
         }
-        std::fs::remove_dir_all(&target).map_err(|e| {
-            HostError::Io(format!("cannot remove {}: {e}", target.display()))
-        })?;
+        std::fs::remove_dir_all(&target)
+            .map_err(|e| HostError::Io(format!("cannot remove {}: {e}", target.display())))?;
         Ok(Removed { path: target })
     }
 
@@ -295,7 +291,7 @@ impl ExtensionStore {
                 return Err(HostError::Io(format!(
                     "cannot read {}: {e}",
                     extensions.display()
-                )))
+                )));
             }
         };
         for id_entry in ids {
@@ -334,9 +330,7 @@ impl ExtensionStore {
             .installed()?
             .into_iter()
             .find(|e| e.id == id)
-            .ok_or_else(|| HostError::NotInstalled {
-                id: id.to_string(),
-            })?;
+            .ok_or_else(|| HostError::NotInstalled { id: id.to_string() })?;
         // Highest version wins (doc 06 §5.7). Precedence via
         // plugin-api's semver; unparsable directory names are
         // skipped as layout noise (a partially written install).
@@ -354,19 +348,23 @@ impl ExtensionStore {
                 best = Some((parsed, version));
             }
         }
-        let (_, highest) = best.ok_or_else(|| HostError::Layout(format!(
-            "extension `{id}` has no parsable version directory"
-        )))?;
-        let manifest_bytes = std::fs::read(highest.path.join(ENTRY_MANIFEST))
-            .map_err(|e| HostError::Layout(format!(
+        let (_, highest) = best.ok_or_else(|| {
+            HostError::Layout(format!(
+                "extension `{id}` has no parsable version directory"
+            ))
+        })?;
+        let manifest_bytes = std::fs::read(highest.path.join(ENTRY_MANIFEST)).map_err(|e| {
+            HostError::Layout(format!(
                 "manifest at {}: {e}",
                 highest.path.join(ENTRY_MANIFEST).display()
-            )))?;
-        let module_bytes = std::fs::read(highest.path.join(ENTRY_MODULE))
-            .map_err(|e| HostError::Layout(format!(
+            ))
+        })?;
+        let module_bytes = std::fs::read(highest.path.join(ENTRY_MODULE)).map_err(|e| {
+            HostError::Layout(format!(
                 "module at {}: {e}",
                 highest.path.join(ENTRY_MODULE).display()
-            )))?;
+            ))
+        })?;
         let signature_block = std::fs::read_to_string(highest.path.join(ENTRY_SIGNATURE))
             .ok()
             .map(|t| crate::package::SignatureBlock::parse(&t))
@@ -396,14 +394,16 @@ impl ExtensionStore {
         if let Some(declared) = provenance.signature.as_ref() {
             let recorded = signature_block.as_ref().map(|b| b.suite.as_str());
             if recorded != Some(declared.scheme.as_str()) {
-                return Err(HostError::Package(Box::new(PackageError::SignatureUnparsable {
-                    detail: format!(
-                        "manifest declares signature scheme `{}` but the \
+                return Err(HostError::Package(Box::new(
+                    PackageError::SignatureUnparsable {
+                        detail: format!(
+                            "manifest declares signature scheme `{}` but the \
                          stored signature block records `{}`",
-                        declared.scheme,
-                        recorded.unwrap_or("<absent>")
-                    ),
-                })));
+                            declared.scheme,
+                            recorded.unwrap_or("<absent>")
+                        ),
+                    },
+                )));
             }
         }
         Ok(LoadedExtension {
@@ -586,9 +586,7 @@ fn safe_component(component: &str) -> Result<(), HostError> {
     if component.is_empty()
         || component == "."
         || component == ".."
-        || component
-            .bytes()
-            .any(|b| b == b'/' || b == b'\\' || b == 0)
+        || component.bytes().any(|b| b == b'/' || b == b'\\' || b == 0)
     {
         return Err(HostError::Layout(format!("{MSG}: `{component}`")));
     }

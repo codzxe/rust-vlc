@@ -29,9 +29,9 @@ use wasmi::{Caller, Engine, Extern, Linker, Memory};
 use plugin_api::ENGINE_PLUGIN_API_MAJOR;
 
 use crate::api::{
-    GuestStatus, Grants, MOD_DEVICES, MOD_FS, MOD_HOST, MOD_HTTP, MOD_LOG, MOD_UI,
-    IMP_DEVICES_LIST, IMP_FS_CLOSE, IMP_FS_OPEN, IMP_FS_READ, IMP_FS_SIZE,
-    IMP_HOST_REPORT_MANIFEST, IMP_HTTP_GET, IMP_LOG_WRITE, IMP_UI_REGISTER_PANEL,
+    Grants, GuestStatus, IMP_DEVICES_LIST, IMP_FS_CLOSE, IMP_FS_OPEN, IMP_FS_READ, IMP_FS_SIZE,
+    IMP_HOST_REPORT_MANIFEST, IMP_HTTP_GET, IMP_LOG_WRITE, IMP_UI_REGISTER_PANEL, MOD_DEVICES,
+    MOD_FS, MOD_HOST, MOD_HTTP, MOD_LOG, MOD_UI,
 };
 use crate::error::HostError;
 use crate::limits::ESCALATION_DISABLE_THRESHOLD;
@@ -109,11 +109,14 @@ fn read_guest(
         return Ok(Vec::new());
     }
     let Some(memory) = guest_memory(caller) else {
-        caller.data_mut().ledger.record_escalation(SecurityEvent::new(
-            import,
-            "buffer passed but the module exports no `memory`",
-            format!("ptr={ptr}, len={len}"),
-        ));
+        caller
+            .data_mut()
+            .ledger
+            .record_escalation(SecurityEvent::new(
+                import,
+                "buffer passed but the module exports no `memory`",
+                format!("ptr={ptr}, len={len}"),
+            ));
         return Err(GuestStatus::EOob.code());
     };
     let mut buf = vec![0u8; len as usize];
@@ -121,22 +124,21 @@ fn read_guest(
         Ok(()) => Ok(buf),
         Err(_) => {
             let size = memory.size(&*caller) * 64 * 1024;
-            caller.data_mut().ledger.record_escalation(SecurityEvent::new(
-                import,
-                "out-of-bounds guest buffer (sandbox escape attempt)",
-                format!("ptr={ptr}, len={len}, memory_bytes={size}"),
-            ));
+            caller
+                .data_mut()
+                .ledger
+                .record_escalation(SecurityEvent::new(
+                    import,
+                    "out-of-bounds guest buffer (sandbox escape attempt)",
+                    format!("ptr={ptr}, len={len}, memory_bytes={size}"),
+                ));
             Err(GuestStatus::EOob.code())
         }
     }
 }
 
 /// Write `data` at `ptr` in guest memory (out-parameters).
-fn write_guest(
-    caller: &mut Caller<HostState>,
-    ptr: i32,
-    data: &[u8],
-) -> Result<(), i32> {
+fn write_guest(caller: &mut Caller<HostState>, ptr: i32, data: &[u8]) -> Result<(), i32> {
     if ptr < 0 {
         return Err(GuestStatus::EArg.code());
     }
@@ -152,20 +154,12 @@ fn write_guest(
 }
 
 /// Write a little-endian u32 out-parameter.
-fn write_guest_u32(
-    caller: &mut Caller<HostState>,
-    ptr: i32,
-    value: u32,
-) -> Result<(), i32> {
+fn write_guest_u32(caller: &mut Caller<HostState>, ptr: i32, value: u32) -> Result<(), i32> {
     write_guest(caller, ptr, &value.to_le_bytes())
 }
 
 /// Write a little-endian u64 out-parameter.
-fn write_guest_u64(
-    caller: &mut Caller<HostState>,
-    ptr: i32,
-    value: u64,
-) -> Result<(), i32> {
+fn write_guest_u64(caller: &mut Caller<HostState>, ptr: i32, value: u64) -> Result<(), i32> {
     write_guest(caller, ptr, &value.to_le_bytes())
 }
 
@@ -183,9 +177,9 @@ fn deny(
         .ledger
         .record_escalation(SecurityEvent::new(import, reason, arg_shape));
     if count >= ESCALATION_DISABLE_THRESHOLD {
-        return Err(wasmi::Error::host(HostFault(FaultKind::EscalationDisabled {
-            count,
-        })));
+        return Err(wasmi::Error::host(HostFault(
+            FaultKind::EscalationDisabled { count },
+        )));
     }
     Ok(GuestStatus::EPerm.code())
 }
@@ -224,10 +218,7 @@ pub fn build_linker(engine: &Engine, grants: &Grants) -> Result<Linker<HostState
 /// imports must be a known `lumen:v1.*` module AND granted by the
 /// manifest. Called before instantiation so violations fail before
 /// any guest code runs.
-pub fn check_import_policy(
-    module: &wasmi::Module,
-    grants: &Grants,
-) -> Result<(), HostError> {
+pub fn check_import_policy(module: &wasmi::Module, grants: &Grants) -> Result<(), HostError> {
     for import in module.imports() {
         let module_name = import.module().to_string();
         let Some(spec) = crate::api::lookup_module(&module_name) else {
@@ -250,9 +241,11 @@ pub fn check_import_policy(
 
 fn define_host(linker: &mut Linker<HostState>) -> Result<(), HostError> {
     linker
-        .func_wrap(MOD_HOST, "api_version", |_caller: Caller<HostState>| -> i32 {
-            ENGINE_PLUGIN_API_MAJOR as i32
-        })
+        .func_wrap(
+            MOD_HOST,
+            "api_version",
+            |_caller: Caller<HostState>| -> i32 { ENGINE_PLUGIN_API_MAJOR as i32 },
+        )
         .and_then(|l| {
             l.func_wrap(
                 MOD_HOST,
@@ -273,7 +266,9 @@ fn define_host(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                     let text = match String::from_utf8(bytes) {
                         Ok(text) => text,
                         Err(_) => {
-                            caller.data_mut().trace_import(import, GuestStatus::EArg.code());
+                            caller
+                                .data_mut()
+                                .trace_import(import, GuestStatus::EArg.code());
                             return Ok(GuestStatus::EArg.code());
                         }
                     };
@@ -295,7 +290,9 @@ fn define_host(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                     };
                     if accepted {
                         caller.data_mut().manifest_report = Some(text);
-                        caller.data_mut().trace_import(import, GuestStatus::Ok.code());
+                        caller
+                            .data_mut()
+                            .trace_import(import, GuestStatus::Ok.code());
                         return Ok(GuestStatus::Ok.code());
                     }
                     // A guest reporting a manifest that does not
@@ -303,14 +300,19 @@ fn define_host(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                     // identity, is a manifest lie (doc 06 §2.2):
                     // counted as a security event; the threshold
                     // fault applies.
-                    let count = caller.data_mut().ledger.record_escalation(SecurityEvent::new(
-                        import,
-                        "reported manifest does not parse or does not match \
+                    let count = caller
+                        .data_mut()
+                        .ledger
+                        .record_escalation(SecurityEvent::new(
+                            import,
+                            "reported manifest does not parse or does not match \
                          the installed identity (manifest lie)"
-                            .to_string(),
-                        format!("manifest_bytes={len}"),
-                    ));
-                    caller.data_mut().trace_import(import, GuestStatus::EArg.code());
+                                .to_string(),
+                            format!("manifest_bytes={len}"),
+                        ));
+                    caller
+                        .data_mut()
+                        .trace_import(import, GuestStatus::EArg.code());
                     if count >= ESCALATION_DISABLE_THRESHOLD {
                         return Err(wasmi::Error::host(HostFault(
                             FaultKind::EscalationDisabled { count },
@@ -334,7 +336,9 @@ fn define_log(linker: &mut Linker<HostState>) -> Result<(), HostError> {
             |mut caller: Caller<HostState>, level: i32, ptr: i32, len: i32| -> i32 {
                 let import = IMP_LOG_WRITE;
                 if !(0..=4).contains(&level) {
-                    caller.data_mut().trace_import(import, GuestStatus::EArg.code());
+                    caller
+                        .data_mut()
+                        .trace_import(import, GuestStatus::EArg.code());
                     return GuestStatus::EArg.code();
                 }
                 let caps = (4096, caller.data().limits.io_transfer_bytes);
@@ -347,17 +351,17 @@ fn define_log(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                 };
                 // Log records are I/O too (they leave the sandbox):
                 // charge the token bucket.
-                if !caller
-                    .data_mut()
-                    .io_bucket
-                    .take(bytes.len() as u64)
-                {
-                    caller.data_mut().trace_import(import, GuestStatus::EQuota.code());
+                if !caller.data_mut().io_bucket.take(bytes.len() as u64) {
+                    caller
+                        .data_mut()
+                        .trace_import(import, GuestStatus::EQuota.code());
                     return GuestStatus::EQuota.code();
                 }
                 let line = String::from_utf8_lossy(&bytes).to_string();
                 caller.data_mut().log_record(level as u8, line);
-                caller.data_mut().trace_import(import, GuestStatus::Ok.code());
+                caller
+                    .data_mut()
+                    .trace_import(import, GuestStatus::Ok.code());
                 GuestStatus::Ok.code()
             },
         )
@@ -372,7 +376,11 @@ fn define_fs(linker: &mut Linker<HostState>) -> Result<(), HostError> {
         .func_wrap(
             MOD_FS,
             "fs_open",
-            |mut caller: Caller<HostState>, path_ptr: i32, path_len: i32, out_handle: i32| -> Result<i32, wasmi::Error> {
+            |mut caller: Caller<HostState>,
+             path_ptr: i32,
+             path_len: i32,
+             out_handle: i32|
+             -> Result<i32, wasmi::Error> {
                 let import = IMP_FS_OPEN;
                 let caps = (4096, caller.data().limits.io_transfer_bytes);
                 let bytes = match read_guest(&mut caller, import, path_ptr, path_len, caps) {
@@ -387,7 +395,9 @@ fn define_fs(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                     Some(jail) => jail,
                     None => {
                         let shape = format!("path_len={}", path.len());
-                        caller.data_mut().trace_import(import, GuestStatus::EPerm.code());
+                        caller
+                            .data_mut()
+                            .trace_import(import, GuestStatus::EPerm.code());
                         return deny(
                             &mut caller,
                             import,
@@ -402,11 +412,15 @@ fn define_fs(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                     Ok(resolved) => resolved,
                     Err(HostError::PermissionDenied { detail }) => {
                         let shape = format!("path_len={}", path.len());
-                        caller.data_mut().trace_import(import, GuestStatus::EPerm.code());
+                        caller
+                            .data_mut()
+                            .trace_import(import, GuestStatus::EPerm.code());
                         return deny(&mut caller, import, detail, shape);
                     }
                     Err(other) => {
-                        caller.data_mut().trace_import(import, GuestStatus::EIo.code());
+                        caller
+                            .data_mut()
+                            .trace_import(import, GuestStatus::EIo.code());
                         let _ = other;
                         return Ok(GuestStatus::EIo.code());
                     }
@@ -415,25 +429,33 @@ fn define_fs(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                 let meta = match std::fs::metadata(&resolved) {
                     Ok(meta) => meta,
                     Err(_) => {
-                        caller.data_mut().trace_import(import, GuestStatus::EIo.code());
+                        caller
+                            .data_mut()
+                            .trace_import(import, GuestStatus::EIo.code());
                         return Ok(GuestStatus::EIo.code());
                     }
                 };
                 if !meta.is_file() {
-                    caller.data_mut().trace_import(import, GuestStatus::EArg.code());
+                    caller
+                        .data_mut()
+                        .trace_import(import, GuestStatus::EArg.code());
                     return Ok(GuestStatus::EArg.code());
                 }
                 // Size is bounded by the single-transfer cap (a
                 // 100 GiB "media file" cannot be slurped in one go).
                 let cap = caller.data().limits.io_transfer_bytes;
                 if meta.len() > cap {
-                    caller.data_mut().trace_import(import, GuestStatus::ETooLarge.code());
+                    caller
+                        .data_mut()
+                        .trace_import(import, GuestStatus::ETooLarge.code());
                     return Ok(GuestStatus::ETooLarge.code());
                 }
                 let content = match std::fs::read(&resolved) {
                     Ok(content) => content,
                     Err(_) => {
-                        caller.data_mut().trace_import(import, GuestStatus::EIo.code());
+                        caller
+                            .data_mut()
+                            .trace_import(import, GuestStatus::EIo.code());
                         return Ok(GuestStatus::EIo.code());
                     }
                 };
@@ -446,14 +468,18 @@ fn define_fs(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                 {
                     Ok(handle) => handle,
                     Err(detail) => {
-                        caller.data_mut().trace_import(import, GuestStatus::ELimit.code());
+                        caller
+                            .data_mut()
+                            .trace_import(import, GuestStatus::ELimit.code());
                         let _ = detail;
                         return Ok(GuestStatus::ELimit.code());
                     }
                 };
                 match write_guest_u32(&mut caller, out_handle, handle) {
                     Ok(()) => {
-                        caller.data_mut().trace_import(import, GuestStatus::Ok.code());
+                        caller
+                            .data_mut()
+                            .trace_import(import, GuestStatus::Ok.code());
                         Ok(GuestStatus::Ok.code())
                     }
                     Err(status) => {
@@ -475,21 +501,23 @@ fn define_fs(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                  -> Result<i32, wasmi::Error> {
                     let import = IMP_FS_READ;
                     if handle < 0 || buf_ptr < 0 || buf_cap < 0 {
-                        caller.data_mut().trace_import(import, GuestStatus::EArg.code());
+                        caller
+                            .data_mut()
+                            .trace_import(import, GuestStatus::EArg.code());
                         return Ok(GuestStatus::EArg.code());
                     }
                     let transfer = caller.data().limits.io_transfer_bytes;
                     if buf_cap as u64 > transfer {
-                        caller.data_mut().trace_import(import, GuestStatus::ETooLarge.code());
+                        caller
+                            .data_mut()
+                            .trace_import(import, GuestStatus::ETooLarge.code());
                         return Ok(GuestStatus::ETooLarge.code());
                     }
                     // Charge the rate bucket before reading.
-                    if !caller
-                        .data_mut()
-                        .io_bucket
-                        .take(buf_cap as u64)
-                    {
-                        caller.data_mut().trace_import(import, GuestStatus::EQuota.code());
+                    if !caller.data_mut().io_bucket.take(buf_cap as u64) {
+                        caller
+                            .data_mut()
+                            .trace_import(import, GuestStatus::EQuota.code());
                         return Ok(GuestStatus::EQuota.code());
                     }
                     let chunk = match caller
@@ -499,16 +527,20 @@ fn define_fs(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                     {
                         Some(chunk) => chunk,
                         None => {
-                            caller.data_mut().trace_import(import, GuestStatus::EHandle.code());
+                            caller
+                                .data_mut()
+                                .trace_import(import, GuestStatus::EHandle.code());
                             return Ok(GuestStatus::EHandle.code());
                         }
                     };
                     let n = chunk.len();
-                    match write_guest(&mut caller, buf_ptr, &chunk).and_then(|()| {
-                        write_guest_u32(&mut caller, out_len, n as u32)
-                    }) {
+                    match write_guest(&mut caller, buf_ptr, &chunk)
+                        .and_then(|()| write_guest_u32(&mut caller, out_len, n as u32))
+                    {
                         Ok(()) => {
-                            caller.data_mut().trace_import(import, GuestStatus::Ok.code());
+                            caller
+                                .data_mut()
+                                .trace_import(import, GuestStatus::Ok.code());
                             Ok(GuestStatus::Ok.code())
                         }
                         Err(status) => {
@@ -526,13 +558,17 @@ fn define_fs(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                 |mut caller: Caller<HostState>, handle: i32, out_size: i32| -> i32 {
                     let import = IMP_FS_SIZE;
                     if handle < 0 {
-                        caller.data_mut().trace_import(import, GuestStatus::EArg.code());
+                        caller
+                            .data_mut()
+                            .trace_import(import, GuestStatus::EArg.code());
                         return GuestStatus::EArg.code();
                     }
                     match caller.data_mut().handles.size(handle as u32) {
                         Some(size) => match write_guest_u64(&mut caller, out_size, size) {
                             Ok(()) => {
-                                caller.data_mut().trace_import(import, GuestStatus::Ok.code());
+                                caller
+                                    .data_mut()
+                                    .trace_import(import, GuestStatus::Ok.code());
                                 GuestStatus::Ok.code()
                             }
                             Err(status) => {
@@ -541,7 +577,9 @@ fn define_fs(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                             }
                         },
                         None => {
-                            caller.data_mut().trace_import(import, GuestStatus::EHandle.code());
+                            caller
+                                .data_mut()
+                                .trace_import(import, GuestStatus::EHandle.code());
                             GuestStatus::EHandle.code()
                         }
                     }
@@ -555,16 +593,22 @@ fn define_fs(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                 |mut caller: Caller<HostState>, handle: i32| -> i32 {
                     let import = IMP_FS_CLOSE;
                     if handle < 0 {
-                        caller.data_mut().trace_import(import, GuestStatus::EArg.code());
+                        caller
+                            .data_mut()
+                            .trace_import(import, GuestStatus::EArg.code());
                         return GuestStatus::EArg.code();
                     }
                     match caller.data_mut().handles.close(handle as u32) {
                         Ok(()) => {
-                            caller.data_mut().trace_import(import, GuestStatus::Ok.code());
+                            caller
+                                .data_mut()
+                                .trace_import(import, GuestStatus::Ok.code());
                             GuestStatus::Ok.code()
                         }
                         Err(_) => {
-                            caller.data_mut().trace_import(import, GuestStatus::EHandle.code());
+                            caller
+                                .data_mut()
+                                .trace_import(import, GuestStatus::EHandle.code());
                             GuestStatus::EHandle.code()
                         }
                     }
@@ -591,7 +635,9 @@ fn define_http(linker: &mut Linker<HostState>) -> Result<(), HostError> {
              -> Result<i32, wasmi::Error> {
                 let import = IMP_HTTP_GET;
                 if out_ptr < 0 || out_cap < 0 {
-                    caller.data_mut().trace_import(import, GuestStatus::EArg.code());
+                    caller
+                        .data_mut()
+                        .trace_import(import, GuestStatus::EArg.code());
                     return Ok(GuestStatus::EArg.code());
                 }
                 let caps = (2048, caller.data().limits.io_transfer_bytes);
@@ -609,18 +655,24 @@ fn define_http(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                     Ok(parsed) => parsed,
                     Err(HostError::PermissionDenied { detail }) => {
                         let shape = format!("url_len={}", url.len());
-                        caller.data_mut().trace_import(import, GuestStatus::EArg.code());
+                        caller
+                            .data_mut()
+                            .trace_import(import, GuestStatus::EArg.code());
                         return deny(&mut caller, import, detail, shape);
                     }
                     Err(_) => {
-                        caller.data_mut().trace_import(import, GuestStatus::EArg.code());
+                        caller
+                            .data_mut()
+                            .trace_import(import, GuestStatus::EArg.code());
                         return Ok(GuestStatus::EArg.code());
                     }
                 };
                 let allowed = parsed.allowed_by(&caller.data().http_allowlist);
                 if !allowed {
                     let shape = format!("url_len={}, host_len={}", url.len(), parsed.host.len());
-                    caller.data_mut().trace_import(import, GuestStatus::EPerm.code());
+                    caller
+                        .data_mut()
+                        .trace_import(import, GuestStatus::EPerm.code());
                     return deny(
                         &mut caller,
                         import,
@@ -629,20 +681,22 @@ fn define_http(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                     );
                 }
                 if !caller.data_mut().http_admit() {
-                    caller.data_mut().trace_import(import, GuestStatus::EQuota.code());
+                    caller
+                        .data_mut()
+                        .trace_import(import, GuestStatus::EQuota.code());
                     return Ok(GuestStatus::EQuota.code());
                 }
                 let transfer = caller.data().limits.io_transfer_bytes;
                 if out_cap as u64 > transfer {
-                    caller.data_mut().trace_import(import, GuestStatus::ETooLarge.code());
+                    caller
+                        .data_mut()
+                        .trace_import(import, GuestStatus::ETooLarge.code());
                     return Ok(GuestStatus::ETooLarge.code());
                 }
-                if !caller
-                    .data_mut()
-                    .io_bucket
-                    .take(out_cap as u64)
-                {
-                    caller.data_mut().trace_import(import, GuestStatus::EQuota.code());
+                if !caller.data_mut().io_bucket.take(out_cap as u64) {
+                    caller
+                        .data_mut()
+                        .trace_import(import, GuestStatus::EQuota.code());
                     return Ok(GuestStatus::EQuota.code());
                 }
                 // The seam: dispatch to the (possibly absent)
@@ -651,7 +705,9 @@ fn define_http(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                 let transport = caller.data_mut().services.transport.as_mut();
                 let response = match transport {
                     None => {
-                        caller.data_mut().trace_import(import, GuestStatus::ETransport.code());
+                        caller
+                            .data_mut()
+                            .trace_import(import, GuestStatus::ETransport.code());
                         return Ok(GuestStatus::ETransport.code());
                     }
                     Some(transport) => transport.fetch(&parsed.url()),
@@ -659,11 +715,13 @@ fn define_http(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                 match response {
                     Ok(resp) => {
                         let n = (resp.body.len() as u64).min(out_cap as u64) as usize;
-                        match write_guest(&mut caller, out_ptr, &resp.body[..n]).and_then(|()| {
-                            write_guest_u32(&mut caller, out_len, n as u32)
-                        }) {
+                        match write_guest(&mut caller, out_ptr, &resp.body[..n])
+                            .and_then(|()| write_guest_u32(&mut caller, out_len, n as u32))
+                        {
                             Ok(()) => {
-                                caller.data_mut().trace_import(import, GuestStatus::Ok.code());
+                                caller
+                                    .data_mut()
+                                    .trace_import(import, GuestStatus::Ok.code());
                                 Ok(GuestStatus::Ok.code())
                             }
                             Err(status) => {
@@ -673,11 +731,15 @@ fn define_http(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                         }
                     }
                     Err(crate::http::TransportError::Unavailable) => {
-                        caller.data_mut().trace_import(import, GuestStatus::ETransport.code());
+                        caller
+                            .data_mut()
+                            .trace_import(import, GuestStatus::ETransport.code());
                         Ok(GuestStatus::ETransport.code())
                     }
                     Err(crate::http::TransportError::Failed(_)) => {
-                        caller.data_mut().trace_import(import, GuestStatus::EIo.code());
+                        caller
+                            .data_mut()
+                            .trace_import(import, GuestStatus::EIo.code());
                         Ok(GuestStatus::EIo.code())
                     }
                 }
@@ -711,12 +773,19 @@ fn define_ui(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                 // host-accounting posture; a UI spammer is refused,
                 // not accommodated).
                 if caller.data().panels.len() >= 8 {
-                    caller.data_mut().trace_import(import, GuestStatus::ELimit.code());
+                    caller
+                        .data_mut()
+                        .trace_import(import, GuestStatus::ELimit.code());
                     return GuestStatus::ELimit.code();
                 }
                 let descriptor = String::from_utf8_lossy(&bytes).to_string();
-                caller.data_mut().panels.push(crate::state::PanelRecord { descriptor });
-                caller.data_mut().trace_import(import, GuestStatus::Ok.code());
+                caller
+                    .data_mut()
+                    .panels
+                    .push(crate::state::PanelRecord { descriptor });
+                caller
+                    .data_mut()
+                    .trace_import(import, GuestStatus::Ok.code());
                 GuestStatus::Ok.code()
             },
         )
@@ -734,21 +803,27 @@ fn define_devices(linker: &mut Linker<HostState>) -> Result<(), HostError> {
             |mut caller: Caller<HostState>, out_ptr: i32, out_cap: i32, out_len: i32| -> i32 {
                 let import = IMP_DEVICES_LIST;
                 if out_ptr < 0 || out_cap < 0 {
-                    caller.data_mut().trace_import(import, GuestStatus::EArg.code());
+                    caller
+                        .data_mut()
+                        .trace_import(import, GuestStatus::EArg.code());
                     return GuestStatus::EArg.code();
                 }
                 let transfer = caller.data().limits.io_transfer_bytes;
                 if out_cap as u64 > transfer {
-                    caller.data_mut().trace_import(import, GuestStatus::ETooLarge.code());
+                    caller
+                        .data_mut()
+                        .trace_import(import, GuestStatus::ETooLarge.code());
                     return GuestStatus::ETooLarge.code();
                 }
                 let inventory = caller.data().services.device_inventory.clone();
                 let n = (inventory.len() as u64).min(out_cap as u64) as usize;
-                match write_guest(&mut caller, out_ptr, &inventory.as_bytes()[..n]).and_then(|()| {
-                    write_guest_u32(&mut caller, out_len, n as u32)
-                }) {
+                match write_guest(&mut caller, out_ptr, &inventory.as_bytes()[..n])
+                    .and_then(|()| write_guest_u32(&mut caller, out_len, n as u32))
+                {
                     Ok(()) => {
-                        caller.data_mut().trace_import(import, GuestStatus::Ok.code());
+                        caller
+                            .data_mut()
+                            .trace_import(import, GuestStatus::Ok.code());
                         GuestStatus::Ok.code()
                     }
                     Err(status) => {

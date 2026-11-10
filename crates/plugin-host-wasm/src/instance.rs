@@ -15,7 +15,7 @@ use plugin_api::PluginManifest;
 
 use crate::api::{self, Grants};
 use crate::error::HostError;
-use crate::imports::{self, check_import_policy, FaultKind, HostFault, HostState};
+use crate::imports::{self, FaultKind, HostFault, HostState, check_import_policy};
 use crate::limits::ResourceLimits;
 use crate::state::{HostServices, InstanceState, ManifestExpectation, SecurityLedger};
 
@@ -308,7 +308,9 @@ fn classify_spawn_error(err: &wasmi::Error, memory_cap: u64) -> HostError {
         return HostError::CpuLimit;
     }
     if is_memory_denied(err) {
-        return HostError::MemoryLimit { cap_bytes: memory_cap };
+        return HostError::MemoryLimit {
+            cap_bytes: memory_cap,
+        };
     }
     HostError::Instantiation(err.to_string())
 }
@@ -322,7 +324,9 @@ fn classify_call_error(err: &wasmi::Error, memory_cap: u64) -> HostError {
         return HostError::CpuLimit;
     }
     if is_memory_denied(err) {
-        return HostError::MemoryLimit { cap_bytes: memory_cap };
+        return HostError::MemoryLimit {
+            cap_bytes: memory_cap,
+        };
     }
     if let Some(trap) = err.as_trap_code() {
         return HostError::Wasm(format!("trap: {trap:?}"));

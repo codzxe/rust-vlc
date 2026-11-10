@@ -19,14 +19,14 @@
 mod common;
 
 use common::{
-    br_if, brv, call, code, dropv, endv, i32c, lget, loopv, ltee, manifest, manifest_toml, mem_grow,
-    nev, ok, spawn, spawn_with_ledger, I32,
+    I32, br_if, brv, call, code, dropv, endv, i32c, lget, loopv, ltee, manifest, manifest_toml,
+    mem_grow, nev, ok, spawn, spawn_with_ledger,
 };
 
+use plugin_host_wasm::HostError;
 use plugin_host_wasm::fsjail::PathJail;
 use plugin_host_wasm::instance::InstanceStatus;
 use plugin_host_wasm::state::{HostServices, SecurityLedger};
-use plugin_host_wasm::HostError;
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -90,14 +90,26 @@ fn fs_wasm() -> Vec<u8> {
         &[],
         &[I32],
         &[],
-        &code(&[&i32c(999), &i32c(8192), &i32c(16), &i32c(8256), &call(fs_read)]),
+        &code(&[
+            &i32c(999),
+            &i32c(8192),
+            &i32c(16),
+            &i32c(8256),
+            &call(fs_read),
+        ]),
     );
     w.export_func("read_bogus", read_bogus);
     let read_first = w.func(
         &[],
         &[I32],
         &[],
-        &code(&[&i32c(0), &i32c(8192), &i32c(16), &i32c(8256), &call(fs_read)]),
+        &code(&[
+            &i32c(0),
+            &i32c(8192),
+            &i32c(16),
+            &i32c(8256),
+            &call(fs_read),
+        ]),
     );
     w.export_func("read_first", read_first);
     let size_first = w.func(
@@ -520,7 +532,11 @@ fn plugin_io_abuse() {
         manifest(&manifest_toml(&wasm, "")),
         HostServices::empty(),
     ));
-    assert_eq!(ok(spam.invoke("spam3", &[])), vec![7], "E_QUOTA on burst exhaustion");
+    assert_eq!(
+        ok(spam.invoke("spam3", &[])),
+        vec![7],
+        "E_QUOTA on burst exhaustion"
+    );
     let trace = spam.import_trace();
     assert_eq!(
         trace
@@ -551,9 +567,17 @@ fn plugin_io_abuse() {
         )),
         HostServices::empty(),
     ));
-    assert_eq!(ok(http.invoke("fetch_ok", &[])), vec![8], "E_TRANSPORT: the seam is honestly unwired");
+    assert_eq!(
+        ok(http.invoke("fetch_ok", &[])),
+        vec![8],
+        "E_TRANSPORT: the seam is honestly unwired"
+    );
     assert_eq!(ok(http.invoke("fetch_ok", &[])), vec![8]);
-    assert_eq!(ok(http.invoke("fetch_ok", &[])), vec![7], "E_QUOTA: per-minute cap");
+    assert_eq!(
+        ok(http.invoke("fetch_ok", &[])),
+        vec![7],
+        "E_QUOTA: per-minute cap"
+    );
 
     // With a wired transport, the ALLOWED host round-trips real bytes
     // through the seam (policy passes, payload crosses, caps hold).
@@ -609,7 +633,12 @@ fn plugin_host_pointer_smuggling() {
     assert_eq!(ok(fs.invoke("open_ok", &[])), vec![0]);
     let handle_bytes = ok(fs.read_guest_memory(4096, 4));
     assert_eq!(
-        u32::from_le_bytes([handle_bytes[0], handle_bytes[1], handle_bytes[2], handle_bytes[3]]),
+        u32::from_le_bytes([
+            handle_bytes[0],
+            handle_bytes[1],
+            handle_bytes[2],
+            handle_bytes[3]
+        ]),
         0,
         "the first opened handle is index 0"
     );

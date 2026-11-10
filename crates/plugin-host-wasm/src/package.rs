@@ -98,11 +98,7 @@ impl SignatureBlock {
     /// missing fields or non-hex values.
     pub fn parse(text: &str) -> Result<SignatureBlock, PackageError> {
         let mut lines = text.lines();
-        let version_line = lines
-            .next()
-            .unwrap_or_default()
-            .trim()
-            .to_string();
+        let version_line = lines.next().unwrap_or_default().trim().to_string();
         if version_line != "lumenext-signature-v1" {
             return Err(PackageError::SignatureUnparsable {
                 detail: format!("first line must be `lumenext-signature-v1`, got `{version_line}`"),
@@ -116,11 +112,11 @@ impl SignatureBlock {
             if line.is_empty() {
                 continue;
             }
-            let (field, rest) = line
-                .split_once(':')
-                .ok_or_else(|| PackageError::SignatureUnparsable {
-                    detail: format!("line `{line}` is not `field: value`"),
-                })?;
+            let (field, rest) =
+                line.split_once(':')
+                    .ok_or_else(|| PackageError::SignatureUnparsable {
+                        detail: format!("line `{line}` is not `field: value`"),
+                    })?;
             let rest = rest.trim();
             match field.trim() {
                 "suite" => suite = Some(rest.to_string()),
@@ -231,17 +227,13 @@ fn read_central_directory(bytes: &[u8]) -> Result<Vec<ZipEntry>, PackageError> {
     let mut i = bytes.len();
     while i > scan_start {
         i -= 1;
-        if bytes[i..].len() >= 22
-            && bytes[i..i + 4] == [0x50, 0x4b, 0x05, 0x06]
-        {
+        if bytes[i..].len() >= 22 && bytes[i..i + 4] == [0x50, 0x4b, 0x05, 0x06] {
             eocd = Some(i);
             break;
         }
     }
     let eocd = eocd.ok_or(PackageError::NotZip)?;
-    let u16le = |off: usize| -> u16 {
-        u16::from_le_bytes([bytes[off], bytes[off + 1]])
-    };
+    let u16le = |off: usize| -> u16 { u16::from_le_bytes([bytes[off], bytes[off + 1]]) };
     let u32le = |off: usize| -> u32 {
         u32::from_le_bytes([bytes[off], bytes[off + 1], bytes[off + 2], bytes[off + 3]])
     };
@@ -291,12 +283,13 @@ fn read_central_directory(bytes: &[u8]) -> Result<Vec<ZipEntry>, PackageError> {
 
 /// Extract one named entry (stored method only, CRC-verified).
 fn extract(bytes: &[u8], entries: &[ZipEntry], name: &str) -> Result<Vec<u8>, PackageError> {
-    let entry = entries
-        .iter()
-        .find(|e| e.name == name)
-        .ok_or_else(|| PackageError::MissingEntry {
-            name: name.to_string(),
-        })?;
+    let entry =
+        entries
+            .iter()
+            .find(|e| e.name == name)
+            .ok_or_else(|| PackageError::MissingEntry {
+                name: name.to_string(),
+            })?;
     if entry.method != 0 {
         return Err(PackageError::CompressedEntry {
             method: entry.method,
@@ -360,7 +353,8 @@ mod tests {
 
     #[test]
     fn signature_block_parses_and_classifies() {
-        let text = "lumenext-signature-v1\nsuite: ed25519-detached-v1\nkey: 9f00cafe\nvalue: deadbeef01\n";
+        let text =
+            "lumenext-signature-v1\nsuite: ed25519-detached-v1\nkey: 9f00cafe\nvalue: deadbeef01\n";
         let block = ok(SignatureBlock::parse(text));
         assert_eq!(block.suite, "ed25519-detached-v1");
         assert_eq!(

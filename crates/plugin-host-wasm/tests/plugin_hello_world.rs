@@ -7,13 +7,13 @@
 mod common;
 
 use common::{
-    call, code, dropv, i32c, manifest, manifest_toml, ok, reported_manifest_toml, some,
-    spawn_with_limits, I32,
+    I32, call, code, dropv, i32c, manifest, manifest_toml, ok, reported_manifest_toml, some,
+    spawn_with_limits,
 };
 
+use plugin_host_wasm::HostError;
 use plugin_host_wasm::limits::ResourceLimits;
 use plugin_host_wasm::state::HostServices;
-use plugin_host_wasm::HostError;
 
 /// The hello handshake's budget: the tiny fixture limits, with the
 /// descriptor cap raised to the v1 ABI default (64 KiB) so the
@@ -92,7 +92,10 @@ fn hello_world_extension_runs_and_reports_manifest() {
     // ring, level and text intact.
     let logs = instance.log_records();
     assert_eq!(logs.len(), 1);
-    assert_eq!(logs[0], (2u8, "hello from the hello-world extension".to_string()));
+    assert_eq!(
+        logs[0],
+        (2u8, "hello from the hello-world extension".to_string())
+    );
 
     // The instance is still Ready and re-dispatchable.
     assert_eq!(
@@ -119,7 +122,14 @@ fn api_version_mismatch_is_the_typed_error() {
     .err()
     .unwrap_or_else(|| unreachable!("api_version 2 must refuse to load"));
     assert!(
-        matches!(err, HostError::ApiVersion { found: 2, supported_min: 1, supported_max: 1 }),
+        matches!(
+            err,
+            HostError::ApiVersion {
+                found: 2,
+                supported_min: 1,
+                supported_max: 1
+            }
+        ),
         "typed window error, got: {err}"
     );
 }

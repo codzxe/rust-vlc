@@ -121,7 +121,10 @@ impl PathJail {
             }
         }
         Err(HostError::PermissionDenied {
-            detail: format!("path `{}` not found inside the sandbox roots", shape(requested)),
+            detail: format!(
+                "path `{}` not found inside the sandbox roots",
+                shape(requested)
+            ),
         })
     }
 
@@ -190,8 +193,8 @@ mod tests {
     }
 
     fn write_file(path: &Path, bytes: &[u8]) {
-        let mut f = ok(std::fs::File::create(path)
-            .map_err(|e| format!("create {}: {e}", path.display())));
+        let mut f =
+            ok(std::fs::File::create(path).map_err(|e| format!("create {}: {e}", path.display())));
         ok(f.write_all(bytes)
             .map_err(|e| format!("write {}: {e}", path.display())));
     }
@@ -218,14 +221,15 @@ mod tests {
         ok(std::fs::create_dir_all(&secret).map_err(|e| e.to_string()));
         write_file(&secret.join("secret.txt"), b"no");
         #[cfg(unix)]
-        ok(std::os::unix::fs::symlink(&secret, media.join("escape"))
-            .map_err(|e| e.to_string()));
+        ok(std::os::unix::fs::symlink(&secret, media.join("escape")).map_err(|e| e.to_string()));
         #[cfg(windows)]
         {
             // Junction-free environments: skip the symlink fixture,
             // the prefix logic is covered by the sibling test.
-            ok(std::fs::copy(secret.join("secret.txt"), media.join("escape.txt"))
-                .map_err(|e| e.to_string()));
+            ok(
+                std::fs::copy(secret.join("secret.txt"), media.join("escape.txt"))
+                    .map_err(|e| e.to_string()),
+            );
         }
         let jail = ok(PathJail::new([&media]));
         #[cfg(unix)]
@@ -255,9 +259,7 @@ mod tests {
         ok(std::fs::create_dir_all(&sibling).map_err(|e| e.to_string()));
         write_file(&sibling.join("x.txt"), b"no");
         let jail = ok(PathJail::new([&root]));
-        let Err(err) = jail
-            .resolve(&sibling.join("x.txt").to_string_lossy())
-        else {
+        let Err(err) = jail.resolve(&sibling.join("x.txt").to_string_lossy()) else {
             unreachable!("sibling-prefix path must be denied")
         };
         assert!(matches!(err, HostError::PermissionDenied { .. }));

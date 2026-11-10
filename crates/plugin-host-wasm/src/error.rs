@@ -91,7 +91,7 @@ pub enum HostError {
         kind: String,
     },
     /// wasmi failed to compile or instantiate the module for a reason
-        /// not covered by a more specific variant.
+    /// not covered by a more specific variant.
     Instantiation(String),
     /// A dispatch returned an unexpected wasmi error (trap codes the
     /// host does not specially classify).
@@ -123,7 +123,7 @@ pub enum HostError {
         detail: String,
     },
     /// Install/remove was attempted without explicit user consent
-        /// (doc 06 §5.7 step 1, MP §6: install is user-initiated).
+    /// (doc 06 §5.7 step 1, MP §6: install is user-initiated).
     ConsentRequired,
 }
 

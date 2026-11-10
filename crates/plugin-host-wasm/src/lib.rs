@@ -82,15 +82,15 @@ pub mod sha256;
 pub mod state;
 
 // Headline re-exports: the surface an embedding app touches.
-pub use api::{Grants, Permission, ENGINE_PLUGIN_API_MIN};
+pub use api::{ENGINE_PLUGIN_API_MIN, Grants, Permission};
 pub use error::{HostError, PackageError};
 pub use fsjail::PathJail;
 pub use http::{HttpTransport, NoTransport, TransportError};
 pub use install::{ExtensionStore, InstallConsent, InstallReceipt};
-pub use instance::{engine, InstanceStatus, WasmInstance};
+pub use instance::{InstanceStatus, WasmInstance, engine};
 pub use limits::ResourceLimits;
-pub use package::{read_package, LumenextPackage, SignatureStatus};
-pub use state::{HostServices, SecurityLedger, SecurityEvent};
+pub use package::{LumenextPackage, SignatureStatus, read_package};
+pub use state::{HostServices, SecurityEvent, SecurityLedger};
 
 #[cfg(test)]
 mod tests {
@@ -102,7 +102,8 @@ mod tests {
         // version window matches plugin-api's contract major.
         assert_eq!(ENGINE_PLUGIN_API_MIN, 1);
         assert_eq!(
-            plugin_api::ENGINE_PLUGIN_API_MAJOR, 1,
+            plugin_api::ENGINE_PLUGIN_API_MAJOR,
+            1,
             "the window is [1, 1] while only v1 exists (doc 06 §5.5)"
         );
         let _limits = ResourceLimits::for_kind(plugin_api::PluginKind::UiPanel);

@@ -8,14 +8,14 @@
 mod common;
 
 use common::{
-    code, i32c, manifest, manifest_toml, ok, package, signature_block, zip_raw, zip_stored, I32,
+    I32, code, i32c, manifest, manifest_toml, ok, package, signature_block, zip_raw, zip_stored,
 };
 
+use plugin_host_wasm::HostError;
 use plugin_host_wasm::error::PackageError;
 use plugin_host_wasm::install::{ExtensionStore, InstallConsent};
 use plugin_host_wasm::package::SignatureStatus;
 use plugin_host_wasm::state::HostServices;
-use plugin_host_wasm::HostError;
 
 /// The minimal well-formed module: one exported function, no imports.
 fn tiny_wasm() -> Vec<u8> {
@@ -75,10 +75,9 @@ fn plugin_malicious_manifest() {
     // (b) Origin forgery: a disk manifest claiming `builtin`
     // (plugin-api-valid on its own — the host's extension store is
     // where the forgery dies, doc 06 §2.2/§9.4).
-    let forged = format!(
-        "id = \"lumen.acme.hello\"\nkind = \"metadata-provider\"\nversion = \"0.1.0\"\n\
+    let forged = "id = \"lumen.acme.hello\"\nkind = \"metadata-provider\"\nversion = \"0.1.0\"\n\
          api_version = 1\norigin = \"builtin\"\n\n[capabilities]\nprovides = [\"greeting\"]\n"
-    );
+        .to_string();
     let pkg = package(&forged, &wasm, None);
     assert!(
         matches!(
@@ -237,7 +236,11 @@ fn plugin_malicious_manifest() {
         "declared signature without a block refused"
     );
     // (k2) block present although NOT declared.
-    let pkg = package(&m, &wasm, Some(&signature_block("ed25519-detached-v1", "9f00cafe", "ff")));
+    let pkg = package(
+        &m,
+        &wasm,
+        Some(&signature_block("ed25519-detached-v1", "9f00cafe", "ff")),
+    );
     assert!(
         matches!(
             refused(&pkg, &store, &consent),
@@ -378,7 +381,8 @@ fn plugin_install_remove() {
         w.export_func("core", core);
         w.finish()
     };
-    let manifest_b = manifest_toml(&wasm_b, "").replace("version = \"0.1.0\"", "version = \"0.2.0\"");
+    let manifest_b =
+        manifest_toml(&wasm_b, "").replace("version = \"0.1.0\"", "version = \"0.2.0\"");
     ok(store.install(&package(&manifest_b, &wasm_b, None), &unsigned_consent()));
     let loaded = ok(store.load("ext.acme.hello"));
     assert_eq!(loaded.manifest.version.to_string(), "0.2.0");
@@ -422,12 +426,17 @@ fn plugin_install_remove() {
     // unverified signatures, doc 06 §5.7 step 3 + §10 Q5).
     let wasm = tiny_wasm();
     let m = manifest_toml(&wasm, "");
-    let signed_manifest =
-        format!("{m}[provenance.signature]\nscheme = \"ed25519-detached-v1\"\nkey = \"9f00cafe\"\n");
+    let signed_manifest = format!(
+        "{m}[provenance.signature]\nscheme = \"ed25519-detached-v1\"\nkey = \"9f00cafe\"\n"
+    );
     let pkg = package(
         &signed_manifest,
         &wasm,
-        Some(&signature_block("ed25519-detached-v1", "9f00cafe", "deadbeef01")),
+        Some(&signature_block(
+            "ed25519-detached-v1",
+            "9f00cafe",
+            "deadbeef01",
+        )),
     );
     // A consent claiming Unsigned does not cover an Unverified
     // package — the posture the user saw must match the package.
@@ -438,7 +447,10 @@ fn plugin_install_remove() {
     let unverified = SignatureStatus::Unverified {
         suite: "ed25519-detached-v1".to_string(),
     };
-    let receipt = ok(store.install(&pkg, &InstallConsent::confirm("Acme Tools", &[], unverified)));
+    let receipt = ok(store.install(
+        &pkg,
+        &InstallConsent::confirm("Acme Tools", &[], unverified),
+    ));
     assert_eq!(
         receipt.signature,
         SignatureStatus::Unverified {

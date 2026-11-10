@@ -25,11 +25,11 @@
 use std::path::{Path, PathBuf};
 
 use plugin_host_wasm::http::{HttpResponse, HttpTransport, TransportError};
-use plugin_host_wasm::instance::{engine, ArcLedger, WasmInstance};
+use plugin_host_wasm::instance::{ArcLedger, WasmInstance, engine};
 use plugin_host_wasm::limits::ResourceLimits;
 use plugin_host_wasm::package::module_digest;
 use plugin_host_wasm::state::{HostServices, SecurityLedger};
-use plugin_host_wasm::{crc32::crc32, HostError};
+use plugin_host_wasm::{HostError, crc32::crc32};
 
 use plugin_api::PluginManifest;
 
@@ -609,7 +609,14 @@ pub fn spawn_with_limits(
     services: HostServices,
     limits: ResourceLimits,
 ) -> Result<WasmInstance, HostError> {
-    WasmInstance::spawn(&engine(), wasm, manifest, services, limits, SecurityLedger::new())
+    WasmInstance::spawn(
+        &engine(),
+        wasm,
+        manifest,
+        services,
+        limits,
+        SecurityLedger::new(),
+    )
 }
 
 // ---------------------------------------------------------------------------

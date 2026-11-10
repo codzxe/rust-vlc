@@ -29,10 +29,7 @@ pub struct HostServices {
 impl std::fmt::Debug for HostServices {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HostServices")
-            .field(
-                "jail",
-                &self.jail.as_ref().map(|j| j.roots().len()),
-            )
+            .field("jail", &self.jail.as_ref().map(|j| j.roots().len()))
             .field("transport", &self.transport.is_some())
             .field("device_inventory_bytes", &self.device_inventory.len())
             .finish()
@@ -187,7 +184,8 @@ impl HandleTable {
         let slot = self.files.get_mut(h as usize).ok_or_else(|| {
             format!("handle {h} was never opened by this instance (ownership check, doc 06 §9.4)")
         })?;
-        slot.take().ok_or_else(|| format!("handle {h} is already closed"))?;
+        slot.take()
+            .ok_or_else(|| format!("handle {h} is already closed"))?;
         Ok(())
     }
 

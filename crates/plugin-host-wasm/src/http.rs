@@ -121,9 +121,7 @@ impl ParsedUrl {
                 detail: "userinfo in URL is refused".to_string(),
             });
         }
-        let authority_end = rest
-            .find(['/', '?', '#'])
-            .unwrap_or(rest.len());
+        let authority_end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
         let authority = &rest[..authority_end];
         let mut tail = &rest[authority_end..];
         if let Some(hash) = tail.find('#') {
@@ -151,7 +149,9 @@ impl ParsedUrl {
         }
         // IP literals: all-digits-and-dots, or bracketed IPv6.
         let is_ipv4 = !host.is_empty()
-            && host.split('.').all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
+            && host
+                .split('.')
+                .all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
             && host.matches('.').count() == 3;
         let is_ipv6 = host.starts_with('[');
         if is_ipv4 || is_ipv6 {
@@ -166,8 +166,7 @@ impl ParsedUrl {
             .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'.')
         {
             return Err(HostError::PermissionDenied {
-                detail: "host contains characters outside the DNS label set"
-                    .to_string(),
+                detail: "host contains characters outside the DNS label set".to_string(),
             });
         }
         Ok(ParsedUrl {
@@ -180,9 +179,9 @@ impl ParsedUrl {
     /// Exact-host allowlist check (doc 06 §2.2
     /// `network-host-allowlist`): the host must equal an entry.
     pub fn allowed_by(&self, allowlist: &[String]) -> bool {
-        allowlist.iter().any(|allowed| {
-            allowed.eq_ignore_ascii_case(&self.host)
-        })
+        allowlist
+            .iter()
+            .any(|allowed| allowed.eq_ignore_ascii_case(&self.host))
     }
 
     /// The canonical URL text handed to the transport.
@@ -208,7 +207,10 @@ mod tests {
         // lumen-allow-literal: test-double URLs for scheme policy (non-loopback host required by the case)
         for bad in ["http://musicbrainz.org/x", "ftp://x", "musicbrainz.org"] {
             assert!(
-                matches!(ParsedUrl::parse(bad), Err(HostError::PermissionDenied { .. })),
+                matches!(
+                    ParsedUrl::parse(bad),
+                    Err(HostError::PermissionDenied { .. })
+                ),
                 "{bad} must be refused"
             );
         }
