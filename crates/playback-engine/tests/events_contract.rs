@@ -814,7 +814,8 @@ fn every_catalog_row_sample() -> Vec<EventKind> {
 /// generated catalog (the source of truth): 26 rows (D-017's 23 +
 /// the issue #42 additive trio), every id hit exactly once by the
 /// bridge, and the emitted/later split is the map's own arithmetic
-/// (12 + 14).
+/// (15 + 11 — 7.C1 moved the audio device pair and the backend
+/// report into the emitted bucket).
 #[test]
 fn the_completeness_map_and_bridge_are_catalog_bijections() {
     let samples = every_catalog_row_sample();
@@ -831,14 +832,14 @@ fn the_completeness_map_and_bridge_are_catalog_bijections() {
     sorted.dedup();
     assert_eq!(sorted.len(), 26, "no id hit twice");
     // The map agrees with the bridge row by row, and the split is
-    // 12 emitted + 14 later.
+    // 15 emitted + 11 later.
     let emitted = CATALOG_EMISSIONS
         .iter()
         .filter(|row| row.status.is_emitted())
         .count();
     assert_eq!(emitted, ENGINE_EMITTED_ROWS);
-    assert_eq!(emitted, 12);
-    assert_eq!(CATALOG_EMISSIONS.len() - emitted, 14);
+    assert_eq!(emitted, 15);
+    assert_eq!(CATALOG_EMISSIONS.len() - emitted, 11);
     for (row, id) in CATALOG_EMISSIONS.iter().zip(EventId::ALL) {
         assert_eq!(row.id, *id);
         assert_eq!(emission_status(*id), Some(row.status));
@@ -919,8 +920,23 @@ fn every_engine_kind_lands_on_an_emitted_row_or_stays_private() {
             track_kind: MediaKind::Audio,
             selected: Some(TrackId::new(2)),
         },
+        EngineEventKind::AudioDeviceLost {
+            device_id: "sink-7".to_owned(),
+        },
+        EngineEventKind::AudioDeviceChanged {
+            device_id: "sink-9".to_owned(),
+        },
+        EngineEventKind::AudioDeviceSuspended {
+            device_id: "sink-7".to_owned(),
+            reopen_attempts: 3,
+            last_error: None,
+        },
+        EngineEventKind::RendererBackendReport {
+            backend: "software".to_owned(),
+            reason: "hardware backend unavailable".to_owned(),
+        },
     ];
-    assert_eq!(kinds.len(), 15, "one sample per engine kind");
+    assert_eq!(kinds.len(), 19, "one sample per engine kind");
     for kind in kinds {
         match kind.as_wire() {
             Some(wire_kind) => {

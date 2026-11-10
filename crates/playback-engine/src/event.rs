@@ -235,6 +235,52 @@ pub enum EngineEventKind {
         /// The now-selected track, if any (`None` = deselected).
         selected: Option<TrackId>,
     },
+    /// The active audio output device went away (card 7.C1, doc 05
+    /// §3.2 `audio.device-lost`): the OS removed it mid-playback.
+    /// Emitted by the engine's hotplug hooks the moment the host's
+    /// device seam reports the loss — before the suspend
+    /// transition's `state-changed → paused` (the fact precedes the
+    /// reaction, the C2 ordering).
+    AudioDeviceLost {
+        /// The lost device's id (host vocabulary, opaque string).
+        device_id: String,
+    },
+    /// The active audio output device changed (card 7.C1, doc 05
+    /// §3.2 `audio.device-changed`): a re-acquired device after a
+    /// loss, or a user-picked migration. Emitted before the resume
+    /// transition so the wire shows cause-then-effect.
+    AudioDeviceChanged {
+        /// The new device's id.
+        device_id: String,
+    },
+    /// The audio device suspend's terminal notice (card 7.C1): the
+    /// bounded reopen window expired — playback stays suspended at
+    /// the remembered position with a **non-fatal** error (the
+    /// session's media is fine; killing it would be dishonest). The
+    /// wire form is the catalog's generic `playback.error` row,
+    /// stage `audio-output`, code `device`, `fatal: false`.
+    AudioDeviceSuspended {
+        /// The device that was lost.
+        device_id: String,
+        /// Failed reopen attempts in the exhausted window.
+        reopen_attempts: u32,
+        /// The last observed failure's display-safe summary, when a
+        /// failure was observed (a pure time-expiry has none).
+        last_error: Option<String>,
+    },
+    /// The render backend changed (card 7.C1, doc 05 §3.2
+    /// `video.backend-changed`): the initial auto-negotiation
+    /// report, a hardware→software fallback, or a user-forced
+    /// selection. The host relays the renderer's typed capability
+    /// report into the engine's event stream here — the engine owns
+    /// the ONE wire event stream, the renderer owns the negotiation.
+    RendererBackendReport {
+        /// The now-active backend id (redacted vocabulary).
+        backend: String,
+        /// Why it changed (negotiation outcome / fallback cause /
+        /// "user").
+        reason: String,
+    },
 }
 
 impl Clone for EngineEventKind {
@@ -306,6 +352,29 @@ impl Clone for EngineEventKind {
                 track_kind: *track_kind,
                 selected: *selected,
             },
+            EngineEventKind::AudioDeviceLost { device_id } => EngineEventKind::AudioDeviceLost {
+                device_id: device_id.clone(),
+            },
+            EngineEventKind::AudioDeviceChanged { device_id } => {
+                EngineEventKind::AudioDeviceChanged {
+                    device_id: device_id.clone(),
+                }
+            }
+            EngineEventKind::AudioDeviceSuspended {
+                device_id,
+                reopen_attempts,
+                last_error,
+            } => EngineEventKind::AudioDeviceSuspended {
+                device_id: device_id.clone(),
+                reopen_attempts: *reopen_attempts,
+                last_error: last_error.clone(),
+            },
+            EngineEventKind::RendererBackendReport { backend, reason } => {
+                EngineEventKind::RendererBackendReport {
+                    backend: backend.clone(),
+                    reason: reason.clone(),
+                }
+            }
         }
     }
 }
@@ -405,6 +474,36 @@ impl PartialEq for EngineEventKind {
                     selected: d,
                 },
             ) => a == c && b == d,
+            (
+                EngineEventKind::AudioDeviceLost { device_id: a },
+                EngineEventKind::AudioDeviceLost { device_id: b },
+            ) => a == b,
+            (
+                EngineEventKind::AudioDeviceChanged { device_id: a },
+                EngineEventKind::AudioDeviceChanged { device_id: b },
+            ) => a == b,
+            (
+                EngineEventKind::AudioDeviceSuspended {
+                    device_id: a,
+                    reopen_attempts: b,
+                    last_error: c,
+                },
+                EngineEventKind::AudioDeviceSuspended {
+                    device_id: d,
+                    reopen_attempts: e,
+                    last_error: f,
+                },
+            ) => a == d && b == e && c == f,
+            (
+                EngineEventKind::RendererBackendReport {
+                    backend: a,
+                    reason: b,
+                },
+                EngineEventKind::RendererBackendReport {
+                    backend: c,
+                    reason: d,
+                },
+            ) => a == c && b == d,
             _ => false,
         }
     }
@@ -487,16 +586,49 @@ impl EngineEventKind {
                 track_kind: wire_track_change_kind(*track_kind),
                 selected: selected.map(|id| commands::catalog::types::TrackId(id.handle())),
             }),
+            EngineEventKind::AudioDeviceLost { device_id } => Some(EventKind::AudioDeviceLost {
+                device_id: device_id.clone(),
+            }),
+            EngineEventKind::AudioDeviceChanged { device_id } => {
+                Some(EventKind::AudioDeviceChanged {
+                    device_id: device_id.clone(),
+                })
+            }
+            EngineEventKind::AudioDeviceSuspended {
+                device_id,
+                reopen_attempts,
+                last_error,
+            } => Some(EventKind::PlaybackError {
+                stage: commands::Stage::AudioOutput,
+                code: commands::ErrorCode::Device,
+                message: suspend_notice_message(device_id, *reopen_attempts, last_error.as_deref()),
+                details: suspend_notice_details(device_id, *reopen_attempts),
+                fatal: false,
+            }),
+            EngineEventKind::RendererBackendReport { backend, reason } => {
+                Some(EventKind::VideoBackendChanged {
+                    backend: backend.clone(),
+                    reason: reason.clone(),
+                })
+            }
         }
     }
 
     /// Whether this kind is pipeline-scoped (doc 05 §3.2 "gen"
-    /// column — subject to the §4.2 staleness rule). Every v0 kind
-    /// is; the flag exists so the outbox filter and future
-    /// non-scoped kinds stay honest.
+    /// column — subject to the §4.2 staleness rule). The v0 kinds all
+    /// were; card 7.C1 adds the first session-scoped kinds — the
+    /// audio device rows and the renderer backend report — which doc
+    /// §3.2 marks "Not pipeline-scoped": they speak for the session's
+    /// environment, not for one pipeline generation, so a superseding
+    /// mint (a seek, a track switch) must not swallow them at drain.
     #[must_use]
     pub fn is_pipeline_scoped(&self) -> bool {
-        true
+        !matches!(
+            self,
+            EngineEventKind::AudioDeviceLost { .. }
+                | EngineEventKind::AudioDeviceChanged { .. }
+                | EngineEventKind::RendererBackendReport { .. }
+        )
     }
 }
 
@@ -694,6 +826,41 @@ fn recovered_damage_details(count: u64) -> BTreeMap<String, String> {
     let mut details = BTreeMap::new();
     details.insert("count".to_string(), count.to_string());
     details
+}
+
+/// The `AudioDeviceSuspended` wire payload's machine-readable hints
+/// — the same keys the recovery guard's own notice carries (the
+/// direct-drive and engine-hook paths must stay byte-identical; the
+/// contract suite pins the join).
+fn suspend_notice_details(device_id: &str, reopen_attempts: u32) -> BTreeMap<String, String> {
+    let mut details = BTreeMap::new();
+    details.insert("context".to_string(), "audio.device.suspend".to_string());
+    details.insert("device".to_string(), device_id.to_string());
+    details.insert("reopen_attempts".to_string(), reopen_attempts.to_string());
+    details
+}
+
+/// The `AudioDeviceSuspended` wire payload's display-safe message
+/// (V8; mirrors [`crate::recovery`]`'s notice wording — the guard's
+/// direct-drive emission and this engine-hook translation are the
+/// same sentence by construction).
+fn suspend_notice_message(
+    device_id: &str,
+    reopen_attempts: u32,
+    last_error: Option<&str>,
+) -> String {
+    match last_error {
+        Some(error) => format!(
+            "audio device `{device_id}` lost and re-acquisition failed \
+             ({error}); playback is suspended at the remembered position \
+             after {reopen_attempts} attempt(s)"
+        ),
+        None => format!(
+            "audio device `{device_id}` lost and the re-acquisition \
+             window expired after {reopen_attempts} attempt(s); playback \
+             is suspended at the remembered position"
+        ),
+    }
 }
 
 /// Bridge an engine track kind to the wire track kind.
