@@ -245,6 +245,7 @@ pub union PropVariant {
 
 /// The leading fields of `PROPVARIANT`.
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct PropVariantHeader {
     /// The `VARENUM` type tag.
     pub vt: u16,
@@ -286,7 +287,9 @@ fn prop_variant_string(variant: &mut PropVariant) -> Result<String, PlatformErro
     // CoTaskMemAlloc'd NUL-terminated wide string owned by the
     // variant; from_wide copies out before PropVariantClear frees.
     let pointer = unsafe { variant.header.pointer };
-    let text = from_wide(pointer)?;
+    // SAFETY: the caller invariant of from_wide holds — the payload
+    // is a NUL-terminated wide string owned by this variant.
+    let text = unsafe { from_wide(pointer)? };
     // SAFETY: PropVariantClear is the documented deallocator for a
     // PROPVARIANT the property store filled in; the pointer argument
     // is this live variant.

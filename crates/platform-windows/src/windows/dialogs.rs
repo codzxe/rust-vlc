@@ -280,7 +280,7 @@ impl CommonItemDialogs {
     pub fn probe() -> Result<CommonItemDialogs, PlatformError> {
         // lumen-allow-literal: diagnostic thread name (debugger/log
         // surface only, not a user-visible string).
-        let outcome = spawn_sta("lumen-cid-probe", || {
+        spawn_sta("lumen-cid-probe", || {
             // SAFETY: created on this thread inside this closure and
             // released exactly once before it returns; the vtable
             // layout is the documented IFileOpenDialog order.
@@ -290,16 +290,16 @@ impl CommonItemDialogs {
             unsafe {
                 release_interface(dialog);
             }
-            Ok(())
-        })?;
-        outcome
+            Ok::<(), PlatformError>(())
+        })??;
+        Ok(CommonItemDialogs)
     }
 }
 
 /// Run `body` on a dedicated short-lived STA thread and join it
 /// (the apartment lives and dies inside the thread).
 fn spawn_sta<T: Send + 'static>(
-    name: &str,
+    name: &'static str,
     body: impl FnOnce() -> T + Send + 'static,
 ) -> Result<T, PlatformError> {
     thread::Builder::new()
@@ -322,14 +322,14 @@ impl FileDialogs for CommonItemDialogs {
         let request = request.clone();
         // lumen-allow-literal: diagnostic thread name (debugger/log
         // surface only, not a user-visible string).
-        spawn_sta("lumen-cid-open", move || run_dialog(false, &request))
+        spawn_sta("lumen-cid-open", move || run_dialog(false, &request))?
     }
 
     fn save_file(&mut self, request: &FileDialogRequest) -> Result<FilePick, PlatformError> {
         let request = request.clone();
         // lumen-allow-literal: diagnostic thread name (debugger/log
         // surface only, not a user-visible string).
-        spawn_sta("lumen-cid-save", move || run_dialog(true, &request))
+        spawn_sta("lumen-cid-save", move || run_dialog(true, &request))?
     }
 }
 

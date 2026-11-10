@@ -37,8 +37,8 @@ use crate::dialog::{FileDialogRequest, FileDialogs, FilePick};
 use crate::error::PlatformError;
 use crate::macos::objc::{
     AutoreleasePool, ObjcId, class, msg_send_i64, msg_send_id, msg_send_id_id, msg_send_id_ptr_u64,
-    msg_send_u64, msg_send_void_bool, msg_send_void_id, nsstring_from_utf8, nsstring_to_string,
-    release, sel,
+    msg_send_id_u64, msg_send_u64, msg_send_void_bool, msg_send_void_id, nsstring_from_utf8,
+    nsstring_to_string, release, sel,
 };
 
 /// `NSModalResponseOK`.

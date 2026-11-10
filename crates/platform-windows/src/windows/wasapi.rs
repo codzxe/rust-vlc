@@ -401,8 +401,10 @@ static NOTIFICATION_VTBL: NotificationClientVtbl = NotificationClientVtbl {
 /// Extract the client payload from a `this` pointer.
 ///
 /// # Safety (caller invariant)
-/// `this` is a `*mut NotificationClient` created by this module.
-unsafe fn client_of(this: *mut c_void) -> &NotificationClient {
+/// `this` is a `*mut NotificationClient` created by this module, and
+/// the client stays alive (the watch thread owns the Box) for the
+/// whole `'a` the borrow is held for.
+unsafe fn client_of<'a>(this: *mut c_void) -> &'a NotificationClient {
     unsafe { &*(this as *const NotificationClient) }
 }
 
@@ -481,7 +483,7 @@ unsafe extern "system" fn client_on_device_state_changed(
                 active: new_state == DEVICE_STATE_ACTIVE,
             }),
             None => client.queue.push(PlatformEvent::AudioSetChanged),
-        }
+        };
     }
     S_OK
 }
@@ -497,7 +499,7 @@ unsafe extern "system" fn client_on_device_added(
         match id_of(device_id) {
             Some(id) => client.queue.push(PlatformEvent::AudioDeviceAdded { id }),
             None => client.queue.push(PlatformEvent::AudioSetChanged),
-        }
+        };
     }
     S_OK
 }
@@ -513,7 +515,7 @@ unsafe extern "system" fn client_on_device_removed(
         match id_of(device_id) {
             Some(id) => client.queue.push(PlatformEvent::AudioDeviceRemoved { id }),
             None => client.queue.push(PlatformEvent::AudioSetChanged),
-        }
+        };
     }
     S_OK
 }
@@ -522,13 +524,13 @@ unsafe extern "system" fn client_on_device_removed(
 unsafe extern "system" fn client_on_default_device_changed(
     this: *mut c_void,
     flow: i32,
-    _role: i32,
+    role: i32,
     default_device: *const u16,
 ) -> Hresult {
     // SAFETY: as above.
     unsafe {
         let client = client_of(this);
-        if flow == E_RENDER {
+        if flow == E_RENDER && role == E_CONSOLE {
             client.queue.push(PlatformEvent::AudioDefaultChanged {
                 id: id_of(default_device),
             });
@@ -763,7 +765,7 @@ fn register_notification_client(
 fn teardown_notification_client(session: NotificationSession) {
     let NotificationSession {
         enumerator,
-        client,
+        mut client,
         _apartment,
     } = session;
     let enum_vtbl = unsafe { (*(enumerator as *mut ObjectHeader)).vtbl as *const EnumeratorVtbl };

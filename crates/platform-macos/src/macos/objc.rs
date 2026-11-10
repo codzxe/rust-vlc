@@ -64,6 +64,14 @@ pub type ObjcBool = u8;
 // CStrings owned for the call; retained objects are released exactly
 // once; msgSend aliases are only called with arguments matching the
 // pinned signature; nothing is called after objc_release.
+//
+// `clashing_extern_declarations` is allowed on this block on
+// purpose: `objc_msgSend` is a machine-code trampoline (module
+// docs), and pinning one typed alias per signature via `link_name`
+// is the established sound way to call it from Rust — the lint
+// cannot know the symbol forwards its register arguments verbatim,
+// so each new alias re-asserts the argument shapes here.
+#[allow(clashing_extern_declarations)]
 #[link(name = "libobjc", kind = "dylib")]
 unsafe extern "C" {
     fn objc_getClass(name: *const c_char) -> ObjcId;

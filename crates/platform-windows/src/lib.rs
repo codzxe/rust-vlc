@@ -64,6 +64,10 @@ pub mod windows;
 use audio::{AudioDevices, UnavailableAudioDevices};
 use capability::{Capability, Feature, PlatformReport};
 use dialog::{FileDialogs, UnavailableDialogs};
+// The error vocabulary import is needed only by the foreign-OS
+// fallback arms below (the real integrations surface it through the
+// seam traits instead).
+#[cfg(not(target_os = "windows"))]
 use error::PlatformError;
 use gpu::{GpuAdapters, UnavailableGpuAdapters};
 
