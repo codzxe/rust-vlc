@@ -60,6 +60,7 @@ use media_types::{EngineError, ErrorKind, GenerationId, Packet, PipelineStage, S
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use super::hw::capability::{HwDecodeEvent, HwDecodePolicy, HwPolicyError};
 use super::hw::{
     H264Framing, H264HwAccessUnit, H264HwBridge, H264HwError, H264HwOpenError, H264HwPath,
     H264HwPps, H264HwSps, H264HwStreamInfo, H264HwUnit, H264HwVcl,
@@ -174,13 +175,27 @@ impl PictureKey {
 
 /// The H.264 decoder: parser → access-unit assembler → hardware
 /// session (the [`super::hw`] seam). Construct with
-/// [`H264Decoder::with_bridges`] once Phase-7 adapters exist; the
-/// bare [`H264Decoder::new`] answers every hardware attempt with the
-/// typed `h264.hw.no_bridge` error (truthful today: zero adapters
-/// are installed in-tree).
+/// [`H264Decoder::from_setting`] (the settings-driven wiring of
+/// issue #41: `playback.hw-decode-policy`, shipped default OFF) or
+/// [`H264Decoder::with_bridges`] (explicit bridges, e.g. the
+/// integration suite's fake adapter); the bare [`H264Decoder::new`]
+/// answers every hardware attempt with the typed `h264.hw.required`
+/// error (no accelerator, no bridges — the truthful zero-adapter
+/// state).
 pub struct H264Decoder {
     /// Installed hardware bridges (the 7.B plug point).
     bridges: Vec<Arc<dyn H264HwBridge>>,
+    /// The accelerator this decoder negotiated itself off the
+    /// settings policy ([`H264Decoder::from_setting`]). The
+    /// engine-provided [`DecoderConfig::accelerator`] takes
+    /// precedence — this fills the absence only (the engine that
+    /// negotiates itself owns its decision).
+    negotiated_accel: Option<Arc<dyn codec_api::HwAccelerator>>,
+    /// The truthful `hw-active` event trail of the last policy
+    /// negotiation (empty for the `new`/`with_bridges`
+    /// constructions — they performed none; ADR-001's
+    /// active-decoder report surface).
+    hw_events: Vec<HwDecodeEvent>,
     /// Configured stream generation (`None` until `configure`).
     generation: Option<GenerationId>,
     /// Packet framing in force.
@@ -234,6 +249,8 @@ impl Default for H264Decoder {
     fn default() -> Self {
         H264Decoder {
             bridges: Vec::new(),
+            negotiated_accel: None,
+            hw_events: Vec::new(),
             generation: None,
             framing: H264Framing::AnnexB,
             sps: HashMap::new(),
@@ -254,8 +271,10 @@ impl Default for H264Decoder {
 
 impl H264Decoder {
     /// A fresh decoder with **no hardware bridges installed** — every
-    /// hardware attempt fails typed (`h264.hw.no_bridge`) until
-    /// Phase-7 adapters are wired in. This is the truthful v0 state.
+    /// hardware attempt fails typed (`h264.hw.required`: no
+    /// accelerator is carried either). This is the explicit-zero
+    /// constructor; [`H264Decoder::from_setting`] is the settings-
+    /// driven one.
     pub fn new() -> H264Decoder {
         H264Decoder::default()
     }
@@ -268,6 +287,44 @@ impl H264Decoder {
             bridges,
             ..H264Decoder::default()
         }
+    }
+
+    /// **The settings-driven wiring** (issue #41): build a decoder
+    /// from the raw `playback.hw-decode-policy` setting string.
+    ///
+    /// The policy is parsed with
+    /// [`HwDecodePolicy::from_setting`](super::hw::capability::HwDecodePolicy::from_setting)
+    /// — a value outside the vocabulary is a typed
+    /// [`HwPolicyError`], never a guess. Under it the current OS's
+    /// in-tree adapter lane is negotiated
+    /// ([`super::hw::negotiate_lane`]) and its bridges installed
+    /// ([`super::hw::installed_bridges`]). The **shipped default
+    /// `software-only` touches nothing** (no device scan, no library
+    /// load): no accelerator is carried and [`Self::configure`]
+    /// answers the typed `h264.hw.required` (ADR-001: no software
+    /// H.264 fallback exists) — OFF means off.
+    ///
+    /// # Errors
+    /// [`HwPolicyError`] when `setting` is not one of
+    /// `software-only` / `prefer-hardware` / `hardware-only`.
+    pub fn from_setting(setting: &str) -> Result<H264Decoder, HwPolicyError> {
+        let policy = HwDecodePolicy::from_setting(setting)?;
+        let negotiation = super::hw::negotiate_lane(policy);
+        Ok(H264Decoder {
+            bridges: super::hw::installed_bridges(),
+            negotiated_accel: negotiation.accelerator.clone(),
+            hw_events: negotiation.events,
+            ..H264Decoder::default()
+        })
+    }
+
+    /// The truthful `hw-active` event trail of the last policy
+    /// negotiation ([`Self::from_setting`]'s probe → decision
+    /// record, ADR-001's active-decoder report). Empty when the
+    /// decoder was built without a policy negotiation.
+    #[must_use = "the ADR-001 active-decoder report"]
+    pub fn hw_events(&self) -> &[HwDecodeEvent] {
+        &self.hw_events
     }
 
     /// The codec descriptors this decoder accepts (`h264` per the
@@ -541,8 +598,11 @@ impl Decoder for H264Decoder {
         }
         // The hw-first consumption point: open a session off the
         // negotiated accelerator or fail typed (ADR-001 — there is
-        // no software fallback to catch this).
-        match H264HwPath::open(cfg.accelerator.as_ref(), &self.bridges) {
+        // no software fallback to catch this). The engine-provided
+        // config accelerator is authoritative; the decoder's own
+        // policy-negotiated one (from_setting) fills the absence.
+        let accel = cfg.accelerator.as_ref().or(self.negotiated_accel.as_ref());
+        match H264HwPath::open(accel, &self.bridges) {
             Ok(path) => self.hw = Some(path),
             Err(H264HwOpenError::NoAccelerator) => return Err(unsupported("h264.hw.required")),
             Err(H264HwOpenError::NoBridge { .. }) => return Err(unsupported("h264.hw.no_bridge")),

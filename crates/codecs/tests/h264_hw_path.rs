@@ -849,3 +849,119 @@ fn fuzz_lite_configure_with_random_extradata_never_panics() {
         let _ = decoder.flush(&mut sink);
     }
 }
+
+// ---- the settings-driven wiring (issue #41): from_setting ----
+
+#[test]
+fn from_setting_software_only_default_is_off_and_refuses_typed() {
+    // The shipped default: nothing is probed, nothing is loaded, no
+    // accelerator is carried — and the configure answer is the
+    // ADR-001 typed refusal, never a silent skip.
+    let mut decoder =
+        H264Decoder::from_setting("software-only").unwrap_or_else(|e| unreachable!("{e}"));
+    // The truthful OFF trail (deterministic on every host: nothing
+    // was touched, so there is nothing host-specific to observe).
+    match decoder.hw_events() {
+        [
+            codecs::video::h264::hw::capability::HwDecodeEvent::Probed {
+                availability:
+                    codecs::video::h264::hw::capability::HwAvailability::Unavailable {
+                        reason:
+                            codecs::video::h264::hw::capability::HwUnavailableReason::DisabledByPolicy,
+                        ..
+                    },
+            },
+            codecs::video::h264::hw::capability::HwDecodeEvent::Inactive {
+                reason: codecs::video::h264::hw::capability::HwUnavailableReason::DisabledByPolicy,
+                ..
+            },
+        ] => {}
+        other => unreachable!("OFF trail shape: {other:?}"),
+    }
+    let err = decoder
+        .configure(&config(None, Some(avcc_record())))
+        .must_err();
+    assert!(
+        matches!(err.kind, ErrorKind::Unsupported { .. }),
+        "OFF default must land the typed refusal, got {:?}",
+        err.kind
+    );
+    assert_eq!(err.context.code, "h264.hw.required");
+}
+
+#[test]
+fn from_setting_rejects_spellings_outside_the_vocabulary() {
+    // A mis-spelled policy is reported, never guessed (the settings
+    // vocabulary is exactly three values).
+    for bad in ["", "auto", "prefer-hw", "Software-Only", "hardware"] {
+        match H264Decoder::from_setting(bad) {
+            Err(e) => assert_eq!(e.got, bad, "the rejection carries the spelling"),
+            Ok(_) => unreachable!("{bad:?} must be rejected"),
+        }
+    }
+}
+
+#[test]
+fn from_setting_prefer_hardware_records_a_typed_trail() {
+    // Host-independent contract (this suite runs on GPU-less CI and
+    // GPU machines alike): an enabling policy records the probe
+    // outcome, and absence lands typed. The probe itself is the
+    // lane's own tested surface; this test pins the report shape.
+    let mut decoder =
+        H264Decoder::from_setting("prefer-hardware").unwrap_or_else(|e| unreachable!("{e}"));
+    assert!(
+        matches!(
+            decoder.hw_events().first(),
+            Some(codecs::video::h264::hw::capability::HwDecodeEvent::Probed { .. })
+        ),
+        "the probe outcome is always recorded: {:?}",
+        decoder.hw_events()
+    );
+    assert!(
+        decoder.hw_events().len() >= 2,
+        "probe -> decision trail: {:?}",
+        decoder.hw_events()
+    );
+    // Active ⇒ the accelerator really is carried: configure (with no
+    // engine-provided one) must not answer the no-accelerator
+    // refusal. On a GPU host this opens the real session (or fails
+    // typed inside the lane); on GPU-less CI the trail is the typed
+    // Inactive and this arm is skipped.
+    let active = decoder.hw_events().iter().any(|e| {
+        matches!(
+            e,
+            codecs::video::h264::hw::capability::HwDecodeEvent::Active { .. }
+        )
+    });
+    if active {
+        let outcome = decoder.configure(&config(None, Some(avcc_record())));
+        if let Err(err) = outcome {
+            assert_ne!(
+                err.context.code, "h264.hw.required",
+                "Active in the trail implies the accelerator is carried"
+            );
+        }
+    }
+}
+
+#[test]
+fn engine_accelerator_precedes_the_self_negotiated_one() {
+    // from_setting installs the REAL in-tree lane bridges — the fake
+    // bridge is deliberately absent — so an engine-passed fake
+    // accelerator reaches the open walk (and is declined by every
+    // installed bridge): the typed no_bridge error proves the
+    // engine's accelerator took precedence over the policy-negotiated
+    // None (which would have answered h264.hw.required instead).
+    let mut decoder =
+        H264Decoder::from_setting("software-only").unwrap_or_else(|e| unreachable!("{e}"));
+    let accel: Arc<dyn codec_api::HwAccelerator> = Arc::new(FakeAccel {
+        session_log: Arc::new(Mutex::new(SessionLog::default())),
+        fail_configure: None,
+        fail_decode: None,
+        lag: false,
+    });
+    let err = decoder
+        .configure(&config(Some(accel), Some(avcc_record())))
+        .must_err();
+    assert_eq!(err.context.code, "h264.hw.no_bridge");
+}

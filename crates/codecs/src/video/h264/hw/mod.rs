@@ -39,23 +39,36 @@
 //! # The per-OS lanes (7.B1–7.B3) and their honest status
 //!
 //! Each lane is `cfg`-gated to its OS and compiled for its target
-//! (evidence labels per the card):
+//! (evidence labels per the card; card numbering per doc 13 §10:
+//! 7.B1 VideoToolbox, 7.B2 Media Foundation, 7.B3 VA-API):
 //!
-//! - **`vaapi`** (Linux, 7.B1): device-node discovery + runtime
-//!   `dlopen` of `libva` + typed probe. Runtime-tested here in its
-//!   **failure paths** (this sandbox has no GPU: the probe reports
-//!   the typed `Unavailable` reason and the software-fallback chain
-//!   engages). The driver-mediated decode path is
-//!   compile-verified only. **Activation `[PROPOSAL]`** pending
-//!   ADR-013 ratification (Lead action).
-//! - **`videotoolbox`** (macOS, 7.B2): hand-rolled
+//! - **`videotoolbox`** (macOS, 7.B1): hand-rolled
 //!   `VTDecompressionSession*` FFI, compile-verified via
 //!   `cargo check --target aarch64-apple-darwin`; runtime hardware
 //!   behavior NOT exercised — `[VERIFY]`.
-//! - **`mediafoundation`** (Windows, 7.B3): hand-rolled
-//!   `IMFTransform`/DXVA COM FFI, compile-verified via
+//! - **`mediafoundation`** (Windows, 7.B2): hand-rolled
+//!   `IMFTransform`/`MFTEnumEx` COM FFI, compile-verified via
 //!   `cargo check --target x86_64-pc-windows-msvc`; runtime hardware
 //!   behavior NOT exercised — `[VERIFY]`.
+//! - **`vaapi`** (Linux, 7.B3): device-node discovery + runtime
+//!   `dlopen` of `libva` + typed probe. Runtime-tested here in its
+//!   **failure paths** (this sandbox has no GPU: the probe reports
+//!   the typed `Unavailable` reason and the typed-refusal chain
+//!   engages). The driver-mediated decode path is
+//!   compile-verified only. **Activation `[PROPOSAL]`** pending
+//!   ADR-013 ratification (Lead action).
+//!
+//! # The settings-driven wiring (issue #41)
+//!
+//! [`installed_bridges`] lists this binary's in-tree lanes as
+//! pluggable bridges, and [`negotiate_lane`] runs the current OS's
+//! lane under the settings vocabulary
+//! (`playback.hw-decode-policy`, shipped default `software-only` +
+//! `features.hw-decode = false` — rule F2). The **default touches
+//! nothing**: no device node, no library load; the event trail
+//! records the typed `DisabledByPolicy` refusal.
+//! [`super::decode::H264Decoder::from_setting`] consumes both —
+//! that is the decode pipeline's settings flag, OFF by default.
 //!
 //! # Feed shape (what the adapter gets, and why)
 //!
@@ -86,6 +99,8 @@ use super::parser::nal::NalUnitType;
 use super::parser::pps::PicParameterSet;
 use super::parser::slice::{SliceHeader, SliceNalInfo};
 use super::parser::sps::SeqParameterSet;
+
+use capability::{FallbackTarget, HwAvailability, HwDecodePolicy, HwUnavailableReason};
 
 /// Byte framing the packets of a stream use (tells the adapter which
 /// wire form it must accept if it re-serializes; feeds themselves
@@ -407,5 +422,167 @@ impl H264HwPath {
     /// Propagates the session's typed [`H264HwError`].
     pub fn flush(&mut self) -> Result<H264HwDecoded, H264HwError> {
         self.session.flush()
+    }
+}
+
+// ===========================================================================
+// The settings-driven wiring (issue #41): lane installation + policy
+// negotiation. This is what turns the lanes from "a bridge type that
+// exists" into "the decode pipeline's flag" — the shipped default
+// (`software-only`) performs zero device or library touches.
+// ===========================================================================
+
+/// The in-tree per-OS adapter lanes compiled into this binary, as
+/// installable [`H264HwBridge`]s (one per OS; the empty list on any
+/// other target is the truthful "no adapter lane for this OS").
+///
+/// [`super::decode::H264Decoder::from_setting`] installs this list;
+/// a hand-assembled decoder keeps whatever bridges its constructor
+/// was given (the integration suite's fake bridge rides that path).
+#[must_use = "the list feeds H264HwPath::open; an empty list means no lane"]
+pub fn installed_bridges() -> Vec<Arc<dyn H264HwBridge>> {
+    let bridges: Vec<Arc<dyn H264HwBridge>> = Vec::new();
+    // One lane per target — the compiled-in truth, nothing more.
+    #[cfg(target_os = "linux")]
+    let bridges = {
+        let mut b = bridges;
+        b.push(Arc::new(vaapi::VaApiBridge));
+        b
+    };
+    bridges
+}
+
+/// Run this target's lane under `policy` and decide (the
+/// settings-driven negotiation of `playback.hw-decode-policy`).
+///
+/// Under the shipped default ([`HwDecodePolicy::SoftwareOnly`])
+/// **nothing is touched**: no device node is scanned, no OS decode
+/// library is loaded — the trail records the typed
+/// [`HwUnavailableReason::DisabledByPolicy`] refusal and the
+/// accelerator is `None` (so [`super::decode`] answers the typed
+/// `h264.hw.required` — ADR-001 has no software H.264 fallback to
+/// catch it). Under an enabling policy the current OS's lane probe
+/// runs and [`capability::negotiate`] applies the facts.
+#[must_use = "the Negotiation carries the hw-active event trail; use it"]
+pub fn negotiate_lane(policy: HwDecodePolicy) -> capability::Negotiation {
+    let (availability, accelerator) = if policy.probes() {
+        discover_lane()
+    } else {
+        // OFF means off: the honest "probe" is the policy refusal
+        // itself (capability.rs's documented trail semantics).
+        (
+            HwAvailability::Unavailable {
+                backend: nominal_lane_backend(),
+                reason: HwUnavailableReason::DisabledByPolicy,
+            },
+            None,
+        )
+    };
+    capability::negotiate(
+        policy,
+        &availability,
+        accelerator,
+        FallbackTarget::UnsupportedPending,
+    )
+}
+
+/// The lane label reported when no probe runs. On a target with a
+/// compiled lane that is its backend; elsewhere any label is nominal
+/// — the typed [`HwUnavailableReason`] carries the actual truth.
+fn nominal_lane_backend() -> capability::HwBackend {
+    // Linux's real lane label where compiled; the nominal tag
+    // elsewhere (every trail it appears in on those targets carries
+    // `WrongOs`/`DisabledByPolicy` — the reason is the truth, not
+    // this label).
+    capability::HwBackend::VaApi
+}
+
+/// Probe this target's lane (never called under the OFF default).
+/// Returns the availability truth plus the accelerator **iff** the
+/// probe succeeded (a failed probe mints nothing — never an
+/// accelerator off a device that answered no).
+#[cfg(target_os = "linux")]
+fn discover_lane() -> (HwAvailability, Option<Arc<dyn HwAccelerator>>) {
+    let (availability, minted) = vaapi::discover();
+    (availability, minted.map(|a| a as Arc<dyn HwAccelerator>))
+}
+
+/// The no-lane-compiled-target probe: the typed `WrongOs` truth (the
+/// nominal label is bookkeeping; see [`nominal_lane_backend`]).
+#[cfg(not(target_os = "linux"))]
+fn discover_lane() -> (HwAvailability, Option<Arc<dyn HwAccelerator>>) {
+    (
+        HwAvailability::Unavailable {
+            backend: nominal_lane_backend(),
+            reason: HwUnavailableReason::WrongOs,
+        },
+        None,
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::capability::HwDecodeEvent;
+    use super::*;
+
+    #[test]
+    fn installed_bridges_are_exactly_the_compiled_lanes() {
+        let bridges = installed_bridges();
+        #[cfg(target_os = "linux")]
+        {
+            assert_eq!(bridges.len(), 1, "the VA-API lane only");
+            assert_eq!(bridges[0].backend_id(), "hw.vaapi");
+        }
+        #[cfg(not(target_os = "linux"))]
+        assert!(
+            bridges.is_empty(),
+            "no in-tree lane is compiled for this target"
+        );
+    }
+
+    #[test]
+    fn the_off_default_touches_nothing_and_says_so() {
+        // The shipped default: no probe runs, no accelerator is
+        // minted, and the trail records the typed policy refusal —
+        // deterministic on every host (nothing was touched).
+        let n = negotiate_lane(HwDecodePolicy::SoftwareOnly);
+        assert!(n.accelerator.is_none(), "OFF must not mint an accelerator");
+        assert_eq!(n.fallback, Some(FallbackTarget::UnsupportedPending));
+        match &n.events[..] {
+            [
+                HwDecodeEvent::Probed {
+                    availability: HwAvailability::Unavailable { reason, .. },
+                },
+                HwDecodeEvent::Inactive {
+                    reason: HwUnavailableReason::DisabledByPolicy,
+                    fallback: FallbackTarget::UnsupportedPending,
+                },
+            ] => {
+                assert_eq!(*reason, HwUnavailableReason::DisabledByPolicy);
+            }
+            other => unreachable!("OFF trail shape: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn an_enabling_policy_produces_a_typed_trail() {
+        // Host-independent contract: the trail is well-formed and
+        // every outcome is typed (an accelerator iff the lane
+        // answered yes — both arms are honest; the probe itself is
+        // the lane's own tested surface).
+        for policy in [HwDecodePolicy::PreferHardware, HwDecodePolicy::HardwareOnly] {
+            let n = negotiate_lane(policy);
+            assert!(
+                matches!(n.events.first(), Some(HwDecodeEvent::Probed { .. })),
+                "{policy:?}: the probe outcome is always recorded"
+            );
+            if n.accelerator.is_none() {
+                assert_eq!(
+                    n.fallback,
+                    Some(FallbackTarget::UnsupportedPending),
+                    "{policy:?}: absence lands typed, never silent"
+                );
+            }
+        }
     }
 }
