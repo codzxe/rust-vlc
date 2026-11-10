@@ -20,9 +20,11 @@ is a hard error with an actionable message — never a silent fallback
 
 Output modes:
   --print                KEY=VALUE lines on stdout
-  --shell                KEY='value' shell-sourceable lines on stdout
-                         (single-quoted, embedded quotes escaped — safe
-                         to `eval`/source even with spaces in values)
+  --shell                export KEY='value' shell-sourceable lines on
+                         stdout (single-quoted, embedded quotes escaped —
+                         safe to `eval`/source even with spaces in
+                         values; exported so the values reach the child
+                         packaging scripts)
   --github-env FILE      append KEY=VALUE lines to FILE (GitHub Actions
                          environment-file format)
 
@@ -319,8 +321,11 @@ def main() -> None:
         for key, val in env.items():
             # Single-quote every value; escape embedded single quotes
             # with the '"'"' idiom. Values with spaces stay one word.
+            # `export` so a sourced/eval'd environment reaches child
+            # processes (the packaging scripts this feeds run as
+            # children, not in the sourcing shell).
             escaped = val.replace("'", "'\\''")
-            print(f"{key}='{escaped}'")
+            print(f"export {key}='{escaped}'")
     else:
         with open(args.github_env_file, "a", encoding="utf-8") as fh:
             for key, val in env.items():

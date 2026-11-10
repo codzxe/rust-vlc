@@ -108,10 +108,17 @@ PY=$(command -v python3 || command -v python) ||
 work=""
 scratch_keychain=""
 cleanup() {
+    # `if` guards, not `[ ... ] && cmd` lists: under `set -e` an EXIT
+    # trap whose last command returns non-zero CLOBBERS the script's
+    # exit status (reproduced: the unsigned path exited 1 after a
+    # successful sidecar write because `[ -n "$work" ] && rm` was
+    # false with work=""). Never again.
     if [ -n "$scratch_keychain" ] && command -v security >/dev/null 2>&1; then
         security delete-keychain "$scratch_keychain" >/dev/null 2>&1 || true
     fi
-    [ -n "$work" ] && rm -rf "$work"
+    if [ -n "$work" ]; then
+        rm -rf "$work"
+    fi
 }
 trap cleanup EXIT INT TERM
 

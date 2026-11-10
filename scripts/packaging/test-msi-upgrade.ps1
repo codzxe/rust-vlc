@@ -1,12 +1,12 @@
-# test-msi-upgrade.ps1 — the REAL MSI upgrade-path test the Windows
+# test-msi-upgrade.ps1 -- the REAL MSI upgrade-path test the Windows
 # runner executes (issue #56, card 8.E1, task W24-C).
 #
 # What it proves (end to end, via msiexec + the Windows Installer
-# registry — no mocks):
+# registry -- no mocks):
 #   1. A predecessor MSI is built from the SAME tree with a LOWER
 #      ProductVersion and the SAME frozen UpgradeCode (from
-#      product.toml identity.ids.windows.msi_upgrade_code — stable
-#      across versions by MP §5) and installed.
+#      product.toml identity.ids.windows.msi_upgrade_code -- stable
+#      across versions by MP sec.5) and installed.
 #   2. Installing the CURRENT MSI REPLACES it: exactly one ProductCode
 #      remains registered under the UpgradeCode (MSI MajorUpgrade
 #      semantics: upgrades replace, never co-install), and the code is
@@ -27,7 +27,7 @@
 # (MSI replacement is keyed on UpgradeCode/ProductVersion); the test
 # builds unsigned MSIs and says so.
 #
-# HONEST LOCAL-PROOF BOUNDARY: this sandbox is Linux — the script is
+# HONEST LOCAL-PROOF BOUNDARY: this sandbox is Linux -- the script is
 # CI/Windows-only and is NOT executed here [VERIFY at first live run].
 # The release workflow runs it on the windows-latest runner right
 # after packaging (see .github/workflows/release.yml, step "MSI
@@ -109,7 +109,7 @@ function Get-InstalledProductCodes() {
 
 function Invoke-MsiExec([string]$Verb, [string]$MsiPath, [string]$LogFile) {
     # 0 = success; 3010 = success, reboot required (both are installs
-    # that took effect — 3010 is normal for per-machine files-in-use).
+    # that took effect -- 3010 is normal for per-machine files-in-use).
     $proc = Start-Process -FilePath 'msiexec.exe' `
         -ArgumentList @("/$Verb", "`"$MsiPath`"", '/qn', "/L*v", "`"$LogFile`"") `
         -Wait -PassThru

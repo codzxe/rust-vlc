@@ -1,4 +1,4 @@
-# build-msi.ps1 — native Windows MSI builder (issue #56, card 8.E1, task
+# build-msi.ps1 -- native Windows MSI builder (issue #56, card 8.E1, task
 # W24-C).
 #
 # The PowerShell twin of scripts/packaging/build-msi.sh (the CI path;
@@ -17,7 +17,7 @@
 # packaging-env.py itself (python3/python required).
 #
 # The .wxs shape MIRRORS scripts/release/gen-wxs.sh (the repo's one
-# bash generator, used by build-msi.sh). Change both together — the
+# bash generator, used by build-msi.sh). Change both together -- the
 # upgrade-path test cross-checks installed ProductVersion/UpgradeCode
 # and would catch identity drift between them.
 #
@@ -30,7 +30,7 @@
 #                     upgrade-path test to synthesize the predecessor
 #                     build; never for real releases).
 #   -Sign             also run scripts/packaging/sign-windows.sh via
-#                     bash (git-bash) — the ONE signing implementation.
+#                     bash (git-bash) -- the ONE signing implementation.
 #   -SkipSigning      explicit opt-out (CI signs in its own step).
 #
 # HONEST LOCAL-PROOF BOUNDARY: authored and reviewed on Linux; executed
@@ -89,10 +89,10 @@ $msiVersion = if ($VersionOverride) { $VersionOverride } else { $env:MSI_VERSION
 if (-not $msiVersion) { Fail 'MSI_VERSION is not set (run packaging-env.py first)' }
 
 if ($env:OS_ID -ne 'windows') { Fail "this is the Windows lane (OS_ID=$($env:OS_ID))" }
-if (-not $WixExe) { Fail 'WixExe (or $env:WIX_EXE) is required — install the pinned WiX nupkg first' }
+if (-not $WixExe) { Fail 'WixExe (or $env:WIX_EXE) is required -- install the pinned WiX nupkg first' }
 if (-not (Test-Path $WixExe)) { Fail "WixExe not found: $WixExe" }
 
-# Per-arch platform flag — the MSI platform must match its binaries.
+# Per-arch platform flag -- the MSI platform must match its binaries.
 $wixArch = switch ($env:ARCH_ID) {
     'x86_64' { 'x64' }
     'aarch64' { 'arm64' }
