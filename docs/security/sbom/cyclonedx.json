@@ -2,7 +2,7 @@
   "$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:4d0682b2-f379-8085-b005-9acd7cababc3",
+  "serialNumber": "urn:uuid:4d93a480-c935-83cb-be10-d56bad8ded09",
   "version": 1,
   "metadata": {
     "component": {
@@ -448,6 +448,19 @@
       "type": "library",
       "bom-ref": "desktop@0.1.0",
       "name": "desktop",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "device-discovery@0.1.0",
+      "name": "device-discovery",
       "version": "0.1.0",
       "scope": "required",
       "properties": [
@@ -3604,6 +3617,7 @@
         "control-server@0.1.0",
         "demux@0.1.0",
         "desktop@0.1.0",
+        "device-discovery@0.1.0",
         "first-vertical@0.1.0",
         "input@0.1.0",
         "localization@0.1.0",
@@ -3781,6 +3795,14 @@
         "renderer-wgpu@0.1.0",
         "testkit@0.1.0",
         "video-engine@0.1.0"
+      ]
+    },
+    {
+      "ref": "device-discovery@0.1.0",
+      "dependsOn": [
+        "media-types@0.1.0",
+        "plugin-api@0.1.0",
+        "testkit@0.1.0"
       ]
     },
     {
@@ -4120,7 +4142,15 @@
     {
       "ref": "plugin-host-wasm@0.1.0",
       "dependsOn": [
+        "codec-api@0.1.0",
+        "media-clock@0.1.0",
+        "media-types@0.1.0",
+        "packet-queue@0.1.0",
+        "playback-engine@0.1.0",
         "plugin-api@0.1.0",
+        "settings-schema@0.1.0",
+        "testkit@0.1.0",
+        "pkg:cargo/toml@1.1.8+spec-1.1.0",
         "pkg:cargo/wasmi@2.0.0"
       ]
     },
