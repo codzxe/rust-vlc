@@ -663,3 +663,18 @@ Stage Summary:
 - Headline honest numbers: differential 29/35 bit-exact + 0/6 f32 tolerance-pass = 29/35 (Lead decision applied, per-row JSON record); implementation parity 64/252 per desktop platform, web 0/252; verified parity 0/252 pending CI (billing-blocked, all evidence hardware_class=mock).
 - Cross-wave coordination: docs/RELEASE.md (known-limits register) is referenced as owned by 7.w22g branch w22/g — the link resolves when that wave merges.
 - Observed for the Lead (not touched, out of scope): docs/feature-matrix.toml header comment still says the full tools/feature-audit is "OWED and unassigned debt" — stale since ed24e7d (wave 11); header is Lead-owned per the schema-freeze note.
+
+---
+Task ID: 7.w23a
+Agent: w23-a (Lead-finalized)
+Task: Hardware decode adapters — VideoToolbox / Media Foundation / VA-API (issue #41, cards 7.B1–7.B3)
+
+Work Log:
+- Landed crates/codecs/src/video/h264/hw/: capability.rs (negotiation + truthful hw-active reporting), frame_pool.rs, vaapi/ (device-node discovery, permission-failure handling, session), mediafoundation/ (MFT/DXVA declarations), videotoolbox/ (VTDecompressionSession declarations), feed.rs (frame feed path), settings-driven wiring (installed_bridges + negotiate_lane + H264Decoder::from_setting), default OFF.
+- Host tests: capability negotiation, no-device (DRI-less root), permission-denied, fallback-to-software — 684 codec tests green.
+- Cross-target compile verification: aarch64-apple-darwin (VT), x86_64-pc-windows-msvc (MF) — typecheck of hand-rolled FFI only; runtime hardware behavior NOT exercised in this environment [VERIFY].
+- lint-literals/check-identity PASS after marking 3 cfg(test) scratch-dir prefixes.
+- Feature-matrix codec-video-h264 note updated with landed-lane evidence.
+
+Stage Summary:
+- All three lanes implemented behind typed seams with honest capability negotiation; compile-verified cross-OS, host-tested fallback paths. ADR-013 remains [proposed] (VA-API activation Lead-gated). Real-hardware validation pending [VERIFY].
