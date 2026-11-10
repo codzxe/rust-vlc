@@ -401,6 +401,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "lumen-web"
+version = "0.1.0"
+dependencies = [
+ "audio-engine",
+ "audio-output",
+ "codec-api",
+ "codecs",
+ "commands",
+ "demux",
+ "media-clock",
+ "media-probe",
+ "media-types",
+ "playback-engine",
+ "plugin-api",
+ "serde",
+ "serde_json",
+ "testkit",
+]
+
+[[package]]
 name = "media-clock"
 version = "0.1.0"
 dependencies = [

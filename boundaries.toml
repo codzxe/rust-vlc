@@ -522,6 +522,33 @@ layer = 6
 internal_deps = ["plugin-api"]
 dev_deps = []
 external_allowlist = ["wasmi"]
+# L6 — apps/web (doc 01 §2.7 registry row "apps/web — the wasm host
+# page/worker bootstrap"; card 7.H1, issue #47): the engine-in-Worker
+# wasm composition root. Drives the SAME std-only engine core the CLI
+# drives through the ONE command layer (ARCH-5): commands (catalog +
+# envelopes — the MessagePort contract's command lane), playback-engine
+# (the pump-driven Engine/Session), media-probe + demux (the open
+# path), codec-api + plugin-api (the decoder/source contracts those
+# surfaces expose), media-clock + audio-engine + audio-output (the
+# null-device counter clock — the wasm-safe time source), media-types
+# (the L0 vocabulary), codecs (NATIVE ONLY, target-gated: the first
+# vertical's MJPEG + PCM decoders; the codecs crate's external engines
+# do not build for wasm32-unknown-unknown, so the wasm module ships
+# decoder-less and says so honestly in its capability snapshot — the
+# manifest's [target.'cfg(not(target_arch = "wasm32"))'] table, read
+# by the checker as a normal internal edge). video-engine and
+# renderer-wgpu are deliberately ABSENT: v1's video path is the
+# headless counting presenter (card 7.H2 wires the canvas surface).
+# The two externals are the command layer's own serde wire family
+# (doc 05 §5.1 — the app's MessagePort contract marshals the
+# catalog's envelopes; a hand-rolled format would BYPASS the layer,
+# not honor std-only-ness), admitted exactly as lumen-cli's serde_json
+# entry was. The app adds no new external of its own.
+[crates.lumen-web]
+layer = 6
+internal_deps = ["audio-engine", "audio-output", "codec-api", "codecs", "commands", "demux", "media-clock", "media-probe", "media-types", "playback-engine", "plugin-api"]
+dev_deps = ["testkit"]
+external_allowlist = ["serde", "serde_json"]
 external_dev_allowlist = []
 
 # tests/integration/first-vertical (package `first-vertical`, card

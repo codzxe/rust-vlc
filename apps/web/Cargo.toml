@@ -1,0 +1,76 @@
+# apps/web — the engine-in-Worker wasm host (card 7.H1, issue #47;
+# doc 09 §1/§2/§3/§7).
+#
+# The wasm32 composition root: the std-only engine core (probe →
+# demux → engine → queues → clock → scheduler), driven through the ONE
+# command layer (ARCH-5) over a hand-rolled extern "C" ABI + shared
+# linear-memory protocol (doc 09 §2.2's raw-import fallback lane —
+# wasm-bindgen is the doc's [PROPOSAL] but OQ-1 is undecided, and the
+# card's preference is ZERO new dependencies: this crate adds none
+# beyond the command layer's own serde wire family, the lumen-cli
+# precedent).
+#
+# The `codecs` edge is TARGET-GATED (native only): the codecs crate's
+# external decode engines do not build on wasm32-unknown-unknown
+# (rav1d 1.1.0 fails: 38 errors, measured 2026-11-10 — asm-gated core
+# code does not compile for the target), so the wasm module ships the
+# engine core decoder-less and reports that honestly in its capability
+# snapshot. Native builds get the real MJPEG + PCM decoders (the
+# first vertical) so the headless lane proof decodes for real.
+# [PROPOSAL: Lead splits the in-house mjpeg/pcm decoders out of the
+# codecs crate — or feature-gates the external engines — to lift this;
+# an engine-crate edit outside this card's ownership.]
+#
+# externals: `serde` + `serde_json` are the command layer's own wire
+# family (doc 05 §5.1 — the catalog's serde path), admitted via
+# commands' own rows exactly as lumen-cli's serde_json/toml entries
+# were (the app adds no new external of its own).
+
+[package]
+name = "lumen-web"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen engine-in-Worker wasm host: the wasm32 composition root with the cooperative pump/slice scheduler, the MessagePort command contract and the honest capability report (card 7.H1, doc 09)."
+publish = false
+
+[lints]
+workspace = true
+
+# cdylib: `cargo build --target wasm32-unknown-unknown` emits the
+# engine-as-wasm module artifact (lumen_web.wasm). rlib: the native
+# lane-proof tests link the same code.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# The ONE command layer (ARCH-5): envelopes, catalog, staleness.
+commands = { path = "../../crates/commands" }
+# The engine core — every crate below is proven wasm32-clean (this
+# card's worklog records the cargo check evidence). video-engine is
+# deliberately ABSENT: v1's video path is the headless counting
+# presenter (the capability snapshot's honest row); the scheduler +
+# canvas surface land with card 7.H2.
+media-types = { path = "../../crates/media-types" }
+plugin-api = { path = "../../crates/plugin-api" }
+codec-api = { path = "../../crates/codec-api" }
+media-probe = { path = "../../crates/media-probe" }
+demux = { path = "../../crates/demux" }
+media-clock = { path = "../../crates/media-clock" }
+playback-engine = { path = "../../crates/playback-engine" }
+audio-engine = { path = "../../crates/audio-engine" }
+audio-output = { path = "../../crates/audio-output" }
+# The worker-protocol wire forms (the command layer's serde family).
+serde = "1"
+serde_json = "1"
+
+# The real builtin decoders (first vertical: MJPEG + PCM), NATIVE
+# ONLY — see the header's codecs note. check-architecture reads this
+# as a normal internal edge (the checker's target-table support), so
+# it stays boundary-checked and allowlisted in boundaries.toml.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+codecs = { path = "../../crates/codecs" }
+
+[dev-dependencies]
+# testkit is dev-only by contract (MP §3.7 / ARCH-7): the `Must`
+# vocabulary for tests and doctests.
+testkit = { path = "../../crates/testkit" }
