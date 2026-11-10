@@ -417,7 +417,7 @@ fn nova_fixture_rebrand_passes_skeleton_assertions() {
         [
             "product.toml (19 rewrites)",
             "apps/desktop/tauri/tauri.conf.json (3 rewrites)",
-            "README.md (2 rewrites)",
+            "README.md (7 rewrites)",
             "schemas/generated/settings-docs.md (1 rewrite)",
             "schemas/generated/settings-help.txt (4 rewrites)",
         ],
@@ -439,7 +439,7 @@ fn nova_fixture_rebrand_passes_skeleton_assertions() {
     }
     assert!(
         out.stdout
-            .contains("result: 5 surface(s) touched, 29 rewrites, 4 asset(s) copied"),
+            .contains("result: 5 surface(s) touched, 34 rewrites, 4 asset(s) copied"),
         "result line mismatch (stdout:\n{})",
         out.stdout
     );
