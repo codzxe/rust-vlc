@@ -22,7 +22,7 @@ use platform_macos::dialog::{
 };
 use platform_macos::error::PlatformError;
 use platform_macos::events::{DeviceEventQueue, PlatformEvent};
-use platform_macos::gpu::{GpuAdapters, GpuAdapterInfo, UnavailableGpuAdapters};
+use platform_macos::gpu::{GpuAdapterInfo, GpuAdapters, UnavailableGpuAdapters};
 
 use testkit::assert_err;
 
@@ -143,8 +143,14 @@ fn capability_classifies_and_converts_probe_errors() {
 
 #[test]
 fn feature_keys_are_the_stable_matrix_vocabulary() {
-    assert_eq!(Feature::AudioEnumeration.key(), "platform.audio.enumeration");
-    assert_eq!(Feature::AudioNotifications.key(), "platform.audio.notifications");
+    assert_eq!(
+        Feature::AudioEnumeration.key(),
+        "platform.audio.enumeration"
+    );
+    assert_eq!(
+        Feature::AudioNotifications.key(),
+        "platform.audio.notifications"
+    );
     assert_eq!(Feature::GpuEnumeration.key(), "platform.gpu.enumeration");
     assert_eq!(Feature::FileDialogs.key(), "platform.dialogs");
 }
@@ -191,7 +197,10 @@ fn event_queue_drains_fifo_and_empties() {
     queue.push(PlatformEvent::AudioDeviceRemoved { id: a });
     queue.push(PlatformEvent::AudioDefaultChanged { id: Some(b) });
     queue.push(PlatformEvent::AudioSetChanged);
-    queue.push(PlatformEvent::AudioDeviceStateChanged { id: a, active: false });
+    queue.push(PlatformEvent::AudioDeviceStateChanged {
+        id: a,
+        active: false,
+    });
     assert_eq!(queue.len(), 5);
     let drained = queue.drain();
     assert_eq!(
@@ -201,7 +210,10 @@ fn event_queue_drains_fifo_and_empties() {
             PlatformEvent::AudioDeviceRemoved { id: a },
             PlatformEvent::AudioDefaultChanged { id: Some(b) },
             PlatformEvent::AudioSetChanged,
-            PlatformEvent::AudioDeviceStateChanged { id: a, active: false },
+            PlatformEvent::AudioDeviceStateChanged {
+                id: a,
+                active: false
+            },
         ],
         "drain must be oldest-first"
     );
@@ -254,7 +266,10 @@ fn event_queue_is_thread_safe_for_listener_threads() {
         })
         .collect();
     for handle in handles {
-        assert!(handle.join().is_ok(), "the simulated callback thread must not panic");
+        assert!(
+            handle.join().is_ok(),
+            "the simulated callback thread must not panic"
+        );
     }
     assert_eq!(queue.pushed(), 400);
     assert!(queue.len() <= 64, "the bound must hold under concurrency");
@@ -301,7 +316,11 @@ fn gpu_adapter_info_answers_the_metal_shape() {
         is_software: false,
     };
     assert!(!apple_gpu.is_software);
-    assert_eq!(apple_gpu.vendor_name(), "unknown", "vendor 0 is not in the PCI table");
+    assert_eq!(
+        apple_gpu.vendor_name(),
+        "unknown",
+        "vendor 0 is not in the PCI table"
+    );
 
     // The label table itself still classifies the well-known PCI ids
     // (shared with the other lanes — pinned so they cannot drift).
@@ -344,11 +363,16 @@ fn platform_errors_render_their_details() {
             "AudioObjectAddPropertyListener failed with status -561017433",
         ),
         (
-            PlatformError::InvalidEncoding { api: "NSString UTF8String" },
+            PlatformError::InvalidEncoding {
+                api: "NSString UTF8String",
+            },
             "NSString UTF8String returned a string that is not valid Unicode",
         ),
         (
-            PlatformError::SymbolMissing { library: "libobjc.A.dylib".to_string(), symbol: "objc_msgSend" },
+            PlatformError::SymbolMissing {
+                library: "libobjc.A.dylib".to_string(),
+                symbol: "objc_msgSend",
+            },
             "symbol \"objc_msgSend\" missing from libobjc.A.dylib",
         ),
     ];
@@ -405,5 +429,8 @@ fn file_dialog_request_carries_the_os_neutral_shape() {
 
     let filter = FileFilter::new("Video files", &["*.mkv", "*.mp4"]);
     assert_eq!(filter.label, "Video files");
-    assert_eq!(filter.patterns, vec!["*.mkv".to_string(), "*.mp4".to_string()]);
+    assert_eq!(
+        filter.patterns,
+        vec!["*.mkv".to_string(), "*.mp4".to_string()]
+    );
 }

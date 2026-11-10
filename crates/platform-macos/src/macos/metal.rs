@@ -49,7 +49,8 @@ use crate::error::PlatformError;
 use crate::gpu::{GpuAdapterInfo, GpuAdapters};
 use crate::macos::objc::{
     AutoreleasePool, ObjcId, class, msg_send_bool, msg_send_id, msg_send_id_id, msg_send_id_u64,
-    msg_send_u64, msg_send_void_f64_f64, msg_send_void_id, nsstring_to_string, release, retain, sel,
+    msg_send_u64, msg_send_void_f64_f64, msg_send_void_id, nsstring_to_string, release, retain,
+    sel,
 };
 
 // SAFETY: the declared ABI of the Metal framework's one C entry

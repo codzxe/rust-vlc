@@ -92,11 +92,8 @@ struct Adapter1Vtbl {
     /// IUnknown.
     pub unknown: crate::windows::com::UnknownVtbl,
     /// `GetParent(this, …)`.
-    pub _get_parent: unsafe extern "system" fn(
-        *mut c_void,
-        *const Guid,
-        *mut *mut c_void,
-    ) -> Hresult,
+    pub _get_parent:
+        unsafe extern "system" fn(*mut c_void, *const Guid, *mut *mut c_void) -> Hresult,
     /// `EnumOutputs(this, …)`.
     pub _enum_outputs: unsafe extern "system" fn(*mut c_void, u32, *mut *mut c_void) -> Hresult,
     /// `GetDesc(this, …)`.

@@ -212,7 +212,11 @@ unsafe extern "C" fn on_sink_info(
     }
     let display = {
         let description = owned(sink.description);
-        if description.is_empty() { name.clone() } else { description }
+        if description.is_empty() {
+            name.clone()
+        } else {
+            description
+        }
     };
     let id = stable_device_id(&name);
     state.devices.push(DeviceDesc {
@@ -290,7 +294,11 @@ fn preferred_format(spec: &PaSampleSpec) -> AudioFormat {
     };
     AudioFormat {
         sample,
-        channels: if spec.channels == 0 { 2 } else { u32::from(spec.channels) },
+        channels: if spec.channels == 0 {
+            2
+        } else {
+            u32::from(spec.channels)
+        },
         layout: AudioLayout::Interleaved,
         rate: if spec.rate == 0 { 48_000 } else { spec.rate },
     }
@@ -346,7 +354,11 @@ impl PulseAudioDevices {
     pub fn probe() -> Result<PulseAudioDevices, PlatformError> {
         let lib = DynamicLibrary::open(&PULSE_SONAMES)?;
         let api = Arc::new(crate::linux::pulse_ffi::load(&lib)?);
-        Ok(PulseAudioDevices { watch: None, api, lib })
+        Ok(PulseAudioDevices {
+            watch: None,
+            api,
+            lib,
+        })
     }
 
     /// The SONAME the client was loaded from (capability-report

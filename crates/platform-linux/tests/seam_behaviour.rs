@@ -5,13 +5,11 @@
 //! `linux_integrations.rs` on Linux hosts).
 
 use platform_linux::audio::{AudioDevices, UnavailableAudioDevices, stable_device_id};
-use platform_linux::capability::{
-    Capability, Feature, PlatformReport, UnavailableReason,
-};
+use platform_linux::capability::{Capability, Feature, PlatformReport, UnavailableReason};
 use platform_linux::dialog::{FileDialogRequest, FileDialogs, FilePick, UnavailableDialogs};
 use platform_linux::error::PlatformError;
 use platform_linux::events::{DeviceEventQueue, PlatformEvent};
-use platform_linux::gpu::{GpuAdapters, GpuAdapterInfo, UnavailableGpuAdapters};
+use platform_linux::gpu::{GpuAdapterInfo, GpuAdapters, UnavailableGpuAdapters};
 
 use testkit::assert_err;
 
@@ -96,7 +94,8 @@ fn capability_classifies_and_converts_probe_errors() {
     assert!(!wrong_os.is_available());
 
     // Each typed error maps to the reason class it proves.
-    let cap = Capability::from_probe_error(&PlatformError::NotCompiledForThisOs { crate_os: "linux" });
+    let cap =
+        Capability::from_probe_error(&PlatformError::NotCompiledForThisOs { crate_os: "linux" });
     assert_eq!(cap, wrong_os);
 
     let cap = Capability::from_probe_error(&PlatformError::LibraryUnavailable {
@@ -179,7 +178,9 @@ fn unavailable_reasons_render_honest_strings() {
             "PulseAudio server not reachable: refused",
         ),
         (
-            UnavailableReason::NotYetImplemented { detail: "not probed by this adapter" },
+            UnavailableReason::NotYetImplemented {
+                detail: "not probed by this adapter",
+            },
             "not probed by this adapter",
         ),
     ];
@@ -191,8 +192,14 @@ fn unavailable_reasons_render_honest_strings() {
 
 #[test]
 fn feature_keys_are_the_stable_matrix_vocabulary() {
-    assert_eq!(Feature::AudioEnumeration.key(), "platform.audio.enumeration");
-    assert_eq!(Feature::AudioNotifications.key(), "platform.audio.notifications");
+    assert_eq!(
+        Feature::AudioEnumeration.key(),
+        "platform.audio.enumeration"
+    );
+    assert_eq!(
+        Feature::AudioNotifications.key(),
+        "platform.audio.notifications"
+    );
     assert_eq!(Feature::GpuEnumeration.key(), "platform.gpu.enumeration");
     assert_eq!(Feature::FileDialogs.key(), "platform.dialogs");
 }
@@ -239,7 +246,10 @@ fn event_queue_drains_fifo_and_empties() {
     queue.push(PlatformEvent::AudioDeviceRemoved { id: a });
     queue.push(PlatformEvent::AudioDefaultChanged { id: Some(b) });
     queue.push(PlatformEvent::AudioSetChanged);
-    queue.push(PlatformEvent::AudioDeviceStateChanged { id: a, active: false });
+    queue.push(PlatformEvent::AudioDeviceStateChanged {
+        id: a,
+        active: false,
+    });
     assert_eq!(queue.len(), 5);
     assert!(!queue.is_empty());
     let drained = queue.drain();
@@ -250,7 +260,10 @@ fn event_queue_drains_fifo_and_empties() {
             PlatformEvent::AudioDeviceRemoved { id: a },
             PlatformEvent::AudioDefaultChanged { id: Some(b) },
             PlatformEvent::AudioSetChanged,
-            PlatformEvent::AudioDeviceStateChanged { id: a, active: false },
+            PlatformEvent::AudioDeviceStateChanged {
+                id: a,
+                active: false
+            },
         ],
         "drain must be oldest-first"
     );
@@ -284,7 +297,10 @@ fn event_queue_capacity_is_clamped_to_one() {
     let queue = DeviceEventQueue::with_capacity(0);
     assert_eq!(queue.capacity(), 1);
     assert!(queue.push(PlatformEvent::AudioSetChanged));
-    assert!(!queue.push(PlatformEvent::AudioSetChanged), "second push must report the drop");
+    assert!(
+        !queue.push(PlatformEvent::AudioSetChanged),
+        "second push must report the drop"
+    );
     assert_eq!(queue.dropped(), 1);
     assert_eq!(queue.len(), 1);
 }
@@ -307,11 +323,18 @@ fn event_queue_is_thread_safe_for_callback_threads() {
         })
         .collect();
     for handle in handles {
-        assert!(handle.join().is_ok(), "the simulated callback thread must not panic");
+        assert!(
+            handle.join().is_ok(),
+            "the simulated callback thread must not panic"
+        );
     }
     assert_eq!(queue.pushed(), 400);
     assert!(queue.len() <= 64, "the bound must hold under concurrency");
-    assert_eq!(queue.dropped() + queue.len() as u64, 400, "every push is accounted for");
+    assert_eq!(
+        queue.dropped() + queue.len() as u64,
+        400,
+        "every push is accounted for"
+    );
     queue.drain();
     assert!(queue.is_empty());
 }

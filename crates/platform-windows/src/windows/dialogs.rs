@@ -32,7 +32,7 @@ use std::thread;
 use crate::dialog::{FileDialogRequest, FileDialogs, FilePick};
 use crate::error::PlatformError;
 use crate::windows::com::{
-    ComApartment, Guid, Hresult, PropertyKey, S_OK, co_create_instance, from_wide, free_wide,
+    ComApartment, Guid, Hresult, PropertyKey, S_OK, co_create_instance, free_wide, from_wide,
     release_interface, to_wide,
 };
 
@@ -139,15 +139,13 @@ struct FileDialogVtbl {
     /// `Show(this, hwndOwner)`.
     pub show: ShowFn,
     /// `SetFileTypes(this, count, specs)`.
-    pub set_file_types:
-        unsafe extern "system" fn(*mut c_void, u32, *const FilterSpec) -> Hresult,
+    pub set_file_types: unsafe extern "system" fn(*mut c_void, u32, *const FilterSpec) -> Hresult,
     /// `SetFileTypeIndex(this, index)`.
     pub _set_file_type_index: unsafe extern "system" fn(*mut c_void, u32) -> Hresult,
     /// `GetFileTypeIndex(this, out)`.
     pub _get_file_type_index: unsafe extern "system" fn(*mut c_void, *mut u32) -> Hresult,
     /// `Advise(this, events, cookie)`.
-    pub _advise:
-        unsafe extern "system" fn(*mut c_void, *mut c_void, *mut u32) -> Hresult,
+    pub _advise: unsafe extern "system" fn(*mut c_void, *mut c_void, *mut u32) -> Hresult,
     /// `Unadvise(this, cookie)`.
     pub _unadvise: unsafe extern "system" fn(*mut c_void, u32) -> Hresult,
     /// `SetOptions(this, fos)`.
@@ -161,8 +159,7 @@ struct FileDialogVtbl {
     /// `GetFolder(this, out)`.
     pub _get_folder: unsafe extern "system" fn(*mut c_void, *mut *mut c_void) -> Hresult,
     /// `GetCurrentSelection(this, out)`.
-    pub _get_current_selection:
-        unsafe extern "system" fn(*mut c_void, *mut *mut c_void) -> Hresult,
+    pub _get_current_selection: unsafe extern "system" fn(*mut c_void, *mut *mut c_void) -> Hresult,
     /// `SetFileName(this, name)`.
     pub _set_file_name: unsafe extern "system" fn(*mut c_void, *const u16) -> Hresult,
     /// `GetFileName(this, out)`.
@@ -210,8 +207,7 @@ struct ShellItemVtbl {
     /// `GetParent(this, out)`.
     pub _get_parent: unsafe extern "system" fn(*mut c_void, *mut *mut c_void) -> Hresult,
     /// `GetDisplayName(this, sigdn, out)`.
-    pub get_display_name:
-        unsafe extern "system" fn(*mut c_void, i32, *mut *mut u16) -> Hresult,
+    pub get_display_name: unsafe extern "system" fn(*mut c_void, i32, *mut *mut u16) -> Hresult,
     /// `GetAttributes(this, mask, out)`.
     pub _get_attributes: unsafe extern "system" fn(*mut c_void, u32, *mut u32) -> Hresult,
     /// `Compare(this, other, hint, out)`.
@@ -233,12 +229,8 @@ struct ShellItemArrayVtbl {
         *mut *mut c_void,
     ) -> Hresult,
     /// `GetPropertyStore(this, …)`.
-    pub _get_property_store: unsafe extern "system" fn(
-        *mut c_void,
-        u32,
-        *const Guid,
-        *mut *mut c_void,
-    ) -> Hresult,
+    pub _get_property_store:
+        unsafe extern "system" fn(*mut c_void, u32, *const Guid, *mut *mut c_void) -> Hresult,
     /// `GetPropertyDescriptionList(this, …)`.
     pub _get_property_description_list: unsafe extern "system" fn(
         *mut c_void,
@@ -292,9 +284,8 @@ impl CommonItemDialogs {
             // SAFETY: created on this thread inside this closure and
             // released exactly once before it returns; the vtable
             // layout is the documented IFileOpenDialog order.
-            let dialog = unsafe {
-                co_create_instance(&CLSID_FILE_OPEN_DIALOG, &IID_FILE_OPEN_DIALOG)?
-            };
+            let dialog =
+                unsafe { co_create_instance(&CLSID_FILE_OPEN_DIALOG, &IID_FILE_OPEN_DIALOG)? };
             // SAFETY: the single release of the probe's reference.
             unsafe {
                 release_interface(dialog);
@@ -414,7 +405,12 @@ fn configure_and_show(
         // and the returned IShellItem is released exactly once below.
         let mut folder: *mut c_void = std::ptr::null_mut();
         let hr = unsafe {
-            SHCreateItemFromParsingName(wide.as_ptr(), std::ptr::null_mut(), &IID_SHELL_ITEM, &mut folder)
+            SHCreateItemFromParsingName(
+                wide.as_ptr(),
+                std::ptr::null_mut(),
+                &IID_SHELL_ITEM,
+                &mut folder,
+            )
         };
         if hr == S_OK && !folder.is_null() {
             // SAFETY: dialog is live; folder is the freshly created

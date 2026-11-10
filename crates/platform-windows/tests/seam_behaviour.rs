@@ -20,7 +20,7 @@ use platform_windows::dialog::{
 };
 use platform_windows::error::PlatformError;
 use platform_windows::events::{DeviceEventQueue, PlatformEvent};
-use platform_windows::gpu::{GpuAdapters, GpuAdapterInfo, UnavailableGpuAdapters};
+use platform_windows::gpu::{GpuAdapterInfo, GpuAdapters, UnavailableGpuAdapters};
 
 use testkit::assert_err;
 
@@ -31,7 +31,9 @@ use testkit::assert_err;
 
 #[test]
 fn unavailable_audio_devices_returns_the_typed_reason() {
-    let reason = PlatformError::NotCompiledForThisOs { crate_os: "windows" };
+    let reason = PlatformError::NotCompiledForThisOs {
+        crate_os: "windows",
+    };
     let mut devices = UnavailableAudioDevices::because(reason.clone());
     assert_eq!(devices.reason(), &reason);
     let queue = DeviceEventQueue::new();
@@ -77,7 +79,9 @@ fn unavailable_dialogs_returns_the_typed_reason() {
 // absent.
 #[test]
 fn typed_fallbacks_satisfy_the_seam_traits() {
-    let reason = PlatformError::NotCompiledForThisOs { crate_os: "windows" };
+    let reason = PlatformError::NotCompiledForThisOs {
+        crate_os: "windows",
+    };
     let mut audio: Box<dyn AudioDevices> =
         Box::new(UnavailableAudioDevices::because(reason.clone()));
     let mut gpu: Box<dyn GpuAdapters> = Box::new(UnavailableGpuAdapters::because(reason.clone()));
@@ -102,12 +106,15 @@ fn typed_fallbacks_satisfy_the_seam_traits() {
 #[test]
 fn capability_classifies_and_converts_probe_errors() {
     assert!(Capability::Available.is_available());
-    let wrong_os = Capability::Unavailable(UnavailableReason::WrongOs { crate_os: "windows" });
+    let wrong_os = Capability::Unavailable(UnavailableReason::WrongOs {
+        crate_os: "windows",
+    });
     assert!(!wrong_os.is_available());
 
     // Each typed error maps to the reason class it proves.
-    let cap =
-        Capability::from_probe_error(&PlatformError::NotCompiledForThisOs { crate_os: "windows" });
+    let cap = Capability::from_probe_error(&PlatformError::NotCompiledForThisOs {
+        crate_os: "windows",
+    });
     assert_eq!(cap, wrong_os);
 
     // A COM failure is the service-not-reachable class, stringified.
@@ -144,8 +151,14 @@ fn capability_classifies_and_converts_probe_errors() {
 
 #[test]
 fn feature_keys_are_the_stable_matrix_vocabulary() {
-    assert_eq!(Feature::AudioEnumeration.key(), "platform.audio.enumeration");
-    assert_eq!(Feature::AudioNotifications.key(), "platform.audio.notifications");
+    assert_eq!(
+        Feature::AudioEnumeration.key(),
+        "platform.audio.enumeration"
+    );
+    assert_eq!(
+        Feature::AudioNotifications.key(),
+        "platform.audio.notifications"
+    );
     assert_eq!(Feature::GpuEnumeration.key(), "platform.gpu.enumeration");
     assert_eq!(Feature::FileDialogs.key(), "platform.dialogs");
 }
@@ -166,7 +179,9 @@ fn platform_report_is_a_table_with_honest_defaults() {
     // set() replaces in place — the report is a table, not a log.
     report.set(
         Feature::AudioEnumeration,
-        Capability::Unavailable(UnavailableReason::WrongOs { crate_os: "windows" }),
+        Capability::Unavailable(UnavailableReason::WrongOs {
+            crate_os: "windows",
+        }),
     );
     let mut rows = 0;
     for (feature, capability) in report.iter() {
@@ -192,7 +207,10 @@ fn event_queue_drains_fifo_and_empties() {
     queue.push(PlatformEvent::AudioDeviceRemoved { id: a });
     queue.push(PlatformEvent::AudioDefaultChanged { id: Some(b) });
     queue.push(PlatformEvent::AudioSetChanged);
-    queue.push(PlatformEvent::AudioDeviceStateChanged { id: a, active: false });
+    queue.push(PlatformEvent::AudioDeviceStateChanged {
+        id: a,
+        active: false,
+    });
     assert_eq!(queue.len(), 5);
     let drained = queue.drain();
     assert_eq!(
@@ -202,7 +220,10 @@ fn event_queue_drains_fifo_and_empties() {
             PlatformEvent::AudioDeviceRemoved { id: a },
             PlatformEvent::AudioDefaultChanged { id: Some(b) },
             PlatformEvent::AudioSetChanged,
-            PlatformEvent::AudioDeviceStateChanged { id: a, active: false },
+            PlatformEvent::AudioDeviceStateChanged {
+                id: a,
+                active: false
+            },
         ],
         "drain must be oldest-first"
     );
@@ -255,7 +276,10 @@ fn event_queue_is_thread_safe_for_callback_threads() {
         })
         .collect();
     for handle in handles {
-        assert!(handle.join().is_ok(), "the simulated callback thread must not panic");
+        assert!(
+            handle.join().is_ok(),
+            "the simulated callback thread must not panic"
+        );
     }
     assert_eq!(queue.pushed(), 400);
     assert!(queue.len() <= 64, "the bound must hold under concurrency");
@@ -281,7 +305,10 @@ fn stable_device_id_is_deterministic_and_pinned() {
         0x5b40_ed9b_b4ce_1081
     );
     assert_eq!(stable_device_id("same"), stable_device_id("same"));
-    assert_ne!(stable_device_id("endpoint-a"), stable_device_id("endpoint-b"));
+    assert_ne!(
+        stable_device_id("endpoint-a"),
+        stable_device_id("endpoint-b")
+    );
     assert_ne!(stable_device_id(""), stable_device_id("a"));
 }
 
@@ -327,7 +354,9 @@ fn gpu_adapter_info_labels_warp_and_well_known_vendors() {
 fn platform_errors_render_their_details() {
     let cases: [(PlatformError, &str); 4] = [
         (
-            PlatformError::NotCompiledForThisOs { crate_os: "windows" },
+            PlatformError::NotCompiledForThisOs {
+                crate_os: "windows",
+            },
             "this build carries no windows integration",
         ),
         (
@@ -342,7 +371,9 @@ fn platform_errors_render_their_details() {
             "CoInitializeEx failed with status -2147417850: changed mode",
         ),
         (
-            PlatformError::InvalidEncoding { api: "wide-string conversion" },
+            PlatformError::InvalidEncoding {
+                api: "wide-string conversion",
+            },
             "wide-string conversion returned a string that is not valid Unicode",
         ),
         (
@@ -377,12 +408,16 @@ fn discover_on_a_foreign_host_reports_wrong_os_everywhere() {
     ] {
         assert_eq!(
             report.get(feature),
-            Capability::Unavailable(UnavailableReason::WrongOs { crate_os: "windows" }),
+            Capability::Unavailable(UnavailableReason::WrongOs {
+                crate_os: "windows"
+            }),
             "a non-Windows build must say WrongOs for {feature:?}"
         );
     }
     // The seams refuse with exactly the same typed reason.
-    let reason = PlatformError::NotCompiledForThisOs { crate_os: "windows" };
+    let reason = PlatformError::NotCompiledForThisOs {
+        crate_os: "windows",
+    };
     let err = assert_err(platform.audio().enumerate(), "audio must refuse");
     assert_eq!(err, reason);
     let err = assert_err(platform.gpu().enumerate(), "gpu must refuse");
@@ -406,5 +441,8 @@ fn file_dialog_request_carries_the_os_neutral_shape() {
 
     let filter = FileFilter::new("Video files", &["*.mkv", "*.mp4"]);
     assert_eq!(filter.label, "Video files");
-    assert_eq!(filter.patterns, vec!["*.mkv".to_string(), "*.mp4".to_string()]);
+    assert_eq!(
+        filter.patterns,
+        vec!["*.mkv".to_string(), "*.mp4".to_string()]
+    );
 }

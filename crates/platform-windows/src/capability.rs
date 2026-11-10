@@ -55,7 +55,7 @@ pub enum UnavailableReason {
         detail: String,
     },
     /// The backing OS service is not reachable (no server / no bus /
-        /// no device nodes).
+    /// no device nodes).
     ServiceNotReachable {
         /// The service name.
         service: &'static str,
@@ -63,7 +63,7 @@ pub enum UnavailableReason {
         detail: String,
     },
     /// Not implemented in this card — an honest gap with a recorded
-        /// follow-up, never a silent stub that pretends.
+    /// follow-up, never a silent stub that pretends.
     NotYetImplemented {
         /// What is missing and where it is tracked.
         detail: &'static str,
@@ -75,13 +75,15 @@ impl UnavailableReason {
     #[must_use = "pure conversion"]
     pub fn from_error(err: &PlatformError) -> UnavailableReason {
         match err {
-            PlatformError::NotCompiledForThisOs { crate_os } => UnavailableReason::WrongOs {
-                crate_os,
-            },
-            PlatformError::LibraryUnavailable { names, detail } => UnavailableReason::LibraryNotFound {
-                names: names.clone(),
-                detail: detail.clone(),
-            },
+            PlatformError::NotCompiledForThisOs { crate_os } => {
+                UnavailableReason::WrongOs { crate_os }
+            }
+            PlatformError::LibraryUnavailable { names, detail } => {
+                UnavailableReason::LibraryNotFound {
+                    names: names.clone(),
+                    detail: detail.clone(),
+                }
+            }
             PlatformError::ServiceUnavailable { service, detail } => {
                 UnavailableReason::ServiceNotReachable {
                     service,
@@ -90,10 +92,12 @@ impl UnavailableReason {
             }
             // A missing symbol is a version-skew form of "library not
             // usable"; keep the symbol visible in the detail.
-            PlatformError::SymbolMissing { library, symbol } => UnavailableReason::LibraryNotFound {
-                names: vec![library.clone()],
-                detail: format!("required symbol {symbol} is missing (version skew?)"),
-            },
+            PlatformError::SymbolMissing { library, symbol } => {
+                UnavailableReason::LibraryNotFound {
+                    names: vec![library.clone()],
+                    detail: format!("required symbol {symbol} is missing (version skew?)"),
+                }
+            }
             other => UnavailableReason::ServiceNotReachable {
                 service: "platform integration",
                 detail: other.to_string(),

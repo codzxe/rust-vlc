@@ -313,8 +313,7 @@ unsafe fn get_property_string(
     }
     let mut pointer_bytes = [0u8; std::mem::size_of::<*const c_void>()];
     pointer_bytes.copy_from_slice(&bytes);
-    let string: *const c_void =
-        usize::from_ne_bytes(pointer_bytes) as *const c_void;
+    let string: *const c_void = usize::from_ne_bytes(pointer_bytes) as *const c_void;
     if string.is_null() {
         return Err(PlatformError::CallFailed {
             api,
@@ -328,7 +327,8 @@ unsafe fn get_property_string(
     let mut buffer = [0u8; CAP];
     // SAFETY: string is the live CFString just read; buffer is
     // caller-owned at CAP bytes; the encoding is UTF-8.
-    let ok = unsafe { CFStringGetCString(string, buffer.as_mut_ptr(), CAP as isize, CF_ENCODING_UTF8) };
+    let ok =
+        unsafe { CFStringGetCString(string, buffer.as_mut_ptr(), CAP as isize, CF_ENCODING_UTF8) };
     // SAFETY: the HAL handed this CFString to the caller; this is
     // the single release that pairs with the property read.
     unsafe {
@@ -374,8 +374,13 @@ fn system_device_ids() -> Result<Vec<AudioObjectId>, PlatformError> {
     };
     // SAFETY: the system object is live by definition; the address
     // is complete.
-    let bytes =
-        unsafe { get_property_bytes(K_AUDIO_OBJECT_SYSTEM_OBJECT, &address, "kAudioHardwarePropertyDevices")? };
+    let bytes = unsafe {
+        get_property_bytes(
+            K_AUDIO_OBJECT_SYSTEM_OBJECT,
+            &address,
+            "kAudioHardwarePropertyDevices",
+        )?
+    };
     if bytes.len() % 4 != 0 {
         return Err(PlatformError::CallFailed {
             api: "kAudioHardwarePropertyDevices",
@@ -398,7 +403,11 @@ fn default_output_device_id() -> Result<Option<AudioObjectId>, PlatformError> {
     };
     // SAFETY: the system object is live by definition.
     let bytes = unsafe {
-        get_property_bytes(K_AUDIO_OBJECT_SYSTEM_OBJECT, &address, "kAudioHardwarePropertyDefaultOutputDevice")?
+        get_property_bytes(
+            K_AUDIO_OBJECT_SYSTEM_OBJECT,
+            &address,
+            "kAudioHardwarePropertyDefaultOutputDevice",
+        )?
     };
     if bytes.len() != 4 {
         return Err(PlatformError::CallFailed {
@@ -414,17 +423,21 @@ fn default_output_device_id() -> Result<Option<AudioObjectId>, PlatformError> {
 /// One device → its stable id and description (`None` when the
 /// device is too degenerate to describe honestly — the WASAPI-lane
 /// precedent: skip, never guess).
-fn describe_device(device: AudioObjectId) -> Result<Option<(AudioObjectId, DeviceDesc)>, PlatformError> {
+fn describe_device(
+    device: AudioObjectId,
+) -> Result<Option<(AudioObjectId, DeviceDesc)>, PlatformError> {
     let uid_address = AudioObjectPropertyAddress {
         selector: SELECTOR_DEVICE_UID,
         scope: SCOPE_GLOBAL,
         element: ELEMENT_MAIN,
     };
     // SAFETY: device is live (from a fresh devices-array read).
-    let uid = match unsafe { get_property_string(device, &uid_address, "kAudioDevicePropertyDeviceUID") } {
-        Ok(uid) => uid,
-        Err(_) => return Ok(None), // no UID: not addressable for streaming
-    };
+    let uid =
+        match unsafe { get_property_string(device, &uid_address, "kAudioDevicePropertyDeviceUID") }
+        {
+            Ok(uid) => uid,
+            Err(_) => return Ok(None), // no UID: not addressable for streaming
+        };
     if uid.is_empty() {
         return Ok(None);
     }
@@ -438,11 +451,14 @@ fn describe_device(device: AudioObjectId) -> Result<Option<(AudioObjectId, Devic
         .ok()
         .filter(|name| !name.is_empty())
         .unwrap_or_else(|| format!("CoreAudio device {uid}"));
-    Ok(Some((device, DeviceDesc {
-        id: stable_device_id(&uid),
-        name,
-        preferred: preferred_format(device),
-    })))
+    Ok(Some((
+        device,
+        DeviceDesc {
+            id: stable_device_id(&uid),
+            name,
+            preferred: preferred_format(device),
+        },
+    )))
 }
 
 /// The device's preferred engine format suggestion: Float32 (the
@@ -456,11 +472,17 @@ fn preferred_format(device: AudioObjectId) -> AudioFormat {
     };
     // SAFETY: device is live; a failing/absent rate is a suggestion
     // gap, not an enumeration failure — fall back to 48 kHz.
-    let rate = unsafe { get_property_f64(device, &rate_address, "kAudioDevicePropertyNominalSampleRate") }
-        .ok()
-        .filter(|rate| *rate > 0.0 && *rate <= u32::MAX as f64)
-        .map(|rate| rate as u32)
-        .unwrap_or(48_000);
+    let rate = unsafe {
+        get_property_f64(
+            device,
+            &rate_address,
+            "kAudioDevicePropertyNominalSampleRate",
+        )
+    }
+    .ok()
+    .filter(|rate| *rate > 0.0 && *rate <= u32::MAX as f64)
+    .map(|rate| rate as u32)
+    .unwrap_or(48_000);
     AudioFormat {
         sample: SampleFormat::F32,
         channels: output_channels(device).max(1),
@@ -669,7 +691,10 @@ impl AudioDevices for CoreAudioDevices {
         let found = list_devices()?;
         let state = Arc::new(Mutex::new(ListenerState {
             queue,
-            ids: found.into_iter().map(|(object, desc)| (object, desc.id)).collect(),
+            ids: found
+                .into_iter()
+                .map(|(object, desc)| (object, desc.id))
+                .collect(),
         }));
         let client = Arc::as_ptr(&state).cast::<c_void>().cast_mut();
         // SAFETY: system object live; the proc is module-static; the

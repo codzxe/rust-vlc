@@ -51,7 +51,7 @@ use crate::audio::{AudioDevices, stable_device_id};
 use crate::error::PlatformError;
 use crate::events::{DeviceEventQueue, PlatformEvent};
 use crate::windows::com::{
-    ComApartment, Guid, Hresult, PropertyKey, S_OK, co_create_instance, from_wide, free_wide,
+    ComApartment, Guid, Hresult, PropertyKey, S_OK, co_create_instance, free_wide, from_wide,
     property_store_string, release_interface,
 };
 
@@ -213,9 +213,8 @@ fn list_endpoints() -> Result<Vec<DeviceDesc>, PlatformError> {
     // thread inside this function, and released exactly once at the
     // end (the vtable layout is the documented IMMDeviceEnumerator
     // order above).
-    let enumerator = unsafe {
-        co_create_instance(&CLSID_MM_DEVICE_ENUMERATOR, &IID_MM_DEVICE_ENUMERATOR)?
-    };
+    let enumerator =
+        unsafe { co_create_instance(&CLSID_MM_DEVICE_ENUMERATOR, &IID_MM_DEVICE_ENUMERATOR)? };
     let result = enumerate_with(enumerator);
     // SAFETY: this is the single release of the created reference.
     unsafe {
@@ -231,7 +230,12 @@ fn enumerate_with(enumerator: *mut c_void) -> Result<Vec<DeviceDesc>, PlatformEr
     // the flow/mask arguments are the documented constants.
     let mut collection: *mut c_void = std::ptr::null_mut();
     let hr = unsafe {
-        ((*enum_vtbl).enum_audio_endpoints)(enumerator, E_RENDER, DEVICE_STATE_MASK_ALL, &mut collection)
+        ((*enum_vtbl).enum_audio_endpoints)(
+            enumerator,
+            E_RENDER,
+            DEVICE_STATE_MASK_ALL,
+            &mut collection,
+        )
     };
     if hr != S_OK || collection.is_null() {
         return Err(PlatformError::CallFailed {
@@ -316,7 +320,9 @@ fn describe_device(device: *mut c_void) -> Result<Option<DeviceDesc>, PlatformEr
     // two-level naming of MMDevice endpoints).
     // SAFETY: device is live; STGM_READ is the documented access.
     let mut store: *mut c_void = std::ptr::null_mut();
-    let hr = unsafe { ((*device_vtbl).open_property_store)(device, crate::windows::com::STGM_READ, &mut store) };
+    let hr = unsafe {
+        ((*device_vtbl).open_property_store)(device, crate::windows::com::STGM_READ, &mut store)
+    };
     if hr != S_OK || store.is_null() {
         // No property store means no honest name; the endpoint id is
         // stable but opaque — still addressable, described by id.
@@ -333,7 +339,11 @@ fn describe_device(device: *mut c_void) -> Result<Option<DeviceDesc>, PlatformEr
     unsafe {
         release_interface(store);
     }
-    let name = if name.is_empty() { format!("WASAPI endpoint {id_text}") } else { name };
+    let name = if name.is_empty() {
+        format!("WASAPI endpoint {id_text}")
+    } else {
+        name
+    };
     Ok(Some(DeviceDesc {
         id: stable_device_id(&id_text),
         name,
@@ -361,8 +371,7 @@ struct NotificationClientVtbl {
     /// IUnknown.
     pub unknown: crate::windows::com::UnknownVtbl,
     /// `OnDeviceStateChanged(this, id, state)`.
-    pub on_device_state_changed:
-        unsafe extern "system" fn(*mut c_void, *const u16, u32) -> Hresult,
+    pub on_device_state_changed: unsafe extern "system" fn(*mut c_void, *const u16, u32) -> Hresult,
     /// `OnDeviceAdded(this, id)`.
     pub on_device_added: unsafe extern "system" fn(*mut c_void, *const u16) -> Hresult,
     /// `OnDeviceRemoved(this, id)`.
@@ -448,7 +457,12 @@ unsafe extern "system" fn client_add_ref(this: *mut c_void) -> u32 {
 /// thread drops the Box after unregistering; see module docs).
 unsafe extern "system" fn client_release(this: *mut c_void) -> u32 {
     // SAFETY: this is one of our clients; the counter is atomic.
-    unsafe { client_of(this).refs.fetch_sub(1, Ordering::Relaxed).saturating_sub(1) }
+    unsafe {
+        client_of(this)
+            .refs
+            .fetch_sub(1, Ordering::Relaxed)
+            .saturating_sub(1)
+    }
 }
 
 /// `OnDeviceStateChanged`: active/inactive transitions.
@@ -515,9 +529,9 @@ unsafe extern "system" fn client_on_default_device_changed(
     unsafe {
         let client = client_of(this);
         if flow == E_RENDER {
-            client
-                .queue
-                .push(PlatformEvent::AudioDefaultChanged { id: id_of(default_device) });
+            client.queue.push(PlatformEvent::AudioDefaultChanged {
+                id: id_of(default_device),
+            });
         }
     }
     S_OK
@@ -736,14 +750,22 @@ fn register_notification_client(
             detail: "the notification registration was refused".to_string(),
         });
     }
-    Ok(NotificationSession { enumerator, client, _apartment: apartment })
+    Ok(NotificationSession {
+        enumerator,
+        client,
+        _apartment: apartment,
+    })
 }
 
 /// Unregister + release, in the documented order; the session's
 /// apartment drops last (field order), uninitializing COM only after
 /// the last interface is released.
 fn teardown_notification_client(session: NotificationSession) {
-    let NotificationSession { enumerator, client, _apartment } = session;
+    let NotificationSession {
+        enumerator,
+        client,
+        _apartment,
+    } = session;
     let enum_vtbl = unsafe { (*(enumerator as *mut ObjectHeader)).vtbl as *const EnumeratorVtbl };
     // SAFETY: enumerator is live; the client box is still alive (its
     // address is what was registered — the Box has not moved).

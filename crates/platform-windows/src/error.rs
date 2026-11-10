@@ -96,7 +96,10 @@ impl fmt::Display for PlatformError {
                 None => write!(f, "{api} failed: {detail}"),
             },
             PlatformError::TimedOut { api, deadline_ms } => {
-                write!(f, "{api} did not answer within the {deadline_ms} ms deadline")
+                write!(
+                    f,
+                    "{api} did not answer within the {deadline_ms} ms deadline"
+                )
             }
             PlatformError::InvalidEncoding { api } => {
                 write!(f, "{api} returned a string that is not valid Unicode")

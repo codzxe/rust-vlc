@@ -185,12 +185,7 @@ pub type PaSinkInfoCb = Option<
 >;
 /// `pa_context_subscribe_cb_t` — event facility/type + index.
 pub type PaContextSubscribeCb = Option<
-    unsafe extern "C" fn(
-        ctx: *mut PaContext,
-        event_type: u32,
-        idx: u32,
-        userdata: *mut c_void,
-    ),
+    unsafe extern "C" fn(ctx: *mut PaContext, event_type: u32, idx: u32, userdata: *mut c_void),
 >;
 /// `pa_context_success_cb_t` — subscribe acknowledgement.
 pub type PaContextSuccessCb =
@@ -208,8 +203,7 @@ pub struct PulseApi {
     /// `pa_mainloop_free`.
     pub mainloop_free: unsafe extern "C" fn(m: *mut PaMainloop),
     /// `pa_mainloop_get_api`.
-    pub mainloop_get_api:
-        unsafe extern "C" fn(m: *mut PaMainloop) -> *mut PaMainloopApi,
+    pub mainloop_get_api: unsafe extern "C" fn(m: *mut PaMainloop) -> *mut PaMainloopApi,
     /// `pa_mainloop_prepare` (timeout in ms; negative = forever).
     pub mainloop_prepare: unsafe extern "C" fn(m: *mut PaMainloop, timeout: c_int) -> c_int,
     /// `pa_mainloop_poll` (after a successful prepare).
@@ -217,10 +211,8 @@ pub struct PulseApi {
     /// `pa_mainloop_dispatch` (after a ready poll).
     pub mainloop_dispatch: unsafe extern "C" fn(m: *mut PaMainloop) -> c_int,
     /// `pa_context_new`.
-    pub context_new: unsafe extern "C" fn(
-        api: *const PaMainloopApi,
-        name: *const c_char,
-    ) -> *mut PaContext,
+    pub context_new:
+        unsafe extern "C" fn(api: *const PaMainloopApi, name: *const c_char) -> *mut PaContext,
     /// `pa_context_unref`.
     pub context_unref: unsafe extern "C" fn(c: *mut PaContext),
     /// `pa_context_connect`.
@@ -246,11 +238,8 @@ pub struct PulseApi {
         userdata: *mut c_void,
     ) -> *mut PaOperation,
     /// `pa_context_set_subscribe_callback`.
-    pub context_set_subscribe_callback: unsafe extern "C" fn(
-        c: *mut PaContext,
-        cb: PaContextSubscribeCb,
-        userdata: *mut c_void,
-    ),
+    pub context_set_subscribe_callback:
+        unsafe extern "C" fn(c: *mut PaContext, cb: PaContextSubscribeCb, userdata: *mut c_void),
     /// `pa_context_subscribe`.
     pub context_subscribe: unsafe extern "C" fn(
         c: *mut PaContext,
@@ -291,7 +280,11 @@ pub fn load(lib: &DynamicLibrary) -> Result<PulseApi, PlatformError> {
     }
 
     Ok(PulseApi {
-        mainloop_new: sym!(lib, "pa_mainloop_new", unsafe extern "C" fn() -> *mut PaMainloop),
+        mainloop_new: sym!(
+            lib,
+            "pa_mainloop_new",
+            unsafe extern "C" fn() -> *mut PaMainloop
+        ),
         mainloop_free: sym!(
             lib,
             "pa_mainloop_free",
@@ -320,10 +313,7 @@ pub fn load(lib: &DynamicLibrary) -> Result<PulseApi, PlatformError> {
         context_new: sym!(
             lib,
             "pa_context_new",
-            unsafe extern "C" fn(
-                api: *const PaMainloopApi,
-                name: *const c_char
-            ) -> *mut PaContext
+            unsafe extern "C" fn(api: *const PaMainloopApi, name: *const c_char) -> *mut PaContext
         ),
         context_unref: sym!(
             lib,
@@ -337,7 +327,7 @@ pub fn load(lib: &DynamicLibrary) -> Result<PulseApi, PlatformError> {
                 c: *mut PaContext,
                 server: *const c_char,
                 flags: c_int,
-                api: *const PaSpawnApi
+                api: *const PaSpawnApi,
             ) -> c_int
         ),
         context_disconnect: sym!(
@@ -353,11 +343,7 @@ pub fn load(lib: &DynamicLibrary) -> Result<PulseApi, PlatformError> {
         context_set_state_callback: sym!(
             lib,
             "pa_context_set_state_callback",
-            unsafe extern "C" fn(
-                c: *mut PaContext,
-                cb: PaContextNotifyCb,
-                userdata: *mut c_void
-            )
+            unsafe extern "C" fn(c: *mut PaContext, cb: PaContextNotifyCb, userdata: *mut c_void)
         ),
         context_errno: sym!(
             lib,
@@ -370,7 +356,7 @@ pub fn load(lib: &DynamicLibrary) -> Result<PulseApi, PlatformError> {
             unsafe extern "C" fn(
                 c: *mut PaContext,
                 cb: PaSinkInfoCb,
-                userdata: *mut c_void
+                userdata: *mut c_void,
             ) -> *mut PaOperation
         ),
         context_set_subscribe_callback: sym!(
@@ -379,7 +365,7 @@ pub fn load(lib: &DynamicLibrary) -> Result<PulseApi, PlatformError> {
             unsafe extern "C" fn(
                 c: *mut PaContext,
                 cb: PaContextSubscribeCb,
-                userdata: *mut c_void
+                userdata: *mut c_void,
             )
         ),
         context_subscribe: sym!(
@@ -389,7 +375,7 @@ pub fn load(lib: &DynamicLibrary) -> Result<PulseApi, PlatformError> {
                 c: *mut PaContext,
                 m: u32,
                 cb: PaContextSuccessCb,
-                userdata: *mut c_void
+                userdata: *mut c_void,
             ) -> *mut PaOperation
         ),
         operation_unref: sym!(

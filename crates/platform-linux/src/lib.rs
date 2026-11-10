@@ -101,7 +101,12 @@ impl LinuxPlatform {
         report.set(Feature::AudioNotifications, audio_capability);
         report.set(Feature::GpuEnumeration, gpu_capability);
         report.set(Feature::FileDialogs, dialogs_capability);
-        LinuxPlatform { audio, gpu, dialogs, report }
+        LinuxPlatform {
+            audio,
+            gpu,
+            dialogs,
+            report,
+        }
     }
 
     /// The capability table computed at discovery time.
@@ -157,7 +162,10 @@ fn audio_seam() -> (Box<dyn AudioDevices>, Capability) {
     {
         let reason = PlatformError::NotCompiledForThisOs { crate_os: "linux" };
         let capability = Capability::from_probe_error(&reason);
-        (Box::new(UnavailableAudioDevices::because(reason)), capability)
+        (
+            Box::new(UnavailableAudioDevices::because(reason)),
+            capability,
+        )
     }
 }
 
@@ -180,7 +188,10 @@ fn gpu_seam() -> (Box<dyn GpuAdapters>, Capability) {
     {
         let reason = PlatformError::NotCompiledForThisOs { crate_os: "linux" };
         let capability = Capability::from_probe_error(&reason);
-        (Box::new(UnavailableGpuAdapters::because(reason)), capability)
+        (
+            Box::new(UnavailableGpuAdapters::because(reason)),
+            capability,
+        )
     }
 }
 

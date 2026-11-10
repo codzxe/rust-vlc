@@ -232,14 +232,18 @@ pub unsafe fn nsstring_to_string(string: ObjcId) -> Result<String, PlatformError
     // released — copied out below before any release can run.
     let raw = unsafe { msg_send_id(string, utf8_sel) };
     if raw.is_null() {
-        return Err(PlatformError::InvalidEncoding { api: "NSString UTF8String" });
+        return Err(PlatformError::InvalidEncoding {
+            api: "NSString UTF8String",
+        });
     }
     // SAFETY: the pointer is a NUL-terminated C string per the
     // UTF8String contract; from_ptr only borrows it for the copy.
     let cstr = unsafe { CStr::from_ptr(raw.cast::<c_char>()) };
     cstr.to_str()
         .map(str::to_string)
-        .map_err(|_| PlatformError::InvalidEncoding { api: "NSString UTF8String" })
+        .map_err(|_| PlatformError::InvalidEncoding {
+            api: "NSString UTF8String",
+        })
 }
 
 /// Create an `NSString` from UTF-8 text (`+[NSString
@@ -313,7 +317,10 @@ impl AutoreleasePool {
                 detail: "the pool could not be initialized".to_string(),
             });
         }
-        Ok(AutoreleasePool { pool, drain: sel("drain")? })
+        Ok(AutoreleasePool {
+            pool,
+            drain: sel("drain")?,
+        })
     }
 }
 

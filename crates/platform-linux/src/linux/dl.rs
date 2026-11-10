@@ -77,7 +77,9 @@ unsafe impl Send for DynamicLibrary {}
 
 impl fmt::Debug for DynamicLibrary {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("DynamicLibrary").field("name", &self.name).finish()
+        f.debug_struct("DynamicLibrary")
+            .field("name", &self.name)
+            .finish()
     }
 }
 

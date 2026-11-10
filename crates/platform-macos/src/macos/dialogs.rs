@@ -107,7 +107,11 @@ impl FileDialogs for AppKitPanels {
 fn run_panel(save: bool, request: &FileDialogRequest) -> Result<FilePick, PlatformError> {
     if !is_main_thread() {
         return Err(PlatformError::CallFailed {
-            api: if save { "NSSavePanel runModal" } else { "NSOpenPanel runModal" },
+            api: if save {
+                "NSSavePanel runModal"
+            } else {
+                "NSOpenPanel runModal"
+            },
             code: None,
             detail: "AppKit panels require the main thread (the caller is on another thread)"
                 .to_string(),
@@ -144,7 +148,11 @@ fn create_panel(save: bool) -> Result<ObjcId, PlatformError> {
     let panel = unsafe { msg_send_id(cls, factory) };
     if panel.is_null() {
         return Err(PlatformError::CallFailed {
-            api: if save { "NSSavePanel savePanel" } else { "NSOpenPanel openPanel" },
+            api: if save {
+                "NSSavePanel savePanel"
+            } else {
+                "NSOpenPanel openPanel"
+            },
             code: None,
             detail: "the panel factory returned no panel".to_string(),
         });
@@ -190,11 +198,13 @@ fn configure_panel(
         // SAFETY: as above.
         unsafe { msg_send_void_bool(panel, sel("setCanChooseDirectories:")?, NO) };
         // SAFETY: as above.
-        unsafe { msg_send_void_bool(
-            panel,
-            sel("setAllowsMultipleSelection:")?,
-            if request.multiple { YES } else { NO },
-        ) };
+        unsafe {
+            msg_send_void_bool(
+                panel,
+                sel("setAllowsMultipleSelection:")?,
+                if request.multiple { YES } else { NO },
+            )
+        };
     }
     apply_filters(panel, request)
 }
@@ -273,7 +283,11 @@ fn apply_filters(panel: ObjcId, request: &FileDialogRequest) -> Result<(), Platf
 
 /// Collect the round's outcome: `URL` for single picks and save
 /// rounds, `URLs` for multi-select open rounds.
-fn collect(panel: ObjcId, save: bool, request: &FileDialogRequest) -> Result<FilePick, PlatformError> {
+fn collect(
+    panel: ObjcId,
+    save: bool,
+    request: &FileDialogRequest,
+) -> Result<FilePick, PlatformError> {
     if save || !request.multiple {
         // SAFETY: panel is live and the round completed OK; URL
         // takes no arguments and returns the chosen NSURL (or NULL).

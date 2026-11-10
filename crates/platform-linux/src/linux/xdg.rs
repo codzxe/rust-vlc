@@ -169,8 +169,16 @@ impl XdgDialogs {
                 } else {
                     "not implemented ([PROPOSAL] D-Bus follow-up)"
                 },
-                if self.zenity.is_some() { "found" } else { "not found" },
-                if self.kdialog.is_some() { "found" } else { "not found" },
+                if self.zenity.is_some() {
+                    "found"
+                } else {
+                    "not found"
+                },
+                if self.kdialog.is_some() {
+                    "found"
+                } else {
+                    "not found"
+                },
             ),
         }
     }
@@ -288,12 +296,10 @@ fn run_zenity(
             filter.patterns.join(" ")
         ));
     }
-    let output = command
-        .output()
-        .map_err(|err| PlatformError::SpawnFailed {
-            program: program.display().to_string(),
-            detail: err.to_string(),
-        })?;
+    let output = command.output().map_err(|err| PlatformError::SpawnFailed {
+        program: program.display().to_string(),
+        detail: err.to_string(),
+    })?;
     interpret("zenity", &output)
 }
 
@@ -314,7 +320,11 @@ fn run_kdialog(
         .as_ref()
         .map(|d| d.display().to_string())
         .unwrap_or_default();
-    command.arg(if start.is_empty() { ".".to_string() } else { start });
+    command.arg(if start.is_empty() {
+        ".".to_string()
+    } else {
+        start
+    });
     let filters = if request.filters.is_empty() {
         String::from("*")
     } else {
@@ -332,11 +342,9 @@ fn run_kdialog(
     if request.multiple && !save {
         command.arg("--multiple").arg("--separate-output");
     }
-    let output = command
-        .output()
-        .map_err(|err| PlatformError::SpawnFailed {
-            program: program.display().to_string(),
-            detail: err.to_string(),
-        })?;
+    let output = command.output().map_err(|err| PlatformError::SpawnFailed {
+        program: program.display().to_string(),
+        detail: err.to_string(),
+    })?;
     interpret("kdialog", &output)
 }

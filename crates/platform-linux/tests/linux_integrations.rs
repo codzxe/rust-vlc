@@ -85,15 +85,24 @@ fn drm_scanner_reads_a_realistic_sysfs_tree() {
     let adapters = scanner.enumerate().must();
     assert_eq!(adapters.len(), 3, "card0, renderD128, card1 — nothing else");
     // Sorted by node name for determinism.
-    assert_eq!(adapters[0].name, "DRM card0 (Intel vendor 0x8086 device 0x9bc4)");
+    assert_eq!(
+        adapters[0].name,
+        "DRM card0 (Intel vendor 0x8086 device 0x9bc4)"
+    );
     assert_eq!(adapters[0].vendor_id, 0x8086);
     assert_eq!(adapters[0].device_id, 0x9bc4);
     assert!(!adapters[0].is_software);
     assert_eq!(adapters[0].vendor_name(), "Intel");
     assert!(!adapters[0].name.contains("no device node"));
-    assert_eq!(adapters[1].name, "DRM card1 (Red Hat (virtio) vendor 0x1af4 device 0x1050, no device node)");
+    assert_eq!(
+        adapters[1].name,
+        "DRM card1 (Red Hat (virtio) vendor 0x1af4 device 0x1050, no device node)"
+    );
     assert!(adapters[1].is_software, "virtio is classified software");
-    assert_eq!(adapters[2].name, "DRM renderD128 (Intel vendor 0x8086 device 0x9bc4)");
+    assert_eq!(
+        adapters[2].name,
+        "DRM renderD128 (Intel vendor 0x8086 device 0x9bc4)"
+    );
     // sysfs does not expose VRAM — the honest None.
     assert_eq!(adapters[0].dedicated_video_memory, None);
 
@@ -179,7 +188,13 @@ fn xdg_dialogs_run_the_zenity_fallback() {
     let FilePick::Paths(paths) = pick else {
         unreachable!("the fake zenity prints two paths");
     };
-    assert_eq!(paths, vec![PathBuf::from("/tmp/movie-one.mkv"), PathBuf::from("/tmp/movie-two.mkv")]);
+    assert_eq!(
+        paths,
+        vec![
+            PathBuf::from("/tmp/movie-one.mkv"),
+            PathBuf::from("/tmp/movie-two.mkv")
+        ]
+    );
 
     let _ = fs::remove_dir_all(&root);
 }
@@ -212,11 +227,17 @@ fn xdg_dialogs_kdialog_fallback_parses_output() {
     let root = temp_root("xdg-kdialog");
     let bin = root.join("usr/bin");
     fs::create_dir_all(&bin).must();
-    write_script(&bin.join("kdialog"), "printf '/home/user/clip.mp4\\n'\nexit 0");
+    write_script(
+        &bin.join("kdialog"),
+        "printf '/home/user/clip.mp4\\n'\nexit 0",
+    );
     let mut dialogs = XdgDialogs::with_config(vec![bin], None);
     assert!(dialogs.kdialog().is_some());
     let pick = dialogs.open_file(&FileDialogRequest::default()).must();
-    assert_eq!(pick, FilePick::Paths(vec![PathBuf::from("/home/user/clip.mp4")]));
+    assert_eq!(
+        pick,
+        FilePick::Paths(vec![PathBuf::from("/home/user/clip.mp4")])
+    );
 
     let _ = fs::remove_dir_all(&root);
 }
@@ -226,7 +247,10 @@ fn xdg_dialogs_without_any_backend_refuse_with_the_typed_error() {
     // No zenity, no kdialog, no bus address: the honest typed refusal
     // naming everything that was tried.
     let mut dialogs = XdgDialogs::with_config(vec![], None);
-    let err = assert_err(dialogs.open_file(&FileDialogRequest::default()), "no backend");
+    let err = assert_err(
+        dialogs.open_file(&FileDialogRequest::default()),
+        "no backend",
+    );
     let PlatformError::ServiceUnavailable { service, detail } = &err else {
         unreachable!("expected ServiceUnavailable, got {err:?}");
     };
@@ -234,7 +258,10 @@ fn xdg_dialogs_without_any_backend_refuse_with_the_typed_error() {
     let text = detail.as_str();
     assert!(text.contains("zenity not found"), "names zenity: {text}");
     assert!(text.contains("kdialog not found"), "names kdialog: {text}");
-    assert!(text.contains("not implemented"), "states the portal gap: {text}");
+    assert!(
+        text.contains("not implemented"),
+        "states the portal gap: {text}"
+    );
 
     // A crashing fallback surfaces as the typed call failure.
     let root = temp_root("xdg-crash");
@@ -242,7 +269,10 @@ fn xdg_dialogs_without_any_backend_refuse_with_the_typed_error() {
     fs::create_dir_all(&bin).must();
     write_script(&bin.join("zenity"), "echo 'zenity broke' >&2\nexit 2");
     let mut dialogs = XdgDialogs::with_config(vec![bin], None);
-    let err = assert_err(dialogs.open_file(&FileDialogRequest::default()), "crash surfaces");
+    let err = assert_err(
+        dialogs.open_file(&FileDialogRequest::default()),
+        "crash surfaces",
+    );
     let PlatformError::CallFailed { api, code, .. } = &err else {
         unreachable!("expected CallFailed, got {err:?}");
     };
@@ -265,10 +295,7 @@ fn xdg_portal_probe_reports_bus_truth() {
     let root = temp_root("xdg-bus");
     let socket = root.join("bus");
     let _listener = UnixListener::bind(&socket).must();
-    let dialogs = XdgDialogs::with_config(
-        vec![],
-        Some(format!("unix:path={}", socket.display())),
-    );
+    let dialogs = XdgDialogs::with_config(vec![], Some(format!("unix:path={}", socket.display())));
     match dialogs.portal_status() {
         PortalStatus::BusReachable { socket: found } => assert_eq!(found, socket),
         PortalStatus::BusUnreachable { detail } => {
@@ -281,7 +308,10 @@ fn xdg_portal_probe_reports_bus_truth() {
         vec![],
         Some(format!("unix:path={}", root.join("missing").display())),
     );
-    assert!(matches!(dialogs.portal_status(), PortalStatus::BusUnreachable { .. }));
+    assert!(matches!(
+        dialogs.portal_status(),
+        PortalStatus::BusUnreachable { .. }
+    ));
 
     // Abstract sockets are beyond the std client — the probe says so.
     let dialogs = XdgDialogs::with_config(vec![], Some("unix:abstract=/tmp-xyz".to_string()));
@@ -415,7 +445,10 @@ fn discover_assembles_this_hosts_report() {
     let audio_result = platform.audio().enumerate();
     match audio_capability {
         Capability::Available => {
-            assert!(audio_result.is_ok(), "available audio must enumerate: {audio_result:?}");
+            assert!(
+                audio_result.is_ok(),
+                "available audio must enumerate: {audio_result:?}"
+            );
         }
         Capability::Unavailable(_) => {
             assert!(audio_result.is_err(), "unavailable audio must refuse");

@@ -163,10 +163,7 @@ impl Drop for ComApartment {
 /// returned pointer for `riid`, release it exactly once (via
 /// `release_interface`), and use it only while the creating apartment
 /// is alive.
-pub unsafe fn co_create_instance(
-    clsid: &Guid,
-    riid: &Guid,
-) -> Result<*mut c_void, PlatformError> {
+pub unsafe fn co_create_instance(clsid: &Guid, riid: &Guid) -> Result<*mut c_void, PlatformError> {
     let mut interface: *mut c_void = std::ptr::null_mut();
     // SAFETY: clsid/riid point at complete Guid values; the context
     // is CLSCTX_INPROC_SERVER; punkouter is NULL (no aggregation);
@@ -262,9 +259,7 @@ pub const VT_LPWSTR: u16 = 31;
 
 /// Zero a `PROPVARIANT` for hand-in to `IPropertyStore::GetValue`.
 pub fn empty_prop_variant() -> PropVariant {
-    PropVariant {
-        raw: [0, 0],
-    }
+    PropVariant { raw: [0, 0] }
 }
 
 /// Read a `VT_LPWSTR` `PROPVARIANT` into an owned `String`, then
