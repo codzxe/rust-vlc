@@ -115,10 +115,11 @@
 //!   widenings only — every lossy pair is a typed refusal.
 //! * **Stream-copy where legal** — unpacked LE-PCM sources re-wrap
 //!   into WAV without decoding (payload bytes verbatim), and any
-//!   track dumps to a raw elementary-stream file. **No other
-//!   remux exists**: MP4-remux is card 7.E2; every conversion
-//!   outside the two families is a typed `ErrorKind::Unsupported`,
-//!   never a degraded output.
+//!   track dumps to a raw elementary-stream file. **MP4-remux is
+//!   card 7.E2's addition** (see [`mp4mux`]/[`record`]): H.264/AAC
+//!   stream copy into a minimal in-tree MP4 container. Every other
+//!   conversion is a typed `ErrorKind::Unsupported`, never a
+//!   degraded output.
 //! * **No filters** — the graph *models* filter stages and
 //!   validation refuses each one (the stage is modeled, not faked).
 //! * **No codec encoders** — WAV PCM is container serialization;
@@ -155,6 +156,7 @@ pub mod graph;
 pub mod job;
 pub mod limits;
 pub mod queue;
+pub mod record;
 pub mod runner;
 pub mod wav;
 
@@ -165,4 +167,5 @@ pub use graph::{
 };
 pub use job::{JobEvent, JobHandle, JobOutcome, JobState, JobStats};
 pub use limits::JobLimits;
+pub use record::Recorder;
 pub use runner::submit;
