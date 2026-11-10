@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lumen web conformance harness</title>
+  <style>
+    /* Bare-bones QA surface (not the product UI — this page is test
+       tooling for card 7.I1's browser matrix; semantic tokens live in
+       the product shell, not here). */
+    body { font: 14px/1.5 ui-monospace, monospace; margin: 2rem; color: #222; background: #fff; }
+    h1 { font-size: 1.1rem; }
+    #status { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Lumen web conformance harness (card 7.I1)</h1>
+  <p id="status">idle — the driver (Playwright) calls window.__lumenWebMatrix.run()</p>
+  <script type="module" src="harness.js"></script>
+</body>
+</html>

@@ -14,11 +14,53 @@ import tseslint from "typescript-eslint";
 import local from "./tools/eslint-plugin-local/index.js";
 
 export default [
-  { ignores: ["dist/", "node_modules/", "coverage/", "playwright-report/", "test-results/"] },
+  {
+    ignores: [
+      "dist/",
+      "node_modules/",
+      "coverage/",
+      "playwright-report/",
+      "test-results/",
+      // web-matrix staging output (card 7.I1): scripts/web-matrix-run.mjs
+      // copies the committed site + the engine wasm + glue + fixture here;
+      // never linted (build output, same class as dist/ — .gitignored too).
+      "e2e/web/sitedist/",
+    ],
+  },
   {
     // node-flavored scripts (token generator) — plain globals, no DOM.
     files: ["scripts/**/*.mjs"],
     languageOptions: { globals: { console: "readonly", process: "readonly" } },
+  },
+  {
+    // e2e/web/site/*.js — the browser-matrix harness page (card 7.I1,
+    // issue #49): hand-written in-page tooling (the apps/web worker.js
+    // precedent) that runs IN THE BROWSER — Worker/fetch/document
+    // globals are the environment, node globals are absent.
+    files: ["e2e/web/site/**/*.js"],
+    languageOptions: {
+      globals: {
+        console: "readonly",
+        window: "readonly",
+        document: "readonly",
+        navigator: "readonly",
+        Worker: "readonly",
+        fetch: "readonly",
+        performance: "readonly",
+        AudioContext: "readonly",
+        crossOriginIsolated: "readonly",
+        setTimeout: "readonly",
+        clearTimeout: "readonly",
+      },
+    },
+  },
+  {
+    // web-matrix-run.mjs (card 7.I1): node-flavored driver, but it parses
+    // request URLs with the WHATWG URL global (node exposes it ungated).
+    files: ["scripts/web-matrix-run.mjs"],
+    languageOptions: {
+      globals: { console: "readonly", process: "readonly", URL: "readonly" },
+    },
   },
   {
     // l10n-pseudo-probe.mjs is a Playwright driver: node-side timers +

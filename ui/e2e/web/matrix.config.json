@@ -1,0 +1,45 @@
+{
+  "schema": "lumen.ui.web-matrix/1",
+  "comment": "Browser-matrix harness config (card 7.I1, issue #49; doc 09 §8.2/§11). Every knob the harness needs lives here — the run script, the Playwright config and the page harness read this file, never a literal in code (doc 07 §9's config-driven rule applied to the test lane).",
+  "server": {
+    "host": "127.0.0.1",
+    "port": 5187,
+    "targetDirs": ["target"],
+    "wasmArtifact": "wasm32-unknown-unknown/release/lumen_web.wasm",
+    "wasmArtifactFallback": "wasm32-unknown-unknown/debug/lumen_web.wasm",
+    "workerGlue": "apps/web/worker.js",
+    "workletGlue": "apps/web/audio-worklet.js",
+    "fixture": "tests/fixtures/generated/valid/avi_mjpeg_pcm.avi",
+    "servedFixture": "fixture.avi",
+    "rangeSupportingPath": "fixture.avi",
+    "rangeBlindPath": "fixture-norange.avi"
+  },
+  "modes": [
+    { "id": "isolation-off", "coopCoep": false },
+    { "id": "isolation-coop-coep", "coopCoep": true }
+  ],
+  "browsers": {
+    "chromium": {
+      "evidence": "playwright-run",
+      "executable": null,
+      "executableEnv": "WEB_MATRIX_CHROMIUM",
+      "launchArgs": ["--no-sandbox", "--disable-dev-shm-usage"],
+      "comment": "executable: a path relative to the Playwright browsers root (PLAYWRIGHT_BROWSERS_PATH or the default cache), or null to use @playwright/test's own revision-pinned binary (the CI shape). The sandbox evidence run overrides it via the executableEnv variable because browser downloads are forbidden there: the preinstalled build (Python-playwright's chromium-1200, Chrome for Testing 143.0.7499.4) is driven instead of the pinned 156.0.8078.4 — the report records the version + user agent that actually ran, never assuming parity. launchArgs: extra Chromium flags every lane launch passes (evidence runs happen inside containers: user-namespace sandboxing is unavailable → --no-sandbox; /dev/shm is 64MB → --disable-dev-shm-usage so rendering never stalls on shm allocation; both are harmless on a dev machine and in CI)."
+    },
+    "firefox": { "evidence": "bcd-expectation-only" },
+    "webkit": { "evidence": "bcd-expectation-only" }
+  },
+  "pump": {
+    "ticksPerSlice": 4,
+    "maxSlices": 4096,
+    "sliceTimeoutMs": 30000
+  },
+  "playToEnd": {
+    "positionToleranceUs": 20000
+  },
+  "report": {
+    "outputDir": "docs/web",
+    "markdownName": "browser-matrix-20261110.md",
+    "jsonName": "browser-matrix-20261110.json"
+  }
+}

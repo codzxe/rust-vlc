@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "webmatrix": "node scripts/web-matrix-run.mjs",
     "visual": "node scripts/visual-run.mjs",
     "visual:pr": "node scripts/visual-run.mjs --mode=pr",
     "visual:nightly": "node scripts/visual-run.mjs --mode=nightly",
