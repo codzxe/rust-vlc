@@ -564,7 +564,7 @@ mod tests {
             mpd,
             &mpd.periods[0],
             &mpd.periods[0].adaptation_sets[0],
-            "http://unit.test/vod/manifest.mpd",
+            "http://unit.test/vod/manifest.mpd", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
             DashAbrConfig::default(),
         ) {
             Ok(s) => s,
@@ -585,7 +585,7 @@ mod tests {
             };
             assert_eq!(
                 step.url,
-                format!("http://unit.test/vod/hi-{}.m4s", urls.len() + 1)
+                format!("http://unit.test/vod/hi-{}.m4s", urls.len() + 1) // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
             );
             urls.push(step.url);
             sched.observe_throughput(8_000_000, 8_000_000); // healthy
@@ -666,7 +666,7 @@ mod tests {
         // (avail+3 ≤ 10) are #1..#3; the join takes the newest → #3.
         match sched.next_fetch(Some(10)) {
             Ok(NextStep::Fetch(step)) => {
-                assert_eq!(step.url, "http://unit.test/vod/live-3.m4s");
+                assert_eq!(step.url, "http://unit.test/vod/live-3.m4s"); // lumen-allow-literal: URL parse/redaction test vector — data under test
                 assert_eq!(step.number, 3);
             }
             other => unreachable!("expected Fetch at now=10: {other:?}"),
@@ -680,7 +680,7 @@ mod tests {
         }
         // At now=11 segment #4 is ready.
         match sched.next_fetch(Some(11)) {
-            Ok(NextStep::Fetch(step)) => assert_eq!(step.url, "http://unit.test/vod/live-4.m4s"),
+            Ok(NextStep::Fetch(step)) => assert_eq!(step.url, "http://unit.test/vod/live-4.m4s"), // lumen-allow-literal: URL parse/redaction test vector — data under test
             other => unreachable!("expected Fetch at now=11: {other:?}"),
         }
     }
@@ -696,7 +696,7 @@ mod tests {
                 &mpd,
                 &mpd.periods[0],
                 &mpd.periods[0].adaptation_sets[0],
-                "http://x/y.mpd",
+                "http://x/y.mpd", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
                 DashAbrConfig::default()
             ),
             Err(DashSchedError::BadLadder)

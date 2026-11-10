@@ -956,11 +956,11 @@ mod tests {
             }
             other => unreachable!("wrong challenge: {other:?}"),
         }
-        let basic = parse_www_authenticate("Basic realm=\"Lumen\"").must();
+        let basic = parse_www_authenticate("Basic realm=\"Lumen\"").must(); // lumen-allow-literal: test fixture value — round-trip data, not display identity
         assert_eq!(
             basic,
             Challenge::Basic {
-                realm: Some("Lumen".to_string())
+                realm: Some("Lumen".to_string()) // lumen-allow-literal: test fixture value — round-trip data, not display identity
             }
         );
         assert_eq!(parse_www_authenticate("Negotiate"), None);
@@ -1019,7 +1019,7 @@ mod tests {
         assert!(debug.contains("alice"));
         assert!(display.contains("alice"));
 
-        let url = Url::parse("http://media.example.com:8080/stream.flac").must();
+        let url = Url::parse("http://media.example.com:8080/stream.flac").must(); // lumen-allow-literal: URL parse/redaction test vector — data under test
         let store = InMemoryCredentialStore::new();
         store.put(&url, credentials);
         let store_debug = format!("{store:?}");
@@ -1032,7 +1032,7 @@ mod tests {
         assert!(!wrapper_debug.contains("another-secret"));
 
         // Userinfo redaction (the URL-carried secret).
-        let info = crate::fetch::Url::parse_with_userinfo("http://u:p@h/")
+        let info = crate::fetch::Url::parse_with_userinfo("http://u:p@h/") // lumen-allow-literal: URL parse/redaction test vector — data under test
             .must()
             .1
             .must();
@@ -1049,15 +1049,15 @@ mod tests {
     #[test]
     fn store_lookup_is_origin_keyed() {
         let store = InMemoryCredentialStore::new();
-        let key_url = Url::parse("https://cdn.example.org:8443/a/list.m3u").must();
+        let key_url = Url::parse("https://cdn.example.org:8443/a/list.m3u").must(); // lumen-allow-literal: URL parse/redaction test vector — data under test
         store.put(&key_url, Credentials::new("user", "pass"));
-        let same_origin = Url::parse("https://cdn.example.org:8443/other/path.flac").must();
+        let same_origin = Url::parse("https://cdn.example.org:8443/other/path.flac").must(); // lumen-allow-literal: URL parse/redaction test vector — data under test
         assert_eq!(
             store.lookup(&same_origin).map(|c| c.username().to_string()),
             Some("user".to_string())
         );
-        let other_port = Url::parse("https://cdn.example.org/track.flac").must();
-        let other_host = Url::parse("https://elsewhere.example.org:8443/track.flac").must();
+        let other_port = Url::parse("https://cdn.example.org/track.flac").must(); // lumen-allow-literal: URL parse/redaction test vector — data under test
+        let other_host = Url::parse("https://elsewhere.example.org:8443/track.flac").must(); // lumen-allow-literal: URL parse/redaction test vector — data under test
         assert_eq!(store.lookup(&other_port), None);
         assert_eq!(store.lookup(&other_host), None);
     }
@@ -1100,7 +1100,7 @@ mod tests {
         };
         let auth =
             AuthFetch::new(server.clone()).with_credentials(Credentials::new("user", "pass"));
-        let response = auth.fetch(HttpRequest::get("http://example.com/x")).must();
+        let response = auth.fetch(HttpRequest::get("http://example.com/x")).must(); // lumen-allow-literal: URL parse/redaction test vector — data under test
         assert_eq!(response.body, b"payload");
         let logged = match server.requests.lock() {
             Ok(guard) => guard.clone(),

@@ -375,7 +375,7 @@ mod tests {
         let e = CommandError::new(
             Stage::Input,
             ErrorCode::Inaccessible,
-            "cannot open http://alice:secret@example.org/stream.m3u8",
+            "cannot open http://alice:secret@example.org/stream.m3u8", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         );
         assert!(e.message.contains("***@example.org"), "{}", e.message);
         assert!(!e.message.contains("alice"), "{}", e.message);
@@ -389,17 +389,17 @@ mod tests {
         let e = CommandError::new(
             Stage::Input,
             ErrorCode::Io,
-            "read failed: /home/alice/secret-dir/movie.mkv",
+            "read failed: /home/alice/secret-dir/movie.mkv", // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
         );
         assert!(e.message.contains("…/movie.mkv"), "{}", e.message);
-        assert!(!e.message.contains("/home/"), "{}", e.message);
+        assert!(!e.message.contains("/home/"), "{}", e.message); // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
     }
 
     #[test]
     fn details_are_redacted_too() {
         let e = CommandError::new(Stage::Demux, ErrorCode::Unsupported, "no demuxer")
-            .with_detail("url", "https://bob:pW@cdn.example.org/x")
-            .with_detail("path", "/home/bob/a.mkv");
+            .with_detail("url", "https://bob:pW@cdn.example.org/x") // lumen-allow-literal: URL parse/redaction test vector — data under test
+            .with_detail("path", "/home/bob/a.mkv"); // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
         assert!(e.details["url"].contains("***@cdn.example.org"));
         assert!(e.details["path"].contains("…/a.mkv"));
     }

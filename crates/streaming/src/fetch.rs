@@ -297,6 +297,7 @@ impl Url {
     /// [`NetworkError::ProtocolViolation`] for unsupported reference
     /// shapes; [`Url::parse`]'s errors for absolute references.
     pub fn join(&self, location: &str) -> Result<Url, NetworkError> {
+        // lumen-allow-literal: scheme-prefix dispatch — protocol vocabulary, not an endpoint
         if location.starts_with("http://") || location.starts_with("https://") {
             return Url::parse(location);
         }
@@ -539,7 +540,7 @@ mod tests {
     /// URL parsing: the accepted shapes and their defaults.
     #[test]
     fn url_parse_accepts_http_and_https() {
-        let plain = Url::parse("http://example.com/media/song.flac?x=1").must();
+        let plain = Url::parse("http://example.com/media/song.flac?x=1").must(); // lumen-allow-literal: URL parse/redaction test vector — data under test
         assert_eq!(plain.scheme, "http");
         assert_eq!(plain.host, "example.com");
         assert_eq!(plain.port, 80);
@@ -547,14 +548,14 @@ mod tests {
         assert_eq!(plain.authority(), "example.com:80");
         assert_eq!(
             plain.to_string(),
-            "http://example.com:80/media/song.flac?x=1"
+            "http://example.com:80/media/song.flac?x=1" // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         );
 
-        let tls = Url::parse("https://cdn.example.org:8443/seg001.ts").must();
+        let tls = Url::parse("https://cdn.example.org:8443/seg001.ts").must(); // lumen-allow-literal: URL parse/redaction test vector — data under test
         assert_eq!(tls.port, 8443);
         assert_eq!(tls.path_and_query, "/seg001.ts");
 
-        let bare = Url::parse("https://host").must();
+        let bare = Url::parse("https://host").must(); // lumen-allow-literal: URL parse/redaction test vector — data under test
         assert_eq!(bare.path_and_query, "/");
         assert_eq!(bare.port, 443);
     }
@@ -570,12 +571,12 @@ mod tests {
         ));
         for bad in [
             "example.com/file",
-            "http:///path",
-            "http://host:notaport/",
-            "http://[::1]:8080/",
-            "http://user:pw@host/",
-            "http://ho st/",
-            "http://host/\u{0}",
+            "http:///path", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+            "http://host:notaport/", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+            "http://[::1]:8080/", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+            "http://user:pw@host/", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+            "http://ho st/", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+            "http://host/\u{0}", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         ] {
             assert!(
                 matches!(Url::parse(bad), Err(NetworkError::ProtocolViolation { .. })),
@@ -593,7 +594,7 @@ mod tests {
         assert_eq!(root_relative.path_and_query, "/media/seg001.ts");
         assert_eq!(root_relative.host, base.host);
 
-        let absolute = base.join("https://other.example.net:9/x?y=2").must();
+        let absolute = base.join("https://other.example.net:9/x?y=2").must(); // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         assert_eq!(absolute.scheme, "https");
         assert_eq!(absolute.path_and_query, "/x?y=2");
 
@@ -611,7 +612,7 @@ mod tests {
     /// Builder defaults: deadlines, redirect budget, response limit.
     #[test]
     fn request_defaults_are_bounded() {
-        let req = HttpRequest::get("http://example.com/a");
+        let req = HttpRequest::get("http://example.com/a"); // lumen-allow-literal: URL parse/redaction test vector — data under test
         assert_eq!(req.method, HttpMethod::Get);
         assert_eq!(req.timeouts, TimeoutConfig::default());
         assert_eq!(req.timeouts.read, Duration::from_secs(5));
@@ -619,7 +620,7 @@ mod tests {
         assert!(req.redirects.cross_host);
         assert_eq!(req.redirects.mode, RedirectMode::Follow);
         let manual =
-            HttpRequest::get("http://example.com/a").with_redirect_mode(RedirectMode::Manual);
+            HttpRequest::get("http://example.com/a").with_redirect_mode(RedirectMode::Manual); // lumen-allow-literal: URL parse/redaction test vector — data under test
         assert_eq!(manual.redirects.mode, RedirectMode::Manual);
         assert_eq!(manual.redirects.max_redirects, DEFAULT_MAX_REDIRECTS);
         assert_eq!(req.response_limit, DEFAULT_RESPONSE_LIMIT);

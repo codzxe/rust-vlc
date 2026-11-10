@@ -145,23 +145,23 @@ mod tests {
             "scheme case is normalized by SourceUri"
         );
         assert_eq!(
-            path_of("file:///tmp/a%20b.mkv").must(),
-            "/tmp/a b.mkv",
+            path_of("file:///tmp/a%20b.mkv").must(), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            "/tmp/a b.mkv", // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
             "percent-encoded space decodes"
         );
         assert_eq!(
-            path_of("file:///tmp/a%2Fb").must(),
-            "/tmp/a/b",
+            path_of("file:///tmp/a%2Fb").must(), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            "/tmp/a/b", // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
             "%2F decodes to a path separator"
         );
         assert_eq!(
-            path_of("file:///tmp/100%25.mkv").must(),
-            "/tmp/100%.mkv",
+            path_of("file:///tmp/100%25.mkv").must(), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            "/tmp/100%.mkv", // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
             "%25 decodes to the escape character itself"
         );
         assert_eq!(
-            path_of("file:///tmp/a%0Ab").must(),
-            "/tmp/a\nb",
+            path_of("file:///tmp/a%0Ab").must(), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            "/tmp/a\nb", // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
             "a decoded newline is a legal (if odd) filename byte — only NUL is rejected"
         );
     }
@@ -171,8 +171,8 @@ mod tests {
     #[test]
     fn non_file_schemes_are_typed_rejections() {
         for uri in [
-            "http://example.com/a",
-            "https://x/y",
+            "http://example.com/a", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+            "https://x/y", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
             "rtsp://cam/1",
             "dvd://a",
         ] {
@@ -226,7 +226,7 @@ mod tests {
     /// real path surfaces its canonical form (symlinks resolved).
     #[test]
     fn resolve_file_canonicalizes_and_rejects_missing() {
-        let missing = resolve_file(&parse("file:///nonexistent-lumen-2a1/nope.mkv"));
+        let missing = resolve_file(&parse("file:///nonexistent-lumen-2a1/nope.mkv")); // lumen-allow-literal: test fixture value — round-trip data, not display identity
         let err = testkit::assert_err(missing, "missing path");
         assert_eq!(err.context.code, "input.file.missing");
         assert_eq!(
@@ -239,7 +239,7 @@ mod tests {
         // A real file canonicalizes to itself (the temp dir is already
         // absolute; canonicalize also resolves any symlinked parents).
         let tmp = std::env::temp_dir().canonicalize().must();
-        let file = tmp.join("lumen-2a1-uri-resolve.tmp");
+        let file = tmp.join("lumen-2a1-uri-resolve.tmp"); // lumen-allow-literal: test fixture value — round-trip data, not display identity
         std::fs::write(&file, b"x").must();
         let uri = format!("file://{}", file.to_str().must());
         let resolved = resolve_file(&parse(&uri)).must();
@@ -247,9 +247,9 @@ mod tests {
         let _ = std::fs::remove_file(&file);
 
         // A dangling symlink names nothing.
-        let dangling = tmp.join("lumen-2a1-dangling.tmp");
+        let dangling = tmp.join("lumen-2a1-dangling.tmp"); // lumen-allow-literal: test fixture value — round-trip data, not display identity
         #[cfg(unix)]
-        std::os::unix::fs::symlink("nowhere-lumen-2a1", &dangling).must();
+        std::os::unix::fs::symlink("nowhere-lumen-2a1", &dangling).must(); // lumen-allow-literal: test fixture value — round-trip data, not display identity
         #[cfg(not(unix))]
         std::fs::write(&dangling, b"stub-not-a-symlink-on-this-platform").must();
         let uri = format!("file://{}", dangling.to_str().must());

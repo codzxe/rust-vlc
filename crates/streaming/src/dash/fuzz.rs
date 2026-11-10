@@ -66,9 +66,14 @@ fn walk(data: &[u8]) -> Option<usize> {
                     return Some(total_segments);
                 }
                 reps += 1;
-                if let Ok(plan) =
-                    plan_representation(&parsed.mpd, period, set, rep, "http://fuzz.test/m.mpd")
-                {
+                if let Ok(plan) = plan_representation(
+                    &parsed.mpd,
+                    period,
+                    set,
+                    rep,
+                    // lumen-allow-literal: fuzz-target URL on a reserved host — never a shipped endpoint
+                    "http://fuzz.test/m.mpd",
+                ) {
                     total_segments += plan.segments.len();
                 }
             }

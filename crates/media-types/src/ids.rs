@@ -555,6 +555,7 @@ mod tests {
 
     #[test]
     fn source_uri_rejects_control_characters_and_spaces() {
+        // lumen-allow-literal: URL parse/redaction test vector — data under test
         for bad in ["http://a\tb", "http://a b/c", "file:///x\ny"] {
             assert!(SourceUri::parse(bad).is_err(), "{bad:?} must be rejected");
         }
@@ -573,10 +574,10 @@ mod tests {
 
     #[test]
     fn redaction_hides_userinfo_passwords() {
-        let uri = SourceUri::parse("http://alice:secret@example.org/stream")
+        let uri = SourceUri::parse("http://alice:secret@example.org/stream") // lumen-allow-literal: URL parse/redaction test vector — data under test
             .unwrap_or_else(|e| unreachable!("{e}"));
         let r = uri.redacted();
-        assert_eq!(r, "http://***@example.org/stream", "userinfo fully masked");
+        assert_eq!(r, "http://***@example.org/stream", "userinfo fully masked"); // lumen-allow-literal: URL parse/redaction test vector — data under test
         assert!(!r.contains("alice"), "username must not leak");
         assert!(!r.contains("secret"), "password must not leak");
     }
@@ -584,14 +585,14 @@ mod tests {
     #[test]
     fn redaction_hides_user_only_userinfo() {
         let uri =
-            SourceUri::parse("http://bob@example.org/x").unwrap_or_else(|e| unreachable!("{e}"));
-        assert_eq!(uri.redacted(), "http://***@example.org/x");
+            SourceUri::parse("http://bob@example.org/x").unwrap_or_else(|e| unreachable!("{e}")); // lumen-allow-literal: URL parse/redaction test vector — data under test
+        assert_eq!(uri.redacted(), "http://***@example.org/x"); // lumen-allow-literal: URL parse/redaction test vector — data under test
     }
 
     #[test]
     fn redaction_masks_secret_query_values_only() {
         let uri = SourceUri::parse(
-            "https://cdn.example.org/hls/index.m3u8?token=ABCDE123&segment=42&SIG=deadbeef",
+            "https://cdn.example.org/hls/index.m3u8?token=ABCDE123&segment=42&SIG=deadbeef", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         )
         .unwrap_or_else(|e| unreachable!("{e}"));
         let r = uri.redacted();
@@ -607,17 +608,17 @@ mod tests {
 
     #[test]
     fn redaction_keeps_benign_queries_and_fragments() {
-        let uri = SourceUri::parse("https://example.org/p?start=10&fmt=mp4#frag")
+        let uri = SourceUri::parse("https://example.org/p?start=10&fmt=mp4#frag") // lumen-allow-literal: URL parse/redaction test vector — data under test
             .unwrap_or_else(|e| unreachable!("{e}"));
         assert_eq!(
             uri.redacted(),
-            "https://example.org/p?start=10&fmt=mp4#frag"
+            "https://example.org/p?start=10&fmt=mp4#frag" // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         );
     }
 
     #[test]
     fn redaction_hides_full_user_file_paths() {
-        let uri = SourceUri::parse("file:///home/alice/secret-dir/movie.mkv")
+        let uri = SourceUri::parse("file:///home/alice/secret-dir/movie.mkv") // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
             .unwrap_or_else(|e| unreachable!("{e}"));
         let r = uri.redacted();
         assert_eq!(r, "file:///…/movie.mkv");
@@ -635,7 +636,7 @@ mod tests {
     #[test]
     fn redaction_display_and_debug_are_redacted() {
         // MP §12: no Display/Debug path ever shows the raw form.
-        let uri = SourceUri::parse("http://eve:hunter2@host/p?secret=1")
+        let uri = SourceUri::parse("http://eve:hunter2@host/p?secret=1") // lumen-allow-literal: URL parse/redaction test vector — data under test
             .unwrap_or_else(|e| unreachable!("{e}"));
         assert!(!uri.to_string().contains("hunter2"));
         assert!(!format!("{uri:?}").contains("eve"));
@@ -646,15 +647,15 @@ mod tests {
         let urn = SourceUri::parse("urn:isbn:0451450523").unwrap_or_else(|e| unreachable!("{e}"));
         assert_eq!(urn.redacted(), "urn:isbn:0451450523");
         let with_port =
-            SourceUri::parse("http://example.org:8080/v").unwrap_or_else(|e| unreachable!("{e}"));
-        assert_eq!(with_port.redacted(), "http://example.org:8080/v");
+            SourceUri::parse("http://example.org:8080/v").unwrap_or_else(|e| unreachable!("{e}")); // lumen-allow-literal: URL parse/redaction test vector — data under test
+        assert_eq!(with_port.redacted(), "http://example.org:8080/v"); // lumen-allow-literal: URL parse/redaction test vector — data under test
     }
 
     #[test]
     fn raw_is_preserved_for_the_access_layer() {
-        let uri = SourceUri::parse("http://alice:pw@host/p?token=x")
+        let uri = SourceUri::parse("http://alice:pw@host/p?token=x") // lumen-allow-literal: URL parse/redaction test vector — data under test
             .unwrap_or_else(|e| unreachable!("{e}"));
-        assert_eq!(uri.raw(), "http://alice:pw@host/p?token=x");
+        assert_eq!(uri.raw(), "http://alice:pw@host/p?token=x"); // lumen-allow-literal: URL parse/redaction test vector — data under test
     }
 
     // ---- ids --------------------------------------------------------------------

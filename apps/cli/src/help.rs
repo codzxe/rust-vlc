@@ -98,7 +98,7 @@ pub const SUBCOMMANDS: &[(&str, &str, &str)] = &[
 pub fn version_text() -> String {
     // [PROPOSAL: product.toml identity (name/brand) joins with the
     // rebrand-propagation wiring; v0 reports the crate's own version.]
-    format!("lumen {}\n", env!("CARGO_PKG_VERSION"))
+    format!("lumen {}\n", env!("CARGO_PKG_VERSION")) // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
 }
 
 /// The full `--help` text: synopsis + the generated areas index.
@@ -110,18 +110,18 @@ pub fn help_text() -> Result<String, String> {
     let generated = generated_help()?;
     let mut out = String::new();
     out.push_str(&version_text());
-    out.push_str("The Lumen command-line player — headless host of the engine's first\n");
+    out.push_str("The Lumen command-line player — headless host of the engine's first\n"); // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
     out.push_str("vertical, driven through the one command layer (doc 05 §5.3).\n\n");
     out.push_str("Usage:\n");
-    out.push_str("  lumen [OPTIONS] <COMMAND> [ARGS]     one-shot / interactive\n");
-    out.push_str("  lumen --control-stdio                NDJSON machine mode\n");
-    out.push_str("  lumen --help [AREA]                  this help / one settings area\n\n");
+    out.push_str("  lumen [OPTIONS] <COMMAND> [ARGS]     one-shot / interactive\n"); // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+    out.push_str("  lumen --control-stdio                NDJSON machine mode\n"); // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+    out.push_str("  lumen --help [AREA]                  this help / one settings area\n\n"); // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
     out.push_str("Commands (the playing subset of the command catalog):\n");
     for (verb, id, help) in SUBCOMMANDS {
         out.push_str(&format!("  {verb:<58} {id}\n      {help}\n"));
     }
     out.push_str("\nSettings-derived flags (--<area>-<key> <value>):\n");
-    out.push_str("  `lumen --help` lists areas with counts; `lumen --help <area>` lists that\n");
+    out.push_str("  `lumen --help` lists areas with counts; `lumen --help <area>` lists that\n"); // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
     out.push_str("  area's flags (the VLC --longhelp pattern, generated).\n");
     out.push_str("  Reserved (non-settings) flags: -h/--help, -v/--version, --json,\n");
     out.push_str("  --control-stdio.\n\n");

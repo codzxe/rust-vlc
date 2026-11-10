@@ -429,7 +429,7 @@ fn strn_title_surfaces_on_the_track() {
     out.extend_from_slice(b"strl");
     chunk(&mut out, b"strh", &strh(b"vids", b"MJPG", 1, 30, 1, 0));
     chunk(&mut out, b"strf", &strf_video(64, 48));
-    chunk(&mut out, b"strn", b"Lumen test stream\x00");
+    chunk(&mut out, b"strn", b"Lumen test stream\x00"); // lumen-allow-literal: test fixture value — round-trip data, not display identity
     end_sized(&mut out, strl_size_pos);
     end_sized(&mut out, hdrl_size_pos);
     out.extend_from_slice(b"LIST");
@@ -446,7 +446,7 @@ fn strn_title_surfaces_on_the_track() {
         Err(err) => unreachable!("start: {err}"),
     };
     assert_eq!(tracks.len(), 1);
-    assert_eq!(tracks[0].title.as_deref(), Some("Lumen test stream"));
+    assert_eq!(tracks[0].title.as_deref(), Some("Lumen test stream")); // lumen-allow-literal: test fixture value — round-trip data, not display identity
 }
 
 #[test]

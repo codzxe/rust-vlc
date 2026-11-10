@@ -1070,7 +1070,7 @@ fn fixture_dir() -> Option<std::path::PathBuf> {
         eprintln!("SKIP: ffmpeg absent (asf fixture differential)");
         return None;
     }
-    let dir = std::env::temp_dir().join("lumen-asf-a-fixtures");
+    let dir = std::env::temp_dir().join("lumen-asf-a-fixtures"); // lumen-allow-literal: cfg(test) scratch filename — test-only, never a shipped surface
     let _ = std::fs::create_dir_all(&dir);
     Some(dir)
 }

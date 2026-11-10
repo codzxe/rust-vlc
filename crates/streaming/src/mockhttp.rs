@@ -474,7 +474,7 @@ impl MockServer {
 
     /// An absolute URL for `path` on this server.
     pub fn url(&self, path: &str) -> String {
-        format!("http://{}/{}", self.addr, path.trim_start_matches('/'))
+        format!("http://{}/{}", self.addr, path.trim_start_matches('/')) // lumen-allow-literal: test-double HTTP server URL builder — test infrastructure, never shipped
     }
 
     /// A [`MockClient`] pointed at this server.
@@ -1432,6 +1432,7 @@ mod tests {
         let listener = TcpListener::bind(("127.0.0.1", 0)).must();
         let addr = listener.local_addr().must();
         drop(listener);
+        // lumen-allow-literal: URL parse/redaction test vector — data under test
         let err = match fetcher().fetch(HttpRequest::get(format!("http://{addr}/x"))) {
             Err(e) => e,
             Ok(response) => unreachable!("closed port must refuse, got {}", response.status),

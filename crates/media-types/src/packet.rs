@@ -551,8 +551,8 @@ mod tests {
 
     #[test]
     fn from_static_copies_content_faithfully() {
-        let sb = SharedBytes::from_static(b"lumen");
-        assert_eq!(sb.as_slice(), b"lumen");
+        let sb = SharedBytes::from_static(b"lumen"); // lumen-allow-literal: test fixture value — round-trip data, not display identity
+        assert_eq!(sb.as_slice(), b"lumen"); // lumen-allow-literal: test fixture value — round-trip data, not display identity
         assert_eq!(sb.len(), 5);
         let empty = SharedBytes::from_static(b"");
         assert!(empty.is_empty());
