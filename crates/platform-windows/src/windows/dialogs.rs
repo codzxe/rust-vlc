@@ -278,8 +278,9 @@ impl CommonItemDialogs {
     /// Typed [`PlatformError`] when the class cannot be created (the
     /// dialog integration then reports `Unavailable` honestly).
     pub fn probe() -> Result<CommonItemDialogs, PlatformError> {
-        // lumen-allow-literal: diagnostic thread name (debugger/log
-        // surface only, not a user-visible string).
+        // Diagnostic thread name (debugger/log surface only, not a
+        // user-visible string).
+        // lumen-allow-literal: diagnostic thread name for the STA probe round.
         spawn_sta("lumen-cid-probe", || {
             // SAFETY: created on this thread inside this closure and
             // released exactly once before it returns; the vtable
@@ -320,15 +321,17 @@ fn spawn_sta<T: Send + 'static>(
 impl FileDialogs for CommonItemDialogs {
     fn open_file(&mut self, request: &FileDialogRequest) -> Result<FilePick, PlatformError> {
         let request = request.clone();
-        // lumen-allow-literal: diagnostic thread name (debugger/log
-        // surface only, not a user-visible string).
+        // Diagnostic thread name (debugger/log surface only, not a
+        // user-visible string).
+        // lumen-allow-literal: diagnostic thread name for the open-dialog STA round.
         spawn_sta("lumen-cid-open", move || run_dialog(false, &request))?
     }
 
     fn save_file(&mut self, request: &FileDialogRequest) -> Result<FilePick, PlatformError> {
         let request = request.clone();
-        // lumen-allow-literal: diagnostic thread name (debugger/log
-        // surface only, not a user-visible string).
+        // Diagnostic thread name (debugger/log surface only, not a
+        // user-visible string).
+        // lumen-allow-literal: diagnostic thread name for the save-dialog STA round.
         spawn_sta("lumen-cid-save", move || run_dialog(true, &request))?
     }
 }

@@ -390,10 +390,11 @@ impl PulseAudioDevices {
                 detail: "mainloop API token was NULL".to_string(),
             });
         }
-        // lumen-allow-literal: the PulseAudio client name is the stable
-        // protocol identity the sound server shows for this connection —
-        // product-config owns it once the platform crates gain their
-        // config edge (Lead decision, recorded in the 7.A2 report).
+        // The PulseAudio client name is the stable protocol identity
+        // the sound server shows for this connection. Product-config
+        // owns it once the platform crates gain their config edge
+        // (Lead decision, recorded in the 7.A2 report).
+        // lumen-allow-literal: PulseAudio protocol client identity (config edge is the Lead-gated follow-up).
         let name = CString::new("lumen").map_err(|_| PlatformError::CallFailed {
             api: "pa_context_new",
             code: None,

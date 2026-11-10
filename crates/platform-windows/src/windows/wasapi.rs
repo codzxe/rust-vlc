@@ -601,13 +601,13 @@ impl AudioDevices for WasapiAudioDevices {
         // A dedicated short-lived apartment thread: COM rules hold by
         // construction, the caller's thread model never matters.
         let outcome = thread::Builder::new()
-            // lumen-allow-literal: diagnostic thread name (debugger/log
-            // surface only, not a user-visible string).
+            // Diagnostic thread name (debugger/log surface only, not a
+            // user-visible string).
+            // lumen-allow-literal: diagnostic thread name for the enumeration STA round.
             .name("lumen-wasapi-enum".to_string())
             .spawn(list_endpoints)
             .map_err(|err| PlatformError::SpawnFailed {
-                // lumen-allow-literal: the same diagnostic name, surfaced
-                // in the typed error text.
+                // lumen-allow-literal: same diagnostic name, surfaced in the typed error.
                 program: "lumen-wasapi-enum thread".to_string(),
                 detail: err.to_string(),
             })?;
@@ -628,14 +628,14 @@ impl AudioDevices for WasapiAudioDevices {
         let (ready_tx, ready_rx) = mpsc::channel::<Result<(), PlatformError>>();
         let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>();
         let builder = thread::Builder::new()
-            // lumen-allow-literal: diagnostic thread name (debugger/log
-            // surface only, not a user-visible string).
+            // Diagnostic thread name (debugger/log surface only, not a
+            // user-visible string).
+            // lumen-allow-literal: diagnostic thread name for the notification watch thread.
             .name("lumen-wasapi-watch".to_string());
         let spawned = builder
             .spawn(move || watch_thread_body(queue, ready_tx, shutdown_rx))
             .map_err(|err| PlatformError::SpawnFailed {
-                // lumen-allow-literal: the same diagnostic name, surfaced
-                // in the typed error text.
+                // lumen-allow-literal: same diagnostic name, surfaced in the typed error.
                 program: "lumen-wasapi-watch thread".to_string(),
                 detail: err.to_string(),
             });
