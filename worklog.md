@@ -543,3 +543,20 @@ Work Log:
 Stage Summary:
 - D-10 four questions: MEASURE — gate counts above (328 markers, 340/341 allowlisted sites, 0 violations). NOT TESTED — per-crate test suites not re-run (disk-tight; clippy --all-targets compiled every test target; the diff is comments plus one semantically identical fuzz.rs `if let` restructure). WHAT BREAKS — a rebrand must hand-review 21 argv0/usage identity sites until the help.rs identity wiring [PROPOSAL] lands. WHO HITS IT FIRST — the next rebrand/localization card touching CLI prose.
 - Open: identity wiring for CLI argv0/usage strings stays a recorded [PROPOSAL] follow-up (config-driven lookup deferred to that card); C2 packaging-regen check still SKIP (no packaging plane).
+---
+Task ID: 7.w22h
+Agent: w22-h (issues #55 + #57 — Phase 8 perf/parity docs finalization)
+Task: Final perf-vs-VLC benchmark report (#55) + parity-report finalization with honest parity statement and consolidated known-limits doc (#57).
+
+Work Log:
+- Read the evidence base in full: docs/corpus/vlc-diff-report-20261023.md (oracle run 2026-11-09 + §6.6 decision record), vlc-oracle-run-20261109.json, vlc-f32-tolerance-20261109.json, docs/perf/{breadth,baseline,mjpeg-simd-20261024,memory-audit,soak-nightly-20261109,parity-v4-20261024}.md + raw/, docs/plans/phase8-cards.md, docs/10 §6.6–§8, docs/12 §1.3/§9, docs/09 §10, ADR-001/002/003/004/005/010/011/012/013, docs/14-risk-register.md, tools/xtask parity/audit sources, worklog prior entries.
+- ACTUAL tool runs (deterministic, non-timing): cargo xtask parity-report -> rows=252, windows/linux/macos 64/252 (25.4%) each, web 0/252, verified-only 0/252 everywhere; cargo xtask feature-audit -> initially FAILURE (2 R4 violations: evidence tokens tests/https_activation.rs + tests/pcm_pipeline.rs crate-relative, root-unresolvable though both files exist at crates/streaming/tests/ and crates/audio-output/tests/).
+- c9a89c6: fixed the 2 evidence-path spellings in docs/feature-matrix.toml (evidence edits only, no status cell changed); feature-audit re-run ACTUAL: PASS (252 rows, all evidence present + path-resolved).
+- 5aa3e7d: docs/PERF-VS-VLC.md (#55 final report: differential methodology incl. mock/real binding + corpus re-basing honesty, 29/35 bit-exact prefix rows, the 6 f32 rows with the ratified RMS<=1e-4/peak<=1e-3 policy and per-row measurements, honest "no wall-clock Lumen-vs-VLC timing exists" statement, prior-wave ffmpeg-oracle timing evidence quoted with sandbox caveats, §9.2 verdict table, limitations); docs/PARITY-REPORT.md (#57: tooling lockdown state, ACTUAL 252-row audit output, ACTUAL derived parity table, the honest "verified parity 0/252 pending CI" statement and what it means, VLC-differential cross-ref, unblock path); docs/KNOWN-LIMITS.md (#57: consolidated register harvested from MP §14, ADRs, doc 09 §10, risk register R-01..R-36, perf records — every row source-cited; RELEASE.md release-specific limits linked not duplicated).
+- No timing benchmark was run for these docs (contended shared sandbox; doc 12 §9.3 anti-gaming) — all timing rows are quoted from prior-wave committed records.
+
+Stage Summary:
+- Deliverables: docs/PERF-VS-VLC.md, docs/PARITY-REPORT.md, docs/KNOWN-LIMITS.md + 2 evidence-path fixes in docs/feature-matrix.toml; commits c9a89c6, 5aa3e7d, this entry.
+- Headline honest numbers: differential 29/35 bit-exact + 0/6 f32 tolerance-pass = 29/35 (Lead decision applied, per-row JSON record); implementation parity 64/252 per desktop platform, web 0/252; verified parity 0/252 pending CI (billing-blocked, all evidence hardware_class=mock).
+- Cross-wave coordination: docs/RELEASE.md (known-limits register) is referenced as owned by 7.w22g branch w22/g — the link resolves when that wave merges.
+- Observed for the Lead (not touched, out of scope): docs/feature-matrix.toml header comment still says the full tools/feature-audit is "OWED and unassigned debt" — stale since ed24e7d (wave 11); header is Lead-owned per the schema-freeze note.
