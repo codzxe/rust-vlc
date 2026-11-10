@@ -64,7 +64,7 @@ use crate::model::style::{Color, TextStyle};
 use crate::model::time::CueInterval;
 
 /// The magic + version line every document starts with.
-const MAGIC: &str = "LUMEN-CUES 1";
+const MAGIC: &str = "LUMEN-CUES 1"; // lumen-allow-literal: LUMEN-CUES wire-format magic — frozen format identifier, not display identity
 
 /// The fixed-size `Copy` header state: everything before the text
 /// payload, fully validated (interval order, percent domain, alignment

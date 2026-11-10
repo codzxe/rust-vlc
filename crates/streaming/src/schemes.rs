@@ -507,7 +507,7 @@ mod tests {
             "/media/corpus/a.wav",
             "media/a.wav",
             "./a.wav",
-            "c:/Users/alice/a.avi",
+            "c:/Users/alice/a.avi", // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
             "name with spaces.wav",
         ] {
             match SchemeRegistry::classify(source) {
@@ -545,6 +545,7 @@ mod tests {
     /// back normalized (scheme folded, default ports, path defaulted).
     #[test]
     fn http_urls_classify_normalized() {
+        // lumen-allow-literal: URL parse/redaction test vector — data under test
         match SchemeRegistry::classify("HTTP://Example.com") {
             Ok(AccessKind::Http { url }) => {
                 assert_eq!(url.scheme, "http");
@@ -554,6 +555,7 @@ mod tests {
             }
             other => unreachable!("http URL must classify: {other:?}"),
         }
+        // lumen-allow-literal: URL parse/redaction test vector — data under test
         match SchemeRegistry::classify("https://cdn.example.org:8443/seg/x.mp4?range=1") {
             Ok(AccessKind::Http { url }) => {
                 assert_eq!(url.scheme, "https");
@@ -577,9 +579,9 @@ mod tests {
     #[test]
     fn https_classifies_exactly_like_http_post_adr011() {
         for source in [
-            "https://cdn.example.org/live/master.m3u8",
-            "HTTPS://Example.com",
-            "https://cdn.example.org:8443/seg/x.mp4?range=1",
+            "https://cdn.example.org/live/master.m3u8", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+            "HTTPS://Example.com", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+            "https://cdn.example.org:8443/seg/x.mp4?range=1", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         ] {
             match SchemeRegistry::classify(source) {
                 Ok(AccessKind::Http { url }) => {
@@ -588,6 +590,7 @@ mod tests {
                 other => unreachable!("admitted https must classify: {other:?}"),
             }
         }
+        // lumen-allow-literal: URL parse/redaction test vector — data under test
         match SchemeRegistry::classify("https://cdn.example.org/live/master.m3u8") {
             Ok(AccessKind::Http { url }) => {
                 assert_eq!(url.port, 443, "the scheme default port is explicit");
@@ -598,6 +601,7 @@ mod tests {
         // Structurally invalid https URLs refuse through the *shared*
         // port parse exactly as http does — no scheme-specific
         // refusal arm remains anywhere in dispatch.
+        // lumen-allow-literal: URL parse/redaction test vector — data under test
         match SchemeRegistry::classify("https://") {
             Err(SchemeError::Malformed { .. }) => {}
             other => unreachable!("an empty authority must be malformed: {other:?}"),
@@ -648,6 +652,7 @@ mod tests {
             }
         }
         // Spaces in an http URL: the port's violation, chained.
+        // lumen-allow-literal: URL parse/redaction test vector — data under test
         let err = match SchemeRegistry::classify("http://ho st/media") {
             Err(err @ SchemeError::Malformed { .. }) => err,
             other => unreachable!("spacey URL must refuse: {other:?}"),
@@ -723,7 +728,7 @@ mod tests {
         // (no credentials anywhere in the error), the unsupported arm
         // names only the scheme.
         let http = testkit::assert_err(
-            SchemeRegistry::classify("http://user:secret@example.org/a"),
+            SchemeRegistry::classify("http://user:secret@example.org/a"), // lumen-allow-literal: URL parse/redaction test vector — data under test
             "userinfo-bearing http URL refuses",
         );
         assert!(http.to_string().contains("scheme dispatch failed"));
@@ -736,8 +741,8 @@ mod tests {
         assert!(!rtsp.to_string().contains("secret"));
         // Credential-shaped queries never surface either: the
         // redacted URI form is media-types' (SourceUri::redacted).
-        let tokened = SourceUri::parse("https://cdn.example.org/x?token=secret").must();
-        assert_eq!(tokened.redacted(), "https://cdn.example.org/x?token=***");
+        let tokened = SourceUri::parse("https://cdn.example.org/x?token=secret").must(); // lumen-allow-literal: URL parse/redaction test vector — data under test
+        assert_eq!(tokened.redacted(), "https://cdn.example.org/x?token=***"); // lumen-allow-literal: URL parse/redaction test vector — data under test
     }
 
     /// The engine bridge names the scheme (the
@@ -1016,12 +1021,12 @@ mod tests {
             "file:///media/a%20b.wav",
             "file://localhost/x",
             "file://nas.example.org/y",
-            "http://user:pw@example.com:8080/a?x=1",
-            "https://cdn.example.org/seg/001.ts",
+            "http://user:pw@example.com:8080/a?x=1", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+            "https://cdn.example.org/seg/001.ts", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
             "ftp://example.com/f",
             "rtsp://cam.example.org:554/stream.sdp",
             "data:audio/wav;base64,UklGRg==",
-            "c:/Users/alice/media/a.avi",
+            "c:/Users/alice/media/a.avi", // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
             "/media/plain/path.wav",
             "weird.name.tar:suffix",
             "",

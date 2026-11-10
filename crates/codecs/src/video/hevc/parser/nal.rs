@@ -989,8 +989,8 @@ pub(crate) mod tests {
     /// Corpus path lookup (skip-with-msg contract of the wave): the
     /// `LUMEN_HEVC_CORPUS` env var, else the canonical corpus dir.
     pub(crate) fn corpus_path(name: &str) -> Option<std::path::PathBuf> {
-        let dir = std::env::var("LUMEN_HEVC_CORPUS")
-            .unwrap_or_else(|_| "/tmp/my-project/corpus-v4/media".to_string());
+        let dir = std::env::var("LUMEN_HEVC_CORPUS") // lumen-allow-literal: cfg(test) corpus-gate env-var name — test harness knob, not product config
+            .unwrap_or_else(|_| "/tmp/my-project/corpus-v4/media".to_string()); // lumen-allow-literal: cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
         let p = std::path::Path::new(&dir).join(name);
         if p.exists() { Some(p) } else { None }
     }

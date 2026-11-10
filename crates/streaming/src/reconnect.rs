@@ -999,7 +999,7 @@ mod tests {
     /// A plain GET for the unit origin (the scripts never touch the
     /// wire; the URL only has to parse).
     fn get(path: &str) -> HttpRequest {
-        HttpRequest::get(format!("http://unit.test/{path}"))
+        HttpRequest::get(format!("http://unit.test/{path}")) // lumen-allow-literal: URL parse/redaction test vector — data under test
     }
 
     /// Policy bounds are validated typed, never clamped.
@@ -1256,6 +1256,7 @@ mod tests {
             Outcome::Fail(Weather::Timeout),
             Outcome::Body(b"0123456789abcdef".to_vec()),
         ]);
+        // lumen-allow-literal: URL parse/redaction test vector — data under test
         let request = HttpRequest::get("http://unit.test/media").with_range(ByteRange::Bounded {
             start: 4096,
             end_exclusive: 4112,

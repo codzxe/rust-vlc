@@ -989,7 +989,7 @@ mod tests {
         let fetch = router(&owned_routes(12));
         let mut stream = open_master(
             fetch,
-            "http://unit.test/master.m3u8",
+            "http://unit.test/master.m3u8", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
             HlsMasterConfig::default(),
         )
         .must();
@@ -1071,7 +1071,7 @@ mod tests {
         let mut tight = HlsMasterConfig::default();
         tight.abr.max_bandwidth_bps = 1;
         let err = testkit::assert_err(
-            open_master(fetch.clone(), "http://unit.test/master.m3u8", tight).map(|_| ()),
+            open_master(fetch.clone(), "http://unit.test/master.m3u8", tight).map(|_| ()), // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
             "nothing under a 1-bps cap",
         );
         assert_eq!(err.context.code, "streaming.hls.no-variant");
@@ -1081,7 +1081,7 @@ mod tests {
         let err = testkit::assert_err(
             open_master(
                 fetch,
-                "http://unit.test/pl.m3u8",
+                "http://unit.test/pl.m3u8", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
                 HlsMasterConfig::default(),
             )
             .map(|_| ()),
@@ -1110,7 +1110,7 @@ mod tests {
         let fetch = router(&routes);
         let mut stream = open_master(
             fetch,
-            "http://unit.test/master.m3u8",
+            "http://unit.test/master.m3u8", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
             HlsMasterConfig::default(),
         )
         .must();
@@ -1156,7 +1156,7 @@ mod tests {
         let fetch = router(&routes);
         let mut stream = open_master(
             fetch,
-            "http://unit.test/master.m3u8",
+            "http://unit.test/master.m3u8", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
             HlsMasterConfig::default(),
         )
         .must();

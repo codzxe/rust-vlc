@@ -344,7 +344,7 @@ mod tests {
         aifc.extend_from_slice(&0u32.to_be_bytes()); // offset
         aifc.extend_from_slice(&0u32.to_be_bytes()); // blockSize
         aifc.extend_from_slice(&[0u8; 16]);
-        let path = std::env::temp_dir().join("lumen-cli-aifc-ima4.aifc");
+        let path = std::env::temp_dir().join("lumen-cli-aifc-ima4.aifc"); // lumen-allow-literal: cfg(test) scratch filename — test-only, never a shipped surface
         std::fs::write(&path, &aifc).must();
         let err = match open_source(&SourceSpec::File { path: path.clone() }, None, false, false) {
             Ok(_) => unreachable!("ima4 must refuse"),
@@ -361,7 +361,7 @@ mod tests {
         // Classic AIFF, 8-bit signed width: the same typed refusal
         // (built through the demuxer's own test-support builder).
         let bytes = demux::aiff::test_support::minimal_aiff(1, 44_100, 8, &[0x12, 0x34]);
-        let path = std::env::temp_dir().join("lumen-cli-aiff-s8.aiff");
+        let path = std::env::temp_dir().join("lumen-cli-aiff-s8.aiff"); // lumen-allow-literal: cfg(test) scratch filename — test-only, never a shipped surface
         std::fs::write(&path, &*bytes).must();
         let err = match open_source(&SourceSpec::File { path: path.clone() }, None, false, false) {
             Ok(_) => unreachable!("classic 8-bit must refuse"),

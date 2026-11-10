@@ -5,7 +5,7 @@ use std::fmt;
 
 /// The `lumen.` id prefix reserved for first-party builtins (doc 06
 /// §2.2 namespacing; the registry rejects it for extensions).
-pub const LUMEN_PREFIX: &str = "lumen.";
+pub const LUMEN_PREFIX: &str = "lumen."; // lumen-allow-literal: reserved plugin-id namespace (doc 06 protocol vocabulary), not display identity
 
 /// What a plugin *is* — the sixteen kinds of doc 06 §1.2.
 ///

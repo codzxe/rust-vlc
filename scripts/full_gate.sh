@@ -46,5 +46,19 @@ else
   echo "fuzz-registry: FAILED"; cat /tmp/fuzzreg.log; fail=1
 fi
 
+echo "=== 7. lint-literals (doc 07 §9 C1 — config-plane literal scan, card 7.w21a) ==="
+if cargo xtask lint-literals > /tmp/litlit.log 2>&1; then
+  tail -1 /tmp/litlit.log; echo "lint-literals: PASS"
+else
+  echo "lint-literals: FAILED"; rg 'FAIL' -A 15 /tmp/litlit.log | head -20; fail=1
+fi
+
+echo "=== 8. check-identity (doc 07 §9 C2 — no-hardcoded-identity scan, card 7.w21a) ==="
+if cargo xtask check-identity > /tmp/chkident.log 2>&1; then
+  tail -1 /tmp/chkident.log; echo "check-identity: PASS"
+else
+  echo "check-identity: FAILED"; rg 'FAIL' -A 15 /tmp/chkident.log | head -20; fail=1
+fi
+
 echo "=== GATE RESULT: $([ $fail -eq 0 ] && echo PASS || echo FAIL) ==="
 exit $fail

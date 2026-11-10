@@ -347,7 +347,7 @@ mod tests {
 
     #[test]
     fn font_color_maps_and_bad_values_degrade() {
-        let (out, dmg) = run("<font color=\"#00ff00\">green</font> tail");
+        let (out, dmg) = run("<font color=\"#00ff00\">green</font> tail"); // lumen-allow-literal: markup/validation test vector — data under test, not a theme color
         assert!(dmg.is_empty());
         assert_eq!(
             out,
@@ -361,12 +361,12 @@ mod tests {
         );
         let (_, dmg) = run("<font color=red>named</font>");
         assert_eq!(dmg, vec![SrtDamageKind::BadStyleValue]);
-        let (_, dmg) = run("<font color='#0f0'>short</font>");
+        let (_, dmg) = run("<font color='#0f0'>short</font>"); // lumen-allow-literal: markup/validation test vector — data under test, not a theme color
         assert!(dmg.is_empty());
         let (_, dmg) = run("<font face=\"Arial\" size=\"20\">attrs</font>");
         assert!(dmg.is_empty());
         // Set then unset with nothing between collapses to Plain.
-        let (out, dmg) = run("a<font color=\"#ff0000\"></font>b");
+        let (out, dmg) = run("a<font color=\"#ff0000\"></font>b"); // lumen-allow-literal: markup/validation test vector — data under test, not a theme color
         assert!(dmg.is_empty());
         assert_eq!(out, CueText::Plain("ab".into()));
     }

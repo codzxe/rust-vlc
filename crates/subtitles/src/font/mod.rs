@@ -599,7 +599,7 @@ mod tests {
         let attached =
             MemoryFontProvider::new("attachments").with_face(face("Arial", false, false));
         let bundled =
-            MemoryFontProvider::new("bundled").with_face(face("Lumen Default", false, false));
+            MemoryFontProvider::new("bundled").with_face(face("Lumen Default", false, false)); // lumen-allow-literal: test fixture value — round-trip data, not display identity
         let stack = FontStack::with_provider(bundled).add_provider(attached);
         let r = stack.resolve(&FontRequest::new("Arial", false, false));
         assert_eq!(r.face.as_ref().must().family(), "Arial");
@@ -613,8 +613,8 @@ mod tests {
         );
         // A family only the default has: attached misses (recorded),
         // bundled supplies, family still matched.
-        let r = stack.resolve(&FontRequest::new("Lumen Default", false, false));
-        assert_eq!(r.face.as_ref().must().family(), "Lumen Default");
+        let r = stack.resolve(&FontRequest::new("Lumen Default", false, false)); // lumen-allow-literal: test fixture value — round-trip data, not display identity
+        assert_eq!(r.face.as_ref().must().family(), "Lumen Default"); // lumen-allow-literal: test fixture value — round-trip data, not display identity
         assert_eq!(
             r.chain,
             vec![
@@ -663,11 +663,11 @@ mod tests {
 
     #[test]
     fn with_bundled_places_the_default_last() {
-        let stack = FontStack::empty().with_bundled(face("Lumen Default", false, false));
+        let stack = FontStack::empty().with_bundled(face("Lumen Default", false, false)); // lumen-allow-literal: test fixture value — round-trip data, not display identity
         let r = stack.resolve(&FontRequest::new("Anything", true, false));
         // Family fallback: the bundled default answers, family did
         // NOT match, and bold must be synthesized.
-        assert_eq!(r.face.as_ref().must().family(), "Lumen Default");
+        assert_eq!(r.face.as_ref().must().family(), "Lumen Default"); // lumen-allow-literal: test fixture value — round-trip data, not display identity
         assert!(!r.family_matched());
         assert_eq!(r.synthesis, vec![GlyphSynthesis::FauxBold]);
         assert_eq!(

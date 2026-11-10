@@ -574,7 +574,7 @@ mod tests {
     fn crafted_shapes_refuse_at_the_demux_stage() {
         // Header only: no frames to demux.
         let header_only = demux::ivf::test_support::ivf_header(b"AV01", 64, 48, 30, 1, 0);
-        let path = std::env::temp_dir().join("lumen-cli-ivf-header-only.ivf");
+        let path = std::env::temp_dir().join("lumen-cli-ivf-header-only.ivf"); // lumen-allow-literal: cfg(test) scratch filename — test-only, never a shipped surface
         std::fs::write(&path, &header_only).must();
         let err = match open_source(&SourceSpec::File { path: path.clone() }, None, false, false) {
             Ok(_) => unreachable!("a header-only file must refuse"),
@@ -591,7 +591,7 @@ mod tests {
         // VP80: outside the v0 delivery scope.
         let mut vp8 = demux::ivf::test_support::ivf_header(b"VP80", 64, 48, 30, 1, 1);
         vp8.extend_from_slice(&demux::ivf::test_support::ivf_frame(0, 8));
-        let path = std::env::temp_dir().join("lumen-cli-ivf-vp8.ivf");
+        let path = std::env::temp_dir().join("lumen-cli-ivf-vp8.ivf"); // lumen-allow-literal: cfg(test) scratch filename — test-only, never a shipped surface
         std::fs::write(&path, &vp8).must();
         let err = match open_source(&SourceSpec::File { path: path.clone() }, None, false, false) {
             Ok(_) => unreachable!("a VP80 fourcc must refuse (v0 scope)"),
@@ -617,7 +617,7 @@ mod tests {
     fn non_unit_scale_timebase_is_the_containers_own_ratio() {
         let mut bytes = demux::ivf::test_support::ivf_header(b"AV01", 64, 48, 30_000, 1001, 1);
         bytes.extend_from_slice(&demux::ivf::test_support::ivf_frame(0, 8));
-        let path = std::env::temp_dir().join("lumen-cli-ivf-ntsc.ivf");
+        let path = std::env::temp_dir().join("lumen-cli-ivf-ntsc.ivf"); // lumen-allow-literal: cfg(test) scratch filename — test-only, never a shipped surface
         std::fs::write(&path, &bytes).must();
         let mut opened = open(path.clone(), None);
         std::fs::remove_file(&path).ok();

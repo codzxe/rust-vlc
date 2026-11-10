@@ -2289,7 +2289,7 @@ mod tests {
             None => unreachable!("fixture carries mediaPresentationDuration"),
         };
         assert!((duration - 120.0).abs() < 1e-9);
-        assert_eq!(mpd.base_urls, ["https://cdn.example/vod/"]);
+        assert_eq!(mpd.base_urls, ["https://cdn.example/vod/"]); // lumen-allow-literal: URL parse/redaction test vector — data under test
         assert_eq!(mpd.periods.len(), 1);
         let period = &mpd.periods[0];
         assert_eq!(period.base_urls, ["p0/"]);
@@ -2597,6 +2597,7 @@ mod tests {
     /// segment description keeps the first.
     #[test]
     fn dirty_world_degrades_to_warnings() {
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let input = "<MPD type=\"static\" vendor=\"Acme (unmodeled)\">\
             <UTCTiming schemeIdUri=\"urn:mpeg:dash:utc:http-iso:2014\" \
             value=\"https://time.example/t\"/>\
@@ -2733,6 +2734,7 @@ mod tests {
     /// attributes verbatim (entity-decoded once, never re-scanned).
     #[test]
     fn base_url_and_entity_decoding() {
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let input = "<MPD type=\"static\">\
             <BaseURL>https://cdn.example/a&amp;b/</BaseURL>\
             <Period><AdaptationSet mimeType=\"video/mp4\">\
@@ -2743,7 +2745,7 @@ mod tests {
             Ok(p) => p,
             Err(e) => unreachable!("base url manifest must parse: {e}"),
         };
-        assert_eq!(parsed.mpd.base_urls, ["https://cdn.example/a&b/"]);
+        assert_eq!(parsed.mpd.base_urls, ["https://cdn.example/a&b/"]); // lumen-allow-literal: URL parse/redaction test vector — data under test
         assert_eq!(
             parsed.mpd.periods[0].adaptation_sets[0].representations[0].base_urls,
             ["../alt/"]

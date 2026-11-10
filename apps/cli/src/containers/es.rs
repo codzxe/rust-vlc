@@ -295,10 +295,11 @@ mod tests {
     /// The live corpus media dir (the wav/adts differential
     /// convention: the session default, no `LUMEN_CORPUS`).
     fn corpus_dir() -> Option<PathBuf> {
+        // lumen-allow-literal: cfg(test) corpus-gate env-var name — test harness knob, not product config
         if let Ok(dir) = std::env::var("LUMEN_CORPUS") {
             return Some(PathBuf::from(dir));
         }
-        let default = PathBuf::from("/tmp/my-project/corpus-v4/media");
+        let default = PathBuf::from("/tmp/my-project/corpus-v4/media"); // lumen-allow-literal: cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
         default.is_dir().then_some(default)
     }
 
