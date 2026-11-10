@@ -492,7 +492,7 @@ pub fn full_run(config: &Config) -> Result<(), ToolError> {
     let mut lanes: Vec<LaneRecord> = Vec::new();
     for lane in &config.lanes {
         let record = match &lane.kind {
-            LaneKind::NativeDecode => LaneRecord {
+            LaneKind::NativeDecode { .. } => LaneRecord {
                 id: lane.id.clone(),
                 label: lane.label.clone(),
                 kind: "native-decode".to_string(),
@@ -543,9 +543,34 @@ pub fn full_run(config: &Config) -> Result<(), ToolError> {
     let native_lane = config
         .lanes
         .iter()
-        .find(|lane| matches!(lane.kind, LaneKind::NativeDecode))
+        .find(|lane| matches!(lane.kind, LaneKind::NativeDecode { .. }))
         .map(|lane| lane.id.clone())
         .unwrap_or_else(|| "linux-native".to_string());
+    // The feature-matrix column this host's sweep is evidence for
+    // (config/2: the native-decode lane's REQUIRED `platform` — the
+    // gap rules judge this column and the outbox's transitions carry
+    // it; never inferred from the host OS).
+    let native_platform = config
+        .lanes
+        .iter()
+        .find_map(|lane| match &lane.kind {
+            LaneKind::NativeDecode { platform } => Some(platform.clone()),
+            _ => None,
+        })
+        .unwrap_or_else(|| "linux".to_string());
+    // The run's own matrix table — the evidence string the gap-rule
+    // transitions cite (the run's rendered report, wherever the
+    // config points it; for the 2026-11-10 real run this is exactly
+    // docs/corpus/compat-matrix-20261110.md).
+    let run_evidence = format!(
+        "{} (this run's matrix table + raw rows)",
+        config.reports.markdown
+    );
+    let native = NativeCtx {
+        lane: &native_lane,
+        platform: &native_platform,
+        evidence: &run_evidence,
+    };
     let mut transitions: Vec<TransitionOut> = Vec::new();
 
     let mut format_rows: Vec<FormatRowOut> = Vec::new();
@@ -615,7 +640,7 @@ pub fn full_run(config: &Config) -> Result<(), ToolError> {
                 claim,
                 verdict,
                 &evidence_rows,
-                &native_lane,
+                &native,
                 &mut transitions,
             );
         }
@@ -669,7 +694,7 @@ pub fn full_run(config: &Config) -> Result<(), ToolError> {
             let Some(claim) = claims.get(row_id.as_str()) else {
                 continue;
             };
-            codec_gap(row_id, claim, &valid, codec, &native_lane, &mut transitions);
+            codec_gap(row_id, claim, &valid, codec, &native, &mut transitions);
         }
         codec_rows.push(CodecRowOut {
             codec: codec.codec.clone(),
@@ -689,10 +714,10 @@ pub fn full_run(config: &Config) -> Result<(), ToolError> {
     // Notes: the honest boundary statements.
     let mut notes = Vec::new();
     notes.push(format!(
-        "The native-decode lane (`{native_lane}`) is the only lane that decoded media in this \
-         run. Windows/macOS cells are blocked-lane citations (3-OS runner machines + CI billing \
-         are user-owned blockers — docs/plans/phase8-cards.md §1); NO result is inferred for \
-         platforms that did not run."
+        "The native-decode lane (`{native_lane}`, platform `{native_platform}`) is the only lane \
+         that decoded media in this run. Cells of the lanes that did not run are blocked-lane \
+         citations (3-OS runner machines + CI billing are user-owned blockers — \
+         docs/plans/phase8-cards.md §1); NO result is inferred for platforms that did not run."
     ));
     notes.push(
         "The web/wasm lane evidence is the recorded build/test steps: the wasm32 module is \
@@ -893,7 +918,7 @@ fn format_cell(
     malformed: usize,
 ) -> Cell {
     match &lane.kind {
-        LaneKind::NativeDecode => {
+        LaneKind::NativeDecode { .. } => {
             if valid.is_empty() && refused.is_empty() {
                 return Cell {
                     lane: lane.id.clone(),
@@ -1032,7 +1057,7 @@ fn codec_cell(
         }
     };
     match &lane.kind {
-        LaneKind::NativeDecode => {
+        LaneKind::NativeDecode { .. } => {
             if valid.is_empty() {
                 return Cell {
                     lane: lane.id.clone(),
@@ -1127,23 +1152,40 @@ struct FormatEvidence<'a> {
     probe_format: &'a str,
 }
 
+/// The native-lane context the gap rules act within (config/2): the
+/// lane id (prose), the platform column this host's sweep is
+/// evidence for, and the run's own report path (the evidence string
+/// the emitted transitions cite).
+struct NativeCtx<'a> {
+    lane: &'a str,
+    platform: &'a str,
+    evidence: &'a str,
+}
+
 /// The container gap rule (8.B2): a claimed-supported container row
-/// whose corpus files cannot open/demux is a gap.
+/// whose corpus files cannot open/demux is a gap. Judged against the
+/// NATIVE lane's platform column — the sweep is evidence for exactly
+/// that column, never any other.
 fn container_gap(
     row_id: &str,
     claim: &MatrixClaim,
     verdict: &str,
     evidence_rows: &FormatEvidence<'_>,
-    native_lane: &str,
+    native: &NativeCtx<'_>,
     transitions: &mut Vec<TransitionOut>,
 ) {
-    let evidence = "docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows)";
+    let NativeCtx {
+        lane: native_lane,
+        platform: native_platform,
+        evidence: run_evidence,
+    } = native;
     let (valid, refused, probe_format) = (
         evidence_rows.valid,
         evidence_rows.refused,
         evidence_rows.probe_format,
     );
-    match (claim.linux.as_str(), verdict) {
+    let claimed = claim.status_for(native_platform);
+    match (claimed, verdict) {
         ("implemented" | "verified", "refused") => {
             let worst = valid
                 .iter()
@@ -1160,8 +1202,8 @@ fn container_gap(
                 .unwrap_or_else(|| "refused".to_string());
             transitions.push(TransitionOut {
                 row: row_id.to_string(),
-                platform: "linux".to_string(),
-                from: claim.linux.clone(),
+                platform: native_platform.to_string(),
+                from: claimed.to_string(),
                 to: "partial".to_string(),
                 reason: format!(
                     "compat-matrix run ({native_lane} lane): the open path REFUSES the corpus \
@@ -1173,14 +1215,14 @@ fn container_gap(
                      `{probe_format}` (the ivf/mpegps open-path wiring precedent), then re-run \
                      the matrix"
                 ),
-                evidence: evidence.to_string(),
+                evidence: run_evidence.to_string(),
             });
         }
         ("implemented" | "verified", "demux-fatal") => {
             transitions.push(TransitionOut {
                 row: row_id.to_string(),
-                platform: "linux".to_string(),
-                from: claim.linux.clone(),
+                platform: native_platform.to_string(),
+                from: claimed.to_string(),
                 to: "partial".to_string(),
                 reason: format!(
                     "compat-matrix run ({native_lane} lane): a mid-walk demux fatal on a \
@@ -1189,25 +1231,25 @@ fn container_gap(
                 next_step: "fix the demuxer walk defect (bounded fix), add the corpus file as \
                             a regression fixture, re-run the matrix"
                     .to_string(),
-                evidence: evidence.to_string(),
+                evidence: run_evidence.to_string(),
             });
         }
         ("not_started" | "in_progress", "decoded") if !valid.is_empty() => {
             transitions.push(TransitionOut {
                 row: row_id.to_string(),
-                platform: "linux".to_string(),
-                from: claim.linux.clone(),
+                platform: native_platform.to_string(),
+                from: claimed.to_string(),
                 to: "implemented".to_string(),
                 reason: format!(
                     "compat-matrix run ({native_lane} lane): {} corpus files of probe format \
                      `{probe_format}` open + demux through the real player path (underclaim — \
                      the matrix says {})",
                     valid.len(),
-                    claim.linux
+                    claimed
                 ),
                 next_step: "n/a (upgrade with run evidence; the applier verifies the from-status)"
                     .to_string(),
-                evidence: evidence.to_string(),
+                evidence: run_evidence.to_string(),
             });
         }
         _ => {}
@@ -1215,15 +1257,21 @@ fn container_gap(
 }
 
 /// The codec gap rule: a claimed-supported codec row whose corpus
-/// tracks lack a decoder (or decode damaged) is a gap.
+/// tracks lack a decoder (or decode damaged) is a gap. Judged against
+/// the NATIVE lane's platform column.
 fn codec_gap(
     row_id: &str,
     claim: &MatrixClaim,
     valid: &[&(CorpusFile, FileRecord)],
     codec: &crate::config::CodecRow,
-    native_lane: &str,
+    native: &NativeCtx<'_>,
     transitions: &mut Vec<TransitionOut>,
 ) {
+    let NativeCtx {
+        lane: native_lane,
+        platform: native_platform,
+        evidence: run_evidence,
+    } = native;
     let matches_family = |descriptor: &str| {
         if codec.prefix_match {
             descriptor.starts_with(&codec.codec)
@@ -1255,13 +1303,13 @@ fn codec_gap(
     if valid.is_empty() {
         return;
     }
-    let evidence = "docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows)";
-    match claim.linux.as_str() {
+    let claimed = claim.status_for(native_platform);
+    match claimed {
         "implemented" | "verified" if no_decoder > 0 => {
             transitions.push(TransitionOut {
                 row: row_id.to_string(),
-                platform: "linux".to_string(),
-                from: claim.linux.clone(),
+                platform: native_platform.to_string(),
+                from: claimed.to_string(),
                 to: "partial".to_string(),
                 reason: format!(
                     "compat-matrix run ({native_lane} lane): {no_decoder} corpus tracks of \
@@ -1271,14 +1319,14 @@ fn codec_gap(
                 next_step: "land the missing decoder lane (bounded fix) or split the row's \
                             claimed descriptor set; re-run the matrix"
                     .to_string(),
-                evidence: evidence.to_string(),
+                evidence: run_evidence.to_string(),
             });
         }
         "implemented" | "verified" if concealed_total > 0 => {
             transitions.push(TransitionOut {
                 row: row_id.to_string(),
-                platform: "linux".to_string(),
-                from: claim.linux.clone(),
+                platform: native_platform.to_string(),
+                from: claimed.to_string(),
                 to: "partial".to_string(),
                 reason: format!(
                     "compat-matrix run ({native_lane} lane): {concealed_total} concealed \
@@ -1289,23 +1337,23 @@ fn codec_gap(
                 next_step: "triage the concealment (bounded fix, no correctness trade); add \
                             the corpus file as a regression fixture; re-run"
                     .to_string(),
-                evidence: evidence.to_string(),
+                evidence: run_evidence.to_string(),
             });
         }
         "not_started" | "in_progress" if decoded > 0 && no_decoder == 0 => {
             transitions.push(TransitionOut {
                 row: row_id.to_string(),
-                platform: "linux".to_string(),
-                from: claim.linux.clone(),
+                platform: native_platform.to_string(),
+                from: claimed.to_string(),
                 to: "implemented".to_string(),
                 reason: format!(
                     "compat-matrix run ({native_lane} lane): {decoded} corpus tracks of codec \
                      `{}` decode through the real player path (underclaim — the matrix says {})",
-                    decoded, claim.linux
+                    decoded, claimed
                 ),
                 next_step: "n/a (upgrade with run evidence; the applier verifies the from-status)"
                     .to_string(),
-                evidence: evidence.to_string(),
+                evidence: run_evidence.to_string(),
             });
         }
         _ => {}
@@ -1405,6 +1453,7 @@ fn civil_from_days(days: i64) -> (i64, u32, u32) {
 // ---------------------------------------------------------------------------
 
 fn render_markdown(config: &Config, report: &RunReport) -> String {
+    let native_platform = native_platform_of(config);
     let mut out = String::with_capacity(48 * 1024);
     out.push_str(
         "# Full-corpus compatibility matrix — 2026-11-10 (issue #53, cards 8.B1–8.B2)\n\n",
@@ -1492,7 +1541,9 @@ fn render_markdown(config: &Config, report: &RunReport) -> String {
 
     // The format matrix.
     out.push_str("## 3. Container formats × lanes\n\n");
-    out.push_str("| probe format | claimed (linux) | corpus files |");
+    out.push_str(&format!(
+        "| probe format | claimed ({native_platform}) | corpus files |"
+    ));
     for lane in &report.lanes {
         out.push_str(&format!(" {} |", lane.id));
     }
@@ -1546,7 +1597,9 @@ fn render_markdown(config: &Config, report: &RunReport) -> String {
 
     // The codec matrix.
     out.push_str("## 4. Codec families × lanes\n\n");
-    out.push_str("| codec | claimed (linux) | corpus files |");
+    out.push_str(&format!(
+        "| codec | claimed ({native_platform}) | corpus files |"
+    ));
     for lane in &report.lanes {
         out.push_str(&format!(" {} |", lane.id));
     }
@@ -1725,9 +1778,21 @@ fn native_lane_of(config: &Config) -> String {
     config
         .lanes
         .iter()
-        .find(|lane| matches!(lane.kind, LaneKind::NativeDecode))
+        .find(|lane| matches!(lane.kind, LaneKind::NativeDecode { .. }))
         .map(|lane| lane.id.clone())
         .unwrap_or_else(|| "linux-native".to_string())
+}
+
+/// The native lane's platform column of this config (config/2).
+fn native_platform_of(config: &Config) -> String {
+    config
+        .lanes
+        .iter()
+        .find_map(|lane| match &lane.kind {
+            LaneKind::NativeDecode { platform } => Some(platform.clone()),
+            _ => None,
+        })
+        .unwrap_or_else(|| "linux".to_string())
 }
 
 /// Shorten a matrix row id for the table (`container-avi` → `avi`).

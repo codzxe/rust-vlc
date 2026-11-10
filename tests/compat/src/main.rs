@@ -31,7 +31,7 @@
 //! `feature-audit` judges). Nothing here self-verifies (MP §15).
 //!
 //! Everything user-visible is config-driven (`compat-matrix.json`,
-//! schema `compat-matrix/config/1`): corpus roots, media extensions,
+//! schema `compat-matrix/config/2`): corpus roots, media extensions,
 //! the regenerable-corpus manifest + cache, oracle invocation + record
 //! paths, tolerance thresholds, lane step commands, report paths.
 //!

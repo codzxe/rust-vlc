@@ -1,4 +1,4 @@
-//! The runner's config (schema `compat-matrix/config/1`).
+//! The runner's config (schema `compat-matrix/config/2`).
 //!
 //! Everything user-visible is here, never in code (the C1 rule, doc 07
 //! §9): corpus roots and media extensions, the regenerable-corpus
@@ -6,6 +6,15 @@
 //! f32 tolerance thresholds (the ratified policy values, cited), the
 //! lane step commands, the probe-format/codec → feature-matrix row
 //! mapping, and the report paths.
+//!
+//! Schema history: `/1` → `/2` (2026-11-10, issue #53 CI wiring): the
+//! native-decode lane kind gained the REQUIRED `platform` field — the
+//! feature-matrix column this host's sweep is evidence for. The 8.B1
+//! run hard-coded `linux` (the lane that ran); the 3-OS CI lanes need
+//! the attribution explicit, or a windows-runner sweep would propose
+//! `linux`-cell transitions from windows evidence. The schema string
+//! is bumped because old configs (no `platform`) must be refused, not
+//! silently defaulted.
 
 use std::path::{Path, PathBuf};
 
@@ -17,7 +26,7 @@ use crate::ToolError;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
-    /// Schema discriminator (`compat-matrix/config/1`).
+    /// Schema discriminator (`compat-matrix/config/2`).
     pub schema: String,
     /// The workspace root the relative paths resolve against
     /// (captured at load time, not serialized).
@@ -139,7 +148,13 @@ pub struct Lane {
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub enum LaneKind {
     /// This run's own decode sweep (the host the runner executes on).
-    NativeDecode,
+    /// `platform` is the feature-matrix column the sweep is evidence
+    /// for (`linux` | `windows` | `macos` — `web` is the steps lane,
+    /// never a native sweep): the gap rules compare against that
+    /// column's claim and the outbox's transitions carry it. REQUIRED
+    /// since config/2 — never defaulted (a wrong attribution would
+    /// propose transitions for the wrong platform's cells).
+    NativeDecode { platform: String },
     /// Command steps executed for real by this run (each recorded:
     /// exit code, duration, artifacts).
     Steps { steps: Vec<Step> },
@@ -206,7 +221,7 @@ pub struct CodecRow {
 
 /// One feature-matrix row's claimed statuses (the snapshot the
 /// runner diffs against; all four platform columns recorded for
-/// honesty, the gap rules act on the lane that ran — linux).
+/// honesty, the gap rules act on the native lane's platform).
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MatrixClaim {
@@ -220,6 +235,25 @@ pub struct MatrixClaim {
     pub macos: String,
     /// The claimed web status.
     pub web: String,
+}
+
+impl MatrixClaim {
+    /// The claimed status of one platform column (`windows` | `linux`
+    /// | `macos` | `web`). Callers pass the native lane's platform —
+    /// never a hand-picked column — so a sweep's gap rules always
+    /// judge the column the sweep is evidence for. The native
+    /// platform is validated to windows/linux/macos at config load,
+    /// so the catch-all arm is unreachable in practice and only
+    /// exists to keep the match total without a panic (denied here).
+    pub fn status_for(&self, platform: &str) -> &str {
+        match platform {
+            "windows" => &self.windows,
+            "linux" => &self.linux,
+            "macos" => &self.macos,
+            "web" => &self.web,
+            _ => &self.linux,
+        }
+    }
 }
 
 /// Report destinations.
@@ -254,9 +288,10 @@ pub fn load(path: &Path) -> Result<Config, ToolError> {
         .map_err(|e| ToolError::io(format!("reading config {}", path.display()), e))?;
     let mut config: Config = serde_json::from_str(&text)
         .map_err(|e| ToolError::config(format!("parsing {}: {e}", path.display())))?;
-    if config.schema != "compat-matrix/config/1" {
+    if config.schema != "compat-matrix/config/2" {
         return Err(ToolError::config(format!(
-            "unsupported schema {:?} (want \"compat-matrix/config/1\")",
+            "unsupported schema {:?} (want \"compat-matrix/config/2\" — see the config.rs \
+             schema-history note)",
             config.schema
         )));
     }
@@ -272,13 +307,24 @@ pub fn load(path: &Path) -> Result<Config, ToolError> {
     let native = config
         .lanes
         .iter()
-        .filter(|lane| matches!(lane.kind, LaneKind::NativeDecode))
+        .filter(|lane| matches!(lane.kind, LaneKind::NativeDecode { .. }))
         .count();
     if native != 1 {
         return Err(ToolError::config(format!(
             "exactly one native-decode lane is required (found {native}) — the runner decodes \
              on exactly one host per run"
         )));
+    }
+    for lane in &config.lanes {
+        if let LaneKind::NativeDecode { platform } = &lane.kind
+            && !matches!(platform.as_str(), "windows" | "linux" | "macos")
+        {
+            return Err(ToolError::config(format!(
+                "lane {:?}: native-decode platform must be one of windows/linux/macos (got \
+                 {platform:?} — `web` is the steps lane, never a native sweep)",
+                lane.id
+            )));
+        }
     }
     let mut lane_ids: Vec<&str> = config.lanes.iter().map(|lane| lane.id.as_str()).collect();
     lane_ids.sort_unstable();

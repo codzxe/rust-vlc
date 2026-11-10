@@ -1,5 +1,5 @@
 {
- "schema": "compat-matrix/config/1",
+ "schema": "compat-matrix/config/2",
  "corpus": {
   "committed_roots": [
    "tests/fixtures/generated/valid",
@@ -124,7 +124,8 @@
   {
    "id": "linux-native",
    "kind": {
-    "type": "native-decode"
+    "type": "native-decode",
+    "platform": "linux"
    },
    "label": "Linux native decode (this host \u2014 the lane that actually ran)"
   },
