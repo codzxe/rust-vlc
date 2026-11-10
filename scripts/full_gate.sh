@@ -67,5 +67,14 @@ else
   echo "sbom: FAILED"; tail -5 /tmp/sbom.log; fail=1
 fi
 
+# Step 10 is the W24-B soak lane's slot (issue #54, card 8.C1 — sibling
+# worktree, lands via its own commit; numbering per the wave-24 plan).
+echo "=== 11. packaging gate (issue #56 / cards 8.E1–8.E3 — packaging.toml schema + packaging script syntax + payload stagers + unsigned-fallback contracts) ==="
+if bash scripts/packaging/gate.sh > /tmp/packaging-gate.log 2>&1; then
+  tail -1 /tmp/packaging-gate.log; echo "packaging: PASS"
+else
+  echo "packaging: FAILED"; tail -25 /tmp/packaging-gate.log; fail=1
+fi
+
 echo "=== GATE RESULT: $([ $fail -eq 0 ] && echo PASS || echo FAIL) ==="
 exit $fail

@@ -33,12 +33,19 @@
 #      with the desktop skeleton code (no FUSE needed — same mechanism
 #      as the build step).
 #   7. tar.gz member check against the same [shipped] list.
-#   8. Per-artifact-set SBOM: cargo run -p xtask --locked -- sbom
-#      --out dist/<base>.<suffix> (CycloneDX 1.5, lockfile-derived —
-#      content identical per set, generated per artifact so each
-#      download is self-contained).
+#   8. Per-artifact-set SBOM: gen-sboms.sh (the ONE writer — wraps
+#      `cargo run -p xtask --locked -- sbom`, CycloneDX per config,
+#      lockfile-derived; content identical per set, generated per
+#      artifact so each download is self-contained).
 #   9. Checksum manifest: dist/<manifest> over every artifact (+ each
 #      SBOM), with the algorithm from packaging.toml [checksum].
+#
+# NOTE for CI (release.yml Linux jobs): the per-set manifest this
+# script writes (PACKAGING_CHECKSUM_MANIFEST name) is RENAMED to
+# <base>.<manifest> by the workflow right after this script, so the
+# x86_64 and aarch64 sets do not collide when the release job
+# flat-merges the dist artifacts; the release job then writes THE
+# global manifest under the plain configured name.
 #
 # Usage: verify-linux-artifacts.sh   (env from packaging-env.py +
 #        APPIMAGETOOL + RUNTIME_FILE + built release binaries)
@@ -198,20 +205,16 @@ for member in "$BIN_CLI" "$BIN_DESKTOP" $PACKAGING_DOCS; do
 done
 echo "  tar.gz members: $(printf '%s\n' "$tar_list" | tr '\n' ' ')"
 
-echo "=== 8. per-artifact-set SBOM (xtask sbom, CycloneDX 1.5) ==="
-sbom_subjects="$base.tar.gz $base.deb $base.AppImage"
+echo "=== 8. per-artifact-set SBOM (gen-sboms.sh — the ONE writer) ==="
+# The subjects are exactly this set's artifacts: tar.gz + deb +
+# AppImage + the rpm (CI) or the spec (rpmbuild-less hosts).
+set -- "$dist_abs/$base.tar.gz" "$dist_abs/$base.deb" "$dist_abs/$base.AppImage"
 if [ -n "$rpm_path" ]; then
-    sbom_subjects="$sbom_subjects $base.rpm"
+    set -- "$@" "$rpm_path"
 else
-    sbom_subjects="$sbom_subjects $base.spec"
+    set -- "$@" "$dist_abs/$base.spec"
 fi
-for artifact_base in $sbom_subjects; do
-    sbom_out="$dist_abs/${artifact_base}.${PACKAGING_SBOM_ARTIFACT_SUFFIX}"
-    cargo run -p xtask --locked -- sbom --out "$sbom_out" >/dev/null ||
-        die "xtask sbom failed for $sbom_out"
-    [ -s "$sbom_out" ] || die "SBOM missing or empty: $sbom_out"
-    echo "  SBOM: $sbom_out ($(wc -c <"$sbom_out") bytes)"
-done
+scripts/packaging/gen-sboms.sh "$@"
 
 echo "=== 9. checksum manifest ==="
 case "$PACKAGING_CHECKSUM_ALGORITHM" in

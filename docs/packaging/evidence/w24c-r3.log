@@ -1,0 +1,189 @@
+W24-C r3 evidence — 2026-11-10 (branch w24/c)
+==================================================
+Local proof battery for the r3 landing: the REFACTORED Linux lane
+(verify-linux-artifacts.sh step 8 now calls gen-sboms.sh — the ONE
+SBOM writer), gen-sboms.sh negative test, the packaging gate
+(full_gate step 11 body), release.yml validation, and a REAL dry-run
+of the release job's kind-check + global-manifest steps.
+
+Host: Linux x86_64 (dpkg amd64), this build sandbox.
+Binaries: target/release/{lumen,lumen-desktop} from the SHARED cargo
+target dir (built from origin/main Rust sources; this branch's delta
+vs origin/main is packaging/scripts/docs/workflows ONLY — zero Rust
+files — so the binaries are what this branch would build; verified:
+'lumen --version' exit 0, 'lumen-desktop' exit 86 below).
+Tools: appimagetool 1.9.1 x86_64 (SHA-256 ed4ce84f...84eb0) + type2
+runtime 20251108 x86_64 (2fca8b44...260d) — the release.yml pins,
+both SHA-256-verified at download.
+
+=== 1. verify-linux-artifacts.sh — FULL re-run (refactored step 8) ===
+=== 1. build .tar.gz (plain archive lane) ===
+build-targz.sh: wrote /tmp/w24c-dist2/lumen-0.1.0-dev-x86_64-linux.tar.gz
+=== 2. build .deb (native dpkg-deb; config-driven payload) ===
+gen-icon: wrote /tmp/tmp.xJ4yRJ6vU9/root/usr/share/icons/hicolor/512x512/apps/lumen.png (512x512 RGBA, fill #4f8cff, 1819 bytes)
+dpkg-deb: building package 'lumen' in '/tmp/w24c-dist2/lumen-0.1.0-dev-x86_64-linux.deb'.
+build-deb.sh: wrote /tmp/w24c-dist2/lumen-0.1.0-dev-x86_64-linux.deb (arch=amd64, section=video)
+=== 3. build .AppImage (pinned appimagetool; shared desktop entry) ===
+gen-icon: wrote /tmp/tmp.cE49RrHXe9/lumen.png (512x512 RGBA, fill #4f8cff, 1819 bytes)
+appimagetool, continuous build (git version 8c8c91f), build 296 built on 2025-12-04 17:55:56 UTC
+WARNING: appstreamcli command is missing, please install it if you want to use AppStream metadata
+Using architecture x86_64
+WARNING: AppStream upstream metadata is missing, please consider creating it
+         in usr/share/metainfo/lumen.appdata.xml
+         Please see https://www.freedesktop.org/software/appstream/docs/chap-Quickstart.html#sect-Quickstart-DesktopApps
+         for more information or use the generator at
+         https://docs.appimage.org/packaging-guide/optional/appstream.html#using-the-appstream-generator
+Generating squashfs...
+Parallel mksquashfs: Using 2 processors
+Creating 4.0 filesystem on /tmp/w24c-dist2/lumen-0.1.0-dev-x86_64-linux.AppImage, block size 131072.
+[=================================================================/] 10/10 100%
+
+Exportable Squashfs 4.0 filesystem, zstd compressed, data block size 131072
+	compressed data, compressed metadata, compressed fragments,
+	compressed xattrs, compressed ids
+	duplicates are removed
+Filesystem size 320.28 Kbytes (0.31 Mbytes)
+	36.01% of uncompressed filesystem size (889.45 Kbytes)
+Inode table size 149 bytes (0.15 Kbytes)
+	51.92% of uncompressed inode table size (287 bytes)
+Directory table size 116 bytes (0.11 Kbytes)
+	77.85% of uncompressed directory table size (149 bytes)
+Number of duplicate files found 0
+Number of inodes 8
+Number of files 4
+Number of fragments 1
+Number of symbolic links 1
+Number of device nodes 0
+Number of fifo nodes 0
+Number of socket nodes 0
+Number of directories 3
+Number of hard-links 0
+Number of ids (unique uids + gids) 1
+Number of uids 1
+	root (0)
+Number of gids 1
+	root (0)
+Embedding ELF...
+Marking the AppImage as executable...
+Embedding MD5 digest
+Success
+
+Please consider submitting your AppImage to AppImageHub, the crowd-sourced
+central directory of available AppImages, by opening a pull request
+at https://github.com/AppImage/appimage.github.io
+/tmp/tmp.cE49RrHXe9/AppDir should be packaged as /tmp/w24c-dist2/lumen-0.1.0-dev-x86_64-linux.AppImage
+build-appimage.sh: wrote /tmp/w24c-dist2/lumen-0.1.0-dev-x86_64-linux.AppImage
+=== 4. rpm lane ===
+  rpmbuild absent on this host -- spec-only (the binary .rpm
+  build runs in the CI lane where rpm is installed; labeled,
+  never faked)
+gen-icon: wrote /tmp/tmp.85mpjpHo5B/lumen-0.1.0-dev/usr/share/icons/hicolor/512x512/apps/lumen.png (512x512 RGBA, fill #4f8cff, 1819 bytes)
+build-rpm.sh: wrote + validated /tmp/w24c-dist2/lumen-0.1.0-dev-x86_64-linux.spec (rpm_version=0.1.0~dev)
+build-rpm.sh: spec-only mode — binary build needs rpmbuild (CI lane; local proof covers generation + validation only)
+=== 5. deb launch tests (extraction — no root) ===
+  CLI --version: lumen 0.1.0
+  CLI smoke decode: BENCH file=tests/fixtures/generated/valid/wav_pcm_s16le_44k1_st.wav bytes=35358 v_frames=0 v_decoded=0 a_frames=1 a_decoded=1 wall_s=0.000 decode_s=0.000
+  desktop skeleton: exit 86 (as documented)
+  deb control: Package=lumen
+  deb control: Version=0.1.0-dev
+  deb control: Architecture=amd64
+  deb payload docs: LICENSE README.md
+=== 6. AppImage launch test (extract-and-run; no FUSE) ===
+  AppImage skeleton: exit 86 (as documented)
+=== 7. tar.gz content check (the shipped list, cross-checked) ===
+  tar.gz members: lumen lumen-desktop LICENSE README.md 
+=== 8. per-artifact-set SBOM (gen-sboms.sh — the ONE writer) ===
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.08s
+     Running `/home/z/my-project/rust-vlc/target/debug/xtask sbom --out /tmp/w24c-dist2/lumen-0.1.0-dev-x86_64-linux.tar.gz.sbom.cdx.json`
+gen-sboms.sh: wrote /tmp/w24c-dist2/lumen-0.1.0-dev-x86_64-linux.tar.gz.sbom.cdx.json (121900 bytes, CycloneDX 1.5)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
+     Running `/home/z/my-project/rust-vlc/target/debug/xtask sbom --out /tmp/w24c-dist2/lumen-0.1.0-dev-x86_64-linux.deb.sbom.cdx.json`
+gen-sboms.sh: wrote /tmp/w24c-dist2/lumen-0.1.0-dev-x86_64-linux.deb.sbom.cdx.json (121900 bytes, CycloneDX 1.5)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
+     Running `/home/z/my-project/rust-vlc/target/debug/xtask sbom --out /tmp/w24c-dist2/lumen-0.1.0-dev-x86_64-linux.AppImage.sbom.cdx.json`
+gen-sboms.sh: wrote /tmp/w24c-dist2/lumen-0.1.0-dev-x86_64-linux.AppImage.sbom.cdx.json (121900 bytes, CycloneDX 1.5)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+     Running `/home/z/my-project/rust-vlc/target/debug/xtask sbom --out /tmp/w24c-dist2/lumen-0.1.0-dev-x86_64-linux.spec.sbom.cdx.json`
+gen-sboms.sh: wrote /tmp/w24c-dist2/lumen-0.1.0-dev-x86_64-linux.spec.sbom.cdx.json (121900 bytes, CycloneDX 1.5)
+=== 9. checksum manifest ===
+  manifest: /tmp/w24c-dist2/SHA256SUMS.txt
+78f81c0f687d439fc228f228ba987bf77dbc6bb9255de0dd03624d2c1b121a85  /tmp/w24c-dist2/lumen-0.1.0-dev-x86_64-linux.tar.gz
+0e279eba1058f34ce529b4c227bdc19b230f53b82f6210aca7c80e5d1bb5b069  /tmp/w24c-dist2/lumen-0.1.0-dev-x86_64-linux.deb
+9fd200fe77626807e4df3f012342f2ce4a0e1f53e717d0813edcf72a3295cc33  /tmp/w24c-dist2/lumen-0.1.0-dev-x86_64-linux.AppImage
+17bd1068c8185ffec55a04022fb2a7b00859feb20da2cfd7d272a001837971e4  /tmp/w24c-dist2/lumen-0.1.0-dev-x86_64-linux.spec
+f0b22c1bc2a8705d5d1f6e330efa201e842fa70eaf84bb626580ff8af6b75ad7  /tmp/w24c-dist2/lumen-0.1.0-dev-x86_64-linux.tar.gz.sbom.cdx.json
+f0b22c1bc2a8705d5d1f6e330efa201e842fa70eaf84bb626580ff8af6b75ad7  /tmp/w24c-dist2/lumen-0.1.0-dev-x86_64-linux.deb.sbom.cdx.json
+f0b22c1bc2a8705d5d1f6e330efa201e842fa70eaf84bb626580ff8af6b75ad7  /tmp/w24c-dist2/lumen-0.1.0-dev-x86_64-linux.AppImage.sbom.cdx.json
+f0b22c1bc2a8705d5d1f6e330efa201e842fa70eaf84bb626580ff8af6b75ad7  /tmp/w24c-dist2/lumen-0.1.0-dev-x86_64-linux.spec.sbom.cdx.json
+verify-linux-artifacts.sh: PASS — tar.gz + deb + AppImage (+ rpm where rpmbuild exists) built, packaged binaries launch-tested, SBOMs + checksums written
+verify-linux-artifacts.sh exit=0
+
+=== 2. gen-sboms.sh — specVersion drift NEGATIVE test ===
+exit=1 (nonzero expected: config-vs-code drift is a hard error)
+
+=== 3. scripts/packaging/gate.sh (full_gate step 11 body) ===
+gate.sh: 1. packaging.toml <-> packaging.schema.json + product bridge
+gate.sh:    packaging-env.py: 51 variables resolved (schema + semantic pass green)
+gate.sh: 2. scripts/packaging/*.sh parse under bash -n AND sh -n
+gate.sh:    all 14 scripts parse clean
+gate.sh: 3. packaging python tools parse (ast.parse — no bytecode written)
+gate.sh:    python tools parse
+gate.sh: 4. scripts/packaging/*.ps1 structural check (no pwsh in this sandbox)
+gate.sh:    ps1 structural checks pass (real parse: Windows runner [VERIFY])
+gate.sh: 5. gen-desktop-entry.sh + stage-linux-payload.sh (throwaway tree)
+gate.sh:    stager refuses loudly without built binaries (as designed)
+gate.sh:    gen-desktop-entry.sh content matches config
+gate.sh: 6. sign-windows.sh / sign-macos.sh .UNSIGNED fallback (credentials absent)
+gate.sh:    sign-windows.sh: unsigned sidecar contract holds
+gate.sh:    sign-macos.sh: unsigned sidecar contract holds
+gate.sh: PASS (packaging config + scripts + local-provable halves)
+gate.sh exit=0
+
+=== 4. release.yml validation ===
+yaml.safe_load: OK — 6 jobs (windows, macos-arm64, macos-x64, linux-x64, linux-arm64, release), 63 steps
+bash -n over all 41 run blocks (${{...}}-neutralized): ALL PASS
+
+=== 5. release-job dry-run (kind check + global manifest, verbatim bodies) ===
+(dist/ = the fresh artifact set from step 1 + the per-set manifest
+ renamed the way the workflow's Linux jobs rename it)
+::warning::artifact kind missing: windows.zip (arm64 best-effort or job failure — check the build jobs)
+::warning::artifact kind missing: windows.msi (arm64 best-effort or job failure — check the build jobs)
+::warning::artifact kind missing: macos.dmg (arm64 best-effort or job failure — check the build jobs)
+::warning::artifact kind missing: macos.zip (arm64 best-effort or job failure — check the build jobs)
+artifact kind present: linux.tar.gz
+artifact kind present: linux.deb
+artifact kind present: linux.AppImage
+::warning::artifact kind missing: linux.rpm (arm64 best-effort or job failure — check the build jobs)
+per-artifact SBOMs present (suffix .sbom.cdx.json)
+global SHA256SUMS.txt (self-excluded; per-set manifest hashed as an ordinary asset):
+9fd200fe77626807e4df3f012342f2ce4a0e1f53e717d0813edcf72a3295cc33  lumen-0.1.0-dev-x86_64-linux.AppImage
+f0b22c1bc2a8705d5d1f6e330efa201e842fa70eaf84bb626580ff8af6b75ad7  lumen-0.1.0-dev-x86_64-linux.AppImage.sbom.cdx.json
+cffec8694b71b1f20b20ceb85947130dcfa7dbb470ffd63ad4c7237eba884e2a  lumen-0.1.0-dev-x86_64-linux.SHA256SUMS.txt
+0e279eba1058f34ce529b4c227bdc19b230f53b82f6210aca7c80e5d1bb5b069  lumen-0.1.0-dev-x86_64-linux.deb
+f0b22c1bc2a8705d5d1f6e330efa201e842fa70eaf84bb626580ff8af6b75ad7  lumen-0.1.0-dev-x86_64-linux.deb.sbom.cdx.json
+17bd1068c8185ffec55a04022fb2a7b00859feb20da2cfd7d272a001837971e4  lumen-0.1.0-dev-x86_64-linux.spec
+f0b22c1bc2a8705d5d1f6e330efa201e842fa70eaf84bb626580ff8af6b75ad7  lumen-0.1.0-dev-x86_64-linux.spec.sbom.cdx.json
+78f81c0f687d439fc228f228ba987bf77dbc6bb9255de0dd03624d2c1b121a85  lumen-0.1.0-dev-x86_64-linux.tar.gz
+f0b22c1bc2a8705d5d1f6e330efa201e842fa70eaf84bb626580ff8af6b75ad7  lumen-0.1.0-dev-x86_64-linux.tar.gz.sbom.cdx.json
+
+--- r3 bug caught by this dry-run: the wave-22 kind glob 'dist/*."$kind"'
+    matched NOTHING (artifact names dash-join the OS segment:
+    <base>-linux.tar.gz, not <base>.linux.tar.gz) — the check was a
+    latent no-op that always warned. Fixed in release.yml to
+    'dist/*-"$kind"'; re-verified above: linux.tar.gz/.deb/.AppImage
+    now report PRESENT, linux.rpm honestly warns (only the spec is
+    built on this rpmbuild-less host; the CI lane installs rpm). ---
+
+=== 6. fresh artifact set (kept in /tmp/w24c-dist2 out of the repo) ===
+total 6748
+-rw-rw-r-- 1 z z     994 Nov 10 17:57 SHA256SUMS.txt
+-rwxr-xr-x 1 z z 1276408 Nov 10 17:57 lumen-0.1.0-dev-x86_64-linux.AppImage
+-rw-rw-r-- 1 z z  121900 Nov 10 17:57 lumen-0.1.0-dev-x86_64-linux.AppImage.sbom.cdx.json
+-rw-r--r-- 1 z z 2073444 Nov 10 17:57 lumen-0.1.0-dev-x86_64-linux.deb
+-rw-rw-r-- 1 z z  121900 Nov 10 17:57 lumen-0.1.0-dev-x86_64-linux.deb.sbom.cdx.json
+-rw-rw-r-- 1 z z    1038 Nov 10 17:57 lumen-0.1.0-dev-x86_64-linux.spec
+-rw-rw-r-- 1 z z  121900 Nov 10 17:57 lumen-0.1.0-dev-x86_64-linux.spec.sbom.cdx.json
+-rw-rw-r-- 1 z z 3054325 Nov 10 17:57 lumen-0.1.0-dev-x86_64-linux.tar.gz
+-rw-rw-r-- 1 z z  121900 Nov 10 17:57 lumen-0.1.0-dev-x86_64-linux.tar.gz.sbom.cdx.json
+
+r3 battery: PASS

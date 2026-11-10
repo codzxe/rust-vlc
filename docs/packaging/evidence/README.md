@@ -20,17 +20,20 @@ run]` in the scripts and tracked in the blockers table of
 
 What the log proves, end to end (exit 0):
 
-1. **Real .deb** via native `dpkg-deb` from the config-driven payload
+1. **Real .tar.gz** flat archive — both binaries + the
+   `packaging.toml [shipped]` docs list at the archive root (step 7
+   cross-checks the member list against the same config).
+2. **Real .deb** via native `dpkg-deb` from the config-driven payload
    (`stage-linux-payload.sh`); control fields asserted equal to config
    (`Package=lumen`, `Version=0.1.0-dev`, `Architecture=amd64`,
    `Section=video` from packaging.toml).
-2. **Real .AppImage** via the pinned appimagetool + pinned runtime
+3. **Real .AppImage** via the pinned appimagetool + pinned runtime
    (`--runtime-file`, no rolling runtime fetch); shared desktop entry.
-3. **rpm .spec** generated + structurally validated
+4. **rpm .spec** generated + structurally validated
    (`rpm_version=0.1.0~dev`: the `-dev` pre-release mapped to RPM's
    tilde). Binary `.rpm` build needs `rpmbuild` — CI lane, honestly
    labeled in the log itself.
-4. **Launch tests on the PACKAGED binaries** (extracted from the deb
+5. **Launch tests on the PACKAGED binaries** (extracted from the deb
    with `dpkg-deb -x`, no root):
    - `usr/bin/lumen --version` → `lumen 0.1.0`, exit 0;
    - `usr/bin/lumen decode-bench tests/fixtures/generated/valid/wav_pcm_s16le_44k1_st.wav`
@@ -41,23 +44,25 @@ What the log proves, end to end (exit 0):
      `launch_test.desktop_pending_exit`);
    - the AppImage itself, `APPIMAGE_EXTRACT_AND_RUN=1`, → exit 86
      (same documented contract, through the AppRun launcher).
-5. **Per-artifact-set SBOMs** — `xtask sbom --out` (CycloneDX 1.5,
+6. **Per-artifact-set SBOMs** — `xtask sbom --out` (CycloneDX 1.5,
    121,900 bytes each, byte-identical content: lockfile-derived, as
-   designed) for the `.deb`, `.AppImage` and `.spec` sets.
-6. **SHA256SUMS.txt** written over all six artifacts (the manifest
+   designed) for the `.tar.gz`, `.deb`, `.AppImage` and `.spec` sets.
+7. **SHA256SUMS.txt** written over all eight artifacts (the manifest
    itself excluded — hashed before it exists).
 
 Artifacts produced (kept out of the repo on purpose — the log + this
-table are the record):
+table are the record; `/tmp` on the build host is volatile, the logs
+are committed):
 
 | Artifact | Size | SHA-256 (prefix) |
 |---|---|---|
+| `lumen-0.1.0-dev-x86_64-linux.tar.gz` | 3,054,327 B | `3b5eae753466…` |
 | `lumen-0.1.0-dev-x86_64-linux.deb` | 2,070,916 B | `b3735fdc84d2…` |
 | `lumen-0.1.0-dev-x86_64-linux.AppImage` | 1,276,408 B | `5bd0ff0dd309…` |
 | `lumen-0.1.0-dev-x86_64-linux.spec` | 1,038 B | `17bd1068c818…` |
-| 3 × `*.sbom.cdx.json` | 121,900 B each | `f0b22c1bc2a8…` (identical, by design) |
+| 4 × `*.sbom.cdx.json` | 121,900 B each | `f0b22c1bc2a8…` (identical, by design) |
 
-Full digests are in the log (step 7).
+Full digests are in the log (step 9 of the run).
 
 ### Honest notes
 
@@ -80,3 +85,29 @@ Full digests are in the log (step 7).
 `scripts/packaging/gate.sh` (the body of full_gate step 11) passes all
 six steps on this host; the run that matters is the one executed by
 `scripts/full_gate.sh` step 11 (see the repository gate logs).
+
+## `w24c-r3.log` — the r3 landing battery (task W24-C r3)
+
+Same host, same pinned tools, 2026-11-10. Covers the r3 changes:
+
+1. **verify-linux-artifacts.sh FULL re-run** after the step-8 refactor
+   onto `gen-sboms.sh` (the ONE SBOM writer) — fresh artifact set,
+   launch tests green, exit 0. Binary provenance noted honestly in the
+   log: the shared-target-dir release binaries (this branch's delta vs
+   origin/main touches no Rust file).
+2. **gen-sboms.sh specVersion drift negative test** — a mismatch
+   between `packaging.toml [sbom] spec_version` and what the xtask
+   generator emitted is a hard error (exit 1), proven by forcing one.
+3. **gate.sh** — full pass (as above).
+4. **release.yml validation** — `yaml.safe_load` (6 jobs / 63 steps) +
+   `bash -n` over all 41 run blocks (with `${{ }}` expressions
+   neutralized, as the runner resolves them before bash).
+5. **Release-job dry-run on real artifacts** — the kind-check and
+   global-manifest step bodies executed verbatim against the step-1
+   artifact set. This dry-run CAUGHT A REAL WAVE-22 BUG: the kind glob
+   `dist/*."$kind"` matched nothing (artifact names dash-join the OS
+   segment), making the check a silent no-op — fixed to `dist/*-"$kind"`
+   in the same change and re-verified in the log.
+6. The fresh artifact table (tar.gz 3,054,325 B · deb 2,073,444 B ·
+   AppImage 1,276,408 B · spec 1,038 B · 4 × SBOM 121,900 B; full
+   digests in the log).
