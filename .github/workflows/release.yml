@@ -50,8 +50,11 @@
 # the signing steps' env: blocks — GitHub's secrets context only takes
 # static keys, so the secret NAMES configured in packaging.toml
 # [signing.*] are repeated there; every mapping is guarded by a
-# fail-loud cross-check against the config (a step errors if a name
-# drifts), so the TOML stays the source of truth (W24-R1 P1-2).
+# fail-loud cross-check whose expected set is DERIVED FROM
+# packaging.toml at guard time (a step errors if a name drifts OR if a
+# future [signing.*] *_env key is added without a mapping), so the
+# TOML stays the source of truth (W24-R1 P1-2; W24-R6 P4-1 hardening,
+# W24-Q).
 #
 # LANE MAP (per-platform jobs -> scripts/packaging/* drivers):
 #   windows: build-zip.sh (flat zip) + build-msi.sh (gen-wxs + WiX +
@@ -190,15 +193,33 @@ jobs:
           WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
         run: |
           # Fail-loud wiring guard: every secret name configured in
-          # packaging.toml [signing.windows] (bridge vars
-          # PACKAGING_SIGNING_WINDOWS_*_ENV, exported into the job env by
-          # the parse step) must be mapped in this step's env: block.
-          # An unmapped name is UNSET — how a config rename that outlived
-          # this mapping would silently disable signing — while an
-          # absent-but-mapped secret is an empty string (honest unsigned).
-          for cfg in PACKAGING_SIGNING_WINDOWS_PFX_B64_ENV \
-                     PACKAGING_SIGNING_WINDOWS_PFX_PASSWORD_ENV; do
-            name="${!cfg}"
+          # packaging.toml [signing.windows] must be mapped in this
+          # step's env: block. The expected set is DERIVED FROM
+          # packaging.toml AT GUARD TIME (python parses the same TOML the
+          # parse step schema-validated; every [signing.*] key ending in
+          # _env names a secret), so a future [signing.*] key is
+          # automatically required to be mapped too — the guard no longer
+          # enumerates only the names it knows (W24-R1 P1-2, hardened in
+          # W24-Q after W24-R6 P4-1). An unmapped name is UNSET — how a
+          # config change that outlived this mapping would silently
+          # disable signing — while an absent-but-mapped secret is an
+          # empty string (honest unsigned).
+          PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          for cfg in $("$PY" - windows <<'PYEOF'
+          import sys, tomllib
+          with open("packaging/packaging.toml", "rb") as fh:
+              signing = tomllib.load(fh)["signing"]
+          for section in sys.argv[1:]:
+              for key in sorted(signing[section]):
+                  if key.endswith("_env"):
+                      print(f"PACKAGING_SIGNING_{section.upper()}_{key.upper()}")
+          PYEOF
+          ); do
+            name="${!cfg-}"
+            if [ -z "$name" ]; then
+              echo "::error::$cfg is not exported — packaging.toml [signing.*] and scripts/packaging/packaging-env.py are out of sync (the bridge must export every [signing.*] *_env key)"
+              exit 1
+            fi
             if [ -z "${!name+x}" ]; then
               echo "::error::secret wiring gap: packaging.toml names \$$name but this step's env: block does not map it — update the mapping (docs/packaging/README.md blockers table)"
               exit 1
@@ -307,18 +328,30 @@ jobs:
           APPLE_API_KEY_B64: ${{ secrets.APPLE_API_KEY_B64 }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: |
-          # Fail-loud wiring guard: every secret name configured in
-          # packaging.toml [signing.macos] (bridge vars
-          # PACKAGING_SIGNING_MACOS_*_ENV) must be mapped in this step's
-          # env: block — unset means wiring gap, empty means absent
-          # credential (the honest unsigned path).
-          for cfg in PACKAGING_SIGNING_MACOS_IDENTITY_ENV \
-                     PACKAGING_SIGNING_MACOS_P12_B64_ENV \
-                     PACKAGING_SIGNING_MACOS_P12_PASSWORD_ENV \
-                     PACKAGING_SIGNING_MACOS_NOTARY_KEY_ID_ENV \
-                     PACKAGING_SIGNING_MACOS_NOTARY_KEY_B64_ENV \
-                     PACKAGING_SIGNING_MACOS_NOTARY_ISSUER_ENV; do
-            name="${!cfg}"
+          # Fail-loud wiring guard (W24-R1 P1-2; W24-Q hardening after
+          # W24-R6 P4-1): every secret name configured in packaging.toml
+          # [signing.macos] must be mapped in this step's env: block —
+          # unset means wiring gap, empty means absent credential (the
+          # honest unsigned path). The expected set is DERIVED FROM
+          # packaging.toml at guard time (python parses the same TOML the
+          # parse step schema-validated), so a future [signing.macos]
+          # key is automatically required to be mapped too.
+          PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          for cfg in $("$PY" - macos <<'PYEOF'
+          import sys, tomllib
+          with open("packaging/packaging.toml", "rb") as fh:
+              signing = tomllib.load(fh)["signing"]
+          for section in sys.argv[1:]:
+              for key in sorted(signing[section]):
+                  if key.endswith("_env"):
+                      print(f"PACKAGING_SIGNING_{section.upper()}_{key.upper()}")
+          PYEOF
+          ); do
+            name="${!cfg-}"
+            if [ -z "$name" ]; then
+              echo "::error::$cfg is not exported — packaging.toml [signing.*] and scripts/packaging/packaging-env.py are out of sync (the bridge must export every [signing.*] *_env key)"
+              exit 1
+            fi
             if [ -z "${!name+x}" ]; then
               echo "::error::secret wiring gap: packaging.toml names \$$name but this step's env: block does not map it — update the mapping (docs/packaging/README.md blockers table)"
               exit 1
@@ -404,13 +437,26 @@ jobs:
           APPLE_API_KEY_B64: ${{ secrets.APPLE_API_KEY_B64 }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: |
-          for cfg in PACKAGING_SIGNING_MACOS_IDENTITY_ENV \
-                     PACKAGING_SIGNING_MACOS_P12_B64_ENV \
-                     PACKAGING_SIGNING_MACOS_P12_PASSWORD_ENV \
-                     PACKAGING_SIGNING_MACOS_NOTARY_KEY_ID_ENV \
-                     PACKAGING_SIGNING_MACOS_NOTARY_KEY_B64_ENV \
-                     PACKAGING_SIGNING_MACOS_NOTARY_ISSUER_ENV; do
-            name="${!cfg}"
+          # Same TOML-derived fail-loud wiring guard as the macos-arm64
+          # dmg step (see there; W24-R1 P1-2 + W24-Q hardening for
+          # W24-R6 P4-1): the expected secret-name set comes from
+          # packaging.toml [signing.macos] at guard time.
+          PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          for cfg in $("$PY" - macos <<'PYEOF'
+          import sys, tomllib
+          with open("packaging/packaging.toml", "rb") as fh:
+              signing = tomllib.load(fh)["signing"]
+          for section in sys.argv[1:]:
+              for key in sorted(signing[section]):
+                  if key.endswith("_env"):
+                      print(f"PACKAGING_SIGNING_{section.upper()}_{key.upper()}")
+          PYEOF
+          ); do
+            name="${!cfg-}"
+            if [ -z "$name" ]; then
+              echo "::error::$cfg is not exported — packaging.toml [signing.*] and scripts/packaging/packaging-env.py are out of sync (the bridge must export every [signing.*] *_env key)"
+              exit 1
+            fi
             if [ -z "${!name+x}" ]; then
               echo "::error::secret wiring gap: packaging.toml names \$$name but this step's env: block does not map it — update the mapping (docs/packaging/README.md blockers table)"
               exit 1
@@ -649,15 +695,29 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: |
           absent=""
-          for cfg in PACKAGING_SIGNING_WINDOWS_PFX_B64_ENV \
-                     PACKAGING_SIGNING_WINDOWS_PFX_PASSWORD_ENV \
-                     PACKAGING_SIGNING_MACOS_IDENTITY_ENV \
-                     PACKAGING_SIGNING_MACOS_P12_B64_ENV \
-                     PACKAGING_SIGNING_MACOS_P12_PASSWORD_ENV \
-                     PACKAGING_SIGNING_MACOS_NOTARY_KEY_ID_ENV \
-                     PACKAGING_SIGNING_MACOS_NOTARY_KEY_B64_ENV \
-                     PACKAGING_SIGNING_MACOS_NOTARY_ISSUER_ENV; do
-            name="${!cfg}"
+          # The expected secret-name set is DERIVED FROM packaging.toml
+          # at guard time (python parses the same TOML the parse step
+          # schema-validated; every [signing.*] key ending in _env names
+          # a secret), so a future [signing.*] key is automatically
+          # required to be mapped here too (W24-Q hardening after
+          # W24-R6 P4-1 — the guard used to enumerate only the 8 names
+          # it knew).
+          PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          for cfg in $("$PY" - windows macos <<'PYEOF'
+          import sys, tomllib
+          with open("packaging/packaging.toml", "rb") as fh:
+              signing = tomllib.load(fh)["signing"]
+          for section in sys.argv[1:]:
+              for key in sorted(signing[section]):
+                  if key.endswith("_env"):
+                      print(f"PACKAGING_SIGNING_{section.upper()}_{key.upper()}")
+          PYEOF
+          ); do
+            name="${!cfg-}"
+            if [ -z "$name" ]; then
+              echo "::error::$cfg is not exported — packaging.toml [signing.*] and scripts/packaging/packaging-env.py are out of sync (the bridge must export every [signing.*] *_env key)"
+              exit 1
+            fi
             if [ -z "${!name+x}" ]; then
               echo "::error::secret wiring gap: packaging.toml names \$$name but this step's env: block does not map it — update the mapping (docs/packaging/README.md blockers table)"
               exit 1
