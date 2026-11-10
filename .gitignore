@@ -86,3 +86,6 @@ corpus-v4/
 # stray build dir committed in 67d567d - never again
 target-w23e/
 target-w*/
+# isolated xtask build dir (built with CARGO_TARGET_DIR=target-xtask to
+# avoid contending with the shared rust-vlc/target) — build output, never commit
+target-xtask/
