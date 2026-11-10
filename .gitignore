@@ -29,9 +29,24 @@ secrets/
 *.log
 !docs/gates/logs/**
 !docs/gates/logs/*.log
+# packaging-lane evidence logs are committed too (same D-d protocol;
+# task W24-C — see docs/packaging/evidence/README.md)
+!docs/packaging/evidence/**
+!docs/packaging/evidence/*.log
 /logs/
 tmp/
 .cache/
+
+# W24-C local packaging tools (issue #56): the pinned appimagetool +
+# type2 runtime downloaded into the tree by the runbook's local-lane
+# instructions (SHA-256s recorded in .github/workflows/release.yml).
+# Local tools, NEVER committed — same rule as the ignored *.deb/*.msi
+# artifacts above.
+/appimagetool.AppImage
+/type2-runtime
+# python bytecode from packaging tooling (committed by accident in r1,
+# removed in r3 — never again)
+__pycache__/
 
 # OS
 .DS_Store

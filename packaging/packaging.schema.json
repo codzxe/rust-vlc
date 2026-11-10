@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lumen-player.example.org/schemas/packaging.v1.json",
+  "title": "Lumen packaging definition",
+  "$comment": "packaging.schema.json — structural contract of packaging/packaging.toml (issue #56, cards 8.E1–8.E3, task W24-C). Mirrors product.schema.json's conventions: data-driven constraints (type, required, additionalProperties, enum, const, minimum, minLength, minItems, pattern) are enforced by scripts/packaging/packaging-env.py's structural pass; cross-file rules (shipped.docs exist in the repo, launch_test.smoke_fixture exists, product identity must NOT appear here) live in the same script's semantic pass. Extensions 'x-lumen-hint' follow product.schema.json's diagnostic convention. Product identity fields (name, version, ids, UpgradeCode) are deliberately ABSENT: they live in product.toml and must never be duplicated here (MP §5 single source of truth).",
+  "type": "object",
+  "required": ["schema_version", "checksum", "sbom", "shipped", "desktop_entry",
+               "linux", "macos", "windows", "launch_test", "signing"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer", "minimum": 1, "maximum": 1,
+      "const": 1,
+      "$comment": "packaging.toml is born at schema_version 1; bump via a new schema file (packaging.vN.json) plus a migrator, mirroring product.toml's migration contract."
+    },
+    "checksum": {
+      "type": "object",
+      "required": ["algorithm", "manifest_name"],
+      "additionalProperties": false,
+      "properties": {
+        "algorithm": {
+          "type": "string",
+          "enum": ["sha256"],
+          "$comment": "the only algorithm wired into the release manifest writer; adding one means extending the writer first, then this enum (config can never name an unwired algorithm — mirrors product.toml rule F1)."
+        },
+        "manifest_name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "x-lumen-hint": "release manifest file name (no slash — it sits flat beside the artifacts)."
+        }
+      }
+    },
+    "sbom": {
+      "type": "object",
+      "required": ["spec_version", "artifact_suffix"],
+      "additionalProperties": false,
+      "properties": {
+        "spec_version": {
+          "type": "string",
+          "enum": ["1.5"],
+          "$comment": "must match the specVersion the xtask sbom generator emits (tools/xtask/src/cmd/sbom.rs); the generator is the authority, this field only names it for artifact bookkeeping."
+        },
+        "artifact_suffix": {
+          "type": "string",
+          "pattern": "^[a-z0-9.]+$",
+          "x-lumen-hint": "dotted suffix appended to the artifact base name, e.g. base.sbom.cdx.json."
+        }
+      }
+    },
+    "shipped": {
+      "type": "object",
+      "required": ["docs"],
+      "additionalProperties": false,
+      "properties": {
+        "docs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$",
+            "$comment": "repo-relative path; existence checked by packaging-env.py's semantic pass."
+          }
+        }
+      }
+    },
+    "desktop_entry": {
+      "type": "object",
+      "required": ["categories", "terminal"],
+      "additionalProperties": false,
+      "properties": {
+        "categories": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Za-z0-9]+(;[A-Za-z0-9-]+)*;?$",
+          "x-lumen-hint": "freedesktop registered-category list, semicolon-separated."
+        },
+        "terminal": { "type": "boolean" }
+      }
+    },
+    "linux": {
+      "type": "object",
+      "required": ["install_bindir", "docs_dir", "applications_dir", "icons_dir",
+                   "deb_section", "rpm_release", "rpm_license"],
+      "additionalProperties": false,
+      "properties": {
+        "install_bindir": {
+          "type": "string",
+          "pattern": "^(usr|opt|etc)/[a-z0-9/._-]*$",
+          "x-lumen-hint": "FHS staging-relative bin dir, no leading slash."
+        },
+        "docs_dir": {
+          "type": "string",
+          "pattern": "^(usr|opt|etc)/[a-z0-9/._-]*$"
+        },
+        "applications_dir": {
+          "type": "string",
+          "pattern": "^(usr|opt|etc)/[a-z0-9/._-]*$"
+        },
+        "icons_dir": {
+          "type": "string",
+          "pattern": "^(usr|opt|etc)/[a-z0-9/._-]*$"
+        },
+        "deb_section": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$",
+          "$comment": "a valid Debian control Section value."
+        },
+        "rpm_release": {
+          "type": "string",
+          "pattern": "^[0-9]+%\\{\\?dist\\}$|^[0-9]+$",
+          "x-lumen-hint": "rpm Release field; plain number or number%{?dist}."
+        },
+        "rpm_license": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9.()+ -]+$",
+          "$comment": "SPDX license id or rpm license expression; must mirror the repo LICENSE."
+        }
+      }
+    },
+    "macos": {
+      "type": "object",
+      "required": ["universal", "targets"],
+      "additionalProperties": false,
+      "properties": {
+        "universal": {
+          "type": "boolean",
+          "$comment": "false = two single-arch artifact sets (the documented v1 decision); true = one universal2 binary (lipo of targets) — the flip is documented in docs/packaging/README.md §macOS."
+        },
+        "targets": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": ["aarch64-apple-darwin", "x86_64-apple-darwin"]
+          }
+        }
+      }
+    },
+    "windows": {
+      "type": "object",
+      "required": ["install_bindir", "upgrade_test"],
+      "additionalProperties": false,
+      "properties": {
+        "install_bindir": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "x-lumen-hint": "bin dir relative to ProgramFiles64Folder\\<Product Name> in the MSI layout."
+        },
+        "upgrade_test": {
+          "type": "boolean",
+          "$comment": "whether the release workflow runs scripts/packaging/test-msi-upgrade.ps1 on the Windows runner."
+        }
+      }
+    },
+    "launch_test": {
+      "type": "object",
+      "required": ["version_flag", "smoke_verb", "smoke_fixture", "desktop_pending_exit"],
+      "additionalProperties": false,
+      "properties": {
+        "version_flag": {
+          "type": "string",
+          "pattern": "^--[a-z-]+$"
+        },
+        "smoke_verb": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "$comment": "an argv-only CLI host verb that drives the real open path + decoders (decode-bench)."
+        },
+        "smoke_fixture": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$",
+          "$comment": "repo-relative media fixture; existence + decodability checked by packaging-env.py's semantic pass and asserted at launch-test time."
+        },
+        "desktop_pending_exit": {
+          "type": "integer",
+          "minimum": 1, "maximum": 255,
+          "$comment": "the desktop skeleton binary's documented exit code (WEBVIEW_PENDING) — asserted as-is until the ADR-004 webview lands."
+        }
+      }
+    },
+    "signing": {
+      "type": "object",
+      "required": ["windows", "macos"],
+      "additionalProperties": false,
+      "properties": {
+        "windows": {
+          "type": "object",
+          "required": ["timestamp_url", "pfx_b64_env", "pfx_password_env"],
+          "additionalProperties": false,
+          "properties": {
+            "timestamp_url": {
+              "type": "string",
+              "pattern": "^https?://[A-Za-z0-9.-]+(:[0-9]+)?(/|$)",
+              "$comment": "RFC 3161 timestamp server for Authenticode; an http URL is the documented exception (timestamping servers commonly serve plain http; the signature itself protects the timestamp token)."
+            },
+            "pfx_b64_env": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]*$",
+              "x-lumen-hint": "env var name holding the base64 PKCS#12 certificate (secret)."
+            },
+            "pfx_password_env": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]*$",
+              "x-lumen-hint": "env var name holding the PFX passphrase (secret)."
+            }
+          }
+        },
+        "macos": {
+          "type": "object",
+          "required": ["identity_env", "p12_b64_env", "p12_password_env",
+                       "notary_key_id_env", "notary_key_b64_env", "notary_issuer_env"],
+          "additionalProperties": false,
+          "properties": {
+            "identity_env": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]*$",
+              "x-lumen-hint": "env var name holding the keychain signing-identity name (secret, optional when a p12 is provided instead)."
+            },
+            "p12_b64_env": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]*$",
+              "x-lumen-hint": "env var name holding the base64 PKCS#12 Developer ID Application certificate (secret)."
+            },
+            "p12_password_env": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]*$",
+              "x-lumen-hint": "env var name holding the p12 passphrase (secret)."
+            },
+            "notary_key_id_env": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]*$",
+              "x-lumen-hint": "env var name holding the App Store Connect API key id (secret)."
+            },
+            "notary_key_b64_env": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]*$",
+              "x-lumen-hint": "env var name holding the base64 .p8 private key (secret)."
+            },
+            "notary_issuer_env": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]*$",
+              "x-lumen-hint": "env var name holding the App Store Connect issuer id (secret)."
+            }
+          }
+        }
+      }
+    }
+  }
+}
