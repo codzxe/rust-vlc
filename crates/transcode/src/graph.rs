@@ -1,0 +1,498 @@
+//! The transcode job graph (card 7.E1): typed stages, validated
+//! before any thread spawns.
+//!
+//! # The stage vocabulary (v1)
+//!
+//! ```text
+//! source/demux ──► decode ──► [filters] ──► encode/sink
+//! (Box<dyn       (factory-     v1: none      WavPcm (decode path)
+//!  Demuxer>)      built        implemented   WavCopyPcm / RawEsCopy (copy path)
+//!                Decoder)      — refused)
+//! ```
+//!
+//! The graph is **plain data a host assembles**, then hands to
+//! [`submit`](crate::submit). Two shape families are legal:
+//!
+//! * **decode path** — [`SinkSpec::WavPcm`]: the selected track is
+//!   decoded (any host-provided [`Decoder`] through a
+//!   [`DecoderFactory`]) and the decoded frames are written as RIFF/
+//!   WAVE PCM (16/24/32-bit integer, f32/f64 float — identity or
+//!   lossless widening only, never a silent quantization).
+//! * **copy path** — [`SinkSpec::WavCopyPcm`] and
+//!   [`SinkSpec::RawEsCopy`]: demuxed packets flow to the sink
+//!   verbatim, no decoder. WAV-from-PCM is legal only for tracks the
+//!   registry vocabulary calls unpacked little-endian PCM
+//!   (`pcm_u8` … `pcm_f64le`) with host-supplied `fmt `-level facts;
+//!   the raw elementary-stream sink accepts any track. **No other
+//!   remux exists in v1** — MP4-remux is card 7.E2, and every
+//!   conversion outside the two families above is a typed
+//!   `ErrorKind::Unsupported`, never a degraded output.
+//!
+//! [`FilterStage`] exists in the model (the graph *carries* filter
+//! stages) and validation refuses every one of them — the honest
+//! capability rule: the stage is modeled, not faked.
+//!
+//! # Validation order (pinned by tests)
+//!
+//! 1. filter rows over the [`JobLimits`] budget, then any filter row
+//!    at all (v1 implements none);
+//! 2. sink shape: WAV-PCM needs a decode stage; copy sinks reject
+//!    one;
+//! 3. WAV-from-PCM copy needs explicit PCM facts (the generic
+//!    `Demuxer` contract carries no `fmt ` parameters — the host that
+//!    opened a WAV source knows them, the runner cannot invent them).
+//!
+//! Track-level legality (audio present, unambiguous, PCM-compatible
+//! codec for WAV copy) is runtime knowledge: it is checked right
+//! after `Demuxer::start`, before the first packet flows, and fails
+//! the job with the same typed vocabulary (see `runner`).
+
+use std::io::{Seek, Write};
+
+use codec_api::Decoder;
+use demux::wav::format::PcmSample;
+use media_types::ids::TrackId;
+use media_types::packet::SharedBytes;
+use media_types::{EngineError, Track};
+use plugin_api::Demuxer;
+
+use crate::error::{
+    filter_stages_over_budget, filter_unimplemented, graph_copy_facts_missing,
+    graph_decode_forbidden, graph_decode_required,
+};
+use crate::limits::JobLimits;
+
+/// A sink the writers stream into and finalize (patch RIFF sizes) on.
+///
+/// Deliberately `Write + Seek + Send`: WAV finalization rewrites the
+/// `RIFF`/`data` size fields, so a write-only pipe cannot host an
+/// honestly-sized file. Opening the sink is the host's job (the
+/// crate owns no filesystem policy); `std::fs::File` implements this
+/// trait directly, as do the test sinks.
+pub trait WriteSeek: Write + Seek + Send {}
+impl<T: Write + Seek + Send> WriteSeek for T {}
+
+/// Which track of the source the job consumes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrackSelection {
+    /// The default audio pick: the source must carry exactly one
+    /// audio track (zero or several are typed failures — the host
+    /// must name one).
+    DefaultAudio,
+    /// A specific track by its engine handle.
+    Track(TrackId),
+}
+
+/// Builds the decode stage's decoder for the selected track.
+///
+/// The trait seam keeps this crate honest about layers: concrete
+/// decoders live in `codecs`/plugins (L3+); the runner speaks
+/// [`Decoder`] only and asks the host's factory once per job
+/// (the playback-engine's decoder-provider precedent).
+pub trait DecoderFactory: Send {
+    /// Build a decoder for `track`.
+    ///
+    /// # Errors
+    /// Typed [`EngineError`] (typically `Unsupported`) when no
+    /// decoder serves the track's codec descriptor.
+    fn open(&self, track: &Track) -> Result<Box<dyn Decoder>, EngineError>;
+}
+
+/// The decode stage: a factory plus nothing else (configuration —
+/// codec descriptor, generation, out-of-band bytes — is the runner's
+/// job, from the selected track and the source spec).
+pub struct DecodeStage {
+    factory: Box<dyn DecoderFactory>,
+}
+
+impl std::fmt::Debug for DecodeStage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // The factory is a host closure-like seam; the stage's shape
+        // is the Debug surface, not the host's guts.
+        f.write_str("DecodeStage(factory)")
+    }
+}
+
+impl DecodeStage {
+    /// Assemble the stage around a host factory.
+    pub fn new(factory: Box<dyn DecoderFactory>) -> DecodeStage {
+        DecodeStage { factory }
+    }
+
+    /// Consume the stage, taking its factory (the runner moves the
+    /// factory to the worker thread).
+    pub(crate) fn into_factory(self) -> Box<dyn DecoderFactory> {
+        self.factory
+    }
+}
+
+/// One requested filter stage. v1 implements **none** — the model
+/// carries the request (name + domain), validation refuses it
+/// ([`filter_unimplemented`]); rows above the configured budget
+/// refuse with [`filter_stages_over_budget`] first.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilterStage {
+    /// Which pipeline domain the filter would run in.
+    pub domain: FilterDomain,
+    /// The filter the host asked for (recorded verbatim, refused).
+    pub name: String,
+}
+
+/// The domain a [`FilterStage`] targets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilterDomain {
+    /// Between decode and the audio sink.
+    Audio,
+    /// Between decode and a video sink (no video sink exists in v1).
+    Video,
+}
+
+/// The `fmt `-level PCM facts a WAV stream-copy needs before its
+/// first packet (channels and rate are not in the L0 [`Track`]; the
+/// host that opened the WAV source holds them — the runner never
+/// invents them).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PcmFacts {
+    /// The unpacked-PCM sample representation of the payload.
+    pub sample: PcmSample,
+    /// Channel count (validated 1..=`MAX_CHANNELS` at writer build).
+    pub channels: u16,
+    /// Samples per second (validated nonzero).
+    pub rate: u32,
+}
+
+/// The output sample format the WAV encode path writes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WavPcmTarget {
+    /// Write whatever the decode path yields, byte-identically
+    /// (after planar→interleaved and native→little-endian
+    /// normalization) — the zero-conversion default.
+    Source,
+    /// Write a specific PCM sample format; legal only when it is the
+    /// source's own or a lossless widening of it (s16→s32, f32→f64,
+    /// …). Narrowing and int↔float are refused typed — a transcode
+    /// engine must never quantize silently.
+    Sample(PcmSample),
+}
+
+/// What the job produces — the encode/sink stage.
+pub enum SinkSpec {
+    /// Decode path: decoded audio frames → RIFF/WAVE PCM.
+    WavPcm {
+        /// The streaming, size-patching writer target.
+        output: Box<dyn WriteSeek>,
+        /// The sample format to write.
+        target: WavPcmTarget,
+    },
+    /// Copy path: unpacked-PCM packets → a WAV container, payload
+    /// bytes verbatim (no decode, no sample conversion).
+    WavCopyPcm {
+        /// The streaming, size-patching writer target.
+        output: Box<dyn WriteSeek>,
+        /// The source's `fmt `-level facts. `None` is the typed
+        /// [`graph_copy_facts_missing`] refusal at validation — the
+        /// runner cannot learn these from the generic `Demuxer`
+        /// contract.
+        facts: Option<PcmFacts>,
+    },
+    /// Copy path: any track's packets → one raw elementary-stream
+    /// file, payload bytes verbatim concatenated. Legal for every
+    /// codec (the sink makes no container claim — it is a byte
+    /// dump, honestly named).
+    RawEsCopy {
+        /// The streaming writer target.
+        output: Box<dyn WriteSeek>,
+    },
+}
+
+impl std::fmt::Debug for SinkSpec {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // The sink target is a host `Write + Seek` object; Debug
+        // shows the shape (which sink, which facts), never the
+        // host's stream guts.
+        match self {
+            SinkSpec::WavPcm { target, .. } => f.debug_tuple("WavPcm").field(target).finish(),
+            SinkSpec::WavCopyPcm { facts, .. } => f.debug_tuple("WavCopyPcm").field(facts).finish(),
+            SinkSpec::RawEsCopy { .. } => f.write_str("RawEsCopy"),
+        }
+    }
+}
+
+/// The source stage: a demuxer, the track to consume, and the
+/// out-of-band codec bytes the decoder config needs.
+pub struct SourceSpec {
+    /// The opened source's demuxer. `start`/`next_event` run on the
+    /// job's pump thread (the plugin-api calling context).
+    pub demuxer: Box<dyn Demuxer>,
+    /// Which of the demuxer's tracks this job consumes.
+    pub selection: TrackSelection,
+    /// Out-of-band decoder configuration bytes (the WAV `fmt `
+    /// payload, an AVC config record, …) when the container
+    /// separates them from the stream — handed to the decoder
+    /// factory's product at configure time.
+    pub extra_data: Option<SharedBytes>,
+}
+
+impl std::fmt::Debug for SourceSpec {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // The demuxer is a host plugin object; Debug shows the
+        // selection and extradata presence, not the plugin's guts.
+        f.debug_struct("SourceSpec")
+            .field("selection", &self.selection)
+            .field("extra_data", &self.extra_data)
+            .finish_non_exhaustive()
+    }
+}
+
+/// The whole job graph — the four stages, as plain host-assembled
+/// data. Validate with [`TranscodeGraph::validate`] (or let
+/// [`submit`](crate::submit) do it).
+pub struct TranscodeGraph {
+    /// Source/demux stage.
+    pub source: SourceSpec,
+    /// Decode stage (`None` on copy paths).
+    pub decode: Option<DecodeStage>,
+    /// Requested filter rows (v1: must be empty — see
+    /// [`FilterStage`]).
+    pub filters: Vec<FilterStage>,
+    /// Encode/sink stage.
+    pub sink: SinkSpec,
+}
+
+impl std::fmt::Debug for TranscodeGraph {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TranscodeGraph")
+            .field("source", &self.source)
+            .field("decode", &self.decode)
+            .field("filters", &self.filters)
+            .field("sink", &self.sink)
+            .finish()
+    }
+}
+
+impl TranscodeGraph {
+    /// Validate the graph's shape against a limits envelope.
+    ///
+    /// Pure and synchronous: no thread spawns, no I/O — the runner
+    /// calls this before touching the source.
+    ///
+    /// # Errors
+    /// Typed at stage `Transcode` (module docs' validation order):
+    /// filter rows over budget, any filter row (v1 implements none),
+    /// WAV-PCM without decode, decode on a copy sink, WAV-from-PCM
+    /// copy without facts.
+    pub fn validate(&self, limits: &JobLimits) -> Result<(), EngineError> {
+        if self.filters.len() > limits.max_filter_stages() {
+            return Err(filter_stages_over_budget(
+                self.filters.len(),
+                limits.max_filter_stages(),
+            ));
+        }
+        if !self.filters.is_empty() {
+            return Err(filter_unimplemented());
+        }
+        match &self.sink {
+            SinkSpec::WavPcm { .. } => {
+                if self.decode.is_none() {
+                    return Err(graph_decode_required());
+                }
+            }
+            SinkSpec::WavCopyPcm { facts, .. } => {
+                if self.decode.is_some() {
+                    return Err(graph_decode_forbidden());
+                }
+                if facts.is_none() {
+                    return Err(graph_copy_facts_missing());
+                }
+            }
+            SinkSpec::RawEsCopy { .. } => {
+                if self.decode.is_some() {
+                    return Err(graph_decode_forbidden());
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use media_types::time::TimeSpan;
+    use testkit::{Must, assert_err};
+
+    /// A do-nothing factory (the graph never calls it during
+    /// validation — shape only).
+    struct NopFactory;
+    impl DecoderFactory for NopFactory {
+        fn open(&self, _track: &Track) -> Result<Box<dyn Decoder>, EngineError> {
+            Err(graph_decode_required())
+        }
+    }
+
+    /// A bare `Demuxer` impl that yields nothing (shape only).
+    struct NopDemuxer;
+    impl Demuxer for NopDemuxer {
+        fn start(&mut self) -> Result<Vec<Track>, EngineError> {
+            Ok(Vec::new())
+        }
+        fn next_event(&mut self) -> Result<plugin_api::DemuxEvent, EngineError> {
+            Ok(plugin_api::DemuxEvent::EndOfStream)
+        }
+        fn seek(&mut self, _target: TimeSpan) -> Result<TimeSpan, EngineError> {
+            Ok(TimeSpan::UNKNOWN)
+        }
+    }
+
+    /// A Write + Seek sink that discards bytes (std's `io::sink`
+    /// carries no Seek; WAV finalization needs it).
+    struct SeekableSink;
+
+    impl std::io::Write for SeekableSink {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    impl std::io::Seek for SeekableSink {
+        fn seek(&mut self, _to: std::io::SeekFrom) -> std::io::Result<u64> {
+            Ok(0)
+        }
+    }
+
+    fn sink() -> SinkSpec {
+        SinkSpec::RawEsCopy {
+            output: Box::new(SeekableSink),
+        }
+    }
+
+    fn graph(decode: Option<DecodeStage>, sink: SinkSpec) -> TranscodeGraph {
+        TranscodeGraph {
+            source: SourceSpec {
+                demuxer: Box::new(NopDemuxer),
+                selection: TrackSelection::DefaultAudio,
+                extra_data: None,
+            },
+            decode,
+            filters: Vec::new(),
+            sink,
+        }
+    }
+
+    /// A graph whose non-filter stages are legal (the filter-table
+    /// refusals must not be confounded with sink-shape refusals).
+    fn legal_copy_graph() -> TranscodeGraph {
+        graph(None, sink())
+    }
+
+    #[test]
+    fn wav_pcm_requires_decode() {
+        let err = assert_err(
+            graph(None, sink()).validate(&JobLimits::default()),
+            "raw sink without decode",
+        );
+        assert_eq!(err.context.code, "transcode.graph.decode-required");
+
+        let wav = SinkSpec::WavPcm {
+            output: Box::new(SeekableSink),
+            target: WavPcmTarget::Source,
+        };
+        let err = assert_err(
+            graph(None, wav).validate(&JobLimits::default()),
+            "wav sink without decode",
+        );
+        assert_eq!(err.context.code, "transcode.graph.decode-required");
+    }
+
+    #[test]
+    fn copy_sinks_reject_decode() {
+        let err = assert_err(
+            graph(Some(DecodeStage::new(Box::new(NopFactory))), sink())
+                .validate(&JobLimits::default()),
+            "raw copy with decode",
+        );
+        assert_eq!(err.context.code, "transcode.graph.decode-forbidden");
+
+        let wav_copy = SinkSpec::WavCopyPcm {
+            output: Box::new(SeekableSink),
+            facts: Some(PcmFacts {
+                sample: PcmSample::S16Le,
+                channels: 2,
+                rate: 48_000,
+            }),
+        };
+        let err = assert_err(
+            graph(Some(DecodeStage::new(Box::new(NopFactory))), wav_copy)
+                .validate(&JobLimits::default()),
+            "wav copy with decode",
+        );
+        assert_eq!(err.context.code, "transcode.graph.decode-forbidden");
+    }
+
+    #[test]
+    fn wav_copy_without_facts_is_refused() {
+        let wav_copy = SinkSpec::WavCopyPcm {
+            output: Box::new(SeekableSink),
+            facts: None,
+        };
+        let err = assert_err(
+            graph(None, wav_copy).validate(&JobLimits::default()),
+            "wav copy without facts",
+        );
+        assert_eq!(err.context.code, "transcode.graph.copy-facts-missing");
+    }
+
+    #[test]
+    fn filter_rows_refuse_over_budget_then_unimplemented() {
+        let mut g = legal_copy_graph();
+        g.filters = (0..5)
+            .map(|i| FilterStage {
+                domain: FilterDomain::Audio,
+                name: format!("filter-{i}"),
+            })
+            .collect();
+        // Default budget is 4: five rows is over budget first.
+        let err = assert_err(
+            g.validate(&JobLimits::default()),
+            "five rows over the default budget of four",
+        );
+        assert_eq!(
+            err.context.code,
+            "transcode.graph.filter-stages-over-budget"
+        );
+        // One row is inside the budget but v1 implements none.
+        g.filters.truncate(1);
+        let err = assert_err(
+            g.validate(&JobLimits::default()),
+            "one row inside the budget",
+        );
+        assert_eq!(err.context.code, "transcode.graph.filter-unimplemented");
+    }
+
+    #[test]
+    fn legal_graphs_validate_clean() {
+        // Decode path.
+        let wav = SinkSpec::WavPcm {
+            output: Box::new(SeekableSink),
+            target: WavPcmTarget::Source,
+        };
+        graph(Some(DecodeStage::new(Box::new(NopFactory))), wav)
+            .validate(&JobLimits::default())
+            .must();
+        // Copy paths.
+        graph(None, sink()).validate(&JobLimits::default()).must();
+        let wav_copy = SinkSpec::WavCopyPcm {
+            output: Box::new(SeekableSink),
+            facts: Some(PcmFacts {
+                sample: PcmSample::S24Le,
+                channels: 2,
+                rate: 48_000,
+            }),
+        };
+        graph(None, wav_copy)
+            .validate(&JobLimits::default())
+            .must();
+    }
+}
