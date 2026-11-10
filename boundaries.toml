@@ -551,7 +551,19 @@ external_dev_allowlist = []
 [crates.plugin-host-wasm]
 layer = 6
 internal_deps = ["plugin-api", "settings-schema"]
-dev_deps = []
+# Card 7.F4 (issue #46) test-only edges: the §9.5 playback-unaffected
+# proof (tests/plugin_crash_isolation.rs) composes the REAL playback
+# engine with the faulting extension in one process — the
+# scenario-harness pattern from crates/playback-engine/tests/common
+# (SharedNow/FakeDemuxer/FakeProvider/poll-driven Engine), so the
+# proof drives the real pipeline, never a mock of it. codec-api,
+# media-clock, media-types and packet-queue are that harness's own
+# seams (the same set playback-engine's suite composes); testkit is
+# the dev-only Must/fixture kit (MP §3.7). Dev edges are exempt from
+# layer ordering by this manifest's own rules; the production
+# closure is unchanged (the audited wasmi + plugin-api +
+# settings-schema + toml graph).
+dev_deps = ["codec-api", "media-clock", "media-types", "packet-queue", "playback-engine", "testkit"]
 external_allowlist = ["wasmi", "toml"]
 # L6 — apps/web (doc 01 §2.7 registry row "apps/web — the wasm host
 # page/worker bootstrap"; card 7.H1, issue #47): the engine-in-Worker
