@@ -11,8 +11,13 @@
 #                                 see docs/RELEASE.md known limits)
 #
 # The workflow downloads appimagetool 1.9.1 from the AppImage/appimagetool
-# GitHub release (URL + SHA-256 pinned IN THE WORKFLOW, mirroring the
-# cargo-deny pin style of ci.yml) and passes its path as APPIMAGETOOL.
+# GitHub release AND the AppImage type2 runtime from the DATED
+# type2-runtime release tag 20251108 (URL + SHA-256 pinned IN THE
+# WORKFLOW, mirroring the cargo-deny pin style of ci.yml) and passes
+# their paths as APPIMAGETOOL / RUNTIME_FILE. Pinning the runtime
+# matters: without --runtime-file, appimagetool silently downloads the
+# ROLLING `continuous` runtime at build time — a floating component in
+# an otherwise pinned pipeline (doc 11 §3.7 posture).
 # appimagetool itself is an AppImage: APPIMAGE_EXTRACT_AND_RUN=1 runs it
 # without FUSE, which hosted runners do not guarantee (ubuntu-24.04
 # dropped libfuse2 from the default image).
@@ -32,6 +37,7 @@ set -eu
 : "${OS_ID:?make-appimage.sh: OS_ID not set}"
 : "${ARCH_ID:?make-appimage.sh: ARCH_ID not set}"
 : "${APPIMAGETOOL:?make-appimage.sh: APPIMAGETOOL not set (path to the pinned appimagetool download)}"
+: "${RUNTIME_FILE:?make-appimage.sh: RUNTIME_FILE not set (path to the pinned type2 runtime — required so no rolling runtime is fetched at build time)}"
 TARGET_DIR=${TARGET_DIR:-target}
 DIST_DIR=${DIST_DIR:-dist}
 
@@ -41,6 +47,7 @@ cd "$ROOT"
 die() { echo "make-appimage.sh: error: $*" >&2; exit 2; }
 
 [ -x "$APPIMAGETOOL" ] || die "APPIMAGETOOL is not executable: $APPIMAGETOOL"
+[ -f "$RUNTIME_FILE" ] || die "RUNTIME_FILE not found: $RUNTIME_FILE"
 
 PY=$(command -v python3 || command -v python) ||
     die "neither python3 nor python found on PATH (icon generation needs the stdlib)"
@@ -86,7 +93,10 @@ dist_abs=$(cd "$DIST_DIR" && pwd)
 out="$dist_abs/${PRODUCT_LOWER}-${PRODUCT_VERSION:?}-${ARCH_ID}-${OS_ID}.AppImage"
 
 # APPIMAGE_EXTRACT_AND_RUN=1: no FUSE needed on the build host
-# (hosted runners ship without a usable /dev/fuse).
-APPIMAGE_EXTRACT_AND_RUN=1 "$APPIMAGETOOL" "$appdir" "$out"
+# (hosted runners ship without a usable /dev/fuse). ARCH is passed
+# explicitly so the runtime architecture never depends on guessing
+# from the binary's ELF header.
+APPIMAGE_EXTRACT_AND_RUN=1 ARCH="$ARCH_ID" "$APPIMAGETOOL" --runtime-file "$RUNTIME_FILE" \
+    "$appdir" "$out"
 [ -s "$out" ] || die "AppImage is missing or empty: $out"
 echo "make-appimage.sh: wrote $out"

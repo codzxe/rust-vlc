@@ -84,6 +84,9 @@ mkdir -p "$root/DEBIAN" "$root/usr/bin" "$docdir" "$appsdir" "$icondir"
 install -m 0755 "$cli_bin" "$root/usr/bin/$BIN_CLI"
 install -m 0755 "$desktop_bin" "$root/usr/bin/$BIN_DESKTOP"
 cp LICENSE README.md "$docdir/"
+# Normalize doc/entry modes: `cp` inherits the caller's umask, which
+# would make packaging output depend on who ran the script.
+chmod 0644 "$docdir/LICENSE" "$docdir/README.md"
 
 # Desktop entry for the desktop binary (config-driven Name/Icon; the
 # Exec key is the installed bin name, per the desktop-entry spec).
@@ -99,6 +102,7 @@ Categories=AudioVideo;Video;Player;
 EOF
 
 "$ROOT/scripts/release/gen-icon.py" "$icondir/$PRODUCT_LOWER.png" "$PRODUCT_ACCENT_COLOR"
+chmod 0644 "$appsdir/${PRODUCT_APPSTREAM_ID}.desktop" "$icondir/$PRODUCT_LOWER.png"
 
 cat >"$root/DEBIAN/control" <<EOF
 Package: ${PRODUCT_LOWER}

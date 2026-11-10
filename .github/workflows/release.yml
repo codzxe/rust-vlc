@@ -46,6 +46,10 @@
 #                       (deterministic URL; contains tools/net6.0/any/wix.exe)
 #   appimagetool 1.9.1  release assets from github.com/AppImage/appimagetool
 #                       (x86_64 + aarch64)
+#   type2 runtime       dated release tag 20251108 from
+#                       github.com/AppImage/type2-runtime (x86_64 + aarch64)
+#                       — passed to appimagetool --runtime-file so NO rolling
+#                       runtime is fetched at build time
 # `gh` and `hdiutil`/`dpkg-deb`/`ditto` are preinstalled on their
 # respective runner images [VERIFY at first live run].
 #
@@ -296,19 +300,30 @@ jobs:
             --github-env --github-env-file "$GITHUB_ENV"
       - name: Build (release, locked — both shipped binaries)
         run: cargo build --release --locked -p lumen-cli -p desktop
-      - name: Install appimagetool 1.9.1 (pinned release asset, SHA-256 verified)
+      - name: Install appimagetool 1.9.1 + type2 runtime (pinned, SHA-256 verified)
         run: |
-          # From the AppImage/appimagetool 1.9.1 GitHub release (NOT the
-          # rolling "continuous" tag — pinning policy). The tool itself is
-          # an AppImage: the packaging script runs it with
+          # Two pinned downloads (NOT rolling tags — pinning policy):
+          # 1. appimagetool 1.9.1 from its GitHub release. Self-reports
+          #    "git version 8c8c91f" — the 1.9.1 tag commit, cross-checked
+          #    against `git ls-remote` at pin time (worklog 7.w22g).
+          # 2. The AppImage type2 runtime from the DATED type2-runtime
+          #    tag 20251108. Without --runtime-file appimagetool silently
+          #    fetches the ROLLING `continuous` runtime at build time —
+          #    a floating component this pipeline refuses (doc 11 §3.7).
+          # Both tools are AppImages/ELFs: the packaging script runs with
           # APPIMAGE_EXTRACT_AND_RUN=1 because hosted runners do not
           # guarantee a usable FUSE (ubuntu-24.04 dropped libfuse2).
-          url="https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage"
-          sha256="ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0"
-          curl -sSfL -o appimagetool.AppImage "$url"
-          echo "${sha256}  appimagetool.AppImage" | sha256sum -c -
+          tool_url="https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage"
+          tool_sha256="ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0"
+          runtime_url="https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64"
+          runtime_sha256="2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d"
+          curl -sSfL -o appimagetool.AppImage "$tool_url"
+          echo "${tool_sha256}  appimagetool.AppImage" | sha256sum -c -
           chmod +x appimagetool.AppImage
+          curl -sSfL -o type2-runtime "$runtime_url"
+          echo "${runtime_sha256}  type2-runtime" | sha256sum -c -
           echo "APPIMAGETOOL=${PWD}/appimagetool.AppImage" >> "$GITHUB_ENV"
+          echo "RUNTIME_FILE=${PWD}/type2-runtime" >> "$GITHUB_ENV"
       - name: "Package .tar.gz (plain archive: both binaries + LICENSE + README)"
         run: |
           base="${PRODUCT_LOWER:?}-${PRODUCT_VERSION:?}-${ARCH_ID:?}-${OS_ID:?}"
@@ -376,15 +391,20 @@ jobs:
             --github-env --github-env-file "$GITHUB_ENV"
       - name: Build (release, locked — both shipped binaries)
         run: cargo build --release --locked -p lumen-cli -p desktop
-      - name: Install appimagetool 1.9.1 (pinned release asset, SHA-256 verified)
+      - name: Install appimagetool 1.9.1 + type2 runtime (pinned, SHA-256 verified)
         run: |
-          # aarch64 build of the same pinned 1.9.1 release (see linux-x64).
-          url="https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-aarch64.AppImage"
-          sha256="f0837e7448a0c1e4e650a93bb3e85802546e60654ef287576f46c71c126a9158"
-          curl -sSfL -o appimagetool.AppImage "$url"
-          echo "${sha256}  appimagetool.AppImage" | sha256sum -c -
+          # aarch64 builds of the same pinned releases (see linux-x64).
+          tool_url="https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-aarch64.AppImage"
+          tool_sha256="f0837e7448a0c1e4e650a93bb3e85802546e60654ef287576f46c71c126a9158"
+          runtime_url="https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-aarch64"
+          runtime_sha256="00cbdfcf917cc6c0ff6d3347d59e0ca1f7f45a6df1a428a0d6d8a78664d87444"
+          curl -sSfL -o appimagetool.AppImage "$tool_url"
+          echo "${tool_sha256}  appimagetool.AppImage" | sha256sum -c -
           chmod +x appimagetool.AppImage
+          curl -sSfL -o type2-runtime "$runtime_url"
+          echo "${runtime_sha256}  type2-runtime" | sha256sum -c -
           echo "APPIMAGETOOL=${PWD}/appimagetool.AppImage" >> "$GITHUB_ENV"
+          echo "RUNTIME_FILE=${PWD}/type2-runtime" >> "$GITHUB_ENV"
       - name: "Package .tar.gz (plain archive: both binaries + LICENSE + README)"
         run: |
           base="${PRODUCT_LOWER:?}-${PRODUCT_VERSION:?}-${ARCH_ID:?}-${OS_ID:?}"

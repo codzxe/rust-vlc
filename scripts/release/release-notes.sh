@@ -63,7 +63,9 @@ fi
     echo "## Changes ${since}"
     echo
     if [ -s "${out}.log" ]; then
-        sed 's/^- /- /' "${out}.log"
+        # Bullet-prefix every `git log --oneline` line: consecutive bare
+        # lines would collapse into one paragraph in rendered Markdown.
+        sed 's/^/- /' "${out}.log"
     else
         echo "- (no commits found in range \`${range}\`)"
     fi
