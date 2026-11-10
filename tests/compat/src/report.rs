@@ -616,7 +616,8 @@ pub fn full_run(config: &Config) -> Result<(), ToolError> {
             .count();
         let mut cells: Vec<Cell> = Vec::new();
         for lane in &config.lanes {
-            cells.push(format_cell(lane, &valid, &refused, malformed));
+            let steps = lane_steps(&lanes, &lane.id);
+            cells.push(format_cell(lane, steps, &valid, &refused, malformed));
         }
         let verdict = if valid.is_empty() && !refused.is_empty() {
             "refused"
@@ -688,7 +689,8 @@ pub fn full_run(config: &Config) -> Result<(), ToolError> {
         }
         let mut cells: Vec<Cell> = Vec::new();
         for lane in &config.lanes {
-            cells.push(codec_cell(lane, &valid, codec));
+            let steps = lane_steps(&lanes, &lane.id);
+            cells.push(codec_cell(lane, steps, &valid, codec));
         }
         for row_id in &codec.matrix_rows {
             let Some(claim) = claims.get(row_id.as_str()) else {
@@ -910,9 +912,59 @@ fn container_verdict(valid: &[&(CorpusFile, FileRecord)]) -> &'static str {
     worst
 }
 
+/// The steps-lane cell, DERIVED from the recorded step outcomes
+/// (review finding P2-2): the cell text can never claim a build the
+/// lane's own recorded steps contradict. Every step `exit 0` → the
+/// engine-core-only claim (the pass-case detail is per row kind);
+/// any nonzero/timeout/termination → `steps-failed` quoting the
+/// first failing step's purpose, argv and recorded outcome; a steps
+/// lane with no recorded steps claims nothing.
+fn steps_cell(lane: &crate::config::Lane, steps: &[StepRecord], pass_detail: &str) -> Cell {
+    if let Some(worst) = steps.iter().find(|step| step.outcome != "exit 0") {
+        return Cell {
+            lane: lane.id.clone(),
+            status: "steps-failed".to_string(),
+            detail: format!(
+                "lane step `{}` FAILED: `{}` → {} — the recorded outcome contradicts the build \
+                 claim (see the lane's recorded steps); DECODE refused — the wasm32 module ships \
+                 decoder-less (apps/web/src/capabilities.rs); no decode claimed",
+                worst.purpose,
+                worst.argv.join(" "),
+                worst.outcome
+            ),
+        };
+    }
+    if steps.is_empty() {
+        return Cell {
+            lane: lane.id.clone(),
+            status: "not-covered".to_string(),
+            detail: "the lane recorded no steps (nothing claimed)".to_string(),
+        };
+    }
+    Cell {
+        lane: lane.id.clone(),
+        status: "engine-core-only".to_string(),
+        detail: pass_detail.to_string(),
+    }
+}
+
+/// The recorded steps of one configured lane (steps lanes carry
+/// their executed commands' outcomes; the other kinds carry none —
+/// the record exists for every configured lane, so the lookup only
+/// misses on a config/record mismatch that cannot happen in one
+/// run, and the empty answer is the honest no-steps rendering).
+fn lane_steps<'a>(lanes: &'a [LaneRecord], lane_id: &str) -> &'a [StepRecord] {
+    lanes
+        .iter()
+        .find(|record| record.id == lane_id)
+        .map(|record| record.steps.as_slice())
+        .unwrap_or(&[])
+}
+
 /// One format-row cell for one lane.
 fn format_cell(
     lane: &crate::config::Lane,
+    steps: &[StepRecord],
     valid: &[&(CorpusFile, FileRecord)],
     refused: &[&(CorpusFile, FileRecord)],
     malformed: usize,
@@ -1007,15 +1059,14 @@ fn format_cell(
                 }
             }
         }
-        LaneKind::Steps { .. } => Cell {
-            lane: lane.id.clone(),
-            status: "engine-core-only".to_string(),
-            detail: "wasm32 module builds (see the lane's recorded steps); engine core (probe + \
-                 demux of this family) compiled in; DECODE refused — the wasm32 module ships \
-                 decoder-less (codecs crate does not build for wasm32; apps/web/src/\
-                 capabilities.rs reports the split); no in-browser run in this matrix"
-                .to_string(),
-        },
+        LaneKind::Steps { .. } => steps_cell(
+            lane,
+            steps,
+            "wasm32 module builds (see the lane's recorded steps); engine core (probe + demux \
+             of this family) compiled in; DECODE refused — the wasm32 module ships decoder-less \
+             (codecs crate does not build for wasm32; apps/web/src/capabilities.rs reports the \
+             split); no in-browser run in this matrix",
+        ),
         LaneKind::Blocked {
             reason,
             reason_ref,
@@ -1065,6 +1116,7 @@ fn refusal_breakdown(refused: &[&(CorpusFile, FileRecord)]) -> String {
 /// One codec-row cell for one lane.
 fn codec_cell(
     lane: &crate::config::Lane,
+    steps: &[StepRecord],
     valid: &[&(CorpusFile, FileRecord)],
     codec: &crate::config::CodecRow,
 ) -> Cell {
@@ -1138,13 +1190,12 @@ fn codec_cell(
                 detail,
             }
         }
-        LaneKind::Steps { .. } => Cell {
-            lane: lane.id.clone(),
-            status: "engine-core-only".to_string(),
-            detail: "wasm32 module builds; DECODE refused for every codec — the module ships \
-                 decoder-less on wasm32 (apps/web/src/capabilities.rs); no decode claimed"
-                .to_string(),
-        },
+        LaneKind::Steps { .. } => steps_cell(
+            lane,
+            steps,
+            "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less \
+             on wasm32 (apps/web/src/capabilities.rs); no decode claimed",
+        ),
         LaneKind::Blocked {
             reason,
             reason_ref,
@@ -1906,7 +1957,7 @@ mod tests {
             ),
         )];
         let refused = as_refs(&refused_rows);
-        let cell = format_cell(&native_lane(), &valid, &refused, 0);
+        let cell = format_cell(&native_lane(), &[], &valid, &refused, 0);
         assert_eq!(cell.status, "decoded");
         assert!(
             cell.detail.contains("2/3 files open+demux"),
@@ -1982,9 +2033,101 @@ mod tests {
             ),
         ];
         let valid = as_refs(&valid_rows);
-        let cell = format_cell(&native_lane(), &valid, &[], 0);
+        let cell = format_cell(&native_lane(), &[], &valid, &[], 0);
         assert!(cell.detail.contains("2/2 files open+demux"));
         assert!(!cell.detail.contains("REFUSED"));
+    }
+
+    fn steps_lane() -> crate::config::Lane {
+        crate::config::Lane {
+            id: "web-wasm".to_string(),
+            label: "Web/wasm".to_string(),
+            kind: crate::config::LaneKind::Steps { steps: Vec::new() },
+        }
+    }
+
+    fn step_record(purpose: &str, outcome: &str) -> StepRecord {
+        StepRecord {
+            purpose: purpose.to_string(),
+            argv: vec!["cargo".to_string(), "test".to_string()],
+            outcome: outcome.to_string(),
+            wall_s: 1.0,
+            artifacts: Vec::new(),
+        }
+    }
+
+    fn codec_row() -> crate::config::CodecRow {
+        crate::config::CodecRow {
+            codec: "pcm_".to_string(),
+            prefix_match: true,
+            matrix_rows: vec!["codec-audio-pcm".to_string()],
+            kind: "audio".to_string(),
+        }
+    }
+
+    /// P2-2: a Steps lane whose recorded wasm build step FAILED must
+    /// render the failure — never the hard-coded "builds" claim.
+    #[test]
+    fn failed_wasm_step_renders_steps_failed() {
+        let lane = steps_lane();
+        let steps = vec![
+            step_record("build the wasm32 module", "exit 0"),
+            step_record("test the wasm32 module", "exit 101"),
+        ];
+        let cell = format_cell(&lane, &steps, &[], &[], 0);
+        assert_eq!(cell.status, "steps-failed");
+        assert!(cell.detail.contains("exit 101"), "{}", cell.detail);
+        assert!(
+            cell.detail.contains("test the wasm32 module"),
+            "{}",
+            cell.detail
+        );
+        assert!(
+            !cell.detail.contains("module builds"),
+            "a failed step must not still claim the build: {}",
+            cell.detail
+        );
+        // Codec rows derive from the same recorded outcomes.
+        let codec = codec_cell(&lane, &steps, &[], &codec_row());
+        assert_eq!(codec.status, "steps-failed");
+        assert!(codec.detail.contains("exit 101"), "{}", codec.detail);
+    }
+
+    /// P2-2: a timeout is a failure too, and the all-pass rendering
+    /// keeps the committed engine-core-only text byte-identical (the
+    /// 2026-11-10 run's recorded steps were both `exit 0`).
+    #[test]
+    fn passing_wasm_steps_render_engine_core_only() {
+        let lane = steps_lane();
+        let steps = vec![
+            step_record("build the wasm32 module", "exit 0"),
+            step_record("test the wasm32 module", "exit 0"),
+        ];
+        let cell = format_cell(&lane, &steps, &[], &[], 0);
+        assert_eq!(cell.status, "engine-core-only");
+        assert_eq!(
+            cell.detail,
+            "wasm32 module builds (see the lane's recorded steps); engine core (probe + demux of this family) compiled in; DECODE refused — the wasm32 module ships decoder-less (codecs crate does not build for wasm32; apps/web/src/capabilities.rs reports the split); no in-browser run in this matrix"
+        );
+        let codec = codec_cell(&lane, &steps, &[], &codec_row());
+        assert_eq!(codec.status, "engine-core-only");
+        assert_eq!(
+            codec.detail,
+            "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less on wasm32 (apps/web/src/capabilities.rs); no decode claimed"
+        );
+        let timed_out = vec![step_record("build the wasm32 module", "killed (timeout)")];
+        let cell = format_cell(&lane, &timed_out, &[], &[], 0);
+        assert_eq!(cell.status, "steps-failed");
+        assert!(cell.detail.contains("killed (timeout)"), "{}", cell.detail);
+    }
+
+    /// P2-2: a steps lane with no recorded steps claims nothing.
+    #[test]
+    fn steps_lane_without_records_claims_nothing() {
+        let lane = steps_lane();
+        let cell = format_cell(&lane, &[], &[], &[], 0);
+        assert_eq!(cell.status, "not-covered");
+        assert!(cell.detail.contains("recorded no steps"), "{}", cell.detail);
     }
 
     /// P2-1 (control): the all-refused arm is unchanged — status
@@ -2012,7 +2155,7 @@ mod tests {
             ),
         ];
         let refused = as_refs(&refused_rows);
-        let cell = format_cell(&native_lane(), &[], &refused, 0);
+        let cell = format_cell(&native_lane(), &[], &[], &refused, 0);
         assert_eq!(cell.status, "refused");
         assert!(cell.detail.contains("2/2 corpus files REFUSED"));
     }
