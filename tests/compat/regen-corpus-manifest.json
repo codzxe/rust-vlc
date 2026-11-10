@@ -2632,7 +2632,7 @@
    "sha256": null,
    "deterministic": false,
    "source": "docs/corpus/corpus-big-manifest-20261022.json rel media/0385-dynres-video.mkv (cmd verbatim; output arg \u2192 __OUT__)",
-   "purpose": "format/codec coverage: MKV MPEG-4 ASP (blocked codec \u2014 honest partial cell) (probe family matroska)",
+   "purpose": "format/codec coverage: MKV MPEG-4 ASP (blocked codec \u2014 honest partial cell) (probe family matroska). KNOWN GAP (W24-L audit P3-7): this argv chain's input is a machine-local concat intermediate (/home/z/my-project/corpus-big/_tmp/0385-dynres-video/concat.txt) that no longer exists, so the entry can never regenerate — every future run on any host records the same FAILED row (typed, excluded from the sweep). Next step: re-author the entry self-contained (a single-pass ffmpeg argv that synthesizes the dynamic-resolution payload directly, no concat intermediate) and pin its sha256; the corpus owner's call, not a review-lane edit.",
    "audiofile_format": null,
    "oracle_rel": null,
    "dump_pcm": false
