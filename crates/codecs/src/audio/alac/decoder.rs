@@ -743,11 +743,14 @@ fn pooled_sample_slot(
         // The slot still has downstream owners — try the next one.
     }
     let mut fresh = SharedBytes::from_vec(vec![0u8; slot_len]);
-    let meta = fill(
-        fresh
-            .get_mut()
-            .unwrap_or_else(|| unreachable!("fresh slot is exclusive")),
-    )?;
+    // A just-built slot has refcount 1 by Arc semantics, so get_mut
+    // is Some (the CITED_INVARIANTS rationale); the None arm is the
+    // panic-free residue of that invariant — typed BadState, never a
+    // process abort (8.A1 sweep).
+    let meta = match fresh.get_mut() {
+        Some(bytes) => fill(bytes)?,
+        None => return Err(AlacError::BadState),
+    };
     let bytes = fresh.clone();
     if slots.len() < SAMPLE_SLOTS {
         slots.push(fresh);

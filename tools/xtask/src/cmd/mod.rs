@@ -26,6 +26,7 @@
 //! | `cmd::parity_report`     | `parity-report`      | #20 / card 8.F1 (implemented — derived parity table from the matrix; same granted-registry precedent) |
 //! | `cmd::lint_literals`     | `lint-literals`      | 7.w21a (implemented — the C1 config-plane literal gate, doc 07 §9; registered under task 7.w21a's granted ownership of tools/xtask/src/**, same precedent as check-panics/7-e) |
 //! | `cmd::check_identity`    | `check-identity`     | 7.w21a (implemented — the C2 no-hardcoded-identity gate, doc 07 §9; same granted-registry precedent) |
+//! | `cmd::sbom`              | `sbom`               | 7.w23f (#52) (implemented — std-only CycloneDX 1.5 SBOM generator + drift gate, doc 11 §3.4; registered under task 7.w23f's granted ownership of tools/xtask/src/**, same precedent as check-panics/7-e) |
 
 use std::process::ExitCode;
 
@@ -42,6 +43,7 @@ pub mod gate;
 pub mod lint_literals;
 pub mod parity_report;
 pub mod rebrand;
+pub mod sbom;
 pub mod schema_gen;
 pub mod tokens;
 pub mod toml_lite;
@@ -161,6 +163,13 @@ pub const SUBCOMMANDS: &[Subcommand] = &[
         summary: "C2 identity gate: no hard-coded identity strings outside product.toml (doc 07 §9)",
         implemented: true,
         run: check_identity::run,
+    },
+    Subcommand {
+        name: "sbom",
+        card: "7.w23f (#52)",
+        summary: "CycloneDX 1.5 SBOM from Cargo.lock + product.toml (std-only; --check drift gate)",
+        implemented: true,
+        run: sbom::run,
     },
 ];
 

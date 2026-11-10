@@ -68,7 +68,7 @@ fn header_parse_roundtrips_the_field_set() {
     assert_eq!(head.samples(), 1024);
     assert_eq!(head.sample_rate(), Some(44_100));
     assert_eq!(head.header_len(), 7);
-    assert_eq!(head.descriptor().as_str(), "aac-lc");
+    assert_eq!(head.descriptor().must().as_str(), "aac-lc");
 
     let protected = adts_frame(0, 0, 1, 4, 90, Some(false));
     let head = AdtsHeader::parse(&protected).must();
@@ -77,7 +77,7 @@ fn header_parse_roundtrips_the_field_set() {
     assert_eq!(head.blocks_minus_one, 3);
     assert_eq!(head.samples(), 4096); // 4 raw data blocks
     assert_eq!(head.sample_rate(), Some(96_000));
-    assert_eq!(head.descriptor().as_str(), "aac-main");
+    assert_eq!(head.descriptor().must().as_str(), "aac-main");
 }
 
 #[test]

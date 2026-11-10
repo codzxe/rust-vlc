@@ -955,7 +955,13 @@ impl TsDemuxer {
     /// Build the engine tracks from the collected programs (the
     /// multi-program surface's plumbing half).
     fn build_tracks(&mut self) {
-        let base = TimeBase::new(1, 90_000).unwrap_or_else(|e| unreachable!("{e}"));
+        // 1/90_000 (coprime, non-zero): exactly `TimeBase::new`'s Ok
+        // value, constructed directly — the DVB-builder precedent
+        // (8.A1 sweep: no unreachable error path).
+        let base = TimeBase {
+            num: 1,
+            den: 90_000,
+        };
         let mut tracks = Vec::new();
         let mut routing = HashMap::new();
         let mut next = 0u32;

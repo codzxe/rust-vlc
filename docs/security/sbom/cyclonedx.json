@@ -1,0 +1,4718 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:4d0682b2-f379-8085-b005-9acd7cababc3",
+  "version": 1,
+  "metadata": {
+    "component": {
+      "type": "application",
+      "bom-ref": "Lumen@0.1.0-dev",
+      "name": "Lumen",
+      "version": "0.1.0-dev",
+      "publisher": "Lumen Contributors"
+    },
+    "properties": [
+      {
+        "name": "lumen:generator",
+        "value": "xtask sbom (std-only; Cargo.lock + product.toml; no cargo-cyclonedx)"
+      },
+      {
+        "name": "lumen:cargo-lock-version",
+        "value": "v4"
+      },
+      {
+        "name": "lumen:license-coverage",
+        "value": "omitted — Cargo.lock carries no license fields; G3 cargo-deny owns license policy"
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/assert_matches@1.5.0",
+      "name": "assert_matches",
+      "version": "1.5.0",
+      "scope": "required",
+      "purl": "pkg:cargo/assert_matches@1.5.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/assert_matches/1.5.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9b34d609dfbaf33d6889b2b7106d3ca345eacad44200913df5ba02bfd31d2ba9"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/atomig@0.4.3",
+      "name": "atomig",
+      "version": "0.4.3",
+      "scope": "required",
+      "purl": "pkg:cargo/atomig@0.4.3",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/atomig/0.4.3"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "cd0f41f4bb89f5c6450325e283fb78c4a3d042181b54f3855ee2f872919f9863"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/atomig-macro@0.4.0",
+      "name": "atomig-macro",
+      "version": "0.4.0",
+      "scope": "required",
+      "purl": "pkg:cargo/atomig-macro@0.4.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/atomig-macro/0.4.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "49c98dba06b920588de7d63f6acc23f1e6a9fade5fd6198e564506334fb5a4f5"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "audio-engine@0.1.0",
+      "name": "audio-engine",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "audio-output@0.1.0",
+      "name": "audio-output",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/autocfg@1.5.1",
+      "name": "autocfg",
+      "version": "1.5.1",
+      "scope": "required",
+      "purl": "pkg:cargo/autocfg@1.5.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/autocfg/1.5.1"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/base64@0.23.1",
+      "name": "base64",
+      "version": "0.23.1",
+      "scope": "required",
+      "purl": "pkg:cargo/base64@0.23.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/base64/0.23.1"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/bitflags@2.13.2",
+      "name": "bitflags",
+      "version": "2.13.2",
+      "scope": "required",
+      "purl": "pkg:cargo/bitflags@2.13.2",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/bitflags/2.13.2"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "3ded4057c258ba199e2d26386d3af3780957ecaee6c4ef4041c6b4b8b97c0b06"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/bytemuck@1.25.2",
+      "name": "bytemuck",
+      "version": "1.25.2",
+      "scope": "required",
+      "purl": "pkg:cargo/bytemuck@1.25.2",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/bytemuck/1.25.2"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "95832e849adfb21180ccb6826a99da14e5d266ae5c2e668e1602cf234f153797"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/byteorder@1.5.0",
+      "name": "byteorder",
+      "version": "1.5.0",
+      "scope": "required",
+      "purl": "pkg:cargo/byteorder@1.5.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/byteorder/1.5.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/bytes@1.12.1",
+      "name": "bytes",
+      "version": "1.12.1",
+      "scope": "required",
+      "purl": "pkg:cargo/bytes@1.12.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/bytes/1.12.1"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/cc@1.10.0",
+      "name": "cc",
+      "version": "1.10.0",
+      "scope": "required",
+      "purl": "pkg:cargo/cc@1.10.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/cc/1.10.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "86e055fa6e3e40ad6187ba25b6855eeb635d5271f8e0f0e1e9a5826b8d75bea0"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/cfg-if@1.0.5",
+      "name": "cfg-if",
+      "version": "1.0.5",
+      "scope": "required",
+      "purl": "pkg:cargo/cfg-if@1.0.5",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/cfg-if/1.0.5"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/claxon@0.4.3",
+      "name": "claxon",
+      "version": "0.4.3",
+      "scope": "required",
+      "purl": "pkg:cargo/claxon@0.4.3",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/claxon/0.4.3"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "4bfbf56724aa9eca8afa4fcfadeb479e722935bb2a0900c2d37e0cc477af0688"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "codec-api@0.1.0",
+      "name": "codec-api",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "codecs@0.1.0",
+      "name": "codecs",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "commands@0.1.0",
+      "name": "commands",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "control-protocol@0.1.0",
+      "name": "control-protocol",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "control-server@0.1.0",
+      "name": "control-server",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "demux@0.1.0",
+      "name": "demux",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "desktop@0.1.0",
+      "name": "desktop",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/dyn-clone@1.0.20",
+      "name": "dyn-clone",
+      "version": "1.0.20",
+      "scope": "required",
+      "purl": "pkg:cargo/dyn-clone@1.0.20",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/dyn-clone/1.0.20"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/equivalent@1.0.3",
+      "name": "equivalent",
+      "version": "1.0.3",
+      "scope": "required",
+      "purl": "pkg:cargo/equivalent@1.0.3",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/equivalent/1.0.3"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "00d174d5400e5e8fd687ad1049e2f578285fa914201b1af7e8b112a4546bd826"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/filmcraft-bitstream@0.9.0",
+      "name": "filmcraft-bitstream",
+      "version": "0.9.0",
+      "scope": "required",
+      "purl": "pkg:cargo/filmcraft-bitstream@0.9.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/filmcraft-bitstream/0.9.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "08f8be9fae696d78e233591b4d57871c39f15ac0ac7445168356cda705efa499"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/filmcraft-dnx@0.9.0",
+      "name": "filmcraft-dnx",
+      "version": "0.9.0",
+      "scope": "required",
+      "purl": "pkg:cargo/filmcraft-dnx@0.9.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/filmcraft-dnx/0.9.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "a3a59d559caf74b9281578f06015702bd402192198f71f5d41e7c6a9ec3592ab"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/find-msvc-tools@0.1.15",
+      "name": "find-msvc-tools",
+      "version": "0.1.15",
+      "scope": "required",
+      "purl": "pkg:cargo/find-msvc-tools@0.1.15",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/find-msvc-tools/0.1.15"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1c66915cc5391097de7a2b0b972e8505aa33c0df401fd3a6811dbdb32881ba48"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "first-vertical@0.1.0",
+      "name": "first-vertical",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/foldhash@0.1.5",
+      "name": "foldhash",
+      "version": "0.1.5",
+      "scope": "required",
+      "purl": "pkg:cargo/foldhash@0.1.5",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/foldhash/0.1.5"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/getrandom@0.2.17",
+      "name": "getrandom",
+      "version": "0.2.17",
+      "scope": "required",
+      "purl": "pkg:cargo/getrandom@0.2.17",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/getrandom/0.2.17"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "ff2abc00be7fca6ebc474524697ae276ad847ad0a6b3faa4bcb027e9a4614ad0"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/getrandom@0.4.3",
+      "name": "getrandom",
+      "version": "0.4.3",
+      "scope": "required",
+      "purl": "pkg:cargo/getrandom@0.4.3",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/getrandom/0.4.3"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "300e883d756b2e4ec94e02791f39b04b522276138852cfc41d9fb7e904106099"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/hashbrown@0.15.5",
+      "name": "hashbrown",
+      "version": "0.15.5",
+      "scope": "required",
+      "purl": "pkg:cargo/hashbrown@0.15.5",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/hashbrown/0.15.5"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/hashbrown@0.17.1",
+      "name": "hashbrown",
+      "version": "0.17.1",
+      "scope": "required",
+      "purl": "pkg:cargo/hashbrown@0.17.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/hashbrown/0.17.1"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/heck@0.5.0",
+      "name": "heck",
+      "version": "0.5.0",
+      "scope": "required",
+      "purl": "pkg:cargo/heck@0.5.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/heck/0.5.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/http@1.5.0",
+      "name": "http",
+      "version": "1.5.0",
+      "scope": "required",
+      "purl": "pkg:cargo/http@1.5.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/http/1.5.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "918d3568bebf352712bc2ef3d46a8bcf1a75b373be6539de198e9105cbbf9ce0"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/httparse@1.10.1",
+      "name": "httparse",
+      "version": "1.10.1",
+      "scope": "required",
+      "purl": "pkg:cargo/httparse@1.10.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/httparse/1.10.1"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "6dbf3de79e51f3d586ab4cb9d5c3e2c14aa28ed23d180cf89b4df0454a69cc87"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/indexmap@2.14.2",
+      "name": "indexmap",
+      "version": "2.14.2",
+      "scope": "required",
+      "purl": "pkg:cargo/indexmap@2.14.2",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/indexmap/2.14.2"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "cc4e190f5d26ca7051642629da2c52fc03bde85a03197c99408dcd291734c855"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "input@0.1.0",
+      "name": "input",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/itoa@1.0.18",
+      "name": "itoa",
+      "version": "1.0.18",
+      "scope": "required",
+      "purl": "pkg:cargo/itoa@1.0.18",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/itoa/1.0.18"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/jobserver@0.1.35",
+      "name": "jobserver",
+      "version": "0.1.35",
+      "scope": "required",
+      "purl": "pkg:cargo/jobserver@0.1.35",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/jobserver/0.1.35"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1c00acbd29eabad4a2392fa0e921c874934dbbf4194312ad20f04a0ed67a3cb3"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/lazy_static@1.5.1",
+      "name": "lazy_static",
+      "version": "1.5.1",
+      "scope": "required",
+      "purl": "pkg:cargo/lazy_static@1.5.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/lazy_static/1.5.1"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "20870f649af7073d53e38067b2a84312175d56ea15217e1b15bc83506ec50afb"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/libc@0.2.191",
+      "name": "libc",
+      "version": "0.2.191",
+      "scope": "required",
+      "purl": "pkg:cargo/libc@0.2.191",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/libc/0.2.191"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/libm@0.2.16",
+      "name": "libm",
+      "version": "0.2.16",
+      "scope": "required",
+      "purl": "pkg:cargo/libm@0.2.16",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/libm/0.2.16"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "localization@0.1.0",
+      "name": "localization",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/lock_api@0.4.14",
+      "name": "lock_api",
+      "version": "0.4.14",
+      "scope": "required",
+      "purl": "pkg:cargo/lock_api@0.4.14",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/lock_api/0.4.14"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "224399e74b87b5f3557511d98dff8b14089b3dadafcab6bb93eab67d3aace965"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/log@0.4.34",
+      "name": "log",
+      "version": "0.4.34",
+      "scope": "required",
+      "purl": "pkg:cargo/log@0.4.34",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/log/0.4.34"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "lumen-cli@0.1.0",
+      "name": "lumen-cli",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "lumen-mem-audit@0.1.0",
+      "name": "lumen-mem-audit",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "lumen-sweep@0.1.0",
+      "name": "lumen-sweep",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "lumen-web@0.1.0",
+      "name": "lumen-web",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "media-clock@0.1.0",
+      "name": "media-clock",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "media-probe@0.1.0",
+      "name": "media-probe",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "media-types@0.1.0",
+      "name": "media-types",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/memchr@2.8.3",
+      "name": "memchr",
+      "version": "2.8.3",
+      "scope": "required",
+      "purl": "pkg:cargo/memchr@2.8.3",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/memchr/2.8.3"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/nasm-rs@0.3.2",
+      "name": "nasm-rs",
+      "version": "0.3.2",
+      "scope": "required",
+      "purl": "pkg:cargo/nasm-rs@0.3.2",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/nasm-rs/0.3.2"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "706bf8a5e8c8ddb99128c3291d31bd21f4bcde17f0f4c20ec678d85c74faa149"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/num-complex@0.4.6",
+      "name": "num-complex",
+      "version": "0.4.6",
+      "scope": "required",
+      "purl": "pkg:cargo/num-complex@0.4.6",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/num-complex/0.4.6"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "73f88a1307638156682bada9d7604135552957b7818057dcef22705b4d509495"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/num-traits@0.2.19",
+      "name": "num-traits",
+      "version": "0.2.19",
+      "scope": "required",
+      "purl": "pkg:cargo/num-traits@0.2.19",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/num-traits/0.2.19"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/once_cell@1.21.4",
+      "name": "once_cell",
+      "version": "1.21.4",
+      "scope": "required",
+      "purl": "pkg:cargo/once_cell@1.21.4",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/once_cell/1.21.4"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "packet-queue@0.1.0",
+      "name": "packet-queue",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/parking_lot@0.12.5",
+      "name": "parking_lot",
+      "version": "0.12.5",
+      "scope": "required",
+      "purl": "pkg:cargo/parking_lot@0.12.5",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/parking_lot/0.12.5"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "93857453250e3077bd71ff98b6a65ea6621a19bb0f559a85248955ac12c45a1a"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/parking_lot_core@0.9.12",
+      "name": "parking_lot_core",
+      "version": "0.9.12",
+      "scope": "required",
+      "purl": "pkg:cargo/parking_lot_core@0.9.12",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/parking_lot_core/0.9.12"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "2621685985a2ebf1c516881c026032ac7deafcda1a2c9b7850dc81e3dfcb64c1"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/paste@1.0.15",
+      "name": "paste",
+      "version": "1.0.15",
+      "scope": "required",
+      "purl": "pkg:cargo/paste@1.0.15",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/paste/1.0.15"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/percent-encoding@2.3.2",
+      "name": "percent-encoding",
+      "version": "2.3.2",
+      "scope": "required",
+      "purl": "pkg:cargo/percent-encoding@2.3.2",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/percent-encoding/2.3.2"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "platform-linux@0.1.0",
+      "name": "platform-linux",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "platform-macos@0.1.0",
+      "name": "platform-macos",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "platform-windows@0.1.0",
+      "name": "platform-windows",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "playback-engine@0.1.0",
+      "name": "playback-engine",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "playlists@0.1.0",
+      "name": "playlists",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "plugin-api@0.1.0",
+      "name": "plugin-api",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "plugin-host-wasm@0.1.0",
+      "name": "plugin-host-wasm",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/proc-macro2@1.0.107",
+      "name": "proc-macro2",
+      "version": "1.0.107",
+      "scope": "required",
+      "purl": "pkg:cargo/proc-macro2@1.0.107",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/proc-macro2/1.0.107"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "product-config@0.1.0",
+      "name": "product-config",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/quote@1.0.47",
+      "name": "quote",
+      "version": "1.0.47",
+      "scope": "required",
+      "purl": "pkg:cargo/quote@1.0.47",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/quote/1.0.47"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/r-efi@6.0.0",
+      "name": "r-efi",
+      "version": "6.0.0",
+      "scope": "required",
+      "purl": "pkg:cargo/r-efi@6.0.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/r-efi/6.0.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/rav1d@1.1.0",
+      "name": "rav1d",
+      "version": "1.1.0",
+      "scope": "required",
+      "purl": "pkg:cargo/rav1d@1.1.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/rav1d/1.1.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1932f060d5e7bd49dc9f8b272c1dc5e9ce0ffe141c28be900265d3989b36c9ed"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/raw-cpuid@11.6.0",
+      "name": "raw-cpuid",
+      "version": "11.6.0",
+      "scope": "required",
+      "purl": "pkg:cargo/raw-cpuid@11.6.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/raw-cpuid/11.6.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "498cd0dc59d73224351ee52a95fee0f1a617a2eae0e7d9d720cc622c73a54186"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/redox_syscall@0.5.18",
+      "name": "redox_syscall",
+      "version": "0.5.18",
+      "scope": "required",
+      "purl": "pkg:cargo/redox_syscall@0.5.18",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/redox_syscall/0.5.18"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "ed2bf2547551a7053d6fdfafda3f938979645c44812fbfcda098faae3f1a362d"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/ref-cast@1.0.27",
+      "name": "ref-cast",
+      "version": "1.0.27",
+      "scope": "required",
+      "purl": "pkg:cargo/ref-cast@1.0.27",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/ref-cast/1.0.27"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7e440fb4e4b4147295338efb76001ab9e4efc0e5839df2c47fc5ac2381d365c3"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/ref-cast-impl@1.0.27",
+      "name": "ref-cast-impl",
+      "version": "1.0.27",
+      "scope": "required",
+      "purl": "pkg:cargo/ref-cast-impl@1.0.27",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/ref-cast-impl/1.0.27"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "92ecd8964f8453721699a1ed72037b0db49ce2f5a5138486ee89bed6f67cdf3a"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/regex-lite@0.1.9",
+      "name": "regex-lite",
+      "version": "0.1.9",
+      "scope": "required",
+      "purl": "pkg:cargo/regex-lite@0.1.9",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/regex-lite/0.1.9"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "cab834c73d247e67f4fae452806d17d3c7501756d98c8808d7c9c7aa7d18f973"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "renderer-wgpu@0.1.0",
+      "name": "renderer-wgpu",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/ring@0.17.14",
+      "name": "ring",
+      "version": "0.17.14",
+      "scope": "required",
+      "purl": "pkg:cargo/ring@0.17.14",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/ring/0.17.14"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "a4689e6c2294d81e88dc6261c768b63bc4fcdb852be6d1352498b114f61383b7"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/ruopus@0.1.2",
+      "name": "ruopus",
+      "version": "0.1.2",
+      "scope": "required",
+      "purl": "pkg:cargo/ruopus@0.1.2",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/ruopus/0.1.2"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "fcfcd963c83fc1ada2180ccdac7f1568d87fb0f2ad7236b266fdc9fb9122fbfd"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/rustls@0.23.46",
+      "name": "rustls",
+      "version": "0.23.46",
+      "scope": "required",
+      "purl": "pkg:cargo/rustls@0.23.46",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/rustls/0.23.46"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "48e13bd8c0e9365c43cfa5c9e8f9ad49d3c8444926c9aac819e0e4dc503c8fdf"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/rustls-pki-types@1.15.1",
+      "name": "rustls-pki-types",
+      "version": "1.15.1",
+      "scope": "required",
+      "purl": "pkg:cargo/rustls-pki-types@1.15.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/rustls-pki-types/1.15.1"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "2f4925028c7eb5d1fcdaf196971378ed9d2c1c4efc7dc5d011256f76c99c0a96"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/rustls-webpki@0.103.16",
+      "name": "rustls-webpki",
+      "version": "0.103.16",
+      "scope": "required",
+      "purl": "pkg:cargo/rustls-webpki@0.103.16",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/rustls-webpki/0.103.16"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "4443b1b6d39d7c663139942cc4558262562d2c84123bb6282ef177009ca8b281"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/rustversion@1.0.23",
+      "name": "rustversion",
+      "version": "1.0.23",
+      "scope": "required",
+      "purl": "pkg:cargo/rustversion@1.0.23",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/rustversion/1.0.23"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/rusty_vp9@0.1.3",
+      "name": "rusty_vp9",
+      "version": "0.1.3",
+      "scope": "required",
+      "purl": "pkg:cargo/rusty_vp9@0.1.3",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/rusty_vp9/0.1.3"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9bf32821db20be4ea56ce1f8feb757bf55f146f2685ba98822c3bd2d43a33889"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/schemars@1.2.3",
+      "name": "schemars",
+      "version": "1.2.3",
+      "scope": "required",
+      "purl": "pkg:cargo/schemars@1.2.3",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/schemars/1.2.3"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "ab508826f74a77ca9d5aba6ff19b522583ee3eaf28a19384ff3d0e5835fadf6e"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/schemars_derive@1.2.3",
+      "name": "schemars_derive",
+      "version": "1.2.3",
+      "scope": "required",
+      "purl": "pkg:cargo/schemars_derive@1.2.3",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/schemars_derive/1.2.3"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e1c3a92094fa7d61aa124645844facb6b554dfc797136d0f5fd1f890e2bffc69"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/scopeguard@1.2.0",
+      "name": "scopeguard",
+      "version": "1.2.0",
+      "scope": "required",
+      "purl": "pkg:cargo/scopeguard@1.2.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/scopeguard/1.2.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/serde@1.0.229",
+      "name": "serde",
+      "version": "1.0.229",
+      "scope": "required",
+      "purl": "pkg:cargo/serde@1.0.229",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/serde/1.0.229"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "4148590afebada386688f18773da617792bf2ef03ffc1e4cbd2b1d45b023e0ba"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/serde_core@1.0.229",
+      "name": "serde_core",
+      "version": "1.0.229",
+      "scope": "required",
+      "purl": "pkg:cargo/serde_core@1.0.229",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/serde_core/1.0.229"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "67dca2c9c51e58a4791a4b1ed58308b39c64224d349a935ab5039aa360942a48"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/serde_derive@1.0.229",
+      "name": "serde_derive",
+      "version": "1.0.229",
+      "scope": "required",
+      "purl": "pkg:cargo/serde_derive@1.0.229",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/serde_derive/1.0.229"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e7a5d71263a5a7d47b41f6b3f06ba276f10cc18b0931f1799f710578e2309348"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/serde_derive_internals@0.30.0",
+      "name": "serde_derive_internals",
+      "version": "0.30.0",
+      "scope": "required",
+      "purl": "pkg:cargo/serde_derive_internals@0.30.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/serde_derive_internals/0.30.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f852137cce035d6a4df67ccce505ff6b3e9fd3a10e3e52b24dc71e650bb1a9bd"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/serde_json@1.0.154",
+      "name": "serde_json",
+      "version": "1.0.154",
+      "scope": "required",
+      "purl": "pkg:cargo/serde_json@1.0.154",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/serde_json/1.0.154"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/serde_spanned@1.1.2",
+      "name": "serde_spanned",
+      "version": "1.1.2",
+      "scope": "required",
+      "purl": "pkg:cargo/serde_spanned@1.1.2",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/serde_spanned/1.1.2"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "4e7523beb55eece201a2356bee0bbca0d1ab466c14c07703b2e0ee6d42cb0c2c"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "settings-schema@0.1.0",
+      "name": "settings-schema",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/shlex@2.0.1",
+      "name": "shlex",
+      "version": "2.0.1",
+      "scope": "required",
+      "purl": "pkg:cargo/shlex@2.0.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/shlex/2.0.1"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/smallvec@1.16.4",
+      "name": "smallvec",
+      "version": "1.16.4",
+      "scope": "required",
+      "purl": "pkg:cargo/smallvec@1.16.4",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/smallvec/1.16.4"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "d0d5d4b1981b8bbbb7aed204cae5726d683d5d6ac7e74ec54122ea28f315e7c8"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/spin@0.9.9",
+      "name": "spin",
+      "version": "0.9.9",
+      "scope": "required",
+      "purl": "pkg:cargo/spin@0.9.9",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/spin/0.9.9"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "3763264f6b73151db08c50ff20d7d8a0b8796e021cdea7ceedad07b80155fa0e"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "streaming@0.1.0",
+      "name": "streaming",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/string-interner@0.19.0",
+      "name": "string-interner",
+      "version": "0.19.0",
+      "scope": "required",
+      "purl": "pkg:cargo/string-interner@0.19.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/string-interner/0.19.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "23de088478b31c349c9ba67816fa55d9355232d63c3afea8bf513e31f0f1d2c0"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/strum@0.26.3",
+      "name": "strum",
+      "version": "0.26.3",
+      "scope": "required",
+      "purl": "pkg:cargo/strum@0.26.3",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/strum/0.26.3"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "8fec0f0aef304996cf250b31b5a10dee7980c85da9d759361292b8bca5a18f06"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/strum_macros@0.26.4",
+      "name": "strum_macros",
+      "version": "0.26.4",
+      "scope": "required",
+      "purl": "pkg:cargo/strum_macros@0.26.4",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/strum_macros/0.26.4"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "4c6bee85a5a24955dc440386795aa378cd9cf82acd5f764469152d2270e581be"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "subtitles@0.1.0",
+      "name": "subtitles",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/subtle@2.6.1",
+      "name": "subtle",
+      "version": "2.6.1",
+      "scope": "required",
+      "purl": "pkg:cargo/subtle@2.6.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/subtle/2.6.1"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/symphonia-bundle-mp3@0.6.1",
+      "name": "symphonia-bundle-mp3",
+      "version": "0.6.1",
+      "scope": "required",
+      "purl": "pkg:cargo/symphonia-bundle-mp3@0.6.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/symphonia-bundle-mp3/0.6.1"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "98ea5ffc8716bff677dfb3b01b420c7b758de901a72b8c330bf2040ab74b4add"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/symphonia-codec-aac@0.6.1",
+      "name": "symphonia-codec-aac",
+      "version": "0.6.1",
+      "scope": "required",
+      "purl": "pkg:cargo/symphonia-codec-aac@0.6.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/symphonia-codec-aac/0.6.1"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f5bf8e39552d34a3c4c98333370e62f48c92456d2e814f273b5c3ad7c4a5f45c"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/symphonia-codec-alac@0.6.1",
+      "name": "symphonia-codec-alac",
+      "version": "0.6.1",
+      "scope": "required",
+      "purl": "pkg:cargo/symphonia-codec-alac@0.6.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/symphonia-codec-alac/0.6.1"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "920a78f96f3cf62932d0c497959c0cc2100ef36b03c7ca1417b260f432a482d8"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/symphonia-codec-vorbis@0.6.1",
+      "name": "symphonia-codec-vorbis",
+      "version": "0.6.1",
+      "scope": "required",
+      "purl": "pkg:cargo/symphonia-codec-vorbis@0.6.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/symphonia-codec-vorbis/0.6.1"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "73d90b4fcf796137cc683c538282804ff9629f8ad9dbfd881fcbba331ac4e986"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/symphonia-common@0.6.1",
+      "name": "symphonia-common",
+      "version": "0.6.1",
+      "scope": "required",
+      "purl": "pkg:cargo/symphonia-common@0.6.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/symphonia-common/0.6.1"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "2acc3fcc18ec9b8cdd48614e259c4cf0d27b71d41e5d9b120b42c5adab12d7c4"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/symphonia-core@0.6.1",
+      "name": "symphonia-core",
+      "version": "0.6.1",
+      "scope": "required",
+      "purl": "pkg:cargo/symphonia-core@0.6.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/symphonia-core/0.6.1"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "01c412864d599d4750d0c3d684d7e093ec05e5309681ef5252cc1096a437f6e0"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/symphonia-metadata@0.6.1",
+      "name": "symphonia-metadata",
+      "version": "0.6.1",
+      "scope": "required",
+      "purl": "pkg:cargo/symphonia-metadata@0.6.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/symphonia-metadata/0.6.1"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "83713a97705d77bdef7cdbc0768fd6e5a54e4cd7e48d60a806ae85639e2c87c6"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/syn@2.0.119",
+      "name": "syn",
+      "version": "2.0.119",
+      "scope": "required",
+      "purl": "pkg:cargo/syn@2.0.119",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/syn/2.0.119"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "872831b642d1a07999a962a351ed35b955ea2cfc8f3862091e2a240a84f17297"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/syn@3.0.9",
+      "name": "syn",
+      "version": "3.0.9",
+      "scope": "required",
+      "purl": "pkg:cargo/syn@3.0.9",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/syn/3.0.9"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "d78c8dee4c7bf0e14673097256fed6142ce9d3b85a408189d07482442145823b"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "template@0.1.0",
+      "name": "template",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "testkit@0.1.0",
+      "name": "testkit",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "theme-tokens@0.1.0",
+      "name": "theme-tokens",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/thiserror@2.0.21",
+      "name": "thiserror",
+      "version": "2.0.21",
+      "scope": "required",
+      "purl": "pkg:cargo/thiserror@2.0.21",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/thiserror/2.0.21"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "09e52cb86a36cede5cb101bf8908837b3e4c6e5e59fe7fd85c23fb56200d189e"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/thiserror-impl@2.0.21",
+      "name": "thiserror-impl",
+      "version": "2.0.21",
+      "scope": "required",
+      "purl": "pkg:cargo/thiserror-impl@2.0.21",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/thiserror-impl/2.0.21"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "fe5197923287db20a58125f0bc85c062f7f2c892de97b18c356f9efb14b28524"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/to_method@1.1.0",
+      "name": "to_method",
+      "version": "1.1.0",
+      "scope": "required",
+      "purl": "pkg:cargo/to_method@1.1.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/to_method/1.1.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "c7c4ceeeca15c8384bbc3e011dbd8fccb7f068a440b752b7d9b32ceb0ca0e2e8"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/toml@1.1.8+spec-1.1.0",
+      "name": "toml",
+      "version": "1.1.8+spec-1.1.0",
+      "scope": "required",
+      "purl": "pkg:cargo/toml@1.1.8+spec-1.1.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/toml/1.1.8+spec-1.1.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "20489e00e4d8741d6be680764cc12e270655e375a20d1011e844a9c3379e678d"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/toml_datetime@1.1.2+spec-1.1.0",
+      "name": "toml_datetime",
+      "version": "1.1.2+spec-1.1.0",
+      "scope": "required",
+      "purl": "pkg:cargo/toml_datetime@1.1.2+spec-1.1.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/toml_datetime/1.1.2+spec-1.1.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "2b86d767906c6c42421dcba507eb9d203e779497710a47782a224bb871653053"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/toml_parser@1.1.5+spec-1.1.0",
+      "name": "toml_parser",
+      "version": "1.1.5+spec-1.1.0",
+      "scope": "required",
+      "purl": "pkg:cargo/toml_parser@1.1.5+spec-1.1.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/toml_parser/1.1.5+spec-1.1.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "baa693a8032d7e1cada7d0041e96126df243179ff061456783ac7f12bda4744c"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/toml_writer@1.1.3+spec-1.1.0",
+      "name": "toml_writer",
+      "version": "1.1.3+spec-1.1.0",
+      "scope": "required",
+      "purl": "pkg:cargo/toml_writer@1.1.3+spec-1.1.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/toml_writer/1.1.3+spec-1.1.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "06bdbd8cfc056b8d2e2e85f29b56a3bdbecb527cef81eb39e3e7b98af4652770"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "transcode@0.1.0",
+      "name": "transcode",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/unicode-ident@1.0.27",
+      "name": "unicode-ident",
+      "version": "1.0.27",
+      "scope": "required",
+      "purl": "pkg:cargo/unicode-ident@1.0.27",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/unicode-ident/1.0.27"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/untrusted@0.9.0",
+      "name": "untrusted",
+      "version": "0.9.0",
+      "scope": "required",
+      "purl": "pkg:cargo/untrusted@0.9.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/untrusted/0.9.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/ureq@3.5.0",
+      "name": "ureq",
+      "version": "3.5.0",
+      "scope": "required",
+      "purl": "pkg:cargo/ureq@3.5.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/ureq/3.5.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "cde93ff05758a36a851a398a772b0b79a82fbe3c186a46f2696baaeaf84c966b"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/ureq-proto@0.6.5",
+      "name": "ureq-proto",
+      "version": "0.6.5",
+      "scope": "required",
+      "purl": "pkg:cargo/ureq-proto@0.6.5",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/ureq-proto/0.6.5"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "841583fc36089d7d59419568ae157f43a5a03a2e5a81ba87c77d1596ef46e922"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/utf8-zero@0.8.1",
+      "name": "utf8-zero",
+      "version": "0.8.1",
+      "scope": "required",
+      "purl": "pkg:cargo/utf8-zero@0.8.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/utf8-zero/0.8.1"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "b8c0a043c9540bae7c578c88f91dda8bd82e59ae27c21baca69c8b191aaf5a6e"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "video-engine@0.1.0",
+      "name": "video-engine",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/wasi@0.11.1+wasi-snapshot-preview1",
+      "name": "wasi",
+      "version": "0.11.1+wasi-snapshot-preview1",
+      "scope": "required",
+      "purl": "pkg:cargo/wasi@0.11.1+wasi-snapshot-preview1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/wasi/0.11.1+wasi-snapshot-preview1"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "ccf3ec651a847eb01de73ccad15eb7d99f80485de043efb2f370cd654f4ea44b"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/wasmi@2.0.0",
+      "name": "wasmi",
+      "version": "2.0.0",
+      "scope": "required",
+      "purl": "pkg:cargo/wasmi@2.0.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/wasmi/2.0.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "78693fcdd618e0fc34af59c6b8efa9ac5d58c68df940beff4bedddb6acfe7c27"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/wasmi_collections@2.0.0",
+      "name": "wasmi_collections",
+      "version": "2.0.0",
+      "scope": "required",
+      "purl": "pkg:cargo/wasmi_collections@2.0.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/wasmi_collections/2.0.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "8a8be2aa467cf2d29e96ff759472c36eeb44a3c81c67fc9cb76c9a24c519c557"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/wasmi_core@2.0.0",
+      "name": "wasmi_core",
+      "version": "2.0.0",
+      "scope": "required",
+      "purl": "pkg:cargo/wasmi_core@2.0.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/wasmi_core/2.0.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "69372d5fda3ea3d1e0aa6603c7888110e0187e88ea17cd8fc2e2df0a0e1f37fa"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/wasmi_ir@2.0.0",
+      "name": "wasmi_ir",
+      "version": "2.0.0",
+      "scope": "required",
+      "purl": "pkg:cargo/wasmi_ir@2.0.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/wasmi_ir/2.0.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "8f17b774caa13c618c7244f1ee51fe23c5e7b8538a471fa46d9949779758aed6"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/wasmparser@0.228.0",
+      "name": "wasmparser",
+      "version": "0.228.0",
+      "scope": "required",
+      "purl": "pkg:cargo/wasmparser@0.228.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/wasmparser/0.228.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "4abf1132c1fdf747d56bbc1bb52152400c70f336870f968b85e89ea422198ae3"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/webpki-roots@1.0.11",
+      "name": "webpki-roots",
+      "version": "1.0.11",
+      "scope": "required",
+      "purl": "pkg:cargo/webpki-roots@1.0.11",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/webpki-roots/1.0.11"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f5f280bbb2b287bc8e7de7e3852945a0ff50d1bbcb5ed42b6c7a568c546df171"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/windows-link@0.2.1",
+      "name": "windows-link",
+      "version": "0.2.1",
+      "scope": "required",
+      "purl": "pkg:cargo/windows-link@0.2.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/windows-link/0.2.1"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/windows-sys@0.52.0",
+      "name": "windows-sys",
+      "version": "0.52.0",
+      "scope": "required",
+      "purl": "pkg:cargo/windows-sys@0.52.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/windows-sys/0.52.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "282be5f36a8ce781fad8c8ae18fa3f9beff57ec1b52cb3de0789201425d9a33d"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/windows-targets@0.52.6",
+      "name": "windows-targets",
+      "version": "0.52.6",
+      "scope": "required",
+      "purl": "pkg:cargo/windows-targets@0.52.6",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/windows-targets/0.52.6"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9b724f72796e036ab90c1021d4780d4d3d648aca59e491e6b98e725b84e99973"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/windows_aarch64_gnullvm@0.52.6",
+      "name": "windows_aarch64_gnullvm",
+      "version": "0.52.6",
+      "scope": "required",
+      "purl": "pkg:cargo/windows_aarch64_gnullvm@0.52.6",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/windows_aarch64_gnullvm/0.52.6"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "32a4622180e7a0ec044bb555404c800bc9fd9ec262ec147edd5989ccd0c02cd3"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/windows_aarch64_msvc@0.52.6",
+      "name": "windows_aarch64_msvc",
+      "version": "0.52.6",
+      "scope": "required",
+      "purl": "pkg:cargo/windows_aarch64_msvc@0.52.6",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/windows_aarch64_msvc/0.52.6"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "09ec2a7bb152e2252b53fa7803150007879548bc709c039df7627cabbd05d469"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/windows_i686_gnu@0.52.6",
+      "name": "windows_i686_gnu",
+      "version": "0.52.6",
+      "scope": "required",
+      "purl": "pkg:cargo/windows_i686_gnu@0.52.6",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/windows_i686_gnu/0.52.6"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "8e9b5ad5ab802e97eb8e295ac6720e509ee4c243f69d781394014ebfe8bbfa0b"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/windows_i686_gnullvm@0.52.6",
+      "name": "windows_i686_gnullvm",
+      "version": "0.52.6",
+      "scope": "required",
+      "purl": "pkg:cargo/windows_i686_gnullvm@0.52.6",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/windows_i686_gnullvm/0.52.6"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "0eee52d38c090b3caa76c563b86c3a4bd71ef1a819287c19d586d7334ae8ed66"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/windows_i686_msvc@0.52.6",
+      "name": "windows_i686_msvc",
+      "version": "0.52.6",
+      "scope": "required",
+      "purl": "pkg:cargo/windows_i686_msvc@0.52.6",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/windows_i686_msvc/0.52.6"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "240948bc05c5e7c6dabba28bf89d89ffce3e303022809e73deaefe4f6ec56c66"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/windows_x86_64_gnu@0.52.6",
+      "name": "windows_x86_64_gnu",
+      "version": "0.52.6",
+      "scope": "required",
+      "purl": "pkg:cargo/windows_x86_64_gnu@0.52.6",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/windows_x86_64_gnu/0.52.6"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "147a5c80aabfbf0c7d901cb5895d1de30ef2907eb21fbbab29ca94c5b08b1a78"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/windows_x86_64_gnullvm@0.52.6",
+      "name": "windows_x86_64_gnullvm",
+      "version": "0.52.6",
+      "scope": "required",
+      "purl": "pkg:cargo/windows_x86_64_gnullvm@0.52.6",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/windows_x86_64_gnullvm/0.52.6"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "24d5b23dc417412679681396f2b49f3de8c1473deb516bd34410872eff51ed0d"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/windows_x86_64_msvc@0.52.6",
+      "name": "windows_x86_64_msvc",
+      "version": "0.52.6",
+      "scope": "required",
+      "purl": "pkg:cargo/windows_x86_64_msvc@0.52.6",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/windows_x86_64_msvc/0.52.6"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/winnow@1.0.4",
+      "name": "winnow",
+      "version": "1.0.4",
+      "scope": "required",
+      "purl": "pkg:cargo/winnow@1.0.4",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/winnow/1.0.4"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "23b97319f7b8343df12cc98938e5c3eb436064524c8d2b4e30a1d3a36eecdf81"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "xtask@0.1.0",
+      "name": "xtask",
+      "version": "0.1.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "path"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/zerocopy@0.7.35",
+      "name": "zerocopy",
+      "version": "0.7.35",
+      "scope": "required",
+      "purl": "pkg:cargo/zerocopy@0.7.35",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/zerocopy/0.7.35"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1b9b4fd18abc82b8136838da5d50bae7bdea537c574d8dc1a34ed098d6c166f0"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/zerocopy-derive@0.7.35",
+      "name": "zerocopy-derive",
+      "version": "0.7.35",
+      "scope": "required",
+      "purl": "pkg:cargo/zerocopy-derive@0.7.35",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/zerocopy-derive/0.7.35"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "fa4f8080344d4671fb4e831a13ad1e68092748387dfc4f55e356242fae12ce3e"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/zeroize@1.9.1",
+      "name": "zeroize",
+      "version": "1.9.1",
+      "scope": "required",
+      "purl": "pkg:cargo/zeroize@1.9.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/zeroize/1.9.1"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e13084392c5e4bc371903e2935a5eaeed24905a7511356b883835e18a78f6879"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:cargo/zmij@1.0.23",
+      "name": "zmij",
+      "version": "1.0.23",
+      "scope": "required",
+      "purl": "pkg:cargo/zmij@1.0.23",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://crates.io/api/v1/crates/zmij/1.0.23"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
+        }
+      ],
+      "properties": [
+        {
+          "name": "lumen:cargo-lock-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "Lumen@0.1.0-dev",
+      "dependsOn": [
+        "audio-engine@0.1.0",
+        "audio-output@0.1.0",
+        "codec-api@0.1.0",
+        "codecs@0.1.0",
+        "commands@0.1.0",
+        "control-protocol@0.1.0",
+        "control-server@0.1.0",
+        "demux@0.1.0",
+        "desktop@0.1.0",
+        "first-vertical@0.1.0",
+        "input@0.1.0",
+        "localization@0.1.0",
+        "lumen-cli@0.1.0",
+        "lumen-mem-audit@0.1.0",
+        "lumen-sweep@0.1.0",
+        "lumen-web@0.1.0",
+        "media-clock@0.1.0",
+        "media-probe@0.1.0",
+        "media-types@0.1.0",
+        "packet-queue@0.1.0",
+        "platform-linux@0.1.0",
+        "platform-macos@0.1.0",
+        "platform-windows@0.1.0",
+        "playback-engine@0.1.0",
+        "playlists@0.1.0",
+        "plugin-api@0.1.0",
+        "plugin-host-wasm@0.1.0",
+        "product-config@0.1.0",
+        "renderer-wgpu@0.1.0",
+        "settings-schema@0.1.0",
+        "streaming@0.1.0",
+        "subtitles@0.1.0",
+        "template@0.1.0",
+        "testkit@0.1.0",
+        "theme-tokens@0.1.0",
+        "transcode@0.1.0",
+        "video-engine@0.1.0",
+        "xtask@0.1.0"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/assert_matches@1.5.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/atomig@0.4.3",
+      "dependsOn": [
+        "pkg:cargo/atomig-macro@0.4.0"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/atomig-macro@0.4.0",
+      "dependsOn": [
+        "pkg:cargo/proc-macro2@1.0.107",
+        "pkg:cargo/quote@1.0.47",
+        "pkg:cargo/syn@2.0.119"
+      ]
+    },
+    {
+      "ref": "audio-engine@0.1.0",
+      "dependsOn": [
+        "media-clock@0.1.0",
+        "media-types@0.1.0",
+        "testkit@0.1.0"
+      ]
+    },
+    {
+      "ref": "audio-output@0.1.0",
+      "dependsOn": [
+        "audio-engine@0.1.0",
+        "media-clock@0.1.0",
+        "media-types@0.1.0",
+        "testkit@0.1.0"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/autocfg@1.5.1",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/base64@0.23.1",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/bitflags@2.13.2",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/bytemuck@1.25.2",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/byteorder@1.5.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/bytes@1.12.1",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/cc@1.10.0",
+      "dependsOn": [
+        "pkg:cargo/find-msvc-tools@0.1.15",
+        "pkg:cargo/shlex@2.0.1"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/cfg-if@1.0.5",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/claxon@0.4.3",
+      "dependsOn": []
+    },
+    {
+      "ref": "codec-api@0.1.0",
+      "dependsOn": [
+        "media-types@0.1.0"
+      ]
+    },
+    {
+      "ref": "codecs@0.1.0",
+      "dependsOn": [
+        "pkg:cargo/claxon@0.4.3",
+        "codec-api@0.1.0",
+        "demux@0.1.0",
+        "pkg:cargo/filmcraft-dnx@0.9.0",
+        "input@0.1.0",
+        "media-types@0.1.0",
+        "plugin-api@0.1.0",
+        "pkg:cargo/rav1d@1.1.0",
+        "pkg:cargo/ruopus@0.1.2",
+        "pkg:cargo/rusty_vp9@0.1.3",
+        "pkg:cargo/symphonia-bundle-mp3@0.6.1",
+        "pkg:cargo/symphonia-codec-aac@0.6.1",
+        "pkg:cargo/symphonia-codec-alac@0.6.1",
+        "pkg:cargo/symphonia-codec-vorbis@0.6.1",
+        "pkg:cargo/symphonia-core@0.6.1",
+        "testkit@0.1.0"
+      ]
+    },
+    {
+      "ref": "commands@0.1.0",
+      "dependsOn": [
+        "pkg:cargo/schemars@1.2.3",
+        "pkg:cargo/serde@1.0.229",
+        "pkg:cargo/serde_json@1.0.154"
+      ]
+    },
+    {
+      "ref": "control-protocol@0.1.0",
+      "dependsOn": [
+        "commands@0.1.0",
+        "pkg:cargo/serde@1.0.229",
+        "pkg:cargo/serde_json@1.0.154"
+      ]
+    },
+    {
+      "ref": "control-server@0.1.0",
+      "dependsOn": [
+        "commands@0.1.0",
+        "control-protocol@0.1.0",
+        "product-config@0.1.0",
+        "pkg:cargo/serde_json@1.0.154",
+        "pkg:cargo/toml@1.1.8+spec-1.1.0"
+      ]
+    },
+    {
+      "ref": "demux@0.1.0",
+      "dependsOn": [
+        "input@0.1.0",
+        "media-types@0.1.0",
+        "plugin-api@0.1.0",
+        "testkit@0.1.0"
+      ]
+    },
+    {
+      "ref": "desktop@0.1.0",
+      "dependsOn": [
+        "commands@0.1.0",
+        "lumen-cli@0.1.0",
+        "media-clock@0.1.0",
+        "media-types@0.1.0",
+        "renderer-wgpu@0.1.0",
+        "testkit@0.1.0",
+        "video-engine@0.1.0"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/dyn-clone@1.0.20",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/equivalent@1.0.3",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/filmcraft-bitstream@0.9.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/filmcraft-dnx@0.9.0",
+      "dependsOn": [
+        "pkg:cargo/filmcraft-bitstream@0.9.0",
+        "pkg:cargo/thiserror@2.0.21"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/find-msvc-tools@0.1.15",
+      "dependsOn": []
+    },
+    {
+      "ref": "first-vertical@0.1.0",
+      "dependsOn": [
+        "commands@0.1.0",
+        "lumen-cli@0.1.0",
+        "testkit@0.1.0"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/foldhash@0.1.5",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/getrandom@0.2.17",
+      "dependsOn": [
+        "pkg:cargo/cfg-if@1.0.5",
+        "pkg:cargo/libc@0.2.191",
+        "pkg:cargo/wasi@0.11.1+wasi-snapshot-preview1"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/getrandom@0.4.3",
+      "dependsOn": [
+        "pkg:cargo/cfg-if@1.0.5",
+        "pkg:cargo/libc@0.2.191",
+        "pkg:cargo/r-efi@6.0.0"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/hashbrown@0.15.5",
+      "dependsOn": [
+        "pkg:cargo/foldhash@0.1.5"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/hashbrown@0.17.1",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/heck@0.5.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/http@1.5.0",
+      "dependsOn": [
+        "pkg:cargo/bytes@1.12.1",
+        "pkg:cargo/itoa@1.0.18"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/httparse@1.10.1",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/indexmap@2.14.2",
+      "dependsOn": [
+        "pkg:cargo/equivalent@1.0.3",
+        "pkg:cargo/hashbrown@0.17.1"
+      ]
+    },
+    {
+      "ref": "input@0.1.0",
+      "dependsOn": [
+        "media-types@0.1.0",
+        "plugin-api@0.1.0",
+        "testkit@0.1.0"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/itoa@1.0.18",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/jobserver@0.1.35",
+      "dependsOn": [
+        "pkg:cargo/getrandom@0.4.3",
+        "pkg:cargo/libc@0.2.191"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/lazy_static@1.5.1",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/libc@0.2.191",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/libm@0.2.16",
+      "dependsOn": []
+    },
+    {
+      "ref": "localization@0.1.0",
+      "dependsOn": [
+        "pkg:cargo/thiserror@2.0.21",
+        "pkg:cargo/toml@1.1.8+spec-1.1.0"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/lock_api@0.4.14",
+      "dependsOn": [
+        "pkg:cargo/scopeguard@1.2.0"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/log@0.4.34",
+      "dependsOn": []
+    },
+    {
+      "ref": "lumen-cli@0.1.0",
+      "dependsOn": [
+        "audio-engine@0.1.0",
+        "audio-output@0.1.0",
+        "codec-api@0.1.0",
+        "codecs@0.1.0",
+        "commands@0.1.0",
+        "demux@0.1.0",
+        "input@0.1.0",
+        "media-clock@0.1.0",
+        "media-probe@0.1.0",
+        "media-types@0.1.0",
+        "playback-engine@0.1.0",
+        "plugin-api@0.1.0",
+        "renderer-wgpu@0.1.0",
+        "pkg:cargo/serde_json@1.0.154",
+        "settings-schema@0.1.0",
+        "testkit@0.1.0",
+        "pkg:cargo/toml@1.1.8+spec-1.1.0",
+        "video-engine@0.1.0"
+      ]
+    },
+    {
+      "ref": "lumen-mem-audit@0.1.0",
+      "dependsOn": [
+        "codec-api@0.1.0",
+        "codecs@0.1.0",
+        "demux@0.1.0",
+        "input@0.1.0",
+        "media-probe@0.1.0",
+        "media-types@0.1.0",
+        "plugin-api@0.1.0"
+      ]
+    },
+    {
+      "ref": "lumen-sweep@0.1.0",
+      "dependsOn": [
+        "codec-api@0.1.0",
+        "codecs@0.1.0",
+        "demux@0.1.0",
+        "input@0.1.0",
+        "media-probe@0.1.0",
+        "media-types@0.1.0",
+        "plugin-api@0.1.0"
+      ]
+    },
+    {
+      "ref": "lumen-web@0.1.0",
+      "dependsOn": [
+        "audio-engine@0.1.0",
+        "audio-output@0.1.0",
+        "codec-api@0.1.0",
+        "codecs@0.1.0",
+        "commands@0.1.0",
+        "demux@0.1.0",
+        "media-clock@0.1.0",
+        "media-probe@0.1.0",
+        "media-types@0.1.0",
+        "playback-engine@0.1.0",
+        "plugin-api@0.1.0",
+        "pkg:cargo/serde@1.0.229",
+        "pkg:cargo/serde_json@1.0.154",
+        "testkit@0.1.0"
+      ]
+    },
+    {
+      "ref": "media-clock@0.1.0",
+      "dependsOn": [
+        "media-types@0.1.0",
+        "testkit@0.1.0"
+      ]
+    },
+    {
+      "ref": "media-probe@0.1.0",
+      "dependsOn": [
+        "input@0.1.0",
+        "media-types@0.1.0",
+        "plugin-api@0.1.0",
+        "testkit@0.1.0"
+      ]
+    },
+    {
+      "ref": "media-types@0.1.0",
+      "dependsOn": [
+        "testkit@0.1.0"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/memchr@2.8.3",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/nasm-rs@0.3.2",
+      "dependsOn": [
+        "pkg:cargo/jobserver@0.1.35",
+        "pkg:cargo/log@0.4.34"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/num-complex@0.4.6",
+      "dependsOn": [
+        "pkg:cargo/num-traits@0.2.19"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/num-traits@0.2.19",
+      "dependsOn": [
+        "pkg:cargo/autocfg@1.5.1"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/once_cell@1.21.4",
+      "dependsOn": []
+    },
+    {
+      "ref": "packet-queue@0.1.0",
+      "dependsOn": [
+        "media-types@0.1.0",
+        "testkit@0.1.0"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/parking_lot@0.12.5",
+      "dependsOn": [
+        "pkg:cargo/lock_api@0.4.14",
+        "pkg:cargo/parking_lot_core@0.9.12"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/parking_lot_core@0.9.12",
+      "dependsOn": [
+        "pkg:cargo/cfg-if@1.0.5",
+        "pkg:cargo/libc@0.2.191",
+        "pkg:cargo/redox_syscall@0.5.18",
+        "pkg:cargo/smallvec@1.16.4",
+        "pkg:cargo/windows-link@0.2.1"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/paste@1.0.15",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/percent-encoding@2.3.2",
+      "dependsOn": []
+    },
+    {
+      "ref": "platform-linux@0.1.0",
+      "dependsOn": [
+        "audio-output@0.1.0",
+        "media-types@0.1.0",
+        "testkit@0.1.0"
+      ]
+    },
+    {
+      "ref": "platform-macos@0.1.0",
+      "dependsOn": [
+        "audio-output@0.1.0",
+        "media-types@0.1.0",
+        "testkit@0.1.0"
+      ]
+    },
+    {
+      "ref": "platform-windows@0.1.0",
+      "dependsOn": [
+        "audio-output@0.1.0",
+        "media-types@0.1.0",
+        "testkit@0.1.0"
+      ]
+    },
+    {
+      "ref": "playback-engine@0.1.0",
+      "dependsOn": [
+        "codec-api@0.1.0",
+        "codecs@0.1.0",
+        "commands@0.1.0",
+        "demux@0.1.0",
+        "input@0.1.0",
+        "media-clock@0.1.0",
+        "media-types@0.1.0",
+        "packet-queue@0.1.0",
+        "plugin-api@0.1.0",
+        "testkit@0.1.0"
+      ]
+    },
+    {
+      "ref": "playlists@0.1.0",
+      "dependsOn": [
+        "pkg:cargo/thiserror@2.0.21"
+      ]
+    },
+    {
+      "ref": "plugin-api@0.1.0",
+      "dependsOn": [
+        "codec-api@0.1.0",
+        "media-types@0.1.0",
+        "pkg:cargo/serde@1.0.229",
+        "testkit@0.1.0",
+        "pkg:cargo/thiserror@2.0.21",
+        "pkg:cargo/toml@1.1.8+spec-1.1.0"
+      ]
+    },
+    {
+      "ref": "plugin-host-wasm@0.1.0",
+      "dependsOn": [
+        "plugin-api@0.1.0",
+        "pkg:cargo/wasmi@2.0.0"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/proc-macro2@1.0.107",
+      "dependsOn": [
+        "pkg:cargo/unicode-ident@1.0.27"
+      ]
+    },
+    {
+      "ref": "product-config@0.1.0",
+      "dependsOn": [
+        "pkg:cargo/serde@1.0.229",
+        "pkg:cargo/serde_json@1.0.154",
+        "pkg:cargo/thiserror@2.0.21",
+        "pkg:cargo/toml@1.1.8+spec-1.1.0"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/quote@1.0.47",
+      "dependsOn": [
+        "pkg:cargo/proc-macro2@1.0.107"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/r-efi@6.0.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/rav1d@1.1.0",
+      "dependsOn": [
+        "pkg:cargo/assert_matches@1.5.0",
+        "pkg:cargo/atomig@0.4.3",
+        "pkg:cargo/bitflags@2.13.2",
+        "pkg:cargo/cc@1.10.0",
+        "pkg:cargo/cfg-if@1.0.5",
+        "pkg:cargo/libc@0.2.191",
+        "pkg:cargo/nasm-rs@0.3.2",
+        "pkg:cargo/parking_lot@0.12.5",
+        "pkg:cargo/paste@1.0.15",
+        "pkg:cargo/raw-cpuid@11.6.0",
+        "pkg:cargo/strum@0.26.3",
+        "pkg:cargo/to_method@1.1.0",
+        "pkg:cargo/zerocopy@0.7.35"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/raw-cpuid@11.6.0",
+      "dependsOn": [
+        "pkg:cargo/bitflags@2.13.2"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/redox_syscall@0.5.18",
+      "dependsOn": [
+        "pkg:cargo/bitflags@2.13.2"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/ref-cast@1.0.27",
+      "dependsOn": [
+        "pkg:cargo/ref-cast-impl@1.0.27"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/ref-cast-impl@1.0.27",
+      "dependsOn": [
+        "pkg:cargo/proc-macro2@1.0.107",
+        "pkg:cargo/quote@1.0.47",
+        "pkg:cargo/syn@3.0.9"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/regex-lite@0.1.9",
+      "dependsOn": []
+    },
+    {
+      "ref": "renderer-wgpu@0.1.0",
+      "dependsOn": [
+        "media-clock@0.1.0",
+        "media-types@0.1.0",
+        "testkit@0.1.0",
+        "video-engine@0.1.0"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/ring@0.17.14",
+      "dependsOn": [
+        "pkg:cargo/cc@1.10.0",
+        "pkg:cargo/cfg-if@1.0.5",
+        "pkg:cargo/getrandom@0.2.17",
+        "pkg:cargo/libc@0.2.191",
+        "pkg:cargo/untrusted@0.9.0",
+        "pkg:cargo/windows-sys@0.52.0"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/ruopus@0.1.2",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/rustls@0.23.46",
+      "dependsOn": [
+        "pkg:cargo/log@0.4.34",
+        "pkg:cargo/once_cell@1.21.4",
+        "pkg:cargo/ring@0.17.14",
+        "pkg:cargo/rustls-pki-types@1.15.1",
+        "pkg:cargo/rustls-webpki@0.103.16",
+        "pkg:cargo/subtle@2.6.1",
+        "pkg:cargo/zeroize@1.9.1"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/rustls-pki-types@1.15.1",
+      "dependsOn": [
+        "pkg:cargo/zeroize@1.9.1"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/rustls-webpki@0.103.16",
+      "dependsOn": [
+        "pkg:cargo/ring@0.17.14",
+        "pkg:cargo/rustls-pki-types@1.15.1",
+        "pkg:cargo/untrusted@0.9.0"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/rustversion@1.0.23",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/rusty_vp9@0.1.3",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/schemars@1.2.3",
+      "dependsOn": [
+        "pkg:cargo/dyn-clone@1.0.20",
+        "pkg:cargo/ref-cast@1.0.27",
+        "pkg:cargo/schemars_derive@1.2.3",
+        "pkg:cargo/serde@1.0.229",
+        "pkg:cargo/serde_json@1.0.154"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/schemars_derive@1.2.3",
+      "dependsOn": [
+        "pkg:cargo/proc-macro2@1.0.107",
+        "pkg:cargo/quote@1.0.47",
+        "pkg:cargo/serde_derive_internals@0.30.0",
+        "pkg:cargo/syn@3.0.9"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/scopeguard@1.2.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/serde@1.0.229",
+      "dependsOn": [
+        "pkg:cargo/serde_core@1.0.229",
+        "pkg:cargo/serde_derive@1.0.229"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/serde_core@1.0.229",
+      "dependsOn": [
+        "pkg:cargo/serde_derive@1.0.229"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/serde_derive@1.0.229",
+      "dependsOn": [
+        "pkg:cargo/proc-macro2@1.0.107",
+        "pkg:cargo/quote@1.0.47",
+        "pkg:cargo/syn@3.0.9"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/serde_derive_internals@0.30.0",
+      "dependsOn": [
+        "pkg:cargo/proc-macro2@1.0.107",
+        "pkg:cargo/quote@1.0.47",
+        "pkg:cargo/syn@3.0.9"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/serde_json@1.0.154",
+      "dependsOn": [
+        "pkg:cargo/itoa@1.0.18",
+        "pkg:cargo/memchr@2.8.3",
+        "pkg:cargo/serde@1.0.229",
+        "pkg:cargo/serde_core@1.0.229",
+        "pkg:cargo/zmij@1.0.23"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/serde_spanned@1.1.2",
+      "dependsOn": [
+        "pkg:cargo/serde_core@1.0.229"
+      ]
+    },
+    {
+      "ref": "settings-schema@0.1.0",
+      "dependsOn": [
+        "pkg:cargo/serde@1.0.229",
+        "pkg:cargo/thiserror@2.0.21",
+        "pkg:cargo/toml@1.1.8+spec-1.1.0"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/shlex@2.0.1",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/smallvec@1.16.4",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/spin@0.9.9",
+      "dependsOn": []
+    },
+    {
+      "ref": "streaming@0.1.0",
+      "dependsOn": [
+        "codecs@0.1.0",
+        "demux@0.1.0",
+        "input@0.1.0",
+        "media-types@0.1.0",
+        "playlists@0.1.0",
+        "plugin-api@0.1.0",
+        "testkit@0.1.0",
+        "pkg:cargo/ureq@3.5.0"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/string-interner@0.19.0",
+      "dependsOn": [
+        "pkg:cargo/hashbrown@0.15.5",
+        "pkg:cargo/serde@1.0.229"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/strum@0.26.3",
+      "dependsOn": [
+        "pkg:cargo/strum_macros@0.26.4"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/strum_macros@0.26.4",
+      "dependsOn": [
+        "pkg:cargo/heck@0.5.0",
+        "pkg:cargo/proc-macro2@1.0.107",
+        "pkg:cargo/quote@1.0.47",
+        "pkg:cargo/rustversion@1.0.23",
+        "pkg:cargo/syn@2.0.119"
+      ]
+    },
+    {
+      "ref": "subtitles@0.1.0",
+      "dependsOn": [
+        "media-clock@0.1.0",
+        "media-types@0.1.0",
+        "testkit@0.1.0"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/subtle@2.6.1",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/symphonia-bundle-mp3@0.6.1",
+      "dependsOn": [
+        "pkg:cargo/lazy_static@1.5.1",
+        "pkg:cargo/log@0.4.34",
+        "pkg:cargo/symphonia-core@0.6.1"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/symphonia-codec-aac@0.6.1",
+      "dependsOn": [
+        "pkg:cargo/lazy_static@1.5.1",
+        "pkg:cargo/log@0.4.34",
+        "pkg:cargo/symphonia-common@0.6.1",
+        "pkg:cargo/symphonia-core@0.6.1"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/symphonia-codec-alac@0.6.1",
+      "dependsOn": [
+        "pkg:cargo/log@0.4.34",
+        "pkg:cargo/symphonia-common@0.6.1",
+        "pkg:cargo/symphonia-core@0.6.1"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/symphonia-codec-vorbis@0.6.1",
+      "dependsOn": [
+        "pkg:cargo/log@0.4.34",
+        "pkg:cargo/symphonia-common@0.6.1",
+        "pkg:cargo/symphonia-core@0.6.1"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/symphonia-common@0.6.1",
+      "dependsOn": [
+        "pkg:cargo/log@0.4.34",
+        "pkg:cargo/symphonia-core@0.6.1",
+        "pkg:cargo/symphonia-metadata@0.6.1"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/symphonia-core@0.6.1",
+      "dependsOn": [
+        "pkg:cargo/bitflags@2.13.2",
+        "pkg:cargo/bytemuck@1.25.2",
+        "pkg:cargo/lazy_static@1.5.1",
+        "pkg:cargo/log@0.4.34",
+        "pkg:cargo/num-complex@0.4.6",
+        "pkg:cargo/smallvec@1.16.4"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/symphonia-metadata@0.6.1",
+      "dependsOn": [
+        "pkg:cargo/lazy_static@1.5.1",
+        "pkg:cargo/log@0.4.34",
+        "pkg:cargo/regex-lite@0.1.9",
+        "pkg:cargo/smallvec@1.16.4",
+        "pkg:cargo/symphonia-core@0.6.1"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/syn@2.0.119",
+      "dependsOn": [
+        "pkg:cargo/proc-macro2@1.0.107",
+        "pkg:cargo/quote@1.0.47",
+        "pkg:cargo/unicode-ident@1.0.27"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/syn@3.0.9",
+      "dependsOn": [
+        "pkg:cargo/proc-macro2@1.0.107",
+        "pkg:cargo/quote@1.0.47",
+        "pkg:cargo/unicode-ident@1.0.27"
+      ]
+    },
+    {
+      "ref": "template@0.1.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "testkit@0.1.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "theme-tokens@0.1.0",
+      "dependsOn": [
+        "pkg:cargo/serde_json@1.0.154"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/thiserror@2.0.21",
+      "dependsOn": [
+        "pkg:cargo/thiserror-impl@2.0.21"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/thiserror-impl@2.0.21",
+      "dependsOn": [
+        "pkg:cargo/proc-macro2@1.0.107",
+        "pkg:cargo/quote@1.0.47",
+        "pkg:cargo/syn@3.0.9"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/to_method@1.1.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/toml@1.1.8+spec-1.1.0",
+      "dependsOn": [
+        "pkg:cargo/indexmap@2.14.2",
+        "pkg:cargo/serde_core@1.0.229",
+        "pkg:cargo/serde_spanned@1.1.2",
+        "pkg:cargo/toml_datetime@1.1.2+spec-1.1.0",
+        "pkg:cargo/toml_parser@1.1.5+spec-1.1.0",
+        "pkg:cargo/toml_writer@1.1.3+spec-1.1.0",
+        "pkg:cargo/winnow@1.0.4"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/toml_datetime@1.1.2+spec-1.1.0",
+      "dependsOn": [
+        "pkg:cargo/serde_core@1.0.229"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/toml_parser@1.1.5+spec-1.1.0",
+      "dependsOn": [
+        "pkg:cargo/winnow@1.0.4"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/toml_writer@1.1.3+spec-1.1.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "transcode@0.1.0",
+      "dependsOn": [
+        "codec-api@0.1.0",
+        "codecs@0.1.0",
+        "demux@0.1.0",
+        "input@0.1.0",
+        "media-types@0.1.0",
+        "plugin-api@0.1.0",
+        "testkit@0.1.0"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/unicode-ident@1.0.27",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/untrusted@0.9.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/ureq@3.5.0",
+      "dependsOn": [
+        "pkg:cargo/base64@0.23.1",
+        "pkg:cargo/log@0.4.34",
+        "pkg:cargo/percent-encoding@2.3.2",
+        "pkg:cargo/rustls@0.23.46",
+        "pkg:cargo/rustls-pki-types@1.15.1",
+        "pkg:cargo/ureq-proto@0.6.5",
+        "pkg:cargo/utf8-zero@0.8.1",
+        "pkg:cargo/webpki-roots@1.0.11"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/ureq-proto@0.6.5",
+      "dependsOn": [
+        "pkg:cargo/base64@0.23.1",
+        "pkg:cargo/http@1.5.0",
+        "pkg:cargo/httparse@1.10.1",
+        "pkg:cargo/log@0.4.34"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/utf8-zero@0.8.1",
+      "dependsOn": []
+    },
+    {
+      "ref": "video-engine@0.1.0",
+      "dependsOn": [
+        "media-clock@0.1.0",
+        "media-types@0.1.0",
+        "testkit@0.1.0"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/wasi@0.11.1+wasi-snapshot-preview1",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/wasmi@2.0.0",
+      "dependsOn": [
+        "pkg:cargo/spin@0.9.9",
+        "pkg:cargo/wasmi_collections@2.0.0",
+        "pkg:cargo/wasmi_core@2.0.0",
+        "pkg:cargo/wasmi_ir@2.0.0",
+        "pkg:cargo/wasmparser@0.228.0"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/wasmi_collections@2.0.0",
+      "dependsOn": [
+        "pkg:cargo/string-interner@0.19.0"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/wasmi_core@2.0.0",
+      "dependsOn": [
+        "pkg:cargo/libm@0.2.16"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/wasmi_ir@2.0.0",
+      "dependsOn": [
+        "pkg:cargo/wasmi_core@2.0.0"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/wasmparser@0.228.0",
+      "dependsOn": [
+        "pkg:cargo/bitflags@2.13.2",
+        "pkg:cargo/indexmap@2.14.2"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/webpki-roots@1.0.11",
+      "dependsOn": [
+        "pkg:cargo/rustls-pki-types@1.15.1"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/windows-link@0.2.1",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/windows-sys@0.52.0",
+      "dependsOn": [
+        "pkg:cargo/windows-targets@0.52.6"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/windows-targets@0.52.6",
+      "dependsOn": [
+        "pkg:cargo/windows_aarch64_gnullvm@0.52.6",
+        "pkg:cargo/windows_aarch64_msvc@0.52.6",
+        "pkg:cargo/windows_i686_gnu@0.52.6",
+        "pkg:cargo/windows_i686_gnullvm@0.52.6",
+        "pkg:cargo/windows_i686_msvc@0.52.6",
+        "pkg:cargo/windows_x86_64_gnu@0.52.6",
+        "pkg:cargo/windows_x86_64_gnullvm@0.52.6",
+        "pkg:cargo/windows_x86_64_msvc@0.52.6"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/windows_aarch64_gnullvm@0.52.6",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/windows_aarch64_msvc@0.52.6",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/windows_i686_gnu@0.52.6",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/windows_i686_gnullvm@0.52.6",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/windows_i686_msvc@0.52.6",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/windows_x86_64_gnu@0.52.6",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/windows_x86_64_gnullvm@0.52.6",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/windows_x86_64_msvc@0.52.6",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/winnow@1.0.4",
+      "dependsOn": []
+    },
+    {
+      "ref": "xtask@0.1.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/zerocopy@0.7.35",
+      "dependsOn": [
+        "pkg:cargo/byteorder@1.5.0",
+        "pkg:cargo/zerocopy-derive@0.7.35"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/zerocopy-derive@0.7.35",
+      "dependsOn": [
+        "pkg:cargo/proc-macro2@1.0.107",
+        "pkg:cargo/quote@1.0.47",
+        "pkg:cargo/syn@2.0.119"
+      ]
+    },
+    {
+      "ref": "pkg:cargo/zeroize@1.9.1",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:cargo/zmij@1.0.23",
+      "dependsOn": []
+    }
+  ]
+}

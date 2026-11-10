@@ -24,6 +24,8 @@
 //! accessors; handles are indices into the per-instance host table,
 //! validated on every use.
 
+use std::io::Read as _;
+
 use wasmi::{Caller, Engine, Extern, Linker, Memory};
 
 use plugin_api::ENGINE_PLUGIN_API_MAJOR;
@@ -90,26 +92,29 @@ fn guest_memory(caller: &Caller<HostState>) -> Option<Memory> {
 ///
 /// OOB offsets (wasmi bounds check) and a missing memory export both
 /// yield `E_OOB` — the typed §9.4 denial — and are recorded as
-/// security events (shape only).
+/// security events (shape only). Reaching the session escalation
+/// threshold on such a probe faults the call (doc 06 §5.3 — the
+/// sweep-2 gap where OOB probes were counted but never enforced is
+/// closed).
 fn read_guest(
     caller: &mut Caller<HostState>,
     import: &str,
     ptr: i32,
     len: i32,
     caps: (u64, u64),
-) -> Result<Vec<u8>, i32> {
+) -> Result<Vec<u8>, ReadErr> {
     if ptr < 0 || len < 0 {
-        return Err(GuestStatus::EArg.code());
+        return Err(ReadErr::Status(GuestStatus::EArg.code()));
     }
     let cap = caps.0.min(caps.1);
     if len as u64 > cap {
-        return Err(GuestStatus::ETooLarge.code());
+        return Err(ReadErr::Status(GuestStatus::ETooLarge.code()));
     }
     if len == 0 {
         return Ok(Vec::new());
     }
     let Some(memory) = guest_memory(caller) else {
-        caller
+        let count = caller
             .data_mut()
             .ledger
             .record_escalation(SecurityEvent::new(
@@ -117,14 +122,14 @@ fn read_guest(
                 "buffer passed but the module exports no `memory`",
                 format!("ptr={ptr}, len={len}"),
             ));
-        return Err(GuestStatus::EOob.code());
+        return Err(escalation_or_status(count, GuestStatus::EOob.code()));
     };
     let mut buf = vec![0u8; len as usize];
     match memory.read(&*caller, ptr as usize, &mut buf) {
         Ok(()) => Ok(buf),
         Err(_) => {
             let size = memory.size(&*caller) * 64 * 1024;
-            caller
+            let count = caller
                 .data_mut()
                 .ledger
                 .record_escalation(SecurityEvent::new(
@@ -132,8 +137,33 @@ fn read_guest(
                     "out-of-bounds guest buffer (sandbox escape attempt)",
                     format!("ptr={ptr}, len={len}, memory_bytes={size}"),
                 ));
-            Err(GuestStatus::EOob.code())
+            Err(escalation_or_status(count, GuestStatus::EOob.code()))
         }
+    }
+}
+
+/// Why a guest-buffer read was refused.
+enum ReadErr {
+    /// A typed guest-observable status (`E_ARG` / `E_TOO_LARGE` /
+    /// `E_OOB` below the escalation threshold).
+    Status(i32),
+    /// The session escalation threshold tripped on this read — the
+    /// host fault to raise out of the import (doc 06 §5.3).
+    Fault(wasmi::Error),
+}
+
+/// Escalation accounting for the read paths: below the session
+/// threshold the denial is the typed guest status; at/after it, the
+/// host fault that stops the call (doc 06 §5.3). Sweep 2/4 closed
+/// the gap where repeated OOB probes incremented the counter but
+/// never tripped the disable.
+fn escalation_or_status(count: u32, status: i32) -> ReadErr {
+    if count >= ESCALATION_DISABLE_THRESHOLD {
+        ReadErr::Fault(wasmi::Error::host(HostFault(
+            FaultKind::EscalationDisabled { count },
+        )))
+    } else {
+        ReadErr::Status(status)
     }
 }
 
@@ -258,10 +288,11 @@ fn define_host(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                     );
                     let bytes = match read_guest(&mut caller, import, ptr, len, caps) {
                         Ok(bytes) => bytes,
-                        Err(status) => {
+                        Err(ReadErr::Status(status)) => {
                             caller.data_mut().trace_import(import, status);
                             return Ok(status);
                         }
+                        Err(ReadErr::Fault(err)) => return Err(err),
                     };
                     let text = match String::from_utf8(bytes) {
                         Ok(text) => text,
@@ -333,21 +364,26 @@ fn define_log(linker: &mut Linker<HostState>) -> Result<(), HostError> {
         .func_wrap(
             MOD_LOG,
             "log_write",
-            |mut caller: Caller<HostState>, level: i32, ptr: i32, len: i32| -> i32 {
+            |mut caller: Caller<HostState>,
+             level: i32,
+             ptr: i32,
+             len: i32|
+             -> Result<i32, wasmi::Error> {
                 let import = IMP_LOG_WRITE;
                 if !(0..=4).contains(&level) {
                     caller
                         .data_mut()
                         .trace_import(import, GuestStatus::EArg.code());
-                    return GuestStatus::EArg.code();
+                    return Ok(GuestStatus::EArg.code());
                 }
                 let caps = (4096, caller.data().limits.io_transfer_bytes);
                 let bytes = match read_guest(&mut caller, import, ptr, len, caps) {
                     Ok(bytes) => bytes,
-                    Err(status) => {
+                    Err(ReadErr::Status(status)) => {
                         caller.data_mut().trace_import(import, status);
-                        return status;
+                        return Ok(status);
                     }
+                    Err(ReadErr::Fault(err)) => return Err(err),
                 };
                 // Log records are I/O too (they leave the sandbox):
                 // charge the token bucket.
@@ -355,14 +391,14 @@ fn define_log(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                     caller
                         .data_mut()
                         .trace_import(import, GuestStatus::EQuota.code());
-                    return GuestStatus::EQuota.code();
+                    return Ok(GuestStatus::EQuota.code());
                 }
                 let line = String::from_utf8_lossy(&bytes).to_string();
                 caller.data_mut().log_record(level as u8, line);
                 caller
                     .data_mut()
                     .trace_import(import, GuestStatus::Ok.code());
-                GuestStatus::Ok.code()
+                Ok(GuestStatus::Ok.code())
             },
         )
         .map(|_| ())
@@ -385,10 +421,11 @@ fn define_fs(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                 let caps = (4096, caller.data().limits.io_transfer_bytes);
                 let bytes = match read_guest(&mut caller, import, path_ptr, path_len, caps) {
                     Ok(bytes) => bytes,
-                    Err(status) => {
+                    Err(ReadErr::Status(status)) => {
                         caller.data_mut().trace_import(import, status);
                         return Ok(status);
                     }
+                    Err(ReadErr::Fault(err)) => return Err(err),
                 };
                 let path = String::from_utf8_lossy(&bytes).to_string();
                 let jail = match caller.data().services.jail.clone() {
@@ -425,8 +462,30 @@ fn define_fs(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                         return Ok(GuestStatus::EIo.code());
                     }
                 };
+                // Open the jail-admitted path ONCE and keep the handle:
+                // metadata comes from the opened handle (not a second
+                // path resolution), and the post-open re-verification
+                // below catches a component swapped between `resolve`
+                // and the open — before any byte is read (sweep 2/4,
+                // TOCTOU narrowing on the capability check).
+                let file = match std::fs::File::open(&resolved) {
+                    Ok(file) => file,
+                    Err(_) => {
+                        caller
+                            .data_mut()
+                            .trace_import(import, GuestStatus::EIo.code());
+                        return Ok(GuestStatus::EIo.code());
+                    }
+                };
+                if let Err(err) = jail.verify_open(&resolved) {
+                    let shape = format!("path_len={}", path.len());
+                    caller
+                        .data_mut()
+                        .trace_import(import, GuestStatus::EPerm.code());
+                    return deny(&mut caller, import, err.to_string(), shape);
+                }
                 // Read-only, files only (directories refuse with E_ARG).
-                let meta = match std::fs::metadata(&resolved) {
+                let meta = match file.metadata() {
                     Ok(meta) => meta,
                     Err(_) => {
                         caller
@@ -441,24 +500,27 @@ fn define_fs(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                         .trace_import(import, GuestStatus::EArg.code());
                     return Ok(GuestStatus::EArg.code());
                 }
-                // Size is bounded by the single-transfer cap (a
-                // 100 GiB "media file" cannot be slurped in one go).
+                // Bounded slurp (sweep 2/4): at most `cap + 1` bytes are
+                // ever read from the opened handle, so a file that GREW
+                // after open cannot drag the host heap past the cap —
+                // the metadata-then-`fs::read` pair had a quota-bypass
+                // TOCTOU here (a 100 GiB swap was host-memory
+                // exhaustion, not a store-limiter trap).
                 let cap = caller.data().limits.io_transfer_bytes;
-                if meta.len() > cap {
+                let mut content = Vec::with_capacity(meta.len().min(cap) as usize);
+                let mut bounded = file.take(cap + 1);
+                if bounded.read_to_end(&mut content).is_err() {
+                    caller
+                        .data_mut()
+                        .trace_import(import, GuestStatus::EIo.code());
+                    return Ok(GuestStatus::EIo.code());
+                }
+                if content.len() as u64 > cap {
                     caller
                         .data_mut()
                         .trace_import(import, GuestStatus::ETooLarge.code());
                     return Ok(GuestStatus::ETooLarge.code());
                 }
-                let content = match std::fs::read(&resolved) {
-                    Ok(content) => content,
-                    Err(_) => {
-                        caller
-                            .data_mut()
-                            .trace_import(import, GuestStatus::EIo.code());
-                        return Ok(GuestStatus::EIo.code());
-                    }
-                };
                 let handle_cap = caller.data().limits.max_open_handles;
                 let display = resolved.to_string_lossy().to_string();
                 let handle = match caller
@@ -643,10 +705,11 @@ fn define_http(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                 let caps = (2048, caller.data().limits.io_transfer_bytes);
                 let url_bytes = match read_guest(&mut caller, import, url_ptr, url_len, caps) {
                     Ok(bytes) => bytes,
-                    Err(status) => {
+                    Err(ReadErr::Status(status)) => {
                         caller.data_mut().trace_import(import, status);
                         return Ok(status);
                     }
+                    Err(ReadErr::Fault(err)) => return Err(err),
                 };
                 let url = String::from_utf8_lossy(&url_bytes).to_string();
                 // Policy chain, all in front of the transport seam:
@@ -756,7 +819,10 @@ fn define_ui(linker: &mut Linker<HostState>) -> Result<(), HostError> {
         .func_wrap(
             MOD_UI,
             "ui_register_panel",
-            |mut caller: Caller<HostState>, desc_ptr: i32, desc_len: i32| -> i32 {
+            |mut caller: Caller<HostState>,
+             desc_ptr: i32,
+             desc_len: i32|
+             -> Result<i32, wasmi::Error> {
                 let import = IMP_UI_REGISTER_PANEL;
                 let caps = (
                     caller.data().limits.max_descriptor_bytes,
@@ -764,10 +830,11 @@ fn define_ui(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                 );
                 let bytes = match read_guest(&mut caller, import, desc_ptr, desc_len, caps) {
                     Ok(bytes) => bytes,
-                    Err(status) => {
+                    Err(ReadErr::Status(status)) => {
                         caller.data_mut().trace_import(import, status);
-                        return status;
+                        return Ok(status);
                     }
+                    Err(ReadErr::Fault(err)) => return Err(err),
                 };
                 // v1 panel cap: 8 panels per instance (doc 06 §5.4
                 // host-accounting posture; a UI spammer is refused,
@@ -776,7 +843,7 @@ fn define_ui(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                     caller
                         .data_mut()
                         .trace_import(import, GuestStatus::ELimit.code());
-                    return GuestStatus::ELimit.code();
+                    return Ok(GuestStatus::ELimit.code());
                 }
                 let descriptor = String::from_utf8_lossy(&bytes).to_string();
                 caller
@@ -786,7 +853,7 @@ fn define_ui(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                 caller
                     .data_mut()
                     .trace_import(import, GuestStatus::Ok.code());
-                GuestStatus::Ok.code()
+                Ok(GuestStatus::Ok.code())
             },
         )
         .map(|_| ())
@@ -814,6 +881,18 @@ fn define_devices(linker: &mut Linker<HostState>) -> Result<(), HostError> {
                         .data_mut()
                         .trace_import(import, GuestStatus::ETooLarge.code());
                     return GuestStatus::ETooLarge.code();
+                }
+                // Metered like `fs_read`/`http_get` (sweep 2/4): the
+                // inventory is data crossing the seam at guest-chosen
+                // call frequency — the transfer cap alone is not a
+                // rate limit. Descriptor-shaped imports
+                // (`report_manifest`, `ui_register_panel`) keep their
+                // own per-call caps instead.
+                if !caller.data_mut().io_bucket.take(out_cap as u64) {
+                    caller
+                        .data_mut()
+                        .trace_import(import, GuestStatus::EQuota.code());
+                    return GuestStatus::EQuota.code();
                 }
                 let inventory = caller.data().services.device_inventory.clone();
                 let n = (inventory.len() as u64).min(out_cap as u64) as usize;

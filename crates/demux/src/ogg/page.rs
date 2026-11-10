@@ -109,22 +109,34 @@ pub fn parse_header(head: &[u8], offset: u64, stream_len: u64) -> Result<PageHea
     let granule = i64::from_le_bytes(
         head[6..14]
             .try_into()
-            .unwrap_or_else(|_| unreachable!("length checked above")),
+            // HEADER_BYTES (27) is checked above; the Err arm is
+            // unreachable slicing residue — a malformed page, never
+            // a panic (8.A1 sweep).
+            .map_err(|_| error::bad_capture(offset))?,
     );
     let serial = u32::from_le_bytes(
         head[14..18]
             .try_into()
-            .unwrap_or_else(|_| unreachable!("length checked above")),
+            // HEADER_BYTES (27) is checked above; the Err arm is
+            // unreachable slicing residue — a malformed page, never
+            // a panic (8.A1 sweep).
+            .map_err(|_| error::bad_capture(offset))?,
     );
     let seq = u32::from_le_bytes(
         head[18..22]
             .try_into()
-            .unwrap_or_else(|_| unreachable!("length checked above")),
+            // HEADER_BYTES (27) is checked above; the Err arm is
+            // unreachable slicing residue — a malformed page, never
+            // a panic (8.A1 sweep).
+            .map_err(|_| error::bad_capture(offset))?,
     );
     let crc = u32::from_le_bytes(
         head[22..26]
             .try_into()
-            .unwrap_or_else(|_| unreachable!("length checked above")),
+            // HEADER_BYTES (27) is checked above; the Err arm is
+            // unreachable slicing residue — a malformed page, never
+            // a panic (8.A1 sweep).
+            .map_err(|_| error::bad_capture(offset))?,
     );
     let nsegs = head[26] as usize;
     if head.len() < HEADER_BYTES + nsegs {
@@ -208,11 +220,13 @@ pub fn crc_valid(page: &[u8]) -> bool {
         return false;
     }
     let (stored, rest) = page.split_at(HEADER_BYTES);
-    let declared = u32::from_le_bytes(
-        stored[22..26]
-            .try_into()
-            .unwrap_or_else(|_| unreachable!("length checked above")),
-    );
+    let declared = match stored[22..26].try_into() {
+        Ok(bytes) => u32::from_le_bytes(bytes),
+        // stored is the 27-byte split prefix; the Err arm is
+        // unreachable slicing residue — verification fails, never a
+        // panic (8.A1 sweep).
+        Err(_) => return false,
+    };
     // The CRC field itself is zeroed for the computation (RFC 3533
     // §5) — the four zero bytes are INPUT, not a gap: fold them, then
     // the rest, never allocating a patched copy.

@@ -11,11 +11,15 @@
 //! Known limit (honest, `[VERIFY]`): the canonicalize-then-open
 //! sequence has a TOCTOU window — a local process swapping a
 //! directory symlink between check and open can redirect the read.
-//! Closing it needs `openat`/`O_NOFOLLOW` (a libc dependency — MP §9
-//! forbids without an ADR). v1 accepts the window: roots are
-//! user-granted media directories and the attacker model is the
-//! *plugin* (which cannot create symlinks at all — it has no write
-//! permission), not a hostile local user.
+//! `fs_open` narrows it: the path is opened once, metadata is taken
+//! from the opened handle, the slurp is bounded by the transfer cap,
+//! and [`PathJail::verify_open`] re-checks the jail prefix on the
+//! same path before any byte is read (sweep 2/4). Closing the
+//! residual window outright needs `openat`/`O_NOFOLLOW` (a libc
+//! dependency — MP §9 forbids without an ADR). v1 accepts the
+//! narrowed window: roots are user-granted media directories and the
+//! attacker model is the *plugin* (which cannot create symlinks at
+//! all — it has no write permission), not a hostile local user.
 
 use std::path::{Path, PathBuf};
 
@@ -133,6 +137,41 @@ impl PathJail {
     /// `/root-evil` does not pass a `/root` jail).
     fn under_root(&self, canonical: &Path) -> bool {
         self.roots.iter().any(|root| canonical.starts_with(root))
+    }
+
+    /// Post-open re-verification (sweep 2/4, TOCTOU narrowing): the
+    /// caller opened a handle at `claimed` — a path [`Self::resolve`]
+    /// already admitted. This re-canonicalizes the SAME path and
+    /// re-checks the jail prefix before any byte is read, catching a
+    /// component swapped between the `resolve` check and the open
+    /// (the deterministic slice of the classic race). Fail-closed: a
+    /// swap that lands the canonical form outside the roots denies
+    /// even though the handle is already open.
+    ///
+    /// Honest limit: this narrows the window to the
+    /// re-canonicalization itself; full closure needs
+    /// `openat`/`O_NOFOLLOW` (a libc dependency — MP §9 forbids
+    /// without an ADR), recorded for the 8.A2 deep review.
+    ///
+    /// # Errors
+    /// [`HostError::PermissionDenied`] when the path no longer
+    /// resolves under a root (swapped, removed, or unresolvable —
+    /// every failure shape is a denial, never a silent pass).
+    pub fn verify_open(&self, claimed: &Path) -> Result<(), HostError> {
+        let canonical =
+            std::fs::canonicalize(claimed).map_err(|e| HostError::PermissionDenied {
+                detail: format!("path cannot be re-resolved after open: {e}"),
+            })?;
+        if !self.under_root(&canonical) {
+            return Err(HostError::PermissionDenied {
+                detail: format!(
+                    "path changed under the sandbox after open \
+                     (re-resolved prefix {})",
+                    shape(&canonical)
+                ),
+            });
+        }
+        Ok(())
     }
 }
 
@@ -281,5 +320,62 @@ mod tests {
             unreachable!("nonexistent root must error")
         };
         assert!(matches!(err, HostError::Io(_)));
+    }
+
+    #[test]
+    fn swap_between_resolve_and_open_is_denied() {
+        // Regression (sweep 2/4, TOCTOU narrowing): `resolve` admitted
+        // `a.txt` while it was a real in-jail file; a racing local
+        // process then swaps it for a symlink out of the jail. The
+        // post-open re-verification must refuse before any byte is
+        // read — this is the deterministic slice of the
+        // check→open→verify sequence `fs_open` runs.
+        let tmp = TempDir::new("swap");
+        let media = tmp.path().join("media");
+        let secret = tmp.path().join("secret");
+        ok(std::fs::create_dir_all(&media).map_err(|e| e.to_string()));
+        ok(std::fs::create_dir_all(&secret).map_err(|e| e.to_string()));
+        write_file(&media.join("a.txt"), b"in-jail");
+        write_file(&secret.join("secret.txt"), b"no");
+        let jail = ok(PathJail::new([&media]));
+        let resolved = ok(jail.resolve("a.txt"));
+        // The swap: remove the real file, put a symlink to the secret
+        // directory in its place (what the racing attacker does
+        // between `resolve` and `File::open`).
+        #[cfg(unix)]
+        {
+            ok(std::fs::remove_file(media.join("a.txt")).map_err(|e| e.to_string()));
+            ok(std::os::unix::fs::symlink(&secret, media.join("a.txt")).map_err(|e| e.to_string()));
+            let Err(err) = jail.verify_open(&resolved) else {
+                unreachable!("swapped path must be denied post-open")
+            };
+            assert!(
+                matches!(err, HostError::PermissionDenied { .. }),
+                "typed post-swap denial, got: {err}"
+            );
+            assert!(
+                err.to_string().contains("changed under the sandbox"),
+                "the reason names the rule: {err}"
+            );
+        }
+        #[cfg(windows)]
+        {
+            // Junction-free environments: the prefix re-check itself is
+            // cross-platform; the swap fixture needs symlink privilege.
+            assert!(jail.verify_open(&resolved).is_ok());
+        }
+    }
+
+    #[test]
+    fn unswapped_path_passes_reverification() {
+        // The happy twin: no swap → re-verification passes (the
+        // narrowing must not break legitimate opens).
+        let tmp = TempDir::new("noswap");
+        let media = tmp.path().join("media");
+        ok(std::fs::create_dir_all(&media).map_err(|e| e.to_string()));
+        write_file(&media.join("a.txt"), b"fine");
+        let jail = ok(PathJail::new([&media]));
+        let resolved = ok(jail.resolve("a.txt"));
+        assert!(jail.verify_open(&resolved).is_ok());
     }
 }

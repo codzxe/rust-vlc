@@ -158,7 +158,34 @@ fn is_disconnect(err: &std::io::Error) -> bool {
     )
 }
 
+/// Whether a `Host` header value names a loopback endpoint — the
+/// DNS-rebinding fence (sweep 3/4, RFC 6455 §4.1's server-side Host
+/// check for a loopback-only service). A browser redirected to a
+/// rebound name (`evil.com` → 127.0.0.1) still sends
+/// `Host: evil.com:<port>`; refusing every non-loopback Host keeps
+/// even read-only-mode sessions reachable only by clients that
+/// dialed a loopback NAME. Accepted: `127.0.0.1`, `localhost`,
+/// `[::1]`, and the bracketless `::1`, each optionally `:port`.
+fn is_loopback_host(value: &str) -> bool {
+    let lower = value.to_ascii_lowercase();
+    // Strip an optional trailing `:port` (all-digits). The
+    // bracketed `[::1]:port` form splits cleanly; a bare `::1` splits
+    // to (`:`, `1`) — not in the set — so it gets its own exact
+    // match below.
+    let host = match lower.rsplit_once(':') {
+        Some((head, tail)) if !tail.is_empty() && tail.bytes().all(|b| b.is_ascii_digit()) => head,
+        _ => lower.as_str(),
+    };
+    if lower == "::1" {
+        return true;
+    }
+    matches!(host, "127.0.0.1" | "localhost" | "[::1]")
+}
+
 /// Validate a request head per RFC 6455 §4.2.1. Stable reason tokens.
+/// The `Host` must name a loopback endpoint ([`is_loopback_host`]) —
+/// the DNS-rebinding mitigation for this loopback-only service
+/// (sweep 3/4).
 fn validate_head(head: &str) -> Result<UpgradeRequest, &'static str> {
     let mut lines = head.split('\n').map(|line| line.trim_end_matches('\r'));
     let request_line = lines.next().ok_or("empty-request")?;
@@ -176,7 +203,7 @@ fn validate_head(head: &str) -> Result<UpgradeRequest, &'static str> {
         return Err("bad-request-target");
     }
 
-    let mut host = false;
+    let mut host: Option<&str> = None;
     let mut upgrade = false;
     let mut connection_upgrade = false;
     let mut key_text: Option<&str> = None;
@@ -191,7 +218,11 @@ fn validate_head(head: &str) -> Result<UpgradeRequest, &'static str> {
         let name = name.trim().to_ascii_lowercase();
         let value = value.trim();
         match name.as_str() {
-            "host" => host = !value.is_empty(),
+            "host" => {
+                if !value.is_empty() {
+                    host = Some(value);
+                }
+            }
             "upgrade" => {
                 upgrade = value
                     .split(',')
@@ -207,8 +238,11 @@ fn validate_head(head: &str) -> Result<UpgradeRequest, &'static str> {
             _ => {}
         }
     }
-    if !host {
+    let Some(host) = host else {
         return Err("missing-host");
+    };
+    if !is_loopback_host(host) {
+        return Err("host-not-loopback");
     }
     if !upgrade {
         return Err("missing-upgrade-websocket");
@@ -343,37 +377,40 @@ mod tests {
     fn dirty_requests_are_stable_reason_tokens() {
         let good = |extra: &str| {
             format!(
-                "GET / HTTP/1.1\r\nHost: h\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\
+                "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\
                  Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n{extra}\r\n"
             )
         };
         let cases: &[(&str, &str)] = &[
-            ("POST / HTTP/1.1\r\nHost: h\r\n\r\n", "method-not-get"),
-            ("GET / HTTP/1.0\r\nHost: h\r\n\r\n", "not-http-1-1"),
+            (
+                "POST / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n",
+                "method-not-get",
+            ),
+            ("GET / HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n", "not-http-1-1"),
             (
                 "GET / HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n",
                 "missing-host",
             ),
             (
-                "GET / HTTP/1.1\r\nHost: h\r\nConnection: Upgrade\r\n\r\n",
+                "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: Upgrade\r\n\r\n",
                 "missing-upgrade-websocket",
             ),
             (
-                "GET / HTTP/1.1\r\nHost: h\r\nUpgrade: websocket\r\n\r\n",
+                "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nUpgrade: websocket\r\n\r\n",
                 "missing-connection-upgrade",
             ),
             (
-                "GET / HTTP/1.1\r\nHost: h\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\
+                "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\
                  Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n",
                 "missing-websocket-version",
             ),
             (
-                "GET / HTTP/1.1\r\nHost: h\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\
+                "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\
                  Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 8\r\n\r\n",
                 "unsupported-websocket-version",
             ),
             (
-                "GET / HTTP/1.1\r\nHost: h\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\
+                "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\
                  Sec-WebSocket-Key: c2hvcnQ=\r\nSec-WebSocket-Version: 13\r\n\r\n",
                 "bad-sec-websocket-key",
             ),
@@ -384,6 +421,54 @@ mod tests {
         }
         // Sanity: the empty good case parses.
         assert!(validate_head(&good("")).is_ok());
+    }
+
+    #[test]
+    fn non_loopback_hosts_are_refused_and_loopback_forms_accepted() {
+        // Regression (sweep 3/4, DNS-rebinding fence): only loopback
+        // Host values upgrade; a rebound name, a dotted-suffix trick
+        // and an off-loopback literal all die at the handshake with
+        // the stable `host-not-loopback` token.
+        let with_host = |host: &str| {
+            format!(
+                "GET / HTTP/1.1\r\nHost: {host}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\
+                 Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n"
+            )
+        };
+        for good_host in [
+            "127.0.0.1",
+            "127.0.0.1:4355",
+            "localhost",
+            "LOCALHOST:4355",
+            "localhost:4355",
+            "[::1]",
+            "[::1]:4355",
+            "::1",
+        ] {
+            assert!(
+                validate_head(&with_host(good_host)).is_ok(),
+                "{good_host} must upgrade"
+            );
+        }
+        for bad_host in [
+            // lumen-allow-literal: adversarial test-double host names for the rebinding fence
+            "evil.example",
+            "evil.example:4355",
+            "localhost.evil.example",
+            "127.0.0.1.evil.example",
+            "evil.example.127.0.0.1",
+            "10.0.0.1",
+            "10.0.0.1:4355",
+            "[::2]",
+            "localhost:",
+            "127.0.0.1.1",
+        ] {
+            assert_eq!(
+                validate_head(&with_host(bad_host)).err(),
+                Some("host-not-loopback"),
+                "{bad_host} must be refused with the stable token"
+            );
+        }
     }
 
     #[test]
