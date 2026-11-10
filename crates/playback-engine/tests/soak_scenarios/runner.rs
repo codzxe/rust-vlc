@@ -840,9 +840,23 @@ fn expected_samples(minutes: f64, defaults: &Defaults) -> usize {
 // The count-driven scenarios (open-close-churn, reopen-stress)
 // ---------------------------------------------------------------------------
 
+/// The sample-count ceiling for count-driven scenarios — the bounded
+/// instrument (AGENTS §3.5a "bounded memory everywhere", applied to
+/// the instrument itself).
+///
+/// The 2026-11-10 sandbox finding: at `cycles = 2_000_000` the original
+/// per-cycle series (3 × `n` × 8 B, page-faulted in as the pushes
+/// advance) grew `VmRSS` by ~48 MB — the INSTRUMENT's own storage,
+/// not an engine leak (live bytes stayed flat to ±82 B), tripping the
+/// 8 MB RSS budget with a clean engine. So the count scenarios sample
+/// every `ceil(n / MAX_COUNT_SAMPLES)` cycles: per-cycle resolution
+/// at the original design points (`n` ≈ 1000–4000, stride 1), bounded
+/// instrument memory at stress scale (≤ 4096 samples ≈ 100 kB).
+const MAX_COUNT_SAMPLES: u64 = 4096;
+
 /// Run a count-driven scenario: `N` cycles of open → (play, for
-/// reopen-stress) → close on one engine, sampling fd/RSS/live after
-/// every close and asserting the growth budgets (the 8.C1
+/// reopen-stress) → close on one engine, sampling fd/RSS/live on the
+/// bounded cadence and asserting the growth budgets (the 8.C1
 /// reopen-cycle stress).
 fn run_count_scenario(
     spec: &ScenarioSpec,
@@ -857,10 +871,14 @@ fn run_count_scenario(
         .duration_min
         .map(|minutes| Instant::now() + Duration::from_secs_f64(minutes * 60.0));
 
-    // Preallocated per-cycle series (the instrument discipline).
-    let mut live_series: Vec<isize> = Vec::with_capacity(n as usize + 16);
-    let mut rss_series: Vec<Option<u64>> = Vec::with_capacity(n as usize + 16);
-    let mut fd_series: Vec<Option<u64>> = Vec::with_capacity(n as usize + 16);
+    // The bounded sample cadence: every `stride` cycles, at most
+    // MAX_COUNT_SAMPLES samples (see the const's finding note). Each
+    // sample is tagged with the completed-cycle count it was taken at.
+    let stride = count_sample_stride(n);
+    let mut live_series: Vec<(u64, isize)> = Vec::with_capacity((n / stride + 2) as usize);
+    let mut rss_series: Vec<(u64, Option<u64>)> = Vec::with_capacity((n / stride + 2) as usize);
+    let mut fd_series: Vec<(u64, Option<u64>)> = Vec::with_capacity((n / stride + 2) as usize);
+    let mut last_sampled_at = 0u64;
 
     let mut run = ScenarioRun::new();
     let mut host = SoakHost::new();
@@ -917,32 +935,57 @@ fn run_count_scenario(
         if let Some(sink) = host.sink() {
             run.counts.decoded_bytes = run.counts.decoded_bytes.saturating_add(sink.bytes_total());
         }
-        let live_after = live();
-        live_series.push(live_after);
-        rss_series.push(crate::memory::read_vm_rss_kb());
-        fd_series.push(read_fd_count());
-        let _ = live_before; // the per-cycle delta folds into the series diff below
+        // The bounded cadence: sample at every `stride` completed
+        // cycles and at the configured end, each sample tagged with
+        // the completed-cycle count it was taken at (the wall-cap cut
+        // below appends the true final sample when it lands
+        // mid-stride).
         run.counts.cycles += 1;
         completed += 1;
+        if completed % stride == 0 || completed == n {
+            live_series.push((completed, live()));
+            rss_series.push((completed, crate::memory::read_vm_rss_kb()));
+            fd_series.push((completed, read_fd_count()));
+            last_sampled_at = completed;
+        }
+        let _ = live_before; // the per-cycle delta folds into the series diff below
+    }
+    // The wall cap cut the run mid-stride: append the true final
+    // sample so baseline-vs-final spans the cycles that actually ran.
+    if completed > 0 && last_sampled_at != completed {
+        live_series.push((completed, live()));
+        rss_series.push((completed, crate::memory::read_vm_rss_kb()));
+        fd_series.push((completed, read_fd_count()));
     }
 
     // ---- baselines and growth (post-warmup) ----
-    let baseline = warmup_cycles.min(completed) as usize;
-    let live_baseline = live_series.get(baseline).copied();
-    let live_final = live_series.last().copied();
-    let rss_baseline_kb = rss_series.get(baseline).copied().flatten();
-    let rss_final_kb = rss_series.last().copied().flatten();
-    let fd_baseline = fd_series.get(baseline).copied().flatten();
-    let fd_final = fd_series.last().copied().flatten();
-    let fd_max = fd_series.iter().flatten().copied().max();
+    // The baseline sample is the first taken at/after the warmup
+    // boundary (tag >= warmup_cycles); the final is the last sample.
+    let baseline_idx = live_series
+        .iter()
+        .position(|(at, _)| *at >= warmup_cycles)
+        .unwrap_or(0);
+    let live_baseline = live_series.get(baseline_idx).map(|(_, v)| *v);
+    let live_final = live_series.last().map(|(_, v)| *v);
+    let rss_baseline_kb = rss_series.get(baseline_idx).and_then(|(_, v)| *v);
+    let rss_final_kb = rss_series.last().and_then(|(_, v)| *v);
+    let fd_baseline = fd_series.get(baseline_idx).and_then(|(_, v)| *v);
+    let fd_final = fd_series.last().and_then(|(_, v)| *v);
+    let fd_max = fd_series.iter().filter_map(|(_, v)| *v).max();
+    // The cycles the growth numbers span (tag distance, baseline →
+    // final; the denominators of the budget sentences and the drift
+    // mean — the honest span, not the configured count).
+    let measured_cycles_span = match (live_series.get(baseline_idx), live_series.last()) {
+        (Some((base_at, _)), Some((final_at, _))) => final_at.saturating_sub(*base_at),
+        _ => 0,
+    };
 
     if let (Some(base), Some(final_)) = (live_baseline, live_final)
         && (final_ - base) as f64 > defaults.live_growth_budget_bytes as f64
     {
         run.fail(format!(
-            "bounded memory: live bytes grew from {base} to {final_} across {} cycles ({} B \
-             over the post-warmup baseline, budget {} B)",
-            completed.saturating_sub(warmup_cycles),
+            "bounded memory: live bytes grew from {base} to {final_} across {measured_cycles_span} \
+             cycles ({} B over the post-warmup baseline, budget {} B)",
             final_ - base,
             defaults.live_growth_budget_bytes
         ));
@@ -951,9 +994,8 @@ fn run_count_scenario(
         let growth_mb = (final_.saturating_sub(base)) as f64 / 1024.0;
         if growth_mb > defaults.rss_growth_budget_mb {
             run.fail(format!(
-                "bounded memory: VmRSS grew from {base} kB to {final_} kB across {} cycles \
-                 ({growth_mb:.2} MB, budget {} MB)",
-                completed.saturating_sub(warmup_cycles),
+                "bounded memory: VmRSS grew from {base} kB to {final_} kB across \
+                 {measured_cycles_span} cycles ({growth_mb:.2} MB, budget {} MB)",
                 defaults.rss_growth_budget_mb
             ));
         }
@@ -962,8 +1004,8 @@ fn run_count_scenario(
         && final_.saturating_sub(base) > defaults.fd_growth_budget
     {
         run.fail(format!(
-            "handle growth: open fds grew from {base} to {final_} across {} cycles (budget {})",
-            completed.saturating_sub(warmup_cycles),
+            "handle growth: open fds grew from {base} to {final_} across \
+             {measured_cycles_span} cycles (budget {})",
             defaults.fd_growth_budget
         ));
     }
@@ -1001,8 +1043,8 @@ fn run_count_scenario(
     // The mean net live delta per measured cycle (the drift triage
     // number for the report).
     let live_mean_delta_per_cycle = match (live_baseline, live_final) {
-        (Some(base), Some(final_)) if completed > warmup_cycles => {
-            Some((final_ - base) as f64 / (completed - warmup_cycles) as f64)
+        (Some(base), Some(final_)) if measured_cycles_span > 0 => {
+            Some((final_ - base) as f64 / measured_cycles_span as f64)
         }
         _ => None,
     };
@@ -1014,7 +1056,7 @@ fn run_count_scenario(
         fixtures: plans.iter().map(|p| p.label().to_string()).collect(),
         wall_s: wall_start.elapsed().as_secs_f64(),
         samples_total: live_series.len(),
-        warmup_samples: baseline,
+        warmup_samples: baseline_idx,
         measured_window_s: 0.0,
         measured_cycles: run.counts.cycles,
         counts: run.counts,
@@ -1044,6 +1086,16 @@ fn run_count_scenario(
 fn count_warmup_cycles(n: u64, defaults: &Defaults) -> u64 {
     let raw = (n as f64 * defaults.warmup_fraction).floor() as u64;
     raw.min(n / 2).max(1).min(n.saturating_sub(1))
+}
+
+/// The sample stride for a count-driven scenario: `ceil(n /
+/// MAX_COUNT_SAMPLES)`, min 1 — per-cycle sampling while `n` fits the
+/// sample ceiling, then a uniform cadence that keeps the instrument's
+/// series at ≤ `MAX_COUNT_SAMPLES` + 1 entries whatever `n` is (the
+/// 2026-11-10 instrument-memory regression, `MAX_COUNT_SAMPLES`
+/// docs).
+fn count_sample_stride(n: u64) -> u64 {
+    n.div_ceil(MAX_COUNT_SAMPLES).max(1)
 }
 
 /// Pump until the engine's lifetime frame counter advances (bounded —
@@ -1204,6 +1256,45 @@ mod tests {
             "a single-cycle run measures it"
         );
         assert_eq!(count_warmup_cycles(100, &defaults), 15);
+    }
+
+    /// The bounded instrument cadence (the 2026-11-10 regression:
+    /// per-cycle sampling at `cycles = 2_000_000` faulted in ~48 MB of
+    /// series pages and tripped the RSS budget with a flat engine).
+    /// The stride keeps the sample count ≤ MAX_COUNT_SAMPLES + 1 for
+    /// any `n`, and stays 1 (per-cycle) at the original design points.
+    #[test]
+    fn count_sample_stride_bounds_the_instrument_memory() {
+        let _serial = serial();
+        // The original design points: per-cycle resolution.
+        assert_eq!(count_sample_stride(1), 1);
+        assert_eq!(count_sample_stride(1000), 1);
+        assert_eq!(count_sample_stride(4000), 1);
+        assert_eq!(count_sample_stride(MAX_COUNT_SAMPLES), 1);
+        // One past the ceiling: every second cycle.
+        assert_eq!(count_sample_stride(MAX_COUNT_SAMPLES + 1), 2);
+        // The regression's scale: 2M cycles sample ≤ 4096 + 1 times.
+        let n = 2_000_000u64;
+        let stride = count_sample_stride(n);
+        assert_eq!(stride, 489);
+        assert!(
+            n / stride <= MAX_COUNT_SAMPLES,
+            "sample count {} exceeds the ceiling {}",
+            n / stride,
+            MAX_COUNT_SAMPLES
+        );
+        // The series capacity the runner preallocates from the stride
+        // (three series × entry size): bounded whatever n is.
+        let capacity = n / stride + 2;
+        assert!(
+            capacity <= MAX_COUNT_SAMPLES + 2,
+            "preallocated capacity {capacity} is not bounded by the sample ceiling"
+        );
+        // A pathological huge n still bounds (no overflow, no zero).
+        let huge = u32::MAX as u64;
+        let stride = count_sample_stride(huge);
+        assert!(stride >= 1);
+        assert!(huge / stride <= MAX_COUNT_SAMPLES);
     }
 
     /// The expectation-path mapping (the recorded-truth layout).

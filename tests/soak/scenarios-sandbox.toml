@@ -1,8 +1,10 @@
 # The BOUNDED SANDBOX soak profile — card 8.C1, issue #54 (P8-3).
 #
-# The real, in-sandbox run of the scenario suite: ~34 minutes of real
-# engine playback across the five scenarios, every duration and cycle
-# count set HERE (the config-override path proven end-to-end — the
+# The real, in-sandbox run of the scenario suite: ~35 minutes of real
+# engine playback across the five scenarios (24 min of duration-driven
+# playback + the two count-driven scenarios targeting their 5-min wall
+# caps after the 2026-11-10 recalibration, below), every duration and
+# cycle count set HERE (the config-override path proven end-to-end — the
 # runner code is identical to the CI-short and nightly tiers; only
 # this file differs). Selected by:
 #
@@ -53,13 +55,23 @@ fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/valid/avi_mjpeg_2pcm
 [[scenario]]
 id = "open-close-churn"
 kind = "open-close-churn"
-cycles = 4000
+# Calibrated 2026-11-10 from the first sandbox measurement (4000 cycles
+# completed in 0.6 s ≈ 6.7k cycles/s on this host, numbers recorded
+# here — that first calibration ran report-to-stdout only): 2.0M cycles
+# ≈ the 5-min wall cap. The first calibration (4000) completed in
+# under a second — too thin for a handle-growth signal; this is the
+# config axis doing its job.
+cycles = 2000000
 duration_min = 5.0
 fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/malformed/avi_mjpeg_pcm__trunc3.avi"]
 
 [[scenario]]
 id = "reopen-stress"
 kind = "reopen-stress"
-cycles = 1500
+# Calibrated 2026-11-10 from the first sandbox measurement
+# (docs/soak/raw/scenarios-sandbox__reopen-stress__calibration.md:
+# 1500 cycles in 3.0 s ≈ 500 cycles/s): 150k full open→play→decode→close
+# cycles ≈ the 5-min wall cap.
+cycles = 150000
 duration_min = 5.0
 fixtures = ["generated/valid/avi_mjpeg_pcm.avi", "generated/valid/avi_mjpeg_2pcm.avi"]

@@ -21,7 +21,7 @@
 //! | env | default | meaning |
 //! |---|---|---|
 //! | `SOAK_SCENARIOS` | `tests/soak/scenarios.toml` | the manifest to run: a workspace-relative or absolute path. Parse/refusal errors fail loudly, never default (the `SOAK_MINUTES` dirty-world rule). |
-//! | `SOAK_SCENARIOS_REPORT` | (unset) | write the full markdown suite report to this path |
+//! | `SOAK_SCENARIOS_REPORT` | (unset) | write the full markdown suite report to this path (absolute, or workspace-relative — resolved against the workspace root, not the test binary's crate-root CWD) |
 //! | `SOAK_SCENARIOS_ONLY` | (unset) | run ONLY the scenario with this id (the sandbox chunking knob: this sandbox's tool calls are wall-capped below the bounded profile's total, so the sandbox measurement runs the five scenarios as five processes, one per scenario, each a clean allocator baseline; CI and the nightly never set it). A set-but-unknown id is a loud refusal. |
 //!
 //! # Test-binary discipline
@@ -107,12 +107,23 @@ fn manifest_path() -> Result<PathBuf, String> {
     }
 }
 
-/// The optional report path (env `SOAK_SCENARIOS_REPORT`).
+/// The optional report path (env `SOAK_SCENARIOS_REPORT`: absolute, or
+/// workspace-relative — the same resolution contract as
+/// [`manifest_path`]; the test process's CWD is the CRATE root
+/// (`cargo test` runs binaries there), not the workspace root the
+/// wrapper script's relative defaults are written against).
 fn report_path() -> Option<PathBuf> {
     std::env::var("SOAK_SCENARIOS_REPORT")
         .ok()
         .filter(|text| !text.trim().is_empty())
-        .map(PathBuf::from)
+        .map(|text| {
+            let path = PathBuf::from(text.trim());
+            if path.is_absolute() {
+                path
+            } else {
+                testkit::workspace_root().must().join(path)
+            }
+        })
 }
 
 /// The optional single-scenario filter (env `SOAK_SCENARIOS_ONLY`).
