@@ -89,7 +89,8 @@ listed in `docs/feature-matrix.toml` — 37 of 73 format rows as of
 2026-11-10: the AVI/MP4/MKV/Ogg/MP3/WAV/MPEG-PS/TS/ADTS/AIFF/ASF/IVF/
 Annex-B demuxers, the MJPEG/AV1/VP9/(partial) H.264/HEVC/ProRes video
 decoders, the PCM/MP3/MP2/AAC-LC/FLAC/Vorbis/Opus/ALAC/ADPCM audio
-decoders, and the SRT/VTT/ASS/PGS/DVB/VobSub/CC subtitle parsers. Every
+decoders, and the SRT/VTT/ASS/PGS/DVB/VobSub/CC subtitle parsers
+(plus subtitle encoding detection — the 37th claimed row). Every
 row links its evidence; per-format details and known gaps live in
 `docs/formats/<record>.md`. Anything not in that list produces a typed
 error (see [troubleshooting](troubleshooting.md)) — never a hang or a
