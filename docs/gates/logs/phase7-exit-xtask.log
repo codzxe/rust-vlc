@@ -1,0 +1,959 @@
+# Phase-7 exit gate — xtask gate battery
+# Worktree: /home/z/my-project/wt/w24f (branch w24/f @ a4e35e7)
+# Date: 2026-11-10T16:56:35Z
+
+## Cmd: cargo run -q -p xtask -- check-architecture
+=== LUMEN ARCHITECTURE REPORT ===
+root:       /home/z/my-project/wt/w24f
+members:    39 workspace crates, 39 declared in boundaries.toml
+spec:       doc 01 §5.2 / gate G5 (doc 10 §4.6); manifest version 1
+
+1 edges.................  PASS   (97 internal edges, 46 dev edges, 38 external deps — all checked against boundaries.toml)
+2 cycles................  PASS   (39 nodes, 143 internal edges (normal + dev), 0 cycles)
+3 unsafe-lints..........  PASS   (39/39 crates inherit [lints] workspace = true; root denies unsafe_code)
+4 static-mut............  PASS   (0 occurrences wanted; scanned 627 files across 39 src trees)
+5 testkit-direction.....  PASS   (dev-only crates [testkit] appear in [dev-dependencies] tables only)
+
+result: PASS (5 of 5 checks)
+architecture: result=pass edges=pass cycles=pass unsafe-lints=pass static-mut=pass testkit-direction=pass
+full log: target/architecture-report.json
+XTASK_EXIT[check-architecture]=0
+
+## Cmd: cargo run -q -p xtask -- codegen --check
+catalog-gen: no drift — outputs match the catalog (64 commands / 26 events)
+XTASK_EXIT[codegen --check]=0
+
+## Cmd: cargo run -q -p xtask -- schema-gen --check
+schema-gen: no drift — outputs match /home/z/my-project/wt/w24f/schemas/settings.toml (32 entries)
+schema-gen: 32 entries across 7 screen(s) of 14 known areas; validated against /home/z/my-project/wt/w24f/product.toml
+XTASK_EXIT[schema-gen --check]=0
+
+## Cmd: cargo run -q -p xtask -- fixtures --check
+result: no drift — 55 file(s) verified under /home/z/my-project/wt/w24f/tests/fixtures
+XTASK_EXIT[fixtures --check]=0
+
+## Cmd: cargo run -q -p xtask -- lint-literals
+lint-literals: 558 files scanned across crates/ + apps/ (37 config-layer exempt, 0 tests/fixtures-dir exempt)
+lint-literals: 18602 string-literal sites classified
+  allowed: apps/cli/src/bench.rs:557: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/containers/adts.rs:371: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/containers/adts.rs:399: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/containers/adts.rs:468: identity — cfg(test) corpus-gate env-var name — test harness knob, not product config
+  allowed: apps/cli/src/containers/adts.rs:471: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/adts.rs:480: identity — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/adts.rs:480: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/adts.rs:543: identity — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/adts.rs:543: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/aiff.rs:347: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/containers/aiff.rs:364: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/containers/es.rs:299: identity — cfg(test) corpus-gate env-var name — test harness knob, not product config
+  allowed: apps/cli/src/containers/es.rs:302: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/ivf.rs:577: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/containers/ivf.rs:594: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/containers/ivf.rs:620: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/containers/mkv.rs:1085: identity — cfg(test) corpus-gate env-var name — test harness knob, not product config
+  allowed: apps/cli/src/containers/mkv.rs:1088: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/mkv.rs:1095: identity — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/mkv.rs:1095: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/mod.rs:116: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/cli/src/containers/mp4.rs:947: identity — cfg(test) corpus-gate env-var name — test harness knob, not product config
+  allowed: apps/cli/src/containers/mp4.rs:950: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/mp4.rs:957: identity — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/mp4.rs:957: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/ogg.rs:572: identity — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/ogg.rs:572: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/ogg.rs:696: identity — cfg(test) corpus-gate env-var name — test harness knob, not product config
+  allowed: apps/cli/src/containers/ogg.rs:699: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/ps.rs:634: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/containers/ts.rs:613: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/containers/ts.rs:838: identity — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/ts.rs:838: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/ts.rs:1018: identity — cfg(test) corpus-gate env-var name — test harness knob, not product config
+  allowed: apps/cli/src/containers/ts.rs:1021: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/wav.rs:297: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/containers/wav.rs:390: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/containers/wav.rs:511: identity — cfg(test) corpus-gate env-var name — test harness knob, not product config
+  allowed: apps/cli/src/containers/wav.rs:514: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/wav.rs:523: identity — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/wav.rs:523: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/demux_host.rs:662: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/demux_host.rs:726: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: apps/cli/src/dispatch.rs:208: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/dispatch.rs:323: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: apps/cli/src/help.rs:101: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/help.rs:113: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/help.rs:116: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/help.rs:117: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/help.rs:118: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/help.rs:124: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/parse.rs:145: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/parse.rs:272: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/parse.rs:283: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/parse.rs:301: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/parse.rs:330: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/parse.rs:343: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/parse.rs:372: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/parse.rs:379: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/run.rs:222: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/run.rs:837: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/run.rs:838: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/run.rs:914: identity — test fixture value — round-trip data, not display identity
+  allowed: apps/control-server/src/config.rs:271: identity — protocol version string is wire vocabulary (doc 05 §5.4)
+  allowed: apps/control-server/src/dispatch.rs:113: identity — protocol version string is wire vocabulary (doc 05 §5.4)
+  allowed: apps/control-server/src/dispatch.rs:172: url — loopback URL inside #[cfg(test)] context (spec exception)
+  allowed: apps/control-server/src/main.rs:111: identity — binary/usage prose — the lumen-cli help.rs precedent: identity wiring pending (product-config joins with the rebrand-propagation card)
+  allowed: apps/control-server/src/main.rs:244: identity — lumen-control is the wire protocol name (doc 05 §5.4) — a rebrand must not rename the protocol on the wire; ws:// is the RFC 6455 URI scheme, not a network endpoint
+  allowed: apps/control-server/src/main.rs:244: url — lumen-control is the wire protocol name (doc 05 §5.4) — a rebrand must not rename the protocol on the wire; ws:// is the RFC 6455 URI scheme, not a network endpoint
+  allowed: apps/control-server/src/run.rs:83: identity — protocol version string is wire vocabulary (doc 05 §5.4)
+  allowed: apps/desktop/src/dispatch.rs:362: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/dispatch.rs:367: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/dispatch.rs:381: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/dispatch.rs:389: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/dispatch.rs:392: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/dispatch.rs:399: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:138: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:139: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:151: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:163: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:168: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:180: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:181: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:182: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:183: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:184: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:214: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:215: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:216: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:217: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:218: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:219: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:220: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:221: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/main.rs:24: identity — argv0/skeleton notice — identity wiring pending (see apps/cli help.rs [PROPOSAL])
+  allowed: apps/desktop/src/main.rs:103: identity — custom-protocol scheme label — protocol vocabulary, not display identity
+  allowed: apps/desktop/src/shell.rs:382: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/shell.rs:406: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/shell.rs:411: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/shell.rs:425: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/shell.rs:426: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/shell.rs:438: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/shell.rs:468: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/window_config.rs:427: hex-color — test fixture TOML mirroring product.toml [brand] — parse-target data
+  allowed: apps/desktop/src/window_config.rs:466: identity — test fixture value — round-trip data, not display identity
+  allowed: apps/desktop/src/window_config.rs:467: identity — test fixture value — round-trip data, not display identity
+  allowed: apps/web/src/io/fetch_port.rs:281: url — wire-protocol scheme prefix — transport vocabulary, not a shipped endpoint
+  allowed: apps/web/src/io/fetch_port.rs:281: url — wire-protocol scheme prefix — transport vocabulary, not a shipped endpoint
+  allowed: apps/web/src/io/fetch_port.rs:315: url — reserved example host — typed-validation test vector, never a shipped endpoint
+  allowed: apps/web/src/io/fetch_port.rs:332: url — reserved example host — typed-validation test vector, never a shipped endpoint
+  allowed: apps/web/src/io/fetch_port.rs:334: url — reserved example host — typed-validation test vector, never a shipped endpoint
+  allowed: apps/web/src/io/fetch_port.rs:336: url — reserved example host — typed-validation test vector, never a shipped endpoint
+  allowed: apps/web/src/io/fetch_port.rs:336: url — reserved example host — typed-validation test vector, never a shipped endpoint
+  allowed: apps/web/src/io/fetch_port.rs:343: url — reserved example host — typed-validation test vector, never a shipped endpoint
+  allowed: apps/web/src/io/fetch_port.rs:357: url — reserved example host — typed-validation test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:450: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:484: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:513: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:553: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:567: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:588: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:602: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:608: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:626: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:644: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:663: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:675: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:693: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:720: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:741: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:766: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/seekability.rs:227: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/seekability.rs:243: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/seekability.rs:438: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/staged_source.rs:853: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/staged_source.rs:902: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/staged_source.rs:1014: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/staged_source.rs:1053: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/staged_source.rs:1071: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/staged_source.rs:1098: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/staged_source.rs:1127: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/staged_source.rs:1137: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/staged_source.rs:1169: url — reserved example host — fetch-lane test vector over the real fixture, never a shipped endpoint
+  allowed: apps/web/src/open.rs:532: abs-path — typed-refusal test vector — a fake POSIX path, never a shipped route
+  allowed: apps/web/src/open.rs:544: url — reserved example host — typed-refusal test vector, never a shipped endpoint
+  allowed: crates/_template/src/lib.rs:23: identity — crate-template placeholder value — replaced when the template is instantiated
+  allowed: crates/codecs/src/audio/vorbis/comments.rs:269: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/codecs/src/audio/vorbis/comments.rs:285: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/codecs/src/video/h264/hw/vaapi/device.rs:144: identity — identity — cfg(test) scratch dir prefix — test-only fixture, not a shipped surface
+  allowed: crates/codecs/src/video/h264/hw/vaapi/session.rs:2015: identity — identity — cfg(test) scratch dir prefix — test-only fixture, not a shipped surface
+  allowed: crates/codecs/src/video/h264/hw/vaapi/session.rs:2041: identity — identity — cfg(test) scratch dir prefix — test-only fixture, not a shipped surface
+  allowed: crates/codecs/src/video/h264/parser/slice.rs:1400: identity — cfg(test) corpus-gate env-var name — test harness knob, not product config
+  allowed: crates/codecs/src/video/h264/parser/slice.rs:1401: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: crates/codecs/src/video/hevc/parser/nal.rs:992: identity — cfg(test) corpus-gate env-var name — test harness knob, not product config
+  allowed: crates/codecs/src/video/hevc/parser/nal.rs:993: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: crates/codecs/src/video/mjpeg/idct_simd.rs:130: identity — engine-internal opt-in env knob name, not product identity
+  allowed: crates/commands/src/bin/catalog_gen.rs:36: identity — CLI usage/error prose — identity wiring pending (see apps/cli help.rs [PROPOSAL])
+  allowed: crates/commands/src/bin/catalog_gen.rs:257: identity — CLI usage/error prose — identity wiring pending (see apps/cli help.rs [PROPOSAL])
+  allowed: crates/commands/src/catalog/codegen.rs:142: identity — generated-artifact header emitted by codegen — folding the generator into the rebrand surface set is the recorded follow-up
+  allowed: crates/commands/src/catalog/codegen.rs:200: identity — generated-artifact header emitted by codegen — folding the generator into the rebrand surface set is the recorded follow-up
+  allowed: crates/commands/src/catalog/codegen.rs:488: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: crates/commands/src/catalog/event.rs:503: identity — tracing-target fixture value — the log target under test
+  allowed: crates/commands/src/error.rs:378: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/commands/src/error.rs:392: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/commands/src/error.rs:395: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/commands/src/error.rs:401: url — URL parse/redaction test vector — data under test
+  allowed: crates/commands/src/error.rs:402: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/control-protocol/src/client.rs:80: identity — lumen-control is the wire protocol name (doc 05 §5.4), not product identity — a rebrand must not rename the protocol on the wire
+  allowed: crates/control-protocol/src/error.rs:219: identity — protocol name (doc 05 §5.4 wire vocabulary), not product identity
+  allowed: crates/control-protocol/src/error.rs:225: identity — protocol name (doc 05 §5.4 wire vocabulary), not product identity
+  allowed: crates/control-protocol/src/http.rs:360: identity — protocol-name request path — wire vocabulary, not product identity
+  allowed: crates/control-protocol/src/http.rs:369: identity — protocol-name request path — wire vocabulary, not product identity
+  allowed: crates/control-protocol/src/protocol.rs:37: identity — the lumen-control wire protocol identifier (doc 05 §5.4) — spec vocabulary, a rebrand must not rename the protocol on the wire
+  allowed: crates/control-protocol/src/protocol.rs:335: identity — protocol-name wire vocabulary, not product identity
+  allowed: crates/control-protocol/src/protocol.rs:342: identity — protocol-name wire vocabulary, not product identity
+  allowed: crates/control-protocol/src/server.rs:588: identity — protocol name + major — wire vocabulary, not product identity
+  allowed: crates/control-protocol/src/server.rs:887: identity — protocol name — wire vocabulary, not product identity
+  allowed: crates/demux/src/asf/tests.rs:1073: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: crates/demux/src/avi/test_support.rs:37: identity — test-support synthetic URI — test infrastructure, not product identity
+  allowed: crates/demux/src/avi/tests.rs:432: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/demux/src/avi/tests.rs:449: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/demux/src/wav/tests.rs:225: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/device-discovery/src/monitor.rs:168: identity — diagnostic thread name for the volume watcher.
+  allowed: crates/device-discovery/src/ssdp.rs:452: url — spec-fixture URL on the RFC 5737 TEST-NET-1 reserved range — never a shipped endpoint.
+  allowed: crates/device-discovery/src/ssdp.rs:454: url — dirty-world fixture URL on the RFC 5737 TEST-NET-1 reserved range — never a shipped endpoint.
+  allowed: crates/device-discovery/src/ssdp.rs:456: url — minimal fake-host fixture URL — never a shipped endpoint.
+  allowed: crates/input/src/contract.rs:177: identity — engine-internal synthetic URI label — never user-visible
+  allowed: crates/input/src/uri.rs:148: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/input/src/uri.rs:149: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/input/src/uri.rs:153: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/input/src/uri.rs:154: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/input/src/uri.rs:158: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/input/src/uri.rs:159: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/input/src/uri.rs:163: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/input/src/uri.rs:164: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/input/src/uri.rs:174: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/input/src/uri.rs:175: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/input/src/uri.rs:229: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/input/src/uri.rs:242: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/input/src/uri.rs:250: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/input/src/uri.rs:252: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/media-types/src/ids.rs:559: url — URL parse/redaction test vector — data under test
+  allowed: crates/media-types/src/ids.rs:559: url — URL parse/redaction test vector — data under test
+  allowed: crates/media-types/src/ids.rs:577: url — URL parse/redaction test vector — data under test
+  allowed: crates/media-types/src/ids.rs:580: url — URL parse/redaction test vector — data under test
+  allowed: crates/media-types/src/ids.rs:588: url — URL parse/redaction test vector — data under test
+  allowed: crates/media-types/src/ids.rs:589: url — URL parse/redaction test vector — data under test
+  allowed: crates/media-types/src/ids.rs:595: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/media-types/src/ids.rs:611: url — URL parse/redaction test vector — data under test
+  allowed: crates/media-types/src/ids.rs:615: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/media-types/src/ids.rs:621: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/media-types/src/ids.rs:639: url — URL parse/redaction test vector — data under test
+  allowed: crates/media-types/src/ids.rs:650: url — URL parse/redaction test vector — data under test
+  allowed: crates/media-types/src/ids.rs:651: url — URL parse/redaction test vector — data under test
+  allowed: crates/media-types/src/ids.rs:656: url — URL parse/redaction test vector — data under test
+  allowed: crates/media-types/src/ids.rs:658: url — URL parse/redaction test vector — data under test
+  allowed: crates/media-types/src/packet.rs:554: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/media-types/src/packet.rs:555: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/platform-linux/src/linux/pulse.rs:398: identity — PulseAudio protocol client identity (config edge is the Lead-gated follow-up).
+  allowed: crates/platform-windows/src/windows/dialogs.rs:284: identity — diagnostic thread name for the STA probe round.
+  allowed: crates/platform-windows/src/windows/dialogs.rs:327: identity — diagnostic thread name for the open-dialog STA round.
+  allowed: crates/platform-windows/src/windows/dialogs.rs:335: identity — diagnostic thread name for the save-dialog STA round.
+  allowed: crates/platform-windows/src/windows/wasapi.rs:607: identity — diagnostic thread name for the enumeration STA round.
+  allowed: crates/platform-windows/src/windows/wasapi.rs:611: identity — same diagnostic name, surfaced in the typed error.
+  allowed: crates/platform-windows/src/windows/wasapi.rs:634: identity — diagnostic thread name for the notification watch thread.
+  allowed: crates/platform-windows/src/windows/wasapi.rs:639: identity — same diagnostic name, surfaced in the typed error.
+  allowed: crates/playback-engine/src/events.rs:1989: identity — tracing-target fixture value — the log target under test
+  allowed: crates/playback-engine/src/snapshot.rs:190: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/playback-engine/src/snapshot.rs:198: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/playback-engine/src/snapshot.rs:206: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/playback-engine/src/snapshot.rs:207: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/playback-engine/src/snapshot.rs:210: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/playback-engine/src/snapshot.rs:213: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/playback-engine/src/snapshot.rs:220: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/playlists/src/fuzz.rs:85: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/playlists/src/hls.rs:652: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/hls.rs:664: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/hls.rs:665: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/hls.rs:686: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/playlists/src/hls.rs:688: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/hls.rs:693: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/hls.rs:694: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/hls.rs:695: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/hls.rs:713: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/playlists/src/hls.rs:831: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/hls.rs:843: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/playlists/src/hls.rs:847: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/playlists/src/hls.rs:869: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/hls.rs:875: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/hls.rs:897: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/playlists/src/hls.rs:974: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/mpd.rs:2292: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/mpd.rs:2601: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/playlists/src/mpd.rs:2738: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/playlists/src/mpd.rs:2748: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/probe.rs:635: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/playlists/src/probe.rs:657: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/playlists/src/probe.rs:756: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: crates/playlists/src/probe.rs:837: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: crates/plugin-api/src/access.rs:234: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/plugin-api/src/access.rs:281: url — URL parse/redaction test vector — data under test
+  allowed: crates/plugin-api/src/access.rs:304: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/plugin-api/src/discovery.rs:150: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/plugin-api/src/kind.rs:8: identity — reserved plugin-id namespace (doc 06 protocol vocabulary), not display identity
+  allowed: crates/plugin-api/src/manifest.rs:348: identity — diagnostic quoting the reserved `lumen.` plugin-id prefix — protocol vocabulary
+  allowed: crates/plugin-api/src/manifest.rs:360: identity — diagnostic quoting the reserved `lumen.` plugin-id prefix — protocol vocabulary
+  allowed: crates/plugin-api/src/manifest.rs:1074: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/plugin-api/src/manifest.rs:1075: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/plugin-api/src/manifest.rs:1092: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/plugin-api/src/manifest.rs:1104: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/plugin-api/src/manifest.rs:1107: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/plugin-api/src/manifest.rs:1208: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/plugin-api/src/manifest.rs:1218: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/plugin-api/src/manifest.rs:1240: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/plugin-api/src/manifest.rs:1249: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/plugin-api/src/manifest.rs:1262: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/plugin-api/src/manifest.rs:1276: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/plugin-api/src/manifest.rs:1281: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/plugin-api/src/manifest.rs:1287: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/plugin-host-wasm/src/api.rs:53: identity — plugin ABI namespace prefix (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:55: identity — plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:57: identity — plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:59: identity — plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:61: identity — plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:63: identity — plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:65: identity — plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:69: identity — plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:71: identity — plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:73: identity — plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:75: identity — plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:77: identity — plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:79: identity — plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:81: identity — plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:83: identity — plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:85: identity — plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:87: identity — plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/bin/lumenext-examples.rs:51: identity — plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/bin/lumenext-examples.rs:52: identity — plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/bin/lumenext-examples.rs:53: identity — plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/bin/lumenext-examples.rs:54: identity — plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/bin/lumenext-examples.rs:348: url — doc 06 §2.3 example provenance placeholder (RFC 2606 example.com) — fixture payload, not a config endpoint
+  allowed: crates/plugin-host-wasm/src/error.rs:240: identity — plugin ABI namespace in an actionable error message — protocol vocabulary, not a brand surface
+  allowed: crates/plugin-host-wasm/src/fsjail.rs:213: identity — unique test temp-dir prefix (collision avoidance), not an identity surface
+  allowed: crates/plugin-host-wasm/src/fsjail.rs:319: identity — nonexistent test jail-root path (the product word appears coincidentally), not an identity surface
+  allowed: crates/plugin-host-wasm/src/http.rs:23: url — URL scheme grammar constant parsed from guest input — protocol, not a config endpoint
+  allowed: crates/plugin-host-wasm/src/http.rs:208: url — test-double URLs for scheme policy (non-loopback host required by the case)
+  allowed: crates/plugin-host-wasm/src/http.rs:218: url — test-double URL for scheme/case normalization
+  allowed: crates/plugin-host-wasm/src/http.rs:222: url — expected canonical reconstruction of the test-double URL
+  allowed: crates/plugin-host-wasm/src/http.rs:229: url — test-double URL for userinfo-refusal policy
+  allowed: crates/plugin-host-wasm/src/http.rs:230: url — test-double URL for userinfo-refusal policy
+  allowed: crates/plugin-host-wasm/src/http.rs:231: url — loopback URL inside #[cfg(test)] context (spec exception)
+  allowed: crates/plugin-host-wasm/src/http.rs:232: url — test-double URL for IP-literal-refusal policy
+  allowed: crates/plugin-host-wasm/src/http.rs:233: url — test-double URL for non-443-port-refusal policy
+  allowed: crates/plugin-host-wasm/src/http.rs:234: url — test-double URL for the explicit-443 exception
+  allowed: crates/plugin-host-wasm/src/http.rs:241: url — test-double URL for allowlist exact-match policy
+  allowed: crates/plugin-host-wasm/src/http.rs:245: url — adversarial test-double URL for allowlist policy
+  allowed: crates/plugin-host-wasm/src/http.rs:247: url — adversarial test-double URL for allowlist policy
+  allowed: crates/plugin-host-wasm/src/http.rs:249: url — adversarial test-double URL for allowlist policy
+  allowed: crates/plugin-host-wasm/src/http.rs:257: url — non-allowlisted test-double host
+  allowed: crates/plugin-host-wasm/src/http.rs:264: url — test-double URL for the transport-seam refusal case
+  allowed: crates/streaming/src/auth.rs:959: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/streaming/src/auth.rs:963: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/streaming/src/auth.rs:1022: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/auth.rs:1035: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/auth.rs:1052: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/auth.rs:1054: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/auth.rs:1059: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/auth.rs:1060: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/auth.rs:1103: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/client.rs:488: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/streaming/src/client.rs:493: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/streaming/src/client.rs:691: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/client.rs:691: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/client.rs:726: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/client.rs:729: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/client.rs:730: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/client.rs:741: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/client.rs:742: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/client.rs:745: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/client.rs:746: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/client.rs:963: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/client.rs:984: url — opt-in live-network test (--ignored only) — a deliberate real endpoint, never a default
+  allowed: crates/streaming/src/dash/fuzz.rs:75: url — fuzz-target URL on a reserved host — never a shipped endpoint
+  allowed: crates/streaming/src/dash/resolve.rs:769: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/dash/resolve.rs:1005: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/dash/resolve.rs:1012: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/dash/resolve.rs:1033: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/dash/resolve.rs:1046: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/dash/resolve.rs:1064: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/dash/resolve.rs:1081: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/dash/resolve.rs:1102: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/dash/resolve.rs:1109: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/dash/resolve.rs:1109: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/dash/resolve.rs:1187: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/dash/resolve.rs:1283: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/dash/resolve.rs:1292: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/dash/resolve.rs:1293: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/dash/resolve.rs:1295: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/dash/sched.rs:567: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/dash/sched.rs:588: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/dash/sched.rs:669: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/dash/sched.rs:683: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/dash/sched.rs:699: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/fetch.rs:301: url — scheme-prefix dispatch — protocol vocabulary, not an endpoint
+  allowed: crates/streaming/src/fetch.rs:301: url — scheme-prefix dispatch — protocol vocabulary, not an endpoint
+  allowed: crates/streaming/src/fetch.rs:543: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/fetch.rs:551: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/fetch.rs:554: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/fetch.rs:558: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/fetch.rs:574: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/fetch.rs:575: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/fetch.rs:576: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/fetch.rs:577: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/fetch.rs:578: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/fetch.rs:579: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/fetch.rs:592: url — loopback URL inside #[cfg(test)] context (spec exception)
+  allowed: crates/streaming/src/fetch.rs:597: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/fetch.rs:615: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/fetch.rs:623: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/hls/live.rs:901: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:943: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:981: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1007: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1056: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1102: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1141: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1180: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1216: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1243: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1272: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/hls/live.rs:1290: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1315: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1353: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1379: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1388: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1421: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1466: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/master.rs:992: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/master.rs:1074: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/master.rs:1084: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/master.rs:1113: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/master.rs:1159: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/media.rs:820: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/media.rs:857: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/media.rs:917: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/media.rs:958: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/media.rs:990: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/media.rs:1017: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/media.rs:1120: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/media.rs:1129: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/mockhttp.rs:477: url — test-double HTTP server URL builder — test infrastructure, never shipped
+  allowed: crates/streaming/src/mockhttp.rs:1436: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/ranged.rs:1261: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/ranged.rs:1392: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/ranged.rs:1807: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/ranged.rs:1848: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/ranged.rs:1881: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/reconnect.rs:1002: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/reconnect.rs:1260: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/remote_playlist.rs:236: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/remote_playlist.rs:266: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/remote_playlist.rs:280: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/remote_playlist.rs:308: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/schemes.rs:510: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/streaming/src/schemes.rs:549: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/schemes.rs:559: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/schemes.rs:582: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/schemes.rs:583: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/schemes.rs:584: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/schemes.rs:594: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/schemes.rs:605: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/schemes.rs:656: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/schemes.rs:731: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/schemes.rs:744: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/schemes.rs:745: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/schemes.rs:1024: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/schemes.rs:1025: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/schemes.rs:1029: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/subtitles/src/ass/parser.rs:947: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/subtitles/src/ass/parser.rs:1007: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/subtitles/src/font/mod.rs:602: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/subtitles/src/font/mod.rs:616: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/subtitles/src/font/mod.rs:617: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/subtitles/src/font/mod.rs:666: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/subtitles/src/font/mod.rs:670: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/subtitles/src/model/error.rs:149: identity — diagnostic quoting the LUMEN-CUES wire magic — format vocabulary, not display identity
+  allowed: crates/subtitles/src/model/style.rs:188: hex-color — markup/validation test vector — data under test, not a theme color
+  allowed: crates/subtitles/src/model/wire.rs:67: identity — LUMEN-CUES wire-format magic — frozen format identifier, not display identity
+  allowed: crates/subtitles/src/srt/tags.rs:350: hex-color — markup/validation test vector — data under test, not a theme color
+  allowed: crates/subtitles/src/srt/tags.rs:364: hex-color — markup/validation test vector — data under test, not a theme color
+  allowed: crates/subtitles/src/srt/tags.rs:369: hex-color — markup/validation test vector — data under test, not a theme color
+  allowed: crates/testkit/src/lib.rs:407: identity — cfg(test) scratch filename — test-only, never a shipped surface
+lint-literals: PASS — 0 violations, 452 allowlisted
+XTASK_EXIT[lint-literals]=0
+
+## Cmd: cargo run -q -p xtask -- check-identity
+check-identity: 558 files scanned across crates/ + apps/ (37 config-layer exempt, 0 tests/fixtures-dir exempt)
+check-identity: 18602 string-literal sites classified
+  allowed: apps/cli/src/bench.rs:557: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/containers/adts.rs:371: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/containers/adts.rs:399: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/containers/adts.rs:468: identity — cfg(test) corpus-gate env-var name — test harness knob, not product config
+  allowed: apps/cli/src/containers/adts.rs:471: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/adts.rs:480: identity — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/adts.rs:480: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/adts.rs:543: identity — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/adts.rs:543: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/aiff.rs:347: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/containers/aiff.rs:364: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/containers/es.rs:299: identity — cfg(test) corpus-gate env-var name — test harness knob, not product config
+  allowed: apps/cli/src/containers/es.rs:302: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/ivf.rs:577: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/containers/ivf.rs:594: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/containers/ivf.rs:620: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/containers/mkv.rs:1085: identity — cfg(test) corpus-gate env-var name — test harness knob, not product config
+  allowed: apps/cli/src/containers/mkv.rs:1088: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/mkv.rs:1095: identity — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/mkv.rs:1095: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/mod.rs:116: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/cli/src/containers/mp4.rs:947: identity — cfg(test) corpus-gate env-var name — test harness knob, not product config
+  allowed: apps/cli/src/containers/mp4.rs:950: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/mp4.rs:957: identity — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/mp4.rs:957: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/ogg.rs:572: identity — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/ogg.rs:572: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/ogg.rs:696: identity — cfg(test) corpus-gate env-var name — test harness knob, not product config
+  allowed: apps/cli/src/containers/ogg.rs:699: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/ps.rs:634: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/containers/ts.rs:613: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/containers/ts.rs:838: identity — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/ts.rs:838: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/ts.rs:1018: identity — cfg(test) corpus-gate env-var name — test harness knob, not product config
+  allowed: apps/cli/src/containers/ts.rs:1021: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/wav.rs:297: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/containers/wav.rs:390: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/containers/wav.rs:511: identity — cfg(test) corpus-gate env-var name — test harness knob, not product config
+  allowed: apps/cli/src/containers/wav.rs:514: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/wav.rs:523: identity — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/containers/wav.rs:523: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: apps/cli/src/demux_host.rs:662: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: apps/cli/src/demux_host.rs:726: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: apps/cli/src/dispatch.rs:208: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/dispatch.rs:323: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: apps/cli/src/help.rs:101: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/help.rs:113: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/help.rs:116: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/help.rs:117: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/help.rs:118: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/help.rs:124: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/parse.rs:145: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/parse.rs:272: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/parse.rs:283: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/parse.rs:301: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/parse.rs:330: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/parse.rs:343: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/parse.rs:372: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/parse.rs:379: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/run.rs:222: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/run.rs:837: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/run.rs:838: identity — CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+  allowed: apps/cli/src/run.rs:914: identity — test fixture value — round-trip data, not display identity
+  allowed: apps/control-server/src/config.rs:271: identity — protocol version string is wire vocabulary (doc 05 §5.4)
+  allowed: apps/control-server/src/dispatch.rs:113: identity — protocol version string is wire vocabulary (doc 05 §5.4)
+  allowed: apps/control-server/src/dispatch.rs:172: url — loopback URL inside #[cfg(test)] context (spec exception)
+  allowed: apps/control-server/src/main.rs:111: identity — binary/usage prose — the lumen-cli help.rs precedent: identity wiring pending (product-config joins with the rebrand-propagation card)
+  allowed: apps/control-server/src/main.rs:244: identity — lumen-control is the wire protocol name (doc 05 §5.4) — a rebrand must not rename the protocol on the wire; ws:// is the RFC 6455 URI scheme, not a network endpoint
+  allowed: apps/control-server/src/main.rs:244: url — lumen-control is the wire protocol name (doc 05 §5.4) — a rebrand must not rename the protocol on the wire; ws:// is the RFC 6455 URI scheme, not a network endpoint
+  allowed: apps/control-server/src/run.rs:83: identity — protocol version string is wire vocabulary (doc 05 §5.4)
+  allowed: apps/desktop/src/dispatch.rs:362: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/dispatch.rs:367: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/dispatch.rs:381: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/dispatch.rs:389: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/dispatch.rs:392: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/dispatch.rs:399: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:138: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:139: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:151: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:163: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:168: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:180: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:181: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:182: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:183: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:184: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:214: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:215: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:216: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:217: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:218: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:219: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:220: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/files.rs:221: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/main.rs:24: identity — argv0/skeleton notice — identity wiring pending (see apps/cli help.rs [PROPOSAL])
+  allowed: apps/desktop/src/main.rs:103: identity — custom-protocol scheme label — protocol vocabulary, not display identity
+  allowed: apps/desktop/src/shell.rs:382: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/shell.rs:406: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/shell.rs:411: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/shell.rs:425: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/shell.rs:426: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/shell.rs:438: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/shell.rs:468: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: apps/desktop/src/window_config.rs:427: identity — test fixture TOML mirroring product.toml [brand] — parse-target data
+  allowed: apps/desktop/src/window_config.rs:427: hex-color — test fixture TOML mirroring product.toml [brand] — parse-target data
+  allowed: apps/desktop/src/window_config.rs:466: identity — test fixture value — round-trip data, not display identity
+  allowed: apps/desktop/src/window_config.rs:467: identity — test fixture value — round-trip data, not display identity
+  allowed: apps/web/src/io/fetch_port.rs:281: url — wire-protocol scheme prefix — transport vocabulary, not a shipped endpoint
+  allowed: apps/web/src/io/fetch_port.rs:281: url — wire-protocol scheme prefix — transport vocabulary, not a shipped endpoint
+  allowed: apps/web/src/io/fetch_port.rs:315: url — reserved example host — typed-validation test vector, never a shipped endpoint
+  allowed: apps/web/src/io/fetch_port.rs:332: url — reserved example host — typed-validation test vector, never a shipped endpoint
+  allowed: apps/web/src/io/fetch_port.rs:334: url — reserved example host — typed-validation test vector, never a shipped endpoint
+  allowed: apps/web/src/io/fetch_port.rs:336: url — reserved example host — typed-validation test vector, never a shipped endpoint
+  allowed: apps/web/src/io/fetch_port.rs:336: url — reserved example host — typed-validation test vector, never a shipped endpoint
+  allowed: apps/web/src/io/fetch_port.rs:343: url — reserved example host — typed-validation test vector, never a shipped endpoint
+  allowed: apps/web/src/io/fetch_port.rs:357: url — reserved example host — typed-validation test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:450: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:484: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:513: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:553: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:567: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:588: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:602: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:608: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:626: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:644: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:663: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:675: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:693: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:720: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:741: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/mock_fetch.rs:766: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/seekability.rs:227: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/seekability.rs:243: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/seekability.rs:438: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/staged_source.rs:853: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/staged_source.rs:902: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/staged_source.rs:1014: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/staged_source.rs:1053: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/staged_source.rs:1071: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/staged_source.rs:1098: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/staged_source.rs:1127: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/staged_source.rs:1137: url — reserved example host — mock-transport test vector, never a shipped endpoint
+  allowed: apps/web/src/io/staged_source.rs:1169: url — reserved example host — fetch-lane test vector over the real fixture, never a shipped endpoint
+  allowed: apps/web/src/open.rs:532: abs-path — typed-refusal test vector — a fake POSIX path, never a shipped route
+  allowed: apps/web/src/open.rs:544: url — reserved example host — typed-refusal test vector, never a shipped endpoint
+  allowed: crates/_template/src/lib.rs:23: identity — crate-template placeholder value — replaced when the template is instantiated
+  allowed: crates/codecs/src/audio/vorbis/comments.rs:269: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/codecs/src/audio/vorbis/comments.rs:285: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/codecs/src/video/h264/hw/vaapi/device.rs:144: identity — identity — cfg(test) scratch dir prefix — test-only fixture, not a shipped surface
+  allowed: crates/codecs/src/video/h264/hw/vaapi/session.rs:2015: identity — identity — cfg(test) scratch dir prefix — test-only fixture, not a shipped surface
+  allowed: crates/codecs/src/video/h264/hw/vaapi/session.rs:2041: identity — identity — cfg(test) scratch dir prefix — test-only fixture, not a shipped surface
+  allowed: crates/codecs/src/video/h264/parser/slice.rs:1400: identity — cfg(test) corpus-gate env-var name — test harness knob, not product config
+  allowed: crates/codecs/src/video/h264/parser/slice.rs:1401: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: crates/codecs/src/video/hevc/parser/nal.rs:992: identity — cfg(test) corpus-gate env-var name — test harness knob, not product config
+  allowed: crates/codecs/src/video/hevc/parser/nal.rs:993: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: crates/codecs/src/video/mjpeg/idct_simd.rs:130: identity — engine-internal opt-in env knob name, not product identity
+  allowed: crates/commands/src/bin/catalog_gen.rs:36: identity — CLI usage/error prose — identity wiring pending (see apps/cli help.rs [PROPOSAL])
+  allowed: crates/commands/src/bin/catalog_gen.rs:257: identity — CLI usage/error prose — identity wiring pending (see apps/cli help.rs [PROPOSAL])
+  allowed: crates/commands/src/catalog/codegen.rs:142: identity — generated-artifact header emitted by codegen — folding the generator into the rebrand surface set is the recorded follow-up
+  allowed: crates/commands/src/catalog/codegen.rs:200: identity — generated-artifact header emitted by codegen — folding the generator into the rebrand surface set is the recorded follow-up
+  allowed: crates/commands/src/catalog/codegen.rs:488: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: crates/commands/src/catalog/event.rs:503: identity — tracing-target fixture value — the log target under test
+  allowed: crates/commands/src/error.rs:378: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/commands/src/error.rs:392: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/commands/src/error.rs:395: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/commands/src/error.rs:401: url — URL parse/redaction test vector — data under test
+  allowed: crates/commands/src/error.rs:402: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/control-protocol/src/client.rs:80: identity — lumen-control is the wire protocol name (doc 05 §5.4), not product identity — a rebrand must not rename the protocol on the wire
+  allowed: crates/control-protocol/src/error.rs:219: identity — protocol name (doc 05 §5.4 wire vocabulary), not product identity
+  allowed: crates/control-protocol/src/error.rs:225: identity — protocol name (doc 05 §5.4 wire vocabulary), not product identity
+  allowed: crates/control-protocol/src/http.rs:360: identity — protocol-name request path — wire vocabulary, not product identity
+  allowed: crates/control-protocol/src/http.rs:369: identity — protocol-name request path — wire vocabulary, not product identity
+  allowed: crates/control-protocol/src/protocol.rs:37: identity — the lumen-control wire protocol identifier (doc 05 §5.4) — spec vocabulary, a rebrand must not rename the protocol on the wire
+  allowed: crates/control-protocol/src/protocol.rs:335: identity — protocol-name wire vocabulary, not product identity
+  allowed: crates/control-protocol/src/protocol.rs:342: identity — protocol-name wire vocabulary, not product identity
+  allowed: crates/control-protocol/src/server.rs:588: identity — protocol name + major — wire vocabulary, not product identity
+  allowed: crates/control-protocol/src/server.rs:887: identity — protocol name — wire vocabulary, not product identity
+  allowed: crates/demux/src/asf/tests.rs:1073: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: crates/demux/src/avi/test_support.rs:37: identity — test-support synthetic URI — test infrastructure, not product identity
+  allowed: crates/demux/src/avi/tests.rs:432: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/demux/src/avi/tests.rs:449: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/demux/src/wav/tests.rs:225: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/device-discovery/src/monitor.rs:168: identity — diagnostic thread name for the volume watcher.
+  allowed: crates/device-discovery/src/ssdp.rs:452: url — spec-fixture URL on the RFC 5737 TEST-NET-1 reserved range — never a shipped endpoint.
+  allowed: crates/device-discovery/src/ssdp.rs:454: url — dirty-world fixture URL on the RFC 5737 TEST-NET-1 reserved range — never a shipped endpoint.
+  allowed: crates/device-discovery/src/ssdp.rs:456: url — minimal fake-host fixture URL — never a shipped endpoint.
+  allowed: crates/input/src/contract.rs:177: identity — engine-internal synthetic URI label — never user-visible
+  allowed: crates/input/src/uri.rs:148: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/input/src/uri.rs:149: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/input/src/uri.rs:153: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/input/src/uri.rs:154: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/input/src/uri.rs:158: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/input/src/uri.rs:159: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/input/src/uri.rs:163: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/input/src/uri.rs:164: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/input/src/uri.rs:174: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/input/src/uri.rs:175: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/input/src/uri.rs:229: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/input/src/uri.rs:242: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/input/src/uri.rs:250: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/input/src/uri.rs:252: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/media-types/src/ids.rs:559: url — URL parse/redaction test vector — data under test
+  allowed: crates/media-types/src/ids.rs:559: url — URL parse/redaction test vector — data under test
+  allowed: crates/media-types/src/ids.rs:577: url — URL parse/redaction test vector — data under test
+  allowed: crates/media-types/src/ids.rs:580: url — URL parse/redaction test vector — data under test
+  allowed: crates/media-types/src/ids.rs:588: url — URL parse/redaction test vector — data under test
+  allowed: crates/media-types/src/ids.rs:589: url — URL parse/redaction test vector — data under test
+  allowed: crates/media-types/src/ids.rs:595: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/media-types/src/ids.rs:611: url — URL parse/redaction test vector — data under test
+  allowed: crates/media-types/src/ids.rs:615: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/media-types/src/ids.rs:621: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/media-types/src/ids.rs:639: url — URL parse/redaction test vector — data under test
+  allowed: crates/media-types/src/ids.rs:650: url — URL parse/redaction test vector — data under test
+  allowed: crates/media-types/src/ids.rs:651: url — URL parse/redaction test vector — data under test
+  allowed: crates/media-types/src/ids.rs:656: url — URL parse/redaction test vector — data under test
+  allowed: crates/media-types/src/ids.rs:658: url — URL parse/redaction test vector — data under test
+  allowed: crates/media-types/src/packet.rs:554: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/media-types/src/packet.rs:555: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/platform-linux/src/linux/pulse.rs:398: identity — PulseAudio protocol client identity (config edge is the Lead-gated follow-up).
+  allowed: crates/platform-windows/src/windows/dialogs.rs:284: identity — diagnostic thread name for the STA probe round.
+  allowed: crates/platform-windows/src/windows/dialogs.rs:327: identity — diagnostic thread name for the open-dialog STA round.
+  allowed: crates/platform-windows/src/windows/dialogs.rs:335: identity — diagnostic thread name for the save-dialog STA round.
+  allowed: crates/platform-windows/src/windows/wasapi.rs:607: identity — diagnostic thread name for the enumeration STA round.
+  allowed: crates/platform-windows/src/windows/wasapi.rs:611: identity — same diagnostic name, surfaced in the typed error.
+  allowed: crates/platform-windows/src/windows/wasapi.rs:634: identity — diagnostic thread name for the notification watch thread.
+  allowed: crates/platform-windows/src/windows/wasapi.rs:639: identity — same diagnostic name, surfaced in the typed error.
+  allowed: crates/playback-engine/src/events.rs:1989: identity — tracing-target fixture value — the log target under test
+  allowed: crates/playback-engine/src/snapshot.rs:190: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/playback-engine/src/snapshot.rs:198: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/playback-engine/src/snapshot.rs:206: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/playback-engine/src/snapshot.rs:207: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/playback-engine/src/snapshot.rs:210: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/playback-engine/src/snapshot.rs:213: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/playback-engine/src/snapshot.rs:220: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/playlists/src/fuzz.rs:85: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/playlists/src/hls.rs:652: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/hls.rs:664: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/hls.rs:665: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/hls.rs:686: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/playlists/src/hls.rs:688: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/hls.rs:693: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/hls.rs:694: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/hls.rs:695: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/hls.rs:713: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/playlists/src/hls.rs:831: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/hls.rs:843: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/playlists/src/hls.rs:847: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/playlists/src/hls.rs:869: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/hls.rs:875: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/hls.rs:897: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/playlists/src/hls.rs:974: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/mpd.rs:2292: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/mpd.rs:2601: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/playlists/src/mpd.rs:2738: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/playlists/src/mpd.rs:2748: url — URL parse/redaction test vector — data under test
+  allowed: crates/playlists/src/probe.rs:635: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/playlists/src/probe.rs:657: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/playlists/src/probe.rs:756: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: crates/playlists/src/probe.rs:837: abs-path — cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
+  allowed: crates/plugin-api/src/access.rs:234: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/plugin-api/src/access.rs:281: url — URL parse/redaction test vector — data under test
+  allowed: crates/plugin-api/src/access.rs:304: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/plugin-api/src/discovery.rs:150: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/plugin-api/src/kind.rs:8: identity — reserved plugin-id namespace (doc 06 protocol vocabulary), not display identity
+  allowed: crates/plugin-api/src/manifest.rs:348: identity — diagnostic quoting the reserved `lumen.` plugin-id prefix — protocol vocabulary
+  allowed: crates/plugin-api/src/manifest.rs:360: identity — diagnostic quoting the reserved `lumen.` plugin-id prefix — protocol vocabulary
+  allowed: crates/plugin-api/src/manifest.rs:1074: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/plugin-api/src/manifest.rs:1075: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/plugin-api/src/manifest.rs:1092: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/plugin-api/src/manifest.rs:1104: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/plugin-api/src/manifest.rs:1107: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/plugin-api/src/manifest.rs:1208: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/plugin-api/src/manifest.rs:1218: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/plugin-api/src/manifest.rs:1240: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/plugin-api/src/manifest.rs:1249: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/plugin-api/src/manifest.rs:1262: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/plugin-api/src/manifest.rs:1276: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/plugin-api/src/manifest.rs:1281: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/plugin-api/src/manifest.rs:1287: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/plugin-host-wasm/src/api.rs:53: identity — plugin ABI namespace prefix (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:55: identity — plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:57: identity — plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:59: identity — plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:61: identity — plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:63: identity — plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:65: identity — plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:69: identity — plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:71: identity — plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:73: identity — plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:75: identity — plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:77: identity — plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:79: identity — plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:81: identity — plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:83: identity — plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:85: identity — plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/api.rs:87: identity — plugin ABI import path (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/bin/lumenext-examples.rs:51: identity — plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/bin/lumenext-examples.rs:52: identity — plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/bin/lumenext-examples.rs:53: identity — plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/bin/lumenext-examples.rs:54: identity — plugin ABI module name (doc 06 §5.2) — protocol contract, not a brand surface
+  allowed: crates/plugin-host-wasm/src/bin/lumenext-examples.rs:348: url — doc 06 §2.3 example provenance placeholder (RFC 2606 example.com) — fixture payload, not a config endpoint
+  allowed: crates/plugin-host-wasm/src/error.rs:240: identity — plugin ABI namespace in an actionable error message — protocol vocabulary, not a brand surface
+  allowed: crates/plugin-host-wasm/src/fsjail.rs:213: identity — unique test temp-dir prefix (collision avoidance), not an identity surface
+  allowed: crates/plugin-host-wasm/src/fsjail.rs:319: identity — nonexistent test jail-root path (the product word appears coincidentally), not an identity surface
+  allowed: crates/plugin-host-wasm/src/http.rs:23: url — URL scheme grammar constant parsed from guest input — protocol, not a config endpoint
+  allowed: crates/plugin-host-wasm/src/http.rs:208: url — test-double URLs for scheme policy (non-loopback host required by the case)
+  allowed: crates/plugin-host-wasm/src/http.rs:218: url — test-double URL for scheme/case normalization
+  allowed: crates/plugin-host-wasm/src/http.rs:222: url — expected canonical reconstruction of the test-double URL
+  allowed: crates/plugin-host-wasm/src/http.rs:229: url — test-double URL for userinfo-refusal policy
+  allowed: crates/plugin-host-wasm/src/http.rs:230: url — test-double URL for userinfo-refusal policy
+  allowed: crates/plugin-host-wasm/src/http.rs:231: url — loopback URL inside #[cfg(test)] context (spec exception)
+  allowed: crates/plugin-host-wasm/src/http.rs:232: url — test-double URL for IP-literal-refusal policy
+  allowed: crates/plugin-host-wasm/src/http.rs:233: url — test-double URL for non-443-port-refusal policy
+  allowed: crates/plugin-host-wasm/src/http.rs:234: url — test-double URL for the explicit-443 exception
+  allowed: crates/plugin-host-wasm/src/http.rs:241: url — test-double URL for allowlist exact-match policy
+  allowed: crates/plugin-host-wasm/src/http.rs:245: url — adversarial test-double URL for allowlist policy
+  allowed: crates/plugin-host-wasm/src/http.rs:247: url — adversarial test-double URL for allowlist policy
+  allowed: crates/plugin-host-wasm/src/http.rs:249: url — adversarial test-double URL for allowlist policy
+  allowed: crates/plugin-host-wasm/src/http.rs:257: url — non-allowlisted test-double host
+  allowed: crates/plugin-host-wasm/src/http.rs:264: url — test-double URL for the transport-seam refusal case
+  allowed: crates/streaming/src/auth.rs:959: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/streaming/src/auth.rs:963: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/streaming/src/auth.rs:1022: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/auth.rs:1035: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/auth.rs:1052: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/auth.rs:1054: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/auth.rs:1059: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/auth.rs:1060: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/auth.rs:1103: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/client.rs:488: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/streaming/src/client.rs:493: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/streaming/src/client.rs:691: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/client.rs:691: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/client.rs:726: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/client.rs:729: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/client.rs:730: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/client.rs:741: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/client.rs:742: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/client.rs:745: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/client.rs:746: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/client.rs:963: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/client.rs:984: url — opt-in live-network test (--ignored only) — a deliberate real endpoint, never a default
+  allowed: crates/streaming/src/dash/fuzz.rs:75: url — fuzz-target URL on a reserved host — never a shipped endpoint
+  allowed: crates/streaming/src/dash/resolve.rs:769: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/dash/resolve.rs:1005: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/dash/resolve.rs:1012: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/dash/resolve.rs:1033: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/dash/resolve.rs:1046: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/dash/resolve.rs:1064: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/dash/resolve.rs:1081: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/dash/resolve.rs:1102: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/dash/resolve.rs:1109: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/dash/resolve.rs:1109: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/dash/resolve.rs:1187: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/dash/resolve.rs:1283: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/dash/resolve.rs:1292: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/dash/resolve.rs:1293: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/dash/resolve.rs:1295: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/dash/sched.rs:567: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/dash/sched.rs:588: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/dash/sched.rs:669: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/dash/sched.rs:683: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/dash/sched.rs:699: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/fetch.rs:301: url — scheme-prefix dispatch — protocol vocabulary, not an endpoint
+  allowed: crates/streaming/src/fetch.rs:301: url — scheme-prefix dispatch — protocol vocabulary, not an endpoint
+  allowed: crates/streaming/src/fetch.rs:543: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/fetch.rs:551: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/fetch.rs:554: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/fetch.rs:558: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/fetch.rs:574: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/fetch.rs:575: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/fetch.rs:576: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/fetch.rs:577: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/fetch.rs:578: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/fetch.rs:579: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/fetch.rs:592: url — loopback URL inside #[cfg(test)] context (spec exception)
+  allowed: crates/streaming/src/fetch.rs:597: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/fetch.rs:615: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/fetch.rs:623: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/hls/live.rs:901: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:943: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:981: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1007: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1056: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1102: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1141: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1180: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1216: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1243: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1272: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/hls/live.rs:1290: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1315: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1353: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1379: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1388: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1421: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/live.rs:1466: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/master.rs:992: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/master.rs:1074: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/master.rs:1084: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/master.rs:1113: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/master.rs:1159: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/media.rs:820: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/media.rs:857: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/media.rs:917: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/media.rs:958: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/media.rs:990: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/media.rs:1017: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/media.rs:1120: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/hls/media.rs:1129: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/mockhttp.rs:477: url — test-double HTTP server URL builder — test infrastructure, never shipped
+  allowed: crates/streaming/src/mockhttp.rs:1436: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/ranged.rs:1261: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/ranged.rs:1392: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/ranged.rs:1807: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/ranged.rs:1848: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/ranged.rs:1881: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/reconnect.rs:1002: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/reconnect.rs:1260: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/remote_playlist.rs:236: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/remote_playlist.rs:266: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/remote_playlist.rs:280: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/remote_playlist.rs:308: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/schemes.rs:510: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/streaming/src/schemes.rs:549: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/schemes.rs:559: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/schemes.rs:582: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/schemes.rs:583: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/schemes.rs:584: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/schemes.rs:594: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/schemes.rs:605: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/schemes.rs:656: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/schemes.rs:731: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/schemes.rs:744: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/schemes.rs:745: url — URL parse/redaction test vector — data under test
+  allowed: crates/streaming/src/schemes.rs:1024: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/schemes.rs:1025: url — test-double URL on a reserved/example host — never a shipped endpoint
+  allowed: crates/streaming/src/schemes.rs:1029: abs-path — path/URI test vector — data under test, not a compiled-in path
+  allowed: crates/subtitles/src/ass/parser.rs:947: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/subtitles/src/ass/parser.rs:1007: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/subtitles/src/font/mod.rs:602: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/subtitles/src/font/mod.rs:616: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/subtitles/src/font/mod.rs:617: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/subtitles/src/font/mod.rs:666: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/subtitles/src/font/mod.rs:670: identity — test fixture value — round-trip data, not display identity
+  allowed: crates/subtitles/src/model/error.rs:149: identity — diagnostic quoting the LUMEN-CUES wire magic — format vocabulary, not display identity
+  allowed: crates/subtitles/src/model/style.rs:188: hex-color — markup/validation test vector — data under test, not a theme color
+  allowed: crates/subtitles/src/model/wire.rs:67: identity — LUMEN-CUES wire-format magic — frozen format identifier, not display identity
+  allowed: crates/subtitles/src/srt/tags.rs:350: hex-color — markup/validation test vector — data under test, not a theme color
+  allowed: crates/subtitles/src/srt/tags.rs:364: hex-color — markup/validation test vector — data under test, not a theme color
+  allowed: crates/subtitles/src/srt/tags.rs:369: hex-color — markup/validation test vector — data under test, not a theme color
+  allowed: crates/testkit/src/lib.rs:407: identity — cfg(test) scratch filename — test-only, never a shipped surface
+check-identity: PASS — 0 violations, 453 allowlisted
+XTASK_EXIT[check-identity]=0
+
+## Cmd: cargo run -q -p xtask -- sbom --check
+=== LUMEN SBOM REPORT ===
+lock: /home/z/my-project/wt/w24f/Cargo.lock
+out:  /home/z/my-project/wt/w24f/docs/security/sbom/cyclonedx.json
+components: 157 (118 registry, 39 workspace/path), lockfile format v4
+subject:    Lumen 0.1.0-dev
+result: no drift — 121900 bytes verified
+XTASK_EXIT[sbom --check]=0

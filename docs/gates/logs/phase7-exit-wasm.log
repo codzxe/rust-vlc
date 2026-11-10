@@ -1,0 +1,26 @@
+# Phase-7 exit gate — wasm32 build (web composition root)
+# Worktree: /home/z/my-project/wt/w24f (branch w24/f @ a4e35e7)
+# Date: 2026-11-10T16:56:57Z
+# Cmd: cargo build -p lumen-web --target wasm32-unknown-unknown
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.12s
+WASM_EXIT=0
+# Artifact:
+-rwxrwxr-x 2 z z 5998961 Nov 10 16:16 /home/z/my-project/rust-vlc/target/wasm32-unknown-unknown/debug/lumen_web.wasm
+
+## Additional canary (mirrors CI G12 wasm-build job)
+# Cmd: cargo build -p theme-tokens --target wasm32-unknown-unknown
+   Compiling serde_core v1.0.229
+   Compiling serde_json v1.0.154
+   Compiling theme-tokens v0.1.0 (/home/z/my-project/wt/w24f/crates/theme-tokens)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.16s
+WASM_CANARY_EXIT=0
+
+## CI-parity wasm builds with --locked (doc 11 §3.7: CI builds run --locked)
+# Date: 2026-11-10T17:12:23Z
+# Cmd: cargo build -p lumen-web --target wasm32-unknown-unknown --locked
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.06s
+WASM_LOCKED_EXIT=0
+# Cmd: cargo build -p theme-tokens --target wasm32-unknown-unknown --locked
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
+WASM_CANARY_LOCKED_EXIT=0
+-rwxrwxr-x 2 z z 5998961 Nov 10 16:16 /home/z/my-project/rust-vlc/target/wasm32-unknown-unknown/debug/lumen_web.wasm

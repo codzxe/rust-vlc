@@ -1,0 +1,73 @@
+
+# Phase-7 exit gate — web parity honesty (parity-report + feature-audit)
+# Date: 2026-11-10T17:05:29Z
+## Cmd: cargo run -q -p xtask -- parity-report
+# Lumen parity report (derived from the feature matrix)
+
+Share of rows with `implemented` or `verified` status, per platform
+column. Computed by `cargo xtask parity-report`; never stored.
+
+| Category | Rows | windows | linux | macos | web |
+|---|---|---|---|---|---|
+| audio-codec | 19 | 9/19 (47.4%) | 9/19 (47.4%) | 9/19 (47.4%) | 0/19 (0.0%) |
+| audio-feature | 11 | 0/11 (0.0%) | 0/11 (0.0%) | 0/11 (0.0%) | 0/11 (0.0%) |
+| config-feature | 20 | 11/20 (55.0%) | 11/20 (55.0%) | 11/20 (55.0%) | 0/20 (0.0%) |
+| container | 21 | 14/21 (66.7%) | 14/21 (66.7%) | 14/21 (66.7%) | 0/21 (0.0%) |
+| extension | 1 | 0/1 (0.0%) | 0/1 (0.0%) | 0/1 (0.0%) | 0/1 (0.0%) |
+| hotkey | 17 | 0/17 (0.0%) | 0/17 (0.0%) | 0/17 (0.0%) | 0/17 (0.0%) |
+| menu-item | 16 | 0/16 (0.0%) | 0/16 (0.0%) | 0/16 (0.0%) | 0/16 (0.0%) |
+| network-feature | 7 | 1/7 (14.3%) | 1/7 (14.3%) | 1/7 (14.3%) | 0/7 (0.0%) |
+| platform-feature | 18 | 0/18 (0.0%) | 0/18 (0.0%) | 0/18 (0.0%) | 0/18 (0.0%) |
+| playback-op | 13 | 4/13 (30.8%) | 4/13 (30.8%) | 4/13 (30.8%) | 0/13 (0.0%) |
+| playlist-feature | 9 | 0/9 (0.0%) | 0/9 (0.0%) | 0/9 (0.0%) | 0/9 (0.0%) |
+| playlist-format | 7 | 3/7 (42.9%) | 3/7 (42.9%) | 3/7 (42.9%) | 0/7 (0.0%) |
+| plugin-feature | 4 | 0/4 (0.0%) | 0/4 (0.0%) | 0/4 (0.0%) | 0/4 (0.0%) |
+| protocol-access | 11 | 0/11 (0.0%) | 0/11 (0.0%) | 0/11 (0.0%) | 0/11 (0.0%) |
+| services-discovery | 6 | 0/6 (0.0%) | 0/6 (0.0%) | 0/6 (0.0%) | 0/6 (0.0%) |
+| subtitle-format | 17 | 6/17 (35.3%) | 6/17 (35.3%) | 6/17 (35.3%) | 0/17 (0.0%) |
+| text-render | 3 | 0/3 (0.0%) | 0/3 (0.0%) | 0/3 (0.0%) | 0/3 (0.0%) |
+| ui-dialog | 15 | 4/15 (26.7%) | 4/15 (26.7%) | 4/15 (26.7%) | 0/15 (0.0%) |
+| ui-screen | 11 | 9/11 (81.8%) | 9/11 (81.8%) | 9/11 (81.8%) | 0/11 (0.0%) |
+| video-codec | 16 | 3/16 (18.8%) | 3/16 (18.8%) | 3/16 (18.8%) | 0/16 (0.0%) |
+| video-feature | 10 | 0/10 (0.0%) | 0/10 (0.0%) | 0/10 (0.0%) | 0/10 (0.0%) |
+| **TOTAL** | 252 | 64/252 (25.4%) | 64/252 (25.4%) | 64/252 (25.4%) | 0/252 (0.0%) |
+
+verified-only (MP §1 strict definition — automated evidence):
+
+| Scope | windows | linux | macos | web |
+|---|---|---|---|---|
+| audio-codec | 0/19 (0.0%) | 0/19 (0.0%) | 0/19 (0.0%) | 0/19 (0.0%) |
+| audio-feature | 0/11 (0.0%) | 0/11 (0.0%) | 0/11 (0.0%) | 0/11 (0.0%) |
+| config-feature | 0/20 (0.0%) | 0/20 (0.0%) | 0/20 (0.0%) | 0/20 (0.0%) |
+| container | 0/21 (0.0%) | 0/21 (0.0%) | 0/21 (0.0%) | 0/21 (0.0%) |
+| extension | 0/1 (0.0%) | 0/1 (0.0%) | 0/1 (0.0%) | 0/1 (0.0%) |
+| hotkey | 0/17 (0.0%) | 0/17 (0.0%) | 0/17 (0.0%) | 0/17 (0.0%) |
+| menu-item | 0/16 (0.0%) | 0/16 (0.0%) | 0/16 (0.0%) | 0/16 (0.0%) |
+| network-feature | 0/7 (0.0%) | 0/7 (0.0%) | 0/7 (0.0%) | 0/7 (0.0%) |
+| platform-feature | 0/18 (0.0%) | 0/18 (0.0%) | 0/18 (0.0%) | 0/18 (0.0%) |
+| playback-op | 0/13 (0.0%) | 0/13 (0.0%) | 0/13 (0.0%) | 0/13 (0.0%) |
+| playlist-feature | 0/9 (0.0%) | 0/9 (0.0%) | 0/9 (0.0%) | 0/9 (0.0%) |
+| playlist-format | 0/7 (0.0%) | 0/7 (0.0%) | 0/7 (0.0%) | 0/7 (0.0%) |
+| plugin-feature | 0/4 (0.0%) | 0/4 (0.0%) | 0/4 (0.0%) | 0/4 (0.0%) |
+| protocol-access | 0/11 (0.0%) | 0/11 (0.0%) | 0/11 (0.0%) | 0/11 (0.0%) |
+| services-discovery | 0/6 (0.0%) | 0/6 (0.0%) | 0/6 (0.0%) | 0/6 (0.0%) |
+| subtitle-format | 0/17 (0.0%) | 0/17 (0.0%) | 0/17 (0.0%) | 0/17 (0.0%) |
+| text-render | 0/3 (0.0%) | 0/3 (0.0%) | 0/3 (0.0%) | 0/3 (0.0%) |
+| ui-dialog | 0/15 (0.0%) | 0/15 (0.0%) | 0/15 (0.0%) | 0/15 (0.0%) |
+| ui-screen | 0/11 (0.0%) | 0/11 (0.0%) | 0/11 (0.0%) | 0/11 (0.0%) |
+| video-codec | 0/16 (0.0%) | 0/16 (0.0%) | 0/16 (0.0%) | 0/16 (0.0%) |
+| video-feature | 0/10 (0.0%) | 0/10 (0.0%) | 0/10 (0.0%) | 0/10 (0.0%) |
+| TOTAL | 0/252 (0.0%) | 0/252 (0.0%) | 0/252 (0.0%) | 0/252 (0.0%) |
+
+parity: rows=252 windows=64/252 linux=64/252 macos=64/252 web=0/252
+PARITY_EXIT=0
+
+## Cmd: cargo run -q -p xtask -- feature-audit
+=== LUMEN FEATURE-AUDIT REPORT ===
+matrix: docs/feature-matrix.toml (root /home/z/my-project/wt/w24f)
+rows: 252
+per-phase rows: 2=10 3=5 4=93 5=49 6=18 7=25 8=52
+per-category rows: audio-codec=19 audio-feature=11 config-feature=20 container=21 extension=1 hotkey=17 menu-item=16 network-feature=7 platform-feature=18 playback-op=13 playlist-feature=9 playlist-format=7 plugin-feature=4 protocol-access=11 services-discovery=6 subtitle-format=17 text-render=3 ui-dialog=15 ui-screen=11 video-codec=16 video-feature=10
+per-platform-status cells: blocked=133 implemented=192 not_started=505 partial=142 unsupported=36
+result: PASS
+FEATURE_AUDIT_EXIT=0
