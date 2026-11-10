@@ -11,8 +11,8 @@
 //! ```text
 //! source/demux ──► decode ──► [filters] ──► encode/sink
 //! (Box<dyn       (factory-     v1: none      WavPcm (decode path)
-//!  Demuxer>)      built        implemented   WavCopyPcm / RawEsCopy (copy path)
-//!                Decoder)      — refused)
+//!  Demuxer>)      built        implemented   WavCopyPcm / RawEsCopy / Mp4Remux
+//!                Decoder)      — refused)    (copy paths)
 //! ```
 //!
 //! Assemble a [`TranscodeGraph`], then [`submit`] it (a
@@ -114,12 +114,13 @@
 //!   planar→interleaved, byte-order normalization and the lossless
 //!   widenings only — every lossy pair is a typed refusal.
 //! * **Stream-copy where legal** — unpacked LE-PCM sources re-wrap
-//!   into WAV without decoding (payload bytes verbatim), and any
-//!   track dumps to a raw elementary-stream file. **MP4-remux is
-//!   card 7.E2's addition** (see [`mp4mux`]/[`record`]): H.264/AAC
-//!   stream copy into a minimal in-tree MP4 container. Every other
-//!   conversion is a typed `ErrorKind::Unsupported`, never a
-//!   degraded output.
+//!   into WAV without decoding (payload bytes verbatim), any
+//!   track dumps to a raw elementary-stream file, and **H.264/AAC
+//!   remux into a minimal in-tree MP4 container** (card 7.E2, see
+//!   [`mp4mux`]): sample payloads byte-verbatim under fresh sample
+//!   tables, the `stsd` entry bytes carried over from the source.
+//!   Every other conversion is a typed `ErrorKind::Unsupported`,
+//!   never a degraded output.
 //! * **No filters** — the graph *models* filter stages and
 //!   validation refuses each one (the stage is modeled, not faked).
 //! * **No codec encoders** — WAV PCM is container serialization;
@@ -155,6 +156,7 @@ pub mod error;
 pub mod graph;
 pub mod job;
 pub mod limits;
+pub mod mp4mux;
 pub mod queue;
 pub mod record;
 pub mod runner;
@@ -167,5 +169,8 @@ pub use graph::{
 };
 pub use job::{JobEvent, JobHandle, JobOutcome, JobState, JobStats};
 pub use limits::JobLimits;
-pub use record::Recorder;
+pub use mp4mux::{
+    MAX_REMUX_SAMPLES, MAX_SAMPLE_ENTRY_BYTES, Mp4Remuxer, Mp4TrackConfig, Mp4TrackSetup,
+};
+pub use record::{Recorder, Remuxer};
 pub use runner::submit;

@@ -44,6 +44,16 @@ pub fn graph_copy_facts_missing() -> EngineError {
     )
 }
 
+/// A multi-track selection on a single-track sink (only the MP4-remux
+/// sink consumes several tracks — the graph vocabulary refuses the
+/// shape everywhere else instead of silently dropping tracks).
+pub fn graph_selection_tracks_mismatch() -> EngineError {
+    mint(
+        ErrorKind::Unsupported { format: None },
+        "transcode.graph.selection-tracks-mismatch",
+    )
+}
+
 /// A filter stage was requested; v1 implements none (honest-capability
 /// rule — the model carries the stage, validation refuses it).
 pub fn filter_unimplemented() -> EngineError {
@@ -363,6 +373,126 @@ pub fn sink_bad_state() -> EngineError {
     )
 }
 
+/// An MP4-remux sink was given no track configs (the graph's copy
+/// shape needs at least one named track to remux).
+pub fn mp4_tracks_empty() -> EngineError {
+    mint(
+        ErrorKind::Unsupported { format: None },
+        "transcode.mp4.tracks-empty",
+    )
+}
+
+/// The same track appears twice in an MP4-remux sink's config list.
+pub fn mp4_track_duplicate() -> EngineError {
+    mint(
+        ErrorKind::Unsupported { format: None },
+        "transcode.mp4.track-duplicate",
+    )
+}
+
+/// An MP4-remux config names a track the source does not expose.
+pub fn mp4_config_track_missing() -> EngineError {
+    mint(
+        ErrorKind::Unsupported { format: None },
+        "transcode.mp4.config-track-missing",
+    )
+}
+
+/// A packet arrived for a track the remux sink has no config for.
+pub fn mp4_track_index() -> EngineError {
+    mint(
+        ErrorKind::Unsupported { format: None },
+        "transcode.mp4.track-index",
+    )
+}
+
+/// An MP4-remux track's codec is outside the stream-copy set
+/// (`h264` video, `aac` audio — the two payload forms the minimal
+/// muxer writes without re-encoding; everything else is refused,
+/// never transcoded silently).
+pub fn mp4_codec_unsupported(descriptor: &str) -> EngineError {
+    mint(
+        ErrorKind::Unsupported {
+            format: Some(FormatInfo {
+                name: Some(descriptor.to_owned()),
+                sniffed: Vec::new(),
+            }),
+        },
+        "transcode.mp4.codec-unsupported",
+    )
+}
+
+/// An MP4-remux track's time base is not the native `1/timescale`
+/// form (only integral MP4-style timebases remux verbatim — a
+/// fractional base would need tick rescaling, which is a transcode
+/// claim this sink does not make).
+pub fn mp4_timescale_not_native() -> EngineError {
+    mint(
+        ErrorKind::Unsupported { format: None },
+        "transcode.mp4.timescale",
+    )
+}
+
+/// A packet for an MP4-remux track carried no DTS (the sample tables
+/// are DTS-anchored; an absent stamp is data, not a zero).
+pub fn mp4_stamp_missing() -> EngineError {
+    mint(
+        ErrorKind::Unsupported { format: None },
+        "transcode.mp4.stamp-missing",
+    )
+}
+
+/// MP4-remux sample DTS went backwards (the `stts` deltas are
+/// unsigned — a negative delta cannot be expressed honestly).
+pub fn mp4_dts_non_monotonic() -> EngineError {
+    mint(
+        ErrorKind::Corrupt {
+            detail: CorruptDetail::InvalidStructure { offset: None },
+        },
+        "transcode.mp4.dts-non-monotonic",
+    )
+}
+
+/// More samples per MP4-remux track than the table budget (bounded
+/// memory is a contract — the demux layer's own sample ceiling,
+/// mirrored).
+pub fn mp4_samples_over_budget(found: usize, budget: usize) -> EngineError {
+    mint(
+        ErrorKind::ResourceLimit {
+            limit: LimitKind::QueueSize,
+            budget: budget as u64,
+            attempted: found as u64,
+        },
+        "transcode.mp4.samples-over-budget",
+    )
+}
+
+/// The MP4 output grew past what classic 32-bit `mdat`/`stco` fields
+/// can address — the v1 ceiling, typed rather than wrapped (the WAV
+/// RIFF-ceiling precedent).
+pub fn mp4_size_overflow(attempted: u64) -> EngineError {
+    mint(
+        ErrorKind::ResourceLimit {
+            limit: LimitKind::Memory,
+            budget: u32::MAX as u64,
+            attempted,
+        },
+        "transcode.mp4.size-overflow",
+    )
+}
+
+/// An MP4-remux sample entry exceeded the entry-size ceiling.
+pub fn mp4_sample_entry_over_budget(found: usize, budget: usize) -> EngineError {
+    mint(
+        ErrorKind::ResourceLimit {
+            limit: LimitKind::Memory,
+            budget: budget as u64,
+            attempted: found as u64,
+        },
+        "transcode.mp4.sample-entry-over-budget",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -372,7 +502,7 @@ mod tests {
     /// crate's precedent).
     #[test]
     fn constructors_mint_stage_transcode_kinds_and_codes() {
-        let cases: [(EngineError, ErrorKind, &str); 24] = [
+        let cases: [(EngineError, ErrorKind, &str); 36] = [
             (
                 graph_decode_required(),
                 ErrorKind::Unsupported { format: None },
@@ -387,6 +517,11 @@ mod tests {
                 graph_copy_facts_missing(),
                 ErrorKind::Unsupported { format: None },
                 "transcode.graph.copy-facts-missing",
+            ),
+            (
+                graph_selection_tracks_mismatch(),
+                ErrorKind::Unsupported { format: None },
+                "transcode.graph.selection-tracks-mismatch",
             ),
             (
                 filter_unimplemented(),
@@ -536,6 +671,80 @@ mod tests {
                     detail: CorruptDetail::InvalidStructure { offset: None },
                 },
                 "transcode.sink.bad-state",
+            ),
+            (
+                mp4_tracks_empty(),
+                ErrorKind::Unsupported { format: None },
+                "transcode.mp4.tracks-empty",
+            ),
+            (
+                mp4_track_duplicate(),
+                ErrorKind::Unsupported { format: None },
+                "transcode.mp4.track-duplicate",
+            ),
+            (
+                mp4_config_track_missing(),
+                ErrorKind::Unsupported { format: None },
+                "transcode.mp4.config-track-missing",
+            ),
+            (
+                mp4_track_index(),
+                ErrorKind::Unsupported { format: None },
+                "transcode.mp4.track-index",
+            ),
+            (
+                mp4_codec_unsupported("hevc"),
+                ErrorKind::Unsupported {
+                    format: Some(FormatInfo {
+                        name: Some("hevc".to_owned()),
+                        sniffed: Vec::new(),
+                    }),
+                },
+                "transcode.mp4.codec-unsupported",
+            ),
+            (
+                mp4_timescale_not_native(),
+                ErrorKind::Unsupported { format: None },
+                "transcode.mp4.timescale",
+            ),
+            (
+                mp4_stamp_missing(),
+                ErrorKind::Unsupported { format: None },
+                "transcode.mp4.stamp-missing",
+            ),
+            (
+                mp4_dts_non_monotonic(),
+                ErrorKind::Corrupt {
+                    detail: CorruptDetail::InvalidStructure { offset: None },
+                },
+                "transcode.mp4.dts-non-monotonic",
+            ),
+            (
+                mp4_samples_over_budget(2_000_000, 1_048_576),
+                ErrorKind::ResourceLimit {
+                    limit: LimitKind::QueueSize,
+                    budget: 1_048_576,
+                    attempted: 2_000_000,
+                },
+                "transcode.mp4.samples-over-budget",
+            ),
+            (
+                mp4_size_overflow(u32::MAX as u64 + 1),
+                ErrorKind::ResourceLimit {
+                    limit: LimitKind::Memory,
+                    budget: u32::MAX as u64,
+                    attempted: u32::MAX as u64 + 1,
+                },
+                "transcode.mp4.size-overflow",
+            ),
+            (
+                mp4_sample_entry_over_budget(2_048, 1_024),
+                ErrorKind::ResourceLimit {
+                    limit: LimitKind::Memory,
+                    budget: 1_024,
+                    attempted: 2_048,
+                },
+                "transcode.mp4.sample-entry-over-budget",
             ),
         ];
         for (error, kind, code) in cases {

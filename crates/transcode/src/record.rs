@@ -1,8 +1,11 @@
-//! Record-to-WAV (card 7.E2, issue #44): the one-call assembly of
-//! the decode-path graph — "record" names the *operation* the host
-//! asks for (capture a source's audio into a WAV file), the pipeline
-//! underneath is the 7.E1 decode stage driving the
-//! [`WavPcmWriter`](crate::wav) live, without the playback clock.
+//! Record-to-WAV and remux-to-MP4 (cards 7.E2, issue #44): the
+//! one-call assemblies of the two graph families — "record" and
+//! "remux" name the *operations* the host asks for (capture a
+//! source's audio into a WAV file; re-wrap its H.264/AAC tracks into
+//! a fresh MP4), the pipelines underneath are the 7.E1 decode stage
+//! driving the [`WavPcmWriter`](crate::wav) live, and the 7.E2
+//! [`Mp4Remuxer`](crate::mp4mux) stream-copy sink — both without the
+//! playback clock.
 //!
 //! # What "record" means here (scope, stated honestly)
 //!
@@ -125,6 +128,7 @@ use crate::graph::{
 };
 use crate::job::JobHandle;
 use crate::limits::JobLimits;
+use crate::mp4mux::Mp4TrackConfig;
 use crate::runner::submit;
 
 /// The one-call record-to-WAV assembly (module docs): a demuxer, the
@@ -223,6 +227,84 @@ impl Recorder {
             decode: Some(DecodeStage::new(factory)),
             filters: Vec::new(),
             sink: SinkSpec::WavPcm { output, target },
+        };
+        submit(graph, limits)
+    }
+}
+
+/// The one-call remux-to-MP4 assembly (card 7.E2's second half): a
+/// demuxer, one config per track to copy, and the output sink.
+/// Stream-copy only — H.264 video and AAC audio; every other codec
+/// fails the job typed at the worker's cross-check, never a silent
+/// transcode (see [`crate::mp4mux`]' capability docs).
+///
+/// The config list is both the track selection and the sample-table
+/// source: each entry names the source track and carries its
+/// verbatim `stsd` entry payload, which the host that opened the
+/// source harvests (for MP4-family sources,
+/// [`Mp4Demuxer::sample_entry_bytes`](demux::mp4::Mp4Demuxer::sample_entry_bytes)
+/// returns exactly those bytes).
+///
+/// Build with [`Remuxer::new`], add every track through
+/// [`track`](Remuxer::track), then [`remux`](Remuxer::remux) submits
+/// the job. On cancel the muxer finalizes best-effort — the partial
+/// file's sample tables describe exactly the samples that made it.
+pub struct Remuxer {
+    demuxer: Box<dyn Demuxer>,
+    output: Box<dyn WriteSeek>,
+    configs: Vec<Mp4TrackConfig>,
+}
+
+impl Remuxer {
+    /// Assemble a remuxer over one source and one output.
+    pub fn new(demuxer: Box<dyn Demuxer>, output: Box<dyn WriteSeek>) -> Remuxer {
+        Remuxer {
+            demuxer,
+            output,
+            configs: Vec::new(),
+        }
+    }
+
+    /// Copy one more track (builder; the first call fixes output
+    /// track 0, the next track 1, …). The track must exist in the
+    /// source's table and carry `h264` (video) or `aac` (audio) —
+    /// both are runtime facts checked on the job's pump thread and
+    /// surfaced as the job's `Failed` outcome, typed.
+    #[must_use]
+    pub fn track(mut self, config: Mp4TrackConfig) -> Remuxer {
+        self.configs.push(config);
+        self
+    }
+
+    /// Submit the remux job (validate, spawn, hand back the handle).
+    /// This is synchronous and does no container I/O — the demuxer's
+    /// `start` runs on the job's pump thread.
+    ///
+    /// # Errors
+    /// [`submit`]'s typed refusals (a filter row — remux requests
+    /// none; sink shape — empty or duplicate configs, over-budget
+    /// lists or sample entries; thread spawn refusal). Track-level
+    /// legality (named tracks exist, codecs inside the stream-copy
+    /// set, native time bases) is runtime knowledge checked on the
+    /// pump/worker threads and surfaced as the job's `Failed`
+    /// outcome.
+    pub fn remux(self, limits: JobLimits) -> Result<JobHandle, EngineError> {
+        let Remuxer {
+            demuxer,
+            output,
+            configs,
+        } = self;
+        let graph = TranscodeGraph {
+            source: SourceSpec {
+                demuxer,
+                // Inert default: the sink's config list derives the
+                // real selection inside `submit` (the sink's docs).
+                selection: TrackSelection::DefaultAudio,
+                extra_data: None,
+            },
+            decode: None,
+            filters: Vec::new(),
+            sink: SinkSpec::Mp4Remux { output, configs },
         };
         submit(graph, limits)
     }
