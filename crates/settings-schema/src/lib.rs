@@ -152,8 +152,37 @@ mod tests {
             Ok(schema) => schema,
             Err(_) => return,
         };
-        assert_eq!(schema.len(), 27, "Phase-1 seed entry count");
-        assert_eq!(schema.areas.len(), 14, "13 doc 07 §5.4 screens + engine");
+        // Phase-7 exit gate OF-2 guard: the seed's own rows are the single
+        // source of truth for these counts. They are DERIVED here with an
+        // independent raw-TOML read — not pinned as a second literal — so
+        // a seed that legitimately grows (c71cd5a grew it 27→32) can never
+        // strand this assertion stale again; only a loader that drops or
+        // invents entries can fail it.
+        let seed_text = std::fs::read_to_string(root.join("schemas/settings.toml"))
+            .unwrap_or_else(|err| unreachable!("reading the committed seed: {err}"));
+        let seed = toml::from_str::<toml::Table>(&seed_text)
+            .unwrap_or_else(|err| unreachable!("parsing the committed seed: {err}"));
+        let seed_rows = seed
+            .get("setting")
+            .and_then(toml::Value::as_array)
+            .map_or(0, Vec::len);
+        let seed_areas = seed
+            .get("areas")
+            .and_then(toml::Value::as_table)
+            .and_then(|areas| areas.get("known"))
+            .and_then(toml::Value::as_array)
+            .map_or(0, Vec::len);
+        assert_eq!(
+            schema.len(),
+            seed_rows,
+            "the loader must carry every [[setting]] row of the committed seed"
+        );
+        assert_eq!(
+            schema.areas.len(),
+            seed_areas,
+            "the loader must carry the whole [areas] known registry \
+             (the doc 07 §5.4 screens + engine)"
+        );
     }
 
     #[test]
