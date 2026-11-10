@@ -1,0 +1,76 @@
+{
+  "schema": "lumen.web.browser-matrix/1",
+  "generated": "2026-11-10T18:46:45.268Z",
+  "git": {
+    "commit": "ff6e6aa50dada6847d087ef3f3d9885b83fe19f7",
+    "branch": "w24/a"
+  },
+  "tooling": {
+    "node": "v24.22.2",
+    "harness": "ui/e2e/web (card 7.I1)",
+    "chromiumExecutable": "/home/z/.cache/ms-playwright/chromium-1200/chrome-linux64/chrome",
+    "chromiumLaunchArgs": [
+      "--no-sandbox",
+      "--disable-dev-shm-usage"
+    ]
+  },
+  "artifact": {
+    "path": "../../rust-vlc/target/wasm32-unknown-unknown/release/lumen_web.wasm",
+    "profile": "release",
+    "bytes": 1294899,
+    "sha256": "a2215bb2d44788e457f9f1d3868345f03c6233aacad92f8aab788bce72101c5b"
+  },
+  "fixture": {
+    "path": "tests/fixtures/generated/valid/avi_mjpeg_pcm.avi",
+    "bytes": 425516
+  },
+  "lanes": [
+    {
+      "browser": "chromium",
+      "evidence": "playwright-run",
+      "playwrightVersion": "1.64.1",
+      "modes": []
+    },
+    {
+      "browser": "firefox",
+      "evidence": "not-runnable-in-sandbox",
+      "summary": "Current Firefox desktop (BCD 2026-10-19): WASM MVP+SIMD128 yes; Wasm GC 120+/EH-final 131+; SAB 79+ isolation-gated; Atomics.waitAsync 145+; WebGPU 141+ Windows-only; WebGL2 51+; AudioWorklet 76+; WebCodecs 130+ desktop (Android no).",
+      "bcdExpectations": [
+        "doc 09 §8.1 row set (Chrome/Edge | Firefox | Safari columns)",
+        "v1 suite needs none of SAB/WebGPU: engine core + WebGL2 floor + fetch Range — expected to pass on current Firefox desktop",
+        "renderer ladder expectation: WebGL2 active (WebGPU Windows-only per BCD; Firefox Android permanently WebGL2, doc 09 §10)"
+      ],
+      "nextStep": "Run the same Playwright suite with a real Firefox binary on a dev machine or a CI runner with browsers installed (doc 09 §8.2 scheduled tier [PROPOSAL]); record per-scenario rows into this JSON."
+    },
+    {
+      "browser": "webkit",
+      "evidence": "not-runnable-in-sandbox",
+      "summary": "Playwright's WebKit ≈ Safari macOS (BCD 2026-10-19): WASM yes; GC 18.2+/EH-final 18.4+; SAB 15.2+ isolation-gated; WebGPU 26+; WebGL2 15+; AudioWorklet 14.1+; OffscreenCanvas 16.4+; rVFC 15.4+.",
+      "bcdExpectations": [
+        "doc 09 §8.1 row set",
+        "v1 suite expected to pass on Safari 18+ desktop via the WebGL2 lane; deltas vs real Safari must be recorded (Playwright WebKit is a build, not the shipping browser)"
+      ],
+      "nextStep": "Add the weekly Playwright-WebKit smoke tier (doc 09 §8.2 [PROPOSAL]) once a machine with the WebKit build exists; real-Safari validation stays manual per release."
+    },
+    {
+      "browser": "safari",
+      "evidence": "not-runnable-in-sandbox",
+      "summary": "Safari macOS (BCD 2026-10-19): WASM MVP+SIMD128 yes; Wasm GC 18.2+/EH-final 18.4+; threads+SAB 15.2+ (COOP/COEP mandatory); WebGPU 26+; WebGL2 15+; AudioWorklet 14.1+; WebCodecs 16.4+.",
+      "bcdExpectations": [
+        "doc 09 §8.1 row set",
+        "autoplay policy is gesture-gated (doc 09 §5.3): expect gestureRequired on the suspended-context path — the suite's parked/resume scenario exercises exactly that"
+      ],
+      "nextStep": "Per-release manual protocol on a real Mac (doc 09 §8.2/§11.4): fresh profile → capability probe → fixture corpus → results recorded as feature-matrix evidence."
+    },
+    {
+      "browser": "safari-ios",
+      "evidence": "not-runnable-in-sandbox",
+      "summary": "Safari iOS (BCD 2026-10-19): aligns with Safari 18.2+/26+ rows; no SAB without COOP/COEP on iOS; WebGPU iOS 26+; lower memory ceilings (doc 09 §2.4 budget must respect them); fullscreen + autoplay gesture-gated.",
+      "bcdExpectations": [
+        "doc 09 §8.1 iOS constraints note",
+        "physical-device evidence is MANDATORY for any web = verified claim touching SAB, WebGPU or autoplay (doc 09 §11.4)"
+      ],
+      "nextStep": "Physical iOS device run per release (doc 09 §8.2 manual protocol); no simulator substitute for the memory-pressure + background-throttling rows."
+    }
+  ]
+}

@@ -10,7 +10,33 @@
 // --config playwright.web.config.ts` fails fast with the spec's
 // "run via npm run webmatrix" error instead of silently testing the
 // wrong origin.
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "@playwright/test";
+
+// The chromium launch knobs (matrix.config.json → browsers.chromium):
+// the driver resolves the executable (env override → config path under
+// the Playwright browsers root → @playwright/test's own revision-pinned
+// binary) and hands it over via the configured env name; the launch
+// flags come straight from the config (the container-evidence shape:
+// --no-sandbox + --disable-dev-shm-usage — the config's comment
+// explains why every lane passes them; no literal here, doc 07 §9).
+interface MatrixBrowserConfig {
+  browsers: {
+    chromium: {
+      executable: string | null;
+      executableEnv: string;
+      launchArgs: string[];
+    };
+  };
+}
+const here = path.dirname(fileURLToPath(import.meta.url));
+const matrix = JSON.parse(
+  readFileSync(path.join(here, "e2e", "web", "matrix.config.json"), "utf8"),
+) as MatrixBrowserConfig;
+const chromiumExecutable = process.env[matrix.browsers.chromium.executableEnv];
+const chromiumLaunchArgs = matrix.browsers.chromium.launchArgs ?? [];
 
 export default defineConfig({
   testDir: "./e2e/web",
@@ -25,5 +51,9 @@ export default defineConfig({
   use: {
     browserName: "chromium",
     headless: true,
+    launchOptions: {
+      ...(chromiumExecutable ? { executablePath: chromiumExecutable } : {}),
+      ...(chromiumLaunchArgs.length > 0 ? { args: chromiumLaunchArgs } : {}),
+    },
   },
 });

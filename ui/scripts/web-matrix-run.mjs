@@ -37,6 +37,67 @@ const repoRoot = path.resolve(pkgDir, "..");
 const configPath = path.join(pkgDir, "e2e", "web", "matrix.config.json");
 const config = JSON.parse(readFileSync(configPath, "utf8"));
 
+// The config is the single source of every knob; a malformed one must
+// fail LOUDLY here, not surface as a silently-wrong harness run (a
+// duplicate JSON key would otherwise let the wrong "browsers" table win).
+function validateConfigShape(subject) {
+  const required = [
+    ["server", "host"],
+    ["server", "port"],
+    ["server", "targetDirs"],
+    ["server", "wasmArtifact"],
+    ["server", "wasmArtifactFallback"],
+    ["server", "workerGlue"],
+    ["server", "workletGlue"],
+    ["server", "fixture"],
+    ["server", "servedFixture"],
+    ["server", "rangeSupportingPath"],
+    ["server", "rangeBlindPath"],
+    ["browsers", "chromium", "executable"],
+    ["browsers", "chromium", "executableEnv"],
+    ["browsers", "chromium", "launchArgs"],
+    ["browsers", "chromium", "evidence"],
+    ["pump", "ticksPerSlice"],
+    ["pump", "maxSlices"],
+    ["pump", "sliceTimeoutMs"],
+    ["playToEnd", "positionToleranceUs"],
+    ["report", "outputDir"],
+    ["report", "markdownName"],
+    ["report", "jsonName"],
+  ];
+  for (const pathKeys of required) {
+    let node = subject;
+    let missing = false;
+    for (const key of pathKeys) {
+      if (node === undefined || node[key] === undefined) {
+        missing = true;
+        break;
+      }
+      node = node[key];
+    }
+    if (missing) {
+      fail(`matrix.config.json is missing ${pathKeys.join(".")}`);
+    }
+  }
+  if (!Array.isArray(subject.modes) || subject.modes.length === 0) {
+    fail("matrix.config.json: modes must be a non-empty list");
+  }
+  for (const mode of subject.modes) {
+    if (typeof mode.id !== "string" || typeof mode.coopCoep !== "boolean") {
+      fail(`matrix.config.json: bad mode entry ${JSON.stringify(mode)}`);
+    }
+  }
+  if (!Array.isArray(subject.browsers.chromium.launchArgs)) {
+    fail("matrix.config.json: browsers.chromium.launchArgs must be a list");
+  }
+  for (const flag of subject.browsers.chromium.launchArgs) {
+    if (typeof flag !== "string" || !flag.startsWith("--")) {
+      fail(`matrix.config.json: bad launch flag ${JSON.stringify(flag)}`);
+    }
+  }
+}
+validateConfigShape(config);
+
 const siteSrc = path.join(pkgDir, "e2e", "web", "site");
 const siteDist = path.join(pkgDir, "e2e", "web", "sitedist");
 
@@ -214,6 +275,24 @@ try {
 const outDir = path.join(os.tmpdir(), `lumen-web-matrix-${process.pid}`);
 mkdirSync(outDir, { recursive: true });
 
+// The chromium executable the lane will drive: env override (the sandbox
+// pins the preinstalled build — downloads are forbidden), else the config's
+// relative path under the Playwright browsers root, else @playwright/test's
+// own revision-pinned binary (null → unset; CI shape). Whichever ran is
+// printed here and recorded in the report's tooling block — the evidence
+// always names the browser that actually executed.
+const browsersRoot =
+  process.env.PLAYWRIGHT_BROWSERS_PATH ??
+  path.join(os.homedir(), ".cache", "ms-playwright");
+const chromiumExecutable =
+  process.env[config.browsers.chromium.executableEnv] ??
+  (config.browsers.chromium.executable
+    ? path.join(browsersRoot, config.browsers.chromium.executable)
+    : null);
+if (chromiumExecutable && !statSync(chromiumExecutable).isFile()) {
+  fail(`configured chromium executable is not a file: ${chromiumExecutable}`);
+}
+
 const cli = path.join(pkgDir, "node_modules", "@playwright", "test", "cli.js");
 const playwrightConfig = path.join(pkgDir, "playwright.web.config.ts");
 const pwEnv = {
@@ -224,12 +303,29 @@ const pwEnv = {
   WEB_MATRIX_BASE_URLS: JSON.stringify(baseUrls),
   WEB_MATRIX_OUT_DIR: outDir,
   WEB_MATRIX_FIXTURE_BYTES: String(fixtureBytes),
+  ...(chromiumExecutable
+    ? { [config.browsers.chromium.executableEnv]: chromiumExecutable }
+    : {}),
 };
 
 console.log(
   `[web-matrix] wasm artifact: ${wasmPath} (${wasmProfile}, ${wasmBytes} bytes, sha256 ${wasmSha.slice(0, 12)}…)`,
 );
-console.log(`[web-matrix] fixture: ${config.server.fixture} (${fixtureBytes} bytes)`);
+console.log(
+  `[web-matrix] fixture: ${config.server.fixture} (${fixtureBytes} bytes)`,
+);
+console.log(
+  `[web-matrix] chromium executable: ${
+    chromiumExecutable ?? "@playwright/test's pinned revision"
+  }`,
+);
+console.log(
+  `[web-matrix] chromium launch args: ${
+    config.browsers.chromium.launchArgs.length > 0
+      ? config.browsers.chromium.launchArgs.join(" ")
+      : "(none)"
+  }`,
+);
 
 const child = spawnSync(process.execPath, [cli, "test", "--config", playwrightConfig], {
   stdio: "inherit",
@@ -340,6 +436,8 @@ const report = {
   tooling: {
     node: process.version,
     harness: "ui/e2e/web (card 7.I1)",
+    chromiumExecutable: chromiumExecutable ?? "playwright-pinned",
+    chromiumLaunchArgs: config.browsers.chromium.launchArgs,
   },
   artifact: {
     path: path.relative(repoRoot, wasmPath),

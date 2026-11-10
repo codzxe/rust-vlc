@@ -14,7 +14,19 @@ import tseslint from "typescript-eslint";
 import local from "./tools/eslint-plugin-local/index.js";
 
 export default [
-  { ignores: ["dist/", "node_modules/", "coverage/", "playwright-report/", "test-results/"] },
+  {
+    ignores: [
+      "dist/",
+      "node_modules/",
+      "coverage/",
+      "playwright-report/",
+      "test-results/",
+      // web-matrix staging output (card 7.I1): scripts/web-matrix-run.mjs
+      // copies the committed site + the engine wasm + glue + fixture here;
+      // never linted (build output, same class as dist/ — .gitignored too).
+      "e2e/web/sitedist/",
+    ],
+  },
   {
     // node-flavored scripts (token generator) — plain globals, no DOM.
     files: ["scripts/**/*.mjs"],
