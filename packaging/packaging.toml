@@ -43,6 +43,12 @@ artifact_suffix = "sbom.cdx.json"
 # NOT listed here: their names come from cargo metadata via
 # product-env.py (BIN_CLI / BIN_DESKTOP), so a bin rename needs no
 # packaging edit. Docs listed here are staged with 0644.
+# CONSTRAINT: doc paths must be whitespace-free (schema pattern,
+# packaging.schema.json shipped.docs — W24-R6 P4-4): the bridge exports
+# the list as the space-separated PACKAGING_DOCS env var, so a path
+# containing a space/tab could not be represented without word-splitting
+# — packaging-env.py refuses it at validation time; rename the file
+# instead. No richer list format is planned.
 [shipped]
 docs = ["LICENSE", "README.md"]
 

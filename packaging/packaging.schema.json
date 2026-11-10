@@ -59,7 +59,8 @@
           "items": {
             "type": "string",
             "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$",
-            "$comment": "repo-relative path; existence checked by packaging-env.py's semantic pass."
+            "x-lumen-hint": "repo-relative doc path with NO whitespace: the bridge exports the list as the space-separated PACKAGING_DOCS env var, so a path containing a space/tab cannot be represented and is refused here — rename the file (constraint documented in docs/packaging/README.md).",
+            "$comment": "repo-relative path; existence checked by packaging-env.py's semantic pass. The charset deliberately excludes EVERY whitespace character (W24-R6 P4-4 / W24-Q): packaging-env.py exports the list as the space-separated PACKAGING_DOCS, so a spaced path would word-split into bogus paths downstream (staging, .wxs File rows) — it is refused loudly here, at validation time (the earliest point every job passes through), with a message naming the config entry. Replacing the space-separated env contract with a richer list format is a deliberate non-goal for now."
           }
         }
       }

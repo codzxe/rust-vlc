@@ -27,6 +27,17 @@ there is no silent fallback anywhere in the lane.
 A rebrand (`cargo xtask rebrand`), a version bump, a docs-list change,
 or a checksum-algorithm change touches TOML only — no script edits.
 
+One deliberate constraint on the docs list (W24-R6 P4-4): doc paths in
+`[shipped]` must be **whitespace-free** (schema pattern,
+`packaging.schema.json` shipped.docs). The bridge exports the list as
+the space-separated `PACKAGING_DOCS` env var, so a path containing a
+space could not be represented — it would word-split into bogus paths
+in staging and the `.wxs` File rows. `packaging-env.py` therefore
+refuses it at validation time (the first step of every job), with an
+error naming the offending config entry — not by a confusing
+downstream staging failure. A richer list format is a deliberate
+non-goal; rename the file instead.
+
 ## Artifact matrix
 
 Naming: `<slug>-<version>-<arch>-<os>.<ext>` (all from config).
@@ -50,7 +61,7 @@ The full matrix:
 | Linux x86_64 + aarch64 | `.AppImage` (pinned appimagetool 1.9.1 + type2 runtime 20251108) | `build-appimage.sh` | CI Linux jobs | **PROVEN** — same log |
 | Linux x86_64 + aarch64 | `.rpm` (rpmbuild) | `build-rpm.sh` | CI Linux jobs (`apt-get install rpm`) | spec generated + validated locally; binary build is CI-only |
 | Windows x86_64 | `.zip` flat archive | `build-zip.sh` (`python -m zipfile`) | CI Windows job | parse-checked (`bash -n` + `sh -n` + gate); execution is CI-only |
-| Windows x86_64 | `.msi` (WiX v5.0.2, pinned nupkg) | `build-msi.sh` → `build-msi.ps1` + `scripts/release/gen-wxs.sh` | CI Windows job | `.wxs` generation + env asserts run in `gate.sh`; `wix build` is CI-only |
+| Windows x86_64 | `.msi` (WiX v5.0.2, pinned nupkg) | `build-msi.sh` → `build-msi.ps1` + `scripts/release/gen-wxs.sh` | CI Windows job | `.wxs` generation proven by its own self-test (`gen-wxs.sh --self-test`, hostile-fixture XML parse); `wix build` is CI-only |
 | macOS aarch64 + x86_64 | `.dmg` (hdiutil UDZO) | `build-dmg.sh` (bundle → codesign → dmg → notarize → staple) | CI macOS jobs | staging steps are pure file ops; codesign/notarytool/hdiutil are CI-only |
 | macOS aarch64 + x86_64 | `.zip` of the `.app` (ditto) | inline in `.github/workflows/release.yml` | CI macOS jobs | CI-only |
 | every artifact | `.sbom.cdx.json` (CycloneDX 1.5) | `gen-sboms.sh` → `cargo run -p xtask --locked -- sbom` | CI every job; local | **PROVEN** — [r3 evidence](evidence/w24c-r3.log) |
@@ -123,9 +134,14 @@ preference for a single universal download is recorded. Full text:
 the `macos-arm64` job header comment in
 [`.github/workflows/release.yml`](../../.github/workflows/release.yml).
 
-What runs WITHOUT the native platform: `.wxs` generation, env
-assertions, staging, unsigned-fallback sidecars — all exercised in
-`scripts/packaging/gate.sh` (below). What cannot: `wix build`,
+What runs WITHOUT the native platform: env assertions, staging, and
+the unsigned-fallback sidecars — exercised in
+`scripts/packaging/gate.sh` (below) — plus the `.wxs` generation,
+which carries its own executable regression test:
+`scripts/release/gen-wxs.sh --self-test` (W24-R6 P4-2) runs the real
+generator with hostile identity values and hostile doc basenames
+(`a&b<c>"d".md` …) and proves with python's XML parser that the
+output parses and the values round-trip. What cannot: `wix build`,
 `signtool`, `codesign`, `notarytool`, `hdiutil`, `msiexec` — each is
 marked `[VERIFY at first live run]` at its call site.
 
@@ -165,10 +181,11 @@ workflow header.
 
 **The workflow has never executed** (CI billing blocked — see
 blockers). Evidence in lieu: the Linux lane is the SAME script proven
-locally; every run-block parses (`bash -n` over all 41 steps); YAML
-validates (`yaml.safe_load`); the release job's kind-check + manifest
-steps were dry-run for real against the local artifact set
-([r3 evidence](evidence/w24c-r3.log)).
+locally; every run-block parses (`bash -n` over all 42 run-blocks,
+re-counted in W24-Q — 41 at r3 plus the W24-H secrets-visibility
+step); YAML validates (`yaml.safe_load`); the release job's
+kind-check + manifest steps were dry-run for real against the local
+artifact set ([r3 evidence](evidence/w24c-r3.log)).
 
 ## Signing posture — honest, never faked
 
