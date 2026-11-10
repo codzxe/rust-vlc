@@ -16,17 +16,24 @@ isolation + example extensions, web pillars, control server first-pass
 security — with the browser matrix (#49) honestly in-flight on `w24/a`.
 
 Per repo law this is a **valid gate outcome**: failures are recorded, not
-papered over. Recommended closure path: land OF-1's in-flight fix
-(`w24/a` `70ed69c`), apply the OF-2/OF-3 pin bumps + regeneration, correct the
-OF-5 matrix note, then re-run the §8 battery at wave-24 merge. No finding
+papered over. Recommended closure path: land lane A's
+in-flight fixes (OF-1 `w24/a` `70ed69c`; OF-3 regeneration `w24/a`
+`771259c`), apply the OF-2 pin bumps, correct the OF-5 matrix note, then
+re-run the §8 battery at wave-24 merge. No finding
 requires design work.
 
 ## 2. Gate battery — evidence ledger
 
 All commands run in `/home/z/my-project/wt/w24f` after
 `source /home/z/my-project/scripts/cargo-env.sh` (shared `CARGO_TARGET_DIR`,
-`RUSTFLAGS=-Cdebuginfo=0`, `CARGO_INCREMENTAL=0`). Logs carry per-run headers
-with worktree, commit, date and exit code.
+`RUSTFLAGS=-Cdebuginfo=0`, `CARGO_INCREMENTAL=0`). Log-header convention
+(as amended per review W24-R3 P2-1): round-2 logs carry capture-time headers
+(worktree, commit, date, command, exit code); the parity log's header records
+date + command with its exit markers in the body; the round-1 logs (test /
+clippy-r1 / evidence-rerun) were committed without capture-time headers and now
+carry headers retroactively annotated by W24-K from git-anchored provenance —
+`evidence-rerun`'s exit code was not recorded at capture time (see that log's
+header).
 
 | # | Check | Status | Evidence |
 |---|---|---|---|
@@ -44,19 +51,23 @@ with worktree, commit, date and exit code.
 | 12 | `cargo run -q -p xtask -- lint-literals` | **PASS** (0 violations, 452 allowlisted; 18,602 sites / 558 files) | `logs/phase7-exit-xtask.log` |
 | 13 | `cargo run -q -p xtask -- check-identity` | **PASS** (0 violations, 453 allowlisted) | `logs/phase7-exit-xtask.log` |
 | 14 | `cargo run -q -p xtask -- sbom --check` (extra: #52 drift gate) | **PASS** (no drift; 121,900 B) | `logs/phase7-exit-xtask.log` |
-| 15 | cargo-deny 0.20.2, CI command `--workspace check licenses sources bans advisories` | **PASS** (exit 0: "advisories ok, bans ok, licenses ok, sources ok"; 32 non-blocking `wildcard` path-dep warnings) | `logs/phase7-exit-deny.log` — binary = pinned musl tarball, downloaded this session, SHA-256 `9f12ed4c…c8d5f` == `.github/workflows/ci.yml:469` pin |
+| 15 | cargo-deny 0.20.2, CI command `--workspace check licenses sources bans advisories` | **PASS** (exit 0: "advisories ok, bans ok, licenses ok, sources ok"; 30 non-blocking `wildcard` path-dep warnings) | `logs/phase7-exit-deny.log` — binary = pinned musl tarball, downloaded this session, SHA-256 `9f12ed4c…c8d5f` == `.github/workflows/ci.yml:469` pin (raw `sha256sum` output not committed; pin match independently re-verified by review W24-R3, `docs/reviews/w24-f-gate-findings.md` on `w24/r3`) |
 | 16 | UI `npm run typecheck` / `lint` | **FAIL** (TS1185/TS1005 parse errors; eslint 1 error) — OF-1 | `logs/phase7-exit-ui.log` |
 | 17 | UI `npm run test` (vitest) | **FAIL**: **705/706 tests passed**; 2 suites fail to *load* (App.tsx markers), 1 failure = settings-drift (OF-3) | `logs/phase7-exit-ui.log` |
 | 18 | UI `npm run l10n:check` | **PASS** (611 keys, missing 0, duplicates 0, orphans 0) | `logs/phase7-exit-ui.log` |
 | 19 | `cargo run -q -p xtask -- parity-report` | **PASS** (runs clean; numbers in §5) | `logs/phase7-exit-parity.log` |
 | 20 | `cargo run -q -p xtask -- feature-audit` | **PASS** (252 rows, structure + evidence resolution OK) | `logs/phase7-exit-parity.log` |
 | 21 | `cargo deny` + `sbom --check` supply-chain pair (doc 11 §3.5 order) | **PASS** (see #14, #15) | same logs |
-| 22 | `xtask rebrand` reverse control (manual, gate-diagnosis run) | **PASS** (`result: no-op`, exit 0, dest README byte-identical to worktree) — the *committed test* variant fails, see OF-4 | shell run 2026-11-10, reproduced in §3 OF-4 |
+| 22 | `xtask rebrand` reverse control (manual, gate-diagnosis run) | **PASS** (`result: no-op`, exit 0, dest README byte-identical to worktree) — the *committed test* variant fails, see OF-4 | shell run 2026-11-10, reproduced in §3 OF-4; no log committed — independently re-verified by review W24-R3 (`docs/reviews/w24-f-gate-findings.md` on `w24/r3`) |
 
 Round-1 provenance: logs `phase7-exit-{fmt,clippy,test,evidence-rerun}.log` were
 collected in round 1 (committed `a4e35e7` before any other work, per
 context-kill discipline); round 1's fmt log was empty with no exit marker, so
-fmt was re-run in r2 with a recorded header.
+fmt was re-run in r2 with a recorded header. The other three round-1 logs were
+likewise committed without capture-time headers (and `evidence-rerun` without
+an exit marker); W24-K retroactively annotated their headers (worktree /
+commit / date / exit, derived from `a4e35e7` = `c339ee8` + the round-1 logs
+only) without altering any recorded body (review W24-R3 P2-1).
 
 ## 3. Open findings (file · line · severity · root cause · owner · next step)
 
@@ -83,7 +94,7 @@ fmt was re-run in r2 with a recorded header.
 * **Where / symptom** (all three re-confirmed in r2, `logs/phase7-exit-test-rerun.log`):
   * `crates/settings-schema/src/lib.rs:155` — `assert_eq!(schema.len(), 27, "Phase-1 seed entry count")`; actual 32 (`tests::committed_seed_validates_against_committed_product`).
   * `crates/settings-schema/tests/integration.rs:117` — `contains("27 entries")`; actual output "32 entries" (`committed_outputs_have_no_drift`).
-  * `apps/cli/src/help.rs:302-321` — `areas_block_lists_the_six_areas` pins 6 help areas; generated help now lists 7 (`extensions` added): `["engine","extensions","global","interface","performance","playback","privacy"]`.
+  * `apps/cli/src/help.rs:303-324` — `areas_block_lists_the_six_areas` pins 6 help areas; generated help now lists 7 (`extensions` added): `["engine","extensions","global","interface","performance","playback","privacy"]`.
 * **Root cause:** single commit `c71cd5a` (wave 23, issue #46 — plugin crash
   backoff settings) grew `schemas/settings.toml` 27→32 `[[setting]]` entries
   (verified: 27 at `3116aec`, 32 at `c71cd5a`) and regenerated the *Rust-side*
@@ -102,8 +113,13 @@ fmt was re-run in r2 with a recorded header.
   "passes settings:check against the committed generated files" fails.
 * **Root cause:** same commit `c71cd5a` (OF-2) — UI-side generator output not
   regenerated.
-* **Owner/next step:** `ui/` is lane A this wave; fix = `npm run
-  settings:generate` + commit. Fold into lane A's existing UI pass (OF-1).
+* **Owner/next step:** `ui/` is lane A this wave; fix in flight on `w24/a`:
+  `771259c` "fix(ui): regenerate settings screens after w23d's
+  `schemas/settings.toml` crash-backoff rows (settings:check drift — unblocks
+  UI test suite)" — committed 2026-11-10 16:33:59Z, before this report
+  (regenerates `ui/src/screens/settings/generated/schema.ts`, +105 lines).
+  Lead re-verifies at wave merge, alongside OF-1's `70ed69c` on the same
+  branch.
 
 ### OF-4 — rebrand reverse-control test breaks under the shared target dir [P2, test infra]
 
@@ -132,7 +148,7 @@ fmt was re-run in r2 with a recorded header.
   landed (VT/MF/VA-API under `crates/codecs/src/video/h264/hw/`) —
   compile-verified via `cargo check --target aarch64-apple-darwin` +
   `x86_64-pc-windows-msvc`".
-* **Contradicted in-tree by** `crates/codecs/src/video/h264/hw/mod.rs:53-58`:
+* **Contradicted in-tree by** `crates/codecs/src/video/h264/hw/mod.rs:51-56`:
   "**Media Foundation** (Windows, 7.B2): **NOT IMPLEMENTED** — no MF lane
   exists in this crate … The bullet this one replaces claimed a
   compile-verified MF FFI that does not exist — **retracted**." Directory
@@ -168,7 +184,7 @@ run, round 1) unless noted; the named tests were individually confirmed `ok`.
 | 7.D1 device discovery | #42 (`4b8c808`, `9e77cc1`, `3e852fc`) | **LANDED, tests green; UI exists (route blocked by OF-1, fix in flight)** | `device-discovery` 37/0 green (bounded volume watcher, SSDP lane + honest verdict); `/discovery` UI: `ui/src/screens/discovery/DiscoveryScreen.tsx` + `DiscoveryScreen.test.tsx` 8/8 green (vitest, `logs/phase7-exit-ui.log`); route wiring on main is inside OF-1's conflict region, resolved in `w24/a` `70ed69c`. |
 | 7.E1 transcode core | #43 (`3fd09ca` wave 22) | **LANDED, tests green** | `transcode` 50/0 (job model, progress/cancel, bounded resources; WAV PCM + stream-copy only). |
 | 7.E2/7.E3 recording, remux, convert UI | #44 (`45c5c6f`, `f037ba6`, `b3f8445`, `62dfade`) | **LANDED, tests green; UI exists (route blocked by OF-1, fix in flight)** | record-to-WAV + MP4 remux (H.264/AAC stream copy, no transcode claim) with outputs verified by own demux+decode (acceptance suites in `crates/transcode`); `/convert` UI: `ConvertScreen.test.tsx` 8/8 green; target picker limited to real capability. |
-| 7.F1–7.F3 plugin host v1 | #45 (`d33886d` wave 22) | **LANDED, tests green** | `plugin-host-wasm` 44/0 (wasmi per ADR-002, capability enforcement, `.lumenext` packaging). |
+| 7.F1–7.F3 plugin host v1 | #45 (`d33886e` wave 22) | **LANDED, tests green** | `plugin-host-wasm` 44/0 (wasmi per ADR-002, capability enforcement, `.lumenext` packaging). |
 | 7.F4 crash isolation | #46 (`95c0743`, `c71cd5a`, `b5e2560`) | **LANDED, suite green incl. playback-unaffected proof** | `tests/plugin_crash_isolation.rs` 6/0: `crash_injection_trap_on_entry_is_contained`, `…_mid_call_…`, `…_host_fault_from_import_…`, `…_resource_exhaustion_…`, `plugin_restart_backoff`, and `plugin_crash_isolation` (trap-loop/OOM cannot kill playback — `PlaybackFixture` continues). |
 | 7.G1 example extensions | #46 (`3a77606`, `3de83e5`) | **LANDED, kit green, docs walkthrough in-tree** | `plugins/extensions/{metadata-provider,ui-panel}`; `plugin_examples_conformance` 5/0; walkthrough docs (commit `3de83e5`). |
 | 7.H1 apps/web v1 | #47 (`c97a3d6` wave 22) | **LANDED, tests green, wasm build green** | `lumen-web` 111/0; wasm32 build exit 0 (§2 #6). |
@@ -220,7 +236,7 @@ next step, never silently descoped):**
 | Blocker | Blocks | Next step |
 |---|---|---|
 | CI Actions billing (every run dies at 0 steps) | all CI gates; strict-verified parity; browser matrix CI leg | user enables billing; until then local runs are the evidence vehicle (this report's mode) |
-| 3-OS runner machines | 7.A mac/windows device-enum runtime tests; 8.B1 matrix; 8.D1 perf; 8.G2 RC smoke | user provides runners (R-20) |
+| 3-OS runner machines | 7.A mac/windows device-enum runtime tests; 8.B1 matrix; 8.D1 perf; 8.G2 RC smoke | user provides runners (R-16 — CI runner budget / self-hosted runners; spend decisions go to the user) |
 | Apple Developer account / key custody (R-35) | 8.E2 macOS notarization, cascades to SBOM-all-platforms + RC | user decision at first signed-build attempt |
 | Windows code-signing certificate | 8.E1 signing + upgrade-path test | user procures cert (`[VERIFY] — escalate if absent`) |
 
@@ -235,7 +251,10 @@ next step, never silently descoped):**
 * macOS/Windows hardware absent: FFI lanes compile-verified only (labels
   cited, §4 7.B/7.A); runtime verification blocked (§6).
 * cargo-deny binary: pinned 0.20.2 musl tarball downloaded + SHA-256-verified
-  against the CI pin this session (`/tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl/`).
+  against the CI pin this session (`/tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl/`);
+  the raw `sha256sum` output was not committed — the pin match was independently
+  re-verified by review W24-R3 (`docs/reviews/w24-f-gate-findings.md` on
+  `w24/r3`).
 * Disk budget (~1.1 GB free) is why the darwin/windows cross-target
   re-checks were not re-run at gate time (recorded, not hidden).
 

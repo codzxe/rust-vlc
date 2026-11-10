@@ -788,3 +788,20 @@ Work Log:
 
 Stage Summary:
 - Verdict: Phase-7 exit gate NOT PASSED at c339ee8 — 18/22 battery checks green; 5 open findings (P0: App.tsx markers; P1×3: pins/generated/matrix-note; P2: test-infra root discovery). Exit is achievable at wave-24 merge: land w24/a 70ed69c, bump 3 pins + npm settings:generate, fix matrix note, then re-run the §8 battery. Per-card Phase-7 substance verified in-tree and green; hardware-dependent rows honestly blocked. All evidence in docs/gates/logs/phase7-exit-*.log, report docs/gates/phase7-exit.md. Commits a4e35e7, 2bf5b66, + this entry on w24/f; pushed origin w24/f; main untouched.
+---
+Task ID: W24-K (wave 24 lane K — small fixer; issue #51 follow-up)
+Agent: w24-k
+Task: Fix review scout W24-R3's findings on the Phase-7 exit-gate report (branch w24/f): 1 P2 (log-header convention) + 6 P3 accuracy items + 2 manual-run evidence annotations. Docs-only lane; every corrected fact re-verified against logs/git/risk-register before editing.
+
+Work Log:
+- P2-1 (log headers): prepended plain-text headers (prepend-only; zero body lines altered — git diff shows 29 insertions, 0 deletions) to the three round-1 logs that lacked them: phase7-exit-test.log (worktree w24/f, source tree == c339ee8, committed in a4e35e7, 2026-11-10 before 16:51:45Z, TEST_EXIT=101 recorded in body), phase7-exit-clippy-r1.log (same provenance, CLIPPY_EXIT=0 recorded in body), phase7-exit-evidence-rerun.log (same provenance; exit code honestly marked "not recorded at capture time" — body complete, 3 passed / 0 failed / 1 ignored, exit-0 inference labeled as inference). Amended §2's convention sentence + the round-1 provenance paragraph in docs/gates/phase7-exit.md to describe reality (r2 capture-time headers; parity date+cmd header; r1 headers retroactively annotated by W24-K per review W24-R3 P2-1).
+- P3-1: recounted wildcard warnings in phase7-exit-deny.log — exactly 30 `warning[wildcard]:` lines (27 plural + 3 singular per-crate summaries); fixed §2 #15 "32" → "30".
+- P3-2: `git rev-parse d33886d` fails; real wave-22 plugin-host merge is d33886e — fixed §4 7.F1 citation.
+- P3-3: docs/14-risk-register.md R-20 = documentation drift (:111); the runner/spend row is R-16 (:107, :166 — "self-hosted runners… spend decisions go to the user") — fixed §6 blocker table parenthetical to R-16 with a one-line gloss.
+- P3-4: verified 771259c (w24/a, 2026-11-10 16:33:59Z — before the report commit 833944e at 17:16:47Z) regenerates ui/src/screens/settings/generated/schema.ts (+105 lines); reworded OF-3's owner/next step to fix-in-flight-on-w24/a with the commit reference; aligned §1's closure path (lane A in-flight fixes OF-1 70ed69c + OF-3 771259c, then OF-2 pin bumps).
+- P3-5: re-measured both ranges in-source — hw/mod.rs MF-retraction bullet spans :51-56 (was cited :53-58); help.rs areas_block_lists_the_six_areas spans :303-324 (was :302-321; panic site :310:9 inside both) — fixed the two citations.
+- Manual-run assertions (R3 obs.): no committed logs are trivially derivable for either (rebrand control was a /tmp shell run; raw sha256sum never committed) — annotated §2 #22 and §2 #15/§7 cargo-deny bullet as "independently re-verified by review W24-R3" citing docs/reviews/w24-f-gate-findings.md on w24/r3 (tip 27f1330).
+- Not touched (out of brief / no action demanded): R3 P3-6 (7.I1 branch-tip snapshot aging — was correct at report time), O-1/O-2.
+
+Stage Summary:
+- All 7 R3 findings fixed + 2 observations annotated; the gate report's NOT-PASSED verdict, findings, and evidence chain are unchanged — only accuracy/convention defects repaired. Ownership respected: docs/gates/phase7-exit.md + the three log files (header lines only) + this worklog entry (repo-root worklog.md per docs/worklog/README.md live-log convention). Verification greps: 30 wildcards, d33886e, R-16, :51-56, :303-324 all present; report remains valid markdown (table rows single-line, headers intact). Commit on w24/k, pushed origin w24/k; main untouched.
