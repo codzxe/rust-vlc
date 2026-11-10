@@ -1,0 +1,51 @@
+# apps/control-server — the optional loopback control surface (card
+# 7.J1, issue #50; doc 01 §2.8 registry row: layer L6, "control-
+# protocol, commands, engine, contracts"; doc 05 §5.4).
+#
+# The `[PROPOSAL]`-phase app per doc 01 §8 — implementing it now
+# RATIFIES the proposal (worklog 7.J1 records the ratification).
+#
+# Internal deps: commands (the ONE command layer — the dispatch
+# vocabulary, ARCH-5), control-protocol (the wire: in-tree WS +
+# handshake + policy), product-config (the config-driven product
+# model: `features.control-server` master gate + identity for
+# engineInfo — doc 07). The engine-embedding join (playback-engine's
+# EngineSession behind the dispatch) is the desktop composition card's
+# (doc 01 §2.7 "optionally embeds the control server"); v1 serves the
+# catalog-introspection subset and answers everything else with a
+# typed not-ready — an honest gap, never a silent no-op.
+#
+# External deps (both Lead-admitted workspace externals via the
+# crates that own them — see boundaries.toml):
+# - toml: the operator config file (`control-server.toml` →
+#   `control_protocol::policy::PolicyFile`) — the same parser family
+#   settings-schema/lumen-cli use for their config seam.
+# - serde_json: the command layer's OWN wire format (doc 05 §5.1).
+
+[package]
+name = "control-server"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Lumen loopback control server — token-authenticated, deny-by-default, config-driven (doc 05 §5.4; card 7.J1)"
+
+[lib]
+name = "control_server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "lumen-control-server"
+path = "src/main.rs"
+
+[dependencies]
+commands = { path = "../../crates/commands" }
+control-protocol = { path = "../../crates/control-protocol" }
+product-config = { path = "../../crates/product-config" }
+serde_json = "1.0"
+toml = "1"
+
+[dev-dependencies]
+testkit = { path = "../../crates/testkit" }
+
+[lints]
+workspace = true

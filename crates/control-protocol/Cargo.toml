@@ -1,0 +1,34 @@
+# crates/control-protocol — the versioned loopback wire protocol (card
+# 7.J1, issue #50; doc 01 §2.3 registry row "control-protocol", layer L1;
+# doc 05 §5.4).
+#
+# The remote-control protocol crate: an in-tree minimal RFC 6455
+# WebSocket server (HTTP upgrade with an in-tree SHA-1 + base64 for
+# Sec-WebSocket-Accept, full frame codec incl. fragmentation and control
+# frames), the `lumen-control/1` versioned application handshake, the
+# per-start token authentication, the deny-by-default sensitive-command
+# allowlist policy, and request validation against the ONE command layer
+# (`commands` — same-layer whitelisted pair, doc 01 §1.4).
+#
+# Clean-room + C5: NO new dependency classes. serde/serde_json are the
+# Lead-admitted command-layer wire family (the same versions the
+# `commands` crate pins — doc 05 §5.1: one serde path for every host;
+# hand-rolled JSON would BYPASS the layer, ARCH-5). Everything
+# transport-level (SHA-1, base64, WebSocket framing, HTTP upgrade) is
+# implemented in-tree, std-only — the ADR-011 in-tree ethos; no
+# tungstenite/sha1/base64 crates.
+
+[package]
+name = "control-protocol"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Lumen control wire protocol: in-tree RFC 6455 server, lumen-control/1 handshake, token auth, sensitive-op policy (doc 05 §5.4; card 7.J1)"
+
+[lints]
+workspace = true
+
+[dependencies]
+commands = { path = "../commands" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
