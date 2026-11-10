@@ -939,7 +939,7 @@ mod tests {
             ),
             "two audio tracks",
         );
-        assert_eq!(err.context.code, "transcode.source.audio-ambiguous");
+        assert_eq!(err.context.code, "transcode.source.audio-track-ambiguous");
     }
 
     #[test]

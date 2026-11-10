@@ -452,13 +452,15 @@ mod tests {
             "no rate",
         );
         assert_eq!(zero_rate.context.code, "transcode.wav.rate-zero");
-        // 64 channels x 8 bytes x 192 kHz exceeds the u32 byte_rate.
+        // 64 channels x 8 bytes x 9 MHz exceeds the u32 byte_rate
+        // (512 x 9_000_000 = 4.61e9 > 4.29e9; the 192 kHz tone of the
+        // fixtures cannot reach it — the ceiling needs an extreme rate).
         let byte_rate = assert_err(
             WavPcmWriter::new(
                 SharedCursor::sink().0,
                 PcmSample::F64Le,
                 MAX_CHANNELS,
-                192_000,
+                9_000_000,
             ),
             "byte rate past u32",
         );
@@ -468,9 +470,11 @@ mod tests {
     #[test]
     fn riff_ceiling_is_typed_not_wrapped() {
         // The guard arithmetic, driven directly (the same call
-        // `write_pcm` makes — no 4 GiB materialized).
+        // `write_pcm` makes — no 4 GiB materialized). u8 mono: the
+        // 1-byte frame makes every byte count a whole frame, so the
+        // size ceiling is the only refusal in play.
         let (sink, _) = SharedCursor::sink();
-        let mut w = WavPcmWriter::new(sink, PcmSample::S16Le, 1, 8_000).must();
+        let mut w = WavPcmWriter::new(sink, PcmSample::U8, 1, 8_000).must();
         let err = assert_err(w.ensure_room(u32::MAX as u64), "past the RIFF ceiling");
         assert_eq!(err.context.code, "transcode.wav.size-overflow");
         // Exactly at the ceiling is legal (u32::MAX - 36 payload).

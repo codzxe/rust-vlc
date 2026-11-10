@@ -388,13 +388,9 @@ mod tests {
     }
 
     #[test]
-    fn wav_pcm_requires_decode() {
-        let err = assert_err(
-            graph(None, sink()).validate(&JobLimits::default()),
-            "raw sink without decode",
-        );
-        assert_eq!(err.context.code, "transcode.graph.decode-required");
-
+    fn wav_pcm_requires_decode_and_copy_sinks_do_not() {
+        // WavPcm without a decode stage is refused: PCM encoding is a
+        // decode-path sink (frames, not packets, feed it).
         let wav = SinkSpec::WavPcm {
             output: Box::new(SeekableSink),
             target: WavPcmTarget::Source,
@@ -404,6 +400,10 @@ mod tests {
             "wav sink without decode",
         );
         assert_eq!(err.context.code, "transcode.graph.decode-required");
+        // The copy sinks consume demuxed packets — no decode stage
+        // wanted (their refusal is the decode-present direction, pinned
+        // by `copy_sinks_reject_decode`).
+        graph(None, sink()).validate(&JobLimits::default()).must();
     }
 
     #[test]

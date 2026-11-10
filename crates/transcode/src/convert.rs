@@ -136,8 +136,11 @@ fn read_native(window: &[u8], sample: SampleFormat) -> i64 {
                 (window[2], window[1], window[0])
             };
             let value = u32::from(lo) | (u32::from(mid) << 8) | (u32::from(hi) << 16);
-            // Sign-extend from bit 23.
-            i64::from(value as i32) >> 8
+            // Sign-extend from bit 23: park the 24 payload bits at
+            // the top of i32, then arithmetic-shift back down (a
+            // plain `value as i32` would leave the high byte zero —
+            // unsigned, never sign-extended).
+            i64::from(((value << 8) as i32) >> 8)
         }
         SampleFormat::S32 => i64::from(i32::from_ne_bytes([
             window[0], window[1], window[2], window[3],
