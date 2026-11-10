@@ -48,7 +48,7 @@ read it. Two tracks, both verified on this tree:
 | # | Row | Command / evidence | Status |
 |---|---|---|---|
 | 1.1 | Tree clean, on the release commit | `git status` → clean; note the SHA in the RC report | [verified locally] |
-| 1.2 | Syntax: all release scripts | `bash -n scripts/rc-smoke.sh scripts/release/*.sh`; `node --check scripts/rc-smoke-web.mjs`; `python3 -m py_compile scripts/release/product-env.py scripts/release/gen-icon.py` | **[verified locally]** all OK (8 sh + 1 mjs + 2 py) |
+| 1.2 | Syntax: all release scripts | `for f in scripts/rc-smoke.sh scripts/release/*.sh; do bash -n "$f" || exit 1; done` — a loop is **required**: `bash -n` syntax-checks only its first file argument, the rest become positional parameters and are silently unchecked (W24-R2 finding P2-3); rc-smoke.sh + the 7 `scripts/release/*.sh` = 8 sh. `node --check scripts/rc-smoke-web.mjs`; `python3 -m py_compile scripts/release/product-env.py scripts/release/gen-icon.py` | **[verified locally]** all OK (8 sh + 1 mjs + 2 py — loop re-run post-review, per-script output in `docs/audit/docs-sweep-20261110.md` §7) |
 | 1.3 | Workflow YAML parses | `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml'))"` | **[verified locally]** jobs: windows, macos-arm64, macos-x64, linux-x64, linux-arm64, release |
 | 1.4 | Config-driven identity gates | `cargo run -p xtask --locked -- lint-literals` (0 violations, 452 allowlisted) and `check-identity` (0 violations, 453 allowlisted) | **[verified locally]** both PASS |
 | 1.5 | SBOM in sync | `cargo run -p xtask --locked -- sbom --check` | **[verified locally]** no drift (157 components) |
