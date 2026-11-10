@@ -165,10 +165,11 @@ workflow header.
 
 **The workflow has never executed** (CI billing blocked — see
 blockers). Evidence in lieu: the Linux lane is the SAME script proven
-locally; every run-block parses (`bash -n` over all 41 steps); YAML
-validates (`yaml.safe_load`); the release job's kind-check + manifest
-steps were dry-run for real against the local artifact set
-([r3 evidence](evidence/w24c-r3.log)).
+locally; every run-block parses (`bash -n` over all 42 run-blocks,
+re-counted in W24-Q — 41 at r3 plus the W24-H secrets-visibility
+step); YAML validates (`yaml.safe_load`); the release job's
+kind-check + manifest steps were dry-run for real against the local
+artifact set ([r3 evidence](evidence/w24c-r3.log)).
 
 ## Signing posture — honest, never faked
 
