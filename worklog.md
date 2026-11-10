@@ -1108,3 +1108,24 @@ Work Log:
 Stage Summary:
 - Lane A audit complete: P0 verified fixed, settings regen in sync, harness real and honest, Rust green on native+wasm32, scope clean. The lane's finish-line items (final passing-run record, markdownName decision, gate/CI/feature-matrix wiring, worklog) are tracked as P2/P3 in docs/reviews/w24-a-web-findings.md for the wave-24 closer.
 - D-10: MEASURE — 6 commits audited (+1803/−10); full verification battery ACTUAL (tsc 0, eslint 0 errors, build 0, vitest 718/718, settings:check OK, fmt/clippy/lint-literals clean, wasm32 check+clippy clean, 1 regression test green, 2 live Playwright fail-fast probes). NOT TESTED — browser-matrix end-to-end re-run (no chromium binary in this sandbox). WHAT BREAKS — nothing in committed code; the risk is process-level (lane closing without the final evidence record). WHO HITS IT FIRST — the wave-24 merge closer reading docs/reviews/w24-a-web-findings.md.
+
+---
+
+Task ID: W24-R9 (wave 24 review scout — INTEGRATION audit of the rehearsal tree)
+Agent: w24/r9
+Task: Read-only cross-lane-seam audit of w24-integration-rehearsal @ 286bacd (17 merges: lanes b–k + r1–r7), diff origin/main...rehearsal. Findings in docs/reviews/w24-integration-findings.md.
+
+Work Log:
+- Worktree wt/w24r9, branch w24/r9 off the rehearsal tip at setup (286bacd). NOTE: the rehearsal moved during the audit to 3f2b96c (+ merges of w24/l, w24/n, w24/r8 = 20); every finding re-verified against the live tip, deltas recorded.
+- Seam 1 (feature-matrix): tomllib parse 252 rows; lane D's 5 linux flips == 6-line applied-transitions ledger (aac-lc hit twice); linux implemented 64→59 / partial 46→51; lane G's OF-5 note verbatim; integrated 34-line diff decomposes exactly into d(32)+g(4) — zero hand-edits outside ledger+OF-5. Web column pass: absent everywhere (lane A never touched the matrix; web partial=4 on main and integrated).
+- Seam 2 (full_gate): bash -n PASS; steps 1–9 then 11 — step 10 does not exist; comment reserves it for lane B which never landed it (empty diff on w24/b); "web-budget" = 0 hits repo-wide/all refs. Ran scripts/packaging/gate.sh live: exit 0 PASS.
+- Seam 3 (workflows): yaml.safe_load all 6; no dup job ids/names; action pins byte-identical across files (checkout 3d3c42e, toolchain d124f86, rust-cache 6323deb, upload cf430e0, download 9000827); cargo-deny pinned once (ci.yml 0.20.2 SHA-256) + prose-consistent in release.yml; ci.yml identical to main (no budget gate).
+- Seam 4 (worklog): every rehearsal merge's worklog diff = additions only (0 deletions, 17/17 merges); 10 root entries each exactly once in merge order; pure append vs main. Coverage: lanes B/D/G entry-less (fixes on unmerged w24/m + w24/p; 7.w24g landed at tip via w24/n); R1/R3/R4/R6 used docs/worklog side files (AGENTS.md §4 deviation).
+- Seam 5 (collisions): docs/reviews 7 distinct at snapshot (9 at tip); .gitignore union sane but target-xtask/ duplicated (lanes d+g); tests/compat standalone workspace, root Cargo.lock/toml unchanged (blob-identical).
+- Seam 6 (xrefs): 238 paths across 76 wave docs resolved; exceptions enumerated (browser-matrix.md name drift, regression-guards.md R4 P2-4, lane-a paths at snapshot only); rc-smoke phantom fix verified closed; release-checklist script refs all exist.
+- Seam 7 (greps): merge markers only in ui/src/App.tsx (pre-existing OF-1 from main; 0 markers at live tip); TODO/FIXME/unimplemented!/todo! diff-scoped: zero new in non-test code (2 pre-existing allowlisted hits unchanged).
+- Wrote docs/reviews/w24-integration-findings.md (1 P0 / 3 P1 / 3 P2 / 3 P3); commit + push origin w24/r9. No other writes.
+
+Stage Summary:
+- Verdict: NOT READY at 286bacd (UI un-compilable OF-1; step-10 hole; lanes B/D/G worklog gaps; w24/m + w24/p unmerged); live tip 3f2b96c closes OF-1 and adds the a/d review reports + 4 more worklog entries, but still misses w24/m, w24/p, lane-A tip 389bfcc, step 10, and the web-column/budget-gate deliverables (which exist on no branch — wave-plan vs reality mismatch flagged to the Lead). Merge machinery itself introduced zero regressions: every defect is inherited from a lane's own state or from lanes still outside the rehearsal.
+- D-10: MEASURE — tomllib/yaml parses, per-merge worklog add/del counts, diff decomposition d(32)+g(4)=integrated(34), live gate.sh run (exit 0), 238-path resolution sweep, marker/TODO greps with main-baseline comparison. NOT TESTED — full UI typecheck/vitest on the snapshot (markers = guaranteed TS parse failure, per gate log), actionlint, 3-OS runners. WHO HITS IT FIRST — the Lead at wave-24 merge: run the phase7-exit §8 battery + UI suite on the post-m/p/389bfcc rehearsal.
