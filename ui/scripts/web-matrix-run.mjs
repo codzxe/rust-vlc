@@ -23,7 +23,7 @@
 // Exit code: Playwright's, propagated verbatim (visual-run.mjs rule).
 
 import { createHash } from "node:crypto";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createReadStream } from "node:fs";
 import { copyFileSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import http from "node:http";
@@ -327,15 +327,22 @@ console.log(
   }`,
 );
 
-const child = spawnSync(process.execPath, [cli, "test", "--config", playwrightConfig], {
+// Async on purpose: the harness servers live in THIS process, and a
+// synchronous child would starve them — spawnSync blocks the event
+// loop, so the kernel would accept Chromium's TCP connections into
+// the listen backlog while no HTTP response is ever produced; the
+// page then hangs at goto until the test timeout (the failure this
+// replaces was diagnosed live: 240 s of net::ERR_ABORTED on goto).
+// spawn keeps the driver's servers serving while the child runs.
+const child = spawn(process.execPath, [cli, "test", "--config", playwrightConfig], {
   stdio: "inherit",
   cwd: pkgDir,
   env: pwEnv,
 });
-const playwrightStatus = child.status ?? 2;
-if (child.error) {
-  fail(`failed to launch Playwright: ${child.error.message}`);
-}
+const playwrightStatus = await new Promise((resolve, reject) => {
+  child.once("error", reject);
+  child.once("close", (code) => resolve(code ?? 2));
+});
 
 for (const server of servers) {
   server.close();

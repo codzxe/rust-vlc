@@ -1,8 +1,8 @@
 {
   "schema": "lumen.web.browser-matrix/1",
-  "generated": "2026-11-10T18:46:45.268Z",
+  "generated": "2026-11-10T19:40:50.982Z",
   "git": {
-    "commit": "ff6e6aa50dada6847d087ef3f3d9885b83fe19f7",
+    "commit": "231598ff77d6491ef62de9b67f25f6a5f48f5ef5",
     "branch": "w24/a"
   },
   "tooling": {
