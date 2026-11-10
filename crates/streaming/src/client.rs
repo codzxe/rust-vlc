@@ -692,8 +692,7 @@ mod tests {
 
         // A permissive policy — cross-host allowed, budget 5 — must
         // still not buy a transport downgrade.
-        let request =
-            HttpRequest::get(https_start).with_redirects(follow_policy(5, true));
+        let request = HttpRequest::get(https_start).with_redirects(follow_policy(5, true));
         let error = assert_err(
             MockClient::new().fetch(request),
             "an https-to-http redirect must be refused, never followed",
