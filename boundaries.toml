@@ -364,6 +364,55 @@ dev_deps = ["testkit", "media-clock"]
 external_allowlist = []
 external_dev_allowlist = []
 
+# ---------------------------------------------------------------------------
+# L5 — platform adapters (doc 01 §2.7; cards 7.A1/7.A2/7.A3, issue
+# #40). The audited home of MP §9's OS-service exceptions: the only
+# `unsafe` in the workspace outside the dev tools lives here (module
+# -level allow on the FFI modules, invariants per block; ADR-005
+# records the audio-seam decision, ADR-001/003 gate the hw-decode
+# and surface halves that join with issues #41/#42). Deps per the
+# registry rows: media-types, codec-api, audio-output, renderer-wgpu,
+# device-discovery — this wave's v0 surface needs the audio-output
+# vocabulary (DeviceDesc/DeviceId) + media-types (AudioFormat) only;
+# codec-api (hw decode) is issue #41, renderer-wgpu's wgpu import is
+# Lead-gated by its admission record, device-discovery is issue #42
+# — the manifest is an allowlist, those edges join when their cards
+# land. Edges point downward: L5 → L4 (audio-output) → L0
+# (media-types). Std-only by C5: hand-rolled FFI (extern "system"
+# Windows / extern "C" macOS / dlopen'd PulseAudio), NO -sys crates.
+# ---------------------------------------------------------------------------
+
+# L5 — the Windows adapter (card 7.A1): WASAPI MMDevice enumeration
+# + IMMNotificationClient change notifications, DXGI adapter
+# enumeration, the Common Item Dialogs.
+[crates.platform-windows]
+layer = 5
+internal_deps = ["audio-output", "media-types"]
+dev_deps = ["testkit"]
+external_allowlist = []
+external_dev_allowlist = []
+
+# L5 — the Linux adapter (card 7.A2): PulseAudio sink enumeration +
+# subscription events (runtime dlopen — typed LibraryUnavailable on
+# hosts without it), DRM/KMS sysfs adapter scanning, the
+# xdg-desktop-portal probe + zenity/kdialog dialog chain.
+[crates.platform-linux]
+layer = 5
+internal_deps = ["audio-output", "media-types"]
+dev_deps = ["testkit"]
+external_allowlist = []
+external_dev_allowlist = []
+
+# L5 — the macOS adapter (card 7.A3): CoreAudio device enumeration +
+# property listeners, Metal device enumeration + CAMetalLayer glue,
+# NSOpenPanel/NSSavePanel through the Objective-C runtime.
+[crates.platform-macos]
+layer = 5
+internal_deps = ["audio-output", "media-types"]
+dev_deps = ["testkit"]
+external_allowlist = []
+external_dev_allowlist = []
+
 # L6 — apps/cli (doc 01 §2.8 registry row "apps/cli — command-line
 # player and test driver", card 2.D2): the first vertical's headless
 # host. Drives the real pipeline through the ONE command layer
