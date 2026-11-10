@@ -423,6 +423,7 @@ mod tests {
     /// (the `[brand]` section that follows carries its own keys).
     #[test]
     fn other_sections_and_comments_do_not_leak() {
+        // lumen-allow-literal: test fixture TOML mirroring product.toml [brand] — parse-target data
         let text = "# leading comment\n[window]\nwidth = 960 # inline comment\nheight = 540\n\
                     min_width = 480\nmin_height = 320\nstart_maximized = true\n\
                     remember_geometry = false\ntitle_template = \"{product_name}\"\n\
@@ -462,8 +463,8 @@ mod tests {
         let product = include_str!("../../../product.toml");
         let config = parse_window_table(product).unwrap_or_else(|err| unreachable!("{err}"));
         assert_eq!(
-            config.render_media_title("Lumen", "Big Buck Bunny"),
-            "Big Buck Bunny — Lumen"
+            config.render_media_title("Lumen", "Big Buck Bunny"), // lumen-allow-literal: test fixture value — round-trip data, not display identity
+            "Big Buck Bunny — Lumen" // lumen-allow-literal: test fixture value — round-trip data, not display identity
         );
         assert_eq!(config.render_media_title("Nova", "Sintel"), "Sintel — Nova");
         // No media open: the idle key (resolved by the i18n layer).

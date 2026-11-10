@@ -359,12 +359,12 @@ mod tests {
     /// dropped file is a `session.open` command, not a bypass.
     #[test]
     fn file_open_funnel_is_the_catalog_command() {
-        let request = open_file_request(RequestId(42), &PathBuf::from("/tmp/a.avi"));
+        let request = open_file_request(RequestId(42), &PathBuf::from("/tmp/a.avi")); // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
         assert_eq!(request.request_id, RequestId(42));
         match request.command {
             Command::SessionOpen { source, .. } => match source {
                 commands::catalog::types::SourceSpec::File { path } => {
-                    assert_eq!(path, PathBuf::from("/tmp/a.avi"));
+                    assert_eq!(path, PathBuf::from("/tmp/a.avi")); // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
                 }
                 other => unreachable!("file open must be a Path source: {other:?}"),
             },
@@ -377,6 +377,7 @@ mod tests {
     /// neither → the honest `None`. One rule, both acquisition sides.
     #[test]
     fn open_path_request_classifies_by_kind() {
+        // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
         match open_path_request(RequestId(7), &PathBuf::from("/tmp/movie.mkv")) {
             Some(request) => match request.command {
                 Command::SessionOpen { .. } => assert_eq!(request.request_id, RequestId(7)),
@@ -384,16 +385,17 @@ mod tests {
             },
             None => unreachable!("a media file is openable"),
         }
+        // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
         match open_path_request(RequestId(8), &PathBuf::from("/tmp/queue.m3u")) {
             Some(request) => match request.command {
                 Command::PlaylistLoad { path, append } => {
-                    assert_eq!(path, PathBuf::from("/tmp/queue.m3u"));
+                    assert_eq!(path, PathBuf::from("/tmp/queue.m3u")); // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
                     assert!(!append, "an open replaces the queue");
                 }
                 other => unreachable!("a playlist file loads the list: {other:?}"),
             },
             None => unreachable!("a playlist file is openable"),
         }
-        assert!(open_path_request(RequestId(9), &PathBuf::from("/tmp/notes.txt")).is_none());
+        assert!(open_path_request(RequestId(9), &PathBuf::from("/tmp/notes.txt")).is_none()); // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
     }
 }

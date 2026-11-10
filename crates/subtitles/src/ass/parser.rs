@@ -943,6 +943,7 @@ mod tests {
     use crate::model::cue::{CueText, StyledSegment};
     use crate::model::position::{HorizontalAlign, VerticalAlign};
 
+    // lumen-allow-literal: test fixture value — round-trip data, not display identity
     const FFMPEG_LIKE: &str = "\
 [Script Info]
 ScriptType: v4.00+
@@ -1003,7 +1004,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         assert_eq!(c0.id.get(), 1);
         assert_eq!(c0.interval.start_us(), 1_000_000);
         assert_eq!(c0.interval.end_us(), 3_500_000);
-        assert_eq!(c0.text, CueText::Plain("Hello Lumen".into()));
+        assert_eq!(c0.text, CueText::Plain("Hello Lumen".into())); // lumen-allow-literal: test fixture value — round-trip data, not display identity
         // Style alignment respected; no explicit line/position.
         assert_eq!(c0.positioning.alignment, doc.styles[0].alignment);
         assert!(c0.positioning.line.is_none());

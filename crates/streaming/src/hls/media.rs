@@ -817,7 +817,7 @@ mod tests {
             ("/seg0.ts", b"AAAA"),
             ("/seg1.ts", b"BBBBBB"),
         ]);
-        let mut stream = match open_vod(fetch, "http://unit.test/pl.m3u8", HlsVodConfig::default())
+        let mut stream = match open_vod(fetch, "http://unit.test/pl.m3u8", HlsVodConfig::default()) // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         {
             Ok(s) => s,
             Err(e) => unreachable!("VOD must open: {e}"),
@@ -853,6 +853,7 @@ mod tests {
     fn b1b_shapes_refuse_typed_with_their_codes() {
         fn code_for(playlist: &str) -> String {
             let fetch = router(&[("/pl.m3u8", playlist.as_bytes()), ("/s.ts", b"x")]);
+            // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
             match open_vod(fetch, "http://unit.test/pl.m3u8", HlsVodConfig::default()) {
                 Ok(_) => unreachable!("shape must refuse: {playlist:?}"),
                 Err(e) => e.context.code.clone(),
@@ -913,7 +914,7 @@ mod tests {
             ("/seg0.ts", b"AAAA"),
             ("/seg1.ts", b"BBBBBB"),
         ]);
-        let mut stream = match open_vod(fetch, "http://unit.test/pl.m3u8", HlsVodConfig::default())
+        let mut stream = match open_vod(fetch, "http://unit.test/pl.m3u8", HlsVodConfig::default()) // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         {
             Ok(s) => s,
             Err(e) => unreachable!("a discontinuity VOD must open (B1b): {e}"),
@@ -953,6 +954,7 @@ mod tests {
     #[test]
     fn missing_segment_fails_typed_at_open() {
         let fetch = router(&[("/pl.m3u8", PLAIN_VOD.as_bytes()), ("/seg0.ts", b"AAAA")]);
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let err = match open_vod(fetch, "http://unit.test/pl.m3u8", HlsVodConfig::default()) {
             Ok(_) => unreachable!("seg1 is a 404 — the size probe must fail the open"),
             Err(e) => e,
@@ -984,6 +986,7 @@ mod tests {
             segment_response_limit: 8, // seg1 is 10 bytes: over budget
             max_retained_bytes: 1024,
         };
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let err = match open_vod(fetch, "http://unit.test/pl.m3u8", config) {
             Ok(_) => unreachable!("seg1 is over budget — the probe must fail the open"),
             Err(e) => e,
@@ -1010,6 +1013,7 @@ mod tests {
             segment_response_limit: 1024,
             max_retained_bytes: 8, // seg0+seg1 (10) overflow the budget
         };
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let mut stream = match open_vod(fetch, "http://unit.test/pl.m3u8", config) {
             Ok(s) => s,
             Err(e) => unreachable!("open: {e}"),
@@ -1112,6 +1116,7 @@ mod tests {
             segment_response_limit: 0,
             ..HlsVodConfig::default()
         };
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let Err(err) = open_vod(fetch.clone(), "http://unit.test/pl.m3u8", zero) else {
             unreachable!("zero budget must refuse");
         };
@@ -1120,6 +1125,7 @@ mod tests {
             max_retained_bytes: MAX_RETAINED_BYTES + 1,
             ..HlsVodConfig::default()
         };
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let Err(err) = open_vod(fetch, "http://unit.test/pl.m3u8", over) else {
             unreachable!("over-ceiling retention must refuse");
         };

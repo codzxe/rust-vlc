@@ -187,7 +187,7 @@ mod tests {
     #[test]
     fn derived_path_uses_vlc_prefix_counter_and_extension() {
         let config = SnapshotConfig {
-            directory: Some(PathBuf::from("/tmp/snaps")),
+            directory: Some(PathBuf::from("/tmp/snaps")), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
             prefix: "vlcsnap-".to_string(),
             format: SnapshotFormat::Png,
             counter: 1,
@@ -195,7 +195,7 @@ mod tests {
         let plan = config.plan(None).must();
         assert_eq!(
             plan.output_path,
-            PathBuf::from("/tmp/snaps/vlcsnap-000001.png")
+            PathBuf::from("/tmp/snaps/vlcsnap-000001.png") // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
         );
         assert_eq!(plan.format, SnapshotFormat::Png);
     }
@@ -203,21 +203,21 @@ mod tests {
     #[test]
     fn explicit_path_wins_and_its_extension_selects_the_format() {
         let config = SnapshotConfig::default();
-        let plan = config.plan(Some(Path::new("/home/me/frame.png"))).must();
-        assert_eq!(plan.output_path, PathBuf::from("/home/me/frame.png"));
+        let plan = config.plan(Some(Path::new("/home/me/frame.png"))).must(); // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+        assert_eq!(plan.output_path, PathBuf::from("/home/me/frame.png")); // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
         assert_eq!(plan.format, SnapshotFormat::Png);
         // A different extension overrides the configured format.
-        let plan = config.plan(Some(Path::new("/home/me/frame.jpg"))).must();
+        let plan = config.plan(Some(Path::new("/home/me/frame.jpg"))).must(); // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
         assert_eq!(plan.format, SnapshotFormat::Jpg);
         // No extension falls back to the configured format.
-        let plan = config.plan(Some(Path::new("/home/me/frame"))).must();
+        let plan = config.plan(Some(Path::new("/home/me/frame"))).must(); // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
         assert_eq!(plan.format, SnapshotFormat::Png);
     }
 
     #[test]
     fn unknown_extension_is_refused_typed_not_fallen_back() {
         let config = SnapshotConfig::default();
-        assert!(config.plan(Some(Path::new("/tmp/x.webp"))).is_none());
+        assert!(config.plan(Some(Path::new("/tmp/x.webp"))).is_none()); // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
     }
 
     #[test]

@@ -113,7 +113,7 @@ mod tests {
     /// line. The arm guards future ids — exactly what it says.
     #[test]
     fn unwired_format_is_refused_with_the_format_named() {
-        let uri = SourceUri::parse("file:///tmp/any.mpg").must();
+        let uri = SourceUri::parse("file:///tmp/any.mpg").must(); // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
         let opts = OpenOptions {
             uri,
             start_time_us: None,

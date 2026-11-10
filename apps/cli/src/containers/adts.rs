@@ -368,7 +368,7 @@ mod tests {
     #[test]
     fn reserved_sampling_index_refuses_at_the_demux_stage() {
         let bytes = demux::adts::test_support::adts_frame(1, 15, 2, 1, 100, None);
-        let path = std::env::temp_dir().join("lumen-cli-adts-bad-index.aac");
+        let path = std::env::temp_dir().join("lumen-cli-adts-bad-index.aac"); // lumen-allow-literal: cfg(test) scratch filename — test-only, never a shipped surface
         std::fs::write(&path, &bytes).must();
         let err = match open_source(&SourceSpec::File { path: path.clone() }, None, false, false) {
             Ok(_) => unreachable!("a reserved sampling index must refuse"),
@@ -396,7 +396,7 @@ mod tests {
                 0, 4, 2, 1, 100, None,
             ));
         }
-        let path = std::env::temp_dir().join("lumen-cli-adts-main.aac");
+        let path = std::env::temp_dir().join("lumen-cli-adts-main.aac"); // lumen-allow-literal: cfg(test) scratch filename — test-only, never a shipped surface
         std::fs::write(&path, &stream).must();
         let opened = open(path.clone(), None);
         std::fs::remove_file(&path).ok();
@@ -464,10 +464,11 @@ mod tests {
     /// sandbox default. `None` when neither exists (the loud skip —
     /// the crates/demux/tests/adts_corpus.rs convention).
     fn corpus_dir() -> Option<PathBuf> {
+        // lumen-allow-literal: cfg(test) corpus-gate env-var name — test harness knob, not product config
         if let Ok(dir) = std::env::var("LUMEN_CORPUS") {
             return Some(PathBuf::from(dir));
         }
-        let default = PathBuf::from("/tmp/my-project/corpus-v4/media");
+        let default = PathBuf::from("/tmp/my-project/corpus-v4/media"); // lumen-allow-literal: cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
         default.is_dir().then_some(default)
     }
 
@@ -475,6 +476,7 @@ mod tests {
     fn corpus_adts_lanes_decode_through_the_open_path() {
         let Some(dir) = corpus_dir() else {
             eprintln!(
+                // lumen-allow-literal: cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
                 "corpus(adts-cli): /tmp/my-project/corpus-v4/media absent and LUMEN_CORPUS \
                  unset — SKIP (the differential table for this instance is in the worklog)"
             );
@@ -537,6 +539,7 @@ mod tests {
     fn corpus_dirty_tail_lane_is_honest_through_the_open_path() {
         let Some(dir) = corpus_dir() else {
             eprintln!(
+                // lumen-allow-literal: cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
                 "corpus(adts-cli): /tmp/my-project/corpus-v4/media absent and LUMEN_CORPUS \
                  unset — SKIP (dirty lane)"
             );

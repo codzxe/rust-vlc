@@ -135,8 +135,8 @@ mod tests {
         let mut dnd = PathDragDrop;
         let request = match dnd.on_files_dropped(
             &[
-                PathBuf::from("/tmp/notes.txt"),
-                PathBuf::from("/tmp/movie.avi"),
+                PathBuf::from("/tmp/notes.txt"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+                PathBuf::from("/tmp/movie.avi"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
             ],
             RequestId(5),
         ) {
@@ -148,7 +148,7 @@ mod tests {
         match request.command {
             Command::SessionOpen { source, .. } => match source {
                 commands::catalog::types::SourceSpec::File { path } => {
-                    assert_eq!(path, PathBuf::from("/tmp/movie.avi"));
+                    assert_eq!(path, PathBuf::from("/tmp/movie.avi")); // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
                 }
                 other => unreachable!("drop open must be a Path source: {other:?}"),
             },
@@ -160,12 +160,12 @@ mod tests {
     fn drops_without_media_are_noops_not_errors() {
         let mut dnd = PathDragDrop;
         let answer = dnd
-            .on_files_dropped(&[PathBuf::from("/tmp/README.md")], RequestId(6))
+            .on_files_dropped(&[PathBuf::from("/tmp/README.md")], RequestId(6)) // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
             .unwrap_or_else(|err| unreachable!("no media is a no-op: {err}"));
         assert!(answer.is_none());
         // Case-insensitive suffix matching.
         let answer = dnd
-            .on_files_dropped(&[PathBuf::from("/tmp/Song.MP3")], RequestId(7))
+            .on_files_dropped(&[PathBuf::from("/tmp/Song.MP3")], RequestId(7)) // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
             .unwrap_or_else(|err| unreachable!("one media file: {err}"));
         assert!(answer.is_some());
     }
@@ -177,11 +177,11 @@ mod tests {
     fn playlist_drops_load_the_list_not_a_session() {
         let mut dnd = PathDragDrop;
         for (index, path) in [
-            PathBuf::from("/tmp/queue.m3u"),
-            PathBuf::from("/tmp/Queue.M3U8"),
-            PathBuf::from("/tmp/radio.pls"),
-            PathBuf::from("/tmp/library.xspf"),
-            PathBuf::from("/tmp/album.cue"),
+            PathBuf::from("/tmp/queue.m3u"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            PathBuf::from("/tmp/Queue.M3U8"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            PathBuf::from("/tmp/radio.pls"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            PathBuf::from("/tmp/library.xspf"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            PathBuf::from("/tmp/album.cue"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
         ]
         .into_iter()
         .enumerate()
@@ -211,14 +211,14 @@ mod tests {
     /// unknown suffixes stay no-ops (never a guessed kind).
     #[test]
     fn path_classification_is_exact() {
-        assert!(is_playlist_path(&PathBuf::from("/tmp/x.m3u")));
-        assert!(!is_playlist_path(&PathBuf::from("/tmp/x.m3u.bak")));
-        assert!(!is_playlist_path(&PathBuf::from("/tmp/movie.avi")));
-        assert!(!is_playlist_path(&PathBuf::from("/tmp/noext")));
-        assert!(!is_playlist_path(&PathBuf::from("/tmp/.m3u")));
-        assert!(is_openable_path(&PathBuf::from("/tmp/movie.avi")));
-        assert!(is_openable_path(&PathBuf::from("/tmp/queue.pls")));
-        assert!(!is_openable_path(&PathBuf::from("/tmp/README.md")));
+        assert!(is_playlist_path(&PathBuf::from("/tmp/x.m3u"))); // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+        assert!(!is_playlist_path(&PathBuf::from("/tmp/x.m3u.bak"))); // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+        assert!(!is_playlist_path(&PathBuf::from("/tmp/movie.avi"))); // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+        assert!(!is_playlist_path(&PathBuf::from("/tmp/noext"))); // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+        assert!(!is_playlist_path(&PathBuf::from("/tmp/.m3u"))); // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+        assert!(is_openable_path(&PathBuf::from("/tmp/movie.avi"))); // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+        assert!(is_openable_path(&PathBuf::from("/tmp/queue.pls"))); // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+        assert!(!is_openable_path(&PathBuf::from("/tmp/README.md"))); // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
     }
 
     /// The dialog seam in this build answers the typed pending

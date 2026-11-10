@@ -1258,7 +1258,7 @@ mod tests {
         let fetch: Arc<dyn HttpFetch> = Arc::new(Shrinker {
             body: pattern(2048),
         });
-        let mut r = open(fetch, "http://shrink.example.org/live", tight());
+        let mut r = open(fetch, "http://shrink.example.org/live", tight()); // lumen-allow-literal: URL parse/redaction test vector — data under test
         assert_eq!(
             r.size(),
             Some(5000),
@@ -1389,7 +1389,7 @@ mod tests {
         let fetch: Arc<dyn HttpFetch> = Arc::new(StarTotals {
             inner: UnknownLen { body: data.clone() },
         });
-        let mut r = open(fetch, "http://unknown.example.org/live", tight());
+        let mut r = open(fetch, "http://unknown.example.org/live", tight()); // lumen-allow-literal: URL parse/redaction test vector — data under test
         assert_eq!(r.size(), None, "no fabricated length");
         // Seeks accept any target (the store is the judge); reading
         // past the store's end is a clean EOF.
@@ -1804,7 +1804,7 @@ mod tests {
             chunk_bytes: 1024,
             no_range: NoRangePolicy::FallbackToScan,
         };
-        let mut r = open(fetch, "http://flip.example.org/live", config);
+        let mut r = open(fetch, "http://flip.example.org/live", config); // lumen-allow-literal: URL parse/redaction test vector — data under test
         assert_eq!(r.size(), Some(4096), "the ranged probe fixed the length");
         let got = r.read(4000).unwrap_or_else(|e| unreachable!("{e}"));
         assert_eq!(got, &data[..4000], "the flip did not corrupt a byte");
@@ -1845,7 +1845,7 @@ mod tests {
             chunk_bytes: 1024,
             no_range: NoRangePolicy::RequireRange,
         };
-        let mut r = open(fetch, "http://flip.example.org/live", config);
+        let mut r = open(fetch, "http://flip.example.org/live", config); // lumen-allow-literal: URL parse/redaction test vector — data under test
         assert_eq!(r.size(), Some(4096));
         let first = r.read(1024).unwrap_or_else(|e| unreachable!("{e}"));
         assert_eq!(first.len(), 1024, "the probe window served the first read");
@@ -1878,7 +1878,7 @@ mod tests {
         }
         let fetch: Arc<dyn HttpFetch> = Arc::new(Liar { body: pattern(500) });
         let err = testkit::assert_err(
-            RangedResource::open(fetch, "http://liar.example.org/x", scan()),
+            RangedResource::open(fetch, "http://liar.example.org/x", scan()), // lumen-allow-literal: URL parse/redaction test vector — data under test
             "lying Content-Length",
         );
         assert_eq!(err.context.code, "streaming.ranged.protocol-violation");

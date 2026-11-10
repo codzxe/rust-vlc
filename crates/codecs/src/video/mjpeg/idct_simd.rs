@@ -127,7 +127,7 @@ pub(crate) fn idct_block_dispatch(block: &[i16; 64], qt: &[u16; 64], out: &mut [
     #[cfg(target_arch = "x86_64")]
     {
         // Opt-in only (see the LEAD DECISION note above).
-        if std::env::var_os("LUMEN_MJPEG_IDCT_SIMD").is_some()
+        if std::env::var_os("LUMEN_MJPEG_IDCT_SIMD").is_some() // lumen-allow-literal: engine-internal opt-in env knob name, not product identity
             && std::arch::is_x86_feature_detected!("sse4.1")
         {
             // SAFETY: the kernel is #[target_feature(enable = "sse4.1")]

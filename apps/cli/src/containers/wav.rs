@@ -294,7 +294,7 @@ mod tests {
         wav.extend_from_slice(b"data");
         wav.extend_from_slice(&data_len.to_le_bytes());
         wav.extend_from_slice(&block);
-        let path = std::env::temp_dir().join("lumen-cli-adpcm-ima.wav");
+        let path = std::env::temp_dir().join("lumen-cli-adpcm-ima.wav"); // lumen-allow-literal: cfg(test) scratch filename — test-only, never a shipped surface
         std::fs::write(&path, &wav).must();
         let opened = open(path.clone(), None);
         std::fs::remove_file(&path).ok();
@@ -387,7 +387,7 @@ mod tests {
             .unwrap_or_else(|| unreachable!("no fmt chunk"));
         let mut broken = bytes.clone();
         broken[at..at + 4].copy_from_slice(b"xxxx");
-        let path = std::env::temp_dir().join("lumen-cli-wav-broken-fmt.wav");
+        let path = std::env::temp_dir().join("lumen-cli-wav-broken-fmt.wav"); // lumen-allow-literal: cfg(test) scratch filename — test-only, never a shipped surface
         std::fs::write(&path, &broken).must();
         let err = match open_source(&SourceSpec::File { path: path.clone() }, None, false, false) {
             Ok(_) => unreachable!("a destroyed fmt chunk must refuse"),
@@ -507,10 +507,11 @@ mod tests {
     /// sandbox default. `None` when neither exists (the loud skip —
     /// the crates/demux/tests/corpus_wav.rs convention).
     fn corpus_dir() -> Option<PathBuf> {
+        // lumen-allow-literal: cfg(test) corpus-gate env-var name — test harness knob, not product config
         if let Ok(dir) = std::env::var("LUMEN_CORPUS") {
             return Some(PathBuf::from(dir));
         }
-        let default = PathBuf::from("/tmp/my-project/corpus-v4/media");
+        let default = PathBuf::from("/tmp/my-project/corpus-v4/media"); // lumen-allow-literal: cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
         default.is_dir().then_some(default)
     }
 
@@ -518,6 +519,7 @@ mod tests {
     fn corpus_wav_lanes_decode_through_the_open_path() {
         let Some(dir) = corpus_dir() else {
             eprintln!(
+                // lumen-allow-literal: cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
                 "corpus(wav-cli): /tmp/my-project/corpus-v4/media absent and LUMEN_CORPUS \
                  unset — SKIP (the differential table for the 2026-10-24 instance is in \
                  the worklog)"
