@@ -299,6 +299,46 @@ fn handshake_failure_non_upgrade_http_gets_an_http_error() {
     assert_eq!(summaries[0].requests_served, 0, "no command executed");
 }
 
+#[test]
+fn dns_rebound_host_names_never_upgrade() {
+    // Regression (sweep 3/4, DNS-rebinding fence): a browser redirected
+    // to a rebound name still sends `Host: <that name>`; the upgrade
+    // must die at the handshake with an HTTP error even when every
+    // other WebSocket header is perfectly valid — otherwise read-only
+    // mode's unauthenticated subset would be reachable from web pages.
+    let harness = Harness::spawn(ServerPolicy::deny_all_sensitive(), 1);
+    let addr = harness.addr();
+    let mut raw = match std::net::TcpStream::connect(&addr) {
+        Ok(stream) => stream,
+        Err(err) => unreachable!("{err}"),
+    };
+    // lumen-allow-literal: adversarial test-double host for the rebinding fence
+    if let Err(err) = raw.write_all(
+        b"GET /lumen-control HTTP/1.1\r\n\
+           Host: evil.example:4355\r\n\
+           Upgrade: websocket\r\n\
+           Connection: Upgrade\r\n\
+           Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\
+           Sec-WebSocket-Version: 13\r\n\r\n",
+    ) {
+        unreachable!("{err}");
+    }
+    let mut response = Vec::new();
+    let _ = raw.read_to_end(&mut response);
+    let head = String::from_utf8_lossy(&response).into_owned();
+    assert!(
+        head.starts_with("HTTP/1.1 400"),
+        "the rebound Host gets an HTTP error, not a 101: {head:?}"
+    );
+    assert!(
+        !head.contains("101"),
+        "no protocol switch for a rebound name"
+    );
+    let summaries = harness.join();
+    assert_eq!(summaries[0].requests_served, 0, "no command executed");
+    assert!(!summaries[0].authenticated, "no session ever established");
+}
+
 // ---------------------------------------------------------------------------
 // Token handshake
 // ---------------------------------------------------------------------------
