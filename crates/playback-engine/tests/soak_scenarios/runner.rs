@@ -1024,6 +1024,19 @@ fn run_count_scenario(
             defaults.fd_growth_budget
         ));
     }
+    if rss_baseline_kb.is_none() {
+        // The honest-absent note (review W24-R4 P3-4), mirroring the fd
+        // instrument's below: off-Linux there is no /proc/self/status,
+        // so the RSS-growth block above silently skipping its check
+        // would read as a measurement (the duration scenarios already
+        // print "VmRSS slope: n/a" — only the count scenarios lacked
+        // the note).
+        run.note(
+            "the VmRSS instrument is not available on this platform (/proc/self/status) — \
+             the RSS-growth budget was NOT evaluated"
+                .to_string(),
+        );
+    }
     if fd_baseline.is_none() {
         // The honest-absent note (never a pass, never a fail): the fd
         // instrument does not exist on this platform.
