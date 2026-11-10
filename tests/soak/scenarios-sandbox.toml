@@ -14,7 +14,7 @@
 #
 # The asserted ceiling stays the generous 50 MB/h (this run MEASURES
 # the slopes; the 5 MB/h target is reported with a freeze-or-revise
-# verdict in docs/soak/soak-report-2026-11-10.md rather than asserted
+# verdict in docs/soak/soak-report-20261110.md rather than asserted
 # from a 34-minute window — extrapolation honesty).
 
 schema = 1

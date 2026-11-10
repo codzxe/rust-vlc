@@ -8,7 +8,7 @@
 # the card's "4 h × scenarios" tier, sized to the workflow's
 # 300-minute job timeout (build + run). Per-scenario minutes and cycle
 # counts are calibrated from the bounded sandbox run of 2026-11-10
-# (docs/soak/soak-report-2026-11-10.md §"cycle calibration"); the
+# (docs/soak/soak-report-20261110.md §"cycle calibration"); the
 # first real nightly may re-balance them — that is a config edit in
 # THIS file, never a code change (the config path this suite exists to
 # prove).
