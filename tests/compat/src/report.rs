@@ -937,10 +937,17 @@ fn format_cell(
                     .iter()
                     .filter(|(_, r)| matches!(r.outcome, FileOutcome::DecodedPartial))
                     .count();
+                // The row's honest denominator is EVERY valid-class
+                // corpus file of the family — the probe-matched files
+                // PLUS the extension-matched ones the open path refused
+                // (the `files` array behind the table's corpus-files
+                // column is exactly `valid` + `refused`; the refusals
+                // must be visible in the cell, never only in the raw
+                // rows — review finding P2-1).
                 let mut detail = format!(
                     "{}/{} files open+demux ({} fully decoded, {} with a codec-side NoDecoder track)",
-                    valid.len() - refusal_count(valid),
                     valid.len(),
+                    valid.len() + refused.len(),
                     decoded,
                     partial
                 );
@@ -954,6 +961,14 @@ fn format_cell(
                 }) {
                     detail.push_str("; worst: ");
                     detail.push_str(&outcome_message(&record.outcome));
+                }
+                if !refused.is_empty() {
+                    detail.push_str(&format!(
+                        "; {} extension-matched corpus file{} REFUSED at the open path — {}",
+                        refused.len(),
+                        if refused.len() == 1 { "" } else { "s" },
+                        refusal_breakdown(refused)
+                    ));
                 }
                 if malformed > 0 {
                     detail.push_str(&format!(
@@ -1028,19 +1043,23 @@ fn claim_out(claim: &MatrixClaim) -> ClaimOut {
     }
 }
 
-/// How many of the valid files were refused outright.
-fn refusal_count(valid: &[&(CorpusFile, FileRecord)]) -> usize {
-    valid
+/// Summarize a row's in-row refusals for the cell detail: each
+/// distinct typed message with its count (deterministic order —
+/// alphabetical by message). The refusal bucket only ever holds
+/// `Refused{Probe,Demux,Input}` records, so every entry is a real
+/// typed refusal (review finding P2-1: counted, now surfaced).
+fn refusal_breakdown(refused: &[&(CorpusFile, FileRecord)]) -> String {
+    let mut by_message: BTreeMap<String, usize> = BTreeMap::new();
+    for (_, record) in refused {
+        *by_message
+            .entry(outcome_message(&record.outcome))
+            .or_default() += 1;
+    }
+    by_message
         .iter()
-        .filter(|(_, r)| {
-            matches!(
-                r.outcome,
-                FileOutcome::RefusedProbe { .. }
-                    | FileOutcome::RefusedDemux { .. }
-                    | FileOutcome::RefusedInput { .. }
-            )
-        })
-        .count()
+        .map(|(message, count)| format!("{message} ×{count}"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// One codec-row cell for one lane.
@@ -1811,5 +1830,190 @@ fn truncate(text: &str, len: usize) -> String {
         text.to_string()
     } else {
         format!("{}…", &text[..len])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A minimal valid-class corpus file fixture.
+    fn corpus_file(rel: &str) -> CorpusFile {
+        CorpusFile {
+            rel: rel.to_string(),
+            path: std::path::PathBuf::from(format!("/corpus/{rel}")),
+            class: CorpusClass::Regen,
+            dump_pcm: false,
+        }
+    }
+
+    /// A FileRecord skeleton (outcome + probe format are what the
+    /// cell logic reads).
+    fn record(outcome: FileOutcome, probe_format: Option<&str>) -> FileRecord {
+        FileRecord {
+            rel: String::new(),
+            path: String::new(),
+            bytes: 0,
+            outcome,
+            probe_format: probe_format.map(String::from),
+            tracks: Vec::new(),
+            demux_recovered: 0,
+            demux_skip_bytes: 0,
+            skipped_non_av_tracks: 0,
+            decode_s: 0.0,
+        }
+    }
+
+    /// Borrow a fixture list the way the cell functions take it.
+    fn as_refs(rows: &[(CorpusFile, FileRecord)]) -> Vec<&(CorpusFile, FileRecord)> {
+        rows.iter().collect()
+    }
+
+    fn native_lane() -> crate::config::Lane {
+        crate::config::Lane {
+            id: "linux-native".to_string(),
+            label: "Linux native decode".to_string(),
+            kind: crate::config::LaneKind::NativeDecode {
+                platform: "linux".to_string(),
+            },
+        }
+    }
+
+    /// P2-1: a MIXED row (probe-matched files that decode + an
+    /// extension-matched file the open path refused) must surface the
+    /// refusal in the cell text — the denominator is the row's whole
+    /// valid-class file set, and the typed refusal messages are named.
+    #[test]
+    fn mixed_row_surfaces_its_refusals() {
+        let valid_rows = [
+            (
+                corpus_file("a-avi-video.avi"),
+                record(FileOutcome::Decoded, Some("avi")),
+            ),
+            (
+                corpus_file("b-avi-video.avi"),
+                record(FileOutcome::DecodedPartial, Some("avi")),
+            ),
+        ];
+        let valid = as_refs(&valid_rows);
+        let refused_rows = [(
+            corpus_file("c-avi-video.avi"),
+            record(
+                FileOutcome::RefusedDemux {
+                    message: "unsupported in avi (demux.avi.no-supported-streams)".to_string(),
+                },
+                None,
+            ),
+        )];
+        let refused = as_refs(&refused_rows);
+        let cell = format_cell(&native_lane(), &valid, &refused, 0);
+        assert_eq!(cell.status, "decoded");
+        assert!(
+            cell.detail.contains("2/3 files open+demux"),
+            "denominator must count the refused file too: {}",
+            cell.detail
+        );
+        assert!(
+            cell.detail
+                .contains("1 extension-matched corpus file REFUSED at the open path"),
+            "the in-row refusal must be surfaced: {}",
+            cell.detail
+        );
+        assert!(
+            cell.detail
+                .contains("unsupported in avi (demux.avi.no-supported-streams) ×1"),
+            "the typed refusal message must be quoted with its count: {}",
+            cell.detail
+        );
+    }
+
+    /// P2-1: distinct refusal messages are each named with their own
+    /// count (deterministic order).
+    #[test]
+    fn distinct_refusal_messages_are_each_counted() {
+        let refused_rows = [
+            (
+                corpus_file("a.wav"),
+                record(
+                    FileOutcome::RefusedDemux {
+                        message: "unsupported in wav (demux.wav.unsupported-format)".to_string(),
+                    },
+                    None,
+                ),
+            ),
+            (
+                corpus_file("b.wav"),
+                record(
+                    FileOutcome::RefusedProbe {
+                        message: "no signature".to_string(),
+                    },
+                    None,
+                ),
+            ),
+            (
+                corpus_file("c.wav"),
+                record(
+                    FileOutcome::RefusedDemux {
+                        message: "unsupported in wav (demux.wav.unsupported-format)".to_string(),
+                    },
+                    None,
+                ),
+            ),
+        ];
+        let refused = as_refs(&refused_rows);
+        assert_eq!(
+            refusal_breakdown(&refused),
+            "no signature ×1, unsupported in wav (demux.wav.unsupported-format) ×2"
+        );
+    }
+
+    /// P2-1 (control): a pure row renders exactly as before — same
+    /// denominator semantics (n/n), no refusal clause.
+    #[test]
+    fn pure_row_has_no_refusal_clause() {
+        let valid_rows = [
+            (
+                corpus_file("a.wav"),
+                record(FileOutcome::Decoded, Some("wav")),
+            ),
+            (
+                corpus_file("b.wav"),
+                record(FileOutcome::Decoded, Some("wav")),
+            ),
+        ];
+        let valid = as_refs(&valid_rows);
+        let cell = format_cell(&native_lane(), &valid, &[], 0);
+        assert!(cell.detail.contains("2/2 files open+demux"));
+        assert!(!cell.detail.contains("REFUSED"));
+    }
+
+    /// P2-1 (control): the all-refused arm is unchanged — status
+    /// `refused`, every file named as refused.
+    #[test]
+    fn all_refused_row_stays_refused() {
+        let refused_rows = [
+            (
+                corpus_file("a.wmv"),
+                record(
+                    FileOutcome::RefusedProbe {
+                        message: "unsupported".to_string(),
+                    },
+                    None,
+                ),
+            ),
+            (
+                corpus_file("b.wmv"),
+                record(
+                    FileOutcome::RefusedProbe {
+                        message: "unsupported".to_string(),
+                    },
+                    None,
+                ),
+            ),
+        ];
+        let refused = as_refs(&refused_rows);
+        let cell = format_cell(&native_lane(), &[], &refused, 0);
+        assert_eq!(cell.status, "refused");
+        assert!(cell.detail.contains("2/2 corpus files REFUSED"));
     }
 }

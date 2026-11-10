@@ -1183,7 +1183,7 @@
         {
           "lane": "linux-native",
           "status": "decoded",
-          "detail": "41/41 files open+demux (41 fully decoded, 0 with a codec-side NoDecoder track); error-contract: 9 malformed variants, all typed (zero crashes)"
+          "detail": "41/43 files open+demux (41 fully decoded, 0 with a codec-side NoDecoder track); 2 extension-matched corpus files REFUSED at the open path — unsupported in avi (demux.avi.no-supported-streams) ×2; error-contract: 9 malformed variants, all typed (zero crashes)"
         },
         {
           "lane": "web-wasm",
@@ -1523,7 +1523,7 @@
         {
           "lane": "linux-native",
           "status": "decoded",
-          "detail": "8/8 files open+demux (8 fully decoded, 0 with a codec-side NoDecoder track)"
+          "detail": "8/10 files open+demux (8 fully decoded, 0 with a codec-side NoDecoder track); 2 extension-matched corpus files REFUSED at the open path — unsupported in wav (demux.wav.unsupported-format) ×2"
         },
         {
           "lane": "web-wasm",
@@ -2980,6 +2980,7 @@
     "The native-decode lane (`linux-native`) is the only lane that decoded media in this run. Windows/macOS cells are blocked-lane citations (3-OS runner machines + CI billing are user-owned blockers — docs/plans/phase8-cards.md §1); NO result is inferred for platforms that did not run.",
     "The web/wasm lane evidence is the recorded build/test steps: the wasm32 module is real (engine core: probe → demux → engine), but it ships DECODER-LESS on wasm32 — the codecs crate does not build for the target (rav1d 1.1.0 asm-gated, measured 2026-11-10; apps/web/Cargo.toml target gate; apps/web/src/capabilities.rs reports the split honestly). No decode is claimed or exercised on the web lane.",
     "Oracle comparisons cover the lossless-comparable family only (PCM-in-AVI, the documented first vertical): integer PCM via the MD5-prefix method (VLC's afile dump is a bit-exact prefix; the shortfall is the unflushed tail), pcm_f32le via the ratified RMS ≤ 1e-4 / peak ≤ 1e-3 tolerance path (docs/corpus/vlc-f32-tolerance-20261109.json). Lossy codecs are not byte-compared — decoder implementations legitimately differ; their rows carry decode-count evidence only.",
-    "Transitions are PROPOSALS in the outbox (5); only `cargo xtask compat-matrix apply-transitions` writes the matrix, after re-checking each `from` status against the live file. Nothing here self-verifies: no transition proposes `verified` (CI billing is blocked; MP §15)."
+    "Transitions are PROPOSALS in the outbox (5); only `cargo xtask compat-matrix apply-transitions` writes the matrix, after re-checking each `from` status against the live file. Nothing here self-verifies: no transition proposes `verified` (CI billing is blocked; MP §15).",
+    "POST-RUN EDITORIAL NOTE (appended by hand by the W24-P review-fix lane, branch w24/p, 2026-11-10 — finding P2-1 of the W24-L audit, docs/reviews/w24-d-compat-findings.md): the linux-native cell details of the avi and wav format rows were surgically updated to surface the four in-row codec-level refusals (denominators 43/10; refusal messages named) so this machine record matches the fixed renderer. Nothing else was altered; the raw rows (compat-matrix-20261110.raw-rows.jsonl) are the immutable evidence and were not touched."
   ]
 }
