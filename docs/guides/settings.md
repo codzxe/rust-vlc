@@ -70,8 +70,12 @@ $ lumen --help playback
 Engine-internal (`ui = false`): `engine.log-level`,
 `engine.tick-interval-ms`, `engine.max-event-rate`,
 `engine.probe-max-bytes`, `engine.queue-packets-audio`,
-`engine.queue-packets-video`, plus the extension-host crash-backoff
-trio — see `schemas/settings.toml` for ranges and defaults.
+`engine.queue-packets-video`, plus the five extension-host
+crash-isolation keys (`extensions.crash-backoff-initial-ms`,
+`crash-backoff-multiplier`, `crash-backoff-max-ms`,
+`crash-restart-limit`, `crash-disabled-reenable-ms` — the wave-23
+crash-isolation work, issue #46) — see `schemas/settings.toml` for
+ranges and defaults.
 
 Ranges are **reviewed safety bounds** (`product.schema.json`): an
 out-of-range value is rejected with a diagnostic, never silently
