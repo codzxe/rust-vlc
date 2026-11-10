@@ -205,7 +205,7 @@ fn owner_of(id: &str) -> &'static str {
     } else if id.starts_with("media.") {
         "chapters and their navigation are the chapter card"
     } else {
-        "not in the first vertical's served set (see `lumen commands`)"
+        "not in the first vertical's served set (see `lumen commands`)" // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
     }
 }
 
@@ -320,7 +320,7 @@ mod tests {
             &mut host,
             &request(Command::SessionOpen {
                 source: SourceSpec::Url {
-                    url: "https://example.org/x.mp4".to_string(),
+                    url: "https://example.org/x.mp4".to_string(), // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
                 },
                 options: Default::default(),
             }),

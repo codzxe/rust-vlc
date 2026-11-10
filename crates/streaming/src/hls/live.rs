@@ -897,6 +897,7 @@ mod tests {
             &[w1],
             &[("/seg0", b"AAAA"), ("/seg1", b"BBBB"), ("/seg2", b"CC")],
         );
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let mut stream = match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
             Ok(s) => s,
             Err(e) => unreachable!("live must open: {e}"),
@@ -938,6 +939,7 @@ mod tests {
                 ("/seg4", b"EE"),
             ],
         );
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let mut stream = match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
             Ok(s) => s,
             Err(e) => unreachable!("open: {e}"),
@@ -975,6 +977,7 @@ mod tests {
             &[w1, w2],
             &[("/seg1", b"BBBB"), ("/seg2", b"CC"), ("/seg3", b"DDDD")],
         );
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let mut stream = match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
             Ok(s) => s,
             Err(e) => unreachable!("open: {e}"),
@@ -1000,6 +1003,7 @@ mod tests {
         let w1 = "#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-MEDIA-SEQUENCE:0\n\
               #EXTINF:1.0,\nseg0\n#EXTINF:1.0,\nseg1\n#EXTINF:1.0,\nseg2\n";
         let fetch = LiveRouter::new(&[w1], &[("/seg1", b"BBBB"), ("/seg2", b"CC")]);
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let mut stream = match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
             Ok(s) => s,
             Err(e) => unreachable!("open: {e}"),
@@ -1048,6 +1052,7 @@ mod tests {
             pacing_clock: Some(Arc::new(clock.clone())),
             ..HlsLiveConfig::default()
         };
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let mut stream = match open_live(fetch.clone(), "http://unit.test/pl.m3u8", config) {
             Ok(s) => s,
             Err(e) => unreachable!("open: {e}"),
@@ -1093,6 +1098,7 @@ mod tests {
             pacing_clock: Some(Arc::new(clock.clone())),
             ..HlsLiveConfig::default()
         };
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let mut stream = match open_live(fetch.clone(), "http://unit.test/pl.m3u8", config) {
             Ok(s) => s,
             Err(e) => unreachable!("open: {e}"),
@@ -1131,6 +1137,7 @@ mod tests {
                 ("/seg5", b"EE"),
             ],
         );
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let mut stream = match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
             Ok(s) => s,
             Err(e) => unreachable!("open: {e}"),
@@ -1169,6 +1176,7 @@ mod tests {
             &[w1, w2],
             &[("/seg6", b"BB"), ("/seg7", b"CC"), ("/seg5", b"AA")],
         );
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let mut stream = match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
             Ok(s) => s,
             Err(e) => unreachable!("open: {e}"),
@@ -1204,6 +1212,7 @@ mod tests {
             &[w1, w2],
             &[("/seg1", b"BBBB"), ("/seg2", b"CC"), ("/seg3", b"DDDD")],
         );
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let mut stream = match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
             Ok(s) => s,
             Err(e) => unreachable!("open: {e}"),
@@ -1230,6 +1239,7 @@ mod tests {
     fn live_refusal_table_is_typed() {
         fn code_for(playlist: &str) -> String {
             let fetch = LiveRouter::new(&[playlist], &[("/s.ts", b"x")]);
+            // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
             match open_live(fetch, "http://unit.test/pl.m3u8", fast_config()) {
                 Ok(_) => unreachable!("shape must refuse: {playlist:?}"),
                 Err(e) => e.context.code.clone(),
@@ -1259,7 +1269,7 @@ mod tests {
         // A discontinuity does NOT refuse.
         let disc = "#EXTM3U\n#EXTINF:1.0,\ns.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:1.0,\ns.ts\n";
         let fetch = LiveRouter::new(&[disc], &[("/s.ts", b"x")]);
-        assert!(open_live(fetch, "http://unit.test/pl.m3u8", fast_config()).is_ok());
+        assert!(open_live(fetch, "http://unit.test/pl.m3u8", fast_config()).is_ok()); // lumen-allow-literal: URL parse/redaction test vector — data under test
     }
 
     /// An encrypted shape arriving on a RELOAD refuses too (a live
@@ -1276,6 +1286,7 @@ mod tests {
             &[w1, w2],
             &[("/seg1", b"BBBB"), ("/seg2", b"CC"), ("/seg3", b"DDDD")],
         );
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let mut stream = match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
             Ok(s) => s,
             Err(e) => unreachable!("open: {e}"),
@@ -1300,6 +1311,7 @@ mod tests {
         let w1 = "#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-MEDIA-SEQUENCE:0\n\
               #EXTINF:1.0,\nseg0\n#EXTINF:1.0,\nseg1\n#EXTINF:1.0,\nseg2\n";
         let fetch = LiveRouter::new(&[w1], &[("/seg1", b"BBBB"), ("/seg2", b"CC")]);
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let mut stream = match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
             Ok(s) => s,
             Err(e) => unreachable!("open: {e}"),
@@ -1337,6 +1349,7 @@ mod tests {
             max_retained_bytes: 4,
             ..HlsLiveConfig::default()
         };
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let mut stream = match open_live(fetch, "http://unit.test/pl.m3u8", tiny) {
             Ok(s) => s,
             Err(e) => unreachable!("open tiny: {e}"),
@@ -1362,6 +1375,7 @@ mod tests {
             segment_response_limit: 0,
             ..HlsLiveConfig::default()
         };
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let Err(err) = open_live(fetch.clone(), "http://unit.test/pl.m3u8", zero) else {
             unreachable!("zero budget must refuse");
         };
@@ -1370,6 +1384,7 @@ mod tests {
             max_retained_bytes: MAX_RETAINED_BYTES + 1,
             ..HlsLiveConfig::default()
         };
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let Err(err) = open_live(fetch, "http://unit.test/pl.m3u8", over) else {
             unreachable!("over-ceiling retention must refuse");
         };
@@ -1402,6 +1417,7 @@ mod tests {
                 ("/seg3", b"DDD"),
             ],
         );
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let mut stream = match open_live(fetch.clone(), "http://unit.test/pl.m3u8", fast_config()) {
             Ok(s) => s,
             Err(e) => unreachable!("live must open: {e}"),
@@ -1446,6 +1462,7 @@ mod tests {
         let w1 = "#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-MEDIA-SEQUENCE:0\n\
               #EXTINF:1.0,\nseg0\n#EXTINF:1.0,\nseg1\n";
         let fetch = LiveRouter::new(&[w1], &[("/seg0", b"AAAA"), ("/seg1", b"BB")]);
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let stream = match open_live(fetch, "http://unit.test/pl.m3u8", fast_config()) {
             Ok(s) => s,
             Err(e) => unreachable!("live must open: {e}"),

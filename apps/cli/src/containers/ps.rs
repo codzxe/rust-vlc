@@ -631,7 +631,7 @@ mod tests {
     impl TempDir {
         fn new(tag: &str) -> TempDir {
             let dir =
-                std::env::temp_dir().join(format!("lumen-opw-ps-{tag}-{}", std::process::id()));
+                std::env::temp_dir().join(format!("lumen-opw-ps-{tag}-{}", std::process::id())); // lumen-allow-literal: cfg(test) scratch filename — test-only, never a shipped surface
             std::fs::create_dir_all(&dir).must();
             TempDir(dir)
         }

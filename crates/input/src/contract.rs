@@ -174,7 +174,7 @@ impl SyntheticStream {
     /// ceiling) or the internal synthetic URI fails validation.
     pub fn new(data: &[u8], capacity: usize) -> Result<SyntheticStream, EngineError> {
         let reader = BufferedReader::new(ScriptSource::new(data), capacity)?;
-        let uri = SourceUri::parse("file:///lumen-synthetic-source")?;
+        let uri = SourceUri::parse("file:///lumen-synthetic-source")?; // lumen-allow-literal: engine-internal synthetic URI label — never user-visible
         Ok(SyntheticStream { reader, uri })
     }
 

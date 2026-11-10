@@ -147,7 +147,7 @@ mod tests {
                 id: "upnp-1".to_string(),
                 name: "Living Room".to_string(),
                 kind: "upnp-media-server".to_string(),
-                uri: "http://192.0.2.7:8200/".to_string(),
+                uri: "http://192.0.2.7:8200/".to_string(), // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
             }],
             events: std::sync::Mutex::new(vec![DiscoveryChange::Removed {
                 id: "upnp-2".to_string(),

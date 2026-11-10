@@ -219,7 +219,7 @@ fn repl_mode<R: BufRead, W: Write, E: Write>(
     let _ = interactive;
     loop {
         if interactive {
-            let _ = write!(out, "lumen> ");
+            let _ = write!(out, "lumen> "); // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
             let _ = out.flush();
         }
         let mut line = String::new();
@@ -834,8 +834,8 @@ fn to_catalog(command: &CliCommand) -> Result<Command, ParseError> {
             })
         }
         CliCommand::DecodeBench { .. } => Err(ParseError::new(
-            "`decode-bench` is an argv-only host verb (lumen decode-bench <file>)",
-            "usage: lumen decode-bench <file>",
+            "`decode-bench` is an argv-only host verb (lumen decode-bench <file>)", // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+            "usage: lumen decode-bench <file>", // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
         )),
         CliCommand::Advance { .. } | CliCommand::Help | CliCommand::Quit => Err(ParseError::new(
             "host verbs (`advance`, `help`, `quit`) are REPL-only",
@@ -911,7 +911,7 @@ mod tests {
     fn version_and_help_exit_zero() {
         let (out, err, code) = run_lines("--version", "");
         assert_eq!(code, 0);
-        assert!(out.starts_with("lumen 0."), "{out}");
+        assert!(out.starts_with("lumen 0."), "{out}"); // lumen-allow-literal: test fixture value — round-trip data, not display identity
         assert!(err.is_empty(), "{err}");
         let (out, _err, code) = run_lines("--help", "");
         assert_eq!(code, 0);

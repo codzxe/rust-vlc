@@ -232,6 +232,7 @@ mod tests {
     /// and durations survive the round trip.
     #[test]
     fn m3u_resolves_locations_against_the_playlist_url() {
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let body = "#EXTM3U\n\
                     #EXTINF:10.5,Café Über\n\
                     track1.mp3\n\
@@ -262,7 +263,7 @@ mod tests {
                 server.url("/pl/track1.mp3"),
                 server.url("/shared/track2.flac"),
                 server.url("/sub/track3.mp3"),
-                "http://other.example/x.mp3".to_string(),
+                "http://other.example/x.mp3".to_string(), // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
             ]
         );
         assert_eq!(playlist.entries[0].title.as_deref(), Some("Café Über"));
@@ -275,6 +276,7 @@ mod tests {
     /// resolved, titles and durations carried.
     #[test]
     fn xspf_sniffed_and_resolved() {
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let body = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
                     <playlist version=\"1\" xmlns=\"http://xspf.org/ns/0/\">\n\
                     <trackList>\n\
@@ -303,7 +305,7 @@ mod tests {
             vec![
                 server.url("/pl/track1.mp3"),
                 server.url("/up.flac"),
-                "http://other.example/x.mp3".to_string(),
+                "http://other.example/x.mp3".to_string(), // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
             ]
         );
         assert_eq!(playlist.entries[0].title.as_deref(), Some("Café"));

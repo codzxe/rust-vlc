@@ -766,7 +766,7 @@ mod tests {
             period,
             set,
             &set.representations[0],
-            "http://ex.test/vod/manifest.mpd",
+            "http://ex.test/vod/manifest.mpd", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         ) {
             Ok(p) => p,
             Err(e) => unreachable!("plan: {e}"),
@@ -1002,14 +1002,14 @@ mod tests {
         // init: init-stream0.m4s against the manifest directory.
         assert_eq!(
             plan.init_url.as_deref(),
-            Some("http://ex.test/vod/init-stream0.m4s")
+            Some("http://ex.test/vod/init-stream0.m4s") // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         );
         // media: chunk-stream0-00001.m4s (the %05d tag), one S entry
         // (t=0, d=61440) → one segment.
         assert_eq!(plan.segments.len(), 1);
         assert_eq!(
             plan.segments[0].url,
-            "http://ex.test/vod/chunk-stream0-00001.m4s"
+            "http://ex.test/vod/chunk-stream0-00001.m4s" // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         );
         assert_eq!(plan.segments[0].number, 1);
         assert_eq!(plan.segments[0].time, 0);
@@ -1030,7 +1030,7 @@ mod tests {
             period,
             set,
             &set.representations[0],
-            "http://ex.test/vod/manifest.mpd",
+            "http://ex.test/vod/manifest.mpd", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         ) {
             Ok(p) => p,
             Err(e) => unreachable!("plan: {e}"),
@@ -1043,7 +1043,7 @@ mod tests {
         assert_eq!(plan.segments[1].number, 2);
         assert_eq!(
             plan.segments[1].url,
-            "http://ex.test/vod/chunk-stream2-00002.m4s"
+            "http://ex.test/vod/chunk-stream2-00002.m4s" // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         );
     }
 
@@ -1061,7 +1061,7 @@ mod tests {
             period,
             set,
             &set.representations[0],
-            "http://ex.test/vod/manifest.mpd",
+            "http://ex.test/vod/manifest.mpd", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         ) {
             Ok(p) => p,
             Err(e) => unreachable!("plan: {e}"),
@@ -1078,7 +1078,7 @@ mod tests {
         assert!(
             plan.segments
                 .iter()
-                .all(|s| s.url.starts_with("http://ex.test/vod/"))
+                .all(|s| s.url.starts_with("http://ex.test/vod/")) // lumen-allow-literal: URL parse/redaction test vector — data under test
         );
     }
 
@@ -1099,14 +1099,14 @@ mod tests {
                     period,
                     set,
                     rep,
-                    "http://ex.test/base/manifest.mpd",
+                    "http://ex.test/base/manifest.mpd", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
                 ) {
                     Ok(p) => p,
                     Err(e) => unreachable!("plan: {e}"),
                 };
                 for seg in &plan.segments {
                     assert!(
-                        seg.url.starts_with("http://") || seg.url.starts_with("https://"),
+                        seg.url.starts_with("http://") || seg.url.starts_with("https://"), // lumen-allow-literal: URL parse/redaction test vector — data under test
                         "absolute URL after BaseURL folding: {}",
                         seg.url
                     );
@@ -1184,7 +1184,7 @@ mod tests {
                 p,
                 &p.adaptation_sets[0],
                 &p.adaptation_sets[0].representations[0],
-                "http://ex.test/m.mpd"
+                "http://ex.test/m.mpd" // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
             ),
             Err(DashResolveError::NoAddressing)
         );
@@ -1280,7 +1280,7 @@ mod tests {
             p,
             &p.adaptation_sets[0],
             &p.adaptation_sets[0].representations[0],
-            "http://ex.test/x.mpd",
+            "http://ex.test/x.mpd", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         ) {
             Ok(plan) => plan,
             Err(e) => unreachable!("plan: {e}"),
@@ -1289,9 +1289,9 @@ mod tests {
         // segments numbered from the inherited startNumber 5.
         assert_eq!(plan.timescale, 1000);
         assert_eq!(plan.segments.len(), 2);
-        assert_eq!(plan.segments[0].url, "http://ex.test/r-5.m4s");
-        assert_eq!(plan.segments[1].url, "http://ex.test/r-6.m4s");
+        assert_eq!(plan.segments[0].url, "http://ex.test/r-5.m4s"); // lumen-allow-literal: URL parse/redaction test vector — data under test
+        assert_eq!(plan.segments[1].url, "http://ex.test/r-6.m4s"); // lumen-allow-literal: URL parse/redaction test vector — data under test
         assert_eq!(plan.segments[1].time, 2000);
-        assert_eq!(plan.init_url.as_deref(), Some("http://ex.test/i-v.m4s"));
+        assert_eq!(plan.init_url.as_deref(), Some("http://ex.test/i-v.m4s")); // lumen-allow-literal: URL parse/redaction test vector — data under test
     }
 }

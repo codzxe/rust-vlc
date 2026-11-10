@@ -185,7 +185,7 @@ mod tests {
     fn hex_rejects_malformed() {
         for bad in [
             "",
-            "#fff",
+            "#fff", // lumen-allow-literal: markup/validation test vector — data under test, not a theme color
             "#fffffff",
             "fffffff",
             "#gggggggg",

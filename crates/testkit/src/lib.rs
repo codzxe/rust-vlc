@@ -404,7 +404,7 @@ mod tests {
         assert_contains(&text, "[hardware_class=mock]", "label");
         assert_contains(&text, "testkit.evidence.render :: unit test", "entry");
 
-        let dir = std::env::temp_dir().join(format!("lumen-testkit-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("lumen-testkit-{}", std::process::id())); // lumen-allow-literal: cfg(test) scratch filename — test-only, never a shipped surface
         record.write_to(&dir).must();
         // Idempotent rewrite: same content is a no-op...
         record.write_to(&dir).must();

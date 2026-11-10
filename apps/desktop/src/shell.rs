@@ -378,6 +378,7 @@ mod tests {
     #[test]
     fn playlist_files_load_the_list_through_the_command() {
         let mut runtime = ShellRuntime::default();
+        // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
         let response = match runtime.open_path(&PathBuf::from("/tmp/queue.m3u")) {
             Some(response) => response,
             None => unreachable!("a playlist file must classify"),
@@ -402,12 +403,12 @@ mod tests {
         let mut runtime = ShellRuntime::default();
         assert!(
             runtime
-                .open_path(&PathBuf::from("/tmp/README.md"))
+                .open_path(&PathBuf::from("/tmp/README.md")) // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
                 .is_none()
         );
         assert!(
             runtime
-                .open_path(&PathBuf::from("/tmp/queue.unknown-ext"))
+                .open_path(&PathBuf::from("/tmp/queue.unknown-ext")) // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
                 .is_none()
         );
     }
@@ -421,8 +422,8 @@ mod tests {
         let response = match runtime.on_files_dropped(
             &mut dnd,
             &[
-                PathBuf::from("/tmp/notes.txt"),
-                PathBuf::from("/tmp/movie.avi"),
+                PathBuf::from("/tmp/notes.txt"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+                PathBuf::from("/tmp/movie.avi"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
             ],
         ) {
             Some(response) => response,
@@ -434,7 +435,7 @@ mod tests {
         // A drop with nothing openable is a no-op.
         assert!(
             runtime
-                .on_files_dropped(&mut dnd, &[PathBuf::from("/tmp/README.md")])
+                .on_files_dropped(&mut dnd, &[PathBuf::from("/tmp/README.md")]) // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
                 .is_none()
         );
     }
@@ -464,7 +465,7 @@ mod tests {
         // Picked: the file-open funnel (an unserved path class still
         // answers through the command — here a playlist, refused typed).
         let mut picked = ScriptedDialog {
-            answer: Ok(Some(PathBuf::from("/tmp/queue.pls"))),
+            answer: Ok(Some(PathBuf::from("/tmp/queue.pls"))), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
         };
         match runtime.pick_and_open(&mut picked) {
             DialogOutcome::Opened(response) => match response.result {

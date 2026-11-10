@@ -659,7 +659,7 @@ mod tests {
     /// code unsupported), not a demux-stage crash.
     #[test]
     fn garbage_file_is_a_probe_stage_refusal() {
-        let garbage = std::env::temp_dir().join("lumen-cli-garbage.bin");
+        let garbage = std::env::temp_dir().join("lumen-cli-garbage.bin"); // lumen-allow-literal: cfg(test) scratch filename — test-only, never a shipped surface
         std::fs::write(&garbage, [0x37u8, 0x13, 0x00, 0x42, 0xff, 0xee].repeat(64)).ok();
         match open_source(
             &commands::catalog::types::SourceSpec::File {
@@ -723,7 +723,7 @@ mod tests {
     fn url_sources_are_refused_with_the_phase_named() {
         match open_source(
             &commands::catalog::types::SourceSpec::Url {
-                url: "https://example.org/x.mp4".to_string(),
+                url: "https://example.org/x.mp4".to_string(), // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
             },
             None,
             false,

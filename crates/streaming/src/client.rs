@@ -485,12 +485,12 @@ mod tests {
     /// and a parsed Content-Length.
     #[test]
     fn ok_200_roundtrip() {
-        let server = spawn(MockConfig::body(b"lumen roundtrip".to_vec()));
+        let server = spawn(MockConfig::body(b"lumen roundtrip".to_vec())); // lumen-allow-literal: test fixture value — round-trip data, not display identity
         let response = UreqClient::new()
             .fetch(HttpRequest::get(server.url("/media/one.flac")))
             .must();
         assert_eq!(response.status, 200);
-        assert_eq!(response.body, b"lumen roundtrip");
+        assert_eq!(response.body, b"lumen roundtrip"); // lumen-allow-literal: test fixture value — round-trip data, not display identity
         assert_eq!(response.header("Content-Length"), Some("15"));
         server.requests(); // server stays alive through the assertion
     }
@@ -688,12 +688,11 @@ mod tests {
         // client transports plaintext regardless — exactly the shape
         // that lets the Location's absolute http target express the
         // downgrade).
-        let https_start = origin.url("/start").replacen("http://", "https://", 1);
+        let https_start = origin.url("/start").replacen("http://", "https://", 1); // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
 
         // A permissive policy — cross-host allowed, budget 5 — must
         // still not buy a transport downgrade.
-        let request =
-            HttpRequest::get(https_start).with_redirects(follow_policy(5, true));
+        let request = HttpRequest::get(https_start).with_redirects(follow_policy(5, true));
         let error = assert_err(
             MockClient::new().fetch(request),
             "an https-to-http redirect must be refused, never followed",
@@ -724,11 +723,11 @@ mod tests {
     /// `https_to_http_redirect_downgrade_is_refused_not_followed`).
     #[test]
     fn scheme_downgrade_gate_pins_transport_safety() {
-        let https = Url::parse("https://cdn.example.org/a.flac").must();
+        let https = Url::parse("https://cdn.example.org/a.flac").must(); // lumen-allow-literal: URL parse/redaction test vector — data under test
         // The exact hostile shapes from the review: `Url::join`
         // accepts an absolute http Location against an https base.
-        let same_host_downgrade = https.join("http://cdn.example.org/b.flac").must();
-        let cross_host_downgrade = https.join("http://mirror.example.net/b.flac").must();
+        let same_host_downgrade = https.join("http://cdn.example.org/b.flac").must(); // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+        let cross_host_downgrade = https.join("http://mirror.example.net/b.flac").must(); // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         assert!(
             is_scheme_downgrade(&https, &same_host_downgrade),
             "a same-host https→http hop is a transport downgrade"
@@ -739,12 +738,12 @@ mod tests {
         );
 
         // Everything else passes the gate: the upgrade …
-        let http = Url::parse("http://cdn.example.org/a.flac").must();
-        let upgrade = http.join("https://cdn.example.org/b.flac").must();
+        let http = Url::parse("http://cdn.example.org/a.flac").must(); // lumen-allow-literal: URL parse/redaction test vector — data under test
+        let upgrade = http.join("https://cdn.example.org/b.flac").must(); // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         assert!(!is_scheme_downgrade(&http, &upgrade));
         // … same-scheme hops, both directions of scheme …
-        let https_hop = https.join("https://cdn.example.org/b.flac").must();
-        let http_hop = http.join("http://cdn.example.org/b.flac").must();
+        let https_hop = https.join("https://cdn.example.org/b.flac").must(); // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+        let http_hop = http.join("http://cdn.example.org/b.flac").must(); // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         assert!(!is_scheme_downgrade(&https, &https_hop));
         assert!(!is_scheme_downgrade(&http, &http_hop));
         // … and a plain http start can never trip an https-only rule.
@@ -961,7 +960,7 @@ mod tests {
     #[ignore = "live network required: run with --ignored"]
     fn live_example_com_returns_200() {
         let response = UreqClient::new()
-            .fetch(HttpRequest::get("https://example.com/"))
+            .fetch(HttpRequest::get("https://example.com/")) // lumen-allow-literal: URL parse/redaction test vector — data under test
             .must();
         assert_eq!(response.status, 200);
         assert!(!response.body.is_empty());
@@ -982,7 +981,7 @@ mod tests {
     #[ignore = "live network required: run with --ignored"]
     fn live_httpbin_redirect_chain_lands_on_200() {
         let response = UreqClient::new()
-            .fetch(HttpRequest::get("https://httpbin.org/redirect/2"))
+            .fetch(HttpRequest::get("https://httpbin.org/redirect/2")) // lumen-allow-literal: opt-in live-network test (--ignored only) — a deliberate real endpoint, never a default
             .must();
         assert_eq!(response.status, 200, "two hops must land on the final body");
         assert!(!response.body.is_empty());

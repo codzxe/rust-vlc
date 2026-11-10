@@ -21,7 +21,7 @@ use desktop::{WindowTitle, parse_window_table};
 pub const WEBVIEW_PENDING: u8 = 86;
 
 fn main() -> ExitCode {
-    println!("lumen-desktop (skeleton, card 2.D3)");
+    println!("lumen-desktop (skeleton, card 2.D3)"); // lumen-allow-literal: argv0/skeleton notice — identity wiring pending (see apps/cli help.rs [PROPOSAL])
     println!();
     // Issue #3 (4.H1 handoff c): the [window] table is CONSUMED at
     // startup — the build spec the ADR-004 wrapper applies verbatim at
@@ -100,7 +100,7 @@ fn os_name(os: TargetOs) -> &'static str {
 fn host_label(host: WebviewHostKind) -> &'static str {
     match host {
         WebviewHostKind::TauriChannel => "tauri-ipc",
-        WebviewHostKind::CustomProtocol => "lumen-proto",
+        WebviewHostKind::CustomProtocol => "lumen-proto", // lumen-allow-literal: custom-protocol scheme label — protocol vocabulary, not display identity
         WebviewHostKind::SharedMemory => "shared-mem",
     }
 }

@@ -554,7 +554,7 @@ mod tests {
     /// BENCH line, no panic (the adversarial-corpus contract).
     #[test]
     fn garbage_file_is_a_typed_refusal() {
-        let garbage = std::env::temp_dir().join("lumen-cli-bench-garbage.bin");
+        let garbage = std::env::temp_dir().join("lumen-cli-bench-garbage.bin"); // lumen-allow-literal: cfg(test) scratch filename — test-only, never a shipped surface
         std::fs::write(&garbage, [0x37u8, 0x13, 0x00, 0x42, 0xff, 0xee].repeat(64))
             .unwrap_or_default();
         let mut input = std::io::empty();

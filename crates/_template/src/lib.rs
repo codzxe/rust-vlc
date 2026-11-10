@@ -20,5 +20,5 @@ pub mod lint_canary;
 
 /// Template placeholder — replace with the crate's real public API.
 pub fn template_marker() -> &'static str {
-    "lumen-crate-template"
+    "lumen-crate-template" // lumen-allow-literal: crate-template placeholder value — replaced when the template is instantiated
 }

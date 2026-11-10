@@ -528,3 +528,18 @@ Work Log:
 
 Stage Summary:
 - worklog register complete (47 entries); no claims of CI-backed verified parity — the register of honest gaps is the deliverable.
+---
+Task ID: 7.w21a
+Agent: w21-a (C1/C2 literal-gate rollout)
+Task: Land the 70-file literal-debt annotation and wire lint-literals/check-identity into the CI + full gates.
+
+Work Log:
+- Reviewed the predecessor's uncommitted 70-file diff in full: 328 audited `// lumen-allow-literal: <reason>` markers over literal sites the C1/C2 scanners flag (test vectors, test doubles on reserved hosts, corpus gates, argv0/usage prose pending identity wiring [PROPOSAL], protocol vocabulary like `lumen.`/LUMEN-CUES/lumen-proto). Zero hunks discarded — all reasons accurate.
+- Fixed 5 fmt-drift sites where rustfmt relocates a trailing marker BELOW its literal (breaking same-line/above suppression): access.rs and 3x hls/live.rs markers moved to standalone lines above the statement; dash/fuzz.rs call split one-arg-per-line with the marker directly above the literal.
+- Gates ACTUAL: cargo fmt --check CLEAN; clippy -p xtask 0; clippy --workspace --all-targets -D warnings 0; cargo test -p xtask 15/15 passed; lint-literals PASS (0 violations, 340 allowlisted); check-identity PASS (0 violations, 341 allowlisted); check-architecture PASS (5/5); schema-gen/codegen/fixtures --check all no-drift.
+- 90b836d: the 70-file rollout committed (335+/255-).
+- a5d742b: ci.yml config-propagation job — lint-literals + check-identity steps added, honest-skip ledger C1/C2 SKIP->COVERED; scripts/full_gate.sh — steps 7+8 added (verified locally via the cargo xtask alias, both exit 0; ci.yml parses; bash -n clean).
+
+Stage Summary:
+- D-10 four questions: MEASURE — gate counts above (328 markers, 340/341 allowlisted sites, 0 violations). NOT TESTED — per-crate test suites not re-run (disk-tight; clippy --all-targets compiled every test target; the diff is comments plus one semantically identical fuzz.rs `if let` restructure). WHAT BREAKS — a rebrand must hand-review 21 argv0/usage identity sites until the help.rs identity wiring [PROPOSAL] lands. WHO HITS IT FIRST — the next rebrand/localization card touching CLI prose.
+- Open: identity wiring for CLI argv0/usage strings stays a recorded [PROPOSAL] follow-up (config-driven lookup deferred to that card); C2 packaging-regen check still SKIP (no packaging plane).

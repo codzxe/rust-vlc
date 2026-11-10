@@ -1081,15 +1081,17 @@ mod tests {
     /// The corpus media dir (the demux suite's convention — `None`
     /// means the loud skip).
     fn corpus_dir() -> Option<PathBuf> {
+        // lumen-allow-literal: cfg(test) corpus-gate env-var name — test harness knob, not product config
         if let Ok(dir) = std::env::var("LUMEN_CORPUS") {
             return Some(PathBuf::from(dir));
         }
-        let default = PathBuf::from("/tmp/my-project/corpus-v4/media");
+        let default = PathBuf::from("/tmp/my-project/corpus-v4/media"); // lumen-allow-literal: cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
         default.is_dir().then_some(default)
     }
 
     fn skip_loudly() {
         eprintln!(
+            // lumen-allow-literal: cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
             "corpus(mkv-open): /tmp/my-project/corpus-v4/media absent and LUMEN_CORPUS unset \
              — SKIP (the differential table for this instance is in the worklog)"
         );
