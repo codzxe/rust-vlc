@@ -14,11 +14,7 @@ use media_types::{EngineError, PipelineStage};
 
 /// Mint a transcode-stage error with `kind` and `code`.
 fn mint(kind: ErrorKind, code: &'static str) -> EngineError {
-    EngineError::new(
-        PipelineStage::Transcode,
-        kind,
-        ErrorContext::new(code),
-    )
+    EngineError::new(PipelineStage::Transcode, kind, ErrorContext::new(code))
 }
 
 /// The sink stage requires a decode stage (graph shape: WavPcm without
@@ -190,7 +186,11 @@ struct FactsMismatch {
 
 impl std::fmt::Display for FactsMismatch {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "track codec `{}` vs facts `{}`", self.descriptor, self.facts)
+        write!(
+            f,
+            "track codec `{}` vs facts `{}`",
+            self.descriptor, self.facts
+        )
     }
 }
 impl std::error::Error for FactsMismatch {}
@@ -583,10 +583,7 @@ mod tests {
         // above to keep it at the array size literal).
         let channels = wav_channels_out_of_range(0);
         assert_eq!(channels.context.code, "transcode.wav.channels-out-of-range");
-        assert_eq!(
-            channels.kind,
-            ErrorKind::Unsupported { format: None }
-        );
+        assert_eq!(channels.kind, ErrorKind::Unsupported { format: None });
 
         // The mismatch leaf renders both sides.
         let mismatch = copy_facts_mismatch("pcm_s16le", "pcm_u8");

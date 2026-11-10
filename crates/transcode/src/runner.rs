@@ -68,19 +68,19 @@ use media_types::frame::AudioFrame;
 use media_types::ids::MediaKind;
 use media_types::packet::SharedBytes;
 use media_types::{EngineError, Frame, GenerationId, Track};
-use plugin_api::{Demuxer, DemuxEvent};
+use plugin_api::{DemuxEvent, Demuxer};
 
 use crate::cancel::CancelToken;
 use crate::convert::{convert_to_wav, identity_passthrough, resolve_target};
 use crate::error::{
-    audio_track_ambiguous, audio_track_missing, copy_byte_order, copy_facts_mismatch,
-    copy_not_pcm, flush_undrained, sink_bad_state, sink_write_io, tracks_over_budget,
-    worker_panic, worker_spawn_io,
+    audio_track_ambiguous, audio_track_missing, copy_byte_order, copy_facts_mismatch, copy_not_pcm,
+    flush_undrained, sink_bad_state, sink_write_io, tracks_over_budget, worker_panic,
+    worker_spawn_io,
 };
 use crate::graph::{
     DecodeStage, PcmFacts, SinkSpec, TrackSelection, TranscodeGraph, WavPcmTarget, WriteSeek,
 };
-use crate::job::{JobOutcome, JobShared, JobStats, JobHandle};
+use crate::job::{JobHandle, JobOutcome, JobShared, JobStats};
 use crate::limits::JobLimits;
 use crate::queue::{PacketStageQueue, PopWait, PushWait};
 use crate::wav::WavPcmWriter;
@@ -101,12 +101,21 @@ pub(crate) const MAX_FLUSH_CALLS: u32 = 1024;
 /// can transcribe verbatim (the demux layer's own vocabulary —
 /// doc 04 §3.1).
 const PCM_LE_DESCRIPTORS: [&str; 6] = [
-    "pcm_u8", "pcm_s16le", "pcm_s24le", "pcm_s32le", "pcm_f32le", "pcm_f64le",
+    "pcm_u8",
+    "pcm_s16le",
+    "pcm_s24le",
+    "pcm_s32le",
+    "pcm_f32le",
+    "pcm_f64le",
 ];
 /// The big-endian twin family: byte-swapped payloads a verbatim copy
 /// would lie about (the decode path normalizes them instead).
 const PCM_BE_DESCRIPTORS: [&str; 5] = [
-    "pcm_s16be", "pcm_s24be", "pcm_s32be", "pcm_f32be", "pcm_f64be",
+    "pcm_s16be",
+    "pcm_s24be",
+    "pcm_s32be",
+    "pcm_f32be",
+    "pcm_f64be",
 ];
 
 /// Submit a job: validate the graph's shape, spawn the pipeline,
@@ -262,9 +271,7 @@ enum WorkerPlan {
         output: Box<dyn WriteSeek>,
     },
     /// Copy path: any track's packets → raw elementary-stream file.
-    RawEs {
-        output: Box<dyn WriteSeek>,
-    },
+    RawEs { output: Box<dyn WriteSeek> },
 }
 
 /// Assemble the worker plan from the validated graph's sink half.
@@ -276,20 +283,17 @@ fn build_plan(
     extra_data: Option<SharedBytes>,
 ) -> Result<WorkerPlan, EngineError> {
     match (sink, decode) {
-        (
-            SinkSpec::WavPcm { output, target },
-            Some(stage),
-        ) => Ok(WorkerPlan::Decode {
+        (SinkSpec::WavPcm { output, target }, Some(stage)) => Ok(WorkerPlan::Decode {
             factory: stage.into_factory(),
             extra_data,
             target,
             output,
         }),
-        (SinkSpec::WavCopyPcm { output, facts }, None) => match facts {
-            Some(facts) => Ok(WorkerPlan::CopyWav { facts, output }),
-            // Validation refused this shape already (facts missing).
-            None => Err(sink_bad_state()),
-        },
+        (SinkSpec::WavCopyPcm { output, facts: Some(facts) }, None) => {
+            Ok(WorkerPlan::CopyWav { facts, output })
+        }
+        // Validation refused this shape already (facts missing).
+        (SinkSpec::WavCopyPcm { facts: None, .. }, None) => Err(sink_bad_state()),
         (SinkSpec::RawEsCopy { output }, None) => Ok(WorkerPlan::RawEs { output }),
         // Copy sink with a decode stage, or WavPcm without one:
         // `validate` refuses both before we get here.
@@ -422,7 +426,9 @@ fn worker_body(ctx: WorkerCtx) {
             target,
             output,
         } => run_decode(factory, extra_data, target, output, &track, &queue, &shared),
-        WorkerPlan::CopyWav { facts, output } => run_copy_wav(facts, output, &track, &queue, &shared),
+        WorkerPlan::CopyWav { facts, output } => {
+            run_copy_wav(facts, output, &track, &queue, &shared)
+        }
         WorkerPlan::RawEs { output } => run_raw_es(output, &queue, &shared),
     }
 }
@@ -462,29 +468,23 @@ fn run_decode(
                 // Cancellation: finalize best-effort so the partial
                 // file's sizes tell the truth (crate::cancel docs).
                 let _ = sink.finish();
-                return terminate_with(
-                    shared,
-                    queue,
-                    JobOutcome::Cancelled(shared.snapshot()),
-                );
+                return terminate_with(shared, queue, JobOutcome::Cancelled(shared.snapshot()));
             }
             return;
         }
         match queue.pop_wait() {
-            PopWait::Item(packet) => {
-                match decoder.decode(packet, &mut sink) {
-                    Err(err) => return terminate_with(shared, queue, JobOutcome::Failed(err)),
-                    Ok(DecodeOutcome::Emitted { frames }) => shared.update_stats(&JobStats {
-                        frames_decoded: u64::from(frames),
-                        ..JobStats::default()
-                    }),
-                    Ok(DecodeOutcome::Recovered { .. }) => shared.update_stats(&JobStats {
-                        recovered: 1,
-                        ..JobStats::default()
-                    }),
-                    Ok(DecodeOutcome::NeedMoreInput | DecodeOutcome::Drained) => {}
-                }
-            }
+            PopWait::Item(packet) => match decoder.decode(packet, &mut sink) {
+                Err(err) => return terminate_with(shared, queue, JobOutcome::Failed(err)),
+                Ok(DecodeOutcome::Emitted { frames }) => shared.update_stats(&JobStats {
+                    frames_decoded: u64::from(frames),
+                    ..JobStats::default()
+                }),
+                Ok(DecodeOutcome::Recovered { .. }) => shared.update_stats(&JobStats {
+                    recovered: 1,
+                    ..JobStats::default()
+                }),
+                Ok(DecodeOutcome::NeedMoreInput | DecodeOutcome::Drained) => {}
+            },
             PopWait::Closed => {
                 // A terminal already landed ⇒ the pump tore down
                 // mid-stream: exit without claiming output validity.
@@ -497,19 +497,13 @@ fn run_decode(
                 // who asked to stop is never told Completed.
                 if shared.is_stopping() {
                     let _ = sink.finish();
-                    return terminate_with(
-                        shared,
-                        queue,
-                        JobOutcome::Cancelled(shared.snapshot()),
-                    );
+                    return terminate_with(shared, queue, JobOutcome::Cancelled(shared.snapshot()));
                 }
                 // True end of stream: drain the decoder (bounded).
                 let mut calls = 0u32;
                 loop {
                     match decoder.flush(&mut sink) {
-                        Err(err) => {
-                            return terminate_with(shared, queue, JobOutcome::Failed(err))
-                        }
+                        Err(err) => return terminate_with(shared, queue, JobOutcome::Failed(err)),
                         Ok(DecodeOutcome::Drained) => break,
                         Ok(_) => {
                             calls += 1;
@@ -531,11 +525,7 @@ fn run_decode(
             PopWait::Interrupted => {
                 if shared.outcome().is_none() {
                     let _ = sink.finish();
-                    return terminate_with(
-                        shared,
-                        queue,
-                        JobOutcome::Cancelled(shared.snapshot()),
-                    );
+                    return terminate_with(shared, queue, JobOutcome::Cancelled(shared.snapshot()));
                 }
                 return;
             }
@@ -558,17 +548,14 @@ fn run_copy_wav(
         Ok(writer) => writer,
         Err(err) => return terminate_with(shared, queue, JobOutcome::Failed(err)),
     };
-    let frame_bytes = u64::from(u32::from(facts.channels) * u32::from(facts.sample.bytes_per_sample()));
+    let frame_bytes =
+        u64::from(u32::from(facts.channels) * u32::from(facts.sample.bytes_per_sample()));
     let mut watermark = 0u64;
     loop {
         if shared.is_stopping() {
             if shared.outcome().is_none() {
                 let _ = writer.finalize();
-                return terminate_with(
-                    shared,
-                    queue,
-                    JobOutcome::Cancelled(shared.snapshot()),
-                );
+                return terminate_with(shared, queue, JobOutcome::Cancelled(shared.snapshot()));
             }
             return;
         }
@@ -596,11 +583,7 @@ fn run_copy_wav(
                 // (the decode path's twin comment).
                 if shared.is_stopping() {
                     let _ = writer.finalize();
-                    return terminate_with(
-                        shared,
-                        queue,
-                        JobOutcome::Cancelled(shared.snapshot()),
-                    );
+                    return terminate_with(shared, queue, JobOutcome::Cancelled(shared.snapshot()));
                 }
                 if let Err(err) = writer.finalize() {
                     return terminate_with(shared, queue, JobOutcome::Failed(err));
@@ -610,11 +593,7 @@ fn run_copy_wav(
             PopWait::Interrupted => {
                 if shared.outcome().is_none() {
                     let _ = writer.finalize();
-                    return terminate_with(
-                        shared,
-                        queue,
-                        JobOutcome::Cancelled(shared.snapshot()),
-                    );
+                    return terminate_with(shared, queue, JobOutcome::Cancelled(shared.snapshot()));
                 }
                 return;
             }
@@ -624,21 +603,13 @@ fn run_copy_wav(
 
 /// The raw ES path: any track's packets, payload bytes concatenated
 /// (the 7.E3 encoder seam's drain — module docs' [PROPOSAL]).
-fn run_raw_es(
-    mut output: Box<dyn WriteSeek>,
-    queue: &PacketStageQueue,
-    shared: &JobShared,
-) {
+fn run_raw_es(mut output: Box<dyn WriteSeek>, queue: &PacketStageQueue, shared: &JobShared) {
     let mut watermark = 0u64;
     loop {
         if shared.is_stopping() {
             if shared.outcome().is_none() {
                 let _ = output.flush();
-                return terminate_with(
-                    shared,
-                    queue,
-                    JobOutcome::Cancelled(shared.snapshot()),
-                );
+                return terminate_with(shared, queue, JobOutcome::Cancelled(shared.snapshot()));
             }
             return;
         }
@@ -664,11 +635,7 @@ fn run_raw_es(
                 // (the decode path's twin comment).
                 if shared.is_stopping() {
                     let _ = output.flush();
-                    return terminate_with(
-                        shared,
-                        queue,
-                        JobOutcome::Cancelled(shared.snapshot()),
-                    );
+                    return terminate_with(shared, queue, JobOutcome::Cancelled(shared.snapshot()));
                 }
                 match output.flush() {
                     Ok(()) => {
@@ -676,25 +643,21 @@ fn run_raw_es(
                             shared,
                             queue,
                             JobOutcome::Completed(shared.snapshot()),
-                        )
+                        );
                     }
                     Err(err) => {
                         return terminate_with(
                             shared,
                             queue,
                             JobOutcome::Failed(sink_write_io(err)),
-                        )
+                        );
                     }
                 }
             }
             PopWait::Interrupted => {
                 if shared.outcome().is_none() {
                     let _ = output.flush();
-                    return terminate_with(
-                        shared,
-                        queue,
-                        JobOutcome::Cancelled(shared.snapshot()),
-                    );
+                    return terminate_with(shared, queue, JobOutcome::Cancelled(shared.snapshot()));
                 }
                 return;
             }
@@ -721,7 +684,11 @@ struct WavEncodeSink {
 }
 
 impl WavEncodeSink {
-    fn new(output: Box<dyn WriteSeek>, target: WavPcmTarget, shared: Arc<JobShared>) -> WavEncodeSink {
+    fn new(
+        output: Box<dyn WriteSeek>,
+        target: WavPcmTarget,
+        shared: Arc<JobShared>,
+    ) -> WavEncodeSink {
         WavEncodeSink {
             output: Some(output),
             writer: None,
@@ -755,7 +722,9 @@ impl FrameSink for WavEncodeSink {
             // typed refusal, never a silent drop.
             _ => return Err(crate::error::frame_not_audio()),
         };
-        let AudioFrame { format, samples, .. } = audio;
+        let AudioFrame {
+            format, samples, ..
+        } = audio;
         let key = (format.sample, format.channels, format.rate);
         let target_sample = match (self.resolved, self.fixed) {
             (None, None) => {
@@ -797,7 +766,12 @@ impl FrameSink for WavEncodeSink {
         let written = if identity_passthrough(&format, target_sample) {
             writer.write_pcm(samples.as_slice())?
         } else {
-            convert_to_wav(samples.as_slice(), &format, target_sample, &mut self.scratch);
+            convert_to_wav(
+                samples.as_slice(),
+                &format,
+                target_sample,
+                &mut self.scratch,
+            );
             let scratch = std::mem::take(&mut self.scratch);
             let result = writer.write_pcm(scratch.as_slice());
             self.scratch = scratch;
@@ -876,10 +850,7 @@ impl TrackHandoff {
             if state.closed || self.cancel.is_cancelled() {
                 return None;
             }
-            state = self
-                .ready
-                .wait(state)
-                .unwrap_or_else(|p| p.into_inner());
+            state = self.ready.wait(state).unwrap_or_else(|p| p.into_inner());
         }
     }
 }
@@ -963,9 +934,9 @@ fn emit_progress_cadence(shared: &JobShared, watermark: &mut u64) {
 mod tests {
     use super::*;
     use crate::error::limit_over_budget;
+    use media_types::EngineError;
     use media_types::ids::{StreamId, TrackFlags, TrackId};
     use media_types::time::{TimeSpan, TrackTiming};
-    use media_types::EngineError;
     use testkit::{Must, assert_err};
 
     fn track(id: u32, kind: MediaKind, codec: &str) -> Track {
@@ -990,8 +961,12 @@ mod tests {
         let audio = track(0, MediaKind::Audio, "pcm_s16le");
         let video = track(1, MediaKind::Video, "mjpeg");
         // Exactly one audio: picked, audio or not.
-        let picked = select_track(&[video.clone(), audio.clone()], TrackSelection::DefaultAudio, false)
-            .must();
+        let picked = select_track(
+            &[video.clone(), audio.clone()],
+            TrackSelection::DefaultAudio,
+            false,
+        )
+        .must();
         assert_eq!(picked.id, audio.id);
         // Zero audio: typed missing.
         let err = assert_err(

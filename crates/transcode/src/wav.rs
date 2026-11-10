@@ -162,7 +162,7 @@ impl WavPcmWriter {
         // `new` validated channels >= 1 and the width >= 1, so the
         // frame size is never zero (no division hazard).
         let frame = u64::from(self.channels) * u64::from(self.sample.bytes_per_sample());
-        if (add % frame) != 0 {
+        if !add.is_multiple_of(frame) {
             return Err(wav_partial_frame());
         }
         let after = self.data_bytes.saturating_add(add);
@@ -246,7 +246,6 @@ fn write_all(out: &mut Box<dyn WriteSeek>, bytes: &[u8]) -> Result<(), EngineErr
 fn seek(out: &mut Box<dyn WriteSeek>, to: SeekFrom) -> Result<u64, EngineError> {
     out.seek(to).map_err(sink_seek_io)
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -482,8 +481,7 @@ mod tests {
         // And end-to-end: a discard sink, 8 MiB chunks until the
         // ceiling crosses — the typed refusal, sizes never wrap.
         let mut big =
-            WavPcmWriter::new(Box::new(DiscardSink { pos: 0 }), PcmSample::S16Le, 1, 8_000)
-                .must();
+            WavPcmWriter::new(Box::new(DiscardSink { pos: 0 }), PcmSample::S16Le, 1, 8_000).must();
         let chunk = vec![0u8; 8 * 1024 * 1024];
         let mut written = 0u64;
         let refusal = loop {
@@ -493,7 +491,10 @@ mod tests {
             }
         };
         assert_eq!(refusal.context.code, "transcode.wav.size-overflow");
-        assert!(written <= u32::MAX as u64 - 36, "{written} past the ceiling");
+        assert!(
+            written <= u32::MAX as u64 - 36,
+            "{written} past the ceiling"
+        );
         assert!(
             written >= u32::MAX as u64 - 36 - chunk.len() as u64,
             "refused within one chunk of the ceiling, wrote {written}"
@@ -516,8 +517,7 @@ mod tests {
                 Ok(0)
             }
         }
-        let mut w =
-            WavPcmWriter::new(Box::new(FailingSink), PcmSample::S16Le, 1, 8_000).must();
+        let mut w = WavPcmWriter::new(Box::new(FailingSink), PcmSample::S16Le, 1, 8_000).must();
         let err = assert_err(w.write_pcm(&[0; 2]), "sink refuses");
         assert_eq!(err.context.code, "transcode.sink.write-io");
         assert!(std::error::Error::source(&err).is_some(), "OS error kept");

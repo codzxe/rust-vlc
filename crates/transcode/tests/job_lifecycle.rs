@@ -37,7 +37,7 @@ use media_types::ids::{CodecDescriptor, MediaKind, StreamId, TrackFlags, TrackId
 use media_types::packet::SharedBytes;
 use media_types::time::{Stamp, TimeBase, TimeSpan, TrackTiming};
 use media_types::{EngineError, GenerationId, Packet, Track};
-use plugin_api::{Demuxer, DemuxEvent, SeekOrigin, SourcePosition, SourceStream};
+use plugin_api::{DemuxEvent, Demuxer, SeekOrigin, SourcePosition, SourceStream};
 use testkit::{Must, assert_err};
 use transcode::graph::DecodeStage;
 use transcode::graph::DecoderFactory;
@@ -389,11 +389,7 @@ fn cancellation_is_prompt_terminal_and_leaves_a_truthful_prefix() {
         "prefix bytes {}",
         stats.bytes_written
     );
-    assert_eq!(
-        stats.bytes_written % PACKET as u64,
-        0,
-        "whole packets only"
-    );
+    assert_eq!(stats.bytes_written % PACKET as u64, 0, "whole packets only");
 
     // The partial file is structurally valid and tells the truth:
     // our own demuxer re-parses it, payload == the counted prefix.

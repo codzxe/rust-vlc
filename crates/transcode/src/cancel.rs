@@ -18,8 +18,8 @@
 //! the bytes that made it; the outcome distinguishes `Cancelled` from
 //! `Completed` so no caller mistakes a prefix for the whole.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// A shareable, one-way stop flag.
 ///

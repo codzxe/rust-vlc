@@ -118,7 +118,9 @@ impl JobStats {
         self.recovered = self.recovered.saturating_add(*recovered);
         self.discontinuities = self.discontinuities.saturating_add(*discontinuities);
         self.frames_decoded = self.frames_decoded.saturating_add(*frames_decoded);
-        self.sample_frames_written = self.sample_frames_written.saturating_add(*sample_frames_written);
+        self.sample_frames_written = self
+            .sample_frames_written
+            .saturating_add(*sample_frames_written);
         self.bytes_written = self.bytes_written.saturating_add(*bytes_written);
         self.queue_peak_slots = self.queue_peak_slots.max(*queue_peak_slots);
         self.queue_peak_bytes = self.queue_peak_bytes.max(*queue_peak_bytes);
@@ -328,10 +330,7 @@ impl JobShared {
     pub(crate) fn wait_settled(&self) {
         let mut core = self.lock();
         while self.outcome.get().is_none() {
-            core = self
-                .settled
-                .wait(core)
-                .unwrap_or_else(|p| p.into_inner());
+            core = self.settled.wait(core).unwrap_or_else(|p| p.into_inner());
         }
     }
 
@@ -370,7 +369,12 @@ impl JobHandle {
     pub fn cancel(&self) {
         self.cancel.cancel();
         self.shared.cancel_token().cancel();
-        if let Some(threads) = self.threads.lock().unwrap_or_else(|p| p.into_inner()).as_ref() {
+        if let Some(threads) = self
+            .threads
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .as_ref()
+        {
             threads.interrupt();
         }
     }

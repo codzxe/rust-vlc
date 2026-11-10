@@ -491,8 +491,6 @@ mod tests {
                 rate: 48_000,
             }),
         };
-        graph(None, wav_copy)
-            .validate(&JobLimits::default())
-            .must();
+        graph(None, wav_copy).validate(&JobLimits::default()).must();
     }
 }

@@ -131,10 +131,9 @@ impl State {
     }
 
     fn take(&mut self) -> Option<Packet> {
-        self.slots.pop_front().map(|packet| {
+        self.slots.pop_front().inspect(|packet| {
             self.resident_bytes = self.resident_bytes.saturating_sub(packet.data.len());
             self.stats.popped = self.stats.popped.saturating_add(1);
-            packet
         })
     }
 }
@@ -392,7 +391,9 @@ mod tests {
         // Drain one: the FIFO head is the earliest push (salt 0 — the
         // parked packet is salt 2, still behind salt 1).
         match queue.pop_wait() {
-            PopWait::Item(p) => assert_eq!(p.data.as_slice(), &[0; 32], "FIFO head is the first push"),
+            PopWait::Item(p) => {
+                assert_eq!(p.data.as_slice(), &[0; 32], "FIFO head is the first push")
+            }
             other => unreachable!("{other:?}"),
         }
         eventually(
@@ -404,10 +405,7 @@ mod tests {
             PopWait::Item(p) => assert_eq!(p.data.as_slice(), &[1; 32], "second FIFO pop"),
             other => unreachable!("{other:?}"),
         }
-        eventually(
-            || queue.stats().pushed >= 4,
-            "second un-park",
-        );
+        eventually(|| queue.stats().pushed >= 4, "second un-park");
         // Interrupt: the queue is full again ([2, 3]) so the parked
         // (and future) pushes come back un-taken; the queue never
         // grows again.
@@ -430,11 +428,15 @@ mod tests {
         // pushed after each park come out in push order behind the
         // earlier ones (cancellation kept them; pops drain first).
         match queue.pop_wait() {
-            PopWait::Item(p) => assert_eq!(p.data.as_slice(), &[2; 32], "FIFO across the first park"),
+            PopWait::Item(p) => {
+                assert_eq!(p.data.as_slice(), &[2; 32], "FIFO across the first park")
+            }
             other => unreachable!("{other:?}"),
         }
         match queue.pop_wait() {
-            PopWait::Item(p) => assert_eq!(p.data.as_slice(), &[3; 32], "FIFO across the second park"),
+            PopWait::Item(p) => {
+                assert_eq!(p.data.as_slice(), &[3; 32], "FIFO across the second park")
+            }
             other => unreachable!("{other:?}"),
         }
         assert!(

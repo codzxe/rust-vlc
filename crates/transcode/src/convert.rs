@@ -27,8 +27,8 @@
 //! one frame's converted size).
 
 use demux::wav::format::PcmSample;
-use media_types::frame::{AudioFormat, AudioLayout, SampleFormat};
 use media_types::EngineError;
+use media_types::frame::{AudioFormat, AudioLayout, SampleFormat};
 
 use crate::error::wav_conversion_unsupported;
 use crate::graph::WavPcmTarget;
@@ -120,7 +120,9 @@ pub(crate) fn conversion_legal(source: SampleFormat, target: PcmSample) -> bool 
 /// zero-copy path — module docs allocation policy).
 #[must_use]
 pub(crate) fn identity_passthrough(format: &AudioFormat, target: PcmSample) -> bool {
-    HOST_IS_LITTLE && format.layout == AudioLayout::Interleaved && identity_target(format.sample) == target
+    HOST_IS_LITTLE
+        && format.layout == AudioLayout::Interleaved
+        && identity_target(format.sample) == target
 }
 
 /// Read one native-endian sample from `window` (`len` = the source
@@ -310,10 +312,7 @@ mod tests {
     #[test]
     fn interleaved_identity_is_passthrough_on_little_endian_hosts() {
         let fmt = format(SampleFormat::S16, 2, AudioLayout::Interleaved);
-        assert_eq!(
-            identity_passthrough(&fmt, PcmSample::S16Le),
-            HOST_IS_LITTLE
-        );
+        assert_eq!(identity_passthrough(&fmt, PcmSample::S16Le), HOST_IS_LITTLE);
         // Planar always converts (permutation), other targets always
         // convert.
         let planar = format(SampleFormat::S16, 2, AudioLayout::Planar);
@@ -372,17 +371,26 @@ mod tests {
         let fmt_u8 = format(SampleFormat::U8, 1, AudioLayout::Interleaved);
         convert_to_wav(&[0, 128, 255], &fmt_u8, PcmSample::S16Le, &mut scratch);
         let got: Vec<i16> = scratch
-            .chunks_exact(2)
-            .map(|c| i16::from_le_bytes([c[0], c[1]]))
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|c| i16::from_le_bytes(*c))
             .collect();
         assert_eq!(got, [-32768, 0, 32512]);
         // s24 → s32: sign-extended << 8 (a −1 s24 sample is
         // 0xFF FF FF little-endian).
         let fmt_s24 = format(SampleFormat::S24, 1, AudioLayout::Interleaved);
-        convert_to_wav(&[0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00], &fmt_s24, PcmSample::S32Le, &mut scratch);
+        convert_to_wav(
+            &[0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00],
+            &fmt_s24,
+            PcmSample::S32Le,
+            &mut scratch,
+        );
         let got: Vec<i32> = scratch
-            .chunks_exact(4)
-            .map(|c| i32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|c| i32::from_le_bytes(*c))
             .collect();
         assert_eq!(got, [-256, 0]);
         // f32 → f64: exact widening.
@@ -407,8 +415,10 @@ mod tests {
         let mut scratch = Vec::new();
         convert_to_wav(&bytes, &fmt, PcmSample::S32Le, &mut scratch);
         let got: Vec<i32> = scratch
-            .chunks_exact(4)
-            .map(|c| i32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|c| i32::from_le_bytes(*c))
             .collect();
         assert_eq!(got, samples);
         assert_eq!(scratch.len(), bytes.len());

@@ -39,7 +39,7 @@ use media_types::ids::{CodecDescriptor, TrackId};
 use media_types::packet::SharedBytes;
 use media_types::time::Stamp;
 use media_types::{EngineError, GenerationId, Packet, Track};
-use plugin_api::{Access, Demuxer, DemuxEvent, SeekOrigin, SourcePosition, SourceStream};
+use plugin_api::{Access, DemuxEvent, Demuxer, SeekOrigin, SourcePosition, SourceStream};
 use testkit::{Must, assert_err, fixture_path};
 use transcode::graph::DecodeStage;
 use transcode::graph::DecoderFactory;
@@ -184,11 +184,7 @@ fn mem_seek_error() -> EngineError {
 /// `open_via_input` shape).
 fn open_fixture(relative: &str) -> WavDemuxer {
     let path = fixture_path(relative).must();
-    let uri = SourceUri::parse(&format!(
-        "file://{}",
-        path.to_str().unwrap_or_default()
-    ))
-    .must();
+    let uri = SourceUri::parse(&format!("file://{}", path.to_str().unwrap_or_default())).must();
     let stream = input::FileAccess::new().open(&uri).must();
     WavDemuxer::new(stream).must()
 }
@@ -386,20 +382,43 @@ fn fixtures_roundtrip_decode_encode_redemux_redecode_bitexactly() {
         };
         // Real accounting: every sample frame and byte is counted.
         assert_eq!(stats.sample_frames_written, case.frames, "{what}: frames");
-        assert_eq!(stats.bytes_written as usize, demuxed.payload.len(), "{what}: bytes");
-        assert_eq!(stats.bytes_read as usize, demuxed.payload.len(), "{what}: read");
+        assert_eq!(
+            stats.bytes_written as usize,
+            demuxed.payload.len(),
+            "{what}: bytes"
+        );
+        assert_eq!(
+            stats.bytes_read as usize,
+            demuxed.payload.len(),
+            "{what}: read"
+        );
         assert!(stats.packets_read >= 1, "{what}: packetized source");
-        assert_eq!(stats.frames_decoded, stats.packets_read, "{what}: one frame per packet");
+        assert_eq!(
+            stats.frames_decoded, stats.packets_read,
+            "{what}: one frame per packet"
+        );
 
         // The output file: canonical 44-byte header, honest sizes.
         let output = twin.lock().unwrap_or_else(|p| p.into_inner()).clone();
-        assert_eq!(output.len(), 44 + demuxed.payload.len(), "{what}: file size");
+        assert_eq!(
+            output.len(),
+            44 + demuxed.payload.len(),
+            "{what}: file size"
+        );
         assert_eq!(&output[0..4], b"RIFF", "{what}");
         assert_eq!(&output[8..12], b"WAVE", "{what}");
         let riff_size = u32::from_le_bytes(output[4..8].try_into().must());
         let data_size = u32::from_le_bytes(output[40..44].try_into().must());
-        assert_eq!(riff_size as usize, 36 + demuxed.payload.len(), "{what}: RIFF size");
-        assert_eq!(data_size as usize, demuxed.payload.len(), "{what}: data size");
+        assert_eq!(
+            riff_size as usize,
+            36 + demuxed.payload.len(),
+            "{what}: RIFF size"
+        );
+        assert_eq!(
+            data_size as usize,
+            demuxed.payload.len(),
+            "{what}: data size"
+        );
 
         // Re-demux OUR output with OUR demuxer.
         let mut redemux = WavDemuxer::new(Box::new(MemStream::over(output))).must();
@@ -422,7 +441,11 @@ fn fixtures_roundtrip_decode_encode_redemux_redecode_bitexactly() {
             assert_eq!(want_format, got_format, "{what}: frame {i} format");
             assert_eq!(want_bytes, got_bytes, "{what}: frame {i} samples");
         }
-        assert_eq!(flattened(&redecoded), flattened(&decoded), "{what}: samples");
+        assert_eq!(
+            flattened(&redecoded),
+            flattened(&decoded),
+            "{what}: samples"
+        );
     }
 }
 
@@ -505,7 +528,10 @@ fn raw_es_copy_dumps_the_payload_verbatim() {
     assert_eq!(stats.sample_frames_written, 0);
     assert_eq!(stats.bytes_written as usize, demuxed.payload.len());
     let output = twin.lock().unwrap_or_else(|p| p.into_inner()).clone();
-    assert_eq!(output, demuxed.payload, "the dump is the payload, no header");
+    assert_eq!(
+        output, demuxed.payload,
+        "the dump is the payload, no header"
+    );
 }
 
 #[test]
@@ -543,9 +569,7 @@ fn submit_refuses_a_wav_pcm_graph_without_decode() {
     let (sink, _twin) = sink_pair();
     let graph = TranscodeGraph {
         source: SourceSpec {
-            demuxer: Box::new(open_fixture(
-                "generated/valid/wav_pcm_s16le_44k1_st.wav",
-            )),
+            demuxer: Box::new(open_fixture("generated/valid/wav_pcm_s16le_44k1_st.wav")),
             selection: TrackSelection::DefaultAudio,
             extra_data: None,
         },

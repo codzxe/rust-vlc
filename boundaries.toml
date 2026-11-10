@@ -318,6 +318,34 @@ dev_deps = ["testkit"]
 external_allowlist = []
 external_dev_allowlist = []
 
+# L3 — the transcode graph core (doc 01 §2.5 registry row
+# `transcode`; card 7.E1, issue #43 — "recording, conversion, stream
+# output", the Phase-7 surface of MP §16). The typed job graph
+# (source/demux → decode → [filters] → encode/sink) with legal-shape
+# validation, the queued→running→progress→completed/failed/cancelled
+# lifecycle over a bounded two-thread pipeline, and the v1 sinks:
+# real RIFF/WAVE PCM encode (16/24/32-bit + float, identity and
+# lossless-widening conversions only) plus stream-copy where legal
+# (WAV-from-PCM rewrap, raw ES dump) — every other conversion is a
+# typed Unsupported, never a degraded output (honest capability; MP4
+# remux is the later 7.E2 card, codec encoders the 7.E3 seam).
+# Edges point downward: L3 → L2 (demux, for the WAV `fmt `-facts
+# vocabulary and the copy path's accepted PCM set) → L1/L0;
+# L3 → L1 (plugin-api Demuxer contract, codec-api Decoder contract)
+# → L0. The concrete decoders stay behind the DecoderFactory seam
+# (the playback-engine decoder-provider precedent — no same-layer
+# production edge). `codecs` + `input` are DEV edges (the round-trip
+# and e2e suites decode through the real decoders and open fixtures
+# through the real file access stack — the demux crate's own
+# dev-edge precedent). Std-only by C5: zero external dependencies,
+# no unsafe, bounded resources everywhere (MP §12).
+[crates.transcode]
+layer = 3
+internal_deps = ["media-types", "plugin-api", "codec-api", "demux"]
+dev_deps = ["testkit", "codecs", "input"]
+external_allowlist = []
+external_dev_allowlist = []
+
 # L4 — audio output backends (doc 01 §2.6 registry row, card 2.C3;
 # doc 03 §4.9). The AudioBackend adapter trait (extends
 # audio-engine's AudioSink with enumerate/open/pause/resume + the
