@@ -98,9 +98,10 @@ fn run_ms(fixture: &mut HotplugFixture, ms: u64, step_ms: u64) {
 fn drain_wire(fixture: &mut HotplugFixture) {
     for output in fixture.engine.take_outputs() {
         if let EngineOutput::Event(event) = output
-            && let Some(wire) = event.as_wire_event() {
-                fixture.wire.push(wire.kind);
-            }
+            && let Some(wire) = event.as_wire_event()
+        {
+            fixture.wire.push(wire.kind);
+        }
     }
 }
 

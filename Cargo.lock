@@ -187,6 +187,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "device-discovery"
+version = "0.1.0"
+dependencies = [
+ "media-types",
+ "plugin-api",
+ "testkit",
+]
+
+[[package]]
 name = "dyn-clone"
 version = "1.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
