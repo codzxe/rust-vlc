@@ -1,36 +1,61 @@
-//! The H.264 hardware decode-path seam (card 5.F2; ADR-001 §1:
-//! "H.264 and HEVC are hardware-first … with truthful active-decoder
-//! reporting").
+//! The H.264 hardware decode-path seam (card 5.F2) **plus the
+//! ADR-001 per-OS adapter lanes** (cards 7.B1–7.B3, issue #41):
+//! VideoToolbox (macOS), Media Foundation + DXVA (Windows), VA-API
+//! (Linux).
 //!
 //! This module is **the consumption point** where the LANDED parser
-//! (5.F1) meets a hardware adapter: it defines what a Phase-7
-//! per-OS adapter (7.B1 VA-API, 7.B2 VideoToolbox, 7.B3 Media
-//! Foundation — *not built here*) receives, and owns the plumbing
-//! that turns a negotiated
+//! (5.F1) meets a hardware adapter: it defines what a per-OS adapter
+//! receives, and owns the plumbing that turns a negotiated
 //! [`HwAccelerator`](codec_api::HwAccelerator) into a fed session.
 //! **No software decode lives here or anywhere under `h264`** —
 //! ADR-001's honesty boundary: a machine without an OS decoder gets
 //! a typed `unsupported` error from [`super::decode`], never a fake
 //! success, never a silent skip.
 //!
-//! # The two contracts
+//! # The contracts
 //!
 //! - [`H264HwDecoder`] — the *session* an adapter opens: it is fed
 //!   parsed parameter sets ([`H264HwStreamInfo`]) and access units
 //!   ([`H264HwAccessUnit`]: every NAL of one picture, raw bytes plus
 //!   the parser's slice-header facts) and hands back decoded
-//!   surfaces ([`H264HwFrame`]). This is the surface 7.B adapters
-//!   implement; it is stable for them to build against now.
+//!   surfaces ([`H264HwFrame`]). This is the surface the 7.B lanes
+//!   implement.
 //! - [`H264HwBridge`] — the *plug*: the codec-api
 //!   [`HwAccelerator`](codec_api::HwAccelerator) handle is opaque by
 //!   design (its `as_any` downcast seam belongs to "the decoder
 //!   wrapper that knows its concrete backend" — `codec-api/src/hw.rs`).
-//!   A bridge is how the wrapper knows: each adapter crate ships one
-//!   small type implementing `H264HwBridge` that downcasts the
-//!   negotiated accelerator to **its own** concrete type and mints
-//!   the session. [`H264HwPath::open`] walks the installed bridge
-//!   list; an accelerator no bridge claims is a typed configure
-//!   error (`h264.hw.no_bridge`), still never a silent fallback.
+//!   A bridge is how the wrapper knows: each lane ships one small
+//!   type implementing `H264HwBridge` that downcasts the negotiated
+//!   accelerator to **its own** concrete type and mints the session.
+//!   [`H264HwPath::open`] walks the installed bridge list; an
+//!   accelerator no bridge claims is a typed configure error
+//!   (`h264.hw.no_bridge`), still never a silent fallback.
+//! - [`capability`] — the typed negotiation layer (cards 7.B1–7.B3):
+//!   probe → [`HwAvailability`] → policy → [`Negotiation`] with the
+//!   truthful `hw-active` event trail. Never fakes hardware.
+//! - [`frame_pool`] — the bounded surface-slot model every lane's
+//!   session allocates from (MP §12: bounded by construction).
+//!
+//! # The per-OS lanes (7.B1–7.B3) and their honest status
+//!
+//! Each lane is `cfg`-gated to its OS and compiled for its target
+//! (evidence labels per the card):
+//!
+//! - **`vaapi`** (Linux, 7.B1): device-node discovery + runtime
+//!   `dlopen` of `libva` + typed probe. Runtime-tested here in its
+//!   **failure paths** (this sandbox has no GPU: the probe reports
+//!   the typed `Unavailable` reason and the software-fallback chain
+//!   engages). The driver-mediated decode path is
+//!   compile-verified only. **Activation `[PROPOSAL]`** pending
+//!   ADR-013 ratification (Lead action).
+//! - **`videotoolbox`** (macOS, 7.B2): hand-rolled
+//!   `VTDecompressionSession*` FFI, compile-verified via
+//!   `cargo check --target aarch64-apple-darwin`; runtime hardware
+//!   behavior NOT exercised — `[VERIFY]`.
+//! - **`mediafoundation`** (Windows, 7.B3): hand-rolled
+//!   `IMFTransform`/DXVA COM FFI, compile-verified via
+//!   `cargo check --target x86_64-pc-windows-msvc`; runtime hardware
+//!   behavior NOT exercised — `[VERIFY]`.
 //!
 //! # Feed shape (what the adapter gets, and why)
 //!
@@ -45,6 +70,11 @@
 //! so an adapter can order pictures without re-parsing. Access units
 //! arrive one picture per call, in decode order, boundary-detected
 //! per §7.4.1.2.4 by [`super::decode`].
+
+pub mod capability;
+pub mod frame_pool;
+#[cfg(target_os = "linux")]
+pub mod vaapi;
 
 use std::fmt;
 use std::sync::Arc;
