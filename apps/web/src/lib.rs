@@ -61,6 +61,7 @@
 pub mod abi;
 pub mod capabilities;
 pub mod host;
+pub mod io;
 pub mod open;
 pub mod protocol;
 pub mod source;
