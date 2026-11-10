@@ -39,8 +39,10 @@ impl TestClient {
     /// [`ProtocolError::HttpUpgrade`] when the server's 101/accept is
     /// not exactly what the RFC demands for our nonce.
     pub fn connect(addr: &str) -> Result<TestClient, ProtocolError> {
-        let mut stream = TcpStream::connect(addr)
-            .map_err(|source| ProtocolError::Io { what: "connecting the test client", source })?;
+        let mut stream = TcpStream::connect(addr).map_err(|source| ProtocolError::Io {
+            what: "connecting the test client",
+            source,
+        })?;
         // A locally-generated nonce (this is a TEST client; the value
         // only needs to be 16 varied bytes — the accept check pins the
         // derivation).
@@ -52,6 +54,7 @@ impl TestClient {
         for (i, byte) in key.iter_mut().enumerate() {
             *byte = (nanos >> ((i % 8) * 8)) as u8 ^ (0x5a_u8.rotate_left(i as u32 % 8));
         }
+        // lumen-allow-literal: lumen-control is the wire protocol name (doc 05 §5.4), not product identity — a rebrand must not rename the protocol on the wire
         let request = http::client_request("/lumen-control", &key, addr);
         http::write_all(&mut stream, &request)?;
         let head = http::read_response_head(&mut stream)?;
@@ -81,7 +84,13 @@ impl TestClient {
     /// # Errors
     /// [`ProtocolError::Io`] on write failure.
     pub fn send_text(&mut self, payload: &str) -> Result<(), ProtocolError> {
-        write_masked_frame(&mut self.stream, true, Opcode::Text, payload.as_bytes(), Self::fresh_mask())
+        write_masked_frame(
+            &mut self.stream,
+            true,
+            Opcode::Text,
+            payload.as_bytes(),
+            Self::fresh_mask(),
+        )
     }
 
     /// Send one masked BINARY frame (dirty-world cases).
@@ -89,7 +98,13 @@ impl TestClient {
     /// # Errors
     /// [`ProtocolError::Io`] on write failure.
     pub fn send_binary(&mut self, payload: &[u8]) -> Result<(), ProtocolError> {
-        write_masked_frame(&mut self.stream, true, Opcode::Binary, payload, Self::fresh_mask())
+        write_masked_frame(
+            &mut self.stream,
+            true,
+            Opcode::Binary,
+            payload,
+            Self::fresh_mask(),
+        )
     }
 
     /// Send RAW BYTES as-is (malformed-frame conformance: truncated
@@ -101,13 +116,35 @@ impl TestClient {
         http::write_all(&mut self.stream, bytes)
     }
 
+    /// Half-close the write side (FIN), keeping the read side open —
+    /// how a hostile peer ENDS a truncated frame: the server's reader
+    /// must hit EOF mid-frame and answer with a typed close instead of
+    /// blocking forever on bytes that will never come.
+    ///
+    /// # Errors
+    /// [`ProtocolError::Io`] on shutdown failure.
+    pub fn shutdown_write(&mut self) -> Result<(), ProtocolError> {
+        self.stream
+            .shutdown(std::net::Shutdown::Write)
+            .map_err(|source| ProtocolError::Io {
+                what: "shutting down the test client's write side",
+                source,
+            })
+    }
+
     /// Send a masked ping; the server must answer with a pong carrying
     /// the same payload (RFC 6455 §5.5.2).
     ///
     /// # Errors
     /// [`ProtocolError::Io`] on write failure.
     pub fn ping(&mut self, payload: &[u8]) -> Result<(), ProtocolError> {
-        write_masked_frame(&mut self.stream, true, Opcode::Ping, payload, Self::fresh_mask())
+        write_masked_frame(
+            &mut self.stream,
+            true,
+            Opcode::Ping,
+            payload,
+            Self::fresh_mask(),
+        )
     }
 
     /// Send a close frame with `code` (RFC 6455 §5.5.1).
@@ -115,7 +152,13 @@ impl TestClient {
     /// # Errors
     /// [`ProtocolError::Io`] on write failure.
     pub fn close(&mut self, code: u16) -> Result<(), ProtocolError> {
-        write_masked_frame(&mut self.stream, true, Opcode::Close, &code.to_be_bytes(), Self::fresh_mask())
+        write_masked_frame(
+            &mut self.stream,
+            true,
+            Opcode::Close,
+            &code.to_be_bytes(),
+            Self::fresh_mask(),
+        )
     }
 
     /// Send one masked TEXT frame with an EXPLICIT mask (wire-byte
@@ -150,8 +193,8 @@ impl TestClient {
     pub fn expect_text(&mut self, payload: &str) -> Result<(), ProtocolError> {
         match self.read_frame()? {
             Some(frame) if frame.opcode == Opcode::Text && frame.fin => {
-                let text = String::from_utf8(frame.payload)
-                    .map_err(|_| ProtocolError::InvalidUtf8)?;
+                let text =
+                    String::from_utf8(frame.payload).map_err(|_| ProtocolError::InvalidUtf8)?;
                 if text == payload {
                     Ok(())
                 } else {
@@ -189,7 +232,8 @@ impl TestClient {
     pub fn expect_close(&mut self) -> Result<Option<u16>, ProtocolError> {
         match self.read_frame()? {
             Some(frame) if frame.opcode == Opcode::Close => {
-                crate::frame::parse_close_payload(&frame.payload).map(|parsed| parsed.map(|(code, _)| code))
+                crate::frame::parse_close_payload(&frame.payload)
+                    .map(|parsed| parsed.map(|(code, _)| code))
             }
             Some(frame) => Err(ProtocolError::BadEnvelope {
                 detail: format!("expected a close frame, got {frame:?}"),
@@ -214,7 +258,9 @@ impl TestClient {
         let text = String::from_utf8(frame.payload).map_err(|_| ProtocolError::InvalidUtf8)?;
         serde_json::from_str(&text)
             .map(Some)
-            .map_err(|err| ProtocolError::BadEnvelope { detail: err.to_string() })
+            .map_err(|err| ProtocolError::BadEnvelope {
+                detail: err.to_string(),
+            })
     }
 }
 
@@ -234,6 +280,10 @@ pub struct Frame {
 /// client must fail on — mirrored strictness).
 fn read_client_side_frame<R: Read>(stream: &mut R) -> Result<Option<Frame>, ProtocolError> {
     crate::frame::read_frame_unmasked(stream, 1 << 20).map(|option| {
-        option.map(|frame| Frame { fin: frame.fin, opcode: frame.opcode, payload: frame.payload })
+        option.map(|frame| Frame {
+            fin: frame.fin,
+            opcode: frame.opcode,
+            payload: frame.payload,
+        })
     })
 }

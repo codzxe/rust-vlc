@@ -25,14 +25,15 @@
 //! before typed parsing, because `#[serde(flatten)]` envelopes cannot
 //! carry `deny_unknown_fields` themselves.
 
-use commands::catalog::types::EngineInfo;
 use commands::WireEvent;
 use commands::WireRequest;
 use commands::WireResponse;
+use commands::catalog::types::EngineInfo;
 use serde::Deserialize;
 use serde::Serialize;
 
 /// The protocol name (doc 05 §5.4's versioned transport).
+// lumen-allow-literal: the lumen-control wire protocol identifier (doc 05 §5.4) — spec vocabulary, a rebrand must not rename the protocol on the wire
 pub const PROTOCOL_NAME: &str = "lumen-control";
 
 /// The major this server speaks.
@@ -209,7 +210,11 @@ pub enum ServerFrame {
 
 /// Pick the highest mutually supported major (doc 05 §6.3).
 pub fn negotiate_version(client: &[u32]) -> Option<u32> {
-    client.iter().copied().filter(|v| SUPPORTED_VERSIONS.contains(v)).max()
+    client
+        .iter()
+        .copied()
+        .filter(|v| SUPPORTED_VERSIONS.contains(v))
+        .max()
 }
 
 /// The exact key set a `request` frame may carry (doc 05 §5.4 "unknown
@@ -235,7 +240,7 @@ pub fn validate_request_shape(value: &serde_json::Value) -> Result<(), commands:
                 Stage::Control,
                 ErrorCode::InvalidArgument,
                 "request frame must be a JSON object",
-            ))
+            ));
         }
     };
     for key in object.keys() {
@@ -254,7 +259,7 @@ pub fn validate_request_shape(value: &serde_json::Value) -> Result<(), commands:
                 Stage::Control,
                 ErrorCode::InvalidArgument,
                 "requestId must be a non-negative integer",
-            ))
+            ));
         }
     }
     match object.get("cmd").and_then(serde_json::Value::as_str) {
@@ -264,7 +269,7 @@ pub fn validate_request_shape(value: &serde_json::Value) -> Result<(), commands:
                 Stage::Control,
                 ErrorCode::InvalidArgument,
                 "cmd must be a non-empty string",
-            ))
+            ));
         }
     }
     Ok(())
@@ -283,8 +288,8 @@ pub fn redact_name(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use commands::envelope::RequestId;
     use commands::Command;
+    use commands::envelope::RequestId;
 
     #[test]
     fn negotiation_picks_the_highest_mutual_major() {
@@ -300,7 +305,9 @@ mod tests {
             request_id: RequestId(7),
             command: Command::PlaybackPlay,
         };
-        let frame = ClientFrame::Request { request: request.clone() };
+        let frame = ClientFrame::Request {
+            request: request.clone(),
+        };
         let json = match serde_json::to_string(&frame) {
             Ok(json) => json,
             Err(err) => unreachable!("serialize failed: {err}"),
@@ -325,10 +332,14 @@ mod tests {
             Ok(json) => json,
             Err(err) => unreachable!("serialize failed: {err}"),
         };
-        assert!(json.contains(r#""protocol":"lumen-control""#));
+        assert!(json.contains(r#""protocol":"lumen-control""#)); // lumen-allow-literal: protocol-name wire vocabulary, not product identity
         match serde_json::from_str::<ClientFrame>(&json) {
-            Ok(ClientFrame::Hello { protocol, versions, token }) => {
-                assert_eq!(protocol, "lumen-control");
+            Ok(ClientFrame::Hello {
+                protocol,
+                versions,
+                token,
+            }) => {
+                assert_eq!(protocol, "lumen-control"); // lumen-allow-literal: protocol-name wire vocabulary, not product identity
                 assert_eq!(versions, [1]);
                 assert_eq!(token.as_deref(), Some("secret"));
             }
@@ -363,12 +374,12 @@ mod tests {
 
     #[test]
     fn request_shape_validation_rejects_unknown_fields_and_bad_ids() {
-        let good: serde_json::Value = match serde_json::from_str(
-            r#"{"type":"request","requestId":1,"cmd":"playback.play"}"#,
-        ) {
-            Ok(value) => value,
-            Err(err) => unreachable!("{err}"),
-        };
+        let good: serde_json::Value =
+            match serde_json::from_str(r#"{"type":"request","requestId":1,"cmd":"playback.play"}"#)
+            {
+                Ok(value) => value,
+                Err(err) => unreachable!("{err}"),
+            };
         assert!(validate_request_shape(&good).is_ok());
         let unknown_field: serde_json::Value = match serde_json::from_str(
             r#"{"type":"request","requestId":1,"cmd":"playback.play","extra":true}"#,

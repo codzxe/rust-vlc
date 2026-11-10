@@ -38,7 +38,13 @@ impl Sha1 {
     /// Fresh state with the RFC 3174 §6.1.1 initialization vectors.
     pub fn new() -> Sha1 {
         Sha1 {
-            state: [0x6745_2301, 0xEFCD_AB89, 0x98BA_DCFE, 0x1032_5476, 0xC3D2_E1F0],
+            state: [
+                0x6745_2301,
+                0xEFCD_AB89,
+                0x98BA_DCFE,
+                0x1032_5476,
+                0xC3D2_E1F0,
+            ],
             buffer: [0u8; 64],
             buffered: 0,
             length_bits: 0,
@@ -155,15 +161,26 @@ mod tests {
     /// NIST million-`a` vector) — not self-generated (D-5).
     #[test]
     fn external_vectors() {
-        assert_eq!(hex(&sha1(b"abc")), "a9993e364706816aba3e25717850c26c9cd0d89d");
         assert_eq!(
-            hex(&sha1(b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq")),
+            hex(&sha1(b"abc")),
+            "a9993e364706816aba3e25717850c26c9cd0d89d"
+        );
+        assert_eq!(
+            hex(&sha1(
+                b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"
+            )),
             "84983e441c3bd26ebaae4aa1f95129e5e54670f1"
         );
         assert_eq!(hex(&sha1(b"")), "da39a3ee5e6b4b0d3255bfef95601890afd80709");
-        assert_eq!(hex(&sha1(b"The quick brown fox jumps over the lazy dog")), "2fd4e1c67a2d28fced849ee1bb76e7391b93eb12");
+        assert_eq!(
+            hex(&sha1(b"The quick brown fox jumps over the lazy dog")),
+            "2fd4e1c67a2d28fced849ee1bb76e7391b93eb12"
+        );
         let million_a = vec![b'a'; 1_000_000];
-        assert_eq!(hex(&sha1(&million_a)), "34aa973cd4c4daa4f61eeb2bdbad27316534016f");
+        assert_eq!(
+            hex(&sha1(&million_a)),
+            "34aa973cd4c4daa4f61eeb2bdbad27316534016f"
+        );
     }
 
     /// RFC 6455 §1.3: the doc's own worked handshake example.

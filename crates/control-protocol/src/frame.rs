@@ -114,13 +114,19 @@ fn read_exact<R: Read>(stream: &mut R, n: usize) -> Result<Option<Vec<u8>>, Prot
                 if err.kind() == std::io::ErrorKind::Interrupted {
                     continue;
                 }
-                return Err(ProtocolError::Io { what: "reading frame", source: err });
+                return Err(ProtocolError::Io {
+                    what: "reading frame",
+                    source: err,
+                });
             }
             Err(err) => {
                 return if is_disconnect(&err) && filled == 0 {
                     Ok(None)
                 } else {
-                    Err(ProtocolError::Io { what: "reading frame", source: err })
+                    Err(ProtocolError::Io {
+                        what: "reading frame",
+                        source: err,
+                    })
                 };
             }
         }
@@ -250,22 +256,39 @@ fn read_frame_endpoint<R: Read>(
         }
     }
     if length > max_frame {
-        return Err(ProtocolError::MessageTooLarge { limit: max_frame, claimed: length });
+        return Err(ProtocolError::MessageTooLarge {
+            limit: max_frame,
+            claimed: length,
+        });
     }
-    let Some(mask_bytes) = read_exact(stream, 4)? else {
-        return Err(truncated("masking key"));
+    // The 4-byte masking key exists ONLY on masked frames (RFC 6455
+    // §5.3) — reading it unconditionally would eat the first payload
+    // bytes of every UNMASKED (server→client) frame. Found by the
+    // conformance suite: the test client hung reading its first
+    // `welcome` because the reader consumed 4 phantom mask bytes and
+    // then blocked waiting for a payload that had already arrived.
+    let mask: Option<[u8; 4]> = if masked {
+        let Some(mask_bytes) = read_exact(stream, 4)? else {
+            return Err(truncated("masking key"));
+        };
+        Some([mask_bytes[0], mask_bytes[1], mask_bytes[2], mask_bytes[3]])
+    } else {
+        None
     };
-    let mask = [mask_bytes[0], mask_bytes[1], mask_bytes[2], mask_bytes[3]];
     let Some(mut payload) = read_exact(stream, length as usize)? else {
         return Err(truncated("payload"));
     };
-    if masked {
+    if let Some(mask) = mask {
         // RFC 6455 §5.3: unmask with the repeating 4-byte key.
         for (i, byte) in payload.iter_mut().enumerate() {
             *byte ^= mask[i & 3];
         }
     }
-    Ok(Some(Frame { fin, opcode, payload }))
+    Ok(Some(Frame {
+        fin,
+        opcode,
+        payload,
+    }))
 }
 
 fn truncated(what: &'static str) -> ProtocolError {
@@ -309,7 +332,10 @@ pub fn write_frame<W: Write>(
     stream
         .write_all(&head)
         .and_then(|()| stream.write_all(payload))
-        .map_err(|source| ProtocolError::Io { what: "writing frame", source })
+        .map_err(|source| ProtocolError::Io {
+            what: "writing frame",
+            source,
+        })
 }
 
 /// A fully-reassembled data message.
@@ -333,7 +359,11 @@ pub struct MessageAssembler {
 impl MessageAssembler {
     /// New assembler allowing messages up to `cap` bytes total.
     pub fn new(cap: u64) -> MessageAssembler {
-        MessageAssembler { opcode: None, buffer: Vec::new(), cap }
+        MessageAssembler {
+            opcode: None,
+            buffer: Vec::new(),
+            cap,
+        }
     }
 
     /// Whether a fragmented message is mid-reassembly.
@@ -379,7 +409,10 @@ impl MessageAssembler {
                     if frame.opcode == Opcode::Text {
                         validate_utf8(&frame.payload)?;
                     }
-                    return Ok(Some(Message { opcode: frame.opcode, payload: frame.payload }));
+                    return Ok(Some(Message {
+                        opcode: frame.opcode,
+                        payload: frame.payload,
+                    }));
                 }
                 self.opcode = Some(frame.opcode);
                 self.buffer = frame.payload;
@@ -399,7 +432,10 @@ impl MessageAssembler {
     fn append(&mut self, frame: &Frame) -> Result<bool, ProtocolError> {
         let total = self.buffer.len() as u64 + frame.payload.len() as u64;
         if total > self.cap {
-            return Err(ProtocolError::MessageTooLarge { limit: self.cap, claimed: total });
+            return Err(ProtocolError::MessageTooLarge {
+                limit: self.cap,
+                claimed: total,
+            });
         }
         self.buffer.extend_from_slice(&frame.payload);
         Ok(frame.fin)
@@ -515,7 +551,10 @@ pub fn write_masked_frame<W: Write>(
     stream
         .write_all(&head)
         .and_then(|()| stream.write_all(&masked))
-        .map_err(|source| ProtocolError::Io { what: "writing frame", source })
+        .map_err(|source| ProtocolError::Io {
+            what: "writing frame",
+            source,
+        })
 }
 
 #[cfg(test)]
@@ -532,11 +571,13 @@ mod tests {
     fn client_frame(fin: bool, opcode: Opcode, payload: &[u8], mask: [u8; 4]) -> Vec<u8> {
         let mut out = Vec::new();
         out.push(if fin { 0x80 } else { 0x00 } | opcode.as_u8());
-        out.push(0x80 | match payload.len() {
-            0..=125 => payload.len() as u8,
-            126..=65_535 => 126,
-            _ => 127,
-        });
+        out.push(
+            0x80 | match payload.len() {
+                0..=125 => payload.len() as u8,
+                126..=65_535 => 126,
+                _ => 127,
+            },
+        );
         if (126..=65_535).contains(&payload.len()) {
             out.extend_from_slice(&(payload.len() as u16).to_be_bytes());
         } else if payload.len() > 65_535 {
@@ -680,7 +721,11 @@ mod tests {
     fn assembler_rejects_dirty_fragment_sequences() {
         // Continuation without start.
         let mut assembler = MessageAssembler::new(1024);
-        let frame = Frame { fin: true, opcode: Opcode::Continuation, payload: vec![1] };
+        let frame = Frame {
+            fin: true,
+            opcode: Opcode::Continuation,
+            payload: vec![1],
+        };
         match assembler.push(frame) {
             Err(ProtocolError::Frame { reason, .. }) => {
                 assert!(reason.contains("without a started message"))
@@ -689,8 +734,16 @@ mod tests {
         }
         // New message while mid-reassembly.
         let mut assembler = MessageAssembler::new(1024);
-        let _ = assembler.push(Frame { fin: false, opcode: Opcode::Text, payload: vec![1] });
-        let frame = Frame { fin: true, opcode: Opcode::Text, payload: vec![2] };
+        let _ = assembler.push(Frame {
+            fin: false,
+            opcode: Opcode::Text,
+            payload: vec![1],
+        });
+        let frame = Frame {
+            fin: true,
+            opcode: Opcode::Text,
+            payload: vec![2],
+        };
         match assembler.push(frame) {
             Err(ProtocolError::Frame { reason, .. }) => {
                 assert!(reason.contains("fragmented message is open"))
@@ -699,8 +752,16 @@ mod tests {
         }
         // Message cap exceeded by fragments.
         let mut assembler = MessageAssembler::new(4);
-        let _ = assembler.push(Frame { fin: false, opcode: Opcode::Text, payload: vec![1, 2] });
-        let frame = Frame { fin: true, opcode: Opcode::Continuation, payload: vec![3, 4, 5] };
+        let _ = assembler.push(Frame {
+            fin: false,
+            opcode: Opcode::Text,
+            payload: vec![1, 2],
+        });
+        let frame = Frame {
+            fin: true,
+            opcode: Opcode::Continuation,
+            payload: vec![3, 4, 5],
+        };
         match assembler.push(frame) {
             Err(ProtocolError::MessageTooLarge { limit, claimed }) => {
                 assert_eq!((limit, claimed), (4, 5));
@@ -754,6 +815,41 @@ mod tests {
         }
     }
 
+    /// REGRESSION (the conformance-suite hang): the client-role reader
+    /// must NOT read 4 mask bytes for an UNMASKED server frame — the
+    /// original unconditional read ate the first payload bytes of every
+    /// server→client frame and blocked the client forever.
+    #[test]
+    fn unmasked_server_frames_parse_without_phantom_mask_bytes() {
+        for (fin, opcode, payload) in [
+            (true, Opcode::Text, b"{}".as_slice()),
+            (true, Opcode::Text, &[0x41u8; 200]), // extended 16-bit length
+            (true, Opcode::Close, &[]),           // empty payload
+            (true, Opcode::Pong, b"abc"),
+            (false, Opcode::Binary, &[7u8; 130]),
+        ] {
+            let mut written = Vec::new();
+            match write_frame(&mut written, fin, opcode, payload) {
+                Ok(()) => {}
+                Err(err) => unreachable!("write failed: {err}"),
+            }
+            // A trailing sentinel proves the reader consumed EXACTLY
+            // the frame: no phantom mask bytes, no payload overrun.
+            let mut stream = reader(&written);
+            match read_frame_unmasked(&mut stream, 1 << 20) {
+                Ok(Some(frame)) => {
+                    assert_eq!(frame.fin, fin);
+                    assert_eq!(frame.opcode, opcode);
+                    assert_eq!(frame.payload, payload);
+                }
+                other => unreachable!("unmasked read failed: {other:?}"),
+            }
+            let mut rest = Vec::new();
+            let _ = stream.read_to_end(&mut rest);
+            assert!(rest.is_empty(), "trailing bytes after the frame: {rest:?}");
+        }
+    }
+
     #[test]
     fn server_writer_roundtrips_through_the_parser_via_masking() {
         // The writer produces unmasked frames; simulate a client by
@@ -784,7 +880,10 @@ mod tests {
             let mut body = written[head_len..].to_vec();
             apply_mask(&mut body, mask);
             masked.extend_from_slice(&body);
-            assert_eq!(masked, client_wire, "hand-masked and write_masked_frame agree");
+            assert_eq!(
+                masked, client_wire,
+                "hand-masked and write_masked_frame agree"
+            );
             let mut stream = reader(&masked);
             match read_frame(&mut stream, 1 << 20) {
                 Ok(Some(frame)) => {

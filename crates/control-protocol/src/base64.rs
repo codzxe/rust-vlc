@@ -44,7 +44,11 @@ pub fn encode(data: &[u8]) -> String {
         // Pack up to 3 bytes into a 24-bit big-endian window; the four
         // 6-bit groups (top first) are the output quartet, with the
         // 1-byte tail yielding "XX==" and the 2-byte tail "XXX=".
-        let bytes = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+        let bytes = [
+            chunk[0],
+            *chunk.get(1).unwrap_or(&0),
+            *chunk.get(2).unwrap_or(&0),
+        ];
         let window = u32::from_be_bytes([0, bytes[0], bytes[1], bytes[2]]);
         let quartet = [
             ALPHABET[(window >> 18) as usize & 0x3f] as char,
@@ -83,7 +87,7 @@ pub fn encode(data: &[u8]) -> String {
 /// non-canonical trailing bits or a bad length — never a panic.
 pub fn decode(text: &str) -> Result<Vec<u8>, Base64Error> {
     let bytes = text.as_bytes();
-    if bytes.len() % 4 != 0 {
+    if !bytes.len().is_multiple_of(4) {
         return Err(Base64Error::BadLength { len: bytes.len() });
     }
     let pad = bytes.iter().rev().take_while(|b| **b == b'=').count();
@@ -93,7 +97,7 @@ pub fn decode(text: &str) -> Result<Vec<u8>, Base64Error> {
     // '=' may appear only as the trailing run, and the symbol count in
     // front of it must match the padding (mod 4 = 4-pad).
     let symbols = &bytes[..bytes.len() - pad];
-    if symbols.iter().any(|b| *b == b'=') {
+    if symbols.contains(&b'=') {
         return Err(Base64Error::BadPadding);
     }
     if pad != 0 && symbols.len() % 4 != 4 - pad {
@@ -101,7 +105,7 @@ pub fn decode(text: &str) -> Result<Vec<u8>, Base64Error> {
     }
     let mut out = Vec::with_capacity(symbols.len() / 4 * 3 + 2);
     let full_groups = symbols.len() / 4;
-    for (index, group) in symbols[..full_groups * 4].chunks_exact(4).enumerate() {
+    for (index, group) in symbols[..full_groups * 4].chunks(4).enumerate() {
         let window = group_window(group, index * 4)?;
         out.push((window >> 16) as u8);
         out.push((window >> 8) as u8);
@@ -136,8 +140,9 @@ pub fn decode(text: &str) -> Result<Vec<u8>, Base64Error> {
 fn group_window(group: &[u8], base_offset: usize) -> Result<u32, Base64Error> {
     let mut window: u32 = 0;
     for (j, symbol) in group.iter().enumerate() {
-        let value = symbol_value(*symbol)
-            .ok_or(Base64Error::InvalidSymbol { offset: base_offset + j })?;
+        let value = symbol_value(*symbol).ok_or(Base64Error::InvalidSymbol {
+            offset: base_offset + j,
+        })?;
         window = (window << 6) | value as u32;
     }
     // A short group sits at the TOP of its bit window (the symbols are
@@ -197,13 +202,19 @@ mod tests {
 
     #[test]
     fn dirty_inputs_are_typed_errors() {
-        assert_eq!(decode("Zm9!"), Err(Base64Error::InvalidSymbol { offset: 3 }));
+        assert_eq!(
+            decode("Zm9!"),
+            Err(Base64Error::InvalidSymbol { offset: 3 })
+        );
         assert_eq!(decode("Zm9v!"), Err(Base64Error::BadLength { len: 5 }));
         assert_eq!(decode("Z"), Err(Base64Error::BadLength { len: 1 }));
         assert_eq!(decode("Zg="), Err(Base64Error::BadLength { len: 3 }));
         assert_eq!(decode("=g=="), Err(Base64Error::BadPadding)); // '=' outside the trailing run
         assert_eq!(decode("Z==="), Err(Base64Error::BadPadding));
         assert_eq!(decode("Zh=="), Err(Base64Error::BadPadding)); // non-canonical tail bits
-        assert_eq!(decode("Zm 9"), Err(Base64Error::InvalidSymbol { offset: 2 })); // whitespace
+        assert_eq!(
+            decode("Zm 9"),
+            Err(Base64Error::InvalidSymbol { offset: 2 })
+        ); // whitespace
     }
 }

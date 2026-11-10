@@ -44,7 +44,10 @@ pub struct Token(pub String);
 /// token).
 pub fn generate_token() -> (Token, EntropySource) {
     match read_urandom(32) {
-        Ok(bytes) => (Token(crate::base64::encode(&bytes)), EntropySource::OsRandom),
+        Ok(bytes) => (
+            Token(crate::base64::encode(&bytes)),
+            EntropySource::OsRandom,
+        ),
         Err(_) => (Token(weak_fallback_token()), EntropySource::WeakFallback),
     }
 }

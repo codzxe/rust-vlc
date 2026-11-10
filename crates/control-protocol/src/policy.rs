@@ -21,11 +21,11 @@
 
 use std::collections::BTreeSet;
 
+use commands::WireRequest;
 use commands::catalog::ids::CommandId;
 use commands::error::CommandError;
 use commands::error::ErrorCode;
 use commands::error::Stage;
-use commands::WireRequest;
 
 /// The sensitive classification: catalog commands that mutate settings,
 /// touch filesystem paths, or change plugin state (doc 05 §2 tables +
@@ -134,7 +134,11 @@ pub struct ServerSection {
 
 impl Default for ServerSection {
     fn default() -> Self {
-        ServerSection { bind: "127.0.0.1".to_owned(), port: 0, read_only: false }
+        ServerSection {
+            bind: "127.0.0.1".to_owned(),
+            port: 0,
+            read_only: false,
+        }
     }
 }
 
@@ -168,7 +172,10 @@ pub struct ServerPolicy {
 
 impl Default for ServerPolicy {
     fn default() -> Self {
-        ServerPolicy { grants: BTreeSet::new(), read_only: false }
+        ServerPolicy {
+            grants: BTreeSet::new(),
+            read_only: false,
+        }
     }
 }
 
@@ -194,11 +201,17 @@ impl ServerPolicy {
                     grants.insert(id);
                 }
                 Err(detail) => {
-                    return Err(PolicyConfigError { entry: entry.clone(), detail: detail.to_string() });
+                    return Err(PolicyConfigError {
+                        entry: entry.clone(),
+                        detail: detail.to_string(),
+                    });
                 }
             }
         }
-        Ok(ServerPolicy { grants, read_only: file.server.read_only })
+        Ok(ServerPolicy {
+            grants,
+            read_only: file.server.read_only,
+        })
     }
 
     /// Whether `id` may execute for a session with this auth state.
@@ -264,7 +277,10 @@ mod tests {
     use commands::envelope::RequestId;
 
     fn request_for(command: Command) -> WireRequest {
-        WireRequest { request_id: RequestId(1), command }
+        WireRequest {
+            request_id: RequestId(1),
+            command,
+        }
     }
 
     #[test]
@@ -318,7 +334,9 @@ mod tests {
     #[test]
     fn unknown_grant_entries_are_typed_errors() {
         let file = PolicyFile {
-            policy: PolicySection { sensitive_allow: vec!["config.set-stuff".to_owned()] },
+            policy: PolicySection {
+                sensitive_allow: vec!["config.set-stuff".to_owned()],
+            },
             ..PolicyFile::default()
         };
         match ServerPolicy::from_file(&file) {
@@ -334,7 +352,10 @@ mod tests {
         assert!(policy.check(CommandId::MediaGetInfo, false).is_err());
         // Read-only: the fixed safe subset passes, everything else fails.
         let file = PolicyFile {
-            server: ServerSection { read_only: true, ..ServerSection::default() },
+            server: ServerSection {
+                read_only: true,
+                ..ServerSection::default()
+            },
             ..PolicyFile::default()
         };
         let policy = match ServerPolicy::from_file(&file) {
@@ -395,6 +416,9 @@ mod tests {
         let request = request_for(Command::SessionClose);
         assert_eq!(request_command_id(&request), Some(CommandId::SessionClose));
         let request = request_for(Command::AudioSetVolume { volume: 0.5 });
-        assert_eq!(request_command_id(&request), Some(CommandId::AudioSetVolume));
+        assert_eq!(
+            request_command_id(&request),
+            Some(CommandId::AudioSetVolume)
+        );
     }
 }

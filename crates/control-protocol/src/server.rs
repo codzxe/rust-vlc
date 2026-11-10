@@ -40,9 +40,9 @@ use std::net::ToSocketAddrs;
 use std::time::Duration;
 use std::time::Instant;
 
-use commands::catalog::types::EngineInfo;
 use commands::WireRequest;
 use commands::WireResponse;
+use commands::catalog::types::EngineInfo;
 
 use crate::error::CloseCode;
 use crate::error::ProtocolError;
@@ -114,7 +114,10 @@ pub struct AuthLimits {
 impl AuthLimits {
     /// The documented policy: 5 failures, 60 s.
     pub const fn documented() -> AuthLimits {
-        AuthLimits { max_failures: 5, lockout: Duration::from_secs(60) }
+        AuthLimits {
+            max_failures: 5,
+            lockout: Duration::from_secs(60),
+        }
     }
 }
 
@@ -283,17 +286,25 @@ impl ControlServer {
         let candidate = match bind_host {
             "127.0.0.1" | "::1" | "[::1]" | "localhost" => bind_host,
             other => {
-                return Err(ProtocolError::NonLoopbackBind { requested: other.to_owned() });
+                return Err(ProtocolError::NonLoopbackBind {
+                    requested: other.to_owned(),
+                });
             }
         };
         let addr = format!("{candidate}:{}", config.port);
         let resolved = addr
             .to_socket_addrs()
-            .map_err(|source| ProtocolError::Io { what: "resolving bind address", source })?
+            .map_err(|source| ProtocolError::Io {
+                what: "resolving bind address",
+                source,
+            })?
             .collect::<Vec<_>>();
         if resolved.is_empty() {
             let source = std::io::Error::other("no address resolved for the loopback bind");
-            return Err(ProtocolError::Io { what: "resolving bind address", source });
+            return Err(ProtocolError::Io {
+                what: "resolving bind address",
+                source,
+            });
         }
         let mut last_err: Option<ProtocolError> = None;
         let mut bound: Option<(TcpListener, SocketAddr)> = None;
@@ -312,7 +323,10 @@ impl ControlServer {
                     break;
                 }
                 Err(source) => {
-                    last_err = Some(ProtocolError::Io { what: "binding loopback listener", source });
+                    last_err = Some(ProtocolError::Io {
+                        what: "binding loopback listener",
+                        source,
+                    });
                 }
             }
         }
@@ -323,20 +337,31 @@ impl ControlServer {
                     Some(err) => Err(err),
                     None => {
                         let source = std::io::Error::other("no bindable loopback address");
-                        Err(ProtocolError::Io { what: "binding loopback listener", source })
+                        Err(ProtocolError::Io {
+                            what: "binding loopback listener",
+                            source,
+                        })
                     }
                 };
             }
         };
         // Belt and braces: whatever the OS handed back must be loopback.
         if !bound_addr.ip().is_loopback() {
-            return Err(ProtocolError::NonLoopbackBind { requested: bound_addr.to_string() });
+            return Err(ProtocolError::NonLoopbackBind {
+                requested: bound_addr.to_string(),
+            });
         }
         let (token, entropy) = match &config.token {
             TokenSource::Fixed(token) => (Token(token.clone()), EntropySource::OsRandom),
             TokenSource::Generated => generate_token(),
         };
-        Ok(ControlServer { listener, config, token, entropy, failures: FailureBook::default() })
+        Ok(ControlServer {
+            listener,
+            config,
+            token,
+            entropy,
+            failures: FailureBook::default(),
+        })
     }
 
     /// The address actually bound (host tests point clients here).
@@ -346,7 +371,10 @@ impl ControlServer {
     pub fn local_addr(&self) -> Result<SocketAddr, ProtocolError> {
         self.listener
             .local_addr()
-            .map_err(|source| ProtocolError::Io { what: "reading local addr", source })
+            .map_err(|source| ProtocolError::Io {
+                what: "reading local addr",
+                source,
+            })
     }
 
     /// The live token (host logs it to the controlling terminal; this
@@ -374,11 +402,14 @@ impl ControlServer {
     /// [`ProtocolError::Io`] for accept/transport trouble. Protocol
     /// breaches are NOT errors here — they are typed closes recorded
     /// in the summary.
-    pub fn serve_one(&mut self, dispatch: &mut dyn Dispatch) -> Result<SessionSummary, ProtocolError> {
-        let (mut stream, remote) = self
-            .listener
-            .accept()
-            .map_err(|source| ProtocolError::Io { what: "accepting a control connection", source })?;
+    pub fn serve_one(
+        &mut self,
+        dispatch: &mut dyn Dispatch,
+    ) -> Result<SessionSummary, ProtocolError> {
+        let (mut stream, remote) = self.listener.accept().map_err(|source| ProtocolError::Io {
+            what: "accepting a control connection",
+            source,
+        })?;
         let mut session = Session::new(&self.config, &self.token, remote.to_string());
         let end = session.run(&mut stream, dispatch, &mut self.failures);
         Ok(SessionSummary {
@@ -446,7 +477,9 @@ impl Session {
             Err(ProtocolError::Closed) => return SessionEnd::Eof,
             Err(err) => {
                 let status = match &err {
-                    ProtocolError::HttpUpgrade { reason: "request-head-too-large" } => 431,
+                    ProtocolError::HttpUpgrade {
+                        reason: "request-head-too-large",
+                    } => 431,
                     _ => 400,
                 };
                 let bytes = http::error_response(status, "Bad Request");
@@ -504,6 +537,7 @@ impl Session {
                         self.protocol_errors = self.protocol_errors.saturating_add(1);
                         let error = self.error_frame(
                             ProtocolErrorCode::BadFrame,
+                            // lumen-allow-literal: protocol name + major — wire vocabulary, not product identity
                             "lumen-control/1 speaks JSON text frames only",
                         );
                         if let Err(err) = self.send_json(stream, &error) {
@@ -540,17 +574,32 @@ impl Session {
                 return self.recoverable(
                     stream,
                     ProtocolErrorCode::BadJson,
-                    &format!("payload is not valid JSON: {}", crate::protocol::redact_name(&err.to_string())),
+                    &format!(
+                        "payload is not valid JSON: {}",
+                        crate::protocol::redact_name(&err.to_string())
+                    ),
                 );
             }
         };
         if !self.established {
             return self.handle_hello(stream, value, failures);
         }
+        // Envelope-shape validation runs on the RAW value, BEFORE the
+        // typed parse: the flatten-based `ClientFrame::Request` cannot
+        // carry `deny_unknown_fields`, and an unknown field would be
+        // silently DROPPED by the typed round-trip — the re-serialized
+        // request the old post-parse check saw was already clean
+        // (found by the conformance suite: `"extra":true` dispatched).
+        if let Some(err) = value
+            .get("type")
+            .and_then(serde_json::Value::as_str)
+            .filter(|kind| *kind == "request")
+            .and_then(|_| validate_request_shape(&value).err())
+        {
+            return self.recoverable(stream, ProtocolErrorCode::InvalidRequest, &err.message);
+        }
         match serde_json::from_value::<ClientFrame>(value) {
-            Ok(ClientFrame::Hello { .. }) => {
-                self.fail_with(stream, ProtocolError::HelloTwice)
-            }
+            Ok(ClientFrame::Hello { .. }) => self.fail_with(stream, ProtocolError::HelloTwice),
             Ok(ClientFrame::Request { request }) => self.handle_request(stream, request, dispatch),
             Ok(ClientFrame::Subscribe { events }) => {
                 for kind in events {
@@ -588,7 +637,11 @@ impl Session {
         failures: &mut FailureBook,
     ) -> Flow {
         let hello = match serde_json::from_value::<ClientFrame>(value) {
-            Ok(ClientFrame::Hello { protocol, versions, token }) => (protocol, versions, token),
+            Ok(ClientFrame::Hello {
+                protocol,
+                versions,
+                token,
+            }) => (protocol, versions, token),
             Ok(_) => {
                 return self.fail_with(stream, ProtocolError::NotHello);
             }
@@ -614,17 +667,17 @@ impl Session {
         match token {
             Some(presented) => {
                 if failures.is_locked() {
-                    return self.fail_with(
-                        stream,
-                        ProtocolError::Unauthorized { locked_out: true },
-                    );
+                    return self
+                        .fail_with(stream, ProtocolError::Unauthorized { locked_out: true });
                 }
                 if !constant_time_eq(presented.as_bytes(), self.token.0.as_bytes()) {
                     let engaged = failures.note_failure(&self.auth_limits);
                     let _ = engaged; // the summary carries the state
                     return self.fail_with(
                         stream,
-                        ProtocolError::Unauthorized { locked_out: failures.is_locked() },
+                        ProtocolError::Unauthorized {
+                            locked_out: failures.is_locked(),
+                        },
                     );
                 }
                 self.authenticated = true;
@@ -633,7 +686,8 @@ impl Session {
                 if !self.policy.read_only() {
                     // No token, no read-only mode: refuse before any
                     // command executes (deny-by-default, doc 05 §5.4).
-                    return self.fail_with(stream, ProtocolError::Unauthorized { locked_out: false });
+                    return self
+                        .fail_with(stream, ProtocolError::Unauthorized { locked_out: false });
                 }
                 self.authenticated = false;
             }
@@ -656,31 +710,15 @@ impl Session {
         }
     }
 
-    /// One request frame (shape → monotonicity → policy → dispatch).
+    /// One request frame (monotonicity → policy → dispatch; the raw
+    /// envelope SHAPE was validated in [`Self::handle_text`] before the
+    /// typed parse — the re-serialized form is provably clean by then).
     fn handle_request(
         &mut self,
         stream: &mut TcpStream,
         request: WireRequest,
         dispatch: &mut dyn Dispatch,
     ) -> Flow {
-        let raw = match serde_json::to_value(&request) {
-            Ok(value) => value,
-            Err(err) => {
-                let message = format!("request re-serialization failed: {err}");
-                return self.recoverable(stream, ProtocolErrorCode::Internal, &message);
-            }
-        };
-        if let Err(err) = validate_request_shape(&raw) {
-            self.protocol_errors = self.protocol_errors.saturating_add(1);
-            let error = self.error_frame(
-                ProtocolErrorCode::InvalidRequest,
-                &err.message,
-            );
-            return match self.send_json(stream, &error) {
-                Ok(()) => Flow::Continue,
-                Err(err) => self.fail_with(stream, err),
-            };
-        }
         // Anti-replay: strictly increasing requestId per connection
         // (doc 05 §4.1/§5.4) — a breach is a protocol close.
         let id = request.request_id.0;
@@ -749,11 +787,10 @@ impl Session {
 
     /// Serialize + write one server frame as a text WS frame.
     fn send_json(&self, stream: &mut TcpStream, frame: &ServerFrame) -> Result<(), ProtocolError> {
-        let text = serde_json::to_string(frame)
-            .map_err(|source| ProtocolError::Io {
-                what: "serializing a server frame",
-                source: std::io::Error::other(source.to_string()),
-            })?;
+        let text = serde_json::to_string(frame).map_err(|source| ProtocolError::Io {
+            what: "serializing a server frame",
+            source: std::io::Error::other(source.to_string()),
+        })?;
         write_frame(stream, true, Opcode::Text, text.as_bytes())
     }
 
@@ -797,6 +834,7 @@ fn err_reason(code: CloseCode) -> String {
         CloseCode::ProtocolError => "websocket protocol violation".to_owned(),
         CloseCode::InvalidUtf8 => "text payload is not valid UTF-8".to_owned(),
         CloseCode::TooBig => "payload exceeded the configured cap".to_owned(),
+        // lumen-allow-literal: protocol name — wire vocabulary, not product identity
         CloseCode::AppProtocolError => "lumen-control application protocol error".to_owned(),
         CloseCode::Unauthorized => "token authentication failed".to_owned(),
         CloseCode::VersionMismatch => "no mutually supported protocol major".to_owned(),
@@ -847,18 +885,27 @@ mod tests {
 
     #[test]
     fn failure_book_engages_the_documented_lockout() {
-        let limits = AuthLimits { max_failures: 3, lockout: Duration::from_millis(50) };
+        let limits = AuthLimits {
+            max_failures: 3,
+            lockout: Duration::from_millis(50),
+        };
         let mut book = FailureBook::default();
         assert!(!book.is_locked());
         assert!(!book.note_failure(&limits));
         assert!(!book.note_failure(&limits));
         assert!(!book.is_locked(), "two failures must not lock yet");
-        assert!(book.note_failure(&limits), "the third failure engages the lockout");
+        assert!(
+            book.note_failure(&limits),
+            "the third failure engages the lockout"
+        );
         assert!(book.is_locked());
         std::thread::sleep(Duration::from_millis(60));
         assert!(!book.is_locked(), "the lockout expires");
         // After expiry one more failure re-locks (failures persist).
-        let mut book2 = FailureBook { failures: 2, locked_until: None };
+        let mut book2 = FailureBook {
+            failures: 2,
+            locked_until: None,
+        };
         assert!(book2.note_failure(&limits));
     }
 

@@ -107,13 +107,17 @@ fn read_head<R: Read>(stream: &mut R) -> Result<Option<String>, ProtocolError> {
                 return if buf.is_empty() {
                     Ok(None)
                 } else {
-                    Err(ProtocolError::HttpUpgrade { reason: "eof-mid-request" })
+                    Err(ProtocolError::HttpUpgrade {
+                        reason: "eof-mid-request",
+                    })
                 };
             }
             Ok(_) => {
                 buf.push(byte[0]);
                 if buf.len() > MAX_REQUEST_HEAD {
-                    return Err(ProtocolError::HttpUpgrade { reason: "request-head-too-large" });
+                    return Err(ProtocolError::HttpUpgrade {
+                        reason: "request-head-too-large",
+                    });
                 }
                 if ends_with_head_terminator(&buf) {
                     return Ok(Some(String::from_utf8_lossy(&buf).into_owned()));
@@ -123,7 +127,10 @@ fn read_head<R: Read>(stream: &mut R) -> Result<Option<String>, ProtocolError> {
                 return if is_disconnect(&err) && buf.is_empty() {
                     Ok(None)
                 } else {
-                    Err(ProtocolError::Io { what: "reading upgrade request", source: err })
+                    Err(ProtocolError::Io {
+                        what: "reading upgrade request",
+                        source: err,
+                    })
                 };
             }
         }
@@ -216,7 +223,10 @@ fn validate_head(head: &str) -> Result<UpgradeRequest, &'static str> {
         }
         _ => return Err("bad-sec-websocket-key"),
     };
-    Ok(UpgradeRequest { path: path.to_owned(), key })
+    Ok(UpgradeRequest {
+        path: path.to_owned(),
+        key,
+    })
 }
 
 /// Build a client-side opening request for `key` (test client).
@@ -242,22 +252,31 @@ pub fn client_request(path: &str, key: &[u8; 16], host: &str) -> Vec<u8> {
 pub fn validate_server_response(response: &str, key: &[u8; 16]) -> Result<(), ProtocolError> {
     let expected_accept = accept_value(key);
     let mut lines = response.split('\n').map(|line| line.trim_end_matches('\r'));
-    let status = lines.next().ok_or(ProtocolError::HttpUpgrade { reason: "empty-response" })?;
+    let status = lines.next().ok_or(ProtocolError::HttpUpgrade {
+        reason: "empty-response",
+    })?;
     if !status.starts_with("HTTP/1.1 101") {
-        return Err(ProtocolError::HttpUpgrade { reason: "not-switching-protocols" });
+        return Err(ProtocolError::HttpUpgrade {
+            reason: "not-switching-protocols",
+        });
     }
     let mut accept: Option<String> = None;
     for line in lines {
-        if let Some((name, value)) = line.split_once(':') {
-            if name.trim().eq_ignore_ascii_case("sec-websocket-accept") {
-                accept = Some(value.trim().to_owned());
-            }
+        if let Some((_, value)) = line
+            .split_once(':')
+            .filter(|(name, _)| name.trim().eq_ignore_ascii_case("sec-websocket-accept"))
+        {
+            accept = Some(value.trim().to_owned());
         }
     }
     match accept {
         Some(value) if value == expected_accept => Ok(()),
-        Some(_) => Err(ProtocolError::HttpUpgrade { reason: "accept-mismatch" }),
-        None => Err(ProtocolError::HttpUpgrade { reason: "missing-accept" }),
+        Some(_) => Err(ProtocolError::HttpUpgrade {
+            reason: "accept-mismatch",
+        }),
+        None => Err(ProtocolError::HttpUpgrade {
+            reason: "missing-accept",
+        }),
     }
 }
 
@@ -273,9 +292,10 @@ pub fn read_response_head<R: Read>(stream: &mut R) -> Result<String, ProtocolErr
 
 /// Write bytes, mapping I/O errors into the typed taxonomy.
 pub fn write_all<W: Write>(stream: &mut W, bytes: &[u8]) -> Result<(), ProtocolError> {
-    stream
-        .write_all(bytes)
-        .map_err(|source| ProtocolError::Io { what: "writing handshake", source })
+    stream.write_all(bytes).map_err(|source| ProtocolError::Io {
+        what: "writing handshake",
+        source,
+    })
 }
 
 #[cfg(test)]
@@ -294,6 +314,7 @@ mod tests {
 
     #[test]
     fn valid_request_parses() {
+        // lumen-allow-literal: protocol-name request path — wire vocabulary, not product identity
         let request = "GET /lumen-control HTTP/1.1\r\n\
                        Host: 127.0.0.1:4355\r\n\
                        Upgrade: WebSocket\r\n\
@@ -302,6 +323,7 @@ mod tests {
                        Sec-WebSocket-Version: 13\r\n\r\n";
         match validate_head(request) {
             Ok(upgrade) => {
+                // lumen-allow-literal: protocol-name request path — wire vocabulary, not product identity
                 assert_eq!(upgrade.path, "/lumen-control");
                 assert_eq!(base64::encode(&upgrade.key), "dGhlIHNhbXBsZSBub25jZQ==");
             }
@@ -367,7 +389,8 @@ mod tests {
                 let response = String::from_utf8_lossy(&response_101(&accept)).into_owned();
                 assert!(validate_server_response(&response, &key).is_ok());
                 // A doctored accept must fail.
-                let doctored = response.replace(&accept, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=");
+                let doctored =
+                    response.replace(&accept, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=");
                 assert_ne!(doctored, response);
                 assert!(validate_server_response(&doctored, &key).is_err());
             }

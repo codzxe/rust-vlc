@@ -65,8 +65,8 @@ pub enum ProtocolError {
         requested: String,
     },
     /// OS-level I/O failure (bind/listen/accept/read/write). The inner
-        /// std error is preserved for the log sink; `Display` stays
-        /// redaction-safe (no paths beyond the operation name).
+    /// std error is preserved for the log sink; `Display` stays
+    /// redaction-safe (no paths beyond the operation name).
     Io {
         /// What was being attempted.
         what: &'static str,
@@ -166,9 +166,9 @@ impl ProtocolError {
                 ErrorCode::InvalidArgument
             }
             ProtocolError::MessageTooLarge { .. } => ErrorCode::ResourceLimit,
-            ProtocolError::NotHello | ProtocolError::HelloTwice | ProtocolError::BadEnvelope { .. } => {
-                ErrorCode::InvalidArgument
-            }
+            ProtocolError::NotHello
+            | ProtocolError::HelloTwice
+            | ProtocolError::BadEnvelope { .. } => ErrorCode::InvalidArgument,
             ProtocolError::UnknownProtocol { .. } => ErrorCode::InvalidArgument,
             ProtocolError::VersionMismatch { .. } => ErrorCode::InvalidArgument,
             ProtocolError::Unauthorized { .. } => ErrorCode::PermissionDenied,
@@ -196,11 +196,13 @@ impl std::fmt::Display for ProtocolError {
                 "payload exceeds the {limit}-byte cap (claimed {claimed})"
             ),
             ProtocolError::NotHello => {
+                // lumen-allow-literal: protocol name (doc 05 §5.4 wire vocabulary), not product identity
                 write!(f, "first frame must be a lumen-control hello")
             }
             ProtocolError::HelloTwice => write!(f, "hello after session start"),
             ProtocolError::UnknownProtocol { offered } => write!(
                 f,
+                // lumen-allow-literal: protocol name (doc 05 §5.4 wire vocabulary), not product identity
                 "unknown protocol name (expected lumen-control, offered {})",
                 crate::protocol::redact_name(offered)
             ),
@@ -261,7 +263,10 @@ mod tests {
 
     #[test]
     fn oversized_maps_to_resource_limit() {
-        let err = ProtocolError::MessageTooLarge { limit: 1024, claimed: 999_999 };
+        let err = ProtocolError::MessageTooLarge {
+            limit: 1024,
+            claimed: 999_999,
+        };
         assert_eq!(err.to_command_error().code, ErrorCode::ResourceLimit);
         assert_eq!(err.close_code(), CloseCode::TooBig);
     }
@@ -280,10 +285,12 @@ mod tests {
     fn only_bad_envelope_is_recoverable() {
         assert!(ProtocolError::BadEnvelope { detail: "x".into() }.is_recoverable());
         assert!(!ProtocolError::Unauthorized { locked_out: false }.is_recoverable());
-        assert!(!ProtocolError::VersionMismatch {
-            client: vec![],
-            server: vec![1]
-        }
-        .is_recoverable());
+        assert!(
+            !ProtocolError::VersionMismatch {
+                client: vec![],
+                server: vec![1]
+            }
+            .is_recoverable()
+        );
     }
 }

@@ -71,8 +71,8 @@ pub mod token;
 pub use error::{CloseCode, ProtocolError};
 pub use policy::{PolicyFile, ServerPolicy, is_sensitive, sensitive_command_ids};
 pub use protocol::{
-    CAPABILITIES_CURRENT, PROTOCOL_NAME, PROTOCOL_VERSION, SUPPORTED_VERSIONS, ClientFrame,
-    ProtocolErrorCode, ServerFrame, Welcome, capabilities_current,
+    CAPABILITIES_CURRENT, ClientFrame, PROTOCOL_NAME, PROTOCOL_VERSION, ProtocolErrorCode,
+    SUPPORTED_VERSIONS, ServerFrame, Welcome, capabilities_current,
 };
 pub use server::{
     AuthLimits, ControlServer, Dispatch, Limits, ServerConfig, SessionSummary, TokenSource,
